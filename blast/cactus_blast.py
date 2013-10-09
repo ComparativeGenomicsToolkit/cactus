@@ -19,7 +19,7 @@ from jobTree.scriptTree.stack import Stack
 
 class BlastOptions:
     def __init__(self, chunkSize=10000000, overlapSize=10000, 
-                 lastzArguments="", compressFiles=True, realign=True, realignArguments="",
+                 lastzArguments="", compressFiles=True, realign=False, realignArguments="",
                  minimumSequenceLength=1, memory=sys.maxint):
         """Class defining options for blast
         """

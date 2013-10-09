@@ -405,6 +405,8 @@ class CactusCafWrapperLarge(CactusRecursionTarget):
                                                         overlapSize=self.getOptionalPhaseAttrib("overlapSize", int),
                                                         lastzArguments=self.getOptionalPhaseAttrib("lastzArguments"),
                                                         compressFiles=self.getOptionalPhaseAttrib("compressFiles", bool),
+                                                        realign=self.getOptionalPhaseAttrib("realign", bool), 
+                                                        realignArguments=self.getOptionalPhaseAttrib("realignArguments"),
                                                         memory=self.getOptionalPhaseAttrib("lastzMemory", int, sys.maxint),
                                                         minimumSequenceLength=self.getOptionalPhaseAttrib("minimumSequenceLengthForBlast", int, 1))))
         #Now setup a call to cactus core wrapper as a follow on

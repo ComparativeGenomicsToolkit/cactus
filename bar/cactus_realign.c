@@ -9,12 +9,8 @@
 
 #include "cactus.h"
 #include "sonLib.h"
-#include "endAligner.h"
-#include "flowerAligner.h"
+#include "pairwiseAligner.h"
 #include "commonC.h"
-#include "stCaf.h"
-#include "stPinchGraphs.h"
-#include "stPinchIterator.h"
 
 void usage() {
     fprintf(stderr, "cactus_baseReAligner [options] seq1[fasta] seq2[fasta], version 0.2\n");
@@ -182,6 +178,7 @@ int main(int argc, char *argv[]) {
         char *subSeqY = getSubSequence(seqY, pA->start2, pA->end2, pA->strand2);
         rebasePairwiseAlignmentCoordinates(&(pA->start1), &(pA->end1), &(pA->strand1), -coordinateShift1, flipStrand1);
         rebasePairwiseAlignmentCoordinates(&(pA->start2), &(pA->end2), &(pA->strand2), -coordinateShift2, flipStrand2);
+        checkPairwiseAlignment(pA);
         //Convert input alignment into anchor pairs
         stList *anchorPairs = convertPairwiseForwardStrandAlignmentToAnchorPairs(pA,
                 pairwiseAlignmentBandingParameters->constraintDiagonalTrim);
@@ -193,9 +190,11 @@ int main(int argc, char *argv[]) {
         //Convert back to cigar
         struct PairwiseAlignment *rPA = convertAlignedPairsToPairwiseAlignment(pA->contig1, pA->contig2, pA->score,
                 alignedPairs);
+        checkPairwiseAlignment(rPA);
         //Rebase realigned-pA.
         rebasePairwiseAlignmentCoordinates(&(rPA->start1), &(rPA->end1), &(rPA->strand1), coordinateShift1, flipStrand1);
         rebasePairwiseAlignmentCoordinates(&(rPA->start2), &(rPA->end2), &(rPA->strand2), coordinateShift2, flipStrand2);
+        checkPairwiseAlignment(rPA);
         //Write out alignment
         cigarWrite(fileHandleOut, rPA, 0);
         //Clean up

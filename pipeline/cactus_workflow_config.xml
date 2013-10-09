@@ -10,6 +10,8 @@
 	</setup>
 	<caf
 		lastzArguments="--hspthresh=1800 --identity=IDENTITY --ambiguous=iupac"
+		realign="1"
+		realignArguments="--gapGamma 0.2 --digaonalExpansion 10 --splitMatrixBiggerThanThis 10 --constraintDiagonalTrim 5 --alignAmbiguityCharacters"
 		chunkSize="2000000" 
 		compressFiles="1" 
 		overlapSize="10000" 
