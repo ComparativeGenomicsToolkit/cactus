@@ -19,14 +19,21 @@ from jobTree.scriptTree.stack import Stack
 
 class BlastOptions:
     def __init__(self, chunkSize=10000000, overlapSize=10000, 
-                 lastzArguments="", compressFiles=True, 
+                 lastzArguments="", compressFiles=True, realign=True, realignArguments="",
                  minimumSequenceLength=1, memory=sys.maxint):
         """Class defining options for blast
         """
         self.chunkSize = chunkSize
         self.overlapSize = overlapSize
-        self.blastString = "lastz --format=cigar %s SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"  % lastzArguments 
-        self.selfBlastString = "lastz --format=cigar %s SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial > CIGARS_FILE" % lastzArguments
+        
+        if realign:
+            self.blastString = "lastz --format=cigar %s SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] | cactus_realign % SEQ_FILE_1 SEQ_FILE2 > CIGARS_FILE"  % (lastzArguments, realignArguments) 
+        else:
+            self.blastString = "lastz --format=cigar %s SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"  % lastzArguments 
+        if realign:
+            self.selfBlastString = "lastz --format=cigar %s SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial | cactus_realign % SEQ_FILE > CIGARS_FILE" % (lastzArguments, realignArguments)
+        else:
+            self.selfBlastString = "lastz --format=cigar %s SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial > CIGARS_FILE" % lastzArguments
         self.compressFiles = compressFiles
         self.minimumSequenceLength = 10
         self.memory = memory

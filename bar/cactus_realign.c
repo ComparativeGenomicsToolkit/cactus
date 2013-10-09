@@ -153,20 +153,18 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    assert(optind + 2 == argc);
-    char *seqFile1 = argv[optind++], *seqFile2 = argv[optind++];
-
     st_setLogLevelFromString(logLevelString);
     st_logInfo("Starting realigning pairwise alignments\n");
 
     //Read in input sequences
     sequences = stHash_construct3(stHash_stringKey, stHash_stringEqualKey, free, free);
-    FILE *seqFileHandle = fopen(seqFile1, "r");
-    fastaReadToFunction(seqFileHandle, addToSequencesHash);
-    fclose(seqFileHandle);
-    seqFileHandle = fopen(seqFile2, "r");
-    fastaReadToFunction(seqFileHandle, addToSequencesHash);
-    fclose(seqFileHandle);
+    assert(optind < argc);
+    while(optind < argc) {
+        FILE *seqFileHandle = fopen(argv[optind++], "r");
+        fastaReadToFunction(seqFileHandle, addToSequencesHash);
+        fclose(seqFileHandle);
+    }
+
     //Now do the business of processing the sequences.
     struct PairwiseAlignment *pA;
     FILE *fileHandleIn = stdin;
