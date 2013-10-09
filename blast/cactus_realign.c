@@ -24,6 +24,8 @@ void usage() {
     fprintf(stderr, "-t --constraintDiagonalTrim : (int >= 0) Amount to trim from ends of each anchor\n");
     fprintf(stderr,
             "-w --alignAmbiguityCharacters : Align ambiguity characters (anything not ACTGactg) as a wildcard\n");
+    fprintf(stderr,
+                "-x --dummy : Do everything but realign, used for testing.\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -93,6 +95,7 @@ int main(int argc, char *argv[]) {
     pairwiseAlignmentBandingParameters->constraintDiagonalTrim = 3;
     pairwiseAlignmentBandingParameters->splitMatrixBiggerThanThis = 100;
     pairwiseAlignmentBandingParameters->diagonalExpansion = 10;
+    bool dummy = 0;
 
     /*
      * Parse the options.
@@ -101,11 +104,11 @@ int main(int argc, char *argv[]) {
         static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "help", no_argument, 0,
                 'h' }, { "gapGamma", required_argument, 0, 'l' }, { "splitMatrixBiggerThanThis", required_argument, 0,
                 'o' }, { "diagonalExpansion", required_argument, 0, 'r' }, { "constraintDiagonalTrim",
-                required_argument, 0, 't' }, { "alignAmbiguityCharacters", no_argument, 0, 'w' }, { 0, 0, 0, 0 } };
+                required_argument, 0, 't' }, { "alignAmbiguityCharacters", no_argument, 0, 'w' }, { "dummy", no_argument, 0, 'x' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:hl:o:r:t:wx:y:", long_options, &option_index);
+        int key = getopt_long(argc, argv, "a:hl:o:r:t:wx", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -142,6 +145,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 'w':
                 pairwiseAlignmentBandingParameters->alignAmbiguityCharacters = 1;
+                break;
+            case 'x':
+                dummy = 1;
                 break;
             default:
                 usage();
@@ -183,8 +189,13 @@ int main(int argc, char *argv[]) {
         stList *anchorPairs = convertPairwiseForwardStrandAlignmentToAnchorPairs(pA,
                 pairwiseAlignmentBandingParameters->constraintDiagonalTrim);
         //Get posterior prob pairs
-        stList *alignedPairs = getAlignedPairsUsingAnchors(subSeqX, subSeqY, anchorPairs,
-                pairwiseAlignmentBandingParameters, 1, 1);
+        stList *alignedPairs = NULL;
+        if(dummy) {
+            alignedPairs = convertPairwiseForwardStrandAlignmentToAnchorPairs(pA, 0);
+        }
+        else {
+            alignedPairs = getAlignedPairsUsingAnchors(subSeqX, subSeqY, anchorPairs, pairwiseAlignmentBandingParameters, 1, 1);
+        }
         //Convert to partial ordered set of pairs
         stList_destruct(filterPairwiseAlignmentToMakePairsOrdered(alignedPairs, gapGamma));
         //Convert back to cigar
