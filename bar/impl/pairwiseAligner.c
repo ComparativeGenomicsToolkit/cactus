@@ -907,10 +907,9 @@ stList *getBlastPairs(const char *sX, const char *sY, int64_t lX, int64_t lY, in
     while ((pA = cigarRead(fileHandle)) != NULL) {
         assert(strcmp(pA->contig1, "a") == 0);
         assert(strcmp(pA->contig2, "b") == 0);
-        assert(pA->strand1);
-        assert(pA->strand2);
         stList *alignedPairsForCigar = convertPairwiseForwardStrandAlignmentToAnchorPairs(pA, trim);
         stList_appendAll(alignedPairs, alignedPairsForCigar);
+        stList_setDestructor(alignedPairsForCigar, NULL);
         stList_destruct(alignedPairsForCigar);
         destructPairwiseAlignment(pA);
     }

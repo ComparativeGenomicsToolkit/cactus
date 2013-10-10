@@ -11,7 +11,7 @@
 #include "bioioC.h"
 #include "commonC.h"
 
-#include "blastAlignmentLib.c"
+#include "blastAlignmentLib.h"
 
 int main(int argc, char *argv[]) {
     //log-string, chunkSize, overlapSize, dirToPutChunksIn, seqFilesX n

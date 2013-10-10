@@ -1,7 +1,7 @@
 import unittest
 
-import os
-from sonLib.bioio import cigarRead
+import os, sys
+from sonLib.bioio import cigarReadFromString, cigarWrite
 from sonLib.bioio import popenCatch
 from sonLib.bioio import logger
 from sonLib.bioio import TestStatus
@@ -22,12 +22,12 @@ class TestCase(unittest.TestCase):
             realignCommand, lastzCommand = getCommands(seqFile1, seqFile2, "--dummy")
             for realignLine, lastzLine in zip([ i for i in popenCatch(realignCommand).split("\n") if i != '' ], 
                                               [ i for i in popenCatch(lastzCommand).split("\n") if i != '' ]):
-                realignCigar = cigarRead(realignLine)
-                lastzCigar = cigarRead(lastzLine)
+                realignCigar = cigarReadFromString(realignLine)
+                lastzCigar = cigarReadFromString(lastzLine)
+                self.assertTrue(realignCigar != None)
                 self.assertTrue(realignCigar == lastzCigar)
     
     def testCactusRealign(self):
-        return
         """Runs cactus realign using the default parameters and checks that the realigned output cigars align 
         the same subsequences.
         """
@@ -35,13 +35,11 @@ class TestCase(unittest.TestCase):
             realignCommand, lastzCommand = getCommands(seqFile1, seqFile2)
             for realignLine, lastzLine in zip([ i for i in popenCatch(realignCommand).split("\n") if i != '' ], 
                                               [ i for i in popenCatch(lastzCommand).split("\n") if i != '' ]):
-                realignCigar = cigarRead(realignLine)
-                lastzCigar = cigarRead(lastzLine)
+                realignCigar = cigarReadFromString(realignLine)
+                lastzCigar = cigarReadFromString(lastzLine)
                 self.assertTrue(realignCigar.sameCoordinates(lastzCigar))
 
-def getCommands(seqFile1, seqFile2, realignArguments="", lastzArguments="--hspthresh=1800 --ambiguous=iupac"):  
-    lastzArguments="--hspthresh=1800 --ambiguous=iupac"
-    realignArguments="--dummy"
+def getCommands(seqFile1, seqFile2, realignArguments="", lastzArguments="--ambiguous=iupac"):  
     lastzCommand = "lastz --format=cigar %s %s[multiple][nameparse=darkspace] %s[nameparse=darkspace]" % (lastzArguments, seqFile1, seqFile2)
     realignCommand = "%s | cactus_realign %s %s %s" % (lastzCommand, realignArguments, seqFile1, seqFile2)
     return realignCommand, lastzCommand
@@ -50,7 +48,7 @@ def seqFilePairGenerator():
      ##Get sequences
     encodePath = os.path.join(TestStatus.getPathToDataSets(), "MAY-2005")
     encodeRegions = [ "ENm00" + str(i) for i in xrange(1,2) ] #, 2) ] #Could go to six
-    species = ("human", "mouse", "dog")
+    species = ("human", "mouse") #, "dog")
     #Other species to try "rat", "monodelphis", "macaque", "chimp"
     for encodeRegion in encodeRegions:
         regionPath = os.path.join(encodePath, encodeRegion)
