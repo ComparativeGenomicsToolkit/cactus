@@ -27,11 +27,11 @@ class BlastOptions:
         self.overlapSize = overlapSize
         
         if realign:
-            self.blastString = "lastz --format=cigar %s SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] | cactus_realign % SEQ_FILE_1 SEQ_FILE2 > CIGARS_FILE"  % (lastzArguments, realignArguments) 
+            self.blastString = "lastz --format=cigar %s SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] | cactus_realign %s SEQ_FILE_1 SEQ_FILE_2 > CIGARS_FILE"  % (lastzArguments, realignArguments) 
         else:
             self.blastString = "lastz --format=cigar %s SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"  % lastzArguments 
         if realign:
-            self.selfBlastString = "lastz --format=cigar %s SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial | cactus_realign % SEQ_FILE > CIGARS_FILE" % (lastzArguments, realignArguments)
+            self.selfBlastString = "lastz --format=cigar %s SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial | cactus_realign %s SEQ_FILE > CIGARS_FILE" % (lastzArguments, realignArguments)
         else:
             self.selfBlastString = "lastz --format=cigar %s SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial > CIGARS_FILE" % lastzArguments
         self.compressFiles = compressFiles

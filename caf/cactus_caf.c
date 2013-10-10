@@ -67,6 +67,8 @@ static void usage() {
     fprintf(
                 stderr,
                 "-A --maximumMedianSequenceLengthBetweenLinkedEnds : Maximum nedian length of sequences between linked ends to allow before breaking chains.\n");
+    fprintf(stderr, "-B --realign : Realign the lastz hits.\n");
+    fprintf(stderr, "-C --realignArguments : Arguments for realignment.\n");
 }
 
 static int64_t *getInts(const char *string, int64_t *arrayLength) {
@@ -204,7 +206,7 @@ int main(int argc, char *argv[]) {
     char * alignmentsFile = NULL;
     char * constraintsFile = NULL;
     char * cactusDiskDatabaseString = NULL;
-    char * lastzArguments = NULL;
+    char * lastzArguments = "";
     int64_t minimumSequenceLengthForBlast = 1;
 
     //Parameters for annealing/melting rounds
@@ -226,6 +228,8 @@ int main(int argc, char *argv[]) {
     float proportionOfUnalignedBasesForNewChromosome = 0.8;
     bool breakChainsAtReverseTandems = 1;
     int64_t maximumMedianSequenceLengthBetweenLinkedEnds = INT64_MAX;
+    bool realign = 0;
+    char *realignArguments = "";
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -244,11 +248,12 @@ int main(int argc, char *argv[]) {
                         required_argument, 0, 'w' }, { "constraints", required_argument, 0, 'x' }, { "minLengthForChromosome",
                         required_argument, 0, 'y' }, { "proportionOfUnalignedBasesForNewChromosome", required_argument, 0, 'z' },
                         { "maximumMedianSequenceLengthBetweenLinkedEnds", required_argument, 0, 'A' },
+                        { "realign", no_argument, 0, 'B' }, { "realignArguments", required_argument, 0, 'C' },
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:", long_options, &option_index);
+        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:BC:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -328,6 +333,12 @@ int main(int argc, char *argv[]) {
             case 'A':
                 k = sscanf(optarg, "%" PRIi64 "", &maximumMedianSequenceLengthBetweenLinkedEnds);
                 assert(k == 1);
+                break;
+            case 'B':
+                realign = 1;
+                break;
+            case 'C':
+                realignArguments = stString_copy(optarg);
                 break;
             default:
                 usage();
@@ -450,7 +461,7 @@ int main(int argc, char *argv[]) {
                 if (tempFile1 == NULL) {
                     tempFile1 = getTempFile();
                 }
-                alignmentsList = stCaf_selfAlignFlower(flower, minimumSequenceLengthForBlast, lastzArguments, tempFile1);
+                alignmentsList = stCaf_selfAlignFlower(flower, minimumSequenceLengthForBlast, lastzArguments, realign, realignArguments, tempFile1);
                 if (sortAlignments) {
                     stCaf_sortCigarsByScoreInDescendingOrder(alignmentsList);
                 }

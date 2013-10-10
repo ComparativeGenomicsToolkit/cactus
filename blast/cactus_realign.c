@@ -18,7 +18,7 @@ void usage() {
     fprintf(stderr, "-a --logLevel : Set the log level\n");
     fprintf(stderr, "-l --gapGamma : (float [0, 1]) The gap gamma (as in the AMAP function)\n");
     fprintf(stderr, "-o --splitMatrixBiggerThanThis : (int >= 0)  No dp matrix bigger than this number squared will be computed.\n");
-    fprintf(stderr, "-r --digaonalExpansion : (int >= 0 and even) Number of x-y diagonals to expand around anchors\n");
+    fprintf(stderr, "-r --diagonalExpansion : (int >= 0 and even) Number of x-y diagonals to expand around anchors\n");
     fprintf(stderr, "-t --constraintDiagonalTrim : (int >= 0) Amount to trim from ends of each anchor\n");
     fprintf(stderr, "-w --alignAmbiguityCharacters : Align ambiguity characters (anything not ACTGactg) as a wildcard\n");
     fprintf(stderr, "-x --dummy : Do everything but realign, used for testing.\n");
