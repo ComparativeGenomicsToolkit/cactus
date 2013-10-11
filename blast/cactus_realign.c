@@ -40,23 +40,25 @@ struct PairwiseAlignment *convertAlignedPairsToPairwiseAlignment(char *seqName1,
         int64_t y = stIntTuple_get(alignedPair, 1);
         assert(x - pX > 0);
         assert(y - pY > 0);
-        if (x - pX > 1) { //There is an indel.
-            if (mL > 0) {
-                listAppend(opList, constructAlignmentOperation(PAIRWISE_MATCH, mL, 0));
-                mL = 0;
+        if(x - pX > 0 && y - pY > 0) { //This is a hack for filtering
+            if (x - pX > 1) { //There is an indel.
+                if (mL > 0) {
+                    listAppend(opList, constructAlignmentOperation(PAIRWISE_MATCH, mL, 0));
+                    mL = 0;
+                }
+                listAppend(opList, constructAlignmentOperation(PAIRWISE_INDEL_X, x - pX - 1, 0));
             }
-            listAppend(opList, constructAlignmentOperation(PAIRWISE_INDEL_X, x - pX - 1, 0));
-        }
-        if (y - pY > 1) {
-            if (mL > 0) {
-                listAppend(opList, constructAlignmentOperation(PAIRWISE_MATCH, mL, 0));
-                mL = 0;
+            if (y - pY > 1) {
+                if (mL > 0) {
+                    listAppend(opList, constructAlignmentOperation(PAIRWISE_MATCH, mL, 0));
+                    mL = 0;
+                }
+                listAppend(opList, constructAlignmentOperation(PAIRWISE_INDEL_Y, y - pY - 1, 0));
             }
-            listAppend(opList, constructAlignmentOperation(PAIRWISE_INDEL_Y, y - pY - 1, 0));
+            mL++;
+            pX = x;
+            pY = y;
         }
-        mL++;
-        pX = x;
-        pY = y;
     }
     //Deal with a trailing match, but exclude the final match
     if (mL > 1) {
@@ -114,14 +116,22 @@ bool matchFn(void *aPair, void *seqs) {
     return x == y && toupper(x) != 'N';
 }
 
+bool gapGammaFilter(void *aPair, void *gapGamma) {
+    bool b = ((double)stIntTuple_get(aPair, 0)) / PAIR_ALIGNMENT_PROB_1 >= *((float *)gapGamma);
+    if(!b) { //Cleanup.
+        stIntTuple_destruct(aPair);
+    }
+    return b;
+}
+
 int main(int argc, char *argv[]) {
     char * logLevelString = NULL;
-    float gapGamma = 0.2;
+    float gapGamma = 0.9;
     int64_t i, j;
     PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters = pairwiseAlignmentBandingParameters_construct();
     pairwiseAlignmentBandingParameters->constraintDiagonalTrim = 0;
     pairwiseAlignmentBandingParameters->splitMatrixBiggerThanThis = 10;
-    pairwiseAlignmentBandingParameters->diagonalExpansion = 5;
+    pairwiseAlignmentBandingParameters->diagonalExpansion = 4;
     bool dummy = 0;
 
     /*
@@ -226,7 +236,16 @@ int main(int argc, char *argv[]) {
         } else {
             alignedPairs = getAlignedPairsUsingAnchors(subSeqX, subSeqY, filteredAnchoredPairs, pairwiseAlignmentBandingParameters, 1, 1);
             //Convert to partial ordered set of pairs
-            stList_destruct(filterPairwiseAlignmentToMakePairsOrdered(alignedPairs, gapGamma));
+            if(gapGamma < 0.55) { //Shouldn't be needed if we only take pairs with > 50% posterior prob
+                stList_destruct(filterPairwiseAlignmentToMakePairsOrdered(alignedPairs, gapGamma));
+            }
+            else { //Just filter by gap gamma (the alterative is quite expensive)
+                stList *l = stList_filter2(alignedPairs, gapGammaFilter, &gapGamma);
+                stList_setDestructor(alignedPairs, NULL);
+                stList_setDestructor(l, (void (*)(void *))stIntTuple_destruct);
+                stList_destruct(alignedPairs);
+                alignedPairs = l;
+            }
             //Convert to ordered list of sequence coordinate pairs
             stList_mapReplace(alignedPairs, convertToAnchorPair, NULL);
             stList_sort(alignedPairs, (int(*)(const void *, const void *)) stIntTuple_cmpFn); //Ensure we have an monotonically increasing ordering
