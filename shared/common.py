@@ -212,7 +212,7 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
     singleCopyOutgroup = nameValue("singleCopyOutgroup", singleCopyOutgroup, bool)
     maxAdjacencyComponentSizeRatio = nameValue("maxAdjacencyComponentSizeRatio", maxAdjacencyComponentSizeRatio, float)
     constraints = nameValue("constraints", constraints)
-    realign = nameValue("realign", singleCopyOutgroup, bool)
+    realign = nameValue("realign", realign, bool)
     realignArguments = nameValue("realignArguments", realignArguments, quotes=True)
     
     minLengthForChromosome = nameValue("minLengthForChromosome", minLengthForChromosome, int)
