@@ -11,7 +11,7 @@
 	<caf
 		lastzArguments="--hspthresh=1800 --identity=IDENTITY --ambiguous=iupac"
 		realign="1"
-		realignArguments="--gapGamma 0.2 --diagonalExpansion 10 --splitMatrixBiggerThanThis 10 --constraintDiagonalTrim 5 --alignAmbiguityCharacters"
+		realignArguments="--gapGamma 0.9 --diagonalExpansion 5 --splitMatrixBiggerThanThis 10 --constraintDiagonalTrim 0 --alignAmbiguityCharacters"
 		chunkSize="2000000" 
 		compressFiles="1" 
 		overlapSize="10000" 

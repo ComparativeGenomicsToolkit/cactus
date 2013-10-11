@@ -6,6 +6,8 @@
 
 #include <assert.h>
 #include <getopt.h>
+#include <stdio.h>
+#include <ctype.h>
 
 #include "cactus.h"
 #include "sonLib.h"
@@ -100,14 +102,26 @@ void addToSequencesHash(const char *header, const char *sequence, int64_t length
     stList_destruct(tokens);
 }
 
+void *convertToAnchorPair(void *aPair, void *extraArg) {
+    stIntTuple *i = stIntTuple_construct2(stIntTuple_get(aPair, 1), stIntTuple_get(aPair, 2));
+    stIntTuple_destruct(aPair);
+    return i;
+}
+
+bool matchFn(void *aPair, void *seqs) {
+    char x = ((char **)seqs)[0][stIntTuple_get(aPair, 0)];
+    char y = ((char **)seqs)[1][stIntTuple_get(aPair, 1)];
+    return x == y && toupper(x) != 'N';
+}
+
 int main(int argc, char *argv[]) {
     char * logLevelString = NULL;
     float gapGamma = 0.2;
     int64_t i, j;
     PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters = pairwiseAlignmentBandingParameters_construct();
-    pairwiseAlignmentBandingParameters->constraintDiagonalTrim = 3;
-    pairwiseAlignmentBandingParameters->splitMatrixBiggerThanThis = 100;
-    pairwiseAlignmentBandingParameters->diagonalExpansion = 10;
+    pairwiseAlignmentBandingParameters->constraintDiagonalTrim = 0;
+    pairwiseAlignmentBandingParameters->splitMatrixBiggerThanThis = 10;
+    pairwiseAlignmentBandingParameters->diagonalExpansion = 5;
     bool dummy = 0;
 
     /*
@@ -202,22 +216,20 @@ int main(int argc, char *argv[]) {
         //Convert input alignment into anchor pairs
         stList *anchorPairs = convertPairwiseForwardStrandAlignmentToAnchorPairs(pA,
                 pairwiseAlignmentBandingParameters->constraintDiagonalTrim);
+        //Filter anchorPairs to remove anchor pairs that include mismatches
+        char *seqs[2] = { subSeqX, subSeqY };
+        stList *filteredAnchoredPairs = stList_filter2(anchorPairs, matchFn, seqs);
         //Get posterior prob pairs
         stList *alignedPairs = NULL;
         if (dummy) {
             alignedPairs = convertPairwiseForwardStrandAlignmentToAnchorPairs(pA, 0);
         } else {
-            alignedPairs = getAlignedPairsUsingAnchors(subSeqX, subSeqY, anchorPairs, pairwiseAlignmentBandingParameters, 1, 1);
+            alignedPairs = getAlignedPairsUsingAnchors(subSeqX, subSeqY, filteredAnchoredPairs, pairwiseAlignmentBandingParameters, 1, 1);
             //Convert to partial ordered set of pairs
             stList_destruct(filterPairwiseAlignmentToMakePairsOrdered(alignedPairs, gapGamma));
-            stList *l = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
-            for (int64_t k = 0; k < stList_length(alignedPairs); k++) {
-                stIntTuple *aPair = stList_get(alignedPairs, k);
-                stList_append(l, stIntTuple_construct2(stIntTuple_get(aPair, 1), stIntTuple_get(aPair, 2)));
-            }
-            stList_sort(l, (int(*)(const void *, const void *)) stIntTuple_cmpFn); //Ensure we have an monotonically increasing ordering
-            stList_destruct(alignedPairs);
-            alignedPairs = l;
+            //Convert to ordered list of sequence coordinate pairs
+            stList_mapReplace(alignedPairs, convertToAnchorPair, NULL);
+            stList_sort(alignedPairs, (int(*)(const void *, const void *)) stIntTuple_cmpFn); //Ensure we have an monotonically increasing ordering
         }
         //Convert back to cigar
         struct PairwiseAlignment *rPA = convertAlignedPairsToPairwiseAlignment(pA->contig1, pA->contig2, pA->score, pA->end1, pA->end2,
@@ -229,6 +241,7 @@ int main(int argc, char *argv[]) {
         //Write out alignment
         cigarWrite(fileHandleOut, rPA, 0);
         //Clean up
+        stList_destruct(filteredAnchoredPairs);
         stList_destruct(anchorPairs);
         stList_destruct(alignedPairs);
         destructPairwiseAlignment(pA);
