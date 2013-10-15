@@ -13,7 +13,9 @@
 #include "pairwiseAlignment.h"
 #include "blastAlignmentLib.h"
 
-stList *stCaf_selfAlignFlower(Flower *flower, int64_t minimumSequenceLength, const char *lastzArgs, char *tempFile1) {
+stList *stCaf_selfAlignFlower(Flower *flower, int64_t minimumSequenceLength, const char *lastzArgs,
+        bool realign, const char *realignArgs,
+        char *tempFile1) {
     /*
      * Get the sequences.
      */
@@ -23,9 +25,17 @@ stList *stCaf_selfAlignFlower(Flower *flower, int64_t minimumSequenceLength, con
         /*
          * Run lastz.
          */
-        char *command = stString_print(
-                "lastz --format=cigar %s %s[multiple][nameparse=darkspace] %s[nameparse=darkspace] --notrivial",
-                lastzArgs, tempFile1, tempFile1);
+        char *command = NULL;
+        if(realign) {
+            command = stString_print(
+                                "lastz --format=cigar %s %s[multiple][nameparse=darkspace] %s[nameparse=darkspace] --notrivial | cactus_realign %s %s",
+                                lastzArgs, tempFile1, tempFile1, realignArgs, tempFile1);
+        }
+        else {
+            command = stString_print(
+                    "lastz --format=cigar %s %s[multiple][nameparse=darkspace] %s[nameparse=darkspace] --notrivial",
+                    lastzArgs, tempFile1, tempFile1);
+        }
         //char *command = stString_print(
         //        "lastz --format=cigar %s %s[multiple][nameparse=darkspace] --self",
         //        lastzArgs, tempFile1);

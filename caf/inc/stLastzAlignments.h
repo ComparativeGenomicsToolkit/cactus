@@ -11,7 +11,9 @@
 #include "cactus.h"
 #include "sonLib.h"
 
-stList *stCaf_selfAlignFlower(Flower *flower, int64_t minimumSequenceLength, const char *lastzArgs, char *tempFile1);
+stList *stCaf_selfAlignFlower(Flower *flower, int64_t minimumSequenceLength, const char *lastzArgs,
+        bool realign, const char *realignArgs,
+        char *tempFile1);
 
 void stCaf_sortCigarsByScoreInDescendingOrder(stList *cigars);
 

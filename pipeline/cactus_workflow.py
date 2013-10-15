@@ -383,7 +383,9 @@ class CactusCafWrapper(CactusRecursionTarget):
                           maxAdjacencyComponentSizeRatio=self.getOptionalPhaseAttrib("maxAdjacencyComponentSizeRatio", float),
                           minLengthForChromosome=self.getOptionalPhaseAttrib("minLengthForChromosome", int),
                           proportionOfUnalignedBasesForNewChromosome=self.getOptionalPhaseAttrib("proportionOfUnalignedBasesForNewChromosome", float),
-                          maximumMedianSequenceLengthBetweenLinkedEnds=self.getOptionalPhaseAttrib("maximumMedianSequenceLengthBetweenLinkedEnds", int))
+                          maximumMedianSequenceLengthBetweenLinkedEnds=self.getOptionalPhaseAttrib("maximumMedianSequenceLengthBetweenLinkedEnds", int),
+                          realign=self.getOptionalPhaseAttrib("realign", bool),
+                          realignArguments=self.getOptionalPhaseAttrib("realignArguments"))
         for message in messages:
             self.logToMaster(message)
     
@@ -405,6 +407,8 @@ class CactusCafWrapperLarge(CactusRecursionTarget):
                                                         overlapSize=self.getOptionalPhaseAttrib("overlapSize", int),
                                                         lastzArguments=self.getOptionalPhaseAttrib("lastzArguments"),
                                                         compressFiles=self.getOptionalPhaseAttrib("compressFiles", bool),
+                                                        realign=self.getOptionalPhaseAttrib("realign", bool), 
+                                                        realignArguments=self.getOptionalPhaseAttrib("realignArguments"),
                                                         memory=self.getOptionalPhaseAttrib("lastzMemory", int, sys.maxint),
                                                         minimumSequenceLength=self.getOptionalPhaseAttrib("minimumSequenceLengthForBlast", int, 1))))
         #Now setup a call to cactus core wrapper as a follow on

@@ -838,6 +838,32 @@ static void writeSequenceToFile(char *file, const char *name, const char *sequen
     fclose(fileHandle);
 }
 
+stList *convertPairwiseForwardStrandAlignmentToAnchorPairs(struct PairwiseAlignment *pA, int64_t trim) {
+    stList *alignedPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct); //the list to put the output in
+    int64_t j = pA->start1;
+    int64_t k = pA->start2;
+    assert(pA->strand1);
+    assert(pA->strand2);
+    for (int64_t i = 0; i < pA->operationList->length; i++) {
+        struct AlignmentOperation *op = pA->operationList->list[i];
+        if (op->opType == PAIRWISE_MATCH) {
+            for (int64_t l = trim; l < op->length - trim; l++) {
+                stList_append(alignedPairs, stIntTuple_construct2( j + l, k + l));
+            }
+        }
+        if (op->opType != PAIRWISE_INDEL_Y) {
+            j += op->length;
+        }
+        if (op->opType != PAIRWISE_INDEL_X) {
+            k += op->length;
+        }
+    }
+
+    assert(j == pA->end1);
+    assert(k == pA->end2);
+    return alignedPairs;
+}
+
 stList *getBlastPairs(const char *sX, const char *sY, int64_t lX, int64_t lY, int64_t trim, bool repeatMask) {
     /*
      * Uses lastz to compute a bunch of monotonically increasing pairs such that for any pair of consecutive pairs in the list
@@ -879,29 +905,12 @@ stList *getBlastPairs(const char *sX, const char *sY, int64_t lX, int64_t lY, in
     //Read from stream
     struct PairwiseAlignment *pA;
     while ((pA = cigarRead(fileHandle)) != NULL) {
-        int64_t j = pA->start1;
-        int64_t k = pA->start2;
         assert(strcmp(pA->contig1, "a") == 0);
         assert(strcmp(pA->contig2, "b") == 0);
-        assert(pA->strand1);
-        assert(pA->strand2);
-        for (int64_t i = 0; i < pA->operationList->length; i++) {
-            struct AlignmentOperation *op = pA->operationList->list[i];
-            if (op->opType == PAIRWISE_MATCH) {
-                for (int64_t l = trim; l < op->length - trim; l++) {
-                    stList_append(alignedPairs, stIntTuple_construct2( j + l, k + l));
-                }
-            }
-            if (op->opType != PAIRWISE_INDEL_Y) {
-                j += op->length;
-            }
-            if (op->opType != PAIRWISE_INDEL_X) {
-                k += op->length;
-            }
-        }
-
-        assert(j == pA->end1);
-        assert(k == pA->end2);
+        stList *alignedPairsForCigar = convertPairwiseForwardStrandAlignmentToAnchorPairs(pA, trim);
+        stList_appendAll(alignedPairs, alignedPairsForCigar);
+        stList_setDestructor(alignedPairsForCigar, NULL);
+        stList_destruct(alignedPairsForCigar);
         destructPairwiseAlignment(pA);
     }
     int64_t status = pclose(fileHandle);
@@ -1191,11 +1200,16 @@ void pairwiseAlignmentBandingParameters_destruct(PairwiseAlignmentParameters *p)
     free(p);
 }
 
-stList *getAlignedPairs(const char *sX, const char *sY, PairwiseAlignmentParameters *p, bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd) {
+stList *getAlignedPairsUsingAnchors(const char *sX, const char *sY, stList *anchorPairs, PairwiseAlignmentParameters *p, bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd) {
     const int64_t lX = strlen(sX);
     const int64_t lY = strlen(sY);
-    stList *anchorPairs = getBlastPairsForPairwiseAlignmentParameters(sX, sY, lX, lY, p);
     stList *alignedPairs = splitAlignmentsByLargeGaps(anchorPairs, sX, sY, lX, lY, p, alignmentHasRaggedLeftEnd, alignmentHasRaggedRightEnd);
+    return alignedPairs;
+}
+
+stList *getAlignedPairs(const char *sX, const char *sY, PairwiseAlignmentParameters *p, bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd) {
+    stList *anchorPairs = getBlastPairsForPairwiseAlignmentParameters(sX, sY, strlen(sX), strlen(sY), p);
+    stList *alignedPairs = getAlignedPairsUsingAnchors(sX, sY, anchorPairs, p, alignmentHasRaggedLeftEnd, alignmentHasRaggedRightEnd);
     stList_destruct(anchorPairs);
     return alignedPairs;
 }

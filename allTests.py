@@ -7,9 +7,10 @@ import unittest
 
 from cactus.setup.cactus_setupTest import TestCase as setupTest
 from cactus.blast.cactus_blastTest import TestCase as blastTest
+from cactus.blast.cactus_realignTest import TestCase as realignTest
 from cactus.pipeline.cactus_workflowTest import TestCase as workflowTest
 from cactus.pipeline.cactus_evolverTest import TestCase as evolverTest
-from cactus.bar.allTests import TestCase as barTest
+from cactus.bar.cactus_barTest import TestCase as barTest
 from cactus.phylogeny.cactus_phylogenyTest import TestCase as phylogenyTest
 from cactus.faces.cactus_fillAdjacenciesTest import TestCase as adjacenciesTest
 from cactus.reference.cactus_referenceTest import TestCase as referenceTest
@@ -29,6 +30,7 @@ def allSuites():
                                    unittest.makeSuite(workflowTest, 'test'),
                                    unittest.makeSuite(evolverTest, 'test'),
                                    unittest.makeSuite(barTest, 'test'),
+                                   unittest.makeSuite(realignTest, 'test'),
                                    unittest.makeSuite(phylogenyTest, 'test'),
                                    unittest.makeSuite(adjacenciesTest, 'test'),
                                    unittest.makeSuite(referenceTest, 'test'),
