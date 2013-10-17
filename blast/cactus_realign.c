@@ -108,7 +108,7 @@ void addToSequencesHash(const char *header, const char *sequence, int64_t length
             free(cA);
 #endif
             //Remove the old sequence and cleanup
-            free(stHash_remove(sequences, firstToken)); //The old first token is not cleaned up currently - a memory leak
+            free(stHash_removeAndFreeKey(sequences, firstToken)); //The old first token is not cleaned up currently - a memory leak
             //Now insert the new sequence
             stHash_insert(sequences, stString_copy(firstToken), stString_copy(sequence));
         }
