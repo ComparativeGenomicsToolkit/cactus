@@ -99,6 +99,12 @@ void addToSequencesHash(const char *header, const char *sequence, int64_t length
         st_logInfo("Got a repeat header: %s with sequence length: %" PRIi64 " vs. the existing hashed sequence of length: %" PRIi64 ", complete header: %s\n", (char *) firstToken, length, strlen(stHash_search(sequences, (char *) firstToken)), header);
         if(length > strlen(stHash_search(sequences, (char *) firstToken))) { //The new sequence is a more complete version of the original sequence (can happen with overlapping fragments).
             st_logInfo("Replacing sequence\n");
+#ifndef NDEBUG
+            //Check old sequence is substring of new string
+            char *cA = stString_getSubString(sequence, 0, strlen(stHash_search(sequences, (char *) firstToken)));
+            assert(stString_eq(cA, sequence));
+            free(cA);
+#endif
             //Remove the old sequence and cleanup
             free(stHash_remove(sequences, firstToken)); //The old first token is not cleaned up currently - a memory leak
             //Now insert the new sequence
