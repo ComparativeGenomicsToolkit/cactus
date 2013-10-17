@@ -104,7 +104,7 @@ void addToSequencesHash(const char *header, const char *sequence, int64_t length
             char *cA = stString_getSubString(sequence, 0, strlen(stHash_search(sequences, (char *) firstToken)));
             st_uglyf("Differences %s\n", cA);
             st_uglyf("DIfferences %s\n", stHash_search(sequences, (char *) firstToken));
-            assert(stString_eq(cA, stHash_search(sequences, (char *) firstToken));
+            assert(stString_eq(cA, stHash_search(sequences, (char *) firstToken)));
             free(cA);
 #endif
             //Remove the old sequence and cleanup
