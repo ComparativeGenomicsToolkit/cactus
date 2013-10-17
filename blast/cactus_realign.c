@@ -102,8 +102,6 @@ void addToSequencesHash(const char *header, const char *sequence, int64_t length
 #ifndef NDEBUG
             //Check old sequence is substring of new string
             char *cA = stString_getSubString(sequence, 0, strlen(stHash_search(sequences, (char *) firstToken)));
-            st_uglyf("Differences %s\n", cA);
-            st_uglyf("DIfferences %s\n", stHash_search(sequences, (char *) firstToken));
             assert(stString_eq(cA, stHash_search(sequences, (char *) firstToken)));
             free(cA);
 #endif
