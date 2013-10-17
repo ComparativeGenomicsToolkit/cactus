@@ -96,10 +96,10 @@ void addToSequencesHash(const char *header, const char *sequence, int64_t length
     stList *tokens = stString_split(header);
     char *firstToken = stList_get(tokens, 0);
     if (stHash_search(sequences, (char *) firstToken) != NULL) {
-        st_logInfo("Got a repeat header: %s %" PRIi64 " %" PRIi64 "\n", (char *) firstToken, length, strlen(stHash_search(sequences, (char *) firstToken)));
+        st_logInfo("Got a repeat header: %s %" PRIi64 " %" PRIi64 ", complete header: %s\n", (char *) firstToken, length, strlen(stHash_search(sequences, (char *) firstToken)), header);
         assert(stString_eq(sequence, stHash_search(sequences, (char *) firstToken)));
     } else {
-        st_logInfo("Adding sequence for header: %s\n", (char *) firstToken);
+        st_logInfo("Adding sequence for header: %s, with length %" PRIi64 ", complete header: %s\n", (char *) firstToken, strlen(sequence), header);
         stHash_insert(sequences, stString_copy(firstToken), stString_copy(sequence));
     }
     stList_destruct(tokens);
