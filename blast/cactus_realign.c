@@ -96,8 +96,14 @@ void addToSequencesHash(const char *header, const char *sequence, int64_t length
     stList *tokens = stString_split(header);
     char *firstToken = stList_get(tokens, 0);
     if (stHash_search(sequences, (char *) firstToken) != NULL) {
-        st_logInfo("Got a repeat header: %s %" PRIi64 " %" PRIi64 ", complete header: %s\n", (char *) firstToken, length, strlen(stHash_search(sequences, (char *) firstToken)), header);
-        assert(stString_eq(sequence, stHash_search(sequences, (char *) firstToken)));
+        st_logInfo("Got a repeat header: %s with sequence length: %" PRIi64 " vs. the existing hashed sequence of length: %" PRIi64 ", complete header: %s\n", (char *) firstToken, length, strlen(stHash_search(sequences, (char *) firstToken)), header);
+        if(length > strlen(stHash_search(sequences, (char *) firstToken))) { //The new sequence is a more complete version of the original sequence (can happen with overlapping fragments).
+            st_logInfo("Replacing sequence\n");
+            //Remove the old sequence and cleanup
+            free(stHash_remove(sequences, firstToken)); //The old first token is not cleaned up currently - a memory leak
+            //Now insert the new sequence
+            stHash_insert(sequences, stString_copy(firstToken), stString_copy(sequence));
+        }
     } else {
         st_logInfo("Adding sequence for header: %s, with length %" PRIi64 ", complete header: %s\n", (char *) firstToken, strlen(sequence), header);
         stHash_insert(sequences, stString_copy(firstToken), stString_copy(sequence));
