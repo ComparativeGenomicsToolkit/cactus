@@ -528,7 +528,7 @@ LOCAL const char *parseNextFormatToken(const char *format, FormatToken *formatTo
 LOCAL bool parseString(const struct __String *string,
                        ulong                 index,
                        const char            *format,
-                       const va_list         arguments,
+                       va_list         arguments,
                        const char            *stringQuotes,
                        ulong                 *nextIndex
                       )
