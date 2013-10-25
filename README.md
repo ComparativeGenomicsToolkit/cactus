@@ -1,5 +1,7 @@
-See doc/INSTALL.txt for instructions on how to install Cactus.
+Please use the progressive-cactus distribution:
 
-See doc/README.pdf for instructions on how to create a genome MSA with Cactus.
+https://github.com/glennhickey/progressiveCactus
+
+To install and run cactus. 
 
 
