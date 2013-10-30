@@ -335,7 +335,7 @@ class ExperimentWrapper(DbElemWrapper):
         return self.xmlRoot.attrib["constraints"]
         
     def getOutputSequenceDir(self):
-        if "outputSequencePath" not in self.xmlRoot.attrib:
+        if "outputSequenceDir" not in self.xmlRoot.attrib:
             return os.path.join(self.getOutputDir(), "processedSequences")
         return self.xmlRoot.attrib["outputSequenceDir"]
     
