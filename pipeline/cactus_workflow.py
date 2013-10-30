@@ -137,7 +137,18 @@ class CactusPhasesTarget(CactusTarget):
                           flowerNames=encodeFlowerNames((self.topFlowerName,)), overlarge=True)
         
         if launchSecondaryKtForRecursiveTarget and ExperimentWrapper(self.cactusWorkflowArguments.experimentNode).getDbType() == "kyoto_tycoon":
-            addKtserverDependentChild(self, newChild, isSecondary = True)
+            cw = ConfigWrapper(self.cactusWorkflowArguments.configNode)
+            if self.overlarge is True:
+                memory = cw.getKtserverOverlargeMemory(default=getOptionalAttrib(
+                        self.constantsNode, "defaultOverlargeMemory", int, default=sys.maxint))
+                cpu = cw.getKtserverOverlargeCpu(default=getOptionalAttrib(
+                        self.constantsNode, "defaultOverlargeCpu", int, default=sys.maxint))
+            else:
+                memory = cw.getKtserverMemory(default=getOptionalAttrib(
+                        self.constantsNode, "defaultMemory", int, default=sys.maxint))
+                cpu = cw.getKtserverCpu(default=getOptionalAttrib(
+                        self.constantsNode, "defaultCpu", int, default=sys.maxint))
+            addKtserverDependentChild(self, newChild, maxMemory=memory, maxCpu=cpu, isSecondary = True)
         else:
             self.addChildTarget(newChild)
     
@@ -164,8 +175,6 @@ class CactusPhasesTarget(CactusTarget):
         dbElem = DbElemWrapper(confXML)
         if dbElem.getDbType() != "kyoto_tycoon":
             runCactusSecondaryDatabase(self.cactusWorkflowArguments.secondaryDatabaseString, create=True)
-        # if kyoto_tycoon is true, then the database will be created by the call to
-        # addKtserverDependentChild() within makeRecursiveChildTarget()
     
     def cleanupSecondaryDatabase(self):
         """Cleanup the secondary database
@@ -174,8 +183,6 @@ class CactusPhasesTarget(CactusTarget):
         dbElem = DbElemWrapper(confXML)
         if dbElem.getDbType() != "kyoto_tycoon":
             runCactusSecondaryDatabase(self.cactusWorkflowArguments.secondaryDatabaseString, create=False)
-        # if kyoto_tycoon is true, then the database will be killed by the call to
-        # addKtserverDependentChild() within makeRecursiveChildTarget()
 
 class CactusRecursionTarget(CactusTarget):
     """Base recursive target for traversals up and down the cactus tree.
@@ -294,7 +301,18 @@ class CactusSetupPhase(CactusPhasesTarget):
         exp = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
         if exp.getDbType() == "kyoto_tycoon":
             logger.info("Created ktserver pattern target cactus_setup")
-            addKtserverDependentChild(self, setupTarget, isSecondary = False)
+            cw = ConfigWrapper(self.cactusWorkflowArguments.configNode)
+            if self.overlarge is True:
+                memory = cw.getKtserverOverlargeMemory(default=getOptionalAttrib(
+                        self.constantsNode, "defaultOverlargeMemory", int, default=sys.maxint))
+                cpu = cw.getKtserverOverlargeCpu(default=getOptionalAttrib(
+                        self.constantsNode, "defaultOverlargeCpu", int, default=sys.maxint))
+            else:
+                memory = cw.getKtserverMemory(default=getOptionalAttrib(
+                        self.constantsNode, "defaultMemory", int, default=sys.maxint))
+                cpu = cw.getKtserverCpu(default=getOptionalAttrib(
+                        self.constantsNode, "defaultCpu", int, default=sys.maxint))
+            addKtserverDependentChild(self, setupTarget, maxMemory=memory, maxCpu=cpu, isSecondary = False)
         else:
             logger.info("Created follow-on target cactus_setup")
             self.setFollowOnTarget(setupTarget)
