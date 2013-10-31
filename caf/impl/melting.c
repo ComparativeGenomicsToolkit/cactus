@@ -16,7 +16,7 @@ static bool isThreadEnd(stPinchBlock *pinchBlock) {
         assert(stPinchBlock_getLength(pinchBlock) == 1);
     }
     return threadEnd;
-}
+} //Second dummy comment
 
 static void processChain(stCactusEdgeEnd *cactusEdgeEnd, void(*edgeEndFn)(stPinchBlock *, void *), void *extraArg, bool recursive) {
     while (1) {
