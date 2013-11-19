@@ -24,6 +24,7 @@ void usage() {
     fprintf(stderr, "-t --constraintDiagonalTrim : (int >= 0) Amount to trim from ends of each anchor\n");
     fprintf(stderr, "-w --alignAmbiguityCharacters : Align ambiguity characters (anything not ACTGactg) as a wildcard\n");
     fprintf(stderr, "-x --dummy : Do everything but realign, used for testing.\n");
+
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -137,6 +138,35 @@ bool gapGammaFilter(void *aPair, void *gapGamma) {
     return b;
 }
 
+/*
+ * Functions to rescore an alignment by identity / or some proxy to it.
+ */
+
+double scoreByIdentity(char *subSeqX, char *subSeqY, int64_t lX, int64_t lY, stList *alignedPairs) {
+    /*
+     * Gives the average identity of matches in the alignment, treating indels as mismatches.
+     */
+    int64_t matches = 0;
+    for(int64_t i=0; i<stList_length(alignedPairs); i++) {
+        stIntTuple *aPair = stList_get(alignedPairs, i);
+        int64_t x = stIntTuple_get(aPair, 1), y = stIntTuple_get(aPair, 2);
+        matches += subSeqX[x] == subSeqY[y] || toupper(subSeqX[x]) != 'N';
+    }
+    return (2.0*matches) / (lX + lY);
+}
+
+double scoreByPosteriorProbability(int64_t lX, int64_t lY, stList *alignedPairs) {
+    /*
+     * Gives the average posterior match probability per base of the two sequences, treating bases in indels as having 0 match probability.
+     */
+    double score = 0.0;
+    for(int64_t i=0; i<stList_length(alignedPairs); i++) {
+        stIntTuple *aPair = stList_get(alignedPairs, i);
+        score += stIntTuple_get(aPair, 0);
+    }
+    return (2.0*score) / ((lX + lY) * PAIR_ALIGNMENT_PROB_1);
+}
+
 int main(int argc, char *argv[]) {
     char * logLevelString = NULL;
     float gapGamma = 0.9;
@@ -146,7 +176,8 @@ int main(int argc, char *argv[]) {
     pairwiseAlignmentBandingParameters->splitMatrixBiggerThanThis = 10;
     pairwiseAlignmentBandingParameters->diagonalExpansion = 4;
     bool dummy = 0;
-
+    bool rescoreByIdentity = 0;
+    bool rescoreByPosteriorProbability = 0;
     /*
      * Parse the options.
      */
@@ -198,6 +229,12 @@ int main(int argc, char *argv[]) {
                 break;
             case 'x':
                 dummy = 1;
+                break;
+            case 'i':
+                rescoreByIdentity = 1;
+                break;
+            case 'j':
+                rescoreByPosteriorProbability = 1;
                 break;
             default:
                 usage();
@@ -258,6 +295,12 @@ int main(int argc, char *argv[]) {
                 stList_setDestructor(l, (void (*)(void *))stIntTuple_destruct);
                 stList_destruct(alignedPairs);
                 alignedPairs = l;
+            }
+            if(rescoreByPosteriorProbability) {
+                pA->score = scoreByPosteriorProbability(strlen(subSeqX), strlen(subSeqY), alignedPairs);
+            }
+            else if(rescoreByIdentity) {
+                pA->score = scoreByIdentity(subSeqX, subSeqY, strlen(subSeqX), strlen(subSeqY), alignedPairs);
             }
             //Convert to ordered list of sequence coordinate pairs
             stList_mapReplace(alignedPairs, convertToAnchorPair, NULL);

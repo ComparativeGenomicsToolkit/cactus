@@ -12,7 +12,10 @@
 		chunkSize="25000000" 
 		lastzArguments="--step=2 --ambiguous=iupac,100 --ydrop=3000"
 		realign="0"
+		<divergence>
+		<
 		realignArguments="--gapGamma 0.9 --diagonalExpansion 4 --splitMatrixBiggerThanThis 10 --constraintDiagonalTrim 0 --alignAmbiguityCharacters"
+		</divergence>
 		compressFiles="1" 
 		overlapSize="10000" 
 		filterByIdentity="0" 
