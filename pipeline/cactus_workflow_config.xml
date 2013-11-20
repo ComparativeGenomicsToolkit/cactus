@@ -11,9 +11,8 @@
 	<setup makeEventHeadersAlphaNumeric="0">
 	</setup>
 	<caf
-		lastzArguments="--hspthresh=1800 --identity=IDENTITY --ambiguous=iupac"
 		realign="1"
-		realignArguments="--gapGamma 0.9 --diagonalExpansion 4 --splitMatrixBiggerThanThis 10 --constraintDiagonalTrim 0 --alignAmbiguityCharacters"
+		realignArguments="--rescoreByIdentity --gapGamma 0.9 --diagonalExpansion 4 --splitMatrixBiggerThanThis 10 --constraintDiagonalTrim 0 --alignAmbiguityCharacters"
 		chunkSize="2000000" 
 		compressFiles="1" 
 		overlapSize="10000" 

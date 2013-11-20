@@ -14,7 +14,7 @@
 	<caf 
 		chunkSize="25000000" 
 		realign="1"
-		realignArguments="--gapGamma 0.9 --diagonalExpansion 4 --splitMatrixBiggerThanThis 10 --constraintDiagonalTrim 0 --alignAmbiguityCharacters"
+		realignArguments="--rescoreByIdentity --gapGamma 0.9 --diagonalExpansion 4 --splitMatrixBiggerThanThis 10 --constraintDiagonalTrim 0 --alignAmbiguityCharacters"
 		compressFiles="1" 
 		overlapSize="10000" 
 		filterByIdentity="0" 
@@ -39,8 +39,8 @@
 	>
 		<divergence 
 			argName="lastzArguments"
-			low="--step=8 --ambiguous=iupac,100 --ydrop=3000 --ungapped"
-		 	medium="--step=2 --ambiguous=iupac,100 --ydrop=3000"
+			low="--step=8 --ambiguous=iupac,100 --ydrop=3000"
+		 	medium="--step=5 --ambiguous=iupac,100 --ydrop=3000"
 		 	default="--step=1 --ambiguous=iupac,100 --ydrop=3000"
 		 />
 		<CactusCafRecursion maxFlowerGroupSize="100000000"/>

@@ -153,7 +153,7 @@ double scoreByIdentity(char *subSeqX, char *subSeqY, int64_t lX, int64_t lY, stL
         int64_t x = stIntTuple_get(aPair, 1), y = stIntTuple_get(aPair, 2);
         matches += subSeqX[x] == subSeqY[y] && toupper(subSeqX[x]) != 'N';
     }
-    return (lX + lY) == 0 ? 0 : (2.0*matches) / (lX + lY);
+    return 100 *((lX + lY) == 0 ? 0 : (2.0*matches) / (lX + lY));
 }
 
 double scoreByPosteriorProbability(int64_t lX, int64_t lY, stList *alignedPairs) {
@@ -165,7 +165,7 @@ double scoreByPosteriorProbability(int64_t lX, int64_t lY, stList *alignedPairs)
         stIntTuple *aPair = stList_get(alignedPairs, i);
         score += stIntTuple_get(aPair, 0);
     }
-    return (lX + lY) == 0 ? 0 : (2.0*score) / ((lX + lY) * PAIR_ALIGNMENT_PROB_1);
+    return 100 * ((lX + lY) == 0 ? 0 : (2.0*score) / ((lX + lY) * PAIR_ALIGNMENT_PROB_1));
 }
 
 int main(int argc, char *argv[]) {

@@ -55,9 +55,9 @@ class TestCase(unittest.TestCase):
                 lastzCigar = cigarReadFromString(lastzLine)
                 #Check scores are as expected
                 self.assertTrue(realignCigarByIdentity.score >= 0)
-                self.assertTrue(realignCigarByIdentity.score <= 1.0)
+                self.assertTrue(realignCigarByIdentity.score <= 100.0)
                 self.assertTrue(realignCigarByPosteriorProb.score >= 0)
-                self.assertTrue(realignCigarByPosteriorProb.score <= 1.0)
+                self.assertTrue(realignCigarByPosteriorProb.score <= 100.0)
                 #print "Scores", "Rescore by identity", realignCigarByIdentity.score, "Rescore by posterior prob", realignCigarByPosteriorProb.score, "Lastz score", lastzCigar.score
 
 def getCommands(seqFile1, seqFile2, realignArguments="", lastzArguments="--ambiguous=iupac"):  
