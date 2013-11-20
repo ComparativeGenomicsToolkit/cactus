@@ -32,6 +32,7 @@ import subprocess
 import signal
 import psutil
 import socket
+from sonLib.bioio import logger
 from time import sleep
 from optparse import OptionParser
 import threading
@@ -248,6 +249,7 @@ def killKtServer(dbElem, killSwitchPath, killTimeout=100):
     success = False
     for i in xrange(killTimeout):
         if pingKtServer(dbElem) or len(__scrapePids([logPath])) > 0:
+            logger.info("Waiting for ktserver to die, but still running with logPath: %s, pingKtServer returned %s, dB port: %s, __scrapePids returned: %s" % (logPath, pingKtServer(dbElem), dbElem.getDbPort(), __scrapePids([logPath])))
             sleep(1)
         else:
             success = True
