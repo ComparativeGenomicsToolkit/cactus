@@ -234,7 +234,7 @@ def blockUntilKtserverIsRunnning(dbElem, killSwitchPath, timeout=518400,
 # Note that this function will update dbElem with the currnet host/port
 # information of the server
 ###############################################################################
-def killKtServer(dbElem, killSwitchPath, killTimeout=10):
+def killKtServer(dbElem, killSwitchPath, killTimeout=100):
     if not os.path.isfile(killSwitchPath):
         raise RuntimeError("Can't kill server because file" +
                            " not found %s" % killSwitchPath)
@@ -247,7 +247,7 @@ def killKtServer(dbElem, killSwitchPath, killTimeout=10):
 
     success = False
     for i in xrange(killTimeout):
-        if pingKtServer(dbElem):
+        if pingKtServer(dbElem) or len(__scrapePids([logPath])) > 0:
             sleep(1)
         else:
             success = True
