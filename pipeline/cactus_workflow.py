@@ -267,9 +267,8 @@ class CactusRecursionTarget(CactusTarget):
 ############################################################
 ############################################################
 
-def getLongestPath(node, distance=sys.maxint):
+def getLongestPath(node, distance=0.0):
     """Identify the longest path from the mrca of the leaves of the species tree.
-    If any distances in the tree are unspecified then returns sys.maxint
     """
     i, j = distance, distance
     if node.left != None:
@@ -286,7 +285,7 @@ class CactusSetupPhase(CactusPhasesTarget):
         longestPath = getLongestPath(newickTreeParser(self.cactusWorkflowArguments.speciesTree))
         self.logToMaster("The longest path in the tree is %f" % longestPath)
         cw = ConfigWrapper(self.cactusWorkflowArguments.configNode)
-        cw.substituteAllDivergenceContolledParametersWithLiterals()
+        cw.substituteAllDivergenceContolledParametersWithLiterals(longestPath)
     
         # we circumvent makeFollowOnPhaseTarget() interface for this job.
         setupTarget = CactusSetupPhase2(cactusWorkflowArguments=self.cactusWorkflowArguments,
