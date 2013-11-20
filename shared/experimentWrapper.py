@@ -359,9 +359,6 @@ class ExperimentWrapper(DbElemWrapper):
         if config == 'defaultProgressive':
             dir = os.path.join(cactusRootPath(), "progressive")
             config = os.path.join(dir, "cactus_progressive_workflow_config.xml")
-        if config == 'defaultProgressiveFast':
-            dir = os.path.join(cactusRootPath(), "progressive")
-            config = os.path.join(dir, "cactus_progressive_workflow_config_fast.xml")
         return config
     
     def setConfigPath(self, path):

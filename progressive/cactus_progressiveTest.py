@@ -40,8 +40,6 @@ class TestCase(unittest.TestCase):
         self.useOutgroup = False
         self.doSelfAlignment = False
         self.configFile = "defaultProgressive"
-        if random.random() > 0.5:
-            self.configFile = "defaultProgressiveFast"
         
     def testCactus_Random(self):
         runWorkflow_multipleExamples(getCactusInputs_random, 
