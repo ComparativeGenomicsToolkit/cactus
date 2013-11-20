@@ -285,7 +285,8 @@ class CactusSetupPhase(CactusPhasesTarget):
         longestPath = getLongestPath(newickTreeParser(self.cactusWorkflowArguments.speciesTree))
         self.logToMaster("The longest path in the tree is %f" % longestPath)
         cw = ConfigWrapper(self.cactusWorkflowArguments.configNode)
-        cw.substituteAllDivergenceContolledParametersWithLiterals(longestPath)
+        for message in cw.substituteAllDivergenceContolledParametersWithLiterals(longestPath):
+            self.logToMaster(message)
     
         # we circumvent makeFollowOnPhaseTarget() interface for this job.
         setupTarget = CactusSetupPhase2(cactusWorkflowArguments=self.cactusWorkflowArguments,
