@@ -38,6 +38,27 @@ class TestCase(unittest.TestCase):
                 realignCigar = cigarReadFromString(realignLine)
                 lastzCigar = cigarReadFromString(lastzLine)
                 self.assertTrue(realignCigar.sameCoordinates(lastzCigar))
+    
+    def testCactusRealignRescoreByIdentityAndProb(self):
+        """Runs cactus realign using the default parameters and checks that the realigned output cigars align 
+        the same subsequences.
+        """
+        for seqFile1, seqFile2 in seqFilePairGenerator():
+            realignCommandByIdentity, lastzCommand = getCommands(seqFile1, seqFile2, realignArguments="--rescoreByIdentity")
+            realignCommandByPosteriorProb = getCommands(seqFile1, seqFile2, realignArguments="--rescoreByPosteriorProb")[0]
+            for realignLineByIdentity, realignLineByPosteriorProb, lastzLine in \
+                                          zip([ i for i in popenCatch(realignCommandByIdentity).split("\n") if i != '' ], \
+                                              [ i for i in popenCatch(realignCommandByPosteriorProb).split("\n") if i != '' ], \
+                                              [ i for i in popenCatch(lastzCommand).split("\n") if i != '' ]):
+                realignCigarByIdentity = cigarReadFromString(realignLineByIdentity)
+                realignCigarByPosteriorProb = cigarReadFromString(realignLineByPosteriorProb)
+                lastzCigar = cigarReadFromString(lastzLine)
+                #Check scores are as expected
+                self.assertTrue(realignCigarByIdentity.score >= 0)
+                self.assertTrue(realignCigarByIdentity.score <= 1.0)
+                self.assertTrue(realignCigarByPosteriorProb.score >= 0)
+                self.assertTrue(realignCigarByPosteriorProb.score <= 1.0)
+                #print "Scores", "Rescore by identity", realignCigarByIdentity.score, "Rescore by posterior prob", realignCigarByPosteriorProb.score, "Lastz score", lastzCigar.score
 
 def getCommands(seqFile1, seqFile2, realignArguments="", lastzArguments="--ambiguous=iupac"):  
     lastzCommand = "lastz --format=cigar %s %s[multiple][nameparse=darkspace] %s[nameparse=darkspace]" % (lastzArguments, seqFile1, seqFile2)
@@ -48,7 +69,7 @@ def seqFilePairGenerator():
      ##Get sequences
     encodePath = os.path.join(TestStatus.getPathToDataSets(), "MAY-2005")
     encodeRegions = [ "ENm00" + str(i) for i in xrange(1,2) ] #, 2) ] #Could go to six
-    species = ("human", "mouse") #, "dog")
+    species = ("human", "mouse") #, "dog")#, "chimp") 
     #Other species to try "rat", "monodelphis", "macaque", "chimp"
     for encodeRegion in encodeRegions:
         regionPath = os.path.join(encodePath, encodeRegion)

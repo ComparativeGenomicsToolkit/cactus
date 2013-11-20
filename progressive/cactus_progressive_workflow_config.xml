@@ -1,21 +1,20 @@
 <cactusWorkflowConfig>
-  <constants defaultMemory="mediumMemory" defaultOverlargeMemory="mediumMemory" defaultCpu="1" defaultOverlargeCpu="1">
+	<constants defaultMemory="mediumMemory" defaultOverlargeMemory="mediumMemory" defaultCpu="1" defaultOverlargeCpu="1">
 		<!-- These constants are used to control the amount of memory and cpu the different jobs in a batch are using. -->
   		<defines littleMemory="2147483648" mediumMemory="8589934592" bigMemory="207374182400" maxFlowerGroupSizeRecursion="100000000"/>
-  </constants>
-  <preprocessor check="1" memory="2147483648" preprocessorString="cactus_checkUniqueHeaders.py IN_FILE" scope="leaves" />
-  <preprocessor chunkSize="100000000" memory="littleMemory" preprocessorString="cactus_lastzRepeatMask.py --minPeriod=50 --lastzOpts='--step=2 --ambiguous=iupac --nogapped' GENOME_FILE IN_FILE OUT_FILE" scope="leaves" />
-  <ktserver memory="mediumMemory" overlargeMemory="bigMemory"/>
-  	<setup makeEventHeadersAlphaNumeric="0">
+  		<!-- These constants are used to control parameters that depend on phylogenetic distance. -->
+  		<divergences low="0.1" medium="0.2"/>
+	</constants>
+	<preprocessor check="1" memory="2147483648" preprocessorString="cactus_checkUniqueHeaders.py IN_FILE"/>
+	<preprocessor chunkSize="100000000" memory="littleMemory" preprocessorString="cactus_lastzRepeatMask.py --minPeriod=50 --lastzOpts='--step=2 --ambiguous=iupac --nogapped' GENOME_FILE IN_FILE OUT_FILE"/>
+	<ktserver memory="mediumMemory" overlargeMemory="bigMemory"/>
+	<setup makeEventHeadersAlphaNumeric="0">
 	</setup>
+	<!-- Change the chunk size in the caf tag to alter the number of blast jobs approximately quadratically -->
 	<caf 
 		chunkSize="25000000" 
-		lastzArguments="--step=2 --ambiguous=iupac,100 --ydrop=3000"
-		realign="0"
-		<divergence>
-		<
+		realign="1"
 		realignArguments="--gapGamma 0.9 --diagonalExpansion 4 --splitMatrixBiggerThanThis 10 --constraintDiagonalTrim 0 --alignAmbiguityCharacters"
-		</divergence>
 		compressFiles="1" 
 		overlapSize="10000" 
 		filterByIdentity="0" 
@@ -38,7 +37,12 @@
 		maximumMedianSequenceLengthBetweenLinkedEnds="1000"
 		lastzMemory="littleMemory"
 	>
-		<!-- Change the chunk size to alter the number of blast jobs approximately quadratically -->
+		<divergence 
+			argName="lastzArguments"
+			low="--step=8 --ambiguous=iupac,100 --ydrop=3000 --ungapped"
+		 	medium="--step=2 --ambiguous=iupac,100 --ydrop=3000"
+		 	default="--step=1 --ambiguous=iupac,100 --ydrop=3000"
+		 />
 		<CactusCafRecursion maxFlowerGroupSize="100000000"/>
 		<CactusCafWrapper minFlowerSize="1" maxFlowerGroupSize="25000000"/>
 		<CactusCafWrapperLarge2 overlargeMemory="bigMemory"/>

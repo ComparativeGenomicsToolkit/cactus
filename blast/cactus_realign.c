@@ -24,11 +24,12 @@ void usage() {
     fprintf(stderr, "-t --constraintDiagonalTrim : (int >= 0) Amount to trim from ends of each anchor\n");
     fprintf(stderr, "-w --alignAmbiguityCharacters : Align ambiguity characters (anything not ACTGactg) as a wildcard\n");
     fprintf(stderr, "-x --dummy : Do everything but realign, used for testing.\n");
-
+    fprintf(stderr, "-i --rescoreByIdentity : Set score equal to alignment identity, treating indels as mismatches.\n");
+    fprintf(stderr, "-j --rescoreByPosteriorProb : Set score equal to avg. posterior match probability, treating indels as residues with 0 match probability.\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
-struct PairwiseAlignment *convertAlignedPairsToPairwiseAlignment(char *seqName1, char *seqName2, int64_t score, int64_t length1,
+struct PairwiseAlignment *convertAlignedPairsToPairwiseAlignment(char *seqName1, char *seqName2, double score, int64_t length1,
         int64_t length2, stList *alignedPairs) {
     //Make pairwise alignment
     int64_t pX = -1, pY = -1, mL = 0;
@@ -150,9 +151,9 @@ double scoreByIdentity(char *subSeqX, char *subSeqY, int64_t lX, int64_t lY, stL
     for(int64_t i=0; i<stList_length(alignedPairs); i++) {
         stIntTuple *aPair = stList_get(alignedPairs, i);
         int64_t x = stIntTuple_get(aPair, 1), y = stIntTuple_get(aPair, 2);
-        matches += subSeqX[x] == subSeqY[y] || toupper(subSeqX[x]) != 'N';
+        matches += subSeqX[x] == subSeqY[y] && toupper(subSeqX[x]) != 'N';
     }
-    return (2.0*matches) / (lX + lY);
+    return (lX + lY) == 0 ? 0 : (2.0*matches) / (lX + lY);
 }
 
 double scoreByPosteriorProbability(int64_t lX, int64_t lY, stList *alignedPairs) {
@@ -164,7 +165,7 @@ double scoreByPosteriorProbability(int64_t lX, int64_t lY, stList *alignedPairs)
         stIntTuple *aPair = stList_get(alignedPairs, i);
         score += stIntTuple_get(aPair, 0);
     }
-    return (2.0*score) / ((lX + lY) * PAIR_ALIGNMENT_PROB_1);
+    return (lX + lY) == 0 ? 0 : (2.0*score) / ((lX + lY) * PAIR_ALIGNMENT_PROB_1);
 }
 
 int main(int argc, char *argv[]) {
@@ -181,11 +182,13 @@ int main(int argc, char *argv[]) {
     /*
      * Parse the options.
      */
+
     while (1) {
         static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "help", no_argument, 0, 'h' }, { "gapGamma",
                 required_argument, 0, 'l' }, { "splitMatrixBiggerThanThis", required_argument, 0, 'o' }, { "diagonalExpansion",
                 required_argument, 0, 'r' }, { "constraintDiagonalTrim", required_argument, 0, 't' }, { "alignAmbiguityCharacters",
-                no_argument, 0, 'w' }, { "dummy", no_argument, 0, 'x' }, { 0, 0, 0, 0 } };
+                no_argument, 0, 'w' }, { "dummy", no_argument, 0, 'x' }, { "rescoreByIdentity", no_argument, 0, 'i' },
+                { "rescoreByPosteriorProb", no_argument, 0, 'j' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 

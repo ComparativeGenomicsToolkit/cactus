@@ -75,8 +75,6 @@ from cactus.pipeline.ktserverJobTree import addKtserverDependentChild
 ############################################################
 ############################################################
 
-
-
 def extractNode(node):
     """Make an XML node free of its parent subtree
     """
@@ -269,8 +267,9 @@ class CactusRecursionTarget(CactusTarget):
 ############################################################
 ############################################################
 
-def getLongestPath(node, distance=0.0):
+def getLongestPath(node, distance=sys.maxint):
     """Identify the longest path from the mrca of the leaves of the species tree.
+    If any distances in the tree are unspecified then returns sys.maxint
     """
     i, j = distance, distance
     if node.left != None:
@@ -283,25 +282,21 @@ class CactusSetupPhase(CactusPhasesTarget):
     """Initialises the cactus database and adapts the config file for the run.
     """
     def run(self):
-        #Adapt the config file to remove any elements that are not relevant to the distances considered.
+        #Adapt the config file to use arguments for the appropriate divergence distance
         longestPath = getLongestPath(newickTreeParser(self.cactusWorkflowArguments.speciesTree))
-        logger.info("The longest path in the tree is %f" % longestPath)
-        for node in list(self.cactusWorkflowArguments.configNode):
-            minDivergence = getOptionalAttrib(node, "minDivergence", float, -100000000000.0)
-            maxDivergence = getOptionalAttrib(node, "maxDivergence", float, 100000000000.0)
-            if minDivergence > longestPath or maxDivergence < longestPath:
-                self.logToMaster("Removing node %s with minDivergence %s and maxDivergence %s for max divergence in tree of %s" % (node.tag, minDivergence, maxDivergence, longestPath))
-                self.cactusWorkflowArguments.configNode.remove(node)
+        self.logToMaster("The longest path in the tree is %f" % longestPath)
+        cw = ConfigWrapper(self.cactusWorkflowArguments.configNode)
+        cw.substituteAllDivergenceContolledParametersWithLiterals()
     
         # we circumvent makeFollowOnPhaseTarget() interface for this job.
         setupTarget = CactusSetupPhase2(cactusWorkflowArguments=self.cactusWorkflowArguments,
                                        phaseName='setup', topFlowerName=self.topFlowerName,
                                        index=0)
-
+        
+        #Get the db running and the actual setup going.
         exp = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
         if exp.getDbType() == "kyoto_tycoon":
             logger.info("Created ktserver pattern target cactus_setup")
-            cw = ConfigWrapper(self.cactusWorkflowArguments.configNode)
             if self.overlarge is True:
                 memory = cw.getKtserverOverlargeMemory(default=getOptionalAttrib(
                         self.constantsNode, "defaultOverlargeMemory", int, default=sys.maxint))
@@ -315,8 +310,7 @@ class CactusSetupPhase(CactusPhasesTarget):
             addKtserverDependentChild(self, setupTarget, maxMemory=memory, maxCpu=cpu, isSecondary = False)
         else:
             logger.info("Created follow-on target cactus_setup")
-            self.setFollowOnTarget(setupTarget)
-        
+            self.setFollowOnTarget(setupTarget)   
         
 class CactusSetupPhase2(CactusPhasesTarget):   
     def run(self):        

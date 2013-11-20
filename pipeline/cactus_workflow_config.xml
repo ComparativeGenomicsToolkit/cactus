@@ -2,6 +2,8 @@
 	<constants defaultMemory="mediumMemory" defaultOverlargeMemory="mediumMemory" defaultCpu="1" defaultOverlargeCpu="1">
 		<!-- These constants are used to control the amount of memory and cpu the different jobs in a batch are using. -->
   		<defines littleMemory="2147483648" mediumMemory="8589934592" bigMemory="107374182400"/>
+  		<!-- These constants are used to control parameters that depend on phylogenetic distance. -->
+  		<divergences low="0.1"/>
   	</constants>
 	<preprocessor memory="2147483648" preprocessorString="cactus_makeAlphaNumericHeaders.py IN_FILE OUT_FILE" scope="leaves" />
   	<preprocessor check="1" memory="2147483648" preprocessorString="cactus_checkUniqueHeaders.py IN_FILE" scope="leaves" />
@@ -31,6 +33,11 @@
 		maximumMedianSequenceLengthBetweenLinkedEnds="10000"
 		lastzMemory="littleMemory"
 	>
+		<divergence 
+			argName="lastzArguments"
+			low="--hspthresh=3000 --identity=IDENTITY --ambiguous=iupac"
+		 	default="--hspthresh=1800 --identity=IDENTITY --ambiguous=iupac"
+		 />
 		<CactusCafRecursion maxFlowerGroupSize="100000000"/>
 		<CactusCafWrapper minFlowerSize="5000" maxFlowerGroupSize="1000000"/>
 	</caf>

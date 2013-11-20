@@ -211,5 +211,27 @@ class ConfigWrapper:
         if defines != None:
             replaceAllConstants(self.xmlRoot, defines)
             constants.remove(defines)
+    
+    def substituteAllDivergenceContolledParametersWithLiterals(self, maxDivergence):
+        constants = findRequiredNode(self.xmlRoot, "constants")
+        divergences = constants.find("divergences")
+        def replaceAllDivergenceParameters(node):
+            for child in node:
+                if child.tag == "divergence":
+                    attribName = child.attrib["argName"]
+                    arg = child.attrib["default"]
+                    divergence = sys.maxint
+                    for i in child.attrib.keys():
+                        if i in divergences.attrib:
+                            j = float(divergences.attrib[i])
+                            if j < divergence and j >= maxDivergence:
+                                arg = child.attrib[i]
+                                divergence = j
+                    node.attrib[attribName] = arg
+                else:
+                    replaceAllDivergenceParameters(child)
+        if divergences != None:
+            replaceAllDivergenceParameters(self.xmlRoot)
+        
             
         

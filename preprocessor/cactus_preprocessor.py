@@ -157,7 +157,7 @@ class CactusPreprocessor(Target):
         if not os.path.isdir(self.outputSequenceDir):
             os.mkdir(self.outputSequenceDir)
         for sequence in self.inputSequences:
-            outputSequenceFile = os.path.join(self.outputSequenceDir, os.path.split(sequence)[1]) 
+            outputSequenceFile = os.path.join(self.outputSequenceDir, os.path.split(sequence)[1])
             assert sequence != outputSequenceFile
             if not os.path.isfile(outputSequenceFile): #Only create the output sequence if it doesn't already exist. This prevents reprocessing if the sequence is used in multiple places between runs.
                 prepXmlElems = self.configNode.findall("preprocessor")
@@ -165,7 +165,4 @@ class CactusPreprocessor(Target):
                     system("ln %s %s" % (sequence, outputSequenceFile))
                 else:
                     logger.info("Adding child batch_preprocessor target")
-                    self.addChildTarget(BatchPreprocessor(prepXmlElems, 
-                                                          sequence, outputSequenceFile, 
-                                                          0))            
-
+                    self.addChildTarget(BatchPreprocessor(prepXmlElems, sequence, outputSequenceFile, 0))    
