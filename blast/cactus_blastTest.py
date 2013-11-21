@@ -76,7 +76,7 @@ class TestCase(unittest.TestCase):
                     
                     logger.critical("Comparing cactus_blast and naive blast")
                     compareResultsFile(self.tempOutputFile, self.tempOutputFile2)
-                    
+    
     def testBlastParameters(self):
         """Tests if changing parameters of lastz creates results similar to the desired default.
         """
@@ -99,7 +99,7 @@ class TestCase(unittest.TestCase):
                 
                 logger.critical("Comparing blast settings")
                 compareResultsFile(self.tempOutputFile, self.tempOutputFile2, 0.7)
-                
+    
     def testBlastRandom(self):
         """Make some sequences, put them in a file, call blast with random parameters 
         and check it runs okay.
@@ -261,6 +261,7 @@ def runNaiveBlast(sequenceFiles, outputFile, tempDir,
     """
     open(outputFile, 'w').close() #Ensure is empty of results
     tempResultsFile = getTempFile(suffix=".results", rootDir=tempDir)
+    blastTime = 0
     for i in xrange(len(sequenceFiles)):
         seqFile1 = sequenceFiles[i]
         command = selfBlastString.replace("OPTIONS", lastzOptions).replace("CIGARS_FILE", tempResultsFile).replace("SEQ_FILE", seqFile1)
@@ -272,9 +273,10 @@ def runNaiveBlast(sequenceFiles, outputFile, tempDir,
             command = blastString.replace("OPTIONS", lastzOptions).replace("CIGARS_FILE", tempResultsFile).replace("SEQ_FILE_1", seqFile1).replace("SEQ_FILE_2", seqFile2)
             startTime = time.time()
             system(command)
-            print "Ran the blast okay for sequences: %s %s in %s seconds" % (seqFile1, seqFile2, (time.time()-startTime))
+            blastTime += time.time()-startTime
             system("cat %s >> %s" % (tempResultsFile, outputFile))
     os.remove(tempResultsFile)
+    return blastTime
 
 def main():
     parseCactusSuiteTestOptions()
