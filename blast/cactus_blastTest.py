@@ -63,7 +63,7 @@ class TestCase(unittest.TestCase):
                     seqFile2 = os.path.join(regionPath, "%s.%s.fa" % (species2, encodeRegion))
                     
                     #Run the random
-                    runNaiveBlast([ seqFile1, seqFile2 ], self.tempOutputFile, self.tempDir)
+                    runNaiveBlast(seqFile1, seqFile2, self.tempOutputFile)
                     logger.info("Ran the naive blast okay")
                     
                     #Run the blast
@@ -91,10 +91,10 @@ class TestCase(unittest.TestCase):
                 seqFile2 = os.path.join(regionPath, "%s.%s.fa" % (species2, encodeRegion))
                 
                 #Run the random
-                runNaiveBlast([ seqFile1, seqFile2 ], self.tempOutputFile2, self.tempDir,
+                runNaiveBlast(seqFile1, seqFile2, self.tempOutputFile2,
                               lastzOptions="--nogapped --hspthresh=3000 --ambiguous=iupac")
                 #Run the blast
-                runNaiveBlast([ seqFile1, seqFile2 ], self.tempOutputFile, self.tempDir, 
+                runNaiveBlast(seqFile1, seqFile2, self.tempOutputFile, 
                               lastzOptions="--nogapped --step=3 --hspthresh=3000 --ambiguous=iupac")
                 
                 logger.critical("Comparing blast settings")
@@ -176,17 +176,21 @@ class ResultComparator:
         """Compares two sets of results and returns a set of statistics comparing them.
         """
         #Totals
-        self.trueLength = len(trueResults)
-        self.predictedLength = len(predictedResults)
-        self.unionSize = len(trueResults.union(predictedResults))
-        self.intersectionSize = len(trueResults.intersection(predictedResults))
-        self.symmDiff = self.intersectionSize / self.unionSize
+        self.trueHits = trueResults[1]
+        self.trueLength = len(trueResults[0])
+        self.predictedHits = predictedResults[1]
+        self.predictedLength = len(predictedResults[0])
+        self.intersectionSize = len(trueResults[0].intersection(predictedResults[0]))
         #Sensitivity
-        self.trueDifference = float(len(trueResults.difference(predictedResults)))
-        self.sensitivity = 1.0 - float(self.trueDifference) / len(trueResults)
+        self.trueDifference = float(self.trueLength - self.intersectionSize)
+        self.sensitivity = 1.0 - self.trueDifference / self.trueLength
         #Specificity
-        self.predictedDifference = float(len(predictedResults.difference(trueResults)))
-        self.specificity = 1.0 - float(self.predictedDifference) / len(predictedResults)
+        self.predictedDifference = float(self.predictedLength - self.intersectionSize)
+        self.specificity = 1.0 - self.predictedDifference / self.predictedLength
+        #Union size
+        self.unionSize = self.intersectionSize + self.trueDifference + self.predictedDifference
+        #Symmetric difference
+        self.symmDiff = self.intersectionSize / self.unionSize
 
     def __str__(self):
         return "True length: %s, predicted length: %s, union size: %s, \
@@ -203,41 +207,36 @@ def loadResults(resultsFile):
     """
     pairsSet = set()
     fileHandle = open(resultsFile, 'r')
+    totalHits = 0
     for pairwiseAlignment in cigarRead(fileHandle):
+        totalHits +=1
         i = pairwiseAlignment.start1
+        s1 = 1
         if not pairwiseAlignment.strand1:
             i -= 1
+            s1 = -1
             
         j = pairwiseAlignment.start2
+        s2 = 1
         if not pairwiseAlignment.strand2:
             j -= 1
+            s2 = -1
         
         for operation in pairwiseAlignment.operationList:
             if operation.type == PairwiseAlignment.PAIRWISE_INDEL_X:
-                if pairwiseAlignment.strand1:
-                    i += operation.length
-                else:
-                    i -= operation.length
-                    
+                i += operation.length * s1
             elif operation.type == PairwiseAlignment.PAIRWISE_INDEL_Y:
-                if pairwiseAlignment.strand2:
-                    j += operation.length
-                else:
-                    j -= operation.length
+                j += operation.length * s2
             else:
                 assert operation.type == PairwiseAlignment.PAIRWISE_MATCH
                 for k in xrange(operation.length):
-                    if (pairwiseAlignment.contig1, i, pairwiseAlignment.contig2, j) != (pairwiseAlignment.contig2, j, pairwiseAlignment.contig1, i): #Exclude self alignments, which pop up
-                        pairsSet.add((pairwiseAlignment.contig1, i, pairwiseAlignment.contig2, j))
-                        pairsSet.add((pairwiseAlignment.contig2, j, pairwiseAlignment.contig1, i)) #Add them symmetrically
-                    if pairwiseAlignment.strand1:
-                        i += 1
+                    if pairwiseAlignment.contig1 <= pairwiseAlignment.contig2:
+                        if pairwiseAlignment.contig1 != pairwiseAlignment.contig2 or i != j: #Avoid self alignments
+                            pairsSet.add((pairwiseAlignment.contig1, i, pairwiseAlignment.contig2, j)) 
                     else:
-                        i -= 1
-                    if pairwiseAlignment.strand2:
-                        j += 1
-                    else:
-                        j -= 1
+                        pairsSet.add((pairwiseAlignment.contig2, j, pairwiseAlignment.contig1, i))
+                    i += s1
+                    j += s2
         
         if pairwiseAlignment.strand1:
             assert i == pairwiseAlignment.end1
@@ -251,32 +250,18 @@ def loadResults(resultsFile):
             
         #assert j == pairwiseAlignment.end2
     fileHandle.close()      
-    return pairsSet
+    return (pairsSet, totalHits)
 
-def runNaiveBlast(sequenceFiles, outputFile, tempDir,
+def runNaiveBlast(seqFile1, seqFile2, outputFile, 
                   blastString="lastz --format=cigar OPTIONS SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE", 
-                  selfBlastString="lastz --format=cigar OPTIONS SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial  > CIGARS_FILE",
                   lastzOptions=""):
     """Runs the blast command in a very naive way (not splitting things up).
     """
     open(outputFile, 'w').close() #Ensure is empty of results
-    tempResultsFile = getTempFile(suffix=".results", rootDir=tempDir)
-    blastTime = 0
-    for i in xrange(len(sequenceFiles)):
-        seqFile1 = sequenceFiles[i]
-        command = selfBlastString.replace("OPTIONS", lastzOptions).replace("CIGARS_FILE", tempResultsFile).replace("SEQ_FILE", seqFile1)
-        system(command)
-        logger.info("Ran the self blast okay for sequence: %s" % seqFile1)
-        system("cat %s >> %s" % (tempResultsFile, outputFile))
-        for j in xrange(i+1, len(sequenceFiles)):
-            seqFile2 = sequenceFiles[j]
-            command = blastString.replace("OPTIONS", lastzOptions).replace("CIGARS_FILE", tempResultsFile).replace("SEQ_FILE_1", seqFile1).replace("SEQ_FILE_2", seqFile2)
-            startTime = time.time()
-            system(command)
-            blastTime += time.time()-startTime
-            system("cat %s >> %s" % (tempResultsFile, outputFile))
-    os.remove(tempResultsFile)
-    return blastTime
+    command = blastString.replace("OPTIONS", lastzOptions).replace("CIGARS_FILE", outputFile).replace("SEQ_FILE_1", seqFile1).replace("SEQ_FILE_2", seqFile2)
+    startTime = time.time()
+    system(command)
+    return time.time()-startTime
 
 def main():
     parseCactusSuiteTestOptions()
