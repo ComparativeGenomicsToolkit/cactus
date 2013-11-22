@@ -34,7 +34,7 @@ class TestCase(unittest.TestCase):
         if getBatchSystem() != None:
             self.batchSystem = getBatchSystem()
         unittest.TestCase.setUp(self)
-        self.configFile = os.path.join(cactusRootPath(), "pipeline", "cactus_workflow_config.xml")
+        self.configFile = os.path.join(cactusRootPath(), "cactus_config.xml")
         self.configNode = ET.parse(self.configFile).getroot()
         self.barNode = self.configNode.find("bar")
         assert self.barNode != None

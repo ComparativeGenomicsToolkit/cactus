@@ -593,7 +593,7 @@ class CactusNormalWrapper(CactusRecursionTarget):
     """ 
     def run(self):
         runCactusMakeNormal(self.cactusDiskDatabaseString, flowerNames=self.flowerNames, 
-                            maxNumberOfChains=self.getOptionalPhaseAttrib("maxNumberOfChains", int))
+                            maxNumberOfChains=self.getOptionalPhaseAttrib("maxNumberOfChains", int, default=30))
 
 ############################################################
 ############################################################

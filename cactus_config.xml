@@ -1,3 +1,4 @@
+<!-- This XML tree contains the parameters to cactus_workflow.py -->
 <cactusWorkflowConfig>
 	<constants defaultMemory="mediumMemory" defaultOverlargeMemory="mediumMemory" defaultCpu="1" defaultOverlargeCpu="1">
 		<!-- These constants are used to control the amount of memory and cpu the different jobs in a batch are using. -->
@@ -70,7 +71,7 @@
 		<CactusNormalWrapper/>
 	</normal>
 	<avg
-		buildAvgs="0"
+		buildAvgs="1"
 	>
 		<CactusAVGRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="1000000"/>
 		<CactusAVGWrapper/>

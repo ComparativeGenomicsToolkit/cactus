@@ -38,7 +38,7 @@ class TestCase(unittest.TestCase):
         
 def getRandomConfigFile():
     tempConfigFile = getTempFile(rootDir="./", suffix=".xml")
-    config = ET.parse(os.path.join(cactusRootPath(), "pipeline", "cactus_workflow_config.xml")).getroot()
+    config = ET.parse(os.path.join(cactusRootPath(), "cactus_config.xml")).getroot()
     cafNode = config.find("caf")
     assert len(config.findall("caf")) == 1
     
@@ -55,6 +55,12 @@ def getRandomConfigFile():
     cafNode.attrib["blockTrim"] = str(int(random.random() * 5))
     cafNode.attrib["ignoreAllChainsLessThanMinimumTreeCoverage"] = str(random.choice([0, 1]))
     cafNode.attrib["minimumBlockDegree"] = str(random.choice([0, 5]))
+    
+    checkNode = config.find("check")
+    checkNode.attrib["runCheck"] = "1"
+    
+    checkNode = config.find("normal")
+    checkNode.attrib["iterations"] = "2"
     
     #Now print the file..
     fileHandle = open(tempConfigFile, 'w')

@@ -10,6 +10,7 @@ import unittest
 import os
 import sys
 import random
+import xml.etree.ElementTree as ET
 
 from cactus.shared.test import parseCactusSuiteTestOptions
 from sonLib.bioio import TestStatus
@@ -26,8 +27,10 @@ from cactus.shared.test import runWorkflow_multipleExamples
 
 from cactus.shared.test import getBatchSystem
 
+from cactus.shared.common import cactusRootPath
 from cactus.shared.common import runCactusProgressive
 from cactus.shared.common import runCactusCreateMultiCactusProject
+from cactus.shared.configWrapper import ConfigWrapper
 from jobTree.src.common import runJobTreeStatusAndFailIfNotComplete
 
 class TestCase(unittest.TestCase):
@@ -39,7 +42,15 @@ class TestCase(unittest.TestCase):
         unittest.TestCase.setUp(self)
         self.useOutgroup = False
         self.doSelfAlignment = False
-        self.configFile = "defaultProgressive"
+        #Load the config file, turn on the checks.
+        configWrapper = ConfigWrapper(ET.parse(os.path.join(cactusRootPath(), "cactus_progressive_config.xml")).getroot())
+        configWrapper.turnAllModesOn()
+        self.tempDir = getTempDirectory(os.getcwd())
+        self.configFile = os.path.join(self.tempDir, "tempConfig.xml")
+        configWrapper.writeXML(self.configFile)
+    
+    def tearDown(self):
+        system("rm -rf %s" % self.tempDir)
         
     def testCactus_Random(self):
         runWorkflow_multipleExamples(getCactusInputs_random, 

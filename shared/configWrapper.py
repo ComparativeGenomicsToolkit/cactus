@@ -20,6 +20,7 @@ import random
 import math
 import copy
 from cactus.shared.common import findRequiredNode
+from cactus.shared.common import getOptionalAttrib
 
 class ConfigWrapper:
     defaultOutgroupStrategy = 'none'
@@ -216,25 +217,32 @@ class ConfigWrapper:
         constants = findRequiredNode(self.xmlRoot, "constants")
         divergences = constants.find("divergences")
         messages = []
-        def replaceAllDivergenceParameters(node):
-            for child in node:
-                if child.tag == "divergence":
-                    attribName = child.attrib["argName"]
-                    arg = child.attrib["default"]
-                    divergence = sys.maxint
-                    for i in child.attrib.keys():
-                        if i in divergences.attrib.keys():
-                            j = float(divergences.attrib[i])
-                            if j < divergence and j >= maxDivergence:
-                                arg = child.attrib[i]
-                                divergence = j
-                    messages.append("Made argument %s=%s in tag %s with divergence threshold of %s for longest path of %s" % (attribName, arg, node.tag, divergence, maxDivergence))
-                    node.attrib[attribName] = arg
-                else:
-                    replaceAllDivergenceParameters(child)
         if divergences != None:
+            useDefaultDivergences = getOptionalAttrib(divergences, attribName="useDefault", typeFn=bool, default=False)
+            def replaceAllDivergenceParameters(node):
+                for child in node:
+                    if child.tag == "divergence":
+                        attribName = child.attrib["argName"]
+                        arg = child.attrib["default"]
+                        divergence = sys.maxint
+                        if not useDefaultDivergences:
+                            for i in child.attrib.keys():
+                                if i in divergences.attrib.keys():
+                                    j = float(divergences.attrib[i])
+                                    if j < divergence and j >= maxDivergence:
+                                        arg = child.attrib[i]
+                                        divergence = j
+                        messages.append("Made argument %s=%s in tag %s with divergence threshold of %s for longest path of %s (useDefaultDivergences=%s)" % (attribName, arg, node.tag, divergence, maxDivergence, useDefaultDivergences))
+                        node.attrib[attribName] = arg
+                    else:
+                        replaceAllDivergenceParameters(child)
             replaceAllDivergenceParameters(self.xmlRoot)
         return messages
-        
-            
+    
+    def turnAllModesOn(self):
+        """Switches on check, normalisation etc. to use when debugging/testing
+        """
+        findRequiredNode(self.xmlRoot, "check").attrib["runCheck"] = "1"
+        findRequiredNode(self.xmlRoot, "normal").attrib["iterations"] = "2"
+        #findRequiredNode(self.xmlRoot, "avg").attrib["buildAvgs"] = "1" #This doesn't work with cactus_reference
         
