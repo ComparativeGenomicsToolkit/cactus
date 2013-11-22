@@ -283,6 +283,9 @@ class CactusSetupPhase(CactusPhasesTarget):
     def run(self):
         #Adapt the config file to use arguments for the appropriate divergence distance
         longestPath = getLongestPath(newickTreeParser(self.cactusWorkflowArguments.speciesTree))
+        if self.cactusWorkflowArguments.outgroupEventNames == None:
+            self.logToMaster("Extending longest path")
+            longestPath += 0.1
         self.logToMaster("The longest path in the tree is %f" % longestPath)
         cw = ConfigWrapper(self.cactusWorkflowArguments.configNode)
         for message in cw.substituteAllDivergenceContolledParametersWithLiterals(longestPath):

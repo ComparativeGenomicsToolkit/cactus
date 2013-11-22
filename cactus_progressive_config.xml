@@ -5,7 +5,7 @@
   		<defines littleMemory="2147483648" mediumMemory="8589934592" bigMemory="207374182400" maxFlowerGroupSizeRecursion="100000000"/>
   		<!-- These constants are used to control parameters that depend on phylogenetic distance. Setting
   		     useDefault to 0 will force it to use the default divergence controlled parameter -->
-  		<divergences useDefault="0" one="0.05" two="0.1" three="0.15" four="0.2" five="0.25" six="0.35"/>
+  		<divergences useDefault="0" one="0.1" two="0.15" three="0.2" four="0.25" five="0.35"/>
 	</constants>
 	<!-- The preprocessor tags are used to modify the input sequences before alignment -->
 	<!-- The first preprocessor tag ensures cactus_checkUniqueHeaders checks that the first word of every fasta header is unique, as this is required for HAL. It throws errors if this is not the case -->
@@ -47,12 +47,11 @@
 		within a margin of 0.2% sensitivity, should be very fast for close genomes, these were tuned using the blast/blastParametersScript.py -->
 		<divergence 
 			argName="lastzArguments"
-			one="--step=8 --ambiguous=iupac,100 --ydrop=3000 --notransition"
-		 	two="--step=2 --ambiguous=iupac,100 --ydrop=3000 --notransition"
-		 	three="--step=5 --ambiguous=iupac,100 --ydrop=3000"
-		 	four="--step=4 --ambiguous=iupac,100 --ydrop=3000"
-		 	five="--step=3 --ambiguous=iupac,100 --ydrop=3000"
-		 	six="--step=2 --ambiguous=iupac,100 --ydrop=3000"
+		 	one="--step=2 --ambiguous=iupac,100 --ydrop=3000 --notransition"
+		 	two="--step=5 --ambiguous=iupac,100 --ydrop=3000"
+		 	three="--step=4 --ambiguous=iupac,100 --ydrop=3000"
+		 	four="--step=3 --ambiguous=iupac,100 --ydrop=3000"
+		 	five="--step=2 --ambiguous=iupac,100 --ydrop=3000"
 		 	default="--step=1 --ambiguous=iupac,100 --ydrop=3000"
 		 />
 		<CactusCafRecursion maxFlowerGroupSize="100000000"/>
