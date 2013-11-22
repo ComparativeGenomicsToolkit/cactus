@@ -42,7 +42,7 @@
 		<divergence 
 			argName="lastzArguments"
 			one="--step=8 --ambiguous=iupac,100 --ydrop=3000 --notransition"
-		 	two="--step=8 --ambiguous=iupac,100 --ydrop=3000"
+		 	two="--step=2 --ambiguous=iupac,100 --ydrop=3000 --notransition"
 		 	three="--step=5 --ambiguous=iupac,100 --ydrop=3000"
 		 	four="--step=4 --ambiguous=iupac,100 --ydrop=3000"
 		 	five="--step=3 --ambiguous=iupac,100 --ydrop=3000"
