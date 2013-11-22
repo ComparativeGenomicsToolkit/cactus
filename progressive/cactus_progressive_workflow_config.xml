@@ -41,7 +41,7 @@
 		within a margin of 0.5% sensitivity, should be very fast for close genomes -->
 		<divergence 
 			argName="lastzArguments"
-			one="--step=16 --ambiguous=iupac,100 --ydrop=3000"
+			one="--step=8 --ambiguous=iupac,100 --ydrop=3000 --notransition"
 		 	two="--step=8 --ambiguous=iupac,100 --ydrop=3000"
 		 	three="--step=5 --ambiguous=iupac,100 --ydrop=3000"
 		 	four="--step=4 --ambiguous=iupac,100 --ydrop=3000"

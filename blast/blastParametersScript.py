@@ -42,10 +42,12 @@ speciesPairs = [('human', 'chimp', 0.016696), ('human', 'baboon', 0.076828000000
                 ('rabbit', 'dog', 0.45563699999999996), ('dog', 'hedgehog', 0.459598), ('dog', 'tenrec', 0.537087), 
                 ('mouse', 'dog', 0.562574), ('rat', 'dog', 0.571)
                  ]
-
 settings = ["--step=2 --ambiguous=iupac,100 --ydrop=3000",
+            "--step=2 --ambiguous=iupac,100 --ydrop=3000 --notransition",
             "--step=3 --ambiguous=iupac,100 --ydrop=3000",
+            "--step=3 --ambiguous=iupac,100 --ydrop=3000 --notransition",
             "--step=4 --ambiguous=iupac,100 --ydrop=3000",
+            "--step=4 --ambiguous=iupac,100 --ydrop=3000 --notransition",
             "--step=5 --ambiguous=iupac,100 --ydrop=3000",
             "--step=5 --ambiguous=iupac,100 --ydrop=3000 --notransition",
             "--step=8 --ambiguous=iupac,100 --ydrop=3000",
