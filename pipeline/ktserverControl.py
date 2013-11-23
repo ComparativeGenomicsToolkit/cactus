@@ -248,11 +248,14 @@ def killKtServer(dbElem, killSwitchPath, killTimeout=100):
 
     success = False
     for i in xrange(killTimeout):
-        if pingKtServer(dbElem) or len(__scrapePids([logPath])) > 0:
-            logger.critical("Waiting for ktserver to die, but still running with logPath: %s, pingKtServer returned %s, dB port: %s, __scrapePids returned: %s" % (logPath, pingKtServer(dbElem), dbElem.getDbPort(), __scrapePids([logPath])))
-            sleep(1)
-        else:
-            success = True
+        try:
+            if pingKtServer(dbElem) or len(__scrapePids([logPath])) > 0:
+                logger.critical("Waiting for ktserver to die, but still running with logPath: %s, pingKtServer returned %s, dB port: %s, __scrapePids returned: %s" % (logPath, pingKtServer(dbElem), dbElem.getDbPort(), __scrapePids([logPath])))
+                sleep(1)
+            else:
+                success = True
+        except RuntimeError:
+            logger.critical("Got runtime error while trying to kill ktserver, putting it down to bad luck and carrying on")
     if not success:
         raise RuntimeError("Failed to kill server within timeout. " +
                            "Server log is %s" % logPath)

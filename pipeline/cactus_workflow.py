@@ -276,19 +276,20 @@ def getLongestPath(node, distance=0.0):
     if node.right != None:  
         j = getLongestPath(node.right, abs(node.right.distance)) + distance
     return max(i, j)
-        
+
 class CactusSetupPhase(CactusPhasesTarget):  
     """Initialises the cactus database and adapts the config file for the run.
     """
     def run(self):
         #Adapt the config file to use arguments for the appropriate divergence distance
-        longestPath = getLongestPath(newickTreeParser(self.cactusWorkflowArguments.speciesTree))
+        self.cactusWorkflowArguments.longestPath = getLongestPath(newickTreeParser(self.cactusWorkflowArguments.speciesTree))
         if self.cactusWorkflowArguments.outgroupEventNames == None:
+            distanceToAddToRootAlignment = getOptionalAttrib(self.cactusWorkflowArguments.configNode, "distanceToAddToRootAlignment", float, 0.0)
             self.logToMaster("Extending longest path")
-            longestPath += 0.1
-        self.logToMaster("The longest path in the tree is %f" % longestPath)
+            self.cactusWorkflowArguments.longestPath += distanceToAddToRootAlignment
+        self.logToMaster("The longest path in the tree is %f" % self.cactusWorkflowArguments.longestPath)
         cw = ConfigWrapper(self.cactusWorkflowArguments.configNode)
-        for message in cw.substituteAllDivergenceContolledParametersWithLiterals(longestPath):
+        for message in cw.substituteAllDivergenceContolledParametersWithLiterals(self.cactusWorkflowArguments.longestPath):
             self.logToMaster(message)
     
         # we circumvent makeFollowOnPhaseTarget() interface for this job.
@@ -349,20 +350,19 @@ def inverseJukesCantor(d):
     
 class CactusCafPhase(CactusPhasesTarget):      
     def run(self):
+        #Filter by identity
         if self.getOptionalPhaseAttrib("filterByIdentity", bool, False): #Do the identity filtering
-            longestPath = getLongestPath(newickTreeParser(self.cactusWorkflowArguments.speciesTree))
-            adjustedPath = float(self.phaseNode.attrib["identityRatio"]) * longestPath + \
-            float(self.phaseNode.attrib["minimumDistance"])
+            adjustedPath = max(float(self.phaseNode.attrib["identityRatio"]) * self.cactusWorkflowArguments.longestPath,
+            float(self.phaseNode.attrib["minimumDistance"]))
             identity = str(100 - int(100 * inverseJukesCantor(adjustedPath)))
-            logger.info("The blast stage will filter by identity, the calculated minimum identity is %s from a longest path of %s and an adjusted path of %s" % (identity, longestPath, adjustedPath))
-            assert "IDENTITY" in self.phaseNode.attrib["lastzArguments"]
-            self.phaseNode.attrib["lastzArguments"] = self.phaseNode.attrib["lastzArguments"].replace("IDENTITY", identity)
+            self.logToMaster("The blast stage will filter by identity, the calculated minimum identity is %s from a longest path of %s and an adjusted path of %s" % (identity, self.cactusWorkflowArguments.longestPath, adjustedPath))
+            self.phaseNode.attrib["lastzArguments"] = self.phaseNode.attrib["lastzArguments"] + (" --identity=%s" % identity)
+        #Setup any constraints
         if self.getPhaseIndex() == 0 and self.cactusWorkflowArguments.constraintsFile != None: #Setup the constraints arg
             newConstraintsFile = os.path.join(self.getGlobalTempDir(), "constraints.cig")
             runCactusConvertAlignmentToCactus(self.cactusWorkflowArguments.cactusDiskDatabaseString,
                                               self.cactusWorkflowArguments.constraintsFile, newConstraintsFile)
-            self.phaseNode.attrib["constraints"] = newConstraintsFile
-            
+            self.phaseNode.attrib["constraints"] = newConstraintsFile  
         if self.getPhaseIndex()+1 < self.getPhaseNumber(): #Check if there is a repeat phase
             self.runPhase(CactusCafRecursion, CactusCafPhase, "caf", index=self.getPhaseIndex()+1)
         else:

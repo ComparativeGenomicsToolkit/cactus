@@ -1,5 +1,6 @@
 <!-- This XML tree contains the parameters to cactus_progressive.py -->
-<cactusWorkflowConfig>
+<!-- The distanceToAddToRootAlignment parameter is how much extra divergence distance to allow when aligning children of the root genome -->
+<cactusWorkflowConfig distanceToAddToRootAlignment="0.1">
 	<constants defaultMemory="mediumMemory" defaultOverlargeMemory="mediumMemory" defaultCpu="1" defaultOverlargeCpu="1">
 		<!-- These constants are used to control the amount of memory and cpu the different jobs in a batch are using. -->
   		<defines littleMemory="2147483648" mediumMemory="8589934592" bigMemory="207374182400" maxFlowerGroupSizeRecursion="100000000"/>
@@ -11,7 +12,7 @@
 	<!-- The first preprocessor tag ensures cactus_checkUniqueHeaders checks that the first word of every fasta header is unique, as this is required for HAL. It throws errors if this is not the case -->
 	<preprocessor check="1" memory="2147483648" preprocessorString="cactus_checkUniqueHeaders.py IN_FILE"/>
 	<!-- The preprocessor for cactus_lastzRepeatMask masks every seed that is part of more than XX other alignments, this stops a combinatorial explosion in pairwise alignments -->
-	<preprocessor chunkSize="100000000" memory="littleMemory" preprocessorString="cactus_lastzRepeatMask.py --minPeriod=50 --lastzOpts='--step=2 --ambiguous=iupac --nogapped' GENOME_FILE IN_FILE OUT_FILE"/>
+	<preprocessor chunkSize="50000000" memory="littleMemory" preprocessorString="cactus_lastzRepeatMask.py --minPeriod=50 --lastzOpts='--step=2 --ambiguous=iupac --nogapped' GENOME_FILE IN_FILE OUT_FILE"/>
 	<ktserver memory="mediumMemory" overlargeMemory="bigMemory"/>
 	<setup makeEventHeadersAlphaNumeric="0">
 	</setup>
@@ -23,8 +24,8 @@
 		realignArguments="--rescoreByIdentity --gapGamma 0.9 --diagonalExpansion 4 --splitMatrixBiggerThanThis 10 --constraintDiagonalTrim 0 --alignAmbiguityCharacters"
 		compressFiles="1" 
 		overlapSize="10000" 
-		filterByIdentity="0" 
-		identityRatio="6" 
+		filterByIdentity="1" 
+		identityRatio="3" 
 		minimumDistance="0.01" 
 		minimumSequenceLengthForBlast="30"
 		annealingRounds="128" 
