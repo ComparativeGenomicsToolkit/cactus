@@ -1,0 +1,358 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+	"http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<title>LAV Format</title>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<style type="text/css">
+	body            { margin: 0 4% 0 3%;
+	                  color: black; background-color: white }
+
+	p.vvlarge       { margin-top: 6ex; margin-bottom: 0 }
+	p.vlarge        { margin-top: 4ex; margin-bottom: 0 }
+	p.large         { margin-top: 3ex; margin-bottom: 0 }
+	p               { margin-top: 2ex; margin-bottom: 0 }
+	p.small         { margin-top: 1ex; margin-bottom: 0 }
+	p.hdr           { margin-top: 4ex; margin-bottom: 0 }
+	p.subhdr        { margin-top: 2.5ex; margin-bottom: 0 }
+	p.scrollspace   { margin-top: 100em; margin-bottom: 0 }
+
+	pre             { margin-top: 0.7ex; margin-bottom: 0.7ex }
+
+	ul.sub          { margin-left: -1ex }
+
+	code            { padding-left: 0.5ex; padding-right: 0.5ex }
+	code.nopad      { padding-left: 0; padding-right: 0 }
+
+	.notop          { margin-top: 0 }
+
+	.comment        { font-style: italic; font-weight: bold;
+	                  background-color: yellow }
+</style>
+</head>
+<body>
+
+<p class=vvlarge>
+<h2>LAV Format</h2>
+
+<p class=vvlarge>
+TABLE OF CONTENTS
+
+<p class=small>
+<ul class=notop>
+<li><a href="#intro">Introduction</a>
+<li><a href="#example">Example</a>
+<li><a href="#stanza">Stanza Types</a>
+	<ul class="notop sub">
+	<li><a href="#d">D Stanza</a>
+	<li><a href="#s">S Stanza</a>
+	<li><a href="#h">H Stanza</a>
+	<li><a href="#a">A Stanza</a>
+	<li><a href="#xm">X and M Stanzas</a>
+	<li><a href="#census">Census Stanza</a>
+	</ul>
+</ul>
+
+<p class=hdr>
+<h3><a name="intro">Introduction</a></h3>
+<p>
+
+LAV is a plain-text file format for alignments of two DNA sequences.  It is
+the only output format produced by the
+<a href="http://www.bx.psu.edu/miller_lab/">BLASTZ</a> alignment program
+(though often converted to
+<a href="http://genome.ucsc.edu/goldenPath/help/axt.html">AXT</a> format
+by post-processing programs), and is the default output format for BLASTZ's
+successor, <a href="http://www.bx.psu.edu/miller_lab/">LASTZ</a>.
+<p>
+The alignment blocks are grouped by sequence (e.g. chromosome, scaffold,
+contig, cDNA read, shotgun sequencing read, etc.) and strand, and described
+by listing the coordinates of the gap-free aligning segments in each block.
+This format is compact because it does not include the nucleotides, but the
+tradeoff is that interpretation usually requires access to the original
+sequence files, and it is not easy for humans to read.
+
+<p class=hdr>
+<h3><a name="example">Example</a></h3>
+<p>
+
+Here's a typical LAV file:
+<p>
+<pre>
+    #:lav
+    d {
+      "lastz.v0.3 malus.fa aurantium.fa C=2 W=8 T=0 
+         A    C    G    T
+        91 -114  -31 -123
+      -114  100 -125  -31
+       -31 -125  100 -114
+      -123  -31 -114   91
+      O = 400, E = 30, K = 3000, L = 3000, M = 0"
+    }
+    #:lav
+    s {
+      "malus.fa" 1 191411218 0 1
+      "aurantium.fa" 1 90634903 0 1
+    }
+    h {
+      "> apple"
+      "> orange"
+    }
+    a {
+      s 20643
+      b 46566766 2083211
+      e 46567353 2083795
+      l 46566766 2083211 46566796 2083241 61
+      l 46566797 2083245 46566814 2083262 78
+      l 46566821 2083263 46567353 2083795 65
+    }
+    a {
+      s 4233
+      b 47246530 10635696
+      e 47246660 10635826
+      l 47246530 10635696 47246660 10635826 63
+    }
+    ... many more a-stanzas ...
+    #:lav
+    s {
+      "malus.fa" 1 191411218 0 1
+      "aurantium.fa-" 1 90634903 1 1
+    }
+    h {
+      "> apple"
+      "> orange (reverse complement)"
+    }
+    a {
+      s 13897
+      b 1005819 5352698
+      e 1006099 5352978
+      l 1005819 5352698 1006099 5352978 74
+    }
+    ... many more a-stanzas ...
+    #:eof
+</pre>
+
+<p class=hdr>
+<h3><a name="stanza">Stanza Types</a></h3>
+<p>
+
+An LAV file primarily consists of a series of "stanzas", each of which
+is a single letter code followed by a brace-enclosed block.  There are
+also <code>#:lav</code> lines which break the file into sections, and
+one <code>#:eof</code> line indicating the end of the file.  Programs
+that read LAV format should consider the file bad if the
+<code>#:eof</code> is missing (or if anything appears after it).
+
+<p class=subhdr>
+<b><a name="d">D Stanza</a></b>
+<p>
+The d-stanza is intended to document the program and parameters used
+to create the file.  Programs reading the file normally treat this as
+a comment, but it is possible to extract the scoring parameters for
+further processing.
+
+<p class=subhdr>
+<b><a name="s">S Stanza</a></b>
+<p>
+An s-stanza describes the sequences used for the subsequent alignment
+records (a-stanzas).  It contains exactly two lines in the following
+format.
+<p>
+<pre>
+    "&lt;filename&gt;[-]" &lt;start&gt; &lt;stop&gt; [&lt;rev_comp_flag&gt; &lt;sequence_number&gt;]
+</pre>
+<p>
+Here <code>&lt;start&gt;</code> and <code>&lt;stop&gt;</code> are
+origin 1 (i.e. the first base in the original given sequence is called
+"1") and inclusive (both endpoints are included in the interval).
+Usually <code>&lt;start&gt;</code> is 1 and <code>&lt;stop&gt;</code>
+is the full length of the given sequence, however they can specify any
+subsequence (e.g. if the alignment program was instructed to use only
+part of the original sequence).
+<p>
+<code>&lt;rev_comp_flag&gt;</code> is 1 if the sequence was
+reverse-complemented before aligning, or 0 otherwise.  Usually the
+first sequence will have a 0 here, since most alignment programs only
+ever reverse-complement the second one.  If this flag is 1, the
+<code>&lt;filename&gt;</code> will also have a <code>-</code> appended
+to it; programs that read LAV format should report an error if these
+two indicators are contradictory.  Note that even when this flag
+indicates reverse-complement, the <code>&lt;start&gt;</code> and
+<code>&lt;stop&gt;</code> endpoints are still relative to the original
+orientation, and <code>&lt;start&gt;</code> is less than
+<code>&lt;stop&gt;</code>.  That is, conceptually the alignment program
+extracts the requested sequence fragment first, then reverse-complements
+it (if applicable), and finally tries to align it.
+<p>
+<code>&lt;sequence_number&gt;</code> is useful when the second file
+contains multiple sequences.  The first sequence is 1, the second is 2, and so
+on. Most programs that write and read LAV format do not allow the first file to
+contain multiple sequences, so in these cases the sequence number for the first
+file is always 1 (though the format itself does not require this).  Note that
+<code>&lt;start&gt;</code> and <code>&lt;stop&gt;</code> are relative to each
+sequence, not to the entire file.
+<p>
+The <code>&lt;rev_comp_flag&gt;</code> and
+<code>&lt;sequence_number&gt;</code> are shown here as optional because
+early versions of this format did not include them.
+
+<p class=subhdr>
+<b><a name="h">H Stanza</a></b>
+<p>
+Usually an s-stanza is followed immediately by an h-stanza, which
+provides a name for each of the two sequences, typically obtained
+from the FASTA header line.  (Before the s-stanza's
+<code>&lt;sequence_number&gt;</code> field was introduced, this was
+the only way to identify which sequence from a multi-sequence file was
+aligned.)  A <code>(reverse complement)</code> suffix is appended when
+applicable; again, programs should report an error if this contradicts
+the other indicators.
+
+<p class=subhdr>
+<b><a name="a">A Stanza</a></b>
+<p>
+An a-stanza describes a single alignment block, sometimes called a
+"local alignment", which typically includes gaps due to small insertions
+and deletions in the aligned sequences.  In the example below, the
+<code class=nopad>s</code>, <code class=nopad>b</code>, and
+<code class=nopad>e</code> lines indicate that the block has a score
+of 13916 and an overall range of 4886..5171 in sequence 1 and 21292..21537
+in sequence 2.
+<p>
+The <code>l</code> lines describe the block's gap-free segments, with the
+final field representing the percentage of matching bases in each segment.
+In this example the alignment starts with a segment from 4886..4899 in
+sequence 1 and from 21292..21305 in sequence 2, having a percent identity
+of 79%.  Note that the segment length must be the same in both sequences
+(14 basepairs for this segment).  The next segment starts at 4900 and 21308
+in sequences 1 and 2, respectively, indicating a two-base gap in sequence 1
+(corresponding to positions 21306 and 21307 in sequence 2).
+<p>
+<pre>
+    a {
+      s 13916
+      b 4886 21292
+      e 5171 21537
+      l 4886 21292 4899 21305 79
+      l 4900 21308 4924 21332 92
+      l 4925 21334 5024 21433 88
+      l 5027 21434 5040 21447 100
+      l 5086 21448 5117 21479 84
+      l 5118 21484 5171 21537 87
+    }
+</pre>
+<p>
+Coordinates in an a-stanza are origin 1 and inclusive, and are <i>relative
+to the subsequences</i> indicated in the most recent s-stanza.  In the
+example below the alignment is of apple 1333..1444 to orange 2777..2888.
+<p>
+<pre>
+    s {
+      "malus.fa" 1001 2000 0 1
+      "aurantium.fa" 2001 5000 0 1
+    }
+    ...
+    a {
+      s 7321
+      b 333 777
+      e 444 888
+      l 333 777 444 888 62
+    }
+</pre>
+<p>
+If a sequence is reverse-complemented, then the coordinates are <i>relative
+to the reverse complement</i>, so they are counted back from the end of
+the subsequence.  Thus the example below represents an alignment of apple
+1333..1444 to the reverse complement of orange 4113..4224.  In detail:
+the s-stanza indicates that the first sequence from aurantium.fa should be
+used, and its subsequence from 2001..5000 should be extracted and then
+reverse complemented before aligning with apple.  In this 3000 bp
+reverse-complemented subsequence, the first base corresponds to position
+5000 in the original sequence, the second to position 4999, and so on to
+the last (3000th) base, which corresponds to position 2001.  Thus the
+conversion formula is <code>p = 5000 - (r - 1)</code>, where <code>p</code>
+is the position in the original sequence, and r is the position in the
+reverse-complemented subsequence.  Within the reverse-complemented
+subsequence, the alignment is at 777..888.  The starting point, 777, is the
+nucleotide 776 bp back from 5000, or 4224, while the ending point, 888, is
+887 bp back from 5000, or 4113.
+<p>
+<pre>
+    s {
+      "malus.fa" 1001 2000 0 1
+      "aurantium.fa-" 2001 5000 1 1
+    }
+    ...
+    a {
+      s 7321
+      b 333 777
+      e 444 888
+      l 333 777 444 888 62
+    }
+</pre>
+<p>
+The fifth numeric field in an a-stanza's <code>l</code> line is the
+percentage of bases in the aligned segment that match (often called the
+"percent identity" or "percent id").  This is used by viewer tools such as
+<a href="http://www.bx.psu.edu/miller_lab/">Laj</a> and
+<a href="http://www.bx.psu.edu/miller_lab/">PipMaker</a>.
+
+<p class=subhdr>
+<b><a name="xm">X and M Stanzas</a></b>
+<p>
+An LAV file may also contain x- and m-stanzas describing dynamic masking.
+Each section will contain an x-stanza that looks like the one below.  The
+count is the number of bases newly masked as a result of processing the
+latest query sequence; it does <i>not</i> include bases previously masked.
+<p>
+<pre>
+    x {
+      n &lt;count&gt;
+    }
+</pre>
+<p>
+A single m-stanza listing the masked regions is then included in the final
+section, and looks like the one below.  <code>&lt;start&gt;</code> and
+<code>&lt;stop&gt;</code> are origin 1 and inclusive, and are <i>relative
+to the first subsequence</i> indicated in the most recent s-stanza.
+<p>
+<pre>
+    m {
+      x &lt;start&gt; &lt;end&gt;
+      x &lt;start&gt; &lt;end&gt;
+      ...
+      n &lt;count&gt;
+    }
+</pre>
+<p>
+Dynamic masking is invoked by the
+<code>&#8209;&#8209;masking=&lt;count&gt;</code> option in LASTZ, or
+the <code>M=&lt;count&gt;</code> option in BLASTZ.  For more information
+about these options, please see the
+<a href="http://www.bx.psu.edu/miller_lab/">LASTZ</a> documentation.
+
+<p class=subhdr>
+<b><a name="census">Census Stanza</a></b>
+<p>
+In LASTZ, the <code>&#8209;&#8209;census</code> option will produce a
+Census-stanza.  The first field in each line (<code class=nopad>1</code>,
+<code class=nopad>2</code>, <code class=nopad>3</code>, &hellip;) is a
+position in the target (sequence 1).  The count indicates the number of
+times the corresponding base appears in an alignment.
+<p>
+<pre>
+    Census {
+      1 &lt;count&gt;
+      2 &lt;count&gt;
+      ...
+    }
+</pre>
+
+<p class=vlarge>
+<hr>
+<i>Bob Harris and Cathy Riemer, October 2008</i>
+
+<p class=scrollspace>
+</body>
+</html>

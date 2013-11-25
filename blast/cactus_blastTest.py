@@ -253,7 +253,7 @@ def loadResults(resultsFile):
     return (pairsSet, totalHits)
 
 def runNaiveBlast(seqFile1, seqFile2, outputFile, 
-                  blastString="lastz --format=cigar OPTIONS SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE", 
+                  blastString="cactus_lastz --format=cigar OPTIONS SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE", 
                   lastzOptions=""):
     """Runs the blast command in a very naive way (not splitting things up).
     """

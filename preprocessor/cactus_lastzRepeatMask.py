@@ -39,7 +39,7 @@ def main():
     #output stuff
     parser.add_option("--fragment", dest="fragment", type="int",
                      help="The size of chunks passed to lastz (must be at least twice as big as overlap)",
-                     default=200)
+                     default=100)
     
     parser.add_option("--minPeriod", dest="period", type="int",
                      help="minimum number of occurrences of a sequence for it to be masked",
@@ -51,7 +51,7 @@ def main():
     
     parser.add_option("--lastzCmd", dest="lastzCmd", type="string",
                       help="lastz executable",
-                      default="lastz")
+                      default="cactus_lastz")
     
     options, args = parser.parse_args()
     
@@ -88,21 +88,27 @@ def main():
                         str(options.fragment) + ' --step=' + str(options.fragment / 2)
         
         # lastz each fragment against the entire input sequence.  Each time a fragment aligns to a base
-        # in the sequence, that base's match count is incremented.  base's whose match count exceeds the 
-        # input period are softmasked.  
+        # in the sequence, that base's match count is incremented.  
         # Note, we multiply period by two because we specify that every base is covered by two
         # overlapping fragments
+        
+        ##Not currently true
         # Also note: repeats already masked in the input sequence are ignored (as by default in lastz).  
         # This behaviour can be changed by something like replacing [multiple] with [multiple,unmask]'
-        lastzCmdLine = options.lastzCmd + ' ' + targetFile + '[multiple][nameparse=darkspace] /dev/stdin[nameparse=darkspace] ' + options.lastzOptions + \
-                        ' --masking=' + str(options.period * 2 + 1) + ' --outputmasking+:soft=' + maskInfoFile + \
-                        ' --format=none' 
+        lastzCmdLine = options.lastzCmd + ' ' + targetFile + \
+        '[multiple,unmask][nameparse=darkspace] /dev/stdin[unmask][nameparse=darkspace] ' + \
+        options.lastzOptions + \
+        (' --querydepth=keep,nowarn:%i --format=general:name1,zstart1,end1,name2,zstart2+,end2+ --markend ' % \
+         (options.period * 2 + 1))
 
-        system(fragCmdLine + ' | ' + lastzCmdLine)
-        
+        #This runs Bob's covered intervals program, which combins the lastz alignment info into intervals of the query.
+        coveredIntervalsCmdLine = "cactus_covered_intervals  --queryoffsets --origin=one > %s" % maskInfoFile
+
+        system(fragCmdLine + ' | ' + lastzCmdLine + ' | ' + coveredIntervalsCmdLine)
+
         # the previous lastz command outputs a file of intervals (denoted with indices) to softmask.
         # we finish by applying these intervals to the input file, to produce the final, softmasked output. 
-        softMaskCmdLine = 'cat ' + targetFile + ' | fasta_softmask_intervals.py --origin=1 ' + maskInfoFile + \
+        softMaskCmdLine = 'cat ' + queryFile + ' | cactus_fasta_softmask_intervals.py --origin=1 ' + maskInfoFile + \
                             ' > ' + outputFile
     
         system(softMaskCmdLine)
