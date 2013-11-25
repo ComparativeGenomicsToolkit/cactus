@@ -60,8 +60,8 @@ def main():
         return 1
     
     queryFile = args[0]
-    targetFile = args[1]
-    outputFile = args[2]
+    outputFile = args[1]
+    targetFiles = args[2:]
     
     assert os.path.isfile(queryFile)
     assert os.path.isfile(targetFile)
@@ -80,6 +80,13 @@ def main():
     currentDir = os.path.dirname(args[1])
     tempDir = tempfile.mkdtemp(dir=currentDir)
     maskInfoFile = os.path.join(tempDir, "maskFile.dat")
+    targetFile = os.path.join(tempDir, "target.fa")
+    
+    #Make temporary target file, if more than one file
+    if len(targetFiles) > 0:
+        system("cat %s > %s" % (" ".join(targetFiles)), targetFile)
+    else:
+        system("ln %s %s" % targetFiles[0], targetFile)
 
     try:
         # chop up input fasta file into into fragments of specified size.  fragments overlap by 

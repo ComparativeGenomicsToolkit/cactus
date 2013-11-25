@@ -12,7 +12,7 @@
 	<!-- The first preprocessor tag ensures cactus_checkUniqueHeaders checks that the first word of every fasta header is unique, as this is required for HAL. It throws errors if this is not the case -->
 	<preprocessor check="1" memory="2147483648" preprocessorString="cactus_checkUniqueHeaders.py IN_FILE"/>
 	<!-- The preprocessor for cactus_lastzRepeatMask masks every seed that is part of more than XX other alignments, this stops a combinatorial explosion in pairwise alignments -->
-	<preprocessor chunkSize="50000000" memory="littleMemory" preprocessorString="cactus_lastzRepeatMask.py --minPeriod=50 --lastzOpts='--step=2 --ambiguous=iupac --nogapped' GENOME_FILE IN_FILE OUT_FILE"/>
+	<preprocessor chunkSize="50000000" memory="littleMemory" preprocessorString="cactus_lastzRepeatMask.py --minPeriod=50 --lastzOpts='--step=2 --ambiguous=iupac --nogapped' GENOME_FILE OUT_FILE IN_FILES"/>
 	<ktserver memory="mediumMemory" overlargeMemory="bigMemory"/>
 	<setup makeEventHeadersAlphaNumeric="0">
 	</setup>
