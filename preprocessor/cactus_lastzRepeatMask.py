@@ -118,14 +118,15 @@ def main():
         # This behaviour can be changed by something like replacing [multiple] with [multiple,unmask]'
         lastzCmdLine = options.lastzCmd + ' ' + targetFile + \
         '[multiple,unmask][nameparse=darkspace] /dev/stdin[unmask][nameparse=darkspace] ' + options.lastzOptions + \
-        (' T=2 --filter=nmatch:85 --querydepth=keep,nowarn:%i --format=general:name1,zstart1,end1,name2,zstart2+,end2+ --markend ' % \
-         (options.period * 2 + 1))
+        (' --querydepth=keep,nowarn:%i --format=general:name1,zstart1,end1,name2,zstart2+,end2+ --markend ' % \
+         options.period)
 
         #This runs Bob's covered intervals program, which combins the lastz alignment info into intervals of the query.
         coveredIntervalsCmdLine = "cactus_covered_intervals  --queryoffsets --origin=one > %s" % maskInfoFile
 
         system(fragCmdLine + ' | ' + lastzCmdLine + ' | ' + coveredIntervalsCmdLine)
 
+        #open(maskInfoFile, "w").close()
         # the previous lastz command outputs a file of intervals (denoted with indices) to softmask.
         # we finish by applying these intervals to the input file, to produce the final, softmasked output. 
         unmaskString = ""
