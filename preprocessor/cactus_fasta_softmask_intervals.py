@@ -61,7 +61,7 @@ def main():
 		elif (arg.startswith("--mask=")):
 			maskChar = argVal
 			if (len(maskChar) != 1): usage("--mask requires a single character")
-		elif (arg.startswith("--unmask=")):
+		elif (arg.startswith("--unmask")):
 			unmask = True
 		elif (arg.startswith("--")):
 			usage("can't understand %s" % arg)
