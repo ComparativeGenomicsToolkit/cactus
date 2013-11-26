@@ -9,6 +9,7 @@
 
 import os
 import re
+import sys
 from optparse import OptionParser
 import tempfile
 import shutil
@@ -57,21 +58,28 @@ def main():
                       help="Removes any previous masking from sequence being masked before masking",
                       default=False)
     
+    parser.add_option("--proportionSampled", dest="proportionSampled", type="float",
+                     help="The amount of the genome that is being sampled for masking, used to adjust the minPeriod parameter according to sampling",
+                     default="1.0")
+    
     options, args = parser.parse_args()
     
-    if len(args) != 3:
+    if len(args) != 2:
         parser.print_help()
         return 1
     
     queryFile = args[0]
     outputFile = args[1]
-    targetFiles = args[2:]
+    targetFiles = sys.stdin.readline().split() #Read them from stdin
     
     assert os.path.isfile(queryFile)
     assert len(targetFiles) >= 1
     for targetFile in targetFiles:
         assert os.path.isfile(targetFile)
     assert options.fragment > 1
+    
+    #Adjust the period parameter using the amount of genome sampled
+    options.period = round(options.proportionSampled * options.period)
     
     if testExec("fasta_softmask_intervals.py") == False:
         raise RuntimeError("ERROR: fasta_softmask_intervals.py" + \

@@ -17,7 +17,7 @@ from bz2 import BZ2File
 import copy
 
 from sonLib.bioio import logger
-from sonLib.bioio import system, popenCatch
+from sonLib.bioio import system, popenCatch, popenPush
 from sonLib.bioio import getLogLevelString
 from sonLib.bioio import newickTreeParser
 from sonLib.bioio import makeSubDir
@@ -38,21 +38,22 @@ class PreprocessorOptions:
 class PreprocessChunk(Target):
     """ locally preprocess a fasta chunk, output then copied back to input
     """
-    def __init__(self, prepOptions, seqPaths, inChunk, outChunk):
+    def __init__(self, prepOptions, seqPaths, proportionSampled, inChunk, outChunk):
         Target.__init__(self, memory=prepOptions.memory, cpu=prepOptions.cpu)
         self.prepOptions = prepOptions 
         self.seqPaths = seqPaths
         self.inChunk = inChunk
         self.outChunk = outChunk
+        self.proportionSampled = proportionSampled
     
     def run(self):
         tempPath = os.path.join(self.getLocalTempDir(), "tempPath")
         cmdline = self.prepOptions.cmdLine.replace("IN_FILE", "\"" + self.inChunk + "\"")
         cmdline = cmdline.replace("OUT_FILE", "\"" + self.outChunk + "\"")
-        cmdline = cmdline.replace("GENOME_FILES", "\"" + " ".join(self.seqPaths) + "\"")
         cmdline = cmdline.replace("TEMP_FILE", "\"" + tempPath + "\"")
+        cmdline = cmdline.replace("PROPORTION_SAMPLED", str(self.proportionSampled))
         logger.info("Preprocessor exec " + cmdline)
-        system(cmdline)
+        popenPush(cmdline, " ".join(self.seqPaths))
         if self.prepOptions.check:
             system("cp %s %s" % (self.inChunk, self.outChunk))
 
@@ -98,10 +99,10 @@ class PreprocessSequence(Target):
                 if len(inChunks) < inChunkNumber: #This logic is like making the list circular
                     inChunks += inChunkList[:inChunkNumber-len(inChunks)]
                 assert len(inChunks) == inChunkNumber
-                self.addChildTarget(PreprocessChunk(self.prepOptions, inChunks, inChunkList[i], outChunkList[i]))
+                self.addChildTarget(PreprocessChunk(self.prepOptions, inChunks, float(inChunkNumber)/len(inChunkList), inChunkList[i], outChunkList[i]))
             else:
                 #If self.proportionToSample is 1.0 then we will feed the complete genome in for analysis.
-                self.addChildTarget(PreprocessChunk(self.prepOptions, [ self.inSequencePath ], inChunkList[i], outChunkList[i]))
+                self.addChildTarget(PreprocessChunk(self.prepOptions, [ self.inSequencePath ], 1.0, inChunkList[i], outChunkList[i]))
         # follow on to merge chunks
         self.setFollowOnTarget(MergeChunks(self.prepOptions, outChunkList, self.outSequencePath))
 
@@ -142,7 +143,7 @@ class BatchPreprocessor(Target):
             outSeq = self.globalOutSequence
         
         if prepOptions.chunkSize <= 0: #In this first case we don't need to break up the sequence
-            self.addChildTarget(PreprocessChunk(prepOptions, self.inSequence, self.inSequence, outSeq))
+            self.addChildTarget(PreprocessChunk(prepOptions, [ self.inSequence ], 1.0, self.inSequence, outSeq))
         else:
             self.addChildTarget(PreprocessSequence(prepOptions, self.inSequence, outSeq)) 
         
