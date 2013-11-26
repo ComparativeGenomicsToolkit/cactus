@@ -23,7 +23,7 @@ class TestCase(unittest.TestCase):
         #Demo sequences
         sequenceFiles = [ os.path.join(self.encodePath, self.encodeRegion, "%s.ENm001.fa" % species) for species in 'human', "hedgehog" ]
         #Max occurrences
-        maxOccurrences = [ 1, 2, 5, 10, 20 ]
+        maxOccurrences = [ 1, 2, 5, 10, 20, 50, 100 ]
         
         for sequenceFile in sequenceFiles:
             #Parse sequences into dictionary
@@ -38,7 +38,7 @@ class TestCase(unittest.TestCase):
             for maxOccurrence in maxOccurrences:
                 
                 #Run lastz repeat masker
-                command = "cactus_lastzRepeatMask.py --proportionSampled=1.0 --minPeriod=%s --unmask --lastzOpts='--step=1 --ambiguous=iupac --nogapped' %s %s" % \
+                command = "cactus_lastzRepeatMask.py --proportionSampled=1.0 --minPeriod=%s --unmask --lastzOpts='--step=1 --ambiguous=iupac,100 --ydrop=3000' %s %s" % \
                        (maxOccurrence, sequenceFile, self.tempOutputFile)
                 print "Running command", command
                 popenPush(command, sequenceFile)

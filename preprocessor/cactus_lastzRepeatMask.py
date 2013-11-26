@@ -40,11 +40,11 @@ def main():
     #output stuff
     parser.add_option("--fragment", dest="fragment", type="int",
                      help="The size of chunks passed to lastz (must be at least twice as big as overlap)",
-                     default=100)
+                     default=200)
     
     parser.add_option("--minPeriod", dest="period", type="int",
                      help="minimum number of occurrences of a sequence for it to be masked",
-                     default="12")
+                     default=10)
     
     parser.add_option("--lastzOpts", dest="lastzOptions", type="string",
                       help="lastz options for repeat identification",
@@ -110,19 +110,14 @@ def main():
         
         # lastz each fragment against the entire input sequence.  Each time a fragment aligns to a base
         # in the sequence, that base's match count is incremented.  
-        # Note, we multiply period by two because we specify that every base is covered by two
-        # overlapping fragments
-        
-        ##Not currently true
-        # Also note: repeats already masked in the input sequence are ignored (as by default in lastz).  
-        # This behaviour can be changed by something like replacing [multiple] with [multiple,unmask]'
+        # the plus three for the period parameter is a fudge to ensure sufficient alignments are found
         lastzCmdLine = options.lastzCmd + ' ' + targetFile + \
         '[multiple,unmask][nameparse=darkspace] /dev/stdin[unmask][nameparse=darkspace] ' + options.lastzOptions + \
         (' --querydepth=keep,nowarn:%i --format=general:name1,zstart1,end1,name2,zstart2+,end2+ --markend ' % \
-         options.period)
+         (options.period+3))
 
         #This runs Bob's covered intervals program, which combins the lastz alignment info into intervals of the query.
-        coveredIntervalsCmdLine = "cactus_covered_intervals  --queryoffsets --origin=one > %s" % maskInfoFile
+        coveredIntervalsCmdLine = "cactus_covered_intervals --queryoffsets --origin=one M=%s > %s" % (options.period*2, maskInfoFile)
 
         system(fragCmdLine + ' | ' + lastzCmdLine + ' | ' + coveredIntervalsCmdLine)
 
