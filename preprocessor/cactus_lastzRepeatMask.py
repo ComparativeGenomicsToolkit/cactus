@@ -118,7 +118,7 @@ def main():
         # This behaviour can be changed by something like replacing [multiple] with [multiple,unmask]'
         lastzCmdLine = options.lastzCmd + ' ' + targetFile + \
         '[multiple,unmask][nameparse=darkspace] /dev/stdin[unmask][nameparse=darkspace] ' + options.lastzOptions + \
-        (' --querydepth=keep,nowarn:%i --format=general:name1,zstart1,end1,name2,zstart2+,end2+ --markend ' % \
+        (' T=2 --filter=nmatch:85 --querydepth=keep,nowarn:%i --format=general:name1,zstart1,end1,name2,zstart2+,end2+ --markend ' % \
          (options.period * 2 + 1))
 
         #This runs Bob's covered intervals program, which combins the lastz alignment info into intervals of the query.
