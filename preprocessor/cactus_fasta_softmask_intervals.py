@@ -22,7 +22,10 @@ def usage(s=None):
     --wrap=<line_length>      split each sequence into multiple lines if needed
                               (default is to write sequence on a single line)
     --mask=<character>        mask with a particular character (usually X or N)
-                              (default is to mask with lowercase)"""
+                              (default is to mask with lowercase)
+    --unmask                  remove any previous softmasking from sequence being masked (covert to upper case
+                              before masking)                       
+                              """
 
 	if (s == None): exit (message)
 	else:           exit ("%s\n%s" % (s,message))
@@ -37,6 +40,7 @@ def main():
 	wrapLength       = 100
 	maskChar         = None
 	intervalsFile    = None
+	unmask = False
 
 	for arg in argv[1:]:
 		if ("=" in arg):
@@ -57,6 +61,8 @@ def main():
 		elif (arg.startswith("--mask=")):
 			maskChar = argVal
 			if (len(maskChar) != 1): usage("--mask requires a single character")
+		elif (arg.startswith("--unmask=")):
+			unmask = True
 		elif (arg.startswith("--")):
 			usage("can't understand %s" % arg)
 		elif (intervalsFile == None):
@@ -117,7 +123,8 @@ def main():
 			"more than one sequence is named %s" % chrom
 		chromSeen[chrom] = True
 
-		seq = seq.upper()
+		if unmask:
+			seq = seq.upper()
 		if (chrom not in chromToIntervals): chromToIntervals[chrom] = []
 
 		newSeq = []

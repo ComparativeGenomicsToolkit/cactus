@@ -7,20 +7,31 @@ $$$       .. end of a sequence, if possible
 
 $$$ todo: find runs of N and reset the fragment start position to skip past
 $$$       .. such runs
+
+:Author: Bob Harris (rsharris@bx.psu.edu)
 """
 
-from sys import argv,stdin,exit
-import math
+from sys    import argv,stdin,stderr,exit
+from random import seed as random_seed,shuffle
+
 
 def usage(s=None):
 	message = """fasta_fragments [options] < fasta_file > fasta_file
   Split a fasta file into overlapping fragments.
 
   options:
-    --fragment=<length>       length of each fragment
-                              (default is 100)
-    --step=<length>           distance between the start of each fragment
-                              (default is 50)"""
+    --fragment=<length>  length of each fragment
+                         (default is 100)
+    --step=<length>      distance between the start of each fragment
+                         (default is 50)
+    --shuffle[=<seed>]   randomly shuffle the order that fragments are output;
+                         this can be very memory intensive, as all fragments
+                         are collected in a list before any are output
+                         (by default, fragments are output in sequence order)
+    --origin=one         output positions are origin-one
+                         (surprisingly, this is the default)
+    --origin=zero        output positions are origin-zero
+    --head=<number>      limit the number of fragments emitted"""
 
 	if (s == None): exit (message)
 	else:           exit ("%s\n%s" % (s,message))
@@ -30,82 +41,114 @@ def main():
 
 	fragmentLength = 100
 	stepLength     = 50
+	shuffleEm      = False
+	origin         = "one"
+	headLimit      = None
 
 	for arg in argv[1:]:
+		if ("=" in arg):
+			argVal = arg.split("=",1)[1]
+
 		if (arg.startswith("--fragment=")):
-			fragmentLength = int(arg.split("=",1)[1])
+			fragmentLength = int(argVal)
 		elif (arg.startswith("--step=")):
-			stepLength = int(arg.split("=",1)[1])
-                elif (arg == "--test"):
-                        import doctest
-                        doctest.testmod()
+			stepLength = int(argVal)
+		elif (arg == "--shuffle"):
+			shuffleEm = True
+		elif (arg.startswith("--shuffle=")):
+			shuffleEm = True
+			random_seed(argVal)
+		elif (arg.startswith("--origin=")):
+			origin = argVal
+			if (origin == "0"): origin = "zero"
+			if (origin == "1"): origin = "one"
+			assert (origin in ["zero","one"]), "can't understand %s" % arg
+		elif (arg.startswith("--head=")):
+			headLimit = int_with_unit(argVal)
 		elif (arg.startswith("--")):
 			usage("can't understand %s" % arg)
 		else:
 			usage("can't understand %s" % arg)
 
+	allN = "N" * fragmentLength
+
 	# process the sequences
 
-	for (name,seq) in chunk_fasta_sequences(stdin, stepLength, fragmentLength):
-		print ">%s\n%s" % (name,seq)
+	if (shuffleEm):
+		fragments = []
+
+	fragNum = 0
+	for (name,seq) in fasta_sequences(stdin):
+		if (headLimit != None) and (fragNum > headLimit): break
+
+		seq = seq.upper()
+		for ix in xrange(0,len(seq)-fragmentLength,stepLength):
+			frag = seq[ix:ix+fragmentLength]
+			if (frag == allN): continue
+
+			fragNum += 1
+			if (headLimit != None) and (fragNum > headLimit):
+				print >>stderr, "limit of %d emitted fragments reached" % headLimit
+				break
+
+			if (origin == "zero"): header = ">%s_%d" % (name,ix)
+			else:                  header = ">%s_%d" % (name,ix+1)
+			if (shuffleEm):
+				fragments += [(header,frag)]
+			else:
+				print header
+				print frag
+
+	if (shuffleEm):
+		shuffle(fragments)
+		for (header,frag) in fragments:
+			print header
+			print frag
+
 
 # fasta_sequences--
-#	Read the fasta sequences from a file	
+#	Read the fasta sequences from a file
 
-def chunk_fasta_sequences(f, stepLength, fragmentLength):
-	"""Chunks up a fasta stream into overlapping fragments.
-	
-	>>> for (seqName, seq) in chunk_fasta_sequences([">1", "ACTG", "AGGG", "TGCTGC", ">2", "AT", ">3", "CCCGCCT", ">4" ], 3, 6):
-	...     print seqName, seq                                                                                                       
-	1_1 ACTGAG
-	1_4 GAGGGT
-	1_7 GGTGCT
-	1_10 GCTGC
-	2_1 AT
-	3_1 CCCGCC
-	3_4 GCCT
-	>>> 
-	"""
-	allN = "N" * fragmentLength
+def fasta_sequences(f):
 	seqName = None
-	seqNucs = ""
-	offset = 0
-	
-	def chunk(eatWholeSequence):
-		for ix in xrange(0,len(seqNucs),stepLength):
-			frag = seqNucs[ix:ix+fragmentLength]
-			if frag == allN: 
-				continue
-			if len(frag) < fragmentLength:
-				if eatWholeSequence and len(frag) > 0:
-					yield ("%s_%d" % (seqName,ix+1+offset), frag)
-				break
-			yield ("%s_%d" % (seqName,ix+1+offset), frag)
-			
+	seqNucs = None
+
 	for line in f:
 		line = line.strip()
+
 		if (line.startswith(">")):
 			if (seqName != None):
-				for seqPair in chunk(True):
-					yield seqPair
-			seqName = line[1:].strip()
-			seqNucs = ""
-			offset = 0
+				yield (seqName,"".join(seqNucs))
+			seqName = line[1:].strip().split()[0]
+			seqNucs = []
 		elif (seqName == None):
 			assert (False), "first sequence has no header"
 		else:
-			seqNucs += line #.upper() #We can choose to omit looking for the repeats.
-			#Cut off the trailing sequence
-			if len(seqNucs) > fragmentLength:
-				for seqPair in chunk(False):
-					yield seqPair
-				i = int(math.ceil((float(len(seqNucs)) - fragmentLength)/stepLength))*stepLength
-				offset += i
-				seqNucs = seqNucs[i:]
+			seqNucs += [line]
 
 	if (seqName != None):
-		for seqPair in chunk(True):
-			yield seqPair
+		yield (seqName,"".join(seqNucs))
 
-if __name__ == "__main__": 
-	main()
+
+# int_with_unit--
+#	Parse a string as an integer, allowing unit suffixes
+
+def int_with_unit(s):
+	if (s.endswith("K")):
+		multiplier = 1000
+		s = s[:-1]
+	elif (s.endswith("M")):
+		multiplier = 1000 * 1000
+		s = s[:-1]
+	elif (s.endswith("G")):
+		multiplier = 1000 * 1000 * 1000
+		s = s[:-1]
+	else:
+		multiplier = 1
+
+	try:               return               int(s)   * multiplier
+	except ValueError: return int(math.ceil(float(s) * multiplier))
+
+
+if __name__ == "__main__": main()
+

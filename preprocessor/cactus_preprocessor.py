@@ -10,6 +10,7 @@ sequences. Uses the jobTree framework to parallelise the blasts.
 """
 import os
 import sys
+import math
 import errno
 from optparse import OptionParser
 from bz2 import BZ2File
@@ -26,28 +27,29 @@ from cactus.blast.cactus_blast import catFiles
 from cactus.shared.common import getOptionalAttrib
 
 class PreprocessorOptions:
-    def __init__(self, chunkSize, cmdLine, memory, cpu, check):
+    def __init__(self, chunkSize, cmdLine, memory, cpu, check, proportionToSample):
         self.chunkSize = chunkSize
         self.cmdLine = cmdLine
         self.memory = memory
         self.cpu = cpu
         self.check = check
+        self.proportionToSample=proportionToSample
 
 class PreprocessChunk(Target):
     """ locally preprocess a fasta chunk, output then copied back to input
     """
-    def __init__(self, prepOptions, seqPath, inChunk, outChunk):
+    def __init__(self, prepOptions, seqPaths, inChunk, outChunk):
         Target.__init__(self, memory=prepOptions.memory, cpu=prepOptions.cpu)
         self.prepOptions = prepOptions 
-        self.seqPath = seqPath
+        self.seqPaths = seqPaths
         self.inChunk = inChunk
         self.outChunk = outChunk
     
     def run(self):
         tempPath = os.path.join(self.getLocalTempDir(), "tempPath")
-        cmdline = self.prepOptions.cmdLine.replace("GENOME_FILE", "\"" + self.seqPath + "\"")
-        cmdline = cmdline.replace("IN_FILE", "\"" + self.inChunk + "\"")
+        cmdline = self.prepOptions.cmdLine.replace("IN_FILE", "\"" + self.inChunk + "\"")
         cmdline = cmdline.replace("OUT_FILE", "\"" + self.outChunk + "\"")
+        cmdline = cmdline.replace("GENOME_FILES", "\"" + " ".join(self.seqPaths) + "\"")
         cmdline = cmdline.replace("TEMP_FILE", "\"" + tempPath + "\"")
         logger.info("Preprocessor exec " + cmdline)
         system(cmdline)
@@ -88,7 +90,18 @@ class PreprocessSequence(Target):
         #For each input chunk we create an output chunk, it is the output chunks that get concatenated together.
         for i in xrange(len(inChunkList)):
             outChunkList.append(os.path.join(outChunkDirectory, "chunk_%i" % i))
-            self.addChildTarget(PreprocessChunk(self.prepOptions, self.inSequencePath, inChunkList[i], outChunkList[i]))
+            if self.prepOptions.proportionToSample < 1.0:
+                inChunkNumber = max(1, math.ceil(len(inChunkList) * self.prepOptions.proportionToSample))
+                assert inChunkNumber <= len(inChunkList) and inChunkNumber > 0
+                j = max(0, i - inChunkNumber/2)
+                inChunks = inChunkList[j:j+inChunkNumber]
+                if len(inChunks) < inChunkNumber: #This logic is like making the list circular
+                    inChunks += inChunkList[:inChunks]
+                assert len(inChunks) == inChunkNumber
+                self.addChildTarget(PreprocessChunk(self.prepOptions, inChunks, inChunkList[i], outChunkList[i]))
+            else:
+                #If self.proportionToSample is 1.0 then we will feed the complete genome in for analysis.
+                self.addChildTarget(PreprocessChunk(self.prepOptions, [ self.inSequencePath ], inChunkList[i], outChunkList[i]))
         # follow on to merge chunks
         self.setFollowOnTarget(MergeChunks(self.prepOptions, outChunkList, self.outSequencePath))
 
@@ -113,7 +126,8 @@ class BatchPreprocessor(Target):
                                           prepNode.attrib["preprocessorString"],
                                           int(self.memory),
                                           int(self.cpu),
-                                          bool(int(prepNode.get("check", default="0"))),)
+                                          bool(int(prepNode.get("check", default="0"))),
+                                          getOptionalAttrib(prepNode, "proportionToSample", typeFn=float, default=1.0))
         
         if os.path.isdir(self.inSequence):
             tempFile = os.path.join(self.getGlobalTempDir(), "catSeq.fa")

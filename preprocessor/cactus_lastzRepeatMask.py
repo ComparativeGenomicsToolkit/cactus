@@ -53,6 +53,10 @@ def main():
                       help="lastz executable",
                       default="cactus_lastz")
     
+    parser.add_option("--unmask", dest="unmask", action="store_true",
+                      help="Removes any previous masking from sequence being masked before masking",
+                      default=False)
+    
     options, args = parser.parse_args()
     
     if len(args) != 3:
@@ -64,7 +68,9 @@ def main():
     targetFiles = args[2:]
     
     assert os.path.isfile(queryFile)
-    assert os.path.isfile(targetFile)
+    assert len(targetFiles) >= 1
+    for targetFile in targetFiles:
+        assert os.path.isfile(targetFile)
     assert options.fragment > 1
     
     if testExec("fasta_softmask_intervals.py") == False:
@@ -84,7 +90,7 @@ def main():
     
     #Make temporary target file, if more than one file
     if len(targetFiles) > 0:
-        system("cat %s > %s" % (" ".join(targetFiles)), targetFile)
+        system("cat %s > %s" % (" ".join(targetFiles), targetFile))
     else:
         system("ln %s %s" % targetFiles[0], targetFile)
 
@@ -92,7 +98,7 @@ def main():
         # chop up input fasta file into into fragments of specified size.  fragments overlap by 
         # half their length. 
         fragCmdLine = 'cat ' + queryFile + ' | cactus_fasta_fragments.py ' + '--fragment=' + \
-                        str(options.fragment) + ' --step=' + str(options.fragment / 2)
+                        str(options.fragment) + ' --step=' + str(options.fragment / 2) + " --origin=zero "
         
         # lastz each fragment against the entire input sequence.  Each time a fragment aligns to a base
         # in the sequence, that base's match count is incremented.  
@@ -103,8 +109,7 @@ def main():
         # Also note: repeats already masked in the input sequence are ignored (as by default in lastz).  
         # This behaviour can be changed by something like replacing [multiple] with [multiple,unmask]'
         lastzCmdLine = options.lastzCmd + ' ' + targetFile + \
-        '[multiple,unmask][nameparse=darkspace] /dev/stdin[unmask][nameparse=darkspace] ' + \
-        options.lastzOptions + \
+        '[multiple,unmask][nameparse=darkspace] /dev/stdin[unmask][nameparse=darkspace] ' + options.lastzOptions + \
         (' --querydepth=keep,nowarn:%i --format=general:name1,zstart1,end1,name2,zstart2+,end2+ --markend ' % \
          (options.period * 2 + 1))
 
@@ -115,8 +120,11 @@ def main():
 
         # the previous lastz command outputs a file of intervals (denoted with indices) to softmask.
         # we finish by applying these intervals to the input file, to produce the final, softmasked output. 
-        softMaskCmdLine = 'cat ' + queryFile + ' | cactus_fasta_softmask_intervals.py --origin=1 ' + maskInfoFile + \
-                            ' > ' + outputFile
+        unmaskString = ""
+        if options.unmask:
+            unmaskString = "--unmask"
+        softMaskCmdLine = 'cat ' + queryFile + (' | cactus_fasta_softmask_intervals.py --origin=one %s ' % unmaskString) + \
+            maskInfoFile +  ' > ' + outputFile
     
         system(softMaskCmdLine)
     

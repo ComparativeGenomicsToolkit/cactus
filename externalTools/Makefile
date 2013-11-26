@@ -1,7 +1,7 @@
 rootPath = ../
 include ../include.mk
 
-all : ${binPath}/cactus_lastz
+all : ${binPath}/cactus_lastz ${binPath}/cactus_lastz_D
 
 ${binPath}/cactus_lastz :
 	cd lastz-distrib-1.03.46 && make install
