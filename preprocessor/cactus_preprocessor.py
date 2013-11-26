@@ -91,12 +91,12 @@ class PreprocessSequence(Target):
         for i in xrange(len(inChunkList)):
             outChunkList.append(os.path.join(outChunkDirectory, "chunk_%i" % i))
             if self.prepOptions.proportionToSample < 1.0:
-                inChunkNumber = max(1, math.ceil(len(inChunkList) * self.prepOptions.proportionToSample))
+                inChunkNumber = int(max(1, math.ceil(len(inChunkList) * self.prepOptions.proportionToSample)))
                 assert inChunkNumber <= len(inChunkList) and inChunkNumber > 0
                 j = max(0, i - inChunkNumber/2)
                 inChunks = inChunkList[j:j+inChunkNumber]
                 if len(inChunks) < inChunkNumber: #This logic is like making the list circular
-                    inChunks += inChunkList[:inChunks]
+                    inChunks += inChunkList[:inChunkNumber-len(inChunks)]
                 assert len(inChunks) == inChunkNumber
                 self.addChildTarget(PreprocessChunk(self.prepOptions, inChunks, inChunkList[i], outChunkList[i]))
             else:
