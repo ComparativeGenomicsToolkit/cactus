@@ -6,8 +6,8 @@ from sonLib.bioio import TestStatus
 from sonLib.bioio import fastaRead
 from sonLib.bioio import getTempDirectory
 
-"""This test compares running the lastz repeat masking script to the underlying repeat masking of the 
-genomes, comparing two settings of lastz.
+"""This test compares running the lastz repeat masking script to the underlying repeat masking of input sequences, 
+comparing two settings of lastz.
 """
 
 class TestCase(unittest.TestCase):
@@ -28,7 +28,7 @@ class TestCase(unittest.TestCase):
         #Demo sequences
         sequenceFiles = [ os.path.join(self.encodePath, self.encodeRegion, "%s.ENm001.fa" % species) for species in 'human', "hedgehog" ]
         #Max occurrences
-        maxOccurrences = [ 1, 5, 20 ]
+        maxOccurrences = [ 1, 10 ]
         
         for sequenceFile in sequenceFiles:
             #Parse sequences into dictionary
@@ -71,7 +71,7 @@ class TestCase(unittest.TestCase):
                  " the total number of bases that are Ns ", totalNBases, \
                  " lastz was filter for max-occurrences of more than : ", maxOccurrence
                  
-                 #Run lastz repeat masker using heuristic settings for comparison
+                 #Run lastz repeat masker using heuristic settings for comparison with the slower settings
                 command = "cactus_lastzRepeatMask.py --proportionSampled=1.0 --minPeriod=%s --lastzOpts='--step=1 --ambiguous=iupac,100 --ungapped' --fragment %s %s %s" % \
                        (maxOccurrence, 200, sequenceFile, self.tempOutputFile)
                 startTime = time.time()
