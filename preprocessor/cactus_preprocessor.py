@@ -15,6 +15,7 @@ import errno
 from optparse import OptionParser
 from bz2 import BZ2File
 import copy
+import xml.etree.ElementTree as ET
 
 from sonLib.bioio import logger
 from sonLib.bioio import system, popenCatch, popenPush
@@ -180,4 +181,31 @@ class CactusPreprocessor(Target):
                     system("ln %s %s" % (sequence, outputSequenceFile))
                 else:
                     logger.info("Adding child batch_preprocessor target")
-                    self.addChildTarget(BatchPreprocessor(prepXmlElems, sequence, outputSequenceFile, 0))    
+                    self.addChildTarget(BatchPreprocessor(prepXmlElems, sequence, outputSequenceFile, 0))   
+                    
+def main():
+    usage = "usage: %prog outputSequenceDir configXMLFile inputSequenceFastaFilesxN [options]"
+    parser = OptionParser(usage=usage)
+    Stack.addJobTreeOptions(parser) 
+    
+    options, args = parser.parse_args()
+    if options.test:
+        _test()
+    setLoggingFromOptions(options)
+    
+    if len(args) >= 3:
+        raise RuntimeError("Unrecognised input arguments: %s" % " ".join(args))
+    
+    outputSequenceDir = args[0]
+    configFile = args[1]
+    inputSequences = args[2:]
+
+    Stack(CactusPreprocessor(inputSequences, outputSequenceDir, ET.parse(configFile).getroot())).startJobTree(options)
+
+def _test():
+    import doctest      
+    return doctest.testmod()
+
+if __name__ == '__main__':
+    from cactus.preprocessor.cactus_preprocessor import *
+    main()

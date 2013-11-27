@@ -83,7 +83,7 @@ def main():
     assert options.fragment > 1
     
     #Adjust the period parameter using the amount of genome sampled
-    options.period = round(options.proportionSampled * options.period)
+    options.period = max(1, round(options.proportionSampled * options.period))
     
     # make sure fragment size is even so they can overlap by exactly one half. 
     if options.fragment % 2:
@@ -119,7 +119,7 @@ def main():
          (options.period+3))
 
         #This runs Bob's covered intervals program, which combins the lastz alignment info into intervals of the query.
-        coveredIntervalsCmdLine = "cactus_covered_intervals --queryoffsets --origin=one M=%s > %s" % (options.period*2, maskInfoFile)
+        coveredIntervalsCmdLine = "cactus_covered_intervals --queryoffsets --origin=one M=%s > %s" % (int(options.period*2), maskInfoFile)
 
         system(fragCmdLine + ' | ' + lastzCmdLine + ' | ' + coveredIntervalsCmdLine)
 
