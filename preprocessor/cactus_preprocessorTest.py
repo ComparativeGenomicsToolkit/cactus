@@ -10,32 +10,36 @@ class TestCase(PreprocessorTestCase):
     def testCactusPreprocessor(self):
         #Demo sequences
         sequenceNames = [ "%s.ENm001.fa" % species for species in 'human', "hedgehog" ]
-        for sequenceName in sequenceNames:
-            sequenceFile = os.path.join(self.encodePath, self.encodeRegion, sequenceName)
+        sequenceFiles = [ os.path.join(self.encodePath, self.encodeRegion, sequenceName) for sequenceName in sequenceNames ]
+        #Make config file
+        configFile = os.path.join(self.tempDir, "config.xml")
+        rootElem =  ET.Element("preprocessor")
+        #<preprocessor chunkSize="10000" proportionToSample="0.2" memory="littleMemory" preprocessorString="cactus_lastzRepeatMask.py --proportionSampled=PROPORTION_SAMPLED --minPeriod=1 --lastzOpts='--step=1 --ambiguous=iupac,100 --ungapped' IN_FILE OUT_FILE "/>
+        preprocessor = ET.SubElement(rootElem, "preprocessor")
+        preprocessor.attrib["chunkSize"] = "10000"
+        preprocessor.attrib["proportionToSample"] = "0.2"
+        preprocessor.attrib["string"] = "cactus_lastzRepeatMask.py --proportionSampled=PROPORTION_SAMPLED --minPeriod=1 --lastzOpts='--step=1 --ambiguous=iupac,100 --ungapped' IN_FILE OUT_FILE"
+        fileHandle = open(configFile, "w")
+        fileHandle.write(ET.tostring(preprocessor))
+        fileHandle.close()
+        #Run preprocessor
+        command = "cactus_preprocessor.py %s %s %s --jobTree %s" % (self.tempDir, configFile, " ".join(sequenceFiles), os.path.join(self.tempDir, "jobTree"))
+        system(command)
+        for sequenceName, sequenceFile in zip(sequenceNames, sequenceFiles):
             #Parse sequences into dictionary
             originalSequences = getSequences(sequenceFile)
-            #Make config file
-            configFile = os.path.join(self.tempDir, "config.xml")
-            rootElem =  ET.Element("preprocessor")
-            #<preprocessor chunkSize="10000" proportionToSample="0.2" memory="littleMemory" preprocessorString="cactus_lastzRepeatMask.py --proportionSampled=PROPORTION_SAMPLED --minPeriod=1 --lastzOpts='--step=1 --ambiguous=iupac,100 --ungapped' IN_FILE OUT_FILE "/>
-            preprocessor = ET.SubElement(rootElem, "preprocessor")
-            preprocessor.attrib["chunkSize"] = "10000"
-            preprocessor.attrib["proportionToSample"] = "0.2"
-            preprocessor.attrib["string"] = "cactus_lastzRepeatMask.py --proportionSampled=PROPORTION_SAMPLED --minPeriod=1 --lastzOpts='--step=1 --ambiguous=iupac,100 --ungapped' IN_FILE OUT_FILE"
-            fileHandle = open(configFile, "w")
-            fileHandle.write(ET.tostring(preprocessor))
-            fileHandle.close()
-            #Run preprocessor
-            command = "cactus_preprocessor.py %s %s %s --jobTree %s" % (self.tempDir, configFile, sequenceFile, os.path.join(self.tempDir, "jobTree"))
-            system(command)
             #Load the new sequences
             processedSequences = getSequences(os.path.join(self.tempDir, sequenceName))
             #Check they are the same module masking
-            self.testSequenceSetsEqualModuleSoftMasking(originalSequences, processedSequences)
+            self.checkSequenceSetsEqualModuloSoftMasking(originalSequences, processedSequences)
             
             #Compare the proportion of bases masked by lastz with original repeat masking
             maskedBasesOriginal = getMaskedBases(originalSequences)
             maskedBasesLastzMasked = getMaskedBases(processedSequences)
+            #Total bases
+            totalBases = sum([ len(i) for i in originalSequences.values() ])
+            #Calculate number of hard masked bases
+            totalNBases = len([ (header, i, base) for (header, i, base) in maskedBasesOriginal if base.upper() == "N" ])
             
             print " For the sequence file ", sequenceFile, \
              " the total number of sequences is ", len(originalSequences), \
@@ -43,8 +47,7 @@ class TestCase(PreprocessorTestCase):
              " the number of bases originally masked was: ", len(maskedBasesOriginal),\
              " the number of bases masked after running lastz repeat masking is: ", len(maskedBasesLastzMasked), \
              " the intersection of these masked sets is: ", len(maskedBasesLastzMasked.intersection(maskedBasesOriginal)), \
-             " the total number of bases that are Ns ", totalNBases, \
-             " lastz was filter for max-occurrences of more than : ", maxOccurrence
+             " the total number of bases that are Ns ", totalNBases
         
 if __name__ == '__main__':
     unittest.main()

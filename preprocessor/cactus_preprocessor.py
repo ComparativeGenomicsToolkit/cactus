@@ -26,6 +26,7 @@ from jobTree.scriptTree.target import Target
 from jobTree.scriptTree.stack import Stack
 from cactus.blast.cactus_blast import catFiles
 from cactus.shared.common import getOptionalAttrib
+from sonLib.bioio import setLoggingFromOptions
 
 class PreprocessorOptions:
     def __init__(self, chunkSize, cmdLine, memory, cpu, check, proportionToSample):
@@ -189,12 +190,10 @@ def main():
     Stack.addJobTreeOptions(parser) 
     
     options, args = parser.parse_args()
-    if options.test:
-        _test()
     setLoggingFromOptions(options)
     
-    if len(args) >= 3:
-        raise RuntimeError("Unrecognised input arguments: %s" % " ".join(args))
+    if len(args) < 3:
+        raise RuntimeError("Too few input arguments: %s" % " ".join(args))
     
     outputSequenceDir = args[0]
     configFile = args[1]

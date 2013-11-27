@@ -1,4 +1,4 @@
-from cactus.preprocessor.preprocessorTest import getSequences, getMaskedBases
+from cactus.preprocessor.preprocessorTest import *
 from cactus.preprocessor.preprocessorTest import TestCase as PreprocessorTestCase
 
 """This test compares running the lastz repeat masking script to the underlying repeat masking of input sequences, 
@@ -34,7 +34,7 @@ class TestCase(PreprocessorTestCase):
                 lastzSequences = getSequences(self.tempOutputFile)
             
                 #Check the sequences are the same modulo masking
-                self.checkSequenceSetsEqualModuleSoftMasking(originalSequences, lastzSequences)
+                self.checkSequenceSetsEqualModuloSoftMasking(originalSequences, lastzSequences)
             
                 #Compare the proportion of bases masked by lastz with original repeat masking
                 maskedBasesOriginal = getMaskedBases(originalSequences)

@@ -23,7 +23,7 @@ class TestCase(unittest.TestCase):
         unittest.TestCase.tearDown(self)
         system("rm -rf %s" % self.tempDir)
         
-    def checkSequenceSetsEqualModuleSoftMasking(self, sequences1, sequences2):
+    def checkSequenceSetsEqualModuloSoftMasking(self, sequences1, sequences2):
         self.assertEquals(sequences1.keys(), sequences2.keys())
         for seqName in sequences1.keys():
             sequence1 = sequences1[seqName]
