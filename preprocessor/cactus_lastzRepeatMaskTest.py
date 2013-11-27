@@ -85,7 +85,6 @@ class TestCase(unittest.TestCase):
                  " the intersection of the original and fast lastz masked sets is (bases): ", len(maskedBasesLastzMaskedFast.intersection(maskedBasesOriginal)), \
                  " the recall of the fast vs. the new is: ", i/len(maskedBasesLastzMasked), \
                  " the precision of the fast vs. the new is: ", i/len(maskedBasesLastzMaskedFast)
-                
 
 def getSequences(sequenceFile):
     sequences = {}
@@ -104,6 +103,22 @@ def getMaskedBases(sequences):
             if base.upper() != base or base == 'N':
                 maskedBases.add((header, i, base))
     return maskedBases
+
+"""
+def getLowerCaseBases(sequenceFile):
+    #Counts lower case bases in fasta sequences
+    from sonLib.bioio import fastaRead
+    totalMasked = 0
+    total = 0
+    fileHandle = open(sequenceFile, "r")
+    for header, sequence in fastaRead(fileHandle):
+        for base in sequence:
+            if base != base.upper():
+                totalMasked += 1
+        total += len(sequence)
+    fileHandle.close()
+    return total, totalMasked
+"""
         
 if __name__ == '__main__':
     unittest.main()
