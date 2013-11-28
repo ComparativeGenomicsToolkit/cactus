@@ -28,7 +28,7 @@ def allSuites():
     allTests = unittest.TestSuite((unittest.makeSuite(cafTest, 'test'),
                                    unittest.makeSuite(setupTest, 'test'),
                                    unittest.makeSuite(blastTest, 'test'),
-                                   preprocessorTest,
+                                   preprocessorTest(),
                                    unittest.makeSuite(workflowTest, 'test'),
                                    unittest.makeSuite(evolverTest, 'test'),
                                    unittest.makeSuite(barTest, 'test'),
