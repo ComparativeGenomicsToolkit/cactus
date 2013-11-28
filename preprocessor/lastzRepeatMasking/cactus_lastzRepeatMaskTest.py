@@ -25,8 +25,9 @@ class TestCase(PreprocessorTestCase):
             for maxOccurrence in maxOccurrences:
                 #Run lastz repeat masker
                 startTime = time.time()
-                command = "cactus_lastzRepeatMask.py --proportionSampled=1.0 --minPeriod=%s --lastzOpts='--step=1 --ambiguous=iupac,100 --ydrop=3000' --fragment %s %s %s" % \
+                command = "cactus_lastzRepeatMask.py --proportionSampled=1.0 --minPeriod=%s --lastzOpts='--step=1 --ambiguous=iupac,100 --ydrop=3000' --fragment=%s %s %s" % \
                        (maxOccurrence, 200, sequenceFile, self.tempOutputFile)
+                print "command to run", command
                 popenPush(command, sequenceFile)
                 print "It took %s seconds to run lastzMasking" % (time.time()-startTime)
             
@@ -50,8 +51,9 @@ class TestCase(PreprocessorTestCase):
                  " lastz was filter for max-occurrences of more than : ", maxOccurrence
                  
                  #Run lastz repeat masker using heuristic settings for comparison with the slower settings
-                command = "cactus_lastzRepeatMask.py --proportionSampled=1.0 --minPeriod=%s --lastzOpts='--step=1 --ambiguous=iupac,100 --ungapped' --fragment %s %s %s" % \
+                command = "cactus_lastzRepeatMask.py --proportionSampled=1.0 --minPeriod=%s --lastzOpts='--step=1 --ambiguous=iupac,100 --ungapped' --fragment=%s %s %s" % \
                        (maxOccurrence, 200, sequenceFile, self.tempOutputFile)
+                print "command to run (fast)", command
                 startTime = time.time()
                 popenPush(command, sequenceFile)
                 print "It took %s seconds to run lastzMasking fast" % (time.time()-startTime)

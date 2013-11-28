@@ -3,7 +3,8 @@ include ../include.mk
 
 cflags += ${tokyoCabinetIncl}
 
-all : ${binPath}/cactus_preprocessor.py ${binPath}/cactus_checkUniqueHeaders.py ${binPath}/cactus_makeAlphaNumericHeaders.py ${binPath}/cactus_lastzRepeatMask.py ${binPath}/cactus_filterSmallFastaSequences.py 
+all : ${binPath}/cactus_preprocessor.py ${binPath}/cactus_checkUniqueHeaders.py ${binPath}/cactus_makeAlphaNumericHeaders.py ${binPath}/cactus_filterSmallFastaSequences.py 
+	cd lastzRepeatMasking && make all
 
 ${binPath}/cactus_preprocessor.py : cactus_preprocessor.py  ${binPath}/cactus_batch_mergeChunks
 	cp cactus_preprocessor.py ${binPath}/cactus_preprocessor.py
@@ -11,9 +12,6 @@ ${binPath}/cactus_preprocessor.py : cactus_preprocessor.py  ${binPath}/cactus_ba
 
 ${binPath}/cactus_batch_mergeChunks : *.c ${libPath}/cactusLib.a ${basicLibsDependencies}
 	${cxx} ${cflags} -I${libPath} -o ${binPath}/cactus_batch_mergeChunks cactus_batch_mergeChunks.c ${libPath}/cactusLib.a ${basicLibs}
-
-${binPath}/cactus_lastzRepeatMask.py : 
-	cd lastzRepeatMasking && make all
 
 ${binPath}/cactus_filterSmallFastaSequences.py : cactus_filterSmallFastaSequences.py
 	cp cactus_filterSmallFastaSequences.py ${binPath}/cactus_filterSmallFastaSequences.py

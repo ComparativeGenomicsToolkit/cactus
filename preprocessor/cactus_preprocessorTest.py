@@ -16,11 +16,11 @@ class TestCase(PreprocessorTestCase):
         rootElem =  ET.Element("preprocessor")
         #<preprocessor chunkSize="10000" proportionToSample="0.2" memory="littleMemory" preprocessorString="cactus_lastzRepeatMask.py --proportionSampled=PROPORTION_SAMPLED --minPeriod=1 --lastzOpts='--step=1 --ambiguous=iupac,100 --ungapped' IN_FILE OUT_FILE "/>
         preprocessor = ET.SubElement(rootElem, "preprocessor")
-        preprocessor.attrib["chunkSize"] = "10000"
+        preprocessor.attrib["chunkSize"] = "100000"
         preprocessor.attrib["proportionToSample"] = "0.2"
-        preprocessor.attrib["string"] = "cactus_lastzRepeatMask.py --proportionSampled=PROPORTION_SAMPLED --minPeriod=1 --lastzOpts='--step=1 --ambiguous=iupac,100 --ungapped' IN_FILE OUT_FILE"
+        preprocessor.attrib["preprocessorString"] = "cactus_lastzRepeatMask.py --proportionSampled=PROPORTION_SAMPLED --fragment=200 --minPeriod=1 --lastzOpts='--step=1 --ambiguous=iupac,100 --ungapped' IN_FILE OUT_FILE"
         fileHandle = open(configFile, "w")
-        fileHandle.write(ET.tostring(preprocessor))
+        fileHandle.write(ET.tostring(rootElem))
         fileHandle.close()
         #Run preprocessor
         command = "cactus_preprocessor.py %s %s %s --jobTree %s" % (self.tempDir, configFile, " ".join(sequenceFiles), os.path.join(self.tempDir, "jobTree"))
@@ -48,6 +48,18 @@ class TestCase(PreprocessorTestCase):
              " the number of bases masked after running lastz repeat masking is: ", len(maskedBasesLastzMasked), \
              " the intersection of these masked sets is: ", len(maskedBasesLastzMasked.intersection(maskedBasesOriginal)), \
              " the total number of bases that are Ns ", totalNBases
+             
+            #Now compare to running lastz on its own
+            command = "cactus_lastzRepeatMask.py --proportionSampled=1.0 --minPeriod=1 --lastzOpts='--step=1 --ambiguous=iupac,100 --ungapped' --fragment=200 %s %s" % \
+                       (sequenceFile, self.tempOutputFile) 
+            popenPush(command, sequenceFile)
+            lastzSequencesFast = getSequences(self.tempOutputFile)
+            maskedBasesLastzMaskedFast = getMaskedBases(lastzSequencesFast)
+            
+            i = float(len(maskedBasesLastzMaskedFast.intersection(maskedBasesLastzMasked)))
+            print " The number of bases masked after running lastz repeat masking without the preprocessor is: ", len(maskedBasesLastzMaskedFast), \
+             " the recall of the fast vs. the new is: ", i/len(maskedBasesLastzMasked), \
+             " the precision of the fast vs. the new is: ", i/len(maskedBasesLastzMaskedFast)
         
 if __name__ == '__main__':
     unittest.main()

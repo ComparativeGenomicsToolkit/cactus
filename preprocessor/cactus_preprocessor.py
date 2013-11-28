@@ -55,6 +55,8 @@ class PreprocessChunk(Target):
         cmdline = cmdline.replace("TEMP_FILE", "\"" + tempPath + "\"")
         cmdline = cmdline.replace("PROPORTION_SAMPLED", str(self.proportionSampled))
         logger.info("Preprocessor exec " + cmdline)
+        #print "command", cmdline
+        #sys.exit(1)
         popenPush(cmdline, " ".join(self.seqPaths))
         if self.prepOptions.check:
             system("cp %s %s" % (self.inChunk, self.outChunk))
@@ -93,18 +95,16 @@ class PreprocessSequence(Target):
         #For each input chunk we create an output chunk, it is the output chunks that get concatenated together.
         for i in xrange(len(inChunkList)):
             outChunkList.append(os.path.join(outChunkDirectory, "chunk_%i" % i))
-            if self.prepOptions.proportionToSample < 1.0:
-                inChunkNumber = int(max(1, math.ceil(len(inChunkList) * self.prepOptions.proportionToSample)))
-                assert inChunkNumber <= len(inChunkList) and inChunkNumber > 0
-                j = max(0, i - inChunkNumber/2)
-                inChunks = inChunkList[j:j+inChunkNumber]
-                if len(inChunks) < inChunkNumber: #This logic is like making the list circular
-                    inChunks += inChunkList[:inChunkNumber-len(inChunks)]
-                assert len(inChunks) == inChunkNumber
-                self.addChildTarget(PreprocessChunk(self.prepOptions, inChunks, float(inChunkNumber)/len(inChunkList), inChunkList[i], outChunkList[i]))
-            else:
-                #If self.proportionToSample is 1.0 then we will feed the complete genome in for analysis.
-                self.addChildTarget(PreprocessChunk(self.prepOptions, [ self.inSequencePath ], 1.0, inChunkList[i], outChunkList[i]))
+            #Calculate the number of chunks to use
+            inChunkNumber = int(max(1, math.ceil(len(inChunkList) * self.prepOptions.proportionToSample)))
+            assert inChunkNumber <= len(inChunkList) and inChunkNumber > 0
+            #Now get the list of chunks flanking and including the current chunk
+            j = max(0, i - inChunkNumber/2)
+            inChunks = inChunkList[j:j+inChunkNumber]
+            if len(inChunks) < inChunkNumber: #This logic is like making the list circular
+                inChunks += inChunkList[:inChunkNumber-len(inChunks)]
+            assert len(inChunks) == inChunkNumber
+            self.addChildTarget(PreprocessChunk(self.prepOptions, inChunks, float(inChunkNumber)/len(inChunkList), inChunkList[i], outChunkList[i]))
         # follow on to merge chunks
         self.setFollowOnTarget(MergeChunks(self.prepOptions, outChunkList, self.outSequencePath))
 
