@@ -15,6 +15,7 @@ import tempfile
 import shutil
 import random
 from sonLib.bioio import system
+from sonLib.bioio import catFiles
 
 def testExec(exeName):
     for dir in os.getenv("PATH").split(':'):                                           
@@ -96,10 +97,7 @@ def main():
     targetFile = os.path.join(tempDir, "target.fa")
     
     #Make temporary target file, if more than one file
-    if len(targetFiles) > 0:
-        system("cat %s > %s" % (" ".join(targetFiles), targetFile))
-    else:
-        system("ln %s %s" % targetFiles[0], targetFile)
+    catFiles(targetFiles, targetFile)
 
     try:
         # chop up input fasta file into into fragments of specified size.  fragments overlap by 

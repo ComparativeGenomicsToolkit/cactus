@@ -14,6 +14,7 @@ from sonLib.bioio import logger
 from sonLib.bioio import system, popenCatch
 from sonLib.bioio import getLogLevelString
 from sonLib.bioio import makeSubDir
+from sonLib.bioio import catFiles
 from jobTree.scriptTree.target import Target
 from jobTree.scriptTree.stack import Stack
 
@@ -169,20 +170,6 @@ class RunBlast(Target):
         system(command)
         system("cactus_blast_convertCoordinates %s %s %i" % (tempResultsFile, self.resultsFile, self.blastOptions.roundsOfCoordinateConversion))
         logger.info("Ran the blast okay")
-
-def catFiles(filesToCat, catFile):
-    """Cats a bunch of files into one file. Ensures a no more than maxCat files
-    are concatenated at each step.
-    """
-    if len(filesToCat) == 0: #We must handle this case or the cat call will hang waiting for input
-        open(catFile, 'w').close()
-        return
-    maxCat = 25
-    system("cat %s > %s" % (" ".join(filesToCat[:maxCat]), catFile))
-    filesToCat = filesToCat[maxCat:]
-    while len(filesToCat) > 0:
-        system("cat %s >> %s" % (" ".join(filesToCat[:maxCat]), catFile))
-        filesToCat = filesToCat[maxCat:]
     
 class CollateBlasts(Target):
     """Collates all the blasts into a single alignments file.

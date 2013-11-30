@@ -21,9 +21,10 @@ from sonLib.bioio import cigarRead
 from sonLib.bioio import PairwiseAlignment
 from sonLib.bioio import getLogLevelString
 from sonLib.bioio import TestStatus
+from sonLib.bioio import catFiles
 from cactus.shared.test import parseCactusSuiteTestOptions
 from cactus.shared.common import runCactusBlast
-from cactus.blast.cactus_blast import catFiles, decompressFastaFile, compressFastaFile
+from cactus.blast.cactus_blast import decompressFastaFile, compressFastaFile
 
 from jobTree.src.common import runJobTreeStatusAndFailIfNotComplete
 

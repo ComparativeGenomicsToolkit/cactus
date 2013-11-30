@@ -22,9 +22,9 @@ from sonLib.bioio import system, popenCatch, popenPush
 from sonLib.bioio import getLogLevelString
 from sonLib.bioio import newickTreeParser
 from sonLib.bioio import makeSubDir
+from sonLib.bioio import catFiles
 from jobTree.scriptTree.target import Target
 from jobTree.scriptTree.stack import Stack
-from cactus.blast.cactus_blast import catFiles
 from cactus.shared.common import getOptionalAttrib
 from sonLib.bioio import setLoggingFromOptions
 
