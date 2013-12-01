@@ -69,7 +69,7 @@ def main():
     
     parser.add_option("--tempDir", dest="tempDir",
                      help="Location in which to place to temporary files",
-                     default=os.path.dirname(args[1]))
+                     default=os.getcwd())
     
     options, args = parser.parse_args()
     
