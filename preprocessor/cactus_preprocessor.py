@@ -49,10 +49,9 @@ class PreprocessChunk(Target):
         self.proportionSampled = proportionSampled
     
     def run(self):
-        tempPath = os.path.join(self.getLocalTempDir(), "tempPath")
         cmdline = self.prepOptions.cmdLine.replace("IN_FILE", "\"" + self.inChunk + "\"")
         cmdline = cmdline.replace("OUT_FILE", "\"" + self.outChunk + "\"")
-        cmdline = cmdline.replace("TEMP_FILE", "\"" + tempPath + "\"")
+        cmdline = cmdline.replace("TEMP_DIR", "\"" + self.getLocalTempDir() + "\"")
         cmdline = cmdline.replace("PROPORTION_SAMPLED", str(self.proportionSampled))
         logger.info("Preprocessor exec " + cmdline)
         #print "command", cmdline

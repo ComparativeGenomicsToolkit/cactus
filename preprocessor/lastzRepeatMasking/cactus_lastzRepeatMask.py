@@ -67,6 +67,10 @@ def main():
                      help="The amount of the genome that is being sampled for masking, used to adjust the minPeriod parameter according to sampling",
                      default="1.0")
     
+    parser.add_option("--tempDir", dest="tempDir",
+                     help="Location in which to place to temporary files",
+                     default=os.path.dirname(args[1]))
+    
     options, args = parser.parse_args()
     
     if len(args) != 2:
@@ -91,15 +95,14 @@ def main():
         options.fragment += 1
     
     # make temporary working directory in same path as output
-    currentDir = os.path.dirname(args[1])
-    tempDir = tempfile.mkdtemp(dir=currentDir)
+    tempDir = tempfile.mkdtemp(dir=options.tempDir)
     maskInfoFile = os.path.join(tempDir, "maskFile.dat")
     targetFile = os.path.join(tempDir, "target.fa")
-    
-    #Make temporary target file, if more than one file
-    catFiles(targetFiles, targetFile)
 
     try:
+        #Make temporary target file, if more than one file
+        catFiles(targetFiles, targetFile)
+        
         # chop up input fasta file into into fragments of specified size.  fragments overlap by 
         # half their length. 
         fragCmdLine = 'cat ' + queryFile + ' | cactus_fasta_fragments.py ' + '--fragment=' + \
