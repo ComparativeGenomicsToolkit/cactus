@@ -25,8 +25,8 @@ typedef uint32_t u32;
 
 #define programVersionMajor    "0"
 #define programVersionMinor    "0"
-#define programVersionSubMinor "2"
-#define programRevisionDate    "20131126"
+#define programVersionSubMinor "3"
+#define programRevisionDate    "20131202"
 
 //----------
 //
@@ -54,6 +54,10 @@ int   reportChroms    = false;
 u8    depthThreshold  = 1;
 
 #define maxDepth 255
+
+int   debugReportInputIntervals  = false;
+int   debugReportParsedIntervals = false;
+int   debugWindowSlide           = false;
 
 //----------
 //
@@ -246,6 +250,17 @@ static void parse_options
             exit (EXIT_SUCCESS);
             }
 
+        // --debug options (unadvertised)
+
+        if (strcmp (arg, "--debug=report:input") == 0)
+            { debugReportInputIntervals = true;  goto next_arg; }
+
+        if (strcmp (arg, "--debug=report:parsed") == 0)
+            { debugReportParsedIntervals = true;  goto next_arg; }
+
+        if (strcmp (arg, "--debug=slide") == 0)
+            { debugWindowSlide = true;  goto next_arg; }
+
         // unknown -- argument
 
         if (strcmp_prefix (arg, "--") == 0)
@@ -271,11 +286,11 @@ int main
     char    lineBuffer[1000];
     char    prevChrom[1000];
     u8*     window = NULL;
-    u32     windowStart, pendingRun, prefixSize, suffixSize;
+    u32     windowStart, pendingRun, newWindowStart, prefixSize, suffixSize;
     u32     lineNumber;
     char*   rChrom, *qChrom;
     info*   chromInfo, *nextInfo;
-    u32     rStart, rEnd, qStart, qEnd;
+    u32     rStart, rEnd, qStart, qEnd, qStartOriginal, qEndOriginal;
     u32     ix;
     int     ok;
 
@@ -304,8 +319,12 @@ int main
                              &rChrom, &rStart, &rEnd, &qChrom, &qStart, &qEnd);
         if (!ok) break;
 
-        //fprintf (stderr, "%s %u %u %s %u %u\n",
-        //                 rChrom, rStart, rEnd, qChrom, qStart, qEnd);
+        qStartOriginal = qStart;
+        qEndOriginal   = qEnd;
+
+        if (debugReportParsedIntervals)
+            fprintf (stderr, "%s %u %u %s %u %u\n",
+                             rChrom, rStart, rEnd, qChrom, qStart, qEnd);
 
         // if this is a new chromosome, emit pending intervals for the previous
         // chromosome and reset the window;  also make sure that we don't see
@@ -346,14 +365,34 @@ int main
 
         if (qEnd > windowStart + windowSize)
             {
-            prefixSize = windowSize/2;
-            suffixSize = windowSize-prefixSize;
-            pendingRun = emit_some_intervals (stdout, depthThreshold,
-                                              window, qChrom, pendingRun,
-                                              windowStart, windowStart+prefixSize);
-            memcpy (/*to*/ window, /*from*/ window+prefixSize, suffixSize);
-            memset (window+suffixSize, 0, prefixSize);
-            windowStart += prefixSize;
+            newWindowStart = qEnd - windowSize/2;
+
+            if (newWindowStart > windowStart + windowSize)
+                {
+                // there is no overlap between old window and new
+                emit_intervals (stdout, depthThreshold,
+                                window, qChrom, pendingRun,
+                                windowStart, windowStart + windowSize);
+                windowStart = newWindowStart;
+                pendingRun  = 0;
+                memset (window, 0, windowSize);
+                if (debugWindowSlide)
+                    fprintf (stderr, "moving window to %u\n", windowStart);
+                }
+            else
+                {
+                // there is some overlap between old window and new
+                prefixSize = newWindowStart - windowStart;
+                suffixSize = windowSize-prefixSize;
+                pendingRun = emit_some_intervals (stdout, depthThreshold,
+                                                  window, qChrom, pendingRun,
+                                                  windowStart, newWindowStart);
+                memcpy (/*to*/ window, /*from*/ window+prefixSize, suffixSize);
+                memset (window+suffixSize, 0, prefixSize);
+                windowStart = newWindowStart;
+                if (debugWindowSlide)
+                    fprintf (stderr, "sliding window to %u\n", windowStart);
+                }
             }
 
         // mark this interval in the window
@@ -410,12 +449,12 @@ cant_allocate_info:
 
 window_slide_problem:
     fprintf (stderr, "%s %u %u is behind the sliding window (window start = %u)\n",
-                     qChrom, qStart, qEnd, windowStart);
+                     qChrom, qStartOriginal, qEndOriginal, windowStart);
     return EXIT_FAILURE;
 
 window_too_short:
     fprintf (stderr, "W=%u is unable to accomodate %s %u %u (window start = %u)\n",
-                     windowSize, qChrom, qStart, qEnd, windowStart);
+                     windowSize, qChrom, qStartOriginal, qEndOriginal, windowStart);
     return EXIT_FAILURE;
 
 chrom_not_together:
@@ -607,6 +646,9 @@ try_again:
     lineLen = strlen(buffer);
     if (lineLen != 0)
         missingEol = (buffer[lineLen-1] != '\n');
+
+    if (debugReportInputIntervals)
+        fprintf (stderr, "line %u: %s", lineNumber, buffer);
 
     // parse the line
 

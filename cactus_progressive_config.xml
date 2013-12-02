@@ -3,21 +3,21 @@
 <cactusWorkflowConfig distanceToAddToRootAlignment="0.1">
 	<constants defaultMemory="mediumMemory" defaultOverlargeMemory="mediumMemory" defaultCpu="1" defaultOverlargeCpu="1">
 		<!-- These constants are used to control the amount of memory and cpu the different jobs in a batch are using. -->
-  		<defines littleMemory="2147483648" mediumMemory="8589934592" bigMemory="207374182400" maxFlowerGroupSizeRecursion="100000000"/>
+  		<defines littleMemory="8589934592" mediumMemory="34359738368" bigMemory="137438953472" maxFlowerGroupSizeRecursion="100000000"/>
   		<!-- These constants are used to control parameters that depend on phylogenetic distance. Setting
   		     useDefault to 0 will force it to use the default divergence controlled parameter -->
   		<divergences useDefault="0" one="0.1" two="0.15" three="0.2" four="0.25" five="0.35"/>
 	</constants>
 	<!-- The preprocessor tags are used to modify the input sequences before alignment -->
 	<!-- The first preprocessor tag ensures cactus_checkUniqueHeaders checks that the first word of every fasta header is unique, as this is required for HAL. It throws errors if this is not the case -->
-	<preprocessor check="1" memory="2147483648" preprocessorString="cactus_checkUniqueHeaders.py IN_FILE"/>
+	<preprocessor check="1" memory="littleMemory" preprocessorString="cactus_checkUniqueHeaders.py IN_FILE"/>
 	<!-- The preprocessor for cactus_lastzRepeatMask masks every seed that is part of more than XX other alignments, this stops a combinatorial explosion in pairwise alignments -->
-	<preprocessor chunkSize="10000000" proportionToSample="0.2" memory="mediumMemory" preprocessorString="cactus_lastzRepeatMask.py --proportionSampled=PROPORTION_SAMPLED --tempDir=TEMP_DIR --minPeriod=50 --lastzOpts='--step=1 --ambiguous=iupac,100 --ungapped' IN_FILE OUT_FILE "/>
-	<ktserver memory="mediumMemory" overlargeMemory="bigMemory"/>
+	<preprocessor chunkSize="10000000" proportionToSample="0.2" memory="littleMemory" preprocessorString="cactus_lastzRepeatMask.py --proportionSampled=PROPORTION_SAMPLED --tempDir=TEMP_DIR --minPeriod=50 --lastzOpts='--step=1 --ambiguous=iupac,100 --ungapped' IN_FILE OUT_FILE "/>
+	<ktserver memory="mediumMemory"/>
 	<setup makeEventHeadersAlphaNumeric="0">
 	</setup>
 	<!-- The caf tag contains parameters for the caf algorithm. -->
-	<!-- Change the chunk size in the caf tag to alter the number of blast jobs approximately quadratically -->
+	<!-- Increase the chunkSize in the caf tag to reduce the number of blast jobs approximately quadratically -->
 	<caf 
 		chunkSize="25000000" 
 		realign="1"
@@ -61,6 +61,8 @@
 		<CactusCafWrapperLarge2 overlargeMemory="bigMemory"/>
 	</caf>
 	<!-- The caf tag contains parameters for the bar algorithm. -->
+	<!-- The veryLargeEndSize parameter determines how big an end needs to be (in terms of bases in sequences incident with the end)
+	for the end to be aligned on its own. -->
 	<bar
 		runBar="1"
 		spanningTrees="5" 
@@ -77,13 +79,15 @@
 		minimumOutgroupDegree="0"
 		alignAmbiguityCharacters="1"
 		largeEndSize="5000"
-		veryLargeEndSize="1000000"
+		veryLargeEndSize="2000000"
 		maximumNumberOfSequencesBeforeSwitchingToFast="10"
 		pruneOutStubAlignments="1"
 	>
 		<CactusBarRecursion maxFlowerGroupSize="maxFlowerGroupSizeRecursion"/>
-		<CactusBarWrapper maxFlowerGroupSize="1000000" memory="littleMemory"/>
-		<CactusBarWrapperLarge maxFlowerGroupSize="1000000"/>
+		<!-- The maxFlowerGroupSize in cactusBarWrapper determines how many bases to allow in one "small" job which will be run using the "littleMemory" -->
+		<CactusBarWrapper maxFlowerGroupSize="2000000" memory="littleMemory"/>
+		<!-- The maxFlowerGroupSize in cactusBarWrapperLarge determines how many of each large broken up to allow in one "small" job which will be run using the "littleMemory" -->
+		<CactusBarWrapperLarge maxFlowerGroupSize="2000000"/>
 		<CactusBarEndAlignerWrapper memory="littleMemory"/>
 	</bar>
 	<!-- The normal tag provides parameters to the cactus_normalisation script, which "normalises" a cactus to make all chains of maximal length. This is not used much now. -->

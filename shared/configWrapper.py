@@ -169,24 +169,12 @@ class ConfigWrapper:
         if ktServerElem is not None and "memory" in ktServerElem.attrib:
             return int(ktServerElem.attrib["memory"])
         return default
-
-    def getKtserverOverlargeMemory(self, default=sys.maxint):
-        ktServerElem = self.xmlRoot.find("ktserver")
-        if ktServerElem is not None and "overlargeMemory" in ktServerElem.attrib:
-            return int(ktServerElem.attrib["overlargeMemory"])
-        return default
     
     def getKtserverCpu(self, default=sys.maxint):
         ktServerElem = self.xmlRoot.find("ktserver")
         if ktServerElem is not None and "cpu" in ktServerElem.attrib:
             return int(ktServerElem.attrib["cpu"])
-        return default        
-
-    def getKtserverOverlargeCpu(self, default=sys.maxint):
-        ktServerElem = self.xmlRoot.find("ktserver")
-        if ktServerElem is not None and "overlargeCpu" in ktServerElem.attrib:
-            return int(ktServerElem.attrib["overlargeCpu"])
-        return default        
+        return default           
             
     # the minBlockDegree, when specified in the final, "base" 
     # iteration, does not play nicely with the required fraction

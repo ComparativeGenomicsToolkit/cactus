@@ -136,16 +136,10 @@ class CactusPhasesTarget(CactusTarget):
         
         if launchSecondaryKtForRecursiveTarget and ExperimentWrapper(self.cactusWorkflowArguments.experimentNode).getDbType() == "kyoto_tycoon":
             cw = ConfigWrapper(self.cactusWorkflowArguments.configNode)
-            if self.overlarge is True:
-                memory = cw.getKtserverOverlargeMemory(default=getOptionalAttrib(
-                        self.constantsNode, "defaultOverlargeMemory", int, default=sys.maxint))
-                cpu = cw.getKtserverOverlargeCpu(default=getOptionalAttrib(
-                        self.constantsNode, "defaultOverlargeCpu", int, default=sys.maxint))
-            else:
-                memory = cw.getKtserverMemory(default=getOptionalAttrib(
-                        self.constantsNode, "defaultMemory", int, default=sys.maxint))
-                cpu = cw.getKtserverCpu(default=getOptionalAttrib(
-                        self.constantsNode, "defaultCpu", int, default=sys.maxint))
+            memory = cw.getKtserverMemory(default=getOptionalAttrib(
+                    self.constantsNode, "defaultMemory", int, default=sys.maxint))
+            cpu = cw.getKtserverCpu(default=getOptionalAttrib(
+                    self.constantsNode, "defaultCpu", int, default=sys.maxint))
             addKtserverDependentChild(self, newChild, maxMemory=memory, maxCpu=cpu, isSecondary = True)
         else:
             self.addChildTarget(newChild)
@@ -301,16 +295,10 @@ class CactusSetupPhase(CactusPhasesTarget):
         exp = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
         if exp.getDbType() == "kyoto_tycoon":
             logger.info("Created ktserver pattern target cactus_setup")
-            if self.overlarge is True:
-                memory = cw.getKtserverOverlargeMemory(default=getOptionalAttrib(
-                        self.constantsNode, "defaultOverlargeMemory", int, default=sys.maxint))
-                cpu = cw.getKtserverOverlargeCpu(default=getOptionalAttrib(
-                        self.constantsNode, "defaultOverlargeCpu", int, default=sys.maxint))
-            else:
-                memory = cw.getKtserverMemory(default=getOptionalAttrib(
-                        self.constantsNode, "defaultMemory", int, default=sys.maxint))
-                cpu = cw.getKtserverCpu(default=getOptionalAttrib(
-                        self.constantsNode, "defaultCpu", int, default=sys.maxint))
+            memory = cw.getKtserverMemory(default=getOptionalAttrib(
+                    self.constantsNode, "defaultMemory", int, default=sys.maxint))
+            cpu = cw.getKtserverCpu(default=getOptionalAttrib(
+                    self.constantsNode, "defaultCpu", int, default=sys.maxint))
             addKtserverDependentChild(self, setupTarget, maxMemory=memory, maxCpu=cpu, isSecondary = False)
         else:
             logger.info("Created follow-on target cactus_setup")
