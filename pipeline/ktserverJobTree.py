@@ -79,7 +79,7 @@ def addKtserverDependentChild(rootTarget, newChild, maxMemory, maxCpu,
                               createTimeout = 30, loadTimeout = 10000,
                               blockTimeout=sys.maxint, blockTimestep=10,
                               runTimeout=sys.maxint, runTimestep=10,
-                              killTimeout=100):
+                              killTimeout=10000):
     from cactus.pipeline.cactus_workflow import CactusPhasesTarget
     from cactus.pipeline.cactus_workflow import CactusRecursionTarget
     
