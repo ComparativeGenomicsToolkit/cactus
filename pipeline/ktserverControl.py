@@ -254,6 +254,7 @@ def killKtServer(dbElem, killSwitchPath, killTimeout=10000):
                 sleep(1)
             else:
                 success = True
+                break
         except RuntimeError:
             logger.critical("Got runtime error while trying to kill ktserver, putting it down to bad luck and carrying on")
     if not success:

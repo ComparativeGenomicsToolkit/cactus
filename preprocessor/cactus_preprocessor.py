@@ -70,8 +70,7 @@ class MergeChunks(Target):
         self.outSequencePath = outSequencePath
     
     def run(self):
-        system("cactus_batch_mergeChunks %s %s" % \
-               (self.outSequencePath, " ".join(self.chunkList)))
+        popenPush("cactus_batch_mergeChunks > %s" % self.outSequencePath, " ".join(self.chunkList))
  
 class PreprocessSequence(Target):
     """Cut a sequence into chunks, process, then merge
