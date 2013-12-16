@@ -895,9 +895,10 @@ class RunCactusPreprocessorThenCactusSetup(Target):
     def run(self):
         cactusWorkflowArguments=CactusWorkflowArguments(self.options)
         eW = ExperimentWrapper(cactusWorkflowArguments.experimentNode)
-        self.addChildTarget(CactusPreprocessor(eW.getSequences(), eW.getOutputSequenceDir(), cactusWorkflowArguments.configNode))
+        outputSequenceFiles = CactusPreprocessor.getOutputSequenceFiles(eW.getSequences(), eW.getOutputSequenceDir())
+        self.addChildTarget(CactusPreprocessor(eW.getSequences(), outputSequenceFiles, cactusWorkflowArguments.configNode))
         #Now make the setup, replacing the input sequences with the preprocessed sequences
-        eW.setSequences([ os.path.join(eW.getOutputSequenceDir(), os.path.split(i)[-1]) for i in eW.getSequences() ])  
+        eW.setSequences(outputSequenceFiles)  
         self.setFollowOnTarget(CactusSetupPhase(cactusWorkflowArguments=cactusWorkflowArguments,
                                                             phaseName="setup"))
         

@@ -19,6 +19,7 @@ from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.outgroup import GreedyOutgroup
 from sonLib.nxnewick import NXNewick
+from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 
 def createMCProject(tree, experiment, config, options):
     mcTree = MultiCactusTree(tree, config.getSubtreeSize())
@@ -194,7 +195,7 @@ def main():
                 raise RuntimeError("Specified outgroup %s not found in tree" % outgroupName)
     mcProj = createMCProject(tree, expTemplate, confTemplate, options)
     #Replace the sequences with output sequences
-    expTemplate.setSequences([ os.path.join(expTemplate.getOutputSequenceDir(), os.path.split(i)[-1]) for i in expTemplate.getSequences() ])
+    expTemplate.setSequences(CactusPreprocessor.getOutputSequenceFiles(expTemplate.getSequences(), expTemplate.getOutputSequenceDir()))
     #Now do the file tree creation
     createFileStructure(mcProj, expTemplate, confTemplate, options)
    # mcProj.check()

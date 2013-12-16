@@ -1,6 +1,7 @@
 from cactus.preprocessor.preprocessorTest import *
 from cactus.preprocessor.preprocessorTest import TestCase as PreprocessorTestCase
 from cactus.shared.common import cactusRootPath
+from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 import xml.etree.ElementTree as ET
 
 """Runs cactus preprocessor using the lastz repeat mask script to show it working.
@@ -25,11 +26,11 @@ class TestCase(PreprocessorTestCase):
         #Run preprocessor
         command = "cactus_preprocessor.py %s %s %s --jobTree %s" % (self.tempDir, configFile, " ".join(sequenceFiles), os.path.join(self.tempDir, "jobTree"))
         system(command)
-        for sequenceName, sequenceFile in zip(sequenceNames, sequenceFiles):
+        for sequenceFile, processedSequenceFile in zip(sequenceFiles, CactusPreprocessor.getOutputSequenceFiles(sequenceFiles, self.tempDir)):
             #Parse sequences into dictionary
             originalSequences = getSequences(sequenceFile)
             #Load the new sequences
-            processedSequences = getSequences(os.path.join(self.tempDir, sequenceName))
+            processedSequences = getSequences(processedSequenceFile)
             #Check they are the same module masking
             self.checkSequenceSetsEqualModuloSoftMasking(originalSequences, processedSequences)
             
@@ -50,7 +51,7 @@ class TestCase(PreprocessorTestCase):
              " the total number of bases that are Ns ", totalNBases
              
             #Now compare to running lastz on its own
-            command = "cactus_lastzRepeatMask.py --proportionSampled=1.0 --minPeriod=1 --lastzOpts='--step=1 --ambiguous=iupac,100 --ungapped' --fragment=200 %s %s" % \
+            command = "cactus_lastzRepeatMask.py --proportionSampled=0.2 --minPeriod=1 --lastzOpts='--step=1 --ambiguous=iupac,100 --ungapped' --fragment=200 %s %s" % \
                        (sequenceFile, self.tempOutputFile) 
             popenPush(command, sequenceFile)
             lastzSequencesFast = getSequences(self.tempOutputFile)

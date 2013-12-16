@@ -189,7 +189,7 @@ class RunCactusPreprocessorThenProgressiveDown(Target):
         ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals() #This is necessary..
         #Create the preprocessor
         self.addChildTarget(CactusPreprocessor(project.getInputSequencePaths(), 
-                                               project.getOutputSequenceDir(), 
+                                               CactusPreprocessor.getOutputSequenceFiles(project.getInputSequencePaths(), project.getOutputSequenceDir()),
                                                configNode))
         #Now build the progressive-down target
         schedule = Schedule()

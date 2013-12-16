@@ -22,10 +22,10 @@ from sonLib.bioio import system, popenCatch, popenPush
 from sonLib.bioio import getLogLevelString
 from sonLib.bioio import newickTreeParser
 from sonLib.bioio import makeSubDir
-from sonLib.bioio import catFiles
+from sonLib.bioio import catFiles, getTempFile
 from jobTree.scriptTree.target import Target
 from jobTree.scriptTree.stack import Stack
-from cactus.shared.common import getOptionalAttrib
+from cactus.shared.common import getOptionalAttrib, runCactusAnalyseAssembly
 from sonLib.bioio import setLoggingFromOptions
 
 class PreprocessorOptions:
@@ -130,11 +130,6 @@ class BatchPreprocessor(Target):
                                           bool(int(prepNode.get("check", default="0"))),
                                           getOptionalAttrib(prepNode, "proportionToSample", typeFn=float, default=1.0))
         
-        if os.path.isdir(self.inSequence):
-            tempFile = os.path.join(self.getGlobalTempDir(), "catSeq.fa")
-            catFiles([ os.path.join(self.inSequence, f) for f in os.listdir(self.inSequence)], tempFile)
-            self.inSequence = tempFile
-        
         #output to temporary directory unless we are on the last iteration
         lastIteration = self.iteration == len(self.prepXmlElems) - 1
         if lastIteration == False:
@@ -149,8 +144,18 @@ class BatchPreprocessor(Target):
         
         if lastIteration == False:
             self.setFollowOnTarget(BatchPreprocessor(self.prepXmlElems, outSeq,
-                                                     self.globalOutSequence, self.iteration + 1))   
-            
+                                                     self.globalOutSequence, self.iteration + 1))
+        else:
+            self.setFollowOnTarget(BatchPreprocessorEnd(self.globalOutSequence))
+
+class BatchPreprocessorEnd(Target):
+    def __init__(self,  globalOutSequence):
+        Target.__init__(self) 
+        self.globalOutSequence = globalOutSequence
+        
+    def run(self):
+        analysisString = runCactusAnalyseAssembly(self.globalOutSequence)
+        self.logToMaster("After preprocessing assembly we got the following stats: %s" % analysisString)
 
 ############################################################
 ############################################################
@@ -163,24 +168,45 @@ class BatchPreprocessor(Target):
 class CactusPreprocessor(Target):
     """Modifies the input genomes, doing things like masking/checking, etc.
     """
-    def __init__(self, inputSequences, outputSequenceDir, configNode):
+    def __init__(self, inputSequences, outputSequences, configNode):
         Target.__init__(self)
         self.inputSequences = inputSequences
-        self.outputSequenceDir = outputSequenceDir
+        self.outputSequences = outputSequences
+        assert len(self.inputSequences) == len(self.outputSequences) #If these are not the same length then we have a problem
         self.configNode = configNode  
+    
     def run(self):
-        if not os.path.isdir(self.outputSequenceDir):
-            os.mkdir(self.outputSequenceDir)
-        for sequence in self.inputSequences:
-            outputSequenceFile = os.path.join(self.outputSequenceDir, os.path.split(sequence)[1])
-            assert sequence != outputSequenceFile
+        for inputSequenceFileOrDirectory, outputSequenceFile in zip(self.inputSequences, self.outputSequences):
             if not os.path.isfile(outputSequenceFile): #Only create the output sequence if it doesn't already exist. This prevents reprocessing if the sequence is used in multiple places between runs.
+                #If the files are in a sub-dir then rip them out.
+                if os.path.isdir(inputSequenceFileOrDirectory):
+                    tempFile = getTempFile(rootDir=self.getGlobalTempDir())
+                    catFiles([ os.path.join(inputSequenceFileOrDirectory, f) for f in os.listdir(inputSequenceFileOrDirectory)], tempFile)
+                    inputSequenceFile = tempFile
+                else:
+                    inputSequenceFile = inputSequenceFileOrDirectory
+                    
+                assert inputSequenceFile != outputSequenceFile
+                
                 prepXmlElems = self.configNode.findall("preprocessor")
-                if len(prepXmlElems) == 0: #Just ln the file to the output dir
-                    system("ln %s %s" % (sequence, outputSequenceFile))
+                
+                analysisString = runCactusAnalyseAssembly(inputSequenceFile)
+                self.logToMaster("Before running any preprocessing on the assembly: %s got following stats (assembly may be listed as temp file if input sequences from a directory): %s" % \
+                                 (inputSequenceFileOrDirectory, analysisString))
+                
+                if len(prepXmlElems) == 0: #Just cp the file to the output file
+                    system("cp %s %s" % (inputSequenceFile, outputSequenceFile))
                 else:
                     logger.info("Adding child batch_preprocessor target")
-                    self.addChildTarget(BatchPreprocessor(prepXmlElems, sequence, outputSequenceFile, 0))   
+                    self.addChildTarget(BatchPreprocessor(prepXmlElems, inputSequenceFile, outputSequenceFile, 0))
+    
+    @staticmethod
+    def getOutputSequenceFiles(inputSequences, outputSequenceDir):
+        """Function to get unambiguous file names for each input sequence in the output sequence dir. 
+        """
+        if not os.path.isdir(outputSequenceDir):
+            os.mkdir(outputSequenceDir)
+        return [ os.path.join(outputSequenceDir, "_".join(inputSequence.split("/"))) for inputSequence in inputSequences ]
                     
 def main():
     usage = "usage: %prog outputSequenceDir configXMLFile inputSequenceFastaFilesxN [options]"
@@ -197,7 +223,7 @@ def main():
     configFile = args[1]
     inputSequences = args[2:]
 
-    Stack(CactusPreprocessor(inputSequences, outputSequenceDir, ET.parse(configFile).getroot())).startJobTree(options)
+    Stack(CactusPreprocessor(inputSequences, CactusPreprocessor.getOutputSequenceFiles(inputSequences, outputSequenceDir), ET.parse(configFile).getroot())).startJobTree(options)
 
 def _test():
     import doctest      

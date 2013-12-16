@@ -481,3 +481,6 @@ def runCactusFastaGenerator(cactusDiskDatabaseString,
     system("cactus_fastaGenerator --cactusDisk '%s' --flowerName %s --outputFile %s --logLevel %s %s" % 
            (cactusDiskDatabaseString, flowerName, outputFile, logLevel, 
             nameValue("referenceEventString", referenceEventString)))
+    
+def runCactusAnalyseAssembly(sequenceFile):
+    return popenCatch("cactus_analyseAssembly %s" % sequenceFile)[:-1]
