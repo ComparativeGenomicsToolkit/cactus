@@ -178,28 +178,8 @@ class CactusPreprocessor(Target):
     def run(self):
         for inputSequenceFileOrDirectory, outputSequenceFile in zip(self.inputSequences, self.outputSequences):
             if not os.path.isfile(outputSequenceFile): #Only create the output sequence if it doesn't already exist. This prevents reprocessing if the sequence is used in multiple places between runs.
-                #If the files are in a sub-dir then rip them out.
-                if os.path.isdir(inputSequenceFileOrDirectory):
-                    tempFile = getTempFile(rootDir=self.getGlobalTempDir())
-                    catFiles([ os.path.join(inputSequenceFileOrDirectory, f) for f in os.listdir(inputSequenceFileOrDirectory)], tempFile)
-                    inputSequenceFile = tempFile
-                else:
-                    inputSequenceFile = inputSequenceFileOrDirectory
-                    
-                assert inputSequenceFile != outputSequenceFile
-                
-                prepXmlElems = self.configNode.findall("preprocessor")
-                
-                analysisString = runCactusAnalyseAssembly(inputSequenceFile)
-                self.logToMaster("Before running any preprocessing on the assembly: %s got following stats (assembly may be listed as temp file if input sequences from a directory): %s" % \
-                                 (inputSequenceFileOrDirectory, analysisString))
-                
-                if len(prepXmlElems) == 0: #Just cp the file to the output file
-                    system("cp %s %s" % (inputSequenceFile, outputSequenceFile))
-                else:
-                    logger.info("Adding child batch_preprocessor target")
-                    self.addChildTarget(BatchPreprocessor(prepXmlElems, inputSequenceFile, outputSequenceFile, 0))
-    
+                self.addChildTarget(CactusPreprocessor2(inputSequenceFileOrDirectory, outputSequenceFile, self.configNode))
+  
     @staticmethod
     def getOutputSequenceFiles(inputSequences, outputSequenceDir):
         """Function to get unambiguous file names for each input sequence in the output sequence dir. 
@@ -207,6 +187,36 @@ class CactusPreprocessor(Target):
         if not os.path.isdir(outputSequenceDir):
             os.mkdir(outputSequenceDir)
         return [ os.path.join(outputSequenceDir, "_".join(inputSequence.split("/"))) for inputSequence in inputSequences ]
+  
+class CactusPreprocessor2(Target):
+    def __init__(self, inputSequenceFileOrDirectory, outputSequenceFile, configNode):
+        Target.__init__(self)
+        self.inputSequenceFileOrDirectory = inputSequenceFileOrDirectory
+        self.outputSequenceFile = outputSequenceFile
+        self.configNode = configNode
+        
+    def run(self):
+        #If the files are in a sub-dir then rip them out.
+        if os.path.isdir(self.inputSequenceFileOrDirectory):
+            tempFile = getTempFile(rootDir=self.getGlobalTempDir())
+            catFiles([ os.path.join(self.inputSequenceFileOrDirectory, f) for f in os.listdir(self.inputSequenceFileOrDirectory)], tempFile)
+            inputSequenceFile = tempFile
+        else:
+            inputSequenceFile = self.inputSequenceFileOrDirectory
+            
+        assert inputSequenceFile != self.outputSequenceFile
+        
+        prepXmlElems = self.configNode.findall("preprocessor")
+        
+        analysisString = runCactusAnalyseAssembly(inputSequenceFile)
+        self.logToMaster("Before running any preprocessing on the assembly: %s got following stats (assembly may be listed as temp file if input sequences from a directory): %s" % \
+                         (self.inputSequenceFileOrDirectory, analysisString))
+        
+        if len(prepXmlElems) == 0: #Just cp the file to the output file
+            system("cp %s %s" % (inputSequenceFile, self.outputSequenceFile))
+        else:
+            logger.info("Adding child batch_preprocessor target")
+            self.addChildTarget(BatchPreprocessor(prepXmlElems, inputSequenceFile, self.outputSequenceFile, 0))
                     
 def main():
     usage = "usage: %prog outputSequenceDir configXMLFile inputSequenceFastaFilesxN [options]"
