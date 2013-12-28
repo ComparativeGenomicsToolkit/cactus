@@ -35,8 +35,7 @@ def main():
     outputFile = open(outputName, "w")
      
     for header, seq in fastaRead(inputFile):
-        fastaWrite(outputFile, 
-                   fixHeader(header), seq)
+        fastaWrite(outputFile, fixHeader(header), seq)
             
     outputFile.close()
     inputFile.close()
