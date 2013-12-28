@@ -19,6 +19,14 @@ def main():
             "    <fasta file>:  fasta sequence to check for unique headers\n"
     description = "Ensure sequence names are unique\n" 
     parser = OptionParser(usage=usage, description=description)
+    
+    parser.add_option("--checkFirstWord", dest="checkFirstWord", action="store_true",
+                      help="Checks that the the first word is unique",
+                      default=False)
+    
+    parser.add_option("--checkAlphaNumeric", dest="checkAlphaNumeric", action="store_true",
+                      help="Checks that the header contains only alphanumeric characters. If combined with checkFirstWord then checks that just the first word is alpha-numeric",
+                      default=False)
 
     options, args = parser.parse_args()
     
@@ -31,9 +39,14 @@ def main():
      
     seen = set()
     for header, seq in fastaRead(inputFile):
-        if header in seen:
+        mungedHeader = header
+        if options.checkFirstWord: #Remove everything after the first word
+            mungedHeader = mungedHeader.split()[0]
+        if options.checkAlphaNumeric and "".join([ i for i in mungedHeader if str.isalnum(i) ]) != mungedHeader: #Check is only alpha numeric
+            raise RuntimeError("We found a non-alpha numeric character in the fasta header: %s" % header)
+        if mungedHeader in seen:
             raise RuntimeError("We found a duplicated fasta header: %s" % header)
-        seen.add(header)
+        seen.add(mungedHeader)
     inputFile.close()
     return 0
     
