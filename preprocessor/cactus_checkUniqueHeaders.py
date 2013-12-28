@@ -20,12 +20,12 @@ def main():
     description = "Ensure sequence names are unique\n" 
     parser = OptionParser(usage=usage, description=description)
     
-    parser.add_option("--checkFirstWord", dest="checkFirstWord", action="store_true",
-                      help="Checks that the the first word is unique",
-                      default=False)
-    
     parser.add_option("--checkAlphaNumeric", dest="checkAlphaNumeric", action="store_true",
-                      help="Checks that the header contains only alphanumeric characters. If combined with checkFirstWord then checks that just the first word is alpha-numeric",
+                      help="Checks that the first word contains only alphanumeric characters, periods or underscores.",
+                      default=False)
+
+    parser.add_option("--checkUCSC", dest="checkUCSC", action="store_true",
+                      help="Checks that suffix of the first word after the last '.' character contains only alpha-numeric characters or underscores and is unique.",
                       default=False)
 
     options, args = parser.parse_args()
@@ -39,11 +39,13 @@ def main():
      
     seen = set()
     for header, seq in fastaRead(inputFile):
-        mungedHeader = header
-        if options.checkFirstWord: #Remove everything after the first word
-            mungedHeader = mungedHeader.split()[0]
+        mungedHeader = header.split()[0]
         if options.checkAlphaNumeric and "".join([ i for i in mungedHeader if str.isalnum(i) ]) != mungedHeader: #Check is only alpha numeric
             raise RuntimeError("We found a non-alpha numeric character in the fasta header: %s" % header)
+        if options.checkUCSC:
+            mungedHeader = mungedHeader.split('.')[-1]
+            if "".join([ i for i in mungedHeader if (str.isalnum(i) or i == '_') ]) != mungedHeader:
+                raise RuntimeError("We found a non-alpha numeric suffix in the fasta header (UCSC Names option): %s" % header)
         if mungedHeader in seen:
             raise RuntimeError("We found a duplicated fasta header: %s" % header)
         seen.add(mungedHeader)
