@@ -127,7 +127,8 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
         exp.updateTree(subtree, seqMap)
         exp.setConfigPath(os.path.join(path, "%s_config.xml" % name))
         if configTemplate.getOutgroupStrategy() != 'none' \
-        and name in mcProj.outgroup.ogMap:
+        and name in mcProj.outgroup.ogMap \
+        and name != mcProj.mcTree.getRootName():
             og, ogDist = mcProj.outgroup.ogMap[name]
             if og in expTemplate.seqMap:
                 ogPath = expTemplate.seqMap[og]
@@ -135,6 +136,9 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
                 ogPath = os.path.join(options.path, og)
                 ogPath = os.path.join(ogPath, refFileName(og))
             exp.addTheOutgroupSequence(og, ogDist, ogPath)
+        elif name == mcProj.mcTree.getRootName() \
+        and options.rootOutgroupPath is not None:
+            exp.xmlRoot.attrib["outgroup_events"] = "rootOutgroup"
         os.makedirs(exp.getDbDir())
         if not os.path.exists(path):
             os.makedirs(path)
@@ -165,7 +169,13 @@ def main():
                       help="try to make sequence and event names MAF-compliant [default=true]")
     parser.add_option("--outgroupNames", dest="outgroupNames",  default = None, 
                       help="comma-separated names of high quality assemblies to use as outgroups [default=everything]")
-    
+    parser.add_option("--rootOutgroupPath", dest="rootOutgroupPath", type=str,
+                      help="root outgroup path (other root outgroup options " +
+                      "must be given as well)", default=None)
+    parser.add_option("--rootOutgroupDist", dest="rootOutgroupDist", type=float,
+                      help="root outgroup distance (other root outgroup " +
+                      "options must be given as well", default=None)
+
     options, args = parser.parse_args()
     
     if len(args) != 2:
@@ -176,6 +186,11 @@ def main():
     options.path = os.path.abspath(args[1])
     options.name = os.path.basename(options.path)
     options.fixNames = not options.fixNames.lower() == "false"
+
+    if (options.rootOutgroupDist is not None) \
+    ^ (options.rootOutgroupPath is not None):
+        parser.error("--rootOutgroupDist and --rootOutgroupPath must be " +
+                         "provided together")
 
     if os.path.isdir(options.path) or os.path.isfile(options.path):
         raise RuntimeError("Output project path %s exists\n" % options.path)
@@ -196,6 +211,10 @@ def main():
     mcProj = createMCProject(tree, expTemplate, confTemplate, options)
     #Replace the sequences with output sequences
     expTemplate.setSequences(CactusPreprocessor.getOutputSequenceFiles(expTemplate.getSequences(), expTemplate.getOutputSequenceDir()))
+    if options.rootOutgroupPath is not None:
+        expTemplate.seqMap["rootOutgroup"] = options.rootOutgroupPath
+        mcProj.mcTree.addOutgroup("rootOutgroup", options.rootOutgroupDist)
+        mcProj.outgroup.ogMap[mcProj.mcTree.getRootName()] = ("rootOutgroup", options.rootOutgroupDist)
     #Now do the file tree creation
     createFileStructure(mcProj, expTemplate, confTemplate, options)
    # mcProj.check()
