@@ -44,7 +44,7 @@ def main():
             raise RuntimeError("We found a non-alpha numeric character in the fasta header: %s" % header)
         if options.checkUCSC:
             mungedHeader = mungedHeader.split('.')[-1]
-            if "".join([ i for i in mungedHeader if (str.isalnum(i) or i == '_') ]) != mungedHeader:
+            if "".join([ i for i in mungedHeader if (str.isalnum(i) or i == '_' or i == '-') ]) != mungedHeader:
                 raise RuntimeError("We found a non-alpha numeric suffix in the fasta header (UCSC Names option): %s" % header)
         if mungedHeader in seen:
             raise RuntimeError("We found a duplicated fasta header: %s" % header)
