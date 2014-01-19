@@ -419,9 +419,12 @@ def runCactusWorkflow(experimentFile,
     logger.info("Ran the cactus workflow okay")
     
 def runCactusCreateMultiCactusProject(experimentFile, outputDir, 
-                                      logLevel=None, fixNames=True):
+                                      logLevel=None, fixNames=True,
+                                      rootOutgroupPath=None, rootOutgroupDist=None):
     logLevel = getLogLevelString2(logLevel)
-    command = "cactus_createMultiCactusProject.py %s %s --fixNames=%s" % (experimentFile, outputDir, str(fixNames))
+    rootOutgroupPath = nameValue("rootOutgroupPath", rootOutgroupPath, str)
+    rootOutgroupDist = nameValue("rootOutgroupDist", rootOutgroupDist, float)
+    command = "cactus_createMultiCactusProject.py %s %s --fixNames=%s %s %s" % (experimentFile, outputDir, str(fixNames), rootOutgroupPath, rootOutgroupDist)
     system(command)
     logger.info("Ran the cactus create multi project")
     
