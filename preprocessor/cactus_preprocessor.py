@@ -27,6 +27,7 @@ from jobTree.scriptTree.target import Target
 from jobTree.scriptTree.stack import Stack
 from cactus.shared.common import getOptionalAttrib, runCactusAnalyseAssembly
 from sonLib.bioio import setLoggingFromOptions
+from cactus.shared.configWrapper import ConfigWrapper
 
 class PreprocessorOptions:
     def __init__(self, chunkSize, cmdLine, memory, cpu, check, proportionToSample):
@@ -232,8 +233,13 @@ def main():
     outputSequenceDir = args[0]
     configFile = args[1]
     inputSequences = args[2:]
-
-    Stack(CactusPreprocessor(inputSequences, CactusPreprocessor.getOutputSequenceFiles(inputSequences, outputSequenceDir), ET.parse(configFile).getroot())).startJobTree(options)
+    
+    #Replace any constants
+    configNode = ET.parse(configFile).getroot()
+    if configNode.find("constants") != None:
+        ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals()
+    
+    Stack(CactusPreprocessor(inputSequences, CactusPreprocessor.getOutputSequenceFiles(inputSequences, outputSequenceDir), configNode)).startJobTree(options)
 
 def _test():
     import doctest      
