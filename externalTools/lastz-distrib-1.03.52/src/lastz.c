@@ -5699,7 +5699,7 @@ static void parse_options_loop
 		// .. reported up to the limit, whereas the other options inhibit
 		// .. reporting of alignments for queries that exceed the limit
 
-		if (strcmp_prefix (arg, "--queryhsplimit+=nowarn:") == 0)
+		 if (strcmp_prefix (arg, "--queryhsplimit=keep,nowarn:") == 0)
 			{
 			tempInt = string_to_unitized_int (strchr(arg,':')+1, true /*units of 1,000*/);
 			lzParams->searchLimitWarn = false;

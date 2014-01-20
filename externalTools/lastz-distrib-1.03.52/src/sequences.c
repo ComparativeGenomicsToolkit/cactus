@@ -988,9 +988,6 @@ static seq* private_open_sequence_file
 	_seq->needTrueLen  = needTrueLen;
 	_seq->allowAmbiDNA = allowAmbiDNA;
 
-	if (allocLen != 0)
-		sequence_long_enough (_seq, allocLen, false);
-
 	// if we have no name, use stdin
 
 	if (name == NULL)
@@ -1157,6 +1154,12 @@ static seq* private_open_sequence_file
 
 	if (_seq->fileType == seq_type_fastq)
 		_seq->needsVq = true;
+
+	// pre-allocate;  note that we can't do this earlier, since we wouldn't
+	// have known whether to allocate quality values
+
+	if (allocLen != 0)
+		sequence_long_enough (_seq, allocLen, false);
 
 	// for quantum DNA files, attach the complement mapping
 

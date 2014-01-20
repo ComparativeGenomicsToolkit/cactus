@@ -51,8 +51,8 @@ class TestCase(PreprocessorTestCase):
                  " lastz was filter for max-occurrences of more than : ", maxOccurrence
                  
                  #Run lastz repeat masker using heuristic settings for comparison with the slower settings
-                command = "cactus_lastzRepeatMask.py --proportionSampled=1.0 --minPeriod=%s --lastzOpts='--step=3 --ambiguous=iupac,100 --ungapped' --fragment=%s %s %s" % \
-                       (maxOccurrence, 200, sequenceFile, self.tempOutputFile)
+                command = "cactus_lastzRepeatMask.py --proportionSampled=1.0 --minPeriod=%s --lastzOpts='--step=3 --ambiguous=iupac,100 --ungapped --queryhsplimit=keep,nowarn:%s' --fragment=%s %s %s" % \
+                       (maxOccurrence, maxOccurrence*20, 200, sequenceFile, self.tempOutputFile)
                 print "command to run (fast)", command
                 startTime = time.time()
                 popenPush(command, sequenceFile)

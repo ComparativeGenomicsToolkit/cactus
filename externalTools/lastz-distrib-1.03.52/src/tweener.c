@@ -5,9 +5,10 @@
 //----------
 //
 // tweener--
-//	Given a list of alignments, search for alignments between them as a
-//	higher-sensitivity.  We search for such "in-between alignments" between
-//	properly ordered pairs of alignments and/or sequence end points.
+//	Given a list of alignments, search for alignments between them at a
+//	higher-sensitivity ("weak" alignments).  We search for such "in-between
+//	alignments" between properly ordered pairs of alignments and/or sequence
+//	end points.
 //
 // We process the outer alignments in order and maintain list of alignments
 // that have been processed but whose end point in seq1 is still potentially
@@ -125,6 +126,8 @@ static seq* tweenRev2;
 //
 //----------
 
+static void     try_bounded_align     (unspos b1, unspos e1,
+                                       unspos b2, unspos e2);
 static void     bounded_align         (unspos b1, unspos e1,
                                        unspos b2, unspos e2);
 static u32      collect_inner_hsps    (void* info,
@@ -162,6 +165,7 @@ static void     copy_reverse_sequence (seq* sf, seq* dst);
 //
 //----------
 
+#define pairFmt  unsposFmt ".." unsposFmt
 #define pairsFmt "(" unsposFmt "," unsposFmt ")..(" unsposFmt "," unsposFmt ")"
 
 // macros for tweener_interpolate()
@@ -205,7 +209,13 @@ static void     copy_reverse_sequence (seq* sf, seq* dst);
 	fprintf(stderr, "tweening these alignments:\n");                         \
 	for (a=alignList ; a!=NULL ; a=a->next)                                  \
 		fprintf(stderr, "  " pairsFmt "\n",                                  \
-	                    a->beg1, a->beg2, a->end1, a->end2);
+	                    a->beg1, a->beg2, a->end1, a->end2);                 \
+	if (seq1->partition.p != NULL)                                           \
+		print_partition_table (stderr, seq1);                                \
+	if (seq2->partition.p != NULL)                                           \
+		print_partition_table (stderr, seq2);                                \
+	else                                                                     \
+		fprintf(stderr, "seq2 = \"%s\"\n", seq2->header);
 
 #define debugTweener_2                                                       \
 	fprintf(stderr, "considering alignment " pairsFmt "\n",                  \
@@ -424,7 +434,7 @@ alignel* tweener_interpolate
 			{
 			b1 = b->end1;
 			b2 = b->end2;
-			bounded_align (b1, a1, b2, a2);
+			try_bounded_align (b1, a1, b2, a2);
 			}
 		else if (isLeftEnd)
 			{
@@ -433,7 +443,7 @@ alignel* tweener_interpolate
 
 			b1 = (a1 <= windowSize/2)? 1 : (a1-windowSize/2);
 			b2 = (a2 <= windowSize/2)? 1 : (a2-windowSize/2);
-			bounded_align (b1, a1, b2, a2);
+			try_bounded_align (b1, a1, b2, a2);
 			}
 		
 		activate (a, true);
@@ -478,15 +488,236 @@ alignel* tweener_interpolate
 
 //----------
 //
+// try_bounded_align--
+//	This routine is a wrapper for bounded_align(), to handle cases that arise
+//	when either of sequence 1 or sequence 2 is partitioned.  In this case, we
+//	must check whether the interval is split by a sequence boundary and break
+//	apart the interval(s) passed to bounded_align().
+//
+//----------
+//
+// Arguments:
+//	unspos	b1,e1:	Range of the rectangle in sequence 1 (origin 1, inclusive).
+//	unspos	b2,e2:	Range of the rectangle in sequence 2.
+//
+// Returns:
+//	(nothing)
+//
+//----------
+
+// macros for bounded_align()
+
+#ifndef debugTweener
+#define debugTweener_E1 ;
+#define debugTweener_E2 ;
+#define debugTweener_E3 ;
+#define debugTweener_E4 ;
+#define debugTweener_E5 ;
+#define debugTweener_E6 ;
+#define debugTweener_E7 ;
+#endif // not debugTweener
+
+#ifdef debugTweener
+
+#define debugTweener_E1                                                      \
+	fprintf(stderr, "  try_bounded_align: " pairsFmt "\n",                   \
+	                b1, b2, e1, e2);
+
+#define debugTweener_E2                                                      \
+	fprintf(stderr, "    seq1 partition1=" pairFmt " %s\n",                  \
+				    part1->sepBefore, part1->sepAfter,                       \
+	                &sp1->pool[part1->header]);                              \
+	fprintf(stderr, "    seq1 partition2=" pairFmt " %s\n",                  \
+				    part2->sepBefore, part2->sepAfter,                       \
+	                &sp1->pool[part2->header]);                              \
+	fprintf(stderr, "    part2-part1=%ld\n", part2-part1);
+
+#define debugTweener_E3                                                      \
+	fprintf(stderr, "    (E3) splitting " pairFmt                            \
+	                " into " pairFmt "," pairFmt "\n",                       \
+	                b1, e1, b1, e1left, b1right, e1);
+
+#define debugTweener_E4                                                      \
+	fprintf(stderr, "    seq2 partition1=" pairFmt " %s\n",                  \
+				    part1->sepBefore, part1->sepAfter,                       \
+	                &sp2->pool[part1->header]);                              \
+	fprintf(stderr, "    seq2 partition2=" pairFmt " %s\n",                  \
+				    part2->sepBefore, part2->sepAfter,                       \
+	                &sp2->pool[part2->header]);                              \
+	fprintf(stderr, "    part2-part1=%ld\n", part2-part1);
+
+#define debugTweener_E5                                                      \
+	fprintf(stderr, "    (E5) splitting " pairFmt                            \
+	                " into " pairFmt "," pairFmt "\n",                       \
+	                b2, e2, b2, e2left, b2right, e2);
+
+#define debugTweener_E6                                                     \
+	fprintf(stderr, "    seq1 partitionX=" pairFmt " %s\n",                  \
+				    partX->sepBefore, partX->sepAfter,                       \
+	                &sp1->pool[partX->header]);
+
+#define debugTweener_E7                                                     \
+	fprintf(stderr, "    seq2 partitionX=" pairFmt " %s\n",                  \
+				    partY->sepBefore, partY->sepAfter,                       \
+	                &sp2->pool[partY->header]);
+
+#endif // debugTweener
+
+// try_bounded_align--
+
+static void try_bounded_align
+   (unspos			b1,
+	unspos			e1,
+	unspos			b2,
+	unspos			e2)
+	{
+	seqpartition*	sp1 = &seq1->partition;
+	seqpartition*	sp2 = &seq2->partition;
+	partition*		part1, *part2;
+	partition*		partX1, *partX2, *partY1, *partY2, *partX, *partY;
+	int				split1, split2;
+	unspos			b1right, e1left, b2right, e2left;
+	unspos			b1x, e1x, b2y, e2y;
+
+	debugTweener_E1
+
+	// if either interval is empty, let's not bother with it.
+
+	if ((b1 == e1) || (b2 == e2)) return;
+
+	// if neither sequence is partitioned, just pass the interval along to
+	// bounded_align()
+
+	if ((sp1->p == NULL)	// sequence 1 is not partitioned
+	 && (sp2->p == NULL))	// sequence 2 is not partitioned
+		{
+		bounded_align (b1, e1, b2, e2);
+		return;
+		}
+
+	// determine whether the interval is split in sequence 1
+
+	split1  = false;
+	e1left  = e1;
+	b1right = b1;
+	partX1  = partX2 = NULL;
+
+	if (sp1->p != NULL)		// sequence 1 is partitioned
+		{
+		if      (seq1->v[b1-1] == 0) b1 += 1;
+		else if (seq1->v[b1  ] == 0) b1 += 2;
+		if      (seq1->v[e1-1] == 0) e1 -= 1;
+		if (b1 >= e1) return;
+
+		part1 = lookup_partition (seq1, b1-1);
+		part2 = lookup_partition (seq1, e1-1);
+		if (part1 != part2)
+			{
+			// split is b1 / part1->sepAfter / part2->sepBefore / e1
+			//      --> b1 / e1left          /          b1right / e1
+			debugTweener_E2
+			e1left  = part1->sepAfter;
+			b1right = part2->sepBefore+2;
+			split1  = true;
+			debugTweener_E3
+			if (part2 - part1 > 1)
+				{ partX1 = part1+1;  partX2 = part2-1; }
+			}
+		}
+
+	// determine whether the interval is split in sequence 2
+
+	split2  = false;
+	e2left  = e2;
+	b2right = b2;
+	partY1  = partY2 = NULL;
+
+	if (sp2->p != NULL)		// sequence 2 is partitioned
+		{
+		if      (seq2->v[b2-1] == 0) b2 += 1;
+		else if (seq2->v[b2  ] == 0) b2 += 2;
+		if      (seq2->v[e2-1] == 0) e2 -= 1;
+		if (b2 >= e2) return;
+
+		part1 = lookup_partition (seq2, b2-1);
+		part2 = lookup_partition (seq2, e2-1);
+		if (part1 != part2)
+			{
+			// split is b2 / part1->sepAfter / part2->sepBefore / e2
+			//      --> b2 / e2left          /          b2right / e2
+			debugTweener_E4
+			e2left  = part1->sepAfter;
+			b2right = part2->sepBefore+2;
+			split2  = true;
+			debugTweener_E5
+			if (part2 - part1 > 1)
+				{ partY1 = part1+1;  partY2 = part2-1; }
+			}
+		}
+
+	// if neither sequence is split, just pass the interval along to
+	// bounded_align()
+
+	if ((!split1) && (!split2))
+		{
+		bounded_align (b1, e1, b2, e2);
+		return;
+		}
+
+	// otherwise, send the split intervals to bounded_align(), plus intervals
+	// for any intervening partitions
+
+	bounded_align (b1, e1left, b2, e2left);
+	bounded_align (b1right, e1, b2right, e2);
+
+	if ((partX1 != NULL) && (partY1 == NULL))
+		{
+		// loop over intervening partitions in seq1
+		for (partX=partX1 ; partX<=partX2 ; partX++)
+			{
+			debugTweener_E6
+			b1x = partX->sepBefore+2;
+			e1x = partX->sepAfter;
+			bounded_align (b1x, e1x, b2, e2left);
+			}
+		}
+	else if ((partX1 == NULL) && (partY1 != NULL))
+		{
+		// loop over intervening partitions in seq2
+		for (partY=partY1 ; partY<=partY2 ; partY++)
+			{
+			debugTweener_E7
+			b2y = partY->sepBefore+2;
+			e2y = partY->sepAfter;
+			bounded_align (b1, e1left, b2y, e2y);
+			}
+		}
+	else if ((partX1 != NULL) && (partY1 != NULL))
+		{
+		// loop over intervening partitions in both sequences
+		for (partX=partX1 ; partX<=partX2 ; partX++)
+				for (partY=partY1 ; partY<=partY2 ; partY++)
+			{
+			b1x = partX->sepBefore+2;
+			e1x = partX->sepAfter;
+			b2y = partY->sepBefore+2;
+			e2y = partY->sepAfter;
+			bounded_align (b1x, e1x, b2y, e2y);
+			}
+		}
+	}
+
+//----------
+//
 // bounded_align--
 //	Perform a high-sensitivity alignment within a specified rectangle.
 //
 //----------
 //
 // Arguments:
-//	unspos		b1,e1:	Range of the rectangle in sequence 1 (origin 1,
-//						.. inclusive).
-//	unspos		b2,e2:	Range of the rectangle in sequence 2.
+//	unspos	b1,e1:	Range of the rectangle in sequence 1 (origin 1,
+//					.. inclusive).
+//	unspos	b2,e2:	Range of the rectangle in sequence 2.
 //
 // Returns:
 //	(nothing)
@@ -783,7 +1014,7 @@ static active* dismiss
 		b2 = c->align->end2;
 		a1 = min (b1+windowSize/2, seq1->len);
 		a2 = min (b2+windowSize/2, seq2->len);
-		bounded_align (b1, a1, b2, a2);
+		try_bounded_align (b1, a1, b2, a2);
 		}
 
 	// return c to the pool

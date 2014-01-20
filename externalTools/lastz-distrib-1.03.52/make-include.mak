@@ -7,5 +7,3 @@ INSTALL =  install
 ARCH    ?= $(shell uname -m)
 
 installDir = ../../../bin
-
-

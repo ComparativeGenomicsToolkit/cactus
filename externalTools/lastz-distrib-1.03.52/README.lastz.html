@@ -79,8 +79,8 @@
 <body>
 
 <p class=vvlarge>
-<h1>LASTZ &nbsp; Release 1.03.46,
-                 built October 2, 2013</h1>
+<h1>LASTZ &nbsp; Release 1.03.52,
+                 built January 14, 2014</h1>
 
 TABLE OF CONTENTS
 
@@ -219,7 +219,7 @@ available in typical python installations.
 <td>Bob Harris&nbsp; &lt;rsharris at bx dot psu dot edu&gt;
 </td></tr>
 <tr><th>Date:</th><td></td>
-<td>October 2013
+<td>January 2014
 </td></tr>
 <tr><th>Mailing&nbsp;list:</th><td></td>
 <td>
@@ -253,9 +253,9 @@ A packed archive containing source code for LASTZ is available from the
 <p>
 If you have received the distribution as a packed archive, unpack it
 by whatever means are appropriate for your computer.  The result should be
-a directory <code>&lt;somepath&gt;/lastz&#8209;distrib&#8209;1.03.46</code> that contains
+a directory <code>&lt;somepath&gt;/lastz&#8209;distrib&#8209;X.XX.XX</code> that contains
 a <code>src</code> subdirectory (and some others).  You may find it convenient
-to remove the revision number (<code>&#8209;1.03.46</code>) from the directory name.
+to remove the revision number (<code>&#8209;X.XX.XX</code>) from the directory name.
 
 <p>
 Before building or installing any of the programs, you will need to tell the
@@ -271,7 +271,7 @@ or a similar command-line shell (Solaris users should substitute
 (<code>lastz</code> and <code>lastz_D</code>) and copy them into your
 <code>installDir</code>.
 <pre>
-    cd &lt;somepath&gt;/lastz-distrib-1.03.46/src
+    cd &lt;somepath&gt;/lastz-distrib-X.XX.XX/src
     make
     make install
 </pre>
@@ -5201,7 +5201,7 @@ from bash or a similar command-line shell (Solaris users should substitute
 <code>gmake</code> for <code>make</code>).  This will build the executable and
 copy it into your <code>installDir</code>.
 <pre>
-    cd &lt;somepath&gt;/lastz-distrib-1.03.46/src
+    cd &lt;somepath&gt;/lastz-distrib-X.XX.XX/src
     make lastz_32
     make install_32
 </pre>
@@ -6822,7 +6822,7 @@ appropriate behavioral adjustments for running on a Windows machine.
 Currently this only affects the handling of file paths.  To activate it,
 the user must add <code>-DcompileForWindows</code> to the definition of
 <code>definedForAll</code> in
-<code>.../lastz&#8209;distrib&#8209;1.03.46/src/Makefile</code>.
+<code>.../lastz&#8209;distrib&#8209;X.XX.XX/src/Makefile</code>.
 </td></tr>
 
 <tr><td></td><td></td><td>
@@ -7430,11 +7430,11 @@ The older options, <code>&#8209;&#8209;identity</code>, <code>&#8209;&#8209;cont
 and <code>&#8209;&#8209;coverage</code> are of course still recognized.
 </td></tr>
 
-<!-- 1.03.34 -->
+<!-- 1.03.46 -->
 
 <tr class=newsect>
 <td>
-<a name="history_recent"></a>1.03.46</td><td>Oct/2/2013</td><td>
+1.03.46</td><td>Oct/2/2013</td><td>
 Added the <code><a href="#action_namejoin">namejoin</a></code> action, to allow
 better handling of input files that have spaces in sequence names (e.g. Illumina
 casava version 1.8 fastq files).
@@ -7461,6 +7461,21 @@ that was inadvertantly introduced in 1.03.34.  A failsafe check for an unhandled
 case was added in that version, and <code>&#8209;&#8209;format=differences</code> wasn't
 being handled.  Unfortunately this prevented this format from being usable.
 This has been corrected.
+</td></tr>
+
+<!-- 1.03.52 -->
+
+<tr class=newsect>
+<td>
+<a name="history_recent"></a>1.03.52</td><td>Jan/14/2014</td><td>
+Corrected a bug that occured when the
+<code><a href="#option_inner">&#8209;&#8209;inner</a></code> option is used with the
+<code><a href="#action_multiple">multiple</a></code> action.  With this
+combination lastz could report alignments straddling two sequences.  This is
+now prevented.
+<p class=small>
+This bug has existed in all previous versions of lastz.  I was not in blastz
+since blastz did not provide the ability to have multiple sequences in memory.
 </td></tr>
 
 </tbody></table>

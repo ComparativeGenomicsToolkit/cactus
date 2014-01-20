@@ -51,7 +51,7 @@ class TestCase(PreprocessorTestCase):
              " the total number of bases that are Ns ", totalNBases
              
             #Now compare to running lastz on its own
-            command = "cactus_lastzRepeatMask.py --proportionSampled=0.2 --minPeriod=1 --lastzOpts='--step=1 --ambiguous=iupac,100 --ungapped' --fragment=200 %s %s" % \
+            command = "cactus_lastzRepeatMask.py --proportionSampled=0.2 --minPeriod=1 --lastzOpts='--step=1 --ambiguous=iupac,100 --ungapped --queryhsplimit=keep,nowarn:30' --fragment=200 %s %s" % \
                        (sequenceFile, self.tempOutputFile) 
             popenPush(command, sequenceFile)
             lastzSequencesFast = getSequences(self.tempOutputFile)
