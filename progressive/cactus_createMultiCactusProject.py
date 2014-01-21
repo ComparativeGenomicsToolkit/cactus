@@ -212,8 +212,17 @@ def main():
     #Replace the sequences with output sequences
     expTemplate.setSequences(CactusPreprocessor.getOutputSequenceFiles(expTemplate.getSequences(), expTemplate.getOutputSequenceDir()))
     if options.rootOutgroupPath is not None:
+        # hacky -- add the root outgroup to the tree after everything
+        # else.  This ends up being ugly, but avoids running into
+        # problems with assumptions about tree structure
+        options.rootOutgroupPath = os.path.abspath(options.rootOutgroupPath)
+        mcProj.inputSequences.append(options.rootOutgroupPath)
+        # replace the root outgroup sequence by post-processed output
+        options.rootOutgroupPath = CactusPreprocessor.getOutputSequenceFiles([options.rootOutgroupPath], expTemplate.getOutputSequenceDir())[0]
         expTemplate.seqMap["rootOutgroup"] = options.rootOutgroupPath
+        # Add to tree
         mcProj.mcTree.addOutgroup("rootOutgroup", options.rootOutgroupDist)
+        mcProj.mcTree.computeSubtreeRoots()
         mcProj.outgroup.ogMap[mcProj.mcTree.getRootName()] = ("rootOutgroup", options.rootOutgroupDist)
     #Now do the file tree creation
     createFileStructure(mcProj, expTemplate, confTemplate, options)
