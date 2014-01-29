@@ -247,6 +247,8 @@ typedef struct control
 	int			allowAmbiDNA;	//     true  => permit ambiguous DNA characters
 								//              .. B,D,H,K,M,R,S,V,W,Y
 								//     false => only A,C,G,T,N,X permitted
+	score		ambiMatch;		//     (non-negative) penalty for matches
+								//     .. among ambiguous DNA
 	score		ambiMismatch;	//     (non-negative) penalty for mismatches
 								//     .. among ambiguous DNA
 	int			hspImmediate;	//     true => process HSPs immediately  (rather

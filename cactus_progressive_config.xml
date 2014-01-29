@@ -13,7 +13,7 @@
 	<!-- The checkUCSC option (if enabled) ensures that suffix of the first word after the last period character (or the whole word if no period character exists) contains only alphanumeric or underscore characters as is unique -->
 	<preprocessor check="1" memory="littleMemory" preprocessorString="cactus_checkUniqueHeaders.py --checkUCSC IN_FILE"/>
 	<!-- The preprocessor for cactus_lastzRepeatMask masks every seed that is part of more than XX other alignments, this stops a combinatorial explosion in pairwise alignments -->
-	<preprocessor chunkSize="3000000" proportionToSample="0.2" memory="littleMemory" preprocessorString="cactus_lastzRepeatMask.py --proportionSampled=PROPORTION_SAMPLED --tempDir=TEMP_DIR --minPeriod=50 --lastzOpts='--step=3 --ambiguous=iupac,100 --ungapped --queryhsplimit=keep,nowarn:1500' IN_FILE OUT_FILE "/>
+	<preprocessor chunkSize="3000000" proportionToSample="0.2" memory="littleMemory" preprocessorString="cactus_lastzRepeatMask.py --proportionSampled=PROPORTION_SAMPLED --tempDir=TEMP_DIR --minPeriod=50 --lastzOpts='--step=3 --ambiguous=iupac,100,100 --ungapped --queryhsplimit=keep,nowarn:1500' IN_FILE OUT_FILE "/>
 	<ktserver memory="mediumMemory"/>
 	<setup makeEventHeadersAlphaNumeric="0"/>
 	<!-- The caf tag contains parameters for the caf algorithm. -->
@@ -49,12 +49,12 @@
 		We could go even faster for less than 0.05 divergence using, but want to be robust to poor branch length estimates -->
 		<divergence 
 			argName="lastzArguments"
-		 	one="--step=2 --ambiguous=iupac,100 --ydrop=3000 --notransition"
-		 	two="--step=5 --ambiguous=iupac,100 --ydrop=3000"
-		 	three="--step=4 --ambiguous=iupac,100 --ydrop=3000"
-		 	four="--step=3 --ambiguous=iupac,100 --ydrop=3000"
-		 	five="--step=2 --ambiguous=iupac,100 --ydrop=3000"
-		 	default="--step=1 --ambiguous=iupac,100 --ydrop=3000"
+		 	one="--step=2 --ambiguous=iupac,100,100 --ydrop=3000 --notransition"
+		 	two="--step=5 --ambiguous=iupac,100,100 --ydrop=3000"
+		 	three="--step=4 --ambiguous=iupac,100,100 --ydrop=3000"
+		 	four="--step=3 --ambiguous=iupac,100,100 --ydrop=3000"
+		 	five="--step=2 --ambiguous=iupac,100,100 --ydrop=3000"
+		 	default="--step=1 --ambiguous=iupac,100,100 --ydrop=3000"
 		 />
 		<CactusCafRecursion maxFlowerGroupSize="100000000"/>
 		<CactusCafWrapper minFlowerSize="1" maxFlowerGroupSize="25000000"/>

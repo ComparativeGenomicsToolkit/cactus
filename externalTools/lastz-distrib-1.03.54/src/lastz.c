@@ -395,7 +395,7 @@ static const control defaultParams =
 	false,								// inhibitTrivial
 	80*1024*1024,						// tracebackMem
 	NULL,								// traceback
-	false,false,0,						// nIsAmbiguous, allowAmbiDNA, ambiMismatch
+	false,false,0,0,					// nIsAmbiguous,allowAmbiDNA,ambiMatch,ambiMismatch
 	false,0,true,false,					// hspImmediate,searchLimit,searchLimitWarn,searchLimitKeep
 	0,									// numBestHsps
 	0.0,0,false,false,					// maxPairedDepth,maxPairedBases,overlyPairedWarn,overlyPairedKeep
@@ -5115,11 +5115,14 @@ static void parse_options_loop
 	int			allowExpanders,
 	int			allowInclude)
 	{
-	char*		argTemp = NULL;  // (malloc'd buffer)
+	char*		argTemp     = NULL;  // (malloc'd buffer)
 	u32			argTempSize = 0;
 	u32			argTempNeeded;
+	char*		argTempSub  = NULL;  // (malloc'd buffer)
+	u32			argTempSubSize = 0;
+	u32			argTempSubNeeded;
 	char*		arg;             // (pointer to argv[0] or argTemp)
-	char*		argStr;
+	char*		argStr, *argStr2;
 	int			argLen, argsLen;
 	char*		scan, *scan2;
 	int			items, scanned;
@@ -5130,6 +5133,7 @@ static void parse_options_loop
 	float		minContinuity, maxContinuity;
 	int			r, c;
 	int			argIsAMatch, charsUsed, tempInt;
+	score		tempScore, tempScore2;
 	char*		expVersion, *argVersion;
 	int			expLen;
 	char*		waywardBracketArg = NULL;
@@ -5529,12 +5533,37 @@ static void parse_options_loop
 		 || (strcmp_prefix (arg, "--ambiguous=N,") == 0)
 		 || (strcmp_prefix (arg, "--ambig=N,")     == 0))
 			{
-			argStr = strchr(arg,',') + 1;
-			tempInt = string_to_int (argStr);
-			if (tempInt < 0)
+			argStr2 = strchr(arg,',') + 1;
+			argStr  = strchr(argStr2,',');
+			if (argStr != NULL)
+				{
+				argStr  = strchr(arg,',') + 1;
+				argStr2 = strchr(argStr,',') + 1;
+				}
+
+			tempScore2 = string_to_score (argStr2);
+			if (tempScore2 < 0)
 				suicidef ("penalty for --ambiguous=n must be non-negative");
+
+			tempScore = 0;
+			if (argStr != NULL)
+				{
+				argTempSubNeeded = argStr2 - argStr; // ',' holds space for the 0
+				if (argTempSubNeeded > argTempSubSize)
+					{
+					if (argTempSub == NULL)
+						argTempSub = (char*) malloc_or_die  ("temporary argument substring",             argTempSubNeeded);
+					else
+						argTempSub = (char*) realloc_or_die ("temporary argument substring", argTempSub, argTempSubNeeded);
+					}
+				strncpy (argTempSub, argStr, argTempSubNeeded-1);
+				argTempSub[argTempSubNeeded-1] = 0;
+				tempScore = string_to_score (argTempSub);
+				}
+
 			lzParams->nIsAmbiguous = true;
-			lzParams->ambiMismatch = tempInt;
+			lzParams->ambiMatch    = tempScore;
+			lzParams->ambiMismatch = tempScore2;
 			goto next_arg;
 			}
 
@@ -5543,12 +5572,37 @@ static void parse_options_loop
 		 || (strcmp_prefix (arg, "--ambiguous=IUPAC,") == 0)
 		 || (strcmp_prefix (arg, "--ambig=IUPAC,")     == 0))
 			{
-			argStr = strchr(arg,',') + 1;
-			tempInt = string_to_int (argStr);
-			if (tempInt < 0)
+			argStr2 = strchr(arg,',') + 1;
+			argStr  = strchr(argStr2,',');
+			if (argStr != NULL)
+				{
+				argStr  = strchr(arg,',') + 1;
+				argStr2 = strchr(argStr,',') + 1;
+				}
+
+			tempScore2 = string_to_score (argStr2);
+			if (tempScore2 < 0)
 				suicidef ("penalty for --ambiguous=iupac must be non-negative");
+
+			tempScore = 0;
+			if (argStr != NULL)
+				{
+				argTempSubNeeded = argStr2 - argStr; // ',' holds space for the 0
+				if (argTempSubNeeded > argTempSubSize)
+					{
+					if (argTempSub == NULL)
+						argTempSub = (char*) malloc_or_die  ("temporary argument substring",             argTempSubNeeded);
+					else
+						argTempSub = (char*) realloc_or_die ("temporary argument substring", argTempSub, argTempSubNeeded);
+					}
+				strncpy (argTempSub, argStr, argTempSubNeeded-1);
+				argTempSub[argTempSubNeeded-1] = 0;
+				tempScore = string_to_score (argTempSub);
+				}
+
 			lzParams->allowAmbiDNA = lzParams->nIsAmbiguous = true;
-			lzParams->ambiMismatch = tempInt;
+			lzParams->ambiMatch    = tempScore;
+			lzParams->ambiMismatch = tempScore2;
 			goto next_arg;
 			}
 
@@ -5699,7 +5753,8 @@ static void parse_options_loop
 		// .. reported up to the limit, whereas the other options inhibit
 		// .. reporting of alignments for queries that exceed the limit
 
-		 if (strcmp_prefix (arg, "--queryhsplimit=keep,nowarn:") == 0)
+		if ((strcmp_prefix (arg, "--queryhsplimit=keep,nowarn:") == 0)
+		 || (strcmp_prefix (arg, "--queryhsplimit+=nowarn:"    ) == 0))
 			{
 			tempInt = string_to_unitized_int (strchr(arg,':')+1, true /*units of 1,000*/);
 			lzParams->searchLimitWarn = false;
@@ -5715,7 +5770,8 @@ static void parse_options_loop
 			goto check_search_limit;
 			}
 
-		if (strcmp_prefix (arg, "--queryhsplimit+=") == 0)
+		if ((strcmp_prefix (arg, "--queryhsplimit=keep:") == 0)
+		 || (strcmp_prefix (arg, "--queryhsplimit+="    ) == 0))
 			{
 			tempInt = string_to_unitized_int (strchr(arg,'=')+1, true /*units of 1,000*/);
 			lzParams->searchLimitWarn = true;
@@ -7790,7 +7846,8 @@ static void parse_options_loop
 
 	// dispose of argTemp
 
-	free_if_valid ("temporary argument string", argTemp);
+	free_if_valid ("temporary argument string",    argTemp);
+	free_if_valid ("temporary argument substring", argTempSub);
 	}
 
 // parse_options_string-- parse options from a string
@@ -8788,14 +8845,14 @@ threshold_check_done:
 
 	if (lzParams->allowAmbiDNA)
 		{
-		ambiguate_iupac (lzParams->scoring,       0, -lzParams->ambiMismatch);
-		ambiguate_iupac (lzParams->maskedScoring, 0, -lzParams->ambiMismatch);
+		ambiguate_iupac (lzParams->scoring,       lzParams->ambiMatch, -lzParams->ambiMismatch);
+		ambiguate_iupac (lzParams->maskedScoring, lzParams->ambiMatch, -lzParams->ambiMismatch);
 		}
 
 	if (lzParams->nIsAmbiguous)
 		{
-		ambiguate_n (lzParams->scoring,       0, -lzParams->ambiMismatch);
-		ambiguate_n (lzParams->maskedScoring, 0, -lzParams->ambiMismatch);
+		ambiguate_n     (lzParams->scoring,       lzParams->ambiMatch, -lzParams->ambiMismatch);
+		ambiguate_n     (lzParams->maskedScoring, lzParams->ambiMatch, -lzParams->ambiMismatch);
 		}
 
 	if (dbgShowMatrix)
