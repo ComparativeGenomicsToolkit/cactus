@@ -440,6 +440,7 @@ typedef struct control
 	char*		statsFilename;	//     name of stats file (can be NULL)
 	int			showPosTable;	//     whether or not to show target positions
 								//     .. table (one of spt_xxx values)
+	int			randomSample;	//     whether to take a random sample of HSPs
 	} control;
 
 // values for control parameters

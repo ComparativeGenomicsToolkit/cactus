@@ -1400,6 +1400,36 @@ void score_segments
 
 //----------
 //
+// shuffle_segments--
+//	Shuffle a segment table.
+//
+//----------
+//
+// Arguments:
+//	segtable*	st:		The segment table to shuffle.
+//
+// Returns:
+//	(nothing)
+//
+//----------
+
+void shuffle_segments
+	(segtable*	st)
+	{
+          u32 ix, otherIx;
+          segment tmp;
+          for (ix=st->len-1 ; ix>0 ; ix--)
+          {
+            otherIx = rand() % (ix + 1);
+            tmp = st->seg[ix];
+            st->seg[ix] = st->seg[otherIx];
+            st->seg[otherIx] = tmp;
+          }
+	}
+
+
+//----------
+//
 // sort_segments--
 //	Sort a segment table.
 // sort_some_segments--

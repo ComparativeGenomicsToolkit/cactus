@@ -440,7 +440,8 @@ static const control defaultParams =
 	false,								// showStats
 	NULL,								// statsFile
 	NULL,								// statsFilename
-	spt_dont							// showPosTable
+	spt_dont,							// showPosTable
+	false								// randomSample
 	};
 
 static const char* defaultSeedString = seed_12of19;
@@ -575,6 +576,7 @@ static postable* capsule_position_table  (capinfo* cap, seq* seq,
 static interval  resolve_chore_target    (chore* chore, seq* target);
 static interval  resolve_chore_query     (seq* query, char strand);
 static void      choose_best_anchors     (u32 numAnchors);
+static void      choose_random_anchors   (u32 numAnchors);
 static score     chain_connect_penalty   (segment* seg1, segment* seg2, int scale);
 static void      remove_interval_seeds   (unspos b, unspos e, void* info);
 static u32       report_hsps             (void* info,
@@ -1553,7 +1555,10 @@ next_target:
 			if (currParams->numBestHsps > 0)
 				{
 				originalNumAnchors = anchors->len;
-				choose_best_anchors (currParams->numBestHsps);
+				if (!currParams->randomSample)
+					choose_best_anchors (currParams->numBestHsps);
+				else
+					choose_random_anchors (currParams->numBestHsps);
 				dbg_show_hsp_counts_2;
 				}
 
@@ -1617,7 +1622,10 @@ next_target:
 			if (currParams->numBestHsps > 0)
 				{
 				originalNumAnchors = anchors->len;
-				choose_best_anchors (currParams->numBestHsps);
+				if (!currParams->randomSample)
+					choose_best_anchors (currParams->numBestHsps);
+				else
+					choose_random_anchors (currParams->numBestHsps);
 				dbg_show_hsp_counts_2;
 				}
 
@@ -3465,6 +3473,27 @@ static void choose_best_anchors
 	if (cutoffIx > 0)
 		anchors->len = cutoffIx;
 	}
+
+static void choose_random_anchors
+   (u32			numAnchors)
+	{
+	// check for special case where no limit is to be performed
+
+	if (numAnchors == 0) return;
+
+	// if we don't have more than N anchors, there's nothing to do
+
+	if (anchors->len <= numAnchors) return;
+
+	// randomly rearrange segments in-place
+
+	shuffle_segments(anchors);
+
+	// truncate the list
+
+	anchors->len = numAnchors;
+	}
+
 
 //----------
 //
@@ -6708,6 +6737,9 @@ static void parse_options_loop
 
 		if (strcmp (arg, "--nomirror") == 0)
 			{ lzParams->mirrorHSP = false;  goto next_arg; }
+
+		if (strcmp (arg, "--randomSample") == 0)
+			{ lzParams->randomSample = true;  goto next_arg; }
 
 		// --out[put]=<file>
 

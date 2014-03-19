@@ -106,6 +106,7 @@ void      sort_segments              (segtable* st,
 void      sort_some_segments         (segtable* st,
                                       u32 start, u32 end,
                                       int (*qCompare) (const void* el1, const void* el2));
+void      shuffle_segments           (segtable* st);
 void      merge_segments             (segtable* st);
 void      filter_marked_segments     (segtable* st);
 int       qSegmentsByPos1            (const void* segA, const void* segB);
