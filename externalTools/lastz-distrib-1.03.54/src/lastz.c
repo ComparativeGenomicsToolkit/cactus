@@ -441,7 +441,8 @@ static const control defaultParams =
 	NULL,								// statsFile
 	NULL,								// statsFilename
 	spt_dont,							// showPosTable
-	false								// randomSample
+	-1,								// randomSeed
+	0								// sampleHsps
 	};
 
 static const char* defaultSeedString = seed_12of19;
@@ -738,6 +739,12 @@ int main
 		currParams->anchorsFile  = fopen_or_die (currParams->anchorsFilename, "rt");
 		currParams->mergeAnchors = true;
 		}
+
+	// initialize prng
+	if (currParams->randomSeed == -1)
+		srand(time(NULL));
+	else
+		srand(currParams->randomSeed);
 
 	//////////
 	// open the sequence files
@@ -1552,13 +1559,15 @@ next_target:
 
 		if (!collectHspsFromBoth)
 			{
+			if (currParams->sampleHsps > 0)
+				{
+				originalNumAnchors = anchors->len;
+				choose_random_anchors (currParams->sampleHsps);
+				}
 			if (currParams->numBestHsps > 0)
 				{
 				originalNumAnchors = anchors->len;
-				if (!currParams->randomSample)
-					choose_best_anchors (currParams->numBestHsps);
-				else
-					choose_random_anchors (currParams->numBestHsps);
+				choose_best_anchors (currParams->numBestHsps);
 				dbg_show_hsp_counts_2;
 				}
 
@@ -1622,10 +1631,13 @@ next_target:
 			if (currParams->numBestHsps > 0)
 				{
 				originalNumAnchors = anchors->len;
-				if (!currParams->randomSample)
-					choose_best_anchors (currParams->numBestHsps);
-				else
-					choose_random_anchors (currParams->numBestHsps);
+				choose_best_anchors (currParams->numBestHsps);
+				dbg_show_hsp_counts_2;
+				}
+			if (currParams->sampleHsps > 0)
+				{
+				originalNumAnchors = anchors->len;
+				choose_random_anchors (currParams->sampleHsps);
 				dbg_show_hsp_counts_2;
 				}
 
@@ -6738,8 +6750,23 @@ static void parse_options_loop
 		if (strcmp (arg, "--nomirror") == 0)
 			{ lzParams->mirrorHSP = false;  goto next_arg; }
 
-		if (strcmp (arg, "--randomSample") == 0)
-			{ lzParams->randomSample = true;  goto next_arg; }
+		if (strcmp_prefix (arg, "--sampleHsps=") == 0)
+			{
+			tempInt = string_to_unitized_int (strchr(arg,'=')+1, true /*units of 1,000*/);
+			if (tempInt <= 0)
+				suicidef ("--sampleHsps must be positive");
+			lzParams->sampleHsps = tempInt;
+			if (lzParams->searchLimit != 0)
+				chastise ("can't use %s with --sampleHsps\n", arg);
+			goto next_arg;
+			}
+
+		if (strcmp_prefix (arg, "--randomSeed=") == 0)
+			{
+			tempInt = string_to_unitized_int (strchr(arg,'=')+1, true /*units of 1,000*/);
+			lzParams->randomSeed = tempInt;
+			goto next_arg;
+			}
 
 		// --out[put]=<file>
 

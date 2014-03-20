@@ -1416,15 +1416,17 @@ void score_segments
 void shuffle_segments
 	(segtable*	st)
 	{
-          u32 ix, otherIx;
-          segment tmp;
-          for (ix=st->len-1 ; ix>0 ; ix--)
-          {
-            otherIx = rand() % (ix + 1);
-            tmp = st->seg[ix];
-            st->seg[ix] = st->seg[otherIx];
-            st->seg[otherIx] = tmp;
-          }
+	u32 ix, otherIx;
+	segment tmp;
+	for (ix=st->len-1 ; ix>0 ; ix--)
+		{
+		// FIXME: this will be totally broken if RAND_MAX isn't
+		// much larger than the size of the list.
+		otherIx = rand() % (ix + 1);
+		tmp = st->seg[ix];
+		st->seg[ix] = st->seg[otherIx];
+		st->seg[otherIx] = tmp;
+		}
 	}
 
 
