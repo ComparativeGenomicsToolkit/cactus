@@ -905,4 +905,5 @@ MultipleAlignment *makeAlignment(stList *seqFrags, int64_t spanningTrees, int64_
         }
         free(distanceCounts);
     }
+    return NULL;
 }

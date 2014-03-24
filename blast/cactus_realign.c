@@ -222,6 +222,7 @@ int main(int argc, char *argv[]) {
                 assert(i == 1);
                 assert(pairwiseAlignmentBandingParameters->diagonalExpansion >= 0);
                 assert(pairwiseAlignmentBandingParameters->diagonalExpansion % 2 == 0);
+                break;
             case 't':
                 i = sscanf(optarg, "%" PRIi64 "", &pairwiseAlignmentBandingParameters->constraintDiagonalTrim);
                 assert(i == 1);
