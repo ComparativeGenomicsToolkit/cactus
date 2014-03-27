@@ -129,13 +129,13 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
         if configTemplate.getOutgroupStrategy() != 'none' \
         and name in mcProj.outgroup.ogMap \
         and name != mcProj.mcTree.getRootName():
-            og, ogDist = mcProj.outgroup.ogMap[name]
-            if og in expTemplate.seqMap:
-                ogPath = expTemplate.seqMap[og]
-            else:
-                ogPath = os.path.join(options.path, og)
-                ogPath = os.path.join(ogPath, refFileName(og))
-            exp.addTheOutgroupSequence(og, ogDist, ogPath)
+            for og, ogDist in mcProj.outgroup.ogMap[name]:
+                if og in expTemplate.seqMap:
+                    ogPath = expTemplate.seqMap[og]
+                else:
+                    ogPath = os.path.join(options.path, og)
+                    ogPath = os.path.join(ogPath, refFileName(og))
+                exp.addOutgroupSequence(og, ogDist, ogPath)
         elif name == mcProj.mcTree.getRootName() \
         and options.rootOutgroupPath is not None:
             exp.xmlRoot.attrib["outgroup_events"] = "rootOutgroup"
@@ -223,7 +223,7 @@ def main():
         # Add to tree
         mcProj.mcTree.addOutgroup("rootOutgroup", options.rootOutgroupDist)
         mcProj.mcTree.computeSubtreeRoots()
-        mcProj.outgroup.ogMap[mcProj.mcTree.getRootName()] = ("rootOutgroup", options.rootOutgroupDist)
+        mcProj.outgroup.ogMap[mcProj.mcTree.getRootName()] = [("rootOutgroup", options.rootOutgroupDist)]
     #Now do the file tree creation
     createFileStructure(mcProj, expTemplate, confTemplate, options)
    # mcProj.check()
