@@ -26,6 +26,7 @@ void usage() {
     fprintf(stderr, "-x --dummy : Do everything but realign, used for testing.\n");
     fprintf(stderr, "-i --rescoreByIdentity : Set score equal to alignment identity, treating indels as mismatches.\n");
     fprintf(stderr, "-j --rescoreByPosteriorProb : Set score equal to avg. posterior match probability, treating indels as residues with 0 match probability.\n");
+    fprintf(stderr, "-k --rescoreByIdentityIgnoringGaps : Set score equal to alignment identity, ignoring indels.\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -143,7 +144,7 @@ bool gapGammaFilter(void *aPair, void *gapGamma) {
  * Functions to rescore an alignment by identity / or some proxy to it.
  */
 
-double scoreByIdentity(char *subSeqX, char *subSeqY, int64_t lX, int64_t lY, stList *alignedPairs) {
+static int64_t getNumberOfMatchingAlignedPairs(char *subSeqX, char *subSeqY, stList *alignedPairs) {
     /*
      * Gives the average identity of matches in the alignment, treating indels as mismatches.
      */
@@ -153,7 +154,23 @@ double scoreByIdentity(char *subSeqX, char *subSeqY, int64_t lX, int64_t lY, stL
         int64_t x = stIntTuple_get(aPair, 1), y = stIntTuple_get(aPair, 2);
         matches += subSeqX[x] == subSeqY[y] && toupper(subSeqX[x]) != 'N';
     }
+    return matches;
+}
+
+double scoreByIdentity(char *subSeqX, char *subSeqY, int64_t lX, int64_t lY, stList *alignedPairs) {
+    /*
+     * Gives the average identity of matches in the alignment, treating indels as mismatches.
+     */
+    int64_t matches = getNumberOfMatchingAlignedPairs(subSeqX, subSeqY, alignedPairs);
     return 100 *((lX + lY) == 0 ? 0 : (2.0*matches) / (lX + lY));
+}
+
+double scoreByIdentityIgnoringGaps(char *subSeqX, char *subSeqY, stList *alignedPairs) {
+    /*
+     * Gives the average identity of matches in the alignment, ignoring indels.
+     */
+	int64_t matches = getNumberOfMatchingAlignedPairs(subSeqX, subSeqY, alignedPairs);
+    return matches / (double)stList_length(alignedPairs);
 }
 
 double scoreByPosteriorProbability(int64_t lX, int64_t lY, stList *alignedPairs) {
@@ -179,6 +196,7 @@ int main(int argc, char *argv[]) {
     bool dummy = 0;
     bool rescoreByIdentity = 0;
     bool rescoreByPosteriorProbability = 0;
+    bool rescoreByIdentityIgnoringGaps = 0;
     /*
      * Parse the options.
      */
@@ -188,11 +206,12 @@ int main(int argc, char *argv[]) {
                 required_argument, 0, 'l' }, { "splitMatrixBiggerThanThis", required_argument, 0, 'o' }, { "diagonalExpansion",
                 required_argument, 0, 'r' }, { "constraintDiagonalTrim", required_argument, 0, 't' }, { "alignAmbiguityCharacters",
                 no_argument, 0, 'w' }, { "dummy", no_argument, 0, 'x' }, { "rescoreByIdentity", no_argument, 0, 'i' },
-                { "rescoreByPosteriorProb", no_argument, 0, 'j' }, { 0, 0, 0, 0 } };
+                { "rescoreByPosteriorProb", no_argument, 0, 'j' },
+                { "rescoreByIdentityIgnoringGaps", no_argument, 0, 'k' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:hl:o:r:t:wx", long_options, &option_index);
+        int key = getopt_long(argc, argv, "a:hl:o:r:t:wxijk", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -239,6 +258,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 'j':
                 rescoreByPosteriorProbability = 1;
+                break;
+            case 'k':
+                rescoreByIdentityIgnoringGaps = 1;
                 break;
             default:
                 usage();
@@ -305,6 +327,9 @@ int main(int argc, char *argv[]) {
             }
             else if(rescoreByIdentity) {
                 pA->score = scoreByIdentity(subSeqX, subSeqY, strlen(subSeqX), strlen(subSeqY), alignedPairs);
+            }
+            else if(rescoreByIdentityIgnoringGaps) {
+            	pA->score = scoreByIdentityIgnoringGaps(subSeqX, subSeqY, alignedPairs);
             }
             //Convert to ordered list of sequence coordinate pairs
             stList_mapReplace(alignedPairs, convertToAnchorPair, NULL);

@@ -115,6 +115,7 @@ static stList *calculateZP(Cap *cap, stHash *endsToNodes) {
         cap = cap_getOtherSegmentCap(cap);
         assert(cap != NULL);
     }
+    return NULL;
 }
 
 static Cap *calculateZP4(Cap *cap, stHash *endsToNodes) {
@@ -139,6 +140,7 @@ static Cap *calculateZP4(Cap *cap, stHash *endsToNodes) {
             return NULL;
         }
     }
+    return NULL;
 }
 
 static int64_t calculateZP2(Cap *cap, stHash *endsToNodes) {

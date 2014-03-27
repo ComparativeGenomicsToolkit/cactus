@@ -183,10 +183,6 @@ static void makeChain(stCactusEdgeEnd *cactusEdgeEnd, Flower *flower, bool orien
     }
 }
 
-static void makeChain(stCactusEdgeEnd *cactusEdgeEnd, Flower *flower, bool orientation, bool makeSpacerFlowers,
-        stPinchThreadSet *threadSet,  Flower *parentFlower,
-                stList *deadEndComponent, stSet *bigFlowers, stHash *pinchEndsToEnds);
-
 static void makeChains(stCactusNode *cactusNode, Flower *flower, bool orientation,
         stPinchThreadSet *threadSet,  Flower *parentFlower,
         stList *deadEndComponent, stSet *bigFlowers, stHash *pinchEndsToEnds) {

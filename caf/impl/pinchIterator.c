@@ -115,6 +115,7 @@ static stPinch *pairwiseAlignmentToPinch_getNext(PairwiseAlignmentToPinch *pA) {
         }
         pA->pairwiseAlignment = NULL;
     }
+    return NULL;
 }
 
 static PairwiseAlignmentToPinch *pairwiseAlignmentToPinch_resetForFile(PairwiseAlignmentToPinch *pA) {

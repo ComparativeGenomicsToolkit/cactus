@@ -19,8 +19,6 @@
 #include "bioioC.h"
 #include "commonC.h"
 
-static FILE* outputFile = NULL;
-
 /* Read fasta sequence from files into the "cur" variables.
  * Then merge into the outputFile (stdout)
  */

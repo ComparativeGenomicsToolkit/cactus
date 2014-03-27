@@ -205,6 +205,7 @@ Cap *cap_getTopCap(Cap *cap) {
         }
         cap2 = cap_getParent(cap2);
     }
+    return NULL;
 }
 
 Face *cap_getTopFace(Cap *cap) {

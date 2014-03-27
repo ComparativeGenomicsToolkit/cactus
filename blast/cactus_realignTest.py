@@ -46,19 +46,24 @@ class TestCase(unittest.TestCase):
         for seqFile1, seqFile2 in seqFilePairGenerator():
             realignCommandByIdentity, lastzCommand = getCommands(seqFile1, seqFile2, realignArguments="--rescoreByIdentity")
             realignCommandByPosteriorProb = getCommands(seqFile1, seqFile2, realignArguments="--rescoreByPosteriorProb")[0]
-            for realignLineByIdentity, realignLineByPosteriorProb, lastzLine in \
+            realignCommandByIdentityIgnoringGaps = getCommands(seqFile1, seqFile2, realignArguments="--rescoreByIdentityIgnoringGaps")[0]
+            for realignLineByIdentity, realignLineByPosteriorProb, realignLineByIdentityIgnoringGaps, lastzLine in \
                                           zip([ i for i in popenCatch(realignCommandByIdentity).split("\n") if i != '' ], \
                                               [ i for i in popenCatch(realignCommandByPosteriorProb).split("\n") if i != '' ], \
+                                              [ i for i in popenCatch(realignCommandByIdentityIgnoringGaps).split("\n") if i != '' ], \
                                               [ i for i in popenCatch(lastzCommand).split("\n") if i != '' ]):
                 realignCigarByIdentity = cigarReadFromString(realignLineByIdentity)
                 realignCigarByPosteriorProb = cigarReadFromString(realignLineByPosteriorProb)
+                realignCigarByIdentityIgnoringGaps = cigarReadFromString(realignLineByIdentityIgnoringGaps)
                 lastzCigar = cigarReadFromString(lastzLine)
                 #Check scores are as expected
                 self.assertTrue(realignCigarByIdentity.score >= 0)
                 self.assertTrue(realignCigarByIdentity.score <= 100.0)
                 self.assertTrue(realignCigarByPosteriorProb.score >= 0)
                 self.assertTrue(realignCigarByPosteriorProb.score <= 100.0)
-                #print "Scores", "Rescore by identity", realignCigarByIdentity.score, "Rescore by posterior prob", realignCigarByPosteriorProb.score, "Lastz score", lastzCigar.score
+                self.assertTrue(realignCigarByIdentityIgnoringGaps.score >= 0)
+                self.assertTrue(realignCigarByIdentityIgnoringGaps.score <= 100.0)
+                #print "Scores", "Rescore by identity", realignCigarByIdentity.score, "Rescore by posterior prob", realignCigarByPosteriorProb.score, "Rescore by identity ignoring gaps", realignCigarByIdentityIgnoringGaps.score, "Lastz score", lastzCigar.score
 
 def getCommands(seqFile1, seqFile2, realignArguments="", lastzArguments="--ambiguous=iupac"):  
     lastzCommand = "cactus_lastz --format=cigar %s %s[multiple][nameparse=darkspace] %s[nameparse=darkspace]" % (lastzArguments, seqFile1, seqFile2)

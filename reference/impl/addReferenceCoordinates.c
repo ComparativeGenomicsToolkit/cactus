@@ -52,6 +52,7 @@ static int64_t traceThreadLength(Cap *cap) {
             return threadLength;
         }
     }
+    return 1;
 }
 
 static void setAdjacencyLengths(Cap *cap) {

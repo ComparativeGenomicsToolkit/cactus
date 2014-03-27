@@ -16,6 +16,7 @@
 //----------
 
 #include <stdlib.h>				// standard C stuff
+#include <stdio.h>
 #define  true  1
 #define  false 0
 #include <stdio.h>				// standard C i/o stuff
