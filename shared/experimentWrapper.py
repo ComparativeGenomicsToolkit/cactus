@@ -418,10 +418,8 @@ class ExperimentWrapper(DbElemWrapper):
         self.xmlRoot.attrib["sequences"] = sequences
         self.seqMap = newMap
     
-    # Adds a single outgroup sequence to the experiment. 
-    #Sequence is not previous is 
-    def addTheOutgroupSequence(self, ogName, ogDist, ogPath):
-        assert self.getOutgroupEvents() == []
+    # Adds an additional single outgroup sequence to the experiment. 
+    def addOutgroupSequence(self, ogName, ogDist, ogPath):
         assert ogName is not None
         tree = MultiCactusTree(self.getTree())
         tree.addOutgroup(ogName, ogDist)
@@ -429,5 +427,4 @@ class ExperimentWrapper(DbElemWrapper):
         seqs = "%s %s"  % (self.xmlRoot.attrib["sequences"], ogPath)
         self.xmlRoot.attrib["sequences"] = seqs
         self.seqMap[ogName] = ogPath
-        self.xmlRoot.attrib["outgroup_events"] = ogName
-            
+        self.setOutgroupEvents(self.getOutgroupEvents() + [ogName])
