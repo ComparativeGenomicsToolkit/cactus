@@ -39,7 +39,8 @@ def createMCProject(tree, experiment, config, options):
         mcProj.outgroup.importTree(mcProj.mcTree)
         mcProj.outgroup.greedy(threshold=config.getOutgroupThreshold(),
                                candidateSet=options.outgroupNames,
-                               candidateChildFrac=config.getOutgroupAncestorQualityFraction())
+                               candidateChildFrac=config.getOutgroupAncestorQualityFraction(),
+                               maxNumOutgroups=config.getMaxNumOutgroups())
     elif config.getOutgroupStrategy() == 'greedyLeaves':
         mcProj.outgroup = GreedyOutgroup()
         mcProj.outgroup.importTree(mcProj.mcTree)
@@ -48,7 +49,8 @@ def createMCProject(tree, experiment, config, options):
             ogSet = set([mcProj.mcTree.getName(x) for x in mcProj.mcTree.getLeaves()])
         mcProj.outgroup.greedy(threshold=config.getOutgroupThreshold(),
                                candidateSet=ogSet,
-                               candidateChildFrac=2.0)
+                               candidateChildFrac=2.0,
+                               maxNumOutgroups=config.getMaxNumOutgroups())
     return mcProj
 
 # go through the tree (located in the template experimet)
