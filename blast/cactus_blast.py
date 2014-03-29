@@ -60,30 +60,32 @@ class BlastFlower(Target):
                                                           self.blastOptions.minimumSequenceLength,
                                                           chunksDir)).split("\n") if chunk != "" ]
         logger.info("Broken up the flowers into individual 'chunk' files")
-        self.addChildTarget(MakeBlasts(self.blastOptions, chunks, self.finalResultsFile))
+        self.addChildTarget(MakeBlastsAllAgainstAll(self.blastOptions, chunks, self.finalResultsFile))
         
-class BlastSequences(Target):
+class BlastSequencesAllAgainstAll(Target):
     """Take a set of sequences, chunks them up and blasts them.
     """
-    def __init__(self, sequenceFiles, finalResultsFile, blastOptions):
+    def __init__(self, sequenceFiles1, finalResultsFile, blastOptions):
         Target.__init__(self)
-        self.sequenceFiles = sequenceFiles
+        self.sequenceFiles1 = sequenceFiles1
         self.finalResultsFile = finalResultsFile
         self.blastOptions = blastOptions
         blastOptions.roundsOfCoordinateConversion = 1
-        
-    def run(self):
-        chunksDir = makeSubDir(os.path.join(self.getGlobalTempDir(), "chunks"))
-        chunks = [ chunk for chunk in popenCatch("cactus_blast_chunkSequences %s %i %i %s %s" % \
+    
+    def getChunks(self, sequenceFiles, chunksDir):
+        return [ chunk for chunk in popenCatch("cactus_blast_chunkSequences %s %i %i %s %s" % \
                                                           (getLogLevelString(), 
                                                           self.blastOptions.chunkSize, 
                                                           self.blastOptions.overlapSize,
                                                           chunksDir,
-                                                          " ".join(self.sequenceFiles))).split("\n") if chunk != "" ]
-        logger.info("Broken up the sequence files into individual 'chunk' files")
-        self.addChildTarget(MakeBlasts(self.blastOptions, chunks, self.finalResultsFile))
+                                                          " ".join(sequenceFiles))).split("\n") if chunk != "" ]
         
-class MakeBlasts(Target):
+    def run(self):
+        chunks = self.getChunks(self.sequenceFiles1, makeSubDir(os.path.join(self.getGlobalTempDir(), "chunks")))
+        logger.info("Broken up the sequence files into individual 'chunk' files")
+        self.addChildTarget(MakeBlastsAllAgainstAll(self.blastOptions, chunks, self.finalResultsFile))
+        
+class MakeBlastsAllAgainstAll(Target):
     """Breaks up the inputs into bits and builds a bunch of alignment jobs.
     """
     def __init__(self, blastOptions, chunks, finalResultsFile):
@@ -103,11 +105,11 @@ class MakeBlasts(Target):
             self.addChildTarget(RunSelfBlast(self.blastOptions, self.chunks[i], resultsFile))
         logger.info("Made the list of self blasts")
         #Setup job to make all-against-all blasts
-        self.setFollowOnTarget(MakeBlasts2(self.blastOptions, self.chunks, resultsFiles, self.finalResultsFile))
+        self.setFollowOnTarget(MakeBlastsAllAgainstAll2(self.blastOptions, self.chunks, resultsFiles, self.finalResultsFile))
     
-class MakeBlasts2(MakeBlasts):
+class MakeBlastsAllAgainstAll2(MakeBlastsAllAgainstAll):
         def __init__(self, blastOptions, chunks, resultsFiles, finalResultsFile):
-            MakeBlasts.__init__(self, blastOptions, chunks, finalResultsFile)
+            MakeBlastsAllAgainstAll.__init__(self, blastOptions, chunks, finalResultsFile)
             self.resultsFiles = resultsFiles
            
         def run(self):
@@ -121,6 +123,30 @@ class MakeBlasts2(MakeBlasts):
             logger.info("Made the list of all-against-all blasts")
             #Set up the job to collate all the results
             self.setFollowOnTarget(CollateBlasts(self.finalResultsFile, self.resultsFiles))
+            
+class BlastSequencesAgainstEachOther(BlastSequencesAllAgainstAll):
+    """Take two sets of sequences, chunks them up and blasts one set against the other.
+    """
+    def __init__(self, sequenceFiles1, sequenceFiles2, finalResultsFile, blastOptions):
+        BlastSequencesAllAgainstAll.__init__(self, sequenceFiles1, finalResultsFile, blastOptions)
+        self.sequenceFiles2 = sequenceFiles2
+        
+    def run(self):
+        chunks1 = self.getChunks(self.sequenceFiles1, makeSubDir(os.path.join(self.getGlobalTempDir(), "chunks1")))
+        chunks2 = self.getChunks(self.sequenceFiles2, makeSubDir(os.path.join(self.getGlobalTempDir(), "chunks2")))
+        tempFileTree = TempFileTree(os.path.join(self.getGlobalTempDir(), "allAgainstAllResults"))
+        resultsFiles = []
+        #Make the list of blast jobs.
+        for chunk1 in chunks1:
+            for chunk2 in chunks2:
+                resultsFile = tempFileTree.getTempFile()
+                resultsFiles.append(resultsFile)
+                #TODO: Make the compression work
+                self.blastOptions.compressFiles = False
+                self.addChildTarget(RunBlast(self.blastOptions, chunk1, chunk2, resultsFile))
+        logger.info("Made the list of blasts")
+        #Set up the job to collate all the results
+        self.setFollowOnTarget(CollateBlasts(self.finalResultsFile, resultsFiles))
         
 def compressFastaFile(fileName):
     """Compress a fasta file.
@@ -182,6 +208,46 @@ class CollateBlasts(Target):
     def run(self):
         catFiles(self.resultsFiles, self.finalResultsFile)
         logger.info("Collated the alignments to the file: %s",  self.finalResultsFile)
+        
+class SortCigarAlignmentsInPlace(Target):
+    """Sorts an alignment file in place.
+    """
+    def __init__(self, cigarFile):
+        Target.__init__(self)
+        self.cigarFile = cigarFile
+    
+    def run(self):
+        tempResultsFile = os.path.join(self.getLocalTempDir(), "tempResults.cig")
+        system("cactus_blast_sortAlignments %s %s %i" % (getLogLevelString(), self.cigarFile, tempResultsFile))
+        logger.info("Sorted the alignments okay")
+        system("mv %s %s" % (tempResultsFile, self.cigarFile))
+
+class CalculateAlignmentCoverage(Target):
+    """Calculates the coverage of an genome according to an alignment.
+    """
+    def __init__(self, sortedCigarFile, sequenceFiles, outputCoverageFile):
+        Target.__init__(self)
+        self.sortedCigarFile = sortedCigarFile
+        self.sequenceFiles = sequenceFiles
+        self.outputCoverageFile = outputCoverageFile
+    
+    def run(self):
+        #TODO
+        pass
+    
+class TrimGenome(Target):
+    """Trim genome according to coverage file.
+    """
+    def __init__(self, sequenceFiles, coverageFile, outputSequenceFile, parameters):
+        Target.__init__(self)
+        self.sequenceFiles = sequenceFiles
+        self.coverageFile = coverageFile
+        self.outputSequenceFile = outputSequenceFile
+        self.parameters = parameters
+    
+    def run(self):
+        #TODO
+        pass
 
 def main():
     ##########################################
@@ -224,13 +290,22 @@ replaced with the the sequence file and the results file, respectively",
     parser.add_option("--lastzMemory", dest="memory", type="int",
                       help="Lastz memory (in bytes)", 
                       default=blastOptions.memory)
+    
     parser.add_option("--test", dest="test", action="store_true",
                       help="Run doctest unit tests")
+    
+    parser.add_option("--targetSequenceFiles", dest="targetSequenceFiles", type="string",
+                     help="Sequences to align against the input sequences against. If these are not provided then the input sequences are aligned against each other.",
+                     default=None)
+    
     options, args = parser.parse_args()
     if options.test:
         _test()
     
-    firstTarget = BlastSequences(args, options.cigarFile, options)
+    if options.targetSequenceFiles == None:
+        firstTarget = BlastSequencesAllAgainstAll(args, options.cigarFile, options)
+    else:
+        firstTarget = BlastSequencesAgainstEachOther(args, options.targetSequenceFiles.split(), options.cigarFile, options)
     Stack(firstTarget).startJobTree(options)
 
 def _test():

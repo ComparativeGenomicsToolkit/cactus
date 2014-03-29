@@ -47,9 +47,8 @@ class TestCase(unittest.TestCase):
         unittest.TestCase.tearDown(self)
         system("rm -rf %s" % self.tempDir)
         
-    def testBlastEncode(self):
-        """For each encode region, for set of pairwise species, run 
-        cactus_blast.py. We compare the output with a naive run of the blast program, to check the results are nearly
+    def runComparisonOfBlastScriptVsNaiveBlast(self, allAgainstAll):
+        """We compare the output with a naive run of the blast program, to check the results are nearly
         equivalent.
         """
         encodeRegions = [ "ENm00" + str(i) for i in xrange(1,2) ] #, 2) ] #Could go to six
@@ -69,14 +68,29 @@ class TestCase(unittest.TestCase):
                     
                     #Run the blast
                     jobTreeDir = os.path.join(getTempDirectory(self.tempDir), "jobTree")
-                    runCactusBlast([ seqFile1, seqFile2 ], self.tempOutputFile2, jobTreeDir,
-                                   chunkSize=500000, overlapSize=10000)
+                    if allAgainstAll:
+                        runCactusBlast([ seqFile1, seqFile2 ], self.tempOutputFile2, jobTreeDir,
+                                       chunkSize=500000, overlapSize=10000)
+                    else:
+                        runCactusBlast([ seqFile1 ], self.tempOutputFile2, jobTreeDir,
+                                       chunkSize=500000, overlapSize=10000, targetSequenceFiles=[ seqFile2 ])
                     runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
                     system("rm -rf %s " % jobTreeDir)    
                     logger.info("Ran cactus_blast okay")
-                    
-                    logger.critical("Comparing cactus_blast and naive blast")
+                    logger.critical("Comparing cactus_blast and naive blast; using all-against-all: %s" % allAgainstAll)
                     compareResultsFile(self.tempOutputFile, self.tempOutputFile2)
+
+    def testBlastEncodeAllAgainstAll(self):
+        """For each encode region, for set of pairwise species, run 
+        cactus_blast.py in all-against-all mode. 
+        """
+        self.runComparisonOfBlastScriptVsNaiveBlast(allAgainstAll=True)
+    
+    def testBlastEncode(self):
+        """For each encode region, for set of pairwise species, run 
+        cactus_blast.py in one set of sequences against another set mode. 
+        """
+        self.runComparisonOfBlastScriptVsNaiveBlast(allAgainstAll=False)
     
     def testBlastParameters(self):
         """Tests if changing parameters of lastz creates results similar to the desired default.

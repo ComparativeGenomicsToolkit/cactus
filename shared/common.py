@@ -158,7 +158,8 @@ def runCactusBlast(sequenceFiles, outputFile, jobTreeDir,
                    blastString=None, 
                    selfBlastString=None,
                    compressFiles=None,
-                   lastzMemory=None):
+                   lastzMemory=None,
+                   targetSequenceFiles=None):
     logLevel = getLogLevelString2(logLevel)
     chunkSize = nameValue("chunkSize", chunkSize, int)
     overlapSize = nameValue("overlapSize", overlapSize, int)
@@ -166,9 +167,13 @@ def runCactusBlast(sequenceFiles, outputFile, jobTreeDir,
     selfBlastString = nameValue("selfBlastString", selfBlastString, str)
     compressFiles = nameValue("compressFiles", compressFiles, bool)
     lastzMemory = nameValue("lastzMemory", lastzMemory, int)
-    command = "cactus_blast.py %s  --cigars %s %s %s %s %s %s %s --jobTree %s --logLevel %s" % \
+    if targetSequenceFiles != None: 
+        targetSequenceFiles = " ".join(targetSequenceFiles)
+    targetSequenceFiles = nameValue("targetSequenceFiles", targetSequenceFiles, quotes=True)
+    command = "cactus_blast.py %s  --cigars %s %s %s %s %s %s %s %s --jobTree %s --logLevel %s" % \
             (" ".join(sequenceFiles), outputFile,
-             chunkSize, overlapSize, blastString, selfBlastString, compressFiles, lastzMemory, jobTreeDir, logLevel)
+             chunkSize, overlapSize, blastString, selfBlastString, compressFiles, 
+             lastzMemory, targetSequenceFiles, jobTreeDir, logLevel)
     logger.info("Running command : %s" % command)
     system(command)
     logger.info("Ran the cactus_batch command okay")
