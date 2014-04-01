@@ -217,6 +217,7 @@ class SortCigarAlignmentsInPlace(Target):
         self.cigarFile = cigarFile
     
     def run(self):
+        #Need to add sorting by start coordinate for coverage calculation
         tempResultsFile = os.path.join(self.getLocalTempDir(), "tempResults.cig")
         system("cactus_blast_sortAlignments %s %s %i" % (getLogLevelString(), self.cigarFile, tempResultsFile))
         logger.info("Sorted the alignments okay")
@@ -232,7 +233,11 @@ class CalculateAlignmentCoverage(Target):
         self.outputCoverageFile = outputCoverageFile
     
     def run(self):
-        #TODO
+        #TODO - I'd suggest the coverage file be in a standard format, i.e. BED?
+        #It should report for each interval of the reference the number of distinct places the interval is aligned.
+        #I'd probably do this by looking at gapless alignments - i.e. the "matched" segments of the alignment.
+        #The input should first be sorted by sequence position, so this can be done by iterating over the alignments in the order of the sequence.
+        
         pass
     
 class TrimGenome(Target):
@@ -246,7 +251,11 @@ class TrimGenome(Target):
         self.parameters = parameters
     
     def run(self):
-        #TODO
+        #TODO - I'd suggest the parameters be:
+        #Coverage threshold - the amount of coverage to decide to include or exclude a subsequence (integer)
+        #Exclude/include parameter- flag which decides if we include region with a given or higher coverage threshold or exclude them.
+        #Window length - the length of the window to integrate the coverage over, this will act as both a smoothing parameter and ensure we don't report tiny regions).
+        #Avg/median parameter - allow use of median or avg. coverage.
         pass
 
 def main():
