@@ -128,11 +128,8 @@ static void combineBlocks(stList *blocks)
             stList_sort(blocks, sortBlocksByStart);
             i = 1;
         } else if(block->end == prevBlock->end) {
-            assert(prevBlock->start == block->start);
-            prevBlock->value += block->value;
-            free(stList_remove(blocks, i));
-            // To keep the iteration correct
-            i -= 1;
+            prevBlock->end = block->start;
+            block->value += prevBlock->value;
         } else {
             // prevBlock overlaps this block completely
             assert(block->end < prevBlock->end);

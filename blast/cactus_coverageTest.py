@@ -1,6 +1,9 @@
-import unittest
-from sonLib.bioio import getTempFile, popenCatch
+import unittest, os
+from sonLib.bioio import getTempFile, popenCatch, system
 from textwrap import dedent
+from random import sample
+from cactus.shared.test import getCactusInputs_blanchette
+
 class TestCase(unittest.TestCase):
     def setUp(self):
         unittest.TestCase.setUp(self)
@@ -27,9 +30,14 @@ class TestCase(unittest.TestCase):
         cigar: simpleSeqB1 28 30 + simpleSeqA2 6 8 + 0 M 2
         cigar: simpleSeqB1 30 32 + simpleSeqA2 7 9 + 0 M 2
         '''))
+
+    def tearDown(self):
+        unittest.TestCase.tearDown(self)
+        os.remove(self.simpleFastaPathA)
+        os.remove(self.simpleFastaPathB)
+        os.remove(self.simpleCigarPath)
+
     def testSimpleCoverageOnA(self):
-        print "cactus_coverage %s %s" % (self.simpleFastaPathA,
-                                         self.simpleCigarPath)
         # Genome A
         bed = popenCatch("cactus_coverage %s %s" % (self.simpleFastaPathA,
                                                     self.simpleCigarPath))
@@ -63,6 +71,29 @@ class TestCase(unittest.TestCase):
         simpleSeqB1\t30\t32\t\t1
         '''))
 
+    def testInvariants(self):
+        (seqs, _) = getCactusInputs_blanchette()
+        seqs = sample(seqs, 2)
+        cigarPath = getTempFile()
+        system("cactus_lastz --format=cigar %s[multiple] %s[multiple] > %s" % \
+               (seqs[0], seqs[1], cigarPath))
+        bed = popenCatch("cactus_coverage %s %s" % (seqs[0], cigarPath))
+        prevChrom = None
+        prevStart = None
+        prevEnd = None
+        # Check that everything is sorted and there are no overlaps
+        for line in bed.split("\n"):
+            line.strip()
+            if line == "":
+                continue
+            fields = line.split()
+            chrom = fields[0]
+            start = int(fields[1])
+            end = int(fields[2])
+            if chrom == prevChrom:
+                self.assertTrue(start > prevStart)
+                self.assertTrue(start >= prevEnd)
+        os.remove(cigarPath)
 
 if __name__ == '__main__':
     unittest.main()
