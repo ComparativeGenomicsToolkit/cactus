@@ -20,12 +20,16 @@ ${binPath}/cactus_blast_sortAlignments : cactus_blast_sortAlignments.c ${libPath
 ${binPath}/cactus_realign : cactus_realign.c ${libPath}/cactusBarLib.a ${libPath}/cactusLib.a ${basicLibsDependencies}
 	${cxx} ${cflags} -I inc -I${libPath} -o ${binPath}/cactus_realign cactus_realign.c ${libPath}/cactusBarLib.a ${libPath}/cactusLib.a ${basicLibs}
 
-${binPath}/cactus_blast.py : cactus_blast.py ${binPath}/cactus_blast_convertCoordinates ${binPath}/cactus_blast_chunkSequences ${binPath}/cactus_blast_chunkFlowerSequences ${binPath}/cactus_blast_sortAlignments ${binPath}/cactus_realign ${binPath}/cactus_coverage
+${binPath}/cactus_blast.py : cactus_blast.py ${binPath}/cactus_blast_convertCoordinates ${binPath}/cactus_blast_chunkSequences ${binPath}/cactus_blast_chunkFlowerSequences ${binPath}/cactus_blast_sortAlignments ${binPath}/cactus_realign ${binPath}/cactus_coverage ${binPath}/cactus_trimSequences.py
 	cp cactus_blast.py ${binPath}/cactus_blast.py
 	chmod +x ${binPath}/cactus_blast.py
 
 ${binPath}/cactus_coverage : cactus_coverage.c ${basicLibsDependencies}
 	${cxx} ${cflags} -I inc -I${libPath} -o ${binPath}/cactus_coverage cactus_coverage.c ${basicLibs}
+
+${binPath}/cactus_trimSequences.py : cactus_trimSequences.py
+	cp cactus_trimSequences.py ${binPath}/cactus_trimSequences.py
+	chmod +x ${binPath}/cactus_trimSequences.py
 
 clean : 
 	rm -f *.o

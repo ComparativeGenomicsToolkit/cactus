@@ -1,8 +1,7 @@
-import unittest, os
+import unittest, os, random
 from sonLib.bioio import getTempFile, popenCatch, system
 from textwrap import dedent
-from random import sample
-from cactus.shared.test import getCactusInputs_blanchette
+from cactus.shared.test import getCactusInputs_encode
 
 class TestCase(unittest.TestCase):
     def setUp(self):
@@ -72,12 +71,12 @@ class TestCase(unittest.TestCase):
         '''))
 
     def testInvariants(self):
-        (seqs, _) = getCactusInputs_blanchette()
-        seqs = sample(seqs, 2)
+        (seqs, _) = getCactusInputs_encode(random.uniform(0, 2))
+        seqs = random.sample(seqs, 2)
         cigarPath = getTempFile()
         system("cactus_lastz --format=cigar %s[multiple] %s[multiple] > %s" % \
                (seqs[0], seqs[1], cigarPath))
-        bed = popenCatch("cactus_coverage %s %s" % (seqs[0], cigarPath))
+        bed = popenCatch("cactus_coverage %s %s" % (seqs[1], cigarPath))
         prevChrom = None
         prevStart = None
         prevEnd = None
@@ -90,6 +89,7 @@ class TestCase(unittest.TestCase):
             chrom = fields[0]
             start = int(fields[1])
             end = int(fields[2])
+            self.assertTrue(end - start >= 1)
             if chrom == prevChrom:
                 self.assertTrue(start > prevStart)
                 self.assertTrue(start >= prevEnd)

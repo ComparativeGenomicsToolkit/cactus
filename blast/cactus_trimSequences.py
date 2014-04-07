@@ -23,14 +23,14 @@ def windowFilter(windowSize, threshold, blockDict, seqLengths):
                 regionStart = i
                 inRegion = True
             elif score < threshold and inRegion:
-                ret[seq].append((regionStart, i + windowSize))
+                ret[seq].append((regionStart, i + windowSize - 1))
                 inRegion = False
     return ret
 
 def uniquifyBlocks(blocksDict, mergeDistance):
     """Take list of blocks and return sorted list of non-overlapping and
     blocks (merging blocks that are mergeDistance or less apart)."""
-    ret = {}
+    ret = defaultdict(list)
     for chr, blocks in blocksDict.items():
         blocks = sorted(blocks, key=itemgetter(0))
         newBlocks = []
@@ -95,10 +95,15 @@ def complementBlocks(blocksDict, seqLengths):
         len = seqLengths[chr]
         start = 0
         for block in blocks:
-            if block[0] == start:
-                start = block[1]
-            else:
-                ret[chr].append((start, block[0]))
+            ret[chr].append((start, block[0]))
+            start = block[1]
+        if start != len:
+            ret[chr].append((start, len))
+    # Add in blocks for the sequences that aren't covered at all.
+    for chr, len in seqLengths.items():
+        if chr not in ret: # This still works with defaultdicts
+            ret[chr].append((0, len))
+    return ret
 
 def printTrimmedSeq(header, seq, blocks):
     for block in blocks:
@@ -112,11 +117,10 @@ def printTrimmedFasta(fastaFile, toTrim):
     for line in fastaFile:
         line = line.strip()
         if line[0] == '>':
-            header = line[1:].split()[0]
-            assert header in toTrim
             if seq is not None:
                 printTrimmedSeq(header, seq, toTrim[header])
             seq = ""
+            header = line[1:].split()[0]
             continue
         seq += line
     if seq is not None:
@@ -126,10 +130,10 @@ def main():
     argParser = ArgumentParser()
     argParser.add_argument("--flanking", help="Amount of flanking sequence to "
                            "leave on either end of the trimmed regions",
-                           default=0)
+                           default=0, type=int)
     argParser.add_argument("--minSize", help="Minimum size of trimmed regions"
                            " before overlap (smaller regions will be dropped)",
-                           default=0)
+                           default=0, type=int)
     argParser.add_argument("--complement", action="store_true", 
                            help="BED file specifies regions to "
                            "keep instead of regions to trim")
@@ -150,16 +154,14 @@ def main():
     if opts.complement:
         toTrim = complementBlocks(toTrim, seqLengths)
     toTrim = uniquifyBlocks(toTrim, opts.flanking)
-    
     # filter based on size
-    toTrim = dict((k, filter(lambda x: (x[1] - x[0]) >= opts.minSize, v))
+    toTrim.update((k, filter(lambda x: (x[1] - x[0]) >= opts.minSize, v))
                   for k, v in toTrim.items())
-
     # extend blocks to include flanking regions
-    toTrim = dict((k, map(lambda x: (max(x[0] - opts.flanking, 0),
+    toTrim.update((k, map(lambda x: (max(x[0] - opts.flanking, 0),
                                      min(x[1] + opts.flanking, seqLengths[k])),
                           v))
-                   for k, v in toTrim.items())
+                  for k, v in toTrim.items())
 
     fastaFile.seek(0)
     printTrimmedFasta(fastaFile, toTrim)
