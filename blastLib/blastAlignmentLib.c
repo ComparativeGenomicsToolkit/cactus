@@ -30,10 +30,16 @@ static void convertCoordinatesP(char **contig, int64_t *start, int64_t *end) {
     *end = *end + startP;
 }
 
-void convertCoordinatesOfPairwiseAlignment(struct PairwiseAlignment *pairwiseAlignment) {
+void convertCoordinatesOfPairwiseAlignment(struct PairwiseAlignment *pairwiseAlignment,
+                                           int convertContig1,
+                                           int convertContig2) {
     checkPairwiseAlignment(pairwiseAlignment);
-    convertCoordinatesP(&pairwiseAlignment->contig1, &pairwiseAlignment->start1, &pairwiseAlignment->end1);
-    convertCoordinatesP(&pairwiseAlignment->contig2, &pairwiseAlignment->start2, &pairwiseAlignment->end2);
+    if(convertContig1) {
+        convertCoordinatesP(&pairwiseAlignment->contig1, &pairwiseAlignment->start1, &pairwiseAlignment->end1);
+    }
+    if(convertContig2) {
+        convertCoordinatesP(&pairwiseAlignment->contig2, &pairwiseAlignment->start2, &pairwiseAlignment->end2);
+    }
     checkPairwiseAlignment(pairwiseAlignment);
 }
 

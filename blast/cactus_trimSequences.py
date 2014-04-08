@@ -107,7 +107,7 @@ def complementBlocks(blocksDict, seqLengths):
 
 def printTrimmedSeq(header, seq, blocks):
     for block in blocks:
-        print ">%s:%d-%d" % (header, block[0], block[1])
+        print ">%s|%d" % (header, block[0])
         print seq[block[0]:block[1]]
 
 def printTrimmedFasta(fastaFile, toTrim):

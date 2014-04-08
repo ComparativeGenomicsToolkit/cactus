@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <getopt.h>
 
 #include "commonC.h"
 #include "hashTableC.h"
@@ -20,11 +21,30 @@ int main(int argc, char *argv[]) {
     /*
      * For each cigar in file, update the coordinates and write to the second file.
      */
-    assert(argc == 4);
-    FILE *fileHandleIn = fopen(argv[1], "r");
-    FILE *fileHandleOut = fopen(argv[2], "w");
+    struct option opts[] = { {"onlyContig1", no_argument, NULL, '1'},
+                             {"onlyContig2", no_argument, NULL, '2'},
+                             {0, 0, 0, 0} };
+    int convertContig1 = TRUE, convertContig2 = TRUE, flag;
+    while((flag = getopt_long(argc, argv, "", opts, NULL)) != -1) {
+        switch(flag) {
+        case '1':
+            convertContig2 = FALSE;
+            break;
+        case '2':
+            convertContig1 = FALSE;
+            break;
+        }
+    }
+    if(!(convertContig1 || convertContig2)) {
+        fprintf(stderr, "--onlyContig1 and --onlyContig2 options are "
+                "mutually exclusive\n");
+        return 1;
+    }
+    assert(argc == optind + 3);
+    FILE *fileHandleIn = fopen(argv[optind], "r");
+    FILE *fileHandleOut = fopen(argv[optind + 1], "w");
     int64_t roundsOfConversion;
-    int64_t i = sscanf(argv[3], "%" PRIi64 "", &roundsOfConversion);
+    int64_t i = sscanf(argv[optind + 2], "%" PRIi64 "", &roundsOfConversion);
     (void)i;
     assert(i == 1);
     assert(roundsOfConversion >= 1);
@@ -32,7 +52,9 @@ int main(int argc, char *argv[]) {
     while ((pairwiseAlignment = cigarRead(fileHandleIn)) != NULL) {
         //Correct coordinates
         for(int64_t j=0; j<roundsOfConversion; j++) {
-            convertCoordinatesOfPairwiseAlignment(pairwiseAlignment);
+            convertCoordinatesOfPairwiseAlignment(pairwiseAlignment,
+                                                  convertContig1,
+                                                  convertContig2);
         }
         cigarWrite(fileHandleOut, pairwiseAlignment, 0);
         destructPairwiseAlignment(pairwiseAlignment);

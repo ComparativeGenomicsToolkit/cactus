@@ -50,7 +50,7 @@ stList *stCaf_selfAlignFlower(Flower *flower, int64_t minimumSequenceLength, con
         //Read from stream
         struct PairwiseAlignment *pairwiseAlignment;
         while ((pairwiseAlignment = cigarRead(fileHandle)) != NULL) {
-            convertCoordinatesOfPairwiseAlignment(pairwiseAlignment);
+            convertCoordinatesOfPairwiseAlignment(pairwiseAlignment, TRUE, TRUE);
             stList_append(cigars, pairwiseAlignment);
         }
         int i = pclose(fileHandle);
