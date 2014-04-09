@@ -13,12 +13,13 @@ def windowFilter(windowSize, threshold, blockDict, seqLengths):
             score = 0
             while curBlock < len(blocks) and blocks[curBlock][1] < i:
                 curBlock += 1
-            for block in blocks[curBlock:]:
+            for blockNum in xrange(curBlock, len(blocks)):
+                block = blocks[blockNum]
                 if block[0] > i + windowSize:
                     break
                 size = min(block[1], i + windowSize) - max(i, block[0])
                 score += block[2]*size
-            score /= windowSize
+            score /= float(windowSize)
             if score >= threshold and not inRegion:
                 regionStart = i
                 inRegion = True
