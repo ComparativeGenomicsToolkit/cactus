@@ -37,7 +37,7 @@ static int sortOnContig1(const void *val1, const void *val2)
     struct PairwiseAlignment *pA2 = (struct PairwiseAlignment *) val2;
     int contigsCmp;
     int64_t start1, start2;
-    if((contigsCmp = strcmp(pA1->contig1, pA2->contig2))) {
+    if((contigsCmp = strcmp(pA1->contig1, pA2->contig1))) {
         return contigsCmp;
     }
     if(pA1->strand1) {
