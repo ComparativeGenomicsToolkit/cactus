@@ -47,7 +47,7 @@ class TestCase(unittest.TestCase):
         unittest.TestCase.tearDown(self)
         system("rm -rf %s" % self.tempDir)
         
-    def runComparisonOfBlastScriptVsNaiveBlast(self, allAgainstAll):
+    def runComparisonOfBlastScriptVsNaiveBlast(self, blastMode):
         """We compare the output with a naive run of the blast program, to check the results are nearly
         equivalent.
         """
@@ -68,7 +68,7 @@ class TestCase(unittest.TestCase):
                     
                     #Run the blast
                     jobTreeDir = os.path.join(getTempDirectory(self.tempDir), "jobTree")
-                    if allAgainstAll:
+                    if blastMode == "allAgainstAll":
                         runCactusBlast([ seqFile1, seqFile2 ], self.tempOutputFile2, jobTreeDir,
                                        chunkSize=500000, overlapSize=10000)
                     else:
@@ -77,22 +77,65 @@ class TestCase(unittest.TestCase):
                     runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
                     system("rm -rf %s " % jobTreeDir)    
                     logger.info("Ran cactus_blast okay")
-                    logger.critical("Comparing cactus_blast and naive blast; using all-against-all: %s" % allAgainstAll)
+                    logger.critical("Comparing cactus_blast and naive blast; using mode: %s" % blastMode)
                     compareResultsFile(self.tempOutputFile, self.tempOutputFile2)
 
-    def testBlastEncodeAllAgainstAll(self):
-        """For each encode region, for set of pairwise species, run 
-        cactus_blast.py in all-against-all mode. 
-        """
-        self.runComparisonOfBlastScriptVsNaiveBlast(allAgainstAll=True)
+    # def testBlastEncodeAllAgainstAll(self):
+    #     """For each encode region, for set of pairwise species, run 
+    #     cactus_blast.py in all-against-all mode. 
+    #     """
+    #     self.runComparisonOfBlastScriptVsNaiveBlast(blastMode="allAgainstAll")
     
-    def testBlastEncode(self):
-        """For each encode region, for set of pairwise species, run 
-        cactus_blast.py in one set of sequences against another set mode. 
+    # def testBlastEncode(self):
+    #     """For each encode region, for set of pairwise species, run 
+    #     cactus_blast.py in one set of sequences against another set mode. 
+    #     """
+    #     self.runComparisonOfBlastScriptVsNaiveBlast(blastMode="againstEachOther")
+
+    def testAddingOutgroupsImprovesResult(self):
+        """Run blast on "ingroup" and "outgroup" encode regions, and ensure
+        that adding an extra outgroup only adds alignments if
+        possible, and doesn't lose any
         """
-        self.runComparisonOfBlastScriptVsNaiveBlast(allAgainstAll=False)
-    
+        encodeRegions = [ "ENm00" + str(i) for i in xrange(1,2) ]
+        ingroups = ["human", "chimp"]
+        outgroups = ["macaque", "dog", "rat", "rabbit", "monodelphis",
+                     "platypus", "xenopus", "zebrafish"]
+        # subselect 4 random ordered outgroups
+        outgroups = [outgroups[i] for i in sorted(random.sample(xrange(len(outgroups)), 4))]
+        for encodeRegion in encodeRegions:
+            regionPath = os.path.join(self.encodePath, encodeRegion)
+            ingroupPaths = map(lambda x: os.path.join(regionPath, x + "." + encodeRegion + ".fa"), ingroups)
+            outgroupPaths = map(lambda x: os.path.join(regionPath, x + "." + encodeRegion + ".fa"), outgroups)
+            results = []
+            for numOutgroups in xrange(1,5):
+                # Align w/ increasing numbers of outgroups
+                subResults = getTempFile()
+                subOutgroupPaths = outgroupPaths[:numOutgroups]
+                tmpJobTree = getTempDirectory()
+                print "aligning %s vs %s" % (",".join(ingroupPaths), ",".join(subOutgroupPaths))
+                system("cactus_blast.py --ingroups %s --outgroups %s --cigars %s --jobTree %s/jobTree" % (",".join(ingroupPaths), ",".join(subOutgroupPaths), subResults, tmpJobTree))
+                system("rm -fr %s" % (tmpJobTree))
+                results.append(subResults)
+            results = map(lambda x : loadResults(x), results)
+            for i, moreOutgroupsResults in enumerate(results[1:]):
+                print "Using %d addl outgroup(s):" % (i + 1)
+                comparator =  ResultComparator(results[0], moreOutgroupsResults)
+                print comparator
+                self.assertTrue(comparator.sensitivity >= 0.99)
+            for i in xrange(1, len(results)):
+                # Ensure that the new alignments don't cover more than
+                # x% of already existing alignments to human
+                prevResults = results[0][0]
+                curResults = results[i][0]
+                prevResultsHumanPos = set(map(lambda x: (x[0], x[1]) if x[0] == "human" else (x[2], x[3]), filter(lambda x: "human" in x[0] or "human" in x[2], prevResults)))
+                newAlignments = curResults.difference(prevResults)
+                newAlignmentsHumanPos =  set(map(lambda x: (x[0], x[1]) if x[0] == "human" else (x[2], x[3]), filter(lambda x: "human" in x[0] or "human" in x[2], newAlignments)))
+                print "addl outgroup %d:" % i
+                print "bases re-covered: %f" % newAlignmentsHumanPos.intersect(prevResultsHumanPos)/float(len(prevResultsHumanPos))
+                
     def testBlastParameters(self):
+
         """Tests if changing parameters of lastz creates results similar to the desired default.
         """
         encodeRegion = "ENm001"

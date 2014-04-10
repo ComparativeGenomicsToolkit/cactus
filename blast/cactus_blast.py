@@ -230,30 +230,34 @@ class TrimAndRecurseOnOutgroups(Target):
         # coordinates, and add to fragments fa
         convertedMostRecentResultsFile = getTempFile(rootDir=self.getGlobalTempDir())
         if self.sequenceFiles == self.untrimmedSequenceFiles:
-            convertedMostRecentResultsFile = self.mostRecentResultsFile
+            # No need to convert on first run.
+            system("cp %s %s" % (self.mostRecentResultsFile, self.outputFile))
         else:
             system("cactus_blast_convertCoordinates --onlyContig1 %s %s 1" % (
                 self.mostRecentResultsFile, convertedMostRecentResultsFile))
+            system("cat %s >> %s" % (convertedMostRecentResultsFile,
+                                     self.outputFile))
         results = [convertedMostRecentResultsFile]
         if len(self.outgroupSequenceFiles) > 1:
             trimmedSeqs = []
             for sequenceFile in self.untrimmedSequenceFiles:
+                # Use the accumulated results so far to trim away the
+                # aligned parts of the ingroups.
                 coverageFile = getTempFile(rootDir=self.getGlobalTempDir())
-                calculateCoverage(sequenceFile, convertedMostRecentResultsFile,
+                calculateCoverage(sequenceFile, self.outputFile,
                                   coverageFile)
                 trimmed = getTempFile(rootDir=self.getGlobalTempDir())
+                # FIXME: allow these parameters to be specified on the
+                # commandline.
                 trimGenome(sequenceFile, coverageFile, trimmed,
                            complement=True, flanking=10, minSize=20)
                 trimmedSeqs.append(trimmed)
-            newResultsFile = getTempFile(rootDir=self.getGlobalTempDir())
             self.addChildTarget(BlastFirstOutgroup(self.untrimmedSequenceFiles,
                                                    trimmedSeqs,
                                                    self.outgroupSequenceFiles[1:],
                                                    self.outgroupFragmentsFa,
-                                                   newResultsFile,
+                                                   self.outputFile,
                                                    self.blastOptions))
-            results.append(newResultsFile)
-        self.setFollowOnTarget(CollateBlasts(self.outputFile, results))
 
 def compressFastaFile(fileName):
     """Compress a fasta file.
