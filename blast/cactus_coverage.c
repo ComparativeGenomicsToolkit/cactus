@@ -19,10 +19,22 @@ static stHash *sequenceCoverage;
 
 static void addSequenceLength(const char *name, const char *seq, int64_t len)
 {
-    stList_append(sequenceNames, stString_copy(name));
+    char *identifier = stString_copy(name);
+    // lastz only takes the first token of a fasta header as the seq ID.
+    // not thread-safe
+    identifier = strtok(identifier, " ");
+    stList_append(sequenceNames, identifier);
     int64_t *heapLen = malloc(sizeof(int64_t));
     *heapLen = len;
-    stHash_insert(sequenceLengths, stString_copy(name), heapLen);
+    if(stHash_search(sequenceLengths, identifier) != NULL) {
+        fprintf(stderr, "Duplicate sequence identifier %s found: make sure "
+                "the first tokens in the headers are unique\n", identifier);
+        exit(1);
+    }
+
+    // extra copy in case the hash is deleted before the list, or vice
+    // versa.
+    stHash_insert(sequenceLengths, stString_copy(identifier), heapLen);
 }
 
 static void usage(void)
@@ -136,7 +148,7 @@ int main(int argc, char *argv[])
                                         stHash_stringEqualKey, free, free);
     sequenceCoverage = stHash_construct3(stHash_stringKey,
                                          stHash_stringEqualKey, free, free);
-    sequenceNames = stList_construct();
+    sequenceNames = stList_construct3(0, free);
 
     if (optind >= argc - 1) {
         fprintf(stderr, "fasta file for sequence and alignments file (in "
@@ -151,8 +163,9 @@ int main(int argc, char *argv[])
     }
     fastaReadToFunction(fastaHandle, addSequenceLength);
     fclose(fastaHandle);
-    FILE *alignmentsHandle = fopen(argv[optind + 1], "r");
 
+    // Fill coverage arrays with the alignments
+    FILE *alignmentsHandle = fopen(argv[optind + 1], "r");
     for(;;) {
         int64_t *lengthPtr;
         struct PairwiseAlignment *pA = cigarRead(alignmentsHandle);
@@ -169,7 +182,8 @@ int main(int argc, char *argv[])
                 int64_t length = *lengthPtr;
                 array = st_malloc(length * sizeof(uint16_t));
                 memset(array, 0, length * sizeof(uint16_t));
-                stHash_insert(sequenceCoverage, pA->contig1, array);
+                stHash_insert(sequenceCoverage, stString_copy(pA->contig1),
+                              array);
             }
             fillCoverage(pA, 1, array);
         } else if(outputOnContig2 && (lengthPtr = stHash_search(sequenceLengths, pA->contig2))) {
@@ -181,11 +195,16 @@ int main(int argc, char *argv[])
                 int64_t length = *lengthPtr;
                 array = st_malloc(length * sizeof(uint16_t));
                 memset(array, 0, length * sizeof(uint16_t));
-                stHash_insert(sequenceCoverage, pA->contig2, array);
+                stHash_insert(sequenceCoverage, stString_copy(pA->contig2),
+                    array);
             }
             fillCoverage(pA, 2, array);
         }
+        destructPairwiseAlignment(pA);
     }
+    fclose(alignmentsHandle);
+
+    // Print results as BED
     for(i = 0; i < stList_length(sequenceNames); i++) {
         uint16_t *array;
         char *name = stList_get(sequenceNames, i);
@@ -196,4 +215,9 @@ int main(int argc, char *argv[])
             printCoverage(name, array, length);
         }
     }
+
+    // Cleanup
+    stList_destruct(sequenceNames);
+    stHash_destruct(sequenceCoverage);
+    stHash_destruct(sequenceLengths);
 }
