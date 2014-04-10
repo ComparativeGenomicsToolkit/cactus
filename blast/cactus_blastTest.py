@@ -22,6 +22,7 @@ from sonLib.bioio import PairwiseAlignment
 from sonLib.bioio import getLogLevelString
 from sonLib.bioio import TestStatus
 from sonLib.bioio import catFiles
+from sonLib.bioio import popenCatch
 from cactus.shared.test import parseCactusSuiteTestOptions
 from cactus.shared.common import runCactusBlast
 from cactus.blast.cactus_blast import decompressFastaFile, compressFastaFile
@@ -117,22 +118,33 @@ class TestCase(unittest.TestCase):
                 system("cactus_blast.py --ingroups %s --outgroups %s --cigars %s --jobTree %s/jobTree" % (",".join(ingroupPaths), ",".join(subOutgroupPaths), subResults, tmpJobTree))
                 system("rm -fr %s" % (tmpJobTree))
                 results.append(subResults)
+
+            print results
+            # Print diagnostics about coverage
+            for i, subResults in enumerate(results):
+                for ingroup, ingroupPath in zip(ingroups, ingroupPaths):
+                    coveredBases = popenCatch("cactus_coverage %s %s | awk '{ total += $3 - $2 } END { print total }'" % (ingroupPath, subResults))
+                    print "covered bases on %s using %d outgroups: %s" % (ingroup, i + 1, coveredBases)
+
             results = map(lambda x : loadResults(x), results)
             for i, moreOutgroupsResults in enumerate(results[1:]):
+                # Make sure the results from (n+1) outgroups are
+                # (very nearly) a superset of the results from n outgroups
                 print "Using %d addl outgroup(s):" % (i + 1)
                 comparator =  ResultComparator(results[0], moreOutgroupsResults)
                 print comparator
                 self.assertTrue(comparator.sensitivity >= 0.99)
+
+            # Ensure that the new alignments don't cover more than
+            # x% of already existing alignments to human
             for i in xrange(1, len(results)):
-                # Ensure that the new alignments don't cover more than
-                # x% of already existing alignments to human
                 prevResults = results[i-1][0]
                 curResults = results[i][0]
                 prevResultsHumanPos = set(map(lambda x: (x[0], x[1]) if "human" in x[0] else (x[2], x[3]), filter(lambda x: "human" in x[0] or "human" in x[2], prevResults)))
                 newAlignments = curResults.difference(prevResults)
                 newAlignmentsHumanPos =  set(map(lambda x: (x[0], x[1]) if "human" in x[0] else (x[2], x[3]), filter(lambda x: "human" in x[0] or "human" in x[2], newAlignments)))
                 print "addl outgroup %d:" % i
-                print "bases re-covered: %f (%f)" % (len(newAlignmentsHumanPos.intersection(prevResultsHumanPos))/float(len(prevResultsHumanPos)), len(newAlignmentsHumanPos.intersection(prevResultsHumanPos)))
+                print "bases re-covered: %f (%d)" % (len(newAlignmentsHumanPos.intersection(prevResultsHumanPos))/float(len(prevResultsHumanPos)), len(newAlignmentsHumanPos.intersection(prevResultsHumanPos)))
                 
     def testBlastParameters(self):
         """Tests if changing parameters of lastz creates results similar to the desired default.
