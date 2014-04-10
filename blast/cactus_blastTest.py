@@ -80,17 +80,17 @@ class TestCase(unittest.TestCase):
                     logger.critical("Comparing cactus_blast and naive blast; using mode: %s" % blastMode)
                     compareResultsFile(self.tempOutputFile, self.tempOutputFile2)
 
-    # def testBlastEncodeAllAgainstAll(self):
-    #     """For each encode region, for set of pairwise species, run 
-    #     cactus_blast.py in all-against-all mode. 
-    #     """
-    #     self.runComparisonOfBlastScriptVsNaiveBlast(blastMode="allAgainstAll")
+    def testBlastEncodeAllAgainstAll(self):
+        """For each encode region, for set of pairwise species, run 
+        cactus_blast.py in all-against-all mode. 
+        """
+        self.runComparisonOfBlastScriptVsNaiveBlast(blastMode="allAgainstAll")
     
-    # def testBlastEncode(self):
-    #     """For each encode region, for set of pairwise species, run 
-    #     cactus_blast.py in one set of sequences against another set mode. 
-    #     """
-    #     self.runComparisonOfBlastScriptVsNaiveBlast(blastMode="againstEachOther")
+    def testBlastEncode(self):
+        """For each encode region, for set of pairwise species, run 
+        cactus_blast.py in one set of sequences against another set mode. 
+        """
+        self.runComparisonOfBlastScriptVsNaiveBlast(blastMode="againstEachOther")
 
     def testAddingOutgroupsImprovesResult(self):
         """Run blast on "ingroup" and "outgroup" encode regions, and ensure
@@ -126,16 +126,15 @@ class TestCase(unittest.TestCase):
             for i in xrange(1, len(results)):
                 # Ensure that the new alignments don't cover more than
                 # x% of already existing alignments to human
-                prevResults = results[0][0]
+                prevResults = results[i-1][0]
                 curResults = results[i][0]
-                prevResultsHumanPos = set(map(lambda x: (x[0], x[1]) if x[0] == "human" else (x[2], x[3]), filter(lambda x: "human" in x[0] or "human" in x[2], prevResults)))
+                prevResultsHumanPos = set(map(lambda x: (x[0], x[1]) if "human" in x[0] else (x[2], x[3]), filter(lambda x: "human" in x[0] or "human" in x[2], prevResults)))
                 newAlignments = curResults.difference(prevResults)
-                newAlignmentsHumanPos =  set(map(lambda x: (x[0], x[1]) if x[0] == "human" else (x[2], x[3]), filter(lambda x: "human" in x[0] or "human" in x[2], newAlignments)))
+                newAlignmentsHumanPos =  set(map(lambda x: (x[0], x[1]) if "human" in x[0] else (x[2], x[3]), filter(lambda x: "human" in x[0] or "human" in x[2], newAlignments)))
                 print "addl outgroup %d:" % i
-                print "bases re-covered: %f" % newAlignmentsHumanPos.intersect(prevResultsHumanPos)/float(len(prevResultsHumanPos))
+                print "bases re-covered: %f (%f)" % (len(newAlignmentsHumanPos.intersection(prevResultsHumanPos))/float(len(prevResultsHumanPos)), len(newAlignmentsHumanPos.intersection(prevResultsHumanPos)))
                 
     def testBlastParameters(self):
-
         """Tests if changing parameters of lastz creates results similar to the desired default.
         """
         encodeRegion = "ENm001"

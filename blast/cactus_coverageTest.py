@@ -42,11 +42,9 @@ class TestCase(unittest.TestCase):
                                                     self.simpleCigarPath))
         self.assertEqual(bed, dedent('''\
         simpleSeqA1\t0\t1\t\t1
-        simpleSeqA1\t2\t5\t\t2
-        simpleSeqA1\t5\t6\t\t2
+        simpleSeqA1\t2\t6\t\t2
         simpleSeqA1\t6\t10\t\t1
-        simpleSeqA2\t0\t1\t\t1
-        simpleSeqA2\t1\t3\t\t1
+        simpleSeqA2\t0\t3\t\t1
         simpleSeqA2\t5\t6\t\t1
         simpleSeqA2\t6\t7\t\t2
         simpleSeqA2\t7\t8\t\t3
@@ -59,15 +57,9 @@ class TestCase(unittest.TestCase):
         bed = popenCatch("cactus_coverage %s %s" % (self.simpleFastaPathB,
                                                     self.simpleCigarPath))
         self.assertEqual(bed, dedent('''\
-        simpleSeqB1\t0\t8\t\t1
-        simpleSeqB1\t8\t9\t\t1
-        simpleSeqB1\t9\t12\t\t1
-        simpleSeqB1\t17\t18\t\t1
-        simpleSeqB1\t18\t19\t\t1
-        simpleSeqB1\t21\t23\t\t1
-        simpleSeqB1\t23\t28\t\t1
-        simpleSeqB1\t28\t30\t\t1
-        simpleSeqB1\t30\t32\t\t1
+        simpleSeqB1\t0\t12\t\t1
+        simpleSeqB1\t17\t19\t\t1
+        simpleSeqB1\t21\t32\t\t1
         '''))
 
     def testInvariants(self):
