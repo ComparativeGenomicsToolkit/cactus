@@ -157,13 +157,15 @@ class BlastIngroupsAndOutgroups(Target):
     outgroup.
     """
     def __init__(self, blastOptions, ingroupSequenceFiles,
-                 outgroupSequenceFiles, finalResultsFile):
+                 outgroupSequenceFiles, finalResultsFile,
+                 outgroupFragmentsFa):
         Target.__init__(self, memory = blastOptions.memory)
         self.blastOptions = blastOptions
         self.blastOptions.roundsOfCoordinateConversion = 1
         self.ingroupSequenceFiles = ingroupSequenceFiles
         self.outgroupSequenceFiles = outgroupSequenceFiles
         self.finalResultsFile = finalResultsFile
+        self.outgroupFragmentsFa = outgroupFragmentsFa
 
     def run(self):
         ingroupResults = getTempFile(rootDir=self.getGlobalTempDir())
@@ -175,7 +177,7 @@ class BlastIngroupsAndOutgroups(Target):
         self.addChildTarget(BlastFirstOutgroup(self.ingroupSequenceFiles,
                                                self.ingroupSequenceFiles,
                                                self.outgroupSequenceFiles,
-                                               outgroupFragmentsFa,
+                                               self.outgroupFragmentsFa,
                                                outgroupResults,
                                                self.blastOptions))
         self.setFollowOnTarget(CollateBlasts(self.finalResultsFile,
@@ -226,18 +228,37 @@ class TrimAndRecurseOnOutgroups(Target):
         self.blastOptions = blastOptions
 
     def run(self):
-        # TODO: trim outgroup that just finished, convert its
-        # coordinates, and add to fragments fa
-        convertedMostRecentResultsFile = getTempFile(rootDir=self.getGlobalTempDir())
+        # Trim outgroup, convert outgroup coordinates, and add to
+        # outgroup fragments fasta
+        trimmedOutgroup = getTempFile(rootDir=self.getGlobalTempDir())
+        outgroupCoverage = getTempFile(rootDir=self.getGlobalTempDir())
+        calculateCoverage(self.outgroupSequenceFiles[0],
+                          self.mostRecentResultsFile, outgroupCoverage)
+        trimGenome(self.outgroupSequenceFiles[0], outgroupCoverage,
+                   trimmedOutgroup, flanking=2000, windowSize=1, threshold=1)
+        outgroupConvertedResultsFile = getTempFile(rootDir=self.getGlobalTempDir())
+        system("cactus_upconvertCoordinates.py %s %s > %s" %\
+               (trimmedOutgroup, self.mostRecentResultsFile,
+                outgroupConvertedResultsFile))
+        system("cat %s >> %s" % (trimmedOutgroup, self.outgroupFragmentsFa))
+        os.remove(outgroupCoverage)
+        os.remove(trimmedOutgroup)
+
+        # Convert the alignments' ingroup coordinates.
+        ingroupConvertedResultsFile = getTempFile(rootDir=self.getGlobalTempDir())
         if self.sequenceFiles == self.untrimmedSequenceFiles:
-            # No need to convert on first run.
-            system("cp %s %s" % (self.mostRecentResultsFile, self.outputFile))
+            # No need to convert ingroup coordinates on first run.
+            system("cp %s %s" % (outgroupConvertedResultsFile,
+                                 self.outputFile))
         else:
             system("cactus_blast_convertCoordinates --onlyContig1 %s %s 1" % (
-                self.mostRecentResultsFile, convertedMostRecentResultsFile))
-            system("cat %s >> %s" % (convertedMostRecentResultsFile,
+                outgroupConvertedResultsFile, ingroupConvertedResultsFile))
+            system("cat %s >> %s" % (ingroupConvertedResultsFile,
                                      self.outputFile))
-        results = [convertedMostRecentResultsFile]
+        os.remove(outgroupConvertedResultsFile)
+        os.remove(ingroupConvertedResultsFile)
+
+        # Trim ingroup seqs and recurse on the next outgroup.
         if len(self.outgroupSequenceFiles) > 1:
             trimmedSeqs = []
             for sequenceFile in self.untrimmedSequenceFiles:
@@ -347,39 +368,6 @@ def trimGenome(sequenceFile, coverageFile, outputFile, complement=False,
         nameValue("flanking", flanking), nameValue("minSize", minSize),
         nameValue("windowSize", windowSize), nameValue("threshold", threshold),
         sequenceFile, coverageFile, outputFile))
-# class CalculateAlignmentCoverage(Target):
-#     """Calculates the coverage of an genome according to an alignment.
-#     """
-#     def __init__(self, cigarFile, sequenceFiles, outputCoverageFile):
-#         Target.__init__(self)
-#         self.cigarFile = cigarFile
-#         self.sequenceFiles = sequenceFiles
-#         self.outputCoverageFile = outputCoverageFile
-    
-#     def run(self):
-#         system("cactus_coverage %s %s > %s" % (self.sequenceFiles,
-#                                                self.cigarFile,
-#                                                self.outputCoverageFile))
-    
-# class TrimGenome(Target):
-#     """Trim genome according to coverage file.
-#     """
-#     def __init__(self, sequenceFiles, coverageFile, outputSequenceFile,
-#                  complement, parameters):
-#         Target.__init__(self)
-#         self.sequenceFiles = sequenceFiles
-#         self.coverageFile = coverageFile
-#         self.outputSequenceFile = outputSequenceFile
-#         self.complement = complement
-#         self.parameters = parameters
-    
-#     def run(self):
-#         system("cactus_trimSequences.py %s %s %s %s > %s" % (
-#             self.parameters,
-#             "--complement" if self.complement else "",
-#             self.sequenceFiles,
-#             self.cigarFile,
-#             self.outputSequenceFile))
 
 def main():
     ##########################################
@@ -438,6 +426,10 @@ replaced with the the sequence file and the results file, respectively",
                       help="Outgroups to align (comma-separated) (--ingroups "
                       "must be provided as well")
 
+    parser.add_option("--outgroupFragments", type=str,
+                      default="outgroupFragments.fa", help= "Fasta file to "
+                      "output outgroup fragments to")
+
     options, args = parser.parse_args()
     if options.test:
         _test()
@@ -449,7 +441,8 @@ replaced with the the sequence file and the results file, respectively",
         firstTarget = BlastIngroupsAndOutgroups(options,
                                                 options.ingroups.split(','),
                                                 options.outgroups.split(','),
-                                                options.cigarFile)
+                                                options.cigarFile,
+                                                options.outgroupFragments)
     elif options.targetSequenceFiles == None:
         firstTarget = BlastSequencesAllAgainstAll(args, options.cigarFile, options)
     else:
