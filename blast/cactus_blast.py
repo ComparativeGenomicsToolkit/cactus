@@ -158,26 +158,29 @@ class BlastIngroupsAndOutgroups(Target):
     """
     def __init__(self, blastOptions, ingroupSequenceFiles,
                  outgroupSequenceFiles, finalResultsFile,
-                 outgroupFragmentsFa):
+                 outgroupFragmentsDir):
         Target.__init__(self, memory = blastOptions.memory)
         self.blastOptions = blastOptions
         self.blastOptions.roundsOfCoordinateConversion = 1
         self.ingroupSequenceFiles = ingroupSequenceFiles
         self.outgroupSequenceFiles = outgroupSequenceFiles
         self.finalResultsFile = finalResultsFile
-        self.outgroupFragmentsFa = outgroupFragmentsFa
+        self.outgroupFragmentsDir = outgroupFragmentsDir
 
     def run(self):
+        try:
+            os.makedirs(self.outgroupFragmentsDir)
+        except os.error:
+            pass
         ingroupResults = getTempFile(rootDir=self.getGlobalTempDir())
         self.addChildTarget(BlastSequencesAllAgainstAll(self.ingroupSequenceFiles,
                                                         ingroupResults,
                                                         self.blastOptions))
-        outgroupFragmentsFa = getTempFile(rootDir=self.getGlobalTempDir())
         outgroupResults = getTempFile(rootDir=self.getGlobalTempDir())
         self.addChildTarget(BlastFirstOutgroup(self.ingroupSequenceFiles,
                                                self.ingroupSequenceFiles,
                                                self.outgroupSequenceFiles,
-                                               self.outgroupFragmentsFa,
+                                               self.outgroupFragmentsDir,
                                                outgroupResults,
                                                self.blastOptions))
         self.setFollowOnTarget(CollateBlasts(self.finalResultsFile,
@@ -189,13 +192,13 @@ class BlastFirstOutgroup(Target):
     previous outgroups. Then recurse on the other outgroups.
     """
     def __init__(self, untrimmedSequenceFiles, sequenceFiles,
-                 outgroupSequenceFiles, outgroupFragmentsFa, outputFile,
+                 outgroupSequenceFiles, outgroupFragmentsDir, outputFile,
                  blastOptions):
         Target.__init__(self, memory=blastOptions.memory)
         self.untrimmedSequenceFiles = untrimmedSequenceFiles
         self.sequenceFiles = sequenceFiles
         self.outgroupSequenceFiles = outgroupSequenceFiles
-        self.outgroupFragmentsFa = outgroupFragmentsFa
+        self.outgroupFragmentsDir = outgroupFragmentsDir
         self.outputFile = outputFile
         self.blastOptions = blastOptions
 
@@ -209,27 +212,27 @@ class BlastFirstOutgroup(Target):
         self.setFollowOnTarget(TrimAndRecurseOnOutgroups(self.untrimmedSequenceFiles,
                                                          self.sequenceFiles,
                                                          self.outgroupSequenceFiles,
-                                                         self.outgroupFragmentsFa,
+                                                         self.outgroupFragmentsDir,
                                                          blastResults,
                                                          self.outputFile,
                                                          self.blastOptions))
 
 class TrimAndRecurseOnOutgroups(Target):
     def __init__(self, untrimmedSequenceFiles, sequenceFiles,
-                 outgroupSequenceFiles, outgroupFragmentsFa,
+                 outgroupSequenceFiles, outgroupFragmentsDir,
                  mostRecentResultsFile, outputFile, blastOptions):
         Target.__init__(self, memory=blastOptions.memory)
         self.untrimmedSequenceFiles = untrimmedSequenceFiles
         self.sequenceFiles = sequenceFiles
         self.outgroupSequenceFiles = outgroupSequenceFiles
-        self.outgroupFragmentsFa = outgroupFragmentsFa
+        self.outgroupFragmentsDir = outgroupFragmentsDir
         self.mostRecentResultsFile = mostRecentResultsFile
         self.outputFile = outputFile
         self.blastOptions = blastOptions
 
     def run(self):
         # Trim outgroup, convert outgroup coordinates, and add to
-        # outgroup fragments fasta
+        # outgroup fragments dir
         trimmedOutgroup = getTempFile(rootDir=self.getGlobalTempDir())
         outgroupCoverage = getTempFile(rootDir=self.getGlobalTempDir())
         calculateCoverage(self.outgroupSequenceFiles[0],
@@ -240,7 +243,7 @@ class TrimAndRecurseOnOutgroups(Target):
         system("cactus_upconvertCoordinates.py %s %s > %s" %\
                (trimmedOutgroup, self.mostRecentResultsFile,
                 outgroupConvertedResultsFile))
-        system("cat %s >> %s" % (trimmedOutgroup, self.outgroupFragmentsFa))
+        system("cat %s > %s" % (trimmedOutgroup, os.path.join(self.outgroupFragmentsDir, os.path.basename(self.outgroupSequenceFiles[0]))))
         os.remove(outgroupCoverage)
         os.remove(trimmedOutgroup)
 
@@ -276,7 +279,7 @@ class TrimAndRecurseOnOutgroups(Target):
             self.addChildTarget(BlastFirstOutgroup(self.untrimmedSequenceFiles,
                                                    trimmedSeqs,
                                                    self.outgroupSequenceFiles[1:],
-                                                   self.outgroupFragmentsFa,
+                                                   self.outgroupFragmentsDir,
                                                    self.outputFile,
                                                    self.blastOptions))
 
@@ -426,9 +429,9 @@ replaced with the the sequence file and the results file, respectively",
                       help="Outgroups to align (comma-separated) (--ingroups "
                       "must be provided as well")
 
-    parser.add_option("--outgroupFragments", type=str,
-                      default="outgroupFragments.fa", help= "Fasta file to "
-                      "output outgroup fragments to")
+    parser.add_option("--outgroupFragmentsDir", type=str,
+                      default="outgroupFragments/", help= "Directory to "
+                      "store outgroup fragments in")
 
     options, args = parser.parse_args()
     if options.test:
@@ -442,7 +445,7 @@ replaced with the the sequence file and the results file, respectively",
                                                 options.ingroups.split(','),
                                                 options.outgroups.split(','),
                                                 options.cigarFile,
-                                                options.outgroupFragments)
+                                                options.outgroupFragmentsDir)
     elif options.targetSequenceFiles == None:
         firstTarget = BlastSequencesAllAgainstAll(args, options.cigarFile, options)
     else:
