@@ -147,6 +147,49 @@ class TestCase(unittest.TestCase):
             for subResult in results:
                 os.remove(subResult)
 
+    def testProgressiveOutgroupsVsAllOutgroups(self):
+        """Tests the difference in outgroup coverage on an ingroup when
+        running in "ingroups vs. outgroups" mode and "set against set"
+        mode.
+        """
+        encodeRegion = "ENm001"
+        ingroup = "human"
+        outgroups = ["macaque", "rabbit", "dog"]
+        regionPath = os.path.join(self.encodePath, encodeRegion)
+        ingroupPath = os.path.join(regionPath, ingroup + "." + encodeRegion + ".fa")
+        outgroupPaths = map(lambda x: os.path.join(regionPath, x + "." + encodeRegion + ".fa"), outgroups)
+        # Run in "set against set" mode, aligning the entire ingroup
+        # vs each outgroup
+        runCactusBlast([ingroupPath], self.tempOutputFile, os.path.join(self.tempDir, "setVsSetJobTree"),
+                       chunkSize=500000, overlapSize=10000,
+                       targetSequenceFiles=outgroupPaths)
+        # Run in "ingroup vs outgroups" mode, aligning the ingroup vs
+        # the outgroups in order, trimming away sequence that's
+        # already been aligned.
+        system("cactus_blast.py --ingroups %s --outgroups %s --cigars %s --jobTree %s/outgroupJobTree" % (ingroupPath, ",".join(outgroupPaths), self.tempOutputFile2, self.tempDir))
+
+        # Get the coverage on the ingroup, in bases, from each run.
+        coverageSetVsSet = int(popenCatch("cactus_coverage %s %s | awk '{ total +=  $3 - $2} END { print total }'" % (ingroupPath, self.tempOutputFile)))
+        coverageIngroupVsOutgroups = int(popenCatch("cactus_coverage %s %s | awk '{ total +=  $3 - $2} END { print total }'" % (ingroupPath, self.tempOutputFile2)))
+
+        print "total coverage on human (set vs set mode, %d outgroups): %d" % (len(outgroups), coverageSetVsSet)
+        print "total coverage on human (ingroup vs outgroup mode, %d outgroups): %d" % (len(outgroups), coverageIngroupVsOutgroups)
+
+        # Make sure we're getting a reasonable fraction of the
+        # alignments when using the trimming strategy.
+        self.assertTrue(float(coverageIngroupVsOutgroups)/coverageSetVsSet >= 0.95)
+
+        # Get the coverage on the ingroup, in bases, from just the
+        # last outgroup. Obviously this should be much higher in set
+        # vs set mode than in ingroup vs outgroup mode.
+        coverageFromLastOutgroupSetVsSet = int(popenCatch("grep %s %s | cactus_coverage %s /dev/stdin | awk '{ total +=  $3 - $2} END { print total }'" % (outgroups[-1], self.tempOutputFile, ingroupPath)))
+        coverageFromLastOutgroupInVsOut = int(popenCatch("grep %s %s | cactus_coverage %s /dev/stdin | awk '{ total +=  $3 - $2} END { print total }'" % (outgroups[-1], self.tempOutputFile2, ingroupPath)))
+
+        print "total coverage on human from last outgroup in set (%s) (set vs set mode): %d" % (outgroups[-1], coverageFromLastOutgroupSetVsSet)
+        print "total coverage on human from last outgroup in set (%s) (ingroup vs outgroup mode): %d" % (outgroups[-1], coverageFromLastOutgroupInVsOut)
+
+        self.assertTrue(float(coverageFromLastOutgroupInVsOut)/coverageFromLastOutgroupSetVsSet <= 0.10)
+
     def testBlastParameters(self):
         """Tests if changing parameters of lastz creates results similar to the desired default.
         """
