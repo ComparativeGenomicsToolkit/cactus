@@ -263,6 +263,25 @@ class CactusRecursionTarget(CactusTarget):
 ############################################################
 ############################################################
 
+def setupDivergenceArgs(cactusWorkflowArguments):
+    #Adapt the config file to use arguments for the appropriate divergence distance
+    cactusWorkflowArguments.longestPath = getLongestPath(newickTreeParser(cactusWorkflowArguments.speciesTree))
+    if cactusWorkflowArguments.outgroupEventNames == None:
+        distanceToAddToRootAlignment = getOptionalAttrib(cactusWorkflowArguments.configNode, "distanceToAddToRootAlignment", float, 0.0)
+        cactusWorkflowArguments.longestPath += distanceToAddToRootAlignment
+    cw = ConfigWrapper(cactusWorkflowArguments.configNode)
+    cw.substituteAllDivergenceContolledParametersWithLiterals(cactusWorkflowArguments.longestPath)
+
+def setupFilteringByIdentity(cactusWorkflowArguments):
+    #Filter by identity
+    cafNode = findRequiredNode(cactusWorkflowArguments.configNode, "caf")
+    if getOptionalAttrib(cafNode, "filterByIdentity", bool, False): #Do the identity filtering
+        adjustedPath = max(float(cafNode.attrib["identityRatio"]) * cactusWorkflowArguments.longestPath,
+        float(cafNode.attrib["minimumDistance"]))
+        identity = str(100 - int(100 * inverseJukesCantor(adjustedPath)))
+        cafNode.attrib["lastzArguments"] = cafNode.attrib["lastzArguments"] + (" --identity=%s" % identity)
+
+
 class CactusTrimmingBlastPhase(CactusPhasesTarget):
     """Blast ingroups vs outgroups using the trimming strategy before
     running cactus setup.
@@ -284,20 +303,12 @@ class CactusTrimmingBlastPhase(CactusPhasesTarget):
         self.logToMaster("Ingroup sequences: %s" % (ingroups))
         self.logToMaster("Outgroup sequences: %s" % (outgroups))
 
-        #Adapt the config file to use arguments for the appropriate divergence distance
-        self.cactusWorkflowArguments.longestPath = getLongestPath(newickTreeParser(self.cactusWorkflowArguments.speciesTree))
-        if self.cactusWorkflowArguments.outgroupEventNames == None:
-            distanceToAddToRootAlignment = getOptionalAttrib(self.cactusWorkflowArguments.configNode, "distanceToAddToRootAlignment", float, 0.0)
-            self.logToMaster("Extending longest path")
-            self.cactusWorkflowArguments.longestPath += distanceToAddToRootAlignment
-        self.logToMaster("The longest path in the tree is %f" % self.cactusWorkflowArguments.longestPath)
-        cw = ConfigWrapper(self.cactusWorkflowArguments.configNode)
-        for message in cw.substituteAllDivergenceContolledParametersWithLiterals(self.cactusWorkflowArguments.longestPath):
-            self.logToMaster(message)
+        # Change the blast arguments depending on the divergence
+        setupDivergenceArgs(self.cactusWorkflowArguments)
+        setupFilteringByIdentity(self.cactusWorkflowArguments)
 
         alignmentsFile = getTempFile("unconvertedAlignments", rootDir=self.getGlobalTempDir())
         findRequiredNode(self.cactusWorkflowArguments.configNode, "caf").attrib["alignments"] = alignmentsFile
-
         # FIXME: this is really ugly and steals the options from the caf tag
         self.addChildTarget(BlastIngroupsAndOutgroups(
                                           BlastOptions(chunkSize=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "chunkSize", int),
@@ -344,16 +355,8 @@ class CactusSetupPhase(CactusPhasesTarget):
         cw = ConfigWrapper(self.cactusWorkflowArguments.configNode)
 
         if not self.cactusWorkflowArguments.configWrapper.getDoTrimStrategy():
-            #Adapt the config file to use arguments for the appropriate divergence distance
-            self.cactusWorkflowArguments.longestPath = getLongestPath(newickTreeParser(self.cactusWorkflowArguments.speciesTree))
-            if self.cactusWorkflowArguments.outgroupEventNames == None:
-                distanceToAddToRootAlignment = getOptionalAttrib(self.cactusWorkflowArguments.configNode, "distanceToAddToRootAlignment", float, 0.0)
-                self.logToMaster("Extending longest path")
-                self.cactusWorkflowArguments.longestPath += distanceToAddToRootAlignment
-            self.logToMaster("The longest path in the tree is %f" % self.cactusWorkflowArguments.longestPath)
-            for message in cw.substituteAllDivergenceContolledParametersWithLiterals(self.cactusWorkflowArguments.longestPath):
-                self.logToMaster(message)
-    
+            setupDivergenceArgs(self.cactusWorkflowArguments)
+
         # we circumvent makeFollowOnPhaseTarget() interface for this job.
         setupTarget = CactusSetupPhase2(cactusWorkflowArguments=self.cactusWorkflowArguments,
                                        phaseName='setup', topFlowerName=self.topFlowerName,
@@ -406,13 +409,8 @@ def inverseJukesCantor(d):
     
 class CactusCafPhase(CactusPhasesTarget):      
     def run(self):
-        #Filter by identity
-        if self.getOptionalPhaseAttrib("filterByIdentity", bool, False): #Do the identity filtering
-            adjustedPath = max(float(self.phaseNode.attrib["identityRatio"]) * self.cactusWorkflowArguments.longestPath,
-            float(self.phaseNode.attrib["minimumDistance"]))
-            identity = str(100 - int(100 * inverseJukesCantor(adjustedPath)))
-            self.logToMaster("The blast stage will filter by identity, the calculated minimum identity is %s from a longest path of %s and an adjusted path of %s" % (identity, self.cactusWorkflowArguments.longestPath, adjustedPath))
-            self.phaseNode.attrib["lastzArguments"] = self.phaseNode.attrib["lastzArguments"] + (" --identity=%s" % identity)
+        if not self.cactusWorkflowArguments.configWrapper.getDoTrimStrategy():
+            setupFilteringByIdentity(self.cactusWorkflowArguments)
         #Setup any constraints
         if self.getPhaseIndex() == 0 and self.cactusWorkflowArguments.constraintsFile != None: #Setup the constraints arg
             newConstraintsFile = os.path.join(self.getGlobalTempDir(), "constraints.cig")

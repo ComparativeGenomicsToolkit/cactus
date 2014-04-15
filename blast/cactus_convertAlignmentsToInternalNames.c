@@ -13,7 +13,7 @@ static void usage(void)
 
 static void convertHeadersToNames(struct PairwiseAlignment *pA, stHash *headerToName)
 {
-    Name *name;
+    Name *name = NULL;
     if((name = stHash_search(headerToName, pA->contig1)) == NULL) {
         fprintf(stderr, "Error: sequence %s is not loaded into the cactus "
                 "database\n", pA->contig1);
@@ -35,8 +35,9 @@ int main(int argc, char *argv[])
     stKVDatabaseConf *kvDatabaseConf;
     stHash *headerToName;
     stList *flowers;
-    Flower_SequenceIterator *flowerIterator;
-    Sequence *sequence;
+    Flower_EndIterator *endIt;
+    End_InstanceIterator *capIt;
+    End *end;
     FILE *alignmentFile;
     FILE *outputFile;
     struct option longopts[] = { {"cactusDisk", required_argument, NULL, 'c' },
@@ -63,19 +64,37 @@ int main(int argc, char *argv[])
     cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
     flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
     assert(stList_length(flowers) == 1);
-    flowerIterator = flower_getSequenceIterator(stList_get(flowers, 0));
-    while((sequence = flower_getNextSequence(flowerIterator)) != NULL) {
-        const char *header;
-        Name name;
-        Name *heapName;
-        header = sequence_getHeader(sequence);
-        name = sequence_getName(sequence);
-        heapName = st_malloc(sizeof(Name));
-        *heapName = name;
-        // The casts to void * are just to drop the const
-        // qualifier. The functions won't modify the header.
-        assert(stHash_search(headerToName, (void *) header) == NULL);
-        stHash_insert(headerToName, (void *) header, heapName);
+    endIt = flower_getEndIterator(stList_get(flowers, 0));
+    while((end = flower_getNextEnd(endIt)) != NULL) {
+        capIt = end_getInstanceIterator(end);
+        Cap *cap;
+        while((cap = end_getNext(capIt)) != NULL) {
+            const char *header;
+            Name name;
+            Name *heapName;
+            if(!cap_getStrand(cap)) {
+                cap = cap_getReverse(cap);
+            }
+            if(cap_getSide(cap)) {
+                continue;
+            }
+            name = cap_getName(cap);
+            header = sequence_getHeader(cap_getSequence(cap));
+            heapName = st_malloc(sizeof(Name));
+            *heapName = name;
+            // The casts to void * are just to drop the const
+            // qualifier. The functions won't modify the header.
+            if(stHash_search(headerToName, (void *) header)) {
+                // There is already a header -> cap name map, check
+                // that it has the same name.
+                Name *otherName = stHash_search(headerToName, (void *) header);
+                fprintf(stderr, "Collision with header %s: name %" PRIi64
+                        " otherName: %" PRIi64 "\n", header, name, *otherName);
+                assert(*otherName == name);
+            }
+            stHash_insert(headerToName, (void *) header, heapName);
+        }
+        end_destructInstanceIterator(capIt);
     }
 
     // Scan over the given alignment file and convert the headers to
@@ -100,6 +119,6 @@ int main(int argc, char *argv[])
     }
 
     // Cleanup.
-    flower_destructSequenceIterator(flowerIterator);
+    flower_destructEndIterator(endIt);
     cactusDisk_destruct(cactusDisk);
 }
