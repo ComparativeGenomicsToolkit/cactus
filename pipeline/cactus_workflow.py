@@ -55,8 +55,10 @@ from cactus.shared.common import runCactusFlowerStats
 from cactus.shared.common import runCactusSecondaryDatabase
 from cactus.shared.common import runCactusFastaGenerator
 from cactus.shared.common import findRequiredNode
+from cactus.shared.common import runConvertAlignmentsToInternalNames
 
 from cactus.shared.experimentWrapper import ExperimentWrapper
+from cactus.blast.cactus_blast import BlastIngroupsAndOutgroups
 from cactus.blast.cactus_blast import BlastFlower
 from cactus.blast.cactus_blast import BlastOptions
 
@@ -256,12 +258,76 @@ class CactusRecursionTarget(CactusTarget):
 ############################################################
 ############################################################
 ############################################################
+##The (optional) blast phase that uses the trimming strategy.
+############################################################
+############################################################
+############################################################
+
+class CactusTrimmingBlastPhase(CactusPhasesTarget):
+    """Blast ingroups vs outgroups using the trimming strategy before
+    running cactus setup.
+    """
+    def run(self):
+        # Not worth doing extra work if there aren't any outgroups
+        assert self.cactusWorkflowArguments.outgroupEventNames is not None
+
+        self.logToMaster("Running blast using the trimming strategy")
+
+        outgroupsDir = os.path.join(self.getGlobalTempDir(), "outgroups/")
+        os.mkdir(outgroupsDir)
+
+        # Get ingroup and outgroup sequences
+        exp = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
+        seqMap = exp.buildSequenceMap()
+        ingroups = map(lambda x: x[1], filter(lambda x: x[0] not in exp.getOutgroupEvents(), seqMap.items()))
+        outgroups = map(lambda x: x[1], filter(lambda x: x[0] in exp.getOutgroupEvents(), seqMap.items()))
+        self.logToMaster("Ingroup sequences: %s" % (ingroups))
+        self.logToMaster("Outgroup sequences: %s" % (outgroups))
+
+        #Adapt the config file to use arguments for the appropriate divergence distance
+        self.cactusWorkflowArguments.longestPath = getLongestPath(newickTreeParser(self.cactusWorkflowArguments.speciesTree))
+        if self.cactusWorkflowArguments.outgroupEventNames == None:
+            distanceToAddToRootAlignment = getOptionalAttrib(self.cactusWorkflowArguments.configNode, "distanceToAddToRootAlignment", float, 0.0)
+            self.logToMaster("Extending longest path")
+            self.cactusWorkflowArguments.longestPath += distanceToAddToRootAlignment
+        self.logToMaster("The longest path in the tree is %f" % self.cactusWorkflowArguments.longestPath)
+        cw = ConfigWrapper(self.cactusWorkflowArguments.configNode)
+        for message in cw.substituteAllDivergenceContolledParametersWithLiterals(self.cactusWorkflowArguments.longestPath):
+            self.logToMaster(message)
+
+        alignmentsFile = getTempFile("unconvertedAlignments", rootDir=self.getGlobalTempDir())
+        findRequiredNode(self.cactusWorkflowArguments.configNode, "caf").attrib["alignments"] = alignmentsFile
+
+        # FIXME: this is really ugly and steals the options from the caf tag
+        self.addChildTarget(BlastIngroupsAndOutgroups(
+                                          BlastOptions(chunkSize=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "chunkSize", int),
+                                                        overlapSize=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "overlapSize", int),
+                                                        lastzArguments=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "lastzArguments"),
+                                                        compressFiles=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "compressFiles", bool),
+                                                        realign=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "realign", bool), 
+                                                        realignArguments=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "realignArguments"),
+                                                        memory=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "lastzMemory", int, sys.maxint),
+                                                        minimumSequenceLength=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "minimumSequenceLengthForBlast", int, 1)), ingroups, outgroups, alignmentsFile, outgroupsDir))
+        # Point the outgroup sequences to their trimmed versions for
+        # phases after this one.
+        # FIXME: modifies experiment xml!!
+        for outgroup in exp.getOutgroupEvents():
+            oldPath = seqMap[outgroup]
+            seqMap[outgroup] = os.path.join(outgroupsDir, os.path.basename(oldPath))
+        exp.updateTree(exp.getTree(), seqMap)
+
+        self.makeFollowOnPhaseTarget(CactusSetupPhase, "setup")
+
+############################################################
+############################################################
+############################################################
 ##The setup phase.
 ############################################################
 ############################################################
 ############################################################
 
 def getLongestPath(node, distance=0.0):
+
     """Identify the longest path from the mrca of the leaves of the species tree.
     """
     i, j = distance, distance
@@ -275,16 +341,18 @@ class CactusSetupPhase(CactusPhasesTarget):
     """Initialises the cactus database and adapts the config file for the run.
     """
     def run(self):
-        #Adapt the config file to use arguments for the appropriate divergence distance
-        self.cactusWorkflowArguments.longestPath = getLongestPath(newickTreeParser(self.cactusWorkflowArguments.speciesTree))
-        if self.cactusWorkflowArguments.outgroupEventNames == None:
-            distanceToAddToRootAlignment = getOptionalAttrib(self.cactusWorkflowArguments.configNode, "distanceToAddToRootAlignment", float, 0.0)
-            self.logToMaster("Extending longest path")
-            self.cactusWorkflowArguments.longestPath += distanceToAddToRootAlignment
-        self.logToMaster("The longest path in the tree is %f" % self.cactusWorkflowArguments.longestPath)
         cw = ConfigWrapper(self.cactusWorkflowArguments.configNode)
-        for message in cw.substituteAllDivergenceContolledParametersWithLiterals(self.cactusWorkflowArguments.longestPath):
-            self.logToMaster(message)
+
+        if not self.cactusWorkflowArguments.configWrapper.getDoTrimStrategy():
+            #Adapt the config file to use arguments for the appropriate divergence distance
+            self.cactusWorkflowArguments.longestPath = getLongestPath(newickTreeParser(self.cactusWorkflowArguments.speciesTree))
+            if self.cactusWorkflowArguments.outgroupEventNames == None:
+                distanceToAddToRootAlignment = getOptionalAttrib(self.cactusWorkflowArguments.configNode, "distanceToAddToRootAlignment", float, 0.0)
+                self.logToMaster("Extending longest path")
+                self.cactusWorkflowArguments.longestPath += distanceToAddToRootAlignment
+            self.logToMaster("The longest path in the tree is %f" % self.cactusWorkflowArguments.longestPath)
+            for message in cw.substituteAllDivergenceContolledParametersWithLiterals(self.cactusWorkflowArguments.longestPath):
+                self.logToMaster(message)
     
         # we circumvent makeFollowOnPhaseTarget() interface for this job.
         setupTarget = CactusSetupPhase2(cactusWorkflowArguments=self.cactusWorkflowArguments,
@@ -351,7 +419,18 @@ class CactusCafPhase(CactusPhasesTarget):
             runCactusConvertAlignmentToCactus(self.cactusWorkflowArguments.cactusDiskDatabaseString,
                                               self.cactusWorkflowArguments.constraintsFile, newConstraintsFile)
             self.phaseNode.attrib["constraints"] = newConstraintsFile  
-        if self.getPhaseIndex()+1 < self.getPhaseNumber(): #Check if there is a repeat phase
+        if self.getOptionalPhaseAttrib("alignments", default="") != "":
+            # An alignment file has been provided (likely from the
+            # ingroup vs. outgroup blast stage), so just run caf using
+            # that file
+            assert self.getPhaseNumber() == 1
+            convertedAlignmentsFile = getTempFile(rootDir=self.getGlobalTempDir())
+            # Convert the cigar file to use 64-bit cactus Names instead of the headers.
+            runConvertAlignmentsToInternalNames(self.cactusWorkflowArguments.cactusDiskDatabaseString, self.phaseNode.attrib["alignments"], convertedAlignmentsFile, self.topFlowerName)
+            self.logToMaster("Converted headers of cigar file %s to internal names, new file %s" % (self.phaseNode.attrib["alignments"], convertedAlignmentsFile))
+            self.phaseNode.attrib["alignments"] = convertedAlignmentsFile
+            self.runPhase(CactusCafWrapperLarge2, CactusBarPhase, "bar")
+        elif self.getPhaseIndex()+1 < self.getPhaseNumber(): #Check if there is a repeat phase
             self.runPhase(CactusCafRecursion, CactusCafPhase, "caf", index=self.getPhaseIndex()+1)
         else:
             self.runPhase(CactusCafRecursion, CactusBarPhase, "bar")
@@ -883,7 +962,7 @@ def addCactusWorkflowOptions(parser):
     parser.add_option("--buildFasta", dest="buildFasta", action="store_true",
                       help="Build a fasta file of the input sequences (and reference sequence, used with hal output)", 
                       default=False)
-    
+
     parser.add_option("--test", dest="test", action="store_true",
                       help="Run doctest unit tests")
 
@@ -898,9 +977,14 @@ class RunCactusPreprocessorThenCactusSetup(Target):
         outputSequenceFiles = CactusPreprocessor.getOutputSequenceFiles(eW.getSequences(), eW.getOutputSequenceDir())
         self.addChildTarget(CactusPreprocessor(eW.getSequences(), outputSequenceFiles, cactusWorkflowArguments.configNode))
         #Now make the setup, replacing the input sequences with the preprocessed sequences
-        eW.setSequences(outputSequenceFiles)  
-        self.setFollowOnTarget(CactusSetupPhase(cactusWorkflowArguments=cactusWorkflowArguments,
-                                                            phaseName="setup"))
+        eW.setSequences(outputSequenceFiles)
+        self.logToMaster("doTrimStrategy() = %s, outgroupEventNames = %s" % (cactusWorkflowArguments.configWrapper.getDoTrimStrategy(), cactusWorkflowArguments.outgroupEventNames))
+        if cactusWorkflowArguments.configWrapper.getDoTrimStrategy() and cactusWorkflowArguments.outgroupEventNames is not None:
+            # Use the trimming strategy to blast ingroups vs outgroups.
+            self.setFollowOnTarget(CactusTrimmingBlastPhase(cactusWorkflowArguments=cactusWorkflowArguments, phaseName="trimBlast"))
+        else:
+            self.setFollowOnTarget(CactusSetupPhase(cactusWorkflowArguments=cactusWorkflowArguments,
+                                                    phaseName="setup"))
         
 def main():
     ##########################################

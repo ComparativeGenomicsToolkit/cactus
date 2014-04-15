@@ -40,6 +40,7 @@ from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
 from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
 from cactus.pipeline.cactus_workflow import findRequiredNode
 from cactus.pipeline.cactus_workflow import CactusSetupPhase
+from cactus.pipeline.cactus_workflow import CactusTrimmingBlastPhase
 
 from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.progressive.multiCactusTree import MultiCactusTree
@@ -156,9 +157,13 @@ class ProgressiveUp(Target):
             system("rm -f %s* %s %s" % (dbPath, seqPath, 
                                         experiment.getReferencePath()))
 
+        if workFlowArgs.configWrapper.getDoTrimStrategy() and workFlowArgs.outgroupEventNames is not None:
+            # Use the trimming strategy to blast ingroups vs outgroups.
+            self.addChildTarget(CactusTrimmingBlastPhase(cactusWorkflowArguments=workFlowArgs, phaseName="trimBlast"))
+        else:
             self.addChildTarget(CactusSetupPhase(cactusWorkflowArguments=workFlowArgs,
-                                                        phaseName="setup"))
-            logger.info("Going to create alignments and define the cactus tree")
+                                                 phaseName="setup"))
+        logger.info("Going to create alignments and define the cactus tree")
 
         self.setFollowOnTarget(FinishUp(workFlowArgs, self.project))
                                
@@ -202,7 +207,7 @@ class RunCactusPreprocessorThenProgressiveDown(Target):
         self.options.globalLeafEventSet = set(leafNames)
         self.setFollowOnTarget(ProgressiveDown(self.options, project, self.options.event, schedule))
 
-def main():    
+def main():
     usage = "usage: %prog [options] <multicactus project>"
     description = "Progressive version of cactus_workflow"
     parser = OptionParser(usage=usage, description=description)

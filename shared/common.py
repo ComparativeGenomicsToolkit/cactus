@@ -176,8 +176,11 @@ def runCactusBlast(sequenceFiles, outputFile, jobTreeDir,
              lastzMemory, targetSequenceFiles, jobTreeDir, logLevel)
     logger.info("Running command : %s" % command)
     system(command)
-    logger.info("Ran the cactus_batch command okay")
-            
+    logger.info("Ran the cactus_blast command okay")
+
+def runConvertAlignmentsToInternalNames(cactusDiskString, alignmentsFile, outputFile, flowerName):
+    popenCatch("cactus_convertAlignmentsToInternalNames --cactusDisk '%s' %s %s" % (cactusDiskString, alignmentsFile, outputFile), stdinString=encodeFlowerNames((flowerName,)))
+
 def runCactusCaf(cactusDiskDatabaseString, alignments, 
                   flowerNames=encodeFlowerNames((0,)),
                   logLevel=None, 

@@ -117,6 +117,12 @@ class ConfigWrapper:
         assert decompElem is not None
         decompElem.attrib["subtree_size"] = str(subtreeSize)
             
+    def getDoTrimStrategy(self):
+        trimBlastNode = findRequiredNode(self.xmlRoot, "trimBlast")
+        if "doTrimStrategy" in trimBlastNode.attrib:
+            return trimBlastNode.attrib["doTrimStrategy"] == "1"
+        return False
+
     def getDoSelfAlignment(self):
         decompElem = self.getDecompositionElem()
         doSelf = self.defaultDoSelf
