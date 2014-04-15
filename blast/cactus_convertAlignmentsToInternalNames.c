@@ -20,18 +20,18 @@ static void convertHeadersToNames(struct PairwiseAlignment *pA, stHash *headerTo
         exit(1);
     }
     pA->contig1 = cactusMisc_nameToString(*name);
-    // Coordinates have to be shifted by 1 to keep compatibility with
+    // Coordinates have to be shifted by 2 to keep compatibility with
     // cactus coordinates.
-    pA->start1 += 1;
-    pA->end1 += 1;
+    pA->start1 += 2;
+    pA->end1 += 2;
     if((name = stHash_search(headerToName, pA->contig2)) == NULL) {
         fprintf(stderr, "Error: sequence %s is not loaded into the cactus "
                 "database\n", pA->contig2);
         exit(1);
     }
     pA->contig2 = cactusMisc_nameToString(*name);
-    pA->start2 += 1;
-    pA->end2 += 1;
+    pA->start2 += 2;
+    pA->end2 += 2;
 }
 
 int main(int argc, char *argv[])
