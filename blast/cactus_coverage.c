@@ -1,5 +1,4 @@
 #include <getopt.h>
-#include <error.h>
 #include <errno.h>
 #include "sonLib.h"
 #include "bioioC.h"
@@ -63,6 +62,7 @@ static void fillCoverage(struct PairwiseAlignment *pA, int contigNum,
     int strand = contigNum == 1 ? pA->strand1 : pA->strand2;
     int64_t startPos = contigNum == 1 ? pA->start1 : pA->start2;
     int64_t endPos = contigNum == 1 ? pA->end1 : pA->end2;
+    (void)endPos; //Avoid compile warning of unused variable.
     int64_t i, j;
     int64_t curAlignmentPos = startPos;
     for(i = 0; i < pA->operationList->length; i++) {
@@ -159,7 +159,7 @@ int main(int argc, char *argv[])
     // Fill in sequence lengths from fasta.
     FILE *fastaHandle = fopen(fastaPath, "r");
     if (!fastaHandle) {
-        error(1, errno, "Could not open fasta file %s", fastaPath);
+    	st_errAbort("Could not open fasta file %s", fastaPath);
     }
     fastaReadToFunction(fastaHandle, addSequenceLength);
     fclose(fastaHandle);

@@ -1,6 +1,5 @@
 #include <getopt.h>
 #include <errno.h>
-#include <error.h>
 #include "cactus.h"
 #include "sonLib.h"
 #include "pairwiseAlignment.h"
@@ -107,11 +106,11 @@ int main(int argc, char *argv[])
     // cactus Names.
     alignmentFile = fopen(argv[optind], "r");
     if(alignmentFile == NULL) {
-        error(1, errno, "error opening alignment file %s", argv[optind]);
+    	st_errnoAbort("error opening alignment file %s", argv[optind]);
     }
     outputFile = fopen(argv[optind + 1], "w");
     if(outputFile == NULL) {
-        error(1, errno, "error opening output file %s", argv[optind + 1]);
+    	st_errnoAbort("error opening output file %s", argv[optind + 1]);
     }
     for(;;) {
         struct PairwiseAlignment *pA = cigarRead(alignmentFile);
