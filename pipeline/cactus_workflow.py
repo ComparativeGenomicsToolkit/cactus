@@ -318,7 +318,11 @@ class CactusTrimmingBlastPhase(CactusPhasesTarget):
                                                         realign=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "realign", bool), 
                                                         realignArguments=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "realignArguments"),
                                                         memory=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "lastzMemory", int, sys.maxint),
-                                                        minimumSequenceLength=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "minimumSequenceLengthForBlast", int, 1)), ingroups, outgroups, alignmentsFile, outgroupsDir))
+                                                        minimumSequenceLength=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "minimumSequenceLengthForBlast", int, 1),
+                                                       trimFlanking=self.getOptionalPhaseAttrib("trimFlanking", int, 10),
+                                                       trimMinSize=self.getOptionalPhaseAttrib("trimMinSize", int, 0),
+                                                       trimThreshold=self.getOptionalPhaseAttrib("trimThreshold", int, 1),
+                                                       trimWindowSize=self.getOptionalPhaseAttrib("trimWindowSize", int, 10)), ingroups, outgroups, alignmentsFile, outgroupsDir))
         # Point the outgroup sequences to their trimmed versions for
         # phases after this one.
         # FIXME: modifies experiment xml!!

@@ -23,7 +23,12 @@ from jobTree.scriptTree.stack import Stack
 class BlastOptions:
     def __init__(self, chunkSize=10000000, overlapSize=10000, 
                  lastzArguments="", compressFiles=True, realign=False, realignArguments="",
-                 minimumSequenceLength=1, memory=sys.maxint):
+                 minimumSequenceLength=1, memory=sys.maxint,
+                 # Trim options are for trimming ingroup seqs only;
+                 # trimming outgroups is always windowSize=1,
+                 # minSize=0, threshold=1.
+                 trimFlanking=10, trimMinSize=20,
+                 trimWindowSize=10, trimThreshold=1):
         """Class defining options for blast
         """
         self.chunkSize = chunkSize
@@ -40,7 +45,11 @@ class BlastOptions:
         self.compressFiles = compressFiles
         self.minimumSequenceLength = 10
         self.memory = memory
-    
+        self.trimFlanking = trimFlanking
+        self.trimMinSize = trimMinSize
+        self.trimThreshold = trimThreshold
+        self.trimWindowSize = trimWindowSize
+
 class BlastFlower(Target):
     """Take a reconstruction problem and generate the sequences in chunks to be blasted.
     Then setup the follow on blast targets and collation targets.
@@ -168,9 +177,11 @@ class BlastIngroupsAndOutgroups(Target):
         self.outgroupFragmentsDir = outgroupFragmentsDir
 
     def run(self):
+        self.logToMaster("Blasting ingroups vs outgroups to file %s" % (self.finalResultsFile))
         try:
             os.makedirs(self.outgroupFragmentsDir)
         except os.error:
+            # Directory already exists
             pass
         ingroupResults = getTempFile(rootDir=self.getGlobalTempDir())
         self.addChildTarget(BlastSequencesAllAgainstAll(self.ingroupSequenceFiles,
@@ -262,6 +273,18 @@ class TrimAndRecurseOnOutgroups(Target):
         os.remove(ingroupConvertedResultsFile)
 
         # Trim ingroup seqs and recurse on the next outgroup.
+
+        # TODO: Optionally look at coverage on ingroup vs. outgroup,
+        # and if coverage is >1 among ingroups but 1 in outgroups,
+        # look for it in the next outgroup as well. Would require
+        # doing self blast first and sending the alignments here.
+        # (Probably needs an extra option in cactus coverage to only
+        # count self-alignments, since we need to cut the ingroup
+        # sequences in question and not something aligning to both of
+        # them.)
+        # Could also just ignore the coverage on the outgroup to
+        # start, since the fraction of duplicated sequence will be
+        # relatively small.
         if len(self.outgroupSequenceFiles) > 1:
             trimmedSeqs = []
             for sequenceFile in self.untrimmedSequenceFiles:
@@ -274,7 +297,10 @@ class TrimAndRecurseOnOutgroups(Target):
                 # FIXME: allow these parameters to be specified on the
                 # commandline.
                 trimGenome(sequenceFile, coverageFile, trimmed,
-                           complement=True, flanking=10, minSize=20)
+                           complement=True, flanking=self.blastOptions.trimFlanking,
+                           minSize=self.blastOptions.trimMinSize,
+                           threshold=self.blastOptions.trimThreshold,
+                           windowSize=self.blastOptions.trimWindowSize)
                 trimmedSeqs.append(trimmed)
             self.addChildTarget(BlastFirstOutgroup(self.untrimmedSequenceFiles,
                                                    trimmedSeqs,
