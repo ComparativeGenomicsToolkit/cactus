@@ -104,8 +104,6 @@ stList *splitPairwiseAlignment(const struct PairwiseAlignment *pA,
     int64_t curPos1 = pA->start1;
     int64_t curPos2 = pA->start2;
     int64_t curIndelRunLength = 0;
-    assert(pA->strand1);
-    assert(pA->strand2);
     int64_t curStart1 = pA->start1;
     int64_t curStart2 = pA->start2;
     int64_t curEnd1 = 0;

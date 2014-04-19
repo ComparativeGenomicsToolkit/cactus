@@ -5,6 +5,8 @@ from sonLib.bioio import cigarReadFromString, cigarWrite
 from sonLib.bioio import popenCatch
 from sonLib.bioio import logger
 from sonLib.bioio import TestStatus
+from sonLib.bioio import getTempFile
+from sonLib.bioio import system
 
 class TestCase(unittest.TestCase):
     
@@ -28,7 +30,7 @@ class TestCase(unittest.TestCase):
                 self.assertTrue(realignCigar == lastzCigar)
     
     def testCactusRealign(self):
-        """Runs cactus realign using the default parameters and checks that the realigned output cigars align 
+        """Runs cactus realign using the default parameters and checks that the realigned output cigars align
         the same subsequences.
         """
         for seqFile1, seqFile2 in seqFilePairGenerator():
@@ -39,6 +41,33 @@ class TestCase(unittest.TestCase):
                 lastzCigar = cigarReadFromString(lastzLine)
                 self.assertTrue(realignCigar.sameCoordinates(lastzCigar))
     
+    def testCactusRealignSplitSequences(self):
+        """Runs cactus realign, splitting indels longer than 100bp, and check
+        that the coverage from the results is the same as the coverage from
+        realigning with no arguments.."""
+        for seqFile1, seqFile2 in seqFilePairGenerator():
+            # Drop the lastz command since it's not needed. But this
+            # is still convenient to use the same parameters as all
+            # the other tests
+            realignCommand, _ = getCommands(seqFile1, seqFile2)
+            splitRealignCommand = realignCommand + " --splitIndelsLongerThanThis 100"
+            realignOutput = getTempFile()
+            splitRealignOutput = getTempFile()
+            realignCommand += " > %s" % realignOutput
+            splitRealignCommand += " > %s" % splitRealignOutput
+            system(realignCommand)
+            system(splitRealignCommand)
+            # Check coverage on seqFile1
+            splitRealignCoverage = popenCatch("cactus_coverage %s %s" % (seqFile1, splitRealignOutput))
+            realignCoverage = popenCatch("cactus_coverage %s %s" % (seqFile1, realignOutput))
+            self.assertTrue(splitRealignCoverage == realignCoverage)
+            # Check coverage on seqFile2
+            splitRealignCoverage = popenCatch("cactus_coverage %s %s" % (seqFile2, splitRealignOutput))
+            realignCoverage = popenCatch("cactus_coverage %s %s" % (seqFile2, realignOutput))
+            self.assertTrue(splitRealignCoverage == realignCoverage)
+            os.remove(realignOutput)
+            os.remove(splitRealignOutput)
+
     def testCactusRealignRescoreByIdentityAndProb(self):
         """Runs cactus realign using the default parameters and checks that the realigned output cigars align 
         the same subsequences.
