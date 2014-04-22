@@ -253,7 +253,7 @@ class TrimAndRecurseOnOutgroups(Target):
             tmpIngroupCoverage = getTempFile(rootDir=self.getGlobalTempDir())
             calculateCoverage(trimmedIngroupSequence, self.mostRecentResultsFile,
                               tmpIngroupCoverage)
-            self.logToMaster("%% coverage of outgroup sequence %s on the fragments from ingroup sequence %s: %s" % (self.outgroupSequenceFiles[0], ingroupSequence, percentCoverage(trimmedIngroupSequence, tmpIngroupCoverage)))
+            self.logToMaster("%% coverage of outgroup sequence %s on the fragments from ingroup sequence %s: %s (trimmed fragments length %d, untrimmed length %d)" % (self.outgroupSequenceFiles[0], ingroupSequence, percentCoverage(trimmedIngroupSequence, tmpIngroupCoverage), sequenceLength(trimmedIngroupSequence), sequenceLength(ingroupSequence)))
 
 
         # Trim outgroup, convert outgroup coordinates, and add to
@@ -413,19 +413,24 @@ class SortCigarAlignmentsInPlace(Target):
         logger.info("Sorted the alignments okay")
         system("mv %s %s" % (tempResultsFile, self.cigarFile))
 
-def percentCoverage(sequenceFile, coverageFile):
-    """Get the % coverage of a sequence from a coverage file."""
-    sequenceLength = 0
+def sequenceLength(sequenceFile):
+    """Get the total # of bp from a fasta file."""
+    seqLength = 0
     for line in open(sequenceFile):
         line = line.strip()
         if line == '' or line[0] == '>':
             continue
-        sequenceLength += len(line)
-    assert(sequenceLength != 0)
+        seqLength += len(line)
+    return seqLength
+
+def percentCoverage(sequenceFile, coverageFile):
+    """Get the % coverage of a sequence from a coverage file."""
+    sequenceLen = sequenceLength(sequenceFile)
+    assert(sequenceLen != 0)
     coverage = popenCatch("awk '{ total += $3 - $2 } END { print total }' %s" % coverageFile)
     if coverage.strip() == '': # No coverage lines
         return 0
-    return 100*float(coverage)/sequenceLength
+    return 100*float(coverage)/sequenceLen
 
 def calculateCoverage(sequenceFile, cigarFile, outputFile):
     logger.info("Calculating coverage of cigar file %s on %s, writing to %s" % (

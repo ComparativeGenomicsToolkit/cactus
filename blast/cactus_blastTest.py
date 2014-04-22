@@ -100,8 +100,7 @@ class TestCase(unittest.TestCase):
         """
         encodeRegions = [ "ENm00" + str(i) for i in xrange(1,2) ]
         ingroups = ["human", "macaque"]
-        outgroups = ["rabbit", "dog", "rat", "platypus", "xenopus",
-                     "zebrafish"]
+        outgroups = ["rabbit", "dog", "rat", "platypus", "xenopus", "fugu"]
         # subselect 4 random ordered outgroups
         outgroups = [outgroups[i] for i in sorted(random.sample(xrange(len(outgroups)), 4))]
         for encodeRegion in encodeRegions:
