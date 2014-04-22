@@ -24,11 +24,16 @@ class BlastOptions:
     def __init__(self, chunkSize=10000000, overlapSize=10000, 
                  lastzArguments="", compressFiles=True, realign=False, realignArguments="",
                  minimumSequenceLength=1, memory=sys.maxint,
-                 # Trim options are for trimming ingroup seqs only;
-                 # trimming outgroups is always windowSize=1,
-                 # minSize=0, threshold=1.
+                 # Trim options for trimming ingroup seqs:
                  trimFlanking=10, trimMinSize=20,
-                 trimWindowSize=10, trimThreshold=1):
+                 trimWindowSize=10, trimThreshold=1,
+                 # Trim options for trimming outgroup seqs (options
+                 # other than flanking sequence will need a check to
+                 # remove alignments that don't qualify)
+                 # HACK: outgroup flanking is only set so high by
+                 # default because it's needed for the tests (which
+                 # don't use realign.)
+                 trimOutgroupFlanking=2000):
         """Class defining options for blast
         """
         self.chunkSize = chunkSize
@@ -49,6 +54,7 @@ class BlastOptions:
         self.trimMinSize = trimMinSize
         self.trimThreshold = trimThreshold
         self.trimWindowSize = trimWindowSize
+        self.trimOutgroupFlanking = trimOutgroupFlanking
 
 class BlastFlower(Target):
     """Take a reconstruction problem and generate the sequences in chunks to be blasted.
@@ -242,14 +248,26 @@ class TrimAndRecurseOnOutgroups(Target):
         self.blastOptions = blastOptions
 
     def run(self):
+        # Report coverage of the latest outgroup on the trimmed ingroups.
+        for trimmedIngroupSequence, ingroupSequence in zip(self.sequenceFiles, self.untrimmedSequenceFiles):
+            tmpIngroupCoverage = getTempFile(rootDir=self.getGlobalTempDir())
+            calculateCoverage(trimmedIngroupSequence, self.mostRecentResultsFile,
+                              tmpIngroupCoverage)
+            self.logToMaster("%% coverage of outgroup sequence %s on the fragments from ingroup sequence %s: %s" % (self.outgroupSequenceFiles[0], ingroupSequence, percentCoverage(trimmedIngroupSequence, tmpIngroupCoverage)))
+
+
         # Trim outgroup, convert outgroup coordinates, and add to
         # outgroup fragments dir
         trimmedOutgroup = getTempFile(rootDir=self.getGlobalTempDir())
         outgroupCoverage = getTempFile(rootDir=self.getGlobalTempDir())
         calculateCoverage(self.outgroupSequenceFiles[0],
                           self.mostRecentResultsFile, outgroupCoverage)
+        # The windowSize and threshold are fixed at 1: anything more
+        # and we will run into problems with alignments that aren't
+        # covered in a matching trimmed sequence.
         trimGenome(self.outgroupSequenceFiles[0], outgroupCoverage,
-                   trimmedOutgroup, flanking=2000, windowSize=1, threshold=1)
+                   trimmedOutgroup, flanking=self.blastOptions.trimOutgroupFlanking,
+                   windowSize=1, threshold=1)
         outgroupConvertedResultsFile = getTempFile(rootDir=self.getGlobalTempDir())
         system("cactus_upconvertCoordinates.py %s %s > %s" %\
                (trimmedOutgroup, self.mostRecentResultsFile,
@@ -263,14 +281,25 @@ class TrimAndRecurseOnOutgroups(Target):
         if self.sequenceFiles == self.untrimmedSequenceFiles:
             # No need to convert ingroup coordinates on first run.
             system("cp %s %s" % (outgroupConvertedResultsFile,
-                                 self.outputFile))
+                                 ingroupConvertedResultsFile))
         else:
             system("cactus_blast_convertCoordinates --onlyContig1 %s %s 1" % (
                 outgroupConvertedResultsFile, ingroupConvertedResultsFile))
-            system("cat %s >> %s" % (ingroupConvertedResultsFile,
-                                     self.outputFile))
+        
+        # Append the latest results to the accumulated outgroup coverage file
+        system("cat %s >> %s" % (ingroupConvertedResultsFile,
+                                 self.outputFile))
         os.remove(outgroupConvertedResultsFile)
         os.remove(ingroupConvertedResultsFile)
+
+        # Report coverage of the all outgroup alignments so far on the ingroups.
+        for ingroupSequence in self.untrimmedSequenceFiles:
+            # get temporary coverage file -- this is unusable for
+            # trimming since it's only from the *latest* outgroup
+            tmpIngroupCoverage = getTempFile(rootDir=self.getGlobalTempDir())
+            calculateCoverage(ingroupSequence, self.outputFile,
+                              tmpIngroupCoverage)
+            self.logToMaster("Cumulative %% coverage of outgroups on ingroup sequence %s: %s" % (ingroupSequence, percentCoverage(ingroupSequence, tmpIngroupCoverage)))
 
         # Trim ingroup seqs and recurse on the next outgroup.
 
@@ -287,12 +316,13 @@ class TrimAndRecurseOnOutgroups(Target):
         # relatively small.
         if len(self.outgroupSequenceFiles) > 1:
             trimmedSeqs = []
+            # Use the accumulated results so far to trim away the
+            # aligned parts of the ingroups.
             for sequenceFile in self.untrimmedSequenceFiles:
-                # Use the accumulated results so far to trim away the
-                # aligned parts of the ingroups.
                 coverageFile = getTempFile(rootDir=self.getGlobalTempDir())
                 calculateCoverage(sequenceFile, self.outputFile,
                                   coverageFile)
+
                 trimmed = getTempFile(rootDir=self.getGlobalTempDir())
                 # FIXME: allow these parameters to be specified on the
                 # commandline.
@@ -383,6 +413,20 @@ class SortCigarAlignmentsInPlace(Target):
         logger.info("Sorted the alignments okay")
         system("mv %s %s" % (tempResultsFile, self.cigarFile))
 
+def percentCoverage(sequenceFile, coverageFile):
+    """Get the % coverage of a sequence from a coverage file."""
+    sequenceLength = 0
+    for line in open(sequenceFile):
+        line = line.strip()
+        if line == '' or line[0] == '>':
+            continue
+        sequenceLength += len(line)
+    assert(sequenceLength != 0)
+    coverage = popenCatch("awk '{ total += $3 - $2 } END { print total }' %s" % coverageFile)
+    if coverage.strip() == '': # No coverage lines
+        return 0
+    return 100*float(coverage)/sequenceLength
+
 def calculateCoverage(sequenceFile, cigarFile, outputFile):
     logger.info("Calculating coverage of cigar file %s on %s, writing to %s" % (
         cigarFile, sequenceFile, outputFile))
@@ -440,6 +484,13 @@ replaced with the the sequence file and the results file, respectively",
                       help="Lastz memory (in bytes)", 
                       default=blastOptions.memory)
     
+    parser.add_option("--trimFlanking", type=int, help="Amount of flanking sequence to leave on trimmed ingroup sequences", default=blastOptions.trimFlanking)
+    parser.add_option("--trimMinSize", type=int, help="Minimum size, before adding flanking sequence, of ingroup sequence to align against the next outgroup", default=blastOptions.trimMinSize)
+    parser.add_option("--trimThreshold", type=int, help="Coverage threshold for an ingroup region to not be aligned against the next outgroup", default=blastOptions.trimThreshold)
+    parser.add_option("--trimWindowSize", type=int, help="Windowing size to integrate ingroup coverage over", default=blastOptions.trimWindowSize)
+    parser.add_option("--trimOutgroupFlanking", type=int, help="Amount of flanking sequence to leave on trimmed outgroup sequences", default=blastOptions.trimOutgroupFlanking)
+    
+
     parser.add_option("--test", dest="test", action="store_true",
                       help="Run doctest unit tests")
     
