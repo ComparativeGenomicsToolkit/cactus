@@ -82,7 +82,7 @@ Cap *cap_copyConstruct(End *end, Cap *cap) {
     Sequence *sequence;
 
     Flower *flower = end_getFlower(end);
-    if (cap_getCoordinate(cap) != INT64_MAX) {
+    if (cap_getSequence(cap) != NULL) { //cap_getCoordinate(cap) != INT64_MAX) {
         sequenceName = sequence_getName(cap_getSequence(cap));
         sequence = flower_getSequence(flower, sequenceName);
         if (sequence == NULL) { //add sequence to the flower.
@@ -95,7 +95,7 @@ Cap *cap_copyConstruct(End *end, Cap *cap) {
         event = eventTree_getEvent(flower_getEventTree(flower), event_getName(cap_getEvent(cap)));
         assert(event != NULL);
         Cap *cap2 = cap_construct3(cap_getName(cap), event, end);
-        cap_setCoordinates(cap2, INT64_MAX, cap_getStrand(cap), NULL);
+        cap_setCoordinates(cap2, cap_getCoordinate(cap), cap_getStrand(cap), NULL);
         return cap2;
     }
 }

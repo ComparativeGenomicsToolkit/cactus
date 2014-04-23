@@ -516,16 +516,15 @@ static reference *getEmptyReference(Flower *flower, stHash *endsToNodes, int64_t
 ////////////////////////////////////
 
 static Cap *makeStubCap(End *end, Event *referenceEvent) {
-    assert(end_isAttached(end));
+    //assert(end_isAttached(end));
     assert(end_isStubEnd(end));
     Cap *cap = getCapWithEvent(end, event_getName(referenceEvent));
     if (cap != NULL) {
         return cap_getStrand(cap) ? cap : cap_getReverse(cap);
     }
     Group *parentGroup = flower_getParentGroup(end_getFlower(end));
-    if (parentGroup != NULL) {
-        End *parentEnd = group_getEnd(parentGroup, end_getName(end));
-        assert(parentEnd != NULL);
+    End *parentEnd;
+    if (parentGroup != NULL && (parentEnd = group_getEnd(parentGroup, end_getName(end))) != NULL) {
         Cap *parentCap = getCapWithEvent(parentEnd, event_getName(referenceEvent));
         assert(parentCap != NULL);
         parentCap = cap_getStrand(parentCap) ? parentCap : cap_getReverse(parentCap);
@@ -608,13 +607,25 @@ static void makeThread(End *end, stHash *endsToEnds, Flower *flower, Event *refe
 static void makeThreads(stHash *endsToEnds, Flower *flower, Event *referenceEvent) {
     Flower_EndIterator *endIt = flower_getEndIterator(flower);
     End *end;
+    stList *stack = stList_construct();
+    Group *parentGroup = flower_getParentGroup(flower);
     while ((end = flower_getNextEnd(endIt)) != NULL) {
         if (end_isAttached(end) && end_isStubEnd(end)) {
             assert(end_getOrientation(end));
-            makeThread(end, endsToEnds, flower, referenceEvent);
+            if(parentGroup == NULL || group_getEnd(parentGroup, end_getName(end)) != NULL) {
+            	makeThread(end, endsToEnds, flower, referenceEvent); //We first start from stub ends that already have
+            	//ends in parent flower, because they define the 5' to 3' direction of traversal.
+            }
+            else {
+            	stList_append(stack, end);
+            }
         }
     }
     flower_destructEndIterator(endIt);
+    while(stList_length(stack) > 0) {
+    	makeThread(stList_pop(stack), endsToEnds, flower, referenceEvent);
+    }
+    stList_destruct(stack);
 }
 
 static void mapEnds(stHash *endsToEnds, End *end1, End *end2) {
@@ -671,7 +682,7 @@ static stHash *getEndsToEnds(Flower *flower, stList *chosenAdjacencyEdges, stHas
         }
     }
     flower_destructGroupIterator(groupIt);
-    assert(flower_getEndNumber(flower) - flower_getFreeStubEndNumber(flower) == stHash_size(endsToEnds));
+    assert(flower_getEndNumber(flower) - flower_getFreeStubEndNumber(flower) <= stHash_size(endsToEnds));
     return endsToEnds;
 }
 
@@ -731,20 +742,43 @@ static stList *convertReferenceToAdjacencyEdges2(reference *ref) {
     return edges;
 }
 
+
+
+/*
+ * Function to add additional ends to graph, representing breaks in the reference.
+ */
+static void addAdditionalStubEnds(stList *extraStubNodes, Flower *flower, stHash *endsToNodes, stList *newEnds) {
+	for(int64_t i=0; i<stList_length(extraStubNodes); i++) {
+		stIntTuple *node = stList_get(extraStubNodes, i);
+		End *end = end_construct(0, flower); //Ensure we get the right orientation
+		stHash_insert(endsToNodes, end, stIntTuple_construct1(stIntTuple_get(node, 0)));
+		stList_append(newEnds, end);
+	}
+}
+
+/*
+ * We have two criteria for splitting a reference interval.
+ * (1) Presence of a direct adjacency.
+ * (2) Presence of substantial amounts of indirect adjacencies.
+ */
+bool referenceSplitFn(int64_t pNode, reference *ref, void *extraArgs) {
+	//refAdjList *aL = ((void **)extraArgs)[0];
+	refAdjList *dAL = ((void **)extraArgs)[1];
+	assert(reference_getNext(ref, pNode) != INT64_MAX);
+	if(refAdjList_getWeight(dAL, pNode, reference_getNext(ref, pNode)) > 0) {
+		//We do not split edges that have direct sequence support.
+		return 0;
+	}
+	//Now decide if the edge is sufficiently supported.
+	//refAdjList *dAL = ((void **)extraArgs)[1];
+	return st_random() > 0.5;
+}
+
 ////////////////////////////////////
 ////////////////////////////////////
 //Main function
 ////////////////////////////////////
 ////////////////////////////////////
-
-static int64_t maxNodeNumber;
-static bool tooLarge(reference *ref, int64_t n) {
-    if(reference_getRemainingIntervalLength(ref, n) > maxNodeNumber) {
-        st_logDebug("Breaking up interval with %" PRIi64 "nodes\n", reference_getRemainingIntervalLength(ref, n));
-        return 1;
-    }
-    return 0;
-}
 
 void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int64_t permutations,
         stList *(*matchingAlgorithm)(stList *edges, int64_t nodeNumber), double(*temperature)(double), double theta,
@@ -828,27 +862,46 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     st_logDebug("The score of the final solution is %f/%" PRIi64 " after %" PRIi64 " rounds of greedy nudging out of a max possible %f\n",
             totalScoreAfterNudging, badAdjacenciesAfterNudging, nudgePermutations, maxPossibleScore);
 
-    if(flower_getName(flower) == 0) { //Hack to breakup largest chromosome
-        int64_t totalBases = flower_getTotalBaseLength(flower);
-        maxNodeNumber = nodeNumber * 0.5;
-        if(totalBases > 1000000000) {
-            reorderToAvoidOverlargeChromosome(ref, tooLarge);
-        }
-    }
+    /*
+     * Split reference intervals where the ordering of adjacent nodes
+     * is not supported by direct adjacencies, or (optionally) indirect
+     * adjacencies.
+     *
+     * The function returns a list of additional extra stub nodes, which
+     * must then be turned into ends in the flower.
+     */
+    void *extraArgs[2] = { aL, dAL };
+    stList *extraStubNodes = splitReferenceAtIndicatedLocations(ref, referenceSplitFn, extraArgs);
 
+    //The aL and dAL arrays are no longer valid as we've added additional nodes to the reference, let's clean up the arrays explicitly.
+    refAdjList_destruct(aL);
+    refAdjList_destruct(dAL);
+
+    /*
+     * Convert the additional stub nodes into new stub ends, updating the endsToNodes and nodesToEnds sets.
+     */
+    addAdditionalStubEnds(extraStubNodes, flower, endsToNodes, newEnds);
+
+    /*
+     * Convert the reference into a list of adjacency edges.
+     */
     stList *chosenEdges = convertReferenceToAdjacencyEdges2(ref);
+
+    /*
+     * Invert the hash from ends to nodes to nodes to ends.
+     */
+    stHash *nodesToEnds = stHash_invert(endsToNodes, (uint64_t(*)(const void *)) stIntTuple_hashKey,
+            (int(*)(const void *, const void *)) stIntTuple_equalsFn, NULL, NULL);
 
     /*
      * Check the matching we have.
      */
-    assert(stList_length(chosenEdges) * 2 == stHash_size(endsToNodes));
-    stList *nodes = stHash_getValues(endsToNodes);
+    assert(stList_length(chosenEdges) * 2 == stHash_size(nodesToEnds));
+    stList *nodes = stHash_getValues(nodesToEnds);
     stSortedSet *nodesSet = stList_getSortedSet(nodes, (int(*)(const void *, const void *)) stIntTuple_cmpFn);
-    assert(stHash_size(endsToNodes) == stSortedSet_size(nodesSet));
+    assert(stHash_size(nodesToEnds) == stSortedSet_size(nodesSet));
     stSortedSet_destruct(nodesSet);
     stList_destruct(nodes);
-    stHash *nodesToEnds = stHash_invert(endsToNodes, (uint64_t(*)(const void *)) stIntTuple_hashKey,
-            (int(*)(const void *, const void *)) stIntTuple_equalsFn, NULL, NULL);
 
     /*
      * Add the reference genome into flower
@@ -863,12 +916,11 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     /*
      * Cleanup
      */
-    refAdjList_destruct(aL);
-    refAdjList_destruct(dAL);
     stList_destruct(newEnds);
-    stHash_destruct(endsToNodes);
     stHash_destruct(nodesToEnds);
+    stHash_destruct(endsToNodes);
     stList_destruct(chosenEdges);
     reference_destruct(ref);
     stList_destruct(stubTangleEnds);
+    stList_destruct(extraStubNodes);
 }
