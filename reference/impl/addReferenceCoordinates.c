@@ -23,7 +23,7 @@ Cap *getCapForReferenceEvent(End *end, Name referenceEventName) {
         }
     }
     end_destructInstanceIterator(it);
-    assert(0);
+    //assert(0);
     return NULL;
 }
 
@@ -34,7 +34,7 @@ static int64_t traceThreadLength(Cap *cap, Cap **terminatingCap) {
      *
      * Terminating cap is initialised with the final cap on the thread from cap.
      */
-    assert(end_isStubEnd(cap_getEnd(cap)) && end_isAttached(cap_getEnd(cap)));
+    assert(end_isStubEnd(cap_getEnd(cap)));
     int64_t threadLength = 0;
     while (1) {
         assert(cap_getCoordinate(cap) != INT64_MAX);
@@ -50,7 +50,6 @@ static int64_t traceThreadLength(Cap *cap, Cap **terminatingCap) {
             assert(cap != NULL);
         } else {
             assert(end_isStubEnd(cap_getEnd(adjacentCap)));
-            assert(end_isAttached(cap_getEnd(adjacentCap)));
             *terminatingCap = adjacentCap;
             return threadLength;
         }
@@ -153,12 +152,14 @@ static void recoverBrokenAdjacencies(Flower *flower, stList *recoveredCaps, Name
                 if(end_isStubEnd(childEnd) && flower_getEnd(flower, end_getName(childEnd)) == NULL) { //We have a thread we need to promote
                     Cap *childCap = getCapForReferenceEvent(childEnd, referenceEventName); //The cap in the reference
                     assert(childCap != NULL);
+                    assert(!end_isAttached(childEnd));
                     childCap = cap_getStrand(childCap) ? childCap : cap_getReverse(childCap);
                     if (!cap_getSide(childCap)) {
                         Cap *adjacentChildCap = NULL;
                         int64_t adjacencyLength = traceThreadLength(childCap, &adjacentChildCap);
                         Cap *cap = copyCapToParent(childCap, recoveredCaps);
                         assert(adjacentChildCap != NULL);
+                        assert(!end_isAttached(cap_getEnd(adjacentChildCap)));
                         assert(!cap_getSide(cap));
                         Cap *adjacentCap = copyCapToParent(adjacentChildCap, recoveredCaps);
                         cap_makeAdjacent(cap, adjacentCap);
@@ -237,12 +238,13 @@ static stList *getCaps(stList *flowers, Name referenceEventName) {
         Flower_EndIterator *endIt = flower_getEndIterator(flower);
         End *end;
         while ((end = flower_getNextEnd(endIt)) != NULL) {
-            if (end_isStubEnd(end) && end_isAttached(end)) {
+            if (end_isStubEnd(end)) {
                 Cap *cap = getCapForReferenceEvent(end, referenceEventName); //The cap in the reference
-                assert(cap != NULL);
-                cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
-                if (!cap_getSide(cap)) {
-                    stList_append(caps, cap);
+                if(cap != NULL) {
+                    cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
+                    if (!cap_getSide(cap)) {
+                        stList_append(caps, cap);
+                    }
                 }
             }
         }
@@ -299,9 +301,8 @@ void topDown(stList *flowers, Name referenceEventName) {
         Flower_EndIterator *endIt = flower_getEndIterator(flower);
         End *end;
         while ((end = flower_getNextEnd(endIt)) != NULL) {
-            if (end_isBlockEnd(end) || end_isAttached(end)) {
-                Cap *cap = getCapForReferenceEvent(end, referenceEventName); //The cap in the reference
-                assert(cap != NULL);
+            Cap *cap = getCapForReferenceEvent(end, referenceEventName); //The cap in the reference
+            if (cap != NULL) {
                 cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
                 if (!cap_getSide(cap)) {
                     assert(cap_getCoordinate(cap) != INT64_MAX);

@@ -58,10 +58,10 @@ static stList *getExtraAttachedStubsFromParent(Flower *flower) {
         End *parentEnd;
         while ((parentEnd = group_getNextEnd(parentEndIt)) != NULL) {
             if (end_isAttached(parentEnd) || end_isBlockEnd(parentEnd)) {
-                End *end = flower_getEnd(flower, end_getName(parentEnd));
-                if (end == NULL) { //We have found an end that needs to be pushed into the child.
-                    stList_append(newEnds, end_copyConstruct(parentEnd, flower)); //At this point it has no associated group;
-                }
+            	End *end = flower_getEnd(flower, end_getName(parentEnd));
+            	if (end == NULL) { //We have found an end that needs to be pushed into the child.
+                	stList_append(newEnds, end_copyConstruct(parentEnd, flower)); //At this point it has no associated group;
+            	}
             }
         }
         group_destructEndIterator(parentEndIt);
@@ -322,7 +322,7 @@ static stHash *getChainNodes(Flower *flower) {
      * Get the trivial chain edges for the flower.
      */
     int64_t nodeCounter = 1;
-    stHash *endsToNodes = stHash_construct2(NULL, (void(*)(void *)) stIntTuple_destruct);
+    stHash *endsToNodes = stHash_construct2(NULL, NULL); //We clean up the tuple memory when we invert the hash to go nodesToEnds
     getNonTrivialChainNodes(flower, endsToNodes, &nodeCounter);
     getTrivialChainNodes(flower, endsToNodes, &nodeCounter);
     return endsToNodes;
@@ -608,16 +608,15 @@ static void makeThreads(stHash *endsToEnds, Flower *flower, Event *referenceEven
     Flower_EndIterator *endIt = flower_getEndIterator(flower);
     End *end;
     stList *stack = stList_construct();
-    Group *parentGroup = flower_getParentGroup(flower);
+    //Group *parentGroup = flower_getParentGroup(flower);
     while ((end = flower_getNextEnd(endIt)) != NULL) {
-        if (end_isAttached(end) && end_isStubEnd(end)) {
-            assert(end_getOrientation(end));
-            if(parentGroup == NULL || group_getEnd(parentGroup, end_getName(end)) != NULL) {
-            	makeThread(end, endsToEnds, flower, referenceEvent); //We first start from stub ends that already have
-            	//ends in parent flower, because they define the 5' to 3' direction of traversal.
+        if(end_isStubEnd(end)) {
+            if(end_isAttached(end)) {
+                makeThread(end, endsToEnds, flower, referenceEvent); //We first start from stub ends that already have
+                                //ends in parent flower, because they define the 5' to 3' direction of traversal.
             }
-            else {
-            	stList_append(stack, end);
+            else if(stHash_search(endsToEnds, end) != NULL) { //In the reference
+                stList_append(stack, end);
             }
         }
     }
@@ -742,16 +741,14 @@ static stList *convertReferenceToAdjacencyEdges2(reference *ref) {
     return edges;
 }
 
-
-
 /*
  * Function to add additional ends to graph, representing breaks in the reference.
  */
-static void addAdditionalStubEnds(stList *extraStubNodes, Flower *flower, stHash *endsToNodes, stList *newEnds) {
+static void addAdditionalStubEnds(stList *extraStubNodes, Flower *flower, stHash *nodesToEnds, stList *newEnds) {
 	for(int64_t i=0; i<stList_length(extraStubNodes); i++) {
 		stIntTuple *node = stList_get(extraStubNodes, i);
 		End *end = end_construct(0, flower); //Ensure we get the right orientation
-		stHash_insert(endsToNodes, end, stIntTuple_construct1(stIntTuple_get(node, 0)));
+		stHash_insert(nodesToEnds, stIntTuple_construct1(stIntTuple_get(node, 0)), end);
 		stList_append(newEnds, end);
 	}
 }
@@ -762,16 +759,26 @@ static void addAdditionalStubEnds(stList *extraStubNodes, Flower *flower, stHash
  * (2) Presence of substantial amounts of indirect adjacencies.
  */
 bool referenceSplitFn(int64_t pNode, reference *ref, void *extraArgs) {
+    stHash *nodesToEnds = ((void **)extraArgs)[2];
+    //We do not split if not a leaf adjacency.
+    stIntTuple *i = stIntTuple_construct1(-pNode);
+    End *end = stHash_search(nodesToEnds, i);
+    stIntTuple_destruct(i);
+    assert(end != NULL);
+    if(end_getGroup(end) == NULL || !group_isLeaf(end_getGroup(end))) {
+        return 0;
+    }
+    return 1;
 	//refAdjList *aL = ((void **)extraArgs)[0];
 	refAdjList *dAL = ((void **)extraArgs)[1];
 	assert(reference_getNext(ref, pNode) != INT64_MAX);
-	if(refAdjList_getWeight(dAL, pNode, reference_getNext(ref, pNode)) > 0) {
-		//We do not split edges that have direct sequence support.
+	//We do not split edges that have direct sequence support.
+	if(refAdjList_getWeight(dAL, -pNode, reference_getNext(ref, pNode)) > 0) {
 		return 0;
 	}
 	//Now decide if the edge is sufficiently supported.
 	//refAdjList *dAL = ((void **)extraArgs)[1];
-	return st_random() > 0.5;
+	return 1; //st_random() > 0.5;
 }
 
 ////////////////////////////////////
@@ -863,6 +870,13 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
             totalScoreAfterNudging, badAdjacenciesAfterNudging, nudgePermutations, maxPossibleScore);
 
     /*
+     * Invert the hash from ends to nodes to nodes to ends.
+     */
+    stHash *nodesToEnds = stHash_invert(endsToNodes, (uint64_t(*)(const void *)) stIntTuple_hashKey,
+            (int(*)(const void *, const void *)) stIntTuple_equalsFn, (void(*)(void *)) stIntTuple_destruct, NULL);
+    stHash_destruct(endsToNodes); //Get rid of the endsToNodes hash, note this does not destroy the associated memory.
+
+    /*
      * Split reference intervals where the ordering of adjacent nodes
      * is not supported by direct adjacencies, or (optionally) indirect
      * adjacencies.
@@ -870,7 +884,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
      * The function returns a list of additional extra stub nodes, which
      * must then be turned into ends in the flower.
      */
-    void *extraArgs[2] = { aL, dAL };
+    void *extraArgs[3] = { aL, dAL, nodesToEnds };
     stList *extraStubNodes = splitReferenceAtIndicatedLocations(ref, referenceSplitFn, extraArgs);
 
     //The aL and dAL arrays are no longer valid as we've added additional nodes to the reference, let's clean up the arrays explicitly.
@@ -880,18 +894,12 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     /*
      * Convert the additional stub nodes into new stub ends, updating the endsToNodes and nodesToEnds sets.
      */
-    addAdditionalStubEnds(extraStubNodes, flower, endsToNodes, newEnds);
+    addAdditionalStubEnds(extraStubNodes, flower, nodesToEnds, newEnds);
 
     /*
      * Convert the reference into a list of adjacency edges.
      */
     stList *chosenEdges = convertReferenceToAdjacencyEdges2(ref);
-
-    /*
-     * Invert the hash from ends to nodes to nodes to ends.
-     */
-    stHash *nodesToEnds = stHash_invert(endsToNodes, (uint64_t(*)(const void *)) stIntTuple_hashKey,
-            (int(*)(const void *, const void *)) stIntTuple_equalsFn, NULL, NULL);
 
     /*
      * Check the matching we have.
@@ -918,7 +926,6 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
      */
     stList_destruct(newEnds);
     stHash_destruct(nodesToEnds);
-    stHash_destruct(endsToNodes);
     stList_destruct(chosenEdges);
     reference_destruct(ref);
     stList_destruct(stubTangleEnds);
