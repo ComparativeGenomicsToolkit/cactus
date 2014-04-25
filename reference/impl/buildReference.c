@@ -759,25 +759,48 @@ static void addAdditionalStubEnds(stList *extraStubNodes, Flower *flower, stHash
  * (2) Presence of substantial amounts of indirect adjacencies.
  */
 bool referenceSplitFn(int64_t pNode, reference *ref, void *extraArgs) {
-    stHash *nodesToEnds = ((void **)extraArgs)[2];
-    //We do not split if not a leaf adjacency.
+    assert(reference_getNext(ref, pNode) != INT64_MAX);
+    /*
+     * We do not split if not a leaf adjacency.
+     *
+     * One complexity is that an end may not yet be assigned a group, in which case
+     * we look at its proposed adjacent end to decide if its a leaf adjacency.
+     * If this does not also have a group
+     * then both ends must be from "N" blocks, and we allow them to be joined.
+     */
+    //void *extraArgs[4] = { nodesToEnds, dAL, &onlyDirectAdjacencies, aL };
+    stHash *nodesToEnds = ((void **)extraArgs)[0];
     stIntTuple *i = stIntTuple_construct1(-pNode);
     End *end = stHash_search(nodesToEnds, i);
     stIntTuple_destruct(i);
     assert(end != NULL);
-    if(end_getGroup(end) == NULL || !group_isLeaf(end_getGroup(end))) {
+    Group *group = end_getGroup(end);
+    if(group == NULL) {
+        i = stIntTuple_construct1(reference_getNext(ref, pNode));
+        End *adjacentEnd = stHash_search(nodesToEnds, i);
+        stIntTuple_destruct(i);
+        assert(adjacentEnd != NULL);
+        group = end_getGroup(adjacentEnd);
+    }
+    refAdjList *dAL = ((void **)extraArgs)[1];
+    if(group == NULL) { //Case there is no group for either adjacent end.
+        assert(refAdjList_getWeight(dAL, -pNode, reference_getNext(ref, pNode)) == 0); //We can check they are not connected.
         return 0;
     }
-    return 1;
-	//refAdjList *aL = ((void **)extraArgs)[0];
-	refAdjList *dAL = ((void **)extraArgs)[1];
-	assert(reference_getNext(ref, pNode) != INT64_MAX);
+    if(!group_isLeaf(group)) { //Case we are not at a leaf adjacency.
+        return 0;
+    }
 	//We do not split edges that have direct sequence support.
-	if(refAdjList_getWeight(dAL, -pNode, reference_getNext(ref, pNode)) > 0) {
+	if(refAdjList_getWeight(dAL, -pNode, reference_getNext(ref, pNode)) > 0.0) {
 		return 0;
 	}
-	//Now decide if the edge is sufficiently supported.
-	//refAdjList *dAL = ((void **)extraArgs)[1];
+	//If we only want edges supported by direct adjacencies then split.
+	bool *onlyDirectAdjacencies = ((void **)extraArgs)[2];
+	if(*onlyDirectAdjacencies) {
+	    return 1;
+	}
+	//Now decide if the edge is sufficiently supported, despite lacking direct adjacency.
+	//refAdjList *aL = ((void **)extraArgs)[3];
 	return 1; //st_random() > 0.5;
 }
 
@@ -884,7 +907,8 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
      * The function returns a list of additional extra stub nodes, which
      * must then be turned into ends in the flower.
      */
-    void *extraArgs[3] = { aL, dAL, nodesToEnds };
+    bool onlyDirectAdjacencies = 1;
+    void *extraArgs[4] = { nodesToEnds, dAL, &onlyDirectAdjacencies, aL };
     stList *extraStubNodes = splitReferenceAtIndicatedLocations(ref, referenceSplitFn, extraArgs);
 
     //The aL and dAL arrays are no longer valid as we've added additional nodes to the reference, let's clean up the arrays explicitly.
