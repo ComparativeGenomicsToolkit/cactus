@@ -638,7 +638,7 @@ static void mapEnds(stHash *endsToEnds, End *end1, End *end2) {
     stHash_insert(endsToEnds, end2, end1);
 }
 
-static stHash *getEndsToEnds(Flower *flower, stList *chosenAdjacencyEdges, stHash *nodesToEnds) {
+static stHash *getEndsToEnds(Flower *flower, stList *chosenAdjacencyEdges, stHash *nodesToEnds, int64_t numberOfNsForScaffoldGap) {
     /*
      * Get a hash of matched ends.
      */
@@ -654,7 +654,7 @@ static stHash *getEndsToEnds(Flower *flower, stList *chosenAdjacencyEdges, stHas
             /*
              * We build a 'bridging block' between ends in different groups.
              */
-            Block *block = block_construct(1, flower);
+            Block *block = block_construct(numberOfNsForScaffoldGap, flower);
             if (flower_builtTrees(flower)) { //Add a root segment
                 Event *event = eventTree_getRootEvent(flower_getEventTree(flower));
                 assert(event != NULL);
@@ -685,8 +685,8 @@ static stHash *getEndsToEnds(Flower *flower, stList *chosenAdjacencyEdges, stHas
     return endsToEnds;
 }
 
-static void makeReferenceThreads(Flower *flower, stList *chosenAdjacencyEdges, stHash *nodesToEnds, Event *referenceEvent) {
-    stHash *endsToEnds = getEndsToEnds(flower, chosenAdjacencyEdges, nodesToEnds);
+static void makeReferenceThreads(Flower *flower, stList *chosenAdjacencyEdges, stHash *nodesToEnds, Event *referenceEvent, int64_t numberOfNsForScaffoldGap) {
+    stHash *endsToEnds = getEndsToEnds(flower, chosenAdjacencyEdges, nodesToEnds, numberOfNsForScaffoldGap);
     makeThreads(endsToEnds, flower, referenceEvent);
     stHash_destruct(endsToEnds);
 }
@@ -812,7 +812,7 @@ bool referenceSplitFn(int64_t pNode, reference *ref, void *extraArgs) {
 
 void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int64_t permutations,
         stList *(*matchingAlgorithm)(stList *edges, int64_t nodeNumber), double(*temperature)(double), double theta,
-        int64_t maxWalkForCalculatingZ, bool ignoreUnalignedGaps, double wiggle) {
+        int64_t maxWalkForCalculatingZ, bool ignoreUnalignedGaps, double wiggle, int64_t numberOfNsForScaffoldGap) {
     /*
      * Implements a greedy algorithm and greedy update sampler to find a solution to the adjacency problem for a net.
      */
@@ -938,7 +938,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     /*
      * Add the reference genome into flower
      */
-    makeReferenceThreads(flower, chosenEdges, nodesToEnds, referenceEvent);
+    makeReferenceThreads(flower, chosenEdges, nodesToEnds, referenceEvent, numberOfNsForScaffoldGap);
 
     /*
      * Ensure the newly created ends have a group.

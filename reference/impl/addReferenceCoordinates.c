@@ -180,10 +180,39 @@ static char *terminalAdjacencyWriteFn(Cap *cap) {
 static Name segmentWriteFnOutgroupEventName;
 
 static char *segmentWriteFn(Segment *segment) {
-    return getConsensusString(segment_getBlock(segment), segmentWriteFnOutgroupEventName);
+    char *segmentString = getConsensusString(segment_getBlock(segment), segmentWriteFnOutgroupEventName);
+    //We append a zero to a segment string if it is part of block containing only a reference segment, else we append a 1.
+    //We use these boolean values to determine if a sequence contains only these trivial strings, and is therefore trivial.
+    char *appendedSegmentString = stString_print("%s%c ", segmentString, block_getInstanceNumber(segment_getBlock(segment)) == 1 ? '0' : '1');
+    free(segmentString);
+    return appendedSegmentString;
 }
 
-static MetaSequence *addMetaSequence(Flower *flower, Cap *cap, int64_t index, char *string) {
+/*
+ * A thread is trivial if all the segments it contains come from blocks containing only a reference segment.
+ * These reference only segments represent scaffold gaps. At the same time, it processes the thread string
+ * to remove the boolean values use to indicate if a thread is trivial or not.
+ */
+static bool isTrivialString(char **threadString) {
+    stList *strings = stString_split(*threadString); //Split splits into individual segments.
+    bool trivialString = 1;
+    for(int64_t i=0; i<stList_length(strings); i++) {
+        char *segmentString = stList_get(strings, i);
+        int64_t j = strlen(segmentString)-1; //Location of the boolean value within a segment.
+        assert(j > 0);
+        assert(segmentString[j] == '0' || segmentString[j] == '1');
+        if(segmentString[j] == '1') { //Found a non-trivial segment, hence the thread is non-trivial.
+            trivialString = 0;
+        }
+        segmentString[j] = '\0';
+    }
+    free(*threadString); //Free old thread string. Doing it this way is a bit more memory efficient, as we don't keep two copies of the string around.
+    *threadString = stString_join2("", strings); //Concatenation makes one sequence, now without the booleans.
+    stList_destruct(strings);
+    return trivialString;
+}
+
+static MetaSequence *addMetaSequence(Flower *flower, Cap *cap, int64_t index, char *string, bool trivialString) {
     /*
      * Adds a meta sequence representing a top level thread to the cactus disk.
      * The sequence is all 'N's at this stage.
@@ -192,8 +221,8 @@ static MetaSequence *addMetaSequence(Flower *flower, Cap *cap, int64_t index, ch
     assert(referenceEvent != NULL);
     char *sequenceName = stString_print("%srefChr%" PRIi64 "", event_getHeader(referenceEvent), index);
     //char *sequenceName = stString_print("refChr%" PRIi64 "", index);
-    MetaSequence *metaSequence = metaSequence_construct(1, strlen(string), string, sequenceName,
-            event_getName(referenceEvent), flower_getCactusDisk(flower));
+    MetaSequence *metaSequence = metaSequence_construct3(1, strlen(string), string, sequenceName,
+            event_getName(referenceEvent), trivialString, flower_getCactusDisk(flower));
     free(sequenceName);
     return metaSequence;
 }
@@ -274,16 +303,22 @@ void bottomUp(stList *flowers, stKVDatabase *sequenceDatabase, Name referenceEve
                 terminalAdjacencyWriteFn);
         assert(stList_length(threadStrings) == stList_length(caps));
 
+        int64_t nonTrivialSeqIndex = 0, trivialSeqIndex = stList_length(threadStrings); //These are used as indices for the names of trivial and non-trivial sequences.
         for (int64_t i = 0; i < stList_length(threadStrings); i++) {
             Cap *cap = stList_get(caps, i);
             assert(cap_getStrand(cap));
             assert(!cap_getSide(cap));
             Flower *flower = end_getFlower(cap_getEnd(cap));
-            MetaSequence *metaSequence = addMetaSequence(flower, cap, i, stList_get(threadStrings, i));
+            char *threadString = stList_get(threadStrings, i);
+            bool trivialString = isTrivialString(&threadString); //This alters the original string
+            MetaSequence *metaSequence = addMetaSequence(flower, cap, (trivialString ? trivialSeqIndex : nonTrivialSeqIndex)++,
+                    threadString, trivialString);
+            free(threadString);
             int64_t endCoordinate = setCoordinates(flower, metaSequence, cap, metaSequence_getStart(metaSequence) - 1);
             (void) endCoordinate;
             assert(endCoordinate == metaSequence_getLength(metaSequence) + metaSequence_getStart(metaSequence));
         }
+        stList_setDestructor(threadStrings, NULL); //The strings are already cleaned up by the above loop
         stList_destruct(threadStrings);
     } else {
         buildRecursiveThreads(sequenceDatabase, caps, segmentWriteFn, terminalAdjacencyWriteFn);
