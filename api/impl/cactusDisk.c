@@ -725,23 +725,26 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
 
     st_logDebug("Avoided updating nets marked for deletion\n");
 
-    //Sort sequences to insert
+    // Insert and/or update meta-sequences.
     it = stSortedSet_getIterator(cactusDisk->metaSequences);
     MetaSequence *metaSequence;
     while ((metaSequence = stSortedSet_getNext(it)) != NULL) {
-        if (!containsRecord(cactusDisk, metaSequence_getName(metaSequence))) { //We do not edit meta sequences, so we do not update it..
-            void
-                    *vA =
-                            binaryRepresentation_makeBinaryRepresentation(
-                                    metaSequence,
-                                    (void(*)(void *, void(*)(const void * ptr, size_t size, size_t count))) metaSequence_writeBinaryRepresentation,
-                                    &recordSize);
-            //Compression
-            vA = compress(vA, &recordSize);
+        void
+            *vA =
+            binaryRepresentation_makeBinaryRepresentation(
+                metaSequence,
+                (void(*)(void *, void(*)(const void * ptr, size_t size, size_t count))) metaSequence_writeBinaryRepresentation,
+                &recordSize);
+        //Compression
+        vA = compress(vA, &recordSize);
+        if (!containsRecord(cactusDisk, metaSequence_getName(metaSequence))) {
             stList_append(cactusDisk->updateRequests,
-                    stKVDatabaseBulkRequest_constructInsertRequest(metaSequence_getName(metaSequence), vA, recordSize));
-            free(vA);
+                          stKVDatabaseBulkRequest_constructInsertRequest(metaSequence_getName(metaSequence), vA, recordSize));
+        } else {
+            stList_append(cactusDisk->updateRequests,
+                          stKVDatabaseBulkRequest_constructUpdateRequest(metaSequence_getName(metaSequence), vA, recordSize));
         }
+        free(vA);
     }
     stSortedSet_destructIterator(it);
 

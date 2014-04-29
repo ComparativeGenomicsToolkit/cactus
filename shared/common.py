@@ -181,6 +181,9 @@ def runCactusBlast(sequenceFiles, outputFile, jobTreeDir,
 def runConvertAlignmentsToInternalNames(cactusDiskString, alignmentsFile, outputFile, flowerName):
     popenCatch("cactus_convertAlignmentsToInternalNames --cactusDisk '%s' %s %s" % (cactusDiskString, alignmentsFile, outputFile), stdinString=encodeFlowerNames((flowerName,)))
 
+def runStripUniqueIDs(cactusDiskString):
+    system("cactus_stripUniqueIDs --cactusDisk '%s'" % cactusDiskString)
+
 def runCactusCaf(cactusDiskDatabaseString, alignments, 
                   flowerNames=encodeFlowerNames((0,)),
                   logLevel=None, 

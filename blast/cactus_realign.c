@@ -127,6 +127,14 @@ stList *splitPairwiseAlignment(const struct PairwiseAlignment *pA,
                 curStart2 = curPos2;
                 curEnd1 = curStart1;
                 curEnd2 = curStart2;
+            } else if (curOperationList->length == 0) {
+                // Indel run at the start of the alignment
+                curOperationList = constructEmptyList(0, (void (*)(void *))destructAlignmentOperation);
+                indelOpList = constructEmptyList(0, (void (*)(void *))destructAlignmentOperation);
+                curStart1 = curPos1;
+                curStart2 = curPos2;
+                curEnd1 = curStart1;
+                curEnd2 = curStart2;
             }
             curIndelRunLength = 0;
             // Since we're keeping the indel run, (or we've already
@@ -414,7 +422,7 @@ int main(int argc, char *argv[]) {
         } else {
             alignedPairs = getAlignedPairsUsingAnchors(subSeqX, subSeqY, filteredAnchoredPairs, pairwiseAlignmentBandingParameters, 1, 1);
             //Convert to partial ordered set of pairs
-            if(gapGamma < 0.55) { //Shouldn't be needed if we only take pairs with > 50% posterior prob
+            if(1) { //Shouldn't be needed if we only take pairs with > 50% posterior prob
                 stList_destruct(filterPairwiseAlignmentToMakePairsOrdered(alignedPairs, gapGamma));
             }
             else { //Just filter by gap gamma (the alterative is quite expensive)
@@ -445,7 +453,7 @@ int main(int argc, char *argv[]) {
         rebasePairwiseAlignmentCoordinates(&(rPA->start2), &(rPA->end2), &(rPA->strand2), coordinateShift2, flipStrand2);
         checkPairwiseAlignment(rPA);
         //Write out alignment
-        if(splitIndelsLongerThanThis != -1 && hasLongIndel(rPA, splitIndelsLongerThanThis)) {
+        if(splitIndelsLongerThanThis != -1) {
             // Write multiple split alignments
             stList *pAs = splitPairwiseAlignment(rPA, splitIndelsLongerThanThis);
             for(i = 0; i < stList_length(pAs); i++) {

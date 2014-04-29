@@ -75,6 +75,12 @@ const char *metaSequence_getHeader(MetaSequence *metaSequence) {
 	return metaSequence->header;
 }
 
+void metaSequence_setHeader(MetaSequence *metaSequence,
+                            char *newHeader) {
+	free(metaSequence->header);
+	metaSequence->header = newHeader;
+}
+
 /*
  * Serialisation functions.
  */

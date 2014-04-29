@@ -56,4 +56,9 @@ char *metaSequence_getString(MetaSequence *metaSequence, int64_t start, int64_t 
  */
 const char *metaSequence_getHeader(MetaSequence *metaSequence);
 
+/*
+ * Sets the header line associated with the meta sequence.
+ */
+void metaSequence_setHeader(MetaSequence *metaSequence, char *newHeader);
+
 #endif

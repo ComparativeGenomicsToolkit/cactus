@@ -56,6 +56,7 @@ from cactus.shared.common import runCactusSecondaryDatabase
 from cactus.shared.common import runCactusFastaGenerator
 from cactus.shared.common import findRequiredNode
 from cactus.shared.common import runConvertAlignmentsToInternalNames
+from cactus.shared.common import runStripUniqueIDs
 
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.blast.cactus_blast import BlastIngroupsAndOutgroups
@@ -263,6 +264,28 @@ class CactusRecursionTarget(CactusTarget):
 ############################################################
 ############################################################
 
+def prependUniqueIDs(fas, outputDir):
+    """Prepend unique ints to fasta headers.
+
+    (prepend rather than append since trimmed outgroups have a start
+    token appended, which complicates removal slightly)
+    """
+    uniqueID = 0
+    ret = []
+    for fa in fas:
+        outPath = getTempFile(os.path.basename(fa), rootDir=outputDir)
+        out = open(outPath, 'w')
+        for line in open(fa):
+            if len(line) > 0 and line[0] == '>':
+                tokens = line[1:].split()
+                tokens[0] = "id=%d|%s" % (uniqueID, tokens[0])
+                out.write(">%s\n" % "".join(tokens))
+            else:
+                out.write(line)
+        ret.append(outPath)
+        uniqueID += 1
+    return ret
+
 def setupDivergenceArgs(cactusWorkflowArguments):
     #Adapt the config file to use arguments for the appropriate divergence distance
     cactusWorkflowArguments.longestPath = getLongestPath(newickTreeParser(cactusWorkflowArguments.speciesTree))
@@ -292,12 +315,17 @@ class CactusTrimmingBlastPhase(CactusPhasesTarget):
 
         self.logToMaster("Running blast using the trimming strategy")
 
-        outgroupsDir = os.path.join(self.getGlobalTempDir(), "outgroups/")
+        outgroupsDir = os.path.join(self.getGlobalTempDir(), "outgroupFragments/")
         os.mkdir(outgroupsDir)
 
         # Get ingroup and outgroup sequences
         exp = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
         seqMap = exp.buildSequenceMap()
+        # Prepend unique ID to fasta headers to prevent name collision
+        renamedInputSeqDir = os.path.join(self.getGlobalTempDir(), "renamedInputs")
+        os.mkdir(renamedInputSeqDir)
+        uniqueFas = prependUniqueIDs(seqMap.values(), renamedInputSeqDir)
+        seqMap = dict(zip(seqMap.keys(), uniqueFas))
         ingroups = map(lambda x: x[1], filter(lambda x: x[0] not in exp.getOutgroupEvents(), seqMap.items()))
         outgroups = map(lambda x: x[1], filter(lambda x: x[0] in exp.getOutgroupEvents(), seqMap.items()))
         self.logToMaster("Ingroup sequences: %s" % (ingroups))
@@ -432,6 +460,9 @@ class CactusCafPhase(CactusPhasesTarget):
             runConvertAlignmentsToInternalNames(self.cactusWorkflowArguments.cactusDiskDatabaseString, self.phaseNode.attrib["alignments"], convertedAlignmentsFile, self.topFlowerName)
             self.logToMaster("Converted headers of cigar file %s to internal names, new file %s" % (self.phaseNode.attrib["alignments"], convertedAlignmentsFile))
             self.phaseNode.attrib["alignments"] = convertedAlignmentsFile
+            # While we're at it, remove the unique IDs prepended to
+            # the headers inside the cactus DB.
+            runStripUniqueIDs(self.cactusWorkflowArguments.cactusDiskDatabaseString)
             self.runPhase(CactusCafWrapperLarge2, CactusBarPhase, "bar")
         elif self.getPhaseIndex()+1 < self.getPhaseNumber(): #Check if there is a repeat phase
             self.runPhase(CactusCafRecursion, CactusCafPhase, "caf", index=self.getPhaseIndex()+1)
