@@ -64,6 +64,13 @@ static void fillCoverage(struct PairwiseAlignment *pA, int contigNum,
     int64_t endPos = contigNum == 1 ? pA->end1 : pA->end2;
     (void)endPos; //Avoid compile warning of unused variable.
     int64_t i, j;
+    int64_t *lenPtr = stHash_search(sequenceLengths, contigNum == 1 ? pA->contig1 : pA->contig2);
+    assert(lenPtr != NULL);
+    int64_t len = *lenPtr;
+    if(endPos > len) {
+        fprintf(stderr, "Error: alignment on %s:%" PRIi64 "-%" PRIi64 " is past chr end\n", contigNum == 1 ? pA->contig1 : pA->contig2, startPos, endPos);
+        exit(1);
+    }
     int64_t curAlignmentPos = startPos;
     for(i = 0; i < pA->operationList->length; i++) {
         struct AlignmentOperation *op = pA->operationList->list[i];
