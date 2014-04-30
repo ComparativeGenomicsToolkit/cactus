@@ -47,12 +47,16 @@ static void printCoverage(char *name, uint16_t *array, int64_t length) {
     for(i = 0; i < length; i++) {
         if(array[i] != prevCoverage) {
             if(prevCoverage != 0) {
-                printf("%s\t%" PRIi64 "\t%" PRIi64 "\t\t%u\n", name, 
+                printf("%s\t%" PRIi64 "\t%" PRIi64 "\t\t%u\n", name,
                        regionStart, i, prevCoverage);
             }
             regionStart = i;
         }
         prevCoverage = array[i];
+    }
+    if(prevCoverage != 0) {
+        printf("%s\t%" PRIi64 "\t%" PRIi64 "\t\t%u\n", name,
+               regionStart, i, prevCoverage);
     }
 }
 
@@ -62,7 +66,6 @@ static void fillCoverage(struct PairwiseAlignment *pA, int contigNum,
     int strand = contigNum == 1 ? pA->strand1 : pA->strand2;
     int64_t startPos = contigNum == 1 ? pA->start1 : pA->start2;
     int64_t endPos = contigNum == 1 ? pA->end1 : pA->end2;
-    (void)endPos; //Avoid compile warning of unused variable.
     int64_t i, j;
     int64_t *lenPtr = stHash_search(sequenceLengths, contigNum == 1 ? pA->contig1 : pA->contig2);
     assert(lenPtr != NULL);
