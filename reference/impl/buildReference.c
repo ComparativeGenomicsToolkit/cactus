@@ -638,6 +638,23 @@ static void mapEnds(stHash *endsToEnds, End *end1, End *end2) {
     stHash_insert(endsToEnds, end2, end1);
 }
 
+static bool endsAreConnected(End *end1, End *end2) {
+	/*
+	 * Determines if there is any adjacency connecting the two ends.
+	 */
+    End_InstanceIterator *capIt = end_getInstanceIterator(end1);
+    Cap *cap;
+    while((cap = end_getNext(capIt)) != NULL) {
+        Cap *adjCap = cap_getAdjacency(cap);
+        if(adjCap != NULL && end_getName(cap_getEnd(adjCap)) == end_getName(end2)) {
+            end_destructInstanceIterator(capIt);
+            return 1;
+        }
+    }
+    end_destructInstanceIterator(capIt);
+    return 0;
+}
+
 static stHash *getEndsToEnds(Flower *flower, stList *chosenAdjacencyEdges, stHash *nodesToEnds, int64_t numberOfNsForScaffoldGap) {
     /*
      * Get a hash of matched ends.
@@ -650,9 +667,12 @@ static stHash *getEndsToEnds(Flower *flower, stList *chosenAdjacencyEdges, stHas
         assert(end1 != NULL);
         assert(end2 != NULL);
         assert(end1 != end2);
-        if (end_getGroup(end1) != NULL && end_getGroup(end2) != NULL && end_getGroup(end1) != end_getGroup(end2)) {
+        if (end_getGroup(end1) != NULL && end_getGroup(end2) != NULL && !endsAreConnected(end1, end2)) {
             /*
-             * We build a 'bridging block' between ends in different groups.
+             * We build a 'scaffolding block' between ends
+             *
+             * We require the ends that are being scaffolded to already have groups, else they must themselves the
+             * ends of scaffolding blocks, so we don't add additional scaffold gaps.
              */
             Block *block = block_construct(numberOfNsForScaffoldGap, flower);
             if (flower_builtTrees(flower)) { //Add a root segment
@@ -660,11 +680,9 @@ static stHash *getEndsToEnds(Flower *flower, stList *chosenAdjacencyEdges, stHas
                 assert(event != NULL);
                 block_setRootInstance(block, segment_construct(block, event));
             }
-
             end_setGroup(block_get5End(block), end_getGroup(end1));
             assert(group_isTangle(end_getGroup(end1)));
             mapEnds(endsToEnds, end1, block_get5End(block));
-
             end_setGroup(block_get3End(block), end_getGroup(end2));
             assert(group_isTangle(end_getGroup(end2)));
             mapEnds(endsToEnds, end2, block_get3End(block));
@@ -791,6 +809,7 @@ bool referenceSplitFn(int64_t pNode, reference *ref, void *extraArgs) {
         return 0;
     }
 	//We do not split edges that have direct sequence support.
+    return 1;
 	if(refAdjList_getWeight(dAL, -pNode, reference_getNext(ref, pNode)) > 0.0) {
 		return 0;
 	}
@@ -802,6 +821,18 @@ bool referenceSplitFn(int64_t pNode, reference *ref, void *extraArgs) {
 	//Now decide if the edge is sufficiently supported, despite lacking direct adjacency.
 	//refAdjList *aL = ((void **)extraArgs)[3];
 	return 1; //st_random() > 0.5;
+}
+
+stList *getReferenceIntervalsToPreserve(reference *ref) {
+    stList *referenceIntervalsToPreserve = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
+    for(int64_t interval=0; interval<reference_getIntervalNumber(ref); interval++) {
+        int64_t firstNode = reference_getFirstOfInterval(ref, interval);
+        int64_t lastNode = reference_getLast(ref, firstNode);
+        if(1) { //Decide if we want to preserve the interval
+            stList_append(referenceIntervalsToPreserve, stIntTuple_construct2(firstNode, lastNode));
+        }
+    }
+    return referenceIntervalsToPreserve;
 }
 
 ////////////////////////////////////
@@ -854,6 +885,11 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     reference *ref = getEmptyReference(flower, endsToNodes, nodeNumber, referenceEvent, matchingAlgorithm, stubTangleEnds);
     assert(reference_getIntervalNumber(ref) == stList_length(stubTangleEnds) / 2);
     reference_log(ref);
+
+    /*
+     * Determine which adjacencies between stubs must be preserved (i.e. scaffolded if necessary)
+     */
+    stList *referenceIntervalsToPreserve = getReferenceIntervalsToPreserve(ref); //List of int-tuple pairs identifying the matchings between ends that should be preserved.
 
     /*
      * Check the edges and nodes before starting to calculate the matching.
@@ -911,6 +947,13 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     void *extraArgs[4] = { nodesToEnds, dAL, &onlyDirectAdjacencies, aL };
     stList *extraStubNodes = splitReferenceAtIndicatedLocations(ref, referenceSplitFn, extraArgs);
 
+    /*
+     * Now re-join together pairs that need to be scaffolded together.
+     */
+    stList *prunedExtraStubNodes = remakeReferenceIntervals(ref, referenceIntervalsToPreserve, extraStubNodes);
+    //stList *prunedExtraStubNodes = stList_copy(extraStubNodes, NULL);
+    stList_destruct(referenceIntervalsToPreserve); //Clean this up.
+
     //The aL and dAL arrays are no longer valid as we've added additional nodes to the reference, let's clean up the arrays explicitly.
     refAdjList_destruct(aL);
     refAdjList_destruct(dAL);
@@ -918,7 +961,8 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     /*
      * Convert the additional stub nodes into new stub ends, updating the endsToNodes and nodesToEnds sets.
      */
-    addAdditionalStubEnds(extraStubNodes, flower, nodesToEnds, newEnds);
+    addAdditionalStubEnds(prunedExtraStubNodes, flower, nodesToEnds, newEnds);
+    stList_destruct(prunedExtraStubNodes);
 
     /*
      * Convert the reference into a list of adjacency edges.

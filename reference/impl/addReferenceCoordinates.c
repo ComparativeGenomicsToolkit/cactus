@@ -311,7 +311,7 @@ void bottomUp(stList *flowers, stKVDatabase *sequenceDatabase, Name referenceEve
             Flower *flower = end_getFlower(cap_getEnd(cap));
             char *threadString = stList_get(threadStrings, i);
             bool trivialString = isTrivialString(&threadString); //This alters the original string
-            MetaSequence *metaSequence = addMetaSequence(flower, cap, (trivialString ? trivialSeqIndex : nonTrivialSeqIndex)++,
+            MetaSequence *metaSequence = addMetaSequence(flower, cap, trivialString ? trivialSeqIndex++ : nonTrivialSeqIndex++,
                     threadString, trivialString);
             free(threadString);
             int64_t endCoordinate = setCoordinates(flower, metaSequence, cap, metaSequence_getStart(metaSequence) - 1);
