@@ -4,6 +4,9 @@ from collections import defaultdict
 from operator import itemgetter
 
 def windowFilter(windowSize, threshold, blockDict, seqLengths):
+    if windowSize == 1 and threshold == 1:
+        # Don't need to do expensive window-filtering
+        return blockDict
     ret = defaultdict(list)
     for seq, blocks in blockDict.items():
         curBlock = 0

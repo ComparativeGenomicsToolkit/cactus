@@ -324,8 +324,6 @@ class TrimAndRecurseOnOutgroups(Target):
                                   coverageFile)
 
                 trimmed = getTempFile(rootDir=self.getGlobalTempDir())
-                # FIXME: allow these parameters to be specified on the
-                # commandline.
                 trimGenome(sequenceFile, coverageFile, trimmed,
                            complement=True, flanking=self.blastOptions.trimFlanking,
                            minSize=self.blastOptions.trimMinSize,
