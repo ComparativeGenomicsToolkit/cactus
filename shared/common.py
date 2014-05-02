@@ -328,7 +328,10 @@ def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
                        theta=None,
                        maxWalkForCalculatingZ=None,
                        ignoreUnalignedGaps=None,
-                       wiggle=None):
+                       wiggle=None, 
+                       numberOfNs=None,
+                       minNumberOfSequencesToSupportAdjacency=None,
+                       makeScaffolds=None):
     """Runs cactus reference.
     """
     logLevel = getLogLevelString2(logLevel)
@@ -340,9 +343,12 @@ def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
     maxWalkForCalculatingZ = nameValue("maxWalkForCalculatingZ", maxWalkForCalculatingZ, int)
     ignoreUnalignedGaps = nameValue("ignoreUnalignedGaps", ignoreUnalignedGaps, bool)
     wiggle = nameValue("wiggle", wiggle, float)
-    command = "cactus_reference --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s" % \
+    numberOfNs = nameValue("numberOfNs", numberOfNs, int)
+    minNumberOfSequencesToSupportAdjacency = nameValue("minNumberOfSequencesToSupportAdjacency", minNumberOfSequencesToSupportAdjacency, int)
+    makeScaffolds = nameValue("makeScaffolds", makeScaffolds, bool)
+    command = "cactus_reference --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s" % \
     (cactusDiskDatabaseString, logLevel, matchingAlgorithm, referenceEventString, permutations, 
-     useSimulatedAnnealing, theta, maxWalkForCalculatingZ, ignoreUnalignedGaps, wiggle)
+     useSimulatedAnnealing, theta, maxWalkForCalculatingZ, ignoreUnalignedGaps, wiggle, numberOfNs, minNumberOfSequencesToSupportAdjacency, makeScaffolds)
     popenPush(command, stdinString=flowerNames)
     
 def runCactusAddReferenceCoordinates(cactusDiskDatabaseString, flowerNames, logLevel=None, referenceEventString=None, outgroupEventString=None, secondaryDatabaseString=None, bottomUpPhase=None):   

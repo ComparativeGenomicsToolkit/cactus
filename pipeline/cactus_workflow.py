@@ -658,8 +658,11 @@ class CactusReferenceWrapper(CactusRecursionTarget):
                        theta=self.getOptionalPhaseAttrib("theta", float),
                        maxWalkForCalculatingZ=self.getOptionalPhaseAttrib("maxWalkForCalculatingZ", int),
                        ignoreUnalignedGaps=self.getOptionalPhaseAttrib("ignoreUnalignedGaps", bool),
-                       wiggle=self.getOptionalPhaseAttrib("wiggle", float))
-        
+                       wiggle=self.getOptionalPhaseAttrib("wiggle", float),
+                       numberOfNs=self.getOptionalPhaseAttrib("numberOfNs", int),
+                       minNumberOfSequencesToSupportAdjacency=self.getOptionalPhaseAttrib("minNumberOfSequencesToSupportAdjacency", int),
+                       makeScaffolds=self.getOptionalPhaseAttrib("makeScaffolds", bool))
+
 class CactusReferenceRecursion2(CactusRecursionTarget):
     def run(self):
         self.makeRecursiveTargets(target=CactusReferenceRecursion)

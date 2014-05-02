@@ -110,11 +110,14 @@
 		matchingAlgorithm="blossom5" 
 		reference="reference" 
 		useSimulatedAnnealing="1" 
-		theta="0.0001" 
+		theta="0.0001"        
 		maxWalkForCalculatingZ="100000" 
 		permutations="10"
 		ignoreUnalignedGaps="1"
 		wiggle="0.9999"
+		numberOfNs="10"
+		minNumberOfSequencesToSupportAdjacency="1"
+		makeScaffolds="1"
 	>
 		<CactusReferenceRecursion maxFlowerGroupSize="maxFlowerGroupSizeRecursion" maxFlowerWrapperGroupSize="50000000"/>
 	 	<CactusReferenceWrapper/>

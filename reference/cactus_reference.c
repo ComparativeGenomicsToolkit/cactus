@@ -42,6 +42,13 @@ void usage() {
     fprintf(
     stderr, "-o --numberOfNs : The number of N characters to place in a scaffold gap. Default=10. Must be >=1\n");
 
+    fprintf(
+    stderr,
+            "-p --minNumberOfSequencesToSupportAdjacency : Min number of sequences to support an ancestral adjacency call. Default=1. Must be >=0\n");
+
+    fprintf(
+    stderr, "-q --makeScaffolds : Scaffold across regions of adjacency uncertainty.\n");
+
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -66,6 +73,8 @@ int main(int argc, char *argv[]) {
     bool ignoreUnalignedGaps = 0;
     double wiggle = 0.95;
     int64_t numberOfNsForScaffoldGap = 10;
+    int64_t minNumberOfSequencesToSupportAdjacency = 1;
+    bool makeScaffolds = 0;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -74,15 +83,16 @@ int main(int argc, char *argv[]) {
     while (1) {
         static struct option long_options[] = { { "logLevel",
         required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0, 'c' }, { "matchingAlgorithm",
-                required_argument, 0, 'e' }, { "referenceEventString", required_argument, 0, 'g' }, { "permutations",
-                required_argument, 0, 'i' }, { "useSimulatedAnnealing", no_argument, 0, 'j' }, { "theta",
+        required_argument, 0, 'e' }, { "referenceEventString", required_argument, 0, 'g' }, { "permutations",
+        required_argument, 0, 'i' }, { "useSimulatedAnnealing", no_argument, 0, 'j' }, { "theta",
         required_argument, 0, 'k' }, { "maxWalkForCalculatingZ", required_argument, 0, 'l' }, { "ignoreUnalignedGaps",
-                no_argument, 0, 'm' }, { "wiggle", required_argument, 0, 'n' }, { "numberOfNs", required_argument, 0,
-                'o' }, { "help", no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
+        no_argument, 0, 'm' }, { "wiggle", required_argument, 0, 'n' }, { "numberOfNs", required_argument, 0, 'o' }, {
+                "minNumberOfSequencesToSupportAdjacency", required_argument, 0, 'p' }, { "makeScaffolds", no_argument,
+                0, 'q' }, { "help", no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:c:e:g:i:jk:hl:mn:o:", long_options, &option_index);
+        int key = getopt_long(argc, argv, "a:c:e:g:i:jk:hl:mn:o:p:q", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -153,8 +163,22 @@ int main(int argc, char *argv[]) {
             j = sscanf(optarg, "%" PRIi64 "", &numberOfNsForScaffoldGap);
             assert(j == 1);
             if (numberOfNsForScaffoldGap < 1) {
-                stThrowNew(REFERENCE_BUILDING_EXCEPTION, "Number of Ns for scaffold gap is not valid (must be >= 1): %" PRIi64 "", numberOfNsForScaffoldGap);
+                stThrowNew(REFERENCE_BUILDING_EXCEPTION,
+                        "Number of Ns for scaffold gap is not valid (must be >= 1): %" PRIi64 "",
+                        numberOfNsForScaffoldGap);
             }
+            break;
+        case 'p':
+            j = sscanf(optarg, "%" PRIi64 "", &minNumberOfSequencesToSupportAdjacency);
+            assert(j == 1);
+            if (minNumberOfSequencesToSupportAdjacency < 0) {
+                stThrowNew(REFERENCE_BUILDING_EXCEPTION,
+                        "minNumberOfSequencesToSupportAdjacency is not valid (must be >= 1): %" PRIi64 "",
+                        minNumberOfSequencesToSupportAdjacency);
+            }
+            break;
+        case 'q':
+            makeScaffolds = 1;
             break;
         default:
             usage();
@@ -174,6 +198,12 @@ int main(int argc, char *argv[]) {
     st_logInfo("Simulated annealing is %" PRIi64 "\n", useSimulatedAnnealing);
     st_logInfo("Max number of segments in thread to calculate z-score between is %" PRIi64 "\n",
             maxWalkForCalculatingZ);
+    st_logInfo("Wiggle is %f\n", wiggle);
+    st_logInfo("Max number of Ns for a scaffold gap is: %" PRIi64 "\n",
+            numberOfNsForScaffoldGap);
+    st_logInfo("Min number of sequences to required to support an adjacency is: %" PRIi64 "\n",
+                minNumberOfSequencesToSupportAdjacency);
+    st_logInfo("Make scaffolds is: %i\n", makeScaffolds);
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Check the inputs.
@@ -204,14 +234,16 @@ int main(int argc, char *argv[]) {
         st_logInfo("Processing a flower\n");
         if (!flower_hasParentGroup(flower)) {
             buildReferenceTopDown(flower, referenceEventString, permutations, matchingAlgorithm, temperatureFn, theta,
-                    maxWalkForCalculatingZ, ignoreUnalignedGaps, wiggle, numberOfNsForScaffoldGap);
+                    maxWalkForCalculatingZ, ignoreUnalignedGaps, wiggle, numberOfNsForScaffoldGap,
+                    minNumberOfSequencesToSupportAdjacency, makeScaffolds);
         }
         Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
         Group *group;
         while ((group = flower_getNextGroup(groupIt)) != NULL) {
             if (group_getNestedFlower(group) != NULL) {
                 buildReferenceTopDown(group_getNestedFlower(group), referenceEventString, permutations,
-                        matchingAlgorithm, temperatureFn, theta, maxWalkForCalculatingZ, ignoreUnalignedGaps, wiggle, numberOfNsForScaffoldGap);
+                        matchingAlgorithm, temperatureFn, theta, maxWalkForCalculatingZ, ignoreUnalignedGaps, wiggle,
+                        numberOfNsForScaffoldGap, minNumberOfSequencesToSupportAdjacency, makeScaffolds);
             }
         }
         flower_destructGroupIterator(groupIt);
