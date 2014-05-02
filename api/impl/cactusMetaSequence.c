@@ -82,8 +82,15 @@ const char *metaSequence_getHeader(MetaSequence *metaSequence) {
 	return metaSequence->header;
 }
 
+
 bool metaSequence_isTrivialSequence(MetaSequence *metaSequence) {
     return metaSequence->isTrivialSequence;
+}
+
+void metaSequence_setHeader(MetaSequence *metaSequence,
+                            char *newHeader) {
+	free(metaSequence->header);
+	metaSequence->header = newHeader;
 }
 
 /*

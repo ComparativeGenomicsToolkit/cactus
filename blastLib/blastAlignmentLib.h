@@ -17,7 +17,7 @@ int64_t writeFlowerSequencesInFile(Flower *flower, const char *tempFile1, int64_
 
 int64_t writeFlowerSequences(Flower *flower, void(*processSequence)(const char *, const char *, int64_t), int64_t minimumSequenceLength);
 
-void convertCoordinatesOfPairwiseAlignment(struct PairwiseAlignment *pairwiseAlignment);
+void convertCoordinatesOfPairwiseAlignment(struct PairwiseAlignment *pairwiseAlignment, int convertContig1, int convertContig2);
 
 void setupToChunkSequences(int64_t chunkSize2, int64_t overlapSize2, const char *chunksDir2);
 

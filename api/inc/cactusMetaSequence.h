@@ -67,4 +67,10 @@ const char *metaSequence_getHeader(MetaSequence *metaSequence);
  */
 bool metaSequence_isTrivialSequence(MetaSequence *metaSequence);
 
+/*
+ * Sets the header line associated with the meta sequence.
+ */
+void metaSequence_setHeader(MetaSequence *metaSequence, char *newHeader);
+
+
 #endif

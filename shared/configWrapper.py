@@ -32,6 +32,7 @@ class ConfigWrapper:
     defaultOutgroupThreshold = None
     defaultOutgroupAncestorQualityFraction = 0.75
     defaultMaxParallelSubtrees = 3
+    defaultMaxNumOutgroups = 1
     
     def __init__(self, xmlRoot):
         self.xmlRoot = xmlRoot
@@ -92,6 +93,16 @@ class ConfigWrapper:
             ogElem.attrib["ancestor_quality_fraction"].lower() != 'none'):
             fraction = float(ogElem.attrib["ancestor_quality_fraction"])
         return fraction
+
+    def getMaxNumOutgroups(self):
+        ogElem = self.getOutgroupElem()
+        maxNumOutgroups = self.defaultMaxNumOutgroups
+        if (ogElem is not None and\
+            "strategy" in ogElem.attrib and\
+            ogElem.attrib["strategy"] == "greedy" and\
+            "max_num_outgroups" in ogElem.attrib):
+            maxNumOutgroups = float(ogElem.attrib["max_num_outgroups"])
+        return maxNumOutgroups
     
     def getSubtreeSize(self):
         decompElem = self.getDecompositionElem()
@@ -106,6 +117,12 @@ class ConfigWrapper:
         assert decompElem is not None
         decompElem.attrib["subtree_size"] = str(subtreeSize)
             
+    def getDoTrimStrategy(self):
+        trimBlastNode = findRequiredNode(self.xmlRoot, "trimBlast")
+        if "doTrimStrategy" in trimBlastNode.attrib:
+            return trimBlastNode.attrib["doTrimStrategy"] == "1"
+        return False
+
     def getDoSelfAlignment(self):
         decompElem = self.getDecompositionElem()
         doSelf = self.defaultDoSelf
