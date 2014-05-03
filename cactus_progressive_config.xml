@@ -30,7 +30,7 @@
         <!-- Outgroup trim options: -->
         <!-- trimOutgroupFlanking: The amount of flanking sequence to
              leave on the ends of the trimmed outgroup fragments. NB:
-             this value must be smaller than the
+             this value must be larger than the
              'splitIndelsLongerThanThis' value in the realign
              arguments -->
         <trimBlast doTrimStrategy="1"
@@ -46,7 +46,7 @@
 	<caf 
 		chunkSize="25000000" 
 		realign="1"
-		realignArguments="--rescoreByIdentity --gapGamma 0.9 --diagonalExpansion 4 --splitMatrixBiggerThanThis 10 --constraintDiagonalTrim 0 --alignAmbiguityCharacters --splitIndelsLongerThanThis 101"
+		realignArguments="--rescoreByIdentity --gapGamma 0.9 --diagonalExpansion 4 --splitMatrixBiggerThanThis 10 --constraintDiagonalTrim 0 --alignAmbiguityCharacters --splitIndelsLongerThanThis 99"
 		compressFiles="1" 
 		overlapSize="10000" 
 		filterByIdentity="1" 
