@@ -327,7 +327,7 @@ class CactusTrimmingBlastPhase(CactusPhasesTarget):
         uniqueFas = prependUniqueIDs(seqMap.values(), renamedInputSeqDir)
         seqMap = dict(zip(seqMap.keys(), uniqueFas))
         ingroups = map(lambda x: x[1], filter(lambda x: x[0] not in exp.getOutgroupEvents(), seqMap.items()))
-        outgroups = map(lambda x: x[1], filter(lambda x: x[0] in exp.getOutgroupEvents(), seqMap.items()))
+        outgroups = [seqMap[i] for i in exp.getOutgroupEvents()]
         self.logToMaster("Ingroup sequences: %s" % (ingroups))
         self.logToMaster("Outgroup sequences: %s" % (outgroups))
 
@@ -349,7 +349,7 @@ class CactusTrimmingBlastPhase(CactusPhasesTarget):
                                                         minimumSequenceLength=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "minimumSequenceLengthForBlast", int, 1),
                                                        trimFlanking=self.getOptionalPhaseAttrib("trimFlanking", int, 10),
                                                        trimMinSize=self.getOptionalPhaseAttrib("trimMinSize", int, 0),
-                                                       trimThreshold=self.getOptionalPhaseAttrib("trimThreshold", int, 1),
+                                                       trimThreshold=self.getOptionalPhaseAttrib("trimThreshold", float, 0.8),
                                                        trimWindowSize=self.getOptionalPhaseAttrib("trimWindowSize", int, 10),
                                                        trimOutgroupFlanking=self.getOptionalPhaseAttrib("trimOutgroupFlanking", int, 100)), ingroups, outgroups, alignmentsFile, outgroupsDir))
         # Point the outgroup sequences to their trimmed versions for

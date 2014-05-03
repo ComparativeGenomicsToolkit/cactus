@@ -253,7 +253,7 @@ class TrimAndRecurseOnOutgroups(Target):
             tmpIngroupCoverage = getTempFile(rootDir=self.getGlobalTempDir())
             calculateCoverage(trimmedIngroupSequence, self.mostRecentResultsFile,
                               tmpIngroupCoverage)
-            self.logToMaster("%% coverage of outgroup sequence %s on the fragments from ingroup sequence %s: %s (trimmed fragments length %d, untrimmed length %d)" % (self.outgroupSequenceFiles[0], ingroupSequence, percentCoverage(trimmedIngroupSequence, tmpIngroupCoverage), sequenceLength(trimmedIngroupSequence), sequenceLength(ingroupSequence)))
+            self.logToMaster("%% coverage of outgroup sequence %s on the fragments from ingroup sequence %s: %s (ingroup trimmed fragments length %d, untrimmed length %d)" % (self.outgroupSequenceFiles[0], ingroupSequence, percentCoverage(trimmedIngroupSequence, tmpIngroupCoverage), sequenceLength(trimmedIngroupSequence), sequenceLength(ingroupSequence)))
 
 
         # Trim outgroup, convert outgroup coordinates, and add to
@@ -287,8 +287,9 @@ class TrimAndRecurseOnOutgroups(Target):
                 outgroupConvertedResultsFile, ingroupConvertedResultsFile))
         
         # Append the latest results to the accumulated outgroup coverage file
-        system("cat %s >> %s" % (ingroupConvertedResultsFile,
-                                 self.outputFile))
+        with open(ingroupConvertedResultsFile) as results:
+            with open(self.outputFile, 'a') as output:
+                output.write(results.read())
         os.remove(outgroupConvertedResultsFile)
         os.remove(ingroupConvertedResultsFile)
 
@@ -424,7 +425,8 @@ def sequenceLength(sequenceFile):
 def percentCoverage(sequenceFile, coverageFile):
     """Get the % coverage of a sequence from a coverage file."""
     sequenceLen = sequenceLength(sequenceFile)
-    assert(sequenceLen != 0)
+    if sequenceLen == 0:
+        return 0
     coverage = popenCatch("awk '{ total += $3 - $2 } END { print total }' %s" % coverageFile)
     if coverage.strip() == '': # No coverage lines
         return 0

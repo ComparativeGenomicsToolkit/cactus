@@ -21,9 +21,10 @@
         <!-- trimMinSize: The minimum size of uncovered regions
              (*before* adding flanking sequence) to output from the
              trimming process -->
-        <!-- trimThreshold: The minimum amount of coverage for a
-             region to be trimmed away and not be aligned against the
-             next outgroup -->
+        <!-- trimThreshold: The minimum fraction of bases in a window
+             that must have coverage >= 1 for it to be considered
+             "covered" and be trimmed away and not be aligned against
+             the next outgroup -->
         <!-- trimWindowSize: The size of the window to integrate
              coverage over -->
         <!-- Outgroup trim options: -->
@@ -35,7 +36,7 @@
         <trimBlast doTrimStrategy="1"
                    trimFlanking="10"
                    trimMinSize="10"
-                   trimThreshold="1"
+                   trimThreshold="0.8"
                    trimWindowSize="10"
                    trimOutgroupFlanking="100"/>
 	<ktserver memory="mediumMemory"/>
