@@ -327,7 +327,7 @@ class CactusTrimmingBlastPhase(CactusPhasesTarget):
         uniqueFas = prependUniqueIDs(seqMap.values(), renamedInputSeqDir)
         seqMap = dict(zip(seqMap.keys(), uniqueFas))
         ingroups = map(lambda x: x[1], filter(lambda x: x[0] not in exp.getOutgroupEvents(), seqMap.items()))
-        outgroups = map(lambda x: x[1], filter(lambda x: x[0] in exp.getOutgroupEvents(), seqMap.items()))
+        outgroups = [seqMap[i] for i in exp.getOutgroupEvents()]
         self.logToMaster("Ingroup sequences: %s" % (ingroups))
         self.logToMaster("Outgroup sequences: %s" % (outgroups))
 

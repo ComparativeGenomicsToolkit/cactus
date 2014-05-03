@@ -287,8 +287,9 @@ class TrimAndRecurseOnOutgroups(Target):
                 outgroupConvertedResultsFile, ingroupConvertedResultsFile))
         
         # Append the latest results to the accumulated outgroup coverage file
-        system("cat %s >> %s" % (ingroupConvertedResultsFile,
-                                 self.outputFile))
+        with open(ingroupConvertedResultsFile) as results:
+            with open(self.outputFile, 'a') as output:
+                output.write(results.read())
         os.remove(outgroupConvertedResultsFile)
         os.remove(ingroupConvertedResultsFile)
 
@@ -424,7 +425,8 @@ def sequenceLength(sequenceFile):
 def percentCoverage(sequenceFile, coverageFile):
     """Get the % coverage of a sequence from a coverage file."""
     sequenceLen = sequenceLength(sequenceFile)
-    assert(sequenceLen != 0)
+    if sequenceLen == 0:
+        return 0
     coverage = popenCatch("awk '{ total += $3 - $2 } END { print total }' %s" % coverageFile)
     if coverage.strip() == '': # No coverage lines
         return 0
