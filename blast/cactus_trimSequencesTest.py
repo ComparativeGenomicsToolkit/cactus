@@ -1,6 +1,7 @@
 import unittest
 from textwrap import dedent
 from sonLib.bioio import popenCatch, getTempFile
+import os
 
 class TestCase(unittest.TestCase):
     def setUp(self):
@@ -22,6 +23,10 @@ class TestCase(unittest.TestCase):
         seq1\t0\t5\t\t1
         seq1\t6\t11\t\t2
         seq1\t15\t16\t\t5'''))
+
+    def tearDown(self):
+        os.remove(self.faPath)
+        os.remove(self.bedPath)
 
     def testSimplestParameters(self):
         # Test w/ no windowing, minimum size, etc to see if bed
@@ -62,11 +67,12 @@ class TestCase(unittest.TestCase):
         >seq1|14
         TGC''') in fa)
 
-    def testThreshold(self):
-        fa = popenCatch("cactus_trimSequences.py --flanking 0 --minSize 0 --windowSize 1 --threshold 2 %s %s" % (self.faPath, self.bedPath))
-        self.assertTrue(">seq1|0" not in fa)
-        self.assertTrue(">seq1|6" in fa)
-        self.assertTrue(">seq1|15" in fa)
+    # Threshold was changed to mean "% of window covered" instead.
+    # def testThreshold(self):
+    #     fa = popenCatch("cactus_trimSequences.py --flanking 0 --minSize 0 --windowSize 1 --threshold 2 %s %s" % (self.faPath, self.bedPath))
+    #     self.assertTrue(">seq1|0" not in fa)
+    #     self.assertTrue(">seq1|6" in fa)
+    #     self.assertTrue(">seq1|15" in fa)
 
     def testMinSize(self):
         fa = popenCatch("cactus_trimSequences.py --flanking 0 --minSize 2 --windowSize 1 --threshold 1 %s %s" % (self.faPath, self.bedPath))

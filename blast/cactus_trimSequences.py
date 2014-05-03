@@ -21,7 +21,8 @@ def windowFilter(windowSize, threshold, blockDict, seqLengths):
                 if block[0] > i + windowSize:
                     break
                 size = min(block[1], i + windowSize) - max(i, block[0])
-                score += block[2]*size
+                if block[2] >= 1:
+                    score += size
             score /= float(windowSize)
             if score >= threshold and not inRegion:
                 regionStart = i
@@ -146,8 +147,9 @@ def main():
     argParser.add_argument("--windowSize", type=int, default=10,
                            help="Window size for averaging "
                            "coverage over")
-    argParser.add_argument("--threshold", type=int, default=1,
-                           help="Coverage threshold")
+    argParser.add_argument("--threshold", type=float, default=0.8,
+                           help="A window is considered covered if more than "
+                           "windowSize*threshold bases are covered")
     opts = argParser.parse_args()
 
     bedFile = open(opts.bed)
