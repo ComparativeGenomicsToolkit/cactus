@@ -40,9 +40,11 @@ def validateRanges(seqRanges):
     for seq, ranges in seqRanges.items():
         for i, range in enumerate(ranges):
             start = range[0]
-            for range2 in ranges[:i]:
+            for j in xrange(i):
+                range2 = ranges[j]
                 assert start not in range2
-            for range2 in ranges[i+1:]:
+            for j in xrange(i+1,len(ranges)):
+                range2 = ranges[j]
                 assert start not in range2
 
 def upconvertCoords(cigarFile, seqRanges):

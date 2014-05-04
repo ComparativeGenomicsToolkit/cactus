@@ -252,14 +252,6 @@ class TrimAndRecurseOnOutgroups(Target):
         self.outgroupNumber = outgroupNumber
 
     def run(self):
-        # Report coverage of the latest outgroup on the trimmed ingroups.
-        for trimmedIngroupSequence, ingroupSequence in zip(self.sequenceFiles, self.untrimmedSequenceFiles):
-            tmpIngroupCoverage = getTempFile(rootDir=self.getGlobalTempDir())
-            calculateCoverage(trimmedIngroupSequence, self.mostRecentResultsFile,
-                              tmpIngroupCoverage)
-            self.logToMaster("Coverage on %s from outgroup #%d, %s: %s%% (ingroup trimmed length %d, untrimmed length %d)" % (os.path.basename(ingroupSequence), self.outgroupNumber, os.path.basename(self.outgroupSequenceFiles[0]), percentCoverage(trimmedIngroupSequence, tmpIngroupCoverage), sequenceLength(trimmedIngroupSequence), sequenceLength(ingroupSequence)))
-
-
         # Trim outgroup, convert outgroup coordinates, and add to
         # outgroup fragments dir
         trimmedOutgroup = getTempFile(rootDir=self.getGlobalTempDir())
@@ -277,8 +269,14 @@ class TrimAndRecurseOnOutgroups(Target):
                (trimmedOutgroup, self.mostRecentResultsFile,
                 outgroupConvertedResultsFile))
         system("cat %s > %s" % (trimmedOutgroup, os.path.join(self.outgroupFragmentsDir, os.path.basename(self.outgroupSequenceFiles[0]))))
-        os.remove(outgroupCoverage)
-        os.remove(trimmedOutgroup)
+
+        # Report coverage of the latest outgroup on the trimmed ingroups.
+        for trimmedIngroupSequence, ingroupSequence in zip(self.sequenceFiles, self.untrimmedSequenceFiles):
+            tmpIngroupCoverage = getTempFile(rootDir=self.getGlobalTempDir())
+            calculateCoverage(trimmedIngroupSequence, self.mostRecentResultsFile,
+                              tmpIngroupCoverage)
+            self.logToMaster("Coverage on %s from outgroup #%d, %s: %s%% (current ingroup length %d, untrimmed length %d). Outgroup trimmed to %d bp from %d" % (os.path.basename(ingroupSequence), self.outgroupNumber, os.path.basename(self.outgroupSequenceFiles[0]), percentCoverage(trimmedIngroupSequence, tmpIngroupCoverage), sequenceLength(trimmedIngroupSequence), sequenceLength(ingroupSequence), sequenceLength(trimmedOutgroup), sequenceLength(self.outgroupSequenceFiles[0])))
+
 
         # Convert the alignments' ingroup coordinates.
         ingroupConvertedResultsFile = getTempFile(rootDir=self.getGlobalTempDir())
@@ -296,6 +294,8 @@ class TrimAndRecurseOnOutgroups(Target):
                 output.write(results.read())
         os.remove(outgroupConvertedResultsFile)
         os.remove(ingroupConvertedResultsFile)
+        os.remove(outgroupCoverage)
+        os.remove(trimmedOutgroup)
 
         # Report coverage of the all outgroup alignments so far on the ingroups.
         for ingroupSequence in self.untrimmedSequenceFiles:
