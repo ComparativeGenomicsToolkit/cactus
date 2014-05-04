@@ -30,7 +30,7 @@
         <!-- Outgroup trim options: -->
         <!-- trimOutgroupFlanking: The amount of flanking sequence to
              leave on the ends of the trimmed outgroup fragments. NB:
-             this value must be smaller than the
+             this value must be larger than the
              'splitIndelsLongerThanThis' value in the realign
              arguments -->
         <trimBlast doTrimStrategy="1"

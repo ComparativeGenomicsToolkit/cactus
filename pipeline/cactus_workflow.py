@@ -273,7 +273,7 @@ def prependUniqueIDs(fas, outputDir):
     uniqueID = 0
     ret = []
     for fa in fas:
-        outPath = getTempFile(os.path.basename(fa), rootDir=outputDir)
+        outPath = os.path.join(outputDir, os.path.basename(fa))
         out = open(outPath, 'w')
         for line in open(fa):
             if len(line) > 0 and line[0] == '>':
