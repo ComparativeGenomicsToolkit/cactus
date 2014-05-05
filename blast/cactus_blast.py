@@ -265,7 +265,7 @@ class TrimAndRecurseOnOutgroups(Target):
                    trimmedOutgroup, flanking=self.blastOptions.trimOutgroupFlanking,
                    windowSize=1, threshold=1)
         outgroupConvertedResultsFile = getTempFile(rootDir=self.getGlobalTempDir())
-        system("cactus_upconvertCoordinates.py %s %s > %s" %\
+        system("cactus_upconvertCoordinates.py %s %s 1 > %s" %\
                (trimmedOutgroup, self.mostRecentResultsFile,
                 outgroupConvertedResultsFile))
         system("cat %s > %s" % (trimmedOutgroup, os.path.join(self.outgroupFragmentsDir, os.path.basename(self.outgroupSequenceFiles[0]))))
