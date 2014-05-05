@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+# FIXME: just remove trimmed header from tuple and regenerate it
+# during output, the code is too difficult to read
 from argparse import ArgumentParser
 from collections import defaultdict
 import sys
@@ -59,7 +61,7 @@ def sortCigarByContigAndPos(cigarPath, contigNum):
     contigNameKey = 2 if contigNum == 1 else 6
     startPosKey = 3 if contigNum == 1 else 7
     tempFile = getTempFile()
-    system("sort -k %d -n %s | sort -k %d > %s" % (startPosKey, cigarPath, contigNameKey, tempFile))
+    system("sort -k %d,%d -n %s | sort -s -k %d,%d > %s" % (startPosKey, startPosKey, cigarPath, contigNameKey, contigNameKey, tempFile))
     return tempFile
 
 def upconvertCoords(cigarFile, seqRanges, contigNum):
@@ -70,11 +72,11 @@ def upconvertCoords(cigarFile, seqRanges, contigNum):
     currentRangeIdx = None
     currentRange = None
     for alignment in cigarRead(cigarFile):
-        contig = alignment.contig1 if contigNum == 1 else alignment.contig2
+        # contig1 and contig2 are reversed in python api!!
+        contig = alignment.contig2 if contigNum == 1 else alignment.contig1
+        minPos = min(alignment.start2, alignment.end2) if contigNum == 1 else min(alignment.start1, alignment.end1)
+        maxPos = max(alignment.start2, alignment.end2) if contigNum == 1 else max(alignment.start1, alignment.end1)
         if contig in seqRanges:
-            minPos = min(alignment.start1, alignment.end1)
-            maxPos = max(alignment.start1, alignment.end1)
-
             if contig != currentContig:
                 currentContig = contig
                 currentRangeIdx = 0
@@ -86,18 +88,22 @@ def upconvertCoords(cigarFile, seqRanges, contigNum):
                 if maxPos - 1 not in currentRange[0]:
                     raise RuntimeError("alignment on %s:%d-%d crosses "
                                        "trimmed sequence boundary" %\
-                                       (alignment.contig1,
-                                        alignment.start1,
-                                        alignment.end1))
+                                       (contig,
+                                        minPos,
+                                        maxPos))
                 if contigNum == 1:
+                    alignment.start2 -= currentRange[0][0]
+                    alignment.end2 -= currentRange[0][0]
+                    alignment.contig2 = currentRange[1]
+                else:
                     alignment.start1 -= currentRange[0][0]
                     alignment.end1 -= currentRange[0][0]
-                    alignment.contig1 = currentRange[1]
+                    alignment.contig1 = currentRange[1]                    
             else:
                 raise RuntimeError("No trimmed sequence containing alignment "
-                                   "on %s:%d-%d" % (alignment.contig1,
-                                                    alignment.start1,
-                                                    alignment.end1))
+                                   "on %s:%d-%d" % (contig,
+                                                    minPos,
+                                                    maxPos))
         cigarWrite(sys.stdout, alignment, False)
 
 def main():
@@ -105,7 +111,7 @@ def main():
     parser.add_argument("fasta", help="Trimmed fasta file")
     parser.add_argument("cigar", help="Alignments file to convert to trimmed "
                         "coordinates")
-    parser.add_argument("contig", help="Contig # in to convert in each alignment (1 or 2)", type=int)
+    parser.add_argument("contig", help="Contig # to convert in each alignment (1 or 2)", type=int)
     args = parser.parse_args()
     assert args.contig == 1 or args.contig == 2
     seqRanges = getSequenceRanges(open(args.fasta))
