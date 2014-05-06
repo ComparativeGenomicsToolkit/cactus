@@ -10,15 +10,25 @@ class TestCase(unittest.TestCase):
         # coverage is correct. no overlap on B, but overlap on A.
         self.simpleFastaPathA = getTempFile()
         open(self.simpleFastaPathA, 'w').write(dedent('''\
-        >simpleSeqA1
+        >simpleSeqA1 otherTokens thatDon'tMatter
         ACTAGAGTAGGAGAGAGAGGGGGG
         CATGCATGCATGCATGCATGCATG
-        >simpleSeqA2
+        >simpleSeqA2 otherTokens thatDon'tMatter
         AAAAAAAAAAAAAAAACTCGTGAG
         CATGCATGCATGCATGCATGCATG'''))
         self.simpleFastaPathB = getTempFile()
         open(self.simpleFastaPathB, 'w').write(dedent('''\
-        >simpleSeqB1
+        >simpleSeqB1 otherTokens thatDon'tMatter
+        CATGCATGCATGCATGCATGCATG
+        CATGCATGCATGCATGCATGCATG'''))
+        self.simpleFastaPathC = getTempFile()
+        open(self.simpleFastaPathC, 'w').write(dedent('''\
+        >simpleSeqC1 otherTokens thatDon'tMatter
+        CATGCATGCATGCATGCATGCATG
+        CATGCATGCATGCATGCATGCATG'''))
+        self.simpleFastaPathD = getTempFile()
+        open(self.simpleFastaPathD, 'w').write(dedent('''\
+        >simpleSeqD otherTokens thatDon'tMatter
         CATGCATGCATGCATGCATGCATG
         CATGCATGCATGCATGCATGCATG'''))
         self.simpleCigarPath = getTempFile()
@@ -28,12 +38,18 @@ class TestCase(unittest.TestCase):
         cigar: simpleSeqB1 18 28 + simpleSeqA2 0 10 + 0 M 1 I 2 M 2 D 2 M 5
         cigar: simpleSeqB1 28 30 + simpleSeqA2 6 8 + 0 M 2
         cigar: simpleSeqB1 30 32 + simpleSeqA2 7 9 + 0 M 2
+        cigar: simpleSeqC1 0 5 + simpleSeqD 0 5 + 0 M 5
+        cigar: simpleSeqD 5 10 + simpleSeqC1 5 10 + 0 M 5
+        cigar: simpleSeqC1 10 15 + simpleSeqC1 15 20 + 0 M 5
+        cigar: simpleSeqNonExistent 0 10 + simpleSeqC1 0 10 + 0 M 10
         '''))
 
     def tearDown(self):
         unittest.TestCase.tearDown(self)
         os.remove(self.simpleFastaPathA)
         os.remove(self.simpleFastaPathB)
+        os.remove(self.simpleFastaPathC)
+        os.remove(self.simpleFastaPathD)
         os.remove(self.simpleCigarPath)
 
     def testSimpleCoverageOnA(self):
@@ -60,6 +76,14 @@ class TestCase(unittest.TestCase):
         simpleSeqB1\t0\t12\t\t1
         simpleSeqB1\t17\t19\t\t1
         simpleSeqB1\t21\t32\t\t1
+        '''))
+
+    def testFromC(self):
+        # Test "--from" filtering by filtering for only alignments
+        # from/to D on C.
+        bed = popenCatch("cactus_coverage %s %s --from %s" % (self.simpleFastaPathC, self.simpleCigarPath, self.simpleFastaPathD))
+        self.assertEqual(bed, dedent('''\
+        simpleSeqC1\t0\t10\t\t1
         '''))
 
     def testInvariants(self):
