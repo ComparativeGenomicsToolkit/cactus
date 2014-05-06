@@ -159,7 +159,7 @@ def main():
                           getSeparateBedBlocks(bedFile), seqLengths)
     if opts.complement:
         toTrim = complementBlocks(toTrim, seqLengths)
-    toTrim = uniquifyBlocks(toTrim, opts.flanking)
+    toTrim = uniquifyBlocks(toTrim, 2*opts.flanking)
     # filter based on size
     toTrim.update((k, filter(lambda x: (x[1] - x[0]) >= opts.minSize, v))
                   for k, v in toTrim.items())
