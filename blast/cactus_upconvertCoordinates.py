@@ -1,6 +1,4 @@
 #!/usr/bin/env python
-# FIXME: just remove trimmed header from tuple and regenerate it
-# during output, the code is too difficult to read
 from argparse import ArgumentParser
 from collections import defaultdict
 import sys
@@ -8,7 +6,7 @@ import os
 from sonLib.bioio import cigarRead, cigarWrite, getTempFile, system
 
 def getSequenceRanges(fa):
-    """Get dict of (untrimmed header) -> [(range, trimmed header)] mappings
+    """Get dict of (untrimmed header) -> [(start, non-inclusive end)] mappings
     from a trimmed fasta."""
     ret = defaultdict(list)
     curSeq = ""
@@ -21,10 +19,10 @@ def getSequenceRanges(fa):
         if line[0] == '>':
             if curHeader is not None:
                 # Add previous seq info to dict
-                trimmedRange = xrange(curTrimmedStart,
-                                      curTrimmedStart + len(curSeq))
+                trimmedRange = (curTrimmedStart,
+                                curTrimmedStart + len(curSeq))
                 untrimmedHeader = "|".join(curHeader.split("|")[:-1])
-                ret[untrimmedHeader].append((trimmedRange, curHeader))
+                ret[untrimmedHeader].append(trimmedRange)
             curHeader = line[1:].split()[0]
             curTrimmedStart = int(curHeader.split('|')[-1])
             curSeq = ""
@@ -32,13 +30,13 @@ def getSequenceRanges(fa):
             curSeq += line
     if curHeader is not None:
         # Add final seq info to dict
-        trimmedRange = xrange(curTrimmedStart,
-                              curTrimmedStart + len(curSeq))
+        trimmedRange = (curTrimmedStart,
+                        curTrimmedStart + len(curSeq))
         untrimmedHeader = "|".join(curHeader.split("|")[:-1])
-        ret[untrimmedHeader].append((trimmedRange, curHeader))
+        ret[untrimmedHeader].append(trimmedRange)
     for key in ret.keys():
         # Sort by range's start pos
-        ret[key] = sorted(ret[key], key=lambda x: x[0][0])
+        ret[key] = sorted(ret[key], key=lambda x: x[0])
     return ret
 
 def validateRanges(seqRanges):
@@ -47,14 +45,12 @@ def validateRanges(seqRanges):
     """
     for seq, ranges in seqRanges.items():
         for i, range in enumerate(ranges):
-            start = range[0][0]
-            for j in xrange(i):
-                range2 = ranges[j][0]
-                assert start not in range2
-                assert start >= range2[-1]
-            for j in xrange(i+1,len(ranges)):
-                range2 = ranges[j][0]
-                assert start not in range2
+            start = range[0]
+            if i - 1 >= 0:
+                range2 = ranges[i - 1]
+                assert start >= range2[1]
+            if i + 1 < len(ranges):
+                range2 = ranges[i + 1]
                 assert start < range2[0]
 
 def sortCigarByContigAndPos(cigarPath, contigNum):
@@ -81,24 +77,24 @@ def upconvertCoords(cigarFile, seqRanges, contigNum):
                 currentContig = contig
                 currentRangeIdx = 0
                 currentRange = seqRanges[contig][0]
-            while minPos not in currentRange[0] and currentRangeIdx < len(seqRanges[contig]) - 1:
+            while (minPos >= currentRange[1] or minPos < currentRange[0]) and currentRangeIdx < len(seqRanges[contig]) - 1:
                 currentRangeIdx += 1
                 currentRange = seqRanges[contig][currentRangeIdx]
-            if minPos in currentRange[0]:
-                if maxPos - 1 not in currentRange[0]:
+            if currentRange[0] <= minPos < currentRange[1]:
+                if maxPos - 1 > currentRange[1]:
                     raise RuntimeError("alignment on %s:%d-%d crosses "
                                        "trimmed sequence boundary" %\
                                        (contig,
                                         minPos,
                                         maxPos))
                 if contigNum == 1:
-                    alignment.start2 -= currentRange[0][0]
-                    alignment.end2 -= currentRange[0][0]
-                    alignment.contig2 = currentRange[1]
+                    alignment.start2 -= currentRange[0]
+                    alignment.end2 -= currentRange[0]
+                    alignment.contig2 = contig + ("|%d" % currentRange[0])
                 else:
-                    alignment.start1 -= currentRange[0][0]
-                    alignment.end1 -= currentRange[0][0]
-                    alignment.contig1 = currentRange[1]                    
+                    alignment.start1 -= currentRange[0]
+                    alignment.end1 -= currentRange[0]
+                    alignment.contig1 = contig + ("|%d" % currentRange[0])
             else:
                 raise RuntimeError("No trimmed sequence containing alignment "
                                    "on %s:%d-%d" % (contig,
