@@ -676,6 +676,8 @@ segtable* read_segment_table
 				qNegStart = qTrue+1 - qEnd;                     // (origin one)
 				//иии (qNegEnd is never read, investigate)
 				qNegEnd   = qNegStart + qEnd - qStart;
+                                // for -Wunused-but-set-variable
+                                (void) qNegEnd;
 				qPart = lookup_partition_seq_pos (query, qNamePart, qNegStart);
 				if (qPart == NULL) goto bad_query_position_reverse;
 				qOffset   = qPart->sepBefore + 1;
