@@ -57,7 +57,7 @@ def sortCigarByContigAndPos(cigarPath, contigNum):
     contigNameKey = 2 if contigNum == 1 else 6
     startPosKey = 3 if contigNum == 1 else 7
     tempFile = getTempFile()
-    system("sort -k %d,%dn -k %d,%d %s > %s" % (startPosKey, startPosKey, contigNameKey, contigNameKey, cigarPath, tempFile))
+    system("sort -k %d,%d -k %d,%dn %s > %s" % (contigNameKey, contigNameKey, startPosKey, startPosKey, cigarPath, tempFile))
     return tempFile
 
 def upconvertCoords(cigarFile, seqRanges, contigNum):
