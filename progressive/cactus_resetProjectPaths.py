@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+ #!/usr/bin/env python
 
 #Copyright (C) 2011 by Glenn Hickey
 #
@@ -21,7 +21,7 @@ from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.outgroup import GreedyOutgroup
-from sonLib.bioio import system
+from sonLib.bioio import system, absSymPath
 
 def updateProject(path):
     mcProj = MultiCactusProject()
@@ -91,7 +91,7 @@ def main():
         parser.print_help()
         raise RuntimeError("Wrong number of arguments")
     
-    path = os.path.abspath(args[0])
+    path = absSymPath(args[0])
     
     if not os.path.isfile(path):
         raise RuntimeError("Project file %s not found\n" % path)
