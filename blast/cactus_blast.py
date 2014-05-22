@@ -241,7 +241,7 @@ class TrimAndRecurseOnOutgroups(Target):
                  outgroupSequenceFiles, outgroupFragmentsDir,
                  mostRecentResultsFile, outputFile, blastOptions,
                  outgroupNumber):
-        Target.__init__(self, memory=blastOptions.memory)
+        Target.__init__(self)
         self.untrimmedSequenceFiles = untrimmedSequenceFiles
         self.sequenceFiles = sequenceFiles
         self.outgroupSequenceFiles = outgroupSequenceFiles

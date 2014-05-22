@@ -387,7 +387,7 @@ class CactusSetupPhase(CactusPhasesTarget):
     def run(self):
         cw = ConfigWrapper(self.cactusWorkflowArguments.configNode)
 
-        if not self.cactusWorkflowArguments.configWrapper.getDoTrimStrategy():
+        if (not self.cactusWorkflowArguments.configWrapper.getDoTrimStrategy()) or (self.cactusWorkflowArguments.outgroupEventNames == None):
             setupDivergenceArgs(self.cactusWorkflowArguments)
 
         # we circumvent makeFollowOnPhaseTarget() interface for this job.
@@ -442,7 +442,7 @@ def inverseJukesCantor(d):
     
 class CactusCafPhase(CactusPhasesTarget):      
     def run(self):
-        if not self.cactusWorkflowArguments.configWrapper.getDoTrimStrategy():
+        if (not self.cactusWorkflowArguments.configWrapper.getDoTrimStrategy()) or (self.cactusWorkflowArguments.outgroupEventNames == None):
             setupFilteringByIdentity(self.cactusWorkflowArguments)
         #Setup any constraints
         if self.getPhaseIndex() == 0 and self.cactusWorkflowArguments.constraintsFile != None: #Setup the constraints arg

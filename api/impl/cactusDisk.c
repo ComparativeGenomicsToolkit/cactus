@@ -86,6 +86,8 @@ Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
         }
 
 #ifndef NDEBUG
+        // Extra fsync may not be necessary.
+        fsync(fileno(cactusDisk->sequencesFileHandle));
         fclose(cactusDisk->sequencesFileHandle);
         cactusDisk->sequencesFileHandle = fopen(cactusDisk->absSequencesFileName, "r");
         char *string2 = getStringFromDisk(cactusDisk->sequencesFileHandle, name, 0, length);
@@ -94,7 +96,7 @@ Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
         }
         free(string2);
 #endif
-
+        fsync(fileno(cactusDisk->sequencesFileHandle));
         fclose(cactusDisk->sequencesFileHandle);
         cactusDisk->sequencesFileHandle = NULL;
 
