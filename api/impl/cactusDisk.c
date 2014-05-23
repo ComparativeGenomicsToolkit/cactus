@@ -56,10 +56,9 @@ Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
      * Adds a string to the database.
      */
     if (cactusDisk->storeSequencesInAFile) {
-        if (cactusDisk->sequencesFileHandle != NULL) {
-            fclose(cactusDisk->sequencesFileHandle);
+        if (cactusDisk->sequencesFileHandle == NULL) {
+            cactusDisk->sequencesFileHandle = fopen(cactusDisk->absSequencesFileName, "a+");
         }
-        cactusDisk->sequencesFileHandle = fopen(cactusDisk->absSequencesFileName, "a");
         assert(cactusDisk->sequencesFileHandle != NULL);
         Name name = ftell(cactusDisk->sequencesFileHandle) + 1;
 
@@ -86,20 +85,12 @@ Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
         }
 
 #ifndef NDEBUG
-        // Extra fsync may not be necessary.
-        fsync(fileno(cactusDisk->sequencesFileHandle));
-        fclose(cactusDisk->sequencesFileHandle);
-        cactusDisk->sequencesFileHandle = fopen(cactusDisk->absSequencesFileName, "r");
         char *string2 = getStringFromDisk(cactusDisk->sequencesFileHandle, name, 0, length);
         for (int64_t i = 0; i < length; i++) {
             assert(string[i] == string2[i]);
         }
         free(string2);
 #endif
-        fsync(fileno(cactusDisk->sequencesFileHandle));
-        fclose(cactusDisk->sequencesFileHandle);
-        cactusDisk->sequencesFileHandle = NULL;
-
         return name;
     } else {
         int64_t stringSize = strlen(string);
@@ -203,7 +194,7 @@ static void cacheSubstringsFromDB(CactusDisk *cactusDisk, stList *substrings) {
      */
     if (cactusDisk->storeSequencesInAFile) {
         if (cactusDisk->sequencesFileHandle == NULL) {
-            cactusDisk->sequencesFileHandle = fopen(cactusDisk->absSequencesFileName, "r");
+            cactusDisk->sequencesFileHandle = fopen(cactusDisk->absSequencesFileName, "a+");
             assert(cactusDisk->sequencesFileHandle != NULL);
         }
         for (int64_t i = 0; i < stList_length(substrings); i++) {
