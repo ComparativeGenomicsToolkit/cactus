@@ -220,7 +220,7 @@ def main():
         options.rootOutgroupPath = os.path.abspath(options.rootOutgroupPath)
         mcProj.inputSequences.append(options.rootOutgroupPath)
         # replace the root outgroup sequence by post-processed output
-        options.rootOutgroupPath = CactusPreprocessor.getOutputSequenceFiles([options.rootOutgroupPath], expTemplate.getOutputSequenceDir())[0]
+        options.rootOutgroupPath = CactusPreprocessor.getOutputSequenceFiles(expTemplate.getSequences() + [options.rootOutgroupPath], expTemplate.getOutputSequenceDir())[-1]
         expTemplate.seqMap["rootOutgroup"] = options.rootOutgroupPath
         # Add to tree
         mcProj.mcTree.addOutgroup("rootOutgroup", options.rootOutgroupDist)
