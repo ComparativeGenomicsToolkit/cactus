@@ -157,12 +157,12 @@ class ProgressiveUp(Target):
             system("rm -f %s* %s %s" % (dbPath, seqPath, 
                                         experiment.getReferencePath()))
 
-        if workFlowArgs.configWrapper.getDoTrimStrategy() and workFlowArgs.outgroupEventNames is not None:
-            # Use the trimming strategy to blast ingroups vs outgroups.
-            self.addChildTarget(CactusTrimmingBlastPhase(cactusWorkflowArguments=workFlowArgs, phaseName="trimBlast"))
-        else:
-            self.addChildTarget(CactusSetupPhase(cactusWorkflowArguments=workFlowArgs,
-                                                 phaseName="setup"))
+            if workFlowArgs.configWrapper.getDoTrimStrategy() and workFlowArgs.outgroupEventNames is not None:
+                # Use the trimming strategy to blast ingroups vs outgroups.
+                self.addChildTarget(CactusTrimmingBlastPhase(cactusWorkflowArguments=workFlowArgs, phaseName="trimBlast"))
+            else:
+                self.addChildTarget(CactusSetupPhase(cactusWorkflowArguments=workFlowArgs,
+                                                     phaseName="setup"))
         logger.info("Going to create alignments and define the cactus tree")
 
         self.setFollowOnTarget(FinishUp(workFlowArgs, self.project))
