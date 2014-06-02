@@ -40,7 +40,7 @@ class TestCase(unittest.TestCase):
 
     def testJustLeaves(self):
         tree = '((((HUMAN:0.006969,CHIMP:0.009727)Anc7:0.025291,BABOON:0.044568)Anc6:0.11,(MOUSE:0.072818,RAT:0.081244)Anc5:0.260342)Anc4:0.023260,((DOG:0.07,CAT:0.07)Anc3:0.087381,(PIG:0.06,COW:0.06)Anc2:0.104728)Anc1:0.04)Anc0;'
-        mcTree = MultiCactusTree(NXNewick().parseString(tree))
+        mcTree = MultiCactusTree(NXNewick().parseString(tree, addImpliedRoots = False))
         mcTree.computeSubtreeRoots()
         og = GreedyOutgroup()
         og.importTree(mcTree)
@@ -56,7 +56,7 @@ class TestCase(unittest.TestCase):
 
     def testCandidates(self):
         tree = '((((HUMAN:0.006969,CHIMP:0.009727)Anc7:0.025291,BABOON:0.044568)Anc6:0.11,(MOUSE:0.072818,RAT:0.081244)Anc5:0.260342)Anc4:0.023260,((DOG:0.07,CAT:0.07)Anc3:0.087381,(PIG:0.06,COW:0.06)Anc2:0.104728)Anc1:0.04)Anc0;'
-        mcTree = MultiCactusTree(NXNewick().parseString(tree))
+        mcTree = MultiCactusTree(NXNewick().parseString(tree, addImpliedRoots = False))
         mcTree.computeSubtreeRoots()
         og = GreedyOutgroup()
         og.importTree(mcTree)
@@ -117,7 +117,7 @@ class TestCase(unittest.TestCase):
 
     def testMultipleOutgroups(self):
         tree = '((((HUMAN:0.006969,CHIMP:0.009727)Anc7:0.025291,BABOON:0.044568)Anc6:0.11,(MOUSE:0.072818,RAT:0.081244)Anc5:0.260342)Anc4:0.023260,((DOG:0.07,CAT:0.07)Anc3:0.087381,(PIG:0.06,COW:0.06)Anc2:0.104728)Anc1:0.04)Anc0;'
-        mcTree = MultiCactusTree(NXNewick().parseString(tree))
+        mcTree = MultiCactusTree(NXNewick().parseString(tree, addImpliedRoots = False))
         mcTree.computeSubtreeRoots()
         og = GreedyOutgroup()
         og.importTree(mcTree)
@@ -138,7 +138,7 @@ class TestCase(unittest.TestCase):
 
     def testMultipleOutgroupsJustLeaves(self):
         tree = '((((HUMAN:0.006969,CHIMP:0.009727)Anc7:0.025291,BABOON:0.044568)Anc6:0.11,(MOUSE:0.072818,RAT:0.081244)Anc5:0.260342)Anc4:0.023260,((DOG:0.07,CAT:0.07)Anc3:0.087381,(PIG:0.06,COW:0.06)Anc2:0.104728)Anc1:0.04)Anc0;'
-        mcTree = MultiCactusTree(NXNewick().parseString(tree))
+        mcTree = MultiCactusTree(NXNewick().parseString(tree, addImpliedRoots = False))
         mcTree.computeSubtreeRoots()
         og = GreedyOutgroup()
         og.importTree(mcTree)

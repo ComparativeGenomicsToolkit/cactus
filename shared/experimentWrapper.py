@@ -263,7 +263,7 @@ class ExperimentWrapper(DbElemWrapper):
     
     def getTree(self):
         treeString = self.xmlRoot.attrib["species_tree"]
-        return NXNewick().parseString(treeString)
+        return NXNewick().parseString(treeString, addImpliedRoots = False)
     
     def setSequences(self, sequences):
         self.xmlRoot.attrib["sequences"] = " ".join(sequences)
