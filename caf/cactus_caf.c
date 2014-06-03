@@ -502,10 +502,14 @@ int main(int argc, char *argv[]) {
                 stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0, 0, INT64_MAX);
             }
 
-            //Build a tree for each block
+            //Build a tree for each block, then use each tree
+            //to partition the homologies into those that occurred early and those
+            //which occur late.
             stHash *threadStrings = stCaf_getThreadStrings(flower, threadSet);
             stSet *outgroupThreads = stCaf_getOutgroupThreads(flower, threadSet);
             stCaf_buildTreesToRemoveAncientHomologies(threadSet, threadStrings, outgroupThreads);
+            stHash_destruct(threadStrings);
+            stSet_destruct(outgroupThreads);
 
             //Sort out case when we allow blocks of degree 1
             if (minimumDegree < 2) {

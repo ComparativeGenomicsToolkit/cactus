@@ -5,14 +5,12 @@
  *      Author: benedictpaten
  */
 
-
+#include "sonLib.h"
 #include "cactus.h"
 #include "stPinchGraphs.h"
 #include "stCactusGraphs.h"
 #include "stPinchPhylogeny.h"
 #include "stCaf.h"
-#include "sonLib.h"
-#include "sonLibTypes.h"
 
 stHash *stCaf_getThreadStrings(Flower *flower, stPinchThreadSet *threadSet) {
     stHash *threadStrings = stHash_construct2(NULL, free);
@@ -62,7 +60,7 @@ static stList *getOutgroupThreads(stPinchBlock *block, stSet *outgroupThreads) {
 }
 
 /*
- * Splits the blocks using the given partition.
+ * Splits the block using the given partition into a set of new blocks.
  */
 static void splitBlock(stPinchBlock *block, stList *partitions) {
     //Build a mapping of indices of the segments in the block to the segments
@@ -119,6 +117,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
         int64_t maxBlockDistance = 100;
         bool ignoreUnalignedBases = 1;
         bool onlyIncludeCompleteFeatureBlocks = 0;
+        double breakPointScalingFactor = 1.0;
 
         //Get the feature blocks
         stList *featureBlocks = stFeatureBlock_getContextualFeatureBlocks(block, maxBaseDistance, maxBlockDistance,
@@ -134,8 +133,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
         stMatrix *breakpointMatrix = stPinchPhylogeny_getMatrixFromBreakpoints(featureColumns, block, NULL, 0);
 
         //Combine the matrices into distance matrices.
-        stMatrix_scale(substitutionMatrix, 1.0, 0.0);
-        stMatrix_scale(breakpointMatrix, 1.0, 0.0);
+        stMatrix_scale(breakpointMatrix, breakPointScalingFactor, 0.0);
         stMatrix *combinedMatrix = stMatrix_add(substitutionMatrix, breakpointMatrix);
         stMatrix *distanceMatrix = stPinchPhylogeny_getSymmetricDistanceMatrix(combinedMatrix);
 
