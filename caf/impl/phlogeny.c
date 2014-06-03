@@ -14,6 +14,34 @@
 #include "sonLib.h"
 #include "sonLibTypes.h"
 
+stHash *stCaf_getThreadStrings(Flower *flower, stPinchThreadSet *threadSet) {
+    stHash *threadStrings = stHash_construct2(NULL, free);
+    stPinchThreadSetIt threadIt = stPinchThreadSet_getIt(threadSet);
+    stPinchThread *thread;
+    while((thread = stPinchThreadSetIt_getNext(&threadIt)) != NULL) {
+        Sequence *sequence = flower_getSequence(flower, stPinchThread_getName(thread));
+        assert(sequence != NULL);
+        stHash_insert(threadStrings, thread, sequence_getString(sequence, stPinchThread_getStart(thread), stPinchThread_getLength(thread), 1));
+    }
+    return threadStrings;
+}
+
+stSet *stCaf_getOutgroupThreads(Flower *flower, stPinchThreadSet *threadSet) {
+    stSet *outgroupThreads = stSet_construct();
+    stPinchThreadSetIt threadIt = stPinchThreadSet_getIt(threadSet);
+    stPinchThread *thread;
+    while ((thread = stPinchThreadSetIt_getNext(&threadIt)) != NULL) {
+        Sequence *sequence = flower_getSequence(flower, stPinchThread_getName(thread));
+        assert(sequence != NULL);
+        Event *event = sequence_getEvent(sequence);
+        if(event_isOutgroup(event)) {
+            stSet_insert(outgroupThreads, thread);
+        }
+    }
+    return outgroupThreads;
+}
+
+
 /*
  * Gets a list of the segments in the block that are part of outgroup threads.
  * The list contains stIntTuples, each of length 1, representing the index of a particular segment in

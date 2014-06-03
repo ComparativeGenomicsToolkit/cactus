@@ -503,8 +503,8 @@ int main(int argc, char *argv[]) {
             }
 
             //Build a tree for each block
-            stHash *threadStrings = NULL; //getThreadStrings(flower, threadSet);
-            stSet *outgroupThreads = NULL; //getOutgroupThreads(flower, threadSet);
+            stHash *threadStrings = stCaf_getThreadStrings(flower, threadSet);
+            stSet *outgroupThreads = stCaf_getOutgroupThreads(flower, threadSet);
             stCaf_buildTreesToRemoveAncientHomologies(threadSet, threadStrings, outgroupThreads);
 
             //Sort out case when we allow blocks of degree 1
