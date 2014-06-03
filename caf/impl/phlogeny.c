@@ -17,9 +17,15 @@ stHash *stCaf_getThreadStrings(Flower *flower, stPinchThreadSet *threadSet) {
     stPinchThreadSetIt threadIt = stPinchThreadSet_getIt(threadSet);
     stPinchThread *thread;
     while((thread = stPinchThreadSetIt_getNext(&threadIt)) != NULL) {
-        Sequence *sequence = flower_getSequence(flower, stPinchThread_getName(thread));
+        Cap *cap = flower_getCap(flower, stPinchThread_getName(thread));
+        assert(cap != NULL);
+        Sequence *sequence = cap_getSequence(cap);
         assert(sequence != NULL);
-        stHash_insert(threadStrings, thread, sequence_getString(sequence, stPinchThread_getStart(thread), stPinchThread_getLength(thread), 1));
+        assert(stPinchThread_getLength(thread)-2 >= 0);
+        char *string = sequence_getString(sequence, stPinchThread_getStart(thread)+1, stPinchThread_getLength(thread)-2, 1); //Gets the sequence excluding the empty positions representing the caps.
+        char *paddedString = stString_print("N%sN", string); //Add in positions to represent the flanking bases
+        stHash_insert(threadStrings, thread, paddedString);
+        free(string);
     }
     return threadStrings;
 }
@@ -29,9 +35,9 @@ stSet *stCaf_getOutgroupThreads(Flower *flower, stPinchThreadSet *threadSet) {
     stPinchThreadSetIt threadIt = stPinchThreadSet_getIt(threadSet);
     stPinchThread *thread;
     while ((thread = stPinchThreadSetIt_getNext(&threadIt)) != NULL) {
-        Sequence *sequence = flower_getSequence(flower, stPinchThread_getName(thread));
-        assert(sequence != NULL);
-        Event *event = sequence_getEvent(sequence);
+        Cap *cap = flower_getCap(flower, stPinchThread_getName(thread));
+        assert(cap != NULL);
+        Event *event = cap_getEvent(cap);
         if(event_isOutgroup(event)) {
             stSet_insert(outgroupThreads, thread);
         }
@@ -76,6 +82,7 @@ static void splitBlock(stPinchBlock *block, stList *partitions) {
         assert(segments[i] != NULL);
         orientations[i++] = stPinchSegment_getBlockOrientation(segment);
     }
+    assert(i == stPinchBlock_getDegree(block));
     //Destruct old block, as we build new blocks now.
     stPinchBlock_destruct(block);
     //Now build the new blocks.
@@ -84,16 +91,17 @@ static void splitBlock(stPinchBlock *block, stList *partitions) {
         assert(stList_length(partition) > 0);
         int64_t k = stIntTuple_get(stList_get(partition, 0), 0);
         assert(segments[k] != NULL);
-        assert(stPinchSegment_getBlock(segments[k] == NULL));
+        assert(stPinchSegment_getBlock(segments[k]) == NULL);
         block = stPinchBlock_construct3(segments[k], orientations[k]);
-        assert(stPinchSegment_getBlock(segments[k] == block));
+        assert(stPinchSegment_getBlock(segments[k]) == block);
         assert(stPinchSegment_getBlockOrientation(segments[k]) == orientations[k]);
         segments[k] = NULL; //Defensive, and used for debugging.
         for(int64_t j=1; j<stList_length(partition); j++) {
-            k = stIntTuple_get(stList_get(partition, i), 0);
-            assert(stPinchSegment_getBlock(segments[k] == NULL));
+            k = stIntTuple_get(stList_get(partition, j), 0);
+            assert(segments[k] != NULL);
+            assert(stPinchSegment_getBlock(segments[k]) == NULL);
             stPinchBlock_pinch2(block, segments[k], orientations[k]);
-            assert(stPinchSegment_getBlock(segments[k] == block));
+            assert(stPinchSegment_getBlock(segments[k]) == block);
             assert(stPinchSegment_getBlockOrientation(segments[k]) == orientations[k]);
             segments[k] = NULL; //Defensive, and used for debugging.
         }
@@ -116,54 +124,59 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
 
     //The loop to build a tree for each block
     while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
+        if(stPinchBlock_getDegree(block) > 2) { //No point trying to build a phylogeny for a pair or fewer of sequences.
+            //Parameters.
+            int64_t maxBaseDistance = 1000;
+            int64_t maxBlockDistance = 100;
+            bool ignoreUnalignedBases = 1;
+            bool onlyIncludeCompleteFeatureBlocks = 0;
+            double breakPointScalingFactor = 0.0;
 
-        //Parameters.
-        int64_t maxBaseDistance = 1000;
-        int64_t maxBlockDistance = 100;
-        bool ignoreUnalignedBases = 1;
-        bool onlyIncludeCompleteFeatureBlocks = 0;
-        double breakPointScalingFactor = 1.0;
+            //Get the feature blocks
+            stList *featureBlocks = stFeatureBlock_getContextualFeatureBlocks(block, maxBaseDistance, maxBlockDistance,
+                    ignoreUnalignedBases, onlyIncludeCompleteFeatureBlocks, threadStrings);
 
-        //Get the feature blocks
-        stList *featureBlocks = stFeatureBlock_getContextualFeatureBlocks(block, maxBaseDistance, maxBlockDistance,
-                ignoreUnalignedBases, onlyIncludeCompleteFeatureBlocks, threadStrings);
+            //Make feature columns
+            stList *featureColumns = stFeatureColumn_getFeatureColumns(featureBlocks, block);
 
-        //Make feature columns
-        stList *featureColumns = stFeatureColumn_getFeatureColumns(featureBlocks, block);
+            //Make substitution matrix
+            stMatrix *substitutionMatrix = stPinchPhylogeny_getMatrixFromSubstitutions(featureColumns, block, NULL, 0);
+            assert(stMatrix_n(substitutionMatrix) == stPinchBlock_getDegree(block));
+            assert(stMatrix_m(substitutionMatrix) == stPinchBlock_getDegree(block));
 
-        //Make substitution matrix
-        stMatrix *substitutionMatrix = stPinchPhylogeny_getMatrixFromSubstitutions(featureColumns, block, NULL, 0);
+            //Make breakpoint matrix
+            stMatrix *breakpointMatrix = stPinchPhylogeny_getMatrixFromBreakpoints(featureColumns, block, NULL, 0);
 
-        //Make breakpoint matrix
-        stMatrix *breakpointMatrix = stPinchPhylogeny_getMatrixFromBreakpoints(featureColumns, block, NULL, 0);
+            //Combine the matrices into distance matrices
+            stMatrix_scale(breakpointMatrix, breakPointScalingFactor, 0.0);
+            stMatrix *combinedMatrix = stMatrix_add(substitutionMatrix, breakpointMatrix);
+            stMatrix *distanceMatrix = stPinchPhylogeny_getSymmetricDistanceMatrix(combinedMatrix);
 
-        //Combine the matrices into distance matrices
-        stMatrix_scale(breakpointMatrix, breakPointScalingFactor, 0.0);
-        stMatrix *combinedMatrix = stMatrix_add(substitutionMatrix, breakpointMatrix);
-        stMatrix *distanceMatrix = stPinchPhylogeny_getSymmetricDistanceMatrix(combinedMatrix);
+            //Build the tree...
+            stTree *blockTree = stPhylogeny_neighborJoin(distanceMatrix);
 
-        //Build the tree...
-        stTree *blockTree = stPhylogeny_neighborJoin(distanceMatrix);
+            //TODO, add in features relating to bootstrapping
 
-        //TODO, add in features relating to bootstrapping
+            //Get the outgroup threads
+            stList *outgroups = getOutgroupThreads(block, outgroupThreads);
 
-        //Get the outgroup threads
-        stList *outgroups = getOutgroupThreads(block, outgroupThreads);
+            //Get the partitions
+            stList *partition = stPinchPhylogeny_splitTreeOnOutgroups(blockTree, outgroups);
+            stHash_insert(blocksToPartitions, block, partition);
 
-        //Get the partitions
-        stList *partition = stPinchPhylogeny_splitTreeOnOutgroups(blockTree, outgroups);
-        stHash_insert(blocksToPartitions, block, partition);
-
-        //Cleanup
-        stMatrix_destruct(substitutionMatrix);
-        stMatrix_destruct(breakpointMatrix);
-        stMatrix_destruct(combinedMatrix);
-        stMatrix_destruct(distanceMatrix);
-        stTree_destruct(blockTree);
-        stList_destruct(featureColumns);
-        stList_destruct(featureBlocks);
-        stList_destruct(outgroups);
+            //Cleanup
+            stMatrix_destruct(substitutionMatrix);
+            stMatrix_destruct(breakpointMatrix);
+            stMatrix_destruct(combinedMatrix);
+            stMatrix_destruct(distanceMatrix);
+            stTree_destruct(blockTree);
+            stList_destruct(featureColumns);
+            stList_destruct(featureBlocks);
+            stList_destruct(outgroups);
+        }
     }
+
+    st_logDebug("Got homology partition for each block\n");
 
     //Now walk through the blocks and do the actual splits, must be done after the fact using the blocks
     //in the original hash, as we are now disrupting and changing the original graph.
@@ -175,6 +188,8 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
         stList_destruct(partition);
     }
     stHash_destructIterator(blockIt2);
+
+    st_logDebug("Finished partitioning the blocks\n");
 
     //Cleanup
     stHash_destruct(blocksToPartitions);

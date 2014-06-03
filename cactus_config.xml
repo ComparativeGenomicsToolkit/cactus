@@ -37,8 +37,8 @@
 	>
 		<divergence 
 			argName="lastzArguments"
-			low="--hspthresh=3000 --identity=IDENTITY --ambiguous=iupac"
-		 	default="--hspthresh=1800 --identity=IDENTITY --ambiguous=iupac"
+			low="--hspthresh=3000 --ambiguous=iupac"
+		 	default="--hspthresh=1800 --ambiguous=iupac"
 		 />
 		<CactusCafRecursion maxFlowerGroupSize="100000000"/>
 		<CactusCafWrapper minFlowerSize="5000" maxFlowerGroupSize="1000000"/>

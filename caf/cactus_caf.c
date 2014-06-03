@@ -420,22 +420,15 @@ int main(int argc, char *argv[]) {
             //Set up the graph and add the initial alignments
             stPinchThreadSet *threadSet = stCaf_setup(flower);
 
+            //Build the set of outgroup threads
+            outgroupThreads = stCaf_getOutgroupThreads(flower, threadSet);
+
             bool sortAlignments = 0;
             if (singleCopyIngroup) {
                 sortAlignments = 1;
                 filterFn = filterByRepeatSpecies;
             }
             else if (singleCopyOutgroup) {
-                //Here is where we get the set of outgroup threads.
-                outgroupThreads = stSet_construct();
-                stPinchThreadSetIt it = stPinchThreadSet_getIt(threadSet);
-                stPinchThread *pinchThread;
-                while ((pinchThread = stPinchThreadSetIt_getNext(&it)) != NULL) {
-                    if (event_isOutgroup(getEvent(stPinchThread_getFirst(pinchThread), flower))) {
-                        stSet_insert(outgroupThreads, pinchThread);
-                    }
-                }
-
                 if (stSet_size(outgroupThreads) == 0) {
                     filterFn = NULL;
                     sortAlignments = 0;
@@ -505,11 +498,14 @@ int main(int argc, char *argv[]) {
             //Build a tree for each block, then use each tree
             //to partition the homologies between the ingroups sequences into those that occur before the speciation with the outgroup and
             //those which occur late.
-            stHash *threadStrings = stCaf_getThreadStrings(flower, threadSet);
-            stSet *outgroupThreads = stCaf_getOutgroupThreads(flower, threadSet);
-            stCaf_buildTreesToRemoveAncientHomologies(threadSet, threadStrings, outgroupThreads);
-            stHash_destruct(threadStrings);
-            stSet_destruct(outgroupThreads);
+            if(stSet_size(outgroupThreads) > 0) {
+                st_logDebug("Starting to build trees and partition ingroup homologies\n");
+                stHash *threadStrings = stCaf_getThreadStrings(flower, threadSet);
+                st_logDebug("Got sets of thread strings and set of threads that are outgroups\n");
+                stCaf_buildTreesToRemoveAncientHomologies(threadSet, threadStrings, outgroupThreads);
+                stHash_destruct(threadStrings);
+                st_logDebug("Finished building trees\n");
+            }
 
             //Sort out case when we allow blocks of degree 1
             if (minimumDegree < 2) {
@@ -529,14 +525,12 @@ int main(int argc, char *argv[]) {
             //Cleanup
             stPinchThreadSet_destruct(threadSet);
             stPinchIterator_destruct(pinchIterator);
-
-            if (singleCopyOutgroup && !singleCopyIngroup) {
-                stSet_destruct(outgroupThreads);
-            }
+            stSet_destruct(outgroupThreads);
 
             if (alignmentsList != NULL) {
                 stList_destruct(alignmentsList);
             }
+            st_logInfo("Cleaned up from main loop\n");
         } else {
             st_logInfo("We've already built blocks / alignments for this flower\n");
         }
@@ -553,7 +547,7 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
     // Write the flower to disk.
     ///////////////////////////////////////////////////////////////////////////
-
+    st_logDebug("Writing the flowers to disk\n");
     cactusDisk_write(cactusDisk);
     st_logInfo("Updated the flower on disk and %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
