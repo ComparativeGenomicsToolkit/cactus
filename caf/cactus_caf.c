@@ -16,6 +16,7 @@
 #include "stPinchIterator.h"
 #include "stLastzAlignments.h"
 #include "stGiantComponent.h"
+#include "stCafPhylogeny.h"
 
 static void usage() {
     fprintf(stderr, "cactus_caf, version 0.2\n");
@@ -500,6 +501,11 @@ int main(int argc, char *argv[]) {
                 //This does the filtering of blocks that do not have the required species/tree-coverage/degree.
                 stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0, 0, INT64_MAX);
             }
+
+            //Build a tree for each block
+            stHash *threadStrings = NULL; //getThreadStrings(flower, threadSet);
+            stSet *outgroupThreads = NULL; //getOutgroupThreads(flower, threadSet);
+            stCaf_buildTreesToRemoveAncientHomologies(threadSet, threadStrings, outgroupThreads);
 
             //Sort out case when we allow blocks of degree 1
             if (minimumDegree < 2) {
