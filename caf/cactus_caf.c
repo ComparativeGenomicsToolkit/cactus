@@ -503,8 +503,8 @@ int main(int argc, char *argv[]) {
             }
 
             //Build a tree for each block, then use each tree
-            //to partition the homologies into those that occurred early and those
-            //which occur late.
+            //to partition the homologies between the ingroups sequences into those that occur before the speciation with the outgroup and
+            //those which occur late.
             stHash *threadStrings = stCaf_getThreadStrings(flower, threadSet);
             stSet *outgroupThreads = stCaf_getOutgroupThreads(flower, threadSet);
             stCaf_buildTreesToRemoveAncientHomologies(threadSet, threadStrings, outgroupThreads);

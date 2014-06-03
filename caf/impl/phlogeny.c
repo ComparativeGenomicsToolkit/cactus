@@ -56,6 +56,7 @@ static stList *getOutgroupThreads(stPinchBlock *block, stSet *outgroupThreads) {
         }
         i++;
     }
+    assert(i == stPinchBlock_getDegree(block));
     return outgroups;
 }
 
@@ -82,11 +83,18 @@ static void splitBlock(stPinchBlock *block, stList *partitions) {
         stList *partition = stList_get(partitions, i);
         assert(stList_length(partition) > 0);
         int64_t k = stIntTuple_get(stList_get(partition, 0), 0);
+        assert(segments[k] != NULL);
+        assert(stPinchSegment_getBlock(segments[k] == NULL));
         block = stPinchBlock_construct3(segments[k], orientations[k]);
+        assert(stPinchSegment_getBlock(segments[k] == block));
+        assert(stPinchSegment_getBlockOrientation(segments[k]) == orientations[k]);
         segments[k] = NULL; //Defensive, and used for debugging.
         for(int64_t j=1; j<stList_length(partition); j++) {
             k = stIntTuple_get(stList_get(partition, i), 0);
+            assert(stPinchSegment_getBlock(segments[k] == NULL));
             stPinchBlock_pinch2(block, segments[k], orientations[k]);
+            assert(stPinchSegment_getBlock(segments[k] == block));
+            assert(stPinchSegment_getBlockOrientation(segments[k]) == orientations[k]);
             segments[k] = NULL; //Defensive, and used for debugging.
         }
     }
@@ -108,11 +116,8 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
 
     //The loop to build a tree for each block
     while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
-        //Now build the tree..
 
-        /*
-         * Parameters.
-         */
+        //Parameters.
         int64_t maxBaseDistance = 1000;
         int64_t maxBlockDistance = 100;
         bool ignoreUnalignedBases = 1;
@@ -132,7 +137,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
         //Make breakpoint matrix
         stMatrix *breakpointMatrix = stPinchPhylogeny_getMatrixFromBreakpoints(featureColumns, block, NULL, 0);
 
-        //Combine the matrices into distance matrices.
+        //Combine the matrices into distance matrices
         stMatrix_scale(breakpointMatrix, breakPointScalingFactor, 0.0);
         stMatrix *combinedMatrix = stMatrix_add(substitutionMatrix, breakpointMatrix);
         stMatrix *distanceMatrix = stPinchPhylogeny_getSymmetricDistanceMatrix(combinedMatrix);
@@ -157,6 +162,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
         stTree_destruct(blockTree);
         stList_destruct(featureColumns);
         stList_destruct(featureBlocks);
+        stList_destruct(outgroups);
     }
 
     //Now walk through the blocks and do the actual splits, must be done after the fact using the blocks
