@@ -17,8 +17,8 @@ struct _metaSequence {
 	Name eventName;
 	CactusDisk *cactusDisk;
 	char *header;
+	bool isTrivialSequence; //This flag is used to indicate if a sequence is trivial.
 };
-
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -32,7 +32,7 @@ struct _metaSequence {
  * Constructs a meta sequence using an existing reference to a sequence in the sequence file.
  */
 MetaSequence *metaSequence_construct2(Name name, int64_t start, int64_t length, Name stringName, const char *header,
-		Name eventName, CactusDisk *cactusDisk);
+		Name eventName, bool isTrivialSequence, CactusDisk *cactusDisk);
 
 /*
  * Destructs a meta sequence.

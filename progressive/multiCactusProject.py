@@ -34,7 +34,7 @@ class MultiCactusProject:
     def readXML(self, path):
         xmlRoot = ET.parse(path).getroot()
         treeElem = xmlRoot.find("tree")
-        self.mcTree = MultiCactusTree(NXNewick().parseString(treeElem.text))
+        self.mcTree = MultiCactusTree(NXNewick().parseString(treeElem.text, addImpliedRoots = False))
         self.expMap = dict()
         cactusPathElemList = xmlRoot.findall("cactus")
         for cactusPathElem in cactusPathElemList:

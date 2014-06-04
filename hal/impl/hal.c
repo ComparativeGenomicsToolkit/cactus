@@ -174,9 +174,11 @@ void makeHalFormat(stList *flowers, stKVDatabase *database, Name referenceEventN
         assert(stList_length(threadStrings) == stList_length(caps));
         for (int64_t i = 0; i < stList_length(threadStrings); i++) {
             Cap *cap = stList_get(caps, i);
-            char *threadString = stList_get(threadStrings, i);
-            writeSequenceHeader(fileHandle, cap_getSequence(cap));
-            fprintf(fileHandle, "%s\n", threadString);
+            if(!metaSequence_isTrivialSequence(sequence_getMetaSequence(cap_getSequence(cap)))) {
+                char *threadString = stList_get(threadStrings, i);
+                writeSequenceHeader(fileHandle, cap_getSequence(cap));
+                fprintf(fileHandle, "%s\n", threadString);
+            }
         }
     }
     stList_destruct(caps);

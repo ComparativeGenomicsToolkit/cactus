@@ -158,7 +158,8 @@ def runCactusBlast(sequenceFiles, outputFile, jobTreeDir,
                    blastString=None, 
                    selfBlastString=None,
                    compressFiles=None,
-                   lastzMemory=None):
+                   lastzMemory=None,
+                   targetSequenceFiles=None):
     logLevel = getLogLevelString2(logLevel)
     chunkSize = nameValue("chunkSize", chunkSize, int)
     overlapSize = nameValue("overlapSize", overlapSize, int)
@@ -166,13 +167,23 @@ def runCactusBlast(sequenceFiles, outputFile, jobTreeDir,
     selfBlastString = nameValue("selfBlastString", selfBlastString, str)
     compressFiles = nameValue("compressFiles", compressFiles, bool)
     lastzMemory = nameValue("lastzMemory", lastzMemory, int)
-    command = "cactus_blast.py %s  --cigars %s %s %s %s %s %s %s --jobTree %s --logLevel %s" % \
+    if targetSequenceFiles != None: 
+        targetSequenceFiles = " ".join(targetSequenceFiles)
+    targetSequenceFiles = nameValue("targetSequenceFiles", targetSequenceFiles, quotes=True)
+    command = "cactus_blast.py %s  --cigars %s %s %s %s %s %s %s %s --jobTree %s --logLevel %s" % \
             (" ".join(sequenceFiles), outputFile,
-             chunkSize, overlapSize, blastString, selfBlastString, compressFiles, lastzMemory, jobTreeDir, logLevel)
+             chunkSize, overlapSize, blastString, selfBlastString, compressFiles, 
+             lastzMemory, targetSequenceFiles, jobTreeDir, logLevel)
     logger.info("Running command : %s" % command)
     system(command)
-    logger.info("Ran the cactus_batch command okay")
-            
+    logger.info("Ran the cactus_blast command okay")
+
+def runConvertAlignmentsToInternalNames(cactusDiskString, alignmentsFile, outputFile, flowerName):
+    popenCatch("cactus_convertAlignmentsToInternalNames --cactusDisk '%s' %s %s" % (cactusDiskString, alignmentsFile, outputFile), stdinString=encodeFlowerNames((flowerName,)))
+
+def runStripUniqueIDs(cactusDiskString):
+    system("cactus_stripUniqueIDs --cactusDisk '%s'" % cactusDiskString)
+
 def runCactusCaf(cactusDiskDatabaseString, alignments, 
                   flowerNames=encodeFlowerNames((0,)),
                   logLevel=None, 
@@ -328,7 +339,10 @@ def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
                        theta=None,
                        maxWalkForCalculatingZ=None,
                        ignoreUnalignedGaps=None,
-                       wiggle=None):
+                       wiggle=None, 
+                       numberOfNs=None,
+                       minNumberOfSequencesToSupportAdjacency=None,
+                       makeScaffolds=None):
     """Runs cactus reference.
     """
     logLevel = getLogLevelString2(logLevel)
@@ -340,9 +354,12 @@ def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
     maxWalkForCalculatingZ = nameValue("maxWalkForCalculatingZ", maxWalkForCalculatingZ, int)
     ignoreUnalignedGaps = nameValue("ignoreUnalignedGaps", ignoreUnalignedGaps, bool)
     wiggle = nameValue("wiggle", wiggle, float)
-    command = "cactus_reference --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s" % \
+    numberOfNs = nameValue("numberOfNs", numberOfNs, int)
+    minNumberOfSequencesToSupportAdjacency = nameValue("minNumberOfSequencesToSupportAdjacency", minNumberOfSequencesToSupportAdjacency, int)
+    makeScaffolds = nameValue("makeScaffolds", makeScaffolds, bool)
+    command = "cactus_reference --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s" % \
     (cactusDiskDatabaseString, logLevel, matchingAlgorithm, referenceEventString, permutations, 
-     useSimulatedAnnealing, theta, maxWalkForCalculatingZ, ignoreUnalignedGaps, wiggle)
+     useSimulatedAnnealing, theta, maxWalkForCalculatingZ, ignoreUnalignedGaps, wiggle, numberOfNs, minNumberOfSequencesToSupportAdjacency, makeScaffolds)
     popenPush(command, stdinString=flowerNames)
     
 def runCactusAddReferenceCoordinates(cactusDiskDatabaseString, flowerNames, logLevel=None, referenceEventString=None, outgroupEventString=None, secondaryDatabaseString=None, bottomUpPhase=None):   

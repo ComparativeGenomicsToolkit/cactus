@@ -16,7 +16,7 @@
 
 MetaSequence *metaSequence_construct2(Name name, int64_t start,
 		int64_t length, Name stringName, const char *header,
-		Name eventName, CactusDisk *cactusDisk) {
+		Name eventName, bool isTrivialSequence, CactusDisk *cactusDisk) {
 	MetaSequence *metaSequence;
 
 	metaSequence = st_malloc(sizeof(MetaSequence));
@@ -28,18 +28,25 @@ MetaSequence *metaSequence_construct2(Name name, int64_t start,
 	metaSequence->eventName = eventName;
 	metaSequence->cactusDisk = cactusDisk;
 	metaSequence->header = stString_copy(header != NULL ? header : "");
+	metaSequence->isTrivialSequence = isTrivialSequence;
 
 	cactusDisk_addMetaSequence(cactusDisk, metaSequence);
 	return metaSequence;
 }
 
+MetaSequence *metaSequence_construct3(int64_t start, int64_t length,
+        const char *string, const char *header, Name eventName,
+        bool isTrivialSequence, CactusDisk *cactusDisk) {
+    Name name;
+    assert(strlen(string) == length);
+    name = cactusDisk_addString(cactusDisk, string);
+    return metaSequence_construct2(cactusDisk_getUniqueID(cactusDisk), start, length,
+            name, header, eventName, isTrivialSequence, cactusDisk);
+}
+
 MetaSequence *metaSequence_construct(int64_t start, int64_t length,
 		const char *string, const char *header, Name eventName, CactusDisk *cactusDisk) {
-	Name name;
-	assert(strlen(string) == length);
-	name = cactusDisk_addString(cactusDisk, string);
-	return metaSequence_construct2(cactusDisk_getUniqueID(cactusDisk), start, length,
-			name, header, eventName, cactusDisk);
+	return metaSequence_construct3(start, length, string, header, eventName, 0, cactusDisk);
 }
 
 void metaSequence_destruct(MetaSequence *metaSequence) {
@@ -75,6 +82,17 @@ const char *metaSequence_getHeader(MetaSequence *metaSequence) {
 	return metaSequence->header;
 }
 
+
+bool metaSequence_isTrivialSequence(MetaSequence *metaSequence) {
+    return metaSequence->isTrivialSequence;
+}
+
+void metaSequence_setHeader(MetaSequence *metaSequence,
+                            char *newHeader) {
+	free(metaSequence->header);
+	metaSequence->header = newHeader;
+}
+
 /*
  * Serialisation functions.
  */
@@ -88,6 +106,7 @@ void metaSequence_writeBinaryRepresentation(MetaSequence *metaSequence,
 	binaryRepresentation_writeName(metaSequence_getEventName(metaSequence), writeFn);
 	binaryRepresentation_writeName(metaSequence->stringName, writeFn);
 	binaryRepresentation_writeString(metaSequence_getHeader(metaSequence), writeFn);
+	binaryRepresentation_writeBool(metaSequence_isTrivialSequence(metaSequence), writeFn);
 }
 
 MetaSequence *metaSequence_loadFromBinaryRepresentation(void **binaryString,
@@ -109,8 +128,9 @@ MetaSequence *metaSequence_loadFromBinaryRepresentation(void **binaryString,
 		eventName = binaryRepresentation_getName(binaryString);
 		stringName = binaryRepresentation_getName(binaryString);
 		header = binaryRepresentation_getString(binaryString);
+		bool isTrivialSequence = binaryRepresentation_getBool(binaryString);
 		metaSequence = metaSequence_construct2(name, start, length,
-				stringName, header, eventName, cactusDisk);
+				stringName, header, eventName, isTrivialSequence, cactusDisk);
 		free(header);
 	}
 	return metaSequence;

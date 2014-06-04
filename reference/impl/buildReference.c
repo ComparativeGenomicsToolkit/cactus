@@ -30,8 +30,8 @@ static Event *getReferenceEvent(Flower *flower, const char *referenceEventHeader
         } else {
             Event *parentEvent = eventTree_getEventByHeader(flower_getEventTree(group_getFlower(parentGroup)), referenceEventHeader);
             assert(parentEvent != NULL);
-            Event *event = event_construct(event_getName(parentEvent), referenceEventHeader, INT64_MAX, eventTree_getRootEvent(eventTree),
-                    eventTree);
+            Event *event = event_construct(event_getName(parentEvent), referenceEventHeader,
+            INT64_MAX, eventTree_getRootEvent(eventTree), eventTree);
             assert(event_getName(event) == event_getName(parentEvent));
             return event;
         }
@@ -156,21 +156,34 @@ static int64_t calculateZP2(Cap *cap, stHash *endsToNodes) {
     int64_t capLength;
     if (otherCap == NULL) {
         //capLength = 1000000000; //make the length really long if attached, so that we don't bias toward one or the other end.
-        capLength = cap_getSide(cap) ? sequence_getLength(sequence) + sequence_getStart(sequence) - cap_getCoordinate(cap)
-                : cap_getCoordinate(cap) - sequence_getStart(sequence) + 1;
+        capLength =
+                cap_getSide(cap) ?
+                        sequence_getLength(sequence) + sequence_getStart(sequence) - cap_getCoordinate(cap) :
+                        cap_getCoordinate(cap) - sequence_getStart(sequence) + 1;
     } else {
-    	capLength = cap_getSide(cap) ? cap_getCoordinate(otherCap) - cap_getCoordinate(cap) + 1 : cap_getCoordinate(cap)
-                - cap_getCoordinate(otherCap) + 1;
+        capLength =
+                cap_getSide(cap) ?
+                        cap_getCoordinate(otherCap) - cap_getCoordinate(cap) + 1 : cap_getCoordinate(cap) - cap_getCoordinate(otherCap) + 1;
     }
-    if(capLength == 0) {
+    if (capLength == 0) {
         capLength = 1;
     }
     assert(capLength > 0);
     return capLength;
 }
 
-refAdjList *calculateZ(Flower *flower, stHash *endsToNodes, int64_t nodeNumber, double theta, int64_t maxWalkForCalculatingZ,
-        bool ignoreUnalignedGaps) {
+static double calculateZScoreAdapterFn(Cap *_5Cap, int64_t length5Segment, int64_t length3Segment, int64_t gap, void *extraArgs) {
+    double theta = *((double *) extraArgs);
+    assert(theta >= 0.0);
+    return calculateZScore(length5Segment, length3Segment, gap, theta);
+}
+
+static double countAdapterFn(Cap *_5Cap, int64_t length5Segment, int64_t length3Segment, int64_t gap, void *extraArgs) {
+    return 1;
+}
+
+refAdjList *calculateZ(Flower *flower, stHash *endsToNodes, int64_t nodeNumber, int64_t maxWalkForCalculatingZ,
+bool ignoreUnalignedGaps, double (*zScoreFn)(Cap *, int64_t, int64_t, int64_t, void *), void *zScoreExtraArgs) {
     /*
      * Calculate the zScores between all ends.
      */
@@ -202,8 +215,7 @@ refAdjList *calculateZ(Flower *flower, stHash *endsToNodes, int64_t nodeNumber, 
                         Cap *_3Cap = stList_get(caps, i);
                         assert(!cap_getSide(_3Cap));
                         int64_t _3CapSize = capSizes[i];
-                        int64_t _3Node = stIntTuple_get(stHash_search(endsToNodes, end_getPositiveOrientation(cap_getEnd(_3Cap))),
-                                0);
+                        int64_t _3Node = stIntTuple_get(stHash_search(endsToNodes, end_getPositiveOrientation(cap_getEnd(_3Cap))), 0);
                         int64_t unaligned = 0;
                         for (int64_t k = 0; k < maxWalkForCalculatingZ; k++) {
                             int64_t j = k * 2 + i + 1;
@@ -213,20 +225,19 @@ refAdjList *calculateZ(Flower *flower, stHash *endsToNodes, int64_t nodeNumber, 
                             Cap *_5Cap = stList_get(caps, j);
                             assert(cap_getSide(_5Cap));
                             assert(cap_getAdjacency(_5Cap) != NULL);
-                            if(ignoreUnalignedGaps) {
+                            if (ignoreUnalignedGaps) {
                                 assert(cap_getCoordinate(_5Cap) - cap_getCoordinate(cap_getAdjacency(_5Cap)) - 1 >= 0);
                                 unaligned += cap_getCoordinate(_5Cap) - cap_getCoordinate(cap_getAdjacency(_5Cap)) - 1;
                             }
-                            int64_t _5Node = stIntTuple_get(
-                                    stHash_search(endsToNodes, end_getPositiveOrientation(cap_getEnd(_5Cap))), 0);
+                            int64_t _5Node = stIntTuple_get(stHash_search(endsToNodes, end_getPositiveOrientation(cap_getEnd(_5Cap))), 0);
                             int64_t _5CapSize = capSizes[j];
                             assert(cap_getCoordinate(_5Cap) - cap_getCoordinate(_3Cap) > 0);
                             int64_t diff = cap_getCoordinate(_5Cap) - cap_getCoordinate(_3Cap) - unaligned;
                             assert(diff >= 1);
-                            if(calculateZScore(1, 1, diff, theta) < 0.0000000001) { //no point walking when score gets too small, should be effective for theta >= 0.000001
+                            if (zScoreFn(_5Cap, 1, 1, diff, zScoreExtraArgs) < 0.0000000001) { //no point walking when score gets too small, should be effective for theta >= 0.000001
                                 break;
                             }
-                            double score = calculateZScore(_5CapSize, _3CapSize, diff, theta);
+                            double score = zScoreFn(_5Cap, _5CapSize, _3CapSize, diff, zScoreExtraArgs);
                             assert(score >= -0.0001);
                             if (score <= 0.0) {
                                 score = 1e-10; //Make slightly non-zero.
@@ -259,7 +270,7 @@ static End *getEndFromNode(stHash *nodesToEnds, int64_t node) {
     /*
      * Get the end for the given node.
      */
-    stIntTuple *i = stIntTuple_construct1( node);
+    stIntTuple *i = stIntTuple_construct1(node);
     End *end = stHash_search(nodesToEnds, i);
     assert(end != NULL);
     assert(end_getOrientation(end));
@@ -268,7 +279,7 @@ static End *getEndFromNode(stHash *nodesToEnds, int64_t node) {
 }
 
 static void addToNodes(End *end, int64_t n, stHash *endsToNodes) {
-    stHash_insert(endsToNodes, end_getPositiveOrientation(end), stIntTuple_construct1( n));
+    stHash_insert(endsToNodes, end_getPositiveOrientation(end), stIntTuple_construct1(n));
 }
 
 static void getNonTrivialChainNodes(Flower *flower, stHash *endsToNodes, int64_t *nodeCounter) {
@@ -322,7 +333,7 @@ static stHash *getChainNodes(Flower *flower) {
      * Get the trivial chain edges for the flower.
      */
     int64_t nodeCounter = 1;
-    stHash *endsToNodes = stHash_construct2(NULL, (void(*)(void *)) stIntTuple_destruct);
+    stHash *endsToNodes = stHash_construct2(NULL, NULL); //We clean up the tuple memory when we invert the hash to go nodesToEnds
     getNonTrivialChainNodes(flower, endsToNodes, &nodeCounter);
     getTrivialChainNodes(flower, endsToNodes, &nodeCounter);
     return endsToNodes;
@@ -348,7 +359,7 @@ static stList *getTangleStubEnds(Flower *flower, stHash *endsToNodes) {
         if (group != NULL) {
             if (group_isTangle(group)) {
                 if ((end_isAttached(end) || end_isBlockEnd(end)) && stHash_search(endsToNodes, end) == NULL) {
-                    stHash_insert(endsToNodes, end, stIntTuple_construct1( endCount++));
+                    stHash_insert(endsToNodes, end, stIntTuple_construct1(endCount++));
                     stList_append(stubEnds, end);
                 }
             } else {
@@ -358,7 +369,7 @@ static stList *getTangleStubEnds(Flower *flower, stHash *endsToNodes) {
             assert(end_isStubEnd(end));
             assert(end_isAttached(end));
             assert(stHash_search(endsToNodes, end) == NULL);
-            stHash_insert(endsToNodes, end, stIntTuple_construct1( endCount++));
+            stHash_insert(endsToNodes, end, stIntTuple_construct1(endCount++));
             stList_append(stubEnds, end);
         }
     }
@@ -451,25 +462,30 @@ static void getStubEdgesFromParent(reference *ref, Flower *flower, Event *refere
     stSortedSet_destruct(endsSeen);
 }
 
+stHash *makeStubEdgesToNodesHash(stList *stubEnds, stHash *endsToNodes) {
+    stHash *stubEndsToNodes = stHash_construct();
+    for (int64_t i = 0; i < stList_length(stubEnds); i++) {
+        End *end = stList_get(stubEnds, i);
+        stHash_insert(stubEndsToNodes, end, stHash_search(endsToNodes, end));
+    }
+    return stubEndsToNodes;
+}
+
 static void getStubEdgesInTopLevelFlower(reference *ref, Flower *flower, stHash *endsToNodes, int64_t nodeNumber, Event *referenceEvent,
         stList *(*matchingAlgorithm)(stList *edges, int64_t nodeNumber), stList *stubEnds) {
     /*
      * Create a matching for the parent stub edges.
      */
-    stHash *stubEndsToNodes = stHash_construct();
-    stSortedSet *stubNodesSet = stSortedSet_construct3((int(*)(const void *, const void *)) stIntTuple_cmpFn, NULL);
-    for (int64_t i = 0; i < stList_length(stubEnds); i++) {
-        End *end = stList_get(stubEnds, i);
-        stHash_insert(stubEndsToNodes, end, stHash_search(endsToNodes, end));
-        stSortedSet_insert(stubNodesSet, stHash_search(endsToNodes, stList_get(stubEnds, i)));
-    }
-    refAdjList *stubAL = calculateZ(flower, stubEndsToNodes, nodeNumber, 0.0, INT64_MAX, 1);
+    stHash *stubEndsToNodes = makeStubEdgesToNodesHash(stubEnds, endsToNodes);
+    double theta = 0.0;
+    refAdjList *stubAL = calculateZ(flower, stubEndsToNodes, nodeNumber,
+    INT64_MAX, 1, calculateZScoreAdapterFn, &theta);
     st_logDebug(
             "Building a matching for %" PRIi64 " stub nodes in the top level problem from %" PRIi64 " total stubs of which %" PRIi64 " attached , %" PRIi64 " total ends, %" PRIi64 " chains, %" PRIi64 " blocks %" PRIi64 " groups and %" PRIi64 " sequences\n",
             stList_length(stubEnds), flower_getStubEndNumber(flower), flower_getAttachedStubEndNumber(flower), flower_getEndNumber(flower),
             flower_getChainNumber(flower), flower_getBlockNumber(flower), flower_getGroupNumber(flower), flower_getSequenceNumber(flower));
 
-    stList *adjacencyEdges = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+    stList *adjacencyEdges = stList_construct3(0, (void (*)(void *)) stIntTuple_destruct);
     for (int64_t i = 0; i < stList_length(stubEnds); i++) {
         int64_t node1 = stIntTuple_get(stHash_search(endsToNodes, stList_get(stubEnds, i)), 0);
         for (int64_t j = i + 1; j < stList_length(stubEnds); j++) {
@@ -481,6 +497,9 @@ static void getStubEdgesInTopLevelFlower(reference *ref, Flower *flower, stHash 
             stList_append(adjacencyEdges, constructWeightedEdge(node1, node2, score2));
         }
     }
+    stList *stubNodes = stHash_getValues(stubEndsToNodes);
+    stSortedSet *stubNodesSet = stList_getSortedSet(stubNodes, (int (*)(const void *, const void *)) stIntTuple_cmpFn);
+    stList_destruct(stubNodes);
     checkEdges(adjacencyEdges, stubNodesSet, 1, 0);
 
     stList *chosenAdjacencyEdges = getPerfectMatching(stubNodesSet, adjacencyEdges, matchingAlgorithm);
@@ -516,16 +535,15 @@ static reference *getEmptyReference(Flower *flower, stHash *endsToNodes, int64_t
 ////////////////////////////////////
 
 static Cap *makeStubCap(End *end, Event *referenceEvent) {
-    assert(end_isAttached(end));
+    //assert(end_isAttached(end));
     assert(end_isStubEnd(end));
     Cap *cap = getCapWithEvent(end, event_getName(referenceEvent));
     if (cap != NULL) {
         return cap_getStrand(cap) ? cap : cap_getReverse(cap);
     }
     Group *parentGroup = flower_getParentGroup(end_getFlower(end));
-    if (parentGroup != NULL) {
-        End *parentEnd = group_getEnd(parentGroup, end_getName(end));
-        assert(parentEnd != NULL);
+    End *parentEnd;
+    if (parentGroup != NULL && (parentEnd = group_getEnd(parentGroup, end_getName(end))) != NULL) {
         Cap *parentCap = getCapWithEvent(parentEnd, event_getName(referenceEvent));
         assert(parentCap != NULL);
         parentCap = cap_getStrand(parentCap) ? parentCap : cap_getReverse(parentCap);
@@ -608,13 +626,23 @@ static void makeThread(End *end, stHash *endsToEnds, Flower *flower, Event *refe
 static void makeThreads(stHash *endsToEnds, Flower *flower, Event *referenceEvent) {
     Flower_EndIterator *endIt = flower_getEndIterator(flower);
     End *end;
+    stList *stack = stList_construct();
+    //Group *parentGroup = flower_getParentGroup(flower);
     while ((end = flower_getNextEnd(endIt)) != NULL) {
-        if (end_isAttached(end) && end_isStubEnd(end)) {
-            assert(end_getOrientation(end));
-            makeThread(end, endsToEnds, flower, referenceEvent);
+        if (end_isStubEnd(end)) {
+            if (end_isAttached(end)) {
+                makeThread(end, endsToEnds, flower, referenceEvent); //We first start from stub ends that already have
+                //ends in parent flower, because they define the 5' to 3' direction of traversal.
+            } else if (stHash_search(endsToEnds, end) != NULL) { //In the reference
+                stList_append(stack, end);
+            }
         }
     }
     flower_destructEndIterator(endIt);
+    while (stList_length(stack) > 0) {
+        makeThread(stList_pop(stack), endsToEnds, flower, referenceEvent);
+    }
+    stList_destruct(stack);
 }
 
 static void mapEnds(stHash *endsToEnds, End *end1, End *end2) {
@@ -628,7 +656,24 @@ static void mapEnds(stHash *endsToEnds, End *end1, End *end2) {
     stHash_insert(endsToEnds, end2, end1);
 }
 
-static stHash *getEndsToEnds(Flower *flower, stList *chosenAdjacencyEdges, stHash *nodesToEnds) {
+static bool endsAreConnected(End *end1, End *end2) {
+    /*
+     * Determines if there is any adjacency connecting the two ends.
+     */
+    End_InstanceIterator *capIt = end_getInstanceIterator(end1);
+    Cap *cap;
+    while ((cap = end_getNext(capIt)) != NULL) {
+        Cap *adjCap = cap_getAdjacency(cap);
+        if (adjCap != NULL && end_getName(cap_getEnd(adjCap)) == end_getName(end2)) {
+            end_destructInstanceIterator(capIt);
+            return 1;
+        }
+    }
+    end_destructInstanceIterator(capIt);
+    return 0;
+}
+
+static stHash *getEndsToEnds(Flower *flower, stList *chosenAdjacencyEdges, stHash *nodesToEnds, int64_t numberOfNsForScaffoldGap) {
     /*
      * Get a hash of matched ends.
      */
@@ -640,21 +685,22 @@ static stHash *getEndsToEnds(Flower *flower, stList *chosenAdjacencyEdges, stHas
         assert(end1 != NULL);
         assert(end2 != NULL);
         assert(end1 != end2);
-        if (end_getGroup(end1) != NULL && end_getGroup(end2) != NULL && end_getGroup(end1) != end_getGroup(end2)) {
+        if (end_getGroup(end1) != NULL && end_getGroup(end2) != NULL && !endsAreConnected(end1, end2)) {
             /*
-             * We build a 'bridging block' between ends in different groups.
+             * We build a 'scaffolding block' between ends
+             *
+             * We require the ends that are being scaffolded to already have groups, else they must themselves the
+             * ends of scaffolding blocks, so we don't add additional scaffold gaps.
              */
-            Block *block = block_construct(1, flower);
+            Block *block = block_construct(numberOfNsForScaffoldGap, flower);
             if (flower_builtTrees(flower)) { //Add a root segment
                 Event *event = eventTree_getRootEvent(flower_getEventTree(flower));
                 assert(event != NULL);
                 block_setRootInstance(block, segment_construct(block, event));
             }
-
             end_setGroup(block_get5End(block), end_getGroup(end1));
             assert(group_isTangle(end_getGroup(end1)));
             mapEnds(endsToEnds, end1, block_get5End(block));
-
             end_setGroup(block_get3End(block), end_getGroup(end2));
             assert(group_isTangle(end_getGroup(end2)));
             mapEnds(endsToEnds, end2, block_get3End(block));
@@ -671,12 +717,13 @@ static stHash *getEndsToEnds(Flower *flower, stList *chosenAdjacencyEdges, stHas
         }
     }
     flower_destructGroupIterator(groupIt);
-    assert(flower_getEndNumber(flower) - flower_getFreeStubEndNumber(flower) == stHash_size(endsToEnds));
+    assert(flower_getEndNumber(flower) - flower_getFreeStubEndNumber(flower) <= stHash_size(endsToEnds));
     return endsToEnds;
 }
 
-static void makeReferenceThreads(Flower *flower, stList *chosenAdjacencyEdges, stHash *nodesToEnds, Event *referenceEvent) {
-    stHash *endsToEnds = getEndsToEnds(flower, chosenAdjacencyEdges, nodesToEnds);
+static void makeReferenceThreads(Flower *flower, stList *chosenAdjacencyEdges, stHash *nodesToEnds, Event *referenceEvent,
+        int64_t numberOfNsForScaffoldGap) {
+    stHash *endsToEnds = getEndsToEnds(flower, chosenAdjacencyEdges, nodesToEnds, numberOfNsForScaffoldGap);
     makeThreads(endsToEnds, flower, referenceEvent);
     stHash_destruct(endsToEnds);
 }
@@ -720,7 +767,7 @@ static void assignGroups(stList *newEnds, Flower *flower, Event *referenceEvent)
 }
 
 static stList *convertReferenceToAdjacencyEdges2(reference *ref) {
-    stList *edges = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+    stList *edges = stList_construct3(0, (void (*)(void *)) stIntTuple_destruct);
     for (int64_t i = 0; i < reference_getIntervalNumber(ref); i++) {
         int64_t n = -reference_getFirstOfInterval(ref, i);
         while (reference_getNext(ref, n) != INT64_MAX) {
@@ -731,24 +778,87 @@ static stList *convertReferenceToAdjacencyEdges2(reference *ref) {
     return edges;
 }
 
+/*
+ * Function to add additional ends to graph, representing breaks in the reference.
+ */
+static void addAdditionalStubEnds(stList *extraStubNodes, Flower *flower, stHash *nodesToEnds, stList *newEnds) {
+    for (int64_t i = 0; i < stList_length(extraStubNodes); i++) {
+        stIntTuple *node = stList_get(extraStubNodes, i);
+        End *end = end_construct(0, flower); //Ensure we get the right orientation
+        stHash_insert(nodesToEnds, stIntTuple_construct1(stIntTuple_get(node, 0)), end);
+        stList_append(newEnds, end);
+    }
+}
+
+/*
+ * We have two criteria for splitting a reference interval.
+ * (1) Presence of a direct adjacency.
+ * (2) Presence of substantial amounts of indirect adjacencies.
+ */
+bool referenceSplitFn(int64_t pNode, reference *ref, void *extraArgs) {
+    assert(reference_getNext(ref, pNode) != INT64_MAX);
+    /*
+     * We do not split if not a leaf adjacency.
+     *
+     * One complexity is that an end may not yet be assigned a group, in which case
+     * we look at its proposed adjacent end to decide if it's a leaf adjacency.
+     * If this does not also have a group
+     * then both ends must be from "N" blocks, and we allow them to be joined.
+     */
+    //void *extraArgs[4] = { nodesToEnds, dAL, &onlyDirectAdjacencies, aL };
+    stHash *nodesToEnds = ((void **) extraArgs)[0];
+    stIntTuple *i = stIntTuple_construct1(-pNode);
+    End *end = stHash_search(nodesToEnds, i);
+    stIntTuple_destruct(i);
+    assert(end != NULL);
+    Group *group = end_getGroup(end);
+    if (group == NULL) {
+        i = stIntTuple_construct1(reference_getNext(ref, pNode));
+        End *adjacentEnd = stHash_search(nodesToEnds, i);
+        stIntTuple_destruct(i);
+        assert(adjacentEnd != NULL);
+        group = end_getGroup(adjacentEnd);
+    }
+    refAdjList *dAL = ((void **) extraArgs)[1];
+    if (group == NULL) { //Case there is no group for either adjacent end.
+        assert(refAdjList_getWeight(dAL, -pNode, reference_getNext(ref, pNode)) == 0); //We can check they are not connected.
+        return 0;
+    }
+    if (!group_isLeaf(group)) { //Case we are not at a leaf adjacency.
+        return 0;
+    }
+
+    /*
+     * The following is the logic for deciding if we should split an adjacency.
+     */
+    //We do not split edges that have direct sequence support.
+    int64_t minNumberOfSequencesToSupportAdjacency = *((int64_t *) ((void **) extraArgs)[2]);
+    assert(minNumberOfSequencesToSupportAdjacency >= 0);
+    return refAdjList_getWeight(dAL, -pNode, reference_getNext(ref, pNode)) < minNumberOfSequencesToSupportAdjacency;
+}
+
+stList *getReferenceIntervalsToPreserve(reference *ref, refAdjList *dAL, int64_t minNumberOfSequencesToSupportAdjacency) {
+    stList *referenceIntervalsToPreserve = stList_construct3(0, (void (*)(void *)) stIntTuple_destruct);
+    for (int64_t interval = 0; interval < reference_getIntervalNumber(ref); interval++) {
+        int64_t firstNode = reference_getFirstOfInterval(ref, interval);
+        int64_t lastNode = reference_getLast(ref, firstNode);
+        assert(reference_getNext(ref, firstNode) == lastNode);
+        if (refAdjList_getWeight(dAL, -firstNode, lastNode) >= minNumberOfSequencesToSupportAdjacency) { //Decide if we want to preserve the interval
+            stList_append(referenceIntervalsToPreserve, stIntTuple_construct2(firstNode, lastNode));
+        }
+    }
+    return referenceIntervalsToPreserve;
+}
+
 ////////////////////////////////////
 ////////////////////////////////////
 //Main function
 ////////////////////////////////////
 ////////////////////////////////////
 
-static int64_t maxNodeNumber;
-static bool tooLarge(reference *ref, int64_t n) {
-    if(reference_getRemainingIntervalLength(ref, n) > maxNodeNumber) {
-        st_logDebug("Breaking up interval with %" PRIi64 "nodes\n", reference_getRemainingIntervalLength(ref, n));
-        return 1;
-    }
-    return 0;
-}
-
 void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int64_t permutations,
-        stList *(*matchingAlgorithm)(stList *edges, int64_t nodeNumber), double(*temperature)(double), double theta,
-        int64_t maxWalkForCalculatingZ, bool ignoreUnalignedGaps, double wiggle) {
+        stList *(*matchingAlgorithm)(stList *edges, int64_t nodeNumber), double (*temperature)(double), double theta, int64_t maxWalkForCalculatingZ,
+        bool ignoreUnalignedGaps, double wiggle, int64_t numberOfNsForScaffoldGap, int64_t minNumberOfSequencesToSupportAdjacency, bool makeScaffolds) {
     /*
      * Implements a greedy algorithm and greedy update sampler to find a solution to the adjacency problem for a net.
      */
@@ -775,14 +885,11 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
      */
     stList *stubTangleEnds = getTangleStubEnds(flower, endsToNodes);
     int64_t nodeNumber = chainNumber + stList_length(stubTangleEnds);
-    st_logInfo("For flower: %" PRIi64 " we have %" PRIi64 " nodes for: %" PRIi64 " ends, %" PRIi64 " chains, %" PRIi64 " stubs and %" PRIi64 " blocks\n", flower_getName(flower), nodeNumber, flower_getEndNumber(flower), flower_getChainNumber(flower), stList_length(stubTangleEnds), flower_getBlockNumber(flower));
+    st_logInfo(
+            "For flower: %" PRIi64 " we have %" PRIi64 " nodes for: %" PRIi64 " ends, %" PRIi64 " chains, %" PRIi64 " stubs and %" PRIi64 " blocks\n",
+            flower_getName(flower), nodeNumber, flower_getEndNumber(flower), flower_getChainNumber(flower), stList_length(stubTangleEnds),
+            flower_getBlockNumber(flower));
     assert(stList_length(stubTangleEnds) % 2 == 0);
-
-    /*
-     * Calculate z functions
-     */
-    refAdjList *aL = calculateZ(flower, endsToNodes, nodeNumber, theta, maxWalkForCalculatingZ, ignoreUnalignedGaps);
-    refAdjList *dAL = calculateZ(flower, endsToNodes, nodeNumber, 0.0, 1, ignoreUnalignedGaps); //Gets set of direct of direct adjacencies
 
     /*
      * Get the reference with chosen stub matched intervals
@@ -792,9 +899,35 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     reference_log(ref);
 
     /*
+     * Invert the hash from ends to nodes to nodes to ends.
+     */
+    stHash *nodesToEnds = stHash_invert(endsToNodes, (uint64_t (*)(const void *)) stIntTuple_hashKey,
+            (int (*)(const void *, const void *)) stIntTuple_equalsFn, (void (*)(void *)) stIntTuple_destruct, NULL);
+
+    /*
+     * Determine which adjacencies between stubs must be preserved (i.e. scaffolded if necessary)
+     */
+    stList *referenceIntervalsToPreserve = NULL;
+    if (makeScaffolds) {
+        stHash *stubEndsToNodes = makeStubEdgesToNodesHash(stubTangleEnds, endsToNodes);
+        refAdjList *stubDAL = calculateZ(flower, stubEndsToNodes, nodeNumber, 1, 1, countAdapterFn, NULL); //Gets set of adjacencies between stub ends.
+        stHash_destruct(stubEndsToNodes);
+        referenceIntervalsToPreserve = getReferenceIntervalsToPreserve(ref, stubDAL, minNumberOfSequencesToSupportAdjacency); //List of int-tuple pairs identifying the matchings between ends that should be preserved.
+        refAdjList_destruct(stubDAL);
+    }
+
+    /*
+     * Calculate z functions
+     */
+    refAdjList *aL = calculateZ(flower, endsToNodes, nodeNumber, maxWalkForCalculatingZ, ignoreUnalignedGaps, calculateZScoreAdapterFn, &theta);
+    int64_t directTheta = 0.0;
+    refAdjList *dAL = calculateZ(flower, endsToNodes, nodeNumber, 1, ignoreUnalignedGaps, calculateZScoreAdapterFn, &directTheta); //Gets set of direct of direct adjacencies
+
+    /*
      * Check the edges and nodes before starting to calculate the matching.
      */
-    st_logDebug("Starting to build the reference for flower %lli, with %" PRIi64 " stubs and %" PRIi64 " chains and %" PRIi64 " nodes in the flowers tangle\n",
+    st_logDebug(
+            "Starting to build the reference for flower %lli, with %" PRIi64 " stubs and %" PRIi64 " chains and %" PRIi64 " nodes in the flowers tangle\n",
             flower_getName(flower), reference_getIntervalNumber(ref), chainNumber, nodeNumber);
 
     double maxPossibleScore = refAdjList_getMaxPossibleScore(aL);
@@ -802,7 +935,8 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     reference_log(ref);
     int64_t badAdjacenciesAfterGreedy = getBadAdjacencyCount(dAL, ref);
     double totalScoreAfterGreedy = getReferenceScore(aL, ref);
-    st_logDebug("The score of the initial solution is %f/%" PRIi64 " out of a max possible %f\n", totalScoreAfterGreedy, badAdjacenciesAfterGreedy, maxPossibleScore);
+    st_logDebug("The score of the initial solution is %f/%" PRIi64 " out of a max possible %f\n", totalScoreAfterGreedy, badAdjacenciesAfterGreedy,
+            maxPossibleScore);
 
     updateReferenceGreedily(aL, dAL, ref, permutations);
     reference_log(ref);
@@ -827,33 +961,60 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     double totalScoreAfterNudging = getReferenceScore(aL, ref);
     st_logDebug("The score of the final solution is %f/%" PRIi64 " after %" PRIi64 " rounds of greedy nudging out of a max possible %f\n",
             totalScoreAfterNudging, badAdjacenciesAfterNudging, nudgePermutations, maxPossibleScore);
+    //The aL and dAL arrays are no longer valid as we've added additional nodes to the reference, let's clean up the arrays explicitly.
+    refAdjList_destruct(aL);
+    refAdjList_destruct(dAL);
 
-    if(flower_getName(flower) == 0) { //Hack to breakup largest chromosome
-        int64_t totalBases = flower_getTotalBaseLength(flower);
-        maxNodeNumber = nodeNumber * 0.5;
-        if(totalBases > 1000000000) {
-            reorderToAvoidOverlargeChromosome(ref, tooLarge);
-        }
+    /*
+     * Split reference intervals where the ordering of adjacent nodes
+     * is not supported by direct adjacencies, or (optionally) indirect
+     * adjacencies.
+     *
+     * The function returns a list of additional extra stub nodes, which
+     * must then be turned into ends in the flower.
+     */
+    refAdjList *countDAL = calculateZ(flower, endsToNodes, nodeNumber, 1, 1, countAdapterFn, NULL); //Gets set of adjacencies between stub ends.
+    void *extraArgs[3] = { nodesToEnds, countDAL, &minNumberOfSequencesToSupportAdjacency };
+    stList *extraStubNodes = splitReferenceAtIndicatedLocations(ref, referenceSplitFn, extraArgs);
+    refAdjList_destruct(countDAL);
+    stHash_destruct(endsToNodes); //Note this does not destroy the associated memory.
+
+    /*
+     * Now re-join together pairs that need to be scaffolded together.
+     */
+    stList *prunedExtraStubNodes;
+    if (makeScaffolds) {
+        prunedExtraStubNodes = remakeReferenceIntervals(ref, referenceIntervalsToPreserve, extraStubNodes);
+        stList_destruct(referenceIntervalsToPreserve); //Clean this up.
+    } else {
+        prunedExtraStubNodes = stList_copy(extraStubNodes, NULL);
     }
 
+    /*
+     * Convert the additional stub nodes into new stub ends, updating the endsToNodes and nodesToEnds sets.
+     */
+    addAdditionalStubEnds(prunedExtraStubNodes, flower, nodesToEnds, newEnds);
+    stList_destruct(prunedExtraStubNodes);
+
+    /*
+     * Convert the reference into a list of adjacency edges.
+     */
     stList *chosenEdges = convertReferenceToAdjacencyEdges2(ref);
 
     /*
      * Check the matching we have.
      */
-    assert(stList_length(chosenEdges) * 2 == stHash_size(endsToNodes));
-    stList *nodes = stHash_getValues(endsToNodes);
-    stSortedSet *nodesSet = stList_getSortedSet(nodes, (int(*)(const void *, const void *)) stIntTuple_cmpFn);
-    assert(stHash_size(endsToNodes) == stSortedSet_size(nodesSet));
+    assert(stList_length(chosenEdges) * 2 == stHash_size(nodesToEnds));
+    stList *nodes = stHash_getValues(nodesToEnds);
+    stSortedSet *nodesSet = stList_getSortedSet(nodes, (int (*)(const void *, const void *)) stIntTuple_cmpFn);
+    assert(stHash_size(nodesToEnds) == stSortedSet_size(nodesSet));
     stSortedSet_destruct(nodesSet);
     stList_destruct(nodes);
-    stHash *nodesToEnds = stHash_invert(endsToNodes, (uint64_t(*)(const void *)) stIntTuple_hashKey,
-            (int(*)(const void *, const void *)) stIntTuple_equalsFn, NULL, NULL);
 
     /*
      * Add the reference genome into flower
      */
-    makeReferenceThreads(flower, chosenEdges, nodesToEnds, referenceEvent);
+    makeReferenceThreads(flower, chosenEdges, nodesToEnds, referenceEvent, numberOfNsForScaffoldGap);
 
     /*
      * Ensure the newly created ends have a group.
@@ -863,12 +1024,10 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     /*
      * Cleanup
      */
-    refAdjList_destruct(aL);
-    refAdjList_destruct(dAL);
     stList_destruct(newEnds);
-    stHash_destruct(endsToNodes);
     stHash_destruct(nodesToEnds);
     stList_destruct(chosenEdges);
     reference_destruct(ref);
     stList_destruct(stubTangleEnds);
+    stList_destruct(extraStubNodes);
 }

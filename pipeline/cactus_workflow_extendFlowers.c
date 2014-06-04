@@ -34,8 +34,8 @@ static void extendFlowers(Flower *flower, bool createRedundantFlowerLinks) {
             }
         }
         flower_destructGroupIterator(groupIterator);
-    } else { //something went wrong last time, and the flower hasn't been filled in.. so we'll return it
-        //again.
+    } else { //We are at the top of the hierarchy.
+        assert(flower_getName(flower) == 0);
         flowerWriter_add(flowerWriter, flower_getName(flower), flower_getTotalBaseLength(flower));
     }
 }
