@@ -70,6 +70,10 @@ static stList *getOutgroupThreads(stPinchBlock *block, stSet *outgroupThreads) {
  * Splits the block using the given partition into a set of new blocks.
  */
 static void splitBlock(stPinchBlock *block, stList *partitions) {
+    assert(stList_length(partitions) > 0);
+    if(stList_length(partitions) == 1) {
+        return; //Nothing to do.
+    }
     //Build a mapping of indices of the segments in the block to the segments
     int64_t blockDegree = stPinchBlock_getDegree(block);
     stPinchSegment **segments = st_calloc(blockDegree, sizeof(stPinchSegment *));
@@ -115,12 +119,33 @@ static void splitBlock(stPinchBlock *block, stList *partitions) {
     free(orientations);
 }
 
+/*
+ * For logging purposes gets the total number of similarities and differences in the matrix.
+ */
+static void getTotalSimilarityAndDifferenceCounts(stMatrix *matrix, double *similarities, double *differences) {
+    *similarities = 0.0;
+    *differences = 0.0;
+    for(int64_t i=0; i<stMatrix_n(matrix); i++) {
+        for(int64_t j=i+1; j<stMatrix_n(matrix); j++) {
+            *similarities += *stMatrix_getCell(matrix, i, j);
+            *differences += *stMatrix_getCell(matrix, j, i);
+        }
+    }
+}
+
 void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHash *threadStrings, stSet *outgroupThreads) {
     stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
     stPinchBlock *block;
 
     //Hash in which we store a map of blocks to the partitions
     stHash *blocksToPartitions = stHash_construct2(NULL, NULL);
+
+    //Count of the total number of blocks partitioned by an ancient homology
+    int64_t totalBlocksSplit = 0;
+    double totalSubstitutionSimilarities = 0.0;
+    double totalSubstitutionDifferences = 0.0;
+    double totalBreakpointSimilarities = 0.0;
+    double totalBreakpointDifferences = 0.0;
 
     //The loop to build a tree for each block
     while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
@@ -143,9 +168,16 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
             stMatrix *substitutionMatrix = stPinchPhylogeny_getMatrixFromSubstitutions(featureColumns, block, NULL, 0);
             assert(stMatrix_n(substitutionMatrix) == stPinchBlock_getDegree(block));
             assert(stMatrix_m(substitutionMatrix) == stPinchBlock_getDegree(block));
+            double similarities, differences;
+            getTotalSimilarityAndDifferenceCounts(substitutionMatrix, &similarities, &differences);
+            totalSubstitutionSimilarities += similarities;
+            totalSubstitutionDifferences += differences;
 
             //Make breakpoint matrix
             stMatrix *breakpointMatrix = stPinchPhylogeny_getMatrixFromBreakpoints(featureColumns, block, NULL, 0);
+            getTotalSimilarityAndDifferenceCounts(breakpointMatrix, &similarities, &differences);
+            totalBreakpointSimilarities += similarities;
+            totalBreakpointDifferences += differences;
 
             //Combine the matrices into distance matrices
             stMatrix_scale(breakpointMatrix, breakPointScalingFactor, 0.0);
@@ -162,6 +194,9 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
 
             //Get the partitions
             stList *partition = stPinchPhylogeny_splitTreeOnOutgroups(blockTree, outgroups);
+            if(stList_length(partition) > 1) {
+                totalBlocksSplit++;
+            }
             stHash_insert(blocksToPartitions, block, partition);
 
             //Cleanup
@@ -175,6 +210,10 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
             stList_destruct(outgroups);
         }
     }
+    int64_t blockCount = stPinchThreadSet_getTotalBlockNumber(threadSet);
+    fprintf(stdout, "Using phylogeny building, of %lli blocks, %lli blocks were partitioned\n", blockCount, totalBlocksSplit);
+    fprintf(stdout, "In phylogeny building there were %f avg. substitution similarities %f avg. substitution differences\n", totalSubstitutionSimilarities/blockCount, totalSubstitutionDifferences/blockCount);
+    fprintf(stdout, "In phylogeny building there were %f avg. breakpoint similarities %f avg. breakpoint differences\n", totalBreakpointSimilarities/blockCount, totalBreakpointDifferences/blockCount);
 
     st_logDebug("Got homology partition for each block\n");
 
