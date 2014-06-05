@@ -184,13 +184,13 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
             stMatrix *combinedMatrix = stMatrix_add(substitutionMatrix, breakpointMatrix);
             stMatrix *distanceMatrix = stPinchPhylogeny_getSymmetricDistanceMatrix(combinedMatrix);
 
-            //Build the tree...
-            stTree *blockTree = stPhylogeny_neighborJoin(distanceMatrix);
-
-            //TODO, add in features relating to bootstrapping
-
             //Get the outgroup threads
             stList *outgroups = getOutgroupThreads(block, outgroupThreads);
+
+            //Build the tree...
+            stTree *blockTree = stPhylogeny_neighborJoin(distanceMatrix, outgroups);
+
+            //TODO, add in features relating to bootstrapping
 
             //Get the partitions
             stList *partition = stPinchPhylogeny_splitTreeOnOutgroups(blockTree, outgroups);
@@ -204,6 +204,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
             stMatrix_destruct(breakpointMatrix);
             stMatrix_destruct(combinedMatrix);
             stMatrix_destruct(distanceMatrix);
+            stPhylogenyInfo_destructOnTree(blockTree);
             stTree_destruct(blockTree);
             stList_destruct(featureColumns);
             stList_destruct(featureBlocks);
@@ -211,7 +212,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
         }
     }
     int64_t blockCount = stPinchThreadSet_getTotalBlockNumber(threadSet);
-    fprintf(stdout, "Using phylogeny building, of %lli blocks, %lli blocks were partitioned\n", blockCount, totalBlocksSplit);
+    fprintf(stdout, "Using phylogeny building, of %" PRIi64 " blocks, %" PRIi64 " blocks were partitioned\n", blockCount, totalBlocksSplit);
     fprintf(stdout, "In phylogeny building there were %f avg. substitution similarities %f avg. substitution differences\n", totalSubstitutionSimilarities/blockCount, totalSubstitutionDifferences/blockCount);
     fprintf(stdout, "In phylogeny building there were %f avg. breakpoint similarities %f avg. breakpoint differences\n", totalBreakpointSimilarities/blockCount, totalBreakpointDifferences/blockCount);
 
