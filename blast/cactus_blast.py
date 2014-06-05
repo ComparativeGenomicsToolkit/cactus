@@ -298,13 +298,13 @@ class TrimAndRecurseOnOutgroups(Target):
         os.remove(trimmedOutgroup)
 
         # Report coverage of the all outgroup alignments so far on the ingroups.
+        ingroupCoverageFiles = []
         for ingroupSequence in self.untrimmedSequenceFiles:
-            # get temporary coverage file -- this is unusable for
-            # trimming since it's only from the *latest* outgroup
             tmpIngroupCoverage = getTempFile(rootDir=self.getGlobalTempDir())
             calculateCoverage(ingroupSequence, self.outputFile,
                               tmpIngroupCoverage)
             self.logToMaster("Cumulative coverage of %d outgroups on ingroup %s: %s" % (self.outgroupNumber, os.path.basename(ingroupSequence), percentCoverage(ingroupSequence, tmpIngroupCoverage)))
+            ingroupCoverageFiles.append(tmpIngroupCoverage)
 
         # Trim ingroup seqs and recurse on the next outgroup.
 
@@ -323,10 +323,8 @@ class TrimAndRecurseOnOutgroups(Target):
             trimmedSeqs = []
             # Use the accumulated results so far to trim away the
             # aligned parts of the ingroups.
-            for sequenceFile in self.untrimmedSequenceFiles:
-                coverageFile = getTempFile(rootDir=self.getGlobalTempDir())
-                calculateCoverage(sequenceFile, self.outputFile,
-                                  coverageFile)
+            for i, sequenceFile in enumerate(self.untrimmedSequenceFiles):
+                coverageFile = ingroupCoverageFiles[i]
 
                 trimmed = getTempFile(rootDir=self.getGlobalTempDir())
                 trimGenome(sequenceFile, coverageFile, trimmed,
