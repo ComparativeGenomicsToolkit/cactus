@@ -66,6 +66,7 @@ End *end_copyConstruct(End *end, Flower *newFlower) {
     Cap *cap;
     Cap *cap2;
 
+    end = end_getPositiveOrientation(end);
     assert(flower_getEnd(newFlower, end_getName(end)) == NULL);
 
     end2 = end_construct3(end_getName(end), 1, end_isBlockEnd(end) ? 1

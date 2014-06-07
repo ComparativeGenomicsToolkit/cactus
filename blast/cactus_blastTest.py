@@ -22,6 +22,7 @@ from sonLib.bioio import PairwiseAlignment
 from sonLib.bioio import getLogLevelString
 from sonLib.bioio import TestStatus
 from sonLib.bioio import catFiles
+from sonLib.bioio import popenCatch
 from cactus.shared.test import parseCactusSuiteTestOptions
 from cactus.shared.common import runCactusBlast
 from cactus.blast.cactus_blast import decompressFastaFile, compressFastaFile
@@ -47,9 +48,8 @@ class TestCase(unittest.TestCase):
         unittest.TestCase.tearDown(self)
         system("rm -rf %s" % self.tempDir)
         
-    def testBlastEncode(self):
-        """For each encode region, for set of pairwise species, run 
-        cactus_blast.py. We compare the output with a naive run of the blast program, to check the results are nearly
+    def runComparisonOfBlastScriptVsNaiveBlast(self, blastMode):
+        """We compare the output with a naive run of the blast program, to check the results are nearly
         equivalent.
         """
         encodeRegions = [ "ENm00" + str(i) for i in xrange(1,2) ] #, 2) ] #Could go to six
@@ -69,15 +69,126 @@ class TestCase(unittest.TestCase):
                     
                     #Run the blast
                     jobTreeDir = os.path.join(getTempDirectory(self.tempDir), "jobTree")
-                    runCactusBlast([ seqFile1, seqFile2 ], self.tempOutputFile2, jobTreeDir,
-                                   chunkSize=500000, overlapSize=10000)
+                    if blastMode == "allAgainstAll":
+                        runCactusBlast([ seqFile1, seqFile2 ], self.tempOutputFile2, jobTreeDir,
+                                       chunkSize=500000, overlapSize=10000)
+                    else:
+                        runCactusBlast([ seqFile1 ], self.tempOutputFile2, jobTreeDir,
+                                       chunkSize=500000, overlapSize=10000, targetSequenceFiles=[ seqFile2 ])
                     runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
                     system("rm -rf %s " % jobTreeDir)    
                     logger.info("Ran cactus_blast okay")
-                    
-                    logger.critical("Comparing cactus_blast and naive blast")
+                    logger.critical("Comparing cactus_blast and naive blast; using mode: %s" % blastMode)
                     compareResultsFile(self.tempOutputFile, self.tempOutputFile2)
+
+    def testBlastEncodeAllAgainstAll(self):
+        """For each encode region, for set of pairwise species, run 
+        cactus_blast.py in all-against-all mode. 
+        """
+        self.runComparisonOfBlastScriptVsNaiveBlast(blastMode="allAgainstAll")
     
+    def testBlastEncode(self):
+        """For each encode region, for set of pairwise species, run 
+        cactus_blast.py in one set of sequences against another set mode. 
+        """
+        self.runComparisonOfBlastScriptVsNaiveBlast(blastMode="againstEachOther")
+
+    def testAddingOutgroupsImprovesResult(self):
+        """Run blast on "ingroup" and "outgroup" encode regions, and ensure
+        that adding an extra outgroup only adds alignments if
+        possible, and doesn't lose any
+        """
+        encodeRegions = [ "ENm00" + str(i) for i in xrange(1,2) ]
+        ingroups = ["human", "macaque"]
+        outgroups = ["rabbit", "dog", "rat", "platypus", "xenopus", "fugu"]
+        # subselect 4 random ordered outgroups
+        outgroups = [outgroups[i] for i in sorted(random.sample(xrange(len(outgroups)), 4))]
+        for encodeRegion in encodeRegions:
+            regionPath = os.path.join(self.encodePath, encodeRegion)
+            ingroupPaths = map(lambda x: os.path.join(regionPath, x + "." + encodeRegion + ".fa"), ingroups)
+            outgroupPaths = map(lambda x: os.path.join(regionPath, x + "." + encodeRegion + ".fa"), outgroups)
+            results = []
+            for numOutgroups in xrange(1,5):
+                # Align w/ increasing numbers of outgroups
+                subResults = getTempFile()
+                subOutgroupPaths = outgroupPaths[:numOutgroups]
+                tmpJobTree = getTempDirectory()
+                print "aligning %s vs %s" % (",".join(ingroupPaths), ",".join(subOutgroupPaths))
+                system("cactus_blast.py --ingroups %s --outgroups %s --cigars %s --jobTree %s/jobTree" % (",".join(ingroupPaths), ",".join(subOutgroupPaths), subResults, tmpJobTree))
+                system("rm -fr %s" % (tmpJobTree))
+                results.append(subResults)
+
+            # Print diagnostics about coverage
+            for i, subResults in enumerate(results):
+                for ingroup, ingroupPath in zip(ingroups, ingroupPaths):
+                    coveredBases = popenCatch("cactus_coverage %s %s | awk '{ total += $3 - $2 } END { print total }'" % (ingroupPath, subResults))
+                    print "covered bases on %s using %d outgroups: %s" % (ingroup, i + 1, coveredBases)
+
+            resultsSets = map(lambda x : loadResults(x), results)
+            for i, moreOutgroupsResults in enumerate(resultsSets[1:]):
+                # Make sure the results from (n+1) outgroups are
+                # (very nearly) a superset of the results from n outgroups
+                print "Using %d addl outgroup(s):" % (i + 1)
+                comparator =  ResultComparator(resultsSets[0], moreOutgroupsResults)
+                print comparator
+                self.assertTrue(comparator.sensitivity >= 0.99)
+
+            # Ensure that the new alignments don't cover more than
+            # x% of already existing alignments to human
+            for i in xrange(1, len(resultsSets)):
+                prevResults = resultsSets[i-1][0]
+                curResults = resultsSets[i][0]
+                prevResultsHumanPos = set(map(lambda x: (x[0], x[1]) if "human" in x[0] else (x[2], x[3]), filter(lambda x: "human" in x[0] or "human" in x[2], prevResults)))
+                newAlignments = curResults.difference(prevResults)
+                newAlignmentsHumanPos =  set(map(lambda x: (x[0], x[1]) if "human" in x[0] else (x[2], x[3]), filter(lambda x: "human" in x[0] or "human" in x[2], newAlignments)))
+                print "addl outgroup %d:" % i
+                print "bases re-covered: %f (%d)" % (len(newAlignmentsHumanPos.intersection(prevResultsHumanPos))/float(len(prevResultsHumanPos)), len(newAlignmentsHumanPos.intersection(prevResultsHumanPos)))
+            for subResult in results:
+                os.remove(subResult)
+
+    def testProgressiveOutgroupsVsAllOutgroups(self):
+        """Tests the difference in outgroup coverage on an ingroup when
+        running in "ingroups vs. outgroups" mode and "set against set"
+        mode.
+        """
+        encodeRegion = "ENm001"
+        ingroup = "human"
+        outgroups = ["macaque", "rabbit", "dog"]
+        regionPath = os.path.join(self.encodePath, encodeRegion)
+        ingroupPath = os.path.join(regionPath, ingroup + "." + encodeRegion + ".fa")
+        outgroupPaths = map(lambda x: os.path.join(regionPath, x + "." + encodeRegion + ".fa"), outgroups)
+        # Run in "set against set" mode, aligning the entire ingroup
+        # vs each outgroup
+        runCactusBlast([ingroupPath], self.tempOutputFile, os.path.join(self.tempDir, "setVsSetJobTree"),
+                       chunkSize=500000, overlapSize=10000,
+                       targetSequenceFiles=outgroupPaths)
+        # Run in "ingroup vs outgroups" mode, aligning the ingroup vs
+        # the outgroups in order, trimming away sequence that's
+        # already been aligned.
+        system("cactus_blast.py --ingroups %s --outgroups %s --cigars %s --jobTree %s/outgroupJobTree" % (ingroupPath, ",".join(outgroupPaths), self.tempOutputFile2, self.tempDir))
+
+        # Get the coverage on the ingroup, in bases, from each run.
+        coverageSetVsSet = int(popenCatch("cactus_coverage %s %s | awk '{ total +=  $3 - $2} END { print total }'" % (ingroupPath, self.tempOutputFile)))
+        coverageIngroupVsOutgroups = int(popenCatch("cactus_coverage %s %s | awk '{ total +=  $3 - $2} END { print total }'" % (ingroupPath, self.tempOutputFile2)))
+
+        print "total coverage on human (set vs set mode, %d outgroups): %d" % (len(outgroups), coverageSetVsSet)
+        print "total coverage on human (ingroup vs outgroup mode, %d outgroups): %d" % (len(outgroups), coverageIngroupVsOutgroups)
+
+        # Make sure we're getting a reasonable fraction of the
+        # alignments when using the trimming strategy.
+        self.assertTrue(float(coverageIngroupVsOutgroups)/coverageSetVsSet >= 0.95)
+
+        # Get the coverage on the ingroup, in bases, from just the
+        # last outgroup. Obviously this should be much higher in set
+        # vs set mode than in ingroup vs outgroup mode.
+        coverageFromLastOutgroupSetVsSet = int(popenCatch("grep %s %s | cactus_coverage %s /dev/stdin | awk '{ total +=  $3 - $2} END { print total }'" % (outgroups[-1], self.tempOutputFile, ingroupPath)))
+        coverageFromLastOutgroupInVsOut = int(popenCatch("grep %s %s | cactus_coverage %s /dev/stdin | awk '{ total +=  $3 - $2} END { print total }'" % (outgroups[-1], self.tempOutputFile2, ingroupPath)))
+
+        print "total coverage on human from last outgroup in set (%s) (set vs set mode): %d" % (outgroups[-1], coverageFromLastOutgroupSetVsSet)
+        print "total coverage on human from last outgroup in set (%s) (ingroup vs outgroup mode): %d" % (outgroups[-1], coverageFromLastOutgroupInVsOut)
+
+        self.assertTrue(float(coverageFromLastOutgroupInVsOut)/coverageFromLastOutgroupSetVsSet <= 0.10)
+
     def testBlastParameters(self):
         """Tests if changing parameters of lastz creates results similar to the desired default.
         """

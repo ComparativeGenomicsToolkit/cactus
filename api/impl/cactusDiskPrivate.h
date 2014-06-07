@@ -22,7 +22,8 @@ struct _cactusDisk {
     bool storeSequencesInAFile;
     char *sequencesFileName;
     char *absSequencesFileName;
-    FILE *sequencesFileHandle;
+    FILE *sequencesReadFileHandle;
+    FILE *sequencesWriteFileHandle;
 };
 
 ////////////////////////////////////////////////

@@ -28,6 +28,7 @@ void usage() {
     fprintf(stderr, "-j --rescoreByPosteriorProb : Set score equal to avg. posterior match probability, treating indels as residues with 0 match probability.\n");
     fprintf(stderr, "-k --rescoreByIdentityIgnoringGaps : Set score equal to alignment identity, ignoring indels.\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
+    fprintf(stderr, "-s --splitIndelsLongerThanThis : Split alignments with consecutive runs of indels that are longer than this.\n");
 }
 
 struct PairwiseAlignment *convertAlignedPairsToPairwiseAlignment(char *seqName1, char *seqName2, double score, int64_t length1,
@@ -71,6 +72,110 @@ struct PairwiseAlignment *convertAlignedPairsToPairwiseAlignment(char *seqName1,
     //Construct the alignment
     struct PairwiseAlignment *pA = constructPairwiseAlignment(seqName1, 0, length1, 1, seqName2, 0, length2, 1, score, opList);
     return pA;
+}
+
+// Check if a pairwise alignment has an indel longer than
+// maxIndelLength (to avoid creating/destructing a list if
+// unnecessary)
+bool hasLongIndel(struct PairwiseAlignment *pA, int64_t maxIndelLength) {
+    int64_t i;
+    int64_t curIndelRunLength = 0;
+    for(i = 0; i < pA->operationList->length; i++) {
+        struct AlignmentOperation *op = pA->operationList->list[i];
+        if(op->opType == PAIRWISE_MATCH) {
+            curIndelRunLength = 0;
+        } else {
+            curIndelRunLength += op->length;
+            if(curIndelRunLength > maxIndelLength) {
+                return TRUE;
+            }
+        }
+    }
+    return FALSE;
+}
+
+// Split a pairwise alignment into two or more pairwise alignments if
+// it has a long indel.
+stList *splitPairwiseAlignment(const struct PairwiseAlignment *pA,
+                               const int64_t maxIndelLength) {
+    stList *ret = stList_construct3(0, free);
+    int64_t i = 0;
+    int64_t j = 0;
+    int64_t curPos1 = pA->start1;
+    int64_t curPos2 = pA->start2;
+    int64_t curIndelRunLength = 0;
+    int64_t curStart1 = pA->start1;
+    int64_t curStart2 = pA->start2;
+    int64_t curEnd1 = 0;
+    int64_t curEnd2 = 0;
+    struct List *curOperationList = constructEmptyList(0, (void (*)(void *))destructAlignmentOperation);
+    // Temporary list of a run of indel operations so that we don't
+    // end alignments with indels.
+    struct List *indelOpList = constructEmptyList(0, (void (*)(void *))destructAlignmentOperation);
+    for(i = 0; i < pA->operationList->length; i++) {
+        struct AlignmentOperation *op = pA->operationList->list[i];
+        switch(op->opType) {
+        case PAIRWISE_MATCH:
+            if(curIndelRunLength > maxIndelLength && curOperationList->length != 0) {
+                // The last indel run was too long, so discard those
+                // last indels and append the alignment so far to the return
+                // value.
+                if(curOperationList->length != 0) {
+                    stList_append(ret, constructPairwiseAlignment(stString_copy(pA->contig1), curStart1, curEnd1, pA->strand1, stString_copy(pA->contig2), curStart2, curEnd2, pA->strand2, pA->score, curOperationList));
+                }
+                curOperationList = constructEmptyList(0, (void (*)(void *))destructAlignmentOperation);
+                indelOpList = constructEmptyList(0, (void (*)(void *))destructAlignmentOperation);
+                curStart1 = curPos1;
+                curStart2 = curPos2;
+                curEnd1 = curStart1;
+                curEnd2 = curStart2;
+            } else if (curOperationList->length == 0) {
+                // Indel run at the start of the alignment
+                indelOpList = constructEmptyList(0, (void (*)(void *))destructAlignmentOperation);
+                curStart1 = curPos1;
+                curStart2 = curPos2;
+                curEnd1 = curStart1;
+                curEnd2 = curStart2;
+            }
+            curIndelRunLength = 0;
+            // Since we're keeping the indel run, (or we've already
+            // split and cleared the overly-long indel list), add the
+            // indel run to the op list and clear the indel op buffer.
+            for(j = 0; j < indelOpList->length; j++) {
+                struct AlignmentOperation *indelOp = indelOpList->list[j];
+                listAppend(curOperationList, indelOp);
+            }
+            indelOpList = constructEmptyList(0, (void (*)(void *))destructAlignmentOperation);
+
+            curPos1 += pA->strand1 ? op->length : -op->length;
+            curPos2 += pA->strand2 ? op->length : -op->length;
+            curEnd1 = curPos1;
+            curEnd2 = curPos2;
+            listAppend(curOperationList, constructAlignmentOperation(op->opType, op->length, op->score));
+            break;
+        case PAIRWISE_INDEL_X:
+            curIndelRunLength += op->length;
+            curPos1 += pA->strand1 ? op->length : -op->length;
+            listAppend(indelOpList, constructAlignmentOperation(op->opType, op->length, op->score));
+            break;
+        case PAIRWISE_INDEL_Y:
+            curIndelRunLength += op->length;
+            curPos2 += pA->strand2 ? op->length : -op->length;
+            listAppend(indelOpList, constructAlignmentOperation(op->opType, op->length, op->score));
+            break;
+        }
+    }
+    assert(curPos1 == pA->end1);
+    assert(curPos2 == pA->end2);
+    if(curOperationList->length != 0) {
+        // Append the remaining pairwise alignment
+        stList_append(ret, constructPairwiseAlignment(stString_copy(pA->contig1), curStart1, curEnd1, pA->strand1, stString_copy(pA->contig2), curStart2, curEnd2, pA->strand2, pA->score, curOperationList));
+    }
+    // Check all alignments
+    for(i = 0; i < stList_length(ret); i++) {
+        checkPairwiseAlignment(stList_get(ret, i));
+    }
+    return ret;
 }
 
 void rebasePairwiseAlignmentCoordinates(int64_t *start, int64_t *end, int64_t *strand, int64_t coordinateShift, bool flipStrand) {
@@ -197,6 +302,8 @@ int main(int argc, char *argv[]) {
     bool rescoreByIdentity = 0;
     bool rescoreByPosteriorProbability = 0;
     bool rescoreByIdentityIgnoringGaps = 0;
+    // -1 here signals don't split indels at all
+    int64_t splitIndelsLongerThanThis = -1;
     /*
      * Parse the options.
      */
@@ -207,11 +314,12 @@ int main(int argc, char *argv[]) {
                 required_argument, 0, 'r' }, { "constraintDiagonalTrim", required_argument, 0, 't' }, { "alignAmbiguityCharacters",
                 no_argument, 0, 'w' }, { "dummy", no_argument, 0, 'x' }, { "rescoreByIdentity", no_argument, 0, 'i' },
                 { "rescoreByPosteriorProb", no_argument, 0, 'j' },
-                { "rescoreByIdentityIgnoringGaps", no_argument, 0, 'k' }, { 0, 0, 0, 0 } };
+                { "rescoreByIdentityIgnoringGaps", no_argument, 0, 'k' },
+                {"splitIndelsLongerThanThis", required_argument, 0, 's'}, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:hl:o:r:t:wxijk", long_options, &option_index);
+        int key = getopt_long(argc, argv, "a:hl:o:r:t:s:wxijk", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -261,6 +369,11 @@ int main(int argc, char *argv[]) {
                 break;
             case 'k':
                 rescoreByIdentityIgnoringGaps = 1;
+                break;
+            case 's':
+                i = sscanf(optarg, "%" PRIi64, &splitIndelsLongerThanThis);
+                assert(i == 1);
+                assert(splitIndelsLongerThanThis >= 0);
                 break;
             default:
                 usage();
@@ -312,7 +425,7 @@ int main(int argc, char *argv[]) {
         } else {
             alignedPairs = getAlignedPairsUsingAnchors(subSeqX, subSeqY, filteredAnchoredPairs, pairwiseAlignmentBandingParameters, 1, 1);
             //Convert to partial ordered set of pairs
-            if(gapGamma < 0.55) { //Shouldn't be needed if we only take pairs with > 50% posterior prob
+            if(1) { //Shouldn't be needed if we only take pairs with > 50% posterior prob
                 stList_destruct(filterPairwiseAlignmentToMakePairsOrdered(alignedPairs, gapGamma));
             }
             else { //Just filter by gap gamma (the alterative is quite expensive)
@@ -343,7 +456,16 @@ int main(int argc, char *argv[]) {
         rebasePairwiseAlignmentCoordinates(&(rPA->start2), &(rPA->end2), &(rPA->strand2), coordinateShift2, flipStrand2);
         checkPairwiseAlignment(rPA);
         //Write out alignment
-        cigarWrite(fileHandleOut, rPA, 0);
+        if(splitIndelsLongerThanThis != -1) {
+            // Write multiple split alignments
+            stList *pAs = splitPairwiseAlignment(rPA, splitIndelsLongerThanThis);
+            for(i = 0; i < stList_length(pAs); i++) {
+                cigarWrite(fileHandleOut, stList_get(pAs, i), 0);
+            }
+        } else {
+            // Write just one unsplit alignment
+            cigarWrite(fileHandleOut, rPA, 0);
+        }
         //Clean up
         stList_destruct(filteredAnchoredPairs);
         stList_destruct(anchorPairs);

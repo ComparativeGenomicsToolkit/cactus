@@ -12,6 +12,27 @@
 	<preprocessor check="1" memory="littleMemory" preprocessorString="cactus_checkUniqueHeaders.py --checkUCSC IN_FILE"/>
 	<!-- The preprocessor for cactus_lastzRepeatMask masks every seed that is part of more than XX other alignments, this stops a combinatorial explosion in pairwise alignments -->
 	<preprocessor chunkSize="3000000" proportionToSample="0.2" memory="littleMemory" preprocessorString="cactus_lastzRepeatMask.py --proportionSampled=PROPORTION_SAMPLED --tempDir=TEMP_DIR --minPeriod=50 --lastzOpts='--step=3 --ambiguous=iupac,100,100 --ungapped --queryhsplimit=keep,nowarn:1500' IN_FILE OUT_FILE "/>
+        <!-- Options for trimming ingroups & outgroups using the trim strategy -->
+        <!-- Ingroup trim options: -->
+        <!-- trimFlanking: The length of flanking sequence to attach
+             to the trimmed ingroup sequences -->
+        <!-- trimMinSize: The minimum size of uncovered regions
+             (*before* adding flanking sequence) to output from the
+             trimming process -->
+        <!-- trimThreshold: The minimum amount of coverage for a
+             region to be trimmed away and not be aligned against the
+             next outgroup -->
+        <!-- trimWindowSize: The size of the window to integrate
+             coverage over -->
+        <!-- Outgroup trim options: -->
+        <!-- trimOutgroupFlanking: The amount of flanking sequence to
+             leave on the ends of the trimmed outgroup fragments -->
+        <trimBlast doTrimStrategy="0"
+                   trimFlanking="10"
+                   trimMinSize="10"
+                   trimThreshold="1"
+                   trimWindowSize="10"
+                   trimOutgroupFlanking="100"/>
 	<setup makeEventHeadersAlphaNumeric="0"/>
 	<caf
 		realign="1"

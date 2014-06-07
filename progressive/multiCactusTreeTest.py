@@ -29,10 +29,10 @@ class TestCase(unittest.TestCase):
     
     def testSanity(self):
         parser = NXNewick()
-        mcTree1 = MultiCactusTree(parser.parseString(self.tree1))
+        mcTree1 = MultiCactusTree(parser.parseString(self.tree1, addImpliedRoots = False))
         tree1String = NXNewick().writeString(mcTree1)  
         assert tree1String == self.tree1
-        mcTree2 = MultiCactusTree(parser.parseString(self.tree2), subtreeSize = 3)
+        mcTree2 = MultiCactusTree(parser.parseString(self.tree2, addImpliedRoots = False), subtreeSize = 3)
         tree2String = NXNewick().writeString(mcTree2)
         assert tree2String == self.tree2
         
@@ -78,7 +78,7 @@ class TestCase(unittest.TestCase):
         trueLeafOg = "(A:1.1,outgroup:1.1);"
         leafTreeString = "A;"
         parser = NXNewick()
-        leafTree = MultiCactusTree(parser.parseString(leafTreeString))
+        leafTree = MultiCactusTree(parser.parseString(leafTreeString, addImpliedRoots = False))
         leafTree.nameUnlabeledInternalNodes()
         leafTree.computeSubtreeRoots()
         leafTree.addOutgroup("outgroup", 2.2)
@@ -89,9 +89,9 @@ class TestCase(unittest.TestCase):
         self.tree1 = '((((HUMAN:0.006969,CHIMP:0.009727):0.025291,BABOON:0.044568):0.11,(MOUSE:0.072818,RAT:0.081244):0.260342):0.02326,((DOG:0.07,CAT:0.07):0.087381,(PIG:0.06,COW:0.06):0.104728):0.04);'
         self.tree2 = '((raccoon:19.19959,bear:6.80041):0.846,((sea_lion:11.997,seal:12.003):7.52973,((monkey:100.8593,cat:47.14069):20.59201,weasel:18.87953):2.0946):3.87382,dog:25.46154);'
         parser = NXNewick()
-        self.mcTree1 = MultiCactusTree(parser.parseString(self.tree1))
-        self.mcTree1a = MultiCactusTree(parser.parseString(self.tree1), subtreeSize = 4)
-        self.mcTree2 = MultiCactusTree(parser.parseString(self.tree2), subtreeSize = 3)
+        self.mcTree1 = MultiCactusTree(parser.parseString(self.tree1, addImpliedRoots = False))
+        self.mcTree1a = MultiCactusTree(parser.parseString(self.tree1, addImpliedRoots = False), subtreeSize = 4)
+        self.mcTree2 = MultiCactusTree(parser.parseString(self.tree2, addImpliedRoots = False), subtreeSize = 3)
         self.mcTree1.nameUnlabeledInternalNodes()
         self.mcTree1a.nameUnlabeledInternalNodes()
         self.mcTree2.nameUnlabeledInternalNodes()

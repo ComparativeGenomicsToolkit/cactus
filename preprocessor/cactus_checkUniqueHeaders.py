@@ -41,13 +41,13 @@ def main():
     for header, seq in fastaRead(inputFile):
         mungedHeader = header.split()[0]
         if options.checkAlphaNumeric and "".join([ i for i in mungedHeader if str.isalnum(i) ]) != mungedHeader: #Check is only alpha numeric
-            raise RuntimeError("We found a non-alpha numeric character in the fasta header: %s" % header)
+            raise RuntimeError("We found a non-alpha numeric character in the fasta header, and the config file (checkAlphaNumeric option) demands that all fasta headers be alpha numeric: %s" % header)
         if options.checkUCSC:
             mungedHeader = mungedHeader.split('.')[-1]
-            if "".join([ i for i in mungedHeader if (str.isalnum(i) or i == '_' or i == '-') ]) != mungedHeader:
-                raise RuntimeError("We found a non-alpha numeric suffix in the fasta header (UCSC Names option): %s" % header)
+            if "".join([ i for i in mungedHeader if (str.isalnum(i) or i == '_' or i == '-' or i == ':') ]) != mungedHeader:
+                raise RuntimeError("We found a non-alpha numeric, '-', ':' or '_' prefix in the fasta header (UCSC Names option), if you want to be able to generate a UCSC assembly hub to display your alignment then please modify the first word after the '>' and before the first '.' in every fasta header to only contain alpha-numeric, '_', ':' or '-' characters. The offending header: %s" % header)
         if mungedHeader in seen:
-            raise RuntimeError("We found a duplicated fasta header: %s" % header)
+            raise RuntimeError("We found a duplicated fasta header, the first word of each fasta header should be unique within each genome, as this is a requirement for the output HAL file or any MAF file subsequently created. Please modify the input fasta file. Offending duplicate header: %s" % header)
         seen.add(mungedHeader)
     inputFile.close()
     return 0

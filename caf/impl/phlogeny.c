@@ -70,6 +70,7 @@ static stList *getOutgroupThreads(stPinchBlock *block, stSet *outgroupThreads) {
  * Splits the block using the given partition into a set of new blocks.
  */
 static void splitBlock(stPinchBlock *block, stList *partitions) {
+    return;
     assert(stList_length(partitions) > 0);
     if(stList_length(partitions) == 1) {
         return; //Nothing to do.

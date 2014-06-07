@@ -10,10 +10,35 @@
 	</constants>
 	<!-- The preprocessor tags are used to modify/check the input sequences before alignment -->
 	<!-- The first preprocessor tag checks that the first word of every fasta header is unique, as this is required for HAL. It throws errors if this is not the case -->
-	<!-- The checkUCSC option (if enabled) ensures that suffix of the first word after the last period character (or the whole word if no period character exists) contains only alphanumeric or underscore characters as is unique -->
+	<!-- The checkUCSC option (if enabled) ensures that suffix of the first word after the last period character (or the whole word if no period character exists) contains only alphanumeric, underscore, colon or hyphen characters, and is unique in the genome -->
 	<preprocessor check="1" memory="littleMemory" preprocessorString="cactus_checkUniqueHeaders.py --checkUCSC IN_FILE"/>
 	<!-- The preprocessor for cactus_lastzRepeatMask masks every seed that is part of more than XX other alignments, this stops a combinatorial explosion in pairwise alignments -->
 	<preprocessor chunkSize="3000000" proportionToSample="0.2" memory="littleMemory" preprocessorString="cactus_lastzRepeatMask.py --proportionSampled=PROPORTION_SAMPLED --tempDir=TEMP_DIR --minPeriod=50 --lastzOpts='--step=3 --ambiguous=iupac,100,100 --ungapped --queryhsplimit=keep,nowarn:1500' IN_FILE OUT_FILE "/>
+        <!-- Options for trimming ingroups & outgroups using the trim strategy -->
+        <!-- Ingroup trim options: -->
+        <!-- trimFlanking: The length of flanking sequence to attach
+             to the trimmed ingroup sequences -->
+        <!-- trimMinSize: The minimum size of uncovered regions
+             (*before* adding flanking sequence) to output from the
+             trimming process -->
+        <!-- trimThreshold: The minimum fraction of bases in a window
+             that must have coverage >= 1 for it to be considered
+             "covered" and be trimmed away and not be aligned against
+             the next outgroup -->
+        <!-- trimWindowSize: The size of the window to integrate
+             coverage over -->
+        <!-- Outgroup trim options: -->
+        <!-- trimOutgroupFlanking: The amount of flanking sequence to
+             leave on the ends of the trimmed outgroup fragments. NB:
+             this value must be larger than the
+             'splitIndelsLongerThanThis' value in the realign
+             arguments -->
+        <trimBlast doTrimStrategy="1"
+                   trimFlanking="10"
+                   trimMinSize="100"
+                   trimThreshold="1.0"
+                   trimWindowSize="1"
+                   trimOutgroupFlanking="2000"/>
 	<ktserver memory="mediumMemory"/>
 	<setup makeEventHeadersAlphaNumeric="0"/>
 	<!-- The caf tag contains parameters for the caf algorithm. -->
@@ -21,7 +46,7 @@
 	<caf 
 		chunkSize="25000000" 
 		realign="1"
-		realignArguments="--rescoreByIdentity --gapGamma 0.9 --diagonalExpansion 4 --splitMatrixBiggerThanThis 10 --constraintDiagonalTrim 0 --alignAmbiguityCharacters"
+		realignArguments="--gapGamma 0.9 --diagonalExpansion 4 --splitMatrixBiggerThanThis 10 --constraintDiagonalTrim 0 --alignAmbiguityCharacters --splitIndelsLongerThanThis 99"
 		compressFiles="1" 
 		overlapSize="10000" 
 		filterByIdentity="1" 
@@ -105,16 +130,22 @@
 		<CactusAVGWrapper/>
 	</avg>
 	<!-- The reference tag provides parameters to cactus_reference, a method used to construct a reference genome for a given cactus database. -->
+	<!-- numberOfNs is the number of Ns to insert into an ancestral sequence when an adjacency is uncertain, think of its as the Ns in a scaffold gap -->
+	<!-- minNumberOfSequencesToSupportAdjacency is the number of sequences needed to bridge an adjacency -->
+	<!-- makeScaffolds is a boolean that enables the bridging of uncertain adjacencies in an ancestral sequence providing the larger scale problem (parent flower in cactus), bridges the path. -->
 	<reference 
 		buildReference="1"
 		matchingAlgorithm="blossom5" 
 		reference="reference" 
 		useSimulatedAnnealing="1" 
-		theta="0.0001" 
+		theta="0.0001"        
 		maxWalkForCalculatingZ="100000" 
 		permutations="10"
 		ignoreUnalignedGaps="1"
 		wiggle="0.9999"
+		numberOfNs="10"
+		minNumberOfSequencesToSupportAdjacency="1"
+		makeScaffolds="1"
 	>
 		<CactusReferenceRecursion maxFlowerGroupSize="maxFlowerGroupSizeRecursion" maxFlowerWrapperGroupSize="50000000"/>
 	 	<CactusReferenceWrapper/>
@@ -139,9 +170,10 @@
 	</hal>
   	<multi_cactus>
 		<outgroup 
-			strategy="greedy" 
+			strategy="greedy"
 			threshold="0"
 			ancestor_quality_fraction="0.75"
+                        max_num_outgroups="3"
 		/>
 	 	<decomposition 
 	 		subtree_size="2" 

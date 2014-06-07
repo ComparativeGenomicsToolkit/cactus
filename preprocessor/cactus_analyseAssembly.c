@@ -44,7 +44,7 @@ void processSequenceForStats(const char *fastaHeader, const char *string, int64_
     stList_append(sequenceLengths, stIntTuple_construct1(sequenceLength));
     int64_t j=0;
     for(int64_t i=0; i<sequenceLength; i++) {
-        bool isN = string[i] == 'N' || string[j] == 'n';
+        bool isN = string[i] == 'N' || string[i] == 'n';
         j += (tolower(string[i]) == string[i] || isN) ? 1 : 0;
         nCount += isN ? 1 : 0;
     }
@@ -62,17 +62,19 @@ void cleanupAndReportStatsCollection() {
         repeatBaseCount += stIntTuple_get(stList_get(repeatBaseCounts, i), 0);
     }
     int64_t medianSequenceLength = totalSequences > 0 ? stIntTuple_get(stList_get(sequenceLengths, totalSequences/2), 0) : 0;
+    int64_t maxSequenceLength = totalSequences > 0 ? stIntTuple_get(stList_peek(sequenceLengths), 0) : 0;
+    int64_t minSequenceLength = totalSequences > 0 ? stIntTuple_get(stList_get(sequenceLengths, 0), 0) : 0;
     int64_t n50;
     int64_t j=0;
     for(int64_t i=totalSequences-1; i>=0; i--) {
-        n50 = stIntTuple_get(stList_get(repeatBaseCounts, i), 0);
+        n50 = stIntTuple_get(stList_get(sequenceLengths, i), 0);
         j += n50;
         if(j >= totalLength/2) {
             break;
         }
     }
-    fprintf(stdout, "Input-sample: %s Total-sequences: %" PRIi64 " Total-length: %" PRIi64 " Proportion-repeat-masked: %f ProportionNs: %f N50: %" PRIi64 " Median-sequence-length: %" PRIi64 "\n",
-            fileNameForStats, totalSequences, totalLength, ((double)repeatBaseCount)/totalLength, ((double)nCount)/totalLength, n50, medianSequenceLength);
+    fprintf(stdout, "Input-sample: %s Total-sequences: %" PRIi64 " Total-length: %" PRIi64 " Proportion-repeat-masked: %f ProportionNs: %f Total-Ns: %" PRIi64 " N50: %" PRIi64 " Median-sequence-length: %" PRIi64 " Max-sequence-length: %" PRIi64 " Min-sequence-length: %" PRIi64 "\n",
+            fileNameForStats, totalSequences, totalLength, ((double)repeatBaseCount)/totalLength, ((double)nCount)/totalLength, nCount, n50, medianSequenceLength, maxSequenceLength, minSequenceLength);
     //Cleanup
     stList_destruct(sequenceLengths);
     stList_destruct(repeatBaseCounts);

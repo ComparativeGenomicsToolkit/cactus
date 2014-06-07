@@ -16,7 +16,7 @@ import sys
 import math
 import copy
 import networkx as NX
-
+from collections import defaultdict
 from optparse import OptionParser
 
 from cactus.progressive.multiCactusProject import MultiCactusProject
@@ -108,7 +108,7 @@ class GreedyOutgroup:
         self.candidateMap[self.mcTree.getName(node)] = False
         return False
                                     
-    # greedily assign closest possible valid outgroup
+    # greedily assign closest possible valid outgroups
     # all outgroups are stored in self.ogMap
     # edges between leaves ARE NOT kept in the dag    
     # the threshold parameter specifies how much parallelism can
@@ -121,8 +121,9 @@ class GreedyOutgroup:
     # candidatSet in order for the ancestor to be an outrgoup candidate
     # if > 1, then only members of the candidate set and none of their
     # ancestors are chosen
+    # maxNumOutgroups : max number of outgroups to put each entry of self.ogMap
     def greedy(self, threshold = None, candidateSet = None,
-               candidateChildFrac = 2.):
+               candidateChildFrac = 2., maxNumOutgroups = 1):
         orderedPairs = []
         for source, sinks in self.dm.items():
             for sink, dist in sinks.items():
@@ -130,7 +131,7 @@ class GreedyOutgroup:
                     orderedPairs.append((dist, (source, sink)))
         orderedPairs.sort(key = lambda x: x[0])
         finished = set()
-        self.ogMap = dict()
+        self.ogMap = defaultdict(list)
         self.candidateMap = dict()
         if candidateSet is not None:
             assert isinstance(candidateSet, set)
@@ -163,11 +164,13 @@ class GreedyOutgroup:
             not self.onSamePath(source, sink):
                 self.dag.add_edge(source, sink, weight=dist, info='outgroup')
                 if NX.is_directed_acyclic_graph(self.dag):
-                    finished.add(source)
                     sourceName = self.mcTree.getName(source)
                     sinkName = self.mcTree.getName(sink)
-                    self.ogMap[sourceName] = (sinkName, dist)
-                    htable[source] = max(htable[source], htable[sink] + 1)                 
+                    self.ogMap[sourceName].append((sinkName, dist))
+                    # FIXME: not sure about this line.
+                    htable[source] = max(htable[source], htable[sink] + 1)
+                    if len(self.ogMap[sourceName]) >= maxNumOutgroups:
+                        finished.add(source)
                 else:
                     self.dag.remove_edge(source, sink)
 
@@ -179,6 +182,8 @@ def main():
                       default = False, help="Assign only leaves as outgroups")
     parser.add_option("--threshold", dest="threshold", type='int',
                       default = None, help="greedy threshold")
+    parser.add_option("--numOutgroups", dest="maxNumOutgroups",
+                      help="Maximum number of outgroups to provide")
     options, args = parser.parse_args()
     
     if len(args) != 2:

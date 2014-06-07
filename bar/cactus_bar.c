@@ -259,7 +259,7 @@ int main(int argc, char *argv[]) {
         stSortedSet_destruct(endsToAlignSeparately);
     } else if (endAlignmentsToPrecomputeOutputFile != NULL) {
         /*
-         * In this case we will align a single end and save the alignment in a file.
+         * In this case we will align a set of end and save the alignments in a file.
          */
         stList *names = flowerWriter_parseNames(stdin);
         Flower *flower = cactusDisk_getFlower(cactusDisk, *((Name *)stList_get(names, 0)));
