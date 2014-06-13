@@ -135,8 +135,7 @@ static void getTotalSimilarityAndDifferenceCounts(stMatrix *matrix, double *simi
 
 /*
  * Get a gene node->species node mapping from a gene tree, a species
- * tree, and the pinch block. FIXME: Right now assumes that there are
- * no duplicate event headers.
+ * tree, and the pinch block.
  */
 
 static stHash *getLeafToSpecies(stTree *geneTree, stTree *speciesTree,
@@ -149,13 +148,39 @@ static stHash *getLeafToSpecies(stTree *geneTree, stTree *speciesTree,
         stPinchThread *thread = stPinchSegment_getThread(segment);
         Cap *cap = flower_getCap(flower, stPinchThread_getName(thread));
         Event *event = cap_getEvent(cap);
-        stTree *species = stTree_findChild(speciesTree, event_getHeader(event));
+        char *eventNameString = stString_print("%" PRIi64, event_getName(event));
+        stTree *species = stTree_findChild(speciesTree, eventNameString);
+        free(eventNameString);
         assert(species != NULL);
         stTree *gene = stPhylogeny_getLeafByIndex(geneTree, i);
         assert(gene != NULL);
         stHash_insert(leafToSpecies, gene, species);
     }
     return leafToSpecies;
+}
+
+static stTree *eventTreeToStTree_R(Event *event) {
+    stTree *ret = stTree_construct();
+    stTree_setLabel(ret, stString_print("%" PRIi64, event_getName(event)));
+    stTree_setBranchLength(ret, event_getBranchLength(event));
+    fprintf(stderr, "Event %s has %" PRIi64 " children\n", event_getHeader(event), event_getChildNumber(event));
+    for(int64_t i = 0; i < event_getChildNumber(event); i++) {
+        Event *child = event_getChild(event, i);
+        stTree *childStTree = eventTreeToStTree_R(child);
+        stTree_setParent(childStTree, ret);
+    }
+    return ret;
+}
+
+// Get species tree from event tree (labeled by the event Names),
+// which requires ignoring the root event.
+static stTree *eventTreeToStTree(EventTree *eventTree) {
+    Event *rootEvent = eventTree_getRootEvent(eventTree);
+    // Need to skip the root event, since it is added onto the real
+    // species tree.
+    assert(event_getChildNumber(rootEvent) == 1);
+    Event *speciesRoot = event_getChild(rootEvent, 0);
+    return eventTreeToStTree_R(speciesRoot);
 }
 
 void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHash *threadStrings, stSet *outgroupThreads, Flower *flower) {
@@ -167,9 +192,8 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
 
     //Get species tree as an stTree
     EventTree *eventTree = flower_getEventTree(flower);
-    char *newick = eventTree_makeNewickString(eventTree);
-    stTree *speciesStTree = stTree_parseNewickString(newick);
-    free(newick);
+    stTree *speciesStTree = eventTreeToStTree(eventTree);
+    fprintf(stderr, "We got species tree %s\n", stTree_getNewickTreeString(speciesStTree));
 
     //Count of the total number of blocks partitioned by an ancient homology
     int64_t totalBlocksSplit = 0;

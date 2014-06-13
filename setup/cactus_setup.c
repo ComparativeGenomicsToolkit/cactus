@@ -329,9 +329,6 @@ int main(int argc, char *argv[]) {
             if (event == NULL) {
                 st_errAbort("Got an outgroup string that does not match an event, outgroup string %s", outgroupEvent);
             }
-            if (event_getChildNumber(event) != 0) {
-                st_errAbort("Attempting to label an internal node as an outgroup, outgroup string %s", outgroupEvent);
-            }
             assert(!event_isOutgroup(event));
             event_setOutgroupStatus(event, 1);
             assert(event_isOutgroup(event));

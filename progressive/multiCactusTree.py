@@ -21,6 +21,7 @@ from optparse import OptionParser
 from sonLib.nxtree import NXTree
 from sonLib.nxnewick import NXNewick
 
+import networkx as nx
 from networkx.algorithms.shortest_paths.weighted import dijkstra_path
 
 class MultiCactusTree(NXTree):
@@ -96,7 +97,21 @@ class MultiCactusTree(NXTree):
         for path in paths:
             for node in path:
                 nodesToInclude.add(node)
+
         cpy = self.nxDg.subgraph(nodesToInclude).copy()
+        # Get rid of nodes that have only 1 children
+        for node in nx.nodes(cpy):
+            if cpy.out_degree(node) == 1:
+                assert cpy.in_degree(node) == 1
+                childEdge = cpy.out_edges(node, data=True)[0]
+                parentEdge = cpy.in_edges(node, data=True)[0]
+                child = childEdge[1]
+                childDist = childEdge[2]['weight']
+                parent = parentEdge[1]
+                parentDist = parentEdge[2]['weight']
+                cpy.remove_node(node)
+                cpy.add_edge(parent, child, weight = childDist + parentDist)
+
         mcCpy = MultiCactusTree(cpy, 2)
         mcCpy.assignSubtreeRootNames(self.getSubtreeRootNames())
         return mcCpy
