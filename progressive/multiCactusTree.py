@@ -21,6 +21,8 @@ from optparse import OptionParser
 from sonLib.nxtree import NXTree
 from sonLib.nxnewick import NXNewick
 
+from networkx.algorithms.shortest_paths.weighted import dijkstra_path
+
 class MultiCactusTree(NXTree):
     self_suffix = "_self"
     def __init__(self, tree = None, subtreeSize = 2):
@@ -84,7 +86,28 @@ class MultiCactusTree(NXTree):
             for child in self.getChildren(node):
                 for i in self.traverseSubtree(root, child):
                     yield i
-            
+
+    # Extracts a tree spanning the nodes with the given names.
+    def extractSpanningTree(self, nodes):
+        assert len(nodes) > 1
+        nodeIds = [self.nameToId[name] for name in nodes]
+        paths = [dijkstra_path(self.nxDg.to_undirected(), source=nodeIds[0], target=x) for x in nodeIds[1:]]
+        nodesToInclude = set()
+        for path in paths:
+            for node in path:
+                nodesToInclude.add(node)
+        cpy = self.nxDg.subgraph(nodesToInclude).copy()
+        mcCpy = MultiCactusTree(cpy, 2)
+        mcCpy.assignSubtreeRootNames(self.getSubtreeRootNames())
+        return mcCpy
+
+    # get names of children below this node
+    def getChildNames(self, name):
+        id = self.nameToId[name]
+        subtree = [i for i in self.traverseSubtree(id, id)]
+        names = [self.getName(i) for i in subtree]
+        return names
+
     # copy a subtree rooted at node with given name
     def extractSubTree(self, name):
         root = self.nameToId[name]

@@ -104,7 +104,29 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
         seqMap[name] = os.path.join(path, name + '.fa')
     for name, expPath in mcProj.expMap.items():
         path = os.path.join(options.path, name)
-        subtree = mcProj.mcTree.extractSubTree(name)
+        children = mcProj.mcTree.getChildNames(name)
+
+        # Get outgroups
+        outgroups = []
+        if configTemplate.getOutgroupStrategy() != 'none' \
+        and name in mcProj.outgroup.ogMap \
+        and name != mcProj.mcTree.getRootName():
+            for og, ogDist in mcProj.outgroup.ogMap[name]:
+                if og in seqMap:
+                    ogPath = seqMap[og]
+                else:
+                    ogPath = os.path.join(options.path, og)
+                    ogPath = os.path.join(ogPath, refFileName(og))
+                    seqMap[og] = ogPath
+                outgroups += [og]
+        elif name == mcProj.mcTree.getRootName() \
+        and options.rootOutgroupPath is not None:
+            exp.xmlRoot.attrib["outgroup_events"] = "rootOutgroup"
+
+        # Get subtree connecting children + outgroups
+        subtree = mcProj.mcTree.extractSpanningTree(children + outgroups)
+        print "%s outgroups %s tree %s" % (name, outgroups, NXNewick().writeString(subtree))
+
         exp = copy.deepcopy(expTemplate)
         dbBase = path
         if expTemplate.getDbDir() is not None:
@@ -126,21 +148,8 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
             exp.setHALPath(os.path.join(path, "%s_hal.c2h" % name))
         if configTemplate.getBuildFasta() == True:
             exp.setHALFastaPath(os.path.join(path, "%s_hal.fa" % name))
-        exp.updateTree(subtree, seqMap)
+        exp.updateTree(subtree, seqMap, outgroups)
         exp.setConfigPath(os.path.join(path, "%s_config.xml" % name))
-        if configTemplate.getOutgroupStrategy() != 'none' \
-        and name in mcProj.outgroup.ogMap \
-        and name != mcProj.mcTree.getRootName():
-            for og, ogDist in mcProj.outgroup.ogMap[name]:
-                if og in expTemplate.seqMap:
-                    ogPath = expTemplate.seqMap[og]
-                else:
-                    ogPath = os.path.join(options.path, og)
-                    ogPath = os.path.join(ogPath, refFileName(og))
-                exp.addOutgroupSequence(og, ogDist, ogPath)
-        elif name == mcProj.mcTree.getRootName() \
-        and options.rootOutgroupPath is not None:
-            exp.xmlRoot.attrib["outgroup_events"] = "rootOutgroup"
         os.makedirs(exp.getDbDir())
         if not os.path.exists(path):
             os.makedirs(path)

@@ -395,24 +395,27 @@ class ExperimentWrapper(DbElemWrapper):
         nameIterator = iter(sequences)
         seqMap = dict()
         for node in tree.postOrderTraversal():
-            if tree.isLeaf(node):
+            if tree.isLeaf(node) or tree.getName(node) in self.getOutgroupEvents():
                 seqMap[tree.getName(node)] = nameIterator.next()
         return seqMap
 
     # load in a new tree (using input seqMap if specified,
     # current one otherwise
-    def updateTree(self, tree, seqMap = None):
+    def updateTree(self, tree, seqMap = None, outgroups = None):
         if seqMap is not None:
             self.seqMap = seqMap
         newMap = dict()
         treeString = NXNewick().writeString(tree)
         self.xmlRoot.attrib["species_tree"] = treeString
+        if outgroups is not None:
+            self.setOutgroupEvents(outgroups)
+
         sequences = "" 
         for node in tree.postOrderTraversal():
-            if tree.isLeaf(node):
+            if tree.isLeaf(node) or tree.getName(node) in self.getOutgroupEvents():
                 nodeName = tree.getName(node)
                 if len(sequences) > 0:
-                    sequences += " "                  
+                    sequences += " "
                 sequences += seqMap[nodeName]
                 newMap[nodeName] = seqMap[nodeName]
         self.xmlRoot.attrib["sequences"] = sequences

@@ -133,12 +133,43 @@ static void getTotalSimilarityAndDifferenceCounts(stMatrix *matrix, double *simi
     }
 }
 
-void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHash *threadStrings, stSet *outgroupThreads) {
+/*
+ * Get a gene node->species node mapping from a gene tree, a species
+ * tree, and the pinch block. FIXME: Right now assumes that there are
+ * no duplicate event headers.
+ */
+
+static stHash *getLeafToSpecies(stTree *geneTree, stTree *speciesTree,
+                                stPinchBlock *block, Flower *flower) {
+    stHash *leafToSpecies = stHash_construct();
+    stPinchBlockIt blockIt = stPinchBlock_getSegmentIterator(block);
+    stPinchSegment *segment;
+    int64_t i = 0; // Current segment index in block.
+    while((segment = stPinchBlockIt_getNext(&blockIt)) != NULL) {
+        stPinchThread *thread = stPinchSegment_getThread(segment);
+        Cap *cap = flower_getCap(flower, stPinchThread_getName(thread));
+        Event *event = cap_getEvent(cap);
+        stTree *species = stTree_findChild(speciesTree, event_getHeader(event));
+        assert(species != NULL);
+        stTree *gene = stPhylogeny_getLeafByIndex(geneTree, i);
+        assert(gene != NULL);
+        stHash_insert(leafToSpecies, gene, species);
+    }
+    return leafToSpecies;
+}
+
+void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHash *threadStrings, stSet *outgroupThreads, Flower *flower) {
     stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
     stPinchBlock *block;
 
     //Hash in which we store a map of blocks to the partitions
     stHash *blocksToPartitions = stHash_construct2(NULL, NULL);
+
+    //Get species tree as an stTree
+    EventTree *eventTree = flower_getEventTree(flower);
+    char *newick = eventTree_makeNewickString(eventTree);
+    stTree *speciesStTree = stTree_parseNewickString(newick);
+    free(newick);
 
     //Count of the total number of blocks partitioned by an ancient homology
     int64_t totalBlocksSplit = 0;
@@ -146,6 +177,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
     double totalSubstitutionDifferences = 0.0;
     double totalBreakpointSimilarities = 0.0;
     double totalBreakpointDifferences = 0.0;
+    int64_t totalOutgroupThreads = 0;
 
     //The loop to build a tree for each block
     while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
@@ -186,14 +218,26 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
 
             //Get the outgroup threads
             stList *outgroups = getOutgroupThreads(block, outgroupThreads);
+            totalOutgroupThreads += stList_length(outgroups);
 
             //Build the tree...
             stTree *blockTree = stPhylogeny_neighborJoin(distanceMatrix, outgroups);
 
             //TODO, add in features relating to bootstrapping
 
+            // Get mapping from "gene" (i.e. segment) to species.
+            stHash *leafToSpecies = getLeafToSpecies(blockTree,
+                                                     speciesStTree,
+                                                     block, flower);
+            
+            // Reconcile the tree
+            // TODO: sometime soon we will want to sample a bunch of
+            // trees and select the best
+            // TODO: add in parameters to select rooting, etc.
+            stTree *reconciledTree = stPinchPhylogeny_reconcileBinary(blockTree, speciesStTree, leafToSpecies);
+
             //Get the partitions
-            stList *partition = stPinchPhylogeny_splitTreeOnOutgroups(blockTree, outgroups);
+            stList *partition = stPinchPhylogeny_splitTreeOnOutgroups(reconciledTree, outgroups);
             if(stList_length(partition) > 1) {
                 totalBlocksSplit++;
             }
@@ -209,10 +253,12 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
             stList_destruct(featureColumns);
             stList_destruct(featureBlocks);
             stList_destruct(outgroups);
+            stHash_destruct(leafToSpecies);
         }
     }
     int64_t blockCount = stPinchThreadSet_getTotalBlockNumber(threadSet);
     fprintf(stdout, "Using phylogeny building, of %" PRIi64 " blocks, %" PRIi64 " blocks were partitioned\n", blockCount, totalBlocksSplit);
+    fprintf(stdout, "There were %" PRIi64 " outgroup threads seen total over all blocks\n", totalOutgroupThreads);
     fprintf(stdout, "In phylogeny building there were %f avg. substitution similarities %f avg. substitution differences\n", totalSubstitutionSimilarities/blockCount, totalSubstitutionDifferences/blockCount);
     fprintf(stdout, "In phylogeny building there were %f avg. breakpoint similarities %f avg. breakpoint differences\n", totalBreakpointSimilarities/blockCount, totalBreakpointDifferences/blockCount);
 
@@ -233,4 +279,5 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
 
     //Cleanup
     stHash_destruct(blocksToPartitions);
+    stTree_destruct(speciesStTree);
 }

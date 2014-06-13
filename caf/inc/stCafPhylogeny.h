@@ -15,7 +15,7 @@
  * Build tree for each block and then use it to partition homologies in the block into
  * those which occur before and after the speciation.
  */
-void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHash *threadStrings, stSet *outgroupThreads);
+void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHash *threadStrings, stSet *outgroupThreads, Flower *flower);
 
 /*
  * Gets the string for each pinch thread in a set.

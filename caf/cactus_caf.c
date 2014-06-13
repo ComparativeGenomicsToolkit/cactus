@@ -502,7 +502,7 @@ int main(int argc, char *argv[]) {
                 st_logDebug("Starting to build trees and partition ingroup homologies\n");
                 stHash *threadStrings = stCaf_getThreadStrings(flower, threadSet);
                 st_logDebug("Got sets of thread strings and set of threads that are outgroups\n");
-                stCaf_buildTreesToRemoveAncientHomologies(threadSet, threadStrings, outgroupThreads);
+                stCaf_buildTreesToRemoveAncientHomologies(threadSet, threadStrings, outgroupThreads, flower);
                 stHash_destruct(threadStrings);
                 st_logDebug("Finished building trees\n");
             }
