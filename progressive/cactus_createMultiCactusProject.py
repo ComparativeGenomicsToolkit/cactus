@@ -125,8 +125,6 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
 
         # Get subtree connecting children + outgroups
         subtree = mcProj.mcTree.extractSpanningTree(children + outgroups)
-        print "%s outgroups %s tree %s" % (name, outgroups, NXNewick().writeString(subtree))
-
         exp = copy.deepcopy(expTemplate)
         dbBase = path
         if expTemplate.getDbDir() is not None:

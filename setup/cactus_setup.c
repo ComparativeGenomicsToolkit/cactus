@@ -257,6 +257,20 @@ int main(int argc, char *argv[]) {
     totalEventNumber = 1;
     st_logInfo("Constructed the basic event tree\n");
 
+    // Construct a set of outgroup names so that ancestral outgroups
+    // get recognized.
+    stSet *outgroupNameSet = stSet_construct3(stHash_stringKey,
+                                              stHash_stringEqualKey,
+                                              free);
+    if(outgroupEvents != NULL) {
+        stList *outgroupNames = stString_split(outgroupEvents);
+        for(int64_t i = 0; i < stList_length(outgroupNames); i++) {
+            char *outgroupName = stList_get(outgroupNames, i);
+            stSet_insert(outgroupNameSet, outgroupName);
+        }
+        stList_destruct(outgroupNames);
+    }
+
     //now traverse the tree
     stack = constructEmptyList(0, NULL);
     listAppend(stack, eventTree_getRootEvent(eventTree));
@@ -267,13 +281,18 @@ int main(int argc, char *argv[]) {
         event = stack->list[--stack->length];
         assert(tree != NULL);
         totalEventNumber++;
-        if (stTree_getChildNumber(tree) > 0) {
+        if (stTree_getChildNumber(tree) > 0 &&
+            !stSet_search(outgroupNameSet, (void *)stTree_getLabel(tree))) {
+            // The event is an ancestor and isn't an outgroup, so it
+            // doesn't have any sequence.
             event = event_construct3(stTree_getLabel(tree), stTree_getBranchLength(tree), event, eventTree);
             for (int64_t i = stTree_getChildNumber(tree) - 1; i >= 0; i--) {
                 listAppend(stack, event);
                 listAppend(stack, stTree_getChild(tree, i));
             }
         } else {
+            // This event is a leaf and/or an outgroup, so it has
+            // associated sequence.
             assert(j < argc);
             assert(stTree_getLabel(tree) != NULL);
 
@@ -371,6 +390,7 @@ int main(int argc, char *argv[]) {
 
     return 0; //Exit without clean up is quicker, enable cleanup when doing memory leak detection.
 
+    stSet_destruct(outgroupNameSet);
     stTree_destruct(tree);
     cactusDisk_destruct(cactusDisk);
     stKVDatabaseConf_destruct(kvDatabaseConf);
