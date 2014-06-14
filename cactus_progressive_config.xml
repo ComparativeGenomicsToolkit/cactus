@@ -59,7 +59,7 @@
 		minimumTreeCoverage="0.0" 
 		trim="0 0" 
 		minimumBlockDegree="2"
-		minimumIngroupDegree="0"
+		minimumIngroupDegree="2"
 		minimumOutgroupDegree="0"
 		singleCopyIngroup="0"
 		singleCopyOutgroup="0"

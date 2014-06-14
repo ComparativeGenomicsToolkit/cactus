@@ -407,7 +407,7 @@ class ExperimentWrapper(DbElemWrapper):
         newMap = dict()
         treeString = NXNewick().writeString(tree)
         self.xmlRoot.attrib["species_tree"] = treeString
-        if outgroups is not None:
+        if outgroups is not None and len(outgroups) > 0:
             self.setOutgroupEvents(outgroups)
 
         sequences = "" 

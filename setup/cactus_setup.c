@@ -266,7 +266,7 @@ int main(int argc, char *argv[]) {
         stList *outgroupNames = stString_split(outgroupEvents);
         for(int64_t i = 0; i < stList_length(outgroupNames); i++) {
             char *outgroupName = stList_get(outgroupNames, i);
-            stSet_insert(outgroupNameSet, outgroupName);
+            stSet_insert(outgroupNameSet, stString_copy(outgroupName));
         }
         stList_destruct(outgroupNames);
     }
@@ -281,23 +281,24 @@ int main(int argc, char *argv[]) {
         event = stack->list[--stack->length];
         assert(tree != NULL);
         totalEventNumber++;
-        if (stTree_getChildNumber(tree) > 0 &&
-            !stSet_search(outgroupNameSet, (void *)stTree_getLabel(tree))) {
-            // The event is an ancestor and isn't an outgroup, so it
-            // doesn't have any sequence.
+        if (stTree_getChildNumber(tree) > 0) {
             event = event_construct3(stTree_getLabel(tree), stTree_getBranchLength(tree), event, eventTree);
             for (int64_t i = stTree_getChildNumber(tree) - 1; i >= 0; i--) {
                 listAppend(stack, event);
                 listAppend(stack, stTree_getChild(tree, i));
             }
-        } else {
+        }
+        if (stTree_getChildNumber(tree) == 0 || (stSet_search(outgroupNameSet, (char *)stTree_getLabel(tree)) != NULL)) {
             // This event is a leaf and/or an outgroup, so it has
             // associated sequence.
             assert(j < argc);
             assert(stTree_getLabel(tree) != NULL);
 
             assert(stTree_getBranchLength(tree) != INFINITY);
-            event = event_construct3(stTree_getLabel(tree), stTree_getBranchLength(tree), event, eventTree);
+            if (stTree_getChildNumber(tree) == 0) {
+                // Construct the leaf event
+                event = event_construct3(stTree_getLabel(tree), stTree_getBranchLength(tree), event, eventTree);
+            }
 
             char *fileName = argv[j];
 
@@ -328,6 +329,7 @@ int main(int argc, char *argv[]) {
             j++;
         }
     }
+
     char *eventTreeString = eventTree_makeNewickString(eventTree);
     st_logInfo(
             "Constructed the initial flower with %" PRIi64 " sequences and %" PRIi64 " events with string: %s\n",
