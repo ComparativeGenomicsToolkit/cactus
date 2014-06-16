@@ -143,7 +143,7 @@ def runCactusSetup(cactusDiskDatabaseString, sequences,
                    newickTreeString, logLevel=None, outgroupEvents=None,
                    makeEventHeadersAlphaNumeric=None):
     logLevel = getLogLevelString2(logLevel)
-    outgroupEvents = nameValue("outgroupEvents", outgroupEvents, str)
+    outgroupEvents = nameValue("outgroupEvents", outgroupEvents, str, quotes=True)
     makeEventHeadersAlphaNumeric=nameValue("makeEventHeadersAlphaNumeric", makeEventHeadersAlphaNumeric, bool)
     masterMessages = popenCatch("cactus_setup %s --speciesTree '%s' --cactusDisk '%s' \
 --logLevel %s %s %s" \
