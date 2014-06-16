@@ -119,12 +119,14 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
                     ogPath = os.path.join(ogPath, refFileName(og))
                     seqMap[og] = ogPath
                 outgroups += [og]
-        elif name == mcProj.mcTree.getRootName() \
+        if name == mcProj.mcTree.getRootName() \
         and options.rootOutgroupPath is not None:
             exp.xmlRoot.attrib["outgroup_events"] = "rootOutgroup"
-
-        # Get subtree connecting children + outgroups
-        subtree = mcProj.mcTree.extractSpanningTree(children + outgroups)
+            outgroups = None
+            subtree = mcProj.mcTree.extractSpanningTree(children)
+        else:
+            # Get subtree connecting children + outgroups
+            subtree = mcProj.mcTree.extractSpanningTree(children + outgroups)
         exp = copy.deepcopy(expTemplate)
         dbBase = path
         if expTemplate.getDbDir() is not None:
