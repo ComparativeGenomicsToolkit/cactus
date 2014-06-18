@@ -123,9 +123,11 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
         and options.rootOutgroupPath is not None:
             exp.xmlRoot.attrib["outgroup_events"] = "rootOutgroup"
             outgroups = None
+            assert len(children) > 0
             subtree = mcProj.mcTree.extractSpanningTree(children)
         else:
             # Get subtree connecting children + outgroups
+            assert len(children) > 0
             subtree = mcProj.mcTree.extractSpanningTree(children + outgroups)
         exp = copy.deepcopy(expTemplate)
         dbBase = path
@@ -213,6 +215,11 @@ def main():
         cleanEventTree(expTemplate)
     checkInputSequencePaths(expTemplate)
     tree = expTemplate.getTree()
+
+    # Check that the tree is sensible (root has at least 1 child)
+    if len(tree.getChildren(tree.getRootId())) == 0:
+        raise RuntimeError("Input species tree has only one node.")
+
     if options.outgroupNames is not None:
         projNames = set([tree.getName(x) for x in tree.getLeaves()])
         options.outgroupNames = set(options.outgroupNames.split(","))
