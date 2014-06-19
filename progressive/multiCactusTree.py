@@ -113,13 +113,16 @@ class MultiCactusTree(NXTree):
                     parent = parentEdge[0]
                     assert parent != node
                     parentDist = parentEdge[2]['weight']
+                    print "Removing node %s" % self.getName(node)
                     cpy.remove_node(node)
+                    print "adding node from %s to %s" % (self.getName(parent), self.getName(child))
                     cpy.add_edge(parent, child, weight = childDist + parentDist)
                     graphWasModified = True
                     break
 
         mcCpy = MultiCactusTree(cpy, 2)
-        mcCpy.assignSubtreeRootNames(self.getSubtreeRootNames())
+        mcCpy.nameUnlabeledInternalNodes(prefix="thisPrefixShouldNeverAppear")
+        mcCpy.computeSubtreeRoots()
         return mcCpy
 
     # get names of children below this node

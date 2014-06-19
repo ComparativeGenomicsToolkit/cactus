@@ -288,7 +288,7 @@ int main(int argc, char *argv[]) {
                 listAppend(stack, stTree_getChild(tree, i));
             }
         }
-        if (stTree_getChildNumber(tree) == 0 || (stSet_search(outgroupNameSet, (char *)stTree_getLabel(tree)) != NULL)) {
+        if (stTree_getChildNumber(tree) == 0 || (stTree_getLabel(tree) != NULL && (stSet_search(outgroupNameSet, (char *)stTree_getLabel(tree)) != NULL))) {
             // This event is a leaf and/or an outgroup, so it has
             // associated sequence.
             assert(j < argc);

@@ -169,6 +169,7 @@ class TestCase(unittest.TestCase):
                           jobTreeStats, rootOutgroupPath=None,
                           rootOutgroupDist=None):
         tempDir = getTempDirectory(os.getcwd())
+        print "TEMP FILES IN %s" % tempDir
         tempExperimentDir = os.path.join(tempDir, "exp")
         runCactusCreateMultiCactusProject(experimentFile, 
                                           tempExperimentDir,
@@ -182,7 +183,7 @@ class TestCase(unittest.TestCase):
                              buildAvgs=buildAvgs,
                              jobTreeStats=jobTreeStats)
         runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
-        system("rm -rf %s" % tempDir)
+#        system("rm -rf %s" % tempDir)
     
 def main():
     parseCactusSuiteTestOptions()
