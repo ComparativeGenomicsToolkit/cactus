@@ -100,17 +100,23 @@ class MultiCactusTree(NXTree):
 
         cpy = self.nxDg.subgraph(nodesToInclude).copy()
         # Get rid of nodes that have only 1 children
-        for node in nx.nodes(cpy):
-            if cpy.out_degree(node) == 1:
-                assert cpy.in_degree(node) == 1
-                childEdge = cpy.out_edges(node, data=True)[0]
-                parentEdge = cpy.in_edges(node, data=True)[0]
-                child = childEdge[1]
-                childDist = childEdge[2]['weight']
-                parent = parentEdge[1]
-                parentDist = parentEdge[2]['weight']
-                cpy.remove_node(node)
-                cpy.add_edge(parent, child, weight = childDist + parentDist)
+        graphWasModified = True
+        while graphWasModified:
+            graphWasModified = False
+            for node in nx.nodes(cpy):
+                if cpy.out_degree(node) == 1:
+                    assert cpy.in_degree(node) == 1
+                    childEdge = cpy.out_edges(node, data=True)[0]
+                    parentEdge = cpy.in_edges(node, data=True)[0]
+                    child = childEdge[1]
+                    childDist = childEdge[2]['weight']
+                    parent = parentEdge[0]
+                    assert parent != node
+                    parentDist = parentEdge[2]['weight']
+                    cpy.remove_node(node)
+                    cpy.add_edge(parent, child, weight = childDist + parentDist)
+                    graphWasModified = True
+                    break
 
         mcCpy = MultiCactusTree(cpy, 2)
         mcCpy.assignSubtreeRootNames(self.getSubtreeRootNames())

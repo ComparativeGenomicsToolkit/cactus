@@ -70,6 +70,9 @@ static void usage() {
                 "-A --maximumMedianSequenceLengthBetweenLinkedEnds : Maximum nedian length of sequences between linked ends to allow before breaking chains.\n");
     fprintf(stderr, "-B --realign : Realign the lastz hits.\n");
     fprintf(stderr, "-C --realignArguments : Arguments for realignment.\n");
+    fprintf(stderr, "-D --phylogenyNumTrees : Number of trees to sample when removing ancient homologies. (default 1)\n");
+    fprintf(stderr, "-E --phylogenyRootingMethod : Method of rooting trees: either 'outgroupBranch', 'longestBranch', or 'bestRecon' (default outgroupBranch).\n");
+    fprintf(stderr, "-F --phylogenyScoringMethod : Method of deciding which sampled tree is best: either 'reconCost' or .\n");
 }
 
 static int64_t *getInts(const char *string, int64_t *arrayLength) {
@@ -232,6 +235,11 @@ int main(int argc, char *argv[]) {
     bool realign = 0;
     char *realignArguments = "";
 
+    //Parameters for removing ancient homologies
+    int64_t phylogenyNumTrees = 1;
+    enum stCaf_RootingMethod phylogenyRootingMethod = OUTGROUP_BRANCH;
+    enum stCaf_ScoringMethod phylogenyScoringMethod = RECON_COST;
+
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
     ///////////////////////////////////////////////////////////////////////////
@@ -250,6 +258,9 @@ int main(int argc, char *argv[]) {
                         required_argument, 0, 'y' }, { "proportionOfUnalignedBasesForNewChromosome", required_argument, 0, 'z' },
                         { "maximumMedianSequenceLengthBetweenLinkedEnds", required_argument, 0, 'A' },
                         { "realign", no_argument, 0, 'B' }, { "realignArguments", required_argument, 0, 'C' },
+                        { "phylogenyNumTrees", required_argument, 0, 'D' },
+                        { "phylogenyRootingMethod", required_argument, 0, 'E' },
+                        { "phylogenyScoringMethod", required_argument, 0, 'F' },
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
@@ -340,6 +351,28 @@ int main(int argc, char *argv[]) {
                 break;
             case 'C':
                 realignArguments = stString_copy(optarg);
+                break;
+            case 'D':
+                k = sscanf(optarg, "%" PRIi64, &phylogenyNumTrees);
+                assert(k == 1);
+                break;
+            case 'E':
+                if (!strcmp(optarg, "outgroupBranch")) {
+                    phylogenyRootingMethod = OUTGROUP_BRANCH;
+                } else if (!strcmp(optarg, "longestBranch")) {
+                    phylogenyRootingMethod = LONGEST_BRANCH;
+                } else if (!strcmp(optarg, "bestRecon")) {
+                    phylogenyRootingMethod = BEST_RECON;
+                } else {
+                    st_errAbort("Invalid tree rooting method: %s", optarg);
+                }
+                break;
+            case 'F':
+                if (!strcmp(optarg, "reconCost")) {
+                    phylogenyScoringMethod = RECON_COST;
+                } else {
+                    st_errAbort("Invalid tree scoring method: %s", optarg);
+                }
                 break;
             default:
                 usage();
@@ -502,7 +535,7 @@ int main(int argc, char *argv[]) {
                 st_logDebug("Starting to build trees and partition ingroup homologies\n");
                 stHash *threadStrings = stCaf_getThreadStrings(flower, threadSet);
                 st_logDebug("Got sets of thread strings and set of threads that are outgroups\n");
-                stCaf_buildTreesToRemoveAncientHomologies(threadSet, threadStrings, outgroupThreads, flower);
+                stCaf_buildTreesToRemoveAncientHomologies(threadSet, threadStrings, outgroupThreads, flower, phylogenyNumTrees, phylogenyRootingMethod, phylogenyScoringMethod);
                 stHash_destruct(threadStrings);
                 st_logDebug("Finished building trees\n");
             }

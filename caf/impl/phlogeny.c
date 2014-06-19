@@ -11,6 +11,7 @@
 #include "stCactusGraphs.h"
 #include "stPinchPhylogeny.h"
 #include "stCaf.h"
+#include "stCafPhylogeny.h"
 
 stHash *stCaf_getThreadStrings(Flower *flower, stPinchThreadSet *threadSet) {
     stHash *threadStrings = stHash_construct2(NULL, free);
@@ -183,7 +184,7 @@ static stTree *eventTreeToStTree(EventTree *eventTree) {
     return eventTreeToStTree_R(speciesRoot);
 }
 
-void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHash *threadStrings, stSet *outgroupThreads, Flower *flower) {
+void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHash *threadStrings, stSet *outgroupThreads, Flower *flower, int64_t numTrees, enum stCaf_RootingMethod rootingMethod, enum stCaf_ScoringMethod scoringMethod) {
     stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
     stPinchBlock *block;
 

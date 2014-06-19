@@ -105,6 +105,7 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
     for name, expPath in mcProj.expMap.items():
         path = os.path.join(options.path, name)
         children = mcProj.mcTree.getChildNames(name)
+        exp = copy.deepcopy(expTemplate)
 
         # Get outgroups
         outgroups = []
@@ -129,7 +130,6 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
             # Get subtree connecting children + outgroups
             assert len(children) > 0
             subtree = mcProj.mcTree.extractSpanningTree(children + outgroups)
-        exp = copy.deepcopy(expTemplate)
         dbBase = path
         if expTemplate.getDbDir() is not None:
             dbBase = os.path.abspath(expTemplate.getDbDir())

@@ -501,7 +501,10 @@ class CactusCafWrapper(CactusRecursionTarget):
                           proportionOfUnalignedBasesForNewChromosome=self.getOptionalPhaseAttrib("proportionOfUnalignedBasesForNewChromosome", float),
                           maximumMedianSequenceLengthBetweenLinkedEnds=self.getOptionalPhaseAttrib("maximumMedianSequenceLengthBetweenLinkedEnds", int),
                           realign=self.getOptionalPhaseAttrib("realign", bool),
-                          realignArguments=self.getOptionalPhaseAttrib("realignArguments"))
+                          realignArguments=self.getOptionalPhaseAttrib("realignArguments"),
+                          phylogenyNumTrees=self.getOptionalPhaseAttrib("phylogenyNumTrees", int, 1),
+                          phylogenyRootingMethod=self.getOptionalPhaseAttrib("phylogenyRootingMethod"),
+                          phylogenyScoringMethod=self.getOptionalPhaseAttrib("phylogenyScoringMethod"))
         for message in messages:
             self.logToMaster(message)
     

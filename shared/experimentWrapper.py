@@ -261,10 +261,18 @@ class ExperimentWrapper(DbElemWrapper):
     def getConfig(self):
         return self.xmlRoot.attrib["config"]
     
-    def getTree(self):
+    def getTree(self, onlyThisSubtree=False):
         treeString = self.xmlRoot.attrib["species_tree"]
-        return NXNewick().parseString(treeString, addImpliedRoots = False)
-    
+        ret = NXNewick().parseString(treeString, addImpliedRoots = False)
+        if onlyThisSubtree:
+            # Get a subtree containing only the reference node and its
+            # children, rather than a species tree including the
+            # outgroups as well
+            multiCactus = MultiCactusTree(ret)
+            multiCactus.computeSubtreeRoots()
+            ret = ret.extractSubTree(self.getReferenceNameFromConfig())
+        return ret
+
     def setSequences(self, sequences):
         self.xmlRoot.attrib["sequences"] = " ".join(sequences)
         self.seqMap = self.buildSequenceMap()
@@ -397,6 +405,10 @@ class ExperimentWrapper(DbElemWrapper):
         for node in tree.postOrderTraversal():
             if tree.isLeaf(node) or tree.getName(node) in self.getOutgroupEvents():
                 seqMap[tree.getName(node)] = nameIterator.next()
+
+        # Check that there are no sequences left unassigned
+        assert len(seqMap.keys()) == len(sequences)
+
         return seqMap
 
     # load in a new tree (using input seqMap if specified,
