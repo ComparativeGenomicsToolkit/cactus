@@ -269,8 +269,9 @@ class ExperimentWrapper(DbElemWrapper):
             # children, rather than a species tree including the
             # outgroups as well
             multiCactus = MultiCactusTree(ret)
+            multiCactus.nameUnlabeledInternalNodes()
             multiCactus.computeSubtreeRoots()
-            ret = ret.extractSubTree(self.getReferenceNameFromConfig())
+            ret = multiCactus.extractSubTree(self.getReferenceNameFromConfig())
         return ret
 
     def setSequences(self, sequences):
