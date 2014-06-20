@@ -164,7 +164,6 @@ static stTree *eventTreeToStTree_R(Event *event) {
     stTree *ret = stTree_construct();
     stTree_setLabel(ret, stString_print("%" PRIi64, event_getName(event)));
     stTree_setBranchLength(ret, event_getBranchLength(event));
-    fprintf(stderr, "Event %s has %" PRIi64 " children\n", event_getHeader(event), event_getChildNumber(event));
     for(int64_t i = 0; i < event_getChildNumber(event); i++) {
         Event *child = event_getChild(event, i);
         stTree *childStTree = eventTreeToStTree_R(child);
@@ -184,6 +183,64 @@ static stTree *eventTreeToStTree(EventTree *eventTree) {
     return eventTreeToStTree_R(speciesRoot);
 }
 
+static double scoreTree(stTree *tree, enum stCaf_ScoringMethod scoringMethod, stTree *speciesStTree, stPinchBlock *block, Flower *flower) {
+    double ret = 0.0;
+    if(scoringMethod == RECON_COST) {
+        stHash *leafToSpecies = getLeafToSpecies(tree,
+                                                 speciesStTree,
+                                                 block, flower);
+        int64_t dups, losses;
+        stPinchPhylogeny_reconciliationCostBinary(tree, speciesStTree,
+                                                  leafToSpecies, &dups,
+                                                  &losses);
+        ret = -dups - losses;
+
+        stHash_destruct(leafToSpecies);
+    }
+    return ret;
+}
+
+// Build a tree from a set of feature columns and root it according to
+// the rooting method.
+static stTree *buildTree(stList *featureColumns,
+                         enum stCaf_RootingMethod rootingMethod,
+                         double breakPointScalingFactor,
+                         bool bootstrap,
+                         stList *outgroups, stPinchBlock *block,
+                         Flower *flower, stTree *speciesStTree) {
+    // Make substitution matrix
+    stMatrix *substitutionMatrix = stPinchPhylogeny_getMatrixFromSubstitutions(featureColumns, block, NULL, bootstrap);
+    assert(stMatrix_n(substitutionMatrix) == stPinchBlock_getDegree(block));
+    assert(stMatrix_m(substitutionMatrix) == stPinchBlock_getDegree(block));
+    //Make breakpoint matrix
+    stMatrix *breakpointMatrix = stPinchPhylogeny_getMatrixFromBreakpoints(featureColumns, block, NULL, bootstrap);
+    
+    //Combine the matrices into distance matrices
+    stMatrix_scale(breakpointMatrix, breakPointScalingFactor, 0.0);
+    stMatrix *combinedMatrix = stMatrix_add(substitutionMatrix, breakpointMatrix);
+    stMatrix *distanceMatrix = stPinchPhylogeny_getSymmetricDistanceMatrix(combinedMatrix);
+    
+    stTree *tree = NULL;
+    if(rootingMethod == OUTGROUP_BRANCH) {
+        tree = stPhylogeny_neighborJoin(distanceMatrix, outgroups);
+    } else if(rootingMethod == LONGEST_BRANCH) {
+        tree = stPhylogeny_neighborJoin(distanceMatrix, NULL);
+    } else if(rootingMethod == BEST_RECON) {
+        tree = stPhylogeny_neighborJoin(distanceMatrix, NULL);
+        stHash *leafToSpecies = getLeafToSpecies(tree,
+                                                 speciesStTree,
+                                                 block, flower);
+        stTree *newTree = stPinchPhylogeny_reconcileBinary(tree, speciesStTree, leafToSpecies);
+
+        stPhylogenyInfo_destructOnTree(tree);
+        stTree_destruct(tree);
+        stHash_destruct(leafToSpecies);
+        tree = newTree;
+    }
+
+    return tree;
+}
+
 void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHash *threadStrings, stSet *outgroupThreads, Flower *flower, int64_t numTrees, enum stCaf_RootingMethod rootingMethod, enum stCaf_ScoringMethod scoringMethod) {
     stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
     stPinchBlock *block;
@@ -194,7 +251,6 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
     //Get species tree as an stTree
     EventTree *eventTree = flower_getEventTree(flower);
     stTree *speciesStTree = eventTreeToStTree(eventTree);
-    fprintf(stderr, "We got species tree %s\n", stTree_getNewickTreeString(speciesStTree));
 
     //Count of the total number of blocks partitioned by an ancient homology
     int64_t totalBlocksSplit = 0;
@@ -202,6 +258,8 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
     double totalSubstitutionDifferences = 0.0;
     double totalBreakpointSimilarities = 0.0;
     double totalBreakpointDifferences = 0.0;
+    double totalBestTreeScore = 0.0;
+    double totalTreeScore = 0.0;
     int64_t totalOutgroupThreads = 0;
 
     //The loop to build a tree for each block
@@ -236,33 +294,44 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
             totalBreakpointSimilarities += similarities;
             totalBreakpointDifferences += differences;
 
-            //Combine the matrices into distance matrices
-            stMatrix_scale(breakpointMatrix, breakPointScalingFactor, 0.0);
-            stMatrix *combinedMatrix = stMatrix_add(substitutionMatrix, breakpointMatrix);
-            stMatrix *distanceMatrix = stPinchPhylogeny_getSymmetricDistanceMatrix(combinedMatrix);
-
             //Get the outgroup threads
             stList *outgroups = getOutgroupThreads(block, outgroupThreads);
             totalOutgroupThreads += stList_length(outgroups);
 
-            //Build the tree...
-            stTree *blockTree = stPhylogeny_neighborJoin(distanceMatrix, outgroups);
+            //Build the canonical tree.
+            stTree *blockTree = buildTree(featureColumns, rootingMethod,
+                                          breakPointScalingFactor,
+                                          0, outgroups, block, flower,
+                                          speciesStTree);
 
-            //TODO, add in features relating to bootstrapping
+            // Sample the rest of the trees.
+            stList *trees = stList_construct();
+            stList_append(trees, blockTree);
+            for(int64_t i = 0; i < numTrees - 1; i++) {
+                stTree *tree = buildTree(featureColumns, rootingMethod,
+                                         breakPointScalingFactor,
+                                         1, outgroups, block, flower,
+                                         speciesStTree);
+                stList_append(trees, tree);
+            }
 
-            // Get mapping from "gene" (i.e. segment) to species.
-            stHash *leafToSpecies = getLeafToSpecies(blockTree,
-                                                     speciesStTree,
-                                                     block, flower);
-            
-            // Reconcile the tree
-            // TODO: sometime soon we will want to sample a bunch of
-            // trees and select the best
-            // TODO: add in parameters to select rooting, etc.
-            stTree *reconciledTree = stPinchPhylogeny_reconcileBinary(blockTree, speciesStTree, leafToSpecies);
+            // Get the best-scoring tree.
+            double maxScore = -INFINITY;
+            stTree *bestTree = NULL;
+            for(int64_t i = 0; i < stList_length(trees); i++) {
+                stTree *tree = stList_get(trees, i);
+                double score = scoreTree(tree, scoringMethod,
+                                         speciesStTree, block, flower);
+                totalTreeScore += score;
+                if(score > maxScore) {
+                    maxScore = score;
+                    bestTree = tree;
+                }
+            }
 
+            totalBestTreeScore += maxScore;
             //Get the partitions
-            stList *partition = stPinchPhylogeny_splitTreeOnOutgroups(reconciledTree, outgroups);
+            stList *partition = stPinchPhylogeny_splitTreeOnOutgroups(bestTree, outgroups);
             if(stList_length(partition) > 1) {
                 totalBlocksSplit++;
             }
@@ -271,14 +340,14 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
             //Cleanup
             stMatrix_destruct(substitutionMatrix);
             stMatrix_destruct(breakpointMatrix);
-            stMatrix_destruct(combinedMatrix);
-            stMatrix_destruct(distanceMatrix);
-            stPhylogenyInfo_destructOnTree(blockTree);
-            stTree_destruct(blockTree);
+            for(int64_t i = 0; i < stList_length(trees); i++) {
+                stTree *tree = stList_get(trees, i);
+                stPhylogenyInfo_destructOnTree(tree);
+                stTree_destruct(tree);
+            }
             stList_destruct(featureColumns);
             stList_destruct(featureBlocks);
             stList_destruct(outgroups);
-            stHash_destruct(leafToSpecies);
         }
     }
     int64_t blockCount = stPinchThreadSet_getTotalBlockNumber(threadSet);
@@ -286,6 +355,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
     fprintf(stdout, "There were %" PRIi64 " outgroup threads seen total over all blocks\n", totalOutgroupThreads);
     fprintf(stdout, "In phylogeny building there were %f avg. substitution similarities %f avg. substitution differences\n", totalSubstitutionSimilarities/blockCount, totalSubstitutionDifferences/blockCount);
     fprintf(stdout, "In phylogeny building there were %f avg. breakpoint similarities %f avg. breakpoint differences\n", totalBreakpointSimilarities/blockCount, totalBreakpointDifferences/blockCount);
+    fprintf(stdout, "In phylogeny building we saw an average score of %f for the best tree in each block, an average score of %f overall, and %" PRIi64 " trees total.\n", totalBestTreeScore/blockCount, totalTreeScore/(numTrees*blockCount), numTrees*blockCount);
 
     st_logDebug("Got homology partition for each block\n");
 

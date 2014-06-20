@@ -68,7 +68,10 @@
 		proportionOfUnalignedBasesForNewChromosome="0.8"
 		maximumMedianSequenceLengthBetweenLinkedEnds="1000"
 		lastzMemory="littleMemory"
-	>
+                phylogenyNumTrees="3"
+                phylogenyRootingMethod="bestRecon"
+                phylogenyScoringMethod="reconCost"
+	        >
 		<!-- The following are parametrised to produce the same results as the default settings, 
 		within a margin of 0.2% sensitivity, should be very fast for close genomes, these were tuned using the blast/blastParametersScript.py
 		We could go even faster for less than 0.05 divergence using, but want to be robust to poor branch length estimates -->

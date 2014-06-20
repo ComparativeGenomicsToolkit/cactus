@@ -448,7 +448,6 @@ def runCactusCreateMultiCactusProject(experimentFile, outputDir,
     rootOutgroupPath = nameValue("rootOutgroupPath", rootOutgroupPath, str)
     rootOutgroupDist = nameValue("rootOutgroupDist", rootOutgroupDist, float)
     command = "cactus_createMultiCactusProject.py %s %s --fixNames=%s %s %s" % (experimentFile, outputDir, str(fixNames), rootOutgroupPath, rootOutgroupDist)
-    print "MULTI CACTUS COMMAND: %s" % command
     system(command)
     logger.info("Ran the cactus create multi project")
     

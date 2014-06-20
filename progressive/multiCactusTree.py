@@ -106,19 +106,30 @@ class MultiCactusTree(NXTree):
             for node in nx.nodes(cpy):
                 if cpy.out_degree(node) == 1:
                     assert cpy.in_degree(node) == 1
-                    childEdge = cpy.out_edges(node, data=True)[0]
-                    parentEdge = cpy.in_edges(node, data=True)[0]
-                    child = childEdge[1]
-                    childDist = childEdge[2]['weight']
-                    parent = parentEdge[0]
-                    assert parent != node
-                    parentDist = parentEdge[2]['weight']
-                    print "Removing node %s" % self.getName(node)
-                    cpy.remove_node(node)
-                    print "adding node from %s to %s" % (self.getName(parent), self.getName(child))
-                    cpy.add_edge(parent, child, weight = childDist + parentDist)
-                    graphWasModified = True
-                    break
+                    if node in nodeIds:
+                        # Need to keep this node and its children so
+                        # that the species tree is binary, even though
+                        # it will create extra losses. Can get rid of
+                        # this if the reconciliation algorithm is
+                        # changed to allow it.
+                        for edge in nx.out_edges(self.nxDg):
+                            cpy.add_edge(edge[0], edge[1], weight=edge[2]['weight'])
+                    else:
+                        # This is a spurious node in the species tree,
+                        # we can and should remove
+                        childEdge = cpy.out_edges(node, data=True)[0]
+                        parentEdge = cpy.in_edges(node, data=True)[0]
+                        child = childEdge[1]
+                        childDist = childEdge[2]['weight']
+                        parent = parentEdge[0]
+                        assert parent != node
+                        parentDist = parentEdge[2]['weight']
+                        print "Removing node %s" % self.getName(node)
+                        cpy.remove_node(node)
+                        print "adding node from %s to %s" % (self.getName(parent), self.getName(child))
+                        cpy.add_edge(parent, child, weight = childDist + parentDist)
+                        graphWasModified = True
+                        break
 
         mcCpy = MultiCactusTree(cpy, 2)
         mcCpy.nameUnlabeledInternalNodes(prefix="thisPrefixShouldNeverAppear")
