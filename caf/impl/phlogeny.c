@@ -226,7 +226,13 @@ static stTree *buildTree(stList *featureColumns,
     } else if(rootingMethod == LONGEST_BRANCH) {
         tree = stPhylogeny_neighborJoin(distanceMatrix, NULL);
     } else if(rootingMethod == BEST_RECON) {
-        tree = stPhylogeny_neighborJoin(distanceMatrix, NULL);
+        // NOTE: This works much better when we root on outgroups
+        // before reconciliation. Maybe something is wrong with the
+        // rooting, or all roots are equivalent on very simple trees?
+        // TODO: if so, we need some way of notifying
+        // the rooting process to prefer a given root if there's a
+        // tie!!
+        tree = stPhylogeny_neighborJoin(distanceMatrix, outgroups);
         stHash *leafToSpecies = getLeafToSpecies(tree,
                                                  speciesStTree,
                                                  block, flower);
@@ -239,6 +245,38 @@ static stTree *buildTree(stList *featureColumns,
     }
 
     return tree;
+}
+
+// Check if the block's phylogeny is simple:
+// - the block has only one event, or
+// - the block has < 3 segments, or
+// - the block does not contain any segments that are part of an
+//   outgroup thread.
+static bool hasSimplePhylogeny(stPinchBlock *block,
+                               stSet *outgroupThreads,
+                               Flower *flower) {
+    if(stPinchBlock_getDegree(block) <= 2) {
+        return true;
+    }
+    stPinchBlockIt blockIt = stPinchBlock_getSegmentIterator(block);
+    stPinchSegment *segment = NULL;
+    bool foundOutgroup = 0, found2Events = 0;
+    Event *currentEvent = NULL;
+    while((segment = stPinchBlockIt_getNext(&blockIt)) != NULL) {
+        stPinchThread *thread = stPinchSegment_getThread(segment);
+        if(stSet_search(outgroupThreads, thread) != NULL) {
+            foundOutgroup = 1;
+        }
+        Cap *cap = flower_getCap(flower, stPinchThread_getName(thread));
+        assert(cap != NULL);
+        Event *event = cap_getEvent(cap);
+        if(currentEvent == NULL) {
+            currentEvent = event;
+        } else if(currentEvent != event) {
+            found2Events = 1;
+        }
+    }
+    return !(foundOutgroup && found2Events);
 }
 
 void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHash *threadStrings, stSet *outgroupThreads, Flower *flower, int64_t numTrees, enum stCaf_RootingMethod rootingMethod, enum stCaf_ScoringMethod scoringMethod) {
@@ -260,11 +298,13 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
     double totalBreakpointDifferences = 0.0;
     double totalBestTreeScore = 0.0;
     double totalTreeScore = 0.0;
+    int64_t sampledTreeWasBetterCount = 0;
     int64_t totalOutgroupThreads = 0;
+    int64_t totalSimpleBlocks = 0;
 
     //The loop to build a tree for each block
     while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
-        if(stPinchBlock_getDegree(block) > 2) { //No point trying to build a phylogeny for a pair or fewer of sequences.
+        if(!hasSimplePhylogeny(block, outgroupThreads, flower)) { //No point trying to build a phylogeny for certain blocks.
             //Parameters.
             int64_t maxBaseDistance = 1000;
             int64_t maxBlockDistance = 100;
@@ -324,6 +364,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
                                          speciesStTree, block, flower);
                 totalTreeScore += score;
                 if(score > maxScore) {
+                    sampledTreeWasBetterCount += (i == 0) ? 0 : 1;
                     maxScore = score;
                     bestTree = tree;
                 }
@@ -348,14 +389,21 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
             stList_destruct(featureColumns);
             stList_destruct(featureBlocks);
             stList_destruct(outgroups);
+        } else {
+            totalSimpleBlocks++;
         }
     }
-    int64_t blockCount = stPinchThreadSet_getTotalBlockNumber(threadSet);
-    fprintf(stdout, "Using phylogeny building, of %" PRIi64 " blocks, %" PRIi64 " blocks were partitioned\n", blockCount, totalBlocksSplit);
+    // Block count including skipped blocks.
+    int64_t totalBlockCount = stPinchThreadSet_getTotalBlockNumber(threadSet);
+    // Number of blocks that were actually considered while partitioning.
+    int64_t blockCount = totalBlockCount - totalSimpleBlocks;
+    fprintf(stdout, "Using phylogeny building, of %" PRIi64 " blocks considered (%" PRIi64 " total), %" PRIi64 " blocks were partitioned\n", blockCount, totalBlockCount, totalBlocksSplit);
     fprintf(stdout, "There were %" PRIi64 " outgroup threads seen total over all blocks\n", totalOutgroupThreads);
     fprintf(stdout, "In phylogeny building there were %f avg. substitution similarities %f avg. substitution differences\n", totalSubstitutionSimilarities/blockCount, totalSubstitutionDifferences/blockCount);
     fprintf(stdout, "In phylogeny building there were %f avg. breakpoint similarities %f avg. breakpoint differences\n", totalBreakpointSimilarities/blockCount, totalBreakpointDifferences/blockCount);
     fprintf(stdout, "In phylogeny building we saw an average score of %f for the best tree in each block, an average score of %f overall, and %" PRIi64 " trees total.\n", totalBestTreeScore/blockCount, totalTreeScore/(numTrees*blockCount), numTrees*blockCount);
+    fprintf(stdout, "In phylogeny building we used a sampled tree instead of the canonical tree %" PRIi64 " times.\n", sampledTreeWasBetterCount);
+    fprintf(stdout, "In phylogeny building we skipped %" PRIi64 " simple blocks.\n", totalSimpleBlocks);
 
     st_logDebug("Got homology partition for each block\n");
 

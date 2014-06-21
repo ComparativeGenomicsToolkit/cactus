@@ -176,7 +176,7 @@ class TestCase(unittest.TestCase):
                                           rootOutgroupPath=rootOutgroupPath,
                                           rootOutgroupDist=rootOutgroupDist)
         logger.info("Put the temporary files in %s" % tempExperimentDir)
-        runCactusProgressive(os.path.join(tempExperimentDir, "exp_project.xml"), 
+        runCactusProgressive(os.path.join(tempExperimentDir, "exp_project.xml"),
                              jobTreeDir, 
                              batchSystem=batchSystem, 
                              buildAvgs=buildAvgs,
