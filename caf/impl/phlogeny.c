@@ -156,6 +156,7 @@ static stHash *getLeafToSpecies(stTree *geneTree, stTree *speciesTree,
         stTree *gene = stPhylogeny_getLeafByIndex(geneTree, i);
         assert(gene != NULL);
         stHash_insert(leafToSpecies, gene, species);
+        i++;
     }
     return leafToSpecies;
 }
@@ -226,13 +227,7 @@ static stTree *buildTree(stList *featureColumns,
     } else if(rootingMethod == LONGEST_BRANCH) {
         tree = stPhylogeny_neighborJoin(distanceMatrix, NULL);
     } else if(rootingMethod == BEST_RECON) {
-        // NOTE: This works much better when we root on outgroups
-        // before reconciliation. Maybe something is wrong with the
-        // rooting, or all roots are equivalent on very simple trees?
-        // TODO: if so, we need some way of notifying
-        // the rooting process to prefer a given root if there's a
-        // tie!!
-        tree = stPhylogeny_neighborJoin(distanceMatrix, outgroups);
+        tree = stPhylogeny_neighborJoin(distanceMatrix, NULL);
         stHash *leafToSpecies = getLeafToSpecies(tree,
                                                  speciesStTree,
                                                  block, flower);
