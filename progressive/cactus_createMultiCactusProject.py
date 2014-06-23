@@ -95,7 +95,8 @@ def cleanEventTree(experiment):
 # and write the experiment files
 # and copy over a config with updated reference field
 def createFileStructure(mcProj, expTemplate, configTemplate, options):
-    os.makedirs(options.path)
+    if not os.path.exists(options.path):
+        os.makedirs(options.path)
     mcProj.writeXML(os.path.join(options.path, "%s_project.xml" % options.name))
     seqMap = expTemplate.seqMap
     portOffset = 0
@@ -141,7 +142,8 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
         elif name == mcProj.mcTree.getRootName() \
         and options.rootOutgroupPath is not None:
             exp.xmlRoot.attrib["outgroup_events"] = "rootOutgroup"
-        os.makedirs(exp.getDbDir())
+        if not os.path.exists(exp.getDbDir()):
+            os.makedirs(exp.getDbDir())
         if not os.path.exists(path):
             os.makedirs(path)
         exp.writeXML(expPath)
@@ -177,6 +179,7 @@ def main():
     parser.add_option("--rootOutgroupDist", dest="rootOutgroupDist", type=float,
                       help="root outgroup distance (other root outgroup " +
                       "options must be given as well", default=None)
+    parser.add_option("--overwrite", action="store_true", help="Overwrite existing experiment files", default=False)
 
     options, args = parser.parse_args()
     
@@ -194,7 +197,7 @@ def main():
         parser.error("--rootOutgroupDist and --rootOutgroupPath must be " +
                          "provided together")
 
-    if os.path.isdir(options.path) or os.path.isfile(options.path):
+    if (os.path.isdir(options.path) and not options.overwrite) or os.path.isfile(options.path):
         raise RuntimeError("Output project path %s exists\n" % options.path)
     
     expTemplate = ExperimentWrapper(ET.parse(options.expFile).getroot())
