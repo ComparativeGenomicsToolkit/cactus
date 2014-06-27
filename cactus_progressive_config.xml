@@ -68,9 +68,11 @@
 		proportionOfUnalignedBasesForNewChromosome="0.8"
 		maximumMedianSequenceLengthBetweenLinkedEnds="1000"
 		lastzMemory="littleMemory"
-                phylogenyNumTrees="1"
+                phylogenyNumTrees="10"
                 phylogenyRootingMethod="bestRecon"
-                phylogenyScoringMethod="reconCost"
+                phylogenyScoringMethod="nucLikelihood"
+                phylogenyBreakpointScalingFactor="1.0"
+                phylogenySkipSingleCopyBlocks="0"
 	        >
 		<!-- The following are parametrised to produce the same results as the default settings, 
 		within a margin of 0.2% sensitivity, should be very fast for close genomes, these were tuned using the blast/blastParametersScript.py

@@ -504,7 +504,9 @@ class CactusCafWrapper(CactusRecursionTarget):
                           realignArguments=self.getOptionalPhaseAttrib("realignArguments"),
                           phylogenyNumTrees=self.getOptionalPhaseAttrib("phylogenyNumTrees", int, 1),
                           phylogenyRootingMethod=self.getOptionalPhaseAttrib("phylogenyRootingMethod"),
-                          phylogenyScoringMethod=self.getOptionalPhaseAttrib("phylogenyScoringMethod"))
+                          phylogenyScoringMethod=self.getOptionalPhaseAttrib("phylogenyScoringMethod"),
+                          phylogenyBreakpointScalingFactor=self.getOptionalPhaseAttrib("phylogenyBreakpointScalingFactor"),
+                          phylogenySkipSingleCopyBlocks=self.getOptionalPhaseAttrib("phylogenySkipSingleCopyBlocks", bool))
         for message in messages:
             self.logToMaster(message)
     
