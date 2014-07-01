@@ -5,7 +5,7 @@ libSources = impl/*.c
 libHeaders = inc/*.h
 libTests = tests/*.c
 #${libPath}/stCaf.a
-commonBarLibs =  ${sonLibPath}/stPinchesAndCacti.a ${libPath}/cactusLib.a ${sonLibPath}/3EdgeConnected.a
+commonBarLibs =  ${libPath}/cactusLib.a ${sonLibPath}/3EdgeConnected.a
 stBarDependencies =  ${commonBarLibs} ${basicLibsDependencies}
 stBarLibs = ${commonBarLibs} ${basicLibs}
 

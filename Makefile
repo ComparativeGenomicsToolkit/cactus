@@ -1,5 +1,5 @@
 # order is important, libraries first
-modules = api setup blastLib bar blast 
+modules = api blastLib bar blast 
 
 .PHONY: all %.all clean %.clean
 
