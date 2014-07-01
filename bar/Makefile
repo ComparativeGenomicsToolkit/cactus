@@ -4,12 +4,13 @@ include ../include.mk
 libSources = impl/*.c
 libHeaders = inc/*.h
 libTests = tests/*.c
-
-commonBarLibs = ${libPath}/stCaf.a ${sonLibPath}/stPinchesAndCacti.a ${libPath}/cactusLib.a ${sonLibPath}/3EdgeConnected.a
+#${libPath}/stCaf.a
+commonBarLibs =  ${sonLibPath}/stPinchesAndCacti.a ${libPath}/cactusLib.a ${sonLibPath}/3EdgeConnected.a
 stBarDependencies =  ${commonBarLibs} ${basicLibsDependencies}
 stBarLibs = ${commonBarLibs} ${basicLibs}
 
-all : ${libPath}/cactusBarLib.a ${binPath}/cactus_bar ${binPath}/cactus_barTests 
+all : ${libPath}/cactusBarLib.a 
+#${binPath}/cactus_bar ${binPath}/cactus_barTests 
  
 clean : 
 	rm -f ${binPath}/cactus_bar ${binPath}/cactus_barTests  ${libPath}/cactusBarLib.a
