@@ -221,7 +221,7 @@ LOCAL inline struct __String* allocString(void)
 * Notes  : -
 \***********************************************************************/
 
-LOCAL inline void deleteString(struct __String *string)
+void deleteString(struct __String *string)
 {
   assert(string != NULL);
   assert(string->data != NULL);
