@@ -15,7 +15,7 @@
 #include "commonC.h"
 
 void usage() {
-    fprintf(stderr, "cactus_baseReAligner [options] seq1[fasta] seq2[fasta], version 0.2\n");
+    fprintf(stderr, "cactus_relign [options] seq1[fasta] seq2[fasta], version 0.2\n");
     fprintf(stderr,
             "Realigns a set of pairwise alignments, as cigars, read from the command line and written back to the command line\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
@@ -26,14 +26,19 @@ void usage() {
     fprintf(stderr, "-t --constraintDiagonalTrim : (int >= 0) Amount to trim from ends of each anchor\n");
     fprintf(stderr,
             "-w --alignAmbiguityCharacters : Align ambiguity characters (anything not ACTGactg) as a wildcard\n");
-    fprintf(stderr, "-x --dummy : Do everything but realign, used for testing.\n");
+    fprintf(stderr,
+            "-x --rescoreOriginalAlignment : Rescore the original alignment. The output cigar is the same alignment.\n");
     fprintf(stderr, "-i --rescoreByIdentity : Set score equal to alignment identity, treating indels as mismatches.\n");
     fprintf(stderr,
             "-j --rescoreByPosteriorProb : Set score equal to avg. posterior match probability, treating indels as residues with 0 match probability.\n");
     fprintf(stderr, "-k --rescoreByIdentityIgnoringGaps : Set score equal to alignment identity, ignoring indels.\n");
+    fprintf(stderr,
+            "-m --rescoreByPosteriorProbIgnoringGaps : Set score equal to avg. posterior match probability, ignoring gaps.\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
     fprintf(stderr,
             "-s --splitIndelsLongerThanThis : Split alignments with consecutive runs of indels that are longer than this.\n");
+    fprintf(stderr,
+            "-u --outputPosteriorProbs [FILE] : Outputs the posterior match probs of positions in the alignment to the given tab separated file, each line being X-coordinate, Y-coordinate, posterior-match prob.\n");
 }
 
 struct PairwiseAlignment *convertAlignedPairsToPairwiseAlignment(char *seqName1, char *seqName2, double score,
@@ -189,7 +194,7 @@ stList *splitPairwiseAlignment(const struct PairwiseAlignment *pA, const int64_t
 }
 
 void rebasePairwiseAlignmentCoordinates(int64_t *start, int64_t *end, int64_t *strand, int64_t coordinateShift,
-        bool flipStrand) {
+bool flipStrand) {
     *start += coordinateShift;
     *end += coordinateShift;
     if (flipStrand) {
@@ -246,9 +251,9 @@ void *convertToAnchorPair(void *aPair, void *extraArg) {
 }
 
 bool matchFn(void *aPair, void *seqs) {
-    char x = ((char **) seqs)[0][stIntTuple_get(aPair, 0)];
-    char y = ((char **) seqs)[1][stIntTuple_get(aPair, 1)];
-    return x == y && toupper(x) != 'N';
+    char x = toupper(((char **) seqs)[0][stIntTuple_get(aPair, 0)]);
+    char y = toupper(((char **) seqs)[1][stIntTuple_get(aPair, 1)]);
+    return x == y && x != 'N';
 }
 
 bool gapGammaFilter(void *aPair, void *gapGamma) {
@@ -271,7 +276,7 @@ static int64_t getNumberOfMatchingAlignedPairs(char *subSeqX, char *subSeqY, stL
     for (int64_t i = 0; i < stList_length(alignedPairs); i++) {
         stIntTuple *aPair = stList_get(alignedPairs, i);
         int64_t x = stIntTuple_get(aPair, 1), y = stIntTuple_get(aPair, 2);
-        matches += subSeqX[x] == subSeqY[y] && toupper(subSeqX[x]) != 'N';
+        matches += toupper(subSeqX[x]) == toupper(subSeqY[y]) && toupper(subSeqX[x]) != 'N';
     }
     return matches;
 }
@@ -281,7 +286,7 @@ double scoreByIdentity(char *subSeqX, char *subSeqY, int64_t lX, int64_t lY, stL
      * Gives the average identity of matches in the alignment, treating indels as mismatches.
      */
     int64_t matches = getNumberOfMatchingAlignedPairs(subSeqX, subSeqY, alignedPairs);
-    return 100 * ((lX + lY) == 0 ? 0 : (2.0 * matches) / (lX + lY));
+    return 100.0 * ((lX + lY) == 0 ? 0 : (2.0 * matches) / (lX + lY));
 }
 
 double scoreByIdentityIgnoringGaps(char *subSeqX, char *subSeqY, stList *alignedPairs) {
@@ -289,19 +294,74 @@ double scoreByIdentityIgnoringGaps(char *subSeqX, char *subSeqY, stList *aligned
      * Gives the average identity of matches in the alignment, ignoring indels.
      */
     int64_t matches = getNumberOfMatchingAlignedPairs(subSeqX, subSeqY, alignedPairs);
-    return matches / (double) stList_length(alignedPairs);
+    return 100.0 * matches / (double) stList_length(alignedPairs);
+}
+
+static double totalScore(stList *alignedPairs) {
+    double score = 0.0;
+    for (int64_t i = 0; i < stList_length(alignedPairs); i++) {
+        stIntTuple *aPair = stList_get(alignedPairs, i);
+        score += stIntTuple_get(aPair, 0);
+    }
+    return score;
 }
 
 double scoreByPosteriorProbability(int64_t lX, int64_t lY, stList *alignedPairs) {
     /*
      * Gives the average posterior match probability per base of the two sequences, treating bases in indels as having 0 match probability.
      */
-    double score = 0.0;
-    for (int64_t i = 0; i < stList_length(alignedPairs); i++) {
+    return 100.0 * ((lX + lY) == 0 ? 0 : (2.0 * totalScore(alignedPairs)) / ((lX + lY) * PAIR_ALIGNMENT_PROB_1));
+}
+
+double scoreByPosteriorProbabilityIgnoringGaps(stList *alignedPairs) {
+    /*
+     * Gives the average posterior match probability per base of the two sequences, ignoring indels.
+     */
+    return 100.0 * totalScore(alignedPairs) / ((double) stList_length(alignedPairs) * PAIR_ALIGNMENT_PROB_1);
+}
+
+void writePosteriorProbs(char *posteriorProbsFile, stList *alignedPairs) {
+    /*
+     * Writes the posterior match probabibilities to a tab separated file, each line being X coordinate, Y coordinate, Match probability
+     */
+    FILE *fH = fopen(posteriorProbsFile, "w");
+    for(int64_t i=0;i<stList_length(alignedPairs); i++) {
         stIntTuple *aPair = stList_get(alignedPairs, i);
-        score += stIntTuple_get(aPair, 0);
+        fprintf(fH, "%" PRIi64 "\t%" PRIi64 "\t%f\n", stIntTuple_get(aPair, 1), stIntTuple_get(aPair, 2), ((double)stIntTuple_get(aPair, 0))/PAIR_ALIGNMENT_PROB_1);
     }
-    return 100 * ((lX + lY) == 0 ? 0 : (2.0 * score) / ((lX + lY) * PAIR_ALIGNMENT_PROB_1));
+    fclose(fH);
+}
+
+stList *scoreAnchorPairs(stList *anchorPairs, stList *alignedPairs) {
+    /*
+     * Selects the aligned pairs contained in anchor pairs.
+     */
+    stSortedSet *anchorPairsSet = stList_getSortedSet(anchorPairs, (int (*)(const void *, const void *))stIntTuple_cmpFn);
+    assert(stList_length(anchorPairs) == stSortedSet_size(anchorPairsSet));
+    stList *scoredAnchorPairs = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
+
+    for(int64_t i=0; i<stList_length(alignedPairs); i++) {
+        stIntTuple *aPair = stList_get(alignedPairs, i);
+        stIntTuple *j = stIntTuple_construct2(stIntTuple_get(aPair, 1), stIntTuple_get(aPair, 2));
+        if(stSortedSet_search(anchorPairsSet, j) != NULL) {
+            stList_append(scoredAnchorPairs, stIntTuple_construct3(stIntTuple_get(aPair, 0), stIntTuple_get(aPair, 1), stIntTuple_get(aPair, 2)));
+            stSortedSet_remove(anchorPairsSet, j);
+        }
+        stIntTuple_destruct(j);
+    }
+
+    //The following should not really be needed, and may be masking a bug/numerical precision issues
+    stSortedSetIterator *it = stSortedSet_getIterator(anchorPairsSet);
+    stIntTuple *pair;
+    while((pair = stSortedSet_getNext(it))) {
+        stList_append(scoredAnchorPairs, stIntTuple_construct3(0, stIntTuple_get(pair, 0), stIntTuple_get(pair, 1)));
+    }
+    stSortedSet_destructIterator(it);
+    
+    stSortedSet_destruct(anchorPairsSet);
+    assert(stList_length(anchorPairs) == stList_length(scoredAnchorPairs));
+
+    return scoredAnchorPairs;
 }
 
 int main(int argc, char *argv[]) {
@@ -312,31 +372,32 @@ int main(int argc, char *argv[]) {
     pairwiseAlignmentBandingParameters->constraintDiagonalTrim = 0;
     pairwiseAlignmentBandingParameters->splitMatrixBiggerThanThis = 10;
     pairwiseAlignmentBandingParameters->diagonalExpansion = 4;
-    bool dummy = 0;
+    bool rescoreOriginalAlignment = 0;
     bool rescoreByIdentity = 0;
     bool rescoreByPosteriorProbability = 0;
     bool rescoreByIdentityIgnoringGaps = 0;
+    bool rescoreByPosteriorProbabilityIgnoringGaps = 0;
     // -1 here signals don't split indels at all
     int64_t splitIndelsLongerThanThis = -1;
+    char *posteriorProbsFile = NULL;
     /*
      * Parse the options.
      */
 
     while (1) {
         static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' },
-                { "help", no_argument, 0, 'h' }, { "gapGamma",
-                required_argument, 0, 'l' }, { "splitMatrixBiggerThanThis", required_argument, 0, 'o' }, {
-                        "diagonalExpansion",
-                        required_argument, 0, 'r' }, { "constraintDiagonalTrim", required_argument, 0, 't' }, {
-                        "alignAmbiguityCharacters",
-                        no_argument, 0, 'w' }, { "dummy", no_argument, 0, 'x' }, { "rescoreByIdentity", no_argument, 0,
-                        'i' }, { "rescoreByPosteriorProb", no_argument, 0, 'j' }, { "rescoreByIdentityIgnoringGaps",
-                        no_argument, 0, 'k' }, { "splitIndelsLongerThanThis", required_argument, 0, 's' },
-                { 0, 0, 0, 0 } };
+                { "help", no_argument, 0, 'h' }, { "gapGamma", required_argument, 0, 'l' }, {
+                        "splitMatrixBiggerThanThis", required_argument, 0, 'o' }, { "diagonalExpansion",
+                required_argument, 0, 'r' }, { "constraintDiagonalTrim", required_argument, 0, 't' }, {
+                        "alignAmbiguityCharacters", no_argument, 0, 'w' }, { "rescoreOriginalAlignment", no_argument, 0,
+                        'x' }, { "rescoreByIdentity", no_argument, 0, 'i' }, { "rescoreByPosteriorProb", no_argument, 0,
+                        'j' }, { "rescoreByPosteriorProbIgnoringGaps", no_argument, 0, 'm' }, {
+                        "rescoreByIdentityIgnoringGaps", no_argument, 0, 'k' }, { "splitIndelsLongerThanThis",
+                required_argument, 0, 's' }, { "outputPosteriorProbs", required_argument, 0, 'u' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:hl:o:r:t:s:wxijk", long_options, &option_index);
+        int key = getopt_long(argc, argv, "a:hl:o:r:t:s:wxijkmu", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -376,7 +437,7 @@ int main(int argc, char *argv[]) {
             pairwiseAlignmentBandingParameters->alignAmbiguityCharacters = 1;
             break;
         case 'x':
-            dummy = 1;
+            rescoreOriginalAlignment = 1;
             break;
         case 'i':
             rescoreByIdentity = 1;
@@ -387,10 +448,16 @@ int main(int argc, char *argv[]) {
         case 'k':
             rescoreByIdentityIgnoringGaps = 1;
             break;
+        case 'm':
+            rescoreByPosteriorProbabilityIgnoringGaps = 1;
+            break;
         case 's':
             i = sscanf(optarg, "%" PRIi64, &splitIndelsLongerThanThis);
             assert(i == 1);
             assert(splitIndelsLongerThanThis >= 0);
+            break;
+        case 'u':
+            posteriorProbsFile = stString_copy(optarg);
             break;
         default:
             usage();
@@ -437,32 +504,39 @@ int main(int argc, char *argv[]) {
         stList *filteredAnchoredPairs = stList_filter2(anchorPairs, matchFn, seqs);
         //Get posterior prob pairs
         stList *alignedPairs = NULL;
-        if (dummy) {
-            alignedPairs = convertPairwiseForwardStrandAlignmentToAnchorPairs(pA, 0);
-        } else {
-            alignedPairs = getAlignedPairsUsingAnchors(subSeqX, subSeqY, filteredAnchoredPairs,
-                    pairwiseAlignmentBandingParameters, 1, 1);
-            //Convert to partial ordered set of pairs
-            if (1) { //Shouldn't be needed if we only take pairs with > 50% posterior prob
-                stList_destruct(filterPairwiseAlignmentToMakePairsOrdered(alignedPairs, gapGamma));
-            } else { //Just filter by gap gamma (the alterative is quite expensive)
-                stList *l = stList_filter2(alignedPairs, gapGammaFilter, &gapGamma);
-                stList_setDestructor(alignedPairs, NULL);
-                stList_setDestructor(l, (void (*)(void *)) stIntTuple_destruct);
-                stList_destruct(alignedPairs);
-                alignedPairs = l;
-            }
-            if (rescoreByPosteriorProbability) {
-                pA->score = scoreByPosteriorProbability(strlen(subSeqX), strlen(subSeqY), alignedPairs);
-            } else if (rescoreByIdentity) {
-                pA->score = scoreByIdentity(subSeqX, subSeqY, strlen(subSeqX), strlen(subSeqY), alignedPairs);
-            } else if (rescoreByIdentityIgnoringGaps) {
-                pA->score = scoreByIdentityIgnoringGaps(subSeqX, subSeqY, alignedPairs);
-            }
-            //Convert to ordered list of sequence coordinate pairs
-            stList_mapReplace(alignedPairs, convertToAnchorPair, NULL);
-            stList_sort(alignedPairs, (int (*)(const void *, const void *)) stIntTuple_cmpFn); //Ensure we have an monotonically increasing ordering
+        alignedPairs = getAlignedPairsUsingAnchors(subSeqX, subSeqY, filteredAnchoredPairs,
+                pairwiseAlignmentBandingParameters, 1, 1);
+        //Convert to partial ordered set of pairs
+        if (rescoreOriginalAlignment) {
+            stList *rescoredPairs = scoreAnchorPairs(anchorPairs, alignedPairs);
+            stList_destruct(alignedPairs);
+            alignedPairs = rescoredPairs;
+        } else if (1) { //Shouldn't be needed if we only take pairs with > 50% posterior prob
+            stList_destruct(filterPairwiseAlignmentToMakePairsOrdered(alignedPairs, gapGamma));
+        } else { //Just filter by gap gamma (the alterative is quite expensive)
+            stList *l = stList_filter2(alignedPairs, gapGammaFilter, &gapGamma);
+            stList_setDestructor(alignedPairs, NULL);
+            stList_setDestructor(l, (void (*)(void *)) stIntTuple_destruct);
+            stList_destruct(alignedPairs);
+            alignedPairs = l;
         }
+        //Rescore
+        if (rescoreByPosteriorProbability) {
+            pA->score = scoreByPosteriorProbability(strlen(subSeqX), strlen(subSeqY), alignedPairs);
+        } else if (rescoreByPosteriorProbabilityIgnoringGaps) {
+            pA->score = scoreByPosteriorProbabilityIgnoringGaps(alignedPairs);
+        } else if (rescoreByIdentity) {
+            pA->score = scoreByIdentity(subSeqX, subSeqY, strlen(subSeqX), strlen(subSeqY), alignedPairs);
+        } else if (rescoreByIdentityIgnoringGaps) {
+            pA->score = scoreByIdentityIgnoringGaps(subSeqX, subSeqY, alignedPairs);
+        }
+        //Output the posterior match probs, if needed
+        if(posteriorProbsFile != NULL) {
+            writePosteriorProbs(posteriorProbsFile, alignedPairs);
+        }
+        //Convert to ordered list of sequence coordinate pairs
+        stList_mapReplace(alignedPairs, convertToAnchorPair, NULL);
+        stList_sort(alignedPairs, (int (*)(const void *, const void *)) stIntTuple_cmpFn); //Ensure we have an monotonically increasing ordering
         //Convert back to cigar
         struct PairwiseAlignment *rPA = convertAlignedPairsToPairwiseAlignment(pA->contig1, pA->contig2, pA->score,
                 pA->end1, pA->end2, alignedPairs);
