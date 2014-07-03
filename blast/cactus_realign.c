@@ -16,27 +16,32 @@
 
 void usage() {
     fprintf(stderr, "cactus_baseReAligner [options] seq1[fasta] seq2[fasta], version 0.2\n");
-    fprintf(stderr, "Realigns a set of pairwise alignments, as cigars, read from the command line and written back to the command line\n");
+    fprintf(stderr,
+            "Realigns a set of pairwise alignments, as cigars, read from the command line and written back to the command line\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
     fprintf(stderr, "-l --gapGamma : (float [0, 1]) The gap gamma (as in the AMAP function)\n");
-    fprintf(stderr, "-o --splitMatrixBiggerThanThis : (int >= 0)  No dp matrix bigger than this number squared will be computed.\n");
+    fprintf(stderr,
+            "-o --splitMatrixBiggerThanThis : (int >= 0)  No dp matrix bigger than this number squared will be computed.\n");
     fprintf(stderr, "-r --diagonalExpansion : (int >= 0 and even) Number of x-y diagonals to expand around anchors\n");
     fprintf(stderr, "-t --constraintDiagonalTrim : (int >= 0) Amount to trim from ends of each anchor\n");
-    fprintf(stderr, "-w --alignAmbiguityCharacters : Align ambiguity characters (anything not ACTGactg) as a wildcard\n");
+    fprintf(stderr,
+            "-w --alignAmbiguityCharacters : Align ambiguity characters (anything not ACTGactg) as a wildcard\n");
     fprintf(stderr, "-x --dummy : Do everything but realign, used for testing.\n");
     fprintf(stderr, "-i --rescoreByIdentity : Set score equal to alignment identity, treating indels as mismatches.\n");
-    fprintf(stderr, "-j --rescoreByPosteriorProb : Set score equal to avg. posterior match probability, treating indels as residues with 0 match probability.\n");
+    fprintf(stderr,
+            "-j --rescoreByPosteriorProb : Set score equal to avg. posterior match probability, treating indels as residues with 0 match probability.\n");
     fprintf(stderr, "-k --rescoreByIdentityIgnoringGaps : Set score equal to alignment identity, ignoring indels.\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
-    fprintf(stderr, "-s --splitIndelsLongerThanThis : Split alignments with consecutive runs of indels that are longer than this.\n");
+    fprintf(stderr,
+            "-s --splitIndelsLongerThanThis : Split alignments with consecutive runs of indels that are longer than this.\n");
 }
 
-struct PairwiseAlignment *convertAlignedPairsToPairwiseAlignment(char *seqName1, char *seqName2, double score, int64_t length1,
-        int64_t length2, stList *alignedPairs) {
+struct PairwiseAlignment *convertAlignedPairsToPairwiseAlignment(char *seqName1, char *seqName2, double score,
+        int64_t length1, int64_t length2, stList *alignedPairs) {
     //Make pairwise alignment
     int64_t pX = -1, pY = -1, mL = 0;
     //Create an end matched pair, which is used to ensure the alignment has the correct end indels.
-    struct List *opList = constructEmptyList(0, (void(*)(void *)) destructAlignmentOperation);
+    struct List *opList = constructEmptyList(0, (void (*)(void *)) destructAlignmentOperation);
     stList_append(alignedPairs, stIntTuple_construct2(length1, length2));
     for (int64_t i = 0; i < stList_length(alignedPairs); i++) {
         stIntTuple *alignedPair = stList_get(alignedPairs, i);
@@ -44,7 +49,7 @@ struct PairwiseAlignment *convertAlignedPairsToPairwiseAlignment(char *seqName1,
         int64_t y = stIntTuple_get(alignedPair, 1);
         assert(x - pX > 0);
         assert(y - pY > 0);
-        if(x - pX > 0 && y - pY > 0) { //This is a hack for filtering
+        if (x - pX > 0 && y - pY > 0) { //This is a hack for filtering
             if (x - pX > 1) { //There is an indel.
                 if (mL > 0) {
                     listAppend(opList, constructAlignmentOperation(PAIRWISE_MATCH, mL, 0));
@@ -70,7 +75,8 @@ struct PairwiseAlignment *convertAlignedPairsToPairwiseAlignment(char *seqName1,
     }
     stIntTuple_destruct(stList_pop(alignedPairs));
     //Construct the alignment
-    struct PairwiseAlignment *pA = constructPairwiseAlignment(seqName1, 0, length1, 1, seqName2, 0, length2, 1, score, opList);
+    struct PairwiseAlignment *pA = constructPairwiseAlignment(seqName1, 0, length1, 1, seqName2, 0, length2, 1, score,
+            opList);
     return pA;
 }
 
@@ -80,13 +86,13 @@ struct PairwiseAlignment *convertAlignedPairsToPairwiseAlignment(char *seqName1,
 bool hasLongIndel(struct PairwiseAlignment *pA, int64_t maxIndelLength) {
     int64_t i;
     int64_t curIndelRunLength = 0;
-    for(i = 0; i < pA->operationList->length; i++) {
+    for (i = 0; i < pA->operationList->length; i++) {
         struct AlignmentOperation *op = pA->operationList->list[i];
-        if(op->opType == PAIRWISE_MATCH) {
+        if (op->opType == PAIRWISE_MATCH) {
             curIndelRunLength = 0;
         } else {
             curIndelRunLength += op->length;
-            if(curIndelRunLength > maxIndelLength) {
+            if (curIndelRunLength > maxIndelLength) {
                 return TRUE;
             }
         }
@@ -96,8 +102,7 @@ bool hasLongIndel(struct PairwiseAlignment *pA, int64_t maxIndelLength) {
 
 // Split a pairwise alignment into two or more pairwise alignments if
 // it has a long indel.
-stList *splitPairwiseAlignment(const struct PairwiseAlignment *pA,
-                               const int64_t maxIndelLength) {
+stList *splitPairwiseAlignment(const struct PairwiseAlignment *pA, const int64_t maxIndelLength) {
     stList *ret = stList_construct3(0, free);
     int64_t i = 0;
     int64_t j = 0;
@@ -108,30 +113,33 @@ stList *splitPairwiseAlignment(const struct PairwiseAlignment *pA,
     int64_t curStart2 = pA->start2;
     int64_t curEnd1 = 0;
     int64_t curEnd2 = 0;
-    struct List *curOperationList = constructEmptyList(0, (void (*)(void *))destructAlignmentOperation);
+    struct List *curOperationList = constructEmptyList(0, (void (*)(void *)) destructAlignmentOperation);
     // Temporary list of a run of indel operations so that we don't
     // end alignments with indels.
-    struct List *indelOpList = constructEmptyList(0, (void (*)(void *))destructAlignmentOperation);
-    for(i = 0; i < pA->operationList->length; i++) {
+    struct List *indelOpList = constructEmptyList(0, (void (*)(void *)) destructAlignmentOperation);
+    for (i = 0; i < pA->operationList->length; i++) {
         struct AlignmentOperation *op = pA->operationList->list[i];
-        switch(op->opType) {
+        switch (op->opType) {
         case PAIRWISE_MATCH:
-            if(curIndelRunLength > maxIndelLength && curOperationList->length != 0) {
+            if (curIndelRunLength > maxIndelLength && curOperationList->length != 0) {
                 // The last indel run was too long, so discard those
                 // last indels and append the alignment so far to the return
                 // value.
-                if(curOperationList->length != 0) {
-                    stList_append(ret, constructPairwiseAlignment(stString_copy(pA->contig1), curStart1, curEnd1, pA->strand1, stString_copy(pA->contig2), curStart2, curEnd2, pA->strand2, pA->score, curOperationList));
+                if (curOperationList->length != 0) {
+                    stList_append(ret,
+                            constructPairwiseAlignment(stString_copy(pA->contig1), curStart1, curEnd1, pA->strand1,
+                                    stString_copy(pA->contig2), curStart2, curEnd2, pA->strand2, pA->score,
+                                    curOperationList));
                 }
-                curOperationList = constructEmptyList(0, (void (*)(void *))destructAlignmentOperation);
-                indelOpList = constructEmptyList(0, (void (*)(void *))destructAlignmentOperation);
+                curOperationList = constructEmptyList(0, (void (*)(void *)) destructAlignmentOperation);
+                indelOpList = constructEmptyList(0, (void (*)(void *)) destructAlignmentOperation);
                 curStart1 = curPos1;
                 curStart2 = curPos2;
                 curEnd1 = curStart1;
                 curEnd2 = curStart2;
             } else if (curOperationList->length == 0) {
                 // Indel run at the start of the alignment
-                indelOpList = constructEmptyList(0, (void (*)(void *))destructAlignmentOperation);
+                indelOpList = constructEmptyList(0, (void (*)(void *)) destructAlignmentOperation);
                 curStart1 = curPos1;
                 curStart2 = curPos2;
                 curEnd1 = curStart1;
@@ -141,11 +149,11 @@ stList *splitPairwiseAlignment(const struct PairwiseAlignment *pA,
             // Since we're keeping the indel run, (or we've already
             // split and cleared the overly-long indel list), add the
             // indel run to the op list and clear the indel op buffer.
-            for(j = 0; j < indelOpList->length; j++) {
+            for (j = 0; j < indelOpList->length; j++) {
                 struct AlignmentOperation *indelOp = indelOpList->list[j];
                 listAppend(curOperationList, indelOp);
             }
-            indelOpList = constructEmptyList(0, (void (*)(void *))destructAlignmentOperation);
+            indelOpList = constructEmptyList(0, (void (*)(void *)) destructAlignmentOperation);
 
             curPos1 += pA->strand1 ? op->length : -op->length;
             curPos2 += pA->strand2 ? op->length : -op->length;
@@ -167,18 +175,21 @@ stList *splitPairwiseAlignment(const struct PairwiseAlignment *pA,
     }
     assert(curPos1 == pA->end1);
     assert(curPos2 == pA->end2);
-    if(curOperationList->length != 0) {
+    if (curOperationList->length != 0) {
         // Append the remaining pairwise alignment
-        stList_append(ret, constructPairwiseAlignment(stString_copy(pA->contig1), curStart1, curEnd1, pA->strand1, stString_copy(pA->contig2), curStart2, curEnd2, pA->strand2, pA->score, curOperationList));
+        stList_append(ret,
+                constructPairwiseAlignment(stString_copy(pA->contig1), curStart1, curEnd1, pA->strand1,
+                        stString_copy(pA->contig2), curStart2, curEnd2, pA->strand2, pA->score, curOperationList));
     }
     // Check all alignments
-    for(i = 0; i < stList_length(ret); i++) {
+    for (i = 0; i < stList_length(ret); i++) {
         checkPairwiseAlignment(stList_get(ret, i));
     }
     return ret;
 }
 
-void rebasePairwiseAlignmentCoordinates(int64_t *start, int64_t *end, int64_t *strand, int64_t coordinateShift, bool flipStrand) {
+void rebasePairwiseAlignmentCoordinates(int64_t *start, int64_t *end, int64_t *strand, int64_t coordinateShift,
+        bool flipStrand) {
     *start += coordinateShift;
     *end += coordinateShift;
     if (flipStrand) {
@@ -204,13 +215,15 @@ void addToSequencesHash(const char *header, const char *sequence, int64_t length
     stList *tokens = stString_split(header);
     char *firstToken = stList_get(tokens, 0);
     if (stHash_search(sequences, (char *) firstToken) != NULL) {
-        st_logInfo("Got a repeat header: %s with sequence length: %" PRIi64 " vs. the existing hashed sequence of length: %" PRIi64 ", complete header: %s\n", (char *) firstToken, length, strlen(stHash_search(sequences, (char *) firstToken)), header);
-        if(length > strlen(stHash_search(sequences, (char *) firstToken))) { //The new sequence is a more complete version of the original sequence (can happen with overlapping fragments).
+        st_logInfo(
+                "Got a repeat header: %s with sequence length: %" PRIi64 " vs. the existing hashed sequence of length: %" PRIi64 ", complete header: %s\n",
+                (char *) firstToken, length, strlen(stHash_search(sequences, (char *) firstToken)), header);
+        if (length > strlen(stHash_search(sequences, (char *) firstToken))) { //The new sequence is a more complete version of the original sequence (can happen with overlapping fragments).
             st_logInfo("Replacing sequence\n");
 #ifndef NDEBUG
             //Check old sequence is substring of new string
             char *cA = stString_getSubString(sequence, 0, strlen(stHash_search(sequences, (char *) firstToken)));
-            assert(stString_eq(cA, stHash_search(sequences, (char *) firstToken)));
+            assert(stString_eq(cA, stHash_search(sequences, (char * ) firstToken)));
             free(cA);
 #endif
             //Remove the old sequence and cleanup
@@ -219,7 +232,8 @@ void addToSequencesHash(const char *header, const char *sequence, int64_t length
             stHash_insert(sequences, stString_copy(firstToken), stString_copy(sequence));
         }
     } else {
-        st_logInfo("Adding sequence for header: %s, with length %" PRIi64 ", complete header: %s\n", (char *) firstToken, strlen(sequence), header);
+        st_logInfo("Adding sequence for header: %s, with length %" PRIi64 ", complete header: %s\n",
+                (char *) firstToken, strlen(sequence), header);
         stHash_insert(sequences, stString_copy(firstToken), stString_copy(sequence));
     }
     stList_destruct(tokens);
@@ -232,14 +246,14 @@ void *convertToAnchorPair(void *aPair, void *extraArg) {
 }
 
 bool matchFn(void *aPair, void *seqs) {
-    char x = ((char **)seqs)[0][stIntTuple_get(aPair, 0)];
-    char y = ((char **)seqs)[1][stIntTuple_get(aPair, 1)];
+    char x = ((char **) seqs)[0][stIntTuple_get(aPair, 0)];
+    char y = ((char **) seqs)[1][stIntTuple_get(aPair, 1)];
     return x == y && toupper(x) != 'N';
 }
 
 bool gapGammaFilter(void *aPair, void *gapGamma) {
-    bool b = ((double)stIntTuple_get(aPair, 0)) / PAIR_ALIGNMENT_PROB_1 >= *((float *)gapGamma);
-    if(!b) { //Cleanup.
+    bool b = ((double) stIntTuple_get(aPair, 0)) / PAIR_ALIGNMENT_PROB_1 >= *((float *) gapGamma);
+    if (!b) { //Cleanup.
         stIntTuple_destruct(aPair);
     }
     return b;
@@ -254,7 +268,7 @@ static int64_t getNumberOfMatchingAlignedPairs(char *subSeqX, char *subSeqY, stL
      * Gives the average identity of matches in the alignment, treating indels as mismatches.
      */
     int64_t matches = 0;
-    for(int64_t i=0; i<stList_length(alignedPairs); i++) {
+    for (int64_t i = 0; i < stList_length(alignedPairs); i++) {
         stIntTuple *aPair = stList_get(alignedPairs, i);
         int64_t x = stIntTuple_get(aPair, 1), y = stIntTuple_get(aPair, 2);
         matches += subSeqX[x] == subSeqY[y] && toupper(subSeqX[x]) != 'N';
@@ -267,15 +281,15 @@ double scoreByIdentity(char *subSeqX, char *subSeqY, int64_t lX, int64_t lY, stL
      * Gives the average identity of matches in the alignment, treating indels as mismatches.
      */
     int64_t matches = getNumberOfMatchingAlignedPairs(subSeqX, subSeqY, alignedPairs);
-    return 100 *((lX + lY) == 0 ? 0 : (2.0*matches) / (lX + lY));
+    return 100 * ((lX + lY) == 0 ? 0 : (2.0 * matches) / (lX + lY));
 }
 
 double scoreByIdentityIgnoringGaps(char *subSeqX, char *subSeqY, stList *alignedPairs) {
     /*
      * Gives the average identity of matches in the alignment, ignoring indels.
      */
-	int64_t matches = getNumberOfMatchingAlignedPairs(subSeqX, subSeqY, alignedPairs);
-    return matches / (double)stList_length(alignedPairs);
+    int64_t matches = getNumberOfMatchingAlignedPairs(subSeqX, subSeqY, alignedPairs);
+    return matches / (double) stList_length(alignedPairs);
 }
 
 double scoreByPosteriorProbability(int64_t lX, int64_t lY, stList *alignedPairs) {
@@ -283,11 +297,11 @@ double scoreByPosteriorProbability(int64_t lX, int64_t lY, stList *alignedPairs)
      * Gives the average posterior match probability per base of the two sequences, treating bases in indels as having 0 match probability.
      */
     double score = 0.0;
-    for(int64_t i=0; i<stList_length(alignedPairs); i++) {
+    for (int64_t i = 0; i < stList_length(alignedPairs); i++) {
         stIntTuple *aPair = stList_get(alignedPairs, i);
         score += stIntTuple_get(aPair, 0);
     }
-    return 100 * ((lX + lY) == 0 ? 0 : (2.0*score) / ((lX + lY) * PAIR_ALIGNMENT_PROB_1));
+    return 100 * ((lX + lY) == 0 ? 0 : (2.0 * score) / ((lX + lY) * PAIR_ALIGNMENT_PROB_1));
 }
 
 int main(int argc, char *argv[]) {
@@ -309,13 +323,16 @@ int main(int argc, char *argv[]) {
      */
 
     while (1) {
-        static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "help", no_argument, 0, 'h' }, { "gapGamma",
-                required_argument, 0, 'l' }, { "splitMatrixBiggerThanThis", required_argument, 0, 'o' }, { "diagonalExpansion",
-                required_argument, 0, 'r' }, { "constraintDiagonalTrim", required_argument, 0, 't' }, { "alignAmbiguityCharacters",
-                no_argument, 0, 'w' }, { "dummy", no_argument, 0, 'x' }, { "rescoreByIdentity", no_argument, 0, 'i' },
-                { "rescoreByPosteriorProb", no_argument, 0, 'j' },
-                { "rescoreByIdentityIgnoringGaps", no_argument, 0, 'k' },
-                {"splitIndelsLongerThanThis", required_argument, 0, 's'}, { 0, 0, 0, 0 } };
+        static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' },
+                { "help", no_argument, 0, 'h' }, { "gapGamma",
+                required_argument, 0, 'l' }, { "splitMatrixBiggerThanThis", required_argument, 0, 'o' }, {
+                        "diagonalExpansion",
+                        required_argument, 0, 'r' }, { "constraintDiagonalTrim", required_argument, 0, 't' }, {
+                        "alignAmbiguityCharacters",
+                        no_argument, 0, 'w' }, { "dummy", no_argument, 0, 'x' }, { "rescoreByIdentity", no_argument, 0,
+                        'i' }, { "rescoreByPosteriorProb", no_argument, 0, 'j' }, { "rescoreByIdentityIgnoringGaps",
+                        no_argument, 0, 'k' }, { "splitIndelsLongerThanThis", required_argument, 0, 's' },
+                { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
@@ -326,58 +343,58 @@ int main(int argc, char *argv[]) {
         }
 
         switch (key) {
-            case 'a':
-                logLevelString = stString_copy(optarg);
-                st_setLogLevelFromString(logLevelString);
-                break;
-            case 'h':
-                usage();
-                return 0;
-            case 'l':
-                i = sscanf(optarg, "%f", &gapGamma);
-                assert(i == 1);
-                assert(gapGamma >= 0.0);
-                break;
-            case 'o':
-                i = sscanf(optarg, "%" PRIi64 "", &j);
-                assert(i == 1);
-                assert(j >= 0);
-                pairwiseAlignmentBandingParameters->splitMatrixBiggerThanThis = (int64_t) j * j;
-                break;
-            case 'r':
-                i = sscanf(optarg, "%" PRIi64 "", &pairwiseAlignmentBandingParameters->diagonalExpansion);
-                assert(i == 1);
-                assert(pairwiseAlignmentBandingParameters->diagonalExpansion >= 0);
-                assert(pairwiseAlignmentBandingParameters->diagonalExpansion % 2 == 0);
-                break;
-            case 't':
-                i = sscanf(optarg, "%" PRIi64 "", &pairwiseAlignmentBandingParameters->constraintDiagonalTrim);
-                assert(i == 1);
-                assert(pairwiseAlignmentBandingParameters->constraintDiagonalTrim >= 0);
-                break;
-            case 'w':
-                pairwiseAlignmentBandingParameters->alignAmbiguityCharacters = 1;
-                break;
-            case 'x':
-                dummy = 1;
-                break;
-            case 'i':
-                rescoreByIdentity = 1;
-                break;
-            case 'j':
-                rescoreByPosteriorProbability = 1;
-                break;
-            case 'k':
-                rescoreByIdentityIgnoringGaps = 1;
-                break;
-            case 's':
-                i = sscanf(optarg, "%" PRIi64, &splitIndelsLongerThanThis);
-                assert(i == 1);
-                assert(splitIndelsLongerThanThis >= 0);
-                break;
-            default:
-                usage();
-                return 1;
+        case 'a':
+            logLevelString = stString_copy(optarg);
+            st_setLogLevelFromString(logLevelString);
+            break;
+        case 'h':
+            usage();
+            return 0;
+        case 'l':
+            i = sscanf(optarg, "%f", &gapGamma);
+            assert(i == 1);
+            assert(gapGamma >= 0.0);
+            break;
+        case 'o':
+            i = sscanf(optarg, "%" PRIi64 "", &j);
+            assert(i == 1);
+            assert(j >= 0);
+            pairwiseAlignmentBandingParameters->splitMatrixBiggerThanThis = (int64_t) j * j;
+            break;
+        case 'r':
+            i = sscanf(optarg, "%" PRIi64 "", &pairwiseAlignmentBandingParameters->diagonalExpansion);
+            assert(i == 1);
+            assert(pairwiseAlignmentBandingParameters->diagonalExpansion >= 0);
+            assert(pairwiseAlignmentBandingParameters->diagonalExpansion % 2 == 0);
+            break;
+        case 't':
+            i = sscanf(optarg, "%" PRIi64 "", &pairwiseAlignmentBandingParameters->constraintDiagonalTrim);
+            assert(i == 1);
+            assert(pairwiseAlignmentBandingParameters->constraintDiagonalTrim >= 0);
+            break;
+        case 'w':
+            pairwiseAlignmentBandingParameters->alignAmbiguityCharacters = 1;
+            break;
+        case 'x':
+            dummy = 1;
+            break;
+        case 'i':
+            rescoreByIdentity = 1;
+            break;
+        case 'j':
+            rescoreByPosteriorProbability = 1;
+            break;
+        case 'k':
+            rescoreByIdentityIgnoringGaps = 1;
+            break;
+        case 's':
+            i = sscanf(optarg, "%" PRIi64, &splitIndelsLongerThanThis);
+            assert(i == 1);
+            assert(splitIndelsLongerThanThis >= 0);
+            break;
+        default:
+            usage();
+            return 1;
         }
     }
 
@@ -423,43 +440,43 @@ int main(int argc, char *argv[]) {
         if (dummy) {
             alignedPairs = convertPairwiseForwardStrandAlignmentToAnchorPairs(pA, 0);
         } else {
-            alignedPairs = getAlignedPairsUsingAnchors(subSeqX, subSeqY, filteredAnchoredPairs, pairwiseAlignmentBandingParameters, 1, 1);
+            alignedPairs = getAlignedPairsUsingAnchors(subSeqX, subSeqY, filteredAnchoredPairs,
+                    pairwiseAlignmentBandingParameters, 1, 1);
             //Convert to partial ordered set of pairs
-            if(1) { //Shouldn't be needed if we only take pairs with > 50% posterior prob
+            if (1) { //Shouldn't be needed if we only take pairs with > 50% posterior prob
                 stList_destruct(filterPairwiseAlignmentToMakePairsOrdered(alignedPairs, gapGamma));
-            }
-            else { //Just filter by gap gamma (the alterative is quite expensive)
+            } else { //Just filter by gap gamma (the alterative is quite expensive)
                 stList *l = stList_filter2(alignedPairs, gapGammaFilter, &gapGamma);
                 stList_setDestructor(alignedPairs, NULL);
-                stList_setDestructor(l, (void (*)(void *))stIntTuple_destruct);
+                stList_setDestructor(l, (void (*)(void *)) stIntTuple_destruct);
                 stList_destruct(alignedPairs);
                 alignedPairs = l;
             }
-            if(rescoreByPosteriorProbability) {
+            if (rescoreByPosteriorProbability) {
                 pA->score = scoreByPosteriorProbability(strlen(subSeqX), strlen(subSeqY), alignedPairs);
-            }
-            else if(rescoreByIdentity) {
+            } else if (rescoreByIdentity) {
                 pA->score = scoreByIdentity(subSeqX, subSeqY, strlen(subSeqX), strlen(subSeqY), alignedPairs);
-            }
-            else if(rescoreByIdentityIgnoringGaps) {
-            	pA->score = scoreByIdentityIgnoringGaps(subSeqX, subSeqY, alignedPairs);
+            } else if (rescoreByIdentityIgnoringGaps) {
+                pA->score = scoreByIdentityIgnoringGaps(subSeqX, subSeqY, alignedPairs);
             }
             //Convert to ordered list of sequence coordinate pairs
             stList_mapReplace(alignedPairs, convertToAnchorPair, NULL);
-            stList_sort(alignedPairs, (int(*)(const void *, const void *)) stIntTuple_cmpFn); //Ensure we have an monotonically increasing ordering
+            stList_sort(alignedPairs, (int (*)(const void *, const void *)) stIntTuple_cmpFn); //Ensure we have an monotonically increasing ordering
         }
         //Convert back to cigar
-        struct PairwiseAlignment *rPA = convertAlignedPairsToPairwiseAlignment(pA->contig1, pA->contig2, pA->score, pA->end1, pA->end2,
-                alignedPairs);
+        struct PairwiseAlignment *rPA = convertAlignedPairsToPairwiseAlignment(pA->contig1, pA->contig2, pA->score,
+                pA->end1, pA->end2, alignedPairs);
         //Rebase realigned-pA.
-        rebasePairwiseAlignmentCoordinates(&(rPA->start1), &(rPA->end1), &(rPA->strand1), coordinateShift1, flipStrand1);
-        rebasePairwiseAlignmentCoordinates(&(rPA->start2), &(rPA->end2), &(rPA->strand2), coordinateShift2, flipStrand2);
+        rebasePairwiseAlignmentCoordinates(&(rPA->start1), &(rPA->end1), &(rPA->strand1), coordinateShift1,
+                flipStrand1);
+        rebasePairwiseAlignmentCoordinates(&(rPA->start2), &(rPA->end2), &(rPA->strand2), coordinateShift2,
+                flipStrand2);
         checkPairwiseAlignment(rPA);
         //Write out alignment
-        if(splitIndelsLongerThanThis != -1) {
+        if (splitIndelsLongerThanThis != -1) {
             // Write multiple split alignments
             stList *pAs = splitPairwiseAlignment(rPA, splitIndelsLongerThanThis);
-            for(i = 0; i < stList_length(pAs); i++) {
+            for (i = 0; i < stList_length(pAs); i++) {
                 cigarWrite(fileHandleOut, stList_get(pAs, i), 0);
             }
         } else {
