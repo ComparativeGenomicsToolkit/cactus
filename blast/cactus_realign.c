@@ -553,6 +553,7 @@ int main(int argc, char *argv[]) {
             for (i = 0; i < stList_length(pAs); i++) {
                 cigarWrite(fileHandleOut, stList_get(pAs, i), 0);
             }
+            stList_destruct(pAs);
         } else {
             // Write just one unsplit alignment
             cigarWrite(fileHandleOut, rPA, 0);
