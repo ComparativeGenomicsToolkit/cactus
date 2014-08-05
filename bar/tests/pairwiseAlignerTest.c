@@ -11,6 +11,7 @@
 #include <string.h>
 #include <math.h>
 #include "randomSequences.h"
+#include "stateMachine.h"
 
 static void test_diagonal(CuTest *testCase) {
     //Construct an example diagonal.
@@ -159,13 +160,13 @@ static void test_cell(CuTest *testCase) {
     }
     Symbol cX = a, cY = t;
     //Do forward
-    cell_calculateForward(lowerF, NULL, NULL, middleF, cX, cY);
-    cell_calculateForward(upperF, middleF, NULL, NULL, cX, cY);
-    cell_calculateForward(currentF, lowerF, middleF, upperF, cX, cY);
+    cell_calculateForward(lowerF, NULL, NULL, middleF, cX, cY, NULL);
+    cell_calculateForward(upperF, middleF, NULL, NULL, cX, cY, NULL);
+    cell_calculateForward(currentF, lowerF, middleF, upperF, cX, cY, NULL);
     //Do backward
-    cell_calculateBackward(currentB, lowerB, middleB, upperB, cX, cY);
-    cell_calculateBackward(upperB, middleB, NULL, NULL, cX, cY);
-    cell_calculateBackward(lowerB, NULL, NULL, middleB, cX, cY);
+    cell_calculateBackward(currentB, lowerB, middleB, upperB, cX, cY, NULL);
+    cell_calculateBackward(upperB, middleB, NULL, NULL, cX, cY, NULL);
+    cell_calculateBackward(lowerB, NULL, NULL, middleB, cX, cY, NULL);
     double totalProbForward = cell_dotProduct2(currentF, state_endStateProb);
     double totalProbBackward = cell_dotProduct2(middleB, state_startStateProb);
     st_logInfo("Total probability for cell test, forward %f and backward %f\n", totalProbForward, totalProbBackward);
@@ -285,9 +286,13 @@ static void test_diagonalDPCalculations(CuTest *testCase) {
 
     //Now do the posterior probabilities
     stList *alignedPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+    void *extraArgs[1] = {alignedPairs};
     for (int64_t i = 1; i <= lX + lY; i++) {
-        diagonalCalculationPosteriorMatchProbs(i, dpMatrixForward, dpMatrixBackward, 0.2, totalProbForward,
-                alignedPairs);
+        PairwiseAlignmentParameters *p = pairwiseAlignmentBandingParameters_construct();
+        p->threshold = 0.2;
+        diagonalCalculationPosteriorMatchProbs(i, dpMatrixForward, dpMatrixBackward, sX2, sY2, totalProbForward,
+                        p, extraArgs);
+        pairwiseAlignmentBandingParameters_destruct(p);
     }
 
     stSortedSet *alignedPairsSet = stSortedSet_construct3((int(*)(const void *, const void *)) stIntTuple_cmpFn,
@@ -368,7 +373,11 @@ static void test_getAlignedPairsWithBanding(CuTest *testCase) {
         p->minDiagsBetweenTraceBack = p->traceBackDiagonals + st_randomInt(2, 10);
         p->diagonalExpansion = st_randomInt(0, 10) * 2;
         stList *anchorPairs = getRandomAnchorPairs(lX, lY);
-        stList *alignedPairs = getAlignedPairsWithBanding(anchorPairs, sX2, sY2, p, 0, 0);
+
+        stList *alignedPairs = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
+        void *extraArgs[1] = { alignedPairs };
+        getPosteriorProbsWithBanding(anchorPairs, sX2, sY2, p, 0, 0,
+                diagonalCalculationPosteriorMatchProbs, extraArgs);
         //Check the aligned pairs.
         //Check the aligned pairs.
         checkAlignedPairs(testCase, alignedPairs, lX, lY);
