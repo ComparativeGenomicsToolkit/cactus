@@ -387,7 +387,7 @@ int main(int argc, char *argv[]) {
     char *posteriorProbsFile = NULL;
     char *expectationsFile = NULL;
     char *hmmFile = NULL;
-    HmmExpectations *hmmExpectations = NULL;
+    Hmm *hmmExpectations = NULL;
     /*
      * Parse the options.
      */
@@ -472,7 +472,7 @@ int main(int argc, char *argv[]) {
             break;
         case 'v':
             expectationsFile = stString_copy(optarg);
-            hmmExpectations = hmmExpectations_constructEmpty(0.0);
+            hmmExpectations = hmm_constructEmpty(0.000000000001); //The tiny pseudo count prevents overflow
             break;
         case 'y':
             hmmFile = stString_copy(optarg);
@@ -602,8 +602,8 @@ int main(int argc, char *argv[]) {
 
     if(expectationsFile != NULL) {
         FILE *fH = fopen(expectationsFile, "w");
-        hmmExpectations_write(hmmExpectations, fH);
-        hmmExpectations_destruct(hmmExpectations);
+        hmm_write(hmmExpectations, fH);
+        hmm_destruct(hmmExpectations);
         fclose(fH);
     }
 

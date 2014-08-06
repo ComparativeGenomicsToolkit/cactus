@@ -68,15 +68,26 @@ typedef enum {
     longGapY=4
 } State;
 
+void resetTheGlobalHmm() {
+    TRANSITION_MATCH_CONTINUE=-0.030064059121770816; //0.9703833696510062f
+    TRANSITION_MATCH_FROM_SHORT_GAP=-1.272871422049609; //1.0 - gapExtend - gapSwitch = 0.280026392297485
+    TRANSITION_MATCH_FROM_LONG_GAP=-5.673280173170473; //1.0 - gapExtend = 0.00343657420938
+    TRANSITION_GAP_SHORT_OPEN=-4.34381910900448; //0.0129868352330243
+    TRANSITION_GAP_SHORT_EXTEND=-0.3388262689231553; //0.7126062401851738f;
+    TRANSITION_GAP_SHORT_SWITCH=-4.910694825551255; //0.0073673675173412815f;
+    TRANSITION_GAP_LONG_OPEN=-6.30810595366929; //(1.0 - match - 2*gapOpenShort)/2 = 0.001821479941473
+    TRANSITION_GAP_LONG_EXTEND=-0.003442492794189331; //0.99656342579062f;
+}
+
 void loadTheGlobalHmm(Hmm *hmm) {
-    TRANSITION_MATCH_CONTINUE=hmm_tProb(hmm, match, match); //0.9703833696510062f
-    TRANSITION_MATCH_FROM_SHORT_GAP=(hmm_tProb(hmm, shortGapX, match) + hmm_tProb(hmm, shortGapY, match))/2; //1.0 - gapExtend - gapSwitch = 0.280026392297485
-    TRANSITION_MATCH_FROM_LONG_GAP=(hmm_tProb(hmm, longGapX, match) + hmm_tProb(hmm, longGapY, match))/2; //1.0 - gapExtend = 0.00343657420938
-    TRANSITION_GAP_SHORT_OPEN=(hmm_tProb(hmm, match, shortGapX) + hmm_tProb(hmm, match, shortGapY))/2; //0.0129868352330243
-    TRANSITION_GAP_SHORT_EXTEND=(hmm_tProb(hmm, shortGapX, shortGapX) + hmm_tProb(hmm, shortGapY, shortGapY))/2; //0.7126062401851738f;
-    TRANSITION_GAP_SHORT_SWITCH=(hmm_tProb(hmm, shortGapX, shortGapY) + hmm_tProb(hmm, shortGapY, shortGapX))/2; //0.0073673675173412815f;
-    TRANSITION_GAP_LONG_OPEN=(hmm_tProb(hmm, match, longGapX) + hmm_tProb(hmm, match, longGapY))/2; //(1.0 - match - 2*gapOpenShort)/2 = 0.001821479941473
-    TRANSITION_GAP_LONG_EXTEND=(hmm_tProb(hmm, longGapX, longGapX) + hmm_tProb(hmm, longGapY, longGapY))/2;
+    TRANSITION_MATCH_CONTINUE=log(hmm_getTransition(hmm, match, match)); //0.9703833696510062f
+    TRANSITION_MATCH_FROM_SHORT_GAP=log((hmm_getTransition(hmm, shortGapX, match) + hmm_getTransition(hmm, shortGapY, match))/2); //1.0 - gapExtend - gapSwitch = 0.280026392297485
+    TRANSITION_MATCH_FROM_LONG_GAP=log((hmm_getTransition(hmm, longGapX, match) + hmm_getTransition(hmm, longGapY, match))/2); //1.0 - gapExtend = 0.00343657420938
+    TRANSITION_GAP_SHORT_OPEN=log((hmm_getTransition(hmm, match, shortGapX) + hmm_getTransition(hmm, match, shortGapY))/2); //0.0129868352330243
+    TRANSITION_GAP_SHORT_EXTEND=log((hmm_getTransition(hmm, shortGapX, shortGapX) + hmm_getTransition(hmm, shortGapY, shortGapY))/2); //0.7126062401851738f;
+    TRANSITION_GAP_SHORT_SWITCH=log((hmm_getTransition(hmm, shortGapX, shortGapY) + hmm_getTransition(hmm, shortGapY, shortGapX))/2); //0.0073673675173412815f;
+    TRANSITION_GAP_LONG_OPEN=log((hmm_getTransition(hmm, match, longGapX) + hmm_getTransition(hmm, match, longGapY))/2); //(1.0 - match - 2*gapOpenShort)/2 = 0.001821479941473
+    TRANSITION_GAP_LONG_EXTEND=log((hmm_getTransition(hmm, longGapX, longGapX) + hmm_getTransition(hmm, longGapY, longGapY))/2);
 }
 
 static void state_check(State s) {

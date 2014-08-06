@@ -3,12 +3,17 @@
 
 import os
 
-class HmmExpectations:
+class Hmm:
     def __init__(self, stateNumber):
-        self.logLikelihood = 0.0
         self.stateNumber = stateNumber
-        self.transitionExpectations = [0.0] * (stateNumber * stateNumber)
+        self.transitions = [0.0] * (stateNumber * stateNumber)
+        self.logLikelihood = 0.0
     
+    def write(self, file):
+        f = open(file, 'w')
+        f.write(" ".join(map(str, self.transitions)) + "\n")
+        f.close()
+     
     def addExpectationsFile(self, file):
         f = open(file, 'r')
         l = map(float, file.readline().split())
@@ -17,28 +22,14 @@ class HmmExpectations:
         self.transitionExpectations = map(lambda x : sum(x), zip(self.transitionExpectations, l))
         f.close()
     
-    def getMaximisedHmm(self):
-        """Calculates maximisation step of EM algorithm for transitions from set of expectations 
-        for the transitions, stored in an array representing a STATE_NUMBER**2 matrix such that
-        expectations[FROM * STATE_NUMBER + TO] is the expectation of the transition from FROM to TO.
+    def normalise(self):
+        """Normalises the EM probs.
         """
-        hmm = Hmm(self.stateNumber)
         for fromState in xrange(self.stateNumber):
             i = self.stateNumber * fromState
-            j = self.transitionExpectations[i:i+stateNumber]
+            j = self.transitions[i:i+stateNumber]
             for toState in xrange(self.stateNumber):
-                self.hmm[i + toState] = self.transitionExpectations[i + toState] / j
-        return hmm
-
-class Hmm:
-    def __init__(self, stateNumber):
-        self.stateNumber = stateNumber
-        self.transitions = [0.0] * (stateNumber * stateNumber)
-    
-    def write(self, file):
-        f = open(file, 'w')
-        f.write(" ".join(map(str, self.transitions)) + "\n")
-        f.close()
+                self.transitions[i + toState] = self.transitions[i + toState] / j
 
 def expectationMaximisation(target, sequences, alignments, outputModel, iterations):
     stateNumber = 5
@@ -51,14 +42,13 @@ def expectationMaximisation(target, sequences, alignments, outputModel, iteratio
         #Temp output file to store expectations
         expectationsFile = os.path.join(target.getLocalTempDir(), "expectations.txt")
         #Run cactus_realign
-        system("cat %s | cactus_realign %s --diagonalExpansion=10 --splitMatrixBiggerThanThis=3000 --loadHmm=%s --outputExpectations=%s" % (alignments, sequences, modelsFile, expectationsFile))
+        system("cat %s | cactus_realign %s --diagonalExpansion=10 --splitMatrixBiggerThanThis=3000 --loadHmm=%s --outputExpectations=%s" % (alignments, sequences, modelsFile, modelsFile))
         #Add to the expectations.
-        hmmExpectations = HmmExpectations(stateNumber)
-        hmmExpectations.addExpectationsFile(expectationsFile)
-        #Get newly maximised HMM
-        hmm = hmmExpectations.getMaximisedHmm()
+        hmm = HmmExpectations(stateNumber)
+        hmm.addExpectationsFile(modelsFile)
+        hmm.normalise()
         #Do some logging
-        target.logToMaster("After %i iteration got likelihood: %s" % (hmmExpectations.logLikelihood))
+        target.logToMaster("After %i iteration got likelihood: %s" % (hmm.logLikelihood))
     hmm.write(outputModel)
 
 def main():

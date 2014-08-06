@@ -53,39 +53,41 @@ stList *getAlignedPairsUsingAnchors(const char *sX, const char *sY, stList *anch
  * EM training stuff.
  */
 
-typedef struct _hmmExpectations {
-    double *transitions;
-    double likelihood;
-} HmmExpectations;
-
-HmmExpectations *hmmExpectations_constructEmpty(double pseudoExpectation);
-
-void hmmExpectations_destruct(HmmExpectations *hmmExpectations);
-
-void hmmExpectations_write(HmmExpectations *hmmExpectations, FILE *fileHandle);
-
-void hmmExpectations_addTransitionExpectation(HmmExpectations *hmmExpectations, int64_t from, int64_t to, double p);
-
 typedef struct _hmm {
     double *transitions;
+    double likelihood;
 } Hmm;
+
+Hmm *hmm_constructEmpty(double pseudoExpectation);
+
+void hmm_randomise(Hmm *hmm); //Creates normalised HMM with parameters set to small random values.
+
+void hmm_destruct(Hmm *hmmExpectations);
+
+void hmm_write(Hmm *hmmExpectations, FILE *fileHandle);
+
+void hmm_addToTransitionExpectation(Hmm *hmmExpectations, int64_t from, int64_t to, double p);
+
+double hmm_getTransition(Hmm *hmmExpectations, int64_t from, int64_t to);
+
+void hmm_setTransition(Hmm *hmm, int64_t from, int64_t to, double p);
 
 Hmm *hmm_loadFromFile(const char *fileName);
 
-double hmm_tProb(Hmm *hmm, int64_t from, int64_t to);
-
-void hmm_destruct(Hmm *hmm);
+void hmm_normalise(Hmm *hmm);
 
 void loadTheGlobalHmm(Hmm *hmm);
+
+void resetTheGlobalHmm();
 
 /*
  * Expectation calculation functions for EM algorithms.
  */
 
-void getExpectationsUsingAnchors(HmmExpectations *hmmExpectations, const char *sX, const char *sY, stList *anchorPairs,
+void getExpectationsUsingAnchors(Hmm *hmmExpectations, const char *sX, const char *sY, stList *anchorPairs,
         PairwiseAlignmentParameters *p, bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd);
 
-void getExpectations(HmmExpectations *hmmExpectations, const char *sX, const char *sY, PairwiseAlignmentParameters *p, bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd);
+void getExpectations(Hmm *hmmExpectations, const char *sX, const char *sY, PairwiseAlignmentParameters *p, bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd);
 
 /*
  * Methods tested and possibly useful elsewhere
@@ -270,7 +272,7 @@ stList *filterToRemoveOverlap(stList *overlappingPairs);
 stList *getSplitPoints(stList *anchorPairs, int64_t lX, int64_t lY,
         int64_t maxMatrixSize);
 
-stList *getPosteriorProbsWithBandingSplittingAlignmentsByLargeGaps(stList *anchorPairs, const char *sX, const char *sY, int64_t lX, int64_t lY,
+void getPosteriorProbsWithBandingSplittingAlignmentsByLargeGaps(stList *anchorPairs, const char *sX, const char *sY, int64_t lX, int64_t lY,
         PairwiseAlignmentParameters *p,  bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd,
         void (*diagonalPosteriorProbFn)(int64_t, DpMatrix *, DpMatrix *, const SymbolString, const SymbolString,
                 double, PairwiseAlignmentParameters *, void *),
