@@ -13,7 +13,6 @@
 #include "sonLib.h"
 #include "pairwiseAligner.h"
 #include "commonC.h"
-#include "stateMachine.h"
 
 void usage() {
     fprintf(stderr, "cactus_relign [options] seq1[fasta] seq2[fasta], version 0.2\n");
