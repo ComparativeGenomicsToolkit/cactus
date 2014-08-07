@@ -29,6 +29,7 @@ class Hmm:
         self.transitions = map(lambda x : sum(x), zip(self.transitions, l))
         assert len(self.transitions) == self.stateNumber**2
         fH.close()
+        return self
     
     def normalise(self):
         """Normalises the EM probs.
@@ -60,7 +61,7 @@ def expectationMaximisation(target, sequences, alignments, outputModel, options)
         modelsFile = os.path.join(target.getLocalTempDir(), "model.txt")
         hmm.write(modelsFile)
         #Run cactus_realign
-        system("cat %s | cactus_realign --logLevel DEBUG %s --diagonalExpansion=10 --splitMatrixBiggerThanThis=3000 --loadHmm=%s --outputExpectations=%s" % (alignments, sequences, modelsFile, modelsFile))
+        system("cat %s | cactus_realign --logLevel DEBUG %s --loadHmm=%s --outputExpectations=%s %s" % (alignments, sequences, modelsFile, modelsFile, options.optionsToRealign))
         #Add to the expectations.
         hmm = Hmm()
         hmm.addExpectationsFile(modelsFile)
@@ -68,16 +69,40 @@ def expectationMaximisation(target, sequences, alignments, outputModel, options)
         #Do some logging
         target.logToMaster("After %i iteration got likelihood: %s" % (iteration, hmm.likelihood))
     hmm.write(outputModel)
+    
+def expectationMaximisationTrials(target, sequences, alignments, outputModel, options):
+    if options.inputModel != None or not options.randomStart: #No multiple iterations
+        target.setFollowOnTargetFn(expectationMaximisation, args=(sequences, alignments, outputModel, options))
+    else:
+        target.logToMaster("Running %s random restart trials to find best hmm" % options.trials)
+        trialModels = map(lambda i : os.path.join(target.getGlobalTempDir(), "trial_%s.hmm" % i), xrange(options.trials))
+        map(lambda trialModel : target.addChildTargetFn(expectationMaximisation, args=(sequences, alignments, trialModel, options)), trialModels)
+        target.setFollowOnTargetFn(expectationMaximisationTrials2, args=(trialModels, outputModel, options))
+
+def expectationMaximisationTrials2(target, trialModels, outputModel, options):
+    #Pick the trial hmm with highest likelihood
+    hmm = max(map(lambda x : Hmm().addExpectationsFile(x), trialModels), key=lambda x : x.likelihood)
+    hmm.write(outputModel)
+    target.logToMaster("Hmm with highest likelihood: %s" % hmm.likelihood)
+    
+def optionsObject():
+    """Gets dictionary representing options, can be used for running pipeline from within another jobTree.
+    """
+    return { "inputModel":None, "iterations":10, "trials":3, "randomStart":False, 
+            "optionsToRealign":"--diagonalExpansion=10 --splitMatrixBiggerThanThis=3000" }
 
 def main():
     #Parse the inputs args/options
     parser = OptionParser(usage="usage: workingDir [options]", version="%prog 0.1")
+    optionsObject = optionsObject()
     parser.add_option("--sequences", dest="sequences", help="Quoted list of fasta files containing sequences")
     parser.add_option("--alignments", dest="alignments", help="Cigar file ")
-    parser.add_option("--inputModel", default=None, help="Input model")
+    parser.add_option("--inputModel", default=optionsObject.inputModel, help="Input model")
     parser.add_option("--outputModel", default="hmm.txt", help="File to write the model in")
-    parser.add_option("--iterations", default=10, help="Number of iterations of EM", type=int)
-    parser.add_option("--randomStart", default=False, help="Iterate start model with small random values, else all values are equal", action="store_true")
+    parser.add_option("--iterations", default=optionsObject.iterations, help="Number of iterations of EM", type=int)
+    parser.add_option("--trials", default=optionsObject.trials, help="Number of independent EM trials. The model with the highest likelihood will be reported. Will only work if randomStart=True", type=int)
+    parser.add_option("--randomStart", default=optionsObject.randomStart, help="Iterate start model with small random values, else all values are equal", action="store_true")
+    parser.add_option("--optionsToRealign", default=optionsObject.optionsToRealign, help="Further options to pass to cactus_realign when computing expectation values, should be passed as a quoted string")
     
     Stack.addJobTreeOptions(parser)
     options, args = parser.parse_args()
@@ -90,7 +115,7 @@ def main():
     logger.info("Got '%s' sequences, '%s' alignments file, '%s' output model and '%s' iterations of training" % (options.sequences, options.alignments, options.outputModel, options.iterations))
 
     #This line invokes jobTree  
-    i = Stack(Target.makeTargetFn(expectationMaximisation, args=(options.sequences, options.alignments, options.outputModel, options))).startJobTree(options) 
+    i = Stack(Target.makeTargetFn(expectationMaximisationTrials, args=(options.sequences, options.alignments, options.outputModel, options))).startJobTree(options) 
     
     if i != 0:
         raise RuntimeError("Got failed jobs")
