@@ -1194,6 +1194,7 @@ Hmm *hmm_loadFromFile(const char *fileName) {
     if (j != 1) {
         st_errAbort("Failed to parse likelihood (float) from string: %s\n", string);
     }
+    fclose(fH);
     return hmm;
 }
 

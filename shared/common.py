@@ -327,6 +327,18 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
     logger.info("Ran cactus_bar okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]
 
+def runCactusExpectationMaximisation(sequenceFiles, alignmentsFile, outputModelFile,
+                                     inputModelFile=None, 
+                                     jobTreeDir=None,
+                                     iterations=None, randomStart=None, logLevel=None):
+    logLevel = getLogLevelString2(logLevel)
+    jobTreeDir= nameValue("jobTree", jobTreeDir, str)
+    inputModelFile= nameValue("inputModel", inputModelFile, str)
+    iterations = nameValue("iterations", iterations, int)
+    randomStart = nameValue("randomStart", randomStart, bool)
+    system("cactus_expectationMaximisation --sequences '%s' --alignments %s --outputModel %s %s %s %s %s" % \
+           (" ".join(sequenceFiles), alignmentsFile, outputModelFile, iterations, randomStart, jobTreeDir, inputModelFile))    
+
 def runCactusSecondaryDatabase(secondaryDatabaseString, create=True):
     command = "cactus_secondaryDatabase '%s' %s" % (secondaryDatabaseString, int(create))
     system(command)

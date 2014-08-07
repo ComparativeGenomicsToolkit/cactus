@@ -400,8 +400,9 @@ int main(int argc, char *argv[]) {
                         "alignAmbiguityCharacters", no_argument, 0, 'w' }, { "rescoreOriginalAlignment", no_argument, 0,
                         'x' }, { "rescoreByIdentity", no_argument, 0, 'i' }, { "rescoreByPosteriorProb", no_argument, 0,
                         'j' }, { "rescoreByPosteriorProbIgnoringGaps", no_argument, 0, 'm' }, {
-                        "rescoreByIdentityIgnoringGaps", no_argument, 0, 'k' }, { "splitIndelsLongerThanThis",
-                required_argument, 0, 's' }, { "outputPosteriorProbs", required_argument, 0, 'u' },
+                        "rescoreByIdentityIgnoringGaps", no_argument, 0, 'k' },
+                        { "splitIndelsLongerThanThis",required_argument, 0, 's' },
+                { "outputPosteriorProbs", required_argument, 0, 'u' },
                 { "outputExpectations", required_argument, 0, 'v' },
                 { "loadHmm", required_argument, 0, 'y' },
                 { 0, 0, 0, 0 } };
@@ -488,8 +489,10 @@ int main(int argc, char *argv[]) {
 
     //Load the model, if specified
     if(hmmFile != NULL) {
+        st_logInfo("Loading the hmm from file %s\n", hmmFile);
         Hmm *hmm = hmm_loadFromFile(hmmFile);
         loadTheGlobalHmm(hmm);
+        //hmm_normalise(hmm);
         hmm_destruct(hmm);
     }
 
@@ -528,6 +531,7 @@ int main(int argc, char *argv[]) {
         char *seqs[2] = { subSeqX, subSeqY };
         stList *filteredAnchoredPairs = stList_filter2(anchorPairs, matchFn, seqs);
         if(expectationsFile != NULL) {
+            st_logInfo("Computing expectations\n");
             getExpectationsUsingAnchors(hmmExpectations, subSeqX, subSeqY, filteredAnchoredPairs,
                                 pairwiseAlignmentBandingParameters, 1, 1);
         }
@@ -601,6 +605,7 @@ int main(int argc, char *argv[]) {
     stHash_destruct(sequences);
 
     if(expectationsFile != NULL) {
+        st_logInfo("Writing out expectations to file %s\n", expectationsFile);
         FILE *fH = fopen(expectationsFile, "w");
         hmm_write(hmmExpectations, fH);
         hmm_destruct(hmmExpectations);
