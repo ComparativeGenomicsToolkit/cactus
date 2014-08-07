@@ -39,6 +39,10 @@ void usage() {
             "-s --splitIndelsLongerThanThis : Split alignments with consecutive runs of indels that are longer than this.\n");
     fprintf(stderr,
             "-u --outputPosteriorProbs [FILE] : Outputs the posterior match probs of positions in the alignment to the given tab separated file, each line being X-coordinate, Y-coordinate, posterior-match prob.\n");
+    fprintf(stderr,
+                "-v --outputExpectations [FILE] : Instead of realigning, switches to calculating expectations, dumping out expectations as matrix in the given file.\n");
+    fprintf(stderr,
+                "-y --loadHmm [FILE] : Loads HMM from given file.\n");
 }
 
 struct PairwiseAlignment *convertAlignedPairsToPairwiseAlignment(char *seqName1, char *seqName2, double score,
@@ -357,7 +361,7 @@ stList *scoreAnchorPairs(stList *anchorPairs, stList *alignedPairs) {
         stList_append(scoredAnchorPairs, stIntTuple_construct3(0, stIntTuple_get(pair, 0), stIntTuple_get(pair, 1)));
     }
     stSortedSet_destructIterator(it);
-    
+
     stSortedSet_destruct(anchorPairsSet);
     assert(stList_length(anchorPairs) == stList_length(scoredAnchorPairs));
 
@@ -380,6 +384,9 @@ int main(int argc, char *argv[]) {
     // -1 here signals don't split indels at all
     int64_t splitIndelsLongerThanThis = -1;
     char *posteriorProbsFile = NULL;
+    char *expectationsFile = NULL;
+    char *hmmFile = NULL;
+    Hmm *hmmExpectations = NULL;
     /*
      * Parse the options.
      */
@@ -392,12 +399,16 @@ int main(int argc, char *argv[]) {
                         "alignAmbiguityCharacters", no_argument, 0, 'w' }, { "rescoreOriginalAlignment", no_argument, 0,
                         'x' }, { "rescoreByIdentity", no_argument, 0, 'i' }, { "rescoreByPosteriorProb", no_argument, 0,
                         'j' }, { "rescoreByPosteriorProbIgnoringGaps", no_argument, 0, 'm' }, {
-                        "rescoreByIdentityIgnoringGaps", no_argument, 0, 'k' }, { "splitIndelsLongerThanThis",
-                required_argument, 0, 's' }, { "outputPosteriorProbs", required_argument, 0, 'u' }, { 0, 0, 0, 0 } };
+                        "rescoreByIdentityIgnoringGaps", no_argument, 0, 'k' },
+                        { "splitIndelsLongerThanThis",required_argument, 0, 's' },
+                { "outputPosteriorProbs", required_argument, 0, 'u' },
+                { "outputExpectations", required_argument, 0, 'v' },
+                { "loadHmm", required_argument, 0, 'y' },
+                { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:hl:o:r:t:s:wxijkmu", long_options, &option_index);
+        int key = getopt_long(argc, argv, "a:hl:o:r:t:s:wxijkmuv:y:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -459,6 +470,13 @@ int main(int argc, char *argv[]) {
         case 'u':
             posteriorProbsFile = stString_copy(optarg);
             break;
+        case 'v':
+            expectationsFile = stString_copy(optarg);
+            hmmExpectations = hmm_constructEmpty(0.000000000001); //The tiny pseudo count prevents overflow
+            break;
+        case 'y':
+            hmmFile = stString_copy(optarg);
+            break;
         default:
             usage();
             return 1;
@@ -467,6 +485,15 @@ int main(int argc, char *argv[]) {
 
     st_setLogLevelFromString(logLevelString);
     st_logInfo("Starting realigning pairwise alignments\n");
+
+    //Load the model, if specified
+    if(hmmFile != NULL) {
+        st_logInfo("Loading the hmm from file %s\n", hmmFile);
+        Hmm *hmm = hmm_loadFromFile(hmmFile);
+        loadTheGlobalHmm(hmm);
+        //hmm_normalise(hmm);
+        hmm_destruct(hmm);
+    }
 
     //Read in input sequences
     sequences = stHash_construct3(stHash_stringKey, stHash_stringEqualKey, free, free);
@@ -502,71 +529,87 @@ int main(int argc, char *argv[]) {
         //Filter anchorPairs to remove anchor pairs that include mismatches
         char *seqs[2] = { subSeqX, subSeqY };
         stList *filteredAnchoredPairs = stList_filter2(anchorPairs, matchFn, seqs);
-        //Get posterior prob pairs
-        stList *alignedPairs = NULL;
-        alignedPairs = getAlignedPairsUsingAnchors(subSeqX, subSeqY, filteredAnchoredPairs,
-                pairwiseAlignmentBandingParameters, 1, 1);
-        //Convert to partial ordered set of pairs
-        if (rescoreOriginalAlignment) {
-            stList *rescoredPairs = scoreAnchorPairs(anchorPairs, alignedPairs);
-            stList_destruct(alignedPairs);
-            alignedPairs = rescoredPairs;
-        } else if (1) { //Shouldn't be needed if we only take pairs with > 50% posterior prob
-            stList_destruct(filterPairwiseAlignmentToMakePairsOrdered(alignedPairs, gapGamma));
-        } else { //Just filter by gap gamma (the alterative is quite expensive)
-            stList *l = stList_filter2(alignedPairs, gapGammaFilter, &gapGamma);
-            stList_setDestructor(alignedPairs, NULL);
-            stList_setDestructor(l, (void (*)(void *)) stIntTuple_destruct);
-            stList_destruct(alignedPairs);
-            alignedPairs = l;
+        if(expectationsFile != NULL) {
+            st_logInfo("Computing expectations\n");
+            getExpectationsUsingAnchors(hmmExpectations, subSeqX, subSeqY, filteredAnchoredPairs,
+                                pairwiseAlignmentBandingParameters, 1, 1);
         }
-        //Rescore
-        if (rescoreByPosteriorProbability) {
-            pA->score = scoreByPosteriorProbability(strlen(subSeqX), strlen(subSeqY), alignedPairs);
-        } else if (rescoreByPosteriorProbabilityIgnoringGaps) {
-            pA->score = scoreByPosteriorProbabilityIgnoringGaps(alignedPairs);
-        } else if (rescoreByIdentity) {
-            pA->score = scoreByIdentity(subSeqX, subSeqY, strlen(subSeqX), strlen(subSeqY), alignedPairs);
-        } else if (rescoreByIdentityIgnoringGaps) {
-            pA->score = scoreByIdentityIgnoringGaps(subSeqX, subSeqY, alignedPairs);
-        }
-        //Output the posterior match probs, if needed
-        if(posteriorProbsFile != NULL) {
-            writePosteriorProbs(posteriorProbsFile, alignedPairs);
-        }
-        //Convert to ordered list of sequence coordinate pairs
-        stList_mapReplace(alignedPairs, convertToAnchorPair, NULL);
-        stList_sort(alignedPairs, (int (*)(const void *, const void *)) stIntTuple_cmpFn); //Ensure we have an monotonically increasing ordering
-        //Convert back to cigar
-        struct PairwiseAlignment *rPA = convertAlignedPairsToPairwiseAlignment(pA->contig1, pA->contig2, pA->score,
-                pA->end1, pA->end2, alignedPairs);
-        //Rebase realigned-pA.
-        rebasePairwiseAlignmentCoordinates(&(rPA->start1), &(rPA->end1), &(rPA->strand1), coordinateShift1,
-                flipStrand1);
-        rebasePairwiseAlignmentCoordinates(&(rPA->start2), &(rPA->end2), &(rPA->strand2), coordinateShift2,
-                flipStrand2);
-        checkPairwiseAlignment(rPA);
-        //Write out alignment
-        if (splitIndelsLongerThanThis != -1) {
-            // Write multiple split alignments
-            stList *pAs = splitPairwiseAlignment(rPA, splitIndelsLongerThanThis);
-            for (i = 0; i < stList_length(pAs); i++) {
-                cigarWrite(fileHandleOut, stList_get(pAs, i), 0);
+        else {
+            //Get posterior prob pairs
+            stList *alignedPairs = getAlignedPairsUsingAnchors(subSeqX, subSeqY, filteredAnchoredPairs,
+                    pairwiseAlignmentBandingParameters, 1, 1);
+            //Convert to partial ordered set of pairs
+            if (rescoreOriginalAlignment) {
+                stList *rescoredPairs = scoreAnchorPairs(anchorPairs, alignedPairs);
+                stList_destruct(alignedPairs);
+                alignedPairs = rescoredPairs;
+            } else if (1) { //Shouldn't be needed if we only take pairs with > 50% posterior prob
+                stList_destruct(filterPairwiseAlignmentToMakePairsOrdered(alignedPairs, gapGamma));
+            } else { //Just filter by gap gamma (the alterative is quite expensive)
+                stList *l = stList_filter2(alignedPairs, gapGammaFilter, &gapGamma);
+                stList_setDestructor(alignedPairs, NULL);
+                stList_setDestructor(l, (void (*)(void *)) stIntTuple_destruct);
+                stList_destruct(alignedPairs);
+                alignedPairs = l;
             }
-        } else {
-            // Write just one unsplit alignment
-            cigarWrite(fileHandleOut, rPA, 0);
+            //Rescore
+            if (rescoreByPosteriorProbability) {
+                pA->score = scoreByPosteriorProbability(strlen(subSeqX), strlen(subSeqY), alignedPairs);
+            } else if (rescoreByPosteriorProbabilityIgnoringGaps) {
+                pA->score = scoreByPosteriorProbabilityIgnoringGaps(alignedPairs);
+            } else if (rescoreByIdentity) {
+                pA->score = scoreByIdentity(subSeqX, subSeqY, strlen(subSeqX), strlen(subSeqY), alignedPairs);
+            } else if (rescoreByIdentityIgnoringGaps) {
+                pA->score = scoreByIdentityIgnoringGaps(subSeqX, subSeqY, alignedPairs);
+            }
+            //Output the posterior match probs, if needed
+            if(posteriorProbsFile != NULL) {
+                writePosteriorProbs(posteriorProbsFile, alignedPairs);
+            }
+            //Convert to ordered list of sequence coordinate pairs
+            stList_mapReplace(alignedPairs, convertToAnchorPair, NULL);
+            stList_sort(alignedPairs, (int (*)(const void *, const void *)) stIntTuple_cmpFn); //Ensure we have an monotonically increasing ordering
+            //Convert back to cigar
+            struct PairwiseAlignment *rPA = convertAlignedPairsToPairwiseAlignment(pA->contig1, pA->contig2, pA->score,
+                    pA->end1, pA->end2, alignedPairs);
+            //Rebase realigned-pA.
+            rebasePairwiseAlignmentCoordinates(&(rPA->start1), &(rPA->end1), &(rPA->strand1), coordinateShift1,
+                    flipStrand1);
+            rebasePairwiseAlignmentCoordinates(&(rPA->start2), &(rPA->end2), &(rPA->strand2), coordinateShift2,
+                    flipStrand2);
+            checkPairwiseAlignment(rPA);
+            //Write out alignment
+            if (splitIndelsLongerThanThis != -1) {
+                // Write multiple split alignments
+                stList *pAs = splitPairwiseAlignment(rPA, splitIndelsLongerThanThis);
+                for (i = 0; i < stList_length(pAs); i++) {
+                    cigarWrite(fileHandleOut, stList_get(pAs, i), 0);
+                }
+                stList_destruct(pAs);
+            } else {
+                // Write just one unsplit alignment
+                cigarWrite(fileHandleOut, rPA, 0);
+            }
+
+            //Clean up
+            stList_destruct(alignedPairs);
+            destructPairwiseAlignment(rPA);
         }
-        //Clean up
+        destructPairwiseAlignment(pA);
         stList_destruct(filteredAnchoredPairs);
         stList_destruct(anchorPairs);
-        stList_destruct(alignedPairs);
-        destructPairwiseAlignment(pA);
-        destructPairwiseAlignment(rPA);
         free(subSeqX);
         free(subSeqY);
     }
     stHash_destruct(sequences);
+
+    if(expectationsFile != NULL) {
+        st_logInfo("Writing out expectations to file %s\n", expectationsFile);
+        FILE *fH = fopen(expectationsFile, "w");
+        hmm_write(hmmExpectations, fH);
+        hmm_destruct(hmmExpectations);
+        fclose(fH);
+    }
 
     st_logInfo("Finished realigning pairwise alignments, exiting.\n");
 
@@ -574,4 +617,3 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
-

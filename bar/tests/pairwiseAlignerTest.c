@@ -11,6 +11,7 @@
 #include <string.h>
 #include <math.h>
 #include "randomSequences.h"
+#include "stateMachine.h"
 
 static void test_diagonal(CuTest *testCase) {
     //Construct an example diagonal.
@@ -27,24 +28,30 @@ static void test_diagonal(CuTest *testCase) {
     CuAssertTrue(testCase, !diagonal_equals(d, diagonal_construct(0, 0, 0)));
     //A bogus diagonal is one such that |xay + xmy| % 2 != 0 or such that xmyR < xmyL.
     //Try constructing bogus diagonals, should throw exceptions.
-    stTry {
+    stTry
+        {
             diagonal_construct(10, 5, 5);
             CuAssertTrue(testCase, 0);
-        }stCatch(PAIRWISE_ALIGNMENT_EXCEPTION_ID)
+        }
+        stCatch(PAIRWISE_ALIGNMENT_EXCEPTION_ID)
             {
                 st_logInfo(stExcept_getMsg(PAIRWISE_ALIGNMENT_EXCEPTION_ID));
             }stTryEnd
-    stTry {
+    stTry
+        {
             diagonal_construct(10, 5, 5);
             CuAssertTrue(testCase, 0);
-        }stCatch(PAIRWISE_ALIGNMENT_EXCEPTION_ID)
+        }
+        stCatch(PAIRWISE_ALIGNMENT_EXCEPTION_ID)
             {
                 st_logInfo(stExcept_getMsg(PAIRWISE_ALIGNMENT_EXCEPTION_ID));
             }stTryEnd
-    stTry {
+    stTry
+        {
             diagonal_construct(10, 6, 4);
             CuAssertTrue(testCase, 0);
-        }stCatch(PAIRWISE_ALIGNMENT_EXCEPTION_ID)
+        }
+        stCatch(PAIRWISE_ALIGNMENT_EXCEPTION_ID)
             {
                 st_logInfo(stExcept_getMsg(PAIRWISE_ALIGNMENT_EXCEPTION_ID));
             }stTryEnd
@@ -59,11 +66,11 @@ static bool testDiagonalsEqual(Diagonal d1, Diagonal d2) {
 }
 
 static void test_bands(CuTest *testCase) {
-    stList *anchorPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+    stList *anchorPairs = stList_construct3(0, (void (*)(void *)) stIntTuple_destruct);
     ///stList_append(anchorPairs, stIntTuple_construct2( 0, 0));
-    stList_append(anchorPairs, stIntTuple_construct2( 1, 0));
-    stList_append(anchorPairs, stIntTuple_construct2( 2, 1));
-    stList_append(anchorPairs, stIntTuple_construct2( 3, 3));
+    stList_append(anchorPairs, stIntTuple_construct2(1, 0));
+    stList_append(anchorPairs, stIntTuple_construct2(2, 1));
+    stList_append(anchorPairs, stIntTuple_construct2(3, 3));
     /////stList_append(anchorPairs, stIntTuple_construct2( 5, 4));
     //Start the traversal
     int64_t lX = 6, lY = 5;
@@ -159,13 +166,13 @@ static void test_cell(CuTest *testCase) {
     }
     Symbol cX = a, cY = t;
     //Do forward
-    cell_calculateForward(lowerF, NULL, NULL, middleF, cX, cY);
-    cell_calculateForward(upperF, middleF, NULL, NULL, cX, cY);
-    cell_calculateForward(currentF, lowerF, middleF, upperF, cX, cY);
+    cell_calculateForward(lowerF, NULL, NULL, middleF, cX, cY, NULL);
+    cell_calculateForward(upperF, middleF, NULL, NULL, cX, cY, NULL);
+    cell_calculateForward(currentF, lowerF, middleF, upperF, cX, cY, NULL);
     //Do backward
-    cell_calculateBackward(currentB, lowerB, middleB, upperB, cX, cY);
-    cell_calculateBackward(upperB, middleB, NULL, NULL, cX, cY);
-    cell_calculateBackward(lowerB, NULL, NULL, middleB, cX, cY);
+    cell_calculateBackward(currentB, lowerB, middleB, upperB, cX, cY, NULL);
+    cell_calculateBackward(upperB, middleB, NULL, NULL, cX, cY, NULL);
+    cell_calculateBackward(lowerB, NULL, NULL, middleB, cX, cY, NULL);
     double totalProbForward = cell_dotProduct2(currentF, state_endStateProb);
     double totalProbBackward = cell_dotProduct2(middleB, state_startStateProb);
     st_logInfo("Total probability for cell test, forward %f and backward %f\n", totalProbForward, totalProbBackward);
@@ -284,18 +291,22 @@ static void test_diagonalDPCalculations(CuTest *testCase) {
     }
 
     //Now do the posterior probabilities
-    stList *alignedPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+    stList *alignedPairs = stList_construct3(0, (void (*)(void *)) stIntTuple_destruct);
+    void *extraArgs[1] = { alignedPairs };
     for (int64_t i = 1; i <= lX + lY; i++) {
-        diagonalCalculationPosteriorMatchProbs(i, dpMatrixForward, dpMatrixBackward, 0.2, totalProbForward,
-                alignedPairs);
+        PairwiseAlignmentParameters *p = pairwiseAlignmentBandingParameters_construct();
+        p->threshold = 0.2;
+        diagonalCalculationPosteriorMatchProbs(i, dpMatrixForward, dpMatrixBackward, sX2, sY2, totalProbForward, p,
+                extraArgs);
+        pairwiseAlignmentBandingParameters_destruct(p);
     }
 
-    stSortedSet *alignedPairsSet = stSortedSet_construct3((int(*)(const void *, const void *)) stIntTuple_cmpFn,
-            (void(*)(void *)) stIntTuple_destruct);
-    stSortedSet_insert(alignedPairsSet, stIntTuple_construct2( 0, 0));
-    stSortedSet_insert(alignedPairsSet, stIntTuple_construct2( 1, 1));
-    stSortedSet_insert(alignedPairsSet, stIntTuple_construct2( 2, 4));
-    stSortedSet_insert(alignedPairsSet, stIntTuple_construct2( 3, 5));
+    stSortedSet *alignedPairsSet = stSortedSet_construct3((int (*)(const void *, const void *)) stIntTuple_cmpFn,
+            (void (*)(void *)) stIntTuple_destruct);
+    stSortedSet_insert(alignedPairsSet, stIntTuple_construct2(0, 0));
+    stSortedSet_insert(alignedPairsSet, stIntTuple_construct2(1, 1));
+    stSortedSet_insert(alignedPairsSet, stIntTuple_construct2(2, 4));
+    stSortedSet_insert(alignedPairsSet, stIntTuple_construct2(3, 5));
 
     for (int64_t i = 0; i < stList_length(alignedPairs); i++) {
         stIntTuple *pair = stList_get(alignedPairs, i);
@@ -308,7 +319,7 @@ static void test_diagonalDPCalculations(CuTest *testCase) {
 }
 
 stList *getRandomAnchorPairs(int64_t lX, int64_t lY) {
-    stList *anchorPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+    stList *anchorPairs = stList_construct3(0, (void (*)(void *)) stIntTuple_destruct);
     int64_t x = -1;
     int64_t y = -1;
     while (1) {
@@ -319,15 +330,15 @@ stList *getRandomAnchorPairs(int64_t lX, int64_t lY) {
         }
         assert(x >= 0 && x < lX);
         assert(y >= 0 && y < lY);
-        stList_append(anchorPairs, stIntTuple_construct2( x, y));
+        stList_append(anchorPairs, stIntTuple_construct2(x, y));
     }
     return anchorPairs;
 }
 
 static void checkAlignedPairs(CuTest *testCase, stList *blastPairs, int64_t lX, int64_t lY) {
     st_logInfo("I got %" PRIi64 " pairs to check\n", stList_length(blastPairs));
-    stSortedSet *pairs = stSortedSet_construct3((int(*)(const void *, const void *)) stIntTuple_cmpFn,
-            (void(*)(void *)) stIntTuple_destruct);
+    stSortedSet *pairs = stSortedSet_construct3((int (*)(const void *, const void *)) stIntTuple_cmpFn,
+            (void (*)(void *)) stIntTuple_destruct);
     for (int64_t i = 0; i < stList_length(blastPairs); i++) {
         stIntTuple *j = stList_get(blastPairs, i);
         CuAssertTrue(testCase, stIntTuple_length(j) == 3);
@@ -344,7 +355,7 @@ static void checkAlignedPairs(CuTest *testCase, stList *blastPairs, int64_t lX, 
         CuAssertTrue(testCase, y < lY);
 
         //Check is unique
-        stIntTuple *pair = stIntTuple_construct2( x, y);
+        stIntTuple *pair = stIntTuple_construct2(x, y);
         CuAssertTrue(testCase, stSortedSet_search(pairs, pair) == NULL);
         stSortedSet_insert(pairs, pair);
     }
@@ -368,7 +379,10 @@ static void test_getAlignedPairsWithBanding(CuTest *testCase) {
         p->minDiagsBetweenTraceBack = p->traceBackDiagonals + st_randomInt(2, 10);
         p->diagonalExpansion = st_randomInt(0, 10) * 2;
         stList *anchorPairs = getRandomAnchorPairs(lX, lY);
-        stList *alignedPairs = getAlignedPairsWithBanding(anchorPairs, sX2, sY2, p, 0, 0);
+
+        stList *alignedPairs = stList_construct3(0, (void (*)(void *)) stIntTuple_destruct);
+        void *extraArgs[1] = { alignedPairs };
+        getPosteriorProbsWithBanding(anchorPairs, sX2, sY2, p, 0, 0, diagonalCalculationPosteriorMatchProbs, extraArgs);
         //Check the aligned pairs.
         //Check the aligned pairs.
         checkAlignedPairs(testCase, alignedPairs, lX, lY);
@@ -436,12 +450,12 @@ static void test_filterToRemoveOverlap(CuTest *testCase) {
         //Make random pairs
         int64_t lX = st_randomInt(0, 100);
         int64_t lY = st_randomInt(0, 100);
-        stList *pairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+        stList *pairs = stList_construct3(0, (void (*)(void *)) stIntTuple_destruct);
         double acceptProb = st_random();
         for (int64_t x = 0; x < lX; x++) {
             for (int64_t y = 0; y < lY; y++) {
                 if (st_random() > acceptProb) {
-                    stList_append(pairs, stIntTuple_construct2( x, y));
+                    stList_append(pairs, stIntTuple_construct2(x, y));
                 }
             }
         }
@@ -453,27 +467,30 @@ static void test_filterToRemoveOverlap(CuTest *testCase) {
 
         //Now check maximal
         stList *nonoverlappingPairs2 = stList_construct();
-        for(int64_t i=0; i<stList_length(pairs); i++) {
+        for (int64_t i = 0; i < stList_length(pairs); i++) {
             stIntTuple *pair = stList_get(pairs, i);
             int64_t x = stIntTuple_get(pair, 0);
             int64_t y = stIntTuple_get(pair, 1);
             bool nonOverlapping = 1;
-            for(int64_t j=0; j<stList_length(pairs); j++) {
+            for (int64_t j = 0; j < stList_length(pairs); j++) {
                 stIntTuple *pair2 = stList_get(pairs, j);
                 int64_t x2 = stIntTuple_get(pair2, 0);
                 int64_t y2 = stIntTuple_get(pair2, 1);
-                if((x2 <= x && y2 >= y) || (x2 >= x && y2 <= y)) {
+                if ((x2 <= x && y2 >= y) || (x2 >= x && y2 <= y)) {
                     nonOverlapping = 0;
                     break;
                 }
             }
-            if(nonOverlapping) {
+            if (nonOverlapping) {
                 stList_append(nonoverlappingPairs2, pair);
             }
         }
-        stSortedSet *nonOverlappingPairsSet = stList_getSortedSet(nonoverlappingPairs, (int (*)(const void *, const void *))stIntTuple_cmpFn);
-        stSortedSet *nonOverlappingPairsSet2 = stList_getSortedSet(nonoverlappingPairs2, (int (*)(const void *, const void *))stIntTuple_cmpFn);
-        st_logDebug("The non-overlapping set sizes are %" PRIi64 " %" PRIi64 "\n", stSortedSet_size(nonOverlappingPairsSet), stSortedSet_size(nonOverlappingPairsSet2));
+        stSortedSet *nonOverlappingPairsSet = stList_getSortedSet(nonoverlappingPairs,
+                (int (*)(const void *, const void *)) stIntTuple_cmpFn);
+        stSortedSet *nonOverlappingPairsSet2 = stList_getSortedSet(nonoverlappingPairs2,
+                (int (*)(const void *, const void *)) stIntTuple_cmpFn);
+        st_logDebug("The non-overlapping set sizes are %" PRIi64 " %" PRIi64 "\n",
+                stSortedSet_size(nonOverlappingPairsSet), stSortedSet_size(nonOverlappingPairsSet2));
         CuAssertTrue(testCase, stSortedSet_equals(nonOverlappingPairsSet, nonOverlappingPairsSet2));
 
         //Cleanup
@@ -512,14 +529,14 @@ static void test_getBlastPairsWithRecursion(CuTest *testCase) {
 static void test_getSplitPoints(CuTest *testCase) {
     int64_t matrixSize = 2000 * 2000;
 
-    stList *anchorPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+    stList *anchorPairs = stList_construct3(0, (void (*)(void *)) stIntTuple_destruct);
 
     //Test a small region, which produces no splits
     int64_t lX = 3000;
     int64_t lY = 1000;
     stList *splitPoints = getSplitPoints(anchorPairs, lX, lY, matrixSize);
     CuAssertIntEquals(testCase, 1, stList_length(splitPoints));
-    CuAssertTrue(testCase, stIntTuple_equalsFn(stList_get(splitPoints, 0), stIntTuple_construct4( 0, 0, lX, lY)));
+    CuAssertTrue(testCase, stIntTuple_equalsFn(stList_get(splitPoints, 0), stIntTuple_construct4(0, 0, lX, lY)));
     stList_destruct(splitPoints);
 
     //Test with one really big matrix with no anchors
@@ -527,39 +544,39 @@ static void test_getSplitPoints(CuTest *testCase) {
     lY = 25000;
     splitPoints = getSplitPoints(anchorPairs, lX, lY, matrixSize);
     CuAssertIntEquals(testCase, 2, stList_length(splitPoints));
-    CuAssertTrue(testCase, stIntTuple_equalsFn(stList_get(splitPoints, 0), stIntTuple_construct4( 0, 0, 2000, 2000)));
+    CuAssertTrue(testCase, stIntTuple_equalsFn(stList_get(splitPoints, 0), stIntTuple_construct4(0, 0, 2000, 2000)));
     CuAssertTrue(testCase,
-            stIntTuple_equalsFn(stList_get(splitPoints, 1), stIntTuple_construct4( 18000, 23000, lX, lY)));
+            stIntTuple_equalsFn(stList_get(splitPoints, 1), stIntTuple_construct4(18000, 23000, lX, lY)));
     stList_destruct(splitPoints);
 
     //Now test with some more points
-    stList_append(anchorPairs, stIntTuple_construct2( 2000, 2000)); //This should not create a split
-    stList_append(anchorPairs, stIntTuple_construct2( 4002, 4001)); //This should cause a split
-    stList_append(anchorPairs, stIntTuple_construct2( 5000, 5000)); //This should not cause a split
-    stList_append(anchorPairs, stIntTuple_construct2( 8000, 6000)); //Neither should this (it is maximum sized)
-    stList_append(anchorPairs, stIntTuple_construct2( 9000, 9000)); //Or this (it is maximum sized)
-    stList_append(anchorPairs, stIntTuple_construct2( 10000, 14000)); //This should create a split
-    stList_append(anchorPairs, stIntTuple_construct2( 15000, 15000)); //This should also create a split
-    stList_append(anchorPairs, stIntTuple_construct2( 16000, 16000)); //This should not, but there will be a split with the end.
+    stList_append(anchorPairs, stIntTuple_construct2(2000, 2000)); //This should not create a split
+    stList_append(anchorPairs, stIntTuple_construct2(4002, 4001)); //This should cause a split
+    stList_append(anchorPairs, stIntTuple_construct2(5000, 5000)); //This should not cause a split
+    stList_append(anchorPairs, stIntTuple_construct2(8000, 6000)); //Neither should this (it is maximum sized)
+    stList_append(anchorPairs, stIntTuple_construct2(9000, 9000)); //Or this (it is maximum sized)
+    stList_append(anchorPairs, stIntTuple_construct2(10000, 14000)); //This should create a split
+    stList_append(anchorPairs, stIntTuple_construct2(15000, 15000)); //This should also create a split
+    stList_append(anchorPairs, stIntTuple_construct2(16000, 16000)); //This should not, but there will be a split with the end.
 
     splitPoints = getSplitPoints(anchorPairs, lX, lY, matrixSize);
 
     for (int64_t i = 0; i < stList_length(splitPoints); i++) {
         stIntTuple *j = stList_get(splitPoints, i);
-        st_logInfo("I got split point: x1: %" PRIi64 " y1: %" PRIi64 " x2: %" PRIi64 " y2: %" PRIi64 "\n", stIntTuple_get(j, 0),
-                stIntTuple_get(j, 1), stIntTuple_get(j, 2), stIntTuple_get(j, 3));
+        st_logInfo("I got split point: x1: %" PRIi64 " y1: %" PRIi64 " x2: %" PRIi64 " y2: %" PRIi64 "\n",
+                stIntTuple_get(j, 0), stIntTuple_get(j, 1), stIntTuple_get(j, 2), stIntTuple_get(j, 3));
     }
 
     CuAssertIntEquals(testCase, 5, stList_length(splitPoints));
-    CuAssertTrue(testCase, stIntTuple_equalsFn(stList_get(splitPoints, 0), stIntTuple_construct4( 0, 0, 3001, 3001)));
+    CuAssertTrue(testCase, stIntTuple_equalsFn(stList_get(splitPoints, 0), stIntTuple_construct4(0, 0, 3001, 3001)));
     CuAssertTrue(testCase,
-            stIntTuple_equalsFn(stList_get(splitPoints, 1), stIntTuple_construct4( 3002, 3001, 9500, 11001)));
+            stIntTuple_equalsFn(stList_get(splitPoints, 1), stIntTuple_construct4(3002, 3001, 9500, 11001)));
     CuAssertTrue(testCase,
-            stIntTuple_equalsFn(stList_get(splitPoints, 2), stIntTuple_construct4( 9501, 12000, 12001, 14500)));
+            stIntTuple_equalsFn(stList_get(splitPoints, 2), stIntTuple_construct4(9501, 12000, 12001, 14500)));
     CuAssertTrue(testCase,
-            stIntTuple_equalsFn(stList_get(splitPoints, 3), stIntTuple_construct4( 13000, 14501, 18000, 18001)));
+            stIntTuple_equalsFn(stList_get(splitPoints, 3), stIntTuple_construct4(13000, 14501, 18000, 18001)));
     CuAssertTrue(testCase,
-            stIntTuple_equalsFn(stList_get(splitPoints, 4), stIntTuple_construct4( 18001, 23000, 20000, 25000)));
+            stIntTuple_equalsFn(stList_get(splitPoints, 4), stIntTuple_construct4(18001, 23000, 20000, 25000)));
 
     stList_destruct(splitPoints);
     stList_destruct(anchorPairs);
@@ -595,7 +612,8 @@ static void test_getAlignedPairsWithRaggedEnds(CuTest *testCase) {
         //Make a pair of sequences
         int64_t coreLength = 100, randomPortionLength = 100;
         char *sX = getRandomSequence(coreLength);
-        char *sY = stString_print("%s%s%s", getRandomSequence(randomPortionLength), sX, getRandomSequence(randomPortionLength)); //x with an extra bit at the end.
+        char *sY = stString_print("%s%s%s", getRandomSequence(randomPortionLength), sX,
+                getRandomSequence(randomPortionLength)); //x with an extra bit at the end.
 
         st_logInfo("Sequence X to align: %s END\n", sX);
         st_logInfo("Sequence Y to align: %s END\n", sY);
@@ -625,6 +643,102 @@ static void test_getAlignedPairsWithRaggedEnds(CuTest *testCase) {
     }
 }
 
+/*
+ * EM training tests.
+ */
+
+static void test_hmm(CuTest *testCase) {
+    //Expectation object
+    Hmm *hmm = hmm_constructEmpty(0.0);
+
+    //Add some transition expectations
+    for (int64_t from = 0; from < STATE_NUMBER; from++) {
+        for (int64_t to = 0; to < STATE_NUMBER; to++) {
+            hmm_addToTransitionExpectation(hmm, from, to, from * STATE_NUMBER + to);
+        }
+    }
+
+    //Write to a file
+    char *tempFile = stString_print("./temp%" PRIi64 ".hmm", st_randomInt(0, INT64_MAX));
+    CuAssertTrue(testCase, !stFile_exists(tempFile)); //Quick check that we don't write over anything.
+    FILE *fH = fopen(tempFile, "w");
+    hmm_write(hmm, fH);
+    fclose(fH);
+    hmm_destruct(hmm);
+
+    //Load from a file
+    hmm = hmm_loadFromFile(tempFile);
+    stFile_rmrf(tempFile);
+
+    //Check the transition expectations
+    for (int64_t from = 0; from < STATE_NUMBER; from++) {
+        for (int64_t to = 0; to < STATE_NUMBER; to++) {
+            CuAssertTrue(testCase,
+                    hmm_getTransition(hmm, from, to) == from * STATE_NUMBER + to);
+        }
+    }
+
+    //Normalise
+    hmm_normalise(hmm);
+
+    //Recheck
+    for (int64_t from = 0; from < STATE_NUMBER; from++) {
+        for (int64_t to = 0; to < STATE_NUMBER; to++) {
+            double z = from * STATE_NUMBER * STATE_NUMBER + (STATE_NUMBER*(STATE_NUMBER-1))/2;
+            CuAssertDblEquals(testCase,
+                    (from * STATE_NUMBER + to)/z, hmm_getTransition(hmm, from, to), 0.0);
+        }
+    }
+
+    //Clean up
+    hmm_destruct(hmm);
+}
+
+static void test_em(CuTest *testCase) {
+    for (int64_t test = 0; test < 100; test++) {
+        //Make a pair of sequences
+        char *sX = getRandomSequence(st_randomInt(0, 100));
+        char *sY = evolveSequence(sX); //stString_copy(seqX);
+        st_logInfo("Sequence X to align: %s END\n", sX);
+        st_logInfo("Sequence Y to align: %s END\n", sY);
+
+        //Now do alignment
+        PairwiseAlignmentParameters *p = pairwiseAlignmentBandingParameters_construct();
+
+        //Currently starts from random model and iterates.
+        double pLikelihood = -INFINITY;
+        Hmm *hmm = hmm_constructEmpty(0.0);
+        hmm_randomise(hmm);
+        loadTheGlobalHmm(hmm); //Set the global model.
+        hmm_destruct(hmm);
+
+        for(int64_t iteration=0; iteration<10; iteration++) {
+            hmm = hmm_constructEmpty(0.000000000001); //The tiny pseudo count prevents overflow
+            getExpectations(hmm, sX, sY, p, 0, 0);
+            hmm_normalise(hmm);
+            //Log stuff
+            for (int64_t from = 0; from < STATE_NUMBER; from++) {
+                for (int64_t to = 0; to < STATE_NUMBER; to++) {
+                    st_logInfo("Transition from %" PRIi64 " to %" PRIi64 " has expectation %f\n", from, to,
+                            hmm_getTransition(hmm, from, to));
+                }
+            }
+
+            st_logInfo("->->-> Got expected likelihood %f for trial %" PRIi64 " and  iteration %" PRIi64 "\n", hmm->likelihood, test, iteration);
+            CuAssertTrue(testCase, pLikelihood <= hmm->likelihood + 50);
+            pLikelihood = hmm->likelihood;
+            loadTheGlobalHmm(hmm);
+            hmm_destruct(hmm);
+        }
+
+        //Cleanup
+        pairwiseAlignmentBandingParameters_destruct(p);
+        free(sX);
+        free(sY);
+    }
+    resetTheGlobalHmm();
+}
+
 CuSuite* pairwiseAlignmentTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, test_diagonal);
@@ -642,6 +756,8 @@ CuSuite* pairwiseAlignmentTestSuite(void) {
     SUITE_ADD_TEST(suite, test_getSplitPoints);
     SUITE_ADD_TEST(suite, test_getAlignedPairs);
     SUITE_ADD_TEST(suite, test_getAlignedPairsWithRaggedEnds);
+    SUITE_ADD_TEST(suite, test_hmm);
+    SUITE_ADD_TEST(suite, test_em);
 
     return suite;
 }

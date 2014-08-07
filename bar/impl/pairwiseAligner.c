@@ -1,5 +1,5 @@
 /*
- * diagonalIterator.c
+ * pairwiseAligner.c
  *
  *  Created on: 1 Mar 2012
  *      Author: benedictpaten
@@ -30,7 +30,8 @@ const char *PAIRWISE_ALIGNMENT_EXCEPTION_ID = "PAIRWISE_ALIGNMENT_EXCEPTION";
 Diagonal diagonal_construct(int64_t xay, int64_t xmyL, int64_t xmyR) {
     if ((xay + xmyL) % 2 != 0 || (xay + xmyR) % 2 != 0 || xmyL > xmyR) {
         stThrowNew(PAIRWISE_ALIGNMENT_EXCEPTION_ID,
-                "Attempt to create diagonal with invalid coordinates: xay %" PRIi64 " xmyL %" PRIi64 " xmyR %" PRIi64 "", xay, xmyL, xmyR);
+                "Attempt to create diagonal with invalid coordinates: xay %" PRIi64 " xmyL %" PRIi64 " xmyR %" PRIi64 "",
+                xay, xmyL, xmyR);
     }
     Diagonal diagonal;
     diagonal.xay = xay;
@@ -96,7 +97,7 @@ static int64_t band_avoidOffByOne(int64_t xay, int64_t xmy) {
 
 static void band_setCurrentDiagonalP(int64_t *xmy, int64_t i, int64_t j, int64_t k) {
     if (i < j) {
-        *xmy += (int64_t)(2 * ((int64_t) j - i) * (int64_t) k);
+        *xmy += (int64_t) (2 * ((int64_t) j - i) * (int64_t) k);
     }
 }
 
@@ -205,9 +206,8 @@ void bandIterator_destruct(BandIterator *bandIterator) {
 }
 
 Diagonal bandIterator_getNext(BandIterator *bandIterator) {
-    Diagonal diagonal =
-            bandIterator->band->diagonals[bandIterator->index > bandIterator->band->lXalY ? bandIterator->band->lXalY
-                    : bandIterator->index];
+    Diagonal diagonal = bandIterator->band->diagonals[
+            bandIterator->index > bandIterator->band->lXalY ? bandIterator->band->lXalY : bandIterator->index];
     if (bandIterator->index <= bandIterator->band->lXalY) {
         bandIterator->index++;
     }
@@ -234,8 +234,8 @@ Diagonal bandIterator_getPrevious(BandIterator *bandIterator) {
 
 static inline double lookup(double x) {
     //return log (exp (x) + 1);
-    assert (x >= 0.00f);
-    assert (x <= logUnderflowThreshold);
+    assert(x >= 0.00f);
+    assert(x <= logUnderflowThreshold);
     if (x <= 1.00f)
         return ((-0.009350833524763f * x + 0.130659527668286f) * x + 0.498799810682272f) * x + 0.693203116424741f;
     if (x <= 2.50f)
@@ -261,20 +261,20 @@ double logAdd(double x, double y) {
 
 Symbol symbol_convertCharToSymbol(char i) {
     switch (i) {
-        case 'A':
-        case 'a':
-            return a;
-        case 'C':
-        case 'c':
-            return c;
-        case 'G':
-        case 'g':
-            return g;
-        case 'T':
-        case 't':
-            return t;
-        default:
-            return n;
+    case 'A':
+    case 'a':
+        return a;
+    case 'C':
+    case 'c':
+        return c;
+    case 'G':
+    case 'g':
+        return g;
+    case 'T':
+    case 't':
+        return t;
+    default:
+        return n;
     }
 }
 
@@ -299,74 +299,6 @@ void symbolString_destruct(SymbolString s) {
     free(s.sequence);
 }
 
-static void symbol_check(Symbol c) {
-    assert(c >= 0 && c < 5);
-}
-
-#define EMISSION_MATCH -2.1149196655034745 //log(0.12064298095701059);
-#define EMISSION_TRANSVERSION -4.5691014376830479 //log(0.010367271172731285);
-#define EMISSION_TRANSITION -3.9833860032220842 //log(0.01862247669752685);
-#define EMISSION_MATCH_N -3.2188758248682006 //log(0.04);
-double symbol_matchProb(Symbol cX, Symbol cY) {
-    symbol_check(cX);
-    symbol_check(cY);
-    //Symmetric matrix of transition probabilities.
-    static const double matchM[25] = { EMISSION_MATCH, EMISSION_TRANSVERSION, EMISSION_TRANSITION,
-            EMISSION_TRANSVERSION, EMISSION_MATCH_N, EMISSION_TRANSVERSION, EMISSION_MATCH, EMISSION_TRANSVERSION,
-            EMISSION_TRANSITION, EMISSION_MATCH_N, EMISSION_TRANSITION, EMISSION_TRANSVERSION, EMISSION_MATCH,
-            EMISSION_TRANSVERSION, EMISSION_MATCH_N, EMISSION_TRANSVERSION, EMISSION_TRANSITION, EMISSION_TRANSVERSION,
-            EMISSION_MATCH, EMISSION_MATCH_N, EMISSION_MATCH_N, EMISSION_MATCH_N, EMISSION_MATCH_N, EMISSION_MATCH_N,
-            EMISSION_MATCH_N };
-    return matchM[cX * 5 + cY];
-}
-
-double symbol_gapProb(Symbol cZ) {
-    symbol_check(cZ);
-    return -1.6094379124341003; //log(0.2) = -1.6094379124341003
-}
-
-///////////////////////////////////
-///////////////////////////////////
-//State
-//
-//A cell is a set of states associated with an x, y coordinate.
-//These functions do the state transitions for the pairwise
-//alignment model.
-///////////////////////////////////
-///////////////////////////////////
-
-static void state_check(State s) {
-    assert(c >= 0 && c < STATE_NUMBER);
-}
-
-double state_startStateProb(State state) {
-    //Match state is like going to a match.
-    state_check(state);
-    return state == match ? 0 : LOG_ZERO;
-}
-
-double state_raggedStartStateProb(State state) {
-    //Match state is like going to a match.
-    state_check(state);
-    return (state == longGapX || state == longGapY) ? 0 : LOG_ZERO;
-}
-
-double state_endStateProb(State state) {
-    //End state is like to going to a match
-    state_check(state);
-    static const double endStates[5] = { TRANSITION_MATCH_CONTINUE, TRANSITION_MATCH_FROM_SHORT_GAP,
-            TRANSITION_MATCH_FROM_SHORT_GAP, TRANSITION_MATCH_FROM_LONG_GAP, TRANSITION_MATCH_FROM_LONG_GAP };
-    return endStates[state];
-}
-
-double state_raggedEndStateProb(State state) {
-    //End state is like to going to a a long gap (either one)
-    state_check(state);
-    static const double endStates[5] = { TRANSITION_GAP_LONG_OPEN, TRANSITION_GAP_LONG_OPEN,
-            TRANSITION_GAP_LONG_OPEN, TRANSITION_GAP_LONG_EXTEND, TRANSITION_GAP_LONG_EXTEND };
-    return endStates[state];
-}
-
 ///////////////////////////////////
 ///////////////////////////////////
 //Cell calculations
@@ -377,50 +309,24 @@ double state_raggedEndStateProb(State state) {
 ///////////////////////////////////
 ///////////////////////////////////
 
-static inline void cell_calculate(double *current, double *lower, double *middle, double *upper, Symbol cX, Symbol cY,
-        void(*doTransition)(double *, double *, int64_t, int64_t, double, double)) {
-    if (lower != NULL) {
-        double eP = symbol_gapProb(cX);
-        doTransition(lower, current, match, shortGapX, eP, TRANSITION_GAP_SHORT_OPEN);
-        doTransition(lower, current, shortGapX, shortGapX, eP, TRANSITION_GAP_SHORT_EXTEND);
-        doTransition(lower, current, shortGapY, shortGapX, eP, TRANSITION_GAP_SHORT_SWITCH);
-        doTransition(lower, current, match, longGapX, eP, TRANSITION_GAP_LONG_OPEN);
-        doTransition(lower, current, longGapX, longGapX, eP, TRANSITION_GAP_LONG_EXTEND);
-    }
-    if (middle != NULL) {
-        double eP = symbol_matchProb(cX, cY);
-        doTransition(middle, current, match, match, eP, TRANSITION_MATCH_CONTINUE);
-        doTransition(middle, current, shortGapX, match, eP, TRANSITION_MATCH_FROM_SHORT_GAP);
-        doTransition(middle, current, shortGapY, match, eP, TRANSITION_MATCH_FROM_SHORT_GAP);
-        doTransition(middle, current, longGapX, match, eP, TRANSITION_MATCH_FROM_LONG_GAP);
-        doTransition(middle, current, longGapY, match, eP, TRANSITION_MATCH_FROM_LONG_GAP);
-    }
-    if (upper != NULL) {
-        double eP = symbol_gapProb(cY);
-        doTransition(upper, current, match, shortGapY, eP, TRANSITION_GAP_SHORT_OPEN);
-        doTransition(upper, current, shortGapY, shortGapY, eP, TRANSITION_GAP_SHORT_EXTEND);
-        doTransition(upper, current, shortGapX, shortGapY, eP, TRANSITION_GAP_SHORT_SWITCH);
-        doTransition(upper, current, match, longGapY, eP, TRANSITION_GAP_LONG_OPEN);
-        doTransition(upper, current, longGapY, longGapY, eP, TRANSITION_GAP_LONG_EXTEND);
-    }
-}
-
 static inline void doTransitionForward(double *fromCells, double *toCells, int64_t from, int64_t to, double eP,
-        double tP) {
+        double tP, void *extraArgs) {
     toCells[to] = logAdd(toCells[to], fromCells[from] + (eP + tP));
 }
 
-void cell_calculateForward(double *current, double *lower, double *middle, double *upper, Symbol cX, Symbol cY) {
-    cell_calculate(current, lower, middle, upper, cX, cY, doTransitionForward);
+void cell_calculateForward(double *current, double *lower, double *middle, double *upper, Symbol cX, Symbol cY,
+        void *extraArgs) {
+    cell_calculate(current, lower, middle, upper, cX, cY, doTransitionForward, extraArgs);
 }
 
 static inline void doTransitionBackward(double *fromCells, double *toCells, int64_t from, int64_t to, double eP,
-        double tP) {
+        double tP, void *extraArgs) {
     fromCells[from] = logAdd(fromCells[from], toCells[to] + (eP + tP));
 }
 
-void cell_calculateBackward(double *current, double *lower, double *middle, double *upper, Symbol cX, Symbol cY) {
-    cell_calculate(current, lower, middle, upper, cX, cY, doTransitionBackward);
+void cell_calculateBackward(double *current, double *lower, double *middle, double *upper, Symbol cX, Symbol cY,
+        void *extraArgs) {
+    cell_calculate(current, lower, middle, upper, cX, cY, doTransitionBackward, extraArgs);
 }
 
 double cell_dotProduct(double *cell1, double *cell2) {
@@ -431,12 +337,28 @@ double cell_dotProduct(double *cell1, double *cell2) {
     return totalProb;
 }
 
-double cell_dotProduct2(double *cell, double(*getStateValue)(State)) {
+double cell_dotProduct2(double *cell, double (*getStateValue)(int64_t)) {
     double totalProb = cell[0] + getStateValue(0);
     for (int64_t i = 1; i < STATE_NUMBER; i++) {
         totalProb = logAdd(totalProb, cell[i] + getStateValue(i));
     }
     return totalProb;
+}
+
+static inline void updateExpectations(double *fromCells, double *toCells, int64_t from, int64_t to, double eP,
+        double tP, void *extraArgs) {
+    //void *extraArgs2[2] = { &totalProbability, hmmExpectations };
+    double totalProbability = *((double *) ((void **) extraArgs)[0]);
+    Hmm *hmmExpectations = ((void **) extraArgs)[1];
+    //Calculate posterior probability of the transition/emission pair
+    double p = exp(fromCells[from] + toCells[to] + (eP + tP) - totalProbability);
+    //Add in the expectation of the transition
+    hmm_addToTransitionExpectation(hmmExpectations, from, to, p);
+}
+
+void cell_calculateExpectation(double *current, double *lower, double *middle, double *upper, Symbol cX, Symbol cY,
+        void *extraArgs) {
+    cell_calculate(current, lower, middle, upper, cX, cY, updateExpectations, extraArgs);
 }
 
 ///////////////////////////////////
@@ -497,7 +419,7 @@ void dpDiagonal_zeroValues(DpDiagonal *diagonal) {
     }
 }
 
-void dpDiagonal_initialiseValues(DpDiagonal *diagonal, double(*getStateValue)(State)) {
+void dpDiagonal_initialiseValues(DpDiagonal *diagonal, double (*getStateValue)(int64_t)) {
     for (int64_t i = diagonal_getMinXmy(diagonal->diagonal); i <= diagonal_getMaxXmy(diagonal->diagonal); i += 2) {
         double *cell = dpDiagonal_getCell(diagonal, i);
         assert(cell != NULL);
@@ -603,7 +525,7 @@ static Symbol getYCharacter(const SymbolString sY, int64_t xay, int64_t xmy) {
 
 static void diagonalCalculation(DpDiagonal *dpDiagonal, DpDiagonal *dpDiagonalM1, DpDiagonal *dpDiagonalM2,
         const SymbolString sX, const SymbolString sY,
-        void(*cellCalculation)(double *, double *, double *, double *, Symbol, Symbol)) {
+        void (*cellCalculation)(double *, double *, double *, double *, Symbol, Symbol, void *), void *extraArgs) {
     Diagonal diagonal = dpDiagonal->diagonal;
     int64_t xmy = diagonal_getMinXmy(diagonal);
     while (xmy <= diagonal_getMaxXmy(diagonal)) {
@@ -613,19 +535,19 @@ static void diagonalCalculation(DpDiagonal *dpDiagonal, DpDiagonal *dpDiagonalM1
         double *lower = dpDiagonalM1 == NULL ? NULL : dpDiagonal_getCell(dpDiagonalM1, xmy - 1);
         double *middle = dpDiagonalM2 == NULL ? NULL : dpDiagonal_getCell(dpDiagonalM2, xmy);
         double *upper = dpDiagonalM1 == NULL ? NULL : dpDiagonal_getCell(dpDiagonalM1, xmy + 1);
-        cellCalculation(current, lower, middle, upper, x, y);
+        cellCalculation(current, lower, middle, upper, x, y, extraArgs);
         xmy += 2;
     }
 }
 
 void diagonalCalculationForward(int64_t xay, DpMatrix *dpMatrix, const SymbolString sX, const SymbolString sY) {
     diagonalCalculation(dpMatrix_getDiagonal(dpMatrix, xay), dpMatrix_getDiagonal(dpMatrix, xay - 1),
-            dpMatrix_getDiagonal(dpMatrix, xay - 2), sX, sY, cell_calculateForward);
+            dpMatrix_getDiagonal(dpMatrix, xay - 2), sX, sY, cell_calculateForward, NULL);
 }
 
 void diagonalCalculationBackward(int64_t xay, DpMatrix *dpMatrix, const SymbolString sX, const SymbolString sY) {
     diagonalCalculation(dpMatrix_getDiagonal(dpMatrix, xay), dpMatrix_getDiagonal(dpMatrix, xay - 1),
-            dpMatrix_getDiagonal(dpMatrix, xay - 2), sX, sY, cell_calculateBackward);
+            dpMatrix_getDiagonal(dpMatrix, xay - 2), sX, sY, cell_calculateBackward, NULL);
 }
 
 double diagonalCalculationTotalProbability(int64_t xay, DpMatrix *forwardDpMatrix, DpMatrix *backwardDpMatrix,
@@ -640,7 +562,7 @@ double diagonalCalculationTotalProbability(int64_t xay, DpMatrix *forwardDpMatri
     if (backDiagonal != NULL && forwardDiagonal != NULL) {
         DpDiagonal *matchDiagonal = dpDiagonal_clone(backDiagonal);
         dpDiagonal_zeroValues(matchDiagonal);
-        diagonalCalculation(matchDiagonal, NULL, forwardDiagonal, sX, sY, cell_calculateForward);
+        diagonalCalculation(matchDiagonal, NULL, forwardDiagonal, sX, sY, cell_calculateForward, NULL);
         totalProbability = logAdd(totalProbability, dpDiagonal_dotProduct(matchDiagonal, backDiagonal));
         dpDiagonal_destruct(matchDiagonal);
     }
@@ -648,8 +570,11 @@ double diagonalCalculationTotalProbability(int64_t xay, DpMatrix *forwardDpMatri
 }
 
 void diagonalCalculationPosteriorMatchProbs(int64_t xay, DpMatrix *forwardDpMatrix, DpMatrix *backwardDpMatrix,
-        double threshold, double totalProbability, stList *alignedPairs) {
-    //Get the forward and backward diagonals
+        const SymbolString sX, const SymbolString sY, double totalProbability, PairwiseAlignmentParameters *p,
+        void *extraArgs) {
+    assert(p->threshold >= 0.0);
+    assert(p->threshold <= 1.0);
+    stList *alignedPairs = ((void **) extraArgs)[0];
     DpDiagonal *forwardDiagonal = dpMatrix_getDiagonal(forwardDpMatrix, xay);
     DpDiagonal *backDiagonal = dpMatrix_getDiagonal(backwardDpMatrix, xay);
     Diagonal diagonal = forwardDiagonal->diagonal;
@@ -661,18 +586,32 @@ void diagonalCalculationPosteriorMatchProbs(int64_t xay, DpMatrix *forwardDpMatr
         if (x > 0 && y > 0) {
             double *cellForward = dpDiagonal_getCell(forwardDiagonal, xmy);
             double *cellBackward = dpDiagonal_getCell(backDiagonal, xmy);
-            double posteriorProbability = exp((cellForward[match] + cellBackward[match]) - totalProbability);
-            if (posteriorProbability >= threshold) {
+            double posteriorProbability = exp(
+                    (cellForward[MATCH_STATE] + cellBackward[MATCH_STATE]) - totalProbability);
+            if (posteriorProbability >= p->threshold) {
                 if (posteriorProbability > 1.0) {
                     posteriorProbability = 1.0;
                 }
                 posteriorProbability = floor(posteriorProbability * PAIR_ALIGNMENT_PROB_1);
 
-                stList_append(alignedPairs, stIntTuple_construct3( (int64_t) posteriorProbability, x - 1, y - 1));
+                stList_append(alignedPairs, stIntTuple_construct3((int64_t) posteriorProbability, x - 1, y - 1));
             }
         }
         xmy += 2;
     }
+}
+
+static void diagonalCalculationExpectations(int64_t xay, DpMatrix *forwardDpMatrix, DpMatrix *backwardDpMatrix,
+        const SymbolString sX, const SymbolString sY, double totalProbability, PairwiseAlignmentParameters *p,
+        void *extraArgs) {
+    /*
+     * Updates the expectations of the transitions/emissions for the given diagonal.
+     */
+    Hmm *hmmExpectations = extraArgs;
+    void *extraArgs2[2] = { &totalProbability, hmmExpectations };
+    hmmExpectations->likelihood += totalProbability; //We do this once per diagonal, which is a hack, rather than for the whole matrix. The correction factor is approximately 1/number of diagonals.
+    diagonalCalculation(dpMatrix_getDiagonal(backwardDpMatrix, xay), dpMatrix_getDiagonal(forwardDpMatrix, xay - 1),
+            dpMatrix_getDiagonal(forwardDpMatrix, xay - 2), sX, sY, cell_calculateExpectation, extraArgs2);
 }
 
 ///////////////////////////////////
@@ -683,23 +622,20 @@ void diagonalCalculationPosteriorMatchProbs(int64_t xay, DpMatrix *forwardDpMatr
 ///////////////////////////////////
 ///////////////////////////////////
 
-stList *getAlignedPairsWithBanding(stList *anchorPairs, const SymbolString sX, const SymbolString sY,
-        PairwiseAlignmentParameters *p, bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd) {
+void getPosteriorProbsWithBanding(stList *anchorPairs, const SymbolString sX, const SymbolString sY,
+        PairwiseAlignmentParameters *p, bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd,
+        void (*diagonalPosteriorProbFn)(int64_t, DpMatrix *, DpMatrix *, const SymbolString, const SymbolString, double,
+                PairwiseAlignmentParameters *, void *), void *extraArgs) {
     //Prerequisites
     assert(p->traceBackDiagonals >= 1);
-    assert(p->threshold >= 0.0);
-    assert(p->threshold <= 1.0);
     assert(p->diagonalExpansion >= 0);
     assert(p->diagonalExpansion % 2 == 0);
     assert(p->minDiagsBetweenTraceBack >= 2);
     assert(p->traceBackDiagonals + 1 < p->minDiagsBetweenTraceBack);
 
-    //This list of pairs to be returned. Not in any order, but points must be unique
-    stList *alignedPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
-
     int64_t diagonalNumber = sX.length + sY.length;
     if (diagonalNumber == 0) { //Deal with trivial case
-        return alignedPairs;
+        return;
     }
 
     //Primitives for the forward matrix recursion
@@ -725,10 +661,11 @@ stList *getAlignedPairsWithBanding(stList *anchorPairs, const SymbolString sX, c
         bool tracebackPoint = diagonal_getXay(diagonal) >= tracedBackTo + p->minDiagsBetweenTraceBack
                 && diagonal_getWidth(diagonal) <= p->diagonalExpansion * 2 + 1; //Condition true when we want to do an intermediate traceback.
 
-        //Traceback
+                //Traceback
         if (atEnd || tracebackPoint) {
             //Initialise the last row (until now) of the backward matrix to represent an end point
-            dpDiagonal_initialiseValues(dpMatrix_createDiagonal(backwardDpMatrix, diagonal), (atEnd && alignmentHasRaggedRightEnd) ? state_raggedEndStateProb : state_endStateProb);
+            dpDiagonal_initialiseValues(dpMatrix_createDiagonal(backwardDpMatrix, diagonal),
+                    (atEnd && alignmentHasRaggedRightEnd) ? state_raggedEndStateProb : state_endStateProb);
             if (diagonal_getXay(diagonal) > tracedBackTo + 1) { //This is a diagonal between the place we trace back to and where we trace back from
                 DpDiagonal *j = dpMatrix_getDiagonal(forwardDpMatrix, diagonal_getXay(diagonal) - 1);
                 assert(j != NULL);
@@ -756,7 +693,7 @@ stList *getAlignedPairsWithBanding(stList *anchorPairs, const SymbolString sX, c
                     assert(dpMatrix_getDiagonal(forwardDpMatrix, diagonal_getXay(diagonal2)) != NULL);
                     assert(dpMatrix_getDiagonal(forwardDpMatrix, diagonal_getXay(diagonal2)-1) != NULL);
                     assert(dpMatrix_getDiagonal(backwardDpMatrix, diagonal_getXay(diagonal2)) != NULL);
-                    if(diagonal_getXay(diagonal2) != diagonalNumber) {
+                    if (diagonal_getXay(diagonal2) != diagonalNumber) {
                         assert(dpMatrix_getDiagonal(backwardDpMatrix, diagonal_getXay(diagonal2)+1) != NULL);
                     }
                     if (totalPosteriorCalculationsThisTraceback++ % 10 == 0) {
@@ -769,8 +706,8 @@ stList *getAlignedPairsWithBanding(stList *anchorPairs, const SymbolString sX, c
                         totalProbability = newTotalProbability;
                     }
 
-                    diagonalCalculationPosteriorMatchProbs(diagonal_getXay(diagonal2), forwardDpMatrix,
-                            backwardDpMatrix, p->threshold, totalProbability, alignedPairs);
+                    diagonalPosteriorProbFn(diagonal_getXay(diagonal2), forwardDpMatrix, backwardDpMatrix, sX, sY,
+                            totalProbability, p, extraArgs);
 
                     if (diagonal_getXay(diagonal2) < tracedBackFrom || atEnd) {
                         dpMatrix_deleteDiagonal(forwardDpMatrix, diagonal_getXay(diagonal2)); //Delete forward diagonal after last access in posterior calculation
@@ -806,8 +743,6 @@ stList *getAlignedPairsWithBanding(stList *anchorPairs, const SymbolString sX, c
     dpMatrix_destruct(backwardDpMatrix);
     bandIterator_destruct(forwardBandIterator);
     band_destruct(band);
-
-    return alignedPairs;
 }
 
 ///////////////////////////////////
@@ -834,12 +769,12 @@ static char *makeUpperCase(const char *s, int64_t l) {
 
 static void writeSequenceToFile(char *file, const char *name, const char *sequence) {
     FILE *fileHandle = fopen(file, "w");
-    fastaWrite((char *)sequence, (char *)name, fileHandle);
+    fastaWrite((char *) sequence, (char *) name, fileHandle);
     fclose(fileHandle);
 }
 
 stList *convertPairwiseForwardStrandAlignmentToAnchorPairs(struct PairwiseAlignment *pA, int64_t trim) {
-    stList *alignedPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct); //the list to put the output in
+    stList *alignedPairs = stList_construct3(0, (void (*)(void *)) stIntTuple_destruct); //the list to put the output in
     int64_t j = pA->start1;
     int64_t k = pA->start2;
     assert(pA->strand1);
@@ -848,7 +783,7 @@ stList *convertPairwiseForwardStrandAlignmentToAnchorPairs(struct PairwiseAlignm
         struct AlignmentOperation *op = pA->operationList->list[i];
         if (op->opType == PAIRWISE_MATCH) {
             for (int64_t l = trim; l < op->length - trim; l++) {
-                stList_append(alignedPairs, stIntTuple_construct2( j + l, k + l));
+                stList_append(alignedPairs, stIntTuple_construct2(j + l, k + l));
             }
         }
         if (op->opType != PAIRWISE_INDEL_Y) {
@@ -869,7 +804,7 @@ stList *getBlastPairs(const char *sX, const char *sY, int64_t lX, int64_t lY, in
      * Uses lastz to compute a bunch of monotonically increasing pairs such that for any pair of consecutive pairs in the list
      * (x1, y1) (x2, y2) in the set of aligned pairs x1 appears before x2 in X and y1 appears before y2 in Y.
      */
-    stList *alignedPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct); //the list to put the output in
+    stList *alignedPairs = stList_construct3(0, (void (*)(void *)) stIntTuple_destruct); //the list to put the output in
 
     if (lX == 0 || lY == 0) {
         return alignedPairs;
@@ -891,12 +826,15 @@ stList *getBlastPairs(const char *sX, const char *sY, int64_t lX, int64_t lY, in
     if (lY > 1000) {
         tempFile2 = getTempFile();
         writeSequenceToFile(tempFile2, "b", sY);
-        command = stString_print("cactus_lastz --hspthresh=800 --chain --strand=plus --gapped --format=cigar --ambiguous=iupac,100,100 %s %s",
-                tempFile1, tempFile2);
+        command =
+                stString_print(
+                        "cactus_lastz --hspthresh=800 --chain --strand=plus --gapped --format=cigar --ambiguous=iupac,100,100 %s %s",
+                        tempFile1, tempFile2);
     } else {
-        command = stString_print(
-                "echo '>b\n%s\n' | cactus_lastz --hspthresh=800 --chain --strand=plus --gapped --format=cigar --ambiguous=iupac,100,100 %s",
-                sY, tempFile1);
+        command =
+                stString_print(
+                        "echo '>b\n%s\n' | cactus_lastz --hspthresh=800 --chain --strand=plus --gapped --format=cigar --ambiguous=iupac,100,100 %s",
+                        sY, tempFile1);
     }
     FILE *fileHandle = popen(command, "r");
     if (fileHandle == NULL) {
@@ -915,7 +853,8 @@ stList *getBlastPairs(const char *sX, const char *sY, int64_t lX, int64_t lY, in
     }
     int64_t status = pclose(fileHandle);
     if (status != 0) {
-        st_errAbort("pclose failed when getting rid of lastz pipe with value %" PRIi64 " and command %s", status, command);
+        st_errAbort("pclose failed when getting rid of lastz pipe with value %" PRIi64 " and command %s", status,
+                command);
     }
     free(command);
 
@@ -945,18 +884,16 @@ static void convertBlastPairs(stList *alignedPairs2, int64_t offsetX, int64_t of
         stIntTuple *i = stList_get(alignedPairs2, k);
         assert(stIntTuple_length(i) == 2);
         stList_set(alignedPairs2, k,
-                stIntTuple_construct2( stIntTuple_get(i, 0) + offsetX, stIntTuple_get(i, 1) + offsetY));
+                stIntTuple_construct2(stIntTuple_get(i, 0) + offsetX, stIntTuple_get(i, 1) + offsetY));
         stIntTuple_destruct(i);
     }
 }
 
 stList *filterToRemoveOverlap(stList *sortedOverlappingPairs) {
-    stList *nonOverlappingPairs = stList_construct3(0,
-            (void(*)(void *)) stIntTuple_destruct);
+    stList *nonOverlappingPairs = stList_construct3(0, (void (*)(void *)) stIntTuple_destruct);
 
     //Traverse backwards
-    stSortedSet *set = stSortedSet_construct3(
-            (int(*)(const void *, const void *)) stIntTuple_cmpFn, NULL);
+    stSortedSet *set = stSortedSet_construct3((int (*)(const void *, const void *)) stIntTuple_cmpFn, NULL);
     int64_t pX = INT64_MAX, pY = INT64_MAX;
     for (int64_t i = stList_length(sortedOverlappingPairs) - 1; i >= 0; i--) {
         stIntTuple *pair = stList_get(sortedOverlappingPairs, i);
@@ -978,11 +915,11 @@ stList *filterToRemoveOverlap(stList *sortedOverlappingPairs) {
         int64_t x = stIntTuple_get(pair, 0);
         int64_t y = stIntTuple_get(pair, 1);
         if (x > pX && y > pY && stSortedSet_search(set, pair) != NULL) {
-            stList_append(nonOverlappingPairs, stIntTuple_construct2( x, y));
+            stList_append(nonOverlappingPairs, stIntTuple_construct2(x, y));
         }
         //Check things are sorted in the input
         assert(x >= pX);
-        if(x == pX) {
+        if (x == pX) {
             assert(y >= pY2);
         }
         pY2 = y;
@@ -1005,7 +942,7 @@ static void getBlastPairsForPairwiseAlignmentParametersP(const char *sX, const c
         char *sX2 = stString_getSubString(sX, pX, lX2);
         char *sY2 = stString_getSubString(sY, pY, lY2);
         stList *unfilteredBottomLevelAnchorPairs = getBlastPairs(sX2, sY2, lX2, lY2, p->constraintDiagonalTrim, 0);
-        stList_sort(unfilteredBottomLevelAnchorPairs, (int(*)(const void *, const void *)) stIntTuple_cmpFn);
+        stList_sort(unfilteredBottomLevelAnchorPairs, (int (*)(const void *, const void *)) stIntTuple_cmpFn);
         stList *bottomLevelAnchorPairs = filterToRemoveOverlap(unfilteredBottomLevelAnchorPairs);
         st_logDebug("Got %" PRIi64 " bottom level anchor pairs, which reduced to %" PRIi64 " after filtering \n",
                 stList_length(unfilteredBottomLevelAnchorPairs), stList_length(bottomLevelAnchorPairs));
@@ -1026,7 +963,7 @@ stList *getBlastPairsForPairwiseAlignmentParameters(const char *sX, const char *
     }
     //Anchor pairs
     stList *unfilteredTopLevelAnchorPairs = getBlastPairs(sX, sY, lX, lY, p->constraintDiagonalTrim, 1);
-    stList_sort(unfilteredTopLevelAnchorPairs, (int(*)(const void *, const void *)) stIntTuple_cmpFn);
+    stList_sort(unfilteredTopLevelAnchorPairs, (int (*)(const void *, const void *)) stIntTuple_cmpFn);
     stList *topLevelAnchorPairs = filterToRemoveOverlap(unfilteredTopLevelAnchorPairs);
     st_logDebug("Got %" PRIi64 " top level anchor pairs, which reduced to %" PRIi64 " after filtering \n",
             stList_length(unfilteredTopLevelAnchorPairs), stList_length(topLevelAnchorPairs));
@@ -1034,7 +971,7 @@ stList *getBlastPairsForPairwiseAlignmentParameters(const char *sX, const char *
 
     int64_t pX = 0;
     int64_t pY = 0;
-    stList *combinedAnchorPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+    stList *combinedAnchorPairs = stList_construct3(0, (void (*)(void *)) stIntTuple_destruct);
     for (int64_t i = 0; i < stList_length(topLevelAnchorPairs); i++) {
         stIntTuple *anchorPair = stList_get(topLevelAnchorPairs, i);
         int64_t x = stIntTuple_get(anchorPair, 0);
@@ -1069,11 +1006,12 @@ static void getSplitPointsP(int64_t *x1, int64_t *y1, int64_t x2, int64_t y2, in
     int64_t lY2 = y3 - y2;
     int64_t matrixSize = lX2 * lY2;
     if (matrixSize > splitMatrixBiggerThanThis) {
-        st_logDebug("Split point found at x1: %" PRIi64 " x2: %" PRIi64 " y1: %" PRIi64 " y2: %" PRIi64 "\n", x2, x3, y2, y3);
+        st_logDebug("Split point found at x1: %" PRIi64 " x2: %" PRIi64 " y1: %" PRIi64 " y2: %" PRIi64 "\n", x2, x3,
+                y2, y3);
         int64_t maxSequenceLength = sqrt(splitMatrixBiggerThanThis);
         int64_t hX = lX2 / 2 > maxSequenceLength ? maxSequenceLength : lX2 / 2;
         int64_t hY = lY2 / 2 > maxSequenceLength ? maxSequenceLength : lY2 / 2;
-        stList_append(splitPoints, stIntTuple_construct4( *x1, *y1, x2 + hX, y2 + hY));
+        stList_append(splitPoints, stIntTuple_construct4(*x1, *y1, x2 + hX, y2 + hY));
         *x1 = x3 - hX;
         *y1 = y3 - hY;
     }
@@ -1083,7 +1021,7 @@ stList *getSplitPoints(stList *anchorPairs, int64_t lX, int64_t lY, int64_t spli
     int64_t x1 = 0, y1 = 0, x2 = 0, y2 = 0;
     assert(lX >= 0);
     assert(lY >= 0);
-    stList *splitPoints = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+    stList *splitPoints = stList_construct3(0, (void (*)(void *)) stIntTuple_destruct);
     for (int64_t i = 0; i < stList_length(anchorPairs); i++) {
         stIntTuple *anchorPair = stList_get(anchorPairs, i);
         int64_t x3 = stIntTuple_get(anchorPair, 0), y3 = stIntTuple_get(anchorPair, 1);
@@ -1096,10 +1034,11 @@ stList *getSplitPoints(stList *anchorPairs, int64_t lX, int64_t lY, int64_t spli
         y2 = y3 + 1;
     }
     getSplitPointsP(&x1, &y1, x2, y2, lX, lY, splitPoints, splitMatrixBiggerThanThis);
-    stList_append(splitPoints, stIntTuple_construct4( x1, y1, lX, lY));
+    stList_append(splitPoints, stIntTuple_construct4(x1, y1, lX, lY));
 
     if (stList_length(splitPoints) > 1) {
-        st_logDebug("For sequences of length %" PRIi64 " and %" PRIi64 " we got %" PRIi64 " splits\n", lX, lY, stList_length(splitPoints));
+        st_logDebug("For sequences of length %" PRIi64 " and %" PRIi64 " we got %" PRIi64 " splits\n", lX, lY,
+                stList_length(splitPoints));
     }
     return splitPoints;
 }
@@ -1111,20 +1050,20 @@ static void convertAlignedPairs(stList *alignedPairs2, int64_t offsetX, int64_t 
     for (int64_t k = 0; k < stList_length(alignedPairs2); k++) {
         stIntTuple *i = stList_get(alignedPairs2, k);
         assert(stIntTuple_length(i) == 3);
-        stList_set(
-                alignedPairs2,
-                k,
-                stIntTuple_construct3( stIntTuple_get(i, 0), stIntTuple_get(i, 1) + offsetX,
+        stList_set(alignedPairs2, k,
+                stIntTuple_construct3(stIntTuple_get(i, 0), stIntTuple_get(i, 1) + offsetX,
                         stIntTuple_get(i, 2) + offsetY));
         stIntTuple_destruct(i);
     }
 }
 
-stList *splitAlignmentsByLargeGaps(stList *anchorPairs, const char *sX, const char *sY, int64_t lX, int64_t lY,
-        PairwiseAlignmentParameters *p,  bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd) {
+void getPosteriorProbsWithBandingSplittingAlignmentsByLargeGaps(stList *anchorPairs, const char *sX, const char *sY,
+        int64_t lX, int64_t lY, PairwiseAlignmentParameters *p, bool alignmentHasRaggedLeftEnd,
+        bool alignmentHasRaggedRightEnd,
+        void (*diagonalPosteriorProbFn)(int64_t, DpMatrix *, DpMatrix *, const SymbolString, const SymbolString, double,
+                PairwiseAlignmentParameters *, void *), void (*coordinateCorrectionFn)(), void *extraArgs) {
     stList *splitPoints = getSplitPoints(anchorPairs, lX, lY, p->splitMatrixBiggerThanThis);
     int64_t j = 0;
-    stList *alignedPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
     //Now to the actual alignments
     for (int64_t i = 0; i < stList_length(splitPoints); i++) {
         stIntTuple *subRegion = stList_get(splitPoints, i);
@@ -1140,7 +1079,7 @@ stList *splitAlignmentsByLargeGaps(stList *anchorPairs, const char *sX, const ch
         SymbolString sY3 = symbolString_construct(sY2, y2 - y1);
 
         //List of anchor pairs
-        stList *subListOfAnchorPoints = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+        stList *subListOfAnchorPoints = stList_construct3(0, (void (*)(void *)) stIntTuple_destruct);
         while (j < stList_length(anchorPairs)) {
             stIntTuple *anchorPair = stList_get(anchorPairs, j);
             int64_t x = stIntTuple_get(anchorPair, 0);
@@ -1152,18 +1091,18 @@ stList *splitAlignmentsByLargeGaps(stList *anchorPairs, const char *sX, const ch
             }
             assert(x >= x1 && x < x2);
             assert(y >= y1 && y < y2);
-            stList_append(subListOfAnchorPoints, stIntTuple_construct2( x - x1, y - y1));
+            stList_append(subListOfAnchorPoints, stIntTuple_construct2(x - x1, y - y1));
             j++;
         }
 
         //Make the alignments
-        stList *subListOfAlignedPairs = getAlignedPairsWithBanding(subListOfAnchorPoints, sX3, sY3, p, (alignmentHasRaggedLeftEnd || i > 0), (alignmentHasRaggedRightEnd || i < stList_length(splitPoints)-1));
-        convertAlignedPairs(subListOfAlignedPairs, x1, y1); //Shift back the aligned pairs to the appropriate coordinates
-        stList_appendAll(alignedPairs, subListOfAlignedPairs);
+        getPosteriorProbsWithBanding(subListOfAnchorPoints, sX3, sY3, p, (alignmentHasRaggedLeftEnd || i > 0),
+                (alignmentHasRaggedRightEnd || i < stList_length(splitPoints) - 1), diagonalPosteriorProbFn, extraArgs);
+        if (coordinateCorrectionFn != NULL) {
+            coordinateCorrectionFn(x1, y1, extraArgs);
+        }
 
         //Clean up
-        stList_setDestructor(subListOfAlignedPairs, NULL);
-        stList_destruct(subListOfAlignedPairs);
         stList_destruct(subListOfAnchorPoints);
         free(sX2);
         free(sY2);
@@ -1172,8 +1111,91 @@ stList *splitAlignmentsByLargeGaps(stList *anchorPairs, const char *sX, const ch
     }
     assert(j == stList_length(anchorPairs));
     stList_destruct(splitPoints);
-    st_logDebug("Found %" PRIi64 " aligned pairs for seqs of %" PRIi64 " and %" PRIi64 " length\n", stList_length(alignedPairs), lX, lY);
-    return alignedPairs;
+}
+
+///////////////////////////////////
+///////////////////////////////////
+//Em training objects.
+///////////////////////////////////
+///////////////////////////////////
+
+Hmm *hmm_constructEmpty(double pseudoExpectation) {
+    Hmm *hE = st_malloc(sizeof(Hmm));
+    hE->transitions = st_malloc(STATE_NUMBER * STATE_NUMBER * sizeof(double));
+    for (int64_t i = 0; i < STATE_NUMBER * STATE_NUMBER; i++) {
+        hE->transitions[i] = pseudoExpectation;
+    }
+    hE->likelihood = 0.0;
+    return hE;
+}
+
+void hmm_destruct(Hmm *hmm) {
+    free(hmm->transitions);
+    free(hmm);
+}
+
+void hmm_addToTransitionExpectation(Hmm *hmm, int64_t from, int64_t to, double p) {
+    hmm->transitions[from * STATE_NUMBER + to] += p;
+}
+
+void hmm_setTransition(Hmm *hmm, int64_t from, int64_t to, double p) {
+    hmm->transitions[from * STATE_NUMBER + to] = p;
+}
+
+double hmm_getTransition(Hmm *hmm, int64_t from, int64_t to) {
+    return hmm->transitions[from * STATE_NUMBER + to];
+}
+
+void hmm_normalise(Hmm *hmm) {
+    for (int64_t from = 0; from < STATE_NUMBER; from++) {
+        double total = 0.0;
+        for (int64_t to = 0; to < STATE_NUMBER; to++) {
+            total += hmm_getTransition(hmm, from, to);
+        }
+        for (int64_t to = 0; to < STATE_NUMBER; to++) {
+            hmm_setTransition(hmm, from, to, hmm_getTransition(hmm, from, to) / total);
+        }
+    }
+}
+
+void hmm_randomise(Hmm *hmm) {
+    for (int64_t from = 0; from < STATE_NUMBER; from++) {
+        for (int64_t to = 0; to < STATE_NUMBER; to++) {
+            hmm_setTransition(hmm, from, to, st_random());
+        }
+    }
+    hmm_normalise(hmm);
+}
+
+void hmm_write(Hmm *hmm, FILE *fileHandle) {
+    for (int64_t i = 0; i < STATE_NUMBER * STATE_NUMBER; i++) {
+        fprintf(fileHandle, "%f\t", hmm->transitions[i]);
+    }
+    fprintf(fileHandle, "%f\n", hmm->likelihood);
+}
+
+Hmm *hmm_loadFromFile(const char *fileName) {
+    Hmm *hmm = hmm_constructEmpty(0.0);
+    FILE *fH = fopen(fileName, "r");
+    char *string = stFile_getLineFromFile(fH);
+    stList *tokens = stString_split(string);
+    if (stList_length(tokens) != STATE_NUMBER * STATE_NUMBER + 1) {
+        st_errAbort(
+                "Got the wrong number of transitions in the input state machine file %s, got %" PRIi64 " instead of %" PRIi64 "\n",
+                fileName, stList_length(tokens), STATE_NUMBER * STATE_NUMBER + 1);
+    }
+    for (int64_t i = 0; i < STATE_NUMBER * STATE_NUMBER; i++) {
+        int64_t j = sscanf(stList_get(tokens, i), "%lf", &(hmm->transitions[i]));
+        if (j != 1) {
+            st_errAbort("Failed to parse transition prob (float) from string: %s\n", string);
+        }
+    }
+    int64_t j = sscanf(stList_get(tokens, stList_length(tokens) - 1), "%lf", &(hmm->likelihood));
+    if (j != 1) {
+        st_errAbort("Failed to parse likelihood (float) from string: %s\n", string);
+    }
+    fclose(fH);
+    return hmm;
 }
 
 ///////////////////////////////////
@@ -1200,18 +1222,57 @@ void pairwiseAlignmentBandingParameters_destruct(PairwiseAlignmentParameters *p)
     free(p);
 }
 
-stList *getAlignedPairsUsingAnchors(const char *sX, const char *sY, stList *anchorPairs, PairwiseAlignmentParameters *p, bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd) {
+static void alignedPairCoordinateCorrectionFn(int64_t offsetX, int64_t offsetY, void *extraArgs) {
+    stList *subListOfAlignedPairs = ((void **) extraArgs)[0];
+    stList *alignedPairs = ((void **) extraArgs)[1];
+    convertAlignedPairs(subListOfAlignedPairs, offsetX, offsetY); //Shift back the aligned pairs to the appropriate coordinates
+    while (stList_length(subListOfAlignedPairs) > 0) {
+        stList_append(alignedPairs, stList_pop(subListOfAlignedPairs));
+    }
+}
+
+stList *getAlignedPairsUsingAnchors(const char *sX, const char *sY, stList *anchorPairs, PairwiseAlignmentParameters *p,
+        bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd) {
     const int64_t lX = strlen(sX);
     const int64_t lY = strlen(sY);
-    stList *alignedPairs = splitAlignmentsByLargeGaps(anchorPairs, sX, sY, lX, lY, p, alignmentHasRaggedLeftEnd, alignmentHasRaggedRightEnd);
+
+    //This list of pairs to be returned. Not in any order, but points must be unique
+    stList *subListOfAlignedPairs = stList_construct();
+    stList *alignedPairs = stList_construct3(0, (void (*)(void *)) stIntTuple_destruct);
+    void *extraArgs[2] = { subListOfAlignedPairs, alignedPairs };
+
+    getPosteriorProbsWithBandingSplittingAlignmentsByLargeGaps(anchorPairs, sX, sY, lX, lY, p,
+            alignmentHasRaggedLeftEnd, alignmentHasRaggedRightEnd, diagonalCalculationPosteriorMatchProbs,
+            alignedPairCoordinateCorrectionFn, extraArgs);
+
+    assert(stList_length(subListOfAlignedPairs) == 0);
+    stList_destruct(subListOfAlignedPairs);
+
     return alignedPairs;
 }
 
-stList *getAlignedPairs(const char *sX, const char *sY, PairwiseAlignmentParameters *p, bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd) {
+stList *getAlignedPairs(const char *sX, const char *sY, PairwiseAlignmentParameters *p, bool alignmentHasRaggedLeftEnd,
+        bool alignmentHasRaggedRightEnd) {
     stList *anchorPairs = getBlastPairsForPairwiseAlignmentParameters(sX, sY, strlen(sX), strlen(sY), p);
-    stList *alignedPairs = getAlignedPairsUsingAnchors(sX, sY, anchorPairs, p, alignmentHasRaggedLeftEnd, alignmentHasRaggedRightEnd);
+    stList *alignedPairs = getAlignedPairsUsingAnchors(sX, sY, anchorPairs, p, alignmentHasRaggedLeftEnd,
+            alignmentHasRaggedRightEnd);
     stList_destruct(anchorPairs);
     return alignedPairs;
+}
+
+void getExpectationsUsingAnchors(Hmm *hmmExpectations, const char *sX, const char *sY, stList *anchorPairs,
+        PairwiseAlignmentParameters *p, bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd) {
+    getPosteriorProbsWithBandingSplittingAlignmentsByLargeGaps(anchorPairs, sX, sY, strlen(sX), strlen(sY), p,
+            alignmentHasRaggedLeftEnd, alignmentHasRaggedRightEnd, diagonalCalculationExpectations, NULL,
+            hmmExpectations);
+}
+
+void getExpectations(Hmm *hmmExpectations, const char *sX, const char *sY, PairwiseAlignmentParameters *p,
+        bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd) {
+    stList *anchorPairs = getBlastPairsForPairwiseAlignmentParameters(sX, sY, strlen(sX), strlen(sY), p);
+    getExpectationsUsingAnchors(hmmExpectations, sX, sY, anchorPairs, p, alignmentHasRaggedLeftEnd,
+            alignmentHasRaggedRightEnd);
+    stList_destruct(anchorPairs);
 }
 
 stList *filterPairwiseAlignmentToMakePairsOrdered(stList *alignedPairs, float gapGamma) {
@@ -1219,23 +1280,22 @@ stList *filterPairwiseAlignmentToMakePairsOrdered(stList *alignedPairs, float ga
      * A quick way to get a consistent set of pairs. The list of aligned pairs is modified
      * so that all the consistent pairs are in the list aligned pairs, and the discordant pairs are in a separate list.
      */
-    stList_sort(alignedPairs, (int(*)(const void *, const void *)) stIntTuple_cmpFn);
+    stList_sort(alignedPairs, (int (*)(const void *, const void *)) stIntTuple_cmpFn);
     stPosetAlignment *posetAlignment = stPosetAlignment_construct(2);
-    stList *discardedAlignedPairs = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
+    stList *discardedAlignedPairs = stList_construct3(0, (void (*)(void *)) stIntTuple_destruct);
     stList *l = stList_construct();
-    while(stList_length(alignedPairs) > 0) {
+    while (stList_length(alignedPairs) > 0) {
         stIntTuple *alignedPair = stList_pop(alignedPairs);
-        if (((double)stIntTuple_get(alignedPair, 0)) / PAIR_ALIGNMENT_PROB_1 >= gapGamma &&
-                stPosetAlignment_add(posetAlignment, 0, stIntTuple_get(alignedPair, 1), 1,
+        if (((double) stIntTuple_get(alignedPair, 0)) / PAIR_ALIGNMENT_PROB_1 >= gapGamma
+                && stPosetAlignment_add(posetAlignment, 0, stIntTuple_get(alignedPair, 1), 1,
                         stIntTuple_get(alignedPair, 2))) {
             stList_append(l, alignedPair);
-        }
-        else {
+        } else {
             stList_append(discardedAlignedPairs, alignedPair);
         }
     }
     stPosetAlignment_destruct(posetAlignment);
-    stList_appendAll(alignedPairs,l);
+    stList_appendAll(alignedPairs, l);
     stList_destruct(l);
     return discardedAlignedPairs;
 }

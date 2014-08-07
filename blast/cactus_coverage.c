@@ -196,7 +196,8 @@ int main(int argc, char *argv[])
                               array);
             }
             fillCoverage(pA, 1, array);
-        } else if(outputOnContig2 && (lengthPtr = stHash_search(sequenceLengths, pA->contig2))) {
+        }
+        if(outputOnContig2 && (lengthPtr = stHash_search(sequenceLengths, pA->contig2))) {
             //contig 2 is present in the fasta
             uint16_t *array;
             if((array = stHash_search(sequenceCoverage, pA->contig2)) == NULL) {
