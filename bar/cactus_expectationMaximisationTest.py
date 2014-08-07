@@ -55,7 +55,6 @@ class TestCase(unittest.TestCase):
     def testCactusExpectationMaximisationMultipleTrials(self):
         """Runs cactus expectation-maximisation with multiple different trials.
         """
-        return
         for seqFile1, seqFile2 in seqFilePairGenerator():
             tempDir = getTempDirectory(rootDir=os.getcwd())
             jobTreeDir = os.path.join(tempDir, "jobTree")

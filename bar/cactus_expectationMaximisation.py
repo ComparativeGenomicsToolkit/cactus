@@ -85,24 +85,28 @@ def expectationMaximisationTrials2(target, trialModels, outputModel, options):
     hmm.write(outputModel)
     target.logToMaster("Hmm with highest likelihood: %s" % hmm.likelihood)
     
-def optionsObject():
-    """Gets dictionary representing options, can be used for running pipeline from within another jobTree.
+class Options:
+    """Dictionary representing options, can be used for running pipeline from within another jobTree.
     """
-    return { "inputModel":None, "iterations":10, "trials":3, "randomStart":False, 
-            "optionsToRealign":"--diagonalExpansion=10 --splitMatrixBiggerThanThis=3000" }
+    def __init__(self):
+        self.inputModel=None
+        self.iterations=10
+        self.trials=3
+        self.randomStart=False
+        self.optionsToRealign="--diagonalExpansion=10 --splitMatrixBiggerThanThis=3000" 
 
 def main():
     #Parse the inputs args/options
     parser = OptionParser(usage="usage: workingDir [options]", version="%prog 0.1")
-    optionsObject = optionsObject()
+    options = Options()
     parser.add_option("--sequences", dest="sequences", help="Quoted list of fasta files containing sequences")
     parser.add_option("--alignments", dest="alignments", help="Cigar file ")
-    parser.add_option("--inputModel", default=optionsObject.inputModel, help="Input model")
+    parser.add_option("--inputModel", default=options.inputModel, help="Input model")
     parser.add_option("--outputModel", default="hmm.txt", help="File to write the model in")
-    parser.add_option("--iterations", default=optionsObject.iterations, help="Number of iterations of EM", type=int)
-    parser.add_option("--trials", default=optionsObject.trials, help="Number of independent EM trials. The model with the highest likelihood will be reported. Will only work if randomStart=True", type=int)
-    parser.add_option("--randomStart", default=optionsObject.randomStart, help="Iterate start model with small random values, else all values are equal", action="store_true")
-    parser.add_option("--optionsToRealign", default=optionsObject.optionsToRealign, help="Further options to pass to cactus_realign when computing expectation values, should be passed as a quoted string")
+    parser.add_option("--iterations", default=options.iterations, help="Number of iterations of EM", type=int)
+    parser.add_option("--trials", default=options.trials, help="Number of independent EM trials. The model with the highest likelihood will be reported. Will only work if randomStart=True", type=int)
+    parser.add_option("--randomStart", default=options.randomStart, help="Iterate start model with small random values, else all values are equal", action="store_true")
+    parser.add_option("--optionsToRealign", default=options.optionsToRealign, help="Further options to pass to cactus_realign when computing expectation values, should be passed as a quoted string")
     
     Stack.addJobTreeOptions(parser)
     options, args = parser.parse_args()
