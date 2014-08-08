@@ -32,7 +32,7 @@ class TestCase(unittest.TestCase):
             runCactusExpectationMaximisation(sequenceFiles=[ seqFile1, seqFile2 ], 
                                              alignmentsFile=alignmentsFile, outputModelFile=outputModelFile, 
                                              jobTreeDir=jobTreeDir,
-                                             iterations=1, trials=1, randomStart=True, logLevel=getLogLevelString(),
+                                             iterations=1, trials=1, randomStart=False, logLevel=getLogLevelString(),
                                              optionsToRealign="--diagonalExpansion=5 --splitMatrixBiggerThanThis=100")
             hmm = Hmm()
             hmm.addExpectationsFile(outputModelFile)
