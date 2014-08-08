@@ -14,7 +14,7 @@ class Hmm:
     def __init__(self, stateNumber=5):
         self.stateNumber = stateNumber
         self.transitions = [0.0] * stateNumber**2
-        self.likelihood = 5.0
+        self.likelihood = 0.0
     
     def write(self, file):
         f = open(file, 'w')
@@ -45,6 +45,11 @@ class Hmm:
         """
         self.transitions = map(lambda x : random.random(), range(self.stateNumber*self.stateNumber))
         self.normalise()
+        
+    def equalise(self):
+        """Initialise the hmm with all equal probabilities.
+        """
+        self.transitions = [1.0/self.stateNumber] * (self.stateNumber**2)
 
 def expectationMaximisation(target, sequences, alignments, outputModel, options):
     #Iteratively run cactus realign to get expectations and load model.
@@ -56,6 +61,8 @@ def expectationMaximisation(target, sequences, alignments, outputModel, options)
     elif options.randomStart: #Make random parameters
         target.logToMaster("Using random starting parameters")
         hmm.randomise()
+    else:
+        hmm.equalise()
     for iteration in xrange(options.iterations):
         #Temp file to store model
         modelsFile = os.path.join(target.getLocalTempDir(), "model.txt")
@@ -68,6 +75,7 @@ def expectationMaximisation(target, sequences, alignments, outputModel, options)
         hmm.normalise()
         #Do some logging
         target.logToMaster("After %i iteration got likelihood: %s" % (iteration, hmm.likelihood))
+    logger.info("The output file %s" % outputModel)
     hmm.write(outputModel)
     
 def expectationMaximisationTrials(target, sequences, alignments, outputModel, options):
