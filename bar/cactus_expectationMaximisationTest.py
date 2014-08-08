@@ -33,7 +33,7 @@ class TestCase(unittest.TestCase):
                                              alignmentsFile=alignmentsFile, outputModelFile=outputModelFile, 
                                              jobTreeDir=jobTreeDir,
                                              iterations=1, trials=1, randomStart=False, logLevel=getLogLevelString(),
-                                             optionsToRealign="--diagonalExpansion=5 --splitMatrixBiggerThanThis=100")
+                                             optionsToRealign="--diagonalExpansion=5 --splitMatrixBiggerThanThis=3000")
             hmm = Hmm()
             hmm.addExpectationsFile(outputModelFile)
             system("rm -rf %s" % jobTreeDir) #Cleanup the old jobTree

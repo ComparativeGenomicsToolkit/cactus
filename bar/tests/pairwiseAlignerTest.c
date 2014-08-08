@@ -11,7 +11,6 @@
 #include <string.h>
 #include <math.h>
 #include "randomSequences.h"
-#include "stateMachine.h"
 
 static void test_diagonal(CuTest *testCase) {
     //Construct an example diagonal.
