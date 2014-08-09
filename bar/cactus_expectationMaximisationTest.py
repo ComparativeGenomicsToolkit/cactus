@@ -20,37 +20,37 @@ class TestCase(unittest.TestCase):
         """Runs cactus expectation-maximisation. 
         """
         trial = 0
-        for seqFile1, seqFile2 in seqFilePairGenerator():
-            tempDir = getTempDirectory(rootDir=os.getcwd())
-            jobTreeDir = os.path.join(tempDir, "jobTree")
-            alignmentsFile = os.path.join(tempDir, "alignments.cigars")
-            computeAlignments(seqFile1, seqFile2, alignmentsFile)
-            logger.info("Computed alignments for seqs %s and %s" % (seqFile1, seqFile2))
-            outputModelFile = os.path.join(tempDir, "outputModel.txt")
-            #First run the script to generate a model and do one iteration of EM to 
-            #get the likelihood to compare with the final likelihood
-            runCactusExpectationMaximisation(sequenceFiles=[ seqFile1, seqFile2 ], 
-                                             alignmentsFile=alignmentsFile, outputModelFile=outputModelFile, 
-                                             jobTreeDir=jobTreeDir,
-                                             iterations=1, trials=1, randomStart=False, logLevel=getLogLevelString(),
-                                             optionsToRealign="--diagonalExpansion=5 --splitMatrixBiggerThanThis=3000")
-            hmm = Hmm()
-            hmm.addExpectationsFile(outputModelFile)
-            system("rm -rf %s" % jobTreeDir) #Cleanup the old jobTree
-            logger.info("For trial %s the likelihood after 1 iteration of EM is %s" % (trial, hmm.likelihood))
-            iterations = 5
-            runCactusExpectationMaximisation(sequenceFiles=[ seqFile1, seqFile2 ], 
-                                             alignmentsFile=alignmentsFile, outputModelFile=outputModelFile, jobTreeDir=jobTreeDir,
-                                             optionsToRealign="--diagonalExpansion=5 --splitMatrixBiggerThanThis=100",
-                                             iterations=iterations, inputModelFile=outputModelFile, logLevel=getLogLevelString())
-            hmm2 = Hmm()
-            hmm2.addExpectationsFile(outputModelFile)
-            logger.info("For trial %s the likelihood after a further %s iterations of EM is %s" % (trial, iterations, hmm2.likelihood))
-            self.assertTrue(hmm.likelihood < hmm2.likelihood)
-            hmm2.normalise()
-            logger.info("Final transitions: %s" % " ".join(map(str, hmm2.transitions)))
-            system("rm -rf %s" % tempDir)
-            trial += 1
+        for modelType in ("fiveState", "threeState", "threeStateAsymmetric"):
+            for seqFile1, seqFile2 in seqFilePairGenerator():
+                tempDir = getTempDirectory(rootDir=os.getcwd())
+                jobTreeDir = os.path.join(tempDir, "jobTree")
+                alignmentsFile = os.path.join(tempDir, "alignments.cigars")
+                computeAlignments(seqFile1, seqFile2, alignmentsFile)
+                logger.info("Computed alignments for seqs %s and %s" % (seqFile1, seqFile2))
+                outputModelFile = os.path.join(tempDir, "outputModel.txt")
+                #First run the script to generate a model and do one iteration of EM to 
+                #get the likelihood to compare with the final likelihood
+                runCactusExpectationMaximisation(sequenceFiles=[ seqFile1, seqFile2 ], 
+                                                 alignmentsFile=alignmentsFile, outputModelFile=outputModelFile, 
+                                                 modelType=modelType,
+                                                 jobTreeDir=jobTreeDir,
+                                                 iterations=1, trials=1, randomStart=False, logLevel=getLogLevelString(),
+                                                 optionsToRealign="--diagonalExpansion=5 --splitMatrixBiggerThanThis=3000")
+                hmm = Hmm.loadHmm(outputModelFile)
+                system("rm -rf %s" % jobTreeDir) #Cleanup the old jobTree
+                logger.info("For trial %s the likelihood after 1 iteration of EM is %s" % (trial, hmm.likelihood))
+                iterations = 5
+                runCactusExpectationMaximisation(sequenceFiles=[ seqFile1, seqFile2 ], 
+                                                 alignmentsFile=alignmentsFile, outputModelFile=outputModelFile, jobTreeDir=jobTreeDir,
+                                                 optionsToRealign="--diagonalExpansion=5 --splitMatrixBiggerThanThis=100",
+                                                 iterations=iterations, inputModelFile=outputModelFile, logLevel=getLogLevelString())
+                hmm2 = Hmm.loadHmm(outputModelFile)
+                logger.info("For trial %s the likelihood after a further %s iterations of EM is %s" % (trial, iterations, hmm2.likelihood))
+                self.assertTrue(hmm.likelihood < hmm2.likelihood)
+                hmm2.normalise()
+                logger.info("Final transitions: %s" % " ".join(map(str, hmm2.transitions)))
+                system("rm -rf %s" % tempDir)
+                trial += 1
     
     def testCactusExpectationMaximisationMultipleTrials(self):
         """Runs cactus expectation-maximisation with multiple different trials.
@@ -70,8 +70,7 @@ class TestCase(unittest.TestCase):
                                              trials=3,
                                              iterations=5, randomStart=True, logLevel=getLogLevelString(),
                                              optionsToRealign="--diagonalExpansion=5 --splitMatrixBiggerThanThis=100")
-            hmm = Hmm()
-            hmm.addExpectationsFile(outputModelFile)
+            hmm = Hmm.loadHmm(outputModelFile)
             logger.info("After multiple trials and iterations of EM the best likelihood found was %s" % hmm.likelihood)
             system("rm -rf %s" % tempDir)
 

@@ -329,6 +329,7 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
 
 def runCactusExpectationMaximisation(sequenceFiles, alignmentsFile, outputModelFile,
                                      inputModelFile=None, 
+                                     modelType=None,
                                      jobTreeDir=None,
                                      iterations=None, randomStart=None, 
                                      trials=None,
@@ -337,12 +338,13 @@ def runCactusExpectationMaximisation(sequenceFiles, alignmentsFile, outputModelF
     logLevel = getLogLevelString2(logLevel)
     jobTreeDir= nameValue("jobTree", jobTreeDir, str)
     inputModelFile= nameValue("inputModel", inputModelFile, str)
+    modelType = nameValue("modelType", modelType, str)
     iterations = nameValue("iterations", iterations, int)
     trials = nameValue("trials", trials, int)
     randomStart = nameValue("randomStart", randomStart, bool)
     optionsToRealign = nameValue("optionsToRealign", optionsToRealign, quotes=True)
-    system("cactus_expectationMaximisation --sequences '%s' --alignments %s --outputModel %s %s %s %s %s %s %s" % \
-           (" ".join(sequenceFiles), alignmentsFile, outputModelFile, iterations, trials, randomStart, jobTreeDir, inputModelFile, optionsToRealign))    
+    system("cactus_expectationMaximisation --sequences '%s' --alignments %s --outputModel %s %s %s %s %s %s %s %s" % \
+           (" ".join(sequenceFiles), alignmentsFile, outputModelFile, iterations, trials, randomStart, jobTreeDir, inputModelFile, optionsToRealign, modelType))
 
 def runCactusSecondaryDatabase(secondaryDatabaseString, create=True):
     command = "cactus_secondaryDatabase '%s' %s" % (secondaryDatabaseString, int(create))

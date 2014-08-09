@@ -151,36 +151,38 @@ static void test_symbol(CuTest *testCase) {
 }
 
 static void test_cell(CuTest *testCase) {
-    double lowerF[STATE_NUMBER], middleF[STATE_NUMBER], upperF[STATE_NUMBER], currentF[STATE_NUMBER];
-    double lowerB[STATE_NUMBER], middleB[STATE_NUMBER], upperB[STATE_NUMBER], currentB[STATE_NUMBER];
-    for (int64_t i = 0; i < STATE_NUMBER; i++) {
-        middleF[i] = state_startStateProb(i);
+    StateMachine *sM = stateMachine5_construct();
+    double lowerF[sM->stateNumber], middleF[sM->stateNumber], upperF[sM->stateNumber], currentF[sM->stateNumber];
+    double lowerB[sM->stateNumber], middleB[sM->stateNumber], upperB[sM->stateNumber], currentB[sM->stateNumber];
+    for (int64_t i = 0; i < sM->stateNumber; i++) {
+        middleF[i] = sM->startStateProb(sM, i);
         middleB[i] = LOG_ZERO;
         lowerF[i] = LOG_ZERO;
         lowerB[i] = LOG_ZERO;
         upperF[i] = LOG_ZERO;
         upperB[i] = LOG_ZERO;
         currentF[i] = LOG_ZERO;
-        currentB[i] = state_endStateProb(i);
+        currentB[i] = sM->endStateProb(sM, i);
     }
     Symbol cX = a, cY = t;
     //Do forward
-    cell_calculateForward(lowerF, NULL, NULL, middleF, cX, cY, NULL);
-    cell_calculateForward(upperF, middleF, NULL, NULL, cX, cY, NULL);
-    cell_calculateForward(currentF, lowerF, middleF, upperF, cX, cY, NULL);
+    cell_calculateForward(sM, lowerF, NULL, NULL, middleF, cX, cY, NULL);
+    cell_calculateForward(sM, upperF, middleF, NULL, NULL, cX, cY, NULL);
+    cell_calculateForward(sM, currentF, lowerF, middleF, upperF, cX, cY, NULL);
     //Do backward
-    cell_calculateBackward(currentB, lowerB, middleB, upperB, cX, cY, NULL);
-    cell_calculateBackward(upperB, middleB, NULL, NULL, cX, cY, NULL);
-    cell_calculateBackward(lowerB, NULL, NULL, middleB, cX, cY, NULL);
-    double totalProbForward = cell_dotProduct2(currentF, state_endStateProb);
-    double totalProbBackward = cell_dotProduct2(middleB, state_startStateProb);
+    cell_calculateBackward(sM, currentB, lowerB, middleB, upperB, cX, cY, NULL);
+    cell_calculateBackward(sM, upperB, middleB, NULL, NULL, cX, cY, NULL);
+    cell_calculateBackward(sM, lowerB, NULL, NULL, middleB, cX, cY, NULL);
+    double totalProbForward = cell_dotProduct2(currentF, sM, sM->endStateProb);
+    double totalProbBackward = cell_dotProduct2(middleB, sM, sM->startStateProb);
     st_logInfo("Total probability for cell test, forward %f and backward %f\n", totalProbForward, totalProbBackward);
     CuAssertDblEquals(testCase, totalProbForward, totalProbBackward, 0.00001); //Check the forward and back probabilities are about equal
 }
 
 static void test_dpDiagonal(CuTest *testCase) {
+    StateMachine *sM = stateMachine5_construct();
     Diagonal diagonal = diagonal_construct(3, -1, 1);
-    DpDiagonal *dpDiagonal = dpDiagonal_construct(diagonal);
+    DpDiagonal *dpDiagonal = dpDiagonal_construct(diagonal, sM->stateNumber);
 
     //Get cell
     double *c1 = dpDiagonal_getCell(dpDiagonal, -1);
@@ -190,11 +192,11 @@ static void test_dpDiagonal(CuTest *testCase) {
     CuAssertTrue(testCase, dpDiagonal_getCell(dpDiagonal, 3) == NULL);
     CuAssertTrue(testCase, dpDiagonal_getCell(dpDiagonal, -3) == NULL);
 
-    dpDiagonal_initialiseValues(dpDiagonal, state_endStateProb); //Test initialise values
+    dpDiagonal_initialiseValues(dpDiagonal, sM, sM->endStateProb); //Test initialise values
     double totalProb = LOG_ZERO;
-    for (int64_t i = 0; i < STATE_NUMBER; i++) {
-        CuAssertDblEquals(testCase, c1[i], state_endStateProb(i), 0.0);
-        CuAssertDblEquals(testCase, c2[i], state_endStateProb(i), 0.0);
+    for (int64_t i = 0; i < sM->stateNumber; i++) {
+        CuAssertDblEquals(testCase, c1[i], sM->endStateProb(sM, i), 0.0);
+        CuAssertDblEquals(testCase, c2[i], sM->endStateProb(sM, i), 0.0);
         totalProb = logAdd(totalProb, 2 * c1[i]);
         totalProb = logAdd(totalProb, 2 * c2[i]);
     }
@@ -210,7 +212,7 @@ static void test_dpDiagonal(CuTest *testCase) {
 
 static void test_dpMatrix(CuTest *testCase) {
     int64_t lX = 3, lY = 2;
-    DpMatrix *dpMatrix = dpMatrix_construct(lX + lY);
+    DpMatrix *dpMatrix = dpMatrix_construct(lX + lY, 5);
 
     CuAssertIntEquals(testCase, dpMatrix_getActiveDiagonalNumber(dpMatrix), 0);
 
@@ -245,8 +247,9 @@ static void test_diagonalDPCalculations(CuTest *testCase) {
     int64_t lY = strlen(sY);
     SymbolString sX2 = symbolString_construct(sX, lX);
     SymbolString sY2 = symbolString_construct(sY, lY);
-    DpMatrix *dpMatrixForward = dpMatrix_construct(lX + lY);
-    DpMatrix *dpMatrixBackward = dpMatrix_construct(lX + lY);
+    StateMachine *sM = stateMachine5_construct();
+    DpMatrix *dpMatrixForward = dpMatrix_construct(lX + lY, sM->stateNumber);
+    DpMatrix *dpMatrixBackward = dpMatrix_construct(lX + lY, sM->stateNumber);
     stList *anchorPairs = stList_construct();
     Band *band = band_construct(anchorPairs, lX, lY, 2);
     BandIterator *bandIt = bandIterator_construct(band);
@@ -258,26 +261,26 @@ static void test_diagonalDPCalculations(CuTest *testCase) {
         dpDiagonal_zeroValues(dpMatrix_createDiagonal(dpMatrixBackward, d));
         dpDiagonal_zeroValues(dpMatrix_createDiagonal(dpMatrixForward, d));
     }
-    dpDiagonal_initialiseValues(dpMatrix_getDiagonal(dpMatrixForward, 0), state_startStateProb);
-    dpDiagonal_initialiseValues(dpMatrix_getDiagonal(dpMatrixBackward, lX + lY), state_endStateProb);
+    dpDiagonal_initialiseValues(dpMatrix_getDiagonal(dpMatrixForward, 0), sM, sM->startStateProb);
+    dpDiagonal_initialiseValues(dpMatrix_getDiagonal(dpMatrixBackward, lX + lY), sM, sM->endStateProb);
 
     //Forward algorithm
     for (int64_t i = 1; i <= lX + lY; i++) {
         //Do the forward calculation
-        diagonalCalculationForward(i, dpMatrixForward, sX2, sY2);
+        diagonalCalculationForward(sM, i, dpMatrixForward, sX2, sY2);
     }
 
     //Backward algorithm
     for (int64_t i = lX + lY; i > 0; i--) {
         //Do the backward calculation
-        diagonalCalculationBackward(i, dpMatrixBackward, sX2, sY2);
+        diagonalCalculationBackward(sM, i, dpMatrixBackward, sX2, sY2);
     }
 
     //Calculate total probabilities
     double totalProbForward = cell_dotProduct2(
-            dpDiagonal_getCell(dpMatrix_getDiagonal(dpMatrixForward, lX + lY), lX - lY), state_endStateProb);
+            dpDiagonal_getCell(dpMatrix_getDiagonal(dpMatrixForward, lX + lY), lX - lY), sM, sM->endStateProb);
     double totalProbBackward = cell_dotProduct2(dpDiagonal_getCell(dpMatrix_getDiagonal(dpMatrixBackward, 0), 0),
-            state_startStateProb);
+            sM, sM->startStateProb);
     st_logInfo("Total forward and backward prob %f %f\n", (float) totalProbForward, (float) totalProbBackward);
 
     CuAssertDblEquals(testCase, totalProbForward, totalProbBackward, 0.001); //Check the forward and back probabilities are about equal
@@ -285,7 +288,7 @@ static void test_diagonalDPCalculations(CuTest *testCase) {
     //Test calculating the posterior probabilities along the diagonals of the matrix.
     for (int64_t i = 0; i <= lX + lY; i++) {
         //Calculate the total probs
-        double totalDiagonalProb = diagonalCalculationTotalProbability(i, dpMatrixForward, dpMatrixBackward, sX2, sY2);
+        double totalDiagonalProb = diagonalCalculationTotalProbability(sM, i, dpMatrixForward, dpMatrixBackward, sX2, sY2);
         CuAssertDblEquals(testCase, totalProbForward, totalDiagonalProb, 0.001); //Check the forward and back probabilities are about equal
     }
 
@@ -295,7 +298,7 @@ static void test_diagonalDPCalculations(CuTest *testCase) {
     for (int64_t i = 1; i <= lX + lY; i++) {
         PairwiseAlignmentParameters *p = pairwiseAlignmentBandingParameters_construct();
         p->threshold = 0.2;
-        diagonalCalculationPosteriorMatchProbs(i, dpMatrixForward, dpMatrixBackward, sX2, sY2, totalProbForward, p,
+        diagonalCalculationPosteriorMatchProbs(sM, i, dpMatrixForward, dpMatrixBackward, sX2, sY2, totalProbForward, p,
                 extraArgs);
         pairwiseAlignmentBandingParameters_destruct(p);
     }
@@ -377,16 +380,18 @@ static void test_getAlignedPairsWithBanding(CuTest *testCase) {
         p->traceBackDiagonals = st_randomInt(1, 10);
         p->minDiagsBetweenTraceBack = p->traceBackDiagonals + st_randomInt(2, 10);
         p->diagonalExpansion = st_randomInt(0, 10) * 2;
+        StateMachine *sM = stateMachine5_construct();
         stList *anchorPairs = getRandomAnchorPairs(lX, lY);
 
         stList *alignedPairs = stList_construct3(0, (void (*)(void *)) stIntTuple_destruct);
         void *extraArgs[1] = { alignedPairs };
-        getPosteriorProbsWithBanding(anchorPairs, sX2, sY2, p, 0, 0, diagonalCalculationPosteriorMatchProbs, extraArgs);
+        getPosteriorProbsWithBanding(sM, anchorPairs, sX2, sY2, p, 0, 0, diagonalCalculationPosteriorMatchProbs, extraArgs);
         //Check the aligned pairs.
         //Check the aligned pairs.
         checkAlignedPairs(testCase, alignedPairs, lX, lY);
 
         //Cleanup
+        stateMachine_destruct(sM);
         free(sX);
         free(sY);
         free(sX2.sequence);
@@ -593,13 +598,15 @@ static void test_getAlignedPairs(CuTest *testCase) {
 
         //Now do alignment
         PairwiseAlignmentParameters *p = pairwiseAlignmentBandingParameters_construct();
+        StateMachine *sM = stateMachine5_construct();
 
-        stList *alignedPairs = getAlignedPairs(sX, sY, p, 0, 0);
+        stList *alignedPairs = getAlignedPairs(sM, sX, sY, p, 0, 0);
 
         //Check the aligned pairs.
         checkAlignedPairs(testCase, alignedPairs, lX, lY);
 
         //Cleanup
+        stateMachine_destruct(sM);
         free(sX);
         free(sY);
         stList_destruct(alignedPairs);
@@ -619,7 +626,8 @@ static void test_getAlignedPairsWithRaggedEnds(CuTest *testCase) {
 
         //Now do alignment
         PairwiseAlignmentParameters *p = pairwiseAlignmentBandingParameters_construct();
-        stList *alignedPairs = getAlignedPairs(sX, sY, p, 1, 1);
+        StateMachine *sM = stateMachine5_construct();
+        stList *alignedPairs = getAlignedPairs(sM, sX, sY, p, 1, 1);
         stList *discardedAlignmentPairs = filterPairwiseAlignmentToMakePairsOrdered(alignedPairs, 0.2);
 
         //Check the aligned pairs.
@@ -635,6 +643,7 @@ static void test_getAlignedPairsWithRaggedEnds(CuTest *testCase) {
         }
 
         //Cleanup
+        stateMachine_destruct(sM);
         free(sX);
         free(sY);
         stList_destruct(alignedPairs);
@@ -646,14 +655,14 @@ static void test_getAlignedPairsWithRaggedEnds(CuTest *testCase) {
  * EM training tests.
  */
 
-static void test_hmm(CuTest *testCase) {
+static void test_hmm(CuTest *testCase, StateMachineType stateMachineType) {
     //Expectation object
-    Hmm *hmm = hmm_constructEmpty(0.0);
+    Hmm *hmm = hmm_constructEmpty(0.0, stateMachineType);
 
     //Add some transition expectations
-    for (int64_t from = 0; from < STATE_NUMBER; from++) {
-        for (int64_t to = 0; to < STATE_NUMBER; to++) {
-            hmm_addToTransitionExpectation(hmm, from, to, from * STATE_NUMBER + to);
+    for (int64_t from = 0; from < hmm->stateNumber; from++) {
+        for (int64_t to = 0; to < hmm->stateNumber; to++) {
+            hmm_addToTransitionExpectation(hmm, from, to, from * hmm->stateNumber + to);
         }
     }
 
@@ -670,10 +679,10 @@ static void test_hmm(CuTest *testCase) {
     stFile_rmrf(tempFile);
 
     //Check the transition expectations
-    for (int64_t from = 0; from < STATE_NUMBER; from++) {
-        for (int64_t to = 0; to < STATE_NUMBER; to++) {
+    for (int64_t from = 0; from < hmm->stateNumber; from++) {
+        for (int64_t to = 0; to < hmm->stateNumber; to++) {
             CuAssertTrue(testCase,
-                    hmm_getTransition(hmm, from, to) == from * STATE_NUMBER + to);
+                    hmm_getTransition(hmm, from, to) == from * hmm->stateNumber + to);
         }
     }
 
@@ -681,11 +690,11 @@ static void test_hmm(CuTest *testCase) {
     hmm_normalise(hmm);
 
     //Recheck
-    for (int64_t from = 0; from < STATE_NUMBER; from++) {
-        for (int64_t to = 0; to < STATE_NUMBER; to++) {
-            double z = from * STATE_NUMBER * STATE_NUMBER + (STATE_NUMBER*(STATE_NUMBER-1))/2;
+    for (int64_t from = 0; from < hmm->stateNumber; from++) {
+        for (int64_t to = 0; to < hmm->stateNumber; to++) {
+            double z = from * hmm->stateNumber * hmm->stateNumber + (hmm->stateNumber*(hmm->stateNumber-1))/2;
             CuAssertDblEquals(testCase,
-                    (from * STATE_NUMBER + to)/z, hmm_getTransition(hmm, from, to), 0.0);
+                    (from * hmm->stateNumber + to)/z, hmm_getTransition(hmm, from, to), 0.0);
         }
     }
 
@@ -693,7 +702,19 @@ static void test_hmm(CuTest *testCase) {
     hmm_destruct(hmm);
 }
 
-static void test_em(CuTest *testCase) {
+static void test_hmm_5State(CuTest *testCase) {
+    test_hmm(testCase, fiveState);
+}
+
+static void test_hmm_3State(CuTest *testCase) {
+    test_hmm(testCase, threeState);
+}
+
+static void test_hmm_3StateAsymmetric(CuTest *testCase) {
+    test_hmm(testCase, threeStateAsymmetric);
+}
+
+static void test_em(CuTest *testCase, StateMachineType stateMachineType) {
     for (int64_t test = 0; test < 100; test++) {
         //Make a pair of sequences
         char *sX = getRandomSequence(st_randomInt(0, 100));
@@ -706,27 +727,28 @@ static void test_em(CuTest *testCase) {
 
         //Currently starts from random model and iterates.
         double pLikelihood = -INFINITY;
-        Hmm *hmm = hmm_constructEmpty(0.0);
+        Hmm *hmm = hmm_constructEmpty(0.0, stateMachineType);
         hmm_randomise(hmm);
-        loadTheGlobalHmm(hmm); //Set the global model.
+        StateMachine *sM = hmm_getStateMachine(hmm);
         hmm_destruct(hmm);
 
         for(int64_t iteration=0; iteration<10; iteration++) {
-            hmm = hmm_constructEmpty(0.000000000001); //The tiny pseudo count prevents overflow
-            getExpectations(hmm, sX, sY, p, 0, 0);
+            hmm = hmm_constructEmpty(0.000000000001, stateMachineType); //The tiny pseudo count prevents overflow
+            getExpectations(sM, hmm, sX, sY, p, 0, 0);
             hmm_normalise(hmm);
             //Log stuff
-            for (int64_t from = 0; from < STATE_NUMBER; from++) {
-                for (int64_t to = 0; to < STATE_NUMBER; to++) {
+            for (int64_t from = 0; from < sM->stateNumber; from++) {
+                for (int64_t to = 0; to < sM->stateNumber; to++) {
                     st_logInfo("Transition from %" PRIi64 " to %" PRIi64 " has expectation %f\n", from, to,
                             hmm_getTransition(hmm, from, to));
                 }
             }
 
             st_logInfo("->->-> Got expected likelihood %f for trial %" PRIi64 " and  iteration %" PRIi64 "\n", hmm->likelihood, test, iteration);
-            CuAssertTrue(testCase, pLikelihood <= hmm->likelihood + 50);
+            CuAssertTrue(testCase, pLikelihood <= hmm->likelihood * 0.98);
             pLikelihood = hmm->likelihood;
-            loadTheGlobalHmm(hmm);
+            stateMachine_destruct(sM);
+            sM = hmm_getStateMachine(hmm);
             hmm_destruct(hmm);
         }
 
@@ -735,7 +757,18 @@ static void test_em(CuTest *testCase) {
         free(sX);
         free(sY);
     }
-    resetTheGlobalHmm();
+}
+
+static void test_em_5State(CuTest *testCase) {
+    test_em(testCase, fiveState);
+}
+
+static void test_em_3StateAsymmetric(CuTest *testCase) {
+    test_em(testCase, threeStateAsymmetric);
+}
+
+static void test_em_3State(CuTest *testCase) {
+    test_em(testCase, threeState);
 }
 
 CuSuite* pairwiseAlignmentTestSuite(void) {
@@ -755,8 +788,12 @@ CuSuite* pairwiseAlignmentTestSuite(void) {
     SUITE_ADD_TEST(suite, test_getSplitPoints);
     SUITE_ADD_TEST(suite, test_getAlignedPairs);
     SUITE_ADD_TEST(suite, test_getAlignedPairsWithRaggedEnds);
-    SUITE_ADD_TEST(suite, test_hmm);
-    SUITE_ADD_TEST(suite, test_em);
+    SUITE_ADD_TEST(suite, test_hmm_5State);
+    SUITE_ADD_TEST(suite, test_hmm_3State);
+    SUITE_ADD_TEST(suite, test_hmm_3StateAsymmetric);
+    SUITE_ADD_TEST(suite, test_em_3State);
+    SUITE_ADD_TEST(suite, test_em_3StateAsymmetric);
+    SUITE_ADD_TEST(suite, test_em_5State);
 
     return suite;
 }

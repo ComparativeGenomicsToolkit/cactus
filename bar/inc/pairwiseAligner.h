@@ -17,6 +17,7 @@
 #include "bioioC.h"
 #include "sonLib.h"
 #include "pairwiseAlignment.h"
+#include "stateMachine.h"
 
 //The exception string
 extern const char *PAIRWISE_ALIGNMENT_EXCEPTION_ID;
@@ -43,51 +44,20 @@ void pairwiseAlignmentBandingParameters_destruct(PairwiseAlignmentParameters *p)
 /*
  * Gets the set of posterior match probabilities under a simple HMM model of alignment for two DNA sequences.
  */
-stList *getAlignedPairs(const char *string1, const char *string2, PairwiseAlignmentParameters *p,  bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd);
+stList *getAlignedPairs(StateMachine *sM, const char *string1, const char *string2, PairwiseAlignmentParameters *p,  bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd);
 
 stList *convertPairwiseForwardStrandAlignmentToAnchorPairs(struct PairwiseAlignment *pA, int64_t trim);
 
-stList *getAlignedPairsUsingAnchors(const char *sX, const char *sY, stList *anchorPairs, PairwiseAlignmentParameters *p, bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd);
-
-/*
- * EM training stuff.
- */
-
-typedef struct _hmm {
-    double *transitions;
-    double likelihood;
-} Hmm;
-
-Hmm *hmm_constructEmpty(double pseudoExpectation);
-
-void hmm_randomise(Hmm *hmm); //Creates normalised HMM with parameters set to small random values.
-
-void hmm_destruct(Hmm *hmmExpectations);
-
-void hmm_write(Hmm *hmmExpectations, FILE *fileHandle);
-
-void hmm_addToTransitionExpectation(Hmm *hmmExpectations, int64_t from, int64_t to, double p);
-
-double hmm_getTransition(Hmm *hmmExpectations, int64_t from, int64_t to);
-
-void hmm_setTransition(Hmm *hmm, int64_t from, int64_t to, double p);
-
-Hmm *hmm_loadFromFile(const char *fileName);
-
-void hmm_normalise(Hmm *hmm);
-
-void loadTheGlobalHmm(Hmm *hmm);
-
-void resetTheGlobalHmm();
+stList *getAlignedPairsUsingAnchors(StateMachine *sM, const char *sX, const char *sY, stList *anchorPairs, PairwiseAlignmentParameters *p, bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd);
 
 /*
  * Expectation calculation functions for EM algorithms.
  */
 
-void getExpectationsUsingAnchors(Hmm *hmmExpectations, const char *sX, const char *sY, stList *anchorPairs,
+void getExpectationsUsingAnchors(StateMachine *sM, Hmm *hmmExpectations, const char *sX, const char *sY, stList *anchorPairs,
         PairwiseAlignmentParameters *p, bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd);
 
-void getExpectations(Hmm *hmmExpectations, const char *sX, const char *sY, PairwiseAlignmentParameters *p, bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd);
+void getExpectations(StateMachine *sM, Hmm *hmmExpectations, const char *sX, const char *sY, PairwiseAlignmentParameters *p, bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd);
 
 /*
  * Methods tested and possibly useful elsewhere
@@ -150,14 +120,6 @@ double logAdd(double x, double y);
 
 //Symbols
 
-typedef enum {
-    a=0,
-    c=1,
-    g=2,
-    t=3,
-    n=4
-} Symbol;
-
 Symbol symbol_convertCharToSymbol(char i);
 
 Symbol *symbol_convertStringToSymbols(const char *s, int64_t sL);
@@ -169,44 +131,21 @@ typedef struct _symbolString {
 
 SymbolString symbolString_construct(const char *sequence, int64_t length);
 
-//Emissions
+//Cell calculations
 
-double symbol_matchProb(Symbol cX, Symbol cY);
+void cell_calculateForward(StateMachine *sM, double *current, double *lower, double *middle, double *upper, Symbol cX, Symbol cY, void *extraArgs);
 
-double symbol_gapProb(Symbol c);
+void cell_calculateBackward(StateMachine *sM, double *current, double *lower, double *middle, double *upper, Symbol cX, Symbol cY, void *extraArgs);
 
-//States and transitions
+double cell_dotProduct(double *cell1, double *cell2, int64_t stateNumber);
 
-#define STATE_NUMBER 5
-
-#define MATCH_STATE 0
-
-double state_startStateProb(int64_t state);
-
-double state_endStateProb(int64_t state);
-
-double state_raggedEndStateProb(int64_t state);
-
-double state_raggedStartStateProb(int64_t state);
-
-//Cells (states at a given coordinate(
-
-void cell_calculate(double *current, double *lower, double *middle, double *upper, Symbol cX, Symbol cY,
-        void(*doTransition)(double *, double *, int64_t, int64_t, double, double, void *), void *extraArgs);
-
-void cell_calculateForward(double *current, double *lower, double *middle, double *upper, Symbol cX, Symbol cY, void *extraArgs);
-
-void cell_calculateBackward(double *current, double *lower, double *middle, double *upper, Symbol cX, Symbol cY, void *extraArgs);
-
-double cell_dotProduct(double *cell1, double *cell2);
-
-double cell_dotProduct2(double *cell1, double (*getStateValue)(int64_t));
+double cell_dotProduct2(double *cell1, StateMachine *sM, double (*getStateValue)(StateMachine *, int64_t));
 
 //DpDiagonal
 
 typedef struct _dpDiagonal DpDiagonal;
 
-DpDiagonal *dpDiagonal_construct(Diagonal diagonal);
+DpDiagonal *dpDiagonal_construct(Diagonal diagonal, int64_t stateNumber);
 
 DpDiagonal *dpDiagonal_clone(DpDiagonal *diagonal);
 
@@ -220,13 +159,13 @@ double dpDiagonal_dotProduct(DpDiagonal *diagonal1, DpDiagonal *diagonal2);
 
 void dpDiagonal_zeroValues(DpDiagonal *diagonal);
 
-void dpDiagonal_initialiseValues(DpDiagonal *diagonal, double(*getStateValue)(int64_t));
+void dpDiagonal_initialiseValues(DpDiagonal *diagonal, StateMachine *sM, double (*getStateValue)(StateMachine *, int64_t));
 
 //DpMatrix
 
 typedef struct _dpMatrix DpMatrix;
 
-DpMatrix *dpMatrix_construct(int64_t diagonalNumber);
+DpMatrix *dpMatrix_construct(int64_t diagonalNumber, int64_t stateNumber);
 
 void dpMatrix_destruct(DpMatrix *dpMatrix);
 
@@ -240,22 +179,22 @@ void dpMatrix_deleteDiagonal(DpMatrix *dpMatrix, int64_t xay);
 
 //Diagonal calculations
 
-void diagonalCalculationForward(int64_t xay, DpMatrix *dpMatrix, const SymbolString sX, const SymbolString sY);
+void diagonalCalculationForward(StateMachine *sM, int64_t xay, DpMatrix *dpMatrix, const SymbolString sX, const SymbolString sY);
 
-void diagonalCalculationBackward(int64_t xay, DpMatrix *dpMatrix, const SymbolString sX, const SymbolString sY);
+void diagonalCalculationBackward(StateMachine *sM, int64_t xay, DpMatrix *dpMatrix, const SymbolString sX, const SymbolString sY);
 
-double diagonalCalculationTotalProbability(int64_t xay, DpMatrix *forwardDpMatrix, DpMatrix *backwardDpMatrix,
+double diagonalCalculationTotalProbability(StateMachine *sM, int64_t xay, DpMatrix *forwardDpMatrix, DpMatrix *backwardDpMatrix,
         const SymbolString sX, const SymbolString sY);
 
-void diagonalCalculationPosteriorMatchProbs(int64_t xay, DpMatrix *forwardDpMatrix, DpMatrix *backwardDpMatrix,
+void diagonalCalculationPosteriorMatchProbs(StateMachine *sM, int64_t xay, DpMatrix *forwardDpMatrix, DpMatrix *backwardDpMatrix,
         const SymbolString sX, const SymbolString sY,
         double totalProbability, PairwiseAlignmentParameters *p, void *extraArgs);
 
 //Banded matrix calculation of posterior probs
 
-void getPosteriorProbsWithBanding(stList *anchorPairs, const SymbolString sX, const SymbolString sY,
+void getPosteriorProbsWithBanding(StateMachine *sM, stList *anchorPairs, const SymbolString sX, const SymbolString sY,
         PairwiseAlignmentParameters *p, bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd,
-        void (*diagonalPosteriorProbFn)(int64_t, DpMatrix *, DpMatrix *, const SymbolString, const SymbolString,
+        void (*diagonalPosteriorProbFn)(StateMachine *, int64_t, DpMatrix *, DpMatrix *, const SymbolString, const SymbolString,
               double, PairwiseAlignmentParameters *, void *), void *extraArgs);
 
 //Blast pairs
@@ -272,9 +211,9 @@ stList *filterToRemoveOverlap(stList *overlappingPairs);
 stList *getSplitPoints(stList *anchorPairs, int64_t lX, int64_t lY,
         int64_t maxMatrixSize);
 
-void getPosteriorProbsWithBandingSplittingAlignmentsByLargeGaps(stList *anchorPairs, const char *sX, const char *sY, int64_t lX, int64_t lY,
+void getPosteriorProbsWithBandingSplittingAlignmentsByLargeGaps(StateMachine *sM, stList *anchorPairs, const char *sX, const char *sY, int64_t lX, int64_t lY,
         PairwiseAlignmentParameters *p,  bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd,
-        void (*diagonalPosteriorProbFn)(int64_t, DpMatrix *, DpMatrix *, const SymbolString, const SymbolString,
+        void (*diagonalPosteriorProbFn)(StateMachine *, int64_t, DpMatrix *, DpMatrix *, const SymbolString, const SymbolString,
                 double, PairwiseAlignmentParameters *, void *),
         void (*coordinateCorrectionFn)(), void *extraArgs);
 

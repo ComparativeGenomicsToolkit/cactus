@@ -472,7 +472,6 @@ int main(int argc, char *argv[]) {
             break;
         case 'v':
             expectationsFile = stString_copy(optarg);
-            hmmExpectations = hmm_constructEmpty(0.000000000001); //The tiny pseudo count prevents overflow
             break;
         case 'y':
             hmmFile = stString_copy(optarg);
@@ -487,12 +486,21 @@ int main(int argc, char *argv[]) {
     st_logInfo("Starting realigning pairwise alignments\n");
 
     //Load the model, if specified
+    StateMachine *sM;
     if(hmmFile != NULL) {
         st_logInfo("Loading the hmm from file %s\n", hmmFile);
         Hmm *hmm = hmm_loadFromFile(hmmFile);
-        loadTheGlobalHmm(hmm);
+        sM = hmm_getStateMachine(hmm);
         //hmm_normalise(hmm);
         hmm_destruct(hmm);
+    }
+    else {
+        sM = stateMachine5_construct();
+    }
+
+    //Make the expectations object, if needed
+    if(expectationsFile != NULL) {
+        hmmExpectations = hmm_constructEmpty(0.000000000001, sM->type); //The tiny pseudo count prevents overflow
     }
 
     //Read in input sequences
@@ -531,12 +539,12 @@ int main(int argc, char *argv[]) {
         stList *filteredAnchoredPairs = stList_filter2(anchorPairs, matchFn, seqs);
         if(expectationsFile != NULL) {
             st_logInfo("Computing expectations\n");
-            getExpectationsUsingAnchors(hmmExpectations, subSeqX, subSeqY, filteredAnchoredPairs,
+            getExpectationsUsingAnchors(sM, hmmExpectations, subSeqX, subSeqY, filteredAnchoredPairs,
                                 pairwiseAlignmentBandingParameters, 1, 1);
         }
         else {
             //Get posterior prob pairs
-            stList *alignedPairs = getAlignedPairsUsingAnchors(subSeqX, subSeqY, filteredAnchoredPairs,
+            stList *alignedPairs = getAlignedPairsUsingAnchors(sM, subSeqX, subSeqY, filteredAnchoredPairs,
                     pairwiseAlignmentBandingParameters, 1, 1);
             //Convert to partial ordered set of pairs
             if (rescoreOriginalAlignment) {
@@ -610,6 +618,8 @@ int main(int argc, char *argv[]) {
         hmm_destruct(hmmExpectations);
         fclose(fH);
     }
+
+    stateMachine_destruct(sM);
 
     st_logInfo("Finished realigning pairwise alignments, exiting.\n");
 
