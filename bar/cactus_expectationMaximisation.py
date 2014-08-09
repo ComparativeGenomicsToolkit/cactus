@@ -11,25 +11,38 @@ from jobTree.scriptTree.stack import Stack
 from sonLib.bioio import setLoggingFromOptions, logger, system, popenCatch
 
 class Hmm:
-    def __init__(self, stateNumber=5):
-        self.stateNumber = stateNumber
-        self.transitions = [0.0] * stateNumber**2
+    def __init__(self, modelType):
+        self.modelType=modelType
+        self.stateNumber = { "fiveState":5, "threeState":3, "threeStateAsymmetric":3}[modelType]
+        self.transitions = [0.0] * self.stateNumber**2
         self.likelihood = 0.0
-    
+        
+    def _modelTypeInt(self):
+        return { "fiveState":0, "threeState":1, "threeStateAsymmetric":2}[self.modelType]
+
     def write(self, file):
         f = open(file, 'w')
-        f.write(" ".join(map(str, self.transitions)) + (" %s\n" % self.likelihood))
+        f.write(("%s " % self._modelTypeInt()) + " ".join(map(str, self.transitions)) + (" %s\n" % self.likelihood))
         f.close()
-     
+
     def addExpectationsFile(self, file):
         fH = open(file, 'r')
         l = map(float, fH.readline().split())
-        assert len(l) == len(self.transitions)+1
+        assert len(l) == len(self.transitions)+2
+        assert int(l[0]) == self._modelTypeInt()
         self.likelihood = l[-1]
-        self.transitions = map(lambda x : sum(x), zip(self.transitions, l))
+        self.transitions = map(lambda x : sum(x), zip(self.transitions, l[1:-1]))
         assert len(self.transitions) == self.stateNumber**2
         fH.close()
         return self
+
+    @staticmethod
+    def loadHmm(file):
+        fH = open(file, 'r')
+        l = fH.readline().split()
+        assert len(l) > 0
+        fH.close()
+        return Hmm({ 0:"fiveState", 1:"threeState", 2:"threeStateAsymmetric"}[int(l[0])]).addExpectationsFile(file)
     
     def normalise(self):
         """Normalises the EM probs.
@@ -53,16 +66,19 @@ class Hmm:
 
 def expectationMaximisation(target, sequences, alignments, outputModel, options):
     #Iteratively run cactus realign to get expectations and load model.
-    hmm = Hmm()
     if options.inputModel != None: #Read in the model
         target.logToMaster("Loading the model from the input file %s" % options.inputModel)
-        hmm.addExpectationsFile(options.inputModel)
+        hmm = Hmm.loadHmm(options.inputModel)
+        target.logToMaster("Loaded the model, has type %s" % hmm.modelType)
         hmm.normalise()
-    elif options.randomStart: #Make random parameters
-        target.logToMaster("Using random starting parameters")
-        hmm.randomise()
     else:
-        hmm.equalise()
+        target.logToMaster("Making model of type %s" % options.modelType)
+        hmm = Hmm(options.modelType)
+        if options.randomStart: #Make random parameters
+            target.logToMaster("Using random starting parameters")
+            hmm.randomise()
+        else:
+            hmm.equalise()
     for iteration in xrange(options.iterations):
         #Temp file to store model
         modelsFile = os.path.join(target.getLocalTempDir(), "model.txt")
@@ -70,11 +86,10 @@ def expectationMaximisation(target, sequences, alignments, outputModel, options)
         #Run cactus_realign
         system("cat %s | cactus_realign --logLevel DEBUG %s --loadHmm=%s --outputExpectations=%s %s" % (alignments, sequences, modelsFile, modelsFile, options.optionsToRealign))
         #Add to the expectations.
-        hmm = Hmm()
-        hmm.addExpectationsFile(modelsFile)
+        hmm = Hmm.loadHmm(modelsFile)
         hmm.normalise()
         #Do some logging
-        target.logToMaster("After %i iteration got likelihood: %s" % (iteration, hmm.likelihood))
+        target.logToMaster("After %i iteration got likelihood: %s for model-type: %s" % (iteration, hmm.likelihood, hmm.modelType))
     logger.info("The output file %s" % outputModel)
     hmm.write(outputModel)
     
@@ -89,7 +104,7 @@ def expectationMaximisationTrials(target, sequences, alignments, outputModel, op
 
 def expectationMaximisationTrials2(target, trialModels, outputModel, options):
     #Pick the trial hmm with highest likelihood
-    hmm = max(map(lambda x : Hmm().addExpectationsFile(x), trialModels), key=lambda x : x.likelihood)
+    hmm = max(map(lambda x : Hmm.loadHmm(x), trialModels), key=lambda x : x.likelihood)
     hmm.write(outputModel)
     target.logToMaster("Hmm with highest likelihood: %s" % hmm.likelihood)
     
@@ -97,6 +112,7 @@ class Options:
     """Dictionary representing options, can be used for running pipeline from within another jobTree.
     """
     def __init__(self):
+        self.modelType="fiveState"
         self.inputModel=None
         self.iterations=10
         self.trials=3
@@ -111,6 +127,7 @@ def main():
     parser.add_option("--alignments", dest="alignments", help="Cigar file ")
     parser.add_option("--inputModel", default=options.inputModel, help="Input model")
     parser.add_option("--outputModel", default="hmm.txt", help="File to write the model in")
+    parser.add_option("--modelType", default=options.modelType, help="Specify the model type, currently either fiveState, threeState, threeStateAsymmetric")
     parser.add_option("--iterations", default=options.iterations, help="Number of iterations of EM", type=int)
     parser.add_option("--trials", default=options.trials, help="Number of independent EM trials. The model with the highest likelihood will be reported. Will only work if randomStart=True", type=int)
     parser.add_option("--randomStart", default=options.randomStart, help="Iterate start model with small random values, else all values are equal", action="store_true")

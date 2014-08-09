@@ -15,6 +15,7 @@
 #include "stCaf.h"
 #include "stPinchGraphs.h"
 #include "stPinchIterator.h"
+#include "stateMachine.h"
 
 void usage() {
     fprintf(stderr, "cactus_baseAligner [flower-names, ordered by order they should be processed], version 0.2\n");
@@ -240,6 +241,11 @@ int main(int argc, char *argv[]) {
     st_logInfo("Set up the flower disk\n");
 
     /*
+     * Load the hmm
+     */
+    StateMachine *sM = stateMachine5_construct();
+
+    /*
      * For each flower.
      */
     if (calculateWhichEndsToComputeSeparately) {
@@ -269,7 +275,7 @@ int main(int argc, char *argv[]) {
             if (end == NULL) {
                 st_errAbort("The end %" PRIi64 " was not found in the flower\n", *((Name *)stList_get(names, i)));
             }
-            stSortedSet *endAlignment = makeEndAlignment(end, spanningTrees, maximumLength, maximumNumberOfSequencesBeforeSwitchingToFast,
+            stSortedSet *endAlignment = makeEndAlignment(sM, end, spanningTrees, maximumLength, maximumNumberOfSequencesBeforeSwitchingToFast,
                             gapGamma, pairwiseAlignmentBandingParameters);
             writeEndAlignmentToDisk(end, endAlignment, fileHandle);
             stSortedSet_destruct(endAlignment);
@@ -291,7 +297,7 @@ int main(int argc, char *argv[]) {
             flower = stList_get(flowers, j);
             st_logInfo("Processing a flower\n");
 
-            stSortedSet *alignedPairs = makeFlowerAlignment3(flower, listOfEndAlignmentFiles, spanningTrees, maximumLength,
+            stSortedSet *alignedPairs = makeFlowerAlignment3(sM, flower, listOfEndAlignmentFiles, spanningTrees, maximumLength,
                     maximumNumberOfSequencesBeforeSwitchingToFast, gapGamma, pairwiseAlignmentBandingParameters, pruneOutStubAlignments);
             st_logInfo("Created the alignment: %" PRIi64 " pairs\n", stSortedSet_size(alignedPairs));
             stPinchIterator *pinchIterator = stPinchIterator_constructFromAlignedPairs(alignedPairs, getNextAlignedPairAlignment);
@@ -334,6 +340,7 @@ int main(int argc, char *argv[]) {
     // Cleanup
     ///////////////////////////////////////////////////////////////////////////
 
+    stateMachine_destruct(sM);
     cactusDisk_destruct(cactusDisk);
     stKVDatabaseConf_destruct(kvDatabaseConf);
     //destructCactusCoreInputParameters(cCIP);

@@ -109,7 +109,9 @@ void test_getInducedAlignment(CuTest *testCase) {
 void test_flowerAlignerRandom(CuTest *testCase) {
     setup();
     int64_t maxLength = 5;
-    stSortedSet *flowerAlignment = makeFlowerAlignment(flower, 5, maxLength, 50, 0.5, pairwiseParameters, st_random() > 0.5);
+    StateMachine *sM = stateMachine5_construct();
+    stSortedSet *flowerAlignment = makeFlowerAlignment(sM, flower, 5, maxLength, 50, 0.5, pairwiseParameters, st_random() > 0.5);
+    stateMachine_destruct(sM);
     //Check the aligned pairs are all good..
     stSortedSetIterator *iterator = stSortedSet_getIterator(flowerAlignment);
     AlignedPair *alignedPair;

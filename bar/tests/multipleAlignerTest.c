@@ -24,6 +24,7 @@ static const char *seq3 = "AC";
 static const char *seq4 = "";
 static stList *littleSeqFrags = NULL;
 static PairwiseAlignmentParameters *pabp = NULL;
+static StateMachine *stateMachine;
 
 static void teardown() {
     if (littleSeqFrags != NULL) {
@@ -31,6 +32,7 @@ static void teardown() {
         littleSeqFrags = NULL;
         pairwiseAlignmentBandingParameters_destruct(pabp);
         pabp = NULL;
+        stateMachine_destruct(stateMachine);
     }
 }
 
@@ -42,6 +44,7 @@ static void setup() {
     stList_append(littleSeqFrags, seqFrag_construct(seq2, 0, 0));
     stList_append(littleSeqFrags, seqFrag_construct(seq3, 0, 1));
     stList_append(littleSeqFrags, seqFrag_construct(seq4, 1, 1));
+    stateMachine = stateMachine5_construct();
 }
 
 static void test_makeColumns(CuTest *testCase) {
@@ -84,7 +87,7 @@ static void checkAlignment(CuTest *testCase, stList *seqFrags, stList *multipleA
 
 static void test_makeAlignmentUsingAllPairs(CuTest *testCase) {
     setup();
-    MultipleAlignment *mA = makeAlignmentUsingAllPairs(littleSeqFrags, 0.0, pabp);
+    MultipleAlignment *mA = makeAlignmentUsingAllPairs(stateMachine, littleSeqFrags, 0.0, pabp);
     checkAlignment(testCase, littleSeqFrags, mA->alignedPairs);
     CuAssertIntEquals(testCase, 9, stList_length(mA->alignedPairs));
     multipleAlignment_destruct(mA);
@@ -108,9 +111,9 @@ static void test_multipleAlignerAllPairsRandom(CuTest *testCase) {
         setup();
         stList *randomSeqFrags = getRandomSeqFrags(st_randomInt(0, 10), st_randomInt(0, 100));
         for (int64_t i = 0; i < stList_length(randomSeqFrags); i++) {
-            st_logInfo("Sequence to align: %s\n", stList_get(randomSeqFrags, i));
+            st_logInfo("Sequence to align: %s\n", ((SeqFrag *)stList_get(randomSeqFrags, i))->seq);
         }
-        MultipleAlignment *mA = makeAlignmentUsingAllPairs(randomSeqFrags, 0.5, pabp);
+        MultipleAlignment *mA = makeAlignmentUsingAllPairs(stateMachine, randomSeqFrags, 0.5, pabp);
         checkAlignment(testCase, randomSeqFrags, mA->alignedPairs);
         stList_destruct(randomSeqFrags);
         multipleAlignment_destruct(mA);
@@ -124,7 +127,7 @@ static void test_pairwiseAlignColumns(CuTest *testCase) {
         stList *seqFrags = getRandomSeqFrags(2, 100);
         stSet *columns = makeColumns(seqFrags);
         stList *seqPairSimilarityScores;
-        stList *multipleAlignedPairs = makeAllPairwiseAlignments(seqFrags, pabp, &seqPairSimilarityScores);
+        stList *multipleAlignedPairs = makeAllPairwiseAlignments(stateMachine, seqFrags, pabp, &seqPairSimilarityScores);
         stList *columnSequences = makeColumnSequences(seqFrags, columns);
         stHash *alignmentWeightAdjLists = makeAlignmentWeightAdjacencyLists(columns, multipleAlignedPairs);
         stSortedSet *alignmentWeightsOrderedByWeight = makeOrderedSetOfAlignmentWeights(alignmentWeightAdjLists);
@@ -149,7 +152,7 @@ static void test_getMultipleSequenceAlignmentProgressive(CuTest *testCase) {
         setup();
         stList *seqFrags = getRandomSeqFrags(10, 100);
         stList *seqPairSimilarityScores;
-        stList *multipleAlignedPairs = makeAllPairwiseAlignments(seqFrags, pabp, &seqPairSimilarityScores);
+        stList *multipleAlignedPairs = makeAllPairwiseAlignments(stateMachine, seqFrags, pabp, &seqPairSimilarityScores);
         //stSet *columns = getMultipleSequenceAlignment(seqFrags, multipleAlignedPairs, 0.0);
         stSet *columns = getMultipleSequenceAlignmentProgressive(seqFrags, multipleAlignedPairs, 0.0, seqPairSimilarityScores);
         //Check the alignment
@@ -178,7 +181,7 @@ static void test_getReferencePairwiseAlignments(CuTest *testCase) {
 static void test_getDistanceMatrix(CuTest *testCase) {
     setup();
     stList *seqPairSimilarityScores;
-    stList *multipleAlignedPairs = makeAllPairwiseAlignments(littleSeqFrags, pabp, &seqPairSimilarityScores);
+    stList *multipleAlignedPairs = makeAllPairwiseAlignments(stateMachine, littleSeqFrags, pabp, &seqPairSimilarityScores);
     stSet *columns = getMultipleSequenceAlignment(littleSeqFrags, multipleAlignedPairs, 0.2);
     stSetIterator *setIt = stSet_getIterator(columns);
     Column *c1;
@@ -218,9 +221,9 @@ static void test_multipleAlignerRandom(CuTest *testCase) {
         stList *randomSeqFrags = getRandomSeqFrags(st_randomInt(0, 10), st_randomInt(0, 100));
         int64_t spanningTrees = st_randomInt(0, 5);
         for (int64_t i = 0; i < stList_length(randomSeqFrags); i++) {
-            st_logInfo("Sequence to align: %s\n", stList_get(randomSeqFrags, i));
+            st_logInfo("Sequence to align: %s\n", ((SeqFrag *)stList_get(randomSeqFrags, i))->seq);
         }
-        MultipleAlignment *mA = makeAlignment(randomSeqFrags, spanningTrees, 10000000, st_randomInt(0, 10), 0.5, pabp);
+        MultipleAlignment *mA = makeAlignment(stateMachine, randomSeqFrags, spanningTrees, 10000000, st_randomInt(0, 10), 0.5, pabp);
         checkAlignment(testCase, randomSeqFrags, mA->alignedPairs);
         stList_destruct(randomSeqFrags);
         multipleAlignment_destruct(mA);

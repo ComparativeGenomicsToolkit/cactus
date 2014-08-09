@@ -45,13 +45,13 @@ typedef struct {
     stList *chosenPairwiseAlignments; //set of tuples representing chosen pairwise alignments, each of the form (similarityScore, seqXIndex, seqYIndex)
 } MultipleAlignment;
 
-MultipleAlignment *makeAlignment(stList *seqFrags,
+MultipleAlignment *makeAlignment(StateMachine *sM, stList *seqFrags,
         int64_t spanningTrees, int64_t maxPairsToConsider,
         int64_t maximumNumberOfSequencesBeforeSwitchingToFast,
         float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters);
 
-MultipleAlignment *makeAlignmentUsingAllPairs(stList *seqFrags, float gapGamma,
+MultipleAlignment *makeAlignmentUsingAllPairs(StateMachine *sM, stList *seqFrags, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters);
 
 void multipleAlignment_destruct(MultipleAlignment *mA);
@@ -66,7 +66,7 @@ void seqFrag_destruct(SeqFrag *seqFrag);
 
 stSet *makeColumns(stList *seqFrags);
 
-stList *makeAllPairwiseAlignments(stList *seqs, PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, stList **seqPairSimilarityScores);
+stList *makeAllPairwiseAlignments(StateMachine *sM, stList *seqs, PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, stList **seqPairSimilarityScores);
 
 stHash *makeAlignmentWeightAdjacencyLists(stSet *columns, stList *multipleAlignedPairs);
 

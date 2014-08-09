@@ -11,6 +11,9 @@
 #include <string.h>
 #include "pairwiseAligner.h"
 
+//Statemachine
+StateMachine *stateMachine;
+
 //Basic flower.
 static CactusDisk *cactusDisk;
 static Flower *flower;
@@ -59,6 +62,7 @@ static void teardown() {
         testCommon_deleteTemporaryCactusDisk(cactusDisk);
         cactusDisk = NULL;
         pairwiseAlignmentBandingParameters_destruct(pairwiseParameters);
+        stateMachine_destruct(stateMachine);
     }
 }
 
@@ -66,6 +70,7 @@ static void setup() {
     teardown();
     cactusDisk = testCommon_getTemporaryCactusDisk();
     flower = flower_construct(cactusDisk);
+    stateMachine = stateMachine5_construct();
 
     //Event tree
     eventTree = eventTree_construct2(flower);
