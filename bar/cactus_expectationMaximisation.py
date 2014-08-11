@@ -10,11 +10,14 @@ from jobTree.scriptTree.target import Target
 from jobTree.scriptTree.stack import Stack
 from sonLib.bioio import setLoggingFromOptions, logger, system, popenCatch
 
+SYMBOL_NUMBER=4
+
 class Hmm:
     def __init__(self, modelType):
         self.modelType=modelType
         self.stateNumber = { "fiveState":5, "threeState":3, "threeStateAsymmetric":3}[modelType]
         self.transitions = [0.0] * self.stateNumber**2
+        self.emissions = [0.0] * (SYMBOL_NUMBER**2 * self.stateNumber)
         self.likelihood = 0.0
         
     def _modelTypeInt(self):
@@ -23,6 +26,7 @@ class Hmm:
     def write(self, file):
         f = open(file, 'w')
         f.write(("%s " % self._modelTypeInt()) + " ".join(map(str, self.transitions)) + (" %s\n" % self.likelihood))
+        f.write(" ".join(map(str, self.emissions)) + "\n")
         f.close()
 
     def addExpectationsFile(self, file):
@@ -33,6 +37,10 @@ class Hmm:
         self.likelihood = l[-1]
         self.transitions = map(lambda x : sum(x), zip(self.transitions, l[1:-1]))
         assert len(self.transitions) == self.stateNumber**2
+        l = map(float, fH.readline().split())
+        assert len(l) == len(self.emissions)
+        self.emissions = map(lambda x : sum(x), zip(self.emissions, l))
+        assert len(self.emissions) == self.stateNumber * SYMBOL_NUMBER**2
         fH.close()
         return self
 
@@ -43,7 +51,7 @@ class Hmm:
         assert len(l) > 0
         fH.close()
         return Hmm({ 0:"fiveState", 1:"threeState", 2:"threeStateAsymmetric"}[int(l[0])]).addExpectationsFile(file)
-    
+
     def normalise(self):
         """Normalises the EM probs.
         """
@@ -52,17 +60,24 @@ class Hmm:
             j = sum(self.transitions[i:i+self.stateNumber])
             for toState in xrange(self.stateNumber):
                 self.transitions[i + toState] = self.transitions[i + toState] / j
+        for state in xrange(self.stateNumber):
+            i = state * SYMBOL_NUMBER * SYMBOL_NUMBER
+            j = sum(self.emissions[i:i+SYMBOL_NUMBER * SYMBOL_NUMBER])
+            for emission in xrange(SYMBOL_NUMBER * SYMBOL_NUMBER):
+                self.emissions[i + emission] = self.emissions[i + emission] / j
 
     def randomise(self):
         """Randomise the values in the HMM to small values.
         """
         self.transitions = map(lambda x : random.random(), range(self.stateNumber*self.stateNumber))
+        self.emissions = map(lambda x : random.random(), range(self.stateNumber*SYMBOL_NUMBER*SYMBOL_NUMBER))
         self.normalise()
-        
+
     def equalise(self):
         """Initialise the hmm with all equal probabilities.
         """
         self.transitions = [1.0/self.stateNumber] * (self.stateNumber**2)
+        self.emissions = [1.0/(SYMBOL_NUMBER*SYMBOL_NUMBER)] * (self.stateNumber * SYMBOL_NUMBER**2)
 
 def expectationMaximisation(target, sequences, alignments, outputModel, options):
     #Iteratively run cactus realign to get expectations and load model.

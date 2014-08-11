@@ -279,8 +279,8 @@ static void test_diagonalDPCalculations(CuTest *testCase) {
     //Calculate total probabilities
     double totalProbForward = cell_dotProduct2(
             dpDiagonal_getCell(dpMatrix_getDiagonal(dpMatrixForward, lX + lY), lX - lY), sM, sM->endStateProb);
-    double totalProbBackward = cell_dotProduct2(dpDiagonal_getCell(dpMatrix_getDiagonal(dpMatrixBackward, 0), 0),
-            sM, sM->startStateProb);
+    double totalProbBackward = cell_dotProduct2(dpDiagonal_getCell(dpMatrix_getDiagonal(dpMatrixBackward, 0), 0), sM,
+            sM->startStateProb);
     st_logInfo("Total forward and backward prob %f %f\n", (float) totalProbForward, (float) totalProbBackward);
 
     CuAssertDblEquals(testCase, totalProbForward, totalProbBackward, 0.001); //Check the forward and back probabilities are about equal
@@ -288,7 +288,8 @@ static void test_diagonalDPCalculations(CuTest *testCase) {
     //Test calculating the posterior probabilities along the diagonals of the matrix.
     for (int64_t i = 0; i <= lX + lY; i++) {
         //Calculate the total probs
-        double totalDiagonalProb = diagonalCalculationTotalProbability(sM, i, dpMatrixForward, dpMatrixBackward, sX2, sY2);
+        double totalDiagonalProb = diagonalCalculationTotalProbability(sM, i, dpMatrixForward, dpMatrixBackward, sX2,
+                sY2);
         CuAssertDblEquals(testCase, totalProbForward, totalDiagonalProb, 0.001); //Check the forward and back probabilities are about equal
     }
 
@@ -385,7 +386,8 @@ static void test_getAlignedPairsWithBanding(CuTest *testCase) {
 
         stList *alignedPairs = stList_construct3(0, (void (*)(void *)) stIntTuple_destruct);
         void *extraArgs[1] = { alignedPairs };
-        getPosteriorProbsWithBanding(sM, anchorPairs, sX2, sY2, p, 0, 0, diagonalCalculationPosteriorMatchProbs, extraArgs);
+        getPosteriorProbsWithBanding(sM, anchorPairs, sX2, sY2, p, 0, 0, diagonalCalculationPosteriorMatchProbs,
+                extraArgs);
         //Check the aligned pairs.
         //Check the aligned pairs.
         checkAlignedPairs(testCase, alignedPairs, lX, lY);
@@ -666,6 +668,16 @@ static void test_hmm(CuTest *testCase, StateMachineType stateMachineType) {
         }
     }
 
+    //Add some emission expectations
+    for (int64_t state = 0; state < hmm->stateNumber; state++) {
+        for (int64_t x = 0; x < SYMBOL_NUMBER_NO_N; x++) {
+            for (int64_t y = 0; y < SYMBOL_NUMBER_NO_N; y++) {
+                hmm_addToEmissionsExpectation(hmm, state, x, y,
+                        state * SYMBOL_NUMBER_NO_N * SYMBOL_NUMBER_NO_N + x * SYMBOL_NUMBER_NO_N + y);
+            }
+        }
+    }
+
     //Write to a file
     char *tempFile = stString_print("./temp%" PRIi64 ".hmm", st_randomInt(0, INT64_MAX));
     CuAssertTrue(testCase, !stFile_exists(tempFile)); //Quick check that we don't write over anything.
@@ -681,20 +693,41 @@ static void test_hmm(CuTest *testCase, StateMachineType stateMachineType) {
     //Check the transition expectations
     for (int64_t from = 0; from < hmm->stateNumber; from++) {
         for (int64_t to = 0; to < hmm->stateNumber; to++) {
-            CuAssertTrue(testCase,
-                    hmm_getTransition(hmm, from, to) == from * hmm->stateNumber + to);
+            CuAssertTrue(testCase, hmm_getTransition(hmm, from, to) == from * hmm->stateNumber + to);
+        }
+    }
+
+    //Check the emission expectations
+    for (int64_t state = 0; state < hmm->stateNumber; state++) {
+        for (int64_t x = 0; x < SYMBOL_NUMBER_NO_N; x++) {
+            for (int64_t y = 0; y < SYMBOL_NUMBER_NO_N; y++) {
+                CuAssertTrue(testCase,
+                        hmm_getEmissionsExpectation(hmm, state, x, y) == state * SYMBOL_NUMBER_NO_N * SYMBOL_NUMBER_NO_N + x * SYMBOL_NUMBER_NO_N + y);
+            }
         }
     }
 
     //Normalise
     hmm_normalise(hmm);
 
-    //Recheck
+    //Recheck transitions
     for (int64_t from = 0; from < hmm->stateNumber; from++) {
         for (int64_t to = 0; to < hmm->stateNumber; to++) {
-            double z = from * hmm->stateNumber * hmm->stateNumber + (hmm->stateNumber*(hmm->stateNumber-1))/2;
-            CuAssertDblEquals(testCase,
-                    (from * hmm->stateNumber + to)/z, hmm_getTransition(hmm, from, to), 0.0);
+            double z = from * hmm->stateNumber * hmm->stateNumber + (hmm->stateNumber * (hmm->stateNumber - 1)) / 2;
+            CuAssertDblEquals(testCase, (from * hmm->stateNumber + to) / z, hmm_getTransition(hmm, from, to), 0.0);
+        }
+    }
+
+    //Recheck the emissions
+    for (int64_t state = 0; state < hmm->stateNumber; state++) {
+        for (int64_t x = 0; x < SYMBOL_NUMBER_NO_N; x++) {
+            for (int64_t y = 0; y < SYMBOL_NUMBER_NO_N; y++) {
+                double z = SYMBOL_NUMBER_NO_N * SYMBOL_NUMBER_NO_N * SYMBOL_NUMBER_NO_N * SYMBOL_NUMBER_NO_N * state
+                        + ((SYMBOL_NUMBER_NO_N * SYMBOL_NUMBER_NO_N) * ((SYMBOL_NUMBER_NO_N * SYMBOL_NUMBER_NO_N) - 1))
+                                / 2;
+                CuAssertTrue(testCase,
+                        hmm_getEmissionsExpectation(hmm, state, x, y) == (state * SYMBOL_NUMBER_NO_N * SYMBOL_NUMBER_NO_N + x * SYMBOL_NUMBER_NO_N + y)/z);
+            }
         }
     }
 
@@ -717,7 +750,7 @@ static void test_hmm_3StateAsymmetric(CuTest *testCase) {
 static void test_em(CuTest *testCase, StateMachineType stateMachineType) {
     for (int64_t test = 0; test < 100; test++) {
         //Make a pair of sequences
-        char *sX = getRandomSequence(st_randomInt(0, 100));
+        char *sX = getRandomSequence(st_randomInt(10, 100));
         char *sY = evolveSequence(sX); //stString_copy(seqX);
         st_logInfo("Sequence X to align: %s END\n", sX);
         st_logInfo("Sequence Y to align: %s END\n", sY);
@@ -732,7 +765,7 @@ static void test_em(CuTest *testCase, StateMachineType stateMachineType) {
         StateMachine *sM = hmm_getStateMachine(hmm);
         hmm_destruct(hmm);
 
-        for(int64_t iteration=0; iteration<10; iteration++) {
+        for (int64_t iteration = 0; iteration < 10; iteration++) {
             hmm = hmm_constructEmpty(0.000000000001, stateMachineType); //The tiny pseudo count prevents overflow
             getExpectations(sM, hmm, sX, sY, p, 0, 0);
             hmm_normalise(hmm);
@@ -743,9 +776,17 @@ static void test_em(CuTest *testCase, StateMachineType stateMachineType) {
                             hmm_getTransition(hmm, from, to));
                 }
             }
+            for (int64_t x = 0; x < SYMBOL_NUMBER_NO_N; x++) {
+                for (int64_t y = 0; y < SYMBOL_NUMBER_NO_N; y++) {
+                    st_logInfo("Emission x %" PRIi64 " y %" PRIi64 " has expectation %f\n", x, y,
+                            hmm_getEmissionsExpectation(hmm, sM->matchState, x, y));
+                }
+            }
 
-            st_logInfo("->->-> Got expected likelihood %f for trial %" PRIi64 " and  iteration %" PRIi64 "\n", hmm->likelihood, test, iteration);
-            CuAssertTrue(testCase, pLikelihood <= hmm->likelihood * 0.98);
+            st_logInfo("->->-> Got expected likelihood %f for trial %" PRIi64 " and  iteration %" PRIi64 "\n",
+                    hmm->likelihood, test, iteration);
+            assert(pLikelihood <= hmm->likelihood * 0.98);
+            //CuAssertTrue(testCase, pLikelihood <= hmm->likelihood * 0.98);
             pLikelihood = hmm->likelihood;
             stateMachine_destruct(sM);
             sM = hmm_getStateMachine(hmm);

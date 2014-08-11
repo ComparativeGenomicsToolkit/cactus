@@ -10,6 +10,9 @@
 
 #include "sonLib.h"
 
+#define SYMBOL_NUMBER 5
+#define SYMBOL_NUMBER_NO_N 4
+
 typedef enum {
     a=0,
     c=1,
@@ -55,6 +58,7 @@ struct _stateMachine {
 typedef struct _hmm {
     StateMachineType type;
     double *transitions;
+    double *emissions;
     double likelihood;
     int64_t stateNumber;
 } Hmm;
@@ -72,6 +76,12 @@ void hmm_addToTransitionExpectation(Hmm *hmmExpectations, int64_t from, int64_t 
 double hmm_getTransition(Hmm *hmmExpectations, int64_t from, int64_t to);
 
 void hmm_setTransition(Hmm *hmm, int64_t from, int64_t to, double p);
+
+void hmm_addToEmissionsExpectation(Hmm *hmmExpectations, int64_t state, Symbol x, Symbol y, double p);
+
+double hmm_getEmissionsExpectation(Hmm *hmm, int64_t state, Symbol x, Symbol y);
+
+void hmm_setEmissionsExpectation(Hmm *hmm, int64_t state, Symbol x, Symbol y, double p);
 
 Hmm *hmm_loadFromFile(const char *fileName);
 
