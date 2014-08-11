@@ -221,15 +221,13 @@ static void emissions_setMatchProbsToDefaults(double *emissionMatchProbs) {
     const double EMISSION_MATCH=-2.1149196655034745; //log(0.12064298095701059);
     const double EMISSION_TRANSVERSION=-4.5691014376830479; //log(0.010367271172731285);
     const double EMISSION_TRANSITION=-3.9833860032220842; //log(0.01862247669752685);
-    const double EMISSION_MATCH_N=-3.2188758248682006; //log(0.04);
     //Symmetric matrix of transition probabilities.
-    const double i[25] = { EMISSION_MATCH, EMISSION_TRANSVERSION, EMISSION_TRANSITION,
-    EMISSION_TRANSVERSION, EMISSION_MATCH_N, EMISSION_TRANSVERSION, EMISSION_MATCH, EMISSION_TRANSVERSION,
-    EMISSION_TRANSITION, EMISSION_MATCH_N, EMISSION_TRANSITION, EMISSION_TRANSVERSION, EMISSION_MATCH,
-    EMISSION_TRANSVERSION, EMISSION_MATCH_N, EMISSION_TRANSVERSION, EMISSION_TRANSITION, EMISSION_TRANSVERSION,
-    EMISSION_MATCH, EMISSION_MATCH_N, EMISSION_MATCH_N, EMISSION_MATCH_N, EMISSION_MATCH_N, EMISSION_MATCH_N,
-    EMISSION_MATCH_N };
-    memcpy(emissionMatchProbs, i, sizeof(double)*SYMBOL_NUMBER*SYMBOL_NUMBER);
+    const double i[SYMBOL_NUMBER_NO_N*SYMBOL_NUMBER_NO_N] = {
+            EMISSION_MATCH, EMISSION_TRANSVERSION, EMISSION_TRANSITION, EMISSION_TRANSVERSION,
+            EMISSION_TRANSVERSION, EMISSION_MATCH, EMISSION_TRANSVERSION, EMISSION_TRANSITION,
+            EMISSION_TRANSITION, EMISSION_TRANSVERSION, EMISSION_MATCH, EMISSION_TRANSVERSION,
+            EMISSION_TRANSVERSION, EMISSION_TRANSITION, EMISSION_TRANSVERSION, EMISSION_MATCH };
+    memcpy(emissionMatchProbs, i, sizeof(double)*SYMBOL_NUMBER_NO_N*SYMBOL_NUMBER_NO_N);
 }
 
 static void emissions_setGapProbsToDefaults(double *emissionGapProbs) {
@@ -237,8 +235,8 @@ static void emissions_setGapProbsToDefaults(double *emissionGapProbs) {
      * This is used to set the emissions to reasonable values.
      */
     const double EMISSION_GAP = -1.6094379124341003; //log(0.2)
-    const double i[5] = { EMISSION_GAP, EMISSION_GAP, EMISSION_GAP, EMISSION_GAP, EMISSION_GAP };
-    memcpy(emissionGapProbs, i, sizeof(double)*SYMBOL_NUMBER);
+    const double i[4] = { EMISSION_GAP, EMISSION_GAP, EMISSION_GAP, EMISSION_GAP };
+    memcpy(emissionGapProbs, i, sizeof(double)*SYMBOL_NUMBER_NO_N);
 }
 
 static void symbol_check(Symbol c) {
@@ -249,7 +247,7 @@ static void emissions_loadMatchProbs(double *emissionMatchProbs, Hmm *hmm, int64
     //Load the matches
     for(int64_t x=0; x<SYMBOL_NUMBER_NO_N; x++) {
         for(int64_t y=0; y<SYMBOL_NUMBER_NO_N; y++) {
-            emissionMatchProbs[x * SYMBOL_NUMBER + y] = log(hmm_getEmissionsExpectation(hmm, matchState, x, y) * 0.8);
+            emissionMatchProbs[x * SYMBOL_NUMBER_NO_N + y] = log(hmm_getEmissionsExpectation(hmm, matchState, x, y) * 0.8);
         }
     }
 }
@@ -300,7 +298,7 @@ static inline double emission_getMatchProb(const double *emissionMatchProbs, Sym
     if(x == n || y == n) {
         return -3.2188758248682006; //log(0.04)
     }
-    return emissionMatchProbs[x * SYMBOL_NUMBER + y];
+    return emissionMatchProbs[x * SYMBOL_NUMBER_NO_N + y];
 }
 
 ///////////////////////////////////
@@ -322,8 +320,8 @@ struct _StateMachine5 {
     double TRANSITION_GAP_SHORT_SWITCH; //0.0073673675173412815f;
     double TRANSITION_GAP_LONG_OPEN; //(1.0 - match - 2*gapOpenShort)/2 = 0.001821479941473
     double TRANSITION_GAP_LONG_EXTEND; //0.99656342579062f;
-    double EMISSION_MATCH_PROBS[SYMBOL_NUMBER*SYMBOL_NUMBER]; //Match emission probs
-    double EMISSION_GAP_PROBS[SYMBOL_NUMBER]; //Gap emission probs
+    double EMISSION_MATCH_PROBS[SYMBOL_NUMBER_NO_N*SYMBOL_NUMBER_NO_N]; //Match emission probs
+    double EMISSION_GAP_PROBS[SYMBOL_NUMBER_NO_N]; //Gap emission probs
 };
 
 static double stateMachine5_startStateProb(StateMachine *sM, int64_t state) {
@@ -472,8 +470,8 @@ struct _StateMachine3 {
     double TRANSITION_GAP_EXTEND_Y; //0.7126062401851738f;
     double TRANSITION_GAP_SWITCH_TO_X; //0.0073673675173412815f;
     double TRANSITION_GAP_SWITCH_TO_Y; //0.0073673675173412815f;
-    double EMISSION_MATCH_PROBS[SYMBOL_NUMBER*SYMBOL_NUMBER]; //Match emission probs
-    double EMISSION_GAP_PROBS[SYMBOL_NUMBER]; //Match emission probs
+    double EMISSION_MATCH_PROBS[SYMBOL_NUMBER_NO_N*SYMBOL_NUMBER_NO_N]; //Match emission probs
+    double EMISSION_GAP_PROBS[SYMBOL_NUMBER_NO_N]; //Match emission probs
 };
 
 static double stateMachine3_startStateProb(StateMachine *sM, int64_t state) {
