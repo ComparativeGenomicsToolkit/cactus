@@ -350,15 +350,21 @@ static inline void updateExpectations(double *fromCells, double *toCells, int64_
     //void *extraArgs2[2] = { &totalProbability, hmmExpectations };
     double totalProbability = *((double *) ((void **) extraArgs)[0]);
     Hmm *hmmExpectations = ((void **) extraArgs)[1];
+    Symbol x = *((Symbol *)((void **) extraArgs)[2]);
+    Symbol y = *((Symbol *)((void **) extraArgs)[3]);
     //Calculate posterior probability of the transition/emission pair
     double p = exp(fromCells[from] + toCells[to] + (eP + tP) - totalProbability);
     //Add in the expectation of the transition
     hmm_addToTransitionExpectation(hmmExpectations, from, to, p);
+    if(x < SYMBOL_NUMBER_NO_N && y < SYMBOL_NUMBER_NO_N) { //Ignore gaps involving Ns.
+        hmm_addToEmissionsExpectation(hmmExpectations, to, x, y, p);
+    }
 }
 
 static void cell_calculateExpectation(StateMachine *sM, double *current, double *lower, double *middle, double *upper, Symbol cX, Symbol cY,
         void *extraArgs) {
-    sM->cellCalculate(sM, current, lower, middle, upper, cX, cY, updateExpectations, extraArgs);
+    void *extraArgs2[4] = { ((void **)extraArgs)[0], ((void **)extraArgs)[1], &cX, &cY };
+    sM->cellCalculate(sM, current, lower, middle, upper, cX, cY, updateExpectations, extraArgs2);
 }
 
 ///////////////////////////////////

@@ -35,20 +35,21 @@ class TestCase(unittest.TestCase):
                                                  modelType=modelType,
                                                  jobTreeDir=jobTreeDir,
                                                  iterations=1, trials=1, randomStart=False, logLevel=getLogLevelString(),
-                                                 optionsToRealign="--diagonalExpansion=5 --splitMatrixBiggerThanThis=3000")
+                                                 optionsToRealign="--diagonalExpansion=6 --splitMatrixBiggerThanThis=3000")
                 hmm = Hmm.loadHmm(outputModelFile)
                 system("rm -rf %s" % jobTreeDir) #Cleanup the old jobTree
                 logger.info("For trial %s the likelihood after 1 iteration of EM is %s" % (trial, hmm.likelihood))
                 iterations = 5
                 runCactusExpectationMaximisation(sequenceFiles=[ seqFile1, seqFile2 ], 
                                                  alignmentsFile=alignmentsFile, outputModelFile=outputModelFile, jobTreeDir=jobTreeDir,
-                                                 optionsToRealign="--diagonalExpansion=5 --splitMatrixBiggerThanThis=100",
+                                                 optionsToRealign="--diagonalExpansion=6 --splitMatrixBiggerThanThis=100",
                                                  iterations=iterations, inputModelFile=outputModelFile, logLevel=getLogLevelString())
                 hmm2 = Hmm.loadHmm(outputModelFile)
                 logger.info("For trial %s the likelihood after a further %s iterations of EM is %s" % (trial, iterations, hmm2.likelihood))
                 self.assertTrue(hmm.likelihood < hmm2.likelihood)
                 hmm2.normalise()
                 logger.info("Final transitions: %s" % " ".join(map(str, hmm2.transitions)))
+                logger.info("Final emissions: %s" % " ".join(map(str, hmm2.emissions)))
                 system("rm -rf %s" % tempDir)
                 trial += 1
     
@@ -69,7 +70,7 @@ class TestCase(unittest.TestCase):
                                              jobTreeDir=jobTreeDir,
                                              trials=3,
                                              iterations=5, randomStart=True, logLevel=getLogLevelString(),
-                                             optionsToRealign="--diagonalExpansion=5 --splitMatrixBiggerThanThis=100")
+                                             optionsToRealign="--diagonalExpansion=6 --splitMatrixBiggerThanThis=100")
             hmm = Hmm.loadHmm(outputModelFile)
             logger.info("After multiple trials and iterations of EM the best likelihood found was %s" % hmm.likelihood)
             system("rm -rf %s" % tempDir)
