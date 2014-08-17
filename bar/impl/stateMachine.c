@@ -467,7 +467,7 @@ static void stateMachine5_loadAsymmetric(StateMachine5 *sM5, Hmm *hmm) {
     sM5->TRANSITION_GAP_LONG_OPEN_X = log(hmm_getTransition(hmm, match, longGapX));
     sM5->TRANSITION_GAP_LONG_EXTEND_X = log(hmm_getTransition(hmm, longGapX, longGapX));
 
-    if(sM5->TRANSITION_GAP_SHORT_EXTEND_X < sM5->TRANSITION_GAP_LONG_EXTEND_X) {
+    if(sM5->TRANSITION_GAP_SHORT_EXTEND_X > sM5->TRANSITION_GAP_LONG_EXTEND_X) {
         //Switch the long and short gap parameters if one the "long states" have a smaller extend probability than the "short states", as can randomly happen during EM training.
         switchDoubles(&(sM5->TRANSITION_GAP_SHORT_EXTEND_X), &(sM5->TRANSITION_GAP_LONG_EXTEND_X));
         switchDoubles(&(sM5->TRANSITION_MATCH_FROM_SHORT_GAP_X), &(sM5->TRANSITION_MATCH_FROM_LONG_GAP_X));
@@ -482,7 +482,7 @@ static void stateMachine5_loadAsymmetric(StateMachine5 *sM5, Hmm *hmm) {
     sM5->TRANSITION_GAP_LONG_OPEN_Y = log(hmm_getTransition(hmm, match, longGapY));
     sM5->TRANSITION_GAP_LONG_EXTEND_Y = log(hmm_getTransition(hmm, longGapY, longGapY));
 
-    if(sM5->TRANSITION_GAP_SHORT_EXTEND_Y < sM5->TRANSITION_GAP_LONG_EXTEND_Y) {
+    if(sM5->TRANSITION_GAP_SHORT_EXTEND_Y > sM5->TRANSITION_GAP_LONG_EXTEND_Y) {
         //Switch the long and short gap parameters if one the "long states" have a smaller extend probability than the "short states", as can randomly happen during EM training.
         switchDoubles(&(sM5->TRANSITION_GAP_SHORT_EXTEND_Y), &(sM5->TRANSITION_GAP_LONG_EXTEND_Y));
         switchDoubles(&(sM5->TRANSITION_MATCH_FROM_SHORT_GAP_Y), &(sM5->TRANSITION_MATCH_FROM_LONG_GAP_Y));
@@ -515,7 +515,7 @@ static void stateMachine5_loadSymmetric(StateMachine5 *sM5, Hmm *hmm) {
     sM5->TRANSITION_GAP_LONG_EXTEND_X = log(
             (hmm_getTransition(hmm, longGapX, longGapX) + hmm_getTransition(hmm, longGapY, longGapY)) / 2);
 
-    if(sM5->TRANSITION_GAP_SHORT_EXTEND_X < sM5->TRANSITION_GAP_LONG_EXTEND_X) {
+    if(sM5->TRANSITION_GAP_SHORT_EXTEND_X > sM5->TRANSITION_GAP_LONG_EXTEND_X) {
         //Switch the long and short gap parameters if one the "long states" have a smaller extend probability than the "short states", as can randomly happen during EM training.
         switchDoubles(&(sM5->TRANSITION_GAP_SHORT_EXTEND_X), &(sM5->TRANSITION_GAP_LONG_EXTEND_X));
         switchDoubles(&(sM5->TRANSITION_MATCH_FROM_SHORT_GAP_X), &(sM5->TRANSITION_MATCH_FROM_LONG_GAP_X));
