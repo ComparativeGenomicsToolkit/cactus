@@ -70,7 +70,7 @@ static void setup() {
     teardown();
     cactusDisk = testCommon_getTemporaryCactusDisk();
     flower = flower_construct(cactusDisk);
-    stateMachine = stateMachine5_construct();
+    stateMachine = stateMachine5_construct(fiveState);
 
     //Event tree
     eventTree = eventTree_construct2(flower);

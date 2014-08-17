@@ -243,7 +243,7 @@ int main(int argc, char *argv[]) {
     /*
      * Load the hmm
      */
-    StateMachine *sM = stateMachine5_construct();
+    StateMachine *sM = stateMachine5_construct(fiveState);
 
     /*
      * For each flower.

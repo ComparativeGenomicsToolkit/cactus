@@ -27,8 +27,9 @@ typedef enum {
 
 typedef enum {
     fiveState=0,
-    threeState=1,
-    threeStateAsymmetric=2
+    fiveStateAsymmetric=1,
+    threeState=2,
+    threeStateAsymmetric=3
 } StateMachineType;
 
 typedef struct _stateMachine StateMachine;
@@ -89,7 +90,7 @@ void hmm_normalise(Hmm *hmm);
 
 StateMachine *hmm_getStateMachine(Hmm *hmm);
 
-StateMachine *stateMachine5_construct();
+StateMachine *stateMachine5_construct(StateMachineType type);
 
 StateMachine *stateMachine3_construct(StateMachineType type); //the type is to specify symmetric/asymmetric
 
