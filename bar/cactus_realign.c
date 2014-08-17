@@ -495,7 +495,7 @@ int main(int argc, char *argv[]) {
         hmm_destruct(hmm);
     }
     else {
-        sM = stateMachine5_construct();
+        sM = stateMachine5_construct(fiveState);
     }
 
     //Make the expectations object, if needed

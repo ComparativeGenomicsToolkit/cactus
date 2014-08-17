@@ -151,7 +151,7 @@ static void test_symbol(CuTest *testCase) {
 }
 
 static void test_cell(CuTest *testCase) {
-    StateMachine *sM = stateMachine5_construct();
+    StateMachine *sM = stateMachine5_construct(fiveState);
     double lowerF[sM->stateNumber], middleF[sM->stateNumber], upperF[sM->stateNumber], currentF[sM->stateNumber];
     double lowerB[sM->stateNumber], middleB[sM->stateNumber], upperB[sM->stateNumber], currentB[sM->stateNumber];
     for (int64_t i = 0; i < sM->stateNumber; i++) {
@@ -180,7 +180,7 @@ static void test_cell(CuTest *testCase) {
 }
 
 static void test_dpDiagonal(CuTest *testCase) {
-    StateMachine *sM = stateMachine5_construct();
+    StateMachine *sM = stateMachine5_construct(fiveState);
     Diagonal diagonal = diagonal_construct(3, -1, 1);
     DpDiagonal *dpDiagonal = dpDiagonal_construct(diagonal, sM->stateNumber);
 
@@ -247,7 +247,7 @@ static void test_diagonalDPCalculations(CuTest *testCase) {
     int64_t lY = strlen(sY);
     SymbolString sX2 = symbolString_construct(sX, lX);
     SymbolString sY2 = symbolString_construct(sY, lY);
-    StateMachine *sM = stateMachine5_construct();
+    StateMachine *sM = stateMachine5_construct(fiveState);
     DpMatrix *dpMatrixForward = dpMatrix_construct(lX + lY, sM->stateNumber);
     DpMatrix *dpMatrixBackward = dpMatrix_construct(lX + lY, sM->stateNumber);
     stList *anchorPairs = stList_construct();
@@ -381,7 +381,7 @@ static void test_getAlignedPairsWithBanding(CuTest *testCase) {
         p->traceBackDiagonals = st_randomInt(1, 10);
         p->minDiagsBetweenTraceBack = p->traceBackDiagonals + st_randomInt(2, 10);
         p->diagonalExpansion = st_randomInt(0, 10) * 2;
-        StateMachine *sM = stateMachine5_construct();
+        StateMachine *sM = stateMachine5_construct(fiveState);
         stList *anchorPairs = getRandomAnchorPairs(lX, lY);
 
         stList *alignedPairs = stList_construct3(0, (void (*)(void *)) stIntTuple_destruct);
@@ -600,7 +600,7 @@ static void test_getAlignedPairs(CuTest *testCase) {
 
         //Now do alignment
         PairwiseAlignmentParameters *p = pairwiseAlignmentBandingParameters_construct();
-        StateMachine *sM = stateMachine5_construct();
+        StateMachine *sM = stateMachine5_construct(fiveState);
 
         stList *alignedPairs = getAlignedPairs(sM, sX, sY, p, 0, 0);
 
@@ -628,7 +628,7 @@ static void test_getAlignedPairsWithRaggedEnds(CuTest *testCase) {
 
         //Now do alignment
         PairwiseAlignmentParameters *p = pairwiseAlignmentBandingParameters_construct();
-        StateMachine *sM = stateMachine5_construct();
+        StateMachine *sM = stateMachine5_construct(fiveState);
         stList *alignedPairs = getAlignedPairs(sM, sX, sY, p, 1, 1);
         stList *discardedAlignmentPairs = filterPairwiseAlignmentToMakePairsOrdered(alignedPairs, 0.2);
 
@@ -739,6 +739,10 @@ static void test_hmm_5State(CuTest *testCase) {
     test_hmm(testCase, fiveState);
 }
 
+static void test_hmm_5StateAsymmetric(CuTest *testCase) {
+    test_hmm(testCase, fiveStateAsymmetric);
+}
+
 static void test_hmm_3State(CuTest *testCase) {
     test_hmm(testCase, threeState);
 }
@@ -830,6 +834,7 @@ CuSuite* pairwiseAlignmentTestSuite(void) {
     SUITE_ADD_TEST(suite, test_getAlignedPairs);
     SUITE_ADD_TEST(suite, test_getAlignedPairsWithRaggedEnds);
     SUITE_ADD_TEST(suite, test_hmm_5State);
+    SUITE_ADD_TEST(suite, test_hmm_5StateAsymmetric);
     SUITE_ADD_TEST(suite, test_hmm_3State);
     SUITE_ADD_TEST(suite, test_hmm_3StateAsymmetric);
     SUITE_ADD_TEST(suite, test_em_3State);

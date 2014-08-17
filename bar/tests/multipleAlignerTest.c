@@ -44,7 +44,7 @@ static void setup() {
     stList_append(littleSeqFrags, seqFrag_construct(seq2, 0, 0));
     stList_append(littleSeqFrags, seqFrag_construct(seq3, 0, 1));
     stList_append(littleSeqFrags, seqFrag_construct(seq4, 1, 1));
-    stateMachine = stateMachine5_construct();
+    stateMachine = stateMachine5_construct(fiveState);
 }
 
 static void test_makeColumns(CuTest *testCase) {
