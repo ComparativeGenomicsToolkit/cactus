@@ -336,7 +336,8 @@ def runCactusExpectationMaximisation(sequenceFiles, alignmentsFile, outputModelF
                                      optionsToRealign=None,
                                      logLevel=None, 
                                      updateTheBand=None,
-                                     numberOfAlignmentsPerJob=None):
+                                     numberOfAlignmentsPerJob=None,
+                                     useDefaultModelAsStart=None):
     logLevel = getLogLevelString2(logLevel)
     jobTreeDir= nameValue("jobTree", jobTreeDir, str)
     inputModelFile= nameValue("inputModel", inputModelFile, str)
@@ -347,10 +348,11 @@ def runCactusExpectationMaximisation(sequenceFiles, alignmentsFile, outputModelF
     updateTheBand = nameValue("updateTheBand", updateTheBand, bool)
     numberOfAlignmentsPerJob = nameValue("numberOfAlignmentsPerJob", numberOfAlignmentsPerJob, int)
     optionsToRealign = nameValue("optionsToRealign", optionsToRealign, quotes=True)
-    system("cactus_expectationMaximisation --sequences '%s' --alignments %s --outputModel %s %s %s %s %s %s %s %s %s %s" % \
+    useDefaultModelAsStart = nameValue("useDefaultModelAsStart", useDefaultModelAsStart, bool)
+    system("cactus_expectationMaximisation --sequences '%s' --alignments %s --outputModel %s %s %s %s %s %s %s %s %s %s %s" % \
            (" ".join(sequenceFiles), alignmentsFile, outputModelFile, iterations, trials, randomStart, 
             jobTreeDir, inputModelFile, optionsToRealign, modelType,
-            numberOfAlignmentsPerJob, updateTheBand))
+            numberOfAlignmentsPerJob, updateTheBand, useDefaultModelAsStart))
 
 def runCactusSecondaryDatabase(secondaryDatabaseString, create=True):
     command = "cactus_secondaryDatabase '%s' %s" % (secondaryDatabaseString, int(create))

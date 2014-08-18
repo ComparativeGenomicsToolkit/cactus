@@ -44,7 +44,7 @@ class TestCase(unittest.TestCase):
                                                  alignmentsFile=alignmentsFile, outputModelFile=outputModelFile, jobTreeDir=jobTreeDir,
                                                  optionsToRealign="--diagonalExpansion=6 --splitMatrixBiggerThanThis=100",
                                                  iterations=iterations, inputModelFile=outputModelFile, logLevel=getLogLevelString(),
-                                                 numberOfAlignmentsPerJob=20) #, updateTheBand=True)
+                                                 numberOfAlignmentsPerJob=20, useDefaultModelAsStart=True) #, updateTheBand=True)
                 hmm2 = Hmm.loadHmm(outputModelFile)
                 logger.info("For trial %s the likelihood after a further %s iterations of EM is %s" % (trial, iterations, hmm2.likelihood))
                 self.assertTrue(hmm.likelihood < hmm2.likelihood)

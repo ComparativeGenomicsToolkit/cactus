@@ -8,7 +8,7 @@ import random
 from optparse import OptionParser
 from jobTree.scriptTree.target import Target 
 from jobTree.scriptTree.stack import Stack
-from sonLib.bioio import setLoggingFromOptions, logger, system, popenCatch, cigarRead, cigarWrite
+from sonLib.bioio import setLoggingFromOptions, logger, system, popenCatch, cigarRead, cigarWrite, nameValue
 
 SYMBOL_NUMBER=4
 
@@ -97,7 +97,7 @@ def expectationMaximisation(target, sequences, alignments, outputModel, options)
     
     #Write out the first version of the output model
     hmm.write(outputModel)
-            
+
     #Make a set of split alignment files
     cigars = list(cigarRead(alignments))
     splitAlignments = []
@@ -108,31 +108,32 @@ def expectationMaximisation(target, sequences, alignments, outputModel, options)
             cigarWrite(fH, cigar)
         fH.close()
         cigars = cigars[options.numberOfAlignmentsPerJob:]
-    
+
     #Files to store expectations in
     expectationsFiles = map(lambda i : os.path.join(target.getGlobalTempDir(), "expectation_%i.txt" % i), xrange(len(splitAlignments)))
     assert len(splitAlignments) == len(expectationsFiles)
-    
-    target.setFollowOnTargetFn(expectationMaximisation2, args=(sequences, splitAlignments, outputModel, expectationsFiles, options))
-    
-def expectationMaximisation2(target, sequences, splitAlignments, modelsFile, expectationsFiles, options):
-    if options.iterations > 0:
-        options.iterations -= 1
-        map(lambda x : target.addChildTargetFn(calculateExpectations, args=(sequences, x[0], modelsFile, x[1], options)), zip(splitAlignments, expectationsFiles))
-        target.setFollowOnTargetFn(calculateMaximisation, args=(sequences, splitAlignments, modelsFile, expectationsFiles, options))
+
+    target.setFollowOnTargetFn(expectationMaximisation2, args=(sequences, splitAlignments, outputModel, expectationsFiles, 0, options))
+
+def expectationMaximisation2(target, sequences, splitAlignments, modelsFile, expectationsFiles, iteration, options):
+    if iteration < options.iterations:
+        map(lambda x : target.addChildTargetFn(calculateExpectations,
+                    args=(sequences, x[0], None if (options.useDefaultModelAsStart and iterations == 0) else modelsFile, x[1], options)), 
+            zip(splitAlignments, expectationsFiles))
+        target.setFollowOnTargetFn(calculateMaximisation, args=(sequences, splitAlignments, modelsFile, expectationsFiles, iteration, options))
 
 def calculateExpectations(target, sequences, alignments, modelsFile, expectationsFile, options):
     #Run cactus_realign
-    system("cat %s | cactus_realign --logLevel DEBUG %s --loadHmm=%s --outputExpectations=%s %s" % (alignments, sequences, modelsFile, expectationsFile, options.optionsToRealign))
+    system("cat %s | cactus_realign --logLevel DEBUG %s %s --outputExpectations=%s %s" % (alignments, sequences, nameValue("loadHmm", modelsFile, str), expectationsFile, options.optionsToRealign))
 
-def calculateMaximisation(target, sequences, splitAlignments, modelsFile, expectationsFiles, options):
+def calculateMaximisation(target, sequences, splitAlignments, modelsFile, expectationsFiles, iteration, options):
     #Load and merge the models files
     if len(expectationsFiles) > 0:
         hmm = Hmm.loadHmm(expectationsFiles[0])
         for expectationsFile in expectationsFiles[1:]:
             hmm.addExpectationsFile(expectationsFile)
         hmm.normalise()
-        target.logToMaster("With %i iteration left got likelihood: %s for model-type: %s" % (options.iterations, hmm.likelihood, hmm.modelType))
+        target.logToMaster("On %i iteration left got likelihood: %s for model-type: %s" % (iteration, hmm.likelihood, hmm.modelType))
         #Write out 
         hmm.write(modelsFile)
     
@@ -141,7 +142,7 @@ def calculateMaximisation(target, sequences, splitAlignments, modelsFile, expect
         map(lambda alignments : target.addChildTargetFn(calculateAlignments, args=(sequences, alignments, modelsFile, options)), splitAlignments)
     
     #Start the next iteration
-    target.setFollowOnTargetFn(expectationMaximisation2, args=(sequences, splitAlignments, modelsFile, expectationsFiles, options))
+    target.setFollowOnTargetFn(expectationMaximisation2, args=(sequences, splitAlignments, modelsFile, expectationsFiles, iteration+1, options))
     #Call em2
 
 def calculateAlignments(target, sequences, alignments, modelsFile, options):
@@ -176,6 +177,7 @@ class Options:
         self.optionsToRealign="--diagonalExpansion=10 --splitMatrixBiggerThanThis=3000" 
         self.updateTheBand=False
         self.numberOfAlignmentsPerJob=100
+        self.useDefaultModelAsStart = False
 
 def main():
     #Parse the inputs args/options
@@ -192,6 +194,8 @@ def main():
     parser.add_option("--optionsToRealign", default=options.optionsToRealign, help="Further options to pass to cactus_realign when computing expectation values, should be passed as a quoted string")
     parser.add_option("--updateTheBand", default=options.updateTheBand, help="After each iteration of EM update the set of alignments by realigning them, so allowing stochastic updating of the constraints. This does not alter the input alignments file", action="store_true")
     parser.add_option("--numberOfAlignmentsPerJob", default=options.numberOfAlignmentsPerJob, help="Number of alignments to compute in parallel during expectation/updating the band steps", type=int)
+    parser.add_option("--useDefaultModelAsStart", default=options.useDefaultModelAsStart, help="Use the default BAR hmm model as the starting point", action="store_true")
+    
     
     Stack.addJobTreeOptions(parser)
     options, args = parser.parse_args()
