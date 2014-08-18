@@ -1,5 +1,5 @@
 # order is important, libraries first
-modules = api bar externalTools
+modules = api setup blastLib caf bar blast normalisation reference phylogeny faces check pipeline progressive preprocessor hal dbTest externalTools
 
 .PHONY: all %.all clean %.clean
 

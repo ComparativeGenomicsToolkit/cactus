@@ -133,7 +133,7 @@ def calculateMaximisation(target, sequences, splitAlignments, modelsFile, expect
         for expectationsFile in expectationsFiles[1:]:
             hmm.addExpectationsFile(expectationsFile)
         hmm.normalise()
-        target.logToMaster("On %i iteration left got likelihood: %s for model-type: %s" % (iteration, hmm.likelihood, hmm.modelType))
+        target.logToMaster("On %i iteration got likelihood: %s for model-type: %s" % (iteration, hmm.likelihood, hmm.modelType))
         #Write out 
         hmm.write(modelsFile)
     

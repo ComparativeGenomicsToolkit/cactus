@@ -4,15 +4,15 @@ include ../include.mk
 libSources = impl/*.c
 libHeaders = inc/*.h
 libTests = tests/*.c
-#${libPath}/stCaf.a
-commonBarLibs =  ${libPath}/cactusLib.a 
+
+commonBarLibs = ${libPath}/stCaf.a ${sonLibPath}/stPinchesAndCacti.a ${libPath}/cactusLib.a ${sonLibPath}/3EdgeConnected.a
 stBarDependencies =  ${commonBarLibs} ${basicLibsDependencies}
 stBarLibs = ${commonBarLibs} ${basicLibs}
 
-all : ${libPath}/cactusBarLib.a ${binPath}/cactus_realign ${binPath}/cactus_expectationMaximisation 
+all : ${libPath}/cactusBarLib.a ${binPath}/cactus_bar ${binPath}/cactus_realign ${binPath}/cactus_expectationMaximisation ${binPath}/cactus_barTests 
  
 clean : 
-	rm -f ${binPath}/cactus_realign ${binPath}/cactus_expectationMaximisation ${binPath}/cactus_barTests  ${libPath}/cactusBarLib.a
+	rm -f ${binPath}/cactus_bar ${binPath}/cactus_realign ${binPath}/cactus_expectationMaximisation ${binPath}/cactus_barTests  ${libPath}/cactusBarLib.a
 
 ${binPath}/cactus_bar : cactus_bar.c  ${libPath}/cactusBarLib.a ${stBarDependencies} 
 	${cxx} ${cflags} -I inc -I${libPath} -o ${binPath}/cactus_bar cactus_bar.c ${libPath}/cactusBarLib.a ${stBarLibs}
