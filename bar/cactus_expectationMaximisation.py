@@ -145,9 +145,10 @@ def calculateMaximisation(target, sequences, splitAlignments, modelsFile, expect
             hmm.addExpectationsFile(expectationsFile)
         hmm.normalise()
         target.logToMaster("On %i iteration got likelihood: %s for model-type: %s" % (iteration, hmm.likelihood, hmm.modelType))
+        target.logToMaster("On %i iteration got transitions: %s for model-type: %s" % (iteration, " ".join(map(str, hmm.transitions)), hmm.modelType))
         #If not train emissions then load up the old emissions and replace
         if options.trainEmissions:
-            target.logToMaster("Training expectations")
+            target.logToMaster("Training emissions: %s" % (" ".join(map(str, hmm.emissions))))
         else:
             hmm.emissions = Hmm.loadHmm(modelsFile).emissions
             target.logToMaster("Using the original emissions")
