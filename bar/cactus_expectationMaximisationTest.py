@@ -36,6 +36,7 @@ class TestCase(unittest.TestCase):
                                                  jobTreeDir=jobTreeDir,
                                                  iterations=1, trials=1, randomStart=False, logLevel=getLogLevelString(),
                                                  setJukesCantorStartingEmissions=0.2,
+                                                 #useDefaultModelAsStart=,
                                                  trainEmissions=True,
                                                  optionsToRealign="--diagonalExpansion=6 --splitMatrixBiggerThanThis=100")
                 hmm = Hmm.loadHmm(outputModelFile)
