@@ -3,6 +3,7 @@
 """Script to train pair-HMM of Cactus.
 """
 
+import math
 import os
 import random
 from optparse import OptionParser
@@ -78,6 +79,14 @@ class Hmm:
         """
         self.transitions = [1.0/self.stateNumber] * (self.stateNumber**2)
         self.emissions = [1.0/(SYMBOL_NUMBER*SYMBOL_NUMBER)] * (self.stateNumber * SYMBOL_NUMBER**2)
+        
+    def setEmissionsToJukesCantor(self, divergence):
+        i = (0.25 + 0.75*math.exp(-4.0*divergence/3.0))/4.0
+        j = (0.25 - 0.25*math.exp(-4.0*divergence/3.0))/4.0
+        for state in xrange(self.stateNumber):
+            for x in xrange(SYMBOL_NUMBER):
+                for y in xrange(SYMBOL_NUMBER):
+                    self.emissions[(state * SYMBOL_NUMBER**2) + x * SYMBOL_NUMBER + y] = i if x == y else j
 
 def expectationMaximisation(target, sequences, alignments, outputModel, options):
     #Iteratively run cactus realign to get expectations and load model.
@@ -94,6 +103,8 @@ def expectationMaximisation(target, sequences, alignments, outputModel, options)
             hmm.randomise()
         else:
             hmm.equalise()
+    if options.setJukesCantorStartingEmissions != None:
+        hmm.setEmissionsToJukesCantor(float(options.setJukesCantorStartingEmissions))
     
     #Write out the first version of the output model
     hmm.write(outputModel)
@@ -134,6 +145,13 @@ def calculateMaximisation(target, sequences, splitAlignments, modelsFile, expect
             hmm.addExpectationsFile(expectationsFile)
         hmm.normalise()
         target.logToMaster("On %i iteration got likelihood: %s for model-type: %s" % (iteration, hmm.likelihood, hmm.modelType))
+        #If not train emissions then load up the old emissions and replace
+        if options.trainEmissions:
+            target.logToMaster("Training expectations")
+        else:
+            hmm.emissions = Hmm.loadHmm(modelsFile).emissions
+            target.logToMaster("Using the original emissions")
+            
         #Write out 
         hmm.write(modelsFile)
     
@@ -178,6 +196,8 @@ class Options:
         self.updateTheBand=False
         self.numberOfAlignmentsPerJob=100
         self.useDefaultModelAsStart = False
+        self.setJukesCantorStartingEmissions=None
+        self.trainEmissions=False
 
 def main():
     #Parse the inputs args/options
@@ -195,7 +215,8 @@ def main():
     parser.add_option("--updateTheBand", default=options.updateTheBand, help="After each iteration of EM update the set of alignments by realigning them, so allowing stochastic updating of the constraints. This does not alter the input alignments file", action="store_true")
     parser.add_option("--numberOfAlignmentsPerJob", default=options.numberOfAlignmentsPerJob, help="Number of alignments to compute in parallel during expectation/updating the band steps", type=int)
     parser.add_option("--useDefaultModelAsStart", default=options.useDefaultModelAsStart, help="Use the default BAR hmm model as the starting point", action="store_true")
-    
+    parser.add_option("--setJukesCantorStartingEmissions", default=options.setJukesCantorStartingEmissions, help="[double] Set the starting hmm emissions by jukes cantor expectation, using given subs/site estimate", type=float)
+    parser.add_option("--trainEmissions", default=options.trainEmissions, help="Train the emissions as well as the transitions.", action="store_true")
     
     Stack.addJobTreeOptions(parser)
     options, args = parser.parse_args()

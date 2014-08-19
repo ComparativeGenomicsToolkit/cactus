@@ -35,7 +35,9 @@ class TestCase(unittest.TestCase):
                                                  modelType=modelType,
                                                  jobTreeDir=jobTreeDir,
                                                  iterations=1, trials=1, randomStart=False, logLevel=getLogLevelString(),
-                                                 optionsToRealign="--diagonalExpansion=6 --splitMatrixBiggerThanThis=3000")
+                                                 setJukesCantorStartingEmissions=0.2,
+                                                 trainEmissions=True,
+                                                 optionsToRealign="--diagonalExpansion=6 --splitMatrixBiggerThanThis=100")
                 hmm = Hmm.loadHmm(outputModelFile)
                 system("rm -rf %s" % jobTreeDir) #Cleanup the old jobTree
                 logger.info("For trial %s the likelihood after 1 iteration of EM is %s" % (trial, hmm.likelihood))
@@ -44,7 +46,7 @@ class TestCase(unittest.TestCase):
                                                  alignmentsFile=alignmentsFile, outputModelFile=outputModelFile, jobTreeDir=jobTreeDir,
                                                  optionsToRealign="--diagonalExpansion=6 --splitMatrixBiggerThanThis=100",
                                                  iterations=iterations, inputModelFile=outputModelFile, logLevel=getLogLevelString(),
-                                                 numberOfAlignmentsPerJob=20, useDefaultModelAsStart=True) #, updateTheBand=True)
+                                                 numberOfAlignmentsPerJob=20) #, updateTheBand=True)
                 hmm2 = Hmm.loadHmm(outputModelFile)
                 logger.info("For trial %s the likelihood after a further %s iterations of EM is %s" % (trial, iterations, hmm2.likelihood))
                 self.assertTrue(hmm.likelihood < hmm2.likelihood)

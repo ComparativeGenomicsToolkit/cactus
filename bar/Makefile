@@ -10,7 +10,7 @@ stBarDependencies =  ${commonBarLibs} ${basicLibsDependencies}
 stBarLibs = ${commonBarLibs} ${basicLibs}
 
 all : ${libPath}/cactusBarLib.a ${binPath}/cactus_bar ${binPath}/cactus_realign ${binPath}/cactus_expectationMaximisation ${binPath}/cactus_barTests 
- 
+
 clean : 
 	rm -f ${binPath}/cactus_bar ${binPath}/cactus_realign ${binPath}/cactus_expectationMaximisation ${binPath}/cactus_barTests  ${libPath}/cactusBarLib.a
 

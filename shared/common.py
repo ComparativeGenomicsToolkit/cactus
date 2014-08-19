@@ -337,7 +337,9 @@ def runCactusExpectationMaximisation(sequenceFiles, alignmentsFile, outputModelF
                                      logLevel=None, 
                                      updateTheBand=None,
                                      numberOfAlignmentsPerJob=None,
-                                     useDefaultModelAsStart=None):
+                                     useDefaultModelAsStart=None, 
+                                     setJukesCantorStartingEmissions=None,
+                                     trainEmissions=None):
     logLevel = getLogLevelString2(logLevel)
     jobTreeDir= nameValue("jobTree", jobTreeDir, str)
     inputModelFile= nameValue("inputModel", inputModelFile, str)
@@ -348,11 +350,15 @@ def runCactusExpectationMaximisation(sequenceFiles, alignmentsFile, outputModelF
     updateTheBand = nameValue("updateTheBand", updateTheBand, bool)
     numberOfAlignmentsPerJob = nameValue("numberOfAlignmentsPerJob", numberOfAlignmentsPerJob, int)
     optionsToRealign = nameValue("optionsToRealign", optionsToRealign, quotes=True)
-    useDefaultModelAsStart = nameValue("useDefaultModelAsStart", useDefaultModelAsStart, bool)
-    system("cactus_expectationMaximisation --sequences '%s' --alignments %s --outputModel %s %s %s %s %s %s %s %s %s %s %s" % \
+    useDefaultModelAsStart = nameValue("useDefaultModelAsStart", useDefaultModelAsStart, bool) 
+    trainEmissions = nameValue("trainEmissions", trainEmissions, bool)
+    setJukesCantorStartingEmissions = nameValue("setJukesCantorStartingEmissions", setJukesCantorStartingEmissions, float)
+    
+    system("cactus_expectationMaximisation --sequences '%s' --alignments %s --outputModel %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
            (" ".join(sequenceFiles), alignmentsFile, outputModelFile, iterations, trials, randomStart, 
             jobTreeDir, inputModelFile, optionsToRealign, modelType,
-            numberOfAlignmentsPerJob, updateTheBand, useDefaultModelAsStart))
+            numberOfAlignmentsPerJob, updateTheBand, useDefaultModelAsStart, 
+            trainEmissions, setJukesCantorStartingEmissions))
 
 def runCactusSecondaryDatabase(secondaryDatabaseString, create=True):
     command = "cactus_secondaryDatabase '%s' %s" % (secondaryDatabaseString, int(create))
