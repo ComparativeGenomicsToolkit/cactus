@@ -129,7 +129,7 @@ def expectationMaximisation(target, sequences, alignments, outputModel, options)
 def expectationMaximisation2(target, sequences, splitAlignments, modelsFile, expectationsFiles, iteration, options):
     if iteration < options.iterations:
         map(lambda x : target.addChildTargetFn(calculateExpectations,
-                    args=(sequences, x[0], None if (options.useDefaultModelAsStart and iterations == 0) else modelsFile, x[1], options)), 
+                    args=(sequences, x[0], None if (options.useDefaultModelAsStart and iteration == 0) else modelsFile, x[1], options)), 
             zip(splitAlignments, expectationsFiles))
         target.setFollowOnTargetFn(calculateMaximisation, args=(sequences, splitAlignments, modelsFile, expectationsFiles, iteration, options))
 
