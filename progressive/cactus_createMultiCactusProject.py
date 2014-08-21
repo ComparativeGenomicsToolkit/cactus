@@ -79,8 +79,7 @@ def cleanEventTree(experiment):
             name1 = tree.getName(node1)
             for node2 in tree.breadthFirstTraversal():
                 name2 = tree.getName(node2)
-                if node1 != node2 and name1.find(name2) == 0 and\
-                 name1 != name2 + tree.self_suffix:
+                if node1 != node2 and name1 == name2:
                     newName = "%s%i" % (name2, newSuffix)
                     newSuffix += 1
                     tree.setName(node2, newName)
