@@ -9,7 +9,9 @@ import random
 from optparse import OptionParser
 from jobTree.scriptTree.target import Target 
 from jobTree.scriptTree.stack import Stack
-from sonLib.bioio import setLoggingFromOptions, logger, system, popenCatch, cigarRead, cigarWrite, nameValue
+from sonLib.bioio import setLoggingFromOptions, logger, system, popenCatch, cigarRead, cigarWrite, nameValue, prettyXml
+import numpy
+import xml.etree.cElementTree as ET
 
 SYMBOL_NUMBER=4
 
@@ -20,6 +22,7 @@ class Hmm:
         self.transitions = [0.0] * self.stateNumber**2
         self.emissions = [0.0] * (SYMBOL_NUMBER**2 * self.stateNumber)
         self.likelihood = 0.0
+        self.runningLikelihoods = []
         
     def _modelTypeInt(self):
         return { "fiveState":0, "fiveStateAsymmetric":1, "threeState":2, "threeStateAsymmetric":3}[self.modelType]
@@ -42,6 +45,7 @@ class Hmm:
         assert len(l) == len(self.emissions)
         self.emissions = map(lambda x : sum(x), zip(self.emissions, l))
         assert len(self.emissions) == self.stateNumber * SYMBOL_NUMBER**2
+        self.runningLikelihoods = map(float, fH.readline().split()) #This allows us to keep track of running likelihoods
         fH.close()
         return self
 
@@ -124,20 +128,25 @@ def expectationMaximisation(target, sequences, alignments, outputModel, options)
     expectationsFiles = map(lambda i : os.path.join(target.getGlobalTempDir(), "expectation_%i.txt" % i), xrange(len(splitAlignments)))
     assert len(splitAlignments) == len(expectationsFiles)
 
-    target.setFollowOnTargetFn(expectationMaximisation2, args=(sequences, splitAlignments, outputModel, expectationsFiles, 0, options))
+    target.setFollowOnTargetFn(expectationMaximisation2, args=(sequences, splitAlignments, outputModel, expectationsFiles, 0, [], options))
 
-def expectationMaximisation2(target, sequences, splitAlignments, modelsFile, expectationsFiles, iteration, options):
+def expectationMaximisation2(target, sequences, splitAlignments, modelsFile, expectationsFiles, iteration, runningLikelihoods, options):
     if iteration < options.iterations:
         map(lambda x : target.addChildTargetFn(calculateExpectations,
                     args=(sequences, x[0], None if (options.useDefaultModelAsStart and iteration == 0) else modelsFile, x[1], options)), 
             zip(splitAlignments, expectationsFiles))
-        target.setFollowOnTargetFn(calculateMaximisation, args=(sequences, splitAlignments, modelsFile, expectationsFiles, iteration, options))
+        target.setFollowOnTargetFn(calculateMaximisation, args=(sequences, splitAlignments, modelsFile, expectationsFiles, iteration, runningLikelihoods, options))
+    else:
+        #Write out the likelihoods to the bottom of the file
+        fH = open(modelsFile, 'a')
+        fH.write("\t".join(map(str, runningLikelihoods)) + "\n")
+        fH.close()
 
 def calculateExpectations(target, sequences, alignments, modelsFile, expectationsFile, options):
     #Run cactus_realign
     system("cat %s | cactus_realign --logLevel DEBUG %s %s --outputExpectations=%s %s" % (alignments, sequences, nameValue("loadHmm", modelsFile, str), expectationsFile, options.optionsToRealign))
 
-def calculateMaximisation(target, sequences, splitAlignments, modelsFile, expectationsFiles, iteration, options):
+def calculateMaximisation(target, sequences, splitAlignments, modelsFile, expectationsFiles, iteration, runningLikelihoods, options):
     #Load and merge the models files
     if len(expectationsFiles) > 0:
         hmm = Hmm.loadHmm(expectationsFiles[0])
@@ -145,6 +154,7 @@ def calculateMaximisation(target, sequences, splitAlignments, modelsFile, expect
             hmm.addExpectationsFile(expectationsFile)
         hmm.normalise()
         target.logToMaster("On %i iteration got likelihood: %s for model-type: %s, model-file %s" % (iteration, hmm.likelihood, hmm.modelType, modelsFile))
+        runningLikelihoods.append(hmm.likelihood)
         target.logToMaster("On %i iteration got transitions: %s for model-type: %s, model-file %s" % (iteration, " ".join(map(str, hmm.transitions)), hmm.modelType, modelsFile))
         #If not train emissions then load up the old emissions and replace
         if options.trainEmissions:
@@ -152,7 +162,7 @@ def calculateMaximisation(target, sequences, splitAlignments, modelsFile, expect
         else:
             hmm.emissions = Hmm.loadHmm(modelsFile).emissions
             target.logToMaster("On %i using the original emissions" % iteration)
-            
+
         #Write out 
         hmm.write(modelsFile)
     
@@ -161,14 +171,14 @@ def calculateMaximisation(target, sequences, splitAlignments, modelsFile, expect
         map(lambda alignments : target.addChildTargetFn(calculateAlignments, args=(sequences, alignments, modelsFile, options)), splitAlignments)
     
     #Start the next iteration
-    target.setFollowOnTargetFn(expectationMaximisation2, args=(sequences, splitAlignments, modelsFile, expectationsFiles, iteration+1, options))
+    target.setFollowOnTargetFn(expectationMaximisation2, args=(sequences, splitAlignments, modelsFile, expectationsFiles, iteration+1, runningLikelihoods, options))
     #Call em2
 
 def calculateAlignments(target, sequences, alignments, modelsFile, options):
     temporaryAlignmentFile=os.path.join(target.getLocalTempDir(), "realign.cigar")
     system("cat %s | cactus_realign --logLevel DEBUG %s --loadHmm=%s %s > %s" % (alignments, sequences, modelsFile, options.optionsToRealign, temporaryAlignmentFile))
     system("mv %s %s" % (temporaryAlignmentFile, alignments))
-    
+
 def expectationMaximisationTrials(target, sequences, alignments, outputModel, options):
     if options.inputModel != None or not options.randomStart: #No multiple iterations
         target.setFollowOnTargetFn(expectationMaximisation, args=(sequences, alignments, outputModel, options))
@@ -179,10 +189,74 @@ def expectationMaximisationTrials(target, sequences, alignments, outputModel, op
         target.setFollowOnTargetFn(expectationMaximisationTrials2, args=(trialModels, outputModel, options))
 
 def expectationMaximisationTrials2(target, trialModels, outputModel, options):
+    trialHmms = map(lambda x : Hmm.loadHmm(x), trialModels)
+    if options.outputTrialHmms: #Write out the different trial hmms
+        for i in xrange(options.trials):
+            trialHmms[i].write(outputModel + ("_%i" % i))
     #Pick the trial hmm with highest likelihood
-    hmm = max(map(lambda x : Hmm.loadHmm(x), trialModels), key=lambda x : x.likelihood)
+    hmm = max(trialHmms, key=lambda x : x.likelihood)
     hmm.write(outputModel)
+    if options.outputXMLModelFile != None:
+        open(options.outputXMLModelFile, 'w').write(prettyXml(hmmsXML(trialHmms)))
+    target.logToMaster("Summary of trials:" + prettyXml(hmmsXML(trialHmms)))
     target.logToMaster("Hmm with highest likelihood: %s" % hmm.likelihood)
+
+def hmmsXML(hmms):
+    """Converts a bunch of hmms into a stupid little XML file that can be used to plot relevant statistics in a sensible way
+    """
+    #Get distributions on likelihood convergence and report.
+    if len(hmms) == 0:
+        raise RuntimeError("No hmms to summarise")
+    
+    #Do some checks that they are all the same time of hmm
+    stateNumber = hmms[0].stateNumber
+    modelType = hmms[0].modelType
+    for hmm in hmms[1:]:
+        if hmm.modelType != modelType:
+            raise RuntimeError("Hmms not all of the same type")
+        if hmm.stateNumber != stateNumber:
+            raise RuntimeError("Hmms do not all have the same number of states")
+    
+    parent = ET.Element("hmms", { "modelType":str(modelType), "stateNumber":str(stateNumber)})
+    
+    #For each hmm
+    for hmm in hmms:
+        child = ET.SubElement(parent, "hmm")
+        child.attrib["likelihood"] = str(hmm.likelihood)
+        child.attrib["runningLikelihoods"] = "\t".join(map(str, hmm.runningLikelihoods))
+        child.attrib["transitions"] = "\t".join(map(str, hmm.transitions))
+        child.attrib["emissions"] = "\t".join(map(str, hmm.emissions))
+    
+    #Plot aggregate distributions
+    
+     ##Get the distribution on likelihoods.
+    likelihoods = map(lambda x : x.likelihood, hmms) 
+    parent.attrib["maxLikelihood"] = str(max(likelihoods))
+    parent.attrib["likelihoods"] = "\t".join(map(str, likelihoods))
+    parent.attrib["likelihoodAvg"] = str(numpy.average(likelihoods))
+    parent.attrib["likelihoodStdDev"] = str(numpy.std(likelihoods))
+    
+    def statFn(values, node):
+        node.attrib["max"] = str(max(values))
+        node.attrib["avg"] = str(numpy.average(values))
+        node.attrib["std"] = str(numpy.std(values))
+        node.attrib["min"] = str(min(values))
+        node.attrib["distribution"] = "\t".join(map(str, values))
+    
+    #For each transitions report ML estimate, and distribution of parameters + variance.
+    for fromState in range(stateNumber):
+        for toState in range(stateNumber):
+            statFn(map(lambda x : x.transitions[fromState*stateNumber + toState], hmms), 
+                   ET.SubElement(parent, "transition", {"from":str(fromState), "to":str(toState)}))
+    
+    #For each emission report ML estimate, and distribution of parameters + variance.
+    for state in range(stateNumber):
+        for x in range(4):
+            for y in range(4):
+                statFn(map(lambda z : z.emissions[state * 16 + x * 4 + y], hmms), 
+                       ET.SubElement(parent, "emission", {"state":str(state), "x":"ACGT"[x], "y":"ACGT"[y]}))
+    
+    return parent
     
 class Options:
     """Dictionary representing options, can be used for running pipeline from within another jobTree.
@@ -192,13 +266,15 @@ class Options:
         self.inputModel=None
         self.iterations=10
         self.trials=3
+        self.outputTrialHmms = False
         self.randomStart=False
-        self.optionsToRealign="--diagonalExpansion=10 --splitMatrixBiggerThanThis=3000" 
+        self.optionsToRealign="--diagonalExpansion=10 --splitMatrixBiggerThanThis=3000"
         self.updateTheBand=False
         self.numberOfAlignmentsPerJob=100
         self.useDefaultModelAsStart = False
         self.setJukesCantorStartingEmissions=None
         self.trainEmissions=False
+        self.outputXMLModelFile = None
 
 def main():
     #Parse the inputs args/options
@@ -208,9 +284,11 @@ def main():
     parser.add_option("--alignments", dest="alignments", help="Cigar file ")
     parser.add_option("--inputModel", default=options.inputModel, help="Input model")
     parser.add_option("--outputModel", default="hmm.txt", help="File to write the model in")
+    parser.add_option("--outputXMLModelFile", default=options.outputXMLModelFile, help="File to write XML representation of model in - useful for stats")
     parser.add_option("--modelType", default=options.modelType, help="Specify the model type, currently either fiveState, threeState, threeStateAsymmetric")
     parser.add_option("--iterations", default=options.iterations, help="Number of iterations of EM", type=int)
     parser.add_option("--trials", default=options.trials, help="Number of independent EM trials. The model with the highest likelihood will be reported. Will only work if randomStart=True", type=int)
+    parser.add_option("--outputTrialHmms", default=options.outputTrialHmms, help="Writes out the final trained hmm for each trial, as outputModel + _i", action="store_true")
     parser.add_option("--randomStart", default=options.randomStart, help="Iterate start model with small random values, else all values are equal", action="store_true")
     parser.add_option("--optionsToRealign", default=options.optionsToRealign, help="Further options to pass to cactus_realign when computing expectation values, should be passed as a quoted string")
     parser.add_option("--updateTheBand", default=options.updateTheBand, help="After each iteration of EM update the set of alignments by realigning them, so allowing stochastic updating of the constraints. This does not alter the input alignments file", action="store_true")

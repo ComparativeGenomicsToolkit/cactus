@@ -339,7 +339,9 @@ def runCactusExpectationMaximisation(sequenceFiles, alignmentsFile, outputModelF
                                      numberOfAlignmentsPerJob=None,
                                      useDefaultModelAsStart=None, 
                                      setJukesCantorStartingEmissions=None,
-                                     trainEmissions=None):
+                                     trainEmissions=None,
+                                     outputTrialHmms = None,
+                                     outputXMLModelFile = None):
     logLevel = getLogLevelString2(logLevel)
     jobTreeDir= nameValue("jobTree", jobTreeDir, str)
     inputModelFile= nameValue("inputModel", inputModelFile, str)
@@ -353,12 +355,14 @@ def runCactusExpectationMaximisation(sequenceFiles, alignmentsFile, outputModelF
     useDefaultModelAsStart = nameValue("useDefaultModelAsStart", useDefaultModelAsStart, bool) 
     trainEmissions = nameValue("trainEmissions", trainEmissions, bool)
     setJukesCantorStartingEmissions = nameValue("setJukesCantorStartingEmissions", setJukesCantorStartingEmissions, float)
+    outputTrialHmms = nameValue("outputTrialHmms", outputTrialHmms, bool)
+    outputXMLModelFile = nameValue("outputXMLModelFile", outputXMLModelFile, str)
     
-    system("cactus_expectationMaximisation --sequences '%s' --alignments %s --outputModel %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
+    system("cactus_expectationMaximisation --sequences '%s' --alignments %s --outputModel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
            (" ".join(sequenceFiles), alignmentsFile, outputModelFile, iterations, trials, randomStart, 
             jobTreeDir, inputModelFile, optionsToRealign, modelType,
             numberOfAlignmentsPerJob, updateTheBand, useDefaultModelAsStart, 
-            trainEmissions, setJukesCantorStartingEmissions))
+            trainEmissions, setJukesCantorStartingEmissions, outputTrialHmms, outputXMLModelFile))
 
 def runCactusSecondaryDatabase(secondaryDatabaseString, create=True):
     command = "cactus_secondaryDatabase '%s' %s" % (secondaryDatabaseString, int(create))
