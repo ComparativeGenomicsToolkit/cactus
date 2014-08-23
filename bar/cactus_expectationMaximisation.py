@@ -198,6 +198,7 @@ def expectationMaximisationTrials2(target, trialModels, outputModel, options):
     hmm.write(outputModel)
     if options.outputXMLModelFile != None:
         open(options.outputXMLModelFile, 'w').write(prettyXml(hmmsXML(trialHmms)))
+    target.logToMaster("Summary of trials:" + prettyXml(hmmsXML(trialHmms)))
     target.logToMaster("Hmm with highest likelihood: %s" % hmm.likelihood)
 
 def hmmsXML(hmms):
