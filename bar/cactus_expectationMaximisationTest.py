@@ -8,6 +8,7 @@ from cactus.bar.cactus_realignTest import seqFilePairGenerator
 from cactus.shared.common import runCactusExpectationMaximisation
 from cactus.bar.cactus_expectationMaximisation import Hmm
 from sonLib.bioio import getLogLevelString
+import xml.etree.cElementTree as ET
 
 class TestCase(unittest.TestCase):
     def setUp(self):
@@ -66,16 +67,24 @@ class TestCase(unittest.TestCase):
             computeAlignments(seqFile1, seqFile2, alignmentsFile)
             logger.info("Computed alignments for seqs %s and %s" % (seqFile1, seqFile2))
             outputModelFile = os.path.join(tempDir, "outputModel.txt")
+            outputModelXMLFile = os.path.join(tempDir, "outputModel.xml")
             #First run the script to generate a model and do one iteration of EM to 
             #get the likelihood to compare with the final likelihood
+            trials=3
             runCactusExpectationMaximisation(sequenceFiles=[ seqFile1, seqFile2 ], 
                                              alignmentsFile=alignmentsFile, outputModelFile=outputModelFile, 
                                              jobTreeDir=jobTreeDir,
-                                             trials=3,
+                                             trials=trials,
+                                             outputTrialHmms=True,
                                              iterations=5, randomStart=True, logLevel=getLogLevelString(),
-                                             optionsToRealign="--diagonalExpansion=6 --splitMatrixBiggerThanThis=100")
+                                             optionsToRealign="--diagonalExpansion=6 --splitMatrixBiggerThanThis=100",
+                                             outputXMLModelFile=outputModelXMLFile)
+            trialHmms = [ Hmm.loadHmm(outputModelFile + ("_%i" % i)) for i in xrange(trials) ]
             hmm = Hmm.loadHmm(outputModelFile)
-            logger.info("After multiple trials and iterations of EM the best likelihood found was %s" % hmm.likelihood)
+            node = ET.parse(outputModelXMLFile).getroot()
+            logger.info("After multiple trials and iterations of EM the best likelihood found was %s, the likelihoods of the variants were: %s" % 
+                        (hmm.likelihood, " ".join(map(lambda x : str(x.likelihood), trialHmms))))
+            self.assertTrue(float(node.attrib["maxLikelihood"]) == hmm.likelihood)
             system("rm -rf %s" % tempDir)
 
 def computeAlignments(seqFile1, seqFile2, alignmentsFile, lastzArguments="--ambiguous=iupac"):  
