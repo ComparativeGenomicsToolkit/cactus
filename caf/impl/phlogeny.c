@@ -234,6 +234,7 @@ static stTree *buildTree(stList *featureColumns,
                                                  speciesStTree,
                                                  block, flower);
         stTree *newTree = stPinchPhylogeny_reconcileBinary(tree, speciesStTree, leafToSpecies);
+        stPhylogeny_addStPhylogenyInfo(newTree);
 
         stPhylogenyInfo_destructOnTree(tree);
         stTree_destruct(tree);
@@ -394,11 +395,19 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
                     totalTreeScore += score;
                 }
                 if(score > maxScore) {
-                    sampledTreeWasBetterCount += (i == 0) ? 0 : 1;
+                    sampledTreeWasBetterCount += (i != 0 && bestTree == NULL) ? 1 : 0;
                     maxScore = score;
                     bestTree = tree;
                 }
             }
+
+            if(bestTree == NULL) {
+                // Can happen if/when the nucleotide likelihood score
+                // is used and a block is all N's. Just use the
+                // canonical NJ tree in that case.
+                bestTree = blockTree;
+            }
+
             assert(bestTree != NULL);
 
             totalBestTreeScore += maxScore;
