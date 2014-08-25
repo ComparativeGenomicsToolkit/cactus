@@ -301,7 +301,7 @@ def setupFilteringByIdentity(cactusWorkflowArguments):
     if getOptionalAttrib(cafNode, "filterByIdentity", bool, False): #Do the identity filtering
         adjustedPath = max(float(cafNode.attrib["identityRatio"]) * cactusWorkflowArguments.longestPath,
         float(cafNode.attrib["minimumDistance"]))
-        identity = str(100 - int(100 * inverseJukesCantor(adjustedPath)))
+        identity = str(100 - math.ceil(100 * inverseJukesCantor(adjustedPath)))
         cafNode.attrib["lastzArguments"] = cafNode.attrib["lastzArguments"] + (" --identity=%s" % identity)
 
 
