@@ -946,7 +946,7 @@ class CactusWorkflowArguments:
     """
     def __init__(self, options):
         self.experimentFile = options.experimentFile
-        self.experimentNode = ET.parse(self.experimentFile).getroot()
+        self.experimentNode = ET.parse(open(self.experimentFile, 'r')).getroot()
         self.experimentWrapper = ExperimentWrapper(self.experimentNode)
         #Get the database string
         self.cactusDiskDatabaseString = ET.tostring(self.experimentNode.find("cactus_disk").find("st_kv_database_conf"))
