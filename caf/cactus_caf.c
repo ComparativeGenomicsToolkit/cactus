@@ -75,6 +75,8 @@ static void usage() {
     fprintf(stderr, "-F --phylogenyScoringMethod : Method of deciding which sampled tree is best: either 'reconCost' or .\n");
     fprintf(stderr, "-G --phylogenyBreakpointScalingFactor : scale breakpoint distance by this factor while building phylogenies. Default 0.0.\n");
     fprintf(stderr, "-H --phylogenySkipSingleCopyBlocks : Skip building trees for single-copy blocks. Default is not to skip.\n");
+    fprintf(stderr, "-I --phylogenyMaxBaseDistance : maximum distance in bases to walk outside of a block gathering feature columns\n");
+    fprintf(stderr, "-J --phylogenyMaxBlockDistance : maximum distance in blocks to walk outside of a block gathering feature columns\n");
 }
 
 static int64_t *getInts(const char *string, int64_t *arrayLength) {
@@ -243,6 +245,8 @@ int main(int argc, char *argv[]) {
     enum stCaf_ScoringMethod phylogenyScoringMethod = RECON_COST;
     double breakpointScalingFactor = 0.0;
     bool phylogenySkipSingleCopyBlocks = 0;
+    int64_t phylogenyMaxBaseDistance = 1000;
+    int64_t phylogenyMaxBlockDistance = 100;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -267,6 +271,8 @@ int main(int argc, char *argv[]) {
                         { "phylogenyScoringMethod", required_argument, 0, 'F' },
                         { "phylogenyBreakpointScalingFactor", required_argument, 0, 'G' },
                         { "phylogenySkipSingleCopyBlocks", no_argument, 0, 'H' },
+                        { "phylogenyMaxBaseDistance", required_argument, 0, 'I' },
+                        { "phylogenyMaxBlockDistance", required_argument, 0, 'J' },
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
@@ -550,7 +556,7 @@ int main(int argc, char *argv[]) {
                 st_logDebug("Starting to build trees and partition ingroup homologies\n");
                 stHash *threadStrings = stCaf_getThreadStrings(flower, threadSet);
                 st_logDebug("Got sets of thread strings and set of threads that are outgroups\n");
-                stCaf_buildTreesToRemoveAncientHomologies(threadSet, threadStrings, outgroupThreads, flower, phylogenyNumTrees, phylogenyRootingMethod, phylogenyScoringMethod, breakpointScalingFactor, phylogenySkipSingleCopyBlocks);
+                stCaf_buildTreesToRemoveAncientHomologies(threadSet, threadStrings, outgroupThreads, flower, phylogenyMaxBaseDistance, phylogenyMaxBlockDistance, phylogenyNumTrees, phylogenyRootingMethod, phylogenyScoringMethod, breakpointScalingFactor, phylogenySkipSingleCopyBlocks);
                 stHash_destruct(threadStrings);
                 st_logDebug("Finished building trees\n");
             }

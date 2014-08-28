@@ -211,7 +211,9 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
                   phylogenyScoringMethod=None,
                   phylogenyRootingMethod=None,
                   phylogenyBreakpointScalingFactor=None,
-                  phylogenySkipSingleCopyBlocks=None):
+                  phylogenySkipSingleCopyBlocks=None,
+                  phylogenyMaxBaseDistance=None,
+                  phylogenyMaxBlockDistance=None):
     logLevel = getLogLevelString2(logLevel)
     annealingRounds = nameValue("annealingRounds", annealingRounds, quotes=True)
     deannealingRounds = nameValue("deannealingRounds", deannealingRounds, quotes=True)
@@ -235,17 +237,19 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
     phylogenyScoringMethod = nameValue("phylogenyScoringMethod", phylogenyScoringMethod, quotes=True)
     phylogenyBreakpointScalingFactor = nameValue("phylogenyBreakpointScalingFactor", phylogenyBreakpointScalingFactor)
     phylogenySkipSingleCopyBlocks = nameValue("phylogenySkipSingleCopyBlocks", phylogenySkipSingleCopyBlocks)
+    phylogenyMaxBaseDistance = nameValue("phylogenyMaxBaseDistance", phylogenyMaxBaseDistance)
+    phylogenyMaxBlockDistance = nameValue("phylogenyMaxBlockDistance", phylogenyMaxBlockDistance)
     
     minLengthForChromosome = nameValue("minLengthForChromosome", minLengthForChromosome, int)
     proportionOfUnalignedBasesForNewChromosome = nameValue("proportionOfUnalignedBasesForNewChromosome", proportionOfUnalignedBasesForNewChromosome, float)
     maximumMedianSequenceLengthBetweenLinkedEnds = nameValue("maximumMedianSequenceLengthBetweenLinkedEnds", maximumMedianSequenceLengthBetweenLinkedEnds, int)
     
-    command = "cactus_caf --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
+    command = "cactus_caf --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
     (cactusDiskDatabaseString, logLevel, alignments, annealingRounds, deannealingRounds, 
      trim, minimumTreeCoverage, blockTrim, 
      minimumBlockDegree, minimumIngroupDegree, minimumOutgroupDegree,  
      singleCopyIngroup, singleCopyOutgroup, lastzArguments, minimumSequenceLengthForBlast, maxAdjacencyComponentSizeRatio, constraints,
-     minLengthForChromosome, proportionOfUnalignedBasesForNewChromosome, maximumMedianSequenceLengthBetweenLinkedEnds, realign, realignArguments, phylogenyNumTrees, phylogenyRootingMethod, phylogenyScoringMethod, phylogenyBreakpointScalingFactor, phylogenySkipSingleCopyBlocks)
+     minLengthForChromosome, proportionOfUnalignedBasesForNewChromosome, maximumMedianSequenceLengthBetweenLinkedEnds, realign, realignArguments, phylogenyNumTrees, phylogenyRootingMethod, phylogenyScoringMethod, phylogenyBreakpointScalingFactor, phylogenySkipSingleCopyBlocks, phylogenyMaxBaseDistance, phylogenyMaxBlockDistance)
     masterMessages = popenCatch(command, stdinString=flowerNames)
     logger.info("Ran cactus_core okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]

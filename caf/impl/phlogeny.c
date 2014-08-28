@@ -297,7 +297,7 @@ static bool isSingleCopyBlock(stPinchBlock *block, Flower *flower) {
     return true;
 }
 
-void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHash *threadStrings, stSet *outgroupThreads, Flower *flower, int64_t numTrees, enum stCaf_RootingMethod rootingMethod, enum stCaf_ScoringMethod scoringMethod, double breakPointScalingFactor, bool skipSingleCopyBlocks) {
+void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHash *threadStrings, stSet *outgroupThreads, Flower *flower, int64_t maxBaseDistance, int64_t maxBlockDistance, int64_t numTrees, enum stCaf_RootingMethod rootingMethod, enum stCaf_ScoringMethod scoringMethod, double breakPointScalingFactor, bool skipSingleCopyBlocks) {
     stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
     stPinchBlock *block;
 
@@ -334,8 +334,6 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
                 }
             }
             //Parameters.
-            int64_t maxBaseDistance = 1000;
-            int64_t maxBlockDistance = 100;
             bool ignoreUnalignedBases = 1;
             bool onlyIncludeCompleteFeatureBlocks = 0;
 
