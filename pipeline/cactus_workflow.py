@@ -135,8 +135,9 @@ class CactusPhasesTarget(CactusTarget):
         newChild = target(phaseNode=extractNode(self.phaseNode), 
                           constantsNode=extractNode(self.constantsNode),
                           cactusDiskDatabaseString=self.cactusWorkflowArguments.cactusDiskDatabaseString, 
-                          flowerNames=encodeFlowerNames((self.topFlowerName,)), overlarge=True)
-        
+                          flowerNames=encodeFlowerNames((self.topFlowerName,)), overlarge=True,
+                          cactusWorkflowArguments=self.cactusWorkflowArguments)
+
         if launchSecondaryKtForRecursiveTarget and ExperimentWrapper(self.cactusWorkflowArguments.experimentNode).getDbType() == "kyoto_tycoon":
             cw = ConfigWrapper(self.cactusWorkflowArguments.configNode)
             memory = cw.getKtserverMemory(default=getOptionalAttrib(
@@ -183,10 +184,11 @@ class CactusRecursionTarget(CactusTarget):
     """Base recursive target for traversals up and down the cactus tree.
     """
     maxSequenceSizeOfFlowerGroupingDefault = 1000000
-    def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge=False):
+    def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge=False, cactusWorkflowArguments=None):
         CactusTarget.__init__(self, phaseNode=phaseNode, constantsNode=constantsNode, overlarge=overlarge)
         self.cactusDiskDatabaseString = cactusDiskDatabaseString
-        self.flowerNames = flowerNames  
+        self.flowerNames = flowerNames
+        self.cactusWorkflowArguments = cactusWorkflowArguments
         
     def makeFollowOnRecursiveTarget(self, target, phaseNode=None):
         """Sets the followon to the given recursive target
@@ -194,8 +196,9 @@ class CactusRecursionTarget(CactusTarget):
         if phaseNode == None:
             phaseNode = self.phaseNode
         self.setFollowOnTarget(target(phaseNode=phaseNode, constantsNode=self.constantsNode,
-                                   cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
-                                   flowerNames=self.flowerNames, overlarge=self.overlarge))
+                                      cactusDiskDatabaseString=self.cactusDiskDatabaseString,
+                                      flowerNames=self.flowerNames, overlarge=self.overlarge,
+                                      cactusWorkflowArguments=self.cactusWorkflowArguments))
         
     def makeChildTargets(self, flowersAndSizes, target, overlargeTarget=None, 
                          phaseNode=None, runFlowerStats=False):
@@ -216,10 +219,12 @@ class CactusRecursionTarget(CactusTarget):
                                              % (decodeFirstFlowerName(flowerNames), overlargeTarget))
                 self.addChildTarget(overlargeTarget(cactusDiskDatabaseString=self.cactusDiskDatabaseString, phaseNode=phaseNode, 
                                                     constantsNode=self.constantsNode,
-                                                    flowerNames=flowerNames, overlarge=True)) #This ensures overlarge flowers, 
+                                                    flowerNames=flowerNames, overlarge=True, #This ensures overlarge flowers,
+                                                    cactusWorkflowArguments=self.cactusWorkflowArguments))
             else:
                 self.addChildTarget(target(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
-                                           phaseNode=phaseNode, constantsNode=self.constantsNode, flowerNames=flowerNames, overlarge=False))
+                                           phaseNode=phaseNode, constantsNode=self.constantsNode, flowerNames=flowerNames, overlarge=False,
+                                           cactusWorkflowArguments=self.cactusWorkflowArguments))
         
     def makeRecursiveTargets(self, target=None, phaseNode=None, runFlowerStats=False):
         """Make a set of child targets for a given set of parent flowers.
@@ -480,6 +485,9 @@ class CactusCafWrapper(CactusRecursionTarget):
     """Runs cactus_core upon a set of flowers and no alignment file.
     """
     def runCactusCafInWorkflow(self, alignmentFile):
+        debugFilePath = self.getOptionalPhaseAttrib("phylogenyDebugPrefix")
+        if debugFilePath != None:
+            debugFilePath += getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "reference"), "reference")
         messages = runCactusCaf(cactusDiskDatabaseString=self.cactusDiskDatabaseString,
                           alignments=alignmentFile, 
                           flowerNames=self.flowerNames,
@@ -508,7 +516,8 @@ class CactusCafWrapper(CactusRecursionTarget):
                           phylogenyBreakpointScalingFactor=self.getOptionalPhaseAttrib("phylogenyBreakpointScalingFactor"),
                           phylogenySkipSingleCopyBlocks=self.getOptionalPhaseAttrib("phylogenySkipSingleCopyBlocks", bool),
                           phylogenyMaxBaseDistance=self.getOptionalPhaseAttrib("phylogenyMaxBaseDistance"),
-                          phylogenyMaxBlockDistance=self.getOptionalPhaseAttrib("phylogenyMaxBlockDistance"))
+                          phylogenyMaxBlockDistance=self.getOptionalPhaseAttrib("phylogenyMaxBlockDistance"),
+                          phylogenyDebugFile=debugFilePath)
         for message in messages:
             self.logToMaster(message)
     
@@ -773,7 +782,7 @@ class CactusReferenceWrapper(CactusRecursionTarget):
                        flowerNames=self.flowerNames, 
                        matchingAlgorithm=self.getOptionalPhaseAttrib("matchingAlgorithm"), 
                        permutations=self.getOptionalPhaseAttrib("permutations", int),
-                       referenceEventString=self.getOptionalPhaseAttrib("reference"), 
+                       referenceEventString=self.getOptionalPhaseAttrib("reference"),
                        useSimulatedAnnealing=self.getOptionalPhaseAttrib("useSimulatedAnnealing", bool),
                        theta=self.getOptionalPhaseAttrib("theta", float),
                        maxWalkForCalculatingZ=self.getOptionalPhaseAttrib("maxWalkForCalculatingZ", int),

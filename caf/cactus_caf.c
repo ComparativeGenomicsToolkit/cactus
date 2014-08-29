@@ -77,6 +77,7 @@ static void usage() {
     fprintf(stderr, "-H --phylogenySkipSingleCopyBlocks : Skip building trees for single-copy blocks. Default is not to skip.\n");
     fprintf(stderr, "-I --phylogenyMaxBaseDistance : maximum distance in bases to walk outside of a block gathering feature columns\n");
     fprintf(stderr, "-J --phylogenyMaxBlockDistance : maximum distance in blocks to walk outside of a block gathering feature columns\n");
+    fprintf(stderr, "-J --phylogenyDebugFile : path to file to dump block trees and partitions to\n");
 }
 
 static int64_t *getInts(const char *string, int64_t *arrayLength) {
@@ -247,6 +248,7 @@ int main(int argc, char *argv[]) {
     bool phylogenySkipSingleCopyBlocks = 0;
     int64_t phylogenyMaxBaseDistance = 1000;
     int64_t phylogenyMaxBlockDistance = 100;
+    const char *debugFileName = NULL;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -273,11 +275,12 @@ int main(int argc, char *argv[]) {
                         { "phylogenySkipSingleCopyBlocks", no_argument, 0, 'H' },
                         { "phylogenyMaxBaseDistance", required_argument, 0, 'I' },
                         { "phylogenyMaxBlockDistance", required_argument, 0, 'J' },
+                        { "phylogenyDebugFile", required_argument, 0, 'K' },
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:BC:", long_options, &option_index);
+        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:BC:D:E:F:G:HI:J:K:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -394,6 +397,15 @@ int main(int argc, char *argv[]) {
                 break;
             case 'H':
                 phylogenySkipSingleCopyBlocks = true;
+                break;
+            case 'I':
+                k = sscanf(optarg, "%ld", &phylogenyMaxBaseDistance);
+                break;
+            case 'J':
+                k = sscanf(optarg, "%ld", &phylogenyMaxBlockDistance);
+                break;
+            case 'K':
+                debugFileName = stString_copy(optarg);
                 break;
             default:
                 usage();
@@ -556,7 +568,17 @@ int main(int argc, char *argv[]) {
                 st_logDebug("Starting to build trees and partition ingroup homologies\n");
                 stHash *threadStrings = stCaf_getThreadStrings(flower, threadSet);
                 st_logDebug("Got sets of thread strings and set of threads that are outgroups\n");
-                stCaf_buildTreesToRemoveAncientHomologies(threadSet, threadStrings, outgroupThreads, flower, phylogenyMaxBaseDistance, phylogenyMaxBlockDistance, phylogenyNumTrees, phylogenyRootingMethod, phylogenyScoringMethod, breakpointScalingFactor, phylogenySkipSingleCopyBlocks);
+                FILE *debugFile = NULL;
+                if (debugFileName != NULL) {
+                    debugFile = fopen(debugFileName, "w");
+                    if (debugFile == NULL) {
+                        st_errnoAbort("could not open debug file");
+                    }
+                }
+                stCaf_buildTreesToRemoveAncientHomologies(threadSet, threadStrings, outgroupThreads, flower, phylogenyMaxBaseDistance, phylogenyMaxBlockDistance, phylogenyNumTrees, phylogenyRootingMethod, phylogenyScoringMethod, breakpointScalingFactor, phylogenySkipSingleCopyBlocks, debugFile);
+                if (debugFile != NULL) {
+                    fclose(debugFile);
+                }
                 stHash_destruct(threadStrings);
                 st_logDebug("Finished building trees\n");
             }

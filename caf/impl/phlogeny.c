@@ -297,7 +297,81 @@ static bool isSingleCopyBlock(stPinchBlock *block, Flower *flower) {
     return true;
 }
 
-void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHash *threadStrings, stSet *outgroupThreads, Flower *flower, int64_t maxBaseDistance, int64_t maxBlockDistance, int64_t numTrees, enum stCaf_RootingMethod rootingMethod, enum stCaf_ScoringMethod scoringMethod, double breakPointScalingFactor, bool skipSingleCopyBlocks) {
+// relabel a tree so it's useful for debug output
+static void relabelMatrixIndexedTree(stTree *tree, stHash *matrixIndexToName) {
+    for (int64_t i = 0; i < stTree_getChildNumber(tree); i++) {
+        relabelMatrixIndexedTree(stTree_getChild(tree, i), matrixIndexToName);
+    }
+    if (stTree_getChildNumber(tree) == 0) {
+        stPhylogenyInfo *info = stTree_getClientData(tree);
+        assert(info != NULL);
+        assert(info->matrixIndex != -1);
+        stIntTuple *query = stIntTuple_construct1(info->matrixIndex);
+        char *header = stHash_search(matrixIndexToName, query);
+        assert(header != NULL);
+        stTree_setLabel(tree, stString_copy(header));
+        stIntTuple_destruct(query);
+    }
+}
+
+// print debug info: "tree\tpartition\n" to the file
+static void printTreeBuildingDebugInfo(Flower *flower, stPinchBlock *block, stTree *bestTree, stList *partition, FILE *outFile) {
+    // First get a map from matrix indices to names
+    // The format we will use for leaf names is "genome.seq|posStart-posEnd"
+    int64_t blockDegree = stPinchBlock_getDegree(block);
+    stHash *matrixIndexToName = stHash_construct3((uint64_t (*)(const void *)) stIntTuple_hashKey,
+                                                  (int (*)(const void *, const void *)) stIntTuple_equalsFn,
+                                                  (void (*)(void *)) stIntTuple_destruct, free);
+    int64_t i = 0;
+    stPinchBlockIt blockIt = stPinchBlock_getSegmentIterator(block);
+    stPinchSegment *segment = NULL;
+    while ((segment = stPinchBlockIt_getNext(&blockIt)) != NULL) {
+        stPinchThread *thread = stPinchSegment_getThread(segment);
+        Cap *cap = flower_getCap(flower, stPinchThread_getName(thread));
+        const char *seqHeader = sequence_getHeader(cap_getSequence(cap));
+        Event *event = cap_getEvent(cap);
+        const char *eventHeader = event_getHeader(event);
+        char *segmentHeader = stString_print("%s.%s|%" PRIi64 "-%" PRIi64, eventHeader, seqHeader, stPinchSegment_getStart(segment), stPinchSegment_getStart(segment) + stPinchSegment_getLength(segment));
+        stHash_insert(matrixIndexToName, stIntTuple_construct1(i), segmentHeader);
+        i++;
+    }
+    assert(i == blockDegree);
+
+    // Relabel (our copy of) the best tree.
+    stTree *treeCopy = stTree_clone(bestTree);
+    relabelMatrixIndexedTree(treeCopy, matrixIndexToName);
+    char *newick = stTree_getNewickTreeString(treeCopy);
+
+    fprintf(outFile, "%s\t", newick);
+
+    // Print the partition
+    fprintf(outFile, "[");
+    for (i = 0; i < stList_length(partition); i++) {
+        if (i != 0) {
+            fprintf(outFile, ",");
+        }
+        stList *subList = stList_get(partition, i);
+        fprintf(outFile, "[");
+        for (int64_t j = 0; j < stList_length(subList); j++) {
+            if (j != 0) {
+                fprintf(outFile, ",");
+            }
+            stIntTuple *index = stList_get(subList, j);
+            assert(stIntTuple_get(index, 0) < blockDegree);
+            char *header = stHash_search(matrixIndexToName, index);
+            assert(header != NULL);
+            fprintf(outFile, "\"%s\"", header);
+        }
+        fprintf(outFile, "]");
+    }
+    fprintf(outFile, "]\n");
+
+    stTree_destruct(treeCopy);
+    free(newick);
+    stHash_destruct(matrixIndexToName);
+}
+
+void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHash *threadStrings, stSet *outgroupThreads, Flower *flower, int64_t maxBaseDistance, int64_t maxBlockDistance, int64_t numTrees, enum stCaf_RootingMethod rootingMethod, enum stCaf_ScoringMethod scoringMethod, double breakPointScalingFactor, bool skipSingleCopyBlocks, FILE *debugFile) {
     stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
     stPinchBlock *block;
 
@@ -418,6 +492,11 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
                 totalBlocksSplit++;
             }
             stHash_insert(blocksToPartitions, block, partition);
+
+            // Print debug info: block, best tree, partition for this block
+            if (debugFile != NULL) {
+                printTreeBuildingDebugInfo(flower, block, bestTree, partition, debugFile);
+            }
 
             //Cleanup
             stMatrix_destruct(substitutionMatrix);
