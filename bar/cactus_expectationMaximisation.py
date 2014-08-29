@@ -9,9 +9,10 @@ import random
 from optparse import OptionParser
 from jobTree.scriptTree.target import Target 
 from jobTree.scriptTree.stack import Stack
-from sonLib.bioio import setLoggingFromOptions, logger, system, popenCatch, cigarRead, cigarWrite, nameValue, prettyXml
+from sonLib.bioio import setLoggingFromOptions, logger, system, popenCatch, cigarRead, cigarWrite, nameValue, prettyXml, fastaRead
 import numpy
 import xml.etree.cElementTree as ET
+from itertools import product
 
 SYMBOL_NUMBER=4
 
@@ -186,9 +187,9 @@ def expectationMaximisationTrials(target, sequences, alignments, outputModel, op
         target.logToMaster("Running %s random restart trials to find best hmm" % options.trials)
         trialModels = map(lambda i : os.path.join(target.getGlobalTempDir(), "trial_%s.hmm" % i), xrange(options.trials))
         map(lambda trialModel : target.addChildTargetFn(expectationMaximisation, args=(sequences, alignments, trialModel, options)), trialModels)
-        target.setFollowOnTargetFn(expectationMaximisationTrials2, args=(trialModels, outputModel, options))
+        target.setFollowOnTargetFn(expectationMaximisationTrials2, args=(sequences, trialModels, outputModel, options))
 
-def expectationMaximisationTrials2(target, trialModels, outputModel, options):
+def expectationMaximisationTrials2(target, sequences, trialModels, outputModel, options):
     trialHmms = map(lambda x : Hmm.loadHmm(x), trialModels)
     if options.outputTrialHmms: #Write out the different trial hmms
         for i in xrange(options.trials):
@@ -198,6 +199,11 @@ def expectationMaximisationTrials2(target, trialModels, outputModel, options):
     hmm.write(outputModel)
     if options.outputXMLModelFile != None:
         open(options.outputXMLModelFile, 'w').write(prettyXml(hmmsXML(trialHmms)))
+    if options.blastScoringMatrixFile != None:
+        matchProbs, gapOpen, gapExtend = makeBlastScoringMatrix(hmm, map(lambda x : x[1], reduce(lambda x, y : list(x) + list(y), map(fastaRead, sequences.split()))))
+        fH = open(options.blastScoringMatrixFile, 'w')
+        writeLastzScoringMatrix(fH, matchProbs, gapOpen, gapExtend)
+        fH.close()
     target.logToMaster("Summary of trials:" + prettyXml(hmmsXML(trialHmms)))
     target.logToMaster("Hmm with highest likelihood: %s" % hmm.likelihood)
 
@@ -228,35 +234,95 @@ def hmmsXML(hmms):
         child.attrib["emissions"] = "\t".join(map(str, hmm.emissions))
     
     #Plot aggregate distributions
-    
-     ##Get the distribution on likelihoods.
+
+    ##Get the distribution on likelihoods.
     likelihoods = map(lambda x : x.likelihood, hmms) 
     parent.attrib["maxLikelihood"] = str(max(likelihoods))
     parent.attrib["likelihoods"] = "\t".join(map(str, likelihoods))
     parent.attrib["likelihoodAvg"] = str(numpy.average(likelihoods))
     parent.attrib["likelihoodStdDev"] = str(numpy.std(likelihoods))
-    
+
     def statFn(values, node):
         node.attrib["max"] = str(max(values))
         node.attrib["avg"] = str(numpy.average(values))
         node.attrib["std"] = str(numpy.std(values))
         node.attrib["min"] = str(min(values))
         node.attrib["distribution"] = "\t".join(map(str, values))
-    
+
     #For each transitions report ML estimate, and distribution of parameters + variance.
     for fromState in range(stateNumber):
         for toState in range(stateNumber):
             statFn(map(lambda x : x.transitions[fromState*stateNumber + toState], hmms), 
                    ET.SubElement(parent, "transition", {"from":str(fromState), "to":str(toState)}))
-    
+
     #For each emission report ML estimate, and distribution of parameters + variance.
     for state in range(stateNumber):
         for x in range(4):
             for y in range(4):
                 statFn(map(lambda z : z.emissions[state * 16 + x * 4 + y], hmms), 
                        ET.SubElement(parent, "emission", {"state":str(state), "x":"ACGT"[x], "y":"ACGT"[y]}))
-    
+
     return parent
+
+def makeBlastScoringMatrix(hmm, sequences):
+    """Converts an hmm into a lastz style scoring matrix
+    """
+    #convert to a three state hmm
+    hmm2 = Hmm("threeState")
+    hmm2.transitions = hmm.transitions[:3] + hmm.transitions[hmm.stateNumber*1:hmm.stateNumber*1+3] + hmm.transitions[hmm.stateNumber*2:hmm.stateNumber*2+3]
+    hmm2.emissions = hmm.emissions[:3 * SYMBOL_NUMBER**2]
+    hmm2.normalise()
+    hmm = hmm2
+    
+    #Get gap distribution, assuming we include reverse complement sequences then it's fraction of GCs
+    gcFraction = sum(map(lambda x : sum(map(lambda y : 1.0 if y in 'GC' else 0.0, x)), sequences)) / sum(map(len, sequences))
+    logger.debug("Got the GC fraction in the sequences for making the scoring matrix: %s" % gcFraction)
+    baseProb = lambda x : gcFraction/2.0 if x in (1,2) else (1.0 - gcFraction)/2.0
+  
+    #Calculate match matrix
+    logger.debug("Original match probs: %s" % " ".join(map(str, hmm.emissions[:SYMBOL_NUMBER**2])))
+    matchProbs = [ hmm.emissions[x * SYMBOL_NUMBER + y] / (baseProb(x) * baseProb(y)) for x, y in product(range(SYMBOL_NUMBER), range(SYMBOL_NUMBER)) ]
+    logger.debug("Blast emission match probs: %s" % " ".join(map(str, matchProbs)))
+    matchContinue = hmm.transitions[0]
+    #The 6.94 is the 1/100th the sum of the lastz scoring matrix
+    nProb = math.sqrt(math.exp((6.94+sum(map(lambda x : math.log(x * matchContinue), matchProbs)))/len(matchProbs)))
+    logger.debug("N prob is: %s" % nProb) #Note it may go above 1!
+    weight=100
+    matchProbs = map(lambda x : weight*math.log((x * matchContinue) / nProb**2), matchProbs)
+    logger.debug("Blast match probs, %s: %s" % (sum(matchProbs)/4.0, " ".join(map(str, matchProbs))))
+    
+    #Calculate gap open
+    gapOpen = weight*math.log((0.5 * (hmm.transitions[1]/nProb + hmm.transitions[2]/nProb)) * \
+    ((hmm.transitions[hmm.stateNumber*1 + 0] + hmm.transitions[hmm.stateNumber*2 + 0])/(2*nProb**2)) * \
+    ((nProb**2)/matchContinue))
+    logger.debug("Gap open: %s" % gapOpen)
+    
+    #Calculate gap extend
+    gapContinue = weight*math.log(0.5 * (hmm.transitions[hmm.stateNumber*1 + 1]/nProb + hmm.transitions[hmm.stateNumber*2 + 2]/nProb))
+    logger.debug("Gap continue: %s" % gapContinue)
+
+    return matchProbs, gapOpen, gapContinue
+
+def writeLastzScoringMatrix(fileHandle, matchProbs, gapOpen, gapExtend):
+    """# This matches the default scoring set for BLASTZ
+    
+    bad_score          = X:-1000  # used for sub['X'][*] and sub[*]['X']
+    fill_score         = -100     # used when sub[*][*] is not defined
+    gap_open_penalty   =  400
+    gap_extend_penalty =   30
+
+         A     C     G     T
+    A   91  -114   -31  -123
+    C -114   100  -125   -31
+    G  -31  -125   100  -114
+    T -123   -31  -114    91
+    """
+    fileHandle.write("gap_open_penalty = %s\n" % int(round(-gapOpen)))
+    fileHandle.write("gap_extend_penalty = %s\n" % int(round(-gapExtend)))
+    bases = "ACGT"
+    fileHandle.write("\t\t" + "\t".join(bases) + "\n")
+    for x in range(4):
+        fileHandle.write("\t%s\t%s\n" % (bases[x], "\t".join(map(lambda x : str(int(round(x))), matchProbs[x*SYMBOL_NUMBER:((x+1)*SYMBOL_NUMBER)]))))
     
 class Options:
     """Dictionary representing options, can be used for running pipeline from within another jobTree.
@@ -275,6 +341,7 @@ class Options:
         self.setJukesCantorStartingEmissions=None
         self.trainEmissions=False
         self.outputXMLModelFile = None
+        self.blastScoringMatrixFile = None
 
 def main():
     #Parse the inputs args/options
@@ -296,6 +363,7 @@ def main():
     parser.add_option("--useDefaultModelAsStart", default=options.useDefaultModelAsStart, help="Use the default BAR hmm model as the starting point", action="store_true")
     parser.add_option("--setJukesCantorStartingEmissions", default=options.setJukesCantorStartingEmissions, help="[double] Set the starting hmm emissions by jukes cantor expectation, using given subs/site estimate", type=float)
     parser.add_option("--trainEmissions", default=options.trainEmissions, help="Train the emissions as well as the transitions.", action="store_true")
+    parser.add_option("--blastScoringMatrixFile", default=options.blastScoringMatrixFile, help="Calculate a BLAST scoring matrix from the HMM, output in Lastz/Blastz format")
     
     Stack.addJobTreeOptions(parser)
     options, args = parser.parse_args()
