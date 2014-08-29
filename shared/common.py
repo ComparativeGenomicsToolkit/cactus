@@ -341,7 +341,8 @@ def runCactusExpectationMaximisation(sequenceFiles, alignmentsFile, outputModelF
                                      setJukesCantorStartingEmissions=None,
                                      trainEmissions=None,
                                      outputTrialHmms = None,
-                                     outputXMLModelFile = None):
+                                     outputXMLModelFile = None,
+                                     blastScoringMatrixFile=None):
     logLevel = getLogLevelString2(logLevel)
     jobTreeDir= nameValue("jobTree", jobTreeDir, str)
     inputModelFile= nameValue("inputModel", inputModelFile, str)
@@ -357,12 +358,14 @@ def runCactusExpectationMaximisation(sequenceFiles, alignmentsFile, outputModelF
     setJukesCantorStartingEmissions = nameValue("setJukesCantorStartingEmissions", setJukesCantorStartingEmissions, float)
     outputTrialHmms = nameValue("outputTrialHmms", outputTrialHmms, bool)
     outputXMLModelFile = nameValue("outputXMLModelFile", outputXMLModelFile, str)
+    blastScoringMatrixFile = nameValue("blastScoringMatrixFile", blastScoringMatrixFile, str)
     
-    system("cactus_expectationMaximisation --sequences '%s' --alignments %s --outputModel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
+    system("cactus_expectationMaximisation --sequences '%s' --alignments %s --outputModel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
            (" ".join(sequenceFiles), alignmentsFile, outputModelFile, iterations, trials, randomStart, 
             jobTreeDir, inputModelFile, optionsToRealign, modelType,
             numberOfAlignmentsPerJob, updateTheBand, useDefaultModelAsStart, 
-            trainEmissions, setJukesCantorStartingEmissions, outputTrialHmms, outputXMLModelFile))
+            trainEmissions, setJukesCantorStartingEmissions, outputTrialHmms, 
+            outputXMLModelFile, blastScoringMatrixFile))
 
 def runCactusSecondaryDatabase(secondaryDatabaseString, create=True):
     command = "cactus_secondaryDatabase '%s' %s" % (secondaryDatabaseString, int(create))
