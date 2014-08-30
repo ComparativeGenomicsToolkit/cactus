@@ -315,7 +315,7 @@ static void relabelMatrixIndexedTree(stTree *tree, stHash *matrixIndexToName) {
 }
 
 // print debug info: "tree\tpartition\n" to the file
-static void printTreeBuildingDebugInfo(Flower *flower, stPinchBlock *block, stTree *bestTree, stList *partition, FILE *outFile) {
+static void printTreeBuildingDebugInfo(Flower *flower, stPinchBlock *block, stTree *bestTree, stList *partition, stMatrix *matrix, double score, FILE *outFile) {
     // First get a map from matrix indices to names
     // The format we will use for leaf names is "genome.seq|posStart-posEnd"
     int64_t blockDegree = stPinchBlock_getDegree(block);
@@ -364,8 +364,41 @@ static void printTreeBuildingDebugInfo(Flower *flower, stPinchBlock *block, stTr
         }
         fprintf(outFile, "]");
     }
-    fprintf(outFile, "]\n");
+    fprintf(outFile, "]\t");
 
+    // print the matrix
+    fprintf(outFile, "[");
+    for (i = 0; i < stMatrix_m(matrix); i++) {
+        if (i != 0) {
+            fprintf(outFile, ",");
+        }
+        fprintf(outFile, "[");
+        for (int64_t j = 0; j < stMatrix_n(matrix); j++) {
+            if (j != 0) {
+                fprintf(outFile, ",");
+            }
+            fprintf(outFile, "%lf", *stMatrix_getCell(matrix, i, j));
+        }
+        fprintf(outFile, "]");
+    }
+    fprintf(outFile, "]\t");
+
+    // print the sequences corresponding to the matrix indices
+    fprintf(outFile, "[");
+    for (int64_t i = 0; i < blockDegree; i++) {
+        if (i != 0) {
+            fprintf(outFile, ",");
+        }
+        stIntTuple *query = stIntTuple_construct1(i);
+        char *header = stHash_search(matrixIndexToName, query);
+        assert(header != NULL);
+        fprintf(outFile, "\"%s\"", header);
+        stIntTuple_destruct(query);
+    }
+    fprintf(outFile, "]\t");
+
+    // print the score
+    fprintf(outFile, "%lf\n", score);
     stTree_destruct(treeCopy);
     free(newick);
     stHash_destruct(matrixIndexToName);
@@ -433,6 +466,11 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
             totalBreakpointSimilarities += similarities;
             totalBreakpointDifferences += differences;
 
+            //Combine the matrices into distance matrices
+            stMatrix_scale(breakpointMatrix, breakPointScalingFactor, 0.0);
+            stMatrix *combinedMatrix = stMatrix_add(substitutionMatrix, breakpointMatrix);
+            stMatrix *distanceMatrix = stPinchPhylogeny_getSymmetricDistanceMatrix(combinedMatrix);
+
             //Get the outgroup threads
             stList *outgroups = getOutgroupThreads(block, outgroupThreads);
             totalOutgroupThreads += stList_length(outgroups);
@@ -495,7 +533,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
 
             // Print debug info: block, best tree, partition for this block
             if (debugFile != NULL) {
-                printTreeBuildingDebugInfo(flower, block, bestTree, partition, debugFile);
+                printTreeBuildingDebugInfo(flower, block, bestTree, partition, distanceMatrix, maxScore, debugFile);
             }
 
             //Cleanup
