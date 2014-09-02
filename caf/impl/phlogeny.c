@@ -233,7 +233,7 @@ static stTree *buildTree(stList *featureColumns,
         stHash *leafToSpecies = getLeafToSpecies(tree,
                                                  speciesStTree,
                                                  block, flower);
-        stTree *newTree = stPinchPhylogeny_reconcileBinary(tree, speciesStTree, leafToSpecies);
+        stTree *newTree = stPinchPhylogeny_rootAndReconcileBinary(tree, speciesStTree, leafToSpecies);
         stPhylogeny_addStPhylogenyInfo(newTree);
 
         stPhylogenyInfo_destructOnTree(tree);
@@ -446,16 +446,13 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
     (void)buildTree;
     (void)isSingleCopyBlock;
     (void)printTreeBuildingDebugInfo;
+    (void)hasSimplePhylogeny;
 
     //The loop to build a tree for each block
     while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
-        if(!hasSimplePhylogeny(block, outgroupThreads, flower)) { //No point trying to build a phylogeny for certain blocks.
-            //Get the partitions
-            stList *partition = coalesceEverythingLate(block);
-            stHash_insert(blocksToPartitions, block, partition);
-        } else {
-            totalSimpleBlocks++;
-        }
+        //Get the partitions
+        stList *partition = coalesceEverythingLate(block);
+        stHash_insert(blocksToPartitions, block, partition);
     }
     // Block count including skipped blocks.
     int64_t totalBlockCount = stPinchThreadSet_getTotalBlockNumber(threadSet);
