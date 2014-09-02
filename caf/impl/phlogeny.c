@@ -233,7 +233,7 @@ static stTree *buildTree(stList *featureColumns,
         stHash *leafToSpecies = getLeafToSpecies(tree,
                                                  speciesStTree,
                                                  block, flower);
-        stTree *newTree = stPinchPhylogeny_reconcileBinary(tree, speciesStTree, leafToSpecies);
+        stTree *newTree = stPinchPhylogeny_rootAndReconcileBinary(tree, speciesStTree, leafToSpecies);
         stPhylogeny_addStPhylogenyInfo(newTree);
 
         stPhylogenyInfo_destructOnTree(tree);
@@ -404,13 +404,13 @@ static void printTreeBuildingDebugInfo(Flower *flower, stPinchBlock *block, stTr
     stHash_destruct(matrixIndexToName);
 }
 
-static stList *coalesceEverythingLate(stPinchBlock *block) {
+static stList *coalesceEverythingEarly(stPinchBlock *block) {
     stList *ret = stList_construct();
+    stList *subList = stList_construct();
     for (int64_t i = 0; i < stPinchBlock_getDegree(block); i++) {
-        stList *subList = stList_construct();
         stList_append(subList, stIntTuple_construct1(i));
-        stList_append(ret, subList);
     }
+    stList_append(ret, subList);
     return ret;
 }
 
@@ -451,7 +451,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
     while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
         if(!hasSimplePhylogeny(block, outgroupThreads, flower)) { //No point trying to build a phylogeny for certain blocks.
             //Get the partitions
-            stList *partition = coalesceEverythingLate(block);
+            stList *partition = coalesceEverythingEarly(block);
             stHash_insert(blocksToPartitions, block, partition);
         } else {
             totalSimpleBlocks++;
