@@ -33,7 +33,8 @@ class BlastOptions:
                  # HACK: outgroup flanking is only set so high by
                  # default because it's needed for the tests (which
                  # don't use realign.)
-                 trimOutgroupFlanking=2000):
+                 trimOutgroupFlanking=2000,
+                 keepParalogs=False):
         """Class defining options for blast
         """
         self.chunkSize = chunkSize
@@ -55,6 +56,7 @@ class BlastOptions:
         self.trimThreshold = trimThreshold
         self.trimWindowSize = trimWindowSize
         self.trimOutgroupFlanking = trimOutgroupFlanking
+        self.keepParalogs = keepParalogs
 
 class BlastFlower(Target):
     """Take a reconstruction problem and generate the sequences in chunks to be blasted.
@@ -189,19 +191,22 @@ class BlastIngroupsAndOutgroups(Target):
         except os.error:
             # Directory already exists
             pass
-        ingroupResults = getTempFile(rootDir=self.getGlobalTempDir())
+        
+        ingroupResultsFile = getTempFile("ingroupResults",
+                                         rootDir=self.getGlobalTempDir())
         self.addChildTarget(BlastSequencesAllAgainstAll(self.ingroupSequenceFiles,
-                                                        ingroupResults,
+                                                        ingroupResultsFile,
                                                         self.blastOptions))
-        outgroupResults = getTempFile(rootDir=self.getGlobalTempDir())
-        self.addChildTarget(BlastFirstOutgroup(self.ingroupSequenceFiles,
-                                               self.ingroupSequenceFiles,
-                                               self.outgroupSequenceFiles,
-                                               self.outgroupFragmentsDir,
-                                               outgroupResults,
-                                               self.blastOptions, 1))
-        self.setFollowOnTarget(CollateBlasts(self.finalResultsFile,
-                                             [ingroupResults, outgroupResults]))
+        outgroupResultsFile = getTempFile("outgroupResults",
+                                          rootDir=self.getGlobalTempDir())
+        self.setFollowOnTarget(BlastFirstOutgroup(self.ingroupSequenceFiles,
+                                                  self.ingroupSequenceFiles,
+                                                  self.outgroupSequenceFiles,
+                                                  self.outgroupFragmentsDir,
+                                                  ingroupResultsFile,
+                                                  outgroupResultsFile,
+                                                  self.finalResultsFile,
+                                                  self.blastOptions, 1))
 
 class BlastFirstOutgroup(Target):
     """Blast the given sequence(s) against the first of a succession of
@@ -209,14 +214,17 @@ class BlastFirstOutgroup(Target):
     previous outgroups. Then recurse on the other outgroups.
     """
     def __init__(self, untrimmedSequenceFiles, sequenceFiles,
-                 outgroupSequenceFiles, outgroupFragmentsDir, outputFile,
+                 outgroupSequenceFiles, outgroupFragmentsDir,
+                 ingroupResultsFile, outgroupResultsFile, finalResultsFile,
                  blastOptions, outgroupNumber):
         Target.__init__(self, memory=blastOptions.memory)
         self.untrimmedSequenceFiles = untrimmedSequenceFiles
         self.sequenceFiles = sequenceFiles
         self.outgroupSequenceFiles = outgroupSequenceFiles
         self.outgroupFragmentsDir = outgroupFragmentsDir
-        self.outputFile = outputFile
+        self.ingroupResultsFile = ingroupResultsFile
+        self.outgroupResultsFile = outgroupResultsFile
+        self.finalResultsFile = finalResultsFile
         self.blastOptions = blastOptions
         self.outgroupNumber = outgroupNumber
 
@@ -232,14 +240,17 @@ class BlastFirstOutgroup(Target):
                                                          self.outgroupSequenceFiles,
                                                          self.outgroupFragmentsDir,
                                                          blastResults,
-                                                         self.outputFile,
+                                                         self.ingroupResultsFile,
+                                                         self.outgroupResultsFile,
+                                                         self.finalResultsFile,
                                                          self.blastOptions,
                                                          self.outgroupNumber))
 
 class TrimAndRecurseOnOutgroups(Target):
     def __init__(self, untrimmedSequenceFiles, sequenceFiles,
                  outgroupSequenceFiles, outgroupFragmentsDir,
-                 mostRecentResultsFile, outputFile, blastOptions,
+                 mostRecentResultsFile, ingroupResultsFile, 
+                 outgroupResultsFile, finalResultsFile, blastOptions,
                  outgroupNumber):
         Target.__init__(self)
         self.untrimmedSequenceFiles = untrimmedSequenceFiles
@@ -247,11 +258,15 @@ class TrimAndRecurseOnOutgroups(Target):
         self.outgroupSequenceFiles = outgroupSequenceFiles
         self.outgroupFragmentsDir = outgroupFragmentsDir
         self.mostRecentResultsFile = mostRecentResultsFile
-        self.outputFile = outputFile
+        self.ingroupResultsFile = ingroupResultsFile
+        self.outgroupResultsFile = outgroupResultsFile
+        self.finalResultsFile = finalResultsFile
         self.blastOptions = blastOptions
         self.outgroupNumber = outgroupNumber
 
     def run(self):
+        # TODO: split up this function, it's getting unwieldy
+
         # Trim outgroup, convert outgroup coordinates, and add to
         # outgroup fragments dir
         trimmedOutgroup = getTempFile(rootDir=self.getGlobalTempDir())
@@ -290,7 +305,7 @@ class TrimAndRecurseOnOutgroups(Target):
         
         # Append the latest results to the accumulated outgroup coverage file
         with open(ingroupConvertedResultsFile) as results:
-            with open(self.outputFile, 'a') as output:
+            with open(self.outgroupResultsFile, 'a') as output:
                 output.write(results.read())
         os.remove(outgroupConvertedResultsFile)
         os.remove(ingroupConvertedResultsFile)
@@ -301,7 +316,7 @@ class TrimAndRecurseOnOutgroups(Target):
         ingroupCoverageFiles = []
         for ingroupSequence in self.untrimmedSequenceFiles:
             tmpIngroupCoverage = getTempFile(rootDir=self.getGlobalTempDir())
-            calculateCoverage(ingroupSequence, self.outputFile,
+            calculateCoverage(ingroupSequence, self.outgroupResultsFile,
                               tmpIngroupCoverage)
             self.logToMaster("Cumulative coverage of %d outgroups on ingroup %s: %s" % (self.outgroupNumber, os.path.basename(ingroupSequence), percentCoverage(ingroupSequence, tmpIngroupCoverage)))
             ingroupCoverageFiles.append(tmpIngroupCoverage)
@@ -323,8 +338,19 @@ class TrimAndRecurseOnOutgroups(Target):
             trimmedSeqs = []
             # Use the accumulated results so far to trim away the
             # aligned parts of the ingroups.
-            for i, sequenceFile in enumerate(self.untrimmedSequenceFiles):
-                coverageFile = ingroupCoverageFiles[i]
+            for sequenceFile in self.untrimmedSequenceFiles:
+                selfCoverageFile = getTempFile(rootDir=self.getGlobalTempDir())
+                calculateCoverage(sequenceFile, self.ingroupResultsFile,
+                                  selfCoverageFile, fromGenome=sequenceFile)
+                self.logToMaster("Self-coverage on sequence %s: %s%%" % (os.path.basename(sequenceFile), percentCoverage(sequenceFile, selfCoverageFile)))
+                outgroupCoverageFile = getTempFile(rootDir=self.getGlobalTempDir())
+                calculateCoverage(sequenceFile, self.outgroupResultsFile,
+                                  outgroupCoverageFile)
+                coverageFile = getTempFile(rootDir=self.getGlobalTempDir())
+                if self.blastOptions.keepParalogs:
+                    subtractBed(outgroupCoverageFile, selfCoverageFile, coverageFile)
+                else:
+                    coverageFile = outgroupCoverageFile
 
                 trimmed = getTempFile(rootDir=self.getGlobalTempDir())
                 trimGenome(sequenceFile, coverageFile, trimmed,
@@ -337,9 +363,16 @@ class TrimAndRecurseOnOutgroups(Target):
                                                    trimmedSeqs,
                                                    self.outgroupSequenceFiles[1:],
                                                    self.outgroupFragmentsDir,
-                                                   self.outputFile,
+                                                   self.ingroupResultsFile,
+                                                   self.outgroupResultsFile,
+                                                   self.finalResultsFile,
                                                    self.blastOptions,
                                                    self.outgroupNumber + 1))
+        else:
+            # Finally, put the ingroups and outgroups results together
+            self.setFollowOnTarget(CollateBlasts(self.finalResultsFile,
+                                                 [self.ingroupResultsFile,
+                                                  self.outgroupResultsFile]))
 
 def compressFastaFile(fileName):
     """Compress a fasta file.
@@ -435,12 +468,13 @@ def percentCoverage(sequenceFile, coverageFile):
         return 0
     return 100*float(coverage)/sequenceLen
 
-def calculateCoverage(sequenceFile, cigarFile, outputFile):
+def calculateCoverage(sequenceFile, cigarFile, outputFile, fromGenome=None):
     logger.info("Calculating coverage of cigar file %s on %s, writing to %s" % (
         cigarFile, sequenceFile, outputFile))
-    system("cactus_coverage %s %s > %s" % (sequenceFile,
-                                           cigarFile,
-                                           outputFile))
+    system("cactus_coverage %s %s %s > %s" % (sequenceFile,
+                                              cigarFile,
+                                              nameValue("from", fromGenome),
+                                              outputFile))
 
 def trimGenome(sequenceFile, coverageFile, outputFile, complement=False,
                flanking=0, minSize=1, windowSize=10, threshold=1):
@@ -449,6 +483,11 @@ def trimGenome(sequenceFile, coverageFile, outputFile, complement=False,
         nameValue("flanking", flanking), nameValue("minSize", minSize),
         nameValue("windowSize", windowSize), nameValue("threshold", threshold),
         sequenceFile, coverageFile, outputFile))
+
+def subtractBed(bed1, bed2, destBed):
+    """Subtract two non-bed12 beds"""
+    # tmp. don't really want to use bedtools
+    system("bedtools subtract -a %s -b %s > %s" % (bed1, bed2, destBed))
 
 def main():
     ##########################################
@@ -497,7 +536,7 @@ replaced with the the sequence file and the results file, respectively",
     parser.add_option("--trimThreshold", type=int, help="Coverage threshold for an ingroup region to not be aligned against the next outgroup", default=blastOptions.trimThreshold)
     parser.add_option("--trimWindowSize", type=int, help="Windowing size to integrate ingroup coverage over", default=blastOptions.trimWindowSize)
     parser.add_option("--trimOutgroupFlanking", type=int, help="Amount of flanking sequence to leave on trimmed outgroup sequences", default=blastOptions.trimOutgroupFlanking)
-    
+    parser.add_option("--keepParalogs", action="store_true", help="Never trim away any ingroup sequence that aligns somewhere else in the ingroup", default=blastOptions.keepParalogs)
 
     parser.add_option("--test", dest="test", action="store_true",
                       help="Run doctest unit tests")

@@ -356,7 +356,8 @@ class CactusTrimmingBlastPhase(CactusPhasesTarget):
                                                        trimMinSize=self.getOptionalPhaseAttrib("trimMinSize", int, 0),
                                                        trimThreshold=self.getOptionalPhaseAttrib("trimThreshold", float, 0.8),
                                                        trimWindowSize=self.getOptionalPhaseAttrib("trimWindowSize", int, 10),
-                                                       trimOutgroupFlanking=self.getOptionalPhaseAttrib("trimOutgroupFlanking", int, 100)), ingroups, outgroups, alignmentsFile, outgroupsDir))
+                                                       trimOutgroupFlanking=self.getOptionalPhaseAttrib("trimOutgroupFlanking", int, 100),
+                                                       keepParalogs=self.getOptionalPhaseAttrib("keepParalogs", bool, False)), ingroups, outgroups, alignmentsFile, outgroupsDir))
         # Point the outgroup sequences to their trimmed versions for
         # phases after this one.
         # FIXME: modifies experiment xml!!

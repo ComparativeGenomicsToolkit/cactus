@@ -27,6 +27,9 @@
              the next outgroup -->
         <!-- trimWindowSize: The size of the window to integrate
              coverage over -->
+        <!-- keepParalogs: Always align duplicated sequence against
+             all outgroups, instead of stopping at the first
+             one. Intended to be robust against missing data.-->
         <!-- Outgroup trim options: -->
         <!-- trimOutgroupFlanking: The amount of flanking sequence to
              leave on the ends of the trimmed outgroup fragments. NB:
@@ -38,7 +41,8 @@
                    trimMinSize="100"
                    trimThreshold="1.0"
                    trimWindowSize="1"
-                   trimOutgroupFlanking="2000"/>
+                   trimOutgroupFlanking="2000"
+                   keepParalogs="1"/>
 	<ktserver memory="mediumMemory"/>
 	<setup makeEventHeadersAlphaNumeric="0"/>
 	<!-- The caf tag contains parameters for the caf algorithm. -->
