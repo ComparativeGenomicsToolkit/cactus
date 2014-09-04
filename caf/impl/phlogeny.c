@@ -222,7 +222,7 @@ static stTree *buildTree(stList *featureColumns,
     stMatrix_scale(breakpointMatrix, breakPointScalingFactor, 0.0);
     stMatrix *combinedMatrix = stMatrix_add(substitutionMatrix, breakpointMatrix);
     stMatrix *distanceMatrix = stPinchPhylogeny_getSymmetricDistanceMatrix(combinedMatrix);
-    
+
     stTree *tree = NULL;
     if(rootingMethod == OUTGROUP_BRANCH) {
         tree = stPhylogeny_neighborJoin(distanceMatrix, outgroups);
@@ -233,7 +233,7 @@ static stTree *buildTree(stList *featureColumns,
         stHash *leafToSpecies = getLeafToSpecies(tree,
                                                  speciesStTree,
                                                  block, flower);
-        stTree *newTree = stPinchPhylogeny_reconcileBinary(tree, speciesStTree, leafToSpecies);
+        stTree *newTree = stPinchPhylogeny_rootAndReconcileBinary(tree, speciesStTree, leafToSpecies);
         stPhylogeny_addStPhylogenyInfo(newTree);
 
         stPhylogenyInfo_destructOnTree(tree);
@@ -404,6 +404,48 @@ static void printTreeBuildingDebugInfo(Flower *flower, stPinchBlock *block, stTr
     stHash_destruct(matrixIndexToName);
 }
 
+static int64_t countBasesBetweenSingleDegreeBlocks(stPinchThreadSet *threadSet) {
+    stPinchThreadSetIt pinchThreadIt = stPinchThreadSet_getIt(threadSet);
+    stPinchThread *thread;
+    int64_t numBases = 0;
+    int64_t numBasesInSingleCopyBlocks = 0;
+    while ((thread = stPinchThreadSetIt_getNext(&pinchThreadIt)) != NULL) {
+        stPinchSegment *segment = stPinchThread_getFirst(thread);
+        if (segment == NULL) {
+            // No segments on this thread.
+            continue;
+        }
+        bool wasInSingleDegreeBlock = stPinchBlock_getDegree(stPinchSegment_getBlock(segment)) == 1;
+        stPinchSegment *oldSegment = NULL;
+        while ((segment = stPinchSegment_get3Prime(segment)) != NULL) {
+            stPinchBlock *block = stPinchSegment_getBlock(segment);
+            if (block == NULL) {
+                // Segment without a block.
+                continue;
+            }
+            bool isInSingleDegreeBlock = stPinchBlock_getDegree(block) == 1;
+            if (isInSingleDegreeBlock) {
+                numBasesInSingleCopyBlocks += stPinchBlock_getLength(block);
+            }
+            int64_t numBasesBetweenSegments = 0;
+            if (oldSegment != NULL) {
+                numBasesBetweenSegments = stPinchSegment_getStart(segment) - (stPinchSegment_getStart(oldSegment) + stPinchSegment_getLength(oldSegment));
+            }
+            assert(numBasesBetweenSegments >= 0); // could be 0 if the
+                                                  // blocks aren't
+                                                  // identical
+            if (wasInSingleDegreeBlock && isInSingleDegreeBlock) {
+                numBases += numBasesBetweenSegments;
+            }
+            oldSegment = segment;
+            wasInSingleDegreeBlock = isInSingleDegreeBlock;
+        }
+    }
+    // FIXME: tmp
+    fprintf(stdout, "There were %" PRIi64 " bases in single degree blocks.\n", numBasesInSingleCopyBlocks);
+    return numBases;
+}
+
 void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHash *threadStrings, stSet *outgroupThreads, Flower *flower, int64_t maxBaseDistance, int64_t maxBlockDistance, int64_t numTrees, enum stCaf_RootingMethod rootingMethod, enum stCaf_ScoringMethod scoringMethod, double breakPointScalingFactor, bool skipSingleCopyBlocks, FILE *debugFile) {
     stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
     stPinchBlock *block;
@@ -435,10 +477,10 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
             bool singleCopy = 0;
             if(isSingleCopyBlock(block, flower)) {
                 singleCopy = 1;
-                totalSingleCopyBlocks++;
                 if(skipSingleCopyBlocks) {
                     continue;
                 }
+                totalSingleCopyBlocks++;
             }
             //Parameters.
             bool ignoreUnalignedBases = 1;
@@ -566,6 +608,8 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
 
     st_logDebug("Got homology partition for each block\n");
 
+    fprintf(stdout, "Before partitioning, there were %" PRIi64 " bases lost in between single-degree blocks\n", countBasesBetweenSingleDegreeBlocks(threadSet));
+
     //Now walk through the blocks and do the actual splits, must be done after the fact using the blocks
     //in the original hash, as we are now disrupting and changing the original graph.
     stHashIterator *blockIt2 = stHash_getIterator(blocksToPartitions);
@@ -578,6 +622,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
     stHash_destructIterator(blockIt2);
 
     st_logDebug("Finished partitioning the blocks\n");
+    fprintf(stdout, "After partitioning, there were %" PRIi64 " bases lost in between single-degree blocks\n", countBasesBetweenSingleDegreeBlocks(threadSet));
 
     //Cleanup
     stHash_destruct(blocksToPartitions);
