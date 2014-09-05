@@ -487,7 +487,11 @@ def trimGenome(sequenceFile, coverageFile, outputFile, complement=False,
 def subtractBed(bed1, bed2, destBed):
     """Subtract two non-bed12 beds"""
     # tmp. don't really want to use bedtools
-    system("bedtools subtract -a %s -b %s > %s" % (bed1, bed2, destBed))
+    if os.path.getsize(bed1) == 0 or os.path.getsize(bed2) == 0:
+        # bedtools will complain on zero-size beds
+        os.rename(bed1, destBed)
+    else:
+        system("bedtools subtract -a %s -b %s > %s" % (bed1, bed2, destBed))
 
 def main():
     ##########################################
