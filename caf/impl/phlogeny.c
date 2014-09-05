@@ -134,6 +134,39 @@ static void getTotalSimilarityAndDifferenceCounts(stMatrix *matrix, double *simi
     }
 }
 
+// If the tree contains any zero branch lengths (i.e. there were
+// negative branch lengths when neighbor-joining), fudge the branch
+// lengths so that both children have non-zero branch lengths, but are
+// still the same distance apart. When both children have zero branch
+// lengths, give them both a small branch length. This makes
+// likelihood methods usable.
+
+// Only works on binary trees.
+static void fudgeZeroBranchLengths(stTree *tree, double fudgeFactor, double smallNonZeroBranchLength) {
+    assert(stTree_getChildNumber(tree) == 2 || stTree_getChildNumber(tree) == 0);
+    assert(fudgeFactor < 1.0 && fudgeFactor > 0.0);
+    for (int64_t i = 0; i < stTree_getChildNumber(tree); i++) {
+        stTree *child = stTree_getChild(tree, i);
+        fudgeZeroBranchLengths(child, fudgeFactor, smallNonZeroBranchLength);
+        if (stTree_getBranchLength(child) == 0.0) {
+            stTree *otherChild = stTree_getChild(tree, !i);
+            if (stTree_getBranchLength(otherChild) == 0.0) {
+                // Both children have zero branch lengths, set them
+                // both to some very small but non-zero branch length
+                // so that probabilistic methods can actually work
+                stTree_setBranchLength(child, smallNonZeroBranchLength);
+                stTree_setBranchLength(otherChild, smallNonZeroBranchLength);
+            } else {
+                // Keep the distance between the children equal, but
+                // move it by fudgeFactor so that no branch length is
+                // zero.
+                stTree_setBranchLength(child, fudgeFactor * stTree_getBranchLength(otherChild));
+                stTree_setBranchLength(otherChild, (1 - fudgeFactor) * stTree_getBranchLength(otherChild));
+            }
+        }
+    }
+}
+
 /*
  * Get a gene node->species node mapping from a gene tree, a species
  * tree, and the pinch block.
@@ -241,6 +274,11 @@ static stTree *buildTree(stList *featureColumns,
         stHash_destruct(leafToSpecies);
         tree = newTree;
     }
+
+    // Needed for likelihood methods not to have 0/100% probabilities
+    // overly often (normally, almost every other leaf has a branch
+    // length of 0)
+    fudgeZeroBranchLengths(tree, 0.02, 0.0001);
 
     return tree;
 }
