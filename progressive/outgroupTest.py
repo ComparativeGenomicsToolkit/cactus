@@ -11,6 +11,7 @@ import os
 import sys
 import copy
 import xml.etree.ElementTree as ET
+import random
 from operator import itemgetter
 from sonLib.bioio import TestStatus
 from sonLib.bioio import getTempDirectory
@@ -168,6 +169,59 @@ class TestCase(unittest.TestCase):
             assert all(map(lambda x: x == sorted(x, key=itemgetter(1)),
                            og.ogMap.values()))
 
+    def testMultipleIdenticalRunsProduceSameResult(self):
+        """The code now allows for multiple greedy() calls with different
+        candidate sets, so that some outgroups can be 'preferred' over
+        others without being the only candidates.
+        Check that running greedy() multiple times with the same
+        parameters gives the same result as running it once.
+        """
+        for tree in self.mcTrees:
+            ogOnce = GreedyOutgroup()
+            ogOnce.importTree(tree)
+            ogOnce.greedy(maxNumOutgroups=3)
+            ogMultipleTimes = GreedyOutgroup()
+            ogMultipleTimes.importTree(tree)
+            ogMultipleTimes.greedy(maxNumOutgroups=3)
+            ogMultipleTimes.greedy(maxNumOutgroups=3)
+            ogMultipleTimes.greedy(maxNumOutgroups=3)
+            # make sure all entries have <= 3 outgroups.
+            assert all(map(lambda x: len(x) <= 3, ogMultipleTimes.ogMap.values()))
+            # and for all entries, the closest must be first.
+            assert all(map(lambda x: x == sorted(x, key=itemgetter(1)),
+                           ogMultipleTimes.ogMap.values()))
+            # Check that the maps are equal. Can't compare them
+            # directly since python will convert them to ordered
+            # association lists.
+            assert len(ogOnce.ogMap) == len(ogMultipleTimes.ogMap)
+            for i in ogOnce.ogMap:
+                assert i in ogMultipleTimes.ogMap
+                assert ogOnce.ogMap[i] == ogMultipleTimes.ogMap[i]
+
+        def testPreferredCandidateSets(self):
+            """Test that running greedy() multiple times with different candidate
+            sets will behave properly, i.e. keep all the existing outgroup
+            assignments and fill in more on the second run."""
+            for tree in self.mcTrees:
+                ogOnce = GreedyOutgroup()
+                candidateSet = set([tree.getName(i) for i in random.sample(tree.postOrderTraversal()), 20])
+                ogOnce.greedy(candidateSet=candidateSet, numOutgroups=3)
+                ogTwice = GreedyOutgroup()
+                ogTwice.greedy(candidateSet=candidateSet, numOutgroups=3)
+                ogTwice.greedy(numOutgroups=3)
+                # make sure all entries have <= 3 outgroups.
+                assert all(map(lambda x: len(x) <= 3, ogTwice.ogMap.values()))
+                # and for all entries, the closest must be first.
+                assert all(map(lambda x: x == sorted(x, key=itemgetter(1)),
+                               ogTwice.ogMap.values()))
+                for node in ogTwice.ogMap:
+                    if node in ogOnce.ogMap:
+                        # the ogMap entry in ogOnce should be a subset of the ogMap entry for ogTwice
+                        oneRunOutgroups = ogOnce.ogMap[node]
+                        twoRunOutgroups = ogTwice.ogMap[node]
+                        assert len(twoRunOutgroups) >= len(oneRunOutgroups)
+                        for i in oneRunOutgroups:
+                            assert i in twoRunOutgroups
 def main():
     unittest.main()
 

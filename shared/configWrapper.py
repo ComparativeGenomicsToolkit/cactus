@@ -69,7 +69,7 @@ class ConfigWrapper:
         if ogElem is not None and "strategy" in ogElem.attrib:
             strategy = ogElem.attrib["strategy"]
         assert strategy == "none" or strategy == "greedy" or \
-            strategy == "greedyLeaves"
+            strategy == "greedyLeaves" or strategy == "greedyPreference"
         return strategy
     
     def getOutgroupThreshold(self):
@@ -99,9 +99,8 @@ class ConfigWrapper:
         maxNumOutgroups = self.defaultMaxNumOutgroups
         if (ogElem is not None and\
             "strategy" in ogElem.attrib and\
-            ogElem.attrib["strategy"] == "greedy" and\
             "max_num_outgroups" in ogElem.attrib):
-            maxNumOutgroups = float(ogElem.attrib["max_num_outgroups"])
+            maxNumOutgroups = int(ogElem.attrib["max_num_outgroups"])
         return maxNumOutgroups
     
     def getSubtreeSize(self):

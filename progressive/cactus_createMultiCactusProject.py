@@ -35,6 +35,8 @@ def createMCProject(tree, experiment, config, options):
         expPath = "%s/%s/%s_experiment.xml" % (options.path, name, name)
         mcProj.expMap[name] = os.path.abspath(expPath)
     if config.getOutgroupStrategy() == 'greedy':
+        # use the provided outgroup candidates, or use all outgroups
+        # as candidates if none are given
         mcProj.outgroup = GreedyOutgroup()
         mcProj.outgroup.importTree(mcProj.mcTree)
         mcProj.outgroup.greedy(threshold=config.getOutgroupThreshold(),
@@ -42,6 +44,7 @@ def createMCProject(tree, experiment, config, options):
                                candidateChildFrac=config.getOutgroupAncestorQualityFraction(),
                                maxNumOutgroups=config.getMaxNumOutgroups())
     elif config.getOutgroupStrategy() == 'greedyLeaves':
+        # use all leaves as outgroups, unless outgroup candidates are given
         mcProj.outgroup = GreedyOutgroup()
         mcProj.outgroup.importTree(mcProj.mcTree)
         ogSet = options.outgroupNames
@@ -51,6 +54,21 @@ def createMCProject(tree, experiment, config, options):
                                candidateSet=ogSet,
                                candidateChildFrac=2.0,
                                maxNumOutgroups=config.getMaxNumOutgroups())
+    elif config.getOutgroupStrategy() == 'greedyPreference':
+        # prefer the provided outgroup candidates, if any, but use
+        # other nodes as "filler" if we can't find enough.
+        mcProj.outgroup = GreedyOutgroup()
+        mcProj.outgroup.importTree(mcProj.mcTree)
+        mcProj.outgroup.greedy(threshold=config.getOutgroupThreshold(),
+                               candidateSet=options.outgroupNames,
+                               candidateChildFrac=config.getOutgroupAncestorQualityFraction(),
+                               maxNumOutgroups=config.getMaxNumOutgroups())
+        mcProj.outgroup.greedy(threshold=config.getOutgroupThreshold(),
+                               candidateSet=None,
+                               candidateChildFrac=config.getOutgroupAncestorQualityFraction(),
+                               maxNumOutgroups=config.getMaxNumOutgroups())
+    else:
+        raise RuntimeError("Could not understand outgroup strategy %s" % config.getOutgroupStrategy())
     return mcProj
 
 # go through the tree (located in the template experimet)

@@ -43,6 +43,7 @@ class GreedyOutgroup:
         graph = NX.Graph(self.dag)
         self.dm = NX.algorithms.shortest_paths.weighted.\
         all_pairs_dijkstra_path_length(graph)
+        self.ogMap = defaultdict(list)
  
     # get rid of any node that's not an event
     def stripNonEvents(self, id, subtreeRoots):
@@ -107,21 +108,27 @@ class GreedyOutgroup:
             return True
         self.candidateMap[self.mcTree.getName(node)] = False
         return False
-                                    
+
+    def clearOutgroupAssignments(self):
+        self.ogMap = defaultdict(list)
+        self.dag = mcTree.nxDg.copy()
+
     # greedily assign closest possible valid outgroups
+    # If some outgroups are already assigned, keep the existing
+    # assignments but attempt to add more, if possible.
     # all outgroups are stored in self.ogMap
     # edges between leaves ARE NOT kept in the dag    
     # the threshold parameter specifies how much parallelism can
     # be sacrificed by the selection of an outgroup
-    # threshold = None : just greedy with now constraints
+    # threshold = None : just greedy with no constraints
     # threshold = 0 : depth of schedule guaranteed to be unaffected by outgroup
     # threshold = k : depth increases by at most k per outgroup
-    # candidateSet : names of valid outgroup genomes. (all if is None)
+    # candidateSet : names of valid outgroup genomes. (all if None)
     # candidateChildFrac : min fraction of children of ancestor in
-    # candidatSet in order for the ancestor to be an outrgoup candidate
+    # candidateSet in order for the ancestor to be an outgroup candidate
     # if > 1, then only members of the candidate set and none of their
     # ancestors are chosen
-    # maxNumOutgroups : max number of outgroups to put each entry of self.ogMap
+    # maxNumOutgroups : max number of outgroups to put in each entry of self.ogMap
     def greedy(self, threshold = None, candidateSet = None,
                candidateChildFrac = 2., maxNumOutgroups = 1):
         orderedPairs = []
@@ -131,48 +138,64 @@ class GreedyOutgroup:
                     orderedPairs.append((dist, (source, sink)))
         orderedPairs.sort(key = lambda x: x[0])
         finished = set()
-        self.ogMap = defaultdict(list)
         self.candidateMap = dict()
         if candidateSet is not None:
             assert isinstance(candidateSet, set)
             for candidate in candidateSet:
                 self.candidateMap[candidate] = True
-        
+
         htable = dict()
         self.heightTable(self.root, htable)
-        
+
         for candidate in orderedPairs:
             source = candidate[1][0]
             sink = candidate[1][1]
+            sourceName = self.mcTree.getName(source)
+            sinkName = self.mcTree.getName(sink)
             dist = candidate[0]
-            
+
             # skip leaves (as sources)
             if len(self.dag.out_edges(source)) == 0:
                 finished.add(source)
-                
+
+            # skip nodes that were already finished in a previous run
+            if sourceName in self.ogMap and len(self.ogMap[sourceName]) >= maxNumOutgroups:
+                finished.add(source)
+
             # skip nodes that aren't in the candidate set (if specified)
             # or don't have enough candidate children
             if not self.inCandidateSet(sink, candidateChildFrac):
                 continue
-            
+
             # canditate pair exceeds given threshold, so we skip
             if threshold is not None and \
             htable[sink] - htable[source] + 1 > threshold:
                 continue
-    
+
             if source not in finished and \
             not self.onSamePath(source, sink):
                 self.dag.add_edge(source, sink, weight=dist, info='outgroup')
                 if NX.is_directed_acyclic_graph(self.dag):
-                    sourceName = self.mcTree.getName(source)
-                    sinkName = self.mcTree.getName(sink)
-                    self.ogMap[sourceName].append((sinkName, dist))
-                    # FIXME: not sure about this line.
                     htable[source] = max(htable[source], htable[sink] + 1)
+                    existingOutgroups = [i[0] for i in self.ogMap[sourceName]]
+                    if sinkName in existingOutgroups:
+                        # This outgroup was already assigned to this source in a previous run
+                        # Sanity check that the distance is equal
+                        existingOutgroupDist = dict(self.ogMap[sourceName])
+                        assert existingOutgroupDist[sinkName] == dist
+                        continue
+                    self.ogMap[sourceName].append((sinkName, dist))
                     if len(self.ogMap[sourceName]) >= maxNumOutgroups:
                         finished.add(source)
                 else:
                     self.dag.remove_edge(source, sink)
+
+        # Since we could be adding to the ogMap instead of creating
+        # it, sort the outgroups by distance again. Sorting the
+        # outgroups is critical for the multiple-outgroups code to
+        # work well.
+        for node, outgroups in self.ogMap.items():
+            self.ogMap[node] = sorted(outgroups, key=lambda x: x[1])
 
 def main():
     usage = "usage: %prog <project> <output graphviz .dot file>"
