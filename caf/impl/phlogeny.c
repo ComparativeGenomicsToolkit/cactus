@@ -70,7 +70,7 @@ static stList *getOutgroupThreads(stPinchBlock *block, stSet *outgroupThreads) {
 /*
  * Splits the block using the given partition into a set of new blocks.
  */
-static void splitBlock(stPinchBlock *block, stList *partitions) {
+static void splitBlock(stPinchBlock *block, stList *partitions, bool allowSingleDegreeBlocks) {
     assert(stList_length(partitions) > 0);
     if(stList_length(partitions) == 1) {
         return; //Nothing to do.
@@ -97,6 +97,13 @@ static void splitBlock(stPinchBlock *block, stList *partitions) {
         int64_t k = stIntTuple_get(stList_get(partition, 0), 0);
         assert(segments[k] != NULL);
         assert(stPinchSegment_getBlock(segments[k]) == NULL);
+
+        if (!allowSingleDegreeBlocks && stList_length(partition) == 1) {
+            // We need to avoid assigning this single-degree block
+            segments[k] = NULL;
+            continue;
+        }
+
         block = stPinchBlock_construct3(segments[k], orientations[k]);
         assert(stPinchSegment_getBlock(segments[k]) == block);
         assert(stPinchSegment_getBlockOrientation(segments[k]) == orientations[k]);
@@ -484,7 +491,7 @@ static int64_t countBasesBetweenSingleDegreeBlocks(stPinchThreadSet *threadSet) 
     return numBases;
 }
 
-void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHash *threadStrings, stSet *outgroupThreads, Flower *flower, int64_t maxBaseDistance, int64_t maxBlockDistance, int64_t numTrees, enum stCaf_RootingMethod rootingMethod, enum stCaf_ScoringMethod scoringMethod, double breakPointScalingFactor, bool skipSingleCopyBlocks, FILE *debugFile) {
+void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHash *threadStrings, stSet *outgroupThreads, Flower *flower, int64_t maxBaseDistance, int64_t maxBlockDistance, int64_t numTrees, enum stCaf_RootingMethod rootingMethod, enum stCaf_ScoringMethod scoringMethod, double breakPointScalingFactor, bool skipSingleCopyBlocks, bool allowSingleDegreeBlocks, FILE *debugFile) {
     stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
     stPinchBlock *block;
 
@@ -654,7 +661,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
     while ((block = stHash_getNext(blockIt2)) != NULL) {
         stList *partition = stHash_search(blocksToPartitions, block);
         assert(partition != NULL);
-        splitBlock(block, partition);
+        splitBlock(block, partition, allowSingleDegreeBlocks);
         stList_destruct(partition);
     }
     stHash_destructIterator(blockIt2);

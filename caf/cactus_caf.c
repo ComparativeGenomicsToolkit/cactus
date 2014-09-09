@@ -77,7 +77,8 @@ static void usage() {
     fprintf(stderr, "-H --phylogenySkipSingleCopyBlocks : Skip building trees for single-copy blocks. Default is not to skip.\n");
     fprintf(stderr, "-I --phylogenyMaxBaseDistance : maximum distance in bases to walk outside of a block gathering feature columns\n");
     fprintf(stderr, "-J --phylogenyMaxBlockDistance : maximum distance in blocks to walk outside of a block gathering feature columns\n");
-    fprintf(stderr, "-J --phylogenyDebugFile : path to file to dump block trees and partitions to\n");
+    fprintf(stderr, "-K --phylogenyDebugFile : path to file to dump block trees and partitions to\n");
+    fprintf(stderr, "-L --phylogenyKeepSingleDegreeBlocks : when splitting blocks, allow blocks to be created of only one ingroup.\n");
 }
 
 static int64_t *getInts(const char *string, int64_t *arrayLength) {
@@ -248,6 +249,7 @@ int main(int argc, char *argv[]) {
     bool phylogenySkipSingleCopyBlocks = 0;
     int64_t phylogenyMaxBaseDistance = 1000;
     int64_t phylogenyMaxBlockDistance = 100;
+    bool phylogenyKeepSingleDegreeBlocks = 0;
     const char *debugFileName = NULL;
 
     ///////////////////////////////////////////////////////////////////////////
@@ -276,11 +278,12 @@ int main(int argc, char *argv[]) {
                         { "phylogenyMaxBaseDistance", required_argument, 0, 'I' },
                         { "phylogenyMaxBlockDistance", required_argument, 0, 'J' },
                         { "phylogenyDebugFile", required_argument, 0, 'K' },
+                        { "phylogenyKeepSingleDegreeBlocks", no_argument, 0, 'L' },
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:BC:D:E:F:G:HI:J:K:", long_options, &option_index);
+        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:BC:D:E:F:G:HI:J:K:L", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -406,6 +409,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 'K':
                 debugFileName = stString_copy(optarg);
+                break;
+            case 'L':
+                phylogenyKeepSingleDegreeBlocks = true;
                 break;
             default:
                 usage();
@@ -575,7 +581,7 @@ int main(int argc, char *argv[]) {
                         st_errnoAbort("could not open debug file");
                     }
                 }
-                stCaf_buildTreesToRemoveAncientHomologies(threadSet, threadStrings, outgroupThreads, flower, phylogenyMaxBaseDistance, phylogenyMaxBlockDistance, phylogenyNumTrees, phylogenyRootingMethod, phylogenyScoringMethod, breakpointScalingFactor, phylogenySkipSingleCopyBlocks, debugFile);
+                stCaf_buildTreesToRemoveAncientHomologies(threadSet, threadStrings, outgroupThreads, flower, phylogenyMaxBaseDistance, phylogenyMaxBlockDistance, phylogenyNumTrees, phylogenyRootingMethod, phylogenyScoringMethod, breakpointScalingFactor, phylogenySkipSingleCopyBlocks, phylogenyKeepSingleDegreeBlocks, debugFile);
                 if (debugFile != NULL) {
                     fclose(debugFile);
                 }

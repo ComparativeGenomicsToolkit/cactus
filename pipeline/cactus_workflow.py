@@ -518,7 +518,8 @@ class CactusCafWrapper(CactusRecursionTarget):
                           phylogenySkipSingleCopyBlocks=self.getOptionalPhaseAttrib("phylogenySkipSingleCopyBlocks", bool),
                           phylogenyMaxBaseDistance=self.getOptionalPhaseAttrib("phylogenyMaxBaseDistance"),
                           phylogenyMaxBlockDistance=self.getOptionalPhaseAttrib("phylogenyMaxBlockDistance"),
-                          phylogenyDebugFile=debugFilePath)
+                          phylogenyDebugFile=debugFilePath,
+                          phylogenyKeepSingleDegreeBlocks=self.getOptionalPhaseAttrib("phylogenyKeepSingleDegreeBlocks"))
         for message in messages:
             self.logToMaster(message)
     
