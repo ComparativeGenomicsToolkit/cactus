@@ -39,6 +39,7 @@ void usage() {
             "-s --splitIndelsLongerThanThis : Split alignments with consecutive runs of indels that are longer than this.\n");
     fprintf(stderr,
             "-u --outputPosteriorProbs [FILE] : Outputs the posterior match probs of positions in the alignment to the given tab separated file, each line being X-coordinate, Y-coordinate, posterior-match prob.\n");
+    fprintf(stderr, "-z --outputAllPosteriorProbs [FILE] : As --outputPosteriorProbs, but for all pairs in the banded alignment\n");
     fprintf(stderr,
                 "-v --outputExpectations [FILE] : Instead of realigning, switches to calculating expectations, dumping out expectations as matrix in the given file.\n");
     fprintf(stderr,
@@ -384,6 +385,7 @@ int main(int argc, char *argv[]) {
     // -1 here signals don't split indels at all
     int64_t splitIndelsLongerThanThis = -1;
     char *posteriorProbsFile = NULL;
+    char *allPosteriorProbsFile = NULL;
     char *expectationsFile = NULL;
     char *hmmFile = NULL;
     Hmm *hmmExpectations = NULL;
@@ -402,13 +404,14 @@ int main(int argc, char *argv[]) {
                         "rescoreByIdentityIgnoringGaps", no_argument, 0, 'k' },
                         { "splitIndelsLongerThanThis",required_argument, 0, 's' },
                 { "outputPosteriorProbs", required_argument, 0, 'u' },
+                { "outputAllPosteriorProbs", required_argument, 0, 'z' },
                 { "outputExpectations", required_argument, 0, 'v' },
                 { "loadHmm", required_argument, 0, 'y' },
                 { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:hl:o:r:t:s:wxijkmuv:y:", long_options, &option_index);
+        int key = getopt_long(argc, argv, "a:hl:o:r:t:s:wxijkmuv:y:z:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -475,6 +478,9 @@ int main(int argc, char *argv[]) {
             break;
         case 'y':
             hmmFile = stString_copy(optarg);
+            break;
+        case 'z':
+            allPosteriorProbsFile = stString_copy(optarg);
             break;
         default:
             usage();
@@ -546,6 +552,10 @@ int main(int argc, char *argv[]) {
             //Get posterior prob pairs
             stList *alignedPairs = getAlignedPairsUsingAnchors(sM, subSeqX, subSeqY, filteredAnchoredPairs,
                     pairwiseAlignmentBandingParameters, 1, 1);
+            //Output all the posterior match probs, if needed
+            if(allPosteriorProbsFile != NULL) {
+                writePosteriorProbs(allPosteriorProbsFile, alignedPairs);
+            }
             //Convert to partial ordered set of pairs
             if (rescoreOriginalAlignment) {
                 stList *rescoredPairs = scoreAnchorPairs(anchorPairs, alignedPairs);
