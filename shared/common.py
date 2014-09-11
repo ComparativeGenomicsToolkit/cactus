@@ -216,6 +216,9 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
                   phylogenyMaxBlockDistance=None,
                   phylogenyDebugFile=None,
                   phylogenyKeepSingleDegreeBlocks=None):
+    # remove annoying carriage returns in caf command line.
+    cactusDiskDatabaseString = cactusDiskDatabaseString.replace('\n', '')
+
     logLevel = getLogLevelString2(logLevel)
     annealingRounds = nameValue("annealingRounds", annealingRounds, quotes=True)
     deannealingRounds = nameValue("deannealingRounds", deannealingRounds, quotes=True)
