@@ -19,7 +19,9 @@ enum stCaf_RootingMethod {
 
 enum stCaf_ScoringMethod {
     RECON_COST,
-    NUCLEOTIDE_LIKELIHOOD
+    NUCLEOTIDE_LIKELIHOOD,
+    RECON_LIKELIHOOD,
+    COMBINED_LIKELIHOOD
 };
 
 /*

@@ -243,8 +243,8 @@ int main(int argc, char *argv[]) {
 
     //Parameters for removing ancient homologies
     int64_t phylogenyNumTrees = 1;
-    enum stCaf_RootingMethod phylogenyRootingMethod = OUTGROUP_BRANCH;
-    enum stCaf_ScoringMethod phylogenyScoringMethod = RECON_COST;
+    enum stCaf_RootingMethod phylogenyRootingMethod = BEST_RECON;
+    enum stCaf_ScoringMethod phylogenyScoringMethod = COMBINED_LIKELIHOOD;
     double breakpointScalingFactor = 0.0;
     bool phylogenySkipSingleCopyBlocks = 0;
     int64_t phylogenyMaxBaseDistance = 1000;
@@ -390,6 +390,10 @@ int main(int argc, char *argv[]) {
                     phylogenyScoringMethod = RECON_COST;
                 } else if (!strcmp(optarg, "nucLikelihood")) {
                     phylogenyScoringMethod = NUCLEOTIDE_LIKELIHOOD;
+                } else if (!strcmp(optarg, "reconLikelihood")) {
+                    phylogenyScoringMethod = RECON_LIKELIHOOD;
+                } else if (!strcmp(optarg, "combinedLikelihood")) {
+                    phylogenyScoringMethod = COMBINED_LIKELIHOOD;
                 } else {
                     st_errAbort("Invalid tree scoring method: %s", optarg);
                 }

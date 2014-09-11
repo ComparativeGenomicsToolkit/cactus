@@ -226,7 +226,7 @@ static stTree *eventTreeToStTree(EventTree *eventTree) {
 
 static double scoreTree(stTree *tree, enum stCaf_ScoringMethod scoringMethod, stTree *speciesStTree, stPinchBlock *block, Flower *flower, stList *featureColumns) {
     double ret = 0.0;
-    if(scoringMethod == RECON_COST) {
+    if (scoringMethod == RECON_COST) {
         stHash *leafToSpecies = getLeafToSpecies(tree,
                                                  speciesStTree,
                                                  block, flower);
@@ -237,8 +237,35 @@ static double scoreTree(stTree *tree, enum stCaf_ScoringMethod scoringMethod, st
         ret = -dups - losses;
 
         stHash_destruct(leafToSpecies);
-    } else if(scoringMethod == NUCLEOTIDE_LIKELIHOOD) {
+    } else if (scoringMethod == NUCLEOTIDE_LIKELIHOOD) {
         ret = stPinchPhylogeny_likelihood(tree, featureColumns);
+    } else if (scoringMethod == RECON_LIKELIHOOD) {
+        // copy tree before use -- we are modifying the client-data
+        // field. Not necessary if we end up adding
+        // stReconciliationInfo before this method
+        stTree *tmp = stTree_clone(tree);
+        stHash *leafToSpecies = getLeafToSpecies(tmp,
+                                                 speciesStTree,
+                                                 block, flower);
+        stPinchPhylogeny_reconcileBinary(tmp, speciesStTree, leafToSpecies, false);
+        // FIXME: hardcoding dup-rate parameter for now
+        ret = stPinchPhylogeny_reconciliationLikelihood(tmp, speciesStTree, 1.0);
+        stReconciliationInfo_destructOnTree(tmp);
+        stTree_destruct(tmp);
+    } else if (scoringMethod == COMBINED_LIKELIHOOD) {
+        // copy tree before use -- we are modifying the client-data
+        // field. Not necessary if we end up adding
+        // stReconciliationInfo before this method
+        stTree *tmp = stTree_clone(tree);
+        stHash *leafToSpecies = getLeafToSpecies(tmp,
+                                                 speciesStTree,
+                                                 block, flower);
+        stPinchPhylogeny_reconcileBinary(tmp, speciesStTree, leafToSpecies, false);
+        // FIXME: hardcoding dup-rate parameter for now
+        ret = stPinchPhylogeny_reconciliationLikelihood(tmp, speciesStTree, 1.0);
+        ret += stPinchPhylogeny_likelihood(tree, featureColumns);
+        stReconciliationInfo_destructOnTree(tmp);
+        stTree_destruct(tmp);        
     }
     return ret;
 }
