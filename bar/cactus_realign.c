@@ -12,6 +12,7 @@
 #include "cactus.h"
 #include "sonLib.h"
 #include "pairwiseAligner.h"
+#include "multipleAligner.h"
 #include "commonC.h"
 
 void usage() {
@@ -19,7 +20,8 @@ void usage() {
     fprintf(stderr,
             "Realigns a set of pairwise alignments, as cigars, read from the command line and written back to the command line\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
-    fprintf(stderr, "-l --gapGamma : (float [0, 1]) The gap gamma (as in the AMAP function)\n");
+    fprintf(stderr, "-l --gapGamma : (float >= 0) The gap gamma (as in the AMAP function)\n");
+    fprintf(stderr, "-L --matchGamma : (float [0, 1]) The match gamma (the avg. weight or greater to be allowed in the alignment)\n");
     fprintf(stderr,
             "-o --splitMatrixBiggerThanThis : (int >= 0)  No dp matrix bigger than this number squared will be computed.\n");
     fprintf(stderr, "-r --diagonalExpansion : (int >= 0 and even) Number of x-y diagonals to expand around anchors\n");
@@ -371,7 +373,7 @@ stList *scoreAnchorPairs(stList *anchorPairs, stList *alignedPairs) {
 
 int main(int argc, char *argv[]) {
     char * logLevelString = NULL;
-    float gapGamma = 0.9;
+    float matchGamma = 0.85;
     int64_t i, j;
     PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters = pairwiseAlignmentBandingParameters_construct();
     pairwiseAlignmentBandingParameters->constraintDiagonalTrim = 0;
@@ -395,8 +397,9 @@ int main(int argc, char *argv[]) {
 
     while (1) {
         static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' },
-                { "help", no_argument, 0, 'h' }, { "gapGamma", required_argument, 0, 'l' }, {
-                        "splitMatrixBiggerThanThis", required_argument, 0, 'o' }, { "diagonalExpansion",
+                { "help", no_argument, 0, 'h' }, { "gapGamma", required_argument, 0, 'l' },
+                { "matchGamma", required_argument, 0, 'L' },
+                { "splitMatrixBiggerThanThis", required_argument, 0, 'o' }, { "diagonalExpansion",
                 required_argument, 0, 'r' }, { "constraintDiagonalTrim", required_argument, 0, 't' }, {
                         "alignAmbiguityCharacters", no_argument, 0, 'w' }, { "rescoreOriginalAlignment", no_argument, 0,
                         'x' }, { "rescoreByIdentity", no_argument, 0, 'i' }, { "rescoreByPosteriorProb", no_argument, 0,
@@ -411,7 +414,7 @@ int main(int argc, char *argv[]) {
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:hl:o:r:t:s:wxijkmuv:y:z:", long_options, &option_index);
+        int key = getopt_long(argc, argv, "a:hl:o:r:t:s:wxijkmuv:y:z:L:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -426,9 +429,14 @@ int main(int argc, char *argv[]) {
             usage();
             return 0;
         case 'l':
-            i = sscanf(optarg, "%f", &gapGamma);
+            i = sscanf(optarg, "%f", &pairwiseAlignmentBandingParameters->gapGamma);
             assert(i == 1);
-            assert(gapGamma >= 0.0);
+            assert(pairwiseAlignmentBandingParameters->gapGamma >= 0.0);
+            break;
+        case 'L':
+            i = sscanf(optarg, "%f", &matchGamma);
+            assert(i == 1);
+            assert(matchGamma >= 0.0);
             break;
         case 'o':
             i = sscanf(optarg, "%" PRIi64 "", &j);
@@ -561,14 +569,10 @@ int main(int argc, char *argv[]) {
                 stList *rescoredPairs = scoreAnchorPairs(anchorPairs, alignedPairs);
                 stList_destruct(alignedPairs);
                 alignedPairs = rescoredPairs;
-            } else if (1) { //Shouldn't be needed if we only take pairs with > 50% posterior prob
-                stList_destruct(filterPairwiseAlignmentToMakePairsOrdered(alignedPairs, gapGamma));
-            } else { //Just filter by gap gamma (the alterative is quite expensive)
-                stList *l = stList_filter2(alignedPairs, gapGammaFilter, &gapGamma);
-                stList_setDestructor(alignedPairs, NULL);
-                stList_setDestructor(l, (void (*)(void *)) stIntTuple_destruct);
-                stList_destruct(alignedPairs);
-                alignedPairs = l;
+            } else { //Shouldn't be needed if we only take pairs with > 50% posterior prob
+                //Modify to account for gaps
+                alignedPairs = reweightAlignedPairs2(alignedPairs, strlen(subSeqX), strlen(subSeqY), pairwiseAlignmentBandingParameters->gapGamma); //gapGamma);
+                alignedPairs = filterPairwiseAlignmentToMakePairsOrdered(alignedPairs, subSeqX, subSeqY, matchGamma); //gapGamma);
             }
             //Rescore
             if (rescoreByPosteriorProbability) {

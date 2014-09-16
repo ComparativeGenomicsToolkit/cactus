@@ -67,7 +67,8 @@
 	<bar
 		runBar="1"
 		spanningTrees="5" 
-		gapGamma="0.2" 
+		gapGamma="0.0"
+        matchGamma="0.2"
 		bandingLimit="100000" 
 		splitMatrixBiggerThanThis="3000" 
         anchorMatrixBiggerThanThis="500"

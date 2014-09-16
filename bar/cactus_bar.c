@@ -28,8 +28,8 @@ void usage() {
             stderr,
             "-j --maximumLength (int  >= 0 ) : The maximum length of a sequence to align, only the prefix and suffix maximum length bases are aligned\n");
     fprintf(stderr, "-k --useBanding : Use banding to speed up the alignments\n");
-    fprintf(stderr, "-l --gapGamma : (float [0, 1]) The gap gamma (as in the AMAP function)\n");
-
+    fprintf(stderr, "-l --gapGamma : (float >= 0) The gap gamma (as in the AMAP function)\n");
+    fprintf(stderr, "-L --matchGamma : (float [0, 1]) The match gamma (the avg. weight or greater to be allowed in the alignment)\n");
     fprintf(stderr, "-o --splitMatrixBiggerThanThis : (int >= 0)  No dp matrix bigger than this number squared will be computed.\n");
     fprintf(stderr,
             "-p --anchorMatrixBiggerThanThis : (int >= 0)  Any matrix bigger than this number squared will be broken apart with banding.\n");
@@ -89,7 +89,7 @@ int main(int argc, char *argv[]) {
     int64_t spanningTrees = 10;
     int64_t maximumLength = 1500;
     int64_t maximumNumberOfSequencesBeforeSwitchingToFast = 50;
-    float gapGamma = 0.5;
+    float matchGamma = 0.5;
     bool useBanding = 0;
     int64_t k;
     stList *listOfEndAlignmentFiles = NULL;
@@ -112,8 +112,9 @@ int main(int argc, char *argv[]) {
     while (1) {
         static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0, 'b' }, {
                 "help", no_argument, 0, 'h' }, { "spanningTrees", required_argument, 0, 'i' },
-                { "maximumLength", required_argument, 0, 'j' }, { "useBanding", no_argument, 0, 'k' }, { "gapGamma", required_argument, 0,
-                        'l' }, { "splitMatrixBiggerThanThis", required_argument, 0, 'o' }, { "anchorMatrixBiggerThanThis",
+                { "maximumLength", required_argument, 0, 'j' }, { "useBanding", no_argument, 0, 'k' },
+                { "gapGamma", required_argument, 0, 'l' }, { "matchGamma", required_argument, 0, 'L' },
+                { "splitMatrixBiggerThanThis", required_argument, 0, 'o' }, { "anchorMatrixBiggerThanThis",
                         required_argument, 0, 'p' }, { "repeatMaskMatrixBiggerThanThis", required_argument, 0, 'q' }, {
                         "diagonalExpansion", required_argument, 0, 'r' }, { "constraintDiagonalTrim", required_argument, 0, 't' }, {
                         "minimumDegree", required_argument, 0, 'u' }, { "alignAmbiguityCharacters", no_argument, 0, 'w' }, {
@@ -126,7 +127,7 @@ int main(int argc, char *argv[]) {
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:b:hi:j:kl:o:p:q:r:t:u:wy:A:B:D:E:F:GI:", long_options, &option_index);
+        int key = getopt_long(argc, argv, "a:b:hi:j:kl:o:p:q:r:t:u:wy:A:B:D:E:F:GI:L:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -157,9 +158,14 @@ int main(int argc, char *argv[]) {
                 useBanding = !useBanding;
                 break;
             case 'l':
-                i = sscanf(optarg, "%f", &gapGamma);
+                i = sscanf(optarg, "%f", &pairwiseAlignmentBandingParameters->gapGamma);
                 assert(i == 1);
-                assert(gapGamma >= 0.0);
+                assert(pairwiseAlignmentBandingParameters->gapGamma >= 0.0);
+                break;
+            case 'L':
+                i = sscanf(optarg, "%f", &matchGamma);
+                assert(i == 1);
+                assert(matchGamma >= 0.0);
                 break;
             case 'o':
                 i = sscanf(optarg, "%" PRIi64 "", &k);
@@ -276,7 +282,7 @@ int main(int argc, char *argv[]) {
                 st_errAbort("The end %" PRIi64 " was not found in the flower\n", *((Name *)stList_get(names, i)));
             }
             stSortedSet *endAlignment = makeEndAlignment(sM, end, spanningTrees, maximumLength, maximumNumberOfSequencesBeforeSwitchingToFast,
-                            gapGamma, pairwiseAlignmentBandingParameters);
+                            matchGamma, pairwiseAlignmentBandingParameters);
             writeEndAlignmentToDisk(end, endAlignment, fileHandle);
             stSortedSet_destruct(endAlignment);
         }
@@ -298,7 +304,7 @@ int main(int argc, char *argv[]) {
             st_logInfo("Processing a flower\n");
 
             stSortedSet *alignedPairs = makeFlowerAlignment3(sM, flower, listOfEndAlignmentFiles, spanningTrees, maximumLength,
-                    maximumNumberOfSequencesBeforeSwitchingToFast, gapGamma, pairwiseAlignmentBandingParameters, pruneOutStubAlignments);
+                    maximumNumberOfSequencesBeforeSwitchingToFast, matchGamma, pairwiseAlignmentBandingParameters, pruneOutStubAlignments);
             st_logInfo("Created the alignment: %" PRIi64 " pairs\n", stSortedSet_size(alignedPairs));
             stPinchIterator *pinchIterator = stPinchIterator_constructFromAlignedPairs(alignedPairs, getNextAlignedPairAlignment);
 

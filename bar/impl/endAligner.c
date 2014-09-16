@@ -155,6 +155,9 @@ stSortedSet *makeEndAlignment(StateMachine *sM, End *end, int64_t spanningTrees,
         int64_t offset1 = stIntTuple_get(alignedPair, 2);
         int64_t offset2 = stIntTuple_get(alignedPair, 4);
         int64_t score = stIntTuple_get(alignedPair, 0);
+        if(score <= 0) { //Happens when indel probs are included
+            score = 1; //This is the minimum
+        }
         assert(score > 0 && score <= PAIR_ALIGNMENT_PROB_1);
         SeqFrag *seqFrag1 = stList_get(seqFrags, seqIndex1);
         SeqFrag *seqFrag2 = stList_get(seqFrags, seqIndex2);

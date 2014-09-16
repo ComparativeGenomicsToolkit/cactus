@@ -280,6 +280,7 @@ def runCactusMakeNormal(cactusDiskDatabaseString, flowerNames, maxNumberOfChains
 def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
                          spanningTrees=None, maximumLength=None, 
                          gapGamma=None,
+                         matchGamma=None,
                          splitMatrixBiggerThanThis=None,
                          anchorMatrixBiggerThanThis=None,
                          repeatMaskMatrixBiggerThanThis=None,
@@ -301,6 +302,7 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
     maximumLength = nameValue("maximumLength", maximumLength, int)
     spanningTrees = nameValue("spanningTrees", spanningTrees, int)
     gapGamma = nameValue("gapGamma", gapGamma, float)
+    matchGamma = nameValue("matchGamma", matchGamma, float)
     splitMatrixBiggerThanThis=nameValue("splitMatrixBiggerThanThis", splitMatrixBiggerThanThis, int)
     anchorMatrixBiggerThanThis=nameValue("anchorMatrixBiggerThanThis", anchorMatrixBiggerThanThis, int)
     repeatMaskMatrixBiggerThanThis=nameValue("repeatMaskMatrixBiggerThanThis", repeatMaskMatrixBiggerThanThis, int)                   
@@ -317,8 +319,8 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
     endAlignmentsToPrecomputeOutputFile=nameValue("endAlignmentsToPrecomputeOutputFile", endAlignmentsToPrecomputeOutputFile, str)
     precomputedAlignments=nameValue("precomputedAlignments", precomputedAlignments, str, quotes=True)
     
-    masterMessages = popenCatch("cactus_bar --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % 
-           (cactusDiskDatabaseString, logLevel, spanningTrees, maximumLength, gapGamma, 
+    masterMessages = popenCatch("cactus_bar --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % 
+           (cactusDiskDatabaseString, logLevel, spanningTrees, maximumLength, gapGamma, matchGamma,
             splitMatrixBiggerThanThis, anchorMatrixBiggerThanThis, repeatMaskMatrixBiggerThanThis,
             constraintDiagonalTrim, minimumBlockDegree, minimumIngroupDegree, minimumOutgroupDegree,  
             alignAmbiguityCharacters, pruneOutStubAlignments, diagonalExpansion,
