@@ -46,7 +46,7 @@
 	<caf 
 		chunkSize="25000000" 
 		realign="1"
-		realignArguments="--gapGamma 0.9 --diagonalExpansion 4 --splitMatrixBiggerThanThis 10 --constraintDiagonalTrim 0 --alignAmbiguityCharacters --splitIndelsLongerThanThis 99"
+		realignArguments="--gapGamma 0.0 --matchGamma 0.9 --diagonalExpansion 4 --splitMatrixBiggerThanThis 10 --constraintDiagonalTrim 0 --alignAmbiguityCharacters --splitIndelsLongerThanThis 99"
 		compressFiles="1" 
 		overlapSize="10000" 
 		filterByIdentity="1" 
@@ -91,8 +91,9 @@
 	<bar
 		runBar="1"
 		spanningTrees="5" 
-		gapGamma="0.2" 
-		useBanding="1" 
+		gapGamma="0.5"
+		matchGamma="0.0"
+		useBanding="1"
 		bandingLimit="100000" 
 		splitMatrixBiggerThanThis="3000" 
         anchorMatrixBiggerThanThis="500"

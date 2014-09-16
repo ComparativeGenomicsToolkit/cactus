@@ -48,10 +48,10 @@ typedef struct {
 MultipleAlignment *makeAlignment(StateMachine *sM, stList *seqFrags,
         int64_t spanningTrees, int64_t maxPairsToConsider,
         int64_t maximumNumberOfSequencesBeforeSwitchingToFast,
-        float gapGamma,
+        float matchGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters);
 
-MultipleAlignment *makeAlignmentUsingAllPairs(StateMachine *sM, stList *seqFrags, float gapGamma,
+MultipleAlignment *makeAlignmentUsingAllPairs(StateMachine *sM, stList *seqFrags, float matchGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters);
 
 void multipleAlignment_destruct(MultipleAlignment *mA);
@@ -59,6 +59,11 @@ void multipleAlignment_destruct(MultipleAlignment *mA);
 SeqFrag *seqFrag_construct(const char *seq, int64_t leftEndId, int64_t rightEndId);
 
 void seqFrag_destruct(SeqFrag *seqFrag);
+
+/*
+ * This is a pairwise expected accuracy alignment function that uses the multiple alignment code, kind of odd.
+ */
+stList *filterPairwiseAlignmentToMakePairsOrdered(stList *alignedPairs, const char *seqX, const char *seqY, float matchGamma);
 
 /*
  * Declarations for functions tested by unit-tests, but probably not really useful for stuff outside of this module.
@@ -76,14 +81,14 @@ int64_t *getDistanceMatrix(stSet *columns, stList *seqs, int64_t maxPairsToConsi
 
 double subsPerSite(int64_t seq1, int64_t seq2, int64_t *distanceCounts, int64_t seqNo);
 
-stSet *getMultipleSequenceAlignment(stList *seqs, stList *multipleAlignedPairs, double gapGamma);
+stSet *getMultipleSequenceAlignment(stList *seqs, stList *multipleAlignedPairs, double matchGamma);
 
 stList *makeColumnSequences(stList *seqFrags, stSet *columns);
 
-stSet *getMultipleSequenceAlignmentProgressive(stList *seqFrags, stList *multipleAlignedPairs, double gapGamma, stList *seqPairSimilarityScores);
+stSet *getMultipleSequenceAlignmentProgressive(stList *seqFrags, stList *multipleAlignedPairs, double matchGamma, stList *seqPairSimilarityScores);
 
 stList *pairwiseAlignColumns(stList *seqXColumns, stList *seqYColumns, stHash *alignmentWeightAdjLists, stSet *columns,
-        stSortedSet *alignmentWeightsOrderedByWeight, double gapGamma);
+        stSortedSet *alignmentWeightsOrderedByWeight, double matchGamma);
 
 stList *filterMultipleAlignedPairs(stSet *columns, stList *multipleAlignedPairs);
 

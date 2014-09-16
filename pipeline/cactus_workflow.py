@@ -566,6 +566,7 @@ def runBarForTarget(self, calculateWhichEndsToComputeSeparately=None, endAlignme
                  maximumLength=self.getOptionalPhaseAttrib("bandingLimit", float),
                  spanningTrees=self.getOptionalPhaseAttrib("spanningTrees", int), 
                  gapGamma=self.getOptionalPhaseAttrib( "gapGamma", float), 
+                 matchGamma=self.getOptionalPhaseAttrib( "matchGamma", float), 
                  splitMatrixBiggerThanThis=self.getOptionalPhaseAttrib("splitMatrixBiggerThanThis", int), 
                  anchorMatrixBiggerThanThis=self.getOptionalPhaseAttrib("anchorMatrixBiggerThanThis", int), 
                  repeatMaskMatrixBiggerThanThis=self.getOptionalPhaseAttrib("repeatMaskMatrixBiggerThanThis", int), 

@@ -35,6 +35,7 @@ typedef struct _pairwiseAlignmentBandingParameters {
     int64_t repeatMaskMatrixBiggerThanThis; //Any matrix in the anchors bigger than this is searched for anchors using non-repeat masked sequences.
     int64_t splitMatrixBiggerThanThis; //Any matrix in the anchors bigger than this is split into two.
     bool alignAmbiguityCharacters;
+    float gapGamma; //The AMAP gap-gamma parameter which controls the degree to which indel probabilities are factored into the alignment.
 } PairwiseAlignmentParameters;
 
 PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters_construct();
@@ -217,7 +218,14 @@ void getPosteriorProbsWithBandingSplittingAlignmentsByLargeGaps(StateMachine *sM
                 double, PairwiseAlignmentParameters *, void *),
         void (*coordinateCorrectionFn)(), void *extraArgs);
 
-stList *filterPairwiseAlignmentToMakePairsOrdered(stList *alignedPairs, float gapGamma);
+//Calculate posterior probabilities of being aligned to gaps
 
+int64_t *getIndelProbabilities(stList *alignedPairs, int64_t seqLength, bool xIfTrueElseY);
+
+//Does reweighting, destroys input aligned pairs in the process.
+stList *reweightAlignedPairs(stList *alignedPairs,
+        int64_t *indelProbsX, int64_t *indelProbsY, double gapGamma);
+
+stList *reweightAlignedPairs2(stList *alignedPairs, int64_t seqLengthX, int64_t seqLengthY, double gapGamma);
 
 #endif /* PAIRWISEALIGNER_H_ */

@@ -1143,6 +1143,7 @@ PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters_construct() {
     p->repeatMaskMatrixBiggerThanThis = 500 * 500;
     p->splitMatrixBiggerThanThis = (int64_t) 3000 * 3000;
     p->alignAmbiguityCharacters = 0;
+    p->gapGamma = 0.5;
     return p;
 }
 
@@ -1203,28 +1204,50 @@ void getExpectations(StateMachine *sM, Hmm *hmmExpectations, const char *sX, con
     stList_destruct(anchorPairs);
 }
 
-stList *filterPairwiseAlignmentToMakePairsOrdered(stList *alignedPairs, float gapGamma) {
-    /*
-     * A quick way to get a consistent set of pairs. The list of aligned pairs is modified
-     * so that all the consistent pairs are in the list aligned pairs, and the discordant pairs are in a separate list.
-     */
-    stList_sort(alignedPairs, (int (*)(const void *, const void *)) stIntTuple_cmpFn);
-    stPosetAlignment *posetAlignment = stPosetAlignment_construct(2);
-    stList *discardedAlignedPairs = stList_construct3(0, (void (*)(void *)) stIntTuple_destruct);
-    stList *l = stList_construct();
-    while (stList_length(alignedPairs) > 0) {
-        stIntTuple *alignedPair = stList_pop(alignedPairs);
-        if (((double) stIntTuple_get(alignedPair, 0)) / PAIR_ALIGNMENT_PROB_1 >= gapGamma
-                && stPosetAlignment_add(posetAlignment, 0, stIntTuple_get(alignedPair, 1), 1,
-                        stIntTuple_get(alignedPair, 2))) {
-            stList_append(l, alignedPair);
-        } else {
-            stList_append(discardedAlignedPairs, alignedPair);
+/*
+ * Functions for adjusting weights to account for probability of alignment to a gap.
+ */
+
+int64_t *getIndelProbabilities(stList *alignedPairs, int64_t seqLength, bool xIfTrueElseY) {
+    int64_t *indelProbs = st_malloc(seqLength * sizeof(int64_t));
+    for(int64_t i=0; i<seqLength; i++) {
+        indelProbs[i] = PAIR_ALIGNMENT_PROB_1;
+    }
+    for(int64_t i=0; i<stList_length(alignedPairs); i++) {
+        stIntTuple *j = stList_get(alignedPairs, i);
+        indelProbs[stIntTuple_get(j, xIfTrueElseY ? 1 : 2)] -= stIntTuple_get(j, 0);
+    }
+    for(int64_t i=0; i<seqLength; i++) {
+        if(indelProbs[i] < 0) {
+            indelProbs[i] = 0;
         }
     }
-    stPosetAlignment_destruct(posetAlignment);
-    stList_appendAll(alignedPairs, l);
-    stList_destruct(l);
-    return discardedAlignedPairs;
+    return indelProbs;
+}
+
+stList *reweightAlignedPairs(stList *alignedPairs,
+        int64_t *indelProbsX, int64_t *indelProbsY, double gapGamma) {
+    stList *reweightedAlignedPairs = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
+    for(int64_t i=0; i<stList_length(alignedPairs); i++) {
+        stIntTuple *aPair = stList_get(alignedPairs, i);
+        int64_t x = stIntTuple_get(aPair, 1);
+        int64_t y = stIntTuple_get(aPair, 2);
+        int64_t updatedWeight = stIntTuple_get(aPair, 0) - gapGamma * (indelProbsX[x] + indelProbsY[y]);
+        stList_append(reweightedAlignedPairs, stIntTuple_construct3(updatedWeight, x, y));
+    }
+    stList_destruct(alignedPairs);
+    return reweightedAlignedPairs;
+}
+
+stList *reweightAlignedPairs2(stList *alignedPairs, int64_t seqLengthX, int64_t seqLengthY, double gapGamma) {
+    if(gapGamma <= 0.0) {
+        return alignedPairs;
+    }
+    int64_t *indelProbsX = getIndelProbabilities(alignedPairs, seqLengthX, 1);
+    int64_t *indelProbsY = getIndelProbabilities(alignedPairs, seqLengthY, 0);
+    alignedPairs = reweightAlignedPairs(alignedPairs, indelProbsX, indelProbsY, gapGamma);
+    free(indelProbsX);
+    free(indelProbsY);
+    return alignedPairs;
 }
 

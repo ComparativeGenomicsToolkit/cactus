@@ -7,6 +7,7 @@
 #include "CuTest.h"
 #include "sonLib.h"
 #include "pairwiseAligner.h"
+#include "multipleAligner.h"
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -290,7 +291,7 @@ static void test_diagonalDPCalculations(CuTest *testCase) {
         //Calculate the total probs
         double totalDiagonalProb = diagonalCalculationTotalProbability(sM, i, dpMatrixForward, dpMatrixBackward, sX2,
                 sY2);
-        CuAssertDblEquals(testCase, totalProbForward, totalDiagonalProb, 0.001); //Check the forward and back probabilities are about equal
+        CuAssertDblEquals(testCase, totalProbForward, totalDiagonalProb, 0.01); //Check the forward and back probabilities are about equal
     }
 
     //Now do the posterior probabilities
@@ -630,7 +631,7 @@ static void test_getAlignedPairsWithRaggedEnds(CuTest *testCase) {
         PairwiseAlignmentParameters *p = pairwiseAlignmentBandingParameters_construct();
         StateMachine *sM = stateMachine5_construct(fiveState);
         stList *alignedPairs = getAlignedPairs(sM, sX, sY, p, 1, 1);
-        stList *discardedAlignmentPairs = filterPairwiseAlignmentToMakePairsOrdered(alignedPairs, 0.2);
+        alignedPairs = filterPairwiseAlignmentToMakePairsOrdered(alignedPairs, sX, sY, 0.2);
 
         //Check the aligned pairs.
         checkAlignedPairs(testCase, alignedPairs, strlen(sX), strlen(sY));
@@ -649,7 +650,6 @@ static void test_getAlignedPairsWithRaggedEnds(CuTest *testCase) {
         free(sX);
         free(sY);
         stList_destruct(alignedPairs);
-        stList_destruct(discardedAlignmentPairs);
     }
 }
 
@@ -789,8 +789,8 @@ static void test_em(CuTest *testCase, StateMachineType stateMachineType) {
 
             st_logInfo("->->-> Got expected likelihood %f for trial %" PRIi64 " and  iteration %" PRIi64 "\n",
                     hmm->likelihood, test, iteration);
-            assert(pLikelihood <= hmm->likelihood * 0.98);
-            //CuAssertTrue(testCase, pLikelihood <= hmm->likelihood * 0.98);
+            assert(pLikelihood <= hmm->likelihood * 0.95);
+            CuAssertTrue(testCase, pLikelihood <= hmm->likelihood * 0.95);
             pLikelihood = hmm->likelihood;
             stateMachine_destruct(sM);
             sM = hmm_getStateMachine(hmm);
