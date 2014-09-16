@@ -68,7 +68,7 @@ static void checkAlignment(CuTest *testCase, stList *seqFrags, stList *multipleA
         int64_t seqY = stIntTuple_get(multipleAlignedPair, 3);
         int64_t y = stIntTuple_get(multipleAlignedPair, 4);
         st_logInfo("Got aligned pair, score: %" PRIi64 " x seq: %" PRIi64 " x pos: %" PRIi64 " x seq: %" PRIi64 " y pos: %" PRIi64 "\n", score, seqX, x, seqY, y);
-        CuAssertTrue(testCase, score > 0);
+        //CuAssertTrue(testCase, score > 0); -- this can be less than zero if gapGamma > 0.0
         CuAssertTrue(testCase, score <= PAIR_ALIGNMENT_PROB_1);
         CuAssertTrue(testCase, seqX >= 0);
         CuAssertTrue(testCase, seqX < stList_length(seqFrags));
