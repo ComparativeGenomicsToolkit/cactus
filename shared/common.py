@@ -291,7 +291,7 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
                          minimumOutgroupDegree=None,
                          alignAmbiguityCharacters=None,
                          pruneOutStubAlignments=None,
-                         maximumNumberOfSequencesBeforeSwitchingToFast=None,
+                         useProgressiveMerging=None,
                          calculateWhichEndsToComputeSeparately=None,
                          largeEndSize=None,
                          endAlignmentsToPrecomputeOutputFile=None,
@@ -313,7 +313,7 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
     minimumOutgroupDegree = nameValue("minimumOutgroupDegree", minimumOutgroupDegree, int)
     pruneOutStubAlignments = nameValue("pruneOutStubAlignments", pruneOutStubAlignments, bool)
     alignAmbiguityCharacters = nameValue("alignAmbiguityCharacters", alignAmbiguityCharacters, bool)
-    maximumNumberOfSequencesBeforeSwitchingToFast=nameValue("maximumNumberOfSequencesBeforeSwitchingToFast", maximumNumberOfSequencesBeforeSwitchingToFast, int)
+    useProgressiveMerging=nameValue("useProgressiveMerging", useProgressiveMerging, bool)
     calculateWhichEndsToComputeSeparately=nameValue("calculateWhichEndsToComputeSeparately", calculateWhichEndsToComputeSeparately, bool)
     largeEndSize=nameValue("largeEndSize", largeEndSize, int)
     endAlignmentsToPrecomputeOutputFile=nameValue("endAlignmentsToPrecomputeOutputFile", endAlignmentsToPrecomputeOutputFile, str)
@@ -324,7 +324,7 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
             splitMatrixBiggerThanThis, anchorMatrixBiggerThanThis, repeatMaskMatrixBiggerThanThis,
             constraintDiagonalTrim, minimumBlockDegree, minimumIngroupDegree, minimumOutgroupDegree,  
             alignAmbiguityCharacters, pruneOutStubAlignments, diagonalExpansion,
-            maximumNumberOfSequencesBeforeSwitchingToFast, calculateWhichEndsToComputeSeparately,
+            useProgressiveMerging, calculateWhichEndsToComputeSeparately,
             largeEndSize, endAlignmentsToPrecomputeOutputFile, precomputedAlignments), stdinString=flowerNames)
     logger.info("Ran cactus_bar okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]
