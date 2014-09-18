@@ -79,6 +79,9 @@ static void usage() {
     fprintf(stderr, "-J --phylogenyMaxBlockDistance : maximum distance in blocks to walk outside of a block gathering feature columns\n");
     fprintf(stderr, "-K --phylogenyDebugFile : path to file to dump block trees and partitions to\n");
     fprintf(stderr, "-L --phylogenyKeepSingleDegreeBlocks : when splitting blocks, allow blocks to be created of only one ingroup.\n");
+    fprintf(stderr, "-M --phylogenyTreeBuildingMethod : neighbor joining or neighbor-joining guided by the species tree");
+    fprintf(stderr, "-N --phylogenyCostPerLossPerBase : join cost per dup per base for guided neighbor-joining (will be multiplied by maxBaseDistance)");
+    fprintf(stderr, "-O --phylogenyCostPerLossPerBase : join cost per loss per base for guided neighbor-joining (will be multiplied by maxBaseDistance)");
 }
 
 static int64_t *getInts(const char *string, int64_t *arrayLength) {
@@ -250,6 +253,9 @@ int main(int argc, char *argv[]) {
     int64_t phylogenyMaxBaseDistance = 1000;
     int64_t phylogenyMaxBlockDistance = 100;
     bool phylogenyKeepSingleDegreeBlocks = 0;
+    enum stCaf_TreeBuildingMethod phylogenyTreeBuildingMethod = GUIDED_NEIGHBOR_JOINING;
+    double phylogenyCostPerDupPerBase = 0.2;
+    double phylogenyCostPerLossPerBase = 0.2;
     const char *debugFileName = NULL;
 
     ///////////////////////////////////////////////////////////////////////////
@@ -279,11 +285,14 @@ int main(int argc, char *argv[]) {
                         { "phylogenyMaxBlockDistance", required_argument, 0, 'J' },
                         { "phylogenyDebugFile", required_argument, 0, 'K' },
                         { "phylogenyKeepSingleDegreeBlocks", no_argument, 0, 'L' },
+                        { "phylogenyTreeBuildingMethod", required_argument, 0, 'M' },
+                        { "phylogenyCostPerDupPerBase", required_argument, 0, 'N' },
+                        { "phylogenyCostPerLossPerBase", required_argument, 0, 'O' },
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:BC:D:E:F:G:HI:J:K:L", long_options, &option_index);
+        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:BC:D:E:F:G:HI:J:K:LM:N:O:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -407,15 +416,34 @@ int main(int argc, char *argv[]) {
                 break;
             case 'I':
                 k = sscanf(optarg, "%ld", &phylogenyMaxBaseDistance);
+                assert(k == 1);
                 break;
             case 'J':
                 k = sscanf(optarg, "%ld", &phylogenyMaxBlockDistance);
+                assert(k == 1);
                 break;
             case 'K':
                 debugFileName = stString_copy(optarg);
                 break;
             case 'L':
                 phylogenyKeepSingleDegreeBlocks = true;
+                break;
+            case 'M':
+                if (strcmp(optarg, "neighborJoining") == 0) {
+                    phylogenyTreeBuildingMethod = NEIGHBOR_JOINING;
+                } else if (strcmp(optarg, "guidedNeighborJoining") == 0) {
+                    phylogenyTreeBuildingMethod = GUIDED_NEIGHBOR_JOINING;
+                } else {
+                    st_errAbort("Unknown tree building method: %s", optarg);
+                }
+                break;
+            case 'N':
+                k = sscanf(optarg, "%lf", &phylogenyCostPerDupPerBase);
+                assert(k == 1);
+                break;
+            case 'O':
+                k = sscanf(optarg, "%lf", &phylogenyCostPerLossPerBase);
+                assert(k == 1);
                 break;
             default:
                 usage();
@@ -574,7 +602,7 @@ int main(int argc, char *argv[]) {
             //Build a tree for each block, then use each tree
             //to partition the homologies between the ingroups sequences into those that occur before the speciation with the outgroup and
             //those which occur late.
-            if(stSet_size(outgroupThreads) > 0) {
+            if (stSet_size(outgroupThreads) > 0) {
                 st_logDebug("Starting to build trees and partition ingroup homologies\n");
                 stHash *threadStrings = stCaf_getThreadStrings(flower, threadSet);
                 st_logDebug("Got sets of thread strings and set of threads that are outgroups\n");
@@ -585,7 +613,7 @@ int main(int argc, char *argv[]) {
                         st_errnoAbort("could not open debug file");
                     }
                 }
-                stCaf_buildTreesToRemoveAncientHomologies(threadSet, threadStrings, outgroupThreads, flower, phylogenyMaxBaseDistance, phylogenyMaxBlockDistance, phylogenyNumTrees, phylogenyRootingMethod, phylogenyScoringMethod, breakpointScalingFactor, phylogenySkipSingleCopyBlocks, phylogenyKeepSingleDegreeBlocks, debugFile);
+                stCaf_buildTreesToRemoveAncientHomologies(threadSet, threadStrings, outgroupThreads, flower, phylogenyMaxBaseDistance, phylogenyMaxBlockDistance, phylogenyNumTrees, phylogenyTreeBuildingMethod, phylogenyRootingMethod, phylogenyScoringMethod, breakpointScalingFactor, phylogenySkipSingleCopyBlocks, phylogenyKeepSingleDegreeBlocks, phylogenyCostPerDupPerBase, phylogenyCostPerLossPerBase, debugFile);
                 if (debugFile != NULL) {
                     fclose(debugFile);
                 }

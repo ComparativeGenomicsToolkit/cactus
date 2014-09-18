@@ -201,6 +201,38 @@ static stHash *getLeafToSpecies(stTree *geneTree, stTree *speciesTree,
     return leafToSpecies;
 }
 
+/*
+ * Get a mapping from matrix index -> join cost index for use in
+ * neighbor-joining guided by a species tree.
+ */
+
+static stHash *getMatrixIndexToJoinCostIndex(stPinchBlock *block, Flower *flower, stTree *speciesTree, stHash *speciesToJoinCostIndex) {
+    stHash *matrixIndexToJoinCostIndex = stHash_construct3((uint64_t (*)(const void *)) stIntTuple_hashKey, (int (*)(const void *, const void *)) stIntTuple_equalsFn, (void (*)(void *)) stIntTuple_destruct, (void (*)(void *)) stIntTuple_destruct);
+    stPinchBlockIt blockIt = stPinchBlock_getSegmentIterator(block);
+    stPinchSegment *segment;
+    int64_t i = 0; // Current segment index in block.
+    while((segment = stPinchBlockIt_getNext(&blockIt)) != NULL) {
+        stPinchThread *thread = stPinchSegment_getThread(segment);
+        Cap *cap = flower_getCap(flower, stPinchThread_getName(thread));
+        Event *event = cap_getEvent(cap);
+        char *eventNameString = stString_print("%" PRIi64, event_getName(event));
+        stTree *species = stTree_findChild(speciesTree, eventNameString);
+        free(eventNameString);
+        assert(species != NULL);
+
+        stIntTuple *joinCostIndex = stHash_search(speciesToJoinCostIndex, species);
+        assert(joinCostIndex != NULL);
+
+        stIntTuple *matrixIndex = stIntTuple_construct1(i);
+        stHash_insert(matrixIndexToJoinCostIndex, matrixIndex,
+                      // Copy the join cost index so it has the same
+                      // lifetime as the hash
+                      stIntTuple_construct1(stIntTuple_get(joinCostIndex, 0)));
+        i++;
+    }
+    return matrixIndexToJoinCostIndex;
+}
+
 static stTree *eventTreeToStTree_R(Event *event) {
     stTree *ret = stTree_construct();
     stTree_setLabel(ret, stString_print("%" PRIi64, event_getName(event)));
@@ -273,11 +305,14 @@ static double scoreTree(stTree *tree, enum stCaf_ScoringMethod scoringMethod, st
 // Build a tree from a set of feature columns and root it according to
 // the rooting method.
 static stTree *buildTree(stList *featureColumns,
+                         enum stCaf_TreeBuildingMethod treeBuildingMethod,
                          enum stCaf_RootingMethod rootingMethod,
                          double breakPointScalingFactor,
                          bool bootstrap,
                          stList *outgroups, stPinchBlock *block,
-                         Flower *flower, stTree *speciesStTree) {
+                         Flower *flower, stTree *speciesStTree,
+                         stMatrix *joinCosts,
+                         stHash *speciesToJoinCostIndex) {
     // Make substitution matrix
     stMatrix *substitutionMatrix = stPinchPhylogeny_getMatrixFromSubstitutions(featureColumns, block, NULL, bootstrap);
     assert(stMatrix_n(substitutionMatrix) == stPinchBlock_getDegree(block));
@@ -292,11 +327,31 @@ static stTree *buildTree(stList *featureColumns,
 
     stTree *tree = NULL;
     if(rootingMethod == OUTGROUP_BRANCH) {
-        tree = stPhylogeny_neighborJoin(distanceMatrix, outgroups);
+        if (treeBuildingMethod == NEIGHBOR_JOINING) {
+            tree = stPhylogeny_neighborJoin(distanceMatrix, outgroups);
+        } else {
+            assert(treeBuildingMethod == GUIDED_NEIGHBOR_JOINING);
+            st_errAbort("Longest-outgroup-branch rooting not supported with guided neighbor joining");
+        }
     } else if(rootingMethod == LONGEST_BRANCH) {
-        tree = stPhylogeny_neighborJoin(distanceMatrix, NULL);
+        if (treeBuildingMethod == NEIGHBOR_JOINING) {
+            tree = stPhylogeny_neighborJoin(distanceMatrix, NULL);
+        } else {
+            assert(treeBuildingMethod == GUIDED_NEIGHBOR_JOINING);
+            st_errAbort("Longest-branch rooting not supported with guided neighbor joining");
+        }
     } else if(rootingMethod == BEST_RECON) {
-        tree = stPhylogeny_neighborJoin(distanceMatrix, NULL);
+        if (treeBuildingMethod == NEIGHBOR_JOINING) {
+            tree = stPhylogeny_neighborJoin(distanceMatrix, NULL);
+        } else {
+            // FIXME: Could move this out of the function as
+            // well. It's the same for each tree generated for the
+            // block.
+            stHash *matrixIndexToJoinCostIndex = getMatrixIndexToJoinCostIndex(block, flower, speciesStTree,
+                                                                               speciesToJoinCostIndex);
+            tree = stPhylogeny_guidedNeighborJoining(combinedMatrix, joinCosts, matrixIndexToJoinCostIndex, speciesToJoinCostIndex, speciesStTree);
+            stHash_destruct(matrixIndexToJoinCostIndex);
+        }
         stHash *leafToSpecies = getLeafToSpecies(tree,
                                                  speciesStTree,
                                                  block, flower);
@@ -518,7 +573,7 @@ static int64_t countBasesBetweenSingleDegreeBlocks(stPinchThreadSet *threadSet) 
     return numBases;
 }
 
-void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHash *threadStrings, stSet *outgroupThreads, Flower *flower, int64_t maxBaseDistance, int64_t maxBlockDistance, int64_t numTrees, enum stCaf_RootingMethod rootingMethod, enum stCaf_ScoringMethod scoringMethod, double breakPointScalingFactor, bool skipSingleCopyBlocks, bool allowSingleDegreeBlocks, FILE *debugFile) {
+void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHash *threadStrings, stSet *outgroupThreads, Flower *flower, int64_t maxBaseDistance, int64_t maxBlockDistance, int64_t numTrees, enum stCaf_TreeBuildingMethod treeBuildingMethod, enum stCaf_RootingMethod rootingMethod, enum stCaf_ScoringMethod scoringMethod, double breakPointScalingFactor, bool skipSingleCopyBlocks, bool allowSingleDegreeBlocks, double costPerDupPerBase, double costPerLossPerBase, FILE *debugFile) {
     stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
     stPinchBlock *block;
 
@@ -528,6 +583,10 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
     //Get species tree as an stTree
     EventTree *eventTree = flower_getEventTree(flower);
     stTree *speciesStTree = eventTreeToStTree(eventTree);
+
+    // Get info for guided neighbor-joining
+    stHash *speciesToJoinCostIndex = stHash_construct2(NULL, (void (*)(void *)) stIntTuple_destruct);
+    stMatrix *joinCosts = stPhylogeny_computeJoinCosts(speciesStTree, speciesToJoinCostIndex, costPerDupPerBase * 2 * maxBaseDistance, costPerLossPerBase * 2 * maxBaseDistance);
 
     //Count of the total number of blocks partitioned by an ancient homology
     int64_t totalBlocksSplit = 0;
@@ -590,25 +649,26 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
             totalOutgroupThreads += stList_length(outgroups);
 
             //Build the canonical tree.
-            stTree *blockTree = buildTree(featureColumns, rootingMethod,
+            stTree *blockTree = buildTree(featureColumns, GUIDED_NEIGHBOR_JOINING, rootingMethod,
                                           breakPointScalingFactor,
                                           0, outgroups, block, flower,
-                                          speciesStTree);
+                                          speciesStTree, joinCosts, speciesToJoinCostIndex);
 
             // Sample the rest of the trees.
             stList *trees = stList_construct();
             stList_append(trees, blockTree);
             for(int64_t i = 0; i < numTrees - 1; i++) {
-                stTree *tree = buildTree(featureColumns, rootingMethod,
+                stTree *tree = buildTree(featureColumns, GUIDED_NEIGHBOR_JOINING, rootingMethod,
                                          breakPointScalingFactor,
                                          1, outgroups, block, flower,
-                                         speciesStTree);
+                                         speciesStTree, joinCosts, speciesToJoinCostIndex);
                 stList_append(trees, tree);
             }
 
             // Get the best-scoring tree.
             double maxScore = -INFINITY;
             stTree *bestTree = NULL;
+            bool sampledTreeWasBetter = false;
             for(int64_t i = 0; i < stList_length(trees); i++) {
                 stTree *tree = stList_get(trees, i);
                 double score = scoreTree(tree, scoringMethod,
@@ -619,7 +679,10 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
                     totalTreeScore += score;
                 }
                 if(score > maxScore) {
-                    sampledTreeWasBetterCount += (i != 0 && bestTree == NULL) ? 1 : 0;
+                    sampledTreeWasBetterCount += (i >= 1 && !sampledTreeWasBetter) ? 1 : 0;
+                    if (i != 0) {
+                        sampledTreeWasBetter = true;
+                    }
                     maxScore = score;
                     bestTree = tree;
                 }

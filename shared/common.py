@@ -185,37 +185,40 @@ def runStripUniqueIDs(cactusDiskString):
     system("cactus_stripUniqueIDs --cactusDisk '%s'" % cactusDiskString)
 
 def runCactusCaf(cactusDiskDatabaseString, alignments, 
-                  flowerNames=encodeFlowerNames((0,)),
-                  logLevel=None, 
-                  writeDebugFiles=False,
-                  annealingRounds=None,
-                  deannealingRounds=None,
-                  trim=None,
-                  minimumTreeCoverage=None,
-                  blockTrim=None,
-                  minimumBlockDegree=None,
-                  minimumIngroupDegree=None,
-                  minimumOutgroupDegree=None,
-                  singleCopyIngroup=None,
-                  singleCopyOutgroup=None,
-                  lastzArguments=None,
-                  minimumSequenceLengthForBlast=None,
-                  maxAdjacencyComponentSizeRatio=None,
-                  constraints=None,
-                  minLengthForChromosome=None,
-                  proportionOfUnalignedBasesForNewChromosome=None, 
-                  maximumMedianSequenceLengthBetweenLinkedEnds=None,
-                  realign=None,
-                  realignArguments=None,
-                  phylogenyNumTrees=None,
-                  phylogenyScoringMethod=None,
-                  phylogenyRootingMethod=None,
-                  phylogenyBreakpointScalingFactor=None,
-                  phylogenySkipSingleCopyBlocks=None,
-                  phylogenyMaxBaseDistance=None,
-                  phylogenyMaxBlockDistance=None,
-                  phylogenyDebugFile=None,
-                  phylogenyKeepSingleDegreeBlocks=None):
+                 flowerNames=encodeFlowerNames((0,)),
+                 logLevel=None, 
+                 writeDebugFiles=False,
+                 annealingRounds=None,
+                 deannealingRounds=None,
+                 trim=None,
+                 minimumTreeCoverage=None,
+                 blockTrim=None,
+                 minimumBlockDegree=None,
+                 minimumIngroupDegree=None,
+                 minimumOutgroupDegree=None,
+                 singleCopyIngroup=None,
+                 singleCopyOutgroup=None,
+                 lastzArguments=None,
+                 minimumSequenceLengthForBlast=None,
+                 maxAdjacencyComponentSizeRatio=None,
+                 constraints=None,
+                 minLengthForChromosome=None,
+                 proportionOfUnalignedBasesForNewChromosome=None, 
+                 maximumMedianSequenceLengthBetweenLinkedEnds=None,
+                 realign=None,
+                 realignArguments=None,
+                 phylogenyNumTrees=None,
+                 phylogenyScoringMethod=None,
+                 phylogenyRootingMethod=None,
+                 phylogenyBreakpointScalingFactor=None,
+                 phylogenySkipSingleCopyBlocks=None,
+                 phylogenyMaxBaseDistance=None,
+                 phylogenyMaxBlockDistance=None,
+                 phylogenyDebugFile=None,
+                 phylogenyKeepSingleDegreeBlocks=None,
+                 phylogenyTreeBuildingMethod=None,
+                 phylogenyCostPerDupPerBase=None,
+                 phylogenyCostPerLossPerBase=None):
     # remove annoying carriage returns in caf command line.
     cactusDiskDatabaseString = cactusDiskDatabaseString.replace('\n', '')
 
@@ -246,17 +249,20 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
     phylogenyMaxBlockDistance = nameValue("phylogenyMaxBlockDistance", phylogenyMaxBlockDistance)
     phylogenyDebugFile = nameValue("phylogenyDebugFile", phylogenyDebugFile)
     phylogenyKeepSingleDegreeBlocks = nameValue("phylogenyKeepSingleDegreeBlocks", phylogenyKeepSingleDegreeBlocks, bool)
-    
+    phylogenyTreeBuildingMethod = nameValue("phylogenyTreeBuildingMethod", phylogenyTreeBuildingMethod)
+    phylogenyCostPerDupPerBase = nameValue("phylogenyCostPerDupPerBase", phylogenyCostPerDupPerBase)
+    phylogenyCostPerLossPerBase = nameValue("phylogenyCostPerLossPerBase", phylogenyCostPerLossPerBase)
+
     minLengthForChromosome = nameValue("minLengthForChromosome", minLengthForChromosome, int)
     proportionOfUnalignedBasesForNewChromosome = nameValue("proportionOfUnalignedBasesForNewChromosome", proportionOfUnalignedBasesForNewChromosome, float)
     maximumMedianSequenceLengthBetweenLinkedEnds = nameValue("maximumMedianSequenceLengthBetweenLinkedEnds", maximumMedianSequenceLengthBetweenLinkedEnds, int)
     
-    command = "cactus_caf --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
+    command = "cactus_caf --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
     (cactusDiskDatabaseString, logLevel, alignments, annealingRounds, deannealingRounds, 
      trim, minimumTreeCoverage, blockTrim, 
      minimumBlockDegree, minimumIngroupDegree, minimumOutgroupDegree,  
      singleCopyIngroup, singleCopyOutgroup, lastzArguments, minimumSequenceLengthForBlast, maxAdjacencyComponentSizeRatio, constraints,
-     minLengthForChromosome, proportionOfUnalignedBasesForNewChromosome, maximumMedianSequenceLengthBetweenLinkedEnds, realign, realignArguments, phylogenyNumTrees, phylogenyRootingMethod, phylogenyScoringMethod, phylogenyBreakpointScalingFactor, phylogenySkipSingleCopyBlocks, phylogenyMaxBaseDistance, phylogenyMaxBlockDistance, phylogenyDebugFile, phylogenyKeepSingleDegreeBlocks)
+     minLengthForChromosome, proportionOfUnalignedBasesForNewChromosome, maximumMedianSequenceLengthBetweenLinkedEnds, realign, realignArguments, phylogenyNumTrees, phylogenyRootingMethod, phylogenyScoringMethod, phylogenyBreakpointScalingFactor, phylogenySkipSingleCopyBlocks, phylogenyMaxBaseDistance, phylogenyMaxBlockDistance, phylogenyDebugFile, phylogenyKeepSingleDegreeBlocks, phylogenyTreeBuildingMethod, phylogenyCostPerDupPerBase, phylogenyCostPerLossPerBase)
     masterMessages = popenCatch(command, stdinString=flowerNames)
     logger.info("Ran cactus_core okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]
