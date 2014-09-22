@@ -263,7 +263,7 @@ static double scoreTree(stTree *tree, enum stCaf_ScoringMethod scoringMethod, st
                                                  speciesStTree,
                                                  block, flower);
         int64_t dups, losses;
-        stPinchPhylogeny_reconciliationCostBinary(tree, speciesStTree,
+        stPhylogeny_reconciliationCostBinary(tree, speciesStTree,
                                                   leafToSpecies, &dups,
                                                   &losses);
         ret = -dups - losses;
@@ -279,7 +279,7 @@ static double scoreTree(stTree *tree, enum stCaf_ScoringMethod scoringMethod, st
         stHash *leafToSpecies = getLeafToSpecies(tmp,
                                                  speciesStTree,
                                                  block, flower);
-        stPinchPhylogeny_reconcileBinary(tmp, speciesStTree, leafToSpecies, false);
+        stPhylogeny_reconcileBinary(tmp, speciesStTree, leafToSpecies, false);
         // FIXME: hardcoding dup-rate parameter for now
         ret = stPinchPhylogeny_reconciliationLikelihood(tmp, speciesStTree, 1.0);
         stReconciliationInfo_destructOnTree(tmp);
@@ -292,7 +292,7 @@ static double scoreTree(stTree *tree, enum stCaf_ScoringMethod scoringMethod, st
         stHash *leafToSpecies = getLeafToSpecies(tmp,
                                                  speciesStTree,
                                                  block, flower);
-        stPinchPhylogeny_reconcileBinary(tmp, speciesStTree, leafToSpecies, false);
+        stPhylogeny_reconcileBinary(tmp, speciesStTree, leafToSpecies, false);
         // FIXME: hardcoding dup-rate parameter for now
         ret = stPinchPhylogeny_reconciliationLikelihood(tmp, speciesStTree, 1.0);
         ret += stPinchPhylogeny_likelihood(tree, featureColumns);
@@ -355,7 +355,7 @@ static stTree *buildTree(stList *featureColumns,
         stHash *leafToSpecies = getLeafToSpecies(tree,
                                                  speciesStTree,
                                                  block, flower);
-        stTree *newTree = stPinchPhylogeny_rootAndReconcileBinary(tree, speciesStTree, leafToSpecies);
+        stTree *newTree = stPhylogeny_rootAndReconcileBinary(tree, speciesStTree, leafToSpecies);
         stPhylogeny_addStPhylogenyInfo(newTree);
 
         stPhylogenyInfo_destructOnTree(tree);
@@ -439,6 +439,34 @@ static void relabelMatrixIndexedTree(stTree *tree, stHash *matrixIndexToName) {
         stTree_setLabel(tree, stString_copy(header));
         stIntTuple_destruct(query);
     }
+}
+
+// Print the debug info for blocks that are normally not printed
+// (those that cannot be partitioned). The debug info contains just
+// the "partition", i.e. the sequences and positions within the block
+// in a list of lists.
+static void printSimpleBlockDebugInfo(Flower *flower, stPinchBlock *block, FILE *outFile) {
+    stPinchBlockIt blockIt = stPinchBlock_getSegmentIterator(block);
+    stPinchSegment *segment = NULL;
+    fprintf(outFile, "[[");
+    int64_t i = 0;
+    while ((segment = stPinchBlockIt_getNext(&blockIt)) != NULL) {
+        stPinchThread *thread = stPinchSegment_getThread(segment);
+        Cap *cap = flower_getCap(flower, stPinchThread_getName(thread));
+        const char *seqHeader = sequence_getHeader(cap_getSequence(cap));
+        Event *event = cap_getEvent(cap);
+        const char *eventHeader = event_getHeader(event);
+        char *segmentHeader = stString_print("%s.%s|%" PRIi64 "-%" PRIi64, eventHeader, seqHeader, stPinchSegment_getStart(segment), stPinchSegment_getStart(segment) + stPinchSegment_getLength(segment));
+        
+        if (i != 0) {
+            fprintf(outFile, ",");
+        }
+        fprintf(outFile, "\"%s\"", segmentHeader);
+        free(segmentHeader);
+        i++;
+    }
+    assert(i == stPinchBlock_getDegree(block));
+    fprintf(outFile, "]]\n");
 }
 
 // print debug info: "tree\tpartition\n" to the file
@@ -725,6 +753,10 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
             stList_destruct(featureBlocks);
             stList_destruct(outgroups);
         } else {
+            // Print debug info even for simple blocks.
+            if (debugFile != NULL) {
+                printSimpleBlockDebugInfo(flower, block, debugFile);
+            }
             totalSimpleBlocks++;
         }
     }
