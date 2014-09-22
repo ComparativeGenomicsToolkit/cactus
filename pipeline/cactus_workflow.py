@@ -18,6 +18,7 @@ import time
 import bz2
 import random
 import copy
+import shutil
 from optparse import OptionParser
 
 from sonLib.bioio import getTempFile
@@ -354,7 +355,6 @@ class CactusTrimmingBlastPhase(CactusPhasesTarget):
                                                        trimOutgroupFlanking=self.getOptionalPhaseAttrib("trimOutgroupFlanking", int, 100)), ingroups, outgroups, alignmentsFile, outgroupsDir))
         # Point the outgroup sequences to their trimmed versions for
         # phases after this one.
-        # FIXME: modifies experiment xml!!
         for outgroup in exp.getOutgroupEvents():
             oldPath = seqMap[outgroup]
             seqMap[outgroup] = os.path.join(outgroupsDir, os.path.basename(oldPath))
@@ -945,8 +945,9 @@ class CactusWorkflowArguments:
     """Object for representing a cactus workflow's arguments
     """
     def __init__(self, options):
-        self.experimentFile = options.experimentFile
-        self.experimentNode = ET.parse(open(self.experimentFile, 'r')).getroot()
+        self.experimentFile = getTempFile("tempExperimentFileCopy", rootDir=os.path.dirname(options.experimentFile))
+        shutil.copyfile(options.experimentFile, self.experimentFile)
+        self.experimentNode = ET.parse(self.experimentFile).getroot()
         self.experimentWrapper = ExperimentWrapper(self.experimentNode)
         #Get the database string
         self.cactusDiskDatabaseString = ET.tostring(self.experimentNode.find("cactus_disk").find("st_kv_database_conf"))
