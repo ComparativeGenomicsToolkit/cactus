@@ -47,15 +47,34 @@ class Schedule:
             exp = ExperimentWrapper(ET.parse(expPath).getroot())
             tree = exp.getTree()
             self.inGraph.add_node(name)
-            for leaf in tree.getLeaves():
+            # Go through the species tree and add the correct
+            # dependencies (i.e. to the outgroups and the ingroups,
+            # but not to the other nodes that are just there because
+            # they are needed to form the correct paths).
+            for node in tree.postOrderTraversal():
+                nodeName = tree.getName(node)
+                if not tree.isLeaf(node) and nodeName not in exp.getOutgroupEvents():
+                    # This node is just an internal node added while
+                    # creating the induced tree from the species
+                    # tree. None of the sequence is used, so skip it.
+                    continue
+
+                assert tree.hasParent(node)
+
+                if nodeName not in exp.getOutgroupEvents() and tree.getName(tree.getParent(node)) != name:
+                    # This leaf isn't an ingroup or an outgroup, it was
+                    # just added to make the species tree
+                    # binary. (Hopefully this will be unnecessary in
+                    # the future.)
+                    continue
+
                 # we don't add edges for leaves (in the global tree)
                 # as they are input sequences and do not form dependencies
                 # (it would be clever to maybe do the same with existing
                 # references when --overwrite is not specified but for now
                 # we just do the leaves)
-                leafName = tree.getName(leaf)
-                if leafName not in leafEvents:
-                    self.inGraph.add_edge(name, leafName)
+                if nodeName not in leafEvents:
+                    self.inGraph.add_edge(name, nodeName)
             configElem = ET.parse(exp.getConfig()).getroot()
             conf = ConfigWrapper(configElem)
             # load max parellel subtrees from the node's config
