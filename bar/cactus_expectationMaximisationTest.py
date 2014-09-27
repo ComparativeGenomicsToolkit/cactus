@@ -39,6 +39,7 @@ class TestCase(unittest.TestCase):
                                                  setJukesCantorStartingEmissions=0.2,
                                                  #useDefaultModelAsStart=,
                                                  trainEmissions=True,
+                                                 tieEmissions=True,
                                                  optionsToRealign="--diagonalExpansion=6 --splitMatrixBiggerThanThis=100")
                 hmm = Hmm.loadHmm(outputModelFile)
                 system("rm -rf %s" % jobTreeDir) #Cleanup the old jobTree

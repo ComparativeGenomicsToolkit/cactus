@@ -47,11 +47,12 @@ typedef struct {
 
 MultipleAlignment *makeAlignment(StateMachine *sM, stList *seqFrags,
         int64_t spanningTrees, int64_t maxPairsToConsider,
-        int64_t maximumNumberOfSequencesBeforeSwitchingToFast,
+        bool useProgressiveMerging,
         float matchGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters);
 
-MultipleAlignment *makeAlignmentUsingAllPairs(StateMachine *sM, stList *seqFrags, float matchGamma,
+MultipleAlignment *makeAlignmentUsingAllPairs(StateMachine *sM, stList *seqFrags,
+        bool useProgressiveMerging, float matchGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters);
 
 void multipleAlignment_destruct(MultipleAlignment *mA);

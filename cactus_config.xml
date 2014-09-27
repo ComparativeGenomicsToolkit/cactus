@@ -79,7 +79,7 @@
 		alignAmbiguityCharacters="1"
 		veryLargeEndSize="50000"
 		largeEndSize="10000"
-		maximumNumberOfSequencesBeforeSwitchingToFast="50"
+		useProgressiveMerging="1"
 		pruneOutStubAlignments="1"
 	>
 		<CactusBarRecursion maxFlowerGroupSize="100000000"/>

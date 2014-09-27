@@ -54,7 +54,7 @@ void usage() {
     fprintf(stderr, "-E --endAlignmentsToPrecomputeOutputFile [fileName] : If this output file is provided then bar will read stdin first to parse the flower, then to parse the names of the end alignments to precompute. The results will be placed in this file.\n");
 
     fprintf(stderr,
-            "-F --maximumNumberOfSequencesBeforeSwitchingToFast : The maximum number of sequences to align before switching to fast alignment.\n");
+            "-F --useProgressiveMerging : Use progressive merging instead of poset merging for constructing multiple sequence alignments.\n");
 
     fprintf(stderr, "-G --calculateWhichEndsToComputeSeparately : Decide which end alignments to compute separately.\n");
 
@@ -88,7 +88,7 @@ int main(int argc, char *argv[]) {
     int64_t i, j;
     int64_t spanningTrees = 10;
     int64_t maximumLength = 1500;
-    int64_t maximumNumberOfSequencesBeforeSwitchingToFast = 50;
+    bool useProgressiveMerging = 0;
     float matchGamma = 0.5;
     bool useBanding = 0;
     int64_t k;
@@ -121,13 +121,13 @@ int main(int argc, char *argv[]) {
                         "pruneOutStubAlignments", no_argument, 0, 'y' }, {
                         "minimumIngroupDegree", required_argument, 0, 'A' }, { "minimumOutgroupDegree", required_argument, 0, 'B' },
                 { "precomputedAlignments", required_argument, 0, 'D' }, {
-                        "endAlignmentsToPrecomputeOutputFile", required_argument, 0, 'E' }, { "maximumNumberOfSequencesBeforeSwitchingToFast",
-                        required_argument, 0, 'F' }, { "calculateWhichEndsToComputeSeparately", no_argument, 0, 'G' }, { "largeEndSize",
+                        "endAlignmentsToPrecomputeOutputFile", required_argument, 0, 'E' }, { "useProgressiveMerging",
+                        no_argument, 0, 'F' }, { "calculateWhichEndsToComputeSeparately", no_argument, 0, 'G' }, { "largeEndSize",
                         required_argument, 0, 'I' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:b:hi:j:kl:o:p:q:r:t:u:wy:A:B:D:E:F:GI:L:", long_options, &option_index);
+        int key = getopt_long(argc, argv, "a:b:hi:j:kl:o:p:q:r:t:u:wy:A:B:D:E:FGI:L:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -221,8 +221,7 @@ int main(int argc, char *argv[]) {
                 endAlignmentsToPrecomputeOutputFile = stString_copy(optarg);
                 break;
             case 'F':
-                i = sscanf(optarg, "%" PRIi64 "", &maximumNumberOfSequencesBeforeSwitchingToFast);
-                assert(i == 1);
+                useProgressiveMerging = 1;
                 break;
             case 'G':
                 calculateWhichEndsToComputeSeparately = 1;
@@ -281,7 +280,7 @@ int main(int argc, char *argv[]) {
             if (end == NULL) {
                 st_errAbort("The end %" PRIi64 " was not found in the flower\n", *((Name *)stList_get(names, i)));
             }
-            stSortedSet *endAlignment = makeEndAlignment(sM, end, spanningTrees, maximumLength, maximumNumberOfSequencesBeforeSwitchingToFast,
+            stSortedSet *endAlignment = makeEndAlignment(sM, end, spanningTrees, maximumLength, useProgressiveMerging,
                             matchGamma, pairwiseAlignmentBandingParameters);
             writeEndAlignmentToDisk(end, endAlignment, fileHandle);
             stSortedSet_destruct(endAlignment);
@@ -304,7 +303,7 @@ int main(int argc, char *argv[]) {
             st_logInfo("Processing a flower\n");
 
             stSortedSet *alignedPairs = makeFlowerAlignment3(sM, flower, listOfEndAlignmentFiles, spanningTrees, maximumLength,
-                    maximumNumberOfSequencesBeforeSwitchingToFast, matchGamma, pairwiseAlignmentBandingParameters, pruneOutStubAlignments);
+                    useProgressiveMerging, matchGamma, pairwiseAlignmentBandingParameters, pruneOutStubAlignments);
             st_logInfo("Created the alignment: %" PRIi64 " pairs\n", stSortedSet_size(alignedPairs));
             stPinchIterator *pinchIterator = stPinchIterator_constructFromAlignedPairs(alignedPairs, getNextAlignedPairAlignment);
 

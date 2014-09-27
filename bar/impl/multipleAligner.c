@@ -676,13 +676,15 @@ stList *makeAllPairwiseAlignments(StateMachine *sM, stList *seqFrags, PairwiseAl
     return multipleAlignedPairs;
 }
 
-MultipleAlignment *makeAlignmentUsingAllPairs(StateMachine *sM, stList *seqFrags, float matchGamma, PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
+MultipleAlignment *makeAlignmentUsingAllPairs(StateMachine *sM, stList *seqFrags,
+        bool useProgressiveMerging, float matchGamma,
+        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
     /*
      * Generate a multiple alignment considering all pairs of sequences.
      */
     MultipleAlignment *mA = st_calloc(1, sizeof(MultipleAlignment));
     mA->alignedPairs = makeAllPairwiseAlignments(sM, seqFrags, pairwiseAlignmentBandingParameters, &mA->chosenPairwiseAlignments);
-    if(stList_length(seqFrags) == 2) { //Compute an optimum exactly
+    if(stList_length(seqFrags) == 2 || useProgressiveMerging) { //Compute an optimum exactly
         mA->columns = getMultipleSequenceAlignmentProgressive(seqFrags, mA->alignedPairs, matchGamma, mA->chosenPairwiseAlignments);
     }
     else {
@@ -879,14 +881,14 @@ int64_t getNextBestPair(int64_t seq1, int64_t *distanceCounts, int64_t seqNo,
 }
 
 MultipleAlignment *makeAlignment(StateMachine *sM, stList *seqFrags, int64_t spanningTrees, int64_t maxPairsToConsider,
-        int64_t maximumNumberOfSequencesBeforeSwitchingToFast, float matchGamma,
+        bool useProgressiveMerging, float matchGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
     /*
      * Computes an MSA, making up to "spanningTrees"*no of seqs pairwise alignments.
      */
     int64_t seqNo = stList_length(seqFrags);
     if (spanningTrees * (seqNo - 1) >= (seqNo * (seqNo - 1)) / 2) { //Do all pairs if we can
-        return makeAlignmentUsingAllPairs(sM, seqFrags, matchGamma, pairwiseAlignmentBandingParameters);
+        return makeAlignmentUsingAllPairs(sM, seqFrags, useProgressiveMerging, matchGamma, pairwiseAlignmentBandingParameters);
     }
     MultipleAlignment *mA = st_calloc(1, sizeof(MultipleAlignment));
     mA->alignedPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct); //pairwise alignment pairs, with sequence indices
@@ -907,7 +909,7 @@ MultipleAlignment *makeAlignment(StateMachine *sM, stList *seqFrags, int64_t spa
     int64_t iteration = 0;
     //The first alignment of multiple aligned pairs is already consistent
     while (1) {
-        mA->columns = (stList_length(seqFrags) == 2 || stList_length(seqFrags) > maximumNumberOfSequencesBeforeSwitchingToFast)
+        mA->columns = (stList_length(seqFrags) == 2 || useProgressiveMerging)
                 ? getMultipleSequenceAlignmentProgressive(seqFrags, mA->alignedPairs, matchGamma, mA->chosenPairwiseAlignments)
                 : getMultipleSequenceAlignment(seqFrags, mA->alignedPairs, matchGamma);
         if (++iteration >= spanningTrees) {

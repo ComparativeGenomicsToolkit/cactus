@@ -291,7 +291,7 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
                          minimumOutgroupDegree=None,
                          alignAmbiguityCharacters=None,
                          pruneOutStubAlignments=None,
-                         maximumNumberOfSequencesBeforeSwitchingToFast=None,
+                         useProgressiveMerging=None,
                          calculateWhichEndsToComputeSeparately=None,
                          largeEndSize=None,
                          endAlignmentsToPrecomputeOutputFile=None,
@@ -313,7 +313,7 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
     minimumOutgroupDegree = nameValue("minimumOutgroupDegree", minimumOutgroupDegree, int)
     pruneOutStubAlignments = nameValue("pruneOutStubAlignments", pruneOutStubAlignments, bool)
     alignAmbiguityCharacters = nameValue("alignAmbiguityCharacters", alignAmbiguityCharacters, bool)
-    maximumNumberOfSequencesBeforeSwitchingToFast=nameValue("maximumNumberOfSequencesBeforeSwitchingToFast", maximumNumberOfSequencesBeforeSwitchingToFast, int)
+    useProgressiveMerging=nameValue("useProgressiveMerging", useProgressiveMerging, bool)
     calculateWhichEndsToComputeSeparately=nameValue("calculateWhichEndsToComputeSeparately", calculateWhichEndsToComputeSeparately, bool)
     largeEndSize=nameValue("largeEndSize", largeEndSize, int)
     endAlignmentsToPrecomputeOutputFile=nameValue("endAlignmentsToPrecomputeOutputFile", endAlignmentsToPrecomputeOutputFile, str)
@@ -324,7 +324,7 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
             splitMatrixBiggerThanThis, anchorMatrixBiggerThanThis, repeatMaskMatrixBiggerThanThis,
             constraintDiagonalTrim, minimumBlockDegree, minimumIngroupDegree, minimumOutgroupDegree,  
             alignAmbiguityCharacters, pruneOutStubAlignments, diagonalExpansion,
-            maximumNumberOfSequencesBeforeSwitchingToFast, calculateWhichEndsToComputeSeparately,
+            useProgressiveMerging, calculateWhichEndsToComputeSeparately,
             largeEndSize, endAlignmentsToPrecomputeOutputFile, precomputedAlignments), stdinString=flowerNames)
     logger.info("Ran cactus_bar okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]
@@ -342,6 +342,7 @@ def runCactusExpectationMaximisation(sequenceFiles, alignmentsFile, outputModelF
                                      useDefaultModelAsStart=None, 
                                      setJukesCantorStartingEmissions=None,
                                      trainEmissions=None,
+                                     tieEmissions=None,
                                      outputTrialHmms = None,
                                      outputXMLModelFile = None,
                                      blastScoringMatrixFile=None):
@@ -357,16 +358,17 @@ def runCactusExpectationMaximisation(sequenceFiles, alignmentsFile, outputModelF
     optionsToRealign = nameValue("optionsToRealign", optionsToRealign, quotes=True)
     useDefaultModelAsStart = nameValue("useDefaultModelAsStart", useDefaultModelAsStart, bool) 
     trainEmissions = nameValue("trainEmissions", trainEmissions, bool)
+    tieEmissions = nameValue("tieEmissions", tieEmissions, bool)
     setJukesCantorStartingEmissions = nameValue("setJukesCantorStartingEmissions", setJukesCantorStartingEmissions, float)
     outputTrialHmms = nameValue("outputTrialHmms", outputTrialHmms, bool)
     outputXMLModelFile = nameValue("outputXMLModelFile", outputXMLModelFile, str)
     blastScoringMatrixFile = nameValue("blastScoringMatrixFile", blastScoringMatrixFile, str)
     
-    system("cactus_expectationMaximisation --sequences '%s' --alignments %s --outputModel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
+    system("cactus_expectationMaximisation --sequences '%s' --alignments %s --outputModel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
            (" ".join(sequenceFiles), alignmentsFile, outputModelFile, iterations, trials, randomStart, 
             jobTreeDir, inputModelFile, optionsToRealign, modelType,
             numberOfAlignmentsPerJob, updateTheBand, useDefaultModelAsStart, 
-            trainEmissions, setJukesCantorStartingEmissions, outputTrialHmms, 
+            trainEmissions, tieEmissions, setJukesCantorStartingEmissions, outputTrialHmms, 
             outputXMLModelFile, blastScoringMatrixFile))
 
 def runCactusSecondaryDatabase(secondaryDatabaseString, create=True):

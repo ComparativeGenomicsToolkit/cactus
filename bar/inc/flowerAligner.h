@@ -24,14 +24,14 @@
  * Model parameters is the parameters of the pairwise alignment model.
  */
 stSortedSet *makeFlowerAlignment(StateMachine *sM, Flower *flower, int64_t spanningTrees,
-        int64_t maxSequenceLength, int64_t maximumNumberOfSequencesBeforeSwitchingToFast, float gapGamma,
+        int64_t maxSequenceLength, bool useProgressiveMerging, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, bool pruneOutStubAlignments);
 
 /*
  * As above, but including alignments from disk.
  */
 stSortedSet *makeFlowerAlignment3(StateMachine *sM, Flower *flower, stList *listOfEndAlignmentFiles, int64_t spanningTrees,
-        int64_t maxSequenceLength, int64_t maximumNumberOfSequencesBeforeSwitchingToFast, float gapGamma,
+        int64_t maxSequenceLength, bool useProgressiveMerging, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, bool pruneOutStubAlignments);
 
 /*

@@ -53,7 +53,7 @@ int alignedPair_cmpFn(const AlignedPair *alignedPair1, const AlignedPair *aligne
 }
 
 stSortedSet *makeEndAlignment(StateMachine *sM, End *end, int64_t spanningTrees, int64_t maxSequenceLength,
-        int64_t maximumNumberOfSequencesBeforeSwitchingToFast, float gapGamma,
+        bool useProgressiveMerging, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
     //Make an alignment of the sequences in the ends
 
@@ -84,7 +84,7 @@ stSortedSet *makeEndAlignment(StateMachine *sM, End *end, int64_t spanningTrees,
     end_destructInstanceIterator(it);
 
     //Get the alignment.
-    MultipleAlignment *mA = makeAlignment(sM, seqFrags, spanningTrees, 100000000, maximumNumberOfSequencesBeforeSwitchingToFast, gapGamma, pairwiseAlignmentBandingParameters);
+    MultipleAlignment *mA = makeAlignment(sM, seqFrags, spanningTrees, 100000000, useProgressiveMerging, gapGamma, pairwiseAlignmentBandingParameters);
 
     //Build an array of weights to reweight pairs in the alignment.
     int64_t *pairwiseAlignmentsPerSequenceNonCommonEnds = st_calloc(stList_length(seqFrags), sizeof(int64_t));
