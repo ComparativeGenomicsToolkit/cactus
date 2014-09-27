@@ -38,6 +38,7 @@ class TestCase(unittest.TestCase):
                                                  iterations=1, trials=1, randomStart=False, logLevel=getLogLevelString(),
                                                  setJukesCantorStartingEmissions=0.2,
                                                  trainEmissions=True,
+                                                 tieEmissions=True,
                                                  optionsToRealign="--diagonalExpansion=6 --splitMatrixBiggerThanThis=100")
                 hmm = Hmm.loadHmm(outputModelFile)
                 system("rm -rf %s" % jobTreeDir) #Cleanup the old jobTree

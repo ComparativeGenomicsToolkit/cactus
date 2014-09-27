@@ -342,6 +342,7 @@ def runCactusExpectationMaximisation(sequenceFiles, alignmentsFile, outputModelF
                                      useDefaultModelAsStart=None, 
                                      setJukesCantorStartingEmissions=None,
                                      trainEmissions=None,
+                                     tieEmissions=None,
                                      outputTrialHmms = None,
                                      outputXMLModelFile = None,
                                      blastScoringMatrixFile=None):
@@ -357,16 +358,17 @@ def runCactusExpectationMaximisation(sequenceFiles, alignmentsFile, outputModelF
     optionsToRealign = nameValue("optionsToRealign", optionsToRealign, quotes=True)
     useDefaultModelAsStart = nameValue("useDefaultModelAsStart", useDefaultModelAsStart, bool) 
     trainEmissions = nameValue("trainEmissions", trainEmissions, bool)
+    tieEmissions = nameValue("tieEmissions", tieEmissions, bool)
     setJukesCantorStartingEmissions = nameValue("setJukesCantorStartingEmissions", setJukesCantorStartingEmissions, float)
     outputTrialHmms = nameValue("outputTrialHmms", outputTrialHmms, bool)
     outputXMLModelFile = nameValue("outputXMLModelFile", outputXMLModelFile, str)
     blastScoringMatrixFile = nameValue("blastScoringMatrixFile", blastScoringMatrixFile, str)
     
-    system("cactus_expectationMaximisation --sequences '%s' --alignments %s --outputModel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
+    system("cactus_expectationMaximisation --sequences '%s' --alignments %s --outputModel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
            (" ".join(sequenceFiles), alignmentsFile, outputModelFile, iterations, trials, randomStart, 
             jobTreeDir, inputModelFile, optionsToRealign, modelType,
             numberOfAlignmentsPerJob, updateTheBand, useDefaultModelAsStart, 
-            trainEmissions, setJukesCantorStartingEmissions, outputTrialHmms, 
+            trainEmissions, tieEmissions, setJukesCantorStartingEmissions, outputTrialHmms, 
             outputXMLModelFile, blastScoringMatrixFile))
 
 def runCactusSecondaryDatabase(secondaryDatabaseString, create=True):

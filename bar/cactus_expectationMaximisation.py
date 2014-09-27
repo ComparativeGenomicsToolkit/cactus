@@ -92,6 +92,17 @@ class Hmm:
             for x in xrange(SYMBOL_NUMBER):
                 for y in xrange(SYMBOL_NUMBER):
                     self.emissions[(state * SYMBOL_NUMBER**2) + x * SYMBOL_NUMBER + y] = i if x == y else j
+    
+    def tieEmissions(self):
+        """Sets the emissions to reflect overall divergence, but not to distinguish between different base identity
+        """
+        for state in xrange(self.stateNumber):
+            a = self.emissions[state*SYMBOL_NUMBER**2:(state+1)*SYMBOL_NUMBER**2]
+            identityExpectation = sum(map(lambda i : float(a[i]) if (i % SYMBOL_NUMBER) == (i / SYMBOL_NUMBER) else 0.0, xrange(SYMBOL_NUMBER**2)))
+            a = map(lambda i : identityExpectation/SYMBOL_NUMBER if (i % SYMBOL_NUMBER) == (i / SYMBOL_NUMBER) else (1.0 - identityExpectation)/(SYMBOL_NUMBER**2 - SYMBOL_NUMBER), xrange(SYMBOL_NUMBER**2))
+            assert sum(a) + 0.001 > 1.0 and sum(a) - 0.001 < 1.0
+            self.emissions[state*SYMBOL_NUMBER**2:(state+1)*SYMBOL_NUMBER**2] = a
+        assert len(self.emissions) == self.stateNumber * SYMBOL_NUMBER**2
 
 def expectationMaximisation(target, sequences, alignments, outputModel, options):
     #Iteratively run cactus realign to get expectations and load model.
@@ -159,6 +170,8 @@ def calculateMaximisation(target, sequences, splitAlignments, modelsFile, expect
         target.logToMaster("On %i iteration got transitions: %s for model-type: %s, model-file %s" % (iteration, " ".join(map(str, hmm.transitions)), hmm.modelType, modelsFile))
         #If not train emissions then load up the old emissions and replace
         if options.trainEmissions:
+            if options.tieEmissions:
+                hmm.tieEmissions()
             target.logToMaster("On %i iteration got emissions: %s for model-type: %s, model-file %s" % (iteration, " ".join(map(str, hmm.emissions)), hmm.modelType, modelsFile))
         else:
             hmm.emissions = Hmm.loadHmm(modelsFile).emissions
@@ -339,6 +352,7 @@ class Options:
         self.numberOfAlignmentsPerJob=100
         self.useDefaultModelAsStart = False
         self.setJukesCantorStartingEmissions=None
+        self.tieEmissions = False
         self.trainEmissions=False
         self.outputXMLModelFile = None
         self.blastScoringMatrixFile = None
@@ -363,6 +377,7 @@ def main():
     parser.add_option("--useDefaultModelAsStart", default=options.useDefaultModelAsStart, help="Use the default BAR hmm model as the starting point", action="store_true")
     parser.add_option("--setJukesCantorStartingEmissions", default=options.setJukesCantorStartingEmissions, help="[double] Set the starting hmm emissions by jukes cantor expectation, using given subs/site estimate", type=float)
     parser.add_option("--trainEmissions", default=options.trainEmissions, help="Train the emissions as well as the transitions.", action="store_true")
+    parser.add_option("--tieEmissions", default=options.tieEmissions, help="Normalise all emissions to reflect overall level of diversity, but be tied to not reflect differences between different bases, other than identity/difference.", action="store_true")
     parser.add_option("--blastScoringMatrixFile", default=options.blastScoringMatrixFile, help="Calculate a BLAST scoring matrix from the HMM, output in Lastz/Blastz format")
     
     Stack.addJobTreeOptions(parser)
