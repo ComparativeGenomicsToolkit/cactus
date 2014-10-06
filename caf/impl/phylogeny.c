@@ -930,6 +930,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
     // information is modified.
     stCaf_SplitBranch *splitBranch = stSortedSet_getLast(splitBranches);
     while (splitBranch != NULL) {
+        block = splitBranch->block;
         // Do the partition on the block.
         stList *partition = stList_construct();
         // Create a leaf set with all leaves below this split branch.
@@ -941,7 +942,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
                                               // split into later.
         stList *bfQueue = stList_construct();
         stList_append(bfQueue, splitBranch->child);
-        while (stList_length(bfQueue) == 0) {
+        while (stList_length(bfQueue) != 0) {
             stTree *node = stList_pop(bfQueue);
             for (int64_t i = 0; i < stTree_getChildNumber(node); i++) {
                 stList_append(bfQueue, stTree_getChild(node, i));
@@ -963,13 +964,13 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
             root = stTree_getParent(root);
         }
         int64_t segmentNotBelowBranchIndex = -1; // Arbitrary index of
-                                                 // segment below the
+                                                 // segment not below the
                                                  // branch so we can
                                                  // recover the blocks
                                                  // we split into
                                                  // later.
         stList_append(bfQueue, root);
-        while (stList_length(bfQueue) == 0) {
+        while (stList_length(bfQueue) != 0) {
             stTree *node = stList_pop(bfQueue);
             if (node != splitBranch->child) {
                 for (int64_t i = 0; i < stTree_getChildNumber(node); i++) {
