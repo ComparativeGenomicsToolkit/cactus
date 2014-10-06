@@ -222,7 +222,7 @@ def main():
                           for x in proj.mcTree.getLeaves()])
     else:
         candidates = None
-    outgroup.greedy(candidates, threshold=options.threshold,
+    outgroup.greedy(threshold=options.threshold, candidateSet=candidates,
                     candidateChildFrac=1.1)
     NX.drawing.nx_agraph.write_dot(outgroup.dag, args[1])
     return 0
