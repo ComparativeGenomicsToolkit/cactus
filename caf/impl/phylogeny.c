@@ -704,7 +704,9 @@ static int getSpeciesToSplitOn(stTree *speciesTree, EventTree *eventTree,
     }
 
     Name eventName = -1;
-    assert(sscanf(stTree_getLabel(speciesTree), "%" PRIi64, &eventName) == 1);
+    int k = sscanf(stTree_getLabel(speciesTree), "%" PRIi64, &eventName);
+    (void) k;
+    assert(k == 1);
     Event *event = eventTree_getEvent(eventTree, eventName);
 
     if (event_isOutgroup(event)) {
