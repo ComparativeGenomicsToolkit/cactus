@@ -273,8 +273,8 @@ static double scoreTree(stTree *tree, enum stCaf_ScoringMethod scoringMethod, st
                                                  block, flower);
         int64_t dups, losses;
         stPhylogeny_reconciliationCostBinary(tree, speciesStTree,
-                                                  leafToSpecies, &dups,
-                                                  &losses);
+                                             leafToSpecies, &dups,
+                                             &losses);
         ret = -dups - losses;
 
         stHash_destruct(leafToSpecies);
@@ -903,10 +903,10 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
     stSetIterator *speciesToSplitOnIt = stSet_getIterator(speciesToSplitOn);
     stTree *speciesNodeToSplitOn;
     while ((speciesNodeToSplitOn = stSet_getNext(speciesToSplitOnIt)) != NULL) {
-      Name name;
-      sscanf(stTree_getLabel(speciesNodeToSplitOn), "%" PRIi64, &name);
-      Event *event = eventTree_getEvent(eventTree, name);
-      printf(" %s", event_getHeader(event));
+        Name name;
+        sscanf(stTree_getLabel(speciesNodeToSplitOn), "%" PRIi64, &name);
+        Event *event = eventTree_getEvent(eventTree, name);
+        printf(" %s", event_getHeader(event));
     }
     printf("\n");
     stSet_destructIterator(speciesToSplitOnIt);
@@ -942,17 +942,17 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
         stList *bfQueue = stList_construct();
         stList_append(bfQueue, splitBranch->child);
         while (stList_length(bfQueue) == 0) {
-          stTree *node = stList_pop(bfQueue);
-          for (int64_t i = 0; i < stTree_getChildNumber(node); i++) {
-            stList_append(bfQueue, stTree_getChild(node, i));
-          }
+            stTree *node = stList_pop(bfQueue);
+            for (int64_t i = 0; i < stTree_getChildNumber(node); i++) {
+                stList_append(bfQueue, stTree_getChild(node, i));
+            }
 
-          if (stTree_getChildNumber(node) == 0) {
-            stPhylogenyInfo *info = stTree_getClientData(node);
-            assert(info->matrixIndex != -1);
-            stList_append(leafSet, stIntTuple_construct1(info->matrixIndex));
-            segmentBelowBranchIndex = info->matrixIndex;
-          }
+            if (stTree_getChildNumber(node) == 0) {
+                stPhylogenyInfo *info = stTree_getClientData(node);
+                assert(info->matrixIndex != -1);
+                stList_append(leafSet, stIntTuple_construct1(info->matrixIndex));
+                segmentBelowBranchIndex = info->matrixIndex;
+            }
         }
         stList_append(partition, leafSet);
         // Create a leaf set with all leaves that aren't below the
@@ -960,7 +960,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
         leafSet = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
         stTree *root = splitBranch->child;
         while (stTree_getParent(root) != NULL) {
-          root = stTree_getParent(root);
+            root = stTree_getParent(root);
         }
         int64_t segmentNotBelowBranchIndex = -1; // Arbitrary index of
                                                  // segment below the
@@ -970,19 +970,19 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
                                                  // later.
         stList_append(bfQueue, root);
         while (stList_length(bfQueue) == 0) {
-          stTree *node = stList_pop(bfQueue);
-          if (node != splitBranch->child) {
-            for (int64_t i = 0; i < stTree_getChildNumber(node); i++) {
-              stList_append(bfQueue, stTree_getChild(node, i));
-            }
+            stTree *node = stList_pop(bfQueue);
+            if (node != splitBranch->child) {
+                for (int64_t i = 0; i < stTree_getChildNumber(node); i++) {
+                    stList_append(bfQueue, stTree_getChild(node, i));
+                }
 
-            if (stTree_getChildNumber(node) == 0) {
-              stPhylogenyInfo *info = stTree_getClientData(node);
-              assert(info->matrixIndex != -1);
-              stList_append(leafSet, stIntTuple_construct1(info->matrixIndex));
-              segmentNotBelowBranchIndex = info->matrixIndex;
+                if (stTree_getChildNumber(node) == 0) {
+                    stPhylogenyInfo *info = stTree_getClientData(node);
+                    assert(info->matrixIndex != -1);
+                    stList_append(leafSet, stIntTuple_construct1(info->matrixIndex));
+                    segmentNotBelowBranchIndex = info->matrixIndex;
+                }
             }
-          }
         }
         stList_append(partition, leafSet);
         // Get arbitrary segments from the blocks we will split
