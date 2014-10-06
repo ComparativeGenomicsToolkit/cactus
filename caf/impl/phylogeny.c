@@ -13,6 +13,15 @@
 #include "stCaf.h"
 #include "stCafPhylogeny.h"
 
+// Doesn't have to be exported since nothing outside this file should
+// really care about split branches.
+typedef struct {
+    stTree *child; // Child of the branch.
+    stPinchBlock *block; // Block the tree refers to (can and should
+                         // refer to more than the child subtree).
+    double support; // Bootstrap support for this branch.
+} stCaf_SplitBranch;
+
 stHash *stCaf_getThreadStrings(Flower *flower, stPinchThreadSet *threadSet) {
     stHash *threadStrings = stHash_construct2(NULL, free);
     stPinchThreadSetIt threadIt = stPinchThreadSet_getIt(threadSet);
@@ -601,12 +610,273 @@ static int64_t countBasesBetweenSingleDegreeBlocks(stPinchThreadSet *threadSet) 
     return numBases;
 }
 
+// Compare two bootstrap scores of split branches. Use the pointer
+// value of the branches as a tiebreaker since we are using a sorted
+// set and don't want to merge together all branches with the same
+// support value.
+int compareSplitBranches(stCaf_SplitBranch *branch1,
+                         stCaf_SplitBranch *branch2) {
+    if (branch1->support > branch2->support) {
+        return 2;
+    } else if (branch1->support == branch2->support) {
+        if (branch1 == branch2) {
+            return 0;
+        } else if  (branch1 > branch2) {
+            return 1;
+        } else {
+            return -1;
+        }
+    } else {
+        return -2;
+    }
+}
+
+stCaf_SplitBranch *stCaf_SplitBranch_construct(stTree *child,
+                                               stPinchBlock *block,
+                                               double support) {
+    stCaf_SplitBranch *ret = calloc(1, sizeof(stCaf_SplitBranch));
+    ret->support = support;
+    ret->child = child;
+    ret->block = block;
+    return ret;
+}
+
+// Find new split branches from the block and add them to the sorted set.
+// speciesToSplitOn is just the species that are on the path from the
+// reference node to the root.
+void findSplitBranches(stPinchBlock *block, stTree *tree,
+                       stSortedSet *splitBranches,
+                       stSet *speciesToSplitOn) {
+    stTree *parent = stTree_getParent(tree);
+    if (parent != NULL) {
+        stPhylogenyInfo *parentInfo = stTree_getClientData(parent);
+        assert(parentInfo != NULL);
+        stReconciliationInfo *parentReconInfo = parentInfo->recon;
+        assert(parentReconInfo != NULL);
+        if (stSet_search(speciesToSplitOn, parentReconInfo->species)) {
+            // Found a split branch.
+            stPhylogenyInfo *info = stTree_getClientData(tree);
+            stCaf_SplitBranch *splitBranch = stCaf_SplitBranch_construct(tree, block, info->bootstrapSupport);
+            stSortedSet_insert(splitBranches, splitBranch);
+        } else {
+            // Since the reconciliation must follow the order of the
+            // species tree, any child of this node cannot be
+            // reconciled to the speciesToSplitOnSet.
+            return;
+        }
+    }
+
+    // Recurse down the tree as far as makes sense.
+    for (int64_t i = 0; i < stTree_getChildNumber(tree); i++) {
+        findSplitBranches(block, stTree_getChild(tree, i), splitBranches,
+                          speciesToSplitOn);
+    }
+}
+
+// FIXME: Not quite right at the moment. Sometimes nodes are added to
+// binarize the tree that aren't labeled as outgroups.
+// Return value indicates whether there are outgroups below the current node.
+// 0 = ingroups below
+// 1 = outgroups below
+// 2 = both below
+static int getSpeciesToSplitOn(stTree *speciesTree, EventTree *eventTree,
+                                stSet *speciesToSplitOn) {
+    // We want to split on any node that contains both outgroups and
+    // ingroups below it.
+    bool outgroupsBelow = false;
+    bool ingroupsBelow = false;
+    for (int64_t i = 0; i < stTree_getChildNumber(speciesTree); i++) {
+        int childStatus = getSpeciesToSplitOn(stTree_getChild(speciesTree, i),
+                                              eventTree,
+                                              speciesToSplitOn);
+        if (childStatus == 0) {
+            ingroupsBelow = true;
+        } else if (childStatus == 1) {
+            outgroupsBelow = true;
+        } else {
+            ingroupsBelow = true;
+            outgroupsBelow = true;
+        }
+    }
+
+    if (outgroupsBelow && ingroupsBelow) {
+        stSet_insert(speciesToSplitOn, speciesTree);
+    }
+
+    Name eventName = -1;
+    assert(sscanf(stTree_getLabel(speciesTree), "%" PRIi64, &eventName) == 1);
+    Event *event = eventTree_getEvent(eventTree, eventName);
+
+    if (event_isOutgroup(event)) {
+        assert(ingroupsBelow == false);
+        return 1;
+    } else {
+        return outgroupsBelow + ingroupsBelow;
+    }
+}
+
+// O(n).
+static stPinchSegment *getSegmentByBlockIndex(stPinchBlock *block,
+                                              int64_t index) {
+    assert(index >= 0);
+    stPinchBlockIt blockIt = stPinchBlock_getSegmentIterator(block);
+    stPinchSegment *segment = NULL;
+    int64_t i = 0;
+    while((segment = stPinchBlockIt_getNext(&blockIt)) != NULL) {
+        if (i == index) {
+            return segment;
+        }
+        i++;
+    }
+    return NULL;
+}
+
+// Add any stPinchBlocks close enough to the given block to be
+// affected by its breakpoint information to the given set.
+static void addContextualBlocksToSet(stPinchBlock *block,
+                                     int64_t maxBaseDistance,
+                                     int64_t maxBlockDistance,
+                                     bool ignoreUnalignedBases,
+                                     stSet *contextualBlocks) {
+    stPinchBlockIt blockIt = stPinchBlock_getSegmentIterator(block);
+    stPinchSegment *segment;
+    while ((segment = stPinchBlockIt_getNext(&blockIt)) != NULL) {
+        // Go toward the 5' end of this thread adding blocks, until we
+        // reach the end or maxBaseDistance or maxBlockDistance.
+        stPinchSegment *curSegment = stPinchSegment_get5Prime(segment);
+        int64_t curBlockDistance = 0;
+        int64_t curBaseDistance = stPinchSegment_getLength(segment) / 2;
+        while ((curSegment != NULL) && (curBlockDistance < maxBlockDistance)
+               && (curBaseDistance < maxBaseDistance)) {
+            stPinchBlock *curBlock = stPinchSegment_getBlock(curSegment);
+            if (curBlock != NULL) {
+                stSet_insert(contextualBlocks, curBlock);
+                curBaseDistance += stPinchSegment_getLength(segment);
+                curBlockDistance++;
+            } else if (!ignoreUnalignedBases) {
+                curBaseDistance += stPinchSegment_getLength(segment);
+                curBlockDistance++;
+            }
+            curSegment = stPinchSegment_get5Prime(curSegment);
+        }
+
+        // Do the same for the 3' side.
+        curSegment = stPinchSegment_get3Prime(segment);
+        curBlockDistance = 0;
+        curBaseDistance = stPinchSegment_getLength(segment) / 2;
+        while ((curSegment != NULL) && (curBlockDistance < maxBlockDistance)
+               && (curBaseDistance < maxBaseDistance)) {
+            stPinchBlock *curBlock = stPinchSegment_getBlock(curSegment);
+            if (curBlock != NULL) {
+                stSet_insert(contextualBlocks, curBlock);
+                curBaseDistance += stPinchSegment_getLength(segment);
+                curBlockDistance++;
+            } else if (!ignoreUnalignedBases) {
+                curBaseDistance += stPinchSegment_getLength(segment);
+                curBlockDistance++;
+            }
+            curSegment = stPinchSegment_get3Prime(curSegment);
+        }
+    }
+}
+
+static void buildTreeForBlock(stPinchBlock *block, stHash *threadStrings, stSet *outgroupThreads, Flower *flower, int64_t maxBaseDistance, int64_t maxBlockDistance, int64_t numTrees, enum stCaf_TreeBuildingMethod treeBuildingMethod, enum stCaf_RootingMethod rootingMethod, enum stCaf_ScoringMethod scoringMethod, double breakPointScalingFactor, bool skipSingleCopyBlocks, bool allowSingleDegreeBlocks, bool ignoreUnalignedBases, bool onlyIncludeCompleteFeatureBlocks, double costPerDupPerBase, double costPerLossPerBase, stMatrix *joinCosts, stHash *speciesToJoinCostIndex, stTree *speciesStTree, stHash *blocksToTrees) {
+    if (!hasSimplePhylogeny(block, outgroupThreads, flower)) { //No point trying to build a phylogeny for certain blocks.
+        if (isSingleCopyBlock(block, flower) && skipSingleCopyBlocks) {
+            return;
+        }
+
+        // Get the feature blocks
+        stList *featureBlocks = stFeatureBlock_getContextualFeatureBlocks(block, maxBaseDistance, maxBlockDistance,
+                                                                          ignoreUnalignedBases, onlyIncludeCompleteFeatureBlocks, threadStrings);
+
+        // Make feature columns
+        stList *featureColumns = stFeatureColumn_getFeatureColumns(featureBlocks, block);
+
+        //Get the outgroup threads
+        stList *outgroups = getOutgroupThreads(block, outgroupThreads);
+
+        //Build the canonical tree.
+        stTree *blockTree = buildTree(featureColumns, GUIDED_NEIGHBOR_JOINING, rootingMethod,
+                                      breakPointScalingFactor,
+                                      0, outgroups, block, flower,
+                                      speciesStTree, joinCosts, speciesToJoinCostIndex);
+
+        // Sample the rest of the trees.
+        stList *trees = stList_construct();
+        stList_append(trees, blockTree);
+        for (int64_t i = 0; i < numTrees - 1; i++) {
+            stTree *tree = buildTree(featureColumns, GUIDED_NEIGHBOR_JOINING, rootingMethod,
+                                     breakPointScalingFactor,
+                                     1, outgroups, block, flower,
+                                     speciesStTree, joinCosts, speciesToJoinCostIndex);
+            stList_append(trees, tree);
+        }
+
+        // Get the best-scoring tree.
+        double maxScore = -INFINITY;
+        stTree *bestTree = NULL;
+        for (int64_t i = 0; i < stList_length(trees); i++) {
+            stTree *tree = stList_get(trees, i);
+            double score = scoreTree(tree, scoringMethod,
+                                     speciesStTree, block, flower,
+                                     featureColumns);
+            if (score > maxScore) {
+                maxScore = score;
+                bestTree = tree;
+            }
+        }
+
+        if(bestTree == NULL) {
+            // Can happen if/when the nucleotide likelihood score
+            // is used and a block is all N's. Just use the
+            // canonical NJ tree in that case.
+            bestTree = blockTree;
+        }
+
+        assert(bestTree != NULL);
+
+        // Update the bootstrap support for each branch.
+        bestTree = stPhylogeny_scoreFromBootstraps(bestTree, trees);
+        // Create reconciliation info on each node.
+        stHash *leafToSpecies = getLeafToSpecies(bestTree,
+                                                 speciesStTree,
+                                                 block, flower);
+        stPhylogeny_reconcileBinary(bestTree, speciesStTree, leafToSpecies,
+                                    false);
+
+        stHash_insert(blocksToTrees, block, bestTree);
+
+        // Cleanup
+        for (int64_t i = 0; i < stList_length(trees); i++) {
+            stTree *tree = stList_get(trees, i);
+            if (tree != bestTree) {
+                stPhylogenyInfo_destructOnTree(tree);
+                stTree_destruct(tree);
+            }
+        }
+        stList_destruct(featureColumns);
+        stList_destruct(featureBlocks);
+        stList_destruct(outgroups);
+        stHash_destruct(leafToSpecies);
+    }
+}
+
 void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHash *threadStrings, stSet *outgroupThreads, Flower *flower, int64_t maxBaseDistance, int64_t maxBlockDistance, int64_t numTrees, enum stCaf_TreeBuildingMethod treeBuildingMethod, enum stCaf_RootingMethod rootingMethod, enum stCaf_ScoringMethod scoringMethod, double breakPointScalingFactor, bool skipSingleCopyBlocks, bool allowSingleDegreeBlocks, double costPerDupPerBase, double costPerLossPerBase, FILE *debugFile) {
+    // Functions we aren't using right now but should stick around anyway.
+    (void) printSimpleBlockDebugInfo;
+    (void) getTotalSimilarityAndDifferenceCounts;
+    (void) printTreeBuildingDebugInfo;
+
+    // Parameters.
+    bool ignoreUnalignedBases = 1;
+    bool onlyIncludeCompleteFeatureBlocks = 0;
+
     stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
     stPinchBlock *block;
 
-    //Hash in which we store a map of blocks to the partitions
-    stHash *blocksToPartitions = stHash_construct2(NULL, NULL);
+    //Hash in which we store a map of blocks to their trees
+    stHash *blocksToTrees = stHash_construct2(NULL, NULL);
 
     //Get species tree as an stTree
     EventTree *eventTree = flower_getEventTree(flower);
@@ -616,182 +886,149 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
     stHash *speciesToJoinCostIndex = stHash_construct2(NULL, (void (*)(void *)) stIntTuple_destruct);
     stMatrix *joinCosts = stPhylogeny_computeJoinCosts(speciesStTree, speciesToJoinCostIndex, costPerDupPerBase * 2 * maxBaseDistance, costPerLossPerBase * 2 * maxBaseDistance);
 
-    //Count of the total number of blocks partitioned by an ancient homology
-    int64_t totalBlocksSplit = 0;
-    int64_t totalSingleCopyBlocksSplit = 0;
-    double totalSubstitutionSimilarities = 0.0;
-    double totalSubstitutionDifferences = 0.0;
-    double totalBreakpointSimilarities = 0.0;
-    double totalBreakpointDifferences = 0.0;
-    double totalBestTreeScore = 0.0;
-    double totalTreeScore = 0.0;
-    int64_t sampledTreeWasBetterCount = 0;
-    int64_t totalOutgroupThreads = 0;
-    int64_t totalSimpleBlocks = 0;
-    int64_t totalSingleCopyBlocks = 0;
+    stSortedSet *splitBranches = stSortedSet_construct3((int (*)(const void *, const void *)) compareSplitBranches, free);
+    stSet *speciesToSplitOn = stSet_construct();
+    getSpeciesToSplitOn(speciesStTree, eventTree, speciesToSplitOn);
 
-    //The loop to build a tree for each block
+    // The loop to build a tree for each block
     while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
-        if(!hasSimplePhylogeny(block, outgroupThreads, flower)) { //No point trying to build a phylogeny for certain blocks.
-            bool singleCopy = 0;
-            if(isSingleCopyBlock(block, flower)) {
-                singleCopy = 1;
-                if(skipSingleCopyBlocks) {
-                    continue;
-                }
-                totalSingleCopyBlocks++;
-            }
-            //Parameters.
-            bool ignoreUnalignedBases = 1;
-            bool onlyIncludeCompleteFeatureBlocks = 0;
-
-            //Get the feature blocks
-            stList *featureBlocks = stFeatureBlock_getContextualFeatureBlocks(block, maxBaseDistance, maxBlockDistance,
-                    ignoreUnalignedBases, onlyIncludeCompleteFeatureBlocks, threadStrings);
-
-            //Make feature columns
-            stList *featureColumns = stFeatureColumn_getFeatureColumns(featureBlocks, block);
-
-            //Make substitution matrix
-            stMatrix *substitutionMatrix = stPinchPhylogeny_getMatrixFromSubstitutions(featureColumns, block, NULL, 0);
-            assert(stMatrix_n(substitutionMatrix) == stPinchBlock_getDegree(block));
-            assert(stMatrix_m(substitutionMatrix) == stPinchBlock_getDegree(block));
-            double similarities, differences;
-            getTotalSimilarityAndDifferenceCounts(substitutionMatrix, &similarities, &differences);
-            totalSubstitutionSimilarities += similarities;
-            totalSubstitutionDifferences += differences;
-
-            //Make breakpoint matrix
-            stMatrix *breakpointMatrix = stPinchPhylogeny_getMatrixFromBreakpoints(featureColumns, block, NULL, 0);
-            getTotalSimilarityAndDifferenceCounts(breakpointMatrix, &similarities, &differences);
-            totalBreakpointSimilarities += similarities;
-            totalBreakpointDifferences += differences;
-
-            //Combine the matrices into distance matrices
-            stMatrix_scale(breakpointMatrix, breakPointScalingFactor, 0.0);
-            stMatrix *combinedMatrix = stMatrix_add(substitutionMatrix, breakpointMatrix);
-            stMatrix *distanceMatrix = stPinchPhylogeny_getSymmetricDistanceMatrix(combinedMatrix);
-
-            //Get the outgroup threads
-            stList *outgroups = getOutgroupThreads(block, outgroupThreads);
-            totalOutgroupThreads += stList_length(outgroups);
-
-            //Build the canonical tree.
-            stTree *blockTree = buildTree(featureColumns, GUIDED_NEIGHBOR_JOINING, rootingMethod,
-                                          breakPointScalingFactor,
-                                          0, outgroups, block, flower,
-                                          speciesStTree, joinCosts, speciesToJoinCostIndex);
-
-            // Sample the rest of the trees.
-            stList *trees = stList_construct();
-            stList_append(trees, blockTree);
-            for(int64_t i = 0; i < numTrees - 1; i++) {
-                stTree *tree = buildTree(featureColumns, GUIDED_NEIGHBOR_JOINING, rootingMethod,
-                                         breakPointScalingFactor,
-                                         1, outgroups, block, flower,
-                                         speciesStTree, joinCosts, speciesToJoinCostIndex);
-                stList_append(trees, tree);
-            }
-
-            // Get the best-scoring tree.
-            double maxScore = -INFINITY;
-            stTree *bestTree = NULL;
-            bool sampledTreeWasBetter = false;
-            for(int64_t i = 0; i < stList_length(trees); i++) {
-                stTree *tree = stList_get(trees, i);
-                double score = scoreTree(tree, scoringMethod,
-                                         speciesStTree, block, flower,
-                                         featureColumns);
-                if(score != -INFINITY) { // avoid counting impossible
-                                         // trees
-                    totalTreeScore += score;
-                }
-                if(score > maxScore) {
-                    sampledTreeWasBetterCount += (i >= 1 && !sampledTreeWasBetter) ? 1 : 0;
-                    if (i != 0) {
-                        sampledTreeWasBetter = true;
-                    }
-                    maxScore = score;
-                    bestTree = tree;
-                }
-            }
-
-            if(bestTree == NULL) {
-                // Can happen if/when the nucleotide likelihood score
-                // is used and a block is all N's. Just use the
-                // canonical NJ tree in that case.
-                bestTree = blockTree;
-            }
-
-            assert(bestTree != NULL);
-
-            totalBestTreeScore += maxScore;
-            //Get the partitions
-            stList *partition = stPinchPhylogeny_splitTreeOnOutgroups(bestTree, outgroups);
-            if(stList_length(partition) > 1) {
-                if(singleCopy) {
-                    totalSingleCopyBlocksSplit++;
-                }
-                totalBlocksSplit++;
-            }
-            stHash_insert(blocksToPartitions, block, partition);
-
-            // Print debug info: block, best tree, partition for this block
-            if (debugFile != NULL) {
-                printTreeBuildingDebugInfo(flower, block, bestTree, partition, distanceMatrix, maxScore, debugFile);
-            }
-
-            //Cleanup
-            stMatrix_destruct(substitutionMatrix);
-            stMatrix_destruct(breakpointMatrix);
-            for(int64_t i = 0; i < stList_length(trees); i++) {
-                stTree *tree = stList_get(trees, i);
-                stPhylogenyInfo_destructOnTree(tree);
-                stTree_destruct(tree);
-            }
-            stList_destruct(featureColumns);
-            stList_destruct(featureBlocks);
-            stList_destruct(outgroups);
-        } else {
-            // Print debug info even for simple blocks.
-            if (debugFile != NULL) {
-                printSimpleBlockDebugInfo(flower, block, debugFile);
-            }
-            totalSimpleBlocks++;
+        buildTreeForBlock(block, threadStrings, outgroupThreads, flower, maxBaseDistance, maxBlockDistance, numTrees, treeBuildingMethod, rootingMethod, scoringMethod, breakPointScalingFactor, skipSingleCopyBlocks, allowSingleDegreeBlocks, ignoreUnalignedBases, onlyIncludeCompleteFeatureBlocks, costPerDupPerBase, costPerLossPerBase, joinCosts, speciesToJoinCostIndex, speciesStTree, blocksToTrees);
+        stTree *tree = stHash_search(blocksToTrees, block);
+        if (tree != NULL) {
+            findSplitBranches(block, stHash_search(blocksToTrees, block),
+                              splitBranches, speciesToSplitOn);
         }
     }
-    // Block count including skipped blocks.
-    int64_t totalBlockCount = stPinchThreadSet_getTotalBlockNumber(threadSet);
-    // Number of blocks that were actually considered while partitioning.
-    int64_t blockCount = totalBlockCount - totalSimpleBlocks;
-    fprintf(stdout, "Using phylogeny building, of %" PRIi64 " blocks considered (%" PRIi64 " total), %" PRIi64 " blocks were partitioned\n", blockCount, totalBlockCount, totalBlocksSplit);
-    fprintf(stdout, "There were %" PRIi64 " outgroup threads seen total over all blocks\n", totalOutgroupThreads);
-    fprintf(stdout, "In phylogeny building there were %f avg. substitution similarities %f avg. substitution differences\n", totalSubstitutionSimilarities/blockCount, totalSubstitutionDifferences/blockCount);
-    fprintf(stdout, "In phylogeny building there were %f avg. breakpoint similarities %f avg. breakpoint differences\n", totalBreakpointSimilarities/blockCount, totalBreakpointDifferences/blockCount);
-    fprintf(stdout, "In phylogeny building we saw an average score of %f for the best tree in each block, an average score of %f overall, and %" PRIi64 " trees total.\n", totalBestTreeScore/blockCount, totalTreeScore/(numTrees*blockCount), numTrees*blockCount);
-    fprintf(stdout, "In phylogeny building we used a sampled tree instead of the canonical tree %" PRIi64 " times.\n", sampledTreeWasBetterCount);
-    fprintf(stdout, "In phylogeny building we skipped %" PRIi64 " simple blocks.\n", totalSimpleBlocks);
-    fprintf(stdout, "In phylogeny building there were %" PRIi64 " single copy blocks considered, of which %" PRIi64 " were partitioned.\n", totalSingleCopyBlocks, totalSingleCopyBlocksSplit);
 
     st_logDebug("Got homology partition for each block\n");
 
     fprintf(stdout, "Before partitioning, there were %" PRIi64 " bases lost in between single-degree blocks\n", countBasesBetweenSingleDegreeBlocks(threadSet));
 
-    //Now walk through the blocks and do the actual splits, must be done after the fact using the blocks
-    //in the original hash, as we are now disrupting and changing the original graph.
-    stHashIterator *blockIt2 = stHash_getIterator(blocksToPartitions);
-    while ((block = stHash_getNext(blockIt2)) != NULL) {
-        stList *partition = stHash_search(blocksToPartitions, block);
-        assert(partition != NULL);
+    // Now walk through the split branches, doing the most confident
+    // splits first, and updating the blocks whose breakpoint
+    // information is modified.
+    stCaf_SplitBranch *splitBranch = stSortedSet_getLast(splitBranches);
+    while (splitBranch != NULL) {
+        // Do the partition on the block.
+        stList *partition = stList_construct();
+        // Create a leaf set with all leaves below this split branch.
+        stList *leafSet = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
+        int64_t segmentBelowBranchIndex = -1; // Arbitrary index of
+                                              // segment below the
+                                              // branch so we can
+                                              // recover the blocks we
+                                              // split into later.
+        stList *bfQueue = stList_construct();
+        stList_append(bfQueue, splitBranch->child);
+        while (stList_length(bfQueue) == 0) {
+          stTree *node = stList_pop(bfQueue);
+          for (int64_t i = 0; i < stTree_getChildNumber(node); i++) {
+            stList_append(bfQueue, stTree_getChild(node, i));
+          }
+
+          if (stTree_getChildNumber(node) == 0) {
+            stPhylogenyInfo *info = stTree_getClientData(node);
+            assert(info->matrixIndex != -1);
+            stList_append(leafSet, stIntTuple_construct1(info->matrixIndex));
+            segmentBelowBranchIndex = info->matrixIndex;
+          }
+        }
+        stList_append(partition, leafSet);
+        // Create a leaf set with all leaves that aren't below the
+        // split branch.
+        leafSet = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
+        stTree *root = splitBranch->child;
+        while (stTree_getParent(root) != NULL) {
+          root = stTree_getParent(root);
+        }
+        int64_t segmentNotBelowBranchIndex = -1; // Arbitrary index of
+                                                 // segment below the
+                                                 // branch so we can
+                                                 // recover the blocks
+                                                 // we split into
+                                                 // later.
+        stList_append(bfQueue, root);
+        while (stList_length(bfQueue) == 0) {
+          stTree *node = stList_pop(bfQueue);
+          if (node != splitBranch->child) {
+            for (int64_t i = 0; i < stTree_getChildNumber(node); i++) {
+              stList_append(bfQueue, stTree_getChild(node, i));
+            }
+
+            if (stTree_getChildNumber(node) == 0) {
+              stPhylogenyInfo *info = stTree_getClientData(node);
+              assert(info->matrixIndex != -1);
+              stList_append(leafSet, stIntTuple_construct1(info->matrixIndex));
+              segmentNotBelowBranchIndex = info->matrixIndex;
+            }
+          }
+        }
+        stList_append(partition, leafSet);
+        // Get arbitrary segments from the blocks we will split
+        // into. This is so that we can recover the blocks after the
+        // split.
+        stPinchSegment *segmentBelowBranch = getSegmentByBlockIndex(block, segmentBelowBranchIndex);
+        stPinchSegment *segmentNotBelowBranch = getSegmentByBlockIndex(block, segmentNotBelowBranchIndex);
+
+        // Remove all split branch entries for this block tree.
+        stSortedSet *splitBranchesToDelete = stSortedSet_construct3((int (*)(const void *, const void *)) compareSplitBranches, free);
+        findSplitBranches(splitBranch->block, root, splitBranchesToDelete,
+                          speciesToSplitOn);
+        // Could set splitBranches = splitBranches \ splitBranchesToDelete.
+        // But this is probably faster.
+        stSortedSetIterator *splitBranchToDeleteIt = stSortedSet_getIterator(splitBranches);
+        stCaf_SplitBranch *splitBranchToDelete;
+        while ((splitBranchToDelete = stSortedSet_getNext(splitBranchToDeleteIt)) != NULL) {
+            stSortedSet_remove(splitBranches, splitBranchToDelete);
+        }
+        stSortedSet_destructIterator(splitBranchToDeleteIt);
+        stSortedSet_destruct(splitBranchesToDelete);
+
+        // Destruct the block tree.
+        stPhylogenyInfo_destructOnTree(root);
+        stTree_destruct(root);
+
+        // Actually perform the split according to the partition.
         splitBlock(block, partition, allowSingleDegreeBlocks);
-        stList_destruct(partition);
+        // Recover the blocks.
+        stPinchBlock *blockBelowBranch = stPinchSegment_getBlock(segmentBelowBranch);
+        stPinchBlock *blockNotBelowBranch = stPinchSegment_getBlock(segmentNotBelowBranch);
+
+        // Make a new tree for both of the blocks we split into, if
+        // they are not too simple to make a tree.
+        buildTreeForBlock(blockBelowBranch, threadStrings, outgroupThreads, flower, maxBaseDistance, maxBlockDistance, numTrees, treeBuildingMethod, rootingMethod, scoringMethod, breakPointScalingFactor, skipSingleCopyBlocks, allowSingleDegreeBlocks, ignoreUnalignedBases, onlyIncludeCompleteFeatureBlocks, costPerDupPerBase, costPerLossPerBase, joinCosts, speciesToJoinCostIndex, speciesStTree, blocksToTrees);
+        findSplitBranches(blockBelowBranch, stHash_search(blocksToTrees,
+                                                          blockBelowBranch),
+                          splitBranches, speciesToSplitOn);
+        buildTreeForBlock(blockNotBelowBranch, threadStrings, outgroupThreads, flower, maxBaseDistance, maxBlockDistance, numTrees, treeBuildingMethod, rootingMethod, scoringMethod, breakPointScalingFactor, skipSingleCopyBlocks, allowSingleDegreeBlocks, ignoreUnalignedBases, onlyIncludeCompleteFeatureBlocks, costPerDupPerBase, costPerLossPerBase, joinCosts, speciesToJoinCostIndex, speciesStTree, blocksToTrees);
+        findSplitBranches(blockNotBelowBranch, stHash_search(blocksToTrees, blockNotBelowBranch),
+                          splitBranches, speciesToSplitOn);
+
+        // Finally, update the trees for all blocks close enough to
+        // either of the new blocks to be affected by this breakpoint
+        // change.
+        stSet *blocksToUpdate = stSet_construct();
+        addContextualBlocksToSet(blockBelowBranch, maxBaseDistance,
+                                 maxBlockDistance, ignoreUnalignedBases,
+                                 blocksToUpdate);
+        addContextualBlocksToSet(blockBelowBranch, maxBaseDistance,
+                                 maxBlockDistance, ignoreUnalignedBases,
+                                 blocksToUpdate);
+        stSetIterator *blocksToUpdateIt = stSet_getIterator(blocksToUpdate);
+        stPinchBlock *blockToUpdate;
+        while ((blockToUpdate = stSet_getNext(blocksToUpdateIt)) != NULL) {
+            buildTreeForBlock(blockToUpdate, threadStrings, outgroupThreads, flower, maxBaseDistance, maxBlockDistance, numTrees, treeBuildingMethod, rootingMethod, scoringMethod, breakPointScalingFactor, skipSingleCopyBlocks, allowSingleDegreeBlocks, ignoreUnalignedBases, onlyIncludeCompleteFeatureBlocks, costPerDupPerBase, costPerLossPerBase, joinCosts, speciesToJoinCostIndex, speciesStTree, blocksToTrees);
+            findSplitBranches(blockToUpdate, stHash_search(blocksToTrees, blockToUpdate),
+                              splitBranches, speciesToSplitOn);
+        }
+        stSet_destruct(blocksToUpdate);
+
+        splitBranch = stSortedSet_getLast(splitBranches);
     }
-    stHash_destructIterator(blockIt2);
 
     st_logDebug("Finished partitioning the blocks\n");
     fprintf(stdout, "After partitioning, there were %" PRIi64 " bases lost in between single-degree blocks\n", countBasesBetweenSingleDegreeBlocks(threadSet));
 
     //Cleanup
-    stHash_destruct(blocksToPartitions);
     stTree_destruct(speciesStTree);
 }
