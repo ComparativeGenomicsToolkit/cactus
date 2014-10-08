@@ -710,7 +710,8 @@ static int getSpeciesToSplitOn(stTree *speciesTree, EventTree *eventTree,
     Event *event = eventTree_getEvent(eventTree, eventName);
 
     if (event_isOutgroup(event)) {
-        assert(ingroupsBelow == false);
+        // If we didn't add extra nodes to binarize this tree this assert would have to be true.
+        // assert(ingroupsBelow == false);
         return 1;
     } else {
         if (ingroupsBelow && outgroupsBelow) {
@@ -948,6 +949,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
     // Now walk through the split branches, doing the most confident
     // splits first, and updating the blocks whose breakpoint
     // information is modified.
+    int64_t numberOfSplitsMade = 0;
     stCaf_SplitBranch *splitBranch = stSortedSet_getLast(splitBranches);
     while (splitBranch != NULL) {
         block = splitBranch->block;
@@ -1073,11 +1075,13 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
             }
         }
         stSet_destruct(blocksToUpdate);
-
+        numberOfSplitsMade++;
         splitBranch = stSortedSet_getLast(splitBranches);
     }
 
     st_logDebug("Finished partitioning the blocks\n");
+    fprintf(stdout, "There were %" PRIi64 "splits made overall in the end.\n",
+            numberOfSplitsMade);
     fprintf(stdout, "After partitioning, there were %" PRIi64 " bases lost in between single-degree blocks\n", countBasesBetweenSingleDegreeBlocks(threadSet));
 
     //Cleanup
