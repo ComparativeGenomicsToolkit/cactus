@@ -175,7 +175,7 @@ class BlastIngroupsAndOutgroups(Target):
     """
     def __init__(self, blastOptions, ingroupSequenceFiles,
                  outgroupSequenceFiles, finalResultsFile,
-                 outgroupFragmentsDir):
+                 outgroupFragmentsDir, ingroupCoverageDir=None):
         Target.__init__(self, memory = blastOptions.memory)
         self.blastOptions = blastOptions
         self.blastOptions.roundsOfCoordinateConversion = 1
@@ -183,6 +183,7 @@ class BlastIngroupsAndOutgroups(Target):
         self.outgroupSequenceFiles = outgroupSequenceFiles
         self.finalResultsFile = finalResultsFile
         self.outgroupFragmentsDir = outgroupFragmentsDir
+        self.ingroupCoverageDir = ingroupCoverageDir
 
     def run(self):
         self.logToMaster("Blasting ingroups vs outgroups to file %s" % (self.finalResultsFile))
@@ -191,6 +192,12 @@ class BlastIngroupsAndOutgroups(Target):
         except os.error:
             # Directory already exists
             pass
+        if self.ingroupCoverageDir is not None:
+            try:
+                os.makedirs(self.ingroupCoverageDir)
+            except os.error:
+                # Directory already exists
+                pass
         
         ingroupResultsFile = getTempFile("ingroupResults",
                                          rootDir=self.getGlobalTempDir())
@@ -206,7 +213,8 @@ class BlastIngroupsAndOutgroups(Target):
                                                   ingroupResultsFile,
                                                   outgroupResultsFile,
                                                   self.finalResultsFile,
-                                                  self.blastOptions, 1))
+                                                  self.blastOptions, 1,
+                                                  self.ingroupCoverageDir))
 
 class BlastFirstOutgroup(Target):
     """Blast the given sequence(s) against the first of a succession of
@@ -216,7 +224,7 @@ class BlastFirstOutgroup(Target):
     def __init__(self, untrimmedSequenceFiles, sequenceFiles,
                  outgroupSequenceFiles, outgroupFragmentsDir,
                  ingroupResultsFile, outgroupResultsFile, finalResultsFile,
-                 blastOptions, outgroupNumber):
+                 blastOptions, outgroupNumber, ingroupCoverageDir):
         Target.__init__(self, memory=blastOptions.memory)
         self.untrimmedSequenceFiles = untrimmedSequenceFiles
         self.sequenceFiles = sequenceFiles
@@ -227,6 +235,7 @@ class BlastFirstOutgroup(Target):
         self.finalResultsFile = finalResultsFile
         self.blastOptions = blastOptions
         self.outgroupNumber = outgroupNumber
+        self.ingroupCoverageDir = ingroupCoverageDir
 
     def run(self):
         logger.info("Blasting ingroup sequences %s to outgroup %s" % (self.sequenceFiles, self.outgroupSequenceFiles[0]))
@@ -244,14 +253,15 @@ class BlastFirstOutgroup(Target):
                                                          self.outgroupResultsFile,
                                                          self.finalResultsFile,
                                                          self.blastOptions,
-                                                         self.outgroupNumber))
+                                                         self.outgroupNumber,
+                                                         self.ingroupCoverageDir))
 
 class TrimAndRecurseOnOutgroups(Target):
     def __init__(self, untrimmedSequenceFiles, sequenceFiles,
                  outgroupSequenceFiles, outgroupFragmentsDir,
                  mostRecentResultsFile, ingroupResultsFile, 
                  outgroupResultsFile, finalResultsFile, blastOptions,
-                 outgroupNumber):
+                 outgroupNumber, ingroupCoverageDir):
         Target.__init__(self)
         self.untrimmedSequenceFiles = untrimmedSequenceFiles
         self.sequenceFiles = sequenceFiles
@@ -263,6 +273,7 @@ class TrimAndRecurseOnOutgroups(Target):
         self.finalResultsFile = finalResultsFile
         self.blastOptions = blastOptions
         self.outgroupNumber = outgroupNumber
+        self.ingroupCoverageDir = ingroupCoverageDir
 
     def run(self):
         # TODO: split up this function, it's getting unwieldy
@@ -312,14 +323,16 @@ class TrimAndRecurseOnOutgroups(Target):
         os.remove(outgroupCoverage)
         os.remove(trimmedOutgroup)
 
-        # Report coverage of the all outgroup alignments so far on the ingroups.
-        ingroupCoverageFiles = []
+        # Report coverage of all outgroup alignments so far on the ingroups.
         for ingroupSequence in self.untrimmedSequenceFiles:
-            tmpIngroupCoverage = getTempFile(rootDir=self.getGlobalTempDir())
+            ingroupCoverageFile = getTempFile(rootDir=self.getGlobalTempDir())
+            if self.ingroupCoverageDir is not None:
+                # We want to keep the cumulative outgroup coverage
+                # files around.
+                ingroupCoverageFile = os.path.join(self.ingroupCoverageDir, os.path.basename(ingroupSequence) + ".bed")
             calculateCoverage(ingroupSequence, self.outgroupResultsFile,
-                              tmpIngroupCoverage)
-            self.logToMaster("Cumulative coverage of %d outgroups on ingroup %s: %s" % (self.outgroupNumber, os.path.basename(ingroupSequence), percentCoverage(ingroupSequence, tmpIngroupCoverage)))
-            ingroupCoverageFiles.append(tmpIngroupCoverage)
+                              ingroupCoverageFile)
+            self.logToMaster("Cumulative coverage of %d outgroups on ingroup %s: %s" % (self.outgroupNumber, os.path.basename(ingroupSequence), percentCoverage(ingroupSequence, ingroupCoverageFile)))
 
         # Trim ingroup seqs and recurse on the next outgroup.
 
@@ -367,7 +380,8 @@ class TrimAndRecurseOnOutgroups(Target):
                                                    self.outgroupResultsFile,
                                                    self.finalResultsFile,
                                                    self.blastOptions,
-                                                   self.outgroupNumber + 1))
+                                                   self.outgroupNumber + 1,
+                                                   self.ingroupCoverageDir))
         else:
             # Finally, put the ingroups and outgroups results together
             self.setFollowOnTarget(CollateBlasts(self.finalResultsFile,
@@ -561,6 +575,10 @@ replaced with the the sequence file and the results file, respectively",
                       default="outgroupFragments/", help= "Directory to "
                       "store outgroup fragments in")
 
+    parser.add_option("--ingroupCoverageDir", type=str,
+                      help="Directory to store ingroup coverage beds in "
+                      "(only works in ingroups vs. outgroups mode")
+
     options, args = parser.parse_args()
     if options.test:
         _test()
@@ -573,7 +591,8 @@ replaced with the the sequence file and the results file, respectively",
                                                 options.ingroups.split(','),
                                                 options.outgroups.split(','),
                                                 options.cigarFile,
-                                                options.outgroupFragmentsDir)
+                                                options.outgroupFragmentsDir,
+                                                options.ingroupCoverageDir)
     elif options.targetSequenceFiles == None:
         firstTarget = BlastSequencesAllAgainstAll(args, options.cigarFile, options)
     else:
