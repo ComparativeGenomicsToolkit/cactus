@@ -11,6 +11,7 @@
 #include "sonLib.h"
 #include "endAligner.h"
 #include "flowerAligner.h"
+#include "rescue.h"
 #include "commonC.h"
 #include "stCaf.h"
 #include "stPinchGraphs.h"
@@ -59,6 +60,8 @@ void usage() {
 
     fprintf(stderr, "-I --largeEndSize : The size of sequences in an end at which point to compute it separately.\n");
 
+    fprintf(stderr, "-J --ingroupCoverageDir : Directory that contains the bed files containing ingroup regions that are covered by outgroups. These regions will be 'rescued' into single-degree blocks if they haven't been aligned to anything after the bar phase finished.\n");
+
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -97,6 +100,7 @@ int main(int argc, char *argv[]) {
     int64_t largeEndSize = 1000000;
     int64_t chainLengthForBigFlower = 1000000;
     int64_t longChain = 2;
+    char *ingroupCoverageDir = NULL;
 
     PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters = pairwiseAlignmentBandingParameters_construct();
 
@@ -121,7 +125,9 @@ int main(int argc, char *argv[]) {
                 { "precomputedAlignments", required_argument, 0, 'D' }, {
                         "endAlignmentsToPrecomputeOutputFile", required_argument, 0, 'E' }, { "maximumNumberOfSequencesBeforeSwitchingToFast",
                         required_argument, 0, 'F' }, { "calculateWhichEndsToComputeSeparately", no_argument, 0, 'G' }, { "largeEndSize",
-                        required_argument, 0, 'I' }, { 0, 0, 0, 0 } };
+                        required_argument, 0, 'I' },
+                        {"ingroupCoverageDir", required_argument, 0, 'J'},
+                        { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
@@ -224,6 +230,9 @@ int main(int argc, char *argv[]) {
                 i = sscanf(optarg, "%" PRIi64 "", &largeEndSize);
                 assert(i == 1);
                 break;
+            case 'J':
+                ingroupCoverageDir = stString_copy(optarg);
+                break;
             default:
                 usage();
                 return 1;
@@ -282,6 +291,14 @@ int main(int argc, char *argv[]) {
         /*
          * Compute complete flower alignments, possibly loading some precomputed alignments.
          */
+        stHash *sequenceToCoverageArray = NULL;
+        if (ingroupCoverageDir != NULL) {
+            // Load the root flower and coverage arrays for all the
+            // sequences in the ingroups
+            Flower *rootFlower = cactusDisk_getFlower(cactusDisk, 0);
+            sequenceToCoverageArray = getIngroupCoverage(ingroupCoverageDir, rootFlower);
+        }
+
         stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
         if (listOfEndAlignmentFiles != NULL && stList_length(flowers) != 1) {
             st_errAbort("We have precomputed alignments but %" PRIi64 " flowers to align.\n", stList_length(flowers));
@@ -307,6 +324,30 @@ int main(int argc, char *argv[]) {
             if (minimumIngroupDegree > 0 || minimumOutgroupDegree > 0 || minimumDegree > 1) {
                 stCaf_melt(flower, threadSet, blockFilterFn, 0, 0, 0, INT64_MAX);
             }
+
+            if (ingroupCoverageDir != NULL) {
+                // Rescue any sequence that is covered by outgroups
+                // but still unaligned into single-degree blocks.
+                assert(sequenceToCoverageArray != NULL);
+                stPinchThreadSetIt pinchIt = stPinchThreadSet_getIt(threadSet);
+                stPinchThread *thread;
+                while ((thread = stPinchThreadSetIt_getNext(&pinchIt)) != NULL) {
+                    Name capName = stPinchThread_getName(thread);
+                    Cap *cap = flower_getCap(flower, capName);
+                    Event *event = cap_getEvent(cap);
+                    if (event_isOutgroup(event)) {
+                        continue;
+                    }
+                    Sequence *sequence = cap_getSequence(cap);
+                    stIntTuple *sequenceNameTuple = stIntTuple_construct1(sequence_getName(sequence));
+                    bool *coverageArray = stHash_search(sequenceToCoverageArray,
+                                                        sequenceNameTuple);
+                    assert(coverageArray != NULL);
+                    rescueCoveredRegions(thread, coverageArray);
+                    stIntTuple_destruct(sequenceNameTuple);
+                }
+            }
+
             stCaf_finish(flower, threadSet, chainLengthForBigFlower, longChain, INT64_MAX, INT64_MAX); //Flower now destroyed.
             stPinchThreadSet_destruct(threadSet);
             st_logInfo("Ran the cactus core script.\n");
@@ -327,13 +368,15 @@ int main(int argc, char *argv[]) {
          */
         cactusDisk_write(cactusDisk);
         return 0; //Exit without clean up is quicker, enable cleanup when doing memory leak detection.
+        if (sequenceToCoverageArray == NULL) {
+            stHash_destruct(sequenceToCoverageArray);
+        }
     }
 
 
     ///////////////////////////////////////////////////////////////////////////
     // Cleanup
     ///////////////////////////////////////////////////////////////////////////
-
     cactusDisk_destruct(cactusDisk);
     stKVDatabaseConf_destruct(kvDatabaseConf);
     //destructCactusCoreInputParameters(cCIP);

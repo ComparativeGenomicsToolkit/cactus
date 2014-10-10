@@ -460,7 +460,7 @@ class CactusCafPhase(CactusPhasesTarget):
             for bedFile in os.listdir(self.cactusWorkflowArguments.ingroupCoverageDir):
                 bedFile = os.path.join(self.cactusWorkflowArguments.ingroupCoverageDir, bedFile)
                 runConvertAlignmentsToInternalNames(self.cactusWorkflowArguments.cactusDiskDatabaseString, bedFile, bedFile + ".tmp", self.topFlowerName, isBedFile=True)
-                # shutil.move(bedFile + ".tmp", bedFile)
+                shutil.move(bedFile + ".tmp", bedFile)
 
         if (not self.cactusWorkflowArguments.configWrapper.getDoTrimStrategy()) or (self.cactusWorkflowArguments.outgroupEventNames == None):
             setupFilteringByIdentity(self.cactusWorkflowArguments)
@@ -596,12 +596,6 @@ class CactusBarRecursion(CactusRecursionTarget):
         self.makeExtendingTargets(target=CactusBarWrapper, overlargeTarget=CactusBarWrapperLarge, runFlowerStats=True)
 
 def runBarForTarget(self, calculateWhichEndsToComputeSeparately=None, endAlignmentsToPrecomputeOutputFile=None, precomputedAlignments=None):
-    # tmp logging
-    if self.cactusWorkflowArguments.ingroupCoverageDir is not None:
-        self.logToMaster("Running bar, with ingroup coverage dir %s" % (self.cactusWorkflowArguments.ingroupCoverageDir))
-        self.logToMaster(popenCatch("ls %s" % self.cactusWorkflowArguments.ingroupCoverageDir))
-    else:
-        self.logToMaster("Running bar without ingroup coverage dir")
     return runCactusBar(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                  flowerNames=self.flowerNames, 
                  maximumLength=self.getOptionalPhaseAttrib("bandingLimit", float),
