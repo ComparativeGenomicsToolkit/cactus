@@ -178,8 +178,9 @@ def runCactusBlast(sequenceFiles, outputFile, jobTreeDir,
     system(command)
     logger.info("Ran the cactus_blast command okay")
 
-def runConvertAlignmentsToInternalNames(cactusDiskString, alignmentsFile, outputFile, flowerName):
-    popenCatch("cactus_convertAlignmentsToInternalNames --cactusDisk '%s' %s %s" % (cactusDiskString, alignmentsFile, outputFile), stdinString=encodeFlowerNames((flowerName,)))
+def runConvertAlignmentsToInternalNames(cactusDiskString, alignmentsFile, outputFile, flowerName, isBedFile=False):
+    bed = nameValue("bed", isBedFile, bool)
+    popenCatch("cactus_convertAlignmentsToInternalNames --cactusDisk '%s' %s %s %s" % (cactusDiskString, alignmentsFile, outputFile, bed), stdinString=encodeFlowerNames((flowerName,)))
 
 def runStripUniqueIDs(cactusDiskString):
     system("cactus_stripUniqueIDs --cactusDisk '%s'" % cactusDiskString)
@@ -321,7 +322,8 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
                          calculateWhichEndsToComputeSeparately=None,
                          largeEndSize=None,
                          endAlignmentsToPrecomputeOutputFile=None,
-                         precomputedAlignments=None):
+                         precomputedAlignments=None,
+                         ingroupCoverageDir=None):
     """Runs cactus base aligner.
     """
     logLevel = getLogLevelString2(logLevel)

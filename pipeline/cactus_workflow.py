@@ -18,6 +18,7 @@ import time
 import bz2
 import random
 import copy
+import shutil
 from optparse import OptionParser
 
 from sonLib.bioio import getTempFile
@@ -25,7 +26,7 @@ from sonLib.bioio import newickTreeParser
 
 from sonLib.bioio import logger
 from sonLib.bioio import setLoggingFromOptions
-from sonLib.bioio import system
+from sonLib.bioio import system, popenCatch
 from sonLib.bioio import makeSubDir
 
 from cactus.shared.common import cactusRootPath
@@ -323,6 +324,10 @@ class CactusTrimmingBlastPhase(CactusPhasesTarget):
         outgroupsDir = os.path.join(self.getGlobalTempDir(), "outgroupFragments/")
         os.mkdir(outgroupsDir)
 
+        ingroupCoverageDir = os.path.join(self.getGlobalTempDir(), "ingroupCoverageDir/")
+        os.mkdir(ingroupCoverageDir)
+        self.cactusWorkflowArguments.ingroupCoverageDir = ingroupCoverageDir
+
         # Get ingroup and outgroup sequences
         exp = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
         seqMap = exp.buildSequenceMap()
@@ -357,7 +362,7 @@ class CactusTrimmingBlastPhase(CactusPhasesTarget):
                                                        trimThreshold=self.getOptionalPhaseAttrib("trimThreshold", float, 0.8),
                                                        trimWindowSize=self.getOptionalPhaseAttrib("trimWindowSize", int, 10),
                                                        trimOutgroupFlanking=self.getOptionalPhaseAttrib("trimOutgroupFlanking", int, 100),
-                                                       keepParalogs=self.getOptionalPhaseAttrib("keepParalogs", bool, False)), ingroups, outgroups, alignmentsFile, outgroupsDir))
+                                                       keepParalogs=self.getOptionalPhaseAttrib("keepParalogs", bool, False)), ingroups, outgroups, alignmentsFile, outgroupsDir, ingroupCoverageDir))
         # Point the outgroup sequences to their trimmed versions for
         # phases after this one.
         # FIXME: modifies experiment xml!!
@@ -448,6 +453,15 @@ def inverseJukesCantor(d):
     
 class CactusCafPhase(CactusPhasesTarget):      
     def run(self):
+        if self.cactusWorkflowArguments.ingroupCoverageDir is not None:
+            # Convert the bed files to use 64-bit cactus Names instead
+            # of the headers. Ideally this should belong in the bar
+            # phase but we run stripUniqueIDs before then.
+            for bedFile in os.listdir(self.cactusWorkflowArguments.ingroupCoverageDir):
+                bedFile = os.path.join(self.cactusWorkflowArguments.ingroupCoverageDir, bedFile)
+                runConvertAlignmentsToInternalNames(self.cactusWorkflowArguments.cactusDiskDatabaseString, bedFile, bedFile + ".tmp", self.topFlowerName, isBedFile=True)
+                # shutil.move(bedFile + ".tmp", bedFile)
+
         if (not self.cactusWorkflowArguments.configWrapper.getDoTrimStrategy()) or (self.cactusWorkflowArguments.outgroupEventNames == None):
             setupFilteringByIdentity(self.cactusWorkflowArguments)
         #Setup any constraints
@@ -582,6 +596,12 @@ class CactusBarRecursion(CactusRecursionTarget):
         self.makeExtendingTargets(target=CactusBarWrapper, overlargeTarget=CactusBarWrapperLarge, runFlowerStats=True)
 
 def runBarForTarget(self, calculateWhichEndsToComputeSeparately=None, endAlignmentsToPrecomputeOutputFile=None, precomputedAlignments=None):
+    # tmp logging
+    if self.cactusWorkflowArguments.ingroupCoverageDir is not None:
+        self.logToMaster("Running bar, with ingroup coverage dir %s" % (self.cactusWorkflowArguments.ingroupCoverageDir))
+        self.logToMaster(popenCatch("ls %s" % self.cactusWorkflowArguments.ingroupCoverageDir))
+    else:
+        self.logToMaster("Running bar without ingroup coverage dir")
     return runCactusBar(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                  flowerNames=self.flowerNames, 
                  maximumLength=self.getOptionalPhaseAttrib("bandingLimit", float),
@@ -601,7 +621,8 @@ def runBarForTarget(self, calculateWhichEndsToComputeSeparately=None, endAlignme
                  calculateWhichEndsToComputeSeparately=calculateWhichEndsToComputeSeparately,
                  endAlignmentsToPrecomputeOutputFile=endAlignmentsToPrecomputeOutputFile,
                  largeEndSize=self.getOptionalPhaseAttrib("largeEndSize", int),
-                 precomputedAlignments=precomputedAlignments)
+                 precomputedAlignments=precomputedAlignments,
+                 ingroupCoverageDir=self.cactusWorkflowArguments.ingroupCoverageDir)
 
 class CactusBarWrapper(CactusRecursionTarget):
     """Runs the BAR algorithm implementation.
@@ -977,6 +998,10 @@ class CactusWorkflowArguments:
         self.outgroupEventNames = getOptionalAttrib(self.experimentNode, "outgroup_events")
         #Constraints
         self.constraintsFile = getOptionalAttrib(self.experimentNode, "constraints")
+        #Space to put the path to the directory containing beds of
+        #outgroup coverage on ingroups, so that any sequence aligning
+        #to an outgroup can be rescued after bar phase
+        self.ingroupCoverageDir = None
         #Secondary, scratch DB
         secondaryConf = copy.deepcopy(self.experimentNode.find("cactus_disk").find("st_kv_database_conf"))
         secondaryElem = DbElemWrapper(secondaryConf)
