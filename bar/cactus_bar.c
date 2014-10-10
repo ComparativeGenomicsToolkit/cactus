@@ -342,8 +342,9 @@ int main(int argc, char *argv[]) {
                     stIntTuple *sequenceNameTuple = stIntTuple_construct1(sequence_getName(sequence));
                     bool *coverageArray = stHash_search(sequenceToCoverageArray,
                                                         sequenceNameTuple);
-                    assert(coverageArray != NULL);
-                    rescueCoveredRegions(thread, coverageArray);
+                    if (coverageArray != NULL) {
+                        rescueCoveredRegions(thread, coverageArray);
+                    }
                     stIntTuple_destruct(sequenceNameTuple);
                 }
             }
