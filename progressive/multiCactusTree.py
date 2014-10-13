@@ -190,4 +190,4 @@ class MultiCactusTree(NXTree):
 
     # map from event name to networkx node ID
     def getNodeId(self, name):
-        return self.nameToId(nodeId)
+        return self.nameToId[name]
