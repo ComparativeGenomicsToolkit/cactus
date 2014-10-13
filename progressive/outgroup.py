@@ -214,6 +214,11 @@ class DynamicOutgroup(GreedyOutgroup):
         self.numOG = numOG
         assert self.numOG is not None
         self.defaultBranchLength = 0.1
+        # following weights control relative contributions of the three types
+        # of "orthology loss" when computing branch scores
+        self.lossFac = 1.
+        self.fragFac = 1.
+        self.mutFac = 1.
 
     # create map of leaf id -> sequence stats by scanninf the FASTA
     # files.  will be used to determine assembly quality for each input
@@ -260,25 +265,32 @@ class DynamicOutgroup(GreedyOutgroup):
                         min(count, self.sequenceInfo[x].count),
                         max(totalLen, self.sequenceInfo[x].totalLen))
 
+            for node, info in self.sequenceInfo.items():
+                print self.mcTree.getName(node), info
+
     # run the dynamic programming algorithm on each internal node
     def compute(self):
         self.ogMap = dict()
         for node in self.mcTree.breadthFirstTraversal():
-            if self.mcTree.isLeaf(node):
+            if self.mcTree.isLeaf(node) or not self.mcTree.hasParent(node):
                 continue
             self.__dpInit(node)
             self.__dpRun(node)
             nodeName = self.mcTree.getName(node)
-            self.ogMap[nodeName] = self.dpTable[node][self.numOG].solution
+            bestK, bestScore = 0, 0.
+            # we look for the best solution with <= self.numOG outgroups
+            for i in xrange(self.numOG + 1):
+                if self.dpTable[node][i].score >= bestScore:
+                    bestK, bestScore = i, self.dpTable[node][i].score
+            self.ogMap[nodeName] = self.dpTable[node][bestK].solution
             for og in self.ogMap[nodeName]:
                 self.dag.add_edge(node, og)
-                print self.dpTree.getName(node), "->", self.dpTree.getName(og)
-
+                print self.dpTree.getName(node), "-->", self.dpTree.getName(og)
                 
     # initialize dynamic programming table
     def __dpInit(self, ancestralNodeId):
         self.dpTree = copy.deepcopy(self.mcTree)
-        self.rootSeqInfo = self.sequenceInfo[self.dpTree.getRootId()]
+        self.rootSeqInfo = None
         self.branchProbs = dict()
         self.DPEntry = namedtuple("DPEntry", "score solution")
         # map .node id to [(score, solution)]
@@ -291,6 +303,7 @@ class DynamicOutgroup(GreedyOutgroup):
         for child in self.dpTree.getChildren(ancestralNodeId):
             self.dpTree.removeEdge(ancestralNodeId, child)
         self.dpTree.reroot(ancestralNodeId)
+        self.rootSeqInfo = self.sequenceInfo[self.dpTree.getRootId()]
 
         # compute all the branch conservation probabilities
         for node in self.dpTree.preOrderTraversal():
@@ -324,7 +337,7 @@ class DynamicOutgroup(GreedyOutgroup):
                 # we compute the probability that a base is lost along
                 # all the branches (so will be a product of of complement
                 # of conservations along each branch)
-                lossProb = 0.
+                lossProb = 1.0
                 solution = []
                 for childNo, childId in enumerate(children):
                     childK = scoreAlloc[childNo]
@@ -352,12 +365,21 @@ class DynamicOutgroup(GreedyOutgroup):
         nodeInfo = self.sequenceInfo[node]
         
         # Loss probablity computed from genome length ratio
-        lenFrac = float(nodeInfo.totalLen) / float(self.rootSeqInfo.totalLen)
-        pLoss = max(0., 1. - lenFrac)
+        if nodeInfo.totalLen >= self.rootSeqInfo.totalLen:
+            pLoss = 0.
+        else:
+            pLoss = 1. - (float(nodeInfo.totalLen) /
+                          float(self.rootSeqInfo.totalLen))
+        pLoss *= self.lossFac
 
         # Fragmentation probability
         numExtraFrag = max(0, nodeInfo.count - self.rootSeqInfo.count)
-        pFrag = float(numExtraFrag) / float(self.rootSeqInfo.totalLen)
+        if self.rootSeqInfo.totalLen > 0:
+            pFrag = float(numExtraFrag) / float(self.rootSeqInfo.totalLen)
+            pFrag = min(1., pFrag)
+        else:
+            pFrag = 0.
+        pFrag *= self.fragFac
 
         # Mutation probability
         branchLength = self.dpTree.getWeight(self.dpTree.getParent(node),
@@ -366,6 +388,7 @@ class DynamicOutgroup(GreedyOutgroup):
             # some kind of warning should happen here
             branchLength = self.defaultBranchLength
         jcMutProb = .75 - .75 * math.exp(-branchLength)
+        jcMutProb *= self.mutFac
 
         conservationProb = (1. - pLoss) * (1. - pFrag) * (1. - jcMutProb)
         return conservationProb        
