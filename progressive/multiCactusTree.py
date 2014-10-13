@@ -187,4 +187,7 @@ class MultiCactusTree(NXTree):
         self.setName(newNode, ogName)
         self.nameToId[ogName] = newNode
         self.setWeight(self.rootId, newNode, distance)
-        
+
+    # map from event name to networkx node ID
+    def getNodeId(self, name):
+        return self.nameToId(nodeId)

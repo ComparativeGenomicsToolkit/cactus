@@ -16,13 +16,13 @@ import sys
 import math
 import copy
 import networkx as NX
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from optparse import OptionParser
 
 from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.progressive.multiCactusTree import MultiCactusTree
 
-class GreedyOutgroup:
+class GreedyOutgroup(object):
     def __init__(self):
         self.dag = None
         self.dm = None
@@ -197,6 +197,171 @@ class GreedyOutgroup:
         for node, outgroups in self.ogMap.items():
             self.ogMap[node] = sorted(outgroups, key=lambda x: x[1])
 
+
+# First stab at better outgroup selection.  Uses estimated fraction of
+# orthologous bases between two genomes, along with dynamic programming
+# to select outgroups to best create ancestors.
+#
+# Only works with leaves for now (ie will never choose ancestor as outgroup)
+#
+class DynamicOutgroup(GreedyOutgroup):
+    def __init__(numOG):
+        self.SeqInfo = namedtuple("count", "totalLength")
+        self.sequenceInfo = None
+        self.numOG = numOG
+        self.defaultBranchLength = 0.1
+
+    # create map of leaf name -> sequence stats by scanninf the FASTA
+    # files.  will be used to determine assembly quality for each input
+    # genome (in a very crude manner, at least to start).
+    # 
+    # for internal nodes, we store the stats of the max leaf underneath
+    def scanInputSequences(self, seqMap):
+        assert seqMap is not None
+        # map name to (numSequences, totalLength)
+        self.sequenceInfo = dict()
+        for event, inPath in seqMap:
+            if os.path.isdir(inPath):
+                fastaPaths = os.path.join(inPath, f) for f in os.listdir(inPath)
+            else:
+                fastaPaths = [inPath]
+            for faPath in fastaPaths:
+                if not os.path.isfile(faPath):
+                    raise RuntimeError("Unable to open sequence file %s" %
+                                       faPath)
+                faFile = open(faPath, "r")
+                count, totalLen = 0, 0
+                for name, seq in faRead(faFile):
+                    count += 1
+                    totalLen += len(seq)
+                faFile.close()
+            self.sequenceInfo[event] = self.SeqInfo(count, totalLen)
+
+            # propagate leaf stats up to the root
+            # can speed this up by O(N) but not sure if necessary..
+            # we are conservative here in that we assume that the
+            # ancestor has the longest, least fragmented genome possible
+            # when judging from its descendants. 
+            x = self.mcTree.getNodeId(event)
+            while self.mcTree.hasParent(x):
+                x = self.mcTree.getParent(x)
+                xn = self.mcTree.getName(x)
+                if xn not in self.sequenceInfo
+                    self.sequenceInfo[xn] = self.SeqInfo(count, totalLen)
+                else:
+                    self.sequenceInfo[xn] = self.SeqInfo(
+                        min(count, self.sequenceInfo[xn].count),
+                        max(totalLen, self.sequenceInfo[xn].totalLen))
+
+    # run the dynamic programming algorithm on each internal node
+    def compute(self):
+        self.ogMap = dict()
+        for node in self.mcTree.breadthFirstTraversal():
+            self.__dpInit(node)
+            self.__dpRun(node)
+            self.ogMap[node] = self.dpTable[node][self.numOG].solution]
+            for og in self.ogMap[node]:
+                self.dag.add_edge(node, og)
+
+                
+    # initialize dynamic programming table
+    def __dpInit(self, ancestralNodeId):
+        self.dpTree = copy.deepcopy(self.mcTree)
+        self.rootSeqInfo = self.sequenceInfo[self.dpTree.getRootName()]
+        self.branchProbs = dict()
+        self.DPEntry = namedtuple("score", "solution")
+        # map .node id to [(score, solution)]
+        # where list is for 0, 1, 2, ... k (ie best score for solution
+        # of size k)
+        self.dpTable = dict()
+
+        # make a new tree rooted at the target ancestor with everything
+        # below it, ie invalid outgroups, cut out
+        for child in self.dpTree.getChildrent(ancestralNodeId):
+            self.dpTree.removeEdge(ancestralNodeId, child)
+        self.dpTree.reroot(ancestralNodeId)
+
+        # compute all the branch conservation probabilities
+        for node in self.dpTree.preOrderTraversal():
+            if self.dpTree.hasParent(node):
+                self.branchProbs[node] = self.__computeBranchConservation(node)
+
+        # set table to 0
+        for node in self.dpTree.preOrderTraversal():
+            self.dpTable[node] = []
+            for i in xrange(self.numOG + 1):
+                self.dpTable[node].append(self.DPEntry(0.0, []))
+            if self.dpTree.isLeaf(node):
+                self.dpTable[node][1] = self.DPEntry(1.0, [node])
+
+                
+    # compute score for given node from its children using the dynamic
+    # programming table
+    def __dpNode(self, node):
+        children = self.dpTree.getChildren(node)
+        numChildren = len(children)
+        # special case for leaf
+        if numChildren == 0:
+            self.dpTable[node][1] = self.DPEntry(1.0, [node])
+        else:
+            # iterate all possible combinations of child solution sizes
+            # (very inefficeint since we only want unique solutions with
+            # sum <= numOG, but assume numbers are small enough so doesn't
+            # matter for now)
+            cset = [x for x in xrange(0, self.numOG + 1)]
+            for scoreAlloc in itertools.product(*[cset] * numChildren):
+                csetK = sum(scoreAlloc)
+                if  csetK > self.numOG:
+                    continue
+                # we compute the probability that a base is lost along
+                # all the branches (so will be a product of of complement
+                # of conservations along each branch)
+                lossProb = 0.
+                solution = []
+                for childNo, childId in enumerate(children):
+                    childK = cset[childNo]
+                    childCons = self.dpTable[childId][childK].score
+                    lossProb *= (1. - self.branchProbs[childId] * childCons)
+                    solution += self.dpTable[childId][childK].solution
+                # overall conservation is 1 - loss
+                consProb = 1. - lossProb
+                assert consProb <= 0. and consProb <= 1.
+                if consProb > self.dpTable[node][csetK].score:
+                    self.dpTable[node][csetK] = self.DPEntry(consProb, solution)
+
+                    
+    # get the dynamic programming solution (for a single ancestor set in
+    # __dpInit...)
+    def __dpRun(self, node):
+        for child in self.dpTree.getChildren(node):
+            self.__dpRun(child)
+        self.__dpNode(node)
+        
+    # compute the probability that a base is not "lost" on a branch
+    # from given node to its parent
+    def __computeBranchConservation(self, node):
+        nodeInfo = self.sequenceInfo[self.dpTree.getName(node)]
+        
+        # Loss probablity computed from genome length ratio
+        lenFrac = float(nodeInfo.totalLen) / float(self.rootSeqInfo.totalLen)
+        pLoss = max(0., 1. - lenFrac)
+
+        # Fragmentation probability
+        numExtraFrag = max(0, nodeInfo.count - self.rootSeqInfo.count)
+        pFrag = float(numExtraFrac) / float(self.rootSeqInfo.totalLen)
+
+        # Mutation probability
+        branchLength = self.dpTree.getWeight(self.dpTree.getParent(node),
+                                             node, None)
+        if branchLength is None or branchLength < 0 or branchLength >= 1:
+            # some kind of warning should happen here
+            branchLength = self.defaultBranchLength
+        jcMutProb = .75 - .75 * math.exp(-branchLength)
+
+        conservationProb = (1. - pLoss) * (1. - pFrac) * (1. - jcMutProb)
+        return conservation Prob        
+
+            
 def main():
     usage = "usage: %prog <project> <output graphviz .dot file>"
     description = "TEST: draw the outgroup DAG"
@@ -207,6 +372,8 @@ def main():
                       default = None, help="greedy threshold")
     parser.add_option("--numOutgroups", dest="maxNumOutgroups",
                       help="Maximum number of outgroups to provide")
+    parser.add_option("--dynamic", help="Use new dynamic programming"
+                      " algorithm", action="store_true", default=False)
     options, args = parser.parse_args()
     
     if len(args) != 2:
@@ -215,15 +382,26 @@ def main():
 
     proj = MultiCactusProject()
     proj.readXML(args[0])
-    outgroup = GreedyOutgroup()
-    outgroup.importTree(proj.mcTree)
-    if options.justLeaves:
-        candidates = set([proj.mcTree.getName(x)
-                          for x in proj.mcTree.getLeaves()])
+    if not args.dynamic:
+        outgroup = GreedyOutgroup()
+        outgroup.importTree(proj.mcTree)
+        if options.justLeaves:
+            candidates = set([proj.mcTree.getName(x)
+                            for x in proj.mcTree.getLeaves()])
+        else:
+            candidates = None
+        outgroup.greedy(threshold=options.threshold, candidateSet=candidates,
+                        candidateChildFrac=1.1)
     else:
-        candidates = None
-    outgroup.greedy(threshold=options.threshold, candidateSet=candidates,
-                    candidateChildFrac=1.1)
+        outgroup = DynamicOutgroup()
+        outgroup.importTree(proj.mcTree)
+        seqMap = dict()
+        for leaf in proj.mcTree.getLeaves():
+            name = proj.mcTree.getName(leaf)
+            seqMap[name] = proj.sequencePath(name)
+        outgroup.scanSequences(seqMap)
+        outgroup.compute()
+        
     NX.drawing.nx_agraph.write_dot(outgroup.dag, args[1])
     return 0
 
