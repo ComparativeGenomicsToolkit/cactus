@@ -75,7 +75,7 @@ def createMCProject(tree, experiment, config, options):
         # some things better than greedy approaches such as properly account
         # for phylogenetic redundancy, as well as try to factor assembly
         # size/quality automatically. 
-        mcProj.outgroup = DynamicOutrgoup()
+        mcProj.outgroup = DynamicOutgroup()
         mcProj.outgroup.importTree(mcProj.mcTree, mcProj.getInputSequenceMap())
         mcProj.outgroup.compute(maxNumOutgroups=config.getMaxNumOutgroups())
     else:
