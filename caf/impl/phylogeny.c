@@ -809,7 +809,22 @@ static void removeOldSplitBranches(stPinchBlock *block, stTree *tree,
     stSortedSet_destruct(splitBranchesToDelete);
 }
 
+// tmp for debug
+static double getAvgSupportValue(stSortedSet *splitBranches) {
+    double totalSupport = 0.0;
+    stSortedSetIterator *splitBranchIt = stSortedSet_getIterator(splitBranches);
+    stCaf_SplitBranch *splitBranch;
+    while ((splitBranch = stSortedSet_getNext(splitBranchIt)) != NULL) {
+        totalSupport += splitBranch->support;
+    }
+    stSortedSet_destructIterator(splitBranchIt);
+    return totalSupport/stSortedSet_size(splitBranches);
+}
+
 static void buildTreeForBlock(stPinchBlock *block, stHash *threadStrings, stSet *outgroupThreads, Flower *flower, int64_t maxBaseDistance, int64_t maxBlockDistance, int64_t numTrees, enum stCaf_TreeBuildingMethod treeBuildingMethod, enum stCaf_RootingMethod rootingMethod, enum stCaf_ScoringMethod scoringMethod, double breakPointScalingFactor, bool skipSingleCopyBlocks, bool allowSingleDegreeBlocks, bool ignoreUnalignedBases, bool onlyIncludeCompleteFeatureBlocks, double costPerDupPerBase, double costPerLossPerBase, stMatrix *joinCosts, stHash *speciesToJoinCostIndex, stTree *speciesStTree, stHash *blocksToTrees) {
+    if (stHash_search(blocksToTrees, block)) {
+        stHash_remove(blocksToTrees, block);
+    }
     if (!hasSimplePhylogeny(block, outgroupThreads, flower)) { //No point trying to build a phylogeny for certain blocks.
         if (isSingleCopyBlock(block, flower) && skipSingleCopyBlocks) {
             return;
@@ -920,7 +935,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
     getSpeciesToSplitOn(speciesStTree, eventTree, speciesToSplitOn);
 
     // Temp debug print
-    printf("Chose events in the species tree to split on:");
+    printf("Chose events in the species tree \"%s\" to split on:", eventTree_makeNewickString(eventTree));
     stSetIterator *speciesToSplitOnIt = stSet_getIterator(speciesToSplitOn);
     stTree *speciesNodeToSplitOn;
     while ((speciesNodeToSplitOn = stSet_getNext(speciesToSplitOnIt)) != NULL) {
@@ -945,13 +960,21 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
     st_logDebug("Got homology partition for each block\n");
 
     fprintf(stdout, "Before partitioning, there were %" PRIi64 " bases lost in between single-degree blocks\n", countBasesBetweenSingleDegreeBlocks(threadSet));
-    fprintf(stdout, "Found %" PRIi64 " split branches initially\n", stSortedSet_size(splitBranches));
+    fprintf(stdout, "Found %" PRIi64 " split branches initially in %" PRIi64
+            " blocks (%" PRIi64 " of which have trees), with an "
+            "average support value of %lf\n", stSortedSet_size(splitBranches),
+            stPinchThreadSet_getTotalBlockNumber(threadSet),
+            stHash_size(blocksToTrees),
+            getAvgSupportValue(splitBranches));
     // Now walk through the split branches, doing the most confident
     // splits first, and updating the blocks whose breakpoint
     // information is modified.
     int64_t numberOfSplitsMade = 0;
+    double totalSupport = 0;
+    int64_t totalNumberOfBlocksRecomputed = 0;
     stCaf_SplitBranch *splitBranch = stSortedSet_getLast(splitBranches);
     while (splitBranch != NULL) {
+        totalSupport += splitBranch->support;
         block = splitBranch->block;
         // Do the partition on the block.
         stList *partition = stList_construct();
@@ -1015,6 +1038,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
         stPinchSegment *segmentNotBelowBranch = getSegmentByBlockIndex(block, segmentNotBelowBranchIndex);
 
         // Remove all split branch entries for this block tree.
+        // This also invalidates "splitBranch" from here on!
         removeOldSplitBranches(block, root, speciesToSplitOn, splitBranches);
 
         // Destruct the block tree.
@@ -1064,6 +1088,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
         stSetIterator *blocksToUpdateIt = stSet_getIterator(blocksToUpdate);
         stPinchBlock *blockToUpdate;
         while ((blockToUpdate = stSet_getNext(blocksToUpdateIt)) != NULL) {
+            totalNumberOfBlocksRecomputed++;
             stTree *oldTree = stHash_search(blocksToTrees, blockToUpdate);
             removeOldSplitBranches(blockToUpdate, oldTree, speciesToSplitOn,
                                    splitBranches);
@@ -1080,8 +1105,16 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
     }
 
     st_logDebug("Finished partitioning the blocks\n");
-    fprintf(stdout, "There were %" PRIi64 "splits made overall in the end.\n",
+    fprintf(stdout, "There were %" PRIi64 " splits made overall in the end.\n",
             numberOfSplitsMade);
+    fprintf(stdout, "The split branches that we actually used had an average "
+            "support of %lf.\n",
+            totalSupport/numberOfSplitsMade);
+    fprintf(stdout, "We recomputed the trees for an average of %" PRIi64
+            " blocks after every split, and the pinch graph had a total of "
+            "%" PRIi64 " blocks.\n",
+            totalNumberOfBlocksRecomputed/numberOfSplitsMade,
+            stPinchThreadSet_getTotalBlockNumber(threadSet));
     fprintf(stdout, "After partitioning, there were %" PRIi64 " bases lost in between single-degree blocks\n", countBasesBetweenSingleDegreeBlocks(threadSet));
 
     //Cleanup
