@@ -208,10 +208,10 @@ class GreedyOutgroup(object):
 # Only works with leaves for now (ie will never choose ancestor as outgroup)
 #
 class DynamicOutgroup(GreedyOutgroup):
-    def __init__(self, numOG):
+    def __init__(self):
         self.SeqInfo = namedtuple("SeqInfo", "count totalLen")
         self.sequenceInfo = None
-        self.numOG = numOG
+        self.numOG = 1
         assert self.numOG is not None
         self.defaultBranchLength = 0.1
         # following weights control relative contributions of the three types
@@ -265,11 +265,18 @@ class DynamicOutgroup(GreedyOutgroup):
                         min(count, self.sequenceInfo[x].count),
                         max(totalLen, self.sequenceInfo[x].totalLen))
 
-            for node, info in self.sequenceInfo.items():
-                print self.mcTree.getName(node), info
+            #for node, info in self.sequenceInfo.items():
+            #    print self.mcTree.getName(node), info
 
     # run the dynamic programming algorithm on each internal node
-    def compute(self, candidateSet = None):
+    def compute(self, maxNumOutgroups, candidateSet = None,
+                mutationWeight = 1.,
+                sequenceLossWeight = 1.,
+                fragmentationWeight = 1.):
+        self.mutFac = mutationWeight
+        self.lossFac = sequenceLossWeight
+        self.fragFac = fragmentationWeight
+        self.numOG = maxNumOutgroups
         self.ogMap = dict()
         self.candidateSet = candidateSet
         for node in self.mcTree.breadthFirstTraversal():
@@ -290,10 +297,15 @@ class DynamicOutgroup(GreedyOutgroup):
                 x, self.dpTree.getRootId())
             rankedSolution = sorted(self.dpTable[node][bestK].solution,
                                     key = rankFn)
-            self.ogMap[nodeName] = rankedSolution
+            # convert to EventName,Dist format.  Note that distance
+            # here is not necessarily what we're ranking on, and we include
+            # it for consistency only.  
+            self.ogMap[nodeName] = [(self.dpTree.getName(x),
+                                     self.__getOgDist(x))
+                                     for x in rankedSolution]
             for og in self.ogMap[nodeName]:
                 self.dag.add_edge(node, og)
-                print self.dpTree.getName(node), "-->", self.dpTree.getName(og)
+                #print self.dpTree.getName(node), "-->", og
                 
     # initialize dynamic programming table
     def __dpInit(self, ancestralNodeId):
@@ -417,7 +429,16 @@ class DynamicOutgroup(GreedyOutgroup):
 
         conservationProb = (1. - pLoss) * (1. - pFrag) * (1. - jcMutProb)
         return conservationProb
-        
+
+    def __getOgDist(self, node):
+        dist = 0.
+        x = node
+        while x != self.dpTree.getRootId():
+            dist += self.dpTree.getWeight(self.dpTree.getParent(x), x,
+                                          self.defaultBranchLength)
+            x = self.dpTree.getParent(x)
+            assert x != None
+        return dist
             
 def main():
     usage = "usage: %prog <project> <output graphviz .dot file>"
@@ -450,13 +471,13 @@ def main():
         outgroup.greedy(threshold=options.threshold, candidateSet=candidates,
                         candidateChildFrac=1.1)
     else:
-        outgroup = DynamicOutgroup(options.maxNumOutgroups)
+        outgroup = DynamicOutgroup()
         seqMap = dict()
         for leaf in proj.mcTree.getLeaves():
             name = proj.mcTree.getName(leaf)
             seqMap[name] = proj.sequencePath(name)
         outgroup.importTree(proj.mcTree, seqMap)
-        outgroup.compute()
+        outgroup.compute(options.maxNumOutgroups)
         
     NX.drawing.nx_agraph.write_dot(outgroup.dag, args[1])
     return 0
