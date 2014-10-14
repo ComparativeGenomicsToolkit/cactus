@@ -653,7 +653,7 @@ void findSplitBranches(stPinchBlock *block, stTree *tree,
         assert(parentInfo != NULL);
         stReconciliationInfo *parentReconInfo = parentInfo->recon;
         assert(parentReconInfo != NULL);
-        if (stSet_search(speciesToSplitOn, parentReconInfo->species)) {
+        if (parentReconInfo->event == DUPLICATION && stSet_search(speciesToSplitOn, parentReconInfo->species)) {
             // Found a split branch.
             stPhylogenyInfo *info = stTree_getClientData(tree);
             stCaf_SplitBranch *splitBranch = stCaf_SplitBranch_construct(tree, block, info->bootstrapSupport);
@@ -818,6 +818,9 @@ static double getAvgSupportValue(stSortedSet *splitBranches) {
         totalSupport += splitBranch->support;
     }
     stSortedSet_destructIterator(splitBranchIt);
+    if (stSortedSet_size(splitBranches) == 0) {
+        return 0.0;
+    }
     return totalSupport/stSortedSet_size(splitBranches);
 }
 
@@ -1109,11 +1112,11 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
             numberOfSplitsMade);
     fprintf(stdout, "The split branches that we actually used had an average "
             "support of %lf.\n",
-            totalSupport/numberOfSplitsMade);
+            numberOfSplitsMade != 0 ? totalSupport/numberOfSplitsMade : 0.0);
     fprintf(stdout, "We recomputed the trees for an average of %" PRIi64
             " blocks after every split, and the pinch graph had a total of "
             "%" PRIi64 " blocks.\n",
-            totalNumberOfBlocksRecomputed/numberOfSplitsMade,
+            numberOfSplitsMade != 0 ? totalNumberOfBlocksRecomputed/numberOfSplitsMade : 0,
             stPinchThreadSet_getTotalBlockNumber(threadSet));
     fprintf(stdout, "After partitioning, there were %" PRIi64 " bases lost in between single-degree blocks\n", countBasesBetweenSingleDegreeBlocks(threadSet));
 
