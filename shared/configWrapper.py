@@ -70,7 +70,7 @@ class ConfigWrapper:
             strategy = ogElem.attrib["strategy"]
         assert strategy == "none" or strategy == "greedy" or \
             strategy == "greedyLeaves" or strategy == "greedyPreference" or \
-            stragegy == "dynamic"
+            strategy == "dynamic"
         return strategy
     
     def getOutgroupThreshold(self):
