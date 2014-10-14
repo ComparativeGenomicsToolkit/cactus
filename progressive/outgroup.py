@@ -282,7 +282,14 @@ class DynamicOutgroup(GreedyOutgroup):
             for i in xrange(self.numOG + 1):
                 if self.dpTable[node][i].score >= bestScore:
                     bestK, bestScore = i, self.dpTable[node][i].score
-            self.ogMap[nodeName] = self.dpTable[node][bestK].solution
+                    
+            # we rank solution based on individual conservation score
+            # of each outgroup vis-a-vis the target
+            rankFn = lambda x : 1. - self.__computeBranchConservation(
+                x, self.dpTree.getRootId())
+            rankedSolution = sorted(self.dpTable[node][bestK].solution,
+                                    key = rankFn)
+            self.ogMap[nodeName] = rankedSolution
             for og in self.ogMap[nodeName]:
                 self.dag.add_edge(node, og)
                 print self.dpTree.getName(node), "-->", self.dpTree.getName(og)
@@ -293,6 +300,7 @@ class DynamicOutgroup(GreedyOutgroup):
         self.rootSeqInfo = None
         self.branchProbs = dict()
         self.DPEntry = namedtuple("DPEntry", "score solution")
+        self.leafDistances = dict()
         # map .node id to [(score, solution)]
         # where list is for 0, 1, 2, ... k (ie best score for solution
         # of size k)
@@ -361,38 +369,48 @@ class DynamicOutgroup(GreedyOutgroup):
         
     # compute the probability that a base is not "lost" on a branch
     # from given node to its parent
-    def __computeBranchConservation(self, node):
+    # ancestor parameter allows us to consider a path from the node
+    # to any ancestor in the tree as a single "branch" for purposes
+    # of computation.  if none, then the immediate parent is used. 
+    def __computeBranchConservation(self, node, ancestor=None):
+        if ancestor is None:
+            ancestor = self.dpTree.getParent(node)
         nodeInfo = self.sequenceInfo[node]
+        ancInfo = self.sequenceInfo[ancestor]
         
         # Loss probablity computed from genome length ratio
-        if nodeInfo.totalLen >= self.rootSeqInfo.totalLen:
+        if nodeInfo.totalLen >= ancInfo.totalLen:
             pLoss = 0.
         else:
-            pLoss = 1. - (float(nodeInfo.totalLen) /
-                          float(self.rootSeqInfo.totalLen))
+            pLoss = 1. - (float(nodeInfo.totalLen) / float(ancInfo.totalLen))
         pLoss *= self.lossFac
 
         # Fragmentation probability
-        numExtraFrag = max(0, nodeInfo.count - self.rootSeqInfo.count)
-        if self.rootSeqInfo.totalLen > 0:
-            pFrag = float(numExtraFrag) / float(self.rootSeqInfo.totalLen)
+        numExtraFrag = max(0, nodeInfo.count - ancInfo.count)
+        if ancInfo.totalLen > 0:
+            pFrag = float(numExtraFrag) / float(ancInfo.totalLen)
             pFrag = min(1., pFrag)
         else:
             pFrag = 0.
         pFrag *= self.fragFac
 
         # Mutation probability
-        branchLength = self.dpTree.getWeight(self.dpTree.getParent(node),
-                                             node, None)
-        if branchLength is None or branchLength < 0 or branchLength >= 1:
-            # some kind of warning should happen here
-            branchLength = self.defaultBranchLength
+        branchLength = 0.
+        x = node
+        while x != ancestor:
+            weight = self.dpTree.getWeight(self.dpTree.getParent(x), x, None)
+            if weight is None or weight < 0 or weight >= 1:
+                # some kind of warning should happen here
+                weight = self.defaultBranchLength
+            branchLength += weight
+            x = self.dpTree.getParent(x)
+            assert x is not None            
         jcMutProb = .75 - .75 * math.exp(-branchLength)
         jcMutProb *= self.mutFac
 
         conservationProb = (1. - pLoss) * (1. - pFrag) * (1. - jcMutProb)
-        return conservationProb        
-
+        return conservationProb
+        
             
 def main():
     usage = "usage: %prog <project> <output graphviz .dot file>"
