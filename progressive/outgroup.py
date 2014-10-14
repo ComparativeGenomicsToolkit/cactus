@@ -452,7 +452,7 @@ class DynamicOutgroup(GreedyOutgroup):
             if len(x) > 1:
                 if x[0] == '>':
                     count += 1
-                elif x[0] != "3":
+                elif x[0] != "#":
                     totalLen += len(x)
         faFile.close()
         return self.SeqInfo(count, totalLen)
