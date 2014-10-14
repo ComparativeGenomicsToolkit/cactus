@@ -351,6 +351,10 @@ class DynamicOutgroup(GreedyOutgroup):
             # sum <= numOG, but assume numbers are small enough so doesn't
             # matter for now)
             cset = [x for x in xrange(0, self.numOG + 1)]
+            if math.pow(len(cset), numChildren) > 1e6:
+                raise RuntimeError("Dynamic Outgroup selection error for"
+                                   " %s: degree limit exceeded.  Need to fix "
+                                   "this!!" % self.dpTree.getName(node))
             for scoreAlloc in itertools.product(*[cset] * numChildren):
                 csetK = sum(scoreAlloc)
                 if  csetK > self.numOG:
@@ -478,8 +482,16 @@ def main():
             seqMap[name] = proj.sequencePath(name)
         outgroup.importTree(proj.mcTree, seqMap)
         outgroup.compute(options.maxNumOutgroups)
+
+    try:
+        NX.drawing.nx_agraph.write_dot(outgroup.dag, args[1])
+    except Exception as e:
+        print "NetworkX failed: %s" % str(e)
+        print "Writing ogMap in non-graphviz format"
+        with open(args[1], "w") as f:
+            for node, ogs in outgroup.ogMap.items():
+                f.write("%s -> %s\n" % (node, str(ogs)))            
         
-    NX.drawing.nx_agraph.write_dot(outgroup.dag, args[1])
     return 0
 
 if __name__ == '__main__':    
