@@ -23,7 +23,6 @@ from optparse import OptionParser
 
 from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.progressive.multiCactusTree import MultiCactusTree
-from sonLib.bioio import fastaRead
 
 class GreedyOutgroup(object):
     def __init__(self):
@@ -238,17 +237,12 @@ class DynamicOutgroup(GreedyOutgroup):
                               f in os.listdir(inPath)]
             else:
                 fastaPaths = [inPath]
+                
+            totalFaInfo = self.SeqInfo(0, 0)
             for faPath in fastaPaths:
-                if not os.path.isfile(faPath):
-                    raise RuntimeError("Unable to open sequence file %s" %
-                                       faPath)
-                faFile = open(faPath, "r")
-                count, totalLen = 0, 0
-                for name, seq in fastaRead(faFile):
-                    count += 1
-                    totalLen += len(seq)
-                faFile.close()
-            self.sequenceInfo[node] = self.SeqInfo(count, totalLen)
+                faInfo = self.__getSeqInfo(faPath)
+                totalFaInfo = self.SeqInfo(*map(sum, zip(totalFaInfo, faInfo)))
+            self.sequenceInfo[node] = totalFaInfo
 
             # propagate leaf stats up to the root
             # can speed this up by O(N) but not sure if necessary..
@@ -259,11 +253,11 @@ class DynamicOutgroup(GreedyOutgroup):
             while self.mcTree.hasParent(x):
                 x = self.mcTree.getParent(x)
                 if x not in self.sequenceInfo:
-                    self.sequenceInfo[x] = self.SeqInfo(count, totalLen)
+                    self.sequenceInfo[x] = totalFaInfo
                 else:
                     self.sequenceInfo[x] = self.SeqInfo(
-                        min(count, self.sequenceInfo[x].count),
-                        max(totalLen, self.sequenceInfo[x].totalLen))
+                        min(totalFaInfo.count, self.sequenceInfo[x].count),
+                        max(totalFaInfo.totalLen, self.sequenceInfo[x].totalLen))
 
             #for node, info in self.sequenceInfo.items():
             #    print self.mcTree.getName(node), info
@@ -445,6 +439,24 @@ class DynamicOutgroup(GreedyOutgroup):
             x = self.dpTree.getParent(x)
             assert x != None
         return dist
+
+    # sonLib.bioio.fastaRead is too slow.  All we want are length stats
+    # so rewrite faster method here:
+    def __getSeqInfo(self, faPath):
+        if not os.path.isfile(faPath):
+            raise RuntimeError("Unable to open sequence file %s" % faPath)
+        faFile = open(faPath, "r")
+        count, totalLen = 0, 0
+        for line in faFile:
+            x = line.strip()
+            if len(x) > 1:
+                if x[0] == '>':
+                    count += 1
+                elif x[0] != "3":
+                    totalLen += len(x)
+        faFile.close()
+        return self.SeqInfo(count, totalLen)
+        
             
 def main():
     usage = "usage: %prog <project> <output graphviz .dot file>"
