@@ -909,6 +909,123 @@ static void buildTreeForBlock(stPinchBlock *block, stHash *threadStrings, stSet 
     }
 }
 
+static void splitBlockOnSplitBranch(stPinchBlock *block,
+                                    stCaf_SplitBranch *splitBranch,
+                                    stSortedSet *splitBranches,
+                                    stSet *speciesToSplitOn,
+                                    stSet *blocksToUpdate,
+                                    stHash *threadStrings, stSet *outgroupThreads, Flower *flower, int64_t maxBaseDistance, int64_t maxBlockDistance, int64_t numTrees, enum stCaf_TreeBuildingMethod treeBuildingMethod, enum stCaf_RootingMethod rootingMethod, enum stCaf_ScoringMethod scoringMethod, double breakPointScalingFactor, bool skipSingleCopyBlocks, bool allowSingleDegreeBlocks, bool ignoreUnalignedBases, bool onlyIncludeCompleteFeatureBlocks, double costPerDupPerBase, double costPerLossPerBase, stMatrix *joinCosts, stHash *speciesToJoinCostIndex, stTree *speciesStTree, stHash *blocksToTrees) {
+    block = splitBranch->block;
+    // Do the partition on the block.
+    stList *partition = stList_construct();
+    // Create a leaf set with all leaves below this split branch.
+    stList *leafSet = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
+    int64_t segmentBelowBranchIndex = -1; // Arbitrary index of
+                                          // segment below the
+                                          // branch so we can
+                                          // recover the blocks we
+                                          // split into later.
+    stList *bfQueue = stList_construct();
+    stList_append(bfQueue, splitBranch->child);
+    while (stList_length(bfQueue) != 0) {
+        stTree *node = stList_pop(bfQueue);
+        for (int64_t i = 0; i < stTree_getChildNumber(node); i++) {
+            stList_append(bfQueue, stTree_getChild(node, i));
+        }
+
+        if (stTree_getChildNumber(node) == 0) {
+            stPhylogenyInfo *info = stTree_getClientData(node);
+            assert(info->matrixIndex != -1);
+            stList_append(leafSet, stIntTuple_construct1(info->matrixIndex));
+            segmentBelowBranchIndex = info->matrixIndex;
+        }
+    }
+    stList_append(partition, leafSet);
+    // Create a leaf set with all leaves that aren't below the
+    // split branch.
+    leafSet = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
+    stTree *root = splitBranch->child;
+    while (stTree_getParent(root) != NULL) {
+        root = stTree_getParent(root);
+    }
+    int64_t segmentNotBelowBranchIndex = -1; // Arbitrary index of
+                                             // segment not below the
+                                             // branch so we can
+                                             // recover the blocks
+                                             // we split into
+                                             // later.
+    stList_append(bfQueue, root);
+    while (stList_length(bfQueue) != 0) {
+        stTree *node = stList_pop(bfQueue);
+        if (node != splitBranch->child) {
+            for (int64_t i = 0; i < stTree_getChildNumber(node); i++) {
+                stList_append(bfQueue, stTree_getChild(node, i));
+            }
+
+            if (stTree_getChildNumber(node) == 0) {
+                stPhylogenyInfo *info = stTree_getClientData(node);
+                assert(info->matrixIndex != -1);
+                stList_append(leafSet, stIntTuple_construct1(info->matrixIndex));
+                segmentNotBelowBranchIndex = info->matrixIndex;
+            }
+        }
+    }
+    stList_append(partition, leafSet);
+    // Get arbitrary segments from the blocks we will split
+    // into. This is so that we can recover the blocks after the
+    // split.
+    stPinchSegment *segmentBelowBranch = getSegmentByBlockIndex(block, segmentBelowBranchIndex);
+    stPinchSegment *segmentNotBelowBranch = getSegmentByBlockIndex(block, segmentNotBelowBranchIndex);
+
+    // Remove all split branch entries for this block tree.
+    removeOldSplitBranches(block, root, speciesToSplitOn, splitBranches);
+
+    // Destruct the block tree.
+    // This also invalidates "splitBranch" from here on!
+    stPhylogenyInfo_destructOnTree(root);
+    stTree_destruct(root);
+    stHash_remove(blocksToTrees, block);
+
+    // Actually perform the split according to the partition.
+    splitBlock(block, partition, allowSingleDegreeBlocks);
+    // Recover the blocks.
+    stPinchBlock *blockBelowBranch = stPinchSegment_getBlock(segmentBelowBranch);
+    stPinchBlock *blockNotBelowBranch = stPinchSegment_getBlock(segmentNotBelowBranch);
+
+    // Make a new tree for both of the blocks we split into, if
+    // they are not too simple to make a tree.
+    if (blockBelowBranch != NULL) {
+        buildTreeForBlock(blockBelowBranch, threadStrings, outgroupThreads, flower, maxBaseDistance, maxBlockDistance, numTrees, treeBuildingMethod, rootingMethod, scoringMethod, breakPointScalingFactor, skipSingleCopyBlocks, allowSingleDegreeBlocks, ignoreUnalignedBases, onlyIncludeCompleteFeatureBlocks, costPerDupPerBase, costPerLossPerBase, joinCosts, speciesToJoinCostIndex, speciesStTree, blocksToTrees);
+    }
+    stTree *treeBelowBranch = stHash_search(blocksToTrees, blockBelowBranch);
+    if (treeBelowBranch != NULL) {
+        findSplitBranches(blockBelowBranch, treeBelowBranch,
+                          splitBranches, speciesToSplitOn);
+    }
+    if (blockNotBelowBranch != NULL) {
+        buildTreeForBlock(blockNotBelowBranch, threadStrings, outgroupThreads, flower, maxBaseDistance, maxBlockDistance, numTrees, treeBuildingMethod, rootingMethod, scoringMethod, breakPointScalingFactor, skipSingleCopyBlocks, allowSingleDegreeBlocks, ignoreUnalignedBases, onlyIncludeCompleteFeatureBlocks, costPerDupPerBase, costPerLossPerBase, joinCosts, speciesToJoinCostIndex, speciesStTree, blocksToTrees);
+    }
+    stTree *treeNotBelowBranch = stHash_search(blocksToTrees, blockNotBelowBranch);
+    if (treeNotBelowBranch != NULL) {
+        findSplitBranches(blockNotBelowBranch, treeNotBelowBranch,
+                          splitBranches, speciesToSplitOn);
+    }
+
+    // Finally, update the trees for all blocks close enough to
+    // either of the new blocks to be affected by this breakpoint
+    // change.
+    if (blockBelowBranch != NULL) {
+        addContextualBlocksToSet(blockBelowBranch, maxBaseDistance,
+                                 maxBlockDistance, ignoreUnalignedBases,
+                                 blocksToUpdate);
+    }
+    if (blockNotBelowBranch != NULL) {
+        addContextualBlocksToSet(blockNotBelowBranch, maxBaseDistance,
+                                 maxBlockDistance, ignoreUnalignedBases,
+                                 blocksToUpdate);
+    }
+}
+
 void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHash *threadStrings, stSet *outgroupThreads, Flower *flower, int64_t maxBaseDistance, int64_t maxBlockDistance, int64_t numTrees, enum stCaf_TreeBuildingMethod treeBuildingMethod, enum stCaf_RootingMethod rootingMethod, enum stCaf_ScoringMethod scoringMethod, double breakPointScalingFactor, bool skipSingleCopyBlocks, bool allowSingleDegreeBlocks, double costPerDupPerBase, double costPerLossPerBase, FILE *debugFile) {
     // Functions we aren't using right now but should stick around anyway.
     (void) printSimpleBlockDebugInfo;
@@ -976,118 +1093,54 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
     double totalSupport = 0;
     int64_t totalNumberOfBlocksRecomputed = 0;
     stCaf_SplitBranch *splitBranch = stSortedSet_getLast(splitBranches);
+    bool doPerfectSplitsAllAtOnce = true; // set at compile time for now
+    if (doPerfectSplitsAllAtOnce) {
+        // Save a lot of time by doing the large fraction of highly
+        // confident splits first, then updating the other affected
+        // blocks in one go.
+        stSet *blocksToUpdate = stSet_construct();
+        stSet *blocksSplit = stSet_construct();
+        while (splitBranch != NULL && splitBranch->support == 1.0) {
+            totalSupport += splitBranch->support;
+            block = splitBranch->block;
+            stSet_insert(blocksSplit, block);
+            splitBlockOnSplitBranch(block, splitBranch, splitBranches,
+                                    speciesToSplitOn,
+                                    blocksToUpdate, threadStrings, outgroupThreads, flower, maxBaseDistance, maxBlockDistance, numTrees, treeBuildingMethod, rootingMethod, scoringMethod, breakPointScalingFactor, skipSingleCopyBlocks, allowSingleDegreeBlocks, ignoreUnalignedBases, onlyIncludeCompleteFeatureBlocks, costPerDupPerBase, costPerLossPerBase, joinCosts, speciesToJoinCostIndex, speciesStTree, blocksToTrees);
+            // Get the next split branch.
+            splitBranch = stSortedSet_getLast(splitBranches);
+            numberOfSplitsMade++;
+        }
+        // Update the blocks that were just affected by all the
+        // perfectly supported split branches.
+        // But first ensure that the blocks weren't already split!
+        stSetIterator *blocksToUpdateIt = stSet_getIterator(blocksToUpdate);
+        stPinchBlock *blockToUpdate;
+        while ((blockToUpdate = stSet_getNext(blocksToUpdateIt)) != NULL) {
+            if (stSet_search(blocksSplit, blockToUpdate)) {
+                // This block is invalid!
+                continue;
+            }
+            totalNumberOfBlocksRecomputed++;
+            stTree *oldTree = stHash_search(blocksToTrees, blockToUpdate);
+            removeOldSplitBranches(blockToUpdate, oldTree, speciesToSplitOn,
+                                   splitBranches);
+            buildTreeForBlock(blockToUpdate, threadStrings, outgroupThreads, flower, maxBaseDistance, maxBlockDistance, numTrees, treeBuildingMethod, rootingMethod, scoringMethod, breakPointScalingFactor, skipSingleCopyBlocks, allowSingleDegreeBlocks, ignoreUnalignedBases, onlyIncludeCompleteFeatureBlocks, costPerDupPerBase, costPerLossPerBase, joinCosts, speciesToJoinCostIndex, speciesStTree, blocksToTrees);
+            stTree *tree = stHash_search(blocksToTrees, blockToUpdate);
+            if (tree != NULL) {
+                findSplitBranches(blockToUpdate, tree,
+                                  splitBranches, speciesToSplitOn);
+            }
+        }
+        stSet_destruct(blocksToUpdate);
+    }
     while (splitBranch != NULL) {
         totalSupport += splitBranch->support;
         block = splitBranch->block;
-        // Do the partition on the block.
-        stList *partition = stList_construct();
-        // Create a leaf set with all leaves below this split branch.
-        stList *leafSet = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
-        int64_t segmentBelowBranchIndex = -1; // Arbitrary index of
-                                              // segment below the
-                                              // branch so we can
-                                              // recover the blocks we
-                                              // split into later.
-        stList *bfQueue = stList_construct();
-        stList_append(bfQueue, splitBranch->child);
-        while (stList_length(bfQueue) != 0) {
-            stTree *node = stList_pop(bfQueue);
-            for (int64_t i = 0; i < stTree_getChildNumber(node); i++) {
-                stList_append(bfQueue, stTree_getChild(node, i));
-            }
-
-            if (stTree_getChildNumber(node) == 0) {
-                stPhylogenyInfo *info = stTree_getClientData(node);
-                assert(info->matrixIndex != -1);
-                stList_append(leafSet, stIntTuple_construct1(info->matrixIndex));
-                segmentBelowBranchIndex = info->matrixIndex;
-            }
-        }
-        stList_append(partition, leafSet);
-        // Create a leaf set with all leaves that aren't below the
-        // split branch.
-        leafSet = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
-        stTree *root = splitBranch->child;
-        while (stTree_getParent(root) != NULL) {
-            root = stTree_getParent(root);
-        }
-        int64_t segmentNotBelowBranchIndex = -1; // Arbitrary index of
-                                                 // segment not below the
-                                                 // branch so we can
-                                                 // recover the blocks
-                                                 // we split into
-                                                 // later.
-        stList_append(bfQueue, root);
-        while (stList_length(bfQueue) != 0) {
-            stTree *node = stList_pop(bfQueue);
-            if (node != splitBranch->child) {
-                for (int64_t i = 0; i < stTree_getChildNumber(node); i++) {
-                    stList_append(bfQueue, stTree_getChild(node, i));
-                }
-
-                if (stTree_getChildNumber(node) == 0) {
-                    stPhylogenyInfo *info = stTree_getClientData(node);
-                    assert(info->matrixIndex != -1);
-                    stList_append(leafSet, stIntTuple_construct1(info->matrixIndex));
-                    segmentNotBelowBranchIndex = info->matrixIndex;
-                }
-            }
-        }
-        stList_append(partition, leafSet);
-        // Get arbitrary segments from the blocks we will split
-        // into. This is so that we can recover the blocks after the
-        // split.
-        stPinchSegment *segmentBelowBranch = getSegmentByBlockIndex(block, segmentBelowBranchIndex);
-        stPinchSegment *segmentNotBelowBranch = getSegmentByBlockIndex(block, segmentNotBelowBranchIndex);
-
-        // Remove all split branch entries for this block tree.
-        // This also invalidates "splitBranch" from here on!
-        removeOldSplitBranches(block, root, speciesToSplitOn, splitBranches);
-
-        // Destruct the block tree.
-        stPhylogenyInfo_destructOnTree(root);
-        stTree_destruct(root);
-        stHash_remove(blocksToTrees, block);
-
-        // Actually perform the split according to the partition.
-        splitBlock(block, partition, allowSingleDegreeBlocks);
-        // Recover the blocks.
-        stPinchBlock *blockBelowBranch = stPinchSegment_getBlock(segmentBelowBranch);
-        stPinchBlock *blockNotBelowBranch = stPinchSegment_getBlock(segmentNotBelowBranch);
-
-        // Make a new tree for both of the blocks we split into, if
-        // they are not too simple to make a tree.
-        if (blockBelowBranch != NULL) {
-            buildTreeForBlock(blockBelowBranch, threadStrings, outgroupThreads, flower, maxBaseDistance, maxBlockDistance, numTrees, treeBuildingMethod, rootingMethod, scoringMethod, breakPointScalingFactor, skipSingleCopyBlocks, allowSingleDegreeBlocks, ignoreUnalignedBases, onlyIncludeCompleteFeatureBlocks, costPerDupPerBase, costPerLossPerBase, joinCosts, speciesToJoinCostIndex, speciesStTree, blocksToTrees);
-        }
-        stTree *treeBelowBranch = stHash_search(blocksToTrees, blockBelowBranch);
-        if (treeBelowBranch != NULL) {
-            findSplitBranches(blockBelowBranch, treeBelowBranch,
-                              splitBranches, speciesToSplitOn);
-        }
-        if (blockNotBelowBranch != NULL) {
-            buildTreeForBlock(blockNotBelowBranch, threadStrings, outgroupThreads, flower, maxBaseDistance, maxBlockDistance, numTrees, treeBuildingMethod, rootingMethod, scoringMethod, breakPointScalingFactor, skipSingleCopyBlocks, allowSingleDegreeBlocks, ignoreUnalignedBases, onlyIncludeCompleteFeatureBlocks, costPerDupPerBase, costPerLossPerBase, joinCosts, speciesToJoinCostIndex, speciesStTree, blocksToTrees);
-        }
-        stTree *treeNotBelowBranch = stHash_search(blocksToTrees, blockNotBelowBranch);
-        if (treeNotBelowBranch != NULL) {
-            findSplitBranches(blockNotBelowBranch, treeNotBelowBranch,
-                              splitBranches, speciesToSplitOn);
-        }
-
-        // Finally, update the trees for all blocks close enough to
-        // either of the new blocks to be affected by this breakpoint
-        // change.
         stSet *blocksToUpdate = stSet_construct();
-        if (blockBelowBranch != NULL) {
-            addContextualBlocksToSet(blockBelowBranch, maxBaseDistance,
-                                     maxBlockDistance, ignoreUnalignedBases,
-                                     blocksToUpdate);
-        }
-        if (blockNotBelowBranch != NULL) {
-            addContextualBlocksToSet(blockNotBelowBranch, maxBaseDistance,
-                                     maxBlockDistance, ignoreUnalignedBases,
-                                     blocksToUpdate);
-        }
+        splitBlockOnSplitBranch(block, splitBranch, splitBranches,
+                                speciesToSplitOn,
+                                blocksToUpdate, threadStrings, outgroupThreads, flower, maxBaseDistance, maxBlockDistance, numTrees, treeBuildingMethod, rootingMethod, scoringMethod, breakPointScalingFactor, skipSingleCopyBlocks, allowSingleDegreeBlocks, ignoreUnalignedBases, onlyIncludeCompleteFeatureBlocks, costPerDupPerBase, costPerLossPerBase, joinCosts, speciesToJoinCostIndex, speciesStTree, blocksToTrees);
         stSetIterator *blocksToUpdateIt = stSet_getIterator(blocksToUpdate);
         stPinchBlock *blockToUpdate;
         while ((blockToUpdate = stSet_getNext(blocksToUpdateIt)) != NULL) {
