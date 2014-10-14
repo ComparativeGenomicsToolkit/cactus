@@ -269,8 +269,9 @@ class DynamicOutgroup(GreedyOutgroup):
                 print self.mcTree.getName(node), info
 
     # run the dynamic programming algorithm on each internal node
-    def compute(self):
+    def compute(self, candidateSet = None):
         self.ogMap = dict()
+        self.candidateSet = candidateSet
         for node in self.mcTree.breadthFirstTraversal():
             if self.mcTree.isLeaf(node) or not self.mcTree.hasParent(node):
                 continue
@@ -377,6 +378,12 @@ class DynamicOutgroup(GreedyOutgroup):
             ancestor = self.dpTree.getParent(node)
         nodeInfo = self.sequenceInfo[node]
         ancInfo = self.sequenceInfo[ancestor]
+        # hack in candidate set support by returning zero-conservaiton
+        # if leaf not a candidate
+        if self.candidateSet is not None and\
+          self.mcTree.isLeaf(node) is True and\
+          self.dpTree.getName(node) not in self.candidateSet:
+           return 0.
         
         # Loss probablity computed from genome length ratio
         if nodeInfo.totalLen >= ancInfo.totalLen:
