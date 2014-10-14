@@ -30,7 +30,6 @@ class MultiCactusProject:
         self.expMap = dict()
         self.inputSequences = []
         self.outputSequenceDir = None
-        self.inputSequenceMap = None
         
     def readXML(self, path):
         xmlRoot = ET.parse(path).getroot()
@@ -45,14 +44,6 @@ class MultiCactusProject:
         self.inputSequences = xmlRoot.attrib["inputSequences"].split()
         self.outputSequenceDir = xmlRoot.attrib["outputSequenceDir"]
         self.mcTree.assignSubtreeRootNames(self.expMap)
-        self.inputSequenceMap = dict()
-        i = 0
-        for node in self.mcTree.postOrderTraversal():
-            if self.mcTree.isLeaf(node) is True:
-                self.inputSequenceMap[self.mcTree.getName(node)] = \
-                  self.inputSequences[i]
-                i += 1
-        assert i == len(self.inputSequences)
         
     def writeXML(self, path):
         xmlRoot = ET.Element("multi_cactus")
@@ -85,12 +76,20 @@ class MultiCactusProject:
         assert os.path.isfile(seq)
         return seq
 
-    def getInputSequencePath(self, eventName):
-        """Get the path of an *inputSequence* from an event name.  Like
-            above, but instead of looking in the experiment, we just
-            use the inputSequences and tree attributes of the project/
-            """
-        return self.inputSequenceMap[eventName]        
+    def getInputSequenceMap(self):
+        """Return a map between event names and sequence paths.  Paths
+        are different from above in that they are not taken from experiment
+        xmls, but rather from directly from the project xml.
+        """
+        inputSequenceMap = dict()
+        i = 0
+        for node in self.mcTree.postOrderTraversal():
+            if self.mcTree.isLeaf(node) is True:
+                inputSequenceMap[self.mcTree.getName(node)] = \
+                  self.inputSequences[i]
+                i += 1
+        assert i == len(self.inputSequences)
+        return inputSequenceMap
         
     def getInputSequencePaths(self):
         """Get the set of input sequences for the multicactus tree

@@ -491,11 +491,7 @@ def main():
                         maxNumOutgroups=options.maxNumOutgroups)
     else:
         outgroup = DynamicOutgroup()
-        seqMap = dict()
-        for leaf in proj.mcTree.getLeaves():
-            name = proj.mcTree.getName(leaf)
-            seqMap[name] = proj.getInputSequencePath(name)
-        outgroup.importTree(proj.mcTree, seqMap)
+        outgroup.importTree(proj.mcTree, proj.getInputSequenceMap())
         outgroup.compute(options.maxNumOutgroups)
 
     try:

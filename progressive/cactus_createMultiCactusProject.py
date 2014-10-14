@@ -17,7 +17,7 @@ from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.configWrapper import ConfigWrapper
-from cactus.progressive.outgroup import GreedyOutgroup
+from cactus.progressive.outgroup import GreedyOutgroup, DynamicOutgroup
 from sonLib.nxnewick import NXNewick
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 
@@ -67,6 +67,17 @@ def createMCProject(tree, experiment, config, options):
                                candidateSet=None,
                                candidateChildFrac=config.getOutgroupAncestorQualityFraction(),
                                maxNumOutgroups=config.getMaxNumOutgroups())
+    elif config.getOutgroupStrategy() == 'dynamic':
+        # dynamic programming algorithm that exactly optimizes probability
+        # that base in target node aligns to at least one base in the
+        # outgroup set.  Caveats are that it only returns leaves, and
+        # the model used for optimization is super naive. Still, it does
+        # some things better than greedy approaches such as properly account
+        # for phylogenetic redundancy, as well as try to factor assembly
+        # size/quality automatically. 
+        mcProj.outgroup = DynamicOutrgoup()
+        mcProj.outgroup.importTree(mcProj.mcTree, mcProj.getInputSequenceMap())
+        mcProj.outgroup.compute(maxNumOutgroups=config.getMaxNumOutgroups())
     else:
         raise RuntimeError("Could not understand outgroup strategy %s" % config.getOutgroupStrategy())
     return mcProj
