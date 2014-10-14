@@ -269,10 +269,11 @@ class DynamicOutgroup(GreedyOutgroup):
             #    print self.mcTree.getName(node), info
 
     # run the dynamic programming algorithm on each internal node
-    def compute(self, maxNumOutgroups, candidateSet = None,
+    def compute(self, maxNumOutgroups, 
                 mutationWeight = 1.,
                 sequenceLossWeight = 1.,
-                fragmentationWeight = 1.):
+                fragmentationWeight = 1.,
+                candidateSet = None):
         self.mutFac = mutationWeight
         self.lossFac = sequenceLossWeight
         self.fragFac = fragmentationWeight
@@ -303,8 +304,9 @@ class DynamicOutgroup(GreedyOutgroup):
             self.ogMap[nodeName] = [(self.dpTree.getName(x),
                                      self.__getOgDist(x))
                                      for x in rankedSolution]
-            for og in self.ogMap[nodeName]:
-                self.dag.add_edge(node, og)
+            for og, dist in self.ogMap[nodeName]:
+                self.dag.add_edge(node, self.mcTree.getNodeId(og),
+                                  weight=dist, info="outgroup")
                 #print self.dpTree.getName(node), "-->", og
                 
     # initialize dynamic programming table
@@ -473,7 +475,8 @@ def main():
         else:
             candidates = None
         outgroup.greedy(threshold=options.threshold, candidateSet=candidates,
-                        candidateChildFrac=1.1)
+                        candidateChildFrac=1.1,
+                        maxNumOutgroups=options.maxNumOutgroups)
     else:
         outgroup = DynamicOutgroup()
         seqMap = dict()
