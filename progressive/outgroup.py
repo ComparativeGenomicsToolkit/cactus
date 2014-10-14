@@ -482,7 +482,7 @@ def main():
         seqMap = dict()
         for leaf in proj.mcTree.getLeaves():
             name = proj.mcTree.getName(leaf)
-            seqMap[name] = proj.sequencePath(name)
+            seqMap[name] = proj.getInputSequencePath(name)
         outgroup.importTree(proj.mcTree, seqMap)
         outgroup.compute(options.maxNumOutgroups)
 
