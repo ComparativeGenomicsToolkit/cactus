@@ -909,12 +909,12 @@ static void buildTreeForBlock(stPinchBlock *block, stHash *threadStrings, stSet 
     }
 }
 
-static void splitBlockOnSplitBranch(stPinchBlock *block,
-                                    stCaf_SplitBranch *splitBranch,
-                                    stSortedSet *splitBranches,
-                                    stSet *speciesToSplitOn,
-                                    stSet *blocksToUpdate,
-                                    stHash *threadStrings, stSet *outgroupThreads, Flower *flower, int64_t maxBaseDistance, int64_t maxBlockDistance, int64_t numTrees, enum stCaf_TreeBuildingMethod treeBuildingMethod, enum stCaf_RootingMethod rootingMethod, enum stCaf_ScoringMethod scoringMethod, double breakPointScalingFactor, bool skipSingleCopyBlocks, bool allowSingleDegreeBlocks, bool ignoreUnalignedBases, bool onlyIncludeCompleteFeatureBlocks, double costPerDupPerBase, double costPerLossPerBase, stMatrix *joinCosts, stHash *speciesToJoinCostIndex, stTree *speciesStTree, stHash *blocksToTrees) {
+void splitBlockOnSplitBranch(stPinchBlock *block,
+                             stCaf_SplitBranch *splitBranch,
+                             stSortedSet *splitBranches,
+                             stSet *speciesToSplitOn,
+                             stSet *blocksToUpdate,
+                             stHash *threadStrings, stSet *outgroupThreads, Flower *flower, int64_t maxBaseDistance, int64_t maxBlockDistance, int64_t numTrees, enum stCaf_TreeBuildingMethod treeBuildingMethod, enum stCaf_RootingMethod rootingMethod, enum stCaf_ScoringMethod scoringMethod, double breakPointScalingFactor, bool skipSingleCopyBlocks, bool allowSingleDegreeBlocks, bool ignoreUnalignedBases, bool onlyIncludeCompleteFeatureBlocks, double costPerDupPerBase, double costPerLossPerBase, stMatrix *joinCosts, stHash *speciesToJoinCostIndex, stTree *speciesStTree, stHash *blocksToTrees) {
     block = splitBranch->block;
     // Do the partition on the block.
     stList *partition = stList_construct();
@@ -1134,6 +1134,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
         }
         stSet_destruct(blocksToUpdate);
     }
+    splitBranch = stSortedSet_getLast(splitBranches);
     while (splitBranch != NULL) {
         totalSupport += splitBranch->support;
         block = splitBranch->block;
