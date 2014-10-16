@@ -29,6 +29,10 @@ enum stCaf_ScoringMethod {
     COMBINED_LIKELIHOOD
 };
 
+// Split a block according to a partition.
+void splitBlock(stPinchBlock *block, stList *partitions,
+                bool allowSingleDegreeBlocks);
+
 /*
  * Build tree for each block and then use it to partition homologies in the block into
  * those which occur before and after the speciation.
