@@ -233,29 +233,6 @@ static stHash *getMatrixIndexToJoinCostIndex(stPinchBlock *block, Flower *flower
     return matrixIndexToJoinCostIndex;
 }
 
-static stTree *eventTreeToStTree_R(Event *event) {
-    stTree *ret = stTree_construct();
-    stTree_setLabel(ret, stString_print("%" PRIi64, event_getName(event)));
-    stTree_setBranchLength(ret, event_getBranchLength(event));
-    for(int64_t i = 0; i < event_getChildNumber(event); i++) {
-        Event *child = event_getChild(event, i);
-        stTree *childStTree = eventTreeToStTree_R(child);
-        stTree_setParent(childStTree, ret);
-    }
-    return ret;
-}
-
-// Get species tree from event tree (labeled by the event Names),
-// which requires ignoring the root event.
-static stTree *eventTreeToStTree(EventTree *eventTree) {
-    Event *rootEvent = eventTree_getRootEvent(eventTree);
-    // Need to skip the root event, since it is added onto the real
-    // species tree.
-    assert(event_getChildNumber(rootEvent) == 1);
-    Event *speciesRoot = event_getChild(rootEvent, 0);
-    return eventTreeToStTree_R(speciesRoot);
-}
-
 static double scoreTree(stTree *tree, enum stCaf_ScoringMethod scoringMethod, stTree *speciesStTree, stPinchBlock *block, Flower *flower, stList *featureColumns) {
     double ret = 0.0;
     if (scoringMethod == RECON_COST) {
@@ -610,7 +587,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
 
     //Get species tree as an stTree
     EventTree *eventTree = flower_getEventTree(flower);
-    stTree *speciesStTree = eventTreeToStTree(eventTree);
+    stTree *speciesStTree = eventTree_getStTree(eventTree);
 
     // Get info for guided neighbor-joining
     stHash *speciesToJoinCostIndex = stHash_construct2(NULL, (void (*)(void *)) stIntTuple_destruct);
