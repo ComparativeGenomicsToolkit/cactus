@@ -92,23 +92,24 @@ void rescueCoveredRegions(stPinchThread *thread, bool *coverageArray) {
     while (segment != NULL) {
         if (stPinchSegment_getBlock(segment) == NULL) {
             // This is a potentially rescuable segment.
-            // Have to convert from cactus coordinates to bed coordinates.
-            int64_t start = stPinchSegment_getStart(segment) - 2;
+            int64_t start = stPinchSegment_getStart(segment);
+            assert(start >= stPinchThread_getStart(thread));
             int64_t end = start + stPinchSegment_getLength(segment);
+            assert(end <= stPinchThread_getStart(thread) + stPinchThread_getLength(thread));
             bool inCoveredRegion = false;
             for (int64_t i = start; i < end; i++) {
                 if (coverageArray[i]) {
                     if (!inCoveredRegion && i != start) {
                         // Wasn't covered before but now we are. Have
                         // to split up this block.
-                        stPinchSegment_split(segment, i + 1);
+                        stPinchSegment_split(segment, i - 1);
                         break;
                     }
                     inCoveredRegion = true;
                 } else if (inCoveredRegion) {
                     // Was covered before but not anymore. Have to
                     // split up this block.
-                    stPinchSegment_split(segment, i + 1);
+                    stPinchSegment_split(segment, i - 1);
                     break;
                 }
             }

@@ -137,6 +137,8 @@ int main(int argc, char *argv[])
             }
             stList *fields = stString_split(line);
             assert(stList_length(fields) >= 3);
+
+            // Convert the header.
             char *oldHeader = stList_get(fields, 0);
             Name *name = NULL;
             if ((name = stHash_search(headerToName, oldHeader)) == NULL) {
@@ -146,6 +148,24 @@ int main(int argc, char *argv[])
             free(oldHeader);
             char *newHeader = cactusMisc_nameToString(*name);
             stList_set(fields, 0, newHeader);
+
+            // Convert the coordinates (they have to be increased by 2
+            // to account for the caps and thread start position).
+            char *startStr = stList_get(fields, 1);
+            int64_t startPos;
+            int k = sscanf(startStr, "%" PRIi64, &startPos);
+            assert(k == 1);
+            startPos += 2;
+            stList_set(fields, 1, stString_print("%" PRIi64, startPos));
+            free(startStr);
+            char *endStr = stList_get(fields, 2);
+            int64_t endPos;
+            k = sscanf(endStr, "%" PRIi64, &endPos);
+            assert(k == 1);
+            endPos += 2;
+            stList_set(fields, 2, stString_print("%" PRIi64, endPos));
+            free(endStr);
+
             char *newLine = stString_join2("\t", fields);
             fprintf(outputFile, "%s\n", newLine);
             free(newLine);
