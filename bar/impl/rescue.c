@@ -55,8 +55,11 @@ stHash *getIngroupCoverage(const char *ingroupCoverageDir, Flower *flower) {
                 st_errAbort("In bed file %s: no cap loaded w/ Name %"
                             PRIi64, fullPath, capName);
             }
+
             Sequence *sequence = cap_getSequence(cap);
             assert(sequence != NULL);
+            assert(end <= sequence_getLength(sequence) + 2);
+            assert(start >= 0);
             Name sequenceName = sequence_getName(sequence);
             // OK, this is really, really inefficient. Should use char
             // and index into each bit. But this will all be replaced anyway.
@@ -79,6 +82,7 @@ stHash *getIngroupCoverage(const char *ingroupCoverageDir, Flower *flower) {
             line = NULL;
             n = 0;
         }
+        fclose(bedFile);
     }
     closedir(dir);
     return ret;
