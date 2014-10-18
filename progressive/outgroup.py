@@ -35,17 +35,30 @@ class GreedyOutgroup(object):
         
     # add edges from sonlib tree to self.dag
     # compute self.dm: an undirected distance matrix
-    def importTree(self, mcTree):
+    def importTree(self, mcTree, rootId = None):
         self.mcTree = mcTree
         self.dag = mcTree.nxDg.copy()
         self.root = mcTree.rootId
         self.stripNonEvents(self.root, mcTree.subtreeRoots)
         self.dmDirected = NX.algorithms.shortest_paths.weighted.\
         all_pairs_dijkstra_path_length(self.dag)
+        self.invalidSet = self.getInvalid(rootId)
         graph = NX.Graph(self.dag)
         self.dm = NX.algorithms.shortest_paths.weighted.\
         all_pairs_dijkstra_path_length(graph)
         self.ogMap = defaultdict(list)
+
+    # return set of ancestral nodes that aren't below alignment root
+    # they can't be outgroups as they are effective "out of project"
+    def getInvalid(self, rootId):
+        invalid = []
+        if rootId is None or rootId == self.mcTree.getRootId():
+            return invalid
+        good = set([x for x in self.mcTree.postOrderTraversal(rootId)])
+        for node in self.mcTree.postOrderTraversal():
+            if not self.mcTree.isLeaf(node) and node not in good:
+                invalid.append(node)
+        return set(invalid)
  
     # get rid of any node that's not an event
     def stripNonEvents(self, id, subtreeRoots):
@@ -164,6 +177,10 @@ class GreedyOutgroup(object):
             if sourceName in self.ogMap and len(self.ogMap[sourceName]) >= maxNumOutgroups:
                 finished.add(source)
 
+            # skip invalid outgroups
+            if sink in self.invalidSet:
+                continue
+
             # skip nodes that aren't in the candidate set (if specified)
             # or don't have enough candidate children
             if not self.inCandidateSet(sink, candidateChildFrac):
@@ -224,7 +241,7 @@ class DynamicOutgroup(GreedyOutgroup):
     # genome (in a very crude manner, at least to start).
     # 
     # for internal nodes, we store the stats of the max leaf underneath
-    def importTree(self, mcTree, seqMap):
+    def importTree(self, mcTree, seqMap, rootId = None):
         super(DynamicOutgroup, self).importTree(mcTree)
         
         assert seqMap is not None
