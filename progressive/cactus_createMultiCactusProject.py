@@ -350,8 +350,8 @@ def main():
                 raise RuntimeError("Specified outgroup %s not found in tree" % outgroupName)
     mcProj = createMCProject(tree, expTemplate, confTemplate, options)
     #Replace the sequences with output sequences
-    # --NOTE:  THIS CAUSES CRASHES I DONT UNDERSTAND, NEED TO INVESTIGATE
-    #expTemplate.setSequences(CactusPreprocessor.getOutputSequenceFiles(expTemplate.getSequences(), expTemplate.getOutputSequenceDir()))
+    expTemplate.updateTree(mcProj.mcTree, expTemplate.buildSequenceMap())
+    expTemplate.setSequences(CactusPreprocessor.getOutputSequenceFiles(mcProj.inputSequences, expTemplate.getOutputSequenceDir()))
     if options.rootOutgroupPaths is not None:
         # hacky -- add the root outgroup to the tree after everything
         # else.  This ends up being ugly, but avoids running into
