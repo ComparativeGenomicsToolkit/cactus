@@ -23,6 +23,7 @@ from optparse import OptionParser
 
 from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.progressive.multiCactusTree import MultiCactusTree
+from sonLib.bioio import popenCatch
 
 class GreedyOutgroup(object):
     def __init__(self):
@@ -225,7 +226,7 @@ class GreedyOutgroup(object):
 #
 class DynamicOutgroup(GreedyOutgroup):
     def __init__(self):
-        self.SeqInfo = namedtuple("SeqInfo", "count totalLen")
+        self.SeqInfo = namedtuple("SeqInfo", "count totalLen n50")
         self.sequenceInfo = None
         self.numOG = 1
         assert self.numOG is not None
@@ -235,6 +236,7 @@ class DynamicOutgroup(GreedyOutgroup):
         self.lossFac = 1.
         self.fragFac = 1.
         self.mutFac = 1.
+        self.rootId = None
 
     # create map of leaf id -> sequence stats by scanninf the FASTA
     # files.  will be used to determine assembly quality for each input
@@ -242,7 +244,7 @@ class DynamicOutgroup(GreedyOutgroup):
     # 
     # for internal nodes, we store the stats of the max leaf underneath
     def importTree(self, mcTree, seqMap, rootId = None):
-        super(DynamicOutgroup, self).importTree(mcTree)
+        super(DynamicOutgroup, self).importTree(mcTree, rootId)
         
         assert seqMap is not None
         # map name to (numSequences, totalLength)
@@ -254,11 +256,7 @@ class DynamicOutgroup(GreedyOutgroup):
                               f in os.listdir(inPath)]
             else:
                 fastaPaths = [inPath]
-                
-            totalFaInfo = self.SeqInfo(0, 0)
-            for faPath in fastaPaths:
-                faInfo = self.__getSeqInfo(faPath)
-                totalFaInfo = self.SeqInfo(*map(sum, zip(totalFaInfo, faInfo)))
+            totalFaInfo = self.__getSeqInfo(fastaPaths)
             self.sequenceInfo[node] = totalFaInfo
 
             # propagate leaf stats up to the root
@@ -274,7 +272,8 @@ class DynamicOutgroup(GreedyOutgroup):
                 else:
                     self.sequenceInfo[x] = self.SeqInfo(
                         min(totalFaInfo.count, self.sequenceInfo[x].count),
-                        max(totalFaInfo.totalLen, self.sequenceInfo[x].totalLen))
+                        max(totalFaInfo.totalLen, self.sequenceInfo[x].totalLen),
+                        max(totalFaInfo.n50, self.sequenceInfo[x].n50))
 
             #for node, info in self.sequenceInfo.items():
             #    print self.mcTree.getName(node), info
@@ -291,7 +290,7 @@ class DynamicOutgroup(GreedyOutgroup):
         self.numOG = maxNumOutgroups
         self.ogMap = dict()
         self.candidateSet = candidateSet
-        for node in self.mcTree.breadthFirstTraversal():
+        for node in self.mcTree.breadthFirstTraversal(self.root):
             if self.mcTree.isLeaf(node) or not self.mcTree.hasParent(node):
                 continue
             self.__dpInit(node)
@@ -421,7 +420,7 @@ class DynamicOutgroup(GreedyOutgroup):
             pLoss = 1. - (float(nodeInfo.totalLen) / float(ancInfo.totalLen))
         pLoss *= self.lossFac
 
-        # Fragmentation probability
+        # Fragmentation probability        
         numExtraFrag = max(0, nodeInfo.count - ancInfo.count)
         if ancInfo.totalLen > 0:
             pFrag = float(numExtraFrag) / float(ancInfo.totalLen)
@@ -457,22 +456,34 @@ class DynamicOutgroup(GreedyOutgroup):
             assert x != None
         return dist
 
-    # sonLib.bioio.fastaRead is too slow.  All we want are length stats
-    # so rewrite faster method here:
-    def __getSeqInfo(self, faPath):
-        if not os.path.isfile(faPath):
-            raise RuntimeError("Unable to open sequence file %s" % faPath)
-        faFile = open(faPath, "r")
-        count, totalLen = 0, 0
-        for line in faFile:
-            x = line.strip()
-            if len(x) > 1:
-                if x[0] == '>':
-                    count += 1
-                elif x[0] != "#":
-                    totalLen += len(x)
-        faFile.close()
-        return self.SeqInfo(count, totalLen)
+    # use cactus_analyseAssembly to get some very basic stats about the
+    # length and fragmentation of an assembly.  there is certainly
+    # room for investigation of more sophisticated stats...
+    #
+    # Warning: we are tightly coupled to the output format of
+    # cactus_analyseAssembly here... any change may cause an
+    # assertion error
+    def __getSeqInfo(self, faPaths):
+        cmdLine = "cactus_analyseAssembly"
+        for faPath in faPaths:
+            if not os.path.isfile(faPath):
+                raise RuntimeError("Unable to open sequence file %s" % faPath)
+            cmdLine += " %s" % faPath
+        analyseOutput = popenCatch(cmdLine).split()
+        tsIdx = analyseOutput.index("Total-sequences:")
+        assert tsIdx >= 0 and tsIdx < len(analyseOutput) - 1
+        numSequences = int(analyseOutput[tsIdx + 1])
+        tlIdx = analyseOutput.index("Total-length:")
+        assert tlIdx >= 0 and tlIdx < len(analyseOutput) - 1
+        totalLength = int(analyseOutput[tlIdx + 1])
+        nsIdx = analyseOutput.index("Total-Ns:")
+        assert nsIdx >= 0 and nsIdx < len(analyseOutput) - 1
+        totalNs = int(analyseOutput[nsIdx + 1])
+        n50Idx = analyseOutput.index("N50:")
+        assert n50Idx >= 0 and n50Idx < len(analyseOutput) - 1
+        n50 = int(analyseOutput[n50Idx + 1])
+        
+        return self.SeqInfo(numSequences, totalLength - totalNs, n50)
         
             
 def main():
