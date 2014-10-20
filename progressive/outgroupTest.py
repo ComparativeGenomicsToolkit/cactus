@@ -34,7 +34,7 @@ class TestCase(unittest.TestCase):
         self.tempDir = getTempDirectory(os.getcwd())
         self.tempFa = os.path.join(self.tempDir, "seq.fa")
         with open(self.tempFa, "w") as f:
-            f.write(">temp\nNNNNNNNNNNNNNNNNNNNNNN\n")
+            f.write(">temp\nNNNNNNNCNNNNAAAAAAAAAAAAAAANNNNNNN\n")
         self.dummySeqMaps = []
         for tree in self.trees:
             if tree.size() < 500:
@@ -62,7 +62,7 @@ class TestCase(unittest.TestCase):
             p = os.path.join(self.tempDir, event +".fa")
             with open(p, "w") as f:
                 f.write(">%s\n" % event)
-                f.write(''.join(['N'] * seqLen))
+                f.write(''.join(['A'] * seqLen))
                 f.write('\n')
             self.blanchetteSeqMap[event] = p
 
@@ -206,6 +206,7 @@ class TestCase(unittest.TestCase):
                          tree.breadthFirstTraversal()])
             if degree < 8:
                 og = DynamicOutgroup()
+                og.edgeLen = 5
                 og.importTree(tree, seqMap)
                 og.compute(maxNumOutgroups=3)
                 # make sure all entries have <= 3 outgroups.

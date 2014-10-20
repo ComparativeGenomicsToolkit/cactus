@@ -236,7 +236,9 @@ class DynamicOutgroup(GreedyOutgroup):
         self.lossFac = 1.
         self.fragFac = 1.
         self.mutFac = 1.
-        self.rootId = None
+        # distance to sequence endpoint where we consider bases unalignable due
+        # to fragmentation. 
+        self.edgeLen = 100
 
     # create map of leaf id -> sequence stats by scanninf the FASTA
     # files.  will be used to determine assembly quality for each input
@@ -420,13 +422,15 @@ class DynamicOutgroup(GreedyOutgroup):
             pLoss = 1. - (float(nodeInfo.totalLen) / float(ancInfo.totalLen))
         pLoss *= self.lossFac
 
-        # Fragmentation probability        
-        numExtraFrag = max(0, nodeInfo.count - ancInfo.count)
-        if ancInfo.totalLen > 0:
-            pFrag = float(numExtraFrag) / float(ancInfo.totalLen)
-            pFrag = min(1., pFrag)
+        # Fragmentation probability
+        # just use probability that a random base in the bottom genome
+        # branch is within 100 (self.edgeLen) bases of a sequence endpoint.
+        #
+        # should this be a function of the n50-delta along branch instead??
+        if nodeInfo.n50 == 0 or nodeInfo.totalLen == 0:
+            pFrag = 0.0
         else:
-            pFrag = 0.
+            pFrag = min(1.0, (2.0 * float(self.edgeLen)) / float(nodeInfo.n50))
         pFrag *= self.fragFac
 
         # Mutation probability
