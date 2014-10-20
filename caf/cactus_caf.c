@@ -594,10 +594,7 @@ int main(int argc, char *argv[]) {
                     }
                     stCaf_melt(flower, threadSet, NULL, 0, minimumChainLengthForMeltingRound, 0, INT64_MAX);
                 } st_logDebug("Last melting round of cycle with a minimum chain length of %" PRIi64 " \n", minimumChainLength);
-                stCaf_melt(flower, threadSet, NULL, 0, minimumChainLength, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds);
-                //This does the filtering of blocks that do not have the required species/tree-coverage/degree.
-                stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0, 0, INT64_MAX);
-            }
+
 
             //Build a tree for each block, then use each tree
             //to partition the homologies between the ingroups sequences into those that occur before the speciation with the outgroup and
@@ -620,6 +617,13 @@ int main(int argc, char *argv[]) {
                 stHash_destruct(threadStrings);
                 st_logDebug("Finished building trees\n");
             }
+
+
+                stCaf_melt(flower, threadSet, NULL, 0, minimumChainLength, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds);
+                //This does the filtering of blocks that do not have the required species/tree-coverage/degree.
+                stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0, 0, INT64_MAX);
+            }
+
 
             //Sort out case when we allow blocks of degree 1
             if (minimumDegree < 2) {
