@@ -299,9 +299,11 @@ class DynamicOutgroup(GreedyOutgroup):
             self.__dpRun(node)
             nodeName = self.mcTree.getName(node)
             bestK, bestScore = 0, 0.
-            # we look for the best solution with <= self.numOG outgroups
+            # we look for highest k with non-zero solution.
+            # (can swap >= 0.0 with bestScore below to get the global best
+            # not sure we'd want fewer outgroups..)
             for i in xrange(self.numOG + 1):
-                if self.dpTable[node][i].score >= bestScore:
+                if self.dpTable[node][i].score > 0.0:
                     bestK, bestScore = i, self.dpTable[node][i].score
                     
             # we rank solution based on individual conservation score
