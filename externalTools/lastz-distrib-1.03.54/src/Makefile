@@ -50,7 +50,7 @@ builds = lastz lastz_D lastz_32
 #
 #---------
 
-definedForAll = -Wall -Wextra -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -Wunused-but-set-variable
+definedForAll = -Wall -Wextra -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE
 flagsFor32    = -Dmax_sequence_index=32 -Dmax_malloc_index=40 -Ddiag_hash_size=4194304
 
 allowBackToBackGaps ?= 0
