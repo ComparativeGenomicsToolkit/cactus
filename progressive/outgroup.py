@@ -226,7 +226,7 @@ class GreedyOutgroup(object):
 #
 class DynamicOutgroup(GreedyOutgroup):
     def __init__(self):
-        self.SeqInfo = namedtuple("SeqInfo", "count totalLen n50")
+        self.SeqInfo = namedtuple("SeqInfo", "count totalLen effectiveLen n50")
         self.sequenceInfo = None
         self.numOG = 1
         assert self.numOG is not None
@@ -275,6 +275,7 @@ class DynamicOutgroup(GreedyOutgroup):
                     self.sequenceInfo[x] = self.SeqInfo(
                         min(totalFaInfo.count, self.sequenceInfo[x].count),
                         max(totalFaInfo.totalLen, self.sequenceInfo[x].totalLen),
+                        max(totalFaInfo.effectiveLen, self.sequenceInfo[x].effectiveLen),
                         max(totalFaInfo.n50, self.sequenceInfo[x].n50))
 
             #for node, info in self.sequenceInfo.items():
@@ -283,8 +284,8 @@ class DynamicOutgroup(GreedyOutgroup):
     # run the dynamic programming algorithm on each internal node
     def compute(self, maxNumOutgroups, 
                 mutationWeight = 1.,
-                sequenceLossWeight = 1.,
-                fragmentationWeight = 1.,
+                sequenceLossWeight = .5,
+                fragmentationWeight = .5,
                 candidateSet = None):
         self.mutFac = mutationWeight
         self.lossFac = sequenceLossWeight
@@ -416,21 +417,26 @@ class DynamicOutgroup(GreedyOutgroup):
            return 0.
         
         # Loss probablity computed from genome length ratio
-        if nodeInfo.totalLen >= ancInfo.totalLen:
+        if nodeInfo.effectiveLen >= ancInfo.effectiveLen:
             pLoss = 0.
         else:
-            pLoss = 1. - (float(nodeInfo.totalLen) / float(ancInfo.totalLen))
+            pLoss = 1. - (float(nodeInfo.effectiveLen) / float(ancInfo.effectiveLen))
         pLoss *= self.lossFac
 
-        # Fragmentation probability
-        # just use probability that a random base in the bottom genome
-        # branch is within 100 (self.edgeLen) bases of a sequence endpoint.
-        #
-        # should this be a function of the n50-delta along branch instead??
+        # Fragmentation probability (crudely estimated by difference of N50)
         if nodeInfo.n50 == 0 or nodeInfo.totalLen == 0:
             pFrag = 0.0
         else:
-            pFrag = min(1.0, (2.0 * float(self.edgeLen)) / float(nodeInfo.n50))
+            # use n50 to compute an expected sequence length
+            ancFrags = float(ancInfo.totalLen) / ancInfo.n50
+            nodeFrags = float(nodeInfo.totalLen) / nodeInfo.n50
+            # naively compute breakpoints from ratio of expected lengths
+            fragDelta = max(0., ancFrags - nodeFrags)
+            # a base is lost from the alignment if it's within edgeLen of 
+            # either side of a breakpoint
+            affectedBases = fragDelta * 2. * self.edgeLen
+            # expected number of breakpoints in node (as a probability)
+            pFrag = min(1., affectedBases / ancInfo.totalLen)
         pFrag *= self.fragFac
 
         # Mutation probability
@@ -443,7 +449,7 @@ class DynamicOutgroup(GreedyOutgroup):
                 weight = self.defaultBranchLength
             branchLength += weight
             x = self.dpTree.getParent(x)
-            assert x is not None            
+            assert x is not None
         jcMutProb = .75 - .75 * math.exp(-branchLength)
         jcMutProb *= self.mutFac
 
@@ -483,11 +489,18 @@ class DynamicOutgroup(GreedyOutgroup):
         nsIdx = analyseOutput.index("Total-Ns:")
         assert nsIdx >= 0 and nsIdx < len(analyseOutput) - 1
         totalNs = int(analyseOutput[nsIdx + 1])
+        rmIdx = analyseOutput.index("Proportion-repeat-masked:")
+        assert rmIdx >= 0 and rmIdx < len(analyseOutput) - 1
+        rmPct = float(analyseOutput[rmIdx + 1])
+        assert rmPct <= 1. and rmPct >= 0.
         n50Idx = analyseOutput.index("N50:")
         assert n50Idx >= 0 and n50Idx < len(analyseOutput) - 1
         n50 = int(analyseOutput[n50Idx + 1])
         
-        return self.SeqInfo(numSequences, totalLength - totalNs, n50)
+        effectiveLength = totalLength - totalNs
+        # give high-rm sequences a chance by capping at .5
+        effectiveLength -= min(0.5, rmPct) * totalLength
+        return self.SeqInfo(numSequences, totalLength, effectiveLength, n50)
         
             
 def main():
