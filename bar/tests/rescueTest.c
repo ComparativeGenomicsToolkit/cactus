@@ -2,84 +2,7 @@
 #include "sonLib.h"
 #include "cactus.h"
 #include "stPinchGraphs.h"
-#include "flowersShared.h"
 #include "rescue.h"
-
-// Check that reading bed files works as expected.
-static void test_getIngroupCoverage(CuTest *testCase) {
-    setup();
-    char *tmpdir;
-    if ((tmpdir = getenv("TMPDIR")) == NULL) {
-        tmpdir = getenv("TMP");
-    }
-    if (tmpdir == NULL) {
-        tmpdir = "/tmp";
-    }
-    char *bedDir;
-    if (constructRandomDir(tmpdir, &bedDir)) {
-        st_errAbort("Could not construct temporary directory");
-    }
-
-    // Create random coverage arrays on all the sequences and write
-    // them to bed files.
-    stHash *writtenCoverages = stHash_construct3((uint64_t (*)(const void *))stIntTuple_hashKey,
-                                                 (int (*)(const void *, const void *))stIntTuple_equalsFn, (void (*)(void *))stIntTuple_destruct, free);
-    Flower_CapIterator *capIt = flower_getCapIterator(flower);
-    Cap *cap;
-    while ((cap = flower_getNextCap(capIt)) != NULL) {
-        cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
-        if (cap_getSide(cap)) {
-            cap = cap_getAdjacency(cap);
-        }
-        Sequence *sequence = cap_getSequence(cap);
-        char *bedPath = stString_print("%s/%" PRIi64, bedDir, sequence_getName(sequence));
-        FILE *bedFile = fopen(bedPath, "w");
-        free(bedPath);
-        bool *coverageArray = st_calloc(sequence_getLength(sequence), sizeof(bool));
-        for (int64_t i = 0; i < sequence_getLength(sequence); i++) {
-            coverageArray[i] = st_random() < 0.3;
-        }
-        bool inCoveredRegion = 0;
-        for (int64_t i = 0; i < sequence_getLength(sequence); i++) {
-            if (coverageArray[i] && !inCoveredRegion) {
-                fprintf(bedFile, "%" PRIi64 "\t%" PRIi64, cap_getName(cap), i);
-            } else if (!coverageArray[i] && inCoveredRegion) {
-                fprintf(bedFile, "\t%" PRIi64 "\n", i);
-            }
-            inCoveredRegion = coverageArray[i];
-        }
-        if (inCoveredRegion) {
-            fprintf(bedFile, "\t%" PRIi64 "\n", sequence_getLength(sequence));
-        }
-
-        fclose(bedFile);
-        stHash_insert(writtenCoverages,
-                      stIntTuple_construct1(sequence_getName(sequence)),
-                      coverageArray);
-    }
-    flower_destructCapIterator(capIt);
-
-    // Parse the bed file.
-    stHash *readCoverages = getIngroupCoverage(bedDir, flower);
-
-    // Make sure the read coverage arrays are the same as the written ones.
-    stHashIterator *keyIt = stHash_getIterator(readCoverages);
-    stIntTuple *key;
-    while ((key = stHash_getNext(keyIt)) != NULL) {
-        bool *readCoverage = stHash_search(readCoverages, key);
-        assert(readCoverage != NULL);
-        bool *writtenCoverage = stHash_search(writtenCoverages, key);
-        assert(writtenCoverage != NULL);
-        Sequence *sequence = flower_getSequence(flower, stIntTuple_get(key, 0));
-        for (int64_t i = 0; i < sequence_getLength(sequence); i++) {
-            CuAssertTrue(testCase, readCoverage[i] == writtenCoverage[i]);
-        }
-    }
-    stHash_destruct(readCoverages);
-    stHash_destruct(writtenCoverages);
-    free(bedDir);
-    teardown();
-}
 
 static void writeCoverageArrayToBed(int64_t name, bool *coverageArray,
                                     int64_t length, FILE *bedFile) {
@@ -214,12 +137,15 @@ static void test_rescueRandomSequences(CuTest *testCase) {
         stHash_destruct(coveragesToRescue);
         stHash_destruct(regionsAlreadyCovered);
         stPinchThreadSet_destruct(threadSet);
+        stFile_rmrf(bedFilePath);
+        stFile_rmrf(sortedBedFilePath);
+        free(bedFilePath);
+        free(sortedBedFilePath);
     }
 }
 
 CuSuite *rescueTestSuite(void) {
     CuSuite *suite = CuSuiteNew();
-    SUITE_ADD_TEST(suite, test_getIngroupCoverage);
     SUITE_ADD_TEST(suite, test_rescueRandomSequences);
     return suite;
 }
