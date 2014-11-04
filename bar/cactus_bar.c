@@ -339,9 +339,10 @@ int main(int argc, char *argv[]) {
                     stSortedSet_insert(sortedThreads, thread);
                 }
                 stSortedSetIterator *setIt = stSortedSet_getIterator(sortedThreads);
-                bedRegion *curBedLine = readNextBedLine(bedFile);
+                bedRegion curBedLine;
+                readNextBedLine(bedFile, &curBedLine);
                 while ((thread = stSortedSet_getNext(setIt)) != NULL) {
-                    curBedLine = rescueCoveredRegions(thread, bedFile, curBedLine);
+                    rescueCoveredRegions(thread, bedFile, &curBedLine);
                 }
                 stSortedSet_destructIterator(setIt);
             }

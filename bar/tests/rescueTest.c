@@ -96,7 +96,8 @@ static void test_rescueRandomSequences(CuTest *testCase) {
 
         // Run the rescue and make sure it worked.
         threadIt = stPinchThreadSet_getIt(threadSet);
-        bedRegion *curBedLine = readNextBedLine(bedFile);
+        bedRegion curBedLine;
+        readNextBedLine(bedFile, &curBedLine);
         while ((thread = stPinchThreadSetIt_getNext(&threadIt)) != NULL) {
             printf("rescued %" PRIi64 "\n", stPinchThread_getName(thread));
             int64_t threadStart = stPinchThread_getStart(thread);
@@ -105,7 +106,7 @@ static void test_rescueRandomSequences(CuTest *testCase) {
             assert(coverageArray != NULL);
             bool *alreadyCovered = stHash_search(regionsAlreadyCovered, thread);
             assert(alreadyCovered != NULL);
-            curBedLine = rescueCoveredRegions(thread, bedFile, curBedLine);
+            rescueCoveredRegions(thread, bedFile, &curBedLine);
             stPinchSegment *segment = stPinchThread_getFirst(thread);
             while (segment != NULL) {
                 int64_t start = stPinchSegment_getStart(segment);

@@ -13,33 +13,37 @@ typedef struct {
 } bedRegion;
 
 // reads the next bed line from the file. Assumes tab-delimited bed3 input.
-bedRegion *readNextBedLine(FILE *bedFile) {
+// returns EOF on failure to read, returns 0 otherwise.
+int readNextBedLine(FILE *bedFile, bedRegion *curBedLine) {
     Name name;
     int64_t start, stop;
     if (fscanf(bedFile, "%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\n",
                &name, &start, &stop) != EOF) {
         assert(start >= 0);
         assert(stop >= start);
-        bedRegion *ret = st_malloc(sizeof(bedRegion));
-        ret->name = name;
-        ret->start = start;
-        ret->stop = stop;
-        return ret;
+        curBedLine->name = name;
+        curBedLine->start = start;
+        curBedLine->stop = stop;
+        return 0;
     } else {
-        return NULL;
+        return EOF;
     }
 }
 
-static void fastForwardToProperBedLine(FILE *bedFile, stPinchSegment *segment,
-                                       bedRegion **curBedLine) {
+// Iterate through the bed file until we reach a line that's relevant
+// to this segment.
+static int fastForwardToProperBedLine(FILE *bedFile, stPinchSegment *segment,
+                                      bedRegion *curBedLine) {
     Name threadName = stPinchThread_getName(stPinchSegment_getThread(segment));
-    while (*curBedLine != NULL &&
-           (((*curBedLine)->name < threadName) ||
-            (((*curBedLine)->name == threadName) &&
-             ((*curBedLine)->stop <= stPinchSegment_getStart(segment))))) {
-        free(*curBedLine);
-        *curBedLine = readNextBedLine(bedFile);
+    while (curBedLine != NULL &&
+           ((curBedLine->name < threadName) ||
+            ((curBedLine->name == threadName) &&
+             (curBedLine->stop <= stPinchSegment_getStart(segment))))) {
+        if (readNextBedLine(bedFile, curBedLine) == EOF) {
+            return EOF;
+        }
     }
+    return 0;
 }
 
 // Find any regions in this thread covered by outgroups that are in
@@ -47,16 +51,19 @@ static void fastForwardToProperBedLine(FILE *bedFile, stPinchSegment *segment,
 // blocks.
 // The input bed file must be sorted by chromosome (numerically!), then
 // start (numerically), then stop (numerically). No overlaps are allowed.
-bedRegion *rescueCoveredRegions(stPinchThread *thread, FILE *bedFile,
+void rescueCoveredRegions(stPinchThread *thread, FILE *bedFile,
                           bedRegion *curBedLine) {
-    if (curBedLine != NULL && stPinchThread_getName(thread) < curBedLine->name) {
-        return curBedLine;
+    if (stPinchThread_getName(thread) < curBedLine->name) {
+        return;
     }
     stPinchSegment *segment = stPinchThread_getFirst(thread);
-    fastForwardToProperBedLine(bedFile, segment, &curBedLine);
-    while (segment != NULL && curBedLine != NULL && curBedLine->name == stPinchThread_getName(thread)) {
-        fastForwardToProperBedLine(bedFile, segment, &curBedLine);
-        if (curBedLine == NULL || curBedLine->name != stPinchThread_getName(thread)) {
+    if (fastForwardToProperBedLine(bedFile, segment, curBedLine) == EOF) {
+        // Reached end of bed file.
+        return;
+    }
+    while (segment != NULL && curBedLine->name == stPinchThread_getName(thread)) {
+        int bedStatus = fastForwardToProperBedLine(bedFile, segment, curBedLine);
+        if (bedStatus == EOF || curBedLine->name != stPinchThread_getName(thread)) {
             // Reached end of the correct section of bed file.
             break;
         }
@@ -90,5 +97,4 @@ bedRegion *rescueCoveredRegions(stPinchThread *thread, FILE *bedFile,
         }
         segment = stPinchSegment_get3Prime(segment);
     }
-    return curBedLine;
 }
