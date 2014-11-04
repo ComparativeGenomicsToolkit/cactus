@@ -13,6 +13,12 @@
 #include "stCaf.h"
 #include "stCafPhylogeny.h"
 
+// gross, but useful for debug prints of what the scale of the
+// single-degree segment problem is
+// FIXME: get rid of these once done
+int64_t numSingleDegreeSegmentsDropped = 0;
+int64_t numBasesDroppedFromSingleDegreeSegments = 0;
+
 stHash *stCaf_getThreadStrings(Flower *flower, stPinchThreadSet *threadSet) {
     stHash *threadStrings = stHash_construct2(NULL, free);
     stPinchThreadSetIt threadIt = stPinchThreadSet_getIt(threadSet);
@@ -100,6 +106,8 @@ void splitBlock(stPinchBlock *block, stList *partitions, bool allowSingleDegreeB
 
         if (!allowSingleDegreeBlocks && stList_length(partition) == 1) {
             // We need to avoid assigning this single-degree block
+            numBasesDroppedFromSingleDegreeSegments += stPinchSegment_getLength(segments[k]);
+            numSingleDegreeSegmentsDropped++;
             segments[k] = NULL;
             continue;
         }
@@ -767,6 +775,11 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
 
     st_logDebug("Finished partitioning the blocks\n");
     fprintf(stdout, "After partitioning, there were %" PRIi64 " bases lost in between single-degree blocks\n", countBasesBetweenSingleDegreeBlocks(threadSet));
+    fprintf(stdout, "We stopped %" PRIi64 " single-degree segments from becoming"
+            " blocks (avg %lf per block) for a total of %" PRIi64 " bases\n",
+            numSingleDegreeSegmentsDropped,
+            ((float)numSingleDegreeSegmentsDropped)/blockCount,
+            numBasesDroppedFromSingleDegreeSegments);
 
     //Cleanup
     stHash_destruct(blocksToPartitions);
