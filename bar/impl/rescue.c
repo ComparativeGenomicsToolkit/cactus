@@ -1,3 +1,7 @@
+// "bar rescue" -- ensures that any ingroup sequence that found an
+// outgroup alignment in the blast stage still makes it into the
+// ancestor after the bar stage.
+
 // Only works on POSIX systems (*nix, Mac OS) due to opendir.
 #define _POSIX_C_SOURCE 200809L
 
@@ -15,18 +19,16 @@ typedef struct {
 // reads the next bed line from the file. Assumes tab-delimited bed3 input.
 // returns EOF on failure to read, returns 0 otherwise.
 int readNextBedLine(FILE *bedFile, bedRegion *curBedLine) {
-    Name name;
-    int64_t start, stop;
-    if (fscanf(bedFile, "%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\n",
-               &name, &start, &stop) != EOF) {
-        assert(start >= 0);
-        assert(stop >= start);
-        curBedLine->name = name;
-        curBedLine->start = start;
-        curBedLine->stop = stop;
+    int ret = fscanf(bedFile, "%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\n",
+                     &curBedLine->name, &curBedLine->start, &curBedLine->stop);
+    if (ret == 3) {
+        assert(curBedLine->start >= 0);
+        assert(curBedLine->stop >= curBedLine->start);
         return 0;
-    } else {
+    } else if (ret == EOF) {
         return EOF;
+    } else {
+      st_errAbort("Improperly formatted bed file.");
     }
 }
 

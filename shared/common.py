@@ -323,7 +323,7 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
                          largeEndSize=None,
                          endAlignmentsToPrecomputeOutputFile=None,
                          precomputedAlignments=None,
-                         ingroupCoverageDir=None):
+                         ingroupCoverageBed=None):
     """Runs cactus base aligner.
     """
     logLevel = getLogLevelString2(logLevel)
@@ -345,7 +345,7 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
     largeEndSize=nameValue("largeEndSize", largeEndSize, int)
     endAlignmentsToPrecomputeOutputFile=nameValue("endAlignmentsToPrecomputeOutputFile", endAlignmentsToPrecomputeOutputFile, str)
     precomputedAlignments=nameValue("precomputedAlignments", precomputedAlignments, str, quotes=True)
-    ingroupCoverageDir = nameValue("ingroupCoverageDir", ingroupCoverageDir, str, quotes=True)
+    ingroupCoverageBed = nameValue("ingroupCoverageBed", ingroupCoverageBed, str, quotes=True)
     
     masterMessages = popenCatch("cactus_bar --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % 
            (cactusDiskDatabaseString, logLevel, spanningTrees, maximumLength, gapGamma, 
@@ -353,7 +353,7 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
             constraintDiagonalTrim, minimumBlockDegree, minimumIngroupDegree, minimumOutgroupDegree,  
             alignAmbiguityCharacters, pruneOutStubAlignments, diagonalExpansion,
             maximumNumberOfSequencesBeforeSwitchingToFast, calculateWhichEndsToComputeSeparately,
-            largeEndSize, endAlignmentsToPrecomputeOutputFile, precomputedAlignments, ingroupCoverageDir), stdinString=flowerNames)
+            largeEndSize, endAlignmentsToPrecomputeOutputFile, precomputedAlignments, ingroupCoverageBed), stdinString=flowerNames)
     logger.info("Ran cactus_bar okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]
 

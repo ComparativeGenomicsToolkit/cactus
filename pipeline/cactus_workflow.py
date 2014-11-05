@@ -457,10 +457,13 @@ class CactusCafPhase(CactusPhasesTarget):
             # Convert the bed files to use 64-bit cactus Names instead
             # of the headers. Ideally this should belong in the bar
             # phase but we run stripUniqueIDs before then.
-            for bedFile in os.listdir(self.cactusWorkflowArguments.ingroupCoverageDir):
-                bedFile = os.path.join(self.cactusWorkflowArguments.ingroupCoverageDir, bedFile)
+            bedFiles = os.listdir(self.cactusWorkflowArguments.ingroupCoverageDir)
+            bedFiles = [os.path.join(self.cactusWorkflowArguments.ingroupCoverageDir, bedFile) for bedFile in bedFiles]
+            for bedFile in bedFiles:
                 runConvertAlignmentsToInternalNames(self.cactusWorkflowArguments.cactusDiskDatabaseString, bedFile, bedFile + ".tmp", self.topFlowerName, isBedFile=True)
                 shutil.move(bedFile + ".tmp", bedFile)
+            self.cactusWorkflowArguments.ingroupCoverageBed = getTempFile(rootDir=self.getGlobalTempDir())
+            system("sort -k1n -k2n -k3n %s > %s" % (" ".join(bedFiles), self.cactusWorkflowArguments.ingroupCoverageBed))
 
         if (not self.cactusWorkflowArguments.configWrapper.getDoTrimStrategy()) or (self.cactusWorkflowArguments.outgroupEventNames == None):
             setupFilteringByIdentity(self.cactusWorkflowArguments)
@@ -616,7 +619,7 @@ def runBarForTarget(self, calculateWhichEndsToComputeSeparately=None, endAlignme
                  endAlignmentsToPrecomputeOutputFile=endAlignmentsToPrecomputeOutputFile,
                  largeEndSize=self.getOptionalPhaseAttrib("largeEndSize", int),
                  precomputedAlignments=precomputedAlignments,
-                 ingroupCoverageDir=self.cactusWorkflowArguments.ingroupCoverageDir)
+                 ingroupCoverageBed=self.cactusWorkflowArguments.ingroupCoverageBed)
 
 class CactusBarWrapper(CactusRecursionTarget):
     """Runs the BAR algorithm implementation.
@@ -996,6 +999,8 @@ class CactusWorkflowArguments:
         #outgroup coverage on ingroups, so that any sequence aligning
         #to an outgroup can be rescued after bar phase
         self.ingroupCoverageDir = None
+        # Same, but for the final bed file
+        self.ingroupCoverageBed = None
         #Secondary, scratch DB
         secondaryConf = copy.deepcopy(self.experimentNode.find("cactus_disk").find("st_kv_database_conf"))
         secondaryElem = DbElemWrapper(secondaryConf)

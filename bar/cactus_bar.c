@@ -60,7 +60,7 @@ void usage() {
 
     fprintf(stderr, "-I --largeEndSize : The size of sequences in an end at which point to compute it separately.\n");
 
-    fprintf(stderr, "-J --ingroupCoverageBedPath : Bed file containing ingroup regions that are covered by outgroups. These regions will be 'rescued' into single-degree blocks if they haven't been aligned to anything after the bar phase finished.\n");
+    fprintf(stderr, "-J --ingroupCoverageBed : Sorted bed file containing ingroup regions that are covered by outgroups. These regions will be 'rescued' into single-degree blocks if they haven't been aligned to anything after the bar phase finished.\n");
 
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
@@ -345,6 +345,7 @@ int main(int argc, char *argv[]) {
                     rescueCoveredRegions(thread, bedFile, &curBedLine);
                 }
                 stSortedSet_destructIterator(setIt);
+                fclose(bedFile);
             }
 
             stCaf_finish(flower, threadSet, chainLengthForBigFlower, longChain, INT64_MAX, INT64_MAX); //Flower now destroyed.
