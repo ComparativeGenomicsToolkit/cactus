@@ -2,7 +2,7 @@
 // outgroup alignment in the blast stage still makes it into the
 // ancestor after the bar stage.
 
-// Only works on POSIX systems (*nix, Mac OS) due to opendir.
+// Only works on POSIX systems (*nix, Mac OS) due to getline.
 #define _POSIX_C_SOURCE 200809L
 
 #include <dirent.h>
@@ -16,19 +16,26 @@ typedef struct {
     int64_t stop;
 } bedRegion;
 
-// reads the next bed line from the file. Assumes tab-delimited bed3 input.
+// reads the next bed line from the file. Assumes tab-delimited bed3
+// or greater input.
 // returns EOF on failure to read, returns 0 otherwise.
 int readNextBedLine(FILE *bedFile, bedRegion *curBedLine) {
-    int ret = fscanf(bedFile, "%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\n",
+    char *line;
+    size_t n = 0;
+    if (getline(&line, &n, bedFile) == -1) {
+        free(line);
+        return EOF;
+    }
+    int ret = sscanf(line, "%" PRIi64 "\t%" PRIi64 "\t%" PRIi64,
                      &curBedLine->name, &curBedLine->start, &curBedLine->stop);
     if (ret == 3) {
         assert(curBedLine->start >= 0);
         assert(curBedLine->stop >= curBedLine->start);
+        free(line);
         return 0;
-    } else if (ret == EOF) {
-        return EOF;
     } else {
-      st_errAbort("Improperly formatted bed file.");
+        free(line);
+        st_errAbort("Improperly formatted bed file.");
     }
 }
 
