@@ -153,7 +153,7 @@ int main(int argc, char *argv[])
             assert(cap != NULL);
             Sequence *sequence = cap_getSequence(cap);
             assert(sequence != NULL);
-            Name *seqName = sequence_getName(sequence);
+            Name seqName = sequence_getName(sequence);
 
             char *newHeader = cactusMisc_nameToString(seqName);
             stList_set(fields, 0, newHeader);

@@ -36,13 +36,15 @@ int readNextBedLine(FILE *bedFile, bedRegion *curBedLine) {
     } else {
         free(line);
         st_errAbort("Improperly formatted bed file.");
+        return 1; // this will never be reached, but gcc complains if
+                  // it's not here
     }
 }
 
 // Iterate through the bed file until we reach a line that's relevant
 // to this segment.
 static int fastForwardToProperBedLine(FILE *bedFile, stPinchSegment *segment,
-                                      Name *name, bedRegion *curBedLine) {
+                                      Name name, bedRegion *curBedLine) {
     while (curBedLine != NULL &&
            ((curBedLine->name < name) ||
             ((curBedLine->name == name) &&
