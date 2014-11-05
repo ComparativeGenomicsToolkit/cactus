@@ -80,7 +80,8 @@ int main(int argc, char *argv[])
     cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
     flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
     assert(stList_length(flowers) == 1);
-    endIt = flower_getEndIterator(stList_get(flowers, 0));
+    Flower *flower = stList_get(flowers, 0);
+    endIt = flower_getEndIterator(flower);
     while ((end = flower_getNextEnd(endIt)) != NULL) {
         capIt = end_getInstanceIterator(end);
         Cap *cap;
@@ -146,7 +147,15 @@ int main(int argc, char *argv[])
                         "database\n", oldHeader);
             }
             free(oldHeader);
-            char *newHeader = cactusMisc_nameToString(*name);
+
+            // Use the sequence name instead of the cap name.
+            Cap *cap = flower_getCap(flower, *name);
+            assert(cap != NULL);
+            Sequence *sequence = cap_getSequence(cap);
+            assert(sequence != NULL);
+            Name *seqName = sequence_getName(sequence);
+
+            char *newHeader = cactusMisc_nameToString(seqName);
             stList_set(fields, 0, newHeader);
 
             // Convert the coordinates (they have to be increased by 2

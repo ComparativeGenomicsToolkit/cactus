@@ -42,11 +42,10 @@ int readNextBedLine(FILE *bedFile, bedRegion *curBedLine) {
 // Iterate through the bed file until we reach a line that's relevant
 // to this segment.
 static int fastForwardToProperBedLine(FILE *bedFile, stPinchSegment *segment,
-                                      bedRegion *curBedLine) {
-    Name threadName = stPinchThread_getName(stPinchSegment_getThread(segment));
+                                      Name *name, bedRegion *curBedLine) {
     while (curBedLine != NULL &&
-           ((curBedLine->name < threadName) ||
-            ((curBedLine->name == threadName) &&
+           ((curBedLine->name < name) ||
+            ((curBedLine->name == name) &&
              (curBedLine->stop <= stPinchSegment_getStart(segment))))) {
         if (readNextBedLine(bedFile, curBedLine) == EOF) {
             return EOF;
@@ -61,18 +60,19 @@ static int fastForwardToProperBedLine(FILE *bedFile, stPinchSegment *segment,
 // The input bed file must be sorted by chromosome (numerically!), then
 // start (numerically), then stop (numerically). No overlaps are allowed.
 void rescueCoveredRegions(stPinchThread *thread, FILE *bedFile,
-                          bedRegion *curBedLine) {
-    if (stPinchThread_getName(thread) < curBedLine->name) {
+                          Name name, bedRegion *curBedLine) {
+    if (name < curBedLine->name) {
         return;
     }
     stPinchSegment *segment = stPinchThread_getFirst(thread);
-    if (fastForwardToProperBedLine(bedFile, segment, curBedLine) == EOF) {
+    if (fastForwardToProperBedLine(bedFile, segment, name, curBedLine) == EOF) {
         // Reached end of bed file.
         return;
     }
-    while (segment != NULL && curBedLine->name == stPinchThread_getName(thread)) {
-        int bedStatus = fastForwardToProperBedLine(bedFile, segment, curBedLine);
-        if (bedStatus == EOF || curBedLine->name != stPinchThread_getName(thread)) {
+    while (segment != NULL && curBedLine->name == name) {
+        int bedStatus = fastForwardToProperBedLine(bedFile, segment, name,
+                                                   curBedLine);
+        if (bedStatus == EOF || curBedLine->name != name) {
             // Reached end of the correct section of bed file.
             break;
         }

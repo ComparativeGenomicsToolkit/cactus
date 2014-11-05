@@ -106,7 +106,8 @@ static void test_rescueRandomSequences(CuTest *testCase) {
             assert(coverageArray != NULL);
             bool *alreadyCovered = stHash_search(regionsAlreadyCovered, thread);
             assert(alreadyCovered != NULL);
-            rescueCoveredRegions(thread, bedFile, &curBedLine);
+            rescueCoveredRegions(thread, bedFile, stPinchThread_getName(thread),
+                                 &curBedLine);
             stPinchSegment *segment = stPinchThread_getFirst(thread);
             while (segment != NULL) {
                 int64_t start = stPinchSegment_getStart(segment);

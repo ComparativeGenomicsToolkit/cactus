@@ -83,11 +83,39 @@ bool blockFilterFn(stPinchBlock *pinchBlock) {
     return !stCaf_containsRequiredSpecies(pinchBlock, flower, minimumIngroupDegree, minimumOutgroupDegree, minimumDegree);
 }
 
-// comparison function for stPinchThreads to allow sorting them by name
-static int stPinchThread_cmpByName(stPinchThread *t1, stPinchThread *t2) {
-    Name n1 = stPinchThread_getName(t1);
-    Name n2 = stPinchThread_getName(t2);
-    return (n1 < n2) ? -1 : ((n1 == n2) ? 0 : 1);
+// comparison function for stPinchThreads to allow sorting them by the
+// name of the sequence they correspond to
+static int cmpBySequenceNameAndStart(stPinchThread *thread1,
+                                     stPinchThread *thread2) {
+    Name capName1 = stPinchThread_getName(thread1);
+    Name capName2 = stPinchThread_getName(thread2);
+    Cap *cap1 = flower_getCap(flower, capName1);
+    Cap *cap2 = flower_getCap(flower, capName2);
+    assert(cap1 != NULL);
+    assert(cap2 != NULL);
+    Sequence *seq1 = cap_getSequence(cap1);
+    Sequence *seq2 = cap_getSequence(cap2);
+    assert(seq1 != NULL);
+    assert(seq2 != NULL);
+    Name n1 = sequence_getName(seq1);
+    Name n2 = sequence_getName(seq2);
+    if (n1 < n2) {
+        return -1;
+    } else if (n1 == n2) {
+        int64_t start1 = stPinchThread_getStart(thread1);
+        int64_t start2 = stPinchThread_getStart(thread2);
+        if (start1 < start2) {
+            assert(start1 + stPinchThread_getLength(thread1) <= start2);
+            return -1;
+        } else if (start1 == start2) {
+            return 0;
+        } else {
+            assert(start2 + stPinchThread_getLength(thread2) <= start1);
+            return 1;
+        }
+    } else {
+        return 1;
+    }
 }
 
 int main(int argc, char *argv[]) {
@@ -332,7 +360,7 @@ int main(int argc, char *argv[]) {
                     st_errnoAbort("Opening coverage BED file %s failed",
                                   ingroupCoverageBedPath);
                 }
-                stSortedSet *sortedThreads = stSortedSet_construct3((int (*)(const void *, const void *)) stPinchThread_cmpByName, NULL);
+                stSortedSet *sortedThreads = stSortedSet_construct3((int (*)(const void *, const void *)) cmpBySequenceNameAndStart, NULL);
                 stPinchThreadSetIt pinchIt = stPinchThreadSet_getIt(threadSet);
                 stPinchThread *thread;
                 while ((thread = stPinchThreadSetIt_getNext(&pinchIt)) != NULL) {
@@ -342,9 +370,17 @@ int main(int argc, char *argv[]) {
                 bedRegion curBedLine;
                 readNextBedLine(bedFile, &curBedLine);
                 while ((thread = stSortedSet_getNext(setIt)) != NULL) {
-                    rescueCoveredRegions(thread, bedFile, &curBedLine);
+                    Cap *cap = flower_getCap(flower,
+                                             stPinchThread_getName(thread));
+                    assert(cap != NULL);
+                    Sequence *sequence = cap_getSequence(cap);
+                    assert(sequence != NULL);
+                    rescueCoveredRegions(thread, bedFile,
+                                         sequence_getName(sequence),
+                                         &curBedLine);
                 }
                 stSortedSet_destructIterator(setIt);
+                stSortedSet_destruct(sortedThreads);
                 fclose(bedFile);
             }
 

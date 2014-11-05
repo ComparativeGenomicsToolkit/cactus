@@ -18,5 +18,5 @@ stHash *getIngroupCoverage(const char *ingroupCoverageDir, Flower *flower);
 // Find any regions covered by outgroups that are in segments with no
 // block, and "rescue" them into single-degree blocks.
 void rescueCoveredRegions(stPinchThread *thread, FILE *bedFile,
-                          bedRegion *curBedLine);
+                          Name name, bedRegion *curBedLine);
 #endif // RESCUE_H_
