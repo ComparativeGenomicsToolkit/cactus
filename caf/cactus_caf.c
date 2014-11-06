@@ -599,9 +599,10 @@ int main(int argc, char *argv[]) {
                 stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0, 0, INT64_MAX);
             }
 
-            //Build a tree for each block, then use each tree
-            //to partition the homologies between the ingroups sequences into those that occur before the speciation with the outgroup and
-            //those which occur late.
+            // Build a tree for each block, then use each tree to
+            // partition the homologies between the ingroups sequences
+            // into those that occur before the speciation with the
+            // outgroup and those which occur late.
             if (stSet_size(outgroupThreads) > 0) {
                 st_logDebug("Starting to build trees and partition ingroup homologies\n");
                 stHash *threadStrings = stCaf_getThreadStrings(flower, threadSet);
