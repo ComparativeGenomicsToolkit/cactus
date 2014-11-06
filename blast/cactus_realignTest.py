@@ -17,11 +17,11 @@ class TestCase(unittest.TestCase):
         unittest.TestCase.tearDown(self)
         
     def testCactusRealignDummy(self):
-        """Runs cactus realign using the "dummy" mode
+        """Runs cactus realign using the "rescoreOriginalAlignment" mode
         and checks the output is equivalent to what you'd get by just running lastz.
         """
         for seqFile1, seqFile2 in seqFilePairGenerator():
-            realignCommand, lastzCommand = getCommands(seqFile1, seqFile2, "--dummy")
+            realignCommand, lastzCommand = getCommands(seqFile1, seqFile2, "--rescoreOriginalAlignment")
             for realignLine, lastzLine in zip([ i for i in popenCatch(realignCommand).split("\n") if i != '' ], 
                                               [ i for i in popenCatch(lastzCommand).split("\n") if i != '' ]):
                 realignCigar = cigarReadFromString(realignLine)
