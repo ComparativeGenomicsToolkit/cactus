@@ -869,7 +869,7 @@ static void buildTreeForBlock(stPinchBlock *block, stHash *threadStrings, stSet 
         assert(bestTree != NULL);
 
         // Update the bootstrap support for each branch.
-        bestTree = stPhylogeny_scoreFromBootstraps(bestTree, trees);
+        bestTree = stPhylogeny_scoreReconciliationFromBootstraps(bestTree, trees);
         // Create reconciliation info on each node.
         stHash *leafToSpecies = getLeafToSpecies(bestTree,
                                                  speciesStTree,
