@@ -105,12 +105,14 @@ static int cmpBySequenceNameAndStart(stPinchThread *thread1,
         int64_t start1 = stPinchThread_getStart(thread1);
         int64_t start2 = stPinchThread_getStart(thread2);
         if (start1 < start2) {
-            assert(start1 + stPinchThread_getLength(thread1) <= start2);
+            fprintf(stdout, "start1: %" PRIi64 " len1: %" PRIi64 " start2: %" PRIi64 " len2: %" PRIi64 "\n", start1, stPinchThread_getLength(thread1), start2, stPinchThread_getLength(thread2));
+            // assert(start1 + stPinchThread_getLength(thread1) <= start2);
             return -1;
         } else if (start1 == start2) {
             return 0;
         } else {
-            assert(start2 + stPinchThread_getLength(thread2) <= start1);
+            fprintf(stdout, "start1: %" PRIi64 " len1: %" PRIi64 " start2: %" PRIi64 " len2: %" PRIi64 "\n", start1, stPinchThread_getLength(thread1), start2, stPinchThread_getLength(thread2));
+            // assert(start2 + stPinchThread_getLength(thread2) <= start1);
             return 1;
         }
     } else {
