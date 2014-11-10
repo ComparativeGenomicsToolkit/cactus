@@ -349,6 +349,7 @@ static stTree *buildTree(stList *featureColumns,
         stHash *leafToSpecies = getLeafToSpecies(tree,
                                                  speciesStTree,
                                                  block, flower);
+
         stTree *newTree = stPhylogeny_rootAndReconcileBinary(tree, speciesStTree, leafToSpecies);
         stPhylogeny_addStPhylogenyInfo(newTree);
 
@@ -357,6 +358,15 @@ static stTree *buildTree(stList *featureColumns,
         stHash_destruct(leafToSpecies);
         tree = newTree;
     }
+
+    // Need to get leaf->species mapping again even when the tree is
+    // already reconciled, as the nodes have changed.
+    stHash *leafToSpecies = getLeafToSpecies(tree,
+                                             speciesStTree,
+                                             block, flower);
+    // add stReconciliationInfo.
+    stPhylogeny_reconcileBinary(tree, speciesStTree, leafToSpecies, false);
+    stHash_destruct(leafToSpecies);
 
     // Needed for likelihood methods not to have 0/100% probabilities
     // overly often (normally, almost every other leaf has a branch
