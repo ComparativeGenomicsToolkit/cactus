@@ -618,7 +618,7 @@ def runBarForTarget(self, calculateWhichEndsToComputeSeparately=None, endAlignme
                  endAlignmentsToPrecomputeOutputFile=endAlignmentsToPrecomputeOutputFile,
                  largeEndSize=self.getOptionalPhaseAttrib("largeEndSize", int),
                  precomputedAlignments=precomputedAlignments,
-                 ingroupCoverageBed=self.cactusWorkflowArguments.ingroupCoverageBed)
+                 ingroupCoverageBed=self.cactusWorkflowArguments.ingroupCoverageBed if self.getOptionalPhaseAttrib("rescue", bool) else None)
 
 class CactusBarWrapper(CactusRecursionTarget):
     """Runs the BAR algorithm implementation.
