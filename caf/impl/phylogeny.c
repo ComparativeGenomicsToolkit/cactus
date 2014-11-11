@@ -1104,8 +1104,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
     double totalSupport = 0;
     int64_t totalNumberOfBlocksRecomputed = 0;
     stCaf_SplitBranch *splitBranch = stSortedSet_getLast(splitBranches);
-    bool doPerfectSplitsAllAtOnce = true; // set at compile time for now
-    if (doPerfectSplitsAllAtOnce) {
+    if (params->doPerfectSplitsAllAtOnce) {
         // Save a lot of time by doing the large fraction of highly
         // confident splits first, then updating the other affected
         // blocks in one go.

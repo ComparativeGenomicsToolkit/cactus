@@ -92,6 +92,13 @@ typedef struct {
     // Only include features which include information for every segment
     // in the block.
     bool onlyIncludeCompleteFeatureBlocks;
+    // To save a lot of time, do all perfectly confident splits at
+    // once, and then recompute the necessary trees, instead of taking
+    // one at a time and recomputing after every split. This assumes
+    // that perfectly supported splits will likely be good no
+    // matter what the breakpoint information around them is, which
+    // should usually be correct.
+    bool doPerfectSplitsAllAtOnce;
 } stCaf_PhylogenyParameters;
 
 // Split a block according to a partition.

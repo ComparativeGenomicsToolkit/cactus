@@ -539,7 +539,8 @@ class CactusCafWrapper(CactusRecursionTarget):
                           phylogenyTreeBuildingMethod=self.getOptionalPhaseAttrib("phylogenyTreeBuildingMethod"),
                           phylogenyCostPerDupPerBase=self.getOptionalPhaseAttrib("phylogenyCostPerDupPerBase"),
                           phylogenyCostPerLossPerBase=self.getOptionalPhaseAttrib("phylogenyCostPerLossPerBase"),
-                          referenceEventHeader=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "reference"), "reference"))
+                          referenceEventHeader=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "reference"), "reference"),
+                          phylogenyDoPerfectSplitsAllAtOnce=self.getOptionalPhaseAttrib("phylogenyDoPerfectSplitsAllAtOnce", bool))
         for message in messages:
             self.logToMaster(message)
     
