@@ -668,55 +668,53 @@ void findSplitBranches(stPinchBlock *block, stTree *tree,
     }
 }
 
-// FIXME: Not quite right at the moment. Sometimes nodes are added to
-// binarize the tree that aren't labeled as outgroups.
-// Return value indicates whether there are outgroups below the current node.
-// 0 = ingroups below
-// 1 = outgroups below
-// 2 = both below
-static int getSpeciesToSplitOn(stTree *speciesTree, EventTree *eventTree,
-                               stSet *speciesToSplitOn) {
-    // We want to split on any node that contains both outgroups and
-    // ingroups below it.
-    bool outgroupsBelow = false;
-    bool ingroupsBelow = false;
-    for (int64_t i = 0; i < stTree_getChildNumber(speciesTree); i++) {
-        int childStatus = getSpeciesToSplitOn(stTree_getChild(speciesTree, i),
-                                              eventTree,
-                                              speciesToSplitOn);
-        if (childStatus == 0) {
-            ingroupsBelow = true;
-        } else if (childStatus == 1) {
-            outgroupsBelow = true;
-        } else {
-            ingroupsBelow = true;
-            outgroupsBelow = true;
+// Get species that are a candidate to split on if a duplication node
+// is reconciled to them (i.e. everything at or above the reference
+// event node).
+static void getSpeciesToSplitOn(stTree *speciesTree, EventTree *eventTree,
+                                const char *referenceEventHeader,
+                                stSet *speciesToSplitOn) {
+    if (referenceEventHeader == NULL) {
+        st_errAbort("unrecoverable error: cannot find species to split on "
+                    "without knowing reference event header.");
+    }
+    // Look through the entire species tree (which is labeled by event
+    // Name as a string) and find the event whose header matches the
+    // reference event.
+    stTree *referenceSpecies = NULL;
+    stList *bfQueue = stList_construct();
+    stList_append(bfQueue, speciesTree);
+    while (stList_length(bfQueue) > 0) {
+        stTree *node = stList_pop(bfQueue);
+        for (int64_t i = 0; i < stTree_getChildNumber(node); i++) {
+            stList_append(bfQueue, stTree_getChild(node, i));
+        }
+
+        Name name;
+        int ret = sscanf(stTree_getLabel(node), "%" PRIi64, &name);
+        (void) ret;
+        assert(ret == 1);
+        Event *event = eventTree_getEvent(eventTree, name);
+        const char *header = event_getHeader(event);
+        if (header == NULL) {
+            continue;
+        }
+        if (strcmp(header, referenceEventHeader) == 0) {
+            referenceSpecies = node;
         }
     }
+    stList_destruct(bfQueue);
 
-    if (outgroupsBelow && ingroupsBelow) {
-        stSet_insert(speciesToSplitOn, speciesTree);
+    if (referenceSpecies == NULL) {
+        st_errAbort("Could not find reference event header %s in species "
+                    "tree.\n", referenceEventHeader);
     }
 
-    Name eventName = -1;
-    int k = sscanf(stTree_getLabel(speciesTree), "%" PRIi64, &eventName);
-    (void) k;
-    assert(k == 1);
-    Event *event = eventTree_getEvent(eventTree, eventName);
-
-    if (event_isOutgroup(event)) {
-        // If we didn't add extra nodes to binarize this tree this assert would have to be true.
-        // assert(ingroupsBelow == false);
-        return 1;
-    } else {
-        if (ingroupsBelow && outgroupsBelow) {
-            return 2;
-        } else if (outgroupsBelow) {
-            return 1;
-        } else {
-            return 0;
-        }
-    }
+    stTree *aSpeciesToSplitOn = referenceSpecies;
+    do {
+        stSet_insert(speciesToSplitOn, aSpeciesToSplitOn);
+        aSpeciesToSplitOn = stTree_getParent(aSpeciesToSplitOn);
+    } while (aSpeciesToSplitOn != NULL);
 }
 
 // O(n).
@@ -1021,7 +1019,7 @@ void splitBlockOnSplitBranch(stPinchBlock *block,
     }
 }
 
-void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHash *threadStrings, stSet *outgroupThreads, Flower *flower, int64_t maxBaseDistance, int64_t maxBlockDistance, int64_t numTrees, enum stCaf_TreeBuildingMethod treeBuildingMethod, enum stCaf_RootingMethod rootingMethod, enum stCaf_ScoringMethod scoringMethod, double breakPointScalingFactor, bool skipSingleCopyBlocks, bool allowSingleDegreeBlocks, double costPerDupPerBase, double costPerLossPerBase, FILE *debugFile) {
+void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHash *threadStrings, stSet *outgroupThreads, Flower *flower, int64_t maxBaseDistance, int64_t maxBlockDistance, int64_t numTrees, enum stCaf_TreeBuildingMethod treeBuildingMethod, enum stCaf_RootingMethod rootingMethod, enum stCaf_ScoringMethod scoringMethod, double breakPointScalingFactor, bool skipSingleCopyBlocks, bool allowSingleDegreeBlocks, double costPerDupPerBase, double costPerLossPerBase, FILE *debugFile, const char *referenceEventHeader) {
     // Functions we aren't using right now but should stick around anyway.
     (void) printSimpleBlockDebugInfo;
     (void) getTotalSimilarityAndDifferenceCounts;
@@ -1047,7 +1045,8 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
 
     stSortedSet *splitBranches = stSortedSet_construct3((int (*)(const void *, const void *)) compareSplitBranches, free);
     stSet *speciesToSplitOn = stSet_construct();
-    getSpeciesToSplitOn(speciesStTree, eventTree, speciesToSplitOn);
+    getSpeciesToSplitOn(speciesStTree, eventTree, referenceEventHeader,
+                        speciesToSplitOn);
 
     // Temp debug print
     printf("Chose events in the species tree \"%s\" to split on:", eventTree_makeNewickString(eventTree));

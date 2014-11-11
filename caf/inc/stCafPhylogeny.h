@@ -37,7 +37,7 @@ void splitBlock(stPinchBlock *block, stList *partitions,
  * Build tree for each block and then use it to partition homologies in the block into
  * those which occur before and after the speciation.
  */
-void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHash *threadStrings, stSet *outgroupThreads, Flower *flower, int64_t maxBaseDistance, int64_t maxBlockDistance, int64_t numTrees, enum stCaf_TreeBuildingMethod treeBuildingMethod, enum stCaf_RootingMethod rootingMethod, enum stCaf_ScoringMethod scoringMethod, double breakPointScalingFactor, bool skipSingleCopyBlocks, bool keepSingleDegreeBlocks, double costPerDupPerBase, double costPerLossPerBase, FILE *debugFile);
+void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHash *threadStrings, stSet *outgroupThreads, Flower *flower, int64_t maxBaseDistance, int64_t maxBlockDistance, int64_t numTrees, enum stCaf_TreeBuildingMethod treeBuildingMethod, enum stCaf_RootingMethod rootingMethod, enum stCaf_ScoringMethod scoringMethod, double breakPointScalingFactor, bool skipSingleCopyBlocks, bool keepSingleDegreeBlocks, double costPerDupPerBase, double costPerLossPerBase, FILE *debugFile, const char *referenceEventHeader);
 
 /*
  * Gets the string for each pinch thread in a set.

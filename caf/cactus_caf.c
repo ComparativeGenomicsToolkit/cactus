@@ -79,9 +79,10 @@ static void usage() {
     fprintf(stderr, "-J --phylogenyMaxBlockDistance : maximum distance in blocks to walk outside of a block gathering feature columns\n");
     fprintf(stderr, "-K --phylogenyDebugFile : path to file to dump block trees and partitions to\n");
     fprintf(stderr, "-L --phylogenyKeepSingleDegreeBlocks : when splitting blocks, allow blocks to be created of only one ingroup.\n");
-    fprintf(stderr, "-M --phylogenyTreeBuildingMethod : neighbor joining or neighbor-joining guided by the species tree");
-    fprintf(stderr, "-N --phylogenyCostPerLossPerBase : join cost per dup per base for guided neighbor-joining (will be multiplied by maxBaseDistance)");
-    fprintf(stderr, "-O --phylogenyCostPerLossPerBase : join cost per loss per base for guided neighbor-joining (will be multiplied by maxBaseDistance)");
+    fprintf(stderr, "-M --phylogenyTreeBuildingMethod : neighbor joining or neighbor-joining guided by the species tree\n");
+    fprintf(stderr, "-N --phylogenyCostPerLossPerBase : join cost per dup per base for guided neighbor-joining (will be multiplied by maxBaseDistance)\n");
+    fprintf(stderr, "-O --phylogenyCostPerLossPerBase : join cost per loss per base for guided neighbor-joining (will be multiplied by maxBaseDistance)\n");
+    fprintf(stderr, "-P --referenceEventHeader : name of reference event (necessary for phylogeny estimation)\n");
 }
 
 static int64_t *getInts(const char *string, int64_t *arrayLength) {
@@ -257,6 +258,7 @@ int main(int argc, char *argv[]) {
     double phylogenyCostPerDupPerBase = 0.2;
     double phylogenyCostPerLossPerBase = 0.2;
     const char *debugFileName = NULL;
+    const char *referenceEventHeader = NULL;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -288,11 +290,12 @@ int main(int argc, char *argv[]) {
                         { "phylogenyTreeBuildingMethod", required_argument, 0, 'M' },
                         { "phylogenyCostPerDupPerBase", required_argument, 0, 'N' },
                         { "phylogenyCostPerLossPerBase", required_argument, 0, 'O' },
+                        { "referenceEventHeader", required_argument, 0, 'P' },
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:BC:D:E:F:G:HI:J:K:LM:N:O:", long_options, &option_index);
+        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:BC:D:E:F:G:HI:J:K:LM:N:O:P:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -444,6 +447,9 @@ int main(int argc, char *argv[]) {
             case 'O':
                 k = sscanf(optarg, "%lf", &phylogenyCostPerLossPerBase);
                 assert(k == 1);
+                break;
+            case 'P':
+                referenceEventHeader = stString_copy(optarg);
                 break;
             default:
                 usage();
@@ -614,7 +620,7 @@ int main(int argc, char *argv[]) {
                         st_errnoAbort("could not open debug file");
                     }
                 }
-                stCaf_buildTreesToRemoveAncientHomologies(threadSet, threadStrings, outgroupThreads, flower, phylogenyMaxBaseDistance, phylogenyMaxBlockDistance, phylogenyNumTrees, phylogenyTreeBuildingMethod, phylogenyRootingMethod, phylogenyScoringMethod, breakpointScalingFactor, phylogenySkipSingleCopyBlocks, phylogenyKeepSingleDegreeBlocks, phylogenyCostPerDupPerBase, phylogenyCostPerLossPerBase, debugFile);
+                stCaf_buildTreesToRemoveAncientHomologies(threadSet, threadStrings, outgroupThreads, flower, phylogenyMaxBaseDistance, phylogenyMaxBlockDistance, phylogenyNumTrees, phylogenyTreeBuildingMethod, phylogenyRootingMethod, phylogenyScoringMethod, breakpointScalingFactor, phylogenySkipSingleCopyBlocks, phylogenyKeepSingleDegreeBlocks, phylogenyCostPerDupPerBase, phylogenyCostPerLossPerBase, debugFile, referenceEventHeader);
                 if (debugFile != NULL) {
                     fclose(debugFile);
                 }
