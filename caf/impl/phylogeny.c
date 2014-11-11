@@ -299,9 +299,7 @@ static double scoreTree(stTree *tree, enum stCaf_ScoringMethod scoringMethod, st
 // Build a tree from a set of feature columns and root it according to
 // the rooting method.
 static stTree *buildTree(stList *featureColumns,
-                         enum stCaf_TreeBuildingMethod treeBuildingMethod,
-                         enum stCaf_RootingMethod rootingMethod,
-                         double breakPointScalingFactor,
+                         stCaf_PhylogenyParameters *params,
                          bool bootstrap,
                          stList *outgroups, stPinchBlock *block,
                          Flower *flower, stTree *speciesStTree,
@@ -315,27 +313,27 @@ static stTree *buildTree(stList *featureColumns,
     stMatrix *breakpointMatrix = stPinchPhylogeny_getMatrixFromBreakpoints(featureColumns, block, NULL, bootstrap);
     
     //Combine the matrices into distance matrices
-    stMatrix_scale(breakpointMatrix, breakPointScalingFactor, 0.0);
+    stMatrix_scale(breakpointMatrix, params->breakpointScalingFactor, 0.0);
     stMatrix *combinedMatrix = stMatrix_add(substitutionMatrix, breakpointMatrix);
     stMatrix *distanceMatrix = stPinchPhylogeny_getSymmetricDistanceMatrix(combinedMatrix);
 
     stTree *tree = NULL;
-    if(rootingMethod == OUTGROUP_BRANCH) {
-        if (treeBuildingMethod == NEIGHBOR_JOINING) {
+    if (params->rootingMethod == OUTGROUP_BRANCH) {
+        if (params->treeBuildingMethod == NEIGHBOR_JOINING) {
             tree = stPhylogeny_neighborJoin(distanceMatrix, outgroups);
         } else {
-            assert(treeBuildingMethod == GUIDED_NEIGHBOR_JOINING);
+            assert(params->treeBuildingMethod == GUIDED_NEIGHBOR_JOINING);
             st_errAbort("Longest-outgroup-branch rooting not supported with guided neighbor joining");
         }
-    } else if(rootingMethod == LONGEST_BRANCH) {
-        if (treeBuildingMethod == NEIGHBOR_JOINING) {
+    } else if (params->rootingMethod == LONGEST_BRANCH) {
+        if (params->treeBuildingMethod == NEIGHBOR_JOINING) {
             tree = stPhylogeny_neighborJoin(distanceMatrix, NULL);
         } else {
-            assert(treeBuildingMethod == GUIDED_NEIGHBOR_JOINING);
+            assert(params->treeBuildingMethod == GUIDED_NEIGHBOR_JOINING);
             st_errAbort("Longest-branch rooting not supported with guided neighbor joining");
         }
-    } else if(rootingMethod == BEST_RECON) {
-        if (treeBuildingMethod == NEIGHBOR_JOINING) {
+    } else if (params->rootingMethod == BEST_RECON) {
+        if (params->treeBuildingMethod == NEIGHBOR_JOINING) {
             tree = stPhylogeny_neighborJoin(distanceMatrix, NULL);
         } else {
             // FIXME: Could move this out of the function as
@@ -817,97 +815,102 @@ static double getAvgSupportValue(stSortedSet *splitBranches) {
     return totalSupport/stSortedSet_size(splitBranches);
 }
 
-static void buildTreeForBlock(stPinchBlock *block, stHash *threadStrings, stSet *outgroupThreads, Flower *flower, int64_t maxBaseDistance, int64_t maxBlockDistance, int64_t numTrees, enum stCaf_TreeBuildingMethod treeBuildingMethod, enum stCaf_RootingMethod rootingMethod, enum stCaf_ScoringMethod scoringMethod, double breakPointScalingFactor, bool skipSingleCopyBlocks, bool allowSingleDegreeBlocks, bool ignoreUnalignedBases, bool onlyIncludeCompleteFeatureBlocks, double costPerDupPerBase, double costPerLossPerBase, stMatrix *joinCosts, stHash *speciesToJoinCostIndex, stTree *speciesStTree, stHash *blocksToTrees) {
+static void buildTreeForBlock(stPinchBlock *block, stHash *threadStrings, stSet *outgroupThreads, Flower *flower, stCaf_PhylogenyParameters *params, stMatrix *joinCosts, stHash *speciesToJoinCostIndex, stTree *speciesStTree, stHash *blocksToTrees) {
     if (stHash_search(blocksToTrees, block)) {
         stHash_remove(blocksToTrees, block);
     }
-    if (!hasSimplePhylogeny(block, outgroupThreads, flower)) { //No point trying to build a phylogeny for certain blocks.
-        if (isSingleCopyBlock(block, flower) && skipSingleCopyBlocks) {
-            return;
-        }
-
-        // Get the feature blocks
-        stList *featureBlocks = stFeatureBlock_getContextualFeatureBlocks(block, maxBaseDistance, maxBlockDistance,
-                                                                          ignoreUnalignedBases, onlyIncludeCompleteFeatureBlocks, threadStrings);
-
-        // Make feature columns
-        stList *featureColumns = stFeatureColumn_getFeatureColumns(featureBlocks, block);
-
-        //Get the outgroup threads
-        stList *outgroups = getOutgroupThreads(block, outgroupThreads);
-
-        //Build the canonical tree.
-        stTree *blockTree = buildTree(featureColumns, GUIDED_NEIGHBOR_JOINING, rootingMethod,
-                                      breakPointScalingFactor,
-                                      0, outgroups, block, flower,
-                                      speciesStTree, joinCosts, speciesToJoinCostIndex);
-
-        // Sample the rest of the trees.
-        stList *trees = stList_construct();
-        stList_append(trees, blockTree);
-        for (int64_t i = 0; i < numTrees - 1; i++) {
-            stTree *tree = buildTree(featureColumns, GUIDED_NEIGHBOR_JOINING, rootingMethod,
-                                     breakPointScalingFactor,
-                                     1, outgroups, block, flower,
-                                     speciesStTree, joinCosts, speciesToJoinCostIndex);
-            stList_append(trees, tree);
-        }
-
-        // Get the best-scoring tree.
-        double maxScore = -INFINITY;
-        stTree *bestTree = NULL;
-        for (int64_t i = 0; i < stList_length(trees); i++) {
-            stTree *tree = stList_get(trees, i);
-            double score = scoreTree(tree, scoringMethod,
-                                     speciesStTree, block, flower,
-                                     featureColumns);
-            if (score > maxScore) {
-                maxScore = score;
-                bestTree = tree;
-            }
-        }
-
-        if(bestTree == NULL) {
-            // Can happen if/when the nucleotide likelihood score
-            // is used and a block is all N's. Just use the
-            // canonical NJ tree in that case.
-            bestTree = blockTree;
-        }
-
-        assert(bestTree != NULL);
-
-        // Update the bootstrap support for each branch.
-        bestTree = stPhylogeny_scoreReconciliationFromBootstraps(bestTree, trees);
-        // Create reconciliation info on each node.
-        stHash *leafToSpecies = getLeafToSpecies(bestTree,
-                                                 speciesStTree,
-                                                 block, flower);
-        stPhylogeny_reconcileBinary(bestTree, speciesStTree, leafToSpecies,
-                                    false);
-
-        stHash_insert(blocksToTrees, block, bestTree);
-
-        // Cleanup
-        for (int64_t i = 0; i < stList_length(trees); i++) {
-            stTree *tree = stList_get(trees, i);
-            if (tree != bestTree) {
-                stPhylogenyInfo_destructOnTree(tree);
-                stTree_destruct(tree);
-            }
-        }
-        stList_destruct(featureColumns);
-        stList_destruct(featureBlocks);
-        stList_destruct(outgroups);
-        stHash_destruct(leafToSpecies);
+    if (hasSimplePhylogeny(block, outgroupThreads, flower)) {
+        // No point trying to build a phylogeny for certain blocks.
+        return;
     }
+    if (isSingleCopyBlock(block, flower) && params->skipSingleCopyBlocks) {
+        return;
+    }
+
+    // Get the feature blocks
+    stList *featureBlocks = stFeatureBlock_getContextualFeatureBlocks(
+        block, params->maxBaseDistance, params->maxBlockDistance,
+        params->ignoreUnalignedBases, params->onlyIncludeCompleteFeatureBlocks,
+        threadStrings);
+
+    // Make feature columns
+    stList *featureColumns = stFeatureColumn_getFeatureColumns(featureBlocks,
+                                                               block);
+
+    // Get the outgroup threads
+    stList *outgroups = getOutgroupThreads(block, outgroupThreads);
+
+    // Build the canonical tree.
+    stTree *blockTree = buildTree(featureColumns, params,
+                                  0, outgroups, block, flower,
+                                  speciesStTree, joinCosts,
+                                  speciesToJoinCostIndex);
+
+    // Sample the rest of the trees.
+    stList *trees = stList_construct();
+    stList_append(trees, blockTree);
+    for (int64_t i = 0; i < params->numTrees - 1; i++) {
+        stTree *tree = buildTree(featureColumns, params,
+                                 1, outgroups, block, flower,
+                                 speciesStTree, joinCosts,
+                                 speciesToJoinCostIndex);
+        stList_append(trees, tree);
+    }
+
+    // Get the best-scoring tree.
+    double maxScore = -INFINITY;
+    stTree *bestTree = NULL;
+    for (int64_t i = 0; i < stList_length(trees); i++) {
+        stTree *tree = stList_get(trees, i);
+        double score = scoreTree(tree, params->scoringMethod,
+                                 speciesStTree, block, flower,
+                                 featureColumns);
+        if (score > maxScore) {
+            maxScore = score;
+            bestTree = tree;
+        }
+    }
+
+    if(bestTree == NULL) {
+        // Can happen if/when the nucleotide likelihood score
+        // is used and a block is all N's. Just use the
+        // canonical NJ tree in that case.
+        bestTree = blockTree;
+    }
+
+    assert(bestTree != NULL);
+
+    // Update the bootstrap support for each branch.
+    bestTree = stPhylogeny_scoreReconciliationFromBootstraps(bestTree, trees);
+
+    stHash_insert(blocksToTrees, block, bestTree);
+
+    // Cleanup
+    for (int64_t i = 0; i < stList_length(trees); i++) {
+        stTree *tree = stList_get(trees, i);
+        if (tree != bestTree) {
+            stPhylogenyInfo_destructOnTree(tree);
+            stTree_destruct(tree);
+        }
+    }
+    stList_destruct(featureColumns);
+    stList_destruct(featureBlocks);
+    stList_destruct(outgroups);
 }
 
 void splitBlockOnSplitBranch(stPinchBlock *block,
                              stCaf_SplitBranch *splitBranch,
                              stSortedSet *splitBranches,
                              stSet *speciesToSplitOn,
+                             stCaf_PhylogenyParameters *params,
                              stSet *blocksToUpdate,
-                             stHash *threadStrings, stSet *outgroupThreads, Flower *flower, int64_t maxBaseDistance, int64_t maxBlockDistance, int64_t numTrees, enum stCaf_TreeBuildingMethod treeBuildingMethod, enum stCaf_RootingMethod rootingMethod, enum stCaf_ScoringMethod scoringMethod, double breakPointScalingFactor, bool skipSingleCopyBlocks, bool allowSingleDegreeBlocks, bool ignoreUnalignedBases, bool onlyIncludeCompleteFeatureBlocks, double costPerDupPerBase, double costPerLossPerBase, stMatrix *joinCosts, stHash *speciesToJoinCostIndex, stTree *speciesStTree, stHash *blocksToTrees) {
+                             stHash *threadStrings,
+                             stSet *outgroupThreads,
+                             Flower *flower,
+                             stMatrix *joinCosts,
+                             stHash *speciesToJoinCostIndex,
+                             stTree *speciesStTree,
+                             stHash *blocksToTrees) {
     block = splitBranch->block;
     // Do the partition on the block.
     stList *partition = stList_construct();
@@ -980,7 +983,7 @@ void splitBlockOnSplitBranch(stPinchBlock *block,
     stHash_remove(blocksToTrees, block);
 
     // Actually perform the split according to the partition.
-    splitBlock(block, partition, allowSingleDegreeBlocks);
+    splitBlock(block, partition, params->keepSingleDegreeBlocks);
     // Recover the blocks.
     stPinchBlock *blockBelowBranch = stPinchSegment_getBlock(segmentBelowBranch);
     stPinchBlock *blockNotBelowBranch = stPinchSegment_getBlock(segmentNotBelowBranch);
@@ -988,7 +991,9 @@ void splitBlockOnSplitBranch(stPinchBlock *block,
     // Make a new tree for both of the blocks we split into, if
     // they are not too simple to make a tree.
     if (blockBelowBranch != NULL) {
-        buildTreeForBlock(blockBelowBranch, threadStrings, outgroupThreads, flower, maxBaseDistance, maxBlockDistance, numTrees, treeBuildingMethod, rootingMethod, scoringMethod, breakPointScalingFactor, skipSingleCopyBlocks, allowSingleDegreeBlocks, ignoreUnalignedBases, onlyIncludeCompleteFeatureBlocks, costPerDupPerBase, costPerLossPerBase, joinCosts, speciesToJoinCostIndex, speciesStTree, blocksToTrees);
+        buildTreeForBlock(blockBelowBranch, threadStrings, outgroupThreads,
+                          flower, params, joinCosts, speciesToJoinCostIndex,
+                          speciesStTree, blocksToTrees);
     }
     stTree *treeBelowBranch = stHash_search(blocksToTrees, blockBelowBranch);
     if (treeBelowBranch != NULL) {
@@ -996,9 +1001,12 @@ void splitBlockOnSplitBranch(stPinchBlock *block,
                           splitBranches, speciesToSplitOn);
     }
     if (blockNotBelowBranch != NULL) {
-        buildTreeForBlock(blockNotBelowBranch, threadStrings, outgroupThreads, flower, maxBaseDistance, maxBlockDistance, numTrees, treeBuildingMethod, rootingMethod, scoringMethod, breakPointScalingFactor, skipSingleCopyBlocks, allowSingleDegreeBlocks, ignoreUnalignedBases, onlyIncludeCompleteFeatureBlocks, costPerDupPerBase, costPerLossPerBase, joinCosts, speciesToJoinCostIndex, speciesStTree, blocksToTrees);
+        buildTreeForBlock(blockNotBelowBranch, threadStrings, outgroupThreads,
+                          flower, params, joinCosts, speciesToJoinCostIndex,
+                          speciesStTree, blocksToTrees);
     }
-    stTree *treeNotBelowBranch = stHash_search(blocksToTrees, blockNotBelowBranch);
+    stTree *treeNotBelowBranch = stHash_search(blocksToTrees,
+                                               blockNotBelowBranch);
     if (treeNotBelowBranch != NULL) {
         findSplitBranches(blockNotBelowBranch, treeNotBelowBranch,
                           splitBranches, speciesToSplitOn);
@@ -1008,26 +1016,30 @@ void splitBlockOnSplitBranch(stPinchBlock *block,
     // either of the new blocks to be affected by this breakpoint
     // change.
     if (blockBelowBranch != NULL) {
-        addContextualBlocksToSet(blockBelowBranch, maxBaseDistance,
-                                 maxBlockDistance, ignoreUnalignedBases,
+        addContextualBlocksToSet(blockBelowBranch, params->maxBaseDistance,
+                                 params->maxBlockDistance,
+                                 params->ignoreUnalignedBases,
                                  blocksToUpdate);
     }
     if (blockNotBelowBranch != NULL) {
-        addContextualBlocksToSet(blockNotBelowBranch, maxBaseDistance,
-                                 maxBlockDistance, ignoreUnalignedBases,
+        addContextualBlocksToSet(blockNotBelowBranch, params->maxBaseDistance,
+                                 params->maxBlockDistance,
+                                 params->ignoreUnalignedBases,
                                  blocksToUpdate);
     }
 }
 
-void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHash *threadStrings, stSet *outgroupThreads, Flower *flower, int64_t maxBaseDistance, int64_t maxBlockDistance, int64_t numTrees, enum stCaf_TreeBuildingMethod treeBuildingMethod, enum stCaf_RootingMethod rootingMethod, enum stCaf_ScoringMethod scoringMethod, double breakPointScalingFactor, bool skipSingleCopyBlocks, bool allowSingleDegreeBlocks, double costPerDupPerBase, double costPerLossPerBase, FILE *debugFile, const char *referenceEventHeader) {
+void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
+                                               stHash *threadStrings,
+                                               stSet *outgroupThreads,
+                                               Flower *flower,
+                                               stCaf_PhylogenyParameters *params,
+                                               FILE *debugFile,
+                                               const char *referenceEventHeader) {
     // Functions we aren't using right now but should stick around anyway.
     (void) printSimpleBlockDebugInfo;
     (void) getTotalSimilarityAndDifferenceCounts;
     (void) printTreeBuildingDebugInfo;
-
-    // Parameters.
-    bool ignoreUnalignedBases = 1;
-    bool onlyIncludeCompleteFeatureBlocks = 0;
 
     stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
     stPinchBlock *block;
@@ -1041,7 +1053,10 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
 
     // Get info for guided neighbor-joining
     stHash *speciesToJoinCostIndex = stHash_construct2(NULL, (void (*)(void *)) stIntTuple_destruct);
-    stMatrix *joinCosts = stPhylogeny_computeJoinCosts(speciesStTree, speciesToJoinCostIndex, costPerDupPerBase * 2 * maxBaseDistance, costPerLossPerBase * 2 * maxBaseDistance);
+    stMatrix *joinCosts = stPhylogeny_computeJoinCosts(
+        speciesStTree, speciesToJoinCostIndex,
+        params->costPerDupPerBase * 2 * params->maxBaseDistance,
+        params->costPerLossPerBase * 2 * params->maxBaseDistance);
 
     stSortedSet *splitBranches = stSortedSet_construct3((int (*)(const void *, const void *)) compareSplitBranches, free);
     stSet *speciesToSplitOn = stSet_construct();
@@ -1063,7 +1078,9 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
 
     // The loop to build a tree for each block
     while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
-        buildTreeForBlock(block, threadStrings, outgroupThreads, flower, maxBaseDistance, maxBlockDistance, numTrees, treeBuildingMethod, rootingMethod, scoringMethod, breakPointScalingFactor, skipSingleCopyBlocks, allowSingleDegreeBlocks, ignoreUnalignedBases, onlyIncludeCompleteFeatureBlocks, costPerDupPerBase, costPerLossPerBase, joinCosts, speciesToJoinCostIndex, speciesStTree, blocksToTrees);
+        buildTreeForBlock(block, threadStrings, outgroupThreads, flower, params,
+                          joinCosts, speciesToJoinCostIndex, speciesStTree,
+                          blocksToTrees);
         stTree *tree = stHash_search(blocksToTrees, block);
         if (tree != NULL) {
             findSplitBranches(block, stHash_search(blocksToTrees, block),
@@ -1099,8 +1116,11 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
             block = splitBranch->block;
             stSet_insert(blocksSplit, block);
             splitBlockOnSplitBranch(block, splitBranch, splitBranches,
-                                    speciesToSplitOn,
-                                    blocksToUpdate, threadStrings, outgroupThreads, flower, maxBaseDistance, maxBlockDistance, numTrees, treeBuildingMethod, rootingMethod, scoringMethod, breakPointScalingFactor, skipSingleCopyBlocks, allowSingleDegreeBlocks, ignoreUnalignedBases, onlyIncludeCompleteFeatureBlocks, costPerDupPerBase, costPerLossPerBase, joinCosts, speciesToJoinCostIndex, speciesStTree, blocksToTrees);
+                                    speciesToSplitOn, params,
+                                    blocksToUpdate, threadStrings,
+                                    outgroupThreads, flower, joinCosts,
+                                    speciesToJoinCostIndex, speciesStTree,
+                                    blocksToTrees);
             // Get the next split branch.
             splitBranch = stSortedSet_getLast(splitBranches);
             numberOfSplitsMade++;
@@ -1119,7 +1139,9 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
             stTree *oldTree = stHash_search(blocksToTrees, blockToUpdate);
             removeOldSplitBranches(blockToUpdate, oldTree, speciesToSplitOn,
                                    splitBranches);
-            buildTreeForBlock(blockToUpdate, threadStrings, outgroupThreads, flower, maxBaseDistance, maxBlockDistance, numTrees, treeBuildingMethod, rootingMethod, scoringMethod, breakPointScalingFactor, skipSingleCopyBlocks, allowSingleDegreeBlocks, ignoreUnalignedBases, onlyIncludeCompleteFeatureBlocks, costPerDupPerBase, costPerLossPerBase, joinCosts, speciesToJoinCostIndex, speciesStTree, blocksToTrees);
+            buildTreeForBlock(blockToUpdate, threadStrings, outgroupThreads,
+                              flower, params, joinCosts, speciesToJoinCostIndex,
+                              speciesStTree, blocksToTrees);
             stTree *tree = stHash_search(blocksToTrees, blockToUpdate);
             if (tree != NULL) {
                 findSplitBranches(blockToUpdate, tree,
@@ -1134,8 +1156,10 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
         block = splitBranch->block;
         stSet *blocksToUpdate = stSet_construct();
         splitBlockOnSplitBranch(block, splitBranch, splitBranches,
-                                speciesToSplitOn,
-                                blocksToUpdate, threadStrings, outgroupThreads, flower, maxBaseDistance, maxBlockDistance, numTrees, treeBuildingMethod, rootingMethod, scoringMethod, breakPointScalingFactor, skipSingleCopyBlocks, allowSingleDegreeBlocks, ignoreUnalignedBases, onlyIncludeCompleteFeatureBlocks, costPerDupPerBase, costPerLossPerBase, joinCosts, speciesToJoinCostIndex, speciesStTree, blocksToTrees);
+                                speciesToSplitOn, params, blocksToUpdate,
+                                threadStrings, outgroupThreads, flower,
+                                joinCosts, speciesToJoinCostIndex, speciesStTree,
+                                blocksToTrees);
         stSetIterator *blocksToUpdateIt = stSet_getIterator(blocksToUpdate);
         stPinchBlock *blockToUpdate;
         while ((blockToUpdate = stSet_getNext(blocksToUpdateIt)) != NULL) {
@@ -1143,7 +1167,9 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet, stHa
             stTree *oldTree = stHash_search(blocksToTrees, blockToUpdate);
             removeOldSplitBranches(blockToUpdate, oldTree, speciesToSplitOn,
                                    splitBranches);
-            buildTreeForBlock(blockToUpdate, threadStrings, outgroupThreads, flower, maxBaseDistance, maxBlockDistance, numTrees, treeBuildingMethod, rootingMethod, scoringMethod, breakPointScalingFactor, skipSingleCopyBlocks, allowSingleDegreeBlocks, ignoreUnalignedBases, onlyIncludeCompleteFeatureBlocks, costPerDupPerBase, costPerLossPerBase, joinCosts, speciesToJoinCostIndex, speciesStTree, blocksToTrees);
+            buildTreeForBlock(blockToUpdate, threadStrings, outgroupThreads,
+                              flower, params, joinCosts, speciesToJoinCostIndex,
+                              speciesStTree, blocksToTrees);
             stTree *tree = stHash_search(blocksToTrees, blockToUpdate);
             if (tree != NULL) {
                 findSplitBranches(blockToUpdate, tree,

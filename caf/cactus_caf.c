@@ -620,7 +620,24 @@ int main(int argc, char *argv[]) {
                         st_errnoAbort("could not open debug file");
                     }
                 }
-                stCaf_buildTreesToRemoveAncientHomologies(threadSet, threadStrings, outgroupThreads, flower, phylogenyMaxBaseDistance, phylogenyMaxBlockDistance, phylogenyNumTrees, phylogenyTreeBuildingMethod, phylogenyRootingMethod, phylogenyScoringMethod, breakpointScalingFactor, phylogenySkipSingleCopyBlocks, phylogenyKeepSingleDegreeBlocks, phylogenyCostPerDupPerBase, phylogenyCostPerLossPerBase, debugFile, referenceEventHeader);
+                stCaf_PhylogenyParameters params;
+                params.treeBuildingMethod = phylogenyTreeBuildingMethod;
+                params.rootingMethod = phylogenyRootingMethod;
+                params.scoringMethod = phylogenyScoringMethod;
+                params.breakpointScalingFactor = breakpointScalingFactor;
+                params.skipSingleCopyBlocks = phylogenySkipSingleCopyBlocks;
+                params.keepSingleDegreeBlocks = phylogenyKeepSingleDegreeBlocks;
+                params.costPerDupPerBase = phylogenyCostPerDupPerBase;
+                params.costPerLossPerBase = phylogenyCostPerLossPerBase;
+                params.maxBaseDistance = phylogenyMaxBaseDistance;
+                params.maxBlockDistance = phylogenyMaxBlockDistance;
+                params.numTrees = phylogenyNumTrees;
+                params.ignoreUnalignedBases = 1;
+                params.onlyIncludeCompleteFeatureBlocks = 0;
+
+                stCaf_buildTreesToRemoveAncientHomologies(
+                    threadSet, threadStrings, outgroupThreads, flower, &params,
+                    debugFile, referenceEventHeader);
                 if (debugFile != NULL) {
                     fclose(debugFile);
                 }
