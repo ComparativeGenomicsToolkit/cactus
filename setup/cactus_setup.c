@@ -39,6 +39,7 @@ void usage() {
  * Plenty of global variables!
  */
 int64_t isComplete = 1;
+int64_t totalEventNumber;
 char * cactusDiskDatabaseString = NULL;
 CactusDisk *cactusDisk;
 Flower *flower;
@@ -121,6 +122,66 @@ void setCompleteStatus(const char *fileName) {
     st_logInfo("The file %s is specified incomplete, the sequences will not be attached\n", fileName);
 }
 
+static void assignEventsAndSequences(Event *parentEvent, stTree *tree,
+                                     stSet *outgroupNameSet,
+                                     char *argv[], int64_t *j) {
+    Event *myEvent; // To distinguish from the global "event" variable.
+    assert(tree != NULL);
+    totalEventNumber++;
+    if (stTree_getChildNumber(tree) > 0) {
+        myEvent = event_construct3(stTree_getLabel(tree),
+                                   stTree_getBranchLength(tree), parentEvent,
+                                   eventTree);
+        for (int64_t i = 0; i < stTree_getChildNumber(tree); i++) {
+            assignEventsAndSequences(myEvent, stTree_getChild(tree, i),
+                                     outgroupNameSet, argv, j);
+        }
+    }
+    if (stTree_getChildNumber(tree) == 0 || (stTree_getLabel(tree) != NULL && (stSet_search(outgroupNameSet, (char *)stTree_getLabel(tree)) != NULL))) {
+        // This event is a leaf and/or an outgroup, so it has
+        // associated sequence.
+        assert(stTree_getLabel(tree) != NULL);
+
+        assert(stTree_getBranchLength(tree) != INFINITY);
+        if (stTree_getChildNumber(tree) == 0) {
+            // Construct the leaf event
+            myEvent = event_construct3(stTree_getLabel(tree), stTree_getBranchLength(tree), parentEvent, eventTree);
+        }
+
+        char *fileName = argv[*j];
+
+        if (!stFile_exists(fileName)) {
+            st_errAbort("File does not exist: %s\n", fileName);
+        }
+
+        // Set the global "event" variable, which is needed for the
+        // function provided to fastaReadToFunction.
+        event = myEvent;
+        if (stFile_isDir(fileName)) {
+            st_logInfo("Processing directory: %s\n", fileName);
+            stList *filesInDir = stFile_getFileNamesInDirectory(fileName);
+            for (int64_t i = 0; i < stList_length(filesInDir); i++) {
+                char *absChildFileName = stFile_pathJoin(fileName, stList_get(filesInDir, i));
+                assert(stFile_exists(absChildFileName));
+                setCompleteStatus(absChildFileName); //decide if the sequences in the file should be free or attached.
+                FILE *fileHandle = fopen(absChildFileName, "r");
+                fastaReadToFunction(fileHandle, processSequence);
+                fclose(fileHandle);
+                free(absChildFileName);
+            }
+            stList_destruct(filesInDir);
+        } else {
+            st_logInfo("Processing file: %s\n", fileName);
+            printf("Processing file %s to event %s\n", fileName, event_getHeader(event));
+            setCompleteStatus(fileName); //decide if the sequences in the file should be free or attached.
+            FILE *fileHandle = fopen(fileName, "r");
+            fastaReadToFunction(fileHandle, processSequence);
+            fclose(fileHandle);
+        }
+        (*j)++;
+    }
+}
+
 int main(int argc, char *argv[]) {
     /*
      * Open the database.
@@ -133,9 +194,6 @@ int main(int argc, char *argv[]) {
      */
 
     int64_t key, j;
-    struct List *stack;
-    FILE *fileHandle = NULL;
-    int64_t totalEventNumber;
     Group *group;
     Flower_EndIterator *endIterator;
     End *end;
@@ -272,63 +330,9 @@ int main(int argc, char *argv[]) {
     }
 
     //now traverse the tree
-    stack = constructEmptyList(0, NULL);
-    listAppend(stack, eventTree_getRootEvent(eventTree));
-    listAppend(stack, tree);
     j = optind;
-    while (stack->length > 0) {
-        tree = stack->list[--stack->length];
-        event = stack->list[--stack->length];
-        assert(tree != NULL);
-        totalEventNumber++;
-        if (stTree_getChildNumber(tree) > 0) {
-            event = event_construct3(stTree_getLabel(tree), stTree_getBranchLength(tree), event, eventTree);
-            for (int64_t i = stTree_getChildNumber(tree) - 1; i >= 0; i--) {
-                listAppend(stack, event);
-                listAppend(stack, stTree_getChild(tree, i));
-            }
-        }
-        if (stTree_getChildNumber(tree) == 0 || (stTree_getLabel(tree) != NULL && (stSet_search(outgroupNameSet, (char *)stTree_getLabel(tree)) != NULL))) {
-            // This event is a leaf and/or an outgroup, so it has
-            // associated sequence.
-            assert(j < argc);
-            assert(stTree_getLabel(tree) != NULL);
-
-            assert(stTree_getBranchLength(tree) != INFINITY);
-            if (stTree_getChildNumber(tree) == 0) {
-                // Construct the leaf event
-                event = event_construct3(stTree_getLabel(tree), stTree_getBranchLength(tree), event, eventTree);
-            }
-
-            char *fileName = argv[j];
-
-            if (!stFile_exists(fileName)) {
-                st_errAbort("File does not exist: %s\n", fileName);
-            }
-
-            if (stFile_isDir(fileName)) {
-                st_logInfo("Processing directory: %s\n", fileName);
-                stList *filesInDir = stFile_getFileNamesInDirectory(fileName);
-                for (int64_t i = 0; i < stList_length(filesInDir); i++) {
-                    char *absChildFileName = stFile_pathJoin(fileName, stList_get(filesInDir, i));
-                    assert(stFile_exists(absChildFileName));
-                    setCompleteStatus(absChildFileName); //decide if the sequences in the file should be free or attached.
-                    fileHandle = fopen(absChildFileName, "r");
-                    fastaReadToFunction(fileHandle, processSequence);
-                    fclose(fileHandle);
-                    free(absChildFileName);
-                }
-                stList_destruct(filesInDir);
-            } else {
-                st_logInfo("Processing file: %s\n", fileName);
-                setCompleteStatus(fileName); //decide if the sequences in the file should be free or attached.
-                fileHandle = fopen(fileName, "r");
-                fastaReadToFunction(fileHandle, processSequence);
-                fclose(fileHandle);
-            }
-            j++;
-        }
-    }
+    assignEventsAndSequences(eventTree_getRootEvent(eventTree), tree,
+                             outgroupNameSet, argv, &j);
 
     char *eventTreeString = eventTree_makeNewickString(eventTree);
     st_logInfo(
