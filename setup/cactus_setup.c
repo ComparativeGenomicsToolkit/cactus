@@ -125,7 +125,7 @@ void setCompleteStatus(const char *fileName) {
 static void assignEventsAndSequences(Event *parentEvent, stTree *tree,
                                      stSet *outgroupNameSet,
                                      char *argv[], int64_t *j) {
-    Event *myEvent; // To distinguish from the global "event" variable.
+    Event *myEvent = NULL; // To distinguish from the global "event" variable.
     assert(tree != NULL);
     totalEventNumber++;
     if (stTree_getChildNumber(tree) > 0) {

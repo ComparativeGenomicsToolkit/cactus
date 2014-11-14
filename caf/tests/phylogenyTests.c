@@ -88,7 +88,7 @@ static void testSplitBlock(CuTest *testCase) {
                 // block and that they still have the same length.
                 stSetIterator *segmentIt = stSet_getIterator(segments);
                 stPinchSegment *segment;
-                stPinchBlock *block;
+                stPinchBlock *block = NULL;
                 bool firstSegment = true;
                 while ((segment = stSet_getNext(segmentIt)) != NULL) {
                     CuAssertTrue(testCase, stPinchSegment_getLength(segment) == blockLength);
