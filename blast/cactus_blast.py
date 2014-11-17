@@ -27,6 +27,7 @@ class BlastOptions:
                  # Trim options for trimming ingroup seqs:
                  trimFlanking=10, trimMinSize=20,
                  trimWindowSize=10, trimThreshold=1,
+                 trimOutgroupDepth=1,
                  # Trim options for trimming outgroup seqs (options
                  # other than flanking sequence will need a check to
                  # remove alignments that don't qualify)
@@ -54,6 +55,7 @@ class BlastOptions:
         self.trimMinSize = trimMinSize
         self.trimThreshold = trimThreshold
         self.trimWindowSize = trimWindowSize
+        self.trimOutgroupDepth = trimOutgroupDepth
         self.trimOutgroupFlanking = trimOutgroupFlanking
 
 class BlastFlower(Target):
@@ -302,7 +304,7 @@ class TrimAndRecurseOnOutgroups(Target):
         for ingroupSequence in self.untrimmedSequenceFiles:
             tmpIngroupCoverage = getTempFile(rootDir=self.getGlobalTempDir())
             calculateCoverage(ingroupSequence, self.outputFile,
-                              tmpIngroupCoverage)
+                              tmpIngroupCoverage, depthById=self.blastOptions.trimOutgroupDepth > 1)
             self.logToMaster("Cumulative coverage of %d outgroups on ingroup %s: %s" % (self.outgroupNumber, os.path.basename(ingroupSequence), percentCoverage(ingroupSequence, tmpIngroupCoverage)))
             ingroupCoverageFiles.append(tmpIngroupCoverage)
 
@@ -331,7 +333,8 @@ class TrimAndRecurseOnOutgroups(Target):
                            complement=True, flanking=self.blastOptions.trimFlanking,
                            minSize=self.blastOptions.trimMinSize,
                            threshold=self.blastOptions.trimThreshold,
-                           windowSize=self.blastOptions.trimWindowSize)
+                           windowSize=self.blastOptions.trimWindowSize,
+                           depth=self.blastOptions.trimOutgroupDepth)
                 trimmedSeqs.append(trimmed)
             self.addChildTarget(BlastFirstOutgroup(self.untrimmedSequenceFiles,
                                                    trimmedSeqs,
@@ -435,20 +438,21 @@ def percentCoverage(sequenceFile, coverageFile):
         return 0
     return 100*float(coverage)/sequenceLen
 
-def calculateCoverage(sequenceFile, cigarFile, outputFile):
+def calculateCoverage(sequenceFile, cigarFile, outputFile, depthById=False):
     logger.info("Calculating coverage of cigar file %s on %s, writing to %s" % (
         cigarFile, sequenceFile, outputFile))
-    system("cactus_coverage %s %s > %s" % (sequenceFile,
+    system("cactus_coverage %s %s %s > %s" % (nameValue("depthById", depthById, bool),
+                                           sequenceFile,
                                            cigarFile,
                                            outputFile))
 
 def trimGenome(sequenceFile, coverageFile, outputFile, complement=False,
-               flanking=0, minSize=1, windowSize=10, threshold=1):
-    system("cactus_trimSequences.py %s %s %s %s %s %s %s > %s" % (
+               flanking=0, minSize=1, windowSize=10, threshold=1, depth=1):
+    system("cactus_trimSequences.py %s %s %s %s %s %s %s %s > %s" % (
         nameValue("complement", complement, valueType=bool),
         nameValue("flanking", flanking), nameValue("minSize", minSize),
         nameValue("windowSize", windowSize), nameValue("threshold", threshold),
-        sequenceFile, coverageFile, outputFile))
+        nameValue("depth", depth), sequenceFile, coverageFile, outputFile))
 
 def main():
     ##########################################
@@ -497,6 +501,9 @@ replaced with the the sequence file and the results file, respectively",
     parser.add_option("--trimThreshold", type=int, help="Coverage threshold for an ingroup region to not be aligned against the next outgroup", default=blastOptions.trimThreshold)
     parser.add_option("--trimWindowSize", type=int, help="Windowing size to integrate ingroup coverage over", default=blastOptions.trimWindowSize)
     parser.add_option("--trimOutgroupFlanking", type=int, help="Amount of flanking sequence to leave on trimmed outgroup sequences", default=blastOptions.trimOutgroupFlanking)
+    parser.add_option("--trimOutgroupDepth", type=int, help="Trim regions away "
+                      "after this many separate outgroups have been aligned to "
+                      "the region", default=1)
     
 
     parser.add_option("--test", dest="test", action="store_true",
