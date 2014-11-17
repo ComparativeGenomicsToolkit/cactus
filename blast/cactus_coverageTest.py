@@ -10,24 +10,25 @@ class TestCase(unittest.TestCase):
         # coverage is correct. no overlap on B, but overlap on A.
         self.simpleFastaPathA = getTempFile()
         open(self.simpleFastaPathA, 'w').write(dedent('''\
-        >simpleSeqA1
+        >id=0|simpleSeqA1
         ACTAGAGTAGGAGAGAGAGGGGGG
         CATGCATGCATGCATGCATGCATG
-        >simpleSeqA2
+        >id=1|simpleSeqA2
         AAAAAAAAAAAAAAAACTCGTGAG
         CATGCATGCATGCATGCATGCATG'''))
         self.simpleFastaPathB = getTempFile()
         open(self.simpleFastaPathB, 'w').write(dedent('''\
-        >simpleSeqB1
+        >id=2|simpleSeqB1
         CATGCATGCATGCATGCATGCATG
         CATGCATGCATGCATGCATGCATG'''))
         self.simpleCigarPath = getTempFile()
         open(self.simpleCigarPath, 'w').write(dedent('''\
-        cigar: simpleSeqB1 0 9 + simpleSeqA1 10 0 - 0 M 8 D 1 M 1
-        cigar: simpleSeqB1 9 18 + simpleSeqA1 2 6 + 0 M 3 I 5 M 1
-        cigar: simpleSeqB1 18 28 + simpleSeqA2 0 10 + 0 M 1 I 2 M 2 D 2 M 5
-        cigar: simpleSeqB1 28 30 + simpleSeqA2 6 8 + 0 M 2
-        cigar: simpleSeqB1 30 32 + simpleSeqA2 7 9 + 0 M 2
+        cigar: id=2|simpleSeqB1 0 9 + id=0|simpleSeqA1 10 0 - 0 M 8 D 1 M 1
+        cigar: id=2|simpleSeqB1 9 18 + id=0|simpleSeqA1 2 6 + 0 M 3 I 5 M 1
+        cigar: id=2|simpleSeqB1 18 28 + id=1|simpleSeqA2 0 10 + 0 M 1 I 2 M 2 D 2 M 5
+        cigar: id=2|simpleSeqB1 28 30 + id=1|simpleSeqA2 6 8 + 0 M 2
+        cigar: id=2|simpleSeqB1 30 32 + id=1|simpleSeqA2 7 9 + 0 M 2
+        cigar: id=3|simpleSeqC 0 1 + id=0|simpleSeqA1 6 7 + 0 M 1
         '''))
 
     def tearDown(self):
@@ -41,15 +42,15 @@ class TestCase(unittest.TestCase):
         bed = popenCatch("cactus_coverage %s %s" % (self.simpleFastaPathA,
                                                     self.simpleCigarPath))
         self.assertEqual(bed, dedent('''\
-        simpleSeqA1\t0\t1\t\t1
-        simpleSeqA1\t2\t6\t\t2
-        simpleSeqA1\t6\t10\t\t1
-        simpleSeqA2\t0\t3\t\t1
-        simpleSeqA2\t5\t6\t\t1
-        simpleSeqA2\t6\t7\t\t2
-        simpleSeqA2\t7\t8\t\t3
-        simpleSeqA2\t8\t9\t\t2
-        simpleSeqA2\t9\t10\t\t1
+        id=0|simpleSeqA1\t0\t1\t\t1
+        id=0|simpleSeqA1\t2\t7\t\t2
+        id=0|simpleSeqA1\t7\t10\t\t1
+        id=1|simpleSeqA2\t0\t3\t\t1
+        id=1|simpleSeqA2\t5\t6\t\t1
+        id=1|simpleSeqA2\t6\t7\t\t2
+        id=1|simpleSeqA2\t7\t8\t\t3
+        id=1|simpleSeqA2\t8\t9\t\t2
+        id=1|simpleSeqA2\t9\t10\t\t1
         '''))
 
     def testSimpleCoverageOnB(self):
@@ -57,13 +58,41 @@ class TestCase(unittest.TestCase):
         bed = popenCatch("cactus_coverage %s %s" % (self.simpleFastaPathB,
                                                     self.simpleCigarPath))
         self.assertEqual(bed, dedent('''\
-        simpleSeqB1\t0\t12\t\t1
-        simpleSeqB1\t17\t19\t\t1
-        simpleSeqB1\t21\t32\t\t1
+        id=2|simpleSeqB1\t0\t12\t\t1
+        id=2|simpleSeqB1\t17\t19\t\t1
+        id=2|simpleSeqB1\t21\t32\t\t1
+        '''))
+
+    def testDepthByIDOnA(self):
+        # Genome A using depthByID: all depths should be 1 except
+        # where 2 different id= prefixes align to the same place:
+        # position 6
+        bed = popenCatch("cactus_coverage --depthById %s %s" % (
+            self.simpleFastaPathA, self.simpleCigarPath))
+        self.assertEqual(bed, dedent('''\
+        id=0|simpleSeqA1\t0\t1\t\t1
+        id=0|simpleSeqA1\t2\t6\t\t1
+        id=0|simpleSeqA1\t6\t7\t\t2
+        id=0|simpleSeqA1\t7\t10\t\t1
+        id=1|simpleSeqA2\t0\t3\t\t1
+        id=1|simpleSeqA2\t5\t10\t\t1
+        '''))
+
+    def testDepthByIDOnB(self):
+        # Genome B using depthByID: should be the same as normal
+        # except for 30-31, where it should be 2
+        bed = popenCatch("cactus_coverage --depthById %s %s" % (
+            self.simpleFastaPathB, self.simpleCigarPath))
+        self.assertEqual(bed, dedent('''\
+        id=2|simpleSeqB1\t0\t12\t\t1
+        id=2|simpleSeqB1\t17\t19\t\t1
+        id=2|simpleSeqB1\t21\t32\t\t1
         '''))
 
     def testInvariants(self):
         (seqs, _) = getCactusInputs_encode(random.uniform(0, 2))
+        # Chimp encode input has duplicate header names.
+        seqs = [i for i in seqs if 'chimp' not in i]
         seqs = random.sample(seqs, 2)
         cigarPath = getTempFile()
         system("cactus_lastz --format=cigar %s[multiple] %s[multiple] > %s" % \
