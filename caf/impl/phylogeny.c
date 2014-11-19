@@ -1104,13 +1104,13 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
     double totalSupport = 0;
     int64_t totalNumberOfBlocksRecomputed = 0;
     stCaf_SplitBranch *splitBranch = stSortedSet_getLast(splitBranches);
-    if (params->doPerfectSplitsAllAtOnce) {
+    if (params->doSplitsWithSupportHigherThanThisAllAtOnce <= 1.0) {
         // Save a lot of time by doing the large fraction of highly
         // confident splits first, then updating the other affected
         // blocks in one go.
         stSet *blocksToUpdate = stSet_construct();
         stSet *blocksSplit = stSet_construct();
-        while (splitBranch != NULL && splitBranch->support == 1.0) {
+        while (splitBranch != NULL && splitBranch->support >= params->doSplitsWithSupportHigherThanThisAllAtOnce) {
             totalSupport += splitBranch->support;
             block = splitBranch->block;
             stSet_insert(blocksSplit, block);

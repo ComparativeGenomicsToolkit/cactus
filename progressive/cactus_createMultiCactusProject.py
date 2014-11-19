@@ -104,7 +104,7 @@ def cleanEventTree(experiment):
                     sys.stderr.write('WARNING renaming event %s to %s\n' % (
                         name2, newName))
                     redoPrefix = True
-                    
+
     experiment.xmlRoot.attrib["species_tree"] = NXNewick().writeString(tree)
     experiment.seqMap = experiment.buildSequenceMap()
 

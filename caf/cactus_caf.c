@@ -83,6 +83,7 @@ static void usage() {
     fprintf(stderr, "-N --phylogenyCostPerLossPerBase : join cost per dup per base for guided neighbor-joining (will be multiplied by maxBaseDistance)\n");
     fprintf(stderr, "-O --phylogenyCostPerLossPerBase : join cost per loss per base for guided neighbor-joining (will be multiplied by maxBaseDistance)\n");
     fprintf(stderr, "-P --referenceEventHeader : name of reference event (necessary for phylogeny estimation)\n");
+    fprintf(stderr, "-Q --phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce : assume that this support value or greater means a very confident split, and that they will not be changed by the greedy split algorithm. Do all these very confident splits at once, to save a lot of computation time.\n");
 }
 
 static int64_t *getInts(const char *string, int64_t *arrayLength) {
@@ -259,7 +260,7 @@ int main(int argc, char *argv[]) {
     double phylogenyCostPerLossPerBase = 0.2;
     const char *debugFileName = NULL;
     const char *referenceEventHeader = NULL;
-    bool phylogenyDoPerfectSplitsAllAtOnce = 0;
+    double phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce = 1.0;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -292,12 +293,12 @@ int main(int argc, char *argv[]) {
                         { "phylogenyCostPerDupPerBase", required_argument, 0, 'N' },
                         { "phylogenyCostPerLossPerBase", required_argument, 0, 'O' },
                         { "referenceEventHeader", required_argument, 0, 'P' },
-                        { "phylogenyDoPerfectSplitsAllAtOnce", no_argument, 0, 'Q' },
+                        { "phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce", required_argument, 0, 'Q' },
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:BC:D:E:F:G:HI:J:K:LM:N:O:P:Q", long_options, &option_index);
+        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:BC:D:E:F:G:HI:J:K:LM:N:O:P:Q:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -454,7 +455,8 @@ int main(int argc, char *argv[]) {
                 referenceEventHeader = stString_copy(optarg);
                 break;
             case 'Q':
-                phylogenyDoPerfectSplitsAllAtOnce = 1;
+                k = sscanf(optarg, "%lf", &phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce);
+                assert(k == 1);
                 break;
             default:
                 usage();
@@ -639,7 +641,7 @@ int main(int argc, char *argv[]) {
                 params.numTrees = phylogenyNumTrees;
                 params.ignoreUnalignedBases = 1;
                 params.onlyIncludeCompleteFeatureBlocks = 0;
-                params.doPerfectSplitsAllAtOnce = phylogenyDoPerfectSplitsAllAtOnce;
+                params.doSplitsWithSupportHigherThanThisAllAtOnce = phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce;
 
                 stCaf_buildTreesToRemoveAncientHomologies(
                     threadSet, threadStrings, outgroupThreads, flower, &params,

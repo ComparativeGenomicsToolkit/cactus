@@ -221,7 +221,7 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
                  phylogenyCostPerDupPerBase=None,
                  phylogenyCostPerLossPerBase=None,
                  referenceEventHeader=None,
-                 phylogenyDoPerfectSplitsAllAtOnce=None):
+                 phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce=None):
     # remove annoying carriage returns in caf command line.
     cactusDiskDatabaseString = cactusDiskDatabaseString.replace('\n', '')
 
@@ -256,7 +256,7 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
     phylogenyCostPerDupPerBase = nameValue("phylogenyCostPerDupPerBase", phylogenyCostPerDupPerBase)
     phylogenyCostPerLossPerBase = nameValue("phylogenyCostPerLossPerBase", phylogenyCostPerLossPerBase)
     referenceEventHeader = nameValue("referenceEventHeader", referenceEventHeader, quotes=True)
-    phylogenyDoPerfectSplitsAllAtOnce = nameValue("phylogenyDoPerfectSplitsAllAtOnce", phylogenyDoPerfectSplitsAllAtOnce, bool)
+    phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce = nameValue("phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce", phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce, bool)
 
     minLengthForChromosome = nameValue("minLengthForChromosome", minLengthForChromosome, int)
     proportionOfUnalignedBasesForNewChromosome = nameValue("proportionOfUnalignedBasesForNewChromosome", proportionOfUnalignedBasesForNewChromosome, float)
@@ -267,7 +267,7 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
      trim, minimumTreeCoverage, blockTrim, 
      minimumBlockDegree, minimumIngroupDegree, minimumOutgroupDegree,  
      singleCopyIngroup, singleCopyOutgroup, lastzArguments, minimumSequenceLengthForBlast, maxAdjacencyComponentSizeRatio, constraints,
-     minLengthForChromosome, proportionOfUnalignedBasesForNewChromosome, maximumMedianSequenceLengthBetweenLinkedEnds, realign, realignArguments, phylogenyNumTrees, phylogenyRootingMethod, phylogenyScoringMethod, phylogenyBreakpointScalingFactor, phylogenySkipSingleCopyBlocks, phylogenyMaxBaseDistance, phylogenyMaxBlockDistance, phylogenyDebugFile, phylogenyKeepSingleDegreeBlocks, phylogenyTreeBuildingMethod, phylogenyCostPerDupPerBase, phylogenyCostPerLossPerBase, referenceEventHeader, phylogenyDoPerfectSplitsAllAtOnce)
+     minLengthForChromosome, proportionOfUnalignedBasesForNewChromosome, maximumMedianSequenceLengthBetweenLinkedEnds, realign, realignArguments, phylogenyNumTrees, phylogenyRootingMethod, phylogenyScoringMethod, phylogenyBreakpointScalingFactor, phylogenySkipSingleCopyBlocks, phylogenyMaxBaseDistance, phylogenyMaxBlockDistance, phylogenyDebugFile, phylogenyKeepSingleDegreeBlocks, phylogenyTreeBuildingMethod, phylogenyCostPerDupPerBase, phylogenyCostPerLossPerBase, referenceEventHeader, phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce)
     masterMessages = popenCatch(command, stdinString=flowerNames)
     logger.info("Ran cactus_core okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]
