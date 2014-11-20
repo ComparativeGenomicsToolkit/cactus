@@ -12,7 +12,7 @@ static void usage(void)
 
 int main(int argc, char *argv[])
 {
-    char *cactusDiskString;
+    char *cactusDiskString = NULL;
     stKVDatabaseConf *kvDatabaseConf;
     CactusDisk *cactusDisk;
     Flower *flower;
@@ -31,6 +31,9 @@ int main(int argc, char *argv[])
             usage();
             return 1;
         }
+    }
+    if (cactusDiskString == NULL) {
+        st_errAbort("--cactusDisk option must be provided");
     }
     kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskString);
     cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
