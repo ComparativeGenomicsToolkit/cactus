@@ -106,16 +106,7 @@ class MultiCactusTree(NXTree):
             for node in nx.nodes(cpy):
                 if cpy.out_degree(node) == 1:
                     assert cpy.in_degree(node) == 1
-                    if node in nodeIds:
-                        # Need to keep this node and its children so
-                        # that the species tree is binary, even though
-                        # it will create extra losses. Can get rid of
-                        # this if the reconciliation algorithm is
-                        # changed to allow it.
-                        for edge in self.nxDg.out_edges(node, data=True):
-                            cpy.add_edge(edge[0], edge[1], weight=edge[2]['weight'])
-                            cpy.node[edge[1]]['name'] = self.getName(edge[1])
-                    else:
+                    if node not in nodeIds:
                         # This is a spurious node in the species tree,
                         # we can and should remove
                         childEdge = cpy.out_edges(node, data=True)[0]

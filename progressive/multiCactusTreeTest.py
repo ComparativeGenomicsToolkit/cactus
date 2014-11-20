@@ -103,13 +103,6 @@ class TestCase(unittest.TestCase):
         self.assertEqual(NXNewick().writeString(self.mcTree1), prevNewick1)
         self.assertEqual(NXNewick().writeString(spanHCC), "((HUMAN:0.006969,CHIMP:0.009727)Anc7:0.158551,CAT:0.197381)Anc0;")
 
-        # TODO: get rid of the binary-only restriction at some point.
-        # Finally, test getting a spanning tree that must be binarized
-        # by adding another leaf.
-        spanHAnc3C = self.mcTree1.extractSpanningTree(["HUMAN", "Anc3", "CAT"])
-        self.assertEqual(NXNewick().writeString(self.mcTree1), prevNewick1)
-        self.assertEqual(NXNewick().writeString(spanHAnc3C), "(HUMAN:0.16552,(DOG:0.07,CAT:0.07)Anc3:0.127381)Anc0;")
-
     def __generateTrees(self):
         self.tree1 = '((((HUMAN:0.006969,CHIMP:0.009727):0.025291,BABOON:0.044568):0.11,(MOUSE:0.072818,RAT:0.081244):0.260342):0.02326,((DOG:0.07,CAT:0.07):0.087381,(PIG:0.06,COW:0.06):0.104728):0.04);'
         self.tree2 = '((raccoon:19.19959,bear:6.80041):0.846,((sea_lion:11.997,seal:12.003):7.52973,((monkey:100.8593,cat:47.14069):20.59201,weasel:18.87953):2.0946):3.87382,dog:25.46154);'
