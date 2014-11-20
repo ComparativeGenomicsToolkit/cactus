@@ -10,15 +10,25 @@ class TestCase(unittest.TestCase):
         # coverage is correct. no overlap on B, but overlap on A.
         self.simpleFastaPathA = getTempFile()
         open(self.simpleFastaPathA, 'w').write(dedent('''\
-        >id=0|simpleSeqA1
+        >id=0|simpleSeqA1 otherTokens thatDon'tMatter
         ACTAGAGTAGGAGAGAGAGGGGGG
         CATGCATGCATGCATGCATGCATG
-        >id=1|simpleSeqA2
+        >id=1|simpleSeqA2 otherTokens thatDon'tMatter
         AAAAAAAAAAAAAAAACTCGTGAG
         CATGCATGCATGCATGCATGCATG'''))
         self.simpleFastaPathB = getTempFile()
         open(self.simpleFastaPathB, 'w').write(dedent('''\
-        >id=2|simpleSeqB1
+        >id=2|simpleSeqB1 otherTokens
+        CATGCATGCATGCATGCATGCATG
+        CATGCATGCATGCATGCATGCATG'''))
+        self.simpleFastaPathC = getTempFile()
+        open(self.simpleFastaPathC, 'w').write(dedent('''\
+        >id=3|simpleSeqC1 otherTokens thatDon'tMatter
+        CATGCATGCATGCATGCATGCATG
+        CATGCATGCATGCATGCATGCATG'''))
+        self.simpleFastaPathD = getTempFile()
+        open(self.simpleFastaPathD, 'w').write(dedent('''\
+        >id=4|simpleSeqD otherTokens thatDon'tMatter
         CATGCATGCATGCATGCATGCATG
         CATGCATGCATGCATGCATGCATG'''))
         self.simpleCigarPath = getTempFile()
@@ -28,13 +38,19 @@ class TestCase(unittest.TestCase):
         cigar: id=2|simpleSeqB1 18 28 + id=1|simpleSeqA2 0 10 + 0 M 1 I 2 M 2 D 2 M 5
         cigar: id=2|simpleSeqB1 28 30 + id=1|simpleSeqA2 6 8 + 0 M 2
         cigar: id=2|simpleSeqB1 30 32 + id=1|simpleSeqA2 7 9 + 0 M 2
-        cigar: id=3|simpleSeqC 0 1 + id=0|simpleSeqA1 6 7 + 0 M 1
+        cigar: id=12|simpleSeqZ1 0 1 + id=0|simpleSeqA1 6 7 + 0 M 1
+        cigar: id=3|simpleSeqC1 0 5 + id=4|simpleSeqD 0 5 + 0 M 5
+        cigar: id=4|simpleSeqD 5 10 + id=3|simpleSeqC1 5 10 + 0 M 5
+        cigar: id=3|simpleSeqC1 10 15 + id=3|simpleSeqC1 15 20 + 0 M 5
+        cigar: id=303|simpleSeqNonExistent 0 10 + id=3|simpleSeqC1 0 10 + 0 M 10
         '''))
 
     def tearDown(self):
         unittest.TestCase.tearDown(self)
         os.remove(self.simpleFastaPathA)
         os.remove(self.simpleFastaPathB)
+        os.remove(self.simpleFastaPathC)
+        os.remove(self.simpleFastaPathD)
         os.remove(self.simpleCigarPath)
 
     def testSimpleCoverageOnA(self):
@@ -87,6 +103,14 @@ class TestCase(unittest.TestCase):
         id=2|simpleSeqB1\t0\t12\t\t1
         id=2|simpleSeqB1\t17\t19\t\t1
         id=2|simpleSeqB1\t21\t32\t\t1
+        '''))
+
+    def testFromC(self):
+        # Test "--from" filtering by filtering for only alignments
+        # from/to D on C.
+        bed = popenCatch("cactus_coverage %s %s --from %s" % (self.simpleFastaPathC, self.simpleCigarPath, self.simpleFastaPathD))
+        self.assertEqual(bed, dedent('''\
+        id=3|simpleSeqC1\t0\t10\t\t1
         '''))
 
     def testInvariants(self):

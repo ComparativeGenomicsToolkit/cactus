@@ -11,6 +11,7 @@
 #include "sonLib.h"
 #include "endAligner.h"
 #include "flowerAligner.h"
+#include "rescue.h"
 #include "commonC.h"
 #include "stCaf.h"
 #include "stPinchGraphs.h"
@@ -59,6 +60,8 @@ void usage() {
 
     fprintf(stderr, "-I --largeEndSize : The size of sequences in an end at which point to compute it separately.\n");
 
+    fprintf(stderr, "-J --ingroupCoverageBed : Sorted bed file containing ingroup regions that are covered by outgroups. These regions will be 'rescued' into single-degree blocks if they haven't been aligned to anything after the bar phase finished.\n");
+
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -80,6 +83,43 @@ bool blockFilterFn(stPinchBlock *pinchBlock) {
     return !stCaf_containsRequiredSpecies(pinchBlock, flower, minimumIngroupDegree, minimumOutgroupDegree, minimumDegree);
 }
 
+// comparison function for stPinchThreads to allow sorting them by the
+// name of the sequence they correspond to
+static int cmpBySequenceNameAndStart(stPinchThread *thread1,
+                                     stPinchThread *thread2) {
+    Name capName1 = stPinchThread_getName(thread1);
+    Name capName2 = stPinchThread_getName(thread2);
+    Cap *cap1 = flower_getCap(flower, capName1);
+    Cap *cap2 = flower_getCap(flower, capName2);
+    assert(cap1 != NULL);
+    assert(cap2 != NULL);
+    Sequence *seq1 = cap_getSequence(cap1);
+    Sequence *seq2 = cap_getSequence(cap2);
+    assert(seq1 != NULL);
+    assert(seq2 != NULL);
+    Name n1 = sequence_getName(seq1);
+    Name n2 = sequence_getName(seq2);
+    if (n1 < n2) {
+        return -1;
+    } else if (n1 == n2) {
+        int64_t start1 = stPinchThread_getStart(thread1);
+        int64_t start2 = stPinchThread_getStart(thread2);
+        if (start1 < start2) {
+            assert(start1 + stPinchThread_getLength(thread1) <= start2 + 1);
+            return -1;
+        } else if (start1 == start2) {
+            assert(stPinchThread_getLength(thread1) == stPinchThread_getLength(thread2));
+            assert(stPinchThread_getName(thread1) == stPinchThread_getName(thread2));
+            return 0;
+        } else {
+            assert(start2 + stPinchThread_getLength(thread2) <= start1 + 1);
+            return 1;
+        }
+    } else {
+        return 1;
+    }
+}
+
 int main(int argc, char *argv[]) {
 
     char * logLevelString = NULL;
@@ -97,6 +137,7 @@ int main(int argc, char *argv[]) {
     int64_t largeEndSize = 1000000;
     int64_t chainLengthForBigFlower = 1000000;
     int64_t longChain = 2;
+    char *ingroupCoverageBedPath = NULL;
 
     PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters = pairwiseAlignmentBandingParameters_construct();
 
@@ -121,7 +162,9 @@ int main(int argc, char *argv[]) {
                 { "precomputedAlignments", required_argument, 0, 'D' }, {
                         "endAlignmentsToPrecomputeOutputFile", required_argument, 0, 'E' }, { "maximumNumberOfSequencesBeforeSwitchingToFast",
                         required_argument, 0, 'F' }, { "calculateWhichEndsToComputeSeparately", no_argument, 0, 'G' }, { "largeEndSize",
-                        required_argument, 0, 'I' }, { 0, 0, 0, 0 } };
+                        required_argument, 0, 'I' },
+                        {"ingroupCoverageBed", required_argument, 0, 'J'},
+                        { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
@@ -224,6 +267,9 @@ int main(int argc, char *argv[]) {
                 i = sscanf(optarg, "%" PRIi64 "", &largeEndSize);
                 assert(i == 1);
                 break;
+            case 'J':
+                ingroupCoverageBedPath = stString_copy(optarg);
+                break;
             default:
                 usage();
                 return 1;
@@ -307,6 +353,39 @@ int main(int argc, char *argv[]) {
             if (minimumIngroupDegree > 0 || minimumOutgroupDegree > 0 || minimumDegree > 1) {
                 stCaf_melt(flower, threadSet, blockFilterFn, 0, 0, 0, INT64_MAX);
             }
+
+            if (ingroupCoverageBedPath != NULL) {
+                // Rescue any sequence that is covered by outgroups
+                // but currently unaligned into single-degree blocks.
+                FILE *bedFile = fopen(ingroupCoverageBedPath, "r");
+                if (bedFile == NULL) {
+                    st_errnoAbort("Opening coverage BED file %s failed",
+                                  ingroupCoverageBedPath);
+                }
+                stSortedSet *sortedThreads = stSortedSet_construct3((int (*)(const void *, const void *)) cmpBySequenceNameAndStart, NULL);
+                stPinchThreadSetIt pinchIt = stPinchThreadSet_getIt(threadSet);
+                stPinchThread *thread;
+                while ((thread = stPinchThreadSetIt_getNext(&pinchIt)) != NULL) {
+                    stSortedSet_insert(sortedThreads, thread);
+                }
+                stSortedSetIterator *setIt = stSortedSet_getIterator(sortedThreads);
+                bedRegion curBedLine;
+                readNextBedLine(bedFile, &curBedLine);
+                while ((thread = stSortedSet_getNext(setIt)) != NULL) {
+                    Cap *cap = flower_getCap(flower,
+                                             stPinchThread_getName(thread));
+                    assert(cap != NULL);
+                    Sequence *sequence = cap_getSequence(cap);
+                    assert(sequence != NULL);
+                    rescueCoveredRegions(thread, bedFile,
+                                         sequence_getName(sequence),
+                                         &curBedLine);
+                }
+                stSortedSet_destructIterator(setIt);
+                stSortedSet_destruct(sortedThreads);
+                fclose(bedFile);
+            }
+
             stCaf_finish(flower, threadSet, chainLengthForBigFlower, longChain, INT64_MAX, INT64_MAX); //Flower now destroyed.
             stPinchThreadSet_destruct(threadSet);
             st_logInfo("Ran the cactus core script.\n");
@@ -333,7 +412,6 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
     // Cleanup
     ///////////////////////////////////////////////////////////////////////////
-
     cactusDisk_destruct(cactusDisk);
     stKVDatabaseConf_destruct(kvDatabaseConf);
     //destructCactusCoreInputParameters(cCIP);

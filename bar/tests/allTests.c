@@ -17,6 +17,7 @@ CuSuite* endAlignerTestSuite(void);
 CuSuite* flowerAlignerTestSuite(void);
 CuSuite* pairwiseAlignmentLongTestSuite(void);
 CuSuite* pairwiseAlignmentTestSuite(void);
+CuSuite* rescueTestSuite(void);
 
 int stBaseAlignerRunAllTests(void) {
 	CuString *output = CuStringNew();
@@ -27,6 +28,7 @@ int stBaseAlignerRunAllTests(void) {
 	CuSuiteAddSuite(suite, endAlignerTestSuite());
 	CuSuiteAddSuite(suite, flowerAlignerTestSuite());
 	CuSuiteAddSuite(suite, pairwiseAlignmentLongTestSuite());
+        CuSuiteAddSuite(suite, rescueTestSuite());
 	CuSuiteRun(suite);
 	CuSuiteSummary(suite, output);
 	CuSuiteDetails(suite, output);

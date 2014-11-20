@@ -11,14 +11,19 @@ struct block {
     int64_t value;
 };
 
-// For calculating total % coverage, and % coverage per seq.
-static stHash *sequenceLengths;
-static stList *sequenceNames;
-static stHash *sequenceCoverage;
+// For calculating coverage on the target genome
+static stHash *sequenceLengths = NULL;
+static stList *sequenceNames = NULL;
+static stHash *sequenceCoverage = NULL;
+// For determining if a sequence belongs to the "query" genome
+// (although there is no relation to the query contig in the cigar):
+// i.e. the genome specified in --from, if any
+static stSet *otherGenomeSequences = NULL;
 // For splitting sequence coverage arrays by ID, if we're using the
 // --depthByID option.
 static stHash *IDToSequenceCoverage;
 
+// Add a sequence from the genome to sequenceLength and sequenceNames
 static void addSequenceLength(const char *name, const char *seq, int64_t len)
 {
     char *identifier = stString_copy(name);
@@ -39,6 +44,16 @@ static void addSequenceLength(const char *name, const char *seq, int64_t len)
     stHash_insert(sequenceLengths, stString_copy(identifier), heapLen);
 }
 
+static void addOtherGenomeSequence(const char *name, const char *seq,
+                                   int64_t len)
+{
+    // Only use the first space-separated token to identify seq.
+    // not thread-safe
+    char *identifier = stString_copy(name);
+    identifier = strtok(identifier, " ");
+    stSet_insert(otherGenomeSequences, identifier);
+}
+
 static void usage(void)
 {
     fprintf(stderr, "cactus_coverage fastaFile alignmentsFile\n");
@@ -55,6 +70,7 @@ static void usage(void)
             "different prefixes that align to a region, rather than the total "
             "number of alignments. Uses much more memory than the standard mode."
             "\n");
+    fprintf(stderr, "--from <fromFastaFile>: Only consider alignments for which one sequence is in fastaFile and the other is in fromFastaFile.\n");
 }
 
 static void printCoverage(char *name, uint16_t *array, int64_t length) {
@@ -190,9 +206,11 @@ static uint16_t *getCoverageArray(char *onHeader, char *fromHeader,
 int main(int argc, char *argv[])
 {
     char *fastaPath = NULL;
+    char *otherGenomeFastaPath = NULL;
     struct option opts[] = { {"onlyContig1", no_argument, NULL, '1'},
                              {"onlyContig2", no_argument, NULL, '2'},
                              {"depthById", no_argument, NULL, 'i'},
+                             {"from", required_argument, NULL, 'f'},
                              {0, 0, 0, 0} };
     int outputOnContig1 = TRUE, outputOnContig2 = TRUE, depthById = FALSE;
     int64_t flag, i;
@@ -207,6 +225,9 @@ int main(int argc, char *argv[])
         case 'i':
             depthById = TRUE;
             break;
+        case 'f':
+            otherGenomeFastaPath = stString_copy(optarg);
+            break;
         case '?':
         default:
             usage();
@@ -217,6 +238,19 @@ int main(int argc, char *argv[])
         fprintf(stderr, "--onlyContig1 and --onlyContig2 options are "
                 "mutually exclusive\n");
         return 1;
+    }
+
+    if(otherGenomeFastaPath) {
+        // Load the "query" genome (we will only look for alignments
+        // from/to the main genome and this other genome).
+        FILE *otherGenomeFastaHandle = fopen(otherGenomeFastaPath, "r");
+        if(otherGenomeFastaHandle == NULL) {
+            st_errAbort("Could not open fasta file %s", fastaPath);
+        }
+        otherGenomeSequences = stSet_construct3(stHash_stringKey,
+                                                stHash_stringEqualKey, free);
+        fastaReadToFunction(otherGenomeFastaHandle, addOtherGenomeSequence);
+        fclose(otherGenomeFastaHandle);
     }
 
     sequenceLengths = stHash_construct3(stHash_stringKey,
@@ -252,14 +286,16 @@ int main(int argc, char *argv[])
             // Reached end of alignment file
             break;
         }
-        if(outputOnContig1 && (lengthPtr = stHash_search(sequenceLengths, pA->contig1))) {
-            // contig 1 is present in the fasta
+        if((outputOnContig1 && (lengthPtr = stHash_search(sequenceLengths, pA->contig1))) && ((otherGenomeSequences == NULL) || stSet_search(otherGenomeSequences, pA->contig2))) {
+            // contig 1 is present in the fasta and contig 2 is in the
+            // "from" genome if it exists
             uint16_t *array = getCoverageArray(pA->contig1, pA->contig2,
                                                depthById);
             fillCoverage(pA, 1, array);
         }
-        if(outputOnContig2 && (lengthPtr = stHash_search(sequenceLengths, pA->contig2))) {
-            //contig 2 is present in the fasta
+        if((outputOnContig2 && (lengthPtr = stHash_search(sequenceLengths, pA->contig2))) && ((otherGenomeSequences == NULL) || stSet_search(otherGenomeSequences, pA->contig1))) {
+            // contig 2 is present in the fasta and contig 1 is in the
+            // "from" genome if it exists
             uint16_t *array = getCoverageArray(pA->contig2, pA->contig1,
                                                depthById);
             fillCoverage(pA, 2, array);
@@ -310,4 +346,7 @@ int main(int argc, char *argv[])
     stList_destruct(sequenceNames);
     stHash_destruct(sequenceCoverage);
     stHash_destruct(sequenceLengths);
+    if(otherGenomeSequences) {
+//        stSet_destruct(otherGenomeSequences);
+    }
 }

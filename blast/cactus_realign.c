@@ -107,7 +107,8 @@ bool hasLongIndel(struct PairwiseAlignment *pA, int64_t maxIndelLength) {
 
 // Split a pairwise alignment into two or more pairwise alignments if
 // it has a long indel.
-stList *splitPairwiseAlignment(const struct PairwiseAlignment *pA, const int64_t maxIndelLength) {
+stList *splitPairwiseAlignment(const struct PairwiseAlignment *pA,
+                               const int64_t maxIndelLength) {
     stList *ret = stList_construct3(0, free);
     int64_t i = 0;
     int64_t j = 0;
@@ -575,3 +576,4 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
+

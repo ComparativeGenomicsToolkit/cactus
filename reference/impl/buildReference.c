@@ -883,14 +883,20 @@ static void addAdditionalStubEnds(stList *extraStubNodes, Flower *flower, stHash
         stIntTuple *node = stList_get(extraStubNodes, i);
         End *end = end_construct(0, flower); //Ensure we get the right orientation
         stHash_insert(nodesToEnds, stIntTuple_construct1(stIntTuple_get(node, 0)), end);
+        if(flower_builtTrees(flower)) {
+            Event *event = eventTree_getRootEvent(flower_getEventTree(flower));
+            assert(event != NULL);
+            end_setRootInstance(end, cap_construct(end, event));
+            //block_setRootInstance(block, segment_construct(block, event));
+        }
         stList_append(newEnds, end);
     }
 }
 
 /*
  * We have two criteria for splitting a reference interval.
- * (1) Presence of a direct adjacency.
- * (2) Presence of substantial amounts of indirect adjacencies.
+ * (1) Absence of a direct adjacency.
+ * (2) Absence of substantial amounts of indirect adjacencies.
  */
 bool referenceSplitFn(int64_t pNode, reference *ref, void *extraArgs) {
     assert(reference_getNext(ref, pNode) != INT64_MAX);

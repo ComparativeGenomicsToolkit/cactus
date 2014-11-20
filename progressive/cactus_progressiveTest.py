@@ -104,7 +104,7 @@ class TestCase(unittest.TestCase):
                                      cactusWorkflowFunction=self.progressiveFunction)
         
     def testCactus_Blanchette(self):
-        runWorkflow_multipleExamples(getCactusInputs_blanchette, 
+        runWorkflow_multipleExamples(getCactusInputs_blanchette,
                                      testNumber=1,
                                      testRestrictions=(TestStatus.TEST_MEDIUM,),
                                      batchSystem=self.batchSystem, buildJobTreeStats=True,
@@ -123,7 +123,7 @@ class TestCase(unittest.TestCase):
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
                 
-    def testCactus_Encode(self): 
+    def testCactus_Encode(self):
         runWorkflow_multipleExamples(getCactusInputs_encode, 
                                      testNumber=1,
                                      testRestrictions=(TestStatus.TEST_LONG,),
@@ -176,7 +176,7 @@ class TestCase(unittest.TestCase):
                                           rootOutgroupPath=rootOutgroupPath,
                                           rootOutgroupDist=rootOutgroupDist)
         logger.info("Put the temporary files in %s" % tempExperimentDir)
-        runCactusProgressive(os.path.join(tempExperimentDir, "exp_project.xml"), 
+        runCactusProgressive(os.path.join(tempExperimentDir, "exp_project.xml"),
                              jobTreeDir, 
                              batchSystem=batchSystem, 
                              buildAvgs=buildAvgs,
