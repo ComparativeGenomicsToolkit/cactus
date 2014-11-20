@@ -643,9 +643,11 @@ int main(int argc, char *argv[]) {
                 params.onlyIncludeCompleteFeatureBlocks = 0;
                 params.doSplitsWithSupportHigherThanThisAllAtOnce = phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce;
 
-                stCaf_buildTreesToRemoveAncientHomologies(
-                    threadSet, threadStrings, outgroupThreads, flower, &params,
-                    debugFile, referenceEventHeader);
+                (void) params;
+                (void) referenceEventHeader;
+                /* stCaf_buildTreesToRemoveAncientHomologies( */
+                /*     threadSet, threadStrings, outgroupThreads, flower, &params, */
+                /*     debugFile, referenceEventHeader); */
                 if (debugFile != NULL) {
                     fclose(debugFile);
                 }
