@@ -41,7 +41,7 @@ static void convertHeadersToNames(struct PairwiseAlignment *pA, stHash *headerTo
 
 int main(int argc, char *argv[])
 {
-    char *cactusDiskString;
+    char *cactusDiskString = NULL;
     CactusDisk *cactusDisk;
     stKVDatabaseConf *kvDatabaseConf;
     stHash *headerToName;
@@ -75,7 +75,10 @@ int main(int argc, char *argv[])
     headerToName = stHash_construct3(stHash_stringKey, stHash_stringEqualKey,
                                      free, free);
 
-    // Load a header->cactus ID map from the cactus DB 
+    // Load a header->cactus ID map from the cactus DB
+    if (cactusDiskString == NULL) {
+        st_errAbort("--cactusDisk option must be provided");
+    }
     kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskString);
     cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
     flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
