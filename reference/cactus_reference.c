@@ -28,7 +28,9 @@ void usage() {
     fprintf(stderr, "-g --referenceEventString : String identifying the reference event.\n");
     fprintf(stderr, "-i --permutations : Number of permutations of gibss sampling, integer >= 0\n");
     fprintf(stderr, "-j --useSimulatedAnnealing : Use a cooling schedule\n");
-    fprintf(stderr, "-k --theta : The value of theta\n");
+    fprintf(stderr, "-k --theta : The value of theta, higher values are more tolerant of rearrangement.\n");
+    fprintf(stderr,
+            "-s --phi : The value of phi, value is proportional to exponential decline in support by phylogenetic distance \n");
     fprintf(
     stderr,
             "-l --maxWalkForCalculatingZ : The max number segments along a thread before stopping calculating z-scores\n");
@@ -68,6 +70,7 @@ int main(int argc, char *argv[]) {
     char *referenceEventString = (char *) cactusMisc_getDefaultReferenceEventHeader();
     int64_t permutations = 10;
     double theta = 0.001;
+    double phi = 1.0;
     bool useSimulatedAnnealing = 0;
     int64_t maxWalkForCalculatingZ = 10000;
     bool ignoreUnalignedGaps = 0;
@@ -85,14 +88,15 @@ int main(int argc, char *argv[]) {
         required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0, 'c' }, { "matchingAlgorithm",
         required_argument, 0, 'e' }, { "referenceEventString", required_argument, 0, 'g' }, { "permutations",
         required_argument, 0, 'i' }, { "useSimulatedAnnealing", no_argument, 0, 'j' }, { "theta",
-        required_argument, 0, 'k' }, { "maxWalkForCalculatingZ", required_argument, 0, 'l' }, { "ignoreUnalignedGaps",
+        required_argument, 0, 'k' }, { "phi",
+        required_argument, 0, 's' }, { "maxWalkForCalculatingZ", required_argument, 0, 'l' }, { "ignoreUnalignedGaps",
         no_argument, 0, 'm' }, { "wiggle", required_argument, 0, 'n' }, { "numberOfNs", required_argument, 0, 'o' }, {
                 "minNumberOfSequencesToSupportAdjacency", required_argument, 0, 'p' }, { "makeScaffolds", no_argument,
                 0, 'q' }, { "help", no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:c:e:g:i:jk:hl:mn:o:p:q", long_options, &option_index);
+        int key = getopt_long(argc, argv, "a:c:e:g:i:jk:hl:mn:o:p:qs:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -139,6 +143,13 @@ int main(int argc, char *argv[]) {
             assert(j == 1);
             if (theta < 0 || theta > 1.0) {
                 stThrowNew(REFERENCE_BUILDING_EXCEPTION, "The theta parameter is not valid %f", theta);
+            }
+            break;
+        case 's':
+            j = sscanf(optarg, "%lf", &phi);
+            assert(j == 1);
+            if (phi <= 0.0) {
+                stThrowNew(REFERENCE_BUILDING_EXCEPTION, "The phi parameter is not valid %f", phi);
             }
             break;
         case 'l':
@@ -199,10 +210,9 @@ int main(int argc, char *argv[]) {
     st_logInfo("Max number of segments in thread to calculate z-score between is %" PRIi64 "\n",
             maxWalkForCalculatingZ);
     st_logInfo("Wiggle is %f\n", wiggle);
-    st_logInfo("Max number of Ns for a scaffold gap is: %" PRIi64 "\n",
-            numberOfNsForScaffoldGap);
+    st_logInfo("Max number of Ns for a scaffold gap is: %" PRIi64 "\n", numberOfNsForScaffoldGap);
     st_logInfo("Min number of sequences to required to support an adjacency is: %" PRIi64 "\n",
-                minNumberOfSequencesToSupportAdjacency);
+            minNumberOfSequencesToSupportAdjacency);
     st_logInfo("Make scaffolds is: %i\n", makeScaffolds);
 
     ///////////////////////////////////////////////////////////////////////////
@@ -234,7 +244,7 @@ int main(int argc, char *argv[]) {
         st_logInfo("Processing a flower\n");
         if (!flower_hasParentGroup(flower)) {
             buildReferenceTopDown(flower, referenceEventString, permutations, matchingAlgorithm, temperatureFn, theta,
-                    maxWalkForCalculatingZ, ignoreUnalignedGaps, wiggle, numberOfNsForScaffoldGap,
+                    phi, maxWalkForCalculatingZ, ignoreUnalignedGaps, wiggle, numberOfNsForScaffoldGap,
                     minNumberOfSequencesToSupportAdjacency, makeScaffolds);
         }
         Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
@@ -242,8 +252,8 @@ int main(int argc, char *argv[]) {
         while ((group = flower_getNextGroup(groupIt)) != NULL) {
             if (group_getNestedFlower(group) != NULL) {
                 buildReferenceTopDown(group_getNestedFlower(group), referenceEventString, permutations,
-                        matchingAlgorithm, temperatureFn, theta, maxWalkForCalculatingZ, ignoreUnalignedGaps, wiggle,
-                        numberOfNsForScaffoldGap, minNumberOfSequencesToSupportAdjacency, makeScaffolds);
+                        matchingAlgorithm, temperatureFn, theta, phi, maxWalkForCalculatingZ, ignoreUnalignedGaps,
+                        wiggle, numberOfNsForScaffoldGap, minNumberOfSequencesToSupportAdjacency, makeScaffolds);
             }
         }
         flower_destructGroupIterator(groupIt);

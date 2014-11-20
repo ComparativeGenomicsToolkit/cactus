@@ -128,6 +128,7 @@ int main(int argc, char *argv[]) {
     if (outgroupEventString != NULL) {
         Event *outgroupEvent = eventTree_getEventByHeader(flower_getEventTree(flower), outgroupEventString);
         assert(outgroupEvent != NULL);
+        assert(event_isOutgroup(outgroupEvent));
         outgroupEventName = event_getName(outgroupEvent);
     }
 

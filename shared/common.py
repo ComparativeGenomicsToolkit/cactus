@@ -337,6 +337,7 @@ def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
                        permutations=None,
                        useSimulatedAnnealing=None,
                        theta=None,
+                       phi=None, 
                        maxWalkForCalculatingZ=None,
                        ignoreUnalignedGaps=None,
                        wiggle=None, 
@@ -351,15 +352,16 @@ def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
     permutations = nameValue("permutations", permutations, int)
     useSimulatedAnnealing = nameValue("useSimulatedAnnealing", useSimulatedAnnealing, bool)
     theta = nameValue("theta", theta, float)
+    phi = nameValue("phi", phi, float)
     maxWalkForCalculatingZ = nameValue("maxWalkForCalculatingZ", maxWalkForCalculatingZ, int)
     ignoreUnalignedGaps = nameValue("ignoreUnalignedGaps", ignoreUnalignedGaps, bool)
     wiggle = nameValue("wiggle", wiggle, float)
     numberOfNs = nameValue("numberOfNs", numberOfNs, int)
     minNumberOfSequencesToSupportAdjacency = nameValue("minNumberOfSequencesToSupportAdjacency", minNumberOfSequencesToSupportAdjacency, int)
     makeScaffolds = nameValue("makeScaffolds", makeScaffolds, bool)
-    command = "cactus_reference --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s" % \
+    command = "cactus_reference --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
     (cactusDiskDatabaseString, logLevel, matchingAlgorithm, referenceEventString, permutations, 
-     useSimulatedAnnealing, theta, maxWalkForCalculatingZ, ignoreUnalignedGaps, wiggle, numberOfNs, minNumberOfSequencesToSupportAdjacency, makeScaffolds)
+     useSimulatedAnnealing, theta, phi, maxWalkForCalculatingZ, ignoreUnalignedGaps, wiggle, numberOfNs, minNumberOfSequencesToSupportAdjacency, makeScaffolds)
     popenPush(command, stdinString=flowerNames)
     
 def runCactusAddReferenceCoordinates(cactusDiskDatabaseString, flowerNames, logLevel=None, referenceEventString=None, outgroupEventString=None, secondaryDatabaseString=None, bottomUpPhase=None):   

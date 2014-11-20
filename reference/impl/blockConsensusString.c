@@ -9,7 +9,6 @@
 ////////////////////////////////////
 ////////////////////////////////////
 
-
 static int64_t *collateCounts(stList *strings, int64_t blockLength, int64_t **upperCounts) {
     //Matrix to store the number of occurrences of each base type, for each column in the block
     int64_t *baseCounts = st_calloc(blockLength * 5, sizeof(int64_t));
@@ -121,6 +120,3 @@ char *getConsensusString(Block *block, Name outgroupEventName) {
     return string;
 }
 
-void reverseComplementString(char *string) {
-
-}

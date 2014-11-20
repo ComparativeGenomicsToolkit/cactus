@@ -75,7 +75,7 @@ static stList *getExtraAttachedStubsFromParent(Flower *flower) {
 
 ////////////////////////////////////
 ////////////////////////////////////
-//Adjacency edges
+//Adjacency edge scoring
 ////////////////////////////////////
 ////////////////////////////////////
 
@@ -172,10 +172,104 @@ static int64_t calculateZP2(Cap *cap, stHash *endsToNodes) {
     return capLength;
 }
 
-static double calculateZScoreAdapterFn(Cap *_5Cap, int64_t length5Segment, int64_t length3Segment, int64_t gap, void *extraArgs) {
-    double theta = *((double *) extraArgs);
+static int64_t getBranchMultiplicitiesP(Event *pEvent, Event *event, stHash *branchesToMultiplicity) {
+    /*
+     * See getBranchMultiplicities.
+     */
+    int64_t multiplicity = 0;
+    for(int64_t i=0; i<event_getChildNumber(event); i++) {
+        Event *nEvent = event_getChild(event, i);
+        assert(nEvent != NULL);
+        if(nEvent != pEvent) { //Don't go backwards towards the reference event.
+            multiplicity += getBranchMultiplicitiesP(event, nEvent, branchesToMultiplicity);
+        }
+    }
+    if(event_getParent(event) != pEvent && event_getParent(event) != NULL) { //Case we're traversing up the tree from the reference event.
+        multiplicity += getBranchMultiplicitiesP(event, event_getParent(event), branchesToMultiplicity);
+    }
+    if(pEvent != NULL && event_getChildNumber(event) == 0) { //Defines a leaf event that is not the reference
+        assert(multiplicity == 0);
+        multiplicity = 1;
+    }
+    assert(multiplicity > 0 || (event_getParent(event) == NULL && event_getChildNumber(event) == 1)); //The latter is the case that we have root above the reference node, with no other children.
+    stHash_insert(branchesToMultiplicity, event, stIntTuple_construct1(multiplicity));
+    return multiplicity;
+}
+
+stHash *getBranchMultiplicities(Event *referenceEvent) {
+    /*
+     * The multiplicity of a branch is the number of simple paths that traverse it from leaf events to the given reference event.
+     * Returns a map of events to multiplicities, where each event represents the branch incident with it on the path to the reference event.
+     */
+    stHash *branchesToMultiplicity = stHash_construct2(NULL, (void (*)(void *))stIntTuple_destruct);
+    getBranchMultiplicitiesP(NULL, referenceEvent, branchesToMultiplicity);
+    assert(eventTree_getEventNumber(event_getEventTree(referenceEvent)) == stHash_size(branchesToMultiplicity));
+    return branchesToMultiplicity;
+}
+
+static void getEventWeightingP(Event *pEvent, Event *event,
+        double pathLength, double adjustedPathLength,
+        stHash *branchesToMultiplicity, stHash *eventToWeights, double phi) {
+    /*
+     * See getEventWeighting.
+     */
+    for(int64_t i=0; i<event_getChildNumber(event); i++) {
+        Event *nEvent = event_getChild(event, i);
+        if(nEvent != pEvent) { //Don't go backwards towards the reference event.
+            assert(stHash_search(branchesToMultiplicity, nEvent) != NULL);
+            assert(stIntTuple_get(stHash_search(branchesToMultiplicity, nEvent), 0) > 0);
+            getEventWeightingP(event, nEvent,
+                    pathLength + event_getBranchLength(nEvent),
+                    pathLength + event_getBranchLength(nEvent)/stIntTuple_get(stHash_search(branchesToMultiplicity, nEvent), 0), branchesToMultiplicity, eventToWeights, phi);
+        }
+    }
+    Event *nEvent;
+    if((nEvent = event_getParent(event)) != pEvent && nEvent != NULL && stIntTuple_get(stHash_search(branchesToMultiplicity, nEvent), 0) > 0) { //Case we're traversing up the tree from the reference event to a node with another child lineage.
+        getEventWeightingP(event, nEvent,
+                pathLength + event_getBranchLength(nEvent),
+                pathLength + event_getBranchLength(nEvent)/stIntTuple_get(stHash_search(branchesToMultiplicity, nEvent), 0),
+                branchesToMultiplicity, eventToWeights, phi);
+    }
+    if(pEvent != NULL && event_getChildNumber(event) == 0) { //Defines a leaf event that is not the reference, which we need to give a score for
+        assert(adjustedPathLength <= pathLength);
+        assert(exp(-phi * pathLength) <= 1.0);
+        double score = exp(-phi * pathLength) * adjustedPathLength/pathLength;
+        stHash_insert(eventToWeights, event, stDoubleTuple_construct(1, score));
+    }
+}
+
+static stHash *getEventWeighting(Event *referenceEvent, double phi) {
+    /*
+     * Weights events by how informative they are for inferring the reference event.
+     * Accounts for both distance and the sharing of branches. Returns a hash of leaf events to weights.
+     *
+     * Let R be the chosen reference event and A a leaf event. Let b_1, b_2, ..., b_n be the branches on
+     * the simple path from R to A. Let d(b_i) be the length of the branch b_i and s(b_i) the number of simple paths from R to a leaf
+     * event that pass through b_i, termed multiplicity.
+     *
+     * The independence weight a_{R,A} is \sum_{i} d(b_i)/s(b_i) / \sum_{i} d(b_i).
+     *
+     * We calculate the total weight for A as e^(-phi * \sum_{i} d(b_i)) * a_{R,A}
+     */
+    stHash *eventToWeightHash = stHash_construct2(NULL, (void (*)(void *))stDoubleTuple_destruct);
+
+    //Calculate the multiplicity (s function) of branches.
+    stHash *branchesToMultiplicity = getBranchMultiplicities(referenceEvent);
+
+    //Calculate total weights
+    getEventWeightingP(NULL, referenceEvent, 0.0, 0.0, branchesToMultiplicity, eventToWeightHash, phi);
+    stHash_destruct(branchesToMultiplicity);
+    return eventToWeightHash;
+}
+
+static double calculateZScoreWeightedAdapterFn(Cap *_5Cap, int64_t length5Segment, int64_t length3Segment, int64_t gap, void *extraArgs) {
+    double theta = *((double *)((void **) extraArgs)[0]);
     assert(theta >= 0.0);
-    return calculateZScore(length5Segment, length3Segment, gap, theta);
+    assert(cap_getEvent(_5Cap) != NULL);
+    assert(stHash_search(((void **) extraArgs)[1], cap_getEvent(_5Cap)) != NULL);
+    assert(stDoubleTuple_length(stHash_search(((void **) extraArgs)[1], cap_getEvent(_5Cap))) == 1);
+    double weight = stDoubleTuple_getPosition(stHash_search(((void **) extraArgs)[1], cap_getEvent(_5Cap)), 0);
+    return calculateZScore(length5Segment, length3Segment, gap, theta) * weight;
 }
 
 static double countAdapterFn(Cap *_5Cap, int64_t length5Segment, int64_t length3Segment, int64_t gap, void *extraArgs) {
@@ -472,14 +566,17 @@ stHash *makeStubEdgesToNodesHash(stList *stubEnds, stHash *endsToNodes) {
 }
 
 static void getStubEdgesInTopLevelFlower(reference *ref, Flower *flower, stHash *endsToNodes, int64_t nodeNumber, Event *referenceEvent,
-        stList *(*matchingAlgorithm)(stList *edges, int64_t nodeNumber), stList *stubEnds) {
+        stList *(*matchingAlgorithm)(stList *edges, int64_t nodeNumber), stList *stubEnds, double phi) {
     /*
      * Create a matching for the parent stub edges.
      */
     stHash *stubEndsToNodes = makeStubEdgesToNodesHash(stubEnds, endsToNodes);
     double theta = 0.0;
+    stHash *eventWeighting = getEventWeighting(referenceEvent, phi);
+    void *zArgs[2] = { &theta, eventWeighting };
     refAdjList *stubAL = calculateZ(flower, stubEndsToNodes, nodeNumber,
-    INT64_MAX, 1, calculateZScoreAdapterFn, &theta);
+    INT64_MAX, 1, calculateZScoreWeightedAdapterFn, zArgs);
+    stHash_destruct(eventWeighting);
     st_logDebug(
             "Building a matching for %" PRIi64 " stub nodes in the top level problem from %" PRIi64 " total stubs of which %" PRIi64 " attached , %" PRIi64 " total ends, %" PRIi64 " chains, %" PRIi64 " blocks %" PRIi64 " groups and %" PRIi64 " sequences\n",
             stList_length(stubEnds), flower_getStubEndNumber(flower), flower_getAttachedStubEndNumber(flower), flower_getEndNumber(flower),
@@ -518,12 +615,12 @@ static void getStubEdgesInTopLevelFlower(reference *ref, Flower *flower, stHash 
 }
 
 static reference *getEmptyReference(Flower *flower, stHash *endsToNodes, int64_t nodeNumber, Event *referenceEvent,
-        stList *(*matchingAlgorithm)(stList *edges, int64_t nodeNumber), stList *stubEnds) {
+        stList *(*matchingAlgorithm)(stList *edges, int64_t nodeNumber), stList *stubEnds, double phi) {
     reference *ref = reference_construct(nodeNumber);
     if (flower_getParentGroup(flower) != NULL) {
         getStubEdgesFromParent(ref, flower, referenceEvent, endsToNodes, stubEnds);
     } else {
-        getStubEdgesInTopLevelFlower(ref, flower, endsToNodes, nodeNumber, referenceEvent, matchingAlgorithm, stubEnds);
+        getStubEdgesInTopLevelFlower(ref, flower, endsToNodes, nodeNumber, referenceEvent, matchingAlgorithm, stubEnds, phi);
     }
     return ref;
 }
@@ -857,7 +954,7 @@ stList *getReferenceIntervalsToPreserve(reference *ref, refAdjList *dAL, int64_t
 ////////////////////////////////////
 
 void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int64_t permutations,
-        stList *(*matchingAlgorithm)(stList *edges, int64_t nodeNumber), double (*temperature)(double), double theta, int64_t maxWalkForCalculatingZ,
+        stList *(*matchingAlgorithm)(stList *edges, int64_t nodeNumber), double (*temperature)(double), double theta, double phi, int64_t maxWalkForCalculatingZ,
         bool ignoreUnalignedGaps, double wiggle, int64_t numberOfNsForScaffoldGap, int64_t minNumberOfSequencesToSupportAdjacency, bool makeScaffolds) {
     /*
      * Implements a greedy algorithm and greedy update sampler to find a solution to the adjacency problem for a net.
@@ -894,7 +991,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     /*
      * Get the reference with chosen stub matched intervals
      */
-    reference *ref = getEmptyReference(flower, endsToNodes, nodeNumber, referenceEvent, matchingAlgorithm, stubTangleEnds);
+    reference *ref = getEmptyReference(flower, endsToNodes, nodeNumber, referenceEvent, matchingAlgorithm, stubTangleEnds, phi);
     assert(reference_getIntervalNumber(ref) == stList_length(stubTangleEnds) / 2);
     reference_log(ref);
 
@@ -917,11 +1014,15 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     }
 
     /*
-     * Calculate z functions
+     * Calculate z functions, using phylogenetic weighting.
      */
-    refAdjList *aL = calculateZ(flower, endsToNodes, nodeNumber, maxWalkForCalculatingZ, ignoreUnalignedGaps, calculateZScoreAdapterFn, &theta);
+    stHash *eventWeighting = getEventWeighting(referenceEvent, phi);
+    void *zArgs[2] = { &theta, eventWeighting };
+    refAdjList *aL = calculateZ(flower, endsToNodes, nodeNumber, maxWalkForCalculatingZ, ignoreUnalignedGaps, calculateZScoreWeightedAdapterFn, zArgs);
     int64_t directTheta = 0.0;
-    refAdjList *dAL = calculateZ(flower, endsToNodes, nodeNumber, 1, ignoreUnalignedGaps, calculateZScoreAdapterFn, &directTheta); //Gets set of direct of direct adjacencies
+    zArgs[0] = &directTheta;
+    refAdjList *dAL = calculateZ(flower, endsToNodes, nodeNumber, 1, ignoreUnalignedGaps, calculateZScoreWeightedAdapterFn, zArgs); //Gets set of direct of direct adjacencies
+    stHash_destruct(eventWeighting);
 
     /*
      * Check the edges and nodes before starting to calculate the matching.
