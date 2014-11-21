@@ -328,9 +328,13 @@ class TrimAndRecurseOnOutgroups(Target):
         # Report coverage of the all outgroup alignments so far on the ingroups.
         ingroupCoverageFiles = []
         for ingroupSequence in self.untrimmedSequenceFiles:
-            tmpIngroupCoverage = getTempFile(rootDir=self.getGlobalTempDir())
+            ingroupCoverageFile = getTempFile(rootDir=self.getGlobalTempDir())
+            if self.ingroupCoverageDir is not None:
+                # We want to keep the cumulative outgroup coverage
+                # files around.
+                ingroupCoverageFile = os.path.join(self.ingroupCoverageDir, os.path.basename(ingroupSequence) + ".bed")
             calculateCoverage(ingroupSequence, self.outgroupResultsFile,
-                              tmpIngroupCoverage, depthById=self.blastOptions.trimOutgroupDepth > 1)
+                              ingroupCoverageFile, depthById=self.blastOptions.trimOutgroupDepth > 1)
             self.logToMaster("Cumulative coverage of %d outgroups on ingroup %s: %s" % (self.outgroupNumber, os.path.basename(ingroupSequence), percentCoverage(ingroupSequence, tmpIngroupCoverage)))
             ingroupCoverageFiles.append(tmpIngroupCoverage)
 

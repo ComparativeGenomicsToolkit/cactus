@@ -475,8 +475,8 @@ def runCactusCreateMultiCactusProject(experimentFile, outputDir,
                                       logLevel=None, fixNames=True,
                                       rootOutgroupPath=None, rootOutgroupDist=None):
     logLevel = getLogLevelString2(logLevel)
-    rootOutgroupPath = nameValue("rootOutgroupPath", rootOutgroupPath, str)
-    rootOutgroupDist = nameValue("rootOutgroupDist", rootOutgroupDist, float)
+    rootOutgroupPath = nameValue("rootOutgroupPaths", rootOutgroupPath, str)
+    rootOutgroupDist = nameValue("rootOutgroupDists", rootOutgroupDist, float)
     command = "cactus_createMultiCactusProject.py %s %s --fixNames=%s %s %s" % (experimentFile, outputDir, str(fixNames), rootOutgroupPath, rootOutgroupDist)
     system(command)
     logger.info("Ran the cactus create multi project")

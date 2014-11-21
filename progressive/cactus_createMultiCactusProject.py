@@ -255,8 +255,9 @@ def main():
         # hacky -- add the root outgroup to the tree after everything
         # else.  This ends up being ugly, but avoids running into
         # problems with assumptions about tree structure
-        options.rootOutgroupPath = os.path.abspath(options.rootOutgroupPath)
-        mcProj.inputSequences.append(options.rootOutgroupPath)
+        options.rootOutgroupPaths = [os.path.abspath(path) for path in options.rootOutgroupPaths.split(",")]
+        options.rootOutgroupDists = [float(i) for i in options.rootOutgroupDists.split(",")]
+        mcProj.inputSequences.extend(options.rootOutgroupPaths)
         # replace the root outgroup sequence by post-processed output
         for i, (outgroupPath, outgroupDist) in enumerate(zip(options.rootOutgroupPaths, options.rootOutgroupDists)):
             outgroupPath = CactusPreprocessor.getOutputSequenceFiles(expTemplate.getSequences() + options.rootOutgroupPaths[:i+1], expTemplate.getOutputSequenceDir())[-1]
