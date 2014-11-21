@@ -191,14 +191,36 @@ static void fudgeZeroBranchLengths(stTree *tree, double fudgeFactor, double smal
         }
     }
 }
+/*
+ * Get an Event pointer -> species tree node mapping.
+ */
+static stHash *getEventToSpeciesNode(EventTree *eventTree,
+                                     stTree *speciesTree) {
+    stHash *ret = stHash_construct();
+    EventTree_Iterator *eventIt = eventTree_getIterator(eventTree);
+    Event *event;
+    while ((event = eventTree_getNext(eventIt)) != NULL) {
+        char *speciesLabel = stString_print("%" PRIi64, event_getName(event));
+        stTree *species = stTree_findChild(speciesTree, speciesLabel);
+        if (species != NULL) {
+            stHash_insert(ret, event, species);
+        } else {
+            // Every node should be in the species tree besides the root event.
+            assert(event == eventTree_getRootEvent(eventTree));
+        }
+        free(speciesLabel);
+    }
+    eventTree_destructIterator(eventIt);
+    return ret;
+}
 
 /*
  * Get a gene node->species node mapping from a gene tree, a species
  * tree, and the pinch block.
  */
 
-static stHash *getLeafToSpecies(stTree *geneTree, stTree *speciesTree,
-                                stPinchBlock *block, Flower *flower) {
+static stHash *getLeafToSpecies(stTree *geneTree, stPinchBlock *block,
+                                Flower *flower, stHash *eventToSpeciesNode) {
     stHash *leafToSpecies = stHash_construct();
     stPinchBlockIt blockIt = stPinchBlock_getSegmentIterator(block);
     stPinchSegment *segment;
@@ -207,9 +229,7 @@ static stHash *getLeafToSpecies(stTree *geneTree, stTree *speciesTree,
         stPinchThread *thread = stPinchSegment_getThread(segment);
         Cap *cap = flower_getCap(flower, stPinchThread_getName(thread));
         Event *event = cap_getEvent(cap);
-        char *eventNameString = stString_print("%" PRIi64, event_getName(event));
-        stTree *species = stTree_findChild(speciesTree, eventNameString);
-        free(eventNameString);
+        stTree *species = stHash_search(eventToSpeciesNode, event);
         assert(species != NULL);
         stTree *gene = stPhylogeny_getLeafByIndex(geneTree, i);
         assert(gene != NULL);
@@ -251,48 +271,25 @@ static stHash *getMatrixIndexToJoinCostIndex(stPinchBlock *block, Flower *flower
     return matrixIndexToJoinCostIndex;
 }
 
-static double scoreTree(stTree *tree, enum stCaf_ScoringMethod scoringMethod, stTree *speciesStTree, stPinchBlock *block, Flower *flower, stList *featureColumns) {
+static double scoreTree(stTree *tree, enum stCaf_ScoringMethod scoringMethod, stTree *speciesStTree, stPinchBlock *block, Flower *flower, stList *featureColumns, stHash *eventToSpeciesNode) {
     double ret = 0.0;
     if (scoringMethod == RECON_COST) {
-        stHash *leafToSpecies = getLeafToSpecies(tree,
-                                                 speciesStTree,
-                                                 block, flower);
-        int64_t dups, losses;
-        stPhylogeny_reconciliationCostBinary(tree, speciesStTree,
-                                             leafToSpecies, &dups,
-                                             &losses);
+        stHash *leafToSpecies = getLeafToSpecies(tree, block, flower,
+                                                 eventToSpeciesNode);
+        int64_t dups = 0, losses = 0;
+        stPhylogeny_reconciliationCostAtMostBinary(tree, &dups, &losses);
         ret = -dups - losses;
 
         stHash_destruct(leafToSpecies);
     } else if (scoringMethod == NUCLEOTIDE_LIKELIHOOD) {
         ret = stPinchPhylogeny_likelihood(tree, featureColumns);
     } else if (scoringMethod == RECON_LIKELIHOOD) {
-        // copy tree before use -- we are modifying the client-data
-        // field. Not necessary if we end up adding
-        // stReconciliationInfo before this method
-        stTree *tmp = stTree_clone(tree);
-        stHash *leafToSpecies = getLeafToSpecies(tmp,
-                                                 speciesStTree,
-                                                 block, flower);
-        stPhylogeny_reconcileBinary(tmp, speciesStTree, leafToSpecies, false);
         // FIXME: hardcoding dup-rate parameter for now
-        ret = stPinchPhylogeny_reconciliationLikelihood(tmp, speciesStTree, 1.0);
-        stReconciliationInfo_destructOnTree(tmp);
-        stTree_destruct(tmp);
+        ret = stPinchPhylogeny_reconciliationLikelihood(tree, speciesStTree, 1.0);
     } else if (scoringMethod == COMBINED_LIKELIHOOD) {
-        // copy tree before use -- we are modifying the client-data
-        // field. Not necessary if we end up adding
-        // stReconciliationInfo before this method
-        stTree *tmp = stTree_clone(tree);
-        stHash *leafToSpecies = getLeafToSpecies(tmp,
-                                                 speciesStTree,
-                                                 block, flower);
-        stPhylogeny_reconcileBinary(tmp, speciesStTree, leafToSpecies, false);
         // FIXME: hardcoding dup-rate parameter for now
-        ret = stPinchPhylogeny_reconciliationLikelihood(tmp, speciesStTree, 1.0);
+        ret = stPinchPhylogeny_reconciliationLikelihood(tree, speciesStTree, 1.0);
         ret += stPinchPhylogeny_likelihood(tree, featureColumns);
-        stReconciliationInfo_destructOnTree(tmp);
-        stTree_destruct(tmp);        
     }
     return ret;
 }
@@ -306,7 +303,8 @@ static stTree *buildTree(stList *featureColumns,
                          Flower *flower, stTree *speciesStTree,
                          stMatrix *joinCosts,
                          stHash *speciesToJoinCostIndex,
-                         int64_t **speciesMRCAMatrix) {
+                         int64_t **speciesMRCAMatrix,
+                         stHash *eventToSpeciesNode) {
     // Make substitution matrix
     stMatrix *substitutionMatrix = stPinchPhylogeny_getMatrixFromSubstitutions(featureColumns, block, NULL, bootstrap);
     assert(stMatrix_n(substitutionMatrix) == stPinchBlock_getDegree(block));
@@ -346,12 +344,12 @@ static stTree *buildTree(stList *featureColumns,
             tree = stPhylogeny_guidedNeighborJoining(combinedMatrix, joinCosts, matrixIndexToJoinCostIndex, speciesToJoinCostIndex, speciesMRCAMatrix, speciesStTree);
             stHash_destruct(matrixIndexToJoinCostIndex);
         }
-        stHash *leafToSpecies = getLeafToSpecies(tree,
-                                                 speciesStTree,
-                                                 block, flower);
+        stHash *leafToSpecies = getLeafToSpecies(tree, block, flower,
+                                                 eventToSpeciesNode);
 
-        stTree *newTree = stPhylogeny_rootAndReconcileBinary(tree, speciesStTree, leafToSpecies);
-        stPhylogeny_addStPhylogenyInfo(newTree);
+        stTree *newTree = stPhylogeny_rootAndReconcileAtMostBinary(tree,
+                                                                   leafToSpecies);
+        stPhylogeny_addStIndexedTreeInfo(newTree);
 
         stPhylogenyInfo_destructOnTree(tree);
         stTree_destruct(tree);
@@ -361,11 +359,10 @@ static stTree *buildTree(stList *featureColumns,
 
     // Need to get leaf->species mapping again even when the tree is
     // already reconciled, as the nodes have changed.
-    stHash *leafToSpecies = getLeafToSpecies(tree,
-                                             speciesStTree,
-                                             block, flower);
+    stHash *leafToSpecies = getLeafToSpecies(tree, block, flower,
+                                             eventToSpeciesNode);
     // add stReconciliationInfo.
-    stPhylogeny_reconcileBinary(tree, speciesStTree, leafToSpecies, false);
+    stPhylogeny_reconcileAtMostBinary(tree, leafToSpecies, false);
     stHash_destruct(leafToSpecies);
 
     // Needed for likelihood methods not to have 0/100% probabilities
@@ -436,8 +433,8 @@ static void relabelMatrixIndexedTree(stTree *tree, stHash *matrixIndexToName) {
     if (stTree_getChildNumber(tree) == 0) {
         stPhylogenyInfo *info = stTree_getClientData(tree);
         assert(info != NULL);
-        assert(info->matrixIndex != -1);
-        stIntTuple *query = stIntTuple_construct1(info->matrixIndex);
+        assert(info->index->matrixIndex != -1);
+        stIntTuple *query = stIntTuple_construct1(info->index->matrixIndex);
         char *header = stHash_search(matrixIndexToName, query);
         assert(header != NULL);
         stTree_setLabel(tree, stString_copy(header));
@@ -651,7 +648,7 @@ void findSplitBranches(stPinchBlock *block, stTree *tree,
         if (parentReconInfo->event == DUPLICATION && stSet_search(speciesToSplitOn, parentReconInfo->species)) {
             // Found a split branch.
             stPhylogenyInfo *info = stTree_getClientData(tree);
-            stCaf_SplitBranch *splitBranch = stCaf_SplitBranch_construct(tree, block, info->bootstrapSupport);
+            stCaf_SplitBranch *splitBranch = stCaf_SplitBranch_construct(tree, block, info->index->bootstrapSupport);
             stSortedSet_insert(splitBranches, splitBranch);
         } else {
             // Since the reconciliation must follow the order of the
@@ -817,7 +814,7 @@ static double getAvgSupportValue(stSortedSet *splitBranches) {
     return totalSupport/stSortedSet_size(splitBranches);
 }
 
-static void buildTreeForBlock(stPinchBlock *block, stHash *threadStrings, stSet *outgroupThreads, Flower *flower, stCaf_PhylogenyParameters *params, stMatrix *joinCosts, stHash *speciesToJoinCostIndex, int64_t **speciesMRCAMatrix, stTree *speciesStTree, stHash *blocksToTrees) {
+static void buildTreeForBlock(stPinchBlock *block, stHash *threadStrings, stSet *outgroupThreads, Flower *flower, stCaf_PhylogenyParameters *params, stMatrix *joinCosts, stHash *speciesToJoinCostIndex, int64_t **speciesMRCAMatrix, stHash *eventToSpeciesNode, stTree *speciesStTree, stHash *blocksToTrees) {
     if (stHash_search(blocksToTrees, block)) {
         stHash_remove(blocksToTrees, block);
     }
@@ -846,7 +843,8 @@ static void buildTreeForBlock(stPinchBlock *block, stHash *threadStrings, stSet 
     stTree *blockTree = buildTree(featureColumns, params,
                                   0, outgroups, block, flower,
                                   speciesStTree, joinCosts,
-                                  speciesToJoinCostIndex, speciesMRCAMatrix);
+                                  speciesToJoinCostIndex, speciesMRCAMatrix,
+                                  eventToSpeciesNode);
 
     // Sample the rest of the trees.
     stList *trees = stList_construct();
@@ -855,7 +853,8 @@ static void buildTreeForBlock(stPinchBlock *block, stHash *threadStrings, stSet 
         stTree *tree = buildTree(featureColumns, params,
                                  1, outgroups, block, flower,
                                  speciesStTree, joinCosts,
-                                 speciesToJoinCostIndex, speciesMRCAMatrix);
+                                 speciesToJoinCostIndex, speciesMRCAMatrix,
+                                 eventToSpeciesNode);
         stList_append(trees, tree);
     }
 
@@ -866,7 +865,7 @@ static void buildTreeForBlock(stPinchBlock *block, stHash *threadStrings, stSet 
         stTree *tree = stList_get(trees, i);
         double score = scoreTree(tree, params->scoringMethod,
                                  speciesStTree, block, flower,
-                                 featureColumns);
+                                 featureColumns, eventToSpeciesNode);
         if (score > maxScore) {
             maxScore = score;
             bestTree = tree;
@@ -912,6 +911,7 @@ void splitBlockOnSplitBranch(stPinchBlock *block,
                              stMatrix *joinCosts,
                              stHash *speciesToJoinCostIndex,
                              int64_t **speciesMRCAMatrix,
+                             stHash *eventToSpeciesNode,
                              stTree *speciesStTree,
                              stHash *blocksToTrees) {
     block = splitBranch->block;
@@ -934,9 +934,9 @@ void splitBlockOnSplitBranch(stPinchBlock *block,
 
         if (stTree_getChildNumber(node) == 0) {
             stPhylogenyInfo *info = stTree_getClientData(node);
-            assert(info->matrixIndex != -1);
-            stList_append(leafSet, stIntTuple_construct1(info->matrixIndex));
-            segmentBelowBranchIndex = info->matrixIndex;
+            assert(info->index->matrixIndex != -1);
+            stList_append(leafSet, stIntTuple_construct1(info->index->matrixIndex));
+            segmentBelowBranchIndex = info->index->matrixIndex;
         }
     }
     stList_append(partition, leafSet);
@@ -963,9 +963,9 @@ void splitBlockOnSplitBranch(stPinchBlock *block,
 
             if (stTree_getChildNumber(node) == 0) {
                 stPhylogenyInfo *info = stTree_getClientData(node);
-                assert(info->matrixIndex != -1);
-                stList_append(leafSet, stIntTuple_construct1(info->matrixIndex));
-                segmentNotBelowBranchIndex = info->matrixIndex;
+                assert(info->index->matrixIndex != -1);
+                stList_append(leafSet, stIntTuple_construct1(info->index->matrixIndex));
+                segmentNotBelowBranchIndex = info->index->matrixIndex;
             }
         }
     }
@@ -996,7 +996,8 @@ void splitBlockOnSplitBranch(stPinchBlock *block,
     if (blockBelowBranch != NULL) {
         buildTreeForBlock(blockBelowBranch, threadStrings, outgroupThreads,
                           flower, params, joinCosts, speciesToJoinCostIndex,
-                          speciesMRCAMatrix, speciesStTree, blocksToTrees);
+                          speciesMRCAMatrix, eventToSpeciesNode, speciesStTree,
+                          blocksToTrees);
     }
     stTree *treeBelowBranch = stHash_search(blocksToTrees, blockBelowBranch);
     if (treeBelowBranch != NULL) {
@@ -1006,7 +1007,8 @@ void splitBlockOnSplitBranch(stPinchBlock *block,
     if (blockNotBelowBranch != NULL) {
         buildTreeForBlock(blockNotBelowBranch, threadStrings, outgroupThreads,
                           flower, params, joinCosts, speciesToJoinCostIndex,
-                          speciesMRCAMatrix, speciesStTree, blocksToTrees);
+                          speciesMRCAMatrix, eventToSpeciesNode, speciesStTree,
+                          blocksToTrees);
     }
     stTree *treeNotBelowBranch = stHash_search(blocksToTrees,
                                                blockNotBelowBranch);
@@ -1056,6 +1058,9 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
     EventTree *eventTree = flower_getEventTree(flower);
     stTree *speciesStTree = eventTree_getStTree(eventTree);
 
+    // Get info for reconciliation.
+    stHash *eventToSpeciesNode = getEventToSpeciesNode(eventTree, speciesStTree);
+
     // Get info for guided neighbor-joining
     stHash *speciesToJoinCostIndex = stHash_construct2(NULL, (void (*)(void *)) stIntTuple_destruct);
     stMatrix *joinCosts = stPhylogeny_computeJoinCosts(
@@ -1086,7 +1091,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
     while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
         buildTreeForBlock(block, threadStrings, outgroupThreads, flower, params,
                           joinCosts, speciesToJoinCostIndex, speciesMRCAMatrix,
-                          speciesStTree, blocksToTrees);
+                          eventToSpeciesNode, speciesStTree, blocksToTrees);
         stTree *tree = stHash_search(blocksToTrees, block);
         if (tree != NULL) {
             findSplitBranches(block, stHash_search(blocksToTrees, block),
@@ -1125,7 +1130,8 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
                                     blocksToUpdate, threadStrings,
                                     outgroupThreads, flower, joinCosts,
                                     speciesToJoinCostIndex, speciesMRCAMatrix,
-                                    speciesStTree, blocksToTrees);
+                                    eventToSpeciesNode, speciesStTree,
+                                    blocksToTrees);
             // Get the next split branch.
             splitBranch = stSortedSet_getLast(splitBranches);
             numberOfSplitsMade++;
@@ -1146,7 +1152,8 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
                                    splitBranches);
             buildTreeForBlock(blockToUpdate, threadStrings, outgroupThreads,
                               flower, params, joinCosts, speciesToJoinCostIndex,
-                              speciesMRCAMatrix, speciesStTree, blocksToTrees);
+                              speciesMRCAMatrix, eventToSpeciesNode,
+                              speciesStTree, blocksToTrees);
             stTree *tree = stHash_search(blocksToTrees, blockToUpdate);
             if (tree != NULL) {
                 findSplitBranches(blockToUpdate, tree,
@@ -1164,8 +1171,8 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
                                 speciesToSplitOn, params, blocksToUpdate,
                                 threadStrings, outgroupThreads, flower,
                                 joinCosts, speciesToJoinCostIndex,
-                                speciesMRCAMatrix, speciesStTree,
-                                blocksToTrees);
+                                speciesMRCAMatrix, eventToSpeciesNode,
+                                speciesStTree, blocksToTrees);
         stSetIterator *blocksToUpdateIt = stSet_getIterator(blocksToUpdate);
         stPinchBlock *blockToUpdate;
         while ((blockToUpdate = stSet_getNext(blocksToUpdateIt)) != NULL) {
@@ -1175,7 +1182,8 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
                                    splitBranches);
             buildTreeForBlock(blockToUpdate, threadStrings, outgroupThreads,
                               flower, params, joinCosts, speciesToJoinCostIndex,
-                              speciesMRCAMatrix, speciesStTree, blocksToTrees);
+                              speciesMRCAMatrix, eventToSpeciesNode,
+                              speciesStTree, blocksToTrees);
             stTree *tree = stHash_search(blocksToTrees, blockToUpdate);
             if (tree != NULL) {
                 findSplitBranches(blockToUpdate, tree,
