@@ -421,11 +421,11 @@ int main(int argc, char *argv[]) {
                 phylogenySkipSingleCopyBlocks = true;
                 break;
             case 'I':
-                k = sscanf(optarg, "%ld", &phylogenyMaxBaseDistance);
+                k = sscanf(optarg, "%" PRIi64, &phylogenyMaxBaseDistance);
                 assert(k == 1);
                 break;
             case 'J':
-                k = sscanf(optarg, "%ld", &phylogenyMaxBlockDistance);
+                k = sscanf(optarg, "%" PRIi64, &phylogenyMaxBlockDistance);
                 assert(k == 1);
                 break;
             case 'K':
