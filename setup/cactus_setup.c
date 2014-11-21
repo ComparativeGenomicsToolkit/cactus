@@ -172,7 +172,6 @@ static void assignEventsAndSequences(Event *parentEvent, stTree *tree,
             stList_destruct(filesInDir);
         } else {
             st_logInfo("Processing file: %s\n", fileName);
-            printf("Processing file %s to event %s\n", fileName, event_getHeader(event));
             setCompleteStatus(fileName); //decide if the sequences in the file should be free or attached.
             FILE *fileHandle = fopen(fileName, "r");
             fastaReadToFunction(fileHandle, processSequence);
