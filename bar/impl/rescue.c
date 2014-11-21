@@ -20,7 +20,7 @@ typedef struct {
 // or greater input.
 // returns EOF on failure to read, returns 0 otherwise.
 int readNextBedLine(FILE *bedFile, bedRegion *curBedLine) {
-    char *line;
+    char *line = NULL;
     size_t n = 0;
     if (getline(&line, &n, bedFile) == -1) {
         free(line);
