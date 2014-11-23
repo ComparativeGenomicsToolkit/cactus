@@ -36,7 +36,6 @@
              this value must be larger than the
              'splitIndelsLongerThanThis' value in the realign
              arguments -->
-
         <!-- keepParalogs: Always align duplicated sequence against
              all outgroups, instead of stopping at the first
              one. Intended to be robust against missing data.-->
@@ -183,12 +182,14 @@
 	<!-- numberOfNs is the number of Ns to insert into an ancestral sequence when an adjacency is uncertain, think of its as the Ns in a scaffold gap -->
 	<!-- minNumberOfSequencesToSupportAdjacency is the number of sequences needed to bridge an adjacency -->
 	<!-- makeScaffolds is a boolean that enables the bridging of uncertain adjacencies in an ancestral sequence providing the larger scale problem (parent flower in cactus), bridges the path. -->
+	<!-- phi is the coefficient used to control how much weight to place on an adjacency given its phylogenetic distance from the reference node -->
 	<reference 
 		buildReference="1"
 		matchingAlgorithm="blossom5" 
 		reference="reference" 
 		useSimulatedAnnealing="1" 
 		theta="0.0001"
+		phi="1.0"
 		maxWalkForCalculatingZ="100000" 
 		permutations="10"
 		ignoreUnalignedGaps="1"

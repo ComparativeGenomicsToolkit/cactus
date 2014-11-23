@@ -172,7 +172,8 @@ static int64_t calculateZP2(Cap *cap, stHash *endsToNodes) {
     return capLength;
 }
 
-static int64_t getBranchMultiplicitiesP(Event *pEvent, Event *event, stHash *branchesToMultiplicity) {
+static int64_t getBranchMultiplicitiesP(Event *pEvent, Event *event,
+        stHash *branchesToMultiplicity, stSet *chosenEvents) {
     /*
      * See getBranchMultiplicities.
      */
@@ -181,70 +182,75 @@ static int64_t getBranchMultiplicitiesP(Event *pEvent, Event *event, stHash *bra
         Event *nEvent = event_getChild(event, i);
         assert(nEvent != NULL);
         if(nEvent != pEvent) { //Don't go backwards towards the reference event.
-            multiplicity += getBranchMultiplicitiesP(event, nEvent, branchesToMultiplicity);
+            multiplicity += getBranchMultiplicitiesP(event, nEvent, branchesToMultiplicity, chosenEvents);
         }
     }
     if(event_getParent(event) != pEvent && event_getParent(event) != NULL) { //Case we're traversing up the tree from the reference event.
-        multiplicity += getBranchMultiplicitiesP(event, event_getParent(event), branchesToMultiplicity);
+        multiplicity += getBranchMultiplicitiesP(event, event_getParent(event), branchesToMultiplicity, chosenEvents);
     }
-    if(pEvent != NULL && event_getChildNumber(event) == 0) { //Defines a leaf event that is not the reference
-        assert(multiplicity == 0);
-        multiplicity = 1;
+    if(stSet_search(chosenEvents, event) != NULL) {
+        multiplicity++;
     }
-    assert(multiplicity > 0 || (event_getParent(event) == NULL && event_getChildNumber(event) == 1)); //The latter is the case that we have root above the reference node, with no other children.
     stHash_insert(branchesToMultiplicity, event, stIntTuple_construct1(multiplicity));
     return multiplicity;
 }
 
-stHash *getBranchMultiplicities(Event *referenceEvent) {
+stHash *getBranchMultiplicities(Event *referenceEvent, stSet *chosenEvents) {
     /*
-     * The multiplicity of a branch is the number of simple paths that traverse it from leaf events to the given reference event.
+     * The multiplicity of a branch is the number of simple paths that traverse it from chosen events to the given reference event.
      * Returns a map of events to multiplicities, where each event represents the branch incident with it on the path to the reference event.
      */
     stHash *branchesToMultiplicity = stHash_construct2(NULL, (void (*)(void *))stIntTuple_destruct);
-    getBranchMultiplicitiesP(NULL, referenceEvent, branchesToMultiplicity);
-    assert(eventTree_getEventNumber(event_getEventTree(referenceEvent)) == stHash_size(branchesToMultiplicity));
+    getBranchMultiplicitiesP(NULL, referenceEvent, branchesToMultiplicity, chosenEvents);
+    assert(stHash_size(branchesToMultiplicity) == eventTree_getEventNumber(event_getEventTree(referenceEvent)));
     return branchesToMultiplicity;
 }
 
 static void getEventWeightingP(Event *pEvent, Event *event,
         double pathLength, double adjustedPathLength,
-        stHash *branchesToMultiplicity, stHash *eventToWeights, double phi) {
+        stHash *branchesToMultiplicity, stHash *eventToWeights, double phi, stSet *chosenEvents) {
     /*
      * See getEventWeighting.
      */
     for(int64_t i=0; i<event_getChildNumber(event); i++) {
         Event *nEvent = event_getChild(event, i);
-        if(nEvent != pEvent) { //Don't go backwards towards the reference event.
-            assert(stHash_search(branchesToMultiplicity, nEvent) != NULL);
-            assert(stIntTuple_get(stHash_search(branchesToMultiplicity, nEvent), 0) > 0);
+        assert(stHash_search(branchesToMultiplicity, nEvent) != NULL);
+        int64_t multiplicity = stIntTuple_get(stHash_search(branchesToMultiplicity, nEvent), 0);
+        if(nEvent != pEvent && multiplicity > 0) { //Don't go backwards towards the reference event and don't traverse paths not leading to interesting events
             getEventWeightingP(event, nEvent,
                     pathLength + event_getBranchLength(nEvent),
-                    pathLength + event_getBranchLength(nEvent)/stIntTuple_get(stHash_search(branchesToMultiplicity, nEvent), 0), branchesToMultiplicity, eventToWeights, phi);
+                    pathLength + event_getBranchLength(nEvent)/multiplicity, branchesToMultiplicity, eventToWeights, phi, chosenEvents);
         }
     }
     Event *nEvent;
-    if((nEvent = event_getParent(event)) != pEvent && nEvent != NULL && stIntTuple_get(stHash_search(branchesToMultiplicity, nEvent), 0) > 0) { //Case we're traversing up the tree from the reference event to a node with another child lineage.
-        getEventWeightingP(event, nEvent,
-                pathLength + event_getBranchLength(nEvent),
-                pathLength + event_getBranchLength(nEvent)/stIntTuple_get(stHash_search(branchesToMultiplicity, nEvent), 0),
-                branchesToMultiplicity, eventToWeights, phi);
+    if((nEvent = event_getParent(event)) != pEvent && nEvent != NULL) { //Case we're traversing up the tree from the reference event to a node with another child lineage.
+        assert(stHash_search(branchesToMultiplicity, nEvent) != NULL);
+        int64_t multiplicity = stIntTuple_get(stHash_search(branchesToMultiplicity, nEvent), 0);
+        if(multiplicity > 0) {
+            getEventWeightingP(event, nEvent,
+                    pathLength + event_getBranchLength(nEvent),
+                    pathLength + event_getBranchLength(nEvent)/multiplicity,
+                    branchesToMultiplicity, eventToWeights, phi, chosenEvents);
+        }
     }
-    if(pEvent != NULL && event_getChildNumber(event) == 0) { //Defines a leaf event that is not the reference, which we need to give a score for
+    if(stSet_search(chosenEvents, event) != NULL) { //Defines a leaf event that is not the reference, which we need to give a score for
         assert(adjustedPathLength <= pathLength);
         assert(exp(-phi * pathLength) <= 1.0);
+        assert(exp(-phi * pathLength) >= 0.0);
         double score = exp(-phi * pathLength) * adjustedPathLength/pathLength;
+        assert(score <= 1.0);
+        assert(score >= 0.0);
         stHash_insert(eventToWeights, event, stDoubleTuple_construct(1, score));
     }
 }
 
-static stHash *getEventWeighting(Event *referenceEvent, double phi) {
+static stHash *getEventWeighting(Event *referenceEvent, double phi, stSet *chosenEvents) {
     /*
      * Weights events by how informative they are for inferring the reference event.
-     * Accounts for both distance and the sharing of branches. Returns a hash of leaf events to weights.
+     * Accounts for both distance and the sharing of branches. Returns a hash of chosen events to weights.
      *
-     * Let R be the chosen reference event and A a leaf event. Let b_1, b_2, ..., b_n be the branches on
-     * the simple path from R to A. Let d(b_i) be the length of the branch b_i and s(b_i) the number of simple paths from R to a leaf
+     * Let R be the chosen reference event and A a chosen event. Let b_1, b_2, ..., b_n be the branches on
+     * the simple path from R to A. Let d(b_i) be the length of the branch b_i and s(b_i) the number of simple paths from R to a chosen
      * event that pass through b_i, termed multiplicity.
      *
      * The independence weight a_{R,A} is \sum_{i} d(b_i)/s(b_i) / \sum_{i} d(b_i).
@@ -254,12 +260,28 @@ static stHash *getEventWeighting(Event *referenceEvent, double phi) {
     stHash *eventToWeightHash = stHash_construct2(NULL, (void (*)(void *))stDoubleTuple_destruct);
 
     //Calculate the multiplicity (s function) of branches.
-    stHash *branchesToMultiplicity = getBranchMultiplicities(referenceEvent);
+    stHash *branchesToMultiplicity = getBranchMultiplicities(referenceEvent, chosenEvents);
 
     //Calculate total weights
-    getEventWeightingP(NULL, referenceEvent, 0.0, 0.0, branchesToMultiplicity, eventToWeightHash, phi);
+    getEventWeightingP(NULL, referenceEvent, 0.0, 0.0, branchesToMultiplicity, eventToWeightHash, phi, chosenEvents);
     stHash_destruct(branchesToMultiplicity);
+    assert(stSet_size(chosenEvents) == stHash_size(eventToWeightHash));
+
     return eventToWeightHash;
+}
+
+static stSet *getEventsWithSequences(Flower *flower) {
+    /*
+     * Returns all the events in the event tree that have sequences associated with them.
+     */
+    stSet *seqSet = stSet_construct();
+    Flower_SequenceIterator *seqIt = flower_getSequenceIterator(flower);
+    Sequence *seq;
+    while((seq = flower_getNextSequence(seqIt)) != NULL) {
+        stSet_insert(seqSet, sequence_getEvent(seq));
+    }
+    flower_destructSequenceIterator(seqIt);
+    return seqSet;
 }
 
 static double calculateZScoreWeightedAdapterFn(Cap *_5Cap, int64_t length5Segment, int64_t length3Segment, int64_t gap, void *extraArgs) {
@@ -572,7 +594,9 @@ static void getStubEdgesInTopLevelFlower(reference *ref, Flower *flower, stHash 
      */
     stHash *stubEndsToNodes = makeStubEdgesToNodesHash(stubEnds, endsToNodes);
     double theta = 0.0;
-    stHash *eventWeighting = getEventWeighting(referenceEvent, phi);
+    stSet *chosenEvents = getEventsWithSequences(flower);
+    stHash *eventWeighting = getEventWeighting(referenceEvent, phi, chosenEvents);
+    stSet_destruct(chosenEvents);
     void *zArgs[2] = { &theta, eventWeighting };
     refAdjList *stubAL = calculateZ(flower, stubEndsToNodes, nodeNumber,
     INT64_MAX, 1, calculateZScoreWeightedAdapterFn, zArgs);
@@ -1022,7 +1046,9 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     /*
      * Calculate z functions, using phylogenetic weighting.
      */
-    stHash *eventWeighting = getEventWeighting(referenceEvent, phi);
+    stSet *chosenEvents = getEventsWithSequences(flower);
+    stHash *eventWeighting = getEventWeighting(referenceEvent, phi, chosenEvents);
+    stSet_destruct(chosenEvents);
     void *zArgs[2] = { &theta, eventWeighting };
     refAdjList *aL = calculateZ(flower, endsToNodes, nodeNumber, maxWalkForCalculatingZ, ignoreUnalignedGaps, calculateZScoreWeightedAdapterFn, zArgs);
     int64_t directTheta = 0.0;

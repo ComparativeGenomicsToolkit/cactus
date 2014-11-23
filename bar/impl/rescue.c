@@ -20,10 +20,8 @@ typedef struct {
 // or greater input.
 // returns EOF on failure to read, returns 0 otherwise.
 int readNextBedLine(FILE *bedFile, bedRegion *curBedLine) {
-    char *line;
-    size_t n = 0;
-    if (getline(&line, &n, bedFile) == -1) {
-        free(line);
+    char *line = stFile_getLineFromFile(bedFile);
+    if (line == NULL) {
         return EOF;
     }
     int ret = sscanf(line, "%" PRIi64 "\t%" PRIi64 "\t%" PRIi64,
