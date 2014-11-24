@@ -92,7 +92,7 @@
 		minimumIngroupDegree="2"
 		minimumOutgroupDegree="0"
 		singleCopyIngroup="0"
-		singleCopyOutgroup="1"
+		singleCopyOutgroup="0"
 		maxAdjacencyComponentSizeRatio="50"
 		minLengthForChromosome="1000000"
 		proportionOfUnalignedBasesForNewChromosome="0.8"
@@ -107,8 +107,8 @@
                 phylogenyMaxBlockDistance="50"
                 phylogenyKeepSingleDegreeBlocks="0"
                 phylogenyTreeBuildingMethod="guidedNeighborJoining"
-                phylogenyCostPerDupPerBase="0.1"
-                phylogenyCostPerLossPerBase="0.1"
+                phylogenyCostPerDupPerBase="0.05"
+                phylogenyCostPerLossPerBase="0.0025"
                 phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce="0.95"
 	        >
 		<!-- The following are parametrised to produce the same results as the default settings, 
