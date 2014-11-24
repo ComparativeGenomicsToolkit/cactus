@@ -244,7 +244,7 @@ static stHash *getLeafToSpecies(stTree *geneTree, stPinchBlock *block,
  * neighbor-joining guided by a species tree.
  */
 
-static stHash *getMatrixIndexToJoinCostIndex(stPinchBlock *block, Flower *flower, stTree *speciesTree, stHash *speciesToJoinCostIndex) {
+static stHash *getMatrixIndexToJoinCostIndex(stPinchBlock *block, Flower *flower, stHash* eventToSpeciesNode, stHash *speciesToJoinCostIndex) {
     stHash *matrixIndexToJoinCostIndex = stHash_construct3((uint64_t (*)(const void *)) stIntTuple_hashKey, (int (*)(const void *, const void *)) stIntTuple_equalsFn, (void (*)(void *)) stIntTuple_destruct, (void (*)(void *)) stIntTuple_destruct);
     stPinchBlockIt blockIt = stPinchBlock_getSegmentIterator(block);
     stPinchSegment *segment;
@@ -253,9 +253,7 @@ static stHash *getMatrixIndexToJoinCostIndex(stPinchBlock *block, Flower *flower
         stPinchThread *thread = stPinchSegment_getThread(segment);
         Cap *cap = flower_getCap(flower, stPinchThread_getName(thread));
         Event *event = cap_getEvent(cap);
-        char *eventNameString = stString_print("%" PRIi64, event_getName(event));
-        stTree *species = stTree_findChild(speciesTree, eventNameString);
-        free(eventNameString);
+        stTree *species = stHash_search(eventToSpeciesNode, event);
         assert(species != NULL);
 
         stIntTuple *joinCostIndex = stHash_search(speciesToJoinCostIndex, species);
@@ -341,7 +339,7 @@ static stTree *buildTree(stList *featureColumns,
             // FIXME: Could move this out of the function as
             // well. It's the same for each tree generated for the
             // block.
-            stHash *matrixIndexToJoinCostIndex = getMatrixIndexToJoinCostIndex(block, flower, speciesStTree,
+            stHash *matrixIndexToJoinCostIndex = getMatrixIndexToJoinCostIndex(block, flower, eventToSpeciesNode,
                                                                                speciesToJoinCostIndex);
             tree = stPhylogeny_guidedNeighborJoining(combinedMatrix, joinCosts, matrixIndexToJoinCostIndex, speciesToJoinCostIndex, speciesMRCAMatrix, speciesStTree);
             stHash_destruct(matrixIndexToJoinCostIndex);
