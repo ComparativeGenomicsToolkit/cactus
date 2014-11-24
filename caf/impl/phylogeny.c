@@ -12,7 +12,7 @@
 #include "stPinchPhylogeny.h"
 #include "stCaf.h"
 #include "stCafPhylogeny.h"
-#include "gperftools/profiler.h"
+//#include "gperftools/profiler.h"
 
 // Doesn't have to be exported since nothing outside this file should
 // really care about split branches.
@@ -1050,7 +1050,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
     (void) getTotalSimilarityAndDifferenceCounts;
     (void) printTreeBuildingDebugInfo;
 
-    ProfilerStart("/tmp/profile");
+//    ProfilerStart("/tmp/profile");
 
     stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
     stPinchBlock *block;
@@ -1217,7 +1217,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
             ((float)numSingleDegreeSegmentsDropped)/stPinchThreadSet_getTotalBlockNumber(threadSet),
             numBasesDroppedFromSingleDegreeSegments);
 
-    ProfilerStop();
+//    ProfilerStop();
 
     //Cleanup
     for (int64_t i = 0; i < stTree_getNumNodes(speciesStTree); i++) {
