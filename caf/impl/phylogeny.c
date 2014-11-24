@@ -862,6 +862,9 @@ static void buildTreeForBlock(stPinchBlock *block, stHash *threadStrings, stSet 
         stList_append(trees, tree);
     }
 
+    stMatrixDiffs_destruct(snpDiffs);
+    stMatrixDiffs_destruct(breakpointDiffs);
+
     // Get the best-scoring tree.
     double maxScore = -INFINITY;
     stTree *bestTree = NULL;
