@@ -304,13 +304,15 @@ static stTree *buildTree(stList *featureColumns,
                          stMatrix *joinCosts,
                          stHash *speciesToJoinCostIndex,
                          int64_t **speciesMRCAMatrix,
-                         stHash *eventToSpeciesNode) {
+                         stHash *eventToSpeciesNode,
+                         stMatrixDiffs *snpDiffs,
+                         stMatrixDiffs *breakpointDiffs) {
     // Make substitution matrix
-    stMatrix *substitutionMatrix = stPinchPhylogeny_getMatrixFromSubstitutions(featureColumns, block, NULL, bootstrap);
+    stMatrix *substitutionMatrix = stPinchPhylogeny_constructMatrixFromDiffs(snpDiffs, bootstrap);
     assert(stMatrix_n(substitutionMatrix) == stPinchBlock_getDegree(block));
     assert(stMatrix_m(substitutionMatrix) == stPinchBlock_getDegree(block));
     //Make breakpoint matrix
-    stMatrix *breakpointMatrix = stPinchPhylogeny_getMatrixFromBreakpoints(featureColumns, block, NULL, bootstrap);
+    stMatrix *breakpointMatrix = stPinchPhylogeny_constructMatrixFromDiffs(breakpointDiffs, bootstrap);
     
     //Combine the matrices into distance matrices
     stMatrix_scale(breakpointMatrix, params->breakpointScalingFactor, 0.0);
@@ -839,12 +841,16 @@ static void buildTreeForBlock(stPinchBlock *block, stHash *threadStrings, stSet 
     // Get the outgroup threads
     stList *outgroups = getOutgroupThreads(block, outgroupThreads);
 
+    // Get the matrix diffs.
+    stMatrixDiffs *snpDiffs = stPinchPhylogeny_getMatrixDiffsFromSubstitutions(featureColumns, block, NULL);
+    stMatrixDiffs *breakpointDiffs = stPinchPhylogeny_getMatrixDiffsFromBreakpoints(featureColumns, block, NULL);
+
     // Build the canonical tree.
     stTree *blockTree = buildTree(featureColumns, params,
                                   0, outgroups, block, flower,
                                   speciesStTree, joinCosts,
                                   speciesToJoinCostIndex, speciesMRCAMatrix,
-                                  eventToSpeciesNode);
+                                  eventToSpeciesNode, snpDiffs, breakpointDiffs);
 
     // Sample the rest of the trees.
     stList *trees = stList_construct();
@@ -854,7 +860,7 @@ static void buildTreeForBlock(stPinchBlock *block, stHash *threadStrings, stSet 
                                  1, outgroups, block, flower,
                                  speciesStTree, joinCosts,
                                  speciesToJoinCostIndex, speciesMRCAMatrix,
-                                 eventToSpeciesNode);
+                                 eventToSpeciesNode, snpDiffs, breakpointDiffs);
         stList_append(trees, tree);
     }
 
