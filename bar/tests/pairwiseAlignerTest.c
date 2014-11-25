@@ -541,7 +541,7 @@ static void test_getSplitPoints(CuTest *testCase) {
     //Test a small region, which produces no splits
     int64_t lX = 3000;
     int64_t lY = 1000;
-    stList *splitPoints = getSplitPoints(anchorPairs, lX, lY, matrixSize);
+    stList *splitPoints = getSplitPoints(anchorPairs, lX, lY, matrixSize, 0, 0);
     CuAssertIntEquals(testCase, 1, stList_length(splitPoints));
     CuAssertTrue(testCase, stIntTuple_equalsFn(stList_get(splitPoints, 0), stIntTuple_construct4(0, 0, lX, lY)));
     stList_destruct(splitPoints);
@@ -549,7 +549,22 @@ static void test_getSplitPoints(CuTest *testCase) {
     //Test with one really big matrix with no anchors
     lX = 20000;
     lY = 25000;
-    splitPoints = getSplitPoints(anchorPairs, lX, lY, matrixSize);
+    splitPoints = getSplitPoints(anchorPairs, lX, lY, matrixSize, 1, 1);
+    CuAssertIntEquals(testCase, 0, stList_length(splitPoints));
+    stList_destruct(splitPoints);
+
+    splitPoints = getSplitPoints(anchorPairs, lX, lY, matrixSize, 1, 0);
+    CuAssertIntEquals(testCase, 1, stList_length(splitPoints));
+    CuAssertTrue(testCase,
+            stIntTuple_equalsFn(stList_get(splitPoints, 0), stIntTuple_construct4(18000, 23000, lX, lY)));
+    stList_destruct(splitPoints);
+
+    splitPoints = getSplitPoints(anchorPairs, lX, lY, matrixSize, 0, 1);
+    CuAssertIntEquals(testCase, 1, stList_length(splitPoints));
+    CuAssertTrue(testCase, stIntTuple_equalsFn(stList_get(splitPoints, 0), stIntTuple_construct4(0, 0, 2000, 2000)));
+    stList_destruct(splitPoints);
+
+    splitPoints = getSplitPoints(anchorPairs, lX, lY, matrixSize, 0, 0);
     CuAssertIntEquals(testCase, 2, stList_length(splitPoints));
     CuAssertTrue(testCase, stIntTuple_equalsFn(stList_get(splitPoints, 0), stIntTuple_construct4(0, 0, 2000, 2000)));
     CuAssertTrue(testCase,
@@ -566,7 +581,7 @@ static void test_getSplitPoints(CuTest *testCase) {
     stList_append(anchorPairs, stIntTuple_construct2(15000, 15000)); //This should also create a split
     stList_append(anchorPairs, stIntTuple_construct2(16000, 16000)); //This should not, but there will be a split with the end.
 
-    splitPoints = getSplitPoints(anchorPairs, lX, lY, matrixSize);
+    splitPoints = getSplitPoints(anchorPairs, lX, lY, matrixSize, 0, 0);
 
     for (int64_t i = 0; i < stList_length(splitPoints); i++) {
         stIntTuple *j = stList_get(splitPoints, i);
