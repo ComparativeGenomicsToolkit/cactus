@@ -210,7 +210,7 @@ stList *filterToRemoveOverlap(stList *overlappingPairs);
 //Split over large gaps
 
 stList *getSplitPoints(stList *anchorPairs, int64_t lX, int64_t lY,
-        int64_t maxMatrixSize);
+        int64_t maxMatrixSize, bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd);
 
 void getPosteriorProbsWithBandingSplittingAlignmentsByLargeGaps(StateMachine *sM, stList *anchorPairs, const char *sX, const char *sY, int64_t lX, int64_t lY,
         PairwiseAlignmentParameters *p,  bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd,

@@ -1013,8 +1013,11 @@ stList *getBlastPairsForPairwiseAlignmentParameters(const char *sX, const char *
 ///////////////////////////////////
 ///////////////////////////////////
 
-static void getSplitPointsP(int64_t *x1, int64_t *y1, int64_t x2, int64_t y2, int64_t x3, int64_t y3,
-        stList *splitPoints, int64_t splitMatrixBiggerThanThis) {
+static bool getSplitPointsP(int64_t *x1, int64_t *y1, int64_t x2, int64_t y2, int64_t x3, int64_t y3,
+        stList *splitPoints, int64_t splitMatrixBiggerThanThis, bool skipBlock) {
+    /*
+     * x2/y2 are the previous anchor point, x3/y3 are the next anchor point. Gaps greater than (x3-x2)*(y3-y2) are split up.
+     */
     int64_t lX2 = x3 - x2;
     int64_t lY2 = y3 - y2;
     int64_t matrixSize = lX2 * lY2;
@@ -1024,13 +1027,18 @@ static void getSplitPointsP(int64_t *x1, int64_t *y1, int64_t x2, int64_t y2, in
         int64_t maxSequenceLength = sqrt(splitMatrixBiggerThanThis);
         int64_t hX = lX2 / 2 > maxSequenceLength ? maxSequenceLength : lX2 / 2;
         int64_t hY = lY2 / 2 > maxSequenceLength ? maxSequenceLength : lY2 / 2;
-        stList_append(splitPoints, stIntTuple_construct4(*x1, *y1, x2 + hX, y2 + hY));
+        if(!skipBlock) {
+            stList_append(splitPoints, stIntTuple_construct4(*x1, *y1, x2 + hX, y2 + hY));
+        }
         *x1 = x3 - hX;
         *y1 = y3 - hY;
+        return 1;
     }
+    return 0;
 }
 
-stList *getSplitPoints(stList *anchorPairs, int64_t lX, int64_t lY, int64_t splitMatrixBiggerThanThis) {
+stList *getSplitPoints(stList *anchorPairs, int64_t lX, int64_t lY, int64_t splitMatrixBiggerThanThis,
+                       bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd) {
     int64_t x1 = 0, y1 = 0, x2 = 0, y2 = 0;
     assert(lX >= 0);
     assert(lY >= 0);
@@ -1038,7 +1046,7 @@ stList *getSplitPoints(stList *anchorPairs, int64_t lX, int64_t lY, int64_t spli
     for (int64_t i = 0; i < stList_length(anchorPairs); i++) {
         stIntTuple *anchorPair = stList_get(anchorPairs, i);
         int64_t x3 = stIntTuple_get(anchorPair, 0), y3 = stIntTuple_get(anchorPair, 1);
-        getSplitPointsP(&x1, &y1, x2, y2, x3, y3, splitPoints, splitMatrixBiggerThanThis);
+        getSplitPointsP(&x1, &y1, x2, y2, x3, y3, splitPoints, splitMatrixBiggerThanThis, alignmentHasRaggedLeftEnd && i == 0);
         assert(x3 >= x2);
         assert(y3 >= y2);
         assert(x3 < lX);
@@ -1046,8 +1054,10 @@ stList *getSplitPoints(stList *anchorPairs, int64_t lX, int64_t lY, int64_t spli
         x2 = x3 + 1;
         y2 = y3 + 1;
     }
-    getSplitPointsP(&x1, &y1, x2, y2, lX, lY, splitPoints, splitMatrixBiggerThanThis);
-    stList_append(splitPoints, stIntTuple_construct4(x1, y1, lX, lY));
+    if(!getSplitPointsP(&x1, &y1, x2, y2, lX, lY, splitPoints, splitMatrixBiggerThanThis,
+            alignmentHasRaggedLeftEnd && stList_length(anchorPairs) == 0) || !alignmentHasRaggedRightEnd) {
+        stList_append(splitPoints, stIntTuple_construct4(x1, y1, lX, lY));
+    }
 
     if (stList_length(splitPoints) > 1) {
         st_logDebug("For sequences of length %" PRIi64 " and %" PRIi64 " we got %" PRIi64 " splits\n", lX, lY,
@@ -1075,7 +1085,7 @@ void getPosteriorProbsWithBandingSplittingAlignmentsByLargeGaps(StateMachine *sM
         bool alignmentHasRaggedRightEnd,
         void (*diagonalPosteriorProbFn)(StateMachine *, int64_t, DpMatrix *, DpMatrix *, const SymbolString, const SymbolString, double,
                 PairwiseAlignmentParameters *, void *), void (*coordinateCorrectionFn)(), void *extraArgs) {
-    stList *splitPoints = getSplitPoints(anchorPairs, lX, lY, p->splitMatrixBiggerThanThis);
+    stList *splitPoints = getSplitPoints(anchorPairs, lX, lY, p->splitMatrixBiggerThanThis, alignmentHasRaggedLeftEnd, alignmentHasRaggedRightEnd);
     int64_t j = 0;
     //Now to the actual alignments
     for (int64_t i = 0; i < stList_length(splitPoints); i++) {
@@ -1097,9 +1107,8 @@ void getPosteriorProbsWithBandingSplittingAlignmentsByLargeGaps(StateMachine *sM
             stIntTuple *anchorPair = stList_get(anchorPairs, j);
             int64_t x = stIntTuple_get(anchorPair, 0);
             int64_t y = stIntTuple_get(anchorPair, 1);
-            int64_t xay = x + y;
-            assert(xay >= x1 + y1);
-            if (xay >= x2 + y2) {
+            assert(x + y >= x1 + y1);
+            if (x + y >= x2 + y2) {
                 break;
             }
             assert(x >= x1 && x < x2);
