@@ -164,9 +164,11 @@ Sequence *flower_getFirstSequence(Flower *flower) {
 }
 
 Sequence *flower_getSequence(Flower *flower, Name name) {
-    Sequence *sequence;
-    sequence = sequence_getStaticNameWrapper(name);
-    return stSortedSet_search(flower->sequences, sequence);
+    Sequence sequence;
+    MetaSequence metaSequence;
+    sequence.metaSequence = &metaSequence;
+    metaSequence.name = name;
+    return stSortedSet_search(flower->sequences, &sequence);
 }
 
 int64_t flower_getSequenceNumber(Flower *flower) {
@@ -198,9 +200,11 @@ Cap *flower_getFirstCap(Flower *flower) {
 }
 
 Cap *flower_getCap(Flower *flower, Name name) {
-    Cap *cap;
-    cap = cap_getStaticNameWrapper(name);
-    return stSortedSet_search(flower->caps, cap);
+    Cap cap;
+    CapContents capContents;
+    cap.capContents = &capContents;
+    cap.capContents->instance = name;
+    return stSortedSet_search(flower->caps, &cap);
 }
 
 int64_t flower_getCapNumber(Flower *flower) {
@@ -232,9 +236,12 @@ End *flower_getFirstEnd(Flower *flower) {
 }
 
 End *flower_getEnd(Flower *flower, Name name) {
-    End *end;
-    end = end_getStaticNameWrapper(name);
-    return stSortedSet_search(flower->ends, end);
+    End end;
+    EndContents endContents;
+    end.endContents = &endContents;
+    endContents.name = name;
+    end.orientation = 1;
+    return stSortedSet_search(flower->ends, &end);
 }
 
 int64_t flower_getEndNumber(Flower *flower) {
@@ -291,9 +298,9 @@ Segment *flower_getFirstSegment(Flower *flower) {
 }
 
 Segment *flower_getSegment(Flower *flower, Name name) {
-    Segment *segment;
-    segment = segment_getStaticNameWrapper(name);
-    return stSortedSet_search(flower->segments, segment);
+    Segment segment;
+    segment.name = name;
+    return stSortedSet_search(flower->segments, &segment);
 }
 
 int64_t flower_getSegmentNumber(Flower *flower) {
@@ -325,9 +332,11 @@ Block *flower_getFirstBlock(Flower *flower) {
 }
 
 Block *flower_getBlock(Flower *flower, Name name) {
-    Block *block;
-    block = block_getStaticNameWrapper(name);
-    return stSortedSet_search(flower->blocks, block);
+    Block block;
+    BlockContents blockContents;
+    block.blockContents = &blockContents;
+    blockContents.name = name;
+    return stSortedSet_search(flower->blocks, &block);
 }
 
 int64_t flower_getBlockNumber(Flower *flower) {
@@ -359,8 +368,9 @@ Group *flower_getFirstGroup(Flower *flower) {
 }
 
 Group *flower_getGroup(Flower *flower, Name flowerName) {
-    Group *group = group_getStaticNameWrapper(flowerName);
-    return stSortedSet_search(flower->groups, group);
+    Group group;
+    group.name = flowerName;
+    return stSortedSet_search(flower->groups, &group);
 }
 
 int64_t flower_getGroupNumber(Flower *flower) {
@@ -405,8 +415,9 @@ Chain *flower_getFirstChain(Flower *flower) {
 }
 
 Chain *flower_getChain(Flower *flower, Name name) {
-    Chain *chain = chain_getStaticNameWrapper(name);
-    return stSortedSet_search(flower->chains, chain);
+    Chain chain;
+    chain.name = name;
+    return stSortedSet_search(flower->chains, &chain);
 }
 
 int64_t flower_getChainNumber(Flower *flower) {

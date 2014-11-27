@@ -33,9 +33,4 @@ void sequence_writeBinaryRepresentation(Sequence *sequence, void (*writeFn)(cons
  */
 Sequence *sequence_loadFromBinaryRepresentation(void **binaryString, Flower *flower);
 
-/*
- * Get a static instance (from the heap) with the name set.
- */
-Sequence *sequence_getStaticNameWrapper(Name name);
-
 #endif

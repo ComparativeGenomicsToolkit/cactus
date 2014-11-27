@@ -59,11 +59,6 @@ void group_writeBinaryRepresentation(Group *group, void (*writeFn)(const void * 
 Group *group_loadFromBinaryRepresentation(void **binaryString, Flower *flower);
 
 /*
- * Get a static instance (from the heap) with the flowerName set.
- */
-Group *group_getStaticNameWrapper(Name flowerName);
-
-/*
  * Sets the flower containing the group (the public function is end_setGroup).
  */
 void group_setFlower(Group *group, Flower *flower);

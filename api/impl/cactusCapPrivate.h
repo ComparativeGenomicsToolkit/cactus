@@ -86,11 +86,6 @@ void cap_writeBinaryRepresentation(Cap *cap, void(*writeFn)(const void * ptr,
 Cap *cap_loadFromBinaryRepresentation(void **binaryString, End *end);
 
 /*
- * Get a static instance (from the heap) with the name set.
- */
-Cap *cap_getStaticNameWrapper(Name name);
-
-/*
  * Sets the event associated with the cap. Dangerous method, must be used carefully.
  */
 void cap_setEvent(Cap *cap, Event *event);
