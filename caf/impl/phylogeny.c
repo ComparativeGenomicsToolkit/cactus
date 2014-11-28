@@ -347,8 +347,7 @@ static stTree *buildTree(stList *featureColumns,
         stHash *leafToSpecies = getLeafToSpecies(tree, block, flower,
                                                  eventToSpeciesNode);
 
-        stTree *newTree = stPhylogeny_rootAndReconcileAtMostBinary(tree,
-                                                                   leafToSpecies);
+        stTree *newTree = stPhylogeny_rootByReconciliationAtMostBinary(tree, leafToSpecies);
         stPhylogeny_addStIndexedTreeInfo(newTree);
 
         stPhylogenyInfo_destructOnTree(tree);
@@ -370,6 +369,10 @@ static stTree *buildTree(stList *featureColumns,
     // length of 0)
     fudgeZeroBranchLengths(tree, 0.02, 0.0001);
 
+    stMatrix_destruct(substitutionMatrix);
+    stMatrix_destruct(breakpointMatrix);
+    stMatrix_destruct(combinedMatrix);
+    stMatrix_destruct(distanceMatrix);
     return tree;
 }
 
@@ -870,10 +873,12 @@ static TreeBuildingResult *buildTreeForBlock(TreeBuildingInput *input) {
     if (hasSimplePhylogeny(block, input->constants->outgroupThreads,
                            input->constants->flower)) {
         // No point trying to build a phylogeny for certain blocks.
+        free(input);
         return ret;
     }
     if (isSingleCopyBlock(block, input->constants->flower)
         && params->skipSingleCopyBlocks) {
+        free(input);
         return ret;
     }
 
@@ -957,6 +962,7 @@ static TreeBuildingResult *buildTreeForBlock(TreeBuildingInput *input) {
         stPhylogenyInfo_destructOnTree(tree);
         stTree_destruct(tree);
     }
+    stList_destruct(trees);
     stList_destruct(featureColumns);
     stList_destruct(featureBlocks);
     stList_destruct(outgroups);
@@ -1109,6 +1115,11 @@ void splitBlockOnSplitBranch(stPinchBlock *block,
     }
 }
 
+static void destructBlockTree(stTree *tree) {
+    stPhylogenyInfo_destructOnTree(tree);
+    stTree_destruct(tree);
+}
+
 void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
                                                stHash *threadStrings,
                                                stSet *outgroupThreads,
@@ -1127,7 +1138,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
     stPinchBlock *block;
 
     //Hash in which we store a map of blocks to their trees
-    stHash *blocksToTrees = stHash_construct2(NULL, NULL);
+    stHash *blocksToTrees = stHash_construct2(NULL, destructBlockTree);
 
     //Get species tree as an stTree
     EventTree *eventTree = flower_getEventTree(flower);
@@ -1318,4 +1329,5 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
     free(speciesMRCAMatrix);
     stTree_destruct(speciesStTree);
     stThreadPool_destruct(treeBuildingPool);
+    stHash_destruct(blocksToTrees);
 }
