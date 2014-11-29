@@ -10,6 +10,4 @@
 
 char *getConsensusString(Block *block, Name outgroupEventName);
 
-void reverseComplementString(char *string);
-
 #endif /* BLOCKCONSENSUSSTRING_H_ */
