@@ -126,21 +126,27 @@ def expectationMaximisation(target, sequences, alignments, outputModel, options)
     hmm.write(outputModel)
 
     #Make a set of split alignment files
-    cigars = list(cigarRead(alignments))
-    splitAlignments = []
-    while len(cigars) > 0:
-        splitAlignments.append(os.path.join(target.getGlobalTempDir(), "alignments_%s.cigar" % len(splitAlignments)))
-        fH = open(splitAlignments[-1], 'w')
-        for cigar in cigars[:options.numberOfAlignmentsPerJob]:
-            cigarWrite(fH, cigar)
+    alignmentsCounter = 0
+    splitAlignmentFiles = []
+    fH = None
+    for cigar in cigarRead(alignments):
+        if fH == None:
+            splitAlignmentFiles.append(os.path.join(target.getGlobalTempDir(), "alignments_%s.cigar" % len(splitAlignmentFiles)))
+            fH = open(splitAlignmentFiles[-1], 'w')
+        alignmentsCounter += 1
+        cigarWrite(fH, cigar)
+        if alignmentsCounter > options.numberOfAlignmentsPerJob:
+            fH.close()
+            fH = None
+            alignmentsCounter = 0
+    if fH != None:
         fH.close()
-        cigars = cigars[options.numberOfAlignmentsPerJob:]
 
     #Files to store expectations in
-    expectationsFiles = map(lambda i : os.path.join(target.getGlobalTempDir(), "expectation_%i.txt" % i), xrange(len(splitAlignments)))
-    assert len(splitAlignments) == len(expectationsFiles)
+    expectationsFiles = map(lambda i : os.path.join(target.getGlobalTempDir(), "expectation_%i.txt" % i), xrange(len(splitAlignmentFiles)))
+    assert len(splitAlignmentFiles) == len(expectationsFiles)
 
-    target.setFollowOnTargetFn(expectationMaximisation2, args=(sequences, splitAlignments, outputModel, expectationsFiles, 0, [], options))
+    target.setFollowOnTargetFn(expectationMaximisation2, args=(sequences, splitAlignmentFiles, outputModel, expectationsFiles, 0, [], options))
 
 def expectationMaximisation2(target, sequences, splitAlignments, modelsFile, expectationsFiles, iteration, runningLikelihoods, options):
     if iteration < options.iterations:
