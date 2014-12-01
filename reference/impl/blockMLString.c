@@ -46,12 +46,12 @@ stTree *getPhylogeneticTreeRootedAtGivenEvent(Event *event, stMatrix *(*generate
      * Creates a stTree isomorphic to the eventTree that 'event' is part of, but rooted at 'event'.
      * Each node is the returned tree has two attributes, arranged in an array (see getSubMatrix and getEvent above).
      * The first is a substitution matrix giving substitution probabilities for bases along the incident parent branch of
-     * the rerooted tree.
+     * the re-rooted tree.
      * The second is the event that it maps to in the original event tree.
      */
     stTree *tree = getPhylogeneticTree(event, NULL, generateSubstitutionMatrix); //This builds the subtree rooted at the given event
-    stMatrix_destruct(getSubMatrix(tree)); //This cleans up the substitution matrix for the root of the remodelled tree.
-    ((void **) stTree_getClientData(tree))[0] = generateSubstitutionMatrix(0.0); //And this sets parametrises the substitution matrix of
+    stMatrix_destruct(getSubMatrix(tree)); //This cleans up the substitution matrix for the root of the remodeled tree.
+    ((void **) stTree_getClientData(tree))[0] = generateSubstitutionMatrix(0.0); //And this parameterizes the substitution matrix of
     //the parent branch of the root to have zero length.
 
     //The following builds out the subtree of the eventTree not represented by tree
@@ -99,6 +99,7 @@ char indexToChar(int64_t i) {
     case 3:
         return 'T';
     default:
+        assert(0); //This should not happen
         return 'N';
     }
 }
@@ -143,7 +144,8 @@ static double *transformBaseProbsBySubstitutionMatrix(double *baseProbs, int64_t
      * Returns the input array.
      */
     for (int64_t i = 0; i < length; i++) {
-        double *v = stMatrix_multiplyVector(substitutionMatrix, &(baseProbs[i * 4]));
+        assert(stMatrix_n(substitutionMatrix) == 4);
+        double *v = stMatrix_multiplySquareMatrixAndColumnVector(substitutionMatrix, &(baseProbs[i * 4]));
         memcpy(&(baseProbs[i * 4]), v, sizeof(double) * 4);
         free(v);
     }
@@ -167,10 +169,11 @@ double *getBaseProbsString(char *string, int64_t length) {
      * Gets an array of base probs, as described in getMaxLikelihoodString, representing
      * the input string.
      */
-    double *baseProbs = st_calloc(length * 4, sizeof(double)); //Gets the initial array initialised to 0 values
+    double *baseProbs = st_calloc(length * 4, sizeof(double)); //Gets the initial array initialised to 0.0 values
     for (int64_t i = 0; i < length; i++) {
         switch (toupper(string[i])) {
         case 'A':
+            assert(baseProbs[i * 4] == 0.0);
             baseProbs[i * 4] = 1.0;
             break;
         case 'C':
@@ -182,7 +185,7 @@ double *getBaseProbsString(char *string, int64_t length) {
         case 'T':
             baseProbs[i * 4 + 3] = 1.0;
             break;
-        default:
+        default: //If N we treat marginalise over all possibilities.
             baseProbs[i * 4] = 1.0;
             baseProbs[i * 4 + 1] = 1.0;
             baseProbs[i * 4 + 2] = 1.0;

@@ -77,6 +77,7 @@ static void checkTree(CuTest *testCase, stTree *tree, stSet *eventsSet) {
 
 static void testMLStringRandom(CuTest *testCase) {
     for(int64_t i=0; i<100; i++) {
+        st_uglyf("Boo!!\n");
         CactusDisk *cactusDisk = testCommon_getTemporaryCactusDisk();
         Flower *flower = flower_construct(cactusDisk);
         //Make a random eventTree.
