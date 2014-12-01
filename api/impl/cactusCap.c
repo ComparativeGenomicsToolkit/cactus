@@ -507,14 +507,6 @@ Cap *cap_loadFromBinaryRepresentation(void **binaryString, End *end) {
     return cap;
 }
 
-Cap *cap_getStaticNameWrapper(Name name) {
-    static Cap cap;
-    static CapContents capContents;
-    cap.capContents = &capContents;
-    cap.capContents->instance = name;
-    return &cap;
-}
-
 void cap_setEvent(Cap *cap, Event *event) {
     cap->capContents->event = event;
 }

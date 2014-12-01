@@ -179,9 +179,12 @@ Cap *end_getInstanceP(End *end, Cap *connectedCap) {
 }
 
 Cap *end_getInstance(End *end, Name name) {
-    Cap *cap = cap_getStaticNameWrapper(name);
+    Cap cap;
+    CapContents capContents;
+    cap.capContents = &capContents;
+    capContents.instance = name;
     return end_getInstanceP(end,
-            stSortedSet_search(end->endContents->caps, cap));
+            stSortedSet_search(end->endContents->caps, &cap));
 }
 
 Cap *end_getFirst(End *end) {
@@ -453,15 +456,6 @@ End *end_loadFromBinaryRepresentation(void **binaryString, Flower *flower) {
     }
 
     return end;
-}
-
-End *end_getStaticNameWrapper(Name name) {
-    static End end;
-    static EndContents endContents;
-    end.endContents = &endContents;
-    endContents.name = name;
-    end.orientation = 1;
-    return &end;
 }
 
 uint64_t end_hashKey(const void *o) {

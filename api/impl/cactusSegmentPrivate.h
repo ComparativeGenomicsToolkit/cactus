@@ -46,9 +46,4 @@ void segment_writeBinaryRepresentation(Segment *segment, void (*writeFn)(const v
  */
 Segment *segment_loadFromBinaryRepresentation(void **binaryString, Block *block);
 
-/*
- * Get a static instance (from the heap) with the name set.
- */
-Segment *segment_getStaticNameWrapper(Name name);
-
 #endif

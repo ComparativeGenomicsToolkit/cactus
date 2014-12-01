@@ -282,9 +282,3 @@ Chain *chain_loadFromBinaryRepresentation(void **binaryString, Flower *flower) {
     }
     return chain;
 }
-
-Chain *chain_getStaticNameWrapper(Name name) {
-    static Chain chain;
-    chain.name = name;
-    return &chain;
-}

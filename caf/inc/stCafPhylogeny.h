@@ -100,6 +100,9 @@ typedef struct {
     // is, which should usually be correct.
     // Any value greater than 1.0 disables this.
     bool doSplitsWithSupportHigherThanThisAllAtOnce;
+    // Number of additional threads to spawn to do tree-building with
+    // (has to be more than 1).
+    int64_t numTreeBuildingThreads;
 } stCaf_PhylogenyParameters;
 
 // Split a block according to a partition.

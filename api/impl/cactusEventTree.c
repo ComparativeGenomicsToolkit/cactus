@@ -62,8 +62,9 @@ Event *eventTree_getRootEvent(EventTree *eventTree) {
 }
 
 Event *eventTree_getEvent(EventTree *eventTree, Name eventName) {
-	Event *event = event_getStaticNameWrapper(eventName);
-	return stSortedSet_search(eventTree->events, event);
+	Event event;
+	event.name = eventName;
+	return stSortedSet_search(eventTree->events, &event);
 }
 
 Event *eventTree_getCommonAncestor(Event *event, Event *event2) {

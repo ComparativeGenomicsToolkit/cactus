@@ -335,8 +335,8 @@ class TrimAndRecurseOnOutgroups(Target):
                 ingroupCoverageFile = os.path.join(self.ingroupCoverageDir, os.path.basename(ingroupSequence) + ".bed")
             calculateCoverage(ingroupSequence, self.outgroupResultsFile,
                               ingroupCoverageFile, depthById=self.blastOptions.trimOutgroupDepth > 1)
-            self.logToMaster("Cumulative coverage of %d outgroups on ingroup %s: %s" % (self.outgroupNumber, os.path.basename(ingroupSequence), percentCoverage(ingroupSequence, tmpIngroupCoverage)))
-            ingroupCoverageFiles.append(tmpIngroupCoverage)
+            self.logToMaster("Cumulative coverage of %d outgroups on ingroup %s: %s" % (self.outgroupNumber, os.path.basename(ingroupSequence), percentCoverage(ingroupSequence, ingroupCoverageFile)))
+            ingroupCoverageFiles.append(ingroupCoverageFile)
 
         # Trim ingroup seqs and recurse on the next outgroup.
 

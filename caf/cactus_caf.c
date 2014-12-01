@@ -642,6 +642,7 @@ int main(int argc, char *argv[]) {
                 params.ignoreUnalignedBases = 1;
                 params.onlyIncludeCompleteFeatureBlocks = 0;
                 params.doSplitsWithSupportHigherThanThisAllAtOnce = phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce;
+                params.numTreeBuildingThreads = 2;
 
                 stCaf_buildTreesToRemoveAncientHomologies(
                     threadSet, threadStrings, outgroupThreads, flower, &params,
