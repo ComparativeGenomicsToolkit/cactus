@@ -338,7 +338,8 @@ def runCactusExpectationMaximisation(sequenceFiles, alignmentsFile, outputModelF
                                      optionsToRealign=None,
                                      logLevel=None, 
                                      updateTheBand=None,
-                                     numberOfAlignmentsPerJob=None,
+                                     maxAlignmentLengthPerJob=None,
+                                     maxAlignmentLengthToSample=None,
                                      useDefaultModelAsStart=None, 
                                      setJukesCantorStartingEmissions=None,
                                      trainEmissions=None,
@@ -354,7 +355,8 @@ def runCactusExpectationMaximisation(sequenceFiles, alignmentsFile, outputModelF
     trials = nameValue("trials", trials, int)
     randomStart = nameValue("randomStart", randomStart, bool)
     updateTheBand = nameValue("updateTheBand", updateTheBand, bool)
-    numberOfAlignmentsPerJob = nameValue("numberOfAlignmentsPerJob", numberOfAlignmentsPerJob, int)
+    maxAlignmentLengthPerJob = nameValue("maxAlignmentLengthPerJob", maxAlignmentLengthPerJob, int)
+    maxAlignmentLengthToSample = nameValue("maxAlignmentLengthToSample", maxAlignmentLengthToSample, int)
     optionsToRealign = nameValue("optionsToRealign", optionsToRealign, quotes=True)
     useDefaultModelAsStart = nameValue("useDefaultModelAsStart", useDefaultModelAsStart, bool) 
     trainEmissions = nameValue("trainEmissions", trainEmissions, bool)
@@ -364,10 +366,10 @@ def runCactusExpectationMaximisation(sequenceFiles, alignmentsFile, outputModelF
     outputXMLModelFile = nameValue("outputXMLModelFile", outputXMLModelFile, str)
     blastScoringMatrixFile = nameValue("blastScoringMatrixFile", blastScoringMatrixFile, str)
     
-    system("cactus_expectationMaximisation --sequences '%s' --alignments %s --outputModel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
+    system("cactus_expectationMaximisation --sequences '%s' --alignments %s --outputModel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
            (" ".join(sequenceFiles), alignmentsFile, outputModelFile, iterations, trials, randomStart, 
             jobTreeDir, inputModelFile, optionsToRealign, modelType,
-            numberOfAlignmentsPerJob, updateTheBand, useDefaultModelAsStart, 
+            maxAlignmentLengthPerJob, maxAlignmentLengthToSample, updateTheBand, useDefaultModelAsStart, 
             trainEmissions, tieEmissions, setJukesCantorStartingEmissions, outputTrialHmms, 
             outputXMLModelFile, blastScoringMatrixFile))
 

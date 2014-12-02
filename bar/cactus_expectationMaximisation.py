@@ -126,21 +126,34 @@ def expectationMaximisation(target, sequences, alignments, outputModel, options)
     hmm.write(outputModel)
 
     #Make a set of split alignment files
-    alignmentsCounter = 0
+    alignmentsLength = 0
     splitAlignmentFiles = []
     fH = None
     for cigar in cigarRead(alignments):
         if fH == None:
             splitAlignmentFiles.append(os.path.join(target.getGlobalTempDir(), "alignments_%s.cigar" % len(splitAlignmentFiles)))
             fH = open(splitAlignmentFiles[-1], 'w')
-        alignmentsCounter += 1
+        alignmentsLength += (abs(cigar.start1 - cigar.end1) + abs(cigar.start2 - cigar.end2))/2.0
         cigarWrite(fH, cigar)
-        if alignmentsCounter > options.numberOfAlignmentsPerJob:
+        if alignmentsLength > options.maxAlignmentLengthPerJob:
             fH.close()
             fH = None
-            alignmentsCounter = 0
+            splitAlignmentFiles[-1] = (splitAlignmentFiles[-1], alignmentsLength)
+            alignmentsLength = 0
     if fH != None:
         fH.close()
+        splitAlignmentFiles[-1] = (splitAlignmentFiles[-1], alignmentsLength)
+    
+    #Sample the alignment files so that we do EM on no more than options.maxAlignmentLengthToSample bases
+    random.shuffle(splitAlignmentFiles) #This ensures we don't just take the first N alignments in the provided alignments file
+    sampledSplitAlignmentFiles = []
+    totalSampledAlignmentLength = 0.0
+    for alignmentsFile, alignmentsLength in splitAlignmentFiles:
+        totalSampledAlignmentLength += alignmentsLength
+        sampledSplitAlignmentFiles.append(alignmentsFile)
+        if totalSampledAlignmentLength >= options.maxAlignmentLengthToSample:
+            break
+    splitAlignmentFiles = sampledSplitAlignmentFiles
 
     #Files to store expectations in
     expectationsFiles = map(lambda i : os.path.join(target.getGlobalTempDir(), "expectation_%i.txt" % i), xrange(len(splitAlignmentFiles)))
@@ -355,7 +368,8 @@ class Options:
         self.randomStart=False
         self.optionsToRealign="--diagonalExpansion=10 --splitMatrixBiggerThanThis=3000"
         self.updateTheBand=False
-        self.numberOfAlignmentsPerJob=100
+        self.maxAlignmentLengthPerJob=1000000
+        self.maxAlignmentLengthToSample=50000000
         self.useDefaultModelAsStart = False
         self.setJukesCantorStartingEmissions=None
         self.tieEmissions = False
@@ -379,7 +393,9 @@ def main():
     parser.add_option("--randomStart", default=options.randomStart, help="Iterate start model with small random values, else all values are equal", action="store_true")
     parser.add_option("--optionsToRealign", default=options.optionsToRealign, help="Further options to pass to cactus_realign when computing expectation values, should be passed as a quoted string")
     parser.add_option("--updateTheBand", default=options.updateTheBand, help="After each iteration of EM update the set of alignments by realigning them, so allowing stochastic updating of the constraints. This does not alter the input alignments file", action="store_true")
-    parser.add_option("--numberOfAlignmentsPerJob", default=options.numberOfAlignmentsPerJob, help="Number of alignments to compute in parallel during expectation/updating the band steps", type=int)
+    parser.add_option("--maxAlignmentLengthPerJob", default=options.maxAlignmentLengthPerJob, help="Maximum total alignment length of alignments to include in one job during EM..", type=int)
+    parser.add_option("--maxAlignmentLengthToSample", default=options.maxAlignmentLengthToSample, help="Maximum total alignment length of alignments to include in doing EM. Alignments are randomly sampled without replacement to achieve maximum. \
+    The alignment length of an alignment is the avg. of the lengths of the query and target substrings covered by the alignment.", type=int)
     parser.add_option("--useDefaultModelAsStart", default=options.useDefaultModelAsStart, help="Use the default BAR hmm model as the starting point", action="store_true")
     parser.add_option("--setJukesCantorStartingEmissions", default=options.setJukesCantorStartingEmissions, help="[double] Set the starting hmm emissions by jukes cantor expectation, using given subs/site estimate", type=float)
     parser.add_option("--trainEmissions", default=options.trainEmissions, help="Train the emissions as well as the transitions.", action="store_true")
