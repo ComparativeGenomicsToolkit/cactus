@@ -66,15 +66,20 @@ stTree *getPhylogeneticTreeRootedAtGivenEvent(Event *event, stMatrix *(*generate
     return tree;
 }
 
+void cleanupPhylogeneticTreeP(stTree *tree) {
+    for(int64_t i=0; i<stTree_getChildNumber(tree); i++) {
+        cleanupPhylogeneticTreeP(stTree_getChild(tree, i));
+    }
+    stMatrix_destruct(getSubMatrix(tree));
+    free(stTree_getClientData(tree));
+}
+
 void cleanupPhylogeneticTree(stTree *tree) {
     /*
      * Frees the phylogenetic tree created by getPhylogeneticTreeRootedAtGivenEvent, including the associated substitution matrices.
      */
-    for(int64_t i=0; i<stTree_getChildNumber(tree); i++) {
-        cleanupPhylogeneticTree(stTree_getChild(tree, i));
-    }
-    stMatrix_destruct(getSubMatrix(tree));
-    free(stTree_getClientData(tree));
+    cleanupPhylogeneticTreeP(tree);
+    stTree_destruct(tree);
 }
 
 stMatrix *generateJukesCantorMatrix(double distance) {
@@ -273,8 +278,10 @@ void maskAncestralRepeatBases(Block *block, char *mlString) {
         if (upperCounts[i] <= block_getInstanceNumber(block) / 2) {
             mlString[i] = tolower(mlString[i]);
         }
-
     }
+    //Cleanup
+    free(upperCounts);
+    free(nCounts);
 }
 
 static stHash *hashEventsToSegmentStrings(Block *block) {
