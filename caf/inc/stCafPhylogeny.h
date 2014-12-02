@@ -101,7 +101,9 @@ typedef struct {
     // Any value greater than 1.0 disables this.
     bool doSplitsWithSupportHigherThanThisAllAtOnce;
     // Number of additional threads to spawn to do tree-building with
-    // (has to be more than 1).
+    // (has to be more than 0). The master thread is almost always
+    // stalled while tree-building is running, so you should expect at
+    // most numTreeBuildingThreads cpus to be occupied.
     int64_t numTreeBuildingThreads;
 } stCaf_PhylogenyParameters;
 

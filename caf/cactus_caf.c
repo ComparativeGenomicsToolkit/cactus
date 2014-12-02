@@ -84,6 +84,7 @@ static void usage() {
     fprintf(stderr, "-O --phylogenyCostPerLossPerBase : join cost per loss per base for guided neighbor-joining (will be multiplied by maxBaseDistance)\n");
     fprintf(stderr, "-P --referenceEventHeader : name of reference event (necessary for phylogeny estimation)\n");
     fprintf(stderr, "-Q --phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce : assume that this support value or greater means a very confident split, and that they will not be changed by the greedy split algorithm. Do all these very confident splits at once, to save a lot of computation time.\n");
+    fprintf(stderr, "-R --numTreeBuildingThreads : Number of threads in the tree-building thread pool. Must be greater than 1. Default 2.\n");
 }
 
 static int64_t *getInts(const char *string, int64_t *arrayLength) {
@@ -261,6 +262,7 @@ int main(int argc, char *argv[]) {
     const char *debugFileName = NULL;
     const char *referenceEventHeader = NULL;
     double phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce = 1.0;
+    int64_t numTreeBuildingThreads = 2;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -294,11 +296,12 @@ int main(int argc, char *argv[]) {
                         { "phylogenyCostPerLossPerBase", required_argument, 0, 'O' },
                         { "referenceEventHeader", required_argument, 0, 'P' },
                         { "phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce", required_argument, 0, 'Q' },
+                        { "numTreeBuildingThreads", required_argument, 0, 'R' },
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:BC:D:E:F:G:HI:J:K:LM:N:O:P:Q:", long_options, &option_index);
+        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:BC:D:E:F:G:HI:J:K:LM:N:O:P:Q:R:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -456,6 +459,10 @@ int main(int argc, char *argv[]) {
                 break;
             case 'Q':
                 k = sscanf(optarg, "%lf", &phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce);
+                assert(k == 1);
+                break;
+            case 'R':
+                k = sscanf(optarg, "%" PRIi64, &numTreeBuildingThreads);
                 assert(k == 1);
                 break;
             default:
@@ -642,7 +649,9 @@ int main(int argc, char *argv[]) {
                 params.ignoreUnalignedBases = 1;
                 params.onlyIncludeCompleteFeatureBlocks = 0;
                 params.doSplitsWithSupportHigherThanThisAllAtOnce = phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce;
-                params.numTreeBuildingThreads = 2;
+                params.numTreeBuildingThreads = numTreeBuildingThreads;
+
+                assert(params.numTreeBuildingThreads >= 1);
 
                 stCaf_buildTreesToRemoveAncientHomologies(
                     threadSet, threadStrings, outgroupThreads, flower, &params,
