@@ -73,7 +73,7 @@ void cleanupPhylogeneticTree(stTree *tree) {
     for(int64_t i=0; i<stTree_getChildNumber(tree); i++) {
         cleanupPhylogeneticTree(stTree_getChild(tree, i));
     }
-    stMatrix_destruct(getSubMatrix(stTree_getClientData(tree)));
+    stMatrix_destruct(getSubMatrix(tree));
     free(stTree_getClientData(tree));
 }
 
@@ -246,6 +246,7 @@ void maskAncestralRepeatBases(Block *block, char *mlString) {
      */
 
     int64_t *upperCounts = st_calloc(block_getLength(block), sizeof(int64_t)); //Counts of upper case bases at each position of the block.
+    int64_t *nCounts = st_calloc(block_getLength(block), sizeof(int64_t)); //Counts of Ns at each position of the block.
 
     //Iterate through the sequences of the segments of a block and collate the number of upper case bases.
     Block_InstanceIterator *segmentIt = block_getInstanceIterator(block);
@@ -254,7 +255,9 @@ void maskAncestralRepeatBases(Block *block, char *mlString) {
         if (segment_getSequence(segment) != NULL) {
             char *string = segment_getString(segment);
             for (int64_t i = 0; i < block_getLength(block); i++) {
-                upperCounts[i] += toupper(string[i]) == string[i] ? 1 : 0;
+                char uC = toupper(string[i]);
+                upperCounts[i] += uC == string[i] ? 1 : 0;
+                nCounts[i] += (uC != 'A' && uC != 'C' && uC != 'G' && uC != 'T' ? 1 : 0);
             }
             free(string);
         }
@@ -264,9 +267,13 @@ void maskAncestralRepeatBases(Block *block, char *mlString) {
     //Convert any upper case character to lower case if the majority of bases
     //from which it is derived are not upper case.
     for (int64_t i = 0; i < block_getLength(block); i++) {
+        if (nCounts[i] == block_getInstanceNumber(block)) {
+            mlString[i] = 'N';
+        }
         if (upperCounts[i] <= block_getInstanceNumber(block) / 2) {
             mlString[i] = tolower(mlString[i]);
         }
+
     }
 }
 

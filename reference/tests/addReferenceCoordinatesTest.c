@@ -57,11 +57,11 @@ static void checkTree(CuTest *testCase, stTree *tree, stSet *eventsSet) {
     stSet_insert(eventsSet, event); //Increase the set of observed events
     stSet *connectedEvents = stSet_construct();
     if(stTree_getParent(tree) != NULL) {
-        stSet_insert(connectedEvents, stTree_getParent(tree));
+        stSet_insert(connectedEvents, getEvent(stTree_getParent(tree)));
     }
     for(int64_t i=0; i<stTree_getChildNumber(tree); i++) {
         checkTree(testCase, stTree_getChild(tree, i), eventsSet);
-        stSet_insert(connectedEvents, stTree_getChild(tree, i));
+        stSet_insert(connectedEvents, getEvent(stTree_getChild(tree, i)));
     }
     //This checks the number of connected events/nodes is equal
     CuAssertIntEquals(testCase, event_getChildNumber(event) + (event_getParent(event) != NULL), stSet_size(connectedEvents));
@@ -77,7 +77,6 @@ static void checkTree(CuTest *testCase, stTree *tree, stSet *eventsSet) {
 
 static void testMLStringRandom(CuTest *testCase) {
     for(int64_t i=0; i<100; i++) {
-        st_uglyf("Boo!!\n");
         CactusDisk *cactusDisk = testCommon_getTemporaryCactusDisk();
         Flower *flower = flower_construct(cactusDisk);
         //Make a random eventTree.
@@ -137,17 +136,23 @@ static void testMLStringRandom(CuTest *testCase) {
         }
 
         //Check the ML string is repeat masked as we would expect
+        //and composed of Ns where there is insufficient info.
         for(int64_t i=0; i<block_getLength(block); i++) {
             int64_t upperCount = 0;
+            int64_t nCount = 0;
             for(int64_t j=0; j<stList_length(strings); j++) {
                 char c = ((char *)stList_get(strings, j))[i];
                 upperCount += (c == toupper(c));
+                nCount += (toupper(c) == 'N');
             }
             if(upperCount > stList_length(strings)/2) {
                 CuAssertTrue(testCase, mlString[i] == toupper(mlString[i]));
             }
             else {
                 CuAssertTrue(testCase, mlString[i] == tolower(mlString[i]));
+            }
+            if(nCount == stList_length(strings)) {
+                CuAssertTrue(testCase, toupper(mlString[i]) == 'N');
             }
         }
 

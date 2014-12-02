@@ -31,9 +31,7 @@ void usage() {
     fprintf(stderr, "-k --theta : The value of theta, higher values are more tolerant of rearrangement.\n");
     fprintf(stderr,
             "-s --phi : The value of phi, value is proportional to exponential decline in support by phylogenetic distance \n");
-    fprintf(
-    stderr,
-            "-l --maxWalkForCalculatingZ : The max number segments along a thread before stopping calculating z-scores\n");
+    fprintf(stderr, "-l --maxWalkForCalculatingZ : The max number segments along a thread before stopping calculating z-scores\n");
     fprintf(
     stderr,
             "-m --ignoredUnalignedGaps : Don't consider unaligned sequence (gaps) when calculating the score function.\n");
@@ -45,8 +43,7 @@ void usage() {
     stderr, "-o --numberOfNs : The number of N characters to place in a scaffold gap. Default=10. Must be >=1\n");
 
     fprintf(
-    stderr,
-            "-p --minNumberOfSequencesToSupportAdjacency : Min number of sequences to support an ancestral adjacency call. Default=1. Must be >=0\n");
+    stderr, "-p --minNumberOfSequencesToSupportAdjacency : Min number of sequences to support an ancestral adjacency call. Default=1. Must be >=0\n");
 
     fprintf(
     stderr, "-q --makeScaffolds : Scaffold across regions of adjacency uncertainty.\n");
