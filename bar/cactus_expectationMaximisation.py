@@ -153,7 +153,8 @@ def expectationMaximisation(target, sequences, alignments, outputModel, options)
         sampledSplitAlignmentFiles.append(alignmentsFile)
         if totalSampledAlignmentLength >= options.maxAlignmentLengthToSample:
             break
-    target.logToMaster("We sampled: %s bases of alignment length, of a possible %s" % (totalSampledAlignmentLength, sum(map(lambda x : x[1], splitAlignmentFiles))))
+    target.logToMaster("We sampled: %s bases of alignment length and %s alignment files, of a possible %s base and %s files" % \
+                       (totalSampledAlignmentLength, len(sampledAlignmentFiles), sum(map(lambda x : x[1], splitAlignmentFiles)), len(splitAlignmentFiles)))
     splitAlignmentFiles = sampledSplitAlignmentFiles
 
     #Files to store expectations in
