@@ -12,7 +12,6 @@
 #include "stPinchPhylogeny.h"
 #include "stCaf.h"
 #include "stCafPhylogeny.h"
-//#include "gperftools/profiler.h"
 
 // Doesn't have to be exported since nothing outside this file should
 // really care about split branches.
@@ -28,6 +27,9 @@ typedef struct {
 // FIXME: get rid of these once done
 int64_t numSingleDegreeSegmentsDropped = 0;
 int64_t numBasesDroppedFromSingleDegreeSegments = 0;
+
+int64_t numSimpleBlocksSkipped = 0;
+int64_t numSingleCopyBlocksSkipped = 0;
 
 stHash *stCaf_getThreadStrings(Flower *flower, stPinchThreadSet *threadSet) {
     stHash *threadStrings = stHash_construct2(NULL, free);
@@ -378,24 +380,18 @@ static stTree *buildTree(stList *featureColumns,
 
 // Check if the block's phylogeny is simple:
 // - the block has only one event, or
-// - the block has < 3 segments, or
-// - the block does not contain any segments that are part of an
-//   outgroup thread.
+// - the block has < 3 segments.
 static bool hasSimplePhylogeny(stPinchBlock *block,
-                               stSet *outgroupThreads,
                                Flower *flower) {
     if(stPinchBlock_getDegree(block) <= 2) {
         return true;
     }
     stPinchBlockIt blockIt = stPinchBlock_getSegmentIterator(block);
     stPinchSegment *segment = NULL;
-    bool foundOutgroup = 0, found2Events = 0;
+    bool found2Events = 0;
     Event *currentEvent = NULL;
     while((segment = stPinchBlockIt_getNext(&blockIt)) != NULL) {
         stPinchThread *thread = stPinchSegment_getThread(segment);
-        if(stSet_search(outgroupThreads, thread) != NULL) {
-            foundOutgroup = 1;
-        }
         Cap *cap = flower_getCap(flower, stPinchThread_getName(thread));
         assert(cap != NULL);
         Event *event = cap_getEvent(cap);
@@ -405,7 +401,7 @@ static bool hasSimplePhylogeny(stPinchBlock *block,
             found2Events = 1;
         }
     }
-    return !(foundOutgroup && found2Events);
+    return !found2Events;
 }
 
 // Check if the block contains as many species as segments
@@ -525,23 +521,24 @@ static void printTreeBuildingDebugInfo(Flower *flower, stPinchBlock *block, stTr
     }
     fprintf(outFile, "]\t");
 
-    // print the matrix
-    fprintf(outFile, "[");
-    for (i = 0; i < stMatrix_m(matrix); i++) {
-        if (i != 0) {
-            fprintf(outFile, ",");
-        }
+    if (matrix != NULL) {
+        // print the matrix
         fprintf(outFile, "[");
-        for (int64_t j = 0; j < stMatrix_n(matrix); j++) {
-            if (j != 0) {
+        for (i = 0; i < stMatrix_m(matrix); i++) {
+            if (i != 0) {
                 fprintf(outFile, ",");
             }
-            fprintf(outFile, "%lf", *stMatrix_getCell(matrix, i, j));
+            fprintf(outFile, "[");
+            for (int64_t j = 0; j < stMatrix_n(matrix); j++) {
+                if (j != 0) {
+                    fprintf(outFile, ",");
+                }
+                fprintf(outFile, "%lf", *stMatrix_getCell(matrix, i, j));
+            }
+            fprintf(outFile, "]");
         }
-        fprintf(outFile, "]");
+        fprintf(outFile, "]\t");
     }
-    fprintf(outFile, "]\t");
-
     // print the sequences corresponding to the matrix indices
     fprintf(outFile, "[");
     for (int64_t i = 0; i < blockDegree; i++) {
@@ -846,6 +843,9 @@ typedef struct {
     stHash *blocksToTrees;
     stTree *tree;
     stPinchBlock *block;
+    TreeBuildingConstants *constants; // Temp -- just so we can get
+                                      // access to the flower for the
+                                      // single-copy debug print.
 } TreeBuildingResult;
 
 // Small wrapper function to tell the pool to build, reconcile, and
@@ -869,9 +869,9 @@ static TreeBuildingResult *buildTreeForBlock(TreeBuildingInput *input) {
     TreeBuildingResult *ret = st_calloc(1, sizeof(TreeBuildingResult));
     ret->blocksToTrees = input->blocksToTrees;
     ret->block = block;
+    ret->constants = input->constants;
 
-    if (hasSimplePhylogeny(block, input->constants->outgroupThreads,
-                           input->constants->flower)) {
+    if (hasSimplePhylogeny(block, input->constants->flower)) {
         // No point trying to build a phylogeny for certain blocks.
         free(input);
         return ret;
@@ -981,6 +981,14 @@ static void addBlockTreeToHash(TreeBuildingResult *result) {
     }
     if (result->tree != NULL) {
         stHash_insert(result->blocksToTrees, result->block, result->tree);
+    } else {
+        // Need to take this section out as soon as the debug prints
+        // are no longer helpful, as this is in a critical section!
+        if (hasSimplePhylogeny(result->block, result->constants->flower)) {
+            numSimpleBlocksSkipped++;
+        } else if (isSingleCopyBlock(result->block, result->constants->flower)) {
+            numSingleCopyBlocksSkipped++;
+        }
     }
     free(result); // Sucks to have to do this in a critical section,
                   // but shouldn't matter too much.
@@ -1132,13 +1140,11 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
     (void) getTotalSimilarityAndDifferenceCounts;
     (void) printTreeBuildingDebugInfo;
 
-    // ProfilerStart("/tmp/profile");
-
     stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
     stPinchBlock *block;
 
     //Hash in which we store a map of blocks to their trees
-    stHash *blocksToTrees = stHash_construct2(NULL, destructBlockTree);
+    stHash *blocksToTrees = stHash_construct2(NULL, (void (*)(void *)) destructBlockTree);
 
     //Get species tree as an stTree
     EventTree *eventTree = flower_getEventTree(flower);
@@ -1153,6 +1159,9 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
         speciesStTree, speciesToJoinCostIndex,
         params->costPerDupPerBase * 2 * params->maxBaseDistance,
         params->costPerLossPerBase * 2 * params->maxBaseDistance);
+    printf("cost dup: %lf cost loss: %lf\n",
+           params->costPerDupPerBase * 2 * params->maxBaseDistance,
+           params->costPerLossPerBase * 2 * params->maxBaseDistance);
     int64_t **speciesMRCAMatrix = stPhylogeny_getMRCAMatrix(speciesStTree, speciesToJoinCostIndex);
 
     stSortedSet *splitBranches = stSortedSet_construct3((int (*)(const void *, const void *)) compareSplitBranches, free);
@@ -1196,6 +1205,11 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
     // We need the trees to be done before we can continue.
     stThreadPool_wait(treeBuildingPool);
 
+    fprintf(stdout, "First tree-building round done. Skipped %" PRIi64
+            " simple blocks (those with 1 event or with < 3 segments, and %"
+            PRIi64 " single-copy blocks (those with (# events) = (# segments))."
+            "\n", numSimpleBlocksSkipped, numSingleCopyBlocksSkipped);
+
     // All the blocks have their trees computed. Find the split
     // branches in those trees.
     stHashIterator *blocksToTreesIt = stHash_getIterator(blocksToTrees);
@@ -1237,6 +1251,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
             splitBranch = stSortedSet_getLast(splitBranches);
             numberOfSplitsMade++;
         }
+
         // Update the blocks that were just affected by all the
         // perfectly supported split branches.
         // But first ensure that the blocks weren't already split!
@@ -1319,8 +1334,6 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
             numSingleDegreeSegmentsDropped,
             ((float)numSingleDegreeSegmentsDropped)/stPinchThreadSet_getTotalBlockNumber(threadSet),
             numBasesDroppedFromSingleDegreeSegments);
-
-    // ProfilerStop();
 
     //Cleanup
     for (int64_t i = 0; i < stTree_getNumNodes(speciesStTree); i++) {

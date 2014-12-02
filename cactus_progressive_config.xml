@@ -72,6 +72,7 @@
                                              neighborJoining: Traditional neighbor-joining.
                 phylogenyCostPerDupPerBase: For the guided neighbor-joining method only. The number of differences that should be created per base when a join implies a dup.
                 phylogenyCostPerLossPerBase: For the guided neighbor-joining method only. The number of differences that should be created per base, per loss, when a join implies one or more losses.
+                numTreeBuildingThreads: Number of threads in the tree-building pool. Must be greater than 0.
         -->
 	<caf 
 		chunkSize="25000000"
@@ -102,7 +103,7 @@
                 phylogenyRootingMethod="bestRecon"
                 phylogenyScoringMethod="reconCost"
                 phylogenyBreakpointScalingFactor="1.0"
-                phylogenySkipSingleCopyBlocks="0"
+                phylogenySkipSingleCopyBlocks="1"
                 phylogenyMaxBaseDistance="100"
                 phylogenyMaxBlockDistance="50"
                 phylogenyKeepSingleDegreeBlocks="0"
@@ -110,6 +111,7 @@
                 phylogenyCostPerDupPerBase="0.05"
                 phylogenyCostPerLossPerBase="0.0025"
                 phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce="0.95"
+                numTreeBuildingThreads="2"
 	        >
 		<!-- The following are parametrised to produce the same results as the default settings, 
 		within a margin of 0.2% sensitivity, should be very fast for close genomes, these were tuned using the blast/blastParametersScript.py
