@@ -83,7 +83,8 @@ def createMCProject(tree, experiment, config, options):
         # for phylogenetic redundancy, as well as try to factor assembly
         # size/quality automatically. 
         mcProj.outgroup = DynamicOutgroup()
-        mcProj.outgroup.importTree(mcProj.mcTree, mcProj.getInputSequenceMap(), alignmentRootId)
+        mcProj.outgroup.importTree(mcProj.mcTree, mcProj.getInputSequenceMap(), alignmentRootId,
+                                   candidateSet=options.outgroupNames)
         mcProj.outgroup.compute(maxNumOutgroups=config.getMaxNumOutgroups())
     elif config.getOutgroupStrategy() != 'none':
         raise RuntimeError("Could not understand outgroup strategy %s" % config.getOutgroupStrategy())

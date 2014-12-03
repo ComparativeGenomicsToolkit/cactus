@@ -226,11 +226,11 @@ class GreedyOutgroup(object):
 #
 class DynamicOutgroup(GreedyOutgroup):
     def __init__(self):
-        self.SeqInfo = namedtuple("SeqInfo", "count totalLen effectiveLen n50")
+        self.SeqInfo = namedtuple("SeqInfo", "count totalLen umLen n50 umN50")
         self.sequenceInfo = None
         self.numOG = 1
         assert self.numOG is not None
-        self.defaultBranchLength = 0.1
+        self.defaultBranchLength = 0.05
         # following weights control relative contributions of the three types
         # of "orthology loss" when computing branch scores
         self.lossFac = 1.
@@ -245,9 +245,13 @@ class DynamicOutgroup(GreedyOutgroup):
     # genome (in a very crude manner, at least to start).
     # 
     # for internal nodes, we store the stats of the max leaf underneath
-    def importTree(self, mcTree, seqMap, rootId = None):
+    def importTree(self, mcTree, seqMap, rootId = None, candidateSet = None,
+                   candidateBoost = 1.5):
         super(DynamicOutgroup, self).importTree(mcTree, rootId)
-        
+        self.candidateSet = candidateSet
+        if candidateSet is not None and len(candidateSet) == 0:
+            self.candidateSet = None
+        self.candidateBoost = candidateBoost
         assert seqMap is not None
         # map name to (numSequences, totalLength)
         self.sequenceInfo = dict()
@@ -258,7 +262,7 @@ class DynamicOutgroup(GreedyOutgroup):
                               f in os.listdir(inPath)]
             else:
                 fastaPaths = [inPath]
-            totalFaInfo = self.__getSeqInfo(fastaPaths)
+            totalFaInfo = self.__getSeqInfo(fastaPaths, event)
             self.sequenceInfo[node] = totalFaInfo
 
             # propagate leaf stats up to the root
@@ -275,24 +279,22 @@ class DynamicOutgroup(GreedyOutgroup):
                     self.sequenceInfo[x] = self.SeqInfo(
                         min(totalFaInfo.count, self.sequenceInfo[x].count),
                         max(totalFaInfo.totalLen, self.sequenceInfo[x].totalLen),
-                        max(totalFaInfo.effectiveLen, self.sequenceInfo[x].effectiveLen),
-                        max(totalFaInfo.n50, self.sequenceInfo[x].n50))
+                        max(totalFaInfo.umLen, self.sequenceInfo[x].umLen),
+                        max(totalFaInfo.n50, self.sequenceInfo[x].n50),
+                        max(totalFaInfo.umN50, self.sequenceInfo[x].umN50))
 
             #for node, info in self.sequenceInfo.items():
             #    print self.mcTree.getName(node), info
 
     # run the dynamic programming algorithm on each internal node
     def compute(self, maxNumOutgroups, 
-                mutationWeight = 1.,
-                sequenceLossWeight = .5,
-                fragmentationWeight = .5,
-                candidateSet = None):
+                mutationWeight = 1,
+                sequenceLossWeight = .5):
         self.mutFac = mutationWeight
         self.lossFac = sequenceLossWeight
-        self.fragFac = fragmentationWeight
         self.numOG = maxNumOutgroups
         self.ogMap = dict()
-        self.candidateSet = candidateSet
+
         for node in self.mcTree.breadthFirstTraversal(self.root):
             if self.mcTree.isLeaf(node) or not self.mcTree.hasParent(node):
                 continue
@@ -306,7 +308,7 @@ class DynamicOutgroup(GreedyOutgroup):
             for i in xrange(self.numOG + 1):
                 if self.dpTable[node][i].score > 0.0:
                     bestK, bestScore = i, self.dpTable[node][i].score
-                    
+                                
             # we rank solution based on individual conservation score
             # of each outgroup vis-a-vis the target
             rankFn = lambda x : 1. - self.__computeBranchConservation(
@@ -411,37 +413,17 @@ class DynamicOutgroup(GreedyOutgroup):
             ancestor = self.dpTree.getParent(node)
         nodeInfo = self.sequenceInfo[node]
         ancInfo = self.sequenceInfo[ancestor]
-        # hack in candidate set support by returning zero-conservaiton
-        # if leaf not a candidate
-        if self.candidateSet is not None and\
-          self.mcTree.isLeaf(node) is True and\
-          self.dpTree.getName(node) not in self.candidateSet:
-           return 0.
         
-        # Loss probablity computed from genome length ratio
-        if nodeInfo.effectiveLen >= ancInfo.effectiveLen:
+        # Loss probablity models alignment lost due to assembly quality.  We 
+        # use proportion of N50 (minus Ns) as crude proxy
+        if nodeInfo.umN50 >= ancInfo.umN50:
             pLoss = 0.
         else:
-            pLoss = 1. - (float(nodeInfo.effectiveLen) / float(ancInfo.effectiveLen))
+            pLoss = 1. - (float(nodeInfo.umN50) / float(ancInfo.umN50))
         pLoss *= self.lossFac
 
-        # Fragmentation probability (crudely estimated by difference of N50)
-        if nodeInfo.n50 == 0 or nodeInfo.totalLen == 0:
-            pFrag = 0.0
-        else:
-            # use n50 to compute an expected sequence length
-            ancFrags = float(ancInfo.totalLen) / ancInfo.n50
-            nodeFrags = float(nodeInfo.totalLen) / nodeInfo.n50
-            # naively compute breakpoints from ratio of expected lengths
-            fragDelta = max(0., ancFrags - nodeFrags)
-            # a base is lost from the alignment if it's within edgeLen of 
-            # either side of a breakpoint
-            affectedBases = fragDelta * 2. * self.edgeLen
-            # expected number of breakpoints in node (as a probability)
-            pFrag = min(1., affectedBases / ancInfo.totalLen)
-        pFrag *= self.fragFac
-
-        # Mutation probability
+        # Mutation probability is proportional to branch length.  We use
+        # Jukes-Cantor model
         branchLength = 0.
         x = node
         while x != ancestor:
@@ -455,7 +437,8 @@ class DynamicOutgroup(GreedyOutgroup):
         jcMutProb = .75 - .75 * math.exp(-branchLength)
         jcMutProb *= self.mutFac
 
-        conservationProb = (1. - pLoss) * (1. - pFrag) * (1. - jcMutProb)
+        conservationProb = (1. - pLoss) *  (1. - jcMutProb)
+        assert conservationProb >= 0. and conservationProb <= 1.
         return conservationProb
 
     def __getOgDist(self, node):
@@ -475,12 +458,15 @@ class DynamicOutgroup(GreedyOutgroup):
     # Warning: we are tightly coupled to the output format of
     # cactus_analyseAssembly here... any change may cause an
     # assertion error
-    def __getSeqInfo(self, faPaths):
+    def __getSeqInfo(self, faPaths, event):
         cmdLine = "cactus_analyseAssembly"
         for faPath in faPaths:
             if not os.path.isfile(faPath):
                 raise RuntimeError("Unable to open sequence file %s" % faPath)
             cmdLine += " %s" % faPath
+        isCandidate = False
+        if self.candidateSet is not None and event in self.candidateSet:
+            isCandidate = True
         analyseOutput = popenCatch(cmdLine).split()
         tsIdx = analyseOutput.index("Total-sequences:")
         assert tsIdx >= 0 and tsIdx < len(analyseOutput) - 1
@@ -488,9 +474,9 @@ class DynamicOutgroup(GreedyOutgroup):
         tlIdx = analyseOutput.index("Total-length:")
         assert tlIdx >= 0 and tlIdx < len(analyseOutput) - 1
         totalLength = int(analyseOutput[tlIdx + 1])
-        nsIdx = analyseOutput.index("Total-Ns:")
+        nsIdx = analyseOutput.index("ProportionNs:")
         assert nsIdx >= 0 and nsIdx < len(analyseOutput) - 1
-        totalNs = int(analyseOutput[nsIdx + 1])
+        nsPct = float(analyseOutput[nsIdx + 1])
         rmIdx = analyseOutput.index("Proportion-repeat-masked:")
         assert rmIdx >= 0 and rmIdx < len(analyseOutput) - 1
         rmPct = float(analyseOutput[rmIdx + 1])
@@ -499,10 +485,14 @@ class DynamicOutgroup(GreedyOutgroup):
         assert n50Idx >= 0 and n50Idx < len(analyseOutput) - 1
         n50 = int(analyseOutput[n50Idx + 1])
         
-        effectiveLength = totalLength - totalNs
-        # give high-rm sequences a chance by capping at .5
-        effectiveLength -= min(0.5, rmPct) * totalLength
-        return self.SeqInfo(numSequences, totalLength, effectiveLength, n50)
+        if isCandidate is True:
+            totalLength *= self.candidateBoost
+            n50 *= self.candidateBoost
+
+        umLength = max(0, totalLength * (1. - nsPct))
+        umN50 = max(0, n50 * (1. - nsPct))
+        
+        return self.SeqInfo(numSequences, totalLength, umLength, n50, umN50)
         
             
 def main():
