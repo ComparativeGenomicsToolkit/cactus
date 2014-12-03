@@ -1144,7 +1144,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
     stPinchBlock *block;
 
     //Hash in which we store a map of blocks to their trees
-    stHash *blocksToTrees = stHash_construct2(NULL, (void (*)(void *)) destructBlockTree);
+    stHash *blocksToTrees = stHash_construct2(NULL, (void (*)(void *))destructBlockTree);
 
     //Get species tree as an stTree
     EventTree *eventTree = flower_getEventTree(flower);
