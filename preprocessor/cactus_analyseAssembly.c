@@ -64,7 +64,7 @@ void cleanupAndReportStatsCollection() {
     int64_t medianSequenceLength = totalSequences > 0 ? stIntTuple_get(stList_get(sequenceLengths, totalSequences/2), 0) : 0;
     int64_t maxSequenceLength = totalSequences > 0 ? stIntTuple_get(stList_peek(sequenceLengths), 0) : 0;
     int64_t minSequenceLength = totalSequences > 0 ? stIntTuple_get(stList_get(sequenceLengths, 0), 0) : 0;
-    int64_t n50;
+    int64_t n50 = 0;
     int64_t j=0;
     for(int64_t i=totalSequences-1; i>=0; i--) {
         n50 = stIntTuple_get(stList_get(sequenceLengths, i), 0);
@@ -88,11 +88,19 @@ int main(int argc, char *argv[]) {
     }
 
     for (int64_t j = 1; j < argc; j++) {
-         FILE *fileHandle = fopen(argv[j], "r");
-         setupStatsCollation(argv[j]);
-         fastaReadToFunction(fileHandle, processSequenceForStats);
-         cleanupAndReportStatsCollection();
-         fclose(fileHandle);
+        FILE *fileHandle;
+        if (strcmp(argv[j], "-") == 0) {
+            fileHandle = stdin;
+        } else {
+            fileHandle = fopen(argv[j], "r");
+            if (fileHandle == NULL) {
+                st_errnoAbort("Could not open input file %s", argv[j]);
+            }
+        }
+        setupStatsCollation(argv[j]);
+        fastaReadToFunction(fileHandle, processSequenceForStats);
+        cleanupAndReportStatsCollection();
+        fclose(fileHandle);
     }
 
     return 0;
