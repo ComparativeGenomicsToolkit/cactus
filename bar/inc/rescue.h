@@ -8,15 +8,15 @@ typedef struct {
     int64_t stop;
 } bedRegion;
 
-// reads the next bed line from the file. Assumes tab-delimited bed3 input.
-int readNextBedLine(FILE *bedFile, bedRegion *curBedLine);
+bedRegion *bedRegion_construct(Name name, int64_t start, int64_t stop);
 
-// Returns a hash of sequence Name => coverage array.
-// Not thread-safe.
-stHash *getIngroupCoverage(const char *ingroupCoverageDir, Flower *flower);
+// Compare two bed regions in their little-endian format as mapped
+// from the file. Returns 0 for any overlap.
+int bedRegion_cmp(const bedRegion *region1, const bedRegion *region2);
 
 // Find any regions covered by outgroups that are in segments with no
 // block, and "rescue" them into single-degree blocks.
-void rescueCoveredRegions(stPinchThread *thread, FILE *bedFile,
-                          Name name, bedRegion *curBedLine);
+void rescueCoveredRegions(stPinchThread *thread, bedRegion *beds, size_t numBeds,
+                          Name name);
+
 #endif // RESCUE_H_

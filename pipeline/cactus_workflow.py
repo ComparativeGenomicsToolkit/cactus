@@ -459,11 +459,10 @@ class CactusCafPhase(CactusPhasesTarget):
             # phase but we run stripUniqueIDs before then.
             bedFiles = os.listdir(self.cactusWorkflowArguments.ingroupCoverageDir)
             bedFiles = [os.path.join(self.cactusWorkflowArguments.ingroupCoverageDir, bedFile) for bedFile in bedFiles]
-            for bedFile in bedFiles:
-                runConvertAlignmentsToInternalNames(self.cactusWorkflowArguments.cactusDiskDatabaseString, bedFile, bedFile + ".tmp", self.topFlowerName, isBedFile=True)
-                shutil.move(bedFile + ".tmp", bedFile)
-            self.cactusWorkflowArguments.ingroupCoverageBed = getTempFile(rootDir=self.getGlobalTempDir())
-            system("sort -k1n -k2n -k3n %s > %s" % (" ".join(bedFiles), self.cactusWorkflowArguments.ingroupCoverageBed))
+            tempFile = getTempFile(rootDir=self.getGlobalTempDir())
+            system("cat %s > %s" % (" ".join(bedFiles), tempFile))
+            self.cactusWorkflowArguments.ingroupCoverageFile = getTempFile(rootDir=self.getGlobalTempDir())
+            runConvertAlignmentsToInternalNames(self.cactusWorkflowArguments.cactusDiskDatabaseString, tempFile, self.cactusWorkflowArguments.ingroupCoverageFile, self.topFlowerName, isBedFile=True)
 
         if (not self.cactusWorkflowArguments.configWrapper.getDoTrimStrategy()) or (self.cactusWorkflowArguments.outgroupEventNames == None):
             setupFilteringByIdentity(self.cactusWorkflowArguments)
@@ -622,7 +621,7 @@ def runBarForTarget(self, calculateWhichEndsToComputeSeparately=None, endAlignme
                  endAlignmentsToPrecomputeOutputFile=endAlignmentsToPrecomputeOutputFile,
                  largeEndSize=self.getOptionalPhaseAttrib("largeEndSize", int),
                  precomputedAlignments=precomputedAlignments,
-                 ingroupCoverageBed=self.cactusWorkflowArguments.ingroupCoverageBed if self.getOptionalPhaseAttrib("rescue", bool) else None)
+                 ingroupCoverageFile=self.cactusWorkflowArguments.ingroupCoverageFile if self.getOptionalPhaseAttrib("rescue", bool) else None)
 
 class CactusBarWrapper(CactusRecursionTarget):
     """Runs the BAR algorithm implementation.
@@ -672,7 +671,7 @@ class CactusBarWrapperLarge(CactusRecursionTarget):
         self.makeFollowOnRecursiveTarget(CactusBarWrapperWithPrecomputedEndAlignments)
         self.logToMaster("Breaking bar job into %i separate jobs" % \
                              (alignmentFileCount))
-        
+
 class CactusBarEndAlignerWrapper(CactusRecursionTarget):
     """Computes an end alignment.
     """
@@ -1004,7 +1003,7 @@ class CactusWorkflowArguments:
         #to an outgroup can be rescued after bar phase
         self.ingroupCoverageDir = None
         # Same, but for the final bed file
-        self.ingroupCoverageBed = None
+        self.ingroupCoverageFile = None
         #Secondary, scratch DB
         secondaryConf = copy.deepcopy(self.experimentNode.find("cactus_disk").find("st_kv_database_conf"))
         secondaryElem = DbElemWrapper(secondaryConf)

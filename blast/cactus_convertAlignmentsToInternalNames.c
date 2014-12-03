@@ -13,7 +13,8 @@
 static void usage(void)
 {
     fprintf(stderr, "cactus_convertAlignmentsToInternalNames --cactusDisk cactusDisk inputFile outputFile\n");
-    fprintf(stderr, "Options: --bed  input file is a bed file, not a cigar");
+    fprintf(stderr, "Options: --bed input file is a bed file, not a cigar. "
+            "Output will be a sorted binary coverage file.\n");
 }
 
 static void convertHeadersToNames(struct PairwiseAlignment *pA, stHash *headerToName)
@@ -129,14 +130,11 @@ int main(int argc, char *argv[])
 
     if (isBedFile) {
         // Input is a bed file.
-        char *line = NULL;
-        size_t n = 0; // dummy
-        while (getline(&line, &n, inputFile) != -1) {
+        char *line;
+        while ((line = stFile_getLineFromFile(inputFile)) != NULL) {
             if (strlen(line) == 1) {
                 // blank line
                 free(line);
-                line = NULL;
-                n = 0;
                 continue;
             }
             stList *fields = stString_split(line);
@@ -149,7 +147,6 @@ int main(int argc, char *argv[])
                 st_errAbort("Error: sequence %s is not loaded into the cactus "
                         "database\n", oldHeader);
             }
-            free(oldHeader);
 
             // Use the sequence name instead of the cap name.
             Cap *cap = flower_getCap(flower, *name);
@@ -159,33 +156,53 @@ int main(int argc, char *argv[])
             Name seqName = sequence_getName(sequence);
 
             char *newHeader = cactusMisc_nameToString(seqName);
-            stList_set(fields, 0, newHeader);
 
             // Convert the coordinates (they have to be increased by 2
             // to account for the caps and thread start position).
             char *startStr = stList_get(fields, 1);
             int64_t startPos;
             int k = sscanf(startStr, "%" PRIi64, &startPos);
+            (void) k;
             assert(k == 1);
             startPos += 2;
-            stList_set(fields, 1, stString_print("%" PRIi64, startPos));
-            free(startStr);
             char *endStr = stList_get(fields, 2);
             int64_t endPos;
             k = sscanf(endStr, "%" PRIi64, &endPos);
             assert(k == 1);
             endPos += 2;
-            stList_set(fields, 2, stString_print("%" PRIi64, endPos));
-            free(endStr);
-
-            char *newLine = stString_join2("\t", fields);
-            fprintf(outputFile, "%s\n", newLine);
-            free(newLine);
+            fprintf(outputFile, "%s\t%" PRIi64 "\t%" PRIi64 "\n",
+                    newHeader, startPos, endPos);
+            free(newHeader);
             stList_destruct(fields);
             free(line);
-            line = NULL;
-            n = 0;
         }
+        fclose(outputFile);
+        // Sort the generated bed file into a temporary file.
+        char *tempPath = getTempFile();
+        int ret = st_system("sort -k1n -k2n -k3n %s > %s", argv[optind + 1], tempPath);
+        if (ret) {
+            st_errAbort("Sort failed on bed file %s", argv[optind + 1]);
+        }
+        // Convert the newly sorted file to a binary format
+        FILE *tempFile = fopen(tempPath, "r");
+        outputFile = fopen(argv[optind + 1], "wb");
+        while((line = stFile_getLineFromFile(tempFile)) != NULL) {
+            Name seqName;
+            int64_t startPos, endPos;
+            int k = sscanf(line, "%" PRIi64 "\t%" PRIi64 "\t%" PRIi64,
+                           &seqName, &startPos, &endPos);
+            (void) k;
+            assert(k == 3);
+            int64_t toWrite = st_nativeInt64ToLittleEndian(seqName);
+            fwrite(&toWrite, sizeof(int64_t), 1, outputFile);
+            toWrite = st_nativeInt64ToLittleEndian(startPos);
+            fwrite(&toWrite, sizeof(int64_t), 1, outputFile);
+            toWrite = st_nativeInt64ToLittleEndian(endPos);
+            fwrite(&toWrite, sizeof(int64_t), 1, outputFile);
+            free(line);
+        }
+        fclose(tempFile);
+        stFile_rmrf(tempPath);
     } else {
         // Input is a cigar file.
         // Scan over the given alignment file and convert the headers to

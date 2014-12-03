@@ -4,21 +4,43 @@
 #include "stPinchGraphs.h"
 #include "rescue.h"
 
-static void writeCoverageArrayToBed(int64_t name, bool *coverageArray,
-                                    int64_t length, FILE *bedFile) {
+// Get a little-endian bed region array as an mmaped coverage array
+// would appear.
+static bedRegion *getBedRegionArray(int64_t name, bool *coverageArray,
+                                    int64_t length, bedRegion *array,
+                                    size_t *numBeds, size_t *arraySize) {
+    if (array == NULL) {
+        *arraySize = 10;
+        array = st_malloc(*arraySize * sizeof(bedRegion));
+    }
     bool inCoveredRegion = false;
+    bedRegion *curRegion = array + *numBeds;
     for (int64_t i = 0; i < length; i++) {
         if (coverageArray[i] && !inCoveredRegion) {
-            fprintf(bedFile, "%" PRIi64 "\t%" PRIi64 "\t", name, i);
+            curRegion->name = st_nativeInt64ToLittleEndian(name);
+            curRegion->start = st_nativeInt64ToLittleEndian(i);
             inCoveredRegion = true;
         } else if (!coverageArray[i] && inCoveredRegion) {
-            fprintf(bedFile, "%" PRIi64 "\n", i);
+            curRegion->stop = st_nativeInt64ToLittleEndian(i);
             inCoveredRegion = false;
+            (*numBeds)++;
+            if (*numBeds >= *arraySize) {
+                *arraySize = *arraySize * 2 + 1;
+                array = st_realloc(array, *arraySize * sizeof(bedRegion));
+            }
+            curRegion = array + *numBeds;
         }
     }
     if (inCoveredRegion) {
-        fprintf(bedFile, "%" PRIi64 "\n", length);
+        curRegion->stop = st_nativeInt64ToLittleEndian(length);
+        (*numBeds)++;
+        if (*numBeds >= *arraySize) {
+            *arraySize = *arraySize * 2 + 1;
+            array = st_realloc(array, *arraySize * sizeof(bedRegion));
+        }
+        curRegion = array + *numBeds;
     }
+    return array;
 }
 
 // Just check that running a rescue on pinch threads works correctly.
@@ -30,10 +52,10 @@ static void test_rescueRandomSequences(CuTest *testCase) {
         // array (independent of the coverage already in the random
         // graph).
         stHash *coveragesToRescue = stHash_construct2(NULL, free);
-        char *bedFilePath = getTempFile();
-        FILE *bedFile = fopen(bedFilePath, "w");
         stPinchThreadSetIt threadIt = stPinchThreadSet_getIt(threadSet);
         stPinchThread *thread;
+        bedRegion *bedRegionArray = NULL;
+        size_t numBeds = 0, bedRegionArraySize = 0;
         while ((thread = stPinchThreadSetIt_getNext(&threadIt)) != NULL) {
             printf("outgroup coverage for %" PRIi64 " (start %" PRIi64 ")\n", stPinchThread_getName(thread), stPinchThread_getStart(thread));
             int64_t threadStart = stPinchThread_getStart(thread);
@@ -49,7 +71,11 @@ static void test_rescueRandomSequences(CuTest *testCase) {
             }
             printf("\n");
             stHash_insert(coveragesToRescue, thread, coverageArray);
-            writeCoverageArrayToBed(stPinchThread_getName(thread), coverageArray, threadStart + threadLen, bedFile);
+            bedRegionArray = getBedRegionArray(stPinchThread_getName(thread),
+                                               coverageArray,
+                                               threadStart + threadLen,
+                                               bedRegionArray, &numBeds,
+                                               &bedRegionArraySize);
         }
 
         // Next, go through the graph and mark down those regions that
@@ -82,22 +108,11 @@ static void test_rescueRandomSequences(CuTest *testCase) {
             printf("\n");
         }
 
-        // Sort the coverage BED.
-        fclose(bedFile);
-        char *sortedBedFilePath = getTempFile();
-        printf("bed path: %s sorted bed path: %s\n",
-               bedFilePath,
-               sortedBedFilePath);
-        char *cmd = stString_print("sort -k1n -k2n -k3n %s -o %s", bedFilePath,
-                                   sortedBedFilePath);
-        st_system(cmd);
-        free(cmd);
-        bedFile = fopen(sortedBedFilePath, "r");
+        // Sort the bedRegion array.
+        qsort(bedRegionArray, numBeds, sizeof(bedRegion), (int (*)(const void *, const void *)) bedRegion_cmp);
 
         // Run the rescue and make sure it worked.
         threadIt = stPinchThreadSet_getIt(threadSet);
-        bedRegion curBedLine;
-        readNextBedLine(bedFile, &curBedLine);
         while ((thread = stPinchThreadSetIt_getNext(&threadIt)) != NULL) {
             printf("rescued %" PRIi64 "\n", stPinchThread_getName(thread));
             int64_t threadStart = stPinchThread_getStart(thread);
@@ -106,8 +121,8 @@ static void test_rescueRandomSequences(CuTest *testCase) {
             assert(coverageArray != NULL);
             bool *alreadyCovered = stHash_search(regionsAlreadyCovered, thread);
             assert(alreadyCovered != NULL);
-            rescueCoveredRegions(thread, bedFile, stPinchThread_getName(thread),
-                                 &curBedLine);
+            rescueCoveredRegions(thread, bedRegionArray, numBeds,
+                                 stPinchThread_getName(thread));
             stPinchSegment *segment = stPinchThread_getFirst(thread);
             while (segment != NULL) {
                 int64_t start = stPinchSegment_getStart(segment);
@@ -139,10 +154,7 @@ static void test_rescueRandomSequences(CuTest *testCase) {
         stHash_destruct(coveragesToRescue);
         stHash_destruct(regionsAlreadyCovered);
         stPinchThreadSet_destruct(threadSet);
-        stFile_rmrf(bedFilePath);
-        stFile_rmrf(sortedBedFilePath);
-        free(bedFilePath);
-        free(sortedBedFilePath);
+        free(bedRegionArray);
     }
 }
 

@@ -1159,9 +1159,6 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
         speciesStTree, speciesToJoinCostIndex,
         params->costPerDupPerBase * 2 * params->maxBaseDistance,
         params->costPerLossPerBase * 2 * params->maxBaseDistance);
-    printf("cost dup: %lf cost loss: %lf\n",
-           params->costPerDupPerBase * 2 * params->maxBaseDistance,
-           params->costPerLossPerBase * 2 * params->maxBaseDistance);
     int64_t **speciesMRCAMatrix = stPhylogeny_getMRCAMatrix(speciesStTree, speciesToJoinCostIndex);
 
     stSortedSet *splitBranches = stSortedSet_construct3((int (*)(const void *, const void *)) compareSplitBranches, free);
