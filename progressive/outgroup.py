@@ -311,8 +311,10 @@ class DynamicOutgroup(GreedyOutgroup):
                                 
             # we rank solution based on individual conservation score
             # of each outgroup vis-a-vis the target
-            rankFn = lambda x : 1. - self.__computeBranchConservation(
-                x, self.dpTree.getRootId())
+            #rankFn = lambda x : 1. - self.__computeBranchConservation(
+            #    x, self.dpTree.getRootId())
+            # scratch that, we just use distance:
+            rankFn = self.__getOgDist
             rankedSolution = sorted(self.dpTable[node][bestK].solution,
                                     key = rankFn)
             # convert to EventName,Dist format.  Note that distance

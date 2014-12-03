@@ -237,15 +237,11 @@ class TestCase(unittest.TestCase):
         og.compute(maxNumOutgroups=3)
         # make sure all entries have <= 3 outgroups.
         assert all(map(lambda x: len(x) <= 3, og.ogMap.values()))
-        # since sequenceLoss taken into account, will not be sorted
-        # for example, pig/cow's size makes up for distance vs dog for
-        # Anc4 outgroup
-        assert og.ogMap['Anc4'][0][0] in ['PIG', 'COW']
-        # by distance all the time.
-        assert og.ogMap['Anc1'][0][0] == 'HUMAN'
-        assert og.ogMap['Anc7'][0][0] == 'BABOON'
-        
-                
+
+        # we keep dynamic outgroups sorted by distance too
+        assert all(map(lambda x: x == sorted(x, key=itemgetter(1)),
+                               og.ogMap.values()))
+                        
 
     def testMultipleIdenticalRunsProduceSameResult(self):
         """The code now allows for multiple greedy() calls with different
