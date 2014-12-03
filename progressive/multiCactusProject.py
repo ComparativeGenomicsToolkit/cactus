@@ -75,7 +75,22 @@ class MultiCactusProject:
         seq = exp.getSequence(eventName)
         assert os.path.isfile(seq)
         return seq
-    
+
+    def getInputSequenceMap(self):
+        """Return a map between event names and sequence paths.  Paths
+        are different from above in that they are not taken from experiment
+        xmls, but rather from directly from the project xml.
+        """
+        inputSequenceMap = dict()
+        i = 0
+        for node in self.mcTree.postOrderTraversal():
+            if self.mcTree.isLeaf(node) is True:
+                inputSequenceMap[self.mcTree.getName(node)] = \
+                  self.inputSequences[i]
+                i += 1
+        assert i == len(self.inputSequences)
+        return inputSequenceMap
+        
     def getInputSequencePaths(self):
         """Get the set of input sequences for the multicactus tree
         """
