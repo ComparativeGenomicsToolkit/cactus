@@ -1001,7 +1001,6 @@ void splitBlockOnSplitBranch(stPinchBlock *block,
                              stCaf_SplitBranch *splitBranch,
                              stSortedSet *splitBranches,
                              TreeBuildingConstants *constants,
-                             stThreadPool *treeBuildingPool,
                              stHash *blocksToTrees,
                              stSet *blocksToUpdate) {
     block = splitBranch->block;
@@ -1075,10 +1074,6 @@ void splitBlockOnSplitBranch(stPinchBlock *block,
     removeOldSplitBranches(block, root, constants->speciesToSplitOn,
                            splitBranches);
 
-    // Destruct the block tree.
-    // This also invalidates "splitBranch" from here on!
-    stPhylogenyInfo_destructOnTree(root);
-    stTree_destruct(root);
     stHash_remove(blocksToTrees, block);
 
     // Actually perform the split according to the partition.
@@ -1087,29 +1082,20 @@ void splitBlockOnSplitBranch(stPinchBlock *block,
     stPinchBlock *blockBelowBranch = stPinchSegment_getBlock(segmentBelowBranch);
     stPinchBlock *blockNotBelowBranch = stPinchSegment_getBlock(segmentNotBelowBranch);
 
-    // Make a new tree for both of the blocks we split into, if
-    // they are not too simple to make a tree.
-    if (blockBelowBranch != NULL) {
-        pushBlockToPool(blockBelowBranch, constants, blocksToTrees,
-                        treeBuildingPool);
-    }
-    if (blockNotBelowBranch != NULL) {
-        pushBlockToPool(blockNotBelowBranch, constants, blocksToTrees,
-                        treeBuildingPool);
-    }
-    stThreadPool_wait(treeBuildingPool);
+    // Get a new tree for each block using the existing tree.
+    stTree *treeNotBelowBranch = root;
+    stTree *treeBelowBranch = splitBranch->child;
+    stTree *extraNode = stTree_getParent(treeBelowBranch);
+    assert(extraNode != NULL);
+    stTree_setParent(treeBelowBranch, NULL);
+    assert(stTree_getChildNumber(extraNode) == 1);
+    stTree_setParent(stTree_getChild(extraNode, 0), stTree_getParent(extraNode));
+    stTree_destruct(extraNode);
 
-    stTree *treeNotBelowBranch = stHash_search(blocksToTrees,
-                                               blockNotBelowBranch);
-    stTree *treeBelowBranch = stHash_search(blocksToTrees, blockBelowBranch);
-    if (treeBelowBranch != NULL) {
-        findSplitBranches(blockBelowBranch, treeBelowBranch,
-                          splitBranches, constants->speciesToSplitOn);
-    }
-    if (treeNotBelowBranch != NULL) {
-        findSplitBranches(blockNotBelowBranch, treeNotBelowBranch,
-                          splitBranches, constants->speciesToSplitOn);
-    }
+    findSplitBranches(blockBelowBranch, treeBelowBranch,
+                      splitBranches, constants->speciesToSplitOn);
+    findSplitBranches(blockNotBelowBranch, treeNotBelowBranch,
+                      splitBranches, constants->speciesToSplitOn);
 
     // Finally, update the trees for all blocks close enough to
     // either of the new blocks to be affected by this breakpoint
@@ -1184,7 +1170,7 @@ static void splitUsingSingleBranch(stCaf_SplitBranch *splitBranch,
     stPinchBlock *block = splitBranch->block;
     stSet *blocksToUpdate = stSet_construct();
     splitBlockOnSplitBranch(block, splitBranch, splitBranches, constants,
-                            treeBuildingPool, blocksToTrees, blocksToUpdate);
+                            blocksToTrees, blocksToUpdate);
 
     recomputeAffectedBlockTrees(blocksToUpdate, constants, treeBuildingPool,
                                 blocksToTrees, splitBranches);
@@ -1205,8 +1191,7 @@ static void splitUsingHighlyConfidentBranches(stCaf_SplitBranch *splitBranch,
         totalSupport += splitBranch->support;
         stPinchBlock *block = splitBranch->block;
         splitBlockOnSplitBranch(block, splitBranch, splitBranches,
-                                constants, treeBuildingPool, blocksToTrees,
-                                blocksToUpdate);
+                                constants, blocksToTrees, blocksToUpdate);
         // Get the next split branch.
         splitBranch = stSortedSet_getLast(splitBranches);
         numberOfSplitsMade++;
