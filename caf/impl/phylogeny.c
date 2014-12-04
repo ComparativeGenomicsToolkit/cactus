@@ -52,9 +52,8 @@ typedef struct {
     stHash *blocksToTrees;
     stTree *tree;
     stPinchBlock *block;
-    TreeBuildingConstants *constants; // Temp -- just so we can get
-                                      // access to the flower for the
-                                      // single-copy debug print.
+    bool wasSimple;
+    bool wasSingleCopy;
 } TreeBuildingResult;
 
 // Globals for collecting statistics that are later output.  Globals
@@ -874,15 +873,16 @@ static TreeBuildingResult *buildTreeForBlock(TreeBuildingInput *input) {
     TreeBuildingResult *ret = st_calloc(1, sizeof(TreeBuildingResult));
     ret->blocksToTrees = input->blocksToTrees;
     ret->block = block;
-    ret->constants = input->constants;
 
     if (hasSimplePhylogeny(block, input->constants->flower)) {
         // No point trying to build a phylogeny for certain blocks.
         free(input);
+        ret->wasSimple = true;
         return ret;
     }
     if (isSingleCopyBlock(block, input->constants->flower)
         && params->skipSingleCopyBlocks) {
+        ret->wasSingleCopy = true;
         free(input);
         return ret;
     }
@@ -987,11 +987,9 @@ static void addBlockTreeToHash(TreeBuildingResult *result) {
     if (result->tree != NULL) {
         stHash_insert(result->blocksToTrees, result->block, result->tree);
     } else {
-        // Need to take this section out as soon as the debug prints
-        // are no longer helpful, as this is in a critical section!
-        if (hasSimplePhylogeny(result->block, result->constants->flower)) {
+        if (result->wasSimple) {
             numSimpleBlocksSkipped++;
-        } else if (isSingleCopyBlock(result->block, result->constants->flower)) {
+        } else if (result->wasSingleCopy) {
             numSingleCopyBlocksSkipped++;
         }
     }
