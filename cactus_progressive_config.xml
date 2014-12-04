@@ -109,8 +109,8 @@
                 phylogenyKeepSingleDegreeBlocks="0"
                 phylogenyTreeBuildingMethod="guidedNeighborJoining"
                 phylogenyCostPerDupPerBase="0.05"
-                phylogenyCostPerLossPerBase="0.0025"
-                phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce="0.95"
+                phylogenyCostPerLossPerBase="0.02"
+                phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce="0.44"
                 numTreeBuildingThreads="2"
 	        >
 		<!-- The following are parametrised to produce the same results as the default settings, 

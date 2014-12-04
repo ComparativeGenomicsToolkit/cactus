@@ -22,14 +22,53 @@ typedef struct {
     double support; // Bootstrap support for this branch.
 } stCaf_SplitBranch;
 
-// gross, but useful for debug prints of what the scale of the
-// single-degree segment problem is
-// FIXME: get rid of these once done
-int64_t numSingleDegreeSegmentsDropped = 0;
-int64_t numBasesDroppedFromSingleDegreeSegments = 0;
+// Struct of constant things that gets passed around. Since these are
+// only set once in a run, they could be global variables, but this is
+// just in case we ever need to run in parallel on sub-flowers or
+// something weird.
+typedef struct {
+    stHash *threadStrings;
+    stSet *outgroupThreads;
+    Flower *flower;
+    stCaf_PhylogenyParameters *params;
+    stMatrix *joinCosts;
+    stHash *speciesToJoinCostIndex;
+    int64_t **speciesMRCAMatrix;
+    stHash *eventToSpeciesNode;
+    stTree *speciesStTree;
+    stSet *speciesToSplitOn;
+} TreeBuildingConstants;
 
-int64_t numSimpleBlocksSkipped = 0;
-int64_t numSingleCopyBlocksSkipped = 0;
+// Gets passed to buildTreeForBlock.
+typedef struct {
+    stPinchBlock *block;
+    TreeBuildingConstants *constants;
+    stHash *blocksToTrees;
+} TreeBuildingInput;
+
+// Gets returned from buildTreeForBlock and passed into
+// addBlockTreeToHash.
+typedef struct {
+    stHash *blocksToTrees;
+    stTree *tree;
+    stPinchBlock *block;
+    TreeBuildingConstants *constants; // Temp -- just so we can get
+                                      // access to the flower for the
+                                      // single-copy debug print.
+} TreeBuildingResult;
+
+// Globals for collecting statistics that are later output.  Globals
+// are gross, but since these don't affect the actual output of the
+// program, it's probably excusable.
+static int64_t numSingleDegreeSegmentsDropped = 0;
+static int64_t numBasesDroppedFromSingleDegreeSegments = 0;
+static int64_t totalNumberOfBlocksRecomputed = 0;
+static double totalSupport = 0.0;
+static int64_t numberOfSplitsMade = 0;
+// These are especially bad since they are updated in a critical section.
+// FIXME: (Dec 4): Remove these after the first whole-genome tests.
+static int64_t numSimpleBlocksSkipped = 0;
+static int64_t numSingleCopyBlocksSkipped = 0;
 
 stHash *stCaf_getThreadStrings(Flower *flower, stPinchThreadSet *threadSet) {
     stHash *threadStrings = stHash_construct2(NULL, free);
@@ -814,40 +853,6 @@ static double getAvgSupportValue(stSortedSet *splitBranches) {
     return totalSupport/stSortedSet_size(splitBranches);
 }
 
-// Struct of constant things that gets passed around. Since these are
-// only set once in a run, they could be global variables, but this is
-// just in case we ever need to run in parallel on sub-flowers or
-// something weird.
-typedef struct {
-    stHash *threadStrings;
-    stSet *outgroupThreads;
-    Flower *flower;
-    stCaf_PhylogenyParameters *params;
-    stMatrix *joinCosts;
-    stHash *speciesToJoinCostIndex;
-    int64_t **speciesMRCAMatrix;
-    stHash *eventToSpeciesNode;
-    stTree *speciesStTree;
-} TreeBuildingConstants;
-
-// Gets passed to buildTreeForBlock.
-typedef struct {
-    stPinchBlock *block;
-    TreeBuildingConstants *constants;
-    stHash *blocksToTrees;
-} TreeBuildingInput;
-
-// Gets returned from buildTreeForBlock and passed into
-// addBlockTreeToHash.
-typedef struct {
-    stHash *blocksToTrees;
-    stTree *tree;
-    stPinchBlock *block;
-    TreeBuildingConstants *constants; // Temp -- just so we can get
-                                      // access to the flower for the
-                                      // single-copy debug print.
-} TreeBuildingResult;
-
 // Small wrapper function to tell the pool to build, reconcile, and
 // bootstrap a tree for a block.
 static void pushBlockToPool(stPinchBlock *block,
@@ -998,11 +1003,15 @@ void splitBlockOnSplitBranch(stPinchBlock *block,
                              stCaf_SplitBranch *splitBranch,
                              stSortedSet *splitBranches,
                              TreeBuildingConstants *constants,
-                             stSet *speciesToSplitOn,
                              stThreadPool *treeBuildingPool,
                              stHash *blocksToTrees,
                              stSet *blocksToUpdate) {
     block = splitBranch->block;
+
+    // Check if this block is marked to be updated later on. If so,
+    // remove it from the set, as it will be invalidated.
+    stSet_remove(blocksToUpdate, block);
+
     // Do the partition on the block.
     stList *partition = stList_construct();
     // Create a leaf set with all leaves below this split branch.
@@ -1065,7 +1074,7 @@ void splitBlockOnSplitBranch(stPinchBlock *block,
     stPinchSegment *segmentNotBelowBranch = getSegmentByBlockIndex(block, segmentNotBelowBranchIndex);
 
     // Remove all split branch entries for this block tree.
-    removeOldSplitBranches(block, root, speciesToSplitOn,
+    removeOldSplitBranches(block, root, constants->speciesToSplitOn,
                            splitBranches);
 
     // Destruct the block tree.
@@ -1097,11 +1106,11 @@ void splitBlockOnSplitBranch(stPinchBlock *block,
     stTree *treeBelowBranch = stHash_search(blocksToTrees, blockBelowBranch);
     if (treeBelowBranch != NULL) {
         findSplitBranches(blockBelowBranch, treeBelowBranch,
-                          splitBranches, speciesToSplitOn);
+                          splitBranches, constants->speciesToSplitOn);
     }
     if (treeNotBelowBranch != NULL) {
         findSplitBranches(blockNotBelowBranch, treeNotBelowBranch,
-                          splitBranches, speciesToSplitOn);
+                          splitBranches, constants->speciesToSplitOn);
     }
 
     // Finally, update the trees for all blocks close enough to
@@ -1126,6 +1135,88 @@ void splitBlockOnSplitBranch(stPinchBlock *block,
 static void destructBlockTree(stTree *tree) {
     stPhylogenyInfo_destructOnTree(tree);
     stTree_destruct(tree);
+}
+
+// Update the trees that belong to each block in the blocksToUpdate
+// set. Invalidates all pointers to the old trees or their split
+// branches, and adds the new split branches to the set.
+static void recomputeAffectedBlockTrees(stSet *blocksToUpdate,
+                                        TreeBuildingConstants *constants,
+                                        stThreadPool *treeBuildingPool,
+                                        stHash *blocksToTrees,
+                                        stSortedSet *splitBranches) {
+    stSetIterator *blocksToUpdateIt = stSet_getIterator(blocksToUpdate);
+    stList *blocksToPush = stList_construct();
+    stPinchBlock *blockToUpdate;
+    while ((blockToUpdate = stSet_getNext(blocksToUpdateIt)) != NULL) {
+        totalNumberOfBlocksRecomputed++;
+        stTree *oldTree = stHash_search(blocksToTrees, blockToUpdate);
+        removeOldSplitBranches(blockToUpdate, oldTree,
+                               constants->speciesToSplitOn, splitBranches);
+        stList_append(blocksToPush, blockToUpdate);
+    }
+    stSet_destructIterator(blocksToUpdateIt);
+
+    for (int64_t i = 0; i < stList_length(blocksToPush); i++) {
+        pushBlockToPool(stList_get(blocksToPush, i), constants,
+                        blocksToTrees, treeBuildingPool);
+    }
+
+    // Wait for the trees to be done.
+    stThreadPool_wait(treeBuildingPool);
+    blocksToUpdateIt = stSet_getIterator(blocksToUpdate);
+    while ((blockToUpdate = stSet_getNext(blocksToUpdateIt)) != NULL) {
+        stTree *tree = stHash_search(blocksToTrees, blockToUpdate);
+        if (tree != NULL) {
+            findSplitBranches(blockToUpdate, tree,
+                              splitBranches, constants->speciesToSplitOn);
+        }
+    }
+    stList_destruct(blocksToPush);
+    stSet_destructIterator(blocksToUpdateIt);
+}
+
+// Split on a single branch and update the blocks affected immediately.
+static void splitUsingSingleBranch(stCaf_SplitBranch *splitBranch,
+                                   stSortedSet *splitBranches,
+                                   TreeBuildingConstants *constants,
+                                   stThreadPool *treeBuildingPool,
+                                   stHash *blocksToTrees) {
+    totalSupport += splitBranch->support;
+    stPinchBlock *block = splitBranch->block;
+    stSet *blocksToUpdate = stSet_construct();
+    splitBlockOnSplitBranch(block, splitBranch, splitBranches, constants,
+                            treeBuildingPool, blocksToTrees, blocksToUpdate);
+
+    recomputeAffectedBlockTrees(blocksToUpdate, constants, treeBuildingPool,
+                                blocksToTrees, splitBranches);
+    stSet_destruct(blocksToUpdate);
+    numberOfSplitsMade++;
+}
+
+// Split all highly confident branches at once, then update the
+// affected blocks all at once. Asssuming there is more than one
+// confident split branch, we save a ton of time.
+static void splitUsingHighlyConfidentBranches(stCaf_SplitBranch *splitBranch,
+                                              stSortedSet *splitBranches,
+                                              TreeBuildingConstants *constants,
+                                              stThreadPool *treeBuildingPool,
+                                              stHash *blocksToTrees) {
+    stSet *blocksToUpdate = stSet_construct();
+    while (splitBranch != NULL && splitBranch->support >= constants->params->doSplitsWithSupportHigherThanThisAllAtOnce) {
+        totalSupport += splitBranch->support;
+        stPinchBlock *block = splitBranch->block;
+        splitBlockOnSplitBranch(block, splitBranch, splitBranches,
+                                constants, treeBuildingPool, blocksToTrees,
+                                blocksToUpdate);
+        // Get the next split branch.
+        splitBranch = stSortedSet_getLast(splitBranches);
+        numberOfSplitsMade++;
+    }
+
+    recomputeAffectedBlockTrees(blocksToUpdate, constants, treeBuildingPool,
+                                blocksToTrees, splitBranches);
+    stSet_destruct(blocksToUpdate);
 }
 
 void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
@@ -1193,6 +1284,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
     constants.speciesMRCAMatrix = speciesMRCAMatrix;
     constants.eventToSpeciesNode = eventToSpeciesNode;
     constants.speciesStTree = speciesStTree;
+    constants.speciesToSplitOn = speciesToSplitOn;
 
     // The loop to build a tree for each block
     while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
@@ -1223,94 +1315,30 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
             stPinchThreadSet_getTotalBlockNumber(threadSet),
             stHash_size(blocksToTrees),
             getAvgSupportValue(splitBranches));
+
     // Now walk through the split branches, doing the most confident
     // splits first, and updating the blocks whose breakpoint
     // information is modified.
-    int64_t numberOfSplitsMade = 0;
-    double totalSupport = 0;
-    int64_t totalNumberOfBlocksRecomputed = 0;
     stCaf_SplitBranch *splitBranch = stSortedSet_getLast(splitBranches);
-    if (params->doSplitsWithSupportHigherThanThisAllAtOnce <= 1.0) {
-        // Save a lot of time by doing the large fraction of highly
-        // confident splits first, then updating the other affected
-        // blocks in one go.
-        stSet *blocksToUpdate = stSet_construct();
-        stSet *blocksSplit = stSet_construct();
-        while (splitBranch != NULL && splitBranch->support >= params->doSplitsWithSupportHigherThanThisAllAtOnce) {
-            totalSupport += splitBranch->support;
-            block = splitBranch->block;
-            stSet_insert(blocksSplit, block);
-            splitBlockOnSplitBranch(block, splitBranch, splitBranches,
-                                    &constants, speciesToSplitOn,
-                                    treeBuildingPool, blocksToTrees,
-                                    blocksToUpdate);
-            // Get the next split branch.
-            splitBranch = stSortedSet_getLast(splitBranches);
-            numberOfSplitsMade++;
-        }
-
-        // Update the blocks that were just affected by all the
-        // perfectly supported split branches.
-        // But first ensure that the blocks weren't already split!
-        stSetIterator *blocksToUpdateIt = stSet_getIterator(blocksToUpdate);
-        stPinchBlock *blockToUpdate;
-        while ((blockToUpdate = stSet_getNext(blocksToUpdateIt)) != NULL) {
-            if (stSet_search(blocksSplit, blockToUpdate)) {
-                // This block is invalid!
-                continue;
-            }
-            totalNumberOfBlocksRecomputed++;
-            stTree *oldTree = stHash_search(blocksToTrees, blockToUpdate);
-            removeOldSplitBranches(blockToUpdate, oldTree, speciesToSplitOn,
-                                   splitBranches);
-            pushBlockToPool(blockToUpdate, &constants, blocksToTrees,
-                            treeBuildingPool);
-        }
-        stSet_destructIterator(blocksToUpdateIt);
-        // Wait for the trees to be done.
-        stThreadPool_wait(treeBuildingPool);
-        blocksToUpdateIt = stSet_getIterator(blocksToUpdate);
-        while ((blockToUpdate = stSet_getNext(blocksToUpdateIt)) != NULL) {
-            stTree *tree = stHash_search(blocksToTrees, blockToUpdate);
-            if (tree != NULL) {
-                findSplitBranches(blockToUpdate, tree,
-                                  splitBranches, speciesToSplitOn);
-            }
-        }
-        stSet_destructIterator(blocksToUpdateIt);
-        stSet_destruct(blocksToUpdate);
-    }
-    splitBranch = stSortedSet_getLast(splitBranches);
     while (splitBranch != NULL) {
-        totalSupport += splitBranch->support;
-        block = splitBranch->block;
-        stSet *blocksToUpdate = stSet_construct();
-        splitBlockOnSplitBranch(block, splitBranch, splitBranches,
-                                &constants, speciesToSplitOn, treeBuildingPool,
-                                blocksToTrees, blocksToUpdate);
-        stSetIterator *blocksToUpdateIt = stSet_getIterator(blocksToUpdate);
-        stPinchBlock *blockToUpdate;
-        while ((blockToUpdate = stSet_getNext(blocksToUpdateIt)) != NULL) {
-            totalNumberOfBlocksRecomputed++;
-            stTree *oldTree = stHash_search(blocksToTrees, blockToUpdate);
-            removeOldSplitBranches(blockToUpdate, oldTree, speciesToSplitOn,
-                                   splitBranches);
-            pushBlockToPool(blockToUpdate, &constants, blocksToTrees,
-                            treeBuildingPool);
+        if (splitBranch->support >= params->doSplitsWithSupportHigherThanThisAllAtOnce) {
+            // This split branch is well-supported, and likely there
+            // are others that are well-supported as well. These are
+            // unlikely to be improved by more accurate breakpoint
+            // information, so we split them all at once and then only
+            // recompute the affected block trees in one go.
+            splitUsingHighlyConfidentBranches(splitBranch, splitBranches,
+                                              &constants, treeBuildingPool,
+                                              blocksToTrees);
+        } else {
+            // None of the split branches left in the set have good
+            // support. We start to split one at a time, hoping that
+            // the iterative increase in the quality of the breakpoint
+            // information will encourage splits that leave us with a
+            // sensible graph.
+            splitUsingSingleBranch(splitBranch, splitBranches, &constants,
+                                   treeBuildingPool, blocksToTrees);
         }
-        stSet_destructIterator(blocksToUpdateIt);
-        stThreadPool_wait(treeBuildingPool);
-        blocksToUpdateIt = stSet_getIterator(blocksToUpdate);
-        while ((blockToUpdate = stSet_getNext(blocksToUpdateIt)) != NULL) {
-            stTree *tree = stHash_search(blocksToTrees, blockToUpdate);
-            if (tree != NULL) {
-                findSplitBranches(blockToUpdate, tree,
-                                  splitBranches, speciesToSplitOn);
-            }
-        }
-        stSet_destructIterator(blocksToUpdateIt);
-        stSet_destruct(blocksToUpdate);
-        numberOfSplitsMade++;
         splitBranch = stSortedSet_getLast(splitBranches);
     }
 
