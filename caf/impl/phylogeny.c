@@ -344,13 +344,14 @@ static stTree *buildTree(stList *featureColumns,
                          int64_t **speciesMRCAMatrix,
                          stHash *eventToSpeciesNode,
                          stMatrixDiffs *snpDiffs,
-                         stMatrixDiffs *breakpointDiffs) {
+                         stMatrixDiffs *breakpointDiffs,
+                         unsigned int *seed) {
     // Make substitution matrix
-    stMatrix *substitutionMatrix = stPinchPhylogeny_constructMatrixFromDiffs(snpDiffs, bootstrap);
+    stMatrix *substitutionMatrix = stPinchPhylogeny_constructMatrixFromDiffs(snpDiffs, bootstrap, seed);
     assert(stMatrix_n(substitutionMatrix) == stPinchBlock_getDegree(block));
     assert(stMatrix_m(substitutionMatrix) == stPinchBlock_getDegree(block));
     //Make breakpoint matrix
-    stMatrix *breakpointMatrix = stPinchPhylogeny_constructMatrixFromDiffs(breakpointDiffs, bootstrap);
+    stMatrix *breakpointMatrix = stPinchPhylogeny_constructMatrixFromDiffs(breakpointDiffs, bootstrap, seed);
     
     //Combine the matrices into distance matrices
     stMatrix_scale(breakpointMatrix, params->breakpointScalingFactor, 0.0);
@@ -906,6 +907,11 @@ static TreeBuildingResult *buildTreeForBlock(TreeBuildingInput *input) {
     stMatrixDiffs *snpDiffs = stPinchPhylogeny_getMatrixDiffsFromSubstitutions(featureColumns, block, NULL);
     stMatrixDiffs *breakpointDiffs = stPinchPhylogeny_getMatrixDiffsFromBreakpoints(featureColumns, block, NULL);
 
+    // rand() has a global lock on it! Better to contest it once and
+    // use that as a seed than to contest it several thousand times
+    // per tree...
+    unsigned int mySeed = rand();
+
     // Build the canonical tree.
     stTree *blockTree = buildTree(featureColumns, params,
                                   0, outgroups, block, input->constants->flower,
@@ -914,7 +920,7 @@ static TreeBuildingResult *buildTreeForBlock(TreeBuildingInput *input) {
                                   input->constants->speciesToJoinCostIndex,
                                   input->constants->speciesMRCAMatrix,
                                   input->constants->eventToSpeciesNode,
-                                  snpDiffs, breakpointDiffs);
+                                  snpDiffs, breakpointDiffs, &mySeed);
 
     // Sample the rest of the trees.
     stList *trees = stList_construct();
@@ -927,7 +933,7 @@ static TreeBuildingResult *buildTreeForBlock(TreeBuildingInput *input) {
                                  input->constants->speciesToJoinCostIndex,
                                  input->constants->speciesMRCAMatrix,
                                  input->constants->eventToSpeciesNode,
-                                 snpDiffs, breakpointDiffs);
+                                 snpDiffs, breakpointDiffs, &mySeed);
         stList_append(trees, tree);
     }
 
