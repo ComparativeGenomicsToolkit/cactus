@@ -1003,6 +1003,26 @@ static void addBlockTreeToHash(TreeBuildingResult *result) {
                   // but shouldn't matter too much.
 }
 
+// When splitting an existing tree by removing the edge corresponding
+// to a split branch, we need to relabel the two resulting trees'
+// leaves' matrix indices so that they refer to their positions in the
+// two new blocks, not their positions in the old block.
+static void relabelTreeIndices(stTree *tree, stList *leafSet) {
+    for (int64_t i = 0; i < stList_length(leafSet); i++) {
+        int64_t oldIndex = stIntTuple_get(stList_get(leafSet, i), 0);
+        stTree *leaf = stPhylogeny_getLeafByIndex(tree, oldIndex);
+        assert(leaf != NULL);
+        // This *looks* like it could run into problems since the leaf
+        // set is not sorted -- i.e. we could rename something to "0"
+        // and then look for an old index of "0" later on -- but since
+        // stPhylogeny_getLeafByIndex only looks at the
+        // stIndexedTreeInfo, not the labels, this is safe.
+        stTree_setLabel(leaf, stString_print_r("%" PRIi64, i));
+    }
+
+    stPhylogeny_addStIndexedTreeInfo(tree);
+}
+
 void splitBlockOnSplitBranch(stPinchBlock *block,
                              stCaf_SplitBranch *splitBranch,
                              stSortedSet *splitBranches,
@@ -1074,12 +1094,15 @@ void splitBlockOnSplitBranch(stPinchBlock *block,
     // into. This is so that we can recover the blocks after the
     // split.
     stPinchSegment *segmentBelowBranch = getSegmentByBlockIndex(block, segmentBelowBranchIndex);
+    assert(segmentBelowBranch != NULL);
     stPinchSegment *segmentNotBelowBranch = getSegmentByBlockIndex(block, segmentNotBelowBranchIndex);
+    assert(segmentNotBelowBranch != NULL);
 
     // Remove all split branch entries for this block tree.
     removeOldSplitBranches(block, root, constants->speciesToSplitOn,
                            splitBranches);
 
+    assert(stHash_search(blocksToTrees, block) != NULL);
     stHash_remove(blocksToTrees, block);
 
     // Actually perform the split according to the partition.
@@ -1091,21 +1114,37 @@ void splitBlockOnSplitBranch(stPinchBlock *block,
     // Get a new tree for each block using the existing tree.
     stTree *treeNotBelowBranch = root;
     stTree *treeBelowBranch = splitBranch->child;
+    // Need to remove the extra node (which will have degree 2 once
+    // the below-branch subtree is removed).
     stTree *extraNode = stTree_getParent(treeBelowBranch);
     assert(extraNode != NULL);
     stTree_setParent(treeBelowBranch, NULL);
     assert(stTree_getChildNumber(extraNode) == 1);
+    if (extraNode == treeNotBelowBranch) {
+        // If the extra node happens to be the tree root, it still
+        // needs to be deleted, but we need to make sure not to lose
+        // the reference to the supertree.
+        treeNotBelowBranch = stTree_getChild(extraNode, 0);
+    }
     stTree_setParent(stTree_getChild(extraNode, 0), stTree_getParent(extraNode));
+    stTree_setParent(extraNode, NULL);
     stTree_destruct(extraNode);
 
+    // Now relabel the two split trees so that the correspond to the
+    // segments of their new blocks.
+    relabelTreeIndices(treeBelowBranch, stList_get(partition, 0));
+    relabelTreeIndices(treeNotBelowBranch, stList_get(partition, 1));
+
+    // Add the split branches from these new blocks back into the set.
     findSplitBranches(blockBelowBranch, treeBelowBranch,
                       splitBranches, constants->speciesToSplitOn);
     findSplitBranches(blockNotBelowBranch, treeNotBelowBranch,
                       splitBranches, constants->speciesToSplitOn);
+    stHash_insert(blocksToTrees, blockBelowBranch, treeBelowBranch);
+    stHash_insert(blocksToTrees, blockNotBelowBranch, treeNotBelowBranch);
 
-    // Finally, update the trees for all blocks close enough to
-    // either of the new blocks to be affected by this breakpoint
-    // change.
+    // Finally, add any blocks that could have been affected by the
+    // breakpoint information to the blocksToUpdate set.
     if (blockBelowBranch != NULL) {
         addContextualBlocksToSet(blockBelowBranch,
                                  constants->params->maxBaseDistance,
