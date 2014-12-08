@@ -306,14 +306,23 @@ int main(int argc, char *argv[]) {
             }
             fseek(coverageFile, 0, SEEK_END);
             int64_t coverageFileLen = ftell(coverageFile);
-            bedRegions = mmap(NULL, coverageFileLen, PROT_READ, MAP_SHARED,
-                              fileno(coverageFile), 0);
-            if (bedRegions == MAP_FAILED) {
-                st_errnoAbort("Failure mapping coverage file");
+            assert(coverageFileLen >= 0);
+            assert(coverageFileLen % sizeof(bedRegion) == 0);
+            if (coverageFileLen == 0) {
+                // mmap doesn't like length-0 mappings, for obvious
+                // reasons. Pretend that the coverage file doesn't
+                // exist in this case, since it contains no data.
+                ingroupCoverageFilePath = NULL;
+            } else {
+                // Establish a memory mapping for the file.
+                bedRegions = mmap(NULL, coverageFileLen, PROT_READ, MAP_SHARED,
+                                  fileno(coverageFile), 0);
+                if (bedRegions == MAP_FAILED) {
+                    st_errnoAbort("Failure mapping coverage file");
+                }
+
+                numBeds = coverageFileLen / sizeof(bedRegion);
             }
-
-            numBeds = coverageFileLen / sizeof(bedRegion);
-
             fclose(coverageFile);
         }
 
