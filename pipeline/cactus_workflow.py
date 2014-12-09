@@ -650,7 +650,7 @@ class CactusBarWrapperLarge(CactusRecursionTarget):
             #If we have a really big end align separately
             if basesInEndAlignment >= veryLargeEndSize:
                 self.addChildTarget(CactusBarEndAlignerWrapper(self.phaseNode, self.constantsNode, self.cactusDiskDatabaseString, self.flowerNames, 
-                                                           True, [ endToAlign ], os.path.join(self.getGlobalTempDir(), "endAlignments.%i" % alignmentFileCount)))
+                                                           True, self.cactusWorkflowArguments, [ endToAlign ], os.path.join(self.getGlobalTempDir(), "endAlignments.%i" % alignmentFileCount)))
                 self.logToMaster("Precomputing very large end alignment for %s with %i caps and %i bases" % \
                              (endToAlign, sequencesInEndAlignment, basesInEndAlignment))
                 alignmentFileCount += 1
@@ -659,13 +659,13 @@ class CactusBarWrapperLarge(CactusRecursionTarget):
                 totalSize += basesInEndAlignment
                 if totalSize >= maxFlowerGroupSize:
                     self.addChildTarget(CactusBarEndAlignerWrapper(self.phaseNode, self.constantsNode, self.cactusDiskDatabaseString, self.flowerNames, 
-                                                           False, endsToAlign, os.path.join(self.getGlobalTempDir(), "endAlignments.%i" % alignmentFileCount)))
+                                                           False, self.cactusWorkflowArguments, endsToAlign, os.path.join(self.getGlobalTempDir(), "endAlignments.%i" % alignmentFileCount)))
                     endsToAlign = []
                     totalSize = 0
                     alignmentFileCount += 1
         if len(endsToAlign) > 0:
             self.addChildTarget(CactusBarEndAlignerWrapper(self.phaseNode, self.constantsNode, self.cactusDiskDatabaseString, self.flowerNames, 
-                                                           False, endsToAlign, os.path.join(self.getGlobalTempDir(), "endAlignments.%i" % alignmentFileCount)))
+                                                           False, self.cactusWorkflowArguments, endsToAlign, os.path.join(self.getGlobalTempDir(), "endAlignments.%i" % alignmentFileCount)))
             alignmentFileCount += 1
         self.phaseNode.attrib["precomputedAlignmentFiles"] = " ".join([ os.path.join(self.getGlobalTempDir(), ("endAlignments.%i") % i) for i in range(alignmentFileCount) ]) 
         self.makeFollowOnRecursiveTarget(CactusBarWrapperWithPrecomputedEndAlignments)
@@ -675,8 +675,8 @@ class CactusBarWrapperLarge(CactusRecursionTarget):
 class CactusBarEndAlignerWrapper(CactusRecursionTarget):
     """Computes an end alignment.
     """
-    def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge, endsToAlign, alignmentFile):
-        CactusRecursionTarget.__init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge)
+    def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge, cactusWorkflowArguments, endsToAlign, alignmentFile):
+        CactusRecursionTarget.__init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge, cactusWorkflowArguments)
         self.endsToAlign = endsToAlign
         self.alignmentFile = alignmentFile
     

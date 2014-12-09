@@ -27,7 +27,7 @@
         <!-- Outgroup trim options: -->
         <!-- trimOutgroupFlanking: The amount of flanking sequence to
              leave on the ends of the trimmed outgroup fragments -->
-        <trimBlast doTrimStrategy="0"
+        <trimBlast doTrimStrategy="1"
                    trimFlanking="10"
                    trimMinSize="10"
                    trimThreshold="1"
@@ -80,6 +80,7 @@
 		largeEndSize="10000"
 		maximumNumberOfSequencesBeforeSwitchingToFast="50"
 		pruneOutStubAlignments="1"
+                rescue="1"
 	>
 		<CactusBarRecursion maxFlowerGroupSize="100000000"/>
 		<CactusBarWrapper maxFlowerGroupSize="400000" memory="littleMemory"/>
