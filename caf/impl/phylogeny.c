@@ -302,14 +302,10 @@ static stHash *getMatrixIndexToJoinCostIndex(stPinchBlock *block, Flower *flower
 static double scoreTree(stTree *tree, enum stCaf_ScoringMethod scoringMethod, stTree *speciesStTree, stPinchBlock *block, Flower *flower, stList *featureColumns, stHash *eventToSpeciesNode) {
     double ret = 0.0;
     if (scoringMethod == RECON_COST) {
-        stHash *leafToSpecies = getLeafToSpecies(tree, block, flower,
-                                                 eventToSpeciesNode);
         int64_t dups = 0, losses = 0;
         stPhylogeny_reconciliationCostAtMostBinary(tree, &dups, &losses);
         // Prioritize minimizing dups and use losses as tiebreakers.
         ret = -dups - 0.01*losses;
-
-        stHash_destruct(leafToSpecies);
     } else if (scoringMethod == NUCLEOTIDE_LIKELIHOOD) {
         ret = stPinchPhylogeny_likelihood(tree, featureColumns);
     } else if (scoringMethod == RECON_LIKELIHOOD) {
