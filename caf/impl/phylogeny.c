@@ -306,7 +306,8 @@ static double scoreTree(stTree *tree, enum stCaf_ScoringMethod scoringMethod, st
                                                  eventToSpeciesNode);
         int64_t dups = 0, losses = 0;
         stPhylogeny_reconciliationCostAtMostBinary(tree, &dups, &losses);
-        ret = -dups - losses;
+        // Prioritize minimizing dups and use losses as tiebreakers.
+        ret = -dups - 0.01*losses;
 
         stHash_destruct(leafToSpecies);
     } else if (scoringMethod == NUCLEOTIDE_LIKELIHOOD) {
