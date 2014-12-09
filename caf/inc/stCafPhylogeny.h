@@ -11,6 +11,20 @@
 #include "sonLib.h"
 #include "stPinchPhylogeny.h"
 
+// A "split branch": a branch in a block tree that, if removed, would
+// produce a partition of the leaf set that would remove an ancient
+// homology. In practice, this means that split branches have a
+// duplication node as a parent, which should be reconciled at or
+// above the reference event in order for the splits to work out
+// properly.
+typedef struct {
+    stTree *child; // Child of the branch.
+    stPinchBlock *block; // Block the tree refers to (can and should
+                         // refer to more than the child subtree).
+    double support; // Bootstrap support for this branch.
+} stCaf_SplitBranch;
+
+// A choice of tree-building methods
 enum stCaf_TreeBuildingMethod {
     NEIGHBOR_JOINING,        // Traditional neighbor-joining algorithm.
     GUIDED_NEIGHBOR_JOINING  // Neighbor-joining guided by a species
@@ -20,6 +34,7 @@ enum stCaf_TreeBuildingMethod {
                              // information to the contrary.
 };
 
+// A choice of rooting methods for each tree built
 enum stCaf_RootingMethod {
     OUTGROUP_BRANCH, // Root all trees on their longest outgroup branch.
     LONGEST_BRANCH,  // Root all trees on their longest branch.
@@ -107,9 +122,30 @@ typedef struct {
     int64_t numTreeBuildingThreads;
 } stCaf_PhylogenyParameters;
 
-// Split a block according to a partition.
-void splitBlock(stPinchBlock *block, stList *partitions,
-                bool allowSingleDegreeBlocks);
+// Split a block according to a partition (a list of lists of
+// stIntTuples representing the segment indices in the block).
+void stCaf_splitBlock(stPinchBlock *block, stList *partitions,
+                      bool allowSingleDegreeBlocks);
+
+// Compare two bootstrap scores of split branches. Use the pointer
+// value of the branches as a tiebreaker since we are using a sorted
+// set and don't want to merge together all branches with the same
+// support value.
+int stCaf_SplitBranch_cmp(stCaf_SplitBranch *branch1,
+                          stCaf_SplitBranch *branch2);
+
+// Find new split branches from the block and add them to the sorted set.
+// speciesToSplitOn is just the species that are on the path from the
+// reference node to the root.
+void stCaf_findSplitBranches(stPinchBlock *block, stTree *tree,
+                             stSortedSet *splitBranches,
+                             stSet *speciesToSplitOn);
+
+// Remove any split branches that appear in this tree from the
+// set of split branches.
+void stCaf_removeSplitBranches(stPinchBlock *block, stTree *tree,
+                               stSet *speciesToSplitOn,
+                               stSortedSet *splitBranches);
 
 /*
  * Build tree for each block and then use it to partition homologies in the block into

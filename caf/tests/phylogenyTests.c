@@ -1,8 +1,88 @@
 #include "CuTest.h"
 #include "sonLib.h"
 #include "cactus.h"
-#include "stCafPhylogeny.h"
 #include "stPinchGraphs.h"
+#include "stCafPhylogeny.h"
+#include "stCaf.h"
+/*
+static CactusDisk *cactusDisk;
+static Flower *flower;
+static EventTree *eventTree;
+static stPinchThreadSet *threadSet;
+
+static void setup(void) {
+    cactusDisk = testCommon_getTemporaryCactusDisk();
+    flower = flower_construct(cactusDisk);
+
+    // Event tree: (((human,(mouse,rat)Anc3)Anc2,(cow,dog)Anc1)Anc0)ROOT;
+    eventTree = eventTree_construct2(flower);
+    event_construct3("Anc0", 0.0, eventTree_getRootEvent(eventTree), eventTree);
+    event_construct3("Anc1", 1.0, eventTree_getEventByHeader(eventTree, "Anc0"), eventTree);
+    event_construct3("dog", 1.0, eventTree_getEventByHeader(eventTree, "Anc1"), eventTree);
+    event_construct3("cow", 1.0, eventTree_getEventByHeader(eventTree, "Anc1"), eventTree);
+    event_construct3("Anc2", 1.0, eventTree_getEventByHeader(eventTree, "Anc0"), eventTree);
+    event_construct3("Anc3", 1.0, eventTree_getEventByHeader(eventTree, "Anc2"), eventTree);
+    event_construct3("rat", 1.0, eventTree_getEventByHeader(eventTree, "Anc3"), eventTree);
+    event_construct3("mouse", 1.0, eventTree_getEventByHeader(eventTree, "Anc3"), eventTree);
+    event_construct3("human", 1.0, eventTree_getEventByHeader(eventTree, "Anc2"), eventTree);
+
+    threadSet = stCaf_setup(flower);
+}
+
+static void teardown(void) {
+    testCommon_deleteTemporaryCactusDisk(cactusDisk);
+}
+*/
+
+// Assume that the leaves of the gene tree are labeled according to
+// their species names and produce a leafToSpecies hash.
+static stHash *getLeafToSpeciesUsingLeafLabels(stTree *geneTree,
+                                               stTree *speciesTree) {
+    stHash *ret = stHash_construct();
+    stList *bfQueue = stList_construct();
+    stList_append(bfQueue, geneTree);
+    while (stList_length(bfQueue) != 0) {
+        stTree *gene = stList_pop(bfQueue);
+        for (int64_t i = 0; i < stTree_getChildNumber(gene); i++) {
+            stList_append(bfQueue, stTree_getChild(gene, i));
+        }
+        if (stTree_getChildNumber(gene) == 0) {
+            stTree *species = stTree_findChild(speciesTree,
+                                               stTree_getLabel(gene));
+            assert(species != NULL);
+            stHash_insert(ret, gene, species);
+        }
+    }
+    return ret;
+}
+
+static void addArbitraryStIndexedTreeInfo_R(stTree *node, int64_t *curIndex,
+                                            stHash *nodeToLabel) {
+    if (stTree_getChildNumber(node) == 0) {
+        stHash_insert(nodeToLabel, node, stString_copy(stTree_getLabel(node)));
+        stTree_setLabel(node, stString_print_r("%" PRIi64, *curIndex));
+        (*curIndex)++;
+    }
+    for (int64_t i = 0; i < stTree_getChildNumber(node); i++) {
+        addArbitraryStIndexedTreeInfo_R(stTree_getChild(node, i), curIndex,
+                                        nodeToLabel);
+    }
+}
+
+// Add stIndexedTreeInfo, but without caring about which labels get
+// assigned which matrix indices.
+static void addArbitraryStIndexedTreeInfo(stTree *geneTree) {
+    stHash *nodeToLabel = stHash_construct2(NULL, free);
+    int64_t curIndex = 0;
+    addArbitraryStIndexedTreeInfo_R(geneTree, &curIndex, nodeToLabel);
+    stPhylogeny_addStIndexedTreeInfo(geneTree);
+    stHashIterator *leafIt = stHash_getIterator(nodeToLabel);
+    stTree *leaf = NULL;
+    while ((leaf = stHash_getNext(leafIt)) != NULL) {
+        stTree_setLabel(leaf, stHash_search(nodeToLabel, leaf));
+    }
+    stHash_destruct(nodeToLabel);
+}
 
 // O(n).
 static stPinchSegment *getSegmentByBlockIndex(stPinchBlock *block,
@@ -20,7 +100,7 @@ static stPinchSegment *getSegmentByBlockIndex(stPinchBlock *block,
     return NULL;
 }
 
-static void testSplitBlock(CuTest *testCase) {
+static void test_stCaf_splitBlock(CuTest *testCase) {
     for (int64_t testNum = 0; testNum < 1000; testNum++) {
         stPinchThreadSet *threadSet = stPinchThreadSet_getRandomGraph();
         stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
@@ -74,7 +154,7 @@ static void testSplitBlock(CuTest *testCase) {
             }
 
             // Split the block
-            splitBlock(block, partitions, allowSingleDegreeBlocks);
+            stCaf_splitBlock(block, partitions, allowSingleDegreeBlocks);
 
             // Make sure the block partitioned correctly
             stSet *seenBlocks = stSet_construct();
@@ -133,8 +213,36 @@ static void testSplitBlock(CuTest *testCase) {
     }
 }
 
+static void test_stCaf_findAndRemoveSplitBranches(CuTest *testCase) {
+    stTree *speciesTree = stTree_parseNewickString("((human,(mouse,rat)Anc3)Anc2,(cow,dog)Anc1)Anc0;");
+    // Here the reference event is Anc3.
+    stSet *speciesToSplitOn = stSet_construct();
+    stSet_insert(speciesToSplitOn, stTree_findChild(speciesTree, "Anc3"));
+    stSet_insert(speciesToSplitOn, stTree_findChild(speciesTree, "Anc2"));
+    stSet_insert(speciesToSplitOn, stTree_findChild(speciesTree, "Anc0"));
+    stSortedSet *splitBranches = stSortedSet_construct3((int (*)(const void *, const void *)) stCaf_SplitBranch_cmp, free);
+
+    // Create a tree that has a duplication on Anc3.
+    stTree *geneTree = stTree_parseNewickString("((human,((mouse,rat)Anc3.0,(mouse,rat)Anc3.1)Anc3)Anc2,(cow,dog)Anc1)Anc0;");
+    addArbitraryStIndexedTreeInfo(geneTree);
+    stHash *leafToSpecies = getLeafToSpeciesUsingLeafLabels(geneTree,
+                                                            speciesTree);
+    stPhylogeny_reconcileAtMostBinary(geneTree, leafToSpecies, true);
+    stCaf_findSplitBranches(NULL, geneTree, splitBranches, speciesToSplitOn);
+    CuAssertTrue(testCase, stSortedSet_size(splitBranches) == 2);
+    stCaf_removeSplitBranches(NULL, geneTree, speciesToSplitOn, splitBranches);
+    CuAssertTrue(testCase, stSortedSet_size(splitBranches) == 0);
+
+    stHash_destruct(leafToSpecies);
+    stPhylogenyInfo_destructOnTree(geneTree);
+    stTree_destruct(geneTree);
+    stSet_destruct(speciesToSplitOn);
+    stTree_destruct(speciesTree);
+}
+
 CuSuite *phylogenyTestSuite(void) {
     CuSuite *suite = CuSuiteNew();
-    SUITE_ADD_TEST(suite, testSplitBlock);
+    SUITE_ADD_TEST(suite, test_stCaf_splitBlock);
+    SUITE_ADD_TEST(suite, test_stCaf_findAndRemoveSplitBranches);
     return suite;
 }

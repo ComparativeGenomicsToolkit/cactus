@@ -13,15 +13,6 @@
 #include "stCaf.h"
 #include "stCafPhylogeny.h"
 
-// Doesn't have to be exported since nothing outside this file should
-// really care about split branches.
-typedef struct {
-    stTree *child; // Child of the branch.
-    stPinchBlock *block; // Block the tree refers to (can and should
-                         // refer to more than the child subtree).
-    double support; // Bootstrap support for this branch.
-} stCaf_SplitBranch;
-
 // Struct of constant things that gets passed around. Since these are
 // only set once in a run, they could be global variables, but this is
 // just in case we ever need to run in parallel on sub-flowers or
@@ -102,7 +93,6 @@ stSet *stCaf_getOutgroupThreads(Flower *flower, stPinchThreadSet *threadSet) {
     return outgroupThreads;
 }
 
-
 /*
  * Gets a list of the segments in the block that are part of outgroup threads.
  * The list contains stIntTuples, each of length 1, representing the index of a particular segment in
@@ -126,7 +116,7 @@ static stList *getOutgroupThreads(stPinchBlock *block, stSet *outgroupThreads) {
 /*
  * Splits the block using the given partition into a set of new blocks.
  */
-void splitBlock(stPinchBlock *block, stList *partitions, bool allowSingleDegreeBlocks) {
+void stCaf_splitBlock(stPinchBlock *block, stList *partitions, bool allowSingleDegreeBlocks) {
     assert(stList_length(partitions) > 0);
     if(stList_length(partitions) == 1) {
         return; //Nothing to do.
@@ -420,8 +410,7 @@ static stTree *buildTree(stList *featureColumns,
 // Check if the block's phylogeny is simple:
 // - the block has only one event, or
 // - the block has < 3 segments.
-static bool hasSimplePhylogeny(stPinchBlock *block,
-                               Flower *flower) {
+bool stCaf_hasSimplePhylogeny(stPinchBlock *block, Flower *flower) {
     if(stPinchBlock_getDegree(block) <= 2) {
         return true;
     }
@@ -444,7 +433,7 @@ static bool hasSimplePhylogeny(stPinchBlock *block,
 }
 
 // Check if the block contains as many species as segments
-static bool isSingleCopyBlock(stPinchBlock *block, Flower *flower) {
+bool stCaf_isSingleCopyBlock(stPinchBlock *block, Flower *flower) {
     stSet *seenEvents = stSet_construct();
     stPinchBlockIt blockIt = stPinchBlock_getSegmentIterator(block);
     stPinchSegment *segment = NULL;
@@ -636,8 +625,6 @@ static int64_t countBasesBetweenSingleDegreeBlocks(stPinchThreadSet *threadSet) 
             wasInSingleDegreeBlock = isInSingleDegreeBlock;
         }
     }
-    // FIXME: tmp
-    fprintf(stdout, "There were %" PRIi64 " bases in single degree blocks.\n", numBasesInSingleCopyBlocks);
     return numBases;
 }
 
@@ -645,8 +632,8 @@ static int64_t countBasesBetweenSingleDegreeBlocks(stPinchThreadSet *threadSet) 
 // value of the branches as a tiebreaker since we are using a sorted
 // set and don't want to merge together all branches with the same
 // support value.
-int compareSplitBranches(stCaf_SplitBranch *branch1,
-                         stCaf_SplitBranch *branch2) {
+int stCaf_SplitBranch_cmp(stCaf_SplitBranch *branch1,
+                          stCaf_SplitBranch *branch2) {
     if (branch1->support > branch2->support) {
         return 2;
     } else if (branch1->support == branch2->support) {
@@ -675,9 +662,9 @@ stCaf_SplitBranch *stCaf_SplitBranch_construct(stTree *child,
 // Find new split branches from the block and add them to the sorted set.
 // speciesToSplitOn is just the species that are on the path from the
 // reference node to the root.
-void findSplitBranches(stPinchBlock *block, stTree *tree,
-                       stSortedSet *splitBranches,
-                       stSet *speciesToSplitOn) {
+void stCaf_findSplitBranches(stPinchBlock *block, stTree *tree,
+                             stSortedSet *splitBranches,
+                             stSet *speciesToSplitOn) {
     stTree *parent = stTree_getParent(tree);
     if (parent != NULL) {
         stPhylogenyInfo *parentInfo = stTree_getClientData(parent);
@@ -701,8 +688,8 @@ void findSplitBranches(stPinchBlock *block, stTree *tree,
 
     // Recurse down the tree as far as makes sense.
     for (int64_t i = 0; i < stTree_getChildNumber(tree); i++) {
-        findSplitBranches(block, stTree_getChild(tree, i), splitBranches,
-                          speciesToSplitOn);
+        stCaf_findSplitBranches(block, stTree_getChild(tree, i), splitBranches,
+                                speciesToSplitOn);
     }
 }
 
@@ -820,15 +807,17 @@ static void addContextualBlocksToSet(stPinchBlock *block,
     }
 }
 
-static void removeOldSplitBranches(stPinchBlock *block, stTree *tree,
-                                   stSet *speciesToSplitOn,
-                                   stSortedSet *splitBranches) {
-    if (block == NULL || tree == NULL) {
+// Remove any split branches that appear in this tree from the
+// set of split branches.
+void stCaf_removeSplitBranches(stPinchBlock *block, stTree *tree,
+                               stSet *speciesToSplitOn,
+                               stSortedSet *splitBranches) {
+    if (tree == NULL) {
         return;
     }
-    stSortedSet *splitBranchesToDelete = stSortedSet_construct3((int (*)(const void *, const void *)) compareSplitBranches, free);
-    findSplitBranches(block, tree, splitBranchesToDelete,
-                      speciesToSplitOn);
+    stSortedSet *splitBranchesToDelete = stSortedSet_construct3((int (*)(const void *, const void *)) stCaf_SplitBranch_cmp, free);
+    stCaf_findSplitBranches(block, tree, splitBranchesToDelete,
+                            speciesToSplitOn);
     // Could set splitBranches = splitBranches \ splitBranchesToDelete.
     // But this is probably faster.
     stSortedSetIterator *splitBranchToDeleteIt = stSortedSet_getIterator(splitBranchesToDelete);
@@ -877,13 +866,13 @@ static TreeBuildingResult *buildTreeForBlock(TreeBuildingInput *input) {
     ret->blocksToTrees = input->blocksToTrees;
     ret->block = block;
 
-    if (hasSimplePhylogeny(block, input->constants->flower)) {
+    if (stCaf_hasSimplePhylogeny(block, input->constants->flower)) {
         // No point trying to build a phylogeny for certain blocks.
         free(input);
         ret->wasSimple = true;
         return ret;
     }
-    if (isSingleCopyBlock(block, input->constants->flower)
+    if (stCaf_isSingleCopyBlock(block, input->constants->flower)
         && params->skipSingleCopyBlocks) {
         ret->wasSingleCopy = true;
         free(input);
@@ -1103,14 +1092,15 @@ void splitBlockOnSplitBranch(stPinchBlock *block,
     assert(segmentNotBelowBranch != NULL);
 
     // Remove all split branch entries for this block tree.
-    removeOldSplitBranches(block, root, constants->speciesToSplitOn,
-                           splitBranches);
+    stCaf_removeSplitBranches(block, root, constants->speciesToSplitOn,
+                              splitBranches);
 
-    assert(stHash_search(blocksToTrees, block) != NULL);
+    assert(stHash_search(blocksToTrees, block) == root);
     stHash_remove(blocksToTrees, block);
 
     // Actually perform the split according to the partition.
-    splitBlock(block, partition, constants->params->keepSingleDegreeBlocks);
+    stCaf_splitBlock(block, partition,
+                     constants->params->keepSingleDegreeBlocks);
     // Recover the blocks.
     stPinchBlock *blockBelowBranch = stPinchSegment_getBlock(segmentBelowBranch);
     stPinchBlock *blockNotBelowBranch = stPinchSegment_getBlock(segmentNotBelowBranch);
@@ -1134,16 +1124,16 @@ void splitBlockOnSplitBranch(stPinchBlock *block,
     stTree_setParent(extraNode, NULL);
     stTree_destruct(extraNode);
 
-    // Now relabel the two split trees so that the correspond to the
+    // Now relabel the two split trees so that they correspond to the
     // segments of their new blocks.
     relabelTreeIndices(treeBelowBranch, stList_get(partition, 0));
     relabelTreeIndices(treeNotBelowBranch, stList_get(partition, 1));
 
     // Add the split branches from these new blocks back into the set.
-    findSplitBranches(blockBelowBranch, treeBelowBranch,
-                      splitBranches, constants->speciesToSplitOn);
-    findSplitBranches(blockNotBelowBranch, treeNotBelowBranch,
-                      splitBranches, constants->speciesToSplitOn);
+    stCaf_findSplitBranches(blockBelowBranch, treeBelowBranch,
+                            splitBranches, constants->speciesToSplitOn);
+    stCaf_findSplitBranches(blockNotBelowBranch, treeNotBelowBranch,
+                            splitBranches, constants->speciesToSplitOn);
     stHash_insert(blocksToTrees, blockBelowBranch, treeBelowBranch);
     stHash_insert(blocksToTrees, blockNotBelowBranch, treeNotBelowBranch);
 
@@ -1184,8 +1174,8 @@ static void recomputeAffectedBlockTrees(stSet *blocksToUpdate,
     while ((blockToUpdate = stSet_getNext(blocksToUpdateIt)) != NULL) {
         totalNumberOfBlocksRecomputed++;
         stTree *oldTree = stHash_search(blocksToTrees, blockToUpdate);
-        removeOldSplitBranches(blockToUpdate, oldTree,
-                               constants->speciesToSplitOn, splitBranches);
+        stCaf_removeSplitBranches(blockToUpdate, oldTree,
+                                  constants->speciesToSplitOn, splitBranches);
         stList_append(blocksToPush, blockToUpdate);
     }
     stSet_destructIterator(blocksToUpdateIt);
@@ -1201,8 +1191,8 @@ static void recomputeAffectedBlockTrees(stSet *blocksToUpdate,
     while ((blockToUpdate = stSet_getNext(blocksToUpdateIt)) != NULL) {
         stTree *tree = stHash_search(blocksToTrees, blockToUpdate);
         if (tree != NULL) {
-            findSplitBranches(blockToUpdate, tree,
-                              splitBranches, constants->speciesToSplitOn);
+            stCaf_findSplitBranches(blockToUpdate, tree,
+                                    splitBranches, constants->speciesToSplitOn);
         }
     }
     stList_destruct(blocksToPush);
@@ -1284,7 +1274,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
         params->costPerLossPerBase * 2 * params->maxBaseDistance);
     int64_t **speciesMRCAMatrix = stPhylogeny_getMRCAMatrix(speciesStTree, speciesToJoinCostIndex);
 
-    stSortedSet *splitBranches = stSortedSet_construct3((int (*)(const void *, const void *)) compareSplitBranches, free);
+    stSortedSet *splitBranches = stSortedSet_construct3((int (*)(const void *, const void *)) stCaf_SplitBranch_cmp, free);
     stSet *speciesToSplitOn = stSet_construct();
     getSpeciesToSplitOn(speciesStTree, eventTree, referenceEventHeader,
                         speciesToSplitOn);
@@ -1337,7 +1327,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
     while ((block = stHash_getNext(blocksToTreesIt)) != NULL) {
         stTree *tree = stHash_search(blocksToTrees, block);
         assert(tree != NULL);
-        findSplitBranches(block, tree, splitBranches, speciesToSplitOn);
+        stCaf_findSplitBranches(block, tree, splitBranches, speciesToSplitOn);
     }
 
     fprintf(stdout, "Before partitioning, there were %" PRIi64 " bases lost in between single-degree blocks\n", countBasesBetweenSingleDegreeBlocks(threadSet));
