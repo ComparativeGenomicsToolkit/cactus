@@ -684,11 +684,13 @@ void findSplitBranches(stPinchBlock *block, stTree *tree,
         assert(parentInfo != NULL);
         stReconciliationInfo *parentReconInfo = parentInfo->recon;
         assert(parentReconInfo != NULL);
-        if (parentReconInfo->event == DUPLICATION && stSet_search(speciesToSplitOn, parentReconInfo->species)) {
-            // Found a split branch.
-            stPhylogenyInfo *info = stTree_getClientData(tree);
-            stCaf_SplitBranch *splitBranch = stCaf_SplitBranch_construct(tree, block, info->index->bootstrapSupport);
-            stSortedSet_insert(splitBranches, splitBranch);
+        if (stSet_search(speciesToSplitOn, parentReconInfo->species)) {
+            if (parentReconInfo->event == DUPLICATION) {
+                // Found a split branch.
+                stPhylogenyInfo *info = stTree_getClientData(tree);
+                stCaf_SplitBranch *splitBranch = stCaf_SplitBranch_construct(tree, block, info->index->bootstrapSupport);
+                stSortedSet_insert(splitBranches, splitBranch);
+            }
         } else {
             // Since the reconciliation must follow the order of the
             // species tree, any child of this node cannot be
@@ -1017,7 +1019,9 @@ static void relabelTreeIndices(stTree *tree, stList *leafSet) {
         // and then look for an old index of "0" later on -- but since
         // stPhylogeny_getLeafByIndex only looks at the
         // stIndexedTreeInfo, not the labels, this is safe.
-        stTree_setLabel(leaf, stString_print_r("%" PRIi64, i));
+        char *label = stString_print_r("%" PRIi64, i);
+        stTree_setLabel(leaf, label);
+        free(label);
     }
 
     stPhylogeny_addStIndexedTreeInfo(tree);
