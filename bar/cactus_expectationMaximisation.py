@@ -6,7 +6,7 @@
 import math
 import os
 import random
-from optparse import OptionParser
+from optparse import OptionParser, OptionGroup
 from jobTree.scriptTree.target import Target 
 from jobTree.scriptTree.stack import Stack
 from sonLib.bioio import setLoggingFromOptions, logger, system, popenCatch, cigarRead, cigarWrite, nameValue, prettyXml, fastaRead
@@ -378,6 +378,28 @@ class Options:
         self.trainEmissions=False
         self.outputXMLModelFile = None
         self.blastScoringMatrixFile = None
+        
+def addExpectationMaximisationOptions(parser, options):
+    group = OptionGroup(parser, "Expectation Maximisation Options", "These are options are used in doing expectation maximisation on the reads.")
+    parser.add_option_group(group)
+    group.add_option("--inputModel", default=options.inputModel, help="Input model")
+    group.add_option("--outputModel", default="hmm.txt", help="File to write the model in")
+    group.add_option("--outputXMLModelFile", default=options.outputXMLModelFile, help="File to write XML representation of model in - useful for stats")
+    group.add_option("--modelType", default=options.modelType, help="Specify the model type, currently either fiveState, threeState, threeStateAsymmetric")
+    group.add_option("--iterations", default=options.iterations, help="Number of iterations of EM", type=int)
+    group.add_option("--trials", default=options.trials, help="Number of independent EM trials. The model with the highest likelihood will be reported. Will only work if randomStart=True", type=int)
+    group.add_option("--outputTrialHmms", default=options.outputTrialHmms, help="Writes out the final trained hmm for each trial, as outputModel + _i", action="store_true")
+    group.add_option("--randomStart", default=options.randomStart, help="Iterate start model with small random values, else all values are equal", action="store_true")
+    group.add_option("--optionsToRealign", default=options.optionsToRealign, help="Further options to pass to cactus_realign when computing expectation values, should be passed as a quoted string")
+    group.add_option("--updateTheBand", default=options.updateTheBand, help="After each iteration of EM update the set of alignments by realigning them, so allowing stochastic updating of the constraints. This does not alter the input alignments file", action="store_true")
+    group.add_option("--maxAlignmentLengthPerJob", default=options.maxAlignmentLengthPerJob, help="Maximum total alignment length of alignments to include in one job during EM..", type=int)
+    group.add_option("--maxAlignmentLengthToSample", default=options.maxAlignmentLengthToSample, help="Maximum total alignment length of alignments to include in doing EM. Alignments are randomly sampled without replacement to achieve maximum. \
+    The alignment length of an alignment is the avg. of the lengths of the query and target substrings covered by the alignment.", type=int)
+    group.add_option("--useDefaultModelAsStart", default=options.useDefaultModelAsStart, help="Use the default BAR hmm model as the starting point", action="store_true")
+    group.add_option("--setJukesCantorStartingEmissions", default=options.setJukesCantorStartingEmissions, help="[double] Set the starting hmm emissions by jukes cantor expectation, using given subs/site estimate", type=float)
+    group.add_option("--trainEmissions", default=options.trainEmissions, help="Train the emissions as well as the transitions.", action="store_true")
+    group.add_option("--tieEmissions", default=options.tieEmissions, help="Normalise all emissions to reflect overall level of diversity, but be tied to not reflect differences between different bases, other than identity/difference.", action="store_true")
+    group.add_option("--blastScoringMatrixFile", default=options.blastScoringMatrixFile, help="Calculate a BLAST scoring matrix from the HMM, output in Lastz/Blastz format")
 
 def main():
     #Parse the inputs args/options
@@ -385,24 +407,7 @@ def main():
     options = Options()
     parser.add_option("--sequences", dest="sequences", help="Quoted list of fasta files containing sequences")
     parser.add_option("--alignments", dest="alignments", help="Cigar file ")
-    parser.add_option("--inputModel", default=options.inputModel, help="Input model")
-    parser.add_option("--outputModel", default="hmm.txt", help="File to write the model in")
-    parser.add_option("--outputXMLModelFile", default=options.outputXMLModelFile, help="File to write XML representation of model in - useful for stats")
-    parser.add_option("--modelType", default=options.modelType, help="Specify the model type, currently either fiveState, threeState, threeStateAsymmetric")
-    parser.add_option("--iterations", default=options.iterations, help="Number of iterations of EM", type=int)
-    parser.add_option("--trials", default=options.trials, help="Number of independent EM trials. The model with the highest likelihood will be reported. Will only work if randomStart=True", type=int)
-    parser.add_option("--outputTrialHmms", default=options.outputTrialHmms, help="Writes out the final trained hmm for each trial, as outputModel + _i", action="store_true")
-    parser.add_option("--randomStart", default=options.randomStart, help="Iterate start model with small random values, else all values are equal", action="store_true")
-    parser.add_option("--optionsToRealign", default=options.optionsToRealign, help="Further options to pass to cactus_realign when computing expectation values, should be passed as a quoted string")
-    parser.add_option("--updateTheBand", default=options.updateTheBand, help="After each iteration of EM update the set of alignments by realigning them, so allowing stochastic updating of the constraints. This does not alter the input alignments file", action="store_true")
-    parser.add_option("--maxAlignmentLengthPerJob", default=options.maxAlignmentLengthPerJob, help="Maximum total alignment length of alignments to include in one job during EM..", type=int)
-    parser.add_option("--maxAlignmentLengthToSample", default=options.maxAlignmentLengthToSample, help="Maximum total alignment length of alignments to include in doing EM. Alignments are randomly sampled without replacement to achieve maximum. \
-    The alignment length of an alignment is the avg. of the lengths of the query and target substrings covered by the alignment.", type=int)
-    parser.add_option("--useDefaultModelAsStart", default=options.useDefaultModelAsStart, help="Use the default BAR hmm model as the starting point", action="store_true")
-    parser.add_option("--setJukesCantorStartingEmissions", default=options.setJukesCantorStartingEmissions, help="[double] Set the starting hmm emissions by jukes cantor expectation, using given subs/site estimate", type=float)
-    parser.add_option("--trainEmissions", default=options.trainEmissions, help="Train the emissions as well as the transitions.", action="store_true")
-    parser.add_option("--tieEmissions", default=options.tieEmissions, help="Normalise all emissions to reflect overall level of diversity, but be tied to not reflect differences between different bases, other than identity/difference.", action="store_true")
-    parser.add_option("--blastScoringMatrixFile", default=options.blastScoringMatrixFile, help="Calculate a BLAST scoring matrix from the HMM, output in Lastz/Blastz format")
+    addExpectationMaximisationOptions(parser, options)
     
     Stack.addJobTreeOptions(parser)
     options, args = parser.parse_args()
