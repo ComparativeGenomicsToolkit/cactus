@@ -165,10 +165,6 @@ void rescueCoveredRegions(stPinchThread *thread, bedRegion *beds, size_t numBeds
     int64_t curWindowEnd = curWindowStart + windowLength;
     stPinchSegment *lastSegment = stPinchThread_getLast(thread);
     int64_t threadEnd = stPinchSegment_getStart(lastSegment) + stPinchSegment_getLength(lastSegment);
-    int64_t totalRescuableWindows = 0;
-    int64_t totalRescuableBases = 0;
-    int64_t totalBasesRescued = 0;
-    int64_t totalWindowsViewed = 0;
     int64_t curRunStart = -1;
     int64_t curRunEnd = -1;
     while (curWindowEnd <= threadEnd
@@ -186,10 +182,25 @@ void rescueCoveredRegions(stPinchThread *thread, bedRegion *beds, size_t numBeds
             if (bedRegion_name(curSubRegion) != name || bedRegion_stop(curSubRegion) < curWindowStart) {
                 continue;
             }
-            int64_t start = bedRegion_start(curSubRegion) < curWindowStart ? curWindowStart : bedRegion_start(curSubRegion);
-            int64_t end = bedRegion_stop(curSubRegion) > curWindowEnd ? curWindowEnd : bedRegion_stop(curSubRegion);
-            numRescuableBases += end - start;
-            totalRescuableBases += end - start;
+            int64_t regionStart = bedRegion_start(curSubRegion) < curWindowStart ? curWindowStart : bedRegion_start(curSubRegion);
+            int64_t regionEnd = bedRegion_stop(curSubRegion) > curWindowEnd ? curWindowEnd : bedRegion_stop(curSubRegion);
+            stPinchSegment *segment = stPinchThread_getSegment(thread, regionStart);
+            while (segment != NULL && stPinchSegment_getStart(segment) < regionEnd) {
+                if (stPinchSegment_getBlock(segment) == NULL) {
+                    // This segment is (at least partially)
+                    // rescuable. That is, it's partially covered by
+                    // an outgroup in the coverage file, but not in a
+                    // block. Find the number of bases that we
+                    // can rescue in this segment/region pair.
+                    int64_t segmentStart = stPinchSegment_getStart(segment);
+                    int64_t segmentEnd = segmentStart + stPinchSegment_getLength(segment);
+                    int64_t rescuableRegionStart = regionStart > segmentStart ? regionStart : segmentStart;
+                    int64_t rescuableRegionEnd = regionEnd > segmentEnd ? segmentEnd : regionEnd;
+                    assert(rescuableRegionEnd - rescuableRegionStart > 0);
+                    numRescuableBases += rescuableRegionEnd - rescuableRegionStart;
+                    segment = stPinchSegment_get3Prime(segment);
+                }
+            }
             assert(numRescuableBases <= windowLength);
         }
 
@@ -199,7 +210,6 @@ void rescueCoveredRegions(stPinchThread *thread, bedRegion *beds, size_t numBeds
             }
             curRunEnd = curWindowEnd;
         } else if (curRunStart != -1) {
-            totalRescuableWindows++;
             rescueRegion(thread, curRunStart, curRunEnd);
             curRunStart = -1;
             curRunEnd = -1;
@@ -209,11 +219,9 @@ void rescueCoveredRegions(stPinchThread *thread, bedRegion *beds, size_t numBeds
         }
         curWindowStart++;
         curWindowEnd++;
-        totalWindowsViewed++;
     }
 
     if (curRunStart != -1) {
-        totalRescuableWindows++;
         rescueRegion(thread, curRunStart, curRunEnd);
     }
 }
