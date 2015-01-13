@@ -329,7 +329,9 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
                          largeEndSize=None,
                          endAlignmentsToPrecomputeOutputFile=None,
                          precomputedAlignments=None,
-                         ingroupCoverageFile=None):
+                         ingroupCoverageFile=None,
+                         rescueWindowLength=None,
+                         rescueWindowThreshold=None):
     """Runs cactus base aligner.
     """
     logLevel = getLogLevelString2(logLevel)
@@ -352,7 +354,9 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
     endAlignmentsToPrecomputeOutputFile=nameValue("endAlignmentsToPrecomputeOutputFile", endAlignmentsToPrecomputeOutputFile, str)
     precomputedAlignments=nameValue("precomputedAlignments", precomputedAlignments, str, quotes=True)
     ingroupCoverageFile = nameValue("ingroupCoverageFile", ingroupCoverageFile, str, quotes=True)
-    
+    rescueWindowLength = nameValue("rescueWindowLength", rescueWindowLength, int)
+    rescueWindowThreshold = nameValue("rescueWindowThreshold", rescueWindowThreshold, float)
+
     masterMessages = popenCatch("cactus_bar --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % 
            (cactusDiskDatabaseString, logLevel, spanningTrees, maximumLength, gapGamma, 
             splitMatrixBiggerThanThis, anchorMatrixBiggerThanThis, repeatMaskMatrixBiggerThanThis,

@@ -65,6 +65,10 @@ void usage() {
 
     fprintf(stderr, "-J --ingroupCoverageFile : Binary coverage file containing ingroup regions that are covered by outgroups. These regions will be 'rescued' into single-degree blocks if they haven't been aligned to anything after the bar phase finished.\n");
 
+    fprintf(stderr, "-K --rescueWindowLength : Length of the window to integrate missing outgroup coverage across in bar rescue mode.");
+
+    fprintf(stderr, "-L --rescueWindowThreshold : Proportion of bases in a window that must be rescuable for a window to be rescued in  bar rescue mode.");
+
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -104,6 +108,8 @@ int main(int argc, char *argv[]) {
     int64_t chainLengthForBigFlower = 1000000;
     int64_t longChain = 2;
     char *ingroupCoverageFilePath = NULL;
+    int64_t rescueWindowLength = 1;
+    double rescueWindowThreshold = 0.0;
 
     PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters = pairwiseAlignmentBandingParameters_construct();
 
@@ -130,6 +136,8 @@ int main(int argc, char *argv[]) {
                         required_argument, 0, 'F' }, { "calculateWhichEndsToComputeSeparately", no_argument, 0, 'G' }, { "largeEndSize",
                         required_argument, 0, 'I' },
                         {"ingroupCoverageFile", required_argument, 0, 'J'},
+                        {"rescueWindowLength", required_argument, 0, 'K'},
+                        {"rescueWindowThreshold", required_argument, 0, 'L'},
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
@@ -236,6 +244,14 @@ int main(int argc, char *argv[]) {
                 break;
             case 'J':
                 ingroupCoverageFilePath = stString_copy(optarg);
+                break;
+            case 'K':
+                i = sscanf(optarg, "%" PRIi64, &rescueWindowLength);
+                assert(i == 1);
+                break;
+            case 'L':
+                i = sscanf(optarg, "%" PRIi64, &rescueWindowThreshold);
+                assert(i == 1);
                 break;
             default:
                 usage();
@@ -363,9 +379,13 @@ int main(int argc, char *argv[]) {
                     assert(cap != NULL);
                     Sequence *sequence = cap_getSequence(cap);
                     assert(sequence != NULL);
+                    int64_t windowLength = 1;
+                    double windowThreshold = 0.9;
                     rescueCoveredRegions(thread, bedRegions, numBeds,
-                                         sequence_getName(sequence));
+                                         sequence_getName(sequence),
+                                         windowLength, windowThreshold);
                 }
+                stCaf_joinTrivialBoundaries(threadSet);
             }
 
             stCaf_finish(flower, threadSet, chainLengthForBigFlower, longChain, INT64_MAX, INT64_MAX); //Flower now destroyed.

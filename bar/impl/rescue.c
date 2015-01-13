@@ -95,17 +95,13 @@ static bedRegion *seekToProperBedRegion(bedRegion *beds, size_t numBeds,
 static bedRegion *fastForwardToProperBedRegion(bedRegion *beds,
                                                size_t numBeds,
                                                bedRegion *begin,
-                                               stPinchSegment *segment,
+                                               int64_t start,
                                                Name name) {
-    bedRegion *targetRegion = bedRegion_construct(name,
-                                                  stPinchSegment_getStart(segment),
-                                                  stPinchSegment_getStart(segment) + stPinchSegment_getLength(segment));
     bedRegion *curRegion = begin;
     bedRegion *end = beds + numBeds;
-    while (curRegion != end && bedRegion_cmp(curRegion, targetRegion) < 0) {
+    while (curRegion != end && (bedRegion_stop(curRegion) <= start || bedRegion_name(curRegion) < name)) {
         curRegion++;
     }
-    free(targetRegion);
 
     if (curRegion == end) {
         return NULL;
@@ -113,29 +109,25 @@ static bedRegion *fastForwardToProperBedRegion(bedRegion *beds,
     return curRegion;
 }
 
-// Find any regions in this thread covered by outgroups that are in
-// segments with no block, and "rescue" them into single-degree
-// blocks.
-void rescueCoveredRegions(stPinchThread *thread, bedRegion *beds, size_t numBeds,
-                          Name name) {
-    stPinchSegment *segment = stPinchThread_getFirst(thread);
-    bedRegion *curRegion = seekToProperBedRegion(beds, numBeds, segment, name);
-    while (segment != NULL && curRegion->name <= name) {
+// Forces any unaligned blocks in the given region into single-degree blocks.
+void rescueRegion(stPinchThread *thread, int64_t regionStart, int64_t regionEnd) {
+    stPinchSegment *segment = stPinchThread_getSegment(thread, regionStart);
+    while (segment != NULL && stPinchSegment_getStart(segment) < regionEnd) {
         if (stPinchSegment_getBlock(segment) == NULL) {
-            // This is a potentially rescuable segment.
-            curRegion = fastForwardToProperBedRegion(beds, numBeds, curRegion,
-                                                     segment, name);
-            if (curRegion == NULL || bedRegion_name(curRegion) > name) {
-                // Reached end of the correct section of bed file.
-                break;
+            if (regionStart > stPinchSegment_getStart(segment)) {
+                stPinchSegment_split(segment, regionStart - 1);
+                segment = stPinchSegment_get3Prime(segment);
             }
             int64_t start = stPinchSegment_getStart(segment);
             assert(start >= stPinchThread_getStart(thread));
             int64_t end = start + stPinchSegment_getLength(segment);
+            if (end > regionEnd) {
+                stPinchSegment_split(segment, regionEnd);
+            }
             assert(end <= stPinchThread_getStart(thread) + stPinchThread_getLength(thread));
             bool inCoveredRegion = false;
             for (int64_t i = start; i < end; i++) {
-                if (i >= bedRegion_start(curRegion) && i < bedRegion_stop(curRegion)) {
+                if (i >= regionStart && i < regionEnd) {
                     if (!inCoveredRegion && i != start) {
                         // Wasn't covered before but now we are. Have
                         // to split up this block.
@@ -156,5 +148,72 @@ void rescueCoveredRegions(stPinchThread *thread, bedRegion *beds, size_t numBeds
             }
         }
         segment = stPinchSegment_get3Prime(segment);
+    }
+}
+
+// Find any regions in this thread covered by outgroups that are in
+// segments with no block, and "rescue" them into single-degree
+// blocks.
+void rescueCoveredRegions(stPinchThread *thread, bedRegion *beds, size_t numBeds,
+                          Name name, int64_t windowLength, double windowThreshold) {
+    assert(windowLength > 0);
+    assert(windowThreshold >= 0.0 && windowThreshold <= 1.0);
+    stPinchSegment *firstSegment = stPinchThread_getFirst(thread);
+    bedRegion *curRegion = seekToProperBedRegion(beds, numBeds, firstSegment, name);
+    bedRegion *lastRegion = beds + numBeds - 1;
+    int64_t curWindowStart = stPinchSegment_getStart(firstSegment);
+    int64_t curWindowEnd = curWindowStart + windowLength;
+    stPinchSegment *lastSegment = stPinchThread_getLast(thread);
+    int64_t threadEnd = stPinchSegment_getStart(lastSegment) + stPinchSegment_getLength(lastSegment);
+    int64_t totalRescuableWindows = 0;
+    int64_t totalRescuableBases = 0;
+    int64_t totalBasesRescued = 0;
+    int64_t totalWindowsViewed = 0;
+    int64_t curRunStart = -1;
+    int64_t curRunEnd = -1;
+    while (curWindowEnd <= threadEnd
+           && bedRegion_name(curRegion) <= name) {
+        int64_t numRescuableBases = 0;
+        curRegion = fastForwardToProperBedRegion(beds, numBeds, curRegion,
+                                                 curWindowStart, name);
+        if (curRegion == NULL || bedRegion_name(curRegion) > name) {
+            // Reached end of the correct section of bed file.
+            break;
+        }
+        for (bedRegion *curSubRegion = curRegion;
+             curSubRegion <= lastRegion && bedRegion_start(curSubRegion) < curWindowEnd
+                 && bedRegion_name(curSubRegion) <= name; curSubRegion++) {
+            if (bedRegion_name(curSubRegion) != name || bedRegion_stop(curSubRegion) < curWindowStart) {
+                continue;
+            }
+            int64_t start = bedRegion_start(curSubRegion) < curWindowStart ? curWindowStart : bedRegion_start(curSubRegion);
+            int64_t end = bedRegion_stop(curSubRegion) > curWindowEnd ? curWindowEnd : bedRegion_stop(curSubRegion);
+            numRescuableBases += end - start;
+            totalRescuableBases += end - start;
+            assert(numRescuableBases <= windowLength);
+        }
+
+        if (((double) numRescuableBases) / windowLength > windowThreshold) {
+            if (curRunStart == -1) {
+                curRunStart = curWindowStart;
+            }
+            curRunEnd = curWindowEnd;
+        } else if (curRunStart != -1) {
+            totalRescuableWindows++;
+            rescueRegion(thread, curRunStart, curRunEnd);
+            curRunStart = -1;
+            curRunEnd = -1;
+        } else {
+            curRunStart = -1;
+            curRunEnd = -1;
+        }
+        curWindowStart++;
+        curWindowEnd++;
+        totalWindowsViewed++;
+    }
+
+    if (curRunStart != -1) {
+        totalRescuableWindows++;
+        rescueRegion(thread, curRunStart, curRunEnd);
     }
 }
