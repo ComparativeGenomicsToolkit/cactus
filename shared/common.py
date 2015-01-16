@@ -330,8 +330,8 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
                          endAlignmentsToPrecomputeOutputFile=None,
                          precomputedAlignments=None,
                          ingroupCoverageFile=None,
-                         rescueWindowLength=None,
-                         rescueWindowThreshold=None):
+                         minimumSizeToRescue=None,
+                         minimumCoverageToRescue=None):
     """Runs cactus base aligner.
     """
     logLevel = getLogLevelString2(logLevel)
@@ -354,16 +354,16 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
     endAlignmentsToPrecomputeOutputFile=nameValue("endAlignmentsToPrecomputeOutputFile", endAlignmentsToPrecomputeOutputFile, str)
     precomputedAlignments=nameValue("precomputedAlignments", precomputedAlignments, str, quotes=True)
     ingroupCoverageFile = nameValue("ingroupCoverageFile", ingroupCoverageFile, str, quotes=True)
-    rescueWindowLength = nameValue("rescueWindowLength", rescueWindowLength, int)
-    rescueWindowThreshold = nameValue("rescueWindowThreshold", rescueWindowThreshold, float)
+    minimumSizeToRescue = nameValue("minimumSizeToRescue", minimumSizeToRescue, int)
+    minimumCoverageToRescue = nameValue("minimumCoverageToRescue", minimumCoverageToRescue, float)
 
-    masterMessages = popenCatch("cactus_bar --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % 
+    masterMessages = popenCatch("cactus_bar --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % 
            (cactusDiskDatabaseString, logLevel, spanningTrees, maximumLength, gapGamma, 
             splitMatrixBiggerThanThis, anchorMatrixBiggerThanThis, repeatMaskMatrixBiggerThanThis,
             constraintDiagonalTrim, minimumBlockDegree, minimumIngroupDegree, minimumOutgroupDegree,  
             alignAmbiguityCharacters, pruneOutStubAlignments, diagonalExpansion,
             maximumNumberOfSequencesBeforeSwitchingToFast, calculateWhichEndsToComputeSeparately,
-            largeEndSize, endAlignmentsToPrecomputeOutputFile, precomputedAlignments, ingroupCoverageFile), stdinString=flowerNames)
+            largeEndSize, endAlignmentsToPrecomputeOutputFile, precomputedAlignments, ingroupCoverageFile, minimumSizeToRescue, minimumCoverageToRescue), stdinString=flowerNames)
     logger.info("Ran cactus_bar okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]
 

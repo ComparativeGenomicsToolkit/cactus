@@ -109,119 +109,41 @@ static bedRegion *fastForwardToProperBedRegion(bedRegion *beds,
     return curRegion;
 }
 
-// Forces any unaligned blocks in the given region into single-degree blocks.
-void rescueRegion(stPinchThread *thread, int64_t regionStart, int64_t regionEnd) {
-    stPinchSegment *segment = stPinchThread_getSegment(thread, regionStart);
-    while (segment != NULL && stPinchSegment_getStart(segment) < regionEnd) {
-        if (stPinchSegment_getBlock(segment) == NULL) {
-            if (regionStart > stPinchSegment_getStart(segment)) {
-                stPinchSegment_split(segment, regionStart - 1);
-                segment = stPinchSegment_get3Prime(segment);
+// Find any regions in this thread covered by outgroups that are in
+// segments with no block, and "rescue" them into single-degree blocks
+// if they pass the filter (i.e. are longer than minSegmentLength, and
+// have more than coveredBasesThreshold proportion of their bases
+// covered in the coverage file).
+void rescueCoveredRegions(stPinchThread *thread, bedRegion *beds, size_t numBeds,
+                          Name name, int64_t minSegmentLength,
+                          double coveredBasesThreshold) {
+    bedRegion *lastRegion = beds + numBeds - 1;
+    stPinchSegment *segment = stPinchThread_getFirst(thread);
+    while (segment != NULL) {
+        if (stPinchSegment_getBlock(segment) == NULL
+            && stPinchSegment_getLength(segment) >= minSegmentLength) {
+            int64_t segmentStart = stPinchSegment_getStart(segment);
+            int64_t segmentEnd = stPinchSegment_getStart(segment) + stPinchSegment_getLength(segment);
+
+            // Find the total number of bases covered by an outgroup
+            // in this adjacency.
+            int64_t numCoveredBases = 0;
+            for (bedRegion *region = seekToProperBedRegion(beds, numBeds, segment, name);
+                 region <= lastRegion
+                     && bedRegion_start(region) < segmentEnd
+                     && bedRegion_name(region) <= name;
+                 region++) {
+                int64_t start = segmentStart > bedRegion_start(region) ? segmentStart : bedRegion_start(region);
+                int64_t end = segmentEnd > bedRegion_stop(region) ? bedRegion_stop(region) : segmentEnd;
+                numCoveredBases += end - start;
             }
-            int64_t start = stPinchSegment_getStart(segment);
-            assert(start >= stPinchThread_getStart(thread));
-            int64_t end = start + stPinchSegment_getLength(segment);
-            if (end > regionEnd) {
-                stPinchSegment_split(segment, regionEnd);
-            }
-            assert(end <= stPinchThread_getStart(thread) + stPinchThread_getLength(thread));
-            bool inCoveredRegion = false;
-            for (int64_t i = start; i < end; i++) {
-                if (i >= regionStart && i < regionEnd) {
-                    if (!inCoveredRegion && i != start) {
-                        // Wasn't covered before but now we are. Have
-                        // to split up this block.
-                        stPinchSegment_split(segment, i - 1);
-                        break;
-                    }
-                    inCoveredRegion = true;
-                } else if (inCoveredRegion) {
-                    // Was covered before but not anymore. Have to
-                    // split up this block.
-                    stPinchSegment_split(segment, i - 1);
-                    break;
-                }
-            }
-            if (inCoveredRegion) {
-                // Rescue this segment.
+            if (((double) numCoveredBases) / stPinchSegment_getLength(segment) > coveredBasesThreshold) {
+                // This region has more than "coveredBasesThreshold"
+                // proportion of its bases covered, so it should be
+                // rescued.
                 stPinchBlock_construct2(segment);
             }
         }
         segment = stPinchSegment_get3Prime(segment);
-    }
-}
-
-// Find any regions in this thread covered by outgroups that are in
-// segments with no block, and "rescue" them into single-degree
-// blocks.
-void rescueCoveredRegions(stPinchThread *thread, bedRegion *beds, size_t numBeds,
-                          Name name, int64_t windowLength, double windowThreshold) {
-    assert(windowLength > 0);
-    assert(windowThreshold >= 0.0 && windowThreshold <= 1.0);
-    stPinchSegment *firstSegment = stPinchThread_getFirst(thread);
-    bedRegion *curRegion = seekToProperBedRegion(beds, numBeds, firstSegment, name);
-    bedRegion *lastRegion = beds + numBeds - 1;
-    int64_t curWindowStart = stPinchSegment_getStart(firstSegment);
-    int64_t curWindowEnd = curWindowStart + windowLength;
-    stPinchSegment *lastSegment = stPinchThread_getLast(thread);
-    int64_t threadEnd = stPinchSegment_getStart(lastSegment) + stPinchSegment_getLength(lastSegment);
-    int64_t curRunStart = -1;
-    int64_t curRunEnd = -1;
-    while (curWindowEnd <= threadEnd
-           && bedRegion_name(curRegion) <= name) {
-        int64_t numRescuableBases = 0;
-        curRegion = fastForwardToProperBedRegion(beds, numBeds, curRegion,
-                                                 curWindowStart, name);
-        if (curRegion == NULL || bedRegion_name(curRegion) > name) {
-            // Reached end of the correct section of bed file.
-            break;
-        }
-        for (bedRegion *curSubRegion = curRegion;
-             curSubRegion <= lastRegion && bedRegion_start(curSubRegion) < curWindowEnd
-                 && bedRegion_name(curSubRegion) <= name; curSubRegion++) {
-            if (bedRegion_name(curSubRegion) != name || bedRegion_stop(curSubRegion) < curWindowStart) {
-                continue;
-            }
-            int64_t regionStart = bedRegion_start(curSubRegion) < curWindowStart ? curWindowStart : bedRegion_start(curSubRegion);
-            int64_t regionEnd = bedRegion_stop(curSubRegion) > curWindowEnd ? curWindowEnd : bedRegion_stop(curSubRegion);
-            stPinchSegment *segment = stPinchThread_getSegment(thread, regionStart);
-            while (segment != NULL && stPinchSegment_getStart(segment) < regionEnd) {
-                if (stPinchSegment_getBlock(segment) == NULL) {
-                    // This segment is (at least partially)
-                    // rescuable. That is, it's partially covered by
-                    // an outgroup in the coverage file, but not in a
-                    // block. Find the number of bases that we
-                    // can rescue in this segment/region pair.
-                    int64_t segmentStart = stPinchSegment_getStart(segment);
-                    int64_t segmentEnd = segmentStart + stPinchSegment_getLength(segment);
-                    int64_t rescuableRegionStart = regionStart > segmentStart ? regionStart : segmentStart;
-                    int64_t rescuableRegionEnd = regionEnd > segmentEnd ? segmentEnd : regionEnd;
-                    assert(rescuableRegionEnd - rescuableRegionStart > 0);
-                    numRescuableBases += rescuableRegionEnd - rescuableRegionStart;
-                    segment = stPinchSegment_get3Prime(segment);
-                }
-            }
-            assert(numRescuableBases <= windowLength);
-        }
-
-        if (((double) numRescuableBases) / windowLength > windowThreshold) {
-            if (curRunStart == -1) {
-                curRunStart = curWindowStart;
-            }
-            curRunEnd = curWindowEnd;
-        } else if (curRunStart != -1) {
-            rescueRegion(thread, curRunStart, curRunEnd);
-            curRunStart = -1;
-            curRunEnd = -1;
-        } else {
-            curRunStart = -1;
-            curRunEnd = -1;
-        }
-        curWindowStart++;
-        curWindowEnd++;
-    }
-
-    if (curRunStart != -1) {
-        rescueRegion(thread, curRunStart, curRunEnd);
     }
 }
