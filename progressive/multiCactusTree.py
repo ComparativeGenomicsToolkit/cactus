@@ -105,6 +105,7 @@ class MultiCactusTree(NXTree):
             graphWasModified = False
             for node in nx.nodes(cpy):
                 if cpy.out_degree(node) == 1:
+                    print self.getName(node)
                     assert cpy.in_degree(node) == 1
                     if node not in nodeIds:
                         # This is a spurious node in the species tree,

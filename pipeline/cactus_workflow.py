@@ -19,6 +19,7 @@ import bz2
 import random
 import copy
 import shutil
+import networkx as NX
 from optparse import OptionParser
 
 from sonLib.bioio import getTempFile
@@ -28,7 +29,9 @@ from sonLib.bioio import logger
 from sonLib.bioio import setLoggingFromOptions
 from sonLib.bioio import system, popenCatch
 from sonLib.bioio import makeSubDir
+from sonLib.nxnewick import NXNewick
 
+from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.common import cactusRootPath
   
 from jobTree.scriptTree.target import Target 
@@ -497,7 +500,20 @@ class CactusCafRecursion(CactusRecursionTarget):
     def run(self):
         self.makeRecursiveTargets()
         self.makeExtendingTargets(target=CactusCafWrapper, overlargeTarget=CactusCafWrapperLarge, runFlowerStats=True)
-        
+
+def getMaximalDistanceBetweenLeaves(nxTree, rootId):
+    def getPathLengths(nxTree, rootId, lengths, curLength):
+        if nxTree.isLeaf(rootId):
+            lengths.append(curLength)
+        else:
+            for childId in nxTree.getChildren(rootId):
+                getPathLengths(nxTree, childId, lengths, curLength + nxTree.getWeight(rootId, childId))
+
+    lengths = []
+    getPathLengths(nxTree, rootId, lengths, 0.0)
+    lengths.sort()
+    return lengths[-2] + lengths[-1]
+
 class CactusCafWrapper(CactusRecursionTarget):
     """Runs cactus_core upon a set of flowers and no alignment file.
     """
@@ -505,6 +521,20 @@ class CactusCafWrapper(CactusRecursionTarget):
         debugFilePath = self.getOptionalPhaseAttrib("phylogenyDebugPrefix")
         if debugFilePath != None:
             debugFilePath += getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "reference"), "reference")
+        minimumIngroupDegree = self.getOptionalPhaseAttrib("minimumIngroupDegree", int)
+        if self.getOptionalPhaseAttrib("autoMinimumIngroupDegree", bool):
+            speciesTree = MultiCactusTree(NXNewick().parseString(self.cactusWorkflowArguments.speciesTree))
+            speciesTree.nameUnlabeledInternalNodes()
+            referenceName = getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "reference"), "reference"),
+            ingroupDistance = getMaximalDistanceBetweenLeaves(speciesTree, speciesTree.nameToId[referenceName[0]])
+            self.logToMaster("Found max distance between ingroups: %f" % ingroupDistance)
+            if ingroupDistance >= self.getOptionalPhaseAttrib("autoMinimumIngroupDegreeThreshold", float):
+                self.logToMaster("enabling min ingroup degree")
+                minimumIngroupDegree = 2
+            else:
+                self.logToMaster("disabling min ingroup degree")
+                minimumIngroupDegree = 1
+
         messages = runCactusCaf(cactusDiskDatabaseString=self.cactusDiskDatabaseString,
                           alignments=alignmentFile, 
                           flowerNames=self.flowerNames,
@@ -515,7 +545,7 @@ class CactusCafWrapper(CactusRecursionTarget):
                           minimumTreeCoverage=self.getOptionalPhaseAttrib("minimumTreeCoverage", float),
                           blockTrim=self.getOptionalPhaseAttrib("blockTrim", float),
                           minimumBlockDegree=self.getOptionalPhaseAttrib("minimumBlockDegree", int), 
-                          minimumIngroupDegree=self.getOptionalPhaseAttrib("minimumIngroupDegree", int),
+                          minimumIngroupDegree=minimumIngroupDegree,
                           minimumOutgroupDegree=self.getOptionalPhaseAttrib("minimumOutgroupDegree", int),
                           singleCopyIngroup=self.getOptionalPhaseAttrib("singleCopyIngroup", bool),
                           singleCopyOutgroup=self.getOptionalPhaseAttrib("singleCopyOutgroup", bool),

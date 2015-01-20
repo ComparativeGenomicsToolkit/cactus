@@ -90,6 +90,8 @@
 		minimumTreeCoverage="0.0" 
 		trim="0 0" 
 		minimumBlockDegree="2"
+                autoMinimumIngroupDegree="1"
+                autoMinimumIngroupDegreeThreshold="0.3"
 		minimumIngroupDegree="2"
 		minimumOutgroupDegree="0"
 		singleCopyIngroup="0"
