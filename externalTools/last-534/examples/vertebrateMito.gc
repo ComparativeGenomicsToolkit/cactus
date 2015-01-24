@@ -1,0 +1,9 @@
+# The vertebrate mitochondrial genetic code
+# From: http://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi
+# LAST ignores all lines not starting with 'AAs' or 'Base'.
+
+  AAs  = FFLLSSSSYY**CCWWLLLLPPPPHHQQRRRRIIMMTTTTNNKKSS**VVVVAAAADDEEGGGG
+Starts = --------------------------------MMMM---------------M------------
+Base1  = TTTTTTTTTTTTTTTTCCCCCCCCCCCCCCCCAAAAAAAAAAAAAAAAGGGGGGGGGGGGGGGG
+Base2  = TTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGG
+Base3  = TCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAG

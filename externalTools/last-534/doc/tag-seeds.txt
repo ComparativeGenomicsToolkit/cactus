@@ -1,0 +1,139 @@
+Guaranteed alignments with LAST
+===============================
+
+This document describes how to guarantee finding alignments with a
+limited number of mismatches or gaps.
+
+** This is mostly of theoretical interest!  In most cases, you are **
+** advised to use the methods in last-tutorial.txt and documents   **
+** referred to thence.  You should probably ignore this document!  **
+
+The first step of lastal is to find initial matches:
+
+  * For each possible start position in the query: find the shortest
+    match with length >= l that EITHER occurs <= m times in the
+    reference, OR has length L.
+
+By default, m=10 and L=infinity.  This typically works well, but it
+does not guarantee to find alignments.  For example, if a short query
+sequence perfectly matches more than ten locations in the reference,
+no alignments will be found.
+
+1. Counting exact matches
+-------------------------
+
+This example counts all exact matches of length >= 30:
+
+  lastdb -m1 genomedb genome.fa
+  lastal -l30 -j0 genomedb reads.fa
+
+The -m1 option ensures that the initial matches are exact matches.
+The -l30 option requests initial matches of length >= 30.  Finally,
+the -j0 option tells lastal to simply count initial matches and not
+extend alignments.  When -j0 is used, lastal applies no restriction on
+how often the matches occur: it counts all matches of length >= 30.
+
+2. Guaranteeing to align reads with up to N mismatches
+------------------------------------------------------
+
+Suppose we wish to find all alignments of length-36 reads to the
+genome, allowing up to two mismatches.  A naive approach is to start
+by finding all exact matches of length 12, and extend alignments from
+these.  This works because any length-36 read with two mismatches is
+guaranteed to have an exact match of length 12.  It will be very slow,
+however, because there will be many unproductive length-12 matches.
+
+We can do better by finding matches using a spaced seed, and then
+extending alignments.  For example, our reads are guaranteed to have a
+match using this spaced seed pattern: 11111011000111110110001111.
+Since this seed has 18 matched positions (18 "1"s), we will get far
+fewer unproductive matches.  With LAST, we can do this as follows:
+
+  lastdb -m11111011000 mydb genome.fa
+  lastal -L26 -m0 -j1 -q0 -d34 -n100 mydb reads.fa
+
+In the lastdb command, the seed pattern gets cyclically repeated, so
+we only need to specify the repeating unit of the pattern.  In the
+lastal command, we used -L26 to get length-26 initial matches, and -m0
+to suppress shorter initial matches.  We also used -j1 to request
+gapless alignments, -q0 to set the mismatch cost to 0, and -d34 to
+request alignments with score >= 34.  Finally, -n100 limits the
+output: if one read has many matches, an arbitrary sample (at least
+100) of them will be returned.
+
+The following table shows optimal spaced seed patterns for various
+read sizes and numbers of mismatches.  Each entry shows the match
+length (e.g. 26) and the pattern (e.g. 11111011000).
+
+====  ===========  ================  ==================  ======================
+Read  1 mismatch   2 mismatches      3 mismatches        4 mismatches
+size
+====  ===========  ================  ==================  ======================
+16    12 11110     10 1110100         9 11010000          3 1110
+17    13 11110     10 1110100        10 11010000          5 1110
+18    14 11110     12 1110100        10 11010000          5 1110
+19    14 11110     12 1110100        12 11010000          5 1110
+20    16 11110     12 1110100        12 11010000         11 1100010000
+21    17 11110     15 1110100        12 11010000         12 1100010000
+22    18 11110     16 1110100        13 1110100000       12 1100010000
+23    19 11110     17 1110100        13 11101001000      12 1100010000
+24    19 111110    17 1110100        14 11101001000      12 1100010000
+25    20 111110    19 1110100        14 11101001000      16 1100010000
+26    21 111110    19 1110100        16 11101001000      16 1100010000
+27    22 111110    19 1110100        16 11101001000      15 1110100000000
+28    23 111110    22 1110100        16 11101001000      16 1110100000000
+29    23 111110    23 1110100        19 11101001000      16 1110100000000
+30    25 111110    24 1110100        19 11101001000      18 1110100000000
+31    26 111110    24 1110100        19 1110110100000    18 1110100000000
+32    27 111110    26 1110100        18 111101011001000  18 111010010000000
+33    28 111110    26 1110100        19 111101011001000  18 111010010000000
+34    29 111110    22 1111101110010  19 111101011001000  20 111010010000000
+35    29 1111110   25 11111011000    21 111101011001000  20 111010010000000
+36    30 1111110   26 11111011000    21 111101011001000  20 11110010000001000
+37    31 1111110   27 11111011000    23 111101011001000  21 11110010000001000
+38    32 1111110   27 11111011000    24 111101011001000  21 11110010000001000
+39    33 1111110   29 11111011000    24 111101011001000  21 11110010000001000
+40    34 1111110   30 11111011000    24 111101011001000  24 11110010000001000
+41    34 1111110   30 11111011000    27 111101011001000  24 11110010000001000
+42    36 1111110   30 1111110101100  27 111101011001000  24 1101110100000010000
+43    37 1111110   31 1111110101100  27 111101011001000  25 1101110100000010000
+44    38 1111110   32 1111110101100  32 1110110100000    25 1101110100000010000
+45    39 1111110   32 1111110101100  31 111101011001000  27 1101110100000010000
+46    40 1111110   34 1111110101100  32 111101011001000  28 1101001110100000000
+47    41 1111110   35 1111101110010  33 111101011001000  28 1101001110100000000
+48    41 11111110  35 1111101110010  34 111101011001000  30 1101001110100000000
+49    42 11111110  37 1111110101100  34 111101011001000  30 1101001110100000000
+50    43 11111110     ?              36 111101011001000  30 1101001110100000000
+====  ===========  ================  ==================  ======================
+
+This table was made using software kindly provided by the authors of
+these publications:
+
+* G Kucherov, L Noé, M Roytberg (2005) IEEE/ACM Trans Comput Biol
+  Bioinform 2:51-61.
+* S Burkhardt, J Kärkkäinen (2003) Fundamenta Informaticae 56:51-70.
+
+For longer reads, it becomes harder to determine the optimal patterns.
+
+3. Guaranteeing to align reads with up to N mismatches or indels
+----------------------------------------------------------------
+
+LAST has no clever way to do this, only brute force.  Any alignment of
+a length-L read, with N mismatches or insertions or deletions, must
+include an exact match of this length:
+
+  int[ L / (N+1) ]
+
+Here, "int" means round fractions down.  For example, if L=72 and N=2,
+there must be an exact match of length 24.  We can find the alignments
+like this:
+
+  lastdb -m1 genomedb genome.fa
+  lastal -L24 -m0 -d0 -y0 -a0 -x2 -e68 genomedb reads.fa
+
+The lastdb -m1 option requests exact initial matches, the -L24 sets
+their length to 24, and -m0 suppresses shorter initial matches.  The
+-e68 sets the alignment score threshold to 68, which is the minimum
+score for a size-72 read with 2 differences.  The -x2 just makes it
+faster, by quitting alignments early if it finds more than 2
+differences.

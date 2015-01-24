@@ -1,0 +1,105 @@
+#! /usr/bin/env python
+
+# Copyright 2014 Martin C. Frith
+
+# Read MAF-format alignments, and write those that have a segment with
+# score >= threshold, with gentle masking of lowercase letters.  There
+# must be a lastal header with score parameters.
+
+# Gentle masking is described in: MC Frith, PLoS One 2011;6(12):e28819
+# "Gentle masking of low-complexity sequences improves homology search"
+
+# Limitations: doesn't (yet) handle sequence quality data,
+# frameshifts, or generalized affine gaps.
+
+import fileinput, itertools, optparse, os, signal, sys
+
+def getScoreMatrix(rowHeads, colHeads, matrix, deleteCost, insertCost):
+    defaultScore = min(map(min, matrix))
+    scoreMatrix = [[defaultScore for i in range(128)] for j in range(128)]
+    for i, x in enumerate(rowHeads):
+        for j, y in enumerate(colHeads):
+            xu = ord(x.upper())
+            xl = ord(x.lower())
+            yu = ord(y.upper())
+            yl = ord(y.lower())
+            score = matrix[i][j]
+            maskScore = min(score, 0)
+            scoreMatrix[xu][yu] = score
+            scoreMatrix[xu][yl] = maskScore
+            scoreMatrix[xl][yu] = maskScore
+            scoreMatrix[xl][yl] = maskScore
+    for i in range(128):
+        scoreMatrix[i][ord("-")] = -deleteCost
+        scoreMatrix[ord("-")][i] = -insertCost
+    return scoreMatrix
+
+def isGoodAlignment(seqs, scoreMatrix, delOpenCost, insOpenCost, minScore):
+    """Does the alignment have a segment with score >= minScore?"""
+    r, q = seqs
+    score = 0
+    xOld = " "
+    yOld = " "
+    for x, y in itertools.izip(r, q):
+        score += scoreMatrix[ord(x)][ord(y)]
+        if score >= minScore: return True
+        if x == "-" and xOld != "-": score -= insOpenCost
+        if y == "-" and yOld != "-": score -= delOpenCost
+        if score < 0: score = 0
+        xOld = x
+        yOld = y
+    return False
+
+def printIfGood(maf, seqs, scoreMatrix, delOpenCost, insOpenCost, minScore):
+    if isGoodAlignment(seqs, scoreMatrix, delOpenCost, insOpenCost, minScore):
+        for line in maf:
+            print line,
+        print
+
+def lastPostmask(args):
+    scoreMatrix = []
+    maf = []
+    seqs = []
+
+    for line in fileinput.input(args):
+        if line[0] == "#":
+            print line,
+            w = line.split()
+            for i in w:
+                if i.startswith("a="): aDel = int(i[2:])
+                if i.startswith("b="): bDel = int(i[2:])
+                if i.startswith("A="): aIns = int(i[2:])
+                if i.startswith("B="): bIns = int(i[2:])
+                if i.startswith("e="): minScore = int(i[2:])
+            if len(w) > 1 and max(map(len, w)) == 1:
+                colHeads = w[1:]
+                rowHeads = []
+                matrix = []
+            elif len(w) > 2 and len(w[1]) == 1:
+                rowHeads.append(w[1])
+                matrix.append(map(int, w[2:]))
+        elif line.isspace():
+            if seqs: printIfGood(maf, seqs, scoreMatrix, aDel, aIns, minScore)
+            maf = []
+            seqs = []
+        else:
+            if not scoreMatrix:
+                scoreMatrix = getScoreMatrix(rowHeads, colHeads, matrix,
+                                             bDel, bIns)
+            maf.append(line)
+            if line[0] == "s": seqs.append(line.split()[6])
+    if seqs: printIfGood(maf, seqs, scoreMatrix, aDel, aIns, minScore)
+
+if __name__ == "__main__":
+    signal.signal(signal.SIGPIPE, signal.SIG_DFL)  # avoid silly error message
+
+    usage = "%prog in.maf > out.maf"
+    description = "Get alignments that have a segment with score >= threshold, with gentle masking of lowercase letters."
+    op = optparse.OptionParser(usage=usage, description=description)
+    (opts, args) = op.parse_args()
+
+    try: lastPostmask(args)
+    except KeyboardInterrupt: pass  # avoid silly error message
+    except Exception, e:
+        prog = os.path.basename(sys.argv[0])
+        sys.exit(prog + ": error: " + str(e))

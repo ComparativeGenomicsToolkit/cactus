@@ -1,0 +1,257 @@
+last-split
+==========
+
+This program estimates "split alignments" (typically for DNA) or
+"spliced alignments" (typically for RNA).
+
+It reads candidate alignments of query sequences to a genome, and
+looks for a unique best alignment for each part of each query.  It
+allows different parts of one query to match different parts of the
+genome.  This is useful for DNA queries that cross rearrangement
+breakpoints, or RNA queries that cross splice junctions.
+
+Examples
+--------
+
+Split alignment of DNA reads to a genome
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Assume the DNA reads are in a file called "q.fastq" (in fastq-sanger
+format), and the genome is in "genome.fasta" (in fasta format).  We
+can do the alignment like this::
+
+  lastdb -m1111110 db genome.fasta
+  lastal -Q1 -e120 db q.fastq | last-split > out.maf
+
+Spliced alignment of RNA reads to a genome
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Now we assume that "q.fastq" has reads from RNA forward strands.  This
+time, we provide the genome information to last-split, which causes it
+to do spliced instead of split alignment, and also tells it where the
+splice signals are (GT, AG, etc)::
+
+  lastdb -m1111110 db genome.fasta
+  lastal -Q1 -e120 db q.fastq | last-split -g db > out.maf
+
+This will favour splices starting at GT (and to a lesser extent GC and
+AT), and ending at AG (and to a lesser extent AC).  However, it allows
+splices starting and ending anywhere.  It also favours splices with
+introns of typical length, specified by a log-normal distribution
+(i.e. cis-splices).  However, it allows arbitrary trans-splices
+between any two places in the genome.
+
+FAQ
+---
+
+:Q: Before aligning RNA, should poly-A tails be trimmed?
+
+:A: It's not essential, but it might make things faster.  Poly-A
+    tracts tend to have many matches in the genome.  By trimming, you
+    can prevent lastal and last-split from wasting time on such
+    matches.
+
+Going faster by parallelization
+-------------------------------
+
+For example, split alignment of DNA reads to a genome::
+
+  parallel-fastq "lastal -Q1 -e120 db | last-split" < q.fastq > out.maf
+
+This requires GNU parallel to be installed
+(http://www.gnu.org/software/parallel/).
+
+Output
+------
+
+The output is in MAF(-like) format::
+
+  a score=150 mismap=0.000413
+  s chr21  15963638 25 + 48129895 TCAGATGAGGACCTAATTTATTACT
+  s query7       50 25 +       75 TCAGATGAGGACCTAATTTATTACT
+  q query7                        EBEEC@CE=EEE?FEDAED5?@@D@
+  p                               !#$'BBBBBBBBBBBBBBBBBBBBB
+
+The "mismap" is the estimated probability that this part of the query
+should be aligned to a different part of the genome.  The line
+starting with "p" indicates the probability that each base should be
+aligned to a different part of the genome.  It uses a compact code:
+
+  ======  =================   ======  =================
+  Symbol  Error probability   Symbol  Error probability
+  ------  -----------------   ------  -----------------
+  ``!``   0.79 -- 1           ``0``   0.025 -- 0.032
+  ``"``   0.63 -- 0.79        ``1``   0.02  -- 0.025
+  ``#``   0.5  -- 0.63        ``2``   0.016 -- 0.02
+  ``$``   0.4  -- 0.5         ``3``   0.013 -- 0.016
+  ``%``   0.32 -- 0.4         ``4``   0.01  -- 0.013
+  ``&``   0.25 -- 0.32        ``5``   0.0079 -- 0.01
+  ``'``   0.2  -- 0.25        ``6``   0.0063 -- 0.0079
+  ``(``   0.16 -- 0.2         ``7``   0.005  -- 0.0063
+  ``)``   0.13 -- 0.16        ``8``   0.004  -- 0.005
+  ``*``   0.1  -- 0.13        ``9``   0.0032 -- 0.004
+  ``+``   0.079 -- 0.1        ``:``   0.0025 -- 0.0032
+  ``,``   0.063 -- 0.079      ``;``   0.002  -- 0.0025
+  ``-``   0.05  -- 0.063      ``<``   0.0016 -- 0.002
+  ``.``   0.04  -- 0.05       ``=``   0.0013 -- 0.0016
+  ``/``   0.032 -- 0.04       ``>``   0.001  -- 0.0013
+  ======  =================   ======  =================
+
+Other symbols indicate lower error probabilities, and "~" is the
+lowest possible.  In general::
+
+  Error probability <= 10 ^ -((ASCII value - 33) / 10)
+
+The "mismap" is simply the lowest probability from the "p" line.
+
+Split versus spliced alignment
+------------------------------
+
+Here is a split alignment::
+
+  Query         ttctttgat--gctagtcctgatgttatggtattttttatcgaatgataa
+                  |||||||--||||||                |||x||||||||||||
+  Genome chrA  ...ctttgatatgctagt...             |||x||||||||||||
+  Genome chrB                                 ...tttatatcgaatgata...
+
+And here is a spliced alignment::
+
+  Query        ctagtcgatatt--gctgtacgtctgttagctat-tttttcctctgtttg
+                  |||x|||||--|||||||||----|||||||-|||||x|||||
+  Genome chrA  ...gtctatattatgctgtacgt... |||||||-|||||x|||||
+  Genome chrB                          ...tagctatattttttctctg...
+
+Split alignment allows arbitrarily large unaligned parts in the middle
+of the query, whereas spliced alignment applies a standard gap
+penalty.  (Both allow arbitrarily large unaligned parts at the edges
+of the query.)
+
+Specialized examples
+--------------------
+
+Faster spliced alignment
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Spliced alignment can be slow.  It can be sped up, at a small cost in
+accuracy, by not favouring cis-splices::
+
+  lastdb -m1111110 db genome.fasta
+  lastal -Q1 -e120 db q.fastq | last-split -c0 -t0.004 -g db > out.maf
+
+The -c0 turns off cis-splicing, and the -t0.004 specifies a higher
+probability of trans-splicing.
+
+"Spliced" alignment of DNA reads to a genome
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If we do not wish to allow arbitrarily large unaligned parts in the
+middle of the query, we can do "spliced" alignment without considering
+splice signals or favouring cis-splices::
+
+  lastdb -m1111110 db genome.fasta
+  lastal -Q1 -e120 db q.fastq | last-split -c0 > out.maf
+
+Options
+-------
+
+  -h, --help
+         Show a help message, with default option values, and exit.
+
+  -g, --genome=NAME
+         Do spliced alignment, and read splice signals (GT, AG, etc)
+         from the named genome.  NAME should be the name of a lastdb
+         database.
+
+  -d, --direction=D
+         Do spliced alignment, and set the strandedness of the
+         queries: 0=reverse, 1=forward, 2=unknown/mixed.  This
+         determines whether forward and/or reverse-complement splice
+         signals are used.
+
+  -c, --cis=PROB
+         Do spliced alignment, and set the average probability per
+         base of cis-splicing.  The default value roughly fits human
+         RNA.
+
+  -t, --trans=PROB
+         Do spliced alignment, and set the average probability per
+         base of trans-splicing.
+
+  -M, --mean=MEAN
+         Do spliced alignment, and set the mean of ln(intron length).
+         The default value fits human RNA.
+
+  -S, --sdev=SDEV
+         Do spliced alignment, and set the standard deviation of
+         ln(intron length).  The default value fits human RNA.
+
+  -m, --mismap=PROB
+         Don't write alignments with mismap probability > PROB.
+         Low-confidence alignments will be discarded unless you
+         increase this value!
+
+  -s, --score=INT
+         Don't write alignments with score < INT.
+
+         For SPLIT alignment, the default value is e (the lastal score
+         threshold).  Alignments with score just above INT will get
+         high mismap probabilities.
+
+         For SPLICED alignment, the default value is e + t * ln(1000),
+         where t is a scale factor that is written in the lastal
+         header.  This roughly means that, for every alignment it
+         writes, it has considered alternative alignments with
+         one-thousandth the probability.  Alignments with score just
+         above INT will not necessarily get high mismap probabilities.
+
+  -n, --no-split
+         Do probability calculations as usual, but write the
+         *original* alignments, annotated with "p" lines and mismap
+         probabilities.  Note that the mismap and score limits still
+         apply.
+
+  -v, --verbose
+         Show progress information on the screen.
+
+  -V, --version
+         Show version information and exit.
+
+Details
+-------
+
+* The input must be in MAF format, and it must include header lines
+  (of the kind produced by lastal) describing the alignment score
+  parameters.
+
+* The program reads one batch of alignments at a time (by looking for
+  lines starting with "# batch").  If the batches are huge
+  (e.g. because there are no lines starting with "# batch"), it might
+  need too much memory.
+
+* lastal can optionally write "p" lines, indicating the probability
+  that each base is misaligned due to wrong gap placement.
+  last-split, on the other hand, writes "p" lines indicating the
+  probability that each base is aligned to the wrong genomic locus.
+  You can combine both sources of error (roughly) by taking the
+  maximum of the two error probabilities for each base.
+
+The following points matter only if you are doing something unusual
+(e.g. bisulfite alignment):
+
+* If the header has more than one score matrix, last-split will use
+  the first one.
+
+* It assumes this score matrix applies to all alignments, when the
+  alignments are oriented to use the forward strand of the query.
+
+Limitations
+-----------
+
+last-split does not support:
+
+* Generalized affine gap costs.
+
+To do
+-----
+
+* An option to specify splice signals and their strengths.

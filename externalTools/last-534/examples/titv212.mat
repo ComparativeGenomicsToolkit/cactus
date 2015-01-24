@@ -1,0 +1,18 @@
+# This matrix assigns a score of 2 to matches, -1 to transitions, and
+# -2 to transversions.  When used with a gap existence cost of 16 and
+# a gap extension cost of 1, it gives very sensitive and accurate
+# alignments of distantly-related protein-coding sequences (MC Frith
+# et al. 2010, BMC Bioinformatics).  The next line tells LAST to use
+# these gap costs:
+#last -a 16 -b 1
+# Let's also use a minimum alignment score of 90:
+#last -e 90
+# lastex suggests that 90 is not unreasonable for comparing mammalian
+# genomes.  In any case, you can override these parameters by setting
+# options when running LAST.  Finally, here is the matrix:
+
+   A  C  G  T
+A  2 -2 -1 -2
+C -2  2 -2 -1
+G -1 -2  2 -2
+T -2 -1 -2  2

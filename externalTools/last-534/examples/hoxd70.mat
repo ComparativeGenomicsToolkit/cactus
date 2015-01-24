@@ -1,0 +1,18 @@
+# This matrix was derived from aligned segments of human and mouse DNA
+# (F Chiaromonte, VB Yap, W Miller, PSB 2002:115-126).  It is the
+# default score matrix for BLASTZ v7, along with a gap existence cost
+# of 400 and a gap extension cost of 30.  The next line tells LAST to
+# use these gap costs:
+#last -a 400 -b 30
+# Let's also use a minimum alignment score of 4500:
+#last -e 4500
+# lastex suggests that 4500 is not unreasonable for comparing
+# mammalian genomes.  In any case, you can override these parameters
+# by setting options when running LAST.  Finally, here is the matrix:
+
+     A    C    G    T    N
+A   91 -114  -31 -123 -100
+C -114  100 -125  -31 -100
+G  -31 -125  100 -114 -100
+T -123  -31 -114   91 -100
+N -100 -100 -100 -100 -100

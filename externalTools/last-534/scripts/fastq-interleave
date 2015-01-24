@@ -1,0 +1,12 @@
+#! /bin/bash
+
+# Reads 2 fastq files, and writes them interleaved.
+# Assumes 1 fastq per 4 lines, i.e. no line wrapping.
+
+paste <(cat "$1" | paste - - - -) <(cat "$2" | paste - - - -) | tr '\t' '\n'
+
+# Is this better?
+#paste <(zcat -f "$1"|paste - - - -) <(zcat -f "$2"|paste - - - -)|tr '\t' '\n'
+
+# This does not interpret "-" as stdin:
+#paste <(paste - - - - < "$1") <(paste - - - - < "$2") | tr '\t' '\n'

@@ -1,0 +1,74 @@
+Aligning bisulfite-converted DNA reads to a genome
+==================================================
+
+Bisulfite is used to detect methylated cytosines.  It converts
+unmethylated Cs to Ts, but it leaves methylated Cs intact.  If we then
+sequence the DNA and align it to a reference genome, we can infer
+cytosine methylation.
+
+To align the DNA accurately, we should take the C->T conversion into
+account.  Here is how to do it with LAST.
+
+Let's assume we have bisulfite-converted DNA reads in a file called
+"reads.fastq" (in fastq-sanger format), and the genome is in
+"mygenome.fa" (in fasta format).  We will also assume that all the
+reads are from the converted strand, and not its reverse-complement
+(i.e. they have C->T conversions and not G->A conversions).
+
+First, we need to run lastdb twice, for forward-strand and
+reverse-strand alignments::
+
+  lastdb -uBISF my_f mygenome.fa
+  lastdb -uBISR my_r mygenome.fa
+
+Then, there are several steps:
+
+1. Convert all Cs in the reads to Ts.  (Debatable: this slightly
+   degrades LAST's ability to align the reads, but it avoids a bias,
+   due to unconverted DNA being easier to align than converted DNA.)
+
+2. Align the reads, one strand at a time.
+
+3. Merge the alignments, and find a unique best alignment for each
+   part of each read.
+
+4. Undo the conversion from step 1.
+
+The last-bisulfite script (in the examples directory) carries out
+steps 1-4.  Its usage is::
+
+  last-bisulfite.sh my_f my_r reads.fastq > results.maf
+
+You can parallelize it like this::
+
+  parallel-fastq "last-bisulfite.sh my_f my_r" < reads.fastq > results.maf
+
+Tips
+----
+
+* To go faster, try gapless alignment (add -j1 to the lastal options).
+  Often, this is only minusculely less accurate than gapped alignment.
+
+* The .tis files created by lastdb (e.g. my_f.tis, my_r.tis) are
+  identical.  So you can shave a few GB by linking them::
+
+    ln -f my_f.tis my_r.tis
+
+Paired-end DNA reads
+--------------------
+
+You can align paired-end reads by combining the preceding recipe with
+the one in `<last-pair-probs.html>`_.  This gets a bit complicated, so
+we provide a last-bisulfite-paired script in the examples directory.
+Typical usage::
+
+  lastdb -uBISF my_f mygenome.fa
+  lastdb -uBISR my_r mygenome.fa
+
+  last-bisulfite-paired.sh my_f my_r reads1.fastq reads2.fastq > results.maf
+
+This assumes that reads1.fastq are all from the converted strand
+(i.e. they have C->T conversions) and reads2.fastq are all from the
+reverse-complement (i.e. they have G->A conversions).  It requires GNU
+parallel to be installed.  You are encouraged to customize this
+script.
