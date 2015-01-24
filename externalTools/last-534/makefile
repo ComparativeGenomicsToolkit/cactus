@@ -2,9 +2,9 @@ CXXFLAGS = -O3
 all:
 	@cd src && $(MAKE) CXXFLAGS="$(CXXFLAGS)"
 
-prefix = ../../../bin
+prefix = ../../bin
 exec_prefix = $(prefix)
-bindir = $(exec_prefix)/bin
+bindir = $(exec_prefix)/last-534
 install: all
 	mkdir -p $(bindir)
 	cp src/last?? src/last-split src/last-merge-batches src/last-pair-probs scripts/* $(bindir)
