@@ -5,7 +5,7 @@ all:
 	cd lastz-distrib-1.03.54 && make install
 	mv ${binPath}/lastz ${binPath}/cactus_lastz
 	mv ${binPath}/lastz_D ${binPath}/cactus_lastz_D
-	cd ../last-543 && make install
+	cd ../last-534 && make install
 	
 
 
