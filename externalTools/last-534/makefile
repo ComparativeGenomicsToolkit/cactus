@@ -4,7 +4,7 @@ all:
 
 prefix = ../../bin
 exec_prefix = $(prefix)
-bindir = $(exec_prefix)/last-534
+bindir = $(exec_prefix)
 install: all
 	mkdir -p $(bindir)
 	cp src/last?? src/last-split src/last-merge-batches src/last-pair-probs scripts/* $(bindir)

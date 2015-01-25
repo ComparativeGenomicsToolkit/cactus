@@ -6,8 +6,8 @@ all:
 	mv ${binPath}/lastz ${binPath}/cactus_lastz
 	mv ${binPath}/lastz_D ${binPath}/cactus_lastz_D
 	cd last-534 && make install
-	mv ${binPath}/last-534/lastdb ${binPath}/cactus_lastdb
-	mv ${binPath}/last-534/lastal ${binPath}/cactus_lastal
+	mv ${binPath}/lastdb ${binPath}/cactus_lastdb
+	mv ${binPath}/lastal ${binPath}/cactus_lastal
 	
 
 
