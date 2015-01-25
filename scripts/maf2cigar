@@ -1,0 +1,105 @@
+#!/usr/bin/env python
+#Alden Deran, 2015
+
+#convert pairwise maf files to CIGAR format to emulate 
+#output of lastz with --format=cigar
+import argparse, sys
+
+
+def get_cigar_mode(char1, char2):
+	#char1 - character from target
+	#char2 - corresponding character in query
+	
+	if char1 == "-":
+		return "I"
+	if char2 == "-":
+		return "D"
+	return "M"
+	
+def get_cigarstring(seq1, seq2):
+	#seq1 - target seuence
+	#seq2 - query sequence
+	assert(len(seq1) == len(seq2))
+	cigarstring = ""
+	index = 0
+	counter = 1
+	mode = get_cigar_mode(seq1[index], seq2[index])
+	for index in range(1, len(seq1)):
+		newmode = get_cigar_mode(seq1[index], seq2[index])
+		if newmode != mode:
+			cigarstring += mode + " " + str(counter) + " "
+			counter = 0
+			mode = newmode
+		counter += 1
+	cigarstring += mode + " " + str(counter) + " "
+	return cigarstring.rstrip()
+		 
+class MAF_Block:
+	def __init__(self, score, alignments):
+		self.score = score
+		self.alignments = alignments
+		
+		#cigar is a pairwise alignment format
+		#but maf allows multiple-alignments
+		assert(len(alignments) == 2)
+		
+		
+	def write_cigar(self):
+		cigar = "cigar: "
+		targetstart = str(self.alignments[0].start)
+		targetstop = str(self.alignments[0].start + self.alignments[0].size)
+		querystart = str(self.alignments[1].start)
+		querystop = str(self.alignments[1].start + self.alignments[1].size)
+		targetname = self.alignments[0].name
+		queryname = self.alignments[1].name
+		targetstrand = self.alignments[0].strand
+		querystrand = self.alignments[1].strand
+		cigar += queryname + " " + querystart + " " + querystop + " " + querystrand + " " + targetname + " " + targetstart + " " + targetstop + " " + targetstrand + " "
+		cigar += str(self.score) + " "
+		cigar += get_cigarstring(self.alignments[0].seq, self.alignments[1].seq)
+		print(cigar)
+		
+		  
+class MAF_Alignment:
+	def __init__(self, name, start, size, strand, seq_length, seq):
+		self.name = name
+		self.start = int(start)
+		self.size = int(size)
+		self.strand = strand
+		self.seq_length = int(seq_length)
+		self.seq = seq
+def parse_maf(scoreline, targetline, queryline):
+	assert(scoreline[0] == 'a')
+	assert(targetline[0] == 's')
+	assert(queryline[0] == 's')
+	
+	score_line_parts = scoreline.split()
+	score_parts = score_line_parts[1].split("=")
+	assert(score_parts[0] == "score")
+	score = score_parts[1]
+	
+	firstchar, name, start, size, strand, seq_length, seq = targetline.split()
+	targetMAF = MAF_Alignment(name, start, size, strand, seq_length, seq)
+	firstchar, name, start, size, strand, seq_length, seq = queryline.split()
+	queryMAF = MAF_Alignment(name, start, size, strand, seq_length, seq)
+	return MAF_Block(score, [targetMAF, queryMAF])
+	 
+def main():
+	scoreline, targetline, queryline = None, None, None
+	for line in sys.stdin:
+		line = line.rstrip()
+		if line == "": continue
+		if line[0] == "#": continue
+		if line[0] == "a": scoreline = line
+		elif line[0] == "s" and not targetline: targetline = line
+		elif line[0] == "s" and targetline and not queryline: queryline = line
+		if scoreline and targetline and queryline: 
+			mafblock = parse_maf(scoreline, targetline, queryline)
+			mafblock.write_cigar()
+			scoreline, targetline, queryline = None, None, None
+		
+		
+	
+
+if __name__ == "__main__":
+	main()
