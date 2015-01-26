@@ -17,6 +17,6 @@ int bedRegion_cmp(const bedRegion *region1, const bedRegion *region2);
 // Find any regions covered by outgroups that are in segments with no
 // block, and "rescue" them into single-degree blocks.
 void rescueCoveredRegions(stPinchThread *thread, bedRegion *beds, size_t numBeds,
-                          Name name, int64_t windowLength, double windowThreshold);
+                          Name name, int64_t minSegmentLength, double coveredBasesThreshold);
 
 #endif // RESCUE_H_
