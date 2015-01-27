@@ -46,18 +46,28 @@ class MAF_Block:
 		
 	def write_cigar(self):
 		cigar = "cigar: "
-		targetstart = str(self.alignments[0].start)
-		targetstop = str(self.alignments[0].start + self.alignments[0].size)
-		querystart = str(self.alignments[1].start)
-		querystop = str(self.alignments[1].start + self.alignments[1].size)
-		targetname = self.alignments[0].name
-		queryname = self.alignments[1].name
+		targetlength = self.alignments[0].seq_length
+		querylength = self.alignments[1].seq_length
 		targetstrand = self.alignments[0].strand
 		querystrand = self.alignments[1].strand
-		cigar += queryname + " " + querystart + " " + querystop + " " + querystrand + " " + targetname + " " + targetstart + " " + targetstop + " " + targetstrand + " "
+		targetstart = self.alignments[0].start
+		targetstop = self.alignments[0].start + self.alignments[0].size
+		querystart = self.alignments[1].start
+		querystop = self.alignments[1].start + self.alignments[1].size
+		if targetstrand == "-":
+			targetstart = targetlength - targetstart
+			targetstop = targetlength - targetstop
+		if querystrand == "-":
+			querystart = querylength - querystart
+			querystop = querylength - querystop
+		
+		targetname = self.alignments[0].name
+		queryname = self.alignments[1].name
+		
+		cigar += str(queryname) + " " + str(querystart) + " " + str(querystop) + " " + querystrand + " " + targetname + " " + str(targetstart) + " " + str(targetstop) + " " + targetstrand + " "
 		cigar += str(self.score) + " "
 		cigar += get_cigarstring(self.alignments[0].seq, self.alignments[1].seq)
-		print(cigar)
+		print cigar
 		
 		  
 class MAF_Alignment:
@@ -102,4 +112,4 @@ def main():
 	
 
 if __name__ == "__main__":
-	main()
+	sys.exit(main())
