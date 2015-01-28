@@ -89,26 +89,6 @@ static bedRegion *seekToProperBedRegion(bedRegion *beds, size_t numBeds,
     return pivotRegion;
 }
 
-// Searches forward linearly for the next bedRegion instead of doing a
-// binary search. Has better cache behavior than seekToProperBedRegion
-// once we are in the right area of the bed mmap.
-static bedRegion *fastForwardToProperBedRegion(bedRegion *beds,
-                                               size_t numBeds,
-                                               bedRegion *begin,
-                                               int64_t start,
-                                               Name name) {
-    bedRegion *curRegion = begin;
-    bedRegion *end = beds + numBeds;
-    while (curRegion != end && (bedRegion_stop(curRegion) <= start || bedRegion_name(curRegion) < name)) {
-        curRegion++;
-    }
-
-    if (curRegion == end) {
-        return NULL;
-    }
-    return curRegion;
-}
-
 // Find any regions in this thread covered by outgroups that are in
 // segments with no block, and "rescue" them into single-degree blocks
 // if they pass the filter (i.e. are longer than minSegmentLength, and
