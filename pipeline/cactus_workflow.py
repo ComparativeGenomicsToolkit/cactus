@@ -835,7 +835,7 @@ class CactusReferenceWrapper(CactusRecursionTarget):
     """Actually run the reference code.
     """
     def run(self):
-        runCactusReference(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
+        for message in runCactusReference(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                        flowerNames=self.flowerNames, 
                        matchingAlgorithm=self.getOptionalPhaseAttrib("matchingAlgorithm"), 
                        permutations=self.getOptionalPhaseAttrib("permutations", int),
@@ -847,7 +847,8 @@ class CactusReferenceWrapper(CactusRecursionTarget):
                        wiggle=self.getOptionalPhaseAttrib("wiggle", float),
                        numberOfNs=self.getOptionalPhaseAttrib("numberOfNs", int),
                        minNumberOfSequencesToSupportAdjacency=self.getOptionalPhaseAttrib("minNumberOfSequencesToSupportAdjacency", int),
-                       makeScaffolds=self.getOptionalPhaseAttrib("makeScaffolds", bool))
+                       makeScaffolds=self.getOptionalPhaseAttrib("makeScaffolds", bool)):
+            self.logToMaster(message)
 
 class CactusReferenceRecursion2(CactusRecursionTarget):
     def run(self):

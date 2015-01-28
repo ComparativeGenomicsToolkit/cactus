@@ -402,7 +402,9 @@ def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
     command = "cactus_reference --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
     (cactusDiskDatabaseString, logLevel, matchingAlgorithm, referenceEventString, permutations, 
      useSimulatedAnnealing, theta, phi, maxWalkForCalculatingZ, ignoreUnalignedGaps, wiggle, numberOfNs, minNumberOfSequencesToSupportAdjacency, makeScaffolds)
-    popenPush(command, stdinString=flowerNames)
+    masterMessages = popenCatch(command, stdinString=flowerNames)
+    logger.info("Ran cactus_reference okay")
+    return [ i for i in masterMessages.split("\n") if i != '' ]
     
 def runCactusAddReferenceCoordinates(cactusDiskDatabaseString, flowerNames, logLevel=None, referenceEventString=None, outgroupEventString=None, secondaryDatabaseString=None, bottomUpPhase=None):   
     logLevel = getLogLevelString2(logLevel)

@@ -216,6 +216,7 @@ static void getEventWeightingP(Event *pEvent, Event *event,
         Event *nEvent = event_getChild(event, i);
         assert(stHash_search(branchesToMultiplicity, nEvent) != NULL);
         int64_t multiplicity = stIntTuple_get(stHash_search(branchesToMultiplicity, nEvent), 0);
+
         if(nEvent != pEvent && multiplicity > 0) { //Don't go backwards towards the reference event and don't traverse paths not leading to interesting events
             getEventWeightingP(event, nEvent,
                     pathLength + event_getBranchLength(nEvent),
@@ -228,8 +229,8 @@ static void getEventWeightingP(Event *pEvent, Event *event,
         int64_t multiplicity = stIntTuple_get(stHash_search(branchesToMultiplicity, nEvent), 0);
         if(multiplicity > 0) {
             getEventWeightingP(event, nEvent,
-                    pathLength + event_getBranchLength(nEvent),
-                    pathLength + event_getBranchLength(nEvent)/multiplicity,
+                    pathLength + event_getBranchLength(event),
+                    pathLength + event_getBranchLength(event)/multiplicity,
                     branchesToMultiplicity, eventToWeights, phi, chosenEvents);
         }
     }
@@ -240,6 +241,7 @@ static void getEventWeightingP(Event *pEvent, Event *event,
         double score = exp(-phi * pathLength) * adjustedPathLength/pathLength;
         assert(score <= 1.0);
         assert(score >= 0.0);
+//        fprintf(stdout, "Chose weight %lf for event %s (multiplicity %" PRIi64 "). Adj path length %lf, path length %lf.\n", score, event_getHeader(event), stIntTuple_get(stHash_search(branchesToMultiplicity, event), 0), adjustedPathLength, pathLength);
         stHash_insert(eventToWeights, event, stDoubleTuple_construct(1, score));
     }
 }
