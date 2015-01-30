@@ -191,7 +191,9 @@ static int64_t getBranchMultiplicitiesP(Event *pEvent, Event *event,
     if(stSet_search(chosenEvents, event) != NULL) {
         multiplicity++;
     }
-    stHash_insert(branchesToMultiplicity, event, stIntTuple_construct1(multiplicity));
+    if(pEvent != NULL) {
+        stHash_insert(branchesToMultiplicity, event, stIntTuple_construct1(multiplicity));
+    }
     return multiplicity;
 }
 
@@ -202,7 +204,7 @@ stHash *getBranchMultiplicities(Event *referenceEvent, stSet *chosenEvents) {
      */
     stHash *branchesToMultiplicity = stHash_construct2(NULL, (void (*)(void *))stIntTuple_destruct);
     getBranchMultiplicitiesP(NULL, referenceEvent, branchesToMultiplicity, chosenEvents);
-    assert(stHash_size(branchesToMultiplicity) == eventTree_getEventNumber(event_getEventTree(referenceEvent)));
+    assert(stHash_size(branchesToMultiplicity) == eventTree_getEventNumber(event_getEventTree(referenceEvent))-1); //Excludes the reference event.
     return branchesToMultiplicity;
 }
 
@@ -220,7 +222,8 @@ static void getEventWeightingP(Event *pEvent, Event *event,
         if(nEvent != pEvent && multiplicity > 0) { //Don't go backwards towards the reference event and don't traverse paths not leading to interesting events
             getEventWeightingP(event, nEvent,
                     pathLength + event_getBranchLength(nEvent),
-                    pathLength + event_getBranchLength(nEvent)/multiplicity, branchesToMultiplicity, eventToWeights, phi, chosenEvents);
+                    adjustedPathLength + event_getBranchLength(nEvent)/multiplicity,
+                    branchesToMultiplicity, eventToWeights, phi, chosenEvents);
         }
     }
     Event *nEvent;
@@ -230,7 +233,7 @@ static void getEventWeightingP(Event *pEvent, Event *event,
         if(multiplicity > 0) {
             getEventWeightingP(event, nEvent,
                     pathLength + event_getBranchLength(event),
-                    pathLength + event_getBranchLength(event)/multiplicity,
+                    adjustedPathLength + event_getBranchLength(event)/multiplicity,
                     branchesToMultiplicity, eventToWeights, phi, chosenEvents);
         }
     }
@@ -251,9 +254,9 @@ static stHash *getEventWeighting(Event *referenceEvent, double phi, stSet *chose
      * Weights events by how informative they are for inferring the reference event.
      * Accounts for both distance and the sharing of branches. Returns a hash of chosen events to weights.
      *
-     * Let R be the chosen reference event and A a chosen event. Let b_1, b_2, ..., b_n be the branches on
-     * the simple path from R to A. Let d(b_i) be the length of the branch b_i and s(b_i) the number of simple paths from R to a chosen
-     * event that pass through b_i, termed multiplicity.
+     * Let R be the chosen reference event, S the set of chosen event events and A a member of S. Let b_1, b_2, ..., b_n be the branches on
+     * the simple path from R to A. Let d(b_i) be the length of the branch b_i and s(b_i) the number of simple paths from R to a member of S
+     * that pass through b_i, termed multiplicity.
      *
      * The independence weight a_{R,A} is \sum_{i} d(b_i)/s(b_i) / \sum_{i} d(b_i).
      *
@@ -986,7 +989,8 @@ stList *getReferenceIntervalsToPreserve(reference *ref, refAdjList *dAL, int64_t
 ////////////////////////////////////
 
 void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int64_t permutations,
-        stList *(*matchingAlgorithm)(stList *edges, int64_t nodeNumber), double (*temperature)(double), double theta, double phi, int64_t maxWalkForCalculatingZ,
+        stList *(*matchingAlgorithm)(stList *edges, int64_t nodeNumber), double (*temperature)(double),
+        double theta, double phi, int64_t maxWalkForCalculatingZ,
         bool ignoreUnalignedGaps, double wiggle, int64_t numberOfNsForScaffoldGap, int64_t minNumberOfSequencesToSupportAdjacency, bool makeScaffolds) {
     /*
      * Implements a greedy algorithm and greedy update sampler to find a solution to the adjacency problem for a net.
