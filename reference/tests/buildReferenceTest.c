@@ -55,8 +55,6 @@ static void testEventWeighting(CuTest *testCase) {
     stSet_insert(chosenEvents,
                  eventTree_getEventByHeader(eventTree, "simDog_chr6"));
 
-    printf("%s\n", eventTree_makeNewickString(eventTree));
-
     double phi = st_random();
     stHash *weights = getEventWeighting(referenceEvent, phi, chosenEvents);
 
@@ -77,11 +75,10 @@ static void testEventWeighting(CuTest *testCase) {
 
     event = eventTree_getEventByHeader(eventTree, "simCow_chr6");
     // True path length: 0.2426, adjusted path length: 0.0206/2 + 0.0329/2 + 0.1891 = 0.21585
-    // Need to clean up the cactus disk here in case the tests fail.
-    testCommon_deleteTemporaryCactusDisk(cactusDisk);
     trueScore = exp(-phi * 0.2426) * 0.21585/0.2426;
     CuAssertDblEquals(testCase, trueScore, stDoubleTuple_getPosition(stHash_search(weights, event), 0), 0.001);
 
+    testCommon_deleteTemporaryCactusDisk(cactusDisk);
     stHash_destruct(weights);
     stSet_destruct(chosenEvents);
 }
