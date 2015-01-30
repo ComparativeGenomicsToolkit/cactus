@@ -36,5 +36,11 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
 
 double *calculateZ(Flower *flower, stHash *endsToNodes, double theta);
 
-
+/*
+ * Weights events by how informative they are for inferring the
+ * reference event. Accounts for both distance and the sharing of
+ * branches. Returns a hash of chosen events to weights.
+ */
+stHash *getEventWeighting(Event *referenceEvent, double phi,
+                          stSet *chosenEvents);
 #endif /* REFERENCE_H_ */
