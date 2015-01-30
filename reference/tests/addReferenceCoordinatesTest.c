@@ -124,9 +124,41 @@ static void testMLStringRandom(CuTest *testCase) {
         testCommon_deleteTemporaryCactusDisk(cactusDisk);
     }
 }
+
+static void testMLStringMakesScaffoldGaps(CuTest *testCase) {
+    /*
+     * Simply test that scaffold gaps created where the reference does
+     * not have direct sequence support for an adjacency are called as Ns in
+     * the ML base-calling code. We assume that all blocks that are degree-1,
+     * i.e. that contain *only* a reference segment, are scaffold gaps.
+     */
+    for (int64_t testNum = 0; testNum < 100; testNum++) {
+        CactusDisk *cactusDisk = testCommon_getTemporaryCactusDisk();
+        Flower *flower = flower_construct(cactusDisk);
+        Block *block = block_construct(st_randomInt64(1, 500), flower);
+        Event *refEvent = eventTree_getRootEvent(flower_getEventTree(flower));
+        // Add in the reference segment.
+        segment_construct(block, refEvent);
+        stTree *tree = getPhylogeneticTreeRootedAtGivenEvent(refEvent, generateJukesCantorMatrix);
+
+        // Check that we call a string composed only of Ns.
+        char *mlString = getMaximumLikelihoodString(tree, block);
+        CuAssertIntEquals(testCase, strlen(mlString), block_getLength(block));
+        for (int64_t i = 0; i < block_getLength(block); i++) {
+            CuAssertTrue(testCase, toupper(mlString[i]) == 'N');
+        }
+
+        //Cleanup
+        free(mlString);
+        cleanupPhylogeneticTree(tree);
+        testCommon_deleteTemporaryCactusDisk(cactusDisk);
+    }
+}
+
 CuSuite* addReferenceCoordinatesTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, testMLStringRandom);
+    SUITE_ADD_TEST(suite, testMLStringMakesScaffoldGaps);
 
     return suite;
 }

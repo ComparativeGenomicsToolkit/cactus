@@ -310,13 +310,25 @@ char *getMaximumLikelihoodString(stTree *tree, Block *block) {
     /*
      * Computes a maximum likelihood (ML) string for a given block.
      */
-    stHash *eventsToStrings = hashEventsToSegmentStrings(block);
-    double *baseProbs = computeBaseProbs(tree, eventsToStrings, block_getLength(block));
-    char *mlString = getMaxLikelihoodString(baseProbs, block_getLength(block));
+    char *mlString;
+    if (block_getInstanceNumber(block) == 1
+        && segment_getEvent(block_getFirst(block)) == getEvent(tree)) {
+        // This block contains only one segment: the reference
+        // segment. This is intended to be a "scaffold gap" of sorts
+        // indicating that there is no direct support for the chosen
+        // adjacency.
+        mlString = malloc((block_getLength(block) + 1) * sizeof(char));
+        memset(mlString, 'N', block_getLength(block));
+        mlString[block_getLength(block)] = '\0';
+    } else {
+        stHash *eventsToStrings = hashEventsToSegmentStrings(block);
+        double *baseProbs = computeBaseProbs(tree, eventsToStrings, block_getLength(block));
+        mlString = getMaxLikelihoodString(baseProbs, block_getLength(block));
+        //Cleanup
+        free(baseProbs);
+        stHash_destruct(eventsToStrings);
+    }
     maskAncestralRepeatBases(block, mlString);
-    //Cleanup
-    free(baseProbs);
-    stHash_destruct(eventsToStrings);
     return mlString;
 }
 
