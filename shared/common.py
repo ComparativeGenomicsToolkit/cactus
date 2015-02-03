@@ -198,7 +198,7 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
                   minimumOutgroupDegree=None,
                   singleCopyIngroup=None,
                   singleCopyOutgroup=None,
-                  lastzArguments=None,
+                  lastArguments=None,
                   minimumSequenceLengthForBlast=None,
                   maxAdjacencyComponentSizeRatio=None,
                   constraints=None,
@@ -212,7 +212,7 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
     deannealingRounds = nameValue("deannealingRounds", deannealingRounds, quotes=True)
     trim = nameValue("trim", trim, quotes=True)
     alignments = nameValue("alignments", alignments)
-    lastzArguments = nameValue("lastzArguments", lastzArguments, quotes=True)
+    lastArguments = nameValue("lastArguments", lastArguments, quotes=True)
     minimumTreeCoverage = nameValue("minimumTreeCoverage", minimumTreeCoverage, float)
     blockTrim = nameValue("blockTrim", blockTrim, int)
     minimumBlockDegree = nameValue("minimumDegree", minimumBlockDegree, int)
@@ -234,7 +234,7 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
     (cactusDiskDatabaseString, logLevel, alignments, annealingRounds, deannealingRounds, 
      trim, minimumTreeCoverage, blockTrim, 
      minimumBlockDegree, minimumIngroupDegree, minimumOutgroupDegree,  
-     singleCopyIngroup, singleCopyOutgroup, lastzArguments, minimumSequenceLengthForBlast, maxAdjacencyComponentSizeRatio, constraints,
+     singleCopyIngroup, singleCopyOutgroup, lastArguments, minimumSequenceLengthForBlast, maxAdjacencyComponentSizeRatio, constraints,
      minLengthForChromosome, proportionOfUnalignedBasesForNewChromosome, maximumMedianSequenceLengthBetweenLinkedEnds, realign, realignArguments)
     masterMessages = popenCatch(command, stdinString=flowerNames)
     logger.info("Ran cactus_core okay")

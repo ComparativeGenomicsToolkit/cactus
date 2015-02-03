@@ -1,5 +1,5 @@
 /*
- * lastzAlignments.c
+ * lastAlignments.c
  *
  *  Created on: 30 Jan 2012
  *      Author: benedictpaten
@@ -13,7 +13,7 @@
 #include "pairwiseAlignment.h"
 #include "blastAlignmentLib.h"
 
-stList *stCaf_selfAlignFlower(Flower *flower, int64_t minimumSequenceLength, const char *lastzArgs,
+stList *stCaf_selfAlignFlower(Flower *flower, int64_t minimumSequenceLength, const char *lastArgs,
         bool realign, const char *realignArgs,
         char *tempFile1) {
     /*
@@ -23,31 +23,20 @@ stList *stCaf_selfAlignFlower(Flower *flower, int64_t minimumSequenceLength, con
     //char *tempFile1 = getTempFile();
     if (writeFlowerSequencesInFile(flower, tempFile1, minimumSequenceLength) > 0) {
         /*
-         * Run lastz.
+         * Run LAST
          */
         char *command = NULL;
         if(realign) {
-			//switch to LAST
 			command = stString_print("cactus_lastdb temp %s && cactus_lastal temp %s | maf2cigar | cactus_realign %s %s", 
 				tempFile1, tempFile1, realignArgs, tempFile1);
-			
-            //command = stString_print(
-              //                  "cactus_lastz --format=cigar %s %s[multiple][nameparse=darkspace] %s[nameparse=darkspace] --notrivial | cactus_realign %s %s",
-               //                 lastzArguments, tempFile1, tempFile1, realignArgs, tempFile1);
         }
         else {
 			command = stString_print(
 				"cactus_lastdb temp %s && cactus_lastal temp %s | maf2cigar", tempFile1, tempFile1);
-            //command = stString_print(
-                    //"cactus_lastz --format=cigar %s %s[multiple][nameparse=darkspace] %s[nameparse=darkspace] --notrivial",
-                    //lastzArgs, tempFile1, tempFile1);
         }
-        //char *command = stString_print(
-        //        "cactus_lastz --format=cigar %s %s[multiple][nameparse=darkspace] --self",
-        //        lastzArgs, tempFile1);
         FILE *fileHandle = popen(command, "r");
         if (fileHandle == NULL) {
-            st_errAbort("Problems with lastz pipe");
+            st_errAbort("Problems with LAST pipe");
         }
 
         /*
@@ -61,7 +50,7 @@ stList *stCaf_selfAlignFlower(Flower *flower, int64_t minimumSequenceLength, con
         }
         int i = pclose(fileHandle);
         if(i != 0) {
-            st_errAbort("Lastz failed: %s\n", command);
+            st_errAbort("LAST failed: %s\n", command);
         }
         free(command);
     }

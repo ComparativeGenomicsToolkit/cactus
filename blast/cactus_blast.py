@@ -22,7 +22,7 @@ from jobTree.scriptTree.stack import Stack
 
 class BlastOptions:
     def __init__(self, chunkSize=10000000, overlapSize=10000, 
-                 lastzArguments="", lastArguments = "", compressFiles=True, realign=False, realignArguments="",
+                 lastArguments="", compressFiles=True, realign=False, realignArguments="",
                  minimumSequenceLength=1, memory=sys.maxint,
                  # Trim options for trimming ingroup seqs:
                  trimFlanking=10, trimMinSize=20,
@@ -48,16 +48,7 @@ class BlastOptions:
         	self.selfBlastString = "cactus_lastdb %s temp SEQ_FILE && cactus_lastal temp SEQ_FILE | maf2cigar | cactus_realign %s SEQ_FILE > CIGARS_FILE" % (lastArguments, realignArguments)
         else:
 			self.selfBlastString = "cactus_lastdb %s temp SEQ_FILE && cactus_lastal temp SEQ_FILE | maf2cigar > CIGARS_FILE" % lastArguments
-
-        #if realign:
-        #    self.blastString = "cactus_lastz --format=cigar %s SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] | cactus_realign %s SEQ_FILE_1 SEQ_FILE_2 > CIGARS_FILE"  % (lastzArguments, realignArguments) 
-        #else:
-        #    self.blastString = "cactus_lastz --format=cigar %s SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"  % lastzArguments 
-        #if realign:
-        #    self.selfBlastString = "cactus_lastz --format=cigar %s SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial | cactus_realign %s SEQ_FILE > CIGARS_FILE" % (lastzArguments, realignArguments)
-        #else:
-        #    self.selfBlastString = "cactus_lastz --format=cigar %s SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial > CIGARS_FILE" % lastzArguments
-        
+ 
         self.compressFiles = compressFiles
         self.minimumSequenceLength = 10
         self.memory = memory
@@ -397,7 +388,6 @@ class RunBlast(Target):
             self.seqFile2 = decompressFastaFile(self.seqFile2 + ".bz2", os.path.join(self.getLocalTempDir(), "2.fa"))
         tempResultsFile = os.path.join(self.getLocalTempDir(), "tempResults.cig")
         command = self.blastOptions.blastString.replace("CIGARS_FILE", tempResultsFile).replace("SEQ_FILE_1", self.seqFile1).replace("SEQ_FILE_2", self.seqFile2)
-		#print >> sys.stderr, "Running blast"
         system(command)
         system("cactus_blast_convertCoordinates %s %s %i" % (tempResultsFile, self.resultsFile, self.blastOptions.roundsOfCoordinateConversion))
         logger.info("Ran the blast okay")

@@ -14,7 +14,7 @@
 #include "stCaf.h"
 #include "stPinchGraphs.h"
 #include "stPinchIterator.h"
-#include "stLastzAlignments.h"
+#include "stLastAlignments.h"
 #include "stGiantComponent.h"
 
 static void usage() {
@@ -22,7 +22,7 @@ static void usage() {
     fprintf(stderr, "-a --logLevel : Set the log level\n");
     fprintf(stderr, "-b --alignments : The input alignments file\n");
     fprintf(stderr, "-c --cactusDisk : The location of the flower disk directory\n");
-    fprintf(stderr, "-d --lastzArguments : Lastz arguments\n");
+    fprintf(stderr, "-d --lastArguments : LAST arguments\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 
     fprintf(stderr, "-i --annealingRounds (array of ints, each greater than or equal to 1) : The rounds of annealing\n");
@@ -67,7 +67,7 @@ static void usage() {
     fprintf(
                 stderr,
                 "-A --maximumMedianSequenceLengthBetweenLinkedEnds : Maximum nedian length of sequences between linked ends to allow before breaking chains.\n");
-    fprintf(stderr, "-B --realign : Realign the lastz hits.\n");
+    fprintf(stderr, "-B --realign : Realign the LAST hits.\n");
     fprintf(stderr, "-C --realignArguments : Arguments for realignment.\n");
 }
 
@@ -206,7 +206,7 @@ int main(int argc, char *argv[]) {
     char * alignmentsFile = NULL;
     char * constraintsFile = NULL;
     char * cactusDiskDatabaseString = NULL;
-    char * lastzArguments = "";
+    char * lastArguments = "";
     int64_t minimumSequenceLengthForBlast = 1;
 
     //Parameters for annealing/melting rounds
@@ -237,7 +237,7 @@ int main(int argc, char *argv[]) {
 
     while (1) {
         static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "alignments", required_argument, 0, 'b' }, {
-                "cactusDisk", required_argument, 0, 'c' }, { "lastzArguments", required_argument, 0, 'd' },
+                "cactusDisk", required_argument, 0, 'c' }, { "lastArguments", required_argument, 0, 'd' },
                 { "help", no_argument, 0, 'h' }, { "annealingRounds", required_argument, 0, 'i' }, { "trim", required_argument, 0, 'k' }, {
                         "trimChange", required_argument, 0, 'l', }, { "minimumTreeCoverage", required_argument, 0, 'm' }, { "blockTrim",
                         required_argument, 0, 'n' }, { "deannealingRounds", required_argument, 0, 'o' }, { "minimumDegree",
@@ -271,7 +271,7 @@ int main(int argc, char *argv[]) {
                 cactusDiskDatabaseString = stString_copy(optarg);
                 break;
             case 'd':
-                lastzArguments = stString_copy(optarg);
+                lastArguments = stString_copy(optarg);
                 break;
             case 'h':
                 usage();
@@ -461,11 +461,11 @@ int main(int argc, char *argv[]) {
                 if (tempFile1 == NULL) {
                     tempFile1 = getTempFile();
                 }
-                alignmentsList = stCaf_selfAlignFlower(flower, minimumSequenceLengthForBlast, lastzArguments, realign, realignArguments, tempFile1);
+                alignmentsList = stCaf_selfAlignFlower(flower, minimumSequenceLengthForBlast, lastArguments, realign, realignArguments, tempFile1);
                 if (sortAlignments) {
                     stCaf_sortCigarsByScoreInDescendingOrder(alignmentsList);
                 }
-                st_logDebug("Ran lastz and have %" PRIi64 " alignments\n", stList_length(alignmentsList));
+                st_logDebug("Ran LAST and have %" PRIi64 " alignments\n", stList_length(alignmentsList));
                 pinchIterator = stPinchIterator_constructFromList(alignmentsList);
             }
 
@@ -564,8 +564,8 @@ int main(int argc, char *argv[]) {
     if (logLevelString != NULL) {
         free(logLevelString);
     }
-    if (lastzArguments != NULL) {
-        free(lastzArguments);
+    if (lastArguments != NULL) {
+        free(lastArguments);
     }
     st_logInfo("Cleaned stuff up and am finished in: %" PRIi64 " seconds\n", time(NULL) - startTime);
 

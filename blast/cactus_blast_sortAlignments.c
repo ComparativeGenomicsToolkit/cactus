@@ -5,7 +5,7 @@
  */
 
 #include "sonLib.h"
-#include "stLastzAlignments.h"
+#include "stLastAlignments.h"
 
 int main(int argc, char *argv[]) {
 	/*
