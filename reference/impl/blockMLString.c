@@ -256,8 +256,10 @@ void maskAncestralRepeatBases(Block *block, char *mlString) {
     //Iterate through the sequences of the segments of a block and collate the number of upper case bases.
     Block_InstanceIterator *segmentIt = block_getInstanceIterator(block);
     Segment *segment;
+    size_t numSegmentsWithSequence = 0;
     while ((segment = block_getNext(segmentIt)) != NULL) {
         if (segment_getSequence(segment) != NULL) {
+            numSegmentsWithSequence++;
             char *string = segment_getString(segment);
             for (int64_t i = 0; i < block_getLength(block); i++) {
                 char uC = toupper(string[i]);
@@ -272,10 +274,10 @@ void maskAncestralRepeatBases(Block *block, char *mlString) {
     //Convert any upper case character to lower case if the majority of bases
     //from which it is derived are not upper case.
     for (int64_t i = 0; i < block_getLength(block); i++) {
-        if (nCounts[i] == block_getInstanceNumber(block)) {
+        if (nCounts[i] == numSegmentsWithSequence) {
             mlString[i] = 'N';
         }
-        if (upperCounts[i] <= block_getInstanceNumber(block) / 2) {
+        if (upperCounts[i] <= numSegmentsWithSequence / 2) {
             mlString[i] = tolower(mlString[i]);
         }
     }
