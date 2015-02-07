@@ -664,7 +664,7 @@ int main(int argc, char *argv[]) {
 
                 // Enforce the block constraints on minimum degree,
                 // etc. after splitting.
-                stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0, 0, INT64_MAX);
+                stCaf_melt(flower, threadSet, blockFilterFn, 0, 0, 0, INT64_MAX);
             }
 
             //Sort out case when we allow blocks of degree 1
