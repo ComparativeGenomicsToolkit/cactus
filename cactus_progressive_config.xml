@@ -152,7 +152,7 @@
 		diagonalExpansion="20"
 		constraintDiagonalTrim="14" 
 		minimumBlockDegree="2" 
-		minimumIngroupDegree="0"
+		minimumIngroupDegree="1"
 		minimumOutgroupDegree="0"
 		alignAmbiguityCharacters="1"
 		largeEndSize="5000"
