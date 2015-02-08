@@ -1,9 +1,12 @@
 rootPath = ../
 include ../include.mk
-
-scripts = maf2cigar
+sources = maftocigar.c
+CFLAGS = --std=c99 -g -Wall
 all:
-	cp ${scripts} ${binPath}
+	#gcc -o maftocigar maftocigar.c
+	#cp maftocigar ${binPath}
+	cp maftocigarpy ${binPath}/maftocigar
 	
 clean:
+	cd ${binPath} && rm maftocigar
 	

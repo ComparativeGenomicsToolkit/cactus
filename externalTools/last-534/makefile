@@ -11,6 +11,7 @@ install: all
 
 clean:
 	@cd src && $(MAKE) clean
+	@cd ${bindir} && rm fastq-interleave  last-dotplot  last-map-probs  last-postmask  maf-convert  maf-cull  maf-join  maf-sort  maf-swap  parallel-fasta  parallel-fastq last-split last-merge-batches last-pair-probs
 
 html:
 	@cd doc && $(MAKE)

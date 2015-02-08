@@ -893,12 +893,12 @@ stList *getBlastPairs(const char *sX, const char *sY, int64_t lX, int64_t lY, in
         writeSequenceToFile(tempFile2, "b", sY);
 		
 		//switch LASTZ to LAST
-		command = stString_print("cactus_lastdb temp %s && cactus_lastal --s=1 temp %s | maf2cigar", tempFile1, tempFile2);    
+		command = stString_print("cactus_lastdb temp %s && cactus_lastal --s=1 temp %s | maftocigar", tempFile1, tempFile2);    
         //command = stString_print("cactus_lastz --hspthresh=800 --chain --strand=plus --gapped --format=cigar --ambiguous=iupac,100,100 %s %s",
                 //tempFile1, tempFile2);
     } else {
 		command = stString_print(
-			"echo '>b\n%s\n' | cactus_lastdb temp && cactus_lastal --s=1 temp %s | maf2cigar",
+			"echo '>b\n%s\n' | cactus_lastdb temp && cactus_lastal --s=1 temp %s | maftocigar",
 			sY, tempFile1);
 		
         //command = stString_print(

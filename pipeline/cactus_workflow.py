@@ -303,7 +303,7 @@ def setupFilteringByIdentity(cactusWorkflowArguments):
         adjustedPath = max(float(cafNode.attrib["identityRatio"]) * cactusWorkflowArguments.longestPath,
         float(cafNode.attrib["minimumDistance"]))
         identity = str(100 - math.ceil(100 * inverseJukesCantor(adjustedPath)))
-        cafNode.attrib["lastArguments"] = cafNode.attrib["lastArguments"] + (" --identity=%s" % identity)
+        #cafNode.attrib["lastArguments"] = cafNode.attrib["lastArguments"] + (" --identity=%s" % identity)
 
 
 class CactusTrimmingBlastPhase(CactusPhasesTarget):

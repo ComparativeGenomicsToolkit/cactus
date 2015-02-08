@@ -41,13 +41,13 @@ class BlastOptions:
         
         #switch from lastZ to LAST. LAST only outputs MAF format, so convert to CIGAR
         if realign:
-        	self.blastString = "cactus_lastdb %s temp SEQ_FILE_1 && cactus_lastal temp SEQ_FILE_2 | maf2cigar | cactus_realign %s SEQ_FILE_1 SEQ_FILE_2 > CIGARS_FILE" % (lastArguments, realignArguments) 
+        	self.blastString = "cactus_lastdb %s temp SEQ_FILE_1 && cactus_lastal temp SEQ_FILE_2 | maftocigar | cactus_realign %s SEQ_FILE_1 SEQ_FILE_2 > CIGARS_FILE" % (lastArguments, realignArguments) 
         else:
-        	self.blastString = "cactus_lastdb %s temp SEQ_FILE_1 && cactus_lastal temp SEQ_FILE_2 | maf2cigar > CIGARS_FILE" % lastArguments
+        	self.blastString = "cactus_lastdb %s temp SEQ_FILE_1 && cactus_lastal temp SEQ_FILE_2 | maftocigar > CIGARS_FILE" % lastArguments
         if realign:
-        	self.selfBlastString = "cactus_lastdb %s temp SEQ_FILE && cactus_lastal temp SEQ_FILE | maf2cigar | cactus_realign %s SEQ_FILE > CIGARS_FILE" % (lastArguments, realignArguments)
+        	self.selfBlastString = "cactus_lastdb %s temp SEQ_FILE && cactus_lastal temp SEQ_FILE | maftocigar | cactus_realign %s SEQ_FILE > CIGARS_FILE" % (lastArguments, realignArguments)
         else:
-			self.selfBlastString = "cactus_lastdb %s temp SEQ_FILE && cactus_lastal temp SEQ_FILE | maf2cigar > CIGARS_FILE" % lastArguments
+			self.selfBlastString = "cactus_lastdb %s temp SEQ_FILE && cactus_lastal temp SEQ_FILE | maftocigar > CIGARS_FILE" % lastArguments
  
         self.compressFiles = compressFiles
         self.minimumSequenceLength = 10

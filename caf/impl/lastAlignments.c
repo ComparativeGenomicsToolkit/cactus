@@ -27,12 +27,12 @@ stList *stCaf_selfAlignFlower(Flower *flower, int64_t minimumSequenceLength, con
          */
         char *command = NULL;
         if(realign) {
-			command = stString_print("cactus_lastdb temp %s && cactus_lastal temp %s | maf2cigar | cactus_realign %s %s", 
+			command = stString_print("cactus_lastdb temp %s && cactus_lastal temp %s | maftocigar | cactus_realign %s %s", 
 				tempFile1, tempFile1, realignArgs, tempFile1);
         }
         else {
 			command = stString_print(
-				"cactus_lastdb temp %s && cactus_lastal temp %s | maf2cigar", tempFile1, tempFile1);
+				"cactus_lastdb temp %s && cactus_lastal temp %s | maftocigar", tempFile1, tempFile1);
         }
         FILE *fileHandle = popen(command, "r");
         if (fileHandle == NULL) {
