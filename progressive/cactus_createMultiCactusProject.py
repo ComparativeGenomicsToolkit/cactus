@@ -105,6 +105,11 @@ def createMCProject(tree, experiment, config, options):
 def specifyAlignmentRoot(mcProj, alignmentRootId):
     # ugly hack to keep track of external outgroups for root experiment (yuck)
     mcProj.externalOutgroupNames = set()
+
+    # keep around the entire un-rerooted tree so that we can calculate
+    # the induced species trees for each node correctly -- gross!
+    mcProj.entireTree = copy.deepcopy(mcProj.mcTree)
+
     # nothing to do
     if alignmentRootId == mcProj.mcTree.getRootId():
         return
@@ -168,7 +173,6 @@ def specifyAlignmentRoot(mcProj, alignmentRootId):
     for node in deadNodes:
         assert mcProj.mcTree.hasParent(node)
         mcProj.mcTree.removeEdge(mcProj.mcTree.getParent(node), node)
-    from sonLib.nxnewick import NXNewick
 
     # reset input sequences to only contain genomes in tree (making sure to
     # keep in postorder)
@@ -229,14 +233,13 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
         seqMap[name] = os.path.join(path, name + '.fa')
     for name, expPath in mcProj.expMap.items():
         path = os.path.join(options.path, name)
-        children = mcProj.mcTree.getChildNames(name)
+        children = mcProj.entireTree.getChildNames(name)
         exp = copy.deepcopy(expTemplate)
 
         # Get outgroups
         outgroups = []
         if configTemplate.getOutgroupStrategy() != 'none' \
-        and name in mcProj.outgroup.ogMap \
-        and name != mcProj.mcTree.getRootName():
+        and name in mcProj.outgroup.ogMap:
             for og, ogDist in mcProj.outgroup.ogMap[name]:
                 if og in seqMap:
                     ogPath = seqMap[og]
@@ -245,16 +248,10 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
                     ogPath = os.path.join(ogPath, refFileName(og))
                     seqMap[og] = ogPath
                 outgroups += [og]
-        if name == mcProj.mcTree.getRootName():
-            exp.xmlRoot.attrib["outgroup_events"] = " ".join([ogName for (ogName, _) in mcProj.outgroup.ogMap[name]])
-            outgroups = [ogName for (ogName, _) in mcProj.outgroup.ogMap[name]]
-            assert len(children) > 0
-            print outgroups
-            subtree = mcProj.mcTree.extractSpanningTree(children + outgroups)
-        else:
-            # Get subtree connecting children + outgroups
-            assert len(children) > 0
-            subtree = mcProj.mcTree.extractSpanningTree(children + outgroups)
+
+        # Get subtree connecting children + outgroups
+        assert len(children) > 0
+        subtree = mcProj.entireTree.extractSpanningTree(children + outgroups)
         dbBase = path
         if expTemplate.getDbDir() is not None:
             dbBase = os.path.abspath(expTemplate.getDbDir())
