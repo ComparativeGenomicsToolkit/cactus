@@ -35,6 +35,9 @@ class MultiCactusTree(NXTree):
         self.subtreeRoots = set()
         # map of names to node ids
         self.nameToId = dict()
+        for node in self.breadthFirstTraversal():
+            if self.hasName(node):
+                self.nameToId[self.getName(node)] = node
         # size a subtree (in number of leaves)
         self.subtreeSize = subtreeSize
         
@@ -225,7 +228,10 @@ class MultiCactusTree(NXTree):
     # tack an outgroup onto the root
     # if root is a leaf, we make a new root above. 
     def addOutgroup(self, ogName, distance):
-        assert ogName not in self.nameToId
+        # de-activating assert because new outgroup munging in
+        # cactus_createMultiCactusProject will temporarility duplicate
+        # note in tree (is normal)
+        #assert ogName not in self.nameToId
         if self.isLeaf(self.rootId):
             newNode = self.getNextIndex()
             self.insertAbove(self.rootId, newNode, "", distance / 2)
@@ -235,4 +241,13 @@ class MultiCactusTree(NXTree):
         self.setName(newNode, ogName)
         self.nameToId[ogName] = newNode
         self.setWeight(self.rootId, newNode, distance)
+
+    # make an attempt at keeping nameToId up to date
+    def setName(self, node, name):
+        super(MultiCactusTree, self).setName(node, name)
+        self.nameToId[name] = node
+    
+    # map from event name to networkx node ID
+    def getNodeId(self, name):
+        return self.nameToId[name]
         

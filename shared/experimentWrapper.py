@@ -444,3 +444,7 @@ class ExperimentWrapper(DbElemWrapper):
         self.xmlRoot.attrib["sequences"] = seqs
         self.seqMap[ogName] = ogPath
         self.setOutgroupEvents(self.getOutgroupEvents() + [ogName])
+
+    # return internal structure that maps event names to paths
+    def getSequenceMap(self):
+        return self.seqMap

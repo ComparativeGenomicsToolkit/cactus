@@ -20,7 +20,7 @@ from sonLib.bioio import system
 
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.experimentWrapper import ExperimentWrapper
-from cactus.progressive.outgroup import GreedyOutgroup
+from cactus.progressive.outgroup import GreedyOutgroup, DynamicOutgroup
 
 from sonLib.nxnewick import NXNewick
 from sonLib.nxtreeTest import randomTreeSet
@@ -31,13 +31,44 @@ class TestCase(unittest.TestCase):
         unittest.TestCase.setUp(self)
         self.trees = randomTreeSet()
         self.mcTrees = []
+        self.tempDir = getTempDirectory(os.getcwd())
+        self.tempFa = os.path.join(self.tempDir, "seq.fa")
+        with open(self.tempFa, "w") as f:
+            f.write(">temp\nNNNNNNNCNNNNAAAAAAAAAAAAAAANNNNNNN\n")
+        self.dummySeqMaps = []
         for tree in self.trees:
             if tree.size() < 500:
                 mcTree = MultiCactusTree(tree, tree.degree())
+                seqMap = dict()
                 for i in mcTree.breadthFirstTraversal():
                     mcTree.setName(i, "Node%s" % str(i))
+                    seqMap["Node%s" % str(i)] = self.tempFa
                 mcTree.computeSubtreeRoots()
                 self.mcTrees.append(mcTree)
+                self.dummySeqMaps.append(seqMap)
+                
+        seqLens = dict()
+        seqLens["HUMAN"] = 57553
+        seqLens["CHIMP"] = 57344
+        seqLens["BABOON"] = 58960
+        seqLens["MOUSE"] = 32750
+        seqLens["RAT"] = 38436
+        seqLens["DOG"] = 54187
+        seqLens["CAT"] = 50283
+        seqLens["PIG"] = 54843
+        seqLens["COW"] = 55508
+        self.blanchetteSeqMap = dict()
+        for event, seqLen in seqLens.items():
+            p = os.path.join(self.tempDir, event +".fa")
+            with open(p, "w") as f:
+                f.write(">%s\n" % event)
+                f.write(''.join(['A'] * seqLen))
+                f.write('\n')
+            self.blanchetteSeqMap[event] = p
+
+    def tearDown(self):
+        unittest.TestCase.tearDown(self)
+        system("rm -rf %s" % self.tempDir)
 
     def testJustLeaves(self):
         tree = '((((HUMAN:0.006969,CHIMP:0.009727)Anc7:0.025291,BABOON:0.044568)Anc6:0.11,(MOUSE:0.072818,RAT:0.081244)Anc5:0.260342)Anc4:0.023260,((DOG:0.07,CAT:0.07)Anc3:0.087381,(PIG:0.06,COW:0.06)Anc2:0.104728)Anc1:0.04)Anc0;'
@@ -168,6 +199,49 @@ class TestCase(unittest.TestCase):
             # and for all entries, the closest must be first.
             assert all(map(lambda x: x == sorted(x, key=itemgetter(1)),
                            og.ogMap.values()))
+
+    def testDynamicOutgroupsOnRandomTrees(self):
+        for tree, seqMap in zip(self.mcTrees, self.dummySeqMaps):
+            degree = max([len(tree.getChildren(x)) for x in
+                         tree.breadthFirstTraversal()])
+            if degree < 8:
+                og = DynamicOutgroup()
+                og.edgeLen = 5
+                og.importTree(tree, seqMap)
+                og.compute(maxNumOutgroups=3)
+                # make sure all entries have <= 3 outgroups.
+                assert all(map(lambda x: len(x) <= 3, og.ogMap.values()))
+                # and for all entries, the closest must be first.
+                # (this will be true because all sequences are the same)
+                assert all(map(lambda x: x == sorted(x, key=itemgetter(1)),
+                               og.ogMap.values()))
+
+    def testDynamicOutgroupsJustLeaves(self):
+        tree = '((((HUMAN:0.006969,CHIMP:0.009727)Anc7:0.025291,BABOON:0.044568)Anc6:0.11,(MOUSE:0.072818,RAT:0.081244)Anc5:0.260342)Anc4:0.023260,((DOG:0.07,CAT:0.07)Anc3:0.087381,(PIG:0.06,COW:0.06)Anc2:0.104728)Anc1:0.04)Anc0;'
+        mcTree = MultiCactusTree(NXNewick().parseString(tree, addImpliedRoots = False))
+        mcTree.computeSubtreeRoots()
+        og = DynamicOutgroup()
+        og.importTree(mcTree, self.blanchetteSeqMap)
+        og.compute(maxNumOutgroups=3, sequenceLossWeight=0.)
+        # make sure all entries have <= 3 outgroups.
+        assert all(map(lambda x: len(x) <= 3, og.ogMap.values()))
+        # and for all entries, the closest must be first.
+        assert all(map(lambda x: x == sorted(x, key=itemgetter(1)),
+                       og.ogMap.values()))
+        # ordering is important!
+        assert og.ogMap['Anc1'][0][0] == 'HUMAN'
+        assert og.ogMap['Anc7'][0][0] == 'BABOON'
+
+        og = DynamicOutgroup()
+        og.importTree(mcTree, self.blanchetteSeqMap)
+        og.compute(maxNumOutgroups=3)
+        # make sure all entries have <= 3 outgroups.
+        assert all(map(lambda x: len(x) <= 3, og.ogMap.values()))
+
+        # we keep dynamic outgroups sorted by distance too
+        assert all(map(lambda x: x == sorted(x, key=itemgetter(1)),
+                               og.ogMap.values()))
+                        
 
     def testMultipleIdenticalRunsProduceSameResult(self):
         """The code now allows for multiple greedy() calls with different
