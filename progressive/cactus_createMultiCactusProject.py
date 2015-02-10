@@ -274,6 +274,8 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
             exp.setHALFastaPath(os.path.join(path, "%s_hal.fa" % name))
         exp.updateTree(subtree, seqMap, outgroups)
         exp.setConfigPath(os.path.join(path, "%s_config.xml" % name))
+        if not os.path.exists(exp.getDbDir()):
+            os.makedirs(exp.getDbDir())
         if not os.path.exists(path):
             os.makedirs(path)
         exp.writeXML(expPath)
@@ -303,16 +305,10 @@ def main():
                       help="try to make sequence and event names MAF-compliant [default=true]")
     parser.add_option("--outgroupNames", dest="outgroupNames",  default = None, 
                       help="comma-separated names of high quality assemblies to use as outgroups [default=everything]")
-    parser.add_option("--rootOutgroupPaths", dest="rootOutgroupPaths", type=str,
-                      help="comma-separated root outgroup paths (other root outgroup options " +
-                      "must be given as well)", default=None)
-    parser.add_option("--rootOutgroupDists", dest="rootOutgroupDists", type=str,
-                      help="comma-separated root outgroup distances (other root outgroup " +
-                      "options must be given as well", default=None)
     parser.add_option("--root", dest="root", type=str,
                       help="name of alignment root (must be labeled ancestral node in tree in input experiment).  Useful "
                       "for allowing the tree to contain nodes that won't be in the alignment but can still be used for "
-                      "outgroups.  NOTE: ADDED TO REPLACE --rootOutgroupPaths and --rootOutgroupDists.",
+                      "outgroups.",
                       default=None)
     parser.add_option("--overwrite", action="store_true", help="Overwrite existing experiment files", default=False)
 
@@ -326,14 +322,6 @@ def main():
     options.path = os.path.abspath(args[1])
     options.name = os.path.basename(options.path)
     options.fixNames = not options.fixNames.lower() == "false"
-
-    if (options.rootOutgroupDists is not None) \
-    ^ (options.rootOutgroupPaths is not None):
-        parser.error("--rootOutgroupDists and --rootOutgroupPaths must be " +
-                         "provided together")
-
-    if options.rootOutgroupDists is not None and len(options.rootOutgroupDists.split(",")) != len(options.rootOutgroupPaths.split(",")):
-        parser.error("root outgroup options must have the same number of entries")
 
     if (os.path.isdir(options.path) and not options.overwrite) or os.path.isfile(options.path):
         raise RuntimeError("Output project path %s exists\n" % options.path)
@@ -360,28 +348,7 @@ def main():
     #Replace the sequences with output sequences
     expTemplate.updateTree(mcProj.mcTree, expTemplate.buildSequenceMap())
     expTemplate.setSequences(CactusPreprocessor.getOutputSequenceFiles(mcProj.inputSequences, expTemplate.getOutputSequenceDir()))
-    if options.rootOutgroupPaths is not None:
-        # hacky -- add the root outgroup to the tree after everything
-        # else.  This ends up being ugly, but avoids running into
-        # problems with assumptions about tree structure
-        #
-        # [this hack is hopefully made redundant by the --root option]
-        #
-        options.rootOutgroupPaths = [os.path.abspath(path) for path in options.rootOutgroupPaths.split(",")]
-        options.rootOutgroupDists = [float(i) for i in options.rootOutgroupDists.split(",")]
-        mcProj.inputSequences.extend(options.rootOutgroupPaths)
-        # replace the root outgroup sequence by post-processed output
-        for i, (outgroupPath, outgroupDist) in enumerate(zip(options.rootOutgroupPaths, options.rootOutgroupDists)):
-            outgroupPath = CactusPreprocessor.getOutputSequenceFiles(expTemplate.getSequences() + options.rootOutgroupPaths[:i+1], expTemplate.getOutputSequenceDir())[-1]
-            rootOutgroupName = "rootOutgroup%d" % i
-            expTemplate.seqMap[rootOutgroupName] = outgroupPath
-            # Add to tree
-            mcProj.mcTree.addOutgroup(rootOutgroupName, outgroupDist)
-            mcProj.mcTree.computeSubtreeRoots()
-            if mcProj.mcTree.getRootName() not in mcProj.outgroup.ogMap:
-                # initialize ogMap entry
-                mcProj.outgroup.ogMap[mcProj.mcTree.getRootName()] = []
-            mcProj.outgroup.ogMap[mcProj.mcTree.getRootName()].append((rootOutgroupName, outgroupDist))
+
     #Now do the file tree creation
     createFileStructure(mcProj, expTemplate, confTemplate, options)
    # mcProj.check()
