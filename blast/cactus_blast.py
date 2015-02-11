@@ -43,13 +43,13 @@ class BlastOptions:
         
         #switch from lastZ to LAST. LAST only outputs MAF format, so convert to CIGAR
         if realign:
-        	self.blastString = "cactus_lastdb %s temp SEQ_FILE_1 && cactus_lastal temp SEQ_FILE_2 | maftocigar | cactus_realign %s SEQ_FILE_1 SEQ_FILE_2 > CIGARS_FILE" % (lastArguments, realignArguments) 
+        	self.blastString = "cactus_lastdb %s TEMP_FILE SEQ_FILE_1 && cactus_lastal TEMP_FILE SEQ_FILE_2 | maftocigar | cactus_realign %s SEQ_FILE_1 SEQ_FILE_2 > CIGARS_FILE" % (lastArguments, realignArguments) 
         else:
-        	self.blastString = "cactus_lastdb %s temp SEQ_FILE_1 && cactus_lastal temp SEQ_FILE_2 | maftocigar > CIGARS_FILE" % lastArguments
+        	self.blastString = "cactus_lastdb %s TEMP_FILE SEQ_FILE_1 && cactus_lastal TEMP_FILE SEQ_FILE_2 | maftocigar > CIGARS_FILE" % lastArguments
         if realign:
-        	self.selfBlastString = "cactus_lastdb %s temp SEQ_FILE && cactus_lastal temp SEQ_FILE | maftocigar | cactus_realign %s SEQ_FILE > CIGARS_FILE" % (lastArguments, realignArguments)
+        	self.selfBlastString = "cactus_lastdb %s TEMP_FILE SEQ_FILE && cactus_lastal TEMP_FILE SEQ_FILE | maftocigar | cactus_realign %s SEQ_FILE > CIGARS_FILE" % (lastArguments, realignArguments)
         else:
-			self.selfBlastString = "cactus_lastdb %s temp SEQ_FILE && cactus_lastal temp SEQ_FILE | maftocigar > CIGARS_FILE" % lastArguments
+		self.selfBlastString = "cactus_lastdb %s TEMP_FILE SEQ_FILE && cactus_lastal TEMP_FILE SEQ_FILE | maftocigar > CIGARS_FILE" % lastArguments
  
         self.compressFiles = compressFiles
         self.minimumSequenceLength = 10
@@ -409,7 +409,7 @@ class RunSelfBlast(Target):
     
     def run(self):   
         tempResultsFile = os.path.join(self.getLocalTempDir(), "tempResults.cig")
-        command = self.blastOptions.selfBlastString.replace("CIGARS_FILE", tempResultsFile).replace("SEQ_FILE", self.seqFile)
+        command = self.blastOptions.selfBlastString.replace("CIGARS_FILE", tempResultsFile).replace("SEQ_FILE", self.seqFile).replace("TEMP_FILE", os.path.join(self.getLocalTempDir(), "tempDb"))
         system(command)
         system("cactus_blast_convertCoordinates %s %s %i" % (tempResultsFile, self.resultsFile, self.blastOptions.roundsOfCoordinateConversion))
         if self.blastOptions.compressFiles:
@@ -437,7 +437,7 @@ class RunBlast(Target):
             self.seqFile1 = decompressFastaFile(self.seqFile1 + ".bz2", os.path.join(self.getLocalTempDir(), "1.fa"))
             self.seqFile2 = decompressFastaFile(self.seqFile2 + ".bz2", os.path.join(self.getLocalTempDir(), "2.fa"))
         tempResultsFile = os.path.join(self.getLocalTempDir(), "tempResults.cig")
-        command = self.blastOptions.blastString.replace("CIGARS_FILE", tempResultsFile).replace("SEQ_FILE_1", self.seqFile1).replace("SEQ_FILE_2", self.seqFile2)
+        command = self.blastOptions.blastString.replace("CIGARS_FILE", tempResultsFile).replace("SEQ_FILE_1", self.seqFile1).replace("SEQ_FILE_2", self.seqFile2).replace("TEMP_FILE", os.path.join(self.getLocalTempDir(), "tempDb"))
         system(command)
         system("cactus_blast_convertCoordinates %s %s %i" % (tempResultsFile, self.resultsFile, self.blastOptions.roundsOfCoordinateConversion))
         logger.info("Ran the blast okay")

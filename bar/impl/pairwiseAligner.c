@@ -883,6 +883,7 @@ stList *getBlastPairs(const char *sX, const char *sY, int64_t lX, int64_t lY, in
     //Write one sequence to file..
     char *tempFile1 = getTempFile();
     char *tempFile2 = NULL;
+    char *tempDbFile = getTempFile();
 
     writeSequenceToFile(tempFile1, "a", sX);
 
@@ -891,19 +892,18 @@ stList *getBlastPairs(const char *sX, const char *sY, int64_t lX, int64_t lY, in
     if (lY > 1000) {
         tempFile2 = getTempFile();
         writeSequenceToFile(tempFile2, "b", sY);
-		
-		//switch LASTZ to LAST
-		command = stString_print("cactus_lastdb temp %s && cactus_lastal --s=1 temp %s | maftocigar", tempFile1, tempFile2);    
+
+        //switch LASTZ to LAST
+        command = stString_print("cactus_lastdb %s %s && cactus_lastal -s 1 %s %s | maftocigar", tempDbFile, tempFile1, tempDbFile, tempFile2);
         //command = stString_print("cactus_lastz --hspthresh=800 --chain --strand=plus --gapped --format=cigar --ambiguous=iupac,100,100 %s %s",
-                //tempFile1, tempFile2);
+        //tempFile1, tempFile2);
     } else {
-		command = stString_print(
-			"echo '>b\n%s\n' | cactus_lastdb temp && cactus_lastal --s=1 temp %s | maftocigar",
-			sY, tempFile1);
-		
+        command = stString_print(
+            "echo '>b\n%s\n' | cactus_lastdb %s && cactus_lastal -s 1 %s %s | maftocigar",
+            sY, tempDbFile, tempDbFile, tempFile1);
         //command = stString_print(
-               // "echo '>b\n%s\n' | cactus_lastz --hspthresh=800 --chain --strand=plus --gapped --format=cigar --ambiguous=iupac,100,100 %s",
-                //sY, tempFile1);
+        // "echo '>b\n%s\n' | cactus_lastz --hspthresh=800 --chain --strand=plus --gapped --format=cigar --ambiguous=iupac,100,100 %s",
+        //sY, tempFile1);
     }
     FILE *fileHandle = popen(command, "r");
     if (fileHandle == NULL) {
@@ -931,6 +931,8 @@ stList *getBlastPairs(const char *sX, const char *sY, int64_t lX, int64_t lY, in
     //Remove old files
     st_system("rm %s", tempFile1);
     free(tempFile1);
+    st_system("rm %s*", tempDbFile);
+    free(tempDbFile);
     if (tempFile2 != NULL) {
         st_system("rm %s", tempFile2);
         free(tempFile2);
