@@ -1,0 +1,5 @@
+Options +Indexes
+IndexIgnore *.css Makefile
+IndexIgnore FAQ.txt bisulfite.txt last-map-probs.txt last-pair-probs.txt
+IndexIgnore last-postmask.txt last-split.txt last-tutorial.txt last.txt
+IndexIgnore maf-convert.txt maf-cull.txt

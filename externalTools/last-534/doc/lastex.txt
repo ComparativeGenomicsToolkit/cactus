@@ -1,0 +1,185 @@
+lastex: expected numbers of alignments for random sequences
+===========================================================
+
+Introduction
+------------
+
+If we compare two completely random sequences, we may find weak
+similarities that exist by chance.  It is useful to know the
+likelihood of getting chance alignments, to help us judge whether
+alignments of real sequences are significant or not.
+
+The likelihood of getting chance alignments depends on several things:
+1) the alignment scoring scheme (score matrix and gap costs),
+2) the minimum score for accepting an alignment,
+3) the sequence lengths,
+4) the letter frequencies (i.e. abundances of bases or amino acids).
+
+lastex calculates the expected number of chance alignments, given
+these pieces of information.  The expected number of alignments is
+often called "E-value" or "expect".
+
+
+Example 1: Comparing the human and fugu mitochondrial genomes
+-------------------------------------------------------------
+
+Suppose we wish to find similarities between the human and fugu
+mitochondrial genomes.  In order to judge their significance, we wish
+to know the likelihood of chance alignments between random sequences
+with the same lengths and letter frequencies.
+
+Firstly, we use lastdb to count the letters in these sequences:
+
+  lastdb -x hm humanMito.fa
+  lastdb -x fm fuguMito.fa
+
+This will make files called "hm.prj" and "fm.prj".  (The "-x" tells
+lastdb not to prepare the sequences for alignment but just to count
+the letters, which is much faster.)
+
+Secondly, we run lastex (using the default scoring scheme):
+
+  lastex hm.prj fm.prj
+
+The output is a table of scores and corresponding E-values:
+
+  Score	 Expected number of alignments
+  39	 8.73e-11
+  22	 0.0084
+  18	 0.635
+  14	 48
+
+This tells us that LAST's default score threshold of 40 is very
+conservative for these sequences: we could lower it considerably and
+still not expect any chance alignments.
+
+
+Example 2: Assigning E-values to alignments
+-------------------------------------------
+
+Suppose we already have some alignments in a file called "myalns.maf".
+We can use lastex to assign an E-value to each alignment, as follows:
+
+  lastex hm.prj fm.prj myalns.maf
+
+This will write out the alignments, with an E-value added to each.
+The alignments may be in either format produced by lastal: MAF or
+tabular.  lastex will obtain the scoring scheme from the header of the
+alignment file (if present, otherwise you have to specify it with
+options to lastex.)
+
+lastex can also be used in a pipeline, like this:
+
+  lastal humdb fuguMito.fa | lastex humdb.prj fm.prj -
+
+
+Example 3: Assigning per-sequence E-values to alignments
+--------------------------------------------------------
+
+Suppose that we compare 1000 "query" protein sequences to 1 million
+"reference" protein sequences, and that one of the queries has an
+alignment with score 75.  There is more than one reasonable way to
+judge its significance.  One way is to find the likelihood of chance
+alignments when comparing 1000 random sequences to 1 million random
+sequences.  A second way is to find the likelihood of chance
+alignments when comparing one random sequence, of the same length as
+the one query, to 1 million random sequences.
+
+To do it the second way, we can use the -z1 option:
+
+  lastex -z1 reference.prj query.prj protalns.maf
+
+This will calculate E-values using the length of each query sequence,
+and ignore the length information in query.prj.  On the other hand, it
+will use the length information in reference.prj, and the letter
+frequencies in query.prj and reference.prj.
+
+One interesting effect of -z1 is that identical alignments of long and
+short query sequences will get different E-values.  This is because it
+is easier to get chance alignments with longer sequences.
+
+
+Example 4: A hand-made counts file
+----------------------------------
+
+A counts file such as "hm.prj" or "fm.prj" can be made by hand instead
+of using lastdb.  Here is a minimal example:
+
+  numofsequences=24
+  numofletters=3e9
+  alphabet=ACGT
+  letterfreqs=29.7 20.3 20.3 29.7
+
+This example specifies 24 DNA sequences of total length 3 billion.
+
+
+Options
+-------
+
+-h  Show all options and their default settings.
+
+-s  Specify whether the alignments are one-stranded (1) or
+    two-stranded (2).  (Two-stranded alignment averages the frequency
+    of each letter and its complement, and then doubles the E-values.)
+
+-r  Match score.
+
+-q  Mismatch cost.
+
+-p  Obtain match and mismatch scores from the specified file.  Options
+    -r and -q will be ignored.  For an example of the format, see
+    hoxd70.mat in the examples directory.  Any letters that aren't in
+    the file will get the lowest score in the file when aligned to
+    anything.  Asymmetric scores are allowed: query letters correspond
+    to columns and reference letters correspond to rows.  Other options
+    can be specified on lines starting with "#last", but command line
+    options override them.
+
+-a  Gap existence cost.
+
+-b  Gap extension cost.  A gap of size k costs: a + b*k.
+
+-g  Specify gapless alignment.  Options -a and -b will be ignored.
+
+-y  Find the expected number of alignments with score >= this value.
+
+-E  When assigning E-values to alignments, this option supresses
+    alignments with E-value greater than the specified value.
+    Otherwise, it finds the minimum score with E-value <= the
+    specified value.
+
+-z  Calculate the expected number of alignments per:
+    0 = reference counts file / query counts file
+    1 = reference counts file / each query sequence
+    2 = each reference sequence / query counts file
+    3 = each reference sequence / each query sequence
+    In all cases, the letter frequencies are taken from the counts files.
+
+
+Errors
+------
+
+lastex can fail with this error message: "can't evaluate scores for
+these score parameters and letter frequencies".  This probably means
+that the mismatch or gap costs are too weak, so that alignments do not
+stay localized to similar regions but spread into dissimilar regions.
+
+
+Credits & citation
+------------------
+
+lastex was developed by Martin C. Frith in the CBRC, but the core
+methods are by Sergey Sheetlin, Yonil Park, and John L. Spouge at the
+NCBI.  If you use lastex in your research, please cite:
+
+| The Gumbel pre-factor k for gapped local alignment can be estimated
+| from simulations of global alignment
+| Sergey Sheetlin, Yonil Park, John L. Spouge
+| Nucleic Acids Research 2005, 33, 4987-4994.
+
+
+Links to further information
+----------------------------
+
+http://www.ncbi.nlm.nih.gov/BLAST/tutorial/
+http://www.ncbi.nlm.nih.gov/CBBresearch/Spouge/html.ncbi/blast/index.html

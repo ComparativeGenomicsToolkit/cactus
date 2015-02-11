@@ -199,7 +199,7 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
                  minimumOutgroupDegree=None,
                  singleCopyIngroup=None,
                  singleCopyOutgroup=None,
-                 lastzArguments=None,
+                 lastArguments=None,
                  minimumSequenceLengthForBlast=None,
                  maxAdjacencyComponentSizeRatio=None,
                  constraints=None,
@@ -225,13 +225,12 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
                  numTreeBuildingThreads=None):
     # remove annoying carriage returns in caf command line.
     cactusDiskDatabaseString = cactusDiskDatabaseString.replace('\n', '')
-
     logLevel = getLogLevelString2(logLevel)
     annealingRounds = nameValue("annealingRounds", annealingRounds, quotes=True)
     deannealingRounds = nameValue("deannealingRounds", deannealingRounds, quotes=True)
     trim = nameValue("trim", trim, quotes=True)
     alignments = nameValue("alignments", alignments)
-    lastzArguments = nameValue("lastzArguments", lastzArguments, quotes=True)
+    lastArguments = nameValue("lastArguments", lastArguments, quotes=True)
     minimumTreeCoverage = nameValue("minimumTreeCoverage", minimumTreeCoverage, float)
     blockTrim = nameValue("blockTrim", blockTrim, int)
     minimumBlockDegree = nameValue("minimumDegree", minimumBlockDegree, int)
@@ -268,7 +267,7 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
     (cactusDiskDatabaseString, logLevel, alignments, annealingRounds, deannealingRounds, 
      trim, minimumTreeCoverage, blockTrim, 
      minimumBlockDegree, minimumIngroupDegree, minimumOutgroupDegree,  
-     singleCopyIngroup, singleCopyOutgroup, lastzArguments, minimumSequenceLengthForBlast, maxAdjacencyComponentSizeRatio, constraints,
+     singleCopyIngroup, singleCopyOutgroup, lastArguments, minimumSequenceLengthForBlast, maxAdjacencyComponentSizeRatio, constraints,
      minLengthForChromosome, proportionOfUnalignedBasesForNewChromosome, maximumMedianSequenceLengthBetweenLinkedEnds, realign, realignArguments, phylogenyNumTrees, phylogenyRootingMethod, phylogenyScoringMethod, phylogenyBreakpointScalingFactor, phylogenySkipSingleCopyBlocks, phylogenyMaxBaseDistance, phylogenyMaxBlockDistance, phylogenyDebugFile, phylogenyKeepSingleDegreeBlocks, phylogenyTreeBuildingMethod, phylogenyCostPerDupPerBase, phylogenyCostPerLossPerBase, referenceEventHeader, phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce, numTreeBuildingThreads)
     masterMessages = popenCatch(command, stdinString=flowerNames)
     logger.info("Ran cactus_core okay")

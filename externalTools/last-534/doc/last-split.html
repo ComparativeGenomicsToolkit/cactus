@@ -1,0 +1,665 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.6: http://docutils.sourceforge.net/" />
+<title>last-split</title>
+<style type="text/css">
+
+/*
+:Author: David Goodger (goodger@python.org)
+:Id: $Id: html4css1.css 7056 2011-06-17 10:50:48Z milde $
+:Copyright: This stylesheet has been placed in the public domain.
+
+Default cascading style sheet for the HTML output of Docutils.
+
+See http://docutils.sf.net/docs/howto/html-stylesheets.html for how to
+customize this style sheet.
+*/
+
+/* used to remove borders from tables and images */
+.borderless, table.borderless td, table.borderless th {
+  border: 0 }
+
+table.borderless td, table.borderless th {
+  /* Override padding for "table.docutils td" with "! important".
+     The right padding separates the table cells. */
+  padding: 0 0.5em 0 0 ! important }
+
+.first {
+  /* Override more specific margin styles with "! important". */
+  margin-top: 0 ! important }
+
+.last, .with-subtitle {
+  margin-bottom: 0 ! important }
+
+.hidden {
+  display: none }
+
+a.toc-backref {
+  text-decoration: none ;
+  color: black }
+
+blockquote.epigraph {
+  margin: 2em 5em ; }
+
+dl.docutils dd {
+  margin-bottom: 0.5em }
+
+object[type="image/svg+xml"], object[type="application/x-shockwave-flash"] {
+  overflow: hidden;
+}
+
+/* Uncomment (and remove this text!) to get bold-faced definition list terms
+dl.docutils dt {
+  font-weight: bold }
+*/
+
+div.abstract {
+  margin: 2em 5em }
+
+div.abstract p.topic-title {
+  font-weight: bold ;
+  text-align: center }
+
+div.admonition, div.attention, div.caution, div.danger, div.error,
+div.hint, div.important, div.note, div.tip, div.warning {
+  margin: 2em ;
+  border: medium outset ;
+  padding: 1em }
+
+div.admonition p.admonition-title, div.hint p.admonition-title,
+div.important p.admonition-title, div.note p.admonition-title,
+div.tip p.admonition-title {
+  font-weight: bold ;
+  font-family: sans-serif }
+
+div.attention p.admonition-title, div.caution p.admonition-title,
+div.danger p.admonition-title, div.error p.admonition-title,
+div.warning p.admonition-title {
+  color: red ;
+  font-weight: bold ;
+  font-family: sans-serif }
+
+/* Uncomment (and remove this text!) to get reduced vertical space in
+   compound paragraphs.
+div.compound .compound-first, div.compound .compound-middle {
+  margin-bottom: 0.5em }
+
+div.compound .compound-last, div.compound .compound-middle {
+  margin-top: 0.5em }
+*/
+
+div.dedication {
+  margin: 2em 5em ;
+  text-align: center ;
+  font-style: italic }
+
+div.dedication p.topic-title {
+  font-weight: bold ;
+  font-style: normal }
+
+div.figure {
+  margin-left: 2em ;
+  margin-right: 2em }
+
+div.footer, div.header {
+  clear: both;
+  font-size: smaller }
+
+div.line-block {
+  display: block ;
+  margin-top: 1em ;
+  margin-bottom: 1em }
+
+div.line-block div.line-block {
+  margin-top: 0 ;
+  margin-bottom: 0 ;
+  margin-left: 1.5em }
+
+div.sidebar {
+  margin: 0 0 0.5em 1em ;
+  border: medium outset ;
+  padding: 1em ;
+  background-color: #ffffee ;
+  width: 40% ;
+  float: right ;
+  clear: right }
+
+div.sidebar p.rubric {
+  font-family: sans-serif ;
+  font-size: medium }
+
+div.system-messages {
+  margin: 5em }
+
+div.system-messages h1 {
+  color: red }
+
+div.system-message {
+  border: medium outset ;
+  padding: 1em }
+
+div.system-message p.system-message-title {
+  color: red ;
+  font-weight: bold }
+
+div.topic {
+  margin: 2em }
+
+h1.section-subtitle, h2.section-subtitle, h3.section-subtitle,
+h4.section-subtitle, h5.section-subtitle, h6.section-subtitle {
+  margin-top: 0.4em }
+
+h1.title {
+  text-align: center }
+
+h2.subtitle {
+  text-align: center }
+
+hr.docutils {
+  width: 75% }
+
+img.align-left, .figure.align-left, object.align-left {
+  clear: left ;
+  float: left ;
+  margin-right: 1em }
+
+img.align-right, .figure.align-right, object.align-right {
+  clear: right ;
+  float: right ;
+  margin-left: 1em }
+
+img.align-center, .figure.align-center, object.align-center {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.align-left {
+  text-align: left }
+
+.align-center {
+  clear: both ;
+  text-align: center }
+
+.align-right {
+  text-align: right }
+
+/* reset inner alignment in figures */
+div.align-right {
+  text-align: inherit }
+
+/* div.align-center * { */
+/*   text-align: left } */
+
+ol.simple, ul.simple {
+  margin-bottom: 1em }
+
+ol.arabic {
+  list-style: decimal }
+
+ol.loweralpha {
+  list-style: lower-alpha }
+
+ol.upperalpha {
+  list-style: upper-alpha }
+
+ol.lowerroman {
+  list-style: lower-roman }
+
+ol.upperroman {
+  list-style: upper-roman }
+
+p.attribution {
+  text-align: right ;
+  margin-left: 50% }
+
+p.caption {
+  font-style: italic }
+
+p.credits {
+  font-style: italic ;
+  font-size: smaller }
+
+p.label {
+  white-space: nowrap }
+
+p.rubric {
+  font-weight: bold ;
+  font-size: larger ;
+  color: maroon ;
+  text-align: center }
+
+p.sidebar-title {
+  font-family: sans-serif ;
+  font-weight: bold ;
+  font-size: larger }
+
+p.sidebar-subtitle {
+  font-family: sans-serif ;
+  font-weight: bold }
+
+p.topic-title {
+  font-weight: bold }
+
+pre.address {
+  margin-bottom: 0 ;
+  margin-top: 0 ;
+  font: inherit }
+
+pre.literal-block, pre.doctest-block, pre.math {
+  margin-left: 2em ;
+  margin-right: 2em }
+
+span.classifier {
+  font-family: sans-serif ;
+  font-style: oblique }
+
+span.classifier-delimiter {
+  font-family: sans-serif ;
+  font-weight: bold }
+
+span.interpreted {
+  font-family: sans-serif }
+
+span.option {
+  white-space: nowrap }
+
+span.pre {
+  white-space: pre }
+
+span.problematic {
+  color: red }
+
+span.section-subtitle {
+  /* font-size relative to parent (h1..h6 element) */
+  font-size: 80% }
+
+table.citation {
+  border-left: solid 1px gray;
+  margin-left: 1px }
+
+table.docinfo {
+  margin: 2em 4em }
+
+table.docutils {
+  margin-top: 0.5em ;
+  margin-bottom: 0.5em }
+
+table.footnote {
+  border-left: solid 1px black;
+  margin-left: 1px }
+
+table.docutils td, table.docutils th,
+table.docinfo td, table.docinfo th {
+  padding-left: 0.5em ;
+  padding-right: 0.5em ;
+  vertical-align: top }
+
+table.docutils th.field-name, table.docinfo th.docinfo-name {
+  font-weight: bold ;
+  text-align: left ;
+  white-space: nowrap ;
+  padding-left: 0 }
+
+h1 tt.docutils, h2 tt.docutils, h3 tt.docutils,
+h4 tt.docutils, h5 tt.docutils, h6 tt.docutils {
+  font-size: 100% }
+
+ul.auto-toc {
+  list-style-type: none }
+/* Style sheet for LAST HTML documents */
+h1 { color: navy }
+h2 { color: teal }
+div.document { margin-left: auto; margin-right: auto; max-width: 40em }
+li { margin-bottom: 1ex }
+
+</style>
+</head>
+<body>
+<div class="document" id="last-split">
+<h1 class="title">last-split</h1>
+
+<p>This program estimates &quot;split alignments&quot; (typically for DNA) or
+&quot;spliced alignments&quot; (typically for RNA).</p>
+<p>It reads candidate alignments of query sequences to a genome, and
+looks for a unique best alignment for each part of each query.  It
+allows different parts of one query to match different parts of the
+genome.  This is useful for DNA queries that cross rearrangement
+breakpoints, or RNA queries that cross splice junctions.</p>
+<div class="section" id="examples">
+<h2>Examples</h2>
+<div class="section" id="split-alignment-of-dna-reads-to-a-genome">
+<h3>Split alignment of DNA reads to a genome</h3>
+<p>Assume the DNA reads are in a file called &quot;q.fastq&quot; (in fastq-sanger
+format), and the genome is in &quot;genome.fasta&quot; (in fasta format).  We
+can do the alignment like this:</p>
+<pre class="literal-block">
+lastdb -m1111110 db genome.fasta
+lastal -Q1 -e120 db q.fastq | last-split &gt; out.maf
+</pre>
+</div>
+<div class="section" id="spliced-alignment-of-rna-reads-to-a-genome">
+<h3>Spliced alignment of RNA reads to a genome</h3>
+<p>Now we assume that &quot;q.fastq&quot; has reads from RNA forward strands.  This
+time, we provide the genome information to last-split, which causes it
+to do spliced instead of split alignment, and also tells it where the
+splice signals are (GT, AG, etc):</p>
+<pre class="literal-block">
+lastdb -m1111110 db genome.fasta
+lastal -Q1 -e120 db q.fastq | last-split -g db &gt; out.maf
+</pre>
+<p>This will favour splices starting at GT (and to a lesser extent GC and
+AT), and ending at AG (and to a lesser extent AC).  However, it allows
+splices starting and ending anywhere.  It also favours splices with
+introns of typical length, specified by a log-normal distribution
+(i.e. cis-splices).  However, it allows arbitrary trans-splices
+between any two places in the genome.</p>
+</div>
+</div>
+<div class="section" id="faq">
+<h2>FAQ</h2>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Q:</th><td class="field-body">Before aligning RNA, should poly-A tails be trimmed?</td>
+</tr>
+<tr class="field"><th class="field-name">A:</th><td class="field-body">It's not essential, but it might make things faster.  Poly-A
+tracts tend to have many matches in the genome.  By trimming, you
+can prevent lastal and last-split from wasting time on such
+matches.</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="section" id="going-faster-by-parallelization">
+<h2>Going faster by parallelization</h2>
+<p>For example, split alignment of DNA reads to a genome:</p>
+<pre class="literal-block">
+parallel-fastq &quot;lastal -Q1 -e120 db | last-split&quot; &lt; q.fastq &gt; out.maf
+</pre>
+<p>This requires GNU parallel to be installed
+(<a class="reference external" href="http://www.gnu.org/software/parallel/">http://www.gnu.org/software/parallel/</a>).</p>
+</div>
+<div class="section" id="output">
+<h2>Output</h2>
+<p>The output is in MAF(-like) format:</p>
+<pre class="literal-block">
+a score=150 mismap=0.000413
+s chr21  15963638 25 + 48129895 TCAGATGAGGACCTAATTTATTACT
+s query7       50 25 +       75 TCAGATGAGGACCTAATTTATTACT
+q query7                        EBEEC&#64;CE=EEE?FEDAED5?&#64;&#64;D&#64;
+p                               !#$'BBBBBBBBBBBBBBBBBBBBB
+</pre>
+<p>The &quot;mismap&quot; is the estimated probability that this part of the query
+should be aligned to a different part of the genome.  The line
+starting with &quot;p&quot; indicates the probability that each base should be
+aligned to a different part of the genome.  It uses a compact code:</p>
+<blockquote>
+<table border="1" class="docutils">
+<colgroup>
+<col width="13%" />
+<col width="37%" />
+<col width="13%" />
+<col width="37%" />
+</colgroup>
+<tbody valign="top">
+<tr><td>Symbol</td>
+<td>Error probability</td>
+<td>Symbol</td>
+<td>Error probability</td>
+</tr>
+<tr><td><tt class="docutils literal">!</tt></td>
+<td>0.79 -- 1</td>
+<td><tt class="docutils literal">0</tt></td>
+<td>0.025 -- 0.032</td>
+</tr>
+<tr><td><tt class="docutils literal">&quot;</tt></td>
+<td>0.63 -- 0.79</td>
+<td><tt class="docutils literal">1</tt></td>
+<td>0.02  -- 0.025</td>
+</tr>
+<tr><td><tt class="docutils literal">#</tt></td>
+<td>0.5  -- 0.63</td>
+<td><tt class="docutils literal">2</tt></td>
+<td>0.016 -- 0.02</td>
+</tr>
+<tr><td><tt class="docutils literal">$</tt></td>
+<td>0.4  -- 0.5</td>
+<td><tt class="docutils literal">3</tt></td>
+<td>0.013 -- 0.016</td>
+</tr>
+<tr><td><tt class="docutils literal">%</tt></td>
+<td>0.32 -- 0.4</td>
+<td><tt class="docutils literal">4</tt></td>
+<td>0.01  -- 0.013</td>
+</tr>
+<tr><td><tt class="docutils literal">&amp;</tt></td>
+<td>0.25 -- 0.32</td>
+<td><tt class="docutils literal">5</tt></td>
+<td>0.0079 -- 0.01</td>
+</tr>
+<tr><td><tt class="docutils literal">'</tt></td>
+<td>0.2  -- 0.25</td>
+<td><tt class="docutils literal">6</tt></td>
+<td>0.0063 -- 0.0079</td>
+</tr>
+<tr><td><tt class="docutils literal">(</tt></td>
+<td>0.16 -- 0.2</td>
+<td><tt class="docutils literal">7</tt></td>
+<td>0.005  -- 0.0063</td>
+</tr>
+<tr><td><tt class="docutils literal">)</tt></td>
+<td>0.13 -- 0.16</td>
+<td><tt class="docutils literal">8</tt></td>
+<td>0.004  -- 0.005</td>
+</tr>
+<tr><td><tt class="docutils literal">*</tt></td>
+<td>0.1  -- 0.13</td>
+<td><tt class="docutils literal">9</tt></td>
+<td>0.0032 -- 0.004</td>
+</tr>
+<tr><td><tt class="docutils literal">+</tt></td>
+<td>0.079 -- 0.1</td>
+<td><tt class="docutils literal">:</tt></td>
+<td>0.0025 -- 0.0032</td>
+</tr>
+<tr><td><tt class="docutils literal">,</tt></td>
+<td>0.063 -- 0.079</td>
+<td><tt class="docutils literal">;</tt></td>
+<td>0.002  -- 0.0025</td>
+</tr>
+<tr><td><tt class="docutils literal">-</tt></td>
+<td>0.05  -- 0.063</td>
+<td><tt class="docutils literal">&lt;</tt></td>
+<td>0.0016 -- 0.002</td>
+</tr>
+<tr><td><tt class="docutils literal">.</tt></td>
+<td>0.04  -- 0.05</td>
+<td><tt class="docutils literal">=</tt></td>
+<td>0.0013 -- 0.0016</td>
+</tr>
+<tr><td><tt class="docutils literal">/</tt></td>
+<td>0.032 -- 0.04</td>
+<td><tt class="docutils literal">&gt;</tt></td>
+<td>0.001  -- 0.0013</td>
+</tr>
+</tbody>
+</table>
+</blockquote>
+<p>Other symbols indicate lower error probabilities, and &quot;~&quot; is the
+lowest possible.  In general:</p>
+<pre class="literal-block">
+Error probability &lt;= 10 ^ -((ASCII value - 33) / 10)
+</pre>
+<p>The &quot;mismap&quot; is simply the lowest probability from the &quot;p&quot; line.</p>
+</div>
+<div class="section" id="split-versus-spliced-alignment">
+<h2>Split versus spliced alignment</h2>
+<p>Here is a split alignment:</p>
+<pre class="literal-block">
+Query         ttctttgat--gctagtcctgatgttatggtattttttatcgaatgataa
+                |||||||--||||||                |||x||||||||||||
+Genome chrA  ...ctttgatatgctagt...             |||x||||||||||||
+Genome chrB                                 ...tttatatcgaatgata...
+</pre>
+<p>And here is a spliced alignment:</p>
+<pre class="literal-block">
+Query        ctagtcgatatt--gctgtacgtctgttagctat-tttttcctctgtttg
+                |||x|||||--|||||||||----|||||||-|||||x|||||
+Genome chrA  ...gtctatattatgctgtacgt... |||||||-|||||x|||||
+Genome chrB                          ...tagctatattttttctctg...
+</pre>
+<p>Split alignment allows arbitrarily large unaligned parts in the middle
+of the query, whereas spliced alignment applies a standard gap
+penalty.  (Both allow arbitrarily large unaligned parts at the edges
+of the query.)</p>
+</div>
+<div class="section" id="specialized-examples">
+<h2>Specialized examples</h2>
+<div class="section" id="faster-spliced-alignment">
+<h3>Faster spliced alignment</h3>
+<p>Spliced alignment can be slow.  It can be sped up, at a small cost in
+accuracy, by not favouring cis-splices:</p>
+<pre class="literal-block">
+lastdb -m1111110 db genome.fasta
+lastal -Q1 -e120 db q.fastq | last-split -c0 -t0.004 -g db &gt; out.maf
+</pre>
+<p>The -c0 turns off cis-splicing, and the -t0.004 specifies a higher
+probability of trans-splicing.</p>
+</div>
+<div class="section" id="spliced-alignment-of-dna-reads-to-a-genome">
+<h3>&quot;Spliced&quot; alignment of DNA reads to a genome</h3>
+<p>If we do not wish to allow arbitrarily large unaligned parts in the
+middle of the query, we can do &quot;spliced&quot; alignment without considering
+splice signals or favouring cis-splices:</p>
+<pre class="literal-block">
+lastdb -m1111110 db genome.fasta
+lastal -Q1 -e120 db q.fastq | last-split -c0 &gt; out.maf
+</pre>
+</div>
+</div>
+<div class="section" id="options">
+<h2>Options</h2>
+<blockquote>
+<table class="docutils option-list" frame="void" rules="none">
+<col class="option" />
+<col class="description" />
+<tbody valign="top">
+<tr><td class="option-group">
+<kbd><span class="option">-h</span>, <span class="option">--help</span></kbd></td>
+<td>Show a help message, with default option values, and exit.</td></tr>
+<tr><td class="option-group" colspan="2">
+<kbd><span class="option">-g</span>, <span class="option">--genome=<var>NAME</var></span></kbd></td>
+</tr>
+<tr><td>&nbsp;</td><td>Do spliced alignment, and read splice signals (GT, AG, etc)
+from the named genome.  NAME should be the name of a lastdb
+database.</td></tr>
+<tr><td class="option-group" colspan="2">
+<kbd><span class="option">-d</span>, <span class="option">--direction=<var>D</var></span></kbd></td>
+</tr>
+<tr><td>&nbsp;</td><td>Do spliced alignment, and set the strandedness of the
+queries: 0=reverse, 1=forward, 2=unknown/mixed.  This
+determines whether forward and/or reverse-complement splice
+signals are used.</td></tr>
+<tr><td class="option-group">
+<kbd><span class="option">-c</span>, <span class="option">--cis=<var>PROB</var></span></kbd></td>
+<td>Do spliced alignment, and set the average probability per
+base of cis-splicing.  The default value roughly fits human
+RNA.</td></tr>
+<tr><td class="option-group" colspan="2">
+<kbd><span class="option">-t</span>, <span class="option">--trans=<var>PROB</var></span></kbd></td>
+</tr>
+<tr><td>&nbsp;</td><td>Do spliced alignment, and set the average probability per
+base of trans-splicing.</td></tr>
+<tr><td class="option-group" colspan="2">
+<kbd><span class="option">-M</span>, <span class="option">--mean=<var>MEAN</var></span></kbd></td>
+</tr>
+<tr><td>&nbsp;</td><td>Do spliced alignment, and set the mean of ln(intron length).
+The default value fits human RNA.</td></tr>
+<tr><td class="option-group" colspan="2">
+<kbd><span class="option">-S</span>, <span class="option">--sdev=<var>SDEV</var></span></kbd></td>
+</tr>
+<tr><td>&nbsp;</td><td>Do spliced alignment, and set the standard deviation of
+ln(intron length).  The default value fits human RNA.</td></tr>
+<tr><td class="option-group" colspan="2">
+<kbd><span class="option">-m</span>, <span class="option">--mismap=<var>PROB</var></span></kbd></td>
+</tr>
+<tr><td>&nbsp;</td><td>Don't write alignments with mismap probability &gt; PROB.
+Low-confidence alignments will be discarded unless you
+increase this value!</td></tr>
+<tr><td class="option-group" colspan="2">
+<kbd><span class="option">-s</span>, <span class="option">--score=<var>INT</var></span></kbd></td>
+</tr>
+<tr><td>&nbsp;</td><td><p class="first">Don't write alignments with score &lt; INT.</p>
+<p>For SPLIT alignment, the default value is e (the lastal score
+threshold).  Alignments with score just above INT will get
+high mismap probabilities.</p>
+<p class="last">For SPLICED alignment, the default value is e + t * ln(1000),
+where t is a scale factor that is written in the lastal
+header.  This roughly means that, for every alignment it
+writes, it has considered alternative alignments with
+one-thousandth the probability.  Alignments with score just
+above INT will not necessarily get high mismap probabilities.</p>
+</td></tr>
+<tr><td class="option-group">
+<kbd><span class="option">-n</span>, <span class="option">--no-split</span></kbd></td>
+<td>Do probability calculations as usual, but write the
+<em>original</em> alignments, annotated with &quot;p&quot; lines and mismap
+probabilities.  Note that the mismap and score limits still
+apply.</td></tr>
+<tr><td class="option-group">
+<kbd><span class="option">-v</span>, <span class="option">--verbose</span></kbd></td>
+<td>Show progress information on the screen.</td></tr>
+<tr><td class="option-group">
+<kbd><span class="option">-V</span>, <span class="option">--version</span></kbd></td>
+<td>Show version information and exit.</td></tr>
+</tbody>
+</table>
+</blockquote>
+</div>
+<div class="section" id="details">
+<h2>Details</h2>
+<ul class="simple">
+<li>The input must be in MAF format, and it must include header lines
+(of the kind produced by lastal) describing the alignment score
+parameters.</li>
+<li>The program reads one batch of alignments at a time (by looking for
+lines starting with &quot;# batch&quot;).  If the batches are huge
+(e.g. because there are no lines starting with &quot;# batch&quot;), it might
+need too much memory.</li>
+<li>lastal can optionally write &quot;p&quot; lines, indicating the probability
+that each base is misaligned due to wrong gap placement.
+last-split, on the other hand, writes &quot;p&quot; lines indicating the
+probability that each base is aligned to the wrong genomic locus.
+You can combine both sources of error (roughly) by taking the
+maximum of the two error probabilities for each base.</li>
+</ul>
+<p>The following points matter only if you are doing something unusual
+(e.g. bisulfite alignment):</p>
+<ul class="simple">
+<li>If the header has more than one score matrix, last-split will use
+the first one.</li>
+<li>It assumes this score matrix applies to all alignments, when the
+alignments are oriented to use the forward strand of the query.</li>
+</ul>
+</div>
+<div class="section" id="limitations">
+<h2>Limitations</h2>
+<p>last-split does not support:</p>
+<ul class="simple">
+<li>Generalized affine gap costs.</li>
+</ul>
+</div>
+<div class="section" id="to-do">
+<h2>To do</h2>
+<ul class="simple">
+<li>An option to specify splice signals and their strengths.</li>
+</ul>
+</div>
+</div>
+</body>
+</html>

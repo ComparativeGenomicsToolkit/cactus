@@ -1,0 +1,8 @@
+#! /bin/sh
+
+parallel --gnu --version > /dev/null || exit 1
+
+parallel --gnu --minversion 20130222 > /dev/null ||
+echo $(basename $0): warning: old version of parallel, might be slow 1>&2
+
+exec parallel --gnu --pipe --recstart '>' "$@"

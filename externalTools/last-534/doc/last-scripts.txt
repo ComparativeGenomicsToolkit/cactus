@@ -1,0 +1,83 @@
+Description of scripts that accompany LAST
+==========================================
+
+last-dotplot
+------------
+
+This script makes a dotplot, a.k.a. Oxford Grid, of pair-wise
+alignments in MAF or LAST tabular format.  It requires the Python
+Imaging Library to be installed.  To get a usage message::
+
+  last-dotplot --help
+
+To make a png-format dotplot of alignments in a file called "al"::
+
+  last-dotplot al al.png
+
+To get a nicer font, try something like::
+
+  last-dotplot -f /usr/share/fonts/truetype/freefont/FreeSans.ttf al al.png
+
+If the fonts are located somewhere different on your computer, change
+this as appropriate.  To turn off the text and margins completely::
+
+  last-dotplot -s0 al al.png
+
+To limit the plot to 500x500 pixels::
+
+  last-dotplot -x500 -y500 al al.png
+
+If there are too many chromosomes, the dotplot will be very cluttered,
+or the script might give up with an error message.  So you may want to
+remove alignments involving fragmentary chromosomes first.  For
+example, you could use "grep -v" to remove alignments involving
+chromosomes with names like "chr1_random"::
+
+  grep -v 'random' al > plotme
+  last-dotplot plotme plotme.png
+
+
+maf-join
+--------
+
+This script joins two or more sets of pairwise (or multiple)
+alignments into multiple alignments::
+
+  maf-join aln1.maf aln2.maf aln3.maf > joined.maf
+
+The top genome in each input file should be the same, and the script
+simply joins alignment columns that are at the same position in the
+top genome.  IMPORTANT LIMITATION: alignment columns with gaps in the
+top sequence get joined arbitrarily, and probably wrongly.  Please
+disregard such columns in downstream analyses.  Each input file must
+have been sorted using maf-sort.  For an example of using LAST and
+maf-join, see multiMito.sh in the examples directory.
+
+
+maf-swap
+--------
+
+This script changes the order of the sequences in MAF-format
+alignments.  You can use option "-n" to move the "n"th sequence to the
+top (it defaults to 2)::
+
+  maf-swap -n3 my-alignments.maf > my-swapped.maf
+
+
+maf-sort
+--------
+
+This sorts MAF-format alignments by sequence name, then strand, then
+start position, then end position, of the top sequence.  You can use
+option "-n" to sort by the "n"th sequence instead of the top sequence.
+
+
+Limitations
+-----------
+
+1) The scripts that read MAF format work with the simple subset of MAF
+   produced by lastal, but they don't necessarily work with more
+   complex MAF data from elsewhere.
+
+2) These scripts do not work for DNA-versus-protein alignments:
+   last-dotplot, maf-join.

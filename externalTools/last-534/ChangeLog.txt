@@ -1,0 +1,3214 @@
+2015-01-23  Martin C. Frith  <Martin C. Frith>
+
+	* doc/lastal.txt, src/ScoreMatrix.cc:
+	Added ATMAP substitution score matrix.
+	[1689423027d6] [tip]
+
+	* src/split/last-split.cc, test/last-split-test.out:
+	Made last-split not print "# batch" lines (to simplify last-split |
+	maf-swap | last-split).
+	[488d84ce7ec1]
+
+	* src/split/cbrc_split_aligner.cc:
+	Made last-split accept per-base quality scores >= 64.
+	[1419b21864b7]
+
+2014-12-19  Martin C. Frith  <Martin C. Frith>
+
+	* src/last-pair-probs-main.cc, test/last-pair-test.out:
+	Added version option to last-pair-probs.
+	[fb3745368a0c]
+
+	* src/last-pair-probs-main.cc, src/last-pair-probs.cc, src/last-pair-
+	probs.hh, test/last-pair-test.out, test/last-pair-test.sh:
+	Made last-pair-probs write distance statistics to stdout, not
+	stderr.
+	[6aa0a194f64b]
+
+2014-12-10  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-pair-probs.txt, scripts/fastq-interleave, scripts/parallel-
+	fastq, src/last-pair-probs-main.cc, src/last-pair-probs.cc,
+	src/makefile, test/last-pair-test.out:
+	Made last-pair-probs able to read interleaved pairs.
+	[dc2c88c11662]
+
+2014-12-09  Martin C. Frith  <Martin C. Frith>
+
+	* src/ScoreMatrix.cc:
+	Changed the MIQS default gap existence cost from 15 to 13.
+	[29ee3f694b98]
+
+	* src/last-pair-probs.cc:
+	Added some checks for bad input to last-pair-probs.
+	[5a21351e61c3]
+
+	* src/last-pair-probs.cc:
+	Refactoring.
+	[f91a8863ee13]
+
+2014-12-08  Martin C. Frith  <Martin C. Frith>
+
+	* src/last-pair-probs.cc:
+	Made last-pair-probs a bit faster.
+	[47013cfde9cf]
+
+	* src/last-pair-probs.cc:
+	Made last-pair-probs faster.
+	[fea2dae3ca09]
+
+	* src/last-pair-probs.cc:
+	Made last-pair-probs faster.
+	[a392533917cf]
+
+	* src/last-pair-probs.cc:
+	Made last-pair-probs a bit slower, temporarily.
+	[13fc043e92e2]
+
+	* src/last-pair-probs.cc:
+	Made last-pair-probs a bit faster.
+	[405232c073ab]
+
+	* src/last-pair-probs.cc:
+	Refactoring.
+	[5c963397fc74]
+
+	* src/last-pair-probs.cc:
+	Made last-pair-probs faster.
+	[44a9db2972c4]
+
+	* src/last-pair-probs.cc:
+	Refactoring.
+	[44e682fc4f66]
+
+	* src/last-pair-probs.cc:
+	Made last-pair-probs faster.
+	[fc6ba2b54315]
+
+	* src/last-pair-probs.cc:
+	Refactoring.
+	[79359b21b314]
+
+2014-12-05  Martin C. Frith  <Martin C. Frith>
+
+	* src/last-pair-probs.cc:
+	Made last-pair-probs a bit faster, maybe.
+	[93df261216e3]
+
+	* src/last-pair-probs.cc:
+	Made last-pair-probs a bit faster.
+	[f840ffb18338]
+
+	* doc/last-pair-probs.txt, src/last-pair-probs.cc:
+	Made last-pair-probs much faster.
+	[0ecfbfd618c7]
+
+2014-12-03  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-pair-probs.txt, examples/last-bisulfite-paired.sh,
+	makefile, scripts/last-pair-probs, src/last-pair-probs-main.cc, src
+	/last-pair-probs.cc, src/last-pair-probs.hh, src/makefile, test
+	/last-pair-test.out:
+	Made last-pair-probs faster (Python -> C++)!
+	[0e7e23a7850a]
+
+	* test/last-pair-test.out, test/last-pair-test.sh:
+	Added some tests.
+	[e5c72deb6ed3]
+
+2014-12-01  Martin C. Frith  <Martin C. Frith>
+
+	* test/bs1.fastq, test/bs2.fastq, test/last-pair-test.out, test/last-
+	pair-test.sh, test/last-test.sh:
+	Added tests of paired alignment.
+	[a2bbd8f5e7e4]
+
+	* src/SubsetSuffixArraySort.cc, src/lastal.cc, test/last-test.out,
+	test/last-test.sh, test/ttttt.fa, test/tttttccccc.fa:
+	Bugfix: lastdb option -i wasn't quite right since v497.
+	[0f3545af3222]
+
+2014-11-28  Martin C. Frith  <Martin C. Frith>
+
+	* src/lastal.cc, src/lastdb.cc:
+	Refactoring.
+	[615bad2bf469]
+
+	* src/LastdbArguments.hh, src/lastal.cc, src/lastdb.cc:
+	Refactoring.
+	[6b70fd6c4d5a]
+
+2014-11-27  Martin C. Frith  <Martin C. Frith>
+
+	* src/GeneticCode.cc, src/GeneticCode.hh:
+	Refactoring.
+	[1c9afaa16a28]
+
+2014-11-26  Martin C. Frith  <Martin C. Frith>
+
+	* doc/lastal.txt, src/ScoreMatrix.cc:
+	Added MIQS substitution score matrix, for remote protein homology.
+	[8532319b6abd]
+
+	* src/Alphabet.cc, src/Alphabet.hh:
+	Refactoring.
+	[1d7c986d8f69]
+
+	* src/Alignment.cc, src/Alphabet.cc, src/Alphabet.hh, src/lastal.cc,
+	src/lastdb.cc, src/split/cbrc_split_aligner.cc:
+	Refactoring (changed a name).
+	[48967e20b286]
+
+2014-11-17  Martin C. Frith  <Martin C. Frith>
+
+	* src/SubsetSuffixArray.hh, src/SubsetSuffixArraySearch.cc:
+	Made lastal with option -l or -m0 faster.
+	[133919bd9cd4]
+
+2014-10-30  Martin C. Frith  <Martin C. Frith>
+
+	* src/SubsetSuffixArraySearch.cc:
+	Refactoring (removed a non-optimization).
+	[8fd0504668b4]
+
+	* src/SubsetSuffixArraySearch.cc:
+	Made lastal with option -l a bit faster.
+	[8b86fcd80c92]
+
+	* src/SubsetSuffixArray.cc, src/SubsetSuffixArraySearch.cc,
+	src/makefile:
+	Refactoring.
+	[fe9d9b819546]
+
+	* test/last-test.out, test/last-test.sh:
+	Added some tests for min & max seed length.
+	[bc0f1de8dbd3]
+
+	* doc/lastal.txt, doc/tag-seeds.txt, src/LastalArguments.cc,
+	src/LastalArguments.hh, src/lastal.cc, test/last-test.out:
+	! Changed the meaning of lastal option -l, and added option -L.
+	[f92167aee244]
+
+	* src/SubsetSuffixArray.cc, src/SubsetSuffixArray.hh, src/lastal.cc:
+	Continued implementing min & max seed length.
+	[5aadb69de0c6]
+
+2014-10-29  Martin C. Frith  <Martin C. Frith>
+
+	* src/LastalArguments.cc, test/last-test.out:
+	Added C option (if used) to header of lastal output.
+	[5fe9efc1364d]
+
+	* src/LastalArguments.cc:
+	Refactoring.
+	[1a83eb621b97]
+
+	* src/SubsetSuffixArray.cc, src/SubsetSuffixArray.hh, src/lastal.cc:
+	Started implementing min & max seed length.
+	[a84ce2b7619f]
+
+	* src/SubsetSuffixArray.cc, src/SubsetSuffixArray.hh:
+	Refactoring.
+	[ec7999011795]
+
+	* doc/maf-convert.txt:
+	Tiny doc clarification.
+	[c42b75e2afe4]
+
+2014-10-07  Martin C. Frith  <Martin C. Frith>
+
+	* scripts/maf-convert:
+	Made maf-convert to tab a bit faster, maybe.
+	[f2f4372810c8]
+
+	* scripts/maf-convert:
+	Made maf-convert to psl faster.
+	[b777fc12e1da]
+
+2014-10-06  Martin C. Frith  <Martin C. Frith>
+
+	* scripts/maf-convert:
+	Made maf-convert to tab faster, and allow missing score.
+	[a49f450fd21c]
+
+	* scripts/maf-convert:
+	Made maf-convert to sam faster.
+	[2c3fc2f098ff]
+
+	* scripts/maf-convert:
+	Made maf-convert to sam faster.
+	[f5ca11b28637]
+
+	* scripts/maf-convert:
+	Made maf-convert to sam faster.
+	[c5d5add95e5e]
+
+	* scripts/maf-convert:
+	Made maf-convert to sam faster.
+	[52804495ab96]
+
+2014-10-01  Martin C. Frith  <Martin C. Frith>
+
+	* doc/lastal.txt, src/LastalArguments.cc, src/LastalArguments.hh,
+	src/lastal.cc:
+	Removed useless -o option from lastal.
+	[63b30414bb21]
+
+2014-09-29  Martin C. Frith  <Martin C. Frith>
+
+	* scripts/last-dotplot:
+	Made last-dotplot faster for MAF & work with Python 2.4.
+	[f5b731ee703e]
+
+2014-09-24  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-doc.css:
+	Made the html docs a bit prettier.
+	[e29f2555e674]
+
+	* doc/Makefile, doc/last-postmask.txt, scripts/last-postmask:
+	Added last-postmask.
+	[aec8ba9a675a]
+
+	* doc/last-map-probs.txt, doc/last-pair-probs.txt, doc/last-
+	scripts.txt, doc/maf-convert.txt, doc/maf-cull.txt, examples/last-
+	bisulfite-paired.sh, examples/multiMito.sh, scripts/last-dotplot,
+	scripts/last-dotplot.py, scripts/last-map-probs, scripts/last-map-
+	probs.py, scripts/last-pair-probs, scripts/last-pair-probs.py,
+	scripts/maf-convert, scripts/maf-convert.py, scripts/maf-cull,
+	scripts/maf-cull.py, scripts/maf-join, scripts/maf-join.py, scripts
+	/maf-sort, scripts/maf-sort.sh, scripts/maf-swap, scripts/maf-
+	swap.py, test/maf-convert-test.out, test/maf-convert-test.sh:
+	Removed .py and .sh suffixes from script names.
+	[e707702f53f8]
+
+	* src/lastal.cc, test/last-test.out:
+	Replaced CPU time with number of query sequences, in lastal output.
+	[738937827432]
+
+	* doc/lastal.txt, src/LastalArguments.cc, test/last-test.out, test
+	/last-test.sh:
+	Added doc & test for gapless alignment culling.
+	[0a95bc0bb188]
+
+	* doc/lastdb.txt, src/CyclicSubsetSeed.cc:
+	Added MAM4 seed pattern to lastdb.
+	[d73bfbd75aa6]
+
+2014-08-06  Martin C. Frith  <Martin C. Frith>
+
+	* doc/lastal.txt, scripts/last-dotplot.py:
+	Doc tweak; made last-dotplot work with PILLOW (thanks: David
+	Mathog).
+	[4cf8170b3538]
+
+2014-08-01  Martin C. Frith  <Martin C. Frith>
+
+	* src/lastal.cc, src/split/last-split-main.cc:
+	Made lastal and last-split check for write errors.
+	[e9d7aaff4a79]
+
+2014-07-30  Martin C. Frith  <Martin C. Frith>
+
+	* src/split/last-split-main.cc, src/split/last-split.cc:
+	Minor tweaks to last-split's error messages.
+	[4694e56112a8]
+
+2014-07-08  Martin C. Frith  <Martin C. Frith>
+
+	* src/LastalArguments.cc, src/LastalArguments.hh,
+	src/SegmentPairPot.cc, src/SegmentPairPot.hh, src/lastal.cc:
+	Added lastal option to cull gapless alignments (undocumented for
+	now).
+	[018a076457f9]
+
+	* src/SegmentPairPot.cc, src/SegmentPairPot.hh, src/lastal.cc:
+	Minor refactoring.
+	[86dbc55eaec0]
+
+2014-07-04  Martin C. Frith  <Martin C. Frith>
+
+	* src/Alignment.cc, src/SegmentPairPot.cc:
+	Slightly reduced lastal's memory usage.
+	[c11e3db2c2ea]
+
+2014-07-03  Martin C. Frith  <Martin C. Frith>
+
+	* src/split/last-split.cc:
+	Slightly reduced last-split's memory usage.
+	[f0d31a5b2412]
+
+2014-06-24  Martin C. Frith  <Martin C. Frith>
+
+	* src/split/last-split.cc:
+	Reduced memory usage for split alignment.
+	[944412f6be6f]
+
+	* examples/multiMito.maf, examples/multiMito.sh, test/bs100.maf, test
+	/last-split-test.out, test/maf-convert-test.out:
+	Made the tests fit the previous change.
+	[7979e7b67072]
+
+	* doc/last-split.txt, doc/last-tutorial.txt,
+	src/split/cbrc_split_aligner.cc, src/split/last-split-main.cc,
+	src/split/last-split.cc:
+	! Changed split alignment, to treat edge alignments the same as
+	internal ones.
+	[8eed4b74c117]
+
+	* src/lastal.cc:
+	Made lastal not quit if it can't read the lastdb version.
+	[b31285f777d5]
+
+2014-06-23  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-split.txt:
+	Doc editing.
+	[4c475f9f6314]
+
+	* src/split/cbrc_split_aligner.cc:
+	Refactoring.
+	[709574287d99]
+
+2014-06-19  Martin C. Frith  <Martin C. Frith>
+
+	* src/split/cbrc_split_aligner.cc, src/split/cbrc_split_aligner.hh:
+	Refactoring.
+	[a41d6f5ea538]
+
+2014-06-16  Martin C. Frith  <Martin C. Frith>
+
+	* src/Alignment.cc, src/Alignment.hh, src/AlignmentWrite.cc,
+	src/lastal.cc:
+	Reduced lastal's memory usage a bit.
+	[3b9e29db94ae]
+
+2014-06-07  Martin C. Frith  <Martin C. Frith>
+
+	* src/split/cbrc_split_aligner.cc, test/last-split-test.out:
+	Tweaked last-split's split boundaries: cleaner inversions.
+	[173c05590cd8]
+
+	* src/split/cbrc_split_aligner.cc:
+	Refactoring.
+	[b3c1c5a55726]
+
+2014-05-21  Martin C. Frith  <Martin C. Frith>
+
+	* src/Centroid.cc:
+	Fixed abort in probabilistic alignment with unusual score
+	parameters.
+	[eda0a55ff69f]
+
+2014-05-09  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-split.txt, src/split/cbrc_split_aligner.cc,
+	src/split/cbrc_split_aligner.hh, src/split/last-split.cc:
+	Made last-split handle different insertion & deletion costs.
+	[a0f8e88d6e5a]
+
+2014-04-28  Martin C. Frith  <Martin C. Frith>
+
+	* examples/last-bisulfite-paired.sh, examples/last-bisulfite.sh,
+	makefile, scripts/last-merge-batches.py, src/last-merge-batches.c,
+	src/makefile:
+	Made last-merge-batches much faster (Python->C).
+	[db7d182005fd]
+
+2014-04-24  Martin C. Frith  <Martin C. Frith>
+
+	* src/split/last-split-main.cc:
+	Made last-split much faster at reading stdin.
+	[c7b94de8fe47]
+
+	* src/AlignmentWrite.cc:
+	Made lastal a bit faster (at writing MAF).
+	[38f41e158205]
+
+2014-04-23  Martin C. Frith  <Martin C. Frith>
+
+	* src/GappedXdropAligner.cc, src/GappedXdropAligner2qual.cc,
+	src/GappedXdropAlignerPssm.cc:
+	Made lastal's gapped extension a bit faster.
+	[9e008f32e151]
+
+	* src/makefile:
+	Updated the makefile.
+	[610ed44ebeca]
+
+	* src/split/cbrc_split_aligner.cc:
+	Made last-split a bit faster.
+	[8f94abc0f885]
+
+	* src/split/cbrc_split_aligner.cc:
+	Made last-split a bit faster.
+	[516d264fb6d8]
+
+	* src/split/cbrc_unsplit_alignment.cc:
+	Made last-split a bit faster.
+	[fa11e4f3473e]
+
+	* src/split/cbrc_unsplit_alignment.cc, src/split/last-split.cc:
+	Made last-split a bit faster.
+	[dcc5cf6ad293]
+
+2014-04-22  Martin C. Frith  <Martin C. Frith>
+
+	* src/split/cbrc_unsplit_alignment.cc:
+	Minor refactoring.
+	[7736fb59343c]
+
+	* src/split/cbrc_unsplit_alignment.cc:
+	Refactoring.
+	[3ffa20a193ad]
+
+	* src/split/cbrc_split_aligner.cc,
+	src/split/cbrc_unsplit_alignment.cc, test/last-split-test.out, test
+	/last-split-test.sh:
+	Fixed a recently-introduced bug in last-split.
+	[7bb87bb8acdb]
+
+	* src/split/cbrc_int_exponentiator.hh,
+	src/split/cbrc_split_aligner.cc, src/split/cbrc_split_aligner.hh:
+	Made last-split much faster
+	[26a3e7bc882f]
+
+2014-04-21  Martin C. Frith  <Martin C. Frith>
+
+	* src/split/cbrc_split_aligner.cc:
+	Made last-split faster.
+	[d3519c58d147]
+
+	* src/split/cbrc_unsplit_alignment.cc:
+	Made last-split faster.
+	[36ead857cb90]
+
+	* src/split/cbrc_unsplit_alignment.cc:
+	Made last-split a bit faster.
+	[1487e63dfadb]
+
+	* src/split/cbrc_split_aligner.cc,
+	src/split/cbrc_unsplit_alignment.cc,
+	src/split/cbrc_unsplit_alignment.hh, src/split/last-split.cc:
+	Made last-split faster.
+	[4794eb9cbff0]
+
+	* src/split/last-split.cc:
+	Refactoring.
+	[e477a2c9f43a]
+
+	* src/split/cbrc_unsplit_alignment.cc,
+	src/split/cbrc_unsplit_alignment.hh, src/split/last-split.cc:
+	Refactoring.
+	[f4a4d1d05ee2]
+
+2014-04-18  Martin C. Frith  <Martin C. Frith>
+
+	* src/split/cbrc_unsplit_alignment.cc:
+	Made last-split a bit faster.
+	[a7183daeffcf]
+
+	* src/split/cbrc_unsplit_alignment.cc,
+	src/split/cbrc_unsplit_alignment.hh, src/split/last-split.cc:
+	Made last-split faster.
+	[5be0ed580a4c]
+
+	* src/split/cbrc_unsplit_alignment.cc,
+	src/split/cbrc_unsplit_alignment.hh, src/split/last-split.cc:
+	Refactoring.
+	[da0231b738f0]
+
+	* doc/last-tutorial.txt, src/GappedXdropAlignerInl.hh,
+	src/split/cbrc_unsplit_alignment.cc:
+	Refactoring & doc update.
+	[dfad6bf18d44]
+
+	* src/split/cbrc_unsplit_alignment.cc,
+	src/split/cbrc_unsplit_alignment.hh, src/split/last-split.cc:
+	Refactoring.
+	[a72d722268c9]
+
+	* src/split/last-split.cc:
+	Made last-split a bit faster.
+	[2bafc09e402c]
+
+2014-04-17  Martin C. Frith  <Martin C. Frith>
+
+	* src/split/cbrc_split_aligner.cc:
+	Made last-split a tiny bit faster (maybe).
+	[5b21092e607a]
+
+	* src/split/cbrc_split_aligner.cc:
+	Made last-split a bit faster (maybe).
+	[d5fb6675a221]
+
+	* src/split/cbrc_split_aligner.cc:
+	Made last-split a bit faster.
+	[5b75f0c179fc]
+
+	* src/split/cbrc_split_aligner.cc:
+	Made last-split a bit faster (maybe).
+	[edd67e0f6cf0]
+
+	* src/split/cbrc_split_aligner.cc, src/split/cbrc_split_aligner.hh:
+	Made last-split faster.
+	[5386045403ac]
+
+2014-04-16  Martin C. Frith  <Martin C. Frith>
+
+	* src/split/cbrc_split_aligner.cc, src/split/cbrc_split_aligner.hh:
+	Refactoring.
+	[c6a6a676f4de]
+
+	* src/split/cbrc_split_aligner.cc:
+	Refactoring.
+	[56df65163a97]
+
+	* src/split/cbrc_unsplit_alignment.cc:
+	Made last-split faster.
+	[67213fcafb6c]
+
+	* src/split/cbrc_unsplit_alignment.cc:
+	Made last-split a bit faster.
+	[51453d3f661f]
+
+	* src/split/cbrc_unsplit_alignment.cc:
+	Made last-split faster.
+	[ddcd63616589]
+
+2014-04-15  Martin C. Frith  <Martin C. Frith>
+
+	* src/split/cbrc_unsplit_alignment.cc:
+	Made last-split faster.
+	[ec619deb1d67]
+
+	* src/split/cbrc_split_aligner.cc,
+	src/split/cbrc_unsplit_alignment.hh, src/split/last-split.cc:
+	Made last-split a bit faster.
+	[8e8fe7f65b39]
+
+	* src/split/cbrc_unsplit_alignment.cc,
+	src/split/cbrc_unsplit_alignment.hh:
+	Made last-split a bit faster.
+	[adbf4b9d6e8a]
+
+2014-03-07  Martin C. Frith  <Martin C. Frith>
+
+	* doc/maf-convert.txt:
+	Fixed a doc typo.
+	[825cd70c55e2]
+
+2014-02-17  Martin C. Frith  <Martin C. Frith>
+
+	* scripts/maf-convert.py:
+	Made maf-convert a bit faster.
+	[d6509e5bac46]
+
+	* scripts/maf-convert.py:
+	Made maf-convert a bit faster.
+	[28dea51811fc]
+
+	* scripts/maf-convert.py:
+	Made maf-convert a bit faster.
+	[ad28a1039625]
+
+	* test/last-test.sh, test/maf-convert-test.out, test/maf-convert-
+	test.sh:
+	Added tests for maf-convert.
+	[feda1395a162]
+
+	* doc/maf-convert.txt, scripts/maf-convert.py:
+	Added maf-convert noheader option.
+	[0870b0386ca2]
+
+2014-02-12  Martin C. Frith  <Martin C. Frith>
+
+	* src/MultiSequence.hh, src/SubsetSuffixArray.cc, src/lastal.cc,
+	src/lastdb.cc:
+	Bugfix: lastal rejected volumes of size 2^32-1.
+	[65756fdad0a7]
+
+2014-02-07  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-map-probs.txt, scripts/last-map-probs.py:
+	Simplified last-map-probs usage a bit.
+	[7d0e5a283d3c]
+
+	* doc/last-tutorial.txt, examples/bisulfite_f.mat,
+	examples/bisulfite_f.seed, examples/bisulfite_r.mat,
+	examples/bisulfite_r.seed:
+	Doc cleanup.
+	[2e29cd38c8e9]
+
+	* src/LastalArguments.cc, src/lastal.cc, test/last-test.sh:
+	Default to blosum80 instead of blosum62 for DNA-protein alignment.
+	[ef08e7127c60]
+
+2014-02-06  Martin C. Frith  <Martin C. Frith>
+
+	* doc/bisulfite.txt, examples/last-bisulfite-paired.sh, examples/last-
+	bisulfite.sh, src/LastdbArguments.cc, src/ScoreMatrix.cc, test/last-
+	test.sh:
+	Simplified the bisulfite usage a bit.
+	[0e9a63996bd9]
+
+	* doc/last-tutorial.txt, doc/lastal.txt, doc/lastdb.txt,
+	src/LastalArguments.cc, src/LastdbArguments.cc,
+	src/LastexArguments.cc:
+	Documented named seeds and score matrices.
+	[ab0a83566fca]
+
+2014-02-05  Martin C. Frith  <Martin C. Frith>
+
+	* doc/bisulfite.txt, examples/last-bisulfite-paired.sh, examples/last-
+	bisulfite.sh:
+	Simplified the bisulfite recipes.
+	[fb32a41126c9]
+
+	* test/last-test.out, test/last-test.sh:
+	Added a test.
+	[165cceb3826b]
+
+	* test/last-test.out, test/last-test.sh:
+	Added a test.
+	[1956fc0d56fa]
+
+	* test/bs100.fastq, test/bs100.maf, test/hg19-M.fa, test/last-test.sh:
+	Added a test for bisulfite.
+	[a1a7f9fb7ff0]
+
+	* src/ScoreMatrix.cc, src/ScoreMatrix.hh, src/lastal.cc,
+	src/lastex.cc:
+	Added named score matrices (undocumented).
+	[99937f273f83]
+
+	* src/CyclicSubsetSeed.cc, src/CyclicSubsetSeed.hh, src/lastdb.cc:
+	Added named seeds (undocumented).
+	[1443fafa5297]
+
+	* src/CyclicSubsetSeed.cc, src/CyclicSubsetSeed.hh, src/lastdb.cc:
+	Refactoring.
+	[54354c8a06e8]
+
+2014-02-04  Martin C. Frith  <Martin C. Frith>
+
+	* src/CyclicSubsetSeed.cc, src/CyclicSubsetSeed.hh,
+	src/LastdbArguments.cc:
+	Refactoring.
+	[6ba52407257e]
+
+	* src/CyclicSubsetSeed.cc, src/CyclicSubsetSeed.hh, src/lastdb.cc:
+	Refactoring.
+	[ae761664c223]
+
+	* src/CyclicSubsetSeed.cc:
+	Refactoring.
+	[35375cde644f]
+
+	* src/CyclicSubsetSeed.cc, src/CyclicSubsetSeed.hh, src/lastdb.cc:
+	Refactoring.
+	[ed695aad7193]
+
+	* src/LastdbArguments.cc, src/LastdbArguments.hh, src/lastdb.cc:
+	Refactoring.
+	[a33b79807536]
+
+	* src/CyclicSubsetSeed.cc, src/CyclicSubsetSeed.hh, src/lastdb.cc:
+	Refactoring.
+	[a079809dc433]
+
+2014-01-15  Martin C. Frith  <Martin C. Frith>
+
+	* src/Alignment.cc:
+	Bugfix: lastal aborted with -T1 and subset seeds (e.g. bisulfite).
+	[bdcb6a1794b0]
+
+2013-12-07  Martin C. Frith  <Martin C. Frith>
+
+	* src/Alignment.cc:
+	Bugfix: frameshifting alignment was buggy since v389 (thanks: Ruth
+	Miller).
+	[08c9e9dd391a]
+
+2013-12-05  Martin C. Frith  <Martin C. Frith>
+
+	* src/MultiSequenceQual.cc, src/split/cbrc_split_aligner.cc:
+	Check for bad fastq quality data more carefully (thanks: Darek
+	Kedra).
+	[648da3053003]
+
+	* scripts/last-dotplot.py:
+	Tweaked some dotplot parameters.
+	[f05b39763e60]
+
+2013-12-02  Martin C. Frith  <Martin C. Frith>
+
+	* src/Alignment.cc, src/Alignment.hh, src/AlignmentWrite.cc,
+	src/GeneticCode.cc, src/GeneticCode.hh:
+	Refactoring.
+	[666c5b00ff85]
+
+	* src/AlignmentWrite.cc:
+	Minor refactoring.
+	[61ab2a981d1f]
+
+	* src/Alignment.cc, src/Alignment.hh, src/AlignmentPot.hh,
+	src/AlignmentWrite.cc, src/lastal.cc:
+	Minor refactoring.
+	[74291df45c64]
+
+	* src/split/cbrc_split_aligner.cc:
+	Made cis-spliced alignment startup a bit faster.
+	[8cb17de3471e]
+
+	* src/split/cbrc_split_aligner.cc, src/split/cbrc_split_aligner.hh:
+	Made spliced alignment faster.
+	[657dbbbaff7b]
+
+2013-11-30  Martin C. Frith  <Martin C. Frith>
+
+	* src/split/cbrc_split_aligner.cc:
+	Made cis-spliced alignment a tiny bit faster.
+	[6d3e5500a3f6]
+
+	* src/split/cbrc_split_aligner.cc:
+	Made cis-spliced alignment a bit faster.
+	[6b5f43d21d4e]
+
+	* src/split/cbrc_split_aligner.cc, src/split/cbrc_split_aligner.hh:
+	Made cis-spliced alignment much faster.
+	[4fd9db8ed8f9]
+
+2013-11-29  Martin C. Frith  <Martin C. Frith>
+
+	* src/split/cbrc_split_aligner.cc:
+	Bugfix: last-split aborted on fastq-illumina data (thanks: Anish
+	Shrestha).
+	[807d93eb9398]
+
+	* src/split/cbrc_split_aligner.cc, src/split/cbrc_split_aligner.hh:
+	Made cis-spliced alignment a bit faster.
+	[ff3e21fde5e9]
+
+2013-11-28  Martin C. Frith  <Martin C. Frith>
+
+	* src/split/cbrc_split_aligner.cc, src/split/cbrc_split_aligner.hh,
+	test/last-split-test.out:
+	Made cis-spliced alignment faster (which rarely changes the
+	probabilities).
+	[69ae9c1da2bc]
+
+	* src/split/cbrc_split_aligner.cc, src/split/cbrc_split_aligner.hh,
+	test/last-split-test.out:
+	Made spliced alignment faster (which changes the probabilities a
+	bit).
+	[ab57f7a0bf07]
+
+2013-11-25  Martin C. Frith  <Martin C. Frith>
+
+	* src/makefile:
+	Made re-compilation faster.
+	[146da0983d56]
+
+2013-11-11  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last.txt, src/LastalArguments.cc, src/LastdbArguments.cc,
+	src/LastexArguments.cc, src/qualityScoreUtil.hh:
+	Changed the email address.
+	[c8b41899f04e]
+
+	* src/qualityScoreUtil.hh, src/split/cbrc_split_aligner.cc:
+	Fixed crash with fastq and high mismatch cost (thanks: Dave
+	duVerle).
+	[6524c84d5010]
+
+	* doc/last-split.txt:
+	Added poly-A tail FAQ to the last-split doc.
+	[72d47af7ac19]
+
+2013-11-09  Martin C. Frith  <Martin C. Frith>
+
+	* doc/bisulfite.txt, examples/last-bisulfite-paired.sh, examples/last-
+	bisulfite.sh, examples/lastal-bisulfite-paired.sh:
+	Tried to simplify bisulfite alignment.
+	[3e54ea29d396]
+
+	* doc/last-scripts.txt, scripts/last-reduce-alignments.sh, scripts
+	/last-remove-dominated.py:
+	Removed last-reduce-alignments and last-remove-dominated.
+	[4de08a642180]
+
+	* doc/last-tutorial.txt:
+	Recommend last-split for genome comparison in the tutorial.
+	[d94ccff38eb2]
+
+	* examples/multiMito.maf, examples/multiMito.sh, test/last-test.sh:
+	Use last-split instead of last-reduce-alignments in the multiMito
+	example.
+	[83b7885e7289]
+
+	* makefile:
+	Removed the last-split executable from the zip-file.
+	[56105d01281d]
+
+2013-11-08  Martin C. Frith  <Martin C. Frith>
+
+	* src/split/cbrc_split_aligner.cc, src/split/cbrc_split_aligner.hh,
+	src/split/last-split.cc:
+	Made last-split support fastq-illumina data.
+	[0170f51e256c]
+
+2013-11-07  Martin C. Frith  <Martin C. Frith>
+
+	* src/LastalArguments.cc, test/last-test.out:
+	Added T and Q parameters to the header of the lastal output.
+	[bf2486ffc14c]
+
+	* doc/last-split.txt, src/split/cbrc_unsplit_alignment.cc, src/split
+	/last-split.cc:
+	Made last-split compatible with the bisulfite recipe.
+	[13dd8ce7563d]
+
+2013-11-05  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-map-probs.txt, doc/last-split.txt, doc/last-tutorial.txt,
+	makefile, scripts/parallel-fasta, scripts/parallel-fastq:
+	Added parallel-fasta and parallel-fastq.
+	[12b5485bf653]
+
+	* doc/last-tutorial.txt:
+	Recommending last-split instead of last-map-probs in the main
+	tutorial.
+	[4d5149f35e8c]
+
+	* doc/bisulfite.txt, doc/last-map-probs.txt, doc/last-split.txt, doc
+	/last-tutorial.txt, doc/lastal.txt, doc/lastdb.txt,
+	src/LastalArguments.cc, src/LastdbArguments.cc, src/lastal.cc,
+	src/lastdb.cc:
+	Made lastdb and lastal read stdin when given no sequence file-names.
+	[6ed7b14969a5]
+
+2013-10-15  Martin C. Frith  <Martin C. Frith>
+
+	* src/split/last-split.cc, test/last-split-test.out, test/last-split-
+	test.sh:
+	Print the last-split RNA/intron strand option in the header.
+	[ee65c63ae8b6]
+
+	* doc/last-split.txt, src/split/cbrc_split_aligner.cc,
+	src/split/cbrc_split_aligner.hh, src/split/last-split-main.cc,
+	src/split/last-split.cc, src/split/last-split.hh, test/last-split-
+	test.out:
+	Added last-split option to specify RNA/intron strand.
+	[f1204fad2cd7]
+
+	* src/split/cbrc_split_aligner.cc, src/split/cbrc_split_aligner.hh,
+	src/split/last-split.cc:
+	Refactoring
+	[430afce5f00b]
+
+2013-10-04  Martin C. Frith  <Martin C. Frith>
+
+	* makefile:
+	Added last-split to "make install"
+	[d6323081a217]
+
+	* doc/Makefile, doc/last-split-probs.txt, doc/last-split.txt, scripts
+	/last-split-probs.py, src/makefile, src/split/cbrc_linalg.cc,
+	src/split/cbrc_linalg.hh, src/split/cbrc_split_aligner.cc,
+	src/split/cbrc_split_aligner.hh,
+	src/split/cbrc_unsplit_alignment.cc,
+	src/split/cbrc_unsplit_alignment.hh, src/split/last-split-main.cc,
+	src/split/last-split.cc, src/split/last-split.hh,
+	test/SRR359290-1k.maf, test/last-split-test.out, test/last-split-
+	test.sh:
+	Replaced last-split-probs with last-split !
+	[bc5801666fb2]
+
+2013-10-02  Martin C. Frith  <Martin C. Frith>
+
+	* examples/lastal-bisulfite-paired.sh, src/Alphabet.hh,
+	src/Centroid.hh:
+	Very minor code tweaks
+	[7add737275da]
+
+2013-09-02  Martin C. Frith  <Martin C. Frith>
+
+	* test/last-test.out, test/last-test.sh:
+	Added a test.
+	[b2417b896e40]
+
+2013-09-01  Martin C. Frith  <Martin C. Frith>
+
+	* src/Centroid.cc, src/Centroid.hh:
+	Made the probabilistic dynamic-programming similar to the non-
+	probabilistic DP.
+	[54f9d38e78a8]
+
+	* src/Centroid.cc:
+	Fixed some code that's probably never used anyway.
+	[ecf35f1babbb]
+
+	* src/Centroid.cc, src/Centroid.hh:
+	Simplified the probabilistic alignment with a cunning trick.
+	[66169fb0dc4b]
+
+2013-08-31  Martin C. Frith  <Martin C. Frith>
+
+	* src/Centroid.cc, test/last-test.out, test/last-test.sh:
+	Refactoring & added a test.
+	[b14f98bb0aaf]
+
+2013-08-29  Martin C. Frith  <Martin C. Frith>
+
+	* src/Centroid.cc:
+	Very minor refactoring.
+	[da5103b17109]
+
+	* src/Centroid.cc:
+	Very minor refactoring.
+	[e19ac83cdf39]
+
+	* src/Centroid.cc:
+	Refactoring.
+	[4afc604780f8]
+
+	* src/Centroid.cc:
+	Refactoring.
+	[045d538073b5]
+
+	* src/Centroid.cc, src/Centroid.hh:
+	Refactoring.
+	[a4c602f1974f]
+
+	* src/Centroid.cc:
+	Refactoring.
+	[28b33aa17b79]
+
+	* src/Centroid.cc:
+	Refactoring.
+	[76d3f93bab3c]
+
+	* src/Centroid.cc:
+	Refactoring (just renamed a variable).
+	[308b26210a2a]
+
+	* src/Alignment.cc, src/Alignment.hh:
+	Refactoring.
+	[9a8f96fcc9e1]
+
+	* src/Centroid.cc, src/Centroid.hh:
+	Increased robustness to integer overflow (maybe).
+	[ccc85569d01c]
+
+	* src/Centroid.cc, src/Centroid.hh:
+	Refactoring.
+	[4e33c00a4a1b]
+
+	* src/Centroid.cc, src/Centroid.hh:
+	Refactoring.
+	[d6c67ba4c15b]
+
+	* src/Centroid.cc:
+	Refactoring.
+	[8c5ba2c1fcd5]
+
+2013-08-28  Martin C. Frith  <Martin C. Frith>
+
+	* src/Centroid.cc:
+	Refactoring.
+	[d598fe33632b]
+
+	* src/Centroid.cc:
+	Refactoring.
+	[7817575bf345]
+
+	* src/Centroid.cc:
+	Refactoring.
+	[8d6e98549602]
+
+	* src/Centroid.cc:
+	Refactoring.
+	[3e6bfbaccc08]
+
+	* src/Centroid.cc, src/Centroid.hh, src/lastal.cc:
+	Removed trailing whitespace.
+	[df07ac99d269]
+
+	* src/Centroid.cc:
+	Refactoring.
+	[6482c7a4300a]
+
+	* src/Centroid.cc:
+	Refactoring.
+	[32751b1d8a1f]
+
+	* src/Alignment.cc, src/Centroid.cc, src/Centroid.hh:
+	Added probabilistic overlap alignment (thanks: Toshiyuki Sato).
+	[a6c02431602e]
+
+	* src/Centroid.cc:
+	Minor refactoring.
+	[7e46c96be97f]
+
+2013-08-26  Martin C. Frith  <Martin C. Frith>
+
+	* doc/lastal.txt, test/last-test.out, test/last-test.sh:
+	Added doc & test for overlap alignment.
+	[62ec547050d0]
+
+	* src/Alignment.cc, src/Alignment.hh, src/LastalArguments.cc,
+	src/LastalArguments.hh, src/lastal.cc:
+	Added overlap alignment! (Thanks: Toshiyuki Sato)
+	[2ae0f4be8ea4]
+
+	* src/Alignment.cc, src/GappedXdropAligner.cc,
+	src/GappedXdropAligner.hh, src/GappedXdropAligner2qual.cc,
+	src/GappedXdropAlignerInl.hh, src/GappedXdropAlignerPssm.cc:
+	Started to add overlap alignment (thanks: Toshiyuki Sato).
+	[16d72fa5320b]
+
+	* src/Alignment.cc:
+	Minor refactoring.
+	[405438cd37ea]
+
+2013-08-25  Martin C. Frith  <Martin C. Frith>
+
+	* src/AlignmentWrite.cc:
+	Generalized tabular-output-writing so it handles alignments ending
+	with gaps.
+	[7692523417d0]
+
+	* src/GappedXdropAligner.cc:
+	Generalized the traceback so it handles alignments ending with gaps.
+	[4f46d830e949]
+
+2013-08-23  Martin C. Frith  <Martin C. Frith>
+
+	* doc/bisulfite.txt, examples/lastal-bisulfite-paired.sh:
+	Added a script for aligning paired bisulfite reads (in parallel).
+	[660ff05b7f0e]
+
+	* scripts/maf-convert.py:
+	Tweaked maf-convert's BLAST output (thanks: Nick Loman).
+	[b93b23a4d23d]
+
+	* src/Alignment.cc, src/Centroid.cc, src/LastalArguments.cc:
+	Allow different ins & del costs in probabilistic alignment (thanks:
+	T Sato).
+	[69107a55e7ab]
+
+2013-07-26  Martin C. Frith  <Martin C. Frith>
+
+	* examples/hoxd70.mat, test/last-test.out:
+	Added "N" scores to hoxd70.
+	[00b0426f4a4d]
+
+2013-07-25  Martin C. Frith  <Martin C. Frith>
+
+	* examples/multiMito.maf, src/LastalArguments.cc, test/last-test.out:
+	! Changed the default for lastal "-x": affects max gap size & run-
+	time.
+	[a3aae9fc866a]
+
+2013-07-16  Martin C. Frith  <Martin C. Frith>
+
+	* doc/lastdb.txt, test/last-test.out, test/last-test.sh:
+	Added doc & tests for recent changes.
+	[46bdfb358572]
+
+	* src/CyclicSubsetSeed.cc, src/LastdbArguments.cc:
+	Allow comma-separated seed patterns; check for empty seed patterns.
+	[bea2065529ce]
+
+	* src/CyclicSubsetSeed.cc, src/CyclicSubsetSeed.hh,
+	src/LastdbArguments.cc, src/LastdbArguments.hh, src/lastdb.cc:
+	Easy input of transition-constrained seed patterns (undocumented).
+	[2ac64facdc4c]
+
+	* src/lastal.cc:
+	Made lastal read lastdb files more strictly.
+	[38003ee6a77c]
+
+	* src/LastalArguments.cc, src/LastalArguments.hh, src/lastal.cc:
+	Enabled multiple seed patterns in lastal.
+	[882fd4b4e364]
+
+	* src/lastdb.cc:
+	Enabled multiple seed patterns in lastdb.
+	[4649149270c5]
+
+	* src/SubsetSuffixArray.cc, src/SubsetSuffixArray.hh, src/lastdb.cc:
+	Continued to enable multiple seed patterns...
+	[ba7f7354d1eb]
+
+	* src/lastdb.cc:
+	Continued to enable multiple seed patterns...
+	[c0c62851c1e3]
+
+	* src/lastdb.cc:
+	Continued to enable multiple seed patterns.
+	[b757a18867f2]
+
+	* src/LastdbArguments.cc, src/LastdbArguments.hh, src/lastdb.cc:
+	Started to enable multiple seed patterns.
+	[60b4d3648b6f]
+
+	* src/SubsetSuffixArray.cc, src/SubsetSuffixArray.hh, src/lastdb.cc:
+	Fixed apparent lastdb overflow bug with huge sequence data and w>1.
+	[593a8f860a3f]
+
+2013-07-15  Martin C. Frith  <Martin C. Frith>
+
+	* doc/lastdb.txt, src/SubsetSuffixArray.cc, src/SubsetSuffixArray.hh,
+	src/lastdb.cc:
+	! Changed the behaviour of lastdb -s (volume size): simpler &
+	cruder.
+	[77d6c2b29ecd]
+
+2013-07-14  Martin C. Frith  <Martin C. Frith>
+
+	* src/CyclicSubsetSeed.cc, src/SubsetSuffixArray.cc, src/lastal.cc:
+	Added some error-checking when reading files.
+	[ae38cba11e0b]
+
+	* src/SubsetSuffixArray.cc, src/SubsetSuffixArray.hh, src/lastal.cc,
+	src/lastdb.cc:
+	! Changed lastdb file format: lastal will refuse to read old lastdb
+	files.
+	[77648600d92e]
+
+2013-07-13  Martin C. Frith  <Martin C. Frith>
+
+	* src/SubsetSuffixArray.cc, src/SubsetSuffixArray.hh, src/lastal.cc:
+	Made the suffix-array-reading code more self-contained.
+	[89da6a07f3bf]
+
+	* src/SubsetSuffixArray.cc, src/SubsetSuffixArray.hh, src/lastdb.cc:
+	Made the suffix-array-writing code more self-contained.
+	[e85e91f0dbd1]
+
+	* src/CyclicSubsetSeed.cc, src/CyclicSubsetSeed.hh:
+	Made it possible to clear & re-read a seed pattern.
+	[199611bc4916]
+
+	* src/CyclicSubsetSeed.hh, src/SubsetSuffixArray.hh,
+	src/SubsetSuffixArraySort.cc, src/lastdb.cc:
+	Refactor: just moved a typedef.
+	[4c08ae190646]
+
+2013-07-09  Martin C. Frith  <Martin C. Frith>
+
+	* src/SubsetSuffixArray.cc, src/SubsetSuffixArray.hh,
+	src/SubsetSuffixArraySort.cc, src/lastal.cc, src/lastdb.cc:
+	Refactor: made the subset seed a member of the subset suffix array.
+	[054e61cc84f3]
+
+2013-07-03  Martin C. Frith  <Martin C. Frith>
+
+	* doc/lastal.txt, doc/lastdb.txt, test/last-test.out, test/last-
+	test.sh:
+	Added test & doc for lastdb -i, and running lastal on single
+	volumes.
+	[4265eaec011c]
+
+2013-06-26  Martin C. Frith  <Martin C. Frith>
+
+	* src/LastalArguments.cc, src/LastalArguments.hh, src/lastal.cc, test
+	/last-test.out:
+	Set the default for lastal "d" separately for each lastdb volume.
+	[d567aaece7a3]
+
+2013-06-25  Martin C. Frith  <Martin C. Frith>
+
+	* src/lastdb.cc:
+	Made lastdb write 1-volume databases in a simpler set of files.
+	[08809771f21b]
+
+	* src/lastal.cc:
+	Made lastal able to read one volume (undocumented).
+	[a839387881e0]
+
+	* src/lastal.cc:
+	Made lastal read the lastdb files a bit more strictly.
+	[c1ae4b660da3]
+
+2013-06-24  Martin C. Frith  <Martin C. Frith>
+
+	* src/lastdb.cc:
+	Made lastdb write more info in inner prj files (not used yet).
+	[5bc0cb31f63f]
+
+2013-06-21  Martin C. Frith  <Martin C. Frith>
+
+	* doc/lastdb.txt, src/LastdbArguments.cc, src/LastdbArguments.hh,
+	src/SubsetSuffixArray.hh, src/SubsetSuffixArraySort.cc,
+	src/lastal.cc, src/lastdb.cc:
+	Added lastdb -i option, to make it faster by incomplete sorting.
+	[88a090cfcfda]
+
+	* src/LastalArguments.cc:
+	Just changed some help text.
+	[58dcba2aa9c9]
+
+2013-06-11  Martin C. Frith  <Martin C. Frith>
+
+	* doc/maf-convert.txt, scripts/maf-convert.py:
+	Made maf-convert accept zero or more file names.
+	[21ec283344a0]
+
+	* doc/FAQ.txt:
+	Added %identity FAQ.
+	[5e10487d7fc1]
+
+2013-06-10  Martin C. Frith  <Martin C. Frith>
+
+	* src/gaplessPssmXdrop.cc, src/gaplessTwoQualityXdrop.cc,
+	src/gaplessXdrop.cc:
+	Made lastal a bit faster (gapless extension phase).
+	[d073de15e8ad]
+
+	* src/makefile:
+	Get the version more robustly.
+	[f39b98c2fb79]
+
+2013-05-23  Martin C. Frith  <Martin C. Frith>
+
+	* .hgignore, makefile, src/makefile:
+	Changed version control from subversion to mercurial.
+	[d11b0382e04d]
+
+2013-04-22  Martin C. Frith  <Martin C. Frith>
+
+	* doc/maf-convert.txt, scripts/maf-convert.py:
+	Added maf-convert dictfile option.
+	[064a55a7225f]
+
+	* doc/maf-convert.txt, scripts/maf-convert.py:
+	Added maf-convert readgroup option.
+	[d4f51fc56453]
+
+2013-04-19  Martin C. Frith  <Martin C. Frith>
+
+	* doc/FAQ.txt, doc/maf-convert.txt, scripts/maf-convert.py:
+	Made maf-convert's sam output more acceptable to GATK/picard.
+	[617c9ab84534]
+
+2013-04-16  Martin C. Frith  <Martin C. Frith>
+
+	* scripts/maf-convert.py:
+	Made maf-convert interpret "/1" and "/2" as paired sequences
+	(undocumented).
+	[d44b9010b0eb]
+
+	* doc/last-pair-probs.txt, scripts/last-pair-probs.py:
+	Made last-pair-probs append "/1" and "/2" to query names, if
+	missing.
+	[f0739cfef39d]
+
+	* doc/bisulfite.txt:
+	! Documentation bugfix: the bisulfite paired-end recipe was stupidly
+	wrong.
+	[a8d169b27919]
+
+2013-04-15  Martin C. Frith  <Martin C. Frith>
+
+	* doc/FAQ.txt, doc/Makefile, doc/last-pair-probs.txt, doc/maf-
+	convert.txt:
+	Some doc updates.
+	[96409edb2a36]
+
+	* scripts/last-split-probs.py:
+	Just added a comment
+	[67c1dc5e4215]
+
+2013-03-05  Martin C. Frith  <Martin C. Frith>
+
+	* src/lastal.cc, test/last-test.out:
+	Added a batch marker at start of lastal outputs, so they can be
+	concatenated.
+	[eb44b445d03d]
+
+	* doc/FAQ.txt, doc/last-tutorial.txt:
+	Added GNU parallel recipes to last-tutorial.
+	[bcf912c0eb1e]
+
+	* src/lastal.cc:
+	Added some checking and error messages for bad input.
+	[f90a5b82472d]
+
+2013-03-01  Martin C. Frith  <Martin C. Frith>
+
+	* doc/bisulfite.txt, doc/last-map-probs.txt, doc/last-pair-probs.txt,
+	doc/last-split-probs.txt, doc/last-tutorial.txt,
+	src/LastalArguments.cc, src/LastalArguments.hh, src/lastal.cc, test
+	/last-test.out:
+	! Changed the default setting of lastal option -d.
+	[c34146ded8ab]
+
+2013-02-12  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-map-probs.txt, doc/last-tutorial.txt:
+	Doc updates.
+	[973270605980]
+
+2013-02-11  Martin C. Frith  <Martin C. Frith>
+
+	* scripts/last-dotplot.py:
+	Made last-dotplot faster.
+	[461c012731fc]
+
+	* doc/last-scripts.txt, scripts/last-dotplot.py:
+	Made last-dotplot able to read MAF format.
+	[935227c035b0]
+
+2013-02-06  Martin C. Frith  <Martin C. Frith>
+
+	* src/fileMap.cc:
+	Made the mmap error messages more detailed.
+	[1ccb6e25d4bf]
+
+2013-02-04  Martin C. Frith  <Martin C. Frith>
+
+	* doc/Makefile, doc/last.txt, doc/maf-cull.txt:
+	Minor doc edits.
+	[dc1fab3f2f9e]
+
+	* doc/last-tutorial.txt, doc/last.txt:
+	Doc updates.
+	[cbe2e24fbd9f]
+
+2013-02-03  Martin C. Frith  <Martin C. Frith>
+
+	* doc/lastal.txt, doc/tag-seeds.txt, src/LastalArguments.cc,
+	src/SubsetSuffixArray.cc, src/SubsetSuffixArray.hh, test/last-
+	test.out:
+	! Changed the interaction between lastal -m and -l from AND to OR.
+	[cd3fb1f3626f]
+
+2013-02-01  Martin C. Frith  <Martin C. Frith>
+
+	* src/LastalArguments.cc, src/TwoQualityScoreMatrix.cc,
+	src/TwoQualityScoreMatrix.hh, test/last-test.out:
+	Made lastal -n default to -m instead of inf. This has no effect
+	(yet).
+	[9ddd72f3ea16]
+
+2012-12-21  Martin C. Frith  <Martin C. Frith>
+
+	* src/GappedXdropAligner2qual.cc, test/last-test.out, test/last-
+	test.sh, test/sd-ccs-100.fq:
+	! Bugfix: fastq-v-fastq alignment was using wrong query quality
+	data.
+	[0efe0e4ea326]
+
+2012-11-14  Martin C. Frith  <Martin C. Frith>
+
+	* test/last-test.out, test/last-test.sh:
+	Added a test of gapless alignment.
+	[503f5e685bb6]
+
+2012-11-13  Martin C. Frith  <Martin C. Frith>
+
+	* doc/lastal.txt, src/Alignment.cc, src/Alignment.hh,
+	src/AlignmentWrite.cc, src/Centroid.cc, src/Centroid.hh, test/last-
+	test.out:
+	Added fullScore to lastal output.
+	[f20af15efa11]
+
+2012-10-29  Martin C. Frith  <Martin C. Frith>
+
+	* src/Alignment.cc, src/Alignment.hh, src/AlignmentWrite.cc,
+	src/LastalArguments.cc, src/lastal.cc:
+	Added lastal option to write expected counts (not documented yet).
+	[20bee444cd56]
+
+2012-10-23  Martin C. Frith  <Martin C. Frith>
+
+	* doc/Makefile:
+	Tried harder to make the HTML documents in a more portable way.
+	[b5b0991bf36c]
+
+	* doc/Makefile:
+	Tried to make the HTML documents in a more portable way.
+	[a0a0b03ed406]
+
+	* doc/last-tutorial.txt:
+	Minor doc edits.
+	[87b6bb724860]
+
+2012-10-22  Martin C. Frith  <Martin C. Frith>
+
+	* README.txt, doc/Makefile, doc/last.txt:
+	Just edited some documentation.
+	[cd270cd875d5]
+
+	* doc/last.txt:
+	Started moving useful info from the README to the doc directory.
+	[9611ae3af223]
+
+2012-10-21  Martin C. Frith  <Martin C. Frith>
+
+	* doc/Makefile, doc/last-doc.css, makefile:
+	Added HTML versions of some documents.
+	[d012f1d2a8b9]
+
+	* doc/last-pair-probs.txt:
+	RST-ified last-pair-probs.txt, and added a GNU parallel recipe.
+	[09cd862fa41f]
+
+	* doc/bisulfite.txt, doc/last-map-probs.txt, doc/last-split-probs.txt:
+	RST-ified some more documents.
+	[d7a26503b802]
+
+	* doc/last-tutorial.txt:
+	RST-ified last-tutorial.txt.
+	[dca0a1daa165]
+
+	* README.txt, doc/lastal.txt:
+	Slight documentation edits.
+	[42bc0c18af3c]
+
+	* src/CA_code/nrutil.c:
+	Just fixed a compiler warning.
+	[c7261447b95a]
+
+2012-10-09  Martin C. Frith  <Martin C. Frith>
+
+	* scripts/last-remove-dominated.py:
+	Bugfix: made last-remove-dominated (and hence last-reduce-
+	alignments) accept output from lastal version >= r238.
+	[a6e9eab3e56d]
+
+2012-08-16  Martin C. Frith  <Martin C. Frith>
+
+	* makefile:
+	Minor refactoring of the makefile.
+	[70e77489aa2f]
+
+2012-08-05  Martin C. Frith  <Martin C. Frith>
+
+	* src/Alphabet.hh, src/lastal.cc, src/lastex.cc:
+	Default to Blosum62 for any alphabet that starts with
+	ACDEFGHIKLMNPQRSTVWY.
+	[a05f5b5bde91]
+
+2012-07-31  Martin C. Frith  <Martin C. Frith>
+
+	* doc/bisulfite.txt, doc/maf-convert.txt:
+	Clarified paired-end bisulfite data, and maf-convert -d, in the
+	docs.
+	[eb9e8dc97f70]
+
+2012-07-09  Martin C. Frith  <Martin C. Frith>
+
+	* scripts/last-map-probs.py:
+	! Made last-map-probs faster, and slightly changed (shortened) its
+	output.
+	[f8789f48456a]
+
+	* scripts/last-map-probs.py:
+	Minor refactoring.
+	[f9afa432bcc7]
+
+	* scripts/last-map-probs.py:
+	Made last-map-probs a tiny bit faster, maybe.
+	[fc467f99add1]
+
+	* scripts/last-map-probs.py:
+	Made last-map-probs a bit more efficient, maybe.
+	[ce5f011254cf]
+
+	* scripts/last-map-probs.py:
+	Made last-map-probs a bit faster.
+	[61cb64703481]
+
+	* scripts/last-map-probs.py:
+	Made last-map-probs a bit faster.
+	[f74edcbcec6b]
+
+2012-07-08  Martin C. Frith  <Martin C. Frith>
+
+	* src/LastalArguments.cc, src/LastalArguments.hh, src/lastal.cc, test
+	/last-test.out:
+	! Changed lastal's default batch size: this can make it faster, but
+	it changes the output order.
+	[5dbf6b4f872b]
+
+	* doc/bisulfite.txt, doc/last-tutorial.txt, doc/lastdb.txt:
+	Improved the docs for bisulfite data, and for running lastdb on huge
+	datasets.
+	[b03773ef0133]
+
+2012-07-06  Martin C. Frith  <Martin C. Frith>
+
+	* test/last-test.out:
+	Updated the test CPU times for the new development computer.
+	[f5b7f9ab1725]
+
+	* doc/lastal.txt, src/LastalArguments.cc, src/LastalArguments.hh,
+	src/lastal.cc, test/last-test.out:
+	Enabled different costs for insertions and deletions.
+	[48ad769f870d]
+
+	* src/Alignment.cc, src/Centroid.cc, src/GeneralizedAffineGapCosts.cc,
+	src/GeneralizedAffineGapCosts.hh, src/lastal.cc:
+	Continued to implement different costs for insertions and deletions.
+	[dde4fc49ec9d]
+
+	* src/Alignment.cc, src/GappedXdropAligner.cc,
+	src/GappedXdropAligner.hh, src/GappedXdropAligner2qual.cc,
+	src/GappedXdropAlignerPssm.cc:
+	Started to implement different costs for insertions and deletions.
+	[bc1a7edd8235]
+
+2012-06-25  Martin C. Frith  <Martin C. Frith>
+
+	* scripts/last-pair-probs.py:
+	Made last-pair-probs a bit faster.
+	[f7c78352421f]
+
+2012-06-20  Martin C. Frith  <Martin C. Frith>
+
+	* src/Centroid.cc:
+	Minor refactoring.
+	[4fcb65616f40]
+
+2012-06-13  Martin C. Frith  <Martin C. Frith>
+
+	* src/GappedXdropAligner.cc, src/GappedXdropAligner3frame.cc, test
+	/last-test.out, test/last-test.sh:
+	! Bugfix: generalized affine gaps were wrong since version 192.
+	[e5bd7a6d664f]
+
+2012-06-12  Martin C. Frith  <Martin C. Frith>
+
+	* src/Centroid.cc, src/Centroid.hh, src/GappedXdropAligner.hh:
+	Refactored some of the Centroid code a bit.
+	[33297f4d5ffa]
+
+	* src/Centroid.cc, src/Centroid.hh, src/GappedXdropAligner.hh:
+	Made probabilistic alignment (lastal j>3) much faster (thanks:
+	Toshiyuki Sato).
+	[dc09cd9a5340]
+
+2012-06-01  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-pair-probs.txt:
+	Enhanced the last-pair-probs doc.
+	[6bd9a1ff7cf2]
+
+2012-05-29  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-pair-probs.txt, scripts/last-pair-probs.py:
+	Allow negative distances in last-pair-probs, and update its doc.
+	[174c23386df9]
+
+	* scripts/last-pair-probs.py:
+	Made last-pair-probs a bit faster.
+	[3a4ef7b226cb]
+
+	* scripts/last-pair-probs.py:
+	Added last-pair-probs option to estimate the distribution of
+	distances only.
+	[143cd098c89d]
+
+	* scripts/last-pair-probs.py:
+	! Slightly changed the usage of floating point in last-pair-probs.
+	[9069ef23d91e]
+
+	* scripts/last-pair-probs.py:
+	Edited some last-pair-probs help messages.
+	[59dd7dc8f1ee]
+
+	* scripts/last-pair-probs.py:
+	Made last-pair-probs a bit faster.
+	[38bcbfd05c0e]
+
+	* scripts/last-pair-probs.py:
+	! Made last-pair-probs read by batches instead of sorting.
+	[97bcb3f0a424]
+
+2012-05-28  Martin C. Frith  <Martin C. Frith>
+
+	* scripts/last-pair-probs.py:
+	Minor refactoring.
+	[b9ec919221a4]
+
+	* scripts/last-pair-probs.py:
+	Refactored some code in last-pair-probs.
+	[7d3009252704]
+
+	* scripts/last-pair-probs.py:
+	Made last-pair-probs skip its first pass if both fraglen and sdev
+	are set.
+	[e1ca1c18be32]
+
+	* scripts/last-pair-probs.py:
+	Made last-pair-probs a bit faster (but require header data to be at
+	the top).
+	[f9bce1362955]
+
+	* scripts/last-pair-probs.py:
+	Bugfix: if the final MAF block in a file given to last-pair-probs
+	did not end in a blank line, the output MAF blocks were not always
+	separated by blank lines.
+
+	Improved a last-pair-probs error message.
+	[fb2c9c9e2f81]
+
+	* scripts/last-pair-probs.py:
+	Made last-pair-probs faster. ! Its probability estimates are a tiny
+	bit different (more reproducible).
+	[3e33f2821612]
+
+	* scripts/last-pair-probs.py:
+	Made last-pair-probs a bit faster.
+	[ed4fbac1d8cf]
+
+	* scripts/last-pair-probs.py:
+	Minor refactoring.
+	[6f4723d5a83e]
+
+	* scripts/last-pair-probs.py:
+	Made last-pair-probs a bit faster.
+	[57912534f799]
+
+	* scripts/last-pair-probs.py:
+	Minor refactoring.
+	[52b150cb1a88]
+
+	* scripts/last-pair-probs.py:
+	! Slightly changed how last-pair-probs estimates the standard
+	deviation.
+	[48a62711ce44]
+
+	* doc/last-pair-probs.txt, scripts/last-pair-probs.py:
+	! Changed how last-pair-probs obtains the genome size. This may
+	slightly change its probability estimates.
+	[f50079ca2227]
+
+2012-05-27  Martin C. Frith  <Martin C. Frith>
+
+	* scripts/last-pair-probs.py:
+	Fixed error in last-pair-probs help message.
+	[655c1f9449c6]
+
+2012-05-20  Martin C. Frith  <Martin C. Frith>
+
+	* src/AlignmentWrite.cc:
+	Fixed a bug that was introduced in version 203 (wrong MAF sequence
+	length).
+	[0afc11fd9d18]
+
+	* doc/lastal.txt, src/LastalArguments.cc, test/last-test.out:
+	! Made lastal options -d and -e synonymous for gapless alignment
+	(-j1).
+	[977c23d24eb5]
+
+	* doc/FAQ.txt, src/AlignmentWrite.cc, src/Alphabet.cc,
+	src/Alphabet.hh:
+	Made lastal yet faster at writing MAF output.
+	[2b70fa3cd0c3]
+
+2012-05-17  Martin C. Frith  <Martin C. Frith>
+
+	* src/Alignment.hh, src/AlignmentWrite.cc, src/Alphabet.cc,
+	src/Alphabet.hh:
+	Made lastal even faster at writing MAF output.
+	[82625cec7dbc]
+
+	* src/AlignmentWrite.cc:
+	Minor refactoring.
+	[bcc17bd99c42]
+
+	* src/AlignmentWrite.cc:
+	Minor refactoring.
+	[ddbc9b8efeba]
+
+2012-05-16  Martin C. Frith  <Martin C. Frith>
+
+	* src/AlignmentWrite.cc:
+	Made lastal faster at writing MAF output.
+	[78a9da37f5a3]
+
+2012-05-14  Martin C. Frith  <Martin C. Frith>
+
+	* src/SegmentPair.cc:
+	Made lastal a teeny bit faster.
+	[0a121eb763c5]
+
+	* scripts/last-split-probs.py:
+	Minor changes to last-split-probs.
+	[90f3031116aa]
+
+2012-05-11  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-split-probs.txt, scripts/last-split-probs.py:
+	Added split-alignment method!
+	[294db1a62968]
+
+2012-05-07  Martin C. Frith  <Martin C. Frith>
+
+	* src/makefile:
+	Improved the makefile.
+	[2248af12c158]
+
+2012-03-30  Martin C. Frith  <Martin C. Frith>
+
+	* README.txt, makefile, src/makefile:
+	Turned compile warnings off in the top makefile, on in the src
+	makefile.
+	[0f45f4585048]
+
+	* src/gumbel_params/njn_approx.hpp:
+	Fixed compile error with clang++.
+	[4582086da692]
+
+2012-03-13  Martin C. Frith  <Martin C. Frith>
+
+	* README.txt, makefile, src/makefile, test/last-test.sh:
+	Added automatic installation by "make install".
+	[6f1d925a06c6]
+
+2012-01-06  Martin C. Frith  <Martin C. Frith>
+
+	* doc/lastdb.txt, src/Alignment.cc, src/Alignment.hh,
+	src/LastdbArguments.cc, src/lastal.cc, src/makefile:
+	Fully enabled fastq-versus-fastq alignment!
+	[a8bdd8c9d9d4]
+
+	* doc/bisulfite.txt:
+	Clarified something in the bisulfite doc.
+	[e3b276863a2d]
+
+2011-12-20  Martin C. Frith  <Martin C. Frith>
+
+	* doc/bisulfite.txt, examples/bisulfite_f.seed,
+	examples/bisulfite_r.seed:
+	Bisulfite doc: explained biased methylation estimates & how to avoid
+	them. Changed the bisulfite seeds to ones that work a bit better in
+	some tests.
+	[4a4af87299d7]
+
+2011-11-13  Martin C. Frith  <Martin C. Frith>
+
+	* src/Alignment.cc, src/Alignment.hh, src/Centroid.cc,
+	src/Centroid.hh, src/ScoreMatrix.hh, src/ScoreMatrixRow.hh,
+	src/Xdrop3FrameAligner.cc, src/Xdrop3FrameAligner.hh,
+	src/XdropAligner.cc, src/XdropAligner.hh, src/XdropAlignerPssm.cc,
+	src/lastal.cc, src/makefile, test/last-test.out:
+	Switched to new gapped-alignment code: faster and simpler.
+
+	! The placement of frameshifts is different (probably better).
+
+	! Near ends of sequences: column ambiguity estimates (and thus
+	gamma-centroid and LAMA alignments) are slightly different.
+	[0ef8ab8aa902]
+
+	* src/Alignment.cc, src/Alignment.hh, src/Centroid.cc,
+	src/Centroid.hh:
+	Refactor: preparing to remove the old gapped-alignment code.
+	[2b59e5d2cc40]
+
+2011-11-12  Martin C. Frith  <Martin C. Frith>
+
+	* src/Alignment.hh, src/Centroid.cc, src/Centroid.hh,
+	src/GeneticCode.cc, src/ScoreMatrix.cc:
+	Made the C++ more strictly correct and portable. (Thanks: Fabien
+	Campagne)
+	[15f74143b748]
+
+2011-10-19  Martin C. Frith  <Martin C. Frith>
+
+	* src/lastal.cc:
+	Bugfix: lastal -j0 crashed with fastq input. (Thanks: Fabien
+	Campagne)
+	[beb8f40d2a0d]
+
+2011-10-15  Martin C. Frith  <Martin C. Frith>
+
+	* src/SubsetSuffixArraySort.cc:
+	Made lastdb faster in some cases, e.g. bisulfite alignment.
+	[6c7c721e1a3c]
+
+2011-09-20  Martin C. Frith  <Martin C. Frith>
+
+	* src/GappedXdropAligner3frame.cc:
+	Just fixed a comment that was wrong.
+	[99517a30d10f]
+
+2011-08-17  Martin C. Frith  <Martin C. Frith>
+
+	* src/GappedXdropAligner.cc, src/GappedXdropAligner3frame.cc:
+	Added comments explaining the new gapped X-drop algorithms in more
+	detail.
+	[1c8bcac7122c]
+
+2011-08-15  Martin C. Frith  <Martin C. Frith>
+
+	* src/GappedXdropAligner.cc, src/GappedXdropAligner.hh,
+	src/GappedXdropAligner2qual.cc, src/GappedXdropAligner3frame.cc,
+	src/GappedXdropAligner3framePssm.cc, src/GappedXdropAlignerInl.hh,
+	src/GappedXdropAlignerPssm.cc:
+	Added new gapped x-drop alignment code (not used yet).
+	[2e40cac8a24f]
+
+2011-08-03  Martin C. Frith  <Martin C. Frith>
+
+	* doc/bisulfite.txt, scripts/last-merge-batches.py:
+	Added bisulfite doc, and a script that it refers to.
+	[f7dee5ac617b]
+
+2011-07-28  Martin C. Frith  <Martin C. Frith>
+
+	* doc/lastal.txt, doc/lastex.txt, examples/HOXD70, examples/TiTv212,
+	examples/bisulfite_f.mat, examples/bisulfite_f.seed,
+	examples/bisulfite_r.mat, examples/bisulfite_r.seed,
+	examples/hoxd70.mat, examples/titv212.mat, test/last-test.sh:
+	Added bisulfite example files, and renamed score-matrix files.
+	[45c7af0a029b]
+
+	* test/last-test.out:
+	Fixed error in test output, in the previous commit.
+	[c6ed0024a2fd]
+
+	* test/last-test.out, test/last-test.sh:
+	Added a test of probabilistic alignment with quality scores.
+	[b7803b71b74d]
+
+	* doc/last-pair-probs.txt, scripts/last-pair-probs.py:
+	Changed how last-pair-probs interprets read names to recognize
+	paired reads.
+	[13f60cb07842]
+
+2011-07-15  Martin C. Frith  <Martin C. Frith>
+
+	* README.txt:
+	Just fixed a citation.
+	[671d7d26ccef]
+
+2011-06-07  Martin C. Frith  <Martin C. Frith>
+
+	* src/gumbel_params/njn_localmaxstat.hpp,
+	src/gumbel_params/sls_pvalues.cpp:
+	Fixed lastex crashing on some systems. (Thanks: Edward Wijaya)
+	[6bbd46d308f3]
+
+2011-06-03  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-tutorial.txt, doc/lastal.txt, doc/maf-convert.txt,
+	examples/multiMito.maf, scripts/maf-convert.py, scripts/maf-join.py,
+	scripts/maf-swap.py, src/Alignment.cc, src/Alignment.hh,
+	src/AlignmentWrite.cc, src/Centroid.cc, src/Centroid.hh,
+	src/LastalArguments.cc, test/last-test.out:
+	! Changed column probabilities in lastal output, from numbers to
+	ASCII codes. ! Changed some scripts to read the new format, but not
+	the old. Added documentation for probabilistic alignment.
+	[67a953e00e55]
+
+2011-05-29  Martin C. Frith  <Martin C. Frith>
+
+	* src/SegmentPairPot.cc:
+	Fixed lastal slowness when self-comparing many short sequences.
+	[d6192a3c88ef]
+
+2011-05-25  Martin C. Frith  <Martin C. Frith>
+
+	* src/Centroid.hh:
+	Fixed a compile error with some compilers.
+	[6bfb15a7f1d5]
+
+	* src/Alignment.cc, src/Centroid.cc, src/Centroid.hh,
+	src/LastalArguments.cc, src/lastal.cc:
+	Enabled probabilistic alignment with sequence quality data, and LAMA
+	(not documented yet).
+	[cb423a218e96]
+
+2011-05-19  Martin C. Frith  <Martin C. Frith>
+
+	* src/SegmentPair.cc, src/SegmentPair.hh, src/SegmentPairPssm.cc,
+	src/gaplessPssmXdrop.cc, src/gaplessPssmXdrop.hh,
+	src/gaplessTwoQualityXdrop.cc, src/gaplessTwoQualityXdrop.hh,
+	src/gaplessXdrop.cc, src/gaplessXdrop.hh, src/lastal.cc,
+	src/makefile:
+	Made lastal's gapless extensions a bit faster.
+	[3734b1b92586]
+
+	* src/MultiSequence.hh, src/lastal.cc, test/last-test.out:
+	Write reference size in the lastal output header.
+	[0d9ecd24c1f5]
+
+2011-05-10  Martin C. Frith  <Martin C. Frith>
+
+	* README.txt, doc/FAQ.txt, doc/lastex.txt, scripts/maf-convert.py,
+	src/LastdbArguments.hh, src/SegmentPairPot.hh, src/XdropAligner.hh,
+	src/fileMap.hh, test/last-test.sh:
+	Added some clarifications to the docs. Made the C++ compile more
+	portably. (Thanks: Andreas Tille) Fixed alignment spacing in maf-
+	convert HTML output, for some evil browsers.
+	[0e43facd304b]
+
+2011-04-20  Martin C. Frith  <Martin C. Frith>
+
+	* src/MultiSequence.cc, src/MultiSequence.hh, src/lastal.cc,
+	src/makefile:
+	Enable lastal to read quality data written by lastdb (not useful
+	yet).
+	[a2c237e87290]
+
+	* src/LastdbArguments.cc, src/LastdbArguments.hh, src/lastdb.cc,
+	src/makefile:
+	Enabled lastdb to read fastq data (not yet useful).
+	[253d2a669c72]
+
+	* src/LastalArguments.cc, src/LastalArguments.hh,
+	src/SequenceFormat.hh, src/lastal.cc, src/makefile:
+	Refactor: extracted an enum.
+	[f07685f9dd74]
+
+2011-04-19  Martin C. Frith  <Martin C. Frith>
+
+	* src/MultiSequence.hh, src/MultiSequenceQual.cc:
+	Refactor: made the quality data mmap-able.
+	[044a53b12c42]
+
+	* src/Alignment.hh, src/AlignmentWrite.cc, src/VectorOrMmap.hh:
+	Enable writing of qualities for both sequences in maf output.
+	[2ba224d5ad0c]
+
+	* src/OneQualityScoreMatrix.hh, src/TwoQualityScoreMatrix.cc,
+	src/TwoQualityScoreMatrix.hh, src/VectorOrMmap.hh,
+	src/qualityScoreUtil.hh:
+	Minor code enhancements.
+	[93e9a81040c8]
+
+2011-04-15  Martin C. Frith  <Martin C. Frith>
+
+	* doc/lastal.txt, src/MultiSequenceQual.cc,
+	src/OneQualityScoreMatrix.cc, src/OneQualityScoreMatrix.hh,
+	src/QualityPssmMaker.cc, src/QualityPssmMaker.hh,
+	src/QualityScoreCalculator.cc, src/QualityScoreCalculator.hh,
+	src/ScoreMatrix.cc, src/TwoQualityScoreMatrix.cc,
+	src/TwoQualityScoreMatrix.hh, src/lastal.cc, src/makefile,
+	src/qualityScoreUtil.hh:
+	! Use more "gentle" substitution costs when masking lowercase
+	letters.
+
+	Made fastq probabilities and scores depend on the background letter
+	frequencies of the score matrix.
+
+	Made alignment scores with quality data ignore the lastal -t option.
+
+	Made alignment scores for non-ACGT letters always ignore quality
+	data.
+	[18fc36efc723]
+
+2011-04-14  Martin C. Frith  <Martin C. Frith>
+
+	* test/last-test.out, test/last-test.sh, test/mouse_tss_prb.txt:
+	Added a test for sequence quality data in prb format.
+	[2027f4e14326]
+
+2011-03-29  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-pair-probs.txt, scripts/last-map-probs.py, scripts/last-
+	pair-probs.py, src/makefile:
+	Added --rna option to last-pair-probs.
+	[3ac7c4da5743]
+
+2011-03-28  Martin C. Frith  <Martin C. Frith>
+
+	* doc/FAQ.txt, src/Xdrop3FrameAligner.cc:
+	!! Bugfix: the DNA-vs-protein gapped extension was losing some good
+	alignments.
+	[37bdfb545cc9]
+
+2011-03-22  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-map-probs.txt, scripts/last-map-probs.py:
+	Made last-map-probs read its input just once, to avoid huge temp
+	files. Tried to clarify the last-map-probs document.
+	[5068d4835985]
+
+2011-02-14  Martin C. Frith  <Martin C. Frith>
+
+	* doc/FAQ.txt, doc/last-map-probs.txt, doc/last-pair-probs.txt, doc
+	/last-tutorial.txt, doc/tag-seeds.txt, scripts/last-pair-probs.py,
+	scripts/maf-sort.sh, src/Alphabet.cc:
+	Added last-pair-probs script and document. Allow "." in sequences
+	(appears in some fastq files). Made maf-sort more efficient.
+	[6c6ac7c8f6ed]
+
+2011-02-08  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-scripts.txt, doc/maf-cull.txt, scripts/maf-sort.sh:
+	Bugfix: maf-sort mangled alignment data containing "#". Added maf-
+	sort option to sort by sequences other than the top one.
+	[edcab3015d61]
+
+2011-01-31  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-map-probs.txt, doc/last-tutorial.txt, doc/lastal.txt,
+	scripts/maf-convert.py, src/lastal.cc:
+	Made the documentation for last-map-probs actually usable. Bugfix:
+	maf-convert was spuriously deleting seq quality codes in sam output.
+	Bugfix: lastal with PSSM input could find inferior gapped
+	alignments.
+	[03d481e668b5]
+
+2011-01-19  Martin C. Frith  <Martin C. Frith>
+
+	* scripts/maf-convert.py:
+	Bugfix: sam headers should be tab-delimited.
+	[3bdbbd585326]
+
+2011-01-08  Martin C. Frith  <Martin C. Frith>
+
+	* doc/maf-convert.txt, scripts/maf-convert.py:
+	Added sam header option to maf-convert.
+	[effa83a4ab04]
+
+2011-01-07  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-map-probs.txt, doc/last-tutorial.txt, doc/maf-convert.txt:
+	Removed discussion of repeats from docs.
+	[3d8ccc865d9c]
+
+2010-12-29  Martin C. Frith  <Martin C. Frith>
+
+	* src/LastalArguments.cc, src/lastal.cc:
+	Allow all types of lowercase masking when using sequence quality
+	data.
+	[e61008375f19]
+
+2010-12-28  Martin C. Frith  <Martin C. Frith>
+
+	* README.txt, doc/last-tutorial.txt, doc/lastal.txt:
+	Improved the documents (thanks: Hamada-san, Terai-san.
+	[fc13354d5296]
+
+2010-12-09  Martin C. Frith  <Martin C. Frith>
+
+	* README.txt, doc/FAQ.txt, doc/last-manual.txt, doc/last-tutorial.txt,
+	doc/lastal.txt, doc/lastdb.txt, doc/tag-seeds.txt,
+	src/LastalArguments.cc:
+	Rewrote much of the documentation: separated tutorial from
+	reference.
+	[548a2c0737e3]
+
+	* doc/maf-convert.txt, examples/multiMito.sh, scripts/maf-convert.py:
+	Bugfix: made maf-convert not crash for blast output format!
+	[2d744992211f]
+
+2010-11-26  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-map-probs.txt, scripts/maf-convert.py:
+	Minor enhancements.
+	[09d184ab20ae]
+
+2010-11-25  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-map-probs.txt, doc/last-scripts.txt, doc/maf-convert.txt,
+	scripts/last-map-probs.py, scripts/maf-convert.py:
+	! Made last-map-probs write *mismap* probabilities. Gave last-map-
+	probs options to omit alignments with lo score or hi mismap-prob.
+	Made last-map-probs work on MAF, and improved its UI a bit. Added
+	SAM output format to maf-convert. Made maf-convert count psl matches
+	correctly, and added -p (protein) option. Added documents for last-
+	map-probs and maf-convert.
+	[f19b6c1181db]
+
+	* scripts/maf-swap.py:
+	Made maf-swap keep q lines with s lines.
+	[f2a92617f255]
+
+2010-11-18  Martin C. Frith  <Martin C. Frith>
+
+	* src/QualityScoreCalculator.cc:
+	Added a partial check for wrong FASTQ format.
+	[25b71c13313a]
+
+2010-11-12  Martin C. Frith  <Martin C. Frith>
+
+	* doc/maf-cull.txt, scripts/maf-cull.py:
+	Added alignment-culling script.
+	[2d7d24ffbaf0]
+
+	* doc/last-scripts.txt, scripts/maf-sort.sh, scripts/maf-swap.py:
+	Made maf-sort.sh consider the strand of the top sequence. Rewrote
+	maf-convert.py: nicer spacing, nicer error messages, and doesn't try
+	to flip strands for translated DNA.
+	[bd0c70e36eed]
+
+2010-11-08  Martin C. Frith  <Martin C. Frith>
+
+	* test/illumina100.txt:
+	Added a new test file (forgotten in the previous commit).
+	[fb7b4acda59d]
+
+	* doc/last-manual.txt, src/LastalArguments.cc, src/LastalArguments.hh,
+	src/QualityScoreCalculator.cc, src/lastal.cc, test/last-test.out,
+	test/last-test.sh:
+	! Changed the interpretation of lastal -Q, to add FASTQ-Illumina
+	input format.
+	[980c3aa1552f]
+
+	* src/LastalArguments.cc, src/LastalArguments.hh, src/lastal.cc,
+	src/makefile:
+	Refactor: use an enum instead of obscure int values.
+	[711539bf55bc]
+
+2010-11-02  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-scripts.txt, scripts/maf-convert.py, scripts/maf2html.py:
+	Added psl and blast-like outputs to maf-convert.py. Merged
+	maf2html.py into maf-convert.py. Bugfix: the html coordinates were
+	wrong for translated alignments.
+	[977125273601]
+
+2010-10-13  Martin C. Frith  <Martin C. Frith>
+
+	* scripts/last-map-probs.py:
+	Fixed last-map-probs.py crashing (math overflow) on large
+	alignments.
+	[fd7ebdab1b09]
+
+2010-10-12  Martin C. Frith  <Martin C. Frith>
+
+	* doc/FAQ.txt, doc/last-manual.txt, doc/tag-seeds.txt,
+	src/LastdbArguments.cc:
+	Made lastdb's default volume size (-s) unlimited, to simplify
+	typical usage.
+	[bd155781bf7a]
+
+	* src/LastalArguments.cc, src/LastalArguments.hh, src/lastal.cc, test
+	/last-test.out:
+	Changed the default setting of lastal -u: made it depend on lastdb
+	-c.
+	[9e28051e245c]
+
+	* doc/last-manual.txt, src/LastalArguments.cc, src/LastalArguments.hh,
+	src/lastal.cc, test/last-test.out:
+	Added lastal -z option: maximum score drop for final gapped
+	alignments.
+	[6d4d82b3b427]
+
+	* doc/last-manual.txt, src/LastalArguments.cc, src/SegmentPairPot.cc,
+	src/SegmentPairPot.hh, src/lastal.cc:
+	! Changed lastal -u: new option to mask lowercase during gapped
+	extensions but not "final" extensions (i.e. do gapped extensions
+	twice).
+	[4f0640e38978]
+
+	* scripts/last-dotplot.py, scripts/last-map-probs.py:
+	Added colour options to the dotplot script.
+	[e908650d665a]
+
+2010-08-20  Martin C. Frith  <Martin C. Frith>
+
+	* src/SegmentPair.hh, src/SegmentPairPot.cc, src/SegmentPairPot.hh,
+	src/lastal.cc:
+	Reorganized code for gapless & gapped extensions. Results should be
+	identical, provided that max gapped dropoff >= max gapless dropoff.
+	[10b733b90b9b]
+
+	* src/SegmentPairPot.cc, src/SegmentPairPot.hh, src/lastal.cc:
+	Minor refactoring.
+	[efe9ee7fecf7]
+
+2010-08-19  Martin C. Frith  <Martin C. Frith>
+
+	* src/gumbel_params/mcf_local_alignment_evaluer.cpp, src/lastex.cc:
+	Made lastex check for bad input more carefully.
+	[d934e2242ad2]
+
+2010-08-04  Martin C. Frith  <Martin C. Frith>
+
+	* src/CyclicSubsetSeed.cc:
+	Bugfix: made lastdb allow non-alphabetic symbols in user-defined
+	alphabets.
+	[f2d461a671f8]
+
+2010-08-03  Martin C. Frith  <Martin C. Frith>
+
+	* src/CA_code/lambda_calculator.c, src/QualityScoreCalculator.cc,
+	src/lastdb.cc:
+	Bugfix: stopped lastal from freezing with some score matrices, e.g.
+	PAM70. Made "lastdb -x" less likely to run out of memory. (Thanks:
+	Junko Tsuji)
+	[8649e85be4c2]
+
+2010-06-28  Martin C. Frith  <Martin C. Frith>
+
+	* scripts/last-dotplot.py, src/MultiSequence.cc,
+	src/MultiSequenceQual.cc:
+	Bugfix: made last-dotplot.pl check for no alignments, instead of
+	crashing. Made lastdb and lastal check for '>' in FASTA and '@' in
+	FASTQ.
+	[3f6d0bf8c8dd]
+
+2010-06-24  Martin C. Frith  <Martin C. Frith>
+
+	* src/gumbel_params/mcf_local_alignment_evaluer.cpp:
+	Made lastex results more reproducible, by removing time limits.
+	[becf89661310]
+
+2010-06-20  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-manual.txt, src/MultiSequence.hh, src/MultiSequenceQual.cc:
+	Read PSSM names; ensure lastal doesn't try to use non-existent
+	PSSMs.
+	[731614e5b9c5]
+
+2010-06-18  Martin C. Frith  <Martin C. Frith>
+
+	* src/LastalArguments.cc:
+	Clarified the default values of some lastal options.
+	[98e8f237f77a]
+
+	* src/lastal.cc:
+	Bugfix: the PSSM reverse-complementation routine was wrong.
+	[539c1c670daa]
+
+	* doc/last-manual.txt, src/LastalArguments.cc, src/LastalArguments.hh,
+	src/MultiSequence.hh, src/MultiSequenceQual.cc,
+	src/ScoreMatrixRow.hh, src/lastal.cc, src/makefile:
+	Allow PSSMs as queries for lastal!
+	[620742f1b380]
+
+2010-06-17  Martin C. Frith  <Martin C. Frith>
+
+	* src/lastex.cc:
+	Made lastex sensibly handle a both-strand translated alignments
+	file.
+	[449b5ece6113]
+
+	* src/CA_code/lambda_calculator.c, src/QualityScoreCalculator.hh,
+	src/ScoreMatrix.cc, src/XdropAlignerPssm.cc,
+	src/gumbel_params/sls_alp_data.cpp:
+	Bugfix: made lastex work with weird letter frequencies (asymmetric
+	with zeros). Improved some error messages & other minor code
+	improvements.
+	[7cb04489fe4d]
+
+2010-06-02  Martin C. Frith  <Martin C. Frith>
+
+	* scripts/maf-convert.py:
+	Made maf-convert.py write expect values in tab output, if present in
+	the input.
+	[fd95006a5bf7]
+
+2010-05-17  Martin C. Frith  <Martin C. Frith>
+
+	* src/lastdb.cc, src/lastex.cc:
+	Fixed compilation error & warning that occurred on some systems.
+	[a4096022c048]
+
+2010-05-14  Martin C. Frith  <Martin C. Frith>
+
+	* doc/lastex.txt, src/AlignmentPot.cc, src/Alphabet.cc,
+	src/Centroid.cc, src/CyclicSubsetSeed.cc, src/DiagonalTable.hh,
+	src/GeneticCode.cc, src/LastalArguments.cc, src/Mmap.hh,
+	src/ScoreMatrix.cc, src/SubsetSuffixArraySort.cc, src/io.cc:
+	Tried to make the C++ more strictly correct and portable.
+	[b69cf6df7e1f]
+
+2010-05-12  Martin C. Frith  <Martin C. Frith>
+
+	* src/makefile:
+	Try to put the correct version number in lastex's output.
+	[5661473b83f7]
+
+	* makefile, src/lastex.cc:
+	Write the version number in lastex's output. Exclude executable
+	files from the distribution.
+	[f88aec669c0e]
+
+	* doc/evalue-tables.txt, doc/last-manual.txt, doc/last-scripts.txt,
+	doc/lastex.txt, examples/HOXD70, examples/TiTv212, makefile,
+	src/LastexArguments.cc, src/LastexArguments.hh,
+	src/gumbel_params/common/ncbi_export.h,
+	src/gumbel_params/corelib/ncbi_limits.h,
+	src/gumbel_params/corelib/ncbidbg.hpp,
+	src/gumbel_params/corelib/ncbistd.hpp,
+	src/gumbel_params/corelib/ncbistl.hpp,
+	src/gumbel_params/corelib/ncbistre.hpp,
+	src/gumbel_params/corelib/ncbitype.h,
+	src/gumbel_params/mcf_local_alignment_evaluer.cpp,
+	src/gumbel_params/mcf_local_alignment_evaluer.hpp,
+	src/gumbel_params/ncbi_pch.hpp, src/gumbel_params/njn_approx.hpp,
+	src/gumbel_params/njn_doubletype.hpp,
+	src/gumbel_params/njn_dynprogprob.cpp,
+	src/gumbel_params/njn_dynprogprob.hpp,
+	src/gumbel_params/njn_dynprogproblim.cpp,
+	src/gumbel_params/njn_dynprogproblim.hpp,
+	src/gumbel_params/njn_dynprogprobproto.cpp,
+	src/gumbel_params/njn_dynprogprobproto.hpp,
+	src/gumbel_params/njn_function.hpp,
+	src/gumbel_params/njn_integer.hpp, src/gumbel_params/njn_ioutil.cpp,
+	src/gumbel_params/njn_ioutil.hpp,
+	src/gumbel_params/njn_localmaxstat.cpp,
+	src/gumbel_params/njn_localmaxstat.hpp,
+	src/gumbel_params/njn_localmaxstatmatrix.cpp,
+	src/gumbel_params/njn_localmaxstatmatrix.hpp,
+	src/gumbel_params/njn_localmaxstatutil.cpp,
+	src/gumbel_params/njn_localmaxstatutil.hpp,
+	src/gumbel_params/njn_matrix.cpp, src/gumbel_params/njn_matrix.hpp,
+	src/gumbel_params/njn_memutil.hpp, src/gumbel_params/njn_root.hpp,
+	src/gumbel_params/njn_vector.hpp, src/gumbel_params/random_gen.cpp,
+	src/gumbel_params/sls_alp.cpp, src/gumbel_params/sls_alp.hpp,
+	src/gumbel_params/sls_alp_data.cpp,
+	src/gumbel_params/sls_alp_data.hpp,
+	src/gumbel_params/sls_alp_regression.cpp,
+	src/gumbel_params/sls_alp_regression.hpp,
+	src/gumbel_params/sls_alp_sim.cpp,
+	src/gumbel_params/sls_alp_sim.hpp,
+	src/gumbel_params/sls_normal_distr_array.hpp,
+	src/gumbel_params/sls_pvalues.cpp,
+	src/gumbel_params/sls_pvalues.hpp,
+	src/gumbel_params/util/random_gen.hpp, src/lastex.cc, src/makefile:
+	Added lastex: expected numbers of alignments for random sequences!
+	[0356ab56fc53]
+
+	* src/LastalArguments.cc, src/LastalArguments.hh, test/asymmetric.mat:
+	Changed the prefix for options in the matrix file, from "#lastal" to
+	just "#last". ("#lastal" still works.)
+	[3a8017f99bce]
+
+	* src/lastdb.cc:
+	Added lastdb warning if the input doesn't look like DNA.
+	[489e81296b19]
+
+2010-05-10  Martin C. Frith  <Martin C. Frith>
+
+	* src/LastdbArguments.cc, src/LastdbArguments.hh, src/lastdb.cc:
+	Gave lastdb an option to just count sequences & letters.
+	[86faa9559bca]
+
+	* src/Alphabet.cc, src/Alphabet.hh, src/lastdb.cc:
+	Made lastdb count sequences & letters (not used yet).
+	[5d322b56849a]
+
+	* src/MultiSequence.cc:
+	Made FASTA-reading faster.
+	[2d05b4ae9488]
+
+2010-05-08  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-manual.txt, src/LambdaCalculator.hh,
+	src/LastdbArguments.cc, src/lastdb.cc:
+	Made yass.seed the default for DNA only.
+	[223bac5a97a9]
+
+2010-04-08  Martin C. Frith  <Martin C. Frith>
+
+	* src/CA_code/lambda_calculator.c, src/CA_code/lambda_calculator.h,
+	src/LambdaCalculator.cc, src/LambdaCalculator.hh, src/lastal.cc,
+	test/last-test.out:
+	Rewrote some code for getting probabilities from a scoring matrix.
+	[d984c04b8599]
+
+	* test/asymmetric.mat, test/last-test.out, test/last-test.sh:
+	Added a test with an asymmetric scoring matrix.
+	[a79e00ba5f46]
+
+	* doc/last-manual.txt, src/Alignment.cc, src/Alignment.hh,
+	src/AlignmentWrite.cc, test/last-test.out:
+	Made centroid alignment report the score of the ordinary gapped
+	alignment.
+	[cee3aa1623dc]
+
+	* src/AlignmentWrite.cc, src/lastal.cc, src/lastdb.cc:
+	Minor refactoring.
+	[ea70b9170817]
+
+	* src/GeneralizedAffineGapCosts.hh, src/Xdrop3FrameAligner.cc,
+	src/XdropAligner.cc, src/io.hh:
+	Made file I/O error messages a bit more specific; minor refactoring.
+	[cde91a34dd89]
+
+2010-04-02  Martin C. Frith  <Martin C. Frith>
+
+	* doc/FAQ.txt, doc/evalue-tables.txt, doc/last-manual.txt, doc/tag-
+	seeds.txt, examples/multiMito.sh, src/Alignment.hh,
+	src/CyclicSubsetSeed.cc, src/CyclicSubsetSeed.hh,
+	src/LastdbArguments.cc, src/SegmentPairPot.hh,
+	src/SubsetSuffixArraySort.cc, src/lastal.cc, src/lastdb.cc, test
+	/last-test.sh:
+	Made yass.seed the default seed pattern. Greatly improved the
+	documents & LAST recipes: please re-read them!
+	[24f943b3495a]
+
+2010-03-23  Martin C. Frith  <Martin C. Frith>
+
+	* scripts/maf-convert.py, src/LastalArguments.cc,
+	src/LastdbArguments.cc, src/SubsetSuffixArray.cc,
+	src/SubsetSuffixArray.hh, src/lastal.cc, src/lastdb.cc:
+	Made maf-convert.py work with older versions of python. Avoided some
+	warnings with some compilers.
+	[21e8d6b7a674]
+
+	* doc/last-scripts.txt, scripts/maf-convert.py, scripts/maf2tab.py:
+	Bugfix: maf2tab didn't work on translated alignments. Replaced it
+	with maf-convert.py (can also write AXT format).
+	[56fd23dee4be]
+
+2010-03-18  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-manual.txt, src/Alignment.hh, src/AlignmentWrite.cc,
+	src/MultiSequence.cc, src/MultiSequence.hh,
+	src/MultiSequenceQual.cc, src/lastal.cc, src/lastdb.cc:
+	Bugfix: fixed errors related to volumes and batches >~4 gigabytes.
+	[d91b6a9d0bfb]
+
+2010-03-06  Martin C. Frith  <Martin C. Frith>
+
+	* scripts/maf2tab.py, src/lastal.cc, test/last-test.out:
+	Made lastal write a comment line between query batches: might help
+	parsers. Made maf2tab.py preserve comment lines (but it might move
+	them).
+	[232af295bff6]
+
+2010-02-27  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-manual.txt, doc/tag-seeds.txt, src/LastalArguments.cc,
+	src/LastalArguments.hh, src/LastdbArguments.cc, src/lastal.cc, test
+	/last-test.out:
+	Added lastal -n option to limit gapless alignments.
+	[69172cf2778d]
+
+2010-02-16  Martin C. Frith  <Martin C. Frith>
+
+	* examples/TiTv212, src/LastalArguments.cc, src/LastdbArguments.cc:
+	Made lastdb and lastal require at least one sequence file.
+	[24ef4fb0d864]
+
+2010-02-02  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-manual.txt, src/Mmap.hh, src/MultiSequence.cc,
+	src/MultiSequence.hh, src/MultiSequenceQual.cc,
+	src/SubsetSuffixArray.cc, src/SubsetSuffixArray.hh,
+	src/SubsetSuffixArraySort.cc, src/VectorOrMmap.hh, src/fileMap.cc,
+	src/fileMap.hh, src/makefile:
+	Enabled memory sharing by parallel lastal runs.
+	[e2171f4d2fde]
+
+2010-02-01  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-scripts.txt, scripts/last-dotplot.py:
+	Enable dotplots to have zero margins.
+	[f6c21d78378a]
+
+2010-01-31  Martin C. Frith  <Martin C. Frith>
+
+	* doc/FAQ.txt, scripts/last-map-probs.py, scripts/last-remove-
+	dominated.py, scripts/maf-join.py, scripts/maf-sort.sh, scripts/maf-
+	swap.py, scripts/maf2html.py, scripts/maf2tab.py:
+	Bugfix: made maf-sort.sh (and thus last-reduce-alignments.sh) work
+	on Mac OS X, by not using "uniq".
+
+	Stopped spurious error messages from python scripts.
+
+	Slight FAQ re-wording.
+	[9b9b3d422dcd]
+
+2010-01-18  Martin C. Frith  <Martin C. Frith>
+
+	* src/Alphabet.cc, src/Alphabet.hh, src/LastalArguments.cc:
+	Fixed build error & warning that occurred on some platforms.
+	[48eda6d3dc73]
+
+	* doc/FAQ.txt, doc/last-manual.txt:
+	Added citations & FAQs to the docs.
+	[db3f15bf5c2e]
+
+	* src/Alignment.hh, src/AlignmentWrite.cc, src/Alphabet.cc,
+	src/Alphabet.hh, src/GeneticCode.cc, src/GeneticCode.hh,
+	src/MultiSequence.cc, src/MultiSequence.hh, src/io.hh,
+	src/lastal.cc, src/lastdb.cc:
+	Refactor: finished encapsulating the sequence data.
+	[988c97f73036]
+
+2010-01-15  Martin C. Frith  <Martin C. Frith>
+
+	* src/AlignmentWrite.cc, src/MultiSequence.hh, src/lastal.cc,
+	src/lastdb.cc:
+	Refactor: further reduced direct access to the seqeunce data...
+	[e9fb994c7f43]
+
+2010-01-14  Martin C. Frith  <Martin C. Frith>
+
+	* src/Alignment.hh, src/AlignmentWrite.cc, src/Alphabet.cc,
+	src/Alphabet.hh, src/MultiSequence.hh, src/lastal.cc:
+	Refactor: reduce direct access to the seqeunce data (aim to
+	encapsulate it).
+	[97bf019f979f]
+
+	* src/Alphabet.cc, src/Alphabet.hh:
+	Refactor: simplified some code.
+	[2a4e310a75d8]
+
+2009-10-30  Martin C. Frith  <Martin C. Frith>
+
+	* doc/FAQ.txt, doc/evalue-tables.txt, doc/last-manual.txt,
+	src/Alignment.cc, src/AlignmentWrite.cc, src/Xdrop3FrameAligner.hh,
+	src/lastal.cc:
+	Bugfix: made lastal not crash when there are no identical matches to
+	initiate gapped extensions (can happen with subset seeds).
+
+	Improved & updated the documents.
+
+	Made lastal frameshifting gapped extension a bit faster.
+	[a6a6350e9130]
+
+2009-10-29  Martin C. Frith  <Martin C. Frith>
+
+	* src/XdropAligner.hh:
+	Made lastal gapped extension a fair bit faster. (I don't understand
+	why.)
+	[29e993bcdf94]
+
+	* src/Xdrop3FrameAligner.cc, src/XdropAligner.cc, src/XdropAligner.hh,
+	src/XdropAlignerPssm.cc, src/lastal.cc:
+	Made lastal gapped extension a bit faster. Made lastal -v write the
+	count of initial matches.
+	[f17b15f16c84]
+
+2009-10-26  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-manual.txt:
+	Explain lowercase & repeats a bit in the manual.
+	[197c09afb831]
+
+	* src/SubsetSuffixArray.cc:
+	Made lastal match-finding slightly faster.
+	[1939a7f661cb]
+
+2009-10-23  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-manual.txt, examples/multiMito.sh, examples/myalns.maf,
+	src/Alphabet.cc, src/Alphabet.hh, src/LastalArguments.cc,
+	src/LastdbArguments.cc, src/lastal.cc, src/lastdb.cc, test/last-
+	test.out, test/last-test.sh:
+	! Lastdb and lastal no longer convert sequences to uppercase on
+	reading. ! Lastdb -c now means: forbid lowercase in initial matches
+	(in both sequences). ! Lastal -u numbers have changed (lowercase
+	masking for extensions only). Simplified the documentation by de-
+	emphasizing lastal -u.
+	[993c8ffa844f]
+
+2009-10-22  Martin C. Frith  <Martin C. Frith>
+
+	* examples/yass.seed, src/lastal.cc, src/lastdb.cc, test/last-
+	test.out, test/last-test.sh:
+	Added a test of subset seeds; a few cosmetic changes.
+	[a9dee751cc84]
+
+	* doc/last-manual.txt, doc/tag-seeds.txt, src/Alphabet.cc,
+	src/Alphabet.hh, src/CyclicSubsetSeed.cc, src/CyclicSubsetSeed.hh,
+	src/LastalArguments.cc, src/LastdbArguments.cc,
+	src/LastdbArguments.hh, src/PeriodicSpacedSeed.cc,
+	src/PeriodicSpacedSeed.hh, src/SubsetSuffixArray.cc,
+	src/SubsetSuffixArray.hh, src/SubsetSuffixArraySort.cc,
+	src/SuffixArray.cc, src/SuffixArray.hh, src/SuffixArraySort.cc,
+	src/lastal.cc, src/lastdb.cc, src/makefile:
+	Implemented subset seeds! This makes lastdb and lastal a bit slower
+	:-( ! The meaning of lastal -l has changed: it includes skipped
+	positions now. ! The meaning of match-count output (lastal -j0) has
+	changed in the same way. ! Skipped positions no longer tolerate
+	lowercase or non-alphabet letters.
+	[d8f213e7fcfa]
+
+2009-10-21  Martin C. Frith  <Martin C. Frith>
+
+	* src/SuffixArray.cc, src/SuffixArray.hh, src/lastal.cc:
+	Just re-organized some calculations. Lastal will now refuse to read
+	older lastdb databases if the bucket depth = 0.
+	[b75124274b95]
+
+2009-10-16  Martin C. Frith  <Martin C. Frith>
+
+	* src/SuffixArray.hh, src/SuffixArraySort.cc:
+	Trivially re-organised the suffix sorting code.
+	[5df0e44baf76]
+
+	* src/SuffixArray.cc, src/SuffixArray.hh, src/SuffixArraySort.cc,
+	src/lastal.cc, src/lastdb.cc:
+	Refactored the suffix array code yet more (removed the
+	constructor)...
+	[f66e82b62f6f]
+
+	* src/PeriodicSpacedSeed.cc, src/PeriodicSpacedSeed.hh,
+	src/SuffixArray.cc, src/SuffixArray.hh, src/SuffixArraySort.cc,
+	src/lastal.cc, src/lastdb.cc:
+	Refactored the suffix array code some more (removed reference
+	members)...
+	[b26861ffe380]
+
+	* src/SuffixArray.hh, src/SuffixArraySort.cc:
+	Refactored suffix sorting a bit.
+	[2480447181f8]
+
+2009-10-13  Martin C. Frith  <Martin C. Frith>
+
+	* test/SRR001981-1k.fastq:
+	Added missing FASTQ test data!
+	[0bfadb999cb3]
+
+	* src/Alignment.cc, src/Alphabet.cc, src/Alphabet.hh,
+	src/SuffixArray.cc:
+	Minor refactoring.
+	[ecbe255af190]
+
+	* src/SuffixArray.cc, src/SuffixArray.hh, src/SuffixArraySort.cc,
+	src/lastdb.cc, src/makefile:
+	Code reorganization.
+	[91b883ed7dd7]
+
+	* src/LastdbArguments.cc, src/LastdbArguments.hh, src/SuffixArray.cc,
+	src/SuffixArray.hh, src/lastal.cc, src/lastdb.cc:
+	Minor code cleaning.
+	[db41c7b6f398]
+
+2009-10-05  Martin C. Frith  <Martin C. Frith>
+
+	* test/last-test.out, test/last-test.sh:
+	Added a test with FASTQ sequence quality data.
+	[45b643a37d64]
+
+2009-10-04  Martin C. Frith  <Martin C. Frith>
+
+	* src/LastalArguments.cc, src/LastalArguments.hh, src/lastal.cc, test
+	/last-test.out, test/last-test.sh:
+	Changed the default "maximum score dropoff for gapless extensions"
+	(lastal -y): made it adapt better to the scoring matrix.
+	[b3092a865c66]
+
+	* doc/last-manual.txt, src/Alignment.cc, src/Alignment.hh,
+	src/GeneticCode.hh, src/LastalArguments.cc, src/ScoreMatrix.hh,
+	src/Xdrop3FrameAligner.cc, src/Xdrop3FrameAligner.hh,
+	src/XdropAligner.cc, src/XdropAligner.hh, src/lastal.cc,
+	src/makefile, test/last-test.out:
+	Added frameshifting alignment!
+	[0c5add9fff75]
+
+2009-10-02  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-manual.txt, scripts/last-dotplot.py, scripts/last-map-
+	probs.py, scripts/last-reduce-alignments.sh, scripts/last-remove-
+	dominated.py, scripts/maf-join.py, scripts/maf-sort.sh, scripts/maf-
+	swap.py, scripts/maf2html.py, scripts/maf2tab.py,
+	src/LastalArguments.cc, src/LastdbArguments.cc,
+	src/LastdbArguments.hh, src/lastal.cc, src/lastdb.cc, test/last-
+	test.out, test/last-test.sh:
+	Improved Debian/GNU conformance of progam help messages. (Thanks:
+	Andreas Tille)
+
+	Bugfix: made last-reduce-alignments.sh better able to find the
+	scripts that it calls.
+	[d68ccbc06d73]
+
+2009-09-30  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-manual.txt, src/Alignment.cc, src/Alignment.hh,
+	src/AlignmentWrite.cc, src/GeneralizedAffineGapCosts.cc,
+	src/GeneticCode.cc, src/GeneticCode.hh, src/LastalArguments.hh,
+	src/lastal.cc:
+	Generalized some of the code in preparation for frameshifts.
+	[926d2c979e2d]
+
+2009-09-28  Martin C. Frith  <Martin C. Frith>
+
+	* examples/vertebrateMito.gc, src/Alignment.hh, src/AlignmentWrite.cc,
+	src/GeneticCode.cc, src/GeneticCode.hh, src/LastalArguments.cc,
+	src/LastalArguments.hh, src/lastal.cc, src/makefile, test/Q2LCP8.fa,
+	test/last-test.out, test/last-test.sh:
+	Added translated alignment (but without frameshifts for now)!
+	[82232c885289]
+
+	* doc/last-manual.txt, doc/tag-seeds.txt, src/Alignment.hh,
+	src/AlignmentWrite.cc, src/CA_code/lambda_calculator.c,
+	src/LastalArguments.cc, src/SuffixArray.cc, src/lastal.cc, test
+	/last-test.sh:
+	!! Changed the lastal option letter for query input format from -F
+	to -Q (so that -F can be used for frameshift cost).
+
+	Bugfix: fixed crash when bucket depth = 0.
+
+	Removed spurious message "no sensible solution in the plausible x
+	range..."
+
+	Minor code cleaning.
+	[4ab7d1100a4b]
+
+2009-09-24  Martin C. Frith  <Martin C. Frith>
+
+	* src/SuffixArray.cc, src/SuffixArray.hh, src/lastal.cc,
+	src/lastdb.cc:
+	Changed the bucket data structure. Advantages:
+	  * Uses only 80% as much memory, for a given bucket depth
+	  * Simpler code
+	  * Slightly faster construction (lastdb) Disadvantages:
+	  * Slightly slower scanning (lastal), for a given bucket depth
+	  * Changed database format !! Lastal now refuses to read older lastdb
+	databases.
+	[b6eac8b7ef80]
+
+2009-09-15  Martin C. Frith  <Martin C. Frith>
+
+	* doc/tag-seeds.txt, src/lastal.cc, test/last-test.out, test/last-
+	test.sh:
+	Bugfix: lastal match counts (-j 0) were not reset between query
+	batches, so they were wrong for all but the first batch.
+
+	Added a test for match counting.
+
+	Improved the tag mapping documentation.
+	[2cffd9814c4f]
+
+2009-08-31  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-scripts.txt, scripts/last-map-probs.py, src/lastal.cc, test
+	/last-test.out:
+	Added a script to calculate mapping probabilities (& minimal
+	documentation). Made lastal always try to calculate lambda (hence
+	default temperature).
+	[e3aa13898c8a]
+
+2009-08-22  Martin C. Frith  <Martin C. Frith>
+
+	* src/SuffixArray.cc, src/SuffixArray.hh:
+	Made lastdb faster for DNA, with a specialized 4-letter radix sort.
+	[00533dfd758e]
+
+	* doc/last-manual.txt, doc/tag-seeds.txt,
+	src/QualityScoreCalculator.cc, src/QualityScoreCalculator.hh,
+	src/SegmentPair.cc, src/lastal.cc, src/lastdb.cc:
+	Fixed underflow error with phred score=0 and huge mismatch cost.
+	Friendlier out-of-memory message. Improved the documentation a bit.
+	[c4f692277a02]
+
+2009-06-14  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-manual.txt, doc/tag-seeds.txt, src/Alignment.cc,
+	src/Alignment.hh, src/AlignmentWrite.cc, src/LastalArguments.cc,
+	src/LastalArguments.hh, src/MultiSequence.hh,
+	src/MultiSequenceQual.cc, src/QualityScoreCalculator.cc,
+	src/QualityScoreCalculator.hh, src/SegmentPair.cc,
+	src/SegmentPair.hh, src/SegmentPairPssm.cc, src/XdropAligner.cc,
+	src/XdropAligner.hh, src/XdropAlignerPssm.cc, src/lastal.cc,
+	src/makefile:
+	Made lastal able to use sequence quality scores!
+	[11287126adb6]
+
+	* doc/tag-seeds.txt, scripts/maf-swap.py, src/Alphabet.cc,
+	src/SegmentPairPot.hh, src/lastal.cc, src/makefile:
+	Made gapped alignments more reproducible, by breaking ties when
+	sorting gapless alignments. Now, the query batch size should really
+	have no effect on the results.
+
+	Rewrote the tag mapping document.
+
+	Minor code improvements.
+	[2cf11c3ac7d0]
+
+2009-06-08  Martin C. Frith  <Martin C. Frith>
+
+	* src/LastalArguments.cc, src/LastalArguments.hh, src/lastal.cc:
+	Made lastal match-counting (-j 0) much faster, for short queries
+	with a large minimum-depth option (-l).
+
+	Refactor: neatened the setting of default option values for lastal.
+	[561788605741]
+
+2009-06-07  Martin C. Frith  <Martin C. Frith>
+
+	* src/Alignment.cc, src/AlignmentWrite.cc, src/SegmentPair.cc,
+	src/SegmentPair.hh, src/XdropAligner.cc, src/XdropAligner.hh,
+	src/lastal.cc, src/makefile:
+	Minor code re-organization.
+	[635e94b537b2]
+
+2009-05-30  Martin C. Frith  <Martin C. Frith>
+
+	* src/MultiSequence.cc, src/MultiSequence.hh, src/SuffixArray.cc,
+	src/lastal.cc, src/lastdb.cc, test/last-test.maf, test/last-
+	test.out, test/last-test.sh:
+	Bugfix: the lastdb volume size option (-s) wasn't always respected.
+	Made lastal not needlessly re-read a single-volume lastdb database.
+	Added a test (of database volumes & query batches). Some minor
+	refactoring.
+	[3e822d0420a6]
+
+2009-05-27  Martin C. Frith  <Martin C. Frith>
+
+	* doc/FAQ.txt, src/GeneralizedAffineGapCosts.hh, src/lastal.cc:
+	Added a FAQ item. Refactor: reduced parameter-passing in lastal.cc.
+	[49fb8c5ea7dd]
+
+2009-05-08  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-manual.txt, doc/last-scripts.txt, scripts/maf2html.py:
+	Added maf2html.py: converts MAF-format alignments to coloured HTML
+	format. Disguised the email address in last-manual.txt.
+	[bf790a859c2a]
+
+2009-05-02  Martin C. Frith  <Martin C. Frith>
+
+	* scripts/last-dotplot.py, src/XdropAligner.cc, src/makefile:
+	Made lastal gapped extension faster, by removing an assert
+	(surprising). Bugfix: made last-dotplot.py not crash on small
+	sequences.
+	[726cb608cd2b]
+
+2009-04-08  Martin C. Frith  <Martin C. Frith>
+
+	* examples/myalns.maf, src/SegmentPair.cc:
+	Minor code cleaning: variable name, comments.
+	[b5d20c0600b5]
+
+2009-04-02  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-manual.txt, examples/myalns.maf:
+	Updated examples/myalns.maf to reflect the new default score
+	parameters. Minor changes to last-manual.txt.
+	[9b28ee63a537]
+
+2009-04-01  Martin C. Frith  <Martin C. Frith>
+
+	* scripts/maf-sort.sh:
+	Removed unnecessary robustness from maf-sort.sh, to avoid bugs in
+	unix sort(!)
+	[c935c2c76860]
+
+	* doc/evalue-tables.txt, doc/last-manual.txt, doc/last-scripts.txt,
+	doc/tag-seeds.txt, examples/HOXD70, examples/TiTv212,
+	examples/chickenMito.fa, examples/mouseMito.fa,
+	examples/multiMito.maf, examples/multiMito.sh, scripts/maf-join.py,
+	scripts/maf-sort.sh, scripts/maf-swap.py, src/LastalArguments.cc:
+	Added maf-join.py: joins pairwise alignments into multiple
+	alignments! Added example files to illustrate usage of maf-join.py.
+	Changed lastal default gap existence cost for DNA to 7. Changed
+	lastal default gapped score threshold for DNA to 40. Added TiTv212
+	scoring matrix to examples. maf-swap.py: Added -n option to move any
+	sequence to the top. Updated the documents.
+	[f5eadd663148]
+
+2009-03-31  Martin C. Frith  <Martin C. Frith>
+
+	* scripts/last-remove-dominated.py:
+	Made last-remove-dominated.py faster.
+	[b0006c034de9]
+
+2009-03-30  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-manual.txt, doc/tag-seeds.txt, scripts/maf-sort.sh,
+	src/Alignment.cc, test/last-test.maf, test/last-test.sh:
+	Added gaps to MAF probability lines: easier to parse. Made maf-
+	sort.sh more robust. Improved the documents a bit.
+	[e6f6ff270445]
+
+2009-03-18  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-manual.txt, src/LastalArguments.cc, src/LastdbArguments.cc,
+	src/stringify.hh:
+	Allow suffixes K(ibibyte), M(ebibyte), and G(ibibyte) for sizes.
+	[1b144155c74c]
+
+2009-03-06  Martin C. Frith  <Martin C. Frith>
+
+	* src/Alignment.cc, src/Centroid.cc, src/Centroid.hh:
+	Simplified the probability & centroid code. (Thanks: Hamada-san)
+	[1121b0c98227]
+
+2009-03-03  Martin C. Frith  <Martin C. Frith>
+
+	* src/GeneralizedAffineGapCosts.cc, src/LastalArguments.cc, test/last-
+	test.maf:
+	Bugfix: overflow error made lastal discard some gapped alignments.
+	[39b97ca18568]
+
+2009-02-28  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-manual.txt, examples/HOXD70, src/LastalArguments.cc,
+	src/LastalArguments.hh, src/ScoreMatrix.cc, src/ScoreMatrix.hh,
+	src/io.cc, src/io.hh, src/lastal.cc, test/last-test.sh:
+	Allow lastal options to be set in the score-matrix file.
+	[9d3956d3d902]
+
+	* src/LastalArguments.cc, src/LastalArguments.hh,
+	src/LastdbArguments.cc, src/LastdbArguments.hh, src/lastal.cc,
+	src/lastdb.cc:
+	Minor refactoring.
+	[d0a950027ac7]
+
+2009-01-30  Martin C. Frith  <Martin C. Frith>
+
+	* src/Alphabet.cc:
+	Bugfix: for protein alignments, tyrosine was forbidden in initial
+	matches. !! Old lastdb protein databases won't work properly: you
+	need to re-run lastdb.
+	[de27a8780950]
+
+2008-12-30  Martin C. Frith  <Martin C. Frith>
+
+	* src/lastal.cc, src/lastdb.cc:
+	Refactor: removed some namespace tedium from the code.
+	[4f503fee369c]
+
+2008-12-24  Martin C. Frith  <Martin C. Frith>
+
+	* doc/evalue-tables.txt, doc/last-manual.txt, doc/tag-seeds.txt:
+	Updated the documentation, including a table of optimal spaced
+	seeds.
+	[daaf5739510a]
+
+2008-12-22  Martin C. Frith  <Martin C. Frith>
+
+	* src/SuffixArray.cc:
+	Made lastdb bucket-making code slightly simpler & faster.
+	[57c165efb568]
+
+	* src/LastalArguments.cc, src/SuffixArray.cc, src/io.hh:
+	Enabled reading & writing of huge files (at least on one system with
+	Linux-2.6.13/x86_64/gcc-4.0.2).
+
+	Made lastdb radix sort a bit faster, with the oracle array trick.
+
+	Allowed the mismatch score to be zero, due to a request.
+	[3ca5ea230751]
+
+2008-12-09  Martin C. Frith  <Martin C. Frith>
+
+	* src/Alignment.cc, src/Alignment.hh, src/ScoreMatrix.hh,
+	src/XdropAligner.cc, src/XdropAligner.hh, src/lastal.cc:
+	Made gapped extension faster for short sequences (e.g. tag mapping).
+	[60d29e3957c5]
+
+2008-12-08  Martin C. Frith  <Martin C. Frith>
+
+	* src/lastal.cc:
+	Bugfix: the sequence names weren't printed correctly for match-
+	counting output (-j 0).
+	[12d9030cf05e]
+
+2008-12-05  Martin C. Frith  <Martin C. Frith>
+
+	* src/Alignment.cc, src/ScoreMatrix.cc, src/makefile:
+	Fixed compiler warnings with gcc 4.3
+	[18843b10d9e8]
+
+2008-11-06  Martin C. Frith  <Martin C. Frith>
+
+	* makefile:
+	Added "." after "svnversion" to support older versions of svn.
+	(Thanks: Nicolas Sierro)
+	[00b3dbb8f618]
+
+2008-11-04  Martin C. Frith  <Martin C. Frith>
+
+	* src/LastalArguments.cc, src/LastdbArguments.cc:
+	Added unistd.h includes, for getopt, so it compiles more portably(?)
+	[fd6101b67cb2]
+
+	* src/Centroid.cc, src/Centroid.hh, src/XdropAligner.cc,
+	src/XdropAligner.hh, src/lastal.cc:
+	Refactor: replaced a magic number with a named constant (score
+	matrix size).
+	[ffa2614e18f7]
+
+2008-11-01  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-scripts.txt, scripts/last-dotplot.py:
+	Made last-dotplot.py work with older versions of Python (not
+	tested).
+	[0f2074e6853e]
+
+2008-10-31  Martin C. Frith  <Martin C. Frith>
+
+	* test/last-test.sh:
+	Fixed the test script, which broke after moving HOXD70.
+	[6e1ba8d97637]
+
+	* doc/HOXD70, doc/last-manual.txt, examples/HOXD70,
+	examples/fuguMito.fa, examples/humanMito.fa, examples/myalns.maf,
+	makefile:
+	Added the examples directory.
+	[320185d87b4d]
+
+2008-10-29  Martin C. Frith  <Martin C. Frith>
+
+	* src/DiagonalTable.hh:
+	Removed an obsolete comment.
+	[42c5e4ccebcf]
+
+	* src/DiagonalTable.hh:
+	Made lastal a bit faster, by using fewer bins in DiagonalTable.
+	[0d3bddb645db]
+
+2008-10-25  Martin C. Frith  <Martin C. Frith>
+
+	* src/Centroid.cc:
+	Made the probability calculations slightly faster, by micro-
+	optimization.
+	[7c0912ff5085]
+
+	* doc/last-manual.txt, src/Alignment.cc, src/Alignment.hh,
+	src/Centroid.cc, src/Centroid.hh, src/lastal.cc:
+	Made the probability calculations much faster, by using scaling
+	instead of log.
+
+	Added code to get expected counts of emissions and transitions,
+	which isn't used yet.
+	[c86b6d48881c]
+
+2008-10-21  Martin C. Frith  <Martin C. Frith>
+
+	* src/lastal.cc:
+	Changed how seeds for gapped alignments are derived from gapless
+	alignments, to prevent occasionally getting the same gapped
+	alignment more than once.
+	[59d3f3bb88b5]
+
+2008-10-10  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-manual.txt, src/CA_code/nrutil.c:
+	Removed malloc.h from nrutil.c, so it compiles on Mac OS X. Small
+	additions to the manual.
+	[610626404a5f]
+
+2008-10-02  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-manual.txt, doc/last-scripts.txt, makefile,
+	src/Alignment.cc, src/Alignment.hh, src/CA_code/lambda_calculator.c,
+	src/CA_code/lambda_calculator.h, src/CA_code/lubksb.c,
+	src/CA_code/ludcmp.c, src/CA_code/nrutil.c, src/CA_code/nrutil.h,
+	src/Centroid.cc, src/Centroid.hh, src/LambdaCalculator.cc,
+	src/LambdaCalculator.hh, src/LastalArguments.cc,
+	src/LastalArguments.hh, src/XdropAligner.hh, src/lastal.cc,
+	src/makefile, test/last-test.maf, test/last-test.sh:
+	Added probabilistic & centroid alignment!
+	[de5ce9b3bb54]
+
+2008-10-01  Martin C. Frith  <Martin C. Frith>
+
+	* scripts/last-remove-dominated.py, scripts/maf-swap.py:
+	Made the MAF-reading scripts cope with an extra 'p' line
+	(probabilities).
+	[65a3cc262718]
+
+2008-09-30  Martin C. Frith  <Martin C. Frith>
+
+	* src/Alignment.cc, src/Alignment.hh:
+	Minor comment changes.
+	[cd714102b3a2]
+
+	* doc/last-manual.txt, doc/tag-seeds.txt, src/LastalArguments.cc,
+	src/LastdbArguments.cc, src/LastdbArguments.hh, test/last-test.maf:
+	!! Changed the lastal option letter for "output type" from -g to -j
+	(so that -g can be used for 'gamma' in gamma-centroid alignment).
+	Made the usage messages and documentation a bit nicer.
+	[1f6f2a03eb98]
+
+	* doc/last-scripts.txt, scripts/maf-swap.py:
+	Made maf-swap.py work with Python 2.3.3.
+	[909d2ee4175a]
+
+2008-09-18  Martin C. Frith  <Martin C. Frith>
+
+	* src/AlignmentPot.hh, src/SegmentPairPot.hh, src/lastal.cc:
+	Minor refactoring.
+	[3dd1168849df]
+
+	* src/XdropAligner.cc, src/XdropAligner.hh:
+	Refactor: templatized some XdropAligner functions. This will be
+	useful when probabilistic alignment gets added.
+	[d801172578e3]
+
+2008-09-17  Martin C. Frith  <Martin C. Frith>
+
+	* src/Alignment.cc, src/XdropAligner.cc:
+	Refactored the conversion of gapped Xdrop extensions to alignments.
+	[1fedc2555ed5]
+
+2008-09-16  Martin C. Frith  <Martin C. Frith>
+
+	* doc/FAQ.txt:
+	Added FAQ (just one entry so far).
+	[58e83e93f3e0]
+
+	* src/Alignment.cc, src/Alignment.hh, src/lastal.cc:
+	Refactor: Made gapped alignments remember their seeds.
+	[91e05856d155]
+
+	* test/galGal3-M-32.fa, test/last-test.maf, test/last-test.sh:
+	Added a minimal regression test.
+	[aac5b622dcaa]
+
+2008-09-11  Martin C. Frith  <Martin C. Frith>
+
+	* src/Alignment.cc, src/AlignmentPot.hh, src/Alphabet.cc,
+	src/MultiSequence.cc, src/PeriodicSpacedSeed.cc, src/ScoreMatrix.cc,
+	src/ScoreMatrix.hh, src/SuffixArray.hh, src/XdropAligner.hh,
+	src/lastal.cc, src/lastdb.cc:
+	Added some "#include"s so that it compiles on picky systems.
+	(Thanks: Charles Plessy)
+	[cb9508f0bfa3]
+
+2008-09-10  Martin C. Frith  <Martin C. Frith>
+
+	* src/LastalArguments.cc:
+	Added lastdbName to the header of the lastal output.
+	[03416761788f]
+
+	* src/lastdb.cc, src/makefile:
+	Added version to lastdb ".prj" file.
+	[36c3da67e3ac]
+
+	* src/lastal.cc:
+	Tiny change to the header in lastal output.
+	[a598325bc0c3]
+
+2008-09-09  Martin C. Frith  <Martin C. Frith>
+
+	* doc/last-manual.txt:
+	Added Harada-san to credits.
+	[0a39bc158029]
+
+2008-09-08  Martin C. Frith  <Martin C. Frith>
+
+	* makefile:
+	Separated "make dist" from "make all".
+	[724a4bdb7734]
+
+	* doc/last-manual.txt:
+	Added Credits & Citation to last-manual.txt.
+	[5125dcc2a9d8]
+
+	* COPYING.txt, README.txt, doc/HOXD70, doc/evalue-tables.txt, doc
+	/last-manual.txt, doc/last-scripts.txt, doc/tag-seeds.txt, makefile,
+	scripts/last-dotplot.py, scripts/last-reduce-alignments.sh, scripts
+	/last-remove-dominated.py, scripts/maf-sort.sh, scripts/maf-swap.py,
+	scripts/maf2tab.py, src/Alignment.cc, src/Alignment.hh,
+	src/AlignmentPot.cc, src/AlignmentPot.hh, src/Alphabet.cc,
+	src/Alphabet.hh, src/DiagonalTable.cc, src/DiagonalTable.hh,
+	src/GeneralizedAffineGapCosts.cc, src/GeneralizedAffineGapCosts.hh,
+	src/LastalArguments.cc, src/LastalArguments.hh,
+	src/LastdbArguments.cc, src/LastdbArguments.hh,
+	src/MultiSequence.cc, src/MultiSequence.hh,
+	src/PeriodicSpacedSeed.cc, src/PeriodicSpacedSeed.hh,
+	src/ScoreMatrix.cc, src/ScoreMatrix.hh, src/SegmentPair.cc,
+	src/SegmentPair.hh, src/SegmentPairPot.cc, src/SegmentPairPot.hh,
+	src/SuffixArray.cc, src/SuffixArray.hh, src/XdropAligner.cc,
+	src/XdropAligner.hh, src/io.cc, src/io.hh, src/lastal.cc,
+	src/lastdb.cc, src/makefile, src/stringify.hh:
+	First commit!
+	[2b2012e60ac3]
+
+2013-05-21  Martin C. Frith  <Martin C. Frith>
+
+	* 0:
+	Make Mercurial start counting from 1.
+	[3f223f5d8e13]
+

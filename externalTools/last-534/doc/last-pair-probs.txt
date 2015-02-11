@@ -1,0 +1,165 @@
+last-pair-probs
+===============
+
+This program reads candidate alignments of paired DNA reads to a
+genome, and:
+
+1. estimates the distribution of distances between paired reads,
+2. estimates the probability that each alignment represents the
+   genomic source of the read.
+
+"Paired" means that the reads come from either end of a DNA fragment,
+in tail-to-tail orientation::
+
+  5' ---------->................................. 3'
+  3' .................................<---------- 5'
+
+Or head-to-head orientation::
+
+  5' .................................----------> 3'
+  3' <----------................................. 5'
+
+The program writes the alignments with "mismap" probabilities,
+i.e. the probability that the alignment does not represent the genomic
+source of the read. By default, it discards alignments with mismap
+probability > 0.01.
+
+Simple usage
+------------
+
+Suppose we have paired DNA reads in a file called "interleaved.fastq"
+(in fastq-sanger format), where the first two reads are paired, the
+next two reads are paired, and so on.  We can align them to the human
+genome like this::
+
+  lastdb -m1111110 hg human-genome.fasta
+  lastal -Q1 -e120 -i1 hg interleaved.fastq > temp.maf
+  last-pair-probs temp.maf > out.maf
+
+Suppose we have paired reads in two files, where the two first reads
+are paired, the two second reads are paired, and so on.  We can
+interleave them like this::
+
+  fastq-interleave x.fastq y.fastq | lastal -Q1 -e120 -i1 hg > temp.maf
+
+Reads from potentially-spliced RNA molecules
+--------------------------------------------
+
+Use the -r option::
+
+  last-pair-probs -r temp.maf > out.maf
+
+Without -r, it assumes the distances between paired reads follow a
+normal distribution.  With -r, it assumes the distances follow a
+skewed (log-normal) distribution, which is much more appropriate for
+spliced RNA.
+
+Efficient usage
+---------------
+
+The preceding recipes make a potentially-huge temp file, and
+last-pair-probs reads it twice: first to estimate the distance
+distribution, and then to estimate alignment probabilities.  It is
+more efficient to estimate the distance distribution from a small
+sample of the data::
+
+  lastal -Q1 -e120 -i1 hg sample.fastq | last-pair-probs -e
+
+Suppose this tells us that the mean distance is 250 and the standard
+deviation is 38.5.  We can use that to estimate the alignment
+probabilities::
+
+  lastal -Q1 -e120 -i1 hg all.fastq | last-pair-probs -f250 -s38.5 > out.maf
+
+Going faster by parallelization
+-------------------------------
+
+This will run the pipeline on all your CPU cores::
+
+  fastq-interleave x.fastq y.fastq |
+  parallel-fastq "lastal -Q1 -e120 -i1 hg | last-pair-probs -f250 -s38.5" > out.maf
+
+It requires GNU parallel to be installed
+(http://www.gnu.org/software/parallel/).
+
+Details
+-------
+
+* The "distance" between a pair of reads means the distance between
+  their 5' ends.  Positive distance indicates tail-to-tail
+  orientation, and negative distance indicates head-to-head
+  orientation.  Negative distances are not considered when -r is used,
+  nor for circular chromosomes.
+
+* The program reads one batch of alignments at a time (by looking for
+  lines starting with "# batch").  It assumes there is exactly one DNA
+  read per batch: if it finds more than one, it will complain.  The
+  lastal -i1 option ensures there is one query per batch.
+
+* The alignments may be in either format produced by lastal (maf or
+  tabular).  They must include header lines (of the kind produced by
+  lastal) describing the alignment parameters.
+
+* If a read name ends in neither "/1" nor "/2", the program appends
+  "/1" if it is the 1st in a pair or "/2" if it is the 2nd.
+
+* It is also possible to supply the alignments in two files::
+
+    lastal -Q1 -e120 -i1 hg x.fastq > temp1.maf
+    lastal -Q1 -e120 -i1 hg y.fastq > temp2.maf
+    last-pair-probs temp1.maf temp2.maf > out.maf
+
+Options
+-------
+
+  -h, --help
+         Print a help message and exit.
+
+  -r, --rna
+         Specifies that the fragments are from potentially-spliced RNA.
+
+  -e, --estdist
+         Just estimate the distribution of distances.
+
+  -m M, --mismap=M
+         Don't write alignments with mismap probability > M.
+
+  -f BP, --fraglen=BP
+         The mean distance in bp.  (With -r, the mean of
+         ln[distance].)  If this is not specified, the program will
+         estimate it from the alignments.
+
+  -s BP, --sdev=BP
+         The standard deviation of distance in bp.  (With -r, the
+         standard deviation of ln[distance].)  If this is not
+         specified, the program will estimate it from the alignments.
+
+  -d PROB, --disjoint=PROB
+         The prior probability that a pair of reads comes from
+         disjoint locations (e.g., different chromosomes).  This may
+         arise from real differences between the genome and the source
+         of the reads, or from errors in obtaining the reads or the
+         genome sequence.
+
+  -c CHROM, --circular=CHROM
+         Specifies that the chromosome named CHROM is circular.  You
+         can use this option more than once (e.g., -c chrM -c chrP).
+         As a special case, "." means all chromosomes are circular.
+         If this option is not used, "chrM" is assumed to be circular
+         (but if it is used, only the specified CHROMs are assumed to
+         be circular.)
+
+Tips
+----
+
+* To go faster, try gapless alignment (add -j1 to the lastal options).
+  Often, this is only minusculely less accurate than gapped alignment.
+
+Reference
+---------
+
+For more information, please see this article:
+
+  An approximate Bayesian approach for mapping paired-end DNA reads to
+  a reference genome.  Shrestha AM, Frith MC.  Bioinformatics 2013
+  29(8):965-972.

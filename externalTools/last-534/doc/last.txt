@@ -1,0 +1,129 @@
+LAST: Genome-Scale Sequence Comparison
+======================================
+
+LAST finds similar regions between sequences, and aligns them.  It is
+designed for comparing large datasets to each other (e.g. vertebrate
+genomes and/or large numbers of DNA reads).  It can:
+
+* Indicate the (un)ambiguity of each column in an alignment.
+* Use sequence quality data in a rigorous fashion.
+* Align DNA to proteins with frameshifts.
+* Compare PSSMs to sequences.
+* Calculate the likelihood of chance similarities between random
+  sequences.
+
+Requirements
+------------
+
+To handle mammalian genomes, it's best if you have at least 10-20
+gigabytes of real memory, but you can get by with 2 gigabytes.
+
+To install the software, you need a C++ compiler.  On Linux, you might
+need to install a package called "g++".  On Mac, you might need to
+install command-line developer tools.  On Windows, you might need to
+install Cygwin.
+
+Setup
+-----
+
+Using the command line, go into the top-level LAST directory.  To
+compile the programs, type::
+
+  make
+
+Optionally, copy the programs and scripts to a standard "bin"
+directory (using "sudo" to request administrator permissions)::
+
+  sudo make install
+
+Or copy them to your personal bin directory::
+
+  make install prefix=~
+
+You might have to log out and back in before your computer recognizes
+the new programs.
+
+Usage
+-----
+
+Please see the other files in the doc directory, especially
+`<last-tutorial.html>`_.
+
+References
+----------
+
+If you would like to understand LAST in detail, please look at these
+articles.  If you use LAST in your research, please cite one (or more)
+of them.
+
+The main algorithms used by LAST:
+
+  Adaptive seeds tame genomic sequence comparison.
+  SM Kielbasa, R Wan, K Sato, P Horton, MC Frith: Genome Research 2011 21:487.
+
+How LAST uses sequence quality data:
+
+  Incorporating sequence quality data into alignment improves DNA read mapping.
+  MC Frith, R Wan, P Horton: Nucleic Acids Research 2010 38(7):e100.
+
+Choice of score parameters, ambiguity of alignment columns, and
+gamma-centroid alignment:
+
+  Parameters for Accurate Genome Alignment.
+  MC Frith, M Hamada, P Horton: BMC Bioinformatics 2010 11:80.
+
+Other credits
+-------------
+
+* LAST includes public domain code from Yi-Kuo Yu and Stephen Altschul
+  (NCBI), to infer probabilities from a score matrix.  This is used
+  for incorporating sequence quality data, and estimating column
+  ambiguity.  Reference:
+
+    Yu Y-K, Altschul SF: The construction of amino acid substitution
+    matrices for the comparison of proteins with non-standard
+    compositions. Bioinformatics 21(2005), 902-911.
+
+* LAST includes public domain code from the Spouge group (NCBI), which
+  forms the basis of lastex.  Reference:
+
+    S Sheetlin, Y Park, JL Spouge "The Gumbel pre-factor k for gapped
+    local alignment can be estimated from simulations of global
+    alignment" (2005) Nucl Acids Res 33: 4987-4994.
+
+License
+-------
+
+LAST (including the scripts) is distributed under the GNU General
+Public License, either version 3 of the License, or (at your option)
+any later version.
+
+Website
+-------
+
+LAST's website is: http://last.cbrc.jp/
+
+Contact
+-------
+
+Questions and feedback are very welcome.  Please use the public
+mailing list:
+
+  last-align (ATmark) googlegroups (dot) com
+
+Please let us know about any problems, rather than giving up in
+disgust.  Feedback is essential for scientific software like this: we
+cannot solve problems that we are unaware of, and we cannot make it
+useful and convenient without learning how various people actually
+(try to) use it.  It is also valuable to hear success stories, so we
+know what we are doing right.  Unlike some other software projects, we
+will never send rude or mocking replies.
+
+Having said that, we cannot promise to always help.  If you find an
+error, please tell us the exact error message, the exact commands that
+trigger it, and any other potentially-relevant information (e.g. your
+operating system).
+
+If you do a benchmarking test of LAST, we recommend you contact us to
+check you are using it in a suitable way.  The history of
+bioinformatics benchmarks shows it is all too easy to get this wrong.

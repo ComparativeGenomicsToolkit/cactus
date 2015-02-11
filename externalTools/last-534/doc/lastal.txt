@@ -1,0 +1,418 @@
+lastal
+======
+
+This program finds local alignments between query sequences, and
+reference sequences that have been prepared using lastdb.  You can use
+it like this:
+
+  lastdb humanDb humanChromosome*.fasta
+  lastal humanDb dna*.fasta > myalns.maf
+
+The lastdb command reads files called humanChromosome*.fasta and
+writes several files whose names begin with humanDb.  The lastal
+command reads files called dna*.fasta, compares them to humanDb, and
+writes alignments to a file called myalns.maf.
+
+You can also pipe query sequences into lastal, for example:
+
+  zcat seqs.fasta.gz | lastal humanDb > myalns.maf
+
+Steps in lastal
+---------------
+
+1) Find similar regions
+  a) Find initial matches.  For each possible start position in the
+     query: find the shortest match with length >= l that EITHER
+     occurs <= m times in the reference, OR has length L.
+
+  b) Extend a gapless alignment from each initial match, and keep
+     those with score >= d.
+
+  c) Define cores: find the longest run of identical matches in each
+     gapless alignment.
+
+  d) Extend a gapped alignment from either side of each core, and keep
+     those with score >= e.
+
+2) Align them
+  e) "Final" alignments: extend gapped alignments again, but with
+     different masking and/or maximum score drop parameters.  This
+     step is performed only if u=2 or if z differs from x.
+
+  f) Non-redundantize the alignments: remove those that share an
+     endpoint (same coordinates in both sequences) with a
+     higher-scoring alignment.
+
+  g) Estimate the ambiguity of each aligned column (OFF by default).
+
+  h) Redo the alignments to minimize column ambiguity, using either
+     gamma-centroid or LAMA (OFF by default).
+
+Options
+-------
+
+Cosmetic Options
+~~~~~~~~~~~~~~~~
+
+  -h  Show all options and their default settings.
+
+  -v  Be verbose: write messages about what lastal is doing.
+
+  -f NUMBER
+      Choose the output format: 0 means tabular and 1 means MAF.  MAF
+      format looks like this:
+
+        a score=15
+        s chr3L        19433515 23 + 24543557 TTTGGGAGTTGAAGTTTTCGCCC
+        s H04BA01F1907        2 21 +       25 TTTGGGAGTTGAAGGTT--GCCC
+
+      Lines starting with "s" contain: the sequence name, the start
+      coordinate of the alignment, the number of sequence letters
+      spanned by the alignment, the strand, the sequence length, and
+      the aligned letters.  The start coordinates are zero-based.  If
+      the strand is "-", the start coordinate is in the reverse
+      strand.
+
+      The same alignment in tabular format looks like this:
+
+        15 chr3L 19433515 23 + 24543557 H04BA01F1907 2 21 + 25 17,2:0,4
+
+      The final column shows the sizes and offsets of gapless blocks
+      in the alignment.  In this case, we have a block of size 17,
+      then an offset of size 2 in the upper sequence and 0 in the
+      lower sequence, then a block of size 4.
+
+Score Options
+~~~~~~~~~~~~~
+
+  -r SCORE
+      Match score.
+
+  -q COST
+      Mismatch cost.
+
+  -p NAME
+      Specify a match/mismatch score matrix.  Options -r and -q will
+      be ignored.
+
+      AT77: for weakly-similar AT-rich DNA (~27% substitutions and
+      ~77% A+T) (MC Frith 2011, NAR 39(4):e23).
+
+      ATMAP: for strongly-similar AT-rich DNA (~4% substitutions and
+      ~76% A+T).  It is also suitable for sequences with more than 4%
+      substitution errors, if the excess error rate is explained by
+      quality scores.
+
+      BISF: for aligning bisulfite-converted DNA forward strands to a
+      closely-related genome (MC Frith, R Mori, K Asai 2012, NAR
+      40(13):e100).
+
+      BISR: for aligning bisulfite-converted DNA reverse strands to a
+      closely-related genome.
+
+      BL62 or BLOSUM62: for proteins.
+
+      BL80 or BLOSUM80: better at finding and aligning strong protein
+      similarities, especially short ones.
+
+      HOXD70: often used for weak DNA similarities (F Chiaromonte, VB
+      Yap, W Miller, PSB 2002:115-126).
+
+      MIQS: better at finding remote protein homologs (K Yamada & K
+      Tomii 2014, Bioinformatics 30(3):317-25).
+
+      Any other name is assumed to be a file name.  For an example of
+      the format, see hoxd70.mat in the examples directory.  Any
+      letters that aren't in the matrix will get the lowest score in
+      the matrix when aligned to anything.  Asymmetric scores are
+      allowed: query letters correspond to columns and reference
+      letters correspond to rows.  Other options can be specified on
+      lines starting with "#last", but command line options override
+      them.
+
+  -a COST
+      Gap existence cost.
+
+  -b COST
+      Gap extension cost.  A gap of size k costs: a + b*k.
+
+  -A COST
+      Insertion existence cost.  This refers to insertions in the
+      query relative to the reference.  If this option is not used,
+      insertions will cost the same as deletions.
+
+  -B COST
+      Insertion extension cost.
+
+  -c COST
+      This option allows use of "generalized affine gap costs" (SF
+      Altschul 1998, Proteins 32(1):88-96).  Here, a "gap" may consist
+      of unaligned regions of both sequences.  If these unaligned
+      regions have sizes j and k, where j <= k, the cost is: a +
+      b*(k-j) + c*j.  If c >= a + 2b (the default), it reduces to
+      standard affine gaps.
+
+  -F COST
+      Align DNA queries to protein reference sequences, using the
+      specified frameshift cost.  A value of 15 seems to be
+      reasonable.  The output looks like this:
+
+        a score=108
+        s myprot 422  40 +  649 FLLQAVKLQDP-STPHQIVPSP-VSDLIATHTLCPRMKYQDD
+        s mydna  878 117 + 1000 FFLQ-IKLWDP\STPH*IVSSP/PSDLISAHTLCPRMKSQDN
+
+      The "\" indicates a forward shift by one nucleotide, and the "/"
+      indicates a reverse shift by one nucleotide.  The "*" indicates
+      a stop codon.  The same alignment in tabular format looks like
+      this:
+
+        108 myprot 422 40 + 649 mydna 878 117 + 1000 4,1:0,6,0:1,10,0:-1,19
+
+      The "-1" in the final column indicates the reverse frameshift.
+
+  -x DROP
+      Maximum score drop for gapped alignments.  Gapped alignments are
+      forbidden from having any internal region with score < -DROP.
+      This serves two purposes: accuracy (avoid spurious internal
+      regions in alignments) and speed (the smaller the faster).
+
+  -y DROP
+      Maximum score drop for gapless alignments.
+
+  -z DROP
+      Maximum score drop for final gapped alignments.
+
+  -d SCORE
+      Minimum score for gapless alignments.
+
+  -e SCORE
+      Minimum alignment score.  (If you do gapless alignment with
+      option -j1, then -d and -e mean the same thing.  If you set
+      both, -e will prevail.)
+
+Miscellaneous Options
+~~~~~~~~~~~~~~~~~~~~~
+
+  -s STRAND
+      Specify which query strand should be used: 0 means reverse only,
+      1 means forward only, and 2 means both.
+
+  -T NUMBER
+      Type of alignment: 0 means "local alignment" and 1 means
+      "overlap alignment".  Local alignments can end anywhere in the
+      middle or at the ends of the sequences.  Overlap alignments must
+      extend until they hit the end of one sequence.
+
+  -m MULTIPLICITY
+      Maximum multiplicity for initial matches.  Each initial match is
+      lengthened until it occurs at most this many times in the
+      reference.
+
+      If the reference was split into volumes by lastdb, then lastal
+      uses one volume at a time.  The maximum multiplicity then
+      applies to each volume, not the whole reference.  This is why
+      voluming changes the results.
+
+  -l LENGTH
+      Minimum length for initial matches.  Length means the number of
+      letters spanned by the match.
+
+  -L LENGTH
+      Maximum length for initial matches.
+
+  -n COUNT
+      Maximum number of gapless alignments per query position.  When
+      lastal extends gapless alignments from initial matches that
+      start at one query position, if it gets COUNT successful
+      extensions, it skips any remaining initial matches starting at
+      that position.
+
+  -C LIMIT
+      Culling limit for gapless alignments.  Before extending gapped
+      alignments, discard any gapless alignment whose query
+      coordinates lie in those of LIMIT or more others with higher
+      score-per-length.
+
+  -k STEP
+      Look for initial matches starting only at every STEP-th position
+      in the query.  This makes lastal faster but less sensitive.
+
+  -i BYTES
+      Search queries in batches of at most this many bytes.  If a
+      single sequence exceeds this amount, however, it is not split.
+      You can use suffixes K, M, and G to specify KibiBytes,
+      MebiBytes, and GibiBytes.  This option has no effect on the
+      results (apart from their order), unless k>1.
+
+      If the reference was split into volumes by lastdb, then each
+      volume will be read into memory once per query batch.
+
+  -u NUMBER
+      Specify treatment of lowercase letters when extending
+      alignments.  0 means do not mask them; 1 means mask them for
+      gapless extensions; 2 means mask them for gapless and gapped
+      extensions but not final extensions; 3 means mask them at all
+      stages.  "Mask" means change their match/mismatch scores to
+      min(unmasked score, 0).  This option does not affect treatment
+      of lowercase for initial matches.
+
+  -w DISTANCE
+      This option is a kludge to avoid catastrophic time and memory
+      usage when self-comparing a large sequence.  If the sequence
+      contains a tandem repeat, we may get a gapless alignment that is
+      slightly offset from the main self-alignment.  In that case, the
+      gapped extension might "discover" the main self-alignment and
+      extend over the entire length of the sequence.
+
+      To avoid this problem, gapped alignments are not triggered from
+      any gapless alignment that:
+      * is contained, in both sequences, in the "core" of another
+        alignment
+      * has start coordinates offset by DISTANCE or less relative to
+        this core
+      Use -w0 to turn this off.
+
+  -G FILE
+      Use an alternative genetic code in the specified file.  For an
+      example of the format, see vertebrateMito.gc in the examples
+      directory.  By default, the standard genetic code is used.  This
+      option has no effect unless DNA-versus-protein alignment is
+      selected with option -F.
+
+  -t TEMPERATURE
+      Parameter for converting between scores and likelihood ratios.
+      This affects the column ambiguity estimates.  A score is
+      converted to a likelihood ratio by this formula: exp(score /
+      TEMPERATURE).  The default value is 1/lambda, where lambda is
+      the scale factor of the scoring matrix, which is calculated by
+      the method of Yu and Altschul (YK Yu et al. 2003, PNAS
+      100(26):15688-93).
+
+  -g GAMMA
+      This option affects gamma-centroid and LAMA alignment only.
+
+      Gamma-centroid alignments minimize the ambiguity of paired
+      letters.  In fact, this method aligns letters whose column error
+      probability is less than GAMMA/(GAMMA+1).  When GAMMA is low, it
+      aligns confidently-paired letters only, so there tend to be many
+      unaligned letters.  When GAMMA is high, it aligns letters more
+      liberally.
+
+      LAMA (Local Alignment Metric Accuracy) alignments minimize the
+      ambiguity of columns (both paired letters and gap columns).
+      When GAMMA is low, this method produces shorter alignments with
+      more-confident columns, and when GAMMA is high it produces
+      longer alignments including less-confident columns.
+
+      In summary: to get the most accurately paired letters, use
+      gamma-centroid.  To get accurately placed gaps, use LAMA.
+
+      Note that the reported alignment score is that of the ordinary
+      gapped alignment before realigning with gamma-centroid or LAMA.
+
+  -j NUMBER
+      Output type: 0 means counts of initial matches (of all lengths);
+      1 means gapless alignments; 2 means gapped alignments before
+      non-redundantization; 3 means gapped alignments after
+      non-redundantization; 4 means alignments with ambiguity
+      estimates; 5 means gamma-centroid alignments; 6 means LAMA
+      alignments.
+
+      If you use -j0, lastal will count the number of initial matches,
+      per length, per query sequence.  Options -l and -L will set the
+      minimum and maximum lengths, and -m will be ignored.  If you
+      compare a large sequence to itself with -j0, it's wise to set
+      option -L.
+
+      If you use j>3, each alignment will get a "fullScore" (also
+      known as "forward score" or "sum-of-paths score").  This is like
+      the score, but it takes into account alternative alignments.
+
+  -Q NUMBER
+      This option allows lastal to use sequence quality scores, or
+      PSSMs, for the queries.  0 means read queries in fasta format
+      (without quality scores); 1 means fastq-sanger format; 2 means
+      fastq-solexa format; 3 means fastq-illumina format; 4 means prb
+      format; 5 means read PSSMs.  (Warning: Illumina data is not
+      necessarily in fastq-illumina format; it is often in
+      fastq-sanger format.)
+
+      The fastq formats look like this:
+
+        @mySequenceName
+        TTTTTTTTGCCTCGGGCCTGAGTTCTTAGCCGCG
+        +
+        55555555*&5-/55*5//5(55,5#&$)$)*+$
+
+      The "+" may optionally be followed by a name (ignored), and the
+      sequence and quality codes are allowed to wrap onto more than
+      one line.  For fastq-sanger, the quality scores are obtained by
+      subtracting 33 from the ASCII values of the characters below the
+      "+".  For fastq-solexa and fastq-illumina, they are obtained by
+      subtracting 64.
+
+      prb format stores four quality scores (A, C, G, T) per position,
+      with one sequence per line, like this:
+
+        -40   40  -40  -40      -12    1  -12   -3      -10   10  -40  -40
+
+      Since prb does not store sequence names, lastal uses the line
+      number (starting from 1) as the name.
+
+      In fastq-sanger and fastq-illumina format, the quality scores
+      are related to error probabilities like this: qScore =
+      -10log10[p].  In fastq-solexa and prb, however, qScore =
+      -10log10[p/(1-p)].  In lastal's MAF output, the quality scores
+      are written on lines starting with "q".  For fastq, they are
+      written with the same encoding as the input.  For prb, they are
+      written in the fastq-solexa (ASCII-64) encoding.
+
+      Finally, PSSM means "position-specific scoring matrix".  The
+      format is:
+
+        myLovelyPSSM
+               A  R  N  D  C  Q  E  G  H  I  L  K  M  F  P  S  T  W  Y  V
+        1 M   -2 -2 -3 -4 -2 -1 -3 -3 -2  1  2 -2  8 -1 -3 -2 -1 -2 -2  0
+        2 S    0 -2  0  1  3 -1 -1 -1 -2 -3 -3 -1 -2 -3 -2  5  0 -4 -3 -2
+        3 D   -1 -2  0  7 -4 -1  1 -2 -2 -4 -4 -2 -4 -4 -2 -1 -2 -5 -4 -4
+
+      The sequence appears in the second column, and columns 3 onwards
+      contain the position-specific scores.  Any letters not specified
+      by any column will get the lowest score in each row.  This
+      format is a simplified version of PSI-BLAST's ASCII format: the
+      non-simplified version is allowed too.  If you use PSSMs,
+      options -r -q and -p are mostly ignored, except that they
+      determine the default value of -y.
+
+Parallelization and Memory Sharing
+----------------------------------
+
+If you run several lastal jobs at the same time on the same computer,
+using the same set of reference files prepared by lastdb, then they
+will share memory for the reference files.
+
+Multiple volumes
+----------------
+
+If lastdb creates multiple volumes::
+
+  lastdb hugeDb huge.fasta
+
+You can either run lastal on the whole thing::
+
+  lastal hugeDb queries.fasta > myalns.maf
+
+Or on one volume at a time::
+
+  lastal hugeDb0 queries.fasta > myalns0.maf
+  lastal hugeDb1 queries.fasta > myalns1.maf
+  lastal hugeDb2 queries.fasta > myalns2.maf
+
+The former method reads the queries in large batches, and aligns each
+batch to one volume at a time.  If you run several jobs in parallel,
+they will not necessarily use the same volume at the same time.
+
+Therefore, for parallelization, you should either ensure you have
+enough memory to hold several volumes simultaneously, or run lastal on
+one volume at a time.  An efficient scheme is to use a different
+computer for each volume.

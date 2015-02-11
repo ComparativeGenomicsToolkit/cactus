@@ -1,0 +1,713 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.6: http://docutils.sourceforge.net/" />
+<title>LAST Tutorial</title>
+<style type="text/css">
+
+/*
+:Author: David Goodger (goodger@python.org)
+:Id: $Id: html4css1.css 7056 2011-06-17 10:50:48Z milde $
+:Copyright: This stylesheet has been placed in the public domain.
+
+Default cascading style sheet for the HTML output of Docutils.
+
+See http://docutils.sf.net/docs/howto/html-stylesheets.html for how to
+customize this style sheet.
+*/
+
+/* used to remove borders from tables and images */
+.borderless, table.borderless td, table.borderless th {
+  border: 0 }
+
+table.borderless td, table.borderless th {
+  /* Override padding for "table.docutils td" with "! important".
+     The right padding separates the table cells. */
+  padding: 0 0.5em 0 0 ! important }
+
+.first {
+  /* Override more specific margin styles with "! important". */
+  margin-top: 0 ! important }
+
+.last, .with-subtitle {
+  margin-bottom: 0 ! important }
+
+.hidden {
+  display: none }
+
+a.toc-backref {
+  text-decoration: none ;
+  color: black }
+
+blockquote.epigraph {
+  margin: 2em 5em ; }
+
+dl.docutils dd {
+  margin-bottom: 0.5em }
+
+object[type="image/svg+xml"], object[type="application/x-shockwave-flash"] {
+  overflow: hidden;
+}
+
+/* Uncomment (and remove this text!) to get bold-faced definition list terms
+dl.docutils dt {
+  font-weight: bold }
+*/
+
+div.abstract {
+  margin: 2em 5em }
+
+div.abstract p.topic-title {
+  font-weight: bold ;
+  text-align: center }
+
+div.admonition, div.attention, div.caution, div.danger, div.error,
+div.hint, div.important, div.note, div.tip, div.warning {
+  margin: 2em ;
+  border: medium outset ;
+  padding: 1em }
+
+div.admonition p.admonition-title, div.hint p.admonition-title,
+div.important p.admonition-title, div.note p.admonition-title,
+div.tip p.admonition-title {
+  font-weight: bold ;
+  font-family: sans-serif }
+
+div.attention p.admonition-title, div.caution p.admonition-title,
+div.danger p.admonition-title, div.error p.admonition-title,
+div.warning p.admonition-title {
+  color: red ;
+  font-weight: bold ;
+  font-family: sans-serif }
+
+/* Uncomment (and remove this text!) to get reduced vertical space in
+   compound paragraphs.
+div.compound .compound-first, div.compound .compound-middle {
+  margin-bottom: 0.5em }
+
+div.compound .compound-last, div.compound .compound-middle {
+  margin-top: 0.5em }
+*/
+
+div.dedication {
+  margin: 2em 5em ;
+  text-align: center ;
+  font-style: italic }
+
+div.dedication p.topic-title {
+  font-weight: bold ;
+  font-style: normal }
+
+div.figure {
+  margin-left: 2em ;
+  margin-right: 2em }
+
+div.footer, div.header {
+  clear: both;
+  font-size: smaller }
+
+div.line-block {
+  display: block ;
+  margin-top: 1em ;
+  margin-bottom: 1em }
+
+div.line-block div.line-block {
+  margin-top: 0 ;
+  margin-bottom: 0 ;
+  margin-left: 1.5em }
+
+div.sidebar {
+  margin: 0 0 0.5em 1em ;
+  border: medium outset ;
+  padding: 1em ;
+  background-color: #ffffee ;
+  width: 40% ;
+  float: right ;
+  clear: right }
+
+div.sidebar p.rubric {
+  font-family: sans-serif ;
+  font-size: medium }
+
+div.system-messages {
+  margin: 5em }
+
+div.system-messages h1 {
+  color: red }
+
+div.system-message {
+  border: medium outset ;
+  padding: 1em }
+
+div.system-message p.system-message-title {
+  color: red ;
+  font-weight: bold }
+
+div.topic {
+  margin: 2em }
+
+h1.section-subtitle, h2.section-subtitle, h3.section-subtitle,
+h4.section-subtitle, h5.section-subtitle, h6.section-subtitle {
+  margin-top: 0.4em }
+
+h1.title {
+  text-align: center }
+
+h2.subtitle {
+  text-align: center }
+
+hr.docutils {
+  width: 75% }
+
+img.align-left, .figure.align-left, object.align-left {
+  clear: left ;
+  float: left ;
+  margin-right: 1em }
+
+img.align-right, .figure.align-right, object.align-right {
+  clear: right ;
+  float: right ;
+  margin-left: 1em }
+
+img.align-center, .figure.align-center, object.align-center {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.align-left {
+  text-align: left }
+
+.align-center {
+  clear: both ;
+  text-align: center }
+
+.align-right {
+  text-align: right }
+
+/* reset inner alignment in figures */
+div.align-right {
+  text-align: inherit }
+
+/* div.align-center * { */
+/*   text-align: left } */
+
+ol.simple, ul.simple {
+  margin-bottom: 1em }
+
+ol.arabic {
+  list-style: decimal }
+
+ol.loweralpha {
+  list-style: lower-alpha }
+
+ol.upperalpha {
+  list-style: upper-alpha }
+
+ol.lowerroman {
+  list-style: lower-roman }
+
+ol.upperroman {
+  list-style: upper-roman }
+
+p.attribution {
+  text-align: right ;
+  margin-left: 50% }
+
+p.caption {
+  font-style: italic }
+
+p.credits {
+  font-style: italic ;
+  font-size: smaller }
+
+p.label {
+  white-space: nowrap }
+
+p.rubric {
+  font-weight: bold ;
+  font-size: larger ;
+  color: maroon ;
+  text-align: center }
+
+p.sidebar-title {
+  font-family: sans-serif ;
+  font-weight: bold ;
+  font-size: larger }
+
+p.sidebar-subtitle {
+  font-family: sans-serif ;
+  font-weight: bold }
+
+p.topic-title {
+  font-weight: bold }
+
+pre.address {
+  margin-bottom: 0 ;
+  margin-top: 0 ;
+  font: inherit }
+
+pre.literal-block, pre.doctest-block, pre.math {
+  margin-left: 2em ;
+  margin-right: 2em }
+
+span.classifier {
+  font-family: sans-serif ;
+  font-style: oblique }
+
+span.classifier-delimiter {
+  font-family: sans-serif ;
+  font-weight: bold }
+
+span.interpreted {
+  font-family: sans-serif }
+
+span.option {
+  white-space: nowrap }
+
+span.pre {
+  white-space: pre }
+
+span.problematic {
+  color: red }
+
+span.section-subtitle {
+  /* font-size relative to parent (h1..h6 element) */
+  font-size: 80% }
+
+table.citation {
+  border-left: solid 1px gray;
+  margin-left: 1px }
+
+table.docinfo {
+  margin: 2em 4em }
+
+table.docutils {
+  margin-top: 0.5em ;
+  margin-bottom: 0.5em }
+
+table.footnote {
+  border-left: solid 1px black;
+  margin-left: 1px }
+
+table.docutils td, table.docutils th,
+table.docinfo td, table.docinfo th {
+  padding-left: 0.5em ;
+  padding-right: 0.5em ;
+  vertical-align: top }
+
+table.docutils th.field-name, table.docinfo th.docinfo-name {
+  font-weight: bold ;
+  text-align: left ;
+  white-space: nowrap ;
+  padding-left: 0 }
+
+h1 tt.docutils, h2 tt.docutils, h3 tt.docutils,
+h4 tt.docutils, h5 tt.docutils, h6 tt.docutils {
+  font-size: 100% }
+
+ul.auto-toc {
+  list-style-type: none }
+/* Style sheet for LAST HTML documents */
+h1 { color: navy }
+h2 { color: teal }
+div.document { margin-left: auto; margin-right: auto; max-width: 40em }
+li { margin-bottom: 1ex }
+
+</style>
+</head>
+<body>
+<div class="document" id="last-tutorial">
+<h1 class="title">LAST Tutorial</h1>
+
+<p>LAST finds similar regions between sequences, and aligns them.</p>
+<div class="section" id="example-1-compare-the-human-and-fugu-mitochondrial-genomes">
+<h2>Example 1: Compare the human and fugu mitochondrial genomes</h2>
+<p>For our first example, we wish to find and align similar regions
+between the human and fugu mitochondrial genomes.  You can find these
+sequences in the examples directory: humanMito.fa and fuguMito.fa.  We
+can compare them like this:</p>
+<pre class="literal-block">
+lastdb -c humdb humanMito.fa
+lastal humdb fuguMito.fa &gt; myalns.maf
+</pre>
+<p>The lastdb command creates several files whose names begin with
+&quot;humdb&quot;.  The lastal command then compares fuguMito.fa to the humdb
+files, and writes the alignments to a file called &quot;myalns.maf&quot;.</p>
+<p>The -c option causes lowercase letters to be soft-masked.  Lowercase
+is often used to indicate repetitive regions, and soft-masking avoids
+getting uninteresting repetitive alignments.</p>
+</div>
+<div class="section" id="understanding-the-output">
+<h2>Understanding the output</h2>
+<p>The output has very long lines, so you need to view it without
+line-wrapping.  For example, with a Unix/Linux/MacOsX command line,
+you can use:</p>
+<pre class="literal-block">
+less -S myalns.maf
+</pre>
+<p>Each alignment looks like this:</p>
+<pre class="literal-block">
+a score=85
+s humanMito 1742 289 + 16571 AGTATAGGCGATAGAAATTGAAACCTGGCGCAAT...
+s fuguMito  1182 300 + 16447 AGTATAGGAGATAGAAAAGGAA-CTAGGAGCTAT...
+</pre>
+<p>The score is a measure of how strong the similarity is.  Lines
+starting with &quot;s&quot; contain: the sequence name, the start coordinate of
+the alignment, the number of bases spanned by the alignment, the
+strand, the sequence length, and the aligned bases.</p>
+<p>The start coordinates are zero-based.  This means that, if the
+alignment begins right at the start of a sequence, the coordinate is
+0.  If the strand is &quot;-&quot;, the start coordinate is in the reverse
+strand.</p>
+<p>This alignment format is called MAF (multiple alignment format), and
+it is described in the UCSC Genome FAQ.  You can convert it to several
+other formats using maf-convert (see <a class="reference external" href="maf-convert.html">maf-convert.html</a>).</p>
+</div>
+<div class="section" id="example-2-compare-vertebrate-proteins-to-invertebrate-proteins">
+<h2>Example 2: Compare vertebrate proteins to invertebrate proteins</h2>
+<p>Use the lastdb -p option to indicate that the sequences are proteins:</p>
+<pre class="literal-block">
+lastdb -p -c invdb invertebrate.fa
+lastal invdb vertebrate.fa
+</pre>
+</div>
+<div class="section" id="example-3-compare-dna-sequences-to-protein-sequences">
+<h2>Example 3: Compare DNA sequences to protein sequences</h2>
+<p>Here we use the -F15 option, to specify translated alignment with a
+score penalty of 15 for frameshifts:</p>
+<pre class="literal-block">
+lastdb -p -c protdb proteins.fa
+lastal -F15 protdb dnas.fa
+</pre>
+</div>
+<div class="section" id="example-4-calculate-e-values-of-alignment-scores">
+<h2>Example 4: Calculate E-values of alignment scores</h2>
+<p>lastal reports alignments whose score is at least some minimum value,
+e.g. 40.  If this value is too high we may miss meaningful alignments,
+but if it is too low we may find meaningless alignments.</p>
+<p>To solve this dilemma, it is useful to know what alignment scores are
+likely between completely random sequences.  For example, let us find
+what alignment scores are likely between two random sequences with the
+same lengths and base frequencies as the human and fugu mitochondrial
+genomes:</p>
+<pre class="literal-block">
+lastdb -x humdb humanMito.fa
+lastdb -x fugdb fuguMito.fa
+lastex humdb.prj fugdb.prj
+</pre>
+<p>The lastdb commands count bases, and write them in files called
+humdb.prj and fugdb.prj.  The -x option tells it to only count bases
+and skip its usual preparation steps.  The lastex command prints a
+table of scores and expected numbers of alignments.  Here is an
+abbreviated version:</p>
+<pre class="literal-block">
+Score      Expected number of alignments
+39         8.44e-11
+22         0.00805
+20         0.0699
+12         398
+</pre>
+<p>This tells us, for example, that there will be on average 398
+alignments of score 12 or more between random sequences with these
+lengths and base frequencies.  Also, 22 is the minimum score such that
+the average number of alignments is no more than 0.01.</p>
+<p>Finally, we can find alignments with score at least 22 like this:</p>
+<pre class="literal-block">
+lastdb -c humdb humanMito.fa
+lastal -e22 humdb fuguMito.fa &gt; myalns.maf
+</pre>
+</div>
+<div class="section" id="example-5-align-human-dna-reads-to-the-human-genome">
+<h2>Example 5: Align human DNA reads to the human genome</h2>
+<p>Suppose we have DNA reads in a file called reads.fastq, in
+fastq-sanger format.  We can align them to the human genome like
+this:</p>
+<pre class="literal-block">
+lastdb -m1111110 humandb human/chr*.fa
+lastal -Q1 -e120 humandb reads.fastq | last-split &gt; myalns.maf
+</pre>
+<p>This will use about 15 gigabytes of memory.</p>
+<ul class="simple">
+<li>The funny-looking -m1111110 option makes it better at finding short,
+strong alignments.  (The default settings are tuned for long, weak
+alignments.)</li>
+<li>The -Q1 option indicates that the reads are in fastq-sanger format.
+(It also changes the scoring scheme: more on this below.)</li>
+<li>The -e120 option requests alignments with score &gt;= 120.  This is
+intentionally a somewhat low score (high E-value): last-split then
+discards low-confidence alignments, but it uses them to estimate the
+ambiguity of high-confidence alignments.</li>
+<li>last-split reads the alignments produced by lastal, and looks for a
+unique best alignment for each part of each read.  It allows
+different parts of one read to match different parts of the genome.
+It has several useful options, please see <a class="reference external" href="last-split.html">last-split.html</a>.</li>
+</ul>
+<p>If you have paired reads, there are two options:</p>
+<ol class="arabic simple">
+<li>Use last-pair-probs (see <a class="reference external" href="last-pair-probs.html">last-pair-probs.html</a>).</li>
+<li>Ignore the pairing information, and align the reads individually
+(using last-split as above).  This may be useful because
+last-pair-probs does not currently allow different parts of one
+read to match different parts of the genome, though it does allow
+the two reads in a pair to match (e.g.) different chromosomes.</li>
+</ol>
+</div>
+<div class="section" id="fastq-format-confusion">
+<h2>Fastq format confusion</h2>
+<p>Unfortunately, there is more than one fastq format (see
+<a class="reference external" href="http://nar.oxfordjournals.org/content/38/6/1767.long">http://nar.oxfordjournals.org/content/38/6/1767.long</a>).  Recently
+(2013) fastq-sanger seems to be dominant, but if you have another
+variant you need to change the -Q option (see <a class="reference external" href="lastal.txt">lastal.txt</a>).</p>
+</div>
+<div class="section" id="alignment-scoring-schemes">
+<h2>Alignment scoring schemes</h2>
+<p>The default DNA scoring scheme used by lastal is tuned for finding
+long, weak alignments.  It is:</p>
+<pre class="literal-block">
+match score = 1,  mismatch cost = 1,  gap cost = 7 + 1 * (gap length)
+</pre>
+<p>However, if you use option -Q1, it uses a different scoring scheme
+tuned for finding short, strong alignments:</p>
+<pre class="literal-block">
+match score = 6,  mismatch cost = 18,  gap cost = 21 + 9 * (gap length)
+</pre>
+<p>In the next two examples, we set the scoring scheme by hand.</p>
+</div>
+<div class="section" id="example-6-align-human-fasta-reads-to-the-human-genome">
+<h2>Example 6: Align human fasta reads to the human genome</h2>
+<p>Suppose we have DNA reads in fasta format (without quality data)
+instead of fastq.  We need to omit the -Q option, but we wish to use
+the same scoring scheme as -Q1:</p>
+<pre class="literal-block">
+lastdb -m1111110 humandb human/chr*.fa
+lastal -r6 -q18 -a21 -b9 -e120 humandb reads.fa | last-split &gt; myalns.maf
+</pre>
+</div>
+<div class="section" id="example-7-align-aardvark-fastq-reads-to-the-human-genome">
+<h2>Example 7: Align aardvark fastq reads to the human genome</h2>
+<p>In this case we need to use the -Q option, but we wish to find weak
+alignments:</p>
+<pre class="literal-block">
+lastdb -c humandb human/chr*.fa
+lastal -Q1 -r5 -q5 -a35 -b5 humandb reads.fastq &gt; myalns.maf
+</pre>
+<p>This example uses a scaled version of the default alignment scores
+(1:1:7:1 -&gt; 5:5:35:5).  The reason for this is to put them on roughly
+the same scale as the fastq quality scores.</p>
+<p>lastal uses the quality scores to modify the alignment scores, and
+then rounds the modified scores to integers.  By using scaled
+alignment scores, we reduce the information loss caused by rounding.</p>
+</div>
+<div class="section" id="very-short-reads">
+<h2>Very short reads</h2>
+<p>WARNING!  The standard score parameters do not align very short reads.
+This is because the match score is 6 and the score threshold is 120,
+so at least 20 high-quality matches are required (or a greater number
+of low-quality matches).  In addition, last-split discards
+low-confidence alignments.  To align very short reads, reduce lastal's
+score threshold (-e) or increase last-split's error threshold (-m).</p>
+<p>If the score threshold is too low, you will get meaningless, random
+alignments.</p>
+</div>
+<div class="section" id="trading-speed-for-sensitivity">
+<h2>Trading speed for sensitivity</h2>
+<p>You can make LAST more sensitive, at the expense of speed, by
+increasing lastal's m parameter.  The default value is 10.  So -m100
+makes it more slow and sensitive, and -m1000 makes it much more slow
+and sensitive.</p>
+</div>
+<div class="section" id="example-8-compare-the-cat-and-mouse-genomes">
+<h2>Example 8: Compare the cat and mouse genomes</h2>
+<p>If you have ~50 GB of memory and don't mind waiting a few days, this
+is a good way to compare such genomes:</p>
+<pre class="literal-block">
+lastdb -c -uMAM8 mousedb mouse/chr*.fa
+lastal -e40 -m100 mousedb cat/chr*.fa | last-split &gt; myalns.maf
+</pre>
+<p>This looks for a unique best alignment for each part of each cat
+chromosome.  Omitting -m100 makes it faster but somewhat less
+sensitive.  Omitting -uMAM8 reduces the memory use to ~10 GB and makes
+it faster but considerably less sensitive.</p>
+</div>
+<div class="section" id="example-9-compare-the-human-and-chimp-genomes">
+<h2>Example 9: Compare the human and chimp genomes</h2>
+<p>For strongly similar genomes (e.g. 99% identity), something like this
+is more appropriate:</p>
+<pre class="literal-block">
+lastdb -c -m1111110 human human.fa
+lastal -q3 -e35 human chimp.fa | last-split &gt; myalns.maf
+</pre>
+</div>
+<div class="section" id="going-faster-by-using-multiple-cpus">
+<h2>Going faster by using multiple CPUs</h2>
+<p>If you have more than one query sequence, you can go faster by
+aligning them in parallel.  This can be done with parallel-fasta and
+parallel-fastq (which accompany LAST, but require GNU parallel to be
+installed: <a class="reference external" href="http://www.gnu.org/software/parallel/">http://www.gnu.org/software/parallel/</a>).  These commands
+read sequence data, split it into blocks (with a whole number of
+sequences per block), and run the blocks in parallel through any
+command or pipeline you specify, using all your CPU cores.  Here are
+some examples.</p>
+<p>Instead of this:</p>
+<pre class="literal-block">
+lastal mydb queries.fa &gt; myalns.maf
+</pre>
+<p>try this:</p>
+<pre class="literal-block">
+parallel-fasta &quot;lastal mydb&quot; &lt; queries.fa &gt; myalns.maf
+</pre>
+<p>Instead of this:</p>
+<pre class="literal-block">
+lastal -Q1 -e120 db q.fastq | last-split &gt; out.maf
+</pre>
+<p>try this:</p>
+<pre class="literal-block">
+parallel-fastq &quot;lastal -Q1 -e120 db | last-split&quot; &lt; q.fastq &gt; out.maf
+</pre>
+<p>Instead of this:</p>
+<pre class="literal-block">
+zcat queries.fa.gz | lastal mydb &gt; myalns.maf
+</pre>
+<p>try this:</p>
+<pre class="literal-block">
+zcat queries.fa.gz | parallel-fasta &quot;lastal mydb&quot; &gt; myalns.maf
+</pre>
+<p>Notes:</p>
+<ul class="simple">
+<li>parallel-fasta and parallel-fastq simply execute GNU parallel with a
+few options for fasta or fastq: you can specify other GNU parallel
+options to control the number of simultaneous jobs, use remote
+computers, get the output in the same order as the input, etc.</li>
+<li>parallel-fastq assumes that each fastq record is 4 lines, so there
+should be no line wrapping or blank lines.</li>
+</ul>
+</div>
+<div class="section" id="example-10-ambiguity-of-alignment-columns">
+<h2>Example 10: Ambiguity of alignment columns</h2>
+<p>Consider this alignment:</p>
+<pre class="literal-block">
+TGAAGTTAAAGGTATATGAATTCCAATTCTTAACCCCCCTATTAAACGAATATCTTG
+|||||||| ||||||  |  ||  | |  |    || ||||||   |||||||||||
+TGAAGTTAGAGGTAT--GGTTTTGAGTAGT----CCTCCTATTTTTCGAATATCTTG
+</pre>
+<p>The middle section has such weak similarity that its precise alignment
+cannot be confidently inferred.</p>
+<p>It is sometimes useful to estimate the ambiguity of each column in an
+alignment.  We can do that using lastal option -j4:</p>
+<pre class="literal-block">
+lastdb -c humdb humanMito.fa
+lastal -j4 humdb fuguMito.fa &gt; myalns.maf
+</pre>
+<p>The output looks like this:</p>
+<pre class="literal-block">
+a score=17
+s seqX 0 57 + 57 TGAAGTTAAAGGTATATGAATTCCAATTCTTAACCCCCCTATTAAACGAATATCTTG
+s seqY 0 51 + 51 TGAAGTTAGAGGTAT--GGTTTTGAGTAGT----CCTCCTATTTTTCGAATATCTTG
+p                %*.14442011.(%##&quot;%$$$$###&quot;&quot;!!!&quot;&quot;&quot;&quot;&amp;'(*,340.,,.~~~~~~~~~~~
+</pre>
+<p>The &quot;p&quot; line indicates the probability that each column is wrongly
+aligned, using a compact code (the same as fastq-sanger format):</p>
+<blockquote>
+<table border="1" class="docutils">
+<colgroup>
+<col width="13%" />
+<col width="37%" />
+<col width="13%" />
+<col width="37%" />
+</colgroup>
+<tbody valign="top">
+<tr><td>Symbol</td>
+<td>Error probability</td>
+<td>Symbol</td>
+<td>Error probability</td>
+</tr>
+<tr><td><tt class="docutils literal">!</tt></td>
+<td>0.79 -- 1</td>
+<td><tt class="docutils literal">0</tt></td>
+<td>0.025 -- 0.032</td>
+</tr>
+<tr><td><tt class="docutils literal">&quot;</tt></td>
+<td>0.63 -- 0.79</td>
+<td><tt class="docutils literal">1</tt></td>
+<td>0.02  -- 0.025</td>
+</tr>
+<tr><td><tt class="docutils literal">#</tt></td>
+<td>0.5  -- 0.63</td>
+<td><tt class="docutils literal">2</tt></td>
+<td>0.016 -- 0.02</td>
+</tr>
+<tr><td><tt class="docutils literal">$</tt></td>
+<td>0.4  -- 0.5</td>
+<td><tt class="docutils literal">3</tt></td>
+<td>0.013 -- 0.016</td>
+</tr>
+<tr><td><tt class="docutils literal">%</tt></td>
+<td>0.32 -- 0.4</td>
+<td><tt class="docutils literal">4</tt></td>
+<td>0.01  -- 0.013</td>
+</tr>
+<tr><td><tt class="docutils literal">&amp;</tt></td>
+<td>0.25 -- 0.32</td>
+<td><tt class="docutils literal">5</tt></td>
+<td>0.0079 -- 0.01</td>
+</tr>
+<tr><td><tt class="docutils literal">'</tt></td>
+<td>0.2  -- 0.25</td>
+<td><tt class="docutils literal">6</tt></td>
+<td>0.0063 -- 0.0079</td>
+</tr>
+<tr><td><tt class="docutils literal">(</tt></td>
+<td>0.16 -- 0.2</td>
+<td><tt class="docutils literal">7</tt></td>
+<td>0.005  -- 0.0063</td>
+</tr>
+<tr><td><tt class="docutils literal">)</tt></td>
+<td>0.13 -- 0.16</td>
+<td><tt class="docutils literal">8</tt></td>
+<td>0.004  -- 0.005</td>
+</tr>
+<tr><td><tt class="docutils literal">*</tt></td>
+<td>0.1  -- 0.13</td>
+<td><tt class="docutils literal">9</tt></td>
+<td>0.0032 -- 0.004</td>
+</tr>
+<tr><td><tt class="docutils literal">+</tt></td>
+<td>0.079 -- 0.1</td>
+<td><tt class="docutils literal">:</tt></td>
+<td>0.0025 -- 0.0032</td>
+</tr>
+<tr><td><tt class="docutils literal">,</tt></td>
+<td>0.063 -- 0.079</td>
+<td><tt class="docutils literal">;</tt></td>
+<td>0.002  -- 0.0025</td>
+</tr>
+<tr><td><tt class="docutils literal">-</tt></td>
+<td>0.05  -- 0.063</td>
+<td><tt class="docutils literal">&lt;</tt></td>
+<td>0.0016 -- 0.002</td>
+</tr>
+<tr><td><tt class="docutils literal">.</tt></td>
+<td>0.04  -- 0.05</td>
+<td><tt class="docutils literal">=</tt></td>
+<td>0.0013 -- 0.0016</td>
+</tr>
+<tr><td><tt class="docutils literal">/</tt></td>
+<td>0.032 -- 0.04</td>
+<td><tt class="docutils literal">&gt;</tt></td>
+<td>0.001  -- 0.0013</td>
+</tr>
+</tbody>
+</table>
+</blockquote>
+<p>Note that each alignment is grown from a &quot;core&quot; region, and the
+ambiguity estimates assume that the core is correctly aligned.  The
+core is indicated by &quot;~&quot; symbols, and it contains exact matches only.</p>
+<p>LAST has options to find alignments with optimal column probabilities,
+instead of optimal score: see <a class="reference external" href="lastal.txt">lastal.txt</a>.</p>
+</div>
+</div>
+</body>
+</html>

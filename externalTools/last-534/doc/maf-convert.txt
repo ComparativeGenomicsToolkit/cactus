@@ -1,0 +1,101 @@
+maf-convert
+===========
+
+This script reads alignments in maf format, and writes them in another
+format.  It can write them in these formats: axt, blast, html, psl,
+sam, tab.  You can use it like this::
+
+  maf-convert psl my-alignments.maf > my-alignments.psl
+
+It's often convenient to pipe in the input, like this::
+
+  ... | maf-convert psl > my-alignments.psl
+
+The input should be "multiple alignment format" as described in the
+UCSC Genome FAQ (not "MIRA assembly format" or any other maf).
+
+This script takes the first (topmost) MAF sequence as the "reference"
+/ "subject" / "target", and the second sequence as the "query".
+
+For html: if the input includes probability lines starting with 'p',
+then the output will be coloured by column probability.  (To get lines
+starting with 'p', run lastal with option -j set to 4 or higher.)
+
+Options
+-------
+
+  -h, --help
+         Print a help message and exit.
+
+  -p, --protein
+         Specify that the alignments are of proteins, rather than
+         nucleotides.  This affects psl format only (the first 4
+         columns).
+
+  -n, --noheader
+         Omit any header lines from the output.  This may be useful if
+         you concatenate outputs, e.g. from parallel jobs.
+
+  -d, --dictionary
+         Include a dictionary of sequence lengths in the sam header
+         section (lines starting with @SQ).  This requires reading the
+         input twice, so it must be a real file (not a pipe).  This
+         affects sam format only.
+
+  -f DICTFILE, --dictfile=DICTFILE
+         Get a sequence dictionary from DICTFILE.  This affects sam
+         format only.  You can create a dict file using
+         CreateSequenceDictionary (http://picard.sourceforge.net/).
+
+  -r READGROUP, --readgroup=READGROUP
+         Specify read group information.  This affects sam format
+         only.  Example: -r 'ID:1 PL:ILLUMINA SM:mysample'
+
+  -l CHARS, --linesize=CHARS
+         Write CHARS characters per line.  This affects blast and html
+         formats only.
+
+Hints for sam/bam
+-----------------
+
+* To run fast on multiple CPUs, and get a correct header at the top,
+  this may be the least-awkward way.  First, make a header (perhaps by
+  using CreateSequenceDictionary).  Then, concatenate the output of a
+  command like this::
+
+    parallel-fastq "... | maf-convert -n sam" < q.fastq
+
+* Here is yet another way to get a sequence dictionary, using samtools
+  (http://samtools.sourceforge.net/).  Assume the reference sequences
+  are in ref.fa.  These commands convert x.sam to y.bam while adding a
+  sequence dictionary::
+
+    samtools faidx ref.fa
+    samtools view -bt ref.fa.fai x.sam > y.bam
+
+* If a query name ends in "/1" or "/2", maf-convert interprets it as a
+  paired sequence.  (This affects sam format only.)  However, it does
+  not calculate all of the sam pairing information (because it's hard
+  and better done by specialized sam manipulators).
+
+  Fix the pair information in y.sam, putting the output in z.bam.
+  Using picard::
+
+    java -jar FixMateInformation.jar I=y.sam O=z.bam VALIDATION_STRINGENCY=SILENT
+
+  Alternatively, using samtools::
+
+    samtools sort -n y.bam ysorted
+    samtools fixmate ysorted.bam z.bam
+
+"Bugs"
+------
+
+* For sam: the QUAL field (column 11) is simply copied from the maf q
+  line.  The QUAL is supposed to be encoded as ASCII(phred+33),
+  whereas maf q lines are encoded differently according to the UCSC
+  Genome FAQ.  However, if you run lastal with option -Q1, the maf q
+  lines will in fact be ASCII(phred+33).
+
+* The blast format is merely blast-like: it is not identical to NCBI
+  BLAST.

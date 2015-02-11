@@ -1,0 +1,9 @@
+#! /bin/sh
+
+parallel --gnu --version > /dev/null || exit 1
+
+parallel --gnu --minversion 20130222 > /dev/null ||
+echo $(basename $0): warning: old version of parallel, might be slow 1>&2
+
+# use a record size of 8 lines, so that paired sequences stay together:
+exec parallel --gnu --pipe -L8 "$@"

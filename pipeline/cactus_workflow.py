@@ -311,7 +311,7 @@ def setupFilteringByIdentity(cactusWorkflowArguments):
         adjustedPath = max(float(cafNode.attrib["identityRatio"]) * cactusWorkflowArguments.longestPath,
         float(cafNode.attrib["minimumDistance"]))
         identity = str(100 - math.ceil(100 * inverseJukesCantor(adjustedPath)))
-        cafNode.attrib["lastzArguments"] = cafNode.attrib["lastzArguments"] + (" --identity=%s" % identity)
+        #cafNode.attrib["lastArguments"] = cafNode.attrib["lastArguments"] + (" --identity=%s" % identity)
 
 
 class CactusTrimmingBlastPhase(CactusPhasesTarget):
@@ -354,7 +354,7 @@ class CactusTrimmingBlastPhase(CactusPhasesTarget):
         self.addChildTarget(BlastIngroupsAndOutgroups(
                                           BlastOptions(chunkSize=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "chunkSize", int),
                                                         overlapSize=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "overlapSize", int),
-                                                        lastzArguments=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "lastzArguments"),
+                                                        lastArguments=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "lastArguments"),
                                                         compressFiles=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "compressFiles", bool),
                                                         realign=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "realign", bool), 
                                                         realignArguments=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "realignArguments"),
@@ -549,7 +549,7 @@ class CactusCafWrapper(CactusRecursionTarget):
                           minimumOutgroupDegree=self.getOptionalPhaseAttrib("minimumOutgroupDegree", int),
                           singleCopyIngroup=self.getOptionalPhaseAttrib("singleCopyIngroup", bool),
                           singleCopyOutgroup=self.getOptionalPhaseAttrib("singleCopyOutgroup", bool),
-                          lastzArguments=self.getOptionalPhaseAttrib("lastzArguments"),
+                          lastArguments=self.getOptionalPhaseAttrib("lastArguments"),
                           minimumSequenceLengthForBlast=self.getOptionalPhaseAttrib("minimumSequenceLengthForBlast", int, 1),
                           maxAdjacencyComponentSizeRatio=self.getOptionalPhaseAttrib("maxAdjacencyComponentSizeRatio", float),
                           minLengthForChromosome=self.getOptionalPhaseAttrib("minLengthForChromosome", int),
@@ -591,7 +591,7 @@ class CactusCafWrapperLarge(CactusRecursionTarget):
                                           blastOptions=\
                                           BlastOptions(chunkSize=self.getOptionalPhaseAttrib("chunkSize", int),
                                                         overlapSize=self.getOptionalPhaseAttrib("overlapSize", int),
-                                                        lastzArguments=self.getOptionalPhaseAttrib("lastzArguments"),
+                                                        lastArguments=self.getOptionalPhaseAttrib("lastArguments"),
                                                         compressFiles=self.getOptionalPhaseAttrib("compressFiles", bool),
                                                         realign=self.getOptionalPhaseAttrib("realign", bool), 
                                                         realignArguments=self.getOptionalPhaseAttrib("realignArguments"),

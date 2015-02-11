@@ -1,0 +1,33 @@
+# This subset seed was described in:
+# "YASS: enhancing the sensitivity of DNA similarity search"
+# by L Noé & G Kucherov, NAR 2005 33:W540-W543.
+# According to them, it provides a good compromise in detecting
+# similarities for both coding and non-coding DNA.
+
+# In positions with "AG CT", A and G are treated as equivalent, and C
+# and T are treated as equivalent (i.e. transitions are tolerated).
+# In positions with "ACGT", all four bases are treated as equivalent
+# (i.e. mismatches are tolerated).  In positions with "A C G T", only
+# exact matches are allowed.  Letters that don't appear (e.g. N) are
+# not allowed to match.
+
+# (The final three positions of the YASS seed are commented out here,
+# because they are the same as the first three positions, and LAST
+# cyclically repeats the seed anyway.)
+
+A C G T
+AG CT
+A C G T
+ACGT
+ACGT
+A C G T
+A C G T
+ACGT
+ACGT
+A C G T
+ACGT
+A C G T
+
+# A C G T
+# AG CT
+# A C G T
