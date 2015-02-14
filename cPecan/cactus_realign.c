@@ -9,7 +9,6 @@
 #include <stdio.h>
 #include <ctype.h>
 
-#include "cactus.h"
 #include "sonLib.h"
 #include "pairwiseAligner.h"
 #include "multipleAligner.h"
@@ -217,7 +216,7 @@ char *getSubSequence(char *seq, int64_t start, int64_t end, bool strand) {
         return stString_getSubString(seq, start, end - start);
     }
     seq = stString_getSubString(seq, end, start - end);
-    char *rSeq = cactusMisc_reverseComplementString(seq);
+    char *rSeq = stString_reverseComplementString(seq);
     free(seq);
     return rSeq;
 }

@@ -1,5 +1,5 @@
 # order is important, libraries first
-modules = api bar externalTools
+modules = cPecan 
 
 .PHONY: all %.all clean %.clean
 
