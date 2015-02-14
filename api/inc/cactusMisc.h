@@ -20,16 +20,6 @@
 extern const char *CACTUS_CHECK_EXCEPTION_ID;
 
 /*
- * Computes the reverse complement character of a ACTGactg, returning other characters unmodified.
- */
-char cactusMisc_reverseComplementChar(char c);
-
-/*
- * Computes the reverse complement of the string, returning the r-c string in newly allocated memory that must be freed.
- */
-char *cactusMisc_reverseComplementString(const char *string);
-
-/*
  * Compares to names, giving an ordering to names (arbitrary but consistent).
  */
 int64_t cactusMisc_nameCompare(Name name1, Name name2);
