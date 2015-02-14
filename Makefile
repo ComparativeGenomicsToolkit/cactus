@@ -1,5 +1,5 @@
 # order is important, libraries first
-modules = cPecan api setup blastLib caf bar blast normalisation phylogeny reference faces check pipeline progressive preprocessor hal dbTest externalTools
+modules = api setup blastLib caf bar blast normalisation phylogeny reference faces check pipeline progressive preprocessor hal dbTest externalTools
 
 
 
