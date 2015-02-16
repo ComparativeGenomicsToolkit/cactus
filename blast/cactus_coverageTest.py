@@ -66,7 +66,7 @@ class TestCase(unittest.TestCase):
         (seqs, _) = getCactusInputs_encode(random.uniform(0, 2))
         seqs = random.sample(seqs, 2)
         cigarPath = getTempFile()
-        system("cactus_lastz --format=cigar %s[multiple] %s[multiple] > %s" % \
+        system("cPecanLastz --format=cigar %s[multiple] %s[multiple] > %s" % \
                (seqs[0], seqs[1], cigarPath))
         bed = popenCatch("cactus_coverage %s %s" % (seqs[1], cigarPath))
         prevChrom = None

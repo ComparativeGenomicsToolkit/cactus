@@ -53,7 +53,7 @@ def main():
     
     parser.add_option("--lastzCmd", dest="lastzCmd", type="string",
                       help="lastz executable",
-                      default="cactus_lastz")
+                      default="cPecanLastz")
     
     parser.add_option("--unmaskInput", dest="unmaskInput", action="store_true",
                       help="Makes any previous masking of the input sequence invisible to the repeat masking process",

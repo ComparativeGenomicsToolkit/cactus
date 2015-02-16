@@ -28,16 +28,16 @@ stList *stCaf_selfAlignFlower(Flower *flower, int64_t minimumSequenceLength, con
         char *command = NULL;
         if(realign) {
             command = stString_print(
-                                "cactus_lastz --format=cigar %s %s[multiple][nameparse=darkspace] %s[nameparse=darkspace] --notrivial | cactus_realign %s %s",
+                                "cPecanLastz --format=cigar %s %s[multiple][nameparse=darkspace] %s[nameparse=darkspace] --notrivial | cPecanRealign %s %s",
                                 lastzArgs, tempFile1, tempFile1, realignArgs, tempFile1);
         }
         else {
             command = stString_print(
-                    "cactus_lastz --format=cigar %s %s[multiple][nameparse=darkspace] %s[nameparse=darkspace] --notrivial",
+                    "cPecanLastz --format=cigar %s %s[multiple][nameparse=darkspace] %s[nameparse=darkspace] --notrivial",
                     lastzArgs, tempFile1, tempFile1);
         }
         //char *command = stString_print(
-        //        "cactus_lastz --format=cigar %s %s[multiple][nameparse=darkspace] --self",
+        //        "cPecanLastz --format=cigar %s %s[multiple][nameparse=darkspace] --self",
         //        lastzArgs, tempFile1);
         FILE *fileHandle = popen(command, "r");
         if (fileHandle == NULL) {
