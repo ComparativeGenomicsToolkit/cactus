@@ -18,6 +18,7 @@ import time
 import bz2
 import random
 import copy
+import shutil
 from optparse import OptionParser
 
 from sonLib.bioio import getTempFile
@@ -301,7 +302,7 @@ def setupFilteringByIdentity(cactusWorkflowArguments):
     if getOptionalAttrib(cafNode, "filterByIdentity", bool, False): #Do the identity filtering
         adjustedPath = max(float(cafNode.attrib["identityRatio"]) * cactusWorkflowArguments.longestPath,
         float(cafNode.attrib["minimumDistance"]))
-        identity = str(100 - int(100 * inverseJukesCantor(adjustedPath)))
+        identity = str(100 - math.ceil(100 * inverseJukesCantor(adjustedPath)))
         cafNode.attrib["lastzArguments"] = cafNode.attrib["lastzArguments"] + (" --identity=%s" % identity)
 
 
@@ -354,7 +355,6 @@ class CactusTrimmingBlastPhase(CactusPhasesTarget):
                                                        trimOutgroupFlanking=self.getOptionalPhaseAttrib("trimOutgroupFlanking", int, 100)), ingroups, outgroups, alignmentsFile, outgroupsDir))
         # Point the outgroup sequences to their trimmed versions for
         # phases after this one.
-        # FIXME: modifies experiment xml!!
         for outgroup in exp.getOutgroupEvents():
             oldPath = seqMap[outgroup]
             seqMap[outgroup] = os.path.join(outgroupsDir, os.path.basename(oldPath))
@@ -946,7 +946,8 @@ class CactusWorkflowArguments:
     """Object for representing a cactus workflow's arguments
     """
     def __init__(self, options):
-        self.experimentFile = options.experimentFile
+        self.experimentFile = getTempFile("tempExperimentFileCopy", rootDir=os.path.dirname(options.experimentFile))
+        shutil.copyfile(options.experimentFile, self.experimentFile)
         self.experimentNode = ET.parse(self.experimentFile).getroot()
         self.experimentWrapper = ExperimentWrapper(self.experimentNode)
         #Get the database string
