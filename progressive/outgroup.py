@@ -192,6 +192,11 @@ class GreedyOutgroup(object):
             htable[sink] - htable[source] + 1 > threshold:
                 continue
 
+            # Don't use any outgroups that are a child of another node
+            # already in the outgroup set
+            if any([self.onSamePath(x, sink) for x in self.dag.successors(source)]):
+                continue
+
             if source not in finished and \
             not self.onSamePath(source, sink):
                 self.dag.add_edge(source, sink, weight=dist, info='outgroup')

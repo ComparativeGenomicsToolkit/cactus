@@ -7,8 +7,8 @@
 #include <assert.h>
 #include "cactus.h"
 #include "sonLib.h"
-#include "blockConsensusString.h"
 #include "recursiveThreadBuilder.h"
+#include "blockMLString.h"
 
 Cap *getCapForReferenceEvent(End *end, Name referenceEventName) {
     /*
@@ -177,10 +177,15 @@ static char *terminalAdjacencyWriteFn(Cap *cap) {
     return stString_copy("");
 }
 
-static Name segmentWriteFnOutgroupEventName;
+//static Name segmentWriteFnOutgroupEventName;
+static stHash *segmentWriteFn_flowerToPhylogeneticTreeHash;
+
 
 static char *segmentWriteFn(Segment *segment) {
-    char *segmentString = getConsensusString(segment_getBlock(segment), segmentWriteFnOutgroupEventName);
+    stTree *phylogeneticTree = stHash_search(segmentWriteFn_flowerToPhylogeneticTreeHash, block_getFlower(segment_getBlock(segment)));
+    assert(phylogeneticTree != NULL);
+    char *segmentString = getMaximumLikelihoodString(phylogeneticTree, segment_getBlock(segment));
+    //char *segmentString = getConsensusString(segment_getBlock(segment), segmentWriteFnOutgroupEventName);
     //We append a zero to a segment string if it is part of block containing only a reference segment, else we append a 1.
     //We use these boolean values to determine if a sequence contains only these trivial strings, and is therefore trivial.
     char *appendedSegmentString = stString_print("%s%c ", segmentString, block_getInstanceNumber(segment_getBlock(segment)) == 1 ? '0' : '1');
@@ -283,7 +288,7 @@ static stList *getCaps(stList *flowers, Name referenceEventName) {
 }
 
 void bottomUp(stList *flowers, stKVDatabase *sequenceDatabase, Name referenceEventName, Name outgroupEventName,
-        bool isTop) {
+        bool isTop, stMatrix *(*generateSubstitutionMatrix)(double)) {
     /*
      * A reference thread between the two caps
      * in each flower f may be broken into two in the children of f.
@@ -297,7 +302,16 @@ void bottomUp(stList *flowers, stKVDatabase *sequenceDatabase, Name referenceEve
     for(int64_t i=0; i<stList_length(flowers); i++) {
         recoverBrokenAdjacencies(stList_get(flowers, i), caps, referenceEventName);
     }
-    segmentWriteFnOutgroupEventName = outgroupEventName;
+
+    //Build the phylogenetic event trees for base calling.
+    segmentWriteFn_flowerToPhylogeneticTreeHash = stHash_construct2(NULL, (void (*)(void *))cleanupPhylogeneticTree);
+    for(int64_t i=0; i<stList_length(flowers); i++) {
+        Flower *flower = stList_get(flowers, i);
+        Event *refEvent = eventTree_getEvent(flower_getEventTree(flower), referenceEventName);
+        assert(refEvent != NULL);
+        stHash_insert(segmentWriteFn_flowerToPhylogeneticTreeHash, flower, getPhylogeneticTreeRootedAtGivenEvent(refEvent, generateSubstitutionMatrix));
+    }
+
     if (isTop) {
         stList *threadStrings = buildRecursiveThreadsInList(sequenceDatabase, caps, segmentWriteFn,
                 terminalAdjacencyWriteFn);
@@ -323,6 +337,7 @@ void bottomUp(stList *flowers, stKVDatabase *sequenceDatabase, Name referenceEve
     } else {
         buildRecursiveThreads(sequenceDatabase, caps, segmentWriteFn, terminalAdjacencyWriteFn);
     }
+    stHash_destruct(segmentWriteFn_flowerToPhylogeneticTreeHash);
     stList_destruct(caps);
 }
 

@@ -21,6 +21,9 @@ from optparse import OptionParser
 from sonLib.nxtree import NXTree
 from sonLib.nxnewick import NXNewick
 
+import networkx as nx
+from networkx.algorithms.shortest_paths.weighted import dijkstra_path
+
 class MultiCactusTree(NXTree):
     self_suffix = "_self"
     def __init__(self, tree = None, subtreeSize = 2):
@@ -87,7 +90,52 @@ class MultiCactusTree(NXTree):
             for child in self.getChildren(node):
                 for i in self.traverseSubtree(root, child):
                     yield i
-            
+
+    # Extracts a tree spanning the nodes with the given names.
+    def extractSpanningTree(self, nodes):
+        assert len(nodes) > 1
+        nodeIds = [self.nameToId[name] for name in nodes]
+        paths = [dijkstra_path(self.nxDg.to_undirected(), source=nodeIds[0], target=x) for x in nodeIds[1:]]
+        nodesToInclude = set()
+        for path in paths:
+            for node in path:
+                nodesToInclude.add(node)
+
+        cpy = self.nxDg.subgraph(nodesToInclude).copy()
+        # Get rid of nodes that have only 1 children
+        graphWasModified = True
+        while graphWasModified:
+            graphWasModified = False
+            for node in nx.nodes(cpy):
+                if cpy.out_degree(node) == 1:
+                    assert cpy.in_degree(node) == 1
+                    if node not in nodeIds:
+                        # This is a spurious node in the species tree,
+                        # we can and should remove
+                        childEdge = cpy.out_edges(node, data=True)[0]
+                        parentEdge = cpy.in_edges(node, data=True)[0]
+                        child = childEdge[1]
+                        childDist = childEdge[2]['weight']
+                        parent = parentEdge[0]
+                        assert parent != node
+                        parentDist = parentEdge[2]['weight']
+                        cpy.remove_node(node)
+                        cpy.add_edge(parent, child, weight = childDist + parentDist)
+                        graphWasModified = True
+                        break
+
+        mcCpy = MultiCactusTree(cpy, 2)
+        mcCpy.nameUnlabeledInternalNodes(prefix="thisPrefixShouldNeverAppear")
+        mcCpy.computeSubtreeRoots()
+        return mcCpy
+
+    # get names of children below this node
+    def getChildNames(self, name):
+        id = self.nameToId[name]
+        subtree = [i for i in self.traverseSubtree(id, id)]
+        names = [self.getName(i) for i in subtree]
+        return names
+
     # copy a subtree rooted at node with given name
     def extractSubTree(self, name):
         root = self.nameToId[name]

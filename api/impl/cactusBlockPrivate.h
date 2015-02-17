@@ -68,11 +68,6 @@ void block_writeBinaryRepresentation(Block *block, void (*writeFn)(const void * 
 Block *block_loadFromBinaryRepresentation(void **binaryString, Flower *flower);
 
 /*
- * Get a static instance (from the heap) with the name set.
- */
-Block *block_getStaticNameWrapper(Name name);
-
-/*
  * Sets the flower associated with the block.
  */
 void block_setFlower(Block *block, Flower *flower);

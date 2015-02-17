@@ -109,4 +109,10 @@ void eventTree_addSiblingUnaryEvent(EventTree *eventTree, Event *event);
  */
 void eventTree_check(EventTree *eventTree);
 
+/*
+ * Get an stTree labeled by the event Names (unlike makeNewickString,
+ * which labels the newick tree by headers.)
+ */
+stTree *eventTree_getStTree(EventTree *eventTree);
+
 #endif

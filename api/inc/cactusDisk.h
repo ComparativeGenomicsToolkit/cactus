@@ -34,7 +34,8 @@ CactusDisk *cactusDisk_construct2(stKVDatabaseConf *conf,
         const char *sequencesFileName);
 
 /*
- * Destructs the cactus disk, and all open flowers and sequences.
+ * Destructs the cactus disk and all open flowers and sequences, and
+ * then disconnects from the cactus DB.
  */
 void cactusDisk_destruct(CactusDisk *cactusDisk);
 

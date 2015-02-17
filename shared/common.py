@@ -178,35 +178,54 @@ def runCactusBlast(sequenceFiles, outputFile, jobTreeDir,
     system(command)
     logger.info("Ran the cactus_blast command okay")
 
-def runConvertAlignmentsToInternalNames(cactusDiskString, alignmentsFile, outputFile, flowerName):
-    popenCatch("cactus_convertAlignmentsToInternalNames --cactusDisk '%s' %s %s" % (cactusDiskString, alignmentsFile, outputFile), stdinString=encodeFlowerNames((flowerName,)))
+def runConvertAlignmentsToInternalNames(cactusDiskString, alignmentsFile, outputFile, flowerName, isBedFile=False):
+    bed = nameValue("bed", isBedFile, bool)
+    popenCatch("cactus_convertAlignmentsToInternalNames --cactusDisk '%s' %s %s %s" % (cactusDiskString, alignmentsFile, outputFile, bed), stdinString=encodeFlowerNames((flowerName,)))
 
 def runStripUniqueIDs(cactusDiskString):
     system("cactus_stripUniqueIDs --cactusDisk '%s'" % cactusDiskString)
 
 def runCactusCaf(cactusDiskDatabaseString, alignments, 
-                  flowerNames=encodeFlowerNames((0,)),
-                  logLevel=None, 
-                  writeDebugFiles=False,
-                  annealingRounds=None,
-                  deannealingRounds=None,
-                  trim=None,
-                  minimumTreeCoverage=None,
-                  blockTrim=None,
-                  minimumBlockDegree=None,
-                  minimumIngroupDegree=None,
-                  minimumOutgroupDegree=None,
-                  singleCopyIngroup=None,
-                  singleCopyOutgroup=None,
-                  lastzArguments=None,
-                  minimumSequenceLengthForBlast=None,
-                  maxAdjacencyComponentSizeRatio=None,
-                  constraints=None,
-                  minLengthForChromosome=None,
-                  proportionOfUnalignedBasesForNewChromosome=None, 
-                  maximumMedianSequenceLengthBetweenLinkedEnds=None,
-                  realign=None,
-                  realignArguments=None):
+                 flowerNames=encodeFlowerNames((0,)),
+                 logLevel=None, 
+                 writeDebugFiles=False,
+                 annealingRounds=None,
+                 deannealingRounds=None,
+                 trim=None,
+                 minimumTreeCoverage=None,
+                 blockTrim=None,
+                 minimumBlockDegree=None,
+                 minimumIngroupDegree=None,
+                 minimumOutgroupDegree=None,
+                 singleCopyIngroup=None,
+                 singleCopyOutgroup=None,
+                 lastzArguments=None,
+                 minimumSequenceLengthForBlast=None,
+                 maxAdjacencyComponentSizeRatio=None,
+                 constraints=None,
+                 minLengthForChromosome=None,
+                 proportionOfUnalignedBasesForNewChromosome=None, 
+                 maximumMedianSequenceLengthBetweenLinkedEnds=None,
+                 realign=None,
+                 realignArguments=None,
+                 phylogenyNumTrees=None,
+                 phylogenyScoringMethod=None,
+                 phylogenyRootingMethod=None,
+                 phylogenyBreakpointScalingFactor=None,
+                 phylogenySkipSingleCopyBlocks=None,
+                 phylogenyMaxBaseDistance=None,
+                 phylogenyMaxBlockDistance=None,
+                 phylogenyDebugFile=None,
+                 phylogenyKeepSingleDegreeBlocks=None,
+                 phylogenyTreeBuildingMethod=None,
+                 phylogenyCostPerDupPerBase=None,
+                 phylogenyCostPerLossPerBase=None,
+                 referenceEventHeader=None,
+                 phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce=None,
+                 numTreeBuildingThreads=None):
+    # remove annoying carriage returns in caf command line.
+    cactusDiskDatabaseString = cactusDiskDatabaseString.replace('\n', '')
+
     logLevel = getLogLevelString2(logLevel)
     annealingRounds = nameValue("annealingRounds", annealingRounds, quotes=True)
     deannealingRounds = nameValue("deannealingRounds", deannealingRounds, quotes=True)
@@ -225,17 +244,32 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
     constraints = nameValue("constraints", constraints)
     realign = nameValue("realign", realign, bool)
     realignArguments = nameValue("realignArguments", realignArguments, quotes=True)
-    
+    phylogenyNumTrees = nameValue("phylogenyNumTrees", phylogenyNumTrees, int)
+    phylogenyRootingMethod = nameValue("phylogenyRootingMethod", phylogenyRootingMethod, quotes=True)
+    phylogenyScoringMethod = nameValue("phylogenyScoringMethod", phylogenyScoringMethod, quotes=True)
+    phylogenyBreakpointScalingFactor = nameValue("phylogenyBreakpointScalingFactor", phylogenyBreakpointScalingFactor)
+    phylogenySkipSingleCopyBlocks = nameValue("phylogenySkipSingleCopyBlocks", phylogenySkipSingleCopyBlocks, bool)
+    phylogenyMaxBaseDistance = nameValue("phylogenyMaxBaseDistance", phylogenyMaxBaseDistance)
+    phylogenyMaxBlockDistance = nameValue("phylogenyMaxBlockDistance", phylogenyMaxBlockDistance)
+    phylogenyDebugFile = nameValue("phylogenyDebugFile", phylogenyDebugFile)
+    phylogenyKeepSingleDegreeBlocks = nameValue("phylogenyKeepSingleDegreeBlocks", phylogenyKeepSingleDegreeBlocks, bool)
+    phylogenyTreeBuildingMethod = nameValue("phylogenyTreeBuildingMethod", phylogenyTreeBuildingMethod)
+    phylogenyCostPerDupPerBase = nameValue("phylogenyCostPerDupPerBase", phylogenyCostPerDupPerBase)
+    phylogenyCostPerLossPerBase = nameValue("phylogenyCostPerLossPerBase", phylogenyCostPerLossPerBase)
+    referenceEventHeader = nameValue("referenceEventHeader", referenceEventHeader, quotes=True)
+    phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce = nameValue("phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce", phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce)
+    numTreeBuildingThreads = nameValue("numTreeBuildingThreads", numTreeBuildingThreads)
+
     minLengthForChromosome = nameValue("minLengthForChromosome", minLengthForChromosome, int)
     proportionOfUnalignedBasesForNewChromosome = nameValue("proportionOfUnalignedBasesForNewChromosome", proportionOfUnalignedBasesForNewChromosome, float)
     maximumMedianSequenceLengthBetweenLinkedEnds = nameValue("maximumMedianSequenceLengthBetweenLinkedEnds", maximumMedianSequenceLengthBetweenLinkedEnds, int)
     
-    command = "cactus_caf --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
+    command = "cactus_caf --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
     (cactusDiskDatabaseString, logLevel, alignments, annealingRounds, deannealingRounds, 
      trim, minimumTreeCoverage, blockTrim, 
      minimumBlockDegree, minimumIngroupDegree, minimumOutgroupDegree,  
      singleCopyIngroup, singleCopyOutgroup, lastzArguments, minimumSequenceLengthForBlast, maxAdjacencyComponentSizeRatio, constraints,
-     minLengthForChromosome, proportionOfUnalignedBasesForNewChromosome, maximumMedianSequenceLengthBetweenLinkedEnds, realign, realignArguments)
+     minLengthForChromosome, proportionOfUnalignedBasesForNewChromosome, maximumMedianSequenceLengthBetweenLinkedEnds, realign, realignArguments, phylogenyNumTrees, phylogenyRootingMethod, phylogenyScoringMethod, phylogenyBreakpointScalingFactor, phylogenySkipSingleCopyBlocks, phylogenyMaxBaseDistance, phylogenyMaxBlockDistance, phylogenyDebugFile, phylogenyKeepSingleDegreeBlocks, phylogenyTreeBuildingMethod, phylogenyCostPerDupPerBase, phylogenyCostPerLossPerBase, referenceEventHeader, phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce, numTreeBuildingThreads)
     masterMessages = popenCatch(command, stdinString=flowerNames)
     logger.info("Ran cactus_core okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]
@@ -295,7 +329,10 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
                          calculateWhichEndsToComputeSeparately=None,
                          largeEndSize=None,
                          endAlignmentsToPrecomputeOutputFile=None,
-                         precomputedAlignments=None):
+                         precomputedAlignments=None,
+                         ingroupCoverageFile=None,
+                         minimumSizeToRescue=None,
+                         minimumCoverageToRescue=None):
     """Runs cactus base aligner.
     """
     logLevel = getLogLevelString2(logLevel)
@@ -318,14 +355,17 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
     largeEndSize=nameValue("largeEndSize", largeEndSize, int)
     endAlignmentsToPrecomputeOutputFile=nameValue("endAlignmentsToPrecomputeOutputFile", endAlignmentsToPrecomputeOutputFile, str)
     precomputedAlignments=nameValue("precomputedAlignments", precomputedAlignments, str, quotes=True)
-    
-    masterMessages = popenCatch("cactus_bar --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % 
+    ingroupCoverageFile = nameValue("ingroupCoverageFile", ingroupCoverageFile, str, quotes=True)
+    minimumSizeToRescue = nameValue("minimumSizeToRescue", minimumSizeToRescue, int)
+    minimumCoverageToRescue = nameValue("minimumCoverageToRescue", minimumCoverageToRescue, float)
+
+    masterMessages = popenCatch("cactus_bar --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % 
            (cactusDiskDatabaseString, logLevel, spanningTrees, maximumLength, gapGamma, matchGamma,
             splitMatrixBiggerThanThis, anchorMatrixBiggerThanThis, repeatMaskMatrixBiggerThanThis,
             constraintDiagonalTrim, minimumBlockDegree, minimumIngroupDegree, minimumOutgroupDegree,  
             alignAmbiguityCharacters, pruneOutStubAlignments, diagonalExpansion,
             useProgressiveMerging, calculateWhichEndsToComputeSeparately,
-            largeEndSize, endAlignmentsToPrecomputeOutputFile, precomputedAlignments), stdinString=flowerNames)
+            largeEndSize, endAlignmentsToPrecomputeOutputFile, precomputedAlignments, ingroupCoverageFile, minimumSizeToRescue, minimumCoverageToRescue), stdinString=flowerNames)
     logger.info("Ran cactus_bar okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]
 
@@ -339,6 +379,7 @@ def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
                        permutations=None,
                        useSimulatedAnnealing=None,
                        theta=None,
+                       phi=None, 
                        maxWalkForCalculatingZ=None,
                        ignoreUnalignedGaps=None,
                        wiggle=None, 
@@ -353,16 +394,19 @@ def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
     permutations = nameValue("permutations", permutations, int)
     useSimulatedAnnealing = nameValue("useSimulatedAnnealing", useSimulatedAnnealing, bool)
     theta = nameValue("theta", theta, float)
+    phi = nameValue("phi", phi, float)
     maxWalkForCalculatingZ = nameValue("maxWalkForCalculatingZ", maxWalkForCalculatingZ, int)
     ignoreUnalignedGaps = nameValue("ignoreUnalignedGaps", ignoreUnalignedGaps, bool)
     wiggle = nameValue("wiggle", wiggle, float)
     numberOfNs = nameValue("numberOfNs", numberOfNs, int)
     minNumberOfSequencesToSupportAdjacency = nameValue("minNumberOfSequencesToSupportAdjacency", minNumberOfSequencesToSupportAdjacency, int)
     makeScaffolds = nameValue("makeScaffolds", makeScaffolds, bool)
-    command = "cactus_reference --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s" % \
+    command = "cactus_reference --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
     (cactusDiskDatabaseString, logLevel, matchingAlgorithm, referenceEventString, permutations, 
-     useSimulatedAnnealing, theta, maxWalkForCalculatingZ, ignoreUnalignedGaps, wiggle, numberOfNs, minNumberOfSequencesToSupportAdjacency, makeScaffolds)
-    popenPush(command, stdinString=flowerNames)
+     useSimulatedAnnealing, theta, phi, maxWalkForCalculatingZ, ignoreUnalignedGaps, wiggle, numberOfNs, minNumberOfSequencesToSupportAdjacency, makeScaffolds)
+    masterMessages = popenCatch(command, stdinString=flowerNames)
+    logger.info("Ran cactus_reference okay")
+    return [ i for i in masterMessages.split("\n") if i != '' ]
     
 def runCactusAddReferenceCoordinates(cactusDiskDatabaseString, flowerNames, logLevel=None, referenceEventString=None, outgroupEventString=None, secondaryDatabaseString=None, bottomUpPhase=None):   
     logLevel = getLogLevelString2(logLevel)
@@ -439,11 +483,10 @@ def runCactusWorkflow(experimentFile,
     
 def runCactusCreateMultiCactusProject(experimentFile, outputDir, 
                                       logLevel=None, fixNames=True,
-                                      rootOutgroupPath=None, rootOutgroupDist=None):
+                                      root=None):
     logLevel = getLogLevelString2(logLevel)
-    rootOutgroupPath = nameValue("rootOutgroupPath", rootOutgroupPath, str)
-    rootOutgroupDist = nameValue("rootOutgroupDist", rootOutgroupDist, float)
-    command = "cactus_createMultiCactusProject.py %s %s --fixNames=%s %s %s" % (experimentFile, outputDir, str(fixNames), rootOutgroupPath, rootOutgroupDist)
+    root = nameValue("root", root, str, quotes=True)
+    command = "cactus_createMultiCactusProject.py %s %s --fixNames=%s %s" % (experimentFile, outputDir, str(fixNames), root)
     system(command)
     logger.info("Ran the cactus create multi project")
     

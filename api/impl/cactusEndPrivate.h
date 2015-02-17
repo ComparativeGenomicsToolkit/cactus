@@ -77,11 +77,6 @@ void end_writeBinaryRepresentation(End *end, void (*writeFn)(const void * ptr, s
 End *end_loadFromBinaryRepresentation(void **binaryString, Flower *flower);
 
 /*
- * Get a static instance (from the heap) with the name set.
- */
-End *end_getStaticNameWrapper(Name name);
-
-/*
  * Hash key for an end, uses the name of the end to hash.. hence
  * the key doesn't care about the orientation.
  */

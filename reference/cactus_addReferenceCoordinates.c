@@ -15,6 +15,7 @@
 #include "cactus.h"
 #include "sonLib.h"
 #include "addReferenceCoordinates.h"
+#include "blockMLString.h"
 
 void usage() {
     fprintf(stderr, "cactus_addReferenceCoordinates [flower names], version 0.1\n");
@@ -128,6 +129,7 @@ int main(int argc, char *argv[]) {
     if (outgroupEventString != NULL) {
         Event *outgroupEvent = eventTree_getEventByHeader(flower_getEventTree(flower), outgroupEventString);
         assert(outgroupEvent != NULL);
+        assert(event_isOutgroup(outgroupEvent));
         outgroupEventName = event_getName(outgroupEvent);
     }
 
@@ -142,7 +144,7 @@ int main(int argc, char *argv[]) {
         stKVDatabase *sequenceDatabase = stKVDatabase_construct(kvDatabaseConf, 0);
         stKVDatabaseConf_destruct(kvDatabaseConf);
         Flower *flower = stList_get(flowers, 0);
-        bottomUp(flowers, sequenceDatabase, referenceEventName, outgroupEventName, !flower_hasParentGroup(flower));
+        bottomUp(flowers, sequenceDatabase, referenceEventName, outgroupEventName, !flower_hasParentGroup(flower), generateJukesCantorMatrix);
         //Now unload the nested flowers.
         for (int64_t i = 0; i < stList_length(flowers); i++) {
             Flower *flower = stList_get(flowers, i);
@@ -177,9 +179,10 @@ int main(int argc, char *argv[]) {
     //Clean up.
     ///////////////////////////////////////////////////////////////////////////
 
+    cactusDisk_destruct(cactusDisk);
+
     return 0; //Exit without clean up is quicker, enable cleanup when doing memory leak detection.
 
-    cactusDisk_destruct(cactusDisk);
     stList_destruct(flowers);
     free(cactusDiskDatabaseString);
     free(referenceEventString);

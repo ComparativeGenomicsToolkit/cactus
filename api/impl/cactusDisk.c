@@ -4,7 +4,11 @@
  * Released under the MIT license, see LICENSE.txt
  */
 
+// For fsync declaration (technically a POSIX extension).
+#define _POSIX_C_SOURCE 200809L
+
 #include "cactusGlobalsPrivate.h"
+#include <stdio.h>
 #include <unistd.h>
 #include <math.h>
 

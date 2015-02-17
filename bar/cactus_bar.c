@@ -3,14 +3,18 @@
  *
  * Released under the MIT license, see LICENSE.txt
  */
+#define _POSIX_C_SOURCE 200809L
 
 #include <assert.h>
 #include <getopt.h>
+#include <sys/mman.h>
+#include <stdio.h>
 
 #include "cactus.h"
 #include "sonLib.h"
 #include "endAligner.h"
 #include "flowerAligner.h"
+#include "rescue.h"
 #include "commonC.h"
 #include "stCaf.h"
 #include "stPinchGraphs.h"
@@ -60,6 +64,12 @@ void usage() {
 
     fprintf(stderr, "-I --largeEndSize : The size of sequences in an end at which point to compute it separately.\n");
 
+    fprintf(stderr, "-J --ingroupCoverageFile : Binary coverage file containing ingroup regions that are covered by outgroups. These regions will be 'rescued' into single-degree blocks if they haven't been aligned to anything after the bar phase finished.\n");
+
+    fprintf(stderr, "-K --minimumSizeToRescue : Unaligned but covered segments must be at least this size to be rescued.\n");
+
+    fprintf(stderr, "-L --minimumCoverageToRescue : Unaligned segments must have at least this proportion of their bases covered by an outgroup to be rescued.\n");
+
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -98,6 +108,9 @@ int main(int argc, char *argv[]) {
     int64_t largeEndSize = 1000000;
     int64_t chainLengthForBigFlower = 1000000;
     int64_t longChain = 2;
+    char *ingroupCoverageFilePath = NULL;
+    int64_t minimumSizeToRescue = 1;
+    double minimumCoverageToRescue = 0.0;
 
     PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters = pairwiseAlignmentBandingParameters_construct();
 
@@ -123,7 +136,11 @@ int main(int argc, char *argv[]) {
                 { "precomputedAlignments", required_argument, 0, 'D' }, {
                         "endAlignmentsToPrecomputeOutputFile", required_argument, 0, 'E' }, { "useProgressiveMerging",
                         no_argument, 0, 'F' }, { "calculateWhichEndsToComputeSeparately", no_argument, 0, 'G' }, { "largeEndSize",
-                        required_argument, 0, 'I' }, { 0, 0, 0, 0 } };
+                        required_argument, 0, 'I' },
+                        {"ingroupCoverageFile", required_argument, 0, 'J'},
+                        {"minimumSizeToRescue", required_argument, 0, 'K'},
+                        {"minimumCoverageToRescue", required_argument, 0, 'L'},
+                        { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
@@ -146,6 +163,7 @@ int main(int argc, char *argv[]) {
                 return 0;
             case 'i':
                 i = sscanf(optarg, "%" PRIi64 "", &spanningTrees);
+                (void) i;
                 assert(i == 1);
                 assert(spanningTrees >= 0);
                 break;
@@ -230,6 +248,17 @@ int main(int argc, char *argv[]) {
                 i = sscanf(optarg, "%" PRIi64 "", &largeEndSize);
                 assert(i == 1);
                 break;
+            case 'J':
+                ingroupCoverageFilePath = stString_copy(optarg);
+                break;
+            case 'K':
+                i = sscanf(optarg, "%" PRIi64, &minimumSizeToRescue);
+                assert(i == 1);
+                break;
+            case 'L':
+                i = sscanf(optarg, "%lf", &minimumCoverageToRescue);
+                assert(i == 1);
+                break;
             default:
                 usage();
                 return 1;
@@ -293,6 +322,37 @@ int main(int argc, char *argv[]) {
         /*
          * Compute complete flower alignments, possibly loading some precomputed alignments.
          */
+        bedRegion *bedRegions = NULL;
+        size_t numBeds = 0;
+        if (ingroupCoverageFilePath != NULL) {
+            // Pre-load the mmap for the coverage file.
+            FILE *coverageFile = fopen(ingroupCoverageFilePath, "rb");
+            if (coverageFile == NULL) {
+                st_errnoAbort("Opening coverage file %s failed",
+                              ingroupCoverageFilePath);
+            }
+            fseek(coverageFile, 0, SEEK_END);
+            int64_t coverageFileLen = ftell(coverageFile);
+            assert(coverageFileLen >= 0);
+            assert(coverageFileLen % sizeof(bedRegion) == 0);
+            if (coverageFileLen == 0) {
+                // mmap doesn't like length-0 mappings, for obvious
+                // reasons. Pretend that the coverage file doesn't
+                // exist in this case, since it contains no data.
+                ingroupCoverageFilePath = NULL;
+            } else {
+                // Establish a memory mapping for the file.
+                bedRegions = mmap(NULL, coverageFileLen, PROT_READ, MAP_SHARED,
+                                  fileno(coverageFile), 0);
+                if (bedRegions == MAP_FAILED) {
+                    st_errnoAbort("Failure mapping coverage file");
+                }
+
+                numBeds = coverageFileLen / sizeof(bedRegion);
+            }
+            fclose(coverageFile);
+        }
+
         stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
         if (listOfEndAlignmentFiles != NULL && stList_length(flowers) != 1) {
             st_errAbort("We have precomputed alignments but %" PRIi64 " flowers to align.\n", stList_length(flowers));
@@ -318,6 +378,26 @@ int main(int argc, char *argv[]) {
             if (minimumIngroupDegree > 0 || minimumOutgroupDegree > 0 || minimumDegree > 1) {
                 stCaf_melt(flower, threadSet, blockFilterFn, 0, 0, 0, INT64_MAX);
             }
+
+            if (ingroupCoverageFilePath != NULL) {
+                // Rescue any sequence that is covered by outgroups
+                // but currently unaligned into single-degree blocks.
+                stPinchThreadSetIt pinchIt = stPinchThreadSet_getIt(threadSet);
+                stPinchThread *thread;
+                while ((thread = stPinchThreadSetIt_getNext(&pinchIt)) != NULL) {
+                    Cap *cap = flower_getCap(flower,
+                                             stPinchThread_getName(thread));
+                    assert(cap != NULL);
+                    Sequence *sequence = cap_getSequence(cap);
+                    assert(sequence != NULL);
+                    rescueCoveredRegions(thread, bedRegions, numBeds,
+                                         sequence_getName(sequence),
+                                         minimumSizeToRescue,
+                                         minimumCoverageToRescue);
+                }
+                stCaf_joinTrivialBoundaries(threadSet);
+            }
+
             stCaf_finish(flower, threadSet, chainLengthForBigFlower, longChain, INT64_MAX, INT64_MAX); //Flower now destroyed.
             stPinchThreadSet_destruct(threadSet);
             st_logInfo("Ran the cactus core script.\n");
@@ -338,6 +418,10 @@ int main(int argc, char *argv[]) {
          */
         cactusDisk_write(cactusDisk);
         return 0; //Exit without clean up is quicker, enable cleanup when doing memory leak detection.
+        if (bedRegions != NULL) {
+            // Clean up our mapping.
+            munmap(bedRegions, numBeds * sizeof(bedRegion));
+        }
     }
 
 

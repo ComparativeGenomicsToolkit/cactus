@@ -27,7 +27,7 @@
         <!-- Outgroup trim options: -->
         <!-- trimOutgroupFlanking: The amount of flanking sequence to
              leave on the ends of the trimmed outgroup fragments -->
-        <trimBlast doTrimStrategy="0"
+        <trimBlast doTrimStrategy="1"
                    trimFlanking="10"
                    trimMinSize="10"
                    trimThreshold="1"
@@ -58,8 +58,8 @@
 	>
 		<divergence 
 			argName="lastzArguments"
-			low="--hspthresh=3000 --identity=IDENTITY --ambiguous=iupac"
-		 	default="--hspthresh=1800 --identity=IDENTITY --ambiguous=iupac"
+			low="--hspthresh=3000 --ambiguous=iupac"
+		 	default="--hspthresh=1800 --ambiguous=iupac"
 		 />
 		<CactusCafRecursion maxFlowerGroupSize="100000000"/>
 		<CactusCafWrapper minFlowerSize="5000" maxFlowerGroupSize="1000000"/>
@@ -81,6 +81,7 @@
 		largeEndSize="10000"
 		useProgressiveMerging="1"
 		pruneOutStubAlignments="1"
+                rescue="1"
 	>
 		<CactusBarRecursion maxFlowerGroupSize="100000000"/>
 		<CactusBarWrapper maxFlowerGroupSize="400000" memory="littleMemory"/>
@@ -106,6 +107,7 @@
 		reference="reference" 
 		useSimulatedAnnealing="1" 
 		theta="0.0001" 
+		phi="1.0"
 		maxWalkForCalculatingZ="100000" 
 		permutations="10"
 		ignoreUnalignedGaps="1"

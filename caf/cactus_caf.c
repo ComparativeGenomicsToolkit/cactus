@@ -16,6 +16,7 @@
 #include "stPinchIterator.h"
 #include "stLastzAlignments.h"
 #include "stGiantComponent.h"
+#include "stCafPhylogeny.h"
 
 static void usage() {
     fprintf(stderr, "cactus_caf, version 0.2\n");
@@ -69,6 +70,21 @@ static void usage() {
                 "-A --maximumMedianSequenceLengthBetweenLinkedEnds : Maximum nedian length of sequences between linked ends to allow before breaking chains.\n");
     fprintf(stderr, "-B --realign : Realign the lastz hits.\n");
     fprintf(stderr, "-C --realignArguments : Arguments for realignment.\n");
+    fprintf(stderr, "-D --phylogenyNumTrees : Number of trees to sample when removing ancient homologies. (default 1)\n");
+    fprintf(stderr, "-E --phylogenyRootingMethod : Method of rooting trees: either 'outgroupBranch', 'longestBranch', or 'bestRecon' (default outgroupBranch).\n");
+    fprintf(stderr, "-F --phylogenyScoringMethod : Method of deciding which sampled tree is best: either 'reconCost' or .\n");
+    fprintf(stderr, "-G --phylogenyBreakpointScalingFactor : scale breakpoint distance by this factor while building phylogenies. Default 0.0.\n");
+    fprintf(stderr, "-H --phylogenySkipSingleCopyBlocks : Skip building trees for single-copy blocks. Default is not to skip.\n");
+    fprintf(stderr, "-I --phylogenyMaxBaseDistance : maximum distance in bases to walk outside of a block gathering feature columns\n");
+    fprintf(stderr, "-J --phylogenyMaxBlockDistance : maximum distance in blocks to walk outside of a block gathering feature columns\n");
+    fprintf(stderr, "-K --phylogenyDebugFile : path to file to dump block trees and partitions to\n");
+    fprintf(stderr, "-L --phylogenyKeepSingleDegreeBlocks : when splitting blocks, allow blocks to be created of only one ingroup.\n");
+    fprintf(stderr, "-M --phylogenyTreeBuildingMethod : neighbor joining or neighbor-joining guided by the species tree\n");
+    fprintf(stderr, "-N --phylogenyCostPerLossPerBase : join cost per dup per base for guided neighbor-joining (will be multiplied by maxBaseDistance)\n");
+    fprintf(stderr, "-O --phylogenyCostPerLossPerBase : join cost per loss per base for guided neighbor-joining (will be multiplied by maxBaseDistance)\n");
+    fprintf(stderr, "-P --referenceEventHeader : name of reference event (necessary for phylogeny estimation)\n");
+    fprintf(stderr, "-Q --phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce : assume that this support value or greater means a very confident split, and that they will not be changed by the greedy split algorithm. Do all these very confident splits at once, to save a lot of computation time.\n");
+    fprintf(stderr, "-R --numTreeBuildingThreads : Number of threads in the tree-building thread pool. Must be greater than 1. Default 2.\n");
 }
 
 static int64_t *getInts(const char *string, int64_t *arrayLength) {
@@ -231,6 +247,23 @@ int main(int argc, char *argv[]) {
     bool realign = 0;
     char *realignArguments = "";
 
+    //Parameters for removing ancient homologies
+    int64_t phylogenyNumTrees = 1;
+    enum stCaf_RootingMethod phylogenyRootingMethod = BEST_RECON;
+    enum stCaf_ScoringMethod phylogenyScoringMethod = COMBINED_LIKELIHOOD;
+    double breakpointScalingFactor = 0.0;
+    bool phylogenySkipSingleCopyBlocks = 0;
+    int64_t phylogenyMaxBaseDistance = 1000;
+    int64_t phylogenyMaxBlockDistance = 100;
+    bool phylogenyKeepSingleDegreeBlocks = 0;
+    enum stCaf_TreeBuildingMethod phylogenyTreeBuildingMethod = GUIDED_NEIGHBOR_JOINING;
+    double phylogenyCostPerDupPerBase = 0.2;
+    double phylogenyCostPerLossPerBase = 0.2;
+    const char *debugFileName = NULL;
+    const char *referenceEventHeader = NULL;
+    double phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce = 1.0;
+    int64_t numTreeBuildingThreads = 2;
+
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
     ///////////////////////////////////////////////////////////////////////////
@@ -249,11 +282,26 @@ int main(int argc, char *argv[]) {
                         required_argument, 0, 'y' }, { "proportionOfUnalignedBasesForNewChromosome", required_argument, 0, 'z' },
                         { "maximumMedianSequenceLengthBetweenLinkedEnds", required_argument, 0, 'A' },
                         { "realign", no_argument, 0, 'B' }, { "realignArguments", required_argument, 0, 'C' },
+                        { "phylogenyNumTrees", required_argument, 0, 'D' },
+                        { "phylogenyRootingMethod", required_argument, 0, 'E' },
+                        { "phylogenyScoringMethod", required_argument, 0, 'F' },
+                        { "phylogenyBreakpointScalingFactor", required_argument, 0, 'G' },
+                        { "phylogenySkipSingleCopyBlocks", no_argument, 0, 'H' },
+                        { "phylogenyMaxBaseDistance", required_argument, 0, 'I' },
+                        { "phylogenyMaxBlockDistance", required_argument, 0, 'J' },
+                        { "phylogenyDebugFile", required_argument, 0, 'K' },
+                        { "phylogenyKeepSingleDegreeBlocks", no_argument, 0, 'L' },
+                        { "phylogenyTreeBuildingMethod", required_argument, 0, 'M' },
+                        { "phylogenyCostPerDupPerBase", required_argument, 0, 'N' },
+                        { "phylogenyCostPerLossPerBase", required_argument, 0, 'O' },
+                        { "referenceEventHeader", required_argument, 0, 'P' },
+                        { "phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce", required_argument, 0, 'Q' },
+                        { "numTreeBuildingThreads", required_argument, 0, 'R' },
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:BC:", long_options, &option_index);
+        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:BC:D:E:F:G:HI:J:K:LM:N:O:P:Q:R:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -340,6 +388,83 @@ int main(int argc, char *argv[]) {
             case 'C':
                 realignArguments = stString_copy(optarg);
                 break;
+            case 'D':
+                k = sscanf(optarg, "%" PRIi64, &phylogenyNumTrees);
+                assert(k == 1);
+                break;
+            case 'E':
+                if (!strcmp(optarg, "outgroupBranch")) {
+                    phylogenyRootingMethod = OUTGROUP_BRANCH;
+                } else if (!strcmp(optarg, "longestBranch")) {
+                    phylogenyRootingMethod = LONGEST_BRANCH;
+                } else if (!strcmp(optarg, "bestRecon")) {
+                    phylogenyRootingMethod = BEST_RECON;
+                } else {
+                    st_errAbort("Invalid tree rooting method: %s", optarg);
+                }
+                break;
+            case 'F':
+                if (!strcmp(optarg, "reconCost")) {
+                    phylogenyScoringMethod = RECON_COST;
+                } else if (!strcmp(optarg, "nucLikelihood")) {
+                    phylogenyScoringMethod = NUCLEOTIDE_LIKELIHOOD;
+                } else if (!strcmp(optarg, "reconLikelihood")) {
+                    phylogenyScoringMethod = RECON_LIKELIHOOD;
+                } else if (!strcmp(optarg, "combinedLikelihood")) {
+                    phylogenyScoringMethod = COMBINED_LIKELIHOOD;
+                } else {
+                    st_errAbort("Invalid tree scoring method: %s", optarg);
+                }
+                break;
+            case 'G':
+                k = sscanf(optarg, "%lf", &breakpointScalingFactor);
+                assert(k == 1);
+                break;
+            case 'H':
+                phylogenySkipSingleCopyBlocks = true;
+                break;
+            case 'I':
+                k = sscanf(optarg, "%" PRIi64, &phylogenyMaxBaseDistance);
+                assert(k == 1);
+                break;
+            case 'J':
+                k = sscanf(optarg, "%" PRIi64, &phylogenyMaxBlockDistance);
+                assert(k == 1);
+                break;
+            case 'K':
+                debugFileName = stString_copy(optarg);
+                break;
+            case 'L':
+                phylogenyKeepSingleDegreeBlocks = true;
+                break;
+            case 'M':
+                if (strcmp(optarg, "neighborJoining") == 0) {
+                    phylogenyTreeBuildingMethod = NEIGHBOR_JOINING;
+                } else if (strcmp(optarg, "guidedNeighborJoining") == 0) {
+                    phylogenyTreeBuildingMethod = GUIDED_NEIGHBOR_JOINING;
+                } else {
+                    st_errAbort("Unknown tree building method: %s", optarg);
+                }
+                break;
+            case 'N':
+                k = sscanf(optarg, "%lf", &phylogenyCostPerDupPerBase);
+                assert(k == 1);
+                break;
+            case 'O':
+                k = sscanf(optarg, "%lf", &phylogenyCostPerLossPerBase);
+                assert(k == 1);
+                break;
+            case 'P':
+                referenceEventHeader = stString_copy(optarg);
+                break;
+            case 'Q':
+                k = sscanf(optarg, "%lf", &phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce);
+                assert(k == 1);
+                break;
+            case 'R':
+                k = sscanf(optarg, "%" PRIi64, &numTreeBuildingThreads);
+                assert(k == 1);
+                break;
             default:
                 usage();
                 return 1;
@@ -419,22 +544,15 @@ int main(int argc, char *argv[]) {
             //Set up the graph and add the initial alignments
             stPinchThreadSet *threadSet = stCaf_setup(flower);
 
+            //Build the set of outgroup threads
+            outgroupThreads = stCaf_getOutgroupThreads(flower, threadSet);
+
             bool sortAlignments = 0;
             if (singleCopyIngroup) {
                 sortAlignments = 1;
                 filterFn = filterByRepeatSpecies;
             }
             else if (singleCopyOutgroup) {
-                //Here is where we get the set of outgroup threads.
-                outgroupThreads = stSet_construct();
-                stPinchThreadSetIt it = stPinchThreadSet_getIt(threadSet);
-                stPinchThread *pinchThread;
-                while ((pinchThread = stPinchThreadSetIt_getNext(&it)) != NULL) {
-                    if (event_isOutgroup(getEvent(stPinchThread_getFirst(pinchThread), flower))) {
-                        stSet_insert(outgroupThreads, pinchThread);
-                    }
-                }
-
                 if (stSet_size(outgroupThreads) == 0) {
                     filterFn = NULL;
                     sortAlignments = 0;
@@ -501,6 +619,54 @@ int main(int argc, char *argv[]) {
                 stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0, 0, INT64_MAX);
             }
 
+            // Build a tree for each block, then use each tree to
+            // partition the homologies between the ingroups sequences
+            // into those that occur before the speciation with the
+            // outgroup and those which occur late.
+            if (stSet_size(outgroupThreads) > 0) {
+                st_logDebug("Starting to build trees and partition ingroup homologies\n");
+                stHash *threadStrings = stCaf_getThreadStrings(flower, threadSet);
+                st_logDebug("Got sets of thread strings and set of threads that are outgroups\n");
+                FILE *debugFile = NULL;
+                if (debugFileName != NULL) {
+                    debugFile = fopen(debugFileName, "w");
+                    if (debugFile == NULL) {
+                        st_errnoAbort("could not open debug file");
+                    }
+                }
+                stCaf_PhylogenyParameters params;
+                params.treeBuildingMethod = phylogenyTreeBuildingMethod;
+                params.rootingMethod = phylogenyRootingMethod;
+                params.scoringMethod = phylogenyScoringMethod;
+                params.breakpointScalingFactor = breakpointScalingFactor;
+                params.skipSingleCopyBlocks = phylogenySkipSingleCopyBlocks;
+                params.keepSingleDegreeBlocks = phylogenyKeepSingleDegreeBlocks;
+                params.costPerDupPerBase = phylogenyCostPerDupPerBase;
+                params.costPerLossPerBase = phylogenyCostPerLossPerBase;
+                params.maxBaseDistance = phylogenyMaxBaseDistance;
+                params.maxBlockDistance = phylogenyMaxBlockDistance;
+                params.numTrees = phylogenyNumTrees;
+                params.ignoreUnalignedBases = 1;
+                params.onlyIncludeCompleteFeatureBlocks = 0;
+                params.doSplitsWithSupportHigherThanThisAllAtOnce = phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce;
+                params.numTreeBuildingThreads = numTreeBuildingThreads;
+
+                assert(params.numTreeBuildingThreads >= 1);
+
+                stCaf_buildTreesToRemoveAncientHomologies(
+                    threadSet, threadStrings, outgroupThreads, flower, &params,
+                    debugFile, referenceEventHeader);
+                if (debugFile != NULL) {
+                    fclose(debugFile);
+                }
+                stHash_destruct(threadStrings);
+                st_logDebug("Finished building trees\n");
+
+                // Enforce the block constraints on minimum degree,
+                // etc. after splitting.
+                stCaf_melt(flower, threadSet, blockFilterFn, 0, 0, 0, INT64_MAX);
+            }
+
             //Sort out case when we allow blocks of degree 1
             if (minimumDegree < 2) {
                 st_logDebug("Creating degree 1 blocks\n");
@@ -519,14 +685,12 @@ int main(int argc, char *argv[]) {
             //Cleanup
             stPinchThreadSet_destruct(threadSet);
             stPinchIterator_destruct(pinchIterator);
-
-            if (singleCopyOutgroup && !singleCopyIngroup) {
-                stSet_destruct(outgroupThreads);
-            }
+            stSet_destruct(outgroupThreads);
 
             if (alignmentsList != NULL) {
                 stList_destruct(alignmentsList);
             }
+            st_logInfo("Cleaned up from main loop\n");
         } else {
             st_logInfo("We've already built blocks / alignments for this flower\n");
         }
@@ -543,7 +707,7 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
     // Write the flower to disk.
     ///////////////////////////////////////////////////////////////////////////
-
+    st_logDebug("Writing the flowers to disk\n");
     cactusDisk_write(cactusDisk);
     st_logInfo("Updated the flower on disk and %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
@@ -551,11 +715,12 @@ int main(int argc, char *argv[]) {
     // Clean up.
     ///////////////////////////////////////////////////////////////////////////
 
+    cactusDisk_destruct(cactusDisk);
+
     return 0; //Exit without clean up is quicker, enable cleanup when doing memory leak detection.
 
     //Destruct stuff
     startTime = time(NULL);
-    cactusDisk_destruct(cactusDisk);
     stKVDatabaseConf_destruct(kvDatabaseConf);
     free(cactusDiskDatabaseString);
     if (alignmentsFile != NULL) {

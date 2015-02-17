@@ -93,11 +93,3 @@ Sequence *sequence_loadFromBinaryRepresentation(void **binaryString, Flower *flo
 	}
 	return sequence;
 }
-
-Sequence *sequence_getStaticNameWrapper(Name name) {
-	static Sequence sequence;
-	static MetaSequence metaSequence;
-	sequence.metaSequence = &metaSequence;
-	metaSequence.name = name;
-	return &sequence;
-}
