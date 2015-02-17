@@ -36,7 +36,7 @@
 	<setup makeEventHeadersAlphaNumeric="0"/>
 	<caf
 		realign="1"
-		realignArguments="--rescoreByIdentity --gapGamma 0.9 --diagonalExpansion 4 --splitMatrixBiggerThanThis 10 --constraintDiagonalTrim 0 --alignAmbiguityCharacters"
+		realignArguments="--rescoreByIdentity --matchGamma 0.9 --diagonalExpansion 4 --splitMatrixBiggerThanThis 10 --constraintDiagonalTrim 0 --alignAmbiguityCharacters"
 		chunkSize="2000000" 
 		compressFiles="1" 
 		overlapSize="10000" 
