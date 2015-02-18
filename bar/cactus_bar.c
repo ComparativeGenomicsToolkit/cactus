@@ -68,7 +68,7 @@ void usage() {
 
     fprintf(stderr, "-K --minimumSizeToRescue : Unaligned but covered segments must be at least this size to be rescued.\n");
 
-    fprintf(stderr, "-L --minimumCoverageToRescue : Unaligned segments must have at least this proportion of their bases covered by an outgroup to be rescued.\n");
+    fprintf(stderr, "-M --minimumCoverageToRescue : Unaligned segments must have at least this proportion of their bases covered by an outgroup to be rescued.\n");
 
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
@@ -139,12 +139,12 @@ int main(int argc, char *argv[]) {
                         required_argument, 0, 'I' },
                         {"ingroupCoverageFile", required_argument, 0, 'J'},
                         {"minimumSizeToRescue", required_argument, 0, 'K'},
-                        {"minimumCoverageToRescue", required_argument, 0, 'L'},
+                        {"minimumCoverageToRescue", required_argument, 0, 'M'},
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:b:hi:j:kl:o:p:q:r:t:u:wy:A:B:D:E:FGI:L:", long_options, &option_index);
+        int key = getopt_long(argc, argv, "a:b:hi:j:kl:o:p:q:r:t:u:wy:A:B:D:E:FGI:J:K:L:M:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -255,7 +255,7 @@ int main(int argc, char *argv[]) {
                 i = sscanf(optarg, "%" PRIi64, &minimumSizeToRescue);
                 assert(i == 1);
                 break;
-            case 'L':
+            case 'M':
                 i = sscanf(optarg, "%lf", &minimumCoverageToRescue);
                 assert(i == 1);
                 break;

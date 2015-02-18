@@ -1,5 +1,5 @@
 # order is important, libraries first
-modules = api setup blastLib caf bar blast normalisation phylogeny reference faces check pipeline progressive preprocessor hal dbTest externalTools
+modules = api setup blastLib caf bar blast normalisation phylogeny reference faces check pipeline progressive preprocessor hal dbTest
 
 .PHONY: all %.all clean %.clean
 
@@ -13,6 +13,6 @@ clean:  ${modules:%=clean.%}
 
 clean.%:
 	cd $* && make clean
-	
+
 test: all
 	python allTests.py

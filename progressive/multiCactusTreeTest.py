@@ -31,10 +31,10 @@ class TestCase(unittest.TestCase):
         parser = NXNewick()
         mcTree1 = MultiCactusTree(parser.parseString(self.tree1, addImpliedRoots = False))
         tree1String = NXNewick().writeString(mcTree1)  
-        assert tree1String == self.tree1
+        self.assertEqual(tree1String, self.tree1)
         mcTree2 = MultiCactusTree(parser.parseString(self.tree2, addImpliedRoots = False), subtreeSize = 3)
         tree2String = NXNewick().writeString(mcTree2)
-        assert tree2String == self.tree2
+        self.assertEqual(tree2String, self.tree2)
         
     def testSubtrees(self):
         roots1 = ["Anc0", "Anc1", "Anc2", "Anc3", "Anc4", "Anc5", "Anc6", "Anc7"]
@@ -55,17 +55,18 @@ class TestCase(unittest.TestCase):
             assert sorted(roots) == sorted(trueRoots[i])
             subtree = trees[i].extractSubTree(ancs[i])
             subtree = NXNewick().writeString(subtree)
-            assert subtree == trueSubtrees[i]        
+            self.assertEqual(subtree, trueSubtrees[i])
     
     def testAddSelf(self):
         trueSelf = '((((((COW:0.06)COW_self:0.06,(PIG:0.06)PIG_self:0.06)Anc2:0.104728)Anc2_self:0.104728,(((CAT:0.07)CAT_self:0.07,(DOG:0.07)DOG_self:0.07)Anc3:0.087381)Anc3_self:0.087381)Anc1:0.04)Anc1_self:0.04,(((((RAT:0.081244)RAT_self:0.081244,(MOUSE:0.072818)MOUSE_self:0.072818)Anc5:0.260342)Anc5_self:0.260342,(((BABOON:0.044568)BABOON_self:0.044568,(((CHIMP:0.009727)CHIMP_self:0.009727,(HUMAN:0.006969)HUMAN_self:0.006969)Anc7:0.025291)Anc7_self:0.025291)Anc6:0.11)Anc6_self:0.11)Anc4:0.02326)Anc4_self:0.02326)Anc0;'
+        print NXNewick().writeString(self.mcTree1)
         tree = MultiCactusTree(self.mcTree1)
         tree.nameUnlabeledInternalNodes()
         tree.computeSubtreeRoots()
         tree.addSelfEdges()
         treeString = NXNewick().writeString(tree)
-        assert treeString == trueSelf
-    
+        self.assertEqual(treeString, trueSelf)
+
     def testAddOutgroup(self):
         trueOg = '((((HUMAN:0.006969,CHIMP:0.009727)Anc7:0.025291,BABOON:0.044568)Anc6:0.11,(MOUSE:0.072818,RAT:0.081244)Anc5:0.260342)Anc4:0.02326,((DOG:0.07,CAT:0.07)Anc3:0.087381,(PIG:0.06,COW:0.06)Anc2:0.104728)Anc1:0.04,outgroup:1.7)Anc0;'
         tree = MultiCactusTree(self.mcTree1)
@@ -73,7 +74,7 @@ class TestCase(unittest.TestCase):
         tree.computeSubtreeRoots()
         tree.addOutgroup("outgroup", 1.7)        
         treeString = NXNewick().writeString(tree)
-        assert treeString == trueOg
+        self.assertEqual(treeString, trueOg)
         
         trueLeafOg = "(A:1.1,outgroup:1.1);"
         leafTreeString = "A;"

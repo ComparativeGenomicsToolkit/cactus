@@ -5,12 +5,12 @@ libSources = impl/*.c
 libHeaders = inc/*.h
 libTests = tests/*.c
 #${libPath}/stCaf.a
-commonBarLibs =  ${libPath}/stCaf.a ${sonLibPath}/stPinchesAndCacti.a ${libPath}/cactusLib.a ${sonLibPath}/3EdgeConnected.a ${libPath}/cPecanLib.a  
+commonBarLibs =  ${libPath}/stCaf.a ${sonLibPath}/stPinchesAndCacti.a ${libPath}/cactusLib.a ${sonLibPath}/3EdgeConnected.a ${sonLibPath}/cPecanLib.a  
 stBarDependencies =  ${commonBarLibs} ${basicLibsDependencies}
 stBarLibs = ${commonBarLibs} ${basicLibs}
 
 all : ${libPath}/cactusBarLib.a ${binPath}/cactus_bar ${binPath}/cactus_barTests
- 
+
 clean : 
 	rm -f ${binPath}/cactus_barTests  ${libPath}/cactusBarLib.a
 
@@ -19,7 +19,7 @@ ${binPath}/cactus_bar : cactus_bar.c  ${libPath}/cactusBarLib.a ${stBarDependenc
 
 ${binPath}/cactus_barTests : ${libTests} tests/*.h ${libPath}/cactusBarLib.a ${stBarDependencies}
 	${cxx} ${cflags} -I inc -I${libPath} -Wno-error -o ${binPath}/cactus_barTests ${libTests} ${libPath}/cactusBarLib.a ${stBarLibs}
-	
+
 ${libPath}/cactusBarLib.a : ${libSources} ${libHeaders} ${stBarDependencies}
 	${cxx} ${cflags} -I inc -I ${libPath}/ -c ${libSources} 
 	ar rc cactusBarLib.a *.o
