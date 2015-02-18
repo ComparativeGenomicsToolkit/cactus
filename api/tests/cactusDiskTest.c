@@ -11,9 +11,8 @@ static stKVDatabaseConf *conf = NULL;
 
 static void cactusDiskTestTeardown() {
     if (cactusDisk != NULL) {
-        cactusDisk_destruct(cactusDisk);
+        testCommon_deleteTemporaryCactusDisk(cactusDisk);
         stKVDatabaseConf_destruct(conf);
-        testCommon_deleteTemporaryKVDatabase();
         cactusDisk = NULL;
     }
 }
