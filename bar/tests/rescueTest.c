@@ -115,8 +115,8 @@ static void test_rescueRandomSequences(CuTest *testCase) {
         threadIt = stPinchThreadSet_getIt(threadSet);
         while ((thread = stPinchThreadSetIt_getNext(&threadIt)) != NULL) {
             printf("rescued %" PRIi64 "\n", stPinchThread_getName(thread));
-            int64_t threadStart = stPinchThread_getStart(thread);
-            int64_t threadLen = stPinchThread_getLength(thread);
+            //int64_t threadStart = stPinchThread_getStart(thread);
+            //int64_t threadLen = stPinchThread_getLength(thread);
             bool *coverageArray = stHash_search(coveragesToRescue, thread);
             assert(coverageArray != NULL);
             bool *alreadyCovered = stHash_search(regionsAlreadyCovered, thread);
