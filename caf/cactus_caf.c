@@ -85,6 +85,7 @@ static void usage() {
     fprintf(stderr, "-P --referenceEventHeader : name of reference event (necessary for phylogeny estimation)\n");
     fprintf(stderr, "-Q --phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce : assume that this support value or greater means a very confident split, and that they will not be changed by the greedy split algorithm. Do all these very confident splits at once, to save a lot of computation time.\n");
     fprintf(stderr, "-R --numTreeBuildingThreads : Number of threads in the tree-building thread pool. Must be greater than 1. Default 2.\n");
+    fprintf(stderr, "-S --phylogeny : Run the tree-building code and split ancient homologies away.\n");
 }
 
 static int64_t *getInts(const char *string, int64_t *arrayLength) {
@@ -248,6 +249,7 @@ int main(int argc, char *argv[]) {
     char *realignArguments = "";
 
     //Parameters for removing ancient homologies
+    bool doPhylogeny = false;
     int64_t phylogenyNumTrees = 1;
     enum stCaf_RootingMethod phylogenyRootingMethod = BEST_RECON;
     enum stCaf_ScoringMethod phylogenyScoringMethod = COMBINED_LIKELIHOOD;
@@ -297,11 +299,12 @@ int main(int argc, char *argv[]) {
                         { "referenceEventHeader", required_argument, 0, 'P' },
                         { "phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce", required_argument, 0, 'Q' },
                         { "numTreeBuildingThreads", required_argument, 0, 'R' },
+                        { "phylogeny", no_argument, 0, 'S' },
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:BC:D:E:F:G:HI:J:K:LM:N:O:P:Q:R:", long_options, &option_index);
+        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:BC:D:E:F:G:HI:J:K:LM:N:O:P:Q:R:S", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -465,6 +468,9 @@ int main(int argc, char *argv[]) {
                 k = sscanf(optarg, "%" PRIi64, &numTreeBuildingThreads);
                 assert(k == 1);
                 break;
+            case 'S':
+                doPhylogeny = true;
+                break;
             default:
                 usage();
                 return 1;
@@ -623,7 +629,7 @@ int main(int argc, char *argv[]) {
             // partition the homologies between the ingroups sequences
             // into those that occur before the speciation with the
             // outgroup and those which occur late.
-            if (stSet_size(outgroupThreads) > 0) {
+            if (stSet_size(outgroupThreads) > 0 && doPhylogeny) {
                 st_logDebug("Starting to build trees and partition ingroup homologies\n");
                 stHash *threadStrings = stCaf_getThreadStrings(flower, threadSet);
                 st_logDebug("Got sets of thread strings and set of threads that are outgroups\n");

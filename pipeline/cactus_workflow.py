@@ -571,7 +571,8 @@ class CactusCafWrapper(CactusRecursionTarget):
                           phylogenyCostPerLossPerBase=self.getOptionalPhaseAttrib("phylogenyCostPerLossPerBase"),
                           referenceEventHeader=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "reference"), "reference"),
                           phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce=self.getOptionalPhaseAttrib("phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce"),
-                          numTreeBuildingThreads=self.getOptionalPhaseAttrib("numTreeBuildingThreads"))
+                          numTreeBuildingThreads=self.getOptionalPhaseAttrib("numTreeBuildingThreads"),
+                          doPhylogeny=self.getOptionalPhaseAttrib("doPhylogeny", bool, True))
         for message in messages:
             self.logToMaster(message)
     
