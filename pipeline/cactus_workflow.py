@@ -512,7 +512,10 @@ def getMaximalDistanceBetweenLeaves(nxTree, rootId):
     lengths = []
     getPathLengths(nxTree, rootId, lengths, 0.0)
     lengths.sort()
-    return lengths[-2] + lengths[-1]
+    if len(lengths) >= 2:
+        return lengths[-2] + lengths[-1]
+    else:
+        return lengths[0]
 
 class CactusCafWrapper(CactusRecursionTarget):
     """Runs cactus_core upon a set of flowers and no alignment file.

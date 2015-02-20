@@ -107,8 +107,7 @@ class MultiCactusTree(NXTree):
         while graphWasModified:
             graphWasModified = False
             for node in nx.nodes(cpy):
-                if cpy.out_degree(node) == 1:
-                    assert cpy.in_degree(node) == 1
+                if cpy.out_degree(node) == 1 and cpy.in_degree(node) == 1:
                     if node not in nodeIds:
                         # This is a spurious node in the species tree,
                         # we can and should remove
