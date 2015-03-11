@@ -184,7 +184,8 @@ def __readStatusFromSwitchFile(dbElem, serverPidAsList, killSwitchPath):
     try:
         assert isinstance(serverPidAsList, list)
         assert len(serverPidAsList) == 0
-        assert os.path.isfile(killSwitchPath)
+        if not os.path.isfile(killSwitchPath):
+            return False
         switchFile = open(killSwitchPath, "r")
         host = switchFile.readline().strip()
         port = switchFile.readline().strip()
