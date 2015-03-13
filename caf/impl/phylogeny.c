@@ -117,7 +117,7 @@ static stList *getOutgroupThreads(stPinchBlock *block, stSet *outgroupThreads) {
  * Splits the block using the given partition into a set of new blocks.
  */
 void stCaf_splitBlock(stPinchBlock *block, stList *partitions, bool allowSingleDegreeBlocks) {
-    assert(stList_length(partitions) > 0);
+    assert(stList_length(partitions) > 0); 
     if(stList_length(partitions) == 1) {
         return; //Nothing to do.
     }
@@ -1223,7 +1223,7 @@ static void splitUsingHighlyConfidentBranches(stCaf_SplitBranch *splitBranch,
                                               stThreadPool *treeBuildingPool,
                                               stHash *blocksToTrees) {
     stSet *blocksToUpdate = stSet_construct();
-    while (splitBranch != NULL && splitBranch->support >= constants->params->doSplitsWithSupportHigherThanThisAllAtOnce) {
+    while (splitBranch != NULL && splitBranch->support > constants->params->doSplitsWithSupportHigherThanThisAllAtOnce) {
         totalSupport += splitBranch->support;
         stPinchBlock *block = splitBranch->block;
         splitBlockOnSplitBranch(block, splitBranch, splitBranches,
@@ -1340,7 +1340,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
     // information is modified.
     stCaf_SplitBranch *splitBranch = stSortedSet_getLast(splitBranches);
     while (splitBranch != NULL) {
-        if (splitBranch->support >= params->doSplitsWithSupportHigherThanThisAllAtOnce) {
+        if (splitBranch->support > params->doSplitsWithSupportHigherThanThisAllAtOnce) {
             // This split branch is well-supported, and likely there
             // are others that are well-supported as well. These are
             // unlikely to be improved by more accurate breakpoint
