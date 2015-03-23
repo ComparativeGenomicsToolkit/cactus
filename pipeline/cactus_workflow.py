@@ -847,6 +847,7 @@ class CactusReferenceWrapper(CactusRecursionTarget):
                        referenceEventString=self.getOptionalPhaseAttrib("reference"),
                        useSimulatedAnnealing=self.getOptionalPhaseAttrib("useSimulatedAnnealing", bool),
                        theta=self.getOptionalPhaseAttrib("theta", float),
+                       phi=self.getOptionalPhaseAttrib("phi", float),
                        maxWalkForCalculatingZ=self.getOptionalPhaseAttrib("maxWalkForCalculatingZ", int),
                        ignoreUnalignedGaps=self.getOptionalPhaseAttrib("ignoreUnalignedGaps", bool),
                        wiggle=self.getOptionalPhaseAttrib("wiggle", float),
