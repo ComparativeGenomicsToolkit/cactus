@@ -278,6 +278,7 @@ int main(int argc, char *argv[]) {
     const char *referenceEventHeader = NULL;
     double phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce = 1.0;
     int64_t numTreeBuildingThreads = 2;
+    bool removeLargestBlock = false;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -313,11 +314,12 @@ int main(int argc, char *argv[]) {
                         { "phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce", required_argument, 0, 'Q' },
                         { "numTreeBuildingThreads", required_argument, 0, 'R' },
                         { "phylogeny", no_argument, 0, 'S' },
+                        { "removeLargestBlock", no_argument, 0, 'T' },
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:BC:D:E:F:G:HI:J:K:LM:N:O:P:Q:R:S", long_options, &option_index);
+        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:BC:D:E:F:G:HI:J:K:LM:N:O:P:Q:R:ST:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -484,6 +486,9 @@ int main(int argc, char *argv[]) {
             case 'S':
                 doPhylogeny = true;
                 break;
+            case 'T':
+                removeLargestBlock = true;
+                break;
             default:
                 usage();
                 return 1;
@@ -628,7 +633,24 @@ int main(int argc, char *argv[]) {
                 if (debugFileName != NULL) {
                     dumpBlockInfo(threadSet, stString_print("%s-blockStats-preMelting", debugFileName));
                 }
-                
+
+                // FIXME: super sloppy, just to see if getting rid of
+                // the megablocks makes a difference.
+                if (removeLargestBlock) {
+                    stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
+                    stPinchBlock *block;
+                    int64_t largestBlockDegree = 0;
+                    stPinchBlock *largestBlock = NULL;
+                    while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
+                        if (stPinchBlock_getDegree(block) > largestBlockDegree) {
+                            largestBlockDegree = stPinchBlock_getDegree(block);
+                            largestBlock = block;
+                        }
+                    }
+                    if (largestBlock != NULL) {
+                        stPinchBlock_destruct(largestBlock);
+                    }
+                }
 
                 //Do the melting rounds
                 for (int64_t meltingRound = 0; meltingRound < meltingRoundsLength; meltingRound++) {
@@ -642,6 +664,10 @@ int main(int argc, char *argv[]) {
                 stCaf_melt(flower, threadSet, NULL, 0, minimumChainLength, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds);
                 //This does the filtering of blocks that do not have the required species/tree-coverage/degree.
                 stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0, 0, INT64_MAX);
+            }
+
+            if (debugFileName != NULL) {
+                dumpBlockInfo(threadSet, stString_print("%s-blockStats-postMelting", debugFileName));
             }
 
             // Build a tree for each block, then use each tree to

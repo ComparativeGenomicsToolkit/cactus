@@ -223,7 +223,8 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
                  referenceEventHeader=None,
                  phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce=None,
                  numTreeBuildingThreads=None,
-                 doPhylogeny=None):
+                 doPhylogeny=None,
+                 removeLargestBlock=None):
     # remove annoying carriage returns in caf command line.
     cactusDiskDatabaseString = cactusDiskDatabaseString.replace('\n', '')
 
@@ -261,17 +262,18 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
     phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce = nameValue("phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce", phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce)
     numTreeBuildingThreads = nameValue("numTreeBuildingThreads", numTreeBuildingThreads)
     doPhylogeny = nameValue("phylogeny", doPhylogeny, bool)
+    removeLargestBlock = nameValue("removeLargestBlock", removeLargestBlock, bool)
 
     minLengthForChromosome = nameValue("minLengthForChromosome", minLengthForChromosome, int)
     proportionOfUnalignedBasesForNewChromosome = nameValue("proportionOfUnalignedBasesForNewChromosome", proportionOfUnalignedBasesForNewChromosome, float)
     maximumMedianSequenceLengthBetweenLinkedEnds = nameValue("maximumMedianSequenceLengthBetweenLinkedEnds", maximumMedianSequenceLengthBetweenLinkedEnds, int)
     
-    command = "cactus_caf --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
+    command = "cactus_caf --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
     (cactusDiskDatabaseString, logLevel, alignments, annealingRounds, deannealingRounds, 
      trim, minimumTreeCoverage, blockTrim, 
      minimumBlockDegree, minimumIngroupDegree, minimumOutgroupDegree,  
      singleCopyIngroup, singleCopyOutgroup, lastzArguments, minimumSequenceLengthForBlast, maxAdjacencyComponentSizeRatio, constraints,
-     minLengthForChromosome, proportionOfUnalignedBasesForNewChromosome, maximumMedianSequenceLengthBetweenLinkedEnds, realign, realignArguments, phylogenyNumTrees, phylogenyRootingMethod, phylogenyScoringMethod, phylogenyBreakpointScalingFactor, phylogenySkipSingleCopyBlocks, phylogenyMaxBaseDistance, phylogenyMaxBlockDistance, phylogenyDebugFile, phylogenyKeepSingleDegreeBlocks, phylogenyTreeBuildingMethod, phylogenyCostPerDupPerBase, phylogenyCostPerLossPerBase, referenceEventHeader, phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce, numTreeBuildingThreads, doPhylogeny)
+     minLengthForChromosome, proportionOfUnalignedBasesForNewChromosome, maximumMedianSequenceLengthBetweenLinkedEnds, realign, realignArguments, phylogenyNumTrees, phylogenyRootingMethod, phylogenyScoringMethod, phylogenyBreakpointScalingFactor, phylogenySkipSingleCopyBlocks, phylogenyMaxBaseDistance, phylogenyMaxBlockDistance, phylogenyDebugFile, phylogenyKeepSingleDegreeBlocks, phylogenyTreeBuildingMethod, phylogenyCostPerDupPerBase, phylogenyCostPerLossPerBase, referenceEventHeader, phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce, numTreeBuildingThreads, doPhylogeny, removeLargestBlock)
     masterMessages = popenCatch(command, stdinString=flowerNames)
     logger.info("Ran cactus_core okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]

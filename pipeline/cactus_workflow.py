@@ -575,7 +575,8 @@ class CactusCafWrapper(CactusRecursionTarget):
                           referenceEventHeader=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "reference"), "reference"),
                           phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce=self.getOptionalPhaseAttrib("phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce"),
                           numTreeBuildingThreads=self.getOptionalPhaseAttrib("numTreeBuildingThreads"),
-                          doPhylogeny=self.getOptionalPhaseAttrib("doPhylogeny", bool, True))
+                          doPhylogeny=self.getOptionalPhaseAttrib("doPhylogeny", bool, True),
+                          removeLargestBlock=self.getOptionalPhaseAttrib("removeLargestBlock", bool))
         for message in messages:
             self.logToMaster(message)
     
