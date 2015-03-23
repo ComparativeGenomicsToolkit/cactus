@@ -173,7 +173,7 @@ static int64_t calculateZP2(Cap *cap, stHash *endsToNodes) {
 }
 
 static int64_t getBranchMultiplicitiesP(Event *pEvent, Event *event,
-        stHash *branchesToMultiplicity, stSet *chosenEvents) {
+        stHash *branchesToMultiplicity, stHash *numCapsPerEvent) {
     /*
      * See getBranchMultiplicities.
      */
@@ -182,14 +182,15 @@ static int64_t getBranchMultiplicitiesP(Event *pEvent, Event *event,
         Event *nEvent = event_getChild(event, i);
         assert(nEvent != NULL);
         if(nEvent != pEvent) { //Don't go backwards towards the reference event.
-            multiplicity += getBranchMultiplicitiesP(event, nEvent, branchesToMultiplicity, chosenEvents);
+            multiplicity += getBranchMultiplicitiesP(event, nEvent, branchesToMultiplicity, numCapsPerEvent);
         }
     }
     if(event_getParent(event) != pEvent && event_getParent(event) != NULL) { //Case we're traversing up the tree from the reference event.
-        multiplicity += getBranchMultiplicitiesP(event, event_getParent(event), branchesToMultiplicity, chosenEvents);
+        multiplicity += getBranchMultiplicitiesP(event, event_getParent(event), branchesToMultiplicity, numCapsPerEvent);
     }
-    if(stSet_search(chosenEvents, event) != NULL) {
-        multiplicity++;
+    if(stHash_search(numCapsPerEvent, event) != NULL) {
+        stIntTuple *numCaps = stHash_search(numCapsPerEvent, event);
+        multiplicity += stIntTuple_get(numCaps, 0);
     }
     if(pEvent != NULL) {
         stHash_insert(branchesToMultiplicity, event, stIntTuple_construct1(multiplicity));
@@ -197,20 +198,21 @@ static int64_t getBranchMultiplicitiesP(Event *pEvent, Event *event,
     return multiplicity;
 }
 
-stHash *getBranchMultiplicities(Event *referenceEvent, stSet *chosenEvents) {
+stHash *getBranchMultiplicities(Event *referenceEvent, stHash *numCapsPerEvent) {
     /*
      * The multiplicity of a branch is the number of simple paths that traverse it from chosen events to the given reference event.
      * Returns a map of events to multiplicities, where each event represents the branch incident with it on the path to the reference event.
      */
     stHash *branchesToMultiplicity = stHash_construct2(NULL, (void (*)(void *))stIntTuple_destruct);
-    getBranchMultiplicitiesP(NULL, referenceEvent, branchesToMultiplicity, chosenEvents);
+    getBranchMultiplicitiesP(NULL, referenceEvent, branchesToMultiplicity, numCapsPerEvent);
     assert(stHash_size(branchesToMultiplicity) == eventTree_getEventNumber(event_getEventTree(referenceEvent))-1); //Excludes the reference event.
     return branchesToMultiplicity;
 }
 
 static void getEventWeightingP(Event *pEvent, Event *event,
         double pathLength, double adjustedPathLength,
-        stHash *branchesToMultiplicity, stHash *eventToWeights, double phi, stSet *chosenEvents) {
+        stHash *branchesToMultiplicity, stHash *eventToWeights, double phi,
+        stHash *numCapsPerEvent) {
     /*
      * See getEventWeighting.
      */
@@ -226,7 +228,7 @@ static void getEventWeightingP(Event *pEvent, Event *event,
                                    pathLength + event_getBranchLength(nEvent),
                                    adjustedPathLength + event_getBranchLength(nEvent)/multiplicity,
                                    branchesToMultiplicity, eventToWeights, phi,
-                                   chosenEvents);
+                                   numCapsPerEvent);
             }
         }
     }
@@ -238,22 +240,22 @@ static void getEventWeightingP(Event *pEvent, Event *event,
             getEventWeightingP(event, nEvent,
                     pathLength + event_getBranchLength(event),
                     adjustedPathLength + event_getBranchLength(event)/multiplicity,
-                    branchesToMultiplicity, eventToWeights, phi, chosenEvents);
+                    branchesToMultiplicity, eventToWeights, phi, numCapsPerEvent);
         }
     }
-    if(stSet_search(chosenEvents, event) != NULL) { //Defines a leaf event that is not the reference, which we need to give a score for
+    if (stHash_search(numCapsPerEvent, event) != NULL) { //Defines a leaf event that is not the reference, which we need to give a score for
         assert(adjustedPathLength <= pathLength);
         assert(exp(-phi * pathLength) <= 1.0);
         assert(exp(-phi * pathLength) >= 0.0);
         double score = exp(-phi * pathLength) * adjustedPathLength/pathLength;
         assert(score <= 1.0);
         assert(score >= 0.0);
-        // fprintf(stdout, "Chose weight %lf for event %s (multiplicity %" PRIi64 "). Adj path length %lf, path length %lf.\n", score, event_getHeader(event), stIntTuple_get(stHash_search(branchesToMultiplicity, event), 0), adjustedPathLength, pathLength);
+        // fprintf(stdout, "Chose weight %lf for event %s (multiplicity %" PRIi64 "). Adj path length %lf, path length %lf, phi %lf.\n", score, event_getHeader(event), stIntTuple_get(stHash_search(branchesToMultiplicity, event), 0), adjustedPathLength, pathLength, phi);
         stHash_insert(eventToWeights, event, stDoubleTuple_construct(1, score));
     }
 }
 
-stHash *getEventWeighting(Event *referenceEvent, double phi, stSet *chosenEvents) {
+stHash *getEventWeighting(Event *referenceEvent, double phi, stHash *numCapsPerEvent) {
     /*
      * Weights events by how informative they are for inferring the reference event.
      * Accounts for both distance and the sharing of branches. Returns a hash of chosen events to weights.
@@ -269,12 +271,11 @@ stHash *getEventWeighting(Event *referenceEvent, double phi, stSet *chosenEvents
     stHash *eventToWeightHash = stHash_construct2(NULL, (void (*)(void *))stDoubleTuple_destruct);
 
     //Calculate the multiplicity (s function) of branches.
-    stHash *branchesToMultiplicity = getBranchMultiplicities(referenceEvent, chosenEvents);
+    stHash *branchesToMultiplicity = getBranchMultiplicities(referenceEvent, numCapsPerEvent);
 
     //Calculate total weights
-    getEventWeightingP(NULL, referenceEvent, 0.0, 0.0, branchesToMultiplicity, eventToWeightHash, phi, chosenEvents);
+    getEventWeightingP(NULL, referenceEvent, 0.0, 0.0, branchesToMultiplicity, eventToWeightHash, phi, numCapsPerEvent);
     stHash_destruct(branchesToMultiplicity);
-    assert(stSet_size(chosenEvents) == stHash_size(eventToWeightHash));
 
     return eventToWeightHash;
 }
@@ -293,13 +294,37 @@ static stSet *getEventsWithSequences(Flower *flower) {
     return seqSet;
 }
 
+static double getWeightForEventOnEnd(End *end, Event *referenceEvent, double phi,
+                                     Event *event) {
+    stHash *numCapsPerEvent = stHash_construct2(NULL, (void (*)(void *)) stIntTuple_destruct);
+    End_InstanceIterator *endIt = end_getInstanceIterator(end);
+    Cap *cap;
+    while ((cap = end_getNext(endIt)) != NULL) {
+        Event *event = cap_getEvent(cap);
+        int64_t numCaps = 1;
+        stIntTuple *prevNumCaps = stHash_search(numCapsPerEvent, event);
+        if (prevNumCaps != NULL) {
+            numCaps += stIntTuple_get(prevNumCaps, 0);
+        }
+        stHash_insert(numCapsPerEvent, event, stIntTuple_construct1(numCaps));
+    }
+    end_destructInstanceIterator(endIt);
+    stHash *weighting = getEventWeighting(referenceEvent, phi, numCapsPerEvent);
+    stHash_destruct(numCapsPerEvent);
+    stDoubleTuple *weightTuple = stHash_search(weighting, event);
+    double weight = stDoubleTuple_getPosition(weightTuple, 0);
+    stHash_destruct(weighting);
+    return weight;
+}
+
 static double calculateZScoreWeightedAdapterFn(Cap *_5Cap, int64_t length5Segment, int64_t length3Segment, int64_t gap, void *extraArgs) {
     double theta = *((double *)((void **) extraArgs)[0]);
     assert(theta >= 0.0);
     assert(cap_getEvent(_5Cap) != NULL);
-    assert(stHash_search(((void **) extraArgs)[1], cap_getEvent(_5Cap)) != NULL);
-    assert(stDoubleTuple_length(stHash_search(((void **) extraArgs)[1], cap_getEvent(_5Cap))) == 1);
-    double weight = stDoubleTuple_getPosition(stHash_search(((void **) extraArgs)[1], cap_getEvent(_5Cap)), 0);
+    double phi = *((double *)((void **) extraArgs)[1]);
+    Event *referenceEvent = ((void **) extraArgs)[2];
+    End *end = cap_getEnd(_5Cap);
+    double weight = getWeightForEventOnEnd(end, referenceEvent, phi, cap_getEvent(_5Cap));
     return calculateZScore(length5Segment, length3Segment, gap, theta) * weight;
 }
 
@@ -603,13 +628,9 @@ static void getStubEdgesInTopLevelFlower(reference *ref, Flower *flower, stHash 
      */
     stHash *stubEndsToNodes = makeStubEdgesToNodesHash(stubEnds, endsToNodes);
     double theta = 0.0;
-    stSet *chosenEvents = getEventsWithSequences(flower);
-    stHash *eventWeighting = getEventWeighting(referenceEvent, phi, chosenEvents);
-    stSet_destruct(chosenEvents);
-    void *zArgs[2] = { &theta, eventWeighting };
+    void *zArgs[3] = { &theta, &phi, referenceEvent };
     refAdjList *stubAL = calculateZ(flower, stubEndsToNodes, nodeNumber,
     INT64_MAX, 1, calculateZScoreWeightedAdapterFn, zArgs);
-    stHash_destruct(eventWeighting);
     st_logDebug(
             "Building a matching for %" PRIi64 " stub nodes in the top level problem from %" PRIi64 " total stubs of which %" PRIi64 " attached , %" PRIi64 " total ends, %" PRIi64 " chains, %" PRIi64 " blocks %" PRIi64 " groups and %" PRIi64 " sequences\n",
             stList_length(stubEnds), flower_getStubEndNumber(flower), flower_getAttachedStubEndNumber(flower), flower_getEndNumber(flower),
@@ -999,7 +1020,6 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     /*
      * Implements a greedy algorithm and greedy update sampler to find a solution to the adjacency problem for a net.
      */
-
     /*
      * Get the reference event
      */
@@ -1056,15 +1076,11 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     /*
      * Calculate z functions, using phylogenetic weighting.
      */
-    stSet *chosenEvents = getEventsWithSequences(flower);
-    stHash *eventWeighting = getEventWeighting(referenceEvent, phi, chosenEvents);
-    stSet_destruct(chosenEvents);
-    void *zArgs[2] = { &theta, eventWeighting };
+    void *zArgs[3] = { &theta, &phi, referenceEvent };
     refAdjList *aL = calculateZ(flower, endsToNodes, nodeNumber, maxWalkForCalculatingZ, ignoreUnalignedGaps, calculateZScoreWeightedAdapterFn, zArgs);
     int64_t directTheta = 0.0;
     zArgs[0] = &directTheta;
     refAdjList *dAL = calculateZ(flower, endsToNodes, nodeNumber, 1, ignoreUnalignedGaps, calculateZScoreWeightedAdapterFn, zArgs); //Gets set of direct of direct adjacencies
-    stHash_destruct(eventWeighting);
 
     /*
      * Check the edges and nodes before starting to calculate the matching.
