@@ -88,6 +88,19 @@ static void usage() {
     fprintf(stderr, "-S --phylogeny : Run the tree-building code and split ancient homologies away.\n");
 }
 
+static void dumpBlockInfo(stPinchThreadSet *threadSet, const char *fileName) {
+    stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
+    FILE *file = fopen(fileName, "w");
+    if (file == NULL) {
+        st_errnoAbort("couldn't open debug file");
+    }
+    stPinchBlock *block;
+    while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
+        fprintf(file, "%" PRIi64 "\t%" PRIi64 "\n", stPinchBlock_getDegree(block), stPinchBlock_getLength(block));
+    }
+    fclose(file);
+}
+
 static int64_t *getInts(const char *string, int64_t *arrayLength) {
     int64_t *iA = st_malloc(sizeof(int64_t) * strlen(string));
     char *cA = stString_copy(string);
@@ -611,6 +624,12 @@ int main(int argc, char *argv[]) {
                     stCaf_annealBetweenAdjacencyComponents(threadSet, pinchIterator, filterFn);
                 }
 
+                // Dump the block degree and length distribution to a file
+                if (debugFileName != NULL) {
+                    dumpBlockInfo(threadSet, stString_print("%s-blockStats-preMelting", debugFileName));
+                }
+                
+
                 //Do the melting rounds
                 for (int64_t meltingRound = 0; meltingRound < meltingRoundsLength; meltingRound++) {
                     int64_t minimumChainLengthForMeltingRound = meltingRounds[meltingRound];
@@ -634,12 +653,12 @@ int main(int argc, char *argv[]) {
                 stHash *threadStrings = stCaf_getThreadStrings(flower, threadSet);
                 st_logDebug("Got sets of thread strings and set of threads that are outgroups\n");
                 FILE *debugFile = NULL;
-                if (debugFileName != NULL) {
-                    debugFile = fopen(debugFileName, "w");
-                    if (debugFile == NULL) {
-                        st_errnoAbort("could not open debug file");
-                    }
-                }
+                /* if (debugFileName != NULL) { */
+                /*     debugFile = fopen(debugFileName, "w"); */
+                /*     if (debugFile == NULL) { */
+                /*         st_errnoAbort("could not open debug file"); */
+                /*     } */
+                /* } */
                 stCaf_PhylogenyParameters params;
                 params.treeBuildingMethod = phylogenyTreeBuildingMethod;
                 params.rootingMethod = phylogenyRootingMethod;
