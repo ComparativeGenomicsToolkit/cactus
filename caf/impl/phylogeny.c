@@ -341,6 +341,7 @@ static stTree *buildTree(stList *featureColumns,
     stMatrix *breakpointMatrix = stPinchPhylogeny_constructMatrixFromDiffs(breakpointDiffs, bootstrap, seed);
     
     //Combine the matrices into distance matrices
+    stMatrix_scale(breakpointMatrix, params->nucleotideScalingFactor, 0.0);
     stMatrix_scale(breakpointMatrix, params->breakpointScalingFactor, 0.0);
     stMatrix *combinedMatrix = stMatrix_add(substitutionMatrix, breakpointMatrix);
     stMatrix *distanceMatrix = stPinchPhylogeny_getSymmetricDistanceMatrix(combinedMatrix);

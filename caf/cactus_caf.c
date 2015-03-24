@@ -266,7 +266,7 @@ int main(int argc, char *argv[]) {
     int64_t phylogenyNumTrees = 1;
     enum stCaf_RootingMethod phylogenyRootingMethod = BEST_RECON;
     enum stCaf_ScoringMethod phylogenyScoringMethod = COMBINED_LIKELIHOOD;
-    double breakpointScalingFactor = 0.0;
+    double breakpointScalingFactor = 1.0;
     bool phylogenySkipSingleCopyBlocks = 0;
     int64_t phylogenyMaxBaseDistance = 1000;
     int64_t phylogenyMaxBlockDistance = 100;
@@ -279,6 +279,7 @@ int main(int argc, char *argv[]) {
     double phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce = 1.0;
     int64_t numTreeBuildingThreads = 2;
     bool removeLargestBlock = false;
+    double nucleotideScalingFactor = 1.0;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -315,11 +316,12 @@ int main(int argc, char *argv[]) {
                         { "numTreeBuildingThreads", required_argument, 0, 'R' },
                         { "phylogeny", no_argument, 0, 'S' },
                         { "removeLargestBlock", no_argument, 0, 'T' },
+                        { "phylogenyNucleotideScalingFactor", required_argument, 0, 'U' },
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:BC:D:E:F:G:HI:J:K:LM:N:O:P:Q:R:ST:", long_options, &option_index);
+        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:BC:D:E:F:G:HI:J:K:LM:N:O:P:Q:R:ST:U:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -488,6 +490,10 @@ int main(int argc, char *argv[]) {
                 break;
             case 'T':
                 removeLargestBlock = true;
+                break;
+            case 'U':
+                k = sscanf(optarg, "%lf", &nucleotideScalingFactor);
+                assert(k == 1);
                 break;
             default:
                 usage();
@@ -690,6 +696,7 @@ int main(int argc, char *argv[]) {
                 params.rootingMethod = phylogenyRootingMethod;
                 params.scoringMethod = phylogenyScoringMethod;
                 params.breakpointScalingFactor = breakpointScalingFactor;
+                params.nucleotideScalingFactor = nucleotideScalingFactor;
                 params.skipSingleCopyBlocks = phylogenySkipSingleCopyBlocks;
                 params.keepSingleDegreeBlocks = phylogenyKeepSingleDegreeBlocks;
                 params.costPerDupPerBase = phylogenyCostPerDupPerBase;

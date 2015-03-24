@@ -70,6 +70,9 @@ typedef struct {
     // information, but just scales the raw breakpoint
     // similarities/differences.
     double breakpointScalingFactor;
+    // The amount to weight the nucleotide information in the graph
+    // by.
+    double nucleotideScalingFactor;
     // Skip building trees for single-copy blocks: blocks that have at
     // most 1 segment per species.
     bool skipSingleCopyBlocks;

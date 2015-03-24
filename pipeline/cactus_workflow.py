@@ -576,7 +576,8 @@ class CactusCafWrapper(CactusRecursionTarget):
                           phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce=self.getOptionalPhaseAttrib("phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce"),
                           numTreeBuildingThreads=self.getOptionalPhaseAttrib("numTreeBuildingThreads"),
                           doPhylogeny=self.getOptionalPhaseAttrib("doPhylogeny", bool, True),
-                          removeLargestBlock=self.getOptionalPhaseAttrib("removeLargestBlock", bool))
+                          removeLargestBlock=self.getOptionalPhaseAttrib("removeLargestBlock", bool),
+                          phylogenyNucleotideScalingFactor=self.getOptionalPhaseAttrib("phylogenyNucleotideScalingFactor"))
         for message in messages:
             self.logToMaster(message)
     
