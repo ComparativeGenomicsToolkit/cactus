@@ -633,17 +633,23 @@ static int64_t countBasesBetweenSingleDegreeBlocks(stPinchThreadSet *threadSet) 
 int stCaf_SplitBranch_cmp(stCaf_SplitBranch *branch1,
                           stCaf_SplitBranch *branch2) {
     if (branch1->support > branch2->support) {
-        return 2;
+        return 3;
     } else if (branch1->support == branch2->support) {
-        if (branch1->child == branch2->child) {
-            return 0;
-        } else if  (branch1->child > branch2->child) {
-            return 1;
+        if (stTree_getBranchLength(branch1->child) > stTree_getBranchLength(branch2->child)) {
+            return 2;
+        } else if (stTree_getBranchLength(branch1->child) == stTree_getBranchLength(branch2->child)) {
+            if (branch1->child == branch2->child) {
+                return 0;
+            } else if  (branch1->child > branch2->child) {
+                return 1;
+            } else {
+                return -1;
+            }
         } else {
-            return -1;
+            return -2;
         }
     } else {
-        return -2;
+        return -3;
     }
 }
 
@@ -672,8 +678,7 @@ void stCaf_findSplitBranches(stPinchBlock *block, stTree *tree,
         if (stSet_search(speciesToSplitOn, parentReconInfo->species)) {
             if (parentReconInfo->event == DUPLICATION) {
                 // Found a split branch.
-                stPhylogenyInfo *info = stTree_getClientData(tree);
-                stCaf_SplitBranch *splitBranch = stCaf_SplitBranch_construct(tree, block, info->index->bootstrapSupport);
+                stCaf_SplitBranch *splitBranch = stCaf_SplitBranch_construct(tree, block, parentInfo->index->bootstrapSupport);
                 stSortedSet_insert(splitBranches, splitBranch);
             }
         } else {
@@ -1138,6 +1143,7 @@ void splitBlockOnSplitBranch(stPinchBlock *block,
     // Finally, add any blocks that could have been affected by the
     // breakpoint information to the blocksToUpdate set.
     if (blockBelowBranch != NULL) {
+        stSet_insert(blocksToUpdate, blockBelowBranch);
         addContextualBlocksToSet(blockBelowBranch,
                                  constants->params->maxBaseDistance,
                                  constants->params->maxBlockDistance,
@@ -1145,6 +1151,7 @@ void splitBlockOnSplitBranch(stPinchBlock *block,
                                  blocksToUpdate);
     }
     if (blockNotBelowBranch != NULL) {
+        stSet_insert(blocksToUpdate, blockNotBelowBranch);
         addContextualBlocksToSet(blockNotBelowBranch,
                                  constants->params->maxBaseDistance,
                                  constants->params->maxBlockDistance,
