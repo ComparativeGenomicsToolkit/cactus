@@ -88,19 +88,6 @@ static void usage() {
     fprintf(stderr, "-S --phylogeny : Run the tree-building code and split ancient homologies away.\n");
 }
 
-static void dumpBlockInfo(stPinchThreadSet *threadSet, const char *fileName) {
-    stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
-    FILE *file = fopen(fileName, "w");
-    if (file == NULL) {
-        st_errnoAbort("couldn't open debug file");
-    }
-    stPinchBlock *block;
-    while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
-        fprintf(file, "%" PRIi64 "\t%" PRIi64 "\n", stPinchBlock_getDegree(block), stPinchBlock_getLength(block));
-    }
-    fclose(file);
-}
-
 static int64_t *getInts(const char *string, int64_t *arrayLength) {
     int64_t *iA = st_malloc(sizeof(int64_t) * strlen(string));
     char *cA = stString_copy(string);
@@ -220,6 +207,64 @@ bool filterByRepeatSpecies(stPinchSegment *segment1, stPinchSegment *segment2) {
     return checkIntersection(getNames(segment1), getNames(segment2));
 }
 
+static uint64_t choose2(uint64_t n) {
+#define CHOOSE_TWO_CACHE_LEN 256
+    // This is filled with 0's at init time by the compiler.
+    static int64_t chooseTwoCache[256];
+    if (n <= 1) {
+        return 0;
+    } else if (n >= CHOOSE_TWO_CACHE_LEN) {
+        return n * (n - 1) / 2;
+    } else {
+        if (chooseTwoCache[n] != 0) {
+            return chooseTwoCache[n];
+        } else {
+            chooseTwoCache[n] = n * (n - 1) / 2;
+            return chooseTwoCache[n];
+        }
+    }
+}
+
+// Get the number of possible pairwise alignments that could support
+// this block. Ordinarily this is (degree choose 2), but since we
+// don't do outgroup self-alignment, it's a bit smaller.
+static uint64_t numPossibleSupportingHomologies(stPinchBlock *block, Flower *flower) {
+    uint64_t outgroupDegree = 0, ingroupDegree = 0;
+    stPinchBlockIt segIt = stPinchBlock_getSegmentIterator(block);
+    stPinchSegment *segment;
+    while ((segment = stPinchBlockIt_getNext(&segIt)) != NULL) {
+        Name capName = stPinchSegment_getName(segment);
+        Cap *cap = flower_getCap(flower, capName);
+        Event *event = cap_getEvent(cap);
+        if (event_isOutgroup(event)) {
+            outgroupDegree++;
+        } else {
+            ingroupDegree++;
+        }
+    }
+    assert(outgroupDegree + ingroupDegree == stPinchBlock_getDegree(block));
+    // We do the ingroup-ingroup alignments as an all-against-all
+    // alignment, so we can see each ingroup-ingroup homology up to
+    // twice.
+    return choose2(ingroupDegree) * 2 + ingroupDegree * outgroupDegree;
+}
+
+static void dumpBlockInfo(stPinchThreadSet *threadSet, const char *fileName) {
+    stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
+    FILE *file = fopen(fileName, "w");
+    if (file == NULL) {
+        st_errnoAbort("couldn't open debug file");
+    }
+    stPinchBlock *block;
+    while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
+        uint64_t supportingHomologies = stPinchBlock_getNumSupportingHomologies(block);
+        uint64_t possibleSupportingHomologies = numPossibleSupportingHomologies(block, flower);
+        double support = ((double) supportingHomologies) / possibleSupportingHomologies;
+        fprintf(file, "%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%lf\n", stPinchBlock_getDegree(block), stPinchBlock_getLength(block), supportingHomologies, possibleSupportingHomologies, support);
+    }
+    fclose(file);
+}
+
 int main(int argc, char *argv[]) {
     /*
      * Script for adding alignments to cactus tree.
@@ -278,7 +323,8 @@ int main(int argc, char *argv[]) {
     const char *referenceEventHeader = NULL;
     double phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce = 1.0;
     int64_t numTreeBuildingThreads = 2;
-    bool removeLargestBlock = false;
+    int64_t minimumBlockDegreeToCheckSupport = 10;
+    double minimumBlockHomologySupport = 0.7;
     double nucleotideScalingFactor = 1.0;
 
     ///////////////////////////////////////////////////////////////////////////
@@ -315,13 +361,14 @@ int main(int argc, char *argv[]) {
                         { "phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce", required_argument, 0, 'Q' },
                         { "numTreeBuildingThreads", required_argument, 0, 'R' },
                         { "phylogeny", no_argument, 0, 'S' },
-                        { "removeLargestBlock", no_argument, 0, 'T' },
+                        { "minimumBlockHomologySupport", required_argument, 0, 'T' },
                         { "phylogenyNucleotideScalingFactor", required_argument, 0, 'U' },
+                        { "minimumBlockDegreeToCheckSupport", required_argument, 0, 'V' },
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:BC:D:E:F:G:HI:J:K:LM:N:O:P:Q:R:ST:U:", long_options, &option_index);
+        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:BC:D:E:F:G:HI:J:K:LM:N:O:P:Q:R:ST:U:V:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -489,10 +536,17 @@ int main(int argc, char *argv[]) {
                 doPhylogeny = true;
                 break;
             case 'T':
-                removeLargestBlock = true;
+                k = sscanf(optarg, "%lf", &minimumBlockHomologySupport);
+                assert(k == 1);
+                assert(minimumBlockHomologySupport <= 1.0);
+                assert(minimumBlockHomologySupport >= 0.0);
                 break;
             case 'U':
                 k = sscanf(optarg, "%lf", &nucleotideScalingFactor);
+                assert(k == 1);
+                break;
+            case 'V':
+                k = sscanf(optarg, "%" PRIi64, &minimumBlockDegreeToCheckSupport);
                 assert(k == 1);
                 break;
             default:
@@ -640,21 +694,26 @@ int main(int argc, char *argv[]) {
                     dumpBlockInfo(threadSet, stString_print("%s-blockStats-preMelting", debugFileName));
                 }
 
-                // FIXME: super sloppy, just to see if getting rid of
-                // the megablocks makes a difference.
-                if (removeLargestBlock) {
-                    stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
-                    stPinchBlock *block;
-                    int64_t largestBlockDegree = 0;
-                    stPinchBlock *largestBlock = NULL;
-                    while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
-                        if (stPinchBlock_getDegree(block) > largestBlockDegree) {
-                            largestBlockDegree = stPinchBlock_getDegree(block);
-                            largestBlock = block;
+                // Check for poorly-supported blocks--those that have
+                // been transitively aligned together but with very
+                // few homologies supporting the transitive
+                // alignment. These "megablocks" can snarl up the
+                // graph so that a lot of extra gets thrown away in
+                // the first melting step.
+                stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
+                stPinchBlock *block;
+                while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
+                    if (stPinchBlock_getDegree(block) > minimumBlockDegreeToCheckSupport) {
+                        uint64_t supportingHomologies = stPinchBlock_getNumSupportingHomologies(block);
+                        uint64_t possibleSupportingHomologies = numPossibleSupportingHomologies(block, flower);
+                        double support = ((double) supportingHomologies) / possibleSupportingHomologies;
+                        if (support < minimumBlockHomologySupport) {
+                            fprintf(stdout, "Destroyed a megablock with degree %" PRIi64
+                                    " and %" PRIi64 " supporting homologies out of a maximum "
+                                    "of %" PRIi64 " (%lf%%).\n", stPinchBlock_getDegree(block),
+                                    supportingHomologies, possibleSupportingHomologies, support);
+                            stPinchBlock_destruct(block);
                         }
-                    }
-                    if (largestBlock != NULL) {
-                        stPinchBlock_destruct(largestBlock);
                     }
                 }
 
@@ -685,12 +744,12 @@ int main(int argc, char *argv[]) {
                 stHash *threadStrings = stCaf_getThreadStrings(flower, threadSet);
                 st_logDebug("Got sets of thread strings and set of threads that are outgroups\n");
                 FILE *debugFile = NULL;
-                /* if (debugFileName != NULL) { */
-                /*     debugFile = fopen(debugFileName, "w"); */
-                /*     if (debugFile == NULL) { */
-                /*         st_errnoAbort("could not open debug file"); */
-                /*     } */
-                /* } */
+                if (debugFileName != NULL) {
+                    debugFile = fopen(stString_print("%s-phylogeny", debugFileName), "w");
+                    if (debugFile == NULL) {
+                        st_errnoAbort("could not open debug file");
+                    }
+                }
                 stCaf_PhylogenyParameters params;
                 params.treeBuildingMethod = phylogenyTreeBuildingMethod;
                 params.rootingMethod = phylogenyRootingMethod;
