@@ -86,6 +86,9 @@ static void usage() {
     fprintf(stderr, "-Q --phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce : assume that this support value or greater means a very confident split, and that they will not be changed by the greedy split algorithm. Do all these very confident splits at once, to save a lot of computation time.\n");
     fprintf(stderr, "-R --numTreeBuildingThreads : Number of threads in the tree-building thread pool. Must be greater than 1. Default 2.\n");
     fprintf(stderr, "-S --phylogeny : Run the tree-building code and split ancient homologies away.\n");
+    fprintf(stderr, "-T --minimumBlockHomologySupport: Minimum fraction of possible homologies required not to be considered a transitively collapsed megablock.\n");
+    fprintf(stderr, "-U --phylogenyNucleotideScalingFactor: Weighting for the nucleotide information in the distance matrix used to build each tree.\n");
+    fprintf(stderr, "-V --minimumBlockDegreeToCheckSupport: Minimum degree required to be checked for being a megablock.\n");
 }
 
 static int64_t *getInts(const char *string, int64_t *arrayLength) {
