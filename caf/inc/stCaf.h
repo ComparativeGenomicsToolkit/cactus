@@ -48,9 +48,27 @@ void stCaf_annealBetweenAdjacencyComponents(stPinchThreadSet *threadSet, stPinch
  */
 void stCaf_joinTrivialBoundaries(stPinchThreadSet *threadSet);
 
+/*
+ * Anneals from the pinch iterator, but checks after every pinch to
+ * prevent chains with length less than minimumChainLength from
+ * forming.
+ */
+void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadSet,
+                                       stPinchIterator *pinchIterator,
+                                       bool (*filterFn)(stPinchSegment *, stPinchSegment *),
+                                       int64_t minimumChainLength,
+                                       bool breakChainsAtReverseTandems,
+                                       int64_t maximumMedianSpacingBetweenLinkedEnds);
+
 ///////////////////////////////////////////////////////////////////////////
 // Melting fuctions -- removing alignments from the pinch graph
 ///////////////////////////////////////////////////////////////////////////
+
+/*
+ * Get a list of blocks that participate in a chain of length less
+ * than minimumChainLength.
+ */
+stList *stCaf_getBlocksInChainsLessThanGivenLength(stCactusGraph *cactusGraph, int64_t minimumChainLength);
 
 /*
  * Removes homologies from the graph.

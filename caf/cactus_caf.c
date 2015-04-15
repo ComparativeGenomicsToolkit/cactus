@@ -674,65 +674,60 @@ int main(int argc, char *argv[]) {
                 pinchIterator = stPinchIterator_constructFromList(alignmentsList);
             }
 
-            for (int64_t annealingRound = 0; annealingRound < annealingRoundsLength; annealingRound++) {
-                int64_t minimumChainLength = annealingRounds[annealingRound];
-                int64_t alignmentTrim = annealingRound < alignmentTrimLength ? alignmentTrims[annealingRound] : 0;
-                st_logDebug("Starting annealing round with a minimum chain length of %" PRIi64 " and an alignment trim of %" PRIi64 "\n", minimumChainLength, alignmentTrim);
-                stPinchIterator_setTrim(pinchIterator, alignmentTrim);
-
-                //Add back in the constraints
-                if (pinchIteratorForConstraints != NULL) {
-                    stCaf_anneal(threadSet, pinchIteratorForConstraints, filterFn);
-                }
-
-                //Do the annealing
-                if (annealingRound == 0) {
-                    stCaf_anneal(threadSet, pinchIterator, filterFn);
-                } else {
-                    stCaf_annealBetweenAdjacencyComponents(threadSet, pinchIterator, filterFn);
-                }
-
-                // Dump the block degree and length distribution to a file
-                if (debugFileName != NULL) {
-                    dumpBlockInfo(threadSet, stString_print("%s-blockStats-preMelting", debugFileName));
-                }
-
-                // Check for poorly-supported blocks--those that have
-                // been transitively aligned together but with very
-                // few homologies supporting the transitive
-                // alignment. These "megablocks" can snarl up the
-                // graph so that a lot of extra gets thrown away in
-                // the first melting step.
-                stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
-                stPinchBlock *block;
-                while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
-                    if (stPinchBlock_getDegree(block) > minimumBlockDegreeToCheckSupport) {
-                        uint64_t supportingHomologies = stPinchBlock_getNumSupportingHomologies(block);
-                        uint64_t possibleSupportingHomologies = numPossibleSupportingHomologies(block, flower);
-                        double support = ((double) supportingHomologies) / possibleSupportingHomologies;
-                        if (support < minimumBlockHomologySupport) {
-                            fprintf(stdout, "Destroyed a megablock with degree %" PRIi64
-                                    " and %" PRIi64 " supporting homologies out of a maximum "
-                                    "of %" PRIi64 " (%lf%%).\n", stPinchBlock_getDegree(block),
-                                    supportingHomologies, possibleSupportingHomologies, support);
-                            stPinchBlock_destruct(block);
-                        }
-                    }
-                }
-
-                //Do the melting rounds
-                for (int64_t meltingRound = 0; meltingRound < meltingRoundsLength; meltingRound++) {
-                    int64_t minimumChainLengthForMeltingRound = meltingRounds[meltingRound];
-                    st_logDebug("Starting melting round with a minimum chain length of %" PRIi64 " \n", minimumChainLengthForMeltingRound);
-                    if (minimumChainLengthForMeltingRound >= minimumChainLength) {
-                        break;
-                    }
-                    stCaf_melt(flower, threadSet, NULL, 0, minimumChainLengthForMeltingRound, 0, INT64_MAX);
-                } st_logDebug("Last melting round of cycle with a minimum chain length of %" PRIi64 " \n", minimumChainLength);
-                stCaf_melt(flower, threadSet, NULL, 0, minimumChainLength, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds);
-                //This does the filtering of blocks that do not have the required species/tree-coverage/degree.
-                stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0, 0, INT64_MAX);
+            if (meltingRoundsLength > 1 || annealingRoundsLength > 1) {
+                st_errAbort("'online' cactus not currently compatible with more than one "
+                            "melting or annealing round.");
             }
+            int64_t annealingRound = 0;
+            int64_t minimumChainLength = annealingRounds[annealingRound];
+            int64_t alignmentTrim = annealingRound < alignmentTrimLength ? alignmentTrims[annealingRound] : 0;
+            stPinchIterator_setTrim(pinchIterator, alignmentTrim);
+
+            // Add constraints without checking the chain lengths.
+            if (pinchIteratorForConstraints != NULL) {
+                stCaf_anneal(threadSet, pinchIteratorForConstraints, filterFn);
+            }
+
+            // Do the annealing, checking that we are not creating
+            // small chains at each step.
+            if (annealingRound == 0) {
+                stCaf_annealPreventingSmallChains(flower, threadSet, pinchIterator, filterFn,
+                                                  meltingRounds[0], breakChainsAtReverseTandems,
+                                                  maximumMedianSequenceLengthBetweenLinkedEnds);
+            }
+
+            // Dump the block degree and length distribution to a file
+            if (debugFileName != NULL) {
+                dumpBlockInfo(threadSet, stString_print("%s-blockStats-preMelting", debugFileName));
+            }
+
+            // Check for poorly-supported blocks--those that have
+            // been transitively aligned together but with very
+            // few homologies supporting the transitive
+            // alignment. These "megablocks" can snarl up the
+            // graph so that a lot of extra gets thrown away in
+            // the first melting step.
+            stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
+            stPinchBlock *block;
+            while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
+                if (stPinchBlock_getDegree(block) > minimumBlockDegreeToCheckSupport) {
+                    uint64_t supportingHomologies = stPinchBlock_getNumSupportingHomologies(block);
+                    uint64_t possibleSupportingHomologies = numPossibleSupportingHomologies(block, flower);
+                    double support = ((double) supportingHomologies) / possibleSupportingHomologies;
+                    if (support < minimumBlockHomologySupport) {
+                        fprintf(stdout, "Destroyed a megablock with degree %" PRIi64
+                                " and %" PRIi64 " supporting homologies out of a maximum "
+                                "of %" PRIi64 " (%lf%%).\n", stPinchBlock_getDegree(block),
+                                supportingHomologies, possibleSupportingHomologies, support);
+                        stPinchBlock_destruct(block);
+                    }
+                }
+            }
+
+            // Do the final melting step.
+            stCaf_melt(flower, threadSet, NULL, 0, minimumChainLength, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds);
+            //This does the filtering of blocks that do not have the required species/tree-coverage/degree.
+            stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0, 0, INT64_MAX);
 
             if (debugFileName != NULL) {
                 dumpBlockInfo(threadSet, stString_print("%s-blockStats-postMelting", debugFileName));

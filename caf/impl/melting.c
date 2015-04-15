@@ -65,7 +65,7 @@ static int64_t getChainLength(stCactusEdgeEnd *cactusEdgeEnd) {
     return length;
 }
 
-static stList *stCaf_getBlocksInChainsLessThanGivenLength(stCactusGraph *cactusGraph, int64_t minimumChainLength) {
+stList *stCaf_getBlocksInChainsLessThanGivenLength(stCactusGraph *cactusGraph, int64_t minimumChainLength) {
     stList *blocksToDelete = stList_construct3(0, (void(*)(void *)) stPinchBlock_destruct);
     stCactusGraphNodeIt *nodeIt = stCactusGraphNodeIterator_construct(cactusGraph);
     stCactusNode *cactusNode;
