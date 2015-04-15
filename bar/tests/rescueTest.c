@@ -127,7 +127,6 @@ static void test_rescueRandomSequences(CuTest *testCase) {
             while (segment != NULL) {
                 int64_t start = stPinchSegment_getStart(segment);
                 int64_t end = start + stPinchSegment_getLength(segment);
-                assert(end <= threadStart + threadLen);
                 bool covered = false;
                 if (stPinchSegment_getBlock(segment) != NULL) {
                     covered = true;
