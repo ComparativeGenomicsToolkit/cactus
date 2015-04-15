@@ -74,18 +74,6 @@ static double averageBlockDegree(stList *blocks) {
     return ((double) total)/stList_length(blocks);
 }
 
-static void dumpBlock(stPinchBlock *block) {
-    printf("----\n");
-    stPinchBlockIt it = stPinchBlock_getSegmentIterator(block);
-    stPinchSegment *segment;
-    while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
-        printf("%" PRIi64 ":%" PRIi64 "-%" PRIi64 "\n",
-               stPinchSegment_getName(segment),
-               stPinchSegment_getStart(segment),
-               stPinchSegment_getStart(segment) + stPinchSegment_getLength(segment));
-    }
-}
-
 void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadSet,
                                        stPinchIterator *pinchIterator,
                                        bool (*filterFn)(stPinchSegment *, stPinchSegment *),
@@ -116,7 +104,9 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
         stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 0, INT64_MAX,
                 0.0, breakChainsAtReverseTandems, maximumMedianSpacingBetweenLinkedEnds);
         stList *snarledBlocks = stCaf_getBlocksInChainsLessThanGivenLength(cactusGraph, minimumChainLength);
-        printf("got %" PRIi64 " snarled blocks with average degree %.2lf\n", stList_length(snarledBlocks), averageBlockDegree(snarledBlocks));
+        if (stList_length(snarledBlocks) > 0) {
+            printf("got %" PRIi64 " snarled blocks with average degree %.2lf\n", stList_length(snarledBlocks), averageBlockDegree(snarledBlocks));
+        }
 
         while (stList_length(snarledBlocks) > 0) {
             // Find the part of the pinch in the snarled block with the highest degree.
@@ -125,7 +115,6 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
             int64_t maxDegree = 0;
             for (int64_t i = 0; i < stList_length(snarledBlocks); i++) {
                 stPinchBlock *block = stList_get(snarledBlocks, i);
-                dumpBlock(block);
                 if (stPinchBlock_getDegree(block) > maxDegree
                     && stPinchUndo_findOffsetForBlock(undo, threadSet, block,
                                                       &undoOffset, &undoLength)) {
@@ -150,6 +139,7 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
             snarledBlocks = stCaf_getBlocksInChainsLessThanGivenLength(cactusGraph, minimumChainLength);
         }
         stPinchUndo_destruct(undo);
+        stCactusGraph_destruct(cactusGraph);
         stList_destruct(snarledBlocks);
     }
     stCaf_joinTrivialBoundaries(threadSet);
