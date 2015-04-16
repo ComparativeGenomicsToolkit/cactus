@@ -268,6 +268,84 @@ static void dumpBlockInfo(stPinchThreadSet *threadSet, const char *fileName) {
     fclose(file);
 }
 
+// for printThreadSetStatistics
+static int uint64_cmp(const uint64_t *x, const uint64_t *y) {
+    if (*x < *y) {
+        return -1;
+    } else if (*x == *y) {
+        return 0;
+    } else {
+        return 1;
+    }
+}
+
+// for printThreadSetStatistics
+static int double_cmp(const double *x, const double *y) {
+    if (*x < *y) {
+        return -1;
+    } else if (*x == *y) {
+        return 0;
+    } else {
+        return 1;
+    }
+}
+
+// Print a set of statistics (avg, median, max, min) for degree and
+// support percentage in the pinch graph.
+static void printThreadSetStatistics(stPinchThreadSet *threadSet, Flower *flower, FILE *f)
+{
+    // Naively finds the max, median, and min by sorting: the lists
+    // will have "only" millions of elements, so they should fit
+    // comfortably into tens of MB of memory.
+
+    uint64_t numBlocks = stPinchThreadSet_getTotalBlockNumber(threadSet);
+
+    uint64_t *blockDegrees = malloc(numBlocks * sizeof(uint64_t));
+    double totalDegree = 0.0;
+    double *blockSupports = malloc(numBlocks * sizeof(double));
+    double totalSupport = 0.0;
+
+    uint64_t totalAlignedBases = 0;
+
+    stPinchThreadSetBlockIt it = stPinchThreadSet_getBlockIt(threadSet);
+    uint64_t i = 0;
+    stPinchBlock *block;
+    while ((block = stPinchThreadSetBlockIt_getNext(&it)) != NULL) {
+        blockDegrees[i] = stPinchBlock_getDegree(block);
+        totalDegree += stPinchBlock_getDegree(block);
+        uint64_t supportingHomologies = stPinchBlock_getNumSupportingHomologies(block);
+        uint64_t possibleSupportingHomologies = numPossibleSupportingHomologies(block, flower);
+        double support = 0.0;
+        if (possibleSupportingHomologies != 0) {
+            support = ((double) supportingHomologies) / possibleSupportingHomologies;
+        } else {
+            assert(supportingHomologies == 0);
+        }
+        blockSupports[i] = support;
+        totalSupport += support;
+
+        totalAlignedBases += stPinchBlock_getLength(block) * stPinchBlock_getDegree(block);
+
+        i++;
+    }
+
+    printf("There were %" PRIu64 " blocks in the sequence graph, representing %" PRIi64
+           " total aligned bases\n", numBlocks, totalAlignedBases);
+
+    qsort(blockDegrees, numBlocks, sizeof(uint64_t),
+          (int (*)(const void *, const void *)) uint64_cmp);
+    qsort(blockSupports, numBlocks, sizeof(double),
+          (int (*)(const void *, const void *)) double_cmp);
+    printf("Block degree stats: min %" PRIu64 ", avg %lf, median %" PRIu64 ", max %" PRIu64 "\n",
+           blockDegrees[0], totalDegree/numBlocks, blockDegrees[(numBlocks - 1) / 2],
+           blockDegrees[numBlocks - 1]);
+    printf("Block support stats: min %lf, avg %lf, median %lf, max %lf\n",
+           blockSupports[0], totalSupport/numBlocks, blockSupports[(numBlocks - 1) / 2],
+           blockSupports[numBlocks - 1]);
+    free(blockDegrees);
+    free(blockSupports);
+}
+
 int main(int argc, char *argv[]) {
     /*
      * Script for adding alignments to cactus tree.
@@ -697,6 +775,9 @@ int main(int argc, char *argv[]) {
                     dumpBlockInfo(threadSet, stString_print("%s-blockStats-preMelting", debugFileName));
                 }
 
+                printf("Sequence graph statistics after annealing:\n");
+                printThreadSetStatistics(threadSet, flower, stdout);
+
                 // Check for poorly-supported blocks--those that have
                 // been transitively aligned together but with very
                 // few homologies supporting the transitive
@@ -737,6 +818,9 @@ int main(int argc, char *argv[]) {
             if (debugFileName != NULL) {
                 dumpBlockInfo(threadSet, stString_print("%s-blockStats-postMelting", debugFileName));
             }
+
+            printf("Sequence graph statistics after melting:\n");
+            printThreadSetStatistics(threadSet, flower, stdout);
 
             // Build a tree for each block, then use each tree to
             // partition the homologies between the ingroups sequences

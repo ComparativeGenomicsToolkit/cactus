@@ -86,6 +86,16 @@ bool stCaf_containsMultipleCopiesOfAnySpecies(stPinchBlock *pinchBlock, Flower *
 
 Event *getEvent(stPinchSegment *segment, Flower *flower);
 
+/*
+ * Simply returns the average degree of the blocks in the list.
+ */
+double stCaf_averageBlockDegree(stList *blocks);
+
+/*
+ * Returns the number of aligned bases represented in the blocks in the list.
+ */
+uint64_t stCaf_totalAlignedBases(stList *blocks);
+
 ///////////////////////////////////////////////////////////////////////////
 // Pinch graph to cactus graph
 ///////////////////////////////////////////////////////////////////////////
