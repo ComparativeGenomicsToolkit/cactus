@@ -127,6 +127,13 @@ void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(
         stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 0, INT64_MAX,
                 0.0, breakChainsAtReverseTandems, maximumMedianSpacingBetweenLinkedEnds);
         stList *blocksToDelete = stCaf_getBlocksInChainsLessThanGivenLength(cactusGraph, minimumChainLength);
+
+        printf("A melting round is destroying %" PRIi64 " blocks with an average degree "
+               "of %lf from chains with length less than %" PRIi64 ". Total aligned bases"
+               " lost: %" PRIu64 "\n",
+               stList_length(blocksToDelete), stCaf_averageBlockDegree(blocksToDelete),
+               minimumChainLength, stCaf_totalAlignedBases(blocksToDelete));
+
         //Cleanup cactus
         stCactusGraph_destruct(cactusGraph);
         stList_destruct(blocksToDelete); //This will destroy the blocks
@@ -195,4 +202,28 @@ bool stCaf_treeCoverage(stPinchBlock *pinchBlock, Flower *flower) {
     assert(treeCoverage >= -0.001);
     assert(treeCoverage <= 1.0001);
     return treeCoverage;
+}
+
+///////////////////////////////////////////////////////////////////////////
+// Misc. functions
+///////////////////////////////////////////////////////////////////////////
+
+double stCaf_averageBlockDegree(stList *blocks) {
+    if (stList_length(blocks) == 0) {
+        return 0.0;
+    }
+    uint64_t total = 0;
+    for (int64_t i = 0; i < stList_length(blocks); i++) {
+        total += stPinchBlock_getDegree(stList_get(blocks, i));
+    }
+    return ((double) total) / stList_length(blocks);
+}
+
+uint64_t stCaf_totalAlignedBases(stList *blocks) {
+    uint64_t ret = 0;
+    for (int64_t i = 0; i < stList_length(blocks); i++) {
+        stPinchBlock *block = stList_get(blocks, i);
+        ret += stPinchBlock_getDegree(block) * stPinchBlock_getLength(block);
+    }
+    return ret;
 }
