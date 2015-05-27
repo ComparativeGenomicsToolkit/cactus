@@ -59,6 +59,9 @@ static int64_t numberOfSplitsMade = 0;
 // FIXME: (Dec 4): Remove these after the first whole-genome tests.
 static int64_t numSimpleBlocksSkipped = 0;
 static int64_t numSingleCopyBlocksSkipped = 0;
+static FILE *gDebugFile;
+static stHash *gThreadStrings;
+
 
 stHash *stCaf_getThreadStrings(Flower *flower, stPinchThreadSet *threadSet) {
     stHash *threadStrings = stHash_construct2(NULL, free);
@@ -71,10 +74,11 @@ stHash *stCaf_getThreadStrings(Flower *flower, stPinchThreadSet *threadSet) {
         assert(sequence != NULL);
         assert(stPinchThread_getLength(thread)-2 >= 0);
         char *string = sequence_getString(sequence, stPinchThread_getStart(thread)+1, stPinchThread_getLength(thread)-2, 1); //Gets the sequence excluding the empty positions representing the caps.
-        char *paddedString = stString_print("N%sN", string); //Add in positions to represent the flanking bases
+        char *paddedString = stString_print_r("N%sN", string); //Add in positions to represent the flanking bases
         stHash_insert(threadStrings, thread, paddedString);
         free(string);
     }
+    gThreadStrings = threadStrings;
     return threadStrings;
 }
 
@@ -230,7 +234,7 @@ static stHash *getEventToSpeciesNode(EventTree *eventTree,
     EventTree_Iterator *eventIt = eventTree_getIterator(eventTree);
     Event *event;
     while ((event = eventTree_getNext(eventIt)) != NULL) {
-        char *speciesLabel = stString_print("%" PRIi64, event_getName(event));
+        char *speciesLabel = stString_print_r("%" PRIi64, event_getName(event));
         stTree *species = stTree_findChild(speciesTree, speciesLabel);
         if (species != NULL) {
             stHash_insert(ret, event, species);
@@ -339,12 +343,67 @@ static stTree *buildTree(stList *featureColumns,
     assert(stMatrix_m(substitutionMatrix) == stPinchBlock_getDegree(block));
     //Make breakpoint matrix
     stMatrix *breakpointMatrix = stPinchPhylogeny_constructMatrixFromDiffs(breakpointDiffs, bootstrap, seed);
-    
+
     //Combine the matrices into distance matrices
     stMatrix_scale(breakpointMatrix, params->nucleotideScalingFactor, 0.0);
     stMatrix_scale(breakpointMatrix, params->breakpointScalingFactor, 0.0);
     stMatrix *combinedMatrix = stMatrix_add(substitutionMatrix, breakpointMatrix);
     stMatrix *distanceMatrix = stPinchPhylogeny_getSymmetricDistanceMatrix(combinedMatrix);
+
+    if (gDebugFile != NULL && !bootstrap) {
+        // dump block
+        fprintf(gDebugFile, "[");
+        stPinchBlockIt segIt = stPinchBlock_getSegmentIterator(block);
+        int64_t i = 0;
+        stPinchSegment *segment;
+        while ((segment = stPinchBlockIt_getNext(&segIt))) {
+            stPinchThread *thread = stPinchSegment_getThread(segment);
+            Cap *cap = flower_getCap(flower, stPinchThread_getName(thread));
+            const char *seqHeader = sequence_getHeader(cap_getSequence(cap));
+            Event *event = cap_getEvent(cap);
+            const char *eventHeader = event_getHeader(event);
+            char *segmentHeader = stString_print_r("%s.%s|%" PRIi64 "-%" PRIi64, eventHeader, seqHeader, stPinchSegment_getStart(segment), stPinchSegment_getStart(segment) + stPinchSegment_getLength(segment));
+            if (i != 0) {
+                fprintf(gDebugFile, ",");
+            }
+            fprintf(gDebugFile, "\"%s\"", segmentHeader);
+            free(segmentHeader);
+            i++;
+        }
+        fprintf(gDebugFile, "]\n");
+        segIt = stPinchBlock_getSegmentIterator(block);
+        while ((segment = stPinchBlockIt_getNext(&segIt))) {
+            const char *threadString = stHash_search(gThreadStrings, stPinchSegment_getThread(segment));
+            char *substr = malloc(stPinchSegment_getLength(segment));
+            strncpy(substr, threadString + stPinchSegment_getStart(segment) - stPinchThread_getStart(stPinchSegment_getThread(segment)), stPinchSegment_getLength(segment));
+            if (stPinchSegment_getBlockOrientation(segment)) {
+                substr = stString_reverseComplementString(substr);
+            }
+            fprintf(gDebugFile, "\"%s\"", substr);
+            free(substr);
+            fprintf(gDebugFile, "\n");
+        }
+        fprintf(gDebugFile, "bp %lf nuc %lf\n", params->breakpointScalingFactor, params->nucleotideScalingFactor);
+        for (int64_t i = 0; i < stMatrix_n(breakpointMatrix); i++) {
+            for (int64_t j = 0; j < stMatrix_m(breakpointMatrix); j++) {
+                fprintf(gDebugFile, "%lf ", *stMatrix_getCell(breakpointMatrix, i, j));
+            }
+            fprintf(gDebugFile, "\n");
+        }
+        for (int64_t i = 0; i < stMatrix_n(substitutionMatrix); i++) {
+            for (int64_t j = 0; j < stMatrix_m(substitutionMatrix); j++) {
+                fprintf(gDebugFile, "%lf ", *stMatrix_getCell(substitutionMatrix, i, j));
+            }
+            fprintf(gDebugFile, "\n");
+        }
+        for (int64_t i = 0; i < stMatrix_n(combinedMatrix); i++) {
+            for (int64_t j = 0; j < stMatrix_m(combinedMatrix); j++) {
+                fprintf(gDebugFile, "%lf ", *stMatrix_getCell(combinedMatrix, i, j));
+            }
+            fprintf(gDebugFile, "\n");
+        }
+    }
+
 
     stTree *tree = NULL;
     if (params->rootingMethod == OUTGROUP_BRANCH) {
@@ -462,44 +521,19 @@ static void relabelMatrixIndexedTree(stTree *tree, stHash *matrixIndexToName) {
         stIntTuple *query = stIntTuple_construct1(info->index->matrixIndex);
         char *header = stHash_search(matrixIndexToName, query);
         assert(header != NULL);
-        stTree_setLabel(tree, stString_copy(header));
+        stTree_setLabel(tree, stString_print_r("%s.%"PRIi64, stString_copy(header), info->index->numBootstraps));
         stIntTuple_destruct(query);
+    } else {
+        stPhylogenyInfo *info = stTree_getClientData(tree);
+        assert(info != NULL);
+        stTree_setLabel(tree, stString_print_r("%"PRIi64, info->index->numBootstraps));
     }
 }
 
-// Print the debug info for blocks that are normally not printed
-// (those that cannot be partitioned). The debug info contains just
-// the "partition", i.e. the sequences and positions within the block
-// in a list of lists.
-static void printSimpleBlockDebugInfo(Flower *flower, stPinchBlock *block, FILE *outFile) {
-    stPinchBlockIt blockIt = stPinchBlock_getSegmentIterator(block);
-    stPinchSegment *segment = NULL;
-    fprintf(outFile, "[[");
-    int64_t i = 0;
-    while ((segment = stPinchBlockIt_getNext(&blockIt)) != NULL) {
-        stPinchThread *thread = stPinchSegment_getThread(segment);
-        Cap *cap = flower_getCap(flower, stPinchThread_getName(thread));
-        const char *seqHeader = sequence_getHeader(cap_getSequence(cap));
-        Event *event = cap_getEvent(cap);
-        const char *eventHeader = event_getHeader(event);
-        char *segmentHeader = stString_print("%s.%s|%" PRIi64 "-%" PRIi64, eventHeader, seqHeader, stPinchSegment_getStart(segment), stPinchSegment_getStart(segment) + stPinchSegment_getLength(segment));
-        
-        if (i != 0) {
-            fprintf(outFile, ",");
-        }
-        fprintf(outFile, "\"%s\"", segmentHeader);
-        free(segmentHeader);
-        i++;
-    }
-    assert(i == stPinchBlock_getDegree(block));
-    fprintf(outFile, "]]\n");
-}
-
-// print debug info: "tree\tpartition\n" to the file
-static void printTreeBuildingDebugInfo(Flower *flower, stPinchBlock *block, stTree *bestTree, stList *partition, stMatrix *matrix, double score, FILE *outFile) {
+// print debug info about blocks to the phylogeny debug dump
+static void printTreeBuildingDebugInfo(Flower *flower, stPinchBlock *block, stTree *tree, FILE *outFile) {
     // First get a map from matrix indices to names
     // The format we will use for leaf names is "genome.seq|posStart-posEnd"
-    int64_t blockDegree = stPinchBlock_getDegree(block);
     stHash *matrixIndexToName = stHash_construct3((uint64_t (*)(const void *)) stIntTuple_hashKey,
                                                   (int (*)(const void *, const void *)) stIntTuple_equalsFn,
                                                   (void (*)(void *)) stIntTuple_destruct, free);
@@ -516,71 +550,14 @@ static void printTreeBuildingDebugInfo(Flower *flower, stPinchBlock *block, stTr
         stHash_insert(matrixIndexToName, stIntTuple_construct1(i), segmentHeader);
         i++;
     }
-    assert(i == blockDegree);
 
     // Relabel (our copy of) the best tree.
-    stTree *treeCopy = stTree_clone(bestTree);
+    stTree *treeCopy = stTree_clone(tree);
     relabelMatrixIndexedTree(treeCopy, matrixIndexToName);
     char *newick = stTree_getNewickTreeString(treeCopy);
 
-    fprintf(outFile, "%s\t", newick);
+    fprintf(outFile, "%s\n", newick);
 
-    // Print the partition
-    fprintf(outFile, "[");
-    for (i = 0; i < stList_length(partition); i++) {
-        if (i != 0) {
-            fprintf(outFile, ",");
-        }
-        stList *subList = stList_get(partition, i);
-        fprintf(outFile, "[");
-        for (int64_t j = 0; j < stList_length(subList); j++) {
-            if (j != 0) {
-                fprintf(outFile, ",");
-            }
-            stIntTuple *index = stList_get(subList, j);
-            assert(stIntTuple_get(index, 0) < blockDegree);
-            char *header = stHash_search(matrixIndexToName, index);
-            assert(header != NULL);
-            fprintf(outFile, "\"%s\"", header);
-        }
-        fprintf(outFile, "]");
-    }
-    fprintf(outFile, "]\t");
-
-    if (matrix != NULL) {
-        // print the matrix
-        fprintf(outFile, "[");
-        for (i = 0; i < stMatrix_m(matrix); i++) {
-            if (i != 0) {
-                fprintf(outFile, ",");
-            }
-            fprintf(outFile, "[");
-            for (int64_t j = 0; j < stMatrix_n(matrix); j++) {
-                if (j != 0) {
-                    fprintf(outFile, ",");
-                }
-                fprintf(outFile, "%lf", *stMatrix_getCell(matrix, i, j));
-            }
-            fprintf(outFile, "]");
-        }
-        fprintf(outFile, "]\t");
-    }
-    // print the sequences corresponding to the matrix indices
-    fprintf(outFile, "[");
-    for (int64_t i = 0; i < blockDegree; i++) {
-        if (i != 0) {
-            fprintf(outFile, ",");
-        }
-        stIntTuple *query = stIntTuple_construct1(i);
-        char *header = stHash_search(matrixIndexToName, query);
-        assert(header != NULL);
-        fprintf(outFile, "\"%s\"", header);
-        stIntTuple_destruct(query);
-    }
-    fprintf(outFile, "]\t");
-
-    // print the score
-    fprintf(outFile, "%lf\n", score);
     stTree_destruct(treeCopy);
     free(newick);
     stHash_destruct(matrixIndexToName);
@@ -1063,6 +1040,12 @@ void splitBlockOnSplitBranch(stPinchBlock *block,
     while (stTree_getParent(root) != NULL) {
         root = stTree_getParent(root);
     }
+
+    if (gDebugFile != NULL) {
+        fprintf(gDebugFile, "split:\n");
+        printTreeBuildingDebugInfo(constants->flower, block, root, gDebugFile);
+    }
+
     int64_t segmentNotBelowBranchIndex = -1; // Arbitrary index of
                                              // segment not below the
                                              // branch so we can
@@ -1139,6 +1122,17 @@ void splitBlockOnSplitBranch(stPinchBlock *block,
                             splitBranches, constants->speciesToSplitOn);
     stHash_insert(blocksToTrees, blockBelowBranch, treeBelowBranch);
     stHash_insert(blocksToTrees, blockNotBelowBranch, treeNotBelowBranch);
+
+    if (gDebugFile != NULL) {
+        fprintf(gDebugFile, "below:\n");
+        if (blockBelowBranch != NULL) {
+            printTreeBuildingDebugInfo(constants->flower, blockBelowBranch, treeBelowBranch, gDebugFile);
+        }
+        fprintf(gDebugFile, "above:\n");
+        if (blockNotBelowBranch != NULL) {
+            printTreeBuildingDebugInfo(constants->flower, blockNotBelowBranch, treeNotBelowBranch, gDebugFile);
+        }
+    }
 
     // Finally, add any blocks that could have been affected by the
     // breakpoint information to the blocksToUpdate set.
@@ -1254,9 +1248,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
                                                FILE *debugFile,
                                                const char *referenceEventHeader) {
     // Functions we aren't using right now but should stick around anyway.
-    (void) printSimpleBlockDebugInfo;
     (void) getTotalSimilarityAndDifferenceCounts;
-    (void) printTreeBuildingDebugInfo;
 
     stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
     stPinchBlock *block;
@@ -1313,6 +1305,8 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
     constants.speciesStTree = speciesStTree;
     constants.speciesToSplitOn = speciesToSplitOn;
 
+    gDebugFile = debugFile;
+
     // The loop to build a tree for each block
     while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
         pushBlockToPool(block, &constants, blocksToTrees, treeBuildingPool);
@@ -1320,6 +1314,16 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
 
     // We need the trees to be done before we can continue.
     stThreadPool_wait(treeBuildingPool);
+
+    if (debugFile != NULL) {
+        blockIt = stPinchThreadSet_getBlockIt(threadSet);
+        while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
+            stTree *tree = stHash_search(blocksToTrees, block);
+            if (tree != NULL) {
+                printTreeBuildingDebugInfo(flower, block, tree, debugFile);
+            }
+        }
+    }
 
     fprintf(stdout, "First tree-building round done. Skipped %" PRIi64
             " simple blocks (those with 1 event or with < 3 segments, and %"
@@ -1367,6 +1371,32 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
                                    treeBuildingPool, blocksToTrees);
         }
         splitBranch = stSortedSet_getLast(splitBranches);
+    }
+
+    if (debugFile != NULL) {
+        fprintf(debugFile, "post melting:\n");
+        blockIt = stPinchThreadSet_getBlockIt(threadSet);
+        while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
+            fprintf(debugFile, "[");
+            stPinchBlockIt segIt = stPinchBlock_getSegmentIterator(block);
+            int64_t i = 0;
+            stPinchSegment *segment;
+            while ((segment = stPinchBlockIt_getNext(&segIt))) {
+                stPinchThread *thread = stPinchSegment_getThread(segment);
+                Cap *cap = flower_getCap(flower, stPinchThread_getName(thread));
+                const char *seqHeader = sequence_getHeader(cap_getSequence(cap));
+                Event *event = cap_getEvent(cap);
+                const char *eventHeader = event_getHeader(event);
+                char *segmentHeader = stString_print("%s.%s|%" PRIi64 "-%" PRIi64, eventHeader, seqHeader, stPinchSegment_getStart(segment), stPinchSegment_getStart(segment) + stPinchSegment_getLength(segment));
+                if (i != 0) {
+                    fprintf(debugFile, ",");
+                }
+                fprintf(debugFile, "\"%s\"", segmentHeader);
+                free(segmentHeader);
+                i++;
+            }
+            fprintf(debugFile, "]\n");
+        }
     }
 
     st_logDebug("Finished partitioning the blocks\n");
