@@ -170,7 +170,7 @@
 	</hal>
   	<multi_cactus>
 		<outgroup 
-			strategy="greedy"
+			strategy="greedyPreference"
 			threshold="0"
 			ancestor_quality_fraction="0.75"
                         max_num_outgroups="3"
