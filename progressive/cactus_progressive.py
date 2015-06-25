@@ -40,6 +40,7 @@ from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
 from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
 from cactus.pipeline.cactus_workflow import findRequiredNode
 from cactus.pipeline.cactus_workflow import CactusSetupPhase
+from cactus.pipeline.cactus_workflow import CactusTrimmingBlastPhase
 
 from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.progressive.multiCactusTree import MultiCactusTree
@@ -111,7 +112,7 @@ class ProgressiveUp(Target):
                              configWrapper.getMaxParallelSubtrees()) 
             if self.options.batchSystem == "singleMachine":
                 if int(self.options.maxThreads) < maxParallel * 3:
-                    raise RuntimeError("At least %d threads are required to handle up to %d events using kyoto tycoon. Either increase the number of threads using the --maxThreads option or decrease the number of parallel jobs (currently %d) by adjusting max_parallel_subtrees in the config file" % (maxParallel * 3, maxParallel, configWrapper.getMaxParallelSubtrees()))
+                    raise RuntimeError("At least %d threads are required (only %d were specified) to handle up to %d events using kyoto tycoon. Either increase the number of threads using the --maxThreads option or decrease the number of parallel jobs (currently %d) by adjusting max_parallel_subtrees in the config file" % (maxParallel * 3, self.options.maxThreads, maxParallel, configWrapper.getMaxParallelSubtrees()))
             else:
                 if int(self.options.maxCpus) < maxParallel * 3:
                     raise RuntimeError("At least %d concurrent cpus are required to handle up to %d events using kyoto tycoon. Either increase the number of cpus using the --maxCpus option or decrease the number of parallel jobs (currently %d) by adjusting max_parallel_subtrees in the config file" % (maxParallel * 3, maxParallel, configWrapper.getMaxParallelSubtrees()))
@@ -156,9 +157,13 @@ class ProgressiveUp(Target):
             system("rm -f %s* %s %s" % (dbPath, seqPath, 
                                         experiment.getReferencePath()))
 
-            self.addChildTarget(CactusSetupPhase(cactusWorkflowArguments=workFlowArgs,
-                                                        phaseName="setup"))
-            logger.info("Going to create alignments and define the cactus tree")
+            if workFlowArgs.configWrapper.getDoTrimStrategy() and workFlowArgs.outgroupEventNames is not None:
+                # Use the trimming strategy to blast ingroups vs outgroups.
+                self.addChildTarget(CactusTrimmingBlastPhase(cactusWorkflowArguments=workFlowArgs, phaseName="trimBlast"))
+            else:
+                self.addChildTarget(CactusSetupPhase(cactusWorkflowArguments=workFlowArgs,
+                                                     phaseName="setup"))
+        logger.info("Going to create alignments and define the cactus tree")
 
         self.setFollowOnTarget(FinishUp(workFlowArgs, self.project))
                                
@@ -189,7 +194,7 @@ class RunCactusPreprocessorThenProgressiveDown(Target):
         ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals() #This is necessary..
         #Create the preprocessor
         self.addChildTarget(CactusPreprocessor(project.getInputSequencePaths(), 
-                                               project.getOutputSequenceDir(), 
+                                               CactusPreprocessor.getOutputSequenceFiles(project.getInputSequencePaths(), project.getOutputSequenceDir()),
                                                configNode))
         #Now build the progressive-down target
         schedule = Schedule()
@@ -202,7 +207,7 @@ class RunCactusPreprocessorThenProgressiveDown(Target):
         self.options.globalLeafEventSet = set(leafNames)
         self.setFollowOnTarget(ProgressiveDown(self.options, project, self.options.event, schedule))
 
-def main():    
+def main():
     usage = "usage: %prog [options] <multicactus project>"
     description = "Progressive version of cactus_workflow"
     parser = OptionParser(usage=usage, description=description)

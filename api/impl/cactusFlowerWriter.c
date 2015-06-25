@@ -134,6 +134,7 @@ static Name getName(FILE *fileHandle) {
         assert(j == 1);
         return name;
     }
+    return 0;
 }
 
 static void addName(stList *flowerNamesList, Name name) {

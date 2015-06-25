@@ -56,6 +56,8 @@ from cactus.pipeline.ktserverControl import getKtServerReport
 # newChild : the child PhaseTarget we wish to execute while the
 #            ktserver is running.  if isSecondary is true then
 #            newChild is a recursion target and not a phase target
+# maxMemory : memory (in bytes) for jobTree to request for ktserver
+# maxCpu : number of cpus for jobTree to request for ktserver
 # isSecondary : flag whether or not the database is secondary.  If False,
 #               then the port and host are written to the regular conf node,
 #               if True, then we update the secondaryString (all this within
@@ -72,11 +74,12 @@ from cactus.pipeline.ktserverControl import getKtServerReport
 # killTimeout : amount of time to wait for server to die after deleting
 #               the kill switch file before throwing an error
 ###############################################################################
-def addKtserverDependentChild(rootTarget, newChild, isSecondary = False,
+def addKtserverDependentChild(rootTarget, newChild, maxMemory, maxCpu,
+                              isSecondary = False,
                               createTimeout = 30, loadTimeout = 10000,
                               blockTimeout=sys.maxint, blockTimestep=10,
                               runTimeout=sys.maxint, runTimestep=10,
-                              killTimeout=10):
+                              killTimeout=10000):
     from cactus.pipeline.cactus_workflow import CactusPhasesTarget
     from cactus.pipeline.cactus_workflow import CactusRecursionTarget
     
@@ -102,8 +105,9 @@ def addKtserverDependentChild(rootTarget, newChild, isSecondary = False,
         dbElem = DbElemWrapper(confXML)
     
     rootTarget.addChildTarget(
-        KtserverTargetLauncher(dbElem, killSwitchPath, createTimeout,
-                                 loadTimeout, runTimeout, runTimestep))
+        KtserverTargetLauncher(dbElem, killSwitchPath, maxMemory,
+                               maxCpu, createTimeout,
+                               loadTimeout, runTimeout, runTimestep))
     rootTarget.addChildTarget(
         KtserverTargetBlocker(killSwitchPath, newChild, isSecondary,
                                 blockTimeout, blockTimestep, killTimeout))
@@ -113,9 +117,10 @@ def addKtserverDependentChild(rootTarget, newChild, isSecondary = False,
 # Launch the server on whatever node runs this target
 ###############################################################################
 class KtserverTargetLauncher(Target):
-    def __init__(self, dbElem, killSwitchPath, createTimeout,
+    def __init__(self, dbElem, killSwitchPath,
+                 maxMemory, maxCpu, createTimeout,
                  loadTimeout, runTimeout, runTimestep):
-        Target.__init__(self)
+        Target.__init__(self, memory=maxMemory, cpu=maxCpu)
         self.dbElem = dbElem
         self.killSwitchPath = killSwitchPath
         self.createTimeout = createTimeout

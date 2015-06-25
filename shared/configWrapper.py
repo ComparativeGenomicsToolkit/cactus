@@ -20,6 +20,7 @@ import random
 import math
 import copy
 from cactus.shared.common import findRequiredNode
+from cactus.shared.common import getOptionalAttrib
 
 class ConfigWrapper:
     defaultOutgroupStrategy = 'none'
@@ -31,6 +32,7 @@ class ConfigWrapper:
     defaultOutgroupThreshold = None
     defaultOutgroupAncestorQualityFraction = 0.75
     defaultMaxParallelSubtrees = 3
+    defaultMaxNumOutgroups = 1
     
     def __init__(self, xmlRoot):
         self.xmlRoot = xmlRoot
@@ -67,7 +69,8 @@ class ConfigWrapper:
         if ogElem is not None and "strategy" in ogElem.attrib:
             strategy = ogElem.attrib["strategy"]
         assert strategy == "none" or strategy == "greedy" or \
-            strategy == "greedyLeaves"
+            strategy == "greedyLeaves" or strategy == "greedyPreference" or \
+            strategy == "dynamic"
         return strategy
     
     def getOutgroupThreshold(self):
@@ -91,6 +94,15 @@ class ConfigWrapper:
             ogElem.attrib["ancestor_quality_fraction"].lower() != 'none'):
             fraction = float(ogElem.attrib["ancestor_quality_fraction"])
         return fraction
+
+    def getMaxNumOutgroups(self):
+        ogElem = self.getOutgroupElem()
+        maxNumOutgroups = self.defaultMaxNumOutgroups
+        if (ogElem is not None and\
+            "strategy" in ogElem.attrib and\
+            "max_num_outgroups" in ogElem.attrib):
+            maxNumOutgroups = int(ogElem.attrib["max_num_outgroups"])
+        return maxNumOutgroups
     
     def getSubtreeSize(self):
         decompElem = self.getDecompositionElem()
@@ -105,6 +117,12 @@ class ConfigWrapper:
         assert decompElem is not None
         decompElem.attrib["subtree_size"] = str(subtreeSize)
             
+    def getDoTrimStrategy(self):
+        trimBlastNode = findRequiredNode(self.xmlRoot, "trimBlast")
+        if "doTrimStrategy" in trimBlastNode.attrib:
+            return trimBlastNode.attrib["doTrimStrategy"] == "1"
+        return False
+
     def getDoSelfAlignment(self):
         decompElem = self.getDecompositionElem()
         doSelf = self.defaultDoSelf
@@ -162,6 +180,18 @@ class ConfigWrapper:
         decompElem = self.getDecompositionElem()
         assert decompElem is not None
         decompElem.attrib["max_parallel_subtrees"] = str(maxParallel)
+
+    def getKtserverMemory(self, default=sys.maxint):
+        ktServerElem = self.xmlRoot.find("ktserver")
+        if ktServerElem is not None and "memory" in ktServerElem.attrib:
+            return int(ktServerElem.attrib["memory"])
+        return default
+    
+    def getKtserverCpu(self, default=sys.maxint):
+        ktServerElem = self.xmlRoot.find("ktserver")
+        if ktServerElem is not None and "cpu" in ktServerElem.attrib:
+            return int(ktServerElem.attrib["cpu"])
+        return default           
             
     # the minBlockDegree, when specified in the final, "base" 
     # iteration, does not play nicely with the required fraction
@@ -187,5 +217,37 @@ class ConfigWrapper:
         if defines != None:
             replaceAllConstants(self.xmlRoot, defines)
             constants.remove(defines)
-            
+    
+    def substituteAllDivergenceContolledParametersWithLiterals(self, maxDivergence):
+        constants = findRequiredNode(self.xmlRoot, "constants")
+        divergences = constants.find("divergences")
+        messages = []
+        if divergences != None:
+            useDefaultDivergences = getOptionalAttrib(divergences, attribName="useDefault", typeFn=bool, default=False)
+            def replaceAllDivergenceParameters(node):
+                for child in node:
+                    if child.tag == "divergence":
+                        attribName = child.attrib["argName"]
+                        arg = child.attrib["default"]
+                        divergence = sys.maxint
+                        if not useDefaultDivergences:
+                            for i in child.attrib.keys():
+                                if i in divergences.attrib.keys():
+                                    j = float(divergences.attrib[i])
+                                    if j < divergence and j >= maxDivergence:
+                                        arg = child.attrib[i]
+                                        divergence = j
+                        messages.append("Made argument %s=%s in tag %s with divergence threshold of %s for longest path of %s (useDefaultDivergences=%s)" % (attribName, arg, node.tag, divergence, maxDivergence, useDefaultDivergences))
+                        node.attrib[attribName] = arg
+                    else:
+                        replaceAllDivergenceParameters(child)
+            replaceAllDivergenceParameters(self.xmlRoot)
+        return messages
+    
+    def turnAllModesOn(self):
+        """Switches on check, normalisation etc. to use when debugging/testing
+        """
+        findRequiredNode(self.xmlRoot, "check").attrib["runCheck"] = "1"
+        findRequiredNode(self.xmlRoot, "normal").attrib["iterations"] = "2"
+        #findRequiredNode(self.xmlRoot, "avg").attrib["buildAvgs"] = "1" #This doesn't work with cactus_reference
         

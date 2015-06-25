@@ -66,8 +66,8 @@ static void getReferenceSequences(FILE *fileHandle, Flower *flower, char *refere
       Event* event = sequence_getEvent(sequence);
       const char* eventName = event_getHeader(event);
       if (strcmp(eventName, referenceEventString) == 0 &&
-          sequence_getLength(sequence) > 0) 
-      {
+          sequence_getLength(sequence) > 0 &&
+          !metaSequence_isTrivialSequence(sequence_getMetaSequence(sequence))) {
          const char *sequenceHeader = formatSequenceHeader(sequence);
          st_logInfo("Sequence %s\n", sequenceHeader);
          char *string = sequence_getString(sequence, sequence_getStart(sequence), sequence_getLength(sequence), 1);

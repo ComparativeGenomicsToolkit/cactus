@@ -1,0 +1,1184 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+	"http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<title>HSX Format</title>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<style type="text/css">
+	body            { margin: 0 4% 0 3%;
+	                  color: black; background-color: white }
+
+	p.vvlarge       { margin-top: 6ex; margin-bottom: 0 }
+	p.vlarge        { margin-top: 4ex; margin-bottom: 0 }
+	p.large         { margin-top: 3ex; margin-bottom: 0 }
+	p               { margin-top: 2ex; margin-bottom: 0 }
+	p.small         { margin-top: 1ex; margin-bottom: 0 }
+	p.hdr           { margin-top: 4ex; margin-bottom: 0 }
+	p.subhdr        { margin-top: 2.5ex; margin-bottom: 0 }
+	p.scrollspace   { margin-top: 100em; margin-bottom: 0 }
+
+	pre             { margin-top: 0.7ex; margin-bottom: 0.7ex }
+
+	ul.sub          { margin-left: -1ex }
+
+	code            { padding-left: 0.3ex; padding-right: 0.3ex }
+	.pad            { padding-left: 0.3ex; padding-right: 0.3ex }
+	.nopad          { padding-left: 0; padding-right: 0 }
+	.ttab           { padding-left: 0.3ex; padding-right: 0 }
+	.stab           { padding-left: 1ex; padding-right: 0 }
+	.mtab           { padding-left: 4ex; padding-right: 0 }
+	.wtab           { padding-left: 6ex; padding-right: 0 }
+
+	.notop          { margin-top: 0 }
+
+	table                            { margin-top: 0; margin-bottom: 0;
+	                                   border-collapse: collapse }
+	tbody                            { text-align: left; vertical-align: baseline }
+	td                               { padding-top: 0.5ex; padding-bottom: 0.5ex;
+	                                   padding-left: 0.5ex; padding-right: 0.5ex }
+	td.indent                        { padding-left: 1.5ex; padding-right: 0.5ex }
+	table.withlines                  { margin-top: 1ex; margin-bottom: 1ex;
+	                                   border: 2px solid black }
+	table.withlines tr.newsect       { border-top: 2px solid black }
+	table.withlines tr.sectend       { border-bottom: 2px solid black }
+	table.withlines td               { border: 1px dotted gray }
+	table.nolines                    { border: none }
+	table.nolines td                 { border: none }
+	table.figure                     { border: none }
+	table.figure td                  { padding-top: 2ex; padding-bottom: 2ex;
+	                                   padding-left: 0; padding-right: 0;
+	                                   border: none }
+	table.holder                     { border: none }
+	table.holder td                  { padding: 0; border: none }
+	table.holder td.indent           { padding-left: 5ex }
+	table.holder pre                 { margin: 0 }
+	table.holder table.withlines     { margin-top: 0.5ex; margin-bottom: 0.5ex;
+	                                   border: 1px solid black }
+	table.holder table.withlines td  { padding-top: 0.3ex; padding-bottom: 0.3ex;
+	                                   padding-left: 0.3ex; padding-right: 0.3ex;
+	                                   border: 1px dotted gray }
+
+	.usernote       { font-style: italic; font-weight: bold;
+	                  background-color: #FF9900 }
+</style>
+</head>
+<body>
+
+<p class=vvlarge>
+<h2>HSX Format</h2>
+Format Specification version 1.0.0,
+January 12, 2010
+
+<p class=vvlarge>
+TABLE OF CONTENTS
+
+<p class=small>
+<ul class=notop>
+<li><a href="#intro">Introduction</a>
+<li><a href="#spec">File Specification</a>
+<li><a href="#hash">Hash Function</a>
+<li><a href="#example">Example</a>
+
+</ul>
+
+<p class=hdr>
+<h3><a name="intro">Introduction</a></h3>
+<p>
+
+HSX is a binary file format for indexing (or listing) DNA sequences in other
+files, allowing fast random access to those sequences.  The format was created
+as part of the <a href="http://www.bx.psu.edu/miller_lab/">LASTZ</a> project,
+providing a means to input selected sequences from several short read files
+into a single run of LASTZ.
+
+<p>
+This document is provided for users interested in creating HSX files with
+programs of their own design.
+
+<p>
+The HSX file contains a sequence index array and an associated hash table.
+Each sequence index entry includes the sequence's name, length, and a reference
+to the location of the sequence's data in some other file.  This array can be
+accessed either sequentially or via the hash table.  Note that the names in
+the index file do not have to match the original names or headers in the
+sequence files.
+
+<p>
+Sequence entries are ordered by the hashes of their names.  Conceptually, the
+hash table groups the sequences into <dfn>buckets</dfn> of sequences with the
+same hash.  For each bucket, the table gives the location in the sequence index
+of the first sequence in that bucket.  Hash collisions are resolved by scanning
+subsequent index entries for the remaining sequences in the bucket.
+
+<p>
+There is also a file table, which allows a single index file to cover sequences
+from multiple sequence files of varying formats.  However, currently LASTZ only
+supports indexing of files in FASTA format.
+
+<p class=hdr>
+<h3><a name="spec">File Specification</a></h3>
+
+<p>
+The file is stored in a binary format described by the table below. It can be
+written on either a big-endian or little-endian machine;  programs reading the
+file determine the byte order of multi-byte fields by examining the magic
+number at the start of the file.
+
+<p>
+<table class=withlines><tbody>
+<tr class=sectend><td>File Offset</td><td>Data</td><td>Meaning</td></tr>
+
+<tr>
+<td><code>0x00</code></td>
+<td><code>D2&nbsp;52&nbsp;70&nbsp;95</code>
+<br><span class=stab></span> &mdash;or&mdash;
+<br><code>95&nbsp;70&nbsp;52&nbsp;D2</code></td>
+<td>Magic number indicating big-endian byte order.
+<br>
+<br>Magic number indicating little-endian byte order.</td>
+</tr>
+
+<tr>
+<td><code>0x04</code></td>
+<td><code>00&nbsp;00&nbsp;01&nbsp;00</code></td>
+<td>File conforms to version 1.0 of the HSX file format.</td>
+</tr>
+
+<tr>
+<td><code>0x08</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;1C</code></td>
+<td>Header length in bytes, including this field through the SOFF field.</td>
+</tr>
+
+<tr>
+<td><code>0x0C</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;xx</code></td>
+<td><code class=nopad>FLEN</code>:<span class=ttab></span>
+number of entries in the file table (limited to 255).</td>
+</tr>
+
+<tr>
+<td><code>0x10</code></td>
+<td><code>xx&nbsp;xx&nbsp;xx&nbsp;xx</code></td>
+<td><code class=nopad>FOFF</code>:<span class=ttab></span>
+offset (from file start) to the file table.</td>
+</tr>
+
+<tr>
+<td><code>0x14</code></td>
+<td><code>xx&nbsp;xx&nbsp;xx&nbsp;xx</code></td>
+<td><code class=nopad>HLEN</code>:<span class=ttab></span>
+number of buckets in the hash table.  This also serves as the modulus for
+the hash function.
+<p class=small>
+Typically the number of buckets is set so that the average number of
+sequences per bucket (<code>SLEN/HLEN</code>) is reasonably small (e.g. 10).
+<p class=small>
+The hash table actually includes <code>HLEN+1</code> buckets.  An extra
+<dfn>sentinel</dfn> bucket is appended at the end of the table, containing
+the offset to just past the end of the sequence index table.</td>
+</tr>
+
+<tr>
+<td><code>0x18</code></td>
+<td><code>xx&nbsp;xx&nbsp;xx&nbsp;xx</code></td>
+<td><code class=nopad>HOFF</code>:<span class=ttab></span>
+offset (from file start) to the hash table.</td>
+</tr>
+
+<tr>
+<td><code>0x1C</code></td>
+<td><code>xx&nbsp;xx&nbsp;xx&nbsp;xx</code></td>
+<td><code class=nopad>SLEN</code>:<span class=ttab></span>
+number of entries in the sequence index table.</td>
+</tr>
+
+<tr>
+<td><code>0x20</code></td>
+<td><code>xx&nbsp;xx&nbsp;xx&nbsp;xx</code></td>
+<td><code class=nopad>SOFF</code>:<span class=ttab></span>
+offset (from file start) to the sequence index table.
+<p class=small>
+Entries in the sequence index table are necessarily stored in hash order.
+Entries with the same hash are stored in alphabetical order (actually, in
+lexicographic order over the bytes of their names.)
+<p class=small>
+See the <a href="#hash">hashing description</a> below this table for
+more information.</td>
+</tr>
+
+<tr class=newsect>
+<td><code>FOFF</code></td>
+<td><code>xx&nbsp;xx&nbsp;xx&nbsp;xx</code></td>
+<td><code class=nopad>FINFO<sub>0</sub></code>:<span class=ttab></span>
+offset (from file start) to the info record for the first sequence file
+(file 0).</td>
+</tr>
+
+<tr>
+<td></td>
+<td><span class=pad>&hellip;</span></td>
+<td>Offsets to info records for the remaining <code>FLEN-1</code> files.</td>
+</tr>
+
+<tr class=newsect>
+<td><code>FINFO<sub>0</sub></code></td>
+<td><code>xx&nbsp;xx&nbsp;</code>&hellip;</td>
+<td><code class=nopad>FTYPE<sub>0</sub></code>:<span class=ttab></span>
+file type for file 0, stored as a length byte
+<code>FTYPELEN<sub>0</sub></code> followed by <code>FTYPELEN<sub>0</sub></code>
+bytes of ASCII text.
+<p class=small>
+This is equivalent to a file extension (without a leading <code>.</code>) and
+will be used as such.  In the current implementation, it must be
+<code>fa</code> or <code>fasta</code>.
+<p class=small>
+Together, this field and the next comprise a single info record in the
+file table.</td>
+</tr>
+
+<tr>
+<td><code>FINFO<sub>0</sub>+1+FTYPELEN<sub>0</sub></code></td>
+<td><code>xx&nbsp;xx&nbsp;</code>&hellip;</td>
+<td>
+<code class=nopad>FNAME<sub>0</sub></code>:<span class=ttab></span>
+file name for file 0, stored as a length byte
+<code>FNAMELEN<sub>0</sub></code> followed by <code>FNAMELEN<sub>0</sub></code>
+bytes of ASCII text.
+<p class=small>
+This is used as the base file name for the corresponding sequence file,
+including path.
+However, it is usually an empty string, in which case the
+base name and path are copied from the name and path of the HSX file itself.
+This allows files to be renamed without rebuilding the index.</td>
+</tr>
+
+<tr>
+<td></td>
+<td><span class=pad>&hellip;</span></td>
+<td>Info records for the remaining <code>FLEN-1</code> files.</td>
+</tr>
+
+<tr class=newsect>
+<td><code>HOFF</code></td>
+<td><code>xx&nbsp;xx&nbsp;xx&nbsp;xx&nbsp;xx</code></td>
+<td><code class=nopad>SOFF<sub>H(0)</sub></code>:<span class=ttab></span>
+offset (from file start) into the sequence index table, pointing to the first
+sequence in the first hash bucket (bucket 0).
+<p class=small>
+<code>SOFF<sub>n</sub></code> is the file offset for the
+<code class=nopad>n</code>-th entry in the sequence index table.
+<code>H(k)</code> is the number of sequences that have a hash code less than
+that of bucket <code>k</code> (i.e. the number of sequences assigned to buckets
+before bucket <code>k</code>).
+Therefore <code class=nopad>SOFF<sub>H(k)</sub></code> points to the first
+sequence in the <code>k</code>th hash bucket.
+<p class=small>
+The most significant bit in a bucket's <code>SOFF<sub>H(k)</sub></code> value
+is used to indicate whether the bucket is empty or not.  If a bucket is empty,
+this bit is set (1), otherwise it is clear (0).  The end of the sequences for
+bucket <code>k</code> can be determined from <code>SOFF<sub>H(k+1)</sub></code>
+(the entry for the start of the next bucket).
+</td>
+</tr>
+
+<tr>
+<td></td>
+<td><span class=pad>&hellip;</span></td>
+<td>Offsets for the first sequences in the remaining <code>HLEN-1</code>
+buckets.</td>
+</tr>
+
+<tr>
+<td><code>HOFF+5*HLEN</code></td>
+<td><code>xx&nbsp;xx&nbsp;xx&nbsp;xx&nbsp;xx</code></td>
+<td>Sentinel hash bucket.  This contains an offset to the end of the
+sequence index table (i.e., to the byte just beyond the last entry).
+</td>
+</tr>
+
+<tr class=newsect>
+<td><code>SOFF</code></td>
+<td><code>xx&nbsp;xx&nbsp;xx&nbsp;xx&nbsp;xx</code></td>
+<td><code class=nopad>IXLEN<sub>0</sub></code>:<span class=ttab></span>
+length (in nucleotides) of the first sequence.
+<p class=small>
+A sequence may be empty, so zero is a legitimate value for the sequence length.
+<p class=small>
+Together, this field and the next three comprise a single entry in the
+sequence index table.</td>
+</tr>
+
+<tr>
+<td><code>SOFF+5</code></td>
+<td><code>xx</code></td>
+<td><code class=nopad>IXFILE<sub>0</sub></code>:<span class=ttab></span>
+index into the file table for the file containing the first sequence.</td>
+</tr>
+
+<tr>
+<td><code>SOFF+6</code></td>
+<td><code>xx&nbsp;xx&nbsp;xx&nbsp;xx&nbsp;xx&nbsp;xx</code></td>
+<td><code class=nopad>IXOFF<sub>0</sub></code>:<span class=ttab></span>
+offset (from the start of the appropriate sequence file) pointing to the first
+sequence.</td>
+</tr>
+
+<tr>
+<td><code>SOFF+12</code></td>
+<td><code>xx&nbsp;xx&nbsp;</code>&hellip;</td>
+<td><code class=nopad>IXNAME<sub>0</sub></code>:<span class=ttab></span>
+name of the first sequence, stored as a length byte
+<code>IXNAMELEN<sub>0</sub></code> followed by
+<code>IXNAMELEN<sub>0</sub></code> bytes of ASCII text.</td>
+</tr>
+
+<tr>
+<td></td>
+<td><span class=pad>&hellip;</span></td>
+<td>Sequence index entries for the remaining <!-- <code>SLEN-2</code> -->
+<code>SLEN-1</code> sequences.</td>
+</tr>
+
+</tbody></table>
+
+<p class=hdr>
+<h3><a name="hash">Hash Function</a></h3>
+<p>
+
+The code for the underlying hash function is shown below, written in C.
+The hash bucket for sequence name <code>NAME</code> is computed by
+<pre>
+    bucket = hassock_hash(NAME,strlen(NAME)) % HLEN;
+</pre>
+
+<p>
+This hash function is a variant of Austin Appleby's
+<a href="http://murmurhash.googlepages.com/">MurmurHash2</a>.
+The primary differences are that it has the seed hardwired and scans the input
+data in the reverse order (this is not structly true, since the
+non-multiple-of-four leftover bytes are handled slightly differently).  It is
+also endian-neutral.
+
+<p>
+<pre>
+    #include &lt;stdint.h&gt;
+
+    uint32_t hassock_hash (const void* key, uint32_t len)
+        {
+        const uint32_t seed = 0x5C3FC4D3;
+        const uint32_t m    = 0x87C10417;
+        const uint8_t* data = ((const uint8_t*) key) + len;
+        const uint8_t* stop = ((const uint8_t*) key) + 4;
+        uint32_t       h, k;
+
+        h = seed ^ len;
+        while (data &gt;= stop)
+            {
+            k  = *(--data);
+            k |= *(--data) &lt;&lt; 8;
+            k |= *(--data) &lt;&lt; 16;
+            k |= *(--data) &lt;&lt; 24;
+            k *= m;
+            k ^= k &gt;&gt; 24;
+            k *= m;
+            h *= m;
+            h ^= k;
+            len -= 4;
+            }
+        switch (len)
+            {
+            case 3: h ^= *(--data) &lt;&lt; 16;
+            case 2: h ^= *(--data) &lt;&lt; 8;
+            case 1: h ^= *(--data);
+                    h *= m;
+            }
+        h ^= h &gt;&gt; 13;
+        h *= m;
+        h ^= h &gt;&gt; 15;
+        return h;
+        }
+</pre>
+
+<p class=hdr>
+<h3><a name="example">Example</a></h3>
+<p>
+
+
+In this example, we have 10 sequences from 3 fasta files, indexed by a single
+HSX file.  We first show the fasta files, then show a field-by-field hex dump
+of the corresponding HSX file.  For demonstration purposes, the HSX file was
+created with only 5 buckets. Typical HSX files will deal with more sequences,
+more files, and have more buckets.
+
+<p>
+hsxexA.fa contains five sequences:
+<p>
+<pre>
+    >HSXEXA_785
+    TAACGGCAATCTTTGGTAGACCTATTGGTCATATCATGAAATTGAAGGAT
+    AATTATTGCCATAAAGTTTTTCACGTTACTATCTTTGCCTCGCAATGAAT
+    AAAATATTCTTAGGGCTACTTTGTAACCTTGCAGAC
+    >HSXEXA_88K
+    TTAATTACTCGCATGATCTTTCAAGATCTTTACCGTTCACACAATTTCTC
+    GAACACTCAGTA
+    >HSXEXA_DNQ
+    CAGTGTACAAAATAAACTATTAACTATATGTAGATAGATACATAGAGACA
+    AAACGGGTAGCATCTAGTATCCTGACTGCGCATTGTGGGGTGTCGCTTCT
+    AAGTACCCGAAATGAGCGT
+    >HSXEXA_LRW
+    TTAAGTACATTCAGATCCATCATGGTTTCGGAAGCTAATGGGAAAAGGGG
+    TACAGAATACAACACCTAGTTGATACGATAGTTAGTTTTTTA
+    >HSXEXA_R9V
+    TATAGTGCGTGTATGACCAATATTACGATGATCGTGACGCCATAGGGTCA
+    TATTCCTTAATATGTAAATATGAAGGTA
+</pre>
+
+<p>
+hsxexB.fa contains four sequences:
+<p>
+<pre>
+    >HSXEXB_6YF
+    AAGAGTTCTTACGGCAATAACAAAATGATGCTGTATCCTAGTAACAGGAA
+    CGAACCATTCGCTTCTGTGTTCTATACAGAAGAAACCAGACTCGCTAAAC
+    A
+    >HSXEXB_WCV
+    AATTAGTCTATTAAGGACTATATGTTTACAAGGATGGTAGTCCTAACGGA
+    ATTGATACCAATAGGTGGCACTTACCGTAGCTAGGTAGATCGCCCTACTA
+    CACCAGCTCAGCCATCTTGCCCCGCCAACT
+    >HSXEXB_YKU
+    GTCAACAGGTTTTCGGACTGGTGGCTTTCCTGATTTGATATTCAAAGGAA
+    ATTAGGGTAAGGACTTTGAGTTGTCATAGAATTCAATTTCGGGCTCCGTC
+    CATCACCTCGT
+    >HSXEXB_YV1
+    GGTGATGTTGTGAATATCACTGTCATGAAGGTCTCCTTCGGCCGCCTTAA
+    TCATCATCATAAGTTTCACCATGGTAAAATGAATTAGCCCCAAGCT
+</pre>
+
+<p>
+hsxexC.fa contains three sequences:
+<p>
+<pre>
+    >HSXEXC_4ZL
+    CACATCACATTGGTTGTTCATCCATATAATTATTTCCCATAAACTTTAAG
+    AGCTCGGCTGGCCATACGTACTGACTAGCTTAGCCCCTAACTAATCGGCC
+    ACAGCGATAGTACA
+    >HSXEXC_936
+    TGGTTTTTAGAGTCCGTGGAGCCTCTCAGCCACACTGGGTTCGGGAAGTT
+    TCAGGCAAGTCCTACCTGTAA
+    >HSXEXC_GWD
+    CTAATCTGGGCTTGGGTCTGAACTCGCCCATGAGGAGGTAAGCAAACCAA
+    TAAATTCGGGTATGGCGGTCTTTATTATGCTTAAGGAACGGAACAA
+</pre>
+
+<p>
+The twelve sequence names are hashed into separate buckets, and sorted within
+buckets, like this:
+
+<p>
+<table class=withlines><tbody>
+<tr class=sectend><td>Hash Code/Bucket</td>
+<td>Sequence Name</td>
+<td>Fasta file</td>
+<td>Offset to sequence, in fasta file</td></tr>
+
+<tr>
+<td><code>0</code></td>
+<td>HSXEXB_6YF</td>
+<td>hsxexB.fa</td>
+<td><code>0x0000 00000000</code></td>
+</tr>
+
+<tr>
+<td><code>1</code></td>
+<td>HSXEXA_785
+<br>HSXEXA_DNQ</td>
+<td>hsxexA.fa
+<br>hsxexA.fa</td>
+<td><code>0x0000 00000000</code>
+<br><code>0x0000 000000E3</code></td>
+</tr>
+
+<tr>
+<td><code>2</code></td>
+<td>HSXEXA_88K
+<br>HSXEXA_LRW
+<br>HSXEXB_YV1
+<br>HSXEXC_4ZL</td>
+<td>hsxexA.fa
+<br>hsxexA.fa
+<br>hsxexB.fa
+<br>hsxexC.fa</td>
+<td><code>0x0000 00000097</code>
+<br><code>0x0000 00000169</code>
+<br><code>0x0000 00000183</code>
+<br><code>0x0000 00000000</code></td>
+</tr>
+
+<tr>
+<td><code>3</code></td>
+<td>HSXEXB_YKU</td>
+<td>hsxexA.fa</td>
+<td><code>0x0000 00000105</code></td>
+</tr>
+
+<tr>
+<td><code>4</code></td>
+<td>HSXEXA_R9V
+<br>HSXEXB_WCV
+<br>HSXEXC_936
+<br>HSXEXC_GWD</td>
+<td>hsxexA.fa
+<br>hsxexB.fa
+<br>hsxexC.fa
+<br>hsxexC.fa</td>
+<td><code>0x0000 000001D3</code>
+<br><code>0x0000 00000074</code>
+<br><code>0x0000 00000081</code>
+<br><code>0x0000 000000D6</code></td>
+</tr>
+
+</tbody></table>
+
+<p>
+Here is the complete HSX file, byte-by-byte:
+
+<p>
+<table class=withlines><tbody>
+<tr class=sectend><td>File Offset</td><td>Data</td><td>Field</td><td>Meaning</td></tr>
+
+<tr>
+<td><code>0x00000000</code></td>
+<td><code>D2&nbsp;52&nbsp;70&nbsp;95</code>
+<td>Magic number</td>
+<td>Big-endian.</td>
+</tr>
+
+<tr>
+<td><code>0x00000004</code></td>
+<td><code>00&nbsp;00&nbsp;01&nbsp;00</code></td>
+<td>HSX version</td>
+<td>1.0.</td>
+</tr>
+
+<tr>
+<td><code>0x00000008</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;1C</code></td>
+<td>Header length</td>
+<td>28 bytes.</td>
+</tr>
+
+<tr>
+<td><code>0x0000000C</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;03</code></td>
+<td><code class=nopad>FLEN=3</code><span class=ttab></span></td>
+<td>3 entries in file table.</td>
+</tr>
+
+<tr>
+<td><code>0x00000010</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;30</code></td>
+<td><code class=nopad>FOFF=30</code><span class=ttab></span></td>
+<td>File table is at 0x00000030.</td>
+</tr>
+
+<tr>
+<td><code>0x00000014</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;05</code></td>
+<td><code class=nopad>HLEN=5</code><span class=ttab></span></td>
+<td>5 buckets in the hash table.
+</tr>
+
+<tr>
+<td><code>0x00000018</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;60</code></td>
+<td><code class=nopad>HOFF=60</code><span class=ttab></span></td>
+<td>Hash table is at 0x00000060.</td>
+</tr>
+
+<tr>
+<td><code>0x0000001C</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;0C</code></td>
+<td><code class=nopad>SLEN=0C</code><span class=ttab></span></td>
+<td>12 entries in the sequence index table.</td>
+</tr>
+
+<tr>
+<td><code>0x00000020</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;60</code></td>
+<td><code class=nopad>SOFF=80</code><span class=ttab></span></td>
+<td>Sequence index table is at 0x00000080.</td>
+</tr>
+
+<tr>
+<td><code>0x00000024</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;00</code>
+<br><code>00&nbsp;00&nbsp;00&nbsp;00</code>
+<br><code>00&nbsp;00&nbsp;00&nbsp;00</code></td>
+<td><code class=nopad>Padding</code><span class=ttab></span></td>
+<td>The creating program can insert padding here, at its descretion.</td>
+</tr>
+
+<tr class=newsect>
+<td><code>0x00000030</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;40</code></td>
+<td><code class=nopad>FINFO<sub>0</sub>=40</code><span class=ttab></span></td>
+<td>Info record for file 0 is at 0x00000040.</td>
+</tr>
+
+<tr>
+<td><code>0x00000034</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;4A</code></td>
+<td><code class=nopad>FINFO<sub>1</sub>=4A</code><span class=ttab></span></td>
+<td>Info record for file 1 is at 0x0000004A.</td>
+</tr>
+
+<tr>
+<td><code>0x00000038</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;54</code></td>
+<td><code class=nopad>FINFO<sub>2</sub>=54</code><span class=ttab></span></td>
+<td>Info record for file 2 is at 0x00000054.</td>
+</tr>
+
+<tr>
+<td><code>0x0000003C</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;00</code>
+<td><code class=nopad>Padding</code><span class=ttab></span></td>
+<td></td>
+</tr>
+
+<tr class=newsect>
+<td><code>0x00000040</code></td>
+<td><code>00&nbsp;66&nbsp;61</code></td>
+<td><code class=nopad>FTYPE<sub>0</sub></code><span class=ttab></span></td>
+<td>File type for file 0 is "fa".</td>
+</tr>
+
+<tr>
+<td><code>0x00000043</code></td>
+<td><code>06&nbsp;68&nbsp;73&nbsp;78</code>
+<br><code>65&nbsp;78&nbsp;41</code></td>
+<td><code class=nopad>FNAME<sub>0</sub></code><span class=ttab></span></td>
+<td>Base name for file 0 is "hsxexA".  File name is hsxexA.fa.</td>
+</tr>
+
+<tr>
+<td><code>0x0000004A</code></td>
+<td><code>00&nbsp;66&nbsp;61</code></td>
+<td><code class=nopad>FTYPE<sub>1</sub></code><span class=ttab></span></td>
+<td>File type for file 1 is "fa".</td>
+</tr>
+
+<tr>
+<td><code>0x0000004D</code></td>
+<td><code>06&nbsp;68&nbsp;73&nbsp;78</code>
+<br><code>65&nbsp;78&nbsp;42</code></td>
+<td><code class=nopad>FNAME<sub>1</sub></code><span class=ttab></span></td>
+<td>Base name for file 1 is "hsxexB".  File name is hsxexB.fa.</td>
+</tr>
+
+<tr>
+<td><code>0x00000054</code></td>
+<td><code>00&nbsp;66&nbsp;61</code></td>
+<td><code class=nopad>FTYPE<sub>2</sub></code><span class=ttab></span></td>
+<td>File type for file 2 is "fa".</td>
+</tr>
+
+<tr>
+<td><code>0x00000057</code></td>
+<td><code>06&nbsp;68&nbsp;73&nbsp;78</code>
+<br><code>65&nbsp;78&nbsp;43</code></td>
+<td><code class=nopad>FNAME<sub>2</sub></code><span class=ttab></span></td>
+<td>Base name for file 2 is "hsxexC".  File name is hsxexC.fa.</td>
+</tr>
+
+<tr>
+<td><code>0x0000005E</code></td>
+<td><code>00&nbsp;00</code>
+<td><code class=nopad>Padding</code><span class=ttab></span></td>
+<td></td>
+</tr>
+
+<tr class=newsect>
+<td><code>0x00000060</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;00&nbsp;80</code></td>
+<td><code class=nopad>SOFF<sub>H(0)</sub>=80</code><span class=ttab></span></td>
+<td>Sequence entries for hash bucket 0 start at 0x00000080.</td>
+</tr>
+
+<tr>
+<td><code>0x00000060</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;00&nbsp;97</code></td>
+<td><code class=nopad>SOFF<sub>H(1)</sub>=97</code><span class=ttab></span></td>
+<td>Sequence entries for hash bucket 1 start at 0x00000097.</td>
+</tr>
+
+<tr>
+<td><code>0x00000060</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;00&nbsp;C5</code></td>
+<td><code class=nopad>SOFF<sub>H(2)</sub>=C5</code><span class=ttab></span></td>
+<td>Sequence entries for hash bucket 2 start at 0x000000C5.</td>
+</tr>
+
+<tr>
+<td><code>0x00000060</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;01&nbsp;21</code></td>
+<td><code class=nopad>SOFF<sub>H(3)</sub>=121</code><span class=ttab></span></td>
+<td>Sequence entries for hash bucket 3 start at 0x00000121.</td>
+</tr>
+
+<tr>
+<td><code>0x00000060</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;01&nbsp;38</code></td>
+<td><code class=nopad>SOFF<sub>H(4)</sub>=138</code><span class=ttab></span></td>
+<td>Sequence entries for hash bucket 4 start at 0x00000138.</td>
+</tr>
+
+<tr>
+<td><code>0x00000060</code></td>
+<td><code>80&nbsp;00&nbsp;00&nbsp;01&nbsp;94</code></td>
+<td><code class=nopad>SOFF<sub>H(5)</sub>=194</code><span class=ttab></span></td>
+<td>Sentinel bucket indicates end of sequence entries is at 0x00000194.
+<p class=small>The most significant bit of <code class=nopad>SOFF<sub>H(5)</sub></code>
+is a 1, indicating the bucket is empty.</td>
+</tr>
+
+<tr>
+<td><code>0x0000007E</code></td>
+<td><code>00&nbsp;00</code>
+<td><code class=nopad>Padding</code><span class=ttab></span></td>
+<td></td>
+</tr>
+
+<tr class=newsect>
+<td><code>0x00000080</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;00&nbsp;65</code></td>
+<td><code class=nopad>IXLEN<sub>0</sub>=65</code><span class=ttab></span></td>
+<td>(Start of hash bucket 0)
+<br>Sequence 0 is 101 bp.</td>
+</tr>
+
+<tr>
+<td><code>0x00000085</code></td>
+<td><code>01</code></td>
+<td><code class=nopad>IXFILE<sub>0</sub>=1</code><span class=ttab></span></td>
+<td>Sequence 0 is in file 1 (hsxexB.fa).</td>
+</tr>
+
+<tr>
+<td><code>0x00000086</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;00&nbsp;00&nbsp;00</code></td>
+<td><code class=nopad>IXOFF<sub>0</sub>=00</code><span class=ttab></span></td>
+<td>Sequence 0 is at file offset 0x0000 00000000.</td>
+</tr>
+
+<tr>
+<td><code>0x0000008C</code></td>
+<td><code>0A&nbsp;48&nbsp;53&nbsp;58</code>
+<br><code>45&nbsp;58&nbsp;42&nbsp;5F</code>
+<br><code>36&nbsp;59&nbsp;46</code></td>
+<td><code class=nopad>IXNAME<sub>0</sub></code><span class=ttab></span></td>
+<td>Sequence 0 is named "HSXEXB_6YF".</td>
+</tr>
+
+
+
+
+
+<tr>
+<td><code>00000097</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;00&nbsp;88</code></td>
+<td><code class=nopad>IXLEN<sub>1</sub>=88</code><span class=ttab></span></td>
+<td>(Start of hash bucket 1)
+<br>Sequence 1 is 136 bp.</td>
+</tr>
+
+<tr>
+<td><code>0000009C</code></td>
+<td><code>00</code></td>
+<td><code class=nopad>IXFILE<sub>1</sub>=0</code><span class=ttab></span></td>
+<td>Sequence 1 is in file 0 (hsxexA.fa).</td>
+</tr>
+
+<tr>
+<td><code>0000009D</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;00&nbsp;00&nbsp;00</code></td>
+<td><code class=nopad>IXOFF<sub>1</sub>=00</code><span class=ttab></span></td>
+<td>Sequence 1 is at file offset 0x0000 00000000.</td>
+</tr>
+
+<tr>
+<td><code>000000A3</code></td>
+<td><code>0A&nbsp;48&nbsp;53&nbsp;58</code>
+<br><code>45&nbsp;58&nbsp;41&nbsp;5F</code>
+<br><code>37&nbsp;38&nbsp;35</code></td>
+<td><code class=nopad>IXNAME<sub>1</sub></code><span class=ttab></span></td>
+<td>Sequence 1 is named "HSXEXA_785".</td>
+</tr>
+
+
+
+
+
+<tr>
+<td><code>000000AE</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;00&nbsp;77</code></td>
+<td><code class=nopad>IXLEN<sub>2</sub>=77</code><span class=ttab></span></td>
+<td>Sequence 2 is 119 bp.</td>
+</tr>
+
+<tr>
+<td><code>000000B3</code></td>
+<td><code>00</code></td>
+<td><code class=nopad>IXFILE<sub>2</sub>=0</code><span class=ttab></span></td>
+<td>Sequence 2 is in file 0 (hsxexA.fa).</td>
+</tr>
+
+<tr>
+<td><code>000000B4</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;00&nbsp;00&nbsp;E3</code></td>
+<td><code class=nopad>IXOFF<sub>2</sub>=E3</code><span class=ttab></span></td>
+<td>Sequence 2 is at file offset 0x0000 000000E3.</td>
+</tr>
+
+<tr>
+<td><code>000000BA</code></td>
+<td><code>0A&nbsp;48&nbsp;53&nbsp;58</code>
+<br><code>45&nbsp;58&nbsp;41&nbsp;5F</code>
+<br><code>44&nbsp;4E&nbsp;51</code></td>
+<td><code class=nopad>IXNAME<sub>2</sub></code><span class=ttab></span></td>
+<td>Sequence 2 is named "HSXEXA_DNQ".</td>
+</tr>
+
+
+
+
+
+<tr>
+<td><code>000000C5</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;00&nbsp;3E</code></td>
+<td><code class=nopad>IXLEN<sub>3</sub>=3E</code><span class=ttab></span></td>
+<td>(Start of hash bucket 2)
+<br>Sequence 3 is 62 bp.</td>
+</tr>
+
+<tr>
+<td><code>000000CA</code></td>
+<td><code>00</code></td>
+<td><code class=nopad>IXFILE<sub>3</sub>=0</code><span class=ttab></span></td>
+<td>Sequence 3 is in file 0 (hsxexA.fa).</td>
+</tr>
+
+<tr>
+<td><code>000000CB</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;00&nbsp;00&nbsp;97</code></td>
+<td><code class=nopad>IXOFF<sub>3</sub>=97</code><span class=ttab></span></td>
+<td>Sequence 3 is at file offset 0x0000 00000097.</td>
+</tr>
+
+<tr>
+<td><code>000000D1</code></td>
+<td><code>0A&nbsp;48&nbsp;53&nbsp;58</code>
+<br><code>45&nbsp;58&nbsp;41&nbsp;5F</code>
+<br><code>38&nbsp;38&nbsp;4B</code></td>
+<td><code class=nopad>IXNAME<sub>3</sub></code><span class=ttab></span></td>
+<td>Sequence 3 is named "HSXEXA_88K".</td>
+</tr>
+
+
+
+
+
+<tr>
+<td><code>000000DC</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;00&nbsp;5C</code></td>
+<td><code class=nopad>IXLEN<sub>4</sub>=5C</code><span class=ttab></span></td>
+<td>Sequence 4 is 92 bp.</td>
+</tr>
+
+<tr>
+<td><code>000000E1</code></td>
+<td><code>00</code></td>
+<td><code class=nopad>IXFILE<sub>4</sub>=0</code><span class=ttab></span></td>
+<td>Sequence 4 is in file 0 (hsxexA.fa).</td>
+</tr>
+
+<tr>
+<td><code>000000E2</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;00&nbsp;01&nbsp;69</code></td>
+<td><code class=nopad>IXOFF<sub>4</sub>=169</code><span class=ttab></span></td>
+<td>Sequence 4 is at file offset 0x0000 00000169.</td>
+</tr>
+
+<tr>
+<td><code>000000E8</code></td>
+<td><code>0A&nbsp;48&nbsp;53&nbsp;58</code>
+<br><code>45&nbsp;58&nbsp;41&nbsp;5F</code>
+<br><code>4C&nbsp;52&nbsp;57</code></td>
+<td><code class=nopad>IXNAME<sub>4</sub></code><span class=ttab></span></td>
+<td>Sequence 4 is named "HSXEXA_LRW".</td>
+</tr>
+
+
+
+
+
+<tr>
+<td><code>000000F3</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;00&nbsp;60</code></td>
+<td><code class=nopad>IXLEN<sub>5</sub>=60</code><span class=ttab></span></td>
+<td>Sequence 5 is 96 bp.</td>
+</tr>
+
+<tr>
+<td><code>000000F8</code></td>
+<td><code>01</code></td>
+<td><code class=nopad>IXFILE<sub>5</sub>=1</code><span class=ttab></span></td>
+<td>Sequence 5 is in file 1 (hsxexB.fa).</td>
+</tr>
+
+<tr>
+<td><code>000000F9</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;00&nbsp;01&nbsp;83</code></td>
+<td><code class=nopad>IXOFF<sub>5</sub>=183</code><span class=ttab></span></td>
+<td>Sequence 5 is at file offset 0x0000 00000183.</td>
+</tr>
+
+<tr>
+<td><code>000000FF</code></td>
+<td><code>0A&nbsp;48&nbsp;53&nbsp;58</code>
+<br><code>45&nbsp;58&nbsp;42&nbsp;5F</code>
+<br><code>59&nbsp;56&nbsp;31</code></td>
+<td><code class=nopad>IXNAME<sub>5</sub></code><span class=ttab></span></td>
+<td>Sequence 5 is named "HSXEXB_YV1".</td>
+</tr>
+
+
+
+
+
+<tr>
+<td><code>0000010A</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;00&nbsp;72</code></td>
+<td><code class=nopad>IXLEN<sub>6</sub>=72</code><span class=ttab></span></td>
+<td>Sequence 6 is 130 bp.</td>
+</tr>
+
+<tr>
+<td><code>0000010F</code></td>
+<td><code>02</code></td>
+<td><code class=nopad>IXFILE<sub>6</sub>=2</code><span class=ttab></span></td>
+<td>Sequence 6 is in file 2 (hsxexC.fa).</td>
+</tr>
+
+<tr>
+<td><code>00000110</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;00&nbsp;00&nbsp;00</code></td>
+<td><code class=nopad>IXOFF<sub>6</sub>=0</code><span class=ttab></span></td>
+<td>Sequence 6 is at file offset 0x0000 00000000.</td>
+</tr>
+
+<tr>
+<td><code>00000116</code></td>
+<td><code>0A&nbsp;48&nbsp;53&nbsp;58</code>
+<br><code>45&nbsp;58&nbsp;43&nbsp;5F</code>
+<br><code>34&nbsp;5A&nbsp;4C</code></td>
+<td><code class=nopad>IXNAME<sub>6</sub></code><span class=ttab></span></td>
+<td>Sequence 6 is named "HSXEXC_4ZL".</td>
+</tr>
+
+
+
+
+
+<tr>
+<td><code>00000121</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;00&nbsp;6F</code></td>
+<td><code class=nopad>IXLEN<sub>7</sub>=6F</code><span class=ttab></span></td>
+<td>(Start of hash bucket 3)
+<br>Sequence 7 is 111 bp.</td>
+</tr>
+
+<tr>
+<td><code>00000126</code></td>
+<td><code>01</code></td>
+<td><code class=nopad>IXFILE<sub>7</sub>=1</code><span class=ttab></span></td>
+<td>Sequence 7 is in file 1 (hsxexB.fa).</td>
+</tr>
+
+<tr>
+<td><code>00000127</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;00&nbsp;01&nbsp;05</code></td>
+<td><code class=nopad>IXOFF<sub>7</sub>=105</code><span class=ttab></span></td>
+<td>Sequence 7 is at file offset 0x0000 00000105.</td>
+</tr>
+
+<tr>
+<td><code>0000012D</code></td>
+<td><code>0A&nbsp;48&nbsp;53&nbsp;58</code>
+<br><code>45&nbsp;58&nbsp;42&nbsp;5F</code>
+<br><code>59&nbsp;4B&nbsp;55</code></td>
+<td><code class=nopad>IXNAME<sub>7</sub></code><span class=ttab></span></td>
+<td>Sequence 7 is named "HSXEXB_YKU".</td>
+</tr>
+
+
+
+
+
+<tr>
+<td><code>00000138</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;00&nbsp;4E</code></td>
+<td><code class=nopad>IXLEN<sub>8</sub>=4E</code><span class=ttab></span></td>
+<td>(Start of hash bucket 4)
+<br>Sequence 8 is 78 bp.</td>
+</tr>
+
+<tr>
+<td><code>0000013D</code></td>
+<td><code>00</code></td>
+<td><code class=nopad>IXFILE<sub>8</sub>=0</code><span class=ttab></span></td>
+<td>Sequence 8 is in file 0 (hsxexA.fa).</td>
+</tr>
+
+<tr>
+<td><code>0000013E</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;00&nbsp;01&nbsp;D3</code></td>
+<td><code class=nopad>IXOFF<sub>8</sub>=1D3</code><span class=ttab></span></td>
+<td>Sequence 8 is at file offset 0x0000 000001D3.</td>
+</tr>
+
+<tr>
+<td><code>00000144</code></td>
+<td><code>0A&nbsp;48&nbsp;53&nbsp;58</code>
+<br><code>45&nbsp;58&nbsp;41&nbsp;5F</code>
+<br><code>52&nbsp;39&nbsp;56</code></td>
+<td><code class=nopad>IXNAME<sub>8</sub></code><span class=ttab></span></td>
+<td>Sequence 8 is named "HSXEXA_R9V".</td>
+</tr>
+
+
+
+
+
+<tr>
+<td><code>0000014F</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;00&nbsp;82</code></td>
+<td><code class=nopad>IXLEN<sub>9</sub>=82</code><span class=ttab></span></td>
+<td>Sequence 9 is 130 bp.</td>
+</tr>
+
+<tr>
+<td><code>00000154</code></td>
+<td><code>01</code></td>
+<td><code class=nopad>IXFILE<sub>9</sub>=1</code><span class=ttab></span></td>
+<td>Sequence 9 is in file 1 (hsxexB.fa).</td>
+</tr>
+
+<tr>
+<td><code>00000155</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;00&nbsp;00&nbsp;74</code></td>
+<td><code class=nopad>IXOFF<sub>9</sub>=74</code><span class=ttab></span></td>
+<td>Sequence 9 is at file offset 0x0000 00000074.</td>
+</tr>
+
+<tr>
+<td><code>0000015B</code></td>
+<td><code>0A&nbsp;48&nbsp;53&nbsp;58</code>
+<br><code>45&nbsp;58&nbsp;42&nbsp;5F</code>
+<br><code>57&nbsp;43&nbsp;56</code></td>
+<td><code class=nopad>IXNAME<sub>9</sub></code><span class=ttab></span></td>
+<td>Sequence 9 is named "HSXEXB_WCV".</td>
+</tr>
+
+
+
+
+
+<tr>
+<td><code>00000166</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;00&nbsp;47</code></td>
+<td><code class=nopad>IXLEN<sub>10</sub>=47</code><span class=ttab></span></td>
+<td>Sequence 10 is 71 bp.</td>
+</tr>
+
+<tr>
+<td><code>0000016B</code></td>
+<td><code>02</code></td>
+<td><code class=nopad>IXFILE<sub>10</sub>=2</code><span class=ttab></span></td>
+<td>Sequence 10 is in file 2 (hsxexC.fa).</td>
+</tr>
+
+<tr>
+<td><code>0000016C</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;00&nbsp;00&nbsp;81</code></td>
+<td><code class=nopad>IXOFF<sub>10</sub>=81</code><span class=ttab></span></td>
+<td>Sequence 10 is at file offset 0x0000 00000081.</td>
+</tr>
+
+<tr>
+<td><code>00000172</code></td>
+<td><code>0A&nbsp;48&nbsp;53&nbsp;58</code>
+<br><code>45&nbsp;58&nbsp;43&nbsp;5F</code>
+<br><code>39&nbsp;33&nbsp;36</code></td>
+<td><code class=nopad>IXNAME<sub>10</sub></code><span class=ttab></span></td>
+<td>Sequence 10 is named "HSXEXC_936".</td>
+</tr>
+
+
+
+
+
+<tr>
+<td><code>0000017D</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;00&nbsp;60</code></td>
+<td><code class=nopad>IXLEN<sub>11</sub>=60</code><span class=ttab></span></td>
+<td>Sequence 11 is 96 bp.</td>
+</tr>
+
+<tr>
+<td><code>00000182</code></td>
+<td><code>02</code></td>
+<td><code class=nopad>IXFILE<sub>11</sub>=2</code><span class=ttab></span></td>
+<td>Sequence 11 is in file 2 (hsxexC.fa).</td>
+</tr>
+
+<tr>
+<td><code>00000183</code></td>
+<td><code>00&nbsp;00&nbsp;00&nbsp;00&nbsp;00&nbsp;D6</code></td>
+<td><code class=nopad>IXOFF<sub>11</sub>=D6</code><span class=ttab></span></td>
+<td>Sequence 11 is at file offset 0x0000 000000D6.</td>
+</tr>
+
+<tr>
+<td><code>00000189</code></td>
+<td><code>0A&nbsp;48&nbsp;53&nbsp;58</code>
+<br><code>45&nbsp;58&nbsp;43&nbsp;5F</code>
+<br><code>47&nbsp;57&nbsp;44</code></td>
+<td><code class=nopad>IXNAME<sub>11</sub></code><span class=ttab></span></td>
+<td>Sequence 11 is named "HSXEXC_GWD".</td>
+</tr>
+
+
+
+
+
+
+<tr>
+<td><code>00000194</code></td>
+<td></td>
+<td></td>
+<td>(file ends here)</td>
+</tr>
+
+</tbody></table>
+
+
+<p class=vlarge>
+<hr>
+<i>Bob Harris and Cathy Riemer, January 2010</i>
+
+<p class=scrollspace>
+</body>
+</html>

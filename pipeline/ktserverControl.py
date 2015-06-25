@@ -32,6 +32,7 @@ import subprocess
 import signal
 import psutil
 import socket
+from sonLib.bioio import logger
 from time import sleep
 from optparse import OptionParser
 import threading
@@ -183,7 +184,8 @@ def __readStatusFromSwitchFile(dbElem, serverPidAsList, killSwitchPath):
     try:
         assert isinstance(serverPidAsList, list)
         assert len(serverPidAsList) == 0
-        assert os.path.isfile(killSwitchPath)
+        if not os.path.isfile(killSwitchPath):
+            return False
         switchFile = open(killSwitchPath, "r")
         host = switchFile.readline().strip()
         port = switchFile.readline().strip()
@@ -234,7 +236,7 @@ def blockUntilKtserverIsRunnning(dbElem, killSwitchPath, timeout=518400,
 # Note that this function will update dbElem with the currnet host/port
 # information of the server
 ###############################################################################
-def killKtServer(dbElem, killSwitchPath, killTimeout=10):
+def killKtServer(dbElem, killSwitchPath, killTimeout=10000):
     if not os.path.isfile(killSwitchPath):
         raise RuntimeError("Can't kill server because file" +
                            " not found %s" % killSwitchPath)
@@ -247,10 +249,15 @@ def killKtServer(dbElem, killSwitchPath, killTimeout=10):
 
     success = False
     for i in xrange(killTimeout):
-        if pingKtServer(dbElem):
-            sleep(1)
-        else:
-            success = True
+        try:
+            if pingKtServer(dbElem) or len(__scrapePids([logPath])) > 0:
+                logger.critical("Waiting for ktserver to die, but still running with logPath: %s, pingKtServer returned %s, dB port: %s, __scrapePids returned: %s" % (logPath, pingKtServer(dbElem), dbElem.getDbPort(), __scrapePids([logPath])))
+                sleep(1)
+            else:
+                success = True
+                break
+        except RuntimeError:
+            logger.critical("Got runtime error while trying to kill ktserver, putting it down to bad luck and carrying on")
     if not success:
         raise RuntimeError("Failed to kill server within timeout. " +
                            "Server log is %s" % logPath)

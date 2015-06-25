@@ -20,6 +20,7 @@ from cactus.caf.allTests import TestCase as cafTest
 from cactus.normalisation.cactus_normalisationTest import TestCase as normalisationTest
 from cactus.progressive.allTests import allSuites as progressiveSuite
 from cactus.shared.commonTest import TestCase as commonTest
+from cactus.preprocessor.allTests import allSuites as preprocessorTest
 
 from cactus.shared.test import parseCactusSuiteTestOptions
 
@@ -27,6 +28,7 @@ def allSuites():
     allTests = unittest.TestSuite((unittest.makeSuite(cafTest, 'test'),
                                    unittest.makeSuite(setupTest, 'test'),
                                    unittest.makeSuite(blastTest, 'test'),
+                                   preprocessorTest(),
                                    unittest.makeSuite(workflowTest, 'test'),
                                    unittest.makeSuite(evolverTest, 'test'),
                                    unittest.makeSuite(barTest, 'test'),

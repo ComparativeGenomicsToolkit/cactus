@@ -38,12 +38,14 @@ void printFastaSequences(Flower *flower, FILE *fileHandle, Name referenceEventNa
     stList *sequences = getSequences(flower, referenceEventName);
     for(int64_t i=0; i<stList_length(sequences); i++) {
         Sequence *sequence = stList_get(sequences, i);
-        char *string = sequence_getString(sequence, sequence_getStart(sequence),
-                sequence_getLength(sequence), 1);
-        const char *header = sequence_getHeader(sequence);
-        fastaWrite(string, (char *)header, fileHandle);
-        //fprintf(fileHandle, ">%s\n%s\n", (char *)header, string);
-        free(string);
+        if(!metaSequence_isTrivialSequence(sequence_getMetaSequence(sequence))) {
+            char *string = sequence_getString(sequence, sequence_getStart(sequence),
+                    sequence_getLength(sequence), 1);
+            const char *header = sequence_getHeader(sequence);
+            fastaWrite(string, (char *)header, fileHandle);
+            //fprintf(fileHandle, ">%s\n%s\n", (char *)header, string);
+            free(string);
+        }
     }
     stList_destruct(sequences);
 }

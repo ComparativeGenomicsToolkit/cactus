@@ -10,12 +10,15 @@ import unittest
 import os
 import sys
 import random
+import xml.etree.ElementTree as ET
 
 from cactus.shared.test import parseCactusSuiteTestOptions
 from sonLib.bioio import TestStatus
+from sonLib.bioio import getTempFile
 from sonLib.bioio import getTempDirectory
 from sonLib.bioio import logger
 from sonLib.bioio import system
+from sonLib.bioio import getRandomSequence
 
 from cactus.shared.test import getCactusInputs_random
 from cactus.shared.test import getCactusInputs_blanchette
@@ -26,8 +29,10 @@ from cactus.shared.test import runWorkflow_multipleExamples
 
 from cactus.shared.test import getBatchSystem
 
+from cactus.shared.common import cactusRootPath
 from cactus.shared.common import runCactusProgressive
 from cactus.shared.common import runCactusCreateMultiCactusProject
+from cactus.shared.configWrapper import ConfigWrapper
 from jobTree.src.common import runJobTreeStatusAndFailIfNotComplete
 
 class TestCase(unittest.TestCase):
@@ -39,9 +44,15 @@ class TestCase(unittest.TestCase):
         unittest.TestCase.setUp(self)
         self.useOutgroup = False
         self.doSelfAlignment = False
-        self.configFile = "defaultProgressive"
-        if random.random() > 0.5:
-            self.configFile = "defaultProgressiveFast"
+        #Load the config file, turn on the checks.
+        configWrapper = ConfigWrapper(ET.parse(os.path.join(cactusRootPath(), "cactus_progressive_config.xml")).getroot())
+        configWrapper.turnAllModesOn()
+        self.tempDir = getTempDirectory(os.getcwd())
+        self.configFile = os.path.join(self.tempDir, "tempConfig.xml")
+        configWrapper.writeXML(self.configFile)
+    
+    def tearDown(self):
+        system("rm -rf %s" % self.tempDir)
         
     def testCactus_Random(self):
         runWorkflow_multipleExamples(getCactusInputs_random, 
@@ -61,6 +72,15 @@ class TestCase(unittest.TestCase):
                                      progressive=True,
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
+
+    def testCactus_Random_UseRootOutgroup(self):
+        runWorkflow_multipleExamples(getCactusInputs_random, 
+                                     testNumber=2,
+                                     testRestrictions=(TestStatus.TEST_SHORT,),
+                                     batchSystem=self.batchSystem, buildJobTreeStats=True,
+                                     progressive=True,
+                                     configFile=self.configFile,
+                                     cactusWorkflowFunction=self.progressiveWithRootOutgroupFunction)
         
     def testCactus_Random_DoSelfAlignment(self):
         self.doSelfAlignment = True
@@ -120,17 +140,41 @@ class TestCase(unittest.TestCase):
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
     
-    def progressiveFunction(self, experimentFile, jobTreeDir, 
+    def progressiveWithRootOutgroupFunction(self, experimentFile, jobTreeDir, 
                           batchSystem, buildAvgs, 
                           buildReference,
                           buildHal, 
                           buildFasta,
                           jobTreeStats):
+        """Add in a (random, small) root outgroup before calling
+        progressiveFunction. This function is necessary to keep
+        runWorkflow_multipleExamples general (root outgroups don't
+        make sense for runCactusWorkflow).
+        """
+        rootOutgroupPath = getTempFile()
+        outgroupSequence = getRandomSequence(length=random.choice(xrange(1, 10000)))
+        self.progressiveFunction(experimentFile, jobTreeDir,
+                                 batchSystem, buildAvgs, 
+                                 buildReference,
+                                 buildHal, 
+                                 buildFasta,
+                                 jobTreeStats, rootOutgroupPath, 1.0)
+        system("rm -f %s" % rootOutgroupPath)
+
+    def progressiveFunction(self, experimentFile, jobTreeDir, 
+                          batchSystem, buildAvgs, 
+                          buildReference,
+                          buildHal, 
+                          buildFasta,
+                          jobTreeStats, rootOutgroupPath=None,
+                          rootOutgroupDist=None):
         tempDir = getTempDirectory(os.getcwd())
         tempExperimentDir = os.path.join(tempDir, "exp")
         runCactusCreateMultiCactusProject(experimentFile, 
                                           tempExperimentDir,
-                                          fixNames = False)
+                                          fixNames = False,
+                                          rootOutgroupPath=rootOutgroupPath,
+                                          rootOutgroupDist=rootOutgroupDist)
         logger.info("Put the temporary files in %s" % tempExperimentDir)
         runCactusProgressive(os.path.join(tempExperimentDir, "exp_project.xml"), 
                              jobTreeDir, 

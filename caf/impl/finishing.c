@@ -183,10 +183,6 @@ static void makeChain(stCactusEdgeEnd *cactusEdgeEnd, Flower *flower, bool orien
     }
 }
 
-static void makeChain(stCactusEdgeEnd *cactusEdgeEnd, Flower *flower, bool orientation, bool makeSpacerFlowers,
-        stPinchThreadSet *threadSet,  Flower *parentFlower,
-                stList *deadEndComponent, stSet *bigFlowers, stHash *pinchEndsToEnds);
-
 static void makeChains(stCactusNode *cactusNode, Flower *flower, bool orientation,
         stPinchThreadSet *threadSet,  Flower *parentFlower,
         stList *deadEndComponent, stSet *bigFlowers, stHash *pinchEndsToEnds) {
@@ -277,9 +273,8 @@ static void makeFlower(stCactusNode *cactusNode, Flower *flower, bool orientatio
     makeChains(cactusNode, flower, orientation, threadSet, parentFlower, deadEndComponent, bigFlowers, pinchEndsToEnds); //This call is recursive
     makeTangles(cactusNode, flower, pinchEndsToEnds, deadEndComponent);
     stCaf_addAdjacencies(flower);
-    if(flower_isLeaf(flower) && flower_getBlockNumber(flower) == 0 && flower != parentFlower) { //We have a leaf
-        assert(flower_isLeaf(flower));
-        flower_delete2(flower, 0);
+    if(flower_isLeaf(flower) && flower_getBlockNumber(flower) == 0 && flower != parentFlower) { //We have a leaf with no blocks - it's effectively empty and can be removed.
+        flower_delete2(flower, 0); //This removes the flower completely from the database.
     }
     else {
         flower_setBuiltBlocks(flower, 1);

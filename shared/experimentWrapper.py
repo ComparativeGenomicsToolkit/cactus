@@ -263,7 +263,7 @@ class ExperimentWrapper(DbElemWrapper):
     
     def getTree(self):
         treeString = self.xmlRoot.attrib["species_tree"]
-        return NXNewick().parseString(treeString)
+        return NXNewick().parseString(treeString, addImpliedRoots = False)
     
     def setSequences(self, sequences):
         self.xmlRoot.attrib["sequences"] = " ".join(sequences)
@@ -335,7 +335,7 @@ class ExperimentWrapper(DbElemWrapper):
         return self.xmlRoot.attrib["constraints"]
         
     def getOutputSequenceDir(self):
-        if "outputSequencePath" not in self.xmlRoot.attrib:
+        if "outputSequenceDir" not in self.xmlRoot.attrib:
             return os.path.join(self.getOutputDir(), "processedSequences")
         return self.xmlRoot.attrib["outputSequenceDir"]
     
@@ -354,14 +354,9 @@ class ExperimentWrapper(DbElemWrapper):
     def getConfigPath(self):
         config = self.xmlRoot.attrib["config"]
         if config == 'default':
-            dir = os.path.join(cactusRootPath(), "pipeline")
-            config = os.path.join(dir, "cactus_workflow_config.xml")
+            config = os.path.join(cactusRootPath(), "cactus_config.xml")
         if config == 'defaultProgressive':
-            dir = os.path.join(cactusRootPath(), "progressive")
-            config = os.path.join(dir, "cactus_progressive_workflow_config.xml")
-        if config == 'defaultProgressiveFast':
-            dir = os.path.join(cactusRootPath(), "progressive")
-            config = os.path.join(dir, "cactus_progressive_workflow_config_fast.xml")
+            config = os.path.join(cactusRootPath(), "cactus_progressive_config.xml")
         return config
     
     def setConfigPath(self, path):
@@ -423,10 +418,8 @@ class ExperimentWrapper(DbElemWrapper):
         self.xmlRoot.attrib["sequences"] = sequences
         self.seqMap = newMap
     
-    # Adds a single outgroup sequence to the experiment. 
-    #Sequence is not previous is 
-    def addTheOutgroupSequence(self, ogName, ogDist, ogPath):
-        assert self.getOutgroupEvents() == []
+    # Adds an additional single outgroup sequence to the experiment. 
+    def addOutgroupSequence(self, ogName, ogDist, ogPath):
         assert ogName is not None
         tree = MultiCactusTree(self.getTree())
         tree.addOutgroup(ogName, ogDist)
@@ -434,5 +427,8 @@ class ExperimentWrapper(DbElemWrapper):
         seqs = "%s %s"  % (self.xmlRoot.attrib["sequences"], ogPath)
         self.xmlRoot.attrib["sequences"] = seqs
         self.seqMap[ogName] = ogPath
-        self.xmlRoot.attrib["outgroup_events"] = ogName
-            
+        self.setOutgroupEvents(self.getOutgroupEvents() + [ogName])
+
+    # return internal structure that maps event names to paths
+    def getSequenceMap(self):
+        return self.seqMap

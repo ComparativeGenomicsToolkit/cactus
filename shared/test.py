@@ -103,9 +103,9 @@ def parseCactusSuiteTestOptions():
 ###############
 
 def getCactusInputs_random(regionNumber=0, tempDir=None,
-                          sequenceNumber=random.choice(xrange(100)), 
-                          avgSequenceLength=random.choice(xrange(1, 5000)), 
-                          treeLeafNumber=random.choice(xrange(1, 10))):
+                           sequenceNumber=random.choice(xrange(100)), 
+                           avgSequenceLength=random.choice(xrange(1,5000)), 
+                           treeLeafNumber=random.choice(xrange(1,10))):
     """Gets a random set of sequences, each of length given, and a species
     tree relating them. Each sequence is a assigned an event in this tree.
     """

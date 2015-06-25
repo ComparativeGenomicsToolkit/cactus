@@ -17,8 +17,9 @@ from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.configWrapper import ConfigWrapper
-from cactus.progressive.outgroup import GreedyOutgroup
+from cactus.progressive.outgroup import GreedyOutgroup, DynamicOutgroup
 from sonLib.nxnewick import NXNewick
+from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 
 def createMCProject(tree, experiment, config, options):
     mcTree = MultiCactusTree(tree, config.getSubtreeSize())
@@ -33,22 +34,149 @@ def createMCProject(tree, experiment, config, options):
     for name in mcProj.mcTree.getSubtreeRootNames():
         expPath = "%s/%s/%s_experiment.xml" % (options.path, name, name)
         mcProj.expMap[name] = os.path.abspath(expPath)
+    alignmentRootId = mcProj.mcTree.getRootId()
+    if options.root is not None:
+        try:
+            alignmentRootId = mcProj.mcTree.getNodeId(options.root)
+        except Exception as e:
+            raise RuntimeError("Specified root name %s not found in tree" % options.root)
+    mcProj.outgroup = None
     if config.getOutgroupStrategy() == 'greedy':
+        # use the provided outgroup candidates, or use all outgroups
+        # as candidates if none are given
         mcProj.outgroup = GreedyOutgroup()
-        mcProj.outgroup.importTree(mcProj.mcTree)
+        mcProj.outgroup.importTree(mcProj.mcTree, alignmentRootId)
         mcProj.outgroup.greedy(threshold=config.getOutgroupThreshold(),
                                candidateSet=options.outgroupNames,
-                               candidateChildFrac=config.getOutgroupAncestorQualityFraction())
+                               candidateChildFrac=config.getOutgroupAncestorQualityFraction(),
+                               maxNumOutgroups=config.getMaxNumOutgroups())
     elif config.getOutgroupStrategy() == 'greedyLeaves':
+        # use all leaves as outgroups, unless outgroup candidates are given
         mcProj.outgroup = GreedyOutgroup()
-        mcProj.outgroup.importTree(mcProj.mcTree)
+        mcProj.outgroup.importTree(mcProj.mcTree, alignmentRootId)
         ogSet = options.outgroupNames
         if ogSet is None:
             ogSet = set([mcProj.mcTree.getName(x) for x in mcProj.mcTree.getLeaves()])
         mcProj.outgroup.greedy(threshold=config.getOutgroupThreshold(),
                                candidateSet=ogSet,
-                               candidateChildFrac=2.0)
+                               candidateChildFrac=2.0,
+                               maxNumOutgroups=config.getMaxNumOutgroups())
+    elif config.getOutgroupStrategy() == 'greedyPreference':
+        # prefer the provided outgroup candidates, if any, but use
+        # other nodes as "filler" if we can't find enough.
+        mcProj.outgroup = GreedyOutgroup()
+        mcProj.outgroup.importTree(mcProj.mcTree, alignmentRootId)
+        mcProj.outgroup.greedy(threshold=config.getOutgroupThreshold(),
+                               candidateSet=options.outgroupNames,
+                               candidateChildFrac=config.getOutgroupAncestorQualityFraction(),
+                               maxNumOutgroups=config.getMaxNumOutgroups())
+        mcProj.outgroup.greedy(threshold=config.getOutgroupThreshold(),
+                               candidateSet=None,
+                               candidateChildFrac=config.getOutgroupAncestorQualityFraction(),
+                               maxNumOutgroups=config.getMaxNumOutgroups())
+    elif config.getOutgroupStrategy() == 'dynamic':
+        # dynamic programming algorithm that exactly optimizes probability
+        # that base in target node aligns to at least one base in the
+        # outgroup set.  Caveats are that it only returns leaves, and
+        # the model used for optimization is super naive. Still, it does
+        # some things better than greedy approaches such as properly account
+        # for phylogenetic redundancy, as well as try to factor assembly
+        # size/quality automatically. 
+        mcProj.outgroup = DynamicOutgroup()
+        mcProj.outgroup.importTree(mcProj.mcTree, mcProj.getInputSequenceMap(), alignmentRootId,
+                                   candidateSet=options.outgroupNames)
+        mcProj.outgroup.compute(maxNumOutgroups=config.getMaxNumOutgroups())
+    elif config.getOutgroupStrategy() != 'none':
+        raise RuntimeError("Could not understand outgroup strategy %s" % config.getOutgroupStrategy())
+
+    # if necessary, we reroot the tree at the specified alignment root id.  all leaf genomes
+    # that are no longer in the tree, but still used as outgroups, are moved into special fields
+    # so that we can remember to, say, get their paths for preprocessing. 
+    specifyAlignmentRoot(mcProj, alignmentRootId)
     return mcProj
+
+# it is possible that we start with a much bigger tree than we actually want to align
+# (controlled by the --root option in cactus_createMultiCactusProject.py).  We use
+# the entire tree when selecting outgroups, but right afterward have no use for
+# genomes that are neither outgroups, nor in the alignment.  We especially don't
+# want to waste time preprocessing them.  This function, reroots the tree at the
+# alignment root then tacks on all the outgroups from ooutside the new tree
+# (which must be leaves) as children of the root
+def specifyAlignmentRoot(mcProj, alignmentRootId):
+    # ugly hack to keep track of external outgroups for root experiment (yuck)
+    mcProj.externalOutgroupNames = set()
+    # nothing to do
+    if alignmentRootId == mcProj.mcTree.getRootId():
+        return
+    
+    # dig out every outgroup
+    outGroupNames = set()
+    if mcProj.outgroup is not None:
+        for event, ogNameDistList in mcProj.outgroup.ogMap.items():
+            for og, dist in ogNameDistList:
+                outGroupNames.add(og)
+
+    # i don't like this but we have to assume here that the sequences are
+    # written in postorder (as in experiments)
+    allLeafMap = dict()
+    idx = 0
+    for node in mcProj.mcTree.postOrderTraversal():
+        if mcProj.mcTree.isLeaf(node) is True:
+            allLeafMap[mcProj.mcTree.getName(node)] = mcProj.inputSequences[idx]
+            idx += 1
+
+    # find outgroups we want to extract
+    keptNodes = set([x for x in mcProj.mcTree.postOrderTraversal(alignmentRootId)])
+    deadNodes = []
+    extractOutgroupMap = dict()
+    for node in mcProj.mcTree.postOrderTraversal():
+        if node not in keptNodes:
+            deadNodes.append(node)
+            name = mcProj.mcTree.getName(node)
+            if name in outGroupNames:
+                assert name in allLeafMap
+                extractOutgroupMap[name] = allLeafMap[name]
+                mcProj.externalOutgroupNames.add(name)
+
+    # reroot the tree!
+    oldParent = mcProj.mcTree.getParent(alignmentRootId)
+    mcProj.mcTree.reroot(alignmentRootId)
+
+    # add the outgroups to the tree (and sequence map)
+    # computing distance to new root for each one
+    for ogName, ogPath in extractOutgroupMap.items():
+        ogId = mcProj.mcTree.getNodeId(ogName)
+        dist = 0.
+        x = ogId
+        while mcProj.mcTree.hasParent(x):
+            d = mcProj.mcTree.getWeight(mcProj.mcTree.getParent(x), x)
+            if d is None:
+                dist = None
+                break
+            else:
+                dist += d
+            x = mcProj.mcTree.getParent(x)
+        mcProj.mcTree.addOutgroup(ogName, dist)
+        allLeafMap[ogName] = ogPath
+
+    # remove any experiment directories that have become invalid
+    for event in mcProj.expMap.keys():
+        if mcProj.mcTree.getNodeId(event) in deadNodes:
+            del mcProj.expMap[event]
+            
+    # flush out all unused nodes, and set the new root
+    for node in deadNodes:
+        assert mcProj.mcTree.hasParent(node)
+        mcProj.mcTree.removeEdge(mcProj.mcTree.getParent(node), node)
+    from sonLib.nxnewick import NXNewick
+
+    # reset input sequences to only contain genomes in tree (making sure to
+    # keep in postorder)
+    mcProj.inputSequences = []
+    for node in mcProj.mcTree.postOrderTraversal():
+        if mcProj.mcTree.isLeaf(node):
+            mcProj.inputSequences.append(allLeafMap[mcProj.mcTree.getName(node)])
+
 
 # go through the tree (located in the template experimet)
 # and make sure event names are unique up unitil first dot
@@ -76,8 +204,7 @@ def cleanEventTree(experiment):
             name1 = tree.getName(node1)
             for node2 in tree.breadthFirstTraversal():
                 name2 = tree.getName(node2)
-                if node1 != node2 and name1.find(name2) == 0 and\
-                 name1 != name2 + tree.self_suffix:
+                if node1 != node2 and name1 == name2:
                     newName = "%s%i" % (name2, newSuffix)
                     newSuffix += 1
                     tree.setName(node2, newName)
@@ -92,7 +219,8 @@ def cleanEventTree(experiment):
 # and write the experiment files
 # and copy over a config with updated reference field
 def createFileStructure(mcProj, expTemplate, configTemplate, options):
-    os.makedirs(options.path)
+    if not os.path.exists(options.path):
+        os.makedirs(options.path)
     mcProj.writeXML(os.path.join(options.path, "%s_project.xml" % options.name))
     seqMap = expTemplate.seqMap
     portOffset = 0
@@ -102,6 +230,11 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
     for name, expPath in mcProj.expMap.items():
         path = os.path.join(options.path, name)
         subtree = mcProj.mcTree.extractSubTree(name)
+        # hack the outgroups back out of the root (yuck)
+        if name == mcProj.mcTree.getRootName():
+            for rootChild in subtree.getChildren(subtree.getRootId()):
+                if subtree.getName(rootChild) in mcProj.externalOutgroupNames:
+                    subtree.removeEdge(subtree.getRootId(), rootChild)
         exp = copy.deepcopy(expTemplate)
         dbBase = path
         if expTemplate.getDbDir() is not None:
@@ -127,14 +260,18 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
         exp.setConfigPath(os.path.join(path, "%s_config.xml" % name))
         if configTemplate.getOutgroupStrategy() != 'none' \
         and name in mcProj.outgroup.ogMap:
-            og, ogDist = mcProj.outgroup.ogMap[name]
-            if og in expTemplate.seqMap:
-                ogPath = expTemplate.seqMap[og]
-            else:
-                ogPath = os.path.join(options.path, og)
-                ogPath = os.path.join(ogPath, refFileName(og))
-            exp.addTheOutgroupSequence(og, ogDist, ogPath)
-        os.makedirs(exp.getDbDir())
+            for og, ogDist in mcProj.outgroup.ogMap[name]:
+                if og in expTemplate.seqMap:
+                    ogPath = expTemplate.seqMap[og]
+                else:
+                    ogPath = os.path.join(options.path, og)
+                    ogPath = os.path.join(ogPath, refFileName(og))
+                exp.addOutgroupSequence(og, ogDist, ogPath)
+        elif name == mcProj.mcTree.getRootName() \
+        and options.rootOutgroupPaths is not None:
+            exp.xmlRoot.attrib["outgroup_events"] = " ".join([ogName for (ogName, _) in mcProj.outgroup.ogMap[name]])
+        if not os.path.exists(exp.getDbDir()):
+            os.makedirs(exp.getDbDir())
         if not os.path.exists(path):
             os.makedirs(path)
         exp.writeXML(expPath)
@@ -164,7 +301,19 @@ def main():
                       help="try to make sequence and event names MAF-compliant [default=true]")
     parser.add_option("--outgroupNames", dest="outgroupNames",  default = None, 
                       help="comma-separated names of high quality assemblies to use as outgroups [default=everything]")
-    
+    parser.add_option("--rootOutgroupPaths", dest="rootOutgroupPaths", type=str,
+                      help="comma-separated root outgroup paths (other root outgroup options " +
+                      "must be given as well)", default=None)
+    parser.add_option("--rootOutgroupDists", dest="rootOutgroupDists", type=str,
+                      help="comma-separated root outgroup distances (other root outgroup " +
+                      "options must be given as well", default=None)
+    parser.add_option("--root", dest="root", type=str,
+                      help="name of alignment root (must be labeled ancestral node in tree in input experiment).  Useful "
+                      "for allowing the tree to contain nodes that won't be in the alignment but can still be used for "
+                      "outgroups.  NOTE: ADDED TO REPLACE --rootOutgroupPaths and --rootOutgroupDists.",
+                      default=None)
+    parser.add_option("--overwrite", action="store_true", help="Overwrite existing experiment files", default=False)
+
     options, args = parser.parse_args()
     
     if len(args) != 2:
@@ -176,7 +325,15 @@ def main():
     options.name = os.path.basename(options.path)
     options.fixNames = not options.fixNames.lower() == "false"
 
-    if os.path.isdir(options.path) or os.path.isfile(options.path):
+    if (options.rootOutgroupDists is not None) \
+    ^ (options.rootOutgroupPaths is not None):
+        parser.error("--rootOutgroupDists and --rootOutgroupPaths must be " +
+                         "provided together")
+
+    if options.rootOutgroupDists is not None and len(options.rootOutgroupDists.split(",")) != len(options.rootOutgroupPaths.split(",")):
+        parser.error("root outgroup options must have the same number of entries")
+
+    if (os.path.isdir(options.path) and not options.overwrite) or os.path.isfile(options.path):
         raise RuntimeError("Output project path %s exists\n" % options.path)
     
     expTemplate = ExperimentWrapper(ET.parse(options.expFile).getroot())
@@ -194,7 +351,30 @@ def main():
                 raise RuntimeError("Specified outgroup %s not found in tree" % outgroupName)
     mcProj = createMCProject(tree, expTemplate, confTemplate, options)
     #Replace the sequences with output sequences
-    expTemplate.setSequences([ os.path.join(expTemplate.getOutputSequenceDir(), os.path.split(i)[-1]) for i in expTemplate.getSequences() ])
+    expTemplate.updateTree(mcProj.mcTree, expTemplate.buildSequenceMap())
+    expTemplate.setSequences(CactusPreprocessor.getOutputSequenceFiles(mcProj.inputSequences, expTemplate.getOutputSequenceDir()))
+    if options.rootOutgroupPaths is not None:
+        # hacky -- add the root outgroup to the tree after everything
+        # else.  This ends up being ugly, but avoids running into
+        # problems with assumptions about tree structure
+        #
+        # [this hack is hopefully made redundant by the --root option]
+        #
+        options.rootOutgroupPaths = [os.path.abspath(path) for path in options.rootOutgroupPaths.split(",")]
+        options.rootOutgroupDists = [float(i) for i in options.rootOutgroupDists.split(",")]
+        mcProj.inputSequences.extend(options.rootOutgroupPaths)
+        # replace the root outgroup sequence by post-processed output
+        for i, (outgroupPath, outgroupDist) in enumerate(zip(options.rootOutgroupPaths, options.rootOutgroupDists)):
+            outgroupPath = CactusPreprocessor.getOutputSequenceFiles(expTemplate.getSequences() + options.rootOutgroupPaths[:i+1], expTemplate.getOutputSequenceDir())[-1]
+            rootOutgroupName = "rootOutgroup%d" % i
+            expTemplate.seqMap[rootOutgroupName] = outgroupPath
+            # Add to tree
+            mcProj.mcTree.addOutgroup(rootOutgroupName, outgroupDist)
+            mcProj.mcTree.computeSubtreeRoots()
+            if mcProj.mcTree.getRootName() not in mcProj.outgroup.ogMap:
+                # initialize ogMap entry
+                mcProj.outgroup.ogMap[mcProj.mcTree.getRootName()] = []
+            mcProj.outgroup.ogMap[mcProj.mcTree.getRootName()].append((rootOutgroupName, outgroupDist))
     #Now do the file tree creation
     createFileStructure(mcProj, expTemplate, confTemplate, options)
    # mcProj.check()

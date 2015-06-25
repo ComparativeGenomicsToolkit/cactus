@@ -1,0 +1,14 @@
+# base inference on alignments in the middle 50 percentile
+# by percent-identity
+min_identity       = 25.0%    # 25th percentile
+max_identity       = 75.0%    # 75th percentile
+
+# scale scores so max substitution will be 100 and only use
+# alignments scoring as well as 20 substitutions
+inference_scale    = 100      # score for max substitution
+hsp_threshold      = 20*inference_scale
+gapped_threshold   = hsp_threshold
+
+# allow substitution score inference to iterate at most
+# 20 times;  don't perform gap score inference
+max_sub_iterations = 20

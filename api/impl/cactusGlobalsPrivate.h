@@ -7,6 +7,10 @@
 #ifndef CACTUS_GLOBALS_PRIVATE_H_
 #define CACTUS_GLOBALS_PRIVATE_H_
 
+// Needed to stop gcc's strict mode from complaining about fileno and
+// fsync (needs to be *before* unistd.h include)
+#define _POSIX_C_SOURCE 200112L
+
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdint.h>

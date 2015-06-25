@@ -76,18 +76,6 @@ void makeEventHeadersAlphaNumericFn(stTree *tree) {
     }
 }
 
-//We want to report number of sequences,
-static stList *sequenceLengths;
-static stList *repeatBaseCounts;
-int64_t nCount;
-static const char *fileNameForStats;
-void setupStatsCollation(const char *fileName) {
-    fileNameForStats = fileName;
-    sequenceLengths = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
-    repeatBaseCounts = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
-    nCount = 0;
-}
-
 void processSequence(const char *fastaHeader, const char *string, int64_t length) {
     /*
      * Processes a sequence by adding it to the flower disk.
@@ -109,44 +97,6 @@ void processSequence(const char *fastaHeader, const char *string, int64_t length
     cap2 = cap_construct2(end2, length + 2, 1, sequence);
     cap_makeAdjacent(cap1, cap2);
     totalSequenceNumber++;
-
-    //Now collate stats
-    int64_t sequenceLength = strlen(string);
-    stList_append(sequenceLengths, stIntTuple_construct1(sequenceLength));
-    int64_t j=0;
-    for(int64_t i=0; i<sequenceLength; i++) {
-        bool isN = string[i] == 'N' || string[j] == 'n';
-        j += (tolower(string[i]) == string[i] || isN) ? 1 : 0;
-        nCount += isN ? 1 : 0;
-    }
-    stList_append(repeatBaseCounts, stIntTuple_construct1(j));
-}
-
-void cleanupAndReportStatsCollection() {
-    //Collate stats
-    int64_t totalSequences = stList_length(sequenceLengths);
-    int64_t totalLength = 0;
-    int64_t repeatBaseCount = 0;
-    stList_sort(sequenceLengths, (int (*)(const void *, const void *))stIntTuple_cmpFn);
-    for(int64_t i=0; i<totalSequences; i++) {
-        totalLength += stIntTuple_get(stList_get(sequenceLengths, i), 0);
-        repeatBaseCount += stIntTuple_get(stList_get(repeatBaseCounts, i), 0);
-    }
-    int64_t medianSequenceLength = totalSequences > 0 ? stIntTuple_get(stList_get(sequenceLengths, totalSequences/2), 0) : 0;
-    int64_t n50;
-    int64_t j=0;
-    for(int64_t i=totalSequences-1; i>=0; i--) {
-        n50 = stIntTuple_get(stList_get(repeatBaseCounts, i), 0);
-        j += n50;
-        if(j >= totalLength/2) {
-            break;
-        }
-    }
-    fprintf(stdout, "Input-sample: %s Total-sequences: %" PRIi64 " Total-length: %" PRIi64 " Proportion-repeat-masked: %f ProportionNs: %f N50: %" PRIi64 " Median-sequence-length: %" PRIi64 "\n",
-            fileNameForStats, totalSequences, totalLength, ((double)repeatBaseCount)/totalLength, ((double)nCount)/totalLength, n50, medianSequenceLength);
-    //Cleanup
-    stList_destruct(sequenceLengths);
-    stList_destruct(repeatBaseCounts);
 }
 
 void setCompleteStatus(const char *fileName) {
@@ -339,7 +289,6 @@ int main(int argc, char *argv[]) {
             if (stFile_isDir(fileName)) {
                 st_logInfo("Processing directory: %s\n", fileName);
                 stList *filesInDir = stFile_getFileNamesInDirectory(fileName);
-                setupStatsCollation(fileName);
                 for (int64_t i = 0; i < stList_length(filesInDir); i++) {
                     char *absChildFileName = stFile_pathJoin(fileName, stList_get(filesInDir, i));
                     assert(stFile_exists(absChildFileName));
@@ -349,15 +298,12 @@ int main(int argc, char *argv[]) {
                     fclose(fileHandle);
                     free(absChildFileName);
                 }
-                cleanupAndReportStatsCollection();
                 stList_destruct(filesInDir);
             } else {
                 st_logInfo("Processing file: %s\n", fileName);
                 setCompleteStatus(fileName); //decide if the sequences in the file should be free or attached.
                 fileHandle = fopen(fileName, "r");
-                setupStatsCollation(fileName);
                 fastaReadToFunction(fileHandle, processSequence);
-                cleanupAndReportStatsCollection();
                 fclose(fileHandle);
             }
             j++;

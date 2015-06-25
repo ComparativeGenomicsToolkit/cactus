@@ -1,0 +1,4 @@
+The code in this directory and its subdirectories belongs 
+to third party contributors who reserve all rights over the
+code. Any further distribution of their code requires their
+permission unless otherwise stated.

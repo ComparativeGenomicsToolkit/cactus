@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+ #!/usr/bin/env python
 
 #Copyright (C) 2011 by Glenn Hickey
 #
@@ -21,7 +21,7 @@ from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.outgroup import GreedyOutgroup
-from sonLib.bioio import system
+from sonLib.bioio import system, absSymPath
 
 def updateProject(path):
     mcProj = MultiCactusProject()
@@ -64,16 +64,18 @@ def updateProject(path):
             newHalFastaPath = os.path.join(basePath, halFastaName)
             exp.setHALFastaPath(newHalFastaPath)
 
-        oldMafPath = exp.getMAFPath()
-        if oldMafPath is not None:
-            mafName = oldMafPath[oldMafPath.find(name):]
-            newMafPath = os.path.join(basePath, mafName)
-            exp.setMAFPath(newMafPath)
-        
-        oldHostName = exp.getDbHost()
-        if oldHostName is not None:
-            newHostName = socket.gethostname()
-            exp.setDbHost(newHostName)
+        # seems to have dissappeared from experiment?
+        #oldMafPath = exp.getMAFPath()
+        #if oldMafPath is not None:
+        #    mafName = oldMafPath[oldMafPath.find(name):]
+        #    newMafPath = os.path.join(basePath, mafName)
+        #    exp.setMAFPath(newMafPath)
+
+        if exp.getDbType() == "kyoto_tycoon":
+            oldHostName = exp.getDbHost()
+            if oldHostName is not None:
+                newHostName = socket.gethostname()
+                exp.setDbHost(newHostName)
         
         system("cp %s %s.old" %(newPath, newPath))
         exp.writeXML(newPath)
@@ -91,7 +93,7 @@ def main():
         parser.print_help()
         raise RuntimeError("Wrong number of arguments")
     
-    path = os.path.abspath(args[0])
+    path = absSymPath(args[0])
     
     if not os.path.isfile(path):
         raise RuntimeError("Project file %s not found\n" % path)
