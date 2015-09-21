@@ -152,7 +152,7 @@ def runCactusSetup(cactusDiskDatabaseString, sequences,
     logger.info("Ran cactus setup okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]
     
-def runCactusBlast(sequenceFiles, outputFile, jobTreeDir,
+def runCactusBlast(sequenceFiles, outputFile, toilDir,
                    chunkSize=None, overlapSize=None, 
                    logLevel=None, 
                    blastString=None, 
@@ -170,10 +170,11 @@ def runCactusBlast(sequenceFiles, outputFile, jobTreeDir,
     if targetSequenceFiles != None: 
         targetSequenceFiles = " ".join(targetSequenceFiles)
     targetSequenceFiles = nameValue("targetSequenceFiles", targetSequenceFiles, quotes=True)
-    command = "cactus_blast.py %s  --cigars %s %s %s %s %s %s %s %s --jobTree %s --logLevel %s" % \
-            (" ".join(sequenceFiles), outputFile,
+    sequenceFiles = nameValue("seqFiles", " ".join(sequenceFiles), quotes=True)
+    command = "cactus_blast.py %s %s --cigars %s %s %s %s %s %s %s %s --logLevel %s" % \
+            (toilDir, sequenceFiles, outputFile,
              chunkSize, overlapSize, blastString, selfBlastString, compressFiles, 
-             lastzMemory, targetSequenceFiles, jobTreeDir, logLevel)
+             lastzMemory, targetSequenceFiles, logLevel)
     logger.info("Running command : %s" % command)
     system(command)
     logger.info("Ran the cactus_blast command okay")
@@ -510,3 +511,10 @@ def runCactusFastaGenerator(cactusDiskDatabaseString,
     
 def runCactusAnalyseAssembly(sequenceFile):
     return popenCatch("cactus_analyseAssembly %s" % sequenceFile)[:-1]
+
+def runToilStats(jobTree, outputFile):
+    system("toil stats %s --outputFile %s" % (jobTree, outputFile))
+    logger.info("Ran the job-tree stats command apparently okay")
+def runToilStatusAndFailIfNotComplete(jobTreeDir):
+    command = "toil status %s --failIfNotComplete --verbose" % jobTreeDir
+    system(command)
