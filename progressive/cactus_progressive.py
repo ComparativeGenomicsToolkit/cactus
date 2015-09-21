@@ -13,7 +13,7 @@ tree.
 import os
 import xml.etree.ElementTree as ET
 import math
-from optparse import OptionParser
+from argparse import ArgumentParser
 from collections import deque
 import random
 from itertools import izip
@@ -25,15 +25,14 @@ from sonLib.bioio import getTempFile
 from sonLib.bioio import printBinaryTree
 from sonLib.bioio import system
 
-from jobTree.src.bioio import getLogLevelString
-from jobTree.src.bioio import logger
-from jobTree.src.bioio import setLoggingFromOptions
+from toil.lib.bioio import getLogLevelString
+from toil.lib.bioio import logger
+from toil.lib.bioio import setLoggingFromOptions
 
 from cactus.shared.common import cactusRootPath
 from cactus.shared.common import getOptionalAttrib
   
-from jobTree.scriptTree.target import Target 
-from jobTree.scriptTree.stack import Stack 
+from toil.job import Job
 
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
@@ -48,53 +47,53 @@ from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.schedule import Schedule
         
-class ProgressiveDown(Target):
+class ProgressiveDown(Job):
     def __init__(self, options, project, event, schedule):
-        Target.__init__(self)
+        Job.__init__(self)
         self.options = options
         self.project = project
         self.event = event
         self.schedule = schedule
     
-    def run(self):
+    def run(self, fileStore):
         logger.info("Progressive Down: " + self.event)
         
         if not self.options.nonRecursive:
             deps = self.schedule.deps(self.event)
             for child in deps:
-                self.addChildTarget(ProgressiveDown(self.options,
+                self.addChild(ProgressiveDown(self.options,
                                                     self.project, child, 
                                                     self.schedule))
         
-        self.setFollowOnTarget(ProgressiveNext(self.options, self.project, self.event,
+        self.addFollowOn(ProgressiveNext(self.options, self.project, self.event,
                                                self.schedule))
 
-class ProgressiveNext(Target):
+class ProgressiveNext(Job):
     def __init__(self, options, project, event, schedule):
-        Target.__init__(self)
+        Job.__init__(self)
         self.options = options
         self.project = project
         self.event = event
         self.schedule = schedule
     
-    def run(self):
+    def run(self, fileStore):
         logger.info("Progressive Next: " + self.event)
 
         if not self.schedule.isVirtual(self.event):
-            self.addChildTarget(ProgressiveUp(self.options, self.project, self.event))
+            self.addChild(ProgressiveUp(self.options, self.project, self.event))
         followOnEvent = self.schedule.followOn(self.event)
         if followOnEvent is not None:
-            self.addChildTarget(ProgressiveDown(self.options, self.project, followOnEvent,
+            self.addChild(ProgressiveDown(self.options, self.project, followOnEvent,
                                                 self.schedule))
     
-class ProgressiveUp(Target):
+class ProgressiveUp(Job):
     def __init__(self, options, project, event):
-        Target.__init__(self)
+        Job.__init__(self)
         self.options = options
         self.project = project
         self.event = event
     
-    def run(self):
+    def run(self, fileStore):
         logger.info("Progressive Up: " + self.event)
 
         # open up the experiment
@@ -111,11 +110,13 @@ class ProgressiveUp(Target):
             maxParallel = min(len(self.project.expMap),
                              configWrapper.getMaxParallelSubtrees()) 
             if self.options.batchSystem == "singleMachine":
-                if int(self.options.maxThreads) < maxParallel * 3:
-                    raise RuntimeError("At least %d threads are required (only %d were specified) to handle up to %d events using kyoto tycoon. Either increase the number of threads using the --maxThreads option or decrease the number of parallel jobs (currently %d) by adjusting max_parallel_subtrees in the config file" % (maxParallel * 3, self.options.maxThreads, maxParallel, configWrapper.getMaxParallelSubtrees()))
+                pass
+                #if int(self.options.maxThreads) < maxParallel * 3:
+                    #raise RuntimeError("At least %d threads are required (only %d were specified) to handle up to %d events using kyoto tycoon. Either increase the number of threads using the --maxThreads option or decrease the number of parallel jobs (currently %d) by adjusting max_parallel_subtrees in the config file" % (maxParallel * 3, self.options.maxThreads, maxParallel, configWrapper.getMaxParallelSubtrees()))
             else:
-                if int(self.options.maxCpus) < maxParallel * 3:
-                    raise RuntimeError("At least %d concurrent cpus are required to handle up to %d events using kyoto tycoon. Either increase the number of cpus using the --maxCpus option or decrease the number of parallel jobs (currently %d) by adjusting max_parallel_subtrees in the config file" % (maxParallel * 3, maxParallel, configWrapper.getMaxParallelSubtrees()))
+                pass
+                #if int(self.options.maxCores) < maxParallel * 3:
+                    #raise RuntimeError("At least %d concurrent cpus are required to handle up to %d events using kyoto tycoon. Either increase the number of cpus using the --maxCpus option or decrease the number of parallel jobs (currently %d) by adjusting max_parallel_subtrees in the config file" % (maxParallel * 3, maxParallel, configWrapper.getMaxParallelSubtrees()))
                     
         # take union of command line options and config options for hal and reference
         if self.options.buildReference == False:
@@ -159,44 +160,44 @@ class ProgressiveUp(Target):
 
             if workFlowArgs.configWrapper.getDoTrimStrategy() and workFlowArgs.outgroupEventNames is not None:
                 # Use the trimming strategy to blast ingroups vs outgroups.
-                self.addChildTarget(CactusTrimmingBlastPhase(cactusWorkflowArguments=workFlowArgs, phaseName="trimBlast"))
+                self.addChild(CactusTrimmingBlastPhase(cactusWorkflowArguments=workFlowArgs, phaseName="trimBlast"))
             else:
-                self.addChildTarget(CactusSetupPhase(cactusWorkflowArguments=workFlowArgs,
+                self.addChild(CactusSetupPhase(cactusWorkflowArguments=workFlowArgs,
                                                      phaseName="setup"))
         logger.info("Going to create alignments and define the cactus tree")
 
-        self.setFollowOnTarget(FinishUp(workFlowArgs, self.project))
+        self.addFollowOn(FinishUp(workFlowArgs, self.project))
                                
-class FinishUp(Target):
+class FinishUp(Job):
     def __init__(self, workFlowArgs, project,):
-        Target.__init__(self)
+        Job.__init__(self)
         self.workFlowArgs = workFlowArgs
         self.project = project
     
-    def run(self):
+    def run(self, fileStore):
         donePath = os.path.join(os.path.dirname(self.workFlowArgs.experimentFile), "DONE")
         doneFile = open(donePath, "w")
         doneFile.write("")
         doneFile.close()
 
-class RunCactusPreprocessorThenProgressiveDown(Target):
-    def __init__(self, options, args):
-        Target.__init__(self)
+class RunCactusPreprocessorThenProgressiveDown(Job):
+    def __init__(self, options, inputDir):
+        Job.__init__(self)
         self.options = options
-        self.args = args
+        self.inputDir = inputDir
         
-    def run(self):
+    def run(self, fileStore):
         #Load the multi-cactus project
         project = MultiCactusProject()
-        project.readXML(self.args[0])
+        project.readXML(self.inputDir)
         #Create jobs to create the output sequences
         configNode = ET.parse(project.getConfigPath()).getroot()
         ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals() #This is necessary..
         #Create the preprocessor
-        self.addChildTarget(CactusPreprocessor(project.getInputSequencePaths(), 
+        self.addChild(CactusPreprocessor(project.getInputSequencePaths(), 
                                                CactusPreprocessor.getOutputSequenceFiles(project.getInputSequencePaths(), project.getOutputSequenceDir()),
                                                configNode))
-        #Now build the progressive-down target
+        #Now build the progressive-down job
         schedule = Schedule()
         schedule.loadProject(project)
         schedule.compute()
@@ -205,34 +206,35 @@ class RunCactusPreprocessorThenProgressiveDown(Target):
         assert self.options.event in project.expMap
         leafNames = [ project.mcTree.getName(i) for i in project.mcTree.getLeaves() ]
         self.options.globalLeafEventSet = set(leafNames)
-        self.setFollowOnTarget(ProgressiveDown(self.options, project, self.options.event, schedule))
+        self.addFollowOn(ProgressiveDown(self.options, project, self.options.event, schedule))
 
 def main():
-    usage = "usage: %prog [options] <multicactus project>"
+    usage = "usage: prog [options] <multicactus project>"
     description = "Progressive version of cactus_workflow"
-    parser = OptionParser(usage=usage, description=description)
-    Stack.addJobTreeOptions(parser)
+    parser = ArgumentParser(usage=usage, description=description)
+    Job.Runner.addToilOptions(parser)
     addCactusWorkflowOptions(parser)
     
-    parser.add_option("--nonRecursive", dest="nonRecursive", action="store_true",
+    parser.add_argument("--nonRecursive", dest="nonRecursive", action="store_true",
                       help="Only process given event (not children) [default=False]", 
                       default=False)
     
-    parser.add_option("--event", dest="event", 
+    parser.add_argument("--event", dest="event", 
                       help="Target event to process [default=root]", default=None)
     
-    parser.add_option("--overwrite", dest="overwrite", action="store_true",
+    parser.add_argument("--overwrite", dest="overwrite", action="store_true",
                       help="Recompute and overwrite output files if they exist [default=False]",
                       default=False)
+    parser.add_argument("--project", dest="project", help="Directory of multicactus project.")
     
-    options, args = parser.parse_args()
+    options = parser.parse_args()
     setLoggingFromOptions(options)
 
-    if len(args) != 1:
-        parser.print_help()
-        raise RuntimeError("Unrecognised input arguments: %s" % " ".join(args))
+    #if len(args) != 1:
+    #    parser.print_help()
+    #    raise RuntimeError("Unrecognised input arguments: %s" % " ".join(args))
 
-    Stack(RunCactusPreprocessorThenProgressiveDown(options, args)).startJobTree(options)
+    Job.Runner.startToil(RunCactusPreprocessorThenProgressiveDown(options, options.project), options)
 
 if __name__ == '__main__':
     from cactus.progressive.cactus_progressive import *

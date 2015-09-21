@@ -29,7 +29,7 @@ class TestCase(unittest.TestCase):
         runWorkflow_multipleExamples(lambda regionNumber=0, tempDir=None : getInputs(inputDir, primateSequences),
                                      testRestrictions=(TestStatus.TEST_SHORT,),
                                      batchSystem=self.batchSystem,
-                                     buildJobTreeStats=True)
+                                     buildToilStats=True)
     
     def testEvolver_Mammals_Loci1(self):
         inputDir = os.path.join(TestStatus.getPathToDataSets(), "evolver", "mammals", "loci1")
@@ -37,7 +37,7 @@ class TestCase(unittest.TestCase):
         runWorkflow_multipleExamples(lambda regionNumber=0, tempDir=None : getInputs(inputDir, mammalSequences),
                                      testRestrictions=(TestStatus.TEST_MEDIUM,),
                                      batchSystem=self.batchSystem,
-                                     buildJobTreeStats=True)
+                                     buildToilStats=True)
         
     def testEvolver_Primates_Small(self):
         inputDir = os.path.join(TestStatus.getPathToDataSets(), "evolver", "primates", "small")
@@ -45,7 +45,7 @@ class TestCase(unittest.TestCase):
         runWorkflow_multipleExamples(lambda regionNumber=0, tempDir=None : getInputs(inputDir, primateSequences),
                                      testRestrictions=(TestStatus.TEST_MEDIUM,),
                                      batchSystem=self.batchSystem,
-                                     buildJobTreeStats=True)
+                                     buildToilStats=True)
     
     def testEvolver_Mammals_Medium(self):
         inputDir = os.path.join(TestStatus.getPathToDataSets(), "evolver", "mammals", "medium")
@@ -53,7 +53,7 @@ class TestCase(unittest.TestCase):
         runWorkflow_multipleExamples(lambda regionNumber=0, tempDir=None : getInputs(inputDir, mammalSequences),
                                      testRestrictions=(TestStatus.TEST_LONG,),
                                      batchSystem=self.batchSystem,
-                                     buildJobTreeStats=True)
+                                     buildToilStats=True)
     
     def testEvolver_Primates_Large(self):
         inputDir = os.path.join(TestStatus.getPathToDataSets(), "evolver", "primates", "large")
@@ -61,7 +61,7 @@ class TestCase(unittest.TestCase):
         runWorkflow_multipleExamples(lambda regionNumber=0, tempDir=None : getInputs(inputDir, primateSequences),
                                      testRestrictions=(TestStatus.TEST_VERY_LONG,),
                                      batchSystem=self.batchSystem,
-                                     buildJobTreeStats=True)
+                                     buildToilStats=True)
     
     def testEvolver_Mammals_Large(self):
         inputDir = os.path.join(TestStatus.getPathToDataSets(), "evolver", "mammals", "large")
@@ -69,7 +69,7 @@ class TestCase(unittest.TestCase):
         runWorkflow_multipleExamples(lambda regionNumber=0, tempDir=None : getInputs(inputDir, mammalSequences),
                                      testRestrictions=(TestStatus.TEST_VERY_LONG,),
                                      batchSystem=self.batchSystem,
-                                     buildJobTreeStats=True)
+                                     buildToilStats=True)
 
 def main():
     parseCactusSuiteTestOptions()

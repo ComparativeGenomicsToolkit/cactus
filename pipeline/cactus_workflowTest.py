@@ -44,14 +44,14 @@ class TestCase(unittest.TestCase):
                                      testNumber=5,
                                      testRestrictions=(TestStatus.TEST_SHORT,),
                                      buildAvgs=True, buildReference=True,
-                                     batchSystem=self.batchSystem, buildJobTreeStats=True)
+                                     batchSystem=self.batchSystem, buildToilStats=True)
         
     def testCactus_randomWithConstraints(self):
         runWorkflow_multipleExamples(getCactusInputs_randomWithConstraints, 
                                      testNumber=5,
                                      testRestrictions=(TestStatus.TEST_SHORT,),
                                      buildAvgs=True, buildReference=True,
-                                     batchSystem=self.batchSystem, buildJobTreeStats=True,
+                                     batchSystem=self.batchSystem, buildToilStats=True,
                                      useConstraints=True)
         
     def testCactus_blanchette(self):
@@ -59,19 +59,19 @@ class TestCase(unittest.TestCase):
                                      testNumber=1,
                                      testRestrictions=(TestStatus.TEST_MEDIUM,),
                                      buildAvgs=True, buildReference=True,
-                                     batchSystem=self.batchSystem, buildJobTreeStats=True)
+                                     batchSystem=self.batchSystem, buildToilStats=True)
                 
     def testCactus_encode(self): 
         runWorkflow_multipleExamples(getCactusInputs_encode, 
                                      testNumber=1,
                                      testRestrictions=(TestStatus.TEST_LONG,),
                                      buildAvgs=True, buildReference=True,
-                                     batchSystem=self.batchSystem, buildJobTreeStats=True)
+                                     batchSystem=self.batchSystem, buildToilStats=True)
     
     def testCactus_chromosomes(self):
         runWorkflow_multipleExamples(getCactusInputs_chromosomeX, 
                                      testRestrictions=(TestStatus.TEST_VERY_LONG,),
-                                     batchSystem=self.batchSystem, buildJobTreeStats=True)
+                                     batchSystem=self.batchSystem, buildToilStats=True)
         
     def testGetOptionalAttrib(self):
         self.assertEquals("0", getOptionalAttrib(self.barNode, "minimumBlockDegree"))
@@ -106,39 +106,39 @@ class TestCase(unittest.TestCase):
         self.assertTrue(subNodeCopy != None)
         self.assertEquals("10", subNodeCopy.attrib["memory"])
         
-    def testGetTargetNode(self):
-        class CactusTestTarget(CactusTarget):
+    def testGetJobNode(self):
+        class CactusTestJob(CactusJob):
             pass
-        class CactusTestTarget2(CactusTarget):
+        class CactusTestJob2(CactusJob):
             pass
-        node = ET.SubElement(self.barNode, "CactusTestTarget")
-        self.assertEquals(node, getTargetNode(self.barNode, CactusTestTarget))
-        self.assertEquals(None, getTargetNode(self.barNode, CactusTestTarget2))
+        node = ET.SubElement(self.barNode, "CactusTestJob")
+        self.assertEquals(node, getJobNode(self.barNode, CactusTestJob))
+        self.assertEquals(None, getJobNode(self.barNode, CactusTestJob2))
         node2 = ET.SubElement(self.barNode, "CactusSetReferenceCoordinatesDownRecursion")
-        self.assertEquals(node2, getTargetNode(self.barNode, CactusSetReferenceCoordinatesDownRecursion))
+        self.assertEquals(node2, getJobNode(self.barNode, CactusSetReferenceCoordinatesDownRecursion))
     
-    def testCactusTarget(self):
-        class CactusTestTarget(CactusTarget):
+    def testCactusJob(self):
+        class CactusTestJob(CactusJob):
             pass
-        node = ET.SubElement(self.barNode, "CactusTestTarget", attrib={ "memory":10, "cpu":2,  "overlargeMemory":20 })
-        target = CactusTestTarget(self.barNode, self.barNode)
-        self.assertEquals(target.targetNode, node)
-        self.assertEquals(target.getMemory(), 10)
-        self.assertEquals(target.getCpu(), 2)
-        target = CactusTestTarget(self.barNode, self.barNode, overlarge=True)
-        self.assertEquals(target.getMemory(), 20)
-        self.assertEquals(target.getCpu(), sys.maxint)
-        self.assertEquals(target.getOptionalPhaseAttrib("diagonalExpansion", typeFn=int), 20)
-        self.assertEquals(target.getOptionalPhaseAttrib("doesntExist", typeFn=int, default=1), 1)
-        self.assertEquals(target.getOptionalTargetAttrib("memory", typeFn=int), 10)
-        self.assertEquals(target.getOptionalTargetAttrib("cpu", typeFn=int, default=1), 2)
-        self.assertEquals(target.getOptionalTargetAttrib("overlargeCpu", typeFn=int, default=-1), -1)
-        class CactusTestTarget2(CactusTarget):
+        node = ET.SubElement(self.barNode, "CactusTestJob", attrib={ "memory":10, "cpu":2,  "overlargeMemory":20 })
+        job = CactusTestJob(self.barNode, self.barNode)
+        self.assertEquals(job.jobNode, node)
+        self.assertEquals(job.memory, 10)
+        self.assertEquals(job.cores, 2)
+        job = CactusTestJob(self.barNode, self.barNode, overlarge=True)
+        self.assertEquals(job.memory, 20)
+        #self.assertEquals(job.cores, sys.maxint)
+        self.assertEquals(job.getOptionalPhaseAttrib("diagonalExpansion", typeFn=int), 20)
+        self.assertEquals(job.getOptionalPhaseAttrib("doesntExist", typeFn=int, default=1), 1)
+        self.assertEquals(job.getOptionalJobAttrib("memory", typeFn=int), 10)
+        self.assertEquals(job.getOptionalJobAttrib("cpu", typeFn=int, default=1), 2)
+        self.assertEquals(job.getOptionalJobAttrib("overlargeCpu", typeFn=int, default=-1), -1)
+        class CactusTestJob2(CactusJob):
             pass
-        target = CactusTestTarget2(self.barNode, self.barNode)
-        self.assertEquals(target.targetNode, None)
-        self.assertEquals(target.getMemory(), sys.maxint)
-        self.assertEquals(target.getCpu(), sys.maxint)
+        job = CactusTestJob2(self.barNode, self.barNode)
+        self.assertEquals(job.jobNode, None)
+        #self.assertEquals(job.memory, sys.maxint)
+        #self.assertEquals(job.cores, sys.maxint)
     
     def testGetLongestPath(self):
         self.assertAlmostEquals(getLongestPath(newickTreeParser("(b(a:0.5):0.5,b(a:1.5):0.5)")), 2.0)
