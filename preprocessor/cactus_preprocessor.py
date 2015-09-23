@@ -85,11 +85,11 @@ class PreprocessSequence(Job):
     def run(self, fileStore):        
         logger.info("Preparing sequence for preprocessing")
         # chunk it up
-        inChunkDirectory = makeSubDir(os.path.join(fileStore.getGlobalTempDir(), "preprocessChunksIn"))
+        inChunkDirectory = makeSubDir(os.path.join(self.getGlobalTempDir(), "preprocessChunksIn"))
         inChunkList = [ chunk for chunk in popenCatch("cactus_blast_chunkSequences %s %i 0 %s %s" % \
                (getLogLevelString(), self.prepOptions.chunkSize,
                 inChunkDirectory, self.inSequencePath)).split("\n") if chunk != "" ]   
-        outChunkDirectory = makeSubDir(os.path.join(fileStore.getGlobalTempDir(), "preprocessChunksOut"))
+        outChunkDirectory = makeSubDir(os.path.join(self.getGlobalTempDir(), "preprocessChunksOut"))
         outChunkList = [] 
         #For each input chunk we create an output chunk, it is the output chunks that get concatenated together.
         for i in xrange(len(inChunkList)):
@@ -134,7 +134,7 @@ class BatchPreprocessor(Job):
         #output to temporary directory unless we are on the last iteration
         lastIteration = self.iteration == len(self.prepXmlElems) - 1
         if lastIteration == False:
-            outSeq = os.path.join(fileStore.getGlobalTempDir(), str(self.iteration))
+            outSeq = os.path.join(self.getGlobalTempDir(), str(self.iteration))
         else:
             outSeq = self.globalOutSequence
         
@@ -200,7 +200,7 @@ class CactusPreprocessor2(Job):
     def run(self, fileStore):
         #If the files are in a sub-dir then rip them out.
         if os.path.isdir(self.inputSequenceFileOrDirectory):
-            tempFile = getTempFile(rootDir=fileStore.getGlobalTempDir())
+            tempFile = getTempFile(rootDir=self.getGlobalTempDir())
             catFiles([ os.path.join(self.inputSequenceFileOrDirectory, f) for f in os.listdir(self.inputSequenceFileOrDirectory)], tempFile)
             inputSequenceFile = tempFile
         else:
