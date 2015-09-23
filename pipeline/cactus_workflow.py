@@ -69,7 +69,7 @@ from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.experimentWrapper import DbElemWrapper
 from cactus.shared.configWrapper import ConfigWrapper
-from cactus.pipeline.ktserverJobTree import addKtserverDependentChild
+from cactus.pipeline.ktserverToil import addKtserverDependentChild
 
 ############################################################
 ############################################################
@@ -210,10 +210,10 @@ class CactusRecursionJob(CactusJob):
             if overlarge: #Make sure large flowers are on there own, in their own job
                 if runFlowerStats:
                     flowerStatsString = runCactusFlowerStats(cactusDiskDatabaseString=self.cactusDiskDatabaseString, flowerName=decodeFirstFlowerName(flowerNames))
-                    fileStore.logToMaster("Adding an oversize flower for job class %s and stats %s" \
+                    logger.info("Adding an oversize flower for job class %s and stats %s" \
                                              % (overlargeJob, flowerStatsString))
                 else:
-                    fileStore.logToMaster("Adding an oversize flower %s for job class %s" \
+                    logger.info("Adding an oversize flower %s for job class %s" \
                                              % (decodeFirstFlowerName(flowerNames), overlargeJob))
                 self.addChild(overlargeJob(cactusDiskDatabaseString=self.cactusDiskDatabaseString, phaseNode=phaseNode, 
                                                     constantsNode=self.constantsNode,
