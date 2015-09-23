@@ -37,7 +37,7 @@ import math
 import xml.etree.ElementTree as ET
 
 from sonLib.bioio import getTempFile
-from jobTree.scriptTree.target import Target
+from toil.job import Job
 from cactus.shared.experimentWrapper import DbElemWrapper
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.pipeline.ktserverControl import runKtserver
@@ -46,18 +46,18 @@ from cactus.pipeline.ktserverControl import killKtServer
 from cactus.pipeline.ktserverControl import getKtServerReport
 
 ###############################################################################
-# Launch childTargetClosure (which is a JobtreeTarget with bound parameters)
-# as a child of rootTarget, using the ktserver launch pattern described
+# Launch childJobClosure (which is a JobtreeJob with bound parameters)
+# as a child of rootJob, using the ktserver launch pattern described
 # above to make sure that a ktserver is running somewhere for the lifespan
-# of childTargetClosure using the pattern described above.
+# of childJobClosure using the pattern described above.
 #
-# rootTarget : existing jobTree target which will serve as the root
+# rootJob : existing toil job which will serve as the root
 #              of all compuation (which will be added as children)
-# newChild : the child PhaseTarget we wish to execute while the
+# newChild : the child PhaseJob we wish to execute while the
 #            ktserver is running.  if isSecondary is true then
-#            newChild is a recursion target and not a phase target
-# maxMemory : memory (in bytes) for jobTree to request for ktserver
-# maxCpu : number of cpus for jobTree to request for ktserver
+#            newChild is a recursion job and not a phase job
+# maxMemory : memory (in bytes) for toil to request for ktserver
+# maxCpu : number of cpus for toil to request for ktserver
 # isSecondary : flag whether or not the database is secondary.  If False,
 #               then the port and host are written to the regular conf node,
 #               if True, then we update the secondaryString (all this within
@@ -66,7 +66,7 @@ from cactus.pipeline.ktserverControl import getKtServerReport
 #                 on a new database before giving up
 # loadTimeout : seconds to wait for server to be valid after running ktserver
 #                 on an existing database before giving up
-# blockTimeout : seconds that Block target waits for the ktserver to be
+# blockTimeout : seconds that Block job waits for the ktserver to be
 #                launched before aborting with an error
 # blockTimestep : length of interval in seconds between polling for the server
 # runTimeout : maximum number of seconds for the ktserver to run
@@ -74,53 +74,53 @@ from cactus.pipeline.ktserverControl import getKtServerReport
 # killTimeout : amount of time to wait for server to die after deleting
 #               the kill switch file before throwing an error
 ###############################################################################
-def addKtserverDependentChild(rootTarget, newChild, maxMemory, maxCpu,
+def addKtserverDependentChild(rootJob, newChild, maxMemory, maxCpu,
                               isSecondary = False,
                               createTimeout = 30, loadTimeout = 10000,
                               blockTimeout=sys.maxint, blockTimestep=10,
                               runTimeout=sys.maxint, runTimestep=10,
                               killTimeout=10000):
-    from cactus.pipeline.cactus_workflow import CactusPhasesTarget
-    from cactus.pipeline.cactus_workflow import CactusRecursionTarget
+    from cactus.pipeline.cactus_workflow import CactusPhasesJob
+    from cactus.pipeline.cactus_workflow import CactusRecursionJob
     
-    assert isinstance(rootTarget, Target)
+    assert isinstance(rootJob, Job)
 
     if killTimeout < runTimestep * 2:
         killTimeout = runTimestep * 2
     killSwitchPath = getTempFile(suffix="_kill.txt",
-                                 rootDir=rootTarget.getGlobalTempDir())
+                                 rootDir=rootJob.getGlobalTempDir())
     killSwitchFile = open(killSwitchPath, "w")
     killSwitchFile.write("init")
     killSwitchFile.close()
 
     if isSecondary == False:
-        assert isinstance(newChild, CactusPhasesTarget)
+        assert isinstance(newChild, CactusPhasesJob)
         wfArgs = newChild.cactusWorkflowArguments
         dbElem = ExperimentWrapper(wfArgs.experimentNode)
     else:
-        assert isinstance(newChild, CactusRecursionTarget)
+        assert isinstance(newChild, CactusRecursionJob)
         dbString = newChild.getOptionalPhaseAttrib("secondaryDatabaseString")
         assert dbString is not None
         confXML = ET.fromstring(dbString)
         dbElem = DbElemWrapper(confXML)
     
-    rootTarget.addChildTarget(
-        KtserverTargetLauncher(dbElem, killSwitchPath, maxMemory,
+    rootJob.addChildJob(
+        KtserverJobLauncher(dbElem, killSwitchPath, maxMemory,
                                maxCpu, createTimeout,
                                loadTimeout, runTimeout, runTimestep))
-    rootTarget.addChildTarget(
-        KtserverTargetBlocker(killSwitchPath, newChild, isSecondary,
+    rootJob.addChildJob(
+        KtserverJobBlocker(killSwitchPath, newChild, isSecondary,
                                 blockTimeout, blockTimestep, killTimeout))
 
 
 ###############################################################################
-# Launch the server on whatever node runs this target
+# Launch the server on whatever node runs this job
 ###############################################################################
-class KtserverTargetLauncher(Target):
+class KtserverJobLauncher(Job):
     def __init__(self, dbElem, killSwitchPath,
                  maxMemory, maxCpu, createTimeout,
                  loadTimeout, runTimeout, runTimestep):
-        Target.__init__(self, memory=maxMemory, cpu=maxCpu)
+        Job.__init__(self, memory=maxMemory, cpu=maxCpu)
         self.dbElem = dbElem
         self.killSwitchPath = killSwitchPath
         self.createTimeout = createTimeout
@@ -128,7 +128,7 @@ class KtserverTargetLauncher(Target):
         self.runTimeout = runTimeout
         self.runTimestep = runTimestep
         
-    def run(self):
+    def run(self, fileStore):
         self.logToMaster("Launching ktserver %s with killPath %s" % (
             ET.tostring(self.dbElem.getDbElem()), self.killSwitchPath))
         runKtserver(self.dbElem, self.killSwitchPath,
@@ -140,12 +140,12 @@ class KtserverTargetLauncher(Target):
 
 ###############################################################################
 # Block until the server's detected.
-# Run the child target as a child, and kill the server in a follow-on
+# Run the child job as a child, and kill the server in a follow-on
 ###############################################################################
-class KtserverTargetBlocker(Target):
+class KtserverJobBlocker(Job):
     def __init__(self, killSwitchPath, newChild, isSecondary,
                  blockTimeout, blockTimestep, killTimeout):
-        Target.__init__(self)
+        Job.__init__(self)
         self.killSwitchPath = killSwitchPath
         self.newChild = newChild
         self.isSecondary = isSecondary
@@ -153,7 +153,7 @@ class KtserverTargetBlocker(Target):
         self.blockTimestep = blockTimestep
         self.killTimeout = killTimeout
         
-    def run(self):
+    def run(self, fileStore):
         if self.isSecondary == False:
             wfArgs = self.newChild.cactusWorkflowArguments
             experiment = ExperimentWrapper(wfArgs.experimentNode)
@@ -184,22 +184,22 @@ class KtserverTargetBlocker(Target):
             experiment.setSecondaryDBElem(dbElem)
             experiment.writeXML(etPath)            
         
-        self.addChildTarget(self.newChild)
-        self.setFollowOnTarget(KtserverTargetKiller(dbElem,
+        self.addChildJob(self.newChild)
+        self.setFollowOnJob(KtserverJobKiller(dbElem,
                                                     self.killSwitchPath,
                                                     self.killTimeout))
 
 ###############################################################################
 # Kill the server by deleting its kill switch file
 ###############################################################################
-class KtserverTargetKiller(Target):
+class KtserverJobKiller(Job):
     def __init__(self, dbElem, killSwitchPath, killTimeout):
-        Target.__init__(self)
+        Job.__init__(self)
         self.dbElem = dbElem
         self.killSwitchPath = killSwitchPath
         self.killTimeout = killTimeout
         
-    def run(self):
+    def run(self, fileStore):
         self.logToMaster("Killing ktserver %s with killPath %s" % (
             ET.tostring(self.dbElem.getDbElem()), self.killSwitchPath))
         report = getKtServerReport(self.dbElem)
