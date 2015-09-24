@@ -8,12 +8,14 @@
 import os
 import random
 import sys
+import shutil
 
 from sonLib.bioio import logger
 from sonLib.bioio import getTempDirectory
 from sonLib.bioio import system, popenCatch, popenPush
 from sonLib.bioio import nameValue
 from sonLib.bioio import getLogLevelString
+from toil.job import Job
 
 
 def cactusRootPath():
@@ -517,3 +519,16 @@ def runToilStats(toil, outputFile):
 def runToilStatusAndFailIfNotComplete(toilDir):
     command = "toil status %s --failIfNotComplete --verbose" % toilDir
     system(command)
+    
+class WritePermanentFile(Job):
+    def __init__(self, fileID, filePath):
+        Job.__init__(self)
+        self.fileID = fileID
+        self.filePath = filePath
+    def run(self, fileStore):
+        logger.info("ID = %s" % self.fileID)
+        tmpPath = fileStore.readGlobalFile(self.fileID)
+        assert os.path.basename(self.filePath) == "alignments.cigar"
+        system("cp %s %s" % (tmpPath, self.filePath))
+
+        

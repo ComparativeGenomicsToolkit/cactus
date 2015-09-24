@@ -60,8 +60,8 @@ from cactus.shared.common import runConvertAlignmentsToInternalNames
 from cactus.shared.common import runStripUniqueIDs
 
 from cactus.shared.experimentWrapper import ExperimentWrapper
-from cactus.blast.cactus_blast import BlastIngroupsAndOutgroups
-from cactus.blast.cactus_blast import BlastFlower
+from cactus.blast.cactus_blast import BlastIngroupsAndOutgroupsWrapper
+from cactus.blast.cactus_blast import BlastFlowerWrapper
 from cactus.blast.cactus_blast import BlastOptions
 
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
@@ -339,7 +339,7 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
         alignmentsFile = getTempFile("unconvertedAlignments", rootDir=self.getGlobalTempDir())
         findRequiredNode(self.cactusWorkflowArguments.configNode, "caf").attrib["alignments"] = alignmentsFile
         # FIXME: this is really ugly and steals the options from the caf tag
-        self.addChild(BlastIngroupsAndOutgroups(
+        self.addChild(BlastIngroupsAndOutgroupsWrapper(
                                           BlastOptions(chunkSize=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "chunkSize", int),
                                                         overlapSize=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "overlapSize", int),
                                                         lastzArguments=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "lastzArguments"),
@@ -361,7 +361,7 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
         exp.updateTree(exp.getTree(), seqMap)
 
         self.makeFollowOnPhaseJob(CactusSetupPhase, "setup")
-
+        
 ############################################################
 ############################################################
 ############################################################
@@ -518,8 +518,8 @@ class CactusCafWrapperLarge(CactusRecursionJob):
         #Generate a temporary file to hold the alignments
         alignmentFile = os.path.join(self.getGlobalTempDir(), "alignments.cigar")
         flowerName = decodeFirstFlowerName(self.flowerNames)
-        self.addChild(BlastFlower(self.cactusDiskDatabaseString, 
-                                          flowerName, alignmentFile, 
+        self.addChild(BlastFlowerWrapper(cactusDisk=self.cactusDiskDatabaseString, 
+                                          flowerName=flowerName, finalResultsFile=alignmentFile, 
                                           blastOptions=\
                                           BlastOptions(chunkSize=self.getOptionalPhaseAttrib("chunkSize", int),
                                                         overlapSize=self.getOptionalPhaseAttrib("overlapSize", int),
@@ -537,6 +537,7 @@ class CactusCafWrapperLarge2(CactusCafWrapper):
     """Runs cactus_core upon a one flower and one alignment file.
     """
     def run(self, fileStore):
+        logger.info("Alignments file: %s" % self.phaseNode.attrib["alignments"])
         self.runCactusCafInWorkflow(alignmentFile=self.phaseNode.attrib["alignments"])
         
 ############################################################
