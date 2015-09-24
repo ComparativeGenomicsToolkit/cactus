@@ -104,11 +104,11 @@ def addKtserverDependentChild(rootJob, newChild, maxMemory, maxCpu,
         confXML = ET.fromstring(dbString)
         dbElem = DbElemWrapper(confXML)
     
-    rootJob.addChildJob(
+    rootJob.addChild(
         KtserverJobLauncher(dbElem, killSwitchPath, maxMemory,
                                maxCpu, createTimeout,
                                loadTimeout, runTimeout, runTimestep))
-    rootJob.addChildJob(
+    rootJob.addChild(
         KtserverJobBlocker(killSwitchPath, newChild, isSecondary,
                                 blockTimeout, blockTimestep, killTimeout))
 
@@ -120,7 +120,7 @@ class KtserverJobLauncher(Job):
     def __init__(self, dbElem, killSwitchPath,
                  maxMemory, maxCpu, createTimeout,
                  loadTimeout, runTimeout, runTimestep):
-        Job.__init__(self, memory=maxMemory, cpu=maxCpu)
+        Job.__init__(self, memory=maxMemory, cores=maxCpu)
         self.dbElem = dbElem
         self.killSwitchPath = killSwitchPath
         self.createTimeout = createTimeout
@@ -129,7 +129,7 @@ class KtserverJobLauncher(Job):
         self.runTimestep = runTimestep
         
     def run(self, fileStore):
-        self.logToMaster("Launching ktserver %s with killPath %s" % (
+        fileStore.logToMaster("Launching ktserver %s with killPath %s" % (
             ET.tostring(self.dbElem.getDbElem()), self.killSwitchPath))
         runKtserver(self.dbElem, self.killSwitchPath,
                     maxPortsToTry=100, readOnly = False,
@@ -165,7 +165,7 @@ class KtserverJobBlocker(Job):
             confXML = ET.fromstring(dbString)
             dbElem = DbElemWrapper(confXML)
 
-        self.logToMaster("Blocking on ktserver %s with killPath %s" % (
+        fileStore.logToMaster("Blocking on ktserver %s with killPath %s" % (
             ET.tostring(dbElem.getDbElem()), self.killSwitchPath))
             
         blockUntilKtserverIsRunnning(dbElem, self.killSwitchPath,
@@ -184,8 +184,8 @@ class KtserverJobBlocker(Job):
             experiment.setSecondaryDBElem(dbElem)
             experiment.writeXML(etPath)            
         
-        self.addChildJob(self.newChild)
-        self.setFollowOnJob(KtserverJobKiller(dbElem,
+        self.addChild(self.newChild)
+        self.addFollowOn(KtserverJobKiller(dbElem,
                                                     self.killSwitchPath,
                                                     self.killTimeout))
 
@@ -200,10 +200,10 @@ class KtserverJobKiller(Job):
         self.killTimeout = killTimeout
         
     def run(self, fileStore):
-        self.logToMaster("Killing ktserver %s with killPath %s" % (
+        fileStore.logToMaster("Killing ktserver %s with killPath %s" % (
             ET.tostring(self.dbElem.getDbElem()), self.killSwitchPath))
         report = getKtServerReport(self.dbElem)
-        self.logToMaster(report)
+        fileStore.logToMaster(report)
         killKtServer(self.dbElem, self.killSwitchPath,
                      killTimeout=self.killTimeout)
     

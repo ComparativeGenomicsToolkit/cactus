@@ -469,7 +469,7 @@ def runCactusProgressive(inputDir,
                       event=None,
                       extraToilArgumentsString="",
                       profileFile=None):
-    command = ("cactus_progressive.py --inputDir %s" % inputDir) + " " + _fn(toilDir, 
+    command = ("cactus_progressive.py --project %s" % inputDir) + " " + _fn(toilDir, 
                       logLevel, retryCount, batchSystem, rescueJobFrequency, skipAlignments,
                       buildAvgs, None,
                       buildHal,
