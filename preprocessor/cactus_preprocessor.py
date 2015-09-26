@@ -30,13 +30,14 @@ from sonLib.bioio import setLoggingFromOptions
 from cactus.shared.configWrapper import ConfigWrapper
 
 class PreprocessorOptions:
-    def __init__(self, chunkSize, cmdLine, memory, cpu, check, proportionToSample):
+    def __init__(self, chunkSize, cmdLine, memory, cpu, check, proportionToSample, unmask):
         self.chunkSize = chunkSize
         self.cmdLine = cmdLine
         self.memory = memory
         self.cpu = cpu
         self.check = check
         self.proportionToSample=proportionToSample
+        self.unmask = unmask
 
 class PreprocessChunk(Target):
     """ locally preprocess a fasta chunk, output then copied back to input
@@ -107,6 +108,15 @@ class PreprocessSequence(Target):
         # follow on to merge chunks
         self.setFollowOnTarget(MergeChunks(self.prepOptions, outChunkList, self.outSequencePath))
 
+def unmaskFasta(inFasta, outFasta):
+    """Uppercase a fasta file (removing the soft-masking)."""
+    with open(outFasta, 'w') as out:
+        for line in open(inFasta):
+            if len(line) > 0 and line[0] != ">":
+                out.write(line.upper())
+            else:
+                out.write(line)
+
 class BatchPreprocessor(Target):
     def __init__(self, prepXmlElems, inSequence, 
                  globalOutSequence, iteration = 0):
@@ -129,7 +139,8 @@ class BatchPreprocessor(Target):
                                           int(self.memory),
                                           int(self.cpu),
                                           bool(int(prepNode.get("check", default="0"))),
-                                          getOptionalAttrib(prepNode, "proportionToSample", typeFn=float, default=1.0))
+                                          getOptionalAttrib(prepNode, "proportionToSample", typeFn=float, default=1.0),
+                                          getOptionalAttrib(prepNode, "unmask", typeFn=bool, default=False))
         
         #output to temporary directory unless we are on the last iteration
         lastIteration = self.iteration == len(self.prepXmlElems) - 1
@@ -137,7 +148,12 @@ class BatchPreprocessor(Target):
             outSeq = os.path.join(self.getGlobalTempDir(), str(self.iteration))
         else:
             outSeq = self.globalOutSequence
-        
+
+        if prepOptions.unmask:
+            unmaskedInputFile = getTempFile(rootDir=self.getGlobalTempDir())
+            unmaskFasta(self.inSequence, unmaskedInputFile)
+            self.inSequence = unmaskedInputFile
+
         if prepOptions.chunkSize <= 0: #In this first case we don't need to break up the sequence
             self.addChildTarget(PreprocessChunk(prepOptions, [ self.inSequence ], 1.0, self.inSequence, outSeq))
         else:
