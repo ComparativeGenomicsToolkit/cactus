@@ -708,6 +708,16 @@ int main(int argc, char *argv[]) {
 
             //Set up the graph and add the initial alignments
             stPinchThreadSet *threadSet = stCaf_setup(flower);
+            stConnectivity *connectivity = stPinchThreadSet_getAdjacencyConnectivity(threadSet);
+            stOnlineCactus *cactus = stOnlineCactus_construct(
+                connectivity,
+                (void *(*)(void *, bool)) stPinchBlock_getRepresentativeSegmentCap,
+                (void *(*)(void *)) stPinchSegmentCap_getBlock);
+            stPinchThreadSet_setAdjComponentCreationCallback(threadSet, (void (*)(void *, stPinchSegmentCap *)) stOnlineCactus_createEnd, cactus);
+            stPinchThreadSet_setBlockCreationCallback(threadSet, (void (*)(void *, stPinchSegmentCap *, stPinchSegmentCap *, stPinchBlock *)) stOnlineCactus_addEdge, cactus);
+            stPinchThreadSet_setBlockDeletionCallback(threadSet, (void (*)(void *, stPinchSegmentCap *, stPinchSegmentCap *, stPinchBlock *)) stOnlineCactus_deleteEdge, cactus);
+            stPinchThreadSet_setEndMergeCallback(threadSet, (void (*)(void *, stPinchSegmentCap *, stPinchSegmentCap *)) stOnlineCactus_netMerge, cactus);
+            stPinchThreadSet_setEndCleaveCallback(threadSet, (bool (*)(void *, stPinchSegmentCap *, stSet *)) stOnlineCactus_netCleave, cactus);
 
             //Build the set of outgroup threads
             outgroupThreads = stCaf_getOutgroupThreads(flower, threadSet);
@@ -769,7 +779,7 @@ int main(int argc, char *argv[]) {
             // Do the annealing, checking that we are not creating
             // small chains at each step.
             if (annealingRound == 0) {
-                stCaf_annealPreventingSmallChains(flower, threadSet, pinchIterator, filterFn,
+                stCaf_annealPreventingSmallChains(flower, threadSet, cactus, pinchIterator, filterFn,
                                                   meltingRounds[0], breakChainsAtReverseTandems,
                                                   maximumMedianSequenceLengthBetweenLinkedEnds);
             }

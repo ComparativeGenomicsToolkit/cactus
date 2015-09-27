@@ -12,6 +12,7 @@
 #include "stPinchGraphs.h"
 #include "stPinchIterator.h"
 #include "stCactusGraphs.h"
+#include "stOnlineCactus.h"
 #include "cactus.h"
 
 ///////////////////////////////////////////////////////////////////////////
@@ -54,6 +55,7 @@ void stCaf_joinTrivialBoundaries(stPinchThreadSet *threadSet);
  * forming.
  */
 void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadSet,
+                                       stOnlineCactus *cactus,
                                        stPinchIterator *pinchIterator,
                                        bool (*filterFn)(stPinchSegment *, stPinchSegment *),
                                        int64_t minimumChainLength,

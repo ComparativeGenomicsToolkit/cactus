@@ -3,6 +3,7 @@
 #include "stPinchGraphs.h"
 #include "stPinchIterator.h"
 #include "stCactusGraphs.h"
+#include "stOnlineCactus.h"
 #include "stCaf.h"
 
 ///////////////////////////////////////////////////////////////////////////
@@ -63,7 +64,7 @@ void stCaf_anneal(stPinchThreadSet *threadSet, stPinchIterator *pinchIterator, b
     stCaf_joinTrivialBoundaries(threadSet);
 }
 
-static double averageBlockDegree(stList *blocks) {
+double averageBlockDegree(stList *blocks) {
     if (stList_length(blocks) == 0) {
         return 0.0;
     }
@@ -74,7 +75,16 @@ static double averageBlockDegree(stList *blocks) {
     return ((double) total)/stList_length(blocks);
 }
 
+static int64_t pathLength(stList *blocks) {
+    int64_t accum = 0;
+    for (int64_t i = 0; i < stList_length(blocks); i++) {
+        accum += stPinchBlock_getLength(stList_get(blocks, i));
+    }
+    return accum;
+}
+
 void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadSet,
+                                       stOnlineCactus *cactus,
                                        stPinchIterator *pinchIterator,
                                        bool (*filterFn)(stPinchSegment *, stPinchSegment *),
                                        int64_t minimumChainLength,
@@ -97,52 +107,60 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
             stPinchThread_filterPinch(thread1, thread2, pinch->start1, pinch->start2, pinch->length, pinch->strand, filterFn);
         }
 
-        // Now (this is pretty ridiculously slow to do on every pinch)
-        // construct the cactus graph and check for a small chain.
-        stCactusNode *startCactusNode;
-        stList *deadEndComponent;
-        stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 0, INT64_MAX,
-                0.0, breakChainsAtReverseTandems, maximumMedianSpacingBetweenLinkedEnds);
-        stList *snarledBlocks = stCaf_getBlocksInChainsLessThanGivenLength(cactusGraph, minimumChainLength);
-        if (stList_length(snarledBlocks) > 0) {
-            printf("got %" PRIi64 " snarled blocks with average degree %.2lf\n", stList_length(snarledBlocks), averageBlockDegree(snarledBlocks));
-        }
-
-        while (stList_length(snarledBlocks) > 0) {
-            // Find the part of the pinch in the snarled block with the highest degree.
-            int64_t undoOffset = -1;
-            int64_t undoLength = -1;
-            int64_t maxDegree = 0;
-            for (int64_t i = 0; i < stList_length(snarledBlocks); i++) {
-                stPinchBlock *block = stList_get(snarledBlocks, i);
-                if (stPinchBlock_getDegree(block) > maxDegree
-                    && stPinchUndo_findOffsetForBlock(undo, threadSet, block,
-                                                      &undoOffset, &undoLength)) {
-                    maxDegree = stPinchBlock_getDegree(block);
+        stList *worstPath = stOnlineCactus_getGloballyWorstMaximalChainOrBridgePath(cactus, (int64_t (*)(void *)) stPinchBlock_getLength);
+        while (pathLength(worstPath) < minimumChainLength) {
+            printf("found worst path length %"PRIi64"\n", pathLength(worstPath));
+            // Need to undo stuff.
+            // Go through all the blocks we pinched and find the one with the lowest chain (or maximal bridge-path) length.
+            int64_t worstUndoablePathScore = INT64_MAX;
+            stPinchBlock *worstUndoableBlock = NULL;
+            stPinchSegment *segment = stPinchThread_getSegment(thread1, pinch->start1);
+            int64_t pinchEnd = pinch->start1 + pinch->length;
+            bool finishedThread1 = false;
+            while (true) {
+                stPinchBlock *block = stPinchSegment_getBlock(segment);
+                int64_t nil; // for ignoring value of offset & length
+                if (block != NULL && stPinchUndo_findOffsetForBlock(undo, threadSet, block,
+                                                                    &nil, &nil)) {
+                    stList *chainOrBridgePath = stOnlineCactus_getMaximalChainOrBridgePath(cactus, block, (int64_t (*)(void *)) stPinchBlock_getLength);
+                    int64_t pathScore = pathLength(chainOrBridgePath);
+                    if (pathScore < worstUndoablePathScore || (pathScore == worstUndoablePathScore && stPinchBlock_getLength(block) < stPinchBlock_getLength(worstUndoableBlock))) {
+                        worstUndoablePathScore = pathScore;
+                        worstUndoableBlock = block;
+                    }
+                    stList_destruct(chainOrBridgePath);
+                }
+                segment = stPinchSegment_get3Prime(segment);
+                if (stPinchSegment_getThread(segment) == thread1 && !finishedThread1 && stPinchSegment_getStart(segment) >= pinchEnd) {
+                    // Switch to thread2 (or the second section of thread1). (We have to check both
+                    // threads, in case one has collapsed in on
+                    // itself.)
+                    segment = stPinchThread_getSegment(thread2, pinch->start2);
+                    pinchEnd = pinch->start2 + pinch->length;
+                    finishedThread1 = true;
+                } else if (stPinchSegment_getStart(segment) >= pinchEnd) {
+                    assert(stPinchSegment_getThread(segment) == thread2);
+                    break;
                 }
             }
-            if (undoOffset == -1) {
-                printf("Couldn't find any pinch region to undo in the snarled blocks\n");
-                // Seems like, in some cases at least, the right thing
-                // to do may be to remove the small chain(s) entirely
-                // in this case. Breaking out of the loop destroys the
-                // snarled blocks.
-                break;
+            if (worstUndoableBlock == NULL) {
+                st_errAbort("Couldn't find an undoable block, and there are still short chains");
             }
-            stPinchThreadSet_partiallyUndoPinch(threadSet, undo, undoOffset, undoLength);
-            stList_setDestructor(snarledBlocks, NULL);
-            stList_destruct(snarledBlocks);
 
-            stCactusGraph_destruct(cactusGraph);
-            cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 0, INT64_MAX,
-                                                           0.0, breakChainsAtReverseTandems, maximumMedianSpacingBetweenLinkedEnds);
-            snarledBlocks = stCaf_getBlocksInChainsLessThanGivenLength(cactusGraph, minimumChainLength);
+            // Undo this block.
+            int64_t undoOffset;
+            int64_t undoLength;
+            printf("attempting to undo bad block %p\n", (void *) worstUndoableBlock);
+            stPinchUndo_findOffsetForBlock(undo, threadSet, worstUndoableBlock, &undoOffset, &undoLength);
+            stPinchThreadSet_partiallyUndoPinch(threadSet, undo, undoOffset, undoLength);
+
+            stList_destruct(worstPath);
+            worstPath = stOnlineCactus_getGloballyWorstMaximalChainOrBridgePath(cactus, (int64_t (*)(void *)) stPinchBlock_getLength);
         }
         stPinchUndo_destruct(undo);
-        stCactusGraph_destruct(cactusGraph);
-        stList_destruct(snarledBlocks);
+        printf("worst path length now %" PRIi64 "\n", pathLength(worstPath));
+        stList_destruct(worstPath);
     }
-    stCaf_joinTrivialBoundaries(threadSet);
 }
 
 ///////////////////////////////////////////////////////////////////////////
