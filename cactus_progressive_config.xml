@@ -101,7 +101,7 @@
 		proportionOfUnalignedBasesForNewChromosome="0.8"
 		maximumMedianSequenceLengthBetweenLinkedEnds="1000"
 		lastzMemory="littleMemory"
-                doPhylogeny="1"
+                doPhylogeny="0"
                 phylogenyNumTrees="30"
                 phylogenyRootingMethod="bestRecon"
                 phylogenyScoringMethod="reconCost"
