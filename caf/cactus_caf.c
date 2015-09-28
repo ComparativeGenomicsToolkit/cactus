@@ -713,7 +713,7 @@ int main(int argc, char *argv[]) {
                 connectivity,
                 (void *(*)(void *, bool)) stPinchBlock_getRepresentativeSegmentCap,
                 (void *(*)(void *)) stPinchSegmentCap_getBlock);
-            stPinchThreadSet_setAdjComponentCreationCallback(threadSet, (void (*)(void *, stPinchSegmentCap *)) stOnlineCactus_createEnd, cactus);
+            stPinchThreadSet_setEndCreationCallback(threadSet, (void (*)(void *, stPinchSegmentCap *)) stOnlineCactus_createEnd, cactus);
             stPinchThreadSet_setBlockCreationCallback(threadSet, (void (*)(void *, stPinchSegmentCap *, stPinchSegmentCap *, stPinchBlock *)) stOnlineCactus_addEdge, cactus);
             stPinchThreadSet_setBlockDeletionCallback(threadSet, (void (*)(void *, stPinchSegmentCap *, stPinchSegmentCap *, stPinchBlock *)) stOnlineCactus_deleteEdge, cactus);
             stPinchThreadSet_setEndMergeCallback(threadSet, (void (*)(void *, stPinchSegmentCap *, stPinchSegmentCap *)) stOnlineCactus_netMerge, cactus);
@@ -722,7 +722,7 @@ int main(int argc, char *argv[]) {
             //Build the set of outgroup threads
             outgroupThreads = stCaf_getOutgroupThreads(flower, threadSet);
 
-            bool sortAlignments = 0;
+            bool sortAlignments = 1;
             if (singleCopyIngroup) {
                 sortAlignments = 1;
                 filterFn = filterByRepeatSpecies;

@@ -109,7 +109,6 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
 
         stList *worstPath = stOnlineCactus_getGloballyWorstMaximalChainOrBridgePath(cactus, (int64_t (*)(void *)) stPinchBlock_getLength);
         while (pathLength(worstPath) < minimumChainLength) {
-            printf("found worst path length %"PRIi64"\n", pathLength(worstPath));
             // Need to undo stuff.
             // Go through all the blocks we pinched and find the one with the lowest chain (or maximal bridge-path) length.
             int64_t worstUndoablePathScore = INT64_MAX;
@@ -150,7 +149,6 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
             // Undo this block.
             int64_t undoOffset;
             int64_t undoLength;
-            printf("attempting to undo bad block %p\n", (void *) worstUndoableBlock);
             stPinchUndo_findOffsetForBlock(undo, threadSet, worstUndoableBlock, &undoOffset, &undoLength);
             stPinchThreadSet_partiallyUndoPinch(threadSet, undo, undoOffset, undoLength);
 
@@ -158,7 +156,6 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
             worstPath = stOnlineCactus_getGloballyWorstMaximalChainOrBridgePath(cactus, (int64_t (*)(void *)) stPinchBlock_getLength);
         }
         stPinchUndo_destruct(undo);
-        printf("worst path length now %" PRIi64 "\n", pathLength(worstPath));
         stList_destruct(worstPath);
     }
 }
