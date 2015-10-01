@@ -69,7 +69,7 @@ from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.experimentWrapper import DbElemWrapper
 from cactus.shared.configWrapper import ConfigWrapper
-from cactus.pipeline.ktserverToil import addKtserverDependentChild
+from cactus.pipeline.ktserverToil import ChildWithKtServer
 
 ############################################################
 ############################################################
@@ -144,7 +144,7 @@ class CactusPhasesJob(CactusJob):
                     self.constantsNode, "defaultMemory", int, default=sys.maxint))
             cpu = cw.getKtserverCpu(default=getOptionalAttrib(
                     self.constantsNode, "defaultCpu", int, default=sys.maxint))
-            addKtserverDependentChild(self, newChild, maxMemory=memory, maxCpu=cpu, isSecondary = True)
+            self.addChild(ChildWithKtServer(self, newChild, isSecondary = True))
         else:
             self.addChild(newChild)
     
@@ -207,7 +207,7 @@ class CactusRecursionJob(CactusJob):
         if phaseNode == None:
             phaseNode = self.phaseNode
         for overlarge, flowerNames in flowersAndSizes:
-            if overlarge: #Make sure large flowers are on there own, in their own job
+            if overlarge: #Make sure large flowers are on their own, in their own job
                 if runFlowerStats:
                     flowerStatsString = runCactusFlowerStats(cactusDiskDatabaseString=self.cactusDiskDatabaseString, flowerName=decodeFirstFlowerName(flowerNames))
                     logger.info("Adding an oversize flower for job class %s and stats %s" \
@@ -381,7 +381,7 @@ def getLongestPath(node, distance=0.0):
         j = getLongestPath(node.right, abs(node.right.distance)) + distance
     return max(i, j)
 
-class CactusSetupPhase(CactusPhasesJob):  
+class CactusSetupPhase(CactusPhasesJob):
     """Initialises the cactus database and adapts the config file for the run.
     """
     def run(self, fileStore):
@@ -403,7 +403,7 @@ class CactusSetupPhase(CactusPhasesJob):
                     self.constantsNode, "defaultMemory", int, default=sys.maxint))
             cpu = cw.getKtserverCpu(default=getOptionalAttrib(
                     self.constantsNode, "defaultCpu", int, default=sys.maxint))
-            addKtserverDependentChild(self, setupJob, maxMemory=memory, maxCpu=cpu, isSecondary = False)
+            self.addChild(ChildWithKtServer(self, setupJob, isSecondary = False))
         else:
             logger.info("Created follow-on job cactus_setup")
             self.addFollowOn(setupJob)   
@@ -744,7 +744,7 @@ class CactusAVGWrapper(CactusRecursionJob):
 ############################################################
 ############################################################
     
-class CactusReferencePhase(CactusPhasesJob):     
+class CactusReferencePhase(CactusPhasesJob):
     def run(self, fileStore):
         """Runs the reference problem algorithm
         """
@@ -798,8 +798,8 @@ class CactusSetReferenceCoordinatesUpWrapper(CactusRecursionJob):
         runCactusAddReferenceCoordinates(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                                          secondaryDatabaseString=self.getOptionalPhaseAttrib("secondaryDatabaseString"),
                                          flowerNames=self.flowerNames,
-                                         referenceEventString=self.getOptionalPhaseAttrib("reference"), 
-                                         outgroupEventString=self.getOptionalPhaseAttrib("outgroup"), 
+                                         referenceEventString=self.getOptionalPhaseAttrib("reference"),
+                                         outgroupEventString=self.getOptionalPhaseAttrib("outgroup"),
                                          bottomUpPhase=True)
         
 class CactusSetReferenceCoordinatesDownPhase(CactusPhasesJob):
@@ -841,9 +841,9 @@ class CactusExtractReferencePhase(CactusPhasesJob):
                 if eventName.find('.') >= 0:
                     eventName = eventName[:eventName.rfind('.')]
                     cmdLine = "cactus_getReferenceSeq --cactusDisk \'%s\' --flowerName 0 --referenceEventString %s --outputFile %s --logLevel %s" % \
-                              (experiment.getDiskDatabaseString(), eventName,
+                              (self.cactusWorkflowArguments.cactusDiskDatabaseString, eventName,
                                experiment.getReferencePath(), getLogLevelString())                        
-                    system(cmdLine)          
+                    system(cmdLine)
         self.makeFollowOnPhaseJob(CactusCheckPhase, "check")
 
 ############################################################
@@ -914,6 +914,7 @@ class CactusHalGeneratorRecursion(CactusRecursionJob):
     """Generate the hal file by merging indexed hal files from the children.
     """ 
     def run(self, fileStore):
+        logger.debug("Database string: %s" % self.phaseNode.attrib["secondaryDatabaseString"])
         i = extractNode(self.phaseNode)
         if "outputFile" in i.attrib:
             i.attrib.pop("outputFile")
