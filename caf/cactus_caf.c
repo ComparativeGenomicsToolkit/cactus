@@ -706,18 +706,9 @@ int main(int argc, char *argv[]) {
         if (!flower_builtBlocks(flower)) { // Do nothing if the flower already has defined blocks
             st_logDebug("Processing flower: %lli\n", flower_getName(flower));
 
-            //Set up the graph and add the initial alignments
-            stPinchThreadSet *threadSet = stCaf_setup(flower);
-            stConnectivity *connectivity = stPinchThreadSet_getAdjacencyConnectivity(threadSet);
-            stOnlineCactus *cactus = stOnlineCactus_construct(
-                connectivity,
-                (void *(*)(void *, bool)) stPinchBlock_getRepresentativeSegmentCap,
-                (void *(*)(void *)) stPinchSegmentCap_getBlock);
-            stPinchThreadSet_setEndCreationCallback(threadSet, (void (*)(void *, stPinchSegmentCap *)) stOnlineCactus_createEnd, cactus);
-            stPinchThreadSet_setBlockCreationCallback(threadSet, (void (*)(void *, stPinchSegmentCap *, stPinchSegmentCap *, stPinchBlock *)) stOnlineCactus_addEdge, cactus);
-            stPinchThreadSet_setBlockDeletionCallback(threadSet, (void (*)(void *, stPinchSegmentCap *, stPinchSegmentCap *, stPinchBlock *)) stOnlineCactus_deleteEdge, cactus);
-            stPinchThreadSet_setEndMergeCallback(threadSet, (void (*)(void *, stPinchSegmentCap *, stPinchSegmentCap *)) stOnlineCactus_netMerge, cactus);
-            stPinchThreadSet_setEndCleaveCallback(threadSet, (bool (*)(void *, stPinchSegmentCap *, stSet *)) stOnlineCactus_netCleave, cactus);
+            //Set up the graph and cactus, and add the initial alignments
+            stOnlineCactus *cactus;
+            stPinchThreadSet *threadSet = stCaf_setupForOnlineCactus(flower, &cactus);
 
             //Build the set of outgroup threads
             outgroupThreads = stCaf_getOutgroupThreads(flower, threadSet);

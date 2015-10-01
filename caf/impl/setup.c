@@ -4,7 +4,7 @@
 #include "stCactusGraphs.h"
 #include "stCaf.h"
 
-static void stCaf_constructEmptyPinchGraphP(End *end, stPinchSegment *segment, bool orientation, stHash *endsToBlocks) {
+static void stCaf_initializeEmptyPinchGraphP(End *end, stPinchSegment *segment, bool orientation, stHash *endsToBlocks) {
     assert(stPinchSegment_getLength(segment) == 1);
     end = end_getPositiveOrientation(end);
     stPinchBlock *block = stHash_search(endsToBlocks, end);
@@ -15,8 +15,7 @@ static void stCaf_constructEmptyPinchGraphP(End *end, stPinchSegment *segment, b
     }
 }
 
-stPinchThreadSet *stCaf_constructEmptyPinchGraph(Flower *flower) {
-    stPinchThreadSet *threadSet = stPinchThreadSet_construct();
+void stCaf_initializeEmptyPinchGraph(Flower *flower, stPinchThreadSet *threadSet) {
     Flower_EndIterator *endIt = flower_getEndIterator(flower);
     stHash *endsToBlocks = stHash_construct();
     End *end;
@@ -38,15 +37,14 @@ stPinchThreadSet *stCaf_constructEmptyPinchGraph(Flower *flower) {
                 stPinchSegment *_3PrimeSegment = stPinchThread_getLast(thread);
                 assert(stPinchSegment_getStart(_5PrimeSegment) == cap_getCoordinate(cap));
                 assert(stPinchSegment_getStart(_3PrimeSegment) == cap_getCoordinate(adjacentCap));
-                stCaf_constructEmptyPinchGraphP(end, _5PrimeSegment, 1, endsToBlocks);
-                stCaf_constructEmptyPinchGraphP(cap_getEnd(adjacentCap), _3PrimeSegment, 0, endsToBlocks);
+                stCaf_initializeEmptyPinchGraphP(end, _5PrimeSegment, 1, endsToBlocks);
+                stCaf_initializeEmptyPinchGraphP(cap_getEnd(adjacentCap), _3PrimeSegment, 0, endsToBlocks);
             }
         }
         end_destructInstanceIterator(capIt);
     }
     flower_destructEndIterator(endIt);
     stHash_destruct(endsToBlocks);
-    return threadSet;
 }
 
 static void initialiseFlowerForFillingOut(Flower *flower) {
@@ -63,12 +61,36 @@ static void initialiseFlowerForFillingOut(Flower *flower) {
     group_destruct(flower_getFirstGroup(flower));
 }
 
+
+stPinchThreadSet *stCaf_setupForOnlineCactus(Flower *flower, stOnlineCactus **cactus) {
+    //Setup the empty flower that will be filled out
+    initialiseFlowerForFillingOut(flower);
+
+    stPinchThreadSet *threadSet = stPinchThreadSet_construct();
+
+    *cactus = stOnlineCactus_construct(
+        (void *(*)(void *, bool)) stPinchBlock_getRepresentativeSegmentCap,
+        (void *(*)(void *)) stPinchSegmentCap_getBlock);
+    stPinchThreadSet_setAdjComponentCreationCallback(threadSet, (void (*)(void *, stConnectedComponent *)) stOnlineCactus_createNode, *cactus);
+    stPinchThreadSet_setBlockCreationCallback(threadSet, (void (*)(void *, stConnectedComponent *, stConnectedComponent *, stPinchSegmentCap *, stPinchSegmentCap *, stPinchBlock *)) stOnlineCactus_addEdge, *cactus);
+    stPinchThreadSet_setBlockDeletionCallback(threadSet, (void (*)(void *, stPinchSegmentCap *, stPinchSegmentCap *, stPinchBlock *)) stOnlineCactus_deleteEdge, *cactus);
+    stPinchThreadSet_setAdjComponentMergeCallback(threadSet, (void (*)(void *, stConnectedComponent *, stConnectedComponent *)) stOnlineCactus_nodeMerge, *cactus);
+    stPinchThreadSet_setAdjComponentCleaveCallback(threadSet, (void (*)(void *, stConnectedComponent *, stConnectedComponent *, stSet *)) stOnlineCactus_nodeCleave, *cactus);
+    stPinchThreadSet_setAdjComponentDeletionCallback(threadSet, (void (*)(void *, stConnectedComponent *)) stOnlineCactus_deleteNode, *cactus);
+
+    //Create empty pinch graph from flower
+    stCaf_initializeEmptyPinchGraph(flower, threadSet);
+
+    return threadSet;
+}
+
 stPinchThreadSet *stCaf_setup(Flower *flower) {
     //Setup the empty flower that will be filled out
     initialiseFlowerForFillingOut(flower);
 
     //Create empty pinch graph from flower
-    stPinchThreadSet *threadSet = stCaf_constructEmptyPinchGraph(flower);
+    stPinchThreadSet *threadSet = stPinchThreadSet_construct();
+    stCaf_initializeEmptyPinchGraph(flower, threadSet);
 
     return threadSet;
 }

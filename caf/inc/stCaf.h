@@ -20,15 +20,22 @@
 ///////////////////////////////////////////////////////////////////////////
 
 /*
- * Create a pinch graph from a flower containing no blocks. Each thread is given the name of its 5' cap,
- * and stubs are represented by length 1 blocks.
+ * Initialize a pinch graph from a flower containing no blocks. Each
+ * thread is given the name of its 5' cap, and stubs are represented
+ * by length 1 blocks.
  */
-stPinchThreadSet *stCaf_constructEmptyPinchGraph(Flower *flower);
+void stCaf_initializeEmptyPinchGraph(Flower *flower, stPinchThreadSet *threadSet);
 
 /*
  * Initialises the flower for filling out and creates a pinch graph.
  */
 stPinchThreadSet *stCaf_setup(Flower *flower);
+
+/*
+ * Initializes the flower for filling out, and creates an online pinch to cactus mapping.
+ * A pointer to the online cactus is stored in the "cactus" parameter.
+ */
+stPinchThreadSet *stCaf_setupForOnlineCactus(Flower *flower, stOnlineCactus **cactus);
 
 ///////////////////////////////////////////////////////////////////////////
 // Annealing fuctions -- adding alignments to pinch graph
