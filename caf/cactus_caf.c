@@ -805,6 +805,9 @@ int main(int argc, char *argv[]) {
                 }
             }
 
+            // Add in the caps for the conventional cactus code.
+            stCaf_addCapsToPinchGraph(flower, threadSet);
+
             // Do the final melting step.
             stCaf_melt(flower, threadSet, NULL, 0, minimumChainLength, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds);
             //This does the filtering of blocks that do not have the required species/tree-coverage/degree.

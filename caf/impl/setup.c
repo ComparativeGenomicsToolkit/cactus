@@ -4,7 +4,7 @@
 #include "stCactusGraphs.h"
 #include "stCaf.h"
 
-static void stCaf_initializeEmptyPinchGraphP(End *end, stPinchSegment *segment, bool orientation, stHash *endsToBlocks) {
+static void stCaf_addCapsToPinchGraphP(End *end, stPinchSegment *segment, bool orientation, stHash *endsToBlocks) {
     assert(stPinchSegment_getLength(segment) == 1);
     end = end_getPositiveOrientation(end);
     stPinchBlock *block = stHash_search(endsToBlocks, end);
@@ -15,7 +15,7 @@ static void stCaf_initializeEmptyPinchGraphP(End *end, stPinchSegment *segment, 
     }
 }
 
-void stCaf_initializeEmptyPinchGraph(Flower *flower, stPinchThreadSet *threadSet) {
+void stCaf_addCapsToPinchGraph(Flower *flower, stPinchThreadSet *threadSet) {
     Flower_EndIterator *endIt = flower_getEndIterator(flower);
     stHash *endsToBlocks = stHash_construct();
     End *end;
@@ -29,22 +29,43 @@ void stCaf_initializeEmptyPinchGraph(Flower *flower, stPinchThreadSet *threadSet
                 Cap *adjacentCap = cap_getAdjacency(cap);
                 assert(cap_getSide(adjacentCap));
                 assert(cap_getCoordinate(cap) < cap_getCoordinate(adjacentCap));
-                stPinchThread *thread = stPinchThreadSet_addThread(threadSet, cap_getName(cap), cap_getCoordinate(cap),
-                        cap_getCoordinate(adjacentCap) - cap_getCoordinate(cap) + 1);
+                stPinchThread *thread = stPinchThreadSet_getThread(threadSet, cap_getName(cap));
                 stPinchThread_split(thread, cap_getCoordinate(cap));
                 stPinchThread_split(thread, cap_getCoordinate(adjacentCap) - 1);
                 stPinchSegment *_5PrimeSegment = stPinchThread_getFirst(thread);
                 stPinchSegment *_3PrimeSegment = stPinchThread_getLast(thread);
                 assert(stPinchSegment_getStart(_5PrimeSegment) == cap_getCoordinate(cap));
                 assert(stPinchSegment_getStart(_3PrimeSegment) == cap_getCoordinate(adjacentCap));
-                stCaf_initializeEmptyPinchGraphP(end, _5PrimeSegment, 1, endsToBlocks);
-                stCaf_initializeEmptyPinchGraphP(cap_getEnd(adjacentCap), _3PrimeSegment, 0, endsToBlocks);
+                stCaf_addCapsToPinchGraphP(end, _5PrimeSegment, 1, endsToBlocks);
+                stCaf_addCapsToPinchGraphP(cap_getEnd(adjacentCap), _3PrimeSegment, 0, endsToBlocks);
             }
         }
         end_destructInstanceIterator(capIt);
     }
     flower_destructEndIterator(endIt);
     stHash_destruct(endsToBlocks);
+}
+
+void stCaf_addThreadsToPinchGraph(Flower *flower, stPinchThreadSet *threadSet) {
+    Flower_EndIterator *endIt = flower_getEndIterator(flower);
+    End *end;
+    while ((end = flower_getNextEnd(endIt)) != NULL) {
+        assert(!end_isBlockEnd(end));
+        End_InstanceIterator *capIt = end_getInstanceIterator(end);
+        Cap *cap;
+        while ((cap = end_getNext(capIt)) != NULL) {
+            cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
+            if (!cap_getSide(cap)) {
+                Cap *adjacentCap = cap_getAdjacency(cap);
+                assert(cap_getSide(adjacentCap));
+                assert(cap_getCoordinate(cap) < cap_getCoordinate(adjacentCap));
+                stPinchThreadSet_addThread(threadSet, cap_getName(cap), cap_getCoordinate(cap),
+                                           cap_getCoordinate(adjacentCap) - cap_getCoordinate(cap) + 1);
+            }
+        }
+        end_destructInstanceIterator(capIt);
+    }
+    flower_destructEndIterator(endIt);
 }
 
 static void initialiseFlowerForFillingOut(Flower *flower) {
@@ -79,7 +100,7 @@ stPinchThreadSet *stCaf_setupForOnlineCactus(Flower *flower, stOnlineCactus **ca
     stPinchThreadSet_setAdjComponentDeletionCallback(threadSet, (void (*)(void *, stConnectedComponent *)) stOnlineCactus_deleteNode, *cactus);
 
     //Create empty pinch graph from flower
-    stCaf_initializeEmptyPinchGraph(flower, threadSet);
+    stCaf_addThreadsToPinchGraph(flower, threadSet);
 
     return threadSet;
 }
@@ -90,7 +111,8 @@ stPinchThreadSet *stCaf_setup(Flower *flower) {
 
     //Create empty pinch graph from flower
     stPinchThreadSet *threadSet = stPinchThreadSet_construct();
-    stCaf_initializeEmptyPinchGraph(flower, threadSet);
+    stCaf_addThreadsToPinchGraph(flower, threadSet);
+    stCaf_addCapsToPinchGraph(flower, threadSet);
 
     return threadSet;
 }

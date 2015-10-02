@@ -20,11 +20,17 @@
 ///////////////////////////////////////////////////////////////////////////
 
 /*
- * Initialize a pinch graph from a flower containing no blocks. Each
- * thread is given the name of its 5' cap, and stubs are represented
- * by length 1 blocks.
+ * Add the proper caps (grouped into blocks representing ends) to a
+ * pinch graph from a flower containing no blocks. Stubs are
+ * represented by length 1 blocks.
  */
-void stCaf_initializeEmptyPinchGraph(Flower *flower, stPinchThreadSet *threadSet);
+void stCaf_addCapsToPinchGraph(Flower *flower, stPinchThreadSet *threadSet);
+
+/*
+ * Add the proper threads to an empty pinch graph. Each thread is
+ * given the name of its 5' cap.
+ */
+void stCaf_addThreadsToPinchGraph(Flower *flower, stPinchThreadSet *threadSet);
 
 /*
  * Initialises the flower for filling out and creates a pinch graph.
