@@ -22,10 +22,11 @@ from sonLib.bioio import system, popenCatch, popenPush
 from sonLib.bioio import getLogLevelString
 from sonLib.bioio import newickTreeParser
 from sonLib.bioio import makeSubDir
-from sonLib.bioio import catFiles, getTempFile
+from sonLib.bioio import catFiles, getTempFile, getTempDirectory
 from toil.job import Job
 
 from cactus.shared.common import getOptionalAttrib, runCactusAnalyseAssembly
+from cactus.shared.common import WritePermanentFile
 from toil.lib.bioio import setLoggingFromOptions
 from cactus.shared.configWrapper import ConfigWrapper
 
@@ -41,79 +42,81 @@ class PreprocessorOptions:
 class PreprocessChunk(Job):
     """ locally preprocess a fasta chunk, output then copied back to input
     """
-    def __init__(self, prepOptions, seqPaths, proportionSampled, inChunk, outChunk):
+    def __init__(self, prepOptions, seqIDs, proportionSampled, inChunkID):
         Job.__init__(self, memory=prepOptions.memory, cores=prepOptions.cpu)
         self.prepOptions = prepOptions 
-        self.seqPaths = seqPaths
-        self.inChunk = inChunk
-        self.outChunk = outChunk
+        self.seqIDs = seqIDs
+        self.inChunkID = inChunkID
         self.proportionSampled = proportionSampled
     
     def run(self, fileStore):
-        cmdline = self.prepOptions.cmdLine.replace("IN_FILE", "\"" + self.inChunk + "\"")
-        cmdline = cmdline.replace("OUT_FILE", "\"" + self.outChunk + "\"")
+        inChunk = fileStore.readGlobalFile(self.inChunkID)
+        outChunk = fileStore.getLocalTempFile()
+        seqPaths = [fileStore.readGlobalFile(fileID) for fileID in self.seqIDs]
+        cmdline = self.prepOptions.cmdLine.replace("IN_FILE", "\"" + inChunk + "\"")
+        cmdline = cmdline.replace("OUT_FILE", "\"" + outChunk + "\"")
         cmdline = cmdline.replace("TEMP_DIR", "\"" + fileStore.getLocalTempDir() + "\"")
         cmdline = cmdline.replace("PROPORTION_SAMPLED", str(self.proportionSampled))
         logger.info("Preprocessor exec " + cmdline)
         #print "command", cmdline
         #sys.exit(1)
-        popenPush(cmdline, " ".join(self.seqPaths))
+        popenPush(cmdline, " ".join(seqPaths))
         if self.prepOptions.check:
-            system("cp %s %s" % (self.inChunk, self.outChunk))
+            system("cp %s %s" % (inChunk, outChunk))
+        return fileStore.writeGlobalFile(outChunk)
 
 class MergeChunks(Job):
     """ merge a list of chunks into a fasta file
     """
-    def __init__(self, prepOptions, chunkList, outSequencePath):
+    def __init__(self, prepOptions, chunkIDList):
         Job.__init__(self, cores=prepOptions.cpu)
         self.prepOptions = prepOptions 
-        self.chunkList = chunkList
-        self.outSequencePath = outSequencePath
+        self.chunkIDList = chunkIDList
     
     def run(self, fileStore):
-        popenPush("cactus_batch_mergeChunks > %s" % self.outSequencePath, " ".join(self.chunkList))
+        chunkList = [fileStore.readGlobalFile(fileID) for fileID in self.chunkIDList]
+        outSequencePath = fileStore.getLocalTempFile()
+        popenPush("cactus_batch_mergeChunks > %s" % outSequencePath, " ".join(chunkList))
+        return fileStore.writeGlobalFile(outSequencePath)
  
 class PreprocessSequence(Job):
     """Cut a sequence into chunks, process, then merge
     """
-    def __init__(self, prepOptions, inSequencePath, outSequencePath):
+    def __init__(self, prepOptions, inSequenceID):
         Job.__init__(self, cores=prepOptions.cpu)
         self.prepOptions = prepOptions 
-        self.inSequencePath = inSequencePath
-        self.outSequencePath = outSequencePath
+        self.inSequenceID = inSequenceID
     
     def run(self, fileStore):        
         logger.info("Preparing sequence for preprocessing")
         # chunk it up
-        inChunkDirectory = makeSubDir(os.path.join(self.getGlobalTempDir(), "preprocessChunksIn"))
+        inSequence = fileStore.readGlobalFile(self.inSequenceID)
+        inChunkDirectory = getTempDirectory(rootDir=fileStore.getLocalTempDir())
         inChunkList = [ chunk for chunk in popenCatch("cactus_blast_chunkSequences %s %i 0 %s %s" % \
                (getLogLevelString(), self.prepOptions.chunkSize,
-                inChunkDirectory, self.inSequencePath)).split("\n") if chunk != "" ]   
-        outChunkDirectory = makeSubDir(os.path.join(self.getGlobalTempDir(), "preprocessChunksOut"))
-        outChunkList = [] 
+                inChunkDirectory, inSequence)).split("\n") if chunk != "" ]
+        inChunkIDList = [fileStore.writeGlobalFile(chunk) for chunk in inChunkList]
+        outChunkIDList = [] 
         #For each input chunk we create an output chunk, it is the output chunks that get concatenated together.
         for i in xrange(len(inChunkList)):
-            outChunkList.append(os.path.join(outChunkDirectory, "chunk_%i" % i))
             #Calculate the number of chunks to use
             inChunkNumber = int(max(1, math.ceil(len(inChunkList) * self.prepOptions.proportionToSample)))
             assert inChunkNumber <= len(inChunkList) and inChunkNumber > 0
             #Now get the list of chunks flanking and including the current chunk
             j = max(0, i - inChunkNumber/2)
-            inChunks = inChunkList[j:j+inChunkNumber]
-            if len(inChunks) < inChunkNumber: #This logic is like making the list circular
-                inChunks += inChunkList[:inChunkNumber-len(inChunks)]
-            assert len(inChunks) == inChunkNumber
-            self.addChild(PreprocessChunk(self.prepOptions, inChunks, float(inChunkNumber)/len(inChunkList), inChunkList[i], outChunkList[i]))
+            inChunkIDs = inChunkIDList[j:j+inChunkNumber]
+            if len(inChunkIDs) < inChunkNumber: #This logic is like making the list circular
+                inChunkIDs += inChunkIDList[:inChunkNumber-len(inChunkIDs)]
+            assert len(inChunkIDs) == inChunkNumber
+            outChunkIDList.append(self.addChild(PreprocessChunk(self.prepOptions, inChunkIDs, float(inChunkNumber)/len(inChunkIDList), inChunkIDList[i])).rv())
         # follow on to merge chunks
-        self.addFollowOn(MergeChunks(self.prepOptions, outChunkList, self.outSequencePath))
+        return self.addFollowOn(MergeChunks(self.prepOptions, outChunkIDList)).rv()
 
 class BatchPreprocessor(Job):
-    def __init__(self, prepXmlElems, inSequence, 
-                 globalOutSequence, iteration = 0):
+    def __init__(self, prepXmlElems, inSequenceID, iteration = 0):
         Job.__init__(self) 
         self.prepXmlElems = prepXmlElems
-        self.inSequence = inSequence
-        self.globalOutSequence = globalOutSequence
+        self.inSequenceID = inSequenceID
         prepNode = self.prepXmlElems[iteration]
         self.memory = getOptionalAttrib(prepNode, "memory", typeFn=int, default=None)
         self.cores = getOptionalAttrib(prepNode, "cpu", typeFn=int, default=None)
@@ -133,30 +136,27 @@ class BatchPreprocessor(Job):
         
         #output to temporary directory unless we are on the last iteration
         lastIteration = self.iteration == len(self.prepXmlElems) - 1
-        if lastIteration == False:
-            outSeq = os.path.join(self.getGlobalTempDir(), str(self.iteration))
-        else:
-            outSeq = self.globalOutSequence
         
         if prepOptions.chunkSize <= 0: #In this first case we don't need to break up the sequence
-            self.addChild(PreprocessChunk(prepOptions, [ self.inSequence ], 1.0, self.inSequence, outSeq))
+            outSeqID = self.addChild(PreprocessChunk(prepOptions, [ self.inSequenceID ], 1.0, self.inSequenceID)).rv()
         else:
-            self.addChild(PreprocessSequence(prepOptions, self.inSequence, outSeq)) 
+            outSeqID = self.addChild(PreprocessSequence(prepOptions, self.inSequenceID)).rv()
         
         if lastIteration == False:
-            self.addFollowOn(BatchPreprocessor(self.prepXmlElems, outSeq,
-                                                     self.globalOutSequence, self.iteration + 1))
+            return self.addFollowOn(BatchPreprocessor(self.prepXmlElems, outSeqID, self.iteration + 1)).rv()
         else:
-            self.addFollowOn(BatchPreprocessorEnd(self.globalOutSequence))
+            return self.addFollowOn(BatchPreprocessorEnd(outSeqID)).rv()
 
 class BatchPreprocessorEnd(Job):
-    def __init__(self,  globalOutSequence):
+    def __init__(self,  globalOutSequenceID):
         Job.__init__(self) 
-        self.globalOutSequence = globalOutSequence
+        self.globalOutSequenceID = globalOutSequenceID
         
     def run(self, fileStore):
-        analysisString = runCactusAnalyseAssembly(self.globalOutSequence)
+        globalOutSequence = fileStore.readGlobalFile(self.globalOutSequenceID)
+        analysisString = runCactusAnalyseAssembly(globalOutSequence)
         fileStore.logToMaster("After preprocessing assembly we got the following stats: %s" % analysisString)
+        return self.globalOutSequenceID
 
 ############################################################
 ############################################################
@@ -200,7 +200,7 @@ class CactusPreprocessor2(Job):
     def run(self, fileStore):
         #If the files are in a sub-dir then rip them out.
         if os.path.isdir(self.inputSequenceFileOrDirectory):
-            tempFile = getTempFile(rootDir=self.getGlobalTempDir())
+            tempFile = fileStore.getLocalTempFile()
             catFiles([ os.path.join(self.inputSequenceFileOrDirectory, f) for f in os.listdir(self.inputSequenceFileOrDirectory)], tempFile)
             inputSequenceFile = tempFile
         else:
@@ -218,7 +218,9 @@ class CactusPreprocessor2(Job):
             system("cp %s %s" % (inputSequenceFile, self.outputSequenceFile))
         else:
             logger.info("Adding child batch_preprocessor target")
-            self.addChild(BatchPreprocessor(prepXmlElems, inputSequenceFile, self.outputSequenceFile, 0))
+            inputSequenceID = fileStore.writeGlobalFile(inputSequenceFile)
+            outputSequenceID = self.addChild(BatchPreprocessor(prepXmlElems, inputSequenceID, 0)).rv()
+            self.addFollowOn(WritePermanentFile(outputSequenceID, self.outputSequenceFile))
                     
 def main():
     usage = "usage: %prog outputSequenceDir configXMLFile inputSequenceFastaFilesxN [options]"

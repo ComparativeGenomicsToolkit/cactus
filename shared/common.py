@@ -528,7 +528,6 @@ class WritePermanentFile(Job):
     def run(self, fileStore):
         logger.info("ID = %s" % self.fileID)
         tmpPath = fileStore.readGlobalFile(self.fileID)
-        assert os.path.basename(self.filePath) == "alignments.cigar"
         system("cp %s %s" % (tmpPath, self.filePath))
 
         
