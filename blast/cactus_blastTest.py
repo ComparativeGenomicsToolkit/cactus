@@ -188,7 +188,7 @@ class TestCase(unittest.TestCase):
         print "total coverage on human from last outgroup in set (%s) (ingroup vs outgroup mode): %d" % (outgroups[-1], coverageFromLastOutgroupInVsOut)
 
         self.assertTrue(float(coverageFromLastOutgroupInVsOut)/coverageFromLastOutgroupSetVsSet <= 0.10)
-
+        
     def testBlastParameters(self):
         """Tests if changing parameters of lastz creates results similar to the desired default.
         """

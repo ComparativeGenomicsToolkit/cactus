@@ -78,9 +78,9 @@ class KtServerService(Job.Service):
             assert dbString is not None
             confXML = ET.fromstring(dbString)
             self.dbElem = DbElemWrapper(confXML)
-    
+
         self.killSwitchPath = getTempFile(suffix="_kill.txt",
-                                     rootDir=self.rootJob.getGlobalTempDir())
+                                          rootDir=self.dbElem.getDbDir())
         killSwitchFile = open(self.killSwitchPath, "w")
         killSwitchFile.write("init")
         killSwitchFile.close()

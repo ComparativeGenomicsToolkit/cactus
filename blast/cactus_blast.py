@@ -232,19 +232,13 @@ class WriteIngroupAndOutgroupResults(Job):
         self.outgroupFragmentsDir = outgroupFragmentsDir
         
     def run(self, fileStore):
-        ingroupResultsID = self.results["ingroupResultsID"]
-        outgroupFragmentsAndOutgroupResults = self.results["outgroupFragmentsAndOutgroupResults"]
-        outgroupFragmentIDs = outgroupFragmentsAndOutgroupResults["outgroupFragmentIDs"]
-        outgroupResultsID = outgroupFragmentsAndOutgroupResults["outputID"]
-        logger.info("Outgroup fragment IDs: %s" % outgroupFragmentIDs)
-        logger.info("outgroupResultsID: %s" % outgroupResultsID)
-        logger.info("ingroupResultsID: %s" % ingroupResultsID)
+        alignmentsID = self.results["alignmentsID"]
+        outgroupFragmentIDs = self.results["outgroupFragmentIDs"]
+
 
         outgroupFragments = [fileStore.readGlobalFile(seq) for seq in outgroupFragmentIDs]
-        ingroupResults = fileStore.readGlobalFile(ingroupResultsID)
-        outgroupResults = fileStore.readGlobalFile(outgroupResultsID)
+        fileStore.readGlobalFile(alignmentsID, localFilePath=self.cigarFile)
 
-        catFiles([ingroupResults, outgroupResults], self.cigarFile)
         logger.info("Writing BlastIngroupsAndOutgroups cigar file to: %s" % self.cigarFile)
         assert len(outgroupFragments) == len(self.outgroups)
         for (outgroupFragment, outgroupName) in zip(outgroupFragments, self.outgroups):
@@ -274,7 +268,19 @@ class BlastIngroupsAndOutgroups(Job):
                                                outputID=None,
                                                blastOptions=self.blastOptions,
                                                outgroupNumber=1)).rv()
-        return {"ingroupResultsID":ingroupResultsID, "outgroupFragmentsAndOutgroupResults":outgroupFragmentsAndOutgroupResults}
+        return self.addFollowOn(BlastIngroupsAndOutgroups2(ingroupResultsID, outgroupFragmentsAndOutgroupResults)).rv()
+
+class BlastIngroupsAndOutgroups2(Job):
+    def __init__(self, ingroupResultsID, outgroupFragmentsAndOutgroupResults):
+        Job.__init__(self)
+        self.ingroupResultsID = ingroupResultsID
+        self.outgroupFragmentsAndOutgroupResults = outgroupFragmentsAndOutgroupResults
+    def run(self, fileStore):
+        outgroupResultsID = self.outgroupFragmentsAndOutgroupResults["outputID"]
+        outgroupFragmentIDs = self.outgroupFragmentsAndOutgroupResults["outgroupFragmentIDs"]
+        alignmentsID = self.addChild(CollateBlasts([self.ingroupResultsID, outgroupResultsID])).rv()
+        return {"alignmentsID":alignmentsID, "outgroupFragmentIDs":outgroupFragmentIDs}
+        
         
 
 class BlastFirstOutgroup(Job):
