@@ -79,6 +79,8 @@ class KtServerService(Job.Service):
             confXML = ET.fromstring(dbString)
             self.dbElem = DbElemWrapper(confXML)
 
+        if not os.path.exists(self.dbElem.getDbDir()):
+            os.mkdir(self.dbElem.getDbDir())
         self.killSwitchPath = getTempFile(suffix="_kill.txt",
                                           rootDir=self.dbElem.getDbDir())
         killSwitchFile = open(self.killSwitchPath, "w")
