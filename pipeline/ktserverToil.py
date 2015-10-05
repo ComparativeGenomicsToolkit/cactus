@@ -10,7 +10,7 @@ import random
 import math
 import xml.etree.ElementTree as ET
 
-from sonLib.bioio import getTempFile
+from sonLib.bioio import getTempFile, logger
 from toil.job import Job
 from cactus.shared.experimentWrapper import DbElemWrapper
 from cactus.shared.experimentWrapper import ExperimentWrapper
@@ -31,15 +31,16 @@ class ChildWithKtServer(Job):
     CactusRecursionJob). The ktserver will be available for the child
     job and all of its successors, but will be terminated before the follow-on
     jobs of rootJob are run."""
-    def __init__(self, rootJob, newChild, isSecondary):
-        Job.__init__(self)
+    def __init__(self, rootJob, newChild, isSecondary, memory=None, cores=None):
+        Job.__init__(self, memory=memory, cores=cores)
         self.rootJob = rootJob
         self.newChild = newChild
         self.isSecondary = isSecondary
     def run(self, fileStore):
         from cactus.pipeline.cactus_workflow import CactusPhasesJob
         from cactus.pipeline.cactus_workflow import CactusRecursionJob
-        dbConfString = self.addService(KtServerService(self.rootJob, self.newChild, self.isSecondary))
+
+        dbConfString = self.addService(KtServerService(self.rootJob, self.newChild, self.isSecondary, memory=self.memory, cores=self.cores))
 
         #Tell the child job what port and hostname to use for connecting
         #to the database.
@@ -51,8 +52,8 @@ class ChildWithKtServer(Job):
 
 class KtServerService(Job.Service):
 
-    def __init__(self, rootJob, newChild, isSecondary):
-        Job.Service.__init__(self)
+    def __init__(self, rootJob, newChild, isSecondary, memory=None, cores=None):
+        Job.Service.__init__(self, memory=memory, cores=cores)
         self.rootJob = rootJob
         self.newChild = newChild
         self.isSecondary = isSecondary
@@ -63,7 +64,7 @@ class KtServerService(Job.Service):
 
 
 
-    def start(self):
+    def start(self, fileStore):
         from cactus.pipeline.cactus_workflow import CactusPhasesJob
         from cactus.pipeline.cactus_workflow import CactusRecursionJob
 
@@ -72,15 +73,19 @@ class KtServerService(Job.Service):
             wfArgs = self.newChild.cactusWorkflowArguments
             self.dbElem = ExperimentWrapper(wfArgs.experimentNode)
             experiment = self.dbElem
+            self.dbElem.setDbDir(os.path.join(fileStore.getLocalTempDir(), "cactusDB/"))
         else:
             assert isinstance(self.newChild, CactusRecursionJob)
             dbString = self.newChild.getOptionalPhaseAttrib("secondaryDatabaseString")
             assert dbString is not None
             confXML = ET.fromstring(dbString)
             self.dbElem = DbElemWrapper(confXML)
-    
+            self.dbElem.setDbDir(os.path.join(fileStore.getLocalTempDir(), "tempDB/"))
+
+        if not os.path.exists(self.dbElem.getDbDir()):
+            os.mkdir(self.dbElem.getDbDir())
         self.killSwitchPath = getTempFile(suffix="_kill.txt",
-                                     rootDir=self.rootJob.getGlobalTempDir())
+                                          rootDir=self.dbElem.getDbDir())
         killSwitchFile = open(self.killSwitchPath, "w")
         killSwitchFile.write("init")
         killSwitchFile.close()
@@ -105,7 +110,7 @@ class KtServerService(Job.Service):
         return self.dbElem.getConfString()
         
 
-    def stop(self):
+    def stop(self, fileStore):
         if self.process:
             self.process.kill()
         logPath = getLogPath(self.dbElem)
@@ -113,4 +118,6 @@ class KtServerService(Job.Service):
             os.remove(logPath)
         if self.killSwitchPath:
             os.remove(self.killSwitchPath)
+    def check(self):
+        return True
     

@@ -527,7 +527,6 @@ class WritePermanentFile(Job):
         self.filePath = filePath
     def run(self, fileStore):
         logger.info("ID = %s" % self.fileID)
-        tmpPath = fileStore.readGlobalFile(self.fileID)
-        system("cp %s %s" % (tmpPath, self.filePath))
+        tmpPath = fileStore.readGlobalFile(self.fileID, cache=False, userPath=self.filePath)
 
         

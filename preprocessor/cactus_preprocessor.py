@@ -63,7 +63,7 @@ class PreprocessChunk(Job):
         popenPush(cmdline, " ".join(seqPaths))
         if self.prepOptions.check:
             system("cp %s %s" % (inChunk, outChunk))
-        return fileStore.writeGlobalFile(outChunk)
+        return fileStore.writeGlobalFile(outChunk, cleanup=False)
 
 class MergeChunks(Job):
     """ merge a list of chunks into a fasta file
@@ -77,7 +77,8 @@ class MergeChunks(Job):
         chunkList = [fileStore.readGlobalFile(fileID) for fileID in self.chunkIDList]
         outSequencePath = fileStore.getLocalTempFile()
         popenPush("cactus_batch_mergeChunks > %s" % outSequencePath, " ".join(chunkList))
-        return fileStore.writeGlobalFile(outSequencePath)
+        map(fileStore.deleteGlobalFile, self.chunkIDList)
+        return fileStore.writeGlobalFile(outSequencePath, cleanup=False)
  
 class PreprocessSequence(Job):
     """Cut a sequence into chunks, process, then merge
@@ -95,7 +96,7 @@ class PreprocessSequence(Job):
         inChunkList = [ chunk for chunk in popenCatch("cactus_blast_chunkSequences %s %i 0 %s %s" % \
                (getLogLevelString(), self.prepOptions.chunkSize,
                 inChunkDirectory, inSequence)).split("\n") if chunk != "" ]
-        inChunkIDList = [fileStore.writeGlobalFile(chunk) for chunk in inChunkList]
+        inChunkIDList = [fileStore.writeGlobalFile(chunk, cleanup=False) for chunk in inChunkList]
         outChunkIDList = [] 
         #For each input chunk we create an output chunk, it is the output chunks that get concatenated together.
         for i in xrange(len(inChunkList)):
@@ -218,7 +219,7 @@ class CactusPreprocessor2(Job):
             system("cp %s %s" % (inputSequenceFile, self.outputSequenceFile))
         else:
             logger.info("Adding child batch_preprocessor target")
-            inputSequenceID = fileStore.writeGlobalFile(inputSequenceFile)
+            inputSequenceID = fileStore.writeGlobalFile(inputSequenceFile, cleanup=False)
             outputSequenceID = self.addChild(BatchPreprocessor(prepXmlElems, inputSequenceID, 0)).rv()
             self.addFollowOn(WritePermanentFile(outputSequenceID, self.outputSequenceFile))
                     
