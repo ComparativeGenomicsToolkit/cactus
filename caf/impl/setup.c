@@ -98,6 +98,7 @@ stPinchThreadSet *stCaf_setupForOnlineCactus(Flower *flower, stOnlineCactus **ca
     stPinchThreadSet_setAdjComponentMergeCallback(threadSet, (void (*)(void *, stConnectedComponent *, stConnectedComponent *)) stOnlineCactus_nodeMerge, *cactus);
     stPinchThreadSet_setAdjComponentCleaveCallback(threadSet, (void (*)(void *, stConnectedComponent *, stConnectedComponent *, stSet *)) stOnlineCactus_nodeCleave, *cactus);
     stPinchThreadSet_setAdjComponentDeletionCallback(threadSet, (void (*)(void *, stConnectedComponent *)) stOnlineCactus_deleteNode, *cactus);
+    stOnlineCactus_setWeightFn(*cactus, (uint64_t (*)(const void *)) stPinchBlock_getLength);
 
     //Create empty pinch graph from flower
     stCaf_addThreadsToPinchGraph(flower, threadSet);

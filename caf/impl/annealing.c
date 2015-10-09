@@ -107,7 +107,7 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
             stPinchThread_filterPinch(thread1, thread2, pinch->start1, pinch->start2, pinch->length, pinch->strand, filterFn);
         }
 
-        stList *worstPath = stOnlineCactus_getGloballyWorstMaximalChainOrBridgePath(cactus, (int64_t (*)(void *)) stPinchBlock_getLength);
+        stList *worstPath = stOnlineCactus_getGloballyWorstMaximalChainOrBridgePath(cactus);
         while (pathLength(worstPath) < minimumChainLength) {
             // Need to undo stuff.
             // Go through all the blocks we pinched and find the one with the lowest chain (or maximal bridge-path) length.
@@ -121,13 +121,12 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                 int64_t nil; // for ignoring value of offset & length
                 if (block != NULL && stPinchUndo_findOffsetForBlock(undo, threadSet, block,
                                                                     &nil, &nil)) {
-                    stList *chainOrBridgePath = stOnlineCactus_getMaximalChainOrBridgePath(cactus, block, (int64_t (*)(void *)) stPinchBlock_getLength);
+                    stList *chainOrBridgePath = stOnlineCactus_getMaximalChainOrBridgePath(cactus, block);
                     int64_t pathScore = pathLength(chainOrBridgePath);
                     if (pathScore < worstUndoablePathScore || (pathScore == worstUndoablePathScore && stPinchBlock_getLength(block) < stPinchBlock_getLength(worstUndoableBlock))) {
                         worstUndoablePathScore = pathScore;
                         worstUndoableBlock = block;
                     }
-                    stList_destruct(chainOrBridgePath);
                 }
                 segment = stPinchSegment_get3Prime(segment);
                 if (stPinchSegment_getThread(segment) == thread1 && !finishedThread1 && stPinchSegment_getStart(segment) >= pinchEnd) {
@@ -152,11 +151,9 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
             stPinchUndo_findOffsetForBlock(undo, threadSet, worstUndoableBlock, &undoOffset, &undoLength);
             stPinchThreadSet_partiallyUndoPinch(threadSet, undo, undoOffset, undoLength);
 
-            stList_destruct(worstPath);
-            worstPath = stOnlineCactus_getGloballyWorstMaximalChainOrBridgePath(cactus, (int64_t (*)(void *)) stPinchBlock_getLength);
+            worstPath = stOnlineCactus_getGloballyWorstMaximalChainOrBridgePath(cactus);
         }
         stPinchUndo_destruct(undo);
-        stList_destruct(worstPath);
     }
 }
 
