@@ -236,8 +236,8 @@ class WriteIngroupAndOutgroupResults(Job):
         outgroupFragmentIDs = self.results["outgroupFragmentIDs"]
 
 
-        outgroupFragments = [fileStore.readGlobalFile(seq) for seq in outgroupFragmentIDs]
-        fileStore.readGlobalFile(alignmentsID, localFilePath=self.cigarFile)
+        outgroupFragments = [fileStore.readGlobalFile(seq, cache=False) for seq in outgroupFragmentIDs]
+        fileStore.readGlobalFile(alignmentsID, userPath=self.cigarFile)
 
         logger.info("Writing BlastIngroupsAndOutgroups cigar file to: %s" % self.cigarFile)
         assert len(outgroupFragments) == len(self.outgroups)
@@ -335,7 +335,7 @@ class TrimAndRecurseOnOutgroups(Job):
         sequences = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceIDs]
         mostRecentResults = fileStore.readGlobalFile(self.mostRecentResultsID)
         if self.outputID:
-            outputFile = fileStore.readGlobalFile(self.outputID)
+            outputFile = fileStore.readGlobalFile(self.outputID, cache=False)
         else:
             outputFile = fileStore.getLocalTempFile()
         trimmedOutgroup = fileStore.getLocalTempFile()
