@@ -729,7 +729,6 @@ int main(int argc, char *argv[]) {
             }
 
             //Setup the alignments
-            stPinchIterator *pinchIterator;
             stList *alignmentsList = NULL;
             if (alignmentsFile != NULL) {
                 assert(i == 0);
@@ -737,9 +736,7 @@ int main(int argc, char *argv[]) {
                 if (sortAlignments) {
                     tempFile1 = getTempFile();
                     stCaf_sortCigarsFileByScoreInDescendingOrder(alignmentsFile, tempFile1);
-                    pinchIterator = stPinchIterator_constructFromFile(tempFile1);
-                } else {
-                    pinchIterator = stPinchIterator_constructFromFile(alignmentsFile);
+                    alignmentsFile = tempFile1;
                 }
             } else {
                 if (tempFile1 == NULL) {
@@ -750,7 +747,6 @@ int main(int argc, char *argv[]) {
                     stCaf_sortCigarsByScoreInDescendingOrder(alignmentsList);
                 }
                 st_logDebug("Ran lastz and have %" PRIi64 " alignments\n", stList_length(alignmentsList));
-                pinchIterator = stPinchIterator_constructFromList(alignmentsList);
             }
 
             if (meltingRoundsLength > 1 || annealingRoundsLength > 1) {
@@ -760,7 +756,6 @@ int main(int argc, char *argv[]) {
             int64_t annealingRound = 0;
             int64_t minimumChainLength = annealingRounds[annealingRound];
             int64_t alignmentTrim = annealingRound < alignmentTrimLength ? alignmentTrims[annealingRound] : 0;
-            stPinchIterator_setTrim(pinchIterator, alignmentTrim);
 
             // Add constraints without checking the chain lengths.
             if (pinchIteratorForConstraints != NULL) {
@@ -770,9 +765,8 @@ int main(int argc, char *argv[]) {
             // Do the annealing, checking that we are not creating
             // small chains at each step.
             if (annealingRound == 0) {
-                stCaf_annealPreventingSmallChains(flower, threadSet, cactus, pinchIterator, filterFn,
-                                                  meltingRounds[0], breakChainsAtReverseTandems,
-                                                  maximumMedianSequenceLengthBetweenLinkedEnds);
+                stCaf_annealPreventingSmallChains(flower, threadSet, cactus, alignmentsFile, alignmentTrim,
+                                                  filterFn, meltingRounds[0]);
             }
 
             // Dump the block degree and length distribution to a file
@@ -886,7 +880,6 @@ int main(int argc, char *argv[]) {
 
             //Cleanup
             stPinchThreadSet_destruct(threadSet);
-            stPinchIterator_destruct(pinchIterator);
             stSet_destruct(outgroupThreads);
 
             if (alignmentsList != NULL) {

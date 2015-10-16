@@ -69,11 +69,10 @@ void stCaf_joinTrivialBoundaries(stPinchThreadSet *threadSet);
  */
 void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadSet,
                                        stOnlineCactus *cactus,
-                                       stPinchIterator *pinchIterator,
+                                       const char *alignmentsFile,
+                                       int64_t alignmentTrim,
                                        bool (*filterFn)(stPinchSegment *, stPinchSegment *),
-                                       int64_t minimumChainLength,
-                                       bool breakChainsAtReverseTandems,
-                                       int64_t maximumMedianSpacingBetweenLinkedEnds);
+                                       int64_t minimumChainLength);
 
 ///////////////////////////////////////////////////////////////////////////
 // Melting fuctions -- removing alignments from the pinch graph
