@@ -145,7 +145,7 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                                        const char *alignmentsFile,
                                        int64_t alignmentTrim,
                                        bool (*filterFn)(stPinchSegment *, stPinchSegment *),
-                                       int64_t minimumChainLength) {
+                                       stList *minimumChainLengths) {
     FILE *alignments = fopen(alignmentsFile, "r");
     struct PairwiseAlignment *alignment = cigarRead(alignments);
     size_t numAlignments = 0;
@@ -184,8 +184,10 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
             }
         }
 
-        undoChainsSmallerThanThis(cactus, threadSet, pinches, undo, minimumChainLength);
-
+        for (int64_t i = 0; i < stList_length(minimumChainLengths); i++) {
+            int64_t minimumChainLength = stIntTuple_get(stList_get(minimumChainLengths, i), 0);
+            undoChainsSmallerThanThis(cactus, threadSet, pinches, undo, minimumChainLength);
+        }
         stPinchUndo_destruct(undo);
         stList_destruct(pinches);
         alignment = cigarRead(alignments);

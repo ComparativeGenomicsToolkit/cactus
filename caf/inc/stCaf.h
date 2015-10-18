@@ -72,7 +72,7 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                                        const char *alignmentsFile,
                                        int64_t alignmentTrim,
                                        bool (*filterFn)(stPinchSegment *, stPinchSegment *),
-                                       int64_t minimumChainLength);
+                                       stList *minimumChainLengths);
 
 void stCaf_disableAndCleanupOnlineCactus(stPinchThreadSet *threadSet, stOnlineCactus *cactus);
 

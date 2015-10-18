@@ -85,7 +85,7 @@
 		minimumDistance="0.01" 
 		minimumSequenceLengthForBlast="30"
 		annealingRounds="128" 
-		deannealingRounds="2"
+		deannealingRounds="2 8"
 		blockTrim="5" 
 		minimumTreeCoverage="0.0" 
 		trim="0 0" 

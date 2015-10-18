@@ -107,6 +107,21 @@ static int64_t *getInts(const char *string, int64_t *arrayLength) {
     return iA;
 }
 
+static stList *getIntsAsList(const char *string) {
+    stList *ret = stList_construct3(0, (void (*)(void *)) stIntTuple_destruct);
+    stList *strings = stString_splitByString(string, " ");
+    for (int64_t i = 0; i < stList_length(strings); i++) {
+        int64_t num;
+        int64_t success = sscanf(stList_get(strings, i), "%" PRIi64 "", &num);
+        if (success != 1) {
+            st_errAbort("error when reading integer list from string: %s", string);
+        }
+        stList_append(ret, stIntTuple_construct1(num));
+    }
+    stList_destruct(strings);
+    return ret;
+}
+
 static int64_t minimumIngroupDegree = 0, minimumOutgroupDegree = 0, minimumDegree = 0;
 static float minimumTreeCoverage = 0.0;
 static Flower *flower = NULL;
@@ -368,8 +383,7 @@ int main(int argc, char *argv[]) {
     //Parameters for annealing/melting rounds
     int64_t *annealingRounds = NULL;
     int64_t annealingRoundsLength = 0;
-    int64_t *meltingRounds = NULL;
-    int64_t meltingRoundsLength = 0;
+    stList *meltingRounds = NULL;
 
     //Parameters for melting
     float maximumAdjacencyComponentSizeRatio = 10;
@@ -476,7 +490,7 @@ int main(int argc, char *argv[]) {
                 annealingRounds = getInts(optarg, &annealingRoundsLength);
                 break;
             case 'o':
-                meltingRounds = getInts(optarg, &meltingRoundsLength);
+                meltingRounds = getIntsAsList(optarg);
                 break;
             case 'k':
                 alignmentTrims = getInts(optarg, &alignmentTrimLength);
@@ -648,8 +662,7 @@ int main(int argc, char *argv[]) {
     for (int64_t i = 0; i < annealingRoundsLength; i++) {
         assert(annealingRounds[i] >= 0);
     }
-    assert(meltingRoundsLength >= 0);
-    for (int64_t i = 1; i < meltingRoundsLength; i++) {
+    for (int64_t i = 1; i < stList_length(meltingRounds); i++) {
         assert(meltingRounds[i - 1] < meltingRounds[i]);
         assert(meltingRounds[i - 1] >= 1);
     }
@@ -749,9 +762,9 @@ int main(int argc, char *argv[]) {
                 st_logDebug("Ran lastz and have %" PRIi64 " alignments\n", stList_length(alignmentsList));
             }
 
-            if (meltingRoundsLength > 1 || annealingRoundsLength > 1) {
+            if (annealingRoundsLength > 1) {
                 st_errAbort("'online' cactus not currently compatible with more than one "
-                            "melting or annealing round.");
+                            "annealing round.");
             }
             int64_t annealingRound = 0;
             int64_t minimumChainLength = annealingRounds[annealingRound];
@@ -766,7 +779,7 @@ int main(int argc, char *argv[]) {
             // small chains at each step.
             if (annealingRound == 0) {
                 stCaf_annealPreventingSmallChains(flower, threadSet, cactus, alignmentsFile, alignmentTrim,
-                                                  filterFn, meltingRounds[0]);
+                                                  filterFn, meltingRounds);
             }
 
             // Dump the block degree and length distribution to a file
