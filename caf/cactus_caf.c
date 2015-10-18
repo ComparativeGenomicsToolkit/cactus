@@ -799,7 +799,8 @@ int main(int argc, char *argv[]) {
                 }
             }
 
-            // Add in the caps for the conventional cactus code.
+            // Add in the caps for the conventional cactus code and disable online cactus.
+            stCaf_disableAndCleanupOnlineCactus(threadSet, cactus);
             stCaf_addCapsToPinchGraph(flower, threadSet);
 
             // Do the final melting step.

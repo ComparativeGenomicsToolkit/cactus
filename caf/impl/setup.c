@@ -106,6 +106,17 @@ stPinchThreadSet *stCaf_setupForOnlineCactus(Flower *flower, stOnlineCactus **ca
     return threadSet;
 }
 
+void stCaf_disableAndCleanupOnlineCactus(stPinchThreadSet *threadSet, stOnlineCactus *cactus) {
+    stPinchThreadSet_setAdjComponentCreationCallback(threadSet, NULL, NULL);
+    stPinchThreadSet_setBlockCreationCallback(threadSet, NULL, NULL);
+    stPinchThreadSet_setBlockDeletionCallback(threadSet, NULL, NULL);
+    stPinchThreadSet_setAdjComponentMergeCallback(threadSet, NULL, NULL);
+    stPinchThreadSet_setAdjComponentCleaveCallback(threadSet, NULL, NULL);
+    stPinchThreadSet_setAdjComponentDeletionCallback(threadSet, NULL, NULL);
+
+    stOnlineCactus_destruct(cactus);
+}
+
 stPinchThreadSet *stCaf_setup(Flower *flower) {
     //Setup the empty flower that will be filled out
     initialiseFlowerForFillingOut(flower);
