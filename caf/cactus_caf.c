@@ -155,8 +155,6 @@ bool containsOutgroupSegment(stPinchBlock *block) {
         //if(event_isOutgroup(getEvent(segment, flower))) {
         if (stSet_search(outgroupThreads, stPinchSegment_getThread(segment)) != NULL) {
             assert(event_isOutgroup(getEvent(segment, flower)));
-            stPinchSegment_putSegmentFirstInBlock(segment);
-            assert(stPinchBlock_getFirst(block) == segment);
             return 1;
         } else {
             assert(!event_isOutgroup(getEvent(segment, flower)));
@@ -663,8 +661,10 @@ int main(int argc, char *argv[]) {
         assert(annealingRounds[i] >= 0);
     }
     for (int64_t i = 1; i < stList_length(meltingRounds); i++) {
-        assert(meltingRounds[i - 1] < meltingRounds[i]);
-        assert(meltingRounds[i - 1] >= 1);
+        int64_t prevRoundLen = stIntTuple_get(stList_get(meltingRounds, i - 1), 0);
+        int64_t curRoundLen = stIntTuple_get(stList_get(meltingRounds, i), 0);
+        assert(prevRoundLen < curRoundLen);
+        assert(prevRoundLen >= 1);
     }
     assert(alignmentTrimLength >= 0);
     for (int64_t i = 0; i < alignmentTrimLength; i++) {
