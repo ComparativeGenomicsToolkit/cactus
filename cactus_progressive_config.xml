@@ -95,7 +95,7 @@
 		minimumIngroupDegree="2"
 		minimumOutgroupDegree="0"
 		singleCopyIngroup="0"
-		singleCopyOutgroup="0"
+		singleCopyOutgroup="1"
 		maxAdjacencyComponentSizeRatio="50"
 		minLengthForChromosome="1000000"
 		proportionOfUnalignedBasesForNewChromosome="0.8"
