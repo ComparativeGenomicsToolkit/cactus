@@ -113,15 +113,15 @@ static void undoChainsSmallerThanThis(stOnlineCactus *cactus, stPinchThreadSet *
                     }
                 }
                 segment = stPinchSegment_get3Prime(segment);
-                if (stPinchSegment_getThread(segment) == thread1 && !finishedThread1 && stPinchSegment_getStart(segment) >= pinchEnd) {
+                if ((segment == NULL || (stPinchSegment_getThread(segment) == thread1  && stPinchSegment_getStart(segment) >= pinchEnd)) && !finishedThread1) {
                     // Switch to thread2 (or the second section of thread1). (We have to check both
                     // threads, in case one has collapsed in on
                     // itself.)
                     segment = stPinchThread_getSegment(thread2, pinch->start2);
                     pinchEnd = pinch->start2 + pinch->length;
                     finishedThread1 = true;
-                } else if (stPinchSegment_getStart(segment) >= pinchEnd) {
-                    assert(stPinchSegment_getThread(segment) == thread2);
+                } else if (segment == NULL || stPinchSegment_getStart(segment) >= pinchEnd) {
+                    assert(segment == NULL || stPinchSegment_getThread(segment) == thread2);
                     break;
                 }
             }
