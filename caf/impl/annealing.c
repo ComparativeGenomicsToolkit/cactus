@@ -91,51 +91,28 @@ static void undoChainsSmallerThanThis(stOnlineCactus *cactus, stPinchThreadSet *
     while (pathLength(worstPath) < minimumChainLength) {
         // Need to undo stuff.
         // Go through all the blocks we pinched and find the one with the lowest chain (or maximal bridge-path) length.
-        int64_t worstUndoablePathScore = INT64_MAX;
-        stPinchBlock *worstUndoableBlock = NULL;
-        for (int64_t i = 0; i < stList_length(pinches); i++) {
-            stPinch *pinch = stList_get(pinches, i);
-            stPinchThread *thread1 = stPinchThreadSet_getThread(threadSet, pinch->name1);
-            stPinchThread *thread2 = stPinchThreadSet_getThread(threadSet, pinch->name2);
-            stPinchSegment *segment = stPinchThread_getSegment(thread1, pinch->start1);
-            int64_t pinchEnd = pinch->start1 + pinch->length;
-            bool finishedThread1 = false;
-            while (true) {
-                stPinchBlock *block = stPinchSegment_getBlock(segment);
-                int64_t nil; // for ignoring value of offset & length
-                if (block != NULL && stPinchUndo_findOffsetForBlock(undo, threadSet, block,
-                                                                    &nil, &nil)) {
-                    stList *chainOrBridgePath = stOnlineCactus_getMaximalChainOrBridgePath(cactus, block);
-                    int64_t pathScore = pathLength(chainOrBridgePath);
-                    if (pathScore < worstUndoablePathScore || (pathScore == worstUndoablePathScore && stPinchBlock_getLength(block) < stPinchBlock_getLength(worstUndoableBlock))) {
-                        worstUndoablePathScore = pathScore;
-                        worstUndoableBlock = block;
-                    }
-                }
-                segment = stPinchSegment_get3Prime(segment);
-                if ((segment == NULL || (stPinchSegment_getThread(segment) == thread1  && stPinchSegment_getStart(segment) >= pinchEnd)) && !finishedThread1) {
-                    // Switch to thread2 (or the second section of thread1). (We have to check both
-                    // threads, in case one has collapsed in on
-                    // itself.)
-                    segment = stPinchThread_getSegment(thread2, pinch->start2);
-                    pinchEnd = pinch->start2 + pinch->length;
-                    finishedThread1 = true;
-                } else if (segment == NULL || stPinchSegment_getStart(segment) >= pinchEnd) {
-                    assert(segment == NULL || stPinchSegment_getThread(segment) == thread2);
-                    break;
-                }
+        bool foundBlock = false;
+        for (int64_t i = 0; i < stList_length(worstPath); i++) {
+            stPinchBlock *block = stList_get(worstPath, i);
+            // Undo this block if possible.
+            int64_t undoOffset;
+            int64_t undoLength;
+
+            if (stPinchUndo_findOffsetForBlock(undo, threadSet, block, &undoOffset, &undoLength)) {
+                stPinchThreadSet_partiallyUndoPinch(threadSet, undo, undoOffset, undoLength);
+                foundBlock = true;
+                break;
             }
         }
-        if (worstUndoableBlock == NULL) {
-            st_errAbort("Couldn't find an undoable block, and there are still short chains");
+        if (!foundBlock) {
+            // Need to copy the list, as it will be invalidated after a block destruct.
+            stList *worstPathCopy = stList_construct();
+            stList_appendAll(worstPathCopy, worstPath);
+            for (int64_t i = 0; i < stList_length(worstPathCopy); i++) {
+                stPinchBlock *block = stList_get(worstPathCopy, i);
+                stPinchBlock_destruct(block);
+            }
         }
-
-        // Undo this block.
-        int64_t undoOffset;
-        int64_t undoLength;
-        stPinchUndo_findOffsetForBlock(undo, threadSet, worstUndoableBlock, &undoOffset, &undoLength);
-        stPinchThreadSet_partiallyUndoPinch(threadSet, undo, undoOffset, undoLength);
-
         worstPath = stOnlineCactus_getGloballyWorstMaximalChainOrBridgePath(cactus);
     }
 }
@@ -143,11 +120,20 @@ static void undoChainsSmallerThanThis(stOnlineCactus *cactus, stPinchThreadSet *
 void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadSet,
                                        stOnlineCactus *cactus,
                                        const char *alignmentsFile,
+                                       stList *alignmentsList,
                                        int64_t alignmentTrim,
                                        bool (*filterFn)(stPinchSegment *, stPinchSegment *),
                                        stList *minimumChainLengths) {
-    FILE *alignments = fopen(alignmentsFile, "r");
-    struct PairwiseAlignment *alignment = cigarRead(alignments);
+    stListIterator *listIt = NULL;
+    FILE *alignments = NULL;
+    struct PairwiseAlignment *alignment;
+    if (alignmentsFile != NULL) {
+        alignments = fopen(alignmentsFile, "r");
+        alignment = cigarRead(alignments);
+    } else {
+        listIt = stList_getIterator(alignmentsList);
+        alignment = stList_getNext(listIt);
+    }
     size_t numAlignments = 0;
     size_t numPinches = 0;
     while (alignment != NULL) {
@@ -190,7 +176,11 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
         }
         stPinchUndo_destruct(undo);
         stList_destruct(pinches);
-        alignment = cigarRead(alignments);
+        if (alignmentsFile != NULL) {
+            alignment = cigarRead(alignments);
+        } else {
+            alignment = stList_getNext(listIt);
+        }
     }
     printf("Added %" PRIi64 " gapped alignments containing %" PRIi64 " pinches to the graph.\n", numAlignments, numPinches);
 }

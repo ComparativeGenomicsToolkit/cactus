@@ -663,6 +663,8 @@ int main(int argc, char *argv[]) {
     for (int64_t i = 1; i < stList_length(meltingRounds); i++) {
         int64_t prevRoundLen = stIntTuple_get(stList_get(meltingRounds, i - 1), 0);
         int64_t curRoundLen = stIntTuple_get(stList_get(meltingRounds, i), 0);
+        (void) prevRoundLen;
+        (void) curRoundLen;
         assert(prevRoundLen < curRoundLen);
         assert(prevRoundLen >= 1);
     }
@@ -728,16 +730,13 @@ int main(int argc, char *argv[]) {
 
             bool sortAlignments = 1;
             if (singleCopyIngroup) {
-                sortAlignments = 1;
                 filterFn = filterByRepeatSpecies;
             }
             else if (singleCopyOutgroup) {
                 if (stSet_size(outgroupThreads) == 0) {
                     filterFn = NULL;
-                    sortAlignments = 0;
                 } else {
                     filterFn = filterByOutgroup;
-                    sortAlignments = 1;
                 }
             }
 
@@ -778,7 +777,7 @@ int main(int argc, char *argv[]) {
             // Do the annealing, checking that we are not creating
             // small chains at each step.
             if (annealingRound == 0) {
-                stCaf_annealPreventingSmallChains(flower, threadSet, cactus, alignmentsFile, alignmentTrim,
+                stCaf_annealPreventingSmallChains(flower, threadSet, cactus, alignmentsFile, alignmentsList, alignmentTrim,
                                                   filterFn, meltingRounds);
             }
 
@@ -818,14 +817,17 @@ int main(int argc, char *argv[]) {
 
             // Do the final melting step.
             stCaf_melt(flower, threadSet, NULL, 0, minimumChainLength, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds);
+            printf("Sequence graph statistics after final melting round:\n");
+            printThreadSetStatistics(threadSet, flower, stdout);
             //This does the filtering of blocks that do not have the required species/tree-coverage/degree.
+            stCaf_joinTrivialBoundaries(threadSet);
             stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0, 0, INT64_MAX);
 
             if (debugFileName != NULL) {
                 dumpBlockInfo(threadSet, stString_print("%s-blockStats-postMelting", debugFileName));
             }
 
-            printf("Sequence graph statistics after melting:\n");
+            printf("Sequence graph statistics after filtering:\n");
             printThreadSetStatistics(threadSet, flower, stdout);
 
             // Build a tree for each block, then use each tree to

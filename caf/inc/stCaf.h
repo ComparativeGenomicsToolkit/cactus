@@ -70,6 +70,7 @@ void stCaf_joinTrivialBoundaries(stPinchThreadSet *threadSet);
 void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadSet,
                                        stOnlineCactus *cactus,
                                        const char *alignmentsFile,
+                                       stList *alignments,
                                        int64_t alignmentTrim,
                                        bool (*filterFn)(stPinchSegment *, stPinchSegment *),
                                        stList *minimumChainLengths);
