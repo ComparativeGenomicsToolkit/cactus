@@ -326,7 +326,7 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
         renamedInputSeqDir = os.path.join(fileStore.getLocalTempDir(), "renamedInputs")
         os.mkdir(renamedInputSeqDir)
         uniqueFas = prependUniqueIDs(seqMap.values(), renamedInputSeqDir)
-        uniqueFaIDs = [fileStore.writeGlobalFile(seq) for seq in uniqueFas]
+        uniqueFaIDs = [fileStore.writeGlobalFile(seq, cleanup=True) for seq in uniqueFas]
         self.phaseNode.attrib["seqIDs"] = " ".join(uniqueFaIDs)
         
         seqIDMap = dict(zip(seqMap.keys(), uniqueFaIDs))
@@ -474,7 +474,7 @@ class CactusCafPhase(CactusPhasesJob):
             newConstraintsFile = fileStore.getLocalTempFile()
             runCactusConvertAlignmentToCactus(self.cactusWorkflowArguments.cactusDiskDatabaseString,
                                               self.cactusWorkflowArguments.constraintsFile, newConstraintsFile)
-            self.phaseNode.attrib["constraintsID"] = fileStore.writeGlobalFile(newConstraintsFile)
+            self.phaseNode.attrib["constraintsID"] = fileStore.writeGlobalFile(newConstraintsFile, cleanup=True)
         if "alignmentsID" in self.phaseNode.attrib:
             # An alignment file has been provided (likely from the
             # ingroup vs. outgroup blast stage), so just run caf using
@@ -484,7 +484,7 @@ class CactusCafPhase(CactusPhasesJob):
             # Convert the cigar file to use 64-bit cactus Names instead of the headers.
             runConvertAlignmentsToInternalNames(self.cactusWorkflowArguments.cactusDiskDatabaseString, self.cactusWorkflowArguments.alignmentsID, convertedAlignmentsFile, self.topFlowerName)
             fileStore.logToMaster("Converted headers of cigar file %s to internal names, new file %s" % (self.cactusWorkflowArguments.alignmentsID, convertedAlignmentsFile))
-            self.cactusWorkflowArguments.alignmentsID = fileStore.writeGlobalFile(convertedAlignmentsFile)
+            self.cactusWorkflowArguments.alignmentsID = fileStore.writeGlobalFile(convertedAlignmentsFile, cleanup=True)
             # While we're at it, remove the unique IDs prepended to
             # the headers inside the cactus DB.
             runStripUniqueIDs(self.cactusWorkflowArguments.cactusDiskDatabaseString)
@@ -691,6 +691,7 @@ class CactusBarWrapperWithPrecomputedEndAlignments(CactusRecursionJob):
         if self.phaseNode.attrib["precomputedAlignmentIDs"] != "":
             precomputedAlignments = [fileStore.readGlobalFile(fileID) for fileID in self.phaseNode.attrib["precomputedAlignmentIDs"].split()]
             messages = runBarForJob(self, precomputedAlignments=precomputedAlignments)
+            map(fileStore.deleteGlobalFile, self.phaseNode.attrib["precomputedAlignmentIDs"].split())
         else:
             messages = runBarForJob(self)
         for message in messages:

@@ -77,6 +77,7 @@ class MergeChunks(Job):
         chunkList = [fileStore.readGlobalFile(fileID) for fileID in self.chunkIDList]
         outSequencePath = fileStore.getLocalTempFile()
         popenPush("cactus_batch_mergeChunks > %s" % outSequencePath, " ".join(chunkList))
+        map(fileStore.deleteGlobalFile, self.chunkIDList)
         return fileStore.writeGlobalFile(outSequencePath)
  
 class PreprocessSequence(Job):
@@ -218,7 +219,7 @@ class CactusPreprocessor2(Job):
             system("cp %s %s" % (inputSequenceFile, self.outputSequenceFile))
         else:
             logger.info("Adding child batch_preprocessor target")
-            inputSequenceID = fileStore.writeGlobalFile(inputSequenceFile)
+            inputSequenceID = fileStore.writeGlobalFile(inputSequenceFile, cleanup=True)
             outputSequenceID = self.addChild(BatchPreprocessor(prepXmlElems, inputSequenceID, 0)).rv()
             self.addFollowOn(WritePermanentFile(outputSequenceID, self.outputSequenceFile))
                     

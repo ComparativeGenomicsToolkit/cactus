@@ -100,7 +100,7 @@ class BlastSequencesAllAgainstAllWrapper(Job):
         self.outputFile = outputFile
         self.blastOptions = blastOptions
     def run(self, fileStore):
-        sequenceIDs1 = [fileStore.writeGlobalFile(seq) for seq in self.sequenceFiles1]
+        sequenceIDs1 = [fileStore.writeGlobalFile(seq, cleanup=True) for seq in self.sequenceFiles1]
         outputID = self.addChild(BlastSequencesAllAgainstAll(sequenceIDs1, self.blastOptions)).rv()
         self.addFollowOn(WritePermanentFile(outputID, self.outputFile))
 
@@ -118,7 +118,7 @@ class BlastSequencesAllAgainstAll(Job):
         sequenceFiles1 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs1]
         chunks = getChunks(sequenceFiles1, getTempDirectory(rootDir=fileStore.getLocalTempDir()), self.blastOptions)
         logger.info("Broken up the sequence files into individual 'chunk' files")
-        chunkIDs = [fileStore.writeGlobalFile(chunk) for chunk in chunks]
+        chunkIDs = [fileStore.writeGlobalFile(chunk, cleanup=True) for chunk in chunks]
         diagonalResultsID = self.addChild(MakeSelfBlasts(self.blastOptions, chunkIDs)).rv()
         offDiagonalResultsID = self.addChild(MakeOffDiagonalBlasts(self.blastOptions, chunkIDs)).rv()
         logger.debug("Collating the blasts after blasting all-against-all")
@@ -171,8 +171,8 @@ class BlastSequencesAgainstEachOtherWrapper(Job):
         self.cigarFile = cigarFile
         self.blastOptions = blastOptions
     def run(self, fileStore):
-        seqIDs1 = [fileStore.writeGlobalFile(seq) for seq in self.sequenceFiles1]
-        seqIDs2 = [fileStore.writeGlobalFile(seq) for seq in self.sequenceFiles2]
+        seqIDs1 = [fileStore.writeGlobalFile(seq, cleanup=True) for seq in self.sequenceFiles1]
+        seqIDs2 = [fileStore.writeGlobalFile(seq, cleanup=True) for seq in self.sequenceFiles2]
         cigarID = self.addChild(BlastSequencesAgainstEachOther(seqIDs1, seqIDs2, self.blastOptions)).rv()
         self.addFollowOn(WritePermanentFile(cigarID, self.cigarFile))
             
@@ -191,8 +191,8 @@ class BlastSequencesAgainstEachOther(Job):
         sequenceFiles2 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs2]
         chunks1 = getChunks(sequenceFiles1, getTempDirectory(rootDir=fileStore.getLocalTempDir()), self.blastOptions)
         chunks2 = getChunks(sequenceFiles2, getTempDirectory(rootDir=fileStore.getLocalTempDir()), self.blastOptions)
-        chunkIDs1 = [fileStore.writeGlobalFile(chunk) for chunk in chunks1]
-        chunkIDs2 = [fileStore.writeGlobalFile(chunk) for chunk in chunks2]
+        chunkIDs1 = [fileStore.writeGlobalFile(chunk, cleanup=True) for chunk in chunks1]
+        chunkIDs2 = [fileStore.writeGlobalFile(chunk, cleanup=True) for chunk in chunks2]
         resultsIDs = []
         #Make the list of blast jobs.
         for chunkID1 in chunkIDs1:
@@ -213,8 +213,8 @@ class BlastIngroupsAndOutgroupsWrapper(Job):
         self.outgroupFragmentsDir = outgroupFragmentsDir
     def run(self, fileStore):
         fileStore.logToMaster("Blasting ingroups vs outgroups to file %s" % (self.cigarFile))
-        ingroupIDs = [fileStore.writeGlobalFile(seq) for seq in self.ingroups]
-        outgroupIDs = [fileStore.writeGlobalFile(seq) for seq in self.outgroups]
+        ingroupIDs = [fileStore.writeGlobalFile(seq, cleanup=True) for seq in self.ingroups]
+        outgroupIDs = [fileStore.writeGlobalFile(seq, cleanup=True) for seq in self.outgroups]
         try:
             os.makedirs(self.outgroupFragmentsDir)
         except os.error:
@@ -243,6 +243,8 @@ class WriteIngroupAndOutgroupResults(Job):
         assert len(outgroupFragments) == len(self.outgroups)
         for (outgroupFragment, outgroupName) in zip(outgroupFragments, self.outgroups):
             system("cp %s %s" % (outgroupFragment, os.path.join(self.outgroupFragmentsDir, os.path.basename(outgroupName))))
+        map(fileStore.deleteGlobalFile, outgroupFragmentIDs)
+        fileStore.deleteGlobalFile(alignmentsID)
             
         
 class BlastIngroupsAndOutgroups(Job):
@@ -377,6 +379,8 @@ class TrimAndRecurseOnOutgroups(Job):
         with open(ingroupConvertedResultsFile) as results:
             with open(outputFile, 'a') as output:
                 output.write(results.read())
+        if self.outputID:
+            fileStore.deleteGlobalFile(self.outputID)
         self.outputID = fileStore.writeGlobalFile(outputFile)
 
         # Report coverage of the all outgroup alignments so far on the ingroups.
@@ -415,6 +419,8 @@ class TrimAndRecurseOnOutgroups(Job):
                            threshold=self.blastOptions.trimThreshold,
                            windowSize=self.blastOptions.trimWindowSize)
                 trimmedSeqs.append(trimmed)
+            if self.sequenceIDs != self.untrimmedSequenceIDs:
+                map(fileStore.deleteGlobalFile, self.sequenceIDs)
             trimmedSeqIDs = [fileStore.writeGlobalFile(seq) for seq in trimmedSeqs]
             return self.addChild(BlastFirstOutgroup(untrimmedSequenceIDs=self.untrimmedSequenceIDs,
                                                    sequenceIDs=trimmedSeqIDs,
@@ -496,6 +502,7 @@ class CollateBlasts(Job):
         collatedResultsFile = fileStore.getLocalTempFile()
         catFiles(resultsFiles, collatedResultsFile)
         logger.info("Collated the alignments to the file: %s",  collatedResultsFile)
+        map(fileStore.deleteGlobalFile, self.resultsFileIDs)
         return fileStore.writeGlobalFile(collatedResultsFile)
         
         
