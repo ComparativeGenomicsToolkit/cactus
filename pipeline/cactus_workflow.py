@@ -184,10 +184,15 @@ class CactusRecursionJob(CactusJob):
     """Base recursive job for traversals up and down the cactus tree.
     """
     maxSequenceSizeOfFlowerGroupingDefault = 1000000
-    def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge=False):
+    def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge=False, precomputedAlignmentIDs=None):
         CactusJob.__init__(self, phaseNode=phaseNode, constantsNode=constantsNode, overlarge=overlarge)
         self.cactusDiskDatabaseString = cactusDiskDatabaseString
         self.flowerNames = flowerNames  
+        
+        #need to do this because the alignment IDs are jobstore promises, and can't 
+        #be stored in the config XML until they are respolved into actual IDs, which doesn't
+        #happen until the follow-on job after CactusBarWrapperLarge
+        self.precomputedAlignmentIDs = precomputedAlignmentIDs
         
     def makeFollowOnRecursiveJob(self, job, phaseNode=None):
         """Sets the followon to the given recursive job
@@ -196,7 +201,7 @@ class CactusRecursionJob(CactusJob):
             phaseNode = self.phaseNode
         self.addFollowOn(job(phaseNode=phaseNode, constantsNode=self.constantsNode,
                                    cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
-                                   flowerNames=self.flowerNames, overlarge=self.overlarge))
+                                   flowerNames=self.flowerNames, overlarge=self.overlarge, precomputedAlignmentIDs = self.precomputedAlignmentIDs))
         
     def makeChildJobs(self, flowersAndSizes, job, overlargeJob=None, 
                          phaseNode=None, runFlowerStats=False):
@@ -661,7 +666,7 @@ class CactusBarWrapperLarge(CactusRecursionJob):
                     totalSize = 0
         if len(endsToAlign) > 0:
             precomputedAlignmentIDs.append(self.addChild(CactusBarEndAlignerWrapper(self.phaseNode, self.constantsNode, self.cactusDiskDatabaseString, self.flowerNames, False, endsToAlign)).rv())
-        self.phaseNode.attrib["precomputedAlignmentIDs"] = " ".join(precomputedAlignmentIDs) 
+        self.precomputedAlignmentIDs = precomputedAlignmentIDs
         self.makeFollowOnRecursiveJob(CactusBarWrapperWithPrecomputedEndAlignments)
         fileStore.logToMaster("Breaking bar job into %i separate jobs" % \
                              (len(precomputedAlignmentIDs)))
@@ -688,10 +693,10 @@ class CactusBarWrapperWithPrecomputedEndAlignments(CactusRecursionJob):
     """Runs the BAR algorithm implementation with some precomputed end alignments.
     """
     def run(self, fileStore):
-        if self.phaseNode.attrib["precomputedAlignmentIDs"] != "":
-            precomputedAlignments = [fileStore.readGlobalFile(fileID) for fileID in self.phaseNode.attrib["precomputedAlignmentIDs"].split()]
-            messages = runBarForJob(self, precomputedAlignments=precomputedAlignments)
-            map(fileStore.deleteGlobalFile, self.phaseNode.attrib["precomputedAlignmentIDs"].split())
+        if self.precomputedAlignmentIDs:
+            precomputedAlignments = [fileStore.readGlobalFile(fileID) for fileID in self.precomputedAlignmentIDs]
+            messages = runBarForJob(self, precomputedAlignments=" ".join(precomputedAlignments))
+            map(fileStore.deleteGlobalFile, self.precomputedAlignmentIDs)
         else:
             messages = runBarForJob(self)
         for message in messages:
