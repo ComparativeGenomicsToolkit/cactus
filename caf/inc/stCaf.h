@@ -43,6 +43,8 @@ stPinchThreadSet *stCaf_setup(Flower *flower);
  */
 stPinchThreadSet *stCaf_setupForOnlineCactus(Flower *flower, stOnlineCactus **cactus);
 
+void stCaf_disableAndCleanupOnlineCactus(stPinchThreadSet *threadSet, stOnlineCactus *cactus);
+
 ///////////////////////////////////////////////////////////////////////////
 // Annealing fuctions -- adding alignments to pinch graph
 ///////////////////////////////////////////////////////////////////////////
@@ -62,6 +64,12 @@ void stCaf_annealBetweenAdjacencyComponents(stPinchThreadSet *threadSet, stPinch
  */
 void stCaf_joinTrivialBoundaries(stPinchThreadSet *threadSet);
 
+typedef enum {
+    PRESERVE_NON_UNDOABLE_CHAINS,
+    REMOVE_NON_UNDOABLE_CHAINS,
+    NONE
+} stCaf_meltingMethod;
+
 /*
  * Anneals from the pinch iterator, but checks after every pinch to
  * prevent chains with length less than minimumChainLength from
@@ -73,13 +81,20 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                                        stList *alignments,
                                        int64_t alignmentTrim,
                                        bool (*filterFn)(stPinchSegment *, stPinchSegment *),
-                                       stList *minimumChainLengths);
-
-void stCaf_disableAndCleanupOnlineCactus(stPinchThreadSet *threadSet, stOnlineCactus *cactus);
+                                       stList *minimumChainLengths,
+                                       stCaf_meltingMethod meltingMethod);
 
 ///////////////////////////////////////////////////////////////////////////
 // Melting fuctions -- removing alignments from the pinch graph
 ///////////////////////////////////////////////////////////////////////////
+
+void stCaf_undoChainsSmallerThanThis_preserveNonUndoableChains(stOnlineCactus *cactus, stPinchThreadSet *threadSet,
+                                                               stList *pinches, stPinchUndo *undo,
+                                                               int64_t minimumChainLength);
+
+void stCaf_undoChainsSmallerThanThis_removeNonUndoableChains(stOnlineCactus *cactus, stPinchThreadSet *threadSet,
+                                                             stList *pinches, stPinchUndo *undo,
+                                                             int64_t minimumChainLength);
 
 /*
  * Get a list of blocks that participate in a chain of length less

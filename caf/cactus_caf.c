@@ -419,6 +419,7 @@ int main(int argc, char *argv[]) {
     int64_t minimumBlockDegreeToCheckSupport = 10;
     double minimumBlockHomologySupport = 0.7;
     double nucleotideScalingFactor = 1.0;
+    stCaf_meltingMethod onlineMeltingMethod = REMOVE_NON_UNDOABLE_CHAINS;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -457,11 +458,12 @@ int main(int argc, char *argv[]) {
                         { "minimumBlockHomologySupport", required_argument, 0, 'T' },
                         { "phylogenyNucleotideScalingFactor", required_argument, 0, 'U' },
                         { "minimumBlockDegreeToCheckSupport", required_argument, 0, 'V' },
+                        { "onlineMeltingMethod", required_argument, 0, 'W' },
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:BC:D:E:F:G:HI:J:K:LM:N:O:P:Q:R:ST:U:V:", long_options, &option_index);
+        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:BC:D:E:F:G:HI:J:K:LM:N:O:P:Q:R:ST:U:V:W:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -642,6 +644,17 @@ int main(int argc, char *argv[]) {
                 k = sscanf(optarg, "%" PRIi64, &minimumBlockDegreeToCheckSupport);
                 assert(k == 1);
                 break;
+            case 'W':
+                if (strcmp(optarg, "preserveNonUndoableChains") == 0) {
+                    onlineMeltingMethod = PRESERVE_NON_UNDOABLE_CHAINS;
+                } else if (strcmp(optarg, "removeNonUndoableChains") == 0) {
+                    onlineMeltingMethod = REMOVE_NON_UNDOABLE_CHAINS;
+                } else if (strcmp(optarg, "none") == 0) {
+                    onlineMeltingMethod = NONE;
+                } else {
+                    st_errAbort("Unrecognized onlineMeltingMethod.");
+                }
+                break;
             default:
                 usage();
                 return 1;
@@ -778,7 +791,7 @@ int main(int argc, char *argv[]) {
             // small chains at each step.
             if (annealingRound == 0) {
                 stCaf_annealPreventingSmallChains(flower, threadSet, cactus, alignmentsFile, alignmentsList, alignmentTrim,
-                                                  filterFn, meltingRounds);
+                                                  filterFn, meltingRounds, onlineMeltingMethod);
             }
 
             // Dump the block degree and length distribution to a file

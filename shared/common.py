@@ -191,6 +191,7 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
                  writeDebugFiles=False,
                  annealingRounds=None,
                  deannealingRounds=None,
+                 onlineMeltingMethod=None,
                  trim=None,
                  minimumTreeCoverage=None,
                  blockTrim=None,
@@ -234,6 +235,7 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
     logLevel = getLogLevelString2(logLevel)
     annealingRounds = nameValue("annealingRounds", annealingRounds, quotes=True)
     deannealingRounds = nameValue("deannealingRounds", deannealingRounds, quotes=True)
+    onlineMeltingMethod = nameValue("onlineMeltingMethod", onlineMeltingMethod, quotes=True)
     trim = nameValue("trim", trim, quotes=True)
     alignments = nameValue("alignments", alignments)
     lastzArguments = nameValue("lastzArguments", lastzArguments, quotes=True)
@@ -273,12 +275,12 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
     proportionOfUnalignedBasesForNewChromosome = nameValue("proportionOfUnalignedBasesForNewChromosome", proportionOfUnalignedBasesForNewChromosome, float)
     maximumMedianSequenceLengthBetweenLinkedEnds = nameValue("maximumMedianSequenceLengthBetweenLinkedEnds", maximumMedianSequenceLengthBetweenLinkedEnds, int)
     
-    command = "cactus_caf --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
+    command = "cactus_caf --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
     (cactusDiskDatabaseString, logLevel, alignments, annealingRounds, deannealingRounds, 
      trim, minimumTreeCoverage, blockTrim, 
      minimumBlockDegree, minimumIngroupDegree, minimumOutgroupDegree,  
      singleCopyIngroup, singleCopyOutgroup, lastzArguments, minimumSequenceLengthForBlast, maxAdjacencyComponentSizeRatio, constraints,
-     minLengthForChromosome, proportionOfUnalignedBasesForNewChromosome, maximumMedianSequenceLengthBetweenLinkedEnds, realign, realignArguments, phylogenyNumTrees, phylogenyRootingMethod, phylogenyScoringMethod, phylogenyBreakpointScalingFactor, phylogenySkipSingleCopyBlocks, phylogenyMaxBaseDistance, phylogenyMaxBlockDistance, phylogenyDebugFile, phylogenyKeepSingleDegreeBlocks, phylogenyTreeBuildingMethod, phylogenyCostPerDupPerBase, phylogenyCostPerLossPerBase, referenceEventHeader, phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce, numTreeBuildingThreads, doPhylogeny, minimumBlockDegreeToCheckSupport, minimumBlockHomologySupport, phylogenyNucleotideScalingFactor)
+     minLengthForChromosome, proportionOfUnalignedBasesForNewChromosome, maximumMedianSequenceLengthBetweenLinkedEnds, realign, realignArguments, phylogenyNumTrees, phylogenyRootingMethod, phylogenyScoringMethod, phylogenyBreakpointScalingFactor, phylogenySkipSingleCopyBlocks, phylogenyMaxBaseDistance, phylogenyMaxBlockDistance, phylogenyDebugFile, phylogenyKeepSingleDegreeBlocks, phylogenyTreeBuildingMethod, phylogenyCostPerDupPerBase, phylogenyCostPerLossPerBase, referenceEventHeader, phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce, numTreeBuildingThreads, doPhylogeny, minimumBlockDegreeToCheckSupport, minimumBlockHomologySupport, phylogenyNucleotideScalingFactor, onlineMeltingMethod)
     masterMessages = popenCatch(command, stdinString=flowerNames)
     logger.info("Ran cactus_core okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]

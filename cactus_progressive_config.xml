@@ -86,6 +86,7 @@
 		minimumSequenceLengthForBlast="30"
 		annealingRounds="128" 
 		deannealingRounds="2 8"
+                onlineMeltingMethod="removeNonUndoableChains"
 		blockTrim="5" 
 		minimumTreeCoverage="0.0" 
 		trim="0 0" 

@@ -76,54 +76,14 @@ double averageBlockDegree(stList *blocks) {
     return ((double) total)/stList_length(blocks);
 }
 
-static int64_t pathLength(stList *blocks) {
-    int64_t accum = 0;
-    for (int64_t i = 0; i < stList_length(blocks); i++) {
-        accum += stPinchBlock_getLength(stList_get(blocks, i));
-    }
-    return accum;
-}
-
-static void undoChainsSmallerThanThis(stOnlineCactus *cactus, stPinchThreadSet *threadSet,
-                                      stList *pinches, stPinchUndo *undo,
-                                      int64_t minimumChainLength) {
-    stList *worstPath = stOnlineCactus_getGloballyWorstMaximalChainOrBridgePath(cactus);
-    while (pathLength(worstPath) < minimumChainLength) {
-        // Need to undo stuff.
-        // Go through all the blocks we pinched and find the one with the lowest chain (or maximal bridge-path) length.
-        bool foundBlock = false;
-        for (int64_t i = 0; i < stList_length(worstPath); i++) {
-            stPinchBlock *block = stList_get(worstPath, i);
-            // Undo this block if possible.
-            int64_t undoOffset;
-            int64_t undoLength;
-
-            if (stPinchUndo_findOffsetForBlock(undo, threadSet, block, &undoOffset, &undoLength)) {
-                stPinchThreadSet_partiallyUndoPinch(threadSet, undo, undoOffset, undoLength);
-                foundBlock = true;
-                break;
-            }
-        }
-        if (!foundBlock) {
-            // Need to copy the list, as it will be invalidated after a block destruct.
-            stList *worstPathCopy = stList_construct();
-            stList_appendAll(worstPathCopy, worstPath);
-            for (int64_t i = 0; i < stList_length(worstPathCopy); i++) {
-                stPinchBlock *block = stList_get(worstPathCopy, i);
-                stPinchBlock_destruct(block);
-            }
-        }
-        worstPath = stOnlineCactus_getGloballyWorstMaximalChainOrBridgePath(cactus);
-    }
-}
-
 void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadSet,
                                        stOnlineCactus *cactus,
                                        const char *alignmentsFile,
                                        stList *alignmentsList,
                                        int64_t alignmentTrim,
                                        bool (*filterFn)(stPinchSegment *, stPinchSegment *),
-                                       stList *minimumChainLengths) {
+                                       stList *minimumChainLengths,
+                                       stCaf_meltingMethod meltingMethod) {
     stListIterator *listIt = NULL;
     FILE *alignments = NULL;
     struct PairwiseAlignment *alignment;
@@ -172,7 +132,11 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
 
         for (int64_t i = 0; i < stList_length(minimumChainLengths); i++) {
             int64_t minimumChainLength = stIntTuple_get(stList_get(minimumChainLengths, i), 0);
-            undoChainsSmallerThanThis(cactus, threadSet, pinches, undo, minimumChainLength);
+            if (meltingMethod == PRESERVE_NON_UNDOABLE_CHAINS) {
+                stCaf_undoChainsSmallerThanThis_preserveNonUndoableChains(cactus, threadSet, pinches, undo, minimumChainLength);
+            } else if (meltingMethod == REMOVE_NON_UNDOABLE_CHAINS) {
+                stCaf_undoChainsSmallerThanThis_removeNonUndoableChains(cactus, threadSet, pinches, undo, minimumChainLength);
+            }
         }
         stPinchUndo_destruct(undo);
         stList_destruct(pinches);

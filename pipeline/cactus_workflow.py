@@ -544,6 +544,7 @@ class CactusCafWrapper(CactusRecursionTarget):
                           constraints=self.getOptionalPhaseAttrib("constraints"),  
                           annealingRounds=self.getOptionalPhaseAttrib("annealingRounds"),  
                           deannealingRounds=self.getOptionalPhaseAttrib("deannealingRounds"),
+                          onlineMeltingMethod=self.getOptionalPhaseAttrib("onlineMeltingMethod"),
                           trim=self.getOptionalPhaseAttrib("trim"),
                           minimumTreeCoverage=self.getOptionalPhaseAttrib("minimumTreeCoverage", float),
                           blockTrim=self.getOptionalPhaseAttrib("blockTrim", float),
