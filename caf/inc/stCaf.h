@@ -67,6 +67,8 @@ void stCaf_joinTrivialBoundaries(stPinchThreadSet *threadSet);
 typedef enum {
     PRESERVE_NON_UNDOABLE_CHAINS,
     REMOVE_NON_UNDOABLE_CHAINS,
+    ONLY_UNDO,
+    ONLY_REMOVE,
     NONE
 } stCaf_meltingMethod;
 
@@ -87,6 +89,14 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
 ///////////////////////////////////////////////////////////////////////////
 // Melting fuctions -- removing alignments from the pinch graph
 ///////////////////////////////////////////////////////////////////////////
+
+void stCaf_undoChainsSmallerThanThis_onlyUndo(stOnlineCactus *cactus, stPinchThreadSet *threadSet,
+                                              stList *pinches, stPinchUndo *undo,
+                                              int64_t minimumChainLength);
+
+void stCaf_undoChainsSmallerThanThis_onlyRemove(stOnlineCactus *cactus, stPinchThreadSet *threadSet,
+                                                stList *pinches, stPinchUndo *undo,
+                                                int64_t minimumChainLength);
 
 void stCaf_undoChainsSmallerThanThis_preserveNonUndoableChains(stOnlineCactus *cactus, stPinchThreadSet *threadSet,
                                                                stList *pinches, stPinchUndo *undo,

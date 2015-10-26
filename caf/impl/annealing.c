@@ -136,6 +136,10 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                 stCaf_undoChainsSmallerThanThis_preserveNonUndoableChains(cactus, threadSet, pinches, undo, minimumChainLength);
             } else if (meltingMethod == REMOVE_NON_UNDOABLE_CHAINS) {
                 stCaf_undoChainsSmallerThanThis_removeNonUndoableChains(cactus, threadSet, pinches, undo, minimumChainLength);
+            } else if (meltingMethod == ONLY_UNDO) {
+                stCaf_undoChainsSmallerThanThis_onlyUndo(cactus, threadSet, pinches, undo, minimumChainLength);
+            } else if (meltingMethod == ONLY_REMOVE) {
+                stCaf_undoChainsSmallerThanThis_onlyRemove(cactus, threadSet, pinches, undo, minimumChainLength);
             }
         }
         stPinchUndo_destruct(undo);

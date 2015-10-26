@@ -649,6 +649,10 @@ int main(int argc, char *argv[]) {
                     onlineMeltingMethod = PRESERVE_NON_UNDOABLE_CHAINS;
                 } else if (strcmp(optarg, "removeNonUndoableChains") == 0) {
                     onlineMeltingMethod = REMOVE_NON_UNDOABLE_CHAINS;
+                } else if (strcmp(optarg, "onlyUndo") == 0) {
+                    onlineMeltingMethod = ONLY_UNDO;
+                } else if (strcmp(optarg, "onlyRemove") == 0) {
+                    onlineMeltingMethod = ONLY_REMOVE;
                 } else if (strcmp(optarg, "none") == 0) {
                     onlineMeltingMethod = NONE;
                 } else {
