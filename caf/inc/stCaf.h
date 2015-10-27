@@ -84,7 +84,8 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                                        int64_t alignmentTrim,
                                        bool (*filterFn)(stPinchSegment *, stPinchSegment *),
                                        stList *minimumChainLengths,
-                                       stCaf_meltingMethod meltingMethod);
+                                       stCaf_meltingMethod meltingMethod,
+                                       int64_t numAlignmentsPerBatch);
 
 ///////////////////////////////////////////////////////////////////////////
 // Melting fuctions -- removing alignments from the pinch graph

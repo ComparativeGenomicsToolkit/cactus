@@ -420,6 +420,7 @@ int main(int argc, char *argv[]) {
     double minimumBlockHomologySupport = 0.7;
     double nucleotideScalingFactor = 1.0;
     stCaf_meltingMethod onlineMeltingMethod = REMOVE_NON_UNDOABLE_CHAINS;
+    int64_t numAlignmentsPerBatch = 1;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -645,19 +646,33 @@ int main(int argc, char *argv[]) {
                 assert(k == 1);
                 break;
             case 'W':
-                if (strcmp(optarg, "preserveNonUndoableChains") == 0) {
+                // online melting method: in the form "method|numAlignmentsPerBatch"
+                ; // so we can declare variables at the "start" of a case statement
+                stList *tokens = stString_splitByString(optarg, "|");
+                char *method = stList_get(tokens, 0);
+                if (stList_length(tokens) > 1) {
+                    char *batchingStr = stList_get(tokens, 1);
+                    if (sscanf(batchingStr, "%" PRIi64, &numAlignmentsPerBatch) != 1) {
+                        st_errAbort("error reading the number of alignments per batch");
+                    }
+                    if (numAlignmentsPerBatch <= 0) {
+                        st_errAbort("number of alignments per batch must be positive");
+                    }
+                }
+                if (strcmp(method, "preserveNonUndoableChains") == 0) {
                     onlineMeltingMethod = PRESERVE_NON_UNDOABLE_CHAINS;
-                } else if (strcmp(optarg, "removeNonUndoableChains") == 0) {
+                } else if (strcmp(method, "removeNonUndoableChains") == 0) {
                     onlineMeltingMethod = REMOVE_NON_UNDOABLE_CHAINS;
-                } else if (strcmp(optarg, "onlyUndo") == 0) {
+                } else if (strcmp(method, "onlyUndo") == 0) {
                     onlineMeltingMethod = ONLY_UNDO;
-                } else if (strcmp(optarg, "onlyRemove") == 0) {
+                } else if (strcmp(method, "onlyRemove") == 0) {
                     onlineMeltingMethod = ONLY_REMOVE;
-                } else if (strcmp(optarg, "none") == 0) {
+                } else if (strcmp(method, "none") == 0) {
                     onlineMeltingMethod = NONE;
                 } else {
                     st_errAbort("Unrecognized onlineMeltingMethod.");
                 }
+                stList_destruct(tokens);
                 break;
             default:
                 usage();
@@ -795,7 +810,7 @@ int main(int argc, char *argv[]) {
             // small chains at each step.
             if (annealingRound == 0) {
                 stCaf_annealPreventingSmallChains(flower, threadSet, cactus, alignmentsFile, alignmentsList, alignmentTrim,
-                                                  filterFn, meltingRounds, onlineMeltingMethod);
+                                                  filterFn, meltingRounds, onlineMeltingMethod, numAlignmentsPerBatch);
             }
 
             // Dump the block degree and length distribution to a file

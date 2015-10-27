@@ -83,7 +83,8 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                                        int64_t alignmentTrim,
                                        bool (*filterFn)(stPinchSegment *, stPinchSegment *),
                                        stList *minimumChainLengths,
-                                       stCaf_meltingMethod meltingMethod) {
+                                       stCaf_meltingMethod meltingMethod,
+                                       int64_t numAlignmentsPerBatch) {
     stListIterator *listIt = NULL;
     FILE *alignments = NULL;
     struct PairwiseAlignment *alignment;
@@ -96,6 +97,7 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
     }
     size_t numAlignments = 0;
     size_t numPinches = 0;
+    stList *pinches = stList_construct3(0, (void (*)(void *)) stPinch_destruct);
     while (alignment != NULL) {
         numAlignments++;
         // TODO: make this prettier
@@ -103,7 +105,6 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
         stList_append(pairwiseAlignments, alignment);
         stPinchIterator *pinchIterator = stPinchIterator_constructFromList(pairwiseAlignments);
         stPinchIterator_setTrim(pinchIterator, alignmentTrim);
-        stList *pinches = stList_construct3(0, (void (*)(void *)) stPinch_destruct);
         stPinch *pinch;
         while ((pinch = stPinchIterator_getNext(pinchIterator)) != NULL) {
             stList_append(pinches, stPinch_construct(pinch->name1, pinch->name2,
@@ -113,41 +114,45 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
         stPinchIterator_destruct(pinchIterator);
         stList_destruct(pairwiseAlignments);
         numPinches += stList_length(pinches);
-        stPinchUndo *undo = stPinchThreadSet_prepareGappedUndo(threadSet, pinches);
-        stPinchThread *thread1 = NULL;
-        stPinchThread *thread2 = NULL;
-        for (int64_t i = 0; i < stList_length(pinches); i++) {
-            pinch = stList_get(pinches, i);
-            thread1 = stPinchThreadSet_getThread(threadSet, pinch->name1);
-            thread2 = stPinchThreadSet_getThread(threadSet, pinch->name2);
-
-            // Apply the pinch to the graph.
-            assert(thread1 != NULL && thread2 != NULL);
-            if (filterFn == NULL) {
-                stPinchThread_pinch(thread1, thread2, pinch->start1, pinch->start2, pinch->length, pinch->strand);
-            } else {
-                stPinchThread_filterPinch(thread1, thread2, pinch->start1, pinch->start2, pinch->length, pinch->strand, filterFn);
-            }
-        }
-
-        for (int64_t i = 0; i < stList_length(minimumChainLengths); i++) {
-            int64_t minimumChainLength = stIntTuple_get(stList_get(minimumChainLengths, i), 0);
-            if (meltingMethod == PRESERVE_NON_UNDOABLE_CHAINS) {
-                stCaf_undoChainsSmallerThanThis_preserveNonUndoableChains(cactus, threadSet, pinches, undo, minimumChainLength);
-            } else if (meltingMethod == REMOVE_NON_UNDOABLE_CHAINS) {
-                stCaf_undoChainsSmallerThanThis_removeNonUndoableChains(cactus, threadSet, pinches, undo, minimumChainLength);
-            } else if (meltingMethod == ONLY_UNDO) {
-                stCaf_undoChainsSmallerThanThis_onlyUndo(cactus, threadSet, pinches, undo, minimumChainLength);
-            } else if (meltingMethod == ONLY_REMOVE) {
-                stCaf_undoChainsSmallerThanThis_onlyRemove(cactus, threadSet, pinches, undo, minimumChainLength);
-            }
-        }
-        stPinchUndo_destruct(undo);
-        stList_destruct(pinches);
         if (alignmentsFile != NULL) {
             alignment = cigarRead(alignments);
         } else {
             alignment = stList_getNext(listIt);
+        }
+        if (alignment == NULL || numAlignments % numAlignmentsPerBatch == 0) {
+            stPinchUndo *undo = stPinchThreadSet_prepareGappedUndo(threadSet, pinches);
+
+            stPinchThread *thread1 = NULL;
+            stPinchThread *thread2 = NULL;
+            for (int64_t i = 0; i < stList_length(pinches); i++) {
+                pinch = stList_get(pinches, i);
+                thread1 = stPinchThreadSet_getThread(threadSet, pinch->name1);
+                thread2 = stPinchThreadSet_getThread(threadSet, pinch->name2);
+
+                // Apply the pinch to the graph.
+                assert(thread1 != NULL && thread2 != NULL);
+                if (filterFn == NULL) {
+                    stPinchThread_pinch(thread1, thread2, pinch->start1, pinch->start2, pinch->length, pinch->strand);
+                } else {
+                    stPinchThread_filterPinch(thread1, thread2, pinch->start1, pinch->start2, pinch->length, pinch->strand, filterFn);
+                }
+            }
+
+            for (int64_t i = 0; i < stList_length(minimumChainLengths); i++) {
+                int64_t minimumChainLength = stIntTuple_get(stList_get(minimumChainLengths, i), 0);
+                if (meltingMethod == PRESERVE_NON_UNDOABLE_CHAINS) {
+                    stCaf_undoChainsSmallerThanThis_preserveNonUndoableChains(cactus, threadSet, pinches, undo, minimumChainLength);
+                } else if (meltingMethod == REMOVE_NON_UNDOABLE_CHAINS) {
+                    stCaf_undoChainsSmallerThanThis_removeNonUndoableChains(cactus, threadSet, pinches, undo, minimumChainLength);
+                } else if (meltingMethod == ONLY_UNDO) {
+                    stCaf_undoChainsSmallerThanThis_onlyUndo(cactus, threadSet, pinches, undo, minimumChainLength);
+                } else if (meltingMethod == ONLY_REMOVE) {
+                    stCaf_undoChainsSmallerThanThis_onlyRemove(cactus, threadSet, pinches, undo, minimumChainLength);
+                }
+            }
+            stPinchUndo_destruct(undo);
+            stList_destruct(pinches);
+            pinches = stList_construct3(0, (void (*)(void *)) stPinch_destruct);
         }
     }
     printf("Added %" PRIi64 " gapped alignments containing %" PRIi64 " pinches to the graph.\n", numAlignments, numPinches);
