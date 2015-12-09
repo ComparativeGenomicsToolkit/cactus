@@ -115,6 +115,7 @@
                 phylogenyCostPerDupPerBase="0.00"
                 phylogenyCostPerLossPerBase="0.02"
                 phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce="0.44"
+                phylogenyDebugPrefix="/hive/users/jcarmstr/public_html/cactusDumps/defaultBlanchette"
                 numTreeBuildingThreads="2"
                 minimumBlockDegreeToCheckSupport="10"
                 minimumBlockHomologySupport="0.05"

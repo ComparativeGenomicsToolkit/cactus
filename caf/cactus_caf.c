@@ -810,7 +810,7 @@ int main(int argc, char *argv[]) {
             // small chains at each step.
             if (annealingRound == 0) {
                 stCaf_annealPreventingSmallChains(flower, threadSet, cactus, alignmentsFile, alignmentsList, alignmentTrim,
-                                                  filterFn, meltingRounds, onlineMeltingMethod, numAlignmentsPerBatch);
+                                                  filterFn, meltingRounds, onlineMeltingMethod, numAlignmentsPerBatch, stString_print("%s-cactusDump", debugFileName));
             }
 
             // Dump the block degree and length distribution to a file

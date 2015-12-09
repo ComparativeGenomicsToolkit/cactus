@@ -76,6 +76,98 @@ double averageBlockDegree(stList *blocks) {
     return ((double) total)/stList_length(blocks);
 }
 
+// Dumps the adjacency component graph to the file, outputting several lines of the format:
+// "P\tadj comp 1 address\tadj comp 2 address\tblock address\tblock degree\tblock length"
+static void dumpAdjComponentGraph(stPinchThreadSet *threadSet, FILE *out) {
+    stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
+    stPinchBlock *block;
+    while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
+        stConnectivity *connectivity = stPinchThreadSet_getAdjacencyConnectivity(threadSet);
+        stPinchSegmentCap *cap1 = stPinchBlock_getRepresentativeSegmentCap(block, 0);
+        stPinchSegmentCap *cap2 = stPinchBlock_getRepresentativeSegmentCap(block, 1);
+        stConnectedComponent *adjComp1 = stConnectivity_getConnectedComponent(connectivity, cap1);
+        stConnectedComponent *adjComp2 = stConnectivity_getConnectedComponent(connectivity, cap2);
+        fprintf(out, "P\t%p\t%p\t%p\t%" PRIi64 "\t%" PRIi64 "\n", (void *) adjComp1, (void *) adjComp2,
+                (void *) block, stPinchBlock_getDegree(block), stPinchBlock_getLength(block));
+    }
+}
+
+static stPinchBlock *getBlock5P(stPinchSegment *segment) {
+    do {
+        segment = stPinchSegment_get5Prime(segment);
+    } while (segment != NULL && stPinchSegment_getBlock(segment) == NULL);
+    return segment == NULL ? NULL : stPinchSegment_getBlock(segment);
+}
+
+static stPinchBlock *getBlock3P(stPinchSegment *segment) {
+    do {
+        segment = stPinchSegment_get3Prime(segment);
+    } while (segment != NULL && stPinchSegment_getBlock(segment) == NULL);
+    return segment == NULL ? NULL : stPinchSegment_getBlock(segment);
+}
+
+static void dumpPinchGraph(stPinchThreadSet *threadSet, FILE *out) {
+    stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
+    stPinchBlock *block;
+    while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
+        stPinchBlockIt segmentIt = stPinchBlock_getSegmentIterator(block);
+        stPinchSegment *segment;
+        fprintf(out, "G\t%p", (void *) block);
+        while ((segment = stPinchBlockIt_getNext(&segmentIt)) != NULL) {
+            stPinchBlock *rightAdjacentBlock = getBlock3P(segment);
+            stPinchBlock *leftAdjacentBlock = getBlock5P(segment);
+            stConnectivity *connectivity = stPinchThreadSet_getAdjacencyConnectivity(threadSet);
+            stPinchSegmentCap *leftCap = stPinchSegment_getSegmentCap(segment, 0);
+            stPinchSegmentCap *rightCap = stPinchSegment_getSegmentCap(segment, 1);
+            stConnectedComponent *leftAdjComp = stConnectivity_getConnectedComponent(connectivity, leftCap);
+            stConnectedComponent *rightAdjComp = stConnectivity_getConnectedComponent(connectivity, rightCap);
+            fprintf(out, "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%p\t%p\t%s\t%p\t%p", stPinchSegment_getName(segment),
+                    stPinchSegment_getStart(segment),
+                    stPinchSegment_getStart(segment) + stPinchSegment_getLength(segment),
+                    (void *) rightAdjacentBlock, (void *) leftAdjacentBlock,
+                    stPinchSegment_getBlockOrientation(segment) ? "+" : "-",
+                    (void *) leftAdjComp, (void *) rightAdjComp);
+        }
+        fprintf(out, "\n");
+    }
+}
+
+// Dumps the cactus forest to the file, outputting the forest as lines of:
+// "C\tnewick tree"
+// then, lines mapping nets to adjacency components like so:
+// "M\tnet address\tnode1 address\tnode2 address\t...
+static void dumpCactusGraph(stOnlineCactus *cactus, FILE *out) {
+    stList *trees = stOnlineCactus_getTrees(cactus);
+    for (int64_t i = 0; i < stList_length(trees); i++) {
+        char *newick = stCactusTree_getNewickString(cactus, stList_get(trees, i));
+        fprintf(out, "C\t%s\n", newick);
+        free(newick);
+    }
+    for (int64_t i = 0; i < stList_length(trees); i++) {
+        stCactusTree *tree = stList_get(trees, i);
+        stList *stack = stList_construct();
+        stList_append(stack, tree);
+        while (stList_length(stack) != 0) {
+            tree = stList_pop(stack);
+            stCactusTreeIt *it = stCactusTree_getIt(tree);
+            stCactusTree *child;
+            while ((child = stCactusTreeIt_getNext(it)) != NULL) {
+                stList_append(stack, child);
+            }
+            if (stCactusTree_type(tree) == NET) {
+                fprintf(out, "M\t%p", (void *) tree);
+                stSet *nodes = stCactusTree_getContainedNodes(tree);
+                stSetIterator *nodeIt = stSet_getIterator(nodes);
+                void *node;
+                while ((node = stSet_getNext(nodeIt)) != NULL) {
+                    fprintf(out, "\t%p", node);
+                }
+                fprintf(out, "\n");
+            }
+        }
+    }
+}
+
 void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadSet,
                                        stOnlineCactus *cactus,
                                        const char *alignmentsFile,
@@ -84,9 +176,11 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                                        bool (*filterFn)(stPinchSegment *, stPinchSegment *),
                                        stList *minimumChainLengths,
                                        stCaf_meltingMethod meltingMethod,
-                                       int64_t numAlignmentsPerBatch) {
+                                       int64_t numAlignmentsPerBatch,
+                                       const char *dumpPath) {
     stListIterator *listIt = NULL;
     FILE *alignments = NULL;
+    FILE *dumpFile = fopen(dumpPath, "w");
     struct PairwiseAlignment *alignment;
     if (alignmentsFile != NULL) {
         alignments = fopen(alignmentsFile, "r");
@@ -138,6 +232,24 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                 }
             }
 
+            fprintf(dumpFile, "BATCH\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\n",
+                    numAlignments,
+                    numPinches,
+                    stOnlineCactus_getTotalNumOps(cactus),
+                    stOnlineCactus_getNumMergeOps(cactus),
+                    stOnlineCactus_getNumSplitOps(cactus),
+                    stOnlineCactus_getNumEdgeAddOps(cactus),
+                    stOnlineCactus_getNumEdgeDeleteOps(cactus),
+                    stOnlineCactus_getNumNodeAddOps(cactus),
+                    stOnlineCactus_getNumNodeDeleteOps(cactus));
+            for (int64_t i = 0; i < stList_length(pinches); i++) {
+                stPinch *pinch = stList_get(pinches, i);
+                fprintf(dumpFile, "PINCH\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\n", pinch->name1, pinch->start1, pinch->start1 + pinch->length, pinch->name2, pinch->start2, pinch->start2 + pinch->length);
+            }
+            dumpCactusGraph(cactus, dumpFile);
+            dumpAdjComponentGraph(threadSet, dumpFile);
+            dumpPinchGraph(threadSet, dumpFile);
+
             for (int64_t i = 0; i < stList_length(minimumChainLengths); i++) {
                 int64_t minimumChainLength = stIntTuple_get(stList_get(minimumChainLengths, i), 0);
                 if (meltingMethod == PRESERVE_NON_UNDOABLE_CHAINS) {
@@ -149,6 +261,20 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                 } else if (meltingMethod == ONLY_REMOVE) {
                     stCaf_undoChainsSmallerThanThis_onlyRemove(cactus, threadSet, pinches, undo, minimumChainLength);
                 }
+                fprintf(dumpFile, "STEP\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\n",
+                        minimumChainLength,
+                        numAlignments,
+                        numPinches,
+                        stOnlineCactus_getTotalNumOps(cactus),
+                        stOnlineCactus_getNumMergeOps(cactus),
+                        stOnlineCactus_getNumSplitOps(cactus),
+                        stOnlineCactus_getNumEdgeAddOps(cactus),
+                        stOnlineCactus_getNumEdgeDeleteOps(cactus),
+                        stOnlineCactus_getNumNodeAddOps(cactus),
+                        stOnlineCactus_getNumNodeDeleteOps(cactus));
+                dumpCactusGraph(cactus, dumpFile);
+                dumpPinchGraph(threadSet, dumpFile);
+                dumpAdjComponentGraph(threadSet, dumpFile);
             }
             stPinchUndo_destruct(undo);
             stList_destruct(pinches);
