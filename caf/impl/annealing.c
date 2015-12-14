@@ -168,6 +168,34 @@ static void dumpCactusGraph(stOnlineCactus *cactus, FILE *out) {
     }
 }
 
+void dumpPinchesWithInclusionStats(stList *pinches, Flower *flower, stPinchThreadSet *threadSet, FILE *dumpFile) {
+    int64_t basesIncluded = 0, totalAlignmentLength = 0;
+    for (int64_t i = 0; i < stList_length(pinches); i++) {
+        stPinch *pinch = stList_get(pinches, i);
+        for (int64_t j = 0; j < pinch->length; j++) {
+            stPinchSegment *segment1 = stPinchThread_getSegment(stPinchThreadSet_getThread(threadSet, pinch->name1), pinch->start1 + j);
+            stPinchSegment *segment2;
+            if (pinch->strand) {
+                segment2 = stPinchThread_getSegment(stPinchThreadSet_getThread(threadSet, pinch->name2), pinch->start2 + j);
+            } else {
+                segment2 = stPinchThread_getSegment(stPinchThreadSet_getThread(threadSet, pinch->name2), pinch->start2 + pinch->length - j);
+            }
+            if (stPinchSegment_getBlock(segment1) == stPinchSegment_getBlock(segment2)) {
+                basesIncluded++;
+            }
+            totalAlignmentLength++;
+        }
+        Cap *cap1 = flower_getCap(flower, pinch->name1);
+        Cap *cap2 = flower_getCap(flower, pinch->name2);
+        const char *header1 = sequence_getHeader(cap_getSequence(cap1));
+        const char *header2 = sequence_getHeader(cap_getSequence(cap2));
+        const char *genome1 = event_getHeader(cap_getEvent(cap1));
+        const char *genome2 = event_getHeader(cap_getEvent(cap2));
+        fprintf(dumpFile, "PINCH\t%s.%s\t%" PRIi64 "\t%" PRIi64 "\t%s.%s\t%" PRIi64 "\t%" PRIi64 "\n", genome1, header1, pinch->start1, pinch->start1 + pinch->length, genome2, header2, pinch->start2, pinch->start2 + pinch->length);
+    }
+    fprintf(dumpFile, "TOTAL\t%" PRIi64 "\t%" PRIi64 "\n", basesIncluded, totalAlignmentLength);
+}
+
 void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadSet,
                                        stOnlineCactus *cactus,
                                        const char *alignmentsFile,
@@ -242,10 +270,7 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                     stOnlineCactus_getNumEdgeDeleteOps(cactus),
                     stOnlineCactus_getNumNodeAddOps(cactus),
                     stOnlineCactus_getNumNodeDeleteOps(cactus));
-            for (int64_t i = 0; i < stList_length(pinches); i++) {
-                stPinch *pinch = stList_get(pinches, i);
-                fprintf(dumpFile, "PINCH\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\n", pinch->name1, pinch->start1, pinch->start1 + pinch->length, pinch->name2, pinch->start2, pinch->start2 + pinch->length);
-            }
+            dumpPinchesWithInclusionStats(pinches, flower, threadSet, dumpFile);
             dumpCactusGraph(cactus, dumpFile);
             dumpAdjComponentGraph(threadSet, dumpFile);
             dumpPinchGraph(threadSet, dumpFile);
