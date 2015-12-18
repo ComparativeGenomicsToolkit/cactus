@@ -106,7 +106,7 @@ static stPinchBlock *getBlock3P(stPinchSegment *segment) {
     return segment == NULL ? NULL : stPinchSegment_getBlock(segment);
 }
 
-static void dumpPinchGraph(stPinchThreadSet *threadSet, FILE *out) {
+static void dumpPinchGraph(stPinchThreadSet *threadSet, Flower *flower, FILE *out) {
     stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
     stPinchBlock *block;
     while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
@@ -121,7 +121,10 @@ static void dumpPinchGraph(stPinchThreadSet *threadSet, FILE *out) {
             stPinchSegmentCap *rightCap = stPinchSegment_getSegmentCap(segment, 1);
             stConnectedComponent *leftAdjComp = stConnectivity_getConnectedComponent(connectivity, leftCap);
             stConnectedComponent *rightAdjComp = stConnectivity_getConnectedComponent(connectivity, rightCap);
-            fprintf(out, "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%p\t%p\t%s\t%p\t%p", stPinchSegment_getName(segment),
+            Cap *cap = flower_getCap(flower, stPinchSegment_getName(segment));
+            const char *header = sequence_getHeader(cap_getSequence(cap));
+            const char *genome = event_getHeader(cap_getEvent(cap));
+            fprintf(out, "\t%s.%s\t%" PRIi64 "\t%" PRIi64 "\t%p\t%p\t%s\t%p\t%p", genome, header,
                     stPinchSegment_getStart(segment),
                     stPinchSegment_getStart(segment) + stPinchSegment_getLength(segment),
                     (void *) rightAdjacentBlock, (void *) leftAdjacentBlock,
@@ -173,15 +176,16 @@ void dumpPinchesWithInclusionStats(stList *pinches, Flower *flower, stPinchThrea
     for (int64_t i = 0; i < stList_length(pinches); i++) {
         stPinch *pinch = stList_get(pinches, i);
         for (int64_t j = 0; j < pinch->length; j++) {
-            stPinchSegment *segment1 = stPinchThread_getSegment(stPinchThreadSet_getThread(threadSet, pinch->name1), pinch->start1 + j);
-            stPinchSegment *segment2;
-            if (pinch->strand) {
-                segment2 = stPinchThread_getSegment(stPinchThreadSet_getThread(threadSet, pinch->name2), pinch->start2 + j);
-            } else {
-                segment2 = stPinchThread_getSegment(stPinchThreadSet_getThread(threadSet, pinch->name2), pinch->start2 + pinch->length - j);
-            }
-            if (stPinchSegment_getBlock(segment1) == stPinchSegment_getBlock(segment2)) {
-                basesIncluded++;
+            int64_t pos1 = pinch->start1 + j;
+            int64_t pos2 = pinch->strand ? pinch->start2 + j : pinch->start2 + pinch->length - j;
+            stPinchSegment *segment1 = stPinchThread_getSegment(stPinchThreadSet_getThread(threadSet, pinch->name1), pos1);
+            stPinchSegment *segment2 = stPinchThread_getSegment(stPinchThreadSet_getThread(threadSet, pinch->name2), pos2);
+            if (stPinchSegment_getBlock(segment1) != NULL && stPinchSegment_getBlock(segment1) == stPinchSegment_getBlock(segment2)) {
+                int64_t offset1 = pos1 - stPinchSegment_getStart(segment1);
+                int64_t offset2 = pos2 - stPinchSegment_getStart(segment2);
+                if ((pinch->strand && offset1 == offset2) || (!pinch->strand && stPinchBlock_getLength(stPinchSegment_getBlock(segment1)) - 1 - offset2 == offset1)) {
+                    basesIncluded++;
+                }
             }
             totalAlignmentLength++;
         }
@@ -273,7 +277,7 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
             dumpPinchesWithInclusionStats(pinches, flower, threadSet, dumpFile);
             dumpCactusGraph(cactus, dumpFile);
             dumpAdjComponentGraph(threadSet, dumpFile);
-            dumpPinchGraph(threadSet, dumpFile);
+            dumpPinchGraph(threadSet, flower, dumpFile);
 
             for (int64_t i = 0; i < stList_length(minimumChainLengths); i++) {
                 int64_t minimumChainLength = stIntTuple_get(stList_get(minimumChainLengths, i), 0);
@@ -298,7 +302,8 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                         stOnlineCactus_getNumNodeAddOps(cactus),
                         stOnlineCactus_getNumNodeDeleteOps(cactus));
                 dumpCactusGraph(cactus, dumpFile);
-                dumpPinchGraph(threadSet, dumpFile);
+                dumpPinchGraph(threadSet, flower, dumpFile);
+                dumpPinchesWithInclusionStats(pinches, flower, threadSet, dumpFile);
                 dumpAdjComponentGraph(threadSet, dumpFile);
             }
             stPinchUndo_destruct(undo);
