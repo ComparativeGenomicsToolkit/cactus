@@ -175,8 +175,8 @@ static void dumpCactusGraph(stOnlineCactus *cactus, FILE *out) {
     }
 }
 
-void dumpPinchesWithInclusionStats(stList *pinches, Flower *flower, stPinchThreadSet *threadSet, FILE *dumpFile) {
-    int64_t basesIncluded = 0, totalAlignmentLength = 0;
+void dumpPinchesWithInclusionStats(stList *pinches, Flower *flower, stPinchThreadSet *threadSet, int64_t redundantPairs, float alignmentScore, FILE *dumpFile) {
+    int64_t pairsIncluded = 0, totalAlignmentLength = 0;
     for (int64_t i = 0; i < stList_length(pinches); i++) {
         stPinch *pinch = stList_get(pinches, i);
         for (int64_t j = 0; j < pinch->length; j++) {
@@ -188,7 +188,7 @@ void dumpPinchesWithInclusionStats(stList *pinches, Flower *flower, stPinchThrea
                 int64_t offset1 = pos1 - stPinchSegment_getStart(segment1);
                 int64_t offset2 = pos2 - stPinchSegment_getStart(segment2);
                 if ((pinch->strand && offset1 == offset2) || (!pinch->strand && stPinchBlock_getLength(stPinchSegment_getBlock(segment1)) - 1 - offset2 == offset1)) {
-                    basesIncluded++;
+                    pairsIncluded++;
                 }
             }
             totalAlignmentLength++;
@@ -201,7 +201,7 @@ void dumpPinchesWithInclusionStats(stList *pinches, Flower *flower, stPinchThrea
         const char *genome2 = event_getHeader(cap_getEvent(cap2));
         fprintf(dumpFile, "PINCH\t%s.%s\t%" PRIi64 "\t%" PRIi64 "\t%s.%s\t%" PRIi64 "\t%" PRIi64 "\n", genome1, header1, pinch->start1, pinch->start1 + pinch->length, genome2, header2, pinch->start2, pinch->start2 + pinch->length);
     }
-    fprintf(dumpFile, "TOTAL\t%" PRIi64 "\t%" PRIi64 "\n", basesIncluded, totalAlignmentLength);
+    fprintf(dumpFile, "TOTAL\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%f\n", pairsIncluded, totalAlignmentLength, redundantPairs, alignmentScore);
 }
 
 void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadSet,
@@ -249,6 +249,7 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
         } else {
             alignment = stList_getNext(listIt);
         }
+        int64_t redundantPairs = 0;
         if (alignment == NULL || numAlignments % numAlignmentsPerBatch == 0) {
             stPinchUndo *undo = stPinchThreadSet_prepareGappedUndo(threadSet, pinches);
 
@@ -258,6 +259,21 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                 pinch = stList_get(pinches, i);
                 thread1 = stPinchThreadSet_getThread(threadSet, pinch->name1);
                 thread2 = stPinchThreadSet_getThread(threadSet, pinch->name2);
+
+                // Record the number of pairs in this pinch that are already aligned (redundant pairs).
+                for (int64_t j = 0; j < pinch->length; j++) {
+                    int64_t pos1 = pinch->start1 + j;
+                    int64_t pos2 = pinch->strand ? pinch->start2 + j : pinch->start2 + pinch->length - j;
+                    stPinchSegment *segment1 = stPinchThread_getSegment(thread1, pos1);
+                    stPinchSegment *segment2 = stPinchThread_getSegment(thread2, pos2);
+                    if (stPinchSegment_getBlock(segment1) != NULL && stPinchSegment_getBlock(segment1) == stPinchSegment_getBlock(segment2)) {
+                        int64_t offset1 = pos1 - stPinchSegment_getStart(segment1);
+                        int64_t offset2 = pos2 - stPinchSegment_getStart(segment2);
+                        if ((pinch->strand && offset1 == offset2) || (!pinch->strand && stPinchBlock_getLength(stPinchSegment_getBlock(segment1)) - 1 - offset2 == offset1)) {
+                            redundantPairs++;
+                        }
+                    }
+                }
 
                 // Apply the pinch to the graph.
                 assert(thread1 != NULL && thread2 != NULL);
@@ -278,7 +294,7 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                     stOnlineCactus_getNumEdgeDeleteOps(cactus),
                     stOnlineCactus_getNumNodeAddOps(cactus),
                     stOnlineCactus_getNumNodeDeleteOps(cactus));
-            dumpPinchesWithInclusionStats(pinches, flower, threadSet, dumpFile);
+            dumpPinchesWithInclusionStats(pinches, flower, threadSet, redundantPairs, alignment->score, dumpFile);
             dumpCactusGraph(cactus, dumpFile);
             dumpAdjComponentGraph(threadSet, dumpFile);
             dumpPinchGraph(threadSet, flower, dumpFile);
@@ -307,7 +323,7 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                         stOnlineCactus_getNumNodeDeleteOps(cactus));
                 dumpCactusGraph(cactus, dumpFile);
                 dumpPinchGraph(threadSet, flower, dumpFile);
-                dumpPinchesWithInclusionStats(pinches, flower, threadSet, dumpFile);
+                dumpPinchesWithInclusionStats(pinches, flower, threadSet, redundantPairs, alignment->score, dumpFile);
                 dumpAdjComponentGraph(threadSet, dumpFile);
             }
             stPinchUndo_destruct(undo);
