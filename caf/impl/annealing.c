@@ -244,6 +244,7 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
         stPinchIterator_destruct(pinchIterator);
         stList_destruct(pairwiseAlignments);
         numPinches += stList_length(pinches);
+        float alignmentScore = alignment->score;
         if (alignmentsFile != NULL) {
             alignment = cigarRead(alignments);
         } else {
@@ -294,7 +295,7 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                     stOnlineCactus_getNumEdgeDeleteOps(cactus),
                     stOnlineCactus_getNumNodeAddOps(cactus),
                     stOnlineCactus_getNumNodeDeleteOps(cactus));
-            dumpPinchesWithInclusionStats(pinches, flower, threadSet, redundantPairs, alignment->score, dumpFile);
+            dumpPinchesWithInclusionStats(pinches, flower, threadSet, redundantPairs, alignmentScore, dumpFile);
             dumpCactusGraph(cactus, dumpFile);
             dumpAdjComponentGraph(threadSet, dumpFile);
             dumpPinchGraph(threadSet, flower, dumpFile);
@@ -323,7 +324,7 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                         stOnlineCactus_getNumNodeDeleteOps(cactus));
                 dumpCactusGraph(cactus, dumpFile);
                 dumpPinchGraph(threadSet, flower, dumpFile);
-                dumpPinchesWithInclusionStats(pinches, flower, threadSet, redundantPairs, alignment->score, dumpFile);
+                dumpPinchesWithInclusionStats(pinches, flower, threadSet, redundantPairs, alignmentScore, dumpFile);
                 dumpAdjComponentGraph(threadSet, dumpFile);
             }
             stPinchUndo_destruct(undo);
