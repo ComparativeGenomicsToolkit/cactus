@@ -285,7 +285,7 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                 }
             }
 
-            fprintf(dumpFile, "BATCH\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\n",
+            fprintf(dumpFile, "BATCH\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\n",
                     numAlignments,
                     numPinches,
                     stOnlineCactus_getTotalNumOps(cactus),
@@ -294,7 +294,8 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                     stOnlineCactus_getNumEdgeAddOps(cactus),
                     stOnlineCactus_getNumEdgeDeleteOps(cactus),
                     stOnlineCactus_getNumNodeAddOps(cactus),
-                    stOnlineCactus_getNumNodeDeleteOps(cactus));
+                    stOnlineCactus_getNumNodeDeleteOps(cactus),
+                    (int64_t) clock() / (CLOCKS_PER_SEC / 1000));
             dumpPinchesWithInclusionStats(pinches, flower, threadSet, redundantPairs, alignmentScore, dumpFile);
             dumpCactusGraph(cactus, dumpFile);
             dumpAdjComponentGraph(threadSet, dumpFile);
@@ -311,7 +312,7 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                 } else if (meltingMethod == ONLY_REMOVE) {
                     stCaf_undoChainsSmallerThanThis_onlyRemove(cactus, threadSet, pinches, undo, minimumChainLength);
                 }
-                fprintf(dumpFile, "STEP\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\n",
+                fprintf(dumpFile, "STEP\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\n",
                         minimumChainLength,
                         numAlignments,
                         numPinches,
@@ -321,7 +322,8 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                         stOnlineCactus_getNumEdgeAddOps(cactus),
                         stOnlineCactus_getNumEdgeDeleteOps(cactus),
                         stOnlineCactus_getNumNodeAddOps(cactus),
-                        stOnlineCactus_getNumNodeDeleteOps(cactus));
+                        stOnlineCactus_getNumNodeDeleteOps(cactus),
+                        (int64_t) clock() / (CLOCKS_PER_SEC / 1000));
                 dumpCactusGraph(cactus, dumpFile);
                 dumpPinchGraph(threadSet, flower, dumpFile);
                 dumpPinchesWithInclusionStats(pinches, flower, threadSet, redundantPairs, alignmentScore, dumpFile);
