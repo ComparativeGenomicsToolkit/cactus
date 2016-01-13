@@ -181,7 +181,7 @@ void dumpPinchesWithInclusionStats(stList *pinches, Flower *flower, stPinchThrea
         stPinch *pinch = stList_get(pinches, i);
         for (int64_t j = 0; j < pinch->length; j++) {
             int64_t pos1 = pinch->start1 + j;
-            int64_t pos2 = pinch->strand ? pinch->start2 + j : pinch->start2 + pinch->length - j;
+            int64_t pos2 = pinch->strand ? pinch->start2 + j : pinch->start2 + pinch->length - 1 - j;
             stPinchSegment *segment1 = stPinchThread_getSegment(stPinchThreadSet_getThread(threadSet, pinch->name1), pos1);
             stPinchSegment *segment2 = stPinchThread_getSegment(stPinchThreadSet_getThread(threadSet, pinch->name2), pos2);
             if (stPinchSegment_getBlock(segment1) != NULL && stPinchSegment_getBlock(segment1) == stPinchSegment_getBlock(segment2)) {
@@ -264,7 +264,7 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                 // Record the number of pairs in this pinch that are already aligned (redundant pairs).
                 for (int64_t j = 0; j < pinch->length; j++) {
                     int64_t pos1 = pinch->start1 + j;
-                    int64_t pos2 = pinch->strand ? pinch->start2 + j : pinch->start2 + pinch->length - j;
+                    int64_t pos2 = pinch->strand ? pinch->start2 + j : pinch->start2 + pinch->length - 1 - j;
                     stPinchSegment *segment1 = stPinchThread_getSegment(thread1, pos1);
                     stPinchSegment *segment2 = stPinchThread_getSegment(thread2, pos2);
                     if (stPinchSegment_getBlock(segment1) != NULL && stPinchSegment_getBlock(segment1) == stPinchSegment_getBlock(segment2)) {
