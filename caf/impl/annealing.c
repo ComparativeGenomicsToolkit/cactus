@@ -78,7 +78,7 @@ double averageBlockDegree(stList *blocks) {
 
 // Dumps the adjacency component graph to the file, outputting several lines of the format:
 // "P\tadj comp 1 address\tadj comp 2 address\tblock address\tblock degree\tblock length"
-static void dumpAdjComponentGraph(stPinchThreadSet *threadSet, FILE *out) {
+void dumpAdjComponentGraph(stPinchThreadSet *threadSet, FILE *out) {
     stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
     stPinchBlock *block;
     while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
@@ -106,7 +106,7 @@ static stPinchBlock *getBlock3P(stPinchSegment *segment) {
     return segment == NULL ? NULL : stPinchSegment_getBlock(segment);
 }
 
-static void dumpPinchGraph(stPinchThreadSet *threadSet, Flower *flower, FILE *out) {
+void dumpPinchGraph(stPinchThreadSet *threadSet, Flower *flower, FILE *out) {
     stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
     uint64_t totalAlignedBases = 0;
     stPinchBlock *block;
@@ -143,7 +143,7 @@ static void dumpPinchGraph(stPinchThreadSet *threadSet, Flower *flower, FILE *ou
 // "C\tnewick tree"
 // then, lines mapping nets to adjacency components like so:
 // "M\tnet address\tnode1 address\tnode2 address\t...
-static void dumpCactusGraph(stOnlineCactus *cactus, FILE *out) {
+void dumpCactusGraph(stOnlineCactus *cactus, FILE *out) {
     stList *trees = stOnlineCactus_getTrees(cactus);
     for (int64_t i = 0; i < stList_length(trees); i++) {
         char *newick = stCactusTree_getNewickString(cactus, stList_get(trees, i));
@@ -297,9 +297,9 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                     stOnlineCactus_getNumNodeDeleteOps(cactus),
                     (int64_t) clock() / (CLOCKS_PER_SEC / 1000));
             dumpPinchesWithInclusionStats(pinches, flower, threadSet, redundantPairs, alignmentScore, dumpFile);
-            dumpCactusGraph(cactus, dumpFile);
-            dumpAdjComponentGraph(threadSet, dumpFile);
-            dumpPinchGraph(threadSet, flower, dumpFile);
+            /* dumpCactusGraph(cactus, dumpFile); */
+            /* dumpAdjComponentGraph(threadSet, dumpFile); */
+            /* dumpPinchGraph(threadSet, flower, dumpFile); */
 
             for (int64_t i = 0; i < stList_length(minimumChainLengths); i++) {
                 int64_t minimumChainLength = stIntTuple_get(stList_get(minimumChainLengths, i), 0);
@@ -324,10 +324,10 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                         stOnlineCactus_getNumNodeAddOps(cactus),
                         stOnlineCactus_getNumNodeDeleteOps(cactus),
                         (int64_t) clock() / (CLOCKS_PER_SEC / 1000));
-                dumpCactusGraph(cactus, dumpFile);
-                dumpPinchGraph(threadSet, flower, dumpFile);
+                /* dumpCactusGraph(cactus, dumpFile); */
+                /* dumpPinchGraph(threadSet, flower, dumpFile); */
                 dumpPinchesWithInclusionStats(pinches, flower, threadSet, redundantPairs, alignmentScore, dumpFile);
-                dumpAdjComponentGraph(threadSet, dumpFile);
+                /* dumpAdjComponentGraph(threadSet, dumpFile); */
             }
             stPinchUndo_destruct(undo);
             stList_destruct(pinches);
