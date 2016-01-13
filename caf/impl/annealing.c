@@ -108,7 +108,6 @@ static stPinchBlock *getBlock3P(stPinchSegment *segment) {
 
 void dumpPinchGraph(stPinchThreadSet *threadSet, Flower *flower, FILE *out) {
     stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
-    uint64_t totalAlignedBases = 0;
     stPinchBlock *block;
     while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
         stPinchBlockIt segmentIt = stPinchBlock_getSegmentIterator(block);
@@ -134,9 +133,7 @@ void dumpPinchGraph(stPinchThreadSet *threadSet, Flower *flower, FILE *out) {
         }
         fprintf(out, "\n");
 
-        totalAlignedBases += stPinchBlock_getDegree(block) * stPinchBlock_getLength(block);
     }
-    fprintf(out, "TAB\t%" PRIu64 "\n", totalAlignedBases);
 }
 
 // Dumps the cactus forest to the file, outputting the forest as lines of:
@@ -207,12 +204,15 @@ void dumpPinchesWithInclusionStats(stList *pinches, Flower *flower, stPinchThrea
 void dumpMaxBlockDegree(stPinchThreadSet *threadSet, FILE *dumpFile) {
     stPinchThreadSetBlockIt it = stPinchThreadSet_getBlockIt(threadSet);
     uint64_t maxDegree = 0;
+    uint64_t totalAlignedBases = 0;
     stPinchBlock *block;
     while ((block = stPinchThreadSetBlockIt_getNext(&it)) != NULL) {
         if (stPinchBlock_getDegree(block) > maxDegree) {
             maxDegree = stPinchBlock_getDegree(block);
         }
+        totalAlignedBases += stPinchBlock_getDegree(block) * stPinchBlock_getLength(block);
     }
+    fprintf(dumpFile, "TAB\t%" PRIu64 "\n", totalAlignedBases);
     fprintf(dumpFile, "MAXDEGREE\t%" PRIu64 "\n", maxDegree);
 }
 
