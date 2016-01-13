@@ -204,6 +204,18 @@ void dumpPinchesWithInclusionStats(stList *pinches, Flower *flower, stPinchThrea
     fprintf(dumpFile, "TOTAL\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%f\n", pairsIncluded, totalAlignmentLength, redundantPairs, alignmentScore);
 }
 
+void dumpMaxBlockDegree(stPinchThreadSet *threadSet, FILE *dumpFile) {
+    stPinchThreadSetBlockIt it = stPinchThreadSet_getBlockIt(threadSet);
+    uint64_t maxDegree = 0;
+    stPinchBlock *block;
+    while ((block = stPinchThreadSetBlockIt_getNext(&it)) != NULL) {
+        if (stPinchBlock_getDegree(block) > maxDegree) {
+            maxDegree = stPinchBlock_getDegree(block);
+        }
+    }
+    fprintf(dumpFile, "MAXDEGREE\t%" PRIu64 "\n", maxDegree);
+}
+
 void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadSet,
                                        stOnlineCactus *cactus,
                                        const char *alignmentsFile,
@@ -297,6 +309,7 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                     stOnlineCactus_getNumNodeDeleteOps(cactus),
                     (int64_t) clock() / (CLOCKS_PER_SEC / 1000));
             dumpPinchesWithInclusionStats(pinches, flower, threadSet, redundantPairs, alignmentScore, dumpFile);
+            dumpMaxBlockDegree(threadSet, dumpFile);
             /* dumpCactusGraph(cactus, dumpFile); */
             /* dumpAdjComponentGraph(threadSet, dumpFile); */
             /* dumpPinchGraph(threadSet, flower, dumpFile); */
@@ -327,6 +340,7 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                 /* dumpCactusGraph(cactus, dumpFile); */
                 /* dumpPinchGraph(threadSet, flower, dumpFile); */
                 dumpPinchesWithInclusionStats(pinches, flower, threadSet, redundantPairs, alignmentScore, dumpFile);
+                dumpMaxBlockDegree(threadSet, dumpFile);
                 /* dumpAdjComponentGraph(threadSet, dumpFile); */
             }
             stPinchUndo_destruct(undo);
