@@ -421,6 +421,7 @@ int main(int argc, char *argv[]) {
     double nucleotideScalingFactor = 1.0;
     stCaf_meltingMethod onlineMeltingMethod = REMOVE_NON_UNDOABLE_CHAINS;
     int64_t numAlignmentsPerBatch = 1;
+    int64_t maxNumAlignments = -1;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -646,7 +647,7 @@ int main(int argc, char *argv[]) {
                 assert(k == 1);
                 break;
             case 'W':
-                // online melting method: in the form "method|numAlignmentsPerBatch"
+                // online melting method: in the form "method|numAlignmentsPerBatch|maxNumAlignments"
                 ; // so we can declare variables at the "start" of a case statement
                 stList *tokens = stString_splitByString(optarg, "|");
                 char *method = stList_get(tokens, 0);
@@ -657,6 +658,12 @@ int main(int argc, char *argv[]) {
                     }
                     if (numAlignmentsPerBatch <= 0) {
                         st_errAbort("number of alignments per batch must be positive");
+                    }
+                }
+                if (stList_length(tokens) > 2) {
+                    char *maxNumAlignmentsStr = stList_get(tokens, 2);
+                    if (sscanf(maxNumAlignmentsStr, "%" PRIi64, &maxNumAlignments) != 1) {
+                        st_errAbort("error reading the maximum number of alignments to add");
                     }
                 }
                 if (strcmp(method, "preserveNonUndoableChains") == 0) {
@@ -810,7 +817,7 @@ int main(int argc, char *argv[]) {
             // small chains at each step.
             if (annealingRound == 0) {
                 stCaf_annealPreventingSmallChains(flower, threadSet, cactus, alignmentsFile, alignmentsList, alignmentTrim,
-                                                  filterFn, meltingRounds, onlineMeltingMethod, numAlignmentsPerBatch, stString_print("%s-cactusDump", debugFileName));
+                                                  filterFn, meltingRounds, onlineMeltingMethod, numAlignmentsPerBatch, maxNumAlignments, stString_print("%s-cactusDump", debugFileName));
             }
 
             // Dump the block degree and length distribution to a file

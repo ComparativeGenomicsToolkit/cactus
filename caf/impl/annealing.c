@@ -201,7 +201,7 @@ void dumpPinchesWithInclusionStats(stList *pinches, Flower *flower, stPinchThrea
     fprintf(dumpFile, "TOTAL\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%f\n", pairsIncluded, totalAlignmentLength, redundantPairs, alignmentScore);
 }
 
-void dumpMaxBlockDegree(stPinchThreadSet *threadSet, FILE *dumpFile) {
+void dumpMaxBlockDegreeAndTAB(stPinchThreadSet *threadSet, FILE *dumpFile) {
     stPinchThreadSetBlockIt it = stPinchThreadSet_getBlockIt(threadSet);
     uint64_t maxDegree = 0;
     uint64_t totalAlignedBases = 0;
@@ -225,6 +225,7 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                                        stList *minimumChainLengths,
                                        stCaf_meltingMethod meltingMethod,
                                        int64_t numAlignmentsPerBatch,
+                                       int64_t maxNumAlignments,
                                        const char *dumpPath) {
     stListIterator *listIt = NULL;
     FILE *alignments = NULL;
@@ -241,6 +242,9 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
     size_t numPinches = 0;
     stList *pinches = stList_construct3(0, (void (*)(void *)) stPinch_destruct);
     while (alignment != NULL) {
+        if (maxNumAlignments != -1 && numAlignments >= maxNumAlignments) {
+            break;
+        }
         numAlignments++;
         // TODO: make this prettier
         stList *pairwiseAlignments = stList_construct();
@@ -309,7 +313,7 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                     stOnlineCactus_getNumNodeDeleteOps(cactus),
                     (int64_t) clock() / (CLOCKS_PER_SEC / 1000));
             dumpPinchesWithInclusionStats(pinches, flower, threadSet, redundantPairs, alignmentScore, dumpFile);
-            dumpMaxBlockDegree(threadSet, dumpFile);
+            dumpMaxBlockDegreeAndTAB(threadSet, dumpFile);
             /* dumpCactusGraph(cactus, dumpFile); */
             /* dumpAdjComponentGraph(threadSet, dumpFile); */
             /* dumpPinchGraph(threadSet, flower, dumpFile); */
@@ -340,7 +344,7 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                 /* dumpCactusGraph(cactus, dumpFile); */
                 /* dumpPinchGraph(threadSet, flower, dumpFile); */
                 dumpPinchesWithInclusionStats(pinches, flower, threadSet, redundantPairs, alignmentScore, dumpFile);
-                dumpMaxBlockDegree(threadSet, dumpFile);
+                dumpMaxBlockDegreeAndTAB(threadSet, dumpFile);
                 /* dumpAdjComponentGraph(threadSet, dumpFile); */
             }
             stPinchUndo_destruct(undo);
