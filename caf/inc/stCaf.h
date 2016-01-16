@@ -89,6 +89,12 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                                        int64_t maxNumAlignments,
                                        const char *dumpPath);
 
+/*
+ * Dump statistics on the maximum block degree and total aligned bases to the dump file.
+ */
+void dumpMaxBlockDegreeAndTAB(stPinchThreadSet *threadSet, FILE *dumpFile);
+
+
 ///////////////////////////////////////////////////////////////////////////
 // Melting fuctions -- removing alignments from the pinch graph
 ///////////////////////////////////////////////////////////////////////////

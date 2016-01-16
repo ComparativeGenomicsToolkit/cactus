@@ -856,6 +856,14 @@ int main(int argc, char *argv[]) {
 
             // Do the final melting step.
             stCaf_melt(flower, threadSet, NULL, 0, minimumChainLength, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds);
+
+            // FIXME: remove or cleanup.
+            FILE *cactusDumpFile = fopen(stString_print("%s-cactusDump", debugFileName), "a");
+            fprintf(cactusDumpFile, "BATCH\t\t\t\t\t\t\t\t\t\t%" PRIi64 "\n", (int64_t) clock() / (CLOCKS_PER_SEC / 1000));
+            dumpMaxBlockDegreeAndTAB(threadSet, cactusDumpFile);
+            fprintf(cactusDumpFile, "BATCH\t\t\t\t\t\t\t\t\t\t%" PRIi64 "\n", (int64_t) clock() / (CLOCKS_PER_SEC / 1000));
+            fclose(cactusDumpFile);
+
             printf("Sequence graph statistics after final melting round:\n");
             printThreadSetStatistics(threadSet, flower, stdout);
             //This does the filtering of blocks that do not have the required species/tree-coverage/degree.

@@ -352,6 +352,7 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
             pinches = stList_construct3(0, (void (*)(void *)) stPinch_destruct);
         }
     }
+    fclose(dumpFile);
     printf("Added %" PRIi64 " gapped alignments containing %" PRIi64 " pinches to the graph.\n", numAlignments, numPinches);
 }
 
