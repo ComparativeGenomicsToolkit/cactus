@@ -219,7 +219,7 @@ class CactusPreprocessor2(Job):
             system("cp %s %s" % (inputSequenceFile, self.outputSequenceFile))
         else:
             logger.info("Adding child batch_preprocessor target")
-            inputSequenceID = fileStore.writeGlobalFile(inputSequenceFile, cleanup=True)
+            inputSequenceID = fileStore.writeGlobalFile(inputSequenceFile, cleanup=False)
             outputSequenceID = self.addChild(BatchPreprocessor(prepXmlElems, inputSequenceID, 0)).rv()
             self.addFollowOn(WritePermanentFile(outputSequenceID, self.outputSequenceFile))
                     

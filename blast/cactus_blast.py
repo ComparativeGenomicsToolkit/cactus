@@ -100,7 +100,7 @@ class BlastSequencesAllAgainstAllWrapper(Job):
         self.outputFile = outputFile
         self.blastOptions = blastOptions
     def run(self, fileStore):
-        sequenceIDs1 = [fileStore.writeGlobalFile(seq, cleanup=True) for seq in self.sequenceFiles1]
+        sequenceIDs1 = [fileStore.writeGlobalFile(seq, cleanup=False) for seq in self.sequenceFiles1]
         outputID = self.addChild(BlastSequencesAllAgainstAll(sequenceIDs1, self.blastOptions)).rv()
         self.addFollowOn(WritePermanentFile(outputID, self.outputFile))
 
@@ -118,7 +118,7 @@ class BlastSequencesAllAgainstAll(Job):
         sequenceFiles1 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs1]
         chunks = getChunks(sequenceFiles1, getTempDirectory(rootDir=fileStore.getLocalTempDir()), self.blastOptions)
         logger.info("Broken up the sequence files into individual 'chunk' files")
-        chunkIDs = [fileStore.writeGlobalFile(chunk, cleanup=True) for chunk in chunks]
+        chunkIDs = [fileStore.writeGlobalFile(chunk, cleanup=False) for chunk in chunks]
         diagonalResultsID = self.addChild(MakeSelfBlasts(self.blastOptions, chunkIDs)).rv()
         offDiagonalResultsID = self.addChild(MakeOffDiagonalBlasts(self.blastOptions, chunkIDs)).rv()
         logger.debug("Collating the blasts after blasting all-against-all")
@@ -171,8 +171,8 @@ class BlastSequencesAgainstEachOtherWrapper(Job):
         self.cigarFile = cigarFile
         self.blastOptions = blastOptions
     def run(self, fileStore):
-        seqIDs1 = [fileStore.writeGlobalFile(seq, cleanup=True) for seq in self.sequenceFiles1]
-        seqIDs2 = [fileStore.writeGlobalFile(seq, cleanup=True) for seq in self.sequenceFiles2]
+        seqIDs1 = [fileStore.writeGlobalFile(seq, cleanup=False) for seq in self.sequenceFiles1]
+        seqIDs2 = [fileStore.writeGlobalFile(seq, cleanup=False) for seq in self.sequenceFiles2]
         cigarID = self.addChild(BlastSequencesAgainstEachOther(seqIDs1, seqIDs2, self.blastOptions)).rv()
         self.addFollowOn(WritePermanentFile(cigarID, self.cigarFile))
             
@@ -191,8 +191,8 @@ class BlastSequencesAgainstEachOther(Job):
         sequenceFiles2 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs2]
         chunks1 = getChunks(sequenceFiles1, getTempDirectory(rootDir=fileStore.getLocalTempDir()), self.blastOptions)
         chunks2 = getChunks(sequenceFiles2, getTempDirectory(rootDir=fileStore.getLocalTempDir()), self.blastOptions)
-        chunkIDs1 = [fileStore.writeGlobalFile(chunk, cleanup=True) for chunk in chunks1]
-        chunkIDs2 = [fileStore.writeGlobalFile(chunk, cleanup=True) for chunk in chunks2]
+        chunkIDs1 = [fileStore.writeGlobalFile(chunk, cleanup=False) for chunk in chunks1]
+        chunkIDs2 = [fileStore.writeGlobalFile(chunk, cleanup=False) for chunk in chunks2]
         resultsIDs = []
         #Make the list of blast jobs.
         for chunkID1 in chunkIDs1:
