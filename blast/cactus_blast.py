@@ -213,8 +213,8 @@ class BlastIngroupsAndOutgroupsWrapper(Job):
         self.outgroupFragmentsDir = outgroupFragmentsDir
     def run(self, fileStore):
         fileStore.logToMaster("Blasting ingroups vs outgroups to file %s" % (self.cigarFile))
-        ingroupIDs = [fileStore.writeGlobalFile(seq, cleanup=True) for seq in self.ingroups]
-        outgroupIDs = [fileStore.writeGlobalFile(seq, cleanup=True) for seq in self.outgroups]
+        ingroupIDs = [fileStore.writeGlobalFile(seq, cleanup=False) for seq in self.ingroups]
+        outgroupIDs = [fileStore.writeGlobalFile(seq, cleanup=False) for seq in self.outgroups]
         try:
             os.makedirs(self.outgroupFragmentsDir)
         except os.error:
@@ -362,7 +362,7 @@ class TrimAndRecurseOnOutgroups(Job):
             tmpIngroupCoverage = fileStore.getLocalTempFile()
             calculateCoverage(trimmedIngroupSequence, mostRecentResults,
                               tmpIngroupCoverage)
-            fileStore.logToMaster("Coverage on %s from outgroup #%d, %s: %s%% (current ingroup length %d, untrimmed length %d). Outgroup trimmed to %d bp from %d" % (os.path.basename(ingroupSequence), self.outgroupNumber, os.path.basename(outgroupSequences[0]), percentCoverage(trimmedIngroupSequence, tmpIngroupCoverage), sequenceLength(trimmedIngroupSequence), sequenceLength(ingroupSequence), sequenceLength(trimmedOutgroup), sequenceLength(outgroupSequences[0])))
+            fileStore.logToMaster("Coverage on %s from outgroup #%d, %s: %s%% (current ingroup length %d, untrimmed length %d). Outgroup trimmed to %d bp from %d" % (os.path.basename(ingroupSequence), self.outgroupNumber, self.outgroupSequenceIDs[0], percentCoverage(trimmedIngroupSequence, tmpIngroupCoverage), sequenceLength(trimmedIngroupSequence), sequenceLength(ingroupSequence), sequenceLength(trimmedOutgroup), sequenceLength(outgroupSequences[0])))
 
 
         # Convert the alignments' ingroup coordinates.
