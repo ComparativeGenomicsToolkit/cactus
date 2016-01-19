@@ -88,7 +88,7 @@ class BlastFlower(Job):
                                                           self.blastOptions.minimumSequenceLength,
                                                           chunksDir)).split("\n") if chunk != "" ]
         logger.info("Broken up the flowers into individual 'chunk' files")
-        chunkIDs = [fileStore.writeGlobalFile(chunk) for chunk in chunks]
+        chunkIDs = [fileStore.writeGlobalFile(chunk, cleanup=False) for chunk in chunks]
         selfResultsID = self.addChild(MakeSelfBlasts(self.blastOptions, chunkIDs)).rv()
         offDiagonalResultsID = self.addChild(MakeOffDiagonalBlasts(self.blastOptions, chunkIDs)).rv()
         return self.addFollowOn(CollateBlasts([selfResultsID, offDiagonalResultsID])).rv()
@@ -354,7 +354,7 @@ class TrimAndRecurseOnOutgroups(Job):
         system("cactus_upconvertCoordinates.py %s %s 1 > %s" %\
                (trimmedOutgroup, mostRecentResults,
                 outgroupConvertedResultsFile))
-        self.outgroupFragmentIDs.append(fileStore.writeGlobalFile(trimmedOutgroup))
+        self.outgroupFragmentIDs.append(fileStore.writeGlobalFile(trimmedOutgroup, cleanup=False))
 
 
         # Report coverage of the latest outgroup on the trimmed ingroups.
@@ -381,7 +381,7 @@ class TrimAndRecurseOnOutgroups(Job):
                 output.write(results.read())
         if self.outputID:
             fileStore.deleteGlobalFile(self.outputID)
-        self.outputID = fileStore.writeGlobalFile(outputFile)
+        self.outputID = fileStore.writeGlobalFile(outputFile, cleanup=False)
 
         # Report coverage of the all outgroup alignments so far on the ingroups.
         ingroupCoverageFiles = []
@@ -421,7 +421,7 @@ class TrimAndRecurseOnOutgroups(Job):
                 trimmedSeqs.append(trimmed)
             if self.sequenceIDs != self.untrimmedSequenceIDs:
                 map(fileStore.deleteGlobalFile, self.sequenceIDs)
-            trimmedSeqIDs = [fileStore.writeGlobalFile(seq) for seq in trimmedSeqs]
+            trimmedSeqIDs = [fileStore.writeGlobalFile(seq, cleanup=False) for seq in trimmedSeqs]
             return self.addChild(BlastFirstOutgroup(untrimmedSequenceIDs=self.untrimmedSequenceIDs,
                                                    sequenceIDs=trimmedSeqIDs,
                                                    outgroupSequenceIDs=self.outgroupSequenceIDs[1:],
@@ -458,7 +458,7 @@ class RunSelfBlast(Job):
             #TODO: This throws away the compressed file
             seqFile = compressFastaFile(seqFile)
         logger.info("Ran the self blast okay")
-        return fileStore.writeGlobalFile(resultsFile)
+        return fileStore.writeGlobalFile(resultsFile, cleanup=False)
 
 def decompressFastaFile(fileName, tempFileName):
     """Copies the file from the central dir to a temporary file, returning the temp file name.
@@ -487,7 +487,7 @@ class RunBlast(Job):
         resultsFile = fileStore.getLocalTempFile()
         system("cactus_blast_convertCoordinates %s %s %i" % (tempResultsFile, resultsFile, self.blastOptions.roundsOfCoordinateConversion))
         logger.info("Ran the blast okay")
-        return fileStore.writeGlobalFile(resultsFile)
+        return fileStore.writeGlobalFile(resultsFile, cleanup=False)
 
 class CollateBlasts(Job):
     """Collates all the blasts into a single alignments file.
@@ -503,7 +503,7 @@ class CollateBlasts(Job):
         catFiles(resultsFiles, collatedResultsFile)
         logger.info("Collated the alignments to the file: %s",  collatedResultsFile)
         map(fileStore.deleteGlobalFile, self.resultsFileIDs)
-        return fileStore.writeGlobalFile(collatedResultsFile)
+        return fileStore.writeGlobalFile(collatedResultsFile, cleanup=False)
         
         
 class SortCigarAlignmentsInPlace(Job):
