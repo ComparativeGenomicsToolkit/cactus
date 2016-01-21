@@ -579,7 +579,8 @@ class CactusCafWrapper(CactusRecursionTarget):
                           doPhylogeny=self.getOptionalPhaseAttrib("doPhylogeny", bool, True),
                           minimumBlockHomologySupport=self.getOptionalPhaseAttrib("minimumBlockHomologySupport"),
                           minimumBlockDegreeToCheckSupport=self.getOptionalPhaseAttrib("minimumBlockDegreeToCheckSupport"),
-                          phylogenyNucleotideScalingFactor=self.getOptionalPhaseAttrib("phylogenyNucleotideScalingFactor"))
+                          phylogenyNucleotideScalingFactor=self.getOptionalPhaseAttrib("phylogenyNucleotideScalingFactor"),
+                          maximumRedundantFraction=self.getOptionalPhaseAttrib("maximumRedundantFraction"))
         for message in messages:
             self.logToMaster(message)
     

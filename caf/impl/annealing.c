@@ -226,6 +226,7 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                                        stCaf_meltingMethod meltingMethod,
                                        int64_t numAlignmentsPerBatch,
                                        int64_t maxNumAlignments,
+                                       double maxRedundantFraction,
                                        const char *dumpPath) {
     stListIterator *listIt = NULL;
     FILE *alignments = NULL;
@@ -246,6 +247,8 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
             break;
         }
         numAlignments++;
+
+        // Get the set of pinches from the next gapped alignment.
         // TODO: make this prettier
         stList *pairwiseAlignments = stList_construct();
         stList_append(pairwiseAlignments, alignment);
@@ -266,12 +269,18 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
         } else {
             alignment = stList_getNext(listIt);
         }
-        int64_t redundantPairs = 0;
+
+        // If the batch is done, then start the annealing and melting for the batch.
         if (alignment == NULL || numAlignments % numAlignmentsPerBatch == 0) {
+            // First, we anneal (adding alignments to the pinch graph).
             stPinchUndo *undo = stPinchThreadSet_prepareGappedUndo(threadSet, pinches);
 
             stPinchThread *thread1 = NULL;
             stPinchThread *thread2 = NULL;
+
+            // Count the redundant pairs in the batch, so we can enforce the % redundant threshold.
+            int64_t redundantPairs = 0;
+            int64_t totalPairs = 0;
             for (int64_t i = 0; i < stList_length(pinches); i++) {
                 pinch = stList_get(pinches, i);
                 thread1 = stPinchThreadSet_getThread(threadSet, pinch->name1);
@@ -291,6 +300,22 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                         }
                     }
                 }
+                totalPairs += pinch->length;
+            }
+
+            double redundantFraction = ((double) redundantPairs) / totalPairs;
+            fprintf(dumpFile, "%lf\t%lf\n", redundantFraction, maxRedundantFraction);
+            if (redundantFraction > maxRedundantFraction) {
+                // This batch must be rejected, since it doesn't pass the redundancy filter.
+                stList_destruct(pinches);
+                pinches = stList_construct3(0, (void (*)(void *)) stPinch_destruct);
+                continue;
+            }
+
+            for (int64_t i = 0; i < stList_length(pinches); i++) {
+                pinch = stList_get(pinches, i);
+                thread1 = stPinchThreadSet_getThread(threadSet, pinch->name1);
+                thread2 = stPinchThreadSet_getThread(threadSet, pinch->name2);
 
                 // Apply the pinch to the graph.
                 assert(thread1 != NULL && thread2 != NULL);
@@ -318,6 +343,7 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
             /* dumpAdjComponentGraph(threadSet, dumpFile); */
             /* dumpPinchGraph(threadSet, flower, dumpFile); */
 
+            // Melt, enforcing each minimum chain length in succession.
             for (int64_t i = 0; i < stList_length(minimumChainLengths); i++) {
                 int64_t minimumChainLength = stIntTuple_get(stList_get(minimumChainLengths, i), 0);
                 if (meltingMethod == PRESERVE_NON_UNDOABLE_CHAINS) {

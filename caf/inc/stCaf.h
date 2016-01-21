@@ -87,6 +87,7 @@ void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadS
                                        stCaf_meltingMethod meltingMethod,
                                        int64_t numAlignmentsPerBatch,
                                        int64_t maxNumAlignments,
+                                       double maxRedundantFraction,
                                        const char *dumpPath);
 
 /*

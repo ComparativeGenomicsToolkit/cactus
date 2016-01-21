@@ -420,8 +420,14 @@ int main(int argc, char *argv[]) {
     double minimumBlockHomologySupport = 0.7;
     double nucleotideScalingFactor = 1.0;
     stCaf_meltingMethod onlineMeltingMethod = REMOVE_NON_UNDOABLE_CHAINS;
+    // Number of alignments to add before each melting step.
     int64_t numAlignmentsPerBatch = 1;
+    // Stop after adding this many alignments. -1: never stop.
     int64_t maxNumAlignments = -1;
+    // An alignment will be rejected if its fraction of "redundant"
+    // pairs (pairs which are already present in the alignment) is
+    // higher than this.
+    double maxRedundantFraction = 1.0;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -461,6 +467,7 @@ int main(int argc, char *argv[]) {
                         { "phylogenyNucleotideScalingFactor", required_argument, 0, 'U' },
                         { "minimumBlockDegreeToCheckSupport", required_argument, 0, 'V' },
                         { "onlineMeltingMethod", required_argument, 0, 'W' },
+                        { "maximumRedundantFraction", required_argument, 0, 'X' },
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
@@ -681,6 +688,11 @@ int main(int argc, char *argv[]) {
                 }
                 stList_destruct(tokens);
                 break;
+            case 'X':
+                if (sscanf(optarg, "%lf", &maxRedundantFraction) != 1) {
+                    st_errAbort("error reading the maximumRedundantFraction");
+                }
+                break;
             default:
                 usage();
                 return 1;
@@ -817,7 +829,7 @@ int main(int argc, char *argv[]) {
             // small chains at each step.
             if (annealingRound == 0) {
                 stCaf_annealPreventingSmallChains(flower, threadSet, cactus, alignmentsFile, alignmentsList, alignmentTrim,
-                                                  filterFn, meltingRounds, onlineMeltingMethod, numAlignmentsPerBatch, maxNumAlignments, stString_print("%s-cactusDump", debugFileName));
+                                                  filterFn, meltingRounds, onlineMeltingMethod, numAlignmentsPerBatch, maxNumAlignments, maxRedundantFraction, stString_print("%s-cactusDump", debugFileName));
             }
 
             // Dump the block degree and length distribution to a file
