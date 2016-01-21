@@ -26,9 +26,9 @@ static void usage() {
     fprintf(stderr, "-d --lastzArguments : Lastz arguments\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 
-    fprintf(stderr, "-i --annealingRounds (array of ints, each greater than or equal to 1) : The rounds of annealing\n");
+    fprintf(stderr, "-i --offlineMeltingRounds (array of ints, each greater than or equal to 1) : The rounds of annealing\n");
     fprintf(stderr,
-            "-o --deannealingRounds (array of ints, each greater than or equal to 1 and each greater than the last) : The rounds of deannealing\n");
+            "-o --onlineMeltingRounds (array of ints, each greater than or equal to 1 and each greater than the last) : The rounds of deannealing\n");
 
     fprintf(
             stderr,
@@ -379,9 +379,9 @@ int main(int argc, char *argv[]) {
     int64_t minimumSequenceLengthForBlast = 1;
 
     //Parameters for annealing/melting rounds
-    int64_t *annealingRounds = NULL;
-    int64_t annealingRoundsLength = 0;
-    stList *meltingRounds = NULL;
+    int64_t *offlineMeltingRounds = NULL;
+    int64_t offlineMeltingRoundsLength = 0;
+    stList *onlineMeltingRounds = NULL;
 
     //Parameters for melting
     float maximumAdjacencyComponentSizeRatio = 10;
@@ -436,9 +436,9 @@ int main(int argc, char *argv[]) {
     while (1) {
         static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "alignments", required_argument, 0, 'b' }, {
                 "cactusDisk", required_argument, 0, 'c' }, { "lastzArguments", required_argument, 0, 'd' },
-                { "help", no_argument, 0, 'h' }, { "annealingRounds", required_argument, 0, 'i' }, { "trim", required_argument, 0, 'k' }, {
+                { "help", no_argument, 0, 'h' }, { "offlineMeltingRounds", required_argument, 0, 'i' }, { "trim", required_argument, 0, 'k' }, {
                         "trimChange", required_argument, 0, 'l', }, { "minimumTreeCoverage", required_argument, 0, 'm' }, { "blockTrim",
-                        required_argument, 0, 'n' }, { "deannealingRounds", required_argument, 0, 'o' }, { "minimumDegree",
+                        required_argument, 0, 'n' }, { "onlineMeltingRounds", required_argument, 0, 'o' }, { "minimumDegree",
                         required_argument, 0, 'p' }, { "minimumIngroupDegree", required_argument, 0, 'q' }, {
                         "minimumOutgroupDegree", required_argument, 0, 'r' }, {
                         "singleCopyIngroup", no_argument, 0, 's' }, { "singleCopyOutgroup", no_argument, 0, 't' }, {
@@ -496,10 +496,10 @@ int main(int argc, char *argv[]) {
                 usage();
                 return 0;
             case 'i':
-                annealingRounds = getInts(optarg, &annealingRoundsLength);
+                offlineMeltingRounds = getInts(optarg, &offlineMeltingRoundsLength);
                 break;
             case 'o':
-                meltingRounds = getIntsAsList(optarg);
+                onlineMeltingRounds = getIntsAsList(optarg);
                 break;
             case 'k':
                 alignmentTrims = getInts(optarg, &alignmentTrimLength);
@@ -707,13 +707,13 @@ int main(int argc, char *argv[]) {
     assert(minimumTreeCoverage >= 0.0);
     assert(minimumTreeCoverage <= 1.0);
     assert(blockTrim >= 0);
-    assert(annealingRoundsLength >= 0);
-    for (int64_t i = 0; i < annealingRoundsLength; i++) {
-        assert(annealingRounds[i] >= 0);
+    assert(offlineMeltingRoundsLength >= 0);
+    for (int64_t i = 0; i < offlineMeltingRoundsLength; i++) {
+        assert(offlineMeltingRounds[i] >= 0);
     }
-    for (int64_t i = 1; i < stList_length(meltingRounds); i++) {
-        int64_t prevRoundLen = stIntTuple_get(stList_get(meltingRounds, i - 1), 0);
-        int64_t curRoundLen = stIntTuple_get(stList_get(meltingRounds, i), 0);
+    for (int64_t i = 1; i < stList_length(onlineMeltingRounds); i++) {
+        int64_t prevRoundLen = stIntTuple_get(stList_get(onlineMeltingRounds, i - 1), 0);
+        int64_t curRoundLen = stIntTuple_get(stList_get(onlineMeltingRounds, i), 0);
         (void) prevRoundLen;
         (void) curRoundLen;
         assert(prevRoundLen < curRoundLen);
@@ -812,13 +812,11 @@ int main(int argc, char *argv[]) {
                 st_logDebug("Ran lastz and have %" PRIi64 " alignments\n", stList_length(alignmentsList));
             }
 
-            if (annealingRoundsLength > 1) {
+            if (offlineMeltingRoundsLength > 1) {
                 st_errAbort("'online' cactus not currently compatible with more than one "
                             "annealing round.");
             }
-            int64_t annealingRound = 0;
-            int64_t minimumChainLength = annealingRounds[annealingRound];
-            int64_t alignmentTrim = annealingRound < alignmentTrimLength ? alignmentTrims[annealingRound] : 0;
+            int64_t alignmentTrim =  alignmentTrimLength > 0 ? alignmentTrims[0] : 0;
 
             // Add constraints without checking the chain lengths.
             if (pinchIteratorForConstraints != NULL) {
@@ -827,10 +825,8 @@ int main(int argc, char *argv[]) {
 
             // Do the annealing, checking that we are not creating
             // small chains at each step.
-            if (annealingRound == 0) {
-                stCaf_annealPreventingSmallChains(flower, threadSet, cactus, alignmentsFile, alignmentsList, alignmentTrim,
-                                                  filterFn, meltingRounds, onlineMeltingMethod, numAlignmentsPerBatch, maxNumAlignments, maxRedundantFraction, stString_print("%s-cactusDump", debugFileName));
-            }
+            stCaf_annealPreventingSmallChains(flower, threadSet, cactus, alignmentsFile, alignmentsList, alignmentTrim,
+                                              filterFn, onlineMeltingRounds, onlineMeltingMethod, numAlignmentsPerBatch, maxNumAlignments, maxRedundantFraction, stString_print("%s-cactusDump", debugFileName));
 
             // Dump the block degree and length distribution to a file
             if (debugFileName != NULL) {
@@ -866,8 +862,12 @@ int main(int argc, char *argv[]) {
             stCaf_disableAndCleanupOnlineCactus(threadSet, cactus);
             stCaf_addCapsToPinchGraph(flower, threadSet);
 
-            // Do the final melting step.
-            stCaf_melt(flower, threadSet, NULL, 0, minimumChainLength, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds);
+            for (int64_t j = 0; j < offlineMeltingRoundsLength; j++) {
+                int64_t minimumChainLength = offlineMeltingRounds[j];
+
+                // Do the offline melting step.
+                stCaf_melt(flower, threadSet, NULL, 0, minimumChainLength, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds);
+            }
 
             // FIXME: remove or cleanup.
             FILE *cactusDumpFile = fopen(stString_print("%s-cactusDump", debugFileName), "a");

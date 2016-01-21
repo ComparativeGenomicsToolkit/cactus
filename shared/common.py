@@ -189,8 +189,8 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
                  flowerNames=encodeFlowerNames((0,)),
                  logLevel=None, 
                  writeDebugFiles=False,
-                 annealingRounds=None,
-                 deannealingRounds=None,
+                 offlineMeltingRounds=None,
+                 onlineMeltingRounds=None,
                  onlineMeltingMethod=None,
                  trim=None,
                  minimumTreeCoverage=None,
@@ -234,8 +234,8 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
     cactusDiskDatabaseString = cactusDiskDatabaseString.replace('\n', '')
 
     logLevel = getLogLevelString2(logLevel)
-    annealingRounds = nameValue("annealingRounds", annealingRounds, quotes=True)
-    deannealingRounds = nameValue("deannealingRounds", deannealingRounds, quotes=True)
+    offlineMeltingRounds = nameValue("offlineMeltingRounds", offlineMeltingRounds, quotes=True)
+    onlineMeltingRounds = nameValue("onlineMeltingRounds", onlineMeltingRounds, quotes=True)
     onlineMeltingMethod = nameValue("onlineMeltingMethod", onlineMeltingMethod, quotes=True)
     trim = nameValue("trim", trim, quotes=True)
     alignments = nameValue("alignments", alignments)
@@ -278,7 +278,7 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
     maximumMedianSequenceLengthBetweenLinkedEnds = nameValue("maximumMedianSequenceLengthBetweenLinkedEnds", maximumMedianSequenceLengthBetweenLinkedEnds, int)
     
     command = "cactus_caf --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
-    (cactusDiskDatabaseString, logLevel, alignments, annealingRounds, deannealingRounds, 
+    (cactusDiskDatabaseString, logLevel, alignments, offlineMeltingRounds, onlineMeltingRounds, 
      trim, minimumTreeCoverage, blockTrim, 
      minimumBlockDegree, minimumIngroupDegree, minimumOutgroupDegree,  
      singleCopyIngroup, singleCopyOutgroup, lastzArguments, minimumSequenceLengthForBlast, maxAdjacencyComponentSizeRatio, constraints,
