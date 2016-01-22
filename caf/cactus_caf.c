@@ -812,10 +812,6 @@ int main(int argc, char *argv[]) {
                 st_logDebug("Ran lastz and have %" PRIi64 " alignments\n", stList_length(alignmentsList));
             }
 
-            if (offlineMeltingRoundsLength > 1) {
-                st_errAbort("'online' cactus not currently compatible with more than one "
-                            "annealing round.");
-            }
             int64_t alignmentTrim =  alignmentTrimLength > 0 ? alignmentTrims[0] : 0;
 
             // Add constraints without checking the chain lengths.
