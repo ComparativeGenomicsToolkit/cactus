@@ -135,6 +135,133 @@ void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(
     stCaf_joinTrivialBoundaries(threadSet);
 }
 
+// Determine whether the child chain is recoverable given the parent
+// chain (i.e. will bar phase be expected to pick it back up if the
+// parent chain sticks around?).
+//
+// A chain is called recoverable if its ends link to different parent
+// chain ends ("anchor ends") and its ends do not link to each other.
+static bool chainIsRecoverableGivenParent(stCactusEdgeEnd *childChainEnd, stCactusEdgeEnd *incidentParentChainEdgeEnd) {
+    stPinchEnd *anchorEnd1 = stCactusEdgeEnd_getObject(incidentParentChainEdgeEnd);
+    stPinchEnd *anchorEnd2 = stCactusEdgeEnd_getObject(stCactusEdgeEnd_getLink(incidentParentChainEdgeEnd));
+    stPinchEnd *childEnd1 = stCactusEdgeEnd_getObject(childChainEnd);
+    stPinchEnd *childEnd2 = stCactusEdgeEnd_getObject(stCactusEdgeEnd_getLink(childChainEnd));
+
+    stSet *connectedEnds1 = stPinchEnd_getConnectedPinchEnds(childEnd1);
+    stSet *connectedEnds2 = stPinchEnd_getConnectedPinchEnds(childEnd2);
+
+    printf("c1->p1 %p c1->p2 %p c2->p1 %p c2->p2 %p c1->c2 %p c2->c1 %p\n",
+           stSet_search(connectedEnds1, anchorEnd1),
+           stSet_search(connectedEnds1, anchorEnd2),
+           stSet_search(connectedEnds2, anchorEnd1),
+           stSet_search(connectedEnds2, anchorEnd2),
+           stSet_search(connectedEnds1, childEnd2),
+           stSet_search(connectedEnds2, childEnd1));
+
+    bool recoverable = false;
+    if (stSet_search(connectedEnds1, anchorEnd1) && stSet_search(connectedEnds2, anchorEnd2)) {
+        printf("1, 2\n");
+        recoverable = !(stSet_search(connectedEnds2, anchorEnd1) || stSet_search(connectedEnds1, anchorEnd2));
+    } else if (stSet_search(connectedEnds1, anchorEnd2) && stSet_search(connectedEnds2, anchorEnd1)) {
+        printf("2, 1\n");
+        recoverable = !(stSet_search(connectedEnds2, anchorEnd2) || stSet_search(connectedEnds1, anchorEnd1));
+    }
+
+    // Check for a duplication (link connecting the two child chain ends).
+    if (stSet_search(connectedEnds1, childEnd2)) {
+        assert(stSet_search(connectedEnds2, childEnd1));
+        printf("found a duplication\n");
+        recoverable = false;
+    }
+    stSet_destruct(connectedEnds1);
+    stSet_destruct(connectedEnds2);
+    return recoverable;
+}
+
+// FIXME: remove
+static int64_t numNodesVisited = 0;
+static int64_t numChainsVisited = 0;
+static int64_t numRecoverableChains = 0;
+
+// For a given cactus node, recurse through all nodes below it and
+// find recoverable chains below them. Then find recoverable chains
+// below the current node given its parent chain.
+static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *parentChain, int64_t maxRecoverableLength, stList *recoverableChains) {
+    numNodesVisited++;
+    stCactusNodeEdgeEndIt cactusEdgeEndIt = stCactusNode_getEdgeEndIt(cactusNode);
+    stCactusEdgeEnd *cactusEdgeEnd;
+    while ((cactusEdgeEnd = stCactusNodeEdgeEndIt_getNext(&cactusEdgeEndIt)) != NULL) {
+        if ((parentChain == NULL
+             || (cactusEdgeEnd != parentChain
+                 && cactusEdgeEnd != stCactusEdgeEnd_getLink(parentChain)))
+            && stCactusEdgeEnd_getLinkOrientation(cactusEdgeEnd)
+            && stCactusEdgeEnd_getOtherNode(cactusEdgeEnd) != cactusNode) {
+            // Found a new chain below this node.
+            assert(stCactusEdgeEnd_isChainEnd(cactusEdgeEnd));
+            getRecoverableChains_R(stCactusEdgeEnd_getOtherNode(cactusEdgeEnd),
+                                   stCactusEdgeEnd_getOtherEdgeEnd(cactusEdgeEnd),
+                                   maxRecoverableLength, recoverableChains);
+        }
+    }
+
+    if (parentChain != NULL) {
+        // Visit the next node on this chain (unless it's where we started).
+        stCactusEdgeEnd *nextEdgeEnd = stCactusEdgeEnd_getOtherEdgeEnd(stCactusEdgeEnd_getLink(parentChain));
+        if (!stCactusEdgeEnd_isChainEnd(nextEdgeEnd)) {
+            getRecoverableChains_R(stCactusEdgeEnd_getNode(nextEdgeEnd), nextEdgeEnd, maxRecoverableLength, recoverableChains);
+        }
+    }
+
+    cactusEdgeEndIt = stCactusNode_getEdgeEndIt(cactusNode);
+    while ((cactusEdgeEnd = stCactusNodeEdgeEndIt_getNext(&cactusEdgeEndIt)) != NULL) {
+        if (stCactusEdgeEnd_isChainEnd(cactusEdgeEnd) && stCactusEdgeEnd_getLinkOrientation(cactusEdgeEnd)) {
+            if (parentChain != NULL && chainIsRecoverableGivenParent(cactusEdgeEnd, parentChain)) {
+                numRecoverableChains++;
+                stList_append(recoverableChains, cactusEdgeEnd);
+            }
+            numChainsVisited++;
+        }
+    }
+}
+
+static stList *getRecoverableChains(stCactusNode *startCactusNode, int64_t maxRecoverableLength) {
+    stList *ret = stList_construct();
+    getRecoverableChains_R(startCactusNode, NULL, maxRecoverableLength, ret);
+    printf("Visited %" PRIi64 " cactus nodes while getting recoverable chains\n", numNodesVisited);
+    printf("Found %" PRIi64 " / %" PRIi64 " recoverable chains\n", numRecoverableChains, numChainsVisited);
+    return ret;
+}
+
+void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds, int64_t maxRecoverableLength) {
+    stCactusNode *startCactusNode;
+    stList *deadEndComponent;
+    stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 0, INT64_MAX,
+                                                                  0.0, breakChainsAtReverseTandems, maximumMedianSpacingBetweenLinkedEnds);
+
+    stList *recoverableChains = getRecoverableChains(startCactusNode, maxRecoverableLength);
+    stList *blocksToDelete = stList_construct3(0, (void(*)(void *)) stPinchBlock_destruct);
+    for (int64_t i = 0; i < stList_length(recoverableChains); i++) {
+        stCactusEdgeEnd *chainEnd = stList_get(recoverableChains, i);
+        addChainBlocksToBlocksToDelete(chainEnd, blocksToDelete);
+    }
+    printf("Destroying %" PRIi64 " recoverable blocks\n", stList_length(blocksToDelete));
+    stList_destruct(recoverableChains);
+    stList_destruct(blocksToDelete);
+
+    // FIXME: remove
+    stCactusGraphNodeIt *it = stCactusGraphNodeIterator_construct(cactusGraph);
+    stCactusNode *node;
+    int64_t numCactusNodes = 0, numChains = 0;
+    while ((node = stCactusGraphNodeIterator_getNext(it)) != NULL) {
+        numCactusNodes++;
+        numChains += stCactusNode_getChainNumber(node);
+    }
+    printf("There were actually %" PRIi64 " nodes and %" PRIi64 " chains in the graph\n", numCactusNodes, numChains);
+    stCactusGraphNodeIterator_destruct(it);
+
+    stCactusGraph_destruct(cactusGraph);
+}
+
 ///////////////////////////////////////////////////////////////////////////
 // Functions for calculating required species/tree coverage
 ///////////////////////////////////////////////////////////////////////////

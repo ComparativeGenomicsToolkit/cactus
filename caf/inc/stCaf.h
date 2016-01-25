@@ -58,6 +58,8 @@ void stCaf_joinTrivialBoundaries(stPinchThreadSet *threadSet);
 void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(stPinchBlock *), int64_t blockEndTrim,
         int64_t minimumChainLength, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds);
 
+void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds, int64_t maxRecoverableLength);
+
 /*
  * Function used to determine if blocks contains sufficient numbers of sequences of ingroup/outgroup species.
  */

@@ -230,6 +230,7 @@ int main(int argc, char *argv[]) {
     int64_t maximumMedianSequenceLengthBetweenLinkedEnds = INT64_MAX;
     bool realign = 0;
     char *realignArguments = "";
+    bool removeRecoverableChains = false;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -249,6 +250,7 @@ int main(int argc, char *argv[]) {
                         required_argument, 0, 'y' }, { "proportionOfUnalignedBasesForNewChromosome", required_argument, 0, 'z' },
                         { "maximumMedianSequenceLengthBetweenLinkedEnds", required_argument, 0, 'A' },
                         { "realign", no_argument, 0, 'B' }, { "realignArguments", required_argument, 0, 'C' },
+                        { "removeRecoverableChains", no_argument, 0, 'D' },
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
@@ -339,6 +341,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 'C':
                 realignArguments = stString_copy(optarg);
+                break;
+            case 'D':
+                removeRecoverableChains = true;
                 break;
             default:
                 usage();
@@ -509,6 +514,10 @@ int main(int argc, char *argv[]) {
             } else if (maximumAdjacencyComponentSizeRatio < INT64_MAX) { //Deal with giant components
                 st_logDebug("Breaking up components greedily\n");
                 stCaf_breakupComponentsGreedily(threadSet, maximumAdjacencyComponentSizeRatio);
+            }
+
+            if (removeRecoverableChains) {
+                stCaf_meltRecoverableChains(flower, threadSet, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds, 20202020);
             }
 
             //Finish up
