@@ -13,7 +13,7 @@
 	<!-- The checkAssemblyHub option (if enabled) ensures that the first word contains only alphanumeric or '_', '-', ':', or '.' characters, and is unique. If you don't intend to make an assembly hub, you can turn off this option here. -->
 	<preprocessor check="1" memory="littleMemory" preprocessorString="cactus_checkUniqueHeaders.py --checkAssemblyHub IN_FILE"/>
 	<!-- The preprocessor for cactus_lastzRepeatMask masks every seed that is part of more than XX other alignments, this stops a combinatorial explosion in pairwise alignments -->
-	<preprocessor unmask="1" chunkSize="3000000" proportionToSample="0.2" memory="littleMemory" preprocessorString="cactus_lastzRepeatMask.py --proportionSampled=PROPORTION_SAMPLED --tempDir=TEMP_DIR --minPeriod=50 --lastzOpts='--step=3 --ambiguous=iupac,100,100 --ungapped --queryhsplimit=keep,nowarn:1500' IN_FILE OUT_FILE "/>
+	<preprocessor unmask="0" chunkSize="3000000" proportionToSample="0.2" memory="littleMemory" preprocessorString="cactus_lastzRepeatMask.py --proportionSampled=PROPORTION_SAMPLED --tempDir=TEMP_DIR --minPeriod=50 --lastzOpts='--step=3 --ambiguous=iupac,100,100 --ungapped --queryhsplimit=keep,nowarn:1500' IN_FILE OUT_FILE "/>
         <!-- Options for trimming ingroups & outgroups using the trim strategy -->
         <!-- Ingroup trim options: -->
         <!-- trimFlanking: The length of flanking sequence to attach
@@ -90,18 +90,18 @@
 		minimumTreeCoverage="0.0" 
 		trim="0 0" 
 		minimumBlockDegree="2"
-                autoMinimumIngroupDegree="1"
+                autoMinimumIngroupDegree="0"
                 autoMinimumIngroupDegreeThreshold="0.3"
 		minimumIngroupDegree="2"
 		minimumOutgroupDegree="0"
 		singleCopyIngroup="0"
-		singleCopyOutgroup="0"
+		singleCopyOutgroup="1"
 		maxAdjacencyComponentSizeRatio="50"
 		minLengthForChromosome="1000000"
 		proportionOfUnalignedBasesForNewChromosome="0.8"
 		maximumMedianSequenceLengthBetweenLinkedEnds="1000"
 		lastzMemory="littleMemory"
-                doPhylogeny="1"
+                doPhylogeny="0"
                 phylogenyNumTrees="30"
                 phylogenyRootingMethod="bestRecon"
                 phylogenyScoringMethod="reconCost"
@@ -163,7 +163,7 @@
 		veryLargeEndSize="2000000"
 		useProgressiveMerging="1"
 		pruneOutStubAlignments="1"
-                rescue="1"
+                rescue="0"
                 minimumSizeToRescue="100"
                 minimumCoverageToRescue="0.5"
 	>
