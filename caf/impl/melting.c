@@ -135,6 +135,23 @@ void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(
     stCaf_joinTrivialBoundaries(threadSet);
 }
 
+Flower *debugFlower;
+
+static char *getEndStr(stPinchEnd *end) {
+    stPinchBlockIt it = stPinchBlock_getSegmentIterator(end->block);
+    stList *segmentNames = stList_construct3(0, free);
+    stPinchSegment *segment;
+    while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
+        Cap *cap = flower_getCap(debugFlower, stPinchSegment_getName(segment));
+        const char *header = sequence_getHeader(cap_getSequence(cap));
+        const char *genome = event_getHeader(cap_getEvent(cap));
+        stList_append(segmentNames, stString_print("%s.%s|%" PRIi64 "-%" PRIi64, genome, header, stPinchSegment_getStart(segment), stPinchSegment_getStart(segment) + stPinchSegment_getLength(segment)));
+    }
+    char *ret = stString_join2(",", segmentNames);
+    stList_destruct(segmentNames);
+    return ret;
+}
+
 // Determine whether the child chain is recoverable given the parent
 // chain (i.e. will bar phase be expected to pick it back up if the
 // parent chain sticks around?).
@@ -150,6 +167,8 @@ static bool chainIsRecoverableGivenParent(stCactusEdgeEnd *childChainEnd, stCact
     stSet *connectedEnds1 = stPinchEnd_getConnectedPinchEnds(childEnd1);
     stSet *connectedEnds2 = stPinchEnd_getConnectedPinchEnds(childEnd2);
 
+    printf("c1: %s c2: %s\np1: %s p2: %s\n", getEndStr(childEnd1), getEndStr(childEnd2), getEndStr(anchorEnd1), getEndStr(anchorEnd2));
+
     printf("c1->p1 %p c1->p2 %p c2->p1 %p c2->p2 %p c1->c2 %p c2->c1 %p\n",
            stSet_search(connectedEnds1, anchorEnd1),
            stSet_search(connectedEnds1, anchorEnd2),
@@ -160,17 +179,14 @@ static bool chainIsRecoverableGivenParent(stCactusEdgeEnd *childChainEnd, stCact
 
     bool recoverable = false;
     if (stSet_search(connectedEnds1, anchorEnd1) && stSet_search(connectedEnds2, anchorEnd2)) {
-        printf("1, 2\n");
         recoverable = !(stSet_search(connectedEnds2, anchorEnd1) || stSet_search(connectedEnds1, anchorEnd2));
     } else if (stSet_search(connectedEnds1, anchorEnd2) && stSet_search(connectedEnds2, anchorEnd1)) {
-        printf("2, 1\n");
         recoverable = !(stSet_search(connectedEnds2, anchorEnd2) || stSet_search(connectedEnds1, anchorEnd1));
     }
 
     // Check for a duplication (link connecting the two child chain ends).
     if (stSet_search(connectedEnds1, childEnd2)) {
         assert(stSet_search(connectedEnds2, childEnd1));
-        printf("found a duplication\n");
         recoverable = false;
     }
     stSet_destruct(connectedEnds1);
@@ -218,6 +234,40 @@ static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *pa
             if (parentChain != NULL && chainIsRecoverableGivenParent(cactusEdgeEnd, parentChain)) {
                 numRecoverableChains++;
                 stList_append(recoverableChains, cactusEdgeEnd);
+            } else if (parentChain == NULL) {
+                stPinchEnd *childEnd1 = stCactusEdgeEnd_getObject(cactusEdgeEnd);
+                stPinchEnd *childEnd2 = stCactusEdgeEnd_getObject(stCactusEdgeEnd_getLink(cactusEdgeEnd));
+
+                stSet *connectedEnds1 = stPinchEnd_getConnectedPinchEnds(childEnd1);
+                stSet *connectedEnds2 = stPinchEnd_getConnectedPinchEnds(childEnd2);
+
+                stSet *sharedEnds = stSet_getIntersection(connectedEnds1, connectedEnds2);
+
+                if (stSet_size(sharedEnds) == 0 && stSet_size(connectedEnds1) == 1 && stSet_size(connectedEnds2) == 1) {
+                    printf("recoverable\n");
+                    stList_append(recoverableChains, cactusEdgeEnd);
+                } else {
+                    printf("UNRECOVERABLE %" PRIi64 " %" PRIi64 "% " PRIi64 "\n", stSet_size(sharedEnds), stSet_size(connectedEnds1), stSet_size(connectedEnds2));
+                }
+
+                printf("c1: %s c2: %s\n", getEndStr(childEnd1), getEndStr(childEnd2));
+                printf("ends connected to c1:\n");
+                stSetIterator *it = stSet_getIterator(connectedEnds1);
+                stPinchEnd *end;
+                while ((end = stSet_getNext(it)) != NULL) {
+                    printf("%s\n", getEndStr(end));
+                }
+                stSet_destructIterator(it);
+                printf("ends connected to c2:\n");
+                it = stSet_getIterator(connectedEnds2);
+                while ((end = stSet_getNext(it)) != NULL) {
+                    printf("%s\n", getEndStr(end));
+                }
+                stSet_destructIterator(it);
+
+                stSet_destruct(sharedEnds);
+                stSet_destruct(connectedEnds1);
+                stSet_destruct(connectedEnds2);
             }
             numChainsVisited++;
         }
@@ -233,6 +283,7 @@ static stList *getRecoverableChains(stCactusNode *startCactusNode, int64_t maxRe
 }
 
 void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds, int64_t maxRecoverableLength) {
+    debugFlower = flower;
     stCactusNode *startCactusNode;
     stList *deadEndComponent;
     stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 0, INT64_MAX,
