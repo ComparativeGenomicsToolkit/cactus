@@ -951,7 +951,7 @@ class CactusWorkflowArguments:
         self.experimentNode = ET.parse(self.experimentFile).getroot()
         self.experimentWrapper = ExperimentWrapper(self.experimentNode)
         #Get the database string
-        self.cactusDiskDatabaseString = ET.tostring(self.experimentNode.find("cactus_disk").find("st_kv_database_conf"))
+        self.cactusDiskDatabaseString = ET.tostring(self.experimentNode.find("cactus_disk").find("st_kv_database_conf")).translate(None, '\n')
         #Get the species tree
         self.speciesTree = self.experimentNode.attrib["species_tree"]
         #Get any list of 'required species' for the blocks of the cactus.
