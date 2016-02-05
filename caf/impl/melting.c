@@ -152,43 +152,51 @@ static char *getEndStr(stPinchEnd *end) {
     return ret;
 }
 
-// Determine whether the child chain is recoverable given the parent
-// chain (i.e. will bar phase be expected to pick it back up if the
-// parent chain sticks around?).
-//
-// A chain is called recoverable if its ends link to different parent
-// chain ends ("anchor ends") and its ends do not link to each other.
-static bool chainIsRecoverableGivenParent(stCactusEdgeEnd *childChainEnd, stCactusEdgeEnd *incidentParentChainEdgeEnd) {
-    stPinchEnd *anchorEnd1 = stCactusEdgeEnd_getObject(incidentParentChainEdgeEnd);
-    stPinchEnd *anchorEnd2 = stCactusEdgeEnd_getObject(stCactusEdgeEnd_getLink(incidentParentChainEdgeEnd));
-    stPinchEnd *childEnd1 = stCactusEdgeEnd_getObject(childChainEnd);
-    stPinchEnd *childEnd2 = stCactusEdgeEnd_getObject(stCactusEdgeEnd_getLink(childChainEnd));
+// Determine whether the chain is recoverable (i.e. will bar phase be
+// expected to pick it back up?).
+static bool chainIsRecoverable(stCactusEdgeEnd *chainEnd, stSet *deadEndComponent) {
+    stPinchEnd *end1 = stCactusEdgeEnd_getObject(chainEnd);
+    stPinchEnd *end2 = stCactusEdgeEnd_getObject(stCactusEdgeEnd_getLink(chainEnd));
 
-    stSet *connectedEnds1 = stPinchEnd_getConnectedPinchEnds(childEnd1);
-    stSet *connectedEnds2 = stPinchEnd_getConnectedPinchEnds(childEnd2);
+    stSet *connectedEnds1 = stPinchEnd_getConnectedPinchEnds(end1);
+    stSet *connectedEnds2 = stPinchEnd_getConnectedPinchEnds(end2);
 
-    printf("c1: %s c2: %s\np1: %s p2: %s\n", getEndStr(childEnd1), getEndStr(childEnd2), getEndStr(anchorEnd1), getEndStr(anchorEnd2));
-
-    printf("c1->p1 %p c1->p2 %p c2->p1 %p c2->p2 %p c1->c2 %p c2->c1 %p\n",
-           stSet_search(connectedEnds1, anchorEnd1),
-           stSet_search(connectedEnds1, anchorEnd2),
-           stSet_search(connectedEnds2, anchorEnd1),
-           stSet_search(connectedEnds2, anchorEnd2),
-           stSet_search(connectedEnds1, childEnd2),
-           stSet_search(connectedEnds2, childEnd1));
-
-    bool recoverable = false;
-    if (stSet_search(connectedEnds1, anchorEnd1) && stSet_search(connectedEnds2, anchorEnd2)) {
-        recoverable = !(stSet_search(connectedEnds2, anchorEnd1) || stSet_search(connectedEnds1, anchorEnd2));
-    } else if (stSet_search(connectedEnds1, anchorEnd2) && stSet_search(connectedEnds2, anchorEnd1)) {
-        recoverable = !(stSet_search(connectedEnds2, anchorEnd2) || stSet_search(connectedEnds1, anchorEnd1));
+    printf("c1: %s c2: %s\n", getEndStr(end1), getEndStr(end2));
+    printf("ends connected to c1:\n");
+    stSetIterator *it = stSet_getIterator(connectedEnds1);
+    stPinchEnd *end;
+    while ((end = stSet_getNext(it)) != NULL) {
+        printf("%s\n", getEndStr(end));
     }
+    stSet_destructIterator(it);
+    printf("ends connected to c2:\n");
+    it = stSet_getIterator(connectedEnds2);
+    while ((end = stSet_getNext(it)) != NULL) {
+        printf("%s\n", getEndStr(end));
+    }
+    stSet_destructIterator(it);
 
-    // Check for a duplication (link connecting the two child chain ends).
-    if (stSet_search(connectedEnds1, childEnd2)) {
-        assert(stSet_search(connectedEnds2, childEnd1));
+    stSet *sharedEnds = stSet_getIntersection(connectedEnds1, connectedEnds2);
+    stSet *connectedDeadEnds1 = stSet_getIntersection(connectedEnds1, deadEndComponent);
+    stSet *connectedDeadEnds2 = stSet_getIntersection(connectedEnds2, deadEndComponent);
+
+    bool recoverable = true;
+    if (stSet_size(sharedEnds) != 0) {
+        // The two ends link to the same end.
+        recoverable = false;
+    } else if (stSet_size(connectedEnds1) != 1 && stSet_size(connectedEnds2) != 1) {
+        // Both ends link to more than one end.
+        recoverable = false;
+    } else if (stSet_size(connectedDeadEnds1) != 0 || stSet_size(connectedDeadEnds2) != 0) {
+        // Connected to one or more stub "dead" ends.
+        recoverable = false;
+    } else if (stSet_search(connectedEnds1, end2)) {
+        // A duplication (link connecting the two child chain ends).
+        assert(stSet_search(connectedEnds2, end1));
         recoverable = false;
     }
+
+    stSet_destruct(sharedEnds);
     stSet_destruct(connectedEnds1);
     stSet_destruct(connectedEnds2);
     return recoverable;
@@ -202,7 +210,7 @@ static int64_t numRecoverableChains = 0;
 // For a given cactus node, recurse through all nodes below it and
 // find recoverable chains below them. Then find recoverable chains
 // below the current node given its parent chain.
-static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *parentChain, int64_t maxRecoverableLength, stList *recoverableChains) {
+static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *parentChain, stSet *deadEndComponent, stList *recoverableChains) {
     numNodesVisited++;
     stCactusNodeEdgeEndIt cactusEdgeEndIt = stCactusNode_getEdgeEndIt(cactusNode);
     stCactusEdgeEnd *cactusEdgeEnd;
@@ -216,7 +224,8 @@ static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *pa
             assert(stCactusEdgeEnd_isChainEnd(cactusEdgeEnd));
             getRecoverableChains_R(stCactusEdgeEnd_getOtherNode(cactusEdgeEnd),
                                    stCactusEdgeEnd_getOtherEdgeEnd(cactusEdgeEnd),
-                                   maxRecoverableLength, recoverableChains);
+                                   deadEndComponent,
+                                   recoverableChains);
         }
     }
 
@@ -224,59 +233,25 @@ static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *pa
         // Visit the next node on this chain (unless it's where we started).
         stCactusEdgeEnd *nextEdgeEnd = stCactusEdgeEnd_getOtherEdgeEnd(stCactusEdgeEnd_getLink(parentChain));
         if (!stCactusEdgeEnd_isChainEnd(nextEdgeEnd)) {
-            getRecoverableChains_R(stCactusEdgeEnd_getNode(nextEdgeEnd), nextEdgeEnd, maxRecoverableLength, recoverableChains);
+            getRecoverableChains_R(stCactusEdgeEnd_getNode(nextEdgeEnd), nextEdgeEnd, deadEndComponent, recoverableChains);
         }
     }
 
     cactusEdgeEndIt = stCactusNode_getEdgeEndIt(cactusNode);
     while ((cactusEdgeEnd = stCactusNodeEdgeEndIt_getNext(&cactusEdgeEndIt)) != NULL) {
         if (stCactusEdgeEnd_isChainEnd(cactusEdgeEnd) && stCactusEdgeEnd_getLinkOrientation(cactusEdgeEnd)) {
-            if (parentChain != NULL && chainIsRecoverableGivenParent(cactusEdgeEnd, parentChain)) {
+            if (chainIsRecoverable(cactusEdgeEnd, deadEndComponent)) {
                 numRecoverableChains++;
                 stList_append(recoverableChains, cactusEdgeEnd);
-            } else if (parentChain == NULL) {
-                stPinchEnd *childEnd1 = stCactusEdgeEnd_getObject(cactusEdgeEnd);
-                stPinchEnd *childEnd2 = stCactusEdgeEnd_getObject(stCactusEdgeEnd_getLink(cactusEdgeEnd));
-
-                stSet *connectedEnds1 = stPinchEnd_getConnectedPinchEnds(childEnd1);
-                stSet *connectedEnds2 = stPinchEnd_getConnectedPinchEnds(childEnd2);
-
-                stSet *sharedEnds = stSet_getIntersection(connectedEnds1, connectedEnds2);
-
-                if (stSet_size(sharedEnds) == 0 && stSet_size(connectedEnds1) == 1 && stSet_size(connectedEnds2) == 1) {
-                    printf("recoverable\n");
-                    stList_append(recoverableChains, cactusEdgeEnd);
-                } else {
-                    printf("UNRECOVERABLE %" PRIi64 " %" PRIi64 "% " PRIi64 "\n", stSet_size(sharedEnds), stSet_size(connectedEnds1), stSet_size(connectedEnds2));
-                }
-
-                printf("c1: %s c2: %s\n", getEndStr(childEnd1), getEndStr(childEnd2));
-                printf("ends connected to c1:\n");
-                stSetIterator *it = stSet_getIterator(connectedEnds1);
-                stPinchEnd *end;
-                while ((end = stSet_getNext(it)) != NULL) {
-                    printf("%s\n", getEndStr(end));
-                }
-                stSet_destructIterator(it);
-                printf("ends connected to c2:\n");
-                it = stSet_getIterator(connectedEnds2);
-                while ((end = stSet_getNext(it)) != NULL) {
-                    printf("%s\n", getEndStr(end));
-                }
-                stSet_destructIterator(it);
-
-                stSet_destruct(sharedEnds);
-                stSet_destruct(connectedEnds1);
-                stSet_destruct(connectedEnds2);
             }
             numChainsVisited++;
         }
     }
 }
 
-static stList *getRecoverableChains(stCactusNode *startCactusNode, int64_t maxRecoverableLength) {
+static stList *getRecoverableChains(stCactusNode *startCactusNode, stSet *deadEndComponent) {
     stList *ret = stList_construct();
-    getRecoverableChains_R(startCactusNode, NULL, maxRecoverableLength, ret);
+    getRecoverableChains_R(startCactusNode, NULL, deadEndComponent, ret);
     printf("Visited %" PRIi64 " cactus nodes while getting recoverable chains\n", numNodesVisited);
     printf("Found %" PRIi64 " / %" PRIi64 " recoverable chains\n", numRecoverableChains, numChainsVisited);
     return ret;
@@ -289,7 +264,13 @@ void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bo
     stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 0, INT64_MAX,
                                                                   0.0, breakChainsAtReverseTandems, maximumMedianSpacingBetweenLinkedEnds);
 
-    stList *recoverableChains = getRecoverableChains(startCactusNode, maxRecoverableLength);
+    // Construct a queryable set of stub ends.
+    stSet *deadEndComponentSet = stSet_construct3(stPinchEnd_hashFn, stPinchEnd_equalsFn, NULL);
+    for (int64_t i = 0; i < stList_length(deadEndComponent); i++) {
+        stSet_insert(deadEndComponentSet, stList_get(deadEndComponent, i));
+    }
+
+    stList *recoverableChains = getRecoverableChains(startCactusNode, deadEndComponentSet);
     stList *blocksToDelete = stList_construct3(0, (void(*)(void *)) stPinchBlock_destruct);
     for (int64_t i = 0; i < stList_length(recoverableChains); i++) {
         stCactusEdgeEnd *chainEnd = stList_get(recoverableChains, i);
@@ -311,6 +292,7 @@ void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bo
     stCactusGraphNodeIterator_destruct(it);
 
     stCactusGraph_destruct(cactusGraph);
+    stSet_destruct(deadEndComponentSet);
 }
 
 ///////////////////////////////////////////////////////////////////////////
