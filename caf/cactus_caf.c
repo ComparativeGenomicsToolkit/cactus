@@ -190,6 +190,56 @@ bool filterByRepeatSpecies(stPinchSegment *segment1, stPinchSegment *segment2) {
     return checkIntersection(getNames(segment1), getNames(segment2));
 }
 
+/*
+ * Selecting chains that have an unequal number of ingroup copies,
+ * e.g. 0 in ingroup 1, 1 in ingroup 2; or 2 in ingroup 1, 2 in
+ * ingroup 2, 3 in ingroup 3.
+ */
+bool chainHasUnequalNumberOfIngroupCopies(stCactusEdgeEnd *chainEnd) {
+    stPinchEnd *end = stCactusEdgeEnd_getObject(chainEnd);
+    stPinchBlockIt it = stPinchBlock_getSegmentIterator(end->block);
+    stPinchSegment *segment;
+    stHash *ingroupToNumCopies = stHash_construct2(NULL, free);
+    while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
+        Cap *cap = flower_getCap(flower, stPinchSegment_getName(segment));
+        Event *event = cap_getEvent(cap);
+        if (!event_isOutgroup(event)) {
+            if (stHash_search(ingroupToNumCopies, event) == NULL) {
+                stHash_insert(ingroupToNumCopies, event, calloc(1, sizeof(uint64_t)));
+            }
+            uint64_t *numCopies = stHash_search(ingroupToNumCopies, event);
+            (*numCopies)++;
+        }
+    }
+
+    EventTree *eventTree = flower_getEventTree(flower);
+    EventTree_Iterator *eventIt = eventTree_getIterator(eventTree);
+    bool equalNumIngroupCopies = true;
+    Event *event;
+    uint64_t prevCount = 0;
+    while ((event = eventTree_getNext(eventIt)) != NULL) {
+        if (event_isOutgroup(event) || event_getChildNumber(event) != 0) {
+            continue;
+        }
+        uint64_t *count = stHash_search(ingroupToNumCopies, event);
+        if (count == NULL) {
+            equalNumIngroupCopies = false;
+            break;
+        }
+        if (prevCount == 0) {
+            prevCount = *count;
+        } else if (prevCount != *count) {
+            equalNumIngroupCopies = false;
+            break;
+        }
+    }
+
+    eventTree_destructIterator(eventIt);
+    stHash_destruct(ingroupToNumCopies);
+    return !equalNumIngroupCopies;
+}
+
+
 int main(int argc, char *argv[]) {
     /*
      * Script for adding alignments to cactus tree.
@@ -231,6 +281,7 @@ int main(int argc, char *argv[]) {
     bool realign = 0;
     char *realignArguments = "";
     bool removeRecoverableChains = false;
+    bool (*recoverableChainsFilter)(stCactusEdgeEnd *);
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -250,7 +301,7 @@ int main(int argc, char *argv[]) {
                         required_argument, 0, 'y' }, { "proportionOfUnalignedBasesForNewChromosome", required_argument, 0, 'z' },
                         { "maximumMedianSequenceLengthBetweenLinkedEnds", required_argument, 0, 'A' },
                         { "realign", no_argument, 0, 'B' }, { "realignArguments", required_argument, 0, 'C' },
-                        { "removeRecoverableChains", no_argument, 0, 'D' },
+                        { "removeRecoverableChains", required_argument, 0, 'D' },
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
@@ -343,7 +394,17 @@ int main(int argc, char *argv[]) {
                 realignArguments = stString_copy(optarg);
                 break;
             case 'D':
-                removeRecoverableChains = true;
+                if (strcmp(optarg, "1") == 0) {
+                    removeRecoverableChains = true;
+                    recoverableChainsFilter = NULL;
+                } else if (strcmp(optarg, "unequalNumberOfIngroupCopies") == 0) {
+                    removeRecoverableChains = true;
+                    recoverableChainsFilter = chainHasUnequalNumberOfIngroupCopies;
+                } else if (strcmp(optarg, "0") == 0) {
+                    removeRecoverableChains = false;
+                } else {
+                    st_errAbort("Could not parse removeRecoverableChains argument");
+                }
                 break;
             default:
                 usage();
@@ -517,7 +578,7 @@ int main(int argc, char *argv[]) {
             }
 
             if (removeRecoverableChains) {
-                stCaf_meltRecoverableChains(flower, threadSet, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds, 20202020);
+                stCaf_meltRecoverableChains(flower, threadSet, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds, recoverableChainsFilter);
             }
 
             //Finish up

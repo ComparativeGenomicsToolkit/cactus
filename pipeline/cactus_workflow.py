@@ -502,7 +502,7 @@ class CactusCafWrapper(CactusRecursionTarget):
                           maximumMedianSequenceLengthBetweenLinkedEnds=self.getOptionalPhaseAttrib("maximumMedianSequenceLengthBetweenLinkedEnds", int),
                           realign=self.getOptionalPhaseAttrib("realign", bool),
                           realignArguments=self.getOptionalPhaseAttrib("realignArguments"),
-                          removeRecoverableChains=self.getOptionalPhaseAttrib("removeRecoverableChains", bool))
+                          removeRecoverableChains=self.getOptionalPhaseAttrib("removeRecoverableChains"))
         for message in messages:
             self.logToMaster(message)
     

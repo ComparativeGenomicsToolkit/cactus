@@ -226,7 +226,7 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
     constraints = nameValue("constraints", constraints)
     realign = nameValue("realign", realign, bool)
     realignArguments = nameValue("realignArguments", realignArguments, quotes=True)
-    removeRecoverableChains = nameValue("removeRecoverableChains", removeRecoverableChains, bool)
+    removeRecoverableChains = nameValue("removeRecoverableChains", removeRecoverableChains)
 
     minLengthForChromosome = nameValue("minLengthForChromosome", minLengthForChromosome, int)
     proportionOfUnalignedBasesForNewChromosome = nameValue("proportionOfUnalignedBasesForNewChromosome", proportionOfUnalignedBasesForNewChromosome, float)
