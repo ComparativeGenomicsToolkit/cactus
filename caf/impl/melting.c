@@ -173,16 +173,40 @@ static bool endSetContainsTelomere(stSet *endSet, stSet *deadEndComponent) {
     return containsTelomere;
 }
 
+static bool endsDoNotHaveSameThreadComposition(stPinchEnd *end1, stPinchEnd *end2) {
+    if (stPinchBlock_getDegree(end1->block) != stPinchBlock_getDegree(end2->block)) {
+        return true;
+    }
+    stPinchBlockIt it1 = stPinchBlock_getSegmentIterator(end1->block);
+    stSet *threads1 = stSet_construct();
+    stPinchSegment *segment;
+    while ((segment = stPinchBlockIt_getNext(&it1)) != NULL) {
+        stSet_insert(threads1, stPinchSegment_getThread(segment));
+    }
+
+    stSet *threads2 = stSet_construct();
+    stPinchBlockIt it2 = stPinchBlock_getSegmentIterator(end2->block);
+    while ((segment = stPinchBlockIt_getNext(&it2)) != NULL) {
+        stSet_insert(threads2, stPinchSegment_getThread(segment));
+    }
+
+    bool sameThreadComposition = true;
+    stSet *intersection = stSet_getIntersection(threads1, threads2);
+    if (stSet_size(intersection) != stSet_size(threads1) || stSet_size(intersection) != stSet_size(threads2)) {
+        sameThreadComposition = false;
+    }
+
+    stSet_destruct(threads1);
+    stSet_destruct(threads2);
+    stSet_destruct(intersection);
+    return !sameThreadComposition;
+}
+
 // Determine whether the chain is recoverable (i.e. will bar phase be
 // expected to pick it back up?).
 static bool chainIsRecoverable(stCactusEdgeEnd *chainEnd, stSet *deadEndComponent) {
     stPinchEnd *end1 = stCactusEdgeEnd_getObject(chainEnd);
     stPinchEnd *end2 = stCactusEdgeEnd_getObject(stCactusEdgeEnd_getLink(chainEnd));
-
-    if (isTelomere(end1, deadEndComponent) || isTelomere(end2, deadEndComponent)) {
-        // Chain containing only the telomere/stub end
-        return false;
-    }
 
     stSet *connectedEnds1 = stPinchEnd_getConnectedPinchEnds(end1);
     stSet *connectedEnds2 = stPinchEnd_getConnectedPinchEnds(end2);
@@ -201,6 +225,20 @@ static bool chainIsRecoverable(stCactusEdgeEnd *chainEnd, stSet *deadEndComponen
         printf("%s\n", getEndStr(end));
     }
     stSet_destructIterator(it);
+
+    if (isTelomere(end1, deadEndComponent) || isTelomere(end2, deadEndComponent)) {
+        // Chain containing only the telomere/stub end
+        printf("telomere\n");
+        return false;
+    }
+
+    if (endsDoNotHaveSameThreadComposition(end1, end2)) {
+        // One or more of the threads ran into a stub end and
+        // appeared/disappeared partway through the chain
+        printf("stubbed chain\n");
+        return false;
+    }
+
 
     stSet *sharedEnds = stSet_getIntersection(connectedEnds1, connectedEnds2);
 
@@ -223,6 +261,7 @@ static bool chainIsRecoverable(stCactusEdgeEnd *chainEnd, stSet *deadEndComponen
     stSet_destruct(sharedEnds);
     stSet_destruct(connectedEnds1);
     stSet_destruct(connectedEnds2);
+    printf("recoverable: %d\n", recoverable);
     return recoverable;
 }
 
