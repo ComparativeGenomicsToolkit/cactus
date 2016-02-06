@@ -152,11 +152,37 @@ static char *getEndStr(stPinchEnd *end) {
     return ret;
 }
 
+static bool isTelomere(stPinchEnd *end, stSet *deadEndComponent) {
+    stPinchSegment *segment = stPinchBlock_getFirst(end->block);
+    bool atEndOfThread = stPinchThread_getFirst(stPinchSegment_getThread(segment)) == segment || stPinchThread_getLast(stPinchSegment_getThread(segment)) == segment;
+    bool inDeadEndComponent = stSet_search(deadEndComponent, end);
+    return atEndOfThread || inDeadEndComponent;
+}
+
+static bool endSetContainsTelomere(stSet *endSet, stSet *deadEndComponent) {
+    stSetIterator *it = stSet_getIterator(endSet);
+    bool containsTelomere = false;
+    stPinchEnd *end;
+    while ((end = stSet_getNext(it)) != NULL) {
+        if (isTelomere(end, deadEndComponent)) {
+            containsTelomere = true;
+            break;
+        }
+    }
+    stSet_destructIterator(it);
+    return containsTelomere;
+}
+
 // Determine whether the chain is recoverable (i.e. will bar phase be
 // expected to pick it back up?).
 static bool chainIsRecoverable(stCactusEdgeEnd *chainEnd, stSet *deadEndComponent) {
     stPinchEnd *end1 = stCactusEdgeEnd_getObject(chainEnd);
     stPinchEnd *end2 = stCactusEdgeEnd_getObject(stCactusEdgeEnd_getLink(chainEnd));
+
+    if (isTelomere(end1, deadEndComponent) || isTelomere(end2, deadEndComponent)) {
+        // Chain containing only the telomere/stub end
+        return false;
+    }
 
     stSet *connectedEnds1 = stPinchEnd_getConnectedPinchEnds(end1);
     stSet *connectedEnds2 = stPinchEnd_getConnectedPinchEnds(end2);
@@ -177,8 +203,6 @@ static bool chainIsRecoverable(stCactusEdgeEnd *chainEnd, stSet *deadEndComponen
     stSet_destructIterator(it);
 
     stSet *sharedEnds = stSet_getIntersection(connectedEnds1, connectedEnds2);
-    stSet *connectedDeadEnds1 = stSet_getIntersection(connectedEnds1, deadEndComponent);
-    stSet *connectedDeadEnds2 = stSet_getIntersection(connectedEnds2, deadEndComponent);
 
     bool recoverable = true;
     if (stSet_size(sharedEnds) != 0) {
@@ -187,8 +211,8 @@ static bool chainIsRecoverable(stCactusEdgeEnd *chainEnd, stSet *deadEndComponen
     } else if (stSet_size(connectedEnds1) != 1 && stSet_size(connectedEnds2) != 1) {
         // Both ends link to more than one end.
         recoverable = false;
-    } else if (stSet_size(connectedDeadEnds1) != 0 || stSet_size(connectedDeadEnds2) != 0) {
-        // Connected to one or more stub "dead" ends.
+    } else if (endSetContainsTelomere(connectedEnds1, deadEndComponent) || endSetContainsTelomere(connectedEnds2, deadEndComponent)) {
+        // Connected to one or more attached ends or stub ends.
         recoverable = false;
     } else if (stSet_search(connectedEnds1, end2)) {
         // A duplication (link connecting the two child chain ends).
