@@ -59,7 +59,7 @@
 		minimumTreeCoverage="0.0" 
 		trim="0 0" 
 		minimumBlockDegree="2"
-		minimumIngroupDegree="2"
+		minimumIngroupDegree="1"
 		minimumOutgroupDegree="0"
 		singleCopyIngroup="0"
 		singleCopyOutgroup="1"
@@ -68,7 +68,7 @@
 		proportionOfUnalignedBasesForNewChromosome="0.8"
 		maximumMedianSequenceLengthBetweenLinkedEnds="1000"
 		lastzMemory="littleMemory"
-                removeRecoverableChains="1"
+                removeRecoverableChains="unequalNumberOfIngroupCopies"
 	>
 		<!-- The following are parametrised to produce the same results as the default settings, 
 		within a margin of 0.2% sensitivity, should be very fast for close genomes, these were tuned using the blast/blastParametersScript.py
@@ -104,7 +104,7 @@
 		minimumIngroupDegree="0"
 		minimumOutgroupDegree="0"
 		alignAmbiguityCharacters="1"
-		largeEndSize="5000"
+		largeEndSize="50"
 		veryLargeEndSize="2000000"
 		maximumNumberOfSequencesBeforeSwitchingToFast="10"
 		pruneOutStubAlignments="1"

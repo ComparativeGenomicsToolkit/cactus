@@ -321,6 +321,24 @@ static stList *getRecoverableChains(stCactusNode *startCactusNode, stSet *deadEn
     return ret;
 }
 
+static int64_t numColumns(stList *blocks) {
+    int64_t total = 0;
+    for (int64_t i = 0; i < stList_length(blocks); i++) {
+        stPinchBlock *block = stList_get(blocks, i);
+        total += stPinchBlock_getLength(block);
+    }
+    return total;
+}
+
+static int64_t totalAlignedBases(stList *blocks) {
+    int64_t total = 0;
+    for (int64_t i = 0; i < stList_length(blocks); i++) {
+        stPinchBlock *block = stList_get(blocks, i);
+        total += stPinchBlock_getLength(block) * stPinchBlock_getDegree(block);
+    }
+    return total;
+}
+
 void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds, bool (*chainFilter)(stCactusEdgeEnd *)) {
     debugFlower = flower;
     stCactusNode *startCactusNode;
@@ -341,19 +359,9 @@ void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bo
         addChainBlocksToBlocksToDelete(chainEnd, blocksToDelete);
     }
     printf("Destroying %" PRIi64 " recoverable blocks\n", stList_length(blocksToDelete));
+    printf("The blocks covered %" PRIi64 " columns for a total of %" PRIi64 " aligned bases\n", numColumns(blocksToDelete), totalAlignedBases(blocksToDelete));
     stList_destruct(recoverableChains);
     stList_destruct(blocksToDelete);
-
-    // FIXME: remove
-    stCactusGraphNodeIt *it = stCactusGraphNodeIterator_construct(cactusGraph);
-    stCactusNode *node;
-    int64_t numCactusNodes = 0, numChains = 0;
-    while ((node = stCactusGraphNodeIterator_getNext(it)) != NULL) {
-        numCactusNodes++;
-        numChains += stCactusNode_getChainNumber(node);
-    }
-    printf("There were actually %" PRIi64 " nodes and %" PRIi64 " chains in the graph\n", numCactusNodes, numChains);
-    stCactusGraphNodeIterator_destruct(it);
 
     stCactusGraph_destruct(cactusGraph);
     stSet_destruct(deadEndComponentSet);
