@@ -567,6 +567,10 @@ int main(int argc, char *argv[]) {
                 stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0, 0, INT64_MAX);
             }
 
+            if (removeRecoverableChains) {
+                stCaf_meltRecoverableChains(flower, threadSet, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds, recoverableChainsFilter);
+            }
+
             //Sort out case when we allow blocks of degree 1
             if (minimumDegree < 2) {
                 st_logDebug("Creating degree 1 blocks\n");
@@ -575,10 +579,6 @@ int main(int argc, char *argv[]) {
             } else if (maximumAdjacencyComponentSizeRatio < INT64_MAX) { //Deal with giant components
                 st_logDebug("Breaking up components greedily\n");
                 stCaf_breakupComponentsGreedily(threadSet, maximumAdjacencyComponentSizeRatio);
-            }
-
-            if (removeRecoverableChains) {
-                stCaf_meltRecoverableChains(flower, threadSet, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds, recoverableChainsFilter);
             }
 
             //Finish up

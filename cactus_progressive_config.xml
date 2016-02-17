@@ -104,7 +104,7 @@
 		minimumIngroupDegree="0"
 		minimumOutgroupDegree="0"
 		alignAmbiguityCharacters="1"
-		largeEndSize="50"
+		largeEndSize="5000"
 		veryLargeEndSize="2000000"
 		maximumNumberOfSequencesBeforeSwitchingToFast="10"
 		pruneOutStubAlignments="1"

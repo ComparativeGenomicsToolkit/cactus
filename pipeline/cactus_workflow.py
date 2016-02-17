@@ -592,7 +592,7 @@ class CactusBarWrapper(CactusRecursionTarget):
             self.logToMaster(message)       
         
 class CactusBarWrapperLarge(CactusRecursionTarget):
-    """Breaks up the bar into a series of smaller bars, then 
+    """Breaks up the bar into a series of smaller bars, then runs them.
     """
     def run(self):
         logger.info("Starting the cactus bar preprocessor target to breakup the bar alignment")
