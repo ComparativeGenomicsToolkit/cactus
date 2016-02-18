@@ -124,4 +124,16 @@ void stCaf_finish(Flower *flower, stPinchThreadSet *threadSet, int64_t chainLeng
         int64_t longChain, int64_t minLengthForChromosome,
         double proportionOfUnalignedBasesForNewChromosome);
 
+
+void stCaf_annealPreventingSmallChains(Flower *flower, stPinchThreadSet *threadSet,
+                                       const char *alignmentsFile,
+                                       stList *alignmentsList,
+                                       int64_t alignmentTrim,
+                                       bool (*filterFn)(stPinchSegment *, stPinchSegment *),
+                                       stList *minimumChainLengths,
+                                       int64_t numAlignmentsPerBatch,
+                                       double maxRedundantFraction);
+
+void printThreadSetStatistics(stPinchThreadSet *threadSet, Flower *flower, FILE *f);
+
 #endif /* STCAF_H_ */

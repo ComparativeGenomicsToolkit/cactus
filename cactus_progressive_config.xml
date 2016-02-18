@@ -44,7 +44,7 @@
 	<!-- The caf tag contains parameters for the caf algorithm. -->
 	<!-- Increase the chunkSize in the caf tag to reduce the number of blast jobs approximately quadratically -->
 	<caf 
-		chunkSize="25000000" 
+		chunkSize="250000" 
 		realign="1"
 		realignArguments="--gapGamma 0.9 --diagonalExpansion 4 --splitMatrixBiggerThanThis 10 --constraintDiagonalTrim 0 --alignAmbiguityCharacters --splitIndelsLongerThanThis 99"
 		compressFiles="1" 
@@ -68,6 +68,8 @@
 		proportionOfUnalignedBasesForNewChromosome="0.8"
 		maximumMedianSequenceLengthBetweenLinkedEnds="1000"
 		lastzMemory="littleMemory"
+                maxRedundantFraction="1.0"
+                numAlignmentsPerBatch="1000000000"
 	>
 		<!-- The following are parametrised to produce the same results as the default settings, 
 		within a margin of 0.2% sensitivity, should be very fast for close genomes, these were tuned using the blast/blastParametersScript.py
@@ -81,8 +83,8 @@
 		 	five="--step=2 --ambiguous=iupac,100,100 --ydrop=3000"
 		 	default="--step=1 --ambiguous=iupac,100,100 --ydrop=3000"
 		 />
-		<CactusCafRecursion maxFlowerGroupSize="100000000"/>
-		<CactusCafWrapper minFlowerSize="1" maxFlowerGroupSize="25000000"/>
+		<CactusCafRecursion maxFlowerGroupSize="100000"/>
+		<CactusCafWrapper minFlowerSize="1" maxFlowerGroupSize="250000"/>
 		<CactusCafWrapperLarge2 overlargeMemory="bigMemory"/>
 	</caf>
 	<!-- The caf tag contains parameters for the bar algorithm. -->

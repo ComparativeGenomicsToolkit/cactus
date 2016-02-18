@@ -230,6 +230,8 @@ int main(int argc, char *argv[]) {
     int64_t maximumMedianSequenceLengthBetweenLinkedEnds = INT64_MAX;
     bool realign = 0;
     char *realignArguments = "";
+    int64_t numAlignmentsPerBatch = 1;
+    double maxRedundantFraction = 1.0;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -249,6 +251,8 @@ int main(int argc, char *argv[]) {
                         required_argument, 0, 'y' }, { "proportionOfUnalignedBasesForNewChromosome", required_argument, 0, 'z' },
                         { "maximumMedianSequenceLengthBetweenLinkedEnds", required_argument, 0, 'A' },
                         { "realign", no_argument, 0, 'B' }, { "realignArguments", required_argument, 0, 'C' },
+                                                { "numAlignmentsPerBatch", required_argument, 0, 'D' },
+                                                { "maxRedundantFraction", required_argument, 0, 'E' },
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
@@ -339,6 +343,18 @@ int main(int argc, char *argv[]) {
                 break;
             case 'C':
                 realignArguments = stString_copy(optarg);
+                break;
+            case 'D':
+                k = sscanf(optarg, "%" PRIi64, &numAlignmentsPerBatch);
+                if (k != 1) {
+                    st_errAbort("unrecognized numAlignmentsPerBatch");
+                }
+                break;
+            case 'E':
+                k = sscanf(optarg, "%lf", &maxRedundantFraction);
+                if (k != 1) {
+                    st_errAbort("unrecognized maxRedundantFraction");
+                }
                 break;
             default:
                 usage();
@@ -482,10 +498,20 @@ int main(int argc, char *argv[]) {
 
                 //Do the annealing
                 if (annealingRound == 0) {
-                    stCaf_anneal(threadSet, pinchIterator, filterFn);
+                    stList *minimumChainLengthList = stList_construct3(0, (void (*)(void *)) stIntTuple_destruct);
+                    for (int64_t meltingRound = 0; meltingRound < meltingRoundsLength; meltingRound++) {
+                        stList_append(minimumChainLengthList, stIntTuple_construct1(meltingRounds[meltingRound]));
+                    }
+                    stCaf_annealPreventingSmallChains(flower, threadSet, alignmentsFile, alignmentsList, alignmentTrim,
+                                                      filterFn, minimumChainLengthList, numAlignmentsPerBatch,
+                                                      maxRedundantFraction);
+                    stList_destruct(minimumChainLengthList);
                 } else {
                     stCaf_annealBetweenAdjacencyComponents(threadSet, pinchIterator, filterFn);
                 }
+
+                printf("Sequence graph statistics after annealing:\n");
+                printThreadSetStatistics(threadSet, flower, stdout);
 
                 //Do the melting rounds
                 for (int64_t meltingRound = 0; meltingRound < meltingRoundsLength; meltingRound++) {
@@ -497,8 +523,12 @@ int main(int argc, char *argv[]) {
                     stCaf_melt(flower, threadSet, NULL, 0, minimumChainLengthForMeltingRound, 0, INT64_MAX);
                 } st_logDebug("Last melting round of cycle with a minimum chain length of %" PRIi64 " \n", minimumChainLength);
                 stCaf_melt(flower, threadSet, NULL, 0, minimumChainLength, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds);
+                printf("Sequence graph statistics after final melting round:\n");
+                printThreadSetStatistics(threadSet, flower, stdout);
                 //This does the filtering of blocks that do not have the required species/tree-coverage/degree.
                 stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0, 0, INT64_MAX);
+                printf("Sequence graph statistics after filtering:\n");
+                printThreadSetStatistics(threadSet, flower, stdout);
             }
 
             //Sort out case when we allow blocks of degree 1
