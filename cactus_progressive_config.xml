@@ -94,7 +94,7 @@
 		spanningTrees="5" 
 		gapGamma="0.2" 
 		useBanding="1" 
-		bandingLimit="100000" 
+		bandingLimit="1000000" 
 		splitMatrixBiggerThanThis="3000" 
         anchorMatrixBiggerThanThis="500"
         repeatMaskMatrixBiggerThanThis="500"
