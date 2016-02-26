@@ -281,7 +281,7 @@ int main(int argc, char *argv[]) {
     bool realign = 0;
     char *realignArguments = "";
     bool removeRecoverableChains = false;
-    bool (*recoverableChainsFilter)(stCactusEdgeEnd *);
+    bool (*recoverableChainsFilter)(stCactusEdgeEnd *) = NULL;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -568,7 +568,7 @@ int main(int argc, char *argv[]) {
             }
 
             if (removeRecoverableChains) {
-                stCaf_meltRecoverableChains(flower, threadSet, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds, recoverableChainsFilter);
+                stCaf_meltRecoverableChains(flower, threadSet, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds, 100000, recoverableChainsFilter);
             }
 
             //Sort out case when we allow blocks of degree 1

@@ -339,7 +339,124 @@ static int64_t totalAlignedBases(stList *blocks) {
     return total;
 }
 
-void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds, bool (*chainFilter)(stCactusEdgeEnd *)) {
+// Allows for merges of sets contained in hashes without having to update every key.
+typedef struct potentiallyMergedSet {
+    // One of these must be NULL.
+    struct potentiallyMergedSet *mergedInto;
+    stSet *set;
+} potentiallyMergedSet;
+
+// Not recursive.
+static void potentiallyMergedSet_destruct(potentiallyMergedSet *pmset) {
+    if (pmset->set != NULL) {
+        stSet_destruct(pmset->set);
+    }
+    free(pmset);
+}
+
+static potentiallyMergedSet *potentiallyMergedSet_construct(stSet *set) {
+    potentiallyMergedSet *pmset = st_calloc(1, sizeof(potentiallyMergedSet));
+    pmset->set = set;
+    return pmset;
+}
+
+static void potentiallyMergedSet_redirect(potentiallyMergedSet *src, potentiallyMergedSet *dest) {
+    while (src->set == NULL) {
+        src = src->mergedInto;
+    }
+    src->set = NULL;
+    src->mergedInto = dest;
+}
+
+static stSet *potentiallyMergedSet_getSet(potentiallyMergedSet *pmset) {
+    while (pmset->set == NULL) {
+        pmset = pmset->mergedInto;
+    }
+    return pmset->set;
+}
+
+static void mergeSet(stSet *src, stSet *dest) {
+    stSetIterator *it = stSet_getIterator(src);
+    void *item;
+    while ((item = stSet_getNext(it)) != NULL) {
+        stSet_insert(dest, item);
+    }
+    stSet_destructIterator(it);
+}
+
+static stSet *hashValuesAsSet(stHash *hash) {
+    stSet *values = stSet_construct();
+    stHashIterator *it = stHash_getIterator(hash);
+    void *item;
+    while ((item = stHash_getNext(it)) != NULL) {
+        stSet_insert(values, stHash_search(hash, item));
+    }
+    stHash_destructIterator(it);
+
+    return values;
+}
+
+/*
+ * Filter the list of recoverable chains, removing certain "anchor
+ * chains" to ensure that no end alignment is created that is longer
+ * than the maximal length.
+ */
+static stList *removeNecessaryAnchorsFromRecoverableChains(stList *recoverableChains,
+                                                           int64_t maximumLengthOfEndAlignment) {
+    // A mapping from pinch end to the set of all the recoverable
+    // chains which, when deleted, will end up in the same end
+    // alignment.
+    stHash *chainedRecoverableChainsSets = stHash_construct2(NULL, (void (*)(void *)) potentiallyMergedSet_destruct);
+    for (int64_t i = 0; i < stList_length(recoverableChains); i++) {
+        // One of the two ends of the recoverable chain.
+        stCactusEdgeEnd *chainEnd = stList_get(recoverableChains, i);
+        // The corresponding end in the pinch graph.
+        stPinchEnd *end1 = stCactusEdgeEnd_getObject(chainEnd);
+        // The corresponding pinch graph end to the other end of the chain.
+        stPinchEnd *end2 = stCactusEdgeEnd_getObject(stCactusEdgeEnd_getLink(chainEnd));
+        assert(stHash_search(chainedRecoverableChainsSets, end1) == NULL);
+        assert(stHash_search(chainedRecoverableChainsSets, end2) == NULL);
+        stSet *connectedEnds1 = stPinchEnd_getConnectedPinchEnds(end1);
+        stSet *connectedEnds2 = stPinchEnd_getConnectedPinchEnds(end2);
+        stSet *connectedEnds = stSet_getUnion(connectedEnds1, connectedEnds2);
+        stSetIterator *it = stSet_getIterator(connectedEnds);
+        stPinchEnd *end;
+        stSet *finalSet = stSet_construct();
+        potentiallyMergedSet *finalPmset = potentiallyMergedSet_construct(finalSet);
+        while ((end = stSet_getNext(it)) != NULL) {
+            potentiallyMergedSet *pmset = stHash_search(chainedRecoverableChainsSets, end);
+            if (pmset != NULL && potentiallyMergedSet_getSet(pmset) != finalSet) {
+                mergeSet(potentiallyMergedSet_getSet(pmset), finalSet);
+                stSet_destruct(potentiallyMergedSet_getSet(pmset));
+                potentiallyMergedSet_redirect(pmset, finalPmset);
+            }
+        }
+
+        stSet_insert(finalSet, end1);
+        stSet_insert(finalSet, end2);
+        stHash_insert(chainedRecoverableChainsSets, end1, finalPmset);
+        stHash_insert(chainedRecoverableChainsSets, end2, finalPmset);
+
+        stSet_destruct(connectedEnds1);
+        stSet_destruct(connectedEnds2);
+        stSet_destruct(connectedEnds);
+        stSet_destructIterator(it);
+    }
+
+    stSet *sets = hashValuesAsSet(chainedRecoverableChainsSets);
+    stSetIterator *it = stSet_getIterator(sets);
+    potentiallyMergedSet *pmset;
+    while ((pmset = stSet_getNext(it)) != NULL) {
+        printf("Found a set with size: %" PRIi64 "\n", stSet_size(potentiallyMergedSet_getSet(pmset)));
+    }
+    stSet_destructIterator(it);
+    stSet_destruct(sets);
+
+    stHash_destruct(chainedRecoverableChainsSets);
+    return recoverableChains;
+} 
+
+void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds, int64_t maximumLengthOfEndAlignment, bool (*chainFilter)(stCactusEdgeEnd *)) {
     debugFlower = flower;
     stCactusNode *startCactusNode;
     stList *deadEndComponent;
@@ -353,6 +470,7 @@ void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bo
     }
 
     stList *recoverableChains = getRecoverableChains(startCactusNode, deadEndComponentSet, chainFilter);
+    recoverableChains = removeNecessaryAnchorsFromRecoverableChains(recoverableChains, maximumLengthOfEndAlignment);
     stList *blocksToDelete = stList_construct3(0, (void(*)(void *)) stPinchBlock_destruct);
     for (int64_t i = 0; i < stList_length(recoverableChains); i++) {
         stCactusEdgeEnd *chainEnd = stList_get(recoverableChains, i);
