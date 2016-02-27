@@ -339,63 +339,6 @@ static int64_t totalAlignedBases(stList *blocks) {
     return total;
 }
 
-// Allows for merges of sets contained in hashes without having to update every key.
-typedef struct potentiallyMergedSet {
-    // One of these must be NULL.
-    struct potentiallyMergedSet *mergedInto;
-    stSet *set;
-} potentiallyMergedSet;
-
-// Not recursive.
-static void potentiallyMergedSet_destruct(potentiallyMergedSet *pmset) {
-    if (pmset->set != NULL) {
-        stSet_destruct(pmset->set);
-    }
-    free(pmset);
-}
-
-static potentiallyMergedSet *potentiallyMergedSet_construct(stSet *set) {
-    potentiallyMergedSet *pmset = st_calloc(1, sizeof(potentiallyMergedSet));
-    pmset->set = set;
-    return pmset;
-}
-
-static void potentiallyMergedSet_redirect(potentiallyMergedSet *src, potentiallyMergedSet *dest) {
-    while (src->set == NULL) {
-        src = src->mergedInto;
-    }
-    src->set = NULL;
-    src->mergedInto = dest;
-}
-
-static stSet *potentiallyMergedSet_getSet(potentiallyMergedSet *pmset) {
-    while (pmset->set == NULL) {
-        pmset = pmset->mergedInto;
-    }
-    return pmset->set;
-}
-
-static void mergeSet(stSet *src, stSet *dest) {
-    stSetIterator *it = stSet_getIterator(src);
-    void *item;
-    while ((item = stSet_getNext(it)) != NULL) {
-        stSet_insert(dest, item);
-    }
-    stSet_destructIterator(it);
-}
-
-static stSet *hashValuesAsSet(stHash *hash) {
-    stSet *values = stSet_construct();
-    stHashIterator *it = stHash_getIterator(hash);
-    void *item;
-    while ((item = stHash_getNext(it)) != NULL) {
-        stSet_insert(values, stHash_search(hash, item));
-    }
-    stHash_destructIterator(it);
-
-    return values;
-}
-
 /*
  * Filter the list of recoverable chains, removing certain "anchor
  * chains" to ensure that no end alignment is created that is longer
@@ -403,10 +346,8 @@ static stSet *hashValuesAsSet(stHash *hash) {
  */
 static stList *removeNecessaryAnchorsFromRecoverableChains(stList *recoverableChains,
                                                            int64_t maximumLengthOfEndAlignment) {
-    // A mapping from pinch end to the set of all the recoverable
-    // chains which, when deleted, will end up in the same end
-    // alignment.
-    stHash *chainedRecoverableChainsSets = stHash_construct2(NULL, (void (*)(void *)) potentiallyMergedSet_destruct);
+    stHash *endToRecoverableChainGroup = stHash_construct2(NULL, (void (*)(void *)) stSet_destruct);
+
     for (int64_t i = 0; i < stList_length(recoverableChains); i++) {
         // One of the two ends of the recoverable chain.
         stCactusEdgeEnd *chainEnd = stList_get(recoverableChains, i);
@@ -421,21 +362,33 @@ static stList *removeNecessaryAnchorsFromRecoverableChains(stList *recoverableCh
         stSet *connectedEnds = stSet_getUnion(connectedEnds1, connectedEnds2);
         stSetIterator *it = stSet_getIterator(connectedEnds);
         stPinchEnd *end;
-        stSet *finalSet = stSet_construct();
-        potentiallyMergedSet *finalPmset = potentiallyMergedSet_construct(finalSet);
+        stSet *currentGroup = NULL;
         while ((end = stSet_getNext(it)) != NULL) {
-            potentiallyMergedSet *pmset = stHash_search(chainedRecoverableChainsSets, end);
-            if (pmset != NULL && potentiallyMergedSet_getSet(pmset) != finalSet) {
-                mergeSet(potentiallyMergedSet_getSet(pmset), finalSet);
-                stSet_destruct(potentiallyMergedSet_getSet(pmset));
-                potentiallyMergedSet_redirect(pmset, finalPmset);
+            stSet *recoverableChainGroup = stHash_search(endToRecoverableChainGroup, end);
+            if (recoverableChainGroup != NULL) {
+                if (currentGroup == NULL) {
+                    currentGroup = recoverableChainGroup;
+                } else {
+                    // Merge and re-map all ends in "recoverableChainGroup" to "currentGroup".
+                    stSetIterator *it2 = stSet_getIterator(recoverableChainGroup);
+                    while ((end = stSet_getNext(it2)) != NULL) {
+                        stSet_insert(currentGroup, end);
+                        stHash_insert(endToRecoverableChainGroup, end, currentGroup);
+                    }
+                    stSet_destructIterator(it2);
+                    stSet_destruct(recoverableChainGroup);
+                }
             }
         }
 
-        stSet_insert(finalSet, end1);
-        stSet_insert(finalSet, end2);
-        stHash_insert(chainedRecoverableChainsSets, end1, finalPmset);
-        stHash_insert(chainedRecoverableChainsSets, end2, finalPmset);
+        if (currentGroup == NULL) {
+            currentGroup = stSet_construct();
+        }
+
+        stSet_insert(currentGroup, end1);
+        stSet_insert(currentGroup, end2);
+        stHash_insert(endToRecoverableChainGroup, end1, currentGroup);
+        stHash_insert(endToRecoverableChainGroup, end2, currentGroup);
 
         stSet_destruct(connectedEnds1);
         stSet_destruct(connectedEnds2);
@@ -443,16 +396,14 @@ static stList *removeNecessaryAnchorsFromRecoverableChains(stList *recoverableCh
         stSet_destructIterator(it);
     }
 
-    stSet *sets = hashValuesAsSet(chainedRecoverableChainsSets);
-    stSetIterator *it = stSet_getIterator(sets);
-    potentiallyMergedSet *pmset;
-    while ((pmset = stSet_getNext(it)) != NULL) {
-        printf("Found a set with size: %" PRIi64 "\n", stSet_size(potentiallyMergedSet_getSet(pmset)));
+    stHashIterator *it = stHash_getIterator(endToRecoverableChainGroup);
+    stPinchEnd *end;
+    while ((end = stHash_getNext(it)) != NULL) {
+        stSet *set = stHash_search(endToRecoverableChainGroup, end);
+        printf("Found a set with size: %" PRIi64 "\n", stSet_size(set));
     }
-    stSet_destructIterator(it);
-    stSet_destruct(sets);
 
-    stHash_destruct(chainedRecoverableChainsSets);
+    stHash_destruct(endToRecoverableChainGroup);
     return recoverableChains;
 } 
 
