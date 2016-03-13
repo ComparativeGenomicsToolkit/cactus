@@ -39,14 +39,23 @@ class ChildWithKtServer(Job):
     def run(self, fileStore):
         from cactus.pipeline.cactus_workflow import CactusPhasesJob
         from cactus.pipeline.cactus_workflow import CactusRecursionJob
-        dbConfString = self.addService(KtServerService(self.rootJob, self.newChild, self.isSecondary))
+
+        exp = ExperimentWrapper(self.newChild.cactusWorkflowArguments.experimentNode)
+        if self.isSecondary == False:
+            exp.setDbDir(os.path.join(fileStore.getLocalTempDir(), "cactusDB/"))
+        else:
+            exp.setDbDir(os.path.join(fileStore.getLocalTempDir(), "tmpDB/"))
+        os.mkdir(exp.getDbDir())
+            
+        dbPort = self.addService(KtServerService(self.rootJob, self.newChild, self.isSecondary))
+        exp.setDbPort(dbPort)
 
         #Tell the child job what port and hostname to use for connecting
         #to the database.
         if isinstance(self.newChild, CactusPhasesJob):
-            self.newChild.cactusWorkflowArguments.cactusDiskDatabaseString = dbConfString
+            self.newChild.cactusWorkflowArguments.cactusDiskDatabaseString = exp.getConfString()
         elif isinstance(self.newChild, CactusRecursionJob):
-            self.newChild.phaseNode.attrib["secondaryDatabaseString"] = dbConfString
+            self.newChild.phaseNode.attrib["secondaryDatabaseString"] = exp.getConfString()
         self.addChild(self.newChild)
 
 class KtServerService(Job.Service):
@@ -104,7 +113,7 @@ class KtServerService(Job.Service):
             experiment.setSecondaryDBElem(self.dbElem)
             experiment.writeXML(etPath)            
         blockUntilKtserverIsRunnning(self.dbElem, self.killSwitchPath, self.blockTimeout, self.blockTimestep)
-        return self.dbElem.getConfString()
+        return self.dbElem.getDbPort()
         
 
     def stop(self):
