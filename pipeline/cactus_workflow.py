@@ -168,7 +168,7 @@ class CactusPhasesJob(CactusJob):
                     self.constantsNode, "defaultMemory", int, default=sys.maxint))
             cpu = cw.getKtserverCpu(default=getOptionalAttrib(
                     self.constantsNode, "defaultCpu", int, default=sys.maxint))
-            self.addChild(ChildWithKtServer(self, newChild, isSecondary = True))
+            self.addChild(ChildWithKtServer(self, newChild, isSecondary = True, memory = memory, cores = cpu))
         else:
             self.addChild(newChild)
     
@@ -448,9 +448,9 @@ class CactusSetupPhase(CactusPhasesJob):
             logger.info("Created ktserver pattern job cactus_setup")
             memory = cw.getKtserverMemory(default=getOptionalAttrib(
                     self.constantsNode, "defaultMemory", int, default=sys.maxint))
-            cpu = cw.getKtserverCpu(default=getOptionalAttrib(
+            cores = cw.getKtserverCpu(default=getOptionalAttrib(
                     self.constantsNode, "defaultCpu", int, default=sys.maxint))
-            self.addChild(ChildWithKtServer(self, setupJob, isSecondary = False))
+            self.addChild(ChildWithKtServer(self, setupJob, isSecondary = False, memory=memory, cores=cores))
         else:
             logger.info("Created follow-on job cactus_setup")
             self.addFollowOn(setupJob)   

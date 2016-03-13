@@ -31,8 +31,8 @@ class ChildWithKtServer(Job):
     CactusRecursionJob). The ktserver will be available for the child
     job and all of its successors, but will be terminated before the follow-on
     jobs of rootJob are run."""
-    def __init__(self, rootJob, newChild, isSecondary):
-        Job.__init__(self)
+    def __init__(self, rootJob, newChild, isSecondary, memory=None, cores=None):
+        Job.__init__(self, memory=memory, cores=cores)
         self.rootJob = rootJob
         self.newChild = newChild
         self.isSecondary = isSecondary
@@ -40,7 +40,7 @@ class ChildWithKtServer(Job):
         from cactus.pipeline.cactus_workflow import CactusPhasesJob
         from cactus.pipeline.cactus_workflow import CactusRecursionJob
 
-        dbConfString = self.addService(KtServerService(self.rootJob, self.newChild, self.isSecondary))
+        dbConfString = self.addService(KtServerService(self.rootJob, self.newChild, self.isSecondary, memory=self.memory, cores=self.cores))
 
         #Tell the child job what port and hostname to use for connecting
         #to the database.
@@ -52,8 +52,8 @@ class ChildWithKtServer(Job):
 
 class KtServerService(Job.Service):
 
-    def __init__(self, rootJob, newChild, isSecondary):
-        Job.Service.__init__(self)
+    def __init__(self, rootJob, newChild, isSecondary, memory=None, cores=None):
+        Job.Service.__init__(self, memory=memory, cores=cores)
         self.rootJob = rootJob
         self.newChild = newChild
         self.isSecondary = isSecondary
