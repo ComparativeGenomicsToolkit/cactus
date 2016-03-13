@@ -79,6 +79,30 @@ from cactus.pipeline.ktserverToil import ChildWithKtServer
 ############################################################
 ############################################################
 
+
+#
+#
+#
+#   cactusTrimmingBlastPhase --> cactusTrimmingBlastPhase2 --> cactusSetupPhase --------> cactusCafPhase ------|
+#                                                                    |                          |              |
+#                                                                    |                          |              |
+#                                                              ktServerJob                 extendFlowers       |
+#                                                                   /\                          |              |
+#                                                                  /  \                    cactusCafRecursion  |
+#                                                                 /    \                        |              |
+#                                                           ktServer  cactusSetupPhase2    cactusCafWrapper    |
+#                                                                                                              |
+#                                                                                                              |
+# -------------------------------------------------------------------------------------------------------------|
+# |---> ...(more caf phases) -------> cactusBarPhase -------> cactusNormalPhase
+#                                           |
+#                                      extendFlowers
+#                                           |
+#                                     cactusBarRecursion
+#                                           |
+#                                     cactusBarWrapper
+#
+
 def extractNode(node):
     """Make an XML node free of its parent subtree
     """
