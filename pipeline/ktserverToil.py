@@ -31,16 +31,18 @@ class ChildWithKtServer(Job):
     CactusRecursionJob). The ktserver will be available for the child
     job and all of its successors, but will be terminated before the follow-on
     jobs of rootJob are run."""
-    def __init__(self, rootJob, newChild, isSecondary, memory=None, cores=None):
+    def __init__(self, newChild, isSecondary, memory=None, cores=None):
         Job.__init__(self, memory=memory, cores=cores)
-        self.rootJob = rootJob
         self.newChild = newChild
         self.isSecondary = isSecondary
     def run(self, fileStore):
+        logger.info("Creating Ktserver root job")
         from cactus.pipeline.cactus_workflow import CactusPhasesJob
         from cactus.pipeline.cactus_workflow import CactusRecursionJob
 
-        dbConfString = self.addService(KtServerService(self.rootJob, self.newChild, self.isSecondary, memory=self.memory, cores=self.cores))
+        logger.info("Adding ktserver service")
+        dbConfString = self.addService(KtServerService(self.newChild, self.isSecondary, memory=self.memory, cores=self.cores))
+        logger.info("Added ktserver service")
 
         #Tell the child job what port and hostname to use for connecting
         #to the database.
@@ -48,14 +50,12 @@ class ChildWithKtServer(Job):
             self.newChild.cactusWorkflowArguments.cactusDiskDatabaseString = dbConfString
         elif isinstance(self.newChild, CactusRecursionJob):
             self.newChild.phaseNode.attrib["secondaryDatabaseString"] = dbConfString
-        self.addChild(self.newChild)
+        return self.addChild(self.newChild).rv()
 
 class KtServerService(Job.Service):
-
-    def __init__(self, rootJob, newChild, isSecondary, memory=None, cores=None):
-        Job.Service.__init__(self, memory=memory, cores=cores)
-        self.rootJob = rootJob
-        self.newChild = newChild
+    def __init__(self, dbElem, isSecondary, memory=None, cores=None, disk = None):
+        Job.Service.__init__(self, memory=memory, cores=cores, disk = disk)
+        self.dbElem = dbElem
         self.isSecondary = isSecondary
         self.blockTimestep = 10
         self.blockTimeout = sys.maxint
@@ -65,21 +65,21 @@ class KtServerService(Job.Service):
 
 
     def start(self, fileStore):
-        from cactus.pipeline.cactus_workflow import CactusPhasesJob
-        from cactus.pipeline.cactus_workflow import CactusRecursionJob
+        #from cactus.pipeline.cactus_workflow import CactusPhasesJob
+        #from cactus.pipeline.cactus_workflow import CactusRecursionJob
 
         if self.isSecondary == False:
-            assert isinstance(self.newChild, CactusPhasesJob)
-            wfArgs = self.newChild.cactusWorkflowArguments
-            self.dbElem = ExperimentWrapper(wfArgs.experimentNode)
-            experiment = self.dbElem
+            #assert isinstance(self.newChild, CactusPhasesJob)
+            #wfArgs = self.newChild.cactusWorkflowArguments
+            #self.dbElem = ExperimentWrapper(wfArgs.experimentNode)
+            #experiment = self.dbElem
             self.dbElem.setDbDir(os.path.join(fileStore.getLocalTempDir(), "cactusDB/"))
         else:
-            assert isinstance(self.newChild, CactusRecursionJob)
-            dbString = self.newChild.getOptionalPhaseAttrib("secondaryDatabaseString")
-            assert dbString is not None
-            confXML = ET.fromstring(dbString)
-            self.dbElem = DbElemWrapper(confXML)
+            #assert isinstance(self.newChild, CactusRecursionJob)
+            #dbString = self.newChild.getOptionalPhaseAttrib("secondaryDatabaseString")
+            ###assert dbString is not None
+            #confXML = ET.fromstring(dbString)
+            #self.dbElem = DbElemWrapper(confXML)
             self.dbElem.setDbDir(os.path.join(fileStore.getLocalTempDir(), "tempDB/"))
 
         if not os.path.exists(self.dbElem.getDbDir()):
@@ -91,21 +91,24 @@ class KtServerService(Job.Service):
         killSwitchFile.close()
 
 
-        self.process = runKtserver(self.dbElem, self.killSwitchPath)
+        self.process = runKtserver(self.dbElem, self.killSwitchPath, fileStore = fileStore)
         assert self.dbElem.getDbHost() != None
         
-        if self.isSecondary == False:
-            experiment.writeXML(wfArgs.experimentFile)
-            wfArgs.cactusDiskDatabaseString = self.dbElem.getConfString()
-        else:
-            self.newChild.phaseNode.attrib[
-                "secondaryDatabaseString"] = self.dbElem.getConfString()
-            # added on as a hack to get this into the experiment.xml
-            etPath = self.newChild.phaseNode.attrib[
-                "experimentPath"]
-            experiment = ExperimentWrapper(ET.parse(etPath).getroot())
-            experiment.setSecondaryDBElem(self.dbElem)
-            experiment.writeXML(etPath)            
+        #if self.isSecondary == False:
+        #    experiment.writeXML(wfArgs.experimentFile)
+        #    wfArgs.cactusDiskDatabaseString = self.dbElem.getConfString()
+        #else:
+        #    self.newChild.phaseNode.attrib[
+        #        "secondaryDatabaseString"] = self.dbElem.getConfString()
+        #    # added on as a hack to get this into the experiment.xml
+        #    etID = self.newChild.phaseNode.attrib[
+        #        "experimentID"]
+        #    etPath = fileStore.readGlobalFile(etID)
+        #    experiment = ExperimentWrapper(ET.parse(etPath).getroot())
+        #    experiment.setSecondaryDBElem(self.dbElem)
+        #    experiment.writeXML(etPath)
+        #    newETID = fileStore.writeGlobalFile(etPath)
+        #    self.newChild.phaseNode.attrib["experimentID"] = newETID
         blockUntilKtserverIsRunnning(self.dbElem, self.killSwitchPath, self.blockTimeout, self.blockTimestep)
         return self.dbElem.getConfString()
         

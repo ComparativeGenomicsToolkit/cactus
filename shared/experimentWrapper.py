@@ -191,13 +191,18 @@ class DbElemWrapper(object):
             system("rm -rf %s" % self.getDbDir())
 
 class ExperimentWrapper(DbElemWrapper):
-    def __init__(self, xmlRoot):
+    def __init__(self, xmlRoot, fileStore=None):
         self.diskElem = xmlRoot.find("cactus_disk")
         confElem = self.diskElem.find("st_kv_database_conf")
         super(ExperimentWrapper, self).__init__(confElem)
         self.xmlRoot = xmlRoot
+
+        if fileStore:
+            #Download the sequences from the fileStore
+            self.setSequences([fileStore.readGlobalFile(seqID) for seqID in self.getSequenceIDs()])
+            
         self.seqMap = self.buildSequenceMap()
-        
+
     @staticmethod
     def createExperimentWrapper(sequences, newickTreeString, outputDir,
                  outgroupEvents=None,
@@ -248,7 +253,7 @@ class ExperimentWrapper(DbElemWrapper):
         if outputSequenceDir != None:
             self.setOutputSequenceDir(outputSequenceDir)
         return self
-
+    
     def writeXML(self, path): #Replacement for writeExperimentFile
         xmlFile = open(path, "w")
         xmlString = ET.tostring(self.xmlRoot)
@@ -257,7 +262,7 @@ class ExperimentWrapper(DbElemWrapper):
         xmlString = minidom.parseString(xmlString).toprettyxml()
         xmlFile.write(xmlString)
         xmlFile.close()
-    
+
     def getConfig(self):
         return self.xmlRoot.attrib["config"]
     
@@ -268,9 +273,15 @@ class ExperimentWrapper(DbElemWrapper):
     def setSequences(self, sequences):
         self.xmlRoot.attrib["sequences"] = " ".join(sequences)
         self.seqMap = self.buildSequenceMap()
+        
+    def setSequenceIDs(self, sequenceIDs):
+        self.xmlRoot.attrib["sequenceIDs"] = " ".join(sequenceIDs)
     
     def getSequences(self):
         return self.xmlRoot.attrib["sequences"].split()
+
+    def getSequenceIDs(self):
+        return self.xmlRoot.attrib["sequenceIDs"].split()
     
     def getSequence(self, event):
         return self.seqMap[event]
@@ -282,11 +293,26 @@ class ExperimentWrapper(DbElemWrapper):
         return refElem.attrib["path"]
     
     def setReferencePath(self, path):
+        '''Set the path to the reconstructed ancestral genome
+        for this experiment. This function should only be called
+        on the master node, since that is the only node where paths are
+        permanent.'''
         refElem = self.xmlRoot.find("reference")
         if refElem is None:
             refElem = ET.Element("reference")
             self.xmlRoot.append(refElem)
         refElem.attrib["path"] = path
+
+    def setReferenceID(self, refID):
+        '''Set the file store ID of the reconstructed ancestral
+        genome for this experiment. This should be downloaded
+        onto the master node after the experiment has finished running.'''
+        refElem = self.xmlRoot.find("reference")
+        refElem.attrib["id"] = refID
+
+    def getReferenceID(self):
+        refElem = self.xmlRoot.find("reference")
+        return refElem.attrib["id"]
     
     def getReferenceNameFromConfig(self):
         configElem = ET.parse(self.getConfig()).getroot()
@@ -307,11 +333,24 @@ class ExperimentWrapper(DbElemWrapper):
         return halElem.attrib["halPath"]
     
     def setHALPath(self, path):
+        '''Set the location of the HAL file for this
+        experiment. Only call this function on the master
+        node.'''
         halElem = self.xmlRoot.find("hal")
         if halElem is None:
             halElem = ET.Element("hal")
             self.xmlRoot.append(halElem)
         halElem.attrib["halPath"] = path
+
+    def setHalID(self, halID):
+        '''Set the file store ID of the HAL file
+        resulting from this experiment.'''
+        halElem = self.xmlRoot.find("hal")
+        halElem.attrib["halID"] = halID
+
+    def getHalID(self):
+        halElem = self.xmlRoot.find("hal")
+        return halElem.attrib["halID"]
         
     def getHALFastaPath(self):
         halElem = self.xmlRoot.find("hal")
@@ -325,6 +364,14 @@ class ExperimentWrapper(DbElemWrapper):
             halElem = ET.Element("hal")
             self.xmlRoot.append(halElem)
         halElem.attrib["fastaPath"] = path
+
+    def setHalFastaID(self, halFastaID):
+        halElem = self.xmlRoot.find("hal")
+        halElem.attrib["fastaID"] = halFastaID
+
+    def getHalFastaID(self):
+        halElem = self.xmlRoot.find("hal")
+        return halElem.attrib["fastaID"]
         
     def setConstraintsFilePath(self, path):
         self.xmlRoot.attrib["constraints"] = path
