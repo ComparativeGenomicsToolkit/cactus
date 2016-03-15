@@ -142,10 +142,11 @@ static char *getEndStr(stPinchEnd *end) {
     stList *segmentNames = stList_construct3(0, free);
     stPinchSegment *segment;
     while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
+        bool orientation = stPinchEnd_getOrientation(end) ^ stPinchSegment_getBlockOrientation(segment);
         Cap *cap = flower_getCap(debugFlower, stPinchSegment_getName(segment));
         const char *header = sequence_getHeader(cap_getSequence(cap));
         const char *genome = event_getHeader(cap_getEvent(cap));
-        stList_append(segmentNames, stString_print("%s.%s|%" PRIi64 "-%" PRIi64, genome, header, stPinchSegment_getStart(segment), stPinchSegment_getStart(segment) + stPinchSegment_getLength(segment)));
+        stList_append(segmentNames, stString_print("%s.%s|%" PRIi64, genome, header, orientation ? stPinchSegment_getStart(segment) : stPinchSegment_getStart(segment) + stPinchSegment_getLength(segment)));
     }
     char *ret = stString_join2(",", segmentNames);
     stList_destruct(segmentNames);
@@ -346,64 +347,6 @@ static int64_t totalAlignedBases(stList *blocks) {
  */
 static stList *removeNecessaryAnchorsFromRecoverableChains(stList *recoverableChains,
                                                            int64_t maximumLengthOfEndAlignment) {
-    stHash *endToRecoverableChainGroup = stHash_construct2(NULL, (void (*)(void *)) stSet_destruct);
-
-    for (int64_t i = 0; i < stList_length(recoverableChains); i++) {
-        // One of the two ends of the recoverable chain.
-        stCactusEdgeEnd *chainEnd = stList_get(recoverableChains, i);
-        // The corresponding end in the pinch graph.
-        stPinchEnd *end1 = stCactusEdgeEnd_getObject(chainEnd);
-        // The corresponding pinch graph end to the other end of the chain.
-        stPinchEnd *end2 = stCactusEdgeEnd_getObject(stCactusEdgeEnd_getLink(chainEnd));
-        assert(stHash_search(chainedRecoverableChainsSets, end1) == NULL);
-        assert(stHash_search(chainedRecoverableChainsSets, end2) == NULL);
-        stSet *connectedEnds1 = stPinchEnd_getConnectedPinchEnds(end1);
-        stSet *connectedEnds2 = stPinchEnd_getConnectedPinchEnds(end2);
-        stSet *connectedEnds = stSet_getUnion(connectedEnds1, connectedEnds2);
-        stSetIterator *it = stSet_getIterator(connectedEnds);
-        stPinchEnd *end;
-        stSet *currentGroup = NULL;
-        while ((end = stSet_getNext(it)) != NULL) {
-            stSet *recoverableChainGroup = stHash_search(endToRecoverableChainGroup, end);
-            if (recoverableChainGroup != NULL) {
-                if (currentGroup == NULL) {
-                    currentGroup = recoverableChainGroup;
-                } else {
-                    // Merge and re-map all ends in "recoverableChainGroup" to "currentGroup".
-                    stSetIterator *it2 = stSet_getIterator(recoverableChainGroup);
-                    while ((end = stSet_getNext(it2)) != NULL) {
-                        stSet_insert(currentGroup, end);
-                        stHash_insert(endToRecoverableChainGroup, end, currentGroup);
-                    }
-                    stSet_destructIterator(it2);
-                    stSet_destruct(recoverableChainGroup);
-                }
-            }
-        }
-
-        if (currentGroup == NULL) {
-            currentGroup = stSet_construct();
-        }
-
-        stSet_insert(currentGroup, end1);
-        stSet_insert(currentGroup, end2);
-        stHash_insert(endToRecoverableChainGroup, end1, currentGroup);
-        stHash_insert(endToRecoverableChainGroup, end2, currentGroup);
-
-        stSet_destruct(connectedEnds1);
-        stSet_destruct(connectedEnds2);
-        stSet_destruct(connectedEnds);
-        stSet_destructIterator(it);
-    }
-
-    stHashIterator *it = stHash_getIterator(endToRecoverableChainGroup);
-    stPinchEnd *end;
-    while ((end = stHash_getNext(it)) != NULL) {
-        stSet *set = stHash_search(endToRecoverableChainGroup, end);
-        printf("Found a set with size: %" PRIi64 "\n", stSet_size(set));
-    }
-
-    stHash_destruct(endToRecoverableChainGroup);
     return recoverableChains;
 } 
 
