@@ -25,11 +25,13 @@ from cactus.shared.experimentWrapper import ExperimentWrapper
 from sonLib.nxnewick import NXNewick
 
 class MultiCactusProject:
-    def __init__(self):
+    def __init__(self, fileStore=None):
         self.mcTree = None
         self.expMap = dict()
         self.inputSequences = []
         self.outputSequenceDir = None
+        self.inputSequenceIDs = None
+        self.fileStore = fileStore
         
     def readXML(self, path):
         xmlRoot = ET.parse(path).getroot()
@@ -42,6 +44,10 @@ class MultiCactusProject:
             pathElem = cactusPathElem.attrib["experiment_path"]
             self.expMap[nameElem] = pathElem
         self.inputSequences = xmlRoot.attrib["inputSequences"].split()
+        if "inputSequenceIDs" in xmlRoot.attrib:
+            self.inputSequenceIDs = xmlRoot.attrib["inputSequenceIDs"].split()
+            self.inputSequences = [self.fileStore.readGlobalFile(seqID) for seqID in self.inputSequenceIDs]
+            
         self.outputSequenceDir = xmlRoot.attrib["outputSequenceDir"]
         self.mcTree.assignSubtreeRootNames(self.expMap)
         
@@ -64,18 +70,6 @@ class MultiCactusProject:
         xmlFile.write(xmlString)
         xmlFile.close()
     
-    # find the sequence associated with an event name
-    # by digging out the appropriate experiment file
-    # doesn't work for the root!!!!
-    def sequencePath(self, eventName):
-        parentEvent = self.mcTree.getSubtreeRoot(eventName)           
-        expPath = self.expMap[parentEvent]
-        expElem = ET.parse(expPath).getroot()
-        exp = ExperimentWrapper(expElem)
-        seq = exp.getSequence(eventName)
-        assert os.path.isfile(seq)
-        return seq
-
     def getInputSequenceMap(self):
         """Return a map between event names and sequence paths.  Paths
         are different from above in that they are not taken from experiment
@@ -91,9 +85,12 @@ class MultiCactusProject:
         assert i == len(self.inputSequences)
         return inputSequenceMap
         
-    def getInputSequencePaths(self):
+    def getInputSequenceIDs(self):
         """Get the set of input sequences for the multicactus tree
         """
+        return self.inputSequenceIDs
+    
+    def getInputSequencePaths(self):
         return self.inputSequences
     
     def getOutputSequenceDir(self):
@@ -103,6 +100,9 @@ class MultiCactusProject:
     
     def getConfigPath(self):
         return ExperimentWrapper(ET.parse(self.expMap.values()[0]).getroot()).getConfigPath()
+
+    def setInputSequenceIDs(self, inputSequenceIDs):
+        self.inputSequenceIDs = inputSequenceIDs
       
 if __name__ == '__main__':
     main()

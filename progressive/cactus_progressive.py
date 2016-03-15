@@ -33,6 +33,7 @@ from cactus.shared.common import cactusRootPath
 from cactus.shared.common import getOptionalAttrib
   
 from toil.job import Job
+from toil.common import setupToil
 
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
@@ -181,15 +182,16 @@ class FinishUp(Job):
         doneFile.close()
 
 class RunCactusPreprocessorThenProgressiveDown(Job):
-    def __init__(self, options, inputDir):
+    def __init__(self, options, projectID):
         Job.__init__(self)
         self.options = options
-        self.inputDir = inputDir
+        self.projectID = projectID
         
     def run(self, fileStore):
         #Load the multi-cactus project
-        project = MultiCactusProject()
-        project.readXML(self.inputDir)
+        project = MultiCactusProject(fileStore=fileStore)
+        projectPath = fileStore.readGlobalFile(self.projectID)
+        project.readXML(projectPath)
         #Create jobs to create the output sequences
         configNode = ET.parse(project.getConfigPath()).getroot()
         ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals() #This is necessary..
@@ -208,6 +210,25 @@ class RunCactusPreprocessorThenProgressiveDown(Job):
         self.options.globalLeafEventSet = set(leafNames)
         self.addFollowOn(ProgressiveDown(self.options, project, self.options.event, schedule))
 
+def makeURL(path):
+    return "file://" + path
+
+def startWorkflow(options):
+    project = MultiCactusProject()
+    project.readXML(options.project)
+    with setupToil(options) as (config, batchSystem, jobStore):
+        #import the sequences
+        seqIDs = []
+        for seq in project.getInputSequencePaths():
+            seqFileURL = makeURL(seq)
+            seqIDs.append(jobStore.importFile(seqFileURL))
+        project.setInputSequenceIDs(seqIDs)
+
+        #import the project file
+        projectFileURL = makeURL(options.project)
+        projectID = jobStore.importFile(projectFileURL)
+        
+        Job.Runner.start(RunCactusPreprocessorThenProgressiveDown(options, projectID), options, config, batchSystem, jobStore)
 def main():
     usage = "usage: prog [options] <multicactus project>"
     description = "Progressive version of cactus_workflow"
@@ -230,11 +251,13 @@ def main():
     options = parser.parse_args()
     setLoggingFromOptions(options)
 
+    startWorkflow(options)
+
     #if len(args) != 1:
     #    parser.print_help()
     #    raise RuntimeError("Unrecognised input arguments: %s" % " ".join(args))
 
-    Job.Runner.startToil(RunCactusPreprocessorThenProgressiveDown(options, options.project), options)
+
 
 if __name__ == '__main__':
     from cactus.progressive.cactus_progressive import *
