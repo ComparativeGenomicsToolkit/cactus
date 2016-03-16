@@ -274,7 +274,7 @@ static int64_t numRecoverableChains = 0;
 // For a given cactus node, recurse through all nodes below it and
 // find recoverable chains below them. Then find recoverable chains
 // below the current node given its parent chain.
-static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *parentChain, stSet *deadEndComponent, bool (*chainFilter)(stCactusEdgeEnd *), stList *recoverableChains) {
+static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *parentChain, stSet *deadEndComponent, bool (*recoverabilityFilter)(stCactusEdgeEnd *), stList *recoverableChains) {
     numNodesVisited++;
     stCactusNodeEdgeEndIt cactusEdgeEndIt = stCactusNode_getEdgeEndIt(cactusNode);
     stCactusEdgeEnd *cactusEdgeEnd;
@@ -289,7 +289,7 @@ static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *pa
             getRecoverableChains_R(stCactusEdgeEnd_getOtherNode(cactusEdgeEnd),
                                    stCactusEdgeEnd_getOtherEdgeEnd(cactusEdgeEnd),
                                    deadEndComponent,
-                                   chainFilter,
+                                   recoverabilityFilter,
                                    recoverableChains);
         }
     }
@@ -298,14 +298,14 @@ static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *pa
         // Visit the next node on this chain (unless it's where we started).
         stCactusEdgeEnd *nextEdgeEnd = stCactusEdgeEnd_getOtherEdgeEnd(stCactusEdgeEnd_getLink(parentChain));
         if (!stCactusEdgeEnd_isChainEnd(nextEdgeEnd)) {
-            getRecoverableChains_R(stCactusEdgeEnd_getNode(nextEdgeEnd), nextEdgeEnd, deadEndComponent, chainFilter, recoverableChains);
+            getRecoverableChains_R(stCactusEdgeEnd_getNode(nextEdgeEnd), nextEdgeEnd, deadEndComponent, recoverabilityFilter, recoverableChains);
         }
     }
 
     cactusEdgeEndIt = stCactusNode_getEdgeEndIt(cactusNode);
     while ((cactusEdgeEnd = stCactusNodeEdgeEndIt_getNext(&cactusEdgeEndIt)) != NULL) {
         if (stCactusEdgeEnd_isChainEnd(cactusEdgeEnd) && stCactusEdgeEnd_getLinkOrientation(cactusEdgeEnd)) {
-            if ((chainFilter == NULL || chainFilter(cactusEdgeEnd)) && chainIsRecoverable(cactusEdgeEnd, deadEndComponent)) {
+            if ((recoverabilityFilter == NULL || recoverabilityFilter(cactusEdgeEnd)) && chainIsRecoverable(cactusEdgeEnd, deadEndComponent)) {
                 numRecoverableChains++;
                 stList_append(recoverableChains, cactusEdgeEnd);
             }
@@ -314,9 +314,9 @@ static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *pa
     }
 }
 
-static stList *getRecoverableChains(stCactusNode *startCactusNode, stSet *deadEndComponent, bool (*chainFilter)(stCactusEdgeEnd *)) {
+static stList *getRecoverableChains(stCactusNode *startCactusNode, stSet *deadEndComponent, bool (*recoverabilityFilter)(stCactusEdgeEnd *)) {
     stList *ret = stList_construct();
-    getRecoverableChains_R(startCactusNode, NULL, deadEndComponent, chainFilter, ret);
+    getRecoverableChains_R(startCactusNode, NULL, deadEndComponent, recoverabilityFilter, ret);
     printf("Visited %" PRIi64 " cactus nodes while getting recoverable chains\n", numNodesVisited);
     printf("Found %" PRIi64 " / %" PRIi64 " recoverable chains\n", numRecoverableChains, numChainsVisited);
     return ret;
@@ -350,7 +350,7 @@ static stList *removeNecessaryAnchorsFromRecoverableChains(stList *recoverableCh
     return recoverableChains;
 } 
 
-void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds, int64_t maximumLengthOfEndAlignment, bool (*chainFilter)(stCactusEdgeEnd *)) {
+void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds, int64_t maximumLengthOfEndAlignment, bool (*recoverabilityFilter)(stCactusEdgeEnd *)) {
     debugFlower = flower;
     stCactusNode *startCactusNode;
     stList *deadEndComponent;
@@ -363,7 +363,7 @@ void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bo
         stSet_insert(deadEndComponentSet, stList_get(deadEndComponent, i));
     }
 
-    stList *recoverableChains = getRecoverableChains(startCactusNode, deadEndComponentSet, chainFilter);
+    stList *recoverableChains = getRecoverableChains(startCactusNode, deadEndComponentSet, recoverabilityFilter);
     recoverableChains = removeNecessaryAnchorsFromRecoverableChains(recoverableChains, maximumLengthOfEndAlignment);
     stList *blocksToDelete = stList_construct3(0, (void(*)(void *)) stPinchBlock_destruct);
     for (int64_t i = 0; i < stList_length(recoverableChains); i++) {
