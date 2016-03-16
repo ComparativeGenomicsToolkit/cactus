@@ -493,7 +493,7 @@ class CactusCafWrapper(CactusRecursionTarget):
                           minimumIngroupDegree=self.getOptionalPhaseAttrib("minimumIngroupDegree", int),
                           minimumOutgroupDegree=self.getOptionalPhaseAttrib("minimumOutgroupDegree", int),
                           singleCopyIngroup=self.getOptionalPhaseAttrib("singleCopyIngroup", bool),
-                          singleCopyOutgroup=self.getOptionalPhaseAttrib("singleCopyOutgroup", bool),
+                          singleCopyOutgroup=self.getOptionalPhaseAttrib("singleCopyOutgroup"),
                           lastzArguments=self.getOptionalPhaseAttrib("lastzArguments"),
                           minimumSequenceLengthForBlast=self.getOptionalPhaseAttrib("minimumSequenceLengthForBlast", int, 1),
                           maxAdjacencyComponentSizeRatio=self.getOptionalPhaseAttrib("maxAdjacencyComponentSizeRatio", float),

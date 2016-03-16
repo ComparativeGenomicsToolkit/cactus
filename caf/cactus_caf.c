@@ -160,6 +160,29 @@ bool filterByOutgroup(stPinchSegment *segment1, stPinchSegment *segment2) {
 }
 
 /*
+ * A "relaxed" version of the above which allows the addition of more
+ * than one outgroup *segment* to a block, but never allows two
+ * different blocks containing outgroups to be pinched.
+ */
+bool relaxedFilterByOutgroup(stPinchSegment *segment1, stPinchSegment *segment2) {
+    stPinchBlock *block1, *block2;
+    if ((block1 = stPinchSegment_getBlock(segment1)) != NULL) {
+        if ((block2 = stPinchSegment_getBlock(segment2)) != NULL) {
+            if (block1 == block2) {
+                return stPinchBlock_getLength(block1) == 1 ? 0 : containsOutgroupSegment(block1);
+            }
+            if (stPinchBlock_getDegree(block1) < stPinchBlock_getDegree(block2)) {
+                return containsOutgroupSegment(block1) && containsOutgroupSegment(block2);
+            }
+            return containsOutgroupSegment(block2) && containsOutgroupSegment(block1);
+        }
+    }
+    // If we get here, we are just adding a segment to a block, not
+    // pinching two blocks together.
+    return false;
+}
+
+/*
  * Filtering by presence of repeat species in block. This code is inefficient and does not scale.
  */
 
@@ -272,6 +295,7 @@ int main(int argc, char *argv[]) {
     int64_t *alignmentTrims = NULL;
     bool singleCopyIngroup = 0;
     bool singleCopyOutgroup = 0;
+    bool relaxedSingleCopyOutgroup = 0;
     int64_t chainLengthForBigFlower = 1000000;
     int64_t longChain = 2;
     int64_t minLengthForChromosome = 1000000;
@@ -295,7 +319,7 @@ int main(int argc, char *argv[]) {
                         required_argument, 0, 'n' }, { "deannealingRounds", required_argument, 0, 'o' }, { "minimumDegree",
                         required_argument, 0, 'p' }, { "minimumIngroupDegree", required_argument, 0, 'q' }, {
                         "minimumOutgroupDegree", required_argument, 0, 'r' }, {
-                        "singleCopyIngroup", no_argument, 0, 's' }, { "singleCopyOutgroup", no_argument, 0, 't' }, {
+                        "singleCopyIngroup", no_argument, 0, 's' }, { "singleCopyOutgroup", required_argument, 0, 't' }, {
                         "minimumSequenceLengthForBlast", required_argument, 0, 'v' }, { "maxAdjacencyComponentSizeRatio",
                         required_argument, 0, 'w' }, { "constraints", required_argument, 0, 'x' }, { "minLengthForChromosome",
                         required_argument, 0, 'y' }, { "proportionOfUnalignedBasesForNewChromosome", required_argument, 0, 'z' },
@@ -362,7 +386,17 @@ int main(int argc, char *argv[]) {
                 singleCopyIngroup = 1;
                 break;
             case 't':
-                singleCopyOutgroup = 1;
+                if (strcmp(optarg, "1") == 0) {
+                    singleCopyOutgroup = true;
+                } else if (strcmp(optarg, "relaxed") == 0) {
+                    singleCopyOutgroup = false;
+                    relaxedSingleCopyOutgroup = true;
+                } else if (strcmp(optarg, "0") == 0) {
+                    singleCopyOutgroup = false;
+                    relaxedSingleCopyOutgroup = false;
+                } else {
+                    st_errAbort("Could not recognize singleCopyOutgroup option %s", optarg);
+                }
                 break;
             case 'v':
                 k = sscanf(optarg, "%" PRIi64 "", &minimumSequenceLengthForBlast);
@@ -490,7 +524,7 @@ int main(int argc, char *argv[]) {
                 sortAlignments = 1;
                 filterFn = filterByRepeatSpecies;
             }
-            else if (singleCopyOutgroup) {
+            else if (singleCopyOutgroup || relaxedSingleCopyOutgroup) {
                 //Here is where we get the set of outgroup threads.
                 outgroupThreads = stSet_construct();
                 stPinchThreadSetIt it = stPinchThreadSet_getIt(threadSet);
@@ -504,8 +538,11 @@ int main(int argc, char *argv[]) {
                 if (stSet_size(outgroupThreads) == 0) {
                     filterFn = NULL;
                     sortAlignments = 0;
-                } else {
+                } else if (singleCopyOutgroup) {
                     filterFn = filterByOutgroup;
+                    sortAlignments = 1;
+                } else if (relaxedSingleCopyOutgroup) {
+                    filterFn = relaxedFilterByOutgroup;
                     sortAlignments = 1;
                 }
             }

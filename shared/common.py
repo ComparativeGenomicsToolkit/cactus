@@ -221,7 +221,7 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
     minimumIngroupDegree = nameValue("minimumIngroupDegree", minimumIngroupDegree, int)
     minimumOutgroupDegree = nameValue("minimumOutgroupDegree", minimumOutgroupDegree, int)
     singleCopyIngroup = nameValue("singleCopyIngroup", singleCopyIngroup, bool)
-    singleCopyOutgroup = nameValue("singleCopyOutgroup", singleCopyOutgroup, bool)
+    singleCopyOutgroup = nameValue("singleCopyOutgroup", singleCopyOutgroup)
     maxAdjacencyComponentSizeRatio = nameValue("maxAdjacencyComponentSizeRatio", maxAdjacencyComponentSizeRatio, float)
     constraints = nameValue("constraints", constraints)
     realign = nameValue("realign", realign, bool)
