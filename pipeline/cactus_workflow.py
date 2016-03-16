@@ -1012,9 +1012,9 @@ class CactusHalGeneratorPhaseCleanup(CactusPhasesJob):
 class CactusWorkflowArguments:
     """Object for representing a cactus workflow's arguments
     """
-    def __init__(self, options):
-        self.experimentFile = getTempFile("tempExperimentFileCopy", rootDir=os.path.dirname(options.experimentFile))
-        shutil.copyfile(options.experimentFile, self.experimentFile)
+    def __init__(self, options, fileStore):
+        #Get a local copy of the experiment file
+        self.experimentFile = fileStore.readGlobalFile(options.experimentFileID)
         self.experimentNode = ET.parse(self.experimentFile).getroot()
         self.experimentWrapper = ExperimentWrapper(self.experimentNode)
         #Get the database string
@@ -1078,7 +1078,7 @@ class RunCactusPreprocessorThenCactusSetup(Job):
         self.options = options
         
     def run(self, fileStore):
-        cactusWorkflowArguments=CactusWorkflowArguments(self.options)
+        cactusWorkflowArguments=CactusWorkflowArguments(self.options, fileStore)
         eW = ExperimentWrapper(cactusWorkflowArguments.experimentNode)
         outputSequenceFiles = CactusPreprocessor.getOutputSequenceFiles(eW.getSequences(), eW.getOutputSequenceDir())
         self.addChild(CactusPreprocessor(eW.getSequences(), outputSequenceFiles, cactusWorkflowArguments.configNode))

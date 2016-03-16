@@ -227,8 +227,14 @@ def startWorkflow(options):
         #import the project file
         projectFileURL = makeURL(options.project)
         projectID = jobStore.importFile(projectFileURL)
+
+        #import cactus config
+        if options.configFile:
+            cactusConfigID = jobStore.importFile(options.configFile)
+        else:
+            cactusConfigID = jobStore.importFile(os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
         
-        Job.Runner.start(RunCactusPreprocessorThenProgressiveDown(options, projectID), options, config, batchSystem, jobStore)
+        cactusResults = Job.Runner.start(RunCactusPreprocessorThenProgressiveDown(options, projectID), options, config, batchSystem, jobStore)
 def main():
     usage = "usage: prog [options] <multicactus project>"
     description = "Progressive version of cactus_workflow"
