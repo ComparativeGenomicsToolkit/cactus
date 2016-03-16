@@ -266,16 +266,10 @@ static bool chainIsRecoverable(stCactusEdgeEnd *chainEnd, stSet *deadEndComponen
     return recoverable;
 }
 
-// FIXME: remove
-static int64_t numNodesVisited = 0;
-static int64_t numChainsVisited = 0;
-static int64_t numRecoverableChains = 0;
-
 // For a given cactus node, recurse through all nodes below it and
 // find recoverable chains below them. Then find recoverable chains
 // below the current node given its parent chain.
 static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *parentChain, stSet *deadEndComponent, bool (*recoverabilityFilter)(stCactusEdgeEnd *), stList *recoverableChains) {
-    numNodesVisited++;
     stCactusNodeEdgeEndIt cactusEdgeEndIt = stCactusNode_getEdgeEndIt(cactusNode);
     stCactusEdgeEnd *cactusEdgeEnd;
     while ((cactusEdgeEnd = stCactusNodeEdgeEndIt_getNext(&cactusEdgeEndIt)) != NULL) {
@@ -306,10 +300,8 @@ static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *pa
     while ((cactusEdgeEnd = stCactusNodeEdgeEndIt_getNext(&cactusEdgeEndIt)) != NULL) {
         if (stCactusEdgeEnd_isChainEnd(cactusEdgeEnd) && stCactusEdgeEnd_getLinkOrientation(cactusEdgeEnd)) {
             if ((recoverabilityFilter == NULL || recoverabilityFilter(cactusEdgeEnd)) && chainIsRecoverable(cactusEdgeEnd, deadEndComponent)) {
-                numRecoverableChains++;
                 stList_append(recoverableChains, cactusEdgeEnd);
             }
-            numChainsVisited++;
         }
     }
 }
@@ -317,8 +309,6 @@ static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *pa
 static stList *getRecoverableChains(stCactusNode *startCactusNode, stSet *deadEndComponent, bool (*recoverabilityFilter)(stCactusEdgeEnd *)) {
     stList *ret = stList_construct();
     getRecoverableChains_R(startCactusNode, NULL, deadEndComponent, recoverabilityFilter, ret);
-    printf("Visited %" PRIi64 " cactus nodes while getting recoverable chains\n", numNodesVisited);
-    printf("Found %" PRIi64 " / %" PRIi64 " recoverable chains\n", numRecoverableChains, numChainsVisited);
     return ret;
 }
 
