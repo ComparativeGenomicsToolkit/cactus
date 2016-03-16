@@ -340,16 +340,6 @@ static int64_t totalAlignedBases(stList *blocks) {
     return total;
 }
 
-/*
- * Filter the list of recoverable chains, removing certain "anchor
- * chains" to ensure that no end alignment is created that is longer
- * than the maximal length.
- */
-static stList *removeNecessaryAnchorsFromRecoverableChains(stList *recoverableChains,
-                                                           int64_t maximumLengthOfEndAlignment) {
-    return recoverableChains;
-} 
-
 void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds, int64_t maximumLengthOfEndAlignment, bool (*recoverabilityFilter)(stCactusEdgeEnd *)) {
     debugFlower = flower;
     stCactusNode *startCactusNode;
@@ -364,7 +354,7 @@ void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bo
     }
 
     stList *recoverableChains = getRecoverableChains(startCactusNode, deadEndComponentSet, recoverabilityFilter);
-    recoverableChains = removeNecessaryAnchorsFromRecoverableChains(recoverableChains, maximumLengthOfEndAlignment);
+
     stList *blocksToDelete = stList_construct3(0, (void(*)(void *)) stPinchBlock_destruct);
     for (int64_t i = 0; i < stList_length(recoverableChains); i++) {
         stCactusEdgeEnd *chainEnd = stList_get(recoverableChains, i);
