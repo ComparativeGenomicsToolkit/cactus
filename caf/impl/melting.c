@@ -330,43 +330,33 @@ static void markRecoverableAdjacencies(stCactusEdgeEnd *recoverableChainEnd,
  * Get a mapping from pinch ends to the canonical chain end for their chain.
  */
 
-static void getPinchEndToChainEndHash_R(stCactusNode *cactusNode,
-                                        stCactusEdgeEnd *parentChain,
-                                        stHash *pinchEndToChainEnd) {
-    stCactusNodeEdgeEndIt cactusEdgeEndIt = stCactusNode_getEdgeEndIt(cactusNode);
-    stCactusEdgeEnd *cactusEdgeEnd;
-    while ((cactusEdgeEnd = stCactusNodeEdgeEndIt_getNext(&cactusEdgeEndIt)) != NULL) {
-        if (stCactusEdgeEnd_isChainEnd(cactusEdgeEnd) && stCactusEdgeEnd_getLinkOrientation(cactusEdgeEnd)) {
-            // This is the canonical end for an unvisited chain. We
-            // iterate over all the ends in the chain, mapping them to
-            // this canonical end.
-            stCactusEdgeEnd *chainEnd = cactusEdgeEnd;
-            stCactusEdgeEnd *curEnd = cactusEdgeEnd;
-            do {
-                stPinchEnd *pinchEnd = stCactusEdgeEnd_getObject(curEnd);
-                printf("%s -> %p\n", getEndStr(pinchEnd), (void *) curEnd);
-                stHash_insert(pinchEndToChainEnd, pinchEnd, chainEnd);
-                if (stCactusEdgeEnd_getLinkOrientation(curEnd)) {
-                    curEnd = stCactusEdgeEnd_getLink(curEnd);
-                } else {
-                    curEnd = stCactusEdgeEnd_getOtherEdgeEnd(curEnd);
-                }
-            } while (curEnd != chainEnd);
-            if ((parentChain == NULL
-                 || (cactusEdgeEnd != parentChain
-                     && cactusEdgeEnd != stCactusEdgeEnd_getLink(parentChain)))
-                && stCactusEdgeEnd_getOtherNode(cactusEdgeEnd) != cactusNode) {
-                getPinchEndToChainEndHash_R(stCactusEdgeEnd_getOtherNode(cactusEdgeEnd),
-                                            stCactusEdgeEnd_getLink(cactusEdgeEnd),
-                                            pinchEndToChainEnd);
+static stHash *getPinchEndToChainEndHash(stCactusGraph *cactusGraph) {
+    stHash *pinchEndToChainEnd = stHash_construct3(stPinchEnd_hashFn, stPinchEnd_equalsFn, NULL, NULL);
+    stCactusGraphNodeIt *nodeIt = stCactusGraphNodeIterator_construct(cactusGraph);
+    stCactusNode *cactusNode;
+    while ((cactusNode = stCactusGraphNodeIterator_getNext(nodeIt)) != NULL) {
+        stCactusNodeEdgeEndIt cactusEdgeEndIt = stCactusNode_getEdgeEndIt(cactusNode);
+        stCactusEdgeEnd *cactusEdgeEnd;
+        while ((cactusEdgeEnd = stCactusNodeEdgeEndIt_getNext(&cactusEdgeEndIt)) != NULL) {
+            if (stCactusEdgeEnd_isChainEnd(cactusEdgeEnd) && stCactusEdgeEnd_getLinkOrientation(cactusEdgeEnd)) {
+                // This is the canonical end for an unvisited chain. We
+                // iterate over all the ends in the chain, mapping them to
+                // this canonical end.
+                stCactusEdgeEnd *chainEnd = cactusEdgeEnd;
+                stCactusEdgeEnd *curEnd = cactusEdgeEnd;
+                do {
+                    stPinchEnd *pinchEnd = stCactusEdgeEnd_getObject(curEnd);
+                    stHash_insert(pinchEndToChainEnd, pinchEnd, chainEnd);
+                    if (stCactusEdgeEnd_getLinkOrientation(curEnd)) {
+                        curEnd = stCactusEdgeEnd_getLink(curEnd);
+                    } else {
+                        curEnd = stCactusEdgeEnd_getOtherEdgeEnd(curEnd);
+                    }
+                } while (curEnd != chainEnd);
             }
         }
     }
-}
-
-static stHash *getPinchEndToChainEndHash(stCactusNode *startCactusNode) {
-    stHash *pinchEndToChainEnd = stHash_construct3(stPinchEnd_hashFn, stPinchEnd_equalsFn, NULL, NULL);
-    getPinchEndToChainEndHash_R(startCactusNode, NULL, pinchEndToChainEnd);
+    stCactusGraphNodeIterator_destruct(nodeIt);
     return pinchEndToChainEnd;
 }
 
@@ -417,8 +407,8 @@ static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *pa
     }
 }
 
-static stList *getRecoverableChains(stCactusNode *startCactusNode, stSet *deadEndComponent, bool (*recoverabilityFilter)(stCactusEdgeEnd *)) {
-    stHash *pinchEndToChainEnd = getPinchEndToChainEndHash(startCactusNode);
+static stList *getRecoverableChains(stCactusGraph *cactusGraph, stCactusNode *startCactusNode, stSet *deadEndComponent, bool (*recoverabilityFilter)(stCactusEdgeEnd *)) {
+    stHash *pinchEndToChainEnd = getPinchEndToChainEndHash(cactusGraph);
 
     stSet *recoverableChainSet = stSet_construct();
     stList *telomereAdjacentChains = stList_construct();
@@ -508,7 +498,7 @@ void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bo
         stSet_insert(deadEndComponentSet, stList_get(deadEndComponent, i));
     }
 
-    stList *recoverableChains = getRecoverableChains(startCactusNode, deadEndComponentSet, recoverabilityFilter);
+    stList *recoverableChains = getRecoverableChains(cactusGraph, startCactusNode, deadEndComponentSet, recoverabilityFilter);
 
     stList *blocksToDelete = stList_construct3(0, (void(*)(void *)) stPinchBlock_destruct);
     for (int64_t i = 0; i < stList_length(recoverableChains); i++) {
