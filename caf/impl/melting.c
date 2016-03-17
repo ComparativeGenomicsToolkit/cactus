@@ -438,6 +438,7 @@ static stList *getRecoverableChains(stCactusNode *startCactusNode, stSet *deadEn
             stList *recoverableAdjacencies = stHash_search(chainToRecoverableAdjacencies, curChain);
             assert(stList_length(recoverableAdjacencies) > 0);
             assert(stList_length(recoverableAdjacencies) <= 2);
+            bool foundValidAdjacency = false;
             for (int64_t j = 0; j < stList_length(recoverableAdjacencies); j++) {
                 stCactusEdgeEnd *recoverableAdjacency = stList_get(recoverableAdjacencies, j);
                 stPinchEnd *adjacencyEnd1 = stCactusEdgeEnd_getObject(recoverableAdjacency);
@@ -445,13 +446,15 @@ static stList *getRecoverableChains(stCactusNode *startCactusNode, stSet *deadEn
                 if (recoverableAdjacency != prevChain &&
                     !isTelomere(adjacencyEnd1, deadEndComponent) &&
                     !isTelomere(adjacencyEnd2, deadEndComponent)) {
-                    if (stSet_search(recoverableChainSet, recoverableAdjacency)) {
-                        prevChain = curChain;
-                        curChain = recoverableAdjacency;
-                    } else {
-                        neededAsAnchor = true;
-                    }
+                    prevChain = curChain;
+                    curChain = recoverableAdjacency;
+                    foundValidAdjacency = true;
+                    break;
                 }
+            }
+            if (!foundValidAdjacency) {
+                neededAsAnchor = true;
+                break;
             }
         }
         if (neededAsAnchor) {
