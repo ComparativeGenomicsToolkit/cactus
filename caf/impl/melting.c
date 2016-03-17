@@ -203,6 +203,31 @@ static bool endsDoNotHaveSameThreadComposition(stPinchEnd *end1, stPinchEnd *end
     return !sameThreadComposition;
 }
 
+static bool chainConnectsToTelomere(stCactusEdgeEnd *chainEnd, stSet *deadEndComponent) {
+    stPinchEnd *end1 = stCactusEdgeEnd_getObject(chainEnd);
+    stPinchEnd *end2 = stCactusEdgeEnd_getObject(stCactusEdgeEnd_getLink(chainEnd));
+
+    if (endsDoNotHaveSameThreadComposition(end1, end2)) {
+        // One or more of the threads ran into a stub end and
+        // appeared/disappeared partway through the chain
+        return true;
+    }
+
+    stSet *connectedEnds1 = stPinchEnd_getConnectedPinchEnds(end1);
+    stSet *connectedEnds2 = stPinchEnd_getConnectedPinchEnds(end2);
+
+    bool connectedToTelomere = false;
+    if (endSetContainsTelomere(connectedEnds1, deadEndComponent) ||
+        endSetContainsTelomere(connectedEnds2, deadEndComponent)) {
+        // Connected to one or more attached ends or stub ends.
+        connectedToTelomere = true;
+    }
+
+    stSet_destruct(connectedEnds1);
+    stSet_destruct(connectedEnds2);
+    return connectedToTelomere;
+}
+
 // Determine whether the chain is recoverable (i.e. will bar phase be
 // expected to pick it back up?).
 static bool chainIsRecoverable(stCactusEdgeEnd *chainEnd, stSet *deadEndComponent) {
@@ -227,31 +252,17 @@ static bool chainIsRecoverable(stCactusEdgeEnd *chainEnd, stSet *deadEndComponen
     }
     stSet_destructIterator(it);
 
-    if (isTelomere(end1, deadEndComponent) || isTelomere(end2, deadEndComponent)) {
-        // Chain containing only the telomere/stub end
-        printf("telomere\n");
-        return false;
-    }
-
-    if (endsDoNotHaveSameThreadComposition(end1, end2)) {
-        // One or more of the threads ran into a stub end and
-        // appeared/disappeared partway through the chain
-        printf("stubbed chain\n");
-        return false;
-    }
-
-
     stSet *sharedEnds = stSet_getIntersection(connectedEnds1, connectedEnds2);
 
     bool recoverable = true;
-    if (stSet_size(sharedEnds) != 0) {
+    if (isTelomere(end1, deadEndComponent) || isTelomere(end2, deadEndComponent)) {
+        // Chain containing only the telomere/stub end
+        recoverable =  false;
+    } else if (stSet_size(sharedEnds) != 0) {
         // The two ends link to the same end.
         recoverable = false;
     } else if (stSet_size(connectedEnds1) != 1 && stSet_size(connectedEnds2) != 1) {
         // Both ends link to more than one end.
-        recoverable = false;
-    } else if (endSetContainsTelomere(connectedEnds1, deadEndComponent) || endSetContainsTelomere(connectedEnds2, deadEndComponent)) {
-        // Connected to one or more attached ends or stub ends.
         recoverable = false;
     } else if (stSet_search(connectedEnds1, end2)) {
         // A duplication (link connecting the two child chain ends).
@@ -266,10 +277,103 @@ static bool chainIsRecoverable(stCactusEdgeEnd *chainEnd, stSet *deadEndComponen
     return recoverable;
 }
 
+// Abstracts out getting the only corresponding chain end from a set of pinch ends of size 1.
+static stCactusEdgeEnd *getChainEndFromSingletonSet(stSet *ends,
+                                                    stHash *pinchEndToChainEnd) {
+    assert(stSet_size(ends) == 1);
+    stSetIterator *it = stSet_getIterator(ends);
+    stPinchEnd *connectedPinchEnd = stSet_getNext(it);
+    stSet_destructIterator(it);
+
+    stCactusEdgeEnd *chainEnd = stHash_search(pinchEndToChainEnd, connectedPinchEnd);
+    assert(chainEnd != NULL);
+    if (!stCactusEdgeEnd_getLinkOrientation(chainEnd)) {
+        chainEnd = stCactusEdgeEnd_getLink(chainEnd);
+    }
+    return chainEnd;
+}
+
+// Mark down which chain(s) this (recoverable) chain is recoverable given.
+static void markRecoverableAdjacencies(stCactusEdgeEnd *recoverableChainEnd,
+                                       stHash *pinchEndToChainEnd,
+                                       stHash *chainToRecoverableAdjacencies) {
+    stPinchEnd *end1 = stCactusEdgeEnd_getObject(recoverableChainEnd);
+    stPinchEnd *end2 = stCactusEdgeEnd_getObject(stCactusEdgeEnd_getLink(recoverableChainEnd));
+
+    stSet *connectedEnds1 = stPinchEnd_getConnectedPinchEnds(end1);
+    stSet *connectedEnds2 = stPinchEnd_getConnectedPinchEnds(end2);
+
+    stList *recoverableAdjacencies = stList_construct();
+    // We can safely assume there are no shared ends since the chain
+    // is known to be recoverable. So all we have to check for is that
+    // there is only one connected end. If so, this chain is
+    // recoverable given the other.
+    if (stSet_size(connectedEnds1) == 1) {
+        stCactusEdgeEnd *connectedChainEnd = getChainEndFromSingletonSet(connectedEnds1,
+                                                                         pinchEndToChainEnd);
+        stList_append(recoverableAdjacencies, connectedChainEnd);
+    }
+
+    if (stSet_size(connectedEnds2) == 1) {
+        stCactusEdgeEnd *connectedChainEnd = getChainEndFromSingletonSet(connectedEnds2,
+                                                                         pinchEndToChainEnd);
+        stList_append(recoverableAdjacencies, connectedChainEnd);
+    }
+
+    stHash_insert(chainToRecoverableAdjacencies, recoverableChainEnd, recoverableAdjacencies);
+
+    stSet_destruct(connectedEnds1);
+    stSet_destruct(connectedEnds2);
+}
+
+/*
+ * Get a mapping from pinch ends to the canonical chain end for their chain.
+ */
+
+static void getPinchEndToChainEndHash_R(stCactusNode *cactusNode,
+                                        stCactusEdgeEnd *parentChain,
+                                        stHash *pinchEndToChainEnd) {
+    stCactusNodeEdgeEndIt cactusEdgeEndIt = stCactusNode_getEdgeEndIt(cactusNode);
+    stCactusEdgeEnd *cactusEdgeEnd;
+    while ((cactusEdgeEnd = stCactusNodeEdgeEndIt_getNext(&cactusEdgeEndIt)) != NULL) {
+        if (stCactusEdgeEnd_isChainEnd(cactusEdgeEnd) && stCactusEdgeEnd_getLinkOrientation(cactusEdgeEnd)) {
+            // This is the canonical end for an unvisited chain. We
+            // iterate over all the ends in the chain, mapping them to
+            // this canonical end.
+            stCactusEdgeEnd *chainEnd = cactusEdgeEnd;
+            stCactusEdgeEnd *curEnd = cactusEdgeEnd;
+            do {
+                stPinchEnd *pinchEnd = stCactusEdgeEnd_getObject(curEnd);
+                printf("%s -> %p\n", getEndStr(pinchEnd), (void *) curEnd);
+                stHash_insert(pinchEndToChainEnd, pinchEnd, chainEnd);
+                if (stCactusEdgeEnd_getLinkOrientation(curEnd)) {
+                    curEnd = stCactusEdgeEnd_getLink(curEnd);
+                } else {
+                    curEnd = stCactusEdgeEnd_getOtherEdgeEnd(curEnd);
+                }
+            } while (curEnd != chainEnd);
+            if ((parentChain == NULL
+                 || (cactusEdgeEnd != parentChain
+                     && cactusEdgeEnd != stCactusEdgeEnd_getLink(parentChain)))
+                && stCactusEdgeEnd_getOtherNode(cactusEdgeEnd) != cactusNode) {
+                getPinchEndToChainEndHash_R(stCactusEdgeEnd_getOtherNode(cactusEdgeEnd),
+                                            stCactusEdgeEnd_getLink(cactusEdgeEnd),
+                                            pinchEndToChainEnd);
+            }
+        }
+    }
+}
+
+static stHash *getPinchEndToChainEndHash(stCactusNode *startCactusNode) {
+    stHash *pinchEndToChainEnd = stHash_construct3(stPinchEnd_hashFn, stPinchEnd_equalsFn, NULL, NULL);
+    getPinchEndToChainEndHash_R(startCactusNode, NULL, pinchEndToChainEnd);
+    return pinchEndToChainEnd;
+}
+
 // For a given cactus node, recurse through all nodes below it and
 // find recoverable chains below them. Then find recoverable chains
 // below the current node given its parent chain.
-static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *parentChain, stSet *deadEndComponent, bool (*recoverabilityFilter)(stCactusEdgeEnd *), stList *recoverableChains) {
+static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *parentChain, stSet *deadEndComponent, bool (*recoverabilityFilter)(stCactusEdgeEnd *), stHash *pinchEndToChainEnd, stSet *recoverableChains, stList *telomereAdjacentChains, stHash *chainToRecoverableAdjacencies) {
     stCactusNodeEdgeEndIt cactusEdgeEndIt = stCactusNode_getEdgeEndIt(cactusNode);
     stCactusEdgeEnd *cactusEdgeEnd;
     while ((cactusEdgeEnd = stCactusNodeEdgeEndIt_getNext(&cactusEdgeEndIt)) != NULL) {
@@ -284,7 +388,10 @@ static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *pa
                                    stCactusEdgeEnd_getOtherEdgeEnd(cactusEdgeEnd),
                                    deadEndComponent,
                                    recoverabilityFilter,
-                                   recoverableChains);
+                                   pinchEndToChainEnd,
+                                   recoverableChains,
+                                   telomereAdjacentChains,
+                                   chainToRecoverableAdjacencies);
         }
     }
 
@@ -292,7 +399,7 @@ static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *pa
         // Visit the next node on this chain (unless it's where we started).
         stCactusEdgeEnd *nextEdgeEnd = stCactusEdgeEnd_getOtherEdgeEnd(stCactusEdgeEnd_getLink(parentChain));
         if (!stCactusEdgeEnd_isChainEnd(nextEdgeEnd)) {
-            getRecoverableChains_R(stCactusEdgeEnd_getNode(nextEdgeEnd), nextEdgeEnd, deadEndComponent, recoverabilityFilter, recoverableChains);
+            getRecoverableChains_R(stCactusEdgeEnd_getNode(nextEdgeEnd), nextEdgeEnd, deadEndComponent, recoverabilityFilter, pinchEndToChainEnd, recoverableChains, telomereAdjacentChains, chainToRecoverableAdjacencies);
         }
     }
 
@@ -300,16 +407,71 @@ static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *pa
     while ((cactusEdgeEnd = stCactusNodeEdgeEndIt_getNext(&cactusEdgeEndIt)) != NULL) {
         if (stCactusEdgeEnd_isChainEnd(cactusEdgeEnd) && stCactusEdgeEnd_getLinkOrientation(cactusEdgeEnd)) {
             if ((recoverabilityFilter == NULL || recoverabilityFilter(cactusEdgeEnd)) && chainIsRecoverable(cactusEdgeEnd, deadEndComponent)) {
-                stList_append(recoverableChains, cactusEdgeEnd);
+                stSet_insert(recoverableChains, cactusEdgeEnd);
+                markRecoverableAdjacencies(cactusEdgeEnd, pinchEndToChainEnd, chainToRecoverableAdjacencies);
+                if (chainConnectsToTelomere(cactusEdgeEnd, deadEndComponent)) {
+                    stList_append(telomereAdjacentChains, cactusEdgeEnd);
+                }
             }
         }
     }
 }
 
 static stList *getRecoverableChains(stCactusNode *startCactusNode, stSet *deadEndComponent, bool (*recoverabilityFilter)(stCactusEdgeEnd *)) {
-    stList *ret = stList_construct();
-    getRecoverableChains_R(startCactusNode, NULL, deadEndComponent, recoverabilityFilter, ret);
-    return ret;
+    stHash *pinchEndToChainEnd = getPinchEndToChainEndHash(startCactusNode);
+
+    stSet *recoverableChainSet = stSet_construct();
+    stList *telomereAdjacentChains = stList_construct();
+    stHash *chainToRecoverableAdjacencies = stHash_construct2(NULL, (void (*)(void *)) stList_destruct);
+    getRecoverableChains_R(startCactusNode, NULL, deadEndComponent, recoverabilityFilter, pinchEndToChainEnd, recoverableChainSet, telomereAdjacentChains, chainToRecoverableAdjacencies);
+
+    // Remove anchors that are connected to telomeres and are not
+    // transitively connected to an unrecoverable chain. This ensures
+    // that we don't lose alignment by deeming all chains recoverable
+    // and not keeping any anchors to recover them.
+    for (int64_t i = 0; i < stList_length(telomereAdjacentChains); i++) {
+        stCactusEdgeEnd *telomereAdjacentChain = stList_get(telomereAdjacentChains, i);
+        stCactusEdgeEnd *curChain = telomereAdjacentChain;
+        stCactusEdgeEnd *prevChain = NULL;
+        bool neededAsAnchor = false;
+        while (stSet_search(recoverableChainSet, curChain)) {
+            stList *recoverableAdjacencies = stHash_search(chainToRecoverableAdjacencies, curChain);
+            assert(stList_length(recoverableAdjacencies) > 0);
+            assert(stList_length(recoverableAdjacencies) <= 2);
+            for (int64_t j = 0; j < stList_length(recoverableAdjacencies); j++) {
+                stCactusEdgeEnd *recoverableAdjacency = stList_get(recoverableAdjacencies, j);
+                stPinchEnd *adjacencyEnd1 = stCactusEdgeEnd_getObject(recoverableAdjacency);
+                stPinchEnd *adjacencyEnd2 = stCactusEdgeEnd_getObject(stCactusEdgeEnd_getLink(recoverableAdjacency));
+                if (recoverableAdjacency != prevChain &&
+                    !isTelomere(adjacencyEnd1, deadEndComponent) &&
+                    !isTelomere(adjacencyEnd2, deadEndComponent)) {
+                    if (stSet_search(recoverableChainSet, recoverableAdjacency)) {
+                        prevChain = curChain;
+                        curChain = recoverableAdjacency;
+                    } else {
+                        neededAsAnchor = true;
+                    }
+                }
+            }
+        }
+        if (neededAsAnchor) {
+            stSet_remove(recoverableChainSet, telomereAdjacentChain);
+        }
+    }
+    stList_destruct(telomereAdjacentChains);
+    stHash_destruct(chainToRecoverableAdjacencies);
+
+    // Convert the recoverable chains set into a list.
+    stList *recoverableChains = stList_construct();
+    stSetIterator *it = stSet_getIterator(recoverableChainSet);
+    stCactusEdgeEnd *chainEnd;
+    while ((chainEnd = stSet_getNext(it)) != NULL) {
+        stList_append(recoverableChains, chainEnd);
+    }
+    stSet_destructIterator(it);
+    stSet_destruct(recoverableChainSet);
+    stHash_destruct(pinchEndToChainEnd);
+    return recoverableChains;
 }
 
 static int64_t numColumns(stList *blocks) {
