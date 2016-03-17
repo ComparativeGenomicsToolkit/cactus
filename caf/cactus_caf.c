@@ -605,7 +605,7 @@ int main(int argc, char *argv[]) {
             }
 
             if (removeRecoverableChains) {
-                stCaf_meltRecoverableChains(flower, threadSet, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds, 100000, recoverableChainsFilter);
+                stCaf_meltRecoverableChains(flower, threadSet, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds, recoverableChainsFilter);
             }
 
             //Sort out case when we allow blocks of degree 1

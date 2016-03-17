@@ -485,7 +485,7 @@ static int64_t totalAlignedBases(stList *blocks) {
     return total;
 }
 
-void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds, int64_t maximumLengthOfEndAlignment, bool (*recoverabilityFilter)(stCactusEdgeEnd *)) {
+void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds, bool (*recoverabilityFilter)(stCactusEdgeEnd *)) {
     debugFlower = flower;
     stCactusNode *startCactusNode;
     stList *deadEndComponent;
