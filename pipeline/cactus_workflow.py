@@ -350,12 +350,18 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
 
         # Get ingroup and outgroup sequences
         exp = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
-        seqMap = exp.buildSequenceMap()
+        sequenceIDs = exp.getSequenceIDs()
+
+        #download the sequences
+        seqMap = dict()
+        for name in seqIDMap:
+            seqMap[name] = fileStore.readGlobalFile(seqIDMap[name])
         # Prepend unique ID to fasta headers to prevent name collision
         renamedInputSeqDir = os.path.join(fileStore.getLocalTempDir(), "renamedInputs")
         os.mkdir(renamedInputSeqDir)
         uniqueFas = prependUniqueIDs(seqMap.values(), renamedInputSeqDir)
         uniqueFaIDs = [fileStore.writeGlobalFile(seq, cleanup=False) for seq in uniqueFas]
+        exp.setSequenceIDs(uniqueFaIDs)
         self.phaseNode.attrib["seqIDs"] = " ".join(uniqueFaIDs)
         
         seqIDMap = dict(zip(seqMap.keys(), uniqueFaIDs))

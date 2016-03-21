@@ -253,7 +253,7 @@ class ExperimentWrapper(DbElemWrapper):
         if outputSequenceDir != None:
             self.setOutputSequenceDir(outputSequenceDir)
         return self
-
+    
     def writeXML(self, path): #Replacement for writeExperimentFile
         xmlFile = open(path, "w")
         xmlString = ET.tostring(self.xmlRoot)
@@ -262,7 +262,7 @@ class ExperimentWrapper(DbElemWrapper):
         xmlString = minidom.parseString(xmlString).toprettyxml()
         xmlFile.write(xmlString)
         xmlFile.close()
-    
+
     def getConfig(self):
         return self.xmlRoot.attrib["config"]
     
