@@ -31,6 +31,7 @@ class MultiCactusProject:
         self.inputSequences = []
         self.outputSequenceDir = None
         self.inputSequenceIDs = None
+        self.configID = None
         
     def readXML(self, path):
         xmlRoot = ET.parse(path).getroot()
@@ -43,9 +44,10 @@ class MultiCactusProject:
             pathElem = cactusPathElem.attrib["experiment_path"]
             self.expMap[nameElem] = pathElem
         self.inputSequences = xmlRoot.attrib["inputSequences"].split()
-        #if "inputSequenceIDs" in xmlRoot.attrib:
-        #    self.inputSequenceIDs = xmlRoot.attrib["inputSequenceIDs"].split()
-        #    self.inputSequences = [self.fileStore.readGlobalFile(seqID) for seqID in self.inputSequenceIDs]
+        if "inputSequenceIDs" in xmlRoot.attrib:
+            self.inputSequenceIDs = xmlRoot.attrib["inputSequenceIDs"].split()
+        if "configID" in xmlRoot.attrib:
+            self.configID = xmlRoot.attrib["configID"]
             
         self.outputSequenceDir = xmlRoot.attrib["outputSequenceDir"]
         self.mcTree.assignSubtreeRootNames(self.expMap)
@@ -63,6 +65,10 @@ class MultiCactusProject:
         #We keep track of all the input sequences at the top level
         xmlRoot.attrib["inputSequences"] = " ".join(self.inputSequences)
         xmlRoot.attrib["outputSequenceDir"] = self.outputSequenceDir
+        if self.inputSequenceIDs:
+            xmlRoot.attrib["inputSequenceIDs"] = " ".join(self.inputSequenceIDs)
+        if self.configID:
+            xmlRoot.attrib["configID"] = self.configID
         xmlFile = open(path, "w")
         xmlString = ET.tostring(xmlRoot)
         xmlString = minidom.parseString(xmlString).toprettyxml()
@@ -99,6 +105,12 @@ class MultiCactusProject:
     
     def getConfigPath(self):
         return ExperimentWrapper(ET.parse(self.expMap.values()[0]).getroot()).getConfigPath()
+
+    def setConfigID(self, configID):
+        self.configID = configID
+
+    def getConfigID(self):
+        return self.configID
 
     def setInputSequenceIDs(self, inputSequenceIDs):
         self.inputSequenceIDs = inputSequenceIDs

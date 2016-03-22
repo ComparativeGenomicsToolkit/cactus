@@ -193,7 +193,9 @@ class RunCactusPreprocessorThenProgressiveDown(Job):
         projectPath = fileStore.readGlobalFile(self.projectID)
         project.readXML(projectPath)
         #Create jobs to create the output sequences
-        configNode = ET.parse(project.getConfigPath()).getroot()
+        logger.info("Reading config file from: %s" % project.getConfigID())
+        configFile = fileStore.readGlobalFile(project.getConfigID())
+        configNode = ET.parse(configFile).getroot()
         ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals() #This is necessary..
         #Create the preprocessor
         self.addChild(CactusPreprocessor(project.getInputSequencePaths(), 
@@ -224,17 +226,20 @@ def startWorkflow(options):
             seqIDs.append(jobStore.importFile(seqFileURL))
         project.setInputSequenceIDs(seqIDs)
 
-        #import the project file
-        projectFileURL = makeURL(options.project)
-        projectID = jobStore.importFile(projectFileURL)
+
 
         #import cactus config
-        if options.configFile:
-            cactusConfigID = jobStore.importFile(options.configFile)
-        else:
-            cactusConfigID = jobStore.importFile(os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
-        
+        cactusConfigID = jobStore.importFile(makeURL(project.getConfigPath()))
+        logger.info("Setting config id to: %s" % cactusConfigID)
+        project.setConfigID(cactusConfigID)
+
+        project.writeXML(options.project)
+
+        #import the project file
+        projectID = jobStore.importFile(makeURL(options.project))
+        #Run the workflow
         cactusResults = Job.Runner.start(RunCactusPreprocessorThenProgressiveDown(options, projectID), options, config, batchSystem, jobStore)
+        
 def main():
     usage = "usage: prog [options] <multicactus project>"
     description = "Progressive version of cactus_workflow"
