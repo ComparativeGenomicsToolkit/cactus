@@ -489,7 +489,7 @@ void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bo
     debugFlower = flower;
     stCactusNode *startCactusNode;
     stList *deadEndComponent;
-    stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 0, INT64_MAX,
+    stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 0, 0,
                                                                   0.0, breakChainsAtReverseTandems, maximumMedianSpacingBetweenLinkedEnds);
 
     // Construct a queryable set of stub ends.
