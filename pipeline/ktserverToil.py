@@ -94,18 +94,21 @@ class KtServerService(Job.Service):
         self.process = runKtserver(self.dbElem, self.killSwitchPath)
         assert self.dbElem.getDbHost() != None
         
-        if self.isSecondary == False:
-            experiment.writeXML(wfArgs.experimentFile)
-            wfArgs.cactusDiskDatabaseString = self.dbElem.getConfString()
-        else:
-            self.newChild.phaseNode.attrib[
-                "secondaryDatabaseString"] = self.dbElem.getConfString()
-            # added on as a hack to get this into the experiment.xml
-            etPath = self.newChild.phaseNode.attrib[
-                "experimentPath"]
-            experiment = ExperimentWrapper(ET.parse(etPath).getroot())
-            experiment.setSecondaryDBElem(self.dbElem)
-            experiment.writeXML(etPath)            
+        #if self.isSecondary == False:
+        #    experiment.writeXML(wfArgs.experimentFile)
+        #    wfArgs.cactusDiskDatabaseString = self.dbElem.getConfString()
+        #else:
+        #    self.newChild.phaseNode.attrib[
+        #        "secondaryDatabaseString"] = self.dbElem.getConfString()
+        #    # added on as a hack to get this into the experiment.xml
+        #    etID = self.newChild.phaseNode.attrib[
+        #        "experimentID"]
+        #    etPath = fileStore.readGlobalFile(etID)
+        #    experiment = ExperimentWrapper(ET.parse(etPath).getroot())
+        #    experiment.setSecondaryDBElem(self.dbElem)
+        #    experiment.writeXML(etPath)
+        #    newETID = fileStore.writeGlobalFile(etPath)
+        #    self.newChild.phaseNode.attrib["experimentID"] = newETID
         blockUntilKtserverIsRunnning(self.dbElem, self.killSwitchPath, self.blockTimeout, self.blockTimestep)
         return self.dbElem.getConfString()
         
