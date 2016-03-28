@@ -66,8 +66,8 @@ class ProgressiveDown(Job):
                                                     self.project, child, 
                                                     self.schedule))
         
-        self.addFollowOn(ProgressiveNext(self.options, self.project, self.event,
-                                               self.schedule))
+        return self.addFollowOn(ProgressiveNext(self.options, self.project, self.event,
+                                               self.schedule)).rv()
 
 class ProgressiveNext(Job):
     def __init__(self, options, project, event, schedule):
@@ -84,8 +84,8 @@ class ProgressiveNext(Job):
             self.addChild(ProgressiveUp(self.options, self.project, self.event))
         followOnEvent = self.schedule.followOn(self.event)
         if followOnEvent is not None:
-            self.addChild(ProgressiveDown(self.options, self.project, followOnEvent,
-                                                self.schedule))
+            return self.addChild(ProgressiveDown(self.options, self.project, followOnEvent,
+                                                self.schedule)).rv()
     
 class ProgressiveUp(Job):
     def __init__(self, options, project, event):
@@ -99,8 +99,9 @@ class ProgressiveUp(Job):
 
         # open up the experiment
         # note that we copy the path into the options here
-        self.options.experimentFile = self.project.expMap[self.event]
-        expXml = ET.parse(self.options.experimentFile).getroot()
+        self.options.experimentFileID = self.project.expIDMap[self.event]
+        experimentFile = fileStore.readGlobalFile(self.options.experimentFileID)
+        expXml = ET.parse(experimentFile).getroot()
         experiment = ExperimentWrapper(expXml)
         configXml = ET.parse(experiment.getConfigPath()).getroot()
         configWrapper = ConfigWrapper(configXml)
@@ -130,7 +131,7 @@ class ProgressiveUp(Job):
             self.options.buildFasta = getOptionalAttrib(halNode, "buildFasta", bool, False)
 
         # get parameters that cactus_workflow stuff wants
-        workFlowArgs = CactusWorkflowArguments(self.options)
+        workFlowArgs = CactusWorkflowArguments(self.options, fileStore)
         # copy over the options so we don't trail them around
         workFlowArgs.buildReference = self.options.buildReference
         workFlowArgs.buildHal = self.options.buildHal
@@ -161,13 +162,14 @@ class ProgressiveUp(Job):
 
             if workFlowArgs.configWrapper.getDoTrimStrategy() and workFlowArgs.outgroupEventNames is not None:
                 # Use the trimming strategy to blast ingroups vs outgroups.
-                self.addChild(CactusTrimmingBlastPhase(cactusWorkflowArguments=workFlowArgs, phaseName="trimBlast"))
+                cactusResults = self.addChild(CactusTrimmingBlastPhase(cactusWorkflowArguments=workFlowArgs, phaseName="trimBlast"))
             else:
-                self.addChild(CactusSetupPhase(cactusWorkflowArguments=workFlowArgs,
+                cactusResults = self.addChild(CactusSetupPhase(cactusWorkflowArguments=workFlowArgs,
                                                      phaseName="setup"))
         logger.info("Going to create alignments and define the cactus tree")
 
         self.addFollowOn(FinishUp(workFlowArgs, self.project))
+        return cactusResults
                                
 class FinishUp(Job):
     def __init__(self, workFlowArgs, project,):
@@ -189,7 +191,7 @@ class RunCactusPreprocessorThenProgressiveDown(Job):
         
     def run(self, fileStore):
         #Load the multi-cactus project
-        project = MultiCactusProject(fileStore=fileStore)
+        project = MultiCactusProject()
         projectPath = fileStore.readGlobalFile(self.projectID)
         project.readXML(projectPath)
         #Create jobs to create the output sequences
@@ -210,24 +212,23 @@ class RunCactusPreprocessorThenProgressiveDown(Job):
         assert self.options.event in project.expMap
         leafNames = [ project.mcTree.getName(i) for i in project.mcTree.getLeaves() ]
         self.options.globalLeafEventSet = set(leafNames)
-        self.addFollowOn(ProgressiveDown(self.options, project, self.options.event, schedule))
+        return self.addFollowOn(ProgressiveDown(self.options, project, self.options.event, schedule)).rv()
 
 def makeURL(path):
     return "file://" + path
 
 def startWorkflow(options):
     project = MultiCactusProject()
-    project.readXML(options.project)
+
     with setupToil(options) as (config, batchSystem, jobStore):
+        project.readXML(options.project, jobStore=jobStore)
         #import the sequences
         seqIDs = []
         for seq in project.getInputSequencePaths():
             seqFileURL = makeURL(seq)
             seqIDs.append(jobStore.importFile(seqFileURL))
         project.setInputSequenceIDs(seqIDs)
-
-
-
+        
         #import cactus config
         cactusConfigID = jobStore.importFile(makeURL(project.getConfigPath()))
         logger.info("Setting config id to: %s" % cactusConfigID)

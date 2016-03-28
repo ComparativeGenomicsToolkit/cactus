@@ -48,7 +48,7 @@ class ChildWithKtServer(Job):
             self.newChild.cactusWorkflowArguments.cactusDiskDatabaseString = dbConfString
         elif isinstance(self.newChild, CactusRecursionJob):
             self.newChild.phaseNode.attrib["secondaryDatabaseString"] = dbConfString
-        self.addChild(self.newChild)
+        return self.addChild(self.newChild).rv()
 
 class KtServerService(Job.Service):
 
