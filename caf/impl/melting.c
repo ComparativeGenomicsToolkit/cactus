@@ -135,24 +135,6 @@ void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(
     stCaf_joinTrivialBoundaries(threadSet);
 }
 
-Flower *debugFlower;
-
-static char *getEndStr(stPinchEnd *end) {
-    stPinchBlockIt it = stPinchBlock_getSegmentIterator(end->block);
-    stList *segmentNames = stList_construct3(0, free);
-    stPinchSegment *segment;
-    while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
-        bool orientation = stPinchEnd_getOrientation(end) ^ stPinchSegment_getBlockOrientation(segment);
-        Cap *cap = flower_getCap(debugFlower, stPinchSegment_getName(segment));
-        const char *header = sequence_getHeader(cap_getSequence(cap));
-        const char *genome = event_getHeader(cap_getEvent(cap));
-        stList_append(segmentNames, stString_print("%s.%s|%" PRIi64, genome, header, orientation ? stPinchSegment_getStart(segment) : stPinchSegment_getStart(segment) + stPinchSegment_getLength(segment)));
-    }
-    char *ret = stString_join2(",", segmentNames);
-    stList_destruct(segmentNames);
-    return ret;
-}
-
 static bool isTelomere(stPinchEnd *end, stSet *deadEndComponent) {
     stPinchSegment *segment = stPinchBlock_getFirst(end->block);
     bool atEndOfThread = stPinchThread_getFirst(stPinchSegment_getThread(segment)) == segment || stPinchThread_getLast(stPinchSegment_getThread(segment)) == segment;
@@ -237,21 +219,6 @@ static bool chainIsRecoverable(stCactusEdgeEnd *chainEnd, stSet *deadEndComponen
     stSet *connectedEnds1 = stPinchEnd_getConnectedPinchEnds(end1);
     stSet *connectedEnds2 = stPinchEnd_getConnectedPinchEnds(end2);
 
-    printf("c1: %s c2: %s\n", getEndStr(end1), getEndStr(end2));
-    printf("ends connected to c1:\n");
-    stSetIterator *it = stSet_getIterator(connectedEnds1);
-    stPinchEnd *end;
-    while ((end = stSet_getNext(it)) != NULL) {
-        printf("%s\n", getEndStr(end));
-    }
-    stSet_destructIterator(it);
-    printf("ends connected to c2:\n");
-    it = stSet_getIterator(connectedEnds2);
-    while ((end = stSet_getNext(it)) != NULL) {
-        printf("%s\n", getEndStr(end));
-    }
-    stSet_destructIterator(it);
-
     stSet *sharedEnds = stSet_getIntersection(connectedEnds1, connectedEnds2);
 
     bool recoverable = true;
@@ -273,7 +240,6 @@ static bool chainIsRecoverable(stCactusEdgeEnd *chainEnd, stSet *deadEndComponen
     stSet_destruct(sharedEnds);
     stSet_destruct(connectedEnds1);
     stSet_destruct(connectedEnds2);
-    printf("recoverable: %d\n", recoverable);
     return recoverable;
 }
 
@@ -486,7 +452,6 @@ static int64_t totalAlignedBases(stList *blocks) {
 }
 
 void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds, bool (*recoverabilityFilter)(stCactusEdgeEnd *)) {
-    debugFlower = flower;
     stCactusNode *startCactusNode;
     stList *deadEndComponent;
     stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 0, 0,
