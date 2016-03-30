@@ -93,11 +93,16 @@ class GreedyOutgroup(object):
     # leaves have height = 0
     def heightTable(self, node, htable):
         children = [x[1] for x in self.dag.out_edges(node)]
+
+        # Update the table for those children not already in the
+        # table.
+        for child in children:
+            if child not in htable:
+                self.heightTable(child, htable)
+
         if len(children) == 0:
             htable[node] = 0
-        else:            
-            for i in children:
-                self.heightTable(i, htable)
+        else:
             htable[node] = max([htable[i] for i in children]) + 1
 
     # check the candidate using the set and and fraction
