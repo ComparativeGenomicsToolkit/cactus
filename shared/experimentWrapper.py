@@ -298,6 +298,19 @@ class ExperimentWrapper(DbElemWrapper):
             refElem = ET.Element("reference")
             self.xmlRoot.append(refElem)
         refElem.attrib["path"] = path
+
+    def setReferenceID(self, refID):
+        refElem = self.xmlRoot.find("reference")
+        if refElem is None:
+            refElem = ET.Element("reference")
+            self.xmlRoot.append(refElem)
+        refElem.attrib["id"] = refID
+
+    def getReferenceID(self):
+        refElem = self.xmlRoot.find("reference")
+        if refElem is None or "id" not in refElem.attrib:
+            return None
+        return refElem.attrib["id"]
     
     def getReferenceNameFromConfig(self):
         configElem = ET.parse(self.getConfig()).getroot()

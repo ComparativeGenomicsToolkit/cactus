@@ -34,6 +34,7 @@ class MultiCactusProject:
         self.inputSequences = []
         self.outputSequenceDir = None
         self.inputSequenceIDs = None
+        self.outputSequenceIDs = None
         self.configID = None
         
     def readXML(self, path, jobStore=None):
@@ -54,6 +55,8 @@ class MultiCactusProject:
         self.inputSequences = xmlRoot.attrib["inputSequences"].split()
         if "inputSequenceIDs" in xmlRoot.attrib:
             self.inputSequenceIDs = xmlRoot.attrib["inputSequenceIDs"].split()
+        if "outputSequenceIDs" in xmlRoot.attrib:
+            self.outputSequenceIDs = xmlRoot.attrib["outputSequenceIDs"].split()
 
         logger.info("xmlRoot = %s" % ET.tostring(xmlRoot))
         if "configID" in xmlRoot.attrib:
@@ -79,6 +82,8 @@ class MultiCactusProject:
         xmlRoot.attrib["outputSequenceDir"] = self.outputSequenceDir
         if self.inputSequenceIDs:
             xmlRoot.attrib["inputSequenceIDs"] = " ".join(self.inputSequenceIDs)
+        if self.outputSequenceIDs:
+            xmlRoot.attrib["outputSequenceIDs"] = " ".join(self.outputSequenceIDs)
         if self.configID:
             xmlRoot.attrib["configID"] = self.configID
 
@@ -115,6 +120,12 @@ class MultiCactusProject:
         """The directory where the output sequences go
         """
         return self.outputSequenceDir
+
+    def getOutputSequenceIDs(self):
+        return self.outputSequenceIDs
+
+    def setOutputSequenceIDs(self, sequenceIDs):
+        self.outputSequenceIDs = sequenceIDs
     
     def getConfigPath(self):
         return ExperimentWrapper(ET.parse(self.expMap.values()[0]).getroot()).getConfigPath()

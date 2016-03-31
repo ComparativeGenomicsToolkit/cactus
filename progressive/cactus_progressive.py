@@ -99,12 +99,17 @@ class ProgressiveUp(Job):
 
         # open up the experiment
         # note that we copy the path into the options here
-        self.options.experimentFileID = self.project.expIDMap[self.event]
-        experimentFile = fileStore.readGlobalFile(self.options.experimentFileID)
+
+        experimentFile = fileStore.readGlobalFile(self.project.expIDMap[self.event])
         expXml = ET.parse(experimentFile).getroot()
         experiment = ExperimentWrapper(expXml)
         configXml = ET.parse(experiment.getConfigPath()).getroot()
         configWrapper = ConfigWrapper(configXml)
+
+        experiment.setSequenceIDs(self.project.getOutputSequenceIDs())
+        newExpFilePath = os.path.join(fileStore.getLocalTempDir(), "expTemp")
+        experiment.writeXML(newExpFilePath)
+        self.options.experimentFileID = fileStore.writeGlobalFile(newExpFilePath)
 
         # need at least 3 processes for every event when using ktserver:
         # 1 proc to run jobs, 1 proc to run server, 1 proc to run 2ndary server
@@ -200,9 +205,8 @@ class RunCactusPreprocessorThenProgressiveDown(Job):
         configNode = ET.parse(configFile).getroot()
         ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals() #This is necessary..
         #Create the preprocessor
-        self.addChild(CactusPreprocessor(project.getInputSequencePaths(), 
-                                               CactusPreprocessor.getOutputSequenceFiles(project.getInputSequencePaths(), project.getOutputSequenceDir()),
-                                               configNode))
+        processedSequenceIDs = self.addChild(CactusPreprocessor(project.getInputSequenceIDs(), configNode)).rv()
+        project.setOutputSequenceIDs(processedSequenceIDs)
         #Now build the progressive-down job
         schedule = Schedule()
         schedule.loadProject(project)
@@ -228,6 +232,7 @@ def startWorkflow(options):
             seqFileURL = makeURL(seq)
             seqIDs.append(jobStore.importFile(seqFileURL))
         project.setInputSequenceIDs(seqIDs)
+
         
         #import cactus config
         cactusConfigID = jobStore.importFile(makeURL(project.getConfigPath()))

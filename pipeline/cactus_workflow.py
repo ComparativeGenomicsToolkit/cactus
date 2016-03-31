@@ -184,7 +184,7 @@ class CactusPhasesJob(CactusJob):
         logger.info("Starting %s phase job with index %i at %s seconds (recursing = %i)" % (self.phaseNode.tag, self.getPhaseIndex(), time.time(), doRecursion))
         if doRecursion:
             self.makeRecursiveChildJob(recursiveJob, launchSecondaryKtForRecursiveJob)
-        return self.makeFollowOnPhaseJob(job=nextPhaseJob, phaseName=nextPhaseName, index=index).rv()
+        return self.makeFollowOnPhaseJob(job=nextPhaseJob, phaseName=nextPhaseName, index=index)
         
     def getPhaseIndex(self):
         return self.index
@@ -472,7 +472,8 @@ class CactusSetupPhase2(CactusPhasesJob):
             sequences = [fileStore.readGlobalFile(fileID) for fileID in sequenceIDs]
         else:
             logger.info("Reading sequences from permanent input paths.")
-            sequences = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode).getSequences()
+            sequenceIDs = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode).getSequenceIDs()
+            sequences = [fileStore.readGlobalFile(seqID) for seqID in sequenceIDs]
         messages = runCactusSetup(cactusDiskDatabaseString=self.cactusWorkflowArguments.cactusDiskDatabaseString, 
                        sequences=sequences,
                        newickTreeString=self.cactusWorkflowArguments.speciesTree, 
@@ -911,10 +912,12 @@ class CactusExtractReferencePhase(CactusPhasesJob):
                 eventName = os.path.basename(experiment.getReferencePath())
                 if eventName.find('.') >= 0:
                     eventName = eventName[:eventName.rfind('.')]
+                    referencePath = os.path.join(fileStore.getLocalTempDir(), "tempReference")
                     cmdLine = "cactus_getReferenceSeq --cactusDisk \'%s\' --flowerName 0 --referenceEventString %s --outputFile %s --logLevel %s" % \
                               (self.cactusWorkflowArguments.cactusDiskDatabaseString, eventName,
-                               experiment.getReferencePath(), getLogLevelString())                        
+                               referencePath, getLogLevelString())                        
                     system(cmdLine)
+                    experiment.setReferenceID(fileStore.writeGlobalFile(referencePath))
         self.makeFollowOnPhaseJob(CactusCheckPhase, "check")
 
 ############################################################
