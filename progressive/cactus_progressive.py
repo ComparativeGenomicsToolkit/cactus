@@ -33,7 +33,7 @@ from cactus.shared.common import cactusRootPath
 from cactus.shared.common import getOptionalAttrib
   
 from toil.job import Job
-from toil.common import setupToil
+from toil.common import Toil
 
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
@@ -224,27 +224,27 @@ def makeURL(path):
 def startWorkflow(options):
     project = MultiCactusProject()
 
-    with setupToil(options) as (config, batchSystem, jobStore):
-        project.readXML(options.project, jobStore=jobStore)
+    with Toil(options) as toil:
+        project.readXML(options.project)
         #import the sequences
         seqIDs = []
         for seq in project.getInputSequencePaths():
             seqFileURL = makeURL(seq)
-            seqIDs.append(jobStore.importFile(seqFileURL))
+            seqIDs.append(toil.jobStore.importFile(seqFileURL))
         project.setInputSequenceIDs(seqIDs)
 
         
         #import cactus config
-        cactusConfigID = jobStore.importFile(makeURL(project.getConfigPath()))
+        cactusConfigID = toil.jobStore.importFile(makeURL(project.getConfigPath()))
         logger.info("Setting config id to: %s" % cactusConfigID)
         project.setConfigID(cactusConfigID)
 
         project.writeXML(options.project)
 
         #import the project file
-        projectID = jobStore.importFile(makeURL(options.project))
+        projectID = toil.jobStore.importFile(makeURL(options.project))
         #Run the workflow
-        cactusResults = Job.Runner.start(RunCactusPreprocessorThenProgressiveDown(options, projectID), options, config, batchSystem, jobStore)
+        cactusResults = toil.run(RunCactusPreprocessorThenProgressiveDown(options, projectID))
         
 def main():
     usage = "usage: prog [options] <multicactus project>"
