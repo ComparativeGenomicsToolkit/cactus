@@ -262,6 +262,26 @@ bool chainHasUnequalNumberOfIngroupCopies(stCactusEdgeEnd *chainEnd) {
     return !equalNumIngroupCopies;
 }
 
+/*
+ * Selecting chains that have an unequal number of copies distributed
+ * among each of the ingroups, or has no copies among the
+ * outgroups collectively.
+ */
+bool chainHasUnequalNumberOfIngroupCopiesOrNoOutgroup(stCactusEdgeEnd *chainEnd) {
+    EventTree *eventTree = flower_getEventTree(flower);
+    EventTree_Iterator *eventIt = eventTree_getIterator(eventTree);
+    bool equalNumIngroupCopies = !chainHasUnequalNumberOfIngroupCopies(chainEnd);
+    Event *event;
+    uint64_t numOutgroupCopies = 0;
+    while ((event = eventTree_getNext(eventIt)) != NULL) {
+        if (event_isOutgroup(event)) {
+            numOutgroupCopies++;
+        }
+    }
+
+    eventTree_destructIterator(eventIt);
+    return !(equalNumIngroupCopies && numOutgroupCopies);
+}
 
 int main(int argc, char *argv[]) {
     /*
@@ -434,6 +454,9 @@ int main(int argc, char *argv[]) {
                 } else if (strcmp(optarg, "unequalNumberOfIngroupCopies") == 0) {
                     removeRecoverableChains = true;
                     recoverableChainsFilter = chainHasUnequalNumberOfIngroupCopies;
+                } else if (strcmp(optarg, "unequalNumberOfIngroupCopiesOrNoOutgroup") == 0) {
+                    removeRecoverableChains = true;
+                    recoverableChainsFilter = chainHasUnequalNumberOfIngroupCopiesOrNoOutgroup;
                 } else if (strcmp(optarg, "0") == 0) {
                     removeRecoverableChains = false;
                 } else {
