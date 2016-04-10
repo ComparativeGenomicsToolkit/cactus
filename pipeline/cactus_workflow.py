@@ -459,6 +459,7 @@ class CactusSetupPhase(CactusPhasesJob):
             cores = cw.getKtserverCpu(default=getOptionalAttrib(
                     self.constantsNode, "defaultCpu", int, default=sys.maxint))
             return self.addChild(ChildWithKtServer(self, setupJob, isSecondary = False, memory=memory, cores=cores)).rv()
+            logger.info("Pickled setup job")
         else:
             logger.info("Created follow-on job cactus_setup")
             return self.addFollowOn(setupJob).rv()
@@ -1023,9 +1024,9 @@ class CactusHalGeneratorPhaseCleanup(CactusPhasesJob):
 class CactusWorkflowArguments:
     """Object for representing a cactus workflow's arguments
     """
-    def __init__(self, options, fileStore):
+    def __init__(self, options, experimentFile):
         #Get a local copy of the experiment file
-        self.experimentFile = fileStore.readGlobalFile(options.experimentFileID)
+        self.experimentFile = experimentFile
         self.experimentNode = ET.parse(self.experimentFile).getroot()
         self.experimentWrapper = ExperimentWrapper(self.experimentNode)
         #Get the database string

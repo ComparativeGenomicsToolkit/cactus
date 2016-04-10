@@ -99,7 +99,6 @@ class ProgressiveUp(Job):
 
         # open up the experiment
         # note that we copy the path into the options here
-
         experimentFile = fileStore.readGlobalFile(self.project.expIDMap[self.event])
         expXml = ET.parse(experimentFile).getroot()
         experiment = ExperimentWrapper(expXml)
@@ -136,7 +135,8 @@ class ProgressiveUp(Job):
             self.options.buildFasta = getOptionalAttrib(halNode, "buildFasta", bool, False)
 
         # get parameters that cactus_workflow stuff wants
-        workFlowArgs = CactusWorkflowArguments(self.options, fileStore)
+        experimentFile = fileStore.readGlobalFile(self.options.experimentFileID)
+        workFlowArgs = CactusWorkflowArguments(self.options, experimentFile)
         # copy over the options so we don't trail them around
         workFlowArgs.buildReference = self.options.buildReference
         workFlowArgs.buildHal = self.options.buildHal
@@ -177,10 +177,10 @@ class ProgressiveUp(Job):
         return cactusResults
                                
 class FinishUp(Job):
-    def __init__(self, workFlowArgs, project,):
+    def __init__(self, workFlowArgs, projectID,):
         Job.__init__(self)
         self.workFlowArgs = workFlowArgs
-        self.project = project
+        self.projectID = projectID
     
     def run(self, fileStore):
         donePath = os.path.join(os.path.dirname(self.workFlowArgs.experimentFile), "DONE")
@@ -204,9 +204,10 @@ class RunCactusPreprocessorThenProgressiveDown(Job):
         configFile = fileStore.readGlobalFile(project.getConfigID())
         configNode = ET.parse(configFile).getroot()
         ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals() #This is necessary..
-        #Create the preprocessor
-        processedSequenceIDs = self.addChild(CactusPreprocessor(project.getInputSequenceIDs(), configNode)).rv()
-        project.setOutputSequenceIDs(processedSequenceIDs)
+        #Add the preprocessor child job. The output is a job promise value that will be
+        #converted into a list of the IDs of the preprocessed sequences in the follow on job.
+        preprocessorOutput = self.addChild(CactusPreprocessor(project.getInputSequenceIDs(), configNode)).rv()
+
         #Now build the progressive-down job
         schedule = Schedule()
         schedule.loadProject(project)
@@ -216,7 +217,19 @@ class RunCactusPreprocessorThenProgressiveDown(Job):
         assert self.options.event in project.expMap
         leafNames = [ project.mcTree.getName(i) for i in project.mcTree.getLeaves() ]
         self.options.globalLeafEventSet = set(leafNames)
-        return self.addFollowOn(ProgressiveDown(self.options, project, self.options.event, schedule)).rv()
+        return self.addFollowOn(ProgressiveDownPrecursor(self.options, project, preprocessorOutput, self.options.event, schedule)).rv()
+
+class ProgressiveDownPrecursor(Job):
+    def __init__(self, options, project, preprocessorOutput, event, schedule):
+        Job.__init__(self)
+        self.options = options
+        self.project = project
+        self.preprocessorOutput = preprocessorOutput
+        self.event = event
+        self.schedule = schedule
+    def run(self, fileStore):
+        self.project.setOutputSequenceIDs(self.preprocessorOutput)
+        return self.addFollowOn(ProgressiveDown(self.options, self.project, self.event, self.schedule)).rv()
 
 def makeURL(path):
     return "file://" + path
@@ -225,7 +238,7 @@ def startWorkflow(options):
     project = MultiCactusProject()
 
     with Toil(options) as toil:
-        project.readXML(options.project)
+        project.readXML(options.project, toil.jobStore)
         #import the sequences
         seqIDs = []
         for seq in project.getInputSequencePaths():

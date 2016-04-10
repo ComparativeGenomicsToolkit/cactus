@@ -37,6 +37,7 @@ class ChildWithKtServer(Job):
         self.newChild = newChild
         self.isSecondary = isSecondary
     def run(self, fileStore):
+        logger.info("Creating Ktserver root job")
         from cactus.pipeline.cactus_workflow import CactusPhasesJob
         from cactus.pipeline.cactus_workflow import CactusRecursionJob
 
