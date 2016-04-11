@@ -73,11 +73,11 @@ stPinch *getNextAlignedPairAlignment(stSortedSetIterator *it) {
     return &pinch;
 }
 
-static int64_t minimumIngroupDegree = 0, minimumOutgroupDegree = 0, minimumDegree = 0;
+static int64_t minimumIngroupDegree = 0, minimumOutgroupDegree = 0, minimumDegree = 0, minimumNumberOfSpecies = 0;
 static Flower *flower;
 
 bool blockFilterFn(stPinchBlock *pinchBlock) {
-    return !stCaf_containsRequiredSpecies(pinchBlock, flower, minimumIngroupDegree, minimumOutgroupDegree, minimumDegree);
+    return !stCaf_containsRequiredSpecies(pinchBlock, flower, minimumIngroupDegree, minimumOutgroupDegree, minimumDegree, minimumNumberOfSpecies);
 }
 
 int main(int argc, char *argv[]) {
@@ -121,11 +121,13 @@ int main(int argc, char *argv[]) {
                 { "precomputedAlignments", required_argument, 0, 'D' }, {
                         "endAlignmentsToPrecomputeOutputFile", required_argument, 0, 'E' }, { "maximumNumberOfSequencesBeforeSwitchingToFast",
                         required_argument, 0, 'F' }, { "calculateWhichEndsToComputeSeparately", no_argument, 0, 'G' }, { "largeEndSize",
-                        required_argument, 0, 'I' }, { 0, 0, 0, 0 } };
+                        required_argument, 0, 'I' },
+                                                { "minimumNumberOfSpecies", required_argument, 0, 'J' },
+                                                { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:b:hi:j:kl:o:p:q:r:t:u:wy:A:B:D:E:F:GI:", long_options, &option_index);
+        int key = getopt_long(argc, argv, "a:b:hi:j:kl:o:p:q:r:t:u:wy:A:B:D:E:F:GI:J:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -223,6 +225,12 @@ int main(int argc, char *argv[]) {
             case 'I':
                 i = sscanf(optarg, "%" PRIi64 "", &largeEndSize);
                 assert(i == 1);
+                break;
+            case 'J':
+                i = sscanf(optarg, "%" PRIi64, &minimumNumberOfSpecies);
+                if (i != 1) {
+                    st_errAbort("Error parsing minimumNumberOfSpecies parameter");
+                }
                 break;
             default:
                 usage();

@@ -64,7 +64,7 @@ void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bo
  * Function used to determine if blocks contains sufficient numbers of sequences of ingroup/outgroup species.
  */
 bool stCaf_containsRequiredSpecies(stPinchBlock *pinchBlock, Flower *flower, int64_t minimumIngroupDegree,
-        int64_t minimumOutgroupDegree, int64_t minimumAllDegree);
+        int64_t minimumOutgroupDegree, int64_t minimumDegree, int64_t minimumNumberOfSpecies);
 
 /*
  * Returns the proportion of the tree covered by the block.

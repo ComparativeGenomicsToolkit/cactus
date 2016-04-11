@@ -87,13 +87,14 @@ static int64_t *getInts(const char *string, int64_t *arrayLength) {
     return iA;
 }
 
-static int64_t minimumIngroupDegree = 0, minimumOutgroupDegree = 0, minimumDegree = 0;
+static int64_t minimumIngroupDegree = 0, minimumOutgroupDegree = 0, minimumDegree = 0, minimumNumberOfSpecies = 0;
 static float minimumTreeCoverage = 0.0;
 static Flower *flower = NULL;
 
 static bool blockFilterFn(stPinchBlock *pinchBlock) {
-    if ((minimumIngroupDegree > 0 || minimumOutgroupDegree > 0 || minimumDegree > 0) && !stCaf_containsRequiredSpecies(pinchBlock,
-            flower, minimumIngroupDegree, minimumOutgroupDegree, minimumDegree)) {
+    if (!stCaf_containsRequiredSpecies(pinchBlock, flower, minimumIngroupDegree,
+                                       minimumOutgroupDegree, minimumDegree,
+                                       minimumNumberOfSpecies)) {
         return 1;
     }
     if (minimumTreeCoverage > 0.0 && stCaf_treeCoverage(pinchBlock, flower) < minimumTreeCoverage) { //Tree coverage
@@ -117,7 +118,6 @@ bool containsOutgroupSegment(stPinchBlock *block) {
     stPinchBlockIt it = stPinchBlock_getSegmentIterator(block);
     stPinchSegment *segment;
     while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
-        //if(event_isOutgroup(getEvent(segment, flower))) {
         if (stSet_search(outgroupThreads, stPinchSegment_getThread(segment)) != NULL) {
             assert(event_isOutgroup(getEvent(segment, flower)));
             stPinchSegment_putSegmentFirstInBlock(segment);
@@ -346,11 +346,12 @@ int main(int argc, char *argv[]) {
                         { "maximumMedianSequenceLengthBetweenLinkedEnds", required_argument, 0, 'A' },
                         { "realign", no_argument, 0, 'B' }, { "realignArguments", required_argument, 0, 'C' },
                         { "removeRecoverableChains", required_argument, 0, 'D' },
+                        { "minimumNumberOfSpecies", required_argument, 0, 'E' },
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:BC:", long_options, &option_index);
+        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:BC:D:E:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -461,6 +462,12 @@ int main(int argc, char *argv[]) {
                     removeRecoverableChains = false;
                 } else {
                     st_errAbort("Could not parse removeRecoverableChains argument");
+                }
+                break;
+            case 'E':
+                k = sscanf(optarg, "%" PRIi64, &minimumNumberOfSpecies);
+                if (k != 1) {
+                    st_errAbort("Error parsing the minimumNumberOfSpecies argument");
                 }
                 break;
             default:

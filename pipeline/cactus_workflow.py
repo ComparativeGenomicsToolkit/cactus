@@ -502,7 +502,8 @@ class CactusCafWrapper(CactusRecursionTarget):
                           maximumMedianSequenceLengthBetweenLinkedEnds=self.getOptionalPhaseAttrib("maximumMedianSequenceLengthBetweenLinkedEnds", int),
                           realign=self.getOptionalPhaseAttrib("realign", bool),
                           realignArguments=self.getOptionalPhaseAttrib("realignArguments"),
-                          removeRecoverableChains=self.getOptionalPhaseAttrib("removeRecoverableChains"))
+                          removeRecoverableChains=self.getOptionalPhaseAttrib("removeRecoverableChains"),
+                          minimumNumberOfSpecies=self.getOptionalPhaseAttrib("minimumNumberOfSpecies", int))
         for message in messages:
             self.logToMaster(message)
     
@@ -581,7 +582,8 @@ def runBarForTarget(self, calculateWhichEndsToComputeSeparately=None, endAlignme
                  calculateWhichEndsToComputeSeparately=calculateWhichEndsToComputeSeparately,
                  endAlignmentsToPrecomputeOutputFile=endAlignmentsToPrecomputeOutputFile,
                  largeEndSize=self.getOptionalPhaseAttrib("largeEndSize", int),
-                 precomputedAlignments=precomputedAlignments)
+                 precomputedAlignments=precomputedAlignments,
+                 minimumNumberOfSpecies=self.getOptionalPhaseAttrib("minimumNumberOfSpecies", int))
 
 class CactusBarWrapper(CactusRecursionTarget):
     """Runs the BAR algorithm implementation.

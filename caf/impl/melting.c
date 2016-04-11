@@ -490,21 +490,30 @@ Event *getEvent(stPinchSegment *segment, Flower *flower) {
 }
 
 bool stCaf_containsRequiredSpecies(stPinchBlock *pinchBlock, Flower *flower, int64_t minimumIngroupDegree,
-        int64_t minimumOutgroupDegree, int64_t requiredAllSpecies) {
+        int64_t minimumOutgroupDegree, int64_t minimumDegree, int64_t minimumNumberOfSpecies) {
+    stSet *seenEvents = stSet_construct();
+    int64_t numberOfSpecies = 0;
     int64_t outgroupSequences = 0;
     int64_t ingroupSequences = 0;
     stPinchBlockIt segmentIt = stPinchBlock_getSegmentIterator(pinchBlock);
     stPinchSegment *segment;
     while ((segment = stPinchBlockIt_getNext(&segmentIt)) != NULL) {
         Event *event = getEvent(segment, flower);
+        if (!stSet_search(seenEvents, event)) {
+            stSet_insert(seenEvents, event);
+            numberOfSpecies++;
+        }
         if (event_isOutgroup(event)) {
             outgroupSequences++;
         } else {
             ingroupSequences++;
         }
     }
-    return ingroupSequences >= minimumIngroupDegree && outgroupSequences >= minimumOutgroupDegree && outgroupSequences
-            + ingroupSequences >= requiredAllSpecies;
+    stSet_destruct(seenEvents);
+    return ingroupSequences >= minimumIngroupDegree &&
+        outgroupSequences >= minimumOutgroupDegree &&
+        outgroupSequences + ingroupSequences >= minimumDegree &&
+        numberOfSpecies >= minimumNumberOfSpecies;
 }
 
 bool stCaf_treeCoverage(stPinchBlock *pinchBlock, Flower *flower) {
