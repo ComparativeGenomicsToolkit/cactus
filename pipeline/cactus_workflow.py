@@ -69,7 +69,7 @@ from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.experimentWrapper import DbElemWrapper
 from cactus.shared.configWrapper import ConfigWrapper
-from cactus.pipeline.ktserverToil import ChildWithKtServer
+from cactus.pipeline.ktserverToil import KtServerService
 
 ############################################################
 ############################################################
@@ -168,9 +168,11 @@ class CactusPhasesJob(CactusJob):
                     self.constantsNode, "defaultMemory", int, default=sys.maxint))
             cpu = cw.getKtserverCpu(default=getOptionalAttrib(
                     self.constantsNode, "defaultCpu", int, default=sys.maxint))
-            self.addChild(ChildWithKtServer(self, newChild, isSecondary = True, memory = memory, cores = cpu))
+            dbElem = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
+            self.addService(KtServerService(dbElem = dbElem, isSecondary = True))
+            return self.addChild(newChild).rv()
         else:
-            self.addChild(newChild)
+            return self.addChild(newChild).rv()
     
     def makeFollowOnPhaseJob(self, job, phaseName, index=0):
         return self.addFollowOn(job(cactusWorkflowArguments=self.cactusWorkflowArguments, phaseName=phaseName, 
@@ -458,8 +460,12 @@ class CactusSetupPhase(CactusPhasesJob):
                     self.constantsNode, "defaultMemory", int, default=sys.maxint))
             cores = cw.getKtserverCpu(default=getOptionalAttrib(
                     self.constantsNode, "defaultCpu", int, default=sys.maxint))
-            return self.addChild(ChildWithKtServer(self, setupJob, isSecondary = False, memory=memory, cores=cores)).rv()
+            dbElem = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
+            dbString = self.addService(KtServerService(dbElem = dbElem, isSecondary=False, memory = memory, cores = cores))
+            setupJob.cactusWorkflowArguments.cactusDiskDatabaseString = dbString
+            results = self.addChild(setupJob).rv()
             logger.info("Pickled setup job")
+            return results
         else:
             logger.info("Created follow-on job cactus_setup")
             return self.addFollowOn(setupJob).rv()
