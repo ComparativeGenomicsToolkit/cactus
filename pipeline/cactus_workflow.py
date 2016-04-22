@@ -886,7 +886,7 @@ class CactusSetReferenceCoordinatesDownPhase(CactusPhasesJob):
     """
     def run(self, fileStore):
         self.cleanupSecondaryDatabase()
-        self.runPhase(CactusSetReferenceCoordinatesDownRecursion, CactusExtractReferencePhase, "check", doRecursion=self.getOptionalPhaseAttrib("buildReference", bool, False))
+        return self.runPhase(CactusSetReferenceCoordinatesDownRecursion, CactusExtractReferencePhase, "check", doRecursion=self.getOptionalPhaseAttrib("buildReference", bool, False))
         
 class CactusSetReferenceCoordinatesDownRecursion(CactusRecursionJob):
     """Does the down pass for filling Fills in the coordinates, once a reference is added.
@@ -911,10 +911,10 @@ class CactusSetReferenceCoordinatesDownWrapper(CactusRecursionJob):
 
 class CactusExtractReferencePhase(CactusPhasesJob):
     def run(self, fileStore):
+        experiment = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
         if hasattr(self.cactusWorkflowArguments, 'buildReference') and\
                self.cactusWorkflowArguments.buildReference:
             fileStore.logToMaster("Starting Reference Extract Phase")
-            experiment = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
             if experiment.getReferencePath() is not None:
                 eventName = os.path.basename(experiment.getReferencePath())
                 if eventName.find('.') >= 0:
@@ -925,7 +925,8 @@ class CactusExtractReferencePhase(CactusPhasesJob):
                                referencePath, getLogLevelString())                        
                     system(cmdLine)
                     experiment.setReferenceID(fileStore.writeGlobalFile(referencePath))
-        self.makeFollowOnPhaseJob(CactusCheckPhase, "check")
+        self.cactusWorkflowArguments.experimentWrapper = experiment
+        return self.makeFollowOnPhaseJob(CactusCheckPhase, "check")
 
 ############################################################
 ############################################################
@@ -941,7 +942,7 @@ class CactusCheckPhase(CactusPhasesJob):
     def run(self, fileStore):
         normalNode = findRequiredNode(self.cactusWorkflowArguments.configNode, "normal")
         self.phaseNode.attrib["checkNormalised"] = getOptionalAttrib(normalNode, "normalised", default="0")
-        self.runPhase(CactusCheckRecursion, CactusHalGeneratorPhase, "hal", doRecursion=self.getOptionalPhaseAttrib("runCheck", bool, False))
+        return self.runPhase(CactusCheckRecursion, CactusHalGeneratorPhase, "hal", doRecursion=self.getOptionalPhaseAttrib("runCheck", bool, False))
         
 class CactusCheckRecursion(CactusRecursionJob):
     """This job does the recursive pass for the check phase.
@@ -978,7 +979,8 @@ class CactusHalGeneratorPhase(CactusPhasesJob):
             self.phaseNode.attrib["secondaryDatabaseString"] = self.cactusWorkflowArguments.secondaryDatabaseString
             #self.phaseNode.attrib["outputFile"]=self.cactusWorkflowArguments.experimentNode.find("hal").attrib["halPath"]
             self.makeFollowOnPhaseJob(CactusHalGeneratorPhase2, "hal")
-            self.makeRecursiveChildJob(CactusHalGeneratorRecursion, launchSecondaryKtForRecursiveJob=True)
+            halID = self.makeRecursiveChildJob(CactusHalGeneratorRecursion, launchSecondaryKtForRecursiveJob=True)
+            return self.cactusWorfklowArguments.experimentWrapper.setHalID(halID)
 
 class CactusFastaGenerator(CactusRecursionJob):
     def run(self, fileStore):
@@ -1000,19 +1002,21 @@ class CactusHalGeneratorRecursion(CactusRecursionJob):
         if "outputFile" in i.attrib:
             i.attrib.pop("outputFile")
         self.makeRecursiveJobs(phaseNode=i)
-        self.makeFollowOnRecursiveJob(CactusHalGeneratorUpWrapper)
+        return self.makeFollowOnRecursiveJob(CactusHalGeneratorUpWrapper)
 
 class CactusHalGeneratorUpWrapper(CactusRecursionJob):
     """Does the up pass for filling in the coordinates, once a reference is added.
     """ 
     def run(self, fileStore):
+        tmpHal = os.path.join(fileStore.getLocalTempDir(), "tmpHal")
         runCactusHalGenerator(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                               secondaryDatabaseString=self.getOptionalPhaseAttrib("secondaryDatabaseString"),
                               flowerNames=self.flowerNames,
                               referenceEventString=self.getOptionalPhaseAttrib("reference"), #self.configNode.attrib["reference"], #self.getOptionalPhaseAttrib("reference"), 
-                              outputFile=self.getOptionalPhaseAttrib("outputFile"),
+                              outputFile=tmpHal,
                               showOnlySubstitutionsWithRespectToReference=\
                               self.getOptionalPhaseAttrib("showOnlySubstitutionsWithRespectToReference", bool))
+        return fileStore.writeGlobalFile(tmphal)
 
 class CactusHalGeneratorPhaseCleanup(CactusPhasesJob):
     """Cleanup the database used to build the hal

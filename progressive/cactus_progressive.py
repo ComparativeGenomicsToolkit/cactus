@@ -49,43 +49,49 @@ from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.schedule import Schedule
         
 class ProgressiveDown(Job):
-    def __init__(self, options, project, event, schedule):
+    def __init__(self, options, project, event, schedule, expWrapperMap = None):
         Job.__init__(self)
         self.options = options
         self.project = project
         self.event = event
         self.schedule = schedule
+        self.expWrapperMap = expWrapperMap
     
     def run(self, fileStore):
         logger.info("Progressive Down: " + self.event)
-        
+
+        if not self.expWrapperMap:
+            self.expWrapperMap = dict()
         if not self.options.nonRecursive:
             deps = self.schedule.deps(self.event)
             for child in deps:
-                self.addChild(ProgressiveDown(self.options,
+                self.expWrapperMap = self.addChild(ProgressiveDown(self.options,
                                                     self.project, child, 
-                                                    self.schedule))
+                                                                   self.schedule, expWrapperMap = self.expWrapperMap)).rv()
         
-        return self.addFollowOn(ProgressiveNext(self.options, self.project, self.event,
-                                               self.schedule)).rv()
+        self.expWrapperMap = self.addFollowOn(ProgressiveNext(self.options, self.project, self.event,
+                                                              self.schedule, expWrapperMap = self.expWrapperMap)).rv()
+        return self.expWrappermap
 
 class ProgressiveNext(Job):
-    def __init__(self, options, project, event, schedule):
+    def __init__(self, options, project, event, schedule, expWrapperMap = None):
         Job.__init__(self)
         self.options = options
         self.project = project
         self.event = event
         self.schedule = schedule
+        self.expWrapperMap = expWrapperMap
     
     def run(self, fileStore):
         logger.info("Progressive Next: " + self.event)
-
+        eventExpWrapper = None
         if not self.schedule.isVirtual(self.event):
-            self.addChild(ProgressiveUp(self.options, self.project, self.event))
+            eventExpWrapper = self.addChild(ProgressiveUp(self.options, self.project, self.event)).rv()
+            self.expWrapperMap[self.event] = eventExpWrapper
         followOnEvent = self.schedule.followOn(self.event)
         if followOnEvent is not None:
             return self.addChild(ProgressiveDown(self.options, self.project, followOnEvent,
-                                                self.schedule)).rv()
+                                                 self.schedule, expWrapperMap = self.expWrapperMap)).rv()
     
 class ProgressiveUp(Job):
     def __init__(self, options, project, event):
@@ -167,14 +173,14 @@ class ProgressiveUp(Job):
 
             if workFlowArgs.configWrapper.getDoTrimStrategy() and workFlowArgs.outgroupEventNames is not None:
                 # Use the trimming strategy to blast ingroups vs outgroups.
-                cactusResults = self.addChild(CactusTrimmingBlastPhase(cactusWorkflowArguments=workFlowArgs, phaseName="trimBlast"))
+                finalExpWrapper = self.addChild(CactusTrimmingBlastPhase(cactusWorkflowArguments=workFlowArgs, phaseName="trimBlast")).rv()
             else:
-                cactusResults = self.addChild(CactusSetupPhase(cactusWorkflowArguments=workFlowArgs,
-                                                     phaseName="setup"))
+                finalExpWrapper = self.addChild(CactusSetupPhase(cactusWorkflowArguments=workFlowArgs,
+                                                     phaseName="setup")).rv()
         logger.info("Going to create alignments and define the cactus tree")
 
         self.addFollowOn(FinishUp(workFlowArgs, self.project))
-        return cactusResults
+        return finalExpWrapper
                                
 class FinishUp(Job):
     def __init__(self, workFlowArgs, projectID,):
@@ -257,7 +263,22 @@ def startWorkflow(options):
         #import the project file
         projectID = toil.jobStore.importFile(makeURL(options.project))
         #Run the workflow
-        cactusResults = toil.run(RunCactusPreprocessorThenProgressiveDown(options, projectID))
+        expWrapperMap = toil.run(RunCactusPreprocessorThenProgressiveDown(options, projectID))
+
+        #Write the HAL file and reference sequence for each experiment wrapper to a permanent
+        #path on the leader node
+        for expWrapper in expWrapperMap:
+            toil.jobStore.exportFile(expWrapper.getHalID(), "file://" + expWrapper.getHALPath())
+            toil.jobStore.exportFile(expWrapper.getReferenceID(), "file://" + expWrapper.getReferencePath())
+            
+
+        #Write the experiment file to a permanent path on the leader node
+        for name in project.expMap:
+            expWrapperMap[name].writeXML(project.expMap[name])
+
+        #Write the project file to its expected location
+        project.writeXML(options.project)
+            
         
 def main():
     usage = "usage: prog [options] <multicactus project>"

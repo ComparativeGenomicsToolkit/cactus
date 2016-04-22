@@ -300,17 +300,10 @@ class ExperimentWrapper(DbElemWrapper):
         refElem.attrib["path"] = path
 
     def setReferenceID(self, refID):
-        refElem = self.xmlRoot.find("reference")
-        if refElem is None:
-            refElem = ET.Element("reference")
-            self.xmlRoot.append(refElem)
-        refElem.attrib["id"] = refID
+        self.referenceID = refID
 
     def getReferenceID(self):
-        refElem = self.xmlRoot.find("reference")
-        if refElem is None or "id" not in refElem.attrib:
-            return None
-        return refElem.attrib["id"]
+        return self.referenceID
     
     def getReferenceNameFromConfig(self):
         configElem = ET.parse(self.getConfig()).getroot()
@@ -336,6 +329,12 @@ class ExperimentWrapper(DbElemWrapper):
             halElem = ET.Element("hal")
             self.xmlRoot.append(halElem)
         halElem.attrib["halPath"] = path
+
+    def setHalID(self, halID):
+        self.halID = halID
+
+    def getHalID(self):
+        return self.halID
         
     def getHALFastaPath(self):
         halElem = self.xmlRoot.find("hal")
