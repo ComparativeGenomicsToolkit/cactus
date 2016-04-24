@@ -980,7 +980,8 @@ class CactusHalGeneratorPhase(CactusPhasesJob):
             #self.phaseNode.attrib["outputFile"]=self.cactusWorkflowArguments.experimentNode.find("hal").attrib["halPath"]
             self.makeFollowOnPhaseJob(CactusHalGeneratorPhase2, "hal")
             halID = self.makeRecursiveChildJob(CactusHalGeneratorRecursion, launchSecondaryKtForRecursiveJob=True)
-            return self.cactusWorfklowArguments.experimentWrapper.setHalID(halID)
+            self.cactusWorkflowArguments.experimentWrapper.setHalID(halID)
+            return self.cactusWorfklowArguments.experimentWrapper
 
 class CactusFastaGenerator(CactusRecursionJob):
     def run(self, fileStore):

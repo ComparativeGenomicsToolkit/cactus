@@ -47,51 +47,57 @@ from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.schedule import Schedule
-        
+
+
 class ProgressiveDown(Job):
-    def __init__(self, options, project, event, schedule, expWrapperMap = None):
+    def __init__(self, options, project, event, schedule):
         Job.__init__(self)
         self.options = options
         self.project = project
         self.event = event
         self.schedule = schedule
-        self.expWrapperMap = expWrapperMap
     
     def run(self, fileStore):
         logger.info("Progressive Down: " + self.event)
 
-        if not self.expWrapperMap:
-            self.expWrapperMap = dict()
+        depProjects = dict()
         if not self.options.nonRecursive:
             deps = self.schedule.deps(self.event)
             for child in deps:
-                self.expWrapperMap = self.addChild(ProgressiveDown(self.options,
+                depProjectsIDs[child] = self.addChild(ProgressiveDown(self.options,
                                                     self.project, child, 
-                                                                   self.schedule, expWrapperMap = self.expWrapperMap)).rv()
+                                                                   self.schedule)).rv()
         
-        self.expWrapperMap = self.addFollowOn(ProgressiveNext(self.options, self.project, self.event,
-                                                              self.schedule, expWrapperMap = self.expWrapperMap)).rv()
-        return self.expWrappermap
-
+        return self.addFollowOn(ProgressiveNext(self.options, self.project, self.event,
+                                                              self.schedule, depProjectIDs)).rv()
 class ProgressiveNext(Job):
-    def __init__(self, options, project, event, schedule, expWrapperMap = None):
+    def __init__(self, options, project, event, schedule, depProjectIDs):
         Job.__init__(self)
         self.options = options
         self.project = project
         self.event = event
         self.schedule = schedule
-        self.expWrapperMap = expWrapperMap
+        self.depProjectIDs = depProjectIDs
     
     def run(self, fileStore):
+        for name in depProjectIDs:
+            project = depProjectIDs[name]
+            expID = project.expIDMap[name]
+            self.project.expIDMap[name] = expID
+                        
+        eventExpID = None
         logger.info("Progressive Next: " + self.event)
-        eventExpWrapper = None
         if not self.schedule.isVirtual(self.event):
-            eventExpWrapper = self.addChild(ProgressiveUp(self.options, self.project, self.event)).rv()
-            self.expWrapperMap[self.event] = eventExpWrapper
+            eventExpID = self.addChild(ProgressiveUp(self.options, self.project, self.event)).rv()
+            self.project.expIDMap[self.event] = eventExpID
         followOnEvent = self.schedule.followOn(self.event)
         if followOnEvent is not None:
-            return self.addChild(ProgressiveDown(self.options, self.project, followOnEvent,
-                                                 self.schedule, expWrapperMap = self.expWrapperMap)).rv()
+            return self.addFollowOn(ProgressiveDown(self.options, self.project, followOnEvent,
+                                                 self.schedule)).rv()
+        else:
+            tmpProject = os.path.join(fileStore.getLocalTempDir(), "tmpProject")
+            self.project.writeXML(tmpProject)
+            return fileStore.writeGlobalFile(tmpProject)
     
 class ProgressiveUp(Job):
     def __init__(self, options, project, event):
@@ -157,6 +163,7 @@ class ProgressiveUp(Job):
         refDone = not workFlowArgs.buildReference or os.path.isfile(experiment.getReferencePath())
         halDone = not workFlowArgs.buildHal or (os.path.isfile(experiment.getHALFastaPath()) and
                                                 os.path.isfile(experiment.getHALPath()))
+        finalExpID = None
                                                                
         if not workFlowArgs.overwrite and doneDone and refDone and halDone:
             self.logToMaster("Skipping %s because it is already done and overwrite is disabled" %
@@ -173,14 +180,14 @@ class ProgressiveUp(Job):
 
             if workFlowArgs.configWrapper.getDoTrimStrategy() and workFlowArgs.outgroupEventNames is not None:
                 # Use the trimming strategy to blast ingroups vs outgroups.
-                finalExpWrapper = self.addChild(CactusTrimmingBlastPhase(cactusWorkflowArguments=workFlowArgs, phaseName="trimBlast")).rv()
+                finalExpID = self.addChild(CactusTrimmingBlastPhase(cactusWorkflowArguments=workFlowArgs, phaseName="trimBlast")).rv()
             else:
-                finalExpWrapper = self.addChild(CactusSetupPhase(cactusWorkflowArguments=workFlowArgs,
+                finalExpID = self.addChild(CactusSetupPhase(cactusWorkflowArguments=workFlowArgs,
                                                      phaseName="setup")).rv()
         logger.info("Going to create alignments and define the cactus tree")
 
         self.addFollowOn(FinishUp(workFlowArgs, self.project))
-        return finalExpWrapper
+        return finalExpID
                                
 class FinishUp(Job):
     def __init__(self, workFlowArgs, projectID,):
