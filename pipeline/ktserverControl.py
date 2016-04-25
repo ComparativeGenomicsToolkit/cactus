@@ -46,7 +46,7 @@ from cactus.shared.experimentWrapper import ExperimentWrapper
 ###############################################################################
 def runKtserver(dbElem, killSwitchPath, maxPortsToTry=100, readOnly = False,
                 createTimeout=30, loadTimeout=10000, killTimeout=518400,
-                killPingInterval=5):
+                killPingInterval=5, fileStore = None):
     if not os.path.isfile(killSwitchPath):
         raise RuntimeError("Kill switch file not found, can't " +
                            "launch without it %s" % killSwitchPath)
@@ -75,9 +75,11 @@ def runKtserver(dbElem, killSwitchPath, maxPortsToTry=100, readOnly = False,
     try:        
         for port in xrange(basePort, basePort + maxPortsToTry):
             dbElem.setDbPort(port)
+            logger.info("Trying port: %i" % port)
             if os.path.exists(logPath):
                 os.remove(logPath)
             if __isKtServerOnTakenPort(dbElem, killSwitchPath, pretest=True):
+                logger.info("Ktserver already on port %i" % port)
                 continue
             cmd = __getKtserverCommand(dbElem, dbPathExists, readOnly)
             process = subprocess.Popen(cmd.split(), shell=False, 
@@ -86,8 +88,10 @@ def runKtserver(dbElem, killSwitchPath, maxPortsToTry=100, readOnly = False,
             procWaiter = ProcessWaiter(process)
             procWaiter.start()
             __writeStatusToSwitchFile(dbElem, process.pid, killSwitchPath)
-            success = __validateKtserver(process, dbElem, killSwitchPath,
+            validated = __validateKtserver(process, dbElem, killSwitchPath,
                                          createTimeout, loadTimeout)
+            logger.info("Was able to validate ktserver: %r" % validated)
+            success = validated
             if success is True:
                 break
             else:
@@ -96,8 +100,9 @@ def runKtserver(dbElem, killSwitchPath, maxPortsToTry=100, readOnly = False,
                 process = None
 
         if success is False:
+            logID = fileStore.writeGlobalFile(logPath)
             raise RuntimeError("Unable to launch ktserver.  "+
-                               "Server log is: %s" % logPath)
+                               "Server log is: %s" % logID)
             
     except Exception as e:
         # make an attempt to alert the world of the launch failure by

@@ -91,7 +91,7 @@ class KtServerService(Job.Service):
         killSwitchFile.close()
 
 
-        self.process = runKtserver(self.dbElem, self.killSwitchPath)
+        self.process = runKtserver(self.dbElem, self.killSwitchPath, fileStore = fileStore)
         assert self.dbElem.getDbHost() != None
         
         #if self.isSecondary == False:

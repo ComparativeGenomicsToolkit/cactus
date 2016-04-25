@@ -293,6 +293,10 @@ class ExperimentWrapper(DbElemWrapper):
         return refElem.attrib["path"]
     
     def setReferencePath(self, path):
+        '''Set the path to the reconstructed ancestral genome
+        for this experiment. This function should only be called
+        on the master node, since that is the only node where paths are
+        permanent.'''
         refElem = self.xmlRoot.find("reference")
         if refElem is None:
             refElem = ET.Element("reference")
@@ -300,6 +304,9 @@ class ExperimentWrapper(DbElemWrapper):
         refElem.attrib["path"] = path
 
     def setReferenceID(self, refID):
+        '''Set the file store ID of the reconstructed ancestral
+        genome for this experiment. This should be downloaded
+        onto the master node after the experiment has finished running.'''
         self.referenceID = refID
 
     def getReferenceID(self):
@@ -324,6 +331,9 @@ class ExperimentWrapper(DbElemWrapper):
         return halElem.attrib["halPath"]
     
     def setHALPath(self, path):
+        '''Set the location of the HAL file for this
+        experiment. Only call this function on the master
+        node.'''
         halElem = self.xmlRoot.find("hal")
         if halElem is None:
             halElem = ET.Element("hal")
@@ -331,6 +341,8 @@ class ExperimentWrapper(DbElemWrapper):
         halElem.attrib["halPath"] = path
 
     def setHalID(self, halID):
+        '''Set the file store ID of the HAL file
+        resulting from this experiment.'''
         self.halID = halID
 
     def getHalID(self):

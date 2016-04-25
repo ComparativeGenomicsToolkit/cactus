@@ -34,7 +34,7 @@ class MultiCactusProject:
         self.inputSequences = []
         self.outputSequenceDir = None
         self.inputSequenceIDs = None
-        self.outputSequenceIDs = None
+        self.outputSequenceIDMap = None
         self.configID = None
         
     def readXML(self, path, jobStore=None):
@@ -56,7 +56,8 @@ class MultiCactusProject:
         if "inputSequenceIDs" in xmlRoot.attrib:
             self.inputSequenceIDs = xmlRoot.attrib["inputSequenceIDs"].split()
         if "outputSequenceIDs" in xmlRoot.attrib:
-            self.outputSequenceIDs = xmlRoot.attrib["outputSequenceIDs"].split()
+            self.outputSequenceIDMap = dict(zip(xmlRoot.attrib["outputSequenceIDs"].split(),
+                                                xmlRoot.attrib["outputSequenceNames"].split()))
 
         logger.info("xmlRoot = %s" % ET.tostring(xmlRoot))
         if "configID" in xmlRoot.attrib:
@@ -82,8 +83,9 @@ class MultiCactusProject:
         xmlRoot.attrib["outputSequenceDir"] = self.outputSequenceDir
         if self.inputSequenceIDs:
             xmlRoot.attrib["inputSequenceIDs"] = " ".join(self.inputSequenceIDs)
-        if self.outputSequenceIDs:
-            xmlRoot.attrib["outputSequenceIDs"] = " ".join(self.outputSequenceIDs)
+        if self.outputSequenceIDMap:
+            xmlRoot.attrib["outputSequenceIDs"] = " ".join(self.outputSequenceIDMap.values())
+            xmlRoot.attrib["outputSequenceNames"] = " ".join(self.outputSequenceIDMap.keys())
         if self.configID:
             xmlRoot.attrib["configID"] = self.configID
 
@@ -92,6 +94,11 @@ class MultiCactusProject:
         xmlString = minidom.parseString(xmlString).toprettyxml()
         xmlFile.write(xmlString)
         xmlFile.close()
+
+    def writeXMLToFileStore(self, fileStore):
+        tmpXML = os.path.join(fileStore.getLocalTempDir(), "tmpXML")
+        self.writeXML(tmpXML)
+        return fileStore.writeGlobalFile(tmpXML)
 
     def getInputSequenceMap(self):
         """Return a map between event names and sequence paths.  Paths
@@ -107,7 +114,9 @@ class MultiCactusProject:
                 i += 1
         assert i == len(self.inputSequences)
         return inputSequenceMap
-        
+
+
+
     def getInputSequenceIDs(self):
         """Get the set of input sequences for the multicactus tree
         """
@@ -120,12 +129,19 @@ class MultiCactusProject:
         """The directory where the output sequences go
         """
         return self.outputSequenceDir
-
+        
+    def setOutputSequenceIDs(self, outputSequenceIDs):
+        self.outputSequenceIDMap = dict()
+        i = 0
+        for node in self.mcTree.postOrderTraversal():
+            if self.mcTree.isLeaf(node) is True:
+                self.outputSequenceIDMap[self.mcTree.getName(node)] = \
+                  outputSequenceIDs[i]
+                i += 1
+        assert i == len(outputSequenceIDs)
+        
     def getOutputSequenceIDs(self):
         return self.outputSequenceIDs
-
-    def setOutputSequenceIDs(self, sequenceIDs):
-        self.outputSequenceIDs = sequenceIDs
     
     def getConfigPath(self):
         return ExperimentWrapper(ET.parse(self.expMap.values()[0]).getroot()).getConfigPath()
