@@ -68,6 +68,7 @@ def runKtserver(dbElem, killSwitchPath, maxPortsToTry=100, readOnly = False,
         dbElem.setDbHost(host)
     else:
         dbElem.setDbHost(getHostName())
+    assert os.path.exists(dbElem.getDbDir())
 
     success = False
     process = None
@@ -100,9 +101,8 @@ def runKtserver(dbElem, killSwitchPath, maxPortsToTry=100, readOnly = False,
                 process = None
 
         if success is False:
-            logID = fileStore.writeGlobalFile(logPath)
             raise RuntimeError("Unable to launch ktserver.  "+
-                               "Server log is: %s" % logID)
+                               "Server log is: %s" % logPath)
             
     except Exception as e:
         # make an attempt to alert the world of the launch failure by

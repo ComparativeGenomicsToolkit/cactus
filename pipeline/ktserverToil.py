@@ -53,8 +53,8 @@ class ChildWithKtServer(Job):
         return self.addChild(self.newChild).rv()
 
 class KtServerService(Job.Service):
-    def __init__(self, dbElem, isSecondary, memory=None, cores=None):
-        Job.Service.__init__(self, memory=memory, cores=cores)
+    def __init__(self, dbElem, isSecondary, memory=None, cores=None, disk = None):
+        Job.Service.__init__(self, memory=memory, cores=cores, disk = disk)
         self.dbElem = dbElem
         self.isSecondary = isSecondary
         self.blockTimestep = 10

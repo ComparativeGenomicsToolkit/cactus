@@ -133,7 +133,8 @@ class CactusJob(Job):
             Job.__init__(self, memory=self.getOptionalJobAttrib("memory", typeFn=int, 
                                                                       default=getOptionalAttrib(self.constantsNode, "defaultMemory", int, default=sys.maxint)),
                                   cores=self.getOptionalJobAttrib("cpu", typeFn=int, 
-                                                                      default=getOptionalAttrib(self.constantsNode, "defaultCpu", int, default=None)))
+                                                                      default=getOptionalAttrib(self.constantsNode, "defaultCpu", int, default=sys.maxint)),
+                                  disk = 0)
     
     def getOptionalPhaseAttrib(self, attribName, typeFn=None, default=None):
         """Gets an optional attribute of the phase node.
@@ -167,7 +168,7 @@ class CactusPhasesJob(CactusJob):
             memory = cw.getKtserverMemory(default=getOptionalAttrib(
                     self.constantsNode, "defaultMemory", int, default=sys.maxint))
             cpu = cw.getKtserverCpu(default=getOptionalAttrib(
-                    self.constantsNode, "defaultCpu", int, default=sys.maxint))
+                    self.constantsNode, "defaultCpu", int, default=0))
             dbElem = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
             self.addService(KtServerService(dbElem = dbElem, isSecondary = True))
             return self.addChild(newChild).rv()
@@ -460,8 +461,10 @@ class CactusSetupPhase(CactusPhasesJob):
                     self.constantsNode, "defaultMemory", int, default=sys.maxint))
             cores = cw.getKtserverCpu(default=getOptionalAttrib(
                     self.constantsNode, "defaultCpu", int, default=sys.maxint))
+            disk = 0
             dbElem = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
-            dbString = self.addService(KtServerService(dbElem = dbElem, isSecondary=False, memory = memory, cores = cores))
+            dbString = self.addService(KtServerService(dbElem = dbElem, isSecondary=False, memory = memory, cores = cores, 
+                disk = disk))
             setupJob.cactusWorkflowArguments.cactusDiskDatabaseString = dbString
             results = self.addChild(setupJob).rv()
             logger.info("Pickled setup job")
