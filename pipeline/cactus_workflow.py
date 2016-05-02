@@ -231,9 +231,9 @@ class CactusRecursionJob(CactusJob):
         """
         if phaseNode == None:
             phaseNode = self.phaseNode
-        self.addFollowOn(job(phaseNode=phaseNode, constantsNode=self.constantsNode,
+        return self.addFollowOn(job(phaseNode=phaseNode, constantsNode=self.constantsNode,
                                    cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
-                                   flowerNames=self.flowerNames, overlarge=self.overlarge, precomputedAlignmentIDs = self.precomputedAlignmentIDs))
+                                   flowerNames=self.flowerNames, overlarge=self.overlarge, precomputedAlignmentIDs = self.precomputedAlignmentIDs)).rv()
         
     def makeChildJobs(self, flowersAndSizes, job, overlargeJob=None, 
                          phaseNode=None, runFlowerStats=False):
@@ -944,6 +944,7 @@ class CactusCheckPhase(CactusPhasesJob):
     """The check phase, where we verify everything is as it should be
     """
     def run(self, fileStore):
+        assert self.cactusWorkflowArguments.experimentWrapper.getReferenceID()
         normalNode = findRequiredNode(self.cactusWorkflowArguments.configNode, "normal")
         self.phaseNode.attrib["checkNormalised"] = getOptionalAttrib(normalNode, "normalised", default="0")
         return self.runPhase(CactusCheckRecursion, CactusHalGeneratorPhase, "hal", doRecursion=self.getOptionalPhaseAttrib("runCheck", bool, False))
@@ -985,6 +986,7 @@ class CactusHalGeneratorPhase(CactusPhasesJob):
             self.makeFollowOnPhaseJob(CactusHalGeneratorPhase2, "hal")
             halID = self.makeRecursiveChildJob(CactusHalGeneratorRecursion, launchSecondaryKtForRecursiveJob=True)
             self.cactusWorkflowArguments.experimentWrapper.setHalID(halID)
+            assert self.cactusWorkflowArguments.experimentWrapper.getReferenceID()
             return self.cactusWorkflowArguments.experimentWrapper
 
 class CactusFastaGenerator(CactusRecursionJob):

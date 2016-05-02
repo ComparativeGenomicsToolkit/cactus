@@ -50,101 +50,104 @@ from cactus.progressive.schedule import Schedule
 
 
 class ProgressiveDown(Job):
-    def __init__(self, options, projectID, event, schedule, parentExpID = None, parentName = None):
+    def __init__(self, options, project, event, schedule, parentExpWrapper = None, parentName = None):
         Job.__init__(self)
         self.options = options
-        self.projectID = projectID
+        self.project = project
         self.event = event
         self.schedule = schedule
-        self.parentExpID = parentExpID
+        self.parentExpWrapper = parentExpWrapper
         self.parentName = parentName
     
     def run(self, fileStore):
-        project = MultiCactusProject()
-        project.readXML(fileStore.readGlobalFile(self.projectID))
-        if self.parentExpID:
-            parentExpWrapper = ExperimentWrapper(ET.parse(fileStore.readGlobalFile(parentExpID)).getroot())
-            project.outputSequenceIDMap[self.parentName] = parentExpWrapper.getReferenceID()
-            project.expIDMap[self.parentName] = self.parentExpID
+        #project = MultiCactusProject()
+        #project.readXML(fileStore.readGlobalFile(self.projectID))
+        if self.parentExpWrapper:
+            self.project.outputSequenceIDMap[self.parentName] = self.parentExpWrapper.getReferenceID()
+            self.project.expIDMap[self.parentName] = self.parentExpID
             
         logger.info("Progressive Down: " + self.event)
-        self.projectID = project.writeXMLToFileStore(fileStore)
+        #self.projectID = project.writeXMLToFileStore(fileStore)
 
         depProjects = dict()
         if not self.options.nonRecursive:
             deps = self.schedule.deps(self.event)
             for child in deps:
                 depProjects[child] = self.addChild(ProgressiveDown(self.options,
-                                                    self.projectID, child, 
+                                                    self.project, child, 
                                                                    self.schedule)).rv()
         
-        return self.addFollowOn(ProgressiveNext(self.options, self.projectID, self.event,
+        return self.addFollowOn(ProgressiveNext(self.options, self.project, self.event,
                                                               self.schedule, depProjects)).rv()
 class ProgressiveNext(Job):
-    def __init__(self, options, projectID, event, schedule, depProjects):
+    def __init__(self, options, project, event, schedule, depProjects):
         Job.__init__(self)
         self.options = options
-        self.projectID = projectID
+        self.project = project
         self.event = event
         self.schedule = schedule
         self.depProjects = depProjects
     
     def run(self, fileStore):
-        project = MultiCactusProject()
-        project.readXML(fileStore.readGlobalFile(self.projectID))
+        #project = MultiCactusProject()
+        #project.readXML(fileStore.readGlobalFile(self.projectID))
         for name in self.depProjects:
             #depProject = MultiCactusProject()
             #depProject.readXML(fileStore.readGlobalFile(self.depProjectIDs[name]))
             depProject = self.depProjects[name]
             expID = depProject.expIDMap[name]
             logger.info("ExpID %s" % expID)
-            project.expIDMap[name] = expID
+            self.project.expIDMap[name] = expID
             experiment = ExperimentWrapper(ET.parse(fileStore.readGlobalFile(expID)).getroot())
-            project.outputSequenceIDMap[name] = experiment.getReferenceID()
-        self.projectID = project.writeXMLToFileStore(fileStore)
+            logger.info("Reference id: %s, reference path: %s" % (experiment.getReferenceID(), experiment.getReferencePath()))
+            logger.info("Getting the reference sequence for %s" % name)
+            self.project.outputSequenceIDMap[name] = experiment.getReferenceID()
+        #self.projectID = project.writeXMLToFileStore(fileStore)
                         
-        eventExpID = None
+        eventExpWrapper = None
         logger.info("Progressive Next: " + self.event)
         if not self.schedule.isVirtual(self.event):
-            eventExpID = self.addChild(ProgressiveUp(self.options, self.projectID, self.event)).rv()
+            eventExpWrapper = self.addChild(ProgressiveUp(self.options, self.project, self.event)).rv()
             #self.project.expIDMap[self.event] = eventExpID
         followOnEvent = self.schedule.followOn(self.event)
         if followOnEvent is not None:
-            return self.addFollowOn(ProgressiveDown(self.options, self.projectID, followOnEvent,
-                                                    self.schedule, parentExpID = eventExpID, parentName = self.event)).rv()
+            return self.addFollowOn(ProgressiveDown(self.options, self.project, followOnEvent,
+                                                    self.schedule, parentExpWrapper = eventExpWrapper, parentName = self.event)).rv()
         else:
-            return self.addFollowOn(ProgressiveOut(self.projectID, self.event, eventExpID)).rv()
+            return self.addFollowOn(ProgressiveOut(self.project, self.event, eventExpWrapper)).rv()
 
 class ProgressiveOut(Job):
-    def __init__(self, projectID, eventName, eventExpID):
+    def __init__(self, project, eventName, eventExpWrapper):
         Job.__init__(self)
-        self.projectID = projectID
+        self.project = project
         self.eventName = eventName
-        self.eventExpID = eventExpID
+        self.eventExpWrapper = eventExpWrapper
         
     def run(self, fileStore):
-        project = MultiCactusProject()
-        project.readXML(fileStore.readGlobalFile(self.projectID))
-        project.expIDMap[self.eventName] = self.eventExpID
+        #project = MultiCactusProject()
+        #project.readXML(fileStore.readGlobalFile(self.projectID))
+        tmpExp = os.path.join(fileStore.getLocalTempDir(), "tmpExp")
+        self.eventExpWrapper.writeXML(tmpExp)
+        self.project.expIDMap[self.eventName] = fileStore.writeGlobalFile(tmpExp)
         #return project.writeXMLToFileStore(fileStore)
-        return project
+        return self.project
     
 class ProgressiveUp(Job):
-    def __init__(self, options, projectID, event):
+    def __init__(self, options, project, event):
         Job.__init__(self)
         self.options = options
-        self.projectID = projectID
+        self.project = project
         self.event = event
     
     def run(self, fileStore):
         logger.info("Progressive Up: " + self.event)
 
-        project = MultiCactusProject()
-        project.readXML(fileStore.readGlobalFile(self.projectID))
+        #project = MultiCactusProject()
+        #project.readXML(fileStore.readGlobalFile(self.projectID))
 
         # open up the experiment
         # note that we copy the path into the options here
-        experimentFile = fileStore.readGlobalFile(project.expIDMap[self.event])
+        experimentFile = fileStore.readGlobalFile(self.project.expIDMap[self.event])
         expXml = ET.parse(experimentFile).getroot()
         experiment = ExperimentWrapper(expXml)
         configXml = ET.parse(experiment.getConfigPath()).getroot()
@@ -153,7 +156,7 @@ class ProgressiveUp(Job):
         seqMap = experiment.buildSequenceMap()
         experimentSeqIDs = []
         for name in seqMap:
-            experimentSeqIDs.append(project.outputSequenceIDMap[name])
+            experimentSeqIDs.append(self.project.outputSequenceIDMap[name])
         experiment.setSequenceIDs(experimentSeqIDs)
             
         newExpFilePath = os.path.join(fileStore.getLocalTempDir(), "expTemp")
@@ -163,7 +166,7 @@ class ProgressiveUp(Job):
         # need at least 3 processes for every event when using ktserver:
         # 1 proc to run jobs, 1 proc to run server, 1 proc to run 2ndary server
         if experiment.getDbType() == "kyoto_tycoon":            
-            maxParallel = min(len(project.expMap),
+            maxParallel = min(len(self.project.expMap),
                              configWrapper.getMaxParallelSubtrees()) 
             if self.options.batchSystem == "singleMachine":
                 pass
@@ -218,14 +221,14 @@ class ProgressiveUp(Job):
 
             if workFlowArgs.configWrapper.getDoTrimStrategy() and workFlowArgs.outgroupEventNames is not None:
                 # Use the trimming strategy to blast ingroups vs outgroups.
-                finalExpID = self.addChild(CactusTrimmingBlastPhase(cactusWorkflowArguments=workFlowArgs, phaseName="trimBlast")).rv()
+                finalExpWrapper = self.addChild(CactusTrimmingBlastPhase(cactusWorkflowArguments=workFlowArgs, phaseName="trimBlast")).rv()
             else:
-                finalExpID = self.addChild(CactusSetupPhase(cactusWorkflowArguments=workFlowArgs,
+                finalExpWrapper = self.addChild(CactusSetupPhase(cactusWorkflowArguments=workFlowArgs,
                                                      phaseName="setup")).rv()
         logger.info("Going to create alignments and define the cactus tree")
 
         #self.addFollowOn(FinishUp(workFlowArgs))
-        return finalExpID
+        return finalExpWrapper
                                
 class FinishUp(Job):
     def __init__(self, workFlowArgs):
@@ -279,8 +282,8 @@ class ProgressiveDownPrecursor(Job):
         self.schedule = schedule
     def run(self, fileStore):
         self.project.setOutputSequenceIDs(self.preprocessorOutput)
-        projectID = self.project.writeXMLToFileStore(fileStore)
-        return self.addFollowOn(ProgressiveDown(self.options, projectID, self.event, self.schedule)).rv()
+        #projectID = self.project.writeXMLToFileStore(fileStore)
+        return self.addFollowOn(ProgressiveDown(self.options, self.project, self.event, self.schedule)).rv()
 
 def makeURL(path):
     return "file://" + path
@@ -334,10 +337,10 @@ def main():
         #Write the HAL file and reference sequence for each experiment wrapper to a permanent
         #path on the leader node
         for name in project.expIDMap:
-            expWrapper = ExperimentWrapper(ET.parse(fileStore.readGlobalFile(project.expIDMap[name])).getroot())
-            expWrapper.writeXML(project.expMap[name])
-            toil.jobStore.exportFile(expWrapper.getHalID(), "file://" + expWrapper.getHALPath())
-            toil.jobStore.exportFile(expWrapper.getReferenceID(), "file://" + expWrapper.getReferencePath())
+            toil.jobStore.exportFile(project.expIDMap[name], makeURL(project.expMap[name]))
+            expWrapper = ExperimentWrapper(ET.parse(project.expMap[name]).getroot())
+            toil.jobStore.exportFile(expWrapper.getHalID(), makeURL(expWrapper.getHALPath()))
+            toil.jobStore.exportFile(expWrapper.getReferenceID(), makeURL(expWrapper.getReferencePath()))
 
         #Write the project file to its expected location
         project.writeXML(options.project)

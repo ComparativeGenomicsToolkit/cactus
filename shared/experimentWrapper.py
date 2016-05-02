@@ -307,10 +307,12 @@ class ExperimentWrapper(DbElemWrapper):
         '''Set the file store ID of the reconstructed ancestral
         genome for this experiment. This should be downloaded
         onto the master node after the experiment has finished running.'''
-        self.referenceID = refID
+        refElem = self.xmlRoot.find("reference")
+        refElem.attrib["id"] = refID
 
     def getReferenceID(self):
-        return self.referenceID
+        refElem = self.xmlRoot.find("reference")
+        return refElem.attrib["id"]
     
     def getReferenceNameFromConfig(self):
         configElem = ET.parse(self.getConfig()).getroot()
@@ -343,10 +345,12 @@ class ExperimentWrapper(DbElemWrapper):
     def setHalID(self, halID):
         '''Set the file store ID of the HAL file
         resulting from this experiment.'''
-        self.halID = halID
+        halElem = self.xmlRoot.find("hal")
+        halElem.attrib["id"] = halID
 
     def getHalID(self):
-        return self.halID
+        halElem = self.xmlRoot.find("hal")
+        return halElem.attrib["id"]
         
     def getHALFastaPath(self):
         halElem = self.xmlRoot.find("hal")
