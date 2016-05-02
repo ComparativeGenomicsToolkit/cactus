@@ -227,7 +227,9 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
                  removeLargestBlock=None,
                  phylogenyNucleotideScalingFactor=None,
                  minimumBlockDegreeToCheckSupport=None,
-                 minimumBlockHomologySupport=None):
+                 minimumBlockHomologySupport=None,
+                 removeRecoverableChains=None,
+                 minimumNumberOfSpecies=None):
     # remove annoying carriage returns in caf command line.
     cactusDiskDatabaseString = cactusDiskDatabaseString.replace('\n', '')
 
@@ -244,7 +246,7 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
     minimumIngroupDegree = nameValue("minimumIngroupDegree", minimumIngroupDegree, int)
     minimumOutgroupDegree = nameValue("minimumOutgroupDegree", minimumOutgroupDegree, int)
     singleCopyIngroup = nameValue("singleCopyIngroup", singleCopyIngroup, bool)
-    singleCopyOutgroup = nameValue("singleCopyOutgroup", singleCopyOutgroup, bool)
+    singleCopyOutgroup = nameValue("singleCopyOutgroup", singleCopyOutgroup)
     maxAdjacencyComponentSizeRatio = nameValue("maxAdjacencyComponentSizeRatio", maxAdjacencyComponentSizeRatio, float)
     constraints = nameValue("constraints", constraints)
     realign = nameValue("realign", realign, bool)
@@ -268,17 +270,19 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
     minimumBlockDegreeToCheckSupport = nameValue("minimumBlockDegreeToCheckSupport", minimumBlockDegreeToCheckSupport)
     minimumBlockHomologySupport = nameValue("minimumBlockHomologySupport", minimumBlockHomologySupport)
     phylogenyNucleotideScalingFactor = nameValue("phylogenyNucleotideScalingFactor", phylogenyNucleotideScalingFactor)
+    removeRecoverableChains = nameValue("removeRecoverableChains", removeRecoverableChains)
+    minimumNumberOfSpecies = nameValue("minimumNumberOfSpecies", minimumNumberOfSpecies, int)
 
     minLengthForChromosome = nameValue("minLengthForChromosome", minLengthForChromosome, int)
     proportionOfUnalignedBasesForNewChromosome = nameValue("proportionOfUnalignedBasesForNewChromosome", proportionOfUnalignedBasesForNewChromosome, float)
     maximumMedianSequenceLengthBetweenLinkedEnds = nameValue("maximumMedianSequenceLengthBetweenLinkedEnds", maximumMedianSequenceLengthBetweenLinkedEnds, int)
-    
-    command = "cactus_caf --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
+
+    command = "cactus_caf --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
     (cactusDiskDatabaseString, logLevel, alignments, annealingRounds, deannealingRounds, 
      trim, minimumTreeCoverage, blockTrim, 
      minimumBlockDegree, minimumIngroupDegree, minimumOutgroupDegree,  
      singleCopyIngroup, singleCopyOutgroup, lastzArguments, minimumSequenceLengthForBlast, maxAdjacencyComponentSizeRatio, constraints,
-     minLengthForChromosome, proportionOfUnalignedBasesForNewChromosome, maximumMedianSequenceLengthBetweenLinkedEnds, realign, realignArguments, phylogenyNumTrees, phylogenyRootingMethod, phylogenyScoringMethod, phylogenyBreakpointScalingFactor, phylogenySkipSingleCopyBlocks, phylogenyMaxBaseDistance, phylogenyMaxBlockDistance, phylogenyDebugFile, phylogenyKeepSingleDegreeBlocks, phylogenyTreeBuildingMethod, phylogenyCostPerDupPerBase, phylogenyCostPerLossPerBase, referenceEventHeader, phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce, numTreeBuildingThreads, doPhylogeny, minimumBlockDegreeToCheckSupport, minimumBlockHomologySupport, phylogenyNucleotideScalingFactor)
+     minLengthForChromosome, proportionOfUnalignedBasesForNewChromosome, maximumMedianSequenceLengthBetweenLinkedEnds, realign, realignArguments, phylogenyNumTrees, phylogenyRootingMethod, phylogenyScoringMethod, phylogenyBreakpointScalingFactor, phylogenySkipSingleCopyBlocks, phylogenyMaxBaseDistance, phylogenyMaxBlockDistance, phylogenyDebugFile, phylogenyKeepSingleDegreeBlocks, phylogenyTreeBuildingMethod, phylogenyCostPerDupPerBase, phylogenyCostPerLossPerBase, referenceEventHeader, phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce, numTreeBuildingThreads, doPhylogeny, minimumBlockDegreeToCheckSupport, minimumBlockHomologySupport, phylogenyNucleotideScalingFactor, removeRecoverableChains, minimumNumberOfSpecies)
     masterMessages = popenCatch(command, stdinString=flowerNames)
     logger.info("Ran cactus_core okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]
@@ -341,7 +345,8 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
                          precomputedAlignments=None,
                          ingroupCoverageFile=None,
                          minimumSizeToRescue=None,
-                         minimumCoverageToRescue=None):
+                         minimumCoverageToRescue=None,
+                         minimumNumberOfSpecies=None):
     """Runs cactus base aligner.
     """
     logLevel = getLogLevelString2(logLevel)
@@ -367,14 +372,15 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
     ingroupCoverageFile = nameValue("ingroupCoverageFile", ingroupCoverageFile, str, quotes=True)
     minimumSizeToRescue = nameValue("minimumSizeToRescue", minimumSizeToRescue, int)
     minimumCoverageToRescue = nameValue("minimumCoverageToRescue", minimumCoverageToRescue, float)
+    minimumNumberOfSpecies = nameValue("minimumNumberOfSpecies", minimumNumberOfSpecies, int)
 
-    masterMessages = popenCatch("cactus_bar --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % 
+    masterMessages = popenCatch("cactus_bar --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % 
            (cactusDiskDatabaseString, logLevel, spanningTrees, maximumLength, gapGamma, matchGamma,
             splitMatrixBiggerThanThis, anchorMatrixBiggerThanThis, repeatMaskMatrixBiggerThanThis,
             constraintDiagonalTrim, minimumBlockDegree, minimumIngroupDegree, minimumOutgroupDegree,  
             alignAmbiguityCharacters, pruneOutStubAlignments, diagonalExpansion,
             useProgressiveMerging, calculateWhichEndsToComputeSeparately,
-            largeEndSize, endAlignmentsToPrecomputeOutputFile, precomputedAlignments, ingroupCoverageFile, minimumSizeToRescue, minimumCoverageToRescue), stdinString=flowerNames)
+            largeEndSize, endAlignmentsToPrecomputeOutputFile, precomputedAlignments, ingroupCoverageFile, minimumSizeToRescue, minimumCoverageToRescue, minimumNumberOfSpecies), stdinString=flowerNames)
     logger.info("Ran cactus_bar okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]
 

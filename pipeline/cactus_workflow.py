@@ -551,7 +551,7 @@ class CactusCafWrapper(CactusRecursionTarget):
                           minimumIngroupDegree=minimumIngroupDegree,
                           minimumOutgroupDegree=self.getOptionalPhaseAttrib("minimumOutgroupDegree", int),
                           singleCopyIngroup=self.getOptionalPhaseAttrib("singleCopyIngroup", bool),
-                          singleCopyOutgroup=self.getOptionalPhaseAttrib("singleCopyOutgroup", bool),
+                          singleCopyOutgroup=self.getOptionalPhaseAttrib("singleCopyOutgroup"),
                           lastzArguments=self.getOptionalPhaseAttrib("lastzArguments"),
                           minimumSequenceLengthForBlast=self.getOptionalPhaseAttrib("minimumSequenceLengthForBlast", int, 1),
                           maxAdjacencyComponentSizeRatio=self.getOptionalPhaseAttrib("maxAdjacencyComponentSizeRatio", float),
@@ -578,7 +578,9 @@ class CactusCafWrapper(CactusRecursionTarget):
                           doPhylogeny=self.getOptionalPhaseAttrib("doPhylogeny", bool, True),
                           minimumBlockHomologySupport=self.getOptionalPhaseAttrib("minimumBlockHomologySupport"),
                           minimumBlockDegreeToCheckSupport=self.getOptionalPhaseAttrib("minimumBlockDegreeToCheckSupport"),
-                          phylogenyNucleotideScalingFactor=self.getOptionalPhaseAttrib("phylogenyNucleotideScalingFactor"))
+                          phylogenyNucleotideScalingFactor=self.getOptionalPhaseAttrib("phylogenyNucleotideScalingFactor"),
+                          removeRecoverableChains=self.getOptionalPhaseAttrib("removeRecoverableChains"),
+                          minimumNumberOfSpecies=self.getOptionalPhaseAttrib("minimumNumberOfSpecies", int))
         for message in messages:
             self.logToMaster(message)
     
@@ -661,7 +663,8 @@ def runBarForTarget(self, calculateWhichEndsToComputeSeparately=None, endAlignme
                  precomputedAlignments=precomputedAlignments,
                  ingroupCoverageFile=self.cactusWorkflowArguments.ingroupCoverageFile if self.getOptionalPhaseAttrib("rescue", bool) else None,
                  minimumSizeToRescue=self.getOptionalPhaseAttrib("minimumSizeToRescue"),
-                 minimumCoverageToRescue=self.getOptionalPhaseAttrib("minimumCoverageToRescue"))
+                 minimumCoverageToRescue=self.getOptionalPhaseAttrib("minimumCoverageToRescue"),
+                 minimumNumberOfSpecies=self.getOptionalPhaseAttrib("minimumNumberOfSpecies", int))
 
 class CactusBarWrapper(CactusRecursionTarget):
     """Runs the BAR algorithm implementation.
@@ -672,7 +675,7 @@ class CactusBarWrapper(CactusRecursionTarget):
             self.logToMaster(message)       
         
 class CactusBarWrapperLarge(CactusRecursionTarget):
-    """Breaks up the bar into a series of smaller bars, then 
+    """Breaks up the bar into a series of smaller bars, then runs them.
     """
     def run(self):
         logger.info("Starting the cactus bar preprocessor target to breakup the bar alignment")
@@ -1033,7 +1036,7 @@ class CactusWorkflowArguments:
         self.experimentNode = ET.parse(self.experimentFile).getroot()
         self.experimentWrapper = ExperimentWrapper(self.experimentNode)
         #Get the database string
-        self.cactusDiskDatabaseString = ET.tostring(self.experimentNode.find("cactus_disk").find("st_kv_database_conf"))
+        self.cactusDiskDatabaseString = ET.tostring(self.experimentNode.find("cactus_disk").find("st_kv_database_conf")).translate(None, '\n')
         #Get the species tree
         self.speciesTree = self.experimentNode.attrib["species_tree"]
         #Get any list of 'required species' for the blocks of the cactus.

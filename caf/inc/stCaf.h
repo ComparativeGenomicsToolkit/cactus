@@ -58,11 +58,13 @@ void stCaf_joinTrivialBoundaries(stPinchThreadSet *threadSet);
 void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(stPinchBlock *), int64_t blockEndTrim,
         int64_t minimumChainLength, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds);
 
+void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds, bool (*chainFilter)(stCactusEdgeEnd *));
+
 /*
  * Function used to determine if blocks contains sufficient numbers of sequences of ingroup/outgroup species.
  */
 bool stCaf_containsRequiredSpecies(stPinchBlock *pinchBlock, Flower *flower, int64_t minimumIngroupDegree,
-        int64_t minimumOutgroupDegree, int64_t minimumAllDegree);
+        int64_t minimumOutgroupDegree, int64_t minimumDegree, int64_t minimumNumberOfSpecies);
 
 /*
  * Returns the proportion of the tree covered by the block.

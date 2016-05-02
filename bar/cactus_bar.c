@@ -84,11 +84,11 @@ stPinch *getNextAlignedPairAlignment(stSortedSetIterator *it) {
     return &pinch;
 }
 
-static int64_t minimumIngroupDegree = 0, minimumOutgroupDegree = 0, minimumDegree = 0;
+static int64_t minimumIngroupDegree = 0, minimumOutgroupDegree = 0, minimumDegree = 0, minimumNumberOfSpecies = 0;
 static Flower *flower;
 
 bool blockFilterFn(stPinchBlock *pinchBlock) {
-    return !stCaf_containsRequiredSpecies(pinchBlock, flower, minimumIngroupDegree, minimumOutgroupDegree, minimumDegree);
+    return !stCaf_containsRequiredSpecies(pinchBlock, flower, minimumIngroupDegree, minimumOutgroupDegree, minimumDegree, minimumNumberOfSpecies);
 }
 
 int main(int argc, char *argv[]) {
@@ -140,11 +140,12 @@ int main(int argc, char *argv[]) {
                         {"ingroupCoverageFile", required_argument, 0, 'J'},
                         {"minimumSizeToRescue", required_argument, 0, 'K'},
                         {"minimumCoverageToRescue", required_argument, 0, 'M'},
+                        { "minimumNumberOfSpecies", required_argument, 0, 'N' },
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:b:hi:j:kl:o:p:q:r:t:u:wy:A:B:D:E:FGI:J:K:L:M:", long_options, &option_index);
+        int key = getopt_long(argc, argv, "a:b:hi:j:kl:o:p:q:r:t:u:wy:A:B:D:E:FGI:J:K:L:M:N:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -258,6 +259,12 @@ int main(int argc, char *argv[]) {
             case 'M':
                 i = sscanf(optarg, "%lf", &minimumCoverageToRescue);
                 assert(i == 1);
+                break;
+            case 'N':
+                i = sscanf(optarg, "%" PRIi64, &minimumNumberOfSpecies);
+                if (i != 1) {
+                    st_errAbort("Error parsing minimumNumberOfSpecies parameter");
+                }
                 break;
             default:
                 usage();

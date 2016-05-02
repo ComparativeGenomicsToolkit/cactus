@@ -107,13 +107,14 @@ static int64_t *getInts(const char *string, int64_t *arrayLength) {
     return iA;
 }
 
-static int64_t minimumIngroupDegree = 0, minimumOutgroupDegree = 0, minimumDegree = 0;
+static int64_t minimumIngroupDegree = 0, minimumOutgroupDegree = 0, minimumDegree = 0, minimumNumberOfSpecies = 0;
 static float minimumTreeCoverage = 0.0;
 static Flower *flower = NULL;
 
 static bool blockFilterFn(stPinchBlock *pinchBlock) {
-    if ((minimumIngroupDegree > 0 || minimumOutgroupDegree > 0 || minimumDegree > 0) && !stCaf_containsRequiredSpecies(pinchBlock,
-            flower, minimumIngroupDegree, minimumOutgroupDegree, minimumDegree)) {
+    if (!stCaf_containsRequiredSpecies(pinchBlock, flower, minimumIngroupDegree,
+                                       minimumOutgroupDegree, minimumDegree,
+                                       minimumNumberOfSpecies)) {
         return 1;
     }
     if (minimumTreeCoverage > 0.0 && stCaf_treeCoverage(pinchBlock, flower) < minimumTreeCoverage) { //Tree coverage
@@ -137,7 +138,6 @@ bool containsOutgroupSegment(stPinchBlock *block) {
     stPinchBlockIt it = stPinchBlock_getSegmentIterator(block);
     stPinchSegment *segment;
     while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
-        //if(event_isOutgroup(getEvent(segment, flower))) {
         if (stSet_search(outgroupThreads, stPinchSegment_getThread(segment)) != NULL) {
             assert(event_isOutgroup(getEvent(segment, flower)));
             stPinchSegment_putSegmentFirstInBlock(segment);
@@ -177,6 +177,29 @@ bool filterByOutgroup(stPinchSegment *segment1, stPinchSegment *segment2) {
         return isOutgroupSegment(segment1) && containsOutgroupSegment(block2);
     }
     return isOutgroupSegment(segment1) && isOutgroupSegment(segment2);
+}
+
+/*
+ * A "relaxed" version of the above which allows the addition of more
+ * than one outgroup *segment* to a block, but never allows two
+ * different blocks containing outgroups to be pinched.
+ */
+bool relaxedFilterByOutgroup(stPinchSegment *segment1, stPinchSegment *segment2) {
+    stPinchBlock *block1, *block2;
+    if ((block1 = stPinchSegment_getBlock(segment1)) != NULL) {
+        if ((block2 = stPinchSegment_getBlock(segment2)) != NULL) {
+            if (block1 == block2) {
+                return stPinchBlock_getLength(block1) == 1 ? 0 : containsOutgroupSegment(block1);
+            }
+            if (stPinchBlock_getDegree(block1) < stPinchBlock_getDegree(block2)) {
+                return containsOutgroupSegment(block1) && containsOutgroupSegment(block2);
+            }
+            return containsOutgroupSegment(block2) && containsOutgroupSegment(block1);
+        }
+    }
+    // If we get here, we are just adding a segment to a block, not
+    // pinching two blocks together.
+    return false;
 }
 
 /*
@@ -346,6 +369,76 @@ static void printThreadSetStatistics(stPinchThreadSet *threadSet, Flower *flower
     free(blockSupports);
 }
 
+/*
+ * Selecting chains that have an unequal number of ingroup copies,
+ * e.g. 0 in ingroup 1, 1 in ingroup 2; or 2 in ingroup 1, 2 in
+ * ingroup 2, 3 in ingroup 3.
+ */
+bool chainHasUnequalNumberOfIngroupCopies(stCactusEdgeEnd *chainEnd) {
+    stPinchEnd *end = stCactusEdgeEnd_getObject(chainEnd);
+    stPinchBlockIt it = stPinchBlock_getSegmentIterator(end->block);
+    stPinchSegment *segment;
+    stHash *ingroupToNumCopies = stHash_construct2(NULL, free);
+    while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
+        Cap *cap = flower_getCap(flower, stPinchSegment_getName(segment));
+        Event *event = cap_getEvent(cap);
+        if (!event_isOutgroup(event)) {
+            if (stHash_search(ingroupToNumCopies, event) == NULL) {
+                stHash_insert(ingroupToNumCopies, event, calloc(1, sizeof(uint64_t)));
+            }
+            uint64_t *numCopies = stHash_search(ingroupToNumCopies, event);
+            (*numCopies)++;
+        }
+    }
+
+    EventTree *eventTree = flower_getEventTree(flower);
+    EventTree_Iterator *eventIt = eventTree_getIterator(eventTree);
+    bool equalNumIngroupCopies = true;
+    Event *event;
+    uint64_t prevCount = 0;
+    while ((event = eventTree_getNext(eventIt)) != NULL) {
+        if (event_isOutgroup(event) || event_getChildNumber(event) != 0) {
+            continue;
+        }
+        uint64_t *count = stHash_search(ingroupToNumCopies, event);
+        if (count == NULL) {
+            equalNumIngroupCopies = false;
+            break;
+        }
+        if (prevCount == 0) {
+            prevCount = *count;
+        } else if (prevCount != *count) {
+            equalNumIngroupCopies = false;
+            break;
+        }
+    }
+
+    eventTree_destructIterator(eventIt);
+    stHash_destruct(ingroupToNumCopies);
+    return !equalNumIngroupCopies;
+}
+
+/*
+ * Selecting chains that have an unequal number of copies distributed
+ * among each of the ingroups, or has no copies among the
+ * outgroups collectively.
+ */
+bool chainHasUnequalNumberOfIngroupCopiesOrNoOutgroup(stCactusEdgeEnd *chainEnd) {
+    EventTree *eventTree = flower_getEventTree(flower);
+    EventTree_Iterator *eventIt = eventTree_getIterator(eventTree);
+    bool equalNumIngroupCopies = !chainHasUnequalNumberOfIngroupCopies(chainEnd);
+    Event *event;
+    uint64_t numOutgroupCopies = 0;
+    while ((event = eventTree_getNext(eventIt)) != NULL) {
+        if (event_isOutgroup(event)) {
+            numOutgroupCopies++;
+        }
+    }
+
+    eventTree_destructIterator(eventIt);
+    return !(equalNumIngroupCopies && numOutgroupCopies);
+}
+
 int main(int argc, char *argv[]) {
     /*
      * Script for adding alignments to cactus tree.
@@ -378,6 +471,7 @@ int main(int argc, char *argv[]) {
     int64_t *alignmentTrims = NULL;
     bool singleCopyIngroup = 0;
     bool singleCopyOutgroup = 0;
+    bool relaxedSingleCopyOutgroup = 0;
     int64_t chainLengthForBigFlower = 1000000;
     int64_t longChain = 2;
     int64_t minLengthForChromosome = 1000000;
@@ -386,6 +480,8 @@ int main(int argc, char *argv[]) {
     int64_t maximumMedianSequenceLengthBetweenLinkedEnds = INT64_MAX;
     bool realign = 0;
     char *realignArguments = "";
+    bool removeRecoverableChains = false;
+    bool (*recoverableChainsFilter)(stCactusEdgeEnd *) = NULL;
 
     //Parameters for removing ancient homologies
     bool doPhylogeny = false;
@@ -420,7 +516,7 @@ int main(int argc, char *argv[]) {
                         required_argument, 0, 'n' }, { "deannealingRounds", required_argument, 0, 'o' }, { "minimumDegree",
                         required_argument, 0, 'p' }, { "minimumIngroupDegree", required_argument, 0, 'q' }, {
                         "minimumOutgroupDegree", required_argument, 0, 'r' }, {
-                        "singleCopyIngroup", no_argument, 0, 's' }, { "singleCopyOutgroup", no_argument, 0, 't' }, {
+                        "singleCopyIngroup", no_argument, 0, 's' }, { "singleCopyOutgroup", required_argument, 0, 't' }, {
                         "minimumSequenceLengthForBlast", required_argument, 0, 'v' }, { "maxAdjacencyComponentSizeRatio",
                         required_argument, 0, 'w' }, { "constraints", required_argument, 0, 'x' }, { "minLengthForChromosome",
                         required_argument, 0, 'y' }, { "proportionOfUnalignedBasesForNewChromosome", required_argument, 0, 'z' },
@@ -445,11 +541,13 @@ int main(int argc, char *argv[]) {
                         { "minimumBlockHomologySupport", required_argument, 0, 'T' },
                         { "phylogenyNucleotideScalingFactor", required_argument, 0, 'U' },
                         { "minimumBlockDegreeToCheckSupport", required_argument, 0, 'V' },
+                        { "removeRecoverableChains", required_argument, 0, 'W' },
+                        { "minimumNumberOfSpecies", required_argument, 0, 'X' },
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:BC:D:E:F:G:HI:J:K:LM:N:O:P:Q:R:ST:U:V:", long_options, &option_index);
+        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:BC:D:E:F:G:HI:J:K:LM:N:O:P:Q:R:ST:U:V:W:X:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -505,7 +603,17 @@ int main(int argc, char *argv[]) {
                 singleCopyIngroup = 1;
                 break;
             case 't':
-                singleCopyOutgroup = 1;
+                if (strcmp(optarg, "1") == 0) {
+                    singleCopyOutgroup = true;
+                } else if (strcmp(optarg, "relaxed") == 0) {
+                    singleCopyOutgroup = false;
+                    relaxedSingleCopyOutgroup = true;
+                } else if (strcmp(optarg, "0") == 0) {
+                    singleCopyOutgroup = false;
+                    relaxedSingleCopyOutgroup = false;
+                } else {
+                    st_errAbort("Could not recognize singleCopyOutgroup option %s", optarg);
+                }
                 break;
             case 'v':
                 k = sscanf(optarg, "%" PRIi64 "", &minimumSequenceLengthForBlast);
@@ -630,6 +738,28 @@ int main(int argc, char *argv[]) {
                 k = sscanf(optarg, "%" PRIi64, &minimumBlockDegreeToCheckSupport);
                 assert(k == 1);
                 break;
+            case 'W':
+                if (strcmp(optarg, "1") == 0) {
+                    removeRecoverableChains = true;
+                    recoverableChainsFilter = NULL;
+                } else if (strcmp(optarg, "unequalNumberOfIngroupCopies") == 0) {
+                    removeRecoverableChains = true;
+                    recoverableChainsFilter = chainHasUnequalNumberOfIngroupCopies;
+                } else if (strcmp(optarg, "unequalNumberOfIngroupCopiesOrNoOutgroup") == 0) {
+                    removeRecoverableChains = true;
+                    recoverableChainsFilter = chainHasUnequalNumberOfIngroupCopiesOrNoOutgroup;
+                } else if (strcmp(optarg, "0") == 0) {
+                    removeRecoverableChains = false;
+                } else {
+                    st_errAbort("Could not parse removeRecoverableChains argument");
+                }
+                break;
+            case 'X':
+                k = sscanf(optarg, "%" PRIi64, &minimumNumberOfSpecies);
+                if (k != 1) {
+                    st_errAbort("Error parsing the minimumNumberOfSpecies argument");
+                }
+                break;
             default:
                 usage();
                 return 1;
@@ -717,12 +847,15 @@ int main(int argc, char *argv[]) {
                 sortAlignments = 1;
                 filterFn = filterByRepeatSpecies;
             }
-            else if (singleCopyOutgroup) {
+            else if (singleCopyOutgroup || relaxedSingleCopyOutgroup) {
                 if (stSet_size(outgroupThreads) == 0) {
                     filterFn = NULL;
                     sortAlignments = 0;
-                } else {
+                } else if (singleCopyOutgroup) {
                     filterFn = filterByOutgroup;
+                    sortAlignments = 1;
+                } else if (relaxedSingleCopyOutgroup) {
+                    filterFn = relaxedFilterByOutgroup;
                     sortAlignments = 1;
                 }
             }
@@ -815,6 +948,9 @@ int main(int argc, char *argv[]) {
                 stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0, 0, INT64_MAX);
             }
 
+            if (removeRecoverableChains) {
+                stCaf_meltRecoverableChains(flower, threadSet, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds, recoverableChainsFilter);
+            }
             if (debugFileName != NULL) {
                 dumpBlockInfo(threadSet, stString_print("%s-blockStats-postMelting", debugFileName));
             }
@@ -925,6 +1061,7 @@ int main(int argc, char *argv[]) {
 
     //Destruct stuff
     startTime = time(NULL);
+    cactusDisk_destruct(cactusDisk);
     stKVDatabaseConf_destruct(kvDatabaseConf);
     free(cactusDiskDatabaseString);
     if (alignmentsFile != NULL) {
