@@ -170,7 +170,8 @@ class CactusPhasesJob(CactusJob):
             cpu = cw.getKtserverCpu(default=getOptionalAttrib(
                     self.constantsNode, "defaultCpu", int, default=0))
             dbElem = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
-            self.addService(KtServerService(dbElem = dbElem, isSecondary = True))
+            dbString = self.addService(KtServerService(dbElem = dbElem, isSecondary = True))
+            newChild.phaseNode.attrib["secondaryDatabaseString"] = dbString
             return self.addChild(newChild).rv()
         else:
             return self.addChild(newChild).rv()
@@ -980,11 +981,11 @@ class CactusHalGeneratorPhase(CactusPhasesJob):
             self.setupSecondaryDatabase()
             self.phaseNode.attrib["experimentPath"] = self.cactusWorkflowArguments.experimentFile
             self.phaseNode.attrib["secondaryDatabaseString"] = self.cactusWorkflowArguments.secondaryDatabaseString
-            #self.phaseNode.attrib["outputFile"]=self.cactusWorkflowArguments.experimentNode.find("hal").attrib["halPath"]
+            self.phaseNode.attrib["outputFile"]=self.cactusWorkflowArguments.experimentNode.find("hal").attrib["halPath"]
             self.makeFollowOnPhaseJob(CactusHalGeneratorPhase2, "hal")
             halID = self.makeRecursiveChildJob(CactusHalGeneratorRecursion, launchSecondaryKtForRecursiveJob=True)
             self.cactusWorkflowArguments.experimentWrapper.setHalID(halID)
-            return self.cactusWorfklowArguments.experimentWrapper
+            return self.cactusWorkflowArguments.experimentWrapper
 
 class CactusFastaGenerator(CactusRecursionJob):
     def run(self, fileStore):
@@ -1012,7 +1013,10 @@ class CactusHalGeneratorUpWrapper(CactusRecursionJob):
     """Does the up pass for filling in the coordinates, once a reference is added.
     """ 
     def run(self, fileStore):
-        tmpHal = os.path.join(fileStore.getLocalTempDir(), "tmpHal")
+        if self.getOptionalPhaseAttrib("outputFile"):
+            tmpHal = os.path.join(fileStore.getLocalTempDir(), "tmpHal")
+        else:
+            tmpHal = None
         runCactusHalGenerator(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                               secondaryDatabaseString=self.getOptionalPhaseAttrib("secondaryDatabaseString"),
                               flowerNames=self.flowerNames,
@@ -1020,7 +1024,10 @@ class CactusHalGeneratorUpWrapper(CactusRecursionJob):
                               outputFile=tmpHal,
                               showOnlySubstitutionsWithRespectToReference=\
                               self.getOptionalPhaseAttrib("showOnlySubstitutionsWithRespectToReference", bool))
-        return fileStore.writeGlobalFile(tmphal)
+        if tmpHal:
+            return fileStore.writeGlobalFile(tmpHal)
+        else:
+            return None
 
 class CactusHalGeneratorPhaseCleanup(CactusPhasesJob):
     """Cleanup the database used to build the hal
