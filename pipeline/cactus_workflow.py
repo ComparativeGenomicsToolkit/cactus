@@ -972,12 +972,13 @@ class CactusCheckWrapper(CactusRecursionJob):
 
 class CactusHalGeneratorPhase(CactusPhasesJob):
     def run(self, fileStore):
+        fastaID = None
         referenceNode = findRequiredNode(self.cactusWorkflowArguments.configNode, "reference")
         if referenceNode.attrib.has_key("reference"):
             self.phaseNode.attrib["reference"] = referenceNode.attrib["reference"]
         if self.getOptionalPhaseAttrib("buildFasta", bool, default=False):
             self.phaseNode.attrib["fastaPath"] = self.cactusWorkflowArguments.experimentNode.find("hal").attrib["fastaPath"]
-            self.makeRecursiveChildJob(CactusFastaGenerator)
+            fastaID = self.makeRecursiveChildJob(CactusFastaGenerator)
         if self.getOptionalPhaseAttrib("buildHal", bool, default=False):
             self.setupSecondaryDatabase()
             self.phaseNode.attrib["experimentPath"] = self.cactusWorkflowArguments.experimentFile
@@ -986,15 +987,18 @@ class CactusHalGeneratorPhase(CactusPhasesJob):
             self.makeFollowOnPhaseJob(CactusHalGeneratorPhase2, "hal")
             halID = self.makeRecursiveChildJob(CactusHalGeneratorRecursion, launchSecondaryKtForRecursiveJob=True)
             self.cactusWorkflowArguments.experimentWrapper.setHalID(halID)
+            self.cactusWorkflowArguments.experimentWrapper.setHalFastaID(fastaID)
             assert self.cactusWorkflowArguments.experimentWrapper.getReferenceID()
             return self.cactusWorkflowArguments.experimentWrapper
 
 class CactusFastaGenerator(CactusRecursionJob):
     def run(self, fileStore):
+        tmpFasta = os.path.join(fileStore.getLocalTempDir(), "tmpFasta")
         runCactusFastaGenerator(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                                     flowerName=decodeFirstFlowerName(self.flowerNames),
-                                    outputFile=self.getOptionalPhaseAttrib("fastaPath"),
+                                    outputFile=tmpFasta,
                                     referenceEventString=self.getOptionalPhaseAttrib("reference"))
+        return fileStore.writeGlobalFile(tmpFasta)
             
 class CactusHalGeneratorPhase2(CactusHalGeneratorPhase):
     def run(self, fileStore): 

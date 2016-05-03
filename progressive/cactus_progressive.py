@@ -282,6 +282,8 @@ class ProgressiveDownPrecursor(Job):
         self.schedule = schedule
     def run(self, fileStore):
         self.project.setOutputSequenceIDs(self.preprocessorOutput)
+        outputSequencePaths = CactusPreprocessor.getOutputSequenceFiles(self.project.getInputSequencePaths(), self.project.getOutputSequenceDir())
+        self.project.preprocessedSequenceIDs = dict(zip(outputSequencePaths, self.preprocessorOutput))
         #projectID = self.project.writeXMLToFileStore(fileStore)
         return self.addFollowOn(ProgressiveDown(self.options, self.project, self.event, self.schedule)).rv()
 
@@ -341,7 +343,10 @@ def main():
             expWrapper = ExperimentWrapper(ET.parse(project.expMap[name]).getroot())
             toil.jobStore.exportFile(expWrapper.getHalID(), makeURL(expWrapper.getHALPath()))
             toil.jobStore.exportFile(expWrapper.getReferenceID(), makeURL(expWrapper.getReferencePath()))
+            toil.jobStore.exportFile(expWrapper.getHalFastaID(), makeURL(expWrapper.getHALFastaPath()))
 
+        for outputSeqPath in project.preprocessedSequenceIDs:
+            toil.jobStore.exportFile(project.preprocessedSequenceIDs[outputSeqPath], makeURL(outputSeqPath))
         #Write the project file to its expected location
         project.writeXML(options.project)
 
