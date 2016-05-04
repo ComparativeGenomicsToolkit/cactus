@@ -202,6 +202,7 @@ class ExperimentWrapper(DbElemWrapper):
             self.setSequences([fileStore.readGlobalFile(seqID) for seqID in self.getSequenceIDs()])
             
         self.seqMap = self.buildSequenceMap()
+        self.seqIDMap = None
 
     @staticmethod
     def createExperimentWrapper(sequences, newickTreeString, outputDir,
@@ -276,7 +277,7 @@ class ExperimentWrapper(DbElemWrapper):
         
     def setSequenceIDs(self, sequenceIDs):
         self.xmlRoot.attrib["sequenceIDs"] = " ".join(sequenceIDs)
-    
+
     def getSequences(self):
         return self.xmlRoot.attrib["sequences"].split()
 
@@ -312,7 +313,10 @@ class ExperimentWrapper(DbElemWrapper):
 
     def getReferenceID(self):
         refElem = self.xmlRoot.find("reference")
-        return refElem.attrib["id"]
+        if "id" in refElem.attrib:
+            return refElem.attrib["id"]
+        else:
+            return None
     
     def getReferenceNameFromConfig(self):
         configElem = ET.parse(self.getConfig()).getroot()

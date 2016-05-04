@@ -357,10 +357,9 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
         os.mkdir(outgroupsDir)
 
         # Get ingroup and outgroup sequences
-        exp = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
-        exp.setSequences([fileStore.readGlobalFile(seqID) for seqID in exp.getSequenceIDs()])
-        seqMap = exp.buildSequenceMap()
-        sequences = exp.getSequences()
+        exp = self.cactusWorkflowArguments.experimentWrapper
+        sequenceIDs = exp.seqIDMap.values()
+        sequences = [fileStore.readGlobalFile(seqID) for seqID in sequenceIDs]
 
         # Prepend unique ID to fasta headers to prevent name collision
         renamedInputSeqDir = os.path.join(fileStore.getLocalTempDir(), "renamedInputs")
@@ -370,9 +369,9 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
         exp.setSequenceIDs(uniqueFaIDs)
         self.phaseNode.attrib["seqIDs"] = " ".join(uniqueFaIDs)
         
-        seqIDMap = dict(zip(seqMap.keys(), uniqueFaIDs))
-        ingroupIDs = map(lambda x: x[1], filter(lambda x: x[0] not in exp.getOutgroupEvents(), seqIDMap.items()))
-        outgroupIDs = [seqIDMap[i] for i in exp.getOutgroupEvents()]
+        exp.seqIDMap = dict(zip(exp.seqIDMap.keys(), uniqueFaIDs))
+        ingroupIDs = map(lambda x: x[1], filter(lambda x: x[0] not in exp.getOutgroupEvents(), exp.seqIDMap.items()))
+        outgroupIDs = [exp.seqIDMap[i] for i in exp.getOutgroupEvents()]
         fileStore.logToMaster("Ingroup sequences: %s" % (ingroupIDs))
         fileStore.logToMaster("Outgroup sequences: %s" % (outgroupIDs))
 
@@ -401,10 +400,6 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
         return self.makeFollowOnPhaseJob(CactusTrimmingBlastPhase2, phaseName="trimBlast")
 class CactusTrimmingBlastPhase2(CactusPhasesJob):
     def run(self, fileStore):
-        exp = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
-        seqIDs = self.phaseNode.attrib["seqIDs"].split()
-        seqMap = exp.buildSequenceMap()
-        seqIDMap = dict(zip(seqMap.keys(), seqIDs))
         trimBlastResults = self.phaseNode.attrib["trimBlastResults"]
         
         outgroupFragmentIDs = trimBlastResults["outgroupFragmentIDs"]
@@ -413,9 +408,8 @@ class CactusTrimmingBlastPhase2(CactusPhasesJob):
         self.phaseNode.attrib["aignmentsID"] = alignmentsID
         # Point the outgroup sequences to their trimmed versions for
         # phases after this one.
-        for i, outgroup in enumerate(exp.getOutgroupEvents()):
-            seqIDMap[outgroup] = outgroupFragmentIDs[i]
-        self.phaseNode.attrib["seqIDs"] = " ".join(seqIDMap.values())
+        for i, outgroup in enumerate(self.cactusWorkflowArguments.experimentWrapper.getOutgroupEvents()):
+            self.cactusWorkflowArguments.experimentWrapper.seqIDMap[outgroup] = outgroupFragmentIDs[i]
 
         return self.makeFollowOnPhaseJob(CactusSetupPhase, "setup")
         
@@ -451,12 +445,9 @@ class CactusSetupPhase(CactusPhasesJob):
         setupJob = CactusSetupPhase2(cactusWorkflowArguments=self.cactusWorkflowArguments,
                                        phaseName='setup', topFlowerName=self.topFlowerName,
                                        index=0)
-        if "seqIDs" in self.phaseNode.attrib:
-            setupJob.phaseNode.attrib["seqIDs"] = self.phaseNode.attrib["seqIDs"]
         
         #Get the db running and the actual setup going.
-        exp = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
-        if exp.getDbType() == "kyoto_tycoon":
+        if self.cactusWorkflowArguments.experimentWrapper.getDbType() == "kyoto_tycoon":
             logger.info("Created ktserver pattern job cactus_setup")
             memory = cw.getKtserverMemory(default=getOptionalAttrib(
                     self.constantsNode, "defaultMemory", int, default=sys.maxint))
@@ -477,9 +468,9 @@ class CactusSetupPhase(CactusPhasesJob):
 class CactusSetupPhase2(CactusPhasesJob):   
     def run(self, fileStore):        
         #Now run setup
-        if "seqIDs" in self.phaseNode.attrib:
+        if self.cactusWorkflowArguments.experimentWrapper.seqIDMap:
             logger.info("Using sequences from file Store.")
-            sequenceIDs = self.phaseNode.attrib["seqIDs"].split()
+            sequenceIDs = self.cactusWorkflowArguments.experimentWrapper.seqIDMap.values()
             sequences = [fileStore.readGlobalFile(fileID) for fileID in sequenceIDs]
         else:
             logger.info("Reading sequences from permanent input paths.")
@@ -1051,11 +1042,12 @@ class CactusHalGeneratorPhaseCleanup(CactusPhasesJob):
 class CactusWorkflowArguments:
     """Object for representing a cactus workflow's arguments
     """
-    def __init__(self, options, experimentFile):
+    def __init__(self, options, experimentFile, seqIDMap = None):
         #Get a local copy of the experiment file
         self.experimentFile = experimentFile
         self.experimentNode = ET.parse(self.experimentFile).getroot()
         self.experimentWrapper = ExperimentWrapper(self.experimentNode)
+        self.experimentWrapper.seqIDMap = seqIDMap
         #Get the database string
         self.cactusDiskDatabaseString = ET.tostring(self.experimentNode.find("cactus_disk").find("st_kv_database_conf")).translate(None, '\n')
         #Get the species tree
