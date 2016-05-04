@@ -91,17 +91,19 @@ class ProgressiveNext(Job):
     def run(self, fileStore):
         #project = MultiCactusProject()
         #project.readXML(fileStore.readGlobalFile(self.projectID))
-        for name in self.depProjects:
+        for projName in self.depProjects:
             #depProject = MultiCactusProject()
             #depProject.readXML(fileStore.readGlobalFile(self.depProjectIDs[name]))
-            depProject = self.depProjects[name]
-            expID = depProject.expIDMap[name]
-            logger.info("ExpID %s" % expID)
-            self.project.expIDMap[name] = expID
-            experiment = ExperimentWrapper(ET.parse(fileStore.readGlobalFile(expID)).getroot())
-            logger.info("Reference id: %s, reference path: %s" % (experiment.getReferenceID(), experiment.getReferencePath()))
-            logger.info("Getting the reference sequence for %s" % name)
-            self.project.outputSequenceIDMap[name] = experiment.getReferenceID()
+            depProject = self.depProjects[projName]
+            for expName in depProject.expIDMap: 
+                expID = depProject.expIDMap[expName]
+                logger.info("ExpID %s" % expID)
+                experiment = ExperimentWrapper(ET.parse(fileStore.readGlobalFile(expID)).getroot())
+                logger.info("Reference id: %s, reference path: %s" % (experiment.getReferenceID(), experiment.getReferencePath()))
+                logger.info("Getting the reference sequence for %s" % expName)
+                if experiment.getReferenceID():
+                    self.project.expIDMap[expName] = expID
+                    self.project.outputSequenceIDMap[expName] = experiment.getReferenceID()
         #self.projectID = project.writeXMLToFileStore(fileStore)
                         
         eventExpWrapper = None
@@ -109,27 +111,30 @@ class ProgressiveNext(Job):
         if not self.schedule.isVirtual(self.event):
             eventExpWrapper = self.addChild(ProgressiveUp(self.options, self.project, self.event)).rv()
             #self.project.expIDMap[self.event] = eventExpID
-        followOnEvent = self.schedule.followOn(self.event)
-        if followOnEvent is not None:
-            return self.addFollowOn(ProgressiveDown(self.options, self.project, followOnEvent,
-                                                    self.schedule, parentExpWrapper = eventExpWrapper, parentName = self.event)).rv()
-        else:
-            return self.addFollowOn(ProgressiveOut(self.project, self.event, eventExpWrapper)).rv()
+        return self.addFollowOn(ProgressiveOut(self.options, self.project, self.event, eventExpWrapper, self.schedule)).rv()
 
 class ProgressiveOut(Job):
-    def __init__(self, project, eventName, eventExpWrapper):
+    def __init__(self, options, project, event, eventExpWrapper, schedule):
         Job.__init__(self)
+        self.options = options
         self.project = project
-        self.eventName = eventName
+        self.event = event
         self.eventExpWrapper = eventExpWrapper
+        self.schedule = schedule
         
     def run(self, fileStore):
         #project = MultiCactusProject()
         #project.readXML(fileStore.readGlobalFile(self.projectID))
         tmpExp = os.path.join(fileStore.getLocalTempDir(), "tmpExp")
         self.eventExpWrapper.writeXML(tmpExp)
-        self.project.expIDMap[self.eventName] = fileStore.writeGlobalFile(tmpExp)
+        self.project.expIDMap[self.event] = fileStore.writeGlobalFile(tmpExp)
         #return project.writeXMLToFileStore(fileStore)
+        followOnEvent = self.schedule.followOn(self.event)
+        if followOnEvent is not None:
+            logger.info("Adding follow-on event %s" % followOnEvent)
+            return self.addFollowOn(ProgressiveDown(self.options, self.project, followOnEvent,
+                                                    self.schedule, parentExpWrapper = eventExpWrapper, parentName = self.event)).rv()
+
         return self.project
     
 class ProgressiveUp(Job):

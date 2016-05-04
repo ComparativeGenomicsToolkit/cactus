@@ -312,7 +312,10 @@ class ExperimentWrapper(DbElemWrapper):
 
     def getReferenceID(self):
         refElem = self.xmlRoot.find("reference")
-        return refElem.attrib["id"]
+        if "id" in refElem.attrib:
+            return refElem.attrib["id"]
+        else:
+            return None
     
     def getReferenceNameFromConfig(self):
         configElem = ET.parse(self.getConfig()).getroot()
