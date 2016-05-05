@@ -159,14 +159,16 @@ class ProgressiveUp(Job):
         configWrapper = ConfigWrapper(configXml)
 
         seqMap = experiment.buildSequenceMap()
-        experimentSeqIDs = []
-        for name in seqMap:
-            experimentSeqIDs.append(self.project.outputSequenceIDMap[name])
-        experiment.setSequenceIDs(experimentSeqIDs)
+        seqIDMap = dict()
+        tree = experiment.getTree()
+        for node in tree.postOrderTraversal():
+            if tree.isLeaf(node):
+                name = tree.getName(node)
+                seqIDMap[name] = self.project.outputSequenceIDMap[name]
             
-        newExpFilePath = os.path.join(fileStore.getLocalTempDir(), "expTemp")
-        experiment.writeXML(newExpFilePath)
-        self.options.experimentFileID = fileStore.writeGlobalFile(newExpFilePath)
+        experimentFile = os.path.join(fileStore.getLocalTempDir(), "expTemp")
+        experiment.writeXML(experimentFile)
+        self.options.experimentFileID = fileStore.writeGlobalFile(experimentFile)
 
         # need at least 3 processes for every event when using ktserver:
         # 1 proc to run jobs, 1 proc to run server, 1 proc to run 2ndary server
@@ -193,8 +195,8 @@ class ProgressiveUp(Job):
             self.options.buildFasta = getOptionalAttrib(halNode, "buildFasta", bool, False)
 
         # get parameters that cactus_workflow stuff wants
-        experimentFile = fileStore.readGlobalFile(self.options.experimentFileID)
-        workFlowArgs = CactusWorkflowArguments(self.options, experimentFile)
+        #experimentFile = fileStore.readGlobalFile(self.options.experimentFileID)
+        workFlowArgs = CactusWorkflowArguments(self.options, experimentFile, seqIDMap = seqIDMap)
         # copy over the options so we don't trail them around
         workFlowArgs.buildReference = self.options.buildReference
         workFlowArgs.buildHal = self.options.buildHal
@@ -202,7 +204,6 @@ class ProgressiveUp(Job):
         workFlowArgs.overwrite = self.options.overwrite
         workFlowArgs.globalLeafEventSet = self.options.globalLeafEventSet
         
-        experiment = ExperimentWrapper(workFlowArgs.experimentNode)
 
         donePath = os.path.join(os.path.dirname(workFlowArgs.experimentFile), "DONE")
         doneDone = os.path.isfile(donePath)

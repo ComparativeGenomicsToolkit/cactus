@@ -202,6 +202,7 @@ class ExperimentWrapper(DbElemWrapper):
             self.setSequences([fileStore.readGlobalFile(seqID) for seqID in self.getSequenceIDs()])
             
         self.seqMap = self.buildSequenceMap()
+        self.seqIDMap = None
 
     @staticmethod
     def createExperimentWrapper(sequences, newickTreeString, outputDir,
@@ -276,7 +277,7 @@ class ExperimentWrapper(DbElemWrapper):
         
     def setSequenceIDs(self, sequenceIDs):
         self.xmlRoot.attrib["sequenceIDs"] = " ".join(sequenceIDs)
-    
+
     def getSequences(self):
         return self.xmlRoot.attrib["sequences"].split()
 
