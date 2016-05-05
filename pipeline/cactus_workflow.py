@@ -366,7 +366,6 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
         os.mkdir(renamedInputSeqDir)
         uniqueFas = prependUniqueIDs(sequences, renamedInputSeqDir)
         uniqueFaIDs = [fileStore.writeGlobalFile(seq, cleanup=False) for seq in uniqueFas]
-        exp.setSequenceIDs(uniqueFaIDs)
         self.phaseNode.attrib["seqIDs"] = " ".join(uniqueFaIDs)
         
         exp.seqIDMap = dict(zip(exp.seqIDMap.keys(), uniqueFaIDs))
@@ -470,7 +469,12 @@ class CactusSetupPhase2(CactusPhasesJob):
         #Now run setup
         if self.cactusWorkflowArguments.experimentWrapper.seqIDMap:
             logger.info("Using sequences from file Store.")
-            sequenceIDs = self.cactusWorkflowArguments.experimentWrapper.seqIDMap.values()
+            sequenceIDs = []
+            tree = self.cactusWorkflowArguments.experimentWrapper.getTree()
+            for node in tree.postOrderTraversal():
+                if tree.isLeaf(node):
+                    sequenceIDs.append(self.cactusWorkflowArguments.experimentWrapper.seqIDMap[tree.getName(node)])
+
             sequences = [fileStore.readGlobalFile(fileID) for fileID in sequenceIDs]
         else:
             logger.info("Reading sequences from permanent input paths.")
