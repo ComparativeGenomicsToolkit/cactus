@@ -483,3 +483,24 @@ class ExperimentWrapper(DbElemWrapper):
     # return internal structure that maps event names to paths
     def getSequenceMap(self):
         return self.seqMap
+
+    def checkSequenceIDs(self, fileStore):
+        tree = self.getTree()
+        sequences = [fileStore.readGlobalFile(seqID) for seqID in self.seqIDMap.values()]
+        nameIter = iter(self.seqIDMap.keys())
+        seqIter = iter(sequences)
+        for node in tree.postOrderTraversal():
+            if tree.isLeaf(node):
+
+                name = nameIter.next()
+                seq = seqIter.next()
+                if not name == tree.getName(node):
+                    raise RuntimeError("name = %s, traversalName = %s" % (name, tree.getName(node)))
+                first_line = ""
+                with open(seq, 'r') as seqFH:
+                    first_line = seqFH.readline()
+                first_line = first_line[1:]
+                first_line = first_line.split("|")[1]
+                if not first_line.startswith(name):
+                    raise RuntimeError("First_line = %s, name = %s" % (first_line, name))
+
