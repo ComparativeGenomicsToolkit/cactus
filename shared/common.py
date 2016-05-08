@@ -146,7 +146,7 @@ def runCactusSetup(cactusDiskDatabaseString, sequences,
     logLevel = getLogLevelString2(logLevel)
     outgroupEvents = nameValue("outgroupEvents", outgroupEvents, str, quotes=True)
     makeEventHeadersAlphaNumeric=nameValue("makeEventHeadersAlphaNumeric", makeEventHeadersAlphaNumeric, bool)
-    masterMessages = popenCatch("gdb -return-child-result -ex run -ex bt -ex quit --args cactus_setup %s --speciesTree '%s' --cactusDisk '%s' \
+    masterMessages = popenCatch("cactus_setup %s --speciesTree '%s' --cactusDisk '%s' \
 --logLevel %s %s %s" \
            % (" ".join(sequences), newickTreeString,
               cactusDiskDatabaseString, logLevel, outgroupEvents, makeEventHeadersAlphaNumeric))
@@ -326,7 +326,7 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
     precomputedAlignments=nameValue("precomputedAlignments", precomputedAlignments, str, quotes=True)
     minimumNumberOfSpecies = nameValue("minimumNumberOfSpecies", minimumNumberOfSpecies, int)
 
-    masterMessages = popenCatch("gdb -return-child-result -ex run -ex bt -ex quit --args cactus_bar --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" %
+    masterMessages = popenCatch("cactus_bar --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" %
            (cactusDiskDatabaseString, logLevel, spanningTrees, maximumLength, gapGamma, 
             splitMatrixBiggerThanThis, anchorMatrixBiggerThanThis, repeatMaskMatrixBiggerThanThis,
             constraintDiagonalTrim, minimumBlockDegree, minimumIngroupDegree, minimumOutgroupDegree,  
