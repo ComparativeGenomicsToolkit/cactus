@@ -269,8 +269,8 @@ class ProgressiveDownPrecursor(Job):
         self.schedule = schedule
     def run(self, fileStore):
         self.project.setOutputSequenceIDs(self.preprocessorOutput)
-        outputSequencePaths = CactusPreprocessor.getOutputSequenceFiles(self.project.getInputSequencePaths(), self.project.getOutputSequenceDir())
-        self.project.preprocessedSequenceIDs = dict(zip(outputSequencePaths, self.preprocessorOutput))
+        #outputSequencePaths = CactusPreprocessor.getOutputSequenceFiles(self.project.getInputSequencePaths(), self.project.getOutputSequenceDir())
+        #self.project.preprocessedSequenceIDs = dict(zip(outputSequencePaths, self.preprocessorOutput))
         return self.addFollowOn(ProgressiveDown(self.options, self.project, self.event, self.schedule)).rv()
 
 def makeURL(path):
@@ -332,8 +332,8 @@ def main():
             toil.jobStore.exportFile(expWrapper.getReferenceID(), makeURL(expWrapper.getReferencePath()))
             toil.jobStore.exportFile(expWrapper.getHalFastaID(), makeURL(expWrapper.getHALFastaPath()))
 
-        for outputSeqPath in project.preprocessedSequenceIDs:
-            toil.jobStore.exportFile(project.preprocessedSequenceIDs[outputSeqPath], makeURL(outputSeqPath))
+        #for outputSeqPath in project.preprocessedSequenceIDs:
+        #    toil.jobStore.exportFile(project.preprocessedSequenceIDs[outputSeqPath], makeURL(outputSeqPath))
         #Write the project file to its expected location
         project.writeXML(options.project)
 
