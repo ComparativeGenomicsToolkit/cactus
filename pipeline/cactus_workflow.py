@@ -574,7 +574,7 @@ class CactusCafWrapper(CactusRecursionJob):
                           removeRecoverableChains=self.getOptionalPhaseAttrib("removeRecoverableChains"),
                           minimumNumberOfSpecies=self.getOptionalPhaseAttrib("minimumNumberOfSpecies", int))
         for message in messages:
-            fileStore.logToMaster(message)
+            logger.info(message)
     
     def run(self, fileStore):
         constraints = None
