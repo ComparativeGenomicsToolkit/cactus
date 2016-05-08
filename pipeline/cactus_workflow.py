@@ -1073,7 +1073,8 @@ class CactusWorkflowArguments:
         self.secondaryDatabaseString = secondaryElem.getConfString()
             
         #The config node
-        self.configNode = ET.parse(self.experimentWrapper.getConfigPath()).getroot()
+        configPath = fileStore.readGlobalFile(self.experimentWrapper.getConfigID())
+        self.configNode = ET.parse(configPath).getroot()
         self.configWrapper = ConfigWrapper(self.configNode)
         #Now deal with the constants that ned to be added here
         self.configWrapper.substituteAllPredefinedConstantsWithLiterals()
