@@ -140,7 +140,8 @@ class ProgressiveUp(Job):
         experimentFile = fileStore.readGlobalFile(self.project.expIDMap[self.event])
         expXml = ET.parse(experimentFile).getroot()
         experiment = ExperimentWrapper(expXml)
-        configXml = ET.parse(experiment.getConfigPath()).getroot()
+        configPath = fileStore.readGlobalFile(experiment.getConfigID())
+        configXml = ET.parse(configPath).getroot()
         configWrapper = ConfigWrapper(configXml)
 
         seqMap = experiment.buildSequenceMap()
