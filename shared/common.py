@@ -151,7 +151,8 @@ def runCactusSetup(cactusDiskDatabaseString, sequences,
            % (" ".join(sequences), newickTreeString,
               cactusDiskDatabaseString, logLevel, outgroupEvents, makeEventHeadersAlphaNumeric))
     logger.info("Ran cactus setup okay")
-    return [ i for i in masterMessages.split("\n") if i != '' ]
+    #return [ i for i in masterMessages.split("\n") if i != '' ]
+    return masterMessages
     
 def runCactusBlast(sequenceFiles, outputFile, toilDir,
                    chunkSize=None, overlapSize=None, 
@@ -333,7 +334,8 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
             maximumNumberOfSequencesBeforeSwitchingToFast, calculateWhichEndsToComputeSeparately,
             largeEndSize, endAlignmentsToPrecomputeOutputFile, precomputedAlignments, minimumNumberOfSpecies), stdinString=flowerNames)
     logger.info("Ran cactus_bar okay")
-    return [ i for i in masterMessages.split("\n") if i != '' ]
+    #return [ i for i in masterMessages.split("\n") if i != '' ]
+    return masterMessages
 
 def runCactusSecondaryDatabase(secondaryDatabaseString, create=True):
     command = "cactus_secondaryDatabase '%s' %s" % (secondaryDatabaseString, int(create))
