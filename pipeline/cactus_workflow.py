@@ -486,7 +486,7 @@ class CactusSetupPhase2(CactusPhasesJob):
                        outgroupEvents=self.cactusWorkflowArguments.outgroupEventNames,
                        makeEventHeadersAlphaNumeric=self.getOptionalPhaseAttrib("makeEventHeadersAlphaNumeric", bool, False))
         for message in messages:
-            fileStore.logToMaster(message)
+            logger.info(message)
         return self.makeFollowOnPhaseJob(CactusCafPhase, "caf")
         
 ############################################################
