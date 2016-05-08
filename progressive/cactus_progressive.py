@@ -60,14 +60,11 @@ class ProgressiveDown(Job):
         self.parentName = parentName
     
     def run(self, fileStore):
-        #project = MultiCactusProject()
-        #project.readXML(fileStore.readGlobalFile(self.projectID))
         if self.parentExpWrapper:
             self.project.outputSequenceIDMap[self.parentName] = self.parentExpWrapper.getReferenceID()
             self.project.expIDMap[self.parentName] = self.parentExpID
             
         logger.info("Progressive Down: " + self.event)
-        #self.projectID = project.writeXMLToFileStore(fileStore)
 
         depProjects = dict()
         if not self.options.nonRecursive:
@@ -89,11 +86,7 @@ class ProgressiveNext(Job):
         self.depProjects = depProjects
     
     def run(self, fileStore):
-        #project = MultiCactusProject()
-        #project.readXML(fileStore.readGlobalFile(self.projectID))
         for projName in self.depProjects:
-            #depProject = MultiCactusProject()
-            #depProject.readXML(fileStore.readGlobalFile(self.depProjectIDs[name]))
             depProject = self.depProjects[projName]
             for expName in depProject.expIDMap: 
                 expID = depProject.expIDMap[expName]
@@ -104,13 +97,11 @@ class ProgressiveNext(Job):
                 if experiment.getReferenceID():
                     self.project.expIDMap[expName] = expID
                     self.project.outputSequenceIDMap[expName] = experiment.getReferenceID()
-        #self.projectID = project.writeXMLToFileStore(fileStore)
                         
         eventExpWrapper = None
         logger.info("Progressive Next: " + self.event)
         if not self.schedule.isVirtual(self.event):
             eventExpWrapper = self.addChild(ProgressiveUp(self.options, self.project, self.event)).rv()
-            #self.project.expIDMap[self.event] = eventExpID
         return self.addFollowOn(ProgressiveOut(self.options, self.project, self.event, eventExpWrapper, self.schedule)).rv()
 
 class ProgressiveOut(Job):
@@ -123,12 +114,9 @@ class ProgressiveOut(Job):
         self.schedule = schedule
         
     def run(self, fileStore):
-        #project = MultiCactusProject()
-        #project.readXML(fileStore.readGlobalFile(self.projectID))
         tmpExp = os.path.join(fileStore.getLocalTempDir(), "tmpExp")
         self.eventExpWrapper.writeXML(tmpExp)
         self.project.expIDMap[self.event] = fileStore.writeGlobalFile(tmpExp)
-        #return project.writeXMLToFileStore(fileStore)
         followOnEvent = self.schedule.followOn(self.event)
         if followOnEvent is not None:
             logger.info("Adding follow-on event %s" % followOnEvent)
@@ -147,15 +135,13 @@ class ProgressiveUp(Job):
     def run(self, fileStore):
         logger.info("Progressive Up: " + self.event)
 
-        #project = MultiCactusProject()
-        #project.readXML(fileStore.readGlobalFile(self.projectID))
-
         # open up the experiment
         # note that we copy the path into the options here
         experimentFile = fileStore.readGlobalFile(self.project.expIDMap[self.event])
         expXml = ET.parse(experimentFile).getroot()
         experiment = ExperimentWrapper(expXml)
-        configXml = ET.parse(experiment.getConfigPath()).getroot()
+        configPath = fileStore.readGlobalFile(experiment.getConfigID())
+        configXml = ET.parse(configPath).getroot()
         configWrapper = ConfigWrapper(configXml)
 
         seqMap = experiment.buildSequenceMap()
@@ -196,7 +182,7 @@ class ProgressiveUp(Job):
 
         # get parameters that cactus_workflow stuff wants
         #experimentFile = fileStore.readGlobalFile(self.options.experimentFileID)
-        workFlowArgs = CactusWorkflowArguments(self.options, experimentFile, seqIDMap = seqIDMap)
+        workFlowArgs = CactusWorkflowArguments(self.options, experimentFile, fileStore, seqIDMap = seqIDMap)
         # copy over the options so we don't trail them around
         workFlowArgs.buildReference = self.options.buildReference
         workFlowArgs.buildHal = self.options.buildHal
@@ -254,10 +240,6 @@ class RunCactusPreprocessorThenProgressiveDown(Job):
         self.project = project
         
     def run(self, fileStore):
-        #Load the multi-cactus project
-        #project = MultiCactusProject()
-        #projectPath = fileStore.readGlobalFile(self.projectID)
-        #project.readXML(projectPath)
         #Create jobs to create the output sequences
         logger.info("Reading config file from: %s" % self.project.getConfigID())
         configFile = fileStore.readGlobalFile(self.project.getConfigID())
@@ -269,7 +251,7 @@ class RunCactusPreprocessorThenProgressiveDown(Job):
 
         #Now build the progressive-down job
         schedule = Schedule()
-        schedule.loadProject(self.project)
+        schedule.loadProject(self.project, fileStore = fileStore)
         schedule.compute()
         if self.options.event == None:
             self.options.event = self.project.mcTree.getRootName()
@@ -288,9 +270,8 @@ class ProgressiveDownPrecursor(Job):
         self.schedule = schedule
     def run(self, fileStore):
         self.project.setOutputSequenceIDs(self.preprocessorOutput)
-        outputSequencePaths = CactusPreprocessor.getOutputSequenceFiles(self.project.getInputSequencePaths(), self.project.getOutputSequenceDir())
-        self.project.preprocessedSequenceIDs = dict(zip(outputSequencePaths, self.preprocessorOutput))
-        #projectID = self.project.writeXMLToFileStore(fileStore)
+        #outputSequencePaths = CactusPreprocessor.getOutputSequenceFiles(self.project.getInputSequencePaths(), self.project.getOutputSequenceDir())
+        #self.project.preprocessedSequenceIDs = dict(zip(outputSequencePaths, self.preprocessorOutput))
         return self.addFollowOn(ProgressiveDown(self.options, self.project, self.event, self.schedule)).rv()
 
 def makeURL(path):
@@ -321,7 +302,7 @@ def main():
     project = MultiCactusProject()
 
     with Toil(options) as toil:
-        project.readXML(options.project, toil.jobStore)
+        project.readXML(options.project)
         #import the sequences
         seqIDs = []
         for seq in project.getInputSequencePaths():
@@ -335,10 +316,11 @@ def main():
         logger.info("Setting config id to: %s" % cactusConfigID)
         project.setConfigID(cactusConfigID)
 
+        project.syncToFileStore(toil)
+
+
         project.writeXML(options.project)
 
-        #import the project file
-        #projectID = toil.jobStore.importFile(makeURL(options.project))
         #Run the workflow
         project = toil.run(RunCactusPreprocessorThenProgressiveDown(options, project))
 
@@ -351,8 +333,8 @@ def main():
             toil.jobStore.exportFile(expWrapper.getReferenceID(), makeURL(expWrapper.getReferencePath()))
             toil.jobStore.exportFile(expWrapper.getHalFastaID(), makeURL(expWrapper.getHALFastaPath()))
 
-        for outputSeqPath in project.preprocessedSequenceIDs:
-            toil.jobStore.exportFile(project.preprocessedSequenceIDs[outputSeqPath], makeURL(outputSeqPath))
+        #for outputSeqPath in project.preprocessedSequenceIDs:
+        #    toil.jobStore.exportFile(project.preprocessedSequenceIDs[outputSeqPath], makeURL(outputSeqPath))
         #Write the project file to its expected location
         project.writeXML(options.project)
 

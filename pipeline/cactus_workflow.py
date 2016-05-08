@@ -574,7 +574,7 @@ class CactusCafWrapper(CactusRecursionJob):
                           removeRecoverableChains=self.getOptionalPhaseAttrib("removeRecoverableChains"),
                           minimumNumberOfSpecies=self.getOptionalPhaseAttrib("minimumNumberOfSpecies", int))
         for message in messages:
-            fileStore.logToMaster(message)
+            logger.info(message)
     
     def run(self, fileStore):
         constraints = None
@@ -1046,7 +1046,7 @@ class CactusHalGeneratorPhaseCleanup(CactusPhasesJob):
 class CactusWorkflowArguments:
     """Object for representing a cactus workflow's arguments
     """
-    def __init__(self, options, experimentFile, seqIDMap = None):
+    def __init__(self, options, experimentFile, fileStore, seqIDMap = None):
         #Get a local copy of the experiment file
         self.experimentFile = experimentFile
         self.experimentNode = ET.parse(self.experimentFile).getroot()
@@ -1073,7 +1073,8 @@ class CactusWorkflowArguments:
         self.secondaryDatabaseString = secondaryElem.getConfString()
             
         #The config node
-        self.configNode = ET.parse(self.experimentWrapper.getConfigPath()).getroot()
+        configPath = fileStore.readGlobalFile(self.experimentWrapper.getConfigID())
+        self.configNode = ET.parse(configPath).getroot()
         self.configWrapper = ConfigWrapper(self.configNode)
         #Now deal with the constants that ned to be added here
         self.configWrapper.substituteAllPredefinedConstantsWithLiterals()

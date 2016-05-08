@@ -266,6 +266,12 @@ class ExperimentWrapper(DbElemWrapper):
 
     def getConfig(self):
         return self.xmlRoot.attrib["config"]
+
+    def setConfigID(self, configID):
+        self.xmlRoot.attrib["configID"] = configID
+
+    def getConfigID(self):
+        return self.xmlRoot.attrib["configID"]
     
     def getTree(self):
         treeString = self.xmlRoot.attrib["species_tree"]
