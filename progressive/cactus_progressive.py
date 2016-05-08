@@ -269,7 +269,7 @@ class RunCactusPreprocessorThenProgressiveDown(Job):
 
         #Now build the progressive-down job
         schedule = Schedule()
-        schedule.loadProject(self.project)
+        schedule.loadProject(self.project, fileStore = fileStore)
         schedule.compute()
         if self.options.event == None:
             self.options.event = self.project.mcTree.getRootName()
