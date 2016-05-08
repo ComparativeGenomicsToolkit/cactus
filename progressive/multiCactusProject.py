@@ -37,7 +37,7 @@ class MultiCactusProject:
         self.outputSequenceIDMap = None
         self.configID = None
         
-    def readXML(self, path, jobStore=None):
+    def readXML(self, path):
         xmlRoot = ET.parse(path).getroot()
         treeElem = xmlRoot.find("tree")
         self.mcTree = MultiCactusTree(NXNewick().parseString(treeElem.text, addImpliedRoots = False))
@@ -49,9 +49,7 @@ class MultiCactusProject:
             pathElem = cactusPathElem.attrib["experiment_path"]
             self.expMap[nameElem] = pathElem
             if "experiment_id" in cactusPathElem.attrib:
-                self.expIDMap[nameElem] =cactusPathElem.attrib["experiment_id"]
-            elif jobStore:
-                self.expIDMap[nameElem] = jobStore.importFile("file://" + pathElem)
+                self.expIDMap[nameElem] = cactusPathElem.attrib["experiment_id"]
         self.inputSequences = xmlRoot.attrib["inputSequences"].split()
         if "inputSequenceIDs" in xmlRoot.attrib:
             self.inputSequenceIDs = xmlRoot.attrib["inputSequenceIDs"].split()
@@ -95,10 +93,14 @@ class MultiCactusProject:
         xmlFile.write(xmlString)
         xmlFile.close()
 
-    def writeXMLToFileStore(self, fileStore):
-        tmpXML = os.path.join(fileStore.getLocalTempDir(), "tmpXML")
-        self.writeXML(tmpXML)
-        return fileStore.writeGlobalFile(tmpXML)
+    def syncToFileStore(self, toil):
+        self.expIDMap = dict()
+        for name, expPath in self.expMap.items():
+            expWrapper = ExperimentWrapper(ET.parse(expPath).getroot())
+            expWrapper.setConfigID(toil.importFile("file://" + expWrapper.getConfig()))
+            expWrapper.writeXML(expPath)
+            self.expIDMap[name] = toil.importFile("file://" + expPath)
+
 
     def getInputSequenceMap(self):
         """Return a map between event names and sequence paths.  Paths
