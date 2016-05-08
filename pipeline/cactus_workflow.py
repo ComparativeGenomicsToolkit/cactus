@@ -1046,7 +1046,7 @@ class CactusHalGeneratorPhaseCleanup(CactusPhasesJob):
 class CactusWorkflowArguments:
     """Object for representing a cactus workflow's arguments
     """
-    def __init__(self, options, experimentFile, seqIDMap = None):
+    def __init__(self, options, experimentFile, fileStore, seqIDMap = None):
         #Get a local copy of the experiment file
         self.experimentFile = experimentFile
         self.experimentNode = ET.parse(self.experimentFile).getroot()

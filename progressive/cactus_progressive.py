@@ -182,7 +182,7 @@ class ProgressiveUp(Job):
 
         # get parameters that cactus_workflow stuff wants
         #experimentFile = fileStore.readGlobalFile(self.options.experimentFileID)
-        workFlowArgs = CactusWorkflowArguments(self.options, experimentFile, seqIDMap = seqIDMap)
+        workFlowArgs = CactusWorkflowArguments(self.options, experimentFile, fileStore, seqIDMap = seqIDMap)
         # copy over the options so we don't trail them around
         workFlowArgs.buildReference = self.options.buildReference
         workFlowArgs.buildHal = self.options.buildHal
