@@ -451,32 +451,45 @@ static int64_t totalAlignedBases(stList *blocks) {
     return total;
 }
 
-void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds, bool (*recoverabilityFilter)(stCactusEdgeEnd *)) {
-    stCactusNode *startCactusNode;
-    stList *deadEndComponent;
-    stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 0, 0,
-                                                                  0.0, breakChainsAtReverseTandems, maximumMedianSpacingBetweenLinkedEnds);
+void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds, bool (*recoverabilityFilter)(stCactusEdgeEnd *), int64_t maxNumIterations) {
+    while (maxNumIterations-- > 0) {
+        stCactusNode *startCactusNode;
+        stList *deadEndComponent;
+        // FIXME: We shouldn't really have to rebuild the cactus graph
+        // every time. Instead we should just be able to do multiple
+        // iterations over the same graph, keeping track of the chains
+        // whose underlying blocks we've already deleted.
+        stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 0, 0,
+                                                                      0.0, breakChainsAtReverseTandems, maximumMedianSpacingBetweenLinkedEnds);
 
-    // Construct a queryable set of stub ends.
-    stSet *deadEndComponentSet = stSet_construct3(stPinchEnd_hashFn, stPinchEnd_equalsFn, NULL);
-    for (int64_t i = 0; i < stList_length(deadEndComponent); i++) {
-        stSet_insert(deadEndComponentSet, stList_get(deadEndComponent, i));
+        // Construct a queryable set of stub ends.
+        stSet *deadEndComponentSet = stSet_construct3(stPinchEnd_hashFn, stPinchEnd_equalsFn, NULL);
+        for (int64_t i = 0; i < stList_length(deadEndComponent); i++) {
+            stSet_insert(deadEndComponentSet, stList_get(deadEndComponent, i));
+        }
+
+        stList *recoverableChains = getRecoverableChains(cactusGraph, startCactusNode, deadEndComponentSet, recoverabilityFilter);
+
+        stList *blocksToDelete = stList_construct3(0, (void(*)(void *)) stPinchBlock_destruct);
+        for (int64_t i = 0; i < stList_length(recoverableChains); i++) {
+            stCactusEdgeEnd *chainEnd = stList_get(recoverableChains, i);
+            addChainBlocksToBlocksToDelete(chainEnd, blocksToDelete);
+        }
+        int64_t numRecoverableBlocks = stList_length(blocksToDelete);
+        printf("Destroying %" PRIi64 " recoverable blocks\n", numRecoverableBlocks);
+        printf("The blocks covered %" PRIi64 " columns for a total of %" PRIi64 " aligned bases\n", numColumns(blocksToDelete), totalAlignedBases(blocksToDelete));
+        stList_destruct(recoverableChains);
+        stList_destruct(blocksToDelete);
+
+        stCactusGraph_destruct(cactusGraph);
+        stSet_destruct(deadEndComponentSet);
+
+        if (numRecoverableBlocks == 0) {
+            // We didn't delete anything this round; we can safely
+            // stop since we haven't changed the graph at all.
+            break;
+        }
     }
-
-    stList *recoverableChains = getRecoverableChains(cactusGraph, startCactusNode, deadEndComponentSet, recoverabilityFilter);
-
-    stList *blocksToDelete = stList_construct3(0, (void(*)(void *)) stPinchBlock_destruct);
-    for (int64_t i = 0; i < stList_length(recoverableChains); i++) {
-        stCactusEdgeEnd *chainEnd = stList_get(recoverableChains, i);
-        addChainBlocksToBlocksToDelete(chainEnd, blocksToDelete);
-    }
-    printf("Destroying %" PRIi64 " recoverable blocks\n", stList_length(blocksToDelete));
-    printf("The blocks covered %" PRIi64 " columns for a total of %" PRIi64 " aligned bases\n", numColumns(blocksToDelete), totalAlignedBases(blocksToDelete));
-    stList_destruct(recoverableChains);
-    stList_destruct(blocksToDelete);
-
-    stCactusGraph_destruct(cactusGraph);
-    stSet_destruct(deadEndComponentSet);
 }
 
 ///////////////////////////////////////////////////////////////////////////
