@@ -327,6 +327,7 @@ int main(int argc, char *argv[]) {
     bool removeRecoverableChains = false;
     bool (*recoverableChainsFilter)(stCactusEdgeEnd *) = NULL;
     int64_t maxRecoverableChainsIterations = 1;
+    int64_t maxRecoverableChainLength = INT64_MAX;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -349,11 +350,12 @@ int main(int argc, char *argv[]) {
                         { "removeRecoverableChains", required_argument, 0, 'D' },
                         { "minimumNumberOfSpecies", required_argument, 0, 'E' },
                         { "maxRecoverableChainsIterations", required_argument, 0, 'F' },
+                        { "maxRecoverableChainLength", required_argument, 0, 'G' },
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:BC:D:E:F:", long_options, &option_index);
+        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:BC:D:E:F:G:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -476,6 +478,12 @@ int main(int argc, char *argv[]) {
                 k = sscanf(optarg, "%" PRIi64, &maxRecoverableChainsIterations);
                 if (k != 1) {
                     st_errAbort("Error parsing the maxRecoverableChainsIterations argument");
+                }
+                break;
+            case 'G':
+                k = sscanf(optarg, "%" PRIi64, &maxRecoverableChainLength);
+                if (k != 1) {
+                    st_errAbort("Error parsing the maxRecoverableChainLength argument");
                 }
                 break;
             default:
@@ -643,7 +651,7 @@ int main(int argc, char *argv[]) {
             }
 
             if (removeRecoverableChains) {
-                stCaf_meltRecoverableChains(flower, threadSet, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds, recoverableChainsFilter, maxRecoverableChainsIterations);
+                stCaf_meltRecoverableChains(flower, threadSet, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds, recoverableChainsFilter, maxRecoverableChainsIterations, maxRecoverableChainLength);
             }
 
             //Sort out case when we allow blocks of degree 1

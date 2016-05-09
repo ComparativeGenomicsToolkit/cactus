@@ -451,7 +451,7 @@ static int64_t totalAlignedBases(stList *blocks) {
     return total;
 }
 
-void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds, bool (*recoverabilityFilter)(stCactusEdgeEnd *), int64_t maxNumIterations) {
+void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds, bool (*recoverabilityFilter)(stCactusEdgeEnd *), int64_t maxNumIterations, int64_t maxRecoverableChainLength) {
     while (maxNumIterations-- > 0) {
         stCactusNode *startCactusNode;
         stList *deadEndComponent;
@@ -473,7 +473,9 @@ void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bo
         stList *blocksToDelete = stList_construct3(0, (void(*)(void *)) stPinchBlock_destruct);
         for (int64_t i = 0; i < stList_length(recoverableChains); i++) {
             stCactusEdgeEnd *chainEnd = stList_get(recoverableChains, i);
-            addChainBlocksToBlocksToDelete(chainEnd, blocksToDelete);
+            if (getChainLength(chainEnd) <= maxRecoverableChainLength) {
+                addChainBlocksToBlocksToDelete(chainEnd, blocksToDelete);
+            }
         }
         int64_t numRecoverableBlocks = stList_length(blocksToDelete);
         printf("Destroying %" PRIi64 " recoverable blocks\n", numRecoverableBlocks);

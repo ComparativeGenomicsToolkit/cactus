@@ -71,6 +71,7 @@
 		lastzMemory="littleMemory"
                 removeRecoverableChains="unequalNumberOfIngroupCopies"
                 maxRecoverableChainsIterations="1"
+                maxRecoverableChainLength="500000"
 	>
 		<!-- The following are parametrised to produce the same results as the default settings, 
 		within a margin of 0.2% sensitivity, should be very fast for close genomes, these were tuned using the blast/blastParametersScript.py
