@@ -503,7 +503,8 @@ class CactusCafWrapper(CactusRecursionTarget):
                           realign=self.getOptionalPhaseAttrib("realign", bool),
                           realignArguments=self.getOptionalPhaseAttrib("realignArguments"),
                           removeRecoverableChains=self.getOptionalPhaseAttrib("removeRecoverableChains"),
-                          minimumNumberOfSpecies=self.getOptionalPhaseAttrib("minimumNumberOfSpecies", int))
+                          minimumNumberOfSpecies=self.getOptionalPhaseAttrib("minimumNumberOfSpecies", int),
+                          maxRecoverableChainsIterations=self.getOptionalPhaseAttrib("maxRecoverableChainsIterations", int))
         for message in messages:
             self.logToMaster(message)
     
