@@ -191,16 +191,12 @@ class DbElemWrapper(object):
             system("rm -rf %s" % self.getDbDir())
 
 class ExperimentWrapper(DbElemWrapper):
-    def __init__(self, xmlRoot, fileStore=None):
+    def __init__(self, xmlRoot):
         self.diskElem = xmlRoot.find("cactus_disk")
         confElem = self.diskElem.find("st_kv_database_conf")
         super(ExperimentWrapper, self).__init__(confElem)
         self.xmlRoot = xmlRoot
 
-        if fileStore:
-            #Download the sequences from the fileStore
-            self.setSequences([fileStore.readGlobalFile(seqID) for seqID in self.getSequenceIDs()])
-            
         self.seqMap = self.buildSequenceMap()
         self.seqIDMap = None
 

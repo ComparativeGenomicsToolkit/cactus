@@ -522,12 +522,22 @@ class CactusSetupPhase2(CactusPhasesJob):
             logger.info("Using sequences from file Store.")
             sequenceIDs = []
             tree = self.cactusWorkflowArguments.experimentWrapper.getTree()
+            sequenceNames = []
+            firstLines = []
             for node in tree.postOrderTraversal():
                 if tree.isLeaf(node):
-                    sequenceIDs.append(self.cactusWorkflowArguments.experimentWrapper.seqIDMap[tree.getName(node)])
+                    seqID = self.cactusWorkflowArguments.experimentWrapper.seqIDMap[tree.getName(node)]
+                    sequenceIDs.append(seqID)
+                    seq = fileStore.readGlobalFile(seqID)
+                    sequenceNames.append(tree.getName(node))
+                    with open(seq, 'r') as fh:
+                        firstLines.append(fh.readline())
 
             sequences = [fileStore.readGlobalFile(fileID) for fileID in sequenceIDs]
+            logger.info("Sequences in cactus setup: %s" % sequenceNames)
+            logger.info("Sequences in cactus setup filenames: %s" % firstLines)
         else:
+            assert False
             logger.info("Reading sequences from permanent input paths.")
             sequenceIDs = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode).getSequenceIDs()
             sequences = [fileStore.readGlobalFile(seqID) for seqID in sequenceIDs]

@@ -50,20 +50,14 @@ from cactus.progressive.schedule import Schedule
 
 
 class ProgressiveDown(Job):
-    def __init__(self, options, project, event, schedule, parentExpWrapper = None, parentName = None):
+    def __init__(self, options, project, event, schedule):
         Job.__init__(self)
         self.options = options
         self.project = project
         self.event = event
         self.schedule = schedule
-        self.parentExpWrapper = parentExpWrapper
-        self.parentName = parentName
     
     def run(self, fileStore):
-        if self.parentExpWrapper:
-            self.project.outputSequenceIDMap[self.parentName] = self.parentExpWrapper.getReferenceID()
-            self.project.expIDMap[self.parentName] = self.parentExpID
-            
         logger.info("Progressive Down: " + self.event)
 
         depProjects = dict()
@@ -114,14 +108,14 @@ class ProgressiveOut(Job):
         self.schedule = schedule
         
     def run(self, fileStore):
-        tmpExp = os.path.join(fileStore.getLocalTempDir(), "tmpExp")
+        tmpExp = fileStore.getLocalTempFile()
         self.eventExpWrapper.writeXML(tmpExp)
         self.project.expIDMap[self.event] = fileStore.writeGlobalFile(tmpExp)
         followOnEvent = self.schedule.followOn(self.event)
         if followOnEvent is not None:
             logger.info("Adding follow-on event %s" % followOnEvent)
             return self.addFollowOn(ProgressiveDown(self.options, self.project, followOnEvent,
-                                                    self.schedule, parentExpWrapper = eventExpWrapper, parentName = self.event)).rv()
+                                                    self.schedule)).rv()
 
         return self.project
     
@@ -147,10 +141,13 @@ class ProgressiveUp(Job):
         seqMap = experiment.buildSequenceMap()
         seqIDMap = dict()
         tree = experiment.getTree()
+        seqNames = []
         for node in tree.postOrderTraversal():
             if tree.isLeaf(node):
                 name = tree.getName(node)
                 seqIDMap[name] = self.project.outputSequenceIDMap[name]
+                seqNames.append(name)
+        logger.info("Sequences in progressive, %s: %s" % (self.event, seqNames))
             
         experimentFile = os.path.join(fileStore.getLocalTempDir(), "expTemp")
         experiment.writeXML(experimentFile)
