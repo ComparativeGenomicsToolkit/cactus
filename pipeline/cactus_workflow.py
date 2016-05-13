@@ -454,7 +454,7 @@ class CactusTrimmingBlastPhase2(CactusPhasesJob):
         outgroupFragmentIDs = trimBlastResults["outgroupFragmentIDs"]
         alignmentsID = trimBlastResults["alignmentsID"]
 
-        self.phaseNode.attrib["aignmentsID"] = alignmentsID
+        self.cactusWorkflowArguments.alignmentsID = alignmentsID
         # Point the outgroup sequences to their trimmed versions for
         # phases after this one.
         for i, outgroup in enumerate(self.cactusWorkflowArguments.experimentWrapper.getOutgroupEvents()):
@@ -582,14 +582,15 @@ class CactusCafPhase(CactusPhasesJob):
             runCactusConvertAlignmentToCactus(self.cactusWorkflowArguments.cactusDiskDatabaseString,
                                               self.cactusWorkflowArguments.constraintsFile, newConstraintsFile)
             self.phaseNode.attrib["constraintsID"] = fileStore.writeGlobalFile(newConstraintsFile, cleanup=False)
-        if "alignmentsID" in self.phaseNode.attrib:
+        if self.cactusWorkflowArguments.alignmentsID:
             # An alignment file has been provided (likely from the
             # ingroup vs. outgroup blast stage), so just run caf using
             # that file
             assert self.getPhaseNumber() == 1
+            alignmentsFile = fileStore.readGlobalFile(self.cactusWorkflowArguments.alignmentsID)
             convertedAlignmentsFile = fileStore.getLocalTempFile()
             # Convert the cigar file to use 64-bit cactus Names instead of the headers.
-            runConvertAlignmentsToInternalNames(self.cactusWorkflowArguments.cactusDiskDatabaseString, self.cactusWorkflowArguments.alignmentsID, convertedAlignmentsFile, self.topFlowerName)
+            runConvertAlignmentsToInternalNames(self.cactusWorkflowArguments.cactusDiskDatabaseString, alignmentsFile, convertedAlignmentsFile, self.topFlowerName)
             fileStore.logToMaster("Converted headers of cigar file %s to internal names, new file %s" % (self.cactusWorkflowArguments.alignmentsID, convertedAlignmentsFile))
             self.cactusWorkflowArguments.alignmentsID = fileStore.writeGlobalFile(convertedAlignmentsFile, cleanup=False)
             # While we're at it, remove the unique IDs prepended to
@@ -597,6 +598,7 @@ class CactusCafPhase(CactusPhasesJob):
             runStripUniqueIDs(self.cactusWorkflowArguments.cactusDiskDatabaseString)
             self.writeDB(fileStore)
             logger.info("DatabaseID after stripping unique ID's in CafPhase: %s" % self.databaseID)
+            self.phaseNode.attrib["alignmentsID"] = self.cactusWorkflowArguments.alignmentsID
             return self.runPhase(CactusCafWrapperLarge2, CactusBarPhase, "bar")
         elif self.getPhaseIndex()+1 < self.getPhaseNumber(): #Check if there is a repeat phase
             self.writeDB(fileStore)
@@ -1168,6 +1170,7 @@ class CactusWorkflowArguments:
         self.experimentNode = ET.parse(self.experimentFile).getroot()
         self.experimentWrapper = ExperimentWrapper(self.experimentNode)
         self.experimentWrapper.seqIDMap = seqIDMap
+        self.alignmentsID = None
         #Get the database string
         self.cactusDiskDatabaseString = ET.tostring(self.experimentNode.find("cactus_disk").find("st_kv_database_conf")).translate(None, '\n')
         #Get the species tree
