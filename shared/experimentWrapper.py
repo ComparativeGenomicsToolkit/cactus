@@ -381,11 +381,17 @@ class ExperimentWrapper(DbElemWrapper):
         
     def setConstraintsFilePath(self, path):
         self.xmlRoot.attrib["constraints"] = path
-    
+
     def getConstraintsFilePath(self):
         if "constraints" not in self.xmlRoot.attrib:
             return None
         return self.xmlRoot.attrib["constraints"]
+
+    def setConstraintsID(self, fileID):
+        self.xmlRoot.attrib["constraintsID"] = fileID
+
+    def getConstraintsID(self, fileID):
+        return self.xmlRoot.attrib["constraintsID"]
         
     def getOutputSequenceDir(self):
         if "outputSequenceDir" not in self.xmlRoot.attrib:

@@ -577,10 +577,12 @@ class CactusCafPhase(CactusPhasesJob):
         if (not self.cactusWorkflowArguments.configWrapper.getDoTrimStrategy()) or (self.cactusWorkflowArguments.outgroupEventNames == None):
             setupFilteringByIdentity(self.cactusWorkflowArguments)
         #Setup any constraints
-        if self.getPhaseIndex() == 0 and self.cactusWorkflowArguments.constraintsFile != None: #Setup the constraints arg
+        if self.getPhaseIndex() == 0 and self.cactusWorkflowArguments.constraintsID != None: #Setup the constraints arg
+
+            constraintsFile = fileStore.readGlobalFile(self.cactusWorkflowArguments.constraintsID)
             newConstraintsFile = fileStore.getLocalTempFile()
             runCactusConvertAlignmentToCactus(self.cactusWorkflowArguments.cactusDiskDatabaseString,
-                                              self.cactusWorkflowArguments.constraintsFile, newConstraintsFile)
+                                              constraintsFile, newConstraintsFile)
             self.phaseNode.attrib["constraintsID"] = fileStore.writeGlobalFile(newConstraintsFile, cleanup=False)
         if self.cactusWorkflowArguments.alignmentsID:
             # An alignment file has been provided (likely from the
@@ -650,6 +652,7 @@ class CactusCafWrapper(CactusRecursionJob):
         self.downloadDB(fileStore)
         constraints = None
         if "constraintsID" in self.phaseNode.attrib:
+            logger.info("Reading constraints file")
             constraints = fileStore.readGlobalFile(self.getOptionalPhaseAttrib("constraintsID"))
         self.runCactusCafInWorkflow(alignmentFile=None, constraints=constraints)
         self.writeDB(fileStore)
@@ -1178,7 +1181,7 @@ class CactusWorkflowArguments:
         #Get any list of 'required species' for the blocks of the cactus.
         self.outgroupEventNames = getOptionalAttrib(self.experimentNode, "outgroup_events")
         #Constraints
-        self.constraintsFile = getOptionalAttrib(self.experimentNode, "constraints")
+        self.constraintsID = getOptionalAttrib(self.experimentNode, "constraintsID")
         #Secondary, scratch DB
         secondaryConf = copy.deepcopy(self.experimentNode.find("cactus_disk").find("st_kv_database_conf"))
         secondaryElem = DbElemWrapper(secondaryConf)

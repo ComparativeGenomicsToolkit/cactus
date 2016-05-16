@@ -98,6 +98,8 @@ class MultiCactusProject:
         for name, expPath in self.expMap.items():
             expWrapper = ExperimentWrapper(ET.parse(expPath).getroot())
             expWrapper.setConfigID(toil.importFile("file://" + expWrapper.getConfig()))
+            if expWrapper.getConstraintsFilePath():
+                expWrapper.setConstraintsID(toil.importFile(expWrapper.getConstraintsFilePath())
             expWrapper.writeXML(expPath)
             self.expIDMap[name] = toil.importFile("file://" + expPath)
 
