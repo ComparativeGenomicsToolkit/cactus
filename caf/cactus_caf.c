@@ -272,15 +272,28 @@ bool chainHasUnequalNumberOfIngroupCopiesOrNoOutgroup(stCactusEdgeEnd *chainEnd)
     EventTree_Iterator *eventIt = eventTree_getIterator(eventTree);
     bool equalNumIngroupCopies = !chainHasUnequalNumberOfIngroupCopies(chainEnd);
     Event *event;
-    uint64_t numOutgroupCopies = 0;
+    uint64_t numOutgroups = 0;
     while ((event = eventTree_getNext(eventIt)) != NULL) {
+        if (event_isOutgroup(event)) {
+            numOutgroups++;
+        }
+    }
+
+    uint64_t numOutgroupCopies = 0;
+    stPinchEnd *end = stCactusEdgeEnd_getObject(chainEnd);
+    stPinchBlockIt it = stPinchBlock_getSegmentIterator(end->block);
+    stPinchSegment *segment;
+    while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
+        Cap *cap = flower_getCap(flower, stPinchSegment_getName(segment));
+        Event *event = cap_getEvent(cap);
         if (event_isOutgroup(event)) {
             numOutgroupCopies++;
         }
     }
 
     eventTree_destructIterator(eventIt);
-    return !(equalNumIngroupCopies && numOutgroupCopies);
+    return !equalNumIngroupCopies
+        || (numOutgroups >= 0 && numOutgroupCopies == 0);
 }
 
 int main(int argc, char *argv[]) {
