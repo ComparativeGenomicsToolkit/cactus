@@ -119,7 +119,7 @@ def getJobNode(phaseNode, jobClass):
 class CactusJob(Job):
     """Base job for all cactus workflow jobs.
     """
-    def __init__(self, phaseNode, constantsNode, overlarge=False, databaseID = None):
+    def __init__(self, phaseNode, constantsNode, overlarge=False, databaseID = None, checkpoint = False):
         self.phaseNode = phaseNode
         self.constantsNode = constantsNode
         self.overlarge = overlarge
@@ -129,13 +129,13 @@ class CactusJob(Job):
             Job.__init__(self, memory=self.getOptionalJobAttrib("overlargeMemory", typeFn=int, 
                                                                       default=getOptionalAttrib(self.constantsNode, "defaultOverlargeMemory", int, default=sys.maxint)),
                                   cores=self.getOptionalJobAttrib("overlargeCpu", typeFn=int, 
-                                                                      default=getOptionalAttrib(self.constantsNode, "defaultOverlargeCpu", int, default=None)))
+                                                                      default=getOptionalAttrib(self.constantsNode, "defaultOverlargeCpu", int, default=None)), checkpoint = checkpoint)
         else:
             Job.__init__(self, memory=self.getOptionalJobAttrib("memory", typeFn=int, 
                                                                       default=getOptionalAttrib(self.constantsNode, "defaultMemory", int, default=sys.maxint)),
                                   cores=self.getOptionalJobAttrib("cpu", typeFn=int, 
                                                                       default=getOptionalAttrib(self.constantsNode, "defaultCpu", int, default=sys.maxint)),
-                                  disk = 0)
+                                  disk = 0, checkpoint = checkpoint)
     
     def getOptionalPhaseAttrib(self, attribName, typeFn=None, default=None):
         """Gets an optional attribute of the phase node.
@@ -151,11 +151,11 @@ class CactusJob(Job):
 class CactusPhasesJob(CactusJob):
     """Base job for each workflow phase job.
     """
-    def __init__(self, cactusWorkflowArguments, phaseName, topFlowerName=0, index=0, databaseID = None):
+    def __init__(self, cactusWorkflowArguments, phaseName, topFlowerName=0, index=0, databaseID = None, checkpoint = False):
         phaseNode = findRequiredNode(cactusWorkflowArguments.configNode, phaseName, index)
         constantsNode = findRequiredNode(cactusWorkflowArguments.configNode, "constants")
         CactusJob.__init__(self, phaseNode=phaseNode, constantsNode=constantsNode, overlarge=False,
-                databaseID = databaseID)
+                databaseID = databaseID, checkpoint = checkpoint)
         self.index = index
         self.cactusWorkflowArguments = cactusWorkflowArguments
         self.topFlowerName = topFlowerName
@@ -180,9 +180,9 @@ class CactusPhasesJob(CactusJob):
         else:
             return self.addChild(newChild).rv()
     
-    def makeFollowOnPhaseJob(self, job, phaseName, index=0):
+    def makeFollowOnPhaseJob(self, job, phaseName, index=0, checkpoint = False):
         return self.addFollowOn(job(cactusWorkflowArguments=self.cactusWorkflowArguments, phaseName=phaseName, 
-                                      topFlowerName=self.topFlowerName, index=index, databaseID = self.databaseID)).rv()
+                                      topFlowerName=self.topFlowerName, index=index, databaseID = self.databaseID, checkpoint = checkpoint)).rv()
         
     def runPhase(self, recursiveJob, nextPhaseJob, nextPhaseName, doRecursion=True, index=0, launchSecondaryKtForRecursiveJob=False):
         """
@@ -233,9 +233,9 @@ class CactusRecursionJob(CactusJob):
     """Base recursive job for traversals up and down the cactus tree.
     """
     maxSequenceSizeOfFlowerGroupingDefault = 1000000
-    def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge=False, precomputedAlignmentIDs=None, databaseID = None):
+    def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge=False, precomputedAlignmentIDs=None, databaseID = None, checkpoint = False):
         CactusJob.__init__(self, phaseNode=phaseNode, constantsNode=constantsNode, overlarge=overlarge, 
-                databaseID = databaseID)
+                databaseID = databaseID, checkpoint = checkpoint)
         self.cactusDiskDatabaseString = cactusDiskDatabaseString
         self.flowerNames = flowerNames  
         
@@ -460,7 +460,7 @@ class CactusTrimmingBlastPhase2(CactusPhasesJob):
         for i, outgroup in enumerate(self.cactusWorkflowArguments.experimentWrapper.getOutgroupEvents()):
             self.cactusWorkflowArguments.experimentWrapper.seqIDMap[outgroup] = outgroupFragmentIDs[i]
 
-        return self.makeFollowOnPhaseJob(CactusSetupPhase, "setup")
+        return self.makeFollowOnPhaseJob(CactusSetupPhase, "setup", checkpoint = True)
         
 ############################################################
 ############################################################
