@@ -289,6 +289,8 @@ class CactusRecursionJob(CactusJob):
         if phaseNode == None:
             phaseNode = self.phaseNode
         
+        logger.info("Extending: There are %i flowers" % len(flowersAndSizes))
+        assert len(flowersAndSizes) <= 1
         for overlarge, flowerNames in flowersAndSizes:
             self.databaseID = self.addFollowOn(job(cactusDiskDatabaseString=self.cactusDiskDatabaseString,
                 phaseNode=phaseNode, constantsNode=self.constantsNode, flowerNames=flowerNames, overlarge=False,
@@ -303,6 +305,7 @@ class CactusRecursionJob(CactusJob):
         if job == None:
             job = self.__class__
         jobNode = getJobNode(self.phaseNode, job)
+        logger.info("Flower names: %s" % self.flowerNames)
         flowersAndSizes=runCactusGetFlowers(cactusDiskDatabaseString=self.cactusDiskDatabaseString, flowerNames=self.flowerNames, 
                                             minSequenceSizeOfFlower=getOptionalAttrib(jobNode, "minFlowerSize", int, 0), 
                                             maxSequenceSizeOfFlowerGrouping=getOptionalAttrib(jobNode, "maxFlowerGroupSize", int, 
@@ -725,7 +728,6 @@ class CactusBarRecursion(CactusRecursionJob):
     """
     def run(self, fileStore):
         logger.info("Database ID in BarRecursion = %s" % self.databaseID)
-        self.downloadDB(fileStore)
         self.databaseID = self.makeRecursiveJobs(fileStore)
         return self.makeExtendingJobs(job=CactusBarWrapper, fileStore = fileStore, overlargeJob=CactusBarWrapperLarge, runFlowerStats=True)
 
