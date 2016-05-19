@@ -261,6 +261,11 @@ class CactusRecursionJob(CactusJob):
             overlargeJob = job
         if phaseNode == None:
             phaseNode = self.phaseNode
+        
+        #Can't figure out how to deal with splitting the database
+        #between multiple child jobs running concurrently.
+        assert len(flowersAndSizes) <= 1
+
         logger.info("Make wrapper jobs: There are %i flowers" % len(flowersAndSizes))
         for overlarge, flowerNames in flowersAndSizes:
             if overlarge: #Make sure large flowers are on their own, in their own job
@@ -686,6 +691,7 @@ class CactusCafWrapperLarge2(CactusCafWrapper):
     def run(self, fileStore):
         self.downloadDB(fileStore)
         alignments = None
+        assert "alignmentsID" in self.phaseNode.attrib
         if "alignmentsID" in self.phaseNode.attrib:
             alignments = fileStore.readGlobalFile(self.phaseNode.attrib["alignmentsID"])
         constraints = None
