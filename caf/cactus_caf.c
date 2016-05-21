@@ -103,199 +103,6 @@ static bool blockFilterFn(stPinchBlock *pinchBlock) {
     return 0;
 }
 
-/*
- * Functions used for prefiltering the alignments.
- */
-
-/*
- * Filtering by presence of outgroup. This code is efficient and scales linearly with depth.
- */
-
-bool (*filterFn)(stPinchSegment *, stPinchSegment *) = NULL;
-stSet *outgroupThreads = NULL;
-
-bool containsOutgroupSegment(stPinchBlock *block) {
-    stPinchBlockIt it = stPinchBlock_getSegmentIterator(block);
-    stPinchSegment *segment;
-    while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
-        if (stSet_search(outgroupThreads, stPinchSegment_getThread(segment)) != NULL) {
-            assert(event_isOutgroup(getEvent(segment, flower)));
-            stPinchSegment_putSegmentFirstInBlock(segment);
-            assert(stPinchBlock_getFirst(block) == segment);
-            return 1;
-        } else {
-            assert(!event_isOutgroup(getEvent(segment, flower)));
-        }
-    }
-    return 0;
-}
-
-bool isOutgroupSegment(stPinchSegment *segment) {
-    if (stSet_search(outgroupThreads, stPinchSegment_getThread(segment)) != NULL) {
-        assert(event_isOutgroup(getEvent(segment, flower)));
-        return 1;
-    }
-    assert(!event_isOutgroup(getEvent(segment, flower)));
-    return 0;
-}
-
-bool filterByOutgroup(stPinchSegment *segment1, stPinchSegment *segment2) {
-    stPinchBlock *block1, *block2;
-    if ((block1 = stPinchSegment_getBlock(segment1)) != NULL) {
-        if ((block2 = stPinchSegment_getBlock(segment2)) != NULL) {
-            if (block1 == block2) {
-                return stPinchBlock_getLength(block1) == 1 ? 0 : containsOutgroupSegment(block1);
-            }
-            if (stPinchBlock_getDegree(block1) < stPinchBlock_getDegree(block2)) {
-                return containsOutgroupSegment(block1) && containsOutgroupSegment(block2);
-            }
-            return containsOutgroupSegment(block2) && containsOutgroupSegment(block1);
-        }
-        return isOutgroupSegment(segment2) && containsOutgroupSegment(block1);
-    }
-    if ((block2 = stPinchSegment_getBlock(segment2)) != NULL) {
-        return isOutgroupSegment(segment1) && containsOutgroupSegment(block2);
-    }
-    return isOutgroupSegment(segment1) && isOutgroupSegment(segment2);
-}
-
-/*
- * A "relaxed" version of the above which allows the addition of more
- * than one outgroup *segment* to a block, but never allows two
- * different blocks containing outgroups to be pinched.
- */
-bool relaxedFilterByOutgroup(stPinchSegment *segment1, stPinchSegment *segment2) {
-    stPinchBlock *block1, *block2;
-    if ((block1 = stPinchSegment_getBlock(segment1)) != NULL) {
-        if ((block2 = stPinchSegment_getBlock(segment2)) != NULL) {
-            if (block1 == block2) {
-                return stPinchBlock_getLength(block1) == 1 ? 0 : containsOutgroupSegment(block1);
-            }
-            if (stPinchBlock_getDegree(block1) < stPinchBlock_getDegree(block2)) {
-                return containsOutgroupSegment(block1) && containsOutgroupSegment(block2);
-            }
-            return containsOutgroupSegment(block2) && containsOutgroupSegment(block1);
-        }
-    }
-    // If we get here, we are just adding a segment to a block, not
-    // pinching two blocks together.
-    return false;
-}
-
-/*
- * Filtering by presence of repeat species in block. This code is inefficient and does not scale.
- */
-
-static bool checkIntersection(stSortedSet *names1, stSortedSet *names2) {
-    stSortedSet *n12 = stSortedSet_getIntersection(names1, names2);
-    bool b = stSortedSet_size(n12) > 0;
-    stSortedSet_destruct(names1);
-    stSortedSet_destruct(names2);
-    stSortedSet_destruct(n12);
-    return b;
-}
-
-static stSortedSet *getNames(stPinchSegment *segment) {
-    stSortedSet *names = stSortedSet_construct();
-    if (stPinchSegment_getBlock(segment) != NULL) {
-        stPinchBlock *block = stPinchSegment_getBlock(segment);
-        stPinchBlockIt it = stPinchBlock_getSegmentIterator(block);
-        while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
-            stSortedSet_insert(names, getEvent(segment, flower));
-        }
-    } else {
-        stSortedSet_insert(names, getEvent(segment, flower));
-    }
-    return names;
-}
-
-bool filterByRepeatSpecies(stPinchSegment *segment1, stPinchSegment *segment2) {
-    return checkIntersection(getNames(segment1), getNames(segment2));
-}
-
-/*
- * Selecting chains that have an unequal number of ingroup copies,
- * e.g. 0 in ingroup 1, 1 in ingroup 2; or 2 in ingroup 1, 2 in
- * ingroup 2, 3 in ingroup 3.
- */
-bool chainHasUnequalNumberOfIngroupCopies(stCactusEdgeEnd *chainEnd) {
-    stPinchEnd *end = stCactusEdgeEnd_getObject(chainEnd);
-    stPinchBlockIt it = stPinchBlock_getSegmentIterator(end->block);
-    stPinchSegment *segment;
-    stHash *ingroupToNumCopies = stHash_construct2(NULL, free);
-    while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
-        Cap *cap = flower_getCap(flower, stPinchSegment_getName(segment));
-        Event *event = cap_getEvent(cap);
-        if (!event_isOutgroup(event)) {
-            if (stHash_search(ingroupToNumCopies, event) == NULL) {
-                stHash_insert(ingroupToNumCopies, event, calloc(1, sizeof(uint64_t)));
-            }
-            uint64_t *numCopies = stHash_search(ingroupToNumCopies, event);
-            (*numCopies)++;
-        }
-    }
-
-    EventTree *eventTree = flower_getEventTree(flower);
-    EventTree_Iterator *eventIt = eventTree_getIterator(eventTree);
-    bool equalNumIngroupCopies = true;
-    Event *event;
-    uint64_t prevCount = 0;
-    while ((event = eventTree_getNext(eventIt)) != NULL) {
-        if (event_isOutgroup(event) || event_getChildNumber(event) != 0) {
-            continue;
-        }
-        uint64_t *count = stHash_search(ingroupToNumCopies, event);
-        if (count == NULL) {
-            equalNumIngroupCopies = false;
-            break;
-        }
-        if (prevCount == 0) {
-            prevCount = *count;
-        } else if (prevCount != *count) {
-            equalNumIngroupCopies = false;
-            break;
-        }
-    }
-
-    eventTree_destructIterator(eventIt);
-    stHash_destruct(ingroupToNumCopies);
-    return !equalNumIngroupCopies;
-}
-
-/*
- * Selecting chains that have an unequal number of copies distributed
- * among each of the ingroups, or has no copies among the
- * outgroups collectively.
- */
-bool chainHasUnequalNumberOfIngroupCopiesOrNoOutgroup(stCactusEdgeEnd *chainEnd) {
-    EventTree *eventTree = flower_getEventTree(flower);
-    EventTree_Iterator *eventIt = eventTree_getIterator(eventTree);
-    bool equalNumIngroupCopies = !chainHasUnequalNumberOfIngroupCopies(chainEnd);
-    Event *event;
-    uint64_t numOutgroups = 0;
-    while ((event = eventTree_getNext(eventIt)) != NULL) {
-        if (event_isOutgroup(event)) {
-            numOutgroups++;
-        }
-    }
-
-    uint64_t numOutgroupCopies = 0;
-    stPinchEnd *end = stCactusEdgeEnd_getObject(chainEnd);
-    stPinchBlockIt it = stPinchBlock_getSegmentIterator(end->block);
-    stPinchSegment *segment;
-    while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
-        Cap *cap = flower_getCap(flower, stPinchSegment_getName(segment));
-        Event *event = cap_getEvent(cap);
-        if (event_isOutgroup(event)) {
-            numOutgroupCopies++;
-        }
-    }
-
-    eventTree_destructIterator(eventIt);
-    return !equalNumIngroupCopies
-        || (numOutgroups >= 0 && numOutgroupCopies == 0);
-}
-
 int main(int argc, char *argv[]) {
     /*
      * Script for adding alignments to cactus tree.
@@ -304,6 +111,9 @@ int main(int argc, char *argv[]) {
     stKVDatabaseConf *kvDatabaseConf;
     CactusDisk *cactusDisk;
     int key, k;
+
+    bool (*filterFn)(stPinchSegment *, stPinchSegment *) = NULL;
+    stSet *outgroupThreads = NULL;
 
     /*
      * Arguments/options
@@ -338,7 +148,7 @@ int main(int argc, char *argv[]) {
     bool realign = 0;
     char *realignArguments = "";
     bool removeRecoverableChains = false;
-    bool (*recoverableChainsFilter)(stCactusEdgeEnd *) = NULL;
+    bool (*recoverableChainsFilter)(stCactusEdgeEnd *, Flower *) = NULL;
     int64_t maxRecoverableChainsIterations = 1;
     int64_t maxRecoverableChainLength = INT64_MAX;
 
@@ -471,10 +281,10 @@ int main(int argc, char *argv[]) {
                     recoverableChainsFilter = NULL;
                 } else if (strcmp(optarg, "unequalNumberOfIngroupCopies") == 0) {
                     removeRecoverableChains = true;
-                    recoverableChainsFilter = chainHasUnequalNumberOfIngroupCopies;
+                    recoverableChainsFilter = stCaf_chainHasUnequalNumberOfIngroupCopies;
                 } else if (strcmp(optarg, "unequalNumberOfIngroupCopiesOrNoOutgroup") == 0) {
                     removeRecoverableChains = true;
-                    recoverableChainsFilter = chainHasUnequalNumberOfIngroupCopiesOrNoOutgroup;
+                    recoverableChainsFilter = stCaf_chainHasUnequalNumberOfIngroupCopiesOrNoOutgroup;
                 } else if (strcmp(optarg, "0") == 0) {
                     removeRecoverableChains = false;
                 } else {
@@ -575,13 +385,15 @@ int main(int argc, char *argv[]) {
         if (!flower_builtBlocks(flower)) { // Do nothing if the flower already has defined blocks
             st_logDebug("Processing flower: %lli\n", flower_getName(flower));
 
+            stCaf_setFlowerForAlignmentFiltering(flower);
+
             //Set up the graph and add the initial alignments
             stPinchThreadSet *threadSet = stCaf_setup(flower);
 
             bool sortAlignments = 0;
             if (singleCopyIngroup) {
                 sortAlignments = 1;
-                filterFn = filterByRepeatSpecies;
+                filterFn = stCaf_filterByRepeatSpecies;
             }
             else if (singleCopyOutgroup || relaxedSingleCopyOutgroup) {
                 //Here is where we get the set of outgroup threads.
@@ -589,7 +401,7 @@ int main(int argc, char *argv[]) {
                 stPinchThreadSetIt it = stPinchThreadSet_getIt(threadSet);
                 stPinchThread *pinchThread;
                 while ((pinchThread = stPinchThreadSetIt_getNext(&it)) != NULL) {
-                    if (event_isOutgroup(getEvent(stPinchThread_getFirst(pinchThread), flower))) {
+                    if (event_isOutgroup(stCaf_getEvent(stPinchThread_getFirst(pinchThread), flower))) {
                         stSet_insert(outgroupThreads, pinchThread);
                     }
                 }
@@ -598,10 +410,10 @@ int main(int argc, char *argv[]) {
                     filterFn = NULL;
                     sortAlignments = 0;
                 } else if (singleCopyOutgroup) {
-                    filterFn = filterByOutgroup;
+                    filterFn = stCaf_filterByOutgroup;
                     sortAlignments = 1;
                 } else if (relaxedSingleCopyOutgroup) {
-                    filterFn = relaxedFilterByOutgroup;
+                    filterFn = stCaf_relaxedFilterByOutgroup;
                     sortAlignments = 1;
                 }
             }
