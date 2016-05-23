@@ -61,7 +61,9 @@ static void teardown() {
 
 // Set up a basic flower with a tree looking like:
 // ((ingroup1, ingroup2)ancestor, outgroup1, outgroup2)root;
-static void setup() {
+// If the includeOutgroups parameter is false outgroup1 and outgroup2
+// aren't added.
+static void setup(bool includeOutgroups) {
     teardown();
     cactusDisk = testCommon_getTemporaryCactusDisk();
     flower = flower_construct(cactusDisk);
@@ -72,16 +74,18 @@ static void setup() {
     eventTree = eventTree_construct2(flower);
     rootEvent = eventTree_getRootEvent(eventTree);
     ancestor = event_construct3("ancestor", 0.2, rootEvent, eventTree);
-    outgroup1 = event_construct3("outgroup1", 0.2, rootEvent, eventTree);
-    event_setOutgroupStatus(outgroup1, true);
-    outgroup2 = event_construct3("outgroup2", 0.2, rootEvent, eventTree);
-    event_setOutgroupStatus(outgroup2, true);
+    if (includeOutgroups) {
+        outgroup1 = event_construct3("outgroup1", 0.2, rootEvent, eventTree);
+        event_setOutgroupStatus(outgroup1, true);
+        outgroup2 = event_construct3("outgroup2", 0.2, rootEvent, eventTree);
+        event_setOutgroupStatus(outgroup2, true);
+    }
     ingroup1 = event_construct3("ingroup1", 0.2, ancestor, eventTree);
     ingroup2 = event_construct3("ingroup2", 0.2, ancestor, eventTree);
 }
 
 static void testChainHasUnequalNumberOfIngroupCopies(CuTest *testCase) {
-    setup();
+    setup(true);
     Name ingroup1Seq1 = addThreadToFlower(flower, ingroup1, 100);
     Name ingroup1Seq2 = addThreadToFlower(flower, ingroup1, 100);
     Name ingroup2Seq1 = addThreadToFlower(flower, ingroup2, 100);
@@ -115,6 +119,10 @@ static void testChainHasUnequalNumberOfIngroupCopies(CuTest *testCase) {
     stPinchThread_pinch(ingroup1Thread1, ingroup2Thread1, 40, 40, 10, true);
     stPinchThread_pinch(ingroup1Thread1, ingroup1Thread2, 40, 40, 10, true);
 
+    // Block D: A block with one segment from ingroup 1 and 1 from the
+    // outgroup--this should pass
+    stPinchThread_pinch(ingroup1Thread1, outgroup1Thread1, 50, 50, 10, true);
+
     // Now create the cactus graph and test that the filter classifies
     // these blocks (which are guaranteed to end up in separate
     // chains) correctly.
@@ -138,12 +146,148 @@ static void testChainHasUnequalNumberOfIngroupCopies(CuTest *testCase) {
     stCactusEdgeEnd *chainC = getChainEndFromBlock(cactusGraph, blockC);
     CuAssertTrue(testCase, stCaf_chainHasUnequalNumberOfIngroupCopies(chainC, flower) == true);
 
+    // Test block D, which should pass.
+    stPinchBlock *blockD = stPinchSegment_getBlock(stPinchThread_getSegment(ingroup1Thread1, 50));
+    stCactusEdgeEnd *chainD = getChainEndFromBlock(cactusGraph, blockD);
+    CuAssertTrue(testCase, stCaf_chainHasUnequalNumberOfIngroupCopies(chainD, flower) == true);
+
+    teardown();
+}
+
+static void testChainHasUnequalNumberOfIngroupCopiesOrNoOutgroup(CuTest *testCase) {
+    setup(true);
+
+    Name ingroup1Seq1 = addThreadToFlower(flower, ingroup1, 100);
+    Name ingroup1Seq2 = addThreadToFlower(flower, ingroup1, 100);
+    Name ingroup2Seq1 = addThreadToFlower(flower, ingroup2, 100);
+    Name ingroup2Seq2 = addThreadToFlower(flower, ingroup2, 100);
+    Name outgroup1Seq1 = addThreadToFlower(flower, outgroup1, 100);
+
+    stPinchThreadSet *threadSet = stCaf_setup(flower);
+
+    stPinchThread *ingroup1Thread1 = stPinchThreadSet_getThread(threadSet, ingroup1Seq1);
+    stPinchThread *ingroup1Thread2 = stPinchThreadSet_getThread(threadSet, ingroup1Seq2);
+    stPinchThread *ingroup2Thread1 = stPinchThreadSet_getThread(threadSet, ingroup2Seq1);
+    stPinchThread *ingroup2Thread2 = stPinchThreadSet_getThread(threadSet, ingroup2Seq2);
+    stPinchThread *outgroup1Thread1 = stPinchThreadSet_getThread(threadSet, outgroup1Seq1);
+
+    // Block A: A block with 2 segments from each ingroup and no
+    // outgroups--this should pass
+    stPinchThread_pinch(ingroup1Thread1, ingroup2Thread1, 10, 10, 10, true);
+    stPinchThread_pinch(ingroup1Thread1, ingroup1Thread2, 10, 10, 10, true);
+    stPinchThread_pinch(ingroup1Thread2, ingroup2Thread2, 10, 10, 10, true);
+
+    // Block B: A block with 2 segments from each ingroup (but ingroup
+    // 1's two segments are on the same thread) and an outgroup
+    // segment--this should fail
+    stPinchThread_pinch(ingroup1Thread1, ingroup2Thread1, 30, 30, 10, true);
+    stPinchThread_pinch(ingroup1Thread1, ingroup1Thread1, 20, 30, 10, true);
+    stPinchThread_pinch(ingroup1Thread1, ingroup2Thread2, 30, 30, 10, true);
+    stPinchThread_pinch(ingroup1Thread1, outgroup1Thread1, 30, 30, 10, true);
+
+    // Block C: A block with 2 segments from ingroup 1 and 1 segment
+    // from ingroup 2--this should pass
+    stPinchThread_pinch(ingroup1Thread1, ingroup2Thread1, 40, 40, 10, true);
+    stPinchThread_pinch(ingroup1Thread1, ingroup1Thread2, 40, 40, 10, true);
+
+    // Block D: A block with one segment from ingroup 1 and 1 from the
+    // outgroup--this should pass
+    stPinchThread_pinch(ingroup1Thread1, outgroup1Thread1, 50, 50, 10, true);
+
+    // Block E: Same as block C but with an outgroup -- this should pass
+    stPinchThread_pinch(ingroup1Thread1, ingroup2Thread1, 60, 60, 10, true);
+    stPinchThread_pinch(ingroup1Thread1, ingroup1Thread2, 60, 60, 10, true);
+    stPinchThread_pinch(ingroup1Thread1, outgroup1Thread1, 60, 60, 10, true);
+
+    // Now create the cactus graph and test that the filter classifies
+    // these blocks (which are guaranteed to end up in separate
+    // chains) correctly.
+    stCactusNode *startCactusNode;
+    stList *deadEndComponent;
+    stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 0, 0,
+                                                                  0.0, true, 0);
+
+    // Test block A, which should pass.
+    stPinchBlock *blockA = stPinchSegment_getBlock(stPinchThread_getSegment(ingroup1Thread1, 10));
+    stCactusEdgeEnd *chainA = getChainEndFromBlock(cactusGraph, blockA);
+    CuAssertTrue(testCase, stCaf_chainHasUnequalNumberOfIngroupCopiesOrNoOutgroup(chainA, flower) == true);
+
+    // Test block B, which should fail.
+    stPinchBlock *blockB = stPinchSegment_getBlock(stPinchThread_getSegment(ingroup1Thread1, 30));
+    stCactusEdgeEnd *chainB = getChainEndFromBlock(cactusGraph, blockB);
+    CuAssertTrue(testCase, stCaf_chainHasUnequalNumberOfIngroupCopiesOrNoOutgroup(chainB, flower) == false);
+
+    // Test block C, which should pass.
+    stPinchBlock *blockC = stPinchSegment_getBlock(stPinchThread_getSegment(ingroup1Thread1, 40));
+    stCactusEdgeEnd *chainC = getChainEndFromBlock(cactusGraph, blockC);
+    CuAssertTrue(testCase, stCaf_chainHasUnequalNumberOfIngroupCopiesOrNoOutgroup(chainC, flower) == true);
+
+    // Test block D, which should also pass.
+    stPinchBlock *blockD = stPinchSegment_getBlock(stPinchThread_getSegment(ingroup1Thread1, 50));
+    stCactusEdgeEnd *chainD = getChainEndFromBlock(cactusGraph, blockD);
+    CuAssertTrue(testCase, stCaf_chainHasUnequalNumberOfIngroupCopiesOrNoOutgroup(chainD, flower) == true);
+
+    // Test block E, which should also pass.
+    stPinchBlock *blockE = stPinchSegment_getBlock(stPinchThread_getSegment(ingroup1Thread1, 60));
+    stCactusEdgeEnd *chainE = getChainEndFromBlock(cactusGraph, blockE);
+    CuAssertTrue(testCase, stCaf_chainHasUnequalNumberOfIngroupCopiesOrNoOutgroup(chainE, flower) == true);
+
+    teardown();
+}
+
+// Test chainHasUnequalNumberOfIngroupCopiesOrNoOutgroup under the
+// case where there are no outgroups in the tree.
+static void testChainHasUnequalNumberOfIngroupCopiesOrNoOutgroup_noOutgroups(CuTest *testCase) {
+    setup(false);
+
+    Name ingroup1Seq1 = addThreadToFlower(flower, ingroup1, 100);
+    Name ingroup1Seq2 = addThreadToFlower(flower, ingroup1, 100);
+    Name ingroup2Seq1 = addThreadToFlower(flower, ingroup2, 100);
+    Name ingroup2Seq2 = addThreadToFlower(flower, ingroup2, 100);
+
+    stPinchThreadSet *threadSet = stCaf_setup(flower);
+
+    stPinchThread *ingroup1Thread1 = stPinchThreadSet_getThread(threadSet, ingroup1Seq1);
+    stPinchThread *ingroup1Thread2 = stPinchThreadSet_getThread(threadSet, ingroup1Seq2);
+    stPinchThread *ingroup2Thread1 = stPinchThreadSet_getThread(threadSet, ingroup2Seq1);
+    stPinchThread *ingroup2Thread2 = stPinchThreadSet_getThread(threadSet, ingroup2Seq2);
+
+    // Block A: A block with 2 segments from each ingroup and no
+    // outgroups--this should fail
+    stPinchThread_pinch(ingroup1Thread1, ingroup2Thread1, 10, 10, 10, true);
+    stPinchThread_pinch(ingroup1Thread1, ingroup1Thread2, 10, 10, 10, true);
+    stPinchThread_pinch(ingroup1Thread2, ingroup2Thread2, 10, 10, 10, true);
+
+    // Block C: A block with 2 segments from ingroup 1 and 1 segment
+    // from ingroup 2--this should pass
+    stPinchThread_pinch(ingroup1Thread1, ingroup2Thread1, 40, 40, 10, true);
+    stPinchThread_pinch(ingroup1Thread1, ingroup1Thread2, 40, 40, 10, true);
+
+    // Now create the cactus graph and test that the filter classifies
+    // these blocks (which are guaranteed to end up in separate
+    // chains) correctly.
+    stCactusNode *startCactusNode;
+    stList *deadEndComponent;
+    stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 0, 0,
+                                                                  0.0, true, 0);
+
+    // Test block A, which should fail.
+    stPinchBlock *blockA = stPinchSegment_getBlock(stPinchThread_getSegment(ingroup1Thread1, 10));
+    stCactusEdgeEnd *chainA = getChainEndFromBlock(cactusGraph, blockA);
+    CuAssertTrue(testCase, stCaf_chainHasUnequalNumberOfIngroupCopiesOrNoOutgroup(chainA, flower) == true);
+
+    // Test block C, which should pass.
+    stPinchBlock *blockC = stPinchSegment_getBlock(stPinchThread_getSegment(ingroup1Thread1, 40));
+    stCactusEdgeEnd *chainC = getChainEndFromBlock(cactusGraph, blockC);
+    CuAssertTrue(testCase, stCaf_chainHasUnequalNumberOfIngroupCopiesOrNoOutgroup(chainC, flower) == true);
+
     teardown();
 }
 
 CuSuite* filteringTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, testChainHasUnequalNumberOfIngroupCopies);
-//    SUITE_ADD_TEST(suite, testChainHasUnequalNumberOfIngroupCopiesOrNoOutgroup);
+    SUITE_ADD_TEST(suite, testChainHasUnequalNumberOfIngroupCopiesOrNoOutgroup);
+    SUITE_ADD_TEST(suite, testChainHasUnequalNumberOfIngroupCopiesOrNoOutgroup_noOutgroups);
     return suite;
 }
