@@ -576,6 +576,7 @@ static void *getRecord(CactusDisk *cactusDisk, Name objectName, char *type) {
         stCache_setRecord(cactusDisk->cache, objectName, 0, recordSize, cA); //Add the compressed record to the cache.
     }
     //Decompression
+    assert(recordSize > 0);
     void *cA2 = decompress(cA, &recordSize);
     free(cA);
     return cA2;
