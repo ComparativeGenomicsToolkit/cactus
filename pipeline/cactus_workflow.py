@@ -147,6 +147,19 @@ class CactusJob(Job):
         """
         return getOptionalAttrib(node=self.jobNode, attribName=attribName, typeFn=typeFn, default=default)
 
+    def writeDB(self, fileStore):
+        dbElem = DbElemWrapper(ET.fromstring(self.getDatabaseString()))
+        self.databaseID = fileStore.writeGlobalFile(os.path.join(dbElem.getDbDir(), "cactusSequences"), cleanup = False)
+    def downloadDB(self, fileStore):
+        
+        dbElem = DbElemWrapper(ET.fromstring(self.getDatabaseString()))
+        dbElem.setDbDir(os.path.join(fileStore.getLocalTempDir(), "cactusDB"))
+        os.makedirs(dbElem.getDbDir())
+        self.setDatabaseString(dbElem.getConfString())
+        if not self.databaseID:
+            logger.info("Creating database from scratch")
+        else:
+            fileStore.readGlobalFile(self.databaseID, os.path.join(dbElem.getDbDir(), "cactusSequences"), cache=False)
 
 class CactusPhasesJob(CactusJob):
     """Base job for each workflow phase job.
@@ -215,20 +228,13 @@ class CactusPhasesJob(CactusJob):
         dbElem = DbElemWrapper(confXML)
         if dbElem.getDbType() != "kyoto_tycoon":
             runCactusSecondaryDatabase(self.cactusWorkflowArguments.secondaryDatabaseString, create=False)
-    def writeDB(self, fileStore):
-        dbElem = DbElemWrapper(ET.fromstring(self.cactusWorkflowArguments.cactusDiskDatabaseString))
-        self.databaseID = fileStore.writeGlobalFile(os.path.join(dbElem.getDbDir(), "cactusSequences"), cleanup = False)
-    def downloadDB(self, fileStore):
-        
-        dbElem = DbElemWrapper(ET.fromstring(self.cactusWorkflowArguments.cactusDiskDatabaseString))
-        dbElem.setDbDir(os.path.join(fileStore.getLocalTempDir(), "cactusDB"))
-        os.makedirs(dbElem.getDbDir())
-        self.cactusWorkflowArguments.cactusDiskDatabaseString = dbElem.getConfString()
-        if not self.databaseID:
-            logger.info("Creating database from scratch")
-        else:
-            fileStore.readGlobalFile(self.databaseID, os.path.join(dbElem.getDbDir(), "cactusSequences"), cache=False)
 
+    def getDatabaseString(self):
+        return self.cactusWorkflowArguments.cactusDiskDatabaseString
+
+    def setDatabaseString(self, databaseString):
+        self.cactusWorkflowArguments.cactusDiskDatabaseString = databaseString
+    
 class CactusRecursionJob(CactusJob):
     """Base recursive job for traversals up and down the cactus tree.
     """
@@ -338,19 +344,11 @@ class CactusRecursionJob(CactusJob):
         """
         return self.makeChildJobs(flowersAndSizes=runCactusSplitFlowersBySecondaryGrouping(self.flowerNames), 
                               job=job, overlargeJob=overlargeJob, phaseNode=phaseNode, runFlowerStats=runFlowerStats)
-    def writeDB(self, fileStore):
-        dbElem = DbElemWrapper(ET.fromstring(self.cactusDiskDatabaseString))
-        self.databaseID = fileStore.writeGlobalFile(os.path.join(dbElem.getDbDir(), "cactusSequences"))
-    def downloadDB(self, fileStore):
-        
-        dbElem = DbElemWrapper(ET.fromstring(self.cactusDiskDatabaseString))
-        dbElem.setDbDir(os.path.join(fileStore.getLocalTempDir(), "cactusDB"))
-        os.makedirs(dbElem.getDbDir())
-        self.cactusDiskDatabaseString = dbElem.getConfString()
-        if not self.databaseID:
-            logger.info("Creating database from scratch")
-        else:
-            fileStore.readGlobalFile(self.databaseID, os.path.join(dbElem.getDbDir(), "cactusSequences"), cache=False)
+
+    def getDatabaseString(self):
+        return self.cactusDiskDatabaseString
+    def setDatabaseString(self, databaseString):
+        self.cactusDiskDatabaseString = databaseString
 
 ############################################################
 ############################################################
@@ -468,7 +466,7 @@ class CactusTrimmingBlastPhase2(CactusPhasesJob):
         for i, outgroup in enumerate(self.cactusWorkflowArguments.experimentWrapper.getOutgroupEvents()):
             self.cactusWorkflowArguments.experimentWrapper.seqIDMap[outgroup] = outgroupFragmentIDs[i]
 
-        return self.makeFollowOnPhaseJob(CactusSetupPhase, "setup", checkpoint = True)
+        return self.makeFollowOnPhaseJob(CactusSetupPhase, "setup", checkpoint = False)
         
 ############################################################
 ############################################################

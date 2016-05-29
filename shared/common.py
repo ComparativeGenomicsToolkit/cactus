@@ -72,7 +72,7 @@ def runCactusGetFlowers(cactusDiskDatabaseString, flowerNames,
     """Gets a list of flowers attached to the given flower. 
     """
     logLevel = getLogLevelString2(logLevel)
-    flowerStrings = popenCatch("gdb -return-child-result -ex run -ex bt -ex quit --args cactus_workflow_getFlowers %s '%s' %i %i %i" % \
+    flowerStrings = popenCatch("cactus_workflow_getFlowers %s '%s' %i %i %i" % \
                                (logLevel, cactusDiskDatabaseString, int(minSequenceSizeOfFlower), 
                                 int(maxSequenceSizeOfFlowerGrouping), 
                                 int(maxSequenceSizeOfSecondaryFlowerGrouping)), 
