@@ -165,7 +165,7 @@ class CactusJob(Job):
             logger.info("Creating database from scratch")
         else:
             assert self.databaseID
-            fileStore.readGlobalFile(self.databaseID, os.path.join(dbElem.getDbDir(), "cactusSequences"), cache=False)
+            fileStore.readGlobalFile(self.databaseID, os.path.join(dbElem.getDbDir(), "cactusSequences"), cache=True)
 
 class CactusPhasesJob(CactusJob):
     """Base job for each workflow phase job.
