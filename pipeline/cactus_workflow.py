@@ -151,7 +151,7 @@ class CactusJob(Job):
         dbElem = DbElemWrapper(ET.fromstring(self.getDatabaseString()))
         if not firstWrite:
             assert self.databaseID
-            fileStore.deleteGlobalFile(self.databaseID)
+            #fileStore.deleteGlobalFile(self.databaseID)
         self.databaseID = fileStore.writeGlobalFile(os.path.join(dbElem.getDbDir(), "cactusSequences"), cleanup = False)
 
     def downloadDB(self, fileStore, create=False):
@@ -690,7 +690,7 @@ class CactusCafWrapperLarge(CactusRecursionJob):
                                                         minimumSequenceLength=self.getOptionalPhaseAttrib("minimumSequenceLengthForBlast", int, 1)))).rv()
         #Now setup a call to cactus core wrapper as a follow on
         self.phaseNode.attrib["alignmentIDs"] = alignmentsID
-        self.makeFollowOnRecursiveJob(CactusCafWrapperLarge2)
+        return self.makeFollowOnRecursiveJob(CactusCafWrapperLarge2)
         
 class CactusCafWrapperLarge2(CactusCafWrapper):
     """Runs cactus_core upon a one flower and one alignment file.
@@ -723,6 +723,8 @@ class CactusBarPhase(CactusPhasesJob):
     """Runs bar algorithm
     """  
     def run(self, fileStore):
+        assert self.databaseID
+        self.downloadDB(fileStore)
         logger.info("DatabaseID in BarPhase: %s" % self.databaseID)
         return self.runPhase(CactusBarRecursion, CactusNormalPhase, "normal", doRecursion=self.getOptionalPhaseAttrib("runBar", bool, False))
 
@@ -731,6 +733,7 @@ class CactusBarRecursion(CactusRecursionJob):
     """
     def run(self, fileStore):
         logger.info("Database ID in BarRecursion = %s" % self.databaseID)
+
         self.databaseID = self.makeRecursiveJobs(fileStore)
         return self.makeFollowOnRecursiveJob(CactusBarPhase2)
 
