@@ -274,7 +274,7 @@ static void testChainHasUnequalNumberOfIngroupCopiesOrNoOutgroup_noOutgroups(CuT
     // Test block A, which should fail.
     stPinchBlock *blockA = stPinchSegment_getBlock(stPinchThread_getSegment(ingroup1Thread1, 10));
     stCactusEdgeEnd *chainA = getChainEndFromBlock(cactusGraph, blockA);
-    CuAssertTrue(testCase, stCaf_chainHasUnequalNumberOfIngroupCopiesOrNoOutgroup(chainA, flower) == true);
+    CuAssertTrue(testCase, stCaf_chainHasUnequalNumberOfIngroupCopiesOrNoOutgroup(chainA, flower) == false);
 
     // Test block C, which should pass.
     stPinchBlock *blockC = stPinchSegment_getBlock(stPinchThread_getSegment(ingroup1Thread1, 40));

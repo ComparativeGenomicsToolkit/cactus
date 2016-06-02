@@ -195,7 +195,7 @@ bool stCaf_chainHasUnequalNumberOfIngroupCopiesOrNoOutgroup(stCactusEdgeEnd *cha
 
     eventTree_destructIterator(eventIt);
     return !equalNumIngroupCopies
-        || (numOutgroups >= 0 && numOutgroupCopies == 0);
+        || (numOutgroups > 0 && numOutgroupCopies == 0);
 }
 
 bool stCaf_containsRequiredSpecies(stPinchBlock *pinchBlock,
