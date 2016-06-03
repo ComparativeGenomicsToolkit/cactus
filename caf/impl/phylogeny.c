@@ -30,19 +30,19 @@ typedef struct {
     stSet *speciesToSplitOn;
 } TreeBuildingConstants;
 
-// Gets passed to buildTreeForBlock.
+// Gets passed to buildTreeForHomologyUnit.
 typedef struct {
-    stPinchBlock *block;
+    HomologyUnit *homologyUnit;
     TreeBuildingConstants *constants;
-    stHash *blocksToTrees;
+    stHash *homologyUnitsToTrees;
 } TreeBuildingInput;
 
-// Gets returned from buildTreeForBlock and passed into
-// addBlockTreeToHash.
+// Gets returned from buildTreeForHomologyUnit and passed into
+// addTreeToHash.
 typedef struct {
-    stHash *blocksToTrees;
+    stHash *homologyUnitsToTrees;
     stTree *tree;
-    stPinchBlock *block;
+    HomologyUnit *homologyUnit;
     bool wasSimple;
     bool wasSingleCopy;
 } TreeBuildingResult;
@@ -62,6 +62,19 @@ static int64_t numSingleCopyBlocksSkipped = 0;
 static FILE *gDebugFile;
 static stHash *gThreadStrings;
 
+HomologyUnit *HomologyUnit_construct(HomologyUnitType unitType, void *unit) {
+    HomologyUnit *ret = st_malloc(sizeof(HomologyUnit));
+    ret->unitType = unitType;
+    ret->unit = unit;
+    return ret;
+}
+
+void HomologyUnit_destruct(HomologyUnit *unit) {
+    if (unit->unitType == CHAIN) {
+        stList_destruct(unit->unit);
+    }
+    free(unit);
+}
 
 stHash *stCaf_getThreadStrings(Flower *flower, stPinchThreadSet *threadSet) {
     stHash *threadStrings = stHash_construct2(NULL, free);
@@ -97,16 +110,31 @@ stSet *stCaf_getOutgroupThreads(Flower *flower, stPinchThreadSet *threadSet) {
     return outgroupThreads;
 }
 
+// Gets the canonical block for a homology unit (block or chain).
+// The canonical block is the block whose segments correspond to the
+// leaves of the tree.
+stPinchBlock *getCanonicalBlockForHomologyUnit(HomologyUnit *unit) {
+    stPinchBlock *block;
+    if (unit->unitType == BLOCK) {
+        block = unit->unit;
+    } else {
+        assert(unit->unitType == CHAIN);
+        block = stList_get(unit->unit, 0);
+    }
+    return block;
+}
+
 /*
  * Gets a list of the segments in the block that are part of outgroup threads.
  * The list contains stIntTuples, each of length 1, representing the index of a particular segment in
  * the block.
  */
-static stList *getOutgroupThreads(stPinchBlock *block, stSet *outgroupThreads) {
+static stList *getOutgroupThreads(HomologyUnit *unit, stSet *outgroupThreads) {
+    stPinchBlock *block = getCanonicalBlockForHomologyUnit(unit);
     stList *outgroups = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
     stPinchBlockIt segmentIt = stPinchBlock_getSegmentIterator(block);
     stPinchSegment *segment;
-    int64_t i=0;
+    int64_t i = 0;
     while((segment = stPinchBlockIt_getNext(&segmentIt)) != NULL) {
         if(stSet_search(outgroupThreads, stPinchSegment_getThread(segment)) != NULL) {
             stList_append(outgroups, stIntTuple_construct1(i));
@@ -118,12 +146,23 @@ static stList *getOutgroupThreads(stPinchBlock *block, stSet *outgroupThreads) {
 }
 
 /*
+ * Splits chained blocks.
+ */
+stList *stCaf_splitChain(stList *chainedBlocks, stList *partitions, bool allowSingleDegreeBlocks) {
+    // FIXME: stub
+    return NULL;
+}
+
+/*
  * Splits the block using the given partition into a set of new blocks.
  */
-void stCaf_splitBlock(stPinchBlock *block, stList *partitions, bool allowSingleDegreeBlocks) {
-    assert(stList_length(partitions) > 0); 
+stList *stCaf_splitBlock(stPinchBlock *block, stList *partitions, bool allowSingleDegreeBlocks) {
+    assert(stList_length(partitions) > 0);
+    stList *ret = stList_construct();
     if(stList_length(partitions) == 1) {
-        return; //Nothing to do.
+        //Nothing to do.
+        stList_append(ret, block);
+        return ret;
     }
     //Build a mapping of indices of the segments in the block to the segments
     int64_t blockDegree = stPinchBlock_getDegree(block);
@@ -131,8 +170,8 @@ void stCaf_splitBlock(stPinchBlock *block, stList *partitions, bool allowSingleD
     bool *orientations = st_calloc(blockDegree, sizeof(bool));
     stPinchBlockIt segmentIt = stPinchBlock_getSegmentIterator(block);
     stPinchSegment *segment;
-    int64_t i=0;
-    while((segment = stPinchBlockIt_getNext(&segmentIt)) != NULL) {
+    int64_t i = 0;
+    while ((segment = stPinchBlockIt_getNext(&segmentIt)) != NULL) {
         segments[i] = segment;
         assert(segments[i] != NULL);
         orientations[i++] = stPinchSegment_getBlockOrientation(segment);
@@ -141,7 +180,7 @@ void stCaf_splitBlock(stPinchBlock *block, stList *partitions, bool allowSingleD
     //Destruct old block, as we build new blocks now.
     stPinchBlock_destruct(block);
     //Now build the new blocks.
-    for(int64_t i=0; i<stList_length(partitions); i++) {
+    for (int64_t i=0; i<stList_length(partitions); i++) {
         stList *partition = stList_get(partitions, i);
         assert(stList_length(partition) > 0);
         int64_t k = stIntTuple_get(stList_get(partition, 0), 0);
@@ -153,6 +192,7 @@ void stCaf_splitBlock(stPinchBlock *block, stList *partitions, bool allowSingleD
             numBasesDroppedFromSingleDegreeSegments += stPinchSegment_getLength(segments[k]);
             numSingleDegreeSegmentsDropped++;
             segments[k] = NULL;
+            stList_append(ret, NULL);
             continue;
         }
 
@@ -169,6 +209,7 @@ void stCaf_splitBlock(stPinchBlock *block, stList *partitions, bool allowSingleD
             assert(stPinchSegment_getBlockOrientation(segments[k]) == orientations[k]);
             segments[k] = NULL; //Defensive, and used for debugging.
         }
+        stList_append(ret, block);
     }
     //Now check the segments have all been used - this is just debugging.
     for(int64_t i=0; i<blockDegree; i++) {
@@ -177,6 +218,53 @@ void stCaf_splitBlock(stPinchBlock *block, stList *partitions, bool allowSingleD
     //Cleanup
     free(segments);
     free(orientations);
+    return ret;
+}
+
+/*
+ * Splits a homology unit. Returns a list of homology units
+ * corresponding to the partitions, in order (NULL if the unit
+ * was single-degree and deleted).
+ */
+stList *stCaf_splitHomologyUnit(HomologyUnit *unit, stList *partitions, bool allowSingleDegreeBlocks, stHash *blocksToHomologyUnits) {
+    stList *ret = stList_construct();
+    if (unit->unitType == BLOCK) {
+        // Remove the old homology unit mapping for this block.
+        stHash_remove(blocksToHomologyUnits, unit->unit);
+        stList *blocks = stCaf_splitBlock(unit->unit, partitions, allowSingleDegreeBlocks);
+        for (int64_t i = 0; i < stList_length(blocks); i++) {
+            stPinchBlock *block = stList_get(blocks, i);
+            if (block != NULL) {
+                HomologyUnit *partitionedUnit = HomologyUnit_construct(BLOCK, block);
+                stHash_insert(blocksToHomologyUnits, block, partitionedUnit);
+                stList_append(ret, partitionedUnit);
+            } else {
+                stList_append(ret, NULL);
+            }
+        }
+    } else {
+        assert(unit->unitType == CHAIN);
+        // Remove any old homology unit mapping for the blocks of this chain.
+        for (int64_t i = 0; i < stList_length(unit->unit); i++) {
+            stHash_remove(blocksToHomologyUnits, stList_get(unit->unit, i));
+        }
+        stList *chains = stCaf_splitChain(unit->unit, partitions, allowSingleDegreeBlocks);
+        for (int64_t i = 0; i < stList_length(chains); i++) {
+            stList *chain = stList_get(chains, i);
+            if (chain != NULL) {
+                HomologyUnit *partitionedUnit = HomologyUnit_construct(CHAIN, chain);
+                // Go through the chain and map each block to this new homology unit.
+                for (int64_t j = 0; j < stList_length(chain); j++) {
+                    stHash_insert(blocksToHomologyUnits, stList_get(chain, j), partitionedUnit);
+                }
+                stList_append(ret, partitionedUnit);
+            } else {
+                stList_append(ret, NULL);
+            }
+        }
+    }
+    HomologyUnit_destruct(unit);
+    return ret;
 }
 
 /*
@@ -253,8 +341,9 @@ static stHash *getEventToSpeciesNode(EventTree *eventTree,
  * tree, and the pinch block.
  */
 
-static stHash *getLeafToSpecies(stTree *geneTree, stPinchBlock *block,
+static stHash *getLeafToSpecies(stTree *geneTree, HomologyUnit *unit,
                                 Flower *flower, stHash *eventToSpeciesNode) {
+    stPinchBlock *block = getCanonicalBlockForHomologyUnit(unit);
     stHash *leafToSpecies = stHash_construct();
     stPinchBlockIt blockIt = stPinchBlock_getSegmentIterator(block);
     stPinchSegment *segment;
@@ -278,8 +367,9 @@ static stHash *getLeafToSpecies(stTree *geneTree, stPinchBlock *block,
  * neighbor-joining guided by a species tree.
  */
 
-static stHash *getMatrixIndexToJoinCostIndex(stPinchBlock *block, Flower *flower, stHash* eventToSpeciesNode, stHash *speciesToJoinCostIndex) {
+static stHash *getMatrixIndexToJoinCostIndex(HomologyUnit *unit, Flower *flower, stHash* eventToSpeciesNode, stHash *speciesToJoinCostIndex) {
     stHash *matrixIndexToJoinCostIndex = stHash_construct3((uint64_t (*)(const void *)) stIntTuple_hashKey, (int (*)(const void *, const void *)) stIntTuple_equalsFn, (void (*)(void *)) stIntTuple_destruct, (void (*)(void *)) stIntTuple_destruct);
+    stPinchBlock *block = getCanonicalBlockForHomologyUnit(unit);
     stPinchBlockIt blockIt = stPinchBlock_getSegmentIterator(block);
     stPinchSegment *segment;
     int64_t i = 0; // Current segment index in block.
@@ -303,7 +393,7 @@ static stHash *getMatrixIndexToJoinCostIndex(stPinchBlock *block, Flower *flower
     return matrixIndexToJoinCostIndex;
 }
 
-static double scoreTree(stTree *tree, enum stCaf_ScoringMethod scoringMethod, stTree *speciesStTree, stPinchBlock *block, Flower *flower, stList *featureColumns, stHash *eventToSpeciesNode) {
+static double scoreTree(stTree *tree, enum stCaf_ScoringMethod scoringMethod, stTree *speciesStTree, Flower *flower, stList *featureColumns, stHash *eventToSpeciesNode) {
     double ret = 0.0;
     if (scoringMethod == RECON_COST) {
         int64_t dups = 0, losses = 0;
@@ -326,9 +416,10 @@ static double scoreTree(stTree *tree, enum stCaf_ScoringMethod scoringMethod, st
 // Build a tree from a set of feature columns and root it according to
 // the rooting method.
 static stTree *buildTree(stList *featureColumns,
+                         HomologyUnit *unit,
                          stCaf_PhylogenyParameters *params,
                          bool bootstrap,
-                         stList *outgroups, stPinchBlock *block,
+                         stList *outgroups,
                          Flower *flower, stTree *speciesStTree,
                          stMatrix *joinCosts,
                          stHash *speciesToJoinCostIndex,
@@ -339,8 +430,6 @@ static stTree *buildTree(stList *featureColumns,
                          unsigned int *seed) {
     // Make substitution matrix
     stMatrix *substitutionMatrix = stPinchPhylogeny_constructMatrixFromDiffs(snpDiffs, bootstrap, seed);
-    assert(stMatrix_n(substitutionMatrix) == stPinchBlock_getDegree(block));
-    assert(stMatrix_m(substitutionMatrix) == stPinchBlock_getDegree(block));
     //Make breakpoint matrix
     stMatrix *breakpointMatrix = stPinchPhylogeny_constructMatrixFromDiffs(breakpointDiffs, bootstrap, seed);
 
@@ -349,61 +438,6 @@ static stTree *buildTree(stList *featureColumns,
     stMatrix_scale(breakpointMatrix, params->breakpointScalingFactor, 0.0);
     stMatrix *combinedMatrix = stMatrix_add(substitutionMatrix, breakpointMatrix);
     stMatrix *distanceMatrix = stPinchPhylogeny_getSymmetricDistanceMatrix(combinedMatrix);
-
-    if (gDebugFile != NULL && !bootstrap) {
-        // dump block
-        fprintf(gDebugFile, "[");
-        stPinchBlockIt segIt = stPinchBlock_getSegmentIterator(block);
-        int64_t i = 0;
-        stPinchSegment *segment;
-        while ((segment = stPinchBlockIt_getNext(&segIt))) {
-            stPinchThread *thread = stPinchSegment_getThread(segment);
-            Cap *cap = flower_getCap(flower, stPinchThread_getName(thread));
-            const char *seqHeader = sequence_getHeader(cap_getSequence(cap));
-            Event *event = cap_getEvent(cap);
-            const char *eventHeader = event_getHeader(event);
-            char *segmentHeader = stString_print_r("%s.%s|%" PRIi64 "-%" PRIi64, eventHeader, seqHeader, stPinchSegment_getStart(segment), stPinchSegment_getStart(segment) + stPinchSegment_getLength(segment));
-            if (i != 0) {
-                fprintf(gDebugFile, ",");
-            }
-            fprintf(gDebugFile, "\"%s\"", segmentHeader);
-            free(segmentHeader);
-            i++;
-        }
-        fprintf(gDebugFile, "]\n");
-        segIt = stPinchBlock_getSegmentIterator(block);
-        while ((segment = stPinchBlockIt_getNext(&segIt))) {
-            const char *threadString = stHash_search(gThreadStrings, stPinchSegment_getThread(segment));
-            char *substr = malloc(stPinchSegment_getLength(segment));
-            strncpy(substr, threadString + stPinchSegment_getStart(segment) - stPinchThread_getStart(stPinchSegment_getThread(segment)), stPinchSegment_getLength(segment));
-            if (stPinchSegment_getBlockOrientation(segment)) {
-                substr = stString_reverseComplementString(substr);
-            }
-            fprintf(gDebugFile, "\"%s\"", substr);
-            free(substr);
-            fprintf(gDebugFile, "\n");
-        }
-        fprintf(gDebugFile, "bp %lf nuc %lf\n", params->breakpointScalingFactor, params->nucleotideScalingFactor);
-        for (int64_t i = 0; i < stMatrix_n(breakpointMatrix); i++) {
-            for (int64_t j = 0; j < stMatrix_m(breakpointMatrix); j++) {
-                fprintf(gDebugFile, "%lf ", *stMatrix_getCell(breakpointMatrix, i, j));
-            }
-            fprintf(gDebugFile, "\n");
-        }
-        for (int64_t i = 0; i < stMatrix_n(substitutionMatrix); i++) {
-            for (int64_t j = 0; j < stMatrix_m(substitutionMatrix); j++) {
-                fprintf(gDebugFile, "%lf ", *stMatrix_getCell(substitutionMatrix, i, j));
-            }
-            fprintf(gDebugFile, "\n");
-        }
-        for (int64_t i = 0; i < stMatrix_n(combinedMatrix); i++) {
-            for (int64_t j = 0; j < stMatrix_m(combinedMatrix); j++) {
-                fprintf(gDebugFile, "%lf ", *stMatrix_getCell(combinedMatrix, i, j));
-            }
-            fprintf(gDebugFile, "\n");
-        }
-    }
-
 
     stTree *tree = NULL;
     if (params->rootingMethod == OUTGROUP_BRANCH) {
@@ -424,15 +458,16 @@ static stTree *buildTree(stList *featureColumns,
         if (params->treeBuildingMethod == NEIGHBOR_JOINING) {
             tree = stPhylogeny_neighborJoin(distanceMatrix, NULL);
         } else {
+            assert(params->treeBuildingMethod == GUIDED_NEIGHBOR_JOINING);
             // FIXME: Could move this out of the function as
             // well. It's the same for each tree generated for the
             // block.
-            stHash *matrixIndexToJoinCostIndex = getMatrixIndexToJoinCostIndex(block, flower, eventToSpeciesNode,
+            stHash *matrixIndexToJoinCostIndex = getMatrixIndexToJoinCostIndex(unit, flower, eventToSpeciesNode,
                                                                                speciesToJoinCostIndex);
             tree = stPhylogeny_guidedNeighborJoining(combinedMatrix, joinCosts, matrixIndexToJoinCostIndex, speciesToJoinCostIndex, speciesMRCAMatrix, speciesStTree);
             stHash_destruct(matrixIndexToJoinCostIndex);
         }
-        stHash *leafToSpecies = getLeafToSpecies(tree, block, flower,
+        stHash *leafToSpecies = getLeafToSpecies(tree, unit, flower,
                                                  eventToSpeciesNode);
 
         stTree *newTree = stPhylogeny_rootByReconciliationAtMostBinary(tree, leafToSpecies);
@@ -446,7 +481,7 @@ static stTree *buildTree(stList *featureColumns,
 
     // Need to get leaf->species mapping again even when the tree is
     // already reconciled, as the nodes have changed.
-    stHash *leafToSpecies = getLeafToSpecies(tree, block, flower,
+    stHash *leafToSpecies = getLeafToSpecies(tree, unit, flower,
                                              eventToSpeciesNode);
     // add stReconciliationInfo.
     stPhylogeny_reconcileAtMostBinary(tree, leafToSpecies, false);
@@ -464,10 +499,12 @@ static stTree *buildTree(stList *featureColumns,
     return tree;
 }
 
-// Check if the block's phylogeny is simple:
-// - the block has only one event, or
-// - the block has < 3 segments.
-bool stCaf_hasSimplePhylogeny(stPinchBlock *block, Flower *flower) {
+// Check if the homology unit's phylogeny is simple:
+// - the unit has only one event, or
+// - the unit has < 3 segments.
+bool stCaf_hasSimplePhylogeny(HomologyUnit *unit, Flower *flower) {
+    stPinchBlock *block = getCanonicalBlockForHomologyUnit(unit);
+
     if(stPinchBlock_getDegree(block) <= 2) {
         return true;
     }
@@ -489,8 +526,10 @@ bool stCaf_hasSimplePhylogeny(stPinchBlock *block, Flower *flower) {
     return !found2Events;
 }
 
-// Check if the block contains as many species as segments
-bool stCaf_isSingleCopyBlock(stPinchBlock *block, Flower *flower) {
+// Check if the homology unit contains as many species as segments
+bool stCaf_isSingleCopy(HomologyUnit *unit, Flower *flower) {
+    stPinchBlock *block = getCanonicalBlockForHomologyUnit(unit);
+
     stSet *seenEvents = stSet_construct();
     stPinchBlockIt blockIt = stPinchBlock_getSegmentIterator(block);
     stPinchSegment *segment = NULL;
@@ -631,19 +670,19 @@ int stCaf_SplitBranch_cmp(stCaf_SplitBranch *branch1,
 }
 
 stCaf_SplitBranch *stCaf_SplitBranch_construct(stTree *child,
-                                               stPinchBlock *block,
+                                               HomologyUnit *unit,
                                                double support) {
     stCaf_SplitBranch *ret = calloc(1, sizeof(stCaf_SplitBranch));
     ret->support = support;
     ret->child = child;
-    ret->block = block;
+    ret->homologyUnit = unit;
     return ret;
 }
 
 // Find new split branches from the block and add them to the sorted set.
 // speciesToSplitOn is just the species that are on the path from the
 // reference node to the root.
-void stCaf_findSplitBranches(stPinchBlock *block, stTree *tree,
+void stCaf_findSplitBranches(HomologyUnit *unit, stTree *tree,
                              stSortedSet *splitBranches,
                              stSet *speciesToSplitOn) {
     stTree *parent = stTree_getParent(tree);
@@ -655,7 +694,7 @@ void stCaf_findSplitBranches(stPinchBlock *block, stTree *tree,
         if (stSet_search(speciesToSplitOn, parentReconInfo->species)) {
             if (parentReconInfo->event == DUPLICATION) {
                 // Found a split branch.
-                stCaf_SplitBranch *splitBranch = stCaf_SplitBranch_construct(tree, block, parentInfo->index->bootstrapSupport);
+                stCaf_SplitBranch *splitBranch = stCaf_SplitBranch_construct(tree, unit, parentInfo->index->bootstrapSupport);
                 stSortedSet_insert(splitBranches, splitBranch);
             }
         } else {
@@ -668,7 +707,7 @@ void stCaf_findSplitBranches(stPinchBlock *block, stTree *tree,
 
     // Recurse down the tree as far as makes sense.
     for (int64_t i = 0; i < stTree_getChildNumber(tree); i++) {
-        stCaf_findSplitBranches(block, stTree_getChild(tree, i), splitBranches,
+        stCaf_findSplitBranches(unit, stTree_getChild(tree, i), splitBranches,
                                 speciesToSplitOn);
     }
 }
@@ -722,81 +761,72 @@ static void getSpeciesToSplitOn(stTree *speciesTree, EventTree *eventTree,
     } while (aSpeciesToSplitOn != NULL);
 }
 
-// O(n).
-static stPinchSegment *getSegmentByBlockIndex(stPinchBlock *block,
-                                              int64_t index) {
-    assert(index >= 0);
-    stPinchBlockIt blockIt = stPinchBlock_getSegmentIterator(block);
-    stPinchSegment *segment = NULL;
-    int64_t i = 0;
-    while((segment = stPinchBlockIt_getNext(&blockIt)) != NULL) {
-        if (i == index) {
-            return segment;
-        }
-        i++;
-    }
-    return NULL;
-}
-
-// Add any stPinchBlocks close enough to the given block to be
-// affected by its breakpoint information to the given set.
-static void addContextualBlocksToSet(stPinchBlock *block,
-                                     int64_t maxBaseDistance,
-                                     int64_t maxBlockDistance,
-                                     bool ignoreUnalignedBases,
-                                     stSet *contextualBlocks) {
+static void addContextualBlocksInOneDirection(stPinchBlock *block,
+                                              bool five_prime,
+                                              int64_t maxBaseDistance,
+                                              int64_t maxBlockDistance,
+                                              bool ignoreUnalignedBases,
+                                              stHash *blocksToHomologyUnits,
+                                              stSet *contextualHomologyUnits) {
     stPinchBlockIt blockIt = stPinchBlock_getSegmentIterator(block);
     stPinchSegment *segment;
     while ((segment = stPinchBlockIt_getNext(&blockIt)) != NULL) {
-        // Go toward the 5' end of this thread adding blocks, until we
-        // reach the end or maxBaseDistance or maxBlockDistance.
-        stPinchSegment *curSegment = stPinchSegment_get5Prime(segment);
+        bool orientation = stPinchSegment_getBlockOrientation(segment);
+        stPinchSegment *curSegment = (five_prime ^ orientation) ? stPinchSegment_get3Prime(segment) : stPinchSegment_get5Prime(segment);
         int64_t curBlockDistance = 0;
         int64_t curBaseDistance = stPinchSegment_getLength(segment) / 2;
         while ((curSegment != NULL) && (curBlockDistance < maxBlockDistance)
                && (curBaseDistance < maxBaseDistance)) {
             stPinchBlock *curBlock = stPinchSegment_getBlock(curSegment);
             if (curBlock != NULL) {
-                stSet_insert(contextualBlocks, curBlock);
+                HomologyUnit *unit = stHash_search(blocksToHomologyUnits, curBlock);
+                stSet_insert(contextualHomologyUnits, unit);
                 curBaseDistance += stPinchSegment_getLength(segment);
                 curBlockDistance++;
             } else if (!ignoreUnalignedBases) {
                 curBaseDistance += stPinchSegment_getLength(segment);
                 curBlockDistance++;
             }
-            curSegment = stPinchSegment_get5Prime(curSegment);
-        }
-
-        // Do the same for the 3' side.
-        curSegment = stPinchSegment_get3Prime(segment);
-        curBlockDistance = 0;
-        curBaseDistance = stPinchSegment_getLength(segment) / 2;
-        while ((curSegment != NULL) && (curBlockDistance < maxBlockDistance)
-               && (curBaseDistance < maxBaseDistance)) {
-            stPinchBlock *curBlock = stPinchSegment_getBlock(curSegment);
-            if (curBlock != NULL) {
-                stSet_insert(contextualBlocks, curBlock);
-                curBaseDistance += stPinchSegment_getLength(segment);
-                curBlockDistance++;
-            } else if (!ignoreUnalignedBases) {
-                curBaseDistance += stPinchSegment_getLength(segment);
-                curBlockDistance++;
-            }
-            curSegment = stPinchSegment_get3Prime(curSegment);
+            curSegment = (five_prime ^ orientation) ? stPinchSegment_get3Prime(curSegment) : stPinchSegment_get5Prime(curSegment);
         }
     }
 }
 
+// Add any homology units close enough to the given block to be
+// affected by its breakpoint information to the given set.
+static void addContextualBlocksToSet(HomologyUnit *unit,
+                                     int64_t maxBaseDistance,
+                                     int64_t maxBlockDistance,
+                                     bool ignoreUnalignedBases,
+                                     stHash *blocksToHomologyUnits,
+                                     stSet *contextualHomologyUnits) {
+    // Go toward the 5' (relative to block orientation) end of each
+    // thread adding blocks, until we reach the end or maxBaseDistance
+    // or maxBlockDistance.
+    stPinchBlock *block = getCanonicalBlockForHomologyUnit(unit);
+    addContextualBlocksInOneDirection(block, true, maxBaseDistance, maxBlockDistance,
+                                      ignoreUnalignedBases, blocksToHomologyUnits,
+                                      contextualHomologyUnits);
+
+    // Do the same for the 3' (relative to block orientation) side.
+    if (unit->unitType == CHAIN) {
+        block = stList_get(unit->unit, stList_length(unit->unit) - 1);
+    }
+    addContextualBlocksInOneDirection(block, false, maxBaseDistance, maxBlockDistance,
+                                      ignoreUnalignedBases, blocksToHomologyUnits,
+                                      contextualHomologyUnits);
+}
+
 // Remove any split branches that appear in this tree from the
 // set of split branches.
-void stCaf_removeSplitBranches(stPinchBlock *block, stTree *tree,
+void stCaf_removeSplitBranches(HomologyUnit *unit, stTree *tree,
                                stSet *speciesToSplitOn,
                                stSortedSet *splitBranches) {
     if (tree == NULL) {
         return;
     }
     stSortedSet *splitBranchesToDelete = stSortedSet_construct3((int (*)(const void *, const void *)) stCaf_SplitBranch_cmp, free);
-    stCaf_findSplitBranches(block, tree, splitBranchesToDelete,
+    stCaf_findSplitBranches(unit, tree, splitBranchesToDelete,
                             speciesToSplitOn);
     // Could set splitBranches = splitBranches \ splitBranchesToDelete.
     // But this is probably faster.
@@ -809,7 +839,7 @@ void stCaf_removeSplitBranches(stPinchBlock *block, stTree *tree,
     stSortedSet_destruct(splitBranchesToDelete);
 }
 
-// tmp for debug
+// TODO: tmp for debug
 static double getAvgSupportValue(stSortedSet *splitBranches) {
     double totalSupport = 0.0;
     stSortedSetIterator *splitBranchIt = stSortedSet_getIterator(splitBranches);
@@ -825,58 +855,74 @@ static double getAvgSupportValue(stSortedSet *splitBranches) {
 }
 
 // Small wrapper function to tell the pool to build, reconcile, and
-// bootstrap a tree for a block.
-static void pushBlockToPool(stPinchBlock *block,
-                            TreeBuildingConstants *constants,
-                            stHash *blocksToTrees,
-                            stThreadPool *threadPool) {
+// bootstrap a tree for a homology unit.
+static void pushHomologyUnitToPool(HomologyUnit *unit,
+                                   TreeBuildingConstants *constants,
+                                   stHash *homologyUnitsToTrees,
+                                   stThreadPool *threadPool) {
     TreeBuildingInput *input = st_malloc(sizeof(TreeBuildingInput));
     input->constants = constants;
-    input->block = block;
-    input->blocksToTrees = blocksToTrees;
+    input->homologyUnit = unit;
+    input->homologyUnitsToTrees = homologyUnitsToTrees;
     stThreadPool_push(threadPool, input);
 }
 
 // Gets run as a worker in a thread.
-static TreeBuildingResult *buildTreeForBlock(TreeBuildingInput *input) {
-    stPinchBlock *block = input->block;
+static TreeBuildingResult *buildTreeForHomologyUnit(TreeBuildingInput *input) {
+    HomologyUnit *unit = input->homologyUnit;
     stCaf_PhylogenyParameters *params = input->constants->params;
 
     TreeBuildingResult *ret = st_calloc(1, sizeof(TreeBuildingResult));
-    ret->blocksToTrees = input->blocksToTrees;
-    ret->block = block;
+    ret->homologyUnitsToTrees = input->homologyUnitsToTrees;
+    ret->homologyUnit = unit;
 
-    if (stCaf_hasSimplePhylogeny(block, input->constants->flower)) {
+    if (stCaf_hasSimplePhylogeny(unit, input->constants->flower)) {
         // No point trying to build a phylogeny for certain blocks.
         free(input);
         ret->wasSimple = true;
         return ret;
     }
-    if (stCaf_isSingleCopyBlock(block, input->constants->flower)
+    if (stCaf_isSingleCopy(unit, input->constants->flower)
         && params->skipSingleCopyBlocks) {
         ret->wasSingleCopy = true;
         free(input);
         return ret;
     }
 
-    // Get the feature blocks
-    stList *featureBlocks = stFeatureBlock_getContextualFeatureBlocks(
-        block, params->maxBaseDistance,
-        params->maxBlockDistance,
-        params->ignoreUnalignedBases, params->onlyIncludeCompleteFeatureBlocks,
-        input->constants->threadStrings);
+    // Get the feature blocks.
+    stList *featureBlocks;
+
+    if (unit->unitType == BLOCK) {
+        featureBlocks = stFeatureBlock_getContextualFeatureBlocks(
+            unit->unit, params->maxBaseDistance,
+            params->maxBlockDistance,
+            params->ignoreUnalignedBases,
+            params->onlyIncludeCompleteFeatureBlocks,
+            input->constants->threadStrings);
+    } else {
+        assert(unit->unitType == CHAIN);
+        featureBlocks = stFeatureBlock_getContextualFeatureBlocksForChainedBlocks(
+            unit->unit, params->maxBaseDistance,
+            params->maxBlockDistance,
+            params->ignoreUnalignedBases,
+            params->onlyIncludeCompleteFeatureBlocks,
+            input->constants->threadStrings);
+    }
 
     // Make feature columns
-    stList *featureColumns = stFeatureColumn_getFeatureColumns(featureBlocks,
-                                                               block);
+    stList *featureColumns = stFeatureColumn_getFeatureColumns(featureBlocks);
 
     // Get the outgroup threads
-    stList *outgroups = getOutgroupThreads(block,
+    stList *outgroups = getOutgroupThreads(unit,
                                            input->constants->outgroupThreads);
 
+
+    // Get the degree (= number of segments in the block/chain).
+    int64_t degree = stPinchBlock_getDegree(getCanonicalBlockForHomologyUnit(unit));
+
     // Get the matrix diffs.
-    stMatrixDiffs *snpDiffs = stPinchPhylogeny_getMatrixDiffsFromSubstitutions(featureColumns, block, NULL);
-    stMatrixDiffs *breakpointDiffs = stPinchPhylogeny_getMatrixDiffsFromBreakpoints(featureColumns, block, NULL);
+    stMatrixDiffs *snpDiffs = stPinchPhylogeny_getMatrixDiffsFromSubstitutions(featureColumns, degree, NULL);
+    stMatrixDiffs *breakpointDiffs = stPinchPhylogeny_getMatrixDiffsFromBreakpoints(featureColumns, degree, NULL);
 
     // rand() has a global lock on it! Better to contest it once and
     // use that as a seed than to contest it several thousand times
@@ -884,21 +930,21 @@ static TreeBuildingResult *buildTreeForBlock(TreeBuildingInput *input) {
     unsigned int mySeed = rand();
 
     // Build the canonical tree.
-    stTree *blockTree = buildTree(featureColumns, params,
-                                  0, outgroups, block, input->constants->flower,
-                                  input->constants->speciesStTree,
-                                  input->constants->joinCosts,
-                                  input->constants->speciesToJoinCostIndex,
-                                  input->constants->speciesMRCAMatrix,
-                                  input->constants->eventToSpeciesNode,
-                                  snpDiffs, breakpointDiffs, &mySeed);
+    stTree *canonicalTree = buildTree(featureColumns, unit, params,
+                                      0, outgroups, input->constants->flower,
+                                      input->constants->speciesStTree,
+                                      input->constants->joinCosts,
+                                      input->constants->speciesToJoinCostIndex,
+                                      input->constants->speciesMRCAMatrix,
+                                      input->constants->eventToSpeciesNode,
+                                      snpDiffs, breakpointDiffs, &mySeed);
 
     // Sample the rest of the trees.
     stList *trees = stList_construct();
-    stList_append(trees, blockTree);
+    stList_append(trees, canonicalTree);
     for (int64_t i = 0; i < params->numTrees - 1; i++) {
-        stTree *tree = buildTree(featureColumns, params,
-                                 1, outgroups, block, input->constants->flower,
+        stTree *tree = buildTree(featureColumns, unit, params,
+                                 1, outgroups, input->constants->flower,
                                  input->constants->speciesStTree,
                                  input->constants->joinCosts,
                                  input->constants->speciesToJoinCostIndex,
@@ -917,7 +963,7 @@ static TreeBuildingResult *buildTreeForBlock(TreeBuildingInput *input) {
     for (int64_t i = 0; i < stList_length(trees); i++) {
         stTree *tree = stList_get(trees, i);
         double score = scoreTree(tree, params->scoringMethod,
-                                 input->constants->speciesStTree, block,
+                                 input->constants->speciesStTree,
                                  input->constants->flower, featureColumns,
                                  input->constants->eventToSpeciesNode);
         if (score > maxScore) {
@@ -930,7 +976,7 @@ static TreeBuildingResult *buildTreeForBlock(TreeBuildingInput *input) {
         // Can happen if/when the nucleotide likelihood score
         // is used and a block is all N's. Just use the
         // canonical NJ tree in that case.
-        bestTree = blockTree;
+        bestTree = canonicalTree;
     }
 
     assert(bestTree != NULL);
@@ -957,12 +1003,12 @@ static TreeBuildingResult *buildTreeForBlock(TreeBuildingInput *input) {
 
 // Gets run as a "finisher" in the thread pool, so it's run in series
 // and we don't have to lock the hash.
-static void addBlockTreeToHash(TreeBuildingResult *result) {
-    if (stHash_search(result->blocksToTrees, result->block)) {
-        stHash_remove(result->blocksToTrees, result->block);
+static void addTreeToHash(TreeBuildingResult *result) {
+    if (stHash_search(result->homologyUnitsToTrees, result->homologyUnit)) {
+        stHash_remove(result->homologyUnitsToTrees, result->homologyUnit);
     }
     if (result->tree != NULL) {
-        stHash_insert(result->blocksToTrees, result->block, result->tree);
+        stHash_insert(result->homologyUnitsToTrees, result->homologyUnit, result->tree);
     } else {
         if (result->wasSimple) {
             numSimpleBlocksSkipped++;
@@ -996,27 +1042,23 @@ static void relabelTreeIndices(stTree *tree, stList *leafSet) {
     stPhylogeny_addStIndexedTreeInfo(tree);
 }
 
-void splitBlockOnSplitBranch(stPinchBlock *block,
-                             stCaf_SplitBranch *splitBranch,
-                             stSortedSet *splitBranches,
-                             TreeBuildingConstants *constants,
-                             stHash *blocksToTrees,
-                             stSet *blocksToUpdate) {
-    block = splitBranch->block;
+void splitOnSplitBranch(stCaf_SplitBranch *splitBranch,
+                        stSortedSet *splitBranches,
+                        TreeBuildingConstants *constants,
+                        stHash *blocksToHomologyUnits,
+                        stHash *homologyUnitsToTrees,
+                        stSet *homologyUnitsToUpdate) {
+    HomologyUnit *unit = splitBranch->homologyUnit;
 
     // Check if this block is marked to be updated later on. If so,
     // remove it from the set, as it will be invalidated.
-    stSet_remove(blocksToUpdate, block);
+    stSet_remove(homologyUnitsToUpdate, unit);
 
     // Do the partition on the block.
     stList *partition = stList_construct();
+
     // Create a leaf set with all leaves below this split branch.
     stList *leafSet = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
-    int64_t segmentBelowBranchIndex = -1; // Arbitrary index of
-                                          // segment below the
-                                          // branch so we can
-                                          // recover the blocks we
-                                          // split into later.
     stList *bfQueue = stList_construct();
     stList_append(bfQueue, splitBranch->child);
     while (stList_length(bfQueue) != 0) {
@@ -1029,10 +1071,10 @@ void splitBlockOnSplitBranch(stPinchBlock *block,
             stPhylogenyInfo *info = stTree_getClientData(node);
             assert(info->index->matrixIndex != -1);
             stList_append(leafSet, stIntTuple_construct1(info->index->matrixIndex));
-            segmentBelowBranchIndex = info->index->matrixIndex;
         }
     }
     stList_append(partition, leafSet);
+
     // Create a leaf set with all leaves that aren't below the
     // split branch.
     leafSet = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
@@ -1041,17 +1083,11 @@ void splitBlockOnSplitBranch(stPinchBlock *block,
         root = stTree_getParent(root);
     }
 
-    if (gDebugFile != NULL) {
-        fprintf(gDebugFile, "split:\n");
-        printTreeBuildingDebugInfo(constants->flower, block, root, gDebugFile);
-    }
+    /* if (gDebugFile != NULL) { */
+    /*     fprintf(gDebugFile, "split:\n"); */
+    /*     printTreeBuildingDebugInfo(constants->flower, block, root, gDebugFile); */
+    /* } */
 
-    int64_t segmentNotBelowBranchIndex = -1; // Arbitrary index of
-                                             // segment not below the
-                                             // branch so we can
-                                             // recover the blocks
-                                             // we split into
-                                             // later.
     stList_append(bfQueue, root);
     while (stList_length(bfQueue) != 0) {
         stTree *node = stList_pop(bfQueue);
@@ -1064,34 +1100,27 @@ void splitBlockOnSplitBranch(stPinchBlock *block,
                 stPhylogenyInfo *info = stTree_getClientData(node);
                 assert(info->index->matrixIndex != -1);
                 stList_append(leafSet, stIntTuple_construct1(info->index->matrixIndex));
-                segmentNotBelowBranchIndex = info->index->matrixIndex;
             }
         }
     }
     stList_append(partition, leafSet);
-    // Get arbitrary segments from the blocks we will split
-    // into. This is so that we can recover the blocks after the
-    // split.
-    stPinchSegment *segmentBelowBranch = getSegmentByBlockIndex(block, segmentBelowBranchIndex);
-    assert(segmentBelowBranch != NULL);
-    stPinchSegment *segmentNotBelowBranch = getSegmentByBlockIndex(block, segmentNotBelowBranchIndex);
-    assert(segmentNotBelowBranch != NULL);
 
     // Remove all split branch entries for this block tree.
-    stCaf_removeSplitBranches(block, root, constants->speciesToSplitOn,
+    stCaf_removeSplitBranches(unit, root, constants->speciesToSplitOn,
                               splitBranches);
 
-    assert(stHash_search(blocksToTrees, block) == root);
-    stHash_remove(blocksToTrees, block);
+    assert(stHash_search(homologyUnitsToTrees, unit) == root);
+    stHash_remove(homologyUnitsToTrees, unit);
 
     // Actually perform the split according to the partition.
-    stCaf_splitBlock(block, partition,
-                     constants->params->keepSingleDegreeBlocks);
-    // Recover the blocks.
-    stPinchBlock *blockBelowBranch = stPinchSegment_getBlock(segmentBelowBranch);
-    stPinchBlock *blockNotBelowBranch = stPinchSegment_getBlock(segmentNotBelowBranch);
+    stList *partitionedUnits = stCaf_splitHomologyUnit(unit, partition,
+                                                       constants->params->keepSingleDegreeBlocks,
+                                                       blocksToHomologyUnits);
 
-    // Get a new tree for each block using the existing tree.
+    HomologyUnit *unitBelowBranch = stList_get(partitionedUnits, 0);
+    HomologyUnit *unitNotBelowBranch = stList_get(partitionedUnits, 1);
+
+    // Get a new tree for each unit using the existing tree.
     stTree *treeNotBelowBranch = root;
     stTree *treeBelowBranch = splitBranch->child;
     // Need to remove the extra node (which will have degree 2 once
@@ -1111,108 +1140,111 @@ void splitBlockOnSplitBranch(stPinchBlock *block,
     stTree_destruct(extraNode);
 
     // Now relabel the two split trees so that they correspond to the
-    // segments of their new blocks.
+    // segments of their new units.
     relabelTreeIndices(treeBelowBranch, stList_get(partition, 0));
     relabelTreeIndices(treeNotBelowBranch, stList_get(partition, 1));
 
-    // Add the split branches from these new blocks back into the set.
-    stCaf_findSplitBranches(blockBelowBranch, treeBelowBranch,
+    // Add the split branches from these new units back into the set.
+    stCaf_findSplitBranches(unitBelowBranch, treeBelowBranch,
                             splitBranches, constants->speciesToSplitOn);
-    stCaf_findSplitBranches(blockNotBelowBranch, treeNotBelowBranch,
+    stCaf_findSplitBranches(unitNotBelowBranch, treeNotBelowBranch,
                             splitBranches, constants->speciesToSplitOn);
-    stHash_insert(blocksToTrees, blockBelowBranch, treeBelowBranch);
-    stHash_insert(blocksToTrees, blockNotBelowBranch, treeNotBelowBranch);
+    stHash_insert(homologyUnitsToTrees, unitBelowBranch, treeBelowBranch);
+    stHash_insert(homologyUnitsToTrees, unitNotBelowBranch, treeNotBelowBranch);
 
-    if (gDebugFile != NULL) {
-        fprintf(gDebugFile, "below:\n");
-        if (blockBelowBranch != NULL) {
-            printTreeBuildingDebugInfo(constants->flower, blockBelowBranch, treeBelowBranch, gDebugFile);
-        }
-        fprintf(gDebugFile, "above:\n");
-        if (blockNotBelowBranch != NULL) {
-            printTreeBuildingDebugInfo(constants->flower, blockNotBelowBranch, treeNotBelowBranch, gDebugFile);
-        }
-    }
+    /* if (gDebugFile != NULL) { */
+    /*     fprintf(gDebugFile, "below:\n"); */
+    /*     if (blockBelowBranch != NULL) { */
+    /*         printTreeBuildingDebugInfo(constants->flower, blockBelowBranch, treeBelowBranch, gDebugFile); */
+    /*     } */
+    /*     fprintf(gDebugFile, "above:\n"); */
+    /*     if (blockNotBelowBranch != NULL) { */
+    /*         printTreeBuildingDebugInfo(constants->flower, blockNotBelowBranch, treeNotBelowBranch, gDebugFile); */
+    /*     } */
+    /* } */
 
-    // Finally, add any blocks that could have been affected by the
-    // breakpoint information to the blocksToUpdate set.
-    if (blockBelowBranch != NULL) {
-        stSet_insert(blocksToUpdate, blockBelowBranch);
-        addContextualBlocksToSet(blockBelowBranch,
+    // Finally, add any units that could have been affected by the
+    // breakpoint information to the homologyUnitsToUpdate set.
+    if (unitBelowBranch != NULL) {
+        stSet_insert(homologyUnitsToUpdate, unitBelowBranch);
+        addContextualBlocksToSet(unitBelowBranch,
                                  constants->params->maxBaseDistance,
                                  constants->params->maxBlockDistance,
                                  constants->params->ignoreUnalignedBases,
-                                 blocksToUpdate);
+                                 blocksToHomologyUnits,
+                                 homologyUnitsToUpdate);
     }
-    if (blockNotBelowBranch != NULL) {
-        stSet_insert(blocksToUpdate, blockNotBelowBranch);
-        addContextualBlocksToSet(blockNotBelowBranch,
+    if (unitNotBelowBranch != NULL) {
+        stSet_insert(homologyUnitsToUpdate, unitNotBelowBranch);
+        addContextualBlocksToSet(unitNotBelowBranch,
                                  constants->params->maxBaseDistance,
                                  constants->params->maxBlockDistance,
                                  constants->params->ignoreUnalignedBases,
-                                 blocksToUpdate);
+                                 blocksToHomologyUnits,
+                                 homologyUnitsToUpdate);
     }
+
+    stList_destruct(partitionedUnits);
 }
 
-static void destructBlockTree(stTree *tree) {
+static void destructTree(stTree *tree) {
     stPhylogenyInfo_destructOnTree(tree);
     stTree_destruct(tree);
 }
 
-// Update the trees that belong to each block in the blocksToUpdate
+// Update the trees that belong to each block in the homologyUnitsToUpdate
 // set. Invalidates all pointers to the old trees or their split
 // branches, and adds the new split branches to the set.
-static void recomputeAffectedBlockTrees(stSet *blocksToUpdate,
-                                        TreeBuildingConstants *constants,
-                                        stThreadPool *treeBuildingPool,
-                                        stHash *blocksToTrees,
-                                        stSortedSet *splitBranches) {
-    stSetIterator *blocksToUpdateIt = stSet_getIterator(blocksToUpdate);
-    stList *blocksToPush = stList_construct();
-    stPinchBlock *blockToUpdate;
-    while ((blockToUpdate = stSet_getNext(blocksToUpdateIt)) != NULL) {
+static void recomputeAffectedTrees(stSet *homologyUnitsToUpdate,
+                                   TreeBuildingConstants *constants,
+                                   stThreadPool *treeBuildingPool,
+                                   stHash *homologyUnitsToTrees,
+                                   stSortedSet *splitBranches) {
+    stSetIterator *homologyUnitsToUpdateIt = stSet_getIterator(homologyUnitsToUpdate);
+    stList *unitsToPush = stList_construct();
+    HomologyUnit *unitToUpdate;
+    while ((unitToUpdate = stSet_getNext(homologyUnitsToUpdateIt)) != NULL) {
         totalNumberOfBlocksRecomputed++;
-        stTree *oldTree = stHash_search(blocksToTrees, blockToUpdate);
-        stCaf_removeSplitBranches(blockToUpdate, oldTree,
+        stTree *oldTree = stHash_search(homologyUnitsToTrees, unitToUpdate);
+        stCaf_removeSplitBranches(unitToUpdate, oldTree,
                                   constants->speciesToSplitOn, splitBranches);
-        stList_append(blocksToPush, blockToUpdate);
+        stList_append(unitsToPush, unitToUpdate);
     }
-    stSet_destructIterator(blocksToUpdateIt);
+    stSet_destructIterator(homologyUnitsToUpdateIt);
 
-    for (int64_t i = 0; i < stList_length(blocksToPush); i++) {
-        pushBlockToPool(stList_get(blocksToPush, i), constants,
-                        blocksToTrees, treeBuildingPool);
+    for (int64_t i = 0; i < stList_length(unitsToPush); i++) {
+        pushHomologyUnitToPool(stList_get(unitsToPush, i), constants,
+                               homologyUnitsToTrees, treeBuildingPool);
     }
 
     // Wait for the trees to be done.
     stThreadPool_wait(treeBuildingPool);
-    blocksToUpdateIt = stSet_getIterator(blocksToUpdate);
-    while ((blockToUpdate = stSet_getNext(blocksToUpdateIt)) != NULL) {
-        stTree *tree = stHash_search(blocksToTrees, blockToUpdate);
+    homologyUnitsToUpdateIt = stSet_getIterator(homologyUnitsToUpdate);
+    while ((unitToUpdate = stSet_getNext(homologyUnitsToUpdateIt)) != NULL) {
+        stTree *tree = stHash_search(homologyUnitsToTrees, unitToUpdate);
         if (tree != NULL) {
-            stCaf_findSplitBranches(blockToUpdate, tree,
+            stCaf_findSplitBranches(unitToUpdate, tree,
                                     splitBranches, constants->speciesToSplitOn);
         }
     }
-    stList_destruct(blocksToPush);
-    stSet_destructIterator(blocksToUpdateIt);
+    stList_destruct(unitsToPush);
+    stSet_destructIterator(homologyUnitsToUpdateIt);
 }
 
 // Split on a single branch and update the blocks affected immediately.
 static void splitUsingSingleBranch(stCaf_SplitBranch *splitBranch,
                                    stSortedSet *splitBranches,
                                    TreeBuildingConstants *constants,
+                                   stHash *blocksToHomologyUnits,
                                    stThreadPool *treeBuildingPool,
-                                   stHash *blocksToTrees) {
+                                   stHash *homologyUnitsToTrees) {
     totalSupport += splitBranch->support;
-    stPinchBlock *block = splitBranch->block;
-    stSet *blocksToUpdate = stSet_construct();
-    splitBlockOnSplitBranch(block, splitBranch, splitBranches, constants,
-                            blocksToTrees, blocksToUpdate);
-
-    recomputeAffectedBlockTrees(blocksToUpdate, constants, treeBuildingPool,
-                                blocksToTrees, splitBranches);
-    stSet_destruct(blocksToUpdate);
+    stSet *homologyUnitsToUpdate = stSet_construct();
+    splitOnSplitBranch(splitBranch, splitBranches, constants, blocksToHomologyUnits,
+                       homologyUnitsToTrees, homologyUnitsToUpdate);
+    recomputeAffectedTrees(homologyUnitsToUpdate, constants, treeBuildingPool,
+                           homologyUnitsToTrees, splitBranches);
+    stSet_destruct(homologyUnitsToUpdate);
     numberOfSplitsMade++;
 }
 
@@ -1222,22 +1254,22 @@ static void splitUsingSingleBranch(stCaf_SplitBranch *splitBranch,
 static void splitUsingHighlyConfidentBranches(stCaf_SplitBranch *splitBranch,
                                               stSortedSet *splitBranches,
                                               TreeBuildingConstants *constants,
+                                              stHash *blocksToHomologyUnits,
                                               stThreadPool *treeBuildingPool,
-                                              stHash *blocksToTrees) {
-    stSet *blocksToUpdate = stSet_construct();
+                                              stHash *homologyUnitsToTrees) {
+    stSet *homologyUnitsToUpdate = stSet_construct();
     while (splitBranch != NULL && splitBranch->support > constants->params->doSplitsWithSupportHigherThanThisAllAtOnce) {
         totalSupport += splitBranch->support;
-        stPinchBlock *block = splitBranch->block;
-        splitBlockOnSplitBranch(block, splitBranch, splitBranches,
-                                constants, blocksToTrees, blocksToUpdate);
+        splitOnSplitBranch(splitBranch, splitBranches, constants, blocksToHomologyUnits,
+                           homologyUnitsToTrees, homologyUnitsToUpdate);
         // Get the next split branch.
         splitBranch = stSortedSet_getLast(splitBranches);
         numberOfSplitsMade++;
     }
 
-    recomputeAffectedBlockTrees(blocksToUpdate, constants, treeBuildingPool,
-                                blocksToTrees, splitBranches);
-    stSet_destruct(blocksToUpdate);
+    recomputeAffectedTrees(homologyUnitsToUpdate, constants, treeBuildingPool,
+                           homologyUnitsToTrees, splitBranches);
+    stSet_destruct(homologyUnitsToUpdate);
 }
 
 void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
@@ -1253,8 +1285,8 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
     stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
     stPinchBlock *block;
 
-    //Hash in which we store a map of blocks to their trees
-    stHash *blocksToTrees = stHash_construct2(NULL, (void (*)(void *))destructBlockTree);
+    //Hash in which we store a map of homology units to their trees
+    stHash *homologyUnitsToTrees = stHash_construct2(NULL, (void (*)(void *))destructTree);
 
     //Get species tree as an stTree
     EventTree *eventTree = flower_getEventTree(flower);
@@ -1291,8 +1323,8 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
 
     stThreadPool *treeBuildingPool = stThreadPool_construct(
         params->numTreeBuildingThreads,
-        (void *(*)(void *)) buildTreeForBlock,
-        (void (*)(void *)) addBlockTreeToHash);
+        (void *(*)(void *)) buildTreeForHomologyUnit,
+        (void (*)(void *)) addTreeToHash);
     TreeBuildingConstants constants;
     constants.threadStrings = threadStrings;
     constants.outgroupThreads = outgroupThreads;
@@ -1307,9 +1339,19 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
 
     gDebugFile = debugFile;
 
-    // The loop to build a tree for each block
+    // This hash stores a mapping (kept up-to-date after every split)
+    // from blocks to the homology units that contain them. This is
+    // necessary because the cactus structure won't be updated for
+    // splits, so we need to keep a special mapping from block to
+    // (potentially split) chain.
+    stHash *blocksToHomologyUnits = stHash_construct2(NULL,
+                                                      (void (*)(void *)) HomologyUnit_destruct);
+
+    // The loop to build a tree for each homology unit
     while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
-        pushBlockToPool(block, &constants, blocksToTrees, treeBuildingPool);
+        HomologyUnit *unit = HomologyUnit_construct(BLOCK, block);
+        stHash_insert(blocksToHomologyUnits, block, unit);
+        pushHomologyUnitToPool(unit, &constants, homologyUnitsToTrees, treeBuildingPool);
     }
 
     // We need the trees to be done before we can continue.
@@ -1318,7 +1360,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
     if (debugFile != NULL) {
         blockIt = stPinchThreadSet_getBlockIt(threadSet);
         while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
-            stTree *tree = stHash_search(blocksToTrees, block);
+            stTree *tree = stHash_search(homologyUnitsToTrees, block);
             if (tree != NULL) {
                 printTreeBuildingDebugInfo(flower, block, tree, debugFile);
             }
@@ -1332,11 +1374,12 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
 
     // All the blocks have their trees computed. Find the split
     // branches in those trees.
-    stHashIterator *blocksToTreesIt = stHash_getIterator(blocksToTrees);
-    while ((block = stHash_getNext(blocksToTreesIt)) != NULL) {
-        stTree *tree = stHash_search(blocksToTrees, block);
+    stHashIterator *homologyUnitsToTreesIt = stHash_getIterator(homologyUnitsToTrees);
+    HomologyUnit *unit;
+    while ((unit = stHash_getNext(homologyUnitsToTreesIt)) != NULL) {
+        stTree *tree = stHash_search(homologyUnitsToTrees, unit);
         assert(tree != NULL);
-        stCaf_findSplitBranches(block, tree, splitBranches, speciesToSplitOn);
+        stCaf_findSplitBranches(unit, tree, splitBranches, speciesToSplitOn);
     }
 
     fprintf(stdout, "Before partitioning, there were %" PRIi64 " bases lost in between single-degree blocks\n", countBasesBetweenSingleDegreeBlocks(threadSet));
@@ -1344,7 +1387,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
             " blocks (%" PRIi64 " of which have trees), with an "
             "average support value of %lf\n", stSortedSet_size(splitBranches),
             stPinchThreadSet_getTotalBlockNumber(threadSet),
-            stHash_size(blocksToTrees),
+            stHash_size(homologyUnitsToTrees),
             getAvgSupportValue(splitBranches));
 
     // Now walk through the split branches, doing the most confident
@@ -1359,16 +1402,17 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
             // information, so we split them all at once and then only
             // recompute the affected block trees in one go.
             splitUsingHighlyConfidentBranches(splitBranch, splitBranches,
-                                              &constants, treeBuildingPool,
-                                              blocksToTrees);
+                                              &constants, blocksToHomologyUnits,
+                                              treeBuildingPool, homologyUnitsToTrees);
         } else {
             // None of the split branches left in the set have good
             // support. We start to split one at a time, hoping that
             // the iterative increase in the quality of the breakpoint
             // information will encourage splits that leave us with a
             // sensible graph.
-            splitUsingSingleBranch(splitBranch, splitBranches, &constants,
-                                   treeBuildingPool, blocksToTrees);
+            splitUsingSingleBranch(splitBranch, splitBranches,
+                                   &constants, blocksToHomologyUnits,
+                                   treeBuildingPool, homologyUnitsToTrees);
         }
         splitBranch = stSortedSet_getLast(splitBranches);
     }
@@ -1424,5 +1468,6 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
     free(speciesMRCAMatrix);
     stTree_destruct(speciesStTree);
     stThreadPool_destruct(treeBuildingPool);
-    stHash_destruct(blocksToTrees);
+    stHash_destruct(homologyUnitsToTrees);
+    stHash_destruct(blocksToHomologyUnits);
 }

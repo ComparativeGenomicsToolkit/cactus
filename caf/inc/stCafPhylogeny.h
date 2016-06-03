@@ -11,6 +11,18 @@
 #include "sonLib.h"
 #include "stPinchPhylogeny.h"
 
+// Represents a region of homology, either a block or a stList of
+// chained blocks.
+typedef enum {
+    BLOCK,
+    CHAIN
+} HomologyUnitType;
+
+typedef struct {
+    HomologyUnitType unitType;
+    void *unit;
+} HomologyUnit;
+
 // A "split branch": a branch in a block tree that, if removed, would
 // produce a partition of the leaf set that would remove an ancient
 // homology. In practice, this means that split branches have a
@@ -19,8 +31,9 @@
 // properly.
 typedef struct {
     stTree *child; // Child of the branch.
-    stPinchBlock *block; // Block the tree refers to (can and should
-                         // refer to more than the child subtree).
+    HomologyUnit *homologyUnit; // Homology unit the tree refers to
+                                // (can and should refer to more than
+                                // the child subtree).
     double support; // Bootstrap support for this branch.
 } stCaf_SplitBranch;
 
@@ -127,8 +140,11 @@ typedef struct {
 
 // Split a block according to a partition (a list of lists of
 // stIntTuples representing the segment indices in the block).
-void stCaf_splitBlock(stPinchBlock *block, stList *partitions,
-                      bool allowSingleDegreeBlocks);
+//
+// Returns a list with the newly partitioned blocks (in the same order
+// as the provided partition list).
+stList *stCaf_splitBlock(stPinchBlock *block, stList *partitions,
+                         bool allowSingleDegreeBlocks);
 
 // Compare two bootstrap scores of split branches. Use the pointer
 // value of the branches as a tiebreaker since we are using a sorted
@@ -137,16 +153,16 @@ void stCaf_splitBlock(stPinchBlock *block, stList *partitions,
 int stCaf_SplitBranch_cmp(stCaf_SplitBranch *branch1,
                           stCaf_SplitBranch *branch2);
 
-// Find new split branches from the block and add them to the sorted set.
-// speciesToSplitOn is just the species that are on the path from the
-// reference node to the root.
-void stCaf_findSplitBranches(stPinchBlock *block, stTree *tree,
+// Find new split branches from the homology unit and add them to the
+// sorted set. speciesToSplitOn is just the species that are on the
+// path from the reference node to the root.
+void stCaf_findSplitBranches(HomologyUnit *unit, stTree *tree,
                              stSortedSet *splitBranches,
                              stSet *speciesToSplitOn);
 
 // Remove any split branches that appear in this tree from the
 // set of split branches.
-void stCaf_removeSplitBranches(stPinchBlock *block, stTree *tree,
+void stCaf_removeSplitBranches(HomologyUnit *unit, stTree *tree,
                                stSet *speciesToSplitOn,
                                stSortedSet *splitBranches);
 
