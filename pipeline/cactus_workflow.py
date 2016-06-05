@@ -609,8 +609,7 @@ class CactusCafRecursion(CactusRecursionJob):
     """This job does the get flowers down pass for the CAF alignment phase.
     """    
     def run(self, fileStore):
-        self.downloadDB(fileStore)
-        self.databaseID = self.makeRecursiveJobs(fileStore)
+        self.makeRecursiveJobs(fileStore)
         return self.makeExtendingJobs(job=CactusCafWrapper, fileStore = fileStore, overlargeJob=CactusCafWrapperLarge, runFlowerStats=True)
         
 class CactusCafWrapper(CactusRecursionJob):
@@ -651,7 +650,6 @@ class CactusCafWrapper(CactusRecursionJob):
             logger.info("Reading constraints file")
             constraints = fileStore.readGlobalFile(self.getOptionalPhaseAttrib("constraintsID"))
         self.runCactusCafInWorkflow(alignmentFile=None, constraints=constraints)
-        return self.databaseID
        
 class CactusCafWrapperLarge(CactusRecursionJob):
     """Runs blast on the given flower and passes the resulting alignment to cactus core.
@@ -673,7 +671,7 @@ class CactusCafWrapperLarge(CactusRecursionJob):
                                                         minimumSequenceLength=self.getOptionalPhaseAttrib("minimumSequenceLengthForBlast", int, 1)))).rv()
         #Now setup a call to cactus core wrapper as a follow on
         self.phaseNode.attrib["alignmentIDs"] = alignmentsID
-        return self.makeFollowOnRecursiveJob(CactusCafWrapperLarge2)
+        self.makeFollowOnRecursiveJob(CactusCafWrapperLarge2)
         
 class CactusCafWrapperLarge2(CactusCafWrapper):
     """Runs cactus_core upon a one flower and one alignment file.
@@ -689,7 +687,6 @@ class CactusCafWrapperLarge2(CactusCafWrapper):
             constraints = fileStore.readGlobalFile(self.phaseNode.attrib["constraintsID"])
         logger.info("Alignments file: %s" % alignments)
         self.runCactusCafInWorkflow(alignmentFile=alignments, constraints=constraints)
-        return self.databaseID
         
 ############################################################
 ############################################################
