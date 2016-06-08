@@ -135,8 +135,9 @@ class CactusJob(Job):
     def downloadDB(self, fileStore, create=False, cache=True):
         
         dbElem = DbElemWrapper(ET.fromstring(self.getDatabaseString()))
-        dbElem.setDbDir(os.path.join(fileStore.getLocalTempDir(), "cactusDB"))
-        os.makedirs(dbElem.getDbDir())
+        dbElem.setDbDir("/tmp/cactusDB")
+        if not os.path.exists(dbElem.getDbDir()):
+            os.makedirs(dbElem.getDbDir())
         self.setDatabaseString(dbElem.getConfString())
         if create:
             assert not self.databaseID
@@ -255,10 +256,6 @@ class CactusRecursionJob(CactusJob):
         if phaseNode == None:
             phaseNode = self.phaseNode
         
-        #Can't figure out how to deal with splitting the database
-        #between multiple child jobs running concurrently.
-        assert len(flowersAndSizes) <= 1
-
         logger.info("Make wrapper jobs: There are %i flowers" % len(flowersAndSizes))
         for overlarge, flowerNames in flowersAndSizes:
             if overlarge: #Make sure large flowers are on their own, in their own job
@@ -287,7 +284,6 @@ class CactusRecursionJob(CactusJob):
             phaseNode = self.phaseNode
         
         logger.info("Extending: There are %i flowers" % len(flowersAndSizes))
-        assert len(flowersAndSizes) <= 1
         for overlarge, flowerNames in flowersAndSizes:
             self.databaseID = self.addFollowOn(job(cactusDiskDatabaseString=self.cactusDiskDatabaseString,
                 phaseNode=phaseNode, constantsNode=self.constantsNode, flowerNames=flowerNames, overlarge=False,

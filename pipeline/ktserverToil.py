@@ -73,7 +73,7 @@ class KtServerService(Job.Service):
             #wfArgs = self.newChild.cactusWorkflowArguments
             #self.dbElem = ExperimentWrapper(wfArgs.experimentNode)
             #experiment = self.dbElem
-            self.dbElem.setDbDir(os.path.join(fileStore.getLocalTempDir(), "cactusDB/"))
+            self.dbElem.setDbDir("/tmp/cactusDB")
         else:
             #assert isinstance(self.newChild, CactusRecursionJob)
             #dbString = self.newChild.getOptionalPhaseAttrib("secondaryDatabaseString")
