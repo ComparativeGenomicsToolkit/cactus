@@ -18,8 +18,8 @@ from sonLib.bioio import catFiles
 from sonLib.bioio import getTempFile, getTempDirectory
 from sonLib.bioio import nameValue
 from toil.job import Job
-from cactus.shared.common import WritePermanentFile
-
+from toil.common import Toil
+from cactus.shared.common import makeURL
 
 class BlastOptions:
     def __init__(self, chunkSize=10000000, overlapSize=10000, 
@@ -57,17 +57,6 @@ class BlastOptions:
         self.trimWindowSize = trimWindowSize
         self.trimOutgroupFlanking = trimOutgroupFlanking
         
-class BlastFlowerWrapper(Job):
-    def __init__(self, cactusDisk, flowerName, finalResultsFile, blastOptions):
-        Job.__init__(self)
-        self.cactusDisk = cactusDisk
-        self.flowerName = flowerName
-        self.finalResultsFile = finalResultsFile
-        self.blastOptions = blastOptions
-    def run(self, fileStore):
-        resultsID = self.addChild(BlastFlower(self.cactusDisk, self.flowerName, self.blastOptions)).rv()
-        self.addFollowOn(WritePermanentFile(resultsID, self.finalResultsFile))
-
 class BlastFlower(Job):
     """Take a reconstruction problem and generate the sequences in chunks to be blasted.
     Then setup the follow on blast targets and collation targets.
@@ -93,17 +82,6 @@ class BlastFlower(Job):
         offDiagonalResultsID = self.addChild(MakeOffDiagonalBlasts(self.blastOptions, chunkIDs)).rv()
         return self.addFollowOn(CollateBlasts([selfResultsID, offDiagonalResultsID])).rv()
     
-class BlastSequencesAllAgainstAllWrapper(Job):
-    def __init__(self, sequenceFiles1, outputFile, blastOptions):
-        Job.__init__(self)
-        self.sequenceFiles1 = sequenceFiles1
-        self.outputFile = outputFile
-        self.blastOptions = blastOptions
-    def run(self, fileStore):
-        sequenceIDs1 = [fileStore.writeGlobalFile(seq, cleanup=False) for seq in self.sequenceFiles1]
-        outputID = self.addChild(BlastSequencesAllAgainstAll(sequenceIDs1, self.blastOptions)).rv()
-        self.addFollowOn(WritePermanentFile(outputID, self.outputFile))
-
 class BlastSequencesAllAgainstAll(Job):
     """Take a set of sequences, chunks them up and blasts them.
     """
@@ -163,18 +141,6 @@ class MakeOffDiagonalBlasts(Job):
             #Set up the job to collate all the results
             logger.debug("Collating off-diagonal blasts")
             return self.addFollowOn(CollateBlasts(resultsIDs)).rv()
-class BlastSequencesAgainstEachOtherWrapper(Job):
-    def __init__(self, sequenceFiles1, sequenceFiles2, cigarFile, blastOptions):
-        Job.__init__(self)
-        self.sequenceFiles1 = sequenceFiles1
-        self.sequenceFiles2 = sequenceFiles2
-        self.cigarFile = cigarFile
-        self.blastOptions = blastOptions
-    def run(self, fileStore):
-        seqIDs1 = [fileStore.writeGlobalFile(seq, cleanup=False) for seq in self.sequenceFiles1]
-        seqIDs2 = [fileStore.writeGlobalFile(seq, cleanup=False) for seq in self.sequenceFiles2]
-        cigarID = self.addChild(BlastSequencesAgainstEachOther(seqIDs1, seqIDs2, self.blastOptions)).rv()
-        self.addFollowOn(WritePermanentFile(cigarID, self.cigarFile))
             
 class BlastSequencesAgainstEachOther(Job):
     """Take two sets of sequences, chunks them up and blasts one set against the other.
@@ -203,49 +169,6 @@ class BlastSequencesAgainstEachOther(Job):
         logger.info("Made the list of blasts")
         #Set up the job to collate all the results
         return self.addFollowOn(CollateBlasts(resultsIDs)).rv()
-class BlastIngroupsAndOutgroupsWrapper(Job):
-    def __init__(self, blastOptions, ingroups, outgroups, cigarFile, outgroupFragmentsDir):
-        Job.__init__(self)
-        self.blastOptions = blastOptions
-        self.outgroups = outgroups
-        self.ingroups = ingroups
-        self.cigarFile = cigarFile
-        self.outgroupFragmentsDir = outgroupFragmentsDir
-    def run(self, fileStore):
-        fileStore.logToMaster("Blasting ingroups vs outgroups to file %s" % (self.cigarFile))
-        ingroupIDs = [fileStore.writeGlobalFile(seq, cleanup=False) for seq in self.ingroups]
-        outgroupIDs = [fileStore.writeGlobalFile(seq, cleanup=False) for seq in self.outgroups]
-        try:
-            os.makedirs(self.outgroupFragmentsDir)
-        except os.error:
-            # Directory already exists
-            pass
-        results = self.addChild(BlastIngroupsAndOutgroups(self.blastOptions, ingroupIDs, outgroupIDs)).rv()
-        
-        self.addFollowOn(WriteIngroupAndOutgroupResults(results, self.outgroups, self.cigarFile, self.outgroupFragmentsDir))
-class WriteIngroupAndOutgroupResults(Job):
-    def __init__(self, results, outgroups, cigarFile, outgroupFragmentsDir):
-        Job.__init__(self)
-        self.results = results
-        self.outgroups = outgroups
-        self.cigarFile = cigarFile
-        self.outgroupFragmentsDir = outgroupFragmentsDir
-        
-    def run(self, fileStore):
-        alignmentsID = self.results["alignmentsID"]
-        outgroupFragmentIDs = self.results["outgroupFragmentIDs"]
-
-
-        outgroupFragments = [fileStore.readGlobalFile(seq, cache=False) for seq in outgroupFragmentIDs]
-        fileStore.readGlobalFile(alignmentsID, userPath=self.cigarFile)
-
-        logger.info("Writing BlastIngroupsAndOutgroups cigar file to: %s" % self.cigarFile)
-        assert len(outgroupFragments) == len(self.outgroups)
-        for (outgroupFragment, outgroupName) in zip(outgroupFragments, self.outgroups):
-            system("cp %s %s" % (outgroupFragment, os.path.join(self.outgroupFragmentsDir, os.path.basename(outgroupName))))
-        map(fileStore.deleteGlobalFile, outgroupFragmentIDs)
-        fileStore.deleteGlobalFile(alignmentsID)
-            
         
 class BlastIngroupsAndOutgroups(Job):
     """Blast ingroup sequences against each other, and against the given
@@ -337,7 +260,9 @@ class TrimAndRecurseOnOutgroups(Job):
         sequences = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceIDs]
         mostRecentResults = fileStore.readGlobalFile(self.mostRecentResultsID)
         if self.outputID:
-            outputFile = fileStore.readGlobalFile(self.outputID, cache=False)
+            outputFileTmp = fileStore.readGlobalFile(self.outputID, cache=False)
+            outputFile = fileStore.getLocalTempFile()
+            shutil.copyfile(outputFileTmp, outputFile)
         else:
             outputFile = fileStore.getLocalTempFile()
         trimmedOutgroup = fileStore.getLocalTempFile()
@@ -632,23 +557,40 @@ replaced with the the sequence file and the results file, respectively",
                       "store outgroup fragments in")
 
     options = parser.parse_args()
-    if options.test:
-        _test()
+    with Toil(options) as toil:
+        if options.test:
+            _test()
 
-    if (options.ingroups is not None) ^ (options.outgroups is not None):
-        raise RuntimeError("--ingroups and --outgroups must be provided "
-                           "together")
-    if options.ingroups:
-        firstJob = BlastIngroupsAndOutgroupsWrapper(options,
-                                                options.ingroups.split(','),
-                                                options.outgroups.split(','),
-                                                options.cigarFile,
-                                                options.outgroupFragmentsDir)
-    elif options.targetSequenceFiles == None:
-        firstJob = BlastSequencesAllAgainstAllWrapper(options.seqFiles.split(), options.cigarFile, options)
-    else:
-        firstJob = BlastSequencesAgainstEachOtherWrapper(options.seqFiles.split(), options.targetSequenceFiles.split(), options.cigarFile, options)
-    Job.Runner.startToil(firstJob, options)
+        if (options.ingroups is not None) ^ (options.outgroups is not None):
+            raise RuntimeError("--ingroups and --outgroups must be provided "
+                               "together")
+        if options.ingroups:
+            ingroupIDs = [toil.importFile(makeURL(ingroup)) for ingroup in options.ingroups.split(',')]
+            outgroupIDs = [toil.importFile(makeURL(outgroup)) for outgroup in options.outgroups.split(',')]
+            rootJob = BlastIngroupsAndOutgroups(options, ingroupIDs, outgroupIDs)
+            blastResults = toil.start(rootJob)
+            alignmentsID = blastResults["alignmentsID"]
+            toil.exportFile(alignmentsID, makeURL(options.cigarFile))
+            outgroupFragmentIDs = blastResults["outgroupFragmentIDs"]
+            assert len(outgroupFragmentIDs) == len(options.outgroups.split(','))
+            if not os.path.exists(options.outgroupFragmentsDir):
+                os.makedirs(options.outgroupFragmentsDir)
+            for (outgroupFragmentID, outgroupName) in zip(outgroupFragmentIDs, options.outgroups.split(',')):
+                toil.exportFile(outgroupFragmentID, makeURL(os.path.join(options.outgroupFragmentsDir, os.path.basename(outgroupName))))
+
+            
+
+        elif options.targetSequenceFiles == None:
+            seqIDs = [toil.importFile(makeURL(seq)) for seq in options.seqFiles.split()]
+            rootJob = BlastSequencesAllAgainstAll(seqIDs, options)
+            alignmentsID = toil.start(rootJob)
+            toil.exportFile(alignmentsID, makeURL(options.cigarFile))
+        else:
+            seqIDs = [toil.importFile(makeURL(seq)) for seq in options.seqFiles.split()]
+            targetSeqIDs = [toil.importFile(makeURL(seq)) for seq in options.targetSequenceFiles.split()]
+            rootJob = BlastSequencesAgainstEachOther(seqIDs, targetSeqIDs, options)
+            alignmentsID = toil.start(rootJob)
+            toil.exportFile(alignmentsID, makeURL(options.cigarFile))
 
 def _test():
     import doctest

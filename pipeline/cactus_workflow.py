@@ -32,6 +32,7 @@ from sonLib.bioio import makeSubDir
 from cactus.shared.common import cactusRootPath
   
 from toil.job import Job
+from toil.common import Toil
 
 from jobTree.src.bioio import getLogLevelString
 
@@ -132,7 +133,7 @@ class CactusJob(Job):
             fileStore.deleteGlobalFile(self.databaseID)
         self.databaseID = fileStore.writeGlobalFile(os.path.join(dbElem.getDbDir(), "cactusSequences"), cleanup = False)
 
-    def downloadDB(self, fileStore, create=False, cache=True):
+    def downloadDB(self, fileStore, create=False):
         
         dbElem = DbElemWrapper(ET.fromstring(self.getDatabaseString()))
         dbElem.setDbDir("/tmp/cactusDB")
@@ -144,7 +145,9 @@ class CactusJob(Job):
             logger.info("Creating database from scratch")
         else:
             assert self.databaseID
-            fileStore.readGlobalFile(self.databaseID, os.path.join(dbElem.getDbDir(), "cactusSequences"), cache=cache)
+            dbPath = os.path.join(dbElem.getDbDir(), "cactusSequences")
+            if not os.path.exists(dbPath):
+                fileStore.readGlobalFile(self.databaseID, userPath=dbPath, mutable=True, cache=True)
 
 class CactusPhasesJob(CactusJob):
     """Base job for each workflow phase job.
@@ -549,7 +552,6 @@ def inverseJukesCantor(d):
     
 class CactusCafPhase(CactusPhasesJob):      
     def run(self, fileStore):
-        self.downloadDB(fileStore)
         if (not self.cactusWorkflowArguments.configWrapper.getDoTrimStrategy()) or (self.cactusWorkflowArguments.outgroupEventNames == None):
             setupFilteringByIdentity(self.cactusWorkflowArguments)
         #Setup any constraints
@@ -568,6 +570,7 @@ class CactusCafPhase(CactusPhasesJob):
             alignmentsFile = fileStore.readGlobalFile(self.cactusWorkflowArguments.alignmentsID)
             convertedAlignmentsFile = fileStore.getLocalTempFile()
             # Convert the cigar file to use 64-bit cactus Names instead of the headers.
+            self.downloadDB(fileStore)
             runConvertAlignmentsToInternalNames(self.cactusWorkflowArguments.cactusDiskDatabaseString, alignmentsFile, convertedAlignmentsFile, self.topFlowerName)
             fileStore.logToMaster("Converted headers of cigar file %s to internal names, new file %s" % (self.cactusWorkflowArguments.alignmentsID, convertedAlignmentsFile))
             self.cactusWorkflowArguments.alignmentsID = fileStore.writeGlobalFile(convertedAlignmentsFile, cleanup=False)
@@ -579,10 +582,8 @@ class CactusCafPhase(CactusPhasesJob):
             self.phaseNode.attrib["alignmentsID"] = self.cactusWorkflowArguments.alignmentsID
             return self.runPhase(CactusCafWrapperLarge2, CactusBarPhase, "bar")
         elif self.getPhaseIndex()+1 < self.getPhaseNumber(): #Check if there is a repeat phase
-            self.writeDB(fileStore)
             return self.runPhase(CactusCafRecursion, CactusCafPhase, "caf", index=self.getPhaseIndex()+1)
         else:
-            self.writeDB(fileStore)
             return self.runPhase(CactusCafRecursion, CactusBarPhase, "bar")
 
 class CactusCafRecursion(CactusRecursionJob):
@@ -739,6 +740,7 @@ class CactusBarWrapperLarge(CactusRecursionJob):
         endsToAlign = []
         totalSize = 0
         precomputedAlignmentIDs = []
+        self.downloadDB(fileStore)
         for line in runBarForJob(self, calculateWhichEndsToComputeSeparately=True):
             endToAlign, sequencesInEndAlignment, basesInEndAlignment = line.split()
             sequencesInEndAlignment = int(sequencesInEndAlignment)
@@ -749,7 +751,7 @@ class CactusBarWrapperLarge(CactusRecursionJob):
                                                          self.cactusDiskDatabaseString, self.flowerNames,
                                                          True, [ endToAlign ])).rv()
                 precomputedAlignmentIDs.append(alignmentID)
-                fileStore.logToMaster("Precomputing very large end alignment for %s with %i caps and %i bases" % \
+                logger.info("Precomputing very large end alignment for %s with %i caps and %i bases" % \
                              (endToAlign, sequencesInEndAlignment, basesInEndAlignment))
             else:
                 endsToAlign.append(endToAlign)
@@ -763,7 +765,7 @@ class CactusBarWrapperLarge(CactusRecursionJob):
             precomputedAlignmentIDs.append(self.addChild(CactusBarEndAlignerWrapper(self.phaseNode, self.constantsNode, self.cactusDiskDatabaseString, self.flowerNames, False, endsToAlign)).rv())
         self.precomputedAlignmentIDs = precomputedAlignmentIDs
         self.makeFollowOnRecursiveJob(CactusBarWrapperWithPrecomputedEndAlignments)
-        fileStore.logToMaster("Breaking bar job into %i separate jobs" % \
+        logger.info("Breaking bar job into %i separate jobs" % \
                              (len(precomputedAlignmentIDs)))
         
 class CactusBarEndAlignerWrapper(CactusRecursionJob):
@@ -778,6 +780,7 @@ class CactusBarEndAlignerWrapper(CactusRecursionJob):
         self.endsToAlign.sort()
         self.flowerNames = encodeFlowerNames((decodeFirstFlowerName(self.flowerNames),) + tuple(self.endsToAlign)) #The ends to align become like extra flower names
         alignmentFile = fileStore.getLocalTempFile()
+        self.downloadDB(fileStore)
         messages = runBarForJob(self, 
                                    endAlignmentsToPrecomputeOutputFile=alignmentFile)
         for message in messages:
@@ -788,9 +791,9 @@ class CactusBarWrapperWithPrecomputedEndAlignments(CactusRecursionJob):
     """Runs the BAR algorithm implementation with some precomputed end alignments.
     """
     def run(self, fileStore):
-        self.downloadDB(fileStore)
         if self.precomputedAlignmentIDs:
             precomputedAlignments = [fileStore.readGlobalFile(fileID) for fileID in self.precomputedAlignmentIDs]
+            self.downloadDB(fileStore)
             messages = runBarForJob(self, precomputedAlignments=" ".join(precomputedAlignments))
             #map(fileStore.deleteGlobalFile, self.precomputedAlignmentIDs)
         else:
@@ -915,7 +918,7 @@ class CactusReferenceWrapper(CactusRecursionJob):
     def run(self, fileStore):
         assert self.databaseID
         logger.info("Reading database in RefWrapper: %s" % self.databaseID)
-        self.downloadDB(fileStore, cache=False)
+        self.downloadDB(fileStore)
         runCactusReference(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                        flowerNames=self.flowerNames, 
                        matchingAlgorithm=self.getOptionalPhaseAttrib("matchingAlgorithm"), 
@@ -951,7 +954,7 @@ class CactusSetReferenceCoordinatesUpWrapper(CactusRecursionJob):
     """ 
     def run(self, fileStore):
         assert self.databaseID
-        self.downloadDB(fileStore, cache=False)
+        self.downloadDB(fileStore)
         runCactusAddReferenceCoordinates(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                                          secondaryDatabaseString=self.getOptionalPhaseAttrib("secondaryDatabaseString"),
                                          flowerNames=self.flowerNames,
@@ -987,7 +990,7 @@ class CactusSetReferenceCoordinatesDownWrapper(CactusRecursionJob):
     """        
     def run(self, fileStore):
         assert self.databaseID
-        self.downloadDB(fileStore, cache=False)
+        self.downloadDB(fileStore)
         runCactusAddReferenceCoordinates(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                                          flowerNames=self.flowerNames,
                                          referenceEventString=self.getOptionalPhaseAttrib("reference"),
@@ -1251,7 +1254,8 @@ def main():
      #   raise RuntimeError("Unrecognised input arguments: %s" % " ".join(args))
 
     cactusWorkflowArguments = CactusWorkflowArguments(options)
-    Job.Runner.startToil(RunCactusPreprocessorThenCactusSetup(options), options)
+    with Toil(options) as toil:
+        Job.Runner.startToil(RunCactusPreprocessorThenCactusSetup(options), options)
 
 def _test():
     import doctest      

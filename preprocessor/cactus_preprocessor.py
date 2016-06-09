@@ -24,9 +24,9 @@ from sonLib.bioio import newickTreeParser
 from sonLib.bioio import makeSubDir
 from sonLib.bioio import catFiles, getTempFile, getTempDirectory
 from toil.job import Job
+from toil.common import Toil
 
 from cactus.shared.common import getOptionalAttrib, runCactusAnalyseAssembly
-from cactus.shared.common import WritePermanentFile
 from toil.lib.bioio import setLoggingFromOptions
 from cactus.shared.configWrapper import ConfigWrapper
 
@@ -230,8 +230,12 @@ def main():
     outputSequences = CactusPreprocessor.getOutputSequenceFiles(inputSequences, options.outputSequenceDir)
     if configNode.find("constants") != None:
         ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals()
-    
-    Job.Runner.startToil(CactusPreprocessor(inputSequences, outputSequences, configNode), options)
+
+    with Toil(options) as toil:
+        inputSequenceIDs = [toil.importFile(makeURL(seq)) for seq in inputSequences]
+        outputSequenceIDs = Job.Runner.startToil(CactusPreprocessor(inputSequences, outputSequences, configNode), options)
+        for seqID, path in zip(outputSequenceIDs, outputSequences):
+            toil.exportFile(makeURL(seqID, path))
 
 def _test():
     import doctest      

@@ -17,6 +17,8 @@ from sonLib.bioio import nameValue
 from sonLib.bioio import getLogLevelString
 from toil.job import Job
 
+def makeURL(path):
+    return "file://" + os.path.abspath(path)
 
 def cactusRootPath():
     """
@@ -521,14 +523,3 @@ def runToilStats(toil, outputFile):
 def runToilStatusAndFailIfNotComplete(toilDir):
     command = "toil status %s --failIfNotComplete --verbose" % toilDir
     system(command)
-    
-class WritePermanentFile(Job):
-    def __init__(self, fileID, filePath):
-        Job.__init__(self)
-        self.fileID = fileID
-        self.filePath = filePath
-    def run(self, fileStore):
-        logger.info("ID = %s" % self.fileID)
-        tmpPath = fileStore.readGlobalFile(self.fileID, cache=False, userPath=self.filePath)
-
-        
