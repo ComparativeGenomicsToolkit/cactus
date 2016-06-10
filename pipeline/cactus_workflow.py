@@ -797,6 +797,7 @@ class CactusBarWrapperWithPrecomputedEndAlignments(CactusRecursionJob):
             messages = runBarForJob(self, precomputedAlignments=" ".join(precomputedAlignments))
             #map(fileStore.deleteGlobalFile, self.precomputedAlignmentIDs)
         else:
+            self.downloadDB(fileStore)
             messages = runBarForJob(self)
         for message in messages:
             fileStore.logToMaster(message)
@@ -843,7 +844,6 @@ class CactusNormalWrapper(CactusRecursionJob):
         self.downloadDB(fileStore)
         runCactusMakeNormal(self.cactusDiskDatabaseString, flowerNames=self.flowerNames, 
                             maxNumberOfChains=self.getOptionalPhaseAttrib("maxNumberOfChains", int, default=30))
-        self.writeDB(fileStore)
         return self.databaseID
 
 ############################################################
@@ -1053,7 +1053,6 @@ class CactusCheckWrapper(CactusRecursionJob):
         assert self.databaseID
         self.downloadDB(fileStore)
         runCactusCheck(self.cactusDiskDatabaseString, self.flowerNames, checkNormalised=self.getOptionalPhaseAttrib("checkNormalised", bool, False))
-        self.writeDB(fileStore)
         return self.databaseID
 
 ############################################################
