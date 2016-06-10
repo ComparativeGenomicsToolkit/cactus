@@ -37,7 +37,7 @@ class KtServerService(Job.Service):
 
     def start(self, fileStore):
         if self.isSecondary == False:
-            self.dbElem.setDbDir("/tmp/cactusDB")
+            self.dbElem.setDbDir(os.path.join(fileStore.getLocalTempDir(), "cactusDB"))
         else:
             self.dbElem.setDbDir(os.path.join(fileStore.getLocalTempDir(), "tempDB/"))
 
