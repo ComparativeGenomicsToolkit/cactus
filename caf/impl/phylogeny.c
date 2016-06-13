@@ -149,8 +149,81 @@ static stList *getOutgroupThreads(HomologyUnit *unit, stSet *outgroupThreads) {
  * Splits chained blocks.
  */
 stList *stCaf_splitChain(stList *chainedBlocks, stList *partitions, bool allowSingleDegreeBlocks) {
-    // FIXME: stub
-    return NULL;
+    assert(stList_length(chainedBlocks) > 0);
+    // The partition is according to the order of the segments of the
+    // canonical block (the first block in the chain list). So the
+    // first thing we do is form a map from canonical block segment #
+    // to block segment # for each block in the chain.
+    stHash *blockToCanonicalBlockIndexToBlockIndex = stHash_construct2(NULL, (void (*)(void *)) stHash_destruct);
+    stPinchBlock *canonicalBlock = stList_get(chainedBlocks, 0);
+    stPinchBlock *lastBlock = stList_get(chainedBlocks, stList_length(chainedBlocks) - 1);
+    stPinchBlockIt blockIt = stPinchBlock_getSegmentIterator(canonicalBlock);
+    stPinchSegment *segment;
+    int64_t canonicalBlockIndex = 0;
+    while ((segment = stPinchBlockIt_getNext(&blockIt)) != NULL) {
+        bool originalOrientation = stPinchSegment_getBlockOrientation(segment);
+        for (;;) {
+            stPinchBlock *block = stPinchSegment_getBlock(segment);
+            if (block != NULL) {
+                stHash *canonicalBlockIndexToBlockIndex = stHash_search(blockToCanonicalBlockIndexToBlockIndex, block);
+                if (canonicalBlockIndexToBlockIndex == NULL) {
+                    canonicalBlockIndexToBlockIndex = stHash_construct3((uint64_t (*)(const void *)) stIntTuple_hashKey, (int (*)(const void *, const void *)) stIntTuple_equalsFn, (void (*)(void *)) stIntTuple_destruct, (void (*)(void *)) stIntTuple_destruct);
+                }
+                stIntTuple *canonicalBlockIndexTuple = stIntTuple_construct1(canonicalBlockIndex);
+                assert(stHash_search(canonicalBlockIndexToBlockIndex, canonicalBlockIndexTuple) == NULL);
+
+                // Find the index of this segment within its block.
+                stPinchBlockIt subBlockIt = stPinchBlock_getSegmentIterator(block);
+                stPinchSegment *subSegment;
+                int64_t blockIndex = 0;
+                while ((subSegment = stPinchBlockIt_getNext(&subBlockIt)) != NULL) {
+                    if (subSegment == segment) {
+                        break;
+                    }
+                    blockIndex++;
+                }
+                assert(blockIndex < stPinchBlock_getDegree(block));
+
+                stIntTuple *blockIndexTuple = stIntTuple_construct1(blockIndex);
+                stHash_insert(canonicalBlockIndexToBlockIndex, canonicalBlockIndexTuple, blockIndexTuple);
+
+                if (stPinchSegment_getBlock(segment) == lastBlock) {
+                    break;
+                }
+            }
+            segment = originalOrientation ? stPinchSegment_get3Prime(segment) : stPinchSegment_get5Prime(segment);
+        }
+        canonicalBlockIndex++;
+    }
+
+    stList *partitionedChains = stList_construct();
+    for (int64_t i = 0; i < stList_length(partitions); i++) {
+        stList_append(partitionedChains, stList_construct());
+    }
+
+    for (int64_t i = 0; i < stList_length(chainedBlocks); i++) {
+        stPinchBlock *block = stList_get(chainedBlocks, i);
+        stHash *canonicalBlockIndexToBlockIndex = stHash_search(blockToCanonicalBlockIndexToBlockIndex, block);
+        assert(canonicalBlockIndexToBlockIndex != NULL);
+        stList *localPartitions = stList_construct3(0, (void (*)(void *)) stList_destruct);
+        for (int64_t j = 0; j < stList_length(partitions); j++) {
+            stList *partition = stList_get(partitions, j);
+            stList *localPartition = stList_construct();
+            for (int64_t k = 0; k < stList_length(partition); k++) {
+                stIntTuple *localIndex = stHash_search(canonicalBlockIndexToBlockIndex, stList_get(partition, k));
+                stList_append(localPartition, localIndex);
+            }
+            stList_append(localPartitions, localPartition);
+        }
+        stList *locallyPartitionedBlocks = stCaf_splitBlock(block, localPartitions, allowSingleDegreeBlocks);
+        for (int64_t j = 0; j < stList_length(locallyPartitionedBlocks); j++) {
+            stList_append(stList_get(partitionedChains, j), stList_get(locallyPartitionedBlocks, j));
+        }
+        stList_destruct(locallyPartitionedBlocks);
+        stList_destruct(localPartitions);
+    }
+    stHash_destruct(blockToCanonicalBlockIndexToBlockIndex);
+    return partitionedChains;
 }
 
 /*

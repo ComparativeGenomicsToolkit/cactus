@@ -146,6 +146,8 @@ typedef struct {
 stList *stCaf_splitBlock(stPinchBlock *block, stList *partitions,
                          bool allowSingleDegreeBlocks);
 
+stList *stCaf_splitChain(stList *chainedBlocks, stList *partitions, bool allowSingleDegreeBlocks);
+
 // Compare two bootstrap scores of split branches. Use the pointer
 // value of the branches as a tiebreaker since we are using a sorted
 // set and don't want to merge together all branches with the same
