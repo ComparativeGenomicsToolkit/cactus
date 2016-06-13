@@ -154,7 +154,9 @@ static void test_stCaf_splitBlock(CuTest *testCase) {
             }
 
             // Split the block
-            stCaf_splitBlock(block, partitions, allowSingleDegreeBlocks);
+            stList *partitionedBlocks = stCaf_splitBlock(block, partitions, allowSingleDegreeBlocks);
+            CuAssertIntEquals(testCase, stList_length(partitions), stList_length(partitionedBlocks));
+            stList_destruct(partitionedBlocks);
 
             // Make sure the block partitioned correctly
             stSet *seenBlocks = stSet_construct();
@@ -213,6 +215,71 @@ static void test_stCaf_splitBlock(CuTest *testCase) {
     }
 }
 
+static void test_stCaf_splitChain(CuTest *testCase) {
+    // Test stCaf_splitChain on a chain that looks like this:
+    // thread 1: =1=>--=2=>=3=>--=2=>
+    // thread 2: <2==--<1==<2==--<3==
+    // thread 3: =3=>--=3=>=1=>--=1=>
+    stPinchThreadSet *threadSet = stPinchThreadSet_construct();
+    stPinchThread *thread1 = stPinchThreadSet_addThread(threadSet, 1, 0, 100);
+    stPinchThread *thread2 = stPinchThreadSet_addThread(threadSet, 2, 0, 100);
+    stPinchThread *thread3 = stPinchThreadSet_addThread(threadSet, 3, 0, 100);
+
+    stPinchThread_pinch(thread1, thread2, 0, 90, 10, false);
+    stPinchThread_pinch(thread1, thread3, 0, 0, 10, true);
+
+    stPinchThread_pinch(thread2, thread1, 70, 20, 10, false);
+    stPinchThread_pinch(thread1, thread3, 20, 20, 10, true);
+
+    stPinchThread_pinch(thread3, thread2, 30, 60, 10, false);
+    stPinchThread_pinch(thread3, thread1, 30, 30, 10, true);
+
+    stPinchThread_pinch(thread3, thread2, 50, 40, 10, false);
+    stPinchThread_pinch(thread3, thread1, 50, 50, 10, true);
+
+    stList *chain = stList_construct();
+    stList_append(chain, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 0)));
+    stList_append(chain, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 20)));
+    stList_append(chain, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 30)));
+    stList_append(chain, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 50)));
+
+    stList *partitions = stList_construct3(0, (void (*)(void *)) stList_destruct);
+    stList *partition1 = stList_construct3(0, (void (*)(void *)) stIntTuple_destruct);
+    stList_append(partition1, stIntTuple_construct1(0));
+    stList_append(partition1, stIntTuple_construct1(2));
+    stList_append(partitions, partition1);
+    stList *partition2 = stList_construct();
+    stList_append(partition2, stIntTuple_construct1(1));
+    stList_append(partitions, partition2);
+
+    stList *partitionedChains = stCaf_splitChain(chain, partitions, true);
+    CuAssertIntEquals(testCase, stList_length(partitionedChains), stList_length(partitions));
+    CuAssertIntEquals(testCase, stList_length(stList_get(partitionedChains, 0)), stList_length(chain));
+    CuAssertIntEquals(testCase, stList_length(stList_get(partitionedChains, 1)), stList_length(chain));
+
+    CuAssertIntEquals(testCase, 8, stPinchThreadSet_getTotalBlockNumber(threadSet));
+    CuAssertTrue(testCase, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 0)) !=
+                           stPinchSegment_getBlock(stPinchThread_getSegment(thread2, 90)));
+    CuAssertTrue(testCase, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 0)) ==
+                           stPinchSegment_getBlock(stPinchThread_getSegment(thread3, 0)));
+    CuAssertTrue(testCase, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 20)) !=
+                           stPinchSegment_getBlock(stPinchThread_getSegment(thread2, 70)));
+    CuAssertTrue(testCase, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 20)) ==
+                           stPinchSegment_getBlock(stPinchThread_getSegment(thread3, 20)));
+    CuAssertTrue(testCase, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 30)) !=
+                           stPinchSegment_getBlock(stPinchThread_getSegment(thread2, 60)));
+    CuAssertTrue(testCase, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 30)) ==
+                           stPinchSegment_getBlock(stPinchThread_getSegment(thread3, 30)));
+    CuAssertTrue(testCase, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 50)) !=
+                           stPinchSegment_getBlock(stPinchThread_getSegment(thread2, 40)));
+    CuAssertTrue(testCase, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 50)) ==
+                           stPinchSegment_getBlock(stPinchThread_getSegment(thread3, 50)));
+
+    stPinchThreadSet_destruct(threadSet);
+    stList_destruct(partitions);
+    stList_destruct(chain);
+}
+
 static void test_stCaf_findAndRemoveSplitBranches(CuTest *testCase) {
     stTree *speciesTree = stTree_parseNewickString("((human,(mouse,rat)Anc3)Anc2,(cow,dog)Anc1)Anc0;");
     // Here the reference event is Anc3.
@@ -243,6 +310,7 @@ static void test_stCaf_findAndRemoveSplitBranches(CuTest *testCase) {
 CuSuite *phylogenyTestSuite(void) {
     CuSuite *suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, test_stCaf_splitBlock);
+    SUITE_ADD_TEST(suite, test_stCaf_splitChain);
     SUITE_ADD_TEST(suite, test_stCaf_findAndRemoveSplitBranches);
     return suite;
 }
