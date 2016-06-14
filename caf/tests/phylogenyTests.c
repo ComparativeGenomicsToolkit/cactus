@@ -215,7 +215,7 @@ static void test_stCaf_splitBlock(CuTest *testCase) {
     }
 }
 
-static stList *simpleTestChain(stPinchThreadSet *threadSet) {
+static stList *setupTestChain(stPinchThreadSet *threadSet) {
     // Create a chain that looks like this:
     // thread 1: =1=>--=2=>=3=>--=2=>
     // thread 2: <2==--<1==<2==--<3==
@@ -245,10 +245,25 @@ static stList *simpleTestChain(stPinchThreadSet *threadSet) {
     return chain;
 }
 
-static void test_stCaf_splitChain(CuTest *testCase) {
-    // Test stCaf_splitChain on the simple test chain
+static stList *setupTestChainWithChildChains(stPinchThreadSet *threadSet) {
+    // Add some blocks in the adjacencies of the chain, so any
+    // accidental assumptions about the blocks being directly adjacent
+    // to each other are caught out.
+    stList *chain = setupTestChain(threadSet);
+    stPinchThread *thread1 = stPinchThreadSet_getThread(threadSet, 1);
+    stPinchThread *thread2 = stPinchThreadSet_getThread(threadSet, 2);
+    stPinchThread *thread3 = stPinchThreadSet_getThread(threadSet, 3);
+
+    stPinchThread_pinch(thread1, thread2, 14, 84, 2, true);
+    stPinchThread_pinch(thread2, thread3, 54, 44, 2, false);
+    return chain;
+}
+
+static void test_stCaf_splitChainP(CuTest *testCase, stList *(*setup)(stPinchThreadSet *)) {
     stPinchThreadSet *threadSet = stPinchThreadSet_construct();
-    stList *chain = simpleTestChain(threadSet);
+    stList *chain = setup(threadSet);
+    int64_t oldBlockNumber = stPinchThreadSet_getTotalBlockNumber(threadSet);
+
     stPinchThread *thread1 = stPinchThreadSet_getThread(threadSet, 1);
     stPinchThread *thread2 = stPinchThreadSet_getThread(threadSet, 2);
     stPinchThread *thread3 = stPinchThreadSet_getThread(threadSet, 3);
@@ -267,7 +282,7 @@ static void test_stCaf_splitChain(CuTest *testCase) {
     CuAssertIntEquals(testCase, stList_length(stList_get(partitionedChains, 0)), stList_length(chain));
     CuAssertIntEquals(testCase, stList_length(stList_get(partitionedChains, 1)), stList_length(chain));
 
-    CuAssertIntEquals(testCase, 8, stPinchThreadSet_getTotalBlockNumber(threadSet));
+    CuAssertIntEquals(testCase, oldBlockNumber + stList_length(chain), stPinchThreadSet_getTotalBlockNumber(threadSet));
     CuAssertTrue(testCase, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 0)) !=
                            stPinchSegment_getBlock(stPinchThread_getSegment(thread2, 90)));
     CuAssertTrue(testCase, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 0)) ==
@@ -290,6 +305,13 @@ static void test_stCaf_splitChain(CuTest *testCase) {
     stList_destruct(chain);
 }
 
+static void test_stCaf_splitChain(CuTest *testCase) {
+    // Test stCaf_splitChain on the simple test chain
+    test_stCaf_splitChainP(testCase, setupTestChain);
+    // Test on the same chain but with children
+    test_stCaf_splitChainP(testCase, setupTestChainWithChildChains);
+}
+
 // Circularly shift the list to the right by a positive amount (< length of list).
 static stList *shift(stList *list, int64_t shift) {
     stList *shifted = stList_construct2(stList_length(list));
@@ -299,9 +321,9 @@ static stList *shift(stList *list, int64_t shift) {
     return shifted;
 }
 
-static void test_stCaf_getCorrectChainOrder(CuTest *testCase) {
+static void test_stCaf_getCorrectChainOrderP(CuTest *testCase, stList *(*setup)(stPinchThreadSet *)) {
     stPinchThreadSet *threadSet = stPinchThreadSet_construct();
-    stList *chain = simpleTestChain(threadSet);
+    stList *chain = setupTestChainWithChildChains(threadSet);
 
     for (int64_t i = 0; i < stList_length(chain); i++) {
         stList *shiftedChain = shift(chain, i);
@@ -312,6 +334,12 @@ static void test_stCaf_getCorrectChainOrder(CuTest *testCase) {
         }
         stList_destruct(correctedChain);
     }
+    stPinchThreadSet_destruct(threadSet);
+}
+
+static void test_stCaf_getCorrectChainOrder(CuTest *testCase) {
+    test_stCaf_getCorrectChainOrderP(testCase, setupTestChain);
+    test_stCaf_getCorrectChainOrderP(testCase, setupTestChainWithChildChains);
 }
 
 static void test_stCaf_findAndRemoveSplitBranches(CuTest *testCase) {
