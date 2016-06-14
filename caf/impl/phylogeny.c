@@ -168,6 +168,7 @@ stList *stCaf_splitChain(stList *chainedBlocks, stList *partitions, bool allowSi
                 stHash *canonicalBlockIndexToBlockIndex = stHash_search(blockToCanonicalBlockIndexToBlockIndex, block);
                 if (canonicalBlockIndexToBlockIndex == NULL) {
                     canonicalBlockIndexToBlockIndex = stHash_construct3((uint64_t (*)(const void *)) stIntTuple_hashKey, (int (*)(const void *, const void *)) stIntTuple_equalsFn, (void (*)(void *)) stIntTuple_destruct, (void (*)(void *)) stIntTuple_destruct);
+                    stHash_insert(blockToCanonicalBlockIndexToBlockIndex, block, canonicalBlockIndexToBlockIndex);
                 }
                 stIntTuple *canonicalBlockIndexTuple = stIntTuple_construct1(canonicalBlockIndex);
                 assert(stHash_search(canonicalBlockIndexToBlockIndex, canonicalBlockIndexTuple) == NULL);
@@ -196,7 +197,7 @@ stList *stCaf_splitChain(stList *chainedBlocks, stList *partitions, bool allowSi
         canonicalBlockIndex++;
     }
 
-    stList *partitionedChains = stList_construct();
+    stList *partitionedChains = stList_construct3(0, (void (*)(void *)) stList_destruct);
     for (int64_t i = 0; i < stList_length(partitions); i++) {
         stList_append(partitionedChains, stList_construct());
     }
@@ -211,6 +212,7 @@ stList *stCaf_splitChain(stList *chainedBlocks, stList *partitions, bool allowSi
             stList *localPartition = stList_construct();
             for (int64_t k = 0; k < stList_length(partition); k++) {
                 stIntTuple *localIndex = stHash_search(canonicalBlockIndexToBlockIndex, stList_get(partition, k));
+                assert(localIndex != NULL);
                 stList_append(localPartition, localIndex);
             }
             stList_append(localPartitions, localPartition);
