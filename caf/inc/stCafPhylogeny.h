@@ -190,5 +190,9 @@ stHash *stCaf_getThreadStrings(Flower *flower, stPinchThreadSet *threadSet);
  */
 stSet *stCaf_getOutgroupThreads(Flower *flower, stPinchThreadSet *threadSet);
 
+/*
+ * Returns a list with correct start and end from the cyclical chain ordering.
+ */
+stList *stCaf_getCorrectChainOrder(stList *blocks);
 
 #endif /* STCAFPHYLOGENY_H_ */

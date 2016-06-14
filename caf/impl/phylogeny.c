@@ -1347,6 +1347,120 @@ static void splitUsingHighlyConfidentBranches(stCaf_SplitBranch *splitBranch,
     stSet_destruct(homologyUnitsToUpdate);
 }
 
+static int64_t indexOf(stList *list, void *item) {
+    for (int64_t i = 0; i < stList_length(list); i++) {
+        if (stList_get(list, i) == item) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+// Return a list with correct start and end from the cyclical chain ordering.
+stList *stCaf_getCorrectChainOrder(stList *blocks) {
+    stPinchSegment *segment = stPinchBlock_getFirst(stList_get(blocks, 0));
+    // Orientation of the first segment, which determines what direction we travel.
+    bool orientation = stPinchSegment_getBlockOrientation(segment);
+    int64_t curBlockIndex = 0;
+    int64_t newStartIndex = 0;
+
+    while (1) {
+        segment = orientation ? stPinchSegment_get3Prime(segment) : stPinchSegment_get5Prime(segment );
+        if (segment == NULL || curBlockIndex == stList_length(blocks) - 1) {
+            newStartIndex = (curBlockIndex + 1) % stList_length(blocks);
+            break;
+        }
+        stPinchBlock *block = stPinchSegment_getBlock(segment);
+        if (block == NULL) {
+            continue;
+        }
+        // This may end up being very slow as it searches linearly through the list.
+        int64_t index = indexOf(blocks, block);
+
+        if (index == -1) {
+            break;
+        } else if (index != curBlockIndex + 1) {
+            newStartIndex = index;
+            break;
+        }
+        curBlockIndex = index;
+    }
+    if (newStartIndex != 0) {
+        stList *newBlocks = stList_construct2(stList_length(blocks));
+        for (int64_t i = 0; i < stList_length(blocks); i++) {
+            stList_set(newBlocks, i, stList_get(blocks, (i + newStartIndex) % stList_length(blocks)));
+        }
+        stList_destruct(blocks);
+        blocks = newBlocks;
+    }
+
+    return blocks;
+}
+
+// Get the initial homology units from the graph.
+static stSet *getHomologyUnits(Flower *flower, stPinchThreadSet *threadSet, stHash *blocksToHomologyUnits, HomologyUnitType type) {
+    stSet *homologyUnits = stSet_construct2((void (*)(void *)) HomologyUnit_destruct);
+    if (type == BLOCK) {
+        stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
+        stPinchBlock *block;
+        while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
+            HomologyUnit *unit = HomologyUnit_construct(BLOCK, block);
+            stSet_insert(homologyUnits, unit);
+            stHash_insert(blocksToHomologyUnits, block, unit);
+        }
+    } else {
+        assert(type == CHAIN);
+        stCactusNode *startCactusNode;
+        stList *deadEndComponent;
+        stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 0, 0,
+                                                                      0.0, true, 100000);
+        stCactusGraphNodeIt *nodeIt = stCactusGraphNodeIterator_construct(cactusGraph);
+        stCactusNode *cactusNode;
+        while ((cactusNode = stCactusGraphNodeIterator_getNext(nodeIt)) != NULL) {
+            stCactusNodeEdgeEndIt cactusEdgeEndIt = stCactusNode_getEdgeEndIt(cactusNode);
+            stCactusEdgeEnd *cactusEdgeEnd;
+            while ((cactusEdgeEnd = stCactusNodeEdgeEndIt_getNext(&cactusEdgeEndIt)) != NULL) {
+                if (stCactusEdgeEnd_isChainEnd(cactusEdgeEnd) && stCactusEdgeEnd_getLinkOrientation(cactusEdgeEnd)) {
+                    // Found a canonical chain end, traverse the chain
+                    // and create a homology unit from it.
+                    stCactusEdgeEnd *chainEnd = cactusEdgeEnd;
+                    stCactusEdgeEnd *curEnd = cactusEdgeEnd;
+                    stList *blocks = stList_construct();
+                    HomologyUnit *unit = HomologyUnit_construct(CHAIN, blocks);
+                    stSet_insert(homologyUnits, unit);
+                    do {
+                        stPinchEnd *pinchEnd = stCactusEdgeEnd_getObject(curEnd);
+                        stPinchBlock *block = stPinchEnd_getBlock(pinchEnd);
+                        // We will visit almost every block twice, so
+                        // avoid a second insertion causing an
+                        // expensive hash removal.
+                        if (stHash_search(blocksToHomologyUnits, block) == NULL) {
+                            stHash_insert(blocksToHomologyUnits, block, unit);
+                            stList_append(blocks, block);
+                        } else {
+                            assert(stHash_search(blocksToHomologyUnits, block) == unit);
+                        }
+                        if (stCactusEdgeEnd_getLinkOrientation(curEnd)) {
+                            curEnd = stCactusEdgeEnd_getLink(curEnd);
+                        } else {
+                            curEnd = stCactusEdgeEnd_getOtherEdgeEnd(curEnd);
+                        }
+                    } while (curEnd != chainEnd);
+
+                    // The chain may not have the "correct" start and
+                    // end--arrange it so that it is increasing
+                    // position relative to the block orientation.
+                    unit->unit = stCaf_getCorrectChainOrder(blocks);
+                    assert(!stList_contains(unit->unit, NULL));
+                }
+            }
+        }
+        stCactusGraphNodeIterator_destruct(nodeIt);
+        stCactusGraph_destruct(cactusGraph);
+    }
+    return homologyUnits;
+}
+
 void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
                                                stHash *threadStrings,
                                                stSet *outgroupThreads,
@@ -1383,7 +1497,6 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
     getSpeciesToSplitOn(speciesStTree, eventTree, referenceEventHeader,
                         speciesToSplitOn);
 
-    // Temp debug print
     printf("Chose events in the species tree \"%s\" to split on:", eventTree_makeNewickString(eventTree));
     stSetIterator *speciesToSplitOnIt = stSet_getIterator(speciesToSplitOn);
     stTree *speciesNodeToSplitOn;
@@ -1419,15 +1532,17 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
     // necessary because the cactus structure won't be updated for
     // splits, so we need to keep a special mapping from block to
     // (potentially split) chain.
-    stHash *blocksToHomologyUnits = stHash_construct2(NULL,
-                                                      (void (*)(void *)) HomologyUnit_destruct);
+    stHash *blocksToHomologyUnits = stHash_construct();
+
+    stSet *homologyUnits = getHomologyUnits(flower, threadSet, blocksToHomologyUnits, CHAIN);
 
     // The loop to build a tree for each homology unit
-    while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
-        HomologyUnit *unit = HomologyUnit_construct(BLOCK, block);
-        stHash_insert(blocksToHomologyUnits, block, unit);
+    stSetIterator *homologyUnitIt = stSet_getIterator(homologyUnits);
+    HomologyUnit *unit;
+    while ((unit = stSet_getNext(homologyUnitIt)) != NULL) {
         pushHomologyUnitToPool(unit, &constants, homologyUnitsToTrees, treeBuildingPool);
     }
+    stSet_destructIterator(homologyUnitIt);
 
     // We need the trees to be done before we can continue.
     stThreadPool_wait(treeBuildingPool);
@@ -1450,7 +1565,6 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
     // All the blocks have their trees computed. Find the split
     // branches in those trees.
     stHashIterator *homologyUnitsToTreesIt = stHash_getIterator(homologyUnitsToTrees);
-    HomologyUnit *unit;
     while ((unit = stHash_getNext(homologyUnitsToTreesIt)) != NULL) {
         stTree *tree = stHash_search(homologyUnitsToTrees, unit);
         assert(tree != NULL);

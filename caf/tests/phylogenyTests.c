@@ -215,12 +215,11 @@ static void test_stCaf_splitBlock(CuTest *testCase) {
     }
 }
 
-static void test_stCaf_splitChain(CuTest *testCase) {
-    // Test stCaf_splitChain on a chain that looks like this:
+static stList *simpleTestChain(stPinchThreadSet *threadSet) {
+    // Create a chain that looks like this:
     // thread 1: =1=>--=2=>=3=>--=2=>
     // thread 2: <2==--<1==<2==--<3==
     // thread 3: =3=>--=3=>=1=>--=1=>
-    stPinchThreadSet *threadSet = stPinchThreadSet_construct();
     stPinchThread *thread1 = stPinchThreadSet_addThread(threadSet, 1, 0, 100);
     stPinchThread *thread2 = stPinchThreadSet_addThread(threadSet, 2, 0, 100);
     stPinchThread *thread3 = stPinchThreadSet_addThread(threadSet, 3, 0, 100);
@@ -228,8 +227,8 @@ static void test_stCaf_splitChain(CuTest *testCase) {
     stPinchThread_pinch(thread1, thread2, 0, 90, 10, false);
     stPinchThread_pinch(thread1, thread3, 0, 0, 10, true);
 
-    stPinchThread_pinch(thread2, thread1, 70, 20, 10, false);
     stPinchThread_pinch(thread1, thread3, 20, 20, 10, true);
+    stPinchThread_pinch(thread2, thread1, 70, 20, 10, false);
 
     stPinchThread_pinch(thread3, thread2, 30, 60, 10, false);
     stPinchThread_pinch(thread3, thread1, 30, 30, 10, true);
@@ -242,6 +241,17 @@ static void test_stCaf_splitChain(CuTest *testCase) {
     stList_append(chain, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 20)));
     stList_append(chain, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 30)));
     stList_append(chain, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 50)));
+
+    return chain;
+}
+
+static void test_stCaf_splitChain(CuTest *testCase) {
+    // Test stCaf_splitChain on the simple test chain
+    stPinchThreadSet *threadSet = stPinchThreadSet_construct();
+    stList *chain = simpleTestChain(threadSet);
+    stPinchThread *thread1 = stPinchThreadSet_getThread(threadSet, 1);
+    stPinchThread *thread2 = stPinchThreadSet_getThread(threadSet, 2);
+    stPinchThread *thread3 = stPinchThreadSet_getThread(threadSet, 3);
 
     stList *partitions = stList_construct3(0, (void (*)(void *)) stList_destruct);
     stList *partition1 = stList_construct3(0, (void (*)(void *)) stIntTuple_destruct);
@@ -280,6 +290,30 @@ static void test_stCaf_splitChain(CuTest *testCase) {
     stList_destruct(chain);
 }
 
+// Circularly shift the list to the right by a positive amount (< length of list).
+static stList *shift(stList *list, int64_t shift) {
+    stList *shifted = stList_construct2(stList_length(list));
+    for (int64_t i = 0; i < stList_length(list); i++) {
+        stList_set(shifted, (i + shift) % stList_length(list), stList_get(list, i));
+    }
+    return shifted;
+}
+
+static void test_stCaf_getCorrectChainOrder(CuTest *testCase) {
+    stPinchThreadSet *threadSet = stPinchThreadSet_construct();
+    stList *chain = simpleTestChain(threadSet);
+
+    for (int64_t i = 0; i < stList_length(chain); i++) {
+        stList *shiftedChain = shift(chain, i);
+        stList *correctedChain = stCaf_getCorrectChainOrder(shiftedChain);
+        CuAssertIntEquals(testCase, stList_length(chain), stList_length(correctedChain));
+        for (int64_t j = 0; j < stList_length(correctedChain); j++) {
+            CuAssertTrue(testCase, stList_get(correctedChain, j) == stList_get(chain, j));
+        }
+        stList_destruct(correctedChain);
+    }
+}
+
 static void test_stCaf_findAndRemoveSplitBranches(CuTest *testCase) {
     stTree *speciesTree = stTree_parseNewickString("((human,(mouse,rat)Anc3)Anc2,(cow,dog)Anc1)Anc0;");
     // Here the reference event is Anc3.
@@ -311,6 +345,7 @@ CuSuite *phylogenyTestSuite(void) {
     CuSuite *suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, test_stCaf_splitBlock);
     SUITE_ADD_TEST(suite, test_stCaf_splitChain);
+    SUITE_ADD_TEST(suite, test_stCaf_getCorrectChainOrder);
     SUITE_ADD_TEST(suite, test_stCaf_findAndRemoveSplitBranches);
     return suite;
 }
