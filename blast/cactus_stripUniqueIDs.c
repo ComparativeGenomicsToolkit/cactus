@@ -15,16 +15,21 @@ int main(int argc, char *argv[])
     char *cactusDiskString = NULL;
     stKVDatabaseConf *kvDatabaseConf;
     CactusDisk *cactusDisk;
+    char *cactusSequencesPath = NULL;
     Flower *flower;
     Flower_SequenceIterator *flowerIt;
     Sequence *sequence;
     struct option longopts[] = { {"cactusDisk", required_argument, NULL, 'c' },
+                                 {"cactusSequencesPath", required_argument, NULL, 'd'},
                                  {0, 0, 0, 0} };
     int flag;
     while((flag = getopt_long(argc, argv, "", longopts, NULL)) != -1) {
         switch(flag) {
         case 'c':
             cactusDiskString = stString_copy(optarg);
+            break;
+        case 'd':
+            cactusSequencesPath = stString_copy(optarg);
             break;
         case '?':
         default:
@@ -36,7 +41,7 @@ int main(int argc, char *argv[])
         st_errAbort("--cactusDisk option must be provided");
     }
     kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskString);
-    cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
+    cactusDisk = cactusDisk_construct3(kvDatabaseConf, cactusSequencesPath);
     // Get top-level flower.
     flower = cactusDisk_getFlower(cactusDisk, 0);
     flowerIt = flower_getSequenceIterator(flower);

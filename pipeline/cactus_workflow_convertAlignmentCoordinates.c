@@ -80,18 +80,18 @@ int main(int argc, char *argv[]) {
     /*
      * Gets the cigars, iterates through them converting them
      */
-    assert(argc == 5);
+    assert(argc == 6);
     st_setLogLevelFromString(argv[1]);
     st_logDebug("Set up logging\n");
 
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(argv[2]);
-    CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
+    CactusDisk *cactusDisk = cactusDisk_construct3(kvDatabaseConf, argv[3]);
     stKVDatabaseConf_destruct(kvDatabaseConf);
     stHash *sequenceHeaderToCapHash = makeSequenceHeaderToCapHash(cactusDisk);
     st_logDebug("Set up the flower disk and built hash\n");
 
-    FILE *inputCigarFileHandle = fopen(argv[3], "r");
-    FILE *outputCigarFileHandle = fopen(argv[4], "w");
+    FILE *inputCigarFileHandle = fopen(argv[4], "r");
+    FILE *outputCigarFileHandle = fopen(argv[5], "w");
     st_logDebug("Opened files for writing\n");
 
     struct PairwiseAlignment *pairwiseAlignment;

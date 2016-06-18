@@ -37,6 +37,7 @@ int main(int argc, char *argv[]) {
      */
     char * logLevelString = NULL;
     char * cactusDiskDatabaseString = NULL;
+    char * cactusSequencesPath = NULL;
     char * secondaryDatabaseString = NULL;
     char *referenceEventString = (char *) cactusMisc_getDefaultReferenceEventHeader();
     char *outgroupEventString = NULL;
@@ -47,9 +48,9 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     while (1) {
-        static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0, 'c' }, {
-                "secondaryDisk", required_argument, 0, 'd' }, { "referenceEventString", required_argument, 0, 'g' }, { "help", no_argument,
-                0, 'h' }, { "outgroupEventString", required_argument, 0, 'i' }, { "bottomUpPhase", no_argument, 0, 'j' }, { 0, 0, 0, 0 } };
+        static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0, 'c' }, {"cactusSequencesPath", required_argument, 0, 'd'}, {
+                "secondaryDisk", required_argument, 0, 'g' }, { "referenceEventString", required_argument, 0, 'h' }, { "help", no_argument,
+                0, 'i' }, { "outgroupEventString", required_argument, 0, 'j' }, { "bottomUpPhase", no_argument, 0, 'k' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
@@ -67,18 +68,21 @@ int main(int argc, char *argv[]) {
                 cactusDiskDatabaseString = stString_copy(optarg);
                 break;
             case 'd':
-                secondaryDatabaseString = stString_copy(optarg);
+                cactusSequencesPath = stString_copy(optarg);
                 break;
             case 'g':
-                referenceEventString = stString_copy(optarg);
+                secondaryDatabaseString = stString_copy(optarg);
                 break;
             case 'h':
+                referenceEventString = stString_copy(optarg);
+                break;
+            case 'i':
                 usage();
                 return 0;
-            case 'i':
+            case 'j':
                 outgroupEventString = stString_copy(optarg);
                 break;
-            case 'j':
+            case 'k':
                 bottomUpPhase = 1;
                 break;
             default:
@@ -92,6 +96,7 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     assert(cactusDiskDatabaseString != NULL);
+    assert(cactusSequencesPath != NULL);
 
     //////////////////////////////////////////////
     //Set up logging
@@ -104,7 +109,7 @@ int main(int argc, char *argv[]) {
     //////////////////////////////////////////////
 
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
-    CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
+    CactusDisk *cactusDisk = cactusDisk_construct3(kvDatabaseConf, cactusSequencesPath);
     stKVDatabaseConf_destruct(kvDatabaseConf);
     st_logInfo("Set up the flower disk\n");
 
