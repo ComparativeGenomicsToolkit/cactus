@@ -69,8 +69,8 @@
 		proportionOfUnalignedBasesForNewChromosome="0.8"
 		maximumMedianSequenceLengthBetweenLinkedEnds="1000"
 		lastzMemory="littleMemory"
-                removeRecoverableChains="unequalNumberOfIngroupCopies"
-                maxRecoverableChainsIterations="1"
+                removeRecoverableChains="unequalNumberOfIngroupCopiesOrNoOutgroup"
+                maxRecoverableChainsIterations="5"
                 maxRecoverableChainLength="500000"
 	>
 		<!-- The following are parametrised to produce the same results as the default settings, 
