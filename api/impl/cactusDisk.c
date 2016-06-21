@@ -629,7 +629,10 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf, bool crea
         */
         void *record = getRecord(cactusDisk, CACTUS_DISK_PARAMETER_KEY, "cactus_disk parameters");
         void *record2 = record;
-        cactusDisk_loadFromBinaryRepresentation(&record, cactusDisk, conf, sequencesFileName);
+        //cactusDisk_loadFromBinaryRepresentation(&record, cactusDisk, conf, sequencesFileName);
+        cactusDisk->storeSequencesInAFile = 1;
+        cactusDisk->sequencesFileName = stString_copy(sequencesFileName);
+        cactusDisk->absSequencesFileName = stString_copy(sequencesFileName);
         free(record2);
     } else {
         assert(create);
