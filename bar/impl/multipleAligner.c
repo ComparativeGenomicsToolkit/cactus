@@ -324,13 +324,12 @@ static ColumnPair *columnPair_construct(int64_t xIndex, int64_t yIndex, int64_t 
 }
 
 static void columnPair_destruct(ColumnPair *cP) {
-    cP->refCount--;
-    assert(cP->refCount >= 0);
-    if(cP->refCount == 0) {
-        if (cP->pPair != NULL) {
-            columnPair_destruct(cP->pPair);
-        }
+    while (cP != NULL && cP->refCount == 0) {
+        cP->refCount--;
+        assert(cP->refCount >= 0);
+        ColumnPair *next = cP->pPair;
         free(cP);
+        cP = next;
     }
 }
 
