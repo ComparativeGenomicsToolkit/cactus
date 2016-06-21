@@ -1365,7 +1365,7 @@ stList *stCaf_getCorrectChainOrder(stList *blocks) {
     int64_t newStartIndex = 0;
 
     while (1) {
-        segment = orientation ? stPinchSegment_get3Prime(segment) : stPinchSegment_get5Prime(segment );
+        segment = orientation ? stPinchSegment_get3Prime(segment) : stPinchSegment_get5Prime(segment);
         if (segment == NULL || curBlockIndex == stList_length(blocks) - 1) {
             newStartIndex = (curBlockIndex + 1) % stList_length(blocks);
             break;
@@ -1378,7 +1378,7 @@ stList *stCaf_getCorrectChainOrder(stList *blocks) {
         int64_t index = indexOf(blocks, block);
 
         if (index == -1) {
-            break;
+            continue;
         } else if (index != curBlockIndex + 1) {
             newStartIndex = index;
             break;
