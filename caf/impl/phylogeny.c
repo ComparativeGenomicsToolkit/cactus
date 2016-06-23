@@ -1347,54 +1347,51 @@ static void splitUsingHighlyConfidentBranches(stCaf_SplitBranch *splitBranch,
     stSet_destruct(homologyUnitsToUpdate);
 }
 
-static int64_t indexOf(stList *list, void *item) {
-    for (int64_t i = 0; i < stList_length(list); i++) {
-        if (stList_get(list, i) == item) {
-            return i;
-        }
+static stList *constructChain(stCactusEdgeEnd *chainEnd) {
+    stList *chain = stList_construct();
+    printf("chain %p\n", (void *) chain);
+    if (stPinchEnd_getOrientation(stCactusEdgeEnd_getObject(chainEnd))) {
+        printf("flip\n");
+        chainEnd = stCactusEdgeEnd_getOtherEdgeEnd(chainEnd);
+        chainEnd = stCactusEdgeEnd_getLink(chainEnd);
+        chainEnd = stCactusEdgeEnd_getOtherEdgeEnd(chainEnd);
     }
-    return -1;
+    stCactusEdgeEnd *curEnd = chainEnd;
+
+    do {
+        stPinchEnd *pinchEnd = stCactusEdgeEnd_getObject(curEnd);
+        stList_append(chain, stPinchEnd_getBlock(pinchEnd));
+        curEnd = stCactusEdgeEnd_getLink(curEnd);
+        assert(curEnd != chainEnd);
+        curEnd = stCactusEdgeEnd_getOtherEdgeEnd(curEnd);
+    } while (curEnd != chainEnd);
+
+    return chain;
 }
 
-// Return a list with correct start and end from the cyclical chain ordering.
-stList *stCaf_getCorrectChainOrder(stList *blocks) {
-    stPinchSegment *segment = stPinchBlock_getFirst(stList_get(blocks, 0));
-    // Orientation of the first segment, which determines what direction we travel.
-    bool orientation = stPinchSegment_getBlockOrientation(segment);
-    int64_t curBlockIndex = 0;
-    int64_t newStartIndex = 0;
-
-    while (1) {
-        segment = orientation ? stPinchSegment_get3Prime(segment) : stPinchSegment_get5Prime(segment);
-        if (segment == NULL || curBlockIndex == stList_length(blocks) - 1) {
-            newStartIndex = (curBlockIndex + 1) % stList_length(blocks);
-            break;
+static void getChainsFromCactusGraph_R(stCactusNode *cactusNode, stCactusEdgeEnd *parentChain, stList *chains) {
+    stCactusNodeEdgeEndIt cactusEdgeEndIt = stCactusNode_getEdgeEndIt(cactusNode);
+    stCactusEdgeEnd *cactusEdgeEnd;
+    while ((cactusEdgeEnd = stCactusNodeEdgeEndIt_getNext(&cactusEdgeEndIt)) != NULL) {
+        if ((parentChain == NULL)
+            || (cactusEdgeEnd != parentChain
+                && cactusEdgeEnd != stCactusEdgeEnd_getLink(parentChain))) {
+            stList_append(chains, constructChain(stCactusEdgeEnd_getOtherEdgeEnd(cactusEdgeEnd)));
+            // Recurse to find more chains, if it's not a direct
+            // self-loop.
+            if (stCactusEdgeEnd_getOtherNode(cactusEdgeEnd) != cactusNode) {
+                getChainsFromCactusGraph_R(stCactusEdgeEnd_getOtherNode(cactusEdgeEnd),
+                                           stCactusEdgeEnd_getOtherEdgeEnd(cactusEdgeEnd),
+                                           chains);
+            }
         }
-        stPinchBlock *block = stPinchSegment_getBlock(segment);
-        if (block == NULL) {
-            continue;
-        }
-        // This may end up being very slow as it searches linearly through the list.
-        int64_t index = indexOf(blocks, block);
-
-        if (index == -1) {
-            continue;
-        } else if (index != curBlockIndex + 1) {
-            newStartIndex = index;
-            break;
-        }
-        curBlockIndex = index;
     }
-    if (newStartIndex != 0) {
-        stList *newBlocks = stList_construct2(stList_length(blocks));
-        for (int64_t i = 0; i < stList_length(blocks); i++) {
-            stList_set(newBlocks, i, stList_get(blocks, (i + newStartIndex) % stList_length(blocks)));
-        }
-        stList_destruct(blocks);
-        blocks = newBlocks;
-    }
+}
 
-    return blocks;
+static stList *getChainsFromCactusGraph(stCactusNode *startCactusNode) {
+    stList *chains = stList_construct();
+    getChainsFromCactusGraph_R(startCactusNode, NULL, chains);
+    return chains;
 }
 
 // Get the initial homology units from the graph.
@@ -1414,48 +1411,11 @@ static stSet *getHomologyUnits(Flower *flower, stPinchThreadSet *threadSet, stHa
         stList *deadEndComponent;
         stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 0, 0,
                                                                       0.0, true, 100000);
-        stCactusGraphNodeIt *nodeIt = stCactusGraphNodeIterator_construct(cactusGraph);
-        stCactusNode *cactusNode;
-        while ((cactusNode = stCactusGraphNodeIterator_getNext(nodeIt)) != NULL) {
-            stCactusNodeEdgeEndIt cactusEdgeEndIt = stCactusNode_getEdgeEndIt(cactusNode);
-            stCactusEdgeEnd *cactusEdgeEnd;
-            while ((cactusEdgeEnd = stCactusNodeEdgeEndIt_getNext(&cactusEdgeEndIt)) != NULL) {
-                if (stCactusEdgeEnd_isChainEnd(cactusEdgeEnd) && stCactusEdgeEnd_getLinkOrientation(cactusEdgeEnd)) {
-                    // Found a canonical chain end, traverse the chain
-                    // and create a homology unit from it.
-                    stCactusEdgeEnd *chainEnd = cactusEdgeEnd;
-                    stCactusEdgeEnd *curEnd = cactusEdgeEnd;
-                    stList *blocks = stList_construct();
-                    HomologyUnit *unit = HomologyUnit_construct(CHAIN, blocks);
-                    stSet_insert(homologyUnits, unit);
-                    do {
-                        stPinchEnd *pinchEnd = stCactusEdgeEnd_getObject(curEnd);
-                        stPinchBlock *block = stPinchEnd_getBlock(pinchEnd);
-                        // We will visit almost every block twice, so
-                        // avoid a second insertion causing an
-                        // expensive hash removal.
-                        if (stHash_search(blocksToHomologyUnits, block) == NULL) {
-                            stHash_insert(blocksToHomologyUnits, block, unit);
-                            stList_append(blocks, block);
-                        } else {
-                            assert(stHash_search(blocksToHomologyUnits, block) == unit);
-                        }
-                        if (stCactusEdgeEnd_getLinkOrientation(curEnd)) {
-                            curEnd = stCactusEdgeEnd_getLink(curEnd);
-                        } else {
-                            curEnd = stCactusEdgeEnd_getOtherEdgeEnd(curEnd);
-                        }
-                    } while (curEnd != chainEnd);
-
-                    // The chain may not have the "correct" start and
-                    // end--arrange it so that it is increasing
-                    // position relative to the block orientation.
-                    unit->unit = stCaf_getCorrectChainOrder(blocks);
-                    assert(!stList_contains(unit->unit, NULL));
-                }
-            }
+        stList *chains = getChainsFromCactusGraph(startCactusNode);
+        for (int64_t i = 0; i < stList_length(chains); i++) {
+            HomologyUnit *unit = HomologyUnit_construct(CHAIN, stList_get(chains, i));
+            stSet_insert(homologyUnits, unit);
         }
-        stCactusGraphNodeIterator_destruct(nodeIt);
         stCactusGraph_destruct(cactusGraph);
     }
     return homologyUnits;

@@ -220,9 +220,9 @@ static stList *setupTestChain(stPinchThreadSet *threadSet) {
     // thread 1: =1=>--=2=>=3=>--=2=>
     // thread 2: <2==--<1==<2==--<3==
     // thread 3: =3=>--=3=>=1=>--=1=>
-    stPinchThread *thread1 = stPinchThreadSet_addThread(threadSet, 1, 0, 100);
-    stPinchThread *thread2 = stPinchThreadSet_addThread(threadSet, 2, 0, 100);
-    stPinchThread *thread3 = stPinchThreadSet_addThread(threadSet, 3, 0, 100);
+    stPinchThread *thread1 = stPinchThreadSet_addThread(threadSet, 1, 0, 200);
+    stPinchThread *thread2 = stPinchThreadSet_addThread(threadSet, 2, 0, 200);
+    stPinchThread *thread3 = stPinchThreadSet_addThread(threadSet, 3, 0, 200);
 
     stPinchThread_pinch(thread1, thread2, 0, 90, 10, false);
     stPinchThread_pinch(thread1, thread3, 0, 0, 10, true);
@@ -258,6 +258,18 @@ static stList *setupTestChainWithChildChains(stPinchThreadSet *threadSet) {
     stPinchThread_pinch(thread2, thread3, 54, 44, 2, false);
     return chain;
 }
+
+/* static stList *setupTestChainWithTandemDup(stPinchThreadSet *threadSet) { */
+/*     stList *chain = setupTestChain(threadSet); */
+/*     stPinchThread *thread1 = stPinchThreadSet_getThread(threadSet, 1); */
+
+/*     stPinchThread_pinch(thread1, thread1, 0, 150, 10, false); */
+/*     stPinchThread_pinch(thread1, thread1, 20, 130, 10, false); */
+/*     stPinchThread_pinch(thread1, thread1, 30, 120, 10, false); */
+/*     stPinchThread_pinch(thread1, thread1, 50, 100, 10, false); */
+
+/*     return chain; */
+/* } */
 
 static void test_stCaf_splitChainP(CuTest *testCase, stList *(*setup)(stPinchThreadSet *)) {
     stPinchThreadSet *threadSet = stPinchThreadSet_construct();
@@ -312,36 +324,6 @@ static void test_stCaf_splitChain(CuTest *testCase) {
     test_stCaf_splitChainP(testCase, setupTestChainWithChildChains);
 }
 
-// Circularly shift the list to the right by a positive amount (< length of list).
-static stList *shift(stList *list, int64_t shift) {
-    stList *shifted = stList_construct2(stList_length(list));
-    for (int64_t i = 0; i < stList_length(list); i++) {
-        stList_set(shifted, (i + shift) % stList_length(list), stList_get(list, i));
-    }
-    return shifted;
-}
-
-static void test_stCaf_getCorrectChainOrderP(CuTest *testCase, stList *(*setup)(stPinchThreadSet *)) {
-    stPinchThreadSet *threadSet = stPinchThreadSet_construct();
-    stList *chain = setupTestChainWithChildChains(threadSet);
-
-    for (int64_t i = 0; i < stList_length(chain); i++) {
-        stList *shiftedChain = shift(chain, i);
-        stList *correctedChain = stCaf_getCorrectChainOrder(shiftedChain);
-        CuAssertIntEquals(testCase, stList_length(chain), stList_length(correctedChain));
-        for (int64_t j = 0; j < stList_length(correctedChain); j++) {
-            CuAssertTrue(testCase, stList_get(correctedChain, j) == stList_get(chain, j));
-        }
-        stList_destruct(correctedChain);
-    }
-    stPinchThreadSet_destruct(threadSet);
-}
-
-static void test_stCaf_getCorrectChainOrder(CuTest *testCase) {
-    test_stCaf_getCorrectChainOrderP(testCase, setupTestChain);
-    test_stCaf_getCorrectChainOrderP(testCase, setupTestChainWithChildChains);
-}
-
 static void test_stCaf_findAndRemoveSplitBranches(CuTest *testCase) {
     stTree *speciesTree = stTree_parseNewickString("((human,(mouse,rat)Anc3)Anc2,(cow,dog)Anc1)Anc0;");
     // Here the reference event is Anc3.
@@ -373,7 +355,6 @@ CuSuite *phylogenyTestSuite(void) {
     CuSuite *suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, test_stCaf_splitBlock);
     SUITE_ADD_TEST(suite, test_stCaf_splitChain);
-    SUITE_ADD_TEST(suite, test_stCaf_getCorrectChainOrder);
     SUITE_ADD_TEST(suite, test_stCaf_findAndRemoveSplitBranches);
     return suite;
 }
