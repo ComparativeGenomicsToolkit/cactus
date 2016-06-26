@@ -151,7 +151,7 @@ class CactusPhasesJob(CactusJob):
                     self.constantsNode, "defaultMemory", int, default=sys.maxint))
             cpu = cw.getKtserverCpu(default=getOptionalAttrib(
                     self.constantsNode, "defaultCpu", int, default=0))
-            dbElem = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
+            dbElem = ExperimentWrapper(self.cactusWorkflowArguments.scratchDbElemNode)
             dbString = self.addService(KtServerService(dbElem = dbElem, isSecondary = True))
             newChild.phaseNode.attrib["secondaryDatabaseString"] = dbString
             return self.addChild(newChild).rv()
@@ -723,7 +723,7 @@ class CactusBarWrapperLarge(CactusRecursionJob):
             if basesInEndAlignment >= veryLargeEndSize:
                 alignmentID = self.addChild(CactusBarEndAlignerWrapper(self.phaseNode, self.constantsNode,
                                                          self.cactusDiskDatabaseString, self.flowerNames,
-                                                         True, [ endToAlign ])).rv()
+                                                         True, [ endToAlign ], self.databaseID)).rv()
                 precomputedAlignmentIDs.append(alignmentID)
                 logger.info("Precomputing very large end alignment for %s with %i caps and %i bases" % \
                              (endToAlign, sequencesInEndAlignment, basesInEndAlignment))
@@ -731,12 +731,12 @@ class CactusBarWrapperLarge(CactusRecursionJob):
                 endsToAlign.append(endToAlign)
                 totalSize += basesInEndAlignment
                 if totalSize >= maxFlowerGroupSize:
-                    alignmentID = self.addChild(CactusBarEndAlignerWrapper(self.phaseNode, self.constantsNode, self.cactusDiskDatabaseString, self.flowerNames, False, endsToAlign)).rv()
+                    alignmentID = self.addChild(CactusBarEndAlignerWrapper(self.phaseNode, self.constantsNode, self.cactusDiskDatabaseString, self.flowerNames, False, endsToAlign, self.databaseID)).rv()
                     precomputedAlignmentIDs.append(alignmentID)
                     endsToAlign = []
                     totalSize = 0
         if len(endsToAlign) > 0:
-            precomputedAlignmentIDs.append(self.addChild(CactusBarEndAlignerWrapper(self.phaseNode, self.constantsNode, self.cactusDiskDatabaseString, self.flowerNames, False, endsToAlign)).rv())
+            precomputedAlignmentIDs.append(self.addChild(CactusBarEndAlignerWrapper(self.phaseNode, self.constantsNode, self.cactusDiskDatabaseString, self.flowerNames, False, endsToAlign, self.databaseID)).rv())
         self.precomputedAlignmentIDs = precomputedAlignmentIDs
         self.makeFollowOnRecursiveJob(CactusBarWrapperWithPrecomputedEndAlignments)
         logger.info("Breaking bar job into %i separate jobs" % \
@@ -745,8 +745,8 @@ class CactusBarWrapperLarge(CactusRecursionJob):
 class CactusBarEndAlignerWrapper(CactusRecursionJob):
     """Computes an end alignment.
     """
-    def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge, endsToAlign):
-        CactusRecursionJob.__init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge)
+    def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge, endsToAlign, databaseID):
+        CactusRecursionJob.__init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge, databaseID = databaseID)
         self.endsToAlign = endsToAlign
     
     def run(self, fileStore):
@@ -907,7 +907,7 @@ class CactusReferenceWrapper(CactusRecursionJob):
                        minNumberOfSequencesToSupportAdjacency=self.getOptionalPhaseAttrib("minNumberOfSequencesToSupportAdjacency", int),
                        makeScaffolds=self.getOptionalPhaseAttrib("makeScaffolds", bool))
         logger.info("Writing database in RefWrapper: %s" % self.databaseID)
-        return fileStore.writeGlobalFile(self.databaseID)
+        return fileStore.writeGlobalFile(self.cactusSequencesPath)
 
 class CactusReferenceRecursion2(CactusRecursionJob):
     def run(self, fileStore):
@@ -985,9 +985,9 @@ class CactusExtractReferencePhase(CactusPhasesJob):
                 if eventName.find('.') >= 0:
                     eventName = eventName[:eventName.rfind('.')]
                     referencePath = os.path.join(fileStore.getLocalTempDir(), "tempReference")
-                    cmdLine = "cactus_getReferenceSeq --cactusDisk \'%s\' --flowerName 0 --referenceEventString %s --outputFile %s --logLevel %s" % \
-                              (self.cactusWorkflowArguments.cactusDiskDatabaseString, eventName,
-                               referencePath, getLogLevelString())                        
+                    cmdLine = "cactus_getReferenceSeq --cactusDisk \'%s\' --cactusSequencesPath \'%s\' --flowerName 0 --referenceEventString %s --outputFile %s --logLevel %s" % \
+                              (self.cactusWorkflowArguments.cactusDiskDatabaseString, self.cactusSequencesPath, 
+                                      eventName, referencePath, getLogLevelString())                        
                     system(cmdLine)
                     experiment.setReferenceID(fileStore.writeGlobalFile(referencePath))
         self.cactusWorkflowArguments.experimentWrapper = experiment
@@ -1130,6 +1130,7 @@ class CactusWorkflowArguments:
         #Get a local copy of the experiment file
         self.experimentFile = experimentFile
         self.experimentNode = ET.parse(self.experimentFile).getroot()
+        self.scratchDbElemNode = ET.parse(self.experimentFile).getroot()
         self.experimentWrapper = ExperimentWrapper(self.experimentNode)
         self.experimentWrapper.seqIDMap = seqIDMap
         self.alignmentsID = None

@@ -491,6 +491,7 @@ def runCactusProgressive(inputDir,
     logger.info("Ran the cactus progressive okay")
     
 def runCactusHalGenerator(cactusDiskDatabaseString,
+                          cactusSequencesPath,
                           secondaryDatabaseString, 
                           flowerNames,
                           referenceEventString, 
@@ -498,8 +499,8 @@ def runCactusHalGenerator(cactusDiskDatabaseString,
                           showOnlySubstitutionsWithRespectToReference=None,
                           logLevel=None):
     logLevel = getLogLevelString2(logLevel)
-    popenPush("cactus_halGenerator --cactusDisk '%s' --secondaryDisk '%s' --logLevel %s %s %s %s" % 
-           (cactusDiskDatabaseString, secondaryDatabaseString, logLevel, 
+    popenPush("cactus_halGenerator --cactusDisk '%s' --cactusSequencesPath '%s' --secondaryDisk '%s' --logLevel %s %s %s %s" % 
+           (cactusDiskDatabaseString, cactusSequencesPath, secondaryDatabaseString, logLevel, 
             nameValue("referenceEventString", referenceEventString),
             nameValue("outputFile", outputFile),
             nameValue("showOnlySubstitutionsWithRespectToReference", 
@@ -507,13 +508,14 @@ def runCactusHalGenerator(cactusDiskDatabaseString,
               stdinString=flowerNames)
     
 def runCactusFastaGenerator(cactusDiskDatabaseString,
+                          cactusSequencesPath,
                           flowerName,
                           outputFile,
                           referenceEventString=None, 
                           logLevel=None):
     logLevel = getLogLevelString2(logLevel)
-    system("cactus_fastaGenerator --cactusDisk '%s' --flowerName %s --outputFile %s --logLevel %s %s" % 
-           (cactusDiskDatabaseString, flowerName, outputFile, logLevel, 
+    system("cactus_fastaGenerator --cactusDisk '%s' --cactusSequencesPath '%s' --flowerName %s --outputFile %s --logLevel %s %s" % 
+           (cactusDiskDatabaseString, cactusSequencesPath, flowerName, outputFile, logLevel, 
             nameValue("referenceEventString", referenceEventString)))
     
 def runCactusAnalyseAssembly(sequenceFile):
