@@ -563,6 +563,7 @@ class CactusCafRecursion(CactusRecursionJob):
     """This job does the get flowers down pass for the CAF alignment phase.
     """    
     def run(self, fileStore):
+        self.cactusSequencesPath = fileStore.readGlobalFile(self.databaseID)
         self.makeRecursiveJobs()
         return self.makeExtendingJobs(job=CactusCafWrapper, overlargeJob=CactusCafWrapperLarge, runFlowerStats=True)
         
@@ -891,7 +892,7 @@ class CactusReferenceWrapper(CactusRecursionJob):
     def run(self, fileStore):
         assert self.databaseID
         logger.info("Reading database in RefWrapper: %s" % self.databaseID)
-        self.cactusSequencesPath = fileStore.readGlobalFile(self.databaseID, mutable=True)
+        self.cactusSequencesPath = fileStore.readGlobalFile(self.databaseID, cache=False)
         runCactusReference(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                        cactusSequencesPath = self.cactusSequencesPath,
                        flowerNames=self.flowerNames, 
@@ -919,14 +920,13 @@ class CactusReferenceRecursion3(CactusRecursionJob):
     """After completing the recursion for the reference algorithm, the up pass of adding in the reference coordinates is performed.
     """
     def run(self, fileStore):
-        assert self.databaseID
         return self.makeWrapperJobs(CactusSetReferenceCoordinatesUpWrapper)
 
 class CactusSetReferenceCoordinatesUpWrapper(CactusRecursionJob):
     """Does the up pass for filling in the reference sequence coordinates, once a reference has been established.
     """ 
     def run(self, fileStore):
-        self.cactusSequencesPath = fileStore.readGlobalFile(self.databaseID, mutable=True)
+        self.cactusSequencesPath = fileStore.readGlobalFile(self.databaseID, cache=False)
         runCactusAddReferenceCoordinates(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                                          cactusSequencesPath = self.cactusSequencesPath,
                                          secondaryDatabaseString=self.getOptionalPhaseAttrib("secondaryDatabaseString"),
@@ -934,8 +934,7 @@ class CactusSetReferenceCoordinatesUpWrapper(CactusRecursionJob):
                                          referenceEventString=self.getOptionalPhaseAttrib("reference"),
                                          outgroupEventString=self.getOptionalPhaseAttrib("outgroup"),
                                          bottomUpPhase=True)
-        self.databaseID = fileStore.writeGlobalFile(self.cactusSequencesPath)
-        return self.databaseID
+        return fileStore.writeGlobalFile(self.cactusSequencesPath)
         
 class CactusSetReferenceCoordinatesDownPhase(CactusPhasesJob):
     """This is the second part of the reference coordinate setting, the down pass.
@@ -962,7 +961,7 @@ class CactusSetReferenceCoordinatesDownWrapper(CactusRecursionJob):
     """        
     def run(self, fileStore):
         assert self.databaseID
-        self.cactusSequencesPath = fileStore.readGlobalFile(self.databaseID, mutable=True)
+        self.cactusSequencesPath = fileStore.readGlobalFile(self.databaseID, cache=False)
         runCactusAddReferenceCoordinates(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                                          cactusSequencesPath = self.cactusSequencesPath,
                                          flowerNames=self.flowerNames,

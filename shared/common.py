@@ -381,7 +381,7 @@ def runCactusAddReferenceCoordinates(cactusDiskDatabaseString, cactusSequencesPa
     referenceEventString = nameValue("referenceEventString", referenceEventString)
     outgroupEventString = nameValue("outgroupEventString", outgroupEventString)
     secondaryDatabaseString = nameValue("secondaryDisk", secondaryDatabaseString, quotes=True)
-    command = "cactus_addReferenceCoordinates --cactusDisk '%s' --cactusSequencesPath '%s' %s --logLevel %s %s %s %s" % (cactusDiskDatabaseString, cactusSequencesPath, secondaryDatabaseString, logLevel, referenceEventString, outgroupEventString, bottomUpPhase)
+    command = "gdb -return-child-result -ex run -ex bt -ex quit --args cactus_addReferenceCoordinates --cactusDisk '%s' --cactusSequencesPath '%s' %s --logLevel %s %s %s %s" % (cactusDiskDatabaseString, cactusSequencesPath, secondaryDatabaseString, logLevel, referenceEventString, outgroupEventString, bottomUpPhase)
     popenPush(command, stdinString=flowerNames)
 
 def runCactusCheck(cactusDiskDatabaseString, 

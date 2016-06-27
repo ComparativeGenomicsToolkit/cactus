@@ -96,6 +96,7 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     assert(cactusDiskDatabaseString != NULL);
+    assert(cactusSequencesPath != NULL);
 
     //////////////////////////////////////////////
     //Set up logging
@@ -106,6 +107,10 @@ int main(int argc, char *argv[]) {
     //////////////////////////////////////////////
     //Load the database
     //////////////////////////////////////////////
+
+    st_logInfo("cactusSequencesPath = %s\n", cactusSequencesPath);
+    st_logInfo("referenceEventString = %s", referenceEventString);
+    st_logInfo("bottomUpPhase = %i", bottomUpPhase);
 
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
     CactusDisk *cactusDisk = cactusDisk_construct3(kvDatabaseConf, cactusSequencesPath);
