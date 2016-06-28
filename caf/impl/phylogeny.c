@@ -145,6 +145,15 @@ static stList *getOutgroupThreads(HomologyUnit *unit, stSet *outgroupThreads) {
     return outgroups;
 }
 
+static bool isListOnlyNulls(stList *list) {
+    for (int64_t i = 0; i < stList_length(list); i++) {
+        if (stList_get(list, i) != NULL) {
+            return false;
+        }
+    }
+    return true;
+}
+
 /*
  * Splits chained blocks.
  */
@@ -224,6 +233,20 @@ stList *stCaf_splitChain(stList *chainedBlocks, stList *partitions, bool allowSi
         stList_destruct(locallyPartitionedBlocks);
         stList_destruct(localPartitions);
     }
+
+    // Now go through our returned list of chains and filter out the
+    // chains that only contain NULL blocks. These are single-degree
+    // chains that have been deleted. We replace these
+    // filled-with-NULL chains with a single NULL pointer in the place
+    // of the chain.
+    for (int64_t i = 0; i < stList_length(partitionedChains); i++) {
+        stList *chain = stList_get(partitionedChains, i);
+        if (isListOnlyNulls(chain)) {
+            stList_set(partitionedChains, i, NULL);
+            stList_destruct(chain);
+        }
+    }
+
     stHash_destruct(blockToCanonicalBlockIndexToBlockIndex);
     return partitionedChains;
 }
