@@ -61,17 +61,19 @@ class BlastFlower(Job):
     """Take a reconstruction problem and generate the sequences in chunks to be blasted.
     Then setup the follow on blast targets and collation targets.
     """
-    def __init__(self, cactusDisk, flowerName, blastOptions):
-        Job.__init__(self)
+    def __init__(self, cactusDisk, cactusSequencesID, flowerName, blastOptions, memory=None, cores=None, disk=None):
+        Job.__init__(self, memory=memory, cores=cores, disk=disk)
         self.cactusDisk = cactusDisk
+        self.cactusSequencesID = cactusSequencesID
         self.flowerName = flowerName
         self.blastOptions = blastOptions
         blastOptions.roundsOfCoordinateConversion = 2
         
     def run(self, fileStore):
         chunksDir = getTempDirectory(rootDir=fileStore.getLocalTempDir())
-        chunks = [ chunk for chunk in popenCatch("cactus_blast_chunkFlowerSequences %s '%s' %s %i %i %i %s" % \
-                                                          (getLogLevelString(), self.cactusDisk, self.flowerName, 
+        cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
+        chunks = [ chunk for chunk in popenCatch("cactus_blast_chunkFlowerSequences %s '%s' '%s' %s %i %i %i %s" % \
+                                                          (getLogLevelString(), self.cactusDisk, cactusSequencesPath, self.flowerName, 
                                                           self.blastOptions.chunkSize, 
                                                           self.blastOptions.overlapSize,
                                                           self.blastOptions.minimumSequenceLength,
@@ -565,32 +567,32 @@ replaced with the the sequence file and the results file, respectively",
             raise RuntimeError("--ingroups and --outgroups must be provided "
                                "together")
         if options.ingroups:
-            ingroupIDs = [toil.importFile(makeURL(ingroup)) for ingroup in options.ingroups.split(',')]
-            outgroupIDs = [toil.importFile(makeURL(outgroup)) for outgroup in options.outgroups.split(',')]
+            ingroupIDs = [toil.jobStore.importFile(makeURL(ingroup)) for ingroup in options.ingroups.split(',')]
+            outgroupIDs = [toil.jobStore.importFile(makeURL(outgroup)) for outgroup in options.outgroups.split(',')]
             rootJob = BlastIngroupsAndOutgroups(options, ingroupIDs, outgroupIDs)
-            blastResults = toil.start(rootJob)
+            blastResults = toil.run(rootJob)
             alignmentsID = blastResults["alignmentsID"]
-            toil.exportFile(alignmentsID, makeURL(options.cigarFile))
+            toil.jobStore.exportFile(alignmentsID, makeURL(options.cigarFile))
             outgroupFragmentIDs = blastResults["outgroupFragmentIDs"]
             assert len(outgroupFragmentIDs) == len(options.outgroups.split(','))
             if not os.path.exists(options.outgroupFragmentsDir):
                 os.makedirs(options.outgroupFragmentsDir)
             for (outgroupFragmentID, outgroupName) in zip(outgroupFragmentIDs, options.outgroups.split(',')):
-                toil.exportFile(outgroupFragmentID, makeURL(os.path.join(options.outgroupFragmentsDir, os.path.basename(outgroupName))))
+                toil.jobStore.exportFile(outgroupFragmentID, makeURL(os.path.join(options.outgroupFragmentsDir, os.path.basename(outgroupName))))
 
             
 
         elif options.targetSequenceFiles == None:
-            seqIDs = [toil.importFile(makeURL(seq)) for seq in options.seqFiles.split()]
+            seqIDs = [toil.jobStore.importFile(makeURL(seq)) for seq in options.seqFiles.split()]
             rootJob = BlastSequencesAllAgainstAll(seqIDs, options)
-            alignmentsID = toil.start(rootJob)
-            toil.exportFile(alignmentsID, makeURL(options.cigarFile))
+            alignmentsID = toil.run(rootJob)
+            toil.jobStore.exportFile(alignmentsID, makeURL(options.cigarFile))
         else:
-            seqIDs = [toil.importFile(makeURL(seq)) for seq in options.seqFiles.split()]
-            targetSeqIDs = [toil.importFile(makeURL(seq)) for seq in options.targetSequenceFiles.split()]
+            seqIDs = [toil.jobStore.importFile(makeURL(seq)) for seq in options.seqFiles.split()]
+            targetSeqIDs = [toil.jobStore.importFile(makeURL(seq)) for seq in options.targetSequenceFiles.split()]
             rootJob = BlastSequencesAgainstEachOther(seqIDs, targetSeqIDs, options)
-            alignmentsID = toil.start(rootJob)
-            toil.exportFile(alignmentsID, makeURL(options.cigarFile))
+            alignmentsID = toil.run(rootJob)
+            toil.jobStore.exportFile(alignmentsID, makeURL(options.cigarFile))
 
 def _test():
     import doctest

@@ -615,6 +615,7 @@ class CactusCafWrapperLarge(CactusRecursionJob):
         #Generate a temporary file to hold the alignments
         flowerName = decodeFirstFlowerName(self.flowerNames)
         alignmentsID = self.addChild(BlastFlower(cactusDisk=self.cactusDiskDatabaseString, 
+                                          cactusSequencesID = self.databaseID,
                                           flowerName=flowerName, 
                                           blastOptions=\
                                           BlastOptions(chunkSize=self.getOptionalPhaseAttrib("chunkSize", int),
@@ -624,7 +625,7 @@ class CactusCafWrapperLarge(CactusRecursionJob):
                                                         realign=self.getOptionalPhaseAttrib("realign", bool), 
                                                         realignArguments=self.getOptionalPhaseAttrib("realignArguments"),
                                                         memory=self.getOptionalPhaseAttrib("lastzMemory", int, sys.maxint),
-                                                        minimumSequenceLength=self.getOptionalPhaseAttrib("minimumSequenceLengthForBlast", int, 1)))).rv()
+                                                        minimumSequenceLength=self.getOptionalPhaseAttrib("minimumSequenceLengthForBlast", int, 1)), memory = self.memory)).rv()
         #Now setup a call to cactus core wrapper as a follow on
         self.phaseNode.attrib["alignmentIDs"] = alignmentsID
         self.makeFollowOnRecursiveJob(CactusCafWrapperLarge2)
