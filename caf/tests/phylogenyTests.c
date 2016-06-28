@@ -4,35 +4,6 @@
 #include "stPinchGraphs.h"
 #include "stCafPhylogeny.h"
 #include "stCaf.h"
-/*
-static CactusDisk *cactusDisk;
-static Flower *flower;
-static EventTree *eventTree;
-static stPinchThreadSet *threadSet;
-
-static void setup(void) {
-    cactusDisk = testCommon_getTemporaryCactusDisk();
-    flower = flower_construct(cactusDisk);
-
-    // Event tree: (((human,(mouse,rat)Anc3)Anc2,(cow,dog)Anc1)Anc0)ROOT;
-    eventTree = eventTree_construct2(flower);
-    event_construct3("Anc0", 0.0, eventTree_getRootEvent(eventTree), eventTree);
-    event_construct3("Anc1", 1.0, eventTree_getEventByHeader(eventTree, "Anc0"), eventTree);
-    event_construct3("dog", 1.0, eventTree_getEventByHeader(eventTree, "Anc1"), eventTree);
-    event_construct3("cow", 1.0, eventTree_getEventByHeader(eventTree, "Anc1"), eventTree);
-    event_construct3("Anc2", 1.0, eventTree_getEventByHeader(eventTree, "Anc0"), eventTree);
-    event_construct3("Anc3", 1.0, eventTree_getEventByHeader(eventTree, "Anc2"), eventTree);
-    event_construct3("rat", 1.0, eventTree_getEventByHeader(eventTree, "Anc3"), eventTree);
-    event_construct3("mouse", 1.0, eventTree_getEventByHeader(eventTree, "Anc3"), eventTree);
-    event_construct3("human", 1.0, eventTree_getEventByHeader(eventTree, "Anc2"), eventTree);
-
-    threadSet = stCaf_setup(flower);
-}
-
-static void teardown(void) {
-    testCommon_deleteTemporaryCactusDisk(cactusDisk);
-}
-*/
 
 // Assume that the leaves of the gene tree are labeled according to
 // their species names and produce a leafToSpecies hash.
@@ -215,17 +186,38 @@ static void test_stCaf_splitBlock(CuTest *testCase) {
     }
 }
 
-static stList *setupTestChain(stPinchThreadSet *threadSet) {
+static stPinchThread *getThreadByHeader(Flower *flower, stPinchThreadSet *threadSet, char *header) {
+    Flower_CapIterator *capIt = flower_getCapIterator(flower);
+    Cap *cap;
+    while ((cap = flower_getNextCap(capIt)) != NULL) {
+        if (!end_getSide(cap_getEnd(cap))) {
+            if (strcmp(header, sequence_getHeader(cap_getSequence(cap))) == 0) {
+                break;
+            }
+        }
+    }
+    flower_destructCapIterator(capIt);
+    if (cap == NULL) {
+        return NULL;
+    }
+    return stPinchThreadSet_getThread(threadSet, cap_getName(cap));
+}
+
+static stPinchThreadSet *setupTestChain(Flower *flower, stList **chain) {
     // Create a chain that looks like this:
     // thread 1: =1=>--=2=>=3=>--=2=>
     // thread 2: <2==--<1==<2==--<3==
     // thread 3: =3=>--=3=>=1=>--=1=>
-    stPinchThread *thread1 = stPinchThreadSet_addThread(threadSet, 1, 0, 200);
-    stPinchThread *thread2 = stPinchThreadSet_addThread(threadSet, 2, 0, 200);
-    stPinchThread *thread3 = stPinchThreadSet_addThread(threadSet, 3, 0, 200);
+    Name threadName1 = testCommon_addThreadToFlower(flower, "one", 200);
+    Name threadName2 = testCommon_addThreadToFlower(flower, "two", 200);
+    Name threadName3 = testCommon_addThreadToFlower(flower, "three", 200);
+    stPinchThreadSet *threadSet = stCaf_setup(flower);
+    stPinchThread *thread1 = stPinchThreadSet_getThread(threadSet, threadName1);
+    stPinchThread *thread2 = stPinchThreadSet_getThread(threadSet, threadName2);
+    stPinchThread *thread3 = stPinchThreadSet_getThread(threadSet, threadName3);
 
-    stPinchThread_pinch(thread1, thread2, 0, 90, 10, false);
-    stPinchThread_pinch(thread1, thread3, 0, 0, 10, true);
+    stPinchThread_pinch(thread1, thread2, 2, 90, 8, false);
+    stPinchThread_pinch(thread1, thread3, 2, 2, 8, true);
 
     stPinchThread_pinch(thread1, thread3, 20, 20, 10, true);
     stPinchThread_pinch(thread2, thread1, 70, 20, 10, false);
@@ -236,49 +228,76 @@ static stList *setupTestChain(stPinchThreadSet *threadSet) {
     stPinchThread_pinch(thread3, thread2, 50, 40, 10, false);
     stPinchThread_pinch(thread3, thread1, 50, 50, 10, true);
 
-    stList *chain = stList_construct();
-    stList_append(chain, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 0)));
-    stList_append(chain, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 20)));
-    stList_append(chain, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 30)));
-    stList_append(chain, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 50)));
+    *chain = stList_construct();
+    stList_append(*chain, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 2)));
+    stList_append(*chain, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 20)));
+    stList_append(*chain, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 30)));
+    stList_append(*chain, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 50)));
 
-    return chain;
+    return threadSet;
 }
 
-static stList *setupTestChainWithChildChains(stPinchThreadSet *threadSet) {
+static stPinchThreadSet *setupTestChainWithChildChains(Flower *flower, stList **chain) {
     // Add some blocks in the adjacencies of the chain, so any
     // accidental assumptions about the blocks being directly adjacent
     // to each other are caught out.
-    stList *chain = setupTestChain(threadSet);
-    stPinchThread *thread1 = stPinchThreadSet_getThread(threadSet, 1);
-    stPinchThread *thread2 = stPinchThreadSet_getThread(threadSet, 2);
-    stPinchThread *thread3 = stPinchThreadSet_getThread(threadSet, 3);
+    stPinchThreadSet *threadSet = setupTestChain(flower, chain);
+    stPinchThread *thread1 = getThreadByHeader(flower, threadSet, "one");
+    stPinchThread *thread2 = getThreadByHeader(flower, threadSet, "two");
+    stPinchThread *thread3 = getThreadByHeader(flower, threadSet, "three");
 
     stPinchThread_pinch(thread1, thread2, 14, 84, 2, true);
     stPinchThread_pinch(thread2, thread3, 54, 44, 2, false);
-    return chain;
+    return threadSet;
 }
 
-/* static stList *setupTestChainWithTandemDup(stPinchThreadSet *threadSet) { */
-/*     stList *chain = setupTestChain(threadSet); */
-/*     stPinchThread *thread1 = stPinchThreadSet_getThread(threadSet, 1); */
+static stPinchThreadSet *setupTestChainWithTandemDup(Flower *flower, stList **chain) {
+    stPinchThreadSet *threadSet = setupTestChain(flower, chain);
+    stPinchThread *thread1 = getThreadByHeader(flower, threadSet, "one");
 
-/*     stPinchThread_pinch(thread1, thread1, 0, 150, 10, false); */
-/*     stPinchThread_pinch(thread1, thread1, 20, 130, 10, false); */
-/*     stPinchThread_pinch(thread1, thread1, 30, 120, 10, false); */
-/*     stPinchThread_pinch(thread1, thread1, 50, 100, 10, false); */
+    stPinchThread_pinch(thread1, thread1, 2, 150, 8, false);
+    stPinchThread_pinch(thread1, thread1, 20, 130, 10, false);
+    stPinchThread_pinch(thread1, thread1, 30, 120, 10, false);
+    stPinchThread_pinch(thread1, thread1, 50, 100, 10, false);
 
-/*     return chain; */
-/* } */
+    return threadSet;
+}
 
-static void test_stCaf_splitChainP(CuTest *testCase, stList *(*setup)(stPinchThreadSet *)) {
-    stPinchThreadSet *threadSet = stPinchThreadSet_construct();
-    stList *chain = setup(threadSet);
+static stPinchThreadSet *setupRandom(Flower *flower, stList **chain) {
+    int64_t numThreads = st_randomInt64(4, 400);
+    for (int64_t i = 0; i < numThreads; i++) {
+        testCommon_addThreadToFlower(flower, "", st_randomInt64(1, 10000));
+    }
+    stPinchThreadSet *threadSet = stCaf_setup(flower);
+    int64_t numPinches = st_randomInt64(numThreads, 100*numThreads);
+    for (int64_t i = 0; i < numPinches; i++) {
+        stPinch pinch = stPinchThreadSet_getRandomPinch(threadSet);
+        stPinchThread *thread1 = stPinchThreadSet_getThread(threadSet, pinch.name1);
+        stPinchThread *thread2 = stPinchThreadSet_getThread(threadSet, pinch.name2);
+        if (pinch.start1 == stPinchThread_getStart(thread1)
+            || pinch.start2 == stPinchThread_getStart(thread2)
+            || pinch.start1 + pinch.length == stPinchThread_getStart(thread1) + stPinchThread_getLength(thread1)
+            || pinch.start2 + pinch.length == stPinchThread_getStart(thread2) + stPinchThread_getLength(thread2)) {
+            // The pinch would interfere with the caps.
+            continue;
+        }
+        stPinchThread_pinch(thread1, thread2, pinch.start1, pinch.start2, pinch.length, pinch.strand);
+    }
+    return threadSet;
+}
+
+static void test_stCaf_splitChainP(CuTest *testCase, stPinchThreadSet *(*setup)(Flower *, stList **)) {
+    CactusDisk *cactusDisk = testCommon_getTemporaryCactusDisk();
+    Flower *flower = flower_construct2(0, cactusDisk);
+    group_construct2(flower);
+
+    stList *chain = NULL;
+    stPinchThreadSet *threadSet = setup(flower, &chain);
     int64_t oldBlockNumber = stPinchThreadSet_getTotalBlockNumber(threadSet);
 
-    stPinchThread *thread1 = stPinchThreadSet_getThread(threadSet, 1);
-    stPinchThread *thread2 = stPinchThreadSet_getThread(threadSet, 2);
-    stPinchThread *thread3 = stPinchThreadSet_getThread(threadSet, 3);
+    stPinchThread *thread1 = getThreadByHeader(flower, threadSet, "one");
+    stPinchThread *thread2 = getThreadByHeader(flower, threadSet, "two");
+    stPinchThread *thread3 = getThreadByHeader(flower, threadSet, "three");
 
     stList *partitions = stList_construct3(0, (void (*)(void *)) stList_destruct);
     stList *partition1 = stList_construct3(0, (void (*)(void *)) stIntTuple_destruct);
@@ -295,10 +314,10 @@ static void test_stCaf_splitChainP(CuTest *testCase, stList *(*setup)(stPinchThr
     CuAssertIntEquals(testCase, stList_length(stList_get(partitionedChains, 1)), stList_length(chain));
 
     CuAssertIntEquals(testCase, oldBlockNumber + stList_length(chain), stPinchThreadSet_getTotalBlockNumber(threadSet));
-    CuAssertTrue(testCase, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 0)) !=
+    CuAssertTrue(testCase, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 2)) !=
                            stPinchSegment_getBlock(stPinchThread_getSegment(thread2, 90)));
-    CuAssertTrue(testCase, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 0)) ==
-                           stPinchSegment_getBlock(stPinchThread_getSegment(thread3, 0)));
+    CuAssertTrue(testCase, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 2)) ==
+                           stPinchSegment_getBlock(stPinchThread_getSegment(thread3, 2)));
     CuAssertTrue(testCase, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 20)) !=
                            stPinchSegment_getBlock(stPinchThread_getSegment(thread2, 70)));
     CuAssertTrue(testCase, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 20)) ==
@@ -322,6 +341,50 @@ static void test_stCaf_splitChain(CuTest *testCase) {
     test_stCaf_splitChainP(testCase, setupTestChain);
     // Test on the same chain but with children
     test_stCaf_splitChainP(testCase, setupTestChainWithChildChains);
+}
+
+static void test_stCaf_getHomologyUnitsP(CuTest *testCase, HomologyUnitType type, stPinchThreadSet *(*setup)(Flower *, stList **)) {
+    CactusDisk *cactusDisk = testCommon_getTemporaryCactusDisk();
+    Flower *flower = flower_construct2(0, cactusDisk);
+    group_construct2(flower);
+
+    stList *chain = NULL;
+    stPinchThreadSet *threadSet = setup(flower, &chain);
+    int64_t blockNumber = stPinchThreadSet_getTotalBlockNumber(threadSet);
+
+    stHash *blocksToHomologyUnits = stHash_construct();
+    stSet *homologyUnits = stCaf_getHomologyUnits(flower, threadSet, blocksToHomologyUnits, type);
+    if (type == BLOCK) {
+        CuAssertIntEquals(testCase, blockNumber, stSet_size(homologyUnits));
+    } else {
+        int64_t accumulatedBlockNumber = 0;
+        stSetIterator *unitIt = stSet_getIterator(homologyUnits);
+        HomologyUnit *unit;
+        while ((unit = stSet_getNext(unitIt)) != NULL) {
+            CuAssertTrue(testCase, unit->unitType == CHAIN);
+            accumulatedBlockNumber += stList_length(unit->unit);
+        }
+        CuAssertIntEquals(testCase, blockNumber, accumulatedBlockNumber);
+        stSet_destructIterator(unitIt);
+    }
+    stList_destruct(chain);
+    stPinchThreadSet_destruct(threadSet);
+}
+
+// Test that the homology units we get from the graph represent all blocks.
+static void test_stCaf_getHomologyUnits(CuTest *testCase) {
+    test_stCaf_getHomologyUnitsP(testCase, CHAIN, setupTestChain);
+    test_stCaf_getHomologyUnitsP(testCase, CHAIN, setupTestChainWithChildChains);
+    test_stCaf_getHomologyUnitsP(testCase, CHAIN, setupTestChainWithTandemDup);
+    for (int64_t i = 0; i < 100; i++) {
+        test_stCaf_getHomologyUnitsP(testCase, CHAIN, setupRandom);
+    }
+    test_stCaf_getHomologyUnitsP(testCase, BLOCK, setupTestChain);
+    test_stCaf_getHomologyUnitsP(testCase, BLOCK, setupTestChainWithChildChains);
+    test_stCaf_getHomologyUnitsP(testCase, BLOCK, setupTestChainWithTandemDup);
+    for (int64_t i = 0; i < 100; i++) {
+        test_stCaf_getHomologyUnitsP(testCase, BLOCK, setupRandom);
+    }
 }
 
 static void test_stCaf_findAndRemoveSplitBranches(CuTest *testCase) {
@@ -356,5 +419,6 @@ CuSuite *phylogenyTestSuite(void) {
     SUITE_ADD_TEST(suite, test_stCaf_splitBlock);
     SUITE_ADD_TEST(suite, test_stCaf_splitChain);
     SUITE_ADD_TEST(suite, test_stCaf_findAndRemoveSplitBranches);
+    SUITE_ADD_TEST(suite, test_stCaf_getHomologyUnits);
     return suite;
 }

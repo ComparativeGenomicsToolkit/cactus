@@ -191,8 +191,8 @@ stHash *stCaf_getThreadStrings(Flower *flower, stPinchThreadSet *threadSet);
 stSet *stCaf_getOutgroupThreads(Flower *flower, stPinchThreadSet *threadSet);
 
 /*
- * Returns a list with correct start and end from the cyclical chain ordering.
+ * Get an initial set of homology units from the graph.
  */
-stList *stCaf_getCorrectChainOrder(stList *blocks);
+stSet *stCaf_getHomologyUnits(Flower *flower, stPinchThreadSet *threadSet, stHash *blocksToHomologyUnits, HomologyUnitType type);
 
 #endif /* STCAFPHYLOGENY_H_ */

@@ -1013,6 +1013,7 @@ static TreeBuildingResult *buildTreeForHomologyUnit(TreeBuildingInput *input) {
                                       input->constants->speciesMRCAMatrix,
                                       input->constants->eventToSpeciesNode,
                                       snpDiffs, breakpointDiffs, &mySeed);
+    assert(stTree_getNumNodes(canonicalTree) == 2 * degree - 1);
 
     // Sample the rest of the trees.
     stList *trees = stList_construct();
@@ -1349,9 +1350,7 @@ static void splitUsingHighlyConfidentBranches(stCaf_SplitBranch *splitBranch,
 
 static stList *constructChain(stCactusEdgeEnd *chainEnd) {
     stList *chain = stList_construct();
-    printf("chain %p\n", (void *) chain);
     if (stPinchEnd_getOrientation(stCactusEdgeEnd_getObject(chainEnd))) {
-        printf("flip\n");
         chainEnd = stCactusEdgeEnd_getOtherEdgeEnd(chainEnd);
         chainEnd = stCactusEdgeEnd_getLink(chainEnd);
         chainEnd = stCactusEdgeEnd_getOtherEdgeEnd(chainEnd);
@@ -1369,33 +1368,27 @@ static stList *constructChain(stCactusEdgeEnd *chainEnd) {
     return chain;
 }
 
-static void getChainsFromCactusGraph_R(stCactusNode *cactusNode, stCactusEdgeEnd *parentChain, stList *chains) {
-    stCactusNodeEdgeEndIt cactusEdgeEndIt = stCactusNode_getEdgeEndIt(cactusNode);
-    stCactusEdgeEnd *cactusEdgeEnd;
-    while ((cactusEdgeEnd = stCactusNodeEdgeEndIt_getNext(&cactusEdgeEndIt)) != NULL) {
-        if ((parentChain == NULL)
-            || (cactusEdgeEnd != parentChain
-                && cactusEdgeEnd != stCactusEdgeEnd_getLink(parentChain))) {
-            stList_append(chains, constructChain(stCactusEdgeEnd_getOtherEdgeEnd(cactusEdgeEnd)));
-            // Recurse to find more chains, if it's not a direct
-            // self-loop.
-            if (stCactusEdgeEnd_getOtherNode(cactusEdgeEnd) != cactusNode) {
-                getChainsFromCactusGraph_R(stCactusEdgeEnd_getOtherNode(cactusEdgeEnd),
-                                           stCactusEdgeEnd_getOtherEdgeEnd(cactusEdgeEnd),
-                                           chains);
+static stList *getChainsFromCactusGraph(stCactusGraph *cactusGraph, stCactusNode *startCactusNode) {
+    stList *chains = stList_construct();
+
+    stCactusGraphNodeIt *nodeIt = stCactusGraphNodeIterator_construct(cactusGraph);
+    stCactusNode *cactusNode;
+    while ((cactusNode = stCactusGraphNodeIterator_getNext(nodeIt)) != NULL) {
+        stCactusNodeEdgeEndIt cactusEdgeEndIt = stCactusNode_getEdgeEndIt(cactusNode);
+        stCactusEdgeEnd *cactusEdgeEnd;
+        while ((cactusEdgeEnd = stCactusNodeEdgeEndIt_getNext(&cactusEdgeEndIt)) != NULL) {
+            if (stCactusEdgeEnd_isChainEnd(cactusEdgeEnd) && stCactusEdgeEnd_getLinkOrientation(cactusEdgeEnd)) {
+                stList_append(chains, constructChain(stCactusEdgeEnd_getOtherEdgeEnd(cactusEdgeEnd)));
             }
         }
     }
-}
+    stCactusGraphNodeIterator_destruct(nodeIt);
 
-static stList *getChainsFromCactusGraph(stCactusNode *startCactusNode) {
-    stList *chains = stList_construct();
-    getChainsFromCactusGraph_R(startCactusNode, NULL, chains);
     return chains;
 }
 
 // Get the initial homology units from the graph.
-static stSet *getHomologyUnits(Flower *flower, stPinchThreadSet *threadSet, stHash *blocksToHomologyUnits, HomologyUnitType type) {
+stSet *stCaf_getHomologyUnits(Flower *flower, stPinchThreadSet *threadSet, stHash *blocksToHomologyUnits, HomologyUnitType type) {
     stSet *homologyUnits = stSet_construct2((void (*)(void *)) HomologyUnit_destruct);
     if (type == BLOCK) {
         stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
@@ -1411,7 +1404,7 @@ static stSet *getHomologyUnits(Flower *flower, stPinchThreadSet *threadSet, stHa
         stList *deadEndComponent;
         stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 0, 0,
                                                                       0.0, true, 100000);
-        stList *chains = getChainsFromCactusGraph(startCactusNode);
+        stList *chains = getChainsFromCactusGraph(cactusGraph, startCactusNode);
         for (int64_t i = 0; i < stList_length(chains); i++) {
             HomologyUnit *unit = HomologyUnit_construct(CHAIN, stList_get(chains, i));
             stSet_insert(homologyUnits, unit);
@@ -1494,7 +1487,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
     // (potentially split) chain.
     stHash *blocksToHomologyUnits = stHash_construct();
 
-    stSet *homologyUnits = getHomologyUnits(flower, threadSet, blocksToHomologyUnits, CHAIN);
+    stSet *homologyUnits = stCaf_getHomologyUnits(flower, threadSet, blocksToHomologyUnits, CHAIN);
 
     // The loop to build a tree for each homology unit
     stSetIterator *homologyUnitIt = stSet_getIterator(homologyUnits);
