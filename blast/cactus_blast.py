@@ -186,27 +186,19 @@ class BlastIngroupsAndOutgroups(Job):
         self.outgroupSequenceIDs = outgroupSequenceIDs
 
     def run(self, fileStore):
-        ingroupResultsID = self.addChild(BlastSequencesAllAgainstAll(self.ingroupSequenceIDs, self.blastOptions)).rv()
+        ingroupAlignmentsID = self.addChild(BlastSequencesAllAgainstAll(self.ingroupSequenceIDs, self.blastOptions)).rv()
 
-        outgroupFragmentsAndOutgroupResults = self.addChild(BlastFirstOutgroup(untrimmedSequenceIDs=self.ingroupSequenceIDs,
+        blastJob = self.addChild(BlastFirstOutgroup(untrimmedSequenceIDs=self.ingroupSequenceIDs,
                                                sequenceIDs=self.ingroupSequenceIDs,
                                                outgroupSequenceIDs=self.outgroupSequenceIDs,
                                                outgroupFragmentIDs=[],
                                                outputID=None,
                                                blastOptions=self.blastOptions,
-                                               outgroupNumber=1)).rv()
-        return self.addFollowOn(BlastIngroupsAndOutgroups2(ingroupResultsID, outgroupFragmentsAndOutgroupResults)).rv()
+                                               outgroupNumber=1))
 
-class BlastIngroupsAndOutgroups2(Job):
-    def __init__(self, ingroupResultsID, outgroupFragmentsAndOutgroupResults):
-        Job.__init__(self)
-        self.ingroupResultsID = ingroupResultsID
-        self.outgroupFragmentsAndOutgroupResults = outgroupFragmentsAndOutgroupResults
-    def run(self, fileStore):
-        outgroupResultsID = self.outgroupFragmentsAndOutgroupResults["outputID"]
-        outgroupFragmentIDs = self.outgroupFragmentsAndOutgroupResults["outgroupFragmentIDs"]
-        alignmentsID = self.addChild(CollateBlasts([self.ingroupResultsID, outgroupResultsID])).rv()
-        return {"alignmentsID":alignmentsID, "outgroupFragmentIDs":outgroupFragmentIDs}
+        outgroupFragmentIDs, outgroupAlignmentsID = (blastJob.rv(0), blastJob.rv(1))
+        alignmentsID = self.addFollowOn(CollateBlasts([ingroupAlignmentsID, outgroupAlignmentsID])).rv()
+        return (alignmentsID, outgroupFragmentIDs)
         
         
 
@@ -354,7 +346,7 @@ class TrimAndRecurseOnOutgroups(Job):
                                                    blastOptions=self.blastOptions,
                                                    outgroupNumber=self.outgroupNumber + 1)).rv()
         else:
-            return {"outgroupFragmentIDs":self.outgroupFragmentIDs, "outputID":self.outputID}
+            return (self.outgroupFragmentIDs, self.outputID)
                 
 
 def compressFastaFile(fileName):

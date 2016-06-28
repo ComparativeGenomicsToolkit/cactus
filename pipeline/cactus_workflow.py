@@ -380,7 +380,7 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
 
         alignmentsFile = getTempFile("unconvertedAlignments", rootDir=fileStore.getLocalTempDir())
         # FIXME: this is really ugly and steals the options from the caf tag
-        trimBlastResults = self.addChild(BlastIngroupsAndOutgroups(
+        blastJob = self.addChild(BlastIngroupsAndOutgroups(
                                           BlastOptions(chunkSize=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "chunkSize", int),
                                                         overlapSize=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "overlapSize", int),
                                                         lastzArguments=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "lastzArguments"),
@@ -393,23 +393,10 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
                                                        trimMinSize=self.getOptionalPhaseAttrib("trimMinSize", int, 0),
                                                        trimThreshold=self.getOptionalPhaseAttrib("trimThreshold", float, 0.8),
                                                        trimWindowSize=self.getOptionalPhaseAttrib("trimWindowSize", int, 10),
-                                                       trimOutgroupFlanking=self.getOptionalPhaseAttrib("trimOutgroupFlanking", int, 100)), ingroupIDs, outgroupIDs)).rv()
-        self.phaseNode.attrib["trimBlastResults"] = trimBlastResults
+                                                       trimOutgroupFlanking=self.getOptionalPhaseAttrib("trimOutgroupFlanking", int, 100)), ingroupIDs, outgroupIDs))
 
-        return self.makeFollowOnPhaseJob(CactusTrimmingBlastPhase2, phaseName="trimBlast")
-class CactusTrimmingBlastPhase2(CactusPhasesJob):
-    def run(self, fileStore):
-        trimBlastResults = self.phaseNode.attrib["trimBlastResults"]
+        self.cactusWorkflowArguments.alignmentsID, self.cactusWorkflowArguments.outgroupFragmentIDs = (blastJob.rv(0), blastJob.rv(1))
         
-        outgroupFragmentIDs = trimBlastResults["outgroupFragmentIDs"]
-        alignmentsID = trimBlastResults["alignmentsID"]
-
-        self.cactusWorkflowArguments.alignmentsID = alignmentsID
-        # Point the outgroup sequences to their trimmed versions for
-        # phases after this one.
-        for i, outgroup in enumerate(self.cactusWorkflowArguments.experimentWrapper.getOutgroupEvents()):
-            self.cactusWorkflowArguments.experimentWrapper.seqIDMap[outgroup] = outgroupFragmentIDs[i]
-
         return self.makeFollowOnPhaseJob(CactusSetupPhase, "setup", checkpoint = False)
         
 ############################################################
@@ -435,6 +422,11 @@ class CactusSetupPhase(CactusPhasesJob):
     """Initialises the cactus database and adapts the config file for the run.
     """
     def run(self, fileStore):
+        # Point the outgroup sequences to their trimmed versions for
+        # phases after this one.
+        for i, outgroup in enumerate(self.cactusWorkflowArguments.experimentWrapper.getOutgroupEvents()):
+            self.cactusWorkflowArguments.experimentWrapper.seqIDMap[outgroup] = self.cactusWorkflowArguments.outgroupFragmentIDs[i]
+
         cw = ConfigWrapper(self.cactusWorkflowArguments.configNode)
 
         if (not self.cactusWorkflowArguments.configWrapper.getDoTrimStrategy()) or (self.cactusWorkflowArguments.outgroupEventNames == None):
