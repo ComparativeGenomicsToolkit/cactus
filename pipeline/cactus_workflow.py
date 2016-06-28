@@ -627,7 +627,7 @@ class CactusCafWrapperLarge(CactusRecursionJob):
                                                         memory=self.getOptionalPhaseAttrib("lastzMemory", int, sys.maxint),
                                                         minimumSequenceLength=self.getOptionalPhaseAttrib("minimumSequenceLengthForBlast", int, 1)), memory = self.memory)).rv()
         #Now setup a call to cactus core wrapper as a follow on
-        self.phaseNode.attrib["alignmentIDs"] = alignmentsID
+        self.phaseNode.attrib["alignmentsID"] = alignmentsID
         self.makeFollowOnRecursiveJob(CactusCafWrapperLarge2)
         
 class CactusCafWrapperLarge2(CactusCafWrapper):
