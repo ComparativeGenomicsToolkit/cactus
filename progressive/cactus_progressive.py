@@ -304,12 +304,12 @@ def main():
         seqIDs = []
         for seq in project.getInputSequencePaths():
             seqFileURL = makeURL(seq)
-            seqIDs.append(toil.jobStore.importFile(seqFileURL))
+            seqIDs.append(toil.importFile(seqFileURL))
         project.setInputSequenceIDs(seqIDs)
 
         
         #import cactus config
-        cactusConfigID = toil.jobStore.importFile(makeURL(project.getConfigPath()))
+        cactusConfigID = toil.importFile(makeURL(project.getConfigPath()))
         logger.info("Setting config id to: %s" % cactusConfigID)
         project.setConfigID(cactusConfigID)
 
@@ -319,16 +319,16 @@ def main():
         project.writeXML(options.project)
 
         #Run the workflow
-        project = toil.run(RunCactusPreprocessorThenProgressiveDown(options, project))
+        project = toil.start(RunCactusPreprocessorThenProgressiveDown(options, project))
 
         #Write the HAL file and reference sequence for each experiment wrapper to a permanent
         #path on the leader node
         for name in project.expIDMap:
-            toil.jobStore.exportFile(project.expIDMap[name], makeURL(project.expMap[name]))
+            toil.exportFile(project.expIDMap[name], makeURL(project.expMap[name]))
             expWrapper = ExperimentWrapper(ET.parse(project.expMap[name]).getroot())
-            toil.jobStore.exportFile(expWrapper.getHalID(), makeURL(expWrapper.getHALPath()))
-            toil.jobStore.exportFile(expWrapper.getReferenceID(), makeURL(expWrapper.getReferencePath()))
-            toil.jobStore.exportFile(expWrapper.getHalFastaID(), makeURL(expWrapper.getHALFastaPath()))
+            toil.exportFile(expWrapper.getHalID(), makeURL(expWrapper.getHALPath()))
+            toil.exportFile(expWrapper.getReferenceID(), makeURL(expWrapper.getReferencePath()))
+            toil.exportFile(expWrapper.getHalFastaID(), makeURL(expWrapper.getHALFastaPath()))
 
         project.writeXML(options.project)
 
