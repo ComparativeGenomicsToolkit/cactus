@@ -859,60 +859,34 @@ static void getSpeciesToSplitOn(stTree *speciesTree, EventTree *eventTree,
     } while (aSpeciesToSplitOn != NULL);
 }
 
-static void addContextualBlocksInOneDirection(stPinchBlock *block,
-                                              bool five_prime,
-                                              int64_t maxBaseDistance,
-                                              int64_t maxBlockDistance,
-                                              bool ignoreUnalignedBases,
-                                              stHash *blocksToHomologyUnits,
-                                              stSet *contextualHomologyUnits) {
-    stPinchBlockIt blockIt = stPinchBlock_getSegmentIterator(block);
-    stPinchSegment *segment;
-    while ((segment = stPinchBlockIt_getNext(&blockIt)) != NULL) {
-        bool orientation = stPinchSegment_getBlockOrientation(segment);
-        stPinchSegment *curSegment = (five_prime ^ orientation) ? stPinchSegment_get3Prime(segment) : stPinchSegment_get5Prime(segment);
-        int64_t curBlockDistance = 0;
-        int64_t curBaseDistance = stPinchSegment_getLength(segment) / 2;
-        while ((curSegment != NULL) && (curBlockDistance < maxBlockDistance)
-               && (curBaseDistance < maxBaseDistance)) {
-            stPinchBlock *curBlock = stPinchSegment_getBlock(curSegment);
-            if (curBlock != NULL) {
-                HomologyUnit *unit = stHash_search(blocksToHomologyUnits, curBlock);
-                stSet_insert(contextualHomologyUnits, unit);
-                curBaseDistance += stPinchSegment_getLength(segment);
-                curBlockDistance++;
-            } else if (!ignoreUnalignedBases) {
-                curBaseDistance += stPinchSegment_getLength(segment);
-                curBlockDistance++;
-            }
-            curSegment = (five_prime ^ orientation) ? stPinchSegment_get3Prime(curSegment) : stPinchSegment_get5Prime(curSegment);
-        }
-    }
-}
-
 // Add any homology units close enough to the given block to be
 // affected by its breakpoint information to the given set.
-static void addContextualBlocksToSet(HomologyUnit *unit,
-                                     int64_t maxBaseDistance,
-                                     int64_t maxBlockDistance,
-                                     bool ignoreUnalignedBases,
-                                     stHash *blocksToHomologyUnits,
-                                     stSet *contextualHomologyUnits) {
-    // Go toward the 5' (relative to block orientation) end of each
-    // thread adding blocks, until we reach the end or maxBaseDistance
-    // or maxBlockDistance.
-    stPinchBlock *block = getCanonicalBlockForHomologyUnit(unit);
-    addContextualBlocksInOneDirection(block, true, maxBaseDistance, maxBlockDistance,
-                                      ignoreUnalignedBases, blocksToHomologyUnits,
-                                      contextualHomologyUnits);
-
-    // Do the same for the 3' (relative to block orientation) side.
-    if (unit->unitType == CHAIN) {
-        block = stList_get(unit->unit, stList_length(unit->unit) - 1);
+static void addContextualHomologyUnitsToSet(HomologyUnit *unit,
+                                            int64_t maxBaseDistance,
+                                            int64_t maxBlockDistance,
+                                            bool ignoreUnalignedBases,
+                                            bool onlyIncludeCompleteFeatureBlocks,
+                                            stHash *strings,
+                                            stHash *blocksToHomologyUnits,
+                                            stSet *contextualHomologyUnits) {
+    stList *contextualBlocks;
+    if (unit->unitType == BLOCK) {
+        contextualBlocks = stFeatureBlock_getContextualBlocks(
+            unit->unit, maxBaseDistance, maxBlockDistance, ignoreUnalignedBases,
+            onlyIncludeCompleteFeatureBlocks, strings);
+    } else {
+        assert(unit->unitType == CHAIN);
+        contextualBlocks = stFeatureBlock_getContextualBlocksForChainedBlocks(
+            unit->unit, maxBaseDistance, maxBlockDistance, ignoreUnalignedBases,
+            onlyIncludeCompleteFeatureBlocks, strings);
     }
-    addContextualBlocksInOneDirection(block, false, maxBaseDistance, maxBlockDistance,
-                                      ignoreUnalignedBases, blocksToHomologyUnits,
-                                      contextualHomologyUnits);
+    for (int64_t i = 0; i < stList_length(contextualBlocks); i++) {
+        stPinchBlock *block = stList_get(contextualBlocks, i);
+        HomologyUnit *contextualUnit = stHash_search(blocksToHomologyUnits, block);
+        assert(contextualUnit != NULL);
+        stSet_insert(contextualHomologyUnits, contextualUnit);
+    }
+    stList_destruct(contextualBlocks);
 }
 
 // Remove any split branches that appear in this tree from the
@@ -1266,21 +1240,25 @@ void splitOnSplitBranch(stCaf_SplitBranch *splitBranch,
     // breakpoint information to the homologyUnitsToUpdate set.
     if (unitBelowBranch != NULL) {
         stSet_insert(homologyUnitsToUpdate, unitBelowBranch);
-        addContextualBlocksToSet(unitBelowBranch,
-                                 constants->params->maxBaseDistance,
-                                 constants->params->maxBlockDistance,
-                                 constants->params->ignoreUnalignedBases,
-                                 blocksToHomologyUnits,
-                                 homologyUnitsToUpdate);
+        addContextualHomologyUnitsToSet(unitBelowBranch,
+                                        constants->params->maxBaseDistance,
+                                        constants->params->maxBlockDistance,
+                                        constants->params->ignoreUnalignedBases,
+                                        constants->params->onlyIncludeCompleteFeatureBlocks,
+                                        constants->threadStrings,
+                                        blocksToHomologyUnits,
+                                        homologyUnitsToUpdate);
     }
     if (unitNotBelowBranch != NULL) {
         stSet_insert(homologyUnitsToUpdate, unitNotBelowBranch);
-        addContextualBlocksToSet(unitNotBelowBranch,
-                                 constants->params->maxBaseDistance,
-                                 constants->params->maxBlockDistance,
-                                 constants->params->ignoreUnalignedBases,
-                                 blocksToHomologyUnits,
-                                 homologyUnitsToUpdate);
+        addContextualHomologyUnitsToSet(unitNotBelowBranch,
+                                        constants->params->maxBaseDistance,
+                                        constants->params->maxBlockDistance,
+                                        constants->params->ignoreUnalignedBases,
+                                        constants->params->onlyIncludeCompleteFeatureBlocks,
+                                        constants->threadStrings,
+                                        blocksToHomologyUnits,
+                                        homologyUnitsToUpdate);
     }
 
     stList_destruct(partitionedUnits);
