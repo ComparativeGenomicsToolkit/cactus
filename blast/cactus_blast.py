@@ -261,10 +261,9 @@ class TrimAndRecurseOnOutgroups(Job):
         outgroupSequences = [fileStore.readGlobalFile(fileID) for fileID in self.outgroupSequenceIDs]
         sequences = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceIDs]
         mostRecentResults = fileStore.readGlobalFile(self.mostRecentResultsID)
+
         if self.outputID:
-            outputFileTmp = fileStore.readGlobalFile(self.outputID, cache=False)
-            outputFile = fileStore.getLocalTempFile()
-            shutil.copyfile(outputFileTmp, outputFile)
+            outputFile = fileStore.readGlobalFile(self.outputID, mutable=True)
         else:
             outputFile = fileStore.getLocalTempFile()
         trimmedOutgroup = fileStore.getLocalTempFile()
@@ -306,8 +305,6 @@ class TrimAndRecurseOnOutgroups(Job):
         with open(ingroupConvertedResultsFile) as results:
             with open(outputFile, 'a') as output:
                 output.write(results.read())
-        if self.outputID:
-            fileStore.deleteGlobalFile(self.outputID)
         self.outputID = fileStore.writeGlobalFile(outputFile, cleanup=False)
 
         # Report coverage of the all outgroup alignments so far on the ingroups.
@@ -567,32 +564,32 @@ replaced with the the sequence file and the results file, respectively",
             raise RuntimeError("--ingroups and --outgroups must be provided "
                                "together")
         if options.ingroups:
-            ingroupIDs = [toil.jobStore.importFile(makeURL(ingroup)) for ingroup in options.ingroups.split(',')]
-            outgroupIDs = [toil.jobStore.importFile(makeURL(outgroup)) for outgroup in options.outgroups.split(',')]
+            ingroupIDs = [toil.importFile(makeURL(ingroup)) for ingroup in options.ingroups.split(',')]
+            outgroupIDs = [toil.importFile(makeURL(outgroup)) for outgroup in options.outgroups.split(',')]
             rootJob = BlastIngroupsAndOutgroups(options, ingroupIDs, outgroupIDs)
-            blastResults = toil.run(rootJob)
+            blastResults = toil.start(rootJob)
             alignmentsID = blastResults["alignmentsID"]
-            toil.jobStore.exportFile(alignmentsID, makeURL(options.cigarFile))
+            toil.exportFile(alignmentsID, makeURL(options.cigarFile))
             outgroupFragmentIDs = blastResults["outgroupFragmentIDs"]
             assert len(outgroupFragmentIDs) == len(options.outgroups.split(','))
             if not os.path.exists(options.outgroupFragmentsDir):
                 os.makedirs(options.outgroupFragmentsDir)
             for (outgroupFragmentID, outgroupName) in zip(outgroupFragmentIDs, options.outgroups.split(',')):
-                toil.jobStore.exportFile(outgroupFragmentID, makeURL(os.path.join(options.outgroupFragmentsDir, os.path.basename(outgroupName))))
+                toil.exportFile(outgroupFragmentID, makeURL(os.path.join(options.outgroupFragmentsDir, os.path.basename(outgroupName))))
 
             
 
         elif options.targetSequenceFiles == None:
-            seqIDs = [toil.jobStore.importFile(makeURL(seq)) for seq in options.seqFiles.split()]
+            seqIDs = [toil.importFile(makeURL(seq)) for seq in options.seqFiles.split()]
             rootJob = BlastSequencesAllAgainstAll(seqIDs, options)
-            alignmentsID = toil.run(rootJob)
-            toil.jobStore.exportFile(alignmentsID, makeURL(options.cigarFile))
+            alignmentsID = toil.start(rootJob)
+            toil.exportFile(alignmentsID, makeURL(options.cigarFile))
         else:
-            seqIDs = [toil.jobStore.importFile(makeURL(seq)) for seq in options.seqFiles.split()]
-            targetSeqIDs = [toil.jobStore.importFile(makeURL(seq)) for seq in options.targetSequenceFiles.split()]
+            seqIDs = [toil.importFile(makeURL(seq)) for seq in options.seqFiles.split()]
+            targetSeqIDs = [toil.importFile(makeURL(seq)) for seq in options.targetSequenceFiles.split()]
             rootJob = BlastSequencesAgainstEachOther(seqIDs, targetSeqIDs, options)
-            alignmentsID = toil.run(rootJob)
-            toil.jobStore.exportFile(alignmentsID, makeURL(options.cigarFile))
+            alignmentsID = toil.start(rootJob)
+            toil.exportFile(alignmentsID, makeURL(options.cigarFile))
 
 def _test():
     import doctest
