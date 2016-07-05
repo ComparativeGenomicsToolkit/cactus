@@ -1369,6 +1369,37 @@ static stList *constructChain(stCactusEdgeEnd *chainEnd) {
     return chain;
 }
 
+/*
+ * Ensure that the chain goes 5'->3' when following the block orientation, not 3'->5'.
+ */
+static void correctChainOrder(stList *chain) {
+    if (stList_length(chain) == 1) {
+        // The order is trivially correct.
+        return;
+    }
+    stPinchSegment *segment = stPinchBlock_getFirst(stList_get(chain, 0));
+    stPinchBlock *secondBlock = stList_get(chain, 1);
+    bool orientation = stPinchSegment_getBlockOrientation(segment);
+    for (;;) {
+        if (segment == NULL) {
+            // Ran into end of thread without reaching second block--the chain's orientations should be reversed.
+            for (int64_t i = 0; i < stList_length(chain); i++) {
+                stPinchBlock *block = stList_get(chain, i);
+                stPinchBlockIt it = stPinchBlock_getSegmentIterator(block);
+                while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
+                    stPinchSegment_setBlockOrientation(segment, !stPinchSegment_getBlockOrientation(segment));
+                }
+            }
+            return;
+        }
+        if (stPinchSegment_getBlock(segment) == secondBlock) {
+            // Chain is in correct order.
+            return;
+        }
+        segment = orientation ? stPinchSegment_get3Prime(segment) : stPinchSegment_get5Prime(segment);
+    }
+}
+
 static stList *getChainsFromCactusGraph(stCactusGraph *cactusGraph, stCactusNode *startCactusNode) {
     stList *chains = stList_construct();
 
@@ -1379,7 +1410,9 @@ static stList *getChainsFromCactusGraph(stCactusGraph *cactusGraph, stCactusNode
         stCactusEdgeEnd *cactusEdgeEnd;
         while ((cactusEdgeEnd = stCactusNodeEdgeEndIt_getNext(&cactusEdgeEndIt)) != NULL) {
             if (stCactusEdgeEnd_isChainEnd(cactusEdgeEnd) && stCactusEdgeEnd_getLinkOrientation(cactusEdgeEnd)) {
-                stList_append(chains, constructChain(stCactusEdgeEnd_getOtherEdgeEnd(cactusEdgeEnd)));
+                stList *chain = constructChain(stCactusEdgeEnd_getOtherEdgeEnd(cactusEdgeEnd));
+                correctChainOrder(chain);
+                stList_append(chains, chain);
             }
         }
     }
