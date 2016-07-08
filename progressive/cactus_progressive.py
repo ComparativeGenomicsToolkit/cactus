@@ -31,6 +31,7 @@ from toil.lib.bioio import setLoggingFromOptions
 
 from cactus.shared.common import cactusRootPath
 from cactus.shared.common import getOptionalAttrib
+from cactus.shared.common import makeURL
   
 from toil.job import Job
 from toil.common import Toil
@@ -47,6 +48,7 @@ from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.schedule import Schedule
+from cactus2hal.cactus2hal import exportHal
 
 
 class ProgressiveDown(Job):
@@ -244,7 +246,8 @@ class RunCactusPreprocessorThenProgressiveDown(Job):
         ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals() #This is necessary..
         #Add the preprocessor child job. The output is a job promise value that will be
         #converted into a list of the IDs of the preprocessed sequences in the follow on job.
-        preprocessorOutput = self.addChild(CactusPreprocessor(self.project.getInputSequenceIDs(), configNode)).rv()
+        preprocessorJob = self.addChild(CactusPreprocessor(self.project.getInputSequenceIDs(), configNode))
+        self.project.setOutputSequenceIDs([preprocessorJob.rv(i) for i in range(len(self.project.getInputSequenceIDs()))])
 
         #Now build the progressive-down job
         schedule = Schedule()
@@ -255,24 +258,21 @@ class RunCactusPreprocessorThenProgressiveDown(Job):
         assert self.options.event in self.project.expMap
         leafNames = [ self.project.mcTree.getName(i) for i in self.project.mcTree.getLeaves() ]
         self.options.globalLeafEventSet = set(leafNames)
-        return self.addFollowOn(ProgressiveDownPrecursor(self.options, self.project, preprocessorOutput, self.options.event, schedule)).rv()
 
-class ProgressiveDownPrecursor(Job):
-    def __init__(self, options, project, preprocessorOutput, event, schedule):
+        return self.addFollowOn(RunCactusPreprocessorThenProgressiveDown2(self.options, self.project, self.options.event, schedule)).rv()
+
+class RunCactusPreprocessorThenProgressiveDown2(Job):
+    def __init__(self, options, project, event, schedule):
         Job.__init__(self)
         self.options = options
         self.project = project
-        self.preprocessorOutput = preprocessorOutput
         self.event = event
         self.schedule = schedule
     def run(self, fileStore):
-        self.project.setOutputSequenceIDs(self.preprocessorOutput)
-        #outputSequencePaths = CactusPreprocessor.getOutputSequenceFiles(self.project.getInputSequencePaths(), self.project.getOutputSequenceDir())
-        #self.project.preprocessedSequenceIDs = dict(zip(outputSequencePaths, self.preprocessorOutput))
-        return self.addFollowOn(ProgressiveDown(self.options, self.project, self.event, self.schedule)).rv()
+        project = self.addChild(ProgressiveDown(self.options, self.project, self.event, self.schedule)).rv()
 
-def makeURL(path):
-    return "file://" + path
+        #Combine the smaller HAL files from each experiment
+        return self.addFollowOnJobFn(exportHal, project=project).rv()
 
         
 def main():
@@ -293,6 +293,8 @@ def main():
                       help="Recompute and overwrite output files if they exist [default=False]",
                       default=False)
     parser.add_argument("--project", dest="project", help="Directory of multicactus project.")
+    parser.add_argument('--outputHal', dest="outputHAL", help="Output HAL file from the alignment, given \
+            as either a path starting with file:// or an S3 bucket.")
     
     options = parser.parse_args()
     setLoggingFromOptions(options)
@@ -303,8 +305,8 @@ def main():
         #import the sequences
         seqIDs = []
         for seq in project.getInputSequencePaths():
-            seqFileURL = makeURL(seq)
-            seqIDs.append(toil.importFile(seqFileURL))
+            seq = makeURL(seq)
+            seqIDs.append(toil.importFile(seq))
         project.setInputSequenceIDs(seqIDs)
 
         
@@ -319,19 +321,8 @@ def main():
         project.writeXML(options.project)
 
         #Run the workflow
-        project = toil.start(RunCactusPreprocessorThenProgressiveDown(options, project))
-
-        #Write the HAL file and reference sequence for each experiment wrapper to a permanent
-        #path on the leader node
-        for name in project.expIDMap:
-            toil.exportFile(project.expIDMap[name], makeURL(project.expMap[name]))
-            expWrapper = ExperimentWrapper(ET.parse(project.expMap[name]).getroot())
-            toil.exportFile(expWrapper.getHalID(), makeURL(expWrapper.getHALPath()))
-            toil.exportFile(expWrapper.getReferenceID(), makeURL(expWrapper.getReferencePath()))
-            toil.exportFile(expWrapper.getHalFastaID(), makeURL(expWrapper.getHALFastaPath()))
-
-        project.writeXML(options.project)
-
+        halID = toil.start(RunCactusPreprocessorThenProgressiveDown(options, project))
+        toil.exportFile(halID, makeURL(options.outputHAL))
 
 
 if __name__ == '__main__':
