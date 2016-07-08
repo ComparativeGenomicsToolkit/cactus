@@ -18,7 +18,10 @@ from sonLib.bioio import getLogLevelString
 from toil.job import Job
 
 def makeURL(path):
-    return "file://" + os.path.abspath(path)
+    if not (path.startswith("file:") or path.startswith("s3:") or path.startswith("http:")):
+        return "file://" + os.path.abspath(path)
+    else:
+        return path
 
 def cactusRootPath():
     """
