@@ -31,11 +31,12 @@ from toil.lib.bioio import setLoggingFromOptions
 from cactus.shared.configWrapper import ConfigWrapper
 
 class PreprocessorOptions:
-    def __init__(self, chunkSize, cmdLine, memory, cpu, check, proportionToSample):
+    def __init__(self, chunkSize, cmdLine, memory, cpu, disk, check, proportionToSample):
         self.chunkSize = chunkSize
         self.cmdLine = cmdLine
         self.memory = memory
         self.cpu = cpu
+        self.disk = disk
         self.check = check
         self.proportionToSample=proportionToSample
 
@@ -43,7 +44,7 @@ class PreprocessChunk(Job):
     """ locally preprocess a fasta chunk, output then copied back to input
     """
     def __init__(self, prepOptions, seqIDs, proportionSampled, inChunkID):
-        Job.__init__(self, memory=prepOptions.memory, cores=prepOptions.cpu)
+        Job.__init__(self, memory=prepOptions.memory, cores=prepOptions.cpu, disk=prepOptions.disk)
         self.prepOptions = prepOptions 
         self.seqIDs = seqIDs
         self.inChunkID = inChunkID
@@ -58,18 +59,17 @@ class PreprocessChunk(Job):
         cmdline = cmdline.replace("TEMP_DIR", "\"" + fileStore.getLocalTempDir() + "\"")
         cmdline = cmdline.replace("PROPORTION_SAMPLED", str(self.proportionSampled))
         logger.info("Preprocessor exec " + cmdline)
-        #print "command", cmdline
-        #sys.exit(1)
         popenPush(cmdline, " ".join(seqPaths))
         if self.prepOptions.check:
-            system("cp %s %s" % (inChunk, outChunk))
-        return fileStore.writeGlobalFile(outChunk, cleanup=False)
+            return self.inChunkID
+        else:
+            return fileStore.writeGlobalFile(outChunk)
 
 class MergeChunks(Job):
     """ merge a list of chunks into a fasta file
     """
     def __init__(self, prepOptions, chunkIDList):
-        Job.__init__(self, cores=prepOptions.cpu)
+        Job.__init__(self, cores=prepOptions.cpu, memory=prepOptions.memory, disk=prepOptions.disk)
         self.prepOptions = prepOptions 
         self.chunkIDList = chunkIDList
     
@@ -78,13 +78,13 @@ class MergeChunks(Job):
         outSequencePath = fileStore.getLocalTempFile()
         popenPush("cactus_batch_mergeChunks > %s" % outSequencePath, " ".join(chunkList))
         map(fileStore.deleteGlobalFile, self.chunkIDList)
-        return fileStore.writeGlobalFile(outSequencePath, cleanup=False)
+        return fileStore.writeGlobalFile(outSequencePath)
  
 class PreprocessSequence(Job):
     """Cut a sequence into chunks, process, then merge
     """
     def __init__(self, prepOptions, inSequenceID):
-        Job.__init__(self, cores=prepOptions.cpu)
+        Job.__init__(self, cores=prepOptions.cpu, memory=prepOptions.memory, disk=prepOptions.disk)
         self.prepOptions = prepOptions 
         self.inSequenceID = inSequenceID
     
@@ -96,7 +96,7 @@ class PreprocessSequence(Job):
         inChunkList = [ chunk for chunk in popenCatch("cactus_blast_chunkSequences %s %i 0 %s %s" % \
                (getLogLevelString(), self.prepOptions.chunkSize,
                 inChunkDirectory, inSequence)).split("\n") if chunk != "" ]
-        inChunkIDList = [fileStore.writeGlobalFile(chunk, cleanup=False) for chunk in inChunkList]
+        inChunkIDList = [fileStore.writeGlobalFile(chunk) for chunk in inChunkList]
         outChunkIDList = [] 
         #For each input chunk we create an output chunk, it is the output chunks that get concatenated together.
         for i in xrange(len(inChunkList)):
@@ -121,6 +121,7 @@ class BatchPreprocessor(Job):
         prepNode = self.prepXmlElems[iteration]
         self.memory = getOptionalAttrib(prepNode, "memory", typeFn=int, default=None)
         self.cores = getOptionalAttrib(prepNode, "cpu", typeFn=int, default=None)
+        self.disk = getOptionalAttrib(prepNode, "disk", typeFn=int, default=None)
         self.iteration = iteration
               
     def run(self, fileStore):
@@ -132,6 +133,7 @@ class BatchPreprocessor(Job):
                                           prepNode.attrib["preprocessorString"],
                                           self.memory,
                                           self.cores,
+                                          self.disk,
                                           bool(int(prepNode.get("check", default="0"))),
                                           getOptionalAttrib(prepNode, "proportionToSample", typeFn=float, default=1.0))
         

@@ -31,6 +31,7 @@ from toil.lib.bioio import setLoggingFromOptions
 
 from cactus.shared.common import cactusRootPath
 from cactus.shared.common import getOptionalAttrib
+from cactus.shared.common import findRequiredNode
 from cactus.shared.common import makeURL
   
 from toil.job import Job
@@ -50,16 +51,18 @@ from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.schedule import Schedule
 from cactus2hal.cactus2hal import exportHal
 
-
 class ProgressiveDown(Job):
-    def __init__(self, options, project, event, schedule):
-        Job.__init__(self)
+    def __init__(self, options, project, event, schedule, memory=None, cores=None, disk=None):
+        Job.__init__(self, memory=memory, cores=cores, disk=disk)
         self.options = options
         self.project = project
         self.event = event
         self.schedule = schedule
     
     def run(self, fileStore):
+        self.configNode = ET.parse(fileStore.readGlobalFile(self.project.getConfigID())).getroot()
+        self.configWrapper = ConfigWrapper(self.configNode)
+        self.configWrapper.substituteAllPredefinedConstantsWithLiterals()
         logger.info("Progressive Down: " + self.event)
 
         depProjects = dict()
@@ -68,13 +71,13 @@ class ProgressiveDown(Job):
             for child in deps:
                 depProjects[child] = self.addChild(ProgressiveDown(self.options,
                                                     self.project, child, 
-                                                                   self.schedule)).rv()
+                                                                   self.schedule, memory=self.configWrapper.getDefaultMemory())).rv()
         
         return self.addFollowOn(ProgressiveNext(self.options, self.project, self.event,
-                                                              self.schedule, depProjects)).rv()
+                                                              self.schedule, depProjects, memory=self.configWrapper.getDefaultMemory())).rv()
 class ProgressiveNext(Job):
-    def __init__(self, options, project, event, schedule, depProjects):
-        Job.__init__(self)
+    def __init__(self, options, project, event, schedule, depProjects, memory=None, cores=None, disk=None):
+        Job.__init__(self, memory=memory, cores=cores, disk=disk)
         self.options = options
         self.project = project
         self.event = event
@@ -82,6 +85,10 @@ class ProgressiveNext(Job):
         self.depProjects = depProjects
     
     def run(self, fileStore):
+        self.configNode = ET.parse(fileStore.readGlobalFile(self.project.getConfigID())).getroot()
+        self.configWrapper = ConfigWrapper(self.configNode)
+        self.configWrapper.substituteAllPredefinedConstantsWithLiterals()
+
         for projName in self.depProjects:
             depProject = self.depProjects[projName]
             for expName in depProject.expIDMap: 
@@ -97,12 +104,12 @@ class ProgressiveNext(Job):
         eventExpWrapper = None
         logger.info("Progressive Next: " + self.event)
         if not self.schedule.isVirtual(self.event):
-            eventExpWrapper = self.addChild(ProgressiveUp(self.options, self.project, self.event)).rv()
-        return self.addFollowOn(ProgressiveOut(self.options, self.project, self.event, eventExpWrapper, self.schedule)).rv()
+            eventExpWrapper = self.addChild(ProgressiveUp(self.options, self.project, self.event, memory=self.configWrapper.getDefaultMemory())).rv()
+        return self.addFollowOn(ProgressiveOut(self.options, self.project, self.event, eventExpWrapper, self.schedule, memory=self.configWrapper.getDefaultMemory())).rv()
 
 class ProgressiveOut(Job):
-    def __init__(self, options, project, event, eventExpWrapper, schedule):
-        Job.__init__(self)
+    def __init__(self, options, project, event, eventExpWrapper, schedule, memory=None, cores=None, disk=None):
+        Job.__init__(self, memory=memory, cores=cores, disk=disk)
         self.options = options
         self.project = project
         self.event = event
@@ -110,6 +117,10 @@ class ProgressiveOut(Job):
         self.schedule = schedule
         
     def run(self, fileStore):
+        self.configNode = ET.parse(fileStore.readGlobalFile(self.project.getConfigID())).getroot()
+        self.configWrapper = ConfigWrapper(self.configNode)
+        self.configWrapper.substituteAllPredefinedConstantsWithLiterals()
+
         tmpExp = fileStore.getLocalTempFile()
         self.eventExpWrapper.writeXML(tmpExp)
         self.project.expIDMap[self.event] = fileStore.writeGlobalFile(tmpExp)
@@ -117,18 +128,22 @@ class ProgressiveOut(Job):
         if followOnEvent is not None:
             logger.info("Adding follow-on event %s" % followOnEvent)
             return self.addFollowOn(ProgressiveDown(self.options, self.project, followOnEvent,
-                                                    self.schedule)).rv()
+                                                    self.schedule, memory=self.configWrapper.getDefaultMemory())).rv()
 
         return self.project
     
 class ProgressiveUp(Job):
-    def __init__(self, options, project, event):
-        Job.__init__(self)
+    def __init__(self, options, project, event, memory=None, cores=None, disk=None):
+        Job.__init__(self, memory=memory, cores=cores, disk=disk)
         self.options = options
         self.project = project
         self.event = event
     
     def run(self, fileStore):
+        self.configNode = ET.parse(fileStore.readGlobalFile(self.project.getConfigID())).getroot()
+        self.configWrapper = ConfigWrapper(self.configNode)
+        self.configWrapper.substituteAllPredefinedConstantsWithLiterals()
+
         logger.info("Progressive Up: " + self.event)
 
         # open up the experiment
@@ -218,27 +233,19 @@ class ProgressiveUp(Job):
                                                      phaseName="setup")).rv()
         logger.info("Going to create alignments and define the cactus tree")
 
-        #self.addFollowOn(FinishUp(workFlowArgs))
         return finalExpWrapper
-                               
-class FinishUp(Job):
-    def __init__(self, workFlowArgs):
-        Job.__init__(self, memory = 100)
-        self.workFlowArgs = workFlowArgs
-    
-    def run(self, fileStore):
-        donePath = os.path.join(os.path.dirname(self.workFlowArgs.experimentFile), "DONE")
-        doneFile = open(donePath, "w")
-        doneFile.write("")
-        doneFile.close()
 
 class RunCactusPreprocessorThenProgressiveDown(Job):
-    def __init__(self, options, project):
-        Job.__init__(self)
+    def __init__(self, options, project, memory=None, cores=None, disk=None):
+        Job.__init__(self, memory=memory, cores=cores, disk=disk)
         self.options = options
         self.project = project
         
     def run(self, fileStore):
+        self.configNode = ET.parse(fileStore.readGlobalFile(self.project.getConfigID())).getroot()
+        self.configWrapper = ConfigWrapper(self.configNode)
+        self.configWrapper.substituteAllPredefinedConstantsWithLiterals()
+
         #Create jobs to create the output sequences
         logger.info("Reading config file from: %s" % self.project.getConfigID())
         configFile = fileStore.readGlobalFile(self.project.getConfigID())
@@ -259,20 +266,25 @@ class RunCactusPreprocessorThenProgressiveDown(Job):
         leafNames = [ self.project.mcTree.getName(i) for i in self.project.mcTree.getLeaves() ]
         self.options.globalLeafEventSet = set(leafNames)
 
-        return self.addFollowOn(RunCactusPreprocessorThenProgressiveDown2(self.options, self.project, self.options.event, schedule)).rv()
+        return self.addFollowOn(RunCactusPreprocessorThenProgressiveDown2(self.options, self.project, self.options.event, schedule, memory=self.configWrapper.getDefaultMemory())).rv()
 
 class RunCactusPreprocessorThenProgressiveDown2(Job):
-    def __init__(self, options, project, event, schedule):
-        Job.__init__(self)
+    def __init__(self, options, project, event, schedule, memory=None, cores=None, disk=None):
+        Job.__init__(self, memory=memory, cores=cores, disk=disk)
         self.options = options
         self.project = project
         self.event = event
         self.schedule = schedule
     def run(self, fileStore):
-        project = self.addChild(ProgressiveDown(self.options, self.project, self.event, self.schedule)).rv()
+        self.configNode = ET.parse(fileStore.readGlobalFile(self.project.getConfigID())).getroot()
+        self.configWrapper = ConfigWrapper(self.configNode)
+        self.configWrapper.substituteAllPredefinedConstantsWithLiterals()
+
+        project = self.addChild(ProgressiveDown(self.options, self.project, self.event, self.schedule, memory=self.configWrapper.getDefaultMemory())).rv()
 
         #Combine the smaller HAL files from each experiment
-        return self.addFollowOnJobFn(exportHal, project=project).rv()
+        return self.addFollowOnJobFn(exportHal, project=project, memory=self.configWrapper.getDefaultMemory(),
+                disk=self.configWrapper.getExportHalDisk()).rv()
 
         
 def main():
@@ -316,12 +328,15 @@ def main():
         project.setConfigID(cactusConfigID)
 
         project.syncToFileStore(toil)
+        configNode = ET.parse(project.getConfigPath()).getroot()
+        configWrapper = ConfigWrapper(configNode)
+        configWrapper.substituteAllPredefinedConstantsWithLiterals()
 
 
         project.writeXML(options.project)
 
         #Run the workflow
-        halID = toil.start(RunCactusPreprocessorThenProgressiveDown(options, project))
+        halID = toil.start(RunCactusPreprocessorThenProgressiveDown(options, project, memory=configWrapper.getDefaultMemory()))
         toil.exportFile(halID, makeURL(options.outputHAL))
 
 

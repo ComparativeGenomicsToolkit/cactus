@@ -152,7 +152,7 @@ class CactusPhasesJob(CactusJob):
             cpu = cw.getKtserverCpu(default=getOptionalAttrib(
                     self.constantsNode, "defaultCpu", int, default=0))
             dbElem = ExperimentWrapper(self.cactusWorkflowArguments.scratchDbElemNode)
-            dbString = self.addService(KtServerService(dbElem = dbElem, isSecondary = True))
+            dbString = self.addService(KtServerService(dbElem = dbElem, isSecondary = True, memory=memory, cores=cpu))
             newChild.phaseNode.attrib["secondaryDatabaseString"] = dbString
             return self.addChild(newChild).rv()
         else:
@@ -388,6 +388,7 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
                                                         realign=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "realign", bool), 
                                                         realignArguments=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "realignArguments"),
                                                         memory=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "lastzMemory", int, sys.maxint),
+                                                        disk=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "lastzDisk", int, sys.maxint),
                                                         minimumSequenceLength=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "minimumSequenceLengthForBlast", int, 1),
                                                        trimFlanking=self.getOptionalPhaseAttrib("trimFlanking", int, 10),
                                                        trimMinSize=self.getOptionalPhaseAttrib("trimMinSize", int, 0),
