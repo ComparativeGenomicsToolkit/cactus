@@ -152,7 +152,7 @@ class CactusPhasesJob(CactusJob):
             cpu = cw.getKtserverCpu(default=getOptionalAttrib(
                     self.constantsNode, "defaultCpu", int, default=0))
             dbElem = ExperimentWrapper(self.cactusWorkflowArguments.scratchDbElemNode)
-            dbString = self.addService(KtServerService(dbElem = dbElem, isSecondary = True))
+            dbString = self.addService(KtServerService(dbElem = dbElem, isSecondary = True, memory=memory, cores=cpu))
             newChild.phaseNode.attrib["secondaryDatabaseString"] = dbString
             return self.addChild(newChild).rv()
         else:
