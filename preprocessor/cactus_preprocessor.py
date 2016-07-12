@@ -58,12 +58,11 @@ class PreprocessChunk(Job):
         cmdline = cmdline.replace("TEMP_DIR", "\"" + fileStore.getLocalTempDir() + "\"")
         cmdline = cmdline.replace("PROPORTION_SAMPLED", str(self.proportionSampled))
         logger.info("Preprocessor exec " + cmdline)
-        #print "command", cmdline
-        #sys.exit(1)
         popenPush(cmdline, " ".join(seqPaths))
         if self.prepOptions.check:
-            system("cp %s %s" % (inChunk, outChunk))
-        return fileStore.writeGlobalFile(outChunk, cleanup=False)
+            return self.inChunkID
+        else:
+            return fileStore.writeGlobalFile(outChunk)
 
 class MergeChunks(Job):
     """ merge a list of chunks into a fasta file
@@ -78,7 +77,7 @@ class MergeChunks(Job):
         outSequencePath = fileStore.getLocalTempFile()
         popenPush("cactus_batch_mergeChunks > %s" % outSequencePath, " ".join(chunkList))
         map(fileStore.deleteGlobalFile, self.chunkIDList)
-        return fileStore.writeGlobalFile(outSequencePath, cleanup=False)
+        return fileStore.writeGlobalFile(outSequencePath)
  
 class PreprocessSequence(Job):
     """Cut a sequence into chunks, process, then merge
@@ -96,7 +95,7 @@ class PreprocessSequence(Job):
         inChunkList = [ chunk for chunk in popenCatch("cactus_blast_chunkSequences %s %i 0 %s %s" % \
                (getLogLevelString(), self.prepOptions.chunkSize,
                 inChunkDirectory, inSequence)).split("\n") if chunk != "" ]
-        inChunkIDList = [fileStore.writeGlobalFile(chunk, cleanup=False) for chunk in inChunkList]
+        inChunkIDList = [fileStore.writeGlobalFile(chunk) for chunk in inChunkList]
         outChunkIDList = [] 
         #For each input chunk we create an output chunk, it is the output chunks that get concatenated together.
         for i in xrange(len(inChunkList)):
