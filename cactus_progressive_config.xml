@@ -193,6 +193,6 @@
     <ProgressiveOut/>
     <RunCactusPreprocessorThenProgressiveDown/>
     <RunCactusPreprocessorThenProgressiveDown2/>
-    <exportHal disk="20000000000000"/>
+    <exportHal disk="20000000000"/>
 
 </cactusWorkflowConfig>
