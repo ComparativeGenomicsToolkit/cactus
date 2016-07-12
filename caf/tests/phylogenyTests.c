@@ -367,6 +367,9 @@ static void test_stCaf_getHomologyUnitsP(CuTest *testCase, HomologyUnitType type
         CuAssertIntEquals(testCase, blockNumber, accumulatedBlockNumber);
         stSet_destructIterator(unitIt);
     }
+    CuAssertIntEquals(testCase, blockNumber, stHash_size(blocksToHomologyUnits));
+    stHash_destruct(blocksToHomologyUnits);
+    stSet_destruct(homologyUnits);
     stList_destruct(chain);
     stPinchThreadSet_destruct(threadSet);
 }

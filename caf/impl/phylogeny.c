@@ -1409,6 +1409,10 @@ stSet *stCaf_getHomologyUnits(Flower *flower, stPinchThreadSet *threadSet, stHas
         for (int64_t i = 0; i < stList_length(chains); i++) {
             HomologyUnit *unit = HomologyUnit_construct(CHAIN, stList_get(chains, i));
             stSet_insert(homologyUnits, unit);
+            for (int64_t j = 0; j < stList_length(unit->unit); j++) {
+                stPinchBlock *block = stList_get(unit->unit, j);
+                stHash_insert(blocksToHomologyUnits, block, unit);
+            }
         }
         stCactusGraph_destruct(cactusGraph);
     }
@@ -1586,19 +1590,19 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
         }
     }
 
-    st_logDebug("Finished partitioning the blocks\n");
+    st_logDebug("Finished partitioning the homologies\n");
     fprintf(stdout, "There were %" PRIi64 " splits made overall in the end.\n",
             numberOfSplitsMade);
     fprintf(stdout, "The split branches that we actually used had an average "
             "support of %lf.\n",
             numberOfSplitsMade != 0 ? totalSupport/numberOfSplitsMade : 0.0);
     fprintf(stdout, "We recomputed the trees for an average of %" PRIi64
-            " blocks after every split, and the pinch graph had a total of "
+            " units after every split, and the pinch graph had a total of "
             "%" PRIi64 " blocks.\n",
             numberOfSplitsMade != 0 ? totalNumberOfBlocksRecomputed/numberOfSplitsMade : 0,
             stPinchThreadSet_getTotalBlockNumber(threadSet));
     fprintf(stdout, "After partitioning, there were %" PRIi64 " bases lost in between single-degree blocks\n", countBasesBetweenSingleDegreeBlocks(threadSet));
-    fprintf(stdout, "We stopped %" PRIi64 " single-degree segments from becoming"
+    fprintf(stdout, "We stopped %" PRIi64 " single-degree units from becoming"
             " blocks (avg %lf per block) for a total of %" PRIi64 " bases\n",
             numSingleDegreeSegmentsDropped,
             ((float)numSingleDegreeSegmentsDropped)/stPinchThreadSet_getTotalBlockNumber(threadSet),
