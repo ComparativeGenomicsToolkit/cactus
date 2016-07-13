@@ -3,7 +3,7 @@
 <cactusWorkflowConfig distanceToAddToRootAlignment="0.1">
 	<constants defaultMemory="mediumMemory" defaultOverlargeMemory="mediumMemory" defaultCpu="1" defaultOverlargeCpu="1">
 		<!-- These constants are used to control the amount of memory and cpu the different jobs in a batch are using. -->
-  		<defines littleMemory="200000000" mediumMemory="500000000" bigMemory="2000000000" maxFlowerGroupSizeRecursion="100000000"/>
+  		<defines littleMemory="200000000" mediumMemory="500000000" bigMemory="2000000000" littleDisk="2000000000" mediumDisk="20000000000" maxFlowerGroupSizeRecursion="100000000"/>
   		<!-- These constants are used to control parameters that depend on phylogenetic distance. Setting
   		     useDefault to 0 will force it to use the default divergence controlled parameter -->
   		<divergences useDefault="0" one="0.1" two="0.15" three="0.2" four="0.25" five="0.35"/>
@@ -11,7 +11,7 @@
 	<!-- The preprocessor tags are used to modify/check the input sequences before alignment -->
 	<!-- The first preprocessor tag checks that the first word of every fasta header is unique, as this is required for HAL. It throws errors if this is not the case -->
 	<!-- The checkAssemblyHub option (if enabled) ensures that the first word contains only alphanumeric or '_', '-', ':', or '.' characters, and is unique. If you don't intend to make an assembly hub, you can turn off this option here. -->
-	<preprocessor check="1" memory="littleMemory" preprocessorString="cactus_checkUniqueHeaders.py --checkAssemblyHub IN_FILE"/>
+	<preprocessor check="1" memory="littleMemory" disk="mediumDisk" preprocessorString="cactus_checkUniqueHeaders.py --checkAssemblyHub IN_FILE"/>
 	<!-- The preprocessor for cactus_lastzRepeatMask masks every seed that is part of more than XX other alignments, this stops a combinatorial explosion in pairwise alignments -->
 	<preprocessor chunkSize="3000000" proportionToSample="0.2" memory="littleMemory" preprocessorString="cactus_lastzRepeatMask.py --proportionSampled=PROPORTION_SAMPLED --tempDir=TEMP_DIR --minPeriod=50 --lastzOpts='--step=3 --ambiguous=iupac,100,100 --ungapped --queryhsplimit=keep,nowarn:1500' IN_FILE OUT_FILE "/>
         <!-- Options for trimming ingroups & outgroups using the trim strategy -->
