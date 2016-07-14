@@ -25,6 +25,7 @@ class BlastOptions:
     def __init__(self, chunkSize=10000000, overlapSize=10000, 
                  lastzArguments="", compressFiles=True, realign=False, realignArguments="",
                  minimumSequenceLength=1, memory=None,
+                 disk = None,
                  # Trim options for trimming ingroup seqs:
                  trimFlanking=10, trimMinSize=20,
                  trimWindowSize=10, trimThreshold=1,
@@ -51,6 +52,7 @@ class BlastOptions:
         self.compressFiles = compressFiles
         self.minimumSequenceLength = 10
         self.memory = memory
+        self.disk = disk
         self.trimFlanking = trimFlanking
         self.trimMinSize = trimMinSize
         self.trimThreshold = trimThreshold
@@ -88,7 +90,7 @@ class BlastSequencesAllAgainstAll(Job):
     """Take a set of sequences, chunks them up and blasts them.
     """
     def __init__(self, sequenceFileIDs1, blastOptions):
-        Job.__init__(self)
+        Job.__init__(self, disk=blastOptions.disk)
         self.sequenceFileIDs1 = sequenceFileIDs1
         self.blastOptions = blastOptions
         self.blastOptions.compressFiles = False
@@ -102,7 +104,7 @@ class BlastSequencesAllAgainstAll(Job):
         diagonalResultsID = self.addChild(MakeSelfBlasts(self.blastOptions, chunkIDs)).rv()
         offDiagonalResultsID = self.addChild(MakeOffDiagonalBlasts(self.blastOptions, chunkIDs)).rv()
         logger.debug("Collating the blasts after blasting all-against-all")
-        return self.addFollowOn(CollateBlasts([diagonalResultsID, offDiagonalResultsID])).rv()
+        return self.addFollowOn(CollateBlasts(self.blastOptions, [diagonalResultsID, offDiagonalResultsID])).rv()
         
 class MakeSelfBlasts(Job):
     """Breaks up the inputs into bits and builds a bunch of alignment jobs.
@@ -124,7 +126,7 @@ class MakeSelfBlasts(Job):
         #Setup job to make all-against-all blasts
         logger.debug("Collating self blasts.")
         logger.info("Blast file IDs: %s" % resultsIDs)
-        return self.addFollowOn(CollateBlasts(resultsIDs)).rv()
+        return self.addFollowOn(CollateBlasts(self.blastOptions, resultsIDs)).rv()
     
 class MakeOffDiagonalBlasts(Job):
         def __init__(self, blastOptions, chunkIDs):
@@ -142,13 +144,13 @@ class MakeOffDiagonalBlasts(Job):
             logger.info("Made the list of all-against-all blasts")
             #Set up the job to collate all the results
             logger.debug("Collating off-diagonal blasts")
-            return self.addFollowOn(CollateBlasts(resultsIDs)).rv()
+            return self.addFollowOn(CollateBlasts(self.blastOptions, resultsIDs)).rv()
             
 class BlastSequencesAgainstEachOther(Job):
     """Take two sets of sequences, chunks them up and blasts one set against the other.
     """
     def __init__(self, sequenceFileIDs1, sequenceFileIDs2, blastOptions):
-        Job.__init__(self)
+        Job.__init__(self, disk = blastOptions.disk)
         self.sequenceFileIDs1 = sequenceFileIDs1
         self.sequenceFileIDs2 = sequenceFileIDs2
         self.blastOptions = blastOptions
@@ -170,7 +172,7 @@ class BlastSequencesAgainstEachOther(Job):
                 resultsIDs.append(self.addChild(RunBlast(self.blastOptions, chunkID1, chunkID2)).rv())
         logger.info("Made the list of blasts")
         #Set up the job to collate all the results
-        return self.addFollowOn(CollateBlasts(resultsIDs)).rv()
+        return self.addFollowOn(CollateBlasts(self.blastOptions, resultsIDs)).rv()
         
 class BlastIngroupsAndOutgroups(Job):
     """Blast ingroup sequences against each other, and against the given
@@ -197,7 +199,7 @@ class BlastIngroupsAndOutgroups(Job):
                                                outgroupNumber=1))
 
         outgroupFragmentIDs, outgroupAlignmentsID = (blastJob.rv(0), blastJob.rv(1))
-        alignmentsID = self.addFollowOn(CollateBlasts([ingroupAlignmentsID, outgroupAlignmentsID])).rv()
+        alignmentsID = self.addFollowOn(CollateBlasts(self.blastOptions, [ingroupAlignmentsID, outgroupAlignmentsID])).rv()
         return (alignmentsID, outgroupFragmentIDs)
         
         
@@ -408,8 +410,8 @@ class RunBlast(Job):
 class CollateBlasts(Job):
     """Collates all the blasts into a single alignments file.
     """
-    def __init__(self, resultsFileIDs):
-        Job.__init__(self)
+    def __init__(self, blastOptions, resultsFileIDs):
+        Job.__init__(self, memory = blastOptions.memory, disk = blastOptions.disk)
         self.resultsFileIDs = resultsFileIDs
     
     def run(self, fileStore):
