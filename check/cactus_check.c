@@ -191,6 +191,8 @@ void usage() {
     fprintf(stderr, "-a --logLevel : Set the log level\n");
     fprintf(stderr,
             "-c --cactusDisk : The location of the flower disk directory\n");
+    fprintf(stderr,
+            "-d --cactusSequencesPath : The location of the cactusSequences file\n");
     fprintf(stderr, "-e --recursive : Check all flowers recursively\n");
     fprintf(stderr, "-f --checkNormalised : Check cactus is normalised\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
@@ -204,6 +206,7 @@ int main(int argc, char *argv[]) {
      */
     char * logLevelString = NULL;
     char * cactusDiskDatabaseString = NULL;
+    char * cactusSequencesPath = NULL;
     int64_t recursive = 0;
     bool checkNormalised = 0;
 
@@ -214,7 +217,8 @@ int main(int argc, char *argv[]) {
     while (1) {
         static struct option long_options[] = { { "logLevel",
                 required_argument, 0, 'a' }, { "cactusDisk", required_argument,
-                0, 'c' }, { "recursive", no_argument, 0, 'e' },
+                0, 'c' }, {"cactusSequencesPath", required_argument, 0, 'd'}, 
+                { "recursive", no_argument, 0, 'e' },
                 { "checkNormalised", no_argument, 0, 'f' },
                 { "help",
                 no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
@@ -234,6 +238,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 'c':
                 cactusDiskDatabaseString = stString_copy(optarg);
+                break;
+            case 'd':
+                cactusSequencesPath = stString_copy(optarg);
                 break;
             case 'e':
                 recursive = 1;
@@ -255,6 +262,7 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     assert(cactusDiskDatabaseString != NULL);
+    assert(cactusSequencesPath != NULL);
 
     //////////////////////////////////////////////
     //Set up logging
@@ -267,7 +275,7 @@ int main(int argc, char *argv[]) {
     //////////////////////////////////////////////
 
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
-    cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
+    cactusDisk = cactusDisk_construct3(kvDatabaseConf, cactusSequencesPath);
     st_logInfo("Set up the flower disk\n");
 
     stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);

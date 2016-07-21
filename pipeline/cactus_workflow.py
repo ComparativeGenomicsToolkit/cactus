@@ -28,8 +28,10 @@ from sonLib.bioio import logger
 from toil.lib.bioio import setLoggingFromOptions
 from sonLib.bioio import system
 from sonLib.bioio import makeSubDir
+from sonLib.bioio import catFiles
 
 from cactus.shared.common import cactusRootPath
+from cactus.shared.common import makeURL
   
 from toil.job import Job
 from toil.common import Toil
@@ -170,7 +172,7 @@ class CactusPhasesJob(CactusJob):
         logger.info("Starting %s phase job with index %i at %s seconds (recursing = %i)" % (self.phaseNode.tag, self.getPhaseIndex(), time.time(), doRecursion))
         if doRecursion:
             cactusSequencesID = self.makeRecursiveChildJob(recursiveJob, launchSecondaryKtForRecursiveJob)
-        if updateDatabase:
+        if updateDatabase and doRecursion:
             self.cactusSequencesID = cactusSequencesID
         return self.makeFollowOnPhaseJob(job=nextPhaseJob, phaseName=nextPhaseName, index=index)
         
@@ -841,7 +843,7 @@ class CactusAVGWrapper(CactusRecursionJob):
     def run(self, fileStore):
         assert self.cactusSequencesID
         self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
-        runCactusPhylogeny(self.cactusDiskDatabaseString, flowerNames=self.flowerNames)
+        runCactusPhylogeny(self.cactusDiskDatabaseString, self.cactusSequencesPath, flowerNames=self.flowerNames)
         return self.cactusSequencesID
 
 ############################################################
@@ -990,8 +992,6 @@ class CactusCheckPhase(CactusPhasesJob):
     """The check phase, where we verify everything is as it should be
     """
     def run(self, fileStore):
-        assert self.cactusSequencesID
-        assert self.cactusWorkflowArguments.experimentWrapper.getReferenceID()
         normalNode = findRequiredNode(self.cactusWorkflowArguments.configNode, "normal")
         self.phaseNode.attrib["checkNormalised"] = getOptionalAttrib(normalNode, "normalised", default="0")
         return self.runPhase(CactusCheckRecursion, CactusHalGeneratorPhase, "hal", doRecursion=self.getOptionalPhaseAttrib("runCheck", bool, False))
@@ -1022,7 +1022,6 @@ class CactusCheckWrapper(CactusRecursionJob):
 
 class CactusHalGeneratorPhase(CactusPhasesJob):
     def run(self, fileStore):
-        assert self.cactusSequencesID
         halID = None
         fastaID = None
         referenceNode = findRequiredNode(self.cactusWorkflowArguments.configNode, "reference")
@@ -1040,7 +1039,6 @@ class CactusHalGeneratorPhase(CactusPhasesJob):
             halID = self.makeRecursiveChildJob(CactusHalGeneratorRecursion, launchSecondaryKtForRecursiveJob=True)
         self.cactusWorkflowArguments.experimentWrapper.setHalID(halID)
         self.cactusWorkflowArguments.experimentWrapper.setHalFastaID(fastaID)
-        assert self.cactusWorkflowArguments.experimentWrapper.getReferenceID()
         return self.cactusWorkflowArguments.experimentWrapper
         
 class CactusFastaGenerator(CactusRecursionJob):
@@ -1111,14 +1109,14 @@ class CactusHalGeneratorPhaseCleanup(CactusPhasesJob):
 class CactusWorkflowArguments:
     """Object for representing a cactus workflow's arguments
     """
-    def __init__(self, options, experimentFile, fileStore, seqIDMap = None):
+    def __init__(self, options, experimentFile, configNode, seqIDMap):
         #Get a local copy of the experiment file
         self.experimentFile = experimentFile
         self.experimentNode = ET.parse(self.experimentFile).getroot()
         self.scratchDbElemNode = ET.parse(self.experimentFile).getroot()
         self.experimentWrapper = ExperimentWrapper(self.experimentNode)
-        self.experimentWrapper.seqIDMap = seqIDMap
         self.alignmentsID = None
+        self.experimentWrapper.seqIDMap = seqIDMap
         #Get the database string
         self.cactusDiskDatabaseString = ET.tostring(self.experimentNode.find("cactus_disk").find("st_kv_database_conf")).translate(None, '\n')
         #Get the species tree
@@ -1140,8 +1138,7 @@ class CactusWorkflowArguments:
         self.secondaryDatabaseString = secondaryElem.getConfString()
             
         #The config node
-        configPath = fileStore.readGlobalFile(self.experimentWrapper.getConfigID())
-        self.configNode = ET.parse(configPath).getroot()
+        self.configNode = configNode
         self.configWrapper = ConfigWrapper(self.configNode)
         #Now deal with the constants that ned to be added here
         self.configWrapper.substituteAllPredefinedConstantsWithLiterals()
@@ -1176,23 +1173,22 @@ def addCactusWorkflowOptions(parser):
                       help="Run doctest unit tests")
 
 class RunCactusPreprocessorThenCactusSetup(Job):
-    def __init__(self, options):
+    def __init__(self, options, cactusWorkflowArguments):
         Job.__init__(self)
         self.options = options
+        self.cactusWorkflowArguments = cactusWorkflowArguments
         
     def run(self, fileStore):
-        cactusWorkflowArguments=CactusWorkflowArguments(self.options, fileStore)
-        eW = ExperimentWrapper(cactusWorkflowArguments.experimentNode)
-        outputSequenceFiles = CactusPreprocessor.getOutputSequenceFiles(eW.getSequences(), eW.getOutputSequenceDir())
-        self.addChild(CactusPreprocessor(eW.getSequences(), outputSequenceFiles, cactusWorkflowArguments.configNode))
+        eW = self.cactusWorkflowArguments.experimentWrapper
+        seqIDs = self.addChild(CactusPreprocessor(eW.seqIDMap.values(), self.cactusWorkflowArguments.configNode))
         #Now make the setup, replacing the input sequences with the preprocessed sequences
-        eW.setSequences(outputSequenceFiles)
-        fileStore.logToMaster("doTrimStrategy() = %s, outgroupEventNames = %s" % (cactusWorkflowArguments.configWrapper.getDoTrimStrategy(), cactusWorkflowArguments.outgroupEventNames))
-        if cactusWorkflowArguments.configWrapper.getDoTrimStrategy() and cactusWorkflowArguments.outgroupEventNames is not None:
+        eW.seqIDMap = dict(zip(eW.seqIDMap.keys(), [seqIDs.rv(i) for i in range(len(eW.seqIDMap))]))
+        fileStore.logToMaster("doTrimStrategy() = %s, outgroupEventNames = %s" % (self.cactusWorkflowArguments.configWrapper.getDoTrimStrategy(), self.cactusWorkflowArguments.outgroupEventNames))
+        if self.cactusWorkflowArguments.configWrapper.getDoTrimStrategy() and self.cactusWorkflowArguments.outgroupEventNames is not None:
             # Use the trimming strategy to blast ingroups vs outgroups.
-            self.addFollowOn(CactusTrimmingBlastPhase(cactusWorkflowArguments=cactusWorkflowArguments, phaseName="trimBlast"))
+            self.addFollowOn(CactusTrimmingBlastPhase(cactusWorkflowArguments=self.cactusWorkflowArguments, phaseName="trimBlast"))
         else:
-            self.addFollowOn(CactusSetupPhase(cactusWorkflowArguments=cactusWorkflowArguments,
+            self.addFollowOn(CactusSetupPhase(cactusWorkflowArguments=self.cactusWorkflowArguments,
                                                     phaseName="setup"))
         
 def main():
@@ -1212,9 +1208,23 @@ def main():
     #if len(args) != 0:
      #   raise RuntimeError("Unrecognised input arguments: %s" % " ".join(args))
 
-    cactusWorkflowArguments = CactusWorkflowArguments(options)
+    experimentWrapper = ExperimentWrapper(ET.parse(options.experimentFile).getroot())
     with Toil(options) as toil:
-        Job.Runner.startToil(RunCactusPreprocessorThenCactusSetup(options), options)
+        seqIDMap = dict()
+        seqMap = experimentWrapper.buildSequenceMap()
+        for name in seqMap:
+            fullSeq = getTempFile()
+            if os.path.isdir(seqMap[name]):
+                catFiles([os.path.join(seqMap[name], seqFile) for seqFile in os.listdir(seqMap[name])], fullSeq)
+            else:
+                fullSeq = seqMap[name]
+            seqIDMap[name] = toil.importFile(makeURL(fullSeq))
+
+
+        configNode = ET.parse(experimentWrapper.getConfigPath()).getroot()
+        cactusWorkflowArguments = CactusWorkflowArguments(options, experimentFile = options.experimentFile, configNode=configNode, seqIDMap = seqIDMap)
+
+        toil.start(RunCactusPreprocessorThenCactusSetup(options, cactusWorkflowArguments))
 
 def _test():
     import doctest      
