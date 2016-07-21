@@ -25,7 +25,8 @@ class BlastOptions:
     def __init__(self, chunkSize=10000000, overlapSize=10000, 
                  lastzArguments="", compressFiles=True, realign=False, realignArguments="",
                  minimumSequenceLength=1, memory=None,
-                 disk = None,
+                 smallDisk = None,
+                 largeDisk = None,
                  # Trim options for trimming ingroup seqs:
                  trimFlanking=10, trimMinSize=20,
                  trimWindowSize=10, trimThreshold=1,
@@ -52,7 +53,8 @@ class BlastOptions:
         self.compressFiles = compressFiles
         self.minimumSequenceLength = 10
         self.memory = memory
-        self.disk = disk
+        self.smallDisk = smallDisk
+        self.largeDisk = largeDisk
         self.trimFlanking = trimFlanking
         self.trimMinSize = trimMinSize
         self.trimThreshold = trimThreshold
@@ -90,7 +92,7 @@ class BlastSequencesAllAgainstAll(Job):
     """Take a set of sequences, chunks them up and blasts them.
     """
     def __init__(self, sequenceFileIDs1, blastOptions):
-        Job.__init__(self, disk=blastOptions.disk)
+        Job.__init__(self, disk=blastOptions.largeDisk)
         self.sequenceFileIDs1 = sequenceFileIDs1
         self.blastOptions = blastOptions
         self.blastOptions.compressFiles = False
@@ -110,7 +112,7 @@ class MakeSelfBlasts(Job):
     """Breaks up the inputs into bits and builds a bunch of alignment jobs.
     """
     def __init__(self, blastOptions, chunkIDs):
-        Job.__init__(self)
+        Job.__init__(self, disk=blastOptions.largeDisk)
         self.blastOptions = blastOptions
         self.chunkIDs = chunkIDs
         
@@ -130,7 +132,7 @@ class MakeSelfBlasts(Job):
     
 class MakeOffDiagonalBlasts(Job):
         def __init__(self, blastOptions, chunkIDs):
-            Job.__init__(self)
+            Job.__init__(self, disk=blastOptions.largeDisk)
             self.chunkIDs = chunkIDs
             self.blastOptions = blastOptions
             self.blastOptions.compressFiles = False
@@ -150,7 +152,7 @@ class BlastSequencesAgainstEachOther(Job):
     """Take two sets of sequences, chunks them up and blasts one set against the other.
     """
     def __init__(self, sequenceFileIDs1, sequenceFileIDs2, blastOptions):
-        Job.__init__(self, disk = blastOptions.disk)
+        Job.__init__(self, disk = blastOptions.largeDisk)
         self.sequenceFileIDs1 = sequenceFileIDs1
         self.sequenceFileIDs2 = sequenceFileIDs2
         self.blastOptions = blastOptions
@@ -361,7 +363,7 @@ class RunSelfBlast(Job):
     """Runs blast as a job.
     """
     def __init__(self, blastOptions, seqFileID):
-        Job.__init__(self, memory=blastOptions.memory)
+        Job.__init__(self, memory=blastOptions.memory, disk=blastOptions.smallDisk)
         self.blastOptions = blastOptions
         self.seqFileID = seqFileID
     
@@ -388,7 +390,7 @@ class RunBlast(Job):
     """Runs blast as a job.
     """
     def __init__(self, blastOptions, seqFileID1, seqFileID2):
-        Job.__init__(self, memory=blastOptions.memory)
+        Job.__init__(self, memory=blastOptions.memory, disk=blastOptions.smallDisk)
         self.blastOptions = blastOptions
         self.seqFileID1 = seqFileID1
         self.seqFileID2 = seqFileID2
@@ -411,7 +413,7 @@ class CollateBlasts(Job):
     """Collates all the blasts into a single alignments file.
     """
     def __init__(self, blastOptions, resultsFileIDs):
-        Job.__init__(self, memory = blastOptions.memory, disk = blastOptions.disk)
+        Job.__init__(self, memory = blastOptions.memory, disk = blastOptions.largeDisk)
         self.resultsFileIDs = resultsFileIDs
     
     def run(self, fileStore):
@@ -423,20 +425,6 @@ class CollateBlasts(Job):
         map(fileStore.deleteGlobalFile, self.resultsFileIDs)
         return fileStore.writeGlobalFile(collatedResultsFile, cleanup=False)
         
-        
-class SortCigarAlignmentsInPlace(Job):
-    """Sorts an alignment file in place.
-    """
-    def __init__(self, cigarFile):
-        Job.__init__(self)
-        self.cigarFile = cigarFile
-    
-    def run(self, fileStore):
-        tempResultsFile = os.path.join(fileStore.getLocalTempDir(), "tempResults.cig")
-        system("cactus_blast_sortAlignments %s %s %i" % (getLogLevelString(), self.cigarFile, tempResultsFile))
-        logger.info("Sorted the alignments okay")
-        system("mv %s %s" % (tempResultsFile, self.cigarFile))
-
 def sequenceLength(sequenceFile):
     """Get the total # of bp from a fasta file."""
     seqLength = 0
