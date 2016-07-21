@@ -84,7 +84,7 @@ class BlastFlower(Job):
         chunkIDs = [fileStore.writeGlobalFile(chunk, cleanup=False) for chunk in chunks]
         selfResultsID = self.addChild(MakeSelfBlasts(self.blastOptions, chunkIDs)).rv()
         offDiagonalResultsID = self.addChild(MakeOffDiagonalBlasts(self.blastOptions, chunkIDs)).rv()
-        return self.addFollowOn(CollateBlasts([selfResultsID, offDiagonalResultsID])).rv()
+        return self.addFollowOn(CollateBlasts(self.blastOptions, [selfResultsID, offDiagonalResultsID])).rv()
     
 class BlastSequencesAllAgainstAll(Job):
     """Take a set of sequences, chunks them up and blasts them.

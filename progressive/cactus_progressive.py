@@ -24,6 +24,7 @@ from time import sleep
 from sonLib.bioio import getTempFile
 from sonLib.bioio import printBinaryTree
 from sonLib.bioio import system
+from sonLib.bioio import catFiles
 
 from toil.lib.bioio import getLogLevelString
 from toil.lib.bioio import logger
@@ -195,8 +196,9 @@ class ProgressiveUp(Job):
             self.options.buildFasta = getOptionalAttrib(halNode, "buildFasta", bool, False)
 
         # get parameters that cactus_workflow stuff wants
-        #experimentFile = fileStore.readGlobalFile(self.options.experimentFileID)
-        workFlowArgs = CactusWorkflowArguments(self.options, experimentFile, fileStore, seqIDMap = seqIDMap)
+        configFile = fileStore.readGlobalFile(experiment.getConfigID())
+        configNode = ET.parse(configFile).getroot()
+        workFlowArgs = CactusWorkflowArguments(self.options, experimentFile=experimentFile, configNode=configNode, seqIDMap = seqIDMap)
         # copy over the options so we don't trail them around
         workFlowArgs.buildReference = self.options.buildReference
         workFlowArgs.buildHal = self.options.buildHal
@@ -317,6 +319,10 @@ def main():
         #import the sequences
         seqIDs = []
         for seq in project.getInputSequencePaths():
+            if os.path.isdir(seq):
+                tmpSeq = getTempFile()
+                catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
+                seq = tmpSeq
             seq = makeURL(seq)
             seqIDs.append(toil.importFile(seq))
         project.setInputSequenceIDs(seqIDs)
@@ -337,7 +343,8 @@ def main():
 
         #Run the workflow
         halID = toil.start(RunCactusPreprocessorThenProgressiveDown(options, project, memory=configWrapper.getDefaultMemory()))
-        toil.exportFile(halID, makeURL(options.outputHAL))
+        if options.outputHAL:
+            toil.exportFile(halID, makeURL(options.outputHAL))
 
 
 if __name__ == '__main__':

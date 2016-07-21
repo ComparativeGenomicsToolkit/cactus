@@ -255,11 +255,12 @@ def runCactusCaf(cactusDiskDatabaseString, cactusSequencesPath, alignments,
     return [ i for i in masterMessages.split("\n") if i != '' ]
     
 def runCactusPhylogeny(cactusDiskDatabaseString,
+                  cactusSequencesPath,
                   flowerNames=encodeFlowerNames((0,)),
                   logLevel=None):
     logLevel = getLogLevelString2(logLevel)
-    command = "cactus_phylogeny --cactusDisk '%s' --logLevel %s" % \
-    (cactusDiskDatabaseString, logLevel)
+    command = "cactus_phylogeny --cactusDisk '%s' --cactusSequencesPath '%s' --logLevel %s" % \
+    (cactusDiskDatabaseString, cactusSequencesPath, logLevel)
     popenPush(command, stdinString=flowerNames)
     logger.info("Ran cactus_phylogeny okay")
     
@@ -285,11 +286,11 @@ def runCactusFlowerStats(cactusDiskDatabaseString, flowerName, logLevel=None):
                               (logLevel, cactusDiskDatabaseString, flowerName))
     return flowerStatsString.split("\n")[0]
 
-def runCactusMakeNormal(cactusDiskDatabaseString, flowerNames, maxNumberOfChains=0, logLevel=None):
+def runCactusMakeNormal(cactusDiskDatabaseString, cactusSequencesPath, flowerNames, maxNumberOfChains=0, logLevel=None):
     """Makes the given flowers normal (see normalisation for the various phases)
     """
     logLevel = getLogLevelString2(logLevel)
-    popenPush("cactus_normalisation --cactusDisk '%s' --maxNumberOfChains %i --logLevel %s" % (cactusDiskDatabaseString, maxNumberOfChains, logLevel), stdinString=flowerNames)
+    popenPush("cactus_normalisation --cactusDisk '%s' --cactusSequencesPath '%s' --maxNumberOfChains %i --logLevel %s" % (cactusDiskDatabaseString, cactusSequencesPath, maxNumberOfChains, logLevel), stdinString=flowerNames)
 
 def runCactusBar(cactusDiskDatabaseString, cactusSequencesPath, flowerNames, logLevel=None,
                          spanningTrees=None, maximumLength=None, 
