@@ -309,6 +309,7 @@ def main():
     parser.add_argument("--project", dest="project", help="Directory of multicactus project.")
     parser.add_argument('--outputHal', dest="outputHAL", help="Output HAL file from the alignment, given \
             as either a path starting with file:// or an S3 bucket.")
+    parser.add_argument('--resume', dest='resume', help="Resume the workflow", action="store_true")
     
     options = parser.parse_args()
     setLoggingFromOptions(options)
@@ -342,7 +343,12 @@ def main():
         project.writeXML(options.project)
 
         #Run the workflow
-        halID = toil.start(RunCactusPreprocessorThenProgressiveDown(options, project, memory=configWrapper.getDefaultMemory()))
+        if options.resume:
+            halID = toil.restart()
+
+        else:
+            halID = toil.start(RunCactusPreprocessorThenProgressiveDown(options, project, memory=configWrapper.getDefaultMemory()))
+
         if options.outputHAL:
             toil.exportFile(halID, makeURL(options.outputHAL))
 
