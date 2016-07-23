@@ -31,12 +31,13 @@ from toil.lib.bioio import setLoggingFromOptions
 from cactus.shared.configWrapper import ConfigWrapper
 
 class PreprocessorOptions:
-    def __init__(self, chunkSize, cmdLine, memory, cpu, disk, check, proportionToSample):
+    def __init__(self, chunkSize, cmdLine, memory, cpu, smallDisk, largeDisk, check, proportionToSample):
         self.chunkSize = chunkSize
         self.cmdLine = cmdLine
         self.memory = memory
         self.cpu = cpu
-        self.disk = disk
+        self.smallDisk = smallDisk
+        self.largeDisk = largeDisk
         self.check = check
         self.proportionToSample=proportionToSample
 
@@ -44,7 +45,7 @@ class PreprocessChunk(Job):
     """ locally preprocess a fasta chunk, output then copied back to input
     """
     def __init__(self, prepOptions, seqIDs, proportionSampled, inChunkID):
-        Job.__init__(self, memory=prepOptions.memory, cores=prepOptions.cpu, disk=prepOptions.disk)
+        Job.__init__(self, memory=prepOptions.memory, cores=prepOptions.cpu, disk=prepOptions.smallDisk)
         self.prepOptions = prepOptions 
         self.seqIDs = seqIDs
         self.inChunkID = inChunkID
@@ -69,7 +70,7 @@ class MergeChunks(Job):
     """ merge a list of chunks into a fasta file
     """
     def __init__(self, prepOptions, chunkIDList):
-        Job.__init__(self, cores=prepOptions.cpu, memory=prepOptions.memory, disk=prepOptions.disk)
+        Job.__init__(self, cores=prepOptions.cpu, memory=prepOptions.memory, disk=prepOptions.largeDisk)
         self.prepOptions = prepOptions 
         self.chunkIDList = chunkIDList
     
@@ -84,7 +85,7 @@ class PreprocessSequence(Job):
     """Cut a sequence into chunks, process, then merge
     """
     def __init__(self, prepOptions, inSequenceID):
-        Job.__init__(self, cores=prepOptions.cpu, memory=prepOptions.memory, disk=prepOptions.disk)
+        Job.__init__(self, cores=prepOptions.cpu, memory=prepOptions.memory, disk=prepOptions.largeDisk)
         self.prepOptions = prepOptions 
         self.inSequenceID = inSequenceID
     
@@ -121,7 +122,8 @@ class BatchPreprocessor(Job):
         prepNode = self.prepXmlElems[iteration]
         self.memory = getOptionalAttrib(prepNode, "memory", typeFn=int, default=None)
         self.cores = getOptionalAttrib(prepNode, "cpu", typeFn=int, default=None)
-        self.disk = getOptionalAttrib(prepNode, "disk", typeFn=int, default=None)
+        self.smallDisk = getOptionalAttrib(prepNode, "smallDisk", typeFn=int, default=None)
+        self.largeDisk = getOptionalAttrib(prepNode, "largeDisk", typeFn=int, default=None)
         self.iteration = iteration
               
     def run(self, fileStore):
@@ -133,7 +135,8 @@ class BatchPreprocessor(Job):
                                           prepNode.attrib["preprocessorString"],
                                           self.memory,
                                           self.cores,
-                                          self.disk,
+                                          self.smallDisk,
+                                          self.largeDisk,
                                           bool(int(prepNode.get("check", default="0"))),
                                           getOptionalAttrib(prepNode, "proportionToSample", typeFn=float, default=1.0))
         

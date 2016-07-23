@@ -390,7 +390,8 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
                                                         realign=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "realign", bool), 
                                                         realignArguments=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "realignArguments"),
                                                         memory=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "lastzMemory", int, sys.maxint),
-                                                        disk=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "lastzDisk", int, sys.maxint),
+                                                        smallDisk=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "lastzSmallDisk", int, sys.maxint),
+                                                        largeDisk=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "lastzLargeDisk", int, sys.maxint),
                                                         minimumSequenceLength=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "minimumSequenceLengthForBlast", int, 1),
                                                        trimFlanking=self.getOptionalPhaseAttrib("trimFlanking", int, 10),
                                                        trimMinSize=self.getOptionalPhaseAttrib("trimMinSize", int, 0),
@@ -612,6 +613,8 @@ class CactusCafWrapperLarge(CactusRecursionJob):
                                                         realign=self.getOptionalPhaseAttrib("realign", bool), 
                                                         realignArguments=self.getOptionalPhaseAttrib("realignArguments"),
                                                         memory=self.getOptionalPhaseAttrib("lastzMemory", int, sys.maxint),
+                                                        smallDisk=self.getOptionalPhaseAttrib("lastzSmallDisk", int, sys.maxint),
+                                                        largeDisk=self.getOptionalPhaseAttrib("lastzLargeDisk", int, sys.maxint),
                                                         minimumSequenceLength=self.getOptionalPhaseAttrib("minimumSequenceLengthForBlast", int, 1)), memory = self.memory)).rv()
         #Now setup a call to cactus core wrapper as a follow on
         self.phaseNode.attrib["alignmentsID"] = alignmentsID
