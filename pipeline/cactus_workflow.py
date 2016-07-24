@@ -112,7 +112,7 @@ class CactusJob(Job):
                                   cores=self.getOptionalJobAttrib("overlargeCpu", typeFn=int, 
                                                                       default=getOptionalAttrib(self.constantsNode, "defaultOverlargeCpu", int, default=None)), 
                                   disk=self.getOptionalJobAttrib("disk", typeFn=int,
-                                                default=getOptionalAttrib(self.constantsNode, "defaultOverlargeDisk", int, default=None)), checkpoint = checkpoint)
+                                                default=getOptionalAttrib(self.constantsNode, "defaultOverlargeDisk", int, default=sys.maxint)), checkpoint = checkpoint)
         else:
             Job.__init__(self, memory=self.getOptionalJobAttrib("memory", typeFn=int, 
                                                                       default=getOptionalAttrib(self.constantsNode, "defaultMemory", int, default=sys.maxint)),
