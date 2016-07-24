@@ -39,8 +39,10 @@
                    trimThreshold="1.0"
                    trimWindowSize="1"
                    trimOutgroupFlanking="2000"
-                   disk="largeDisk"
-                   memory="littleMemory"/>
+        >
+                   <CactusTrimmingBlastPhase disk="largeDisk"/>
+        </trimBlast>
+
 	<ktserver memory="mediumMemory"/>
 	<setup makeEventHeadersAlphaNumeric="0"/>
 	<!-- The caf tag contains parameters for the caf algorithm. -->
