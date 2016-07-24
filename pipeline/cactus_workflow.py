@@ -106,7 +106,8 @@ class CactusJob(Job):
         self.overlarge = overlarge
         self.jobNode = getJobNode(self.phaseNode, self.__class__)
         self.cactusSequencesID = cactusSequencesID
-        logger.info("PhaseNode = %s" % self.phaseNode.attrib)
+        if self.jobNode:
+            logger.info("JobNode = %s" % self.jobNode.attrib)
         if overlarge:
             Job.__init__(self, memory=self.getOptionalJobAttrib("overlargeMemory", typeFn=int, 
                                                                       default=getOptionalAttrib(self.constantsNode, "defaultOverlargeMemory", int, default=sys.maxint)),
