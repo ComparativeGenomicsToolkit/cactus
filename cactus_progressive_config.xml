@@ -33,15 +33,15 @@
              this value must be larger than the
              'splitIndelsLongerThanThis' value in the realign
              arguments -->
-        <trimBlast doTrimStrategy="1"
-                   trimFlanking="10"
-                   trimMinSize="100"
-                   trimThreshold="1.0"
-                   trimWindowSize="1"
-                   trimOutgroupFlanking="2000"
-        >
-                   <CactusTrimmingBlastPhase disk="largeDisk"/>
-        </trimBlast>
+    <trimBlast doTrimStrategy="1"
+               trimFlanking="10"
+               trimMinSize="100"
+               trimThreshold="1.0"
+               trimWindowSize="1"
+               trimOutgroupFlanking="2000"
+    >
+               <CactusTrimmingBlastPhase disk="largeDisk"/>
+    </trimBlast>
 
 	<ktserver memory="mediumMemory"/>
 	<setup makeEventHeadersAlphaNumeric="0"/>
