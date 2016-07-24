@@ -356,6 +356,8 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
     """
     def run(self, fileStore):
         # Not worth doing extra work if there aren't any outgroups
+        logger.info("Disk for TrimmingBlastPhase: %i" % self.disk)
+        assert self.disk > 20000000000
         assert self.cactusWorkflowArguments.outgroupEventNames is not None
 
         fileStore.logToMaster("Running blast using the trimming strategy")
