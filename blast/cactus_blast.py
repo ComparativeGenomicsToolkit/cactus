@@ -20,6 +20,8 @@ from sonLib.bioio import nameValue
 from jobTree.scriptTree.target import Target
 from jobTree.scriptTree.stack import Stack
 
+from cactus.shared.common import runCactusBlastMakeSeedCountsTable
+
 class BlastOptions:
     def __init__(self, chunkSize=10000000, overlapSize=10000, 
                  lastzArguments="", compressFiles=True, realign=False, realignArguments="",
@@ -33,7 +35,9 @@ class BlastOptions:
                  # HACK: outgroup flanking is only set so high by
                  # default because it's needed for the tests (which
                  # don't use realign.)
-                 trimOutgroupFlanking=2000):
+                 trimOutgroupFlanking=2000,
+                 sampleSeeds=False,
+                 seedCountThreshold=5):
         """Class defining options for blast
         """
         self.chunkSize = chunkSize
@@ -47,6 +51,11 @@ class BlastOptions:
             self.selfBlastString = "cactus_lastz --format=cigar %s SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial | cactus_realign %s SEQ_FILE > CIGARS_FILE" % (lastzArguments, realignArguments)
         else:
             self.selfBlastString = "cactus_lastz --format=cigar %s SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial > CIGARS_FILE" % lastzArguments
+
+        self.countsTableBlastString = "cactus_lastz --tableonly=count SEQ_FILE > COUNTS_TABLE"
+        self.sampleSeeds = sampleSeeds
+        self.seedCountThreshold = seedCountThreshold
+
         self.compressFiles = compressFiles
         self.minimumSequenceLength = 10
         self.memory = memory
@@ -78,6 +87,32 @@ class BlastFlower(Target):
                                                           chunksDir)).split("\n") if chunk != "" ]
         logger.info("Broken up the flowers into individual 'chunk' files")
         self.addChildTarget(MakeBlastsAllAgainstAll(self.blastOptions, chunks, self.finalResultsFile))
+
+class MakeGlobalCountsTable(Target):
+    def __init__(self, sequenceFiles, globalCountsTable, blastOptions):
+        Target.__init__(self)
+        self.sequenceFiles = sequenceFiles
+        self.globalCountsTable = globalCountsTable
+        self.blastOptions = blastOptions
+
+    def run(self):
+        countsTables = []
+        for seqFile in self.sequenceFiles:
+            tmpCountsTable = getTempFile(rootDir = self.getGlobalTempDir())
+            self.addChildTarget(RunBlastCountsTable(self.blastOptions, seqFile, tmpCountsTable))
+            countsTables.append(tmpCountsTable)
+        self.setFollowOnTarget(CollateCountsTables(self.blastOptions, countsTables, self.globalCountsTable))
+
+class CollateCountsTables(Target):
+    def __init__(self, blastOptions, countsTables, globalCountsTable):
+        Target.__init__(self)
+        self.blastOptions = blastOptions
+        self.countsTables = countsTables
+        self.globalCountsTable = globalCountsTable
+    def run(self):
+        messages = runCactusBlastMakeSeedCountsTable(self.blastOptions.seedCountThreshold, self.countsTables, self.globalCountsTable)
+        for message in messages.split('\n'):
+            self.logToMaster(message)
         
 class BlastSequencesAllAgainstAll(Target):
     """Take a set of sequences, chunks them up and blasts them.
@@ -98,9 +133,14 @@ class BlastSequencesAllAgainstAll(Target):
                                                           " ".join(sequenceFiles))).split("\n") if chunk != "" ]
         
     def run(self):
+        countsTable = os.path.join(self.getGlobalTempDir(), "countsTable")
+        if self.blastOptions.sampleSeeds:
+            self.addChildTarget(MakeGlobalCountsTable(blastOptions, self.sequenceFiles), countsTable)
+
+
         chunks = self.getChunks(self.sequenceFiles1, makeSubDir(os.path.join(self.getGlobalTempDir(), "chunks")))
         logger.info("Broken up the sequence files into individual 'chunk' files")
-        self.addChildTarget(MakeBlastsAllAgainstAll(self.blastOptions, chunks, self.finalResultsFile))
+        self.setFollowOnTarget(MakeBlastsAllAgainstAll(self.blastOptions, chunks, self.finalResultsFile))
         
 class MakeBlastsAllAgainstAll(Target):
     """Breaks up the inputs into bits and builds a bunch of alignment jobs.
@@ -390,6 +430,18 @@ class RunBlast(Target):
         system("cactus_blast_convertCoordinates %s %s %i" % (tempResultsFile, self.resultsFile, self.blastOptions.roundsOfCoordinateConversion))
         logger.info("Ran the blast okay")
 
+class RunBlastCountsTable(Target):
+    """Gets the seed counts table for a sequence using lastz.
+    """
+    def __init__(self, blastOptions, seqFile, countsFile):
+        Target.__init__(self)
+        self.blastOptions = blastOptions
+        self.seqFile = seqFile
+        self.countsFile = countsFile
+    def run(self):
+        command = self.blastOptions.countsTableBlastString.replace("SEQ_FILE", self.seqFile).replace("COUNTS_TABLE", self.countsFile)
+        system(command)
+
 class CollateBlasts(Target):
     """Collates all the blasts into a single alignments file.
     """
@@ -483,6 +535,17 @@ replaced with the two sequence files and the results file, respectively",
 Must contain three strings: SEQ_FILE and CIGARS_FILE which will be \
 replaced with the the sequence file and the results file, respectively",
                      default=blastOptions.selfBlastString)
+    parser.add_option("--countsTableBlastString", dest="countsTableBlastString", type="string",
+                    help="Blast command for generating a table with the number of counts for each \
+                    seed in the input sequence",
+                    default=blastOptions.countsTableBlastString)
+    parser.add_option("--sampleSeeds", dest="sampleSeeds", action="store_true",
+                    help="Get a table of the counts for each seed before doing alignment with lastz \
+                    repeats can be sampled",
+                    default=blastOptions.sampleSeeds)
+    parser.add_option("--seedCountThreshold", dest="seedCountThreshold", type=int,
+                    help="Minimum count to include seed in counts table",
+                    default=blastOptions.seedCountThreshold)
    
     parser.add_option("--compressFiles", dest="compressFiles", action="store_false",
                       help="Turn of bz2 based file compression of sequences for I/O transfer", 
@@ -501,6 +564,8 @@ replaced with the the sequence file and the results file, respectively",
 
     parser.add_option("--test", dest="test", action="store_true",
                       help="Run doctest unit tests")
+
+    parser.add_option("--countsTable", type=str, default=None)
     
     parser.add_option("--targetSequenceFiles", dest="targetSequenceFiles", type="string",
                      help="Sequences to align against the input sequences against. If these are not provided then the input sequences are aligned against each other.",
@@ -531,8 +596,11 @@ replaced with the the sequence file and the results file, respectively",
                                                 options.outgroups.split(','),
                                                 options.cigarFile,
                                                 options.outgroupFragmentsDir)
-    elif options.targetSequenceFiles == None:
+    elif options.targetSequenceFiles is None and options.countsTable is None:
         firstTarget = BlastSequencesAllAgainstAll(args, options.cigarFile, options)
+
+    elif options.countsTable:
+        firstTarget = MakeGlobalCountsTable(args, options.countsTable, options)
     else:
         firstTarget = BlastSequencesAgainstEachOther(args, options.targetSequenceFiles.split(), options.cigarFile, options)
     Stack(firstTarget).startJobTree(options)

@@ -159,7 +159,8 @@ def runCactusBlast(sequenceFiles, outputFile, jobTreeDir,
                    selfBlastString=None,
                    compressFiles=None,
                    lastzMemory=None,
-                   targetSequenceFiles=None):
+                   targetSequenceFiles=None,
+                   sampleSeeds=False):
     logLevel = getLogLevelString2(logLevel)
     chunkSize = nameValue("chunkSize", chunkSize, int)
     overlapSize = nameValue("overlapSize", overlapSize, int)
@@ -514,3 +515,8 @@ def runCactusFastaGenerator(cactusDiskDatabaseString,
     
 def runCactusAnalyseAssembly(sequenceFile):
     return popenCatch("cactus_analyseAssembly %s" % sequenceFile)[:-1]
+
+def runCactusBlastMakeSeedCountsTable(countThreshold, countsTables, globalCountsTable):
+    messages = popenCatch("cactus_blast_makeGlobalSeedCountsTable --countThreshold %i --globalCountsTable %s %s" % 
+            (countThreshold, globalCountsTable, " ".join(countsTables)))
+    return messages
