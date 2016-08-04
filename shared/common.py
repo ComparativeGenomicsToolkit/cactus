@@ -167,13 +167,14 @@ def runCactusBlast(sequenceFiles, outputFile, jobTreeDir,
     blastString = nameValue("blastString", blastString, str)
     selfBlastString = nameValue("selfBlastString", selfBlastString, str)
     compressFiles = nameValue("compressFiles", compressFiles, bool)
+    sampleSeeds = nameValue("sampleSeeds", sampleSeeds, bool)
     lastzMemory = nameValue("lastzMemory", lastzMemory, int)
     if targetSequenceFiles != None: 
         targetSequenceFiles = " ".join(targetSequenceFiles)
     targetSequenceFiles = nameValue("targetSequenceFiles", targetSequenceFiles, quotes=True)
-    command = "cactus_blast.py %s  --cigars %s %s %s %s %s %s %s %s --jobTree %s --logLevel %s" % \
+    command = "cactus_blast.py %s  --cigars %s %s %s %s %s %s %s %s %s --jobTree %s --logLevel %s" % \
             (" ".join(sequenceFiles), outputFile,
-             chunkSize, overlapSize, blastString, selfBlastString, compressFiles, 
+             chunkSize, overlapSize, blastString, selfBlastString, compressFiles, sampleSeeds,
              lastzMemory, targetSequenceFiles, jobTreeDir, logLevel)
     logger.info("Running command : %s" % command)
     system(command)

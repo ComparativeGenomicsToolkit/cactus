@@ -264,6 +264,7 @@ class TestCase(unittest.TestCase):
         #runNaiveBlast([ tempSeqFile ], self.tempOutputFile, self.tempDir, lastzOptions="--nogapped --step=3 --hspthresh=3000 --ambiguous=iupac")
         #logger.critical("It took %s seconds to run blast" % (time.time() - startTime))
 
+    @unittest.skip("")
     def testGenerateGlobalSeedCounts(self):
         encodeRegion = "ENm001"
         regionPath = os.path.join(self.encodePath, encodeRegion)
@@ -273,17 +274,20 @@ class TestCase(unittest.TestCase):
         jobTreeDir = os.path.join(getTempDirectory(self.tempDir), "jobTree")
         system("cactus_blast.py --countsTable %s %s --jobTree %s" % (countsTable, " ".join(speciesFiles), jobTreeDir))
 
-    @unittest.skip("")
     def testSeedSampling(self):
         encodeRegion = "ENm001"
         regionPath = os.path.join(self.encodePath, encodeRegion)
         speciesList = ("human", "mouse", "dog")
         speciesFiles = [os.path.join(regionPath, "%s.%s.fa" % (species, encodeRegion)) for species in speciesList]
-        alignmentsFile = os.path.join(self.tempDir, "alignments")
+        seedSamplingAlignmentsFile = os.path.join(self.tempDir, "alignments_sampled")
+        repeatMaskedAlignmentsFIle = os.path.join(self.tempDir, "alignments_repeat_masked")
         jobTreeDir = os.path.join(getTempDirectory(self.tempDir), "jobTree")
 
         #system("cactus_blast.py --sampleSeeds %s" % " ".join(speciesFiles))
-        runCactusBlast(speciesFiles, alignmentsFile, jobTreeDir, sampleSeeds=True)
+        runCactusBlast(speciesFiles, seedSamplingAlignmentsFile, jobTreeDir, sampleSeeds=True)
+        runCactusBlast(speciesFiles, repeatMaskedAlignmentsFile, jobTreeDir, sampleSeeds=False)
+        runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
+
 
 
 

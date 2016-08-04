@@ -42,19 +42,26 @@ class BlastOptions:
         """
         self.chunkSize = chunkSize
         self.overlapSize = overlapSize
-        
-        if realign:
-            self.blastString = "cactus_lastz --format=cigar %s SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] | cactus_realign %s SEQ_FILE_1 SEQ_FILE_2 > CIGARS_FILE"  % (lastzArguments, realignArguments) 
-        else:
-            self.blastString = "cactus_lastz --format=cigar %s SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"  % lastzArguments 
-        if realign:
-            self.selfBlastString = "cactus_lastz --format=cigar %s SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial | cactus_realign %s SEQ_FILE > CIGARS_FILE" % (lastzArguments, realignArguments)
-        else:
-            self.selfBlastString = "cactus_lastz --format=cigar %s SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial > CIGARS_FILE" % lastzArguments
 
-        self.countsTableBlastString = "cactus_lastz --tableonly=count SEQ_FILE > COUNTS_TABLE"
+        if realign and not sampleSeeds:
+            self.blastString = "cactus_lastz --format=cigar %s SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] | cactus_realign %s SEQ_FILE_1 SEQ_FILE_2 > CIGARS_FILE"  % (lastzArguments, realignArguments) 
+            self.selfBlastString = "cactus_lastz --format=cigar %s SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial | cactus_realign %s SEQ_FILE > CIGARS_FILE" % (lastzArguments, realignArguments)
+        elif realign and sampleSeeds:
+            self.blastString = "cactus_lastz --format=cigar --sampleSeedThreshold=%i --seedCountsTable=SEED_COUNTS %s SEQ_FILE_1[multiple][nameparse=darkspace][unmask] SEQ_FILE_2[nameparse=darkspace][unmask] | cactus_realign %s SEQ_FILE_1 SEQ_FILE_2 > CIGARS_FILE"  % (sampleSeedThreshold, lastzArguments, realignArguments) 
+            self.selfBlastString = "cactus_lastz --format=cigar --sampleSeedThreshold=%i --seedCountsTable=SEED_COUNTS %s SEQ_FILE[multiple][nameparse=darkspace][unmask] SEQ_FILE[nameparse=darkspace][unmask] --notrivial | cactus_realign %s SEQ_FILE > CIGARS_FILE" % (sampleSeedThreshold, lastzArguments, realignArguments)
+
+        elif not sampleSeeds:
+            self.blastString = "cactus_lastz --format=cigar %s SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"  % lastzArguments 
+            self.selfBlastString = "cactus_lastz --format=cigar %s SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial > CIGARS_FILE" % lastzArguments
+        elif sampleSeeds:
+            self.blastString = "cactus_lastz --format=cigar --sampleSeedThreshold=%i --seedCountsTable=SEED_COUNTS %s SEQ_FILE_1[multiple][nameparse=darkspace][unmask] SEQ_FILE_2[nameparse=darkspace][unmask] > CIGARS_FILE"  % (seedCountThreshold, lastzArguments)
+            self.selfBlastString = "cactus_lastz --format=cigar --sampleSeedThreshold=%i --seedCountsTable=SEED_COUNTS %s SEQ_FILE[multiple][nameparse=darkspace][unmask] SEQ_FILE[nameparse=darkspace][unmask] --notrivial > CIGARS_FILE" % (sampleSeedThreshold, lastzArguments)
+
+
+        self.countsTableBlastString = "cactus_lastz --tableonly=count SEQ_FILE[unmask] > COUNTS_TABLE"
         self.sampleSeeds = sampleSeeds
         self.seedCountThreshold = seedCountThreshold
+
 
         self.compressFiles = compressFiles
         self.minimumSequenceLength = 10
@@ -133,24 +140,26 @@ class BlastSequencesAllAgainstAll(Target):
                                                           " ".join(sequenceFiles))).split("\n") if chunk != "" ]
         
     def run(self):
-        countsTable = os.path.join(self.getGlobalTempDir(), "countsTable")
+        seedCountsTable = None
         if self.blastOptions.sampleSeeds:
-            self.addChildTarget(MakeGlobalCountsTable(blastOptions, self.sequenceFiles), countsTable)
+            seedCountsTable = os.path.join(self.getGlobalTempDir(), "countsTable")
+            self.addChildTarget(MakeGlobalCountsTable(self.sequenceFiles1, seedCountsTable, self.blastOptions))
 
 
         chunks = self.getChunks(self.sequenceFiles1, makeSubDir(os.path.join(self.getGlobalTempDir(), "chunks")))
         logger.info("Broken up the sequence files into individual 'chunk' files")
-        self.setFollowOnTarget(MakeBlastsAllAgainstAll(self.blastOptions, chunks, self.finalResultsFile))
+        self.setFollowOnTarget(MakeBlastsAllAgainstAll(self.blastOptions, chunks, seedCountsTable, self.finalResultsFile))
         
 class MakeBlastsAllAgainstAll(Target):
     """Breaks up the inputs into bits and builds a bunch of alignment jobs.
     """
-    def __init__(self, blastOptions, chunks, finalResultsFile):
+    def __init__(self, blastOptions, chunks, seedCountsTable, finalResultsFile):
         Target.__init__(self)
         self.blastOptions = blastOptions
         self.chunks = chunks
+        self.seedCountsTable = seedCountsTable
         self.finalResultsFile = finalResultsFile
-        
+
     def run(self):
         #Avoid compression if just one chunk
         self.blastOptions.compressFiles = self.blastOptions.compressFiles and len(self.chunks) > 2
@@ -159,14 +168,14 @@ class MakeBlastsAllAgainstAll(Target):
         for i in xrange(len(self.chunks)):
             resultsFile = os.path.join(selfResultsDir, str(i))
             resultsFiles.append(resultsFile)
-            self.addChildTarget(RunSelfBlast(self.blastOptions, self.chunks[i], resultsFile))
+            self.addChildTarget(RunSelfBlast(self.blastOptions, self.chunks[i], self.seedCountsTable, resultsFile))
         logger.info("Made the list of self blasts")
         #Setup job to make all-against-all blasts
-        self.setFollowOnTarget(MakeBlastsAllAgainstAll2(self.blastOptions, self.chunks, resultsFiles, self.finalResultsFile))
+        self.setFollowOnTarget(MakeBlastsAllAgainstAll2(self.blastOptions, self.chunks, resultsFiles, self.seedCountsTable, self.finalResultsFile))
     
 class MakeBlastsAllAgainstAll2(MakeBlastsAllAgainstAll):
-        def __init__(self, blastOptions, chunks, resultsFiles, finalResultsFile):
-            MakeBlastsAllAgainstAll.__init__(self, blastOptions, chunks, finalResultsFile)
+        def __init__(self, blastOptions, chunks, resultsFiles, seedCountsTable, finalResultsFile):
+            MakeBlastsAllAgainstAll.__init__(self, blastOptions, chunks, seedCountsTable, finalResultsFile)
             self.resultsFiles = resultsFiles
            
         def run(self):
@@ -176,7 +185,7 @@ class MakeBlastsAllAgainstAll2(MakeBlastsAllAgainstAll):
                 for j in xrange(i+1, len(self.chunks)):
                     resultsFile = tempFileTree.getTempFile()
                     self.resultsFiles.append(resultsFile)
-                    self.addChildTarget(RunBlast(self.blastOptions, self.chunks[i], self.chunks[j], resultsFile))
+                    self.addChildTarget(RunBlast(self.blastOptions, self.chunks[i], self.chunks[j], self.seedCountsTable, resultsFile))
             logger.info("Made the list of all-against-all blasts")
             #Set up the job to collate all the results
             self.setFollowOnTarget(CollateBlasts(self.finalResultsFile, self.resultsFiles))
@@ -389,15 +398,18 @@ def compressFastaFile(fileName):
 class RunSelfBlast(Target):
     """Runs blast as a job.
     """
-    def __init__(self, blastOptions, seqFile, resultsFile):
+    def __init__(self, blastOptions, seqFile, seedCountsTable, resultsFile):
         Target.__init__(self, memory=blastOptions.memory)
         self.blastOptions = blastOptions
         self.seqFile = seqFile
+        self.seedCountsTable = seedCountsTable
         self.resultsFile = resultsFile
     
     def run(self):   
         tempResultsFile = os.path.join(self.getLocalTempDir(), "tempResults.cig")
         command = self.blastOptions.selfBlastString.replace("CIGARS_FILE", tempResultsFile).replace("SEQ_FILE", self.seqFile)
+        if self.seedCountsTable:
+            command = command.replace("SEED_COUNTS", self.seedCountsTable)
         system(command)
         system("cactus_blast_convertCoordinates %s %s %i" % (tempResultsFile, self.resultsFile, self.blastOptions.roundsOfCoordinateConversion))
         if self.blastOptions.compressFiles:
@@ -413,11 +425,12 @@ def decompressFastaFile(fileName, tempFileName):
 class RunBlast(Target):
     """Runs blast as a job.
     """
-    def __init__(self, blastOptions, seqFile1, seqFile2, resultsFile):
+    def __init__(self, blastOptions, seqFile1, seqFile2, seedCountsTable, resultsFile):
         Target.__init__(self, memory=blastOptions.memory)
         self.blastOptions = blastOptions
         self.seqFile1 = seqFile1
         self.seqFile2 = seqFile2
+        self.seedCountsTable = seedCountsTable
         self.resultsFile = resultsFile
     
     def run(self):
@@ -426,6 +439,8 @@ class RunBlast(Target):
             self.seqFile2 = decompressFastaFile(self.seqFile2 + ".bz2", os.path.join(self.getLocalTempDir(), "2.fa"))
         tempResultsFile = os.path.join(self.getLocalTempDir(), "tempResults.cig")
         command = self.blastOptions.blastString.replace("CIGARS_FILE", tempResultsFile).replace("SEQ_FILE_1", self.seqFile1).replace("SEQ_FILE_2", self.seqFile2)
+        if self.seedCountsTable:
+            command = command.replace("SEED_COUNTS", self.seedCountsTable)
         system(command)
         system("cactus_blast_convertCoordinates %s %s %i" % (tempResultsFile, self.resultsFile, self.blastOptions.roundsOfCoordinateConversion))
         logger.info("Ran the blast okay")
