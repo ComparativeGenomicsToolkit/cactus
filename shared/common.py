@@ -167,7 +167,7 @@ def runCactusBlast(sequenceFiles, outputFile, jobTreeDir,
     blastString = nameValue("blastString", blastString, str)
     selfBlastString = nameValue("selfBlastString", selfBlastString, str)
     compressFiles = nameValue("compressFiles", compressFiles, bool)
-    sampleSeeds = nameValue("sampleSeeds", sampleSeeds, bool)
+    sampleSeeds = "--sampleSeeds" if sampleSeeds else ""
     lastzMemory = nameValue("lastzMemory", lastzMemory, int)
     if targetSequenceFiles != None: 
         targetSequenceFiles = " ".join(targetSequenceFiles)
@@ -177,8 +177,9 @@ def runCactusBlast(sequenceFiles, outputFile, jobTreeDir,
              chunkSize, overlapSize, blastString, selfBlastString, compressFiles, sampleSeeds,
              lastzMemory, targetSequenceFiles, jobTreeDir, logLevel)
     logger.info("Running command : %s" % command)
-    system(command)
+    messages = popenCatch(command)
     logger.info("Ran the cactus_blast command okay")
+    return messages
 
 def runConvertAlignmentsToInternalNames(cactusDiskString, alignmentsFile, outputFile, flowerName):
     popenCatch("cactus_convertAlignmentsToInternalNames --cactusDisk '%s' %s %s" % (cactusDiskString, alignmentsFile, outputFile), stdinString=encodeFlowerNames((flowerName,)))

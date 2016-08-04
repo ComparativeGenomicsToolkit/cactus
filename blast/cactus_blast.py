@@ -43,19 +43,17 @@ class BlastOptions:
         self.chunkSize = chunkSize
         self.overlapSize = overlapSize
 
-        if realign and not sampleSeeds:
+        if realign:
             self.blastString = "cactus_lastz --format=cigar %s SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] | cactus_realign %s SEQ_FILE_1 SEQ_FILE_2 > CIGARS_FILE"  % (lastzArguments, realignArguments) 
             self.selfBlastString = "cactus_lastz --format=cigar %s SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial | cactus_realign %s SEQ_FILE > CIGARS_FILE" % (lastzArguments, realignArguments)
-        elif realign and sampleSeeds:
-            self.blastString = "cactus_lastz --format=cigar --sampleSeedThreshold=%i --seedCountsTable=SEED_COUNTS %s SEQ_FILE_1[multiple][nameparse=darkspace][unmask] SEQ_FILE_2[nameparse=darkspace][unmask] | cactus_realign %s SEQ_FILE_1 SEQ_FILE_2 > CIGARS_FILE"  % (sampleSeedThreshold, lastzArguments, realignArguments) 
-            self.selfBlastString = "cactus_lastz --format=cigar --sampleSeedThreshold=%i --seedCountsTable=SEED_COUNTS %s SEQ_FILE[multiple][nameparse=darkspace][unmask] SEQ_FILE[nameparse=darkspace][unmask] --notrivial | cactus_realign %s SEQ_FILE > CIGARS_FILE" % (sampleSeedThreshold, lastzArguments, realignArguments)
+            self.seedSampleBlastString = "cactus_lastz --format=cigar --sampleSeedThreshold=%i --seedCountsTable=SEED_COUNTS %s SEQ_FILE_1[multiple][nameparse=darkspace][unmask] SEQ_FILE_2[nameparse=darkspace][unmask] | cactus_realign %s SEQ_FILE_1 SEQ_FILE_2 > CIGARS_FILE"  % (seedCountThreshold, lastzArguments, realignArguments) 
+            self.seedSampleSelfBlastString = "cactus_lastz --format=cigar --sampleSeedThreshold=%i --seedCountsTable=SEED_COUNTS %s SEQ_FILE[multiple][nameparse=darkspace][unmask] SEQ_FILE[nameparse=darkspace][unmask] --notrivial | cactus_realign %s SEQ_FILE > CIGARS_FILE" % (seedCountThreshold, lastzArguments, realignArguments)
 
-        elif not sampleSeeds:
+        else:
             self.blastString = "cactus_lastz --format=cigar %s SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"  % lastzArguments 
             self.selfBlastString = "cactus_lastz --format=cigar %s SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial > CIGARS_FILE" % lastzArguments
-        elif sampleSeeds:
-            self.blastString = "cactus_lastz --format=cigar --sampleSeedThreshold=%i --seedCountsTable=SEED_COUNTS %s SEQ_FILE_1[multiple][nameparse=darkspace][unmask] SEQ_FILE_2[nameparse=darkspace][unmask] > CIGARS_FILE"  % (seedCountThreshold, lastzArguments)
-            self.selfBlastString = "cactus_lastz --format=cigar --sampleSeedThreshold=%i --seedCountsTable=SEED_COUNTS %s SEQ_FILE[multiple][nameparse=darkspace][unmask] SEQ_FILE[nameparse=darkspace][unmask] --notrivial > CIGARS_FILE" % (sampleSeedThreshold, lastzArguments)
+            self.seedSampleBlastString = "cactus_lastz --format=cigar --sampleSeedThreshold=%i --seedCountsTable=SEED_COUNTS %s SEQ_FILE_1[multiple][nameparse=darkspace][unmask] SEQ_FILE_2[nameparse=darkspace][unmask] > CIGARS_FILE"  % (seedCountThreshold, lastzArguments)
+            self.seedSampleSelfBlastString = "cactus_lastz --format=cigar --sampleSeedThreshold=%i --seedCountsTable=SEED_COUNTS %s SEQ_FILE[multiple][nameparse=darkspace][unmask] SEQ_FILE[nameparse=darkspace][unmask] --notrivial > CIGARS_FILE" % (seedCountThreshold, lastzArguments)
 
 
         self.countsTableBlastString = "cactus_lastz --tableonly=count SEQ_FILE[unmask] > COUNTS_TABLE"
@@ -407,9 +405,10 @@ class RunSelfBlast(Target):
     
     def run(self):   
         tempResultsFile = os.path.join(self.getLocalTempDir(), "tempResults.cig")
-        command = self.blastOptions.selfBlastString.replace("CIGARS_FILE", tempResultsFile).replace("SEQ_FILE", self.seqFile)
         if self.seedCountsTable:
-            command = command.replace("SEED_COUNTS", self.seedCountsTable)
+            command = self.blastOptions.seedSampleSelfBlastString.replace("CIGARS_FILE", tempResultsFile).replace("SEQ_FILE", self.seqFile).replace("SEED_COUNTS", self.seedCountsTable)
+        else:
+            command = self.blastOptions.selfBlastString.replace("CIGARS_FILE", tempResultsFile).replace("SEQ_FILE", self.seqFile)
         system(command)
         system("cactus_blast_convertCoordinates %s %s %i" % (tempResultsFile, self.resultsFile, self.blastOptions.roundsOfCoordinateConversion))
         if self.blastOptions.compressFiles:
@@ -434,13 +433,15 @@ class RunBlast(Target):
         self.resultsFile = resultsFile
     
     def run(self):
+        assert self.seedCountsTable
         if self.blastOptions.compressFiles:
             self.seqFile1 = decompressFastaFile(self.seqFile1 + ".bz2", os.path.join(self.getLocalTempDir(), "1.fa"))
             self.seqFile2 = decompressFastaFile(self.seqFile2 + ".bz2", os.path.join(self.getLocalTempDir(), "2.fa"))
         tempResultsFile = os.path.join(self.getLocalTempDir(), "tempResults.cig")
-        command = self.blastOptions.blastString.replace("CIGARS_FILE", tempResultsFile).replace("SEQ_FILE_1", self.seqFile1).replace("SEQ_FILE_2", self.seqFile2)
         if self.seedCountsTable:
-            command = command.replace("SEED_COUNTS", self.seedCountsTable)
+            command = self.blastOptions.seedSampleBlastString.replace("CIGARS_FILE", tempResultsFile).replace("SEQ_FILE_1", self.seqFile1).replace("SEQ_FILE_2", self.seqFile2).replace("SEED_COUNTS", self.seedCountsTable)
+        else:
+            command = self.blastOptions.blastString.replace("CIGARS_FILE", tempResultsFile).replace("SEQ_FILE_1", self.seqFile1).replace("SEQ_FILE_2", self.seqFile2)
         system(command)
         system("cactus_blast_convertCoordinates %s %s %i" % (tempResultsFile, self.resultsFile, self.blastOptions.roundsOfCoordinateConversion))
         logger.info("Ran the blast okay")
@@ -550,6 +551,18 @@ replaced with the two sequence files and the results file, respectively",
 Must contain three strings: SEQ_FILE and CIGARS_FILE which will be \
 replaced with the the sequence file and the results file, respectively",
                      default=blastOptions.selfBlastString)
+    parser.add_option("--seedSampleBlastString", dest="seedSampleBlastString", type="string",
+                     help="The string used to call the blast program with seed sampling. \
+Must contain three strings: SEQ_FILE_1, SEQ_FILE_2 and CIGARS_FILE which will be \
+replaced with the two sequence files and the results file, respectively",
+                     default=blastOptions.seedSampleBlastString)
+    
+    parser.add_option("--seedSampleSelfBlastString", dest="seedSampleSelfBlastString", type="string",
+                     help="The default string used to call the blast program for self alignment with \
+seed sampling. Must contain three strings: SEQ_FILE and CIGARS_FILE which will be \
+replaced with the the sequence file and the results file, respectively",
+                     default=blastOptions.seedSampleSelfBlastString)
+
     parser.add_option("--countsTableBlastString", dest="countsTableBlastString", type="string",
                     help="Blast command for generating a table with the number of counts for each \
                     seed in the input sequence",

@@ -46,7 +46,7 @@ class TestCase(unittest.TestCase):
             if os.path.exists(tempFile):
                 os.remove(tempFile)
         unittest.TestCase.tearDown(self)
-        system("rm -rf %s" % self.tempDir)
+        #system("rm -rf %s" % self.tempDir)
         
     def runComparisonOfBlastScriptVsNaiveBlast(self, blastMode):
         """We compare the output with a naive run of the blast program, to check the results are nearly
@@ -280,13 +280,22 @@ class TestCase(unittest.TestCase):
         speciesList = ("human", "mouse", "dog")
         speciesFiles = [os.path.join(regionPath, "%s.%s.fa" % (species, encodeRegion)) for species in speciesList]
         seedSamplingAlignmentsFile = os.path.join(self.tempDir, "alignments_sampled")
-        repeatMaskedAlignmentsFIle = os.path.join(self.tempDir, "alignments_repeat_masked")
-        jobTreeDir = os.path.join(getTempDirectory(self.tempDir), "jobTree")
+        repeatMaskedAlignmentsFile = os.path.join(self.tempDir, "alignments_repeat_masked")
+        jobTreeDir1 = os.path.join(getTempDirectory(self.tempDir), "jobTree1")
+        jobTreeDir2 = os.path.join(getTempDirectory(self.tempDir), "jobTree2")
 
         #system("cactus_blast.py --sampleSeeds %s" % " ".join(speciesFiles))
-        runCactusBlast(speciesFiles, seedSamplingAlignmentsFile, jobTreeDir, sampleSeeds=True)
-        runCactusBlast(speciesFiles, repeatMaskedAlignmentsFile, jobTreeDir, sampleSeeds=False)
-        runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
+        messages = runCactusBlast(speciesFiles, seedSamplingAlignmentsFile, jobTreeDir1, sampleSeeds=True, logLevel="DEBUG")
+        runCactusBlast(speciesFiles, repeatMaskedAlignmentsFile, jobTreeDir2, sampleSeeds=False)
+        coveredBasesSampling = popenCatch("cactus_coverage %s %s | awk '{ total += $3 - $2 } END { print total }'" % (speciesFiles[1], seedSamplingAlignmentsFile))
+        coveredBasesMasked = popenCatch("cactus_coverage %s %s | awk '{ total += $3 - $2 } END { print total }'" % (speciesFiles[1], repeatMaskedAlignmentsFile))
+
+        for message in messages.split('\n'):
+            logger.critical(message)
+
+        logger.critical("Covered bases with repeat sampling: %s" % coveredBasesSampling)
+        logger.critical("Covered bases with masking: %s" % coveredBasesMasked)
+
 
 
 
