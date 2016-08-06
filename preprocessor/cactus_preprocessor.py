@@ -75,7 +75,6 @@ class MergeChunks(Job):
         self.chunkIDList = chunkIDList
     
     def run(self, fileStore):
-        logger.info("Disk = %i" % self.disk)
         chunkList = [fileStore.readGlobalFile(fileID) for fileID in self.chunkIDList]
         outSequencePath = fileStore.getLocalTempFile()
         popenPush("cactus_batch_mergeChunks > %s" % outSequencePath, " ".join(chunkList))
