@@ -519,6 +519,6 @@ def runCactusAnalyseAssembly(sequenceFile):
     return popenCatch("cactus_analyseAssembly %s" % sequenceFile)[:-1]
 
 def runCactusBlastMakeSeedCountsTable(countThreshold, countsTables, globalCountsTable):
-    messages = popenCatch("cactus_blast_makeGlobalSeedCountsTable --countThreshold %i --globalCountsTable %s %s" % 
+    messages = popenCatch("cactus_blast_makeSeedScoreTable --countThreshold %i --seedScoresFile %s %s" % 
             (countThreshold, globalCountsTable, " ".join(countsTables)))
     return messages
