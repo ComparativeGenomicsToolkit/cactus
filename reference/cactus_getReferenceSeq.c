@@ -26,6 +26,8 @@ static void usage() {
     fprintf(stderr,
             "-c --cactusDisk : The location of the flower disk directory\n");
     fprintf(stderr,
+            "-d --cactusSequencesPath : Location of cactusSequencesFile\n");
+    fprintf(stderr,
             "-e --outputFile : Name of output fasta file\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
@@ -83,6 +85,7 @@ static void getReferenceSequences(FILE *fileHandle, Flower *flower, char *refere
 int main(int argc, char *argv[]) {
     char * logLevelString = NULL;
     char * cactusDiskDatabaseString = NULL;
+    char * cactusSequencesPath = NULL;
     char * flowerName = NULL;
     char * outputFile = NULL;
     char *referenceEventString = NULL;
@@ -96,13 +99,14 @@ int main(int argc, char *argv[]) {
                 { "logLevel", required_argument, 0, 'a' }, 
                 { "referenceEventString", required_argument, 0, 'b' },
                 { "cactusDisk", required_argument, 0, 'c' }, 
-		{ "flowerName", required_argument, 0, 'd' },
-		{ "outputFile", required_argument, 0, 'e' },
+                { "cactusSequencesPath", required_argument, 0, 'd'},
+		{ "flowerName", required_argument, 0, 'e' },
+		{ "outputFile", required_argument, 0, 'f' },
                 { "help", no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:b:c:d:e:h", long_options,
+        int key = getopt_long(argc, argv, "a:b:c:d:e:f:h", long_options,
                 &option_index);
 
         if (key == -1) {
@@ -120,9 +124,12 @@ int main(int argc, char *argv[]) {
                 cactusDiskDatabaseString = stString_copy(optarg);
                 break;
             case 'd':
-                flowerName = stString_copy(optarg);
+                cactusSequencesPath = stString_copy(optarg);
                 break;
             case 'e':
+                flowerName = stString_copy(optarg);
+                break;
+            case 'f':
                 outputFile = stString_copy(optarg);
                 break;
             case 'h':
@@ -163,7 +170,7 @@ int main(int argc, char *argv[]) {
 
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(
             cactusDiskDatabaseString);
-    CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
+    CactusDisk *cactusDisk = cactusDisk_construct3(kvDatabaseConf, cactusSequencesPath);
     st_logInfo("Set up the flower disk\n");
 
     ///////////////////////////////////////////////////////////////////////////

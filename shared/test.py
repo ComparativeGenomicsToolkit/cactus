@@ -30,7 +30,7 @@ from sonLib.bioio import TestStatus
 
 from sonLib.tree import makeRandomBinaryTree
 
-from jobTree.src.common import runJobTreeStats, runJobTreeStatusAndFailIfNotComplete
+from cactus.shared.common import runToilStats, runToilStatusAndFailIfNotComplete
 
 from cactus.shared.experimentWrapper import DbElemWrapper
 from cactus.shared.experimentWrapper import ExperimentWrapper
@@ -270,7 +270,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
                            buildHal=False,
                            buildFasta=False,
                            configFile=None,
-                           buildJobTreeStats=False,
+                           buildToilStats=False,
                            constraints=None,
                            progressive=False,
                            cactusWorkflowFunction=runCactusWorkflow):
@@ -295,20 +295,20 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     logger.info("The experiment file %s\n" % experimentFile)
    
     #Setup the job tree dir.
-    jobTreeDir = os.path.join(outputDir, "jobTree")
-    logger.info("Got a job tree dir for the test: %s" % jobTreeDir)
+    toilDir = os.path.join(outputDir, "toil")
+    logger.info("Got a job tree dir for the test: %s" % toilDir)
     
     #Run the actual workflow
-    cactusWorkflowFunction(experimentFile, jobTreeDir, 
+    cactusWorkflowFunction(experimentFile, toilDir, 
                       batchSystem=batchSystem, buildAvgs=buildAvgs, 
                       buildReference=buildReference,
                       buildHal=buildHal,
                       buildFasta=buildFasta,
-                      jobTreeStats=buildJobTreeStats)
+                      toilStats=buildToilStats)
     logger.info("Ran the the workflow")
     
     #Check if the jobtree completed sucessively.
-    runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
+    runToilStatusAndFailIfNotComplete(toilDir)
     logger.info("Checked the job tree dir")
     
     #Check if the cactusDisk is okay..
@@ -317,12 +317,12 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     #logger.info("Checked the cactus tree")
     
     #Now run various utilities..
-    if buildJobTreeStats:
-        jobTreeStatsFile = os.path.join(outputDir, "jobTreeStats.xml")
-        runJobTreeStats(jobTreeDir, jobTreeStatsFile)
+    if buildToilStats:
+        toilStatsFile = os.path.join(outputDir, "toilStats.xml")
+        runToilStats(toilDir, toilStatsFile)
         
     #Now remove everything we generate
-    system("rm -rf %s %s" % (jobTreeDir, experimentFile))   
+    system("rm -rf %s %s" % (toilDir, experimentFile))   
     
     #Return so calling function can cleanup
     return experiment
@@ -336,7 +336,7 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                  inverseTestRestrictions=False,
                                  batchSystem="single_machine",
                                  buildAvgs=False, buildReference=False,
-                                 configFile=None, buildJobTreeStats=False, 
+                                 configFile=None, buildToilStats=False, 
                                  useConstraints=False,
                                  cactusWorkflowFunction=runCactusWorkflow,
                                  buildHal=False,
@@ -360,7 +360,7 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                                 buildHal=buildHal,
                                                 buildFasta=buildFasta,
                                                 configFile=configFile,
-                                                buildJobTreeStats=buildJobTreeStats,
+                                                buildToilStats=buildToilStats,
                                                 constraints=constraints,
                                                 progressive=progressive,
                                                 cactusWorkflowFunction=cactusWorkflowFunction)

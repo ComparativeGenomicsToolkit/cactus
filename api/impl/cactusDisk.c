@@ -471,27 +471,6 @@ static void cactusDisk_writeBinaryRepresentation(CactusDisk *cactusDisk,
     binaryRepresentation_writeElementType(CODE_CACTUS_DISK, writeFn);
 }
 
-static void cactusDisk_loadFromBinaryRepresentation(void **binaryString, CactusDisk *cactusDisk, stKVDatabaseConf *conf) {
-    cactusDisk->sequencesReadFileHandle = NULL;
-    cactusDisk->sequencesWriteFileHandle = NULL; //I think these lines are not needed.
-    cactusDisk->sequencesFileName = NULL;
-    cactusDisk->absSequencesFileName = NULL;
-    assert(binaryRepresentation_peekNextElementType(*binaryString) == CODE_CACTUS_DISK);
-    binaryRepresentation_popNextElementType(binaryString);
-    cactusDisk->storeSequencesInAFile = binaryRepresentation_getBool(binaryString);
-    if (cactusDisk->storeSequencesInAFile) {
-        cactusDisk->sequencesFileName = binaryRepresentation_getString(binaryString);
-        if (stKVDatabaseConf_getDir(conf) == NULL) {
-            stThrowNew(CACTUS_DISK_EXCEPTION_ID,
-                    "The database conf does not contain a directory in which the sequence file is to be found!\n");
-        }
-        cactusDisk->absSequencesFileName = stString_print("%s/%s", stKVDatabaseConf_getDir(conf),
-                cactusDisk->sequencesFileName);
-    }
-    assert(binaryRepresentation_peekNextElementType(*binaryString) == CODE_CACTUS_DISK);
-    binaryRepresentation_popNextElementType(binaryString);
-}
-
 /*
  * The following two functions compress and decompress the data in the cactus disk..
  */
@@ -576,6 +555,7 @@ static void *getRecord(CactusDisk *cactusDisk, Name objectName, char *type) {
         stCache_setRecord(cactusDisk->cache, objectName, 0, recordSize, cA); //Add the compressed record to the cache.
     }
     //Decompression
+    assert(recordSize > 0);
     void *cA2 = decompress(cA, &recordSize);
     free(cA);
     return cA2;
@@ -614,13 +594,18 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf, bool crea
         if (create) {
             stThrowNew(CACTUS_DISK_EXCEPTION_ID, "Tried to create a cactus disk, but the cactus disk already exists");
         }
+        /*
         if (sequencesFileName != NULL) {
             stThrowNew(CACTUS_DISK_EXCEPTION_ID,
                     "A sequences file name is specified, but the cactus disk is not being created");
         }
+        */
         void *record = getRecord(cactusDisk, CACTUS_DISK_PARAMETER_KEY, "cactus_disk parameters");
         void *record2 = record;
-        cactusDisk_loadFromBinaryRepresentation(&record, cactusDisk, conf);
+        //cactusDisk_loadFromBinaryRepresentation(&record, cactusDisk, conf, sequencesFileName);
+        cactusDisk->storeSequencesInAFile = 1;
+        cactusDisk->sequencesFileName = stString_copy(sequencesFileName);
+        cactusDisk->absSequencesFileName = stString_copy(sequencesFileName);
         free(record2);
     } else {
         assert(create);
@@ -637,8 +622,7 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf, bool crea
             }
             cactusDisk->storeSequencesInAFile = 1;
             cactusDisk->sequencesFileName = stString_copy(sequencesFileName);
-            cactusDisk->absSequencesFileName = stString_print("%s/%s", stKVDatabaseConf_getDir(conf),
-                    cactusDisk->sequencesFileName);
+            cactusDisk->absSequencesFileName = stString_copy(sequencesFileName);
             //Make sure the file exists
             cactusDisk->sequencesReadFileHandle = fopen(cactusDisk->absSequencesFileName, "w");
             assert(cactusDisk->sequencesReadFileHandle != NULL);
@@ -657,6 +641,10 @@ CactusDisk *cactusDisk_construct(stKVDatabaseConf *conf, bool create) {
 
 CactusDisk *cactusDisk_construct2(stKVDatabaseConf *conf, const char *sequencesFileName) {
     return cactusDisk_constructPrivate(conf, 1, sequencesFileName);
+}
+
+CactusDisk *cactusDisk_construct3(stKVDatabaseConf *conf, const char *sequencesFileName) {
+    return cactusDisk_constructPrivate(conf, 0, sequencesFileName);
 }
 
 void cactusDisk_destruct(CactusDisk *cactusDisk) {

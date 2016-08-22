@@ -22,6 +22,7 @@ void usage() {
     fprintf(stderr, "cactus_reference [flower names], version 0.1\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
     fprintf(stderr, "-c --cactusDisk : The location of the flower disk directory\n");
+    fprintf(stderr, "-d --cactusSequencesPath : Location of the cactusSequences file created by cactus_setup\n");
     fprintf(
     stderr,
             "-e --matchingAlgorithm : Name of matching algorithm, either 'greedy', 'maxWeight', 'maxCardinality', 'blossom5'\n");
@@ -62,6 +63,7 @@ int main(int argc, char *argv[]) {
      */
     char * logLevelString = NULL;
     char * cactusDiskDatabaseString = NULL;
+    char * cactusSequencesPath = NULL;
     int64_t j;
     stList *(*matchingAlgorithm)(stList *edges, int64_t nodeNumber) =
     chooseMatching_greedy;
@@ -82,7 +84,7 @@ int main(int argc, char *argv[]) {
 
     while (1) {
         static struct option long_options[] = { { "logLevel",
-        required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0, 'c' }, { "matchingAlgorithm",
+        required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0, 'c' }, {"cactusSequencesPath", required_argument, 0, 'd'}, { "matchingAlgorithm",
         required_argument, 0, 'e' }, { "referenceEventString", required_argument, 0, 'g' }, { "permutations",
         required_argument, 0, 'i' }, { "useSimulatedAnnealing", no_argument, 0, 'j' }, { "theta",
         required_argument, 0, 'k' }, { "maxWalkForCalculatingZ", required_argument, 0, 'l' }, { "ignoreUnalignedGaps",
@@ -92,7 +94,7 @@ int main(int argc, char *argv[]) {
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:c:e:g:i:jk:hl:mn:o:p:q", long_options, &option_index);
+        int key = getopt_long(argc, argv, "a:c:d:e:g:i:jk:hl:mn:o:p:q", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -104,6 +106,9 @@ int main(int argc, char *argv[]) {
             break;
         case 'c':
             cactusDiskDatabaseString = stString_copy(optarg);
+            break;
+        case 'd':
+            cactusSequencesPath = stString_copy(optarg);
             break;
         case 'e':
             if (strcmp("greedy", optarg) == 0) {
@@ -216,7 +221,7 @@ int main(int argc, char *argv[]) {
     //////////////////////////////////////////////
 
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
-    CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
+    CactusDisk *cactusDisk = cactusDisk_construct3(kvDatabaseConf, cactusSequencesPath);
     st_logInfo("Set up the flower disk\n");
 
     ///////////////////////////////////////////////////////////////////////////

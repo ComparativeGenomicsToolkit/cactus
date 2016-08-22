@@ -3,6 +3,7 @@ from cactus.preprocessor.preprocessorTest import TestCase as PreprocessorTestCas
 from cactus.shared.common import cactusRootPath
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 import xml.etree.ElementTree as ET
+from sonLib.bioio import nameValue, logger
 
 """Runs cactus preprocessor using the lastz repeat mask script to show it working.
 """
@@ -10,7 +11,7 @@ import xml.etree.ElementTree as ET
 class TestCase(PreprocessorTestCase):
     def testCactusPreprocessor(self):
         #Demo sequences
-        sequenceNames = [ "%s.ENm001.fa" % species for species in 'human', "hedgehog" ]
+        sequenceNames = [ "%s.ENm001.fa" % species for species in ['human', 'hedgehog'] ]
         sequenceFiles = [ os.path.join(self.encodePath, self.encodeRegion, sequenceName) for sequenceName in sequenceNames ]
         #Make config file
         configFile = os.path.join(self.tempDir, "config.xml")
@@ -24,13 +25,21 @@ class TestCase(PreprocessorTestCase):
         fileHandle.write(ET.tostring(rootElem))
         fileHandle.close()
         #Run preprocessor
-        command = "cactus_preprocessor.py %s %s %s --jobTree %s" % (self.tempDir, configFile, " ".join(sequenceFiles), os.path.join(self.tempDir, "jobTree"))
+        inputSequencesStr = nameValue("inputSequences", " ".join(sequenceFiles), quotes=True)
+        outputSequenceDirStr = nameValue("outputSequenceDir", self.tempDir)
+        configFileStr = nameValue("configFile", configFile)
+        tmpToil = "./toil" #os.path.join(self.tempDir, "toil")
+        command = "cactus_preprocessor.py %s --logLevel=DEBUG %s %s %s" % (tmpToil, outputSequenceDirStr, configFileStr, inputSequencesStr)
         system(command)
+        
         for sequenceFile, processedSequenceFile in zip(sequenceFiles, CactusPreprocessor.getOutputSequenceFiles(sequenceFiles, self.tempDir)):
+            print "sequenceFile: %s" % sequenceFile
+            print "output sequence file: %s" % processedSequenceFile
             #Parse sequences into dictionary
             originalSequences = getSequences(sequenceFile)
             #Load the new sequences
             processedSequences = getSequences(processedSequenceFile)
+            
             #Check they are the same module masking
             self.checkSequenceSetsEqualModuloSoftMasking(originalSequences, processedSequences)
             

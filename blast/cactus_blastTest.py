@@ -27,7 +27,7 @@ from cactus.shared.test import parseCactusSuiteTestOptions
 from cactus.shared.common import runCactusBlast
 from cactus.blast.cactus_blast import decompressFastaFile, compressFastaFile
 
-from jobTree.src.common import runJobTreeStatusAndFailIfNotComplete
+from cactus.shared.common import runToilStatusAndFailIfNotComplete
 
 class TestCase(unittest.TestCase):
     def setUp(self):
@@ -68,15 +68,15 @@ class TestCase(unittest.TestCase):
                     logger.info("Ran the naive blast okay")
                     
                     #Run the blast
-                    jobTreeDir = os.path.join(getTempDirectory(self.tempDir), "jobTree")
+                    toilDir = os.path.join(getTempDirectory(self.tempDir), "toil")
                     if blastMode == "allAgainstAll":
-                        runCactusBlast([ seqFile1, seqFile2 ], self.tempOutputFile2, jobTreeDir,
+                        runCactusBlast([ seqFile1, seqFile2 ], self.tempOutputFile2, toilDir,
                                        chunkSize=500000, overlapSize=10000)
                     else:
-                        runCactusBlast([ seqFile1 ], self.tempOutputFile2, jobTreeDir,
+                        runCactusBlast([ seqFile1 ], self.tempOutputFile2, toilDir,
                                        chunkSize=500000, overlapSize=10000, targetSequenceFiles=[ seqFile2 ])
-                    runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
-                    system("rm -rf %s " % jobTreeDir)    
+                    #runToilStatusAndFailIfNotComplete(toilDir)
+                    system("rm -rf %s " % toilDir)    
                     logger.info("Ran cactus_blast okay")
                     logger.critical("Comparing cactus_blast and naive blast; using mode: %s" % blastMode)
                     compareResultsFile(self.tempOutputFile, self.tempOutputFile2)
@@ -86,7 +86,7 @@ class TestCase(unittest.TestCase):
         cactus_blast.py in all-against-all mode. 
         """
         self.runComparisonOfBlastScriptVsNaiveBlast(blastMode="allAgainstAll")
-    
+
     def testBlastEncode(self):
         """For each encode region, for set of pairwise species, run 
         cactus_blast.py in one set of sequences against another set mode. 
@@ -112,10 +112,10 @@ class TestCase(unittest.TestCase):
                 # Align w/ increasing numbers of outgroups
                 subResults = getTempFile()
                 subOutgroupPaths = outgroupPaths[:numOutgroups]
-                tmpJobTree = getTempDirectory()
                 print "aligning %s vs %s" % (",".join(ingroupPaths), ",".join(subOutgroupPaths))
-                system("cactus_blast.py --ingroups %s --outgroups %s --cigars %s --jobTree %s/jobTree" % (",".join(ingroupPaths), ",".join(subOutgroupPaths), subResults, tmpJobTree))
-                system("rm -fr %s" % (tmpJobTree))
+                tmpToil = "./outgroupToil"
+                system("cactus_blast.py %s --ingroups %s --outgroups %s --cigars %s" % (tmpToil, ",".join(ingroupPaths), ",".join(subOutgroupPaths), subResults))
+                system("rm -fr %s" % (tmpToil))
                 results.append(subResults)
 
             # Print diagnostics about coverage
@@ -159,13 +159,13 @@ class TestCase(unittest.TestCase):
         outgroupPaths = map(lambda x: os.path.join(regionPath, x + "." + encodeRegion + ".fa"), outgroups)
         # Run in "set against set" mode, aligning the entire ingroup
         # vs each outgroup
-        runCactusBlast([ingroupPath], self.tempOutputFile, os.path.join(self.tempDir, "setVsSetJobTree"),
+        runCactusBlast([ingroupPath], self.tempOutputFile, os.path.join(self.tempDir, "setVsSetToil"),
                        chunkSize=500000, overlapSize=10000,
                        targetSequenceFiles=outgroupPaths)
         # Run in "ingroup vs outgroups" mode, aligning the ingroup vs
         # the outgroups in order, trimming away sequence that's
         # already been aligned.
-        system("cactus_blast.py --ingroups %s --outgroups %s --cigars %s --jobTree %s/outgroupJobTree" % (ingroupPath, ",".join(outgroupPaths), self.tempOutputFile2, self.tempDir))
+        system("cactus_blast.py %s/outgroupToil --ingroups %s --outgroups %s --cigars %s" % (self.tempDir, ingroupPath, ",".join(outgroupPaths), self.tempOutputFile2))
 
         # Get the coverage on the ingroup, in bases, from each run.
         coverageSetVsSet = int(popenCatch("cactus_coverage %s %s | awk '{ total +=  $3 - $2} END { print total }'" % (ingroupPath, self.tempOutputFile)))
@@ -211,7 +211,7 @@ class TestCase(unittest.TestCase):
                 
                 logger.critical("Comparing blast settings")
                 compareResultsFile(self.tempOutputFile, self.tempOutputFile2, 0.7)
-    
+
     def testBlastRandom(self):
         """Make some sequences, put them in a file, call blast with random parameters 
         and check it runs okay.
@@ -229,13 +229,13 @@ class TestCase(unittest.TestCase):
             fileHandle.close()
             chunkSize = random.choice(xrange(500, 9000))
             overlapSize = random.choice(xrange(2, 100))
-            jobTreeDir = os.path.join(getTempDirectory(self.tempDir), "jobTree")
-            runCactusBlast([ tempSeqFile ], self.tempOutputFile, jobTreeDir, chunkSize, overlapSize)
-            runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
+            toilDir = os.path.join(getTempDirectory(self.tempDir), "toil")
+            runCactusBlast([ tempSeqFile ], self.tempOutputFile, toilDir, chunkSize, overlapSize)
+            #runToilStatusAndFailIfNotComplete(toilDir)
             if getLogLevelString() == "DEBUG":
                 system("cat %s" % self.tempOutputFile)
-            system("rm -rf %s " % jobTreeDir)
-            
+            system("rm -rf %s " % toilDir)
+
     def testCompression(self):
         tempSeqFile = os.path.join(self.tempDir, "tempSeq.fa")
         tempSeqFile2 = os.path.join(self.tempDir, "tempSeq2.fa")

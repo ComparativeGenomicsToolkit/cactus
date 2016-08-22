@@ -38,12 +38,21 @@ class Schedule:
         self.maxParallelSubtrees = None
 
     # read the experiments, compute the dependency dag
-    def loadProject(self, mcProject):
+    def loadProject(self, mcProject, fileStore = None):
         self.inGraph = NX.DiGraph()
         globTree = mcProject.mcTree
         self.maxParallelSubtrees = None
         leafEvents = [globTree.getName(i) for i in globTree.getLeaves()]
-        for name, expPath in mcProject.expMap.items():
+
+        expMap = None
+        if fileStore:
+            expMap = dict()
+            for name in mcProject.expIDMap:
+                expMap[name] = fileStore.readGlobalFile(mcProject.expIDMap[name])
+        else:
+            expMap = mcProject.expMap
+
+        for name, expPath in expMap.items():
             exp = ExperimentWrapper(ET.parse(expPath).getroot())
             tree = exp.getTree()
             self.inGraph.add_node(name)
@@ -56,7 +65,8 @@ class Schedule:
                 leafName = tree.getName(leaf)
                 if leafName not in leafEvents:
                     self.inGraph.add_edge(name, leafName)
-            configElem = ET.parse(exp.getConfig()).getroot()
+            configFile = fileStore.readGlobalFile(exp.getConfigID())
+            configElem = ET.parse(configFile).getroot()
             conf = ConfigWrapper(configElem)
             # load max parellel subtrees from the node's config
             if self.maxParallelSubtrees is None:

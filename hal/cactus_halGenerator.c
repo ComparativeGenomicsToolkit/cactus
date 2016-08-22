@@ -41,6 +41,7 @@ int main(int argc, char *argv[]) {
      */
     char * logLevelString = NULL;
     char * cactusDiskDatabaseString = NULL;
+    char * cactusSequencesPath = NULL;
     char * secondaryDatabaseString = NULL;
     char *referenceEventString =
             (char *) cactusMisc_getDefaultReferenceEventHeader();
@@ -53,7 +54,8 @@ int main(int argc, char *argv[]) {
     while (1) {
         static struct option long_options[] = { { "logLevel",
                 required_argument, 0, 'a' }, { "cactusDisk", required_argument,
-                0, 'c' }, { "secondaryDisk", required_argument, 0, 'd' },
+                0, 'c' }, {"cactusSequencesPath", required_argument, 0, 'd'}, 
+                { "secondaryDisk", required_argument, 0, 'e' },
                 { "referenceEventString", required_argument, 0, 'g' }, {
                         "help", no_argument, 0, 'h' }, { "outputFile",
                         required_argument, 0, 'k' }, {
@@ -78,6 +80,9 @@ int main(int argc, char *argv[]) {
                 cactusDiskDatabaseString = stString_copy(optarg);
                 break;
             case 'd':
+                cactusSequencesPath = stString_copy(optarg);
+                break;
+            case 'e':
                 secondaryDatabaseString = stString_copy(optarg);
                 break;
             case 'g':
@@ -113,7 +118,7 @@ int main(int argc, char *argv[]) {
 
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(
             cactusDiskDatabaseString);
-    CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
+    CactusDisk *cactusDisk = cactusDisk_construct3(kvDatabaseConf, cactusSequencesPath);
     stKVDatabaseConf_destruct(kvDatabaseConf);
     st_logInfo("Set up the flower disk\n");
 

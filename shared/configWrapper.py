@@ -192,6 +192,14 @@ class ConfigWrapper:
         if ktServerElem is not None and "cpu" in ktServerElem.attrib:
             return int(ktServerElem.attrib["cpu"])
         return default           
+
+    def getDefaultMemory(self):
+        constantsElem = self.xmlRoot.find("constants")
+        return int(constantsElem.attrib["defaultMemory"])
+    
+    def getExportHalDisk(self):
+        exportHalElem = self.xmlRoot.find("exportHal")
+        return int(exportHalElem.attrib["disk"])
             
     # the minBlockDegree, when specified in the final, "base" 
     # iteration, does not play nicely with the required fraction

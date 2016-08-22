@@ -2,7 +2,7 @@
 <cactusWorkflowConfig>
 	<constants defaultMemory="mediumMemory" defaultOverlargeMemory="mediumMemory" defaultCpu="1" defaultOverlargeCpu="1">
 		<!-- These constants are used to control the amount of memory and cpu the different jobs in a batch are using. -->
-  		<defines littleMemory="2147483648" mediumMemory="8589934592" bigMemory="107374182400"/>
+  		<defines littleMemory="1147483648" mediumMemory="2589934592" bigMemory="3037418200"/>
   		<!-- These constants are used to control parameters that depend on phylogenetic distance. -->
   		<divergences low="0.1"/>
   	</constants>

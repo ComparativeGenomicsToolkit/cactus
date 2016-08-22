@@ -3,7 +3,7 @@
 <cactusWorkflowConfig distanceToAddToRootAlignment="0.1">
 	<constants defaultMemory="mediumMemory" defaultOverlargeMemory="mediumMemory" defaultCpu="1" defaultOverlargeCpu="1">
 		<!-- These constants are used to control the amount of memory and cpu the different jobs in a batch are using. -->
-  		<defines littleMemory="8589934592" mediumMemory="34359738368" bigMemory="137438953472" maxFlowerGroupSizeRecursion="100000000"/>
+  		<defines littleMemory="200000000" mediumMemory="500000000" bigMemory="2000000000" maxFlowerGroupSizeRecursion="100000000"/>
   		<!-- These constants are used to control parameters that depend on phylogenetic distance. Setting
   		     useDefault to 0 will force it to use the default divergence controlled parameter -->
   		<divergences useDefault="0" one="0.1" two="0.15" three="0.2" four="0.25" five="0.35"/>
@@ -33,12 +33,15 @@
              this value must be larger than the
              'splitIndelsLongerThanThis' value in the realign
              arguments -->
-        <trimBlast doTrimStrategy="1"
-                   trimFlanking="10"
-                   trimMinSize="100"
-                   trimThreshold="1.0"
-                   trimWindowSize="1"
-                   trimOutgroupFlanking="2000"/>
+    <trimBlast doTrimStrategy="1"
+               trimFlanking="10"
+               trimMinSize="100"
+               trimThreshold="1.0"
+               trimWindowSize="1"
+               trimOutgroupFlanking="2000"
+    >
+    </trimBlast>
+
 	<ktserver memory="mediumMemory"/>
 	<setup makeEventHeadersAlphaNumeric="0"/>
 	<!-- The caf tag contains parameters for the caf algorithm. -->
@@ -187,4 +190,12 @@
 			max_parallel_subtrees="5"
 	 	/>
   	</multi_cactus>
+    <ProgressiveNext/>
+    <ProgressiveUp/>
+    <ProgressiveDown/>
+    <ProgressiveOut/>
+    <RunCactusPreprocessorThenProgressiveDown/>
+    <RunCactusPreprocessorThenProgressiveDown2/>
+    <exportHal disk="20000000000"/>
+
 </cactusWorkflowConfig>

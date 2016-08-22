@@ -122,6 +122,7 @@ int main(int argc, char *argv[]) {
     char * alignmentsFile = NULL;
     char * constraintsFile = NULL;
     char * cactusDiskDatabaseString = NULL;
+    char * cactusSequencesPath = NULL;
     char * lastzArguments = "";
     int64_t minimumSequenceLengthForBlast = 1;
 
@@ -158,7 +159,7 @@ int main(int argc, char *argv[]) {
 
     while (1) {
         static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "alignments", required_argument, 0, 'b' }, {
-                "cactusDisk", required_argument, 0, 'c' }, { "lastzArguments", required_argument, 0, 'd' },
+                "cactusDisk", required_argument, 0, 'c' }, {"cactusSequencesPath", required_argument, 0, 'd'}, { "lastzArguments", required_argument, 0, 'e' },
                 { "help", no_argument, 0, 'h' }, { "annealingRounds", required_argument, 0, 'i' }, { "trim", required_argument, 0, 'k' }, {
                         "trimChange", required_argument, 0, 'l', }, { "minimumTreeCoverage", required_argument, 0, 'm' }, { "blockTrim",
                         required_argument, 0, 'n' }, { "deannealingRounds", required_argument, 0, 'o' }, { "minimumDegree",
@@ -196,6 +197,9 @@ int main(int argc, char *argv[]) {
                 cactusDiskDatabaseString = stString_copy(optarg);
                 break;
             case 'd':
+                cactusSequencesPath = stString_copy(optarg);
+                break;
+            case 'e':
                 lastzArguments = stString_copy(optarg);
                 break;
             case 'h':
@@ -356,7 +360,7 @@ int main(int argc, char *argv[]) {
     //////////////////////////////////////////////
 
     kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
-    cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
+    cactusDisk = cactusDisk_construct3(kvDatabaseConf, cactusSequencesPath);
     st_logInfo("Set up the flower disk\n");
 
     ///////////////////////////////////////////////////////////////////////////

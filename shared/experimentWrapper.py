@@ -196,8 +196,10 @@ class ExperimentWrapper(DbElemWrapper):
         confElem = self.diskElem.find("st_kv_database_conf")
         super(ExperimentWrapper, self).__init__(confElem)
         self.xmlRoot = xmlRoot
+
         self.seqMap = self.buildSequenceMap()
-        
+        self.seqIDMap = None
+
     @staticmethod
     def createExperimentWrapper(sequences, newickTreeString, outputDir,
                  outgroupEvents=None,
@@ -248,7 +250,7 @@ class ExperimentWrapper(DbElemWrapper):
         if outputSequenceDir != None:
             self.setOutputSequenceDir(outputSequenceDir)
         return self
-
+    
     def writeXML(self, path): #Replacement for writeExperimentFile
         xmlFile = open(path, "w")
         xmlString = ET.tostring(self.xmlRoot)
@@ -257,9 +259,15 @@ class ExperimentWrapper(DbElemWrapper):
         xmlString = minidom.parseString(xmlString).toprettyxml()
         xmlFile.write(xmlString)
         xmlFile.close()
-    
+
     def getConfig(self):
         return self.xmlRoot.attrib["config"]
+
+    def setConfigID(self, configID):
+        self.xmlRoot.attrib["configID"] = configID
+
+    def getConfigID(self):
+        return self.xmlRoot.attrib["configID"]
     
     def getTree(self):
         treeString = self.xmlRoot.attrib["species_tree"]
@@ -268,9 +276,15 @@ class ExperimentWrapper(DbElemWrapper):
     def setSequences(self, sequences):
         self.xmlRoot.attrib["sequences"] = " ".join(sequences)
         self.seqMap = self.buildSequenceMap()
-    
+        
+    def setSequenceIDs(self, sequenceIDs):
+        self.xmlRoot.attrib["sequenceIDs"] = " ".join(sequenceIDs)
+
     def getSequences(self):
         return self.xmlRoot.attrib["sequences"].split()
+
+    def getSequenceIDs(self):
+        return self.xmlRoot.attrib["sequenceIDs"].split()
     
     def getSequence(self, event):
         return self.seqMap[event]
@@ -282,11 +296,29 @@ class ExperimentWrapper(DbElemWrapper):
         return refElem.attrib["path"]
     
     def setReferencePath(self, path):
+        '''Set the path to the reconstructed ancestral genome
+        for this experiment. This function should only be called
+        on the master node, since that is the only node where paths are
+        permanent.'''
         refElem = self.xmlRoot.find("reference")
         if refElem is None:
             refElem = ET.Element("reference")
             self.xmlRoot.append(refElem)
         refElem.attrib["path"] = path
+
+    def setReferenceID(self, refID):
+        '''Set the file store ID of the reconstructed ancestral
+        genome for this experiment. This should be downloaded
+        onto the master node after the experiment has finished running.'''
+        refElem = self.xmlRoot.find("reference")
+        refElem.attrib["id"] = refID
+
+    def getReferenceID(self):
+        refElem = self.xmlRoot.find("reference")
+        if "id" in refElem.attrib:
+            return refElem.attrib["id"]
+        else:
+            return None
     
     def getReferenceNameFromConfig(self):
         configElem = ET.parse(self.getConfig()).getroot()
@@ -307,11 +339,24 @@ class ExperimentWrapper(DbElemWrapper):
         return halElem.attrib["halPath"]
     
     def setHALPath(self, path):
+        '''Set the location of the HAL file for this
+        experiment. Only call this function on the master
+        node.'''
         halElem = self.xmlRoot.find("hal")
         if halElem is None:
             halElem = ET.Element("hal")
             self.xmlRoot.append(halElem)
         halElem.attrib["halPath"] = path
+
+    def setHalID(self, halID):
+        '''Set the file store ID of the HAL file
+        resulting from this experiment.'''
+        halElem = self.xmlRoot.find("hal")
+        halElem.attrib["halID"] = halID
+
+    def getHalID(self):
+        halElem = self.xmlRoot.find("hal")
+        return halElem.attrib["halID"]
         
     def getHALFastaPath(self):
         halElem = self.xmlRoot.find("hal")
@@ -325,14 +370,28 @@ class ExperimentWrapper(DbElemWrapper):
             halElem = ET.Element("hal")
             self.xmlRoot.append(halElem)
         halElem.attrib["fastaPath"] = path
+
+    def setHalFastaID(self, halFastaID):
+        halElem = self.xmlRoot.find("hal")
+        halElem.attrib["fastaID"] = halFastaID
+
+    def getHalFastaID(self):
+        halElem = self.xmlRoot.find("hal")
+        return halElem.attrib["fastaID"]
         
     def setConstraintsFilePath(self, path):
         self.xmlRoot.attrib["constraints"] = path
-    
+
     def getConstraintsFilePath(self):
         if "constraints" not in self.xmlRoot.attrib:
             return None
         return self.xmlRoot.attrib["constraints"]
+
+    def setConstraintsID(self, fileID):
+        self.xmlRoot.attrib["constraintsID"] = fileID
+
+    def getConstraintsID(self, fileID):
+        return self.xmlRoot.attrib["constraintsID"]
         
     def getOutputSequenceDir(self):
         if "outputSequenceDir" not in self.xmlRoot.attrib:
@@ -432,3 +491,24 @@ class ExperimentWrapper(DbElemWrapper):
     # return internal structure that maps event names to paths
     def getSequenceMap(self):
         return self.seqMap
+
+    def checkSequenceIDs(self, fileStore):
+        tree = self.getTree()
+        sequences = [fileStore.readGlobalFile(seqID) for seqID in self.seqIDMap.values()]
+        nameIter = iter(self.seqIDMap.keys())
+        seqIter = iter(sequences)
+        for node in tree.postOrderTraversal():
+            if tree.isLeaf(node):
+
+                name = nameIter.next()
+                seq = seqIter.next()
+                if not name == tree.getName(node):
+                    raise RuntimeError("name = %s, traversalName = %s" % (name, tree.getName(node)))
+                first_line = ""
+                with open(seq, 'r') as seqFH:
+                    first_line = seqFH.readline()
+                first_line = first_line[1:]
+                first_line = first_line.split("|")[1]
+                if not first_line.startswith(name):
+                    raise RuntimeError("First_line = %s, name = %s" % (first_line, name))
+

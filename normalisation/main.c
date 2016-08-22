@@ -23,10 +23,12 @@ void usage() {
     fprintf(stderr, "cactus_normalisation [flower names], version 0.1\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
     fprintf(stderr,
-            "-c --cactusDisk : The location of the flower disk directory\n");
+            "-c --cactusDisk : stKVDatabase conf string for the cactus database\n");
+    fprintf(stderr,
+            "-d --cactusSequencesPath : The location of the cactusSequences file\n");
     fprintf(
             stderr,
-            "-d --maxNumberOfChains : The maximum number of individual chains to promote into a flower.\n");
+            "-e --maxNumberOfChains : The maximum number of individual chains to promote into a flower.\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -40,6 +42,7 @@ int main(int argc, char *argv[]) {
      */
     char * logLevelString = NULL;
     char * cactusDiskDatabaseString = NULL;
+    char * cactusSequencesPath = NULL;
     int64_t j;
     int64_t maxNumberOfChains = 0;
 
@@ -50,12 +53,12 @@ int main(int argc, char *argv[]) {
     while (1) {
         static struct option long_options[] = { { "logLevel",
                 required_argument, 0, 'a' }, { "cactusDisk", required_argument,
-                0, 'c' }, { "maxNumberOfChains", required_argument, 0, 'd' }, {
+                0, 'c' }, {"cactusSequencesPath", required_argument, 0, 'd'}, { "maxNumberOfChains", required_argument, 0, 'e' }, {
                 "help", no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:c:d:h", long_options,
+        int key = getopt_long(argc, argv, "a:c:d:e:h", long_options,
                 &option_index);
 
         if (key == -1) {
@@ -70,6 +73,9 @@ int main(int argc, char *argv[]) {
                 cactusDiskDatabaseString = stString_copy(optarg);
                 break;
             case 'd':
+                cactusSequencesPath = stString_copy(optarg);
+                break;
+            case 'e':
                 j = sscanf(optarg, "%" PRIi64 "", &maxNumberOfChains);
                 assert(j == 1);
                 break;
@@ -88,6 +94,7 @@ int main(int argc, char *argv[]) {
 
     //assert(logLevelString == NULL || strcmp(logLevelString, "CRITICAL") == 0 || strcmp(logLevelString, "INFO") == 0 || strcmp(logLevelString, "DEBUG") == 0);
     assert(cactusDiskDatabaseString != NULL);
+    assert(cactusSequencesPath != NULL);
 
     //////////////////////////////////////////////
     //Set up logging
@@ -101,7 +108,7 @@ int main(int argc, char *argv[]) {
 
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(
             cactusDiskDatabaseString);
-    CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
+    CactusDisk *cactusDisk = cactusDisk_construct3(kvDatabaseConf, cactusSequencesPath);
     st_logInfo("Set up the flower disk\n");
 
     ///////////////////////////////////////////////////////////////////////////

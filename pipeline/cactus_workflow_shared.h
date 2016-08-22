@@ -21,17 +21,17 @@ void parseArgs(int argc, char *argv[]) {
     st_logDebug("Set up logging\n");
 
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(argv[2]);
-    cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
+    cactusDisk = cactusDisk_construct3(kvDatabaseConf, argv[3]);
     stKVDatabaseConf_destruct(kvDatabaseConf);
     st_logDebug("Set up the flower disk\n");
 
-    int64_t i = sscanf(argv[3], "%" PRId64 "", &minFlowerSize);
+    int64_t i = sscanf(argv[4], "%" PRId64 "", &minFlowerSize);
     assert(i == 1); //We should parse one in correctly.
     st_logDebug("Min flower size %lli\n", minFlowerSize);
     assert(minFlowerSize >= 0);
 
     int64_t maxSequenceSizeOfFlowerGrouping;
-    i = sscanf(argv[4], "%" PRId64 "", &maxSequenceSizeOfFlowerGrouping);
+    i = sscanf(argv[5], "%" PRId64 "", &maxSequenceSizeOfFlowerGrouping);
     assert(i == 1); //We should parse one in correctly.
     if(maxSequenceSizeOfFlowerGrouping == -1) {
         maxSequenceSizeOfFlowerGrouping = INT64_MAX;
@@ -40,7 +40,7 @@ void parseArgs(int argc, char *argv[]) {
     assert(maxSequenceSizeOfFlowerGrouping >= 0);
 
     int64_t maxSequenceSizeOfSecondaryFlowerGrouping;
-    i = sscanf(argv[5], "%" PRId64 "", &maxSequenceSizeOfSecondaryFlowerGrouping);
+    i = sscanf(argv[6], "%" PRId64 "", &maxSequenceSizeOfSecondaryFlowerGrouping);
     assert(i == 1); //We should parse one in correctly.
     if(maxSequenceSizeOfSecondaryFlowerGrouping == -1) {
         maxSequenceSizeOfSecondaryFlowerGrouping = INT64_MAX;
