@@ -53,8 +53,8 @@ from cactus.progressive.schedule import Schedule
 from cactus2hal.cactus2hal import exportHal
 
 class ProgressiveDown(Job):
-    def __init__(self, options, project, event, schedule, memory=None, cores=None, disk=None):
-        Job.__init__(self, memory=memory, cores=cores, disk=disk)
+    def __init__(self, options, project, event, schedule, memory=None, cores=None):
+        Job.__init__(self, memory=memory, cores=cores)
         self.options = options
         self.project = project
         self.event = event
@@ -77,8 +77,8 @@ class ProgressiveDown(Job):
         return self.addFollowOn(ProgressiveNext(self.options, self.project, self.event,
                                                               self.schedule, depProjects, memory=self.configWrapper.getDefaultMemory())).rv()
 class ProgressiveNext(Job):
-    def __init__(self, options, project, event, schedule, depProjects, memory=None, cores=None, disk=None):
-        Job.__init__(self, memory=memory, cores=cores, disk=disk)
+    def __init__(self, options, project, event, schedule, depProjects, memory=None, cores=None):
+        Job.__init__(self, memory=memory, cores=cores)
         self.options = options
         self.project = project
         self.event = event
@@ -94,10 +94,7 @@ class ProgressiveNext(Job):
             depProject = self.depProjects[projName]
             for expName in depProject.expIDMap: 
                 expID = depProject.expIDMap[expName]
-                logger.info("ExpID %s" % expID)
                 experiment = ExperimentWrapper(ET.parse(fileStore.readGlobalFile(expID)).getroot())
-                logger.info("Reference id: %s, reference path: %s" % (experiment.getReferenceID(), experiment.getReferencePath()))
-                logger.info("Getting the reference sequence for %s" % expName)
                 if experiment.getReferenceID():
                     self.project.expIDMap[expName] = expID
                     self.project.outputSequenceIDMap[expName] = experiment.getReferenceID()
@@ -109,8 +106,8 @@ class ProgressiveNext(Job):
         return self.addFollowOn(ProgressiveOut(self.options, self.project, self.event, eventExpWrapper, self.schedule, memory=self.configWrapper.getDefaultMemory())).rv()
 
 class ProgressiveOut(Job):
-    def __init__(self, options, project, event, eventExpWrapper, schedule, memory=None, cores=None, disk=None):
-        Job.__init__(self, memory=memory, cores=cores, disk=disk)
+    def __init__(self, options, project, event, eventExpWrapper, schedule, memory=None, cores=None):
+        Job.__init__(self, memory=memory, cores=cores)
         self.options = options
         self.project = project
         self.event = event
@@ -134,8 +131,8 @@ class ProgressiveOut(Job):
         return self.project
     
 class ProgressiveUp(Job):
-    def __init__(self, options, project, event, memory=None, cores=None, disk=None):
-        Job.__init__(self, memory=memory, cores=cores, disk=disk)
+    def __init__(self, options, project, event, memory=None, cores=None):
+        Job.__init__(self, memory=memory, cores=cores)
         self.options = options
         self.project = project
         self.event = event
@@ -238,8 +235,8 @@ class ProgressiveUp(Job):
         return finalExpWrapper
 
 class RunCactusPreprocessorThenProgressiveDown(Job):
-    def __init__(self, options, project, memory=None, cores=None, disk=None):
-        Job.__init__(self, memory=memory, cores=cores, disk=disk)
+    def __init__(self, options, project, memory=None, cores=None):
+        Job.__init__(self, memory=memory, cores=cores)
         self.options = options
         self.project = project
         
@@ -271,8 +268,8 @@ class RunCactusPreprocessorThenProgressiveDown(Job):
         return self.addFollowOn(RunCactusPreprocessorThenProgressiveDown2(self.options, self.project, self.options.event, schedule, memory=self.configWrapper.getDefaultMemory())).rv()
 
 class RunCactusPreprocessorThenProgressiveDown2(Job):
-    def __init__(self, options, project, event, schedule, memory=None, cores=None, disk=None):
-        Job.__init__(self, memory=memory, cores=cores, disk=disk)
+    def __init__(self, options, project, event, schedule, memory=None, cores=None):
+        Job.__init__(self, memory=memory, cores=cores)
         self.options = options
         self.project = project
         self.event = event

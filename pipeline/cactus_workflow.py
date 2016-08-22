@@ -112,16 +112,12 @@ class CactusJob(Job):
             Job.__init__(self, memory=self.getOptionalJobAttrib("overlargeMemory", typeFn=int, 
                                                                       default=getOptionalAttrib(self.constantsNode, "defaultOverlargeMemory", int, default=sys.maxint)),
                                   cores=self.getOptionalJobAttrib("overlargeCpu", typeFn=int, 
-                                                                      default=getOptionalAttrib(self.constantsNode, "defaultOverlargeCpu", int, default=None)), 
-                                  disk=self.getOptionalJobAttrib("disk", typeFn=int,
-                                                default=getOptionalAttrib(self.constantsNode, "defaultOverlargeDisk", int, default=sys.maxint)), checkpoint = checkpoint)
+                                                                      default=getOptionalAttrib(self.constantsNode, "defaultOverlargeCpu", int, default=None)), checkpoint = checkpoint)
         else:
             Job.__init__(self, memory=self.getOptionalJobAttrib("memory", typeFn=int, 
                                                                       default=getOptionalAttrib(self.constantsNode, "defaultMemory", int, default=sys.maxint)),
                                   cores=self.getOptionalJobAttrib("cpu", typeFn=int, 
-                                                                      default=getOptionalAttrib(self.constantsNode, "defaultCpu", int, default=sys.maxint)),
-                                  disk=self.getOptionalJobAttrib("disk", typeFn=int,
-                                      default=getOptionalAttrib(self.constantsNode, "defaultDisk", int, default=sys.maxint)), checkpoint = checkpoint)
+                                                                      default=getOptionalAttrib(self.constantsNode, "defaultCpu", int, default=sys.maxint)), checkpoint = checkpoint)
     
     def getOptionalPhaseAttrib(self, attribName, typeFn=None, default=None):
         """Gets an optional attribute of the phase node.
@@ -358,8 +354,6 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
     """
     def run(self, fileStore):
         # Not worth doing extra work if there aren't any outgroups
-        logger.info("Disk for TrimmingBlastPhase: %i" % self.disk)
-        assert self.disk > 20000000000
         assert self.cactusWorkflowArguments.outgroupEventNames is not None
 
         fileStore.logToMaster("Running blast using the trimming strategy")
@@ -455,10 +449,8 @@ class CactusSetupPhase(CactusPhasesJob):
                     self.constantsNode, "defaultMemory", int, default=sys.maxint))
             cores = cw.getKtserverCpu(default=getOptionalAttrib(
                     self.constantsNode, "defaultCpu", int, default=sys.maxint))
-            disk = 0
             dbElem = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
-            dbString = self.addService(KtServerService(dbElem = dbElem, isSecondary=False, memory = memory, cores = cores, 
-                disk = disk))
+            dbString = self.addService(KtServerService(dbElem = dbElem, isSecondary=False, memory = memory, cores = cores))
             setupJob.cactusWorkflowArguments.cactusDiskDatabaseString = dbString
             results = self.addChild(setupJob).rv()
             logger.info("Pickled setup job")
@@ -609,6 +601,7 @@ class CactusCafWrapperLarge(CactusRecursionJob):
         logger.info("Starting the cactus aligner job")
         #Generate a temporary file to hold the alignments
         flowerName = decodeFirstFlowerName(self.flowerNames)
+        blastFlowerDisk = 3*cactusSequencesID.size
         alignmentsID = self.addChild(BlastFlower(cactusDisk=self.cactusDiskDatabaseString, 
                                           cactusSequencesID = self.cactusSequencesID,
                                           flowerName=flowerName, 
@@ -622,7 +615,8 @@ class CactusCafWrapperLarge(CactusRecursionJob):
                                                         memory=self.getOptionalPhaseAttrib("lastzMemory", int, sys.maxint),
                                                         smallDisk=self.getOptionalPhaseAttrib("lastzSmallDisk", int, sys.maxint),
                                                         largeDisk=self.getOptionalPhaseAttrib("lastzLargeDisk", int, sys.maxint),
-                                                        minimumSequenceLength=self.getOptionalPhaseAttrib("minimumSequenceLengthForBlast", int, 1)), memory = self.memory)).rv()
+                                                        minimumSequenceLength=self.getOptionalPhaseAttrib("minimumSequenceLengthForBlast", int, 1)), memory = self.memory), 
+                                          disk=blastFlowerDisk).rv()
         #Now setup a call to cactus core wrapper as a follow on
         self.phaseNode.attrib["alignmentsID"] = alignmentsID
         self.makeFollowOnRecursiveJob(CactusCafWrapperLarge2)

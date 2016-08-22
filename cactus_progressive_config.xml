@@ -1,9 +1,9 @@
 <!-- This XML tree contains the parameters to cactus_progressive.py -->
 <!-- The distanceToAddToRootAlignment parameter is how much extra divergence distance to allow when aligning children of the root genome -->
 <cactusWorkflowConfig distanceToAddToRootAlignment="0.1">
-	<constants defaultMemory="mediumMemory" defaultOverlargeMemory="mediumMemory" defaultCpu="1" defaultOverlargeCpu="1" defaultDisk="largeDisk" defaultOverlargeDisk="largeDisk">
+	<constants defaultMemory="mediumMemory" defaultOverlargeMemory="mediumMemory" defaultCpu="1" defaultOverlargeCpu="1">
 		<!-- These constants are used to control the amount of memory and cpu the different jobs in a batch are using. -->
-  		<defines littleMemory="200000000" mediumMemory="500000000" bigMemory="2000000000" littleDisk="2000000000" largeDisk="30000000000" maxFlowerGroupSizeRecursion="100000000"/>
+  		<defines littleMemory="200000000" mediumMemory="500000000" bigMemory="2000000000" maxFlowerGroupSizeRecursion="100000000"/>
   		<!-- These constants are used to control parameters that depend on phylogenetic distance. Setting
   		     useDefault to 0 will force it to use the default divergence controlled parameter -->
   		<divergences useDefault="0" one="0.1" two="0.15" three="0.2" four="0.25" five="0.35"/>
@@ -11,9 +11,9 @@
 	<!-- The preprocessor tags are used to modify/check the input sequences before alignment -->
 	<!-- The first preprocessor tag checks that the first word of every fasta header is unique, as this is required for HAL. It throws errors if this is not the case -->
 	<!-- The checkAssemblyHub option (if enabled) ensures that the first word contains only alphanumeric or '_', '-', ':', or '.' characters, and is unique. If you don't intend to make an assembly hub, you can turn off this option here. -->
-	<preprocessor check="1" memory="littleMemory" smallDisk="littleDisk" largeDisk="largeDisk" preprocessorString="cactus_checkUniqueHeaders.py --checkAssemblyHub IN_FILE"/>
+	<preprocessor check="1" memory="littleMemory" preprocessorString="cactus_checkUniqueHeaders.py --checkAssemblyHub IN_FILE"/>
 	<!-- The preprocessor for cactus_lastzRepeatMask masks every seed that is part of more than XX other alignments, this stops a combinatorial explosion in pairwise alignments -->
-	<preprocessor chunkSize="3000000" proportionToSample="0.2" memory="littleMemory" smallDisk="littleDisk" largeDisk="largeDisk" preprocessorString="cactus_lastzRepeatMask.py --proportionSampled=PROPORTION_SAMPLED --tempDir=TEMP_DIR --minPeriod=50 --lastzOpts='--step=3 --ambiguous=iupac,100,100 --ungapped --queryhsplimit=keep,nowarn:1500' IN_FILE OUT_FILE "/>
+	<preprocessor chunkSize="3000000" proportionToSample="0.2" memory="littleMemory" preprocessorString="cactus_lastzRepeatMask.py --proportionSampled=PROPORTION_SAMPLED --tempDir=TEMP_DIR --minPeriod=50 --lastzOpts='--step=3 --ambiguous=iupac,100,100 --ungapped --queryhsplimit=keep,nowarn:1500' IN_FILE OUT_FILE "/>
         <!-- Options for trimming ingroups & outgroups using the trim strategy -->
         <!-- Ingroup trim options: -->
         <!-- trimFlanking: The length of flanking sequence to attach
@@ -40,7 +40,6 @@
                trimWindowSize="1"
                trimOutgroupFlanking="2000"
     >
-               <CactusTrimmingBlastPhase disk="largeDisk"/>
     </trimBlast>
 
 	<ktserver memory="mediumMemory"/>
@@ -73,8 +72,6 @@
 		proportionOfUnalignedBasesForNewChromosome="0.8"
 		maximumMedianSequenceLengthBetweenLinkedEnds="1000"
 		lastzMemory="littleMemory"
-        lastzSmallDisk="littleDisk"
-        lastzLargeDisk="largeDisk"
                 removeRecoverableChains="unequalNumberOfIngroupCopiesOrNoOutgroup"
                 maxRecoverableChainsIterations="5"
                 maxRecoverableChainLength="500000"
@@ -119,18 +116,18 @@
 		maximumNumberOfSequencesBeforeSwitchingToFast="10"
 		pruneOutStubAlignments="1"
 	>
-		<CactusBarRecursion disk="largeDisk" maxFlowerGroupSize="maxFlowerGroupSizeRecursion"/>
+		<CactusBarRecursion maxFlowerGroupSize="maxFlowerGroupSizeRecursion"/>
 		<!-- The maxFlowerGroupSize in cactusBarWrapper determines how many bases to allow in one "small" job which will be run using the "littleMemory" -->
-		<CactusBarWrapper disk="largeDisk" maxFlowerGroupSize="2000000" memory="littleMemory"/>
+		<CactusBarWrapper maxFlowerGroupSize="2000000" memory="littleMemory"/>
 		<!-- The maxFlowerGroupSize in cactusBarWrapperLarge determines how many of each large broken up to allow in one "small" job which will be run using the "littleMemory" -->
-		<CactusBarWrapperLarge disk="largeDisk" maxFlowerGroupSize="2000000"/>
-		<CactusBarEndAlignerWrapper disk="littleDisk" memory="littleMemory"/>
+		<CactusBarWrapperLarge maxFlowerGroupSize="2000000"/>
+		<CactusBarEndAlignerWrapper memory="littleMemory"/>
 	</bar>
 	<!-- The normal tag provides parameters to the cactus_normalisation script, which "normalises" a cactus to make all chains of maximal length. This is not used much now. -->
 	<normal 
 		iterations="0"
 	>
-		<CactusNormalRecursion disk="largeDisk" maxFlowerGroupSize="maxFlowerGroupSizeRecursion" maxFlowerWrapperGroupSize="10000000"/>
+		<CactusNormalRecursion maxFlowerGroupSize="maxFlowerGroupSizeRecursion" maxFlowerWrapperGroupSize="10000000"/>
 		<CactusNormalWrapper/>
 	</normal>
 	<!-- The avg tag is for a prototype algorithm, currently just builds trees. Not currently compatible with cactus_progressive -->
@@ -158,11 +155,11 @@
 		minNumberOfSequencesToSupportAdjacency="1"
 		makeScaffolds="1"
 	>
-		<CactusReferenceRecursion disk="largeDisk" maxFlowerGroupSize="maxFlowerGroupSizeRecursion" maxFlowerWrapperGroupSize="50000000"/>
-	 	<CactusReferenceWrapper disk="largeDisk"/>
-	 	<CactusSetReferenceCoordinatesUpWrapper disk="largeDisk"/>
-	 	<CactusSetReferenceCoordinatesDownRecursion disk="largeDisk" maxFlowerGroupSize="maxFlowerGroupSizeRecursion" maxFlowerWrapperGroupSize="50000000"/>
-	 	<CactusSetReferenceCoordinatesDownWrapper disk="largeDisk"/>
+		<CactusReferenceRecursion maxFlowerGroupSize="maxFlowerGroupSizeRecursion" maxFlowerWrapperGroupSize="50000000"/>
+	 	<CactusReferenceWrapper/>
+	 	<CactusSetReferenceCoordinatesUpWrapper/>
+	 	<CactusSetReferenceCoordinatesDownRecursion maxFlowerGroupSize="maxFlowerGroupSizeRecursion" maxFlowerWrapperGroupSize="50000000"/>
+	 	<CactusSetReferenceCoordinatesDownWrapper/>
 	</reference>
 	<!-- The check tag provides parameters to cactus_check, a script which checks that a constructed cactus database is as expected. -->
 	<check 
@@ -176,8 +173,8 @@
 		buildHal="1"
 		buildFasta="1"
 	>
-		<CactusHalGeneratorRecursion disk="largeDisk" maxFlowerGroupSize="50000000"/>
-		<CactusHalGeneratorUpWrapper disk="largeDisk"/>
+		<CactusHalGeneratorRecursion maxFlowerGroupSize="50000000"/>
+		<CactusHalGeneratorUpWrapper/>
 	</hal>
   	<multi_cactus>
 		<outgroup 
