@@ -31,21 +31,19 @@ from toil.lib.bioio import setLoggingFromOptions
 from cactus.shared.configWrapper import ConfigWrapper
 
 class PreprocessorOptions:
-    def __init__(self, chunkSize, cmdLine, memory, cpu, smallDisk, largeDisk, check, proportionToSample):
+    def __init__(self, chunkSize, cmdLine, memory, cpu, check, proportionToSample):
         self.chunkSize = chunkSize
         self.cmdLine = cmdLine
         self.memory = memory
         self.cpu = cpu
-        self.smallDisk = smallDisk
-        self.largeDisk = largeDisk
         self.check = check
         self.proportionToSample=proportionToSample
 
 class PreprocessChunk(Job):
     """ locally preprocess a fasta chunk, output then copied back to input
     """
-    def __init__(self, prepOptions, seqIDs, proportionSampled, inChunkID):
-        Job.__init__(self, memory=prepOptions.memory, cores=prepOptions.cpu, disk=prepOptions.smallDisk)
+    def __init__(self, prepOptions, seqIDs, proportionSampled, inChunkID, disk=None):
+        Job.__init__(self, memory=prepOptions.memory, cores=prepOptions.cpu, disk=disk)
         self.prepOptions = prepOptions 
         self.seqIDs = seqIDs
         self.inChunkID = inChunkID
@@ -67,10 +65,21 @@ class PreprocessChunk(Job):
             return fileStore.writeGlobalFile(outChunk)
 
 class MergeChunks(Job):
+    def __init__(self, prepOptions, chunkIDList):
+        Job.__init__(self)
+        self.prepOptions = prepOptions
+        self.chunkIDList = chunkIDList
+
+    def run(self, fileStore):
+        chunkIDListSize = sum([chunkID.size for chunkID in self.chunkIDList])
+        return self.addFollowOn(MergeChunks2(self.prepOptions, self.chunkIDList, disk=3*chunkIDListSize)).rv()
+
+
+class MergeChunks2(Job):
     """ merge a list of chunks into a fasta file
     """
-    def __init__(self, prepOptions, chunkIDList):
-        Job.__init__(self, cores=prepOptions.cpu, memory=prepOptions.memory, disk=prepOptions.largeDisk)
+    def __init__(self, prepOptions, chunkIDList, disk=None):
+        Job.__init__(self, cores=prepOptions.cpu, memory=prepOptions.memory, disk=disk)
         self.prepOptions = prepOptions 
         self.chunkIDList = chunkIDList
     
@@ -84,8 +93,8 @@ class MergeChunks(Job):
 class PreprocessSequence(Job):
     """Cut a sequence into chunks, process, then merge
     """
-    def __init__(self, prepOptions, inSequenceID):
-        Job.__init__(self, cores=prepOptions.cpu, memory=prepOptions.memory, disk=prepOptions.largeDisk)
+    def __init__(self, prepOptions, inSequenceID, disk=None):
+        Job.__init__(self, cores=prepOptions.cpu, memory=prepOptions.memory, disk=disk)
         self.prepOptions = prepOptions 
         self.inSequenceID = inSequenceID
     
@@ -110,8 +119,11 @@ class PreprocessSequence(Job):
             if len(inChunkIDs) < inChunkNumber: #This logic is like making the list circular
                 inChunkIDs += inChunkIDList[:inChunkNumber-len(inChunkIDs)]
             assert len(inChunkIDs) == inChunkNumber
-            outChunkIDList.append(self.addChild(PreprocessChunk(self.prepOptions, inChunkIDs, float(inChunkNumber)/len(inChunkIDList), inChunkIDList[i])).rv())
+            diskForPreprocessChunk = 2*(sum([inChunkID.size for inChunkID in inChunkIDs]) + 
+                    inChunkIDList[i].size)
+            outChunkIDList.append(self.addChild(PreprocessChunk(self.prepOptions, inChunkIDs, float(inChunkNumber)/len(inChunkIDList), inChunkIDList[i], disk=diskForPreprocessChunk)).rv())
         # follow on to merge chunks
+
         return self.addFollowOn(MergeChunks(self.prepOptions, outChunkIDList)).rv()
 
 class BatchPreprocessor(Job):
@@ -122,8 +134,6 @@ class BatchPreprocessor(Job):
         prepNode = self.prepXmlElems[iteration]
         self.memory = getOptionalAttrib(prepNode, "memory", typeFn=int, default=None)
         self.cores = getOptionalAttrib(prepNode, "cpu", typeFn=int, default=None)
-        self.smallDisk = getOptionalAttrib(prepNode, "smallDisk", typeFn=int, default=None)
-        self.largeDisk = getOptionalAttrib(prepNode, "largeDisk", typeFn=int, default=None)
         self.iteration = iteration
               
     def run(self, fileStore):
@@ -135,27 +145,28 @@ class BatchPreprocessor(Job):
                                           prepNode.attrib["preprocessorString"],
                                           self.memory,
                                           self.cores,
-                                          self.smallDisk,
-                                          self.largeDisk,
                                           bool(int(prepNode.get("check", default="0"))),
                                           getOptionalAttrib(prepNode, "proportionToSample", typeFn=float, default=1.0))
         
         #output to temporary directory unless we are on the last iteration
         lastIteration = self.iteration == len(self.prepXmlElems) - 1
-        
+
+        inSequenceSize = 4*1024*1024*1024
         if prepOptions.chunkSize <= 0: #In this first case we don't need to break up the sequence
-            outSeqID = self.addChild(PreprocessChunk(prepOptions, [ self.inSequenceID ], 1.0, self.inSequenceID)).rv()
+            #Estimate the size of a genome since we can't get the sizes of files imported
+            #through Toil.importFile yet.
+            outSeqID = self.addChild(PreprocessChunk(prepOptions, [ self.inSequenceID ], 1.0, self.inSequenceID, disk=3*inSequenceSize)).rv()
         else:
-            outSeqID = self.addChild(PreprocessSequence(prepOptions, self.inSequenceID)).rv()
+            outSeqID = self.addChild(PreprocessSequence(prepOptions, self.inSequenceID, disk=2*inSequenceSize)).rv()
         
         if lastIteration == False:
             return self.addFollowOn(BatchPreprocessor(self.prepXmlElems, outSeqID, self.iteration + 1)).rv()
         else:
-            return self.addFollowOn(BatchPreprocessorEnd(outSeqID)).rv()
+            return self.addFollowOn(BatchPreprocessorEnd(outSeqID, disk=2*inSequenceSize)).rv()
 
 class BatchPreprocessorEnd(Job):
-    def __init__(self,  globalOutSequenceID):
-        Job.__init__(self) 
+    def __init__(self,  globalOutSequenceID, disk=None):
+        Job.__init__(self, disk=disk) 
         self.globalOutSequenceID = globalOutSequenceID
         
     def run(self, fileStore):
@@ -204,12 +215,12 @@ class CactusPreprocessor2(Job):
         inputSequenceFile = fileStore.readGlobalFile(self.inputSequenceID)
         prepXmlElems = self.configNode.findall("preprocessor")
         
-        analysisString = runCactusAnalyseAssembly(inputSequenceFile)
-        fileStore.logToMaster("Before running any preprocessing on the assembly: %s got following stats (assembly may be listed as temp file if input sequences from a directory): %s" % \
-                         (self.inputSequenceID, analysisString))
+        #analysisString = runCactusAnalyseAssembly(inputSequenceFile)
+        #fileStore.logToMaster("Before running any preprocessing on the assembly: %s got following stats (assembly may be listed as temp file if input sequences from a directory): %s" % \
+        #                 (self.inputSequenceID, analysisString))
         
         if len(prepXmlElems) == 0: #Just cp the file to the output file
-            return fileStore.writeGlobalFile(inputSequenceFile)
+            return self.inputSequenceID
         else:
             logger.info("Adding child batch_preprocessor target")
             return self.addChild(BatchPreprocessor(prepXmlElems, self.inputSequenceID, 0)).rv()

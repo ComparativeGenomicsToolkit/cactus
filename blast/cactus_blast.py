@@ -91,8 +91,8 @@ class BlastFlower(Job):
 class BlastSequencesAllAgainstAll(Job):
     """Take a set of sequences, chunks them up and blasts them.
     """
-    def __init__(self, sequenceFileIDs1, blastOptions):
-        Job.__init__(self, disk=blastOptions.largeDisk)
+    def __init__(self, sequenceFileIDs1, blastOptions, disk=None):
+        Job.__init__(self, disk=disk)
         self.sequenceFileIDs1 = sequenceFileIDs1
         self.blastOptions = blastOptions
         self.blastOptions.compressFiles = False
@@ -112,7 +112,7 @@ class MakeSelfBlasts(Job):
     """Breaks up the inputs into bits and builds a bunch of alignment jobs.
     """
     def __init__(self, blastOptions, chunkIDs):
-        Job.__init__(self, disk=blastOptions.largeDisk)
+        Job.__init__(self)
         self.blastOptions = blastOptions
         self.chunkIDs = chunkIDs
         
@@ -120,10 +120,9 @@ class MakeSelfBlasts(Job):
         logger.info("Chunk IDs: %s" % self.chunkIDs)
         #Avoid compression if just one chunk
         self.blastOptions.compressFiles = self.blastOptions.compressFiles and len(self.chunkIDs) > 2
-        selfResultsDir = getTempDirectory(rootDir=fileStore.getLocalTempDir())
         resultsIDs = []
         for i in xrange(len(self.chunkIDs)):
-            resultsIDs.append(self.addChild(RunSelfBlast(self.blastOptions, self.chunkIDs[i])).rv())
+            resultsIDs.append(self.addChild(RunSelfBlast(self.blastOptions, self.chunkIDs[i], disk=3*self.chunkIDs[i].size)).rv())
         logger.info("Made the list of self blasts")
         #Setup job to make all-against-all blasts
         logger.debug("Collating self blasts.")
@@ -132,7 +131,7 @@ class MakeSelfBlasts(Job):
     
 class MakeOffDiagonalBlasts(Job):
         def __init__(self, blastOptions, chunkIDs):
-            Job.__init__(self, disk=blastOptions.largeDisk)
+            Job.__init__(self)
             self.chunkIDs = chunkIDs
             self.blastOptions = blastOptions
             self.blastOptions.compressFiles = False
@@ -142,7 +141,7 @@ class MakeOffDiagonalBlasts(Job):
             #Make the list of blast jobs.
             for i in xrange(0, len(self.chunkIDs)):
                 for j in xrange(i+1, len(self.chunkIDs)):
-                    resultsIDs.append(self.addChild(RunBlast(self.blastOptions, self.chunkIDs[i], self.chunkIDs[j])).rv())
+                    resultsIDs.append(self.addChild(RunBlast(self.blastOptions, self.chunkIDs[i], self.chunkIDs[j], disk=2*(self.chunkIDs[i].size + self.chunkIDs[j].size))).rv())
             logger.info("Made the list of all-against-all blasts")
             #Set up the job to collate all the results
             logger.debug("Collating off-diagonal blasts")
@@ -151,8 +150,8 @@ class MakeOffDiagonalBlasts(Job):
 class BlastSequencesAgainstEachOther(Job):
     """Take two sets of sequences, chunks them up and blasts one set against the other.
     """
-    def __init__(self, sequenceFileIDs1, sequenceFileIDs2, blastOptions):
-        Job.__init__(self, disk = blastOptions.largeDisk)
+    def __init__(self, sequenceFileIDs1, sequenceFileIDs2, blastOptions, disk=None):
+        Job.__init__(self, disk=disk)
         self.sequenceFileIDs1 = sequenceFileIDs1
         self.sequenceFileIDs2 = sequenceFileIDs2
         self.blastOptions = blastOptions
@@ -190,7 +189,8 @@ class BlastIngroupsAndOutgroups(Job):
         self.outgroupSequenceIDs = outgroupSequenceIDs
 
     def run(self, fileStore):
-        ingroupAlignmentsID = self.addChild(BlastSequencesAllAgainstAll(self.ingroupSequenceIDs, self.blastOptions)).rv()
+        blastAllAgainstAllDisk = 3*sum([seqID.size for seqID in self.ingroupSequenceIDs])
+        ingroupAlignmentsID = self.addChild(BlastSequencesAllAgainstAll(self.ingroupSequenceIDs, self.blastOptions, disk=blastAllAgainstAllDisk)).rv()
 
         blastJob = self.addChild(BlastFirstOutgroup(untrimmedSequenceIDs=self.ingroupSequenceIDs,
                                                sequenceIDs=self.ingroupSequenceIDs,
@@ -225,10 +225,14 @@ class BlastFirstOutgroup(Job):
 
     def run(self, fileStore):
         logger.info("Blasting ingroup sequences %s to outgroup %s" % (self.sequenceIDs, self.outgroupSequenceIDs[0]))
+        blastSequencesAgainstEachOtherDisk = 3*(sum([seqID.size for seqID in self.sequenceIDs]) + 
+                self.outgroupSequenceIDs[0].size)
         blastResultsID = self.addChild(BlastSequencesAgainstEachOther(self.sequenceIDs,
                                                            [self.outgroupSequenceIDs[0]],
-                                                           self.blastOptions)).rv()
-        return self.addFollowOn(TrimAndRecurseOnOutgroups(untrimmedSequenceIDs=self.untrimmedSequenceIDs,
+                                                           self.blastOptions,
+                                                           disk=blastSequencesAgainstEachOtherDisk)).rv()
+
+        return self.addFollowOn(BlastFirstOutgroup2(untrimmedSequenceIDs=self.untrimmedSequenceIDs,
                                                           sequenceIDs=self.sequenceIDs,
                                                           outgroupSequenceIDs=self.outgroupSequenceIDs,
                                                           mostRecentResultsID=blastResultsID,
@@ -236,11 +240,39 @@ class BlastFirstOutgroup(Job):
                                                           outputID=self.outputID,
                                                           blastOptions=self.blastOptions,
                                                           outgroupNumber=self.outgroupNumber)).rv()
+class BlastFirstOutgroup2(Job):
+    def __init__(self, untrimmedSequenceIDs, sequenceIDs,
+                 outgroupSequenceIDs, mostRecentResultsID, outgroupFragmentIDs, outputID, blastOptions, outgroupNumber, disk=None):
+        Job.__init__(self, disk=disk)
+        self.untrimmedSequenceIDs = untrimmedSequenceIDs
+        self.sequenceIDs = sequenceIDs
+        self.outgroupSequenceIDs = outgroupSequenceIDs
+        self.mostRecentResultsID = mostRecentResultsID
+        self.outgroupFragmentIDs = outgroupFragmentIDs
+        self.outputID = outputID
+        self.blastOptions = blastOptions
+        self.outgroupNumber = outgroupNumber
+
+    def run(self, fileStore):
+
+        trimAndRecurseOnOutgroupsDisk = 3*(sum([seqID.size for seqID in self.untrimmedSequenceIDs])
+                + sum([seqID.size for seqID in self.sequenceIDs])
+                + sum([seqID.size for seqID in self.outgroupSequenceIDs])
+                + self.mostRecentResultsID.size)
+        return self.addFollowOn(TrimAndRecurseOnOutgroups(untrimmedSequenceIDs=self.untrimmedSequenceIDs,
+                                                          sequenceIDs=self.sequenceIDs,
+                                                          outgroupSequenceIDs=self.outgroupSequenceIDs,
+                                                          mostRecentResultsID=self.mostRecentResultsID,
+                                                          outgroupFragmentIDs=self.outgroupFragmentIDs,
+                                                          outputID=self.outputID,
+                                                          blastOptions=self.blastOptions,
+                                                          outgroupNumber=self.outgroupNumber,
+                                                          disk=trimAndRecurseOnOutgroupsDisk)).rv()
 
 class TrimAndRecurseOnOutgroups(Job):
     def __init__(self, untrimmedSequenceIDs, sequenceIDs,
-                 outgroupSequenceIDs, mostRecentResultsID, outgroupFragmentIDs, outputID, blastOptions, outgroupNumber):
-        Job.__init__(self)
+                 outgroupSequenceIDs, mostRecentResultsID, outgroupFragmentIDs, outputID, blastOptions, outgroupNumber, disk=None):
+        Job.__init__(self, disk=disk)
         self.untrimmedSequenceIDs = untrimmedSequenceIDs
         self.sequenceIDs = sequenceIDs
         self.outgroupSequenceIDs = outgroupSequenceIDs
@@ -362,8 +394,8 @@ def compressFastaFile(fileName):
 class RunSelfBlast(Job):
     """Runs blast as a job.
     """
-    def __init__(self, blastOptions, seqFileID):
-        Job.__init__(self, memory=blastOptions.memory, disk=blastOptions.smallDisk)
+    def __init__(self, blastOptions, seqFileID, disk=None):
+        Job.__init__(self, memory=blastOptions.memory, disk=disk)
         self.blastOptions = blastOptions
         self.seqFileID = seqFileID
     
@@ -389,8 +421,8 @@ def decompressFastaFile(fileName, tempFileName):
 class RunBlast(Job):
     """Runs blast as a job.
     """
-    def __init__(self, blastOptions, seqFileID1, seqFileID2):
-        Job.__init__(self, memory=blastOptions.memory, disk=blastOptions.smallDisk)
+    def __init__(self, blastOptions, seqFileID1, seqFileID2, disk=None):
+        Job.__init__(self, memory=blastOptions.memory, disk=disk)
         self.blastOptions = blastOptions
         self.seqFileID1 = seqFileID1
         self.seqFileID2 = seqFileID2
@@ -410,10 +442,19 @@ class RunBlast(Job):
         return fileStore.writeGlobalFile(resultsFile, cleanup=False)
 
 class CollateBlasts(Job):
+    def __init__(self, blastOptions, resultsFileIDs):
+        Job.__init__(self)
+        self.blastOptions = blastOptions
+        self.resultsFileIDs = resultsFileIDs
+
+    def run(self, fileStore):
+        disk = 2*sum([alignmentID.size for alignmentID in self.resultsFileIDs])
+        return self.addFollowOn(CollateBlasts2(self.blastOptions, self.resultsFileIDs, disk=disk)).rv()
+class CollateBlasts2(Job):
     """Collates all the blasts into a single alignments file.
     """
-    def __init__(self, blastOptions, resultsFileIDs):
-        Job.__init__(self, memory = blastOptions.memory, disk = blastOptions.largeDisk)
+    def __init__(self, blastOptions, resultsFileIDs, disk=None):
+        Job.__init__(self, memory = blastOptions.memory, disk=disk)
         self.resultsFileIDs = resultsFileIDs
     
     def run(self, fileStore):
@@ -423,7 +464,8 @@ class CollateBlasts(Job):
         catFiles(resultsFiles, collatedResultsFile)
         logger.info("Collated the alignments to the file: %s",  collatedResultsFile)
         map(fileStore.deleteGlobalFile, self.resultsFileIDs)
-        return fileStore.writeGlobalFile(collatedResultsFile, cleanup=False)
+        collatedResultsID = fileStore.writeGlobalFile(collatedResultsFile, cleanup=False)
+        return collatedResultsID
         
 def sequenceLength(sequenceFile):
     """Get the total # of bp from a fasta file."""
