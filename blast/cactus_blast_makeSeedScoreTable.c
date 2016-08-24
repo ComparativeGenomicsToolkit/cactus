@@ -13,8 +13,8 @@ int main(int argc, char **argv) {
     stHash *globalCounts = stHash_construct();
     int64_t countThreshold = 0;
     char *seedScoresFile;
-    struct option longopts[] = { {"--countThreshold", required_argument, 0, 'c' },
-                                 {"--seedScoresFile", required_argument, 0, 'd'},
+    struct option longopts[] = { {"countThreshold", required_argument, 0, 'c' },
+                                 {"seedScoresFile", required_argument, 0, 'd'},
                                  {0, 0, 0, 0} };
     int flag, k;
     while((flag = getopt_long(argc, argv, "c:d:e:", longopts, NULL)) != -1) {
@@ -58,7 +58,7 @@ int main(int argc, char **argv) {
     while((seed = stHash_getNext(iter)) != NULL) {
         int count = stHash_search(globalCounts, seed);
         if (count >= countThreshold) {
-            fprintf(globalCountsFileHandle, "%s %i\n", seed, stHash_search(globalCounts, seed));
+            fprintf(seedScoresFileHandle, "%s %i\n", seed, stHash_search(globalCounts, seed));
         }
     }
                 
