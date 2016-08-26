@@ -24,7 +24,7 @@ from sonLib.bioio import TestStatus
 from sonLib.bioio import catFiles
 from sonLib.bioio import popenCatch
 from cactus.shared.test import parseCactusSuiteTestOptions
-from cactus.shared.common import runCactusBlast
+from cactus.shared.common import runCactusBlast, runCactusBlastMakeSeedScoresTable, runLastzGetSeedCounts
 from cactus.blast.cactus_blast import decompressFastaFile, compressFastaFile
 
 from jobTree.src.common import runJobTreeStatusAndFailIfNotComplete
@@ -38,16 +38,16 @@ class TestCase(unittest.TestCase):
         self.tempOutputFile = os.path.join(self.tempDir, "results1.txt")
         self.tempFiles.append(self.tempOutputFile)
         self.tempOutputFile2 = os.path.join(self.tempDir, "results2.txt")
-        self.tempFiles.append(self.tempOutputFile2) 
+        self.tempFiles.append(self.tempOutputFile2)
         self.encodePath = os.path.join(TestStatus.getPathToDataSets(), "MAY-2005")
-    
+
     def tearDown(self):
         for tempFile in self.tempFiles:
             if os.path.exists(tempFile):
                 os.remove(tempFile)
         unittest.TestCase.tearDown(self)
         #system("rm -rf %s" % self.tempDir)
-        
+
     def runComparisonOfBlastScriptVsNaiveBlast(self, blastMode):
         """We compare the output with a naive run of the blast program, to check the results are nearly
         equivalent.
@@ -62,11 +62,11 @@ class TestCase(unittest.TestCase):
                 for species2 in species[i+1:]:
                     seqFile1 = os.path.join(regionPath, "%s.%s.fa" % (species1, encodeRegion))
                     seqFile2 = os.path.join(regionPath, "%s.%s.fa" % (species2, encodeRegion))
-                    
+
                     #Run the random
                     runNaiveBlast(seqFile1, seqFile2, self.tempOutputFile)
                     logger.info("Ran the naive blast okay")
-                    
+
                     #Run the blast
                     jobTreeDir = os.path.join(getTempDirectory(self.tempDir), "jobTree")
                     if blastMode == "allAgainstAll":
@@ -76,21 +76,21 @@ class TestCase(unittest.TestCase):
                         runCactusBlast([ seqFile1 ], self.tempOutputFile2, jobTreeDir,
                                        chunkSize=500000, overlapSize=10000, targetSequenceFiles=[ seqFile2 ])
                     runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
-                    system("rm -rf %s " % jobTreeDir)    
+                    system("rm -rf %s " % jobTreeDir)
                     logger.info("Ran cactus_blast okay")
                     logger.critical("Comparing cactus_blast and naive blast; using mode: %s" % blastMode)
                     compareResultsFile(self.tempOutputFile, self.tempOutputFile2)
 
     @unittest.skip("")
     def testBlastEncodeAllAgainstAll(self):
-        """For each encode region, for set of pairwise species, run 
-        cactus_blast.py in all-against-all mode. 
+        """For each encode region, for set of pairwise species, run
+        cactus_blast.py in all-against-all mode.
         """
         self.runComparisonOfBlastScriptVsNaiveBlast(blastMode="allAgainstAll")
     @unittest.skip("")
     def testBlastEncode(self):
-        """For each encode region, for set of pairwise species, run 
-        cactus_blast.py in one set of sequences against another set mode. 
+        """For each encode region, for set of pairwise species, run
+        cactus_blast.py in one set of sequences against another set mode.
         """
         self.runComparisonOfBlastScriptVsNaiveBlast(blastMode="againstEachOther")
     @unittest.skip("")
@@ -202,19 +202,19 @@ class TestCase(unittest.TestCase):
             for species2 in species[i+1:]:
                 seqFile1 = os.path.join(regionPath, "%s.%s.fa" % (species1, encodeRegion))
                 seqFile2 = os.path.join(regionPath, "%s.%s.fa" % (species2, encodeRegion))
-                
+
                 #Run the random
                 runNaiveBlast(seqFile1, seqFile2, self.tempOutputFile2,
                               lastzOptions="--nogapped --hspthresh=3000 --ambiguous=iupac")
                 #Run the blast
-                runNaiveBlast(seqFile1, seqFile2, self.tempOutputFile, 
+                runNaiveBlast(seqFile1, seqFile2, self.tempOutputFile,
                               lastzOptions="--nogapped --step=3 --hspthresh=3000 --ambiguous=iupac")
-                
+
                 logger.critical("Comparing blast settings")
                 compareResultsFile(self.tempOutputFile, self.tempOutputFile2, 0.7)
     @unittest.skip("")
     def testBlastRandom(self):
-        """Make some sequences, put them in a file, call blast with random parameters 
+        """Make some sequences, put them in a file, call blast with random parameters
         and check it runs okay.
         """
         tempSeqFile = os.path.join(self.tempDir, "tempSeq.fa")
@@ -264,16 +264,17 @@ class TestCase(unittest.TestCase):
         #runNaiveBlast([ tempSeqFile ], self.tempOutputFile, self.tempDir, lastzOptions="--nogapped --step=3 --hspthresh=3000 --ambiguous=iupac")
         #logger.critical("It took %s seconds to run blast" % (time.time() - startTime))
 
-    @unittest.skip("")
-    def testGenerateGlobalSeedCounts(self):
+    def testMakeSeedScoresTable(self):
         encodeRegion = "ENm001"
         regionPath = os.path.join(self.encodePath, encodeRegion)
-        speciesList = ("human", "mouse", "dog")
-        speciesFiles = [os.path.join(regionPath, "%s.%s.fa" % (species, encodeRegion)) for species in speciesList]
-        countsTable = "./countsTable"
-        jobTreeDir = os.path.join(getTempDirectory(self.tempDir), "jobTree")
-        system("cactus_blast.py --countsTable %s %s --jobTree %s" % (countsTable, " ".join(speciesFiles), jobTreeDir))
+        species = "human"
+        seq = os.path.join(regionPath, "%s.%s.fa" % (species, encodeRegion))
+        countsTable = os.path.join(self.tempDir, "seedCounts.txt")
+        scoresTable = os.path.join("./seedScoresTable.txt")
+        runLastzGetSeedCounts(seq, countsTable)
+        runCactusBlastMakeSeedScoresTable([countsTable], scoresTable, scoreThreshold=5, nClusters=100)
 
+    @unittest.skip("")
     def testSeedSampling(self):
         encodeRegion = "ENm001"
         regionPath = os.path.join(self.encodePath, encodeRegion)
@@ -303,11 +304,11 @@ class TestCase(unittest.TestCase):
 def compareResultsFile(results1, results2, closeness=0.95):
     results1 = loadResults(results1)
     logger.info("Loaded first results")
-    
+
     #Now compare the results
     results2 = loadResults(results2)
     logger.info("Loaded second results")
-    
+
     checkResultsAreApproximatelyEqual(ResultComparator(results2, results1), closeness)
     logger.info("Compared the blast results, using the first results as the 'true' results, and the second results as the predicted results")
 
@@ -318,7 +319,7 @@ def checkResultsAreApproximatelyEqual(resultsComparator, closeness=0.95):
     logger.critical("Results are: %s" % resultsComparator)
     assert resultsComparator.sensitivity >= closeness
     assert resultsComparator.specificity >= closeness
-    
+
 class ResultComparator:
     def __init__(self, trueResults, predictedResults):
         """Compares two sets of results and returns a set of statistics comparing them.
@@ -345,12 +346,12 @@ class ResultComparator:
 intersection size: %s, symmetric difference: %s, \
 true difference: %s, sensitivity: %s, \
 predicted difference: %s, specificity: %s" % \
-    (self.trueLength, self.predictedLength, self.unionSize, 
+    (self.trueLength, self.predictedLength, self.unionSize,
      self.intersectionSize, self.symmDiff,
      self.trueDifference, self.sensitivity,
      self.predictedDifference, self.specificity)
 
-def loadResults(resultsFile):  
+def loadResults(resultsFile):
     """Puts the results in a set.
     """
     pairsSet = set()
@@ -363,13 +364,13 @@ def loadResults(resultsFile):
         if not pairwiseAlignment.strand1:
             i -= 1
             s1 = -1
-            
+
         j = pairwiseAlignment.start2
         s2 = 1
         if not pairwiseAlignment.strand2:
             j -= 1
             s2 = -1
-        
+
         for operation in pairwiseAlignment.operationList:
             if operation.type == PairwiseAlignment.PAIRWISE_INDEL_X:
                 i += operation.length * s1
@@ -380,28 +381,28 @@ def loadResults(resultsFile):
                 for k in xrange(operation.length):
                     if pairwiseAlignment.contig1 <= pairwiseAlignment.contig2:
                         if pairwiseAlignment.contig1 != pairwiseAlignment.contig2 or i != j: #Avoid self alignments
-                            pairsSet.add((pairwiseAlignment.contig1, i, pairwiseAlignment.contig2, j)) 
+                            pairsSet.add((pairwiseAlignment.contig1, i, pairwiseAlignment.contig2, j))
                     else:
                         pairsSet.add((pairwiseAlignment.contig2, j, pairwiseAlignment.contig1, i))
                     i += s1
                     j += s2
-        
+
         if pairwiseAlignment.strand1:
             assert i == pairwiseAlignment.end1
         else:
             assert i == pairwiseAlignment.end1-1
-        
+
         if pairwiseAlignment.strand2:
             assert j == pairwiseAlignment.end2
         else:
             assert j == pairwiseAlignment.end2-1
-            
+
         #assert j == pairwiseAlignment.end2
-    fileHandle.close()      
+    fileHandle.close()
     return (pairsSet, totalHits)
 
-def runNaiveBlast(seqFile1, seqFile2, outputFile, 
-                  blastString="cactus_lastz --format=cigar OPTIONS SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE", 
+def runNaiveBlast(seqFile1, seqFile2, outputFile,
+                  blastString="cactus_lastz --format=cigar OPTIONS SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE",
                   lastzOptions=""):
     """Runs the blast command in a very naive way (not splitting things up).
     """
@@ -415,6 +416,6 @@ def main():
     parseCactusSuiteTestOptions()
     sys.argv = sys.argv[:1]
     unittest.main()
-        
+
 if __name__ == '__main__':
     main()
