@@ -299,8 +299,6 @@ class TestCase(unittest.TestCase):
 
 
 
-
-
 def compareResultsFile(results1, results2, closeness=0.95):
     results1 = loadResults(results1)
     logger.info("Loaded first results")

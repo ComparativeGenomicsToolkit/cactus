@@ -18,6 +18,12 @@ int stringDistance(char *a, char *b) {
     return distance;
 }
 
+char *extractSeed(char *seedLine) {
+    unsigned long packed;
+    char *seed = malloc(sizeof(char)*50);
+    sscanf(seedLine, "%lx/%s", &packed, seed);
+    return seed;
+}
 stHash *getCounts(int optind, int argc, char **argv) {
     stHash *globalCounts = stHash_construct();
     char *seed;
@@ -28,10 +34,9 @@ stHash *getCounts(int optind, int argc, char **argv) {
 
         while (fgets(line, sizeof(line), countsTable) != NULL) {
             if (strlen(line) == 0) continue;
-            seed = malloc(sizeof(char)*50);
+            seed = malloc(sizeof(char)*100);
             unsigned long count;
-            unsigned long packed;
-            sscanf(line, "%lx/%s %lu\n", &packed, seed, &count);
+            sscanf(line, "%s %lu\n", seed, &count);
             if (strlen(seed) == 0) continue;
             if (!stHash_search(globalCounts, seed)) {
                 stHash_insert(globalCounts, seed, (void*)count);
@@ -69,33 +74,37 @@ char *findBestCluster(stHash *clusters, char *seed) {
     int minDistance = 100;
     char *bestCluster = NULL;
     while((clusterSeed = stHash_getNext(it)) != NULL) {
-		if (strlen(clusterSeed) == 0) continue;
-		int distance = stringDistance(seed, clusterSeed);
-		if (distance < minDistance) {
-	    	minDistance = distance;
-	    	bestCluster = clusterSeed;
-		}
-	}
+        if (strlen(clusterSeed) == 0) continue;
+        char *seedUnpacked = extractSeed(seed);
+        char *clusterSeedUnpacked = extractSeed(clusterSeed);
+        int distance = stringDistance(seedUnpacked, clusterSeedUnpacked);
+        free(seedUnpacked);
+        free(clusterSeedUnpacked);
+        if (distance < minDistance) {
+            minDistance = distance;
+            bestCluster = clusterSeed;
+        }
+    }
     //st_logInfo("Found cluster %s for %s with distance %i\n", seed, bestCluster, minDistance);
     stHash_destructIterator(it);
     return bestCluster;
 }
 stHash *extractFromClusters(stHash *clusters, stHash *clusterMultiplicity) {
-	stHash *seedToClusterMultiplicity = stHash_construct();
-	stHashIterator *it = stHash_getIterator(clusters);
-	char *cluster;
-	while((cluster = stHash_getNext(it)) != NULL) {
-		int multiplicity = stHash_search(clusterMultiplicity, cluster);
-		stList *seedsInCluster = stHash_search(clusters, cluster);
-		stListIterator *seedIterator = stList_getIterator(seedsInCluster);
-		char *seed;
-		while((seed = stList_getNext(seedIterator))) {
-			stHash_insert(seedToClusterMultiplicity, seed, multiplicity);
-		}
-		stList_destructIterator(seedIterator);
-	}
-	stHash_destructIterator(it);
-	return seedToClusterMultiplicity;
+    stHash *seedToClusterMultiplicity = stHash_construct();
+    stHashIterator *it = stHash_getIterator(clusters);
+    char *cluster;
+    while((cluster = stHash_getNext(it)) != NULL) {
+        int multiplicity = stHash_search(clusterMultiplicity, cluster);
+        stList *seedsInCluster = stHash_search(clusters, cluster);
+        stListIterator *seedIterator = stList_getIterator(seedsInCluster);
+        char *seed;
+        while((seed = stList_getNext(seedIterator))) {
+            stHash_insert(seedToClusterMultiplicity, seed, multiplicity);
+        }
+        stList_destructIterator(seedIterator);
+    }
+    stHash_destructIterator(it);
+    return seedToClusterMultiplicity;
 }
 
 
@@ -107,10 +116,10 @@ stHash *makeSeedClusters(stHash *seedCounts, int64_t nClusters) {
     while((seed = stHash_getNext(it)) != NULL) {
         if (strlen(seed) == 0) continue;
         char *bestCluster = findBestCluster(clusters, seed);
-		int64_t oldMultiplicity = stHash_search(clusterMultiplicity, bestCluster);
-		stHash_insert(clusterMultiplicity, bestCluster, oldMultiplicity + stHash_search(seedCounts, seed));
-		stList *seedsInCluster = stHash_search(clusters, bestCluster);
-		stList_append(seedsInCluster, seed);
+        int64_t oldMultiplicity = stHash_search(clusterMultiplicity, bestCluster);
+        stHash_insert(clusterMultiplicity, bestCluster, oldMultiplicity + stHash_search(seedCounts, seed));
+        stList *seedsInCluster = stHash_search(clusters, bestCluster);
+        stList_append(seedsInCluster, seed);
     }
     stHash *seedToClusterCount = extractFromClusters(clusters, clusterMultiplicity);
     return seedToClusterCount;
@@ -120,35 +129,35 @@ int main(int argc, char **argv) {
     st_setLogLevelFromString("INFO");
 
     int64_t scoreThreshold = 0;
-	int64_t nClusters = 0;
+    int64_t nClusters = 0;
     char *seedScoresFile;
     struct option longopts[] = {{"scoreThreshold", required_argument, 0, 'c'},
-								{"seedScoresFile", required_argument, 0, 'd'},
-								{"nClusters", required_argument, 0, 'e'},
-                                 {0, 0, 0, 0} };
+    {"seedScoresFile", required_argument, 0, 'd'},
+    {"nClusters", required_argument, 0, 'e'},
+    {0, 0, 0, 0} };
     int flag, k;
     while((flag = getopt_long(argc, argv, "c:d:e:", longopts, NULL)) != -1) {
         switch(flag) {
-        case 'c':
+            case 'c':
             k = sscanf(optarg, "%" PRIi64 "", &scoreThreshold);
             break;
-        case 'd':
+            case 'd':
             seedScoresFile = stString_copy(optarg);
             break;
-		case 'e':
-			k = sscanf(optarg, "%" PRIi64 "", &nClusters);
-        case '?':
+            case 'e':
+            k = sscanf(optarg, "%" PRIi64 "", &nClusters);
+            case '?':
             break;
-        default:
+            default:
             usage();
             return 1;
         }
     }
-	stHash *seedCounts = getCounts(optind, argc, argv);
-	stHash *seedToClusterCount = makeSeedClusters(seedCounts, nClusters);
+    stHash *seedCounts = getCounts(optind, argc, argv);
+    stHash *seedToClusterCount = makeSeedClusters(seedCounts, nClusters);
     FILE *seedScoresFileHandle = fopen(seedScoresFile, "w");
     stHashIterator *iter = stHash_getIterator(seedToClusterCount);
-	char *seed;
+    char *seed;
     while((seed = stHash_getNext(iter)) != NULL) {
         int64_t count = stHash_search(seedToClusterCount, seed);
         if (count >= scoreThreshold) {
