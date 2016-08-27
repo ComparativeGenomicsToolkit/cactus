@@ -272,7 +272,7 @@ class TestCase(unittest.TestCase):
         countsTable = os.path.join(self.tempDir, "seedCounts.txt")
         scoresTable = os.path.join("./seedScoresTable.txt")
         runLastzGetSeedCounts(seq, countsTable)
-        runCactusBlastMakeSeedScoresTable([countsTable], scoresTable, scoreThreshold=5, nClusters=100)
+        runCactusBlastMakeSeedScoresTable([countsTable], scoresTable, scoreThreshold=5, clusterSeeds=False)
 
     @unittest.skip("")
     def testSeedSampling(self):

@@ -518,10 +518,11 @@ def runCactusFastaGenerator(cactusDiskDatabaseString,
 def runCactusAnalyseAssembly(sequenceFile):
     return popenCatch("cactus_analyseAssembly %s" % sequenceFile)[:-1]
 
-def runCactusBlastMakeSeedScoresTable(countsTables, seedScoreTable, scoreThreshold=5, nClusters=100):
-    messages = system("gdb --batch -return-child-result -ex run -ex bt -ex quit --args cactus_blast_makeSeedScoreTable --scoreThreshold %i --nClusters %i --seedScoresFile %s %s" %
-            (scoreThreshold, nClusters, seedScoreTable, " ".join(countsTables)))
-    return messages
+def runCactusBlastMakeSeedScoresTable(countsTables, seedScoreTable, clusterSeeds=False, scoreThreshold=5, nClusters=100):
+    clusteringOptions = "--clusterSeeds" if clusterSeeds else ""
+    cmd = "gdb --batch -return-child-result -ex run -ex bt -ex quit --args cactus_blast_makeSeedScoreTable --scoreThreshold %i --nClusters %i %s --seedScoresFile %s %s" % (scoreThreshold, nClusters, clusteringOptions, seedScoreTable, " ".join(countsTables))
+    system(cmd)
+
 def runLastzGetSeedCounts(sequenceFile, countsTable):
 	messages = popenCatch("cPecanLastz %s[unmask][multiple] --tableonly=count > %s" % (sequenceFile, countsTable))
 	return messages

@@ -131,37 +131,51 @@ int main(int argc, char **argv) {
     int64_t scoreThreshold = 0;
     int64_t nClusters = 0;
     char *seedScoresFile;
+    bool clusterSeeds = false;
     struct option longopts[] = {{"scoreThreshold", required_argument, 0, 'c'},
     {"seedScoresFile", required_argument, 0, 'd'},
     {"nClusters", required_argument, 0, 'e'},
+    {"clusterSeeds", no_argument, 0, 'f'},
     {0, 0, 0, 0} };
     int flag, k;
-    while((flag = getopt_long(argc, argv, "c:d:e:", longopts, NULL)) != -1) {
+    while((flag = getopt_long(argc, argv, "c:d:e:f:", longopts, NULL)) != -1) {
         switch(flag) {
             case 'c':
-            k = sscanf(optarg, "%" PRIi64 "", &scoreThreshold);
-            break;
+                k = sscanf(optarg, "%" PRIi64 "", &scoreThreshold);
+                break;
             case 'd':
-            seedScoresFile = stString_copy(optarg);
-            break;
+                seedScoresFile = stString_copy(optarg);
+                break;
             case 'e':
-            k = sscanf(optarg, "%" PRIi64 "", &nClusters);
+                k = sscanf(optarg, "%" PRIi64 "", &nClusters);
+                break;
+            case 'f':
+                clusterSeeds = true;
+                break;
             case '?':
-            break;
+                break;
             default:
-            usage();
-            return 1;
+                usage();
+                return 1;
+                break;
         }
     }
     stHash *seedCounts = getCounts(optind, argc, argv);
-    stHash *seedToClusterCount = makeSeedClusters(seedCounts, nClusters);
+
+    stHash *seedScores;
+    if (clusterSeeds) {
+        seedScores = makeSeedClusters(seedCounts, nClusters);
+    }
+    else {
+        seedScores = seedCounts;
+    }
     FILE *seedScoresFileHandle = fopen(seedScoresFile, "w");
-    stHashIterator *iter = stHash_getIterator(seedToClusterCount);
+    stHashIterator *iter = stHash_getIterator(seedScores);
     char *seed;
     while((seed = stHash_getNext(iter)) != NULL) {
-        int64_t count = stHash_search(seedToClusterCount, seed);
-        if (count >= scoreThreshold) {
-            fprintf(seedScoresFileHandle, "%s %" PRIi64 "\n", seed, stHash_search(seedToClusterCount, seed));
+        int64_t score = stHash_search(seedScores, seed);
+        if (score >= scoreThreshold) {
+            fprintf(seedScoresFileHandle, "%s %" PRIi64 "\n", seed, score);
         }
     }
 
