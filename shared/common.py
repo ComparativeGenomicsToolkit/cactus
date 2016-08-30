@@ -520,7 +520,7 @@ def runCactusAnalyseAssembly(sequenceFile):
 
 def runCactusBlastMakeSeedScoresTable(countsTables, seedScoreTable, clusterSeeds=False, scoreThreshold=5, nClusters=100):
     clusteringOptions = "--clusterSeeds" if clusterSeeds else ""
-    cmd = "gdb --batch -return-child-result -ex run -ex bt -ex quit --args cactus_blast_makeSeedScoreTable --scoreThreshold %i --nClusters %i %s --seedScoresFile %s %s" % (scoreThreshold, nClusters, clusteringOptions, seedScoreTable, " ".join(countsTables))
+    cmd = "gdb --batch -return-child-result -ex run -ex bt -ex quit --args cactus_blast_makeSeedScoreTable --scoreThreshold %i %s --seedScoresFile %s %s" % (scoreThreshold, clusteringOptions, seedScoreTable, " ".join(countsTables))
     system(cmd)
 
 def runLastzGetSeedCounts(sequenceFile, countsTable):

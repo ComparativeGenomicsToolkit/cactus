@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <getopt.h>
 
+const char bases[4] = {'A', 'C', 'T', 'G'};
+
 void usage() {
     fprintf(stderr, "--countThreshold - Minimum number of counts to include seed in global seed count table");
 }
@@ -18,15 +20,10 @@ int stringDistance(char *a, char *b) {
     return distance;
 }
 
-char *extractSeed(char *seedLine) {
+void parseCounts(int optind, int argc, char **argv, stHash *seedCounts, stHash *seedToPacked) {
+    char *seed = NULL;
     unsigned long packed;
-    char *seed = malloc(sizeof(char)*50);
-    sscanf(seedLine, "%lx/%s", &packed, seed);
-    return seed;
-}
-stHash *getCounts(int optind, int argc, char **argv) {
-    stHash *globalCounts = stHash_construct();
-    char *seed;
+    unsigned long count;
     for (int i = optind; i < argc; i++) {
         FILE *countsTable = fopen(argv[i], "r");
 
@@ -34,111 +31,65 @@ stHash *getCounts(int optind, int argc, char **argv) {
 
         while (fgets(line, sizeof(line), countsTable) != NULL) {
             if (strlen(line) == 0) continue;
-            seed = malloc(sizeof(char)*100);
-            unsigned long count;
-            sscanf(line, "%s %lu\n", seed, &count);
+            seed = st_calloc(100, sizeof(char));
+
+            sscanf(line, "%lx/%s %lu\n", &packed, seed, &count);
             if (strlen(seed) == 0) continue;
-            if (!stHash_search(globalCounts, seed)) {
-                stHash_insert(globalCounts, seed, (void*)count);
+            //st_logInfo("Parsed seed %s, packed representation %lx, count %lu\n", seed, packed, count);
+            //get rid of the colon
+            seed[strlen(seed) - 1] = '\0';
+            if (!stHash_search(seedCounts, seed)) {
+                stHash_insert(seedCounts, seed, (void*)count);
             }
             else {
-                unsigned long globalCount = (unsigned long)stHash_search(globalCounts, (void*)seed);
-                stHash_insert(globalCounts, seed, (void*)(count + globalCount));
+                unsigned long seedCount = (unsigned long)stHash_search(seedCounts, (void*)seed);
+                stHash_insert(seedCounts, seed, (void*)(count + seedCount));
             }
+            stHash_insert(seedToPacked, seed, packed);
         }
     }
-    return globalCounts;
-}
-stHash *createClusters(stList *seeds, int nClusters) {
-    stHash *clusters = stHash_construct2(NULL, (void (*)(void *)) stList_destruct);
-    int nSeeds = stList_length(seeds);
-    int i = 0;
-    while (i < nClusters) {
-        int seedIndex = rand() % nSeeds;
-        char *seed = stList_get(seeds, seedIndex);
-        if (stHash_search(clusters, seed)) {
-            continue;
-        }
-        else {
-            stHash_insert(clusters, seed, stList_construct());
-            i++;
-        }
-    }
-    //stHash_destructIterator(it);
-    return clusters;
 }
 
-char *findBestCluster(stHash *clusters, char *seed) {
-    stHashIterator *it = stHash_getIterator(clusters);
-    char *clusterSeed = NULL;
-    int minDistance = 100;
-    char *bestCluster = NULL;
-    while((clusterSeed = stHash_getNext(it)) != NULL) {
-        if (strlen(clusterSeed) == 0) continue;
-        char *seedUnpacked = extractSeed(seed);
-        char *clusterSeedUnpacked = extractSeed(clusterSeed);
-        int distance = stringDistance(seedUnpacked, clusterSeedUnpacked);
-        free(seedUnpacked);
-        free(clusterSeedUnpacked);
-        if (distance < minDistance) {
-            minDistance = distance;
-            bestCluster = clusterSeed;
-        }
-    }
-    //st_logInfo("Found cluster %s for %s with distance %i\n", seed, bestCluster, minDistance);
-    stHash_destructIterator(it);
-    return bestCluster;
-}
-stHash *extractFromClusters(stHash *clusters, stHash *clusterMultiplicity) {
-    stHash *seedToClusterMultiplicity = stHash_construct();
-    stHashIterator *it = stHash_getIterator(clusters);
-    char *cluster;
-    while((cluster = stHash_getNext(it)) != NULL) {
-        int multiplicity = stHash_search(clusterMultiplicity, cluster);
-        stList *seedsInCluster = stHash_search(clusters, cluster);
-        stListIterator *seedIterator = stList_getIterator(seedsInCluster);
-        char *seed;
-        while((seed = stList_getNext(seedIterator))) {
-            stHash_insert(seedToClusterMultiplicity, seed, multiplicity);
-        }
-        stList_destructIterator(seedIterator);
-    }
-    stHash_destructIterator(it);
-    return seedToClusterMultiplicity;
-}
-
-
-stHash *makeSeedClusters(stHash *seedCounts, int64_t nClusters) {
-    stHash *clusterMultiplicity = stHash_construct();
-    stHash *clusters = createClusters(stHash_getKeys(seedCounts), nClusters);
-    stHashIterator *it = stHash_getIterator(seedCounts);
+stHash *blurCounts(stHash *seedCounts) {
+    stHash *blurredCounts = stHash_construct();
     char *seed;
-    while((seed = stHash_getNext(it)) != NULL) {
-        if (strlen(seed) == 0) continue;
-        char *bestCluster = findBestCluster(clusters, seed);
-        int64_t oldMultiplicity = stHash_search(clusterMultiplicity, bestCluster);
-        stHash_insert(clusterMultiplicity, bestCluster, oldMultiplicity + stHash_search(seedCounts, seed));
-        stList *seedsInCluster = stHash_search(clusters, bestCluster);
-        stList_append(seedsInCluster, seed);
-    }
-    stHash *seedToClusterCount = extractFromClusters(clusters, clusterMultiplicity);
-    return seedToClusterCount;
+    stHashIterator *iter = stHash_getIterator(seedCounts);
+    while((seed = stHash_getNext(iter))) {
+        int seedLength = strlen(seed);
+        int count = 0;
+        for (int i = 0; i < seedLength; i++) {
+            if (seed[i] == 'x') continue;
+            char trueBase = seed[i];
+            for (int base = 0; base < 4; base++) {
+                if (seed[i] == bases[base]) continue;
+                seed[i] = bases[base];
+                int64_t deviantSeedCount = stHash_search(seedCounts, (void*)seed);
+                count += deviantSeedCount;
+            }
+            seed[i] = trueBase;
 
+        }
+        stHash_insert(blurredCounts, seed, count);
+    }
+    stHash_destructIterator(iter);
+
+    return blurredCounts;
 }
+
+
+
 int main(int argc, char **argv) {
     st_setLogLevelFromString("INFO");
 
     int64_t scoreThreshold = 0;
-    int64_t nClusters = 0;
     char *seedScoresFile;
     bool clusterSeeds = false;
     struct option longopts[] = {{"scoreThreshold", required_argument, 0, 'c'},
     {"seedScoresFile", required_argument, 0, 'd'},
-    {"nClusters", required_argument, 0, 'e'},
-    {"clusterSeeds", no_argument, 0, 'f'},
+    {"clusterSeeds", no_argument, 0, 'e'},
     {0, 0, 0, 0} };
     int flag, k;
-    while((flag = getopt_long(argc, argv, "c:d:e:f:", longopts, NULL)) != -1) {
+    while((flag = getopt_long(argc, argv, "c:d:e:", longopts, NULL)) != -1) {
         switch(flag) {
             case 'c':
                 k = sscanf(optarg, "%" PRIi64 "", &scoreThreshold);
@@ -147,9 +98,6 @@ int main(int argc, char **argv) {
                 seedScoresFile = stString_copy(optarg);
                 break;
             case 'e':
-                k = sscanf(optarg, "%" PRIi64 "", &nClusters);
-                break;
-            case 'f':
                 clusterSeeds = true;
                 break;
             case '?':
@@ -160,11 +108,13 @@ int main(int argc, char **argv) {
                 break;
         }
     }
-    stHash *seedCounts = getCounts(optind, argc, argv);
+    stHash *seedCounts = stHash_construct();
+    stHash *seedToPacked = stHash_construct();
+    parseCounts(optind, argc, argv, seedCounts, seedToPacked);
 
     stHash *seedScores;
     if (clusterSeeds) {
-        seedScores = makeSeedClusters(seedCounts, nClusters);
+        seedScores = blurCounts(seedCounts);
     }
     else {
         seedScores = seedCounts;
@@ -175,7 +125,7 @@ int main(int argc, char **argv) {
     while((seed = stHash_getNext(iter)) != NULL) {
         int64_t score = stHash_search(seedScores, seed);
         if (score >= scoreThreshold) {
-            fprintf(seedScoresFileHandle, "%s %" PRIi64 "\n", seed, score);
+            fprintf(seedScoresFileHandle, "%lx/%s: %" PRIi64 "\n", stHash_search(seedToPacked, seed), seed, score);
         }
     }
 
