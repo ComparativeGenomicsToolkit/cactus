@@ -365,20 +365,6 @@ stList *stCaf_splitHomologyUnit(HomologyUnit *unit, stList *partitions, bool all
     return ret;
 }
 
-/*
- * For logging purposes gets the total number of similarities and differences in the matrix.
- */
-static void getTotalSimilarityAndDifferenceCounts(stMatrix *matrix, double *similarities, double *differences) {
-    *similarities = 0.0;
-    *differences = 0.0;
-    for(int64_t i=0; i<stMatrix_n(matrix); i++) {
-        for(int64_t j=i+1; j<stMatrix_n(matrix); j++) {
-            *similarities += *stMatrix_getCell(matrix, i, j);
-            *differences += *stMatrix_getCell(matrix, j, i);
-        }
-    }
-}
-
 // If the tree contains any zero branch lengths (i.e. there were
 // negative branch lengths when neighbor-joining), fudge the branch
 // lengths so that both children have non-zero branch lengths, but are
@@ -1452,6 +1438,114 @@ stSet *stCaf_getHomologyUnits(Flower *flower, stPinchThreadSet *threadSet, stHas
     return homologyUnits;
 }
 
+static double distToAncestor(stTree *child, stTree *ancestor) {
+    if (child == ancestor) {
+        return 0.0;
+    } else {
+        return stTree_getBranchLength(child) + distToAncestor(stTree_getParent(child), ancestor);
+    }
+}
+
+stSet *stCaf_getBadChains(stSet *homologyUnits, TreeBuildingConstants *constants, stCaf_PhylogenyParameters *params, Flower *flower) {
+    stSet *ret = stSet_construct();
+    stSetIterator *it = stSet_getIterator(homologyUnits);
+    HomologyUnit *unit;
+    while ((unit = stSet_getNext(it)) != NULL) {
+        assert(unit->unitType == CHAIN);
+        stList *featureBlocks = stFeatureBlock_getContextualFeatureBlocksForChainedBlocks(
+            unit->unit, params->maxBaseDistance,
+            params->maxBlockDistance,
+            params->ignoreUnalignedBases,
+            params->onlyIncludeCompleteFeatureBlocks,
+            constants->threadStrings);
+
+        // Make feature columns
+        stList *featureColumns = stFeatureColumn_getFeatureColumns(featureBlocks);
+
+        // Get the degree (= number of segments in the block/chain).
+        int64_t degree = stPinchBlock_getDegree(getCanonicalBlockForHomologyUnit(unit));
+
+        // Get the matrix diffs.
+        stMatrixDiffs *snpDiffs = stPinchPhylogeny_getMatrixDiffsFromSubstitutions(featureColumns, degree, NULL);
+        stMatrixDiffs *breakpointDiffs = stPinchPhylogeny_getMatrixDiffsFromBreakpoints(featureColumns, degree, NULL);
+
+        // Make substitution matrix
+        stMatrix *substitutionMatrix = stPinchPhylogeny_constructMatrixFromDiffs(snpDiffs, false, 0);
+        //Make breakpoint matrix
+        stMatrix *breakpointMatrix = stPinchPhylogeny_constructMatrixFromDiffs(breakpointDiffs, false, 0);
+
+        //Combine the matrices into distance matrices
+        stMatrix_scale(breakpointMatrix, params->nucleotideScalingFactor, 0.0);
+        stMatrix_scale(breakpointMatrix, params->breakpointScalingFactor, 0.0);
+        stMatrix *combinedMatrix = stMatrix_add(substitutionMatrix, breakpointMatrix);
+        stMatrix *distanceMatrix = stPinchPhylogeny_getSymmetricDistanceMatrix(combinedMatrix);
+
+        // Find the species corresponding to each segment.
+        stTree **indexToSpecies = st_calloc(degree, sizeof(stTree *));
+
+        stPinchBlock *block = getCanonicalBlockForHomologyUnit(unit);
+        stPinchBlockIt blockIt = stPinchBlock_getSegmentIterator(block);
+        stPinchSegment *segment;
+        int64_t i = 0; // Current segment index in block.
+        while ((segment = stPinchBlockIt_getNext(&blockIt)) != NULL) {
+            stPinchThread *thread = stPinchSegment_getThread(segment);
+            Cap *cap = flower_getCap(flower, stPinchThread_getName(thread));
+            Event *event = cap_getEvent(cap);
+            stTree *species = stHash_search(constants->eventToSpeciesNode, event);
+            assert(species != NULL);
+
+            indexToSpecies[i] = species;
+
+            i++;
+        }
+
+        double theta = 2.0;
+        bool unitIsBad = false;
+
+        for (int64_t i = 0; i < stMatrix_m(distanceMatrix); i++) {
+            stTree *species_i = indexToSpecies[i];
+            for (int64_t j = 0; j < stMatrix_n(distanceMatrix); j++) {
+                stTree *species_j = indexToSpecies[j];
+                if (species_i == species_j) {
+                    continue;
+                }
+                stTree *mrca = stTree_getMRCA(species_i, species_j);
+                double species_distance = distToAncestor(species_i, mrca) + distToAncestor(species_j, mrca);
+                if (*stMatrix_getCell(distanceMatrix, i, j) > theta * species_distance) {
+                    unitIsBad = true;
+                    break;
+                }
+            }
+        }
+
+        if (unitIsBad) {
+            stSet_insert(ret, unit);
+        }
+
+        stList_destruct(featureBlocks);
+        stList_destruct(featureColumns);
+
+        stMatrix_destruct(combinedMatrix);
+        stMatrix_destruct(breakpointMatrix);
+        stMatrix_destruct(substitutionMatrix);
+        stMatrix_destruct(distanceMatrix);
+
+        stMatrixDiffs_destruct(snpDiffs);
+        stMatrixDiffs_destruct(breakpointDiffs);
+    }
+    stSet_destructIterator(it);
+    return ret;
+}
+
+void stCaf_printBadChainTrack(stSet *homologyUnits, TreeBuildingConstants *constants, stCaf_PhylogenyParameters *params, Flower *flower) {
+}
+
+void stCaf_printBadChainSummary(stSet *homologyUnits, TreeBuildingConstants *constants, stCaf_PhylogenyParameters *params, Flower *flower) {
+    stSet *badUnits = stCaf_getBadChains(homologyUnits, constants, params, flower);
+    printf("Found %" PRIi64 " bad homology units out of %" PRIi64 " total\n", stSet_size(badUnits), stSet_size(homologyUnits));
+    stSet_destruct(badUnits);
+}
+
 void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
                                                stHash *threadStrings,
                                                stSet *outgroupThreads,
@@ -1459,9 +1553,6 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
                                                stCaf_PhylogenyParameters *params,
                                                FILE *debugFile,
                                                const char *referenceEventHeader) {
-    // Functions we aren't using right now but should stick around anyway.
-    (void) getTotalSimilarityAndDifferenceCounts;
-
     stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
     stPinchBlock *block;
 
@@ -1552,6 +1643,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
             " simple blocks (those with 1 event or with < 3 segments, and %"
             PRIi64 " single-copy blocks (those with (# events) = (# segments))."
             "\n", numSimpleBlocksSkipped, numSingleCopyBlocksSkipped);
+    stCaf_printBadChainSummary(homologyUnits, &constants, params, flower);
 
     // All the blocks have their trees computed. Find the split
     // branches in those trees.
@@ -1624,6 +1716,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
     }
 
     st_logDebug("Finished partitioning the homologies\n");
+    stCaf_printBadChainSummary(stCaf_getHomologyUnits(flower, threadSet, blocksToHomologyUnits, CHAIN), &constants, params, flower);
     fprintf(stdout, "There were %" PRIi64 " splits made overall in the end.\n",
             numberOfSplitsMade);
     fprintf(stdout, "The split branches that we actually used had an average "
