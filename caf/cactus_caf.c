@@ -962,17 +962,11 @@ int main(int argc, char *argv[]) {
             // partition the homologies between the ingroups sequences
             // into those that occur before the speciation with the
             // outgroup and those which occur late.
+
             if (stSet_size(outgroupThreads) > 0 && doPhylogeny) {
                 st_logDebug("Starting to build trees and partition ingroup homologies\n");
                 stHash *threadStrings = stCaf_getThreadStrings(flower, threadSet);
                 st_logDebug("Got sets of thread strings and set of threads that are outgroups\n");
-                FILE *debugFile = NULL;
-                if (debugFileName != NULL) {
-                    debugFile = fopen(stString_print("%s-phylogeny", debugFileName), "w");
-                    if (debugFile == NULL) {
-                        st_errnoAbort("could not open debug file");
-                    }
-                }
                 stCaf_PhylogenyParameters params;
                 params.treeBuildingMethod = phylogenyTreeBuildingMethod;
                 params.rootingMethod = phylogenyRootingMethod;
@@ -995,10 +989,7 @@ int main(int argc, char *argv[]) {
 
                 stCaf_buildTreesToRemoveAncientHomologies(
                     threadSet, threadStrings, outgroupThreads, flower, &params,
-                    debugFile, referenceEventHeader);
-                if (debugFile != NULL) {
-                    fclose(debugFile);
-                }
+                    debugFileName == NULL ? NULL : stString_print("%s-phylogeny", debugFileName), referenceEventHeader);
                 stHash_destruct(threadStrings);
                 st_logDebug("Finished building trees\n");
 

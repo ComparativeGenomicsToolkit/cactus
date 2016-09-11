@@ -177,7 +177,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
                                                stSet *outgroupThreads,
                                                Flower *flower,
                                                stCaf_PhylogenyParameters *params,
-                                               FILE *debugFile,
+                                               char *debugFilePath,
                                                const char *referenceEventHeader);
 
 /*

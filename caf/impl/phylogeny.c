@@ -1416,7 +1416,9 @@ stSet *stCaf_getHomologyUnits(Flower *flower, stPinchThreadSet *threadSet, stHas
         while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
             HomologyUnit *unit = HomologyUnit_construct(BLOCK, block);
             stSet_insert(homologyUnits, unit);
-            stHash_insert(blocksToHomologyUnits, block, unit);
+            if (blocksToHomologyUnits != NULL) {
+                stHash_insert(blocksToHomologyUnits, block, unit);
+            }
         }
     } else {
         assert(type == CHAIN);
@@ -1430,7 +1432,9 @@ stSet *stCaf_getHomologyUnits(Flower *flower, stPinchThreadSet *threadSet, stHas
             stSet_insert(homologyUnits, unit);
             for (int64_t j = 0; j < stList_length(unit->unit); j++) {
                 stPinchBlock *block = stList_get(unit->unit, j);
-                stHash_insert(blocksToHomologyUnits, block, unit);
+                if (blocksToHomologyUnits != NULL) {
+                    stHash_insert(blocksToHomologyUnits, block, unit);
+                }
             }
         }
         stCactusGraph_destruct(cactusGraph);
@@ -1537,12 +1541,43 @@ stSet *stCaf_getBadChains(stSet *homologyUnits, TreeBuildingConstants *constants
     return ret;
 }
 
-void stCaf_printBadChainTrack(stSet *homologyUnits, TreeBuildingConstants *constants, stCaf_PhylogenyParameters *params, Flower *flower) {
+void stCaf_printBadChainTrack(Event *eventToPrintFor, FILE *file, stSet *homologyUnits, TreeBuildingConstants *constants, stCaf_PhylogenyParameters *params, Flower *flower) {
+    stSet *badUnits = stCaf_getBadChains(homologyUnits, constants, params, flower);
+    stSetIterator *it = stSet_getIterator(badUnits);
+    HomologyUnit *unit;
+    while ((unit = stSet_getNext(it)) != NULL) {
+        assert(unit->unitType == CHAIN);
+        for (int64_t i = 0; i < stList_length(unit->unit); i++) {
+            stPinchBlock *block = stList_get(unit->unit, i);
+            stPinchBlockIt blockIt = stPinchBlock_getSegmentIterator(block);
+            stPinchSegment *segment;
+            while ((segment = stPinchBlockIt_getNext(&blockIt)) != NULL) {
+                stPinchThread *thread = stPinchSegment_getThread(segment);
+                Cap *cap = flower_getCap(flower, stPinchThread_getName(thread));
+                Event *event = cap_getEvent(cap);
+
+                if (event == eventToPrintFor) {
+                    fprintf(file, "%s\t%" PRIi64 "\t%" PRIi64 "\n", sequence_getHeader(cap_getSequence(cap)), stPinchSegment_getStart(segment) - 2, stPinchSegment_getStart(segment) + stPinchSegment_getLength(segment) - 2);
+                }
+            }
+        }
+    }
+    stSet_destructIterator(it);
+    stSet_destruct(badUnits);
 }
 
 void stCaf_printBadChainSummary(stSet *homologyUnits, TreeBuildingConstants *constants, stCaf_PhylogenyParameters *params, Flower *flower) {
     stSet *badUnits = stCaf_getBadChains(homologyUnits, constants, params, flower);
-    printf("Found %" PRIi64 " bad homology units out of %" PRIi64 " total\n", stSet_size(badUnits), stSet_size(homologyUnits));
+    stSetIterator *it = stSet_getIterator(badUnits);
+    HomologyUnit *unit;
+    int64_t numSingleCopyBadUnits = 0;
+    while ((unit = stSet_getNext(it)) != NULL) {
+        if (stCaf_isSingleCopy(unit, flower)) {
+            numSingleCopyBadUnits++;
+        }
+    }
+    stSet_destructIterator(it);
+    printf("Found %" PRIi64 " bad homology units (%" PRIi64 " single-copy) out of %" PRIi64 " total\n", stSet_size(badUnits), numSingleCopyBadUnits, stSet_size(homologyUnits));
     stSet_destruct(badUnits);
 }
 
@@ -1551,8 +1586,12 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
                                                stSet *outgroupThreads,
                                                Flower *flower,
                                                stCaf_PhylogenyParameters *params,
-                                               FILE *debugFile,
+                                               char *debugFilePath,
                                                const char *referenceEventHeader) {
+    FILE *debugFile = NULL;
+    if (debugFilePath != NULL) {
+        debugFile = fopen(debugFilePath, "w");
+    }
     stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
     stPinchBlock *block;
 
@@ -1617,6 +1656,21 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
     stHash *blocksToHomologyUnits = stHash_construct();
 
     stSet *homologyUnits = stCaf_getHomologyUnits(flower, threadSet, blocksToHomologyUnits, CHAIN);
+
+    // Print bad chains for every ingroup.
+    if (debugFilePath != NULL) {
+        EventTree *eventTree = flower_getEventTree(flower);
+        EventTree_Iterator *eventIt = eventTree_getIterator(eventTree);
+        Event *event;
+        while ((event = eventTree_getNext(eventIt)) != NULL) {
+            if (!event_isOutgroup(event) && event_getChildNumber(event) == 0) {
+                FILE *file = fopen(stString_print("%s-%s-badChains.bed", debugFilePath, event_getHeader(event)), "w");
+                stCaf_printBadChainTrack(event, file, homologyUnits, &constants, params, flower);
+                fclose(file);
+            }
+        }
+        eventTree_destructIterator(eventIt);
+    }
 
     // The loop to build a tree for each homology unit
     stSetIterator *homologyUnitIt = stSet_getIterator(homologyUnits);
@@ -1743,4 +1797,5 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
     stThreadPool_destruct(treeBuildingPool);
     stHash_destruct(homologyUnitsToTrees);
     stHash_destruct(blocksToHomologyUnits);
+    fclose(debugFile);
 }
