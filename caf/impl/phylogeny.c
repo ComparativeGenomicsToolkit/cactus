@@ -528,21 +528,18 @@ static stTree *buildTree(stList *featureColumns,
         if (params->treeBuildingMethod == NEIGHBOR_JOINING) {
             tree = stPhylogeny_neighborJoin(distanceMatrix, outgroups);
         } else {
-            assert(params->treeBuildingMethod == GUIDED_NEIGHBOR_JOINING);
-            st_errAbort("Longest-outgroup-branch rooting not supported with guided neighbor joining");
+            st_errAbort("Longest-outgroup-branch rooting not supported with this method");
         }
     } else if (params->rootingMethod == LONGEST_BRANCH) {
         if (params->treeBuildingMethod == NEIGHBOR_JOINING) {
             tree = stPhylogeny_neighborJoin(distanceMatrix, NULL);
         } else {
-            assert(params->treeBuildingMethod == GUIDED_NEIGHBOR_JOINING);
-            st_errAbort("Longest-branch rooting not supported with guided neighbor joining");
+            st_errAbort("Longest-branch rooting not supported with this method");
         }
     } else if (params->rootingMethod == BEST_RECON) {
         if (params->treeBuildingMethod == NEIGHBOR_JOINING) {
             tree = stPhylogeny_neighborJoin(distanceMatrix, NULL);
-        } else {
-            assert(params->treeBuildingMethod == GUIDED_NEIGHBOR_JOINING);
+        } else if (params->treeBuildingMethod == GUIDED_NEIGHBOR_JOINING) {
             // FIXME: Could move this out of the function as
             // well. It's the same for each tree generated for the
             // block.
@@ -550,11 +547,26 @@ static stTree *buildTree(stList *featureColumns,
                                                                                speciesToJoinCostIndex);
             tree = stPhylogeny_guidedNeighborJoining(combinedMatrix, joinCosts, matrixIndexToJoinCostIndex, speciesToJoinCostIndex, speciesMRCAMatrix, speciesStTree);
             stHash_destruct(matrixIndexToJoinCostIndex);
+        } else if (params->treeBuildingMethod == SPLIT_DECOMPOSITION) {
+            tree = stPhylogeny_greedySplitDecomposition(distanceMatrix, true);
+        } else {
+            assert(params->treeBuildingMethod == STRICT_SPLIT_DECOMPOSITION);
+            tree = stPhylogeny_greedySplitDecomposition(distanceMatrix, true);
         }
         stHash *leafToSpecies = getLeafToSpecies(tree, unit, flower,
                                                  eventToSpeciesNode);
-
-        stTree *newTree = stPhylogeny_rootByReconciliationAtMostBinary(tree, leafToSpecies);
+        stTree *newTree;
+        if (params->treeBuildingMethod == NEIGHBOR_JOINING || params->treeBuildingMethod == GUIDED_NEIGHBOR_JOINING) {
+            // No polytomies are possible, so we can use the efficient method.
+            newTree = stPhylogeny_rootByReconciliationAtMostBinary(tree, leafToSpecies);    // Needed for likelihood methods not to have 0/100% probabilities
+            // overly often (normally, almost every other leaf has a branch
+            // length of 0)
+            fudgeZeroBranchLengths(tree, 0.02, 0.0001);
+        } else {
+            // Gene trees with polytomies currently have to be rooted
+            // using the naive quadratic method.
+            newTree = stPhylogeny_rootByReconciliationNaive(tree, leafToSpecies);
+        }
         stPhylogeny_addStIndexedTreeInfo(newTree);
 
         stPhylogenyInfo_destructOnTree(tree);
@@ -570,11 +582,6 @@ static stTree *buildTree(stList *featureColumns,
     // add stReconciliationInfo.
     stPhylogeny_reconcileAtMostBinary(tree, leafToSpecies, false);
     stHash_destruct(leafToSpecies);
-
-    // Needed for likelihood methods not to have 0/100% probabilities
-    // overly often (normally, almost every other leaf has a branch
-    // length of 0)
-    fudgeZeroBranchLengths(tree, 0.02, 0.0001);
 
     stMatrix_destruct(substitutionMatrix);
     stMatrix_destruct(breakpointMatrix);
@@ -735,6 +742,8 @@ int stCaf_SplitBranch_cmp(stCaf_SplitBranch *branch1,
     if (branch1->support > branch2->support) {
         return 3;
     } else if (branch1->support == branch2->support) {
+        assert(!isnan(stTree_getBranchLength(branch1->child)));
+        assert(!isnan(stTree_getBranchLength(branch2->child)));
         if (stTree_getBranchLength(branch1->child) > stTree_getBranchLength(branch2->child)) {
             return 2;
         } else if (stTree_getBranchLength(branch1->child) == stTree_getBranchLength(branch2->child)) {
@@ -775,8 +784,12 @@ void stCaf_findSplitBranches(HomologyUnit *unit, stTree *tree,
         assert(parentInfo != NULL);
         stReconciliationInfo *parentReconInfo = parentInfo->recon;
         assert(parentReconInfo != NULL);
+        stPhylogenyInfo *info = stTree_getClientData(tree);
+        assert(info != NULL);
+        stReconciliationInfo *reconInfo = info->recon;
+        assert(reconInfo != NULL);
         if (stSet_search(speciesToSplitOn, parentReconInfo->species)) {
-            if (parentReconInfo->event == DUPLICATION) {
+            if (parentReconInfo->event == DUPLICATION && reconInfo->species == parentReconInfo->species) {
                 // Found a split branch.
                 stCaf_SplitBranch *splitBranch = stCaf_SplitBranch_construct(tree, unit, parentInfo->index->bootstrapSupport);
                 stSortedSet_insert(splitBranches, splitBranch);
@@ -892,6 +905,7 @@ void stCaf_removeSplitBranches(HomologyUnit *unit, stTree *tree,
     stCaf_SplitBranch *splitBranchToDelete;
     while ((splitBranchToDelete = stSortedSet_getNext(splitBranchToDeleteIt)) != NULL) {
         stSortedSet_remove(splitBranches, splitBranchToDelete);
+        assert(stSortedSet_search(splitBranches, splitBranchToDelete) == NULL);
     }
     stSortedSet_destructIterator(splitBranchToDeleteIt);
     stSortedSet_destruct(splitBranchesToDelete);
@@ -996,7 +1010,6 @@ static TreeBuildingResult *buildTreeForHomologyUnit(TreeBuildingInput *input) {
                                       input->constants->speciesMRCAMatrix,
                                       input->constants->eventToSpeciesNode,
                                       snpDiffs, breakpointDiffs, &mySeed);
-    assert(stTree_getNumNodes(canonicalTree) == 2 * degree - 1);
 
     // Sample the rest of the trees.
     stList *trees = stList_construct();
@@ -1117,13 +1130,13 @@ void splitOnSplitBranch(stCaf_SplitBranch *splitBranch,
     stList *partition = stList_construct();
 
     // Create a leaf set with all leaves below this split branch.
-    stList *leafSet = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
-    stList *bfQueue = stList_construct();
-    stList_append(bfQueue, splitBranch->child);
-    while (stList_length(bfQueue) != 0) {
-        stTree *node = stList_pop(bfQueue);
+    stList *leafSet = stList_construct3(0, (void (*)(void *))stIntTuple_destruct); 
+    stList *stack = stList_construct();
+    stList_append(stack, splitBranch->child);
+    while (stList_length(stack) != 0) {
+        stTree *node = stList_pop(stack);
         for (int64_t i = 0; i < stTree_getChildNumber(node); i++) {
-            stList_append(bfQueue, stTree_getChild(node, i));
+            stList_append(stack, stTree_getChild(node, i));
         }
 
         if (stTree_getChildNumber(node) == 0) {
@@ -1142,17 +1155,14 @@ void splitOnSplitBranch(stCaf_SplitBranch *splitBranch,
         root = stTree_getParent(root);
     }
 
-    /* if (gDebugFile != NULL) { */
-    /*     fprintf(gDebugFile, "split:\n"); */
-    /*     printTreeBuildingDebugInfo(constants->flower, block, root, gDebugFile); */
-    /* } */
+    assert(root != splitBranch->child);
 
-    stList_append(bfQueue, root);
-    while (stList_length(bfQueue) != 0) {
-        stTree *node = stList_pop(bfQueue);
+    stList_append(stack, root);
+    while (stList_length(stack) != 0) {
+        stTree *node = stList_pop(stack);
         if (node != splitBranch->child) {
             for (int64_t i = 0; i < stTree_getChildNumber(node); i++) {
-                stList_append(bfQueue, stTree_getChild(node, i));
+                stList_append(stack, stTree_getChild(node, i));
             }
 
             if (stTree_getChildNumber(node) == 0) {
@@ -1167,6 +1177,13 @@ void splitOnSplitBranch(stCaf_SplitBranch *splitBranch,
     // Remove all split branch entries for this block tree.
     stCaf_removeSplitBranches(unit, root, constants->speciesToSplitOn,
                               splitBranches);
+    assert(stSortedSet_search(splitBranches, splitBranch) == NULL);
+    stSortedSetIterator *splitBranch2It = stSortedSet_getIterator(splitBranches);
+    stCaf_SplitBranch *splitBranch2;
+    while ((splitBranch2 = stSortedSet_getNext(splitBranch2It)) != NULL) {
+        stCaf_SplitBranch_cmp(splitBranch, splitBranch2);
+    }
+    stSortedSet_destructIterator(splitBranch2It);
 
     assert(stHash_search(homologyUnitsToTrees, unit) == root);
     stHash_remove(homologyUnitsToTrees, unit);
@@ -1182,21 +1199,25 @@ void splitOnSplitBranch(stCaf_SplitBranch *splitBranch,
     // Get a new tree for each unit using the existing tree.
     stTree *treeNotBelowBranch = root;
     stTree *treeBelowBranch = splitBranch->child;
-    // Need to remove the extra node (which will have degree 2 once
-    // the below-branch subtree is removed).
-    stTree *extraNode = stTree_getParent(treeBelowBranch);
-    assert(extraNode != NULL);
-    stTree_setParent(treeBelowBranch, NULL);
-    assert(stTree_getChildNumber(extraNode) == 1);
-    if (extraNode == treeNotBelowBranch) {
-        // If the extra node happens to be the tree root, it still
-        // needs to be deleted, but we need to make sure not to lose
-        // the reference to the supertree.
-        treeNotBelowBranch = stTree_getChild(extraNode, 0);
+    if (stTree_getChildNumber(stTree_getParent(treeBelowBranch)) == 2) {
+        // Need to remove the extra node (which will have degree 2 once
+        // the below-branch subtree is removed).
+        stTree *extraNode = stTree_getParent(treeBelowBranch);
+        assert(extraNode != NULL);
+        stTree_setParent(treeBelowBranch, NULL);
+        assert(stTree_getChildNumber(extraNode) == 1);
+        if (extraNode == treeNotBelowBranch) {
+            // If the extra node happens to be the tree root, it still
+            // needs to be deleted, but we need to make sure not to lose
+            // the reference to the supertree.
+            treeNotBelowBranch = stTree_getChild(extraNode, 0);
+        }
+        stTree_setParent(stTree_getChild(extraNode, 0), stTree_getParent(extraNode));
+        stTree_setParent(extraNode, NULL);
+        stTree_destruct(extraNode);
+    } else {
+        stTree_setParent(treeBelowBranch, NULL);
     }
-    stTree_setParent(stTree_getChild(extraNode, 0), stTree_getParent(extraNode));
-    stTree_setParent(extraNode, NULL);
-    stTree_destruct(extraNode);
 
     // Now relabel the two split trees so that they correspond to the
     // segments of their new units.

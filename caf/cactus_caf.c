@@ -698,6 +698,10 @@ int main(int argc, char *argv[]) {
                     phylogenyTreeBuildingMethod = NEIGHBOR_JOINING;
                 } else if (strcmp(optarg, "guidedNeighborJoining") == 0) {
                     phylogenyTreeBuildingMethod = GUIDED_NEIGHBOR_JOINING;
+                } else if (strcmp(optarg, "splitDecomposition") == 0) {
+                    phylogenyTreeBuildingMethod = SPLIT_DECOMPOSITION;
+                } else if (strcmp(optarg, "strictSplitDecomposition") == 0) {
+                    phylogenyTreeBuildingMethod = STRICT_SPLIT_DECOMPOSITION;
                 } else {
                     st_errAbort("Unknown tree building method: %s", optarg);
                 }
