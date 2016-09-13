@@ -1791,7 +1791,6 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
     }
 
     st_logDebug("Finished partitioning the homologies\n");
-    stCaf_printBadChainSummary(stCaf_getHomologyUnits(flower, threadSet, blocksToHomologyUnits, CHAIN), &constants, params, flower);
     fprintf(stdout, "There were %" PRIi64 " splits made overall in the end.\n",
             numberOfSplitsMade);
     fprintf(stdout, "The split branches that we actually used had an average "
