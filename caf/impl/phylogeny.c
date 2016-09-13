@@ -1818,5 +1818,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
     stThreadPool_destruct(treeBuildingPool);
     stHash_destruct(homologyUnitsToTrees);
     stHash_destruct(blocksToHomologyUnits);
-    fclose(debugFile);
+    if (debugFile != NULL) {
+        fclose(debugFile);
+    }
 }
