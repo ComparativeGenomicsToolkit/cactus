@@ -119,6 +119,7 @@
                 numTreeBuildingThreads="2"
                 minimumBlockDegreeToCheckSupport="10"
                 minimumBlockHomologySupport="0.05"
+                phylogenyHomologyUnitType="chain"
 	        >
 		<!-- The following are parametrised to produce the same results as the default settings, 
 		within a margin of 0.2% sensitivity, should be very fast for close genomes, these were tuned using the blast/blastParametersScript.py

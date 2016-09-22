@@ -176,6 +176,7 @@ void stCaf_removeSplitBranches(HomologyUnit *unit, stTree *tree,
  * those which occur before and after the speciation.
  */
 void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
+                                               HomologyUnitType type,
                                                stHash *threadStrings,
                                                stSet *outgroupThreads,
                                                Flower *flower,

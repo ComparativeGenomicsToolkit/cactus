@@ -123,6 +123,18 @@ static bool blockFilterFn(stPinchBlock *pinchBlock) {
     return 0;
 }
 
+// Used for interactive debugging.
+void stCaf_printBlock(stPinchBlock *block) {
+    stPinchBlockIt blockIt = stPinchBlock_getSegmentIterator(block);
+    stPinchSegment *segment;
+    while ((segment = stPinchBlockIt_getNext(&blockIt)) != NULL) {
+        stPinchThread *thread = stPinchSegment_getThread(segment);
+        Cap *cap = flower_getCap(flower, stPinchThread_getName(thread));
+        Event *event = cap_getEvent(cap);
+        printf("%s:%" PRIi64 "-%" PRIi64 ":%s\n", event_getHeader(event), stPinchSegment_getStart(segment), stPinchSegment_getStart(segment) + stPinchSegment_getLength(segment), stPinchSegment_getBlockOrientation(segment) ? "+" : "-");
+    }
+}
+
 /*
  * Functions used for prefiltering the alignments.
  */
@@ -503,6 +515,7 @@ int main(int argc, char *argv[]) {
     int64_t minimumBlockDegreeToCheckSupport = 10;
     double minimumBlockHomologySupport = 0.7;
     double nucleotideScalingFactor = 1.0;
+    HomologyUnitType phylogenyHomologyUnitType = BLOCK;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -543,6 +556,7 @@ int main(int argc, char *argv[]) {
                         { "minimumBlockDegreeToCheckSupport", required_argument, 0, 'V' },
                         { "removeRecoverableChains", required_argument, 0, 'W' },
                         { "minimumNumberOfSpecies", required_argument, 0, 'X' },
+                        { "phylogenyHomologyUnitType", required_argument, 0, 'Y' },
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
@@ -762,6 +776,15 @@ int main(int argc, char *argv[]) {
                 k = sscanf(optarg, "%" PRIi64, &minimumNumberOfSpecies);
                 if (k != 1) {
                     st_errAbort("Error parsing the minimumNumberOfSpecies argument");
+                }
+                break;
+            case 'Y':
+                if (strcmp(optarg, "chain") == 0) {
+                    phylogenyHomologyUnitType = CHAIN;
+                } else if (strcmp(optarg, "block") == 0) {
+                    phylogenyHomologyUnitType = BLOCK;
+                } else {
+                    st_errAbort("Could not parse the phylogenyHomologyUnitType argument");
                 }
                 break;
             default:
@@ -992,7 +1015,7 @@ int main(int argc, char *argv[]) {
                 assert(params.numTreeBuildingThreads >= 1);
 
                 stCaf_buildTreesToRemoveAncientHomologies(
-                    threadSet, threadStrings, outgroupThreads, flower, &params,
+                    threadSet, phylogenyHomologyUnitType, threadStrings, outgroupThreads, flower, &params,
                     debugFileName == NULL ? NULL : stString_print("%s-phylogeny", debugFileName), referenceEventHeader);
                 stHash_destruct(threadStrings);
                 st_logDebug("Finished building trees\n");

@@ -1650,6 +1650,7 @@ void stCaf_printBadChainSummary(stSet *homologyUnits, TreeBuildingConstants *con
 }
 
 void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
+                                               HomologyUnitType unitType,
                                                stHash *threadStrings,
                                                stSet *outgroupThreads,
                                                Flower *flower,
@@ -1723,10 +1724,10 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
     // (potentially split) chain.
     stHash *blocksToHomologyUnits = stHash_construct();
 
-    stSet *homologyUnits = stCaf_getHomologyUnits(flower, threadSet, blocksToHomologyUnits, CHAIN);
+    stSet *homologyUnits = stCaf_getHomologyUnits(flower, threadSet, blocksToHomologyUnits, unitType);
 
     // Print bad chains for every ingroup.
-    if (debugFilePath != NULL) {
+    if (debugFilePath != NULL && unitType == CHAIN) {
         EventTree *eventTree = flower_getEventTree(flower);
         EventTree_Iterator *eventIt = eventTree_getIterator(eventTree);
         Event *event;
@@ -1765,7 +1766,9 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
             " simple blocks (those with 1 event or with < 3 segments, and %"
             PRIi64 " single-copy blocks (those with (# events) = (# segments))."
             "\n", numSimpleBlocksSkipped, numSingleCopyBlocksSkipped);
-    stCaf_printBadChainSummary(homologyUnits, &constants, params, flower);
+    if (unitType == CHAIN) {
+        stCaf_printBadChainSummary(homologyUnits, &constants, params, flower);
+    }
 
     // All the blocks have their trees computed. Find the split
     // branches in those trees.
