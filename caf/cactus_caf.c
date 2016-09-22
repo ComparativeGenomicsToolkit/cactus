@@ -516,6 +516,7 @@ int main(int argc, char *argv[]) {
     double minimumBlockHomologySupport = 0.7;
     double nucleotideScalingFactor = 1.0;
     HomologyUnitType phylogenyHomologyUnitType = BLOCK;
+    enum stCaf_DistanceCorrectionMethod phylogenyDistanceCorrectionMethod = JUKES_CANTOR;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -557,6 +558,7 @@ int main(int argc, char *argv[]) {
                         { "removeRecoverableChains", required_argument, 0, 'W' },
                         { "minimumNumberOfSpecies", required_argument, 0, 'X' },
                         { "phylogenyHomologyUnitType", required_argument, 0, 'Y' },
+                        { "phylogenyDistanceCorrectionMethod", required_argument, 0, 'Z' },
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
@@ -787,6 +789,15 @@ int main(int argc, char *argv[]) {
                     st_errAbort("Could not parse the phylogenyHomologyUnitType argument");
                 }
                 break;
+            case 'Z':
+                if (strcmp(optarg, "jukesCantor") == 0) {
+                    phylogenyDistanceCorrectionMethod = JUKES_CANTOR;
+                } else if (strcmp(optarg, "none") == 0 ) {
+                    phylogenyDistanceCorrectionMethod = NONE;
+                } else {
+                    st_errAbort("Could not parse the phylogenyDistanceCorrectionMethod argument");
+                }
+                break;
             default:
                 usage();
                 return 1;
@@ -995,6 +1006,7 @@ int main(int argc, char *argv[]) {
                 stHash *threadStrings = stCaf_getThreadStrings(flower, threadSet);
                 st_logDebug("Got sets of thread strings and set of threads that are outgroups\n");
                 stCaf_PhylogenyParameters params;
+                params.distanceCorrectionMethod = phylogenyDistanceCorrectionMethod;
                 params.treeBuildingMethod = phylogenyTreeBuildingMethod;
                 params.rootingMethod = phylogenyRootingMethod;
                 params.scoringMethod = phylogenyScoringMethod;

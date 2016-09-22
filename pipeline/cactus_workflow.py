@@ -581,7 +581,8 @@ class CactusCafWrapper(CactusRecursionTarget):
                           phylogenyNucleotideScalingFactor=self.getOptionalPhaseAttrib("phylogenyNucleotideScalingFactor"),
                           removeRecoverableChains=self.getOptionalPhaseAttrib("removeRecoverableChains"),
                           minimumNumberOfSpecies=self.getOptionalPhaseAttrib("minimumNumberOfSpecies", int),
-                          phylogenyHomologyUnitType=self.getOptionalPhaseAttrib("phylogenyHomologyUnitType"))
+                          phylogenyHomologyUnitType=self.getOptionalPhaseAttrib("phylogenyHomologyUnitType"),
+                          phylogenyDistanceCorrectionMethod=self.getOptionalPhaseAttrib("phylogenyDistanceCorrectionMethod"))
         for message in messages:
             self.logToMaster(message)
     

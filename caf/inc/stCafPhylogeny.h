@@ -11,6 +11,12 @@
 #include "sonLib.h"
 #include "stPinchPhylogeny.h"
 
+// Distance-matrix correction methods.
+enum stCaf_DistanceCorrectionMethod {
+    JUKES_CANTOR, // JC69 correction.
+    NONE          // No distance correction (distances will not be additive!)
+};
+
 // Represents a region of homology, either a block or a stList of
 // chained blocks.
 typedef enum {
@@ -75,6 +81,8 @@ enum stCaf_ScoringMethod {
 
 // Parameters for a phylogeny run on a particular flower.
 typedef struct {
+    // See above for definition and options.
+    enum stCaf_DistanceCorrectionMethod distanceCorrectionMethod;
     // See above for definition and options.
     enum stCaf_TreeBuildingMethod treeBuildingMethod;
     // See above for definition and options.

@@ -521,10 +521,16 @@ static stTree *buildTree(stList *featureColumns,
     stMatrix *breakpointMatrix = stPinchPhylogeny_constructMatrixFromDiffs(breakpointDiffs, bootstrap, seed);
 
     //Combine the matrices into distance matrices
-    stMatrix_scale(breakpointMatrix, params->nucleotideScalingFactor, 0.0);
-    stMatrix_scale(breakpointMatrix, params->breakpointScalingFactor, 0.0);
-    stMatrix *combinedMatrix = stMatrix_add(substitutionMatrix, breakpointMatrix);
-    stMatrix *distanceMatrix = stPinchPhylogeny_getSymmetricDistanceMatrix(combinedMatrix);
+    stMatrix *substitutionDistanceMatrix = stPinchPhylogeny_getSymmetricDistanceMatrix(substitutionMatrix);
+    if (params->distanceCorrectionMethod == JUKES_CANTOR) {
+        stPhylogeny_applyJukesCantorCorrection(substitutionDistanceMatrix);
+    } else {
+        assert(params->distanceCorrectionMethod == NONE);
+    }
+    stMatrix *breakpointDistanceMatrix = stPinchPhylogeny_getSymmetricDistanceMatrix(breakpointMatrix);
+    stMatrix_scale(substitutionDistanceMatrix, params->nucleotideScalingFactor, 0.0);
+    stMatrix_scale(breakpointDistanceMatrix, params->breakpointScalingFactor, 0.0);
+    stMatrix *distanceMatrix = stMatrix_add(substitutionDistanceMatrix, breakpointDistanceMatrix);
 
     stTree *tree = NULL;
     if (params->rootingMethod == OUTGROUP_BRANCH) {
@@ -543,13 +549,14 @@ static stTree *buildTree(stList *featureColumns,
         if (params->treeBuildingMethod == NEIGHBOR_JOINING) {
             tree = stPhylogeny_neighborJoin(distanceMatrix, NULL);
         } else if (params->treeBuildingMethod == GUIDED_NEIGHBOR_JOINING) {
-            // FIXME: Could move this out of the function as
-            // well. It's the same for each tree generated for the
-            // block.
+            // Could move this out of the function as well. It's the
+            // same for each tree generated for the block.
             stHash *matrixIndexToJoinCostIndex = getMatrixIndexToJoinCostIndex(unit, flower, eventToSpeciesNode,
                                                                                speciesToJoinCostIndex);
-            tree = stPhylogeny_guidedNeighborJoining(combinedMatrix, joinCosts, matrixIndexToJoinCostIndex, speciesToJoinCostIndex, speciesMRCAMatrix, speciesStTree);
+            stMatrix *combinedMatrix = stMatrix_add(breakpointMatrix, substitutionMatrix);
+            tree = stPhylogeny_guidedNeighborJoining(distanceMatrix, combinedMatrix, joinCosts, matrixIndexToJoinCostIndex, speciesToJoinCostIndex, speciesMRCAMatrix, speciesStTree);
             stHash_destruct(matrixIndexToJoinCostIndex);
+            stMatrix_destruct(combinedMatrix);
         } else if (params->treeBuildingMethod == SPLIT_DECOMPOSITION) {
             tree = stPhylogeny_greedySplitDecomposition(distanceMatrix, true);
         } else {
@@ -588,7 +595,8 @@ static stTree *buildTree(stList *featureColumns,
 
     stMatrix_destruct(substitutionMatrix);
     stMatrix_destruct(breakpointMatrix);
-    stMatrix_destruct(combinedMatrix);
+    stMatrix_destruct(substitutionDistanceMatrix);
+    stMatrix_destruct(breakpointDistanceMatrix);
     stMatrix_destruct(distanceMatrix);
     return tree;
 }
