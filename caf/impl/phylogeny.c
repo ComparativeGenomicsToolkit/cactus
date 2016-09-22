@@ -1669,29 +1669,81 @@ stSet *stCaf_getBadChains(stSet *homologyUnits, TreeBuildingConstants *constants
     return ret;
 }
 
-void stCaf_printBadChainTrack(Event *eventToPrintFor, FILE *file, stSet *homologyUnits, TreeBuildingConstants *constants, stCaf_PhylogenyParameters *params, Flower *flower) {
-    stSet *badUnits = stCaf_getBadChains(homologyUnits, constants, params, flower);
+void stCaf_printBadChainTrack(Event *eventToPrintFor, FILE *file, stSet *badUnits, Flower *flower) {
     stSetIterator *it = stSet_getIterator(badUnits);
     HomologyUnit *unit;
     while ((unit = stSet_getNext(it)) != NULL) {
         assert(unit->unitType == CHAIN);
-        for (int64_t i = 0; i < stList_length(unit->unit); i++) {
-            stPinchBlock *block = stList_get(unit->unit, i);
-            stPinchBlockIt blockIt = stPinchBlock_getSegmentIterator(block);
-            stPinchSegment *segment;
-            while ((segment = stPinchBlockIt_getNext(&blockIt)) != NULL) {
-                stPinchThread *thread = stPinchSegment_getThread(segment);
-                Cap *cap = flower_getCap(flower, stPinchThread_getName(thread));
-                Event *event = cap_getEvent(cap);
 
-                if (event == eventToPrintFor) {
-                    fprintf(file, "%s\t%" PRIi64 "\t%" PRIi64 "\n", sequence_getHeader(cap_getSequence(cap)), stPinchSegment_getStart(segment) - 2, stPinchSegment_getStart(segment) + stPinchSegment_getLength(segment) - 2);
-                }
-            }
+        // To avoid O(n^2) behavior with long chains.
+        stSet *chainBlocks = stSet_construct();
+        for (int64_t i = 0; i < stList_length(unit->unit); i++) {
+            stSet_insert(chainBlocks, stList_get(unit->unit, i));
         }
+
+        // List of lists of relevant segments, which will turn into the BED12 blocks.
+        stList *chainedSegmentLists = stList_construct3(0, (void (*)(void *)) stList_destruct);
+
+        stPinchBlock *lastBlock = stList_peek(unit->unit);
+        stPinchBlockIt it = stPinchBlock_getSegmentIterator(getCanonicalBlockForHomologyUnit(unit));
+        stPinchSegment *canonicalSegment;
+        while ((canonicalSegment = stPinchBlockIt_getNext(&it)) != NULL) {
+            Cap *cap = flower_getCap(flower, stPinchSegment_getName(canonicalSegment));
+            Event *event = cap_getEvent(cap);
+            if (event != eventToPrintFor) {
+                // We aren't interested in following this thread right now.
+                continue;
+            }
+
+            stList *chainedSegmentList = stList_construct();
+            bool orientation = stPinchSegment_getBlockOrientation(canonicalSegment);
+            stPinchSegment *segment = canonicalSegment;
+            for (;;) {
+                assert(segment != NULL);
+                stPinchBlock *block = stPinchSegment_getBlock(segment);
+                if (stSet_search(chainBlocks, block)) {
+                    stList_append(chainedSegmentList, segment);
+                    if (block == lastBlock) {
+                        break;
+                    }
+                }
+                segment = orientation ? stPinchSegment_get3Prime(segment) : stPinchSegment_get5Prime(segment);
+            }
+            stList_append(chainedSegmentLists, chainedSegmentList);
+        }
+
+        // Print the BED12 lines.
+        for (int64_t i = 0; i < stList_length(chainedSegmentLists); i++) {
+            stList *chainedSegmentList = stList_get(chainedSegmentLists, i);
+            stList_sort(chainedSegmentList, (int(*)(const void *, const void *)) stPinchSegment_compare);
+            bool strand = stPinchSegment_getBlockOrientation(stList_get(chainedSegmentList, 0));
+            int64_t start = stPinchSegment_getStart(stList_get(chainedSegmentList, 0));
+            int64_t end = stPinchSegment_getStart(stList_peek(chainedSegmentList)) + stPinchSegment_getLength(stList_peek(chainedSegmentList));
+            Cap *cap = flower_getCap(flower, stPinchSegment_getName(stList_get(chainedSegmentList, 0)));
+            Sequence *sequence = cap_getSequence(cap);
+            char *name = stString_print("%p-%"PRIi64, (void *) unit->unit, i);
+            fprintf(file, "%s\t%"PRIi64"\t%"PRIi64"\t%s\t0\t%s\t%"PRIi64"\t%"PRIi64"\t0\t%"PRIi64"\t",
+                   sequence_getHeader(sequence), start, end, name, strand ? "+" : "-", start, end,
+                   stList_length(chainedSegmentList));
+            free(name);
+            // Print out block sizes.
+            for (int64_t j = 0; j < stList_length(chainedSegmentList); j++) {
+                stPinchSegment *segment = stList_get(chainedSegmentList, j);
+                fprintf(file, "%"PRIi64",", stPinchSegment_getLength(segment));
+            }
+            fprintf(file, "\t");
+            // Print out block starts.
+            for (int64_t j = 0; j < stList_length(chainedSegmentList); j++) {
+                stPinchSegment *segment = stList_get(chainedSegmentList, j);
+                fprintf(file, "%"PRIi64",", stPinchSegment_getStart(segment) - start);
+            }
+            fprintf(file, "\n");
+        }
+
+        stSet_destruct(chainBlocks);
+        stList_destruct(chainedSegmentLists);
     }
     stSet_destructIterator(it);
-    stSet_destruct(badUnits);
 }
 
 void stCaf_printBadChainSummary(stSet *homologyUnits, TreeBuildingConstants *constants, stCaf_PhylogenyParameters *params, Flower *flower) {
@@ -1788,17 +1840,19 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
 
     // Print bad chains for every ingroup.
     if (debugFilePath != NULL && unitType == CHAIN) {
+        stSet *badUnits = stCaf_getBadChains(homologyUnits, &constants, params, flower);
         EventTree *eventTree = flower_getEventTree(flower);
         EventTree_Iterator *eventIt = eventTree_getIterator(eventTree);
         Event *event;
         while ((event = eventTree_getNext(eventIt)) != NULL) {
             if (!event_isOutgroup(event) && event_getChildNumber(event) == 0) {
                 FILE *file = fopen(stString_print("%s-%s-badChains.bed", debugFilePath, event_getHeader(event)), "w");
-                stCaf_printBadChainTrack(event, file, homologyUnits, &constants, params, flower);
+                stCaf_printBadChainTrack(event, file, badUnits, flower);
                 fclose(file);
             }
         }
         eventTree_destructIterator(eventIt);
+        stSet_destruct(badUnits);
     }
 
     // The loop to build a tree for each homology unit

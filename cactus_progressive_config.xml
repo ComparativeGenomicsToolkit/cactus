@@ -112,7 +112,7 @@
                 phylogenyMaxBaseDistance="100"
                 phylogenyMaxBlockDistance="50"
                 phylogenyKeepSingleDegreeBlocks="0"
-                phylogenyTreeBuildingMethod="guidedNeighborJoining"
+                phylogenyTreeBuildingMethod="guidedNeighborJoining,splitDecomposition"
                 phylogenyCostPerDupPerBase="0.00"
                 phylogenyCostPerLossPerBase="0.02"
                 phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce="0.44"
