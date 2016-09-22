@@ -1587,18 +1587,17 @@ stSet *stCaf_getBadChains(stSet *homologyUnits, TreeBuildingConstants *constants
 
         // Get the matrix diffs.
         stMatrixDiffs *snpDiffs = stPinchPhylogeny_getMatrixDiffsFromSubstitutions(featureColumns, degree, NULL);
-        stMatrixDiffs *breakpointDiffs = stPinchPhylogeny_getMatrixDiffsFromBreakpoints(featureColumns, degree, NULL);
 
         // Make substitution matrix
         stMatrix *substitutionMatrix = stPinchPhylogeny_constructMatrixFromDiffs(snpDiffs, false, 0);
-        //Make breakpoint matrix
-        stMatrix *breakpointMatrix = stPinchPhylogeny_constructMatrixFromDiffs(breakpointDiffs, false, 0);
 
         //Combine the matrices into distance matrices
-        stMatrix_scale(breakpointMatrix, params->nucleotideScalingFactor, 0.0);
-        stMatrix_scale(breakpointMatrix, params->breakpointScalingFactor, 0.0);
-        stMatrix *combinedMatrix = stMatrix_add(substitutionMatrix, breakpointMatrix);
-        stMatrix *distanceMatrix = stPinchPhylogeny_getSymmetricDistanceMatrix(combinedMatrix);
+        stMatrix *substitutionDistanceMatrix = stPinchPhylogeny_getSymmetricDistanceMatrix(substitutionMatrix);
+        if (params->distanceCorrectionMethod == JUKES_CANTOR) {
+            stPhylogeny_applyJukesCantorCorrection(substitutionDistanceMatrix);
+        } else {
+            assert(params->distanceCorrectionMethod == NONE);
+        }
 
         // Find the species corresponding to each segment.
         stTree **indexToSpecies = st_calloc(degree, sizeof(stTree *));
@@ -1611,10 +1610,17 @@ stSet *stCaf_getBadChains(stSet *homologyUnits, TreeBuildingConstants *constants
             stPinchThread *thread = stPinchSegment_getThread(segment);
             Cap *cap = flower_getCap(flower, stPinchThread_getName(thread));
             Event *event = cap_getEvent(cap);
-            stTree *species = stHash_search(constants->eventToSpeciesNode, event);
-            assert(species != NULL);
-
-            indexToSpecies[i] = species;
+            if (!event_isOutgroup(event)) {
+                // We only want to check within ingroups, since those
+                // are the only "bad" homologies visible to the user.
+                stTree *species = stHash_search(constants->eventToSpeciesNode, event);
+                assert(species != NULL);
+                indexToSpecies[i] = species;
+            } else {
+                // Outgroups will be removed later on, so let's not
+                // check them for badness.
+                indexToSpecies[i] = NULL;
+            }
 
             i++;
         }
@@ -1622,16 +1628,25 @@ stSet *stCaf_getBadChains(stSet *homologyUnits, TreeBuildingConstants *constants
         double theta = 2.0;
         bool unitIsBad = false;
 
-        for (int64_t i = 0; i < stMatrix_m(distanceMatrix); i++) {
+        for (int64_t i = 0; i < stMatrix_m(substitutionDistanceMatrix); i++) {
             stTree *species_i = indexToSpecies[i];
-            for (int64_t j = 0; j < stMatrix_n(distanceMatrix); j++) {
+            if (species_i == NULL) {
+                // Signals this is an outgroup.
+                continue;
+            }
+            for (int64_t j = 0; j < stMatrix_n(substitutionDistanceMatrix); j++) {
                 stTree *species_j = indexToSpecies[j];
+                if (species_j == NULL) {
+                    // Signals this is an outgroup.
+                    continue;
+                }
                 if (species_i == species_j) {
+                    // Distance is automatically 0.
                     continue;
                 }
                 stTree *mrca = stTree_getMRCA(species_i, species_j);
                 double species_distance = distToAncestor(species_i, mrca) + distToAncestor(species_j, mrca);
-                if (*stMatrix_getCell(distanceMatrix, i, j) > theta * species_distance) {
+                if (*stMatrix_getCell(substitutionDistanceMatrix, i, j) > theta * species_distance) {
                     unitIsBad = true;
                     break;
                 }
@@ -1645,13 +1660,10 @@ stSet *stCaf_getBadChains(stSet *homologyUnits, TreeBuildingConstants *constants
         stList_destruct(featureBlocks);
         stList_destruct(featureColumns);
 
-        stMatrix_destruct(combinedMatrix);
-        stMatrix_destruct(breakpointMatrix);
         stMatrix_destruct(substitutionMatrix);
-        stMatrix_destruct(distanceMatrix);
+        stMatrix_destruct(substitutionDistanceMatrix);
 
         stMatrixDiffs_destruct(snpDiffs);
-        stMatrixDiffs_destruct(breakpointDiffs);
     }
     stSet_destructIterator(it);
     return ret;
@@ -1693,7 +1705,7 @@ void stCaf_printBadChainSummary(stSet *homologyUnits, TreeBuildingConstants *con
         }
     }
     stSet_destructIterator(it);
-    printf("Found %" PRIi64 " bad homology units (%" PRIi64 " single-copy) out of %" PRIi64 " total\n", stSet_size(badUnits), numSingleCopyBadUnits, stSet_size(homologyUnits));
+    printf("Found %" PRIi64 " bad chains (%" PRIi64 " single-copy) out of %" PRIi64 " total\n", stSet_size(badUnits), numSingleCopyBadUnits, stSet_size(homologyUnits));
     stSet_destruct(badUnits);
 }
 
@@ -1814,8 +1826,13 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
             " simple blocks (those with 1 event or with < 3 segments, and %"
             PRIi64 " single-copy blocks (those with (# events) = (# segments))."
             "\n", numSimpleBlocksSkipped, numSingleCopyBlocksSkipped);
+
     if (unitType == CHAIN) {
         stCaf_printBadChainSummary(homologyUnits, &constants, params, flower);
+    } else {
+        stSet *chainHomologyUnits = stCaf_getHomologyUnits(flower, threadSet, NULL, CHAIN);
+        stCaf_printBadChainSummary(chainHomologyUnits, &constants, params, flower);
+        stSet_destruct(chainHomologyUnits);
     }
 
     // All the blocks have their trees computed. Find the split
@@ -1905,6 +1922,13 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
             numSingleDegreeSegmentsDropped,
             ((float)numSingleDegreeSegmentsDropped)/stPinchThreadSet_getTotalBlockNumber(threadSet),
             numBasesDroppedFromSingleDegreeSegments);
+
+    // Get the bad chains again. NB: We have to recompute the
+    // homologyUnits set even if unitType is CHAIN, because the
+    // structure of the cactus graph may have changed.
+    stSet *chainHomologyUnits = stCaf_getHomologyUnits(flower, threadSet, NULL, CHAIN);
+    stCaf_printBadChainSummary(chainHomologyUnits, &constants, params, flower);
+    stSet_destruct(chainHomologyUnits);
 
     //Cleanup
     for (int64_t i = 0; i < stTree_getNumNodes(speciesStTree); i++) {
