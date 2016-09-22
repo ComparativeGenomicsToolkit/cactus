@@ -504,6 +504,7 @@ static double scoreTree(stTree *tree, enum stCaf_ScoringMethod scoringMethod, st
 // the rooting method.
 static stTree *buildTree(stList *featureColumns,
                          HomologyUnit *unit,
+                         enum stCaf_TreeBuildingMethod treeBuildingMethod,
                          stCaf_PhylogenyParameters *params,
                          bool bootstrap,
                          stList *outgroups,
@@ -534,21 +535,21 @@ static stTree *buildTree(stList *featureColumns,
 
     stTree *tree = NULL;
     if (params->rootingMethod == OUTGROUP_BRANCH) {
-        if (params->treeBuildingMethod == NEIGHBOR_JOINING) {
+        if (treeBuildingMethod == NEIGHBOR_JOINING) {
             tree = stPhylogeny_neighborJoin(distanceMatrix, outgroups);
         } else {
             st_errAbort("Longest-outgroup-branch rooting not supported with this method");
         }
     } else if (params->rootingMethod == LONGEST_BRANCH) {
-        if (params->treeBuildingMethod == NEIGHBOR_JOINING) {
+        if (treeBuildingMethod == NEIGHBOR_JOINING) {
             tree = stPhylogeny_neighborJoin(distanceMatrix, NULL);
         } else {
             st_errAbort("Longest-branch rooting not supported with this method");
         }
     } else if (params->rootingMethod == BEST_RECON) {
-        if (params->treeBuildingMethod == NEIGHBOR_JOINING) {
+        if (treeBuildingMethod == NEIGHBOR_JOINING) {
             tree = stPhylogeny_neighborJoin(distanceMatrix, NULL);
-        } else if (params->treeBuildingMethod == GUIDED_NEIGHBOR_JOINING) {
+        } else if (treeBuildingMethod == GUIDED_NEIGHBOR_JOINING) {
             // Could move this out of the function as well. It's the
             // same for each tree generated for the block.
             stHash *matrixIndexToJoinCostIndex = getMatrixIndexToJoinCostIndex(unit, flower, eventToSpeciesNode,
@@ -557,16 +558,16 @@ static stTree *buildTree(stList *featureColumns,
             tree = stPhylogeny_guidedNeighborJoining(distanceMatrix, combinedMatrix, joinCosts, matrixIndexToJoinCostIndex, speciesToJoinCostIndex, speciesMRCAMatrix, speciesStTree);
             stHash_destruct(matrixIndexToJoinCostIndex);
             stMatrix_destruct(combinedMatrix);
-        } else if (params->treeBuildingMethod == SPLIT_DECOMPOSITION) {
+        } else if (treeBuildingMethod == SPLIT_DECOMPOSITION) {
             tree = stPhylogeny_greedySplitDecomposition(distanceMatrix, true);
         } else {
-            assert(params->treeBuildingMethod == STRICT_SPLIT_DECOMPOSITION);
+            assert(treeBuildingMethod == STRICT_SPLIT_DECOMPOSITION);
             tree = stPhylogeny_greedySplitDecomposition(distanceMatrix, true);
         }
         stHash *leafToSpecies = getLeafToSpecies(tree, unit, flower,
                                                  eventToSpeciesNode);
         stTree *newTree;
-        if (params->treeBuildingMethod == NEIGHBOR_JOINING || params->treeBuildingMethod == GUIDED_NEIGHBOR_JOINING) {
+        if (treeBuildingMethod == NEIGHBOR_JOINING || treeBuildingMethod == GUIDED_NEIGHBOR_JOINING) {
             // No polytomies are possible, so we can use the efficient method.
             newTree = stPhylogeny_rootByReconciliationAtMostBinary(tree, leafToSpecies);    // Needed for likelihood methods not to have 0/100% probabilities
             // overly often (normally, almost every other leaf has a branch
@@ -950,6 +951,39 @@ static void pushHomologyUnitToPool(HomologyUnit *unit,
     stThreadPool_push(threadPool, input);
 }
 
+static stTree *chooseBestAndMostResolvedTree(stList *trees,
+                                             enum stCaf_ScoringMethod scoringMethod,
+                                             stTree *speciesStTree,
+                                             Flower *flower, stList *featureColumns,
+                                             stHash *eventToSpeciesNode) {
+    double maxScore = -INFINITY;
+    stTree *bestTree = NULL;
+    for (int64_t i = 0; i < stList_length(trees); i++) {
+        stTree *tree = stList_get(trees, i);
+        double score = scoreTree(tree, scoringMethod,
+                                 speciesStTree,
+                                 flower, featureColumns,
+                                 eventToSpeciesNode);
+        // Choose the best-scoring tree, and, as a tie-breaker, the
+        // one with the most nodes (this should mean that it is more
+        // resolved, since the number of leaves is constant).
+        if (score > maxScore || (score == maxScore && stTree_getNumNodes(tree) > stTree_getNumNodes(bestTree))) {
+            maxScore = score;
+            bestTree = tree;
+        }
+    }
+
+    if(bestTree == NULL) {
+        // Can happen if/when the nucleotide likelihood score
+        // is used and a block is all N's. Just use the
+        // first tree in that case.
+        bestTree = stList_get(trees, 0);
+    }
+
+    assert(bestTree != NULL);
+    return bestTree;
+}
+
 // Gets run as a worker in a thread.
 static TreeBuildingResult *buildTreeForHomologyUnit(TreeBuildingInput *input) {
     HomologyUnit *unit = input->homologyUnit;
@@ -1012,74 +1046,80 @@ static TreeBuildingResult *buildTreeForHomologyUnit(TreeBuildingInput *input) {
     // per tree...
     unsigned int mySeed = rand();
 
-    // Build the canonical tree.
-    stTree *canonicalTree = buildTree(featureColumns, unit, params,
-                                      0, outgroups, input->constants->flower,
-                                      input->constants->speciesStTree,
-                                      input->constants->joinCosts,
-                                      input->constants->speciesToJoinCostIndex,
-                                      input->constants->speciesMRCAMatrix,
-                                      input->constants->eventToSpeciesNode,
-                                      snpDiffs, breakpointDiffs, &mySeed);
+    stList *bestTrees = stList_construct();
 
-    // Sample the rest of the trees.
-    stList *trees = stList_construct();
-    stList_append(trees, canonicalTree);
-    for (int64_t i = 0; i < params->numTrees - 1; i++) {
-        stTree *tree = buildTree(featureColumns, unit, params,
-                                 1, outgroups, input->constants->flower,
-                                 input->constants->speciesStTree,
-                                 input->constants->joinCosts,
-                                 input->constants->speciesToJoinCostIndex,
-                                 input->constants->speciesMRCAMatrix,
-                                 input->constants->eventToSpeciesNode,
-                                 snpDiffs, breakpointDiffs, &mySeed);
-        stList_append(trees, tree);
+    for (int64_t i = 0; i < stList_length(params->treeBuildingMethods); i++) {
+        enum stCaf_TreeBuildingMethod *treeBuildingMethod = stList_get(params->treeBuildingMethods, i);
+        // Build the canonical tree.
+        stTree *canonicalTree = buildTree(featureColumns, unit, *treeBuildingMethod,
+                                          params, 0, outgroups,
+                                          input->constants->flower,
+                                          input->constants->speciesStTree,
+                                          input->constants->joinCosts,
+                                          input->constants->speciesToJoinCostIndex,
+                                          input->constants->speciesMRCAMatrix,
+                                          input->constants->eventToSpeciesNode,
+                                          snpDiffs, breakpointDiffs, &mySeed);
+
+        // Sample the rest of the trees.
+        stList *trees = stList_construct();
+        stList_append(trees, canonicalTree);
+        for (int64_t i = 0; i < params->numTrees - 1; i++) {
+            stTree *tree = buildTree(featureColumns, unit, *treeBuildingMethod,
+                                     params, 1, outgroups, input->constants->flower,
+                                     input->constants->speciesStTree,
+                                     input->constants->joinCosts,
+                                     input->constants->speciesToJoinCostIndex,
+                                     input->constants->speciesMRCAMatrix,
+                                     input->constants->eventToSpeciesNode,
+                                     snpDiffs, breakpointDiffs, &mySeed);
+            stList_append(trees, tree);
+        }
+
+        // Get the best-scoring tree.
+        stTree *bestTree = chooseBestAndMostResolvedTree(trees, params->scoringMethod,
+                                                         input->constants->speciesStTree,
+                                                         input->constants->flower, featureColumns,
+                                                         input->constants->eventToSpeciesNode);
+
+        // Update the bootstrap support for each branch.
+        stTree *bootstrapped = stPhylogeny_scoreReconciliationFromBootstraps(bestTree, trees);
+
+        // Cleanup
+        for (int64_t i = 0; i < stList_length(trees); i++) {
+            stTree *tree = stList_get(trees, i);
+            stPhylogenyInfo_destructOnTree(tree);
+            stTree_destruct(tree);
+        }
+        stList_destruct(trees);
+        stList_append(bestTrees, bootstrapped);
     }
+
+    // Now we have bootstrapped trees that are the best for each
+    // method. Choose the "bestest" tree from these "best" trees.
+    stTree *bestTree = chooseBestAndMostResolvedTree(bestTrees, params->scoringMethod,
+                                                     input->constants->speciesStTree,
+                                                     input->constants->flower, featureColumns,
+                                                     input->constants->eventToSpeciesNode);
+
+    for (int64_t i = 0; i < stList_length(bestTrees); i++) {
+        stTree *tree = stList_get(bestTrees, i);
+        if (tree != bestTree) {
+            stPhylogenyInfo_destructOnTree(tree);
+            stTree_destruct(tree);
+        }
+    }
+    stList_destruct(bestTrees);
 
     stMatrixDiffs_destruct(snpDiffs);
     stMatrixDiffs_destruct(breakpointDiffs);
 
-    // Get the best-scoring tree.
-    double maxScore = -INFINITY;
-    stTree *bestTree = NULL;
-    for (int64_t i = 0; i < stList_length(trees); i++) {
-        stTree *tree = stList_get(trees, i);
-        double score = scoreTree(tree, params->scoringMethod,
-                                 input->constants->speciesStTree,
-                                 input->constants->flower, featureColumns,
-                                 input->constants->eventToSpeciesNode);
-        if (score > maxScore) {
-            maxScore = score;
-            bestTree = tree;
-        }
-    }
-
-    if(bestTree == NULL) {
-        // Can happen if/when the nucleotide likelihood score
-        // is used and a block is all N's. Just use the
-        // canonical NJ tree in that case.
-        bestTree = canonicalTree;
-    }
-
-    assert(bestTree != NULL);
-
-    // Update the bootstrap support for each branch.
-    stTree *bootstrapped = stPhylogeny_scoreReconciliationFromBootstraps(bestTree, trees);
-
-    // Cleanup
-    for (int64_t i = 0; i < stList_length(trees); i++) {
-        stTree *tree = stList_get(trees, i);
-        stPhylogenyInfo_destructOnTree(tree);
-        stTree_destruct(tree);
-    }
-    stList_destruct(trees);
     stList_destruct(featureColumns);
     stList_destruct(featureBlocks);
     stList_destruct(outgroups);
     free(input);
 
-    ret->tree = bootstrapped;
+    ret->tree = bestTree;
 
     return ret;
 }

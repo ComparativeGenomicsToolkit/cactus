@@ -84,11 +84,11 @@ typedef struct {
     // See above for definition and options.
     enum stCaf_DistanceCorrectionMethod distanceCorrectionMethod;
     // See above for definition and options.
-    enum stCaf_TreeBuildingMethod treeBuildingMethod;
-    // See above for definition and options.
     enum stCaf_RootingMethod rootingMethod;
     // See above for definition and options.
     enum stCaf_ScoringMethod scoringMethod;
+    // A list of pointers to stCaf_TreeBuildingMethod enums.
+    stList *treeBuildingMethods;
     // The amount to weight the breakpoint information in the graph
     // by. Importantly, this is not relative to the substitution
     // information, but just scales the raw breakpoint

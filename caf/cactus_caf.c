@@ -505,7 +505,9 @@ int main(int argc, char *argv[]) {
     int64_t phylogenyMaxBaseDistance = 1000;
     int64_t phylogenyMaxBlockDistance = 100;
     bool phylogenyKeepSingleDegreeBlocks = 0;
-    enum stCaf_TreeBuildingMethod phylogenyTreeBuildingMethod = GUIDED_NEIGHBOR_JOINING;
+    stList *phylogenyTreeBuildingMethods = stList_construct();
+    enum stCaf_TreeBuildingMethod defaultMethod = GUIDED_NEIGHBOR_JOINING;
+    stList_append(phylogenyTreeBuildingMethods, &defaultMethod);
     double phylogenyCostPerDupPerBase = 0.2;
     double phylogenyCostPerLossPerBase = 0.2;
     const char *debugFileName = NULL;
@@ -710,17 +712,28 @@ int main(int argc, char *argv[]) {
                 phylogenyKeepSingleDegreeBlocks = true;
                 break;
             case 'M':
-                if (strcmp(optarg, "neighborJoining") == 0) {
-                    phylogenyTreeBuildingMethod = NEIGHBOR_JOINING;
-                } else if (strcmp(optarg, "guidedNeighborJoining") == 0) {
-                    phylogenyTreeBuildingMethod = GUIDED_NEIGHBOR_JOINING;
-                } else if (strcmp(optarg, "splitDecomposition") == 0) {
-                    phylogenyTreeBuildingMethod = SPLIT_DECOMPOSITION;
-                } else if (strcmp(optarg, "strictSplitDecomposition") == 0) {
-                    phylogenyTreeBuildingMethod = STRICT_SPLIT_DECOMPOSITION;
-                } else {
-                    st_errAbort("Unknown tree building method: %s", optarg);
+                // clear the default setting of the list
+                stList_destruct(phylogenyTreeBuildingMethods);
+                phylogenyTreeBuildingMethods = stList_construct();
+                stList *methodStrings = stString_splitByString(optarg, ",");
+
+                for (int64_t i = 0; i < stList_length(methodStrings); i++) {
+                    char *methodString = stList_get(methodStrings, i);
+                    enum stCaf_TreeBuildingMethod *method = st_malloc(sizeof(enum stCaf_TreeBuildingMethod));
+                    if (strcmp(methodString, "neighborJoining") == 0) {
+                        *method = NEIGHBOR_JOINING;
+                    } else if (strcmp(methodString, "guidedNeighborJoining") == 0) {
+                        *method = GUIDED_NEIGHBOR_JOINING;
+                    } else if (strcmp(methodString, "splitDecomposition") == 0) {
+                        *method = SPLIT_DECOMPOSITION;
+                    } else if (strcmp(methodString, "strictSplitDecomposition") == 0) {
+                        *method = STRICT_SPLIT_DECOMPOSITION;
+                    } else {
+                        st_errAbort("Unknown tree building method: %s", methodString);
+                    }
+                    stList_append(phylogenyTreeBuildingMethods, method);
                 }
+                stList_destruct(methodStrings);
                 break;
             case 'N':
                 k = sscanf(optarg, "%lf", &phylogenyCostPerDupPerBase);
@@ -1007,7 +1020,7 @@ int main(int argc, char *argv[]) {
                 st_logDebug("Got sets of thread strings and set of threads that are outgroups\n");
                 stCaf_PhylogenyParameters params;
                 params.distanceCorrectionMethod = phylogenyDistanceCorrectionMethod;
-                params.treeBuildingMethod = phylogenyTreeBuildingMethod;
+                params.treeBuildingMethods = phylogenyTreeBuildingMethods;
                 params.rootingMethod = phylogenyRootingMethod;
                 params.scoringMethod = phylogenyScoringMethod;
                 params.breakpointScalingFactor = breakpointScalingFactor;
