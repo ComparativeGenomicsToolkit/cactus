@@ -164,6 +164,13 @@ stList *stCaf_splitChain(stList *chainedBlocks, stList *partitions, bool allowSi
     // first thing we do is form a map from canonical block segment #
     // to block segment # for each block in the chain.
     stHash *blockToCanonicalBlockIndexToBlockIndex = stHash_construct2(NULL, (void (*)(void *)) stHash_destruct);
+
+    for (int64_t i = 0; i < stList_length(chainedBlocks); i++) {
+        stPinchBlock *block = stList_get(chainedBlocks, i);
+        stHash *canonicalBlockIndexToBlockIndex = stHash_construct3((uint64_t (*)(const void *)) stIntTuple_hashKey, (int (*)(const void *, const void *)) stIntTuple_equalsFn, (void (*)(void *)) stIntTuple_destruct, (void (*)(void *)) stIntTuple_destruct);
+        stHash_insert(blockToCanonicalBlockIndexToBlockIndex, block, canonicalBlockIndexToBlockIndex);
+    }
+
     stPinchBlock *canonicalBlock = stList_get(chainedBlocks, 0);
     stPinchBlock *lastBlock = stList_get(chainedBlocks, stList_length(chainedBlocks) - 1);
     stPinchBlockIt blockIt = stPinchBlock_getSegmentIterator(canonicalBlock);
@@ -173,12 +180,8 @@ stList *stCaf_splitChain(stList *chainedBlocks, stList *partitions, bool allowSi
         bool originalOrientation = stPinchSegment_getBlockOrientation(segment);
         for (;;) {
             stPinchBlock *block = stPinchSegment_getBlock(segment);
-            if (block != NULL) {
+            if (block != NULL && stHash_search(blockToCanonicalBlockIndexToBlockIndex, block)) {
                 stHash *canonicalBlockIndexToBlockIndex = stHash_search(blockToCanonicalBlockIndexToBlockIndex, block);
-                if (canonicalBlockIndexToBlockIndex == NULL) {
-                    canonicalBlockIndexToBlockIndex = stHash_construct3((uint64_t (*)(const void *)) stIntTuple_hashKey, (int (*)(const void *, const void *)) stIntTuple_equalsFn, (void (*)(void *)) stIntTuple_destruct, (void (*)(void *)) stIntTuple_destruct);
-                    stHash_insert(blockToCanonicalBlockIndexToBlockIndex, block, canonicalBlockIndexToBlockIndex);
-                }
                 stIntTuple *canonicalBlockIndexTuple = stIntTuple_construct1(canonicalBlockIndex);
                 assert(stHash_search(canonicalBlockIndexToBlockIndex, canonicalBlockIndexTuple) == NULL);
 
@@ -1384,12 +1387,32 @@ static void correctChainOrder(stList *chain) {
         // The order is trivially correct.
         return;
     }
+    stHash *blockToChainIndex = stHash_construct2(NULL, (void (*)(void *)) stIntTuple_destruct);
+    for (int64_t i = 0; i < stList_length(chain); i++) {
+        stPinchBlock *block = stList_get(chain, i);
+        stHash_insert(blockToChainIndex, block, stIntTuple_construct1(i));
+    }
+
     stPinchSegment *segment = stPinchBlock_getFirst(stList_get(chain, 0));
-    stPinchBlock *secondBlock = stList_get(chain, 1);
     bool orientation = stPinchSegment_getBlockOrientation(segment);
+    int64_t i = 0;
     for (;;) {
+        bool wrongDirection = false;
         if (segment == NULL) {
             // Ran into end of thread without reaching second block--the chain's orientations should be reversed.
+            wrongDirection = true;
+        } else if (stHash_search(blockToChainIndex, stPinchSegment_getBlock(segment))) {
+            int64_t chainIndex = stIntTuple_get(stHash_search(blockToChainIndex, stPinchSegment_getBlock(segment)), 0);
+            if (chainIndex == i + 1) {
+                i = i + 1;
+            } else if (segment != stPinchBlock_getFirst(stList_get(chain, 0))) {
+                wrongDirection = true;
+            }
+            if (chainIndex == stList_length(chain) - 1) {
+                break;
+            }
+        }
+        if (wrongDirection) {
             for (int64_t i = 0; i < stList_length(chain); i++) {
                 stPinchBlock *block = stList_get(chain, i);
                 stPinchBlockIt it = stPinchBlock_getSegmentIterator(block);
@@ -1397,14 +1420,38 @@ static void correctChainOrder(stList *chain) {
                     stPinchSegment_setBlockOrientation(segment, !stPinchSegment_getBlockOrientation(segment));
                 }
             }
-            return;
-        }
-        if (stPinchSegment_getBlock(segment) == secondBlock) {
-            // Chain is in correct order.
-            return;
+            break;
         }
         segment = orientation ? stPinchSegment_get3Prime(segment) : stPinchSegment_get5Prime(segment);
     }
+
+    #ifndef NDEBUG
+    // Check that the chain order is actually correct.
+    stPinchBlockIt it = stPinchBlock_getSegmentIterator(stList_get(chain, 0));
+    while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
+        bool orientation = stPinchSegment_getBlockOrientation(segment);
+        int64_t i = 0;
+        for (;;) {
+            if (stHash_search(blockToChainIndex, stPinchSegment_getBlock(segment))) {
+                int64_t chainIndex = stIntTuple_get(stHash_search(blockToChainIndex, stPinchSegment_getBlock(segment)), 0);
+                assert(chainIndex == i || chainIndex == i + 1);
+                if (chainIndex == i + 1) {
+                    i = chainIndex;
+                }
+                if (chainIndex == stList_length(chain) - 1) {
+                    break;
+                }
+            }
+            segment = orientation ? stPinchSegment_get3Prime(segment) : stPinchSegment_get5Prime(segment);
+            // If the segment is NULL we've hit the end of the thread
+            // before we hit the end of the chain--there is an error
+            // in the input somewhere.
+            assert(segment != NULL);
+        }
+    }
+    #endif
+
+    stHash_destruct(blockToChainIndex);
 }
 
 static stList *getChainsFromCactusGraph(stCactusGraph *cactusGraph, stCactusNode *startCactusNode) {
