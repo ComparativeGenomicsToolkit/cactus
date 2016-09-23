@@ -353,8 +353,6 @@ static void printThreadSetStatistics(stPinchThreadSet *threadSet, Flower *flower
         double support = 0.0;
         if (possibleSupportingHomologies != 0) {
             support = ((double) supportingHomologies) / possibleSupportingHomologies;
-        } else {
-            assert(supportingHomologies == 0);
         }
         blockSupports[i] = support;
         totalSupport += support;
