@@ -34,51 +34,67 @@ typedef struct Params {
 } Params;
 
 
-class SeedSampler {
+class CompactedVertex {
     private:
-        Params params;
-        std::string sequence;
+        int position;
+        std::map<int, int> edges;
+        int multiplicity;
+    public:
+        void addEdge(int toId);
+        int stepForward();
+        int getPosition() {return position;}
+        int getMultiplicity() {return multiplicity;}
+        CompactedVertex(int _position): position(_position) {}
+};
 
-        JunctionPositions junctionPositions;
-        PositionToJunction positionToJunction;
-        std::ofstream *statsFile = NULL;
+int CompactedVertex::stepForward() {
+    int highestMultiplicity = 0;
+    int bestEdge = 0;
+    for (auto &kv : edges) {
+        if (kv.second > highestMultiplicity) {
+            highestMultiplicity = kv.second;
+            bestEdge = kv.first;
+        }
+    }
+    return bestEdge;
+}
+void CompactedVertex::addEdge(int id) {
+    edges[id] += 1;
+    multiplicity += 1;
+}
+
+class CompactedDeBruijn {
+    private:
+        std::map<int, Vertex*> vertices;
+        std::string sequence;
+        const Params &params;
 
     public:
-        int getJunctionID(int position);
-        int extendPath(bool forward, std::vector<int> *positions);
-        int getMultiplicity(int position);
-        std::vector<int> *getPositions(int position);
-        SeedProbabilities sampleHighMultiplicityPaths();
-        std::string kmerToSeed(std::string kmer);
-        SeedProbabilities seedMultiplicity();
-        SeedSampler(const std::string &sequenceFilename, 
-                const std::string &graphFilename, 
-                const std::string &statsFilename,
-                const Params &params);
-        ~SeedSampler();
-                
-
+        CompactedDeBruijn(const std::string &sequenceFilename, 
+                const std::string &graphFilename,
+                const Params &_params);
+        std::map<std::string, int> findHighMultiplicityPaths();
 
 };
 
-SeedSampler::SeedSampler(const std::string &sequenceFilename,
-        const std::string &graphFilename, 
-        const std::string &statsFilename, 
-        const Params &_params) {
-
-    if (!statsFilename.empty()) {
-        statsFile = new std::ofstream(statsFilename);
-    }
-
+CompactedDeBruijn::CompactedDeBruijn(const std::string &sequenceFilename,
+        const std::string &graphFilename): params(_params) {
     params = _params;
     TwoPaCo::JunctionPosition pos;
     TwoPaCo::JunctionPositionReader reader(graphFilename.c_str());
 
 
+    reader.NextJunctionPosition(pos);
+    int prevId = pos.GetId();
+    vertices[prevId] = new Vertex(pos.GetPos());
     //Index junction IDs by position and position by junction ID
     while (reader.NextJunctionPosition(pos)) {
-        positionToJunction[pos.GetPos()] = pos.GetId();
-        junctionPositions[pos.GetId()].push_back(pos.GetPos());
+        int id = pos.GetId();
+        if (!vertices.count(id)) {
+            vertices[id] = new Vertex(pos.GetPos());
+        }
+        vertices[prevId].addEdge(id);
+
 
     }
 
@@ -90,131 +106,53 @@ SeedSampler::SeedSampler(const std::string &sequenceFilename,
             sequence.push_back(ch);
         }
     }
-
-
 }
 
-SeedSampler::~SeedSampler() {
-    if (statsFile) {
-        statsFile->close();
-        delete statsFile;
-    }
-}
+std::map<std::string, int> findHighMultiplicityPaths() {
+    std::set<int> seen;
+    std::vector<int> path;
+    std::map<std::string, int> kmerMultiplicity;
 
-std::vector<int> * SeedSampler::getPositions(int position) {
-    if(positionToJunction.count(position)) {
-        int junctionID = positionToJunction[position];
-        return &(junctionPositions[junctionID]);
-    }
-    return NULL;
+    Vertex* v = NULL;
+    for (auto &kv : vertices) {
+        int id = kv.first;
+        v = kv.second;
+        if(seen.find(v) != v.back()) continue;
 
-}
+        //Try to extend a high-multiplicity path starting at
+        //this vertex
+        int pathWeight = 0;
+        int multiplicity = v->getMultiplicity();
+        while (multiplicity > params.minPathMultiplicity) {
 
-int SeedSampler::getMultiplicity(int position) {
-    if (positionToJunction.count(position)) {
-        int id = positionToJunction[position];
-        return junctionPositions[id].size();
-    }
-    else {
-        return 1;
-    }
-}
+            //Don't traverse cycles
+            if(std::find(path, id) != path.back()) break;
+
+            path.push_back(id);
+            seen.insert(id);
+            pathWeight += multiplicity;
 
 
-int SeedSampler::extendPath(bool forward, std::vector<int> *positions) {
-
-    //Find the highest multiplicity adjacent vertex in the given direction
-    int bestPosition = 0;
-    int maxMultiplicity = 0;
-    for (int position : *positions) {
-        int adjPos = (forward) ? position + 1 : position - 1;
-        int adjMultiplicity = this->getMultiplicity(adjPos);
-        if (adjMultiplicity > maxMultiplicity) {
-            maxMultiplicity = adjMultiplicity;
-            bestPosition = adjPos;
-        }
-    }
-    return bestPosition;
-}
-
-SeedProbabilities SeedSampler::sampleHighMultiplicityPaths() {
-
-    //IDs of junctions that have already been included in a path
-    std::vector<int> seen;
-
-    //Integrated multiplicity of the path
-    //that contains each kmer
-    SeedProbabilities seedProbabilities;
-
-
-    //Try to find a high multiplicity path starting at each junction
-    for (auto &kv : positionToJunction) {
-        int junctionID = kv.second;
-        int multiplicity = getMultiplicity(junctionID);
-
-        //list of positions in this path
-        std::vector<int> path;
-        std::vector<int> *positions = &(junctionPositions[junctionID]);
-
-        //extend the path in both directions by moving to the highest
-        //multiplicity adjacent position, unless the path becomes too "thin"
-        double pathWeight = (double)multiplicity;
-        double pathLength = 1.0;
-
-        while((pathWeight/pathLength > params.pathThreshold) && (pathLength < params.maxPathLength)) {
-            //Add the current junction to the path, using the first
-            //position in the list as its representative
-            path.push_back(positions->at(0));
-
-            int newPosition = this->extendPath(true, positions);
-            pathWeight += (double)getMultiplicity(newPosition);
-            pathLength += 1.0;
-            positions = getPositions(newPosition);
-            if (!positions) {
-                positions = new std::vector<int>();
-                positions->push_back(newPosition);
-            }
-        }
-        std::cerr << "Found path with length " << pathLength << " and weight "
-            << pathWeight << std::endl;
-        assert(statsFile);
-        if(statsFile) {
-            *statsFile << pathLength << "\t" << pathWeight << std::endl;
-        }
-
-
-        //Go through the path and set the score of each kmer
-        //to the integrated multiplicity of the path
-        for (int position : path) {
-            std::string kmer = sequence.substr(position, params.k);
-            std::string seed = this->kmerToSeed(kmer);
-            if (pathWeight > params.scoreThreshold) {
-                seedProbabilities[seed] = edgeProbabilityToCollapseGraph(pathWeight, 0.9);
-            }
+            id = v->stepForward();
+            v = vertices[id];
+            multiplicity = v->getMultiplicity();
 
         }
+        if (path.size() == 0) continue;
 
+        int pathStart = vertices[path[0]]->getPosition();
+        int pathStop = vertices[path.back()]->getPosition();
+        for (int i = pathStart; i < pathStop + params.k; i++) {
+            kmerMultiplicity[sequence.substr(i, params.k)] = pathWeight;
+        }
+        path.clear();
 
     }
-    return seedProbabilities;
 }
 
-SeedProbabilities SeedSampler::seedMultiplicity() {
-    SeedProbabilities seedProbs;
-    for (auto &kv : junctionPositions) {
-        int junctionID = kv.first;
-        std::vector<int> positions = kv.second;
-        int multiplicity = positions.size();
-        std::string kmer = sequence.substr(positions[0], params.k);
-        std::string seed = this->kmerToSeed(kmer);
-        seedProbs[seed] = edgeProbabilityToCollapseGraph(multiplicity, 0.9);
-    }
-    return seedProbs;
-
-}
-
-std::string SeedSampler::kmerToSeed(std::string kmer) {
+std::string kmerToSeed(std::string kmer, std::string seedPattern) {
     std::string seed;
+    assert (kmer.length() == seedPattern.length());
     for (int i = 0; i < kmer.length(); i++) {
         if (params.seedPattern[i] == '0') {
             seed += 'x';
@@ -323,13 +261,14 @@ int main(int argc, char **argv) {
                 break;
         }
     }
-    SeedSampler seedSampler(sequenceFilename, graphFilename, statsFilename, params);
+    std::map<unsigned int, int> seedMultiplciity = parseLastzTable(lastzFilename);
     SeedProbabilities seedProbabilities;
     if (seedMultiplicity) {
-        seedProbabilities = seedSampler.seedMultiplicity();
+        seedProbabilities = seedProbabilitiesFromSeedMultiplicity(seedMultiplicity);
     }
     else if (highMultiplicityPath) {
-        seedProbabilities = seedSampler.sampleHighMultiplicityPaths();
+        CompactedDeBruijn graph(sequenceFilename, graphFilename, params);
+        seedProbabilities = seedProbabilitiesFromPathMultiplicity(seedMultiplicity, graph);
     }
 
 
