@@ -22,6 +22,27 @@ double edgeProbabilityToCollapseGraph(int n, double threshold) {
     return 1.0 - pow((1.0 - threshold)/(double)n, 1.0/((double)(n - 1)));
 }
 
+void reverseCompliment(std::string &seq) {
+    std::reverse(seq.begin(), seq.end());
+    for (int i = 0; i < seq.length(); i++) {
+        switch(seq[i]) {
+            case 'A':
+                seq[i] = 'T';
+                break;
+            case 'T':
+                seq[i] = 'A';
+                break;
+            case 'G':
+                seq[i] = 'C';
+                break;
+            case 'C':
+                seq[i] = 'G';
+                break;
+        }
+    }
+}
+
+
 
 std::string kmerToSeed(std::string kmer, std::string seedPattern) {
     std::string seed;
@@ -37,6 +58,7 @@ std::string kmerToSeed(std::string kmer, std::string seedPattern) {
     }
     return seed;
 }
+
 
 
 typedef struct Params {
@@ -56,35 +78,37 @@ struct Edge {
 
 };
 
+typedef struct Repeat {
+    std::string sequence;
+    int multiplicity;
+} Repeat;
+
 
 class CompactedDeBruijn {
     private:
         std::map<int, Edge*> edges;
         const Params &params;
-        std::string genome;
+        std::string &genome;
         std::ofstream *statsFile;
 
     public:
         CompactedDeBruijn(const std::string &graphFilename,
-            const std::vector<std::string> &genomes, const Params &_params,
+            std::string &_genome, const Params &_params,
             std::ofstream *_statsFile);
-        std::map<std::string, double> findHighMultiplicityPaths(const std::string &seedPattern, std::map<std::string, std::string> &seedToPacked);
+        std::vector<Repeat*> getRepeatsFromHighMultiplicityPaths();
 
 };
 
 CompactedDeBruijn::CompactedDeBruijn(const std::string &graphFilename, 
-        const std::vector<std::string> &genomes, const Params &_params, 
-        std::ofstream *_statsFile): params(_params), statsFile(_statsFile) {
+        std::string &_genome, const Params &_params, 
+        std::ofstream *_statsFile): genome(_genome), params(_params), statsFile(_statsFile) {
 
     TwoPaCo::JunctionPosition end;
     TwoPaCo::JunctionPosition begin;
-    ChrReader chrReader(genomes);
     TwoPaCo::JunctionPositionReader reader(graphFilename.c_str());
 
 
-    chrReader.NextChr(genome);
     Edge *prevEdge = NULL;
-    std::cerr << "Genome length = " << genome.length() << std::endl;
     if (reader.NextJunctionPosition(begin)) {
         while (reader.NextJunctionPosition(end)) {
             Segment *segment = new Segment(begin, end, genome[begin.GetPos() + params.k],
@@ -114,16 +138,16 @@ CompactedDeBruijn::CompactedDeBruijn(const std::string &graphFilename,
 }
 
 
-std::map<std::string, double> CompactedDeBruijn::findHighMultiplicityPaths(const std::string &seedPattern, std::map<std::string, std::string> &seedToPacked) {
-    std::map<std::string, double> seedProbabilities;
+std::vector<Repeat*> CompactedDeBruijn::getRepeatsFromHighMultiplicityPaths() {
+    std::vector<Repeat*> repeats;
 
     std::set<int> seen;
 
 
     Edge *edge;
-    for (auto &kv : edges) {
-        int edgeId = kv.first;
-        edge = kv.second;
+    for (auto &it : edges) {
+        int edgeId = it.first;
+        edge = it.second;
 
         if(seen.count(edge->id)) continue;
 
@@ -146,7 +170,6 @@ std::map<std::string, double> CompactedDeBruijn::findHighMultiplicityPaths(const
             else {
                 segment.assign(TwoPaCo::DnaChar::ReverseCompliment(genome.substr(edge->start, (edge->end - edge->end) + params.k)));
             }
-            std::cerr << "Appending " << segment << " to path" << std::endl;
 
             path.append(segment);
             pathEdges.insert(edge->id);
@@ -165,20 +188,65 @@ std::map<std::string, double> CompactedDeBruijn::findHighMultiplicityPaths(const
             edge = bestEdge;
         }
         if (path.length() == 0) continue;
-        std::cerr << "Found path " << path << std::endl;
 
         *statsFile << path.length() << " " << pathWeight << std::endl;
-        //Go through the path and set the seed multiplicities
-        for (int i = 0; i < path.length() - params.k; i++) {
-            std::string seed = kmerToSeed(path.substr(i, params.k), seedPattern);
-            std::string packed = seedToPacked[seed];
-            seedProbabilities[packed] = edgeProbabilityToCollapseGraph(pathWeight, CONFIDENCE);
-        }
+        Repeat *newRepeat = new Repeat();
+        newRepeat->sequence = path;
+        newRepeat->multiplicity = pathWeight;
+        repeats.push_back(newRepeat);
         path.clear();
         pathEdges.clear();
     }
-    return seedProbabilities;
+    return repeats;
 
+}
+std::vector<Repeat*> getRepeatsFromRepeatMasker(std::string &repeatMaskerFilename, std::string &genome) {
+
+    std::map<std::string, Repeat*> repeats;
+
+    std::ifstream repeatMaskerFile(repeatMaskerFilename);
+    std::string line;
+    int score;
+    double div, del, ins;
+    char query[10];
+
+    unsigned long query_start, query_end;
+    char query_left[100];
+    char strand[10];
+    char repeatFamily[100];
+    char repeatClass[100];
+    int a[100], b[100], c[100], d[100];
+    while (std::getline(repeatMaskerFile, line)) {
+
+        sscanf(line.c_str(), "%d %lf %lf %lf %s %lu %lu %s %s %s %s %s %s %s\n", &score, &div, &del, 
+                &ins, &query, &query_start, &query_end, query_left, strand, repeatFamily, repeatClass, 
+                a, b, c, d);
+
+        std::string repFamily(repeatFamily);
+        std::string repClass(repeatClass);
+
+        if (!repeats.count(repFamily)) {
+            repeats[repFamily] = new Repeat();
+            repeats[repFamily]->multiplicity = 1;
+            if ((query_start > genome.length()) || (query_end > genome.length())) continue;
+            std::string repSequence = genome.substr(query_start, query_end - query_start);
+            if (repSequence.length() == 0) continue;
+            //if (strand.compare("C") == 0) {
+            //    reverseCompliment(repSequence);
+            //}
+            repeats[repFamily]->sequence.assign(repSequence);
+        }
+        else {
+            repeats[repFamily]->multiplicity++;
+        }
+
+    }
+    std::vector<Repeat*> repeatList;
+    for (auto &it : repeats) {
+        repeatList.push_back(it.second);
+    }
+
+    return repeatList;
 }
 
 
@@ -189,13 +257,16 @@ int main(int argc, char **argv) {
     std::string sequenceFilename;
     std::string lastzFilename;
     std::string statsFilename;
+    std::string repeatMaskerFilename;
     int seedMultiplicity = 0;
     int pathMultiplicity = 0;
+    int useRepeatMasker = 0;
     struct option longopts[] = {
         {"graphFile", required_argument, 0, 'a'},
         {"sequenceFile", required_argument, 0, 'b'},
         {"lastzFile", required_argument, 0, 'd'},
         {"statsFile", required_argument, 0, 'j'},
+        {"repeatMaskerFile", required_argument, 0, 'k'},
 
         {"k", required_argument, 0, 'e'},
         {"minPathMultiplicity", required_argument, 0, 'f'},
@@ -205,10 +276,11 @@ int main(int argc, char **argv) {
 
         {"seedMultiplicity", no_argument, &seedMultiplicity, 1},
         {"pathMultiplicity", no_argument, &pathMultiplicity, 1},
+        {"useRepeatMasker", no_argument, &useRepeatMasker, 1},
         {0, 0, 0, 0} 
     };
     int flag;
-    while((flag = getopt_long(argc, argv, "a:b:d:e:f:g:h:i:j:", longopts, NULL)) != -1) {
+    while((flag = getopt_long(argc, argv, "a:b:d:e:f:g:h:i:j:k:", longopts, NULL)) != -1) {
         switch(flag) {
             case 'a':
                 graphFilename.assign(optarg);
@@ -221,6 +293,9 @@ int main(int argc, char **argv) {
                 break;
             case 'j':
                 statsFilename.assign(optarg);
+                break;
+            case 'k':
+                repeatMaskerFilename.assign(optarg);
                 break;
             case 'e':
                 params.k = atoi(optarg);
@@ -276,17 +351,22 @@ int main(int argc, char **argv) {
         ss >> count;
         ss.clear();
 
-        //std::cerr << "Parsed seed " << seed << " with packed representation " 
-        //    << packed << std::endl;
         seedToPacked[seed] = packed;
         seedToMultiplicity[packed] = count;
     }
 
+    std::string genome;
+    std::vector<std::string> sequences;
+    sequences.push_back(sequenceFilename);
+    ChrReader chrReader(sequences);
+    chrReader.NextChr(genome);
+
+    std::vector<Repeat*> repeats;
     std::map<std::string, double> seedProbabilities;
     if (seedMultiplicity) {
-        for (auto &kv : seedToMultiplicity) {
-            std::string packed = kv.first;
-            double multiplicity = (double)kv.second;
+        for (auto &it : seedToMultiplicity) {
+            std::string packed = it.first;
+            double multiplicity = (double)it.second;
             if (multiplicity > 1.0) {
                 seedProbabilities[packed] = edgeProbabilityToCollapseGraph(multiplicity, CONFIDENCE);
             }
@@ -298,15 +378,30 @@ int main(int argc, char **argv) {
             
     }
     else if (pathMultiplicity) {
-        std::vector<std::string> genomes;
-        genomes.push_back(sequenceFilename);
-        CompactedDeBruijn graph(graphFilename, genomes, params, statsFile);
-        seedProbabilities = graph.findHighMultiplicityPaths(params.seedPattern, seedToPacked);
+        CompactedDeBruijn graph(graphFilename, genome, params, statsFile);
+        repeats = graph.getRepeatsFromHighMultiplicityPaths();
     }
 
-	for(auto& kv : seedProbabilities) {
-        std::string packed = kv.first;
-        double probability = kv.second;
+    else if (useRepeatMasker) {
+        repeats = getRepeatsFromRepeatMasker(repeatMaskerFilename, genome);
+    }
+
+    if (pathMultiplicity || useRepeatMasker) {
+        for (Repeat* repeat : repeats) {
+            if (repeat->sequence.length() == 0) continue;
+            for (int i = 0; i < repeat->sequence.length() - params.k; i++) {
+                std::string kmer = repeat->sequence.substr(i, params.k);
+                std::string seed = kmerToSeed(kmer, params.seedPattern);
+                std::string packed = seedToPacked[seed];
+                seedProbabilities[packed] = edgeProbabilityToCollapseGraph(repeat->multiplicity, CONFIDENCE);
+            }
+        }
+    }
+
+
+	for(auto& it : seedProbabilities) {
+        std::string packed = it.first;
+        double probability = it.second;
         printf("%s %lf\n", packed.c_str(), probability);
     }
     if (statsFile) {
