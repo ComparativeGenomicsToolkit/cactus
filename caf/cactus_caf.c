@@ -131,7 +131,8 @@ void stCaf_printBlock(stPinchBlock *block) {
         stPinchThread *thread = stPinchSegment_getThread(segment);
         Cap *cap = flower_getCap(flower, stPinchThread_getName(thread));
         Event *event = cap_getEvent(cap);
-        printf("%s:%" PRIi64 "-%" PRIi64 ":%s\n", event_getHeader(event), stPinchSegment_getStart(segment), stPinchSegment_getStart(segment) + stPinchSegment_getLength(segment), stPinchSegment_getBlockOrientation(segment) ? "+" : "-");
+        Sequence *sequence = cap_getSequence(cap);
+        printf("%s.%s:%" PRIi64 "-%" PRIi64 ":%s\n", event_getHeader(event), sequence_getHeader(sequence), stPinchSegment_getStart(segment), stPinchSegment_getStart(segment) + stPinchSegment_getLength(segment), stPinchSegment_getBlockOrientation(segment) ? "+" : "-");
     }
 }
 

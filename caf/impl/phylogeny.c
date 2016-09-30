@@ -1430,7 +1430,7 @@ static stList *constructChain(stCactusEdgeEnd *chainEnd) {
 /*
  * Ensure that the chain goes 5'->3' when following the block orientation, not 3'->5'.
  */
-static void correctChainOrder(stList *chain) {
+void stCaf_correctChainOrientation(stList *chain) {
     if (stList_length(chain) == 1) {
         // The order is trivially correct.
         return;
@@ -1441,23 +1441,51 @@ static void correctChainOrder(stList *chain) {
         stHash_insert(blockToChainIndex, block, stIntTuple_construct1(i));
     }
 
-    stPinchSegment *segment = stPinchBlock_getFirst(stList_get(chain, 0));
-    bool orientation = stPinchSegment_getBlockOrientation(segment);
-    int64_t i = 0;
+    stPinchBlock *firstBlock = stList_get(chain, 0);
+    stPinchBlockIt it = stPinchBlock_getSegmentIterator(firstBlock);
+    stPinchThread *firstThread = stPinchSegment_getThread(stPinchBlock_getFirst(firstBlock));
+    stPinchSegment *minSegment = stPinchBlock_getFirst(firstBlock);
+    stPinchSegment *segment;
+    while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
+        if (stPinchSegment_getThread(segment) == firstThread && stPinchSegment_getStart(segment) < stPinchSegment_getStart(minSegment)) {
+            minSegment = segment;
+        }
+    }
+
+    stPinchBlock *lastBlock = stList_peek(chain);
+    it = stPinchBlock_getSegmentIterator(lastBlock);
+    stPinchSegment *minSegmentInLastBlock = NULL;
+    while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
+        if (stPinchSegment_getThread(segment) == firstThread && (minSegmentInLastBlock == NULL || stPinchSegment_getStart(segment) < stPinchSegment_getStart(minSegmentInLastBlock))) {
+            minSegmentInLastBlock = segment;
+        }
+    }
+
+    bool orientation = stPinchSegment_getBlockOrientation(minSegment);
+    segment = minSegment;
+    int64_t prevChainIndex = 0;
     for (;;) {
         bool wrongDirection = false;
         if (segment == NULL) {
-            // Ran into end of thread without reaching second block--the chain's orientations should be reversed.
-            wrongDirection = true;
+                // Ran into end of thread without reaching second block--the chain's orientations should be reversed.
+                wrongDirection = true;
         } else if (stHash_search(blockToChainIndex, stPinchSegment_getBlock(segment))) {
             int64_t chainIndex = stIntTuple_get(stHash_search(blockToChainIndex, stPinchSegment_getBlock(segment)), 0);
-            if (chainIndex == i + 1) {
-                i = i + 1;
-            } else if (segment != stPinchBlock_getFirst(stList_get(chain, 0))) {
+            if (chainIndex == prevChainIndex + 1) {
+                prevChainIndex++;
+                if (prevChainIndex == stList_length(chain) - 1) {
+                    if (segment == minSegmentInLastBlock) {
+                        break;
+                    } else {
+                        wrongDirection = true;
+                    }
+                }
+            } else if (chainIndex == 0 && segment != minSegment) {
+                assert(stPinchSegment_getBlock(segment) == firstBlock);
                 wrongDirection = true;
-            }
-            if (chainIndex == stList_length(chain) - 1) {
-                break;
+            } else if (chainIndex != 0) {
+                assert(chainIndex == stList_length(chain) - 1);
+                wrongDirection = true;
             }
         }
         if (wrongDirection) {
@@ -1475,7 +1503,7 @@ static void correctChainOrder(stList *chain) {
 
     #ifndef NDEBUG
     // Check that the chain order is actually correct.
-    stPinchBlockIt it = stPinchBlock_getSegmentIterator(stList_get(chain, 0));
+    it = stPinchBlock_getSegmentIterator(firstBlock);
     while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
         bool orientation = stPinchSegment_getBlockOrientation(segment);
         int64_t i = 0;
@@ -1513,7 +1541,7 @@ static stList *getChainsFromCactusGraph(stCactusGraph *cactusGraph, stCactusNode
         while ((cactusEdgeEnd = stCactusNodeEdgeEndIt_getNext(&cactusEdgeEndIt)) != NULL) {
             if (stCactusEdgeEnd_isChainEnd(cactusEdgeEnd) && stCactusEdgeEnd_getLinkOrientation(cactusEdgeEnd)) {
                 stList *chain = constructChain(stCactusEdgeEnd_getOtherEdgeEnd(cactusEdgeEnd));
-                correctChainOrder(chain);
+                stCaf_correctChainOrientation(chain);
                 stList_append(chains, chain);
             }
         }
@@ -1566,8 +1594,24 @@ static double distToAncestor(stTree *child, stTree *ancestor) {
     }
 }
 
+typedef struct {
+    HomologyUnit *unit;
+    stTree *species1;
+    stTree *species2;
+    double divergence;
+} BadChain;
+
+static BadChain *BadChain_construct(HomologyUnit *unit, stTree *species1, stTree *species2, double divergence) {
+    BadChain *ret = st_malloc(sizeof(BadChain));
+    ret->unit = unit;
+    ret->species1 = species1;
+    ret->species2 = species2;
+    ret->divergence = divergence;
+    return ret;
+}
+
 stSet *stCaf_getBadChains(stSet *homologyUnits, TreeBuildingConstants *constants, stCaf_PhylogenyParameters *params, Flower *flower) {
-    stSet *ret = stSet_construct();
+    stSet *ret = stSet_construct2(free);
     stSetIterator *it = stSet_getIterator(homologyUnits);
     HomologyUnit *unit;
     while ((unit = stSet_getNext(it)) != NULL) {
@@ -1625,17 +1669,21 @@ stSet *stCaf_getBadChains(stSet *homologyUnits, TreeBuildingConstants *constants
             i++;
         }
 
-        double theta = 2.0;
+        double theta = 500.0;
         bool unitIsBad = false;
+        double divergence = 0.0;
+
+        stTree *species_i;
+        stTree *species_j;
 
         for (int64_t i = 0; i < stMatrix_m(substitutionDistanceMatrix); i++) {
-            stTree *species_i = indexToSpecies[i];
+            species_i = indexToSpecies[i];
             if (species_i == NULL) {
                 // Signals this is an outgroup.
                 continue;
             }
             for (int64_t j = 0; j < stMatrix_n(substitutionDistanceMatrix); j++) {
-                stTree *species_j = indexToSpecies[j];
+                species_j = indexToSpecies[j];
                 if (species_j == NULL) {
                     // Signals this is an outgroup.
                     continue;
@@ -1648,13 +1696,18 @@ stSet *stCaf_getBadChains(stSet *homologyUnits, TreeBuildingConstants *constants
                 double species_distance = distToAncestor(species_i, mrca) + distToAncestor(species_j, mrca);
                 if (*stMatrix_getCell(substitutionDistanceMatrix, i, j) > theta * species_distance) {
                     unitIsBad = true;
+                    divergence = *stMatrix_getCell(substitutionDistanceMatrix, i, j);
                     break;
                 }
+            }
+            if (unitIsBad) {
+                break;
             }
         }
 
         if (unitIsBad) {
-            stSet_insert(ret, unit);
+            BadChain *badChain = BadChain_construct(unit, species_i, species_j, divergence);
+            stSet_insert(ret, badChain);
         }
 
         stList_destruct(featureBlocks);
@@ -1671,21 +1724,21 @@ stSet *stCaf_getBadChains(stSet *homologyUnits, TreeBuildingConstants *constants
 
 void stCaf_printBadChainTrack(Event *eventToPrintFor, FILE *file, stSet *badUnits, Flower *flower) {
     stSetIterator *it = stSet_getIterator(badUnits);
-    HomologyUnit *unit;
-    while ((unit = stSet_getNext(it)) != NULL) {
-        assert(unit->unitType == CHAIN);
+    BadChain *badChain;
+    while ((badChain = stSet_getNext(it)) != NULL) {
+        assert(badChain->unit->unitType == CHAIN);
 
         // To avoid O(n^2) behavior with long chains.
         stSet *chainBlocks = stSet_construct();
-        for (int64_t i = 0; i < stList_length(unit->unit); i++) {
-            stSet_insert(chainBlocks, stList_get(unit->unit, i));
+        for (int64_t i = 0; i < stList_length(badChain->unit->unit); i++) {
+            stSet_insert(chainBlocks, stList_get(badChain->unit->unit, i));
         }
 
         // List of lists of relevant segments, which will turn into the BED12 blocks.
         stList *chainedSegmentLists = stList_construct3(0, (void (*)(void *)) stList_destruct);
 
-        stPinchBlock *lastBlock = stList_peek(unit->unit);
-        stPinchBlockIt it = stPinchBlock_getSegmentIterator(getCanonicalBlockForHomologyUnit(unit));
+        stPinchBlock *lastBlock = stList_peek(badChain->unit->unit);
+        stPinchBlockIt it = stPinchBlock_getSegmentIterator(getCanonicalBlockForHomologyUnit(badChain->unit));
         stPinchSegment *canonicalSegment;
         while ((canonicalSegment = stPinchBlockIt_getNext(&it)) != NULL) {
             Cap *cap = flower_getCap(flower, stPinchSegment_getName(canonicalSegment));
@@ -1721,7 +1774,7 @@ void stCaf_printBadChainTrack(Event *eventToPrintFor, FILE *file, stSet *badUnit
             int64_t end = stPinchSegment_getStart(stList_peek(chainedSegmentList)) + stPinchSegment_getLength(stList_peek(chainedSegmentList));
             Cap *cap = flower_getCap(flower, stPinchSegment_getName(stList_get(chainedSegmentList, 0)));
             Sequence *sequence = cap_getSequence(cap);
-            char *name = stString_print("%p-%"PRIi64, (void *) unit->unit, i);
+            char *name = stString_print("%p-%"PRIi64"-%s-%s-%lf", (void *) badChain->unit->unit, i, stTree_getLabel(badChain->species1), stTree_getLabel(badChain->species2), badChain->divergence);
             fprintf(file, "%s\t%"PRIi64"\t%"PRIi64"\t%s\t0\t%s\t%"PRIi64"\t%"PRIi64"\t0\t%"PRIi64"\t",
                    sequence_getHeader(sequence), start, end, name, strand ? "+" : "-", start, end,
                    stList_length(chainedSegmentList));
@@ -1747,18 +1800,19 @@ void stCaf_printBadChainTrack(Event *eventToPrintFor, FILE *file, stSet *badUnit
 }
 
 void stCaf_printBadChainSummary(stSet *homologyUnits, TreeBuildingConstants *constants, stCaf_PhylogenyParameters *params, Flower *flower) {
-    stSet *badUnits = stCaf_getBadChains(homologyUnits, constants, params, flower);
-    stSetIterator *it = stSet_getIterator(badUnits);
-    HomologyUnit *unit;
+    stSet *badChains = stCaf_getBadChains(homologyUnits, constants, params, flower);
+    stSetIterator *it = stSet_getIterator(badChains);
+    BadChain *badChain;
     int64_t numSingleCopyBadUnits = 0;
-    while ((unit = stSet_getNext(it)) != NULL) {
+    while ((badChain = stSet_getNext(it)) != NULL) {
+        HomologyUnit *unit = badChain->unit;
         if (stCaf_isSingleCopy(unit, flower)) {
             numSingleCopyBadUnits++;
         }
     }
     stSet_destructIterator(it);
-    printf("Found %" PRIi64 " bad chains (%" PRIi64 " single-copy) out of %" PRIi64 " total\n", stSet_size(badUnits), numSingleCopyBadUnits, stSet_size(homologyUnits));
-    stSet_destruct(badUnits);
+    printf("Found %" PRIi64 " bad chains (%" PRIi64 " single-copy) out of %" PRIi64 " total\n", stSet_size(badChains), numSingleCopyBadUnits, stSet_size(homologyUnits));
+    stSet_destruct(badChains);
 }
 
 void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
@@ -1840,19 +1894,19 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
 
     // Print bad chains for every ingroup.
     if (debugFilePath != NULL && unitType == CHAIN) {
-        stSet *badUnits = stCaf_getBadChains(homologyUnits, &constants, params, flower);
+        stSet *badChains = stCaf_getBadChains(homologyUnits, &constants, params, flower);
         EventTree *eventTree = flower_getEventTree(flower);
         EventTree_Iterator *eventIt = eventTree_getIterator(eventTree);
         Event *event;
         while ((event = eventTree_getNext(eventIt)) != NULL) {
             if (!event_isOutgroup(event) && event_getChildNumber(event) == 0) {
                 FILE *file = fopen(stString_print("%s-%s-badChains.bed", debugFilePath, event_getHeader(event)), "w");
-                stCaf_printBadChainTrack(event, file, badUnits, flower);
+                stCaf_printBadChainTrack(event, file, badChains, flower);
                 fclose(file);
             }
         }
         eventTree_destructIterator(eventIt);
-        stSet_destruct(badUnits);
+        stSet_destruct(badChains);
     }
 
     // The loop to build a tree for each homology unit

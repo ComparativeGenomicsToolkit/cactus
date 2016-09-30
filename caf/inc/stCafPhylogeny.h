@@ -207,4 +207,10 @@ stSet *stCaf_getOutgroupThreads(Flower *flower, stPinchThreadSet *threadSet);
  */
 stSet *stCaf_getHomologyUnits(Flower *flower, stPinchThreadSet *threadSet, stHash *blocksToHomologyUnits, HomologyUnitType type);
 
+/*
+ * Ensure that the chain goes 5'->3' when following the block orientation, not 3'->5'.
+ */
+void stCaf_correctChainOrientation(stList *chain);
+
+
 #endif /* STCAFPHYLOGENY_H_ */

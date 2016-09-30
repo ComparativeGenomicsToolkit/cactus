@@ -417,11 +417,79 @@ static void test_stCaf_findAndRemoveSplitBranches(CuTest *testCase) {
     stTree_destruct(speciesTree);
 }
 
+static void test_stCaf_correctChainOrientation(CuTest *testCase) {
+    stPinchThreadSet *threadSet = stPinchThreadSet_construct();
+
+    // Test an example of the situation where the chain needs to be
+    // reversed and there is a tandem dup at the first block.
+    stPinchThread *thread1 = stPinchThreadSet_addThread(threadSet, 1, 0, 1500000);
+    stPinchThread *thread2 = stPinchThreadSet_addThread(threadSet, 2, 0, 210500000);
+    stPinchThread *thread3 = stPinchThreadSet_addThread(threadSet, 3, 0, 170000000);
+
+    // Block 1
+    stPinchThread_pinch(thread1, thread3, 1494755, 16999812, 14, true);
+    stPinchThread_pinch(thread1, thread2, 1494755, 21418614, 14, false);
+    stPinchThread_pinch(thread1, thread1, 1494755, 1491059, 14, true);
+    stPinchBlock *block1 = stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 1494755));
+
+    // Block 2
+    stPinchThread_pinch(thread1, thread3, 1494453, 16999510, 16, true);
+    stPinchThread_pinch(thread1, thread2, 1494453, 21418914, 16, false);
+    stPinchThread_pinch(thread1, thread1, 1494453, 1490722, 16, true);
+    stPinchBlock *block2 = stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 1494453));
+
+    // Block 3
+    stPinchThread_pinch(thread2, thread1, 21419173, 1494294, 15, false);
+    stPinchThread_pinch(thread1, thread3, 1494294, 16999352, 15, true);
+    stPinchThread_pinch(thread1, thread1, 1494294, 1490565, 15, true);
+    stPinchBlock *block3 = stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 1494295));
+
+    // Test that the test is set up properly
+    CuAssertIntEquals(testCase, 4, stPinchBlock_getDegree(block1));
+    CuAssertIntEquals(testCase, 4, stPinchBlock_getDegree(block2));
+    CuAssertIntEquals(testCase, 4, stPinchBlock_getDegree(block3));
+
+    stList *chain = stList_construct();
+    stList_append(chain, block1);
+    stList_append(chain, block2);
+    stList_append(chain, block3);
+    CuAssertTrue(testCase, stPinchSegment_getBlockOrientation(stPinchBlock_getFirst(block1)));
+    stCaf_correctChainOrientation(chain);
+    CuAssertTrue(testCase, !stPinchSegment_getBlockOrientation(stPinchBlock_getFirst(block1)));
+
+    stList_destruct(chain);
+
+    // Basically the same situation, but with two blocks total.
+    stPinchThread_pinch(thread1, thread2, 4920, 16341013, 496, true);
+    stPinchThread_pinch(thread1, thread3, 4920, 96246079, 496, false);
+    stPinchThread_pinch(thread1, thread1, 4920, 8127, 496, true);
+    block1 = stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 4920));
+
+    stPinchThread_pinch(thread3, thread1, 96246593, 4803, 99, false);
+    stPinchThread_pinch(thread1, thread2, 4803, 16340900, 99, true);
+    stPinchThread_pinch(thread1, thread1, 4803, 8010, 99, true);
+    block2 = stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 4803));
+
+    CuAssertIntEquals(testCase, 4, stPinchBlock_getDegree(block1));
+    CuAssertIntEquals(testCase, 4, stPinchBlock_getDegree(block2));
+
+    chain = stList_construct();
+    stList_append(chain, block1);
+    stList_append(chain, block2);
+    CuAssertTrue(testCase, stPinchSegment_getBlockOrientation(stPinchBlock_getFirst(block1)));
+    stCaf_correctChainOrientation(chain);
+    CuAssertTrue(testCase, !stPinchSegment_getBlockOrientation(stPinchBlock_getFirst(block1)));
+
+    stPinchThreadSet_destruct(threadSet);
+}
+
 CuSuite *phylogenyTestSuite(void) {
     CuSuite *suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, test_stCaf_splitBlock);
     SUITE_ADD_TEST(suite, test_stCaf_splitChain);
     SUITE_ADD_TEST(suite, test_stCaf_findAndRemoveSplitBranches);
     SUITE_ADD_TEST(suite, test_stCaf_getHomologyUnits);
+    SUITE_ADD_TEST(suite, test_stCaf_correctChainOrientation);
+
     return suite;
 }
