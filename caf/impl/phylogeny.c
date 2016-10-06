@@ -1435,99 +1435,48 @@ void stCaf_correctChainOrientation(stList *chain) {
         // The order is trivially correct.
         return;
     }
-    stHash *blockToChainIndex = stHash_construct2(NULL, (void (*)(void *)) stIntTuple_destruct);
-    for (int64_t i = 0; i < stList_length(chain); i++) {
-        stPinchBlock *block = stList_get(chain, i);
-        stHash_insert(blockToChainIndex, block, stIntTuple_construct1(i));
-    }
 
-    stPinchBlock *firstBlock = stList_get(chain, 0);
-    stPinchBlockIt it = stPinchBlock_getSegmentIterator(firstBlock);
-    stPinchThread *firstThread = stPinchSegment_getThread(stPinchBlock_getFirst(firstBlock));
-    stPinchSegment *minSegment = stPinchBlock_getFirst(firstBlock);
+    // We pick an arbitrary thread (the first) from the first block,
+    // then find its minimum position in the first block. Then we find
+    // the minimum position for that thread in the second block. If
+    // the minimum position for the second block is smaller than the
+    // first block, and the block orientation for that position in the
+    // first block is positive, then we know the orientation of the
+    // first block is "wrong" for our purposes.
+    stPinchSegment *firstSegment = stPinchBlock_getFirst(stList_get(chain, 0));
+    stPinchThread *firstThread = stPinchSegment_getThread(firstSegment);
+    int64_t minPositionInFirstBlock = stPinchSegment_getStart(firstSegment);
+    bool minOrientationInFirstBlock = stPinchSegment_getBlockOrientation(firstSegment);
+    stPinchBlockIt it = stPinchBlock_getSegmentIterator(stList_get(chain, 0));
     stPinchSegment *segment;
     while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
-        if (stPinchSegment_getThread(segment) == firstThread && stPinchSegment_getStart(segment) < stPinchSegment_getStart(minSegment)) {
-            minSegment = segment;
+        if (stPinchSegment_getThread(segment) == firstThread) {
+            int64_t startPos = stPinchSegment_getStart(segment);
+            if (startPos < minPositionInFirstBlock) {
+                minPositionInFirstBlock = startPos;
+                minOrientationInFirstBlock = stPinchSegment_getBlockOrientation(segment);
+            }
         }
     }
 
-    stPinchBlock *lastBlock = stList_peek(chain);
-    it = stPinchBlock_getSegmentIterator(lastBlock);
-    stPinchSegment *minSegmentInLastBlock = NULL;
+    int64_t minPositionInSecondBlock = INT64_MAX;
+    it = stPinchBlock_getSegmentIterator(stList_get(chain, 1));
     while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
-        if (stPinchSegment_getThread(segment) == firstThread && (minSegmentInLastBlock == NULL || stPinchSegment_getStart(segment) < stPinchSegment_getStart(minSegmentInLastBlock))) {
-            minSegmentInLastBlock = segment;
-        }
-    }
-
-    bool orientation = stPinchSegment_getBlockOrientation(minSegment);
-    segment = minSegment;
-    int64_t prevChainIndex = 0;
-    for (;;) {
-        bool wrongDirection = false;
-        if (segment == NULL) {
-                // Ran into end of thread without reaching second block--the chain's orientations should be reversed.
-                wrongDirection = true;
-        } else if (stHash_search(blockToChainIndex, stPinchSegment_getBlock(segment))) {
-            int64_t chainIndex = stIntTuple_get(stHash_search(blockToChainIndex, stPinchSegment_getBlock(segment)), 0);
-            if (chainIndex == prevChainIndex + 1) {
-                prevChainIndex++;
-                if (prevChainIndex == stList_length(chain) - 1) {
-                    if (segment == minSegmentInLastBlock) {
-                        break;
-                    } else {
-                        wrongDirection = true;
-                    }
-                }
-            } else if (chainIndex == 0 && segment != minSegment) {
-                assert(stPinchSegment_getBlock(segment) == firstBlock);
-                wrongDirection = true;
-            } else if (chainIndex != 0) {
-                assert(chainIndex == stList_length(chain) - 1);
-                wrongDirection = true;
+        if (stPinchSegment_getThread(segment) == firstThread) {
+            int64_t startPos = stPinchSegment_getStart(segment);
+            if (startPos < minPositionInSecondBlock) {
+                minPositionInSecondBlock = startPos;
             }
         }
-        if (wrongDirection) {
-            for (int64_t i = 0; i < stList_length(chain); i++) {
-                stPinchBlock *block = stList_get(chain, i);
-                stPinchBlockIt it = stPinchBlock_getSegmentIterator(block);
-                while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
-                    stPinchSegment_setBlockOrientation(segment, !stPinchSegment_getBlockOrientation(segment));
-                }
-            }
-            break;
-        }
-        segment = orientation ? stPinchSegment_get3Prime(segment) : stPinchSegment_get5Prime(segment);
     }
-
-    #ifndef NDEBUG
-    // Check that the chain order is actually correct.
-    it = stPinchBlock_getSegmentIterator(firstBlock);
-    while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
-        bool orientation = stPinchSegment_getBlockOrientation(segment);
-        int64_t i = 0;
-        for (;;) {
-            if (stHash_search(blockToChainIndex, stPinchSegment_getBlock(segment))) {
-                int64_t chainIndex = stIntTuple_get(stHash_search(blockToChainIndex, stPinchSegment_getBlock(segment)), 0);
-                assert(chainIndex == i || chainIndex == i + 1);
-                if (chainIndex == i + 1) {
-                    i = chainIndex;
-                }
-                if (chainIndex == stList_length(chain) - 1) {
-                    break;
-                }
-            }
-            segment = orientation ? stPinchSegment_get3Prime(segment) : stPinchSegment_get5Prime(segment);
-            // If the segment is NULL we've hit the end of the thread
-            // before we hit the end of the chain--there is an error
-            // in the input somewhere.
-            assert(segment != NULL);
+    assert(minPositionInSecondBlock != INT64_MAX);
+    if ((minOrientationInFirstBlock && minPositionInSecondBlock < minPositionInFirstBlock)
+        || (!minOrientationInFirstBlock && minPositionInSecondBlock > minPositionInFirstBlock)) {
+        it = stPinchBlock_getSegmentIterator(stList_get(chain, 0));
+        while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
+            stPinchSegment_setBlockOrientation(segment, !stPinchSegment_getBlockOrientation(segment));
         }
     }
-    #endif
-
-    stHash_destruct(blockToChainIndex);
 }
 
 static stList *getChainsFromCactusGraph(stCactusGraph *cactusGraph, stCactusNode *startCactusNode) {
