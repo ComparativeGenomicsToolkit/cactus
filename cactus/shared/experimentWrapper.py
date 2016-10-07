@@ -19,12 +19,12 @@ import math
 import copy
 import filecmp
 from optparse import OptionParser
-from sonLib.bioio import getRandomAlphaNumericString
-from sonLib.bioio import system
+from cactus.shared.bioio import getRandomAlphaNumericString
+from toil.lib.bioio import system
 
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.configWrapper import ConfigWrapper
-from sonLib.nxnewick import NXNewick
+from cactus.shared.nxnewick import NXNewick
 from cactus.shared.common import cactusRootPath
 
 class DbElemWrapper(object):

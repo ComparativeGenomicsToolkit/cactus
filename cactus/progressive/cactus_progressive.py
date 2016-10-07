@@ -21,10 +21,9 @@ from shutil import move
 import copy
 from time import sleep
 
-from sonLib.bioio import getTempFile
-from sonLib.bioio import printBinaryTree
-from sonLib.bioio import system
-from sonLib.bioio import catFiles
+from toil.lib.bioio import getTempFile
+from toil.lib.bioio import system
+
 
 from toil.lib.bioio import getLogLevelString
 from toil.lib.bioio import logger
@@ -34,6 +33,7 @@ from cactus.shared.common import cactusRootPath
 from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import findRequiredNode
 from cactus.shared.common import makeURL
+from cactus.shared.common import catFiles
   
 from toil.job import Job
 from toil.common import Toil
@@ -50,7 +50,8 @@ from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.schedule import Schedule
-from cactus2hal.cactus2hal import exportHal
+from cactus.progressive.projectWrapper import ProjectWrapper
+from cactus.progressive.seqFile import SeqFile
 
 class ProgressiveDown(Job):
     def __init__(self, options, project, event, schedule, memory=None, cores=None):
@@ -267,6 +268,68 @@ class RunCactusPreprocessorThenProgressiveDown(Job):
 
         return self.addFollowOn(RunCactusPreprocessorThenProgressiveDown2(self.options, self.project, self.options.event, schedule, memory=self.configWrapper.getDefaultMemory())).rv()
 
+def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC=None, cacheW0=None, chunk=None, deflate=None, inMemory=False):
+
+    # some quick stats
+    totalTime = time.time()
+    totalAppendTime = 0
+
+    HALPath = os.path.join(job.fileStore.getLocalTempDir(), "tmp.hal")
+
+    # traverse tree to make sure we are going breadth-first
+    tree = project.mcTree
+
+    # find subtree if event specified
+    rootNode = None
+    if event is not None:
+        assert event in tree.nameToId and not tree.isLeaf(tree.nameToId[event])
+        rootNode = tree.nameToId[event]
+
+    for node in tree.breadthFirstTraversal(rootNode):
+        genomeName = tree.getName(node)
+        if genomeName in project.expMap:
+            experimentFilePath = job.fileStore.readGlobalFile(project.expIDMap[genomeName])
+            experiment = ExperimentWrapper(ET.parse(experimentFilePath).getroot())
+
+            outgroups = experiment.getOutgroupEvents()
+            expTreeString = NXNewick().writeString(experiment.getTree())
+            assert len(expTreeString) > 1
+            assert experiment.getHalID() is not None
+            assert experiment.getHalFastaID() is not None
+            subHALPath = job.fileStore.readGlobalFile(experiment.getHalID())
+            halFastaPath = job.fileStore.readGlobalFile(experiment.getHalFastaID())
+
+            cmdline = "halAppendCactusSubtree \'{0}\' \'{1}\' \'{2}\' \'{3}\'".format(subHALPath, halFastaPath, expTreeString, HALPath)
+            
+            if len(outgroups) > 0:
+                cmdline += " --outgroups {0}".format(",".join(outgroups))
+            if cacheBytes is not None:
+                cmdline += " --cacheBytes {0}".format(cacheBytes)
+            if cacheMDC is not None:
+                cmdline += " --cacheMDC {0}".format(cacheMDC)
+            if cacheRDC is not None:
+                cmdline += " --cacheRDC {0}".format(cacheRDC)
+            if cacheW0 is not None:
+                cmdline += " --cacheW0 {0}".format(cacheW0)
+            if chunk is not None:
+                cmdline += " --chunk {0}".format(chunk)
+            if deflate is not None:
+                cmdline += " --deflate {0}".format(deflate)
+            if inMemory is True:
+                cmdline += " --inMemory"
+
+            
+            print cmdline
+            #appendTime = time.time()
+            system(cmdline)
+            #appendTime = time.time() - appendTime
+            #totalAppendTime += appendTime
+#            print "time of above command: {0:.2f}".format(appendTime)
+ 
+    #totalTime = time.time() - totalTime
+    #print "total time: {0:.2f}  total halAppendCactusSubtree time: {1:.2f}".format(totalTime, totalAppendTime)
+    return job.fileStore.writeGlobalFile(HALPath)
+
 class RunCactusPreprocessorThenProgressiveDown2(Job):
     def __init__(self, options, project, event, schedule, memory=None, cores=None):
         Job.__init__(self, memory=memory, cores=cores)
@@ -287,12 +350,98 @@ class RunCactusPreprocessorThenProgressiveDown2(Job):
 
         
 def main():
-    usage = "usage: prog [options] <multicactus project>"
-    description = "Progressive version of cactus_workflow"
-    parser = ArgumentParser(usage=usage, description=description)
+    parser = ArgumentParser()
     Job.Runner.addToilOptions(parser)
-    addCactusWorkflowOptions(parser)
-    
+    #addCactusWorkflowOptions(parser)
+
+    parser.add_argument("seqFile", help = "Seq file")
+    parser.add_argument("workDir", help = "Work dir")
+    parser.add_argument("outputHal", help = "Output HAL file")
+
+    #Progressive Cactus Options
+    parser.add_argument("--jobStore", dest="jobStore",
+                      help="JobStore to use for Toil. If not given,\
+                      the FileJobStore will be used.", default=None)
+    parser.add_argument("--optionsFile", dest="optionsFile",
+                      help="Text file containing command line options to use as"\
+                      " defaults", default=None)
+    parser.add_argument("--database", dest="database",
+                      help="Database type: tokyo_cabinet or kyoto_tycoon"
+                      " [default: %default]",
+                      default="kyoto_tycoon")
+    parser.add_argument("--outputMaf", dest="outputMaf",
+                      help="[DEPRECATED use hal2maf on the ouput file instead] Path of output alignment in .maf format.  This option should be avoided and will soon be removed.  It may cause sequence names to be mangled, and use a tremendous amount of memory. ",
+                      default=None)
+    parser.add_argument("--configFile", dest="configFile",
+                      help="Specify cactus configuration file",
+                      default=None)
+    parser.add_argument("--legacy", dest="legacy", action="store_true", help=
+                      "Run cactus directly on all input sequences "
+                      "without any progressive decomposition (ie how it "
+                      "was originally published in 2011)",
+                      default=False)
+    parser.add_argument("--autoAbortOnDeadlock", dest="autoAbortOnDeadlock",
+                      action="store_true",
+                      help="Abort automatically when jobTree monitor" +
+                      " suspects a deadlock by deleting the jobTree folder." +
+                      " Will guarantee no trailing ktservers but still " +
+                      " dangerous to use until we can more robustly detect " +
+                      " deadlocks.",
+                      default=False)
+    parser.add_argument("--overwrite", dest="overwrite", action="store_true",
+                      help="Re-align nodes in the tree that have already" +
+                      " been successfully aligned.",
+                      default=False)
+    parser.add_argument("--rootOutgroupDists", dest="rootOutgroupDists",
+                      help="root outgroup distance (--rootOutgroupPaths must " +
+                      "be given as well)", default=None)
+    parser.add_argument("--rootOutgroupPaths", dest="rootOutgroupPaths", type=str,
+                      help="root outgroup path (--rootOutgroup must be given " +
+                      "as well)", default=None)
+    parser.add_argument("--root", dest="root", help="Name of ancestral node (which"
+                      " must appear in NEWICK tree in <seqfile>) to use as a "
+                      "root for the alignment.  Any genomes not below this node "
+                      "in the tree may be used as outgroups but will never appear"
+                      " in the output.  If no root is specifed then the root"
+                      " of the tree is used. ", default=None)
+    parser.add_argument("--resume", dest="resume", 
+                      help="Resume the workflow", action="store_true")
+
+    #Kyoto Tycoon Options
+    ktGroup = parser.add_argument_group("kyoto_tycoon Options",
+                          "Kyoto tycoon provides a client/server framework "
+                          "for large in-memory hash tables and is available "
+                          "via the --database option.")
+    ktGroup.add_argument("--ktPort", dest="ktPort",
+                       help="starting port (lower bound of range) of ktservers"
+                       " [default: %default]",
+                       default=1978)
+    ktGroup.add_argument("--ktHost", dest="ktHost",
+                       help="The hostname to use for connections to the "
+                       "ktserver (this just specifies where nodes will attempt"
+                       " to find the server, *not* where the ktserver will be"
+                       " run)",
+                       default=None)
+    ktGroup.add_argument("--ktType", dest="ktType",
+                       help="Kyoto Tycoon server type "
+                       "(memory, snapshot, or disk)"
+                       " [default: %default]",
+                       default='memory')
+    # sonlib doesn't allow for spaces in attributes in the db conf
+    # which renders this options useless
+    #ktGroup.add_argument("--ktOpts", dest="ktOpts",
+    #                   help="Command line ktserver options",
+    #                   default=None)
+    ktGroup.add_argument("--ktCreateTuning", dest="ktCreateTuning",
+                       help="ktserver options when creating db "\
+                            "(ex #bnum=30m#msiz=50g)",
+                       default=None)
+    ktGroup.add_argument("--ktOpenTuning", dest="ktOpenTuning",
+                       help="ktserver options when opening existing db "\
+                            "(ex #opts=ls#ktopts=p)",
+                       default=None)
+    parser.add_argument_group(ktGroup)
+   
     parser.add_argument("--nonRecursive", dest="nonRecursive", action="store_true",
                       help="Only process given event (not children) [default=False]", 
                       default=False)
@@ -300,20 +449,25 @@ def main():
     parser.add_argument("--event", dest="event", 
                       help="Target event to process [default=root]", default=None)
     
-    parser.add_argument("--overwrite", dest="overwrite", action="store_true",
-                      help="Recompute and overwrite output files if they exist [default=False]",
-                      default=False)
-    parser.add_argument("--project", dest="project", help="Directory of multicactus project.")
-    parser.add_argument('--outputHal', dest="outputHAL", help="Output HAL file from the alignment, given \
-            as either a path starting with file:// or an S3 bucket.")
-    parser.add_argument('--resume', dest='resume', help="Resume the workflow", action="store_true")
-    
+
+
     options = parser.parse_args()
     setLoggingFromOptions(options)
+
+    #Create the progressive cactus project 
+    projWrapper = ProjectWrapper(options)
+    projWrapper.writeXml()
+
+    pjPath = os.path.join(options.workDir, ProjectWrapper.alignmentDirName,
+                          '%s_project.xml' % ProjectWrapper.alignmentDirName)
+
     project = MultiCactusProject()
 
+    if not os.path.isdir(options.workDir):
+        os.makedirs(options.workDir)
+
     with Toil(options) as toil:
-        project.readXML(options.project)
+        project.readXML(pjPath)
         #import the sequences
         seqIDs = []
         for seq in project.getInputSequencePaths():
@@ -337,7 +491,7 @@ def main():
         configWrapper.substituteAllPredefinedConstantsWithLiterals()
 
 
-        project.writeXML(options.project)
+        project.writeXML(pjPath)
 
         #Run the workflow
         if options.resume:
@@ -351,5 +505,4 @@ def main():
 
 
 if __name__ == '__main__':
-    from cactus.progressive.cactus_progressive import *
     main()

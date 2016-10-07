@@ -18,7 +18,7 @@ from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.outgroup import GreedyOutgroup, DynamicOutgroup
-from sonLib.nxnewick import NXNewick
+from cactus.shared.nxnewick import NXNewick
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 
 def createMCProject(tree, experiment, config, options):
@@ -292,7 +292,74 @@ def checkInputSequencePaths(exp):
                     size += 1
             if size == 0:
                 sys.stderr.write("WARNING: sequence path %s is an empty directory\n" % seq)
-            
+
+class CreateMultiCactusProjectOptions:
+    def __init__(self, expFile, projectFile, fixNames,
+            outgroupNames, rootOutgroupDists, rootOutgroupPaths,
+            root, overwrite):
+        self.expFile = expFile
+        self.path = projectFile
+        self.fixNames = fixNames
+        self.name = os.path.basename(self.path)
+
+        self.outgroupNames = outgroupNames
+        self.rootOutgroupDists = rootOutgroupDists
+        self.rootOutgroupPaths = rootOutgroupPaths
+        self.root = root
+        self.overwrite = overwrite
+
+
+
+def runCreateMultiCactusProject(expFile, projectFile, fixNames=False,
+            outgroupNames=None, rootOutgroupDists=None, rootOutgroupPaths=None,
+            root=None, overwrite=False):
+
+    options = CreateMultiCactusProjectOptions(expFile, projectFile, fixNames=fixNames,
+            outgroupNames=outgroupNames, rootOutgroupDists=rootOutgroupDists, 
+            rootOutgroupPaths=rootOutgroupPaths, root=root, overwrite=overwrite)
+
+    expTemplate = ExperimentWrapper(ET.parse(options.expFile).getroot())
+    configPath = expTemplate.getConfigPath()
+    confTemplate = ConfigWrapper(ET.parse(configPath).getroot())
+    if options.fixNames:
+        cleanEventTree(expTemplate)
+    checkInputSequencePaths(expTemplate)
+    tree = expTemplate.getTree()
+    if options.outgroupNames is not None:
+        options.outgroupNames = set(options.outgroupNames)
+        projNames = set([tree.getName(x) for x in tree.getLeaves()])
+        for outgroupName in options.outgroupNames:
+            if outgroupName not in projNames:
+                raise RuntimeError("Specified outgroup %s not found in tree" % outgroupName)
+    mcProj = createMCProject(tree, expTemplate, confTemplate, options)
+    #Replace the sequences with output sequences
+    expTemplate.updateTree(mcProj.mcTree, expTemplate.buildSequenceMap())
+    expTemplate.setSequences(CactusPreprocessor.getOutputSequenceFiles(mcProj.inputSequences, expTemplate.getOutputSequenceDir()))
+    if options.rootOutgroupPaths is not None:
+        # hacky -- add the root outgroup to the tree after everything
+        # else.  This ends up being ugly, but avoids running into
+        # problems with assumptions about tree structure
+        #
+        # [this hack is hopefully made redundant by the --root option]
+        #
+        mcProj.inputSequences.extend(options.rootOutgroupPaths)
+        # replace the root outgroup sequence by post-processed output
+        for i, (outgroupPath, outgroupDist) in enumerate(zip(options.rootOutgroupPaths, options.rootOutgroupDists)):
+            outgroupPath = CactusPreprocessor.getOutputSequenceFiles(expTemplate.getSequences() + options.rootOutgroupPaths[:i+1], expTemplate.getOutputSequenceDir())[-1]
+            rootOutgroupName = "rootOutgroup%d" % i
+            expTemplate.seqMap[rootOutgroupName] = outgroupPath
+            # Add to tree
+            mcProj.mcTree.addOutgroup(rootOutgroupName, outgroupDist)
+            mcProj.mcTree.computeSubtreeRoots()
+            if mcProj.mcTree.getRootName() not in mcProj.outgroup.ogMap:
+                # initialize ogMap entry
+                mcProj.outgroup.ogMap[mcProj.mcTree.getRootName()] = []
+            mcProj.outgroup.ogMap[mcProj.mcTree.getRootName()].append((rootOutgroupName, outgroupDist))
+    #Now do the file tree creation
+    createFileStructure(mcProj, expTemplate, confTemplate, options)
+   # mcProj.check()
+
+       
 def main():
     usage = "usage: %prog [options] <experiment> <output project path>"
     description = "Setup a multi-cactus project using an experiment xml as template"

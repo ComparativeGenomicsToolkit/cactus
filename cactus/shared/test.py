@@ -11,24 +11,24 @@ import random
 import os
 import xml.etree.ElementTree as ET
 
-from sonLib.bioio import logger
-from sonLib.bioio import getTempFile
-from sonLib.bioio import getTempDirectory
-from sonLib.bioio import getRandomSequence
-from sonLib.bioio import mutateSequence
-from sonLib.bioio import reverseComplement
-from sonLib.bioio import fastaRead, fastaWrite
-from sonLib.bioio import printBinaryTree
-from sonLib.bioio import system
-from sonLib.bioio import getRandomAlphaNumericString
-from sonLib.bioio import cigarWrite, PairwiseAlignment, AlignmentOperation
+from cactus.shared.bioio import logger
+from cactus.shared.bioio import getTempFile
+from cactus.shared.bioio import getTempDirectory
+from cactus.shared.bioio import getRandomSequence
+from cactus.shared.bioio import mutateSequence
+from cactus.shared.bioio import reverseComplement
+from cactus.shared.bioio import fastaRead, fastaWrite
+from cactus.shared.bioio import printBinaryTree
+from cactus.shared.bioio import system
+from cactus.shared.bioio import getRandomAlphaNumericString
+from cactus.shared.bioio import cigarWrite, PairwiseAlignment, AlignmentOperation
 
 from cactus.shared.common import runCactusWorkflow
 from cactus.shared.common import runCactusCheck
 
-from sonLib.bioio import TestStatus
+from cactus.shared.bioio import TestStatus
 
-from sonLib.tree import makeRandomBinaryTree
+from cactus.shared.tree import makeRandomBinaryTree
 
 from cactus.shared.common import runToilStats, runToilStatusAndFailIfNotComplete
 

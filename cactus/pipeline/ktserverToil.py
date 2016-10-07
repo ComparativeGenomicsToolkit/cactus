@@ -10,7 +10,7 @@ import random
 import math
 import xml.etree.ElementTree as ET
 
-from sonLib.bioio import getTempFile, logger
+from toil.lib.bioio import getTempFile, logger
 from toil.job import Job
 from cactus.shared.experimentWrapper import DbElemWrapper
 from cactus.shared.experimentWrapper import ExperimentWrapper

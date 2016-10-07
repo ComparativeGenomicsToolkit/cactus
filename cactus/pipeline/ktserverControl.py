@@ -32,7 +32,7 @@ import subprocess
 import signal
 import psutil
 import socket
-from sonLib.bioio import logger
+from toil.lib.bioio import logger
 from time import sleep
 from optparse import OptionParser
 import threading

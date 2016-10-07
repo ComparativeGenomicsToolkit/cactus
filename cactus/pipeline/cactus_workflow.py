@@ -21,14 +21,14 @@ import copy
 import shutil
 from argparse import ArgumentParser
 
-from sonLib.bioio import getTempFile
-from sonLib.bioio import newickTreeParser
+from cactus.shared.bioio import newickTreeParser
 
-from sonLib.bioio import logger
+from toil.lib.bioio import getTempFile
+from toil.lib.bioio import logger
 from toil.lib.bioio import setLoggingFromOptions
-from sonLib.bioio import system
-from sonLib.bioio import makeSubDir
-from sonLib.bioio import catFiles
+from toil.lib.bioio import system
+from cactus.shared.bioio import makeSubDir
+from cactus.shared.bioio import catFiles
 
 from cactus.shared.common import cactusRootPath
 from cactus.shared.common import makeURL
@@ -36,7 +36,6 @@ from cactus.shared.common import makeURL
 from toil.job import Job
 from toil.common import Toil
 
-from jobTree.src.bioio import getLogLevelString
 
 from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import runCactusSetup

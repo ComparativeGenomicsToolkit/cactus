@@ -18,8 +18,8 @@ import copy
 
 from optparse import OptionParser
 
-from sonLib.nxtree import NXTree
-from sonLib.nxnewick import NXNewick
+from cactus.shared.nxtree import NXTree
+from cactus.shared.nxnewick import NXNewick
 
 class MultiCactusTree(NXTree):
     self_suffix = "_self"

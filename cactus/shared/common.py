@@ -9,13 +9,23 @@ import os
 import random
 import sys
 import shutil
+import subprocess
+import logging
 
-from sonLib.bioio import logger
-from sonLib.bioio import getTempDirectory
-from sonLib.bioio import system, popenCatch, popenPush
-from sonLib.bioio import nameValue
-from sonLib.bioio import getLogLevelString
+from toil.lib.bioio import logger
+from toil.lib.bioio import system
+from toil.lib.bioio import getLogLevelString
+
+from toil_lib.programs import _fix_permissions
+
 from toil.job import Job
+
+from cactus.shared.bioio import getTempDirectory
+from cactus.shared.bioio import nameValue
+from cactus.shared.bioio import popenCatch, popenPush
+
+
+_log = logging.getLogger(__name__)
 
 def makeURL(path):
     if not (path.startswith("file:") or path.startswith("s3:") or path.startswith("http:")):
@@ -23,13 +33,40 @@ def makeURL(path):
     else:
         return path
 
+def catFiles(filesToCat, catFile):
+    """Cats a bunch of files into one file. Ensures a no more than maxCat files
+    are concatenated at each step.
+    """
+    if len(filesToCat) == 0: #We must handle this case or the cat call will hang waiting for input
+        open(catFile, 'w').close()
+        return
+    maxCat = 25
+    system("cat %s > %s" % (" ".join(filesToCat[:maxCat]), catFile))
+    filesToCat = filesToCat[maxCat:]
+    while len(filesToCat) > 0:
+        system("cat %s >> %s" % (" ".join(filesToCat[:maxCat]), catFile))
+        filesToCat = filesToCat[maxCat:]
+
+def nameValue(name, value, valueType=str, quotes=False):
+    """Little function to make it easier to make name value strings for commands.
+    """
+    if valueType == bool:
+        if value:
+            return "--%s" % name
+        return ""
+    if value is None:
+        return ""
+    if quotes:
+        return "--%s '%s'" % (name, valueType(value))
+    return "--%s %s" % (name, valueType(value))
+
 def cactusRootPath():
     """
     function for finding external location
     """
     import cactus.shared.test
     i = os.path.abspath(cactus.shared.test.__file__)
-    return os.path.split(os.path.split(i)[0])[0] #os.path.split(os.path.split(os.path.split(i)[0])[0])[0]
+    return os.path.split(os.path.split(os.path.split(i)[0])[0])[0]
 
 def getLogLevelString2(logLevelString):
     """Gets the log level string for the binary
@@ -531,3 +568,53 @@ def runToilStats(toil, outputFile):
 def runToilStatusAndFailIfNotComplete(toilDir):
     command = "toil status %s --failIfNotComplete --verbose" % toilDir
     system(command)
+    
+def cactus_call(tool,
+                parameters=None,
+                work_dir='.',
+                rm=False,
+                detached=True,
+                check_output=False,
+                container_name=None,
+                mounts=None,
+                outfile=None,
+                stdin_string=None):
+
+    if parameters is None:
+        parameters = []
+
+    # Docker does not allow the --rm flag to be used when the container is run in detached mode.
+    #require(not (rm and detached), "Conflicting options 'rm' and 'detached'.")
+    # Ensure the user has passed a valid value for defer
+    #require(defer in (None, docker_call.FORGO, docker_call.STOP, docker_call.RM),
+    #        'Please provide a valid value for defer.')
+
+    
+    base_docker_call = ['docker', 'run',
+                        '--log-driver=none',
+                        '-v', '{}:/data'.format(os.path.abspath(work_dir))]
+
+    #base_docker_call.extend(['--name', container_name])
+    if rm:
+        base_docker_call.append('--rm')
+
+    call = base_docker_call + [tool] + parameters
+    
+    _log.debug("Calling docker with %s." % " ".join(base_docker_call + [tool] + parameters))
+    if stdin_string:
+        if outfile:
+            process = subprocess.Popen(call, shell=True,
+                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=sys.stderr, bufsize=-1)
+            output, nothing = process.communicate(stdin_string)
+            if check_output:
+                return output
+    else:
+        if outfile:
+            subprocess.check_call(call, stdout=outfile)
+        else:
+            if check_output:
+                return subprocess.check_output(call)
+            else:
+                subprocess.check_call(call)
+    #_fix_permissions(base_docker_call, tool, work_dir)
+

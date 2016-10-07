@@ -17,14 +17,14 @@ from bz2 import BZ2File
 import copy
 import xml.etree.ElementTree as ET
 
-from sonLib.bioio import logger
-from sonLib.bioio import system, popenCatch, popenPush
-from sonLib.bioio import getLogLevelString
-from sonLib.bioio import newickTreeParser
-from sonLib.bioio import makeSubDir
-from sonLib.bioio import catFiles, getTempFile, getTempDirectory
+from toil.lib.bioio import logger
+from toil.lib.bioio import system
+from toil.lib.bioio import getLogLevelString
+
+from cactus.shared.bioio import catFiles, getTempFile, getTempDirectory, popenCatch, popenPush, newickTreeParser
 from toil.job import Job
 from toil.common import Toil
+from cactus.shared.common import cactus_call
 
 from cactus.shared.common import getOptionalAttrib, runCactusAnalyseAssembly
 from toil.lib.bioio import setLoggingFromOptions
@@ -50,15 +50,20 @@ class PreprocessChunk(Job):
         self.proportionSampled = proportionSampled
     
     def run(self, fileStore):
+
+        #Use only the basename because these files will be moved
+        #into the /data directory of a docker container
         inChunk = fileStore.readGlobalFile(self.inChunkID)
         outChunk = fileStore.getLocalTempFile()
         seqPaths = [fileStore.readGlobalFile(fileID) for fileID in self.seqIDs]
-        cmdline = self.prepOptions.cmdLine.replace("IN_FILE", "\"" + inChunk + "\"")
-        cmdline = cmdline.replace("OUT_FILE", "\"" + outChunk + "\"")
-        cmdline = cmdline.replace("TEMP_DIR", "\"" + fileStore.getLocalTempDir() + "\"")
+        cmdline = self.prepOptions.cmdLine.replace("IN_FILE", os.path.basename(inChunk))
+        cmdline = cmdline.replace("OUT_FILE", os.path.basename(outChunk))
+        cmdline = cmdline.replace("TEMP_DIR", "/tmp/")
         cmdline = cmdline.replace("PROPORTION_SAMPLED", str(self.proportionSampled))
-        logger.info("Preprocessor exec " + cmdline)
-        popenPush(cmdline, " ".join(seqPaths))
+        
+        seqString = " ".join([os.path.basename(seqPath) for seqPath in seqPaths])
+        
+        cactus_call(tool="cactus", parameters=cmdline.split(), stdin_string=seqString)
         if self.prepOptions.check:
             return self.inChunkID
         else:
@@ -86,6 +91,7 @@ class MergeChunks2(Job):
     def run(self, fileStore):
         chunkList = [fileStore.readGlobalFile(fileID) for fileID in self.chunkIDList]
         outSequencePath = fileStore.getLocalTempFile()
+        #docker_call(
         popenPush("cactus_batch_mergeChunks > %s" % outSequencePath, " ".join(chunkList))
         map(fileStore.deleteGlobalFile, self.chunkIDList)
         return fileStore.writeGlobalFile(outSequencePath)
@@ -103,9 +109,15 @@ class PreprocessSequence(Job):
         # chunk it up
         inSequence = fileStore.readGlobalFile(self.inSequenceID)
         inChunkDirectory = getTempDirectory(rootDir=fileStore.getLocalTempDir())
-        inChunkList = [ chunk for chunk in popenCatch("cactus_blast_chunkSequences %s %i 0 %s %s" % \
-               (getLogLevelString(), self.prepOptions.chunkSize,
-                inChunkDirectory, inSequence)).split("\n") if chunk != "" ]
+        inChunkList = [ chunk for chunk in cactus_call(tool="cactus", check_output=True,
+                                                       container_name="chunkSequences",
+                                                       parameters=["cactus_blast_chunkSequences",
+                                                                   getLogLevelString(),
+                                                                   str(self.prepOptions.chunkSize),
+                                                                   str(0),
+                                                                   os.path.basename(inChunkDirectory),
+                                                                   os.path.basename(inSequence)]).split("\n") if chunk != "" ]
+                
         inChunkIDList = [fileStore.writeGlobalFile(chunk) for chunk in inChunkList]
         outChunkIDList = [] 
         #For each input chunk we create an output chunk, it is the output chunks that get concatenated together.
@@ -132,8 +144,8 @@ class BatchPreprocessor(Job):
         self.prepXmlElems = prepXmlElems
         self.inSequenceID = inSequenceID
         prepNode = self.prepXmlElems[iteration]
-        self.memory = getOptionalAttrib(prepNode, "memory", typeFn=int, default=None)
-        self.cores = getOptionalAttrib(prepNode, "cpu", typeFn=int, default=None)
+        self._memory = getOptionalAttrib(prepNode, "memory", typeFn=int, default=None)
+        self._cores = getOptionalAttrib(prepNode, "cpu", typeFn=int, default=None)
         self.iteration = iteration
               
     def run(self, fileStore):
@@ -143,8 +155,8 @@ class BatchPreprocessor(Job):
         prepNode = self.prepXmlElems[self.iteration]
         prepOptions = PreprocessorOptions(int(prepNode.get("chunkSize", default="-1")),
                                           prepNode.attrib["preprocessorString"],
-                                          self.memory,
-                                          self.cores,
+                                          self._memory,
+                                          self._cores,
                                           bool(int(prepNode.get("check", default="0"))),
                                           getOptionalAttrib(prepNode, "proportionToSample", typeFn=float, default=1.0))
         

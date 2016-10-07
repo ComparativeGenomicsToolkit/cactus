@@ -22,7 +22,7 @@ from optparse import OptionParser
 
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.experimentWrapper import ExperimentWrapper
-from sonLib.nxnewick import NXNewick
+from cactus.shared.nxnewick import NXNewick
 
 from toil.lib.bioio import logger
 

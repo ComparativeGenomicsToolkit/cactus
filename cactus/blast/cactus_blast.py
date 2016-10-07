@@ -9,16 +9,16 @@ sequences. Uses the jobTree framework to parallelise the blasts.
 import os
 import sys
 from argparse import ArgumentParser
-from sonLib.bioio import TempFileTree
-from sonLib.bioio import logger
-from sonLib.bioio import system, popenCatch
-from sonLib.bioio import getLogLevelString
-from sonLib.bioio import makeSubDir
-from sonLib.bioio import catFiles
-from sonLib.bioio import getTempFile, getTempDirectory
-from sonLib.bioio import nameValue
+from toil.lib.bioio import logger
+from toil.lib.bioio import system
+from toil.lib.bioio import getLogLevelString
+from toil.lib.bioio import getTempFile
+
+from cactus.shared.bioio import catFiles, nameValue, popenCatch, getTempDirectory
+
 from toil.job import Job
 from toil.common import Toil
+
 from cactus.shared.common import makeURL
 
 class BlastOptions:
@@ -43,7 +43,7 @@ class BlastOptions:
         self.overlapSize = overlapSize
         
         if realign:
-            self.blastString = "cactus_lastz --format=cigar %s SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] | cactus_realign %s SEQ_FILE_1 SEQ_FILE_2 > CIGARS_FILE"  % (lastzArguments, realignArguments) 
+            self.blastString = "cactus_lastz --format=cigar %s SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] | cactus_realign %s SEQ_FILE_1 SEQ_FILE_2 > CIGARS_FILE"  % (lastzArguments, realignArgeuments) 
         else:
             self.blastString = "cactus_lastz --format=cigar %s SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"  % lastzArguments 
         if realign:
