@@ -45,15 +45,19 @@ typedef struct {
 
 // A choice of tree-building methods
 enum stCaf_TreeBuildingMethod {
-    NEIGHBOR_JOINING,          // Traditional neighbor-joining algorithm.
-    GUIDED_NEIGHBOR_JOINING,   // Neighbor-joining guided by a species
-                               // tree, which prefers to make trees that
-                               // have a low amount of dups/losses if
-                               // there is not a substantial amount of
-                               // information to the contrary.
-    SPLIT_DECOMPOSITION,       // The split-decomposition method of
-                               // Bandelt and Dress, 1992.
-    STRICT_SPLIT_DECOMPOSITION // As above, but more conservative.
+    NEIGHBOR_JOINING,           // - Traditional neighbor-joining algorithm.
+    GUIDED_NEIGHBOR_JOINING,    // - Neighbor-joining guided by a species
+                                // tree, which prefers to make trees that
+                                // have a low amount of dups/losses if
+                                // there is not a substantial amount of
+                                // information to the contrary.
+    SPLIT_DECOMPOSITION,        // - The split-decomposition method of
+                                // Bandelt and Dress, 1992.
+    STRICT_SPLIT_DECOMPOSITION, // - As above, but more conservative.
+    REMOVE_BAD_CHAINS           // - Not strictly speaking a
+                                // tree-building method: just remove
+                                // chains that have divergence much greater
+                                // than expected according to the species tree.
 };
 
 // A choice of rooting methods for each tree built

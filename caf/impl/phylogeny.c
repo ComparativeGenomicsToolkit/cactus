@@ -1618,7 +1618,7 @@ stSet *stCaf_getBadChains(stSet *homologyUnits, TreeBuildingConstants *constants
             i++;
         }
 
-        double theta = 500.0;
+        double theta = 100.0;
         bool unitIsBad = false;
         double divergence = 0.0;
 
@@ -1764,6 +1764,33 @@ void stCaf_printBadChainSummary(stSet *homologyUnits, TreeBuildingConstants *con
     stSet_destruct(badChains);
 }
 
+static void stCaf_removeBadChains(stPinchThreadSet *threadSet,
+                                  TreeBuildingConstants *constants,
+                                  stCaf_PhylogenyParameters *params,
+                                  Flower *flower) {
+    stSet *homologyUnits = stCaf_getHomologyUnits(flower, threadSet, NULL, CHAIN);
+    stSet *badChains = stCaf_getBadChains(homologyUnits, constants, params, flower);
+    stSetIterator *it = stSet_getIterator(badChains);
+    BadChain *badChain;
+    int64_t numBadBlocksRemoved = 0;
+    int64_t numBadColumnsRemoved = 0;
+    while ((badChain = stSet_getNext(it)) != NULL) {
+        HomologyUnit *unit = badChain->unit;
+        assert(unit->unitType == CHAIN);
+        for (int64_t i = 0; i < stList_length(unit->unit); i++) {
+            stPinchBlock *block = stList_get(unit->unit, i);
+            numBadBlocksRemoved++;
+            numBadColumnsRemoved += stPinchBlock_getLength(block);
+            stPinchBlock_destruct(block);
+        }
+    }
+    printf("Removed %" PRIi64 " bad blocks containing %" PRIi64 " columns\n",
+           numBadBlocksRemoved, numBadColumnsRemoved);
+    stSet_destructIterator(it);
+    stSet_destruct(badChains);
+    stSet_destruct(homologyUnits);
+}
+
 void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
                                                HomologyUnitType unitType,
                                                stHash *threadStrings,
@@ -1772,16 +1799,6 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
                                                stCaf_PhylogenyParameters *params,
                                                char *debugFilePath,
                                                const char *referenceEventHeader) {
-    FILE *debugFile = NULL;
-    if (debugFilePath != NULL) {
-        debugFile = fopen(debugFilePath, "w");
-    }
-    stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
-    stPinchBlock *block;
-
-    //Hash in which we store a map of homology units to their trees
-    stHash *homologyUnitsToTrees = stHash_construct2(NULL, (void (*)(void *))destructTree);
-
     //Get species tree as an stTree
     EventTree *eventTree = flower_getEventTree(flower);
     stTree *speciesStTree = eventTree_getStTree(eventTree);
@@ -1797,10 +1814,42 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
         params->costPerLossPerBase * 2 * params->maxBaseDistance);
     int64_t **speciesMRCAMatrix = stPhylogeny_getMRCAMatrix(speciesStTree, speciesToJoinCostIndex);
 
-    stSortedSet *splitBranches = stSortedSet_construct3((int (*)(const void *, const void *)) stCaf_SplitBranch_cmp, free);
     stSet *speciesToSplitOn = stSet_construct();
     getSpeciesToSplitOn(speciesStTree, eventTree, referenceEventHeader,
                         speciesToSplitOn);
+
+    TreeBuildingConstants constants;
+    constants.threadStrings = threadStrings;
+    constants.outgroupThreads = outgroupThreads;
+    constants.flower = flower;
+    constants.params = params;
+    constants.joinCosts = joinCosts;
+    constants.speciesToJoinCostIndex = speciesToJoinCostIndex;
+    constants.speciesMRCAMatrix = speciesMRCAMatrix;
+    constants.eventToSpeciesNode = eventToSpeciesNode;
+    constants.speciesStTree = speciesStTree;
+    constants.speciesToSplitOn = speciesToSplitOn;
+
+    for (int64_t i = 0; i < stList_length(params->treeBuildingMethods); i++) {
+        enum stCaf_TreeBuildingMethod *method = stList_get(params->treeBuildingMethods, i);
+        if (*method == REMOVE_BAD_CHAINS) {
+            stCaf_removeBadChains(threadSet, &constants, params, flower);
+            // This will cause a memory leak
+            return;
+        }
+    }
+
+    FILE *debugFile = NULL;
+    if (debugFilePath != NULL) {
+        debugFile = fopen(debugFilePath, "w");
+    }
+    stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
+    stPinchBlock *block;
+
+    //Hash in which we store a map of homology units to their trees
+    stHash *homologyUnitsToTrees = stHash_construct2(NULL, (void (*)(void *))destructTree);
+
+    stSortedSet *splitBranches = stSortedSet_construct3((int (*)(const void *, const void *)) stCaf_SplitBranch_cmp, free);
 
     printf("Chose events in the species tree \"%s\" to split on:", eventTree_makeNewickString(eventTree));
     stSetIterator *speciesToSplitOnIt = stSet_getIterator(speciesToSplitOn);
@@ -1818,17 +1867,6 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
         params->numTreeBuildingThreads,
         (void *(*)(void *)) buildTreeForHomologyUnit,
         (void (*)(void *)) addTreeToHash);
-    TreeBuildingConstants constants;
-    constants.threadStrings = threadStrings;
-    constants.outgroupThreads = outgroupThreads;
-    constants.flower = flower;
-    constants.params = params;
-    constants.joinCosts = joinCosts;
-    constants.speciesToJoinCostIndex = speciesToJoinCostIndex;
-    constants.speciesMRCAMatrix = speciesMRCAMatrix;
-    constants.eventToSpeciesNode = eventToSpeciesNode;
-    constants.speciesStTree = speciesStTree;
-    constants.speciesToSplitOn = speciesToSplitOn;
 
     gDebugFile = debugFile;
 

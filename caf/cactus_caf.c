@@ -727,6 +727,8 @@ int main(int argc, char *argv[]) {
                         *method = SPLIT_DECOMPOSITION;
                     } else if (strcmp(methodString, "strictSplitDecomposition") == 0) {
                         *method = STRICT_SPLIT_DECOMPOSITION;
+                    } else if (strcmp(methodString, "removeBadChains") == 0) {
+                        *method = REMOVE_BAD_CHAINS;
                     } else {
                         st_errAbort("Unknown tree building method: %s", methodString);
                     }
