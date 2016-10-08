@@ -1535,14 +1535,6 @@ stSet *stCaf_getHomologyUnits(Flower *flower, stPinchThreadSet *threadSet, stHas
     return homologyUnits;
 }
 
-static double distToAncestor(stTree *child, stTree *ancestor) {
-    if (child == ancestor) {
-        return 0.0;
-    } else {
-        return stTree_getBranchLength(child) + distToAncestor(stTree_getParent(child), ancestor);
-    }
-}
-
 typedef struct {
     HomologyUnit *unit;
     stTree *species1;
@@ -1559,8 +1551,136 @@ static BadChain *BadChain_construct(HomologyUnit *unit, stTree *species1, stTree
     return ret;
 }
 
-stSet *stCaf_getBadChains(stSet *homologyUnits, TreeBuildingConstants *constants, stCaf_PhylogenyParameters *params, Flower *flower) {
-    stSet *ret = stSet_construct2(free);
+// Find the species corresponding to each ingroup segment of the
+// canonical block of the unit.
+static stTree **getIndexToSpecies(HomologyUnit *unit, TreeBuildingConstants *constants, Flower *flower) {
+    int64_t degree = stPinchBlock_getDegree(getCanonicalBlockForHomologyUnit(unit));
+    stTree **indexToSpecies = st_calloc(degree, sizeof(stTree *));
+
+    stPinchBlock *block = getCanonicalBlockForHomologyUnit(unit);
+    stPinchBlockIt blockIt = stPinchBlock_getSegmentIterator(block);
+    stPinchSegment *segment;
+    int64_t i = 0; // Current segment index in block.
+    while ((segment = stPinchBlockIt_getNext(&blockIt)) != NULL) {
+        stPinchThread *thread = stPinchSegment_getThread(segment);
+        Cap *cap = flower_getCap(flower, stPinchThread_getName(thread));
+        Event *event = cap_getEvent(cap);
+        if (!event_isOutgroup(event)) {
+            // We only want to check within ingroups, since those
+            // are the only "bad" homologies visible to the user.
+            stTree *species = stHash_search(constants->eventToSpeciesNode, event);
+            assert(species != NULL);
+            indexToSpecies[i] = species;
+        } else {
+            // Outgroups will be removed later on, so let's not
+            // check them for badness.
+            indexToSpecies[i] = NULL;
+        }
+        i++;
+    }
+    return indexToSpecies;
+}
+
+static stHash *getBadDivergences(stSet *homologyUnits, TreeBuildingConstants *constants, Flower *flower, stHash *unitToDistanceMatrix) {
+    stHash *speciesPairToSingleCopyDivergences = stHash_construct2(NULL, (void (*)(void *)) stHash_destruct);
+    stSetIterator *it = stSet_getIterator(homologyUnits);
+    HomologyUnit *unit;
+    while ((unit = stSet_getNext(it)) != NULL) {
+        if (stCaf_isSingleCopy(unit, flower)) {
+            stTree **indexToSpecies = getIndexToSpecies(unit, constants, flower);
+            stMatrix *distanceMatrix = stHash_search(unitToDistanceMatrix, unit);
+
+            for (int64_t i = 0; i < stMatrix_m(distanceMatrix); i++) {
+                stTree *species_i = indexToSpecies[i];
+                if (species_i == NULL) {
+                    // Signals this is an outgroup.
+                    continue;
+                }
+                stHash *otherSpeciesToDivergences = stHash_search(speciesPairToSingleCopyDivergences, species_i);
+                if (otherSpeciesToDivergences == NULL) {
+                    otherSpeciesToDivergences = stHash_construct2(NULL, (void (*)(void *)) stList_destruct);
+                    stHash_insert(speciesPairToSingleCopyDivergences, species_i, otherSpeciesToDivergences);
+                }
+                for (int64_t j = 0; j < stMatrix_n(distanceMatrix); j++) {
+                    stTree *species_j = indexToSpecies[j];
+                    if (species_j == NULL) {
+                        // Signals this is an outgroup.
+                        continue;
+                    }
+                    if (species_i <= species_j) {
+                        // Only want to check each pair once.
+                        continue;
+                    }
+                    stList *divergences = stHash_search(otherSpeciesToDivergences, species_j);
+                    if (divergences == NULL) {
+                        divergences = stList_construct();
+                        stHash_insert(otherSpeciesToDivergences, species_j, divergences);
+                    }
+                    stList_append(divergences, stMatrix_getCell(distanceMatrix, i, j));
+                }
+            }
+        }
+    }
+
+    // Calculate the mean for each species pair.
+    stHash *speciesPairToMean = stHash_construct2(NULL, (void (*)(void *)) stHash_destruct);
+    stHashIterator *iIt = stHash_getIterator(speciesPairToSingleCopyDivergences);
+    stTree *species_i;
+    while ((species_i = stHash_getNext(iIt)) != NULL) {
+        stHash *otherSpeciesToMean = stHash_construct2(NULL, (void (*)(void *)) free);
+        stHash_insert(speciesPairToMean, species_i, otherSpeciesToMean);
+        stHash *otherSpeciesToDivergences = stHash_search(speciesPairToSingleCopyDivergences, species_i);
+        stHashIterator *jIt = stHash_getIterator(otherSpeciesToDivergences);
+        stTree *species_j;
+        while ((species_j = stHash_getNext(jIt)) != NULL) {
+            double *mean = st_calloc(1, sizeof(double));
+            stList *divergences = stHash_search(otherSpeciesToDivergences, species_j);
+            for (int64_t i = 0; i < stList_length(divergences); i++) {
+                double *divergence = stList_get(divergences, i);
+                *mean += *divergence;
+            }
+            *mean /= stList_length(divergences);
+            stHash_insert(otherSpeciesToMean, species_j, mean);
+        }
+        stHash_destructIterator(jIt);
+    }
+    stHash_destructIterator(iIt);
+
+    // Finally, calculate the standard deviation for each pair and use
+    // it to calculate the "bad" divergence for each pair.
+    stHash *speciesPairToBadDivergence = stHash_construct();
+    iIt = stHash_getIterator(speciesPairToSingleCopyDivergences);
+    while ((species_i = stHash_getNext(iIt)) != NULL) {
+        stHash *otherSpeciesToBadDivergence = stHash_construct2(NULL, (void (*)(void *)) free);
+        stHash_insert(speciesPairToBadDivergence, species_i, otherSpeciesToBadDivergence);
+        stHash *otherSpeciesToDivergences = stHash_search(speciesPairToSingleCopyDivergences, species_i);
+        stHashIterator *jIt = stHash_getIterator(otherSpeciesToDivergences);
+        stTree *species_j;
+        while ((species_j = stHash_getNext(jIt)) != NULL) {
+            double *mean = stHash_search(stHash_search(speciesPairToMean, species_i), species_j);
+            double stdDev = 0.0;
+            stList *divergences = stHash_search(otherSpeciesToDivergences, species_j);
+            for (int64_t i = 0; i < stList_length(divergences); i++) {
+                double *divergence = stList_get(divergences, i);
+                stdDev += pow(*divergence - *mean, 2);
+            }
+            stdDev /= stList_length(divergences);
+            stdDev = sqrt(stdDev);
+            double *badDivergence = st_calloc(1, sizeof(double));
+            *badDivergence = *mean + 3 * stdDev;
+            stHash_insert(otherSpeciesToBadDivergence, species_j, badDivergence);
+        }
+        stHash_destructIterator(jIt);
+    }
+    stHash_destructIterator(iIt);
+
+    stHash_destruct(speciesPairToMean);
+    stHash_destruct(speciesPairToSingleCopyDivergences);
+    return speciesPairToBadDivergence;
+}
+
+static stHash *getDistanceMatricesForUnits(stSet *homologyUnits, TreeBuildingConstants *constants, stCaf_PhylogenyParameters *params) {
+    stHash *unitToDistanceMatrix = stHash_construct2(NULL, (void (*)(void *)) stMatrix_destruct);
     stSetIterator *it = stSet_getIterator(homologyUnits);
     HomologyUnit *unit;
     while ((unit = stSet_getNext(it)) != NULL) {
@@ -1592,60 +1712,56 @@ stSet *stCaf_getBadChains(stSet *homologyUnits, TreeBuildingConstants *constants
             assert(params->distanceCorrectionMethod == NONE);
         }
 
-        // Find the species corresponding to each segment.
-        stTree **indexToSpecies = st_calloc(degree, sizeof(stTree *));
+        stHash_insert(unitToDistanceMatrix, unit, substitutionDistanceMatrix);
 
-        stPinchBlock *block = getCanonicalBlockForHomologyUnit(unit);
-        stPinchBlockIt blockIt = stPinchBlock_getSegmentIterator(block);
-        stPinchSegment *segment;
-        int64_t i = 0; // Current segment index in block.
-        while ((segment = stPinchBlockIt_getNext(&blockIt)) != NULL) {
-            stPinchThread *thread = stPinchSegment_getThread(segment);
-            Cap *cap = flower_getCap(flower, stPinchThread_getName(thread));
-            Event *event = cap_getEvent(cap);
-            if (!event_isOutgroup(event)) {
-                // We only want to check within ingroups, since those
-                // are the only "bad" homologies visible to the user.
-                stTree *species = stHash_search(constants->eventToSpeciesNode, event);
-                assert(species != NULL);
-                indexToSpecies[i] = species;
-            } else {
-                // Outgroups will be removed later on, so let's not
-                // check them for badness.
-                indexToSpecies[i] = NULL;
-            }
+        stList_destruct(featureBlocks);
+        stList_destruct(featureColumns);
 
-            i++;
-        }
+        stMatrix_destruct(substitutionMatrix);
 
-        double theta = 100.0;
+        stMatrixDiffs_destruct(snpDiffs);
+    }
+    return unitToDistanceMatrix;
+}
+
+stSet *stCaf_getBadChains(stSet *homologyUnits, TreeBuildingConstants *constants, stCaf_PhylogenyParameters *params, Flower *flower) {
+    stHash *unitToDistanceMatrix = getDistanceMatricesForUnits(homologyUnits, constants, params);
+    stHash *badDivergences = getBadDivergences(homologyUnits, constants, flower, unitToDistanceMatrix);
+
+    stSet *ret = stSet_construct2(free);
+    stSetIterator *it = stSet_getIterator(homologyUnits);
+    HomologyUnit *unit;
+    while ((unit = stSet_getNext(it)) != NULL) {
+        assert(unit->unitType == CHAIN);
+        stMatrix *distanceMatrix = stHash_search(unitToDistanceMatrix, unit);
+        stTree **indexToSpecies = getIndexToSpecies(unit, constants, flower);
+
         bool unitIsBad = false;
         double divergence = 0.0;
 
         stTree *species_i;
         stTree *species_j;
 
-        for (int64_t i = 0; i < stMatrix_m(substitutionDistanceMatrix); i++) {
+        for (int64_t i = 0; i < stMatrix_m(distanceMatrix); i++) {
             species_i = indexToSpecies[i];
             if (species_i == NULL) {
                 // Signals this is an outgroup.
                 continue;
             }
-            for (int64_t j = 0; j < stMatrix_n(substitutionDistanceMatrix); j++) {
+            for (int64_t j = 0; j < stMatrix_n(distanceMatrix); j++) {
                 species_j = indexToSpecies[j];
                 if (species_j == NULL) {
                     // Signals this is an outgroup.
                     continue;
                 }
-                if (species_i == species_j) {
-                    // Distance is automatically 0.
+                if (species_i <= species_j) {
+                    // Only want to check each pair once.
                     continue;
                 }
-                stTree *mrca = stTree_getMRCA(species_i, species_j);
-                double species_distance = distToAncestor(species_i, mrca) + distToAncestor(species_j, mrca);
-                if (*stMatrix_getCell(substitutionDistanceMatrix, i, j) > theta * species_distance) {
+                double *badDivergence = stHash_search(stHash_search(badDivergences, species_i), species_j);
+                if (*stMatrix_getCell(distanceMatrix, i, j) > *badDivergence) {
                     unitIsBad = true;
-                    divergence = *stMatrix_getCell(substitutionDistanceMatrix, i, j);
+                    divergence = *stMatrix_getCell(distanceMatrix, i, j);
                     break;
                 }
             }
@@ -1659,15 +1775,11 @@ stSet *stCaf_getBadChains(stSet *homologyUnits, TreeBuildingConstants *constants
             stSet_insert(ret, badChain);
         }
 
-        stList_destruct(featureBlocks);
-        stList_destruct(featureColumns);
-
-        stMatrix_destruct(substitutionMatrix);
-        stMatrix_destruct(substitutionDistanceMatrix);
-
-        stMatrixDiffs_destruct(snpDiffs);
+        free(indexToSpecies);
     }
     stSet_destructIterator(it);
+    stHash_destruct(unitToDistanceMatrix);
+    stHash_destruct(badDivergences);
     return ret;
 }
 
