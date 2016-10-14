@@ -100,6 +100,8 @@ def getCommands(seqFile1, seqFile2, realignArguments="", lastzArguments="--ambig
     return realignCommand, lastzCommand
                             
 def seqFilePairGenerator():
+    if "SON_TRACE_DATASETS" not in os.environ:
+        return
      ##Get sequences
     encodePath = os.path.join(TestStatus.getPathToDataSets(), "MAY-2005")
     encodeRegions = [ "ENm00" + str(i) for i in xrange(1,2) ] #, 2) ] #Could go to six

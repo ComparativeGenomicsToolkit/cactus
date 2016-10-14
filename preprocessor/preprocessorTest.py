@@ -10,7 +10,6 @@ from sonLib.bioio import getTempDirectory
 """
 
 class TestCase(unittest.TestCase):
-    
     def setUp(self):
         unittest.TestCase.setUp(self)
         self.encodeRegion = "ENm001"
@@ -63,4 +62,6 @@ def getLowerCaseBases(sequenceFile):
     return total, totalMasked
         
 if __name__ == '__main__':
+    if "SON_TRACE_DATASETS" in os.environ:
+        unittest.main()
     unittest.main()

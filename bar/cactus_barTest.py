@@ -38,6 +38,8 @@ class TestCase(unittest.TestCase):
     def testCactusWorkflow_Blanchette(self): 
         """Runs the workflow on blanchette's simulated (colinear) regions.
         """
+        if "SON_TRACE_DATASETS" not in os.environ:
+            return
         for test in xrange(self.testNo):
             tempFiles = []
             tempDir = getTempDirectory(os.getcwd())

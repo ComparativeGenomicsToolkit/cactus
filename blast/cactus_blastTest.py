@@ -379,6 +379,7 @@ def main():
     parseCactusSuiteTestOptions()
     sys.argv = sys.argv[:1]
     unittest.main()
-        
+
 if __name__ == '__main__':
-    main()
+    if "SON_TRACE_DATASETS" in os.environ:
+        main()
