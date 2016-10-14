@@ -161,11 +161,11 @@ static void testBreakUpPinchGraphAdjacencyComponentsGreedily(CuTest *testCase) {
         }
         stList *adjacencyComponents = stPinchThreadSet_getAdjacencyComponents(threadSet);
         int64_t largestAdjacencyComponentSizeInGraph = getSizeOfLargestAdjacencyComponent(adjacencyComponents);
-        stList_destruct(adjacencyComponents);
         st_logInfo(
                 "We have a random pinch graph with %" PRIi64 " nodes and %" PRIi64 " adjacency components, the largest adjacency component has %" PRIi64 " nodes, with a ratio of %f we will break up adjacency components larger than %" PRIi64 " in size, this will result in a breakup: %" PRIi64 "\n",
                 totalNodes, stList_length(adjacencyComponents), largestAdjacencyComponentSizeInGraph, maximumAdjacencyComponentSizeRatio,
                 maximumAdjacencyComponentSize, largestAdjacencyComponentSizeInGraph > maximumAdjacencyComponentSize);
+        stList_destruct(adjacencyComponents);
         //Now do the actual breaking up
         stCaf_breakupComponentsGreedily(threadSet, maximumAdjacencyComponentSizeRatio);
         adjacencyComponents = stPinchThreadSet_getAdjacencyComponents(threadSet);
