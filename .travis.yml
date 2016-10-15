@@ -5,6 +5,7 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get -qq update; fi
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y libtokyocabinet-dev libkyototycoon-dev kyototycoon libkyotocabinet-dev; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install tokyo-cabinet kyoto-cabinet kyoto-tycoon; fi
+  - pip install networkx
   - git clone https://github.com/benedictpaten/sonLib.git
   - git clone https://github.com/benedictpaten/matchingAndOrdering.git
   - git clone https://github.com/benedictpaten/pinchesAndCacti.git
