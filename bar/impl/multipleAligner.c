@@ -226,10 +226,9 @@ static Column *mergeColumnsP(AlignmentWeight *aW, stSet *columns, stHash *alignm
     c->nColumn = c2;
     stSet_remove(columns, c2);
     //Cleanup the merging weight
-    stSortedSet_remove(aWs1, aW);
     stSortedSet_remove(aWs1, aW->rWeight);
-    stSortedSet_remove(aWs2, aW->rWeight);
     stSortedSet_remove(aWs2, aW);
+    removeAlignmentFromSortedAlignmentWeights(aW, alignmentWeightsOrderedByWeight);
     alignmentWeight_destruct(aW);
     //Now merge the remaining weights
     while (stSortedSet_size(aWs2) > 0) {
