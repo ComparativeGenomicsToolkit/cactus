@@ -12,7 +12,6 @@ import sys
 import random
 import xml.etree.ElementTree as ET
 
-from cactus.shared.test import parseCactusSuiteTestOptions
 from sonLib.bioio import TestStatus
 from sonLib.bioio import getTempFile
 from sonLib.bioio import getTempDirectory
@@ -24,10 +23,9 @@ from cactus.shared.test import getCactusInputs_random
 from cactus.shared.test import getCactusInputs_blanchette
 from cactus.shared.test import getCactusInputs_encode
 from cactus.shared.test import getCactusInputs_chromosomeX
-
 from cactus.shared.test import runWorkflow_multipleExamples
-
 from cactus.shared.test import getBatchSystem
+from cactus.shared.test import silentOnSuccess
 
 from cactus.shared.common import cactusRootPath
 from cactus.shared.common import runCactusProgressive
@@ -53,7 +51,8 @@ class TestCase(unittest.TestCase):
     
     def tearDown(self):
         system("rm -rf %s" % self.tempDir)
-        
+
+    @silentOnSuccess
     def testCactus_Random(self):
         runWorkflow_multipleExamples(getCactusInputs_random, 
                                      testNumber=2,
@@ -62,7 +61,8 @@ class TestCase(unittest.TestCase):
                                      progressive=True,
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
-        
+
+    @silentOnSuccess
     def testCactus_Random_UseOutgroup(self):
         self.useOutgroup = True
         runWorkflow_multipleExamples(getCactusInputs_random, 
@@ -73,6 +73,7 @@ class TestCase(unittest.TestCase):
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
 
+    @silentOnSuccess
     def testCactus_Random_UseRootOutgroup(self):
         runWorkflow_multipleExamples(getCactusInputs_random, 
                                      testNumber=2,
@@ -81,7 +82,8 @@ class TestCase(unittest.TestCase):
                                      progressive=True,
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveWithRootOutgroupFunction)
-        
+
+    @silentOnSuccess
     def testCactus_Random_DoSelfAlignment(self):
         self.doSelfAlignment = True
         runWorkflow_multipleExamples(getCactusInputs_random, 
@@ -91,7 +93,8 @@ class TestCase(unittest.TestCase):
                                      progressive=True,
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
-        
+
+    @silentOnSuccess
     def testCactus_Random_UseOutgroupAndDoSelfAlignment(self):
         self.useOutgroup = True
         self.doSelfAlignment = True
@@ -102,7 +105,8 @@ class TestCase(unittest.TestCase):
                                      progressive=True,
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
-        
+
+    @silentOnSuccess
     def testCactus_Blanchette(self):
         runWorkflow_multipleExamples(getCactusInputs_blanchette, 
                                      testNumber=1,
@@ -111,7 +115,8 @@ class TestCase(unittest.TestCase):
                                      progressive=True,
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
-    
+
+    @silentOnSuccess
     def testCactus_Blanchette_UseOutgroupAndDoSelfAlignment(self):
         self.useOutgroup = True
         self.doSelfAlignment = True
@@ -122,7 +127,8 @@ class TestCase(unittest.TestCase):
                                      progressive=True,
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
-                
+
+    @silentOnSuccess
     def testCactus_Encode(self): 
         runWorkflow_multipleExamples(getCactusInputs_encode, 
                                      testNumber=1,
@@ -131,7 +137,8 @@ class TestCase(unittest.TestCase):
                                      progressive=True,
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
-    
+
+    @silentOnSuccess
     def testCactus_Chromosomes(self):
         runWorkflow_multipleExamples(getCactusInputs_chromosomeX, 
                                      testRestrictions=(TestStatus.TEST_VERY_LONG,),
@@ -139,13 +146,13 @@ class TestCase(unittest.TestCase):
                                      progressive=True,
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
-    
-    def progressiveWithRootOutgroupFunction(self, experimentFile, jobTreeDir, 
-                          batchSystem, buildAvgs, 
-                          buildReference,
-                          buildHal, 
-                          buildFasta,
-                          jobTreeStats):
+
+    def progressiveWithRootOutgroupFunction(self, experimentFile, jobTreeDir,
+                                            batchSystem, buildAvgs,
+                                            buildReference,
+                                            buildHal,
+                                            buildFasta,
+                                            jobTreeStats):
         """Add in a (random, small) root outgroup before calling
         progressiveFunction. This function is necessary to keep
         runWorkflow_multipleExamples general (root outgroups don't
@@ -162,12 +169,12 @@ class TestCase(unittest.TestCase):
         system("rm -f %s" % rootOutgroupPath)
 
     def progressiveFunction(self, experimentFile, jobTreeDir, 
-                          batchSystem, buildAvgs, 
-                          buildReference,
-                          buildHal, 
-                          buildFasta,
-                          jobTreeStats, rootOutgroupPath=None,
-                          rootOutgroupDist=None):
+                            batchSystem, buildAvgs, 
+                            buildReference,
+                            buildHal, 
+                            buildFasta,
+                            jobTreeStats, rootOutgroupPath=None,
+                            rootOutgroupDist=None):
         tempDir = getTempDirectory(os.getcwd())
         tempExperimentDir = os.path.join(tempDir, "exp")
         runCactusCreateMultiCactusProject(experimentFile, 
@@ -183,11 +190,6 @@ class TestCase(unittest.TestCase):
                              jobTreeStats=jobTreeStats)
         runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
         system("rm -rf %s" % tempDir)
-    
-def main():
-    parseCactusSuiteTestOptions()
-    sys.argv = sys.argv[:1]
-    unittest.main()
         
 if __name__ == '__main__':
-    main()
+    unittest.main()

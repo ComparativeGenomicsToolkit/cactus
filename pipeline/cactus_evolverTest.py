@@ -9,11 +9,11 @@
 import unittest
 import os
 import sys
-from cactus.shared.test import parseCactusSuiteTestOptions
 from sonLib.bioio import TestStatus
 from cactus.shared.test import getInputs
 from cactus.shared.test import runWorkflow_multipleExamples
 from cactus.shared.test import getBatchSystem
+from cactus.shared.test import silentOnSuccess
 
 class TestCase(unittest.TestCase):
     
@@ -22,7 +22,8 @@ class TestCase(unittest.TestCase):
         if getBatchSystem() != None:
             self.batchSystem = getBatchSystem()
         unittest.TestCase.setUp(self)
-        
+
+    @silentOnSuccess
     def testEvolver_Primates_Loci1(self):
         if "SON_TRACE_DATASETS" not in os.environ:
             return
@@ -32,7 +33,8 @@ class TestCase(unittest.TestCase):
                                      testRestrictions=(TestStatus.TEST_SHORT,),
                                      batchSystem=self.batchSystem,
                                      buildJobTreeStats=True)
-    
+
+    @silentOnSuccess
     def testEvolver_Mammals_Loci1(self):
         if "SON_TRACE_DATASETS" not in os.environ:
             return
@@ -42,7 +44,8 @@ class TestCase(unittest.TestCase):
                                      testRestrictions=(TestStatus.TEST_MEDIUM,),
                                      batchSystem=self.batchSystem,
                                      buildJobTreeStats=True)
-        
+
+    @silentOnSuccess
     def testEvolver_Primates_Small(self):
         if "SON_TRACE_DATASETS" not in os.environ:
             return
@@ -52,7 +55,8 @@ class TestCase(unittest.TestCase):
                                      testRestrictions=(TestStatus.TEST_MEDIUM,),
                                      batchSystem=self.batchSystem,
                                      buildJobTreeStats=True)
-    
+
+    @silentOnSuccess
     def testEvolver_Mammals_Medium(self):
         if "SON_TRACE_DATASETS" not in os.environ:
             return
@@ -62,7 +66,8 @@ class TestCase(unittest.TestCase):
                                      testRestrictions=(TestStatus.TEST_LONG,),
                                      batchSystem=self.batchSystem,
                                      buildJobTreeStats=True)
-    
+
+    @silentOnSuccess
     def testEvolver_Primates_Large(self):
         if "SON_TRACE_DATASETS" not in os.environ:
             return
@@ -72,7 +77,8 @@ class TestCase(unittest.TestCase):
                                      testRestrictions=(TestStatus.TEST_VERY_LONG,),
                                      batchSystem=self.batchSystem,
                                      buildJobTreeStats=True)
-    
+
+    @silentOnSuccess
     def testEvolver_Mammals_Large(self):
         if "SON_TRACE_DATASETS" not in os.environ:
             return
@@ -83,10 +89,5 @@ class TestCase(unittest.TestCase):
                                      batchSystem=self.batchSystem,
                                      buildJobTreeStats=True)
 
-def main():
-    parseCactusSuiteTestOptions()
-    sys.argv = sys.argv[:1]
-    unittest.main()
-        
 if __name__ == '__main__':
-    main()
+    unittest.main()

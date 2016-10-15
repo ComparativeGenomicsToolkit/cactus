@@ -13,6 +13,6 @@ clean:  ${modules:%=clean.%}
 
 clean.%:
 	cd $* && make clean
-	
+
 test: all
 	python allTests.py

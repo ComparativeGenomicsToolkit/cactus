@@ -6,28 +6,24 @@
 import unittest
 import sys
 
-from cactus.shared.test import parseCactusSuiteTestOptions
 from sonLib.bioio import TestStatus
 
 from cactus.shared.test import getCactusInputs_random
 from cactus.shared.test import getCactusInputs_blanchette
 from cactus.shared.test import runWorkflow_multipleExamples
+from cactus.shared.test import silentOnSuccess
 
 class TestCase(unittest.TestCase):
+    @silentOnSuccess
     def testCactus_Random(self):
         runWorkflow_multipleExamples(getCactusInputs_random, 
                                      testNumber=TestStatus.getTestSetup(), 
                                      buildAvgs=True)
-        
+    @silentOnSuccess
     def testCactus_Blanchette(self):
         runWorkflow_multipleExamples(getCactusInputs_blanchette, 
                                      testRestrictions=(TestStatus.TEST_SHORT,), inverseTestRestrictions=True, 
                                      buildAvgs=True)
     
-def main():
-    parseCactusSuiteTestOptions()
-    sys.argv = sys.argv[:1]
-    unittest.main()
-        
 if __name__ == '__main__':
-    main()
+    unittest.main()

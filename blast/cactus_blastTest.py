@@ -23,7 +23,6 @@ from sonLib.bioio import getLogLevelString
 from sonLib.bioio import TestStatus
 from sonLib.bioio import catFiles
 from sonLib.bioio import popenCatch
-from cactus.shared.test import parseCactusSuiteTestOptions
 from cactus.shared.common import runCactusBlast
 from cactus.blast.cactus_blast import decompressFastaFile, compressFastaFile
 
@@ -375,11 +374,6 @@ def runNaiveBlast(seqFile1, seqFile2, outputFile,
     system(command)
     return time.time()-startTime
 
-def main():
-    parseCactusSuiteTestOptions()
-    sys.argv = sys.argv[:1]
-    unittest.main()
-
 if __name__ == '__main__':
     if "SON_TRACE_DATASETS" in os.environ:
-        main()
+        unittest.main()

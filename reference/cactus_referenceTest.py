@@ -8,7 +8,6 @@ import sys
 import os
 import xml.etree.ElementTree as ET
 
-from cactus.shared.test import parseCactusSuiteTestOptions
 from sonLib.bioio import TestStatus
 from sonLib.bioio import system
 from sonLib.bioio import getLogLevelString
@@ -16,26 +15,32 @@ from sonLib.bioio import getLogLevelString
 from cactus.shared.test import getCactusInputs_random
 from cactus.shared.test import getCactusInputs_blanchette
 from cactus.shared.test import runWorkflow_multipleExamples
+from cactus.shared.test import silentOnSuccess
 
 from cactus.shared.common import cactusRootPath
 from sonLib.bioio import getTempFile
 
 class TestCase(unittest.TestCase):
+    @silentOnSuccess
     def testCactus_Random_Greedy(self):
         testCactus_Random(self, "greedy")
-        
+
+    @silentOnSuccess
     def testCactus_Random_Blossum(self):
         testCactus_Random(self, "blossom5")
-        
+
+    @silentOnSuccess
     def testCactus_Random_MaxCardinality(self):
         testCactus_Random(self, "maxCardinality")
-    
+
+    @silentOnSuccess
     def testCactus_Random_MaxWeight(self):
         testCactus_Random(self, "maxWeight")
-        
+
+    @silentOnSuccess
     def testCactus_Blanchette_Blossum(self):
         testCactus_Blanchette(self, "blossom5")
-        
+
     def testCuTest(self):
         system("referenceTests %s" % getLogLevelString())
             
@@ -65,11 +70,6 @@ def getConfigFile(matchingAlgorithm="greedy"):
     ET.ElementTree(config).write(fileHandle)
     fileHandle.close()
     return tempConfigFile
-    
-def main():
-    parseCactusSuiteTestOptions()
-    sys.argv = sys.argv[:1]
-    unittest.main()
-        
+
 if __name__ == '__main__':
-    main()
+    unittest.main()

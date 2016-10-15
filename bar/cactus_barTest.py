@@ -8,7 +8,6 @@ import os
 import sys
 import random
 
-from cactus.shared.test import parseCactusSuiteTestOptions
 from sonLib.bioio import TestStatus
 from sonLib.bioio import getTempDirectory
 from sonLib.bioio import logger
@@ -136,10 +135,5 @@ class TestCase(unittest.TestCase):
         """
         system("cactus_barTests %s" % getLogLevelString())
 
-def main():
-    parseCactusSuiteTestOptions()
-    sys.argv = sys.argv[:1]
-    unittest.main()
-        
 if __name__ == '__main__':
-    main()
+    unittest.main()
