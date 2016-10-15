@@ -568,7 +568,8 @@ def runToilStats(toil, outputFile):
 def runToilStatusAndFailIfNotComplete(toilDir):
     command = "toil status %s --failIfNotComplete --verbose" % toilDir
     system(command)
-    
+
+
 def cactus_call(tool,
                 parameters=None,
                 work_dir='.',
@@ -582,6 +583,16 @@ def cactus_call(tool,
 
     if parameters is None:
         parameters = []
+
+    def adjustPath(path):
+        if os.path.isfile(path):
+            return os.path.basename(path)
+        if os.path.isdir(path):
+            return os.path.basename(os.path.dirname(path))
+        else:
+            return path
+    parameters = [str(par) for par in parameters]
+    parameters = [adjustPath(par) for par in parameters]
 
     # Docker does not allow the --rm flag to be used when the container is run in detached mode.
     #require(not (rm and detached), "Conflicting options 'rm' and 'detached'.")
@@ -601,20 +612,22 @@ def cactus_call(tool,
     call = base_docker_call + [tool] + parameters
     
     _log.debug("Calling docker with %s." % " ".join(base_docker_call + [tool] + parameters))
+    output = None
     if stdin_string:
         if outfile:
             process = subprocess.Popen(call, shell=True,
                                        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=sys.stderr, bufsize=-1)
             output, nothing = process.communicate(stdin_string)
-            if check_output:
-                return output
     else:
         if outfile:
             subprocess.check_call(call, stdout=outfile)
         else:
             if check_output:
-                return subprocess.check_output(call)
+                output = subprocess.check_output(call)
             else:
                 subprocess.check_call(call)
-    #_fix_permissions(base_docker_call, tool, work_dir)
+    # Fix root ownership of output files
+    _fix_permissions(base_docker_call, tool, work_dir)
 
+    if check_output:
+        return output

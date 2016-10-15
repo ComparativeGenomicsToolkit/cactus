@@ -51,17 +51,15 @@ class PreprocessChunk(Job):
     
     def run(self, fileStore):
 
-        #Use only the basename because these files will be moved
-        #into the /data directory of a docker container
         inChunk = fileStore.readGlobalFile(self.inChunkID)
         outChunk = fileStore.getLocalTempFile()
         seqPaths = [fileStore.readGlobalFile(fileID) for fileID in self.seqIDs]
-        cmdline = self.prepOptions.cmdLine.replace("IN_FILE", os.path.basename(inChunk))
-        cmdline = cmdline.replace("OUT_FILE", os.path.basename(outChunk))
+        cmdline = self.prepOptions.cmdLine.replace("IN_FILE", inChunk)
+        cmdline = cmdline.replace("OUT_FILE", outChunk)
         cmdline = cmdline.replace("TEMP_DIR", "/tmp/")
         cmdline = cmdline.replace("PROPORTION_SAMPLED", str(self.proportionSampled))
         
-        seqString = " ".join([os.path.basename(seqPath) for seqPath in seqPaths])
+        seqString = " ".join(seqPaths)
         
         cactus_call(tool="cactus", parameters=cmdline.split(), stdin_string=seqString)
         if self.prepOptions.check:
@@ -91,8 +89,7 @@ class MergeChunks2(Job):
     def run(self, fileStore):
         chunkList = [fileStore.readGlobalFile(fileID) for fileID in self.chunkIDList]
         outSequencePath = fileStore.getLocalTempFile()
-        #docker_call(
-        popenPush("cactus_batch_mergeChunks > %s" % outSequencePath, " ".join(chunkList))
+        cactus_call(tool="cactus", outfile=outSequencePath, stdin_string=" ".join(chunkList))
         map(fileStore.deleteGlobalFile, self.chunkIDList)
         return fileStore.writeGlobalFile(outSequencePath)
  
@@ -110,13 +107,15 @@ class PreprocessSequence(Job):
         inSequence = fileStore.readGlobalFile(self.inSequenceID)
         inChunkDirectory = getTempDirectory(rootDir=fileStore.getLocalTempDir())
         inChunkList = [ chunk for chunk in cactus_call(tool="cactus", check_output=True,
-                                                       container_name="chunkSequences",
                                                        parameters=["cactus_blast_chunkSequences",
                                                                    getLogLevelString(),
-                                                                   str(self.prepOptions.chunkSize),
-                                                                   str(0),
-                                                                   os.path.basename(inChunkDirectory),
-                                                                   os.path.basename(inSequence)]).split("\n") if chunk != "" ]
+                                                                   self.prepOptions.chunkSize,
+                                                                   0,
+                                                                   inChunkDirectory,
+                                                                   inSequence]).split("\n") if chunk != "" ]
+        inChunkList = [os.path.abspath(path) for path in inChunkList]
+        logger.info("Chunks = %s" % inChunkList)
+        logger.info("Chunks dir = %s" % os.listdir(inChunkDirectory))
                 
         inChunkIDList = [fileStore.writeGlobalFile(chunk) for chunk in inChunkList]
         outChunkIDList = [] 
