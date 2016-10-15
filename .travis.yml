@@ -7,14 +7,14 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install tokyo-cabinet kyoto-cabinet kyoto-tycoon; fi
   - pip install networkx
   - pip install psutil
-  - git clone https://github.com/benedictpaten/sonLib.git
-  - git clone https://github.com/benedictpaten/matchingAndOrdering.git
-  - git clone https://github.com/benedictpaten/pinchesAndCacti.git
+  - git clone https://github.com/UCSCComparativeGenomics/sonLib.git
+  - git clone https://github.com/UCSCComparativeGenomics/matchingAndOrdering.git
+  - git clone https://github.com/UCSCComparativeGenomics/pinchesAndCacti.git
   - git clone https://github.com/benedictpaten/jobTree.git
 install:
   - export sonLibRootPath=`pwd`/sonLib
   - sh -c 'cd sonLib && make'
-  - sh -c 'cd matchingAndOrdering && git checkout development && make'
+  - sh -c 'cd matchingAndOrdering && make'
   - sh -c 'cd pinchesAndCacti && make'
   - sh -c 'cd jobTree && make'
 script:
