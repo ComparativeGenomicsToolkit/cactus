@@ -4,8 +4,8 @@ setup(
     name="progressiveCactus",
     version="1.0",
     author="Benedict Paten",
-
-    packages=find_packages(),
+    package_dir = {'': 'src'},
+    packages=find_packages(where='src'),
 
     install_requires=[
         'psutil',
