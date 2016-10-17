@@ -20,6 +20,7 @@ from toil.job import Job
 from toil.common import Toil
 
 from cactus.shared.common import makeURL
+from cactus.shared.common import cactus_call
 
 class BlastOptions:
     def __init__(self, chunkSize=10000000, overlapSize=10000, 
@@ -43,13 +44,11 @@ class BlastOptions:
         self.overlapSize = overlapSize
         
         if realign:
-            self.blastString = "cactus_lastz --format=cigar %s SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] | cactus_realign %s SEQ_FILE_1 SEQ_FILE_2 > CIGARS_FILE"  % (lastzArguments, realignArgeuments) 
+            self.realignArguments = realignArguments
         else:
-            self.blastString = "cactus_lastz --format=cigar %s SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"  % lastzArguments 
-        if realign:
-            self.selfBlastString = "cactus_lastz --format=cigar %s SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial | cactus_realign %s SEQ_FILE > CIGARS_FILE" % (lastzArguments, realignArguments)
-        else:
-            self.selfBlastString = "cactus_lastz --format=cigar %s SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial > CIGARS_FILE" % lastzArguments
+            self.realignArguments = None
+        self.lastzArguments = lastzArguments
+
         self.compressFiles = compressFiles
         self.minimumSequenceLength = 10
         self.memory = memory
@@ -305,9 +304,9 @@ class TrimAndRecurseOnOutgroups(Job):
                    trimmedOutgroup, flanking=self.blastOptions.trimOutgroupFlanking,
                    windowSize=1, threshold=1)
         outgroupConvertedResultsFile = fileStore.getLocalTempFile()
-        system("cactus_upconvertCoordinates.py %s %s 1 > %s" %\
-               (trimmedOutgroup, mostRecentResults,
-                outgroupConvertedResultsFile))
+        cactus_call(tool="cactus", outfile=outgroupConvertedResultsFile,
+                    parameters=["cactus_upconvertCoordinates.py",
+                                trimmedOutgroup, mostRecentResults, 1])
         self.outgroupFragmentIDs.append(fileStore.writeGlobalFile(trimmedOutgroup, cleanup=False))
 
 
@@ -326,9 +325,10 @@ class TrimAndRecurseOnOutgroups(Job):
             system("cp %s %s" % (outgroupConvertedResultsFile,
                                  ingroupConvertedResultsFile))
         else:
-            system("cactus_blast_convertCoordinates --onlyContig1 %s %s 1" % (
-                outgroupConvertedResultsFile, ingroupConvertedResultsFile))
-        
+            cactus_call(tool="cactus",
+                        parameters=["cactus_blast_convertCoordinates",
+                                    "--onlyContig1", outgroupConvertedResultsFile,
+                                    ingroupConvertedResultsFile, 1])
         # Append the latest results to the accumulated outgroup coverage file
         with open(ingroupConvertedResultsFile) as results:
             with open(outputFile, 'a') as output:
@@ -402,10 +402,14 @@ class RunSelfBlast(Job):
     def run(self, fileStore):   
         tempResultsFile = fileStore.getLocalTempFile()
         seqFile = fileStore.readGlobalFile(self.seqFileID)
-        command = self.blastOptions.selfBlastString.replace("CIGARS_FILE", tempResultsFile).replace("SEQ_FILE", seqFile)
-        system(command)
+        runSelfLastz(seqFile, tempResultsFile, lastzArguments=self.blastOptions.lastzArguments,
+                     realignArguments=self.blastOptions.realignArguments)
         resultsFile = fileStore.getLocalTempFile()
-        system("cactus_blast_convertCoordinates %s %s %i" % (tempResultsFile, resultsFile, self.blastOptions.roundsOfCoordinateConversion))
+        cactus_call(tool="cactus",
+                    parameters=["cactus_blast_convertCoordinates",
+                                tempResultsFile,
+                                resultsFile,
+                                self.blastOptions.roundsOfCoordinateConversion])
         if self.blastOptions.compressFiles:
             #TODO: This throws away the compressed file
             seqFile = compressFastaFile(seqFile)
@@ -434,10 +438,14 @@ class RunBlast(Job):
             seqFile1 = decompressFastaFile(seqFile1, fileStore.getLocalTempFile())
             seqFile2 = decompressFastaFile(seqFile2, fileStore.getLocalTempFile())
         tempResultsFile = fileStore.getLocalTempFile()
-        command = self.blastOptions.blastString.replace("CIGARS_FILE", tempResultsFile).replace("SEQ_FILE_1", seqFile1).replace("SEQ_FILE_2", seqFile2)
-        system(command)
+        runLastz(seqFile1, seqFile2, tempResultsFile, lastzArguments = self.blastOptions.lastzArguments,
+                 realignArguments = self.blastOptions.realignArguments)
         resultsFile = fileStore.getLocalTempFile()
-        system("cactus_blast_convertCoordinates %s %s %i" % (tempResultsFile, resultsFile, self.blastOptions.roundsOfCoordinateConversion))
+        cactus_call(tool="cactus",
+                    parameters=["cactus_blast_convertCoordinates",
+                                tempResultsFile,
+                                resultsFile,
+                                self.blastOptions.roundOfCoordinateConversion])
         logger.info("Ran the blast okay")
         return fileStore.writeGlobalFile(resultsFile, cleanup=False)
 
@@ -490,24 +498,27 @@ def percentCoverage(sequenceFile, coverageFile):
 def calculateCoverage(sequenceFile, cigarFile, outputFile):
     logger.info("Calculating coverage of cigar file %s on %s, writing to %s" % (
         cigarFile, sequenceFile, outputFile))
-    system("cactus_coverage %s %s > %s" % (sequenceFile,
-                                           cigarFile,
-                                           outputFile))
+    cactus_call(tool="cactus", outfile=outputFile,
+                parameters=["cactus_coverage",
+                            sequenceFile,
+                            cigarFile])
 
 def trimGenome(sequenceFile, coverageFile, outputFile, complement=False,
                flanking=0, minSize=1, windowSize=10, threshold=1):
-    system("cactus_trimSequences.py %s %s %s %s %s %s %s > %s" % (
-        nameValue("complement", complement, valueType=bool),
-        nameValue("flanking", flanking), nameValue("minSize", minSize),
-        nameValue("windowSize", windowSize), nameValue("threshold", threshold),
-        sequenceFile, coverageFile, outputFile))
+    cactus_call(tool="cactus", outfile=outputFile,
+                parameters=["cactus_trimSequences.py",
+                            nameValue("complement", complement, valueType=bool),
+                            nameValue("flanking", flanking), nameValue("minSize", minSize),
+                            nameValue("windowSize", windowSize), nameValue("threshold", threshold),
+                            sequenceFile, coverageFile])
+                            
 def getChunks(sequenceFiles, chunksDir, blastOptions):
-    return [ chunk for chunk in popenCatch("cactus_blast_chunkSequences %s %i %i %s %s" % \
-                                           (getLogLevelString(), 
+    return [ chunk for chunk in cactus_call(tool="cactus", check_output=True,
+                                            parameters=["cactus_blast_chunkSequences",
+                                            getLogLevelString(), 
                                             blastOptions.chunkSize, 
                                             blastOptions.overlapSize,
-                                            chunksDir,
-                                            " ".join(sequenceFiles))).split("\n") if chunk != "" ]
+                                            chunksDir] + sequenceFiles).split("\n") if chunk != "" ]
 def main():
     ##########################################
     #Construct the arguments.

@@ -473,7 +473,8 @@ def __getKtserverCommand(dbElem, exists = False, readOnly = False):
     port = dbElem.getDbPort()
     serverOptions = __getKtServerOptions(dbElem)
     tuning = __getKtTuningOptions(dbElem, exists, readOnly)
-    cmd = "ktserver -log %s -port %d %s" % (logPath, port, serverOptions)
+    work_dir = os.path.dirname(os.path.abspath(logPath))
+    cmd = "docker run -v %s:/data --log-driver=none -p %d:%d --net=host quay.io/adderan/ktserver -log %s -port %d %s" % (work_dir, port, port, os.path.basename(logPath), port, serverOptions)
     if readOnly is True and dbElem.getDbSnapshot() == False:
         cmd += " -ord -onr"
     if dbElem.getDbHost() is not None:

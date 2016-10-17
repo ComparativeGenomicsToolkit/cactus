@@ -626,7 +626,7 @@ def runCactusFastaGenerator(cactusDiskDatabaseString,
 def runCactusAnalyseAssembly(sequenceFile):
     return cactus_call(tool="cactus", check_output=True,
                 parameters=["cactus_analyseAssembly",
-                            sequenceFile[:-1]])
+                            sequenceFile])[:-1]
     
 def runToilStats(toil, outputFile):
     system("toil stats %s --outputFile %s" % (toil, outputFile))
@@ -635,7 +635,37 @@ def runToilStatusAndFailIfNotComplete(toilDir):
     command = "toil status %s --failIfNotComplete --verbose" % toilDir
     system(command)
 
+def runLastz(seq1, seq2, alignmentsFile, lastzArguments, realignArguments):
+    seq1 = os.path.basename(seq1)
+    seq2 = os.path.basename(seq2)
+    alignmentsFile = os.path.basename(alignmentsFile)
+    work_dir = os.path.abspath(".")
+    cmd = "docker run -v {}:/data quay.io/adderan/lastz --format=cigar %s %s[multiple][nameparse=darkspace] %s[nameparse=darkspace]" % (lastzArguments, seq1, seq2)
 
+    if realignArguments:
+        cmd += " | docker run -v {}:/data cactus %s %s %s " % (realignArguments, seq1, seq2)
+    cmd += " > %s" % alignmentsFile
+
+    base_docker_call = ['docker', 'run',
+                        '--log-driver=none',
+                        '-v', '{}:/data'.format(work_dir)]
+    _fix_permissions(base_docker_call, tool, work_dir)
+
+def runSelfLastz(seq, alignmentsFile, lastzArguments, realignArguments):
+    seq = os.path.basename(seq)
+    alignmentsFile = os.path.basename(alignmentsFile)
+    work_dir = os.path.abspath(".")
+    cmd = "docker run -v {}:/data lastz --format=cigar %s %s[multiple][nameparse=darkspace] %s[nameparse=darkspace]" % (lastzArguments, seq, seq)
+
+    if realignArguments:
+        cmd += " | docker run -v {}:/data cactus %s %s %s " % (realignArguments, seq)
+    cmd += " > %s" % alignmentsFile
+
+    base_docker_call = ['docker', 'run',
+                        '--log-driver=none',
+                        '-v', '{}:/data'.format(work_dir)]
+    _fix_permissions(base_docker_call, tool, work_dir)
+    
 def cactus_call(tool,
                 parameters=None,
                 work_dir='.',
@@ -686,7 +716,7 @@ def cactus_call(tool,
             output, nothing = process.communicate(stdin_string)
     else:
         if outfile:
-            subprocess.check_call(call, stdout=outfile)
+            subprocess.check_call(call, stdout=open(outfile, 'w'))
         else:
             if check_output:
                 output = subprocess.check_output(call)

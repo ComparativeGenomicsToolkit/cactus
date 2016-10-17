@@ -352,7 +352,7 @@ class RunCactusPreprocessorThenProgressiveDown2(Job):
 def main():
     parser = ArgumentParser()
     Job.Runner.addToilOptions(parser)
-    #addCactusWorkflowOptions(parser)
+    addCactusWorkflowOptions(parser)
 
     parser.add_argument("seqFile", help = "Seq file")
     parser.add_argument("workDir", help = "Work dir")
