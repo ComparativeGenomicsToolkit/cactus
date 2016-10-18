@@ -9,7 +9,6 @@ import os
 import random
 
 from sonLib.bioio import logger
-from cactus.shared.test import parseCactusSuiteTestOptions
 from sonLib.bioio import TestStatus
 from sonLib.bioio import system
 from sonLib.bioio import getTempDirectory
@@ -44,8 +43,6 @@ class TestCase(unittest.TestCase):
             logger.info("Finished test %i of cactus_setup.py", test) 
  
 def main():
-    parseCactusSuiteTestOptions()
-    sys.argv = sys.argv[:1]
     unittest.main()
         
 if __name__ == '__main__':

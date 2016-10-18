@@ -35,6 +35,41 @@ from cactus.shared.common import runToilStats, runToilStatusAndFailIfNotComplete
 from cactus.shared.experimentWrapper import DbElemWrapper
 from cactus.shared.experimentWrapper import ExperimentWrapper
 
+def silentOnSuccess(fn):
+    """
+    Redirect stdout, stderr for a test function, then output them if it fails.
+    """
+    def wrap(self):
+        # Pretty much ripped from the toil worker.py setup.
+        tempPath = getTempFile()
+        oldStdout = os.dup(1)
+        oldStderr = os.dup(2)
+
+        #Open the file to send stdout/stderr to.
+        logFh = os.open(tempPath, os.O_RDWR | os.O_CREAT | os.O_APPEND)
+
+        #Replace standard output with a descriptor for the log file
+        os.dup2(logFh, 1)
+
+        #Replace standard error with a descriptor for the log file
+        os.dup2(logFh, 2)
+        try:
+            fn(self)
+        except:
+            oldStdoutFile = os.fdopen(oldStdout, 'w')
+            logFile = os.fdopen(os.dup(logFh))
+            logFile.seek(0)
+            oldStdoutFile.write(logFile.read())
+            raise
+        finally:
+            # Close the descriptor we used to open the file
+            os.close(logFh)
+            # Reset stdout and stderr
+            os.dup2(oldStdout, 1)
+            os.dup2(oldStderr, 2)
+            os.remove(tempPath)
+    return wrap
+
 ###########
 #Stuff for setting up the experiment configuration file for a test
 ###########
@@ -72,31 +107,6 @@ def getCactusWorkflowExperimentForTest(sequences, newickTreeString, outputDir, c
     return ExperimentWrapper.createExperimentWrapper(sequences, newickTreeString, outputDir,
                                     databaseConf=_GLOBAL_DATABASE_CONF_STRING, configFile=configFile,
                                     halFile=halFile, fastaFile=fastaFile, constraints=constraints, progressive=progressive)
-
-def parseCactusSuiteTestOptions():
-    """Cactus version of the basic option parser that can additionally parse 
-    a database conf XML string to be used in experiments."""
-    from sonLib.bioio import getBasicOptionParser
-    parser = getBasicOptionParser("usage: %prog [options]", "%prog 0.1")
-    
-    parser.add_option("--databaseConf", dest="databaseConf", type="string",
-                      help="Gives a database conf string which will direct all tests to use the given database (see the readme for instructions on setup)",
-                      default=None)
-    
-    parser.add_option("--batchSystem", dest="batchSystem", type="string",
-                      help="Set the batch system for the tests to be run under",
-                      default=None)
-    
-    from sonLib.bioio import parseSuiteTestOptions
-    options, args = parseSuiteTestOptions(parser)
-    #This is the key bit
-    if options.databaseConf != None:
-        initialiseGlobalDatabaseConf(options.databaseConf)
-    
-    if options.batchSystem != None:
-        initialiseGlobalBatchSystem(options.batchSystem)
-        
-    return options, args
 
 ###############
 #Stuff for getting random inputs to a test

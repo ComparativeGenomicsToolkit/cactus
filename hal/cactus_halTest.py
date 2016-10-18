@@ -6,19 +6,21 @@
 import unittest
 import sys
 
-from cactus.shared.test import parseCactusSuiteTestOptions
 from sonLib.bioio import TestStatus, system, getLogLevelString
 
 from cactus.shared.test import getCactusInputs_random
 from cactus.shared.test import getCactusInputs_blanchette
 from cactus.shared.test import runWorkflow_multipleExamples
+from cactus.shared.test import silentOnSuccess
 
 class TestCase(unittest.TestCase):
+    @silentOnSuccess
     def testCactusRecursiveHalGenerator_Random(self):
         runWorkflow_multipleExamples(getCactusInputs_random,
                                      testNumber=TestStatus.getTestSetup(),
                                      buildReference=True, buildHal=True, buildFasta=True)
-        
+
+    @silentOnSuccess
     def testCactusRecursiveHalGenerator_Blanchette(self):
         runWorkflow_multipleExamples(getCactusInputs_blanchette,
                                      testRestrictions=(TestStatus.TEST_SHORT,), inverseTestRestrictions=True,
@@ -28,11 +30,6 @@ class TestCase(unittest.TestCase):
         """Run all the CuTests, fail if any of them fail.
         """
         system("cactus_halGeneratorTests %s" % getLogLevelString())
-    
-def main():
-    parseCactusSuiteTestOptions() 
-    sys.argv = sys.argv[:1]
-    unittest.main()
-        
+
 if __name__ == '__main__':
-    main()
+    unittest.main()

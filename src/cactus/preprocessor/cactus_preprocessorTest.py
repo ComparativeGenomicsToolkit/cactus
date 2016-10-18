@@ -72,4 +72,5 @@ class TestCase(PreprocessorTestCase):
              " the precision of the fast vs. the new is: ", i/len(maskedBasesLastzMaskedFast)
         
 if __name__ == '__main__':
-    unittest.main()
+    if "SON_TRACE_DATASETS" in os.environ:
+        unittest.main()

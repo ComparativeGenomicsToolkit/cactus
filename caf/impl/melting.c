@@ -329,7 +329,7 @@ static stHash *getPinchEndToChainEndHash(stCactusGraph *cactusGraph) {
 // For a given cactus node, recurse through all nodes below it and
 // find recoverable chains below them. Then find recoverable chains
 // below the current node given its parent chain.
-static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *parentChain, stSet *deadEndComponent, bool (*recoverabilityFilter)(stCactusEdgeEnd *), stHash *pinchEndToChainEnd, stSet *recoverableChains, stList *telomereAdjacentChains, stHash *chainToRecoverableAdjacencies) {
+static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *parentChain, stSet *deadEndComponent, Flower *flower, bool (*recoverabilityFilter)(stCactusEdgeEnd *, Flower *), stHash *pinchEndToChainEnd, stSet *recoverableChains, stList *telomereAdjacentChains, stHash *chainToRecoverableAdjacencies) {
     stCactusNodeEdgeEndIt cactusEdgeEndIt = stCactusNode_getEdgeEndIt(cactusNode);
     stCactusEdgeEnd *cactusEdgeEnd;
     while ((cactusEdgeEnd = stCactusNodeEdgeEndIt_getNext(&cactusEdgeEndIt)) != NULL) {
@@ -343,6 +343,7 @@ static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *pa
             getRecoverableChains_R(stCactusEdgeEnd_getOtherNode(cactusEdgeEnd),
                                    stCactusEdgeEnd_getOtherEdgeEnd(cactusEdgeEnd),
                                    deadEndComponent,
+                                   flower,
                                    recoverabilityFilter,
                                    pinchEndToChainEnd,
                                    recoverableChains,
@@ -355,14 +356,14 @@ static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *pa
         // Visit the next node on this chain (unless it's where we started).
         stCactusEdgeEnd *nextEdgeEnd = stCactusEdgeEnd_getOtherEdgeEnd(stCactusEdgeEnd_getLink(parentChain));
         if (!stCactusEdgeEnd_isChainEnd(nextEdgeEnd)) {
-            getRecoverableChains_R(stCactusEdgeEnd_getNode(nextEdgeEnd), nextEdgeEnd, deadEndComponent, recoverabilityFilter, pinchEndToChainEnd, recoverableChains, telomereAdjacentChains, chainToRecoverableAdjacencies);
+            getRecoverableChains_R(stCactusEdgeEnd_getNode(nextEdgeEnd), nextEdgeEnd, deadEndComponent, flower, recoverabilityFilter, pinchEndToChainEnd, recoverableChains, telomereAdjacentChains, chainToRecoverableAdjacencies);
         }
     }
 
     cactusEdgeEndIt = stCactusNode_getEdgeEndIt(cactusNode);
     while ((cactusEdgeEnd = stCactusNodeEdgeEndIt_getNext(&cactusEdgeEndIt)) != NULL) {
         if (stCactusEdgeEnd_isChainEnd(cactusEdgeEnd) && stCactusEdgeEnd_getLinkOrientation(cactusEdgeEnd)) {
-            if ((recoverabilityFilter == NULL || recoverabilityFilter(cactusEdgeEnd)) && chainIsRecoverable(cactusEdgeEnd, deadEndComponent)) {
+            if ((recoverabilityFilter == NULL || recoverabilityFilter(cactusEdgeEnd, flower)) && chainIsRecoverable(cactusEdgeEnd, deadEndComponent)) {
                 stSet_insert(recoverableChains, cactusEdgeEnd);
                 markRecoverableAdjacencies(cactusEdgeEnd, pinchEndToChainEnd, chainToRecoverableAdjacencies);
                 if (chainConnectsToTelomere(cactusEdgeEnd, deadEndComponent)) {
@@ -373,13 +374,13 @@ static void getRecoverableChains_R(stCactusNode *cactusNode, stCactusEdgeEnd *pa
     }
 }
 
-static stList *getRecoverableChains(stCactusGraph *cactusGraph, stCactusNode *startCactusNode, stSet *deadEndComponent, bool (*recoverabilityFilter)(stCactusEdgeEnd *)) {
+static stList *getRecoverableChains(stCactusGraph *cactusGraph, stCactusNode *startCactusNode, stSet *deadEndComponent, Flower *flower, bool (*recoverabilityFilter)(stCactusEdgeEnd *, Flower *)) {
     stHash *pinchEndToChainEnd = getPinchEndToChainEndHash(cactusGraph);
 
     stSet *recoverableChainSet = stSet_construct();
     stList *telomereAdjacentChains = stList_construct();
     stHash *chainToRecoverableAdjacencies = stHash_construct2(NULL, (void (*)(void *)) stList_destruct);
-    getRecoverableChains_R(startCactusNode, NULL, deadEndComponent, recoverabilityFilter, pinchEndToChainEnd, recoverableChainSet, telomereAdjacentChains, chainToRecoverableAdjacencies);
+    getRecoverableChains_R(startCactusNode, NULL, deadEndComponent, flower, recoverabilityFilter, pinchEndToChainEnd, recoverableChainSet, telomereAdjacentChains, chainToRecoverableAdjacencies);
 
     // Remove anchors that are connected to telomeres and are not
     // transitively connected to an unrecoverable chain. This ensures
@@ -451,101 +452,45 @@ static int64_t totalAlignedBases(stList *blocks) {
     return total;
 }
 
-void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds, bool (*recoverabilityFilter)(stCactusEdgeEnd *)) {
-    stCactusNode *startCactusNode;
-    stList *deadEndComponent;
-    stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 0, 0,
-                                                                  0.0, breakChainsAtReverseTandems, maximumMedianSpacingBetweenLinkedEnds);
+void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds, bool (*recoverabilityFilter)(stCactusEdgeEnd *, Flower *), int64_t maxNumIterations, int64_t maxRecoverableChainLength) {
+    while (maxNumIterations-- > 0) {
+        stCactusNode *startCactusNode;
+        stList *deadEndComponent;
+        // FIXME: We shouldn't really have to rebuild the cactus graph
+        // every time. Instead we should just be able to do multiple
+        // iterations over the same graph, keeping track of the chains
+        // whose underlying blocks we've already deleted.
+        stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 0, 0,
+                                                                      0.0, breakChainsAtReverseTandems, maximumMedianSpacingBetweenLinkedEnds);
 
-    // Construct a queryable set of stub ends.
-    stSet *deadEndComponentSet = stSet_construct3(stPinchEnd_hashFn, stPinchEnd_equalsFn, NULL);
-    for (int64_t i = 0; i < stList_length(deadEndComponent); i++) {
-        stSet_insert(deadEndComponentSet, stList_get(deadEndComponent, i));
-    }
-
-    stList *recoverableChains = getRecoverableChains(cactusGraph, startCactusNode, deadEndComponentSet, recoverabilityFilter);
-
-    stList *blocksToDelete = stList_construct3(0, (void(*)(void *)) stPinchBlock_destruct);
-    for (int64_t i = 0; i < stList_length(recoverableChains); i++) {
-        stCactusEdgeEnd *chainEnd = stList_get(recoverableChains, i);
-        addChainBlocksToBlocksToDelete(chainEnd, blocksToDelete);
-    }
-    printf("Destroying %" PRIi64 " recoverable blocks\n", stList_length(blocksToDelete));
-    printf("The blocks covered %" PRIi64 " columns for a total of %" PRIi64 " aligned bases\n", numColumns(blocksToDelete), totalAlignedBases(blocksToDelete));
-    stList_destruct(recoverableChains);
-    stList_destruct(blocksToDelete);
-
-    stCactusGraph_destruct(cactusGraph);
-    stSet_destruct(deadEndComponentSet);
-}
-
-///////////////////////////////////////////////////////////////////////////
-// Functions for calculating required species/tree coverage
-///////////////////////////////////////////////////////////////////////////
-
-Event *getEvent(stPinchSegment *segment, Flower *flower) {
-    Event *event = cap_getEvent(flower_getCap(flower, stPinchSegment_getName(segment)));
-    assert(event != NULL);
-    return event;
-}
-
-bool stCaf_containsRequiredSpecies(stPinchBlock *pinchBlock, Flower *flower, int64_t minimumIngroupDegree,
-        int64_t minimumOutgroupDegree, int64_t minimumDegree, int64_t minimumNumberOfSpecies) {
-    stSet *seenEvents = stSet_construct();
-    int64_t numberOfSpecies = 0;
-    int64_t outgroupSequences = 0;
-    int64_t ingroupSequences = 0;
-    stPinchBlockIt segmentIt = stPinchBlock_getSegmentIterator(pinchBlock);
-    stPinchSegment *segment;
-    while ((segment = stPinchBlockIt_getNext(&segmentIt)) != NULL) {
-        Event *event = getEvent(segment, flower);
-        if (!stSet_search(seenEvents, event)) {
-            stSet_insert(seenEvents, event);
-            numberOfSpecies++;
+        // Construct a queryable set of stub ends.
+        stSet *deadEndComponentSet = stSet_construct3(stPinchEnd_hashFn, stPinchEnd_equalsFn, NULL);
+        for (int64_t i = 0; i < stList_length(deadEndComponent); i++) {
+            stSet_insert(deadEndComponentSet, stList_get(deadEndComponent, i));
         }
-        if (event_isOutgroup(event)) {
-            outgroupSequences++;
-        } else {
-            ingroupSequences++;
+
+        stList *recoverableChains = getRecoverableChains(cactusGraph, startCactusNode, deadEndComponentSet, flower, recoverabilityFilter);
+
+        stList *blocksToDelete = stList_construct3(0, (void(*)(void *)) stPinchBlock_destruct);
+        for (int64_t i = 0; i < stList_length(recoverableChains); i++) {
+            stCactusEdgeEnd *chainEnd = stList_get(recoverableChains, i);
+            if (getChainLength(chainEnd) <= maxRecoverableChainLength) {
+                addChainBlocksToBlocksToDelete(chainEnd, blocksToDelete);
+            }
+        }
+        int64_t numRecoverableBlocks = stList_length(blocksToDelete);
+        printf("Destroying %" PRIi64 " recoverable blocks\n", numRecoverableBlocks);
+        printf("The blocks covered %" PRIi64 " columns for a total of %" PRIi64 " aligned bases\n", numColumns(blocksToDelete), totalAlignedBases(blocksToDelete));
+        stList_destruct(recoverableChains);
+        stList_destruct(blocksToDelete);
+
+        stCactusGraph_destruct(cactusGraph);
+        stSet_destruct(deadEndComponentSet);
+
+        if (numRecoverableBlocks == 0) {
+            // We didn't delete anything this round; we can safely
+            // stop since we haven't changed the graph at all.
+            break;
         }
     }
-    stSet_destruct(seenEvents);
-    return ingroupSequences >= minimumIngroupDegree &&
-        outgroupSequences >= minimumOutgroupDegree &&
-        outgroupSequences + ingroupSequences >= minimumDegree &&
-        numberOfSpecies >= minimumNumberOfSpecies;
-}
-
-bool stCaf_treeCoverage(stPinchBlock *pinchBlock, Flower *flower) {
-    EventTree *eventTree = flower_getEventTree(flower);
-    Event *commonAncestorEvent = NULL;
-    stPinchSegment *segment;
-    stPinchBlockIt segmentIt = stPinchBlock_getSegmentIterator(pinchBlock);
-    while ((segment = stPinchBlockIt_getNext(&segmentIt))) {
-        Event *event = getEvent(segment, flower);
-        commonAncestorEvent = commonAncestorEvent == NULL ? event : eventTree_getCommonAncestor(event, commonAncestorEvent);
-    }
-    assert(commonAncestorEvent != NULL);
-    float treeCoverage = 0.0;
-    stHash *hash = stHash_construct();
-
-    segmentIt = stPinchBlock_getSegmentIterator(pinchBlock);
-    while ((segment = stPinchBlockIt_getNext(&segmentIt))) {
-        Event *event = getEvent(segment, flower);
-        while (event != commonAncestorEvent && stHash_search(hash, event) == NULL) {
-            treeCoverage += event_getBranchLength(event);
-            stHash_insert(hash, event, event);
-            event = event_getParent(event);
-        }
-    }
-
-    float wholeTreeCoverage = event_getSubTreeBranchLength(event_getChild(eventTree_getRootEvent(eventTree), 0));
-    assert(wholeTreeCoverage >= 0.0);
-    if (wholeTreeCoverage <= 0.0) { //deal with case all leaf branches are not empty.
-        return 0.0;
-    }
-    treeCoverage /= wholeTreeCoverage;
-    assert(treeCoverage >= -0.001);
-    assert(treeCoverage <= 1.0001);
-    return treeCoverage;
 }

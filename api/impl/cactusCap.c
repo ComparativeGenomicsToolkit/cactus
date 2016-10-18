@@ -105,6 +105,18 @@ void cap_destruct(Cap *cap) {
     end_removeInstance(cap_getEnd(cap), cap);
     flower_removeCap(end_getFlower(cap_getEnd(cap)), cap);
 
+    // Remove parent->child link from parent (if any).
+    Cap *capParent = cap->capContents->parent;
+    if (capParent != NULL) {
+        listRemove(capParent->capContents->children, cap);
+    }
+
+    // Remove child->parent link from children (if any).
+    for (int64_t i = 0; i < cap->capContents->children->length; i++) {
+        Cap *capChild = cap->capContents->children->list[i];
+        capChild->capContents->parent = NULL;
+    }
+
     destructList(cap->capContents->children);
     free(cap->rCap);
     free(cap->capContents);
