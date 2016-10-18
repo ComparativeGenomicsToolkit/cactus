@@ -194,10 +194,10 @@ def runCactusSetup(cactusDiskDatabaseString, cactusSequencesPath, sequences,
     outgroupEvents = nameValue("outgroupEvents", outgroupEvents, str, quotes=True)
     makeEventHeadersAlphaNumeric=nameValue("makeEventHeadersAlphaNumeric", makeEventHeadersAlphaNumeric, bool)
     masterMessages = cactus_call(tool="cactus", check_output=True,
-                                 parameters=["cactus_setup",
-                                             " ".join(sequences),
-                                             "--speciesTree", newickTreeString,
-                                             "--cactusDisk", cactusDiskDatabaseString,
+                                 parameters=["cactus_setup"]
+                                             + sequences +
+                                             ["--speciesTree '%s'" % newickTreeString,
+                                              "--cactusDisk '%s'" % cactusDiskDatabaseString, 
                                              "--cactusSequencesPath", cactusSequencesPath,
                                              "--logLevel", logLevel,
                                              outgroupEvents, makeEventHeadersAlphaNumeric])
@@ -205,33 +205,7 @@ def runCactusSetup(cactusDiskDatabaseString, cactusSequencesPath, sequences,
     logger.info("Ran cactus setup okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]
     
-def runCactusBlast(sequenceFiles, outputFile, toilDir,
-                   chunkSize=None, overlapSize=None, 
-                   logLevel=None, 
-                   blastString=None, 
-                   selfBlastString=None,
-                   compressFiles=None,
-                   lastzMemory=None,
-                   targetSequenceFiles=None):
-    logLevel = getLogLevelString2(logLevel)
-    chunkSize = nameValue("chunkSize", chunkSize, int)
-    overlapSize = nameValue("overlapSize", overlapSize, int)
-    blastString = nameValue("blastString", blastString, str)
-    selfBlastString = nameValue("selfBlastString", selfBlastString, str)
-    compressFiles = nameValue("compressFiles", compressFiles, bool)
-    lastzMemory = nameValue("lastzMemory", lastzMemory, int)
-    if targetSequenceFiles != None: 
-        targetSequenceFiles = " ".join(targetSequenceFiles)
-    targetSequenceFiles = nameValue("targetSequenceFiles", targetSequenceFiles, quotes=True)
-    sequenceFiles = nameValue("seqFiles", " ".join(sequenceFiles), quotes=True)
 
-    command = "cactus_blast.py %s %s --cigars %s %s %s %s %s %s %s %s --logLevel %s" % \
-            (toilDir, sequenceFiles, outputFile,
-             chunkSize, overlapSize, blastString, selfBlastString, compressFiles, 
-             lastzMemory, targetSequenceFiles, logLevel)
-    logger.info("Running command : %s" % command)
-    system(command)
-    logger.info("Ran the cactus_blast command okay")
 
 def runConvertAlignmentsToInternalNames(cactusDiskString, cactusSequencesPath, alignmentsFile, outputFile, flowerName):
     cactus_call(tool="cactus", stdin_string=encodeFlowerNames((flowerName,)),
@@ -636,35 +610,41 @@ def runToilStatusAndFailIfNotComplete(toilDir):
     system(command)
 
 def runLastz(seq1, seq2, alignmentsFile, lastzArguments, realignArguments):
+    #Can't mount them into docker container if they're in different
+    #directories
+    assert os.path.dirname(seq1) == os.path.dirname(seq2)
+    work_dir = os.path.dirname(seq1)
     seq1 = os.path.basename(seq1)
     seq2 = os.path.basename(seq2)
-    alignmentsFile = os.path.basename(alignmentsFile)
-    work_dir = os.path.abspath(".")
-    cmd = "docker run -v {}:/data quay.io/adderan/lastz --format=cigar %s %s[multiple][nameparse=darkspace] %s[nameparse=darkspace]" % (lastzArguments, seq1, seq2)
+    cmd = "docker run --log-driver=none -v %s:/data quay.io/adderan/lastz --format=cigar %s %s[multiple][nameparse=darkspace] %s[nameparse=darkspace]" % (work_dir, lastzArguments, seq1, seq2)
 
     if realignArguments:
-        cmd += " | docker run -v {}:/data cactus %s %s %s " % (realignArguments, seq1, seq2)
-    cmd += " > %s" % alignmentsFile
+        cmd += " | docker run --log-driver=none -v %s:/data cactus cactus_realign %s %s %s " % (work_dir, realignArguments, seq1, seq2)
+
+    logger.info("Running lastz command: %s" % cmd)
+    subprocess.check_call(cmd.split(), stdout=open(alignmentsFile, 'w'))
 
     base_docker_call = ['docker', 'run',
                         '--log-driver=none',
                         '-v', '{}:/data'.format(work_dir)]
-    _fix_permissions(base_docker_call, tool, work_dir)
+    _fix_permissions(base_docker_call, "quay.io/adderan/lastz", work_dir)
 
 def runSelfLastz(seq, alignmentsFile, lastzArguments, realignArguments):
+    work_dir = os.path.dirname(seq)
     seq = os.path.basename(seq)
-    alignmentsFile = os.path.basename(alignmentsFile)
-    work_dir = os.path.abspath(".")
-    cmd = "docker run -v {}:/data lastz --format=cigar %s %s[multiple][nameparse=darkspace] %s[nameparse=darkspace]" % (lastzArguments, seq, seq)
+    alignmentsFile = alignmentsFile
+
+    cmd = "docker run -v %s:/data quay.io/adderan/lastz --format=cigar %s %s[multiple][nameparse=darkspace] %s[nameparse=darkspace]" % (work_dir, lastzArguments, seq, seq)
 
     if realignArguments:
-        cmd += " | docker run -v {}:/data cactus %s %s %s " % (realignArguments, seq)
-    cmd += " > %s" % alignmentsFile
+        cmd += " | docker run -v %s:/data cactus %s %s %s " % (work_dir, realignArguments, seq)
+
+    subprocess.check_call(cmd.split(), stdout=open(alignmentsFile, 'w'))
 
     base_docker_call = ['docker', 'run',
                         '--log-driver=none',
                         '-v', '{}:/data'.format(work_dir)]
-    _fix_permissions(base_docker_call, tool, work_dir)
+    _fix_permissions(base_docker_call, "quay.io/adderan/lastz", work_dir)
     
 def cactus_call(tool,
                 parameters=None,

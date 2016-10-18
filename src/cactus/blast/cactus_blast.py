@@ -21,6 +21,7 @@ from toil.common import Toil
 
 from cactus.shared.common import makeURL
 from cactus.shared.common import cactus_call
+from cactus.shared.common import runLastz, runSelfLastz
 
 class BlastOptions:
     def __init__(self, chunkSize=10000000, overlapSize=10000, 
@@ -70,7 +71,7 @@ class BlastFlower(Job):
         self.cactusSequencesID = cactusSequencesID
         self.flowerName = flowerName
         self.blastOptions = blastOptions
-        blastOptions.roundsOfCoordinateConversion = 2
+        self.blastOptions.roundsOfCoordinateConversion = 2
         
     def run(self, fileStore):
         chunksDir = getTempDirectory(rootDir=fileStore.getLocalTempDir())
@@ -95,7 +96,7 @@ class BlastSequencesAllAgainstAll(Job):
         self.sequenceFileIDs1 = sequenceFileIDs1
         self.blastOptions = blastOptions
         self.blastOptions.compressFiles = False
-        blastOptions.roundsOfCoordinateConversion = 1
+        self.blastOptions.roundsOfCoordinateConversion = 1
         
     def run(self, fileStore):
         sequenceFiles1 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs1]
@@ -188,7 +189,10 @@ class BlastIngroupsAndOutgroups(Job):
         self.outgroupSequenceIDs = outgroupSequenceIDs
 
     def run(self, fileStore):
-        blastAllAgainstAllDisk = 3*sum([seqID.size for seqID in self.ingroupSequenceIDs])
+        if ingroupSequenceIDs[0].hasattr('size'):
+            blastAllAgainstAllDisk = 3*sum([seqID.size for seqID in self.ingroupSequenceIDs])
+        else:
+            blastAllAgainstAllDisk = None
         ingroupAlignmentsID = self.addChild(BlastSequencesAllAgainstAll(self.ingroupSequenceIDs, self.blastOptions, disk=blastAllAgainstAllDisk)).rv()
 
         blastJob = self.addChild(BlastFirstOutgroup(untrimmedSequenceIDs=self.ingroupSequenceIDs,
@@ -445,7 +449,7 @@ class RunBlast(Job):
                     parameters=["cactus_blast_convertCoordinates",
                                 tempResultsFile,
                                 resultsFile,
-                                self.blastOptions.roundOfCoordinateConversion])
+                                self.blastOptions.roundsOfCoordinateConversion])
         logger.info("Ran the blast okay")
         return fileStore.writeGlobalFile(resultsFile, cleanup=False)
 
@@ -519,117 +523,6 @@ def getChunks(sequenceFiles, chunksDir, blastOptions):
                                             blastOptions.chunkSize, 
                                             blastOptions.overlapSize,
                                             chunksDir] + sequenceFiles).split("\n") if chunk != "" ]
-def main():
-    ##########################################
-    #Construct the arguments.
-    ##########################################
-    
-    parser = ArgumentParser()
-    Job.Runner.addToilOptions(parser)
-    blastOptions = BlastOptions()
-    
-    #output stuff
-    parser.add_argument("--seqFiles", dest="seqFiles",
-                        help="Input sequence files.",
-                        default=None)
-    parser.add_argument("--cigars", dest="cigarFile", 
-                      help="File to write cigars in",
-                      default="cigarFile.txt")
-    
-    parser.add_argument("--chunkSize", dest="chunkSize", type=int, 
-                     help="The size of chunks passed to lastz (must be at least twice as big as overlap)",
-                     default=blastOptions.chunkSize)
-    
-    parser.add_argument("--overlapSize", dest="overlapSize", type=int,
-                     help="The size of the overlap between the chunks passed to lastz (min size 2)",
-                     default=blastOptions.overlapSize)
-    
-    parser.add_argument("--blastString", dest="blastString", type=str,
-                     help="The default string used to call the blast program. \
-Must contain three strings: SEQ_FILE_1, SEQ_FILE_2 and CIGARS_FILE which will be \
-replaced with the two sequence files and the results file, respectively",
-                     default=blastOptions.blastString)
-    
-    parser.add_argument("--selfBlastString", dest="selfBlastString", type=str,
-                     help="The default string used to call the blast program for self alignment. \
-Must contain three strings: SEQ_FILE and CIGARS_FILE which will be \
-replaced with the the sequence file and the results file, respectively",
-                     default=blastOptions.selfBlastString)
-   
-    parser.add_argument("--compressFiles", dest="compressFiles", action="store_false",
-                      help="Turn of bz2 based file compression of sequences for I/O transfer", 
-                      default=blastOptions.compressFiles)
-    
-    parser.add_argument("--lastzMemory", dest="memory", type=int,
-                      help="Lastz memory (in bytes)", 
-                      default=blastOptions.memory)
-    
-    parser.add_argument("--trimFlanking", type=int, help="Amount of flanking sequence to leave on trimmed ingroup sequences", default=blastOptions.trimFlanking)
-    parser.add_argument("--trimMinSize", type=int, help="Minimum size, before adding flanking sequence, of ingroup sequence to align against the next outgroup", default=blastOptions.trimMinSize)
-    parser.add_argument("--trimThreshold", type=int, help="Coverage threshold for an ingroup region to not be aligned against the next outgroup", default=blastOptions.trimThreshold)
-    parser.add_argument("--trimWindowSize", type=int, help="Windowing size to integrate ingroup coverage over", default=blastOptions.trimWindowSize)
-    parser.add_argument("--trimOutgroupFlanking", type=int, help="Amount of flanking sequence to leave on trimmed outgroup sequences", default=blastOptions.trimOutgroupFlanking)
-    
-
-    parser.add_argument("--test", dest="test", action="store_true",
-                      help="Run doctest unit tests")
-    
-    parser.add_argument("--targetSequenceFiles", dest="targetSequenceFiles", type=str,
-                     help="Sequences to align against the input sequences against. If these are not provided then the input sequences are aligned against each other.",
-                     default=None)
-
-    parser.add_argument("--ingroups", type=str, default=None,
-                      help="Ingroups to align (comma-separated) (--outgroups "
-                      "must be provided as well")
-
-    parser.add_argument("--outgroups", type=str, default=None,
-                      help="Outgroups to align (comma-separated) (--ingroups "
-                      "must be provided as well")
-
-    parser.add_argument("--outgroupFragmentsDir", type=str,
-                      default="outgroupFragments/", help= "Directory to "
-                      "store outgroup fragments in")
-
-    options = parser.parse_args()
-    with Toil(options) as toil:
-        if options.test:
-            _test()
-
-        if (options.ingroups is not None) ^ (options.outgroups is not None):
-            raise RuntimeError("--ingroups and --outgroups must be provided "
-                               "together")
-        if options.ingroups:
-            ingroupIDs = [toil.importFile(makeURL(ingroup)) for ingroup in options.ingroups.split(',')]
-            outgroupIDs = [toil.importFile(makeURL(outgroup)) for outgroup in options.outgroups.split(',')]
-            rootJob = BlastIngroupsAndOutgroups(options, ingroupIDs, outgroupIDs)
-            blastResults = toil.start(rootJob)
-            alignmentsID = blastResults["alignmentsID"]
-            toil.exportFile(alignmentsID, makeURL(options.cigarFile))
-            outgroupFragmentIDs = blastResults["outgroupFragmentIDs"]
-            assert len(outgroupFragmentIDs) == len(options.outgroups.split(','))
-            if not os.path.exists(options.outgroupFragmentsDir):
-                os.makedirs(options.outgroupFragmentsDir)
-            for (outgroupFragmentID, outgroupName) in zip(outgroupFragmentIDs, options.outgroups.split(',')):
-                toil.exportFile(outgroupFragmentID, makeURL(os.path.join(options.outgroupFragmentsDir, os.path.basename(outgroupName))))
-
-            
-
-        elif options.targetSequenceFiles == None:
-            seqIDs = [toil.importFile(makeURL(seq)) for seq in options.seqFiles.split()]
-            rootJob = BlastSequencesAllAgainstAll(seqIDs, options)
-            alignmentsID = toil.start(rootJob)
-            toil.exportFile(alignmentsID, makeURL(options.cigarFile))
-        else:
-            seqIDs = [toil.importFile(makeURL(seq)) for seq in options.seqFiles.split()]
-            targetSeqIDs = [toil.importFile(makeURL(seq)) for seq in options.targetSequenceFiles.split()]
-            rootJob = BlastSequencesAgainstEachOther(seqIDs, targetSeqIDs, options)
-            alignmentsID = toil.start(rootJob)
-            toil.exportFile(alignmentsID, makeURL(options.cigarFile))
-
 def _test():
     import doctest
     return doctest.testmod()
-
-if __name__ == '__main__':
-    from cactus.blast.cactus_blast import *
-    main()

@@ -83,6 +83,7 @@ def runKtserver(dbElem, killSwitchPath, maxPortsToTry=100, readOnly = False,
                 logger.info("Ktserver already on port %i" % port)
                 continue
             cmd = __getKtserverCommand(dbElem, dbPathExists, readOnly)
+            logger.info("Using ktserver command: %s" % cmd)
             process = subprocess.Popen(cmd.split(), shell=False, 
                                        stdout=subprocess.PIPE,
                                        stderr=sys.stderr, bufsize=-1)
@@ -115,7 +116,7 @@ def runKtserver(dbElem, killSwitchPath, maxPortsToTry=100, readOnly = False,
         # this process alive which we don't want in the case of an error
         if process is not None and process.returncode is None:
             process.terminate()
-        #assert procWaiter is None or procWaiter.is_alive() is False
+        assert procWaiter is None or procWaiter.is_alive() is False
         
         raise e
     return process
@@ -129,8 +130,7 @@ def __validateKtserver(process, dbElem, killSwitchPath,
     for i in xrange(createTimeout):
         if process.returncode is not None:
             break
-        if __isKtServerFailed(dbElem) or __isKtServerOnTakenPort(dbElem,
-                                                                 killSwitchPath):
+        if __isKtServerFailed(dbElem):
             success = False
             break
         if __isKtServerRunning(dbElem, killSwitchPath):
@@ -300,10 +300,10 @@ def __isKtServerRunning(dbElem, killSwitchPath):
     if success is False:
         return False
 
-    if serverPidFromLog != serverPidAsList[0]:
-        raise RuntimeError("Pid %s != %s (former from %s, lastter %s)" % (
-            str(serverPidFromLog), str(serverPidAsList[0]),
-            logPath, killSwitchPath))
+    #if serverPidFromLog != serverPidAsList[0]:
+    #    raise RuntimeError("Pid %s != %s (former from %s, latter %s)" % (
+    #        str(serverPidFromLog), str(serverPidAsList[0]),
+    #        logPath, killSwitchPath))
     if serverPortFromLog != dbElem.getDbPort():
         raise RuntimeError("Port %s != %s (former from %s, lastter %s)" % (
             str(serverPortFromLog), str(dbElem.getDbPort()),
@@ -323,9 +323,11 @@ def pingKtServer(dbElem):
         raise RuntimeError("Unable to ping ktserver host %s from %s" % (
             dbElem.getDbHost(), getHostName()))
 
-    return subprocess.call(['ktremotemgr', 'report',
+    cmd = ['docker', 'run', '--log-driver=none', '--net=host', 'quay.io/adderan/ktremotemgr', 'report',
                             '-port', str(dbElem.getDbPort()),
-                            '-host', dbElem.getDbHost()],
+                            '-host', dbElem.getDbHost()]
+    logger.info("Ktremotemgr cmd = %s" % cmd)
+    return subprocess.call(cmd,
                            shell=False, bufsize=-1,
                            stdout=subprocess.PIPE,
                            stderr=subprocess.PIPE) == 0

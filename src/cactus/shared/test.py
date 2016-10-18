@@ -367,3 +367,13 @@ def runWorkflow_multipleExamples(inputGenFunction,
             experiment.cleanupDb()
             system("rm -rf %s" % tempDir)
             logger.info("Finished random test %i" % test)
+
+def checkCigar(filename):
+    lines = 0
+    with open(filename, 'r') as fh:
+        for line in fh:
+            lines += 1
+            if not (line.startswith("cigar:") or line.startswith("#") or line == ""):
+                raise RuntimeError("Illegal line found in cigar file.")
+    if lines == 0:
+        raise RuntimeError("Cigar file is empty.")

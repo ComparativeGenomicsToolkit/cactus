@@ -15,5 +15,5 @@ setup(
     
     entry_points={
         'console_scripts': [
-        'progressiveCactus = cactus.progressive.cactus_progressive:main']},)
+            'progressiveCactus = cactus.progressive.cactus_progressive:main']},)
 

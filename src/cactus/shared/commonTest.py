@@ -6,6 +6,7 @@ from cactus.shared.test import parseCactusSuiteTestOptions
 from sonLib.bioio import TestStatus
 from cactus.shared.common import *
 
+
 class TestCase(unittest.TestCase):
     def testEncodeFlowerNames(self):
         self.assertEquals("3 100 -95 995", encodeFlowerNames([ 100, 5, 1000 ]))
