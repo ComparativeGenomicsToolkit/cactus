@@ -15,7 +15,7 @@ install:
   - export sonLibRootPath=`pwd`/sonLib
   - sh -c 'cd sonLib && make'
   - sh -c 'cd matchingAndOrdering && make'
-  - sh -c 'cd pinchesAndCacti && make'
+  - sh -c 'cd pinchesAndCacti && git checkout phylogeny && make'
   - sh -c 'cd jobTree && make'
 script:
   - export sonLibRootPath=`pwd`/sonLib
