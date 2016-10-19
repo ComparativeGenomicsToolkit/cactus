@@ -6,13 +6,30 @@ from sonLib.bioio import popenCatch
 from sonLib.bioio import logger
 from sonLib.bioio import TestStatus
 from sonLib.bioio import getTempFile
+from sonLib.bioio import getTempDirectory
 from sonLib.bioio import system
+
+from cactus.shared.common import runLastz
+from cactus.shared.common import runSelfLastz
+from cactus.shared.common import runCactusRealign
+from cactus.shared.common import runCactusSelfRealign
+from cactus.shared.common import runCactusCoverage
 
 class TestCase(unittest.TestCase):
     
     def setUp(self):
         unittest.TestCase.setUp(self)
-    
+        self.tempDir = getTempDirectory(os.getcwd())
+        self.tempFiles = []
+        unittest.TestCase.setUp(self)
+        self.tempOutputFile = os.path.join(self.tempDir, "results1.txt")
+        self.tempFiles.append(self.tempOutputFile)
+        self.tempOutputFile2 = os.path.join(self.tempDir, "results2.txt")
+        self.tempFiles.append(self.tempOutputFile2) 
+        self.encodePath = os.path.join(TestStatus.getPathToDataSets(), "MAY-2005")
+        self.defaultLastzArguments = "--ambiguous=iupac"
+        self.defaultRealignArguments = ""
+
     def tearDown(self):
         unittest.TestCase.tearDown(self)
         
@@ -21,9 +38,19 @@ class TestCase(unittest.TestCase):
         and checks the output is equivalent to what you'd get by just running lastz.
         """
         for seqFile1, seqFile2 in seqFilePairGenerator():
-            realignCommand, lastzCommand = getCommands(seqFile1, seqFile2, "--rescoreOriginalAlignment")
-            for realignLine, lastzLine in zip([ i for i in popenCatch(realignCommand).split("\n") if i != '' ], 
-                                              [ i for i in popenCatch(lastzCommand).split("\n") if i != '' ]):
+
+            lastzOutput = getTempFile(rootDir=self.tempDir)
+            runLastz(seqFile1, seqFile2, alignmentsFile=lastzOutput,
+                     lastzArguments=self.defaultLastzArguments + " --rescoreOriginalAlignment",
+                     work_dir=self.tempDir)
+            realignOutput = getTempFile(rootDir=self.tempDir)
+            runCactusRealign(seqFile1, seqFile2, inputAlignmentsFile = lastzOutput,
+                             outputAlignmentsFile = realignOutput,
+                             realignArguments=self.defaultRealignArguments,
+                             work_dir=self.tempDir)
+                                      
+            for realignLine, lastzLine in zip([ i for i in open(lastzOutput, 'r') if i != '' ],
+                                              [ i for i in open(realignOutput, 'r') if i != '' ]):
                 realignCigar = cigarReadFromString(realignLine)
                 lastzCigar = cigarReadFromString(lastzLine)
                 self.assertTrue(realignCigar != None)
@@ -34,9 +61,18 @@ class TestCase(unittest.TestCase):
         the same subsequences.
         """
         for seqFile1, seqFile2 in seqFilePairGenerator():
-            realignCommand, lastzCommand = getCommands(seqFile1, seqFile2)
-            for realignLine, lastzLine in zip([ i for i in popenCatch(realignCommand).split("\n") if i != '' ], 
-                                              [ i for i in popenCatch(lastzCommand).split("\n") if i != '' ]):
+            lastzOutput = getTempFile(rootDir=self.tempDir)
+            runLastz(seqFile1, seqFile2, alignmentsFile=lastzOutput,
+                     lastzArguments=self.defaultLastzArguments,
+                     work_dir=self.tempDir)
+            realignOutput = getTempFile(rootDir=self.tempDir)
+            runCactusRealign(seqFile1, seqFile2, inputAlignmentsFile = lastzOutput,
+                             outputAlignmentsFile = realignOutput,
+                             realignArguments=self.defaultRealignArguments,
+                             work_dir=self.tempDir)
+            
+            for realignLine, lastzLine in zip([ i for i in open(lastzOutput, 'r') if i != '' ], 
+                                              [ i for i in open(realignOutput, 'r') if i != '' ]):
                 realignCigar = cigarReadFromString(realignLine)
                 lastzCigar = cigarReadFromString(lastzLine)
                 self.assertTrue(realignCigar.sameCoordinates(lastzCigar))
@@ -46,24 +82,30 @@ class TestCase(unittest.TestCase):
         that the coverage from the results is the same as the coverage from
         realigning with no arguments.."""
         for seqFile1, seqFile2 in seqFilePairGenerator():
-            # Drop the lastz command since it's not needed. But this
-            # is still convenient to use the same parameters as all
-            # the other tests
-            realignCommand, _ = getCommands(seqFile1, seqFile2)
-            splitRealignCommand = realignCommand + " --splitIndelsLongerThanThis 100"
-            realignOutput = getTempFile()
-            splitRealignOutput = getTempFile()
-            realignCommand += " > %s" % realignOutput
-            splitRealignCommand += " > %s" % splitRealignOutput
-            system(realignCommand)
-            system(splitRealignCommand)
+            lastzOutput = getTempFile(rootDir=self.tempDir)
+            runLastz(seqFile1, seqFile2, alignmentsFile=lastzOutput,
+                     lastzArguments=self.defaultLastzArguments,
+                     work_dir=self.tempDir)
+            
+            realignOutput = getTempFile(rootDir=self.tempDir)
+            runCactusRealign(seqFile1, seqFile2, inputAlignmentsFile=lastzOutput,
+                             outputAlignmentsFile=realignOutput,
+                             realignArguments=self.defaultRealignArguments,
+                             work_dir=self.tempDir)
+            
+            splitRealignOutput = getTempFile(rootDir=self.tempDir)
+            runCactusRealign(seqFile1, seqFile2, inputAlignmentsFile=lastzOutput,
+                             outputAlignmentsFile=splitRealignOutput,
+                             realignArguments=self.defaultRealignArguments + " --splitIndelsLongerThanThis 100",
+                             work_dir=self.tempDir)
+
             # Check coverage on seqFile1
-            splitRealignCoverage = popenCatch("cactus_coverage %s %s" % (seqFile1, splitRealignOutput))
-            realignCoverage = popenCatch("cactus_coverage %s %s" % (seqFile1, realignOutput))
+            splitRealignCoverage = runCactusCoverage(seqFile1, splitRealignOutput, work_dir=self.tempDir)
+            realignCoverage = runCactusCoverage(seqFile1, realignOutput, work_dir=self.tempDir)
             self.assertTrue(splitRealignCoverage == realignCoverage)
             # Check coverage on seqFile2
-            splitRealignCoverage = popenCatch("cactus_coverage %s %s" % (seqFile2, splitRealignOutput))
-            realignCoverage = popenCatch("cactus_coverage %s %s" % (seqFile2, realignOutput))
+            splitRealignCoverage = runCactusCoverage(seqFile2, splitRealignOutput, work_dir=self.tempDir)
+            realignCoverage = runCactusCoverage(seqFile2, realignOutput, work_dir=self.tempDir)
             self.assertTrue(splitRealignCoverage == realignCoverage)
             os.remove(realignOutput)
             os.remove(splitRealignOutput)
@@ -73,14 +115,33 @@ class TestCase(unittest.TestCase):
         the same subsequences.
         """
         for seqFile1, seqFile2 in seqFilePairGenerator():
-            realignCommandByIdentity, lastzCommand = getCommands(seqFile1, seqFile2, realignArguments="--rescoreByIdentity")
-            realignCommandByPosteriorProb = getCommands(seqFile1, seqFile2, realignArguments="--rescoreByPosteriorProb")[0]
-            realignCommandByIdentityIgnoringGaps = getCommands(seqFile1, seqFile2, realignArguments="--rescoreByIdentityIgnoringGaps")[0]
+            lastzOutput = getTempFile(rootDir=self.tempDir)
+            runLastz(seqFile1, seqFile2, alignmentsFile=lastzOutput,
+                     lastzArguments=self.defaultLastzArguments,
+                     work_dir=self.tempDir)
+
+            realignByIdentityOutput = getTempFile(rootDir=self.tempDir)
+            runCactusRealign(seqFile1, seqFile2, inputAlignmentsFile=lastzOutput,
+                             outputAlignmentsFile=realignByIdentityOutput,
+                             realignArguments=self.defaultRealignArguments + " --rescoreByIdentity",
+                             work_dir=self.tempDir)
+
+            realignByPosteriorProbOutput = getTempFile(rootDir=self.tempDir)
+            runCactusRealign(seqFile1, seqFile2, inputAlignmentsFile=lastzOutput,
+                             outputAlignmentsFile=realignByPosteriorProbOutput,
+                             realignArguments=self.defaultRealignArguments + " --rescoreByPosteriorProb",
+                             work_dir=self.tempDir)
+
+            realignByIdentityIgnoringGapsOutput = getTempFile(rootDir=self.tempDir)
+            runCactusRealign(seqFile1, seqFile2, inputAlignmentsFile=lastzOutput,
+                             outputAlignmentsFile=realignByIdentityIgnoringGapsOutput,
+                             realignArguments=self.defaultRealignArguments + " --rescoreByIdentityIgnoringGaps",
+                             work_dir=self.tempDir)
             for realignLineByIdentity, realignLineByPosteriorProb, realignLineByIdentityIgnoringGaps, lastzLine in \
-                                          zip([ i for i in popenCatch(realignCommandByIdentity).split("\n") if i != '' ], \
-                                              [ i for i in popenCatch(realignCommandByPosteriorProb).split("\n") if i != '' ], \
-                                              [ i for i in popenCatch(realignCommandByIdentityIgnoringGaps).split("\n") if i != '' ], \
-                                              [ i for i in popenCatch(lastzCommand).split("\n") if i != '' ]):
+                                          zip([ i for i in open(realignByIdentityOutput, 'r') if i != '' ], \
+                                              [ i for i in open(realignByPosteriorProbOutput, 'r') if i != '' ], \
+                                              [ i for i in open(realignByIdentityIgnoringGapsOutput, 'r') if i != '' ], \
+                                              [ i for i in open(lastzOutput, 'r') if i != '' ]):
                 realignCigarByIdentity = cigarReadFromString(realignLineByIdentity)
                 realignCigarByPosteriorProb = cigarReadFromString(realignLineByPosteriorProb)
                 realignCigarByIdentityIgnoringGaps = cigarReadFromString(realignLineByIdentityIgnoringGaps)
@@ -94,10 +155,6 @@ class TestCase(unittest.TestCase):
                 self.assertTrue(realignCigarByIdentityIgnoringGaps.score <= 100.0)
                 #print "Scores", "Rescore by identity", realignCigarByIdentity.score, "Rescore by posterior prob", realignCigarByPosteriorProb.score, "Rescore by identity ignoring gaps", realignCigarByIdentityIgnoringGaps.score, "Lastz score", lastzCigar.score
 
-def getCommands(seqFile1, seqFile2, realignArguments="", lastzArguments="--ambiguous=iupac"):  
-    lastzCommand = "cactus_lastz --format=cigar %s %s[multiple][nameparse=darkspace] %s[nameparse=darkspace]" % (lastzArguments, seqFile1, seqFile2)
-    realignCommand = "%s | cactus_realign %s %s %s" % (lastzCommand, realignArguments, seqFile1, seqFile2)
-    return realignCommand, lastzCommand
                             
 def seqFilePairGenerator():
     if "SON_TRACE_DATASETS" not in os.environ:

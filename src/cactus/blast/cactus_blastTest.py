@@ -77,7 +77,7 @@ class TestCase(unittest.TestCase):
                     seqFile2 = os.path.join(regionPath, "%s.%s.fa" % (species2, encodeRegion))
 
                     #Run simple blast
-                    runNaiveBlast(seqFile1, seqFile2, self.tempOutputFile)
+                    runNaiveBlast(seqFile1, seqFile2, self.tempOutputFile, self.tempDir)
                     logger.info("Ran the naive blast okay")
                     
                     #Run cactus blast pipeline
@@ -101,13 +101,13 @@ class TestCase(unittest.TestCase):
         cactus_blast.py in all-against-all mode. 
         """
         self.runComparisonOfBlastScriptVsNaiveBlast(blastMode="allAgainstAll")
-    @unittest.skip("")
+
     def testBlastEncode(self):
         """For each encode region, for set of pairwise species, run 
         cactus_blast.py in one set of sequences against another set mode. 
         """
         self.runComparisonOfBlastScriptVsNaiveBlast(blastMode="againstEachOther")
-    @unittest.skip("")
+
     def testAddingOutgroupsImprovesResult(self):
         """Run blast on "ingroup" and "outgroup" encode regions, and ensure
         that adding an extra outgroup only adds alignments if
@@ -159,7 +159,7 @@ class TestCase(unittest.TestCase):
                 print "bases re-covered: %f (%d)" % (len(newAlignmentsHumanPos.intersection(prevResultsHumanPos))/float(len(prevResultsHumanPos)), len(newAlignmentsHumanPos.intersection(prevResultsHumanPos)))
             for subResult in results:
                 os.remove(subResult)
-    @unittest.skip("")
+
     def testProgressiveOutgroupsVsAllOutgroups(self):
         """Tests the difference in outgroup coverage on an ingroup when
         running in "ingroups vs. outgroups" mode and "set against set"
@@ -203,7 +203,7 @@ class TestCase(unittest.TestCase):
         print "total coverage on human from last outgroup in set (%s) (ingroup vs outgroup mode): %d" % (outgroups[-1], coverageFromLastOutgroupInVsOut)
 
         self.assertTrue(float(coverageFromLastOutgroupInVsOut)/coverageFromLastOutgroupSetVsSet <= 0.10)
-    @unittest.skip("")
+
     def testBlastParameters(self):
         """Tests if changing parameters of lastz creates results similar to the desired default.
         """
@@ -218,15 +218,15 @@ class TestCase(unittest.TestCase):
                 seqFile2 = os.path.join(regionPath, "%s.%s.fa" % (species2, encodeRegion))
                 
                 #Run the random
-                runNaiveBlast(seqFile1, seqFile2, self.tempOutputFile2,
-                         lastzArguments="--nogapped --hspthresh=3000 --ambiguous=iupac")
+                runNaiveBlast(seqFile1, seqFile2, self.tempOutputFile2, self.tempDir,
+                              lastzArguments="--nogapped --hspthresh=3000 --ambiguous=iupac")
                 #Run the blast
-                runNaiveBlast(seqFile1, seqFile2, self.tempOutputFile, 
-                         lastzArguments="--nogapped --step=3 --hspthresh=3000 --ambiguous=iupac")
+                runNaiveBlast(seqFile1, seqFile2, self.tempOutputFile, self.tempDir,
+                              lastzArguments="--nogapped --step=3 --hspthresh=3000 --ambiguous=iupac")
                 
                 logger.critical("Comparing blast settings")
                 compareResultsFile(self.tempOutputFile, self.tempOutputFile2, 0.7)
-    @unittest.skip("")
+
     def testBlastRandom(self):
         """Make some sequences, put them in a file, call blast with random parameters 
         and check it runs okay.
@@ -250,7 +250,7 @@ class TestCase(unittest.TestCase):
             if getLogLevelString() == "DEBUG":
                 system("cat %s" % self.tempOutputFile)
             system("rm -rf %s " % toilDir)
-    @unittest.skip("")
+
     def testCompression(self):
         tempSeqFile = os.path.join(self.tempDir, "tempSeq.fa")
         tempSeqFile2 = os.path.join(self.tempDir, "tempSeq2.fa")
@@ -379,11 +379,15 @@ def loadResults(resultsFile):
     fileHandle.close()      
     return (pairsSet, totalHits)
 
-def runNaiveBlast(seqFile1, seqFile2, outputFile, lastzArguments=""):
+def runNaiveBlast(seqFile1, seqFile2, outputFile, tempDir, lastzArguments=""):
     """Runs the blast command in a very naive way (not splitting things up).
     """
     startTime = time.time()
-    runLastz(seqFile1, seqFile2, alignmentsFile=outputFile, lastzArguments=lastzArguments, realignArguments=None)
+    tmpSeqFile1 = os.path.join(tempDir, "seq1.fa")
+    tmpSeqFile2 = os.path.join(tempDir, "seq2.fa")
+    shutil.copyfile(seqFile1, tmpSeqFile1)
+    shutil.copyfile(seqFile2, tmpSeqFile2)
+    runLastz(tmpSeqFile1, tmpSeqFile2, alignmentsFile=outputFile, lastzArguments=lastzArguments)
     return time.time()-startTime
 
 def runCactusBlast(sequenceFiles, alignmentsFile, toilDir,

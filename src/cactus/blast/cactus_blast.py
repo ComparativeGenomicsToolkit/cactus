@@ -44,11 +44,9 @@ class BlastOptions:
         self.chunkSize = chunkSize
         self.overlapSize = overlapSize
         
-        if realign:
-            self.realignArguments = realignArguments
-        else:
-            self.realignArguments = None
+        self.realignArguments = realignArguments
         self.lastzArguments = lastzArguments
+        self.realign = realign
 
         self.compressFiles = compressFiles
         self.minimumSequenceLength = 10
@@ -162,6 +160,7 @@ class BlastSequencesAgainstEachOther(Job):
         sequenceFiles2 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs2]
         chunks1 = getChunks(sequenceFiles1, getTempDirectory(rootDir=fileStore.getLocalTempDir()), self.blastOptions)
         chunks2 = getChunks(sequenceFiles2, getTempDirectory(rootDir=fileStore.getLocalTempDir()), self.blastOptions)
+        logger.info("Chunks1 = %s" % chunks1)
         chunkIDs1 = [fileStore.writeGlobalFile(chunk, cleanup=False) for chunk in chunks1]
         chunkIDs2 = [fileStore.writeGlobalFile(chunk, cleanup=False) for chunk in chunks2]
         resultsIDs = []
@@ -404,14 +403,19 @@ class RunSelfBlast(Job):
         self.seqFileID = seqFileID
     
     def run(self, fileStore):   
-        tempResultsFile = fileStore.getLocalTempFile()
+        blastResultsFile = fileStore.getLocalTempFile()
         seqFile = fileStore.readGlobalFile(self.seqFileID)
-        runSelfLastz(seqFile, tempResultsFile, lastzArguments=self.blastOptions.lastzArguments,
-                     realignArguments=self.blastOptions.realignArguments)
+        runSelfLastz(seqFile, blastResultsFile, lastzArguments=self.blastOptions.lastzArguments)
+        if self.blastOptions.realign:
+            realignResultsFile = fileStore.getLocalTempFile()
+            runCactusSelfRealign(seqFile, inputAlignmentsFile=blastResultsFile,
+                                 outputAlignmentsFile=realignResultsFile,
+                                 realignArguments=self.blastOptions.realignArguments)
+            blastResultsFile = realignResultsFile
         resultsFile = fileStore.getLocalTempFile()
         cactus_call(tool="cactus",
                     parameters=["cactus_blast_convertCoordinates",
-                                tempResultsFile,
+                                blastResultsFile,
                                 resultsFile,
                                 self.blastOptions.roundsOfCoordinateConversion])
         if self.blastOptions.compressFiles:
@@ -441,13 +445,20 @@ class RunBlast(Job):
         if self.blastOptions.compressFiles:
             seqFile1 = decompressFastaFile(seqFile1, fileStore.getLocalTempFile())
             seqFile2 = decompressFastaFile(seqFile2, fileStore.getLocalTempFile())
-        tempResultsFile = fileStore.getLocalTempFile()
-        runLastz(seqFile1, seqFile2, tempResultsFile, lastzArguments = self.blastOptions.lastzArguments,
-                 realignArguments = self.blastOptions.realignArguments)
+        blastResultsFile = fileStore.getLocalTempFile()
+        
+        runLastz(seqFile1, seqFile2, blastResultsFile, lastzArguments = self.blastOptions.lastzArguments)
+        if self.blastOptions.realign:
+            realignResultsFile = fileStore.getLocalTempFile()
+            runCactusRealign(seqFile1, seqFile2, inputAlignmentsFile=blastResultsFile,
+                             outputAlignmentsFile=realignResultsFile,
+                             realignArguments=self.blastOptions.realignArguments)
+            blastResultsFile = realignResultsFile
+            
         resultsFile = fileStore.getLocalTempFile()
         cactus_call(tool="cactus",
                     parameters=["cactus_blast_convertCoordinates",
-                                tempResultsFile,
+                                blastResultsFile,
                                 resultsFile,
                                 self.blastOptions.roundsOfCoordinateConversion])
         logger.info("Ran the blast okay")

@@ -615,57 +615,75 @@ def runToilStatusAndFailIfNotComplete(toilDir):
     command = "toil status %s --failIfNotComplete --verbose" % toilDir
     system(command)
 
-def runLastz(seq1, seq2, alignmentsFile, lastzArguments, realignArguments):
-    #Can't mount them into docker container if they're in different
-    #directories
+def runLastz(seq1, seq2, alignmentsFile, lastzArguments, work_dir=None):
+    #Have to specify the work_dir manually for this, since
+    #we're adding arguments to the filename
     assert os.path.dirname(seq1) == os.path.dirname(seq2)
     work_dir = os.path.dirname(seq1)
-    seq1 = os.path.basename(seq1)
-    seq2 = os.path.basename(seq2)
-    cmd = "docker run --log-driver=none -v %s:/data quay.io/adderan/lastz --format=cigar %s %s[multiple][nameparse=darkspace] %s[nameparse=darkspace]" % (work_dir, lastzArguments, seq1, seq2)
+    cactus_call(tool="quay.io/adderan/lastz", work_dir=work_dir, outfile=alignmentsFile,
+                parameters=["--format=cigar",
+                            lastzArguments,
+                            "%s[multiple][nameparse=darkspace]" % os.path.basename(seq1),
+                            "%s[nameparse=darkspace]" % os.path.basename(seq2)])
 
-    if realignArguments:
-        cmd += " | docker run --log-driver=none -v %s:/data cactus cactus_realign %s %s %s " % (work_dir, realignArguments, seq1, seq2)
-
-    logger.info("Running lastz command: %s" % cmd)
-    subprocess.check_call(cmd.split(), stdout=open(alignmentsFile, 'w'))
-
-    base_docker_call = ['docker', 'run',
-                        '--log-driver=none',
-                        '-v', '{}:/data'.format(work_dir)]
-    _fix_permissions(base_docker_call, "quay.io/adderan/lastz", work_dir)
-
-def runSelfLastz(seq, alignmentsFile, lastzArguments, realignArguments):
+def runSelfLastz(seq, alignmentsFile, lastzArguments, work_dir=None):
     work_dir = os.path.dirname(seq)
-    seq = os.path.basename(seq)
-    alignmentsFile = alignmentsFile
+    cactus_call(tool="quay.io/adderan/lastz", work_dir=work_dir, outfile=alignmentsFile,
+                parameters=["--format=cigar",
+                            lastzArguments,
+                            "%s[multiple][nameparse=darkspace]" % os.path.basename(seq),
+                            "%s[nameparse=darkspace]" % os.path.basename(seq)])
+    
+def runCactusRealign(seq1, seq2, inputAlignmentsFile, outputAlignmentsFile, realignArguments, work_dir=None):
+    cactus_call(tool="cactus", infile=inputAlignmentsFile, outfile=outputAlignmentsFile, work_dir=work_dir,
+                parameters=["cactus_realign", realignArguments, seq1, seq2])
 
-    cmd = "docker run -v %s:/data quay.io/adderan/lastz --format=cigar %s %s[multiple][nameparse=darkspace] %s[nameparse=darkspace]" % (work_dir, lastzArguments, seq, seq)
+def runCactusSelfRealign(seq, inputAlignmentsFile, outputAlignmentsFile, realignArguments, work_dir=None):
+    cactus_call(tool="cactus", infile=inputAlignmentsFile, outfile=outputAlignmentsFile, work_dir=work_dir,
+                parameters=["cactus_realign", realignArguments, seq])
 
-    if realignArguments:
-        cmd += " | docker run -v %s:/data cactus %s %s %s " % (work_dir, realignArguments, seq)
-
-    subprocess.check_call(cmd.split(), stdout=open(alignmentsFile, 'w'))
-
-    base_docker_call = ['docker', 'run',
-                        '--log-driver=none',
-                        '-v', '{}:/data'.format(work_dir)]
-    _fix_permissions(base_docker_call, "quay.io/adderan/lastz", work_dir)
+def runCactusCoverage(sequenceFile, alignmentsFile, work_dir=None):
+    return cactus_call(tool="cactus", check_output=True, work_dir=work_dir,
+                parameters=["cactus_coverage", sequenceFile, alignmentsFile])
     
 def cactus_call(tool,
+                work_dir=None,
                 parameters=None,
-                work_dir='.',
                 rm=False,
                 detached=True,
                 check_output=False,
                 container_name=None,
                 mounts=None,
+                infile=None,
                 outfile=None,
                 stdin_string=None):
 
     if parameters is None:
         parameters = []
 
+    def moveToWorkDir(work_dir, arg):
+        if os.path.isfile(arg):
+            if not os.path.dirname(arg) == work_dir:
+                shutil.copy(arg, work_dir)
+        
+    if work_dir:
+        for arg in parameters:
+            moveToWorkDir(work_dir, arg)
+        
+        
+    parameters = [str(par) for par in parameters]
+    if not work_dir:
+    #Make sure all the paths we're accessing are in the same directory
+        files = [par for par in parameters if os.path.isfile(par)]
+        folders = [par for par in parameters if os.path.isdir(par)]
+        work_dirs = set([os.path.dirname(fileName) for fileName in files] + [os.path.dirname(os.path.dirname(folder)) for folder in folders])
+        _log.info("Work dirs: %s" % work_dirs)
+        assert len(work_dirs) == 1
+        work_dir = work_dirs.pop()
+    
+    #We'll mount the work_dir containing the paths as /data in the container,
+    #so set all the paths to their basenames. The container will access them at
+    #/data/<path>
     def adjustPath(path):
         if os.path.isfile(path):
             return os.path.basename(path)
@@ -673,14 +691,8 @@ def cactus_call(tool,
             return os.path.basename(os.path.dirname(path))
         else:
             return path
-    parameters = [str(par) for par in parameters]
-    parameters = [adjustPath(par) for par in parameters]
 
-    # Docker does not allow the --rm flag to be used when the container is run in detached mode.
-    #require(not (rm and detached), "Conflicting options 'rm' and 'detached'.")
-    # Ensure the user has passed a valid value for defer
-    #require(defer in (None, docker_call.FORGO, docker_call.STOP, docker_call.RM),
-    #        'Please provide a valid value for defer.')
+    parameters = [adjustPath(par) for par in parameters]
 
     
     base_docker_call = ['docker', 'run',
@@ -692,22 +704,33 @@ def cactus_call(tool,
         base_docker_call.append('--rm')
 
     call = base_docker_call + [tool] + parameters
+
+    #Eliminate empty string arguments, which will be parsed incorrectly
+    #by docker run
+    call = [call_arg for call_arg in call if (call_arg != '')]
     
-    _log.debug("Calling docker with %s." % " ".join(base_docker_call + [tool] + parameters))
-    output = None
+    _log.debug("Calling docker with %s." % " ".join(call))
+
+
+    stdinFileHandle = None
+    stdoutFileHandle = None
     if stdin_string:
-        if outfile:
-            process = subprocess.Popen(call, shell=True,
-                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=sys.stderr, bufsize=-1)
-            output, nothing = process.communicate(stdin_string)
-    else:
-        if outfile:
-            subprocess.check_call(call, stdout=open(outfile, 'w'))
-        else:
-            if check_output:
-                output = subprocess.check_output(call)
-            else:
-                subprocess.check_call(call)
+        stdinFileHandle = subprocess.PIPE
+    elif infile:
+        stdinFileHandle = open(infile, 'r')
+    if outfile:
+        stdoutFileHandle = open(outfile, 'w')
+    elif check_output:
+        stdoutFileHandle = subprocess.PIPE
+        
+
+    process = subprocess.Popen(' '.join(call), shell=True,
+                               stdin=stdinFileHandle, stdout=stdoutFileHandle, stderr=sys.stderr, bufsize=-1)
+    
+    output, nothing = process.communicate(stdin_string)
+    if process.returncode != 0:
+        raise RuntimeError("Docker command failed with output: %s" % output)
+    
     # Fix root ownership of output files
     _fix_permissions(base_docker_call, tool, work_dir)
 
