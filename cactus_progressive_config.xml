@@ -103,6 +103,8 @@
 		maximumMedianSequenceLengthBetweenLinkedEnds="1000"
 		lastzMemory="littleMemory"
                 removeRecoverableChains="unequalNumberOfIngroupCopies"
+                maxRecoverableChainsIterations="5"
+                maxRecoverableChainLength="500000"
                 doPhylogeny="1"
                 phylogenyNumTrees="30"
                 phylogenyRootingMethod="bestRecon"

@@ -379,13 +379,13 @@ static void test_stCaf_getHomologyUnits(CuTest *testCase) {
     test_stCaf_getHomologyUnitsP(testCase, CHAIN, setupTestChain);
     test_stCaf_getHomologyUnitsP(testCase, CHAIN, setupTestChainWithChildChains);
     test_stCaf_getHomologyUnitsP(testCase, CHAIN, setupTestChainWithTandemDup);
-    for (int64_t i = 0; i < 100; i++) {
+    for (int64_t i = 0; i < 10; i++) {
         test_stCaf_getHomologyUnitsP(testCase, CHAIN, setupRandom);
     }
     test_stCaf_getHomologyUnitsP(testCase, BLOCK, setupTestChain);
     test_stCaf_getHomologyUnitsP(testCase, BLOCK, setupTestChainWithChildChains);
     test_stCaf_getHomologyUnitsP(testCase, BLOCK, setupTestChainWithTandemDup);
-    for (int64_t i = 0; i < 100; i++) {
+    for (int64_t i = 0; i < 10; i++) {
         test_stCaf_getHomologyUnitsP(testCase, BLOCK, setupRandom);
     }
 }

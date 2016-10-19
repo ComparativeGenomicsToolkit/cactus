@@ -371,7 +371,13 @@ void testCap_getChildNumber(CuTest* testCase) {
 void testCap_getChild(CuTest* testCase) {
     cactusCapTestSetup();
     CuAssertTrue(testCase, cap_getChild(rootCap, 0) == leaf1Cap);
-    CuAssertTrue(testCase, cap_getChild(rootCap, 1) == cap_getReverse(leaf2Cap));
+    if (!nestedTest) {
+        CuAssertTrue(testCase, cap_getChild(rootCap, 1) == cap_getReverse(leaf2Cap));
+    } else {
+        // leaf2Cap is at the end of the child list when it's been
+        // serialized, deleted, and unserialized.
+        CuAssertTrue(testCase, cap_getChild(rootCap, 2) == cap_getReverse(leaf2Cap));
+    }
     cactusCapTestTeardown();
 }
 

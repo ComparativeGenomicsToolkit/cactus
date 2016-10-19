@@ -78,7 +78,7 @@ Block **chain_getBlockChain(Chain *chain, int64_t *blockNumber) {
             listAppend(blocks, block);
         }
     }
-    i = sizeof(void *) * (blocks->length + 1);
+    i = sizeof(void *) * blocks->length;
     Block **blockChain = memcpy(st_malloc(i), blocks->list, i);
     *blockNumber = blocks->length;
     destructList(blocks);

@@ -12,7 +12,6 @@ import sys
 import random
 import xml.etree.ElementTree as ET
 
-from cactus.shared.test import parseCactusSuiteTestOptions
 from sonLib.bioio import TestStatus
 from sonLib.bioio import getTempFile
 from sonLib.bioio import getTempDirectory
@@ -25,16 +24,16 @@ from cactus.shared.test import getCactusInputs_random
 from cactus.shared.test import getCactusInputs_blanchette
 from cactus.shared.test import getCactusInputs_encode
 from cactus.shared.test import getCactusInputs_chromosomeX
-
 from cactus.shared.test import runWorkflow_multipleExamples
-
 from cactus.shared.test import getBatchSystem
+from cactus.shared.test import silentOnSuccess
+
+from cactus.shared.experimentWrapper import ExperimentWrapper
 
 from cactus.shared.common import cactusRootPath
 from cactus.shared.common import runCactusProgressive
 from cactus.shared.common import runCactusCreateMultiCactusProject
 from cactus.shared.configWrapper import ConfigWrapper
-from cactus.shared.experimentWrapper import ExperimentWrapper
 from jobTree.src.common import runJobTreeStatusAndFailIfNotComplete
 
 class TestCase(unittest.TestCase):
@@ -55,6 +54,7 @@ class TestCase(unittest.TestCase):
     def tearDown(self):
         system("rm -rf %s" % self.tempDir)
 
+    @silentOnSuccess
     def testCactus_Random(self):
         runWorkflow_multipleExamples(getCactusInputs_random,
                                      testNumber=2,
@@ -64,6 +64,7 @@ class TestCase(unittest.TestCase):
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
 
+    @silentOnSuccess
     def testCactus_Random_UseOutgroup(self):
         self.useOutgroup = True
         runWorkflow_multipleExamples(getCactusInputs_random,
@@ -74,6 +75,7 @@ class TestCase(unittest.TestCase):
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
 
+    @silentOnSuccess
     def testCactus_Random_UseSubtreeRoot(self):
         """Tests that cactus doesn't crash when aligning a subtree of a larger
         species tree."""
@@ -85,6 +87,7 @@ class TestCase(unittest.TestCase):
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveWithSubtreeRootFunction)
 
+    @silentOnSuccess
     def testCactus_Random_DoSelfAlignment(self):
         self.doSelfAlignment = True
         runWorkflow_multipleExamples(getCactusInputs_random,
@@ -95,6 +98,7 @@ class TestCase(unittest.TestCase):
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
 
+    @silentOnSuccess
     def testCactus_Random_UseOutgroupAndDoSelfAlignment(self):
         self.useOutgroup = True
         self.doSelfAlignment = True
@@ -106,6 +110,7 @@ class TestCase(unittest.TestCase):
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
 
+    @silentOnSuccess
     def testCactus_Blanchette(self):
         runWorkflow_multipleExamples(getCactusInputs_blanchette,
                                      testNumber=1,
@@ -115,6 +120,7 @@ class TestCase(unittest.TestCase):
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
 
+    @silentOnSuccess
     def testCactus_Blanchette_UseOutgroupAndDoSelfAlignment(self):
         self.useOutgroup = True
         self.doSelfAlignment = True
@@ -126,6 +132,7 @@ class TestCase(unittest.TestCase):
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
 
+    @silentOnSuccess
     def testCactus_Encode(self):
         runWorkflow_multipleExamples(getCactusInputs_encode,
                                      testNumber=1,
@@ -135,6 +142,7 @@ class TestCase(unittest.TestCase):
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
 
+    @silentOnSuccess
     def testCactus_Chromosomes(self):
         runWorkflow_multipleExamples(getCactusInputs_chromosomeX,
                                      testRestrictions=(TestStatus.TEST_VERY_LONG,),
@@ -197,11 +205,6 @@ class TestCase(unittest.TestCase):
                              jobTreeStats=jobTreeStats)
         runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
         system("rm -rf %s" % tempDir)
-
-def main():
-    parseCactusSuiteTestOptions()
-    sys.argv = sys.argv[:1]
-    unittest.main()
-
+        
 if __name__ == '__main__':
-    main()
+    unittest.main()

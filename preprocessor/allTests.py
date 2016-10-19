@@ -7,17 +7,13 @@ import unittest
 
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMaskTest import TestCase as repeatMaskTest
 from cactus.preprocessor.cactus_preprocessorTest import TestCase as preprocessorTest
- 
-from cactus.shared.test import parseCactusSuiteTestOptions
 
-def allSuites(): 
+def allSuites():
     allTests = unittest.TestSuite((unittest.makeSuite(repeatMaskTest, 'test'),
                                    unittest.makeSuite(preprocessorTest, 'test')))
     return allTests
-        
+
 def main():
-    parseCactusSuiteTestOptions()
-    
     suite = allSuites()
     runner = unittest.TextTestRunner()
     i = runner.run(suite)
@@ -26,4 +22,3 @@ def main():
 if __name__ == '__main__':
     import sys
     sys.exit(main())
-                

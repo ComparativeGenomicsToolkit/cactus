@@ -1725,10 +1725,10 @@ static stHash *getDistanceMatricesForUnits(stSet *homologyUnits, TreeBuildingCon
 }
 
 stSet *stCaf_getBadChains(stSet *homologyUnits, TreeBuildingConstants *constants, stCaf_PhylogenyParameters *params, Flower *flower) {
+    stSet *ret = stSet_construct2(free);
     stHash *unitToDistanceMatrix = getDistanceMatricesForUnits(homologyUnits, constants, params);
     stHash *badDivergences = getBadDivergences(homologyUnits, constants, flower, unitToDistanceMatrix);
 
-    stSet *ret = stSet_construct2(free);
     stSetIterator *it = stSet_getIterator(homologyUnits);
     HomologyUnit *unit;
     while ((unit = stSet_getNext(it)) != NULL) {
@@ -1759,6 +1759,10 @@ stSet *stCaf_getBadChains(stSet *homologyUnits, TreeBuildingConstants *constants
                     continue;
                 }
                 double *badDivergence = stHash_search(stHash_search(badDivergences, species_i), species_j);
+                if (badDivergence == NULL) {
+                    // Can indicate that there weren't any i->j pairs observed.
+                    continue;
+                }
                 if (*stMatrix_getCell(distanceMatrix, i, j) > *badDivergence) {
                     unitIsBad = true;
                     divergence = *stMatrix_getCell(distanceMatrix, i, j);

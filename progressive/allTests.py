@@ -10,8 +10,6 @@ from cactus.progressive.outgroupTest import TestCase as outgroupTest
 from cactus.progressive.scheduleTest import TestCase as scheduleTest
 from cactus.shared.experimentWrapperTest import TestCase as experimentWrapperTest
 from cactus.progressive.cactus_progressiveTest import TestCase as cactus_progressiveTest
- 
-from cactus.shared.test import parseCactusSuiteTestOptions
 
 def allSuites(): 
     allTests = unittest.TestSuite((unittest.makeSuite(multiCactusTreeTest, 'test'),
@@ -22,8 +20,6 @@ def allSuites():
     return allTests
         
 def main():
-    parseCactusSuiteTestOptions()
-    
     suite = allSuites()
     runner = unittest.TextTestRunner()
     i = runner.run(suite)
@@ -32,4 +28,3 @@ def main():
 if __name__ == '__main__':
     import sys
     sys.exit(main())
-                

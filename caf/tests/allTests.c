@@ -12,6 +12,7 @@ CuSuite* giantComponentTestSuite(void);
 CuSuite* pinchIteratorTestSuite(void);
 CuSuite* recoverableChainsTestSuite(void);
 CuSuite* phylogenyTestSuite(void);
+CuSuite* filteringTestSuite(void);
 
 int cactusCoreRunAllTests(void) {
     CuString *output = CuStringNew();
@@ -21,6 +22,7 @@ int cactusCoreRunAllTests(void) {
     CuSuiteAddSuite(suite, giantComponentTestSuite());
     CuSuiteAddSuite(suite, recoverableChainsTestSuite());
     CuSuiteAddSuite(suite, phylogenyTestSuite());
+    CuSuiteAddSuite(suite, filteringTestSuite());
 
     CuSuiteRun(suite);
     CuSuiteSummary(suite, output);

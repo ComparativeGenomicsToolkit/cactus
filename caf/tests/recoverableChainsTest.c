@@ -23,7 +23,7 @@ static void testDoesNotRemoveIsolatedChain(CuTest *testCase) {
     // There should now be 7 blocks -- one for each cap, and the blocks we just added
     CuAssertIntEquals(testCase, 7, stPinchThreadSet_getTotalBlockNumber(threadSet));
     // Run the remove-recoverable-chains code
-    stCaf_meltRecoverableChains(flower, threadSet, true, 1000, NULL);
+    stCaf_meltRecoverableChains(flower, threadSet, true, 1000, NULL, 1, INT64_MAX);
     // It shouldn't've removed any blocks
     CuAssertIntEquals(testCase, 7, stPinchThreadSet_getTotalBlockNumber(threadSet));
 
@@ -57,7 +57,7 @@ static void testRemovesIndel(CuTest *testCase) {
     // There should now be 9 blocks -- one for each cap, and the blocks we just added
     CuAssertIntEquals(testCase, 9, stPinchThreadSet_getTotalBlockNumber(threadSet));
     // Run the remove-recoverable-chains code
-    stCaf_meltRecoverableChains(flower, threadSet, true, 1000, NULL);
+    stCaf_meltRecoverableChains(flower, threadSet, true, 1000, NULL, 1, INT64_MAX);
     // One block should be missing
     CuAssertIntEquals(testCase, 8, stPinchThreadSet_getTotalBlockNumber(threadSet));
     // It should be the middle one (40-50)
@@ -105,7 +105,7 @@ static void testRecoverableTelomereAdjacentChainsNotKept(CuTest *testCase) {
     // There should now be 13 blocks -- one for each cap, and the blocks we just added
     CuAssertIntEquals(testCase, 13, stPinchThreadSet_getTotalBlockNumber(threadSet));
     // Run the remove-recoverable-chains code
-    stCaf_meltRecoverableChains(flower, threadSet, true, 1000, NULL);
+    stCaf_meltRecoverableChains(flower, threadSet, true, 1000, NULL, 1, INT64_MAX);
     // Four blocks should have been removed
     CuAssertIntEquals(testCase, 9, stPinchThreadSet_getTotalBlockNumber(threadSet));
     // The middle block (30-40) should be the one that still exists
