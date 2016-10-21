@@ -25,13 +25,6 @@ script:
   - PATH=./bin:./jobTree/bin:./sonLib/bin:$PATH PYTHONPATH=.:.. make test
 os:
   - linux
-  - osx
 env:
   - CGL_DEBUG=1
   - CGL_DEBUG=ultra ASAN_OPTIONS=detect_leaks=0
-matrix:
-  exclude:
-    # The default OSX env doesn't have a version that supports
-    # -fsanitize=address.
-    - env: CGL_DEBUG=ultra ASAN_OPTIONS=detect_leaks=0
-      os: osx
