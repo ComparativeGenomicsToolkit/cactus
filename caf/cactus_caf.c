@@ -888,6 +888,13 @@ int main(int argc, char *argv[]) {
                 stHash_destruct(threadStrings);
                 st_logDebug("Finished building trees\n");
 
+                if (removeRecoverableChains) {
+                    // We melt recoverable chains after splitting, as
+                    // well as before, to alleviate coverage loss
+                    // caused by bad splits.
+                    stCaf_meltRecoverableChains(flower, threadSet, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds, recoverableChainsFilter, maxRecoverableChainsIterations, maxRecoverableChainLength);
+                }
+
                 // Enforce the block constraints on minimum degree,
                 // etc. after splitting.
                 stCaf_melt(flower, threadSet, blockFilterFn, 0, 0, 0, INT64_MAX);
@@ -942,25 +949,4 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     cactusDisk_destruct(cactusDisk);
-
-    return 0; //Exit without clean up is quicker, enable cleanup when doing memory leak detection.
-
-    //Destruct stuff
-    startTime = time(NULL);
-    cactusDisk_destruct(cactusDisk);
-    stKVDatabaseConf_destruct(kvDatabaseConf);
-    free(cactusDiskDatabaseString);
-    if (alignmentsFile != NULL) {
-        free(alignmentsFile);
-    }
-    if (logLevelString != NULL) {
-        free(logLevelString);
-    }
-    if (lastzArguments != NULL) {
-        free(lastzArguments);
-    }
-    st_logInfo("Cleaned stuff up and am finished in: %" PRIi64 " seconds\n", time(NULL) - startTime);
-
-    //while(1);
-    return 0;
 }
