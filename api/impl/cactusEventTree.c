@@ -62,8 +62,9 @@ Event *eventTree_getRootEvent(EventTree *eventTree) {
 }
 
 Event *eventTree_getEvent(EventTree *eventTree, Name eventName) {
-	Event *event = event_getStaticNameWrapper(eventName);
-	return stSortedSet_search(eventTree->events, event);
+	Event event;
+	event.name = eventName;
+	return stSortedSet_search(eventTree->events, &event);
 }
 
 Event *eventTree_getCommonAncestor(Event *event, Event *event2) {
@@ -315,4 +316,27 @@ EventTree *eventTree_loadFromBinaryRepresentation(void **binaryString, Flower *f
 		binaryRepresentation_popNextElementType(binaryString);
 	}
 	return eventTree;
+}
+
+static stTree *eventTree_getStTree_R(Event *event) {
+    stTree *ret = stTree_construct();
+    stTree_setLabel(ret, stString_print("%" PRIi64, event_getName(event)));
+    stTree_setBranchLength(ret, event_getBranchLength(event));
+    for(int64_t i = 0; i < event_getChildNumber(event); i++) {
+        Event *child = event_getChild(event, i);
+        stTree *childStTree = eventTree_getStTree_R(child);
+        stTree_setParent(childStTree, ret);
+    }
+    return ret;
+}
+
+// Get species tree from event tree (labeled by the event Names),
+// which requires ignoring the root event.
+stTree *eventTree_getStTree(EventTree *eventTree) {
+    Event *rootEvent = eventTree_getRootEvent(eventTree);
+    // Need to skip the root event, since it is added onto the real
+    // species tree.
+    assert(event_getChildNumber(rootEvent) == 1);
+    Event *speciesRoot = event_getChild(rootEvent, 0);
+    return eventTree_getStTree_R(speciesRoot);
 }

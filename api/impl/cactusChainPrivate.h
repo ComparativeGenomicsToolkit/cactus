@@ -47,11 +47,6 @@ void chain_writeBinaryRepresentation(Chain *chain, void (*writeFn)(const void * 
 Chain *chain_loadFromBinaryRepresentation(void **binaryString, Flower *flower);
 
 /*
- * Get a static instance (from the heap) with the name set.
- */
-Chain *chain_getStaticNameWrapper(Name name);
-
-/*
  * Sets the flower containing the chain.
  */
 void chain_setFlower(Chain *chain, Flower *flower);

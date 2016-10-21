@@ -11,25 +11,20 @@ before_install:
   - git clone https://github.com/UCSCComparativeGenomics/matchingAndOrdering.git
   - git clone https://github.com/UCSCComparativeGenomics/pinchesAndCacti.git
   - git clone https://github.com/benedictpaten/jobTree.git
+  - git clone https://github.com/benedictpaten/cPecan.git
 install:
   - export sonLibRootPath=`pwd`/sonLib
   - sh -c 'cd sonLib && make'
   - sh -c 'cd matchingAndOrdering && make'
-  - sh -c 'cd pinchesAndCacti && make'
+  - sh -c 'cd pinchesAndCacti && git checkout phylogeny && make'
   - sh -c 'cd jobTree && make'
+  - sh -c 'cd cPecan && make'
 script:
   - export sonLibRootPath=`pwd`/sonLib
   - make
-  - PATH=./bin:./jobTree/bin:$PATH PYTHONPATH=.:.. make test
+  - PATH=./bin:./jobTree/bin:./sonLib/bin:$PATH PYTHONPATH=.:.. make test
 os:
   - linux
-  - osx
 env:
   - CGL_DEBUG=1
   - CGL_DEBUG=ultra ASAN_OPTIONS=detect_leaks=0
-matrix:
-  exclude:
-    # The default OSX env doesn't have a version that supports
-    # -fsanitize=address.
-    - env: CGL_DEBUG=ultra ASAN_OPTIONS=detect_leaks=0
-      os: osx

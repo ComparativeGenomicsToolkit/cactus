@@ -52,8 +52,8 @@ int alignedPair_cmpFn(const AlignedPair *alignedPair1, const AlignedPair *aligne
     return i;
 }
 
-stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequenceLength,
-        int64_t maximumNumberOfSequencesBeforeSwitchingToFast, float gapGamma,
+stSortedSet *makeEndAlignment(StateMachine *sM, End *end, int64_t spanningTrees, int64_t maxSequenceLength,
+        bool useProgressiveMerging, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
     //Make an alignment of the sequences in the ends
 
@@ -84,7 +84,7 @@ stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequen
     end_destructInstanceIterator(it);
 
     //Get the alignment.
-    MultipleAlignment *mA = makeAlignment(seqFrags, spanningTrees, 100000000, maximumNumberOfSequencesBeforeSwitchingToFast, gapGamma, pairwiseAlignmentBandingParameters);
+    MultipleAlignment *mA = makeAlignment(sM, seqFrags, spanningTrees, 100000000, useProgressiveMerging, gapGamma, pairwiseAlignmentBandingParameters);
 
     //Build an array of weights to reweight pairs in the alignment.
     int64_t *pairwiseAlignmentsPerSequenceNonCommonEnds = st_calloc(stList_length(seqFrags), sizeof(int64_t));
@@ -155,6 +155,9 @@ stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequen
         int64_t offset1 = stIntTuple_get(alignedPair, 2);
         int64_t offset2 = stIntTuple_get(alignedPair, 4);
         int64_t score = stIntTuple_get(alignedPair, 0);
+        if(score <= 0) { //Happens when indel probs are included
+            score = 1; //This is the minimum
+        }
         assert(score > 0 && score <= PAIR_ALIGNMENT_PROB_1);
         SeqFrag *seqFrag1 = stList_get(seqFrags, seqIndex1);
         SeqFrag *seqFrag2 = stList_get(seqFrags, seqIndex2);

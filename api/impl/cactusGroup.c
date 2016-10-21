@@ -457,9 +457,3 @@ Group *group_loadFromBinaryRepresentation(void **binaryString, Flower *flower) {
     return group;
 }
 
-Group *group_getStaticNameWrapper(Name flowerName) {
-    static Group group;
-    group.name = flowerName;
-    return &group;
-}
-

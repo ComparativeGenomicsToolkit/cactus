@@ -10,23 +10,18 @@
 #include <string.h>
 #include "sonLib.h"
 
-CuSuite* pairwiseAlignmentTestSuite(void);
-CuSuite* multipleAlignerTestSuite(void);
 CuSuite* adjacencySequenceTestSuite(void);
 CuSuite* endAlignerTestSuite(void);
 CuSuite* flowerAlignerTestSuite(void);
-CuSuite* pairwiseAlignmentLongTestSuite(void);
-CuSuite* pairwiseAlignmentTestSuite(void);
+CuSuite* rescueTestSuite(void);
 
 int stBaseAlignerRunAllTests(void) {
 	CuString *output = CuStringNew();
 	CuSuite* suite = CuSuiteNew();
-	CuSuiteAddSuite(suite, pairwiseAlignmentTestSuite());
-	CuSuiteAddSuite(suite, multipleAlignerTestSuite());
 	CuSuiteAddSuite(suite, adjacencySequenceTestSuite());
 	CuSuiteAddSuite(suite, endAlignerTestSuite());
 	CuSuiteAddSuite(suite, flowerAlignerTestSuite());
-	CuSuiteAddSuite(suite, pairwiseAlignmentLongTestSuite());
+    CuSuiteAddSuite(suite, rescueTestSuite());
 	CuSuiteRun(suite);
 	CuSuiteSummary(suite, output);
 	CuSuiteDetails(suite, output);

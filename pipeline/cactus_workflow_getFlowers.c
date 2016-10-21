@@ -28,9 +28,10 @@ int main(int argc, char *argv[]) {
         }
     }
     flowerWriter_destruct(flowerWriter);
+    cactusDisk_destruct(cactusDisk);
+
     return 0; //Avoid cleanup
     stList_destruct(flowers);
-    cactusDisk_destruct(cactusDisk);
     st_logDebug("Am finished\n");
     return 0;
 }

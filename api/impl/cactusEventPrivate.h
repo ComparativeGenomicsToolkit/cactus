@@ -44,9 +44,4 @@ void event_writeBinaryRepresentation(Event *event, void(*writeFn)(
 Event *event_loadFromBinaryRepresentation(void **binaryString,
         EventTree *eventTree);
 
-/*
- * Gets static wrapper for name.
- */
-Event *event_getStaticNameWrapper(Name name);
-
 #endif

@@ -105,9 +105,11 @@ int main(int argc, char *argv[]) {
     fclose(inputCigarFileHandle);
     fclose(outputCigarFileHandle);
 
-    return 0;
-    //Cleanup
     cactusDisk_destruct(cactusDisk);
+
+    return 0; // Save time spent freeing memory when not using
+              // valgrind.
+    //Cleanup
     stHash_destruct(sequenceHeaderToCapHash);
 
     st_logDebug("Am finished\n");

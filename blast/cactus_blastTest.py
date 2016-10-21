@@ -8,6 +8,7 @@ import os
 import sys
 import random
 import time
+import filecmp
 
 from sonLib.bioio import system
 from sonLib.bioio import logger
@@ -144,6 +145,39 @@ class TestCase(unittest.TestCase):
                 print "bases re-covered: %f (%d)" % (len(newAlignmentsHumanPos.intersection(prevResultsHumanPos))/float(len(prevResultsHumanPos)), len(newAlignmentsHumanPos.intersection(prevResultsHumanPos)))
             for subResult in results:
                 os.remove(subResult)
+
+    def testKeepingCoverageOnIngroups(self):
+        """Tests whether the --ingroupCoverageDir option works as
+        advertised."""
+        encodeRegion = "ENm001"
+        ingroups = ["human", "cow"]
+        outgroups = ["macaque", "rabbit", "dog"]
+        regionPath = os.path.join(self.encodePath, encodeRegion)
+        ingroupPaths = map(lambda x: os.path.join(regionPath, x + "." + encodeRegion + ".fa"), ingroups)
+        outgroupPaths = map(lambda x: os.path.join(regionPath, x + "." + encodeRegion + ".fa"), outgroups)
+        # Run blast in "ingroup vs outgroups" mode, requesting to keep
+        # the bed files that show outgroup coverage on the ingroup.
+        system("cactus_blast.py --ingroups %s --outgroups %s --cigars %s --jobTree %s/outgroupJobTree --outgroupFragmentsDir %s/outgroupFragments --ingroupCoverageDir %s/ingroupCoverages" % (",".join(ingroupPaths), ",".join(outgroupPaths), self.tempOutputFile, self.tempDir, self.tempDir, self.tempDir))
+        for i, ingroupPath in enumerate(ingroupPaths):
+            # Get the coverage from the outgroups independently and
+            # check that it's the same as the file in
+            # ingroupCoverageDir
+            otherIngroupPath = ingroupPaths[1] if i == 0 else ingroupPaths[0]
+            # To filter out alignments from the other ingroup and
+            # self-alignments we need to create a fasta with all the
+            # outgroup fragments in it.
+            outgroupsCombined = getTempFile(rootDir=self.tempDir)
+            for outgroupPath in outgroupPaths:
+                system("cat %s/outgroupFragments/%s >> %s" % (self.tempDir, os.path.basename(outgroupPath), outgroupsCombined))
+            independentCoverageFile = getTempFile(rootDir=self.tempDir)
+            system("cactus_coverage --from %s %s %s > %s" % (outgroupsCombined, ingroupPath, self.tempOutputFile, independentCoverageFile))
+            # find the coverage file cactus_blast kept (should be
+            # named according to the basename of the ingroup path
+            # file)
+            keptCoverageFile = os.path.join("%s/ingroupCoverages" % self.tempDir, os.path.basename(ingroupPath) + ".bed")
+            print independentCoverageFile
+            self.assertTrue(os.path.isfile(keptCoverageFile))
+            self.assertTrue(filecmp.cmp(independentCoverageFile, keptCoverageFile))
 
     def testProgressiveOutgroupsVsAllOutgroups(self):
         """Tests the difference in outgroup coverage on an ingroup when
@@ -364,7 +398,7 @@ def loadResults(resultsFile):
     return (pairsSet, totalHits)
 
 def runNaiveBlast(seqFile1, seqFile2, outputFile, 
-                  blastString="cactus_lastz --format=cigar OPTIONS SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE", 
+                  blastString="cPecanLastz --format=cigar OPTIONS SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE", 
                   lastzOptions=""):
     """Runs the blast command in a very naive way (not splitting things up).
     """

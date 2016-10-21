@@ -13,7 +13,7 @@
 	<!-- The checkAssemblyHub option (if enabled) ensures that the first word contains only alphanumeric or '_', '-', ':', or '.' characters, and is unique. If you don't intend to make an assembly hub, you can turn off this option here. -->
 	<preprocessor check="1" memory="littleMemory" preprocessorString="cactus_checkUniqueHeaders.py --checkAssemblyHub IN_FILE"/>
 	<!-- The preprocessor for cactus_lastzRepeatMask masks every seed that is part of more than XX other alignments, this stops a combinatorial explosion in pairwise alignments -->
-	<preprocessor chunkSize="3000000" proportionToSample="0.2" memory="littleMemory" preprocessorString="cactus_lastzRepeatMask.py --proportionSampled=PROPORTION_SAMPLED --tempDir=TEMP_DIR --minPeriod=50 --lastzOpts='--step=3 --ambiguous=iupac,100,100 --ungapped --queryhsplimit=keep,nowarn:1500' IN_FILE OUT_FILE "/>
+	<preprocessor unmask="0" chunkSize="3000000" proportionToSample="0.2" memory="littleMemory" preprocessorString="cactus_lastzRepeatMask.py --proportionSampled=PROPORTION_SAMPLED --tempDir=TEMP_DIR --minPeriod=50 --lastzOpts='--step=3 --ambiguous=iupac,100,100 --ungapped --queryhsplimit=keep,nowarn:1500' IN_FILE OUT_FILE "/>
         <!-- Options for trimming ingroups & outgroups using the trim strategy -->
         <!-- Ingroup trim options: -->
         <!-- trimFlanking: The length of flanking sequence to attach
@@ -27,26 +27,57 @@
              the next outgroup -->
         <!-- trimWindowSize: The size of the window to integrate
              coverage over -->
+        <!-- trimOutgroupDepth: The minimum number of outgroup species
+             that should be aligned to a region before it is trimmed
+             away -->
         <!-- Outgroup trim options: -->
         <!-- trimOutgroupFlanking: The amount of flanking sequence to
              leave on the ends of the trimmed outgroup fragments. NB:
              this value must be larger than the
              'splitIndelsLongerThanThis' value in the realign
              arguments -->
+        <!-- keepParalogs: Always align duplicated sequence against
+             all outgroups, instead of stopping at the first
+             one. Intended to be robust against missing data.-->
         <trimBlast doTrimStrategy="1"
                    trimFlanking="10"
                    trimMinSize="100"
                    trimThreshold="1.0"
                    trimWindowSize="1"
-                   trimOutgroupFlanking="2000"/>
+                   trimOutgroupFlanking="2000"
+                   trimOutgroupDepth="1"
+                   keepParalogs="0"/>
 	<ktserver memory="mediumMemory"/>
 	<setup makeEventHeadersAlphaNumeric="0"/>
 	<!-- The caf tag contains parameters for the caf algorithm. -->
 	<!-- Increase the chunkSize in the caf tag to reduce the number of blast jobs approximately quadratically -->
+        <!-- Tree-building options:
+                phylogenyNumTrees: Number of trees to sample
+                phylogenyRootingMethod: one of "bestRecon", "longestBranch", or "outgroupBranch".
+                                        bestRecon: choose the root that gives the lowest MP reconciliation cost.
+                                        longestBranch: root on the longest branch
+                                        outgroupBranch: root on the longest outgroup branch
+                phylogenyScoringMethod: The best tree according to one of these scoring metirc is used. One of "reconCost", "nucLikelihood", "reconLikelihood", or "combinedLikelihood".
+                                        reconCost: MP reconciliation cost (in dups/losses)
+                                        nucLikelihood: Likelihood
+                                        reconLikelihood: likelihood when considering the number of duplications per species as Poisson distributed according to the branch length.
+                                        combinedLikelihood: Combination of nucLikelihood and reconLikelihood options.
+                phylogenyBreakpointScalingFactor: weight to apply to the breakpoint information obtained from the sequence graph when building trees.
+                phylogenySkipSingleCopyBlocks: whether or not to skip blocks that contain at most one segment per species (i.e. no duplication is implied from the block).
+                phylogenyMaxBaseDistance: Maximum distance (in bases) to traverse looking for columns.
+                phylogenyMaxBlockDistance: Maximum distance (in blocks) to traverse looking for columns.
+                phylogenyKeepSingleDegreeBlocks: whether or not to keep blocks that contain only one segment.
+                phylogenyTreeBuildingMethod: One of "guidedNeighborJoining" or "neighborJoining".
+                                             guidedNeighborJoining: Use the species tree to bias tree-building toward trees that have low amounts of dups/losses.
+                                             neighborJoining: Traditional neighbor-joining.
+                phylogenyCostPerDupPerBase: For the guided neighbor-joining method only. The number of differences that should be created per base when a join implies a dup.
+                phylogenyCostPerLossPerBase: For the guided neighbor-joining method only. The number of differences that should be created per base, per loss, when a join implies one or more losses.
+                numTreeBuildingThreads: Number of threads in the tree-building pool. Must be greater than 0.
+        -->
 	<caf 
-		chunkSize="25000000" 
+		chunkSize="25000000"
 		realign="1"
-		realignArguments="--gapGamma 0.9 --diagonalExpansion 4 --splitMatrixBiggerThanThis 10 --constraintDiagonalTrim 0 --alignAmbiguityCharacters --splitIndelsLongerThanThis 99"
+		realignArguments="--gapGamma 0.0 --matchGamma 0.9 --diagonalExpansion 4 --splitMatrixBiggerThanThis 10 --constraintDiagonalTrim 0 --alignAmbiguityCharacters --splitIndelsLongerThanThis 99"
 		compressFiles="1" 
 		overlapSize="10000" 
 		filterByIdentity="1" 
@@ -54,11 +85,13 @@
 		minimumDistance="0.01" 
 		minimumSequenceLengthForBlast="30"
 		annealingRounds="128" 
-		deannealingRounds="2 8" 
+		deannealingRounds="2 8"
 		blockTrim="5" 
 		minimumTreeCoverage="0.0" 
 		trim="0 0" 
 		minimumBlockDegree="2"
+                autoMinimumIngroupDegree="0"
+                autoMinimumIngroupDegreeThreshold="0.3"
 		minimumIngroupDegree="1"
 		minimumOutgroupDegree="0"
                 minimumNumberOfSpecies="1"
@@ -69,10 +102,28 @@
 		proportionOfUnalignedBasesForNewChromosome="0.8"
 		maximumMedianSequenceLengthBetweenLinkedEnds="1000"
 		lastzMemory="littleMemory"
-                removeRecoverableChains="unequalNumberOfIngroupCopiesOrNoOutgroup"
+                removeRecoverableChains="unequalNumberOfIngroupCopies"
                 maxRecoverableChainsIterations="5"
                 maxRecoverableChainLength="500000"
-	>
+                doPhylogeny="1"
+                phylogenyNumTrees="30"
+                phylogenyRootingMethod="bestRecon"
+                phylogenyScoringMethod="reconCost"
+                phylogenyBreakpointScalingFactor="1.0"
+                phylogenySkipSingleCopyBlocks="1"
+                phylogenyMaxBaseDistance="100"
+                phylogenyMaxBlockDistance="50"
+                phylogenyKeepSingleDegreeBlocks="0"
+                phylogenyTreeBuildingMethod="guidedNeighborJoining,splitDecomposition"
+                phylogenyCostPerDupPerBase="0.00"
+                phylogenyCostPerLossPerBase="0.02"
+                phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce="0.44"
+                numTreeBuildingThreads="2"
+                minimumBlockDegreeToCheckSupport="10"
+                minimumBlockHomologySupport="0.05"
+                phylogenyHomologyUnitType="chain"
+                phylogenyDistanceCorrectionMethod="jukesCantor"
+	        >
 		<!-- The following are parametrised to produce the same results as the default settings, 
 		within a margin of 0.2% sensitivity, should be very fast for close genomes, these were tuned using the blast/blastParametersScript.py
 		We could go even faster for less than 0.05 divergence using, but want to be robust to poor branch length estimates -->
@@ -92,11 +143,18 @@
 	<!-- The caf tag contains parameters for the bar algorithm. -->
 	<!-- The veryLargeEndSize parameter determines how big an end needs to be (in terms of bases in sequences incident with the end)
 	for the end to be aligned on its own. -->
+        <!-- The rescue parameter defines whether to run "bar rescue",
+             which makes single-degree blocks for anything that was
+             covered by an outgroup in the bar phase but is still
+             unaligned at the end of bar. This pushes those regions
+             into the ancestor, hopefully to get aligned to something
+             else eventually -->
 	<bar
 		runBar="1"
 		spanningTrees="5" 
-		gapGamma="0.2" 
-		useBanding="1" 
+		gapGamma="0.0"
+		matchGamma="0.2"
+		useBanding="1"
 		bandingLimit="1000000" 
 		splitMatrixBiggerThanThis="3000" 
         anchorMatrixBiggerThanThis="500"
@@ -110,8 +168,11 @@
 		alignAmbiguityCharacters="1"
 		largeEndSize="5000"
 		veryLargeEndSize="2000000"
-		maximumNumberOfSequencesBeforeSwitchingToFast="10"
+		useProgressiveMerging="1"
 		pruneOutStubAlignments="1"
+                rescue="0"
+                minimumSizeToRescue="100"
+                minimumCoverageToRescue="0.5"
 	>
 		<CactusBarRecursion maxFlowerGroupSize="maxFlowerGroupSizeRecursion"/>
 		<!-- The maxFlowerGroupSize in cactusBarWrapper determines how many bases to allow in one "small" job which will be run using the "littleMemory" -->
@@ -138,12 +199,14 @@
 	<!-- numberOfNs is the number of Ns to insert into an ancestral sequence when an adjacency is uncertain, think of its as the Ns in a scaffold gap -->
 	<!-- minNumberOfSequencesToSupportAdjacency is the number of sequences needed to bridge an adjacency -->
 	<!-- makeScaffolds is a boolean that enables the bridging of uncertain adjacencies in an ancestral sequence providing the larger scale problem (parent flower in cactus), bridges the path. -->
+	<!-- phi is the coefficient used to control how much weight to place on an adjacency given its phylogenetic distance from the reference node -->
 	<reference 
 		buildReference="1"
 		matchingAlgorithm="blossom5" 
 		reference="reference" 
 		useSimulatedAnnealing="1" 
-		theta="0.0001"        
+		theta="0.0001"
+		phi="1.0"
 		maxWalkForCalculatingZ="100000" 
 		permutations="10"
 		ignoreUnalignedGaps="1"

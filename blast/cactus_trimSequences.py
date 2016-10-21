@@ -54,9 +54,11 @@ def uniquifyBlocks(blocksDict, mergeDistance):
         ret[chr] = newBlocks
     return ret
 
-def getSeparateBedBlocks(bedFile):
+def getSeparateBedBlocks(bedFile, depth=1):
     """Get dict of sequence -> (start, stop, score) regions from bed file,
-    counting BED12 exons separately."""
+    counting BED12 exons separately, filtering for blocks that have
+    score > depth.
+    """
     ret = defaultdict(list)
     for line in bedFile:
         line = line.strip()
@@ -68,7 +70,8 @@ def getSeparateBedBlocks(bedFile):
         stop = int(fields[2])
         score = int(fields[4])
         if len(fields) <= 9:
-            ret[chr].append((start, stop, score))
+            if score >= depth:
+                ret[chr].append((start, stop, score))
         else:
             assert(len(fields) == 12)
             blockSizes = map(int, filter(lambda x: x != '',
@@ -78,8 +81,9 @@ def getSeparateBedBlocks(bedFile):
             for blockStart, blockSize in zip(blockSizes, blockStarts):
                 nonRelativeBlockStart = start + blockStart
                 nonRelativeBlockEnd = nonRelBlockStart + blockSize
-                ret[chr].append((nonRelativeBlockStart, nonRelativeBlockEnd,
-                                 score))
+                if score >= depth:
+                    ret[chr].append((nonRelativeBlockStart, nonRelativeBlockEnd,
+                                     score))
     return ret
 
 def getSeqLengths(fastaFile):
@@ -150,13 +154,17 @@ def main():
     argParser.add_argument("--threshold", type=float, default=0.8,
                            help="A window is considered covered if more than "
                            "windowSize*threshold bases are covered")
+    argParser.add_argument("--depth", type=int, default=1,
+                           help="Assume the 4th field in the bed is coverage "
+                           "depth, and filter for regions that are covered more "
+                           "than 'depth' times.")
     opts = argParser.parse_args()
 
     bedFile = open(opts.bed)
     fastaFile = open(opts.fasta)
     seqLengths = getSeqLengths(fastaFile)
     toTrim = windowFilter(opts.windowSize, opts.threshold,
-                          getSeparateBedBlocks(bedFile), seqLengths)
+                          getSeparateBedBlocks(bedFile, opts.depth), seqLengths)
     if opts.complement:
         toTrim = complementBlocks(toTrim, seqLengths)
     toTrim = uniquifyBlocks(toTrim, 2*opts.flanking)
