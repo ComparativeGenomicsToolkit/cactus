@@ -41,12 +41,12 @@ class TestCase(unittest.TestCase):
 
             lastzOutput = getTempFile(rootDir=self.tempDir)
             runLastz(seqFile1, seqFile2, alignmentsFile=lastzOutput,
-                     lastzArguments=self.defaultLastzArguments + " --rescoreOriginalAlignment",
+                     lastzArguments=self.defaultLastzArguments,
                      work_dir=self.tempDir)
             realignOutput = getTempFile(rootDir=self.tempDir)
             runCactusRealign(seqFile1, seqFile2, inputAlignmentsFile = lastzOutput,
                              outputAlignmentsFile = realignOutput,
-                             realignArguments=self.defaultRealignArguments,
+                             realignArguments=self.defaultRealignArguments + " --rescoreOriginalAlignment",
                              work_dir=self.tempDir)
                                       
             for realignLine, lastzLine in zip([ i for i in open(lastzOutput, 'r') if i != '' ],

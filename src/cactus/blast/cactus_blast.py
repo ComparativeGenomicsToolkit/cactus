@@ -188,7 +188,9 @@ class BlastIngroupsAndOutgroups(Job):
         self.outgroupSequenceIDs = outgroupSequenceIDs
 
     def run(self, fileStore):
-        if ingroupSequenceIDs[0].hasattr('size'):
+        #If this job was called directly after importing the sequnce
+        #files, they won't have size attributes.
+        if not isinstance(self.ingroupSequenceIDs[0], str):
             blastAllAgainstAllDisk = 3*sum([seqID.size for seqID in self.ingroupSequenceIDs])
         else:
             blastAllAgainstAllDisk = None
@@ -227,8 +229,11 @@ class BlastFirstOutgroup(Job):
 
     def run(self, fileStore):
         logger.info("Blasting ingroup sequences %s to outgroup %s" % (self.sequenceIDs, self.outgroupSequenceIDs[0]))
-        blastSequencesAgainstEachOtherDisk = 3*(sum([seqID.size for seqID in self.sequenceIDs]) + 
+        if not isinstance(self.sequenceIDs[0], str):
+            blastSequencesAgainstEachOtherDisk = 3*(sum([seqID.size for seqID in self.sequenceIDs]) + 
                 self.outgroupSequenceIDs[0].size)
+        else:
+            blastSequencesAgainstEachOtherDisk = None
         blastResultsID = self.addChild(BlastSequencesAgainstEachOther(self.sequenceIDs,
                                                            [self.outgroupSequenceIDs[0]],
                                                            self.blastOptions,
@@ -257,10 +262,13 @@ class BlastFirstOutgroup2(Job):
 
     def run(self, fileStore):
 
-        trimAndRecurseOnOutgroupsDisk = 3*(sum([seqID.size for seqID in self.untrimmedSequenceIDs])
+        if not isinstance(self.untrimmedSequenceIDs[0], str):
+            trimAndRecurseOnOutgroupsDisk = 3*(sum([seqID.size for seqID in self.untrimmedSequenceIDs])
                 + sum([seqID.size for seqID in self.sequenceIDs])
                 + sum([seqID.size for seqID in self.outgroupSequenceIDs])
                 + self.mostRecentResultsID.size)
+        else:
+            trimAndRecurseOnOutgroupsDisk = None
         return self.addFollowOn(TrimAndRecurseOnOutgroups(untrimmedSequenceIDs=self.untrimmedSequenceIDs,
                                                           sequenceIDs=self.sequenceIDs,
                                                           outgroupSequenceIDs=self.outgroupSequenceIDs,

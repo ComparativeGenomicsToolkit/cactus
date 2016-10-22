@@ -622,6 +622,7 @@ def runLastz(seq1, seq2, alignmentsFile, lastzArguments, work_dir=None):
     work_dir = os.path.dirname(seq1)
     cactus_call(tool="quay.io/adderan/lastz", work_dir=work_dir, outfile=alignmentsFile,
                 parameters=["--format=cigar",
+                            "--notrivial",
                             lastzArguments,
                             "%s[multiple][nameparse=darkspace]" % os.path.basename(seq1),
                             "%s[nameparse=darkspace]" % os.path.basename(seq2)])
@@ -630,6 +631,7 @@ def runSelfLastz(seq, alignmentsFile, lastzArguments, work_dir=None):
     work_dir = os.path.dirname(seq)
     cactus_call(tool="quay.io/adderan/lastz", work_dir=work_dir, outfile=alignmentsFile,
                 parameters=["--format=cigar",
+                            "--notrivial",
                             lastzArguments,
                             "%s[multiple][nameparse=darkspace]" % os.path.basename(seq),
                             "%s[nameparse=darkspace]" % os.path.basename(seq)])

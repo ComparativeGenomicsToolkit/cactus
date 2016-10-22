@@ -129,7 +129,7 @@ class TestCase(unittest.TestCase):
                 subOutgroupPaths = outgroupPaths[:numOutgroups]
                 print "aligning %s vs %s" % (",".join(ingroupPaths), ",".join(subOutgroupPaths))
                 tmpToil = os.path.join(self.tempDir, "outgroupToil")
-                runCactusBlastIngroupsAndOutgroups(ingroupPaths, subOutgroupPaths, subResults, tmpToil)
+                runCactusBlastIngroupsAndOutgroups(ingroupPaths, subOutgroupPaths, alignmentsFile=subResults, toilDir=tmpToil)
                 results.append(subResults)
 
             # Print diagnostics about coverage
@@ -180,7 +180,7 @@ class TestCase(unittest.TestCase):
         # Run in "ingroup vs outgroups" mode, aligning the ingroup vs
         # the outgroups in order, trimming away sequence that's
         # already been aligned.
-        runCactusBlastIngroupsAndOutgroups([ingroupPath], outgroupPaths, outputFile=self.tempOutputFile2, toilDir=self.tempDir)
+        runCactusBlastIngroupsAndOutgroups([ingroupPath], outgroupPaths, alignmentsFile=self.tempOutputFile2, toilDir=self.tempDir)
 
         # Get the coverage on the ingroup, in bases, from each run.
         coverageSetVsSet = int(popenCatch("cactus_coverage %s %s | awk '{ total +=  $3 - $2} END { print total }'" % (ingroupPath, self.tempOutputFile)))
@@ -426,11 +426,11 @@ def runCactusBlastIngroupsAndOutgroups(ingroups, outgroups, alignmentsFile, toil
     with Toil(options) as toil:
         ingroupIDs = [toil.importFile(makeURL(ingroup)) for ingroup in ingroups]
         outgroupIDs = [toil.importFile(makeURL(outgroup)) for outgroup in outgroups]
-        rootJob = BlastIngroupsAndOutgroups(options, ingroupIDs, outgroupIDs)
+        rootJob = BlastIngroupsAndOutgroups(blastOptions, ingroupIDs, outgroupIDs)
         blastResults = toil.start(rootJob)
-        alignmentsID = blastResults["alignmentsID"]
+        alignmentsID = blastResults[0]
         toil.exportFile(alignmentsID, makeURL(alignmentsFile))
-        outgroupFragmentIDs = blastResults["outgroupFragmentIDs"]
+        outgroupFragmentIDs = blastResults[1]
 
 
 def main():
