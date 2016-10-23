@@ -275,10 +275,3 @@ Segment *segment_loadFromBinaryRepresentation(void **binaryString, Block *block)
     }
     return segment;
 }
-
-Segment *segment_getStaticNameWrapper(Name name) {
-    static Segment segment;
-    segment.name = name;
-    return &segment;
-}
-

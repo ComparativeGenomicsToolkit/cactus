@@ -67,12 +67,11 @@ class TestCase(unittest.TestCase):
         >seq1|14
         TGC''') in fa)
 
-    # Threshold was changed to mean "% of window covered" instead.
-    # def testThreshold(self):
-    #     fa = popenCatch("cactus_trimSequences.py --flanking 0 --minSize 0 --windowSize 1 --threshold 2 %s %s" % (self.faPath, self.bedPath))
-    #     self.assertTrue(">seq1|0" not in fa)
-    #     self.assertTrue(">seq1|6" in fa)
-    #     self.assertTrue(">seq1|15" in fa)
+    def testDepth(self):
+        fa = popenCatch("cactus_trimSequences.py --flanking 0 --minSize 0 --windowSize 1 --depth 2 %s %s" % (self.faPath, self.bedPath))
+        self.assertTrue(">seq1|0" not in fa)
+        self.assertTrue(">seq1|6" in fa)
+        self.assertTrue(">seq1|15" in fa)
 
     def testMinSize(self):
         fa = popenCatch("cactus_trimSequences.py --flanking 0 --minSize 2 --windowSize 1 --threshold 1 %s %s" % (self.faPath, self.bedPath))

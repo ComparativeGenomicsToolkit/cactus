@@ -31,13 +31,14 @@ from toil.lib.bioio import setLoggingFromOptions
 from cactus.shared.configWrapper import ConfigWrapper
 
 class PreprocessorOptions:
-    def __init__(self, chunkSize, cmdLine, memory, cpu, check, proportionToSample):
+    def __init__(self, chunkSize, cmdLine, memory, cpu, check, proportionToSample, unmask):
         self.chunkSize = chunkSize
         self.cmdLine = cmdLine
         self.memory = memory
         self.cpu = cpu
         self.check = check
         self.proportionToSample=proportionToSample
+        self.unmask = unmask
 
 class PreprocessChunk(Job):
     """ locally preprocess a fasta chunk, output then copied back to input
@@ -134,8 +135,16 @@ class PreprocessSequence(Job):
                     inChunkIDList[i].size)
             outChunkIDList.append(self.addChild(PreprocessChunk(self.prepOptions, inChunkIDs, float(inChunkNumber)/len(inChunkIDList), inChunkIDList[i], disk=diskForPreprocessChunk)).rv())
         # follow on to merge chunks
-
         return self.addFollowOn(MergeChunks(self.prepOptions, outChunkIDList)).rv()
+
+def unmaskFasta(inFasta, outFasta):
+    """Uppercase a fasta file (removing the soft-masking)."""
+    with open(outFasta, 'w') as out:
+        for line in open(inFasta):
+            if len(line) > 0 and line[0] != ">":
+                out.write(line.upper())
+            else:
+                out.write(line)
 
 class BatchPreprocessor(Job):
     def __init__(self, prepXmlElems, inSequenceID, iteration = 0):
@@ -157,15 +166,23 @@ class BatchPreprocessor(Job):
                                           self._memory,
                                           self._cores,
                                           bool(int(prepNode.get("check", default="0"))),
-                                          getOptionalAttrib(prepNode, "proportionToSample", typeFn=float, default=1.0))
+                                          getOptionalAttrib(prepNode, "proportionToSample", typeFn=float, default=1.0),
+                                          getOptionalAttrib(prepNode, "unmask", typeFn=bool, default=False))
         
         #output to temporary directory unless we are on the last iteration
         lastIteration = self.iteration == len(self.prepXmlElems) - 1
 
-        inSequenceSize = 4*1024*1024*1024
+
+        if prepOptions.unmask:
+            inSequence = fileStore.readGlobalFile(self.inSequenceID)
+            unmaskedInputFile = fileStore.getLocalTempFile()
+            unmaskFasta(inSequence, unmaskedInputFile)
+            self.inSequenceID = fileStore.writeGlobalFile(inSequence)
+
         if prepOptions.chunkSize <= 0: #In this first case we don't need to break up the sequence
             #Estimate the size of a genome since we can't get the sizes of files imported
             #through Toil.importFile yet.
+            inSequenceSize = 4*1024*1024*1024
             outSeqID = self.addChild(PreprocessChunk(prepOptions, [ self.inSequenceID ], 1.0, self.inSequenceID, disk=3*inSequenceSize)).rv()
         else:
             outSeqID = self.addChild(PreprocessSequence(prepOptions, self.inSequenceID, disk=2*inSequenceSize)).rv()
@@ -174,6 +191,8 @@ class BatchPreprocessor(Job):
             return self.addFollowOn(BatchPreprocessor(self.prepXmlElems, outSeqID, self.iteration + 1)).rv()
         else:
             return self.addFollowOn(BatchPreprocessorEnd(outSeqID, disk=2*inSequenceSize)).rv()
+
+
 
 class BatchPreprocessorEnd(Job):
     def __init__(self,  globalOutSequenceID, disk=None):

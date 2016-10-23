@@ -27,7 +27,7 @@
         <!-- Outgroup trim options: -->
         <!-- trimOutgroupFlanking: The amount of flanking sequence to
              leave on the ends of the trimmed outgroup fragments -->
-        <trimBlast doTrimStrategy="0"
+        <trimBlast doTrimStrategy="1"
                    trimFlanking="10"
                    trimMinSize="10"
                    trimThreshold="1"
@@ -36,7 +36,7 @@
 	<setup makeEventHeadersAlphaNumeric="0"/>
 	<caf
 		realign="1"
-		realignArguments="--rescoreByIdentity --gapGamma 0.9 --diagonalExpansion 4 --splitMatrixBiggerThanThis 10 --constraintDiagonalTrim 0 --alignAmbiguityCharacters"
+		realignArguments="--rescoreByIdentity --matchGamma 0.9 --diagonalExpansion 4 --splitMatrixBiggerThanThis 10 --constraintDiagonalTrim 0 --alignAmbiguityCharacters"
 		chunkSize="2000000" 
 		compressFiles="1" 
 		overlapSize="10000" 
@@ -58,8 +58,8 @@
 	>
 		<divergence 
 			argName="lastzArguments"
-			low="--hspthresh=3000 --identity=IDENTITY --ambiguous=iupac"
-		 	default="--hspthresh=1800 --identity=IDENTITY --ambiguous=iupac"
+			low="--hspthresh=3000 --ambiguous=iupac"
+		 	default="--hspthresh=1800 --ambiguous=iupac"
 		 />
 		<CactusCafRecursion maxFlowerGroupSize="100000000"/>
 		<CactusCafWrapper minFlowerSize="5000" maxFlowerGroupSize="1000000"/>
@@ -67,7 +67,8 @@
 	<bar
 		runBar="1"
 		spanningTrees="5" 
-		gapGamma="0.2" 
+		gapGamma="0.0"
+        matchGamma="0.2"
 		bandingLimit="100000" 
 		splitMatrixBiggerThanThis="3000" 
         anchorMatrixBiggerThanThis="500"
@@ -78,8 +79,9 @@
 		alignAmbiguityCharacters="1"
 		veryLargeEndSize="50000"
 		largeEndSize="10000"
-		maximumNumberOfSequencesBeforeSwitchingToFast="50"
+		useProgressiveMerging="1"
 		pruneOutStubAlignments="1"
+                rescue="1"
 	>
 		<CactusBarRecursion maxFlowerGroupSize="100000000"/>
 		<CactusBarWrapper maxFlowerGroupSize="400000" memory="littleMemory"/>
@@ -105,6 +107,7 @@
 		reference="reference" 
 		useSimulatedAnnealing="1" 
 		theta="0.0001" 
+		phi="1.0"
 		maxWalkForCalculatingZ="100000" 
 		permutations="10"
 		ignoreUnalignedGaps="1"

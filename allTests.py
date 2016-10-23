@@ -8,7 +8,6 @@ import os
 
 from cactus.setup.cactus_setupTest import TestCase as setupTest
 from cactus.blast.cactus_blastTest import TestCase as blastTest
-from cactus.blast.cactus_realignTest import TestCase as realignTest
 from cactus.pipeline.cactus_workflowTest import TestCase as workflowTest
 from cactus.pipeline.cactus_evolverTest import TestCase as evolverTest
 from cactus.bar.cactus_barTest import TestCase as barTest
@@ -30,7 +29,6 @@ def allSuites():
                         workflowTest,
                         evolverTest,
                         barTest,
-                        realignTest,
                         phylogenyTest,
                         adjacenciesTest,
                         referenceTest,

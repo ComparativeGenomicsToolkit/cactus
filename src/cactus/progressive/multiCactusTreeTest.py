@@ -65,7 +65,7 @@ class TestCase(unittest.TestCase):
         tree.addSelfEdges()
         treeString = NXNewick().writeString(tree)
         self.assertEqual(treeString, trueSelf)
-    
+
     def testAddOutgroup(self):
         trueOg = '((((HUMAN:0.006969,CHIMP:0.009727)Anc7:0.025291,BABOON:0.044568)Anc3:0.11,(MOUSE:0.072818,RAT:0.081244)Anc4:0.260342)Anc1:0.02326,((DOG:0.07,CAT:0.07)Anc5:0.087381,(PIG:0.06,COW:0.06)Anc6:0.104728)Anc2:0.04,outgroup:1.7)Anc0;'
         tree = MultiCactusTree(self.mcTree1)
@@ -85,6 +85,24 @@ class TestCase(unittest.TestCase):
         leafTreeOutString = NXNewick().writeString(leafTree)
         self.assertEqual(leafTreeOutString, trueLeafOg)
 
+    def testExtractSpanningTree(self):
+        """Tests whether extracting a binary spanning tree works correctly."""
+        prevNewick1 = NXNewick().writeString(self.mcTree1)
+        # Check a dead-simple spanning tree with 3 closely related leaves.
+        spanHCB = self.mcTree1.extractSpanningTree(["HUMAN", "CHIMP", "BABOON"])
+        # Check that the existing tree hasn't been modified (OK, a bit
+        # silly, but just in case).
+        self.assertEqual(NXNewick().writeString(self.mcTree1), prevNewick1)
+        # Check the actual spanning tree.
+        self.assertEqual(NXNewick().writeString(spanHCB), "((HUMAN:0.006969,CHIMP:0.009727)Anc7:0.025291,BABOON:0.044568)Anc3;")
+
+        # Now test a more complicated tree, where we should remove as
+        # many of the ancestors as possible (they will add extra
+        # losses for no reason!).
+        spanHCC = self.mcTree1.extractSpanningTree(["HUMAN", "CHIMP", "CAT"])
+        self.assertEqual(NXNewick().writeString(self.mcTree1), prevNewick1)
+        self.assertEqual(NXNewick().writeString(spanHCC), "((HUMAN:0.006969,CHIMP:0.009727)Anc7:0.158551,CAT:0.197381)Anc0;")
+
     def __generateTrees(self):
         self.tree1 = '((((HUMAN:0.006969,CHIMP:0.009727):0.025291,BABOON:0.044568):0.11,(MOUSE:0.072818,RAT:0.081244):0.260342):0.02326,((DOG:0.07,CAT:0.07):0.087381,(PIG:0.06,COW:0.06):0.104728):0.04);'
         self.tree2 = '((raccoon:19.19959,bear:6.80041):0.846,((sea_lion:11.997,seal:12.003):7.52973,((monkey:100.8593,cat:47.14069):20.59201,weasel:18.87953):2.0946):3.87382,dog:25.46154);'
@@ -97,8 +115,7 @@ class TestCase(unittest.TestCase):
         self.mcTree2.nameUnlabeledInternalNodes()
         self.mcTree1.computeSubtreeRoots()
         self.mcTree1a.computeSubtreeRoots()
-        self.mcTree2.computeSubtreeRoots()
-        
+        self.mcTree2.computeSubtreeRoots()        
     
 def main():
     unittest.main()

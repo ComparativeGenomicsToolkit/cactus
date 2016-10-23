@@ -10,7 +10,7 @@ import unittest
 import os
 import sys
 
-from sonLib.bioio import TestStatus, newickTreeParser
+from sonLib.bioio import TestStatus, newickTreeParser, getTempFile
 
 from cactus.shared.test import getCactusInputs_random
 from cactus.shared.test import getCactusInputs_randomWithConstraints
@@ -73,6 +73,25 @@ class TestCase(unittest.TestCase):
         runWorkflow_multipleExamples(getCactusInputs_chromosomeX, 
                                      testRestrictions=(TestStatus.TEST_VERY_LONG,),
                                      batchSystem=self.batchSystem, buildToilStats=True)
+    @silentOnSuccess
+    def testCactus_splitBarJobs(self):
+        """Exercise the code paths in bar that only occur on large jobs."""
+        # Modify the bar node in the config file so that
+        # cactus_workflow will split bar jobs even on this small
+        # example
+        tempConfigFile = getTempFile()
+        tempConfigTree = ET.parse(self.configFile)
+        tempConfigNode = tempConfigTree.getroot()
+        tempConfigNode.find("bar").find("CactusBarWrapper").set("maxFlowerGroupSize", "10")
+        tempConfigNode.find("bar").set("veryLargeEndSize", "0")
+        tempConfigNode.find("bar").set("largeEndSize", "0")
+        tempConfigTree.write(tempConfigFile)
+        runWorkflow_multipleExamples(getCactusInputs_blanchette,
+                                     testNumber=1,
+                                     testRestrictions=(TestStatus.TEST_LONG,),
+                                     batchSystem=self.batchSystem,
+                                     configFile=tempConfigFile, buildJobTreeStats=True)
+        os.remove(tempConfigFile)
 
     def testGetOptionalAttrib(self):
         self.assertEquals("0", getOptionalAttrib(self.barNode, "minimumBlockDegree"))

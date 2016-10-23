@@ -4,7 +4,11 @@
  * Released under the MIT license, see LICENSE.txt
  */
 
+// For fsync declaration (technically a POSIX extension).
+#define _POSIX_C_SOURCE 200809L
+
 #include "cactusGlobalsPrivate.h"
+#include <stdio.h>
 #include <unistd.h>
 #include <math.h>
 
@@ -411,7 +415,7 @@ char *cactusDisk_getStringFromCache(CactusDisk *cactusDisk, Name name, int64_t s
         string = st_realloc(string, sizeof(char) * (length + 1));
         string[length] = '\0';
         if (!strand) {
-            char *string2 = cactusMisc_reverseComplementString(string);
+            char *string2 = stString_reverseComplementString(string);
             free(string);
             string = string2;
         }

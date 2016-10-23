@@ -65,6 +65,16 @@ void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(
  */
 void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds, bool (*recoverabilityFilter)(stCactusEdgeEnd *, Flower *), int64_t maxNumIterations, int64_t maxRecoverableChainLength);
 
+/*
+ * Simply returns the average degree of the blocks in the list.
+ */
+double stCaf_averageBlockDegree(stList *blocks);
+
+/*
+ * Returns the number of aligned bases represented in the blocks in the list.
+ */
+uint64_t stCaf_totalAlignedBases(stList *blocks);
+
 ///////////////////////////////////////////////////////////////////////////
 // Pinch graph to cactus graph
 ///////////////////////////////////////////////////////////////////////////

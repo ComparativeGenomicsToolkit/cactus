@@ -42,4 +42,7 @@ CactusDisk *testCommon_getTemporaryCactusDisk2(bool sequencesOnDisk);
  */
 void testCommon_deleteTemporaryCactusDisk(CactusDisk *cactusDisk);
 
+// Adds a thread with random nucleotides to the flower, and return its corresponding name in the pinch graph.
+Name testCommon_addThreadToFlower(Flower *flower, char *header, int64_t length);
+
 #endif

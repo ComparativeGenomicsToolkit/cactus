@@ -231,12 +231,6 @@ void event_destruct(Event *event) {
     free(event);
 }
 
-Event *event_getStaticNameWrapper(Name name) {
-    static Event event;
-    event.name = name;
-    return &event;
-}
-
 /*
  * Serialisation functions
  */

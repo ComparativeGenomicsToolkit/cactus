@@ -110,8 +110,9 @@ Segment *block_getInstanceP(Block *block, Segment *connectedSegment) {
 }
 
 Segment *block_getInstance(Block *block, Name name) {
-	Segment *segment = segment_getStaticNameWrapper(name);
-	return block_getInstanceP(block, stSortedSet_search(block->blockContents->segments, segment));
+	Segment segment;
+	segment.name = name;
+	return block_getInstanceP(block, stSortedSet_search(block->blockContents->segments, &segment));
 }
 
 Segment *block_getFirst(Block *block) {
@@ -407,12 +408,4 @@ Block *block_loadFromBinaryRepresentation(void **binaryString, Flower *flower) {
 		binaryRepresentation_popNextElementType(binaryString);
 	}
 	return block;
-}
-
-Block *block_getStaticNameWrapper(Name name) {
-	static Block block;
-	static BlockContents blockContents;
-	block.blockContents = &blockContents;
-	blockContents.name = name;
-	return &block;
 }

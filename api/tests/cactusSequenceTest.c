@@ -175,7 +175,7 @@ void testSequence_addAndGetBigStringsP(CuTest* testCase,
             CuAssertIntEquals(testCase, length, strlen(subString));
             bool strand = st_random() > 0.5;
             if(!strand) {
-                char *subString2 = cactusMisc_reverseComplementString(subString);
+                char *subString2 = stString_reverseComplementString(subString);
                 CuAssertIntEquals(testCase, strlen(subString2), strlen(subString));
                 free(subString);
                 subString = subString2;

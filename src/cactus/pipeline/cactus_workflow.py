@@ -20,6 +20,7 @@ import random
 import copy
 import shutil
 from argparse import ArgumentParser
+import networkx as NX
 
 from cactus.shared.bioio import newickTreeParser
 
@@ -30,6 +31,8 @@ from toil.lib.bioio import system
 from cactus.shared.bioio import makeSubDir
 from cactus.shared.bioio import catFiles
 
+
+from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.common import cactusRootPath
 from cactus.shared.common import makeURL
   
@@ -142,10 +145,11 @@ class CactusPhasesJob(CactusJob):
     
     def makeRecursiveChildJob(self, job, launchSecondaryKtForRecursiveJob=False):
         newChild = job(phaseNode=extractNode(self.phaseNode), 
-                          constantsNode=extractNode(self.constantsNode),
-                          cactusDiskDatabaseString=self.cactusWorkflowArguments.cactusDiskDatabaseString, 
-                          flowerNames=encodeFlowerNames((self.topFlowerName,)), overlarge=True, 
-                          cactusSequencesID = self.cactusSequencesID)
+                       constantsNode=extractNode(self.constantsNode),
+                       cactusDiskDatabaseString=self.cactusWorkflowArguments.cactusDiskDatabaseString, 
+                       flowerNames=encodeFlowerNames((self.topFlowerName,)), overlarge=True, 
+                       cactusSequencesID = self.cactusSequencesID,
+                       cactusWorkflowArguments=self.cactusWorkflowArguments)
         
         if launchSecondaryKtForRecursiveJob and ExperimentWrapper(self.cactusWorkflowArguments.experimentNode).getDbType() == "kyoto_tycoon":
             cw = ConfigWrapper(self.cactusWorkflowArguments.configNode)
@@ -202,11 +206,13 @@ class CactusRecursionJob(CactusJob):
     """Base recursive job for traversals up and down the cactus tree.
     """
     maxSequenceSizeOfFlowerGroupingDefault = 1000000
-    def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge=False, precomputedAlignmentIDs=None, cactusSequencesID = None, checkpoint = False):
+    def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge=False, precomputedAlignmentIDs=None, cactusSequencesID = None, checkpoint = False, cactusWorkflowArguments=None):
         CactusJob.__init__(self, phaseNode=phaseNode, constantsNode=constantsNode, overlarge=overlarge, 
                 cactusSequencesID = cactusSequencesID, checkpoint = checkpoint)
+
         self.cactusDiskDatabaseString = cactusDiskDatabaseString
-        self.flowerNames = flowerNames  
+        self.flowerNames = flowerNames
+        self.cactusWorkflowArguments = cactusWorkflowArguments
         
         #need to do this because the alignment IDs are jobstore promises, and can't 
         #be stored in the config XML until they are respolved into actual IDs, which doesn't
@@ -220,7 +226,8 @@ class CactusRecursionJob(CactusJob):
             phaseNode = self.phaseNode
         return self.addFollowOn(job(phaseNode=phaseNode, constantsNode=self.constantsNode,
                                    cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
-                                   flowerNames=self.flowerNames, overlarge=self.overlarge, precomputedAlignmentIDs = self.precomputedAlignmentIDs, cactusSequencesID = self.cactusSequencesID)).rv()
+                                    flowerNames=self.flowerNames, overlarge=self.overlarge, precomputedAlignmentIDs = self.precomputedAlignmentIDs, cactusSequencesID = self.cactusSequencesID,
+                                    cactusWorkflowArguments=self.cactusWorkflowArguments)).rv()
         
     def makeChildJobs(self, flowersAndSizes, job, overlargeJob=None, 
                          phaseNode=None, runFlowerStats=False):
@@ -242,13 +249,20 @@ class CactusRecursionJob(CactusJob):
                 else:
                     logger.info("Adding an oversize flower %s for job class %s" \
                                              % (decodeFirstFlowerName(flowerNames), overlargeJob))
-                cactusSequencesID = self.addChild(overlargeJob(cactusDiskDatabaseString=self.cactusDiskDatabaseString, phaseNode=phaseNode, 
-                                                    constantsNode=self.constantsNode,
-                                                    flowerNames=flowerNames, overlarge=True, cactusSequencesID = self.cactusSequencesID)).rv() #This ensures overlarge flowers, 
+                cactusSequencesID = self.addChild(overlargeJob(cactusDiskDatabaseString=
+                                                               self.cactusDiskDatabaseString,
+                                                               phaseNode=phaseNode, 
+                                                               constantsNode=self.constantsNode,
+                                                               flowerNames=flowerNames, overlarge=True,
+                                                               cactusSequencesID = self.cactusSequencesID,
+                                                               cactusWorkflowArguments=self.cactusWorkflowArguments)).rv() #This ensures overlarge flowers, 
             else:
                 logger.info("Adding recursive flower job")
                 cactusSequencesID = self.addChild(job(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
-                                           phaseNode=phaseNode, constantsNode=self.constantsNode, flowerNames=flowerNames, overlarge=False, cactusSequencesID = self.cactusSequencesID)).rv()
+                                                      phaseNode=phaseNode, constantsNode=self.constantsNode,
+                                                      flowerNames=flowerNames, overlarge=False,
+                                                      cactusSequencesID = self.cactusSequencesID,
+                                                      cactusWorkflowArguments=self.cactusWorkflowArguments)).rv()
         if cactusSequencesID:
             return cactusSequencesID
         else:
@@ -360,6 +374,10 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
         outgroupsDir = os.path.join(fileStore.getLocalTempDir(), "outgroupFragments/")
         os.mkdir(outgroupsDir)
 
+        ingroupCoverageDir = os.path.join(self.getGlobalTempDir(), "ingroupCoverageDir/")
+        os.mkdir(ingroupCoverageDir)
+        self.cactusWorkflowArguments.ingroupCoverageDir = ingroupCoverageDir
+
         # Get ingroup and outgroup sequences
         sequenceIDs = self.cactusWorkflowArguments.experimentWrapper.seqIDMap.values()
         sequences = [fileStore.readGlobalFile(seqID) for seqID in sequenceIDs]
@@ -397,9 +415,11 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
                                                        trimMinSize=self.getOptionalPhaseAttrib("trimMinSize", int, 0),
                                                        trimThreshold=self.getOptionalPhaseAttrib("trimThreshold", float, 0.8),
                                                        trimWindowSize=self.getOptionalPhaseAttrib("trimWindowSize", int, 10),
-                                                       trimOutgroupFlanking=self.getOptionalPhaseAttrib("trimOutgroupFlanking", int, 100)), ingroupIDs, outgroupIDs))
+                                                       trimOutgroupFlanking=self.getOptionalPhaseAttrib("trimOutgroupFlanking", int, 100),
+                                                       trimOutgroupDepth=self.getOptionalPhaseAttrib("trimOutgroupDepth", int, 1),
+                                                       keepParalogs=self.getOptionalPhaseAttrib("keepParalogs", bool, False)), ingroupIDs, outgroupIDs))
 
-        self.cactusWorkflowArguments.alignmentsID, self.cactusWorkflowArguments.outgroupFragmentIDs = (blastJob.rv(0), blastJob.rv(1))
+        self.cactusWorkflowArguments.alignmentsID, self.cactusWorkflowArguments.outgroupFragmentIDs self.cactusWorkflowArguments.ingroupCoverageIDs = (blastJob.rv(0), blastJob.rv(1), blastJob.rv(2))
         
         return self.makeFollowOnPhaseJob(CactusSetupPhase, "setup", checkpoint = False)
         
@@ -510,6 +530,17 @@ def inverseJukesCantor(d):
     
 class CactusCafPhase(CactusPhasesJob):      
     def run(self, fileStore):
+        if self.cactusWorkflowArguments.ingroupCoverageIDs is not None:
+            # Convert the bed files to use 64-bit cactus Names instead
+            # of the headers. Ideally this should belong in the bar
+            # phase but we run stripUniqueIDs before then.
+            bedFiles = [fileStore.readGlobalFile(path) for path in self.cactusWorkflowArguments.ingroupCoverageIDs]
+            tempFile = fileStore.getLocalTempFile()
+            system("cat %s > %s" % (" ".join(bedFiles), tempFile))
+            ingroupCoverageFile = fileStore.getLocalTempFile()
+            runConvertAlignmentsToInternalNames(self.cactusWorkflowArguments.cactusDiskDatabaseString, tempFile, ingroupCoverageFile, self.topFlowerName, isBedFile=True)
+            self.cactusWorkflowArguments.ingroupCoverageID = fileStore.writeGlobalFile(ingroupCoverageFile)
+
         if (not self.cactusWorkflowArguments.configWrapper.getDoTrimStrategy()) or (self.cactusWorkflowArguments.outgroupEventNames == None):
             setupFilteringByIdentity(self.cactusWorkflowArguments)
         #Setup any constraints
@@ -550,11 +581,44 @@ class CactusCafRecursion(CactusRecursionJob):
         self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
         self.makeRecursiveJobs()
         return self.makeExtendingJobs(job=CactusCafWrapper, overlargeJob=CactusCafWrapperLarge, runFlowerStats=True)
-        
+
+def getMaximalDistanceBetweenLeaves(nxTree, rootId):
+    def getPathLengths(nxTree, rootId, lengths, curLength):
+        if nxTree.isLeaf(rootId):
+            lengths.append(curLength)
+        else:
+            for childId in nxTree.getChildren(rootId):
+                getPathLengths(nxTree, childId, lengths, curLength + nxTree.getWeight(rootId, childId))
+
+    lengths = []
+    getPathLengths(nxTree, rootId, lengths, 0.0)
+    lengths.sort()
+    if len(lengths) >= 2:
+        return lengths[-2] + lengths[-1]
+    else:
+        return lengths[0]
+
 class CactusCafWrapper(CactusRecursionJob):
     """Runs cactus_core upon a set of flowers and no alignment file.
     """
-    def runCactusCafInWorkflow(self, alignmentFile, constraints):
+    def runCactusCafInWorkflow(self, alignmentFile):
+        debugFilePath = self.getOptionalPhaseAttrib("phylogenyDebugPrefix")
+        if debugFilePath != None:
+            debugFilePath += getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "reference"), "reference")
+        minimumIngroupDegree = self.getOptionalPhaseAttrib("minimumIngroupDegree", int)
+        if self.getOptionalPhaseAttrib("autoMinimumIngroupDegree", bool):
+            speciesTree = MultiCactusTree(NXNewick().parseString(self.cactusWorkflowArguments.speciesTree))
+            speciesTree.nameUnlabeledInternalNodes()
+            referenceName = getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "reference"), "reference"),
+            ingroupDistance = getMaximalDistanceBetweenLeaves(speciesTree, speciesTree.nameToId[referenceName[0]])
+            self.logToMaster("Found max distance between ingroups: %f" % ingroupDistance)
+            if ingroupDistance >= self.getOptionalPhaseAttrib("autoMinimumIngroupDegreeThreshold", float):
+                self.logToMaster("enabling min ingroup degree")
+                minimumIngroupDegree = 2
+            else:
+                self.logToMaster("disabling min ingroup degree")
+                minimumIngroupDegree = 1
+
         messages = runCactusCaf(cactusDiskDatabaseString=self.cactusDiskDatabaseString,
                           cactusSequencesPath = self.cactusSequencesPath,
                           alignments=alignmentFile, 
@@ -566,7 +630,7 @@ class CactusCafWrapper(CactusRecursionJob):
                           minimumTreeCoverage=self.getOptionalPhaseAttrib("minimumTreeCoverage", float),
                           blockTrim=self.getOptionalPhaseAttrib("blockTrim", float),
                           minimumBlockDegree=self.getOptionalPhaseAttrib("minimumBlockDegree", int), 
-                          minimumIngroupDegree=self.getOptionalPhaseAttrib("minimumIngroupDegree", int),
+                          minimumIngroupDegree=minimumIngroupDegree,
                           minimumOutgroupDegree=self.getOptionalPhaseAttrib("minimumOutgroupDegree", int),
                           singleCopyIngroup=self.getOptionalPhaseAttrib("singleCopyIngroup", bool),
                           singleCopyOutgroup=self.getOptionalPhaseAttrib("singleCopyOutgroup"),
@@ -578,8 +642,29 @@ class CactusCafWrapper(CactusRecursionJob):
                           maximumMedianSequenceLengthBetweenLinkedEnds=self.getOptionalPhaseAttrib("maximumMedianSequenceLengthBetweenLinkedEnds", int),
                           realign=self.getOptionalPhaseAttrib("realign", bool),
                           realignArguments=self.getOptionalPhaseAttrib("realignArguments"),
+                          phylogenyNumTrees=self.getOptionalPhaseAttrib("phylogenyNumTrees", int, 1),
+                          phylogenyRootingMethod=self.getOptionalPhaseAttrib("phylogenyRootingMethod"),
+                          phylogenyScoringMethod=self.getOptionalPhaseAttrib("phylogenyScoringMethod"),
+                          phylogenyBreakpointScalingFactor=self.getOptionalPhaseAttrib("phylogenyBreakpointScalingFactor"),
+                          phylogenySkipSingleCopyBlocks=self.getOptionalPhaseAttrib("phylogenySkipSingleCopyBlocks", bool),
+                          phylogenyMaxBaseDistance=self.getOptionalPhaseAttrib("phylogenyMaxBaseDistance"),
+                          phylogenyMaxBlockDistance=self.getOptionalPhaseAttrib("phylogenyMaxBlockDistance"),
+                          phylogenyDebugFile=debugFilePath,
+                          phylogenyKeepSingleDegreeBlocks=self.getOptionalPhaseAttrib("phylogenyKeepSingleDegreeBlocks", bool),
+                          phylogenyTreeBuildingMethod=self.getOptionalPhaseAttrib("phylogenyTreeBuildingMethod"),
+                          phylogenyCostPerDupPerBase=self.getOptionalPhaseAttrib("phylogenyCostPerDupPerBase"),
+                          phylogenyCostPerLossPerBase=self.getOptionalPhaseAttrib("phylogenyCostPerLossPerBase"),
+                          referenceEventHeader=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "reference"), "reference"),
+                          phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce=self.getOptionalPhaseAttrib("phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce"),
+                          numTreeBuildingThreads=self.getOptionalPhaseAttrib("numTreeBuildingThreads"),
+                          doPhylogeny=self.getOptionalPhaseAttrib("doPhylogeny", bool, True),
+                          minimumBlockHomologySupport=self.getOptionalPhaseAttrib("minimumBlockHomologySupport"),
+                          minimumBlockDegreeToCheckSupport=self.getOptionalPhaseAttrib("minimumBlockDegreeToCheckSupport"),
+                          phylogenyNucleotideScalingFactor=self.getOptionalPhaseAttrib("phylogenyNucleotideScalingFactor"),
                           removeRecoverableChains=self.getOptionalPhaseAttrib("removeRecoverableChains"),
                           minimumNumberOfSpecies=self.getOptionalPhaseAttrib("minimumNumberOfSpecies", int),
+                          phylogenyHomologyUnitType=self.getOptionalPhaseAttrib("phylogenyHomologyUnitType"),
+                          phylogenyDistanceCorrectionMethod=self.getOptionalPhaseAttrib("phylogenyDistanceCorrectionMethod"),
                           maxRecoverableChainsIterations=self.getOptionalPhaseAttrib("maxRecoverableChainsIterations", int),
                           maxRecoverableChainLength=self.getOptionalPhaseAttrib("maxRecoverableChainLength", int))
         for message in messages:
@@ -668,6 +753,7 @@ def runBarForJob(self, calculateWhichEndsToComputeSeparately=None, endAlignments
                  maximumLength=self.getOptionalPhaseAttrib("bandingLimit", float),
                  spanningTrees=self.getOptionalPhaseAttrib("spanningTrees", int), 
                  gapGamma=self.getOptionalPhaseAttrib( "gapGamma", float), 
+                 matchGamma=self.getOptionalPhaseAttrib( "matchGamma", float), 
                  splitMatrixBiggerThanThis=self.getOptionalPhaseAttrib("splitMatrixBiggerThanThis", int), 
                  anchorMatrixBiggerThanThis=self.getOptionalPhaseAttrib("anchorMatrixBiggerThanThis", int), 
                  repeatMaskMatrixBiggerThanThis=self.getOptionalPhaseAttrib("repeatMaskMatrixBiggerThanThis", int), 
@@ -678,11 +764,14 @@ def runBarForJob(self, calculateWhichEndsToComputeSeparately=None, endAlignments
                  minimumOutgroupDegree=self.getOptionalPhaseAttrib("minimumOutgroupDegree", int),
                  alignAmbiguityCharacters=self.getOptionalPhaseAttrib("alignAmbiguityCharacters", bool),
                  pruneOutStubAlignments=self.getOptionalPhaseAttrib("pruneOutStubAlignments", bool),
-                 maximumNumberOfSequencesBeforeSwitchingToFast=self.getOptionalPhaseAttrib("maximumNumberOfSequencesBeforeSwitchingToFast", int),
+                 useProgressiveMerging=self.getOptionalPhaseAttrib("useProgressiveMerging", bool),
                  calculateWhichEndsToComputeSeparately=calculateWhichEndsToComputeSeparately,
                  endAlignmentsToPrecomputeOutputFile=endAlignmentsToPrecomputeOutputFile,
                  largeEndSize=self.getOptionalPhaseAttrib("largeEndSize", int),
                  precomputedAlignments=precomputedAlignments,
+                 ingroupCoverageFile=self.cactusWorkflowArguments.ingroupCoverageFile if self.getOptionalPhaseAttrib("rescue", bool) else None,
+                 minimumSizeToRescue=self.getOptionalPhaseAttrib("minimumSizeToRescue"),
+                 minimumCoverageToRescue=self.getOptionalPhaseAttrib("minimumCoverageToRescue"),
                  minimumNumberOfSpecies=self.getOptionalPhaseAttrib("minimumNumberOfSpecies", int))
 
 class CactusBarWrapper(CactusRecursionJob):
@@ -714,8 +803,9 @@ class CactusBarWrapperLarge(CactusRecursionJob):
             #If we have a really big end align separately
             if basesInEndAlignment >= veryLargeEndSize:
                 alignmentID = self.addChild(CactusBarEndAlignerWrapper(self.phaseNode, self.constantsNode,
-                                                         self.cactusDiskDatabaseString, self.flowerNames,
-                                                         True, [ endToAlign ], self.cactusSequencesID)).rv()
+                                                        self.cactusDiskDatabaseString, self.flowerNames,
+                                                        True, [ endToAlign ], self.cactusSequencesID,
+                                                        cactusWorkflowArguments=self.cactusWorkflowArguments)).rv()
                 precomputedAlignmentIDs.append(alignmentID)
                 logger.info("Precomputing very large end alignment for %s with %i caps and %i bases" % \
                              (endToAlign, sequencesInEndAlignment, basesInEndAlignment))
@@ -723,12 +813,19 @@ class CactusBarWrapperLarge(CactusRecursionJob):
                 endsToAlign.append(endToAlign)
                 totalSize += basesInEndAlignment
                 if totalSize >= maxFlowerGroupSize:
-                    alignmentID = self.addChild(CactusBarEndAlignerWrapper(self.phaseNode, self.constantsNode, self.cactusDiskDatabaseString, self.flowerNames, False, endsToAlign, self.cactusSequencesID)).rv()
+                    alignmentID = self.addChild(CactusBarEndAlignerWrapper(self.phaseNode,
+                                                       self.constantsNode,
+                                                       self.cactusDiskDatabaseString,
+                                                       self.flowerNames, False,
+                                                       endsToAlign,
+                                                       self.cactusSequencesID,
+                                                       cactusWorkflowArguments=self.cactusWorkflowArguments)).rv()
                     precomputedAlignmentIDs.append(alignmentID)
                     endsToAlign = []
                     totalSize = 0
         if len(endsToAlign) > 0:
-            precomputedAlignmentIDs.append(self.addChild(CactusBarEndAlignerWrapper(self.phaseNode, self.constantsNode, self.cactusDiskDatabaseString, self.flowerNames, False, endsToAlign, self.cactusSequencesID)).rv())
+            precomputedAlignmentIDs.append(self.addChild(CactusBarEndAlignerWrapper(self.phaseNode, self.constantsNode, self.cactusDiskDatabaseString, self.flowerNames, False, endsToAlign, self.cactusSequencesID,
+                                                cactusWorkflowArguments=self.cactusWorkflowArguments)).rv())
         self.precomputedAlignmentIDs = precomputedAlignmentIDs
         self.makeFollowOnRecursiveJob(CactusBarWrapperWithPrecomputedEndAlignments)
         logger.info("Breaking bar job into %i separate jobs" % \
@@ -738,7 +835,7 @@ class CactusBarEndAlignerWrapper(CactusRecursionJob):
     """Computes an end alignment.
     """
     def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge, endsToAlign, cactusSequencesID):
-        CactusRecursionJob.__init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge, cactusSequencesID = cactusSequencesID)
+        CactusRecursionJob.__init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge, cactusSequencesID = cactusSequencesID, cactusWorkflowArguments=self.cactusWorkflowArguments)
         self.endsToAlign = endsToAlign
     
     def run(self, fileStore):
@@ -890,9 +987,10 @@ class CactusReferenceWrapper(CactusRecursionJob):
                        flowerNames=self.flowerNames, 
                        matchingAlgorithm=self.getOptionalPhaseAttrib("matchingAlgorithm"), 
                        permutations=self.getOptionalPhaseAttrib("permutations", int),
-                       referenceEventString=self.getOptionalPhaseAttrib("reference"), 
+                       referenceEventString=self.getOptionalPhaseAttrib("reference"),
                        useSimulatedAnnealing=self.getOptionalPhaseAttrib("useSimulatedAnnealing", bool),
                        theta=self.getOptionalPhaseAttrib("theta", float),
+                       phi=self.getOptionalPhaseAttrib("phi", float),
                        maxWalkForCalculatingZ=self.getOptionalPhaseAttrib("maxWalkForCalculatingZ", int),
                        ignoreUnalignedGaps=self.getOptionalPhaseAttrib("ignoreUnalignedGaps", bool),
                        wiggle=self.getOptionalPhaseAttrib("wiggle", float),
@@ -1128,6 +1226,13 @@ class CactusWorkflowArguments:
         self.outgroupEventNames = getOptionalAttrib(self.experimentNode, "outgroup_events")
         #Constraints
         self.constraintsID = getOptionalAttrib(self.experimentNode, "constraintsID")
+        #Space to put the path to the directory containing beds of
+        #outgroup coverage on ingroups, so that any sequence aligning
+        #to an outgroup can be rescued after bar phase
+        self.ingroupCoverageIDs = None
+        # Same, but for the final bed file
+        self.ingroupCoverageID = None
+
         #Secondary, scratch DB
         secondaryConf = copy.deepcopy(self.experimentNode.find("cactus_disk").find("st_kv_database_conf"))
         secondaryElem = DbElemWrapper(secondaryConf)

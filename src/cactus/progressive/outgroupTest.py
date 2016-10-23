@@ -160,9 +160,9 @@ class TestCase(unittest.TestCase):
         assert all(map(lambda x: x == sorted(x, key=itemgetter(1)),
                        og.ogMap.values()))
         # ordering is important!
-        assert map(itemgetter(0), og.ogMap['Anc4']) == ['Anc1', 'Anc3', 'Anc2']
+        assert map(itemgetter(0), og.ogMap['Anc4']) == ['Anc1']
         assert map(itemgetter(0), og.ogMap['Anc7']) == ['BABOON', 'Anc1',
-                                                        'Anc3']
+                                                        'Anc5']
         # We avoid cycles, and choose post-order first, so this only
         # uses leaves.
         assert map(itemgetter(0), og.ogMap['Anc1']) == ['HUMAN', 'CHIMP',
@@ -272,30 +272,49 @@ class TestCase(unittest.TestCase):
                 assert i in ogMultipleTimes.ogMap
                 assert ogOnce.ogMap[i] == ogMultipleTimes.ogMap[i]
 
-        def testPreferredCandidateSets(self):
-            """Test that running greedy() multiple times with different candidate
-            sets will behave properly, i.e. keep all the existing outgroup
-            assignments and fill in more on the second run."""
-            for tree in self.mcTrees:
-                ogOnce = GreedyOutgroup()
-                candidateSet = set([tree.getName(i) for i in random.sample(tree.postOrderTraversal()), 20])
-                ogOnce.greedy(candidateSet=candidateSet, numOutgroups=3)
-                ogTwice = GreedyOutgroup()
-                ogTwice.greedy(candidateSet=candidateSet, numOutgroups=3)
-                ogTwice.greedy(numOutgroups=3)
-                # make sure all entries have <= 3 outgroups.
-                assert all(map(lambda x: len(x) <= 3, ogTwice.ogMap.values()))
-                # and for all entries, the closest must be first.
-                assert all(map(lambda x: x == sorted(x, key=itemgetter(1)),
-                               ogTwice.ogMap.values()))
-                for node in ogTwice.ogMap:
-                    if node in ogOnce.ogMap:
-                        # the ogMap entry in ogOnce should be a subset of the ogMap entry for ogTwice
-                        oneRunOutgroups = ogOnce.ogMap[node]
-                        twoRunOutgroups = ogTwice.ogMap[node]
-                        assert len(twoRunOutgroups) >= len(oneRunOutgroups)
-                        for i in oneRunOutgroups:
-                            assert i in twoRunOutgroups
+    def testPreferredCandidateSets(self):
+        """Test that running greedy() multiple times with different candidate
+        sets will behave properly, i.e. keep all the existing outgroup
+        assignments and fill in more on the second run."""
+        for tree in self.mcTrees:
+            ogOnce = GreedyOutgroup()
+            ogOnce.importTree(tree)
+            nodes = [j for j in tree.postOrderTraversal()]
+            candidateSet = set([tree.getName(i) for i in random.sample(nodes, min(20, len(nodes)))])
+            ogOnce.greedy(candidateSet=candidateSet, maxNumOutgroups=3)
+            ogTwice = GreedyOutgroup()
+            ogTwice.importTree(tree)
+            ogTwice.greedy(candidateSet=candidateSet, maxNumOutgroups=3)
+            ogTwice.greedy(maxNumOutgroups=3)
+            # make sure all entries have <= 3 outgroups.
+            assert all(map(lambda x: len(x) <= 3, ogTwice.ogMap.values()))
+            # and for all entries, the closest must be first.
+            assert all(map(lambda x: x == sorted(x, key=itemgetter(1)),
+                           ogTwice.ogMap.values()))
+            for node in ogTwice.ogMap:
+                if node in ogOnce.ogMap:
+                    # the ogMap entry in ogOnce should be a subset of the ogMap entry for ogTwice
+                    oneRunOutgroups = ogOnce.ogMap[node]
+                    twoRunOutgroups = ogTwice.ogMap[node]
+                    assert len(twoRunOutgroups) >= len(oneRunOutgroups)
+                    for i in oneRunOutgroups:
+                        assert i in twoRunOutgroups
+
+    def testNoOutgroupIsADescendantOfAnother(self):
+        """No two outgroups should be on the same path to the root."""
+        for tree in self.mcTrees:
+            tree.nameUnlabeledInternalNodes()
+            og = GreedyOutgroup()
+            og.importTree(tree)
+            og.greedy(maxNumOutgroups=3)
+            for source in og.ogMap:
+                for (sink1, _) in og.ogMap[source]:
+                    for (sink2, _) in og.ogMap[source]:
+                        if sink1 != sink2:
+                            sink1Id = tree.nameToId[sink1]
+                            sink2Id = tree.nameToId[sink2]
+                            assert sink1Id not in tree.postOrderTraversal(sink2Id)
+                            assert sink2Id not in tree.postOrderTraversal(sink1Id)
 def main():
     unittest.main()
 
