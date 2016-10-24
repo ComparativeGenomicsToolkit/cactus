@@ -518,12 +518,13 @@ def calculateCoverage(sequenceFile, cigarFile, outputFile, fromGenome=None, dept
                             cigarFile])
 
 def trimGenome(sequenceFile, coverageFile, outputFile, complement=False,
-               flanking=0, minSize=1, windowSize=10, threshold=1):
+               flanking=0, minSize=1, windowSize=10, threshold=1, depth=None):
     cactus_call(tool="cactus", outfile=outputFile,
                 parameters=["cactus_trimSequences.py",
                             nameValue("complement", complement, valueType=bool),
                             nameValue("flanking", flanking), nameValue("minSize", minSize),
                             nameValue("windowSize", windowSize), nameValue("threshold", threshold),
+                            nameValue("depth", depth), sequenceFile, coverageFile, outputFile),
                             sequenceFile, coverageFile])
                             
 def getChunks(sequenceFiles, chunksDir, blastOptions):

@@ -419,7 +419,7 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
                                                        trimOutgroupDepth=self.getOptionalPhaseAttrib("trimOutgroupDepth", int, 1),
                                                        keepParalogs=self.getOptionalPhaseAttrib("keepParalogs", bool, False)), ingroupIDs, outgroupIDs))
 
-        self.cactusWorkflowArguments.alignmentsID, self.cactusWorkflowArguments.outgroupFragmentIDs self.cactusWorkflowArguments.ingroupCoverageIDs = (blastJob.rv(0), blastJob.rv(1), blastJob.rv(2))
+        self.cactusWorkflowArguments.alignmentsID, self.cactusWorkflowArguments.outgroupFragmentIDs, self.cactusWorkflowArguments.ingroupCoverageIDs = (blastJob.rv(0), blastJob.rv(1), blastJob.rv(2))
         
         return self.makeFollowOnPhaseJob(CactusSetupPhase, "setup", checkpoint = False)
         
