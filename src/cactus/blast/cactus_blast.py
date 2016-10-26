@@ -244,7 +244,7 @@ class BlastFirstOutgroup(Job):
                                                          self.outgroupNumber,
                                                          self.ingroupCoverageIDs))
 
-class TrimAndRecurseOnOutgroups(Target):
+class TrimAndRecurseOnOutgroups(Job):
     def __init__(self, untrimmedSequenceIDs, sequenceIDs,
                  outgroupSequenceIDs, outgroupFragmentIDs,
                  mostRecentResultsID, ingroupResultsID, 
@@ -511,11 +511,12 @@ def percentCoverage(sequenceFile, coverageFile):
 def calculateCoverage(sequenceFile, cigarFile, outputFile, fromGenome=None, depthById=False):
     logger.info("Calculating coverage of cigar file %s on %s, writing to %s" % (
         cigarFile, sequenceFile, outputFile))
-<<<<<<< HEAD
     cactus_call(tool="cactus", outfile=outputFile,
                 parameters=["cactus_coverage",
                             sequenceFile,
-                            cigarFile])
+                            cigarFile,
+                            nameValue("from", fromGenome),
+                            nameValue("depthById", depthById, bool)])
 
 def trimGenome(sequenceFile, coverageFile, outputFile, complement=False,
                flanking=0, minSize=1, windowSize=10, threshold=1, depth=None):
@@ -524,30 +525,7 @@ def trimGenome(sequenceFile, coverageFile, outputFile, complement=False,
                             nameValue("complement", complement, valueType=bool),
                             nameValue("flanking", flanking), nameValue("minSize", minSize),
                             nameValue("windowSize", windowSize), nameValue("threshold", threshold),
-                            nameValue("depth", depth), sequenceFile, coverageFile, outputFile),
-                            sequenceFile, coverageFile])
-                            
-def getChunks(sequenceFiles, chunksDir, blastOptions):
-    return [ chunk for chunk in cactus_call(tool="cactus", check_output=True,
-                                            parameters=["cactus_blast_chunkSequences",
-                                            getLogLevelString(), 
-                                            blastOptions.chunkSize, 
-                                            blastOptions.overlapSize,
-                                            chunksDir] + sequenceFiles).split("\n") if chunk != "" ]
-=======
-    system("cactus_coverage %s %s %s %s > %s" % (sequenceFile,
-                                           cigarFile,
-                                           nameValue("from", fromGenome),
-                                           nameValue("depthById", depthById, bool),
-                                           outputFile))
-
-def trimGenome(sequenceFile, coverageFile, outputFile, complement=False,
-               flanking=0, minSize=1, windowSize=10, threshold=1, depth=None):
-    system("cactus_trimSequences.py %s %s %s %s %s %s %s %s > %s" % (
-        nameValue("complement", complement, valueType=bool),
-        nameValue("flanking", flanking), nameValue("minSize", minSize),
-        nameValue("windowSize", windowSize), nameValue("threshold", threshold),
-        nameValue("depth", depth), sequenceFile, coverageFile, outputFile))
+                            nameValue("depth", depth), sequenceFile, coverageFile])
 
 def subtractBed(bed1, bed2, destBed):
     """Subtract two non-bed12 beds"""
@@ -556,7 +534,10 @@ def subtractBed(bed1, bed2, destBed):
         # bedtools will complain on zero-size beds
         os.rename(bed1, destBed)
     else:
-        system("bedtools subtract -a %s -b %s > %s" % (bed1, bed2, destBed))
+        cactus_call(tool="bedtools", outfile=destBed,
+                    parameters=["subtract",
+                                "-a", bed1,
+                                "-b", bed2])
 
 def main():
     ##########################################

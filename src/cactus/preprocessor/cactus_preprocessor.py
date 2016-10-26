@@ -178,11 +178,11 @@ class BatchPreprocessor(Job):
             unmaskedInputFile = fileStore.getLocalTempFile()
             unmaskFasta(inSequence, unmaskedInputFile)
             self.inSequenceID = fileStore.writeGlobalFile(inSequence)
-
+            
+        inSequenceSize = 4*1024*1024*1024
         if prepOptions.chunkSize <= 0: #In this first case we don't need to break up the sequence
             #Estimate the size of a genome since we can't get the sizes of files imported
             #through Toil.importFile yet.
-            inSequenceSize = 4*1024*1024*1024
             outSeqID = self.addChild(PreprocessChunk(prepOptions, [ self.inSequenceID ], 1.0, self.inSequenceID, disk=3*inSequenceSize)).rv()
         else:
             outSeqID = self.addChild(PreprocessSequence(prepOptions, self.inSequenceID, disk=2*inSequenceSize)).rv()

@@ -24,8 +24,8 @@ from cactus.shared.bioio import getTempDirectory
 from cactus.shared.bioio import nameValue
 from cactus.shared.bioio import popenCatch, popenPush
 
-
 _log = logging.getLogger(__name__)
+
 
 def makeURL(path):
     if not (path.startswith("file:") or path.startswith("s3:") or path.startswith("http:")):
@@ -789,7 +789,7 @@ def cactus_call(tool,
     #by docker run
     call = [call_arg for call_arg in call if (call_arg != '')]
     
-    _log.debug("Calling docker with %s." % " ".join(call))
+    _log.info("Calling docker with %s." % " ".join(call))
 
 
     stdinFileHandle = None

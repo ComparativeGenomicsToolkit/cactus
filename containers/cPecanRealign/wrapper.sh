@@ -8,6 +8,6 @@ finish() {
     chown -R ${user_id} /data
 }
 trap finish EXIT
-ls -la 1>&2
+
 # Call tool with parameters
-lastz "$@"
+cPecanRealign "$@"
