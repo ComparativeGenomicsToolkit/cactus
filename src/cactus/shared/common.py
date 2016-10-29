@@ -758,8 +758,14 @@ def cactus_call(tool,
         folders = [par for par in parameters if os.path.isdir(par)]
         work_dirs = set([os.path.dirname(fileName) for fileName in files] + [os.path.dirname(os.path.dirname(folder)) for folder in folders])
         _log.info("Work dirs: %s" % work_dirs)
-        assert len(work_dirs) == 1
-        work_dir = work_dirs.pop()
+        assert len(work_dirs) <= 1
+        if len(work_dirs) == 1:
+            work_dir = work_dirs.pop()
+
+    #If there are no input files, just set the current
+    #directory as the work dir
+    if work_dir is None:
+        work_dir = "."
     
     #We'll mount the work_dir containing the paths as /data in the container,
     #so set all the paths to their basenames. The container will access them at
@@ -789,7 +795,11 @@ def cactus_call(tool,
     #by docker run
     call = [call_arg for call_arg in call if (call_arg != '')]
     
-    _log.info("Calling docker with %s." % " ".join(call))
+    _log.info("Calling docker with command: %s" % " ".join(call))
+    if infile:
+        _log.info("Docker input file: %s", infile)
+    if outfile:
+        _log.info("Docker output file: %s", outfile)
 
 
     stdinFileHandle = None
@@ -806,7 +816,7 @@ def cactus_call(tool,
 
     process = subprocess.Popen(' '.join(call), shell=True,
                                stdin=stdinFileHandle, stdout=stdoutFileHandle, stderr=sys.stderr, bufsize=-1)
-    
+
     output, nothing = process.communicate(stdin_string)
     if process.returncode != 0:
         raise RuntimeError("Docker command failed with output: %s" % output)

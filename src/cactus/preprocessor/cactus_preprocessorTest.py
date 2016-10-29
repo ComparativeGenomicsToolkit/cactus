@@ -5,6 +5,8 @@ from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 import xml.etree.ElementTree as ET
 from sonLib.bioio import nameValue, logger
 
+
+
 """Runs cactus preprocessor using the lastz repeat mask script to show it working.
 """
 

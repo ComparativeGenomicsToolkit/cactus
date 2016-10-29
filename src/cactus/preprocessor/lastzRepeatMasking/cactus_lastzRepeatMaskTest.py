@@ -1,9 +1,16 @@
 from cactus.preprocessor.preprocessorTest import *
 from cactus.preprocessor.preprocessorTest import TestCase as PreprocessorTestCase
+from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import lastzRepeatMaskJob
+
+from toil.common import Toil
+from toil.job import Job
+
+from cactus.shared.common import makeURL
 
 """This test compares running the lastz repeat masking script to the underlying repeat masking of input sequences, 
 comparing two settings of lastz.
 """
+
 
 class TestCase(PreprocessorTestCase):
     def testLastzRepeatMask(self):
@@ -25,10 +32,14 @@ class TestCase(PreprocessorTestCase):
             for maxOccurrence in maxOccurrences:
                 #Run lastz repeat masker
                 startTime = time.time()
-                command = "cactus_lastzRepeatMask.py --proportionSampled=1.0 --minPeriod=%s --lastzOpts='--step=1 --ambiguous=iupac,100,100 --ydrop=3000' --fragment=%s %s %s" % \
-                       (maxOccurrence, 200, sequenceFile, self.tempOutputFile)
-                print "command to run", command
-                popenPush(command, sequenceFile)
+                with Toil(self.toilOptions) as toil:
+                    sequenceID = toil.importFile(makeURL(sequenceFile))
+                    outputID = toil.start(Job.wrapJobFn(lastzRepeatMaskJob, proportionSampled=1.0,
+                                             minPeriod=maxOccurrence,
+                                             lastzOpts="--step=1 --ambiguous=iupac,100,100 --ydrop=3000",
+                                             fragment=200,
+                                             queryID=sequenceID, targetIDs=[sequenceID]))
+                    toil.exportFile(outputID, makeURL(self.tempOutputFile))
                 print "It took %s seconds to run lastzMasking" % (time.time()-startTime)
             
                 #Parse lastz masked sequences into dictionary
@@ -50,12 +61,18 @@ class TestCase(PreprocessorTestCase):
                  " the total number of bases that are Ns ", totalNBases, \
                  " lastz was filter for max-occurrences of more than : ", maxOccurrence
                  
-                 #Run lastz repeat masker using heuristic settings for comparison with the slower settings
-                command = "cactus_lastzRepeatMask.py --proportionSampled=1.0 --minPeriod=%s --lastzOpts='--step=3 --ambiguous=iupac,100,100 --ungapped --queryhsplimit=keep,nowarn:%s' --fragment=%s %s %s" % \
-                       (maxOccurrence, maxOccurrence*20, 200, sequenceFile, self.tempOutputFile)
-                print "command to run (fast)", command
+                #Run lastz repeat masker using heuristic settings for comparison with the slower settings
                 startTime = time.time()
-                popenPush(command, sequenceFile)
+                with Toil(self.toilOptions) as toil:
+                    sequenceID = toil.importFile(makeURL(sequenceFile))
+                    outputID = toil.start(Job.wrapJobFn(lastzRepeatMaskJob,
+                                                        proportionSampled=1.0,
+                                                        minPeriod=maxOccurrence,
+                                                        lastzOpts="--step=3 --ambiguous=iupac,100,100 --ungapped --queryhsplimit=keep,nowarn:%s" % maxOccurrence*20,
+                                                        fragment=200,
+                                                        queryID=sequenceID,
+                                                        targetIDs=[sequenceID]))
+                    toil.exportFile(makeURL(self.tempOutputFile))
                 print "It took %s seconds to run lastzMasking fast" % (time.time()-startTime)
                 lastzSequencesFast = getSequences(self.tempOutputFile)
                 maskedBasesLastzMaskedFast = getMaskedBases(lastzSequencesFast)

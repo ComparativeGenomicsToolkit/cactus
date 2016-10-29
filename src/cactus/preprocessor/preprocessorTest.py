@@ -6,6 +6,8 @@ from sonLib.bioio import TestStatus
 from sonLib.bioio import fastaRead
 from sonLib.bioio import getTempDirectory
 
+from toil.job import Job
+
 """Base case used for testing the preprocessor and lastz repeat masking
 """
 
@@ -17,6 +19,10 @@ class TestCase(unittest.TestCase):
         self.regionPath = os.path.join(self.encodePath, self.encodeRegion)
         self.tempDir = getTempDirectory(os.getcwd())
         self.tempOutputFile = os.path.join(self.tempDir, "results1.txt")
+        self.toilDir = os.path.join(self.tempDir, "toil")
+        self.toilOptions = Job.Runner.getDefaultOptions(self.toilDir)
+        self.toilOptions.cleanWorkDir = 'never'
+        self.toilOptions.disableCaching = True
     
     def tearDown(self):
         unittest.TestCase.tearDown(self)
@@ -62,9 +68,4 @@ def getLowerCaseBases(sequenceFile):
     return total, totalMasked
         
 if __name__ == '__main__':
-<<<<<<< HEAD:src/cactus/preprocessor/preprocessorTest.py
-=======
-    if "SON_TRACE_DATASETS" in os.environ:
-        unittest.main()
->>>>>>> master:preprocessor/preprocessorTest.py
     unittest.main()
