@@ -782,6 +782,7 @@ def cactus_call(tool,
 
     
     base_docker_call = ['docker', 'run',
+                        '--interactive',
                         '--log-driver=none',
                         '-v', '{}:/data'.format(os.path.abspath(work_dir))]
 

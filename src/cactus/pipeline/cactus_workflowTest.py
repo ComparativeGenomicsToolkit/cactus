@@ -171,10 +171,6 @@ class TestCase(unittest.TestCase):
         self.assertAlmostEquals(inverseJukesCantor(10.0), 0.74999878530240571)
         self.assertAlmostEquals(inverseJukesCantor(100000.0), 0.75)
 
-
-    def testCactusCall(self):
-        pass
-
 if __name__ == '__main__':
     from cactus.pipeline.cactus_workflowTest import *
     unittest.main()

@@ -311,7 +311,7 @@ class TestCase(unittest.TestCase):
         #startTime = time.time()
         #runNaiveBlast([ tempSeqFile ], self.tempOutputFile, self.tempDir, lastzOptions="--nogapped --step=3 --hspthresh=3000 --ambiguous=iupac")
         #logger.critical("It took %s seconds to run blast" % (time.time() - startTime))
-        
+
 
 def compareResultsFile(results1, results2, closeness=0.95):
     results1 = loadResults(results1)
