@@ -29,16 +29,23 @@ from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, runCactusAnalyseAssembly
 from toil.lib.bioio import setLoggingFromOptions
 from cactus.shared.configWrapper import ConfigWrapper
+from cactus.shared.common import nameValue
+
+from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import lastzRepeatMaskJob
 
 class PreprocessorOptions:
-    def __init__(self, chunkSize, cmdLine, memory, cpu, check, proportionToSample, unmask):
+    def __init__(self, chunkSize, memory, cpu, check, proportionToSample, unmask,
+                 preprocessJob, checkAssemblyHub=None, lastzOptions=None, minPeriod=None):
         self.chunkSize = chunkSize
-        self.cmdLine = cmdLine
         self.memory = memory
         self.cpu = cpu
         self.check = check
         self.proportionToSample=proportionToSample
         self.unmask = unmask
+        self.preprocessJob = preprocessJob
+        self.checkAssemblyHub = checkAssemblyHub
+        self.lastzOptions = lastzOptions
+        self.minPeriod = minPeriod
 
 class PreprocessChunk(Job):
     """ locally preprocess a fasta chunk, output then copied back to input
@@ -48,25 +55,29 @@ class PreprocessChunk(Job):
         self.prepOptions = prepOptions 
         self.seqIDs = seqIDs
         self.inChunkID = inChunkID
-        self.proportionSampled = proportionSampled
     
     def run(self, fileStore):
-
-        inChunk = fileStore.readGlobalFile(self.inChunkID)
-        outChunk = fileStore.getLocalTempFile()
-        seqPaths = [fileStore.readGlobalFile(fileID) for fileID in self.seqIDs]
-        cmdline = self.prepOptions.cmdLine.replace("IN_FILE", inChunk)
-        cmdline = cmdline.replace("OUT_FILE", outChunk)
-        cmdline = cmdline.replace("TEMP_DIR", "/tmp/")
-        cmdline = cmdline.replace("PROPORTION_SAMPLED", str(self.proportionSampled))
+        outChunkID = None
+        if self.prepOptions.preprocessJob == "checkUniqueHeaders":
+            inChunk = fileStore.readGlobalFile(self.inChunkID)
+            outChunk = fileStore.getLocalTempFile()
+            seqPaths = [fileStore.readGlobalFile(fileID) for fileID in self.seqIDs]
+            seqString = " ".join(seqPaths)
+            cactus_call(tool="cactus", stdin_string=seqString,
+                        parameters=["cactus_checkUniqueHeaders.py",
+                                    nameValue("checkAssemblyHub", self.prepOptions.checkAssemblyHub, bool),
+                                    outChunk])
+            outChunkID = fileStore.writeGlobalFile(outChunk)
+        elif self.prepOptions.preprocessJob == "lastzRepeatMask":
+            outChunkID = self.addChildJobFn(lastzRepeatMaskJob, queryID=self.inChunkID, targetIDs=self.seqIDs,
+                                      proportionSampled=self.prepOptions.proportionToSample,
+                                      minPeriod=self.prepOptions.minPeriod).rv()
         
-        seqString = " ".join(seqPaths)
         
-        cactus_call(tool="cactus", parameters=cmdline.split(), stdin_string=seqString)
         if self.prepOptions.check:
             return self.inChunkID
         else:
-            return fileStore.writeGlobalFile(outChunk)
+            return outChunkID
 
 class MergeChunks(Job):
     def __init__(self, prepOptions, chunkIDList):
@@ -89,8 +100,12 @@ class MergeChunks2(Job):
     
     def run(self, fileStore):
         chunkList = [fileStore.readGlobalFile(fileID) for fileID in self.chunkIDList]
+
+        #Docker expects paths relative to the work dir
+        chunkList = [os.path.basename(chunk) for chunk in chunkList]
         outSequencePath = fileStore.getLocalTempFile()
-        cactus_call(tool="cactus", outfile=outSequencePath, stdin_string=" ".join(chunkList))
+        cactus_call(tool="cactus", outfile=outSequencePath, stdin_string=" ".join(chunkList),
+                    parameters=["cactus_batch_mergeChunks"])
         map(fileStore.deleteGlobalFile, self.chunkIDList)
         return fileStore.writeGlobalFile(outSequencePath)
  
@@ -161,13 +176,16 @@ class BatchPreprocessor(Job):
         assert self.iteration < len(self.prepXmlElems)
         
         prepNode = self.prepXmlElems[self.iteration]
-        prepOptions = PreprocessorOptions(int(prepNode.get("chunkSize", default="-1")),
-                                          prepNode.attrib["preprocessorString"],
-                                          self._memory,
-                                          self._cores,
-                                          bool(int(prepNode.get("check", default="0"))),
-                                          getOptionalAttrib(prepNode, "proportionToSample", typeFn=float, default=1.0),
-                                          getOptionalAttrib(prepNode, "unmask", typeFn=bool, default=False))
+        prepOptions = PreprocessorOptions(chunkSize = int(prepNode.get("chunkSize", default="-1")),
+                                          preprocessJob=prepNode.attrib["preprocessJob"],
+                                          memory = int(prepNode.get("memory", default=0)),
+                                          cpu = int(prepNode.get("cpu", default=1)),
+                                          check = bool(int(prepNode.get("check", default="0"))),
+                                          proportionToSample = getOptionalAttrib(prepNode, "proportionToSample", typeFn=float, default=1.0),
+                                          unmask = getOptionalAttrib(prepNode, "unmask", typeFn=bool, default=False),
+                                          lastzOptions = getOptionalAttrib(prepNode, "lastzOpts", default=""),
+                                          minPeriod = getOptionalAttrib(prepNode, "minPeriod", typeFn=int, default="0"),
+                                          checkAssemblyHub = getOptionalAttrib(prepNode, "checkAssemblyHub", typeFn=bool, default=False))
         
         #output to temporary directory unless we are on the last iteration
         lastIteration = self.iteration == len(self.prepXmlElems) - 1

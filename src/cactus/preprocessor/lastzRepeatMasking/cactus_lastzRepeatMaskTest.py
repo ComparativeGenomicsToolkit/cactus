@@ -68,11 +68,11 @@ class TestCase(PreprocessorTestCase):
                     outputID = toil.start(Job.wrapJobFn(lastzRepeatMaskJob,
                                                         proportionSampled=1.0,
                                                         minPeriod=maxOccurrence,
-                                                        lastzOpts="--step=3 --ambiguous=iupac,100,100 --ungapped --queryhsplimit=keep,nowarn:%s" % maxOccurrence*20,
+                                                        lastzOpts="--step=3 --ambiguous=iupac,100,100 --ungapped --queryhsplimit=keep,nowarn:%i" % (int(maxOccurrence)*20),
                                                         fragment=200,
                                                         queryID=sequenceID,
                                                         targetIDs=[sequenceID]))
-                    toil.exportFile(makeURL(self.tempOutputFile))
+                    toil.exportFile(outputID, makeURL(self.tempOutputFile))
                 print "It took %s seconds to run lastzMasking fast" % (time.time()-startTime)
                 lastzSequencesFast = getSequences(self.tempOutputFile)
                 maskedBasesLastzMaskedFast = getMaskedBases(lastzSequencesFast)
