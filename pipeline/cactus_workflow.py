@@ -1016,7 +1016,8 @@ class CactusHalGeneratorUpWrapper(CactusRecursionTarget):
                               referenceEventString=self.getOptionalPhaseAttrib("reference"), #self.configNode.attrib["reference"], #self.getOptionalPhaseAttrib("reference"), 
                               outputFile=self.getOptionalPhaseAttrib("outputFile"),
                               showOnlySubstitutionsWithRespectToReference=\
-                              self.getOptionalPhaseAttrib("showOnlySubstitutionsWithRespectToReference", bool))
+                              self.getOptionalPhaseAttrib("showOnlySubstitutionsWithRespectToReference", bool),
+                              makeMaf=self.getOptionalPhaseAttrib("makeMaf", bool))
 
 class CactusHalGeneratorPhaseCleanup(CactusPhasesTarget):
     """Cleanup the database used to build the hal

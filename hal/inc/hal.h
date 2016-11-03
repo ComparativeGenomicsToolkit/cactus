@@ -11,6 +11,9 @@
 #include "sonLib.h"
 #include "cactus.h"
 
+void makeMafFormat(stList *flowers, stKVDatabase *database, Name referenceEventName,
+        FILE *fileHandle, bool showOnlySubstitutionsWithRespectToReference);
+
 void makeHalFormat(stList *flowers, stKVDatabase *database, Name referenceEventName,
         FILE *fileHandle);
 
