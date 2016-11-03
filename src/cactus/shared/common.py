@@ -725,6 +725,15 @@ def runCactusSelfRealign(seq, inputAlignmentsFile, outputAlignmentsFile, realign
 def runCactusCoverage(sequenceFile, alignmentsFile, work_dir=None):
     return cactus_call(tool="cactus", check_output=True, work_dir=work_dir,
                 parameters=["cactus_coverage", sequenceFile, alignmentsFile])
+
+def runGetChunks(sequenceFiles, chunksDir, chunkSize, overlapSize):
+    return [chunk for chunk in cactus_call(tool="cactus",
+                                           check_output=True,
+                                           parameters=["cactus_blast_chunkSequences",
+                                           getLogLevelString(),
+                                           chunkSize,
+                                           overlapSize,
+                                           chunksDir] + sequenceFiles).split("\n") if chunk != ""]
     
 def cactus_call(tool,
                 work_dir=None,
@@ -801,6 +810,9 @@ def cactus_call(tool,
         _log.info("Docker input file: %s", infile)
     if outfile:
         _log.info("Docker output file: %s", outfile)
+
+    if stdin_string:
+        _log.info("Docker input string: %s" % stdin_string)
 
 
     stdinFileHandle = None

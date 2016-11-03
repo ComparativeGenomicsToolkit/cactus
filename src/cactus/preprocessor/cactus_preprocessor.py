@@ -30,6 +30,7 @@ from cactus.shared.common import getOptionalAttrib, runCactusAnalyseAssembly
 from toil.lib.bioio import setLoggingFromOptions
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import nameValue
+from cactus.shared.common import runGetChunks
 
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import lastzRepeatMaskJob
 
@@ -122,13 +123,9 @@ class PreprocessSequence(Job):
         # chunk it up
         inSequence = fileStore.readGlobalFile(self.inSequenceID)
         inChunkDirectory = getTempDirectory(rootDir=fileStore.getLocalTempDir())
-        inChunkList = [ chunk for chunk in cactus_call(tool="cactus", check_output=True,
-                                                       parameters=["cactus_blast_chunkSequences",
-                                                                   getLogLevelString(),
-                                                                   self.prepOptions.chunkSize,
-                                                                   0,
-                                                                   inChunkDirectory,
-                                                                   inSequence]).split("\n") if chunk != "" ]
+        inChunkList = runGetChunks(sequenceFiles=[inSequence], chunksDir=inChunkDirectory,
+                                   chunkSize=self.prepOptions.chunkSize,
+                                   overlapSize=self.prepOptions.overlapSize)
         inChunkList = [os.path.abspath(path) for path in inChunkList]
         logger.info("Chunks = %s" % inChunkList)
         logger.info("Chunks dir = %s" % os.listdir(inChunkDirectory))
