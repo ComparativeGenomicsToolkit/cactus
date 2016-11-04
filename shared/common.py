@@ -553,15 +553,15 @@ def runCactusHalGenerator(cactusDiskDatabaseString,
                           showOnlySubstitutionsWithRespectToReference=None,
                           logLevel=None):
     logLevel = getLogLevelString2(logLevel)
-    popenPush("cactus_halGenerator --cactusDisk '%s' --secondaryDisk '%s' --logLevel %s %s %s %s %s" % 
-           (cactusDiskDatabaseString, secondaryDatabaseString, logLevel, 
-            nameValue("referenceEventString", referenceEventString),
-            nameValue("outputFile", outputFile),
-            nameValue("maf", makeMaf, bool),
-            nameValue("showOnlySubstitutionsWithRespectToReference", 
-                      showOnlySubstitutionsWithRespectToReference, bool)), 
+    popenPush("cactus_halGenerator --cactusDisk '%s' --secondaryDisk '%s' --logLevel %s %s %s %s %s" %
+              (cactusDiskDatabaseString, secondaryDatabaseString, logLevel,
+               nameValue("referenceEventString", referenceEventString),
+               nameValue("outputFile", outputFile),
+               nameValue("maf", makeMaf, bool),
+               nameValue("showOnlySubstitutionsWithRespectToReference",
+                         showOnlySubstitutionsWithRespectToReference, bool)),
               stdinString=flowerNames)
-    
+
 def runCactusFastaGenerator(cactusDiskDatabaseString,
                           flowerName,
                           outputFile,

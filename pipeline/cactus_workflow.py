@@ -930,6 +930,56 @@ class CactusExtractReferencePhase(CactusPhasesTarget):
                               (experiment.getDiskDatabaseString(), eventName,
                                experiment.getReferencePath(), getLogLevelString())                        
                     system(cmdLine)          
+        self.makeFollowOnPhaseTarget(CactusAncestralRagoutPhase, "ancestralRagout")
+
+############################################################
+############################################################
+############################################################
+#Ancestral-Ragout phase
+# Run Ragout to try to stitch together ancestral contigs.
+############################################################
+############################################################
+############################################################
+class CactusAncestralRagoutPhase(CactusPhasesTarget):
+    def run(self):
+        self.logToMaster("Setting up secondary DB for maf export")
+        self.setupSecondaryDatabase()
+        referenceNode = findRequiredNode(self.cactusWorkflowArguments.configNode, "reference")
+        if referenceNode.attrib.has_key("reference"):
+            self.phaseNode.attrib["reference"] = referenceNode.attrib["reference"]
+        self.phaseNode.attrib["experimentPath"] = self.cactusWorkflowArguments.experimentFile
+        self.phaseNode.attrib["secondaryDatabaseString"] = self.cactusWorkflowArguments.secondaryDatabaseString
+        self.phaseNode.attrib["outputFile"] = self.phaseNode.attrib["outputFile"] + '.' + self.phaseNode.attrib["reference"]
+        # self.phaseNode.attrib["outputFile"] = os.path.join(self.getGlobalTempDir(), "ragout-input.maf")
+        self.logToMaster("Attempting to export maf file to %s" % self.phaseNode.attrib["outputFile"])
+        self.makeRecursiveChildTarget(CactusMafGeneratorRecursion, launchSecondaryKtForRecursiveTarget=True)
+        self.makeFollowOnPhaseTarget(CactusAncestralRagoutCleanupPhase, "ancestralRagout")
+
+class CactusMafGeneratorRecursion(CactusRecursionTarget):
+    def run(self):
+        self.logToMaster("CactusMafGeneratorRecursion")
+        i = extractNode(self.phaseNode)
+        if "outputFile" in i.attrib:
+            i.attrib.pop("outputFile")
+        self.makeRecursiveTargets(phaseNode=i)
+        self.makeFollowOnRecursiveTarget(CactusMafGeneratorUpWrapper)
+
+class CactusMafGeneratorUpWrapper(CactusRecursionTarget):
+    def run(self):
+        self.logToMaster("CactusMafGeneratorUpWrapper %s" % (self.getOptionalPhaseAttrib("outputFile")))
+        runCactusHalGenerator(cactusDiskDatabaseString=self.cactusDiskDatabaseString,
+                              secondaryDatabaseString=self.getOptionalPhaseAttrib("secondaryDatabaseString"),
+                              flowerNames=self.flowerNames,
+                              referenceEventString=self.getOptionalPhaseAttrib("reference"),
+                              outputFile=self.getOptionalPhaseAttrib("outputFile"),
+                              showOnlySubstitutionsWithRespectToReference=\
+                              self.getOptionalPhaseAttrib("showOnlySubstitutionsWithRespectToReference", bool),
+                              makeMaf=True)
+
+class CactusAncestralRagoutCleanupPhase(CactusPhasesTarget):
+    def run(self):
+        self.logToMaster("CactusAncestralRagoutCleanupPhase")
+        self.cleanupSecondaryDatabase()
         self.makeFollowOnPhaseTarget(CactusCheckPhase, "check")
 
 ############################################################
@@ -954,7 +1004,7 @@ class CactusCheckRecursion(CactusRecursionTarget):
     def run(self):
         self.makeRecursiveTargets()
         self.makeWrapperTargets(CactusCheckWrapper)
-        
+
 class CactusCheckWrapper(CactusRecursionTarget):
     """Runs the actual check wrapper
     """
@@ -982,7 +1032,7 @@ class CactusHalGeneratorPhase(CactusPhasesTarget):
             self.phaseNode.attrib["experimentPath"] = self.cactusWorkflowArguments.experimentFile
             self.phaseNode.attrib["secondaryDatabaseString"] = self.cactusWorkflowArguments.secondaryDatabaseString
             self.phaseNode.attrib["outputFile"]=self.cactusWorkflowArguments.experimentNode.find("hal").attrib["halPath"]
-            self.makeFollowOnPhaseTarget(CactusHalGeneratorPhase2, "hal")
+            self.makeFollowOnPhaseTarget(CactusHalGeneratorCleanupPhase, "hal")
             self.makeRecursiveChildTarget(CactusHalGeneratorRecursion, launchSecondaryKtForRecursiveTarget=True)
 
 class CactusFastaGenerator(CactusRecursionTarget):
@@ -991,10 +1041,6 @@ class CactusFastaGenerator(CactusRecursionTarget):
                                     flowerName=decodeFirstFlowerName(self.flowerNames),
                                     outputFile=self.getOptionalPhaseAttrib("fastaPath"),
                                     referenceEventString=self.getOptionalPhaseAttrib("reference"))
-            
-class CactusHalGeneratorPhase2(CactusHalGeneratorPhase):
-    def run(self): 
-        self.cleanupSecondaryDatabase()
 
 class CactusHalGeneratorRecursion(CactusRecursionTarget):
     """Generate the hal file by merging indexed hal files from the children.
@@ -1007,8 +1053,6 @@ class CactusHalGeneratorRecursion(CactusRecursionTarget):
         self.makeFollowOnRecursiveTarget(CactusHalGeneratorUpWrapper)
 
 class CactusHalGeneratorUpWrapper(CactusRecursionTarget):
-    """Does the up pass for filling in the coordinates, once a reference is added.
-    """ 
     def run(self):
         runCactusHalGenerator(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                               secondaryDatabaseString=self.getOptionalPhaseAttrib("secondaryDatabaseString"),
@@ -1019,7 +1063,7 @@ class CactusHalGeneratorUpWrapper(CactusRecursionTarget):
                               self.getOptionalPhaseAttrib("showOnlySubstitutionsWithRespectToReference", bool),
                               makeMaf=self.getOptionalPhaseAttrib("makeMaf", bool))
 
-class CactusHalGeneratorPhaseCleanup(CactusPhasesTarget):
+class CactusHalGeneratorCleanupPhase(CactusPhasesTarget):
     """Cleanup the database used to build the hal
     """
     def run(self):

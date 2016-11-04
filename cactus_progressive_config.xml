@@ -228,6 +228,11 @@
 		<CactusCheckRecursion maxFlowerGroupSize="maxFlowerGroupSizeRecursion" maxFlowerWrapperGroupSize="50000000"/>
 		<CactusCheckWrapper/>
 	</check>
+        <ancestralRagout
+            outputFile="/hive/users/jcarmstr/ragoutSimulations/small/out.maf">
+          <CactusMafGeneratorRecursion maxFlowerGroupSize="50000000"/>
+          <CactusMafGeneratorUpWrapper/>
+        </ancestralRagout>
 	<!-- The hal tag controls the creation of hal and fasta files from the pipeline. -->
 	<hal
 		buildHal="1"

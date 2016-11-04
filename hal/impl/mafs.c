@@ -29,11 +29,12 @@ static char *formatSequenceHeader(Sequence *sequence) {
     /*
      * Format the header of a sequence.
      */
+    Event *event = sequence_getEvent(sequence);
+    const char *eventHeader = event_getHeader(event);
     const char *sequenceHeader = sequence_getHeader(sequence);
     if (strlen(sequenceHeader) > 0) {
-        char *cA = st_malloc(sizeof(char) * (1 + strlen(sequenceHeader)));
-        sscanf(sequenceHeader, "%s", cA);
-        return cA;
+        char *header = stString_print("%s.%s", eventHeader, sequenceHeader);
+        return header;
     } else {
         return cactusMisc_nameToString(sequence_getName(sequence));
     }
@@ -135,13 +136,14 @@ stList *getCaps(stList *flowers, Name referenceEventName) {
         End *end;
         Flower_EndIterator *endIt = flower_getEndIterator(flower);
         while ((end = flower_getNextEnd(endIt)) != NULL) {
-            if (end_isStubEnd(end) && end_isAttached(end)) {
+            if (end_isStubEnd(end)) {
                 Cap *cap = end_getCapForEvent(end, referenceEventName);
-                assert(cap != NULL);
-                assert(cap_getSequence(cap) != NULL);
-                cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
-                if (!cap_getSide(cap)) {
-                    stList_append(caps, cap);
+                if (cap != NULL) {
+                    assert(cap_getSequence(cap) != NULL);
+                    cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
+                    if (!cap_getSide(cap)) {
+                        stList_append(caps, cap);
+                    }
                 }
             }
         }
