@@ -7,7 +7,12 @@ finish() {
 }
 trap finish EXIT
 
->&2 echo "Running comand " /home/cactus/bin/${1} ${@:2}
->&2 ls -la
-exec /home/cactus/bin/${1} ${@:2}
+options=""
+for arg in "${@:2}"
+do
+    options="$options '${arg}'"
+done
+
+>&2 echo "Running comand " /home/cactus/bin/$1 "${options}"
+eval /home/cactus/bin/$1 "${options}"
 

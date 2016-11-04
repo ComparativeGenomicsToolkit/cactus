@@ -3,7 +3,7 @@ FROM ubuntu:16.04
 
 RUN apt-get update && apt-get install -y git gcc g++ build-essential python-dev zlib1g-dev libkyototycoon-dev libtokyocabinet-dev libkyotocabinet-dev wget valgrind libbz2-dev
 
-ARG CACTUS_COMMIT=48398f54b864a3cac1526a28e7f5a2350a6aed63
+ARG CACTUS_COMMIT=fa2e170ceff7f102b8253d30b839af60605e40ef
 ARG PINCHES_AND_CACTI_COMMIT=9c16563158d8d510767ca7ca2ed4f0b1e47e4277
 ARG MATCHING_AND_AND_ORDERING_COMMIT=200a1b0d65ce816f7d83ca8d0a19bc807d4bde99
 ARG CPECAN_COMMIT=86d5de5c6915ec0a9963d75583fe60062d734268

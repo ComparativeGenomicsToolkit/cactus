@@ -371,12 +371,6 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
 
         fileStore.logToMaster("Running blast using the trimming strategy")
 
-        outgroupsDir = os.path.join(fileStore.getLocalTempDir(), "outgroupFragments/")
-        os.mkdir(outgroupsDir)
-
-        ingroupCoverageDir = os.path.join(self.getGlobalTempDir(), "ingroupCoverageDir/")
-        os.mkdir(ingroupCoverageDir)
-        self.cactusWorkflowArguments.ingroupCoverageDir = ingroupCoverageDir
 
         # Get ingroup and outgroup sequences
         sequenceIDs = self.cactusWorkflowArguments.experimentWrapper.seqIDMap.values()

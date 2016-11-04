@@ -125,7 +125,7 @@ class PreprocessSequence(Job):
         inChunkDirectory = getTempDirectory(rootDir=fileStore.getLocalTempDir())
         inChunkList = runGetChunks(sequenceFiles=[inSequence], chunksDir=inChunkDirectory,
                                    chunkSize=self.prepOptions.chunkSize,
-                                   overlapSize=self.prepOptions.overlapSize)
+                                   overlapSize=0)
         inChunkList = [os.path.abspath(path) for path in inChunkList]
         logger.info("Chunks = %s" % inChunkList)
         logger.info("Chunks dir = %s" % os.listdir(inChunkDirectory))

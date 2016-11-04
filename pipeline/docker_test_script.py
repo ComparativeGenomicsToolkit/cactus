@@ -5,6 +5,7 @@ import argparse
 import sys
 
 def main():
+    print "Got command line arguments: %s" % sys.argv
     for line in sys.stdin:
         print line
 

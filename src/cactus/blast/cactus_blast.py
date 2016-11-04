@@ -22,6 +22,7 @@ from toil.common import Toil
 from cactus.shared.common import makeURL
 from cactus.shared.common import cactus_call
 from cactus.shared.common import runLastz, runSelfLastz
+from cactus.shared.common import runCactusRealign, runCactusSelfRealign
 from cactus.shared.common import runGetChunks
 
 class BlastOptions:
@@ -338,10 +339,6 @@ class TrimAndRecurseOnOutgroups(Job):
                 output.write(results.read())
 
         self.outgroupResultsID = fileStore.writeGlobalFile(outgroupResultsFile)
-        os.remove(outgroupConvertedResultsFile)
-        os.remove(ingroupConvertedResultsFile)
-        os.remove(outgroupCoverage)
-        os.remove(trimmedOutgroup)
 
         # Report coverage of the all outgroup alignments so far on the ingroups.
         ingroupCoverageFiles = []

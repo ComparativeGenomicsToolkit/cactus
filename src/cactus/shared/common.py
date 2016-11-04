@@ -194,13 +194,8 @@ def runCactusSetup(cactusDiskDatabaseString, cactusSequencesPath, sequences,
     outgroupEvents = nameValue("outgroupEvents", outgroupEvents, str, quotes=True)
     makeEventHeadersAlphaNumeric=nameValue("makeEventHeadersAlphaNumeric", makeEventHeadersAlphaNumeric, bool)
     masterMessages = cactus_call(tool="cactus", check_output=True,
-                                 parameters=["cactus_setup"]
-                                             + sequences +
-                                             ["--speciesTree '%s'" % newickTreeString,
-                                              "--cactusDisk '%s'" % cactusDiskDatabaseString, 
-                                             "--cactusSequencesPath", cactusSequencesPath,
-                                             "--logLevel", logLevel,
-                                             outgroupEvents, makeEventHeadersAlphaNumeric])
+                                 parameters=["cactus_setup"] + sequences,
+                                 option_string="--speciesTree '%s' --cactusDisk '%s' --cactusSequencesPath '%s' --logLevel %s %s %s" % (newickTreeString, cactusDiskDatabaseString, cactusSequencesPath, logLevel, outgroupEvents, makeEventHeadersAlphaNumeric))
     
     logger.info("Ran cactus setup okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]
@@ -715,12 +710,12 @@ def runSelfLastz(seq, alignmentsFile, lastzArguments, work_dir=None):
                             "%s[nameparse=darkspace]" % os.path.basename(seq)])
     
 def runCactusRealign(seq1, seq2, inputAlignmentsFile, outputAlignmentsFile, realignArguments, work_dir=None):
-    cactus_call(tool="cactus", infile=inputAlignmentsFile, outfile=outputAlignmentsFile, work_dir=work_dir,
-                parameters=["cactus_realign", realignArguments, seq1, seq2])
+    cactus_call(tool="cpecan-realign", infile=inputAlignmentsFile, outfile=outputAlignmentsFile, work_dir=work_dir,
+                parameters=[realignArguments, seq1, seq2])
 
 def runCactusSelfRealign(seq, inputAlignmentsFile, outputAlignmentsFile, realignArguments, work_dir=None):
-    cactus_call(tool="cactus", infile=inputAlignmentsFile, outfile=outputAlignmentsFile, work_dir=work_dir,
-                parameters=["cactus_realign", realignArguments, seq])
+    cactus_call(tool="cpecan-realign", infile=inputAlignmentsFile, outfile=outputAlignmentsFile, work_dir=work_dir,
+                parameters=[realignArguments, seq])
 
 def runCactusCoverage(sequenceFile, alignmentsFile, work_dir=None):
     return cactus_call(tool="cactus", check_output=True, work_dir=work_dir,
@@ -745,7 +740,8 @@ def cactus_call(tool,
                 mounts=None,
                 infile=None,
                 outfile=None,
-                stdin_string=None):
+                stdin_string=None,
+                option_string=""):
 
     if parameters is None:
         parameters = []
@@ -799,13 +795,17 @@ def cactus_call(tool,
     if rm:
         base_docker_call.append('--rm')
 
+    parameters = [par for par in parameters if par != '']
     call = base_docker_call + [tool] + parameters
+    if option_string:
+        call += [option_string]
+    call_string = " ".join(call)
+    
 
     #Eliminate empty string arguments, which will be parsed incorrectly
     #by docker run
-    call = [call_arg for call_arg in call if (call_arg != '')]
     
-    _log.info("Calling docker with command: %s" % " ".join(call))
+    _log.info("Calling docker with command: %s" % call_string)
     if infile:
         _log.info("Docker input file: %s", infile)
     if outfile:
@@ -825,9 +825,9 @@ def cactus_call(tool,
         stdoutFileHandle = open(outfile, 'w')
     elif check_output:
         stdoutFileHandle = subprocess.PIPE
-        
 
-    process = subprocess.Popen(' '.join(call), shell=True,
+
+    process = subprocess.Popen(call_string, shell=True,
                                stdin=stdinFileHandle, stdout=stdoutFileHandle, stderr=sys.stderr, bufsize=-1)
 
     output, nothing = process.communicate(stdin_string)
