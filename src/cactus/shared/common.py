@@ -195,7 +195,7 @@ def runCactusSetup(cactusDiskDatabaseString, cactusSequencesPath, sequences,
     makeEventHeadersAlphaNumeric=nameValue("makeEventHeadersAlphaNumeric", makeEventHeadersAlphaNumeric, bool)
     masterMessages = cactus_call(tool="cactus", check_output=True,
                                  parameters=["cactus_setup"] + sequences,
-                                 option_string="--speciesTree '%s' --cactusDisk '%s' --cactusSequencesPath '%s' --logLevel %s %s %s" % (newickTreeString, cactusDiskDatabaseString, cactusSequencesPath, logLevel, outgroupEvents, makeEventHeadersAlphaNumeric))
+                                 option_string="--speciesTree '%s' --cactusDisk '%s' --cactusSequencesPath '%s' --logLevel %s %s %s" % (newickTreeString, cactusDiskDatabaseString, os.path.basename(cactusSequencesPath), logLevel, outgroupEvents, makeEventHeadersAlphaNumeric))
     
     logger.info("Ran cactus setup okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]
@@ -204,16 +204,16 @@ def runCactusSetup(cactusDiskDatabaseString, cactusSequencesPath, sequences,
 
 def runConvertAlignmentsToInternalNames(cactusDiskString, cactusSequencesPath, alignmentsFile, outputFile, flowerName, isBedFile = False):
     cactus_call(tool="cactus", stdin_string=encodeFlowerNames((flowerName,)),
+                option_string="--cactusDisk '%s'" % cactusDiskString,
                 parameters=["cactus_convertAlignmentsToInternalNames",
-                            "--cactusDisk", cactusDiskDatabaseString,
                             "--cactusSequencesPath", cactusSequencesPath,
                             alignmentsFile, outputFile,
                             "--bed", isBedFile])
     
 def runStripUniqueIDs(cactusDiskString, cactusSequencesPath):
     cactus_call(tool="cactus",
+                option_string="--cactusDisk '%s'" % cactusDiskString,
                 parameters=["cactus_stripUniqueIDs",
-                            "--cactusDisk", cactusDiskString,
                             "--cactusSequencesPath", cactusSequencesPath])
     
 
@@ -318,8 +318,8 @@ def runCactusCaf(cactusDiskDatabaseString, cactusSequencesPath, alignments,
     maximumMedianSequenceLengthBetweenLinkedEnds = nameValue("maximumMedianSequenceLengthBetweenLinkedEnds", maximumMedianSequenceLengthBetweenLinkedEnds, int)
 
     masterMessages = cactus_call(tool="cactus", stdin_string=flowerNames, check_output=True,
+                                 option_string="--cactusDisk '%s'" % cactusDiskDatabaseString,
                                  parameters=["cactus_caf",
-                                             "--cactusDisk", cactusDiskDatabaseString,
                                              "--cactusSequencesPath", cactusSequencesPath,
                                              "--logLevel", logLevel, alignments, annealingRounds,
                                              deannealingRounds, 
@@ -375,7 +375,7 @@ def runCactusConvertAlignmentToCactus(cactusDiskDatabaseString, cactusSequencesP
     logLevel = getLogLevelString2(logLevel)
     cactus_call(tool="cactus",
                 parameters=["cactus_workflow_convertAlignmentCoordinates",
-                            logLevel, cactusDiskDatabaseString, cactusSequencesPath,
+                            logLevel, "'%s'" % cactusDiskDatabaseString, cactusSequencesPath,
                             constraintsFile, newConstraintsFile])
 
 def runCactusFlowerStats(cactusDiskDatabaseString, flowerName, logLevel=None):
@@ -384,7 +384,7 @@ def runCactusFlowerStats(cactusDiskDatabaseString, flowerName, logLevel=None):
     logLevel = getLogLevelString2(logLevel)
     flowerStatsString = cactus_call(tool="cactus", check_output=True,
                                     parameters=["cactus_workflow_flowerStats",
-                                                logLevel, cactusDiskDatabaseString, flowerName])
+                                                logLevel, "'%s'" % cactusDiskDatabaseString, flowerName])
     return flowerStatsString.split("\n")[0]
 
 def runCactusMakeNormal(cactusDiskDatabaseString, cactusSequencesPath, flowerNames, maxNumberOfChains=0, logLevel=None):
@@ -449,8 +449,8 @@ def runCactusBar(cactusDiskDatabaseString, cactusSequencesPath, flowerNames, log
     minimumNumberOfSpecies = nameValue("minimumNumberOfSpecies", minimumNumberOfSpecies, int)
 
     masterMessages = cactus_call(tool="cactus", stdin_string=flowerNames, check_output=True,
+                                 option_string="--cactusDisk '%s'" % cactusDiskDatabaseString,
                                  parameters=["cactus_bar",
-                                             "--cactusDisk", cactusDiskDatabaseString,
                                              "--cactusSequencesPath", cactusSequencesPath,
                                              "--logLevel", logLevel, spanningTrees, maximumLength,
                                              gapGamma, matchGamma,
@@ -504,8 +504,8 @@ def runCactusReference(cactusDiskDatabaseString, cactusSequencesPath, flowerName
     makeScaffolds = nameValue("makeScaffolds", makeScaffolds, bool)
 
     masterMessages = cactus_call(tool="cactus", stdin_string=flowerNames, check_output=True,
+                option_string="--cactusDisk '%s'" % cactusDiskDatabaseString,
                 parameters=["cactus_reference",
-                            "--cactusDisk", cactusDiskDatabaseString,
                             "--cactusSequencesPath", cactusSequencesPath,
                             "--logLevel", logLevel,
                             matchingAlgorithm, referenceEventString, permutations, 
@@ -521,8 +521,8 @@ def runCactusAddReferenceCoordinates(cactusDiskDatabaseString, cactusSequencesPa
     outgroupEventString = nameValue("outgroupEventString", outgroupEventString)
     secondaryDatabaseString = nameValue("secondaryDisk", secondaryDatabaseString, quotes=True)
     cactus_call(tool="cactus", stdin_string=flowerNames,
+                option_string="--cactusDisk '%s'" % cactusDiskDatabaseString,
                 parameters=["cactus_addReferenceCoordinates",
-                            "--cactusDisk", cactusDiskDatabaseString,
                             "--cactusSequencesPath", cactusSequencesPath,
                             secondaryDatabaseString,
                             "--logLevel", logLevel,
@@ -650,8 +650,8 @@ def runCactusHalGenerator(cactusDiskDatabaseString,
                           logLevel=None):
     logLevel = getLogLevelString2(logLevel)
     cactus_call(tool="cactus", stdin_string=flowerNames,
+                option_string="--cactusDisk '%s'" % cactusDiskDatabaseString,
                 parameters=["cactus_halGenerator",
-                            "--cactusDisk", cactusDiskDatabaseString,
                             "--cactusSequencesPath", cactusSequencesPath,
                             "--secondaryDisk", secondaryDatabaseString,
                             "--logLevel", logLevel,
@@ -668,8 +668,8 @@ def runCactusFastaGenerator(cactusDiskDatabaseString,
                           logLevel=None):
     logLevel = getLogLevelString2(logLevel)
     cactus_call(tool="cactus",
+                option_string="--cactusDisk '%s'" % cactusDiskDatabaseString,
                 parameters=["cactus_fastaGenerator",
-                            "--cactusDisk", cactusDiskDatabaseString,
                             "--cactusSequencesPath", cactusSequencesPath,
                             "--flowerName", flowerName,
                             "--outputFile", outputFile,
@@ -771,6 +771,7 @@ def cactus_call(tool,
     #directory as the work dir
     if work_dir is None:
         work_dir = "."
+    _log.info("Docker work dir: %s" % work_dir)
     
     #We'll mount the work_dir containing the paths as /data in the container,
     #so set all the paths to their basenames. The container will access them at
@@ -788,6 +789,7 @@ def cactus_call(tool,
     
     base_docker_call = ['docker', 'run',
                         '--interactive',
+                        '--net=host',
                         '--log-driver=none',
                         '-v', '{}:/data'.format(os.path.abspath(work_dir))]
 

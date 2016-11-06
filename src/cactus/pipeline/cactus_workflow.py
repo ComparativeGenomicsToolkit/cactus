@@ -413,7 +413,9 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
                                                        trimOutgroupDepth=self.getOptionalPhaseAttrib("trimOutgroupDepth", int, 1),
                                                        keepParalogs=self.getOptionalPhaseAttrib("keepParalogs", bool, False)), ingroupIDs, outgroupIDs))
 
-        self.cactusWorkflowArguments.alignmentsID, self.cactusWorkflowArguments.outgroupFragmentIDs, self.cactusWorkflowArguments.ingroupCoverageIDs = (blastJob.rv(0), blastJob.rv(1), blastJob.rv(2))
+        self.cactusWorkflowArguments.alignmentsID = blastJob.rv(0)
+        self.cactusWorkflowArguments.outgroupFragmentIDs = blastJob.rv(1)
+        self.cactusWorkflowArguments.ingroupCoverageIDs = blastJob.rv(2)
         
         return self.makeFollowOnPhaseJob(CactusSetupPhase, "setup", checkpoint = False)
         
@@ -442,6 +444,7 @@ class CactusSetupPhase(CactusPhasesJob):
     def run(self, fileStore):
         # Point the outgroup sequences to their trimmed versions for
         # phases after this one.
+        assert len(self.cactusWorkflowArguments.experimentWrapper.getOutgroupEvents()) == len(self.outgroupFragmentIDs)
         for i, outgroup in enumerate(self.cactusWorkflowArguments.experimentWrapper.getOutgroupEvents()):
             self.cactusWorkflowArguments.experimentWrapper.seqIDMap[outgroup] = self.cactusWorkflowArguments.outgroupFragmentIDs[i]
 
@@ -531,8 +534,9 @@ class CactusCafPhase(CactusPhasesJob):
             bedFiles = [fileStore.readGlobalFile(path) for path in self.cactusWorkflowArguments.ingroupCoverageIDs]
             tempFile = fileStore.getLocalTempFile()
             system("cat %s > %s" % (" ".join(bedFiles), tempFile))
+            cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
             ingroupCoverageFile = fileStore.getLocalTempFile()
-            runConvertAlignmentsToInternalNames(self.cactusWorkflowArguments.cactusDiskDatabaseString, tempFile, ingroupCoverageFile, self.topFlowerName, isBedFile=True)
+            runConvertAlignmentsToInternalNames(self.cactusWorkflowArguments.cactusDiskDatabaseString, cactusSequencesPath, tempFile, ingroupCoverageFile, self.topFlowerName, isBedFile=True)
             self.cactusWorkflowArguments.ingroupCoverageID = fileStore.writeGlobalFile(ingroupCoverageFile)
 
         if (not self.cactusWorkflowArguments.configWrapper.getDoTrimStrategy()) or (self.cactusWorkflowArguments.outgroupEventNames == None):

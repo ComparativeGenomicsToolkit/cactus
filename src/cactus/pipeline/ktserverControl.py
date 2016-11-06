@@ -53,7 +53,7 @@ def runKtserver(dbElem, killSwitchPath, maxPortsToTry=100, readOnly = False,
     dbPathExists = False
     if dbElem.getDbInMemory() == False:
         if os.path.splitext(dbElem.getDbName())[1] == ".kch":
-            raise RuntimeError("Expected path to end in .kch" %
+            raise RuntimeError("Expected path to end in .kch: %s" %
                                dbElem.getDbName())
         dbPathExists = os.path.exists(dbPath)
 
@@ -323,9 +323,10 @@ def pingKtServer(dbElem):
         raise RuntimeError("Unable to ping ktserver host %s from %s" % (
             dbElem.getDbHost(), getHostName()))
 
-    cmd = ['docker', 'run', '--log-driver=none', '--net=host', 'quay.io/adderan/ktremotemgr', 'report',
-                            '-port', str(dbElem.getDbPort()),
-                            '-host', dbElem.getDbHost()]
+    cmd = ['docker', 'run', '--interactive', '--log-driver=none', '--net=host',
+           'quay.io/adderan/ktremotemgr', 'report',
+           '-port', str(dbElem.getDbPort()),
+           '-host', dbElem.getDbHost()]
     logger.info("Ktremotemgr cmd = %s" % cmd)
     return subprocess.call(cmd,
                            shell=False, bufsize=-1,
@@ -476,7 +477,7 @@ def __getKtserverCommand(dbElem, exists = False, readOnly = False):
     serverOptions = __getKtServerOptions(dbElem)
     tuning = __getKtTuningOptions(dbElem, exists, readOnly)
     work_dir = os.path.dirname(os.path.abspath(logPath))
-    cmd = "docker run -v %s:/data --log-driver=none -p %d:%d --net=host quay.io/adderan/ktserver -log %s -port %d %s" % (work_dir, port, port, os.path.basename(logPath), port, serverOptions)
+    cmd = "docker run --interactive -v %s:/data --log-driver=none -p %d:%d --net=host quay.io/adderan/ktserver -log %s -port %d %s" % (work_dir, port, port, os.path.basename(logPath), port, serverOptions)
     if readOnly is True and dbElem.getDbSnapshot() == False:
         cmd += " -ord -onr"
     if dbElem.getDbHost() is not None:
