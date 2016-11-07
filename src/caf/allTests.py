@@ -37,7 +37,7 @@ class TestCase(unittest.TestCase):
         
 def getRandomConfigFile():
     tempConfigFile = getTempFile(rootDir="./", suffix=".xml")
-    config = ET.parse(os.path.join(cactusRootPath(), "cactus_config.xml")).getroot()
+    config = ET.parse(os.path.join(cactusRootPath(), "cactus_progressive_config.xml")).getroot()
     cafNode = config.find("caf")
     assert len(config.findall("caf")) == 1
     

@@ -62,7 +62,7 @@ def testCactus_Random(self, matchingAlgorithm):
     
 def getConfigFile(matchingAlgorithm="greedy"):
     tempConfigFile = getTempFile(rootDir="./", suffix=".xml")
-    config = ET.parse(os.path.join(cactusRootPath(), "cactus_config.xml")).getroot()
+    config = ET.parse(os.path.join(cactusRootPath(), "cactus_progressive_config.xml")).getroot()
     #Set the matching algorithm
     config.find("reference").attrib["matching_algorithm"] = matchingAlgorithm
     #Now print the file..

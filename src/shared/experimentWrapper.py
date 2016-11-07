@@ -363,7 +363,7 @@ class ExperimentWrapper(DbElemWrapper):
     def getConfigPath(self):
         config = self.xmlRoot.attrib["config"]
         if config == 'default':
-            config = os.path.join(cactusRootPath(), "cactus_config.xml")
+            config = os.path.join(cactusRootPath(), "cactus_progressive_config.xml")
         if config == 'defaultProgressive':
             config = os.path.join(cactusRootPath(), "cactus_progressive_config.xml")
         return config
