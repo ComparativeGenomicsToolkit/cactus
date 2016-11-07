@@ -342,10 +342,11 @@ class TrimAndRecurseOnOutgroups(Job):
 
         # Report coverage of the all outgroup alignments so far on the ingroups.
         ingroupCoverageFiles = []
+        self.ingroupCoverageIDs = []
         for ingroupSequence in untrimmedSequenceFiles:
             ingroupCoverageFile = fileStore.getLocalTempFile()
-            calculateCoverage(ingroupSequence, outgroupResultsFile,
-                              ingroupCoverageFile, depthById=self.blastOptions.trimOutgroupDepth > 1)
+            calculateCoverage(sequenceFile=ingroupSequence, cigarFile=outgroupResultsFile,
+                              outputFile=ingroupCoverageFile, depthById=self.blastOptions.trimOutgroupDepth > 1)
             ingroupCoverageFiles.append(ingroupCoverageFile)
             self.ingroupCoverageIDs.append(fileStore.writeGlobalFile(ingroupCoverageFile))
             fileStore.logToMaster("Cumulative coverage of %d outgroups on ingroup %s: %s" % (self.outgroupNumber, os.path.basename(ingroupSequence), percentCoverage(ingroupSequence, ingroupCoverageFile)))
