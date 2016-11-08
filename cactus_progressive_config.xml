@@ -90,8 +90,6 @@
 		minimumTreeCoverage="0.0" 
 		trim="0 0" 
 		minimumBlockDegree="2"
-                autoMinimumIngroupDegree="0"
-                autoMinimumIngroupDegreeThreshold="0.3"
 		minimumIngroupDegree="1"
 		minimumOutgroupDegree="0"
                 minimumNumberOfSpecies="1"
