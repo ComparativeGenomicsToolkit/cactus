@@ -392,7 +392,6 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
         setupDivergenceArgs(self.cactusWorkflowArguments)
         setupFilteringByIdentity(self.cactusWorkflowArguments)
 
-        alignmentsFile = getTempFile("unconvertedAlignments", rootDir=fileStore.getLocalTempDir())
         # FIXME: this is really ugly and steals the options from the caf tag
         blastJob = self.addChild(BlastIngroupsAndOutgroups(
                                           BlastOptions(chunkSize=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "chunkSize", int),
@@ -444,7 +443,6 @@ class CactusSetupPhase(CactusPhasesJob):
     def run(self, fileStore):
         # Point the outgroup sequences to their trimmed versions for
         # phases after this one.
-        assert len(self.cactusWorkflowArguments.experimentWrapper.getOutgroupEvents()) == len(self.outgroupFragmentIDs)
         for i, outgroup in enumerate(self.cactusWorkflowArguments.experimentWrapper.getOutgroupEvents()):
             self.cactusWorkflowArguments.experimentWrapper.seqIDMap[outgroup] = self.cactusWorkflowArguments.outgroupFragmentIDs[i]
 
@@ -558,9 +556,8 @@ class CactusCafPhase(CactusPhasesJob):
             convertedAlignmentsFile = fileStore.getLocalTempFile()
             # Convert the cigar file to use 64-bit cactus Names instead of the headers.
             cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
-            runConvertAlignmentsToInternalNames(self.cactusWorkflowArguments.cactusDiskDatabaseString, cactusSequencesPath, alignmentsFile, convertedAlignmentsFile, self.topFlowerName)
+            runConvertAlignmentsToInternalNames(cactusDiskString=self.cactusWorkflowArguments.cactusDiskDatabaseString, cactusSequencesPath=cactusSequencesPath, alignmentsFile=alignmentsFile, outputFile=convertedAlignmentsFile, flowerName=self.topFlowerName)
             fileStore.logToMaster("Converted headers of cigar file %s to internal names, new file %s" % (self.cactusWorkflowArguments.alignmentsID, convertedAlignmentsFile))
-            fileStore.deleteGlobalFile(self.cactusWorkflowArguments.alignmentsID)
             self.cactusWorkflowArguments.alignmentsID = fileStore.writeGlobalFile(convertedAlignmentsFile, cleanup=False)
             # While we're at it, remove the unique IDs prepended to
             # the headers inside the cactus DB.
@@ -599,7 +596,7 @@ def getMaximalDistanceBetweenLeaves(nxTree, rootId):
 class CactusCafWrapper(CactusRecursionJob):
     """Runs cactus_core upon a set of flowers and no alignment file.
     """
-    def runCactusCafInWorkflow(self, alignmentFile):
+    def runCactusCafInWorkflow(self, alignmentFile, constraints=None):
         debugFilePath = self.getOptionalPhaseAttrib("phylogenyDebugPrefix")
         if debugFilePath != None:
             debugFilePath += getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "reference"), "reference")
@@ -674,7 +671,7 @@ class CactusCafWrapper(CactusRecursionJob):
         if "constraintsID" in self.phaseNode.attrib:
             logger.info("Reading constraints file")
             constraints = fileStore.readGlobalFile(self.getOptionalPhaseAttrib("constraintsID"))
-        self.runCactusCafInWorkflow(alignmentFile=None, constraints=constraints)
+        self.runCactusCafInWorkflow(alignmentFile=None, constraints=None)
        
 class CactusCafWrapperLarge(CactusRecursionJob):
     """Runs blast on the given flower and passes the resulting alignment to cactus core.
@@ -856,7 +853,6 @@ class CactusBarWrapperWithPrecomputedEndAlignments(CactusRecursionJob):
             precomputedAlignments = [fileStore.readGlobalFile(fileID) for fileID in self.precomputedAlignmentIDs]
             self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
             messages = runBarForJob(self, precomputedAlignments=" ".join(precomputedAlignments))
-            map(fileStore.deleteGlobalFile, self.precomputedAlignmentIDs)
         else:
             self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
             messages = runBarForJob(self)

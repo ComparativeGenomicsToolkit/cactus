@@ -33,10 +33,16 @@ class TestCase(unittest.TestCase):
             
             #Setup the flower disk.
             experiment = getCactusWorkflowExperimentForTest(sequences, newickTreeString, tempDir)
-            cactusDiskDatabaseString = experiment.getDiskDatabaseString() 
+            cactusDiskDatabaseString = experiment.getDiskDatabaseString()
+            cactusSequencesPath = os.path.join(experiment.getDbDir(), "cactusSequences")
             
-            runCactusSetup(cactusDiskDatabaseString, sequences, newickTreeString)
-            runCactusSetup(cactusDiskDatabaseString, sequences, newickTreeString)
+            runCactusSetup(cactusDiskDatabaseString=cactusDiskDatabaseString,
+                           cactusSequencesPath=cactusSequencesPath, sequences=sequences,
+                           newickTreeString=newickTreeString)
+            runCactusSetup(cactusDiskDatabaseString=cactusDiskDatabaseString,
+                           cacusSequencesPath=cactusSequencesPath, sequences=sequences,
+                           newickTreeString=newickTreeString)
+
             
             experiment.cleanupDb()
             system("rm -rf %s" % tempDir)

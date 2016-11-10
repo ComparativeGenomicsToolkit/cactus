@@ -286,6 +286,7 @@ class TrimAndRecurseOnOutgroups(Job):
         # outgroup fragments dir
 
         outgroupSequenceFiles = [fileStore.readGlobalFile(fileID) for fileID in self.outgroupSequenceIDs]
+        fileStore.logToMaster("Outgroup sequence files: %s" % outgroupSequenceFiles)
         mostRecentResultsFile = fileStore.readGlobalFile(self.mostRecentResultsID)
         trimmedOutgroup = fileStore.getLocalTempFile()
         outgroupCoverage = fileStore.getLocalTempFile()
@@ -318,8 +319,9 @@ class TrimAndRecurseOnOutgroups(Job):
 
         # Convert the alignments' ingroup coordinates.
         ingroupConvertedResultsFile = fileStore.getLocalTempFile()
-        if sequenceFiles == untrimmedSequenceFiles:
+        if self.sequenceIDs == self.untrimmedSequenceIDs:
             # No need to convert ingroup coordinates on first run.
+            fileStore.logToMaster("Copying outgroup results file to ingroup: %s %s" % (outgroupConvertedResultsFile, ingroupConvertedResultsFile))
             system("cp %s %s" % (outgroupConvertedResultsFile,
                                  ingroupConvertedResultsFile))
         else:
@@ -470,7 +472,7 @@ class RunBlast(Job):
             seqFile1 = decompressFastaFile(seqFile1, fileStore.getLocalTempFile())
             seqFile2 = decompressFastaFile(seqFile2, fileStore.getLocalTempFile())
         blastResultsFile = fileStore.getLocalTempFile()
-        
+
         runLastz(seqFile1, seqFile2, blastResultsFile, lastzArguments = self.blastOptions.lastzArguments)
         if self.blastOptions.realign:
             realignResultsFile = fileStore.getLocalTempFile()
@@ -510,7 +512,6 @@ class CollateBlasts2(Job):
         collatedResultsFile = fileStore.getLocalTempFile()
         catFiles(resultsFiles, collatedResultsFile)
         logger.info("Collated the alignments to the file: %s",  collatedResultsFile)
-        map(fileStore.deleteGlobalFile, self.resultsFileIDs)
         collatedResultsID = fileStore.writeGlobalFile(collatedResultsFile, cleanup=False)
         return collatedResultsID
         
@@ -537,12 +538,14 @@ def percentCoverage(sequenceFile, coverageFile):
 def calculateCoverage(sequenceFile, cigarFile, outputFile, fromGenome=None, depthById=False, work_dir=None):
     logger.info("Calculating coverage of cigar file %s on %s, writing to %s" % (
         cigarFile, sequenceFile, outputFile))
+    if fromGenome:
+        fromGenome = os.path.basename(fromGenome)
     cactus_call(tool="cactus", outfile=outputFile, work_dir=work_dir,
                 parameters=["cactus_coverage",
                             sequenceFile,
-                            cigarFile]
-                            + nameValue("from", fromGenome).split()
-                            + nameValue("depthById", depthById, bool).split())
+                            cigarFile,
+                            nameValue("from", fromGenome),
+                            nameValue("depthById", depthById, bool)])
 
 def trimGenome(sequenceFile, coverageFile, outputFile, complement=False,
                flanking=0, minSize=1, windowSize=10, threshold=1, depth=None):

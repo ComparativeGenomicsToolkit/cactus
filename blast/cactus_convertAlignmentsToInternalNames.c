@@ -54,21 +54,22 @@ int main(int argc, char *argv[])
     FILE *inputFile;
     FILE *outputFile;
     bool isBedFile = false; // true if bed, false if cigar
-    struct option longopts[] = { {"cactusDisk", required_argument, NULL, 'c' },
-                                 {"bed", no_argument, NULL, 'b'},
-				 {"cactusSequencesPath", required_argument, NULL, 'd'},
+    struct option longopts[] = { {"cactusDisk", required_argument, NULL, 'a' },
+				 {"cactusSequencesPath", required_argument, NULL, 'b'},
+                                 {"bed", no_argument, NULL, 'c'},
+
                                  {0, 0, 0, 0} };
     int flag;
     while ((flag = getopt_long(argc, argv, "", longopts, NULL)) != -1) {
         switch (flag) {
-        case 'b':
-            isBedFile = true;
-            break;
-        case 'c':
+        case 'a':
             cactusDiskString = stString_copy(optarg);
             break;
-        case 'd':
+        case 'b':
             cactusSequencesPath = stString_copy(optarg);
+            break;
+	case 'c':
+            isBedFile = true;
             break;
         case '?':
         default:

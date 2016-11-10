@@ -114,12 +114,14 @@ def runCactusGetFlowers(cactusDiskDatabaseString, cactusSequencesPath, flowerNam
     """Gets a list of flowers attached to the given flower. 
     """
     logLevel = getLogLevelString2(logLevel)
+    cactusSequencesPath = os.path.basename(cactusSequencesPath)
     flowerStrings = cactus_call(tool="cactus", check_output=True, stdin_string=flowerNames,
-                                parameters=["cactus_workflow_getFlowers",
-                                            logLevel, cactusDiskDatabaseString,
+                                parameters=["cactus_workflow_getFlowers"],
+                                option_string="%s '%s' %s %i %i %i" % 
+                                            (logLevel, cactusDiskDatabaseString,
                                             cactusSequencesPath, minSequenceSizeOfFlower,
                                             maxSequenceSizeOfFlowerGrouping,
-                                            maxSequenceSizeOfSecondaryFlowerGrouping])
+                                            maxSequenceSizeOfSecondaryFlowerGrouping))
                                         
     l = readFlowerNames(flowerStrings)
     return l
@@ -134,14 +136,16 @@ def runCactusExtendFlowers(cactusDiskDatabaseString, cactusSequencesPath, flower
     The order of the flowers is by ascending depth first discovery time.
     """
     logLevel = getLogLevelString2(logLevel)
+    cactusSequencesPath = os.path.basename(cactusSequencesPath)
     flowerStrings = cactus_call(tool="cactus", check_output=True, stdin_string=flowerNames,
-                                parameters=["cactus_workflow_extendFlowers",
-                                            logLevel,
+                                parameters=["cactus_workflow_extendFlowers"],
+                                option_string="%s '%s' %s %i %i %i" %
+                                            (logLevel,
                                             cactusDiskDatabaseString,
                                             cactusSequencesPath,
                                             minSequenceSizeOfFlower,
                                             maxSequenceSizeOfFlowerGrouping,
-                                            maxSequenceSizeOfSecondaryFlowerGrouping])
+                                            maxSequenceSizeOfSecondaryFlowerGrouping))
     l = readFlowerNames(flowerStrings)
     return l
 
@@ -203,12 +207,13 @@ def runCactusSetup(cactusDiskDatabaseString, cactusSequencesPath, sequences,
 
 
 def runConvertAlignmentsToInternalNames(cactusDiskString, cactusSequencesPath, alignmentsFile, outputFile, flowerName, isBedFile = False):
+    isBedFile = nameValue("bed", isBedFile, bool)
     cactus_call(tool="cactus", stdin_string=encodeFlowerNames((flowerName,)),
                 option_string="--cactusDisk '%s'" % cactusDiskString,
                 parameters=["cactus_convertAlignmentsToInternalNames",
                             "--cactusSequencesPath", cactusSequencesPath,
                             alignmentsFile, outputFile,
-                            "--bed", isBedFile])
+                            isBedFile])
     
 def runStripUniqueIDs(cactusDiskString, cactusSequencesPath):
     cactus_call(tool="cactus",
@@ -268,6 +273,8 @@ def runCactusCaf(cactusDiskDatabaseString, cactusSequencesPath, alignments,
                  phylogenyDistanceCorrectionMethod=None):
     # remove annoying carriage returns in caf command line.
     cactusDiskDatabaseString = cactusDiskDatabaseString.replace('\n', '')
+
+    alignments = os.path.basename(alignments)
 
     logLevel = getLogLevelString2(logLevel)
     annealingRounds = nameValue("annealingRounds", annealingRounds, quotes=True)
@@ -693,7 +700,7 @@ def runLastz(seq1, seq2, alignmentsFile, lastzArguments, work_dir=None):
     #we're adding arguments to the filename
     assert os.path.dirname(seq1) == os.path.dirname(seq2)
     work_dir = os.path.dirname(seq1)
-    cactus_call(tool="quay.io/adderan/lastz", work_dir=work_dir, outfile=alignmentsFile,
+    cactus_call(tool="cpecan-lastz", work_dir=work_dir, outfile=alignmentsFile,
                 parameters=["--format=cigar",
                             "--notrivial",
                             lastzArguments,
@@ -702,7 +709,7 @@ def runLastz(seq1, seq2, alignmentsFile, lastzArguments, work_dir=None):
 
 def runSelfLastz(seq, alignmentsFile, lastzArguments, work_dir=None):
     work_dir = os.path.dirname(seq)
-    cactus_call(tool="quay.io/adderan/lastz", work_dir=work_dir, outfile=alignmentsFile,
+    cactus_call(tool="cpecan-lastz", work_dir=work_dir, outfile=alignmentsFile,
                 parameters=["--format=cigar",
                             "--notrivial",
                             lastzArguments,

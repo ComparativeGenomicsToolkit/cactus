@@ -107,7 +107,6 @@ class MergeChunks2(Job):
         outSequencePath = fileStore.getLocalTempFile()
         cactus_call(tool="cactus", outfile=outSequencePath, stdin_string=" ".join(chunkList),
                     parameters=["cactus_batch_mergeChunks"])
-        map(fileStore.deleteGlobalFile, self.chunkIDList)
         return fileStore.writeGlobalFile(outSequencePath)
  
 class PreprocessSequence(Job):
