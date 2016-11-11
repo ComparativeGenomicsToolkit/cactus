@@ -66,7 +66,6 @@ class ProgressiveDown(Job):
         self.configWrapper = ConfigWrapper(self.configNode)
         self.configWrapper.substituteAllPredefinedConstantsWithLiterals()
         logger.info("Progressive Down: " + self.event)
-        assert self.event == "Anc2"
 
         depProjects = dict()
         if not self.options.nonRecursive:
@@ -269,9 +268,29 @@ class RunCactusPreprocessorThenProgressiveDown(Job):
             self.options.event = self.project.mcTree.getRootName()
         assert self.options.event in self.project.expMap
         leafNames = [ self.project.mcTree.getName(i) for i in self.project.mcTree.getLeaves() ]
+        fileStore.logToMaster("Leaf names = %s" % leafNames)
         self.options.globalLeafEventSet = set(leafNames)
 
-        return self.addFollowOn(RunCactusPreprocessorThenProgressiveDown2(self.options, self.project, self.options.event, schedule, memory=self.configWrapper.getDefaultMemory())).rv()
+        return self.addFollowOn(RunCactusPreprocessorThenProgressiveDown2(options=self.options, project=self.project, event=self.options.event, schedule=schedule, memory=self.configWrapper.getDefaultMemory())).rv()
+
+
+class RunCactusPreprocessorThenProgressiveDown2(Job):
+    def __init__(self, options, project, event, schedule, memory=None, cores=None):
+        Job.__init__(self, memory=memory, cores=cores)
+        self.options = options
+        self.project = project
+        self.event = event
+        self.schedule = schedule
+    def run(self, fileStore):
+        self.configNode = ET.parse(fileStore.readGlobalFile(self.project.getConfigID())).getroot()
+        self.configWrapper = ConfigWrapper(self.configNode)
+        self.configWrapper.substituteAllPredefinedConstantsWithLiterals()
+
+        project = self.addChild(ProgressiveDown(options=self.options, project=self.project, event=self.event, schedule=self.schedule, memory=self.configWrapper.getDefaultMemory())).rv()
+
+        #Combine the smaller HAL files from each experiment
+        return self.addFollowOnJobFn(exportHal, project=project, memory=self.configWrapper.getDefaultMemory(),
+                disk=self.configWrapper.getExportHalDisk()).rv()
 
 def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC=None, cacheW0=None, chunk=None, deflate=None, inMemory=False):
 
@@ -336,23 +355,7 @@ def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC
     #print "total time: {0:.2f}  total halAppendCactusSubtree time: {1:.2f}".format(totalTime, totalAppendTime)
     return job.fileStore.writeGlobalFile(HALPath)
 
-class RunCactusPreprocessorThenProgressiveDown2(Job):
-    def __init__(self, options, project, event, schedule, memory=None, cores=None):
-        Job.__init__(self, memory=memory, cores=cores)
-        self.options = options
-        self.project = project
-        self.event = event
-        self.schedule = schedule
-    def run(self, fileStore):
-        self.configNode = ET.parse(fileStore.readGlobalFile(self.project.getConfigID())).getroot()
-        self.configWrapper = ConfigWrapper(self.configNode)
-        self.configWrapper.substituteAllPredefinedConstantsWithLiterals()
 
-        project = self.addChild(ProgressiveDown(self.options, self.project, self.event, self.schedule, memory=self.configWrapper.getDefaultMemory())).rv()
-
-        #Combine the smaller HAL files from each experiment
-        return self.addFollowOnJobFn(exportHal, project=project, memory=self.configWrapper.getDefaultMemory(),
-                disk=self.configWrapper.getExportHalDisk()).rv()
 
         
 def main():
@@ -466,6 +469,7 @@ def main():
 
     pjPath = os.path.join(options.workDir, ProjectWrapper.alignmentDirName,
                           '%s_project.xml' % ProjectWrapper.alignmentDirName)
+    assert os.path.exists(pjPath)
 
     project = MultiCactusProject()
 

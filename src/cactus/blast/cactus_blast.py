@@ -80,12 +80,14 @@ class BlastFlower(Job):
     def run(self, fileStore):
         chunksDir = getTempDirectory(rootDir=fileStore.getLocalTempDir())
         cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
-        chunks = [ chunk for chunk in popenCatch("cactus_blast_chunkFlowerSequences %s '%s' '%s' %s %i %i %i %s" % \
+        chunks = [ chunk for chunk in cactus_call(tool="cactus", check_output=True,
+                                                  parameters=["cactus_blast_chunkFlowerSequences"],
+                                                  option_string="%s '%s' '%s' %s %i %i %i %s" % \
                                                           (getLogLevelString(), self.cactusDisk, cactusSequencesPath, self.flowerName, 
                                                           self.blastOptions.chunkSize, 
                                                           self.blastOptions.overlapSize,
                                                           self.blastOptions.minimumSequenceLength,
-                                                          chunksDir)).split("\n") if chunk != "" ]
+                                                           os.path.basename(chunksDir))).split("\n") if chunk != "" ]
         logger.info("Broken up the flowers into individual 'chunk' files")
         chunkIDs = [fileStore.writeGlobalFile(chunk, cleanup=False) for chunk in chunks]
         selfResultsID = self.addChild(MakeSelfBlasts(self.blastOptions, chunkIDs)).rv()

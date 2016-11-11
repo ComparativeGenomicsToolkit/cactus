@@ -25,6 +25,7 @@ from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.configWrapper import ConfigWrapper
 
+
 class Schedule:
     def __init__(self):
         # input graph
@@ -51,7 +52,7 @@ class Schedule:
                 expMap[name] = fileStore.readGlobalFile(mcProject.expIDMap[name])
         else:
             expMap = mcProject.expMap
-
+            
         for name, expPath in expMap.items():
             exp = ExperimentWrapper(ET.parse(expPath).getroot())
             tree = exp.getTree()

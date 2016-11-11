@@ -1133,17 +1133,29 @@ class CactusHalGeneratorPhase(CactusPhasesJob):
             self.phaseNode.attrib["experimentPath"] = self.cactusWorkflowArguments.experimentFile
             self.phaseNode.attrib["secondaryDatabaseString"] = self.cactusWorkflowArguments.secondaryDatabaseString
             self.phaseNode.attrib["outputFile"]=self.cactusWorkflowArguments.experimentNode.find("hal").attrib["halPath"]
-            self.makeFollowOnPhaseJob(CactusHalGeneratorPhase2, "hal")
             halID = self.makeRecursiveChildJob(CactusHalGeneratorRecursion, launchSecondaryKtForRecursiveJob=True)
-        self.cactusWorkflowArguments.experimentWrapper.setHalID(halID)
-        self.cactusWorkflowArguments.experimentWrapper.setHalFastaID(fastaID)
-        return self.cactusWorkflowArguments.experimentWrapper
+        
+        return self.addFollowOn(CactusHalGenerator2(halID=halID, fastaID=fastaID, experimentWrapper=self.cactusWorkflowArguments.experimentWrapper)).rv()
+
+class CactusHalGenerator2(Job):
+    def __init__(self, halID, fastaID, experimentWrapper):
+        Job.__init__(self)
+        self.halID = halID
+        self.fastaID = fastaID
+        self.experimentWrapper = experimentWrapper
+
+    def run(self, fileStore):
+        self.experimentWrapper.setHalID(self.halID)
+        self.experimentWrapper.setHalFastaID(self.fastaID)
+        return self.experimentWrapper
+                                
+
         
 class CactusFastaGenerator(CactusRecursionJob):
     def run(self, fileStore):
         assert self.cactusSequencesID
         self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
-        tmpFasta = os.path.join(fileStore.getLocalTempDir(), "tmpFasta")
+        tmpFasta = fileStore.getLocalTempFile()
         runCactusFastaGenerator(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                                     cactusSequencesPath = self.cactusSequencesPath,
                                     flowerName=decodeFirstFlowerName(self.flowerNames),
@@ -1151,11 +1163,6 @@ class CactusFastaGenerator(CactusRecursionJob):
                                     referenceEventString=self.getOptionalPhaseAttrib("reference"))
         return fileStore.writeGlobalFile(tmpFasta)
             
-class CactusHalGeneratorPhase2(CactusHalGeneratorPhase):
-    def run(self, fileStore): 
-        assert self.cactusSequencesID
-        self.cleanupSecondaryDatabase()
-
 class CactusHalGeneratorRecursion(CactusRecursionJob):
     """Generate the hal file by merging indexed hal files from the children.
     """ 
@@ -1173,7 +1180,7 @@ class CactusHalGeneratorUpWrapper(CactusRecursionJob):
     """ 
     def run(self, fileStore):
         if self.getOptionalPhaseAttrib("outputFile"):
-            tmpHal = os.path.join(fileStore.getLocalTempDir(), "tmpHal")
+            tmpHal = fileStore.getLocalTempFile()
         else:
             tmpHal = None
         logger.info("DatabaseID in HalGeneratorUpWrapper: %s" % self.cactusSequencesID)

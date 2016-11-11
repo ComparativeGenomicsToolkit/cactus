@@ -274,7 +274,8 @@ def runCactusCaf(cactusDiskDatabaseString, cactusSequencesPath, alignments,
     # remove annoying carriage returns in caf command line.
     cactusDiskDatabaseString = cactusDiskDatabaseString.replace('\n', '')
 
-    alignments = os.path.basename(alignments)
+    if alignments:
+        alignments = os.path.basename(alignments)
 
     logLevel = getLogLevelString2(logLevel)
     annealingRounds = nameValue("annealingRounds", annealingRounds, quotes=True)
