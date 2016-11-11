@@ -30,11 +30,13 @@ from toil.lib.bioio import setLoggingFromOptions
 from toil.lib.bioio import system
 from cactus.shared.bioio import makeSubDir
 from cactus.shared.bioio import catFiles
+from cactus.shared.bioio import getLogLevelString
 
 
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.common import cactusRootPath
 from cactus.shared.common import makeURL
+from cactus.shared.common import cactus_call
   
 from toil.job import Job
 from toil.common import Toil
@@ -1066,11 +1068,12 @@ class CactusExtractReferencePhase(CactusPhasesJob):
                 eventName = os.path.basename(experiment.getReferencePath())
                 if eventName.find('.') >= 0:
                     eventName = eventName[:eventName.rfind('.')]
-                    referencePath = os.path.join(fileStore.getLocalTempDir(), "tempReference")
-                    cmdLine = "cactus_getReferenceSeq --cactusDisk \'%s\' --cactusSequencesPath \'%s\' --flowerName 0 --referenceEventString %s --outputFile %s --logLevel %s" % \
-                              (self.cactusWorkflowArguments.cactusDiskDatabaseString, self.cactusSequencesPath, 
-                                      eventName, referencePath, getLogLevelString())                        
-                    system(cmdLine)
+                    referencePath = fileStore.getLocalTempFile()
+                    cactus_call(tool="cactus",
+                                parameters=["cactus_getReferenceSeq"],
+                                option_string="--cactusDisk '%s' --cactusSequencesPath '%s' --flowerName 0 --referenceEventString %s --outputFile %s --logLevel %s" % 
+                              (self.cactusWorkflowArguments.cactusDiskDatabaseString, os.path.basename(self.cactusSequencesPath), 
+                                      eventName, os.path.basename(referencePath), getLogLevelString()))
                     experiment.setReferenceID(fileStore.writeGlobalFile(referencePath))
         self.cactusWorkflowArguments.experimentWrapper = experiment
         return self.makeFollowOnPhaseJob(CactusCheckPhase, "check")

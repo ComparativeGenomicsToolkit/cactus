@@ -657,10 +657,9 @@ def runCactusHalGenerator(cactusDiskDatabaseString,
                           logLevel=None):
     logLevel = getLogLevelString2(logLevel)
     cactus_call(tool="cactus", stdin_string=flowerNames,
-                option_string="--cactusDisk '%s'" % cactusDiskDatabaseString,
+                option_string="--cactusDisk '%s' --secondaryDisk '%s'" % (cactusDiskDatabaseString, secondaryDatabaseString),
                 parameters=["cactus_halGenerator",
                             "--cactusSequencesPath", cactusSequencesPath,
-                            "--secondaryDisk", secondaryDatabaseString,
                             "--logLevel", logLevel,
                             nameValue("referenceEventString", referenceEventString),
                             nameValue("outputFile", outputFile),

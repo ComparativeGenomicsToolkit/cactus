@@ -66,11 +66,14 @@ class ProgressiveDown(Job):
         self.configWrapper = ConfigWrapper(self.configNode)
         self.configWrapper.substituteAllPredefinedConstantsWithLiterals()
         logger.info("Progressive Down: " + self.event)
+        assert self.event == "Anc2"
 
         depProjects = dict()
         if not self.options.nonRecursive:
             deps = self.schedule.deps(self.event)
+            fileStore.logToMaster("There are %i dependent projects" % len(deps))
             for child in deps:
+                fileStore.logToMaster("Adding dependent project %s" % child)
                 depProjects[child] = self.addChild(ProgressiveDown(self.options,
                                                     self.project, child, 
                                                                    self.schedule, memory=self.configWrapper.getDefaultMemory())).rv()
@@ -91,11 +94,13 @@ class ProgressiveNext(Job):
         self.configWrapper = ConfigWrapper(self.configNode)
         self.configWrapper.substituteAllPredefinedConstantsWithLiterals()
 
+        fileStore.logToMaster("Project has %i dependencies" % len(self.depProjects))
         for projName in self.depProjects:
             depProject = self.depProjects[projName]
             for expName in depProject.expIDMap: 
                 expID = depProject.expIDMap[expName]
                 experiment = ExperimentWrapper(ET.parse(fileStore.readGlobalFile(expID)).getroot())
+                fileStore.logToMaster("Reference ID for experiment %s: %s" % (expName, experiment.getReferenceID()))
                 if experiment.getReferenceID():
                     self.project.expIDMap[expName] = expID
                     self.project.outputSequenceIDMap[expName] = experiment.getReferenceID()
@@ -274,7 +279,7 @@ def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC
     totalTime = time.time()
     totalAppendTime = 0
 
-    HALPath = os.path.join(job.fileStore.getLocalTempDir(), "tmp.hal")
+    HALPath = job.fileStore.getLocalTempFile()
 
     # traverse tree to make sure we are going breadth-first
     tree = project.mcTree
@@ -299,29 +304,30 @@ def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC
             subHALPath = job.fileStore.readGlobalFile(experiment.getHalID())
             halFastaPath = job.fileStore.readGlobalFile(experiment.getHalFastaID())
 
-            cmdline = "halAppendCactusSubtree \'{0}\' \'{1}\' \'{2}\' \'{3}\'".format(subHALPath, halFastaPath, expTreeString, HALPath)
+
+            opts = "\'{0}\' \'{1}\' \'{2}\' \'{3}\'".format(os.path.basename(subHALPath), os.path.basename(halFastaPath), expTreeStrinqg, HALPath)
             
             if len(outgroups) > 0:
-                cmdline += " --outgroups {0}".format(",".join(outgroups))
+                opts += " --outgroups {0}".format(",".join(outgroups))
             if cacheBytes is not None:
-                cmdline += " --cacheBytes {0}".format(cacheBytes)
+                opts += " --cacheBytes {0}".format(cacheBytes)
             if cacheMDC is not None:
-                cmdline += " --cacheMDC {0}".format(cacheMDC)
+                opts += " --cacheMDC {0}".format(cacheMDC)
             if cacheRDC is not None:
-                cmdline += " --cacheRDC {0}".format(cacheRDC)
+                opts += " --cacheRDC {0}".format(cacheRDC)
             if cacheW0 is not None:
-                cmdline += " --cacheW0 {0}".format(cacheW0)
+                opts += " --cacheW0 {0}".format(cacheW0)
             if chunk is not None:
-                cmdline += " --chunk {0}".format(chunk)
+                opts += " --chunk {0}".format(chunk)
             if deflate is not None:
-                cmdline += " --deflate {0}".format(deflate)
+                opts += " --deflate {0}".format(deflate)
             if inMemory is True:
-                cmdline += " --inMemory"
+                opts += " --inMemory"
+
+            cactus_call(tool="halAppendCactusSubtree",
+                        option_string=opts)
 
             
-            print cmdline
-            #appendTime = time.time()
-            system(cmdline)
             #appendTime = time.time() - appendTime
             #totalAppendTime += appendTime
 #            print "time of above command: {0:.2f}".format(appendTime)
