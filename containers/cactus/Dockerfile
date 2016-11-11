@@ -31,6 +31,11 @@ RUN cd /home/cactus && make
 #that depend on sonLib
 ENV PYTHONPATH $PYTHONPATH:/home/
 
+#the cactus_bar executable calls cPecanLastz,
+#so we need access to it in this container.
+#Ideally cPecanLastz should only be called in the pipeline code
+ENV PATH $PATH:/home/sonLib/bin
+
 COPY ./wrapper.sh /home/wrapper.sh
 RUN mkdir /data
 WORKDIR /data
