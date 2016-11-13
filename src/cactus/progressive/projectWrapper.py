@@ -33,7 +33,7 @@ import string
 import socket
 
 from toil.lib.bioio import system
-from cactus.shared.bioio import absSymPath
+from sonLib.bioio import absSymPath
 
 from seqFile import SeqFile
 from cactus.shared.experimentWrapper import ExperimentWrapper

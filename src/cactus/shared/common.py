@@ -20,9 +20,9 @@ from toil_lib.programs import _fix_permissions
 
 from toil.job import Job
 
-from cactus.shared.bioio import getTempDirectory
-from cactus.shared.bioio import nameValue
-from cactus.shared.bioio import popenCatch, popenPush
+from sonLib.bioio import getTempDirectory
+from sonLib.bioio import nameValue
+from sonLib.bioio import popenCatch, popenPush
 
 _log = logging.getLogger(__name__)
 

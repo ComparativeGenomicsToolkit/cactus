@@ -21,7 +21,7 @@ from toil.lib.bioio import logger
 from toil.lib.bioio import system
 from toil.lib.bioio import getLogLevelString
 
-from cactus.shared.bioio import catFiles, getTempFile, getTempDirectory, popenCatch, popenPush, newickTreeParser
+from sonLib.bioio import catFiles, getTempFile, getTempDirectory, popenCatch, popenPush, newickTreeParser
 from toil.job import Job
 from toil.common import Toil
 from cactus.shared.common import cactus_call

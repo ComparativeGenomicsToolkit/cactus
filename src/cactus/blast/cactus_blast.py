@@ -14,7 +14,7 @@ from toil.lib.bioio import system
 from toil.lib.bioio import getLogLevelString
 from toil.lib.bioio import getTempFile
 
-from cactus.shared.bioio import catFiles, nameValue, popenCatch, getTempDirectory
+from sonLib.bioio import catFiles, nameValue, popenCatch, getTempDirectory
 
 from toil.job import Job
 from toil.common import Toil

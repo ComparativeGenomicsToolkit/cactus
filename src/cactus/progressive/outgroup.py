@@ -23,7 +23,7 @@ from optparse import OptionParser
 
 from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.progressive.multiCactusTree import MultiCactusTree
-from cactus.shared.bioio import popenCatch
+from sonLib.bioio import popenCatch
 
 class GreedyOutgroup(object):
     def __init__(self):

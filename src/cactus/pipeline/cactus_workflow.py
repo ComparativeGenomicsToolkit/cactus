@@ -22,15 +22,15 @@ import shutil
 from argparse import ArgumentParser
 import networkx as NX
 
-from cactus.shared.bioio import newickTreeParser
+from sonLib.bioio import newickTreeParser
 
 from toil.lib.bioio import getTempFile
 from toil.lib.bioio import logger
 from toil.lib.bioio import setLoggingFromOptions
 from toil.lib.bioio import system
-from cactus.shared.bioio import makeSubDir
-from cactus.shared.bioio import catFiles
-from cactus.shared.bioio import getLogLevelString
+from sonLib.bioio import makeSubDir
+from sonLib.bioio import catFiles
+from sonLib.bioio import getLogLevelString
 
 
 from cactus.progressive.multiCactusTree import MultiCactusTree

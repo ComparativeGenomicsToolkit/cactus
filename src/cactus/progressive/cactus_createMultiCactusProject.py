@@ -18,7 +18,7 @@ from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.outgroup import GreedyOutgroup, DynamicOutgroup
-from cactus.shared.nxnewick import NXNewick
+from sonLib.nxnewick import NXNewick
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 
 def createMCProject(tree, experiment, config, options):

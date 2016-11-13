@@ -54,7 +54,7 @@ from cactus.progressive.schedule import Schedule
 from cactus.progressive.projectWrapper import ProjectWrapper
 from cactus.progressive.seqFile import SeqFile
 
-from cactus.shared.nxnewick import NXNewick
+from sonLib.nxnewick import NXNewick
 
 class ProgressiveDown(Job):
     def __init__(self, options, project, event, schedule, memory=None, cores=None):

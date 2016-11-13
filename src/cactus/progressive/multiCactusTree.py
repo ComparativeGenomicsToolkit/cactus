@@ -18,8 +18,8 @@ import copy
 
 from optparse import OptionParser
 
-from cactus.shared.nxtree import NXTree
-from cactus.shared.nxnewick import NXNewick
+from sonLib.nxtree import NXTree
+from sonLib.nxnewick import NXNewick
 
 import networkx as nx
 from networkx.algorithms.shortest_paths.weighted import dijkstra_path

@@ -15,7 +15,7 @@ import shutil
 import random
 
 from argparse import ArgumentParser
-from cactus.shared.bioio import catFiles
+from sonLib.bioio import catFiles
 
 from toil.job import Job
 from toil.common import Toil

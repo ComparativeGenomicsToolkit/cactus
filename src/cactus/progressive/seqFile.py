@@ -32,10 +32,10 @@ import imp
 import string
 import re
 
-from cactus.shared.bioio import absSymPath
-from cactus.shared.nxtree import NXTree
-from cactus.shared.nxnewick import NXNewick
-from cactus.shared.bioio import popenCatch
+from sonLib.bioio import absSymPath
+from sonLib.nxtree import NXTree
+from sonLib.nxnewick import NXNewick
+from sonLib.bioio import popenCatch
 
 # parse the input seqfile for progressive cactus.  this file is in the
 # format of:
