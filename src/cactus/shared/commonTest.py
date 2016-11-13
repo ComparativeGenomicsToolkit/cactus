@@ -62,13 +62,13 @@ class TestCase(unittest.TestCase):
         
         #Send input to container's stdin through a file, get output
         #from stdout
-        output = "".join(cactus_call(tool="cactus", infile=inputFile, check_output=True,
+        output = "".join(cactus_call(tool="quay.io/adderan/cactus", infile=inputFile, check_output=True,
                                      parameters=["docker_test_script"]).split("\n"))
         self.assertEquals(input, output)
 
 
         #Send input as string, get output from stdout
-        output = "".join(cactus_call(tool="cactus", stdin_string=input, check_output=True,
+        output = "".join(cactus_call(tool="quay.io/adderan/cactus", stdin_string=input, check_output=True,
                              parameters=["docker_test_script"]).split("\n"))
 
         self.assertEquals(input, output)
