@@ -657,6 +657,8 @@ def runCactusHalGenerator(cactusDiskDatabaseString,
                           showOnlySubstitutionsWithRespectToReference=None,
                           logLevel=None):
     logLevel = getLogLevelString2(logLevel)
+    if outputFile:
+        outputFile = os.path.basename(outputFile)
     cactus_call(tool="quay.io/adderan/cactus", stdin_string=flowerNames,
                 option_string="--cactusDisk '%s' --secondaryDisk '%s'" % (cactusDiskDatabaseString, secondaryDatabaseString),
                 parameters=["cactus_halGenerator",

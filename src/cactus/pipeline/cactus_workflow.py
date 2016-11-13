@@ -136,7 +136,7 @@ class CactusJob(Job):
 class CactusPhasesJob(CactusJob):
     """Base job for each workflow phase job.
     """
-    def __init__(self, cactusWorkflowArguments, phaseName, topFlowerName=0, index=0, cactusSequencesID = None, checkpoint = False):
+    def __init__(self, cactusWorkflowArguments, phaseName, topFlowerName=0, index=0, cactusSequencesID = None, checkpoint = False, halID=None, fastaID=None):
         phaseNode = findRequiredNode(cactusWorkflowArguments.configNode, phaseName, index)
         constantsNode = findRequiredNode(cactusWorkflowArguments.configNode, "constants")
         CactusJob.__init__(self, phaseNode=phaseNode, constantsNode=constantsNode, overlarge=False,
@@ -144,6 +144,8 @@ class CactusPhasesJob(CactusJob):
         self.index = index
         self.cactusWorkflowArguments = cactusWorkflowArguments
         self.topFlowerName = topFlowerName
+        self.halID = halID
+        self.fastaID = fastaID
     
     def makeRecursiveChildJob(self, job, launchSecondaryKtForRecursiveJob=False):
         newChild = job(phaseNode=extractNode(self.phaseNode), 
@@ -168,7 +170,7 @@ class CactusPhasesJob(CactusJob):
     
     def makeFollowOnPhaseJob(self, job, phaseName, index=0, checkpoint = False):
         return self.addFollowOn(job(cactusWorkflowArguments=self.cactusWorkflowArguments, phaseName=phaseName, 
-                                      topFlowerName=self.topFlowerName, index=index, cactusSequencesID = self.cactusSequencesID, checkpoint = checkpoint)).rv()
+                                      topFlowerName=self.topFlowerName, index=index, cactusSequencesID = self.cactusSequencesID, checkpoint = checkpoint, halID=self.halID, fastaID=self.fastaID)).rv()
         
     def runPhase(self, recursiveJob, nextPhaseJob, nextPhaseName, doRecursion=True, index=0, launchSecondaryKtForRecursiveJob=False, updateDatabase=False):
         """
@@ -1120,36 +1122,31 @@ class CactusCheckWrapper(CactusRecursionJob):
 
 class CactusHalGeneratorPhase(CactusPhasesJob):
     def run(self, fileStore):
-        halID = None
-        fastaID = None
         referenceNode = findRequiredNode(self.cactusWorkflowArguments.configNode, "reference")
         if referenceNode.attrib.has_key("reference"):
             self.phaseNode.attrib["reference"] = referenceNode.attrib["reference"]
         if self.getOptionalPhaseAttrib("buildFasta", bool, default=False):
             self.phaseNode.attrib["fastaPath"] = self.cactusWorkflowArguments.experimentNode.find("hal").attrib["fastaPath"]
-            fastaID = self.makeRecursiveChildJob(CactusFastaGenerator)
+            self.fastaID = self.makeRecursiveChildJob(CactusFastaGenerator)
+        return self.makeFollowOnPhaseJob(CactusHalGeneratorPhase2, "hal")
+
+class CactusHalGeneratorPhase2(CactusPhasesJob):
+    def run(self, fileStore):
         if self.getOptionalPhaseAttrib("buildHal", bool, default=False):
             self.setupSecondaryDatabase()
             self.phaseNode.attrib["experimentPath"] = self.cactusWorkflowArguments.experimentFile
             self.phaseNode.attrib["secondaryDatabaseString"] = self.cactusWorkflowArguments.secondaryDatabaseString
             self.phaseNode.attrib["outputFile"]=self.cactusWorkflowArguments.experimentNode.find("hal").attrib["halPath"]
-            halID = self.makeRecursiveChildJob(CactusHalGeneratorRecursion, launchSecondaryKtForRecursiveJob=True)
-        
-        return self.addFollowOn(CactusHalGenerator2(halID=halID, fastaID=fastaID, experimentWrapper=self.cactusWorkflowArguments.experimentWrapper)).rv()
 
-class CactusHalGenerator2(Job):
-    def __init__(self, halID, fastaID, experimentWrapper):
-        Job.__init__(self)
-        self.halID = halID
-        self.fastaID = fastaID
-        self.experimentWrapper = experimentWrapper
+            self.halID = self.makeRecursiveChildJob(CactusHalGeneratorRecursion, launchSecondaryKtForRecursiveJob=True)
 
+        return self.makeFollowOnPhaseJob(CactusHalGeneratorPhase3, "hal")
+
+class CactusHalGeneratorPhase3(CactusPhasesJob):
     def run(self, fileStore):
-        self.experimentWrapper.setHalID(self.halID)
-        self.experimentWrapper.setHalFastaID(self.fastaID)
-        return self.experimentWrapper
-                                
-
+        self.cactusWorkflowArguments.experimentWrapper.setHalID(self.halID)
+        self.cactusWorkflowArguments.experimentWrapper.setHalFastaID(self.fastaID)
+        return self.cactusWorkflowArguments.experimentWrapper
         
 class CactusFastaGenerator(CactusRecursionJob):
     def run(self, fileStore):
