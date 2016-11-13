@@ -376,7 +376,7 @@ def main():
                       " defaults", default=None)
     parser.add_argument("--database", dest="database",
                       help="Database type: tokyo_cabinet or kyoto_tycoon"
-                      " [default: %default]",
+                      " [default: %(default)s]",
                       default="kyoto_tycoon")
     parser.add_argument("--outputMaf", dest="outputMaf",
                       help="[DEPRECATED use hal2maf on the ouput file instead] Path of output alignment in .maf format.  This option should be avoided and will soon be removed.  It may cause sequence names to be mangled, and use a tremendous amount of memory. ",
@@ -423,7 +423,7 @@ def main():
                           "via the --database option.")
     ktGroup.add_argument("--ktPort", dest="ktPort",
                        help="starting port (lower bound of range) of ktservers"
-                       " [default: %default]",
+                       " [default: %(default)d]",
                        default=1978)
     ktGroup.add_argument("--ktHost", dest="ktHost",
                        help="The hostname to use for connections to the "
@@ -434,7 +434,7 @@ def main():
     ktGroup.add_argument("--ktType", dest="ktType",
                        help="Kyoto Tycoon server type "
                        "(memory, snapshot, or disk)"
-                       " [default: %default]",
+                       " [default: %(default)s]",
                        default='memory')
     # sonlib doesn't allow for spaces in attributes in the db conf
     # which renders this options useless
