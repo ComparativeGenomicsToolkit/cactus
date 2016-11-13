@@ -413,8 +413,6 @@ def main():
                       "in the tree may be used as outgroups but will never appear"
                       " in the output.  If no root is specifed then the root"
                       " of the tree is used. ", default=None)
-    parser.add_argument("--resume", dest="resume", 
-                      help="Resume the workflow", action="store_true")
 
     #Kyoto Tycoon Options
     ktGroup = parser.add_argument_group("kyoto_tycoon Options",
@@ -504,7 +502,7 @@ def main():
         project.writeXML(pjPath)
 
         #Run the workflow
-        if options.resume:
+        if options.restart:
             halID = toil.restart()
 
         else:
