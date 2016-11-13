@@ -35,11 +35,11 @@ class KtServerService(Job.Service):
 
 
 
-    def start(self, fileStore):
+    def start(self, job):
         if self.isSecondary == False:
-            self.dbElem.setDbDir(os.path.join(fileStore.getLocalTempDir(), "cactusDB"))
+            self.dbElem.setDbDir(os.path.join(job.fileStore.getLocalTempDir(), "cactusDB"))
         else:
-            self.dbElem.setDbDir(os.path.join(fileStore.getLocalTempDir(), "tempDB/"))
+            self.dbElem.setDbDir(os.path.join(job.fileStore.getLocalTempDir(), "tempDB/"))
 
         if not os.path.exists(self.dbElem.getDbDir()):
             os.mkdir(self.dbElem.getDbDir())
@@ -50,14 +50,14 @@ class KtServerService(Job.Service):
         killSwitchFile.close()
 
 
-        self.process = runKtserver(self.dbElem, self.killSwitchPath, fileStore = fileStore)
+        self.process = runKtserver(self.dbElem, self.killSwitchPath, fileStore = job.fileStore)
         assert self.dbElem.getDbHost() != None
         
         blockUntilKtserverIsRunnning(self.dbElem, self.killSwitchPath, self.blockTimeout, self.blockTimestep)
         return self.dbElem.getConfString()
         
 
-    def stop(self, fileStore):
+    def stop(self, job):
         if self.process:
             self.process.kill()
         logPath = getLogPath(self.dbElem)
