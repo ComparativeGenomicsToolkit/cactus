@@ -326,7 +326,6 @@ def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC
             opts = "\'{0}\' \'{1}\' \'{2}\' \'{3}\'".format(os.path.basename(subHALPath), os.path.basename(halFastaPath), expTreeString, os.path.basename(HALPath))
             
             if len(outgroups) > 0:
-                outgroups = [os.path.basename(outgroup) for outgroup in outgroups]
                 opts += " --outgroups {0}".format(",".join(outgroups))
             if cacheBytes is not None:
                 opts += " --cacheBytes {0}".format(cacheBytes)

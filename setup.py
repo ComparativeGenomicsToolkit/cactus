@@ -1,4 +1,7 @@
 from setuptools import setup, find_packages
+import os
+
+os.system("pip install git+https://github.com/ComparativeGenomicsToolkit/sonLib@toil")
 
 setup(
     name="progressiveCactus",
@@ -9,7 +12,8 @@ setup(
 
     install_requires=[
         'psutil',
-        'networkx'],
+        'networkx',
+        'toil_lib==1.2.0a1.dev119'],
     
     entry_points={
         'console_scripts': [
