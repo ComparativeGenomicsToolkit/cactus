@@ -8,11 +8,11 @@ finish() {
 trap finish EXIT
 
 options=""
-for arg in "${@:2}"
+for arg in "$@"
 do
     options="$options '${arg}'"
 done
 
->&2 echo "Running comand " /home/cactus/bin/$1 "${options}"
-eval /home/cactus/bin/$1 "${options}"
+>&2 echo "Running comand ${options}"
+eval "${options}"
 

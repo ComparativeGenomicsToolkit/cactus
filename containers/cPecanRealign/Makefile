@@ -2,7 +2,7 @@ build_output = cPecanRealign
 build_tool = runtime-container.DONE
 runtime_fullpath = $(realpath .)
 git_commit ?= $(shell git log --pretty=oneline -n 1 -- ../cPecanRealign | cut -f1 -d " ")
-name = cpecan-realign
+name = quay.io/adderan/cpecan-realign
 tag = 1.0--${git_commit}
 
 build: ../cPecan/Dockerfile Dockerfile

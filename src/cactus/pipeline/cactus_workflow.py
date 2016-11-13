@@ -1069,7 +1069,7 @@ class CactusExtractReferencePhase(CactusPhasesJob):
                 if eventName.find('.') >= 0:
                     eventName = eventName[:eventName.rfind('.')]
                     referencePath = fileStore.getLocalTempFile()
-                    cactus_call(tool="cactus",
+                    cactus_call(tool="quay.io/adderan/cactus",
                                 parameters=["cactus_getReferenceSeq"],
                                 option_string="--cactusDisk '%s' --cactusSequencesPath '%s' --flowerName 0 --referenceEventString %s --outputFile %s --logLevel %s" % 
                               (self.cactusWorkflowArguments.cactusDiskDatabaseString, os.path.basename(self.cactusSequencesPath), 

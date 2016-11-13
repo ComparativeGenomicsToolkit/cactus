@@ -34,6 +34,7 @@ from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import findRequiredNode
 from cactus.shared.common import makeURL
 from cactus.shared.common import catFiles
+from cactus.shared.common import cactus_call
   
 from toil.job import Job
 from toil.common import Toil
@@ -52,6 +53,8 @@ from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.schedule import Schedule
 from cactus.progressive.projectWrapper import ProjectWrapper
 from cactus.progressive.seqFile import SeqFile
+
+from cactus.shared.nxnewick import NXNewick
 
 class ProgressiveDown(Job):
     def __init__(self, options, project, event, schedule, memory=None, cores=None):
@@ -294,11 +297,7 @@ class RunCactusPreprocessorThenProgressiveDown2(Job):
 
 def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC=None, cacheW0=None, chunk=None, deflate=None, inMemory=False):
 
-    # some quick stats
-    totalTime = time.time()
-    totalAppendTime = 0
-
-    HALPath = job.fileStore.getLocalTempFile()
+    HALPath = "tmp_alignment.hal"
 
     # traverse tree to make sure we are going breadth-first
     tree = project.mcTree
@@ -324,9 +323,10 @@ def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC
             halFastaPath = job.fileStore.readGlobalFile(experiment.getHalFastaID())
 
 
-            opts = "\'{0}\' \'{1}\' \'{2}\' \'{3}\'".format(os.path.basename(subHALPath), os.path.basename(halFastaPath), expTreeStrinqg, HALPath)
+            opts = "\'{0}\' \'{1}\' \'{2}\' \'{3}\'".format(os.path.basename(subHALPath), os.path.basename(halFastaPath), expTreeString, os.path.basename(HALPath))
             
             if len(outgroups) > 0:
+                outgroups = [os.path.basename(outgroup) for outgroup in outgroups]
                 opts += " --outgroups {0}".format(",".join(outgroups))
             if cacheBytes is not None:
                 opts += " --cacheBytes {0}".format(cacheBytes)
@@ -343,7 +343,8 @@ def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC
             if inMemory is True:
                 opts += " --inMemory"
 
-            cactus_call(tool="halAppendCactusSubtree",
+            cactus_call(tool="quay.io/adderan/cactus",
+                        parameters=["halAppendCactusSubtree"],
                         option_string=opts)
 
             

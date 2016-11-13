@@ -2,7 +2,7 @@ build_output = cPecanLastz
 build_tool = runtime-container.DONE
 runtime_fullpath = $(realpath .)
 git_commit ?= $(shell git log --pretty=oneline -n 1 -- ../cPecanLastz | cut -f1 -d " ")
-name = cpecan-lastz
+name = quay.io/adderan/cpecan-lastz
 tag = 1.0--${git_commit}
 
 build: ../cPecan/Dockerfile Dockerfile

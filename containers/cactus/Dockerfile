@@ -16,6 +16,10 @@ RUN git clone https://github.com/ComparativeGenomicsToolkit/pinchesAndCacti.git 
 RUN git clone https://github.com/benedictpaten/cPecan /home/cPecan
 RUN git clone https://github.com/ComparativeGenomicsToolkit/cactus.git /home/cactus
 
+RUN git clone https://github.com/UCSCReconGroup/hdf5 /home/hdf5
+RUN git clone https://github.com/glennhickey/hal /home/hal
+RUN git clone https://github.com/glennhickey/cactus2hal /home/cactus2hal
+
 ENV sonLibRootPath /home/sonLib
 RUN cd /home/sonLib && git pull && git checkout $SON_LIB_COMMIT && make
 RUN cd /home/matchingAndOrdering && git pull && git checkout $MATCHING_AND_ORDERING_COMMIT && make
@@ -24,6 +28,11 @@ RUN cd /home/cPecan && git pull && git checkout $CPECAN_COMMIT && make
 
 RUN cd /home/cactus && git pull && git checkout $CACTUS_COMMIT
 RUN cd /home/cactus && make
+
+RUN cd /home/hdf5 && ./configure --prefix=/home/hdf5 --enable-cxx && CFLAGS=-std=c99 make -e && make install
+ENV PATH $PATH:/home/hdf5/bin
+RUN cd /home/hal && make
+RUN cd /home/cactus2hal && make
 
 
 #HACK - eventually all python code should be pip-installed and not run
@@ -35,6 +44,8 @@ ENV PYTHONPATH $PYTHONPATH:/home/
 #so we need access to it in this container.
 #Ideally cPecanLastz should only be called in the pipeline code
 ENV PATH $PATH:/home/sonLib/bin
+
+ENV PATH $PATH:/home/cactus/bin:/home/cactus2hal/bin
 
 COPY ./wrapper.sh /home/wrapper.sh
 RUN mkdir /data
