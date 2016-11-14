@@ -315,7 +315,7 @@ def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC
             experiment = ExperimentWrapper(ET.parse(experimentFilePath).getroot())
 
             outgroups = experiment.getOutgroupEvents()
-            expTreeString = NXNewick().writeString(experiment.getTree())
+            expTreeString = NXNewick().writeString(experiment.getTree(onlyThisSubtree=True))
             assert len(expTreeString) > 1
             assert experiment.getHalID() is not None
             assert experiment.getHalFastaID() is not None
