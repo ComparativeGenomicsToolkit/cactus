@@ -365,7 +365,7 @@ def main():
 
     parser.add_argument("seqFile", help = "Seq file")
     parser.add_argument("workDir", help = "Work dir")
-    parser.add_argument("outputHal", help = "Output HAL file")
+    parser.add_argument("outputHal", type=str, help = "Output HAL file")
 
     #Progressive Cactus Options
     parser.add_argument("--jobStore", dest="jobStore",
@@ -508,9 +508,7 @@ def main():
         else:
             halID = toil.start(RunCactusPreprocessorThenProgressiveDown(options, project, memory=configWrapper.getDefaultMemory()))
 
-        if options.outputHAL:
-            toil.exportFile(halID, makeURL(options.outputHAL))
-
+        toil.exportFile(halID, makeURL(options.outputHal))
 
 if __name__ == '__main__':
     main()
