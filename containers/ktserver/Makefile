@@ -1,14 +1,11 @@
-build_tool = runtime-container.DONE
-git_commit ?= $(shell git log --pretty=oneline -n 1 -- ../ktserver | cut -f1 -d " ")
+git_commit ?= $(shell git rev-parse HEAD)
 name = quay.io/adderan/ktserver
-tag = 1.0--${git_commit}
+tag = ${git_commit}
 
-build: ${build_tool}
 
-${build_tool}: Dockerfile
+build: Dockerfile
 	docker build -t ${name}:${tag} .
 	docker tag ${name}:${tag} ${name}:latest
-	touch ${build_tool}
 
 push: build
 	# Requires ~/.dockercfg
@@ -17,6 +14,3 @@ push: build
 
 test: build
 	python test.py
-
-clean:
-	-rm ${build_tool}
