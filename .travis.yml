@@ -4,27 +4,30 @@ language: c++
 before_install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get -qq update; fi
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y libtokyocabinet-dev libkyototycoon-dev kyototycoon libkyotocabinet-dev; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install tokyo-cabinet kyoto-cabinet kyoto-tycoon; fi
+# Might be able to get rid of these, since setup.py should take care of them
   - pip install networkx
   - pip install psutil
+  - pip install toil-lib
+  - pip install toil
   - git clone https://github.com/UCSCComparativeGenomics/sonLib.git
   - git clone https://github.com/UCSCComparativeGenomics/matchingAndOrdering.git
   - git clone https://github.com/UCSCComparativeGenomics/pinchesAndCacti.git
-  - git clone https://github.com/benedictpaten/jobTree.git
   - git clone https://github.com/benedictpaten/cPecan.git
 install:
   - export sonLibRootPath=`pwd`/sonLib
   - sh -c 'cd sonLib && make'
   - sh -c 'cd matchingAndOrdering && make'
-  - sh -c 'cd pinchesAndCacti && git checkout phylogeny && make'
-  - sh -c 'cd jobTree && make'
+  - sh -c 'cd pinchesAndCacti && make'
   - sh -c 'cd cPecan && make'
 script:
   - export sonLibRootPath=`pwd`/sonLib
   - make
-  - PATH=./bin:./jobTree/bin:./sonLib/bin:$PATH PYTHONPATH=.:.. make test
+  - sudo python setup.py install
+  - PATH=./bin:./sonLib/bin:$PATH PYTHONPATH=.:src make test
 os:
   - linux
+services:
+  - docker
 env:
   - CGL_DEBUG=1
   - CGL_DEBUG=ultra ASAN_OPTIONS=detect_leaks=0

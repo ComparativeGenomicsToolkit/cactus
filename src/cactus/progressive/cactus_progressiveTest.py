@@ -181,12 +181,12 @@ class TestCase(unittest.TestCase):
                                  buildFasta,
                                  toilStats, subtreeRoot)
 
-    def progressiveFunction(self, experimentFile, jobTreeDir,
+    def progressiveFunction(self, experimentFile, toilDir,
                             batchSystem, buildAvgs,
                             buildReference,
                             buildHal,
                             buildFasta,
-                            jobTreeStats,
+                            toilStats,
                             subtreeRoot=None):
         tempDir = getTempDirectory(os.getcwd())
         tempExperimentDir = os.path.join(tempDir, "exp")

@@ -7,3 +7,5 @@ lib/*
 *.pyc
 /bin
 /lib
+tmp_*
+temporaryCactusDisk
