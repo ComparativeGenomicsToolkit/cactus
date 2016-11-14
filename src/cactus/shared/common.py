@@ -24,6 +24,7 @@ from sonLib.bioio import getTempDirectory
 from sonLib.bioio import nameValue
 from sonLib.bioio import popenCatch, popenPush
 
+
 _log = logging.getLogger(__name__)
 
 
@@ -115,7 +116,7 @@ def runCactusGetFlowers(cactusDiskDatabaseString, cactusSequencesPath, flowerNam
     """
     logLevel = getLogLevelString2(logLevel)
     cactusSequencesPath = os.path.basename(cactusSequencesPath)
-    flowerStrings = cactus_call(tool="quay.io/adderan/cactus", check_output=True, stdin_string=flowerNames,
+    flowerStrings = cactus_call(tool="cactus", check_output=True, stdin_string=flowerNames,
                                 parameters=["cactus_workflow_getFlowers"],
                                 option_string="%s '%s' %s %i %i %i" % 
                                             (logLevel, cactusDiskDatabaseString,
@@ -137,7 +138,7 @@ def runCactusExtendFlowers(cactusDiskDatabaseString, cactusSequencesPath, flower
     """
     logLevel = getLogLevelString2(logLevel)
     cactusSequencesPath = os.path.basename(cactusSequencesPath)
-    flowerStrings = cactus_call(tool="quay.io/adderan/cactus", check_output=True, stdin_string=flowerNames,
+    flowerStrings = cactus_call(tool="cactus", check_output=True, stdin_string=flowerNames,
                                 parameters=["cactus_workflow_extendFlowers"],
                                 option_string="%s '%s' %s %i %i %i" %
                                             (logLevel,
@@ -197,7 +198,7 @@ def runCactusSetup(cactusDiskDatabaseString, cactusSequencesPath, sequences,
     logLevel = getLogLevelString2(logLevel)
     outgroupEvents = nameValue("outgroupEvents", outgroupEvents, str, quotes=True)
     makeEventHeadersAlphaNumeric=nameValue("makeEventHeadersAlphaNumeric", makeEventHeadersAlphaNumeric, bool)
-    masterMessages = cactus_call(tool="quay.io/adderan/cactus", check_output=True,
+    masterMessages = cactus_call(tool="cactus", check_output=True,
                                  parameters=["cactus_setup"] + sequences,
                                  option_string="--speciesTree '%s' --cactusDisk '%s' --cactusSequencesPath '%s' --logLevel %s %s %s" % (newickTreeString, cactusDiskDatabaseString, os.path.basename(cactusSequencesPath), logLevel, outgroupEvents, makeEventHeadersAlphaNumeric))
     
@@ -208,7 +209,7 @@ def runCactusSetup(cactusDiskDatabaseString, cactusSequencesPath, sequences,
 
 def runConvertAlignmentsToInternalNames(cactusDiskString, cactusSequencesPath, alignmentsFile, outputFile, flowerName, isBedFile = False):
     isBedFile = nameValue("bed", isBedFile, bool)
-    cactus_call(tool="quay.io/adderan/cactus", stdin_string=encodeFlowerNames((flowerName,)),
+    cactus_call(tool="cactus", stdin_string=encodeFlowerNames((flowerName,)),
                 option_string="--cactusDisk '%s'" % cactusDiskString,
                 parameters=["cactus_convertAlignmentsToInternalNames",
                             "--cactusSequencesPath", cactusSequencesPath,
@@ -216,7 +217,7 @@ def runConvertAlignmentsToInternalNames(cactusDiskString, cactusSequencesPath, a
                             isBedFile])
     
 def runStripUniqueIDs(cactusDiskString, cactusSequencesPath):
-    cactus_call(tool="quay.io/adderan/cactus",
+    cactus_call(tool="cactus",
                 option_string="--cactusDisk '%s'" % cactusDiskString,
                 parameters=["cactus_stripUniqueIDs",
                             "--cactusSequencesPath", cactusSequencesPath])
@@ -325,7 +326,7 @@ def runCactusCaf(cactusDiskDatabaseString, cactusSequencesPath, alignments,
     proportionOfUnalignedBasesForNewChromosome = nameValue("proportionOfUnalignedBasesForNewChromosome", proportionOfUnalignedBasesForNewChromosome, float)
     maximumMedianSequenceLengthBetweenLinkedEnds = nameValue("maximumMedianSequenceLengthBetweenLinkedEnds", maximumMedianSequenceLengthBetweenLinkedEnds, int)
 
-    masterMessages = cactus_call(tool="quay.io/adderan/cactus", stdin_string=flowerNames, check_output=True,
+    masterMessages = cactus_call(tool="cactus", stdin_string=flowerNames, check_output=True,
                                  option_string="--cactusDisk '%s'" % cactusDiskDatabaseString,
                                  parameters=["cactus_caf",
                                              "--cactusSequencesPath", cactusSequencesPath,
@@ -362,7 +363,7 @@ def runCactusPhylogeny(cactusDiskDatabaseString,
                   flowerNames=encodeFlowerNames((0,)),
                   logLevel=None):
     logLevel = getLogLevelString2(logLevel)
-    cactus_call(tool="quay.io/adderan/cactus", stdin_string=flowerNames,
+    cactus_call(tool="cactus", stdin_string=flowerNames,
                 parameters=["cactus_phylogeny",
                             "--cactusDisk", cactusDiskDatabaseString,
                             "--cactusSequencesPath", cactusSequencesPath,
@@ -371,7 +372,7 @@ def runCactusPhylogeny(cactusDiskDatabaseString,
     
 def runCactusAdjacencies(cactusDiskDatabaseString, flowerNames=encodeFlowerNames((0,)), logLevel=None):
     logLevel = getLogLevelString2(logLevel)
-    cactus_call(tool="quay.io/adderan/cactus", stdin_string=flowerNames,
+    cactus_call(tool="cactus", stdin_string=flowerNames,
                 parameters=["cactus_fillAdjacencies",
                             "--cactusDisk", cactusDiskDatabaseString,
                             "--logLevel", logLevel])
@@ -381,7 +382,7 @@ def runCactusConvertAlignmentToCactus(cactusDiskDatabaseString, cactusSequencesP
     """Takes a cigar file and makes an equivalent cigar file using the internal coordinate system format of cactus.
     """
     logLevel = getLogLevelString2(logLevel)
-    cactus_call(tool="quay.io/adderan/cactus",
+    cactus_call(tool="cactus",
                 parameters=["cactus_workflow_convertAlignmentCoordinates",
                             logLevel, "'%s'" % cactusDiskDatabaseString, cactusSequencesPath,
                             constraintsFile, newConstraintsFile])
@@ -390,7 +391,7 @@ def runCactusFlowerStats(cactusDiskDatabaseString, flowerName, logLevel=None):
     """Prints stats for the given flower
     """
     logLevel = getLogLevelString2(logLevel)
-    flowerStatsString = cactus_call(tool="quay.io/adderan/cactus", check_output=True,
+    flowerStatsString = cactus_call(tool="cactus", check_output=True,
                                     parameters=["cactus_workflow_flowerStats",
                                                 logLevel, "'%s'" % cactusDiskDatabaseString, flowerName])
     return flowerStatsString.split("\n")[0]
@@ -399,7 +400,7 @@ def runCactusMakeNormal(cactusDiskDatabaseString, cactusSequencesPath, flowerNam
     """Makes the given flowers normal (see normalisation for the various phases)
     """
     logLevel = getLogLevelString2(logLevel)
-    cactus_call(tool="quay.io/adderan/cactus", stdin_string=flowerNames,
+    cactus_call(tool="cactus", stdin_string=flowerNames,
                 parameters=["cactus_normalisation",
                             "--cactusDisk", cactusDiskDatabaseString,
                             "--cactusSequencesPath", cactusSequencesPath,
@@ -456,7 +457,7 @@ def runCactusBar(cactusDiskDatabaseString, cactusSequencesPath, flowerNames, log
     minimumCoverageToRescue = nameValue("minimumCoverageToRescue", minimumCoverageToRescue, float)
     minimumNumberOfSpecies = nameValue("minimumNumberOfSpecies", minimumNumberOfSpecies, int)
 
-    masterMessages = cactus_call(tool="quay.io/adderan/cactus", stdin_string=flowerNames, check_output=True,
+    masterMessages = cactus_call(tool="cactus", stdin_string=flowerNames, check_output=True,
                                  option_string="--cactusDisk '%s'" % cactusDiskDatabaseString,
                                  parameters=["cactus_bar",
                                              "--cactusSequencesPath", cactusSequencesPath,
@@ -478,7 +479,7 @@ def runCactusBar(cactusDiskDatabaseString, cactusSequencesPath, flowerNames, log
     return [ i for i in masterMessages.split("\n") if i != '' ]
 
 def runCactusSecondaryDatabase(secondaryDatabaseString, create=True):
-    cactus_call(tool="quay.io/adderan/cactus",
+    cactus_call(tool="cactus",
                 parameters=["cactus_secondaryDatabase",
                 secondaryDatabaseString, create])
             
@@ -511,7 +512,7 @@ def runCactusReference(cactusDiskDatabaseString, cactusSequencesPath, flowerName
     minNumberOfSequencesToSupportAdjacency = nameValue("minNumberOfSequencesToSupportAdjacency", minNumberOfSequencesToSupportAdjacency, int)
     makeScaffolds = nameValue("makeScaffolds", makeScaffolds, bool)
 
-    masterMessages = cactus_call(tool="quay.io/adderan/cactus", stdin_string=flowerNames, check_output=True,
+    masterMessages = cactus_call(tool="cactus", stdin_string=flowerNames, check_output=True,
                 option_string="--cactusDisk '%s'" % cactusDiskDatabaseString,
                 parameters=["cactus_reference",
                             "--cactusSequencesPath", cactusSequencesPath,
@@ -528,7 +529,7 @@ def runCactusAddReferenceCoordinates(cactusDiskDatabaseString, cactusSequencesPa
     referenceEventString = nameValue("referenceEventString", referenceEventString)
     outgroupEventString = nameValue("outgroupEventString", outgroupEventString)
     secondaryDatabaseString = nameValue("secondaryDisk", secondaryDatabaseString, quotes=True)
-    cactus_call(tool="quay.io/adderan/cactus", stdin_string=flowerNames,
+    cactus_call(tool="cactus", stdin_string=flowerNames,
                 option_string="--cactusDisk '%s'" % cactusDiskDatabaseString,
                 parameters=["cactus_addReferenceCoordinates",
                             "--cactusSequencesPath", cactusSequencesPath,
@@ -547,7 +548,7 @@ def runCactusCheck(cactusDiskDatabaseString,
     logLevel = getLogLevelString2(logLevel)
     recursive = nameValue("recursive", recursive, bool)
     checkNormalised = nameValue("checkNormalised", checkNormalised, bool)
-    cactus_call(tool="quay.io/adderan/cactus", stdin_string=flowerNames,
+    cactus_call(tool="cactus", stdin_string=flowerNames,
                 parameters=["cactus_check",
                             "--cactusDisk", cactusDiskDatabaseString,
                             "--cactusSequencesPath", cactusSequencesPath,
@@ -659,7 +660,7 @@ def runCactusHalGenerator(cactusDiskDatabaseString,
     logLevel = getLogLevelString2(logLevel)
     if outputFile:
         outputFile = os.path.basename(outputFile)
-    cactus_call(tool="quay.io/adderan/cactus", stdin_string=flowerNames,
+    cactus_call(tool="cactus", stdin_string=flowerNames,
                 option_string="--cactusDisk '%s' --secondaryDisk '%s'" % (cactusDiskDatabaseString, secondaryDatabaseString),
                 parameters=["cactus_halGenerator",
                             "--cactusSequencesPath", cactusSequencesPath,
@@ -676,7 +677,7 @@ def runCactusFastaGenerator(cactusDiskDatabaseString,
                           referenceEventString=None, 
                           logLevel=None):
     logLevel = getLogLevelString2(logLevel)
-    cactus_call(tool="quay.io/adderan/cactus",
+    cactus_call(tool="cactus",
                 option_string="--cactusDisk '%s'" % cactusDiskDatabaseString,
                 parameters=["cactus_fastaGenerator",
                             "--cactusSequencesPath", cactusSequencesPath,
@@ -686,7 +687,7 @@ def runCactusFastaGenerator(cactusDiskDatabaseString,
                             nameValue("referenceEventString", referenceEventString)])
     
 def runCactusAnalyseAssembly(sequenceFile):
-    return cactus_call(tool="quay.io/adderan/cactus", check_output=True,
+    return cactus_call(tool="cactus", check_output=True,
                 parameters=["cactus_analyseAssembly",
                             sequenceFile])[:-1]
     
@@ -702,8 +703,9 @@ def runLastz(seq1, seq2, alignmentsFile, lastzArguments, work_dir=None):
     #we're adding arguments to the filename
     assert os.path.dirname(seq1) == os.path.dirname(seq2)
     work_dir = os.path.dirname(seq1)
-    cactus_call(tool="quay.io/adderan/cpecan-lastz", work_dir=work_dir, outfile=alignmentsFile,
-                parameters=["--format=cigar",
+    cactus_call(tool="cpecan", work_dir=work_dir, outfile=alignmentsFile,
+                parameters=["cPecanLastz",
+                            "--format=cigar",
                             "--notrivial",
                             lastzArguments,
                             "%s[multiple][nameparse=darkspace]" % os.path.basename(seq1),
@@ -711,27 +713,28 @@ def runLastz(seq1, seq2, alignmentsFile, lastzArguments, work_dir=None):
 
 def runSelfLastz(seq, alignmentsFile, lastzArguments, work_dir=None):
     work_dir = os.path.dirname(seq)
-    cactus_call(tool="quay.io/adderan/cpecan-lastz", work_dir=work_dir, outfile=alignmentsFile,
-                parameters=["--format=cigar",
+    cactus_call(tool="cpecan", work_dir=work_dir, outfile=alignmentsFile,
+                parameters=["cPecanLastz",
+                            "--format=cigar",
                             "--notrivial",
                             lastzArguments,
                             "%s[multiple][nameparse=darkspace]" % os.path.basename(seq),
                             "%s[nameparse=darkspace]" % os.path.basename(seq)])
     
 def runCactusRealign(seq1, seq2, inputAlignmentsFile, outputAlignmentsFile, realignArguments, work_dir=None):
-    cactus_call(tool="quay.io/adderan/cpecan-realign", infile=inputAlignmentsFile, outfile=outputAlignmentsFile, work_dir=work_dir,
-                parameters=[realignArguments, seq1, seq2])
+    cactus_call(tool="cpecan", infile=inputAlignmentsFile, outfile=outputAlignmentsFile, work_dir=work_dir,
+                parameters=["cPecanRealign", realignArguments, seq1, seq2])
 
 def runCactusSelfRealign(seq, inputAlignmentsFile, outputAlignmentsFile, realignArguments, work_dir=None):
-    cactus_call(tool="quay.io/adderan/cpecan-realign", infile=inputAlignmentsFile, outfile=outputAlignmentsFile, work_dir=work_dir,
-                parameters=[realignArguments, seq])
+    cactus_call(tool="cpecan", infile=inputAlignmentsFile, outfile=outputAlignmentsFile, work_dir=work_dir,
+                parameters=["cPecanRealign", realignArguments, seq])
 
 def runCactusCoverage(sequenceFile, alignmentsFile, work_dir=None):
-    return cactus_call(tool="quay.io/adderan/cactus", check_output=True, work_dir=work_dir,
+    return cactus_call(tool="cactus", check_output=True, work_dir=work_dir,
                 parameters=["cactus_coverage", sequenceFile, alignmentsFile])
 
 def runGetChunks(sequenceFiles, chunksDir, chunkSize, overlapSize):
-    return [chunk for chunk in cactus_call(tool="quay.io/adderan/cactus",
+    return [chunk for chunk in cactus_call(tool="cactus",
                                            check_output=True,
                                            parameters=["cactus_blast_chunkSequences",
                                            getLogLevelString(),
@@ -805,6 +808,9 @@ def cactus_call(tool,
     #base_docker_call.extend(['--name', container_name])
     if rm:
         base_docker_call.append('--rm')
+
+
+    tool = "%s/%s:%s" % (os.environ["CACTUS_DOCKSTORE"], tool, os.environ["CACTUS_COMMIT"])
 
     parameters = [par for par in parameters if par != '']
     call = base_docker_call + [tool] + parameters

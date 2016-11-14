@@ -29,7 +29,6 @@ from toil.lib.bioio import getLogLevelString
 from toil.lib.bioio import logger
 from toil.lib.bioio import setLoggingFromOptions
 
-from cactus.shared.common import cactusRootPath
 from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import findRequiredNode
 from cactus.shared.common import makeURL
@@ -342,7 +341,7 @@ def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC
             if inMemory is True:
                 opts += " --inMemory"
 
-            cactus_call(tool="quay.io/adderan/cactus",
+            cactus_call(tool="cactus",
                         parameters=["halAppendCactusSubtree"],
                         option_string=opts)
 
@@ -455,12 +454,17 @@ def main():
     
     parser.add_argument("--event", dest="event", 
                       help="Target event to process [default=root]", default=None)
-    
 
+    parser.add_argument("--dockstore", type=str, default="quay.io/adderan", help="URL where docker containers are located")
+
+    parser.add_argument("--cactus_commit", type=str, default="latest", help="The cactus commit corresponding to the docker containers that will be downloaded")
+    
 
     options = parser.parse_args()
     setLoggingFromOptions(options)
-
+    
+    os.environ["CACTUS_DOCKSTORE"] = options.dockstore
+    os.environ["CACTUS_COMMIT"] = options.cactus_commit
     #Create the progressive cactus project 
     projWrapper = ProjectWrapper(options)
     projWrapper.writeXml()

@@ -18,3 +18,11 @@ RUN cd /home/cPecan && git checkout $CPECAN_COMMIT
 WORKDIR /home/cPecan
 
 RUN make
+
+ENV PATH $PATH:/home/sonLib/bin
+
+COPY ./wrapper.sh /home/wrapper.sh
+RUN mkdir /data
+WORKDIR /data
+
+ENTRYPOINT ["bash", "/home/wrapper.sh"]

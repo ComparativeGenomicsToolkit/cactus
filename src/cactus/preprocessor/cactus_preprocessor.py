@@ -64,7 +64,7 @@ class PreprocessChunk(Job):
             outChunk = fileStore.getLocalTempFile()
             seqPaths = [fileStore.readGlobalFile(fileID) for fileID in self.seqIDs]
             seqString = " ".join(seqPaths)
-            cactus_call(tool="quay.io/adderan/cactus", stdin_string=seqString,
+            cactus_call(tool="cactus", stdin_string=seqString,
                         parameters=["cactus_checkUniqueHeaders.py",
                                     nameValue("checkAssemblyHub", self.prepOptions.checkAssemblyHub, bool),
                                     outChunk])
@@ -105,7 +105,7 @@ class MergeChunks2(Job):
         #Docker expects paths relative to the work dir
         chunkList = [os.path.basename(chunk) for chunk in chunkList]
         outSequencePath = fileStore.getLocalTempFile()
-        cactus_call(tool="quay.io/adderan/cactus", outfile=outSequencePath, stdin_string=" ".join(chunkList),
+        cactus_call(tool="cactus", outfile=outSequencePath, stdin_string=" ".join(chunkList),
                     parameters=["cactus_batch_mergeChunks"])
         return fileStore.writeGlobalFile(outSequencePath)
  
