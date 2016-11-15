@@ -759,7 +759,7 @@ def cactus_call(tool,
                 outfile=None,
                 stdin_string=None,
                 option_string="",
-                dockstore="quay.io/adderan"):
+                dockstore="quay.io/comparative-genomics-toolkit"):
     if parameters is None:
         parameters = []
 

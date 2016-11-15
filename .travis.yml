@@ -13,6 +13,9 @@ before_install:
   - git clone https://github.com/UCSCComparativeGenomics/matchingAndOrdering.git
   - git clone https://github.com/UCSCComparativeGenomics/pinchesAndCacti.git
   - git clone https://github.com/benedictpaten/cPecan.git
+#Build docker containers
+  - docker login --username $QUAY_USERNAME --password $QUAY_PASSWORD quay.io
+  - make docker
 install:
   - export sonLibRootPath=`pwd`/sonLib
   - sh -c 'cd sonLib && make'
