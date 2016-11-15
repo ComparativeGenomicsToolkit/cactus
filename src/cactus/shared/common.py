@@ -756,7 +756,6 @@ def cactus_call(tool,
                 server=False,
                 stdin_string=None,
                 option_string=""):
-
     if parameters is None:
         parameters = []
 
@@ -764,12 +763,11 @@ def cactus_call(tool,
         if os.path.isfile(arg):
             if not os.path.dirname(arg) == work_dir:
                 shutil.copy(arg, work_dir)
-        
+
     if work_dir:
         for arg in parameters:
             moveToWorkDir(work_dir, arg)
-        
-        
+
     parameters = [str(par) for par in parameters]
     if not work_dir:
     #Make sure all the paths we're accessing are in the same directory
@@ -781,12 +779,13 @@ def cactus_call(tool,
         if len(work_dirs) == 1:
             work_dir = work_dirs.pop()
 
-    #If there are no input files, just set the current
-    #directory as the work dir
-    if work_dir is None:
+    #If there are no input files, or if their MRCA is '' (when working
+    #with relative paths), just set the current directory as the work
+    #dir
+    if work_dir is None or work_dir == '':
         work_dir = "."
     _log.info("Docker work dir: %s" % work_dir)
-    
+
     #We'll mount the work_dir containing the paths as /data in the container,
     #so set all the paths to their basenames. The container will access them at
     #/data/<path>
@@ -853,8 +852,8 @@ def cactus_call(tool,
 
     output, nothing = process.communicate(stdin_string)
     if process.returncode != 0:
-        raise RuntimeError("Docker command failed with output: %s" % output)
-    
+        raise RuntimeError("Docker command %s failed with output: %s" % (repr(call_string), output))
+
     # Fix root ownership of output files
     _fix_permissions(base_docker_call, tool, work_dir)
 

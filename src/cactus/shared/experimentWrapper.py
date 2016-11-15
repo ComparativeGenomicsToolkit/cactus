@@ -338,7 +338,6 @@ class ExperimentWrapper(DbElemWrapper):
         return self.xmlRoot.attrib["outputDir"]
     
     def setOutputDir(self, path):
-        assert os.path.isdir(path)
         self.xmlRoot.attrib["outputDir"] = path
         
     def getHALPath(self):

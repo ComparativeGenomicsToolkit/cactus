@@ -27,12 +27,12 @@ class TestCase(unittest.TestCase):
         """Creates a bunch of random inputs and then passes them to cactus setup.
         """
         for test in xrange(self.testNo): 
-            tempDir = getTempDirectory(os.getcwd())
+            tempDir = os.path.relpath(getTempDirectory(os.getcwd()))
             sequenceNumber = random.choice(xrange(100))
             sequences, newickTreeString = getCactusInputs_random(tempDir=tempDir, sequenceNumber=sequenceNumber)
-            
+
             #Setup the flower disk.
-            experiment = getCactusWorkflowExperimentForTest(sequences, newickTreeString, tempDir)
+            experiment = getCactusWorkflowExperimentForTest(sequences, newickTreeString, os.path.join('/data', os.path.relpath(tempDir)))
             cactusDiskDatabaseString = experiment.getDiskDatabaseString()
             cactusSequencesPath = os.path.join(experiment.getDbDir(), "cactusSequences")
             
@@ -40,10 +40,9 @@ class TestCase(unittest.TestCase):
                            cactusSequencesPath=cactusSequencesPath, sequences=sequences,
                            newickTreeString=newickTreeString)
             runCactusSetup(cactusDiskDatabaseString=cactusDiskDatabaseString,
-                           cacusSequencesPath=cactusSequencesPath, sequences=sequences,
+                           cactusSequencesPath=cactusSequencesPath, sequences=sequences,
                            newickTreeString=newickTreeString)
 
-            
             experiment.cleanupDb()
             system("rm -rf %s" % tempDir)
             logger.info("Finished test %i of cactus_setup.py", test) 
