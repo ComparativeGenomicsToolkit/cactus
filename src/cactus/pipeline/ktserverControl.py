@@ -84,10 +84,11 @@ def runKtserver(dbElem, killSwitchPath, maxPortsToTry=100, readOnly = False,
             if __isKtServerOnTakenPort(dbElem, killSwitchPath, pretest=True):
                 logger.info("Ktserver already on port %i" % port)
                 continue
-            ktserver_opts = __getKtserverCommand(dbElem, dbPathExists, readOnly)
-            logger.info("Using ktserver command: %s" % ktserver_opts)
-            process = cactus_call(tool="ktserver", server=True,
-                                  option_string = ktserver_opts)
+            cmd = __getKtserverCommand(dbElem, dbPathExists, readOnly)
+            logger.info("Using ktserver command: %s" % cmd)
+            process = subprocess.Popen(cmd.split(), shell=False,
+                                       stdout=subprocess.PIPE,
+                                       stderr=sys.stderr, bufsize=-1)
             procWaiter = ProcessWaiter(process)
             procWaiter.start()
             __writeStatusToSwitchFile(dbElem, process.pid, killSwitchPath)
@@ -324,8 +325,15 @@ def pingKtServer(dbElem):
         raise RuntimeError("Unable to ping ktserver host %s from %s" % (
             dbElem.getDbHost(), getHostName()))
 
-    return cactus_call(tool="ktremotemgr", check_output=True,
-                       parameters=["report", "-port", str(dbElem.getDbPort()), "-host", dbElem.getDbHost()])
+    cmd = ['docker', 'run', '--interactive', '--log-driver=none', '--net=host',
+                      'quay.io/adderan/ktremotemgr', 'report',
+                      '-port', str(dbElem.getDbPort()),
+                      '-host', dbElem.getDbHost()]
+    logger.info("Ktremotemgr cmd = %s" % cmd)
+    return subprocess.call(cmd,
+                           shell=False, bufsize=-1,
+                           stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE) == 0
 
 ###############################################################################
 # Get a report on a running server
@@ -471,7 +479,7 @@ def __getKtserverCommand(dbElem, exists = False, readOnly = False):
     serverOptions = __getKtServerOptions(dbElem)
     tuning = __getKtTuningOptions(dbElem, exists, readOnly)
     work_dir = os.path.dirname(os.path.abspath(logPath))
-    cmd = "-log %s -port %d %s" % (os.path.basename(logPath), port, serverOptions)
+    cmd = "docker run --interactive -v %s:/data --log-driver=none -p %d:%d --net=host quay.io/adderan/ktserver -log %s -port %d %s" % (os.path.basename(logPath), port, serverOptions)
     if readOnly is True and dbElem.getDbSnapshot() == False:
         cmd += " -ord -onr"
     if dbElem.getDbHost() is not None:

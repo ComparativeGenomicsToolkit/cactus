@@ -753,7 +753,6 @@ def cactus_call(tool,
                 mounts=None,
                 infile=None,
                 outfile=None,
-                server=False,
                 stdin_string=None,
                 option_string=""):
     if parameters is None:
@@ -847,8 +846,6 @@ def cactus_call(tool,
 
     process = subprocess.Popen(call_string, shell=True,
                                stdin=stdinFileHandle, stdout=stdoutFileHandle, stderr=sys.stderr, bufsize=-1)
-    if server:
-        return process
 
     output, nothing = process.communicate(stdin_string)
     if process.returncode != 0:
