@@ -742,6 +742,10 @@ def runGetChunks(sequenceFiles, chunksDir, chunkSize, overlapSize):
                                            chunkSize,
                                            overlapSize,
                                            chunksDir] + sequenceFiles).split("\n") if chunk != ""]
+
+def getCactusCommit():
+    commit = subprocess.check_output("cd %s && git rev-parse HEAD" % os.path.dirname(__file__), shell=True)
+    return commit.rstrip().strip()
     
 def cactus_call(tool,
                 work_dir=None,
@@ -754,7 +758,8 @@ def cactus_call(tool,
                 infile=None,
                 outfile=None,
                 stdin_string=None,
-                option_string=""):
+                option_string="",
+                dockstore="quay.io/adderan"):
     if parameters is None:
         parameters = []
 
@@ -810,7 +815,7 @@ def cactus_call(tool,
         base_docker_call.append('--rm')
 
 
-    tool = "%s/%s:%s" % (os.environ["CACTUS_DOCKSTORE"], tool, os.environ["CACTUS_COMMIT"])
+    tool = "%s/%s:%s" % (dockstore, tool, getCactusCommit())
 
     parameters = [par for par in parameters if par != '']
     call = base_docker_call + [tool] + parameters

@@ -40,7 +40,7 @@ import xml.etree.ElementTree as ET
 from cactus.shared.experimentWrapper import DbElemWrapper
 from cactus.shared.experimentWrapper import ExperimentWrapper
 
-from cactus.shared.common import cactus_call
+from cactus.shared.common import getCactusCommit
 
 ###############################################################################
 # run a server until killSwitchPath gets deleted
@@ -326,7 +326,7 @@ def pingKtServer(dbElem):
             dbElem.getDbHost(), getHostName()))
 
     cmd = ['docker', 'run', '--interactive', '--log-driver=none', '--net=host',
-                      'quay.io/adderan/ktremotemgr', 'report',
+                      'quay.io/adderan/ktremotemgr:%s' % getCactusCommit(), 'report',
                       '-port', str(dbElem.getDbPort()),
                       '-host', dbElem.getDbHost()]
     logger.info("Ktremotemgr cmd = %s" % cmd)
@@ -479,7 +479,7 @@ def __getKtserverCommand(dbElem, exists = False, readOnly = False):
     serverOptions = __getKtServerOptions(dbElem)
     tuning = __getKtTuningOptions(dbElem, exists, readOnly)
     work_dir = os.path.dirname(os.path.abspath(logPath))
-    cmd = "docker run --interactive -v %s:/data --log-driver=none -p %d:%d --net=host quay.io/adderan/ktserver -log %s -port %d %s" % (os.path.basename(logPath), port, serverOptions)
+    cmd = "docker run --interactive -v %s:/data --log-driver=none -p %d:%d --net=host quay.io/adderan/ktserver:%s -log %s -port %d %s" % (work_dir, port, port, getCactusCommit(), os.path.basename(logPath), port, serverOptions)
     if readOnly is True and dbElem.getDbSnapshot() == False:
         cmd += " -ord -onr"
     if dbElem.getDbHost() is not None:

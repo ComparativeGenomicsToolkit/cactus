@@ -21,9 +21,6 @@ install:
   - sh -c 'cd cPecan && make'
 script:
   - export sonLibRootPath=`pwd`/sonLib
-  - export CACTUS_DOCKSTORE=quay.io/adderan
-# This should be changed to $TRAVIS_COMMIT once we get Docker builds & pushes working
-  - export CACTUS_COMMIT=latest
   - make
   - sudo -H python setup.py install
   - PATH=./bin:./sonLib/bin:$PATH PYTHONPATH=.:src make test

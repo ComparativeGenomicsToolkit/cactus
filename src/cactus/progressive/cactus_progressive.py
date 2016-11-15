@@ -455,16 +455,10 @@ def main():
     parser.add_argument("--event", dest="event", 
                       help="Target event to process [default=root]", default=None)
 
-    parser.add_argument("--dockstore", type=str, default="quay.io/adderan", help="URL where docker containers are located")
-
-    parser.add_argument("--cactus_commit", type=str, default="latest", help="The cactus commit corresponding to the docker containers that will be downloaded")
-    
 
     options = parser.parse_args()
     setLoggingFromOptions(options)
     
-    os.environ["CACTUS_DOCKSTORE"] = options.dockstore
-    os.environ["CACTUS_COMMIT"] = options.cactus_commit
     #Create the progressive cactus project 
     projWrapper = ProjectWrapper(options)
     projWrapper.writeXml()

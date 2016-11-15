@@ -16,3 +16,6 @@ clean.%:
 
 test: all
 	python allTests.py
+
+docker:
+	cd containers && make

@@ -14,3 +14,5 @@ dist
 *.egg-info
 *.a
 cactusSequences
+*~
+.cache
