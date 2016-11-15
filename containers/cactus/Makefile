@@ -1,5 +1,6 @@
-git_commit ?= $(shell git rev-parse HEAD)
-name = quay.io/adderan/cactus
+include ../include.mk
+
+name = ${dockstore}/cactus
 tag = ${git_commit}
 
 build: Dockerfile

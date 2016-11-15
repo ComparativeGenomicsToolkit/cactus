@@ -1,5 +1,6 @@
-git_commit ?= $(shell git rev-parse HEAD)
-name = quay.io/adderan/cpecan
+include ../include.mk
+
+name = ${dockstore}/cpecan
 tag = ${git_commit}
 
 

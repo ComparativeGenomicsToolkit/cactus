@@ -1,5 +1,6 @@
-git_commit ?= $(shell git rev-parse HEAD)
-name = quay.io/adderan/ktserver
+include ../include.mk
+
+name = ${dockstore}/ktserver
 tag = ${git_commit}
 
 
@@ -10,7 +11,6 @@ build: Dockerfile
 push: build
 	# Requires ~/.dockercfg
 	docker push ${name}:${tag}
-	docker push ${name}:latest
 
 test: build
 	python test.py

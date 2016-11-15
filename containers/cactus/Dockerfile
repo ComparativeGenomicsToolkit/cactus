@@ -24,15 +24,22 @@ ENV sonLibRootPath /home/sonLib
 RUN cd /home/sonLib && git pull && git checkout $SON_LIB_COMMIT && make
 RUN cd /home/matchingAndOrdering && git pull && git checkout $MATCHING_AND_ORDERING_COMMIT && make
 RUN cd /home/pinchesAndCacti && git pull && git checkout $PINCHES_AND_CACTI_COMMIT && make
-RUN cd /home/cPecan && git pull && git checkout $CPECAN_COMMIT && make
+RUN cd /home/cPecan && git pull && git checkout $CPECAN_COMMIT && make 2> /dev/null
 
 RUN cd /home/cactus && git pull && git checkout $CACTUS_COMMIT
 RUN cd /home/cactus && make
 
-RUN cd /home/hdf5 && ./configure --prefix=/home/hdf5 --enable-cxx && CFLAGS=-std=c99 make -e && make install
+WORKDIR /home/hdf5
+RUN ./configure --prefix=/home/hdf5 --enable-cxx 2> /dev/null
+RUN CFLAGS=-std=c99 make -e 2> /dev/null
+RUN make install 2> /dev/null
 ENV PATH $PATH:/home/hdf5/bin
-RUN cd /home/hal && make
-RUN cd /home/cactus2hal && make
+
+WORKDIR /home/hal
+RUN make 2> /dev/null
+
+WORKDIR /home/cactus2hal
+RUN make 2> /dev/null
 
 
 #HACK - eventually all python code should be pip-installed and not run
