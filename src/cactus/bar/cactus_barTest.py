@@ -21,8 +21,8 @@ from sonLib.bioio import getLogLevelString
 from cactus.shared.common import runCactusWorkflow
 
 from cactus.shared.test import getCactusWorkflowExperimentForTest
-
-from jobTree.src.common import runJobTreeStatusAndFailIfNotComplete
+from cactus.shared.test import silentOnSuccess
+from cactus.shared.common import runToilStatusAndFailIfNotComplete
 
 """Tests cactus_bar. Requires the installation of cactusTools and mafTools.
 """
@@ -77,21 +77,20 @@ class TestCase(unittest.TestCase):
                 fastaWrite(fileHandle, header, sequence)
                 fileHandle.close()
             logger.info("Got the temp sequence files")
-            
+
             experiment = getCactusWorkflowExperimentForTest(tempFastaFiles, newickTreeString, testDir)
             experimentFile = os.path.join(testDir, "experiment.xml")
             experiment.writeXML(experimentFile)
             cactusDiskDatabaseString = experiment.getDiskDatabaseString()
-            
-            jobTree = os.path.join(testDir, "jobTree")
-            
-            runCactusWorkflow(experimentFile, jobTree)
+
+            toilDir = os.path.join(testDir, "jobStore")
+
+            runCactusWorkflow(experimentFile, toilDir)
             logger.info("Ran the the workflow")
-            
-            #Check the output alignment
-            runJobTreeStatusAndFailIfNotComplete(jobTree)
-            logger.info("Checked the job tree dir")
-            
+
+            runToilStatusAndFailIfNotComplete(toilDir)
+            logger.info("Checked the toil status")
+
             #Output the 'TRUE' alignment file
             if os.system("mfaToMaf --help > /dev/null 2>&1") == 0 and\
                os.system("cactus_MAFGenerator --help > /dev/null 2>&1") == 0 and\
@@ -130,6 +129,7 @@ class TestCase(unittest.TestCase):
                 os.remove(tempFile)
             system("rm -rf %s" % tempDir)
     
+    @silentOnSuccess
     def testPosetAlignerAPI(self):
         """Run all the cactus base aligner CuTests, fail if any of them fail.
         """
