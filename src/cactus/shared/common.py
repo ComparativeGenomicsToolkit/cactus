@@ -65,9 +65,9 @@ def cactusRootPath():
     """
     function for finding external location
     """
-    import cactus.shared.test
-    i = os.path.abspath(cactus.shared.test.__file__)
-    return os.path.split(os.path.split(os.path.split(os.path.split(i)[0])[0])[0])[0]
+    import cactus
+    i = os.path.abspath(cactus.__file__)
+    return os.path.split(i)[0]
 
 def getLogLevelString2(logLevelString):
     """Gets the log level string for the binary

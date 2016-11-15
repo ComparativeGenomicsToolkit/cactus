@@ -7,8 +7,8 @@ before_install:
 # Might be able to get rid of these, since setup.py should take care of them
   - pip install networkx
   - pip install psutil
-  - pip install toil-lib
   - pip install toil
+  - pip install toil-lib
   - git clone https://github.com/UCSCComparativeGenomics/sonLib.git
   - git clone https://github.com/UCSCComparativeGenomics/matchingAndOrdering.git
   - git clone https://github.com/UCSCComparativeGenomics/pinchesAndCacti.git
@@ -22,7 +22,7 @@ install:
 script:
   - export sonLibRootPath=`pwd`/sonLib
   - make
-  - sudo python setup.py install
+  - sudo -H python setup.py install
   - PATH=./bin:./sonLib/bin:$PATH PYTHONPATH=.:src make test
 os:
   - linux

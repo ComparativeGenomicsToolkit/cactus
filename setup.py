@@ -9,6 +9,10 @@ setup(
     author="Benedict Paten",
     package_dir = {'': 'src'},
     packages=find_packages(where='src'),
+    include_package_data=True,
+    package_data={'cactus': ['*_config.xml']},
+    # We use the __file__ attribute so this package isn't zip_safe.
+    zip_safe=False,
 
     install_requires=[
         'psutil',
