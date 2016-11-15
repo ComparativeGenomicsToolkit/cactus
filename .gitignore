@@ -9,3 +9,8 @@ lib/*
 /lib
 tmp_*
 temporaryCactusDisk
+build
+dist
+*.egg-info
+*.a
+cactusSequences

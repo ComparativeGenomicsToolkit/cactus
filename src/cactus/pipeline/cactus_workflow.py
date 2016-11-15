@@ -34,7 +34,6 @@ from sonLib.bioio import getLogLevelString
 
 
 from cactus.progressive.multiCactusTree import MultiCactusTree
-from cactus.shared.common import cactusRootPath
 from cactus.shared.common import makeURL
 from cactus.shared.common import cactus_call
   
@@ -1300,7 +1299,7 @@ class RunCactusPreprocessorThenCactusSetup(Job):
             self.addFollowOn(CactusSetupPhase(cactusWorkflowArguments=self.cactusWorkflowArguments,
                                                     phaseName="setup"))
         
-def main():
+def runCactusWorkflow(args):
     ##########################################
     #Construct the arguments.
     ##########################################
@@ -1309,7 +1308,7 @@ def main():
     Job.Runner.addToilOptions(parser)
     addCactusWorkflowOptions(parser)
         
-    options = parser.parse_args()
+    options = parser.parse_args(args)
     if options.test:
         _test()
     setLoggingFromOptions(options)
@@ -1341,4 +1340,4 @@ def _test():
 
 if __name__ == '__main__':
     from cactus.pipeline.cactus_workflow import *
-    main()
+    runCactusWorkflow(sys.argv)

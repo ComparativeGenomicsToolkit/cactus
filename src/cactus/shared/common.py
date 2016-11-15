@@ -24,7 +24,6 @@ from sonLib.bioio import getTempDirectory
 from sonLib.bioio import nameValue
 from sonLib.bioio import popenCatch, popenPush
 
-
 _log = logging.getLogger(__name__)
 
 
@@ -603,10 +602,12 @@ def runCactusWorkflow(experimentFile,
                       defaultMemory=None,
                       logFile=None,
                       extraToilArgumentsString=""):
-    command = ("cactus_workflow.py --experiment %s" % experimentFile) + " " + _fn(toilDir, 
+    arguments = ("--experiment %s" % experimentFile) + " " + _fn(toilDir,
                       logLevel, retryCount, batchSystem, rescueJobFrequency, skipAlignments,
                       buildAvgs, buildReference, buildHal, buildFasta, toilStats, maxThreads, maxCpus, defaultMemory, logFile, extraToilArgumentsString=extraToilArgumentsString)
-    system(command)
+
+    import cactus.pipeline.cactus_workflow as cactus_workflow
+    cactus_workflow.runCactusWorkflow(arguments.split())
     logger.info("Ran the cactus workflow okay")
     
 def runCactusCreateMultiCactusProject(experimentFile, outputDir, 
