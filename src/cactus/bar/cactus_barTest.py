@@ -34,6 +34,7 @@ class TestCase(unittest.TestCase):
         self.batchSystem = "parasol"
         unittest.TestCase.setUp(self)
 
+    @unittest.skip("")
     def testCactusWorkflow_Blanchette(self): 
         """Runs the workflow on blanchette's simulated (colinear) regions.
         """

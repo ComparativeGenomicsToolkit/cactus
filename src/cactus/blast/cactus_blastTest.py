@@ -56,6 +56,7 @@ class TestCase(unittest.TestCase):
         self.encodePath = os.path.join(TestStatus.getPathToDataSets(), "MAY-2005")
     
     def tearDown(self):
+        pass
         for tempFile in self.tempFiles:
             if os.path.exists(tempFile):
                 os.remove(tempFile)
@@ -227,10 +228,12 @@ class TestCase(unittest.TestCase):
 
         # Get the coverage on the ingroup, in bases, from each run.
         coverageSetVsSetUnfiltered = getTempFile(rootDir=self.tempDir)
-        calculateCoverage(sequenceFile=ingroupPath, cigarFile=self.tempOutputFile, outputFile=coverageSetVsSetUnfiltered)
+        coverageSetVsSetUnfilteredWorkDir = getTempDirectory(rootDir=self.tempDir)
+        calculateCoverage(work_dir=coverageSetVsSetUnfilteredWorkDir, sequenceFile=ingroupPath, cigarFile=self.tempOutputFile, outputFile=coverageSetVsSetUnfiltered)
         coverageSetVsSet = int(popenCatch("cat %s | awk '{ total +=  $3 - $2} END { print total }'" % coverageSetVsSetUnfiltered))
         coverageIngroupVsOutgroupsUnfiltered = getTempFile(rootDir=self.tempDir)
-        calculateCoverage(sequenceFile=ingroupPath, cigarFile=self.tempOutputFile2, outputFile=coverageIngroupVsOutgroupsUnfiltered)
+        coverageIngroupsVsOutgroupsUnfilteredWorkDir = getTempDirectory(rootDir=self.tempDir)
+        calculateCoverage(work_dir=coverageIngroupsVsOutgroupsUnfilteredWorkDir, sequenceFile=ingroupPath, cigarFile=self.tempOutputFile2, outputFile=coverageIngroupVsOutgroupsUnfiltered)
         coverageIngroupVsOutgroups = int(popenCatch("cat %s | awk '{ total +=  $3 - $2} END { print total }'" % coverageIngroupVsOutgroupsUnfiltered))
 
         print "total coverage on human (set vs set mode, %d outgroups): %d" % (len(outgroups), coverageSetVsSet)
@@ -246,7 +249,8 @@ class TestCase(unittest.TestCase):
         outgroupAlignments = getTempFile(rootDir=self.tempDir)
         system("grep %s %s > %s" % (outgroups[-1], self.tempOutputFile, outgroupAlignments))
         coverageFileSetVsSet = getTempFile(rootDir=self.tempDir)
-        calculateCoverage(sequenceFile=ingroupPath, cigarFile=outgroupAlignments, outputFile=coverageFileSetVsSet)
+        coverageSetVsSetWorkDir = getTempDirectory(rootDir=self.tempDir)
+        calculateCoverage(work_dir=coverageSetVsSetWorkDir, sequenceFile=ingroupPath, cigarFile=outgroupAlignments, outputFile=coverageFileSetVsSet)
         
         coverageFromLastOutgroupSetVsSet = int(popenCatch("cat %s | awk '{ total +=  $3 - $2} END { print total }'" % coverageFileSetVsSet))
 
@@ -254,7 +258,8 @@ class TestCase(unittest.TestCase):
         outgroupAlignments = getTempFile(rootDir=self.tempDir)
         system("grep %s %s > %s" % (outgroups[-1], self.tempOutputFile2, outgroupAlignments))
         coverageFileInVsOut = getTempFile(rootDir=self.tempDir)
-        calculateCoverage(sequenceFile=ingroupPath, cigarFile=outgroupAlignments, outputFile=coverageFileSetVsSet)      
+        coverageInVsOutWorkDir = getTempDirectory(rootDir=self.tempDir)
+        calculateCoverage(work_dir=coverageInVsOutWorkDir, sequenceFile=ingroupPath, cigarFile=outgroupAlignments, outputFile=coverageFileInVsOut)      
         coverageFromLastOutgroupInVsOut = int(popenCatch("cat %s | awk '{ total +=  $3 - $2} END { print total }'" % coverageFileInVsOut))
 
         print "total coverage on human from last outgroup in set (%s) (set vs set mode): %d" % (outgroups[-1], coverageFromLastOutgroupSetVsSet)
@@ -456,6 +461,7 @@ def runCactusBlast(sequenceFiles, alignmentsFile, toilDir,
                    targetSequenceFiles=None):
     
     options = Job.Runner.getDefaultOptions(toilDir)
+    options.logLevel = "CRITICAL"
     blastOptions = BlastOptions(chunkSize=chunkSize, overlapSize=overlapSize,
                                 compressFiles=compressFiles,
                                 memory=lastzMemory)
@@ -463,8 +469,8 @@ def runCactusBlast(sequenceFiles, alignmentsFile, toilDir,
         seqIDs = [toil.importFile(makeURL(seqFile)) for seqFile in sequenceFiles]
 
         if targetSequenceFiles:
-            targetSeqIDs = [toil.importFile(makeURL(seqFile)) for seqFile in sequenceFiles]
-            rootJob = BlastSequencesAgainstEachOther(seqIDs, targetSeqIDs, blastOptions=blastOptions)
+            targetSeqIDs = [toil.importFile(makeURL(seqFile)) for seqFile in targetSequenceFiles]
+            rootJob = BlastSequencesAgainstEachOther(sequenceFileIDs1=seqIDs, sequenceFileIDs2=targetSeqIDs, blastOptions=blastOptions)
         else:
             rootJob = BlastSequencesAllAgainstAll(seqIDs, blastOptions)
         alignmentsID = toil.start(rootJob)
@@ -476,6 +482,7 @@ def runCactusBlastIngroupsAndOutgroups(ingroups, outgroups, alignmentsFile, toil
                    lastzMemory=None):
     options = Job.Runner.getDefaultOptions(toilDir)
     options.disableCaching = True
+    options.logLevel = "CRITICAL"
     blastOptions = BlastOptions(chunkSize=chunkSize, overlapSize=overlapSize,
                                 compressFiles=compressFiles,
                                 memory=lastzMemory)

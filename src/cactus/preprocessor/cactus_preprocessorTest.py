@@ -6,6 +6,11 @@ import xml.etree.ElementTree as ET
 from sonLib.bioio import nameValue, logger
 from cactus.preprocessor.cactus_preprocessor import runCactusPreprocessor
 
+from toil.common import Toil
+from toil.job import Job
+from cactus.shared.common import makeURL
+from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import lastzRepeatMaskJob
+
 
 
 """Runs cactus preprocessor using the lastz repeat mask script to show it working.
@@ -62,9 +67,14 @@ class TestCase(PreprocessorTestCase):
              " the total number of bases that are Ns ", totalNBases
              
             #Now compare to running lastz on its own
-            command = "cactus_lastzRepeatMask.py --proportionSampled=0.2 --minPeriod=1 --lastzOpts='--step=1 --ambiguous=iupac,100 --ungapped --queryhsplimit=keep,nowarn:30' --fragment=200 %s %s" % \
-                       (sequenceFile, self.tempOutputFile) 
-            popenPush(command, sequenceFile)
+            toilOptions = Job.Runner.getDefaultOptions(os.path.join(self.tempDir, "lastzRepeatMaskToil"))
+            toilOptions.logLevel = "CRITICAL"
+            with Toil(toilOptions) as toil:
+                queryID = toil.importFile(makeURL(sequenceFile))
+                targetIDs = [queryID]
+                repeatMaskedID = toil.start(Job.wrapJobFn(lastzRepeatMaskJob, queryID=queryID, targetIDs=targetIDs, lastzOpts='--step=1 --ambiguous=iupac,100 --ungapped --queryhsplimit=keep,nowarn:30', minPeriod=1, proportionSampled=0.2, fragment=200))
+                toil.exportFile(repeatMaskedID, makeURL(self.tempOutputFile))
+                
             lastzSequencesFast = getSequences(self.tempOutputFile)
             maskedBasesLastzMaskedFast = getMaskedBases(lastzSequencesFast)
             

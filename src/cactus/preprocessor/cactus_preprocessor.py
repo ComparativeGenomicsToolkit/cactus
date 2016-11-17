@@ -283,6 +283,7 @@ def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil):
 
 def runCactusPreprocessor(outputSequenceDir, configFile, inputSequences, toilDir):
     toilOptions = Job.Runner.getDefaultOptions(toilDir)
+    toilOptions.logLevel = "CRITICAL"
     with Toil(toilOptions) as toil:
         stageWorkflow(outputSequenceDir, configFile, inputSequences, toil)
                     
