@@ -540,14 +540,13 @@ def percentCoverage(sequenceFile, coverageFile):
 def calculateCoverage(sequenceFile, cigarFile, outputFile, fromGenome=None, depthById=False, work_dir=None):
     logger.info("Calculating coverage of cigar file %s on %s, writing to %s" % (
         cigarFile, sequenceFile, outputFile))
-    if fromGenome:
-        fromGenome = os.path.basename(fromGenome)
+    fromGenome = nameValue("from", fromGenome).split()
     cactus_call(tool="cactus", outfile=outputFile, work_dir=work_dir,
                 parameters=["cactus_coverage",
                             sequenceFile,
-                            cigarFile,
-                            nameValue("from", fromGenome),
-                            nameValue("depthById", depthById, bool)])
+                            cigarFile] +
+                            fromGenome +
+                            [nameValue("depthById", depthById, bool)])
 
 def trimGenome(sequenceFile, coverageFile, outputFile, complement=False,
                flanking=0, minSize=1, windowSize=10, threshold=1, depth=None):

@@ -15,11 +15,13 @@ from cactus.shared.test import silentOnSuccess
 
 class TestCase(unittest.TestCase):
     @silentOnSuccess
+    @unittest.skip("")
     def testCactusNormalisation_Random(self):
         runWorkflow_multipleExamples(getCactusInputs_random,
                                      testNumber=TestStatus.getTestSetup())
 
-    @silentOnSuccess        
+    @silentOnSuccess
+    @unittest.skip("")
     def testCactusNormalisation_Blanchette(self):
         runWorkflow_multipleExamples(getCactusInputs_blanchette,
                                      testRestrictions=(TestStatus.TEST_SHORT,), inverseTestRestrictions=True)

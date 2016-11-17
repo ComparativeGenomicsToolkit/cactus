@@ -21,7 +21,6 @@ class TestCase(unittest.TestCase):
         self.tempOutputFile = os.path.join(self.tempDir, "results1.txt")
         self.toilDir = os.path.join(self.tempDir, "toil")
         self.toilOptions = Job.Runner.getDefaultOptions(self.toilDir)
-        self.toilOptions.cleanWorkDir = 'never'
         self.toilOptions.disableCaching = True
     
     def tearDown(self):

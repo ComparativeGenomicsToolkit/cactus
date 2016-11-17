@@ -4,6 +4,7 @@ from cactus.shared.common import cactusRootPath
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 import xml.etree.ElementTree as ET
 from sonLib.bioio import nameValue, logger
+from cactus.preprocessor.cactus_preprocessor import runCactusPreprocessor
 
 
 
@@ -22,17 +23,16 @@ class TestCase(PreprocessorTestCase):
         preprocessor = ET.SubElement(rootElem, "preprocessor")
         preprocessor.attrib["chunkSize"] = "100000"
         preprocessor.attrib["proportionToSample"] = "0.2"
-        preprocessor.attrib["preprocessorString"] = "cactus_lastzRepeatMask.py --proportionSampled=PROPORTION_SAMPLED --fragment=200 --minPeriod=1 --lastzOpts='--step=1 --ambiguous=iupac,100 --ungapped' IN_FILE OUT_FILE"
+        preprocessor.attrib["preprocessJob"] = "lastzRepeatMask"
+        preprocessor.attrib["minPeriod"] = "1"
+        preprocessor.attrib["lastzOpts"] = "--step=1 --ambiguous=iupac,100 --ungapped"
+        preprocessor.attrib["fragment"] = "200"
         fileHandle = open(configFile, "w")
         fileHandle.write(ET.tostring(rootElem))
         fileHandle.close()
         #Run preprocessor
-        inputSequencesStr = nameValue("inputSequences", " ".join(sequenceFiles), quotes=True)
-        outputSequenceDirStr = nameValue("outputSequenceDir", self.tempDir)
-        configFileStr = nameValue("configFile", configFile)
-        tmpToil = "./toil" #os.path.join(self.tempDir, "toil")
-        command = "cactus_preprocessor.py %s --logLevel=DEBUG %s %s %s" % (tmpToil, outputSequenceDirStr, configFileStr, inputSequencesStr)
-        system(command)
+        tmpToil = os.path.join(self.tempDir, "toil")
+        runCactusPreprocessor(outputSequenceDir=self.tempDir, configFile=configFile, inputSequences=sequenceFiles, toilDir=tmpToil)
         
         for sequenceFile, processedSequenceFile in zip(sequenceFiles, CactusPreprocessor.getOutputSequenceFiles(sequenceFiles, self.tempDir)):
             print "sequenceFile: %s" % sequenceFile

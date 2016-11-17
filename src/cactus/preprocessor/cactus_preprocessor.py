@@ -31,6 +31,7 @@ from toil.lib.bioio import setLoggingFromOptions
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import nameValue
 from cactus.shared.common import runGetChunks
+from cactus.shared.common import makeURL
 
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import lastzRepeatMaskJob
 
@@ -268,6 +269,22 @@ class CactusPreprocessor2(Job):
         else:
             logger.info("Adding child batch_preprocessor target")
             return self.addChild(BatchPreprocessor(prepXmlElems, self.inputSequenceID, 0)).rv()
+
+def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil):
+    #Replace any constants
+    configNode = ET.parse(configFile).getroot()
+    outputSequences = CactusPreprocessor.getOutputSequenceFiles(inputSequences, outputSequenceDir)
+    if configNode.find("constants") != None:
+        ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals()
+    inputSequenceIDs = [toil.importFile(makeURL(seq)) for seq in inputSequences]
+    outputSequenceIDs = toil.start(CactusPreprocessor(inputSequenceIDs, configNode))
+    for seqID, path in zip(outputSequenceIDs, outputSequences):
+        toil.exportFile(seqID, makeURL(path))
+
+def runCactusPreprocessor(outputSequenceDir, configFile, inputSequences, toilDir):
+    toilOptions = Job.Runner.getDefaultOptions(toilDir)
+    with Toil(toilOptions) as toil:
+        stageWorkflow(outputSequenceDir, configFile, inputSequences, toil)
                     
 def main():
     usage = "usage: %prog outputSequenceDir configXMLFile inputSequenceFastaFilesxN [options]"
@@ -282,20 +299,8 @@ def main():
     
     if not (options.outputSequenceDir and options.configFile and options.inputSequences):
         raise RuntimeError("Too few input arguments")
-    
-    
-    #Replace any constants
-    configNode = ET.parse(options.configFile).getroot()
-    inputSequences = options.inputSequences.split()
-    outputSequences = CactusPreprocessor.getOutputSequenceFiles(inputSequences, options.outputSequenceDir)
-    if configNode.find("constants") != None:
-        ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals()
-
     with Toil(options) as toil:
-        inputSequenceIDs = [toil.importFile(makeURL(seq)) for seq in inputSequences]
-        outputSequenceIDs = Job.Runner.startToil(CactusPreprocessor(inputSequences, outputSequences, configNode), options)
-        for seqID, path in zip(outputSequenceIDs, outputSequences):
-            toil.exportFile(makeURL(seqID, path))
+        stageWorkflow(outputSquenceDir=options.outputSequenceDir, configFile=options.configFile, inputSequences=options.inputSequences.split(), toil=toil)
 
 def _test():
     import doctest      

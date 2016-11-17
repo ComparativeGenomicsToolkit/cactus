@@ -56,11 +56,11 @@ class TestCase(unittest.TestCase):
         self.encodePath = os.path.join(TestStatus.getPathToDataSets(), "MAY-2005")
     
     def tearDown(self):
-        #for tempFile in self.tempFiles:
-        #    if os.path.exists(tempFile):
-        #        os.remove(tempFile)
+        for tempFile in self.tempFiles:
+            if os.path.exists(tempFile):
+                os.remove(tempFile)
         unittest.TestCase.tearDown(self)
-        #system("rm -rf %s" % self.tempDir)
+        system("rm -rf %s" % self.tempDir)
         
     def runComparisonOfBlastScriptVsNaiveBlast(self, blastMode):
         """We compare the output with a naive run of the blast program, to check the results are nearly
@@ -97,20 +97,20 @@ class TestCase(unittest.TestCase):
                     checkCigar(self.tempOutputFile2)
                     compareResultsFile(self.tempOutputFile, self.tempOutputFile2)
 
-    @unittest.skip("")
+
     def testBlastEncodeAllAgainstAll(self):
         """For each encode region, for set of pairwise species, run 
         cactus_blast.py in all-against-all mode. 
         """
         self.runComparisonOfBlastScriptVsNaiveBlast(blastMode="allAgainstAll")
 
-    @unittest.skip("")
+
     def testBlastEncode(self):
         """For each encode region, for set of pairwise species, run 
         cactus_blast.py in one set of sequences against another set mode. 
         """
         self.runComparisonOfBlastScriptVsNaiveBlast(blastMode="againstEachOther")
-    @unittest.skip("")
+        
     def testAddingOutgroupsImprovesResult(self):
         """Run blast on "ingroup" and "outgroup" encode regions, and ensure
         that adding an extra outgroup only adds alignments if
@@ -203,7 +203,6 @@ class TestCase(unittest.TestCase):
             keptCoverageFile = ingroupCoveragePaths[i]
             self.assertTrue(filecmp.cmp(independentCoverageFile, keptCoverageFile))
 
-    @unittest.skip("")
     def testProgressiveOutgroupsVsAllOutgroups(self):
         """Tests the difference in outgroup coverage on an ingroup when
         running in "ingroups vs. outgroups" mode and "set against set"
@@ -224,7 +223,7 @@ class TestCase(unittest.TestCase):
         # Run in "ingroup vs outgroups" mode, aligning the ingroup vs
         # the outgroups in order, trimming away sequence that's
         # already been aligned.
-        runCactusBlastIngroupsAndOutgroups([ingroupPath], outgroupPaths, alignmentsFile=self.tempOutputFile2, toilDir=self.tempDir)
+        runCactusBlastIngroupsAndOutgroups([ingroupPath], outgroupPaths, alignmentsFile=self.tempOutputFile2, toilDir=os.path.join(self.tempDir, "outgroupToil"))
 
         # Get the coverage on the ingroup, in bases, from each run.
         coverageSetVsSetUnfiltered = getTempFile(rootDir=self.tempDir)
@@ -263,7 +262,6 @@ class TestCase(unittest.TestCase):
 
         self.assertTrue(float(coverageFromLastOutgroupInVsOut)/coverageFromLastOutgroupSetVsSet <= 0.10)
 
-    @unittest.skip("")
     def testBlastParameters(self):
         """Tests if changing parameters of lastz creates results similar to the desired default.
         """
@@ -287,7 +285,6 @@ class TestCase(unittest.TestCase):
                 logger.critical("Comparing blast settings")
                 compareResultsFile(self.tempOutputFile, self.tempOutputFile2, 0.7)
 
-    @unittest.skip("")
     def testBlastRandom(self):
         """Make some sequences, put them in a file, call blast with random parameters 
         and check it runs okay.
@@ -312,7 +309,6 @@ class TestCase(unittest.TestCase):
                 system("cat %s" % self.tempOutputFile)
             system("rm -rf %s " % toilDir)
 
-    @unittest.skip("")
     def testCompression(self):
         tempSeqFile = os.path.join(self.tempDir, "tempSeq.fa")
         tempSeqFile2 = os.path.join(self.tempDir, "tempSeq2.fa")
@@ -474,7 +470,7 @@ def runCactusBlast(sequenceFiles, alignmentsFile, toilDir,
         alignmentsID = toil.start(rootJob)
         toil.exportFile(alignmentsID, makeURL(alignmentsFile))
 
-def runCactusBlastIngroupsAndOutgroups(ingroups, outgroups, alignmentsFile, outgroupFragmentPaths, ingroupCoveragePaths, toilDir, chunkSize=None, overlapSize=None, 
+def runCactusBlastIngroupsAndOutgroups(ingroups, outgroups, alignmentsFile, toilDir, outgroupFragmentPaths=None, ingroupCoveragePaths=None, chunkSize=None, overlapSize=None, 
                    logLevel=None,
                    compressFiles=None,
                    lastzMemory=None):
@@ -492,13 +488,15 @@ def runCactusBlastIngroupsAndOutgroups(ingroups, outgroups, alignmentsFile, outg
         toil.exportFile(alignmentsID, makeURL(alignmentsFile))
         outgroupFragmentIDs = blastResults[1]
         ingroupCoverageIDs = blastResults[2]
-        logger.info("Number of ingroup coverage files: %i" % len(ingroupCoveragePaths))
-        assert len(outgroupFragmentIDs) == len(outgroupFragmentPaths)
-        assert len(ingroupCoverageIDs) == len(ingroupCoveragePaths)
-        for outgroupFragmentID, outgroupFragmentPath in zip(outgroupFragmentIDs, outgroupFragmentPaths):
-            toil.exportFile(outgroupFragmentID, makeURL(outgroupFragmentPath))
-        for ingroupCoverageID, ingroupCoveragePath in zip(ingroupCoverageIDs, ingroupCoveragePaths):
-            toil.exportFile(ingroupCoverageID, makeURL(ingroupCoveragePath))
+
+        if outgroupFragmentPaths:
+            assert len(outgroupFragmentIDs) == len(outgroupFragmentPaths)
+            for outgroupFragmentID, outgroupFragmentPath in zip(outgroupFragmentIDs, outgroupFragmentPaths):
+                toil.exportFile(outgroupFragmentID, makeURL(outgroupFragmentPath))
+        if ingroupCoveragePaths:
+            assert len(ingroupCoverageIDs) == len(ingroupCoveragePaths)
+            for ingroupCoverageID, ingroupCoveragePath in zip(ingroupCoverageIDs, ingroupCoveragePaths):
+                toil.exportFile(ingroupCoverageID, makeURL(ingroupCoveragePath))
 
 
 def main():

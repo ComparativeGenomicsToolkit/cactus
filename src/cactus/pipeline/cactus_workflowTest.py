@@ -79,6 +79,7 @@ class TestCase(unittest.TestCase):
                                      testRestrictions=(TestStatus.TEST_VERY_LONG,),
                                      batchSystem=self.batchSystem, buildToilStats=True)
     @silentOnSuccess
+    @unittest.skip("")
     def testCactus_splitBarJobs(self):
         """Exercise the code paths in bar that only occur on large jobs."""
         # Modify the bar node in the config file so that

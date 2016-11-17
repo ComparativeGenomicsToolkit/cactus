@@ -21,6 +21,8 @@ from cactus.normalisation.cactus_normalisationTest import TestCase as normalisat
 from cactus.progressive.allTests import allSuites as progressiveSuite
 from cactus.shared.commonTest import TestCase as commonTest
 from cactus.preprocessor.allTests import allSuites as preprocessorTest
+from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMaskTest import TestCase as lastzRepeatMaskTest
+from cactus.blast.cactus_realignTest import TestCase as realignTest
 
 def allSuites(): 
     allTests = unittest.TestSuite()
@@ -38,7 +40,7 @@ def allSuites():
                         commonTest]] + 
                         [progressiveSuite()])
     if "SON_TRACE_DATASETS" in os.environ:
-        allTests.addTests([unittest.makeSuite(blastTest), preprocessorTest()])
+        allTests.addTests([unittest.makeSuite(blastTest), preprocessorTest(), unittest.makeSuite(lastzRepeatMaskTest), unittest.makeSuite(realignTest)])
     return allTests
 
 def main():
