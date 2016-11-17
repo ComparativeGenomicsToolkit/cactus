@@ -24,6 +24,8 @@ from sonLib.bioio import getTempDirectory
 from sonLib.bioio import nameValue
 from sonLib.bioio import popenCatch, popenPush
 
+from cactus.shared.version import cactus_commit
+
 _log = logging.getLogger(__name__)
 
 
@@ -743,10 +745,6 @@ def runGetChunks(sequenceFiles, chunksDir, chunkSize, overlapSize):
                                            overlapSize,
                                            chunksDir] + sequenceFiles).split("\n") if chunk != ""]
 
-def getCactusCommit():
-    commit = subprocess.check_output("cd %s && git rev-parse HEAD" % os.path.dirname(__file__), shell=True)
-    return commit.rstrip().strip()
-    
 def cactus_call(tool,
                 work_dir=None,
                 parameters=None,
@@ -815,7 +813,7 @@ def cactus_call(tool,
         base_docker_call.append('--rm')
 
 
-    tool = "%s/%s:%s" % (dockstore, tool, getCactusCommit())
+    tool = "%s/%s:%s" % (dockstore, tool, cactus_commit)
 
     parameters = [par for par in parameters if par != '']
     call = base_docker_call + [tool] + parameters

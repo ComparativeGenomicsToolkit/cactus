@@ -16,3 +16,4 @@ dist
 cactusSequences
 *~
 .cache
+src/cactus/shared/version.py
