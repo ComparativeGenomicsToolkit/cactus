@@ -22,28 +22,33 @@ from sonLib.bioio import getTempFile
 
 class TestCase(unittest.TestCase):
     @silentOnSuccess
+    @unittest.skip("")
     def testCactus_Random_Greedy(self):
         testCactus_Random(self, "greedy")
 
     @silentOnSuccess
+    @unittest.skip("")
     def testCactus_Random_Blossum(self):
         testCactus_Random(self, "blossom5")
 
     @silentOnSuccess
+    @unittest.skip("")
     def testCactus_Random_MaxCardinality(self):
         testCactus_Random(self, "maxCardinality")
 
     @silentOnSuccess
+    @unittest.skip("")
     def testCactus_Random_MaxWeight(self):
         testCactus_Random(self, "maxWeight")
 
     @silentOnSuccess
+    @unittest.skip("")
     def testCactus_Blanchette_Blossum(self):
         testCactus_Blanchette(self, "blossom5")
 
     def testCuTest(self):
         system("referenceTests %s" % getLogLevelString())
-            
+
 def testCactus_Blanchette(self, matchingAlgorithm):
     configFile = getConfigFile(matchingAlgorithm)
     runWorkflow_multipleExamples(getCactusInputs_blanchette, 

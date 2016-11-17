@@ -44,7 +44,6 @@ class TestCase(unittest.TestCase):
         self.assertEquals([(True, "1 13") ], runCactusSplitFlowersBySecondaryGrouping("1 b 13"))
         self.assertEquals([(False, "3 9 1 1"), (False, "2 8 4"), (True, "3 13 7 8")], runCactusSplitFlowersBySecondaryGrouping("8 9 1 1 a -3 4 b 1 7 8"))
 
-    @unittest.expectedFailure
     def testCactusCall(self):
         from cactus.shared.common import cactus_call
         inputFile = getTempFile(rootDir=self.tempDir)

@@ -24,6 +24,7 @@ class TestCase(unittest.TestCase):
         unittest.TestCase.setUp(self)
 
     @silentOnSuccess
+    @unittest.skip("")
     def testEvolver_Primates_Loci1(self):
         if "SON_TRACE_DATASETS" not in os.environ:
             return
@@ -35,6 +36,7 @@ class TestCase(unittest.TestCase):
                                      buildToilStats=True)
 
     @silentOnSuccess
+    @unittest.skip("")
     def testEvolver_Mammals_Loci1(self):
         if "SON_TRACE_DATASETS" not in os.environ:
             return
@@ -46,6 +48,7 @@ class TestCase(unittest.TestCase):
                                      buildToilStats=True)
 
     @silentOnSuccess
+    @unittest.skip("")
     def testEvolver_Primates_Small(self):
         if "SON_TRACE_DATASETS" not in os.environ:
             return
@@ -57,6 +60,7 @@ class TestCase(unittest.TestCase):
                                      buildToilStats=True)
 
     @silentOnSuccess
+    @unittest.skip("")
     def testEvolver_Mammals_Medium(self):
         if "SON_TRACE_DATASETS" not in os.environ:
             return
@@ -68,6 +72,7 @@ class TestCase(unittest.TestCase):
                                      buildToilStats=True)
 
     @silentOnSuccess
+    @unittest.skip("")
     def testEvolver_Primates_Large(self):
         if "SON_TRACE_DATASETS" not in os.environ:
             return
@@ -79,6 +84,7 @@ class TestCase(unittest.TestCase):
                                      buildToilStats=True)
 
     @silentOnSuccess
+    @unittest.skip("")
     def testEvolver_Mammals_Large(self):
         if "SON_TRACE_DATASETS" not in os.environ:
             return

@@ -38,6 +38,7 @@ class TestCase(unittest.TestCase):
         assert self.barNode != None
 
     @silentOnSuccess
+    @unittest.skip("")
     def testCactus_random(self):
         runWorkflow_multipleExamples(getCactusInputs_random, 
                                      testNumber=5,
@@ -46,6 +47,7 @@ class TestCase(unittest.TestCase):
                                      batchSystem=self.batchSystem, buildToilStats=True)
 
     @silentOnSuccess
+    @unittest.skip("")
     def testCactus_randomWithConstraints(self):
         runWorkflow_multipleExamples(getCactusInputs_randomWithConstraints, 
                                      testNumber=5,
@@ -55,6 +57,7 @@ class TestCase(unittest.TestCase):
                                      useConstraints=True)
 
     @silentOnSuccess
+    @unittest.skip("")
     def testCactus_blanchette(self):
         runWorkflow_multipleExamples(getCactusInputs_blanchette, 
                                      testNumber=1,
@@ -62,6 +65,7 @@ class TestCase(unittest.TestCase):
                                      buildAvgs=True, buildReference=True,
                                      batchSystem=self.batchSystem, buildToilStats=True)
     @silentOnSuccess
+    @unittest.skip("")
     def testCactus_encode(self): 
         runWorkflow_multipleExamples(getCactusInputs_encode, 
                                      testNumber=1,
@@ -69,6 +73,7 @@ class TestCase(unittest.TestCase):
                                      buildAvgs=True, buildReference=True,
                                      batchSystem=self.batchSystem, buildToilStats=True)
     @silentOnSuccess
+    @unittest.skip("")
     def testCactus_chromosomes(self):
         runWorkflow_multipleExamples(getCactusInputs_chromosomeX, 
                                      testRestrictions=(TestStatus.TEST_VERY_LONG,),

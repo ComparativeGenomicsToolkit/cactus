@@ -55,6 +55,7 @@ class TestCase(unittest.TestCase):
         system("rm -rf %s" % self.tempDir)
 
     @silentOnSuccess
+    @unittest.skip("")
     def testCactus_Random(self):
         runWorkflow_multipleExamples(getCactusInputs_random,
                                      testNumber=2,
@@ -65,6 +66,7 @@ class TestCase(unittest.TestCase):
                                      cactusWorkflowFunction=self.progressiveFunction)
 
     @silentOnSuccess
+    @unittest.skip("")
     def testCactus_Random_UseOutgroup(self):
         self.useOutgroup = True
         runWorkflow_multipleExamples(getCactusInputs_random,
@@ -75,6 +77,7 @@ class TestCase(unittest.TestCase):
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
     @silentOnSuccess
+    @unittest.skip("")
     def testCactus_Random_UseSubtreeRoot(self):
         """Tests that cactus doesn't crash when aligning a subtree of a larger
         species tree."""
@@ -87,6 +90,7 @@ class TestCase(unittest.TestCase):
                                      cactusWorkflowFunction=self.progressiveWithSubtreeRootFunction)
 
     @silentOnSuccess
+    @unittest.skip("")
     def testCactus_Random_DoSelfAlignment(self):
         self.doSelfAlignment = True
         runWorkflow_multipleExamples(getCactusInputs_random,
@@ -98,6 +102,7 @@ class TestCase(unittest.TestCase):
                                      cactusWorkflowFunction=self.progressiveFunction)
 
     @silentOnSuccess
+    @unittest.skip("")
     def testCactus_Random_UseOutgroupAndDoSelfAlignment(self):
         self.useOutgroup = True
         self.doSelfAlignment = True
@@ -110,6 +115,7 @@ class TestCase(unittest.TestCase):
                                      cactusWorkflowFunction=self.progressiveFunction)
 
     @silentOnSuccess
+    @unittest.skip("")
     def testCactus_Blanchette(self):
         runWorkflow_multipleExamples(getCactusInputs_blanchette,
                                      testNumber=1,
@@ -119,6 +125,7 @@ class TestCase(unittest.TestCase):
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
     @silentOnSuccess
+    @unittest.skip("")
     def testCactus_Blanchette_UseOutgroupAndDoSelfAlignment(self):
         self.useOutgroup = True
         self.doSelfAlignment = True
@@ -139,7 +146,7 @@ class TestCase(unittest.TestCase):
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
     @silentOnSuccess
-
+    @unittest.skip("")
     def testCactus_Chromosomes(self):
         runWorkflow_multipleExamples(getCactusInputs_chromosomeX,
                                      testRestrictions=(TestStatus.TEST_VERY_LONG,),
