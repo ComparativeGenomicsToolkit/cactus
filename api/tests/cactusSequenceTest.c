@@ -130,7 +130,12 @@ void testSequence_addAndGetBigStringsP(CuTest* testCase,
             cactusDisk_destruct(cactusDisk);
             stKVDatabaseConf *conf = stKVDatabaseConf_constructTokyoCabinet(
                         "temporaryCactusDisk");
-            cactusDisk = cactusDisk_construct3(conf, "cactusSequences");
+	    if (sequencesOnDisk) {
+	        cactusDisk = cactusDisk_construct3(conf, "cactusSequences");
+	    }
+	    else {
+	        cactusDisk = cactusDisk_construct(conf, 0);
+	    }
             flower = cactusDisk_getFlower(cactusDisk, flowerName);
             stKVDatabaseConf_destruct(conf);
         }
