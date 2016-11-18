@@ -249,7 +249,7 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
     minimumSequenceLengthForBlast = nameValue("minimumSequenceLengthForBlast", minimumSequenceLengthForBlast, int)
     minimumIngroupDegree = nameValue("minimumIngroupDegree", minimumIngroupDegree, int)
     minimumOutgroupDegree = nameValue("minimumOutgroupDegree", minimumOutgroupDegree, int)
-    singleCopyIngroup = nameValue("singleCopyIngroup", singleCopyIngroup, bool)
+    singleCopyIngroup = nameValue("singleCopyIngroup", singleCopyIngroup)
     singleCopyOutgroup = nameValue("singleCopyOutgroup", singleCopyOutgroup)
     maxAdjacencyComponentSizeRatio = nameValue("maxAdjacencyComponentSizeRatio", maxAdjacencyComponentSizeRatio, float)
     constraints = nameValue("constraints", constraints)

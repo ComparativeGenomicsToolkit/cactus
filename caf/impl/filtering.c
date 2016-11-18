@@ -119,6 +119,13 @@ bool stCaf_filterByRepeatSpecies(stPinchSegment *segment1,
     return checkIntersection(getNames(segment1, flower), getNames(segment2, flower));
 }
 
+bool stCaf_relaxedFilterByRepeatSpecies(stPinchSegment *segment1,
+                                        stPinchSegment *segment2) {
+    return stPinchSegment_getBlock(segment1) != NULL
+        && stPinchSegment_getBlock(segment2) != NULL
+        && checkIntersection(getNames(segment1, flower), getNames(segment2, flower));
+}
+
 /*
  * Functions used for filtering blocks/chains on certain criteria.
  */

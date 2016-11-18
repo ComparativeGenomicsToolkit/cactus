@@ -305,6 +305,7 @@ int main(int argc, char *argv[]) {
     int64_t alignmentTrimLength = 0;
     int64_t *alignmentTrims = NULL;
     bool singleCopyIngroup = 0;
+    bool relaxedSingleCopyIngroup = 0;
     bool singleCopyOutgroup = 0;
     bool relaxedSingleCopyOutgroup = 0;
     int64_t chainLengthForBigFlower = 1000000;
@@ -357,7 +358,7 @@ int main(int argc, char *argv[]) {
                         required_argument, 0, 'n' }, { "deannealingRounds", required_argument, 0, 'o' }, { "minimumDegree",
                         required_argument, 0, 'p' }, { "minimumIngroupDegree", required_argument, 0, 'q' }, {
                         "minimumOutgroupDegree", required_argument, 0, 'r' }, {
-                        "singleCopyIngroup", no_argument, 0, 's' }, { "singleCopyOutgroup", required_argument, 0, 't' }, {
+                        "singleCopyIngroup", required_argument, 0, 's' }, { "singleCopyOutgroup", required_argument, 0, 't' }, {
                         "minimumSequenceLengthForBlast", required_argument, 0, 'v' }, { "maxAdjacencyComponentSizeRatio",
                         required_argument, 0, 'w' }, { "constraints", required_argument, 0, 'x' }, { "minLengthForChromosome",
                         required_argument, 0, 'y' }, { "proportionOfUnalignedBasesForNewChromosome", required_argument, 0, 'z' },
@@ -445,11 +446,23 @@ int main(int argc, char *argv[]) {
                 assert(k == 1);
                 break;
             case 's':
-                singleCopyIngroup = 1;
+                if (strcmp(optarg, "1") == 0) {
+                    singleCopyIngroup = true;
+                    relaxedSingleCopyIngroup = false;
+                } else if (strcmp(optarg, "relaxed") == 0) {
+                    singleCopyIngroup = false;
+                    relaxedSingleCopyIngroup = true;
+                } else if (strcmp(optarg, "0") == 0) {
+                    singleCopyIngroup = false;
+                    relaxedSingleCopyIngroup = false;
+                } else {
+                    st_errAbort("Could not recognize singleCopyIngroup option %s", optarg);
+                }
                 break;
             case 't':
                 if (strcmp(optarg, "1") == 0) {
                     singleCopyOutgroup = true;
+                    relaxedSingleCopyOutgroup = false;
                 } else if (strcmp(optarg, "relaxed") == 0) {
                     singleCopyOutgroup = false;
                     relaxedSingleCopyOutgroup = true;
@@ -737,11 +750,14 @@ int main(int argc, char *argv[]) {
             outgroupThreads = stCaf_getOutgroupThreads(flower, threadSet);
 
             bool sortAlignments = 0;
-            if (singleCopyIngroup) {
+            if (singleCopyIngroup || relaxedSingleCopyIngroup) {
                 sortAlignments = 1;
-                filterFn = stCaf_filterByRepeatSpecies;
-            }
-            else if (singleCopyOutgroup || relaxedSingleCopyOutgroup) {
+                if (singleCopyIngroup) {
+                    filterFn = stCaf_filterByRepeatSpecies;
+                } else if (relaxedSingleCopyIngroup) {
+                    filterFn = stCaf_relaxedFilterByRepeatSpecies;
+                }
+            } else if (singleCopyOutgroup || relaxedSingleCopyOutgroup) {
                 if (stSet_size(outgroupThreads) == 0) {
                     filterFn = NULL;
                     sortAlignments = 0;
