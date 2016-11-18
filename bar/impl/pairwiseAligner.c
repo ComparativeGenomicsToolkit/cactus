@@ -1001,10 +1001,10 @@ static void getBlastPairsForPairwiseAlignmentParametersP(const char *sX, const c
     int64_t lY2 = y - pY;
     assert(lY2 >= 0);
     int64_t matrixSize = (int64_t) lX2 * lY2;
-    if (matrixSize > p->repeatMaskMatrixBiggerThanThis) {
+    if (matrixSize > p->anchorMatrixBiggerThanThis) {
         char *sX2 = stString_getSubString(sX, pX, lX2);
         char *sY2 = stString_getSubString(sY, pY, lY2);
-        stList *unfilteredBottomLevelAnchorPairs = getBlastPairs(sX2, sY2, lX2, lY2, p->constraintDiagonalTrim, 0);
+        stList *unfilteredBottomLevelAnchorPairs = getBlastPairs(sX2, sY2, lX2, lY2, p->constraintDiagonalTrim, matrixSize > p->repeatMaskMatrixBiggerThanThis);
         stList_sort(unfilteredBottomLevelAnchorPairs, (int(*)(const void *, const void *)) stIntTuple_cmpFn);
         stList *bottomLevelAnchorPairs = filterToRemoveOverlap(unfilteredBottomLevelAnchorPairs);
         st_logDebug("Got %" PRIi64 " bottom level anchor pairs, which reduced to %" PRIi64 " after filtering \n",
