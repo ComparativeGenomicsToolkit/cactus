@@ -7,9 +7,9 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install tokyo-cabinet kyoto-cabinet kyoto-tycoon; fi
   - pip install networkx
   - pip install psutil
-  - git clone https://github.com/UCSCComparativeGenomics/sonLib.git
-  - git clone https://github.com/UCSCComparativeGenomics/matchingAndOrdering.git
-  - git clone https://github.com/UCSCComparativeGenomics/pinchesAndCacti.git
+  - git clone https://github.com/ComparativeGenomicsToolkit/sonLib.git
+  - git clone https://github.com/ComparativeGenomicsToolkit/matchingAndOrdering.git
+  - git clone https://github.com/ComparativeGenomicsToolkit/pinchesAndCacti.git
   - git clone https://github.com/benedictpaten/jobTree.git
   - git clone https://github.com/benedictpaten/cPecan.git
 install:
