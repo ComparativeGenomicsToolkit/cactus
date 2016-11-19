@@ -22,7 +22,7 @@ install:
 script:
   - export sonLibRootPath=`pwd`/sonLib
   - make
-  - sudo -H python setup.py install
+  - sudo -H pip install -e .
   - if [[ "$BUILD_CONTAINERS" == 1 ]] ; then make test; fi
 os:
   - linux
@@ -30,5 +30,5 @@ services:
   - docker
 env:
   - BUILD_CONTAINERS=1
-  - CGL_DEBUG=1 BUILD_CONTAINERS=0
-  - CGL_DEBUG=ultra ASAN_OPTIONS=detect_leaks=0 BUILD_CONTAINERS=0
+#  - CGL_DEBUG=1 BUILD_CONTAINERS=0
+#  - CGL_DEBUG=ultra ASAN_OPTIONS=detect_leaks=0 BUILD_CONTAINERS=0
