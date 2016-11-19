@@ -26,7 +26,7 @@ stKVDatabaseConf *testCommon_getTemporaryKVDatabaseConf();
  * Removes from disk and temporary KV database created in the location pointed
  * to by the testCommon_getTemporaryKVDatabaseConf file.
  */
-void testCommon_deleteTemporaryKVDatabase();
+void testCommon_deleteTemporaryKVDatabase(bool sequencesOnDisk);
 
 /*
  * Gets a temporary cactus disk, must call testCommon_deleteTemporaryCactusDisk

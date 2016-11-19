@@ -475,6 +475,27 @@ static void cactusDisk_writeBinaryRepresentation(CactusDisk *cactusDisk,
     binaryRepresentation_writeElementType(CODE_CACTUS_DISK, writeFn);
 }
 
+static void cactusDisk_loadFromBinaryRepresentation(void **binaryString, CactusDisk *cactusDisk, stKVDatabaseConf *conf) {
+    cactusDisk->sequencesReadFileHandle = NULL;
+    cactusDisk->sequencesWriteFileHandle = NULL; //I think these lines are not needed.
+    cactusDisk->sequencesFileName = NULL;
+    cactusDisk->absSequencesFileName = NULL;
+    assert(binaryRepresentation_peekNextElementType(*binaryString) == CODE_CACTUS_DISK);
+    binaryRepresentation_popNextElementType(binaryString);
+    cactusDisk->storeSequencesInAFile = binaryRepresentation_getBool(binaryString);
+    if (cactusDisk->storeSequencesInAFile) {
+	cactusDisk->sequencesFileName = binaryRepresentation_getString(binaryString);
+	if (stKVDatabaseConf_getDir(conf) == NULL) {
+	    stThrowNew(CACTUS_DISK_EXCEPTION_ID,
+		       "The database conf does not contain a directory in which the sequence file is to be found!\n");
+	}
+	cactusDisk->absSequencesFileName = stString_print("%s/%s", stKVDatabaseConf_getDir(conf),
+							  cactusDisk->sequencesFileName);
+    }
+    assert(binaryRepresentation_peekNextElementType(*binaryString) == CODE_CACTUS_DISK);
+    binaryRepresentation_popNextElementType(binaryString);
+}
+
 /*
  * The following two functions compress and decompress the data in the cactus disk..
  */
@@ -604,13 +625,18 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf, bool crea
                     "A sequences file name is specified, but the cactus disk is not being created");
         }
         */
-        void *record = getRecord(cactusDisk, CACTUS_DISK_PARAMETER_KEY, "cactus_disk parameters");
-        void *record2 = record;
-        //cactusDisk_loadFromBinaryRepresentation(&record, cactusDisk, conf, sequencesFileName);
-        cactusDisk->storeSequencesInAFile = 1;
-        cactusDisk->sequencesFileName = stString_copy(sequencesFileName);
-        cactusDisk->absSequencesFileName = stString_copy(sequencesFileName);
-        free(record2);
+	if (sequencesFileName) {
+	    cactusDisk->storeSequencesInAFile = 1;
+	    cactusDisk->sequencesFileName = stString_copy(sequencesFileName);
+	    cactusDisk->absSequencesFileName = stString_copy(sequencesFileName);
+	}
+	else {
+	    void *record = getRecord(cactusDisk, CACTUS_DISK_PARAMETER_KEY, "cactus_disk parameters");
+	    void *record2 = record;
+	    cactusDisk_loadFromBinaryRepresentation(&record, cactusDisk, conf);
+	    free(record2);
+	}
+
     } else {
         assert(create);
         if (sequencesFileName == NULL) {
