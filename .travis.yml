@@ -4,19 +4,14 @@ language: c++
 before_install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get -qq update; fi
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y libtokyocabinet-dev libkyototycoon-dev kyototycoon libkyotocabinet-dev; fi
-# Might be able to get rid of these, since setup.py should take care of them
-  - pip install networkx
-  - pip install psutil
-  - pip install toil
-  - pip install toil-lib
+  - pip install --pre toil
   - git clone https://github.com/UCSCComparativeGenomics/sonLib.git
   - git clone https://github.com/UCSCComparativeGenomics/matchingAndOrdering.git
   - git clone https://github.com/UCSCComparativeGenomics/pinchesAndCacti.git
   - git clone https://github.com/benedictpaten/cPecan.git
   - git clone https://github.com/UCSCReconGroup/cactusTestData.git
 #Build docker containers
-  - docker login --username $QUAY_USERNAME --password $QUAY_PASSWORD quay.io
-  - make docker
+  - if [[ "$BUILD_CONTAINERS" == 1 ]]; then docker login --username $QUAY_USERNAME --password $QUAY_PASSWORD quay.io; make docker; fi
 install:
   - export sonLibRootPath=`pwd`/sonLib
   - export SON_TRACE_DATASETS=`pwd`/cactusTestData
@@ -28,11 +23,12 @@ script:
   - export sonLibRootPath=`pwd`/sonLib
   - make
   - sudo -H python setup.py install
-  - PATH=./bin:./sonLib/bin:$PATH PYTHONPATH=.:src make test
+  - if [[ "$BUILD_CONTAINERS" == 1 ]] ; then make test; fi
 os:
   - linux
 services:
   - docker
 env:
-  - CGL_DEBUG=1
-  - CGL_DEBUG=ultra ASAN_OPTIONS=detect_leaks=0
+  - BUILD_CONTAINERS=1
+  - CGL_DEBUG=1 BUILD_CONTAINERS=0
+  - CGL_DEBUG=ultra ASAN_OPTIONS=detect_leaks=0 BUILD_CONTAINERS=0

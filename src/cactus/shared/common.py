@@ -813,10 +813,16 @@ def cactus_call(tool,
         base_docker_call.append('--rm')
 
 
-    tool = "%s/%s:%s" % (dockstore, tool, cactus_commit)
+
 
     parameters = [par for par in parameters if par != '']
-    call = base_docker_call + [tool] + parameters
+
+    if os.environ.get('CACTUS_DEVELOPER_MODE'):
+        _log.info("Calling tool from local cactus installation.")
+        call = parameters
+    else:
+        tool = "%s/%s:%s" % (dockstore, tool, cactus_commit)
+        call = base_docker_call + [tool] + parameters
     if option_string:
         call += [option_string]
     call_string = " ".join(call)
