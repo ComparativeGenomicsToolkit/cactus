@@ -5,6 +5,8 @@
 #Released under the MIT license, see LICENSE.txt
 import unittest
 import os
+from threading import Thread
+import time
 
 from cactus.setup.cactus_setupTest import TestCase as setupTest
 from cactus.blast.cactus_blastTest import TestCase as blastTest
@@ -21,6 +23,12 @@ from cactus.normalisation.cactus_normalisationTest import TestCase as normalisat
 from cactus.progressive.allTests import allSuites as progressiveSuite
 from cactus.shared.commonTest import TestCase as commonTest
 from cactus.preprocessor.allTests import allSuites as preprocessorTest
+
+def keepAlive():
+    """Keep Travis tests from failing prematurely by outputting to stdout every few minutes."""
+    while True:
+        time.sleep(240)
+        print "Still working..."
 
 def allSuites(): 
     allTests = unittest.TestSuite()
@@ -42,6 +50,10 @@ def allSuites():
     return allTests
 
 def main():
+    keepAliveThread = Thread(target=keepAlive)
+    # The keepalive thread will die when the main thread dies
+    keepAliveThread.daemon = True
+    keepAliveThread.start()
     suite = allSuites()
     runner = unittest.TextTestRunner(verbosity=2)
     i = runner.run(suite)
