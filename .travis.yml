@@ -4,7 +4,6 @@ language: c++
 before_install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get -qq update; fi
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y libtokyocabinet-dev libkyototycoon-dev kyototycoon libkyotocabinet-dev; fi
-  - pip install --pre toil
   - git clone https://github.com/UCSCComparativeGenomics/sonLib.git
   - git clone https://github.com/UCSCComparativeGenomics/matchingAndOrdering.git
   - git clone https://github.com/UCSCComparativeGenomics/pinchesAndCacti.git
@@ -22,7 +21,8 @@ install:
 script:
   - export sonLibRootPath=`pwd`/sonLib
   - make
-  - sudo -H pip install -e .
+  - pip install --pre toil
+  - pip install -e .
   - if [[ "$BUILD_CONTAINERS" == 1 ]] ; then PATH=./bin:./sonLib/bin:$PATH PYTHONPATH=.:src make test; fi
 os:
   - linux
