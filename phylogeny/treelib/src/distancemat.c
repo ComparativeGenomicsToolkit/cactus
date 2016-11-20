@@ -388,14 +388,16 @@ struct DistanceMatrix *read_phylip_DistanceMatrix( FILE *handle, struct Alignmen
   for (i=0; i < size; i++) {
     /* The name should be exactly 10 chars, and the scanf should place a \0
        at the end, making 11 */
-    fscanf( handle, "%s", identifier );
+    if (!fscanf( handle, "%s", identifier ))
+        fatal_util( "fscaf failed" );
     /* Right; the rest of the line will consist of exactly 'size' floating
        point numbers */
     (*aln_loc)->seqs[i] = empty_Sequence();
     (*aln_loc)->seqs[i]->name = (char *) malloc_util( 11 * sizeof(char));
     strcpy( (*aln_loc)->seqs[i]->name, identifier );
     for (j=0; j  < size; j++) {
-      fscanf( handle, "%lf", &dist);
+      if (!fscanf( handle, "%lf", &dist))
+          fatal_util("fscanf failed");
       if (j <= i) 
 	mat->data[i][j] = (Distance) dist;
     }

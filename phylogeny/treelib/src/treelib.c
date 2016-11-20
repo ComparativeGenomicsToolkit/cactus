@@ -80,7 +80,8 @@ aln_init (struct Alignment **aln_loc, unsigned int size)
   for (i=0; i<size; i++) {
     (*aln_loc)->seqs[i] = empty_Sequence();
     
-    asprintf(&buffer, "%d", i);
+    if(asprintf(&buffer, "%d", i) == -1)
+        fatal_util("asprintf failed");
     (*aln_loc)->seqs[i]->name = buffer;
   }
 
@@ -216,12 +217,14 @@ msa2tree (char **mfa, unsigned int num) {
   if (num == 0) {
     return NULL;
   } else if (num == 1) {
-    asprintf(&treestring, "%d;", 0);
+    if(asprintf(&treestring, "%d;", 0) == -1)
+        fatal_util("asprintf failed");
     return treestring;
   } else if (num == 2) {
     float dist = jcdist(mfa[0], mfa[1]);
     dist *= 0.5;
-    asprintf(&treestring, "(%d:%g, %d:%g)", 0, dist, 1, dist);
+    if(asprintf(&treestring, "(%d:%g, %d:%g)", 0, dist, 1, dist) == -1)
+        fatal_util("asprintf failed");
     return treestring;
   }
 
