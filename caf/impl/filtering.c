@@ -126,6 +126,29 @@ bool stCaf_relaxedFilterByRepeatSpecies(stPinchSegment *segment1,
         && checkIntersection(getNames(segment1, flower), getNames(segment2, flower));
 }
 
+static stSortedSet *getChrNames(stPinchSegment *segment, Flower *flower) {
+    stSortedSet *names = stSortedSet_construct();
+    if (stPinchSegment_getBlock(segment) != NULL) {
+        stPinchBlock *block = stPinchSegment_getBlock(segment);
+        stPinchBlockIt it = stPinchBlock_getSegmentIterator(block);
+        while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
+            Cap *cap = flower_getCap(flower, stPinchSegment_getName(segment));
+            Sequence *sequence = cap_getSequence(cap);
+            stSortedSet_insert(names, (void *) sequence_getName(sequence));
+        }
+    } else {
+        Cap *cap = flower_getCap(flower, stPinchSegment_getName(segment));
+        Sequence *sequence = cap_getSequence(cap);
+        stSortedSet_insert(names, (void *) sequence_getName(sequence));
+    }
+    return names;
+}
+
+bool stCaf_singleCopyChr(stPinchSegment *segment1,
+                         stPinchSegment *segment2) {
+    return checkIntersection(getChrNames(segment1, flower), getChrNames(segment2, flower));
+}
+
 /*
  * Functions used for filtering blocks/chains on certain criteria.
  */

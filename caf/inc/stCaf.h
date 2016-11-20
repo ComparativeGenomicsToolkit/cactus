@@ -155,6 +155,11 @@ bool stCaf_relaxedFilterByRepeatSpecies(stPinchSegment *segment1,
                                         stPinchSegment *segment2);
 
 /*
+ * Forbids pinching together two copies within the same sequence.
+ */
+bool stCaf_singleCopyChr(stPinchSegment *segment1, stPinchSegment *segment2);
+
+/*
  * Returns true for chains that have an unequal number of ingroup
  * copies, e.g. 0 in ingroup 1, 1 in ingroup 2; or 2 in ingroup 1, 2
  * in ingroup 2, 3 in ingroup 3.
