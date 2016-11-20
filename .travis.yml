@@ -23,7 +23,7 @@ script:
   - export sonLibRootPath=`pwd`/sonLib
   - make
   - sudo -H pip install -e .
-  - if [[ "$BUILD_CONTAINERS" == 1 ]] ; then make test; fi
+  - if [[ "$BUILD_CONTAINERS" == 1 ]] ; then PATH=./bin:./sonLib/bin:$PATH PYTHONPATH=.:src make test; fi
 os:
   - linux
 services:
