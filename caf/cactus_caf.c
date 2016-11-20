@@ -47,9 +47,13 @@ static void usage() {
 
     fprintf(stderr, "-r --minimumOutgroupDegree : Number of outgroup sequences required in a block.\n");
 
-    fprintf(stderr, "-s --singleCopyIngroup : Require that in-group sequences have only single coverage\n");
+    fprintf(stderr, "-t --alignmentFilter : Choose alignment filter:\n"
+                    "                       none: no filtering,\n"
+                    "                       singleCopyOutgroup: never merge two outgroup segments together\n"
+                    "                       relaxedSingleCopyOutgroup: never merge two outgroup segments together if they are both already aligned to something else\n"
+                    "                       singleCopy: Never align two segments from the same genome together\n"
+                    "                       relaxedSingleCopy: Never align two segments from the same genome together if they are both already aligned to something else\n");
 
-    fprintf(stderr, "-t --singleCopyOutgroup : Require that out-group sequences have only single coverage\n");
 
     fprintf(stderr, "-v --minimumSequenceLengthForBlast : The minimum length of a sequence to include when blasting\n");
 
@@ -304,10 +308,6 @@ int main(int argc, char *argv[]) {
     int64_t blockTrim = 0;
     int64_t alignmentTrimLength = 0;
     int64_t *alignmentTrims = NULL;
-    bool singleCopyIngroup = 0;
-    bool relaxedSingleCopyIngroup = 0;
-    bool singleCopyOutgroup = 0;
-    bool relaxedSingleCopyOutgroup = 0;
     int64_t chainLengthForBigFlower = 1000000;
     int64_t longChain = 2;
     int64_t minLengthForChromosome = 1000000;
@@ -345,6 +345,7 @@ int main(int argc, char *argv[]) {
     double nucleotideScalingFactor = 1.0;
     HomologyUnitType phylogenyHomologyUnitType = BLOCK;
     enum stCaf_DistanceCorrectionMethod phylogenyDistanceCorrectionMethod = JUKES_CANTOR;
+    bool sortAlignments = false;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -357,8 +358,7 @@ int main(int argc, char *argv[]) {
                         "trimChange", required_argument, 0, 'l', }, { "minimumTreeCoverage", required_argument, 0, 'm' }, { "blockTrim",
                         required_argument, 0, 'n' }, { "deannealingRounds", required_argument, 0, 'o' }, { "minimumDegree",
                         required_argument, 0, 'p' }, { "minimumIngroupDegree", required_argument, 0, 'q' }, {
-                        "minimumOutgroupDegree", required_argument, 0, 'r' }, {
-                        "singleCopyIngroup", required_argument, 0, 's' }, { "singleCopyOutgroup", required_argument, 0, 't' }, {
+                        "minimumOutgroupDegree", required_argument, 0, 'r' }, { "alignmentFilter", required_argument, 0, 't' }, {
                         "minimumSequenceLengthForBlast", required_argument, 0, 'v' }, { "maxAdjacencyComponentSizeRatio",
                         required_argument, 0, 'w' }, { "constraints", required_argument, 0, 'x' }, { "minLengthForChromosome",
                         required_argument, 0, 'y' }, { "proportionOfUnalignedBasesForNewChromosome", required_argument, 0, 'z' },
@@ -445,32 +445,24 @@ int main(int argc, char *argv[]) {
                 k = sscanf(optarg, "%" PRIi64 "", &minimumOutgroupDegree);
                 assert(k == 1);
                 break;
-            case 's':
-                if (strcmp(optarg, "1") == 0) {
-                    singleCopyIngroup = true;
-                    relaxedSingleCopyIngroup = false;
-                } else if (strcmp(optarg, "relaxed") == 0) {
-                    singleCopyIngroup = false;
-                    relaxedSingleCopyIngroup = true;
-                } else if (strcmp(optarg, "0") == 0) {
-                    singleCopyIngroup = false;
-                    relaxedSingleCopyIngroup = false;
-                } else {
-                    st_errAbort("Could not recognize singleCopyIngroup option %s", optarg);
-                }
-                break;
             case 't':
-                if (strcmp(optarg, "1") == 0) {
-                    singleCopyOutgroup = true;
-                    relaxedSingleCopyOutgroup = false;
-                } else if (strcmp(optarg, "relaxed") == 0) {
-                    singleCopyOutgroup = false;
-                    relaxedSingleCopyOutgroup = true;
-                } else if (strcmp(optarg, "0") == 0) {
-                    singleCopyOutgroup = false;
-                    relaxedSingleCopyOutgroup = false;
+                if (strcmp(optarg, "singleCopyOutgroup") == 0) {
+                    sortAlignments = true;
+                    filterFn = stCaf_filterByOutgroup;
+                } else if (strcmp(optarg, "relaxedSingleCopyOutgroup") == 0) {
+                    sortAlignments = true;
+                    filterFn = stCaf_relaxedFilterByOutgroup;
+                } else if (strcmp(optarg, "singleCopy") == 0) {
+                    sortAlignments = true;
+                    filterFn = stCaf_filterByRepeatSpecies;
+                } else if (strcmp(optarg, "relaxedSingleCopy") == 0) {
+                    sortAlignments = true;
+                    filterFn = stCaf_relaxedFilterByRepeatSpecies;
+                } else if (strcmp(optarg, "none") == 0) {
+                    sortAlignments = false;
+                    filterFn = NULL;
                 } else {
-                    st_errAbort("Could not recognize singleCopyOutgroup option %s", optarg);
+                    st_errAbort("Could not recognize alignmentFilter option %s", optarg);
                 }
                 break;
             case 'v':
@@ -748,27 +740,6 @@ int main(int argc, char *argv[]) {
 
             //Build the set of outgroup threads
             outgroupThreads = stCaf_getOutgroupThreads(flower, threadSet);
-
-            bool sortAlignments = 0;
-            if (singleCopyIngroup || relaxedSingleCopyIngroup) {
-                sortAlignments = 1;
-                if (singleCopyIngroup) {
-                    filterFn = stCaf_filterByRepeatSpecies;
-                } else if (relaxedSingleCopyIngroup) {
-                    filterFn = stCaf_relaxedFilterByRepeatSpecies;
-                }
-            } else if (singleCopyOutgroup || relaxedSingleCopyOutgroup) {
-                if (stSet_size(outgroupThreads) == 0) {
-                    filterFn = NULL;
-                    sortAlignments = 0;
-                } else if (singleCopyOutgroup) {
-                    filterFn = stCaf_filterByOutgroup;
-                    sortAlignments = 1;
-                } else if (relaxedSingleCopyOutgroup) {
-                    filterFn = stCaf_relaxedFilterByOutgroup;
-                    sortAlignments = 1;
-                }
-            }
 
             //Setup the alignments
             stPinchIterator *pinchIterator;

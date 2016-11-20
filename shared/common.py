@@ -197,8 +197,7 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
                  minimumBlockDegree=None,
                  minimumIngroupDegree=None,
                  minimumOutgroupDegree=None,
-                 singleCopyIngroup=None,
-                 singleCopyOutgroup=None,
+                 alignmentFilter=None,
                  lastzArguments=None,
                  minimumSequenceLengthForBlast=None,
                  maxAdjacencyComponentSizeRatio=None,
@@ -249,8 +248,7 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
     minimumSequenceLengthForBlast = nameValue("minimumSequenceLengthForBlast", minimumSequenceLengthForBlast, int)
     minimumIngroupDegree = nameValue("minimumIngroupDegree", minimumIngroupDegree, int)
     minimumOutgroupDegree = nameValue("minimumOutgroupDegree", minimumOutgroupDegree, int)
-    singleCopyIngroup = nameValue("singleCopyIngroup", singleCopyIngroup)
-    singleCopyOutgroup = nameValue("singleCopyOutgroup", singleCopyOutgroup)
+    alignmentFilter = nameValue("alignmentFilter", alignmentFilter)
     maxAdjacencyComponentSizeRatio = nameValue("maxAdjacencyComponentSizeRatio", maxAdjacencyComponentSizeRatio, float)
     constraints = nameValue("constraints", constraints)
     realign = nameValue("realign", realign, bool)
@@ -285,11 +283,11 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
     proportionOfUnalignedBasesForNewChromosome = nameValue("proportionOfUnalignedBasesForNewChromosome", proportionOfUnalignedBasesForNewChromosome, float)
     maximumMedianSequenceLengthBetweenLinkedEnds = nameValue("maximumMedianSequenceLengthBetweenLinkedEnds", maximumMedianSequenceLengthBetweenLinkedEnds, int)
 
-    command = "cactus_caf --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
+    command = "cactus_caf --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
     (cactusDiskDatabaseString, logLevel, alignments, annealingRounds, deannealingRounds, 
      trim, minimumTreeCoverage, blockTrim, 
      minimumBlockDegree, minimumIngroupDegree, minimumOutgroupDegree,  
-     singleCopyIngroup, singleCopyOutgroup, lastzArguments, minimumSequenceLengthForBlast, maxAdjacencyComponentSizeRatio, constraints,
+     alignmentFilter, lastzArguments, minimumSequenceLengthForBlast, maxAdjacencyComponentSizeRatio, constraints,
      minLengthForChromosome, proportionOfUnalignedBasesForNewChromosome, maximumMedianSequenceLengthBetweenLinkedEnds, realign, realignArguments, phylogenyNumTrees, phylogenyRootingMethod, phylogenyScoringMethod, phylogenyBreakpointScalingFactor, phylogenySkipSingleCopyBlocks, phylogenyMaxBaseDistance, phylogenyMaxBlockDistance, phylogenyDebugFile, phylogenyKeepSingleDegreeBlocks, phylogenyTreeBuildingMethod, phylogenyCostPerDupPerBase, phylogenyCostPerLossPerBase, referenceEventHeader, phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce, numTreeBuildingThreads, doPhylogeny, minimumBlockDegreeToCheckSupport, minimumBlockHomologySupport, phylogenyNucleotideScalingFactor, removeRecoverableChains, minimumNumberOfSpecies, phylogenyHomologyUnitType, phylogenyDistanceCorrectionMethod, maxRecoverableChainsIterations, maxRecoverableChainLength)
     masterMessages = popenCatch(command, stdinString=flowerNames)
     logger.info("Ran cactus_core okay")
