@@ -154,6 +154,12 @@ bool stCaf_filterByRepeatSpecies(stPinchSegment *segment1,
 bool stCaf_relaxedFilterByRepeatSpecies(stPinchSegment *segment1,
                                         stPinchSegment *segment2);
 
+bool stCaf_singleCopyIngroup(stPinchSegment *segment1,
+                             stPinchSegment *segment2);
+
+bool stCaf_relaxedSingleCopyIngroup(stPinchSegment *segment1,
+                                    stPinchSegment *segment2);
+
 /*
  * Forbids pinching together two copies within the same sequence.
  */

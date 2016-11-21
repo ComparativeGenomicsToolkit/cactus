@@ -461,6 +461,12 @@ int main(int argc, char *argv[]) {
                 } else if (strcmp(optarg, "singleCopyChr") == 0) {
                     sortAlignments = true;
                     filterFn = stCaf_singleCopyChr;
+                } else if (strcmp(optarg, "singleCopyIngroup") == 0) {
+                    sortAlignments = true;
+                    filterFn = stCaf_singleCopyIngroup;
+                } else if (strcmp(optarg, "relaxedSingleCopyIngroup") == 0) {
+                    sortAlignments = true;
+                    filterFn = stCaf_relaxedSingleCopyIngroup;
                 } else if (strcmp(optarg, "none") == 0) {
                     sortAlignments = false;
                     filterFn = NULL;
