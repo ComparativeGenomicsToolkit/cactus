@@ -236,8 +236,7 @@ def runCactusCaf(cactusDiskDatabaseString, cactusSequencesPath, alignments,
                  minimumBlockDegree=None,
                  minimumIngroupDegree=None,
                  minimumOutgroupDegree=None,
-                 singleCopyIngroup=None,
-                 singleCopyOutgroup=None,
+                 alignmentFilter=None,
                  lastzArguments=None,
                  minimumSequenceLengthForBlast=None,
                  maxAdjacencyComponentSizeRatio=None,
@@ -291,8 +290,7 @@ def runCactusCaf(cactusDiskDatabaseString, cactusSequencesPath, alignments,
     minimumSequenceLengthForBlast = nameValue("minimumSequenceLengthForBlast", minimumSequenceLengthForBlast, int)
     minimumIngroupDegree = nameValue("minimumIngroupDegree", minimumIngroupDegree, int)
     minimumOutgroupDegree = nameValue("minimumOutgroupDegree", minimumOutgroupDegree, int)
-    singleCopyIngroup = nameValue("singleCopyIngroup", singleCopyIngroup, bool)
-    singleCopyOutgroup = nameValue("singleCopyOutgroup", singleCopyOutgroup)
+    alignmentFilter = nameValue("alignmentFilter", alignmentFilter)
     maxAdjacencyComponentSizeRatio = nameValue("maxAdjacencyComponentSizeRatio", maxAdjacencyComponentSizeRatio, float)
     constraints = nameValue("constraints", constraints)
     realign = nameValue("realign", realign, bool)
@@ -334,9 +332,8 @@ def runCactusCaf(cactusDiskDatabaseString, cactusSequencesPath, alignments,
                                              "--logLevel", logLevel, alignments, annealingRounds,
                                              deannealingRounds, 
                                              trim, minimumTreeCoverage, blockTrim, 
-                                             minimumBlockDegree, minimumIngroupDegree,
-                                             minimumOutgroupDegree, singleCopyIngroup, singleCopyOutgroup,
-                                             lastzArguments, minimumSequenceLengthForBlast,
+                                             minimumBlockDegree, minimumIngroupDegree, minimumOutgroupDegree,  
+                                             alignmentFilter, lastzArguments, minimumSequenceLengthForBlast,
                                              maxAdjacencyComponentSizeRatio, constraints,
                                              minLengthForChromosome,
                                              proportionOfUnalignedBasesForNewChromosome,
@@ -347,7 +344,7 @@ def runCactusCaf(cactusDiskDatabaseString, cactusSequencesPath, alignments,
                                              phylogenyMaxBlockDistance, phylogenyDebugFile,
                                              phylogenyKeepSingleDegreeBlocks, phylogenyTreeBuildingMethod,
                                              phylogenyCostPerDupPerBase, phylogenyCostPerLossPerBase,
-                                             referenceEventHeader, 
+                                             referenceEventHeader,
                                              phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce,
                                              numTreeBuildingThreads, doPhylogeny,
                                              minimumBlockDegreeToCheckSupport, minimumBlockHomologySupport,
@@ -355,7 +352,6 @@ def runCactusCaf(cactusDiskDatabaseString, cactusSequencesPath, alignments,
                                              minimumNumberOfSpecies, phylogenyHomologyUnitType,
                                              phylogenyDistanceCorrectionMethod,
                                              maxRecoverableChainsIterations, maxRecoverableChainLength])
-                                             
     logger.info("Ran cactus_core okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]
     
