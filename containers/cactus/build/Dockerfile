@@ -42,19 +42,7 @@ WORKDIR /home/cactus2hal
 RUN make 2> /dev/null
 
 
-#HACK - eventually all python code should be pip-installed and not run
-#in containers, but for now there are various python executables
-#that depend on sonLib
-ENV PYTHONPATH $PYTHONPATH:/home/
-
-#the cactus_bar executable calls cPecanLastz,
-#so we need access to it in this container.
-#Ideally cPecanLastz should only be called in the pipeline code
-ENV PATH $PATH:/home/sonLib/bin
-
 ENV PATH $PATH:/home/cactus/bin:/home/cactus2hal/bin
 
-COPY ./wrapper.sh /home/wrapper.sh
 RUN mkdir /data
 WORKDIR /data
-ENTRYPOINT ["bash", "/home/wrapper.sh"]
