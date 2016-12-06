@@ -85,7 +85,8 @@ class Schedule:
                 # we just do the leaves)
                 if nodeName not in leafEvents:
                     self.inGraph.add_edge(name, nodeName)
-            configElem = ET.parse(exp.getConfig()).getroot()
+            configFile = fileStore.readGlobalFile(exp.getConfigID())
+            configElem = ET.parse(configFile).getroot()
             conf = ConfigWrapper(configElem)
             # load max parellel subtrees from the node's config
             if self.maxParallelSubtrees is None:

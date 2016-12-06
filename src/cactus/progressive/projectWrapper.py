@@ -55,7 +55,7 @@ class ProjectWrapper:
     def __init__(self, options):
         self.options = options
         self.seqFile = SeqFile(options.seqFile)
-        self.workingDir = options.workDir
+        self.workingDir = options.cactusDir
         self.configWrapper = None
         self.expWrapper = None
         self.processConfig()

@@ -363,13 +363,10 @@ def main():
     addCactusWorkflowOptions(parser)
 
     parser.add_argument("seqFile", help = "Seq file")
-    parser.add_argument("workDir", help = "Work dir")
+    parser.add_argument("cactusDir", help = "Work dir")
     parser.add_argument("outputHal", type=str, help = "Output HAL file")
 
     #Progressive Cactus Options
-    parser.add_argument("--jobStore", dest="jobStore",
-                      help="JobStore to use for Toil. If not given,\
-                      the FileJobStore will be used.", default=None)
     parser.add_argument("--optionsFile", dest="optionsFile",
                       help="Text file containing command line options to use as"\
                       " defaults", default=None)
@@ -463,14 +460,14 @@ def main():
     projWrapper = ProjectWrapper(options)
     projWrapper.writeXml()
 
-    pjPath = os.path.join(options.workDir, ProjectWrapper.alignmentDirName,
+    pjPath = os.path.join(options.cactusDir, ProjectWrapper.alignmentDirName,
                           '%s_project.xml' % ProjectWrapper.alignmentDirName)
     assert os.path.exists(pjPath)
 
     project = MultiCactusProject()
 
-    if not os.path.isdir(options.workDir):
-        os.makedirs(options.workDir)
+    if not os.path.isdir(options.cactusDir):
+        os.makedirs(options.cactusDir)
 
     with Toil(options) as toil:
         project.readXML(pjPath)
