@@ -251,7 +251,7 @@ class CactusRecursionTarget(CactusTarget):
         """
         targetNode = getTargetNode(self.phaseNode, target)
         flowersAndSizes=runCactusExtendFlowers(cactusDiskDatabaseString=self.cactusDiskDatabaseString, flowerNames=self.flowerNames, 
-                                              minSequenceSizeOfFlower=getOptionalAttrib(targetNode, "minFlowerSize", int, 1), 
+                                              minSequenceSizeOfFlower=getOptionalAttrib(targetNode, "minFlowerSize", int, 0), 
                                               maxSequenceSizeOfFlowerGrouping=getOptionalAttrib(targetNode, "maxFlowerGroupSize", int, 
                                               default=CactusRecursionTarget.maxSequenceSizeOfFlowerGroupingDefault))
         self.makeChildTargets(flowersAndSizes=flowersAndSizes, 
