@@ -112,7 +112,6 @@ class TestCase(unittest.TestCase):
         """
         self.runComparisonOfBlastScriptVsNaiveBlast(blastMode="againstEachOther")
 
-    @unittest.skip("")
     def testAddingOutgroupsImprovesResult(self):
         """Run blast on "ingroup" and "outgroup" encode regions, and ensure
         that adding an extra outgroup only adds alignments if
@@ -168,7 +167,6 @@ class TestCase(unittest.TestCase):
             for subResult in results:
                 os.remove(subResult)
 
-    @unittest.skip("")
     def testKeepingCoverageOnIngroups(self):
         """Tests whether the --ingroupCoverageDir option works as
         advertised."""
@@ -205,7 +203,6 @@ class TestCase(unittest.TestCase):
             keptCoverageFile = ingroupCoveragePaths[i]
             self.assertTrue(filecmp.cmp(independentCoverageFile, keptCoverageFile))
 
-    @unittest.skip("")
     def testProgressiveOutgroupsVsAllOutgroups(self):
         """Tests the difference in outgroup coverage on an ingroup when
         running in "ingroups vs. outgroups" mode and "set against set"
