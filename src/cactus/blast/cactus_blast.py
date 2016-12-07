@@ -69,7 +69,11 @@ class BlastFlower(Job):
     """Take a reconstruction problem and generate the sequences in chunks to be blasted.
     Then setup the follow on blast targets and collation targets.
     """
-    def __init__(self, cactusDisk, cactusSequencesID, flowerName, blastOptions, memory=None, cores=None, disk=None):
+    def __init__(self, cactusDisk, cactusSequencesID, flowerName, blastOptions):
+        disk = 2*cactusSequencesID.size
+        cores = 1
+        memory = blastOptions.memory
+        
         Job.__init__(self, memory=memory, cores=cores, disk=disk)
         self.cactusDisk = cactusDisk
         self.cactusSequencesID = cactusSequencesID
@@ -97,7 +101,11 @@ class BlastFlower(Job):
 class BlastSequencesAllAgainstAll(Job):
     """Take a set of sequences, chunks them up and blasts them.
     """
-    def __init__(self, sequenceFileIDs1, blastOptions, disk=None):
+    def __init__(self, sequenceFileIDs1, blastOptions):
+        disk = 3*sum([seqFileID.size for seqFileID in sequenceFileIDs1])
+        cores = 1
+        memory = blastOptions.memory
+        
         Job.__init__(self, disk=disk)
         self.sequenceFileIDs1 = sequenceFileIDs1
         self.blastOptions = blastOptions
@@ -129,7 +137,7 @@ class MakeSelfBlasts(Job):
         self.blastOptions.compressFiles = self.blastOptions.compressFiles and len(self.chunkIDs) > 2
         resultsIDs = []
         for i in xrange(len(self.chunkIDs)):
-            resultsIDs.append(self.addChild(RunSelfBlast(self.blastOptions, self.chunkIDs[i], disk=3*self.chunkIDs[i].size)).rv())
+            resultsIDs.append(self.addChild(RunSelfBlast(self.blastOptions, self.chunkIDs[i])).rv())
         logger.info("Made the list of self blasts")
         #Setup job to make all-against-all blasts
         logger.debug("Collating self blasts.")
@@ -148,7 +156,7 @@ class MakeOffDiagonalBlasts(Job):
             #Make the list of blast jobs.
             for i in xrange(0, len(self.chunkIDs)):
                 for j in xrange(i+1, len(self.chunkIDs)):
-                    resultsIDs.append(self.addChild(RunBlast(self.blastOptions, self.chunkIDs[i], self.chunkIDs[j], disk=2*(self.chunkIDs[i].size + self.chunkIDs[j].size))).rv())
+                    resultsIDs.append(self.addChild(RunBlast(self.blastOptions, self.chunkIDs[i], self.chunkIDs[j])).rv())
             logger.info("Made the list of all-against-all blasts")
             #Set up the job to collate all the results
             logger.debug("Collating off-diagonal blasts")
@@ -157,7 +165,11 @@ class MakeOffDiagonalBlasts(Job):
 class BlastSequencesAgainstEachOther(Job):
     """Take two sets of sequences, chunks them up and blasts one set against the other.
     """
-    def __init__(self, sequenceFileIDs1, sequenceFileIDs2, blastOptions, disk=None):
+    def __init__(self, sequenceFileIDs1, sequenceFileIDs2, blastOptions):
+        disk = 2*(sum([seqID.size for seqID in sequenceFileIDs1]) + sum([seqID.size for seqID in sequenceFileIDs2]))
+        cores = 1
+        memory = blastOptions.memory
+        
         Job.__init__(self, disk=disk)
         self.sequenceFileIDs1 = sequenceFileIDs1
         self.sequenceFileIDs2 = sequenceFileIDs2
@@ -425,8 +437,11 @@ def compressFastaFile(fileName):
 class RunSelfBlast(Job):
     """Runs blast as a job.
     """
-    def __init__(self, blastOptions, seqFileID, disk=None):
-        Job.__init__(self, memory=blastOptions.memory, disk=disk)
+    def __init__(self, blastOptions, seqFileID):
+        disk = 3*seqFileID.size
+        memory = seqFileID.size
+        
+        Job.__init__(self, memory=memory, disk=disk)
         self.blastOptions = blastOptions
         self.seqFileID = seqFileID
     
@@ -461,8 +476,10 @@ def decompressFastaFile(fileName, tempFileName):
 class RunBlast(Job):
     """Runs blast as a job.
     """
-    def __init__(self, blastOptions, seqFileID1, seqFileID2, disk=None):
-        Job.__init__(self, memory=blastOptions.memory, disk=disk)
+    def __init__(self, blastOptions, seqFileID1, seqFileID2):
+        disk = 2*(seqFileID1.size + seqFileID2.size)
+        memory = int(0.25*(seqFileID1.size + seqFileID2.size))
+        Job.__init__(self, memory=memory, disk=disk)
         self.blastOptions = blastOptions
         self.seqFileID1 = seqFileID1
         self.seqFileID2 = seqFileID2
@@ -499,13 +516,15 @@ class CollateBlasts(Job):
         self.resultsFileIDs = resultsFileIDs
 
     def run(self, fileStore):
-        disk = 2*sum([alignmentID.size for alignmentID in self.resultsFileIDs])
-        return self.addFollowOn(CollateBlasts2(self.blastOptions, self.resultsFileIDs, disk=disk)).rv()
+        return self.addFollowOn(CollateBlasts2(self.blastOptions, self.resultsFileIDs)).rv()
 class CollateBlasts2(Job):
     """Collates all the blasts into a single alignments file.
     """
-    def __init__(self, blastOptions, resultsFileIDs, disk=None):
-        Job.__init__(self, memory = blastOptions.memory, disk=disk)
+    def __init__(self, blastOptions, resultsFileIDs):
+        disk = 2*sum([alignmentID.size for alignmentID in resultsFileIDs])
+        cores = 1
+        memory = blastOptions.memory
+        Job.__init__(self, memory = memory, disk=disk)
         self.resultsFileIDs = resultsFileIDs
     
     def run(self, fileStore):

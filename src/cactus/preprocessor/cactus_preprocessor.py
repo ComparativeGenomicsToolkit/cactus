@@ -32,6 +32,7 @@ from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import nameValue
 from cactus.shared.common import runGetChunks
 from cactus.shared.common import makeURL
+from cactus.shared.common import RunAsFollowOn
 
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import lastzRepeatMaskJob
 
@@ -52,7 +53,8 @@ class PreprocessorOptions:
 class PreprocessChunk(Job):
     """ locally preprocess a fasta chunk, output then copied back to input
     """
-    def __init__(self, prepOptions, seqIDs, proportionSampled, inChunkID, disk=None):
+    def __init__(self, prepOptions, seqIDs, proportionSampled, inChunkID):
+        disk = sum([seqID.size for seqID in seqIDs]) + 3*inChunkID.size
         Job.__init__(self, memory=prepOptions.memory, cores=prepOptions.cpu, disk=disk)
         self.prepOptions = prepOptions 
         self.seqIDs = seqIDs
@@ -88,14 +90,15 @@ class MergeChunks(Job):
         self.chunkIDList = chunkIDList
 
     def run(self, fileStore):
-        chunkIDListSize = sum([chunkID.size for chunkID in self.chunkIDList])
-        return self.addFollowOn(MergeChunks2(self.prepOptions, self.chunkIDList, disk=3*chunkIDListSize)).rv()
+
+        return self.addFollowOn(MergeChunks2(self.prepOptions, self.chunkIDList)).rv()
 
 
 class MergeChunks2(Job):
     """ merge a list of chunks into a fasta file
     """
-    def __init__(self, prepOptions, chunkIDList, disk=None):
+    def __init__(self, prepOptions, chunkIDList):
+        disk = 2*sum([chunkID.size for chunkID in chunkIDList])
         Job.__init__(self, cores=prepOptions.cpu, memory=prepOptions.memory, disk=disk)
         self.prepOptions = prepOptions 
         self.chunkIDList = chunkIDList
@@ -113,7 +116,8 @@ class MergeChunks2(Job):
 class PreprocessSequence(Job):
     """Cut a sequence into chunks, process, then merge
     """
-    def __init__(self, prepOptions, inSequenceID, disk=None):
+    def __init__(self, prepOptions, inSequenceID):
+        disk = 3*inSequenceID.size
         Job.__init__(self, cores=prepOptions.cpu, memory=prepOptions.memory, disk=disk)
         self.prepOptions = prepOptions 
         self.inSequenceID = inSequenceID
@@ -143,9 +147,7 @@ class PreprocessSequence(Job):
             if len(inChunkIDs) < inChunkNumber: #This logic is like making the list circular
                 inChunkIDs += inChunkIDList[:inChunkNumber-len(inChunkIDs)]
             assert len(inChunkIDs) == inChunkNumber
-            diskForPreprocessChunk = 2*(sum([inChunkID.size for inChunkID in inChunkIDs]) + 
-                    inChunkIDList[i].size)
-            outChunkIDList.append(self.addChild(PreprocessChunk(self.prepOptions, inChunkIDs, float(inChunkNumber)/len(inChunkIDList), inChunkIDList[i], disk=diskForPreprocessChunk)).rv())
+            outChunkIDList.append(self.addChild(PreprocessChunk(self.prepOptions, inChunkIDs, float(inChunkNumber)/len(inChunkIDList), inChunkIDList[i])).rv())
         # follow on to merge chunks
         return self.addFollowOn(MergeChunks(self.prepOptions, outChunkIDList)).rv()
 
@@ -160,13 +162,11 @@ def unmaskFasta(inFasta, outFasta):
 
 class BatchPreprocessor(Job):
     def __init__(self, prepXmlElems, inSequenceID, iteration = 0):
-        Job.__init__(self) 
         self.prepXmlElems = prepXmlElems
         self.inSequenceID = inSequenceID
         prepNode = self.prepXmlElems[iteration]
-        self._memory = getOptionalAttrib(prepNode, "memory", typeFn=int, default=None)
-        self._cores = getOptionalAttrib(prepNode, "cpu", typeFn=int, default=None)
         self.iteration = iteration
+        Job.__init__(self)
               
     def run(self, fileStore):
         # Parse the "preprocessor" config xml element     
@@ -194,23 +194,21 @@ class BatchPreprocessor(Job):
             unmaskFasta(inSequence, unmaskedInputFile)
             self.inSequenceID = fileStore.writeGlobalFile(inSequence)
             
-        inSequenceSize = 4*1024*1024*1024
         if prepOptions.chunkSize <= 0: #In this first case we don't need to break up the sequence
-            #Estimate the size of a genome since we can't get the sizes of files imported
-            #through Toil.importFile yet.
-            outSeqID = self.addChild(PreprocessChunk(prepOptions, [ self.inSequenceID ], 1.0, self.inSequenceID, disk=3*inSequenceSize)).rv()
+            outSeqID = self.addChild(PreprocessChunk(prepOptions, [ self.inSequenceID ], 1.0, self.inSequenceID)).rv()
         else:
-            outSeqID = self.addChild(PreprocessSequence(prepOptions, self.inSequenceID, disk=2*inSequenceSize)).rv()
+            outSeqID = self.addChild(PreprocessSequence(prepOptions, self.inSequenceID)).rv()
         
         if lastIteration == False:
             return self.addFollowOn(BatchPreprocessor(self.prepXmlElems, outSeqID, self.iteration + 1)).rv()
         else:
-            return self.addFollowOn(BatchPreprocessorEnd(outSeqID, disk=2*inSequenceSize)).rv()
+            return self.addFollowOn(RunAsFollowOn(BatchPreprocessorEnd, outSeqID)).rv()
 
 
 
 class BatchPreprocessorEnd(Job):
-    def __init__(self,  globalOutSequenceID, disk=None):
+    def __init__(self,  globalOutSequenceID):
+        disk = 2*globalOutSequenceID.size
         Job.__init__(self, disk=disk) 
         self.globalOutSequenceID = globalOutSequenceID
         
@@ -232,11 +230,20 @@ class CactusPreprocessor(Job):
     """Modifies the input genomes, doing things like masking/checking, etc.
     """
     def __init__(self, inputSequenceIDs, configNode):
-        Job.__init__(self)
+        Job.__init__(self, disk=10000000000)
         self.inputSequenceIDs = inputSequenceIDs
         self.configNode = configNode  
     
     def run(self, fileStore):
+        #HACK
+        #Download and then write the sequences so that the IDs have the size attribute.
+        #This is wasteful, and could fail if the worker doesn't have enough disk,
+        #but at least it confines that risk to this job rather than all future jobs.
+        #It might be necessary to have the user specify how big the sequences are prior to running, if
+        #the sequences are not being imported from the leader.
+        inputSequences = [fileStore.readGlobalFile(seqID) for seqID in self.inputSequenceIDs]
+        self.inputSequenceIDs = [fileStore.writeGlobalFile(seq) for seq in inputSequences]
+        
         outputSequenceIDs = []
         for inputSequenceID in self.inputSequenceIDs:
             outputSequenceIDs.append(self.addChild(CactusPreprocessor2(inputSequenceID, self.configNode)).rv())

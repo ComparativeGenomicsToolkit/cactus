@@ -454,6 +454,11 @@ def main():
 
 
     options = parser.parse_args()
+
+    #Toil's default is way too low to accommodate downloading
+    #containers
+    options.deadlockWait = 2000
+    
     setLoggingFromOptions(options)
     
     #Create the progressive cactus project 
@@ -484,7 +489,10 @@ def main():
 
         
         #import cactus config
-        cactusConfigID = toil.importFile(makeURL(project.getConfigPath()))
+        if options.configFile:
+            cactusConfigID = toil.importFile(makeURL(options.configFile))
+        else:
+            cactusConfigID = toil.importFile(makeURL(project.getConfigPath()))
         logger.info("Setting config id to: %s" % cactusConfigID)
         project.setConfigID(cactusConfigID)
 

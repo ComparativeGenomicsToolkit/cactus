@@ -861,3 +861,14 @@ def cactus_call(tool,
 
     if check_output:
         return output
+
+
+class RunAsFollowOn(Job):
+    def __init__(self, job, *args, **kwargs):
+        Job.__init__(self)
+        self._args = args
+        self._kwargs = kwargs
+        self.job = job
+    def run(self, fileStore):
+        return self.addFollowOn(self.job(*self._args, **self._kwargs)).rv()
+        
