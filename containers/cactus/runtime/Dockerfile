@@ -6,7 +6,10 @@ COPY ./tools/* /usr/local/bin/
 
 COPY wrapper.sh /opt/cactus/
 
+ARG CACTUS_COMMIT
+
 RUN pip install git+https://github.com/ComparativeGenomicsToolkit/sonLib@toil
+RUN pip install git+https://github.com/ComparativeGenomicsToolkit/cactus@$CACTUS_COMMIT
 
 RUN mkdir /data
 WORKDIR /data

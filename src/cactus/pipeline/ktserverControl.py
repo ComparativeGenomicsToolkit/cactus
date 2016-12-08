@@ -40,7 +40,7 @@ import xml.etree.ElementTree as ET
 from cactus.shared.experimentWrapper import DbElemWrapper
 from cactus.shared.experimentWrapper import ExperimentWrapper
 
-from cactus.shared.version import cactus_commit
+from cactus.shared.common import cactus_call
 
 ###############################################################################
 # run a server until killSwitchPath gets deleted
@@ -84,11 +84,11 @@ def runKtserver(dbElem, killSwitchPath, maxPortsToTry=100, readOnly = False,
             if __isKtServerOnTakenPort(dbElem, killSwitchPath, pretest=True):
                 logger.info("Ktserver already on port %i" % port)
                 continue
-            cmd = __getKtserverCommand(dbElem, dbPathExists, readOnly)
-            logger.info("Using ktserver command: %s" % cmd)
-            process = subprocess.Popen(cmd.split(), shell=False,
-                                       stdout=subprocess.PIPE,
-                                       stderr=sys.stderr, bufsize=-1)
+            process = cactus_call(tool="ktserver", server=True,
+                                  parameters=['-log', logPath,
+                                              '-port', dbElem.getDbPort(),
+                                              __getKtServerOptions(dbElem)])
+
             procWaiter = ProcessWaiter(process)
             procWaiter.start()
             __writeStatusToSwitchFile(dbElem, process.pid, killSwitchPath)
@@ -325,15 +325,19 @@ def pingKtServer(dbElem):
         raise RuntimeError("Unable to ping ktserver host %s from %s" % (
             dbElem.getDbHost(), getHostName()))
 
-    cmd = ['docker', 'run', '--interactive', '--log-driver=none', '--net=host',
-                      'quay.io/comparative-genomics-toolkit/ktremotemgr:%s' % cactus_commit, 'report',
-                      '-port', str(dbElem.getDbPort()),
-                      '-host', dbElem.getDbHost()]
-    logger.info("Ktremotemgr cmd = %s" % cmd)
-    return subprocess.call(cmd,
-                           shell=False, bufsize=-1,
-                           stdout=subprocess.PIPE,
-                           stderr=subprocess.PIPE) == 0
+    return cactus_call(tool="ktremotemgr", check_result=True,
+                       parameters=['report',
+                                   '-port', str(dbElem.getDbPort()),
+                                   '-host', dbElem.getDbHost()]) == 0
+    #cmd = ['docker', 'run', '--interactive', '--log-driver=none', '--net=host',
+    #                  'quay.io/comparative-genomics-toolkit/ktremotemgr:%s' % cactus_commit, 'report',
+    #                  '-port', str(dbElem.getDbPort()),
+    #                  '-host', dbElem.getDbHost()]
+    #logger.info("Ktremotemgr cmd = %s" % cmd)
+    #return subprocess.call(cmd,
+    #                       shell=False, bufsize=-1,
+    #                       stdout=subprocess.PIPE,
+    #                       stderr=subprocess.PIPE) == 0
 
 ###############################################################################
 # Get a report on a running server

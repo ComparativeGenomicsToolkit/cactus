@@ -753,6 +753,8 @@ def cactus_call(tool,
                 outfile=None,
                 stdin_string=None,
                 option_string="",
+                server=False,
+                check_result=False,
                 dockstore="quay.io/comparative-genomics-toolkit"):
     if parameters is None:
         parameters = []
@@ -815,7 +817,10 @@ def cactus_call(tool,
 
     if os.environ.get('CACTUS_DEVELOPER_MODE'):
         _log.info("Calling tool from local cactus installation.")
-        call = parameters
+        if tool == "cactus" or tool == "cpecan":
+            call = parameters
+        else:
+            call = [tool] + parameters
     else:
         tool = "%s/%s:%s" % (dockstore, tool, cactus_commit)
         call = base_docker_call + [tool] + parameters
@@ -827,14 +832,13 @@ def cactus_call(tool,
     #Eliminate empty string arguments, which will be parsed incorrectly
     #by docker run
     
-    _log.info("Calling docker with command: %s" % call_string)
     if infile:
-        _log.info("Docker input file: %s", infile)
+        _log.info("Input file: %s", infile)
     if outfile:
-        _log.info("Docker output file: %s", outfile)
+        _log.info("Output file: %s", outfile)
 
     if stdin_string:
-        _log.info("Docker input string: %s" % stdin_string)
+        _log.info("Input string: %s" % stdin_string)
 
 
     stdinFileHandle = None
@@ -849,15 +853,23 @@ def cactus_call(tool,
         stdoutFileHandle = subprocess.PIPE
 
 
+    _log.info("Running the command %s" % call_string)
     process = subprocess.Popen(call_string, shell=True,
                                stdin=stdinFileHandle, stdout=stdoutFileHandle, stderr=sys.stderr, bufsize=-1)
 
+    if server:
+        return process
+
     output, nothing = process.communicate(stdin_string)
+    if check_result:
+        return process.returncode
+    
     if process.returncode != 0:
-        raise RuntimeError("Docker command %s failed with output: %s" % (repr(call_string), output))
+        raise RuntimeError("Command %s failed with output: %s" % (repr(call_string), output))
 
     # Fix root ownership of output files
-    _fix_permissions(base_docker_call, tool, work_dir)
+    if not os.getenv('CACTUS_DEVELOPER_MODE'):
+        _fix_permissions(base_docker_call, tool, work_dir)
 
     if check_output:
         return output
