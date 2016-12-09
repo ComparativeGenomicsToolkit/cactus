@@ -12,7 +12,7 @@ build_output: build/Dockerfile
 	docker run -v ${runtime_fullpath}/tools:/data cactusbuild:${tag} sh -c 'cp /home/cactus2hal/bin/* /data'
 
 build: build_output runtime/Dockerfile
-	docker build -t ${name}:${tag} ./runtime/ --build_arg CACTUS_COMMIT=${git_commit}
+	docker build -t ${name}:${tag} ./runtime/ --build-arg CACTUS_COMMIT=${git_commit}
 
 push: build
 	# Requires ~/.dockercfg
