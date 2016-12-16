@@ -31,6 +31,8 @@ from sonLib.bioio import system, popenCatch
 from sonLib.bioio import makeSubDir
 from sonLib.nxnewick import NXNewick
 
+from ragout import ragout_api
+
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.common import cactusRootPath
   
@@ -930,7 +932,7 @@ class CactusExtractReferencePhase(CactusPhasesTarget):
                               (experiment.getDiskDatabaseString(), eventName,
                                experiment.getReferencePath(), getLogLevelString())                        
                     system(cmdLine)          
-        self.makeFollowOnPhaseTarget(CactusAncestralRagoutPhase, "ancestralRagout")
+        self.makeFollowOnPhaseTarget(CactusAncestralRagoutSetupPhase, "ancestralRagout")
 
 ############################################################
 ############################################################
@@ -940,7 +942,8 @@ class CactusExtractReferencePhase(CactusPhasesTarget):
 ############################################################
 ############################################################
 ############################################################
-class CactusAncestralRagoutPhase(CactusPhasesTarget):
+
+class CactusAncestralRagoutSetupPhase(CactusPhasesTarget):
     def run(self):
         self.logToMaster("Setting up secondary DB for maf export")
         self.setupSecondaryDatabase()
@@ -949,15 +952,12 @@ class CactusAncestralRagoutPhase(CactusPhasesTarget):
             self.phaseNode.attrib["reference"] = referenceNode.attrib["reference"]
         self.phaseNode.attrib["experimentPath"] = self.cactusWorkflowArguments.experimentFile
         self.phaseNode.attrib["secondaryDatabaseString"] = self.cactusWorkflowArguments.secondaryDatabaseString
-        self.phaseNode.attrib["outputFile"] = self.phaseNode.attrib["outputFile"] + '.' + self.phaseNode.attrib["reference"]
-        # self.phaseNode.attrib["outputFile"] = os.path.join(self.getGlobalTempDir(), "ragout-input.maf")
-        self.logToMaster("Attempting to export maf file to %s" % self.phaseNode.attrib["outputFile"])
+        self.phaseNode.attrib["outputFile"] = os.path.join(self.getGlobalTempDir(), "ragout-input.maf")
         self.makeRecursiveChildTarget(CactusMafGeneratorRecursion, launchSecondaryKtForRecursiveTarget=True)
-        self.makeFollowOnPhaseTarget(CactusAncestralRagoutCleanupPhase, "ancestralRagout")
+        self.makeFollowOnPhaseTarget(CactusAncestralRagoutPhase, "ancestralRagout")
 
 class CactusMafGeneratorRecursion(CactusRecursionTarget):
     def run(self):
-        self.logToMaster("CactusMafGeneratorRecursion")
         i = extractNode(self.phaseNode)
         if "outputFile" in i.attrib:
             i.attrib.pop("outputFile")
@@ -966,7 +966,6 @@ class CactusMafGeneratorRecursion(CactusRecursionTarget):
 
 class CactusMafGeneratorUpWrapper(CactusRecursionTarget):
     def run(self):
-        self.logToMaster("CactusMafGeneratorUpWrapper %s" % (self.getOptionalPhaseAttrib("outputFile")))
         runCactusHalGenerator(cactusDiskDatabaseString=self.cactusDiskDatabaseString,
                               secondaryDatabaseString=self.getOptionalPhaseAttrib("secondaryDatabaseString"),
                               flowerNames=self.flowerNames,
@@ -976,10 +975,21 @@ class CactusMafGeneratorUpWrapper(CactusRecursionTarget):
                               self.getOptionalPhaseAttrib("showOnlySubstitutionsWithRespectToReference", bool),
                               makeMaf=True)
 
+class CactusAncestralRagoutPhase(CactusPhasesTarget):
+    def run(self):
+        self.cleanupSecondaryDatabase()
+        experiment = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
+        ragout_api.RagoutInstance(maf=self.phaseNode.attrib["outputFile"],
+                                  ancestor=self.phaseNode.attrib["reference"],
+                                  ancestor_fasta=experiment.getReferencePath(),
+                                  phylo=self.cactusWorkflowArguments.speciesTree,
+                                  outDir=self.getGlobalTempDir(),
+                                  scale="small")
+        self.makeFollowOnPhaseTarget(CactusAncestralRagoutCleanupPhase, "ancestralRagout")
+
 class CactusAncestralRagoutCleanupPhase(CactusPhasesTarget):
     def run(self):
-        self.logToMaster("CactusAncestralRagoutCleanupPhase")
-        self.cleanupSecondaryDatabase()
+        os.remove(self.phaseNode.attrib["outputFile"])
         self.makeFollowOnPhaseTarget(CactusCheckPhase, "check")
 
 ############################################################
