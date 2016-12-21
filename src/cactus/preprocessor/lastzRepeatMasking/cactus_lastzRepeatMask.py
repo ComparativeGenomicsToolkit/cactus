@@ -64,12 +64,12 @@ def lastzRepeatMaskJob(job, queryID, targetIDs,
     # lastz each fragment against the entire input sequence.  Each time a fragment aligns to a base
     # in the sequence, that base's match count is incremented.
     # the plus three for the period parameter is a fudge to ensure sufficient alignments are found
-    lastZSequenceHandling  = '[multiple][nameparse=darkspace] /dev/stdin[nameparse=darkspace] '
+    lastZSequenceHandling  = '%s[multiple][nameparse=darkspace] %s[nameparse=darkspace] ' % (os.path.basename(targetFile), os.path.basename(fragOutput))
     if unmaskInput:
-        lastZSequenceHandling  = '[multiple,unmask][nameparse=darkspace] /dev/stdin[unmask][nameparse=darkspace] '
+        lastZSequenceHandling  = '%s[multiple,unmask][nameparse=darkspace] %s[unmask][nameparse=darkspace] ' % (os.path.basename(targetFile), os.path.basename(fragOutput))
     lastzOutput = job.fileStore.getLocalTempFile()
     cactus_call(tool="cpecan", infile=fragOutput, outfile=lastzOutput,
-                parameters=["cPecanLastz", "%s%s" % (os.path.basename(targetFile), lastZSequenceHandling),
+                parameters=["cPecanLastz", lastZSequenceHandling,
                             lastzOpts,
                             "--querydepth=keep,nowarn:%i --format=general:name1,zstart1,end1,name2,zstart2+,end2+ --markend" % (period+3)])
 

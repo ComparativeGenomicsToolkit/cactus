@@ -75,52 +75,38 @@ def runKtserver(dbElem, killSwitchPath, maxPortsToTry=100, readOnly = False,
     success = False
     process = None
     procWaiter = None
-    try:        
-        for port in xrange(basePort, basePort + maxPortsToTry):
-            dbElem.setDbPort(port)
-            logger.info("Trying port: %i" % port)
-            if os.path.exists(logPath):
-                os.remove(logPath)
-            if __isKtServerOnTakenPort(dbElem, killSwitchPath, pretest=True):
-                logger.info("Ktserver already on port %i" % port)
-                continue
-            process = cactus_call(tool="ktserver", server=True,
-                                  parameters=['-log', logPath,
-                                              '-port', dbElem.getDbPort(),
-                                              __getKtServerOptions(dbElem)])
+    for port in xrange(basePort, basePort + maxPortsToTry):
+        dbElem.setDbPort(port)
+        logger.info("Trying port: %i" % port)
+        if os.path.exists(logPath):
+            os.remove(logPath)
 
-            procWaiter = ProcessWaiter(process)
-            procWaiter.start()
-            __writeStatusToSwitchFile(dbElem, process.pid, killSwitchPath)
-            validated = __validateKtserver(process, dbElem, killSwitchPath,
-                                         createTimeout, loadTimeout)
-            logger.info("Was able to validate ktserver: %r" % validated)
-            success = validated
-            if success is True:
-                break
-            else:
-                if process.returncode is None:
-                    process.kill()
-                process = None
+        if __isKtServerOnTakenPort(dbElem, killSwitchPath, pretest=True):
+            logger.info("Ktserver already on port %i" % port)
+            continue
+        process = cactus_call(tool="ktserver", server=True, shell=False, work_dir=os.path.dirname(logPath),
+                              parameters=['-log', os.path.basename(logPath),
+                                          '-port', dbElem.getDbPort(),
+                                          __getKtServerOptions(dbElem)])
 
-        if success is False:
-            raise RuntimeError("Unable to launch ktserver.  "+
-                               "Server log is: %s" % logPath)
+        procWaiter = ProcessWaiter(process)
+        procWaiter.start()
+        __writeStatusToSwitchFile(dbElem, process.pid, killSwitchPath)
+        validated = __validateKtserver(process, dbElem, killSwitchPath,
+                                     createTimeout, loadTimeout)
+        logger.info("Was able to validate ktserver: %r" % validated)
+        success = validated
+        if success is True:
+            break
+        else:
+            if process.returncode is None:
+                process.kill()
+            process = None
+
+    if success is False:
+        raise RuntimeError("Unable to launch ktserver.  "+
+                           "Server log is: %s" % logPath)
             
-    except Exception as e:
-        # make an attempt to alert the world of the launch failure by
-        # writing some -1's to the switch file
-        switchFile = open(killSwitchPath, "w")
-        switchFile.write("-1\n-1\n-1\n")
-        switchFile.close()
-
-        # if we don't kill the spawned process, the waiter thread will keep
-        # this process alive which we don't want in the case of an error
-        if process is not None and process.returncode is None:
-            process.terminate()
-        assert procWaiter is None or procWaiter.is_alive() is False
-        
-        raise e
     return process
 
 ###############################################################################

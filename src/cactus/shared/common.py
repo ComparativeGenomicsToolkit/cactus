@@ -741,6 +741,7 @@ def runGetChunks(sequenceFiles, chunksDir, chunkSize, overlapSize):
                                            overlapSize,
                                            chunksDir] + sequenceFiles).split("\n") if chunk != ""]
 
+#TODO: This function is a mess
 def cactus_call(tool,
                 work_dir=None,
                 parameters=None,
@@ -754,13 +755,15 @@ def cactus_call(tool,
                 stdin_string=None,
                 option_string="",
                 server=False,
+                shell=True,
+                port=None,
                 check_result=False,
                 dockstore="quay.io/comparative-genomics-toolkit"):
     if parameters is None:
         parameters = []
 
     def moveToWorkDir(work_dir, arg):
-        if os.path.isfile(arg):
+        if isinstance(arg, str) and os.path.isfile(arg):
             if not os.path.dirname(arg) == work_dir:
                 shutil.copy(arg, work_dir)
 
@@ -806,36 +809,41 @@ def cactus_call(tool,
                         '--log-driver=none',
                         '-v', '{}:/data'.format(os.path.abspath(work_dir))]
 
+    if port:
+        base_docker_call += ["-p %d:%d" % (port, port)]
+
     #base_docker_call.extend(['--name', container_name])
     if rm:
         base_docker_call.append('--rm')
 
 
-
+    if infile:
+        if not os.path.exists(os.path.join(work_dir, os.path.basename(infile))):
+            shutil.copy(infile, work_dir)
+        parameters = ["cat", os.path.basename(infile), "|"] + parameters
+    if outfile:
+        assert os.path.exists(os.path.join(work_dir, os.path.basename(outfile)))
+        parameters = parameters + [">", os.path.basename(outfile)]
 
     parameters = [par for par in parameters if par != '']
+
+    if infile or outfile:
+        parameters = "sh -c '%s'" % " ".join(parameters)
+    else:
+        parameters = " ".join(parameters)
 
     if os.environ.get('CACTUS_DEVELOPER_MODE'):
         _log.info("Calling tool from local cactus installation.")
         if tool == "cactus" or tool == "cpecan":
             call = parameters
         else:
-            call = [tool] + parameters
+            call = tool + " " + parameters
     else:
         tool = "%s/%s:%s" % (dockstore, tool, cactus_commit)
-        call = base_docker_call + [tool] + parameters
+        call = " ".join(base_docker_call) + " " + tool + " " + parameters
     if option_string:
-        call += [option_string]
-    call_string = " ".join(call)
+        call += " " + option_string
     
-
-    #Eliminate empty string arguments, which will be parsed incorrectly
-    #by docker run
-    
-    if infile:
-        _log.info("Input file: %s", infile)
-    if outfile:
-        _log.info("Output file: %s", outfile)
 
     if stdin_string:
         _log.info("Input string: %s" % stdin_string)
@@ -845,16 +853,14 @@ def cactus_call(tool,
     stdoutFileHandle = None
     if stdin_string:
         stdinFileHandle = subprocess.PIPE
-    elif infile:
-        stdinFileHandle = open(infile, 'r')
-    if outfile:
-        stdoutFileHandle = open(outfile, 'w')
-    elif check_output:
+    if check_output:
         stdoutFileHandle = subprocess.PIPE
 
 
-    _log.info("Running the command %s" % call_string)
-    process = subprocess.Popen(call_string, shell=True,
+    _log.info("Running the command %s" % call)
+    if not shell:
+        call = call.split()
+    process = subprocess.Popen(call, shell=shell,
                                stdin=stdinFileHandle, stdout=stdoutFileHandle, stderr=sys.stderr, bufsize=-1)
 
     if server:
