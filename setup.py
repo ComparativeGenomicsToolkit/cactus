@@ -29,8 +29,7 @@ setup(
         'toil_lib==1.2.0a1.dev119'],
     
     entry_points={
-        'console_scripts': [
-            'progressiveCactus = cactus.progressive.cactus_progressive:main'
+        'console_scripts': ['progressiveCactus = cactus.progressive.cactus_progressive:main',
             'cactus_checkUniqueHeaders.py = cactus.preprocessor.cactus_checkUniqueHeaders.py:main',
             'cactus_filterSmallFastaSequences.py = cactus.preprocessor.cactus_filterSmallFastaSequences.py:main',
             'cactus_makeAlphaNumericHeaders.py = cactus.preprocessor.cactus_makeAlphaNumericHeaders.py:main']},)
