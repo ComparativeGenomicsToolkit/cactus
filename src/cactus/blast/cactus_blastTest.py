@@ -39,6 +39,8 @@ from cactus.blast.cactus_blast import BlastIngroupsAndOutgroups
 from cactus.blast.cactus_blast import BlastSequencesAllAgainstAll
 from cactus.blast.cactus_blast import BlastSequencesAgainstEachOther
 from cactus.blast.cactus_blast import calculateCoverage
+from cactus.blast.cactus_blast import IterativelySampleRepeats
+from cactus.blast.cactus_blast import GetInitialSamplingRates
 
 from toil.job import Job
 from toil.common import Toil
@@ -57,11 +59,11 @@ class TestCase(unittest.TestCase):
     
     def tearDown(self):
         pass
-        for tempFile in self.tempFiles:
-            if os.path.exists(tempFile):
-                os.remove(tempFile)
-        unittest.TestCase.tearDown(self)
-        system("rm -rf %s" % self.tempDir)
+        #for tempFile in self.tempFiles:
+        #    if os.path.exists(tempFile):
+        #        os.remove(tempFile)
+        #unittest.TestCase.tearDown(self)
+        #system("rm -rf %s" % self.tempDir)
         
     def runComparisonOfBlastScriptVsNaiveBlast(self, blastMode):
         """We compare the output with a naive run of the blast program, to check the results are nearly
@@ -339,6 +341,39 @@ class TestCase(unittest.TestCase):
         #startTime = time.time()
         #runNaiveBlast([ tempSeqFile ], self.tempOutputFile, self.tempDir, lastzOptions="--nogapped --step=3 --hspthresh=3000 --ambiguous=iupac")
         #logger.critical("It took %s seconds to run blast" % (time.time() - startTime))
+
+    def testIterativeRepeatSampling(self):
+        encodeRegion = "ENm001"
+        species = ("human", "mouse", "dog")
+        #Other species to try "rat", "monodelphis", "macaque", "chimp"
+        regionPath = os.path.join(self.encodePath, encodeRegion)
+        seqs = [os.path.join(regionPath, "%s.%s.fa" % (species_i, encodeRegion)) for species_i in species]
+
+        options = Job.Runner.getDefaultOptions(os.path.join(self.tempDir, "tmpToil"))
+        blastOptions = BlastOptions(chunkSize=500000, overlapSize=10000,
+                                    compressFiles=False,
+                                    memory=500000000)
+
+        samplingRates = os.path.join(self.tempDir, "samplingRates.txt")
+        with Toil(options) as toil:
+            seqIDs = [toil.importFile(makeURL(seq)) for seq in seqs]
+            samplingRatesID = toil.start(IterativelySampleRepeats(seqIDs, blastOptions=blastOptions, prevSamplingRatesID=None))
+            toil.exportFile(samplingRatesID, makeURL(samplingRates))
+    def testGetInitialSamplingRates(self):
+        encodeRegion = "ENm001"
+        species = ("human", "mouse", "dog")
+        #Other species to try "rat", "monodelphis", "macaque", "chimp"
+        regionPath = os.path.join(self.encodePath, encodeRegion)
+        seqs = [os.path.join(regionPath, "%s.%s.fa" % (species_i, encodeRegion)) for species_i in species]
+        options = Job.Runner.getDefaultOptions(os.path.join(self.tempDir, "tmpToil"))
+        blastOptions = BlastOptions(chunkSize=500000, overlapSize=10000,
+                                compressFiles=False,
+                                memory=500000000)
+        with Toil(options) as toil:
+            seqIDs = [toil.importFile(makeURL(seq)) for seq in seqs]
+            samplingRatesID = toil.start(GetInitialSamplingRates(sequenceIDs=seqIDs, blastOptions=blastOptions))
+            toil.exportFile(samplingRatesID, makeURL(os.path.join(self.tempDir, "samplingRates.txt")))
+        
 
 
 def compareResultsFile(results1, results2, closeness=0.95):

@@ -693,28 +693,34 @@ def runToilStatusAndFailIfNotComplete(toilDir):
     command = "toil status %s --failIfNotComplete --verbose" % toilDir
     system(command)
 
-def runLastz(seq1, seq2, alignmentsFile, lastzArguments, work_dir=None):
+def runLastz(seq1, seq2, alignmentsFile, lastzArguments, unmask=False, samplingRates=None, work_dir=None):
     #Have to specify the work_dir manually for this, since
     #we're adding arguments to the filename
     assert os.path.dirname(seq1) == os.path.dirname(seq2)
+    maskingFlag = "[unmask]" if unmask else ""
+    seedProbabilitiesOption = "--seedSamplingProbabilities=%s" % os.path.basename(samplingRates) if samplingRates else ""
     work_dir = os.path.dirname(seq1)
     cactus_call(work_dir=work_dir, outfile=alignmentsFile,
                 parameters=["cPecanLastz",
                             "--format=cigar",
                             "--notrivial",
                             lastzArguments,
-                            "%s[multiple][nameparse=darkspace]" % os.path.basename(seq1),
-                            "%s[nameparse=darkspace]" % os.path.basename(seq2)])
+                            "%s[multiple][nameparse=darkspace]%s" % (os.path.basename(seq1), maskingFlag),
+                            "%s[nameparse=darkspace]%s" % (os.path.basename(seq2), maskingFlag)],
+                option_string=seedProbabilitiesOption)
 
-def runSelfLastz(seq, alignmentsFile, lastzArguments, work_dir=None):
+def runSelfLastz(seq, alignmentsFile, lastzArguments, unmask=False, samplingRates=None, work_dir=None):
     work_dir = os.path.dirname(seq)
+    maskingFlag = "[unmask]" if unmask else ""
+    seedProbabilitiesOption = "--seedSamplingProbabilities=%s" % os.path.basename(samplingRates) if samplingRates else ""
     cactus_call(work_dir=work_dir, outfile=alignmentsFile,
                 parameters=["cPecanLastz",
                             "--format=cigar",
                             "--notrivial",
                             lastzArguments,
-                            "%s[multiple][nameparse=darkspace]" % os.path.basename(seq),
-                            "%s[nameparse=darkspace]" % os.path.basename(seq)])
+                            "%s[multiple][nameparse=darkspace]%s" % (os.path.basename(seq), maskingFlag),
+                            "%s[nameparse=darkspace]%s" % (os.path.basename(seq), maskingFlag)],
+                option_string=seedProbabilitiesOption)
     
 def runCactusRealign(seq1, seq2, inputAlignmentsFile, outputAlignmentsFile, realignArguments, work_dir=None):
     cactus_call(infile=inputAlignmentsFile, outfile=outputAlignmentsFile, work_dir=work_dir,

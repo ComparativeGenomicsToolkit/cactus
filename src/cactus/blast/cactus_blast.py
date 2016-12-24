@@ -42,7 +42,8 @@ class BlastOptions:
                  # default because it's needed for the tests (which
                  # don't use realign.)
                  trimOutgroupFlanking=2000,
-                 keepParalogs=False):
+                 keepParalogs=False,
+                 baseSamplingRate=0.1):
         """Class defining options for blast
         """
         self.chunkSize = chunkSize
@@ -64,7 +65,135 @@ class BlastOptions:
         self.trimOutgroupDepth = trimOutgroupDepth
         self.trimOutgroupFlanking = trimOutgroupFlanking
         self.keepParalogs = keepParalogs
+        self.baseSamplingRate = baseSamplingRate
+
+class IterativelySampleRepeats(Job):
+    def __init__(self, sequenceIDs, blastOptions, prevSamplingRatesID=None):
+        Job.__init__(self)
+        self.sequenceIDs = sequenceIDs
+        self.blastOptions = blastOptions
+        self.prevSamplingRatesID = prevSamplingRatesID
+    def run(self, fileStore):
+        if not self.prevSamplingRatesID:
+            self.prevSamplingRatesID = self.addChild(GetInitialSamplingRates(sequenceIDs=self.sequenceIDs, blastOptions=self.blastOptions)).rv()
+
+        self.addFollowOn(IterativelySampleRepeats2(sequenceIDs=self.sequenceIDs, blastOptions=self.blastOptions,
+                                                   prevSamplingRatesID=self.prevSamplingRatesID))
+class IterativelySampleRepeats2(Job):
+    def __init__(self, sequenceIDs, blastOptions, prevSamplingRatesID=None):
+        Job.__init__(self)
+        self.sequenceIDs = sequenceIDs
+        self.blastOptions = blastOptions
+        self.prevSamplingRatesID = prevSamplingRatesID
+    def run(self, fileStore):
+        #Down-weight all seeds contained within pairwise alignments sampled using
+        #the given probabilities table
+        alignmentsID = self.addChild(BlastSequencesAllAgainstAll(self.sequenceIDs, blastOptions=self.blastOptions, samplingRatesID=self.prevSamplingRatesID))
+        return self.addFollowOn(AdjustSamplingRates(sequenceIDs=self.sequenceIDs, alignmentsID=alignmentsID, samplingRatesID=self.prevSamplingRatesID))
+
+def getSeed(kmer, seedPattern):
+    assert len(kmer) == len(seedPattern)
+    seed = ""
+    for i, base in enumerate(kmer):
+        if seedPattern[i] == "1":
+            seed[i] = base
+        else:
+            seed[i] = 'x'
+    return seed
+
+class GetInitialSamplingRates(Job):
+    def __init__(self, sequenceIDs, blastOptions):
+        Job.__init__(self)
+        self.sequenceIDs = sequenceIDs
+        self.blastOptions = blastOptions
+
+    def run(self, fileStore):
+        sequences = [fileStore.readGlobalFile(seqID) for seqID in self.sequenceIDs]
+        #Initialize the seed probabilities table with the base rate
+        lastzTable = fileStore.getLocalTempFile()
+        combinedSequence = fileStore.getLocalTempFile()
+        catFiles(sequences, combinedSequence)
+        cactus_call(tool="cpecan", outfile=lastzTable,
+                    parameters=["cPecanLastz",
+                    "--tableonly=count",
+                    "%s[unmask][multiple][nameparse=darkspace]" % combinedSequence])
+
+        samplingRates = fileStore.getLocalTempFile()
+        with open(samplingRates, 'w') as samplingRatesFH:
+            with open(lastzTable, 'r') as lastzTableFH:
+                for line in lastzTableFH:
+                    line = line.split()
+                    if len(line) != 2:
+                        continue
+                    packed, seed = line[0].split("/")
+                    #Get rid of the colon
+                    seed = seed[:-1]
+                    samplingRatesFH.write("%s %f\n" % (packed, self.blastOptions.baseSamplingRate))
+        return fileStore.writeGlobalFile(samplingRates)        
+
+
+class AdjustSamplingRates(Job):
+    def __init__(self, sequenceIDs, alignmentsID, samplingRatesID):
+        Job.__init__(self)
+        self.sequenceIDs = sequenceIDs
+        self.alignmentsID = alignmentsID
+        self.samplingRatesID = samplingRatesID
+
+    def run(self, fileStore):
+        sequences = [fileStore.readGlobalFile(seqID) for seqID in self.sequenceIDs]
+        alignments = fileStore.readGlobalFile(self.alignmentsID)
+        samplingRatesFile = fileStore.readGlobalFile(self.samplingRatesID)
+
+        #Index the sequences
+        for seq in sequences:
+            cactus_call(tool="samtools", parameters=["faidx", seq])
+
+        #Read the seed sampling rates into memory
+        samplingRates = dict()
+        seedToPacked = dict()
+        seedPattern = None
+        for line in open(samplingRatesFile, 'r'):
+            line = line.split()
+            if len(line) != 2:
+                continue
+            packed, seed = line[0].split("/")
+            if not seedPattern:
+                for i, base in enumerate(seed):
+                    seedPattern[i] = "0" if base == 'x' else 1
+            rate = line[1]
+            samplingRates[seed] = rate
+            seedToPacked[seed] = packed
+            
+
+        chrToFile = dict()
+        for seq in sequences:
+            for name, seq in fastaRead(seq):
+                chrToFile[name] = seq
+
+        for pA in cigarRead(alignments):
+            #Get the aligned regions in the two sequences
+            seq1 = chrToFile[pA.contig1]
+            seq1 = chrToFile[pA.contig2]
+            segment1 = cactus_call(tool="samtools", check_output=True, parameters=["faidx", seq1, "%s:%i-%i" % (pA.contig1, pA.start1, pA.end1)])
+            segment2 = cactus_call(tool="samtools", check_output=True, parameters=["faidx", seq2, "%s:%i-%i" % (pA.contig2, pA.start2, pA.end2)])
+
+            #Adjust sampling rates for all seeds covered by this alignment
+            k = len(seedPattern)
+            for segment in (segment1, segment2):
+                for i in range(len(segment) - k):
+                    seed = getSeed(segment[i, i+k], seedPattern)
+                    samplingRates[seed] = samplingRates[seed] / 2
         
+        newSamplingRates = fileStore.getLocalTempFile()
+        with open(newSamplingRates, 'w') as newSamplingRatesFH:
+            for seed in samplingRates:
+                rate = samplingRates[seed]
+                packed = seedToPacked[seed]
+                newSamplingRatesFH.write("%x/%s %f" % (packed, seed, rate))
+        return fileStore.writeGlobalFile(newSamplingRates)
+            
+            
+
 class BlastFlower(Job):
     """Take a reconstruction problem and generate the sequences in chunks to be blasted.
     Then setup the follow on blast targets and collation targets.
@@ -101,7 +230,7 @@ class BlastFlower(Job):
 class BlastSequencesAllAgainstAll(Job):
     """Take a set of sequences, chunks them up and blasts them.
     """
-    def __init__(self, sequenceFileIDs1, blastOptions):
+    def __init__(self, sequenceFileIDs1, blastOptions, samplingRatesID=None):
         disk = 4*sum([seqFileID.size for seqFileID in sequenceFileIDs1])
         cores = 1
         memory = blastOptions.memory
@@ -111,6 +240,7 @@ class BlastSequencesAllAgainstAll(Job):
         self.blastOptions = blastOptions
         self.blastOptions.compressFiles = False
         self.blastOptions.roundsOfCoordinateConversion = 1
+        self.samplingRatesID = samplingRatesID
         
     def run(self, fileStore):
         sequenceFiles1 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs1]
@@ -118,19 +248,19 @@ class BlastSequencesAllAgainstAll(Job):
         assert len(chunks) > 0
         logger.info("Broken up the sequence files into individual 'chunk' files")
         chunkIDs = [fileStore.writeGlobalFile(chunk, cleanup=False) for chunk in chunks]
-
-        diagonalResultsID = self.addChild(MakeSelfBlasts(self.blastOptions, chunkIDs)).rv()
-        offDiagonalResultsID = self.addChild(MakeOffDiagonalBlasts(self.blastOptions, chunkIDs)).rv()
+        diagonalResultsID = self.addChild(MakeSelfBlasts(self.blastOptions, chunkIDs, samplingRatesID=self.samplingRatesID)).rv()
+        offDiagonalResultsID = self.addChild(MakeOffDiagonalBlasts(self.blastOptions, chunkIDs, samplingRatesID=self.samplingRatesID)).rv()
         logger.debug("Collating the blasts after blasting all-against-all")
         return self.addFollowOn(CollateBlasts(self.blastOptions, [diagonalResultsID, offDiagonalResultsID])).rv()
         
 class MakeSelfBlasts(Job):
     """Breaks up the inputs into bits and builds a bunch of alignment jobs.
     """
-    def __init__(self, blastOptions, chunkIDs):
+    def __init__(self, blastOptions, chunkIDs, samplingRatesID=None):
         Job.__init__(self)
         self.blastOptions = blastOptions
         self.chunkIDs = chunkIDs
+        self.samplingRatesID = samplingRatesID
         
     def run(self, fileStore):
         logger.info("Chunk IDs: %s" % self.chunkIDs)
@@ -138,7 +268,7 @@ class MakeSelfBlasts(Job):
         self.blastOptions.compressFiles = self.blastOptions.compressFiles and len(self.chunkIDs) > 2
         resultsIDs = []
         for i in xrange(len(self.chunkIDs)):
-            resultsIDs.append(self.addChild(RunSelfBlast(self.blastOptions, self.chunkIDs[i])).rv())
+            resultsIDs.append(self.addChild(RunSelfBlast(self.blastOptions, self.chunkIDs[i], samplingRatesID=self.samplingRatesID)).rv())
         logger.info("Made the list of self blasts")
         #Setup job to make all-against-all blasts
         logger.debug("Collating self blasts.")
@@ -146,21 +276,21 @@ class MakeSelfBlasts(Job):
         return self.addFollowOn(CollateBlasts(self.blastOptions, resultsIDs)).rv()
     
 class MakeOffDiagonalBlasts(Job):
-        def __init__(self, blastOptions, chunkIDs):
+        def __init__(self, blastOptions, chunkIDs, samplingRatesID=None):
             Job.__init__(self)
             self.chunkIDs = chunkIDs
             self.blastOptions = blastOptions
             self.blastOptions.compressFiles = False
+            self.samplingRatesID = samplingRatesID
 
         def run(self, fileStore):
             resultsIDs = []
             #Make the list of blast jobs.
             for i in xrange(0, len(self.chunkIDs)):
                 for j in xrange(i+1, len(self.chunkIDs)):
-                    resultsIDs.append(self.addChild(RunBlast(blastOptions=self.blastOptions, seqFileID1=self.chunkIDs[i], seqFileID2=self.chunkIDs[j])).rv())
+                    resultsIDs.append(self.addChild(RunBlast(blastOptions=self.blastOptions, seqFileID1=self.chunkIDs[i], seqFileID2=self.chunkIDs[j], samplingRatesID=self.samplingRatesID)).rv())
 
-
-            return self.addFollowOn(CollateBlasts(self.blastOptions, resultsIDs)).rv()
+            return self.addFollowOn(CollateBlasts(self.blastOptions, resultsIDs, samplingRatesID=self.samplingRatesID)).rv()
 
             
 class BlastSequencesAgainstEachOther(Job):
@@ -437,18 +567,20 @@ def compressFastaFile(fileName):
 class RunSelfBlast(Job):
     """Runs blast as a job.
     """
-    def __init__(self, blastOptions, seqFileID):
+    def __init__(self, blastOptions, seqFileID, samplingRatesID=None):
         disk = 3*seqFileID.size
         memory = 3*seqFileID.size
         
         Job.__init__(self, memory=memory, disk=disk)
         self.blastOptions = blastOptions
         self.seqFileID = seqFileID
+        self.samplingRatesID = samplingRatesID
     
     def run(self, fileStore):   
         blastResultsFile = fileStore.getLocalTempFile()
         seqFile = fileStore.readGlobalFile(self.seqFileID)
-        runSelfLastz(seqFile, blastResultsFile, lastzArguments=self.blastOptions.lastzArguments)
+        samplingRates = fileStore.readGlobalFile(self.samplingRatesID)
+        runSelfLastz(seqFile, blastResultsFile, lastzArguments=self.blastOptions.lastzArguments, samplingRates=samplingRates)
         if self.blastOptions.realign:
             realignResultsFile = fileStore.getLocalTempFile()
             runCactusSelfRealign(seqFile, inputAlignmentsFile=blastResultsFile,
@@ -475,27 +607,26 @@ def decompressFastaFile(fileName, tempFileName):
 class RunBlast(Job):
     """Runs blast as a job.
     """
-    def __init__(self, blastOptions, seqFileID1, seqFileID2):
-        if hasattr(seqFileID1, "size") and hasattr(seqFileID2, "size"):
-            disk = 2*(seqFileID1.size + seqFileID2.size)
-            memory = 2*(seqFileID1.size + seqFileID2.size)
-        else:
-            disk = None
-            memory = None
+    def __init__(self, blastOptions, seqFileID1, seqFileID2, samplingRatesID):
+        disk = 2*(seqFileID1.size + seqFileID2.size)
+        memory = 2*(seqFileID1.size + seqFileID2.size)
         Job.__init__(self, memory=memory, disk=disk)
         self.blastOptions = blastOptions
         self.seqFileID1 = seqFileID1
         self.seqFileID2 = seqFileID2
+        self.samplingRatesID = samplingRatesID
     
     def run(self, fileStore):
         seqFile1 = fileStore.readGlobalFile(self.seqFileID1)
         seqFile2 = fileStore.readGlobalFile(self.seqFileID2)
+        samplingRates = fileStore.readGlobalFile(self.samplingRatesID)
         if self.blastOptions.compressFiles:
             seqFile1 = decompressFastaFile(seqFile1, fileStore.getLocalTempFile())
             seqFile2 = decompressFastaFile(seqFile2, fileStore.getLocalTempFile())
         blastResultsFile = fileStore.getLocalTempFile()
 
-        runLastz(seqFile1, seqFile2, blastResultsFile, lastzArguments = self.blastOptions.lastzArguments)
+        runLastz(seqFile1, seqFile2, blastResultsFile, lastzArguments = self.blastOptions.lastzArguments,
+                 samplingRates=samplingRates)
         if self.blastOptions.realign:
             realignResultsFile = fileStore.getLocalTempFile()
             runCactusRealign(seqFile1, seqFile2, inputAlignmentsFile=blastResultsFile,
