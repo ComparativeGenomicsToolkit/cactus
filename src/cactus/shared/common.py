@@ -732,8 +732,8 @@ def runCactusCoverage(sequenceFile, alignmentsFile, work_dir=None):
     return cactus_call(tool="cactus", check_output=True, work_dir=work_dir,
                 parameters=["cactus_coverage", sequenceFile, alignmentsFile])
 
-def runGetChunks(sequenceFiles, chunksDir, chunkSize, overlapSize):
-    return [chunk for chunk in cactus_call(tool="cactus",
+def runGetChunks(sequenceFiles, chunksDir, chunkSize, overlapSize, work_dir=None):
+    return [chunk for chunk in cactus_call(tool="cactus", work_dir=work_dir,
                                            check_output=True,
                                            parameters=["cactus_blast_chunkSequences",
                                            getLogLevelString(),
@@ -871,7 +871,7 @@ def cactus_call(tool,
         return process.returncode
     
     if process.returncode != 0:
-        raise RuntimeError("Command %s failed with output: %s" % (repr(call_string), output))
+        raise RuntimeError("Command %s failed with output: %s" % (call, output))
 
     # Fix root ownership of output files
     if not os.getenv('CACTUS_DEVELOPER_MODE'):

@@ -9,6 +9,7 @@ from cactus.preprocessor.cactus_preprocessor import runCactusPreprocessor
 from toil.common import Toil
 from toil.job import Job
 from cactus.shared.common import makeURL
+from cactus.shared.common import runGetChunks
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import lastzRepeatMaskJob
 
 
@@ -82,6 +83,26 @@ class TestCase(PreprocessorTestCase):
             print " The number of bases masked after running lastz repeat masking without the preprocessor is: ", len(maskedBasesLastzMaskedFast), \
              " the recall of the fast vs. the new is: ", i/len(maskedBasesLastzMasked), \
              " the precision of the fast vs. the new is: ", i/len(maskedBasesLastzMaskedFast)
+
+    @unittest.skip("")
+    def testLargeRepeatMaskJob(self):
+        seq = "http://hgwdev.cse.ucsc.edu/~adderan/HumanMouseRatDog/mm10.fa"
+        options = Job.Runner.getDefaultOptions(os.path.join(self.tempDir, "tmp_toil"))
+        with Toil(options) as toil:
+            seqID = toil.importFile(makeURL(seq))
+            chunksJob = Job.wrapJobFn(getChunksJob, seqID=seqID)
+            repeatMaskJob = Job.wrapJobFn(lastzRepeatMaskJob, queryID=chunksJob.rv(0), targetIDs=chunksJob.rv(), proportionSampled=0.2, minPeriod=50, memory=3000000000, disk=2000000000)
+            chunksJob.addChild(repeatMaskJob)
+            toil.start(chunksJob)
+            
+            
+def getChunksJob(job, seqID):
+    seq = job.fileStore.readGlobalFile(seqID)
+    inChunkDirectory = job.fileStore.getLocalTempDir()
+    inChunkList = runGetChunks(sequenceFiles=[seq], chunksDir=inChunkDirectory,
+                               chunkSize=3000000, overlapSize=0, work_dir=os.path.dirname(seq))
+    return [fileStore.writeGlobalFile(chunk) for chunk in inChunkList]                
+        
         
 if __name__ == '__main__':
     if "SON_TRACE_DATASETS" in os.environ:
