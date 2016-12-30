@@ -73,9 +73,11 @@ class PreprocessChunk(Job):
                                     outChunk])
             outChunkID = fileStore.writeGlobalFile(outChunk)
         elif self.prepOptions.preprocessJob == "lastzRepeatMask":
+            memory = 2*(sum([seqID.size for seqID in self.seqIDs]) + self.inChunkID.size)
+            disk = 6*(sum([seqID.size for seqID in self.seqIDs])) + self.inChunkID.size
             outChunkID = self.addChildJobFn(lastzRepeatMaskJob, queryID=self.inChunkID, targetIDs=self.seqIDs,
                                       proportionSampled=self.prepOptions.proportionToSample,
-                                            minPeriod=self.prepOptions.minPeriod, memory=self.prepOptions.memory, disk=2*self.inChunkID.size).rv()
+                                            minPeriod=self.prepOptions.minPeriod, memory=memory, disk=disk).rv()
         
         
         if self.prepOptions.check:
@@ -116,11 +118,12 @@ class MergeChunks2(Job):
 class PreprocessSequence(Job):
     """Cut a sequence into chunks, process, then merge
     """
-    def __init__(self, prepOptions, inSequenceID):
-        disk = 3*inSequenceID.size
+    def __init__(self, prepOptions, inSequenceID, chunksToCompute=None):
+        disk = 3*inSequenceID.size if hasattr(inSequenceID, "size") else None
         Job.__init__(self, cores=prepOptions.cpu, memory=prepOptions.memory, disk=disk)
         self.prepOptions = prepOptions 
         self.inSequenceID = inSequenceID
+        self.chunksToCompute = chunksToCompute
     
     def run(self, fileStore):        
         logger.info("Preparing sequence for preprocessing")
@@ -137,7 +140,9 @@ class PreprocessSequence(Job):
         inChunkIDList = [fileStore.writeGlobalFile(chunk) for chunk in inChunkList]
         outChunkIDList = [] 
         #For each input chunk we create an output chunk, it is the output chunks that get concatenated together.
-        for i in xrange(len(inChunkList)):
+        if not self.chunksToCompute:
+            self.chunksToCompute = range(len(inChunkList))
+        for i in self.chunksToCompute:
             #Calculate the number of chunks to use
             inChunkNumber = int(max(1, math.ceil(len(inChunkList) * self.prepOptions.proportionToSample)))
             assert inChunkNumber <= len(inChunkList) and inChunkNumber > 0

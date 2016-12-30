@@ -68,7 +68,7 @@ def lastzRepeatMaskJob(job, queryID, targetIDs,
     if unmaskInput:
         lastZSequenceHandling  = '%s[multiple,unmask][nameparse=darkspace] %s[unmask][nameparse=darkspace] ' % (os.path.basename(targetFile), os.path.basename(fragOutput))
     lastzOutput = job.fileStore.getLocalTempFile()
-    cactus_call(tool="cpecan", infile=fragOutput, outfile=lastzOutput,
+    cactus_call(tool="cpecan", outfile=lastzOutput,
                 parameters=["cPecanLastz", lastZSequenceHandling,
                             lastzOpts,
                             "--querydepth=keep,nowarn:%i --format=general:name1,zstart1,end1,name2,zstart2+,end2+ --markend" % (period+3)])
