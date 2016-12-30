@@ -85,6 +85,7 @@ class TestCase(PreprocessorTestCase):
              " the recall of the fast vs. the new is: ", i/len(maskedBasesLastzMasked), \
              " the precision of the fast vs. the new is: ", i/len(maskedBasesLastzMaskedFast)
 
+    @unittest.skip("")
     def testLargeRepeatMaskJob(self):
         seq = "http://hgwdev.cse.ucsc.edu/~adderan/HumanMouseRatDog/mm10.fa"
         options = Job.Runner.getDefaultOptions(os.path.join(self.tempDir, "tmp_toil"))
