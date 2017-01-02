@@ -22,6 +22,11 @@ from sonLib.nxnewick import NXNewick
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 
 def createMCProject(tree, experiment, config, options):
+    """
+    Creates a properly initialized MultiCactusProject.
+
+    TODO: This should really all be in the constructor for MultiCactusProject.
+    """
     mcTree = MultiCactusTree(tree, config.getSubtreeSize())
     mcTree.nameUnlabeledInternalNodes(config.getDefaultInternalNodePrefix())
     mcTree.computeSubtreeRoots()
@@ -40,6 +45,19 @@ def createMCProject(tree, experiment, config, options):
             alignmentRootId = mcProj.mcTree.getNodeId(options.root)
         except Exception as e:
             raise RuntimeError("Specified root name %s not found in tree" % options.root)
+
+    fillInOutgroups(mcProj, options.outgroupNames, config, alignmentRootId)
+
+    # if necessary, we reroot the tree at the specified alignment root id.  all leaf genomes
+    # that are no longer in the tree, but still used as outgroups, are moved into special fields
+    # so that we can remember to, say, get their paths for preprocessing. 
+    specifyAlignmentRoot(mcProj, alignmentRootId)
+    return mcProj
+
+def fillInOutgroups(mcProj, outgroupNames, config, alignmentRootId):
+    """
+    Determines the outgroups for a MultiCactusProject using the strategy from the config.
+    """
     mcProj.outgroup = None
     if config.getOutgroupStrategy() == 'greedy':
         # use the provided outgroup candidates, or use all outgroups
@@ -47,18 +65,15 @@ def createMCProject(tree, experiment, config, options):
         mcProj.outgroup = GreedyOutgroup()
         mcProj.outgroup.importTree(mcProj.mcTree, alignmentRootId)
         mcProj.outgroup.greedy(threshold=config.getOutgroupThreshold(),
-                               candidateSet=options.outgroupNames,
+                               candidateSet=outgroupNames,
                                candidateChildFrac=config.getOutgroupAncestorQualityFraction(),
                                maxNumOutgroups=config.getMaxNumOutgroups())
     elif config.getOutgroupStrategy() == 'greedyLeaves':
         # use all leaves as outgroups, unless outgroup candidates are given
         mcProj.outgroup = GreedyOutgroup()
         mcProj.outgroup.importTree(mcProj.mcTree, alignmentRootId)
-        ogSet = options.outgroupNames
-        if ogSet is None:
-            ogSet = set([mcProj.mcTree.getName(x) for x in mcProj.mcTree.getLeaves()])
         mcProj.outgroup.greedy(threshold=config.getOutgroupThreshold(),
-                               candidateSet=ogSet,
+                               candidateSet=outgroupNames,
                                candidateChildFrac=2.0,
                                maxNumOutgroups=config.getMaxNumOutgroups())
     elif config.getOutgroupStrategy() == 'greedyPreference':
@@ -67,7 +82,7 @@ def createMCProject(tree, experiment, config, options):
         mcProj.outgroup = GreedyOutgroup()
         mcProj.outgroup.importTree(mcProj.mcTree, alignmentRootId)
         mcProj.outgroup.greedy(threshold=config.getOutgroupThreshold(),
-                               candidateSet=options.outgroupNames,
+                               candidateSet=outgroupNames,
                                candidateChildFrac=config.getOutgroupAncestorQualityFraction(),
                                maxNumOutgroups=config.getMaxNumOutgroups())
         mcProj.outgroup.greedy(threshold=config.getOutgroupThreshold(),
@@ -84,16 +99,10 @@ def createMCProject(tree, experiment, config, options):
         # size/quality automatically. 
         mcProj.outgroup = DynamicOutgroup()
         mcProj.outgroup.importTree(mcProj.mcTree, mcProj.getInputSequenceMap(), alignmentRootId,
-                                   candidateSet=options.outgroupNames)
+                                   candidateSet=outgroupNames)
         mcProj.outgroup.compute(maxNumOutgroups=config.getMaxNumOutgroups())
     elif config.getOutgroupStrategy() != 'none':
         raise RuntimeError("Could not understand outgroup strategy %s" % config.getOutgroupStrategy())
-
-    # if necessary, we reroot the tree at the specified alignment root id.  all leaf genomes
-    # that are no longer in the tree, but still used as outgroups, are moved into special fields
-    # so that we can remember to, say, get their paths for preprocessing. 
-    specifyAlignmentRoot(mcProj, alignmentRootId)
-    return mcProj
 
 # it is possible that we start with a much bigger tree than we actually want to align
 # (controlled by the --root option in cactus_createMultiCactusProject.py).  We use
@@ -306,10 +315,13 @@ def main():
                       "for allowing the tree to contain nodes that won't be in the alignment but can still be used for "
                       "outgroups.",
                       default=None)
+    parser.add_option("--alignToRoot", help="Root already has sequence, don't "
+                      "reconstruct it, but instead align to it.",
+                      action="store_true")
     parser.add_option("--overwrite", action="store_true", help="Overwrite existing experiment files", default=False)
 
     options, args = parser.parse_args()
-    
+
     if len(args) != 2:
         parser.print_help()
         raise RuntimeError("Wrong number of arguments")
@@ -321,7 +333,7 @@ def main():
 
     if (os.path.isdir(options.path) and not options.overwrite) or os.path.isfile(options.path):
         raise RuntimeError("Output project path %s exists\n" % options.path)
-    
+
     expTemplate = ExperimentWrapper(ET.parse(options.expFile).getroot())
     configPath = expTemplate.getConfigPath()
     confTemplate = ConfigWrapper(ET.parse(configPath).getroot())
@@ -334,13 +346,16 @@ def main():
     if len(tree.getChildren(tree.getRootId())) == 0:
         raise RuntimeError("Input species tree has only one node.")
 
+    # Validate the outgroups
     if options.outgroupNames is not None:
         projNames = set([tree.getName(x) for x in tree.getLeaves()])
         options.outgroupNames = set(options.outgroupNames.split(","))
         for outgroupName in options.outgroupNames:
             if outgroupName not in projNames:
                 raise RuntimeError("Specified outgroup %s not found in tree" % outgroupName)
+
     mcProj = createMCProject(tree, expTemplate, confTemplate, options)
+
     #Replace the sequences with output sequences
     expTemplate.updateTree(mcProj.mcTree, expTemplate.buildSequenceMap())
     expTemplate.setSequences(CactusPreprocessor.getOutputSequenceFiles(mcProj.inputSequences, expTemplate.getOutputSequenceDir()))
