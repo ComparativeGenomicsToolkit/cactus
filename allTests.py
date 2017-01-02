@@ -5,7 +5,7 @@
 #Released under the MIT license, see LICENSE.txt
 import unittest
 import os
-from threading import Thread
+from multiprocessing import Process
 import time
 
 from cactus.setup.cactus_setupTest import TestCase as setupTest
@@ -50,8 +50,8 @@ def allSuites():
     return allTests
 
 def main():
-    keepAliveThread = Thread(target=keepAlive)
-    # The keepalive thread will die when the main thread dies
+    keepAliveThread = Process(target=keepAlive)
+    # The keepalive process will die when the main thread dies
     keepAliveThread.daemon = True
     keepAliveThread.start()
     suite = allSuites()
