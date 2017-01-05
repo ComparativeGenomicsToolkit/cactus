@@ -79,5 +79,19 @@ class TestCase(unittest.TestCase):
         self.assertTrue(">seq1|6" in fa)
         self.assertTrue(">seq1|15" not in fa)
 
+    def testWithBlankLines(self):
+        with open(self.faPath, 'a') as f:
+            f.write("\n\n\n")
+        fa = popenCatch("cactus_trimSequences.py --flanking 0 --minSize 0 --windowSize 1 --threshold 1 %s %s" % (self.faPath, self.bedPath))
+        self.assertTrue(dedent('''\
+        >seq1|0
+        CATGC''') in fa)
+        self.assertTrue(dedent('''\
+        >seq1|6
+        TGCAT''') in fa)
+        self.assertTrue(dedent('''\
+        >seq1|15
+        G''') in fa)
+
 if __name__ == "__main__":
     unittest.main()
