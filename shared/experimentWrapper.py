@@ -33,7 +33,7 @@ class DbElemWrapper(object):
         dbElem = confElem.find(typeString)
         self.dbElem = dbElem
         self.confElem = confElem
-        
+
     def check(self):
         """Function checks the database conf is as expected and creates useful exceptions
         if not"""
@@ -72,50 +72,42 @@ class DbElemWrapper(object):
                     dbDir = dbDir[:-1]
                 return dbDir
         return None
-    
+
     def setDbDir(self, path):
         if path[-1] == '/' and len(path) > 1:
             self.dbElem.attrib["database_dir"] = path[:-1]
         else:
             self.dbElem.attrib["database_dir"] = path
-        
+
     def getDbName(self):
-        #if self.getDbType() == "kyoto_tycoon" and self.getDbInMemory() == True:
-        #    return ""
         if "database_name" not in self.dbElem.attrib:
             return None
         return self.dbElem.attrib["database_name"]
-    
+
     def setDbName(self, name):
-        #if self.getDbType() == "kyoto_tycoon":
-        #    if self.getDbInMemory() == True:
-        #        if "database_name" in self.dbElem.attrib:
-        #            del self.dbElem.attrib["database_name"]
-        #        return
-        #    assert os.path.splitext(name)[1] == ".kch"            
         self.dbElem.attrib["database_name"] = name
-    
+
     def getDbType(self):
         return self.dbElem.tag
-    
+
     def getDbPort(self):
         assert self.getDbType() == "kyoto_tycoon"
         return int(self.dbElem.attrib["port"])
-    
+
     def setDbPort(self, port):
         assert self.getDbType() == "kyoto_tycoon"
         self.dbElem.attrib["port"] = str(port)
-    
+
     def getDbHost(self):
         assert self.getDbType() == "kyoto_tycoon"
         if "host" in self.dbElem.attrib:
             return self.dbElem.attrib["host"]
         return None
-    
+
     def setDbHost(self, host):
         assert self.getDbType() == "kyoto_tycoon"
         self.dbElem.attrib["host"] = host
-        
+
     def getDbServerOptions(self):
         assert self.getDbType() == "kyoto_tycoon"
         if "server_options" in self.dbElem.attrib:
@@ -125,7 +117,7 @@ class DbElemWrapper(object):
     def setDbServerOptions(self, options):
         assert self.getDbType() == "kyoto_tycoon"
         self.dbElem.attrib["server_options"] = str(options)
-    
+
     def getDbTuningOptions(self):
         assert self.getDbType() == "kyoto_tycoon"
         if "tuning_options" in self.dbElem.attrib:
@@ -168,7 +160,7 @@ class DbElemWrapper(object):
     def setDbInMemory(self, inMemory):
         assert self.getDbType() == "kyoto_tycoon"
         self.dbElem.attrib["in_memory"] = str(int(inMemory))
-    
+
     def getDbSnapshot(self):
         assert self.getDbType() == "kyoto_tycoon"
         if "snapshot" in self.dbElem.attrib:
@@ -179,7 +171,7 @@ class DbElemWrapper(object):
     def setDbSnapshot(self, snapshot):
         assert self.getDbType() == "kyoto_tycoon"
         self.dbElem.attrib["snapshot"] = str(int(snapshot))
-    
+
     def cleanupDb(self): #Replacement for cleanupDatabase
         """Removes the database that was created.
         """
@@ -196,19 +188,17 @@ class ExperimentWrapper(DbElemWrapper):
         confElem = self.diskElem.find("st_kv_database_conf")
         super(ExperimentWrapper, self).__init__(confElem)
         self.xmlRoot = xmlRoot
-        self.seqMap = self.buildSequenceMap()
-        
+
     @staticmethod
     def createExperimentWrapper(sequences, newickTreeString, outputDir,
-                 outgroupEvents=None,
-                 databaseConf=None, configFile=None, 
+                 outgroupGenomes=None,
+                 databaseConf=None, configFile=None,
                  halFile=None, fastaFile=None,
                  constraints=None, progressive=False,
                  outputSequenceDir=None):
         #Establish the basics
         rootElem =  ET.Element("cactus_workflow_experiment")
         rootElem.attrib['species_tree'] = newickTreeString
-        rootElem.attrib['sequences'] = " ".join(sequences)
         #Stuff for the database
         database = ET.SubElement(rootElem, "cactus_disk")
         if databaseConf != None:
@@ -217,7 +207,7 @@ class ExperimentWrapper(DbElemWrapper):
             databaseConf = ET.SubElement(database, "st_kv_database_conf")
             databaseConf.attrib["type"] = "tokyo_cabinet"
             tokyoCabinet = ET.SubElement(databaseConf, "tokyo_cabinet")
-        self = ExperimentWrapper(rootElem) 
+        self = ExperimentWrapper(rootElem)
         #Output dir
         self.setOutputDir(outputDir)
         #Database name
@@ -228,7 +218,7 @@ class ExperimentWrapper(DbElemWrapper):
             self.setDbDir(os.path.join(outputDir, self.getDbName()))
         #Hal file
         if halFile != None:
-            self.setHALPath(halFile) 
+            self.setHALPath(halFile)
         #Fasta file
         if fastaFile != None:
             self.setHALFastaPath(fastaFile)
@@ -241,9 +231,9 @@ class ExperimentWrapper(DbElemWrapper):
         #Constraints
         if constraints != None:
             self.setConstraintsFilePath(constraints)
-        #Outgroup events
-        if outgroupEvents != None:
-            self.setOutgroupEvents(outgroupEvents)
+        #Outgroup genomes
+        if outgroupGenomes != None:
+            self.setOutgroupGenomes(outgroupGenomes)
         #Output sequences
         if outputSequenceDir != None:
             self.setOutputSequenceDir(outputSequenceDir)
@@ -257,10 +247,10 @@ class ExperimentWrapper(DbElemWrapper):
         xmlString = minidom.parseString(xmlString).toprettyxml()
         xmlFile.write(xmlString)
         xmlFile.close()
-    
+
     def getConfig(self):
         return self.xmlRoot.attrib["config"]
-    
+
     def getTree(self, onlyThisSubtree=False):
         treeString = self.xmlRoot.attrib["species_tree"]
         ret = NXNewick().parseString(treeString, addImpliedRoots = False)
@@ -274,92 +264,82 @@ class ExperimentWrapper(DbElemWrapper):
             ret = multiCactus.extractSubTree(self.getReferenceNameFromConfig())
         return ret
 
-    def setSequences(self, sequences):
-        self.xmlRoot.attrib["sequences"] = " ".join(sequences)
-        self.seqMap = self.buildSequenceMap()
-    
-    def getSequences(self):
-        return self.xmlRoot.attrib["sequences"].split()
-    
-    def getSequence(self, event):
-        return self.seqMap[event]
-    
     def getReferencePath(self):
         refElem = self.xmlRoot.find("reference")
         if refElem is None or "path" not in refElem.attrib:
             return None
         return refElem.attrib["path"]
-    
+
     def setReferencePath(self, path):
         refElem = self.xmlRoot.find("reference")
         if refElem is None:
             refElem = ET.Element("reference")
             self.xmlRoot.append(refElem)
         refElem.attrib["path"] = path
-    
+
     def getReferenceNameFromConfig(self):
         configElem = ET.parse(self.getConfig()).getroot()
         refElem = configElem.find("reference")
         return refElem.attrib["reference"]
-    
+
     def getOutputDir(self):
         return self.xmlRoot.attrib["outputDir"]
-    
+
     def setOutputDir(self, path):
         assert os.path.isdir(path)
         self.xmlRoot.attrib["outputDir"] = path
-        
+
     def getHALPath(self):
         halElem = self.xmlRoot.find("hal")
         if halElem is None or "halPath" not in halElem.attrib:
             return None
         return halElem.attrib["halPath"]
-    
+
     def setHALPath(self, path):
         halElem = self.xmlRoot.find("hal")
         if halElem is None:
             halElem = ET.Element("hal")
             self.xmlRoot.append(halElem)
         halElem.attrib["halPath"] = path
-        
+
     def getHALFastaPath(self):
         halElem = self.xmlRoot.find("hal")
         if halElem is None or "fastaPath" not in halElem.attrib:
             return None
         return halElem.attrib["fastaPath"]
-    
+
     def setHALFastaPath(self, path):
         halElem = self.xmlRoot.find("hal")
         if halElem is None:
             halElem = ET.Element("hal")
             self.xmlRoot.append(halElem)
         halElem.attrib["fastaPath"] = path
-        
+
     def setConstraintsFilePath(self, path):
         self.xmlRoot.attrib["constraints"] = path
-    
+
     def getConstraintsFilePath(self):
         if "constraints" not in self.xmlRoot.attrib:
             return None
         return self.xmlRoot.attrib["constraints"]
-        
+
     def getOutputSequenceDir(self):
         if "outputSequenceDir" not in self.xmlRoot.attrib:
             return os.path.join(self.getOutputDir(), "processedSequences")
         return self.xmlRoot.attrib["outputSequenceDir"]
-    
+
     def setOutputSequenceDir(self, path):
         assert os.path.isdir(path)
         self.xmlRoot.attrib["outputSequenceDir"] = path
-            
-    def getOutgroupEvents(self):
-        if self.xmlRoot.attrib.has_key("outgroup_events"):
-            return self.xmlRoot.attrib["outgroup_events"].split()
+
+    def getOutgroupGenomes(self):
+        if self.xmlRoot.attrib.has_key("outgroup_genomes"):
+            return self.xmlRoot.attrib["outgroup_genomes"].split()
         return []
-    
-    def setOutgroupEvents(self, outgroupEvents):
-        self.xmlRoot.attrib["outgroup_events"] = " ".join(outgroupEvents)
-        
+
+    def setOutgroupGenomes(self, outgroupGenomes):
+        self.xmlRoot.attrib["outgroup_genomes"] = " ".join(outgroupGenomes)
+
     def getConfigPath(self):
         config = self.xmlRoot.attrib["config"]
         if config == 'default':
@@ -367,16 +347,16 @@ class ExperimentWrapper(DbElemWrapper):
         if config == 'defaultProgressive':
             config = os.path.join(cactusRootPath(), "cactus_progressive_config.xml")
         return config
-    
+
     def setConfigPath(self, path):
         self.xmlRoot.attrib["config"] = path
-        
+
     def getDiskDatabaseString(self):
         conf = self.xmlRoot.find("cactus_disk").find("st_kv_database_conf")
         return ET.tostring(conf).replace("\n", "").replace("\t","")
 
     # kind of hack to incorporate secondary db interface without
-    # revamping anything else.  
+    # revamping anything else.
     def getSecondaryDBElem(self):
         secondaryConf = self.diskElem.find("secondary_conf")
         if secondaryConf is None:
@@ -384,7 +364,7 @@ class ExperimentWrapper(DbElemWrapper):
         return DbElemWrapper(secondaryConf)
 
     # kind of hack to incorporate secondary db interface without
-    # revamping anything else.  
+    # revamping anything else.
     def setSecondaryDBElem(self, dbElemWrapper):
         secondaryConf = self.diskElem.find("secondary_conf")
         if secondaryConf is not None:
@@ -395,56 +375,68 @@ class ExperimentWrapper(DbElemWrapper):
         dbAttrib = copy.deepcopy(dbElemWrapper.getDbElem().attrib)
         secondaryDb = ET.SubElement(secondaryConf, dbElemWrapper.getDbType(),
                                     dbAttrib)
-    
-    # map event names to sequence paths
-    def buildSequenceMap(self):
-        tree = self.getTree()
-        sequenceString = self.xmlRoot.attrib["sequences"]
-        sequences = sequenceString.split()
-        nameIterator = iter(sequences)
-        seqMap = dict()
-        for node in tree.postOrderTraversal():
-            if tree.isLeaf(node) or tree.getName(node) in self.getOutgroupEvents():
-                seqMap[tree.getName(node)] = nameIterator.next()
 
-        # Check that there are no sequences left unassigned
-        assert len(seqMap.keys()) == len(sequences)
+    def getSequencePath(self, genome):
+        """
+        Gets the path to the sequence for this genome.
+        Returns None if the genome is not found or there is no sequence.
+        """
+        genomeNodes = self.xmlRoot.findall("genome[@name='%s']" % genome)
 
-        return seqMap
+        if len(genomeNodes) == 0:
+            return None
 
-    # load in a new tree (using input seqMap if specified,
-    # current one otherwise
-    def updateTree(self, tree, seqMap = None, outgroups = None):
-        if seqMap is not None:
-            self.seqMap = seqMap
-        newMap = dict()
+        assert len(genomeNodes) == 1
+        genomeNode = genomeNodes[0]
+        return genomeNode.attrib['sequence']
+
+    def setSequencePath(self, genome, seqPath):
+        """
+        Sets the path to the sequence for this genome.
+        """
+        genomeNodes = self.xmlRoot.findall("genome[@name='%s']" % genome)
+
+        if len(genomeNodes) == 0:
+            # Need to create a new genome element for this sequence
+            genomeNode = ET.SubElement(self.xmlRoot, 'genome')
+            genomeNode.attrib['name'] = genome
+        else:
+            assert len(genomeNodes) == 1
+            genomeNode = genomeNodes[0]
+        genomeNode.attrib['sequence'] = seqPath
+
+    def getGenomesWithSequence(self):
+        """
+        Return a list of names of genomes in the problem which have sequence.
+        """
+        genomeNodes = self.xmlRoot.findall("genome")
+        return [node.attrib['name'] for node in genomeNodes if 'sequence' in node.attrib]
+
+    def getSequences(self):
+        """
+        Convenience method for returning the paths to all sequences in the problem
+        (in an arbitrary order).
+        """
+        return [self.getSequencePath(genome) for genome in self.getGenomesWithSequence()]
+
+    def setTree(self, tree):
+        """
+        Load a new tree.
+        """
+        # Write the new string to the XML
         treeString = NXNewick().writeString(tree)
         self.xmlRoot.attrib["species_tree"] = treeString
-        if outgroups is not None and len(outgroups) > 0:
-            self.setOutgroupEvents(outgroups)
 
-        sequences = "" 
-        for node in tree.postOrderTraversal():
-            if tree.isLeaf(node) or tree.getName(node) in self.getOutgroupEvents():
-                nodeName = tree.getName(node)
-                if len(sequences) > 0:
-                    sequences += " "
-                sequences += seqMap[nodeName]
-                newMap[nodeName] = seqMap[nodeName]
-        self.xmlRoot.attrib["sequences"] = sequences
-        self.seqMap = newMap
-    
-    # Adds an additional single outgroup sequence to the experiment. 
-    def addOutgroupSequence(self, ogName, ogDist, ogPath):
-        assert ogName is not None
-        tree = MultiCactusTree(self.getTree())
-        tree.addOutgroup(ogName, ogDist)
-        self.xmlRoot.attrib["species_tree"] = NXNewick().writeString(tree)   
-        seqs = "%s %s"  % (self.xmlRoot.attrib["sequences"], ogPath)
-        self.xmlRoot.attrib["sequences"] = seqs
-        self.seqMap[ogName] = ogPath
-        self.setOutgroupEvents(self.getOutgroupEvents() + [ogName])
+        # Ensure the changes are reflected in the genome elements
+        # (adding and deleting elements as necessary).
+        genomesInTree = set(tree.getName(id) for id in tree.postOrderTraversal())
+        genomeNodes = self.xmlRoot.findall('genome')
+        genomeNamesInXML = set(node.attrib['name'] for node in genomeNodes)
+        for node in genomeNodes:
+            if node.attrib['name'] not in genomesInTree:
+                self.xmlRoot.remove(node)
 
-    # return internal structure that maps event names to paths
-    def getSequenceMap(self):
-        return self.seqMap
+        for genome in genomesInTree:
+            if genome not in genomeNamesInXML:
+                node = ET.SubElement(self.xmlRoot, 'genome')
+                node.attrib['name'] = genome

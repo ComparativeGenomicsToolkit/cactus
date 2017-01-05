@@ -192,19 +192,7 @@ class ConfigWrapper:
         if ktServerElem is not None and "cpu" in ktServerElem.attrib:
             return int(ktServerElem.attrib["cpu"])
         return default           
-            
-    # the minBlockDegree, when specified in the final, "base" 
-    # iteration, does not play nicely with the required fraction
-    # option
-    def verifyMinBlockDegree(self, experiment):  
-        barElem = self.xmlRoot.find("bar")
-        minBlockDegree = int(barElem.attrib["minimumBlockDegree"])
-        reqSpecies = experiment.xmlRoot.find("required_species")
-        if reqSpecies is not None and minBlockDegree != 2:
-            sys.stderr.write("WARNING: reverting minBlockDegree from %i to 2 because of required_species\n" % 
-                             minBlockDegree)
-            itElem.attrib["minBlockDegree"] = "2"
-            
+
     def substituteAllPredefinedConstantsWithLiterals(self):
         constants = findRequiredNode(self.xmlRoot, "constants")
         defines = constants.find("defines")

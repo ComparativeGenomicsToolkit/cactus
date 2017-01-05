@@ -27,6 +27,7 @@ from cactus.shared.commonTest import TestCase as commonTest
 from cactus.shared.experimentWrapperTest import TestCase as experimentWrapperTest
 from cactus.faces.cactus_fillAdjacenciesTest import TestCase as fillAdjacenciesTest
 from cactus.preprocessor.allTests import allSuites as preprocessorTest
+from cactus.shared.experimentWrapperTest import TestCase as experimentWrapperTest
 
 def keepAlive():
     """Keep Travis tests from failing prematurely by outputting to stdout every few minutes."""
@@ -37,7 +38,8 @@ def keepAlive():
 def allSuites(): 
     allTests = unittest.TestSuite()
     allTests.addTests([unittest.makeSuite(i) for i in
-                       [setupTest,
+                       [experimentWrapperTest,
+                        setupTest,
                         workflowTest,
                         evolverTest,
                         barTest,

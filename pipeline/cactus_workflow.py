@@ -273,27 +273,28 @@ class CactusRecursionTarget(CactusTarget):
 ############################################################
 ############################################################
 
-def prependUniqueIDs(fas, outputDir):
-    """Prepend unique ints to fasta headers.
+def prependUniqueIDs(exp, outputDir):
+    """Modify an ExperimentWrapper to prepend unique (per genome) ints to the headers.
 
     (prepend rather than append since trimmed outgroups have a start
     token appended, which complicates removal slightly)
+
+    The original sequence paths are left unmodified, but the paths in
+    the wrapper will point to new locations.
     """
     uniqueID = 0
-    ret = []
-    for fa in fas:
+    for genome in exp.getGenomesWithSequence():
+        fa = exp.getSequencePath(genome)
         outPath = os.path.join(outputDir, os.path.basename(fa))
         out = open(outPath, 'w')
         for line in open(fa):
             if len(line) > 0 and line[0] == '>':
-                tokens = line[1:].split()
-                tokens[0] = "id=%d|%s" % (uniqueID, tokens[0])
-                out.write(">%s\n" % "".join(tokens))
+                header = "id=%d|%s" % (uniqueID, tokens[0]) + line[1:]
+                out.write(">%s\n" % header)
             else:
                 out.write(line)
-        ret.append(outPath)
+        exp.setSequencePath(genome, outPath)
         uniqueID += 1
-    return ret
 
 def setupDivergenceArgs(cactusWorkflowArguments):
     #Adapt the config file to use arguments for the appropriate divergence distance
@@ -324,23 +325,22 @@ class CactusTrimmingBlastPhase(CactusPhasesTarget):
 
         self.logToMaster("Running blast using the trimming strategy")
 
-        outgroupsDir = os.path.join(self.getGlobalTempDir(), "outgroupFragments/")
+        outgroupsDir = os.path.join(self.getGlobalTempDir(), "outgroupFragments")
         os.mkdir(outgroupsDir)
 
-        ingroupCoverageDir = os.path.join(self.getGlobalTempDir(), "ingroupCoverageDir/")
+        ingroupCoverageDir = os.path.join(self.getGlobalTempDir(), "ingroupCoverageDir")
         os.mkdir(ingroupCoverageDir)
         self.cactusWorkflowArguments.ingroupCoverageDir = ingroupCoverageDir
 
         # Get ingroup and outgroup sequences
         exp = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
-        seqMap = exp.buildSequenceMap()
+
         # Prepend unique ID to fasta headers to prevent name collision
         renamedInputSeqDir = os.path.join(self.getGlobalTempDir(), "renamedInputs")
         os.mkdir(renamedInputSeqDir)
-        uniqueFas = prependUniqueIDs(seqMap.values(), renamedInputSeqDir)
-        seqMap = dict(zip(seqMap.keys(), uniqueFas))
-        ingroups = map(lambda x: x[1], filter(lambda x: x[0] not in exp.getOutgroupEvents(), seqMap.items()))
-        outgroups = [seqMap[i] for i in exp.getOutgroupEvents()]
+        prependUniqueIDs(exp, renamedInputSeqDir)
+        ingroups = [exp.getSequencePath(i) for i in exp.getGenomesWithSequence() if i not in exp.getOutgroupGenomes()]
+        outgroups = [exp.getSequencePath(i) for i in exp.getOutgroupGenomes()]
         self.logToMaster("Ingroup sequences: %s" % (ingroups))
         self.logToMaster("Outgroup sequences: %s" % (outgroups))
 
@@ -367,12 +367,13 @@ class CactusTrimmingBlastPhase(CactusPhasesTarget):
                                                        trimOutgroupFlanking=self.getOptionalPhaseAttrib("trimOutgroupFlanking", int, 100),
                                                        trimOutgroupDepth=self.getOptionalPhaseAttrib("trimOutgroupDepth", int, 1),
                                                        keepParalogs=self.getOptionalPhaseAttrib("keepParalogs", bool, False)), ingroups, outgroups, alignmentsFile, outgroupsDir, ingroupCoverageDir))
+
         # Point the outgroup sequences to their trimmed versions for
         # phases after this one.
-        for outgroup in exp.getOutgroupEvents():
-            oldPath = seqMap[outgroup]
-            seqMap[outgroup] = os.path.join(outgroupsDir, os.path.basename(oldPath))
-        exp.updateTree(exp.getTree(), seqMap)
+        for outgroup in exp.getOutgroupGenomes():
+            oldPath = exp.getSequencePath(outgroup)
+            newPath = os.path.join(outgroupsDir, os.path.basename(oldPath))
+            exp.setSequencePath(outgroup, newPath)
 
         self.makeFollowOnPhaseTarget(CactusSetupPhase, "setup")
 

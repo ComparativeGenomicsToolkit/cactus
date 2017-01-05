@@ -9,9 +9,10 @@
 """ 
 import os
 import sys
-from optparse import OptionParser
 import xml.etree.ElementTree as ET
 import copy
+from optparse import OptionParser
+from operator import itemgetter
 
 from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.progressive.multiCactusTree import MultiCactusTree
@@ -32,7 +33,7 @@ def createMCProject(tree, experiment, config, options):
     mcTree.computeSubtreeRoots()
     mcProj = MultiCactusProject()
     mcProj.mcTree = mcTree
-    mcProj.inputSequences = experiment.getSequences()[:] 
+    mcProj.inputSequences = experiment.getSequences()[:]
     mcProj.outputSequenceDir = experiment.getOutputSequenceDir()
     if config.getDoSelfAlignment():
         mcTree.addSelfEdges()
@@ -235,28 +236,30 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
     if not os.path.exists(options.path):
         os.makedirs(options.path)
     mcProj.writeXML(os.path.join(options.path, "%s_project.xml" % options.name))
-    seqMap = expTemplate.seqMap
     portOffset = 0
+
+    # Record where the ancestor sequence paths will be
     for name, expPath in mcProj.expMap.items():
         path = os.path.join(options.path, name)
-        seqMap[name] = os.path.join(path, name + '.fa')
+        expTemplate.setSequencePath(name, os.path.join(path, name + '.fa'))
+
     for name, expPath in mcProj.expMap.items():
         path = os.path.join(options.path, name)
         children = mcProj.entireTree.getChildNames(name)
         exp = copy.deepcopy(expTemplate)
 
+
         # Get outgroups
         outgroups = []
         if configTemplate.getOutgroupStrategy() != 'none' \
         and name in mcProj.outgroup.ogMap:
-            for og, ogDist in mcProj.outgroup.ogMap[name]:
-                assert og in seqMap, "No sequence found for outgroup: %s" % og
-                ogPath = seqMap[og]
-                outgroups += [og]
+            # Outgroup name is the first element of the ogMap tuples
+            outgroups.extend(map(itemgetter(0), mcProj.outgroup.ogMap[name]))
 
         # Get subtree connecting children + outgroups
         assert len(children) > 0
         subtree = mcProj.entireTree.extractSpanningTree(children + outgroups)
+
         dbBase = path
         if expTemplate.getDbDir() is not None:
             dbBase = os.path.abspath(expTemplate.getDbDir())
@@ -277,7 +280,15 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
             exp.setHALPath(os.path.join(path, "%s_hal.c2h" % name))
         if configTemplate.getBuildFasta() == True:
             exp.setHALFastaPath(os.path.join(path, "%s_hal.fa" % name))
-        exp.updateTree(subtree, seqMap, outgroups)
+        exp.setTree(subtree)
+        exp.setOutgroupGenomes(outgroups)
+
+        # Set up the paths to correctly point to any ancestors that
+        # will be reconstructed before the problem starts
+        reconstructions = set(exp.getInputGenomes()) - set(exp.getGenomesWithSequence())
+        for reconstruction in reconstructions:
+            seqPath = os.path.join(os.path.join(options.path, reconstruction), reconstruction + '.fa')
+            exp.setSequencePath(reconstruction, seqPath)
         exp.setConfigPath(os.path.join(path, "%s_config.xml" % name))
         if not os.path.exists(exp.getDbDir()):
             os.makedirs(exp.getDbDir())
@@ -286,11 +297,10 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
         exp.writeXML(expPath)
         config = ConfigWrapper(copy.deepcopy(configTemplate.xmlRoot))
         config.setReferenceName(name)
-        config.verifyMinBlockDegree(exp)
         config.writeXML(exp.getConfigPath())
         
 def checkInputSequencePaths(exp):
-    for event, seq in exp.seqMap.items():
+    for seq in exp.getSequences():
         if not os.path.exists(seq):
             sys.stderr.write("WARNING: sequence path %s does not exist\n" % seq)
         elif os.path.isdir(seq):
@@ -301,7 +311,7 @@ def checkInputSequencePaths(exp):
                     size += 1
             if size == 0:
                 sys.stderr.write("WARNING: sequence path %s is an empty directory\n" % seq)
-            
+
 def main():
     usage = "usage: %prog [options] <experiment> <output project path>"
     description = "Setup a multi-cactus project using an experiment xml as template"
@@ -356,15 +366,18 @@ def main():
 
     mcProj = createMCProject(tree, expTemplate, confTemplate, options)
 
-    #Replace the sequences with output sequences
-    expTemplate.updateTree(mcProj.mcTree, expTemplate.buildSequenceMap())
-    expTemplate.setSequences(CactusPreprocessor.getOutputSequenceFiles(mcProj.inputSequences, expTemplate.getOutputSequenceDir()))
+    # Replace the sequences with output sequences
+    genomes = expTemplate.getGenomesWithSequence()
+    sequences = []
+    for genome in genomes:
+        sequences.append(expTemplate.getSequencePath(genome))
+    newSequences = CactusPreprocessor.getOutputSequenceFiles(sequences, expTemplate.getOutputSequenceDir())
+    for genome, newSequence in zip(genomes, newSequences):
+        expTemplate.setSequencePath(genome, newSequence)
 
-    #Now do the file tree creation
+    # Now do the file tree creation
     createFileStructure(mcProj, expTemplate, confTemplate, options)
-   # mcProj.check()
-    return 0
-    
+    mcProj.check()
 
 if __name__ == '__main__':    
     main()

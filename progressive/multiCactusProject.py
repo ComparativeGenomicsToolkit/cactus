@@ -72,7 +72,7 @@ class MultiCactusProject:
         expPath = self.expMap[parentEvent]
         expElem = ET.parse(expPath).getroot()
         exp = ExperimentWrapper(expElem)
-        seq = exp.getSequence(eventName)
+        seq = exp.getSequencePath(eventName)
         assert os.path.isfile(seq)
         return seq
 

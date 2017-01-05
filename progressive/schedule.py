@@ -53,7 +53,7 @@ class Schedule:
             # they are needed to form the correct paths).
             for node in tree.postOrderTraversal():
                 nodeName = tree.getName(node)
-                if not tree.isLeaf(node) and nodeName not in exp.getOutgroupEvents():
+                if not tree.isLeaf(node) and nodeName not in exp.getOutgroupGenomes():
                     # This node is just an internal node added while
                     # creating the induced tree from the species
                     # tree. None of the sequence is used, so skip it.
@@ -61,7 +61,7 @@ class Schedule:
 
                 assert tree.hasParent(node)
 
-                if nodeName not in exp.getOutgroupEvents() and tree.getName(tree.getParent(node)) != name:
+                if nodeName not in exp.getOutgroupGenomes() and tree.getName(tree.getParent(node)) != name:
                     # This leaf isn't an ingroup or an outgroup, it was
                     # just added to make the species tree
                     # binary. (Hopefully this will be unnecessary in

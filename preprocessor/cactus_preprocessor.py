@@ -204,7 +204,6 @@ class CactusPreprocessor(Target):
         if not os.path.isdir(outputSequenceDir):
             os.mkdir(outputSequenceDir)
         return [ os.path.join(outputSequenceDir, inputSequences[i].split("/")[-1] + "_%i" % i) for i in xrange(len(inputSequences)) ]
-        #return [ os.path.join(outputSequenceDir, "_".join(inputSequence.split("/"))) for inputSequence in inputSequences ]
   
 class CactusPreprocessor2(Target):
     def __init__(self, inputSequenceFileOrDirectory, outputSequenceFile, configNode):
