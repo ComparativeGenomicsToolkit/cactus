@@ -42,8 +42,6 @@ class TestCase(unittest.TestCase):
         if getBatchSystem() != None:
             self.batchSystem = getBatchSystem()
         unittest.TestCase.setUp(self)
-        self.useOutgroup = False
-        self.doSelfAlignment = False
         #Load the config file, turn on the checks.
         configWrapper = ConfigWrapper(ET.parse(os.path.join(cactusRootPath(), "cactus_progressive_config.xml")).getroot())
         configWrapper.turnAllModesOn()
@@ -65,17 +63,6 @@ class TestCase(unittest.TestCase):
                                      cactusWorkflowFunction=self.progressiveFunction)
 
     @silentOnSuccess
-    def testCactus_Random_UseOutgroup(self):
-        self.useOutgroup = True
-        runWorkflow_multipleExamples(getCactusInputs_random,
-                                     testNumber=2,
-                                     testRestrictions=(TestStatus.TEST_SHORT,),
-                                     batchSystem=self.batchSystem, buildJobTreeStats=True,
-                                     progressive=True,
-                                     configFile=self.configFile,
-                                     cactusWorkflowFunction=self.progressiveFunction)
-
-    @silentOnSuccess
     def testCactus_Random_UseSubtreeRoot(self):
         """Tests that cactus doesn't crash when aligning a subtree of a larger
         species tree."""
@@ -88,42 +75,7 @@ class TestCase(unittest.TestCase):
                                      cactusWorkflowFunction=self.progressiveWithSubtreeRootFunction)
 
     @silentOnSuccess
-    def testCactus_Random_DoSelfAlignment(self):
-        self.doSelfAlignment = True
-        runWorkflow_multipleExamples(getCactusInputs_random,
-                                     testNumber=2,
-                                     testRestrictions=(TestStatus.TEST_SHORT,),
-                                     batchSystem=self.batchSystem, buildJobTreeStats=True,
-                                     progressive=True,
-                                     configFile=self.configFile,
-                                     cactusWorkflowFunction=self.progressiveFunction)
-
-    @silentOnSuccess
-    def testCactus_Random_UseOutgroupAndDoSelfAlignment(self):
-        self.useOutgroup = True
-        self.doSelfAlignment = True
-        runWorkflow_multipleExamples(getCactusInputs_random,
-                                     testNumber=2,
-                                     testRestrictions=(TestStatus.TEST_SHORT,),
-                                     batchSystem=self.batchSystem, buildJobTreeStats=True,
-                                     progressive=True,
-                                     configFile=self.configFile,
-                                     cactusWorkflowFunction=self.progressiveFunction)
-
-    @silentOnSuccess
     def testCactus_Blanchette(self):
-        runWorkflow_multipleExamples(getCactusInputs_blanchette,
-                                     testNumber=1,
-                                     testRestrictions=(TestStatus.TEST_MEDIUM,),
-                                     batchSystem=self.batchSystem, buildJobTreeStats=True,
-                                     progressive=True,
-                                     configFile=self.configFile,
-                                     cactusWorkflowFunction=self.progressiveFunction)
-
-    @silentOnSuccess
-    def testCactus_Blanchette_UseOutgroupAndDoSelfAlignment(self):
-        self.useOutgroup = True
-        self.doSelfAlignment = True
         runWorkflow_multipleExamples(getCactusInputs_blanchette,
                                      testNumber=1,
                                      testRestrictions=(TestStatus.TEST_MEDIUM,),
