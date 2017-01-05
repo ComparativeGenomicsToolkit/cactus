@@ -136,9 +136,9 @@ def getCactusInputs_random(regionNumber=0, tempDir=None,
     for i in xrange(len(newickTreeLeafNames)):
         seqDir = getTempDirectory(rootDir=tempDir)
         sequenceDirs.append(seqDir)
-        
+
     logger.info("Made a set of random directories: %s" % " ".join(sequenceDirs))
-    
+
     #Random sequences and species labelling
     sequenceFile = None
     fileHandle = None

@@ -57,19 +57,19 @@ static void test_rescueRandomSequences(CuTest *testCase) {
         bedRegion *bedRegionArray = NULL;
         size_t numBeds = 0, bedRegionArraySize = 0;
         while ((thread = stPinchThreadSetIt_getNext(&threadIt)) != NULL) {
-            printf("outgroup coverage for %" PRIi64 " (start %" PRIi64 ")\n", stPinchThread_getName(thread), stPinchThread_getStart(thread));
+            st_logDebug("outgroup coverage for %" PRIi64 " (start %" PRIi64 ")\n", stPinchThread_getName(thread), stPinchThread_getStart(thread));
             int64_t threadStart = stPinchThread_getStart(thread);
             int64_t threadLen = stPinchThread_getLength(thread);
             bool *coverageArray = st_calloc(threadStart + threadLen, sizeof(bool));
             for (int64_t i = threadStart; i < threadStart + threadLen; i++) {
                 coverageArray[i] = st_random() < 0.3;
                 if(coverageArray[i]) {
-                    printf("1");
+                    st_logDebug("1");
                 } else {
-                    printf("0");
+                    st_logDebug("0");
                 }
             }
-            printf("\n");
+            st_logDebug("\n");
             stHash_insert(coveragesToRescue, thread, coverageArray);
             bedRegionArray = getBedRegionArray(stPinchThread_getName(thread),
                                                coverageArray,
@@ -83,7 +83,7 @@ static void test_rescueRandomSequences(CuTest *testCase) {
         stHash *regionsAlreadyCovered = stHash_construct2(NULL, free);
         threadIt = stPinchThreadSet_getIt(threadSet);
         while ((thread = stPinchThreadSetIt_getNext(&threadIt)) != NULL) {
-            printf("existing for %" PRIi64 "\n", stPinchThread_getName(thread));
+            st_logDebug("existing for %" PRIi64 "\n", stPinchThread_getName(thread));
             int64_t threadStart = stPinchThread_getStart(thread);
             int64_t threadLen = stPinchThread_getLength(thread);
             bool *coverageArray = st_calloc(threadStart + threadLen, sizeof(bool));
@@ -95,17 +95,17 @@ static void test_rescueRandomSequences(CuTest *testCase) {
                 if (stPinchSegment_getBlock(segment) != NULL) {
                     for (int64_t i = start; i < end; i++) {
                         coverageArray[i] = 1;
-                        printf("1");
+                        st_logDebug("1");
                     }
                 } else {
                     for (int64_t i = start; i < end; i++) {
-                        printf("0");
+                        st_logDebug("0");
                     }
                 }
                 segment = stPinchSegment_get3Prime(segment);
             }
             stHash_insert(regionsAlreadyCovered, thread, coverageArray);
-            printf("\n");
+            st_logDebug("\n");
         }
 
         // Sort the bedRegion array.
@@ -114,7 +114,7 @@ static void test_rescueRandomSequences(CuTest *testCase) {
         // Run the rescue and make sure it worked.
         threadIt = stPinchThreadSet_getIt(threadSet);
         while ((thread = stPinchThreadSetIt_getNext(&threadIt)) != NULL) {
-            printf("rescued %" PRIi64 "\n", stPinchThread_getName(thread));
+            st_logDebug("rescued %" PRIi64 "\n", stPinchThread_getName(thread));
             //int64_t threadStart = stPinchThread_getStart(thread);
             //int64_t threadLen = stPinchThread_getLength(thread);
             bool *coverageArray = stHash_search(coveragesToRescue, thread);
@@ -133,13 +133,13 @@ static void test_rescueRandomSequences(CuTest *testCase) {
                 }
                 for (int64_t i = start; i < end; i++) {
                     if (covered) {
-                        printf("1");
+                        st_logDebug("1");
                         // Make sure we haven't screwed up and made
                         // blocks where we shouldn't have.
                         // FIXME: skipped.
                         /* CuAssertTrue(testCase, alreadyCovered[i] == 1 || coverageArray[i] == 1); */
                     } else {
-                        printf("0");
+                        st_logDebug("0");
                         // Make sure we haven't taken away from the
                         // coverage that already existed or missed
                         // regions we were supposed to rescue.
@@ -149,7 +149,7 @@ static void test_rescueRandomSequences(CuTest *testCase) {
                 }
                 segment = stPinchSegment_get3Prime(segment);
             }
-            printf("\n");
+            st_logDebug("\n");
         }
 
         stHash_destruct(coveragesToRescue);
