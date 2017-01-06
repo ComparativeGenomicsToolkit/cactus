@@ -47,7 +47,6 @@ def allSuites():
                         apiTest,
                         normalisationTest,
                         halTest,
-                        blastTest,
                         coverageTest,
                         trimSequencesTest,
                         experimentWrapperTest,

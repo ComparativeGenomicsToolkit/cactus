@@ -12,6 +12,7 @@ before_install:
   - git clone https://github.com/ComparativeGenomicsToolkit/pinchesAndCacti.git
   - git clone https://github.com/benedictpaten/jobTree.git
   - git clone https://github.com/benedictpaten/cPecan.git
+  - git clone https://github.com/UCSantaCruzComputationalGenomicsLab/cactusTestData
 install:
   - export sonLibRootPath=`pwd`/sonLib
   - sh -c 'cd sonLib && make'
@@ -20,6 +21,7 @@ install:
   - sh -c 'cd jobTree && make'
   - sh -c 'cd cPecan && make'
 script:
+  - export SON_TRACE_DATASETS=`pwd`/cactusTestData
   - export sonLibRootPath=`pwd`/sonLib
   - make
   - PATH=./bin:./jobTree/bin:./sonLib/bin:$PATH PYTHONPATH=.:.. make test
