@@ -241,11 +241,34 @@ def getCactusInputs_blanchette(regionNumber=0, tempDir=None):
     assert regionNumber < 50
     #regionNumber = 1
     blanchettePath = os.path.join(TestStatus.getPathToDataSets(), "blanchettesSimulation")
-    sequences = [ os.path.join(blanchettePath, ("%.2i.job" % regionNumber), species) \
-                 for species in ("HUMAN", "CHIMP", "BABOON", "MOUSE", "RAT", "DOG", "CAT", "PIG", "COW") ] #Same order as tree
+    sequences = [os.path.join(blanchettePath, ("%.2i.job" % regionNumber), species) \
+                 for species in ("HUMAN", "CHIMP", "BABOON", "MOUSE", "RAT", "DOG", "CAT", "PIG", "COW")] #Same order as tree
     newickTreeString = parseNewickTreeFile(os.path.join(blanchettePath, "tree.newick"))
     return sequences, newickTreeString
-    
+
+def getCactusInputs_funkyHeaderNames(regionNumber=0, tempDir=None):
+    """Gets inputs (based on Blanchette region 0) that have weird header names
+    that might get parsed wrong and cause issues."""
+    sequences, newickTreeString = getCactusInputs_blanchette(regionNumber=regionNumber)
+
+    # Assign weird header names
+    if tempDir is None:
+        tempDir = getTempDir()
+    # Should also consider "bar foo", "ba rfoo", but we currently
+    # throw away everything but the first token (probably because of
+    # cigar parsing).
+    funkyHeaderNames = ['id=1|foo', 'test1|1600', 'test2|', '|test3', 'id=1|bar']
+    funkyIndex = 0
+    for i, sequencePath in enumerate(sequences):
+        newPath = os.path.join(tempDir, str(i))
+        for _, sequence in fastaRead(sequencePath):
+            header = funkyHeaderNames[funkyIndex % len(funkyHeaderNames)]
+            funkyIndex += 1
+            fastaWrite(newPath, header, sequence, 'a')
+        sequences[i] = newPath
+
+    return sequences, newickTreeString
+
 def getCactusInputs_encode(regionNumber=0, tempDir=None):
     """Gets the inputs for running cactus_workflow using an Encode pilot project region.
      (0 <= regionNumber < 15).
@@ -320,12 +343,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     #Check if the jobtree completed sucessively.
     runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
     logger.info("Checked the job tree dir")
-    
-    #Check if the cactusDisk is okay..
-    #runCactusCheck(cactusDiskDatabaseString, recursive=True) #This should also occur during the workflow, so this
-    #is redundant, but defensive
-    #logger.info("Checked the cactus tree")
-    
+
     #Now run various utilities..
     if buildJobTreeStats:
         jobTreeStatsFile = os.path.join(outputDir, "jobTreeStats.xml")

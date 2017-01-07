@@ -249,5 +249,10 @@ class ConfigWrapper:
         """
         findRequiredNode(self.xmlRoot, "check").attrib["runCheck"] = "1"
         findRequiredNode(self.xmlRoot, "normal").attrib["iterations"] = "2"
-        #findRequiredNode(self.xmlRoot, "avg").attrib["buildAvgs"] = "1" #This doesn't work with cactus_reference
         
+    def turnOffHeaderChecks(self):
+        """Turns off the preprocessor stage that checks whether headers can be
+        used in an assembly hub."""
+        for node in self.xmlRoot.findall("preprocessor"):
+            command = node.attrib['preprocessorString']
+            node.attrib['preprocessorString'] = command.replace('--checkAssemblyHub', '')

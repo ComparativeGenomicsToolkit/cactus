@@ -10,7 +10,10 @@ import unittest
 import os
 import sys
 import random
+import glob
 import xml.etree.ElementTree as ET
+
+from operator import itemgetter
 
 from sonLib.bioio import TestStatus
 from sonLib.bioio import getTempFile
@@ -18,10 +21,12 @@ from sonLib.bioio import getTempDirectory
 from sonLib.bioio import logger
 from sonLib.bioio import system
 from sonLib.bioio import getRandomSequence
+from sonLib.bioio import fastaRead, fastaWrite
 from sonLib.nxnewick import NXNewick
 
 from cactus.shared.test import getCactusInputs_random
 from cactus.shared.test import getCactusInputs_blanchette
+from cactus.shared.test import getCactusInputs_funkyHeaderNames
 from cactus.shared.test import getCactusInputs_encode
 from cactus.shared.test import getCactusInputs_chromosomeX
 from cactus.shared.test import runWorkflow_multipleExamples
@@ -41,10 +46,10 @@ class TestCase(unittest.TestCase):
         self.batchSystem = "singleMachine"
         if getBatchSystem() != None:
             self.batchSystem = getBatchSystem()
-        unittest.TestCase.setUp(self)
         #Load the config file, turn on the checks.
         configWrapper = ConfigWrapper(ET.parse(os.path.join(cactusRootPath(), "cactus_progressive_config.xml")).getroot())
         configWrapper.turnAllModesOn()
+        configWrapper.turnOffHeaderChecks()
         self.tempDir = getTempDirectory(os.getcwd())
         self.configFile = os.path.join(self.tempDir, "tempConfig.xml")
         configWrapper.writeXML(self.configFile)
@@ -52,27 +57,37 @@ class TestCase(unittest.TestCase):
     def tearDown(self):
         system("rm -rf %s" % self.tempDir)
 
-    @silentOnSuccess
-    def testCactus_Random(self):
-        runWorkflow_multipleExamples(getCactusInputs_random,
-                                     testNumber=2,
+    # @silentOnSuccess
+    # def testCactus_Random(self):
+    #     runWorkflow_multipleExamples(getCactusInputs_random,
+    #                                  testNumber=2,
+    #                                  testRestrictions=(TestStatus.TEST_SHORT,),
+    #                                  batchSystem=self.batchSystem, buildJobTreeStats=True,
+    #                                  progressive=True,
+    #                                  configFile=self.configFile,
+    #                                  cactusWorkflowFunction=self.progressiveFunction)
+
+    # @silentOnSuccess
+    # def testCactus_Random_UseSubtreeRoot(self):
+    #     """Tests that cactus doesn't crash when aligning a subtree of a larger
+    #     species tree."""
+    #     runWorkflow_multipleExamples(getCactusInputs_random,
+    #                                  testNumber=2,
+    #                                  testRestrictions=(TestStatus.TEST_SHORT,),
+    #                                  batchSystem=self.batchSystem, buildJobTreeStats=True,
+    #                                  progressive=True,
+    #                                  configFile=self.configFile,
+    #                                  cactusWorkflowFunction=self.progressiveWithSubtreeRootFunction)
+
+    def testCactus_ensureFunkyHeaderNamesArentMangled(self):
+        """Ensure header names with characters like "|", " " aren't mangled."""
+        runWorkflow_multipleExamples(getCactusInputs_funkyHeaderNames,
+                                     testNumber=1,
                                      testRestrictions=(TestStatus.TEST_SHORT,),
                                      batchSystem=self.batchSystem, buildJobTreeStats=True,
                                      progressive=True,
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
-
-    @silentOnSuccess
-    def testCactus_Random_UseSubtreeRoot(self):
-        """Tests that cactus doesn't crash when aligning a subtree of a larger
-        species tree."""
-        runWorkflow_multipleExamples(getCactusInputs_random,
-                                     testNumber=2,
-                                     testRestrictions=(TestStatus.TEST_SHORT,),
-                                     batchSystem=self.batchSystem, buildJobTreeStats=True,
-                                     progressive=True,
-                                     configFile=self.configFile,
-                                     cactusWorkflowFunction=self.progressiveWithSubtreeRootFunction)
 
     @silentOnSuccess
     def testCactus_Blanchette(self):
@@ -155,6 +170,35 @@ class TestCase(unittest.TestCase):
                              batchSystem=batchSystem,
                              buildAvgs=buildAvgs,
                              jobTreeStats=jobTreeStats)
+
+        # Check that the headers and sequences in the output are the
+        # same as the sequences in the input (minus differences in
+        # repeat-masking)
+        exp = ExperimentWrapper(ET.parse(experimentFile).getroot())
+        seqMap = exp.buildSequenceMap()
+        # Maps genome name -> headers in fasta
+        headers = {}
+        for genomeName, inputSequencePath in seqMap.items():
+            headers[genomeName] = list(map(itemgetter(0), fastaRead(inputSequencePath)))
+
+        # check headers inside .c2h output
+        for expPath in glob.glob('%s/*/*_experiment.xml' % (tempExperimentDir)):
+            subExp = ExperimentWrapper(ET.parse(expPath).getroot())
+            outgroups = subExp.getOutgroupEvents()
+            c2hPath = subExp.getHALPath()
+            with open(c2hPath) as f:
+                for line in f:
+                    fields = line.split('\t')
+                    if fields[0] == 's':
+                        # Sequence line
+                        genome = fields[1][1:-1]
+                        header = fields[2][1:-1]
+                        if genome in headers and genome not in outgroups:
+                            # This genome is an input genome
+                            self.assertTrue(header in headers[genome],
+                                            'Header %s from output c2h %s not found in input fa %s'
+                                            ' for genome %s' % (header, c2hPath, seqMap[genome], genome))
+
         runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
         system("rm -rf %s" % tempDir)
         
