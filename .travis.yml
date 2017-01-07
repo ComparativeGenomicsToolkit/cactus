@@ -21,12 +21,11 @@ install:
   - sh -c 'cd jobTree && make'
   - sh -c 'cd cPecan && make'
 script:
-  - export SON_TRACE_DATASETS=`pwd`/cactusTestData
   - export sonLibRootPath=`pwd`/sonLib
   - make
   - PATH=./bin:./jobTree/bin:./sonLib/bin:$PATH PYTHONPATH=.:.. make test
 os:
   - linux
 env:
-  - CGL_DEBUG=1
+  - CGL_DEBUG=1 SON_TRACE_DATASETS=`pwd`/cactusTestData
   - CGL_DEBUG=ultra ASAN_OPTIONS=detect_leaks=0
