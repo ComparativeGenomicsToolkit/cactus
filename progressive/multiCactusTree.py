@@ -132,6 +132,8 @@ class MultiCactusTree(NXTree):
     def getChildNames(self, name):
         id = self.nameToId[name]
         subtree = [i for i in self.traverseSubtree(id, id)]
+        # remove the root from the set of children
+        subtree.remove(id)
         names = [self.getName(i) for i in subtree]
         return names
 

@@ -103,6 +103,9 @@ class TestCase(unittest.TestCase):
         self.assertEqual(NXNewick().writeString(self.mcTree1), prevNewick1)
         self.assertEqual(NXNewick().writeString(spanHCC), "((HUMAN:0.006969,CHIMP:0.009727)Anc7:0.158551,CAT:0.197381)Anc0;")
 
+    def testGetChildren(self):
+        self.assertEqual(self.mcTree1.getChildNames('Anc6'), ['PIG', 'COW'])
+
     def __generateTrees(self):
         self.tree1 = '((((HUMAN:0.006969,CHIMP:0.009727):0.025291,BABOON:0.044568):0.11,(MOUSE:0.072818,RAT:0.081244):0.260342):0.02326,((DOG:0.07,CAT:0.07):0.087381,(PIG:0.06,COW:0.06):0.104728):0.04);'
         self.tree2 = '((raccoon:19.19959,bear:6.80041):0.846,((sea_lion:11.997,seal:12.003):7.52973,((monkey:100.8593,cat:47.14069):20.59201,weasel:18.87953):2.0946):3.87382,dog:25.46154);'
