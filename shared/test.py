@@ -125,6 +125,7 @@ def getCactusInputs_random(regionNumber=0, tempDir=None,
         avgSequenceLength = random.choice(xrange(1,3000))
     if treeLeafNumber is None:
         treeLeafNumber = random.choice(xrange(2, 4))
+
     #Make tree
     binaryTree = makeRandomBinaryTree(treeLeafNumber)
     newickTreeString = printBinaryTree(binaryTree, includeDistances=True)
