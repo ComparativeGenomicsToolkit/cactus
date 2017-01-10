@@ -9,7 +9,7 @@ from cactus.preprocessor.cactus_preprocessor import PreprocessorOptions, Preproc
 
 def preprocessSequences(job, seqIDs, prepOptions):
     for seqID in seqIDs:
-        job.addChild(PreprocessSequence(prepOptions=prepOptions, inSequenceID=seqID, chunksToCompute=[4,6,20,23,25]))
+        job.addChild(PreprocessSequence(prepOptions=prepOptions, inSequenceID=seqID, chunksToCompute=[4,6,20,23]))
 
 def main():
     parser = argparse.ArgumentParser()
@@ -29,7 +29,7 @@ def main():
                                       checkAssemblyHub=False)
     with Toil(options) as toil:
         humanID = toil.importFile(makeURL(human))
-        #mouseID = toil.importFile(makeURL(mouse))
+        mouseID = toil.importFile(makeURL(mouse))
         toil.start(Job.wrapJobFn(preprocessSequences, seqIDs=[humanID], prepOptions=prepOptions))
 
 

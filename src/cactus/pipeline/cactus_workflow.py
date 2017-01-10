@@ -424,7 +424,7 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
         self.cactusWorkflowArguments.outgroupFragmentIDs = blastJob.rv(1)
         self.cactusWorkflowArguments.ingroupCoverageIDs = blastJob.rv(2)
         
-        return self.makeFollowOnPhaseJob(CactusSetupPhase, "setup", checkpoint = False)
+        return self.makeFollowOnPhaseJob(CactusSetupPhase, "setup", checkpoint = True)
         
 ############################################################
 ############################################################

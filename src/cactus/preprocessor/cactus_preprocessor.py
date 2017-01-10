@@ -73,8 +73,9 @@ class PreprocessChunk(Job):
                                     outChunk])
             outChunkID = fileStore.writeGlobalFile(outChunk)
         elif self.prepOptions.preprocessJob == "lastzRepeatMask":
-            memory = 2*(sum([seqID.size for seqID in self.seqIDs]) + self.inChunkID.size)
+            memory = 7*(sum([seqID.size for seqID in self.seqIDs]) + self.inChunkID.size)
             disk = 6*(sum([seqID.size for seqID in self.seqIDs])) + self.inChunkID.size
+            logger.info("Creating repeat mask job with memory requirements %s" % memory)
             outChunkID = self.addChildJobFn(lastzRepeatMaskJob, queryID=self.inChunkID, targetIDs=self.seqIDs,
                                       proportionSampled=self.prepOptions.proportionToSample,
                                             minPeriod=self.prepOptions.minPeriod, memory=memory, disk=disk).rv()
