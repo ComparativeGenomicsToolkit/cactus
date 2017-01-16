@@ -155,37 +155,12 @@ class MakeOffDiagonalBlasts(Job):
         def run(self, fileStore):
             resultsIDs = []
             #Make the list of blast jobs.
-            chunkIDsToAlign = []
             for i in xrange(0, len(self.chunkIDs)):
                 for j in xrange(i+1, len(self.chunkIDs)):
-                    chunkIDsToAlign.append((self.chunkIDs[i], self.chunkIDs[j]))
+                    self.resultsIDs.append(self.addChild(RunBlast(blastOptions=self.blastOptions, seqFileID1=self.chunkIDs[i], seqFileID2=self.chunkIDs[j])).rv())
 
-            resultsIDs = self.addChild(ComputeOffDiagonalBlasts(blastOptions=self.blastOptions, chunkIDsToAlign = chunkIDsToAlign, resultsIDs = [])).rv()
-            logger.info("Chunks to align: %s" % chunkIDsToAlign)
+
             return self.addFollowOn(CollateBlasts(self.blastOptions, resultsIDs)).rv()
-
-class ComputeOffDiagonalBlasts(Job):
-    """Split up the blast jobs across multiple parents to avoid having a job with 
-    too many children, which can't be stored in SDB.
-    """
-    def __init__(self, blastOptions, chunkIDsToAlign, resultsIDs):
-        Job.__init__(self)
-        self.blastOptions = blastOptions
-        self.chunkIDsToAlign = chunkIDsToAlign
-        self.resultsIDs = resultsIDs
-    def run(self, fileStore):
-        if len(self.chunkIDsToAlign) == 0:
-            return self.resultsIDs
-
-        for i in range(1000):
-            if len(self.chunkIDsToAlign) == 0:
-                break
-            chunkID1, chunkID2 = self.chunkIDsToAlign.pop(0)
-            self.resultsIDs.append(self.addChild(RunBlast(blastOptions=self.blastOptions, seqFileID1=chunkID1, seqFileID2=chunkID2)).rv())
-        logger.info("Made the list of all-against-all blasts")
-        #Set up the job to collate all the results
-        logger.debug("Collating off-diagonal blasts")
-        return self.addFollowOn(ComputeOffDiagonalBlasts(blastOptions=self.blastOptions, chunkIDsToAlign=self.chunkIDsToAlign, resultsIDs=self.resultsIDs)).rv()
 
             
 class BlastSequencesAgainstEachOther(Job):
