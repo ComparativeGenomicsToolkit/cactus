@@ -102,7 +102,7 @@ class BlastSequencesAllAgainstAll(Job):
     """Take a set of sequences, chunks them up and blasts them.
     """
     def __init__(self, sequenceFileIDs1, blastOptions):
-        disk = 10*sum([seqFileID.size for seqFileID in sequenceFileIDs1])
+        disk = 4*sum([seqFileID.size for seqFileID in sequenceFileIDs1])
         cores = 1
         memory = blastOptions.memory
         

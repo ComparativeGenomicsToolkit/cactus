@@ -79,6 +79,8 @@ class PreprocessChunk(Job):
             outChunkID = self.addChildJobFn(lastzRepeatMaskJob, queryID=self.inChunkID, targetIDs=self.seqIDs,
                                       proportionSampled=self.prepOptions.proportionToSample,
                                             minPeriod=self.prepOptions.minPeriod, memory=memory, disk=disk).rv()
+        elif self.prepOptions.preprocessJob == "none":
+            outChunkID = self.inChunkID
         
         
         if self.prepOptions.check:
