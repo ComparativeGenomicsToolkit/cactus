@@ -166,6 +166,21 @@ bool stCaf_relaxedSingleCopyIngroup(stPinchSegment *segment1,
 bool stCaf_singleCopyChr(stPinchSegment *segment1, stPinchSegment *segment2);
 
 /*
+ * Set up some additional information for
+ * stCaf_filterToEnsureCycleFreeIsolatedComponents. Required to run
+ * this first!
+ */
+void stCaf_setThreadsToBeCycleFreeIsolatedComponents(stSet *threads);
+
+/*
+ * Special filtering for a draft HGVM, where every non-alt chromosome
+ * should be in its own component and should have no within-component
+ * cycles.
+ */
+bool stCaf_filterToEnsureCycleFreeIsolatedComponents(stPinchSegment *segment1,
+                                                     stPinchSegment *segment2);
+
+/*
  * Returns true for chains that have an unequal number of ingroup
  * copies, e.g. 0 in ingroup 1, 1 in ingroup 2; or 2 in ingroup 1, 2
  * in ingroup 2, 3 in ingroup 3.

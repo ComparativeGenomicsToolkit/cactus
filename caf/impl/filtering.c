@@ -182,6 +182,53 @@ bool stCaf_relaxedSingleCopyIngroup(stPinchSegment *segment1,
 }
 
 /*
+ * Special filtering for a draft HGVM, where every chromosome should
+ * be in its own component and should have no within-component cycles.
+ */
+
+static stSet *threadsToBeCycleFreeIsolatedComponents;
+
+void stCaf_setThreadsToBeCycleFreeIsolatedComponents(stSet *input) {
+    threadsToBeCycleFreeIsolatedComponents = input;
+}
+
+static bool isInCycleFreeIsolatedComponent(stPinchSegment *segment) {
+    // First, just check that this thread is in a special component.
+    stPinchThread *thread = stPinchSegment_getThread(segment);
+    if (stSet_search(threadsToBeCycleFreeIsolatedComponents, thread)) {
+        return true;
+    }
+    // If it's not, check if it's in a block. If it is, then we have
+    // to check that each segment in the block isn't in a special
+    // component as well.
+    stPinchBlock *block = stPinchSegment_getBlock(segment);
+    if (block != NULL) {
+        stPinchBlockIt blockIt = stPinchBlock_getSegmentIterator(block);
+        while ((segment = stPinchBlockIt_getNext(&blockIt)) != NULL) {
+            stPinchThread *thread = stPinchSegment_getThread(segment);
+            if (stSet_search(threadsToBeCycleFreeIsolatedComponents, thread)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+bool stCaf_filterToEnsureCycleFreeIsolatedComponents(stPinchSegment *segment1,
+                                                     stPinchSegment *segment2) {
+    bool inSpecialComponent1 = isInCycleFreeIsolatedComponent(segment1);
+    bool inSpecialComponent2 = isInCycleFreeIsolatedComponent(segment2);
+
+    // Check if this alignment will bridge two special components, or
+    // create a cycle within one. If so, reject it.
+    if (inSpecialComponent1 && inSpecialComponent2) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+/*
  * Functions used for filtering blocks/chains on certain criteria.
  */
 

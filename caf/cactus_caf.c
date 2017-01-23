@@ -346,6 +346,7 @@ int main(int argc, char *argv[]) {
     HomologyUnitType phylogenyHomologyUnitType = BLOCK;
     enum stCaf_DistanceCorrectionMethod phylogenyDistanceCorrectionMethod = JUKES_CANTOR;
     bool sortAlignments = false;
+    char *hgvmEventName = NULL;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -467,6 +468,15 @@ int main(int argc, char *argv[]) {
                 } else if (strcmp(optarg, "relaxedSingleCopyIngroup") == 0) {
                     sortAlignments = true;
                     filterFn = stCaf_relaxedSingleCopyIngroup;
+                } else if (strncmp(optarg, "hgvm:", 5) == 0) {
+                    sortAlignments = true;
+                    size_t argLen = strlen(optarg);
+                    if (argLen < 6) {
+                        st_errAbort("alignmentFilter option \"hgvm\" needs an additional argument: "
+                                    "the event name to filter on. E.g. \"hgvm:human\"");
+                    }
+                    hgvmEventName = stString_copy(optarg + 5);
+                    filterFn = stCaf_filterToEnsureCycleFreeIsolatedComponents;
                 } else if (strcmp(optarg, "none") == 0) {
                     sortAlignments = false;
                     filterFn = NULL;
@@ -749,6 +759,36 @@ int main(int argc, char *argv[]) {
 
             //Build the set of outgroup threads
             outgroupThreads = stCaf_getOutgroupThreads(flower, threadSet);
+
+            if (filterFn == stCaf_filterToEnsureCycleFreeIsolatedComponents) {
+                EventTree *eventTree = flower_getEventTree(flower);
+                Event *eventToFilterOn = eventTree_getEventByHeader(eventTree, hgvmEventName);
+                if (eventToFilterOn == NULL) {
+                    st_logCritical("Event %s not found in this problem, supplied by alignment filter"
+                                   " hgvm:%s. Alignment filtering won't be turned on for this problem.",
+                                   hgvmEventName, hgvmEventName);
+                }
+                // Set up HGVM filtering: any non-alts need to be in
+                // their own components and cycle-free.
+                stSet *threadsToBeCycleFreeIsolatedComponents = stSet_construct();
+                stPinchThreadSetIt threadSetIt = stPinchThreadSet_getIt(threadSet);
+                stPinchThread *thread;
+                while ((thread = stPinchThreadSetIt_getNext(&threadSetIt)) != NULL) {
+                    Cap *cap = flower_getCap(flower, stPinchThread_getName(thread));
+                    Sequence *sequence = cap_getSequence(cap);
+                    Event *event = sequence_getEvent(sequence);
+                    if (event == eventToFilterOn) {
+                        const char *seqHeader = sequence_getHeader(sequence);
+                        size_t headerLen = strlen(seqHeader);
+                        if (headerLen < 4 || (strncmp(seqHeader + (headerLen - 4), "_alt", 4) != 0)) {
+                            // Not an alt. Add it to the "special components" set.
+                            stSet_insert(threadsToBeCycleFreeIsolatedComponents, thread);
+                        }
+                    }
+                }
+                stCaf_setThreadsToBeCycleFreeIsolatedComponents(threadsToBeCycleFreeIsolatedComponents);
+                // FIXME: memory for the set leaks here, although it's not a big deal as it will only be useless at the very end.
+            }
 
             //Setup the alignments
             stPinchIterator *pinchIterator;
