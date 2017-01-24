@@ -11,7 +11,7 @@ before_install:
   - git clone https://github.com/benedictpaten/jobTree.git
   - git clone https://github.com/benedictpaten/cPecan.git
 #Build docker containers
-  - if [[ "$BUILD_CONTAINERS" == 1 ]]; then docker login --username $QUAY_USERNAME --password $QUAY_PASSWORD quay.io; make docker; fi
+  - if [[ "$BUILD_CONTAINERS" == 1 ]]; then docker login --username $QUAY_USERNAME --password $QUAY_PASSWORD quay.io; git submodule update --init; make docker; make push; fi
 install:
   - export sonLibRootPath=`pwd`/sonLib
   - sh -c 'cd sonLib && make'

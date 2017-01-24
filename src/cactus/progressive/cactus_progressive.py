@@ -342,8 +342,7 @@ def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC
             if inMemory is True:
                 opts += " --inMemory"
 
-            cactus_call(tool="cactus",
-                        parameters=["halAppendCactusSubtree"],
+            cactus_call(parameters=["halAppendCactusSubtree"],
                         option_string=opts)
 
             
@@ -452,6 +451,9 @@ def main():
     
     parser.add_argument("--event", dest="event", 
                       help="Target event to process [default=root]", default=None)
+    parser.add_argument("--latest", dest="latest", action="store_true",
+            help="Use the latest, locally-built docker container rather than \
+                    pulling from quay.io")
 
 
     options = parser.parse_args()
@@ -459,6 +461,9 @@ def main():
     #Toil's default is way too low to accommodate downloading
     #containers
     options.deadlockWait = 2000
+
+    if options.latest:
+        os.environ["CACTUS_USE_LATEST"] = "1"
     
     setLoggingFromOptions(options)
     

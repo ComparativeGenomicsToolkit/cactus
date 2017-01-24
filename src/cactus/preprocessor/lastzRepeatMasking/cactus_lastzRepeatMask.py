@@ -55,7 +55,7 @@ def lastzRepeatMaskJob(job, queryID, targetIDs,
     # chop up input fasta file into into fragments of specified size.  fragments overlap by 
     # half their length.
     fragOutput = job.fileStore.getLocalTempFile()
-    cactus_call(tool="cactus", infile=queryFile, outfile=fragOutput,
+    cactus_call(infile=queryFile, outfile=fragOutput,
                 parameters=["cactus_fasta_fragments.py",
                             "--fragment=%s" % str(fragment),
                             "--step=%s" % (str(fragment /2)),
@@ -68,14 +68,14 @@ def lastzRepeatMaskJob(job, queryID, targetIDs,
     if unmaskInput:
         lastZSequenceHandling  = '%s[multiple,unmask][nameparse=darkspace] %s[unmask][nameparse=darkspace] ' % (os.path.basename(targetFile), os.path.basename(fragOutput))
     lastzOutput = job.fileStore.getLocalTempFile()
-    cactus_call(tool="cpecan", outfile=lastzOutput,
+    cactus_call(outfile=lastzOutput,
                 parameters=["cPecanLastz", lastZSequenceHandling,
                             lastzOpts,
                             "--querydepth=keep,nowarn:%i --format=general:name1,zstart1,end1,name2,zstart2+,end2+ --markend" % (period+3)])
 
 
     #This runs Bob's covered intervals program, which combins the lastz alignment info into intervals of the query.
-    cactus_call(tool="cactus", infile=lastzOutput, outfile=maskInfoFile,
+    cactus_call(infile=lastzOutput, outfile=maskInfoFile,
                 parameters=["cactus_covered_intervals",
                             "--queryoffsets",
                             "--origin=one",
@@ -88,7 +88,7 @@ def lastzRepeatMaskJob(job, queryID, targetIDs,
     if unmaskOutput:
         unmaskString = "--unmask"
     outputFile = job.fileStore.getLocalTempFile()
-    cactus_call(tool="cactus", infile=queryFile, outfile=outputFile,
+    cactus_call(infile=queryFile, outfile=outputFile,
                 parameters=["cactus_fasta_softmask_intervals.py",
                             "--origin=one",
                             unmaskString,

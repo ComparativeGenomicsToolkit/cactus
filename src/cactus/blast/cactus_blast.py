@@ -84,7 +84,7 @@ class BlastFlower(Job):
     def run(self, fileStore):
         chunksDir = getTempDirectory(rootDir=fileStore.getLocalTempDir())
         cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
-        chunks = [ chunk for chunk in cactus_call(tool="cactus", check_output=True,
+        chunks = [ chunk for chunk in cactus_call(check_output=True,
                                                   parameters=["cactus_blast_chunkFlowerSequences"],
                                                   option_string="%s '%s' '%s' %s %i %i %i %s" % \
                                                           (getLogLevelString(), self.cactusDisk, cactusSequencesPath, self.flowerName, 
@@ -314,7 +314,7 @@ class TrimAndRecurseOnOutgroups(Job):
                    trimmedOutgroup, flanking=self.blastOptions.trimOutgroupFlanking,
                    windowSize=1, threshold=1)
         outgroupConvertedResultsFile = fileStore.getLocalTempFile()
-        cactus_call(tool="cactus", outfile=outgroupConvertedResultsFile,
+        cactus_call(outfile=outgroupConvertedResultsFile,
                     parameters=["cactus_upconvertCoordinates.py",
                                 trimmedOutgroup,
                                 mostRecentResultsFile,
@@ -340,8 +340,7 @@ class TrimAndRecurseOnOutgroups(Job):
             system("cp %s %s" % (outgroupConvertedResultsFile,
                                  ingroupConvertedResultsFile))
         else:
-            cactus_call(tool="cactus",
-                        parameters=["cactus_blast_convertCoordinates",
+            cactus_call(parameters=["cactus_blast_convertCoordinates",
                                     "--onlyContig1",
                                     outgroupConvertedResultsFile,
                                     ingroupConvertedResultsFile,
@@ -457,8 +456,7 @@ class RunSelfBlast(Job):
                                  realignArguments=self.blastOptions.realignArguments)
             blastResultsFile = realignResultsFile
         resultsFile = fileStore.getLocalTempFile()
-        cactus_call(tool="cactus",
-                    parameters=["cactus_blast_convertCoordinates",
+        cactus_call(parameters=["cactus_blast_convertCoordinates",
                                 blastResultsFile,
                                 resultsFile,
                                 self.blastOptions.roundsOfCoordinateConversion])
@@ -506,8 +504,7 @@ class RunBlast(Job):
             blastResultsFile = realignResultsFile
             
         resultsFile = fileStore.getLocalTempFile()
-        cactus_call(tool="cactus",
-                    parameters=["cactus_blast_convertCoordinates",
+        cactus_call(parameters=["cactus_blast_convertCoordinates",
                                 blastResultsFile,
                                 resultsFile,
                                 self.blastOptions.roundsOfCoordinateConversion])
@@ -565,7 +562,7 @@ def calculateCoverage(sequenceFile, cigarFile, outputFile, fromGenome=None, dept
     logger.info("Calculating coverage of cigar file %s on %s, writing to %s" % (
         cigarFile, sequenceFile, outputFile))
     fromGenome = nameValue("from", fromGenome).split()
-    cactus_call(tool="cactus", outfile=outputFile, work_dir=work_dir,
+    cactus_call(outfile=outputFile, work_dir=work_dir,
                 parameters=["cactus_coverage",
                             sequenceFile,
                             cigarFile] +
@@ -574,7 +571,7 @@ def calculateCoverage(sequenceFile, cigarFile, outputFile, fromGenome=None, dept
 
 def trimGenome(sequenceFile, coverageFile, outputFile, complement=False,
                flanking=0, minSize=1, windowSize=10, threshold=1, depth=None):
-    cactus_call(tool="cactus", outfile=outputFile,
+    cactus_call(outfile=outputFile,
                 parameters=["cactus_trimSequences.py",
                             nameValue("complement", complement, valueType=bool),
                             nameValue("flanking", flanking), nameValue("minSize", minSize),
@@ -588,7 +585,7 @@ def subtractBed(bed1, bed2, destBed):
         # bedtools will complain on zero-size beds
         os.rename(bed1, destBed)
     else:
-        cactus_call(tool="bedtools", outfile=destBed,
+        cactus_call(outfile=destBed,
                     parameters=["subtract",
                                 "-a", bed1,
                                 "-b", bed2])

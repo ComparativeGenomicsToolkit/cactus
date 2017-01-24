@@ -84,8 +84,8 @@ def runKtserver(dbElem, killSwitchPath, maxPortsToTry=100, readOnly = False,
         if __isKtServerOnTakenPort(dbElem, killSwitchPath, pretest=True):
             logger.info("Ktserver already on port %i" % port)
             continue
-        process = cactus_call(tool="ktserver", server=True, shell=False, work_dir=os.path.dirname(logPath),
-                              parameters=['-log', os.path.basename(logPath),
+        process = cactus_call(server=True, shell=False, work_dir=os.path.dirname(logPath),
+                              parameters=['ktserver', '-log', os.path.basename(logPath),
                                           '-port', dbElem.getDbPort(),
                                           __getKtServerOptions(dbElem)])
 
@@ -311,8 +311,8 @@ def pingKtServer(dbElem):
         raise RuntimeError("Unable to ping ktserver host %s from %s" % (
             dbElem.getDbHost(), getHostName()))
 
-    return cactus_call(tool="ktremotemgr", check_result=True,
-                       parameters=['report',
+    return cactus_call(check_result=True,
+                       parameters=['ktremotemgr', 'report',
                                    '-port', str(dbElem.getDbPort()),
                                    '-host', dbElem.getDbHost()]) == 0
     #cmd = ['docker', 'run', '--interactive', '--log-driver=none', '--net=host',
