@@ -812,20 +812,9 @@ def cactus_call(work_dir=None,
         base_docker_call.append('--rm')
 
 
-    if infile:
-        if not os.path.exists(os.path.join(work_dir, os.path.basename(infile))):
-            shutil.copy(infile, work_dir)
-        parameters = ["cat", os.path.basename(infile), "|"] + parameters
-    if outfile:
-        assert os.path.exists(os.path.join(work_dir, os.path.basename(outfile)))
-        parameters = parameters + [">", os.path.basename(outfile)]
-
     parameters = [par for par in parameters if par != '']
 
-    if infile or outfile:
-        parameters = "sh -c '%s'" % " ".join(parameters)
-    else:
-        parameters = " ".join(parameters)
+    parameters = " ".join(parameters)
 
     docker_tag = "latest" if os.environ.get('CACTUS_USE_LATEST') else cactus_commit
 
@@ -847,6 +836,10 @@ def cactus_call(work_dir=None,
     stdoutFileHandle = None
     if stdin_string:
         stdinFileHandle = subprocess.PIPE
+    elif infile:
+        stdinFileHandle = open(infile, 'r')
+    if outfile:
+        stdoutFileHandle = open(outfile, 'w')
     if check_output:
         stdoutFileHandle = subprocess.PIPE
 
