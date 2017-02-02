@@ -738,7 +738,8 @@ def runGetChunks(sequenceFiles, chunksDir, chunkSize, overlapSize, work_dir=None
                                            chunksDir] + sequenceFiles).split("\n") if chunk != ""]
 
 #TODO: This function is a mess
-def cactus_call(work_dir=None,
+def cactus_call(tool=None,
+                work_dir=None,
                 parameters=None,
                 rm=False,
                 detached=True,
@@ -816,13 +817,16 @@ def cactus_call(work_dir=None,
 
     parameters = " ".join(parameters)
 
+    if not tool:
+        tool = "cactus"
+
     docker_tag = "latest" if os.environ.get('CACTUS_USE_LATEST') else cactus_commit
 
     if os.environ.get('CACTUS_DEVELOPER_MODE'):
         _log.info("Calling tool from local cactus installation.")
         call = parameters
     else:
-        tool = "%s/%s:%s" % (dockstore, "cactus", docker_tag)
+        tool = "%s/%s:%s" % (dockstore, tool, docker_tag)
         call = " ".join(base_docker_call) + " " + tool + " " + parameters
     if option_string:
         call += " " + option_string

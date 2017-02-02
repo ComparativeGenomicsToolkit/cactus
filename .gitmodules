@@ -10,12 +10,21 @@
 [submodule "submodules/sonLib"]
 	path = submodules/sonLib
 	url = http://github.com/ComparativeGenomicsToolkit/sonLib
-[submodule "submodules/hal"]
-	path = submodules/hal
-	url = http://github.com/glennhickey/hal
-[submodule "submodules/cactus2hal"]
-	path = submodules/cactus2hal
-	url = http://github.com/adderan/cactus2hal
+[submodule "submodules/kyotocabinet"]
+	path = submodules/kyotocabinet
+	url = https://github.com/UCSCReconGroup/kyotocabinet
+[submodule "submodules/tokyocabinet"]
+	path = submodules/tokyocabinet
+	url = https://github.com/UCSCReconGroup/tokyocabinet
+[submodule "submodules/kyototycoon"]
+	path = submodules/kyototycoon
+	url = https://github.com/UCSCReconGroup/kyototycoon
 [submodule "submodules/hdf5"]
 	path = submodules/hdf5
-	url = http://github.com/UCSCReconGroup/hdf5
+	url = https://github.com/UCSCReconGroup/hdf5
+[submodule "submodules/hal"]
+	path = submodules/hal
+	url = https://github.com/glennhickey/hal
+[submodule "submodules/cactus2hal"]
+	path = submodules/cactus2hal
+	url = https://github.com/glennhickey/cactus2hal
