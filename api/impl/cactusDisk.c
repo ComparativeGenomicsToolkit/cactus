@@ -17,6 +17,10 @@
 #define CACTUS_DISK_PARAMETER_KEY -100000
 #define CACTUS_DISK_SEQUENCE_CHUNK_SIZE 500
 
+#define SMALL_RECORD_SIZE 500000
+#define MULTI_RECORD_TAG "__MULTI_RECORD"
+#define MULTI_RECORD_TAG_LENGTH 14
+
 /*
  * Functions on meta sequences.
  */
@@ -516,6 +520,33 @@ static void *decompress(void *data, int64_t *dataSize) {
     *dataSize = uncompressedSize;
     return data2;
 }
+bool cactusDisk_isMultiRecord(char *record, int64_t recordSize) {
+    if (recordSize <= MULTI_RECORD_TAG_LENGTH) {
+        return false;
+    }
+    return (strncmp(record, MULTI_RECORD_TAG, MULTI_RECORD_TAG_LENGTH) == 0);
+}
+
+void *cactusDisk_getBigRecord(CactusDisk *cactusDisk, char *multiRecord, int64_t sizeOfMultiRecord, int64_t *sizeOfBigRecord) {
+    int64_t numRecords = (sizeOfMultiRecord - MULTI_RECORD_TAG_LENGTH) / sizeof(int64_t);
+    fprintf(stderr, "Combining %" PRIi64 " small records.\n", numRecords);
+    char *bigRecord = (char*)malloc(SMALL_RECORD_SIZE * numRecords);
+    char *pos = bigRecord;
+    *sizeOfBigRecord = 0;
+    for (int64_t i = 0; i < numRecords; i++) {
+        int64_t smallRecordKey;
+        memcpy(&smallRecordKey, multiRecord + MULTI_RECORD_TAG_LENGTH + i*sizeof(int64_t), sizeof(int64_t));
+        fprintf(stderr, "Retrieving small record with key %" PRIi64 "\n", smallRecordKey);
+        int64_t sizeOfSmallRecord;
+        char *smallRecord = (char*)stKVDatabase_getRecord2(cactusDisk->database, smallRecordKey, &sizeOfSmallRecord);
+        memcpy(pos, smallRecord, sizeOfSmallRecord);
+        pos = pos + sizeOfSmallRecord;
+
+        *sizeOfBigRecord += sizeOfSmallRecord;
+        //free(smallRecord);
+    }
+    return bigRecord;
+}
 
 static stList *getRecords(CactusDisk *cactusDisk, stList *objectNames, char *type) {
     if (stList_length(objectNames) == 0) {
@@ -545,6 +576,11 @@ static stList *getRecords(CactusDisk *cactusDisk, stList *objectNames, char *typ
             record = stKVDatabaseBulkResult_getRecord(result, &recordSize);
             assert(recordSize >= 0);
             assert(record != NULL);
+            if (cactusDisk_isMultiRecord(record, recordSize)) {
+                void *tmp = record;
+                int64_t multiRecordSize = recordSize;
+                record = cactusDisk_getBigRecord(cactusDisk, record, multiRecordSize, &recordSize);
+            }
             record = decompress(record, &recordSize);
             stCache_setRecord(cactusDisk->cache, objectName, 0, recordSize, record);
         } else {
@@ -557,6 +593,7 @@ static stList *getRecords(CactusDisk *cactusDisk, stList *objectNames, char *typ
     }
     return records;
 }
+
 
 static void *getRecord(CactusDisk *cactusDisk, Name objectName, char *type) {
     void *cA = NULL;
@@ -579,11 +616,19 @@ static void *getRecord(CactusDisk *cactusDisk, Name objectName, char *type) {
         }
         stCache_setRecord(cactusDisk->cache, objectName, 0, recordSize, cA); //Add the compressed record to the cache.
     }
-    //Decompression
+
     assert(recordSize > 0);
-    void *cA2 = decompress(cA, &recordSize);
-    free(cA);
-    return cA2;
+
+    void *cA2 = cA;
+    if (cactusDisk_isMultiRecord(cA, recordSize)) {
+        int64_t multiRecordSize = recordSize;
+        cA2 = cactusDisk_getBigRecord(cactusDisk, cA, multiRecordSize, &recordSize);
+    }
+
+    //Decompression
+
+    void *cA3 = decompress(cA2, &recordSize);
+    return cA3;
 }
 
 static bool containsRecord(CactusDisk *cactusDisk, Name objectName) {
@@ -721,6 +766,55 @@ void cactusDisk_destruct(CactusDisk *cactusDisk) {
     free(cactusDisk);
 }
 
+
+void cactusDisk_addBigRecord(CactusDisk *cactusDisk, Name name, void *record, int64_t recordSize, bool update) {
+
+    fprintf(stderr, "Record size %" PRIi64 "\n", recordSize);
+    int64_t numSmallRecords = recordSize / SMALL_RECORD_SIZE;
+    if (recordSize % SMALL_RECORD_SIZE > 0) {
+        numSmallRecords++;
+    }
+    fprintf(stderr, "Splitting record into %" PRIi64 " small records\n", numSmallRecords);
+
+    stList *smallRecordKeys = stList_construct();
+    
+    int64_t smallRecordStart = 0;
+    while (smallRecordStart < recordSize) {
+        int64_t smallRecordSize = (SMALL_RECORD_SIZE < (recordSize - smallRecordStart)) ? SMALL_RECORD_SIZE : (recordSize - smallRecordStart);
+        int64_t smallRecordKey = cactusDisk_getUniqueID(cactusDisk);
+        stList_append(smallRecordKeys, smallRecordKey);
+        char *smallRecord = (char*)record + smallRecordStart;
+        fprintf(stderr, "Adding small record with key %" PRIi64 " and size %" PRIi64 "\n", smallRecordKey, smallRecordSize);
+
+        stList_append(cactusDisk->updateRequests,
+                stKVDatabaseBulkRequest_constructInsertRequest(smallRecordKey, smallRecord, smallRecordSize));
+        smallRecordStart += smallRecordSize;
+    }
+    char *multiRecord = (char*)malloc(MULTI_RECORD_TAG_LENGTH + stList_length(smallRecordKeys)*sizeof(int64_t));
+    memcpy(multiRecord, (char*)MULTI_RECORD_TAG, MULTI_RECORD_TAG_LENGTH);
+
+    char *pos = multiRecord + MULTI_RECORD_TAG_LENGTH;
+    stListIterator *it = stList_getIterator(smallRecordKeys);
+    int64_t smallRecordKey;
+    int64_t multiRecordSize = MULTI_RECORD_TAG_LENGTH;
+    while((smallRecordKey = stList_getNext(it))) {
+        memcpy(pos, &smallRecordKey, sizeof(int64_t));
+        pos += sizeof(int64_t);
+        multiRecordSize += sizeof(int64_t);
+    }
+    if (update) {
+        stList_append(cactusDisk->updateRequests,
+             stKVDatabaseBulkRequest_constructUpdateRequest(name, multiRecord, multiRecordSize));
+    }
+    else {
+        stList_append(cactusDisk->updateRequests,
+                stKVDatabaseBulkRequest_constructInsertRequest(name, multiRecord, multiRecordSize));
+    }
+    stList_destruct(smallRecordKeys);
+    stList_destructIterator(it);
+}
+
+
 void cactusDisk_addUpdateRequest(CactusDisk *cactusDisk, Flower *flower) {
     int64_t recordSize;
     void *vA = binaryRepresentation_makeBinaryRepresentation(flower,
@@ -732,13 +826,25 @@ void cactusDisk_addUpdateRequest(CactusDisk *cactusDisk, Flower *flower) {
         int64_t recordSize2;
         void *vA2 = stCache_getRecord(cactusDisk->cache, flower_getName(flower), 0, INT64_MAX, &recordSize2);
         if (!stCache_recordsIdentical(vA, recordSize, vA2, recordSize2)) { //Only rewrite if we actually did something
-            stList_append(cactusDisk->updateRequests,
+            if (recordSize < SMALL_RECORD_SIZE) {
+                stList_append(cactusDisk->updateRequests,
                     stKVDatabaseBulkRequest_constructUpdateRequest(flower_getName(flower), vA, recordSize));
+            }
+            else {
+                fprintf(stderr, "Splitting up overlarge flower record of size %" PRIi64 "\n", recordSize);
+                cactusDisk_addBigRecord(cactusDisk, flower_getName(flower), vA, recordSize, true);
+            }
+
         }
         free(vA2);
     } else {
-        stList_append(cactusDisk->updateRequests,
+        if (recordSize < SMALL_RECORD_SIZE) {
+            stList_append(cactusDisk->updateRequests,
                 stKVDatabaseBulkRequest_constructInsertRequest(flower_getName(flower), vA, recordSize));
+        }
+        else {
+            cactusDisk_addBigRecord(cactusDisk, flower_getName(flower), vA, recordSize, false);
+        }
     }
     free(vA);
 }

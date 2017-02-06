@@ -58,6 +58,34 @@ void testCactusDisk_getFlower(CuTest* testCase) {
     cactusDiskTestTeardown();
 }
 
+void testCactusDisk_bigRecords(CuTest* testCase) {
+    cactusDiskTestSetup();
+    int64_t recordLength = 1000000;
+    char *record = st_malloc(recordLength * sizeof(char));
+    for (int64_t j = 0; j < recordLength; j++) {
+        record[j] = (char) st_randomInt(0, 100);
+    }
+    cactusDisk_addBigRecord(cactusDisk, 0, record, recordLength, false);
+    int64_t id = cactusDisk_getUniqueID(cactusDisk);
+    cactusDisk_write(cactusDisk);
+    cactusDisk_destruct(cactusDisk);
+    cactusDisk = cactusDisk_construct(conf, 0);
+
+    int64_t retrievedRecordSize;
+    int64_t multiRecordSize;
+    char *multiRecord = stKVDatabase_getRecord2(cactusDisk->database, 0, &multiRecordSize);
+
+    CuAssertTrue(testCase, cactusDisk_isMultiRecord(multiRecord, multiRecordSize));
+
+    char *retrievedRecord = cactusDisk_getBigRecord(cactusDisk, multiRecord, multiRecordSize, &retrievedRecordSize);
+    for (int64_t i = 0; i < recordLength; i++) {
+        CuAssertTrue(testCase, record[i] == retrievedRecord[i]);
+    }
+    free(record);
+
+    cactusDiskTestTeardown();
+}
+
 void testCactusDisk_getMetaSequence(CuTest* testCase) {
     cactusDiskTestSetup();
     MetaSequence *metaSequence = metaSequence_construct(1, 10, "ACTGACTGAG",
@@ -143,5 +171,6 @@ CuSuite* cactusDiskTestSuite(void) {
     SUITE_ADD_TEST(suite, testCactusDisk_getUniqueID_Unique);
     SUITE_ADD_TEST(suite, testCactusDisk_getUniqueID_UniqueIntervals);
     SUITE_ADD_TEST(suite, testCactusDisk_constructAndDestruct);
+    SUITE_ADD_TEST(suite, testCactusDisk_bigRecords);
     return suite;
 }

@@ -63,6 +63,14 @@ int64_t cactusDisk_getUniqueIDInterval(CactusDisk *cactusDisk, int64_t intervalS
  */
 void cactusDisk_write(CactusDisk *cactusDisk);
 
+void *cactusDisk_getBigRecord(CactusDisk *cactusDisk, char *multiRecord, int64_t multiRecordSize, int64_t *sizeOfBigRecord);
+
+void cactusDisk_addBigRecord(CactusDisk *cactusDisk, Name flowerName,
+        void *record, int64_t recordSize, bool update);
+
+bool cactusDisk_isMultiRecord(char *record, int64_t recordSize);
+
+
 /*
  * This is used to serialise a flower before a call to a cactusDisk_write, it is exposed for use in the cactus_caf code.
  */
