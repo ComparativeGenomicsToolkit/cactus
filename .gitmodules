@@ -27,4 +27,4 @@
 	url = https://github.com/glennhickey/hal
 [submodule "submodules/cactus2hal"]
 	path = submodules/cactus2hal
-	url = https://github.com/glennhickey/cactus2hal
+	url = https://github.com/adderan/cactus2hal
