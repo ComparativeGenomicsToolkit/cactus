@@ -62,9 +62,9 @@ docker: build_output runtime/Dockerfile
 	docker build -t ${name}:${tag} ./runtime/ --build-arg CACTUS_COMMIT=${git_commit}
 	docker tag ${name}:${tag} ${name}:latest
 
-push: build
+push: docker
 	# Requires ~/.dockercfg
-	docker push ${name}:${tag}
+	docker push ${name}
 
 
 ${libSonLib}: ${libkyotocabinet} ${libtokyocabinet} ${libkyototycoon}
