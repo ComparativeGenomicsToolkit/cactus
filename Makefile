@@ -20,7 +20,7 @@ export tokyoCabinetLib = -L${tcPrefix}/lib -Wl,-Bstatic -ltokyocabinet -Wl,-Bdyn
 
 export kcPrefix =$(PWD)/submodules/kyotocabinet
 export ttPrefix =$(PWD)/submodules/kyototycoon
-export kyotoTycoonIncl = -I${kcPrefix}/include -I${ttPrefix}/include -DHAVE_KYOTO_TYCOON=1 -I$(PWD)/zlib/include 
+export kyotoTycoonIncl = -I${kcPrefix}/include -I${ttPrefix}/include -DHAVE_KYOTO_TYCOON=1 -I$(PWD)/zlib/include -fpermissive
 export kyotoTycoonLib = -L${ttPrefix}/lib -L${kcPrefix}/lib -Wl,-Bstatic -lkyototycoon -lkyotocabinet -Wl,-Bdynamic -lz -lpthread -lm -lstdc++
 
 libSonLib = ${PWD}/submodules/sonLib/sonLib.a
