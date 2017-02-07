@@ -281,6 +281,46 @@ static void testChainHasUnequalNumberOfIngroupCopiesOrNoOutgroup_noOutgroups(CuT
     stCactusEdgeEnd *chainC = getChainEndFromBlock(cactusGraph, blockC);
     CuAssertTrue(testCase, stCaf_chainHasUnequalNumberOfIngroupCopiesOrNoOutgroup(chainC, flower) == true);
 
+    stPinchThreadSet_destruct(threadSet);
+
+    teardown();
+}
+
+static void testHGVMFiltering(CuTest *testCase) {
+    int64_t numRandomPinches = 10000;
+    setup(false);
+    Name ingroup1Seq1 = addThreadToFlower(flower, ingroup1, 100);
+    Name ingroup1Seq2 = addThreadToFlower(flower, ingroup1, 100);
+    addThreadToFlower(flower, ingroup1, 100);
+    addThreadToFlower(flower, ingroup1, 100);
+    addThreadToFlower(flower, ingroup2, 100);
+
+    stPinchThreadSet *threadSet = stCaf_setup(flower);
+
+    stSet *isolatedThreads = stSet_construct();
+    stSet_insert(isolatedThreads, stPinchThreadSet_getThread(threadSet, ingroup1Seq1));
+    stSet_insert(isolatedThreads, stPinchThreadSet_getThread(threadSet, ingroup1Seq2));
+    stCaf_setThreadsToBeCycleFreeIsolatedComponents(isolatedThreads);
+
+    for (int64_t i = 0; i < numRandomPinches; i++) {
+        stPinch pinch = stPinchThreadSet_getRandomPinch(threadSet);
+        stPinchThread_filterPinch(stPinchThreadSet_getThread(threadSet, pinch.name1),
+                                  stPinchThreadSet_getThread(threadSet, pinch.name2),
+                                  pinch.start1,
+                                  pinch.start2,
+                                  pinch.length,
+                                  pinch.strand,
+                                  stCaf_filterToEnsureCycleFreeIsolatedComponents);
+    }
+
+    stSortedSet *threadComponents = stPinchThreadSet_getThreadComponents(threadSet);
+    printf("got %" PRIi64 " thread components\n", stSortedSet_size(threadComponents));
+    CuAssertTrue(testCase, stSortedSet_size(threadComponents) >= 2);
+
+    stSet_destruct(isolatedThreads);
+    stSortedSet_destruct(threadComponents);
+    stPinchThreadSet_destruct(threadSet);
+
     teardown();
 }
 
@@ -289,5 +329,6 @@ CuSuite* filteringTestSuite(void) {
     SUITE_ADD_TEST(suite, testChainHasUnequalNumberOfIngroupCopies);
     SUITE_ADD_TEST(suite, testChainHasUnequalNumberOfIngroupCopiesOrNoOutgroup);
     SUITE_ADD_TEST(suite, testChainHasUnequalNumberOfIngroupCopiesOrNoOutgroup_noOutgroups);
+    SUITE_ADD_TEST(suite, testHGVMFiltering);
     return suite;
 }

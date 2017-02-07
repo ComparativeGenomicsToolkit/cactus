@@ -783,6 +783,7 @@ int main(int argc, char *argv[]) {
                         if (headerLen < 4 || (strncmp(seqHeader + (headerLen - 4), "_alt", 4) != 0)) {
                             // Not an alt. Add it to the "special components" set.
                             stSet_insert(threadsToBeCycleFreeIsolatedComponents, thread);
+                            printf("Filtering %s to be a cycle-free isolated component\n", seqHeader);
                         }
                     }
                 }

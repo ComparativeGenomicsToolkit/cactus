@@ -186,46 +186,57 @@ bool stCaf_relaxedSingleCopyIngroup(stPinchSegment *segment1,
  * be in its own component and should have no within-component cycles.
  */
 
-static stSet *threadsToBeCycleFreeIsolatedComponents;
+static stHash *threadToComponent;
 
 void stCaf_setThreadsToBeCycleFreeIsolatedComponents(stSet *input) {
-    threadsToBeCycleFreeIsolatedComponents = input;
+    threadToComponent = stHash_construct();
+    stSetIterator *it = stSet_getIterator(input);
+    stPinchThread *thread;
+    while ((thread = stSet_getNext(it)) != NULL) {
+        stHash_insert(threadToComponent, thread, thread);
+    }
 }
 
-static bool isInCycleFreeIsolatedComponent(stPinchSegment *segment) {
-    // First, just check that this thread is in a special component.
-    stPinchThread *thread = stPinchSegment_getThread(segment);
-    if (stSet_search(threadsToBeCycleFreeIsolatedComponents, thread)) {
-        return true;
-    }
-    // If it's not, check if it's in a block. If it is, then we have
-    // to check that each segment in the block isn't in a special
-    // component as well.
+// Assign a segment's thread (and all threads in its block) to a component.
+static stPinchThread *assignComponent(stPinchSegment *segment, stPinchThread *component) {
     stPinchBlock *block = stPinchSegment_getBlock(segment);
     if (block != NULL) {
         stPinchBlockIt blockIt = stPinchBlock_getSegmentIterator(block);
         while ((segment = stPinchBlockIt_getNext(&blockIt)) != NULL) {
             stPinchThread *thread = stPinchSegment_getThread(segment);
-            if (stSet_search(threadsToBeCycleFreeIsolatedComponents, thread)) {
-                return true;
-            }
+            assert(stHash_search(threadToComponent, thread) == NULL);
+            stHash_insert(threadToComponent, thread, component);
         }
+    } else {
+        stPinchThread *thread = stPinchSegment_getThread(segment);
+        assert(stHash_search(threadToComponent, thread) == NULL);
+        stHash_insert(threadToComponent, thread, component);
     }
     return false;
 }
 
 bool stCaf_filterToEnsureCycleFreeIsolatedComponents(stPinchSegment *segment1,
                                                      stPinchSegment *segment2) {
-    bool inSpecialComponent1 = isInCycleFreeIsolatedComponent(segment1);
-    bool inSpecialComponent2 = isInCycleFreeIsolatedComponent(segment2);
+    stPinchThread *component1 = stHash_search(threadToComponent, stPinchSegment_getThread(segment1));
+    stPinchThread *component2 = stHash_search(threadToComponent, stPinchSegment_getThread(segment2));
 
     // Check if this alignment will bridge two special components, or
     // create a cycle within one. If so, reject it.
-    if (inSpecialComponent1 && inSpecialComponent2) {
-        return true;
+    bool bridgesTwoComponents = false;
+    if (component1 != NULL
+        && component2 != NULL
+        && component1 != component2) {
+        // We reject this alignment.
+        bridgesTwoComponents = true;
     } else {
-        return false;
+        // This alignment will be applied, so update the components.
+        if (component1 != component2 && component1 != NULL) {
+            assignComponent(segment2, component1);
+        } else if (component1 != component2 && component2 != NULL) {
+            assignComponent(segment1, component2);
+        }
     }
+    return bridgesTwoComponents;
 }
 
 /*
