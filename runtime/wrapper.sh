@@ -7,7 +7,7 @@ finish() {
 }
 trap finish EXIT
 
-options=""
+options="catchsegv"
 for arg in "$@"
 do
     options="$options '${arg}'"
