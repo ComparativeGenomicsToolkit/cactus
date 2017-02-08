@@ -761,6 +761,7 @@ def cactus_call(tool=None,
     def moveToWorkDir(work_dir, arg):
         if isinstance(arg, str) and os.path.isfile(arg):
             if not os.path.dirname(arg) == work_dir:
+                _log.info('Copying file %s to work dir' % arg)
                 shutil.copy(arg, work_dir)
 
     if work_dir:
@@ -788,15 +789,26 @@ def cactus_call(tool=None,
     #We'll mount the work_dir containing the paths as /data in the container,
     #so set all the paths to their basenames. The container will access them at
     #/data/<path>
-    def adjustPath(path):
+    def adjustPath(path, wd):
         if os.path.isfile(path):
+            _log.info('Found file %s' % path)
             return os.path.basename(path)
         if os.path.isdir(path):
+            _log.info('Found dir %s' % path)
             return os.path.basename(os.path.dirname(path))
         else:
-            return path
+            _log.info('%s is neither a dir nor a file' % path)
+            # Hack to relativize paths that are not provided as a
+            # single argument (i.e. multiple paths that are
+            # space-separated and quoted)
+            if wd != '.':
+                if not wd.endswith('/'):
+                    wd = wd + '/'
+                return path.replace(wd, '')
+            else:
+                return path
 
-    parameters = [adjustPath(par) for par in parameters]
+    parameters = [adjustPath(par, work_dir) for par in parameters]
 
     
     base_docker_call = ['docker', 'run',
