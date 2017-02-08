@@ -803,6 +803,8 @@ def cactus_call(tool=None,
                         '--interactive',
                         '--net=host',
                         '--log-driver=none',
+                        '-e', 'ST_ABORT=1',
+                        '-e', 'ST_ABORT_UNCAUGHT=1',
                         '-v', '{}:/data'.format(os.path.abspath(work_dir))]
 
     if port:
