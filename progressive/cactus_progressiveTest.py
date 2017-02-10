@@ -57,30 +57,33 @@ class TestCase(unittest.TestCase):
     def tearDown(self):
         system("rm -rf %s" % self.tempDir)
 
-    # @silentOnSuccess
-    # def testCactus_Random(self):
-    #     runWorkflow_multipleExamples(getCactusInputs_random,
-    #                                  testNumber=2,
-    #                                  testRestrictions=(TestStatus.TEST_SHORT,),
-    #                                  batchSystem=self.batchSystem, buildJobTreeStats=True,
-    #                                  progressive=True,
-    #                                  configFile=self.configFile,
-    #                                  cactusWorkflowFunction=self.progressiveFunction)
+    @silentOnSuccess
+    def testCactus_Random(self):
+        runWorkflow_multipleExamples(getCactusInputs_random,
+                                     testNumber=2,
+                                     testRestrictions=(TestStatus.TEST_SHORT,),
+                                     batchSystem=self.batchSystem, buildJobTreeStats=True,
+                                     progressive=True,
+                                     configFile=self.configFile,
+                                     cactusWorkflowFunction=self.progressiveFunction)
 
-    # @silentOnSuccess
-    # def testCactus_Random_UseSubtreeRoot(self):
-    #     """Tests that cactus doesn't crash when aligning a subtree of a larger
-    #     species tree."""
-    #     runWorkflow_multipleExamples(getCactusInputs_random,
-    #                                  testNumber=2,
-    #                                  testRestrictions=(TestStatus.TEST_SHORT,),
-    #                                  batchSystem=self.batchSystem, buildJobTreeStats=True,
-    #                                  progressive=True,
-    #                                  configFile=self.configFile,
-    #                                  cactusWorkflowFunction=self.progressiveWithSubtreeRootFunction)
+    @silentOnSuccess
+    def testCactus_Random_UseSubtreeRoot(self):
+        """Tests that cactus doesn't crash when aligning a subtree of a larger
+        species tree."""
+        runWorkflow_multipleExamples(getCactusInputs_random,
+                                     testNumber=2,
+                                     testRestrictions=(TestStatus.TEST_SHORT,),
+                                     batchSystem=self.batchSystem, buildJobTreeStats=True,
+                                     progressive=True,
+                                     configFile=self.configFile,
+                                     cactusWorkflowFunction=self.progressiveWithSubtreeRootFunction)
 
+    @silentOnSuccess
     def testCactus_ensureFunkyHeaderNamesArentMangled(self):
         """Ensure header names with characters like "|", " " aren't mangled."""
+        if "SON_TRACE_DATASETS" not in os.environ:
+            return
         runWorkflow_multipleExamples(getCactusInputs_funkyHeaderNames,
                                      testNumber=1,
                                      testRestrictions=(TestStatus.TEST_SHORT,),
@@ -91,6 +94,8 @@ class TestCase(unittest.TestCase):
 
     @silentOnSuccess
     def testCactus_Blanchette(self):
+        if "SON_TRACE_DATASETS" not in os.environ:
+            return
         runWorkflow_multipleExamples(getCactusInputs_blanchette,
                                      testNumber=1,
                                      testRestrictions=(TestStatus.TEST_MEDIUM,),
@@ -101,6 +106,8 @@ class TestCase(unittest.TestCase):
 
     @silentOnSuccess
     def testCactus_Encode(self):
+        if "SON_TRACE_DATASETS" not in os.environ:
+            return
         runWorkflow_multipleExamples(getCactusInputs_encode,
                                      testNumber=1,
                                      testRestrictions=(TestStatus.TEST_LONG,),
@@ -111,6 +118,8 @@ class TestCase(unittest.TestCase):
 
     @silentOnSuccess
     def testCactus_Chromosomes(self):
+        if "SON_TRACE_DATASETS" not in os.environ:
+            return
         runWorkflow_multipleExamples(getCactusInputs_chromosomeX,
                                      testRestrictions=(TestStatus.TEST_VERY_LONG,),
                                      batchSystem=self.batchSystem, buildJobTreeStats=True,
