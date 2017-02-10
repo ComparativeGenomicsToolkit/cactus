@@ -713,8 +713,8 @@ class CactusBarRecursion(CactusRecursionJob):
     """
     def run(self, fileStore):
         self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
-        self.makeExtendingJobs(job=CactusBarWrapper, overlargeJob=CactusBarWrapperLarge, runFlowerStats=True)
         self.makeRecursiveJobs()
+        self.makeExtendingJobs(job=CactusBarWrapper, overlargeJob=CactusBarWrapperLarge, runFlowerStats=True)
 
 def runBarForJob(self, calculateWhichEndsToComputeSeparately=None, endAlignmentsToPrecomputeOutputFile=None, precomputedAlignments=None):
     return runCactusBar(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
