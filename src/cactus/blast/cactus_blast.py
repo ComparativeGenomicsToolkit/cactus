@@ -88,7 +88,7 @@ class IterativelySampleRepeats2(Job):
     def run(self, fileStore):
         #Down-weight all seeds contained within pairwise alignments sampled using
         #the given probabilities table
-        alignmentsID = self.addChild(BlastSequencesAllAgainstAll(self.sequenceIDs, blastOptions=self.blastOptions, samplingRatesID=self.prevSamplingRatesID))
+        alignmentsID = self.addChild(BlastSequencesAllAgainstAll(self.sequenceIDs, blastOptions=self.blastOptions, samplingRatesID=self.prevSamplingRatesID)).rv()
         return self.addFollowOn(AdjustSamplingRates(sequenceIDs=self.sequenceIDs, alignmentsID=alignmentsID, samplingRatesID=self.prevSamplingRatesID))
 
 def getSeed(kmer, seedPattern):
@@ -116,7 +116,7 @@ class GetInitialSamplingRates(Job):
         cactus_call(tool="cpecan", outfile=lastzTable,
                     parameters=["cPecanLastz",
                     "--tableonly=count",
-                    "%s[unmask][multiple][nameparse=darkspace]" % combinedSequence])
+                    "%s[unmask][multiple][nameparse=darkspace]" % os.path.basename(combinedSequence)])
 
         samplingRates = fileStore.getLocalTempFile()
         with open(samplingRates, 'w') as samplingRatesFH:
@@ -231,7 +231,10 @@ class BlastSequencesAllAgainstAll(Job):
     """Take a set of sequences, chunks them up and blasts them.
     """
     def __init__(self, sequenceFileIDs1, blastOptions, samplingRatesID=None):
-        disk = 4*sum([seqFileID.size for seqFileID in sequenceFileIDs1])
+        if hasattr(sequenceFileIDs1[0], "size"):
+            disk = 4*sum([seqFileID.size for seqFileID in sequenceFileIDs1])
+        else:
+            disk = None
         cores = 1
         memory = blastOptions.memory
         
@@ -290,7 +293,7 @@ class MakeOffDiagonalBlasts(Job):
                 for j in xrange(i+1, len(self.chunkIDs)):
                     resultsIDs.append(self.addChild(RunBlast(blastOptions=self.blastOptions, seqFileID1=self.chunkIDs[i], seqFileID2=self.chunkIDs[j], samplingRatesID=self.samplingRatesID)).rv())
 
-            return self.addFollowOn(CollateBlasts(self.blastOptions, resultsIDs, samplingRatesID=self.samplingRatesID)).rv()
+            return self.addFollowOn(CollateBlasts(self.blastOptions, resultsIDs)).rv()
 
             
 class BlastSequencesAgainstEachOther(Job):
@@ -607,7 +610,7 @@ def decompressFastaFile(fileName, tempFileName):
 class RunBlast(Job):
     """Runs blast as a job.
     """
-    def __init__(self, blastOptions, seqFileID1, seqFileID2, samplingRatesID):
+    def __init__(self, blastOptions, seqFileID1, seqFileID2, samplingRatesID=None):
         disk = 2*(seqFileID1.size + seqFileID2.size)
         memory = 2*(seqFileID1.size + seqFileID2.size)
         Job.__init__(self, memory=memory, disk=disk)

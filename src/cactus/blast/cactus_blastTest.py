@@ -373,8 +373,25 @@ class TestCase(unittest.TestCase):
             seqIDs = [toil.importFile(makeURL(seq)) for seq in seqs]
             samplingRatesID = toil.start(GetInitialSamplingRates(sequenceIDs=seqIDs, blastOptions=blastOptions))
             toil.exportFile(samplingRatesID, makeURL(os.path.join(self.tempDir, "samplingRates.txt")))
-        
-
+    def testAdjustSamplingRates(self):
+        encodeRegion = "ENm001"
+        species = ("human", "mouse", "dog")
+        #Other species to try "rat", "monodelphis", "macaque", "chimp"
+        regionPath = os.path.join(self.encodePath, encodeRegion)
+        seqs = [os.path.join(regionPath, "%s.%s.fa" % (species_i, encodeRegion)) for species_i in species]
+        options = Job.Runner.getDefaultOptions(os.path.join(self.tempDir, "tmpToil"))
+        blastOptions = BlastOptions(chunkSize=500000, overlapSize=10000,
+                                compressFiles=False,
+                                memory=500000000)
+        with Toil(options) as toil:
+            seqIDs = [toil.importFile(seq) for seq in seqs]
+            alignmentsJob = RunBlast(blastOptions=blastOptions, seqIDs[0], seqIDs[1])
+            samplingRatesJob = GetInitialSamplingRates(sequenceIDs=seqIDs, blastOptions=blastOptions)
+            samplingRatesAdjustJob = AdjustSamplingRates(sequenceIDs=seqIDs, alignmentsID=alignmentsJob.rv(),
+                    samplingRatesID=samplingRatesJob.rv())
+            alignmentsJob.addFollowOn(samplingRatesAdjustJob)
+            samplingRatesJob.addFollowOn(samplingRatesAdjustJob)
+            newSamplingRatesID = toil.start(samplingRatesAdjustJob)
 
 def compareResultsFile(results1, results2, closeness=0.95):
     results1 = loadResults(results1)
