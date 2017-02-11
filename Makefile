@@ -9,20 +9,6 @@ runtime_fullpath = $(realpath runtime)
 
 export sonLibRootPath = ${PWD}/submodules/sonLib
 
-libtokyocabinet = ${PWD}/submodules/tokyocabinet/libtokyocabinet.a
-libkyototycoon = ${PWD}/submodules/kyototycoon/libkyototycoon.a
-libkyotocabinet = ${PWD}/submodules/kyotocabinet/libkyotocabinet.a
-
-
-export tcPrefix = $(PWD)/submodules/tokyocabinet
-export tokyoCabinetIncl = -I ${tcPrefix}/include -DHAVE_TOKYO_CABINET=1
-export tokyoCabinetLib = -L${tcPrefix}/lib -Wl,-Bstatic -ltokyocabinet -Wl,-Bdynamic -lz -lpthread -lm
-
-export kcPrefix =$(PWD)/submodules/kyotocabinet
-export ttPrefix =$(PWD)/submodules/kyototycoon
-export kyotoTycoonIncl = -I${kcPrefix}/include -I${ttPrefix}/include -DHAVE_KYOTO_TYCOON=1 -I$(PWD)/zlib/include -fpermissive
-export kyotoTycoonLib = -L${ttPrefix}/lib -L${kcPrefix}/lib -Wl,-Bstatic -lkyototycoon -lkyotocabinet -Wl,-Bdynamic -lz -lpthread -lm -lstdc++
-
 libSonLib = ${PWD}/submodules/sonLib/sonLib.a
 libPinchesAndCacti = ${PWD}/submodules/sonLib/lib/stPinchesAndCacti.a
 libCPecan = ${PWD}/submodules/sonLib/lib/cPecanLib.a
@@ -31,15 +17,16 @@ libMatchingAndOrdering = ${PWD}/submodules/sonLib/lib/matchingAndOrdering.a
 halAppendCactusSubtree = ${PWD}/submodules/cactus2hal/bin/halAppendCactusSubtree
 h5c++ = ${PWD}/submodules/hdf5/bin/h5c++
 
-.PHONY: all %.all clean %.clean
+.PHONY: all all.% clean clean.% selfClean
 
-all : ${libSonLib} ${libPinchesAndCacti} ${libMatchingAndOrdering} ${libCPecan} ${modules:%=all.%} ${halAppendCactusSubtree}
-
+all: deps ${modules:%=all.%} ${halAppendCactusSubtree}
 
 all.%:
 	cd $* && make all
 
-clean:  ${modules:%=clean.%}
+deps: ${libSonLib} ${libPinchesAndCacti} ${libMatchingAndOrdering} ${libCPecan} hdf5Rule halRule
+
+selfClean:  ${modules:%=clean.%}
 	rm -rf lib/*.h bin/*.dSYM
 
 clean.%:
@@ -47,7 +34,6 @@ clean.%:
 
 test: all
 	python allTests.py
-
 
 build_output: Dockerfile
 	mkdir -p ${runtime_fullpath}/tools
@@ -58,7 +44,7 @@ build_output: Dockerfile
 	docker rmi -f cactusbuild:${tag}
 
 docker: build_output runtime/Dockerfile
-	docker rmi -f ${name}:latest
+	-docker rmi -f ${name}:latest
 	docker build -t ${name}:${tag} ./runtime/ --build-arg CACTUS_COMMIT=${git_commit}
 	docker tag ${name}:${tag} ${name}:latest
 
@@ -66,55 +52,44 @@ push: docker
 	# Requires ~/.dockercfg
 	docker push ${name}
 
-
-${libSonLib}: ${libkyotocabinet} ${libtokyocabinet} ${libkyototycoon}
-	cd ${PWD}/submodules/sonLib && make
+${libSonLib}:
+	@echo "Building dependency sonLib"
+	@cd ${PWD}/submodules/sonLib && (output=$$(make 2>&1) || (echo "$$output"; exit 1))
 
 sonLibRule: ${libSonLib}
 
-tokyocabinetRule: ${libtokyocabinet}
+${libPinchesAndCacti}: ${libSonLib}
+	@echo "Building dependency pinchesAndCacti"
+	@cd ${PWD}/submodules/pinchesAndCacti && (output=`make 2>&1` || (echo "$$output"; exit 1))
 
-kyototycoonRule: ${libkyototycoon}
+${libMatchingAndOrdering}: ${libSonLib}
+	@echo "Building dependency matchingAndOrdering"
+	@cd ${PWD}/submodules/matchingAndOrdering && (output=`make 2>&1` || (echo "$$output"; exit 1))
 
-kyotocabinetRule: ${libkyotocabinet}
+${libCPecan}: ${libSonLib}
+	@echo "Building dependency cPecan"
+	@cd ${PWD}/submodules/cPecan && (output=`make 2>&1` || (echo "$$output"; exit 1))
 
-${libtokyocabinet}:
-	cd ${PWD}/submodules/tokyocabinet && ./configure --prefix=${PWD}/submodules/tokyocabinet --enable-static --disable-shared --disable-bzip && make && make install
-
-${libkyototycoon}:
-	cd ${PWD}/submodules/kyototycoon && ./configure --prefix=${PWD}/submodules/kyototycoon --enable-static --disable-shared --with-kc=${PWD}/submodules/kyotocabinet && make && make install
-
-${libkyotocabinet}:
-	cd ${PWD}/submodules/kyotocabinet && ./configure --prefix=${PWD}/submodules/kyotocabinet --enable-static --disable-shared && make && make install
-
-
-${libPinchesAndCacti}:
-	cd ${PWD}/submodules/pinchesAndCacti && make
-
-${libMatchingAndOrdering}:
-	cd ${PWD}/submodules/matchingAndOrdering && make
-
-${libCPecan}:
-	cd ${PWD}/submodules/cPecan && make
-
-${halAppendCactusSubtree}: ${h5c++} halRule
-	cd ${PWD}/submodules/cactus2hal && PATH=${PWD}/submodules/hdf5/bin:$(PATH) make
+${halAppendCactusSubtree}: ${h5c++} halRule all.api
+	@echo "Building dependency cactus2hal"
+	@cd ${PWD}/submodules/cactus2hal && (PATH=${PWD}/submodules/hdf5/bin:$(PATH) output=`make 2>&1` || (echo "$$output"; exit 1))
 
 hdf5Rule: ${h5c++}
 
 ${h5c++}:
-	cd ${PWD}/submodules/hdf5 &&./configure --prefix=$(PWD)/submodules/hdf5 --enable-cxx && CFLAGS=-std=c99 make -e && make install
+	@echo "Building dependency hdf5"
+	@cd ${PWD}/submodules/hdf5 && (output=`(./configure --prefix=$(PWD)/submodules/hdf5 --enable-cxx && CFLAGS=-std=c99 make -e && make install) 2>&1` || (echo "$$output"; exit 1))
 
-halRule:
-	cd ${PWD}/submodules/hal && PATH=${PWD}/submodules/hdf5/bin:$(PATH) make
+halRule: ${h5c++} ${libSonLib}
+	@echo "Building dependency hal"
+	@cd ${PWD}/submodules/hal && (PATH=${PWD}/submodules/hdf5/bin:$(PATH) output=`make 2>&1` || (echo "$$output"; exit 1))
 
-ucscClean:
-	make clean
+ucscClean: selfClean
 	cd ${PWD}/submodules/sonLib && make clean
 	cd ${PWD}/submodules/pinchesAndCacti && make clean
 	cd ${PWD}/submodules/matchingAndOrdering && make clean
 
-clean: ucscClean
+clean: ucscClean selfClean
 	cd ${PWD}/submodules/kyotocabinet && make clean
 	cd ${PWD}/submodules/kyototycoon && make clean
 	cd ${PWD}/submodules/tokyocabinet && make clean
