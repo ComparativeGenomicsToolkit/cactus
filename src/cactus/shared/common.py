@@ -16,7 +16,7 @@ from toil.lib.bioio import logger
 from toil.lib.bioio import system
 from toil.lib.bioio import getLogLevelString
 
-from toil_lib.programs import _fix_permissions
+from toil.lib.docker import _fixPermissions
 
 from toil.job import Job
 
@@ -880,7 +880,7 @@ def cactus_call(tool=None,
 
     # Fix root ownership of output files
     if not os.getenv('CACTUS_DEVELOPER_MODE'):
-        _fix_permissions(base_docker_call, tool, work_dir)
+        _fixPermissions(tool, work_dir)
 
     if check_output:
         return output

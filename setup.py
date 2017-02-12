@@ -25,8 +25,7 @@ setup(
 
     install_requires=[
         'psutil',
-        'networkx',
-        'toil_lib==1.2.0a1.dev119'],
+        'networkx'],
     
     entry_points={
         'console_scripts': ['progressiveCactus = cactus.progressive.cactus_progressive:main']},)
