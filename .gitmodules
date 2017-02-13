@@ -10,15 +10,6 @@
 [submodule "submodules/sonLib"]
 	path = submodules/sonLib
 	url = http://github.com/ComparativeGenomicsToolkit/sonLib
-[submodule "submodules/kyotocabinet"]
-	path = submodules/kyotocabinet
-	url = https://github.com/UCSCReconGroup/kyotocabinet
-[submodule "submodules/tokyocabinet"]
-	path = submodules/tokyocabinet
-	url = https://github.com/UCSCReconGroup/tokyocabinet
-[submodule "submodules/kyototycoon"]
-	path = submodules/kyototycoon
-	url = https://github.com/UCSCReconGroup/kyototycoon
 [submodule "submodules/hdf5"]
 	path = submodules/hdf5
 	url = https://github.com/UCSCReconGroup/hdf5

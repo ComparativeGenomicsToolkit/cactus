@@ -78,11 +78,11 @@ hdf5Rule: ${h5c++}
 
 ${h5c++}:
 	@echo "Building dependency hdf5"
-	@cd ${PWD}/submodules/hdf5 && (output=`(./configure --prefix=$(PWD)/submodules/hdf5 --enable-cxx && CFLAGS=-std=c99 make -e && make install) 2>&1` || (echo "$$output"; exit 1))
+	@cd ${PWD}/submodules/hdf5 && (output=`(./configure --prefix=$(PWD)/submodules/hdf5 --enable-cxx && CFLAGS=-std=c99 make -j4 -e && make install) 2>&1` || (echo "$$output"; exit 1))
 
 halRule: ${h5c++} ${libSonLib}
 	@echo "Building dependency hal"
-	@cd ${PWD}/submodules/hal && (PATH=${PWD}/submodules/hdf5/bin:$(PATH) output=`make 2>&1` || (echo "$$output"; exit 1))
+	@cd ${PWD}/submodules/hal && (PATH=${PWD}/submodules/hdf5/bin:$(PATH) output=`make -j4 2>&1` || (echo "$$output"; exit 1))
 
 ucscClean: selfClean
 	cd ${PWD}/submodules/sonLib && make clean
