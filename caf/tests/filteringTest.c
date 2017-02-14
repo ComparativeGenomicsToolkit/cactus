@@ -286,42 +286,66 @@ static void testChainHasUnequalNumberOfIngroupCopiesOrNoOutgroup_noOutgroups(CuT
     teardown();
 }
 
-static void testHGVMFiltering(CuTest *testCase) {
-    int64_t numRandomPinches = 10000;
-    setup(false);
-    Name ingroup1Seq1 = addThreadToFlower(flower, ingroup1, 100);
-    Name ingroup1Seq2 = addThreadToFlower(flower, ingroup1, 100);
-    addThreadToFlower(flower, ingroup1, 100);
-    addThreadToFlower(flower, ingroup1, 100);
-    addThreadToFlower(flower, ingroup2, 100);
-
-    stPinchThreadSet *threadSet = stCaf_setup(flower);
-
-    stSet *isolatedThreads = stSet_construct();
-    stSet_insert(isolatedThreads, stPinchThreadSet_getThread(threadSet, ingroup1Seq1));
-    stSet_insert(isolatedThreads, stPinchThreadSet_getThread(threadSet, ingroup1Seq2));
-    stCaf_setThreadsToBeCycleFreeIsolatedComponents(isolatedThreads);
-
-    for (int64_t i = 0; i < numRandomPinches; i++) {
-        stPinch pinch = stPinchThreadSet_getRandomPinch(threadSet);
-        stPinchThread_filterPinch(stPinchThreadSet_getThread(threadSet, pinch.name1),
-                                  stPinchThreadSet_getThread(threadSet, pinch.name2),
-                                  pinch.start1,
-                                  pinch.start2,
-                                  pinch.length,
-                                  pinch.strand,
-                                  stCaf_filterToEnsureCycleFreeIsolatedComponents);
+static void checkCycleFree(CuTest *testCase, stPinchThread *thread) {
+    stPinchSegment *segment = stPinchThread_getFirst(thread);
+    while (segment != NULL) {
+        stPinchBlock *block = stPinchSegment_getBlock(segment);
+        if (block != NULL) {
+            stPinchBlockIt it = stPinchBlock_getSegmentIterator(block);
+            stPinchSegment *segment2;
+            while ((segment2 = stPinchBlockIt_getNext(&it)) != NULL) {
+                if (segment2 != segment) {
+                    CuAssertTrue(testCase, stPinchSegment_getThread(segment2) != thread);
+                }
+            }
+        }
+        segment = stPinchSegment_get3Prime(segment);
     }
+}
 
-    stSortedSet *threadComponents = stPinchThreadSet_getThreadComponents(threadSet);
-    printf("got %" PRIi64 " thread components\n", stSortedSet_size(threadComponents));
-    CuAssertTrue(testCase, stSortedSet_size(threadComponents) >= 2);
+static void testHGVMFiltering(CuTest *testCase) {
+    for (int64_t testNum = 0; testNum < 50; testNum++) {
+        int64_t numRandomPinches = 500;
+        setup(false);
+        Name ingroup1Seq1 = addThreadToFlower(flower, ingroup1, 100);
+        Name ingroup1Seq2 = addThreadToFlower(flower, ingroup1, 100);
+        addThreadToFlower(flower, ingroup1, 100);
+        addThreadToFlower(flower, ingroup1, 100);
+        addThreadToFlower(flower, ingroup2, 100);
 
-    stSet_destruct(isolatedThreads);
-    stSortedSet_destruct(threadComponents);
-    stPinchThreadSet_destruct(threadSet);
+        stPinchThreadSet *threadSet = stCaf_setup(flower);
 
-    teardown();
+        stSet *isolatedThreads = stSet_construct();
+        stSet_insert(isolatedThreads, stPinchThreadSet_getThread(threadSet, ingroup1Seq1));
+        stSet_insert(isolatedThreads, stPinchThreadSet_getThread(threadSet, ingroup1Seq2));
+        stCaf_setThreadsToBeCycleFreeIsolatedComponents(threadSet, isolatedThreads);
+
+        for (int64_t i = 0; i < numRandomPinches; i++) {
+            stPinch pinch = stPinchThreadSet_getRandomPinch(threadSet);
+            stPinchThread_filterPinch(stPinchThreadSet_getThread(threadSet, pinch.name1),
+                                      stPinchThreadSet_getThread(threadSet, pinch.name2),
+                                      pinch.start1,
+                                      pinch.start2,
+                                      pinch.length,
+                                      pinch.strand,
+                                      stCaf_filterToEnsureCycleFreeIsolatedComponents);
+            stSortedSet *threadComponents = stPinchThreadSet_getThreadComponents(threadSet);
+            CuAssertTrue(testCase, stSortedSet_size(threadComponents) >= 2);
+        }
+
+        checkCycleFree(testCase, stPinchThreadSet_getThread(threadSet, ingroup1Seq1));
+        checkCycleFree(testCase, stPinchThreadSet_getThread(threadSet, ingroup1Seq2));
+
+        stSortedSet *threadComponents = stPinchThreadSet_getThreadComponents(threadSet);
+        printf("got %" PRIi64 " thread components\n", stSortedSet_size(threadComponents));
+        CuAssertTrue(testCase, stSortedSet_size(threadComponents) >= 2);
+
+        stSet_destruct(isolatedThreads);
+        stSortedSet_destruct(threadComponents);
+        stPinchThreadSet_destruct(threadSet);
+
+        teardown();
+    }
 }
 
 CuSuite* filteringTestSuite(void) {

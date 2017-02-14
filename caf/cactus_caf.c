@@ -787,7 +787,7 @@ int main(int argc, char *argv[]) {
                         }
                     }
                 }
-                stCaf_setThreadsToBeCycleFreeIsolatedComponents(threadsToBeCycleFreeIsolatedComponents);
+                stCaf_setThreadsToBeCycleFreeIsolatedComponents(threadSet, threadsToBeCycleFreeIsolatedComponents);
                 // FIXME: memory for the set leaks here, although it's not a big deal as it will only be useless at the very end.
             }
 

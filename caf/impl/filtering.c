@@ -186,57 +186,73 @@ bool stCaf_relaxedSingleCopyIngroup(stPinchSegment *segment1,
  * be in its own component and should have no within-component cycles.
  */
 
-static stHash *threadToComponent;
+static stUnionFind *threadToComponent;
+static stSet *specialComponents;
+static stSet *specialThreads;
 
-void stCaf_setThreadsToBeCycleFreeIsolatedComponents(stSet *input) {
-    threadToComponent = stHash_construct();
-    stSetIterator *it = stSet_getIterator(input);
+void stCaf_setThreadsToBeCycleFreeIsolatedComponents(stPinchThreadSet *threadSet, stSet *input) {
+    threadToComponent = stUnionFind_construct();
     stPinchThread *thread;
+    stPinchThreadSetIt threadIt = stPinchThreadSet_getIt(threadSet);
+    while ((thread = stPinchThreadSetIt_getNext(&threadIt)) != NULL) {
+        stUnionFind_add(threadToComponent, thread);
+    }
+    specialComponents = stSet_construct();
+    specialThreads = stSet_construct();
+    stSetIterator *it = stSet_getIterator(input);
     while ((thread = stSet_getNext(it)) != NULL) {
-        stHash_insert(threadToComponent, thread, thread);
+        stSet_insert(specialThreads, thread);
+        stSet_insert(specialComponents, stUnionFind_find(threadToComponent, thread));
     }
 }
 
-// Assign a segment's thread (and all threads in its block) to a component.
-static stPinchThread *assignComponent(stPinchSegment *segment, stPinchThread *component) {
+static bool containsSpecialThread(stPinchSegment *segment) {
     stPinchBlock *block = stPinchSegment_getBlock(segment);
     if (block != NULL) {
-        stPinchBlockIt blockIt = stPinchBlock_getSegmentIterator(block);
-        while ((segment = stPinchBlockIt_getNext(&blockIt)) != NULL) {
-            stPinchThread *thread = stPinchSegment_getThread(segment);
-            assert(stHash_search(threadToComponent, thread) == NULL);
-            stHash_insert(threadToComponent, thread, component);
+        stPinchBlockIt it = stPinchBlock_getSegmentIterator(block);
+        stPinchSegment *segment2;
+        while ((segment2 = stPinchBlockIt_getNext(&it)) != NULL) {
+            if (stSet_search(specialThreads, stPinchSegment_getThread(segment2))) {
+                return true;
+            }
         }
-    } else {
-        stPinchThread *thread = stPinchSegment_getThread(segment);
-        assert(stHash_search(threadToComponent, thread) == NULL);
-        stHash_insert(threadToComponent, thread, component);
+        return false;
     }
-    return false;
+    return stSet_search(specialThreads, stPinchSegment_getThread(segment));
 }
 
 bool stCaf_filterToEnsureCycleFreeIsolatedComponents(stPinchSegment *segment1,
                                                      stPinchSegment *segment2) {
-    stPinchThread *component1 = stHash_search(threadToComponent, stPinchSegment_getThread(segment1));
-    stPinchThread *component2 = stHash_search(threadToComponent, stPinchSegment_getThread(segment2));
+    void *component1 = stUnionFind_find(threadToComponent, stPinchSegment_getThread(segment1));
+    void *component2 = stUnionFind_find(threadToComponent, stPinchSegment_getThread(segment2));
+
+    bool specialComponent1 = stSet_search(specialComponents, component1);
+    bool specialComponent2 = stSet_search(specialComponents, component2);
 
     // Check if this alignment will bridge two special components, or
     // create a cycle within one. If so, reject it.
-    bool bridgesTwoComponents = false;
-    if (component1 != NULL
-        && component2 != NULL
+    bool reject = false;
+    if (specialComponent1
+        && specialComponent2
         && component1 != component2) {
-        // We reject this alignment.
-        bridgesTwoComponents = true;
+        // We reject this alignment because it bridges two components.
+        reject = true;
+    } else if (specialComponent1
+               && specialComponent2) {
+        // Check that this doesn't create a cycle.
+        if (containsSpecialThread(segment1) && containsSpecialThread(segment2)) {
+            reject = true;
+        }
     } else {
         // This alignment will be applied, so update the components.
-        if (component1 != component2 && component1 != NULL) {
-            assignComponent(segment2, component1);
-        } else if (component1 != component2 && component2 != NULL) {
-            assignComponent(segment1, component2);
+        stUnionFind_union(threadToComponent,
+                          stPinchSegment_getThread(segment1),
+                          stPinchSegment_getThread(segment2));
+        if (specialComponent1 || specialComponent2) {
+            stSet_insert(specialComponents, stUnionFind_find(threadToComponent, stPinchSegment_getThread(segment1)));
         }
     }
-    return bridgesTwoComponents;
+    return reject;
 }
 
 /*

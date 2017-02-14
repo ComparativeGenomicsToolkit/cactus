@@ -170,7 +170,8 @@ bool stCaf_singleCopyChr(stPinchSegment *segment1, stPinchSegment *segment2);
  * stCaf_filterToEnsureCycleFreeIsolatedComponents. Required to run
  * this first!
  */
-void stCaf_setThreadsToBeCycleFreeIsolatedComponents(stSet *threads);
+void stCaf_setThreadsToBeCycleFreeIsolatedComponents(stPinchThreadSet *threadSet,
+                                                     stSet *threads);
 
 /*
  * Special filtering for a draft HGVM, where every non-alt chromosome
