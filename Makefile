@@ -32,7 +32,7 @@ selfClean:  ${modules:%=clean.%}
 clean.%:
 	cd $* && make clean
 
-test: all
+test:
 	python allTests.py
 
 build_output: Dockerfile
