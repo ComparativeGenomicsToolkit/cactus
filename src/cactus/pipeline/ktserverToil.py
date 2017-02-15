@@ -15,7 +15,7 @@ from toil.job import Job
 from cactus.shared.experimentWrapper import DbElemWrapper
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.pipeline.ktserverControl import runKtserver
-from cactus.pipeline.ktserverControl import blockUntilKtserverIsRunnning
+from cactus.pipeline.ktserverControl import blockUntilKtserverIsRunning
 from cactus.pipeline.ktserverControl import killKtServer
 from cactus.pipeline.ktserverControl import getKtServerReport
 from cactus.pipeline.ktserverControl import ktServerAlreadyRunning
@@ -53,7 +53,7 @@ class KtServerService(Job.Service):
         self.process = runKtserver(self.dbElem, self.killSwitchPath, fileStore = job.fileStore)
         assert self.dbElem.getDbHost() != None
         
-        blockUntilKtserverIsRunnning(self.dbElem, self.killSwitchPath, self.blockTimeout, self.blockTimestep)
+        blockUntilKtserverIsRunning(self.dbElem, self.killSwitchPath, self.blockTimeout, self.blockTimestep)
         return self.dbElem.getConfString()
         
 

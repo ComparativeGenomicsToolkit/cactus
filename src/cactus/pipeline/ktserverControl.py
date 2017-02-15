@@ -14,12 +14,12 @@ intended to be used as follows:
   is erased or until the process running runKtserver() is terminated.
 
 - An independent process (which depends on the server existing) calls
-  blockUntilKtserverIsRunnning() to wait until runKtserver() has
+  blockUntilKtserverIsRunning() to wait until runKtserver() has
   been successfully launched (keep in mind that we do not know a
   prirori in which order runKtserver() and blockUntil..() actually
   get executed.
 
-- After blockUntilKtserverIsRunnning() returns, subsequent proceseses can
+- After blockUntilKtserverIsRunning() returns, subsequent proceseses can
   access the server.  Once these are done, the server can be killed
   using killKtServer().
 """
@@ -196,7 +196,7 @@ def __readStatusFromSwitchFile(dbElem, serverPidAsList, killSwitchPath):
 # Note that this function will update dbElem with the currnet host/port
 # information of the server
 ###############################################################################
-def blockUntilKtserverIsRunnning(dbElem, killSwitchPath, timeout=518400,
+def blockUntilKtserverIsRunning(dbElem, killSwitchPath, timeout=518400,
                                  timeStep=10):
     logPath = getLogPath(dbElem)
     for i in xrange(0, timeout, timeStep):
