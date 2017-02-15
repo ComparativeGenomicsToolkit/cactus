@@ -85,25 +85,6 @@ class TestCase(PreprocessorTestCase):
              " the recall of the fast vs. the new is: ", i/len(maskedBasesLastzMasked), \
              " the precision of the fast vs. the new is: ", i/len(maskedBasesLastzMaskedFast)
 
-    @unittest.skip("")
-    def testLargeRepeatMaskJob(self):
-        seq = "http://hgwdev.cse.ucsc.edu/~adderan/HumanMouseRatDog/mm10.fa"
-        options = Job.Runner.getDefaultOptions(os.path.join(self.tempDir, "tmp_toil"))
-
-        prepOptions = PreprocessorOptions(chunkSize=3000000, preprocessJob="lastzRepeatMask",
-                                          memory=2000000000,
-                                          cpu=1,
-                                          check=1,
-                                          proportionToSample=0.2,
-                                          unmask=0,
-                                          lastzOptions="--step=3 --ambiguous=iupac,100,100 --ungapped --queryhsplimit=keep,nowarn:1500",
-                                          minPeriod=50,
-                                          checkAssemblyHub=False)
-        with Toil(options) as toil:
-            seqID = toil.importFile(makeURL(seq))
-            toil.start(PreprocessSequence(prepOptions=prepOptions, inSequenceID=seqID, chunksToCompute=[4]))
-
-
         
 if __name__ == '__main__':
     if "SON_TRACE_DATASETS" in os.environ:

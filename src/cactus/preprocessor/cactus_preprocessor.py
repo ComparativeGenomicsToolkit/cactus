@@ -34,7 +34,8 @@ from cactus.shared.common import runGetChunks
 from cactus.shared.common import makeURL
 from cactus.shared.common import RunAsFollowOn
 
-from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import lastzRepeatMaskJob
+from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import LastzRepeatMaskJob
+from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import RepeatMaskOptions
 
 class PreprocessorOptions:
     def __init__(self, chunkSize, memory, cpu, check, proportionToSample, unmask,
@@ -73,12 +74,10 @@ class PreprocessChunk(Job):
                                     outChunk])
             outChunkID = fileStore.writeGlobalFile(outChunk)
         elif self.prepOptions.preprocessJob == "lastzRepeatMask":
-            memory = 7*(sum([seqID.size for seqID in self.seqIDs]) + self.inChunkID.size)
-            disk = 6*(sum([seqID.size for seqID in self.seqIDs])) + self.inChunkID.size
-            logger.info("Creating repeat mask job with memory requirements %s" % memory)
-            outChunkID = self.addChildJobFn(lastzRepeatMaskJob, queryID=self.inChunkID, targetIDs=self.seqIDs,
-                                      proportionSampled=self.prepOptions.proportionToSample,
-                                            minPeriod=self.prepOptions.minPeriod, memory=memory, disk=disk).rv()
+            repeatMaskOptions = RepeatMaskOptions(proportionSampled=self.prepOptions.proportionToSample,
+                    minPeriod=self.prepOptions.minPeriod)
+            outChunkID = self.addChild(LastzRepeatMaskJob(repeatMaskOptions=repeatMaskOptions, 
+                    queryID=self.inChunkID, targetIDs=self.seqIDs)).rv()
         elif self.prepOptions.preprocessJob == "none":
             outChunkID = self.inChunkID
         

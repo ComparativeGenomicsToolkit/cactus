@@ -1,6 +1,7 @@
 from cactus.preprocessor.preprocessorTest import *
 from cactus.preprocessor.preprocessorTest import TestCase as PreprocessorTestCase
-from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import lastzRepeatMaskJob
+from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import LastzRepeatMaskJob
+from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import RepeatMaskOptions
 
 from toil.common import Toil
 from toil.job import Job
@@ -34,11 +35,12 @@ class TestCase(PreprocessorTestCase):
                 startTime = time.time()
                 with Toil(self.toilOptions) as toil:
                     sequenceID = toil.importFile(makeURL(sequenceFile))
-                    outputID = toil.start(Job.wrapJobFn(lastzRepeatMaskJob, proportionSampled=1.0,
+                    repeatMaskOptions = RepeatMaskOptions(proportionSampled=1.0,
                                              minPeriod=maxOccurrence,
                                              lastzOpts="--step=1 --ambiguous=iupac,100,100 --ydrop=3000",
-                                             fragment=200,
-                                             queryID=sequenceID, targetIDs=[sequenceID]))
+                                             fragment=200)
+
+                    outputID = toil.start(LastzRepeatMaskJob(repeatMaskOptions=repeatMaskOptions, queryID=sequenceID, targetIDs=[sequenceID]))
                     toil.exportFile(outputID, makeURL(self.tempOutputFile))
                 print "It took %s seconds to run lastzMasking" % (time.time()-startTime)
             
@@ -65,13 +67,11 @@ class TestCase(PreprocessorTestCase):
                 startTime = time.time()
                 with Toil(self.toilOptions) as toil:
                     sequenceID = toil.importFile(makeURL(sequenceFile))
-                    outputID = toil.start(Job.wrapJobFn(lastzRepeatMaskJob,
-                                                        proportionSampled=1.0,
+                    repeatMaskOptions = RepeatMaskOptions(proportionSampled=1.0,
                                                         minPeriod=maxOccurrence,
                                                         lastzOpts="--step=3 --ambiguous=iupac,100,100 --ungapped --queryhsplimit=keep,nowarn:%i" % (int(maxOccurrence)*20),
-                                                        fragment=200,
-                                                        queryID=sequenceID,
-                                                        targetIDs=[sequenceID]))
+                                                        fragment=200)
+                    outputID = toil.start(LastzRepeatMaskJob(repeatMaskOptions=repeatMaskOptions, queryID=sequenceID, targetIDs=[sequenceID]))
                     toil.exportFile(outputID, makeURL(self.tempOutputFile))
                 print "It took %s seconds to run lastzMasking fast" % (time.time()-startTime)
                 lastzSequencesFast = getSequences(self.tempOutputFile)

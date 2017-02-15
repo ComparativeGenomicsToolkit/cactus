@@ -82,7 +82,7 @@ ${h5c++}:
 
 halRule: ${h5c++} ${libSonLib}
 	@echo "Building dependency hal"
-	@cd ${PWD}/submodules/hal && (PATH=${PWD}/submodules/hdf5/bin:$(PATH) output=`make -j4 2>&1` || (echo "$$output"; exit 1))
+	@cd ${PWD}/submodules/hal && (PATH=${PWD}/submodules/hdf5/bin:$(PATH) output=`make 2>&1` || (echo "$$output"; exit 1))
 
 ucscClean: selfClean
 	cd ${PWD}/submodules/sonLib && make clean
