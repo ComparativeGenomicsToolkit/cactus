@@ -40,7 +40,7 @@ import xml.etree.ElementTree as ET
 from cactus.shared.experimentWrapper import DbElemWrapper
 from cactus.shared.experimentWrapper import ExperimentWrapper
 
-from cactus.shared.common import cactus_call
+from cactus.shared.common import cactus_call, pullCactusImage
 
 ###############################################################################
 # run a server until killSwitchPath gets deleted
@@ -72,6 +72,10 @@ def runKtserver(dbElem, killSwitchPath, maxPortsToTry=100, readOnly = False,
         dbElem.setDbHost(getHostName())
     assert os.path.exists(dbElem.getDbDir())
 
+    # Ensure the cactus image is pulled here, because we have a 10
+    # second limit on the ktserver calls, which probably won't be
+    # enough to download the image
+    pullCactusImage()
     success = False
     process = None
     procWaiter = None

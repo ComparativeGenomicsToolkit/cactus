@@ -737,6 +737,33 @@ def runGetChunks(sequenceFiles, chunksDir, chunkSize, overlapSize, work_dir=None
                                            overlapSize,
                                            chunksDir] + sequenceFiles).split("\n") if chunk != ""]
 
+def pullCactusImage():
+    """Ensure that the cactus Docker image is pulled."""
+    dockerOrg = getDockerOrg()
+    dockerTag = getDockerTag()
+    image = "%s/cactus:%s" % (dockerOrg, dockerTag)
+    call = ["docker", "pull", image]
+    process = subprocess.Popen(call, stdout=subprocess.PIPE,
+                               stderr=sys.stderr, bufsize=-1)
+    output, _ = process.communicate()
+    if process.returncode != 0:
+        raise RuntimeError("Command %s failed with output: %s" % (call, output))
+
+def getDockerOrg():
+    """Get where we should find the cactus containers."""
+    if "CACTUS_DOCKER_ORG" in os.environ:
+        return os.environ["CACTUS_DOCKER_ORG"]
+    else:
+        return "quay.io/comparative-genomics-toolkit"
+
+def getDockerTag():
+    """Get what docker tag we should use for the cactus image
+    (either forced to be latest or the current cactus commit)."""
+    if 'CACTUS_USE_LATEST' in os.environ:
+        return "latest"
+    else:
+        return cactus_commit
+
 #TODO: This function is a mess
 def cactus_call(tool=None,
                 work_dir=None,
@@ -754,7 +781,9 @@ def cactus_call(tool=None,
                 shell=True,
                 port=None,
                 check_result=False,
-                dockstore="quay.io/comparative-genomics-toolkit"):
+                dockstore=None):
+    if dockstore is None:
+        dockstore = getDockerOrg()
     if parameters is None:
         parameters = []
 
@@ -834,7 +863,7 @@ def cactus_call(tool=None,
     if not tool:
         tool = "cactus"
 
-    docker_tag = "latest" if os.environ.get('CACTUS_USE_LATEST') else cactus_commit
+    docker_tag = getDockerTag()
 
     if os.environ.get('CACTUS_DEVELOPER_MODE'):
         _log.info("Calling tool from local cactus installation.")
