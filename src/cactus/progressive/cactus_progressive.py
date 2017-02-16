@@ -42,7 +42,6 @@ from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
 from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
 from cactus.pipeline.cactus_workflow import findRequiredNode
-from cactus.pipeline.cactus_workflow import CactusSetupPhase
 from cactus.pipeline.cactus_workflow import CactusTrimmingBlastPhase
 
 from cactus.progressive.multiCactusProject import MultiCactusProject
@@ -231,12 +230,8 @@ class ProgressiveUp(Job):
             system("rm -f %s* %s %s" % (dbPath, seqPath, 
                                         experiment.getReferencePath()))
 
-            if workFlowArgs.configWrapper.getDoTrimStrategy() and workFlowArgs.outgroupEventNames is not None:
-                # Use the trimming strategy to blast ingroups vs outgroups.
-                finalExpWrapper = self.addChild(CactusTrimmingBlastPhase(cactusWorkflowArguments=workFlowArgs, phaseName="trimBlast")).rv()
-            else:
-                finalExpWrapper = self.addChild(CactusSetupPhase(cactusWorkflowArguments=workFlowArgs,
-                                                     phaseName="setup")).rv()
+            # Use the trimming strategy to blast ingroups vs outgroups.
+            finalExpWrapper = self.addChild(CactusTrimmingBlastPhase(cactusWorkflowArguments=workFlowArgs, phaseName="trimBlast")).rv()
         logger.info("Going to create alignments and define the cactus tree")
 
         return finalExpWrapper

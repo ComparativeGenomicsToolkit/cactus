@@ -215,20 +215,23 @@ class BlastIngroupsAndOutgroups(Job):
         
         ingroupAlignmentsID = self.addChild(BlastSequencesAllAgainstAll(self.ingroupSequenceIDs,
                                                         blastOptions=self.blastOptions)).rv()
-
-        blastFirstOutgroupJob = self.addFollowOn(BlastFirstOutgroup(untrimmedSequenceIDs=self.ingroupSequenceIDs,
-                                        sequenceIDs=self.ingroupSequenceIDs,
-                                        outgroupSequenceIDs=self.outgroupSequenceIDs,
-                                        outgroupFragmentIDs=[],
-                                        ingroupResultsID=ingroupAlignmentsID,
-                                        outgroupResultsID=None,
-                                        blastOptions=self.blastOptions,
-                                        outgroupNumber=1,
-                                        ingroupCoverageIDs=[]))
-        alignmentsID = blastFirstOutgroupJob.rv(0)
-        outgroupFragmentIDs = blastFirstOutgroupJob.rv(1)
-        ingroupCoverageIDs = blastFirstOutgroupJob.rv(2)
-        
+        if len(self.outgroupSequenceIDs) > 0:
+            blastFirstOutgroupJob = self.addFollowOn(BlastFirstOutgroup(untrimmedSequenceIDs=self.ingroupSequenceIDs,
+                                                                        sequenceIDs=self.ingroupSequenceIDs,
+                                                                        outgroupSequenceIDs=self.outgroupSequenceIDs,
+                                                                        outgroupFragmentIDs=[],
+                                                                        ingroupResultsID=ingroupAlignmentsID,
+                                                                        outgroupResultsID=None,
+                                                                        blastOptions=self.blastOptions,
+                                                                        outgroupNumber=1,
+                                                                        ingroupCoverageIDs=[]))
+            alignmentsID = blastFirstOutgroupJob.rv(0)
+            outgroupFragmentIDs = blastFirstOutgroupJob.rv(1)
+            ingroupCoverageIDs = blastFirstOutgroupJob.rv(2)
+        else:
+            alignmentsID = ingroupAlignmentsID
+            outgroupFragmentIDs = None
+            ingroupCoverageIDs = None
 
         return (alignmentsID, outgroupFragmentIDs, ingroupCoverageIDs)
 
