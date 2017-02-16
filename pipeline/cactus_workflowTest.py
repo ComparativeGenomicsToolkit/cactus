@@ -40,7 +40,7 @@ class TestCase(unittest.TestCase):
     @silentOnSuccess
     def testCactus_random(self):
         runWorkflow_multipleExamples(getCactusInputs_random, 
-                                     testNumber=5,
+                                     testNumber=1,
                                      testRestrictions=(TestStatus.TEST_SHORT,),
                                      buildAvgs=True, buildReference=True,
                                      batchSystem=self.batchSystem, buildJobTreeStats=True)
@@ -48,7 +48,7 @@ class TestCase(unittest.TestCase):
     @silentOnSuccess
     def testCactus_randomWithConstraints(self):
         runWorkflow_multipleExamples(getCactusInputs_randomWithConstraints, 
-                                     testNumber=5,
+                                     testNumber=1,
                                      testRestrictions=(TestStatus.TEST_SHORT,),
                                      buildAvgs=True, buildReference=True,
                                      batchSystem=self.batchSystem, buildJobTreeStats=True,

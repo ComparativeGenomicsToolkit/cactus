@@ -113,12 +113,18 @@ def getCactusWorkflowExperimentForTest(sequences, newickTreeString, outputDir, c
 ###############
 
 def getCactusInputs_random(regionNumber=0, tempDir=None,
-                           sequenceNumber=random.choice(xrange(100)), 
-                           avgSequenceLength=random.choice(xrange(1,5000)), 
-                           treeLeafNumber=random.choice(xrange(2,10))):
+                           sequenceNumber=None,
+                           avgSequenceLength=None,
+                           treeLeafNumber=None):
     """Gets a random set of sequences, each of length given, and a species
     tree relating them. Each sequence is a assigned an event in this tree.
     """
+    if sequenceNumber is None:
+        sequenceNumber = random.choice(xrange(30))
+    if avgSequenceLength is None:
+        avgSequenceLength = random.choice(xrange(1,3000))
+    if treeLeafNumber is None:
+        treeLeafNumber = random.choice(xrange(2, 4))
     #Make tree
     binaryTree = makeRandomBinaryTree(treeLeafNumber)
     newickTreeString = printBinaryTree(binaryTree, includeDistances=True)
@@ -171,7 +177,7 @@ def getCactusInputs_random(regionNumber=0, tempDir=None,
         i += 1
     if fileHandle != None:
         fileHandle.close()
-        
+
     logger.info("Made %s sequences in %s directories" % (sequenceNumber, len(sequenceDirs)))
     
     return sequenceDirs, newickTreeString

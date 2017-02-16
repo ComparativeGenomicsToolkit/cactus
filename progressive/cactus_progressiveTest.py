@@ -65,7 +65,7 @@ class TestCase(unittest.TestCase):
         if "SON_TRACE_DATASETS" not in os.environ:
             return
         runWorkflow_multipleExamples(getCactusInputs_random,
-                                     testNumber=2,
+                                     testNumber=1,
                                      testRestrictions=(TestStatus.TEST_SHORT,),
                                      batchSystem=self.batchSystem, buildJobTreeStats=True,
                                      progressive=True,
@@ -82,7 +82,7 @@ class TestCase(unittest.TestCase):
         """Tests that cactus doesn't crash when aligning a subtree of a larger
         species tree."""
         runWorkflow_multipleExamples(getCactusInputs_random,
-                                     testNumber=2,
+                                     testNumber=1,
                                      testRestrictions=(TestStatus.TEST_SHORT,),
                                      batchSystem=self.batchSystem, buildJobTreeStats=True,
                                      progressive=True,
@@ -184,6 +184,7 @@ class TestCase(unittest.TestCase):
                                           fixNames=False,
                                           root=subtreeRoot)
         logger.info("Put the temporary files in %s" % tempExperimentDir)
+
         runCactusProgressive(os.path.join(tempExperimentDir, "exp_project.xml"),
                              jobTreeDir,
                              batchSystem=batchSystem,
