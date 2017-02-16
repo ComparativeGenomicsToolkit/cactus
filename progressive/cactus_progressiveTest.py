@@ -59,6 +59,11 @@ class TestCase(unittest.TestCase):
 
     @silentOnSuccess
     def testCactus_Random(self):
+        # TODO: this doesn't actually need the test data, but this is
+        # being used as a signal that the tester doesn't want to run
+        # the long tests. The tests should be refactored soon.
+        if "SON_TRACE_DATASETS" not in os.environ:
+            return
         runWorkflow_multipleExamples(getCactusInputs_random,
                                      testNumber=2,
                                      testRestrictions=(TestStatus.TEST_SHORT,),
@@ -69,6 +74,11 @@ class TestCase(unittest.TestCase):
 
     @silentOnSuccess
     def testCactus_Random_UseSubtreeRoot(self):
+        # TODO: this doesn't actually need the test data, but this is
+        # being used as a signal that the tester doesn't want to run
+        # the long tests. The tests should be refactored soon.
+        if "SON_TRACE_DATASETS" not in os.environ:
+            return
         """Tests that cactus doesn't crash when aligning a subtree of a larger
         species tree."""
         runWorkflow_multipleExamples(getCactusInputs_random,
@@ -188,6 +198,12 @@ class TestCase(unittest.TestCase):
         # Maps genome name -> headers in fasta
         headers = {}
         for genomeName, inputSequencePath in seqMap.items():
+            if os.path.isdir(inputSequencePath):
+                # Some "input sequence paths" are actually provided as
+                # directories containing multiple FASTAs
+                concatenatedPath = getTempFile()
+                system("cat %s/* > %s" % (inputSequencePath, concatenatedPath))
+                inputSequencePath = concatenatedPath
             headers[genomeName] = list(map(itemgetter(0), fastaRead(inputSequencePath)))
 
         # check headers inside .c2h output
