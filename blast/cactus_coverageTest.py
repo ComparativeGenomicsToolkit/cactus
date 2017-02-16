@@ -114,6 +114,8 @@ class TestCase(unittest.TestCase):
         '''))
 
     def testInvariants(self):
+        if "SON_TRACE_DATASETS" not in os.environ:
+            return
         (seqs, _) = getCactusInputs_encode(random.uniform(0, 2))
         # Chimp encode input has duplicate header names.
         seqs = [i for i in seqs if 'chimp' not in i]
