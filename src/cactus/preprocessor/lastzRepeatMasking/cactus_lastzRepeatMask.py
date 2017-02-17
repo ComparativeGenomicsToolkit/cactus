@@ -84,9 +84,12 @@ class CollateAlignments(Job):
         self.alignmentIDs = alignmentIDs
     def run(self, fileStore):
         alignments = [fileStore.readGlobalFile(alignmentID) for alignmentID in self.alignmentIDs]
-        alignment = fileStore.getLocalTempFile()
-        catFiles(alignments, alignment)
-        return fileStore.writeGlobalFile(alignment)
+
+        #Sort the alignments by the start position of the alignment in the chunk
+        #being repeat-masked. These will be out of order due to the parallelization
+        sortedAlignments = fileStore.getLocalTempFile()
+        os.system("cat %s | sort -nk 5 > %s" % (" ".join(alignments), sortedAlignments))
+        return fileStore.writeGlobalFile(sortedAlignments)
 
 class MaskCoveredIntervals(Job):
     def __init__(self, repeatMaskOptions, alignmentsID, queryID):
