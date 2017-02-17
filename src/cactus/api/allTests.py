@@ -10,6 +10,8 @@ from sonLib.bioio import TestStatus
 from sonLib.bioio import system
 from sonLib.bioio import getLogLevelString
 
+from cactus.shared.common import cactus_call
+
 class TestCase(unittest.TestCase):
 
     def setUp(self):
@@ -25,7 +27,7 @@ class TestCase(unittest.TestCase):
     def testAPI(self):
         """Run all the cactusAPI CuTests, fail if any of them fail.
         """
-        system("cactusAPITests %s" % getLogLevelString())
+        cactus_call(parameters=["cactusAPITests", getLogLevelString()])
         
 if __name__ == '__main__':
     unittest.main()

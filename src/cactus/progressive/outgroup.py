@@ -25,6 +25,8 @@ from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from sonLib.bioio import popenCatch
 
+from cactus.shared.common import cactus_call
+
 class GreedyOutgroup(object):
     def __init__(self):
         self.dag = None
@@ -471,27 +473,27 @@ class DynamicOutgroup(GreedyOutgroup):
     # cactus_analyseAssembly here... any change may cause an
     # assertion error
     def __getSeqInfo(self, faPaths, event):
-        cmdLine = "cactus_analyseAssembly"
+        cmdLine = ["cactus_analyseAssembly"]
         for faPath in faPaths:
             if not os.path.isfile(faPath):
                 raise RuntimeError("Unable to open sequence file %s" % faPath)
-            cmdLine += " %s" % faPath
+            cmdLine += [faPath]
         isCandidate = False
         if self.candidateSet is not None and event in self.candidateSet:
             isCandidate = True
-        analyseOutput = popenCatch(cmdLine).split()
+        analyseOutput = cactus_call(parameters=cmdLine, work_dir=os.path.dirname(faPath), check_output=True)
         tsIdx = analyseOutput.index("Total-sequences:")
         assert tsIdx >= 0 and tsIdx < len(analyseOutput) - 1
-        numSequences = int(analyseOutput[tsIdx + 1])
+        numSequences = int(analyseOutput[tsIdx + len("Total-sequences:") + 1])
         tlIdx = analyseOutput.index("Total-length:")
         assert tlIdx >= 0 and tlIdx < len(analyseOutput) - 1
-        totalLength = int(analyseOutput[tlIdx + 1])
+        totalLength = int(analyseOutput[tlIdx + len("Total-length:") + 1])
         nsIdx = analyseOutput.index("ProportionNs:")
         assert nsIdx >= 0 and nsIdx < len(analyseOutput) - 1
-        nsPct = float(analyseOutput[nsIdx + 1])
+        nsPct = float(analyseOutput[nsIdx + len("ProportionNs:") + 1])
         rmIdx = analyseOutput.index("Proportion-repeat-masked:")
         assert rmIdx >= 0 and rmIdx < len(analyseOutput) - 1
-        rmPct = float(analyseOutput[rmIdx + 1])
+        rmPct = float(analyseOutput[rmIdx + len("Proportion-repeat-masked:") + 1])
         assert rmPct <= 1. and rmPct >= 0.
         n50Idx = analyseOutput.index("N50:")
         assert n50Idx >= 0 and n50Idx < len(analyseOutput) - 1

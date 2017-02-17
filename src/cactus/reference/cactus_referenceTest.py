@@ -20,6 +20,8 @@ from cactus.shared.test import silentOnSuccess
 from cactus.shared.common import cactusRootPath
 from sonLib.bioio import getTempFile
 
+from cactus.shared.common import cactus_call
+
 class TestCase(unittest.TestCase):
     @silentOnSuccess
     @unittest.skip("")
@@ -47,7 +49,7 @@ class TestCase(unittest.TestCase):
         testCactus_Blanchette(self, "blossom5")
 
     def testCuTest(self):
-        system("referenceTests %s" % getLogLevelString())
+        cactus_call(parameters=["referenceTests", getLogLevelString()])
 
 def testCactus_Blanchette(self, matchingAlgorithm):
     configFile = getConfigFile(matchingAlgorithm)

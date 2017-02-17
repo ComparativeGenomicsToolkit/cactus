@@ -23,6 +23,7 @@ from cactus.shared.common import runCactusWorkflow
 from cactus.shared.test import getCactusWorkflowExperimentForTest
 from cactus.shared.test import silentOnSuccess
 from cactus.shared.common import runToilStatusAndFailIfNotComplete
+from cactus.shared.common import cactus_call
 
 """Tests cactus_bar. Requires the installation of cactusTools and mafTools.
 """
@@ -134,7 +135,7 @@ class TestCase(unittest.TestCase):
     def testPosetAlignerAPI(self):
         """Run all the cactus base aligner CuTests, fail if any of them fail.
         """
-        system("cactus_barTests %s" % getLogLevelString())
+        cactus_call(parameters=["cactus_barTests", getLogLevelString()])
 
 if __name__ == '__main__':
     unittest.main()
