@@ -14,6 +14,7 @@
 #include <ctype.h>
 #include <stdarg.h>
 #include <limits.h>
+#include <errno.h>
 
 #include <inttypes.h>
 #include <stdint.h>
@@ -59,6 +60,8 @@ u8    depthThreshold  = 1;
 int   debugReportInputIntervals  = false;
 int   debugReportParsedIntervals = false;
 int   debugWindowSlide           = false;
+
+FILE* inputFile = NULL;
 
 //----------
 //
@@ -262,6 +265,14 @@ static void parse_options
         if (strcmp (arg, "--debug=slide") == 0)
             { debugWindowSlide = true;  goto next_arg; }
 
+        if (strcmp_prefix (arg, "--input=") == 0)
+            {
+            if ((inputFile = fopen(argVal, "r")) == NULL) {
+                chastise("Can't open input file %s: %s\n", argVal, strerror(errno));
+            }
+            goto next_arg;
+            }
+
         // unknown -- argument
 
         if (strcmp_prefix (arg, "--") == 0)
@@ -295,6 +306,9 @@ int main
     u32     ix;
     int     ok;
 
+    // Default input file: stdin
+    inputFile = stdin;
+
     parse_options (argc, argv);
 
     //////////
@@ -316,7 +330,7 @@ int main
 
     while (true)
         {
-        ok = read_alignment (stdin, lineBuffer, sizeof(lineBuffer), &lineNumber,
+        ok = read_alignment (inputFile, lineBuffer, sizeof(lineBuffer), &lineNumber,
                              &rChrom, &rStart, &rEnd, &qChrom, &qStart, &qEnd);
         if (!ok) break;
 

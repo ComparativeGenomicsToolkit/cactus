@@ -99,13 +99,14 @@ class MaskCoveredIntervals(Job):
         alignments = fileStore.readGlobalFile(self.alignmentsID)
         query = fileStore.readGlobalFile(self.queryID)
         maskInfo = fileStore.getLocalTempFile()
-        cactus_call(infile=alignments, outfile=maskInfo,
+        cactus_call(outfile=maskInfo,
+                    work_dir=os.path.dirname(alignments),
                     parameters=["cactus_covered_intervals",
                                 "--queryoffsets",
                                 "--origin=one",
-                                "M=%s" % (int(self.repeatMaskOptions.period*2))])
+                                "M=%s" % (int(self.repeatMaskOptions.period*2)),
+                                "--input=%s" % os.path.basename(alignments)])
 
-        #open(maskInfoFile, "w").close()
         # the previous lastz command outputs a file of intervals (denoted with indices) to softmask.
         # we finish by applying these intervals to the input file, to produce the final, softmasked output. 
         unmaskString = ""
