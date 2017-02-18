@@ -865,7 +865,7 @@ def cactus_call(tool=None,
 
     docker_tag = getDockerTag()
 
-    if os.environ.get('CACTUS_DEVELOPER_MODE'):
+    if os.environ.get('CACTUS_DOCKER_MODE') == "0":
         _log.info("Calling tool from local cactus installation.")
         call = parameters
     else:
@@ -908,7 +908,7 @@ def cactus_call(tool=None,
         raise RuntimeError("Command %s failed with output: %s" % (call, output))
 
     # Fix root ownership of output files
-    if not os.getenv('CACTUS_DEVELOPER_MODE'):
+    if not os.getenv('CACTUS_DOCKER_MODE') == "0":
         _fixPermissions(tool, work_dir)
 
     if check_output:

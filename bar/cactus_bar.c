@@ -315,6 +315,9 @@ int main(int argc, char *argv[]) {
         stList *names = flowerWriter_parseNames(stdin);
         Flower *flower = cactusDisk_getFlower(cactusDisk, *((Name *)stList_get(names, 0)));
         FILE *fileHandle = fopen(endAlignmentsToPrecomputeOutputFile, "w");
+        if (fileHandle == NULL) {
+            st_errnoAbort("Opening end alignment file %s failed", endAlignmentsToPrecomputeOutputFile);
+        }
         for(int64_t i=1; i<stList_length(names); i++) {
             End *end = flower_getEnd(flower, *((Name *)stList_get(names, i)));
             if (end == NULL) {

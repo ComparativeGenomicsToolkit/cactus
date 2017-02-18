@@ -13,6 +13,8 @@ from cactus.shared.test import getCactusInputs_blanchette
 from cactus.shared.test import runWorkflow_multipleExamples
 from cactus.shared.test import silentOnSuccess
 
+from cactus.shared.common import cactus_call
+
 class TestCase(unittest.TestCase):
     @silentOnSuccess
     @unittest.skip("")
@@ -31,7 +33,7 @@ class TestCase(unittest.TestCase):
     def testHalGeneratorFunctions(self):
         """Run all the CuTests, fail if any of them fail.
         """
-        system("cactus_halGeneratorTests %s" % getLogLevelString())
+        cactus_call(parameters=["cactus_halGeneratorTests", getLogLevelString()])
 
 if __name__ == '__main__':
     unittest.main()

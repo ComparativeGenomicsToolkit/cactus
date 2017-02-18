@@ -15,7 +15,7 @@ import shutil
 import random
 
 from argparse import ArgumentParser
-from sonLib.bioio import catFiles
+from sonLib.bioio import system
 
 from toil.job import Job
 from toil.common import Toil
@@ -84,9 +84,12 @@ class CollateAlignments(Job):
         self.alignmentIDs = alignmentIDs
     def run(self, fileStore):
         alignments = [fileStore.readGlobalFile(alignmentID) for alignmentID in self.alignmentIDs]
-        alignment = fileStore.getLocalTempFile()
-        catFiles(alignments, alignment)
-        return fileStore.writeGlobalFile(alignment)
+
+        #Sort the alignments by the start position of the alignment in the chunk
+        #being repeat-masked. These will be out of order due to the parallelization
+        sortedAlignments = fileStore.getLocalTempFile()
+        system("cat %s | awk '@include \"join\";{split($4,a,\"_\"); $5 += a[length(a)]; $6 += a[length(a)]; $4 = join(a, 1, length(a) - 1, \"_\"); print $0}' | sort -k4,4 -k5,5n > %s" % (" ".join(alignments), sortedAlignments))
+        return fileStore.writeGlobalFile(sortedAlignments)
 
 class MaskCoveredIntervals(Job):
     def __init__(self, repeatMaskOptions, alignmentsID, queryID):
@@ -102,7 +105,6 @@ class MaskCoveredIntervals(Job):
         cactus_call(outfile=maskInfo,
                     work_dir=os.path.dirname(alignments),
                     parameters=["cactus_covered_intervals",
-                                "--queryoffsets",
                                 "--origin=one",
                                 "M=%s" % (int(self.repeatMaskOptions.period*2)),
                                 "--input=%s" % os.path.basename(alignments)])

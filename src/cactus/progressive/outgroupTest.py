@@ -200,6 +200,7 @@ class TestCase(unittest.TestCase):
             assert all(map(lambda x: x == sorted(x, key=itemgetter(1)),
                            og.ogMap.values()))
 
+    @unittest.skip("This test hangs")
     def testDynamicOutgroupsOnRandomTrees(self):
         for tree, seqMap in zip(self.mcTrees, self.dummySeqMaps):
             degree = max([len(tree.getChildren(x)) for x in
@@ -216,6 +217,7 @@ class TestCase(unittest.TestCase):
                 assert all(map(lambda x: x == sorted(x, key=itemgetter(1)),
                                og.ogMap.values()))
 
+    @unittest.skip("This test hangs")
     def testDynamicOutgroupsJustLeaves(self):
         tree = '((((HUMAN:0.006969,CHIMP:0.009727)Anc7:0.025291,BABOON:0.044568)Anc6:0.11,(MOUSE:0.072818,RAT:0.081244)Anc5:0.260342)Anc4:0.023260,((DOG:0.07,CAT:0.07)Anc3:0.087381,(PIG:0.06,COW:0.06)Anc2:0.104728)Anc1:0.04)Anc0;'
         mcTree = MultiCactusTree(NXNewick().parseString(tree, addImpliedRoots = False))
