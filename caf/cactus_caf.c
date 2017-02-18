@@ -761,34 +761,7 @@ int main(int argc, char *argv[]) {
             outgroupThreads = stCaf_getOutgroupThreads(flower, threadSet);
 
             if (filterFn == stCaf_filterToEnsureCycleFreeIsolatedComponents) {
-                EventTree *eventTree = flower_getEventTree(flower);
-                Event *eventToFilterOn = eventTree_getEventByHeader(eventTree, hgvmEventName);
-                if (eventToFilterOn == NULL) {
-                    st_logCritical("Event %s not found in this problem, supplied by alignment filter"
-                                   " hgvm:%s. Alignment filtering won't be turned on for this problem.",
-                                   hgvmEventName, hgvmEventName);
-                }
-                // Set up HGVM filtering: any non-alts need to be in
-                // their own components and cycle-free.
-                stSet *threadsToBeCycleFreeIsolatedComponents = stSet_construct();
-                stPinchThreadSetIt threadSetIt = stPinchThreadSet_getIt(threadSet);
-                stPinchThread *thread;
-                while ((thread = stPinchThreadSetIt_getNext(&threadSetIt)) != NULL) {
-                    Cap *cap = flower_getCap(flower, stPinchThread_getName(thread));
-                    Sequence *sequence = cap_getSequence(cap);
-                    Event *event = sequence_getEvent(sequence);
-                    if (event == eventToFilterOn) {
-                        const char *seqHeader = sequence_getHeader(sequence);
-                        size_t headerLen = strlen(seqHeader);
-                        if (headerLen < 4 || (strncmp(seqHeader + (headerLen - 4), "_alt", 4) != 0)) {
-                            // Not an alt. Add it to the "special components" set.
-                            stSet_insert(threadsToBeCycleFreeIsolatedComponents, thread);
-                            printf("Filtering %s to be a cycle-free isolated component\n", seqHeader);
-                        }
-                    }
-                }
-                stCaf_setThreadsToBeCycleFreeIsolatedComponents(threadSet, threadsToBeCycleFreeIsolatedComponents);
-                // FIXME: memory for the set leaks here, although it's not a big deal as it will only be useless at the very end.
+                stCaf_setupHGVMFiltering(flower, threadSet, hgvmEventName);
             }
 
             //Setup the alignments
