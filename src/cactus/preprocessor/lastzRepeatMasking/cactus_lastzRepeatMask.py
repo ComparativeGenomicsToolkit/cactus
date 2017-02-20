@@ -53,7 +53,7 @@ class AlignFastaFragments(Job):
         else:
             memory = None
             disk = None
-        Job.__init__(self, memory=memory, disk=disk)
+        Job.__init__(self, memory=memory, disk=disk, preemptable=True)
         self.repeatMaskOptions = repeatMaskOptions
         self.fragmentsID = fragmentsID
         self.targetID = targetID
@@ -80,7 +80,7 @@ class CollateAlignments(Job):
             disk = 2*sum([alignmentID.size for alignmentID in alignmentIDs])
         else:
             disk = None
-        Job.__init__(self, disk=disk)
+        Job.__init__(self, disk=disk, preemptable=True)
         self.alignmentIDs = alignmentIDs
     def run(self, fileStore):
         alignments = [fileStore.readGlobalFile(alignmentID) for alignmentID in self.alignmentIDs]
@@ -93,7 +93,7 @@ class CollateAlignments(Job):
 
 class MaskCoveredIntervals(Job):
     def __init__(self, repeatMaskOptions, alignmentsID, queryID):
-        Job.__init__(self)
+        Job.__init__(self, preemptable=True)
         self.repeatMaskOptions = repeatMaskOptions
         self.alignmentsID = alignmentsID
         self.queryID = queryID
@@ -123,7 +123,7 @@ class MaskCoveredIntervals(Job):
 
 class LastzRepeatMaskJob(Job):
     def __init__(self, repeatMaskOptions, queryID, targetIDs):
-        Job.__init__(self)
+        Job.__init__(self, preemptable=True)
         self.repeatMaskOptions = repeatMaskOptions
         self.queryID = queryID
         self.targetIDs = targetIDs

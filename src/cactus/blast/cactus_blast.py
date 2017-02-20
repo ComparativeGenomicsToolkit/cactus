@@ -73,8 +73,8 @@ class BlastFlower(Job):
         disk = 2*cactusSequencesID.size
         cores = 1
         memory = blastOptions.memory
-        
-        Job.__init__(self, memory=memory, cores=cores, disk=disk)
+
+        Job.__init__(self, memory=memory, cores=cores, disk=disk, preemptable=True)
         self.cactusDisk = cactusDisk
         self.cactusSequencesID = cactusSequencesID
         self.flowerName = flowerName
@@ -106,12 +106,12 @@ class BlastSequencesAllAgainstAll(Job):
         cores = 1
         memory = blastOptions.memory
         
-        Job.__init__(self, disk=disk)
+        Job.__init__(self, disk=disk, cores=cores, memory=memory, preemptable=True)
         self.sequenceFileIDs1 = sequenceFileIDs1
         self.blastOptions = blastOptions
         self.blastOptions.compressFiles = False
         self.blastOptions.roundsOfCoordinateConversion = 1
-        
+
     def run(self, fileStore):
         sequenceFiles1 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs1]
         chunks = runGetChunks(sequenceFiles=sequenceFiles1, chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()), chunkSize = self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize)
@@ -128,7 +128,7 @@ class MakeSelfBlasts(Job):
     """Breaks up the inputs into bits and builds a bunch of alignment jobs.
     """
     def __init__(self, blastOptions, chunkIDs):
-        Job.__init__(self)
+        Job.__init__(self, preemptable=True)
         self.blastOptions = blastOptions
         self.chunkIDs = chunkIDs
         
@@ -147,7 +147,7 @@ class MakeSelfBlasts(Job):
     
 class MakeOffDiagonalBlasts(Job):
         def __init__(self, blastOptions, chunkIDs):
-            Job.__init__(self)
+            Job.__init__(self, preemptable=True)
             self.chunkIDs = chunkIDs
             self.blastOptions = blastOptions
             self.blastOptions.compressFiles = False
@@ -171,7 +171,7 @@ class BlastSequencesAgainstEachOther(Job):
         cores = 1
         memory = blastOptions.memory
         
-        Job.__init__(self, disk=disk)
+        Job.__init__(self, disk=disk, cores=cores, memory=memory, preemptable=True)
         self.sequenceFileIDs1 = sequenceFileIDs1
         self.sequenceFileIDs2 = sequenceFileIDs2
         self.blastOptions = blastOptions
@@ -204,7 +204,7 @@ class BlastIngroupsAndOutgroups(Job):
     """
     def __init__(self, blastOptions, ingroupSequenceIDs,
                  outgroupSequenceIDs):
-        Job.__init__(self, memory = blastOptions.memory)
+        Job.__init__(self, memory=blastOptions.memory, preemptable=True)
         self.blastOptions = blastOptions
         self.blastOptions.roundsOfCoordinateConversion = 1
         self.ingroupSequenceIDs = ingroupSequenceIDs
@@ -244,7 +244,7 @@ class BlastFirstOutgroup(Job):
                  outgroupSequenceIDs, outgroupFragmentIDs,
                  ingroupResultsID, outgroupResultsID,
                  blastOptions, outgroupNumber, ingroupCoverageIDs):
-        Job.__init__(self, memory=blastOptions.memory)
+        Job.__init__(self, memory=blastOptions.memory, preemptable=True)
         self.untrimmedSequenceIDs = untrimmedSequenceIDs
         self.sequenceIDs = sequenceIDs
         self.outgroupSequenceIDs = outgroupSequenceIDs
@@ -274,10 +274,6 @@ class BlastFirstOutgroup(Job):
         outgroupFragmentIDs = trimRecurseJob.rv(1)
         ingroupCoverageIDs = trimRecurseJob.rv(2)
         return (alignmentsID, outgroupFragmentIDs, ingroupCoverageIDs)
-        
-        
-        
-        
 
 class TrimAndRecurseOnOutgroups(Job):
     def __init__(self, untrimmedSequenceIDs, sequenceIDs,
@@ -285,7 +281,7 @@ class TrimAndRecurseOnOutgroups(Job):
                  mostRecentResultsID, ingroupResultsID, outgroupResultsID,
                  blastOptions,
                  outgroupNumber, ingroupCoverageIDs):
-        Job.__init__(self)
+        Job.__init__(self, preemptable=False)
         self.untrimmedSequenceIDs = untrimmedSequenceIDs
         self.sequenceIDs = sequenceIDs
         self.outgroupSequenceIDs = outgroupSequenceIDs
@@ -431,11 +427,18 @@ class TrimAndRecurseOnOutgroups(Job):
             alignmentsID = self.addFollowOn(CollateBlasts(blastOptions=self.blastOptions, resultsFileIDs=[self.ingroupResultsID,
                                                   self.outgroupResultsID])).rv()
             return (alignmentsID, self.outgroupFragmentIDs, self.ingroupCoverageIDs)
+
 def compressFastaFile(fileName):
     """Compress a fasta file.
     """
     system("bzip2 --keep --fast %s" % fileName)
     return fileName + ".bz2"
+
+def decompressFastaFile(fileName, tempFileName):
+    """Copies the file from the central dir to a temporary file, returning the temp file name.
+    """
+    system("bunzip2 --stdout %s > %s" % (fileName, tempFileName))
+    return tempFileName
         
 class RunSelfBlast(Job):
     """Runs blast as a job.
@@ -444,7 +447,7 @@ class RunSelfBlast(Job):
         disk = 3*seqFileID.size
         memory = 3*seqFileID.size
         
-        Job.__init__(self, memory=memory, disk=disk)
+        Job.__init__(self, memory=memory, disk=disk, preemptable=True)
         self.blastOptions = blastOptions
         self.seqFileID = seqFileID
     
@@ -468,12 +471,6 @@ class RunSelfBlast(Job):
             seqFile = compressFastaFile(seqFile)
         logger.info("Ran the self blast okay")
         return fileStore.writeGlobalFile(resultsFile, cleanup=False)
-
-def decompressFastaFile(fileName, tempFileName):
-    """Copies the file from the central dir to a temporary file, returning the temp file name.
-    """
-    system("bunzip2 --stdout %s > %s" % (fileName, tempFileName))
-    return tempFileName
     
 class RunBlast(Job):
     """Runs blast as a job.
@@ -485,7 +482,7 @@ class RunBlast(Job):
         else:
             disk = None
             memory = None
-        Job.__init__(self, memory=memory, disk=disk)
+        Job.__init__(self, memory=memory, disk=disk, preemptable=True)
         self.blastOptions = blastOptions
         self.seqFileID1 = seqFileID1
         self.seqFileID2 = seqFileID2
@@ -516,12 +513,13 @@ class RunBlast(Job):
 
 class CollateBlasts(Job):
     def __init__(self, blastOptions, resultsFileIDs):
-        Job.__init__(self)
+        Job.__init__(self, preemptable=True)
         self.blastOptions = blastOptions
         self.resultsFileIDs = resultsFileIDs
 
     def run(self, fileStore):
         return self.addFollowOn(CollateBlasts2(self.blastOptions, self.resultsFileIDs)).rv()
+
 class CollateBlasts2(Job):
     """Collates all the blasts into a single alignments file.
     """
@@ -529,7 +527,7 @@ class CollateBlasts2(Job):
         disk = 8*sum([alignmentID.size for alignmentID in resultsFileIDs])
         cores = 1
         memory = blastOptions.memory
-        Job.__init__(self, memory = memory, disk=disk)
+        Job.__init__(self, memory=memory, disk=disk, preemptable=True)
         self.resultsFileIDs = resultsFileIDs
     
     def run(self, fileStore):
@@ -540,7 +538,7 @@ class CollateBlasts2(Job):
         logger.info("Collated the alignments to the file: %s",  collatedResultsFile)
         collatedResultsID = fileStore.writeGlobalFile(collatedResultsFile, cleanup=False)
         return collatedResultsID
-        
+
 def sequenceLength(sequenceFile):
     """Get the total # of bp from a fasta file."""
     seqLength = 0

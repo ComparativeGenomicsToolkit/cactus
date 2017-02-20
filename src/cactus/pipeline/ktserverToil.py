@@ -25,15 +25,13 @@ from cactus.pipeline.ktserverControl import getLogPath
 
 class KtServerService(Job.Service):
     def __init__(self, dbElem, isSecondary, memory=None, cores=None, disk = None):
-        Job.Service.__init__(self, memory=memory, cores=cores, disk = disk)
+        Job.Service.__init__(self, memory=memory, cores=cores, disk=disk, preemptable=False)
         self.dbElem = dbElem
         self.isSecondary = isSecondary
         self.blockTimestep = 10
         self.blockTimeout = sys.maxint
         self.killSwitchPath = None
         self.process = None
-
-
 
     def start(self, job):
         if self.isSecondary == False:

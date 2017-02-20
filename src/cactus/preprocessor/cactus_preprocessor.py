@@ -56,7 +56,8 @@ class PreprocessChunk(Job):
     """
     def __init__(self, prepOptions, seqIDs, proportionSampled, inChunkID):
         disk = sum([seqID.size for seqID in seqIDs]) + 3*inChunkID.size
-        Job.__init__(self, memory=prepOptions.memory, cores=prepOptions.cpu, disk=disk)
+        Job.__init__(self, memory=prepOptions.memory, cores=prepOptions.cpu, disk=disk,
+                     preemptable=True)
         self.prepOptions = prepOptions 
         self.seqIDs = seqIDs
         self.inChunkID = inChunkID
@@ -89,7 +90,7 @@ class PreprocessChunk(Job):
 
 class MergeChunks(Job):
     def __init__(self, prepOptions, chunkIDList):
-        Job.__init__(self)
+        Job.__init__(self, preemptable=True)
         self.prepOptions = prepOptions
         self.chunkIDList = chunkIDList
 
@@ -97,16 +98,16 @@ class MergeChunks(Job):
 
         return self.addFollowOn(MergeChunks2(self.prepOptions, self.chunkIDList)).rv()
 
-
 class MergeChunks2(Job):
     """ merge a list of chunks into a fasta file
     """
     def __init__(self, prepOptions, chunkIDList):
         disk = 2*sum([chunkID.size for chunkID in chunkIDList])
-        Job.__init__(self, cores=prepOptions.cpu, memory=prepOptions.memory, disk=disk)
+        Job.__init__(self, cores=prepOptions.cpu, memory=prepOptions.memory, disk=disk,
+                     preemptable=True)
         self.prepOptions = prepOptions 
         self.chunkIDList = chunkIDList
-    
+
     def run(self, fileStore):
         chunkList = [fileStore.readGlobalFile(fileID) for fileID in self.chunkIDList]
 
@@ -122,12 +123,13 @@ class PreprocessSequence(Job):
     """
     def __init__(self, prepOptions, inSequenceID, chunksToCompute=None):
         disk = 3*inSequenceID.size if hasattr(inSequenceID, "size") else None
-        Job.__init__(self, cores=prepOptions.cpu, memory=prepOptions.memory, disk=disk)
+        Job.__init__(self, cores=prepOptions.cpu, memory=prepOptions.memory, disk=disk,
+                     preemptable=True)
         self.prepOptions = prepOptions 
         self.inSequenceID = inSequenceID
         self.chunksToCompute = chunksToCompute
     
-    def run(self, fileStore):        
+    def run(self, fileStore):
         logger.info("Preparing sequence for preprocessing")
         # chunk it up
         inSequence = fileStore.readGlobalFile(self.inSequenceID)
@@ -138,9 +140,9 @@ class PreprocessSequence(Job):
         inChunkList = [os.path.abspath(path) for path in inChunkList]
         logger.info("Chunks = %s" % inChunkList)
         logger.info("Chunks dir = %s" % os.listdir(inChunkDirectory))
-                
+
         inChunkIDList = [fileStore.writeGlobalFile(chunk) for chunk in inChunkList]
-        outChunkIDList = [] 
+        outChunkIDList = []
         #For each input chunk we create an output chunk, it is the output chunks that get concatenated together.
         if not self.chunksToCompute:
             self.chunksToCompute = range(len(inChunkList))
@@ -173,7 +175,7 @@ class BatchPreprocessor(Job):
         self.inSequenceID = inSequenceID
         prepNode = self.prepXmlElems[iteration]
         self.iteration = iteration
-        Job.__init__(self)
+        Job.__init__(self, preemptable=True)
               
     def run(self, fileStore):
         # Parse the "preprocessor" config xml element     
@@ -211,12 +213,10 @@ class BatchPreprocessor(Job):
         else:
             return self.addFollowOn(RunAsFollowOn(BatchPreprocessorEnd, outSeqID)).rv()
 
-
-
 class BatchPreprocessorEnd(Job):
     def __init__(self,  globalOutSequenceID):
         disk = 2*globalOutSequenceID.size
-        Job.__init__(self, disk=disk) 
+        Job.__init__(self, disk=disk, preemptable=True)
         self.globalOutSequenceID = globalOutSequenceID
         
     def run(self, fileStore):
@@ -237,7 +237,7 @@ class CactusPreprocessor(Job):
     """Modifies the input genomes, doing things like masking/checking, etc.
     """
     def __init__(self, inputSequenceIDs, configNode):
-        Job.__init__(self, disk=10000000000)
+        Job.__init__(self, disk=10000000000, preemptable=True)
         self.inputSequenceIDs = inputSequenceIDs
         self.configNode = configNode  
     
@@ -266,7 +266,7 @@ class CactusPreprocessor(Job):
   
 class CactusPreprocessor2(Job):
     def __init__(self, inputSequenceID, configNode):
-        Job.__init__(self)
+        Job.__init__(self, preemptable=True)
         self.inputSequenceID = inputSequenceID
         self.configNode = configNode
         

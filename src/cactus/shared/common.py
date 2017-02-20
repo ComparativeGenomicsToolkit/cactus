@@ -28,7 +28,6 @@ from cactus.shared.version import cactus_commit
 
 _log = logging.getLogger(__name__)
 
-
 def makeURL(path):
     if not (path.startswith("file:") or path.startswith("s3:") or path.startswith("http:")):
         return "file://" + os.path.abspath(path)
@@ -913,7 +912,6 @@ def cactus_call(tool=None,
 
     if check_output:
         return output
-
 
 class RunAsFollowOn(Job):
     def __init__(self, job, *args, **kwargs):

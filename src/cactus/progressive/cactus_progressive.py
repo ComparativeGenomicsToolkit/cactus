@@ -56,7 +56,7 @@ from sonLib.nxnewick import NXNewick
 
 class ProgressiveDown(Job):
     def __init__(self, options, project, event, schedule, memory=None, cores=None):
-        Job.__init__(self, memory=memory, cores=cores)
+        Job.__init__(self, memory=memory, cores=cores, preemptable=True)
         self.options = options
         self.project = project
         self.event = event
@@ -82,7 +82,7 @@ class ProgressiveDown(Job):
                                                               self.schedule, depProjects, memory=self.configWrapper.getDefaultMemory())).rv()
 class ProgressiveNext(Job):
     def __init__(self, options, project, event, schedule, depProjects, memory=None, cores=None):
-        Job.__init__(self, memory=memory, cores=cores)
+        Job.__init__(self, memory=memory, cores=cores, preemptable=True)
         self.options = options
         self.project = project
         self.event = event
@@ -113,7 +113,7 @@ class ProgressiveNext(Job):
 
 class ProgressiveOut(Job):
     def __init__(self, options, project, event, eventExpWrapper, schedule, memory=None, cores=None):
-        Job.__init__(self, memory=memory, cores=cores)
+        Job.__init__(self, memory=memory, cores=cores, preemptable=True)
         self.options = options
         self.project = project
         self.event = event
@@ -138,7 +138,7 @@ class ProgressiveOut(Job):
     
 class ProgressiveUp(Job):
     def __init__(self, options, project, event, memory=None, cores=None):
-        Job.__init__(self, memory=memory, cores=cores)
+        Job.__init__(self, memory=memory, cores=cores, preemptable=True)
         self.options = options
         self.project = project
         self.event = event
@@ -238,7 +238,7 @@ class ProgressiveUp(Job):
 
 class RunCactusPreprocessorThenProgressiveDown(Job):
     def __init__(self, options, project, memory=None, cores=None):
-        Job.__init__(self, memory=memory, cores=cores)
+        Job.__init__(self, memory=memory, cores=cores, preemptable=True)
         self.options = options
         self.project = project
         
@@ -273,7 +273,7 @@ class RunCactusPreprocessorThenProgressiveDown(Job):
 
 class RunCactusPreprocessorThenProgressiveDown2(Job):
     def __init__(self, options, project, event, schedule, memory=None, cores=None):
-        Job.__init__(self, memory=memory, cores=cores)
+        Job.__init__(self, memory=memory, cores=cores, preemptable=True)
         self.options = options
         self.project = project
         self.event = event
@@ -287,7 +287,8 @@ class RunCactusPreprocessorThenProgressiveDown2(Job):
 
         #Combine the smaller HAL files from each experiment
         return self.addFollowOnJobFn(exportHal, project=project, memory=self.configWrapper.getDefaultMemory(),
-                disk=self.configWrapper.getExportHalDisk()).rv()
+                                     disk=self.configWrapper.getExportHalDisk(),
+                                     preemptable=False).rv()
 
 def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC=None, cacheW0=None, chunk=None, deflate=None, inMemory=False):
 
@@ -340,18 +341,8 @@ def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC
             cactus_call(parameters=["halAppendCactusSubtree"],
                         option_string=opts)
 
-            
-            #appendTime = time.time() - appendTime
-            #totalAppendTime += appendTime
-#            print "time of above command: {0:.2f}".format(appendTime)
- 
-    #totalTime = time.time() - totalTime
-    #print "total time: {0:.2f}  total halAppendCactusSubtree time: {1:.2f}".format(totalTime, totalAppendTime)
     return job.fileStore.writeGlobalFile(HALPath)
 
-
-
-        
 def main():
     parser = ArgumentParser()
     Job.Runner.addToilOptions(parser)
