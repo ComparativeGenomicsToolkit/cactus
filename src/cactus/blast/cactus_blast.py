@@ -65,39 +65,6 @@ class BlastOptions:
         self.trimOutgroupFlanking = trimOutgroupFlanking
         self.keepParalogs = keepParalogs
         
-class BlastFlower(Job):
-    """Take a reconstruction problem and generate the sequences in chunks to be blasted.
-    Then setup the follow on blast targets and collation targets.
-    """
-    def __init__(self, cactusDisk, cactusSequencesID, flowerName, blastOptions):
-        disk = 2*cactusSequencesID.size
-        cores = 1
-        memory = blastOptions.memory
-
-        Job.__init__(self, memory=memory, cores=cores, disk=disk, preemptable=True)
-        self.cactusDisk = cactusDisk
-        self.cactusSequencesID = cactusSequencesID
-        self.flowerName = flowerName
-        self.blastOptions = blastOptions
-        self.blastOptions.roundsOfCoordinateConversion = 2
-        
-    def run(self, fileStore):
-        chunksDir = getTempDirectory(rootDir=fileStore.getLocalTempDir())
-        cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
-        chunks = [ chunk for chunk in cactus_call(check_output=True,
-                                                  parameters=["cactus_blast_chunkFlowerSequences"],
-                                                  option_string="%s '%s' '%s' %s %i %i %i %s" % \
-                                                          (getLogLevelString(), self.cactusDisk, cactusSequencesPath, self.flowerName, 
-                                                          self.blastOptions.chunkSize, 
-                                                          self.blastOptions.overlapSize,
-                                                          self.blastOptions.minimumSequenceLength,
-                                                           os.path.basename(chunksDir))).split("\n") if chunk != "" ]
-        logger.info("Broken up the flowers into individual 'chunk' files")
-        chunkIDs = [fileStore.writeGlobalFile(chunk, cleanup=False) for chunk in chunks]
-        selfResultsID = self.addChild(MakeSelfBlasts(self.blastOptions, chunkIDs)).rv()
-        offDiagonalResultsID = self.addChild(MakeOffDiagonalBlasts(blastOptions=self.blastOptions, chunkIDs=chunkIDs)).rv()
-        return self.addFollowOn(CollateBlasts(self.blastOptions, [selfResultsID, offDiagonalResultsID])).rv()
-    
 class BlastSequencesAllAgainstAll(Job):
     """Take a set of sequences, chunks them up and blasts them.
     """
