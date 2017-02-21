@@ -767,7 +767,7 @@ def getDockerTag():
 def cactus_call(tool=None,
                 work_dir=None,
                 parameters=None,
-                rm=False,
+                rm=True,
                 detached=True,
                 check_output=False,
                 container_name=None,
