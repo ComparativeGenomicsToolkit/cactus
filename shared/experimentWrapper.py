@@ -190,12 +190,12 @@ class ExperimentWrapper(DbElemWrapper):
         self.xmlRoot = xmlRoot
 
     @staticmethod
-    def createExperimentWrapper(sequences, newickTreeString, outputDir,
-                 outgroupGenomes=None,
-                 databaseConf=None, configFile=None,
-                 halFile=None, fastaFile=None,
-                 constraints=None, progressive=False,
-                 outputSequenceDir=None):
+    def createExperimentWrapper(newickTreeString, outputDir,
+                                outgroupGenomes=None,
+                                databaseConf=None, configFile=None,
+                                halFile=None, fastaFile=None,
+                                constraints=None, progressive=False,
+                                outputSequenceDir=None):
         #Establish the basics
         rootElem =  ET.Element("cactus_workflow_experiment")
         rootElem.attrib['species_tree'] = newickTreeString
@@ -261,7 +261,7 @@ class ExperimentWrapper(DbElemWrapper):
             multiCactus = MultiCactusTree(ret)
             multiCactus.nameUnlabeledInternalNodes()
             multiCactus.computeSubtreeRoots()
-            ret = multiCactus.extractSubTree(self.getReferenceNameFromConfig())
+            ret = multiCactus.extractSubTree(self.getRootGenome())
         return ret
 
     def getReferencePath(self):
@@ -277,10 +277,47 @@ class ExperimentWrapper(DbElemWrapper):
             self.xmlRoot.append(refElem)
         refElem.attrib["path"] = path
 
-    def getReferenceNameFromConfig(self):
-        configElem = ET.parse(self.getConfig()).getroot()
-        refElem = configElem.find("reference")
-        return refElem.attrib["reference"]
+    def isRootReconstructed(self):
+        """
+        Return True if this is a reconstruction problem and False otherwise.
+        """
+        rootElem = self.xmlRoot.find('root')
+        if rootElem is None:
+            return False
+        return 'reconstruction' in rootElem.attrib and rootElem.attrib['reconstruction'] == '1'
+
+    def setRootReconstructed(self, reconstructed):
+        """
+        Set whether this is a reconstruction problem or not.
+        """
+        rootElem = self.xmlRoot.find('root')
+        if reconstructed:
+            rootElem.attrib['reconstruction'] = '1'
+        else:
+            if refElem is not None:
+                del refElem
+            del rootElem.attrib['reconstruction']
+
+    def getRootGenome(self):
+        """
+        Get the root of the subtree to be aligned.
+        """
+        rootElem = self.xmlRoot.find('root')
+        if rootElem is None:
+            return None
+        # The text can contain '\n's and whitespace so we remove them
+        return rootElem.text.strip()
+
+    def setRootGenome(self, root):
+        """
+        Set the root of the subtree to be aligned.
+
+        (the genome to be reconstructed if this is a reconstruction problem)
+        """
+        rootElem = self.xmlRoot.find('root')
+        if rootElem is None:
+            rootElem = ET.SubElement(self.xmlRoot, 'root')
+        rootElem.text = root
 
     def getOutputDir(self):
         return self.xmlRoot.attrib["outputDir"]
@@ -333,12 +370,17 @@ class ExperimentWrapper(DbElemWrapper):
         self.xmlRoot.attrib["outputSequenceDir"] = path
 
     def getOutgroupGenomes(self):
-        if self.xmlRoot.attrib.has_key("outgroup_genomes"):
-            return self.xmlRoot.attrib["outgroup_genomes"].split()
-        return []
+        genomeNodes = self.xmlRoot.findall("genome")
+        return [genome.attrib['name'] for genome in genomeNodes if 'outgroup' in genome.attrib and genome.attrib['outgroup'] == "1"]
 
     def setOutgroupGenomes(self, outgroupGenomes):
-        self.xmlRoot.attrib["outgroup_genomes"] = " ".join(outgroupGenomes)
+        genomeNodes = self.xmlRoot.findall("genome")
+        for node in genomeNodes:
+            if 'outgroup' in node.attrib:
+                del node.attrib['outgroup']
+        outgroupNodes = [node for node in genomeNodes if node.attrib['name'] in outgroupGenomes]
+        for node in outgroupNodes:
+            node.attrib['outgroup'] = "1"
 
     def getConfigPath(self):
         config = self.xmlRoot.attrib["config"]
@@ -388,7 +430,11 @@ class ExperimentWrapper(DbElemWrapper):
 
         assert len(genomeNodes) == 1
         genomeNode = genomeNodes[0]
-        return genomeNode.attrib['sequence']
+        if 'sequence' in genomeNode.attrib:
+            path = genomeNode.attrib['sequence']
+        else:
+            path = None
+        return path
 
     def setSequencePath(self, genome, seqPath):
         """
@@ -429,7 +475,7 @@ class ExperimentWrapper(DbElemWrapper):
 
         # Ensure the changes are reflected in the genome elements
         # (adding and deleting elements as necessary).
-        genomesInTree = set(tree.getName(id) for id in tree.postOrderTraversal())
+        genomesInTree = set(tree.getName(id) for id in tree.postOrderTraversal() if tree.hasName(id))
         genomeNodes = self.xmlRoot.findall('genome')
         genomeNamesInXML = set(node.attrib['name'] for node in genomeNodes)
         for node in genomeNodes:

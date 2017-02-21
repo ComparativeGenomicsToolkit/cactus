@@ -22,13 +22,12 @@ from sonLib.bioio import printBinaryTree
 from sonLib.bioio import system
 from sonLib.bioio import getRandomAlphaNumericString
 from sonLib.bioio import cigarWrite, PairwiseAlignment, AlignmentOperation
+from sonLib.bioio import TestStatus
+from sonLib.tree import makeRandomBinaryTree
+from sonLib.nxnewick import NXNewick
 
 from cactus.shared.common import runCactusWorkflow
 from cactus.shared.common import runCactusCheck
-
-from sonLib.bioio import TestStatus
-
-from sonLib.tree import makeRandomBinaryTree
 
 from jobTree.src.common import runJobTreeStats, runJobTreeStatusAndFailIfNotComplete
 
@@ -104,9 +103,18 @@ def getCactusWorkflowExperimentForTest(sequences, newickTreeString, outputDir, c
     """
     halFile = os.path.join(outputDir, "test.hal")
     fastaFile = os.path.join(outputDir, "test.fa")
-    return ExperimentWrapper.createExperimentWrapper(sequences, newickTreeString, outputDir,
-                                    databaseConf=_GLOBAL_DATABASE_CONF_STRING, configFile=configFile,
-                                    halFile=halFile, fastaFile=fastaFile, constraints=constraints, progressive=progressive)
+    tree = NXNewick().parseString(newickTreeString, addImpliedRoots=False)
+    # The sequences are in post-order traversal order
+    genomes = [tree.getName(id) for id in tree.postOrderTraversal() if tree.isLeaf(id)]
+    exp = ExperimentWrapper.createExperimentWrapper(newickTreeString, outputDir,
+                                                    databaseConf=_GLOBAL_DATABASE_CONF_STRING, configFile=configFile,
+                                                    halFile=halFile, fastaFile=fastaFile, constraints=constraints,
+                                                    progressive=progressive)
+    for genome, sequence in zip(genomes, sequences):
+        exp.setSequencePath(genome, sequence)
+    exp.setRootGenome("reference")
+    exp.setRootReconstructed(True)
+    return exp
 
 ###############
 #Stuff for getting random inputs to a test
@@ -153,7 +161,6 @@ def getCactusInputs_random(regionNumber=0, tempDir=None,
     emptySequenceDirs = set(sequenceDirs)
     i = 0
     while i < sequenceNumber or len(emptySequenceDirs) > 0:
-        #for i in xrange(sequenceNumber):
         if sequenceFile == None:
             if random.random() > 0.5: #Randomly choose the files to be attached or not
                 suffix = ".fa.complete"
@@ -166,7 +173,7 @@ def getCactusInputs_random(regionNumber=0, tempDir=None,
             fileHandle = open(sequenceFile, 'w')
         if random.random() > 0.8: #Get a new root sequence
             parentSequence = getRandomSequence(length=random.choice(xrange(1, 2*avgSequenceLength)))[1]
-        sequence = mutateSequence(parentSequence, distance=random.random()*0.5)
+        sequence = mutateSequence(parentSequence, distance=random.random()*0.25)
         name = getRandomAlphaNumericString(15)
         if random.random() > 0.5:
             sequence = reverseComplement(sequence)
@@ -180,7 +187,7 @@ def getCactusInputs_random(regionNumber=0, tempDir=None,
         fileHandle.close()
 
     logger.info("Made %s sequences in %s directories" % (sequenceNumber, len(sequenceDirs)))
-    
+
     return sequenceDirs, newickTreeString
 
 def getFastasFromSequence(sequenceDirs):

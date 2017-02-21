@@ -81,13 +81,25 @@ class TestCase(unittest.TestCase):
             return
         """Tests that cactus doesn't crash when aligning a subtree of a larger
         species tree."""
-        runWorkflow_multipleExamples(getCactusInputs_random,
+        getBigSpeciesTree = lambda regionNumber=0,tempDir=None: getCactusInputs_random(regionNumber, tempDir, treeLeafNumber=5)
+        runWorkflow_multipleExamples(getBigSpeciesTree,
                                      testNumber=1,
                                      testRestrictions=(TestStatus.TEST_SHORT,),
                                      batchSystem=self.batchSystem, buildJobTreeStats=True,
                                      progressive=True,
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveWithSubtreeRootFunction)
+
+    @silentOnSuccess
+    def testCactus_Random_fixedAncestor(self):
+        """Tests that cactus doesn't crash when aligning to a fixed ancestral sequence."""
+        runWorkflow_multipleExamples(getCactusInputs_random,
+                                     testNumber=1,
+                                     testRestrictions=(TestStatus.TEST_SHORT,),
+                                     batchSystem=self.batchSystem, buildJobTreeStats=True,
+                                     progressive=True,
+                                     configFile=self.configFile,
+                                     cactusWorkflowFunction=self.progressiveFunction)
 
     @silentOnSuccess
     def testCactus_ensureFunkyHeaderNamesArentMangled(self):
@@ -154,14 +166,12 @@ class TestCase(unittest.TestCase):
         tree = expWrapper.getTree()
         validNodes = []
         for node in tree.postOrderTraversal():
-            if tree.hasName(node) and not tree.isLeaf(node):
+            if tree.hasName(node) and not tree.isLeaf(node) and tree.hasParent(node):
                 validNodes.append(tree.getName(node))
 
-        # Choose a random valid subtree root (NB: the entire species
-        # tree is a valid subtree)
+        # Choose a random valid subtree root (excluding the species tree root)
         subtreeRoot = random.choice(validNodes)
-        logger.info("Chose subtree root %s to test from species tree "
-                    "%s" % (subtreeRoot, NXNewick().writeString(tree)))
+        print "Chose subtree root %s to test from species tree %s" % (subtreeRoot, NXNewick().writeString(tree))
 
         self.progressiveFunction(experimentFile, jobTreeDir,
                                  batchSystem, buildAvgs,
@@ -195,7 +205,7 @@ class TestCase(unittest.TestCase):
         # same as the sequences in the input (minus differences in
         # repeat-masking)
         exp = ExperimentWrapper(ET.parse(experimentFile).getroot())
-        seqMap = exp.buildSequenceMap()
+        seqMap = dict((genome, exp.getSequencePath(genome)) for genome in exp.getGenomesWithSequence())
         # Maps genome name -> headers in fasta
         headers = {}
         for genomeName, inputSequencePath in seqMap.items():
@@ -210,7 +220,7 @@ class TestCase(unittest.TestCase):
         # check headers inside .c2h output
         for expPath in glob.glob('%s/*/*_experiment.xml' % (tempExperimentDir)):
             subExp = ExperimentWrapper(ET.parse(expPath).getroot())
-            outgroups = subExp.getOutgroupEvents()
+            outgroups = subExp.getOutgroupGenomes()
             c2hPath = subExp.getHALPath()
             with open(c2hPath) as f:
                 for line in f:

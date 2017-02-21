@@ -11,6 +11,7 @@ import os
 import sys
 import xml.etree.ElementTree as ET
 import copy
+
 from optparse import OptionParser
 from operator import itemgetter
 
@@ -22,7 +23,7 @@ from cactus.progressive.outgroup import GreedyOutgroup, DynamicOutgroup
 from sonLib.nxnewick import NXNewick
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 
-def createMCProject(tree, experiment, config, options):
+def createMCProject(tree, sequences, experiment, config, options):
     """
     Creates a properly initialized MultiCactusProject.
 
@@ -33,7 +34,7 @@ def createMCProject(tree, experiment, config, options):
     mcTree.computeSubtreeRoots()
     mcProj = MultiCactusProject()
     mcProj.mcTree = mcTree
-    mcProj.inputSequences = experiment.getSequences()[:]
+    mcProj.inputSequences = sequences
     mcProj.outputSequenceDir = experiment.getOutputSequenceDir()
     if config.getDoSelfAlignment():
         mcTree.addSelfEdges()
@@ -52,7 +53,7 @@ def createMCProject(tree, experiment, config, options):
     # if necessary, we reroot the tree at the specified alignment root id.  all leaf genomes
     # that are no longer in the tree, but still used as outgroups, are moved into special fields
     # so that we can remember to, say, get their paths for preprocessing. 
-    specifyAlignmentRoot(mcProj, alignmentRootId)
+    specifyAlignmentRoot(mcProj, experiment, alignmentRootId)
     return mcProj
 
 def fillInOutgroups(mcProj, outgroupNames, config, alignmentRootId):
@@ -112,7 +113,7 @@ def fillInOutgroups(mcProj, outgroupNames, config, alignmentRootId):
 # want to waste time preprocessing them.  This function, reroots the tree at the
 # alignment root then tacks on all the outgroups from ooutside the new tree
 # (which must be leaves) as children of the root
-def specifyAlignmentRoot(mcProj, alignmentRootId):
+def specifyAlignmentRoot(mcProj, expTemplate, alignmentRootId):
     # ugly hack to keep track of external outgroups for root experiment (yuck)
     mcProj.externalOutgroupNames = set()
 
@@ -131,15 +132,6 @@ def specifyAlignmentRoot(mcProj, alignmentRootId):
             for og, dist in ogNameDistList:
                 outGroupNames.add(og)
 
-    # i don't like this but we have to assume here that the sequences are
-    # written in postorder (as in experiments)
-    allLeafMap = dict()
-    idx = 0
-    for node in mcProj.mcTree.postOrderTraversal():
-        if mcProj.mcTree.isLeaf(node) is True:
-            allLeafMap[mcProj.mcTree.getName(node)] = mcProj.inputSequences[idx]
-            idx += 1
-
     # find outgroups we want to extract
     keptNodes = set([x for x in mcProj.mcTree.postOrderTraversal(alignmentRootId)])
     deadNodes = []
@@ -149,8 +141,8 @@ def specifyAlignmentRoot(mcProj, alignmentRootId):
             deadNodes.append(node)
             name = mcProj.mcTree.getName(node)
             if name in outGroupNames:
-                assert name in allLeafMap
-                extractOutgroupMap[name] = allLeafMap[name]
+                assert name in expTemplate.getGenomesWithSequence()
+                extractOutgroupMap[name] = expTemplate.getSequencePath(name)
                 mcProj.externalOutgroupNames.add(name)
 
     # reroot the tree!
@@ -172,7 +164,6 @@ def specifyAlignmentRoot(mcProj, alignmentRootId):
                 dist += d
             x = mcProj.mcTree.getParent(x)
         mcProj.mcTree.addOutgroup(ogName, dist)
-        allLeafMap[ogName] = ogPath
 
     # remove any experiment directories that have become invalid
     for event in mcProj.expMap.keys():
@@ -184,13 +175,13 @@ def specifyAlignmentRoot(mcProj, alignmentRootId):
         assert mcProj.mcTree.hasParent(node)
         mcProj.mcTree.removeEdge(mcProj.mcTree.getParent(node), node)
 
-    # reset input sequences to only contain genomes in tree (making sure to
-    # keep in postorder)
-    mcProj.inputSequences = []
-    for node in mcProj.mcTree.postOrderTraversal():
-        if mcProj.mcTree.isLeaf(node):
-            mcProj.inputSequences.append(allLeafMap[mcProj.mcTree.getName(node)])
-
+    # reset input sequences to only contain genomes in tree
+    genomesInTree = [mcProj.mcTree.getName(node) for node in mcProj.mcTree.postOrderTraversal() if mcProj.mcTree.hasName(node)]
+    seqsInTree = set(expTemplate.getSequencePath(genome) for genome in genomesInTree)
+    print "Seqs in tree: %s" % repr(seqsInTree)
+    print "input seqs before filtering: %s" % repr(mcProj.inputSequences)
+    mcProj.inputSequences = [seq for seq in mcProj.inputSequences if seq in seqsInTree]
+    print "input seqs after filtering: %s" % repr(mcProj.inputSequences)
 
 # go through the tree (located in the template experimet)
 # and make sure event names are unique up unitil first dot
@@ -238,16 +229,9 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
     mcProj.writeXML(os.path.join(options.path, "%s_project.xml" % options.name))
     portOffset = 0
 
-    # Record where the ancestor sequence paths will be
-    for name, expPath in mcProj.expMap.items():
-        path = os.path.join(options.path, name)
-        expTemplate.setSequencePath(name, os.path.join(path, name + '.fa'))
-
     for name, expPath in mcProj.expMap.items():
         path = os.path.join(options.path, name)
         children = mcProj.entireTree.getChildNames(name)
-        exp = copy.deepcopy(expTemplate)
-
 
         # Get outgroups
         outgroups = []
@@ -256,9 +240,23 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
             # Outgroup name is the first element of the ogMap tuples
             outgroups.extend(map(itemgetter(0), mcProj.outgroup.ogMap[name]))
 
+        subtree = mcProj.entireTree.extractSpanningTree(children + outgroups)
+        exp = ExperimentWrapper.createExperimentWrapper(NXNewick().writeString(subtree),
+                                                        expTemplate.getOutputSequenceDir())
+
+        exp.setRootGenome(name)
+
         # Get subtree connecting children + outgroups
         assert len(children) > 0
-        subtree = mcProj.entireTree.extractSpanningTree(children + outgroups)
+
+        for genome in children + outgroups:
+            seqPath = expTemplate.getSequencePath(genome)
+            if seqPath is None:
+                # Ancestral sequence yet to be reconstructed. Point it
+                # at where it will be once this problem runs.
+                subPath = os.path.join(options.path, genome)
+                seqPath = os.path.join(subPath, genome + '.fa')
+            exp.setSequencePath(genome, seqPath)
 
         dbBase = path
         if expTemplate.getDbDir() is not None:
@@ -282,13 +280,6 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
             exp.setHALFastaPath(os.path.join(path, "%s_hal.fa" % name))
         exp.setTree(subtree)
         exp.setOutgroupGenomes(outgroups)
-
-        # Set up the paths to correctly point to any ancestors that
-        # will be reconstructed before the problem starts
-        reconstructions = set(exp.getInputGenomes()) - set(exp.getGenomesWithSequence())
-        for reconstruction in reconstructions:
-            seqPath = os.path.join(os.path.join(options.path, reconstruction), reconstruction + '.fa')
-            exp.setSequencePath(reconstruction, seqPath)
         exp.setConfigPath(os.path.join(path, "%s_config.xml" % name))
         if not os.path.exists(exp.getDbDir()):
             os.makedirs(exp.getDbDir())
@@ -296,13 +287,18 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
             os.makedirs(path)
         exp.writeXML(expPath)
         config = ConfigWrapper(copy.deepcopy(configTemplate.xmlRoot))
-        config.setReferenceName(name)
+        if exp.getSequencePath(name):
+            exp.setRootReconstructed(False)
+            config.setBuildReference(False)
+        else:
+            exp.setRootReconstructed(True)
+            config.setReferenceName(name)
         config.writeXML(exp.getConfigPath())
-        
+
 def checkInputSequencePaths(exp):
     for seq in exp.getSequences():
         if not os.path.exists(seq):
-            sys.stderr.write("WARNING: sequence path %s does not exist\n" % seq)
+            raise RuntimeError("sequence path %s does not exist\n" % seq)
         elif os.path.isdir(seq):
             contents = os.listdir(seq)
             size = 0
@@ -310,7 +306,7 @@ def checkInputSequencePaths(exp):
                 if i[0] != '.':
                     size += 1
             if size == 0:
-                sys.stderr.write("WARNING: sequence path %s is an empty directory\n" % seq)
+                raise RuntimeError("Sequence path %s is an empty directory\n" % seq)
 
 def main():
     usage = "usage: %prog [options] <experiment> <output project path>"
@@ -325,9 +321,6 @@ def main():
                       "for allowing the tree to contain nodes that won't be in the alignment but can still be used for "
                       "outgroups.",
                       default=None)
-    parser.add_option("--alignToRoot", help="Root already has sequence, don't "
-                      "reconstruct it, but instead align to it.",
-                      action="store_true")
     parser.add_option("--overwrite", action="store_true", help="Overwrite existing experiment files", default=False)
 
     options, args = parser.parse_args()
@@ -364,20 +357,20 @@ def main():
             if outgroupName not in projNames:
                 raise RuntimeError("Specified outgroup %s not found in tree" % outgroupName)
 
-    mcProj = createMCProject(tree, expTemplate, confTemplate, options)
-
-    # Replace the sequences with output sequences
     genomes = expTemplate.getGenomesWithSequence()
     sequences = []
     for genome in genomes:
         sequences.append(expTemplate.getSequencePath(genome))
+
+    mcProj = createMCProject(tree, sequences, expTemplate, confTemplate, options)
+
+    # Replace the sequences with output sequences
     newSequences = CactusPreprocessor.getOutputSequenceFiles(sequences, expTemplate.getOutputSequenceDir())
     for genome, newSequence in zip(genomes, newSequences):
         expTemplate.setSequencePath(genome, newSequence)
 
     # Now do the file tree creation
     createFileStructure(mcProj, expTemplate, confTemplate, options)
-    mcProj.check()
 
 if __name__ == '__main__':    
     main()

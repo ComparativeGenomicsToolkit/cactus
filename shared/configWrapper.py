@@ -33,7 +33,7 @@ class ConfigWrapper:
     defaultOutgroupAncestorQualityFraction = 0.75
     defaultMaxParallelSubtrees = 3
     defaultMaxNumOutgroups = 1
-    
+
     def __init__(self, xmlRoot):
         self.xmlRoot = xmlRoot
 
@@ -45,14 +45,21 @@ class ConfigWrapper:
         xmlString = minidom.parseString(xmlString).toprettyxml()
         xmlFile.write(xmlString)
         xmlFile.close()
-    
+
+    def setBuildReference(self, buildReference):
+        """
+        Set whether the root should be reconstructed.
+        """
+        refElem = self.xmlRoot.find("reference")
+        refElem.attrib["buildReference"] = "1" if buildReference else "0"
+
     def setReferenceName(self, name):
         refElem = self.xmlRoot.find("reference")
         refElem.attrib["reference"] = name
-        
+
     def getMCElem(self):
         return self.xmlRoot.find("multi_cactus")
-    
+
     def getOutgroupElem(self):
         mcElem = self.getMCElem()
         if mcElem is not None:

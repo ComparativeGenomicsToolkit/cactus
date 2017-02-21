@@ -116,7 +116,7 @@ class ProgressiveUp(Target):
             else:
                 if int(self.options.maxCpus) < maxParallel * 3:
                     raise RuntimeError("At least %d concurrent cpus are required to handle up to %d events using kyoto tycoon. Either increase the number of cpus using the --maxCpus option or decrease the number of parallel jobs (currently %d) by adjusting max_parallel_subtrees in the config file" % (maxParallel * 3, maxParallel, configWrapper.getMaxParallelSubtrees()))
-                    
+
         # take union of command line options and config options for hal and reference
         if self.options.buildReference == False:
             refNode = findRequiredNode(configXml, "reference")
@@ -193,6 +193,7 @@ class RunCactusPreprocessorThenProgressiveDown(Target):
         configNode = ET.parse(project.getConfigPath()).getroot()
         ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals() #This is necessary..
         #Create the preprocessor
+        self.logToMaster("Running preprocessor on paths %s" % project.getInputSequencePaths())
         self.addChildTarget(CactusPreprocessor(project.getInputSequencePaths(), 
                                                CactusPreprocessor.getOutputSequenceFiles(project.getInputSequencePaths(), project.getOutputSequenceDir()),
                                                configNode))

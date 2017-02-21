@@ -75,6 +75,7 @@ class TestCase(unittest.TestCase):
         runWorkflow_multipleExamples(getCactusInputs_chromosomeX, 
                                      testRestrictions=(TestStatus.TEST_VERY_LONG,),
                                      batchSystem=self.batchSystem, buildJobTreeStats=True)
+
     @silentOnSuccess
     def testCactus_splitBarJobs(self):
         """Exercise the code paths in bar that only occur on large jobs."""

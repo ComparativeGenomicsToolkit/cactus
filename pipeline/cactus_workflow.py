@@ -422,19 +422,26 @@ class CactusSetupPhase(CactusPhasesTarget):
         else:
             logger.info("Created follow-on target cactus_setup")
             self.setFollowOnTarget(setupTarget)   
-        
+
 class CactusSetupPhase2(CactusPhasesTarget):   
-    def run(self):        
+    def getSequencesInPostOrder(self):
+        exp = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
+        tree = exp.getTree()
+        genomes = [tree.getName(id) for id in tree.postOrderTraversal() if tree.hasName(id)]
+        sequences = filter(lambda x: x is not None, [exp.getSequencePath(genome) for genome in genomes])
+        return sequences
+
+    def run(self):
         #Now run setup
-        messages = runCactusSetup(cactusDiskDatabaseString=self.cactusWorkflowArguments.cactusDiskDatabaseString, 
-                       sequences=ExperimentWrapper(self.cactusWorkflowArguments.experimentNode).getSequences(),
-                       newickTreeString=self.cactusWorkflowArguments.speciesTree, 
+        messages = runCactusSetup(cactusDiskDatabaseString=self.cactusWorkflowArguments.cactusDiskDatabaseString,
+                       sequences=self.getSequencesInPostOrder(),
+                       newickTreeString=self.cactusWorkflowArguments.speciesTree,
                        outgroupEvents=self.cactusWorkflowArguments.outgroupEventNames,
                        makeEventHeadersAlphaNumeric=self.getOptionalPhaseAttrib("makeEventHeadersAlphaNumeric", bool, False))
         for message in messages:
             self.logToMaster(message)
         self.makeFollowOnPhaseTarget(CactusCafPhase, "caf")
-        
+
 ############################################################
 ############################################################
 ############################################################
@@ -506,9 +513,10 @@ class CactusCafWrapper(CactusRecursionTarget):
     """Runs cactus_core upon a set of flowers and no alignment file.
     """
     def runCactusCafInWorkflow(self, alignmentFile):
+        exp = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
         debugFilePath = self.getOptionalPhaseAttrib("phylogenyDebugPrefix")
         if debugFilePath != None:
-            debugFilePath += getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "reference"), "reference")
+            debugFilePath += exp.getRootGenome()
         messages = runCactusCaf(cactusDiskDatabaseString=self.cactusDiskDatabaseString,
                           alignments=alignmentFile, 
                           flowerNames=self.flowerNames,
@@ -542,7 +550,7 @@ class CactusCafWrapper(CactusRecursionTarget):
                           phylogenyTreeBuildingMethod=self.getOptionalPhaseAttrib("phylogenyTreeBuildingMethod"),
                           phylogenyCostPerDupPerBase=self.getOptionalPhaseAttrib("phylogenyCostPerDupPerBase"),
                           phylogenyCostPerLossPerBase=self.getOptionalPhaseAttrib("phylogenyCostPerLossPerBase"),
-                          referenceEventHeader=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "reference"), "reference"),
+                          referenceEventHeader=exp.getRootGenome(),
                           phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce=self.getOptionalPhaseAttrib("phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce"),
                           numTreeBuildingThreads=self.getOptionalPhaseAttrib("numTreeBuildingThreads"),
                           doPhylogeny=self.getOptionalPhaseAttrib("doPhylogeny", bool, True),
@@ -805,8 +813,10 @@ class CactusReferencePhase(CactusPhasesTarget):
         self.setupSecondaryDatabase()
         self.phaseNode.attrib["experimentPath"] = self.cactusWorkflowArguments.experimentFile
         self.phaseNode.attrib["secondaryDatabaseString"] = self.cactusWorkflowArguments.secondaryDatabaseString
+        exp = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
+        doRecursion = self.getOptionalPhaseAttrib("buildReference", bool, False) and exp.isRootReconstructed()
         self.runPhase(CactusReferenceRecursion, CactusSetReferenceCoordinatesDownPhase, "reference", 
-                      doRecursion=self.getOptionalPhaseAttrib("buildReference", bool, False),
+                      doRecursion=doRecursion,
                       launchSecondaryKtForRecursiveTarget = True)
         
 class CactusReferenceRecursion(CactusRecursionTarget):
@@ -820,11 +830,12 @@ class CactusReferenceWrapper(CactusRecursionTarget):
     """Actually run the reference code.
     """
     def run(self):
+        exp = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
         for message in runCactusReference(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                        flowerNames=self.flowerNames, 
                        matchingAlgorithm=self.getOptionalPhaseAttrib("matchingAlgorithm"), 
                        permutations=self.getOptionalPhaseAttrib("permutations", int),
-                       referenceEventString=self.getOptionalPhaseAttrib("reference"),
+                       referenceEventString=exp.getRootGenome(),
                        useSimulatedAnnealing=self.getOptionalPhaseAttrib("useSimulatedAnnealing", bool),
                        theta=self.getOptionalPhaseAttrib("theta", float),
                        phi=self.getOptionalPhaseAttrib("phi", float),
@@ -851,10 +862,11 @@ class CactusSetReferenceCoordinatesUpWrapper(CactusRecursionTarget):
     """Does the up pass for filling in the reference sequence coordinates, once a reference has been established.
     """ 
     def run(self):
+        exp = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
         runCactusAddReferenceCoordinates(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                                          secondaryDatabaseString=self.getOptionalPhaseAttrib("secondaryDatabaseString"),
                                          flowerNames=self.flowerNames,
-                                         referenceEventString=self.getOptionalPhaseAttrib("reference"), 
+                                         referenceEventString=exp.getRootGenome(),
                                          outgroupEventString=self.getOptionalPhaseAttrib("outgroup"), 
                                          bottomUpPhase=True)
         
@@ -880,9 +892,10 @@ class CactusSetReferenceCoordinatesDownWrapper(CactusRecursionTarget):
     """Does the down pass for filling Fills in the coordinates, once a reference is added.
     """        
     def run(self):
+        exp = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
         runCactusAddReferenceCoordinates(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                                          flowerNames=self.flowerNames,
-                                         referenceEventString=self.getOptionalPhaseAttrib("reference"),
+                                         referenceEventString=exp.getRootGenome(),
                                          outgroupEventString=self.getOptionalPhaseAttrib("outgroup"), 
                                          bottomUpPhase=False)
 
@@ -893,13 +906,10 @@ class CactusExtractReferencePhase(CactusPhasesTarget):
             self.logToMaster("Starting Reference Extract Phase")
             experiment = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
             if experiment.getReferencePath() is not None:
-                eventName = os.path.basename(experiment.getReferencePath())
-                if eventName.find('.') >= 0:
-                    eventName = eventName[:eventName.rfind('.')]
-                    cmdLine = "cactus_getReferenceSeq --cactusDisk \'%s\' --flowerName 0 --referenceEventString %s --outputFile %s --logLevel %s" % \
-                              (experiment.getDiskDatabaseString(), eventName,
-                               experiment.getReferencePath(), getLogLevelString())                        
-                    system(cmdLine)          
+                cmdLine = "cactus_getReferenceSeq --cactusDisk \'%s\' --flowerName 0 --referenceEventString %s --outputFile %s --logLevel %s" % \
+                          (experiment.getDiskDatabaseString(), experiment.getRootGenome(),
+                           experiment.getReferencePath(), getLogLevelString())
+                system(cmdLine)
         self.makeFollowOnPhaseTarget(CactusCheckPhase, "check")
 
 ############################################################
@@ -941,9 +951,6 @@ class CactusCheckWrapper(CactusRecursionTarget):
 
 class CactusHalGeneratorPhase(CactusPhasesTarget):
     def run(self):
-        referenceNode = findRequiredNode(self.cactusWorkflowArguments.configNode, "reference")
-        if referenceNode.attrib.has_key("reference"):
-            self.phaseNode.attrib["reference"] = referenceNode.attrib["reference"]
         if self.getOptionalPhaseAttrib("buildFasta", bool, default=False):
             self.phaseNode.attrib["fastaPath"] = self.cactusWorkflowArguments.experimentNode.find("hal").attrib["fastaPath"]
             self.makeRecursiveChildTarget(CactusFastaGenerator)
@@ -957,10 +964,12 @@ class CactusHalGeneratorPhase(CactusPhasesTarget):
 
 class CactusFastaGenerator(CactusRecursionTarget):
     def run(self):
+        exp = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
+        expWrapper = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
         runCactusFastaGenerator(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                                     flowerName=decodeFirstFlowerName(self.flowerNames),
                                     outputFile=self.getOptionalPhaseAttrib("fastaPath"),
-                                    referenceEventString=self.getOptionalPhaseAttrib("reference"))
+                                    referenceEventString=exp.getRootGenome())
             
 class CactusHalGeneratorPhase2(CactusHalGeneratorPhase):
     def run(self): 
@@ -980,10 +989,11 @@ class CactusHalGeneratorUpWrapper(CactusRecursionTarget):
     """Does the up pass for filling in the coordinates, once a reference is added.
     """ 
     def run(self):
+        experiment = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
         runCactusHalGenerator(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                               secondaryDatabaseString=self.getOptionalPhaseAttrib("secondaryDatabaseString"),
                               flowerNames=self.flowerNames,
-                              referenceEventString=self.getOptionalPhaseAttrib("reference"), #self.configNode.attrib["reference"], #self.getOptionalPhaseAttrib("reference"), 
+                              referenceEventString=experiment.getRootGenome(),
                               outputFile=self.getOptionalPhaseAttrib("outputFile"),
                               showOnlySubstitutionsWithRespectToReference=\
                               self.getOptionalPhaseAttrib("showOnlySubstitutionsWithRespectToReference", bool))
@@ -1034,21 +1044,21 @@ class CactusWorkflowArguments:
         if secondaryElem.getDbType() == "kyoto_tycoon":
             secondaryElem.setDbPort(secondaryElem.getDbPort() + 100)
         self.secondaryDatabaseString = secondaryElem.getConfString()
-            
+
         #The config node
         self.configNode = ET.parse(self.experimentWrapper.getConfigPath()).getroot()
         self.configWrapper = ConfigWrapper(self.configNode)
-        #Now deal with the constants that ned to be added here
+        #Now deal with the constants that need to be added here
         self.configWrapper.substituteAllPredefinedConstantsWithLiterals()
         self.configWrapper.setBuildHal(options.buildHal)
         self.configWrapper.setBuildFasta(options.buildFasta)
-        
+        self.configWrapper.setBuildReference(options.buildReference)
+
         #Now build the remaining options from the arguments
         if options.buildAvgs:
             findRequiredNode(self.configNode, "avg").attrib["buildAvgs"] = "1"
-        if options.buildReference:
-            findRequiredNode(self.configNode, "reference").attrib["buildReference"] = "1"
-            
+        else:
+            findRequiredNode(self.configNode, "avg").attrib["buildAvgs"] = "0"
 
 def addCactusWorkflowOptions(parser):
     parser.add_option("--experiment", dest="experimentFile", 
@@ -1078,10 +1088,15 @@ class RunCactusPreprocessorThenCactusSetup(Target):
     def run(self):
         cactusWorkflowArguments=CactusWorkflowArguments(self.options)
         eW = ExperimentWrapper(cactusWorkflowArguments.experimentNode)
-        outputSequenceFiles = CactusPreprocessor.getOutputSequenceFiles(eW.getSequences(), eW.getOutputSequenceDir())
-        self.addChildTarget(CactusPreprocessor(eW.getSequences(), outputSequenceFiles, cactusWorkflowArguments.configNode))
+        genomes = eW.getGenomesWithSequence()
+        sequences = []
+        for genome in genomes:
+            sequences.append(eW.getSequencePath(genome))
+        newSequences = CactusPreprocessor.getOutputSequenceFiles(sequences, eW.getOutputSequenceDir())
         #Now make the setup, replacing the input sequences with the preprocessed sequences
-        eW.setSequences(outputSequenceFiles)
+        for genome, newSequence in zip(genomes, newSequences):
+            eW.setSequencePath(genome, newSequence)
+        self.addChildTarget(CactusPreprocessor(sequences, newSequences, cactusWorkflowArguments.configNode))
         self.logToMaster("doTrimStrategy() = %s, outgroupEventNames = %s" % (cactusWorkflowArguments.configWrapper.getDoTrimStrategy(), cactusWorkflowArguments.outgroupEventNames))
         if cactusWorkflowArguments.configWrapper.getDoTrimStrategy() and cactusWorkflowArguments.outgroupEventNames is not None:
             # Use the trimming strategy to blast ingroups vs outgroups.
