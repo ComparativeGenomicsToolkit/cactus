@@ -285,7 +285,6 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
             os.makedirs(exp.getDbDir())
         if not os.path.exists(path):
             os.makedirs(path)
-        exp.writeXML(expPath)
         config = ConfigWrapper(copy.deepcopy(configTemplate.xmlRoot))
         if exp.getSequencePath(name):
             exp.setRootReconstructed(False)
@@ -293,6 +292,7 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
         else:
             exp.setRootReconstructed(True)
             config.setReferenceName(name)
+        exp.writeXML(expPath)
         config.writeXML(exp.getConfigPath())
 
 def checkInputSequencePaths(exp):
