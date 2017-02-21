@@ -763,7 +763,7 @@ class CactusBarEndAlignerWrapper(CactusRecursionJob):
     """
     def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge, endsToAlign, cactusSequencesID, cactusWorkflowArguments):
         self.cactusWorkflowArguments = cactusWorkflowArguments
-        CactusRecursionJob.__init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge, cactusSequencesID=cactusSequencesID, cactusWorkflowArguments=self.cactusWorkflowArguments, preemptable=False)
+        CactusRecursionJob.__init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge, cactusSequencesID=cactusSequencesID, cactusWorkflowArguments=self.cactusWorkflowArguments, preemptable=True)
         self.endsToAlign = endsToAlign
 
     def run(self, fileStore):
