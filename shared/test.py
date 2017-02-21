@@ -97,7 +97,7 @@ def initialiseGlobalBatchSystem(batchSystem):
     _BATCH_SYSTEM = batchSystem
     
 def getCactusWorkflowExperimentForTest(sequences, newickTreeString, outputDir, configFile=None,
-                                       constraints=None, progressive=False):
+                                       constraints=None, progressive=False, reconstruct=True):
     """Wrapper to constructor of CactusWorkflowExperiment which additionally incorporates
     any globally set database conf.
     """
@@ -113,7 +113,8 @@ def getCactusWorkflowExperimentForTest(sequences, newickTreeString, outputDir, c
     for genome, sequence in zip(genomes, sequences):
         exp.setSequencePath(genome, sequence)
     exp.setRootGenome("reference")
-    exp.setRootReconstructed(True)
+    if reconstruct:
+        exp.setRootReconstructed(True)
     return exp
 
 ###############
@@ -326,15 +327,16 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     logger.info("Running cactus workflow test script")
     logger.info("Got the following sequence dirs/files: %s" % " ".join(sequences))
     logger.info("Got the following tree %s" % newickTreeString)
-    
+
     #Setup the output dir
     assert outputDir != None
     logger.info("Using the output dir: %s" % outputDir)
     
     #Setup the flower disk.
-    experiment = getCactusWorkflowExperimentForTest(sequences, newickTreeString, 
+    experiment = getCactusWorkflowExperimentForTest(sequences, newickTreeString,
                                                     outputDir=outputDir,
                                                     configFile=configFile, constraints=constraints,
+                                                    reconstruct=buildReference,
                                                     progressive=progressive)
     experiment.cleanupDb()
     experimentFile = os.path.join(outputDir, "experiment.xml")
@@ -347,13 +349,12 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     
     #Run the actual workflow
     cactusWorkflowFunction(experimentFile, jobTreeDir, 
-                      batchSystem=batchSystem, buildAvgs=buildAvgs, 
-                      buildReference=buildReference,
-                      buildHal=buildHal,
-                      buildFasta=buildFasta,
-                      jobTreeStats=buildJobTreeStats)
-    logger.info("Ran the the workflow")
-    
+                           batchSystem=batchSystem, buildAvgs=buildAvgs,
+                           buildHal=buildHal,
+                           buildFasta=buildFasta,
+                           jobTreeStats=buildJobTreeStats)
+    logger.info("Ran the workflow")
+
     #Check if the jobtree completed sucessively.
     runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
     logger.info("Checked the job tree dir")

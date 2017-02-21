@@ -288,10 +288,8 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
         config = ConfigWrapper(copy.deepcopy(configTemplate.xmlRoot))
         if exp.getSequencePath(name):
             exp.setRootReconstructed(False)
-            config.setBuildReference(False)
         else:
             exp.setRootReconstructed(True)
-            config.setReferenceName(name)
         exp.writeXML(expPath)
         config.writeXML(exp.getConfigPath())
 

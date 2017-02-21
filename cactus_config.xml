@@ -103,7 +103,6 @@
 		<CactusAVGWrapper/>
 	</avg>
 	<reference 
-		buildReference="0"
 		matchingAlgorithm="blossom5" 
 		reference="reference" 
 		useSimulatedAnnealing="1" 

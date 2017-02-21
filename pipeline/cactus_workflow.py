@@ -814,11 +814,10 @@ class CactusReferencePhase(CactusPhasesTarget):
         self.phaseNode.attrib["experimentPath"] = self.cactusWorkflowArguments.experimentFile
         self.phaseNode.attrib["secondaryDatabaseString"] = self.cactusWorkflowArguments.secondaryDatabaseString
         exp = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
-        doRecursion = self.getOptionalPhaseAttrib("buildReference", bool, False) and exp.isRootReconstructed()
         self.runPhase(CactusReferenceRecursion, CactusSetReferenceCoordinatesDownPhase, "reference", 
-                      doRecursion=doRecursion,
+                      doRecursion=exp.isRootReconstructed(),
                       launchSecondaryKtForRecursiveTarget = True)
-        
+
 class CactusReferenceRecursion(CactusRecursionTarget):
     """This target creates the wrappers to run the reference problem algorithm, the follow on target then recurses down.
     """
@@ -875,8 +874,9 @@ class CactusSetReferenceCoordinatesDownPhase(CactusPhasesTarget):
     """
     def run(self):
         self.cleanupSecondaryDatabase()
-        self.runPhase(CactusSetReferenceCoordinatesDownRecursion, CactusExtractReferencePhase, "check", doRecursion=self.getOptionalPhaseAttrib("buildReference", bool, False))
-        
+        exp = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
+        self.runPhase(CactusSetReferenceCoordinatesDownRecursion, CactusExtractReferencePhase, "check", doRecursion=exp.isRootReconstructed())
+
 class CactusSetReferenceCoordinatesDownRecursion(CactusRecursionTarget):
     """Does the down pass for filling Fills in the coordinates, once a reference is added.
     """        
@@ -901,8 +901,8 @@ class CactusSetReferenceCoordinatesDownWrapper(CactusRecursionTarget):
 
 class CactusExtractReferencePhase(CactusPhasesTarget):
     def run(self):
-        if hasattr(self.cactusWorkflowArguments, 'buildReference') and\
-               self.cactusWorkflowArguments.buildReference:
+        exp = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
+        if exp.isRootReconstructed():
             self.logToMaster("Starting Reference Extract Phase")
             experiment = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
             if experiment.getReferencePath() is not None:
@@ -1052,7 +1052,6 @@ class CactusWorkflowArguments:
         self.configWrapper.substituteAllPredefinedConstantsWithLiterals()
         self.configWrapper.setBuildHal(options.buildHal)
         self.configWrapper.setBuildFasta(options.buildFasta)
-        self.configWrapper.setBuildReference(options.buildReference)
 
         #Now build the remaining options from the arguments
         if options.buildAvgs:
@@ -1066,9 +1065,6 @@ def addCactusWorkflowOptions(parser):
     
     parser.add_option("--buildAvgs", dest="buildAvgs", action="store_true",
                       help="Build trees", default=False)
-    
-    parser.add_option("--buildReference", dest="buildReference", action="store_true",
-                      help="Creates a reference ordering for the flowers", default=False)
     
     parser.add_option("--buildHal", dest="buildHal", action="store_true",
                       help="Build a hal file", default=False)

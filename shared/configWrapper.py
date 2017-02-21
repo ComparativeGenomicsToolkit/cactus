@@ -46,17 +46,6 @@ class ConfigWrapper:
         xmlFile.write(xmlString)
         xmlFile.close()
 
-    def setBuildReference(self, buildReference):
-        """
-        Set whether the root should be reconstructed.
-        """
-        refElem = self.xmlRoot.find("reference")
-        refElem.attrib["buildReference"] = "1" if buildReference else "0"
-
-    def setReferenceName(self, name):
-        refElem = self.xmlRoot.find("reference")
-        refElem.attrib["reference"] = name
-
     def getMCElem(self):
         return self.xmlRoot.find("multi_cactus")
 

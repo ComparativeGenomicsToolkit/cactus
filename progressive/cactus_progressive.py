@@ -117,10 +117,6 @@ class ProgressiveUp(Target):
                 if int(self.options.maxCpus) < maxParallel * 3:
                     raise RuntimeError("At least %d concurrent cpus are required to handle up to %d events using kyoto tycoon. Either increase the number of cpus using the --maxCpus option or decrease the number of parallel jobs (currently %d) by adjusting max_parallel_subtrees in the config file" % (maxParallel * 3, maxParallel, configWrapper.getMaxParallelSubtrees()))
 
-        # take union of command line options and config options for hal and reference
-        if self.options.buildReference == False:
-            refNode = findRequiredNode(configXml, "reference")
-            self.options.buildReference = getOptionalAttrib(refNode, "buildReference", bool, False)
         halNode = findRequiredNode(configXml, "hal")
         if self.options.buildHal == False:
             self.options.buildHal = getOptionalAttrib(halNode, "buildHal", bool, False)
@@ -130,7 +126,6 @@ class ProgressiveUp(Target):
         # get parameters that cactus_workflow stuff wants
         workFlowArgs = CactusWorkflowArguments(self.options)
         # copy over the options so we don't trail them around
-        workFlowArgs.buildReference = self.options.buildReference
         workFlowArgs.buildHal = self.options.buildHal
         workFlowArgs.buildFasta = self.options.buildFasta
         workFlowArgs.overwrite = self.options.overwrite
@@ -140,7 +135,7 @@ class ProgressiveUp(Target):
 
         donePath = os.path.join(os.path.dirname(workFlowArgs.experimentFile), "DONE")
         doneDone = os.path.isfile(donePath)
-        refDone = not workFlowArgs.buildReference or os.path.isfile(experiment.getReferencePath())
+        refDone = os.path.isfile(experiment.getReferencePath())
         halDone = not workFlowArgs.buildHal or (os.path.isfile(experiment.getHALFastaPath()) and
                                                 os.path.isfile(experiment.getHALPath()))
                                                                

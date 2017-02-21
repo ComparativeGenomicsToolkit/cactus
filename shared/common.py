@@ -454,7 +454,7 @@ def _fn(jobTreeDir,
       batchSystem="single_machine", 
       rescueJobFrequency=None,
       skipAlignments=False,
-      buildAvgs=False, buildReference=False,
+      buildAvgs=False,
       buildHal=False,
       buildFasta=False,
       jobTreeStats=False,
@@ -466,7 +466,6 @@ def _fn(jobTreeDir,
     logLevel = getLogLevelString2(logLevel)
     skipAlignments = nameValue("skipAlignments", skipAlignments, bool)
     buildAvgs = nameValue("buildAvgs", buildAvgs, bool)
-    buildReference = nameValue("buildReference", buildReference, bool)
     buildHal = nameValue("buildHal", buildHal, bool)
     buildFasta = nameValue("buildFasta", buildFasta, bool)
     #Jobtree args
@@ -478,8 +477,8 @@ def _fn(jobTreeDir,
     maxCpus = nameValue("maxCpus", maxCpus, int)
     defaultMemory= nameValue("defaultMemory", defaultMemory, int)
     logFile = nameValue("logFile", logFile, str)
-    return "%s %s %s --jobTree %s --logLevel %s %s %s %s %s %s %s %s %s %s %s %s" % (skipAlignments, buildAvgs, 
-             buildReference, jobTreeDir, logLevel, buildHal, buildFasta, batchSystem, retryCount, rescueJobFrequency, jobTreeStats, maxThreads, maxCpus, logFile, defaultMemory, extraJobTreeArgumentsString)
+    return "%s %s --jobTree %s --logLevel %s %s %s %s %s %s %s %s %s %s %s %s" % (skipAlignments, buildAvgs, 
+             jobTreeDir, logLevel, buildHal, buildFasta, batchSystem, retryCount, rescueJobFrequency, jobTreeStats, maxThreads, maxCpus, logFile, defaultMemory, extraJobTreeArgumentsString)
      
 def runCactusWorkflow(experimentFile,
                       jobTreeDir, 
@@ -487,7 +486,7 @@ def runCactusWorkflow(experimentFile,
                       batchSystem="single_machine",
                       rescueJobFrequency=None,
                       skipAlignments=False,
-                      buildAvgs=False, buildReference=False,
+                      buildAvgs=False,
                       buildHal=False,
                       buildFasta=False,
                       jobTreeStats=False,
@@ -498,7 +497,7 @@ def runCactusWorkflow(experimentFile,
                       extraJobTreeArgumentsString=""):
     command = ("cactus_workflow.py --experiment %s" % experimentFile) + " " + _fn(jobTreeDir, 
                       logLevel, retryCount, batchSystem, rescueJobFrequency, skipAlignments,
-                      buildAvgs, buildReference, buildHal, buildFasta, jobTreeStats, maxThreads, maxCpus, defaultMemory, logFile, extraJobTreeArgumentsString=extraJobTreeArgumentsString)
+                      buildAvgs, buildHal, buildFasta, jobTreeStats, maxThreads, maxCpus, defaultMemory, logFile, extraJobTreeArgumentsString=extraJobTreeArgumentsString)
     system(command)
     logger.info("Ran the cactus workflow okay")
     
