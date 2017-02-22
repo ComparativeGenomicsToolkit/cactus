@@ -151,7 +151,6 @@ class TestCase(unittest.TestCase):
 
     def progressiveWithSubtreeRootFunction(self, experimentFile, jobTreeDir,
                           batchSystem, buildAvgs,
-                          buildReference,
                           buildHal,
                           buildFasta,
                           jobTreeStats):
@@ -175,14 +174,12 @@ class TestCase(unittest.TestCase):
 
         self.progressiveFunction(experimentFile, jobTreeDir,
                                  batchSystem, buildAvgs,
-                                 buildReference,
                                  buildHal,
                                  buildFasta,
                                  jobTreeStats, subtreeRoot)
 
     def progressiveFunction(self, experimentFile, jobTreeDir,
                             batchSystem, buildAvgs,
-                            buildReference,
                             buildHal,
                             buildFasta,
                             jobTreeStats,

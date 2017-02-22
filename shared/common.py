@@ -530,7 +530,7 @@ def runCactusProgressive(inputDir,
                       profileFile=None):
     command = ("cactus_progressive.py %s" % inputDir) + " " + _fn(jobTreeDir, 
                       logLevel, retryCount, batchSystem, rescueJobFrequency, skipAlignments,
-                      buildAvgs, None,
+                      buildAvgs,
                       buildHal,
                       buildFasta,
                       jobTreeStats, maxThreads, maxCpus, defaultMemory, logFile, extraJobTreeArgumentsString=extraJobTreeArgumentsString) + \
