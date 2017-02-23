@@ -98,7 +98,6 @@ class TestCase(unittest.TestCase):
         rootSeq = sequences.pop()
         # Create a star tree
         tree = '(%s)root;' % ",".join([str(x) + ":1.0" for x in xrange(len(sequences))])
-        print "chose tree %s" % tree
         outputDir = getTempDirectory()
         experiment = getCactusWorkflowExperimentForTest(sequences, tree,
                                                         outputDir,
@@ -203,7 +202,6 @@ class TestCase(unittest.TestCase):
         tempExperimentDir = os.path.join(tempDir, "exp")
         runCactusCreateMultiCactusProject(experimentFile,
                                           tempExperimentDir,
-                                          fixNames=False,
                                           root=subtreeRoot)
         logger.info("Put the temporary files in %s" % tempExperimentDir)
 

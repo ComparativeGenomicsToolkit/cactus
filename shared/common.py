@@ -502,14 +502,13 @@ def runCactusWorkflow(experimentFile,
     logger.info("Ran the cactus workflow okay")
     
 def runCactusCreateMultiCactusProject(experimentFile, outputDir, 
-                                      logLevel=None, fixNames=True,
-                                      root=None):
+                                      logLevel=None, root=None):
     logLevel = getLogLevelString2(logLevel)
     root = nameValue("root", root, str, quotes=True)
-    command = "cactus_createMultiCactusProject.py %s %s --fixNames=%s %s" % (experimentFile, outputDir, str(fixNames), root)
+    command = "cactus_createMultiCactusProject.py %s %s %s" % (experimentFile, outputDir, root)
     system(command)
     logger.info("Ran the cactus create multi project")
-    
+
 def runCactusProgressive(inputDir,
                       jobTreeDir, 
                       logLevel=None, retryCount=0, 

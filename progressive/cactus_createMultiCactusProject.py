@@ -180,43 +180,6 @@ def specifyAlignmentRoot(mcProj, expTemplate, alignmentRootId):
     seqsInTree = set(expTemplate.getSequencePath(genome) for genome in genomesInTree)
     mcProj.inputSequences = [seq for seq in mcProj.inputSequences if seq in seqsInTree]
 
-# go through the tree (located in the template experimet)
-# and make sure event names are unique up unitil first dot
-def cleanEventTree(experiment):
-    tree = MultiCactusTree(experiment.getTree())
-    tree.nameUnlabeledInternalNodes()
-    for node in tree.breadthFirstTraversal():
-        if tree.hasName(node):
-            name = tree.getName(node)
-            if '.' in name:
-                newName = name.replace('.', '_')
-                sys.stderr.write('WARNING renaming event %s to %s\n' %(name, newName))
-                tree.setName(node, newName)
-                name = newName
-            parent = tree.getParent(node)
-            if parent is not None:
-                weight = tree.getWeight(parent, node)
-                if weight is None:
-                    raise RuntimeError('Missing branch length in species_tree tree')
-    redoPrefix = True
-    newSuffix = 0
-    while redoPrefix is True:
-        redoPrefix = False
-        for node1 in tree.breadthFirstTraversal():
-            name1 = tree.getName(node1)
-            for node2 in tree.breadthFirstTraversal():
-                name2 = tree.getName(node2)
-                if node1 != node2 and name1 == name2:
-                    newName = "%s%i" % (name2, newSuffix)
-                    newSuffix += 1
-                    tree.setName(node2, newName)
-                    sys.stderr.write('WARNING renaming event %s to %s\n' % (
-                        name2, newName))
-                    redoPrefix = True
-
-    experiment.xmlRoot.attrib["species_tree"] = NXNewick().writeString(tree)
-    experiment.seqMap = experiment.buildSequenceMap()
-
 # Make the subdirs for each subproblem:  name/ and name/name_DB
 # and write the experiment files
 # and copy over a config with updated reference field
@@ -307,8 +270,8 @@ def main():
     usage = "usage: %prog [options] <experiment> <output project path>"
     description = "Setup a multi-cactus project using an experiment xml as template"
     parser = OptionParser(usage=usage, description=description)
-    parser.add_option("--fixNames", dest="fixNames",  default = "True", 
-                      help="try to make sequence and event names MAF-compliant [default=true]")
+    parser.add_option("--fixNames",
+                      help="This function is now a no-op")
     parser.add_option("--outgroupNames", dest="outgroupNames",  default = None, 
                       help="comma-separated names of high quality assemblies to use as outgroups [default=everything]")
     parser.add_option("--root", dest="root", type=str,
@@ -327,7 +290,6 @@ def main():
     options.expFile = args[0]    
     options.path = os.path.abspath(args[1])
     options.name = os.path.basename(options.path)
-    options.fixNames = not options.fixNames.lower() == "false"
 
     if (os.path.isdir(options.path) and not options.overwrite) or os.path.isfile(options.path):
         raise RuntimeError("Output project path %s exists\n" % options.path)
@@ -335,8 +297,6 @@ def main():
     expTemplate = ExperimentWrapper(ET.parse(options.expFile).getroot())
     configPath = expTemplate.getConfigPath()
     confTemplate = ConfigWrapper(ET.parse(configPath).getroot())
-    if options.fixNames:
-        cleanEventTree(expTemplate)
     checkInputSequencePaths(expTemplate)
     tree = expTemplate.getTree()
 
