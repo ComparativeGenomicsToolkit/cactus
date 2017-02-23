@@ -15,7 +15,7 @@ import shutil
 import random
 
 from argparse import ArgumentParser
-from sonLib.bioio import system
+from sonLib.bioio import system, catFiles
 
 from toil.job import Job
 from toil.common import Toil
@@ -46,24 +46,27 @@ class RepeatMaskOptions:
 
 
 class AlignFastaFragments(Job):
-    def __init__(self, repeatMaskOptions, fragmentsID, targetID):
-        if hasattr(targetID, "size"):
-            memory = 2*(fragmentsID.size + targetID.size)
-            disk = 2*(fragmentsID.size + targetID.size)
+    def __init__(self, repeatMaskOptions, fragmentsID, targetIDs):
+        if hasattr(fragmentsID, "size"):
+            targetsSize = sum(targetID.size for targetID in targetIDs)
+            memory = 2*(fragmentsID.size + targetsSize)
+            disk = 2*(fragmentsID.size + targetsSize)
         else:
             memory = None
             disk = None
         Job.__init__(self, memory=memory, disk=disk, preemptable=True)
         self.repeatMaskOptions = repeatMaskOptions
         self.fragmentsID = fragmentsID
-        self.targetID = targetID
+        self.targetIDs = targetIDs
     def run(self, fileStore):
         # Align each fragment against a chunk of the input sequence.  Each time a fragment aligns to a base
         # in the sequence, that base's match count is incremented.
         # the plus three for the period parameter is a fudge to ensure sufficient alignments are found
 
         fragments = fileStore.readGlobalFile(self.fragmentsID)
-        target = fileStore.readGlobalFile(self.targetID)
+        targetFiles = [fileStore.readGlobalFile(fileID) for fileID in self.targetIDs]
+        target = fileStore.getLocalTempFile()
+        catFiles(targetFiles, target)
         lastZSequenceHandling  = '%s[multiple][nameparse=darkspace] %s[nameparse=darkspace] ' % (os.path.basename(target), os.path.basename(fragments))
         if self.repeatMaskOptions.unmaskInput:
             lastZSequenceHandling  = '%s[multiple,unmask][nameparse=darkspace] %s[unmask][nameparse=darkspace] ' % (os.path.basename(target), os.path.basename(fragments))
@@ -132,7 +135,6 @@ class LastzRepeatMaskJob(Job):
         assert len(self.targetIDs) >= 1
         assert self.repeatMaskOptions.fragment > 1
         queryFile = fileStore.readGlobalFile(self.queryID)
-        
 
         # chop up input fasta file into into fragments of specified size.  fragments overlap by 
         # half their length.
@@ -146,11 +148,10 @@ class LastzRepeatMaskJob(Job):
 
         alignmentJobs = []
         alignmentIDs = []
-        for targetID in self.targetIDs:
-            alignmentJob = self.addChild(AlignFastaFragments(repeatMaskOptions=self.repeatMaskOptions, 
-                    fragmentsID=fragmentsID, targetID=targetID))
-            alignmentIDs.append(alignmentJob.rv())
-            alignmentJobs.append(alignmentJob)
+        alignmentJob = self.addChild(AlignFastaFragments(repeatMaskOptions=self.repeatMaskOptions, 
+                    fragmentsID=fragmentsID, targetIDs=self.targetIDs))
+        alignmentIDs.append(alignmentJob.rv())
+        alignmentJobs.append(alignmentJob)
 
         mergeAlignmentsJob = self.addChild(CollateAlignments(alignmentIDs=alignmentIDs))
         for alignmentJob in alignmentJobs:
