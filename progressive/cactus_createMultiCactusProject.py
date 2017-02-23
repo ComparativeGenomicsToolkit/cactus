@@ -29,7 +29,7 @@ def createMCProject(tree, sequences, experiment, config, options):
 
     TODO: This should really all be in the constructor for MultiCactusProject.
     """
-    mcTree = MultiCactusTree(tree, config.getSubtreeSize())
+    mcTree = MultiCactusTree(tree)
     mcTree.nameUnlabeledInternalNodes(config.getDefaultInternalNodePrefix())
     mcTree.computeSubtreeRoots()
     mcProj = MultiCactusProject()
@@ -124,7 +124,7 @@ def specifyAlignmentRoot(mcProj, expTemplate, alignmentRootId):
     # nothing to do
     if alignmentRootId == mcProj.mcTree.getRootId():
         return
-    
+
     # dig out every outgroup
     outGroupNames = set()
     if mcProj.outgroup is not None:

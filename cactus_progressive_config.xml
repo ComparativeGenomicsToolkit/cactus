@@ -240,7 +240,6 @@
                         max_num_outgroups="3"
 		/>
 	 	<decomposition 
-	 		subtree_size="2" 
 	 		self_alignment="false" 
 	 		default_internal_node_prefix="Anc"
 			max_parallel_subtrees="5"
