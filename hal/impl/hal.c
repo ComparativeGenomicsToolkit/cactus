@@ -110,7 +110,9 @@ static char *writeTerminalAdjacency(Cap *cap) {
 static char *writeSegment(Segment *segment) {
     Block *block = segment_getBlock(segment);
     Segment *referenceSegment = block_getSegmentForEvent(block, globalReferenceEventName);
-    assert(referenceSegment != NULL);
+    if (referenceSegment == NULL) {
+        return stString_copy("");
+    }
     Sequence *sequence = segment_getSequence(segment);
     assert(sequence != NULL);
     if (referenceSegment != segment) { //Is a top segment
