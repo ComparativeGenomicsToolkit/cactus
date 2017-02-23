@@ -450,8 +450,10 @@ def main():
 
     if options.latest:
         os.environ["CACTUS_USE_LATEST"] = "1"
-    
+
     setLoggingFromOptions(options)
+
+    options.cactusDir = os.path.abspath(options.cactusDir)
     
     #Create the progressive cactus project 
     projWrapper = ProjectWrapper(options)
