@@ -188,7 +188,6 @@ class RunCactusPreprocessorThenProgressiveDown(Target):
         configNode = ET.parse(project.getConfigPath()).getroot()
         ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals() #This is necessary..
         #Create the preprocessor
-        self.logToMaster("Running preprocessor on paths %s" % project.getInputSequencePaths())
         self.addChildTarget(CactusPreprocessor(project.getInputSequencePaths(), 
                                                CactusPreprocessor.getOutputSequenceFiles(project.getInputSequencePaths(), project.getOutputSequenceDir()),
                                                configNode))

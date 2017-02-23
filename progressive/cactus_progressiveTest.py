@@ -32,6 +32,7 @@ from cactus.shared.test import getCactusInputs_chromosomeX
 from cactus.shared.test import runWorkflow_multipleExamples
 from cactus.shared.test import getBatchSystem
 from cactus.shared.test import silentOnSuccess
+from cactus.shared.test import getCactusWorkflowExperimentForTest
 
 from cactus.shared.experimentWrapper import ExperimentWrapper
 
@@ -93,13 +94,28 @@ class TestCase(unittest.TestCase):
     @silentOnSuccess
     def testCactus_Random_fixedAncestor(self):
         """Tests that cactus doesn't crash when aligning to a fixed ancestral sequence."""
-        runWorkflow_multipleExamples(getCactusInputs_random,
-                                     testNumber=1,
-                                     testRestrictions=(TestStatus.TEST_SHORT,),
-                                     batchSystem=self.batchSystem, buildJobTreeStats=True,
-                                     progressive=True,
-                                     configFile=self.configFile,
-                                     cactusWorkflowFunction=self.progressiveFunction)
+        sequences, _ = getCactusInputs_random(treeLeafNumber=5)
+        rootSeq = sequences.pop()
+        # Create a star tree
+        tree = '(%s)root;' % ",".join([str(x) + ":1.0" for x in xrange(len(sequences))])
+        print "chose tree %s" % tree
+        outputDir = getTempDirectory()
+        experiment = getCactusWorkflowExperimentForTest(sequences, tree,
+                                                        outputDir,
+                                                        progressive=True)
+        experiment.setSequencePath("root", rootSeq)
+        experiment.setRootReconstructed(False)
+        experiment.cleanupDb()
+        experimentFile = os.path.join(outputDir, "experiment.xml")
+        experiment.writeXML(experimentFile)
+
+        jobTreeDir = os.path.join(outputDir, "jobTree")
+
+        self.progressiveFunction(experimentFile, jobTreeDir, 'singleMachine',
+                                 False, True, True, False)
+
+        runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
+        system("rm -rf %s %s" % (jobTreeDir, experimentFile))
 
     @silentOnSuccess
     def testCactus_ensureFunkyHeaderNamesArentMangled(self):
@@ -170,7 +186,6 @@ class TestCase(unittest.TestCase):
 
         # Choose a random valid subtree root (excluding the species tree root)
         subtreeRoot = random.choice(validNodes)
-        print "Chose subtree root %s to test from species tree %s" % (subtreeRoot, NXNewick().writeString(tree))
 
         self.progressiveFunction(experimentFile, jobTreeDir,
                                  batchSystem, buildAvgs,

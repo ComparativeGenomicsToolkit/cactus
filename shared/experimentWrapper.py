@@ -294,9 +294,11 @@ class ExperimentWrapper(DbElemWrapper):
         if reconstructed:
             rootElem.attrib['reconstruction'] = '1'
         else:
+            refElem = self.xmlRoot.find("reference")
             if refElem is not None:
                 del refElem
-            del rootElem.attrib['reconstruction']
+            if 'reconstruction' in rootElem.attrib:
+                del rootElem.attrib['reconstruction']
 
     def getRootGenome(self):
         """

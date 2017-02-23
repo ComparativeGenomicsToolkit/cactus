@@ -178,10 +178,7 @@ def specifyAlignmentRoot(mcProj, expTemplate, alignmentRootId):
     # reset input sequences to only contain genomes in tree
     genomesInTree = [mcProj.mcTree.getName(node) for node in mcProj.mcTree.postOrderTraversal() if mcProj.mcTree.hasName(node)]
     seqsInTree = set(expTemplate.getSequencePath(genome) for genome in genomesInTree)
-    print "Seqs in tree: %s" % repr(seqsInTree)
-    print "input seqs before filtering: %s" % repr(mcProj.inputSequences)
     mcProj.inputSequences = [seq for seq in mcProj.inputSequences if seq in seqsInTree]
-    print "input seqs after filtering: %s" % repr(mcProj.inputSequences)
 
 # go through the tree (located in the template experimet)
 # and make sure event names are unique up unitil first dot
@@ -286,7 +283,7 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
         if not os.path.exists(path):
             os.makedirs(path)
         config = ConfigWrapper(copy.deepcopy(configTemplate.xmlRoot))
-        if exp.getSequencePath(name):
+        if expTemplate.getSequencePath(name):
             exp.setRootReconstructed(False)
         else:
             exp.setRootReconstructed(True)
