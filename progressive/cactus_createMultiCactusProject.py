@@ -202,7 +202,8 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
 
         subtree = mcProj.entireTree.extractSpanningTree(children + outgroups)
         exp = ExperimentWrapper.createExperimentWrapper(NXNewick().writeString(subtree),
-                                                        expTemplate.getOutputSequenceDir())
+                                                        expTemplate.getOutputSequenceDir(),
+                                                        databaseConf=expTemplate.confElem)
 
         exp.setRootGenome(name)
 
