@@ -139,15 +139,18 @@ def runCactusSplitFlowersBySecondaryGrouping(flowerNames):
 #############################################
 #############################################  
 
-def runCactusSetup(cactusDiskDatabaseString, sequences, 
+def runCactusSetup(cactusDiskDatabaseString, sequenceMap,
                    newickTreeString, logLevel=None, outgroupEvents=None,
                    makeEventHeadersAlphaNumeric=None):
     logLevel = getLogLevelString2(logLevel)
     outgroupEvents = nameValue("outgroupEvents", outgroupEvents, str, quotes=True)
     makeEventHeadersAlphaNumeric=nameValue("makeEventHeadersAlphaNumeric", makeEventHeadersAlphaNumeric, bool)
+    # Sequence assignment string is "eventName faPath" replicated for
+    # each event
+    sequenceAssignment = " ".join([" ".join(i) for i in sequenceMap.items()])
     masterMessages = popenCatch("cactus_setup %s --speciesTree '%s' --cactusDisk '%s' \
 --logLevel %s %s %s" \
-           % (" ".join(sequences), newickTreeString,
+           % (sequenceAssignment, newickTreeString,
               cactusDiskDatabaseString, logLevel, outgroupEvents, makeEventHeadersAlphaNumeric))
     logger.info("Ran cactus setup okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]
