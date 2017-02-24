@@ -34,7 +34,8 @@ from cactus.shared.common import findRequiredNode
 from cactus.shared.common import makeURL
 from cactus.shared.common import catFiles
 from cactus.shared.common import cactus_call
-  
+from cactus.shared.common import RoundedJob
+
 from toil.job import Job
 from toil.common import Toil
 
@@ -54,9 +55,9 @@ from cactus.progressive.seqFile import SeqFile
 
 from sonLib.nxnewick import NXNewick
 
-class ProgressiveDown(Job):
+class ProgressiveDown(RoundedJob):
     def __init__(self, options, project, event, schedule, memory=None, cores=None):
-        Job.__init__(self, memory=memory, cores=cores, preemptable=True)
+        RoundedJob.__init__(self, memory=memory, cores=cores, preemptable=True)
         self.options = options
         self.project = project
         self.event = event
@@ -80,9 +81,9 @@ class ProgressiveDown(Job):
         
         return self.addFollowOn(ProgressiveNext(self.options, self.project, self.event,
                                                               self.schedule, depProjects, memory=self.configWrapper.getDefaultMemory())).rv()
-class ProgressiveNext(Job):
+class ProgressiveNext(RoundedJob):
     def __init__(self, options, project, event, schedule, depProjects, memory=None, cores=None):
-        Job.__init__(self, memory=memory, cores=cores, preemptable=True)
+        RoundedJob.__init__(self, memory=memory, cores=cores, preemptable=True)
         self.options = options
         self.project = project
         self.event = event
@@ -111,9 +112,9 @@ class ProgressiveNext(Job):
             eventExpWrapper = self.addChild(ProgressiveUp(self.options, self.project, self.event, memory=self.configWrapper.getDefaultMemory())).rv()
         return self.addFollowOn(ProgressiveOut(self.options, self.project, self.event, eventExpWrapper, self.schedule, memory=self.configWrapper.getDefaultMemory())).rv()
 
-class ProgressiveOut(Job):
+class ProgressiveOut(RoundedJob):
     def __init__(self, options, project, event, eventExpWrapper, schedule, memory=None, cores=None):
-        Job.__init__(self, memory=memory, cores=cores, preemptable=True)
+        RoundedJob.__init__(self, memory=memory, cores=cores, preemptable=True)
         self.options = options
         self.project = project
         self.event = event
@@ -136,9 +137,9 @@ class ProgressiveOut(Job):
 
         return self.project
     
-class ProgressiveUp(Job):
+class ProgressiveUp(RoundedJob):
     def __init__(self, options, project, event, memory=None, cores=None):
-        Job.__init__(self, memory=memory, cores=cores, preemptable=True)
+        RoundedJob.__init__(self, memory=memory, cores=cores, preemptable=True)
         self.options = options
         self.project = project
         self.event = event
@@ -236,9 +237,9 @@ class ProgressiveUp(Job):
 
         return finalExpWrapper
 
-class RunCactusPreprocessorThenProgressiveDown(Job):
+class RunCactusPreprocessorThenProgressiveDown(RoundedJob):
     def __init__(self, options, project, memory=None, cores=None):
-        Job.__init__(self, memory=memory, cores=cores, preemptable=True)
+        RoundedJob.__init__(self, memory=memory, cores=cores, preemptable=True)
         self.options = options
         self.project = project
         
@@ -271,9 +272,9 @@ class RunCactusPreprocessorThenProgressiveDown(Job):
         return self.addFollowOn(RunCactusPreprocessorThenProgressiveDown2(options=self.options, project=self.project, event=self.options.event, schedule=schedule, memory=self.configWrapper.getDefaultMemory())).rv()
 
 
-class RunCactusPreprocessorThenProgressiveDown2(Job):
+class RunCactusPreprocessorThenProgressiveDown2(RoundedJob):
     def __init__(self, options, project, event, schedule, memory=None, cores=None):
-        Job.__init__(self, memory=memory, cores=cores, preemptable=True)
+        RoundedJob.__init__(self, memory=memory, cores=cores, preemptable=True)
         self.options = options
         self.project = project
         self.event = event

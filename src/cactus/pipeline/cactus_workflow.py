@@ -64,6 +64,7 @@ from cactus.shared.common import runCactusFastaGenerator
 from cactus.shared.common import findRequiredNode
 from cactus.shared.common import runConvertAlignmentsToInternalNames
 from cactus.shared.common import runStripUniqueIDs
+from cactus.shared.common import RoundedJob
 
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.blast.cactus_blast import BlastIngroupsAndOutgroups
@@ -84,8 +85,6 @@ from cactus.pipeline.ktserverToil import KtServerService
 ############################################################
 ############################################################
 
-
-
 def extractNode(node):
     """Make an XML node free of its parent subtree
     """
@@ -99,7 +98,7 @@ def getJobNode(phaseNode, jobClass):
     assert className.isalnum()
     return phaseNode.find(className)
 
-class CactusJob(Job):
+class CactusJob(RoundedJob):
     """Base job for all cactus workflow jobs.
     """
     def __init__(self, phaseNode, constantsNode, overlarge=False, cactusSequencesID=None,
@@ -126,7 +125,7 @@ class CactusJob(Job):
                                                default=getOptionalAttrib(self.constantsNode, "defaultMemory", int, default=sys.maxint))
             cores = self.getOptionalJobAttrib("cpu", typeFn=int,
                                               default=getOptionalAttrib(self.constantsNode, "defaultCpu", int, default=sys.maxint))
-        Job.__init__(self, memory=memory, cores=cores, disk=disk, checkpoint=checkpoint,
+        RoundedJob.__init__(self, memory=memory, cores=cores, disk=disk, checkpoint=checkpoint,
                      preemptable=preemptable)
 
     def getOptionalPhaseAttrib(self, attribName, typeFn=None, default=None):
@@ -1208,9 +1207,9 @@ def addCactusWorkflowOptions(parser):
     parser.add_argument("--test", dest="test", action="store_true",
                       help="Run doctest unit tests")
 
-class RunCactusPreprocessorThenCactusSetup(Job):
+class RunCactusPreprocessorThenCactusSetup(RoundedJob):
     def __init__(self, options, cactusWorkflowArguments):
-        Job.__init__(self)
+        RoundedJob.__init__(self)
         self.options = options
         self.cactusWorkflowArguments = cactusWorkflowArguments
         

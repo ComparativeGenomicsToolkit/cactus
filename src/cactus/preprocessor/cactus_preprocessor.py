@@ -22,17 +22,18 @@ from toil.lib.bioio import system
 from toil.lib.bioio import getLogLevelString
 
 from sonLib.bioio import catFiles, getTempFile, getTempDirectory, popenCatch, popenPush, newickTreeParser
-from toil.job import Job
 from toil.common import Toil
+from toil.job import Job
 from cactus.shared.common import cactus_call
-
+from cactus.shared.common import RoundedJob
 from cactus.shared.common import getOptionalAttrib, runCactusAnalyseAssembly
-from toil.lib.bioio import setLoggingFromOptions
-from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import nameValue
 from cactus.shared.common import runGetChunks
 from cactus.shared.common import makeURL
 from cactus.shared.common import RunAsFollowOn
+from cactus.shared.configWrapper import ConfigWrapper
+
+from toil.lib.bioio import setLoggingFromOptions
 
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import LastzRepeatMaskJob
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import RepeatMaskOptions
@@ -51,12 +52,12 @@ class PreprocessorOptions:
         self.lastzOptions = lastzOptions
         self.minPeriod = minPeriod
 
-class PreprocessChunk(Job):
+class PreprocessChunk(RoundedJob):
     """ locally preprocess a fasta chunk, output then copied back to input
     """
     def __init__(self, prepOptions, seqIDs, proportionSampled, inChunkID):
         disk = sum([seqID.size for seqID in seqIDs]) + 3*inChunkID.size
-        Job.__init__(self, memory=prepOptions.memory, cores=prepOptions.cpu, disk=disk,
+        RoundedJob.__init__(self, memory=prepOptions.memory, cores=prepOptions.cpu, disk=disk,
                      preemptable=True)
         self.prepOptions = prepOptions 
         self.seqIDs = seqIDs
@@ -88,9 +89,9 @@ class PreprocessChunk(Job):
         else:
             return outChunkID
 
-class MergeChunks(Job):
+class MergeChunks(RoundedJob):
     def __init__(self, prepOptions, chunkIDList):
-        Job.__init__(self, preemptable=True)
+        RoundedJob.__init__(self, preemptable=True)
         self.prepOptions = prepOptions
         self.chunkIDList = chunkIDList
 
@@ -98,12 +99,12 @@ class MergeChunks(Job):
 
         return self.addFollowOn(MergeChunks2(self.prepOptions, self.chunkIDList)).rv()
 
-class MergeChunks2(Job):
+class MergeChunks2(RoundedJob):
     """ merge a list of chunks into a fasta file
     """
     def __init__(self, prepOptions, chunkIDList):
         disk = 2*sum([chunkID.size for chunkID in chunkIDList])
-        Job.__init__(self, cores=prepOptions.cpu, memory=prepOptions.memory, disk=disk,
+        RoundedJob.__init__(self, cores=prepOptions.cpu, memory=prepOptions.memory, disk=disk,
                      preemptable=True)
         self.prepOptions = prepOptions 
         self.chunkIDList = chunkIDList
@@ -118,12 +119,12 @@ class MergeChunks2(Job):
                     parameters=["cactus_batch_mergeChunks"])
         return fileStore.writeGlobalFile(outSequencePath)
  
-class PreprocessSequence(Job):
+class PreprocessSequence(RoundedJob):
     """Cut a sequence into chunks, process, then merge
     """
     def __init__(self, prepOptions, inSequenceID, chunksToCompute=None):
         disk = 3*inSequenceID.size if hasattr(inSequenceID, "size") else None
-        Job.__init__(self, cores=prepOptions.cpu, memory=prepOptions.memory, disk=disk,
+        RoundedJob.__init__(self, cores=prepOptions.cpu, memory=prepOptions.memory, disk=disk,
                      preemptable=True)
         self.prepOptions = prepOptions 
         self.inSequenceID = inSequenceID
@@ -169,13 +170,13 @@ def unmaskFasta(inFasta, outFasta):
             else:
                 out.write(line)
 
-class BatchPreprocessor(Job):
+class BatchPreprocessor(RoundedJob):
     def __init__(self, prepXmlElems, inSequenceID, iteration = 0):
         self.prepXmlElems = prepXmlElems
         self.inSequenceID = inSequenceID
         prepNode = self.prepXmlElems[iteration]
         self.iteration = iteration
-        Job.__init__(self, preemptable=True)
+        RoundedJob.__init__(self, preemptable=True)
               
     def run(self, fileStore):
         # Parse the "preprocessor" config xml element     
@@ -213,10 +214,10 @@ class BatchPreprocessor(Job):
         else:
             return self.addFollowOn(RunAsFollowOn(BatchPreprocessorEnd, outSeqID)).rv()
 
-class BatchPreprocessorEnd(Job):
+class BatchPreprocessorEnd(RoundedJob):
     def __init__(self,  globalOutSequenceID):
         disk = 2*globalOutSequenceID.size
-        Job.__init__(self, disk=disk, preemptable=True)
+        RoundedJob.__init__(self, disk=disk, preemptable=True)
         self.globalOutSequenceID = globalOutSequenceID
         
     def run(self, fileStore):
@@ -233,11 +234,11 @@ class BatchPreprocessorEnd(Job):
 ############################################################
 ############################################################
 
-class CactusPreprocessor(Job):
+class CactusPreprocessor(RoundedJob):
     """Modifies the input genomes, doing things like masking/checking, etc.
     """
     def __init__(self, inputSequenceIDs, configNode):
-        Job.__init__(self, disk=10000000000, preemptable=True)
+        RoundedJob.__init__(self, disk=10000000000, preemptable=True)
         self.inputSequenceIDs = inputSequenceIDs
         self.configNode = configNode  
     
@@ -264,9 +265,9 @@ class CactusPreprocessor(Job):
             os.mkdir(outputSequenceDir)
         return [ os.path.join(outputSequenceDir, inputSequences[i].split("/")[-1] + "_%i" % i) for i in xrange(len(inputSequences)) ]
   
-class CactusPreprocessor2(Job):
+class CactusPreprocessor2(RoundedJob):
     def __init__(self, inputSequenceID, configNode):
-        Job.__init__(self, preemptable=True)
+        RoundedJob.__init__(self, preemptable=True)
         self.inputSequenceID = inputSequenceID
         self.configNode = configNode
         

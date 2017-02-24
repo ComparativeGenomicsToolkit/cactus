@@ -922,3 +922,40 @@ class RunAsFollowOn(Job):
     def run(self, fileStore):
         return self.addFollowOn(self.job(*self._args, **self._kwargs)).rv()
         
+class RoundedJob(Job):
+    """Thin wrapper around Toil.Job to round up resource requirements.
+
+    Rounding is useful to make Toil's Mesos scheduler more
+    efficient--it runs a process that is O(n log n) in the number of
+    different resource requirements for every offer received, so
+    thousands of slightly different requirements will slow down the
+    leader and the workflow.
+    """
+    # Default rounding amount: 100 MiB
+    roundingAmount = 100*1024*1024
+    def __init__(self, memory=None, cores=None, disk=None, preemptable=None,
+                 unitName=None, checkpoint=False):
+        if memory is not None:
+            memory = self.roundUp(memory)
+        if disk is not None:
+            disk = self.roundUp(disk)
+        super(RoundedJob, self).__init__(memory=memory, cores=cores, disk=disk,
+                                         preemptable=preemptable, unitName=unitName,
+                                         checkpoint=checkpoint)
+
+    def roundUp(self, bytesRequirement):
+        """
+        Round the amount up to the next self.roundingAmount.
+
+        >>> j = CactusJob()
+        >>> j.roundingAmount = 100000000
+        >>> j.roundUp(1000)
+        10000000
+        >>> j.roundUp(200000000)
+        200000000
+        >>> j.roundUp(200000001)
+        300000000
+        """
+        if bytesRequirement % self.roundingAmount == 0:
+            return bytesRequirement
+        return (bytesRequirement // self.roundingAmount + 1) * self.roundingAmount

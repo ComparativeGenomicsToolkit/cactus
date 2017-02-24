@@ -16,7 +16,7 @@ from toil.lib.bioio import getTempFile
 
 from sonLib.bioio import catFiles, nameValue, popenCatch, getTempDirectory
 
-from toil.job import Job
+from cactus.shared.common import RoundedJob
 from toil.common import Toil
 
 from cactus.shared.common import makeURL
@@ -65,7 +65,7 @@ class BlastOptions:
         self.trimOutgroupFlanking = trimOutgroupFlanking
         self.keepParalogs = keepParalogs
         
-class BlastSequencesAllAgainstAll(Job):
+class BlastSequencesAllAgainstAll(RoundedJob):
     """Take a set of sequences, chunks them up and blasts them.
     """
     def __init__(self, sequenceFileIDs1, blastOptions):
@@ -73,7 +73,7 @@ class BlastSequencesAllAgainstAll(Job):
         cores = 1
         memory = blastOptions.memory
         
-        Job.__init__(self, disk=disk, cores=cores, memory=memory, preemptable=True)
+        RoundedJob.__init__(self, disk=disk, cores=cores, memory=memory, preemptable=True)
         self.sequenceFileIDs1 = sequenceFileIDs1
         self.blastOptions = blastOptions
         self.blastOptions.compressFiles = False
@@ -91,11 +91,11 @@ class BlastSequencesAllAgainstAll(Job):
         logger.debug("Collating the blasts after blasting all-against-all")
         return self.addFollowOn(CollateBlasts(self.blastOptions, [diagonalResultsID, offDiagonalResultsID])).rv()
         
-class MakeSelfBlasts(Job):
+class MakeSelfBlasts(RoundedJob):
     """Breaks up the inputs into bits and builds a bunch of alignment jobs.
     """
     def __init__(self, blastOptions, chunkIDs):
-        Job.__init__(self, preemptable=True)
+        RoundedJob.__init__(self, preemptable=True)
         self.blastOptions = blastOptions
         self.chunkIDs = chunkIDs
         
@@ -112,9 +112,9 @@ class MakeSelfBlasts(Job):
         logger.info("Blast file IDs: %s" % resultsIDs)
         return self.addFollowOn(CollateBlasts(self.blastOptions, resultsIDs)).rv()
     
-class MakeOffDiagonalBlasts(Job):
+class MakeOffDiagonalBlasts(RoundedJob):
         def __init__(self, blastOptions, chunkIDs):
-            Job.__init__(self, preemptable=True)
+            RoundedJob.__init__(self, preemptable=True)
             self.chunkIDs = chunkIDs
             self.blastOptions = blastOptions
             self.blastOptions.compressFiles = False
@@ -130,7 +130,7 @@ class MakeOffDiagonalBlasts(Job):
             return self.addFollowOn(CollateBlasts(self.blastOptions, resultsIDs)).rv()
 
             
-class BlastSequencesAgainstEachOther(Job):
+class BlastSequencesAgainstEachOther(RoundedJob):
     """Take two sets of sequences, chunks them up and blasts one set against the other.
     """
     def __init__(self, sequenceFileIDs1, sequenceFileIDs2, blastOptions):
@@ -138,7 +138,7 @@ class BlastSequencesAgainstEachOther(Job):
         cores = 1
         memory = blastOptions.memory
         
-        Job.__init__(self, disk=disk, cores=cores, memory=memory, preemptable=True)
+        RoundedJob.__init__(self, disk=disk, cores=cores, memory=memory, preemptable=True)
         self.sequenceFileIDs1 = sequenceFileIDs1
         self.sequenceFileIDs2 = sequenceFileIDs2
         self.blastOptions = blastOptions
@@ -163,7 +163,7 @@ class BlastSequencesAgainstEachOther(Job):
         #Set up the job to collate all the results
         return self.addFollowOn(CollateBlasts(self.blastOptions, resultsIDs)).rv()
         
-class BlastIngroupsAndOutgroups(Job):
+class BlastIngroupsAndOutgroups(RoundedJob):
     """Blast ingroup sequences against each other, and against the given
     outgroup sequences in succession. The next outgroup is only
     aligned against the regions that are not found in the previous
@@ -171,7 +171,7 @@ class BlastIngroupsAndOutgroups(Job):
     """
     def __init__(self, blastOptions, ingroupSequenceIDs,
                  outgroupSequenceIDs):
-        Job.__init__(self, memory=blastOptions.memory, preemptable=True)
+        RoundedJob.__init__(self, memory=blastOptions.memory, preemptable=True)
         self.blastOptions = blastOptions
         self.blastOptions.roundsOfCoordinateConversion = 1
         self.ingroupSequenceIDs = ingroupSequenceIDs
@@ -202,7 +202,7 @@ class BlastIngroupsAndOutgroups(Job):
 
         return (alignmentsID, outgroupFragmentIDs, ingroupCoverageIDs)
 
-class BlastFirstOutgroup(Job):
+class BlastFirstOutgroup(RoundedJob):
     """Blast the given sequence(s) against the first of a succession of
     outgroups, only aligning fragments that haven't aligned to the
     previous outgroups. Then recurse on the other outgroups.
@@ -211,7 +211,7 @@ class BlastFirstOutgroup(Job):
                  outgroupSequenceIDs, outgroupFragmentIDs,
                  ingroupResultsID, outgroupResultsID,
                  blastOptions, outgroupNumber, ingroupCoverageIDs):
-        Job.__init__(self, memory=blastOptions.memory, preemptable=True)
+        RoundedJob.__init__(self, memory=blastOptions.memory, preemptable=True)
         self.untrimmedSequenceIDs = untrimmedSequenceIDs
         self.sequenceIDs = sequenceIDs
         self.outgroupSequenceIDs = outgroupSequenceIDs
@@ -242,13 +242,13 @@ class BlastFirstOutgroup(Job):
         ingroupCoverageIDs = trimRecurseJob.rv(2)
         return (alignmentsID, outgroupFragmentIDs, ingroupCoverageIDs)
 
-class TrimAndRecurseOnOutgroups(Job):
+class TrimAndRecurseOnOutgroups(RoundedJob):
     def __init__(self, untrimmedSequenceIDs, sequenceIDs,
                  outgroupSequenceIDs, outgroupFragmentIDs,
                  mostRecentResultsID, ingroupResultsID, outgroupResultsID,
                  blastOptions,
                  outgroupNumber, ingroupCoverageIDs):
-        Job.__init__(self, preemptable=False)
+        RoundedJob.__init__(self, preemptable=False)
         self.untrimmedSequenceIDs = untrimmedSequenceIDs
         self.sequenceIDs = sequenceIDs
         self.outgroupSequenceIDs = outgroupSequenceIDs
@@ -407,14 +407,14 @@ def decompressFastaFile(fileName, tempFileName):
     system("bunzip2 --stdout %s > %s" % (fileName, tempFileName))
     return tempFileName
         
-class RunSelfBlast(Job):
+class RunSelfBlast(RoundedJob):
     """Runs blast as a job.
     """
     def __init__(self, blastOptions, seqFileID):
         disk = 3*seqFileID.size
         memory = 3*seqFileID.size
         
-        Job.__init__(self, memory=memory, disk=disk, preemptable=True)
+        RoundedJob.__init__(self, memory=memory, disk=disk, preemptable=True)
         self.blastOptions = blastOptions
         self.seqFileID = seqFileID
     
@@ -439,7 +439,7 @@ class RunSelfBlast(Job):
         logger.info("Ran the self blast okay")
         return fileStore.writeGlobalFile(resultsFile, cleanup=False)
     
-class RunBlast(Job):
+class RunBlast(RoundedJob):
     """Runs blast as a job.
     """
     def __init__(self, blastOptions, seqFileID1, seqFileID2):
@@ -449,7 +449,7 @@ class RunBlast(Job):
         else:
             disk = None
             memory = None
-        Job.__init__(self, memory=memory, disk=disk, preemptable=True)
+        RoundedJob.__init__(self, memory=memory, disk=disk, preemptable=True)
         self.blastOptions = blastOptions
         self.seqFileID1 = seqFileID1
         self.seqFileID2 = seqFileID2
@@ -478,23 +478,23 @@ class RunBlast(Job):
         logger.info("Ran the blast okay")
         return fileStore.writeGlobalFile(resultsFile, cleanup=False)
 
-class CollateBlasts(Job):
+class CollateBlasts(RoundedJob):
     def __init__(self, blastOptions, resultsFileIDs):
-        Job.__init__(self, preemptable=True)
+        RoundedJob.__init__(self, preemptable=True)
         self.blastOptions = blastOptions
         self.resultsFileIDs = resultsFileIDs
 
     def run(self, fileStore):
         return self.addFollowOn(CollateBlasts2(self.blastOptions, self.resultsFileIDs)).rv()
 
-class CollateBlasts2(Job):
+class CollateBlasts2(RoundedJob):
     """Collates all the blasts into a single alignments file.
     """
     def __init__(self, blastOptions, resultsFileIDs):
         disk = 8*sum([alignmentID.size for alignmentID in resultsFileIDs])
         cores = 1
         memory = blastOptions.memory
-        Job.__init__(self, memory=memory, disk=disk, preemptable=True)
+        RoundedJob.__init__(self, memory=memory, disk=disk, preemptable=True)
         self.resultsFileIDs = resultsFileIDs
     
     def run(self, fileStore):

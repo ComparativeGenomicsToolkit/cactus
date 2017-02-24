@@ -17,11 +17,11 @@ import random
 from argparse import ArgumentParser
 from sonLib.bioio import system, catFiles
 
-from toil.job import Job
 from toil.common import Toil
 
 from cactus.shared.common import makeURL
 from cactus.shared.common import cactus_call
+from cactus.shared.common import RoundedJob
 
 class RepeatMaskOptions:
     def __init__(self, 
@@ -45,7 +45,7 @@ class RepeatMaskOptions:
             self.fragment += 1
 
 
-class AlignFastaFragments(Job):
+class AlignFastaFragments(RoundedJob):
     def __init__(self, repeatMaskOptions, fragmentsID, targetIDs):
         if hasattr(fragmentsID, "size"):
             targetsSize = sum(targetID.size for targetID in targetIDs)
@@ -54,7 +54,7 @@ class AlignFastaFragments(Job):
         else:
             memory = None
             disk = None
-        Job.__init__(self, memory=memory, disk=disk, preemptable=True)
+        RoundedJob.__init__(self, memory=memory, disk=disk, preemptable=True)
         self.repeatMaskOptions = repeatMaskOptions
         self.fragmentsID = fragmentsID
         self.targetIDs = targetIDs
@@ -77,13 +77,13 @@ class AlignFastaFragments(Job):
                                 "--querydepth=keep,nowarn:%i --format=general:name1,zstart1,end1,name2,zstart2+,end2+ --markend" % (self.repeatMaskOptions.period+3)])
         return fileStore.writeGlobalFile(alignment)
 
-class CollateAlignments(Job):
+class CollateAlignments(RoundedJob):
     def __init__(self, alignmentIDs):
         if hasattr(alignmentIDs[0], "size"):
             disk = 2*sum([alignmentID.size for alignmentID in alignmentIDs])
         else:
             disk = None
-        Job.__init__(self, disk=disk, preemptable=True)
+        RoundedJob.__init__(self, disk=disk, preemptable=True)
         self.alignmentIDs = alignmentIDs
     def run(self, fileStore):
         alignments = [fileStore.readGlobalFile(alignmentID) for alignmentID in self.alignmentIDs]
@@ -94,9 +94,9 @@ class CollateAlignments(Job):
         system("cat %s | awk '@include \"join\";{split($4,a,\"_\"); $5 += a[length(a)]; $6 += a[length(a)]; $4 = join(a, 1, length(a) - 1, \"_\"); print $0}' | sort -k4,4 -k5,5n > %s" % (" ".join(alignments), sortedAlignments))
         return fileStore.writeGlobalFile(sortedAlignments)
 
-class MaskCoveredIntervals(Job):
+class MaskCoveredIntervals(RoundedJob):
     def __init__(self, repeatMaskOptions, alignmentsID, queryID):
-        Job.__init__(self, preemptable=True)
+        RoundedJob.__init__(self, preemptable=True)
         self.repeatMaskOptions = repeatMaskOptions
         self.alignmentsID = alignmentsID
         self.queryID = queryID
@@ -124,9 +124,9 @@ class MaskCoveredIntervals(Job):
                                 maskInfo])
         return fileStore.writeGlobalFile(maskedQuery)
 
-class LastzRepeatMaskJob(Job):
+class LastzRepeatMaskJob(RoundedJob):
     def __init__(self, repeatMaskOptions, queryID, targetIDs):
-        Job.__init__(self, preemptable=True)
+        RoundedJob.__init__(self, preemptable=True)
         self.repeatMaskOptions = repeatMaskOptions
         self.queryID = queryID
         self.targetIDs = targetIDs
