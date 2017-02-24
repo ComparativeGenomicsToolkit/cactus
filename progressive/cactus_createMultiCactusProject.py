@@ -170,10 +170,12 @@ def specifyAlignmentRoot(mcProj, expTemplate, alignmentRootId):
         if mcProj.mcTree.getNodeId(event) in deadNodes:
             del mcProj.expMap[event]
             
-    # flush out all unused nodes, and set the new root
+    # flush out all unused nodes, set the new root, and update the
+    # experiment template tree to match the new project tree
     for node in deadNodes:
         assert mcProj.mcTree.hasParent(node)
         mcProj.mcTree.removeEdge(mcProj.mcTree.getParent(node), node)
+    expTemplate.setTree(mcProj.mcTree)
 
     # reset input sequences to only contain genomes in tree
     genomesInTree = [mcProj.mcTree.getName(node) for node in mcProj.mcTree.postOrderTraversal() if mcProj.mcTree.hasName(node)]
@@ -200,7 +202,7 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
             # Outgroup name is the first element of the ogMap tuples
             outgroups.extend(map(itemgetter(0), mcProj.outgroup.ogMap[name]))
 
-        subtree = mcProj.entireTree.extractSpanningTree(children + outgroups)
+        subtree = mcProj.entireTree.extractSpanningTree(children + [name] + outgroups)
         exp = ExperimentWrapper.createExperimentWrapper(NXNewick().writeString(subtree),
                                                         expTemplate.getOutputSequenceDir(),
                                                         databaseConf=expTemplate.confElem)
@@ -249,6 +251,7 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
         config = ConfigWrapper(copy.deepcopy(configTemplate.xmlRoot))
         if expTemplate.getSequencePath(name):
             exp.setRootReconstructed(False)
+            exp.setSequencePath(name, expTemplate.getSequencePath(name))
         else:
             exp.setRootReconstructed(True)
         exp.writeXML(expPath)
@@ -321,7 +324,8 @@ def main():
     mcProj = createMCProject(tree, sequences, expTemplate, confTemplate, options)
 
     # Replace the sequences with output sequences
-    newSequences = CactusPreprocessor.getOutputSequenceFiles(sequences, expTemplate.getOutputSequenceDir())
+    genomes = filter(lambda x: x in expTemplate.getGenomesWithSequence(), genomes)
+    newSequences = CactusPreprocessor.getOutputSequenceFiles(mcProj.inputSequences, expTemplate.getOutputSequenceDir())
     for genome, newSequence in zip(genomes, newSequences):
         expTemplate.setSequencePath(genome, newSequence)
 
