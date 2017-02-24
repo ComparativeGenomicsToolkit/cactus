@@ -14,6 +14,7 @@ from sonLib.bioio import getTempDirectory
 from sonLib.bioio import system, popenCatch, popenPush
 from sonLib.bioio import nameValue
 from sonLib.bioio import getLogLevelString
+from sonLib.nxnewick import NXNewick
 
 from jobTree.src.common import runJobTreeStatusAndFailIfNotComplete
 
@@ -139,11 +140,16 @@ def runCactusSplitFlowersBySecondaryGrouping(flowerNames):
 #############################################
 #############################################  
 
-def runCactusSetup(cactusDiskDatabaseString, sequenceMap,
-                   newickTreeString, logLevel=None, outgroupEvents=None,
+def runCactusSetup(cactusDiskDatabaseString, experiment,
+                   logLevel=None, outgroupEvents=None,
                    makeEventHeadersAlphaNumeric=None):
+    tree = experiment.getTree()
+    genomes = [tree.getName(id) for id in tree.postOrderTraversal() if tree.hasName(id)]
+    sequenceMap =  dict((genome, experiment.getSequencePath(genome)) for genome in genomes if experiment.getSequencePath(genome) is not None)
+    newickTreeString = NXNewick().writeString(experiment.getTree())
+
     logLevel = getLogLevelString2(logLevel)
-    outgroupEvents = nameValue("outgroupEvents", outgroupEvents, str, quotes=True)
+    outgroupEvents = nameValue("outgroupEvents", " ".join(experiment.getOutgroupGenomes()), str, quotes=True)
     makeEventHeadersAlphaNumeric=nameValue("makeEventHeadersAlphaNumeric", makeEventHeadersAlphaNumeric, bool)
     # Sequence assignment string is "eventName faPath" replicated for
     # each event
@@ -154,7 +160,7 @@ def runCactusSetup(cactusDiskDatabaseString, sequenceMap,
               cactusDiskDatabaseString, logLevel, outgroupEvents, makeEventHeadersAlphaNumeric))
     logger.info("Ran cactus setup okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]
-    
+
 def runCactusBlast(sequenceFiles, outputFile, jobTreeDir,
                    chunkSize=None, overlapSize=None, 
                    logLevel=None, 

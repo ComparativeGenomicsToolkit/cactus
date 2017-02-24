@@ -424,17 +424,10 @@ class CactusSetupPhase(CactusPhasesTarget):
             self.setFollowOnTarget(setupTarget)   
 
 class CactusSetupPhase2(CactusPhasesTarget):   
-    def getSequenceMap(self):
-        exp = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
-        tree = exp.getTree()
-        genomes = [tree.getName(id) for id in tree.postOrderTraversal() if tree.hasName(id)]
-        return dict((genome, exp.getSequencePath(genome)) for genome in genomes if exp.getSequencePath(genome) is not None)
-
     def run(self):
+        exp = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
         messages = runCactusSetup(cactusDiskDatabaseString=self.cactusWorkflowArguments.cactusDiskDatabaseString,
-                       sequenceMap=self.getSequenceMap(),
-                       newickTreeString=self.cactusWorkflowArguments.speciesTree,
-                       outgroupEvents=self.cactusWorkflowArguments.outgroupEventNames,
+                       experiment=exp,
                        makeEventHeadersAlphaNumeric=self.getOptionalPhaseAttrib("makeEventHeadersAlphaNumeric", bool, False))
         for message in messages:
             self.logToMaster(message)
