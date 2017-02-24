@@ -49,7 +49,7 @@ class AlignFastaFragments(Job):
     def __init__(self, repeatMaskOptions, fragmentsID, targetID):
         if hasattr(targetID, "size"):
             memory = 2*(fragmentsID.size + targetID.size)
-            disk = 2*(fragmentsID.size + targetID.size)
+            disk = 4*(fragmentsID.size + targetID.size)
         else:
             memory = None
             disk = None
@@ -77,7 +77,7 @@ class AlignFastaFragments(Job):
 class CollateAlignments(Job):
     def __init__(self, alignmentIDs):
         if hasattr(alignmentIDs[0], "size"):
-            disk = 2*sum([alignmentID.size for alignmentID in alignmentIDs])
+            disk = 3*sum([alignmentID.size for alignmentID in alignmentIDs])
         else:
             disk = None
         Job.__init__(self, disk=disk)
@@ -93,7 +93,11 @@ class CollateAlignments(Job):
 
 class MaskCoveredIntervals(Job):
     def __init__(self, repeatMaskOptions, alignmentsID, queryID):
-        Job.__init__(self)
+        if hasattr(alignmentsID, "size"):
+            disk = 3*(alignmentsID.size + queryID.size)
+        else:
+            disk = None
+        Job.__init__(self, disk=disk)
         self.repeatMaskOptions = repeatMaskOptions
         self.alignmentsID = alignmentsID
         self.queryID = queryID
@@ -123,7 +127,11 @@ class MaskCoveredIntervals(Job):
 
 class LastzRepeatMaskJob(Job):
     def __init__(self, repeatMaskOptions, queryID, targetIDs):
-        Job.__init__(self)
+        if hasattr(queryID, "size"):
+            disk = 2*(queryID.size + sum([targetID.size for targetID in targetIDs]))
+        else:
+            disk = None
+        Job.__init__(self, disk=disk)
         self.repeatMaskOptions = repeatMaskOptions
         self.queryID = queryID
         self.targetIDs = targetIDs
