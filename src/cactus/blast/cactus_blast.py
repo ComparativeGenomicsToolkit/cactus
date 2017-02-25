@@ -248,7 +248,7 @@ class TrimAndRecurseOnOutgroups(RoundedJob):
                  mostRecentResultsID, ingroupResultsID, outgroupResultsID,
                  blastOptions,
                  outgroupNumber, ingroupCoverageIDs):
-        RoundedJob.__init__(self, preemptable=False)
+        RoundedJob.__init__(self, preemptable=True)
         self.untrimmedSequenceIDs = untrimmedSequenceIDs
         self.sequenceIDs = sequenceIDs
         self.outgroupSequenceIDs = outgroupSequenceIDs

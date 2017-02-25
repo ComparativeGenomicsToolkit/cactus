@@ -915,7 +915,7 @@ def cactus_call(tool=None,
 
 class RunAsFollowOn(Job):
     def __init__(self, job, *args, **kwargs):
-        Job.__init__(self)
+        Job.__init__(self, preemptable=True)
         self._args = args
         self._kwargs = kwargs
         self.job = job
