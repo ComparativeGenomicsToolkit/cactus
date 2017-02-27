@@ -14,11 +14,12 @@ from toil.lib.bioio import system
 from toil.lib.bioio import getLogLevelString
 from toil.lib.bioio import getTempFile
 
-from sonLib.bioio import catFiles, nameValue, popenCatch, getTempDirectory
+from sonLib.bioio import catFiles, getTempDirectory, popenCatch
 
 from cactus.shared.common import RoundedJob
 from toil.common import Toil
 
+from cactus.shared.common import nameValue
 from cactus.shared.common import makeURL
 from cactus.shared.common import cactus_call
 from cactus.shared.common import runLastz, runSelfLastz
@@ -82,7 +83,7 @@ class BlastSequencesAllAgainstAll(RoundedJob):
 
     def run(self, fileStore):
         sequenceFiles1 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs1]
-        chunks = runGetChunks(sequenceFiles=sequenceFiles1, chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()), chunkSize = self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize)
+        chunks = runGetChunks(self, sequenceFiles=sequenceFiles1, chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()), chunkSize = self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize)
         assert len(chunks) > 0
         logger.info("Broken up the sequence files into individual 'chunk' files")
         chunkIDs = [fileStore.writeGlobalFile(chunk, cleanup=False) for chunk in chunks]
@@ -148,8 +149,8 @@ class BlastSequencesAgainstEachOther(RoundedJob):
     def run(self, fileStore):
         sequenceFiles1 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs1]
         sequenceFiles2 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs2]
-        chunks1 = runGetChunks(sequenceFiles=sequenceFiles1, chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()), chunkSize=self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize)
-        chunks2 = runGetChunks(sequenceFiles=sequenceFiles2, chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()), chunkSize=self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize)
+        chunks1 = runGetChunks(self, sequenceFiles=sequenceFiles1, chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()), chunkSize=self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize)
+        chunks2 = runGetChunks(self, sequenceFiles=sequenceFiles2, chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()), chunkSize=self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize)
         logger.info("Chunks1 = %s" % chunks1)
         chunkIDs1 = [fileStore.writeGlobalFile(chunk, cleanup=False) for chunk in chunks1]
         chunkIDs2 = [fileStore.writeGlobalFile(chunk, cleanup=False) for chunk in chunks2]
@@ -272,16 +273,16 @@ class TrimAndRecurseOnOutgroups(RoundedJob):
         mostRecentResultsFile = fileStore.readGlobalFile(self.mostRecentResultsID)
         trimmedOutgroup = fileStore.getLocalTempFile()
         outgroupCoverage = fileStore.getLocalTempFile()
-        calculateCoverage(outgroupSequenceFiles[0],
+        calculateCoverage(self, outgroupSequenceFiles[0],
                           mostRecentResultsFile, outgroupCoverage)
         # The windowSize and threshold are fixed at 1: anything more
         # and we will run into problems with alignments that aren't
         # covered in a matching trimmed sequence.
-        trimGenome(outgroupSequenceFiles[0], outgroupCoverage,
+        trimGenome(self, outgroupSequenceFiles[0], outgroupCoverage,
                    trimmedOutgroup, flanking=self.blastOptions.trimOutgroupFlanking,
                    windowSize=1, threshold=1)
         outgroupConvertedResultsFile = fileStore.getLocalTempFile()
-        cactus_call(outfile=outgroupConvertedResultsFile,
+        cactus_call(self, outfile=outgroupConvertedResultsFile,
                     parameters=["cactus_upconvertCoordinates.py",
                                 trimmedOutgroup,
                                 mostRecentResultsFile,
@@ -294,7 +295,7 @@ class TrimAndRecurseOnOutgroups(RoundedJob):
         # Report coverage of the latest outgroup on the trimmed ingroups.
         for trimmedIngroupSequence, ingroupSequence in zip(sequenceFiles, untrimmedSequenceFiles):
             tmpIngroupCoverage = fileStore.getLocalTempFile()
-            calculateCoverage(trimmedIngroupSequence, mostRecentResultsFile,
+            calculateCoverage(self, trimmedIngroupSequence, mostRecentResultsFile,
                               tmpIngroupCoverage)
             fileStore.logToMaster("Coverage on %s from outgroup #%d, %s: %s%% (current ingroup length %d, untrimmed length %d). Outgroup trimmed to %d bp from %d" % (os.path.basename(ingroupSequence), self.outgroupNumber, os.path.basename(outgroupSequenceFiles[0]), percentCoverage(trimmedIngroupSequence, tmpIngroupCoverage), sequenceLength(trimmedIngroupSequence), sequenceLength(ingroupSequence), sequenceLength(trimmedOutgroup), sequenceLength(outgroupSequenceFiles[0])))
 
@@ -307,7 +308,7 @@ class TrimAndRecurseOnOutgroups(RoundedJob):
             system("cp %s %s" % (outgroupConvertedResultsFile,
                                  ingroupConvertedResultsFile))
         else:
-            cactus_call(parameters=["cactus_blast_convertCoordinates",
+            cactus_call(self, parameters=["cactus_blast_convertCoordinates",
                                     "--onlyContig1",
                                     outgroupConvertedResultsFile,
                                     ingroupConvertedResultsFile,
@@ -328,7 +329,7 @@ class TrimAndRecurseOnOutgroups(RoundedJob):
         self.ingroupCoverageIDs = []
         for ingroupSequence in untrimmedSequenceFiles:
             ingroupCoverageFile = fileStore.getLocalTempFile()
-            calculateCoverage(sequenceFile=ingroupSequence, cigarFile=outgroupResultsFile,
+            calculateCoverage(self, sequenceFile=ingroupSequence, cigarFile=outgroupResultsFile,
                               outputFile=ingroupCoverageFile, depthById=self.blastOptions.trimOutgroupDepth > 1)
             ingroupCoverageFiles.append(ingroupCoverageFile)
             self.ingroupCoverageIDs.append(fileStore.writeGlobalFile(ingroupCoverageFile))
@@ -358,7 +359,7 @@ class TrimAndRecurseOnOutgroups(RoundedJob):
             for i, sequenceFile in enumerate(untrimmedSequenceFiles):
                 outgroupCoverageFile = ingroupCoverageFiles[i]
                 selfCoverageFile = fileStore.getLocalTempFile()
-                calculateCoverage(sequenceFile, ingroupResultsFile,
+                calculateCoverage(self, sequenceFile, ingroupResultsFile,
                                   selfCoverageFile, fromGenome=sequenceFile)
                 self.ingroupResultsID = fileStore.writeGlobalFile(ingroupResultsFile)
                 fileStore.logToMaster("Self-coverage on sequence %s: %s%%" % (os.path.basename(sequenceFile), percentCoverage(sequenceFile, selfCoverageFile)))
@@ -369,7 +370,7 @@ class TrimAndRecurseOnOutgroups(RoundedJob):
                     coverageFile = outgroupCoverageFile
 
                 trimmed = fileStore.getLocalTempFile()
-                trimGenome(sequenceFile, coverageFile, trimmed,
+                trimGenome(self, sequenceFile, coverageFile, trimmed,
                            complement=True, flanking=self.blastOptions.trimFlanking,
                            minSize=self.blastOptions.trimMinSize,
                            threshold=self.blastOptions.trimThreshold,
@@ -422,15 +423,15 @@ class RunSelfBlast(RoundedJob):
     def run(self, fileStore):   
         blastResultsFile = fileStore.getLocalTempFile()
         seqFile = fileStore.readGlobalFile(self.seqFileID)
-        runSelfLastz(seqFile, blastResultsFile, lastzArguments=self.blastOptions.lastzArguments)
+        runSelfLastz(self, seqFile, blastResultsFile, lastzArguments=self.blastOptions.lastzArguments)
         if self.blastOptions.realign:
             realignResultsFile = fileStore.getLocalTempFile()
-            runCactusSelfRealign(seqFile, inputAlignmentsFile=blastResultsFile,
+            runCactusSelfRealign(self, seqFile, inputAlignmentsFile=blastResultsFile,
                                  outputAlignmentsFile=realignResultsFile,
                                  realignArguments=self.blastOptions.realignArguments)
             blastResultsFile = realignResultsFile
         resultsFile = fileStore.getLocalTempFile()
-        cactus_call(parameters=["cactus_blast_convertCoordinates",
+        cactus_call(self, parameters=["cactus_blast_convertCoordinates",
                                 blastResultsFile,
                                 resultsFile,
                                 self.blastOptions.roundsOfCoordinateConversion])
@@ -463,16 +464,16 @@ class RunBlast(RoundedJob):
             seqFile2 = decompressFastaFile(seqFile2, fileStore.getLocalTempFile())
         blastResultsFile = fileStore.getLocalTempFile()
 
-        runLastz(seqFile1, seqFile2, blastResultsFile, lastzArguments = self.blastOptions.lastzArguments)
+        runLastz(self, seqFile1, seqFile2, blastResultsFile, lastzArguments = self.blastOptions.lastzArguments)
         if self.blastOptions.realign:
             realignResultsFile = fileStore.getLocalTempFile()
-            runCactusRealign(seqFile1, seqFile2, inputAlignmentsFile=blastResultsFile,
+            runCactusRealign(self, seqFile1, seqFile2, inputAlignmentsFile=blastResultsFile,
                              outputAlignmentsFile=realignResultsFile,
                              realignArguments=self.blastOptions.realignArguments)
             blastResultsFile = realignResultsFile
             
         resultsFile = fileStore.getLocalTempFile()
-        cactus_call(parameters=["cactus_blast_convertCoordinates",
+        cactus_call(self, parameters=["cactus_blast_convertCoordinates",
                                 blastResultsFile,
                                 resultsFile,
                                 self.blastOptions.roundsOfCoordinateConversion])
@@ -527,25 +528,25 @@ def percentCoverage(sequenceFile, coverageFile):
         return 0
     return 100*float(coverage)/sequenceLen
 
-def calculateCoverage(sequenceFile, cigarFile, outputFile, fromGenome=None, depthById=False, work_dir=None):
+def calculateCoverage(cls, sequenceFile, cigarFile, outputFile, fromGenome=None, depthById=False, work_dir=None):
     logger.info("Calculating coverage of cigar file %s on %s, writing to %s" % (
         cigarFile, sequenceFile, outputFile))
-    fromGenome = nameValue("from", fromGenome).split()
-    cactus_call(outfile=outputFile, work_dir=work_dir,
+    fromGenome = nameValue("from", fromGenome)
+    cactus_call(cls, outfile=outputFile, work_dir=work_dir,
                 parameters=["cactus_coverage",
                             sequenceFile,
                             cigarFile] +
                             fromGenome +
-                            [nameValue("depthById", depthById, bool)])
+                            nameValue("depthById", depthById, bool))
 
-def trimGenome(sequenceFile, coverageFile, outputFile, complement=False,
+def trimGenome(cls, sequenceFile, coverageFile, outputFile, complement=False,
                flanking=0, minSize=1, windowSize=10, threshold=1, depth=None):
-    cactus_call(outfile=outputFile,
-                parameters=["cactus_trimSequences.py",
-                            nameValue("complement", complement, valueType=bool),
-                            nameValue("flanking", flanking), nameValue("minSize", minSize),
-                            nameValue("windowSize", windowSize), nameValue("threshold", threshold),
-                            nameValue("depth", depth), sequenceFile, coverageFile])
+    cactus_call(cls, outfile=outputFile,
+                parameters=["cactus_trimSequences.py"] +
+                            nameValue("complement", complement, valueType=bool) +
+                            nameValue("flanking", flanking) + nameValue("minSize", minSize) +
+                            nameValue("windowSize", windowSize) + nameValue("threshold", threshold) +
+                            nameValue("depth", depth) + [sequenceFile, coverageFile])
 
 def subtractBed(bed1, bed2, destBed):
     """Subtract two non-bed12 beds"""
@@ -554,7 +555,7 @@ def subtractBed(bed1, bed2, destBed):
         # bedtools will complain on zero-size beds
         os.rename(bed1, destBed)
     else:
-        cactus_call(outfile=destBed,
+        cactus_call(self, outfile=destBed,
                     parameters=["subtract",
                                 "-a", bed1,
                                 "-b", bed2])

@@ -71,10 +71,10 @@ class PreprocessChunk(RoundedJob):
             outChunk = fileStore.getLocalTempFile()
             seqPaths = [fileStore.readGlobalFile(fileID) for fileID in self.seqIDs]
             seqString = " ".join(seqPaths)
-            cactus_call(stdin_string=seqString,
-                        parameters=["cactus_checkUniqueHeaders.py",
-                                    nameValue("checkAssemblyHub", self.prepOptions.checkAssemblyHub, bool),
-                                    outChunk])
+            cactus_call(self, stdin_string=seqString,
+                        parameters=["cactus_checkUniqueHeaders.py"] + 
+                                    nameValue("checkAssemblyHub", self.prepOptions.checkAssemblyHub, bool) +
+                                    [outChunk])
             outChunkID = fileStore.writeGlobalFile(outChunk)
         elif self.prepOptions.preprocessJob == "lastzRepeatMask":
             repeatMaskOptions = RepeatMaskOptions(proportionSampled=self.prepOptions.proportionToSample,
@@ -116,7 +116,7 @@ class MergeChunks2(RoundedJob):
         #Docker expects paths relative to the work dir
         chunkList = [os.path.basename(chunk) for chunk in chunkList]
         outSequencePath = fileStore.getLocalTempFile()
-        cactus_call(outfile=outSequencePath, stdin_string=" ".join(chunkList),
+        cactus_call(self, outfile=outSequencePath, stdin_string=" ".join(chunkList),
                     parameters=["cactus_batch_mergeChunks"])
         return fileStore.writeGlobalFile(outSequencePath)
  
@@ -136,9 +136,10 @@ class PreprocessSequence(RoundedJob):
         # chunk it up
         inSequence = fileStore.readGlobalFile(self.inSequenceID)
         inChunkDirectory = getTempDirectory(rootDir=fileStore.getLocalTempDir())
-        inChunkList = runGetChunks(sequenceFiles=[inSequence], chunksDir=inChunkDirectory,
+        inChunkList = runGetChunks(self, sequenceFiles=[inSequence], chunksDir=inChunkDirectory,
                                    chunkSize=self.prepOptions.chunkSize,
                                    overlapSize=0)
+        assert len(inChunkList) > 0
         inChunkList = [os.path.abspath(path) for path in inChunkList]
         logger.info("Chunks = %s" % inChunkList)
         logger.info("Chunks dir = %s" % os.listdir(inChunkDirectory))
@@ -223,7 +224,7 @@ class BatchPreprocessorEnd(RoundedJob):
         
     def run(self, fileStore):
         globalOutSequence = fileStore.readGlobalFile(self.globalOutSequenceID)
-        analysisString = runCactusAnalyseAssembly(globalOutSequence)
+        analysisString = runCactusAnalyseAssembly(self, globalOutSequence)
         fileStore.logToMaster("After preprocessing assembly we got the following stats: %s" % analysisString)
         return self.globalOutSequenceID
 

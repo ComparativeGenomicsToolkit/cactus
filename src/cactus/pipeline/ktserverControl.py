@@ -46,7 +46,7 @@ from cactus.shared.common import cactus_call, pullCactusImage
 # run a server until killSwitchPath gets deleted
 # throws an exception if we were unable to launch the server
 ###############################################################################
-def runKtserver(dbElem, killSwitchPath, maxPortsToTry=100, readOnly = False,
+def runKtserver(cls, dbElem, killSwitchPath, maxPortsToTry=100, readOnly = False,
                 createTimeout=30, loadTimeout=10000, killTimeout=518400,
                 killPingInterval=5, fileStore = None):
     if not os.path.isfile(killSwitchPath):
@@ -77,7 +77,6 @@ def runKtserver(dbElem, killSwitchPath, maxPortsToTry=100, readOnly = False,
     # enough to download the image
     pullCactusImage()
     success = False
-    process = None
     procWaiter = None
     for port in xrange(basePort, basePort + maxPortsToTry):
         dbElem.setDbPort(port)
@@ -85,53 +84,36 @@ def runKtserver(dbElem, killSwitchPath, maxPortsToTry=100, readOnly = False,
         if os.path.exists(logPath):
             os.remove(logPath)
 
-        if __isKtServerOnTakenPort(dbElem, killSwitchPath, pretest=True):
+        if __isKtServerOnTakenPort(cls, dbElem, killSwitchPath, pretest=True):
             logger.info("Ktserver already on port %i" % port)
             continue
-        process = cactus_call(server=True, shell=False, work_dir=os.path.dirname(logPath),
-                              parameters=['ktserver', '-log', os.path.basename(logPath),
-                                          '-port', dbElem.getDbPort(),
-                                          __getKtServerOptions(dbElem)])
+        cactus_call(cls, server=True, work_dir=os.path.dirname(logPath),
+                              parameters=['ktserver', '-log', logPath,
+                                          '-port', dbElem.getDbPort()] +
+                                          __getKtServerOptions(dbElem).split())
 
-        procWaiter = ProcessWaiter(process)
-        procWaiter.start()
-        __writeStatusToSwitchFile(dbElem, process.pid, killSwitchPath)
-        validated = __validateKtserver(process, dbElem, killSwitchPath,
-                                     createTimeout, loadTimeout)
-        logger.info("Was able to validate ktserver: %r" % validated)
-        success = validated
-        if success is True:
-            break
-        else:
-            if process.returncode is None:
-                process.kill()
-            process = None
+        break
 
-    if success is False:
-        raise RuntimeError("Unable to launch ktserver.  "+
-                           "Server log is: %s" % logPath)
-            
-    return process
 
 ###############################################################################
 # Check status until it's successful, an error is found, or we timeout
 ###############################################################################
-def __validateKtserver(process, dbElem, killSwitchPath,
+def __validateKtserver(cls, process, dbElem, killSwitchPath,
                        createTimeout, loadTimeout):
     success = False
     for i in xrange(createTimeout):
         if process.returncode is not None:
             break
-        if __isKtServerFailed(dbElem):
+        if __isKtServerFailed(cls, dbElem):
             success = False
             break
-        if __isKtServerRunning(dbElem, killSwitchPath):
+        if __isKtServerRunning(cls, dbElem, killSwitchPath):
             success = True
             break
-        if __isKtServerReorganizing(dbElem):
+        if __isKtServerReorganizing(cls, dbElem):
             raiseTimeout = True
             for j in xrange(loadTimeout):
-                if __isKtServerReorganizing(dbElem) is False:
+                if __isKtServerReorganizing(cls, dbElem) is False:
                     raiseTimeout = False
                     break
                 sleep(1)
@@ -200,13 +182,16 @@ def __readStatusFromSwitchFile(dbElem, serverPidAsList, killSwitchPath):
 # Note that this function will update dbElem with the currnet host/port
 # information of the server
 ###############################################################################
-def blockUntilKtserverIsRunning(dbElem, killSwitchPath, timeout=518400,
+def blockUntilKtserverIsRunning(cls, dbElem, killSwitchPath, timeout=518400,
                                  timeStep=10):
     logPath = getLogPath(dbElem)
     for i in xrange(0, timeout, timeStep):
-        if os.path.isfile(logPath) and __isKtServerRunning(dbElem,
-                                                           killSwitchPath):
+        logger.info("Checking for ktserver")
+        #if __isKtServerRunning(cls, dbElem, killSwitchPath):
+        #    return True
+        if pingKtServer(cls, dbElem):
             return True
+        
         sleep(timeStep)
     raise RuntimeError("Timeout reached while waiting for ktserver" %
                        logPath)
@@ -219,7 +204,7 @@ def blockUntilKtserverIsRunning(dbElem, killSwitchPath, timeout=518400,
 # Note that this function will update dbElem with the currnet host/port
 # information of the server
 ###############################################################################
-def killKtServer(dbElem, killSwitchPath, killTimeout=10000):
+def killKtServer(cls, dbElem, killSwitchPath, killTimeout=10000):
     if not os.path.isfile(killSwitchPath):
         raise RuntimeError("Can't kill server because file" +
                            " not found %s" % killSwitchPath)
@@ -233,8 +218,8 @@ def killKtServer(dbElem, killSwitchPath, killTimeout=10000):
     success = False
     for i in xrange(killTimeout):
         try:
-            if pingKtServer(dbElem) or len(__scrapePids([logPath])) > 0:
-                logger.critical("Waiting for ktserver to die, but still running with logPath: %s, pingKtServer returned %s, dB port: %s, __scrapePids returned: %s" % (logPath, pingKtServer(dbElem), dbElem.getDbPort(), __scrapePids([logPath])))
+            if pingKtServer(cls, dbElem) or len(__scrapePids([logPath])) > 0:
+                logger.critical("Waiting for ktserver to die, but still running with logPath: %s, pingKtServer returned %s, dB port: %s, __scrapePids returned: %s" % (logPath, pingKtServer(cls, dbElem), dbElem.getDbPort(), __scrapePids([logPath])))
                 sleep(1)
             else:
                 success = True
@@ -256,7 +241,7 @@ def killKtServer(dbElem, killSwitchPath, killTimeout=10000):
 # Note that this function will update dbElem with the currnet host/port
 # information of the server
 ###############################################################################
-def __isKtServerRunning(dbElem, killSwitchPath):
+def __isKtServerRunning(cls, dbElem, killSwitchPath):
     logPath = getLogPath(dbElem)
     success = False
     serverPidAsList = []
@@ -301,12 +286,12 @@ def __isKtServerRunning(dbElem, killSwitchPath):
             str(serverPortFromLog), str(dbElem.getDbPort()),
             logPath, killSwitchPath))
     
-    return pingKtServer(dbElem)
+    return pingKtServer(cls, dbElem)
 
 ###############################################################################
 # Query a running server
 ###############################################################################
-def pingKtServer(dbElem):
+def pingKtServer(cls, dbElem):
     canPing = subprocess.call(['ping', '-c', '1', dbElem.getDbHost()],
                               shell=False, bufsize=-1,
                               stdout=subprocess.PIPE,
@@ -315,7 +300,7 @@ def pingKtServer(dbElem):
         raise RuntimeError("Unable to ping ktserver host %s from %s" % (
             dbElem.getDbHost(), getHostName()))
 
-    return cactus_call(check_result=True,
+    return cactus_call(cls, check_result=True,
                        parameters=['ktremotemgr', 'report',
                                    '-port', str(dbElem.getDbPort()),
                                    '-host', dbElem.getDbHost()]) == 0
@@ -332,8 +317,8 @@ def pingKtServer(dbElem):
 ###############################################################################
 # Get a report on a running server
 ###############################################################################
-def getKtServerReport(dbElem):
-    assert pingKtServer(dbElem) is True
+def getKtServerReport(cls, dbElem):
+    assert pingKtServer(cls, dbElem) is True
     process = subprocess.Popen(['ktremotemgr', 'report',
                                 '-port', str(dbElem.getDbPort()),
                                 '-host', dbElem.getDbHost()],
@@ -407,8 +392,9 @@ def ktServerAlreadyRunning(dbElem):
 # Ktserver can sometimes catch these errors, but often doesn't.  Once you
 # have two servers on the same port running all bets are off.
 ###############################################################################
-def __isKtServerOnTakenPort(dbElem, killSwitchPath, pretest = False):
-    if __isKtServerReorganizing(dbElem) or __isKtServerRunning(dbElem,
+def __isKtServerOnTakenPort(cls, dbElem, killSwitchPath, pretest = False):
+    return pingKtServer(cls, dbElem)
+    if __isKtServerReorganizing(dbElem) or __isKtServerRunning(cls, dbElem,
                                                                killSwitchPath):
         logPath = getLogPath(dbElem)
         pidList = __scrapePids([logPath])

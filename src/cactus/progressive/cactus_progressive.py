@@ -35,6 +35,7 @@ from cactus.shared.common import makeURL
 from cactus.shared.common import catFiles
 from cactus.shared.common import cactus_call
 from cactus.shared.common import RoundedJob
+from cactus.shared.common import nameValue
 
 from toil.job import Job
 from toil.common import Toil
@@ -279,7 +280,8 @@ class RunCactusPreprocessorThenProgressiveDown2(RoundedJob):
 
 def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC=None, cacheW0=None, chunk=None, deflate=None, inMemory=False):
 
-    HALPath = "tmp_alignment.hal"
+    HALPath = job.fileStore.getLocalTempFile()
+    os.remove(HALPath)
 
     # traverse tree to make sure we are going breadth-first
     tree = project.mcTree
@@ -305,28 +307,26 @@ def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC
             subHALPath = job.fileStore.readGlobalFile(experiment.getHalID())
             halFastaPath = job.fileStore.readGlobalFile(experiment.getHalFastaID())
 
-
-            opts = "\'{0}\' \'{1}\' \'{2}\' \'{3}\'".format(os.path.basename(subHALPath), os.path.basename(halFastaPath), expTreeString, os.path.basename(HALPath))
-            
+            opts = []
             if len(outgroups) > 0:
-                opts += " --outgroups {0}".format(",".join(outgroups))
+                opts += ["--outgroups", ",".join(outgroups)]
             if cacheBytes is not None:
-                opts += " --cacheBytes {0}".format(cacheBytes)
+                opts += ["--cacheBytes", cacheBytes]
             if cacheMDC is not None:
-                opts += " --cacheMDC {0}".format(cacheMDC)
+                opts += ["--cacheMDC", cacheMDC]
             if cacheRDC is not None:
-                opts += " --cacheRDC {0}".format(cacheRDC)
+                opts += ["--cacheRDC", cacheRDC]
             if cacheW0 is not None:
-                opts += " --cacheW0 {0}".format(cacheW0)
+                opts += ["--cacheW0", cacheW0]
             if chunk is not None:
-                opts += " --chunk {0}".format(chunk)
+                opts += ["--chunk", chunk]
             if deflate is not None:
-                opts += " --deflate {0}".format(deflate)
+                opts += ["--deflate", deflate]
             if inMemory is True:
-                opts += " --inMemory"
+                opts += ["--inMemory"]
 
-            cactus_call(parameters=["halAppendCactusSubtree"],
-                        option_string=opts)
+            cactus_call(job, parameters=["halAppendCactusSubtree", subHALPath, halFastaPath, expTreeString, HALPath] + opts)
+
 
     return job.fileStore.writeGlobalFile(HALPath)
 

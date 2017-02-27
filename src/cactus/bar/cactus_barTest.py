@@ -7,6 +7,7 @@ import unittest
 import os
 import sys
 import random
+import shutil
 
 from sonLib.bioio import TestStatus
 from sonLib.bioio import getTempDirectory
@@ -25,6 +26,8 @@ from cactus.shared.test import silentOnSuccess
 from cactus.shared.common import runToilStatusAndFailIfNotComplete
 from cactus.shared.common import cactus_call
 
+from toil.job import Job
+
 """Tests cactus_bar. Requires the installation of cactusTools and mafTools.
 """
 
@@ -33,7 +36,12 @@ class TestCase(unittest.TestCase):
     def setUp(self):
         self.testNo = TestStatus.getTestSetup(3, 10, 0, 0)
         self.batchSystem = "parasol"
+        self.tempDir = getTempDirectory(os.getcwd())
         unittest.TestCase.setUp(self)
+        
+    def tearDown(self):
+        unittest.TestCase.tearDown(self)
+        shutil.rmtree(self.tempDir)
 
     @unittest.skip("")
     def testCactusWorkflow_Blanchette(self): 
@@ -135,7 +143,11 @@ class TestCase(unittest.TestCase):
     def testPosetAlignerAPI(self):
         """Run all the cactus base aligner CuTests, fail if any of them fail.
         """
-        cactus_call(parameters=["cactus_barTests", getLogLevelString()])
+        options = Job.Runner.getDefaultOptions(os.path.join(self.tempDir, "tmpToil"))
+        Job.Runner.startToil(Job.wrapJobFn(_testPosetAlignerAPIFn), options)
+        
+def _testPosetAlignerAPIFn(job):
+    cactus_call(job, parameters=["cactus_barTests", getLogLevelString()])        
 
 if __name__ == '__main__':
     unittest.main()

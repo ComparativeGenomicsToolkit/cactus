@@ -6,11 +6,13 @@
 import unittest
 import sys
 import os
+import shutil
 import xml.etree.ElementTree as ET
 
 from sonLib.bioio import TestStatus
 from sonLib.bioio import system
 from sonLib.bioio import getLogLevelString
+from sonLib.bioio import getTempDirectory
 
 from cactus.shared.test import getCactusInputs_random
 from cactus.shared.test import getCactusInputs_blanchette
@@ -22,7 +24,17 @@ from sonLib.bioio import getTempFile
 
 from cactus.shared.common import cactus_call
 
+from toil.job import Job
+
 class TestCase(unittest.TestCase):
+    def setUp(self):
+        unittest.TestCase.setUp(self)
+        self.tempDir = getTempDirectory(os.getcwd())
+
+    def tearDown(self):
+        unittest.TestCase.tearDown(self)
+        shutil.rmtree(self.tempDir)
+        
     @silentOnSuccess
     @unittest.skip("")
     def testCactus_Random_Greedy(self):
@@ -48,8 +60,13 @@ class TestCase(unittest.TestCase):
     def testCactus_Blanchette_Blossum(self):
         testCactus_Blanchette(self, "blossom5")
 
+    @silentOnSuccess
     def testCuTest(self):
-        cactus_call(parameters=["referenceTests", getLogLevelString()])
+        options = Job.Runner.getDefaultOptions(os.path.join(self.tempDir, "tmpToil"))
+        Job.Runner.startToil(Job.wrapJobFn(_testCuTestFn), options)
+
+def _testCuTestFn(job):
+    cactus_call(job, parameters=["referenceTests", getLogLevelString()])
 
 def testCactus_Blanchette(self, matchingAlgorithm):
     configFile = getConfigFile(matchingAlgorithm)
