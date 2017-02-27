@@ -470,40 +470,39 @@ def main():
         os.makedirs(options.cactusDir)
 
     with Toil(options) as toil:
-        project.readXML(pjPath)
-        #import the sequences
-        seqIDs = []
-        for seq in project.getInputSequencePaths():
-            if os.path.isdir(seq):
-                tmpSeq = getTempFile()
-                catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
-                seq = tmpSeq
-            seq = makeURL(seq)
-            seqIDs.append(toil.importFile(seq))
-        project.setInputSequenceIDs(seqIDs)
-
-        
-        #import cactus config
-        if options.configFile:
-            cactusConfigID = toil.importFile(makeURL(options.configFile))
-        else:
-            cactusConfigID = toil.importFile(makeURL(project.getConfigPath()))
-        logger.info("Setting config id to: %s" % cactusConfigID)
-        project.setConfigID(cactusConfigID)
-
-        project.syncToFileStore(toil)
-        configNode = ET.parse(project.getConfigPath()).getroot()
-        configWrapper = ConfigWrapper(configNode)
-        configWrapper.substituteAllPredefinedConstantsWithLiterals()
-
-
-        project.writeXML(pjPath)
-
         #Run the workflow
         if options.restart:
             halID = toil.restart()
 
         else:
+            project.readXML(pjPath)
+            #import the sequences
+            seqIDs = []
+            for seq in project.getInputSequencePaths():
+                if os.path.isdir(seq):
+                    tmpSeq = getTempFile()
+                    catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
+                    seq = tmpSeq
+                seq = makeURL(seq)
+                seqIDs.append(toil.importFile(seq))
+            project.setInputSequenceIDs(seqIDs)
+
+
+            #import cactus config
+            if options.configFile:
+                cactusConfigID = toil.importFile(makeURL(options.configFile))
+            else:
+                cactusConfigID = toil.importFile(makeURL(project.getConfigPath()))
+            logger.info("Setting config id to: %s" % cactusConfigID)
+            project.setConfigID(cactusConfigID)
+
+            project.syncToFileStore(toil)
+            configNode = ET.parse(project.getConfigPath()).getroot()
+            configWrapper = ConfigWrapper(configNode)
+            configWrapper.substituteAllPredefinedConstantsWithLiterals()
+
+
+            project.writeXML(pjPath)
             halID = toil.start(RunCactusPreprocessorThenProgressiveDown(options, project, memory=configWrapper.getDefaultMemory()))
 
         toil.exportFile(halID, makeURL(options.outputHal))
