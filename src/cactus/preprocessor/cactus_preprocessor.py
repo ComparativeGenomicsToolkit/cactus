@@ -31,6 +31,7 @@ from cactus.shared.common import nameValue
 from cactus.shared.common import runGetChunks
 from cactus.shared.common import makeURL
 from cactus.shared.common import RunAsFollowOn
+from cactus.shared.common import readGlobalFileWithoutCache
 from cactus.shared.configWrapper import ConfigWrapper
 
 from toil.lib.bioio import setLoggingFromOptions
@@ -110,7 +111,7 @@ class MergeChunks2(RoundedJob):
         self.chunkIDList = chunkIDList
 
     def run(self, fileStore):
-        chunkList = [fileStore.readGlobalFile(fileID) for fileID in self.chunkIDList]
+        chunkList = [readGlobalFileWithoutCache(fileStore, fileID) for fileID in self.chunkIDList]
 
         #Docker expects paths relative to the work dir
         chunkList = [os.path.basename(chunk) for chunk in chunkList]

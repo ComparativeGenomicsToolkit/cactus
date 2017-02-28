@@ -22,6 +22,7 @@ from toil.common import Toil
 from cactus.shared.common import makeURL
 from cactus.shared.common import cactus_call
 from cactus.shared.common import RoundedJob
+from cactus.shared.common import readGlobalFileWithoutCache
 
 class RepeatMaskOptions:
     def __init__(self, 
@@ -86,7 +87,7 @@ class CollateAlignments(RoundedJob):
         RoundedJob.__init__(self, disk=disk, preemptable=True)
         self.alignmentIDs = alignmentIDs
     def run(self, fileStore):
-        alignments = [fileStore.readGlobalFile(alignmentID) for alignmentID in self.alignmentIDs]
+        alignments = [readGlobalFileWithoutCache(fileStore, alignmentID) for alignmentID in self.alignmentIDs]
 
         #Sort the alignments by the start position of the alignment in the chunk
         #being repeat-masked. These will be out of order due to the parallelization

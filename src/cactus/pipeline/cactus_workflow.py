@@ -65,6 +65,7 @@ from cactus.shared.common import findRequiredNode
 from cactus.shared.common import runConvertAlignmentsToInternalNames
 from cactus.shared.common import runStripUniqueIDs
 from cactus.shared.common import RoundedJob
+from cactus.shared.common import readGlobalFileWithoutCache
 
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.blast.cactus_blast import BlastIngroupsAndOutgroups
@@ -782,7 +783,7 @@ class CactusBarWrapperWithPrecomputedEndAlignments(CactusRecursionJob):
     """
     def run(self, fileStore):
         if self.precomputedAlignmentIDs:
-            precomputedAlignments = [fileStore.readGlobalFile(fileID) for fileID in self.precomputedAlignmentIDs]
+            precomputedAlignments = [readGlobalFileWithoutCache(fileStore, fileID) for fileID in self.precomputedAlignmentIDs]
             self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
             messages = runBarForJob(self, precomputedAlignments=" ".join(precomputedAlignments))
         else:

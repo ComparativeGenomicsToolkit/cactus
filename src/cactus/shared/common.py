@@ -947,7 +947,7 @@ class RoundedJob(Job):
         """
         Round the amount up to the next self.roundingAmount.
 
-        >>> j = CactusJob()
+        >>> j = RoundedJob()
         >>> j.roundingAmount = 100000000
         >>> j.roundUp(1000)
         10000000
@@ -959,3 +959,13 @@ class RoundedJob(Job):
         if bytesRequirement % self.roundingAmount == 0:
             return bytesRequirement
         return (bytesRequirement // self.roundingAmount + 1) * self.roundingAmount
+
+def readGlobalFileWithoutCache(fileStore, jobStoreID):
+    """Reads a jobStoreID into a file and returns it, without touching
+    the cache.
+
+    Works around toil issue #1532.
+    """
+    f = fileStore.getLocalTempFile()
+    fileStore.jobStore.readFile(jobStoreID, f)
+    return f

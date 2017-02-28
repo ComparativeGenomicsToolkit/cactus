@@ -24,6 +24,7 @@ from cactus.shared.common import cactus_call
 from cactus.shared.common import runLastz, runSelfLastz
 from cactus.shared.common import runCactusRealign, runCactusSelfRealign
 from cactus.shared.common import runGetChunks
+from cactus.shared.common import readGlobalFileWithoutCache
 
 class BlastOptions:
     def __init__(self, chunkSize=10000000, overlapSize=10000, 
@@ -499,7 +500,7 @@ class CollateBlasts2(RoundedJob):
     
     def run(self, fileStore):
         logger.info("Results IDs: %s" % self.resultsFileIDs)
-        resultsFiles = [fileStore.readGlobalFile(fileID) for fileID in self.resultsFileIDs]
+        resultsFiles = [readGlobalFileWithoutCache(fileStore, fileID) for fileID in self.resultsFileIDs]
         collatedResultsFile = fileStore.getLocalTempFile()
         catFiles(resultsFiles, collatedResultsFile)
         logger.info("Collated the alignments to the file: %s",  collatedResultsFile)
