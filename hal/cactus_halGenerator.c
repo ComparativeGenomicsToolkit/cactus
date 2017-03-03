@@ -160,7 +160,7 @@ int main(int argc, char *argv[]) {
     
     FILE *fileHandle = NULL;
     if(outputFile != NULL) {
-        fileHandle = fopen(outputFile, "w");
+        fileHandle = st_fopen(outputFile, "w");
     }
     makeHalFormat(flowers, sequenceDatabase, referenceEventName, fileHandle);
     if(fileHandle != NULL) {

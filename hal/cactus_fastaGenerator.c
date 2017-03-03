@@ -143,7 +143,7 @@ int main(int argc, char *argv[]) {
     if(outputFile == NULL) {
         st_errAbort("No output file specified\n");
     }
-    FILE *fileHandle = fopen(outputFile, "w");
+    FILE *fileHandle = st_fopen(outputFile, "w");
     printFastaSequences(flower, fileHandle, referenceEventName);
     if(fileHandle != NULL) {
         fclose(fileHandle);

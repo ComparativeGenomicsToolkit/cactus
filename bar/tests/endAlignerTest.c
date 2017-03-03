@@ -126,11 +126,11 @@ static void testReadAndWriteEndAlignments(CuTest *testCase) {
         End *end = ends[endIndex];
         stSortedSet *endAlignment = makeEndAlignment(stateMachine, end, 5, maxLength, end_getInstanceNumber(end) > 50, 0.5, pairwiseParameters);
         char *temporaryEndAlignmentFile = "temporaryEndAlignmentFile.end";
-        FILE *fileHandle = fopen(temporaryEndAlignmentFile, "w");
+        FILE *fileHandle = st_fopen(temporaryEndAlignmentFile, "w");
         writeEndAlignmentToDisk(end, endAlignment, fileHandle);
         writeEndAlignmentToDisk(end, endAlignment, fileHandle); //Write twice to show we can serialise.
         fclose(fileHandle);
-        fileHandle = fopen(temporaryEndAlignmentFile, "r");
+        fileHandle = st_fopen(temporaryEndAlignmentFile, "r");
         End *end2;
         stSortedSet *endAlignment2 = loadEndAlignmentFromDisk(flower, fileHandle, &end2);
         CuAssertPtrEquals(testCase, end, end2);

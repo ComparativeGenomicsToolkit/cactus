@@ -314,7 +314,7 @@ int main(int argc, char *argv[]) {
          */
         stList *names = flowerWriter_parseNames(stdin);
         Flower *flower = cactusDisk_getFlower(cactusDisk, *((Name *)stList_get(names, 0)));
-        FILE *fileHandle = fopen(endAlignmentsToPrecomputeOutputFile, "w");
+        FILE *fileHandle = st_fopen(endAlignmentsToPrecomputeOutputFile, "w");
         if (fileHandle == NULL) {
             st_errnoAbort("Opening end alignment file %s failed", endAlignmentsToPrecomputeOutputFile);
         }
@@ -340,7 +340,7 @@ int main(int argc, char *argv[]) {
         size_t numBeds = 0;
         if (ingroupCoverageFilePath != NULL) {
             // Pre-load the mmap for the coverage file.
-            FILE *coverageFile = fopen(ingroupCoverageFilePath, "rb");
+            FILE *coverageFile = st_fopen(ingroupCoverageFilePath, "rb");
             if (coverageFile == NULL) {
                 st_errnoAbort("Opening coverage file %s failed",
                               ingroupCoverageFilePath);

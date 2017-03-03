@@ -190,8 +190,8 @@ int main(int argc, char *argv[])
             st_errAbort("Sort failed on bed file %s", argv[optind + 1]);
         }
         // Convert the newly sorted file to a binary format
-        FILE *tempFile = fopen(tempPath, "r");
-        outputFile = fopen(argv[optind + 1], "wb");
+        FILE *tempFile = st_fopen(tempPath, "r");
+        outputFile = st_fopen(argv[optind + 1], "wb");
         while((line = stFile_getLineFromFile(tempFile)) != NULL) {
             Name seqName;
             int64_t startPos, endPos;

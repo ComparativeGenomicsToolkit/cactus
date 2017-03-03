@@ -24,7 +24,7 @@ int main(int argc, char *argv[]) {
     assert(i == 1);
     setupToChunkSequences(chunkSize, chunkOverlapSize, argv[4]);
     for (int64_t i = 5; i < argc; i++) {
-        FILE *fileHandle2 = fopen(argv[i], "r");
+        FILE *fileHandle2 = st_fopen(argv[i], "r");
         fastaReadToFunction(fileHandle2, processSequenceToChunk);
         fclose(fileHandle2);
     }

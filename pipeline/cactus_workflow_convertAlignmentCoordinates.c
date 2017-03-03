@@ -90,8 +90,8 @@ int main(int argc, char *argv[]) {
     stHash *sequenceHeaderToCapHash = makeSequenceHeaderToCapHash(cactusDisk);
     st_logDebug("Set up the flower disk and built hash\n");
 
-    FILE *inputCigarFileHandle = fopen(argv[4], "r");
-    FILE *outputCigarFileHandle = fopen(argv[5], "w");
+    FILE *inputCigarFileHandle = st_fopen(argv[4], "r");
+    FILE *outputCigarFileHandle = st_fopen(argv[5], "w");
     st_logDebug("Opened files for writing\n");
 
     struct PairwiseAlignment *pairwiseAlignment;

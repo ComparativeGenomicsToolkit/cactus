@@ -78,7 +78,7 @@ static void updateChunkRemaining(int64_t seqLength) {
 static int64_t processSubsequenceChunk(char *fastaHeader, int64_t start, char *sequence, int64_t seqLength, int64_t lengthOfChunkRemaining) {
     if (chunkFileHandle == NULL) {
         tempChunkFile = stString_print("%s/%" PRIi64 "", chunksDir, chunkNo++);
-        chunkFileHandle = fopen(tempChunkFile, "w");
+        chunkFileHandle = st_fopen(tempChunkFile, "w");
     }
 
     int64_t i = 0;
@@ -184,7 +184,7 @@ static FILE *sequenceFileHandle;
 static const char *tempSequenceFile;
 static void writeSequenceInFile(const char *fastaHeader, const char *sequence, int64_t length) {
     if (sequenceFileHandle == NULL) {
-        sequenceFileHandle = fopen(tempSequenceFile, "w");
+        sequenceFileHandle = st_fopen(tempSequenceFile, "w");
     }
     fastaWrite((char *)sequence, (char *)fastaHeader, sequenceFileHandle);
 }

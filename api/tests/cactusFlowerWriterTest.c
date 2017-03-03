@@ -16,7 +16,7 @@ static char getInt(FILE *fileHandle) {
 
 static void testFlowerWriter(CuTest *testCase) {
     char *tempFile = "./flowerWriterTest.txt";
-    FILE *fileHandle = fopen(tempFile, "w");
+    FILE *fileHandle = st_fopen(tempFile, "w");
     FlowerWriter *flowerWriter = flowerWriter_construct(fileHandle, 10, 5);
     flowerWriter_add(flowerWriter, 1, 5);
     flowerWriter_add(flowerWriter, 3, 5);
@@ -37,7 +37,7 @@ static void testFlowerWriter(CuTest *testCase) {
     flowerWriter_destruct(flowerWriter);
     fclose(fileHandle);
     st_system("cat %s\n", tempFile);
-    fileHandle = fopen(tempFile, "r");
+    fileHandle = st_fopen(tempFile, "r");
 
     CuAssertIntEquals(testCase, 1, getInt(fileHandle));
     stList *flowers0 = flowerWriter_parseNames(fileHandle);

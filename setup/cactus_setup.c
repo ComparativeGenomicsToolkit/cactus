@@ -165,7 +165,7 @@ static void assignEventsAndSequences(Event *parentEvent, stTree *tree,
                 char *absChildFileName = stFile_pathJoin(fileName, stList_get(filesInDir, i));
                 assert(stFile_exists(absChildFileName));
                 setCompleteStatus(absChildFileName); //decide if the sequences in the file should be free or attached.
-                FILE *fileHandle = fopen(absChildFileName, "r");
+                FILE *fileHandle = st_fopen(absChildFileName, "r");
                 fastaReadToFunction(fileHandle, processSequence);
                 fclose(fileHandle);
                 free(absChildFileName);
@@ -174,7 +174,7 @@ static void assignEventsAndSequences(Event *parentEvent, stTree *tree,
         } else {
             st_logInfo("Processing file: %s\n", fileName);
             setCompleteStatus(fileName); //decide if the sequences in the file should be free or attached.
-            FILE *fileHandle = fopen(fileName, "r");
+            FILE *fileHandle = st_fopen(fileName, "r");
             fastaReadToFunction(fileHandle, processSequence);
             fclose(fileHandle);
         }

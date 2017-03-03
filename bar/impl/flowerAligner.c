@@ -566,7 +566,7 @@ static void loadEndAlignments(Flower *flower, stHash *endAlignments, stList *lis
      */
     for (int64_t i = 0; i < stList_length(listOfEndAlignments); i++) {
         End *end;
-        FILE *fileHandle = fopen(stList_get(listOfEndAlignments, i), "r");
+        FILE *fileHandle = st_fopen(stList_get(listOfEndAlignments, i), "r");
         stSortedSet *alignment;
         while((alignment = loadEndAlignmentFromDisk(flower, fileHandle, &end)) != NULL) {
             assert(stHash_search(endAlignments, end) == NULL);

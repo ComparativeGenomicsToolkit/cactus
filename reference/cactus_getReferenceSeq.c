@@ -197,7 +197,7 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE); 
     }
       
-    FILE *fileHandle = fopen(outputFile, "w");
+    FILE *fileHandle = st_fopen(outputFile, "w");
     if (numSequences > 0) {
       getReferenceSequences(fileHandle, flower, referenceEventString);
     }

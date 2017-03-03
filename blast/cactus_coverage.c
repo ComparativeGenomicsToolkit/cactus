@@ -278,7 +278,7 @@ int main(int argc, char *argv[])
     fclose(fastaHandle);
 
     // Fill coverage arrays with the alignments
-    FILE *alignmentsHandle = fopen(argv[optind + 1], "r");
+    FILE *alignmentsHandle = st_fopen(argv[optind + 1], "r");
     for(;;) {
         int64_t *lengthPtr;
         struct PairwiseAlignment *pA = cigarRead(alignmentsHandle);

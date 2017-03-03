@@ -44,7 +44,7 @@ int main(int argc, char *argv[]) {
     if(line != NULL) {
         stList *files = stString_split(line);
         for(int64_t i=0; i<stList_length(files); i++) {
-            FILE* chunkFile = fopen(stList_get(files, i), "r");
+            FILE* chunkFile = st_fopen(stList_get(files, i), "r");
             fastaReadToFunction(chunkFile, readFastaCallback);
             fclose(chunkFile);
         }

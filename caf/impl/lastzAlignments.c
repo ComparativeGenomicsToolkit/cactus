@@ -91,7 +91,7 @@ void stCaf_sortCigarsFileByScoreInDescendingOrder(char *cigarsFile, char *sorted
     }
 #ifndef NDEBUG
     double score = INT64_MAX;
-    FILE *fileHandle = fopen(sortedFile, "r");
+    FILE *fileHandle = st_fopen(sortedFile, "r");
     struct PairwiseAlignment *pA;
     while ((pA = cigarRead(fileHandle)) != NULL) {
         assert(pA->score <= score);

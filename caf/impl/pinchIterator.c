@@ -131,7 +131,7 @@ static void pairwiseAlignmentToPinch_destructForFile(PairwiseAlignmentToPinch *p
 
 stPinchIterator *stPinchIterator_constructFromFile(const char *alignmentFile) {
     stPinchIterator *pinchIterator = st_calloc(1, sizeof(stPinchIterator));
-    pinchIterator->alignmentArg = pairwiseAlignmentToPinch_construct(fopen(alignmentFile, "r"),
+    pinchIterator->alignmentArg = pairwiseAlignmentToPinch_construct(st_fopen(alignmentFile, "r"),
             (struct PairwiseAlignment *(*)(void *)) cigarRead, 1);
     pinchIterator->getNextAlignment = (stPinch *(*)(void *)) pairwiseAlignmentToPinch_getNext;
     pinchIterator->destructAlignmentArg = (void(*)(void *)) pairwiseAlignmentToPinch_destructForFile;

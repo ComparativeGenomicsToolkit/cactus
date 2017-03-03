@@ -67,8 +67,7 @@ Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
                 fclose(cactusDisk->sequencesReadFileHandle);
                 cactusDisk->sequencesReadFileHandle = NULL;
             }
-            cactusDisk->sequencesWriteFileHandle = fopen(cactusDisk->absSequencesFileName, "a");
-            assert(cactusDisk->sequencesWriteFileHandle != NULL);
+            cactusDisk->sequencesWriteFileHandle = st_fopen(cactusDisk->absSequencesFileName, "a");
         }
         else {
             //The read file handle should not be open at the same time.
@@ -103,7 +102,7 @@ Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
         fsync(fileno(cactusDisk->sequencesWriteFileHandle));
         fclose(cactusDisk->sequencesWriteFileHandle);
         cactusDisk->sequencesWriteFileHandle = NULL;
-        cactusDisk->sequencesReadFileHandle = fopen(cactusDisk->absSequencesFileName, "r");
+        cactusDisk->sequencesReadFileHandle = st_fopen(cactusDisk->absSequencesFileName, "r");
         char *string2 = getStringFromDisk(cactusDisk->sequencesReadFileHandle, name, 0, length);
         for (int64_t i = 0; i < length; i++) {
             assert(string[i] == string2[i]);
@@ -221,8 +220,7 @@ static void cacheSubstringsFromDB(CactusDisk *cactusDisk, stList *substrings) {
                 fclose(cactusDisk->sequencesWriteFileHandle);
                 cactusDisk->sequencesWriteFileHandle = NULL;
             }
-            cactusDisk->sequencesReadFileHandle = fopen(cactusDisk->absSequencesFileName, "r");
-            assert(cactusDisk->sequencesReadFileHandle != NULL);
+            cactusDisk->sequencesReadFileHandle = st_fopen(cactusDisk->absSequencesFileName, "r");
         }
         else {
             assert(cactusDisk->sequencesWriteFileHandle == NULL);
@@ -653,9 +651,7 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf, bool crea
             cactusDisk->storeSequencesInAFile = 1;
             cactusDisk->sequencesFileName = stString_copy(sequencesFileName);
             cactusDisk->absSequencesFileName = stString_copy(sequencesFileName);
-            //Make sure the file exists
-            cactusDisk->sequencesReadFileHandle = fopen(cactusDisk->absSequencesFileName, "w");
-            assert(cactusDisk->sequencesReadFileHandle != NULL);
+            cactusDisk->sequencesReadFileHandle = st_fopen(cactusDisk->absSequencesFileName, "w");
             fclose(cactusDisk->sequencesReadFileHandle); //Flush it first time.
             cactusDisk->sequencesReadFileHandle = NULL;
             cactusDisk->sequencesWriteFileHandle = NULL;

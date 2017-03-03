@@ -90,7 +90,7 @@ static void testPinchIteratorFromFile(CuTest *testCase) {
         st_logInfo("Doing a random pinch iterator from file test %" PRIi64 " with %" PRIi64 " alignments\n", test, stList_length(pairwiseAlignments));
         //Put alignments in a file
         char *tempFile = "tempFileForPinchIteratorTest.cig";
-        FILE *fileHandle = fopen(tempFile, "w");
+        FILE *fileHandle = st_fopen(tempFile, "w");
         for (int64_t i = 0; i < stList_length(pairwiseAlignments); i++) {
             cigarWrite(fileHandle, stList_get(pairwiseAlignments, i), 0);
         }

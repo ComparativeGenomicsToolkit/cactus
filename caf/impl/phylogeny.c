@@ -1957,7 +1957,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
 
     FILE *debugFile = NULL;
     if (debugFilePath != NULL) {
-        debugFile = fopen(debugFilePath, "w");
+        debugFile = st_fopen(debugFilePath, "w");
     }
     stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
     stPinchBlock *block;
@@ -2003,7 +2003,7 @@ void stCaf_buildTreesToRemoveAncientHomologies(stPinchThreadSet *threadSet,
         Event *event;
         while ((event = eventTree_getNext(eventIt)) != NULL) {
             if (!event_isOutgroup(event) && event_getChildNumber(event) == 0) {
-                FILE *file = fopen(stString_print("%s-%s-badChains.bed", debugFilePath, event_getHeader(event)), "w");
+                FILE *file = st_fopen(stString_print("%s-%s-badChains.bed", debugFilePath, event_getHeader(event)), "w");
                 stCaf_printBadChainTrack(event, file, badChains, flower);
                 fclose(file);
             }

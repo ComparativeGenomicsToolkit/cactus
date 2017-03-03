@@ -41,8 +41,8 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     assert(argc == optind + 3);
-    FILE *fileHandleIn = fopen(argv[optind], "r");
-    FILE *fileHandleOut = fopen(argv[optind + 1], "w");
+    FILE *fileHandleIn = st_fopen(argv[optind], "r");
+    FILE *fileHandleOut = st_fopen(argv[optind + 1], "w");
     int64_t roundsOfConversion;
     int64_t i = sscanf(argv[optind + 2], "%" PRIi64 "", &roundsOfConversion);
     (void)i;
