@@ -135,6 +135,7 @@ static int64_t getCutOff(stList *inducedAlignment1, stList *inducedAlignment2, i
     }
     int64_t j = 0;
     int64_t pPos1 = INT64_MIN, pPos2 = INT64_MIN;
+    (void) pPos1; (void) pPos2; // These are only used in asserts
     for (int64_t i = 0; i < stList_length(inducedAlignment1); i++) {
         AlignedPair *alignedPair1 = stList_get(inducedAlignment1, i);
         assert(alignedPair1->strand);
