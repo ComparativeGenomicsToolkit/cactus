@@ -175,20 +175,6 @@ class ProgressiveUp(RoundedJob):
         experiment.writeXML(experimentFile)
         self.options.experimentFileID = fileStore.writeGlobalFile(experimentFile)
 
-        # need at least 3 processes for every event when using ktserver:
-        # 1 proc to run jobs, 1 proc to run server, 1 proc to run 2ndary server
-        if experiment.getDbType() == "kyoto_tycoon":            
-            maxParallel = min(len(self.project.expMap),
-                             configWrapper.getMaxParallelSubtrees()) 
-            if self.options.batchSystem == "singleMachine":
-                pass
-                #if int(self.options.maxThreads) < maxParallel * 3:
-                    #raise RuntimeError("At least %d threads are required (only %d were specified) to handle up to %d events using kyoto tycoon. Either increase the number of threads using the --maxThreads option or decrease the number of parallel jobs (currently %d) by adjusting max_parallel_subtrees in the config file" % (maxParallel * 3, self.options.maxThreads, maxParallel, configWrapper.getMaxParallelSubtrees()))
-            else:
-                pass
-                #if int(self.options.maxCores) < maxParallel * 3:
-                    #raise RuntimeError("At least %d concurrent cpus are required to handle up to %d events using kyoto tycoon. Either increase the number of cpus using the --maxCpus option or decrease the number of parallel jobs (currently %d) by adjusting max_parallel_subtrees in the config file" % (maxParallel * 3, maxParallel, configWrapper.getMaxParallelSubtrees()))
-                    
         # take union of command line options and config options for hal and reference
         if self.options.buildReference == False:
             refNode = findRequiredNode(configXml, "reference")
