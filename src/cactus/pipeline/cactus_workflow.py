@@ -723,6 +723,8 @@ def runBarForJob(self, calculateWhichEndsToComputeSeparately=None, endAlignments
 class CactusBarWrapper(CactusRecursionJob):
     """Runs the BAR algorithm implementation.
     """
+    memoryPoly = [1.85289710e-01, 6.98581694e+08]
+
     def run(self, fileStore):
         self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
         messages = runBarForJob(self)
@@ -732,6 +734,8 @@ class CactusBarWrapper(CactusRecursionJob):
 class CactusBarWrapperLarge(CactusRecursionJob):
     """Breaks up the bar into a series of smaller bars, then runs them.
     """
+    memoryPoly = [7.82189883e+09]
+
     def run(self, fileStore):
         logger.info("Starting the cactus bar preprocessor job to breakup the bar alignment")
         precomputedAlignmentFiles = []
@@ -780,6 +784,7 @@ class CactusBarWrapperLarge(CactusRecursionJob):
 class CactusBarEndAlignerWrapper(CactusRecursionJob):
     """Computes an end alignment.
     """
+    memoryPoly = [3.82834548e-01, 1.28869656e+09]
     def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge, endsToAlign, cactusSequencesID, cactusWorkflowArguments):
         self.cactusWorkflowArguments = cactusWorkflowArguments
         CactusRecursionJob.__init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge, cactusSequencesID=cactusSequencesID, cactusWorkflowArguments=self.cactusWorkflowArguments, preemptable=True)
@@ -796,10 +801,12 @@ class CactusBarEndAlignerWrapper(CactusRecursionJob):
         for message in messages:
             fileStore.logToMaster(message)
         return fileStore.writeGlobalFile(alignmentFile, cleanup=False)
-        
+
 class CactusBarWrapperWithPrecomputedEndAlignments(CactusRecursionJob):
     """Runs the BAR algorithm implementation with some precomputed end alignments.
     """
+    memoryPoly = [1.57830273e+00, 4.63926331e+08]
+
     def run(self, fileStore):
         if self.precomputedAlignmentIDs:
             precomputedAlignments = [readGlobalFileWithoutCache(fileStore, fileID) for fileID in self.precomputedAlignmentIDs]
