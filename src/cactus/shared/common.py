@@ -104,9 +104,31 @@ def findRequiredNode(configNode, nodeName, index=0):
 #############################################
 #############################################  
 
-def readFlowerNames(flowerStrings): 
-    return [ (bool(int(line[0])), line[1:]) for line in flowerStrings.split("\n") if line != '' ]
-    
+def readFlowerNames(flowerStrings):
+    ret = []
+    for line in flowerStrings.split("\n"):
+        print line
+        if line == '':
+            continue
+        flowersAndSizes = line[1:].split()
+        numFlowers = flowersAndSizes[0]
+        flowers = []
+        sizes = []
+        currentlyAFlower = True
+        for token in flowersAndSizes[1:]:
+            if token == 'a' or token == 'b':
+                flowers += [token]
+            elif currentlyAFlower:
+                flowers += [token]
+                currentlyAFlower = False
+            else:
+                sizes += [int(token)]
+                currentlyAFlower = True
+        print len(flowers), len(sizes), numFlowers
+        assert len(sizes) == int(numFlowers)
+        ret += [(bool(int(line[0])), " ".join([numFlowers] + flowers), sizes)]
+    return ret
+
 def runCactusGetFlowers(cactusDiskDatabaseString, cactusSequencesPath, flowerNames, 
                         minSequenceSizeOfFlower=1,
                         maxSequenceSizeOfFlowerGrouping=-1, 

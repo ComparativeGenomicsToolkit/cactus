@@ -175,7 +175,9 @@ class CactusPhasesJob(CactusJob):
         newChild = job(phaseNode=extractNode(self.phaseNode), 
                        constantsNode=extractNode(self.constantsNode),
                        cactusDiskDatabaseString=self.cactusWorkflowArguments.cactusDiskDatabaseString, 
-                       flowerNames=encodeFlowerNames((self.topFlowerName,)), overlarge=True, 
+                       flowerNames=encodeFlowerNames((self.topFlowerName,)),
+                       flowerSizes=[self.cactusWorkflowArguments.totalSequenceSize],
+                       overlarge=True,
                        cactusSequencesID=self.cactusSequencesID,
                        cactusWorkflowArguments=self.cactusWorkflowArguments)
 
@@ -233,9 +235,10 @@ class CactusRecursionJob(CactusJob):
     """Base recursive job for traversals up and down the cactus tree.
     """
     maxSequenceSizeOfFlowerGroupingDefault = 1000000
-    def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge=False, precomputedAlignmentIDs=None, cactusSequencesID = None, checkpoint = False, cactusWorkflowArguments=None, preemptable=True, memPoly=None):
+    def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, flowerSizes, overlarge=False, precomputedAlignmentIDs=None, cactusSequencesID = None, checkpoint = False, cactusWorkflowArguments=None, preemptable=True, memPoly=None):
         self.cactusDiskDatabaseString = cactusDiskDatabaseString
         self.flowerNames = flowerNames
+        self.flowerSizes = flowerSizes
         self.cactusWorkflowArguments = cactusWorkflowArguments
         CactusJob.__init__(self, phaseNode=phaseNode, constantsNode=constantsNode, overlarge=overlarge, 
                            cactusSequencesID=cactusSequencesID, checkpoint=checkpoint, preemptable=preemptable)
@@ -252,7 +255,10 @@ class CactusRecursionJob(CactusJob):
             phaseNode = self.phaseNode
         return self.addFollowOn(job(phaseNode=phaseNode, constantsNode=self.constantsNode,
                                    cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
-                                    flowerNames=self.flowerNames, overlarge=self.overlarge, precomputedAlignmentIDs = self.precomputedAlignmentIDs, cactusSequencesID = self.cactusSequencesID,
+                                    flowerNames=self.flowerNames, flowerSizes=self.flowerSizes,
+                                    overlarge=self.overlarge,
+                                    precomputedAlignmentIDs=self.precomputedAlignmentIDs,
+                                    cactusSequencesID=self.cactusSequencesID,
                                     cactusWorkflowArguments=self.cactusWorkflowArguments)).rv()
         
     def makeChildJobs(self, flowersAndSizes, job, overlargeJob=None, 
@@ -266,7 +272,7 @@ class CactusRecursionJob(CactusJob):
             phaseNode = self.phaseNode
         
         logger.info("Make wrapper jobs: There are %i flowers" % len(flowersAndSizes))
-        for overlarge, flowerNames in flowersAndSizes:
+        for overlarge, flowerNames, flowerSizes in flowersAndSizes:
             if overlarge: #Make sure large flowers are on their own, in their own job
                 if runFlowerStats:
                     flowerStatsString = runCactusFlowerStats(cactusDiskDatabaseString=self.cactusDiskDatabaseString, flowerName=decodeFirstFlowerName(flowerNames))
@@ -279,21 +285,25 @@ class CactusRecursionJob(CactusJob):
                                                                self.cactusDiskDatabaseString,
                                                                phaseNode=phaseNode, 
                                                                constantsNode=self.constantsNode,
-                                                               flowerNames=flowerNames, overlarge=True,
-                                                               cactusSequencesID = self.cactusSequencesID,
-                                                               cactusWorkflowArguments=self.cactusWorkflowArguments)).rv() #This ensures overlarge flowers, 
+                                                               flowerNames=flowerNames,
+                                                               flowerSizes=flowerSizes,
+                                                               overlarge=True,
+                                                               cactusSequencesID=self.cactusSequencesID,
+                                                               cactusWorkflowArguments=self.cactusWorkflowArguments)).rv()
             else:
                 logger.info("Adding recursive flower job")
                 cactusSequencesID = self.addChild(job(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                                                       phaseNode=phaseNode, constantsNode=self.constantsNode,
-                                                      flowerNames=flowerNames, overlarge=False,
-                                                      cactusSequencesID = self.cactusSequencesID,
+                                                      flowerNames=flowerNames,
+                                                      flowerSizes=flowerSizes,
+                                                      overlarge=False,
+                                                      cactusSequencesID=self.cactusSequencesID,
                                                       cactusWorkflowArguments=self.cactusWorkflowArguments)).rv()
         if cactusSequencesID:
             return cactusSequencesID
         else:
             return self.cactusSequencesID
-        
+
     def makeRecursiveJobs(self, job=None, phaseNode=None, runFlowerStats=False):
         """Make a set of child jobs for a given set of parent flowers.
         """
@@ -330,8 +340,22 @@ class CactusRecursionJob(CactusJob):
     def makeWrapperJobs(self, job, overlargeJob=None, phaseNode=None, runFlowerStats=False):
         """Takes the list of flowers for a recursive job and splits them up to fit the given wrapper job(s).
         """
-        return self.makeChildJobs(flowersAndSizes=runCactusSplitFlowersBySecondaryGrouping(self.flowerNames), 
-                              job=job, overlargeJob=overlargeJob, phaseNode=phaseNode, runFlowerStats=runFlowerStats)
+        splitFlowerNames = runCactusSplitFlowersBySecondaryGrouping(self.flowerNames)
+        # We've split the flower names up into groups, but now we need
+        # to put the flower sizes in so that they correspond with
+        # their flower.
+        flowersAndSizes = []
+        flowersSoFar = 0
+        for overlarge, flowerNames in splitFlowerNames:
+            # Number of flowers in this grouping.
+            numFlowers = int(flowerNames.split()[0])
+            flowersAndSizes += [(overlarge, flowerNames, self.flowerSizes[flowersSoFar:flowersSoFar + numFlowers])]
+            flowersSoFar += numFlowers
+        assert(flowersSoFar == numFlowers,
+               "Didn't process all flowers while going through a secondary grouping.")
+        return self.makeChildJobs(flowersAndSizes=flowersAndSizes,
+                                  job=job, overlargeJob=overlargeJob,
+                                  phaseNode=phaseNode, runFlowerStats=runFlowerStats)
 
     def getDatabaseString(self):
         return self.cactusDiskDatabaseString

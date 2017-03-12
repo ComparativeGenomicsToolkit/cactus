@@ -45,6 +45,10 @@ static void printName(FILE *fileHandle, Name name) {
     fprintf(fileHandle, "%" PRIi64 " ", name);
 }
 
+static void printSize(FILE *fileHandle, int64_t size) {
+    fprintf(fileHandle, "%" PRIi64 " ", size);
+}
+
 static void flowerWriter_writeFlowersString(stList *flowerNamesAndSizes, FILE *fileHandle,
         int64_t maxFlowerSecondaryGroupSize) {
     fprintf(fileHandle, "%" PRIi64 " ", stList_length(flowerNamesAndSizes));
@@ -56,6 +60,7 @@ static void flowerWriter_writeFlowersString(stList *flowerNamesAndSizes, FILE *f
             fprintf(fileHandle, "b ");
         }
         printName(fileHandle, name);
+        printSize(fileHandle, flowerNameAndSize->flowerSize);
         for (int64_t i = 1; i < stList_length(flowerNamesAndSizes); i++) {
             flowerNameAndSize = stList_get(flowerNamesAndSizes, i);
             if(totalSize + flowerNameAndSize->flowerSize > maxFlowerSecondaryGroupSize) {
@@ -68,6 +73,7 @@ static void flowerWriter_writeFlowersString(stList *flowerNamesAndSizes, FILE *f
                 }
             }
             printName(fileHandle, flowerNameAndSize->flowerName - name);
+            printSize(fileHandle, flowerNameAndSize->flowerSize);
             name = flowerNameAndSize->flowerName;
             totalSize += flowerNameAndSize->flowerSize;
         }
