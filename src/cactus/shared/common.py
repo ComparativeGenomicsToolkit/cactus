@@ -829,7 +829,7 @@ def maxMemUsageOfContainer(containerName):
         try:
             with open(location) as f:
                 return int(f.read())
-        except IOError as e:
+        except IOError:
             continue
     return None
 
