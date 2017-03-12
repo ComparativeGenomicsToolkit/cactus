@@ -24,6 +24,7 @@ setup(
     zip_safe=False,
 
     install_requires=[
+        'subprocess32',
         'psutil',
         'networkx'],
     

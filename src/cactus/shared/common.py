@@ -9,8 +9,9 @@ import os
 import random
 import sys
 import shutil
-import subprocess
+import subprocess32
 import logging
+import uuid
 
 from toil.lib.bioio import logger
 from toil.lib.bioio import system
@@ -764,8 +765,8 @@ def pullCactusImage():
     dockerTag = getDockerTag()
     image = "%s/cactus:%s" % (dockerOrg, dockerTag)
     call = ["docker", "pull", image]
-    process = subprocess.Popen(call, stdout=subprocess.PIPE,
-                               stderr=sys.stderr, bufsize=-1)
+    process = subprocess32.Popen(call, stdout=subprocess32.PIPE,
+                                 stderr=sys.stderr, bufsize=-1)
     output, _ = process.communicate()
     if process.returncode != 0:
         raise RuntimeError("Command %s failed with output: %s" % (call, output))
@@ -784,6 +785,27 @@ def getDockerTag():
         return "latest"
     else:
         return cactus_commit
+
+def maxMemUsageOfContainer(containerName):
+    """Return the max RSS usage (in bytes) of a container, or None if something failed."""
+    # Try to get the internal container ID from the docker name
+    try:
+        id = popenCatch("docker inspect -f '{{.Id}}' %s" % containerName).strip()
+    except:
+        return None
+    # Try to check for the maximum memory usage ever used by that
+    # container, in a few different possible locations depending on
+    # the distribution
+    possibleLocations = ["/sys/fs/cgroup/memory/docker/%s/memory.max_usage_in_bytes",
+                         "/sys/fs/cgroup/memory/system.slice.docker-%s.scope/memory.max_usage_in_bytes"]
+    possibleLocations = [s % id for s in possibleLocations]
+    for location in possibleLocations:
+        try:
+            with open(location) as f:
+                return int(f.read())
+        except IOError as e:
+            continue
+    return None
 
 #TODO: This function is a mess
 def cactus_call(tool=None,
@@ -872,7 +894,8 @@ def cactus_call(tool=None,
     if port:
         base_docker_call += ["-p %d:%d" % (port, port)]
 
-    #base_docker_call.extend(['--name', container_name])
+    containerName = str(uuid.uuid4())
+    base_docker_call.extend(['--name', containerName])
     if rm:
         base_docker_call.append('--rm')
 
@@ -903,28 +926,44 @@ def cactus_call(tool=None,
     stdinFileHandle = None
     stdoutFileHandle = None
     if stdin_string:
-        stdinFileHandle = subprocess.PIPE
+        stdinFileHandle = subprocess32.PIPE
     elif infile:
         stdinFileHandle = open(infile, 'r')
     if outfile:
         stdoutFileHandle = open(outfile, 'w')
     if check_output:
-        stdoutFileHandle = subprocess.PIPE
+        stdoutFileHandle = subprocess32.PIPE
 
 
     _log.info("Running the command %s" % call)
     if not shell:
         call = call.split()
-    process = subprocess.Popen(call, shell=shell,
-                               stdin=stdinFileHandle, stdout=stdoutFileHandle, stderr=sys.stderr, bufsize=-1)
+    process = subprocess32.Popen(call, shell=shell,
+                                 stdin=stdinFileHandle, stdout=stdoutFileHandle,
+                                 stderr=sys.stderr, bufsize=-1)
 
     if server:
         return process
 
-    output, nothing = process.communicate(stdin_string)
+    memUsage = 0
+    first_run = True
+    while True:
+        try:
+            # Wait a bit to see if the process is done
+            output, nothing = process.communicate(stdin_string if first_run else None, timeout=1)
+        except subprocess32.TimeoutExpired:
+            # Every so often, check the memory usage of the container
+            updatedMemUsage = maxMemUsageOfContainer(containerName)
+            if updatedMemUsage is not None:
+                assert memUsage <= updatedMemUsage, "memory.max_usage_in_bytes should never decrease"
+                memUsage = updatedMemUsage
+            first_run = False
+        else:
+            break
+    _log.info("Used %s max memory" % memUsage)
     if check_result:
         return process.returncode
-    
+
     if process.returncode != 0:
         raise RuntimeError("Command %s failed with output: %s" % (call, output))
 
