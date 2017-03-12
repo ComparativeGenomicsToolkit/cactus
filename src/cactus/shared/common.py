@@ -130,7 +130,8 @@ def readFlowerNames(flowerStrings):
         ret += [(bool(int(line[0])), " ".join([numFlowers] + flowers), sizes)]
     return ret
 
-def runCactusGetFlowers(cactusDiskDatabaseString, cactusSequencesPath, flowerNames, 
+def runCactusGetFlowers(cactusDiskDatabaseString, cactusSequencesPath, flowerNames,
+                        jobName=None, inputSize=None, fileStore=None,
                         minSequenceSizeOfFlower=1,
                         maxSequenceSizeOfFlowerGrouping=-1, 
                         maxSequenceSizeOfSecondaryFlowerGrouping=-1, 
@@ -145,12 +146,16 @@ def runCactusGetFlowers(cactusDiskDatabaseString, cactusSequencesPath, flowerNam
                                             (logLevel, cactusDiskDatabaseString,
                                             cactusSequencesPath, minSequenceSizeOfFlower,
                                             maxSequenceSizeOfFlowerGrouping,
-                                            maxSequenceSizeOfSecondaryFlowerGrouping))
-                                        
+                                            maxSequenceSizeOfSecondaryFlowerGrouping),
+                                job_name=jobName,
+                                input_size=inputSize,
+                                fileStore=fileStore)
+
     l = readFlowerNames(flowerStrings)
     return l
 
 def runCactusExtendFlowers(cactusDiskDatabaseString, cactusSequencesPath, flowerNames, 
+                        jobName=None, inputSize=None, fileStore=None,
                         minSequenceSizeOfFlower=1,
                         maxSequenceSizeOfFlowerGrouping=-1, 
                         maxSequenceSizeOfSecondaryFlowerGrouping=-1, 
@@ -169,7 +174,11 @@ def runCactusExtendFlowers(cactusDiskDatabaseString, cactusSequencesPath, flower
                                             cactusSequencesPath,
                                             minSequenceSizeOfFlower,
                                             maxSequenceSizeOfFlowerGrouping,
-                                            maxSequenceSizeOfSecondaryFlowerGrouping))
+                                            maxSequenceSizeOfSecondaryFlowerGrouping),
+                                job_name=jobName,
+                                input_size=inputSize,
+                                fileStore=fileStore)
+
     l = readFlowerNames(flowerStrings)
     return l
 
@@ -446,9 +455,11 @@ def runCactusBar(cactusDiskDatabaseString, cactusSequencesPath, flowerNames, log
                          ingroupCoverageFile=None,
                          minimumSizeToRescue=None,
                          minimumCoverageToRescue=None,
-                         minimumNumberOfSpecies=None):
-    """Runs cactus base aligner.
-    """
+                         minimumNumberOfSpecies=None,
+                         jobName=None,
+                         fileStore=None,
+                         inputSize=None):
+    """Runs cactus base aligner."""
     logLevel = getLogLevelString2(logLevel)
     maximumLength = nameValue("maximumLength", maximumLength, int)
     spanningTrees = nameValue("spanningTrees", spanningTrees, int)
@@ -456,7 +467,7 @@ def runCactusBar(cactusDiskDatabaseString, cactusSequencesPath, flowerNames, log
     matchGamma = nameValue("matchGamma", matchGamma, float)
     splitMatrixBiggerThanThis=nameValue("splitMatrixBiggerThanThis", splitMatrixBiggerThanThis, int)
     anchorMatrixBiggerThanThis=nameValue("anchorMatrixBiggerThanThis", anchorMatrixBiggerThanThis, int)
-    repeatMaskMatrixBiggerThanThis=nameValue("repeatMaskMatrixBiggerThanThis", repeatMaskMatrixBiggerThanThis, int)                   
+    repeatMaskMatrixBiggerThanThis=nameValue("repeatMaskMatrixBiggerThanThis", repeatMaskMatrixBiggerThanThis, int)
     diagonalExpansion=nameValue("diagonalExpansion", diagonalExpansion, int)
     constraintDiagonalTrim = nameValue("constraintDiagonalTrim", constraintDiagonalTrim, int)
     minimumBlockDegree = nameValue("minimumDegree", minimumBlockDegree, int)
@@ -490,7 +501,8 @@ def runCactusBar(cactusDiskDatabaseString, cactusSequencesPath, flowerNames, log
                                              largeEndSize, endAlignmentsToPrecomputeOutputFile,
                                              precomputedAlignments, ingroupCoverageFile,
                                              minimumSizeToRescue, minimumCoverageToRescue,
-                                             minimumNumberOfSpecies])
+                                             minimumNumberOfSpecies],
+                                 job_name=jobName, fileStore=fileStore, input_size=inputSize)
         
     logger.info("Ran cactus_bar okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]
@@ -500,6 +512,7 @@ def runCactusSecondaryDatabase(secondaryDatabaseString, create=True):
                 secondaryDatabaseString, create])
             
 def runCactusReference(cactusDiskDatabaseString, cactusSequencesPath, flowerNames, logLevel=None,
+                       jobName=None, inputSize=None, fileStore=None,
                        matchingAlgorithm=None, 
                        referenceEventString=None, 
                        permutations=None,
@@ -512,8 +525,7 @@ def runCactusReference(cactusDiskDatabaseString, cactusSequencesPath, flowerName
                        numberOfNs=None,
                        minNumberOfSequencesToSupportAdjacency=None,
                        makeScaffolds=None):
-    """Runs cactus reference.
-    """
+    """Runs cactus reference."""
     logLevel = getLogLevelString2(logLevel)
     matchingAlgorithm = nameValue("matchingAlgorithm", matchingAlgorithm)
     referenceEventString = nameValue("referenceEventString", referenceEventString)
@@ -535,11 +547,18 @@ def runCactusReference(cactusDiskDatabaseString, cactusSequencesPath, flowerName
                             "--logLevel", logLevel,
                             matchingAlgorithm, referenceEventString, permutations, 
                             useSimulatedAnnealing, theta, phi, maxWalkForCalculatingZ, ignoreUnalignedGaps,
-                            wiggle, numberOfNs, minNumberOfSequencesToSupportAdjacency, makeScaffolds])
+                            wiggle, numberOfNs, minNumberOfSequencesToSupportAdjacency, makeScaffolds],
+                job_name=jobName,
+                input_size=inputSize,
+                fileStore=fileStore)
     logger.info("Ran cactus_reference okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]
     
-def runCactusAddReferenceCoordinates(cactusDiskDatabaseString, cactusSequencesPath, flowerNames, logLevel=None, referenceEventString=None, outgroupEventString=None, secondaryDatabaseString=None, bottomUpPhase=None):   
+def runCactusAddReferenceCoordinates(cactusDiskDatabaseString, cactusSequencesPath, flowerNames,
+                                     jobName=None, fileStore=None, inputSize=None,
+                                     logLevel=None, referenceEventString=None,
+                                     outgroupEventString=None, secondaryDatabaseString=None,
+                                     bottomUpPhase=None):
     logLevel = getLogLevelString2(logLevel)
     bottomUpPhase = nameValue("bottomUpPhase", bottomUpPhase, bool)
     referenceEventString = nameValue("referenceEventString", referenceEventString)
@@ -553,7 +572,10 @@ def runCactusAddReferenceCoordinates(cactusDiskDatabaseString, cactusSequencesPa
                             "--logLevel", logLevel,
                             referenceEventString,
                             outgroupEventString,
-                            bottomUpPhase])
+                            bottomUpPhase],
+                job_name=jobName,
+                input_size=inputSize,
+                fileStore=fileStore)
 
 def runCactusCheck(cactusDiskDatabaseString, 
                     cactusSequencesPath,
@@ -674,7 +696,10 @@ def runCactusHalGenerator(cactusDiskDatabaseString,
                           referenceEventString, 
                           outputFile=None,
                           showOnlySubstitutionsWithRespectToReference=None,
-                          logLevel=None):
+                          logLevel=None,
+                          jobName=None,
+                          inputSize=None,
+                          fileStore=None):
     logLevel = getLogLevelString2(logLevel)
     if outputFile:
         outputFile = os.path.basename(outputFile)
@@ -686,7 +711,8 @@ def runCactusHalGenerator(cactusDiskDatabaseString,
                             nameValue("referenceEventString", referenceEventString),
                             nameValue("outputFile", outputFile),
                             nameValue("showOnlySubstitutionsWithRespectToReference",
-                                      showOnlySubstitutionsWithRespectToReference, bool)])
+                                      showOnlySubstitutionsWithRespectToReference, bool)],
+                job_name=jobName, input_size=inputSize, fileStore=fileStore)
                             
 def runCactusFastaGenerator(cactusDiskDatabaseString,
                           cactusSequencesPath,
@@ -824,7 +850,10 @@ def cactus_call(tool=None,
                 shell=True,
                 port=None,
                 check_result=False,
-                dockstore=None):
+                dockstore=None,
+                job_name=None,
+                input_size=None,
+                fileStore=None):
     if dockstore is None:
         dockstore = getDockerOrg()
     if parameters is None:
@@ -950,7 +979,7 @@ def cactus_call(tool=None,
     while True:
         try:
             # Wait a bit to see if the process is done
-            output, nothing = process.communicate(stdin_string if first_run else None, timeout=1)
+            output, nothing = process.communicate(stdin_string if first_run else None, timeout=5)
         except subprocess32.TimeoutExpired:
             # Every so often, check the memory usage of the container
             updatedMemUsage = maxMemUsageOfContainer(containerName)
@@ -961,6 +990,9 @@ def cactus_call(tool=None,
         else:
             break
     _log.info("Used %s max memory" % memUsage)
+    if job_name is not None and input_size is not None and fileStore is not None:
+        # Log a datapoint for the memory usage for this input size.
+        fileStore.logToMaster("Max memory used for job %s on input size %s: %s" % (job_name, input_size, memUsage))
     if check_result:
         return process.returncode
 
