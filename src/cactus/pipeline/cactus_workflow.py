@@ -360,7 +360,8 @@ class CactusRecursionJob(CactusJob):
             numFlowers = int(flowerNames.split()[0])
             flowersAndSizes += [(overlarge, flowerNames, self.flowerSizes[flowersSoFar:flowersSoFar + numFlowers])]
             flowersSoFar += numFlowers
-        assert flowersSoFar == numFlowers, \
+        totalFlowers = int(self.flowerNames.split()[0])
+        assert flowersSoFar == totalFlowers, \
                "Didn't process all flowers while going through a secondary grouping."
         return self.makeChildJobs(flowersAndSizes=flowersAndSizes,
                                   job=job, overlargeJob=overlargeJob,
