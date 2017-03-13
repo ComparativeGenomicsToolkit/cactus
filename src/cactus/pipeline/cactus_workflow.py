@@ -334,7 +334,7 @@ class CactusRecursionJob(CactusJob):
         flowersAndSizes=runCactusExtendFlowers(cactusDiskDatabaseString=self.cactusDiskDatabaseString,
                                               cactusSequencesPath=self.cactusSequencesPath, 
                                               inputSize=sum(self.flowerSizes),
-                                              jobName=job.__class__.__name__,
+                                              jobName=job.__name__,
                                               fileStore=fileStore,
                                               flowerNames=self.flowerNames, 
                                               minSequenceSizeOfFlower=getOptionalAttrib(jobNode, "minFlowerSize", int, 1), 
