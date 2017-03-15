@@ -992,7 +992,9 @@ def cactus_call(tool=None,
     _log.info("Used %s max memory" % memUsage)
     if job_name is not None and input_size is not None and fileStore is not None:
         # Log a datapoint for the memory usage for this input size.
-        fileStore.logToMaster("Max memory used for job %s on input size %s: %s" % (job_name, input_size, memUsage))
+        fileStore.logToMaster("Max memory used for job %s (tool %s) "
+                              "on input size %s: %s" % (job_name, parameters.split()[0],
+                                                        input_size, memUsage))
     if check_result:
         return process.returncode
 
