@@ -138,7 +138,10 @@ class CactusJob(RoundedJob):
 
     def evaluateResourcePoly(self, poly):
         """Evaluate a polynomial based on the total sequence size."""
-        size = self.cactusWorkflowArguments.totalSequenceSize
+        if hasattr(self, 'inputSizeFn'):
+            size = self.inputSizeFn()
+        else:
+            size = self.cactusWorkflowArguments.totalSequenceSize
         resource = 0
         for degree, coefficient in enumerate(reversed(poly)):
             resource += coefficient * (size**degree)
@@ -717,7 +720,8 @@ class CactusBarPhase(CactusPhasesJob):
 
 class CactusBarRecursion(CactusRecursionJob):
     """This job does the get flowers down pass for the BAR alignment phase."""
-    memoryPoly = [8.54518831e+00, 4.69272796e+08]
+    inputSizeFn = lambda self: sum(self.flowerSizes)
+    memoryPoly = [1.47507363e-01, 1.34319212e+09]
 
     def run(self, fileStore):
         self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
@@ -759,7 +763,8 @@ def runBarForJob(self, fileStore=None, inputSize=None, calculateWhichEndsToCompu
 class CactusBarWrapper(CactusRecursionJob):
     """Runs the BAR algorithm implementation.
     """
-    memoryPoly = [1.85289710e-01, 6.98581694e+08]
+    inputSizeFn = lambda self: sum(self.flowerSizes)
+    memoryPoly = [2.81473430e-01, 2.96245523e+09]
 
     def run(self, fileStore):
         self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
@@ -770,7 +775,7 @@ class CactusBarWrapper(CactusRecursionJob):
 class CactusBarWrapperLarge(CactusRecursionJob):
     """Breaks up the bar into a series of smaller bars, then runs them.
     """
-    memoryPoly = [7.82189883e+09]
+    memoryPoly = [3e+09]
 
     def run(self, fileStore):
         logger.info("Starting the cactus bar preprocessor job to breakup the bar alignment")
@@ -819,8 +824,7 @@ class CactusBarWrapperLarge(CactusRecursionJob):
                              (len(precomputedAlignmentIDs)))
 
 class CactusBarEndAlignerWrapper(CactusRecursionJob):
-    """Computes an end alignment.
-    """
+    """Computes an end alignment."""
     memoryPoly = [3.82834548e-01, 1.28869656e+09]
     def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge,
                  endsToAlign, cactusSequencesID, cactusWorkflowArguments):
@@ -841,16 +845,15 @@ class CactusBarEndAlignerWrapper(CactusRecursionJob):
         return fileStore.writeGlobalFile(alignmentFile, cleanup=False)
 
 class CactusBarWrapperWithPrecomputedEndAlignments(CactusRecursionJob):
-    """Runs the BAR algorithm implementation with some precomputed end alignments.
-    """
-    memoryPoly = [1.29470462e+00, 3.73329585e+07]
+    """Runs the BAR algorithm implementation with some precomputed end alignments."""
+    inputSizeFn = lambda self: self.sum([fileID.size for fileID in self.precomputedAlignmentIDs])
+    memoryPoly = [1.99700749e+00, 3.29659639e+08]
 
     def run(self, fileStore):
         if self.precomputedAlignmentIDs:
             precomputedAlignments = [readGlobalFileWithoutCache(fileStore, fileID) for fileID in self.precomputedAlignmentIDs]
             self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
-            totalInputLength = sum([fileID.size for fileID in self.precomputedAlignmentIDs])
-            messages = runBarForJob(self, inputSize=totalInputLength,
+            messages = runBarForJob(self, inputSize=self.inputSizeFn(),
                                     fileStore=fileStore,
                                     precomputedAlignments=" ".join(precomputedAlignments))
         else:
@@ -963,7 +966,8 @@ class CactusReferencePhase(CactusPhasesJob):
 class CactusReferenceRecursion(CactusRecursionJob):
     """This job creates the wrappers to run the reference problem algorithm, the follow on job then recurses down.
     """
-    memoryPoly = [1.16984325e+00, 1.01564984e+09]
+    inputSizeFn = lambda self: sum(self.flowerSizes)
+    memoryPoly = [6.15004877e+09]
 
     def run(self, fileStore):
         assert self.cactusSequencesID
@@ -974,7 +978,8 @@ class CactusReferenceRecursion(CactusRecursionJob):
 class CactusReferenceWrapper(CactusRecursionJob):
     """Actually run the reference code.
     """
-    memoryPoly = [1.16800988e+00, 1.27903714e+09]
+    inputSizeFn = lambda self: sum(self.flowerSizes)
+    memoryPoly = [9.83746875e+01, 3.55960649e+09]
 
     def run(self, fileStore):
         assert self.cactusSequencesID
