@@ -846,7 +846,7 @@ class CactusBarEndAlignerWrapper(CactusRecursionJob):
 
 class CactusBarWrapperWithPrecomputedEndAlignments(CactusRecursionJob):
     """Runs the BAR algorithm implementation with some precomputed end alignments."""
-    inputSizeFn = lambda self: self.sum([fileID.size for fileID in self.precomputedAlignmentIDs])
+    inputSizeFn = lambda self: sum([fileID.size for fileID in self.precomputedAlignmentIDs])
     memoryPoly = [1.99700749e+00, 3.29659639e+08]
 
     def run(self, fileStore):
