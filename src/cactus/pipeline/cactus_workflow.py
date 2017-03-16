@@ -243,13 +243,14 @@ class CactusRecursionJob(CactusJob):
         self.flowerNames = flowerNames
         self.flowerSizes = flowerSizes
         self.cactusWorkflowArguments = cactusWorkflowArguments
-        CactusJob.__init__(self, phaseNode=phaseNode, constantsNode=constantsNode, overlarge=overlarge, 
-                           cactusSequencesID=cactusSequencesID, checkpoint=checkpoint, preemptable=preemptable)
 
         #need to do this because the alignment IDs are jobstore promises, and can't 
         #be stored in the config XML until they are respolved into actual IDs, which doesn't
         #happen until the follow-on job after CactusBarWrapperLarge
         self.precomputedAlignmentIDs = precomputedAlignmentIDs
+
+        CactusJob.__init__(self, phaseNode=phaseNode, constantsNode=constantsNode, overlarge=overlarge, 
+                           cactusSequencesID=cactusSequencesID, checkpoint=checkpoint, preemptable=preemptable)
         
     def makeFollowOnRecursiveJob(self, job, phaseNode=None):
         """Sets the followon to the given recursive job
