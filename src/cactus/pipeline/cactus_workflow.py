@@ -36,7 +36,8 @@ from sonLib.bioio import getLogLevelString
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.common import makeURL
 from cactus.shared.common import cactus_call
-  
+from cactus.shared.common import RunAsFollowOn
+
 from toil.job import Job
 from toil.common import Toil
 
@@ -116,7 +117,7 @@ class CactusJob(RoundedJob):
         cores = None
         if hasattr(self, 'memoryPoly'):
             # Memory should be determined by a polynomial fit on the
-            # total sequence length
+            # input size
             memory = self.evaluateResourcePoly(self.memoryPoly)
 
         if cactusSequencesID and hasattr(cactusSequencesID, 'size'):
@@ -257,13 +258,13 @@ class CactusRecursionJob(CactusJob):
         """
         if phaseNode == None:
             phaseNode = self.phaseNode
-        return self.addFollowOn(job(phaseNode=phaseNode, constantsNode=self.constantsNode,
-                                   cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
-                                    flowerNames=self.flowerNames, flowerSizes=self.flowerSizes,
-                                    overlarge=self.overlarge,
-                                    precomputedAlignmentIDs=self.precomputedAlignmentIDs,
-                                    cactusSequencesID=self.cactusSequencesID,
-                                    cactusWorkflowArguments=self.cactusWorkflowArguments)).rv()
+        return self.addFollowOn(RunAsFollowOn(job, phaseNode=phaseNode, constantsNode=self.constantsNode,
+                                              cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
+                                              flowerNames=self.flowerNames, flowerSizes=self.flowerSizes,
+                                              overlarge=self.overlarge,
+                                              precomputedAlignmentIDs=self.precomputedAlignmentIDs,
+                                              cactusSequencesID=self.cactusSequencesID,
+                                              cactusWorkflowArguments=self.cactusWorkflowArguments)).rv()
         
     def makeChildJobs(self, flowersAndSizes, job, overlargeJob=None, 
                       phaseNode=None, runFlowerStats=False):
