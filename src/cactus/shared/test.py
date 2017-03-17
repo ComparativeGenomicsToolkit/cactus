@@ -87,7 +87,6 @@ def initialiseGlobalDatabaseConf(dataString):
     """Initialises the global database conf string which, if defined,
     is used as the database for CactusWorkflowExperiments."""
     global _GLOBAL_DATABASE_CONF_STRING
-    DbElemWrapper(ET.fromstring(dataString)).check() #Runs checks
     _GLOBAL_DATABASE_CONF_STRING = dataString
     
 def initialiseGlobalBatchSystem(batchSystem):
@@ -105,7 +104,7 @@ def getCactusWorkflowExperimentForTest(sequences, newickTreeString, outputDir, c
     halFile = os.path.join(outputDir, "test.hal")
     fastaFile = os.path.join(outputDir, "test.fa")
     return ExperimentWrapper.createExperimentWrapper(sequences, newickTreeString, outputDir,
-                                    databaseConf=_GLOBAL_DATABASE_CONF_STRING, configFile=configFile,
+                                    databaseConf=ET.fromstring(_GLOBAL_DATABASE_CONF_STRING), configFile=configFile,
                                     halFile=halFile, fastaFile=fastaFile, constraints=constraints, progressive=progressive)
 
 ###############
@@ -289,7 +288,6 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     logger.info("Running cactus workflow test script")
     logger.info("Got the following sequence dirs/files: %s" % " ".join(sequences))
     logger.info("Got the following tree %s" % newickTreeString)
-    
     #Setup the output dir
     assert outputDir != None
     logger.info("Using the output dir: %s" % outputDir)
@@ -299,7 +297,6 @@ def runWorkflow_TestScript(sequences, newickTreeString,
                                                     outputDir=outputDir,
                                                     configFile=configFile, constraints=constraints,
                                                     progressive=progressive)
-    experiment.cleanupDb()
     experimentFile = os.path.join(outputDir, "experiment.xml")
     experiment.writeXML(experimentFile)
     logger.info("The experiment file %s\n" % experimentFile)
@@ -374,7 +371,6 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                                 constraints=constraints,
                                                 progressive=progressive,
                                                 cactusWorkflowFunction=cactusWorkflowFunction)
-            experiment.cleanupDb()
             system("rm -rf %s" % tempDir)
             logger.info("Finished random test %i" % test)
 

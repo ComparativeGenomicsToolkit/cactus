@@ -757,7 +757,7 @@ def runBarForJob(self, fileStore=None, inputSize=None, calculateWhichEndsToCompu
                  endAlignmentsToPrecomputeOutputFile=endAlignmentsToPrecomputeOutputFile,
                  largeEndSize=self.getOptionalPhaseAttrib("largeEndSize", int),
                  precomputedAlignments=precomputedAlignments,
-                 ingroupCoverageFile=self.cactusWorkflowArguments.ingroupCoverageFile if self.getOptionalPhaseAttrib("rescue", bool) else None,
+                 ingroupCoverageFile=self.cactusWorkflowArguments.ingroupCoverageID if self.getOptionalPhaseAttrib("rescue", bool) else None,
                  minimumSizeToRescue=self.getOptionalPhaseAttrib("minimumSizeToRescue"),
                  minimumCoverageToRescue=self.getOptionalPhaseAttrib("minimumCoverageToRescue"),
                  minimumNumberOfSpecies=self.getOptionalPhaseAttrib("minimumNumberOfSpecies", int))

@@ -20,6 +20,7 @@ from cactus.shared.test import getCactusInputs_chromosomeX
 from cactus.shared.test import runWorkflow_multipleExamples
 from cactus.shared.test import getBatchSystem
 from cactus.shared.test import silentOnSuccess
+from cactus.shared.test import initialiseGlobalDatabaseConf
 
 from cactus.shared.common import cactusRootPath
 
@@ -78,13 +79,14 @@ class TestCase(unittest.TestCase):
         runWorkflow_multipleExamples(getCactusInputs_chromosomeX, 
                                      testRestrictions=(TestStatus.TEST_VERY_LONG,),
                                      batchSystem=self.batchSystem, buildToilStats=True)
+
     @silentOnSuccess
-    @unittest.skip("")
     def testCactus_splitBarJobs(self):
         """Exercise the code paths in bar that only occur on large jobs."""
         # Modify the bar node in the config file so that
         # cactus_workflow will split bar jobs even on this small
         # example
+        initialiseGlobalDatabaseConf('<st_kv_database_conf type="kyoto_tycoon"><kyoto_tycoon in_memory="1" port="1978" snapshot="0"/></st_kv_database_conf>')
         tempConfigFile = getTempFile()
         tempConfigTree = ET.parse(self.configFile)
         tempConfigNode = tempConfigTree.getroot()
@@ -92,11 +94,10 @@ class TestCase(unittest.TestCase):
         tempConfigNode.find("bar").set("veryLargeEndSize", "0")
         tempConfigNode.find("bar").set("largeEndSize", "0")
         tempConfigTree.write(tempConfigFile)
-        runWorkflow_multipleExamples(getCactusInputs_blanchette,
+        runWorkflow_multipleExamples(getCactusInputs_random,
                                      testNumber=1,
-                                     testRestrictions=(TestStatus.TEST_LONG,),
                                      batchSystem=self.batchSystem,
-                                     configFile=tempConfigFile, buildJobTreeStats=True)
+                                     configFile=tempConfigFile)
         os.remove(tempConfigFile)
 
     def testGetOptionalAttrib(self):
