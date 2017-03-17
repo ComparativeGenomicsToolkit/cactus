@@ -392,7 +392,7 @@ def runCactusPhylogeny(cactusDiskDatabaseString,
     logLevel = getLogLevelString2(logLevel)
     cactus_call(stdin_string=flowerNames,
                 parameters=["cactus_phylogeny",
-                            "--cactusDisk", cactusDiskDatabaseString,
+                            "--cactusDisk '%s'" % cactusDiskDatabaseString,
                             "--cactusSequencesPath", cactusSequencesPath,
                             "--logLevel", logLevel])
     logger.info("Ran cactus_phylogeny okay")
@@ -401,7 +401,7 @@ def runCactusAdjacencies(cactusDiskDatabaseString, flowerNames=encodeFlowerNames
     logLevel = getLogLevelString2(logLevel)
     cactus_call(stdin_string=flowerNames,
                 parameters=["cactus_fillAdjacencies",
-                            "--cactusDisk", cactusDiskDatabaseString,
+                            "--cactusDisk '%s'" % cactusDiskDatabaseString,
                             "--logLevel", logLevel])
     logger.info("Ran cactus_fillAdjacencies OK")
 
@@ -428,7 +428,7 @@ def runCactusMakeNormal(cactusDiskDatabaseString, cactusSequencesPath, flowerNam
     logLevel = getLogLevelString2(logLevel)
     cactus_call(stdin_string=flowerNames,
                 parameters=["cactus_normalisation",
-                            "--cactusDisk", cactusDiskDatabaseString,
+                            "--cactusDisk '%s'" % cactusDiskDatabaseString,
                             "--cactusSequencesPath", cactusSequencesPath,
                             "--maxNumberOfChains", maxNumberOfChains,
                             "--logLevel", logLevel])
@@ -588,7 +588,7 @@ def runCactusCheck(cactusDiskDatabaseString,
     checkNormalised = nameValue("checkNormalised", checkNormalised, bool)
     cactus_call(stdin_string=flowerNames,
                 parameters=["cactus_check",
-                            "--cactusDisk", cactusDiskDatabaseString,
+                            "--cactusDisk '%s'" % cactusDiskDatabaseString,
                             "--cactusSequencesPath", cactusSequencesPath,
                             "--logLevel", logLevel,
                             recursive, checkNormalised])
@@ -615,7 +615,7 @@ def _fn(toilDir,
     buildHal = nameValue("buildHal", buildHal, bool)
     buildFasta = nameValue("buildFasta", buildFasta, bool)
     #Jobtree args
-    batchSystem = nameValue("batchSystem", batchSystem, str, quotes=True)
+    batchSystem = nameValue("batchSystem", batchSystem, str)
     retryCount = nameValue("retryCount", retryCount, int)
     rescueJobFrequency = nameValue("rescueJobsFrequency", rescueJobFrequency, int)
     toilStats = nameValue("stats", toilStats, bool)
