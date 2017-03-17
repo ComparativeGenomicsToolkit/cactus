@@ -1002,7 +1002,7 @@ def cactus_call(tool=None,
         raise RuntimeError("Command %s failed with output: %s" % (call, output))
 
     # Fix root ownership of output files
-    if not os.getenv('CACTUS_DOCKER_MODE') == "0":
+    if os.getuid() != 0 and not os.getenv('CACTUS_DOCKER_MODE') == "0":
         _fixPermissions(tool, work_dir)
 
     if check_output:
