@@ -981,7 +981,7 @@ class CactusReferenceWrapper(CactusRecursionJob):
     """Actually run the reference code.
     """
     inputSizeFn = lambda self: sum(self.flowerSizes)
-    memoryPoly = [9.83746875e+01, 3.55960649e+09]
+    memoryPoly = [5.67663286e-01, 6.31948477e+09]
 
     def run(self, fileStore):
         assert self.cactusSequencesID
