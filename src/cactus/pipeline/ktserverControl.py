@@ -37,6 +37,7 @@ from time import sleep
 from optparse import OptionParser
 import threading
 import xml.etree.ElementTree as ET
+from sonLib.bioio import getTempFile, system
 from cactus.shared.experimentWrapper import DbElemWrapper
 from cactus.shared.experimentWrapper import ExperimentWrapper
 
@@ -316,27 +317,14 @@ def pingKtServer(dbElem):
             dbElem.getDbHost(), getHostName()))
 
     return cactus_call(check_result=True,
-                       parameters=['ktremotemgr', 'report',
-                                   '-port', str(dbElem.getDbPort()),
-                                   '-host', dbElem.getDbHost()]) == 0
-    #cmd = ['docker', 'run', '--interactive', '--log-driver=none', '--net=host',
-    #                  'quay.io/comparative-genomics-toolkit/ktremotemgr:%s' % cactus_commit, 'report',
-    #                  '-port', str(dbElem.getDbPort()),
-    #                  '-host', dbElem.getDbHost()]
-    #logger.info("Ktremotemgr cmd = %s" % cmd)
-    #return subprocess.call(cmd,
-    #                       shell=False, bufsize=-1,
-    #                       stdout=subprocess.PIPE,
-    #                       stderr=subprocess.PIPE) == 0
+                       parameters=['ktremotemgr', 'report'] + getRemoteParams(dbElem)) == 0
 
 ###############################################################################
 # Get a report on a running server
 ###############################################################################
 def getKtServerReport(dbElem):
     assert pingKtServer(dbElem) is True
-    process = subprocess.Popen(['ktremotemgr', 'report',
-                                '-port', str(dbElem.getDbPort()),
-                                '-host', dbElem.getDbHost()],
+    process = subprocess.Popen(['ktremotemgr', 'report'] + getRemoteParams(dbElem),
                                shell=False, bufsize=-1,
                                stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE)
@@ -521,6 +509,32 @@ def __scrapePids(keywordList = []):
             # probably somebody else's process we can't access
             pass
     return pidList
+
+def getRemoteParams(dbElem):
+    """Get parameters to supply to ktremotemgr to connect to the right DB."""
+    return ['-port', str(dbElem.getDbPort()),
+            '-host', dbElem.getDbHost() or 'localhost']
+
+def dumpKtServer(dbElem, path):
+    """Dump the KT server to 'path' as a TSV file."""
+    temp = getTempFile()
+    cactus_call(outfile=temp, parameters=['ktremotemgr', 'list', '-px'] + getRemoteParams(dbElem))
+    # The ktremotemgr hex output includes spaces between each byte that it
+    # can't handle when reading hex input
+    system("sed -i 's/ //g' %s" % temp)
+    cactus_call(infile=temp, outfile=path,
+                parameters=['xargs', '-n', '50', 'ktremotemgr', 'getbulk', '-sx', '-px'] + getRemoteParams(dbElem))
+    # Again, have to remove the spaces from the ktremotemgr output so it can parse it properly
+    system("sed -i 's/ //g' %s" % path)
+    os.remove(temp)
+
+def clearKtServer(dbElem):
+    """Remove all data in the KT server."""
+    cactus_call(parameters=['ktremotemgr', 'clear'] + getRemoteParams(dbElem))
+
+def restoreKtServer(dbElem, path):
+    """Load a KT server with data from 'path' (a TSV file)."""
+    cactus_call(parameters=['ktremotemgr', 'import', '-sx'] + getRemoteParams(dbElem) + [path])
 
 ###############################################################################
 # Hostnames of swarm nodes (ex kkr18u57.local) are not visible from

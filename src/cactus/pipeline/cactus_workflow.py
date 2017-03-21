@@ -68,7 +68,6 @@ from cactus.shared.common import runStripUniqueIDs
 from cactus.shared.common import RoundedJob
 from cactus.shared.common import readGlobalFileWithoutCache
 
-from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.blast.cactus_blast import BlastIngroupsAndOutgroups
 from cactus.blast.cactus_blast import BlastOptions
 
@@ -78,6 +77,7 @@ from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.experimentWrapper import DbElemWrapper
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.pipeline.ktserverToil import KtServerService
+from cactus.pipeline.ktserverControl import dumpKtServer, clearKtServer, restoreKtServer
 
 ############################################################
 ############################################################
@@ -623,7 +623,7 @@ class CactusCafPhase(CactusPhasesJob):
         # the headers inside the cactus DB.
         runStripUniqueIDs(self.cactusWorkflowArguments.cactusDiskDatabaseString, cactusSequencesPath)
         self.phaseNode.attrib["alignmentsID"] = self.cactusWorkflowArguments.alignmentsID
-        return self.runPhase(CactusCafWrapper, CactusBarPhase, "bar")
+        return self.runPhase(CactusCafWrapper, CactusCafSavePhase, "caf")
 
 class CactusCafWrapper(CactusRecursionJob):
     """Runs cactus_caf on one flower and one alignment file.
@@ -702,7 +702,18 @@ class CactusCafWrapper(CactusRecursionJob):
         logger.info("Alignments file: %s" % alignments)
         self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
         self.runCactusCafInWorkflow(alignmentFile=alignments, constraints=constraints)
-        
+
+
+class CactusCafSavePhase(CactusPhasesJob):
+    """Saves the DB to a file and clears the DB."""
+    def run(self, fileStore):
+        tempPath = fileStore.getLocalTempFile()
+        dbElem = DbElemWrapper(ET.fromstring(self.cactusWorkflowArguments.cactusDiskDatabaseString))
+        dumpKtServer(dbElem, tempPath)
+        clearKtServer(dbElem)
+        self.cactusWorkflowArguments.ktserverDump = fileStore.writeGlobalFile(tempPath)
+        self.makeFollowOnPhaseJob(CactusBarLoadPhase, "bar", checkpoint=True)
+
 ############################################################
 ############################################################
 ############################################################
@@ -712,6 +723,31 @@ class CactusCafWrapper(CactusRecursionJob):
 ############################################################
 ############################################################
 ############################################################
+
+class CactusBarLoadPhase(CactusPhasesJob):
+    def run(self, fileStore):
+        # we circumvent makeFollowOnPhaseJob() interface for this job.
+        barJob = CactusBarLoadPhase2(cactusWorkflowArguments=self.cactusWorkflowArguments,
+                                     phaseName='bar', topFlowerName=self.topFlowerName,
+                                     index=0, cactusSequencesID=self.cactusSequencesID)
+
+        #Get the db running and the actual setup going.
+        if self.cactusWorkflowArguments.experimentWrapper.getDbType() == "kyoto_tycoon":
+            memory = self.evaluateResourcePoly([4.10201882, 2.01324291e+08])
+            cores = 1
+            dbElem = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
+            dbString = self.addService(KtServerService(dbElem = dbElem, isSecondary=False, memory = memory, cores = cores))
+            barJob.cactusWorkflowArguments.cactusDiskDatabaseString = dbString
+            results = self.addChild(barJob).rv()
+            return results
+        else:
+            return self.addFollowOn(barJob).rv()
+
+class CactusBarLoadPhase2(CactusPhasesJob):
+    def run(self, fileStore):
+        dbElem = DbElemWrapper(ET.fromstring(self.cactusWorkflowArguments.cactusDiskDatabaseString))
+        restoreKtServer(dbElem, fileStore.readGlobalFile(self.cactusWorkflowArguments.ktserverDump))
+        return self.makeFollowOnPhaseJob(CactusBarPhase, "bar")
 
 class CactusBarPhase(CactusPhasesJob): 
     """Runs bar algorithm."""  
