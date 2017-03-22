@@ -15,12 +15,9 @@ import sys
 import xml.etree.ElementTree as ET
 import math
 import time
-import bz2
 import random
 import copy
-import shutil
 from argparse import ArgumentParser
-import networkx as NX
 
 from sonLib.bioio import newickTreeParser
 
@@ -28,12 +25,10 @@ from toil.lib.bioio import getTempFile
 from toil.lib.bioio import logger
 from toil.lib.bioio import setLoggingFromOptions
 from toil.lib.bioio import system
-from sonLib.bioio import makeSubDir
 from sonLib.bioio import catFiles
 from sonLib.bioio import getLogLevelString
 
 
-from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.common import makeURL
 from cactus.shared.common import cactus_call
 from cactus.shared.common import RunAsFollowOn
@@ -52,7 +47,6 @@ from cactus.shared.common import encodeFlowerNames
 from cactus.shared.common import decodeFirstFlowerName
 from cactus.shared.common import runCactusConvertAlignmentToCactus
 from cactus.shared.common import runCactusPhylogeny
-from cactus.shared.common import runCactusAdjacencies
 from cactus.shared.common import runCactusBar
 from cactus.shared.common import runCactusMakeNormal 
 from cactus.shared.common import runCactusReference
@@ -163,9 +157,10 @@ class CactusPhasesJob(CactusJob):
     """
     def __init__(self, cactusWorkflowArguments, phaseName, topFlowerName=0, index=0,
                  cactusSequencesID=None, checkpoint=False, preemptable=True, halID=None,
-                 fastaID=None):
+                 fastaID=None, ktServerDump=None):
         phaseNode = findRequiredNode(cactusWorkflowArguments.configNode, phaseName, index)
         constantsNode = findRequiredNode(cactusWorkflowArguments.configNode, "constants")
+        self.ktServerDump = ktServerDump
         self.index = index
         self.cactusWorkflowArguments = cactusWorkflowArguments
         self.topFlowerName = topFlowerName
@@ -197,9 +192,9 @@ class CactusPhasesJob(CactusJob):
         else:
             return self.addChild(newChild).rv()
 
-    def makeFollowOnPhaseJob(self, job, phaseName, index=0, checkpoint = False):
+    def makeFollowOnPhaseJob(self, job, phaseName, index=0, ktServerDump = None, checkpoint = False):
         return self.addFollowOn(job(cactusWorkflowArguments=self.cactusWorkflowArguments, phaseName=phaseName, 
-                                    topFlowerName=self.topFlowerName, index=index, cactusSequencesID = self.cactusSequencesID, checkpoint = checkpoint, halID=self.halID, fastaID=self.fastaID)).rv()
+                                    topFlowerName=self.topFlowerName, index=index, cactusSequencesID=self.cactusSequencesID, checkpoint=checkpoint, halID=self.halID, fastaID=self.fastaID, ktServerDump=ktServerDump)).rv()
 
     def runPhase(self, recursiveJob, nextPhaseJob, nextPhaseName, doRecursion=True, index=0, launchSecondaryKtForRecursiveJob=False, updateDatabase=False):
         """
@@ -372,11 +367,6 @@ class CactusRecursionJob(CactusJob):
                                   job=job, overlargeJob=overlargeJob,
                                   phaseNode=phaseNode, runFlowerStats=runFlowerStats)
 
-    def getDatabaseString(self):
-        return self.cactusDiskDatabaseString
-    def setDatabaseString(self, databaseString):
-        self.cactusDiskDatabaseString = databaseString
-
 ############################################################
 ############################################################
 ############################################################
@@ -478,7 +468,7 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
         self.cactusWorkflowArguments.outgroupFragmentIDs = blastJob.rv(1)
         self.cactusWorkflowArguments.ingroupCoverageIDs = blastJob.rv(2)
         
-        return self.makeFollowOnPhaseJob(CactusSetupPhase, "setup", checkpoint = True)
+        return self.makeFollowOnPhaseJob(CactusSetupPhase, "setup")
         
 ############################################################
 ############################################################
@@ -508,31 +498,56 @@ class CactusSetupPhase(CactusPhasesJob):
         for i, outgroup in enumerate(self.cactusWorkflowArguments.experimentWrapper.getOutgroupEvents()):
             self.cactusWorkflowArguments.experimentWrapper.seqIDMap[outgroup] = self.cactusWorkflowArguments.outgroupFragmentIDs[i]
 
-        cw = ConfigWrapper(self.cactusWorkflowArguments.configNode)
-
         if (not self.cactusWorkflowArguments.configWrapper.getDoTrimStrategy()) or (self.cactusWorkflowArguments.outgroupEventNames == None):
             setupDivergenceArgs(self.cactusWorkflowArguments)
 
-        # we circumvent makeFollowOnPhaseJob() interface for this job.
         setupJob = CactusSetupPhase2(cactusWorkflowArguments=self.cactusWorkflowArguments,
-                                       phaseName='setup', topFlowerName=self.topFlowerName,
-                                       index=0)
-        
-        #Get the db running and the actual setup going.
+                                     phaseName='setup', topFlowerName=self.topFlowerName,
+                                     index=0)
+        loadDBJob = LoadDBPhase(setupJob, ktServerDump=self.ktServerDump,
+                                cactusWorkflowArguments=self.cactusWorkflowArguments,
+                                phaseName='setup', topFlowerName=self.topFlowerName,
+                                index=0, checkpoint=True)
+        promise = self.addChild(loadDBJob)
+        self.cactusSequencesID, ktServerDump = promise.rv(0), promise.rv(1)
+        return self.makeFollowOnPhaseJob(CactusBarPhase, "bar", ktServerDump=ktServerDump)
+
+class LoadDBPhase(CactusPhasesJob):
+    def __init__(self, nextJob, *args, **kwargs):
+        self.nextJob = nextJob
+        super(LoadDBPhase, self).__init__(*args, **kwargs)
+
+    def run(self, fileStore):
+        cw = ConfigWrapper(self.cactusWorkflowArguments.configNode)
+
         if self.cactusWorkflowArguments.experimentWrapper.getDbType() == "kyoto_tycoon":
-            logger.info("Created ktserver pattern job cactus_setup")
             memory = self.evaluateResourcePoly([4.10201882, 2.01324291e+08])
             cores = cw.getKtserverCpu(default=getOptionalAttrib(
                     self.constantsNode, "defaultCpu", int, default=sys.maxint))
             dbElem = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
-            dbString = self.addService(KtServerService(dbElem = dbElem, isSecondary=False, memory = memory, cores = cores))
-            setupJob.cactusWorkflowArguments.cactusDiskDatabaseString = dbString
-            results = self.addChild(setupJob).rv()
-            logger.info("Pickled setup job")
-            return results
+            dbString = self.addService(KtServerService(dbElem=dbElem, isSecondary=False,
+                                                       memory=memory, cores=cores))
+            self.nextJob.cactusWorkflowArguments.cactusDiskDatabaseString = dbString
+            return self.addChild(LoadDBPhase2(self.nextJob, ktServerDump=self.ktServerDump,
+                                              cactusWorkflowArguments=self.nextJob.cactusWorkflowArguments,
+                                              phaseName='setup', topFlowerName=self.topFlowerName,
+                                              index=0)).rv()
         else:
-            logger.info("Created follow-on job cactus_setup")
-            return self.addFollowOn(setupJob).rv()
+            return self.addFollowOn(self.nextJob).rv()
+
+class LoadDBPhase2(CactusPhasesJob):
+    def __init__(self, nextJob, *args, **kwargs):
+        self.nextJob = nextJob
+        super(LoadDBPhase2, self).__init__(*args, **kwargs)
+
+    def run(self, fileStore):
+        if self.ktServerDump is not None:
+            dbElem = DbElemWrapper(ET.fromstring(self.cactusWorkflowArguments.cactusDiskDatabaseString))
+            fileStore.logToMaster("Restoring cactus DB from %s" % self.ktServerDump)
+            restoreKtServer(dbElem, fileStore.readGlobalFile(self.ktServerDump))
+        else:
+            fileStore.logToMaster("Starting clean cactus DB")
+        return self.addFollowOn(self.nextJob).rv()
 
 class CactusSetupPhase2(CactusPhasesJob):   
     def run(self, fileStore):        
@@ -583,7 +598,7 @@ def inverseJukesCantor(d):
     """
     assert d >= 0.0
     return 0.75 * (1 - math.exp(-d * 4.0/3.0))
-    
+
 class CactusCafPhase(CactusPhasesJob):
     memoryPoly = [2.51087392e+00, 4.49616219e+08]
 
@@ -623,7 +638,7 @@ class CactusCafPhase(CactusPhasesJob):
         # the headers inside the cactus DB.
         runStripUniqueIDs(self.cactusWorkflowArguments.cactusDiskDatabaseString, cactusSequencesPath)
         self.phaseNode.attrib["alignmentsID"] = self.cactusWorkflowArguments.alignmentsID
-        return self.runPhase(CactusCafWrapper, CactusCafSavePhase, "caf")
+        return self.runPhase(CactusCafWrapper, CactusSaveDBPhase, "caf")
 
 class CactusCafWrapper(CactusRecursionJob):
     """Runs cactus_caf on one flower and one alignment file.
@@ -704,15 +719,14 @@ class CactusCafWrapper(CactusRecursionJob):
         self.runCactusCafInWorkflow(alignmentFile=alignments, constraints=constraints)
 
 
-class CactusCafSavePhase(CactusPhasesJob):
+class CactusSaveDBPhase(CactusPhasesJob):
     """Saves the DB to a file and clears the DB."""
     def run(self, fileStore):
         tempPath = fileStore.getLocalTempFile()
         dbElem = DbElemWrapper(ET.fromstring(self.cactusWorkflowArguments.cactusDiskDatabaseString))
         dumpKtServer(dbElem, tempPath)
         clearKtServer(dbElem)
-        self.cactusWorkflowArguments.ktserverDump = fileStore.writeGlobalFile(tempPath)
-        self.makeFollowOnPhaseJob(CactusBarLoadPhase, "bar", checkpoint=True)
+        return self.cactusSequencesID, fileStore.writeGlobalFile(tempPath)
 
 ############################################################
 ############################################################
@@ -724,33 +738,19 @@ class CactusCafSavePhase(CactusPhasesJob):
 ############################################################
 ############################################################
 
-class CactusBarLoadPhase(CactusPhasesJob):
+class CactusBarPhase(CactusPhasesJob):
     def run(self, fileStore):
-        # we circumvent makeFollowOnPhaseJob() interface for this job.
-        barJob = CactusBarLoadPhase2(cactusWorkflowArguments=self.cactusWorkflowArguments,
-                                     phaseName='bar', topFlowerName=self.topFlowerName,
-                                     index=0, cactusSequencesID=self.cactusSequencesID)
+        barJob = CactusBarPhase2(cactusWorkflowArguments=self.cactusWorkflowArguments,
+                                 phaseName='bar', topFlowerName=self.topFlowerName,
+                                 index=0, cactusSequencesID=self.cactusSequencesID)
+        loadDBJob = LoadDBPhase(barJob, ktServerDump=self.ktServerDump,
+                                cactusWorkflowArguments=self.cactusWorkflowArguments,
+                                phaseName='bar', topFlowerName=self.topFlowerName,
+                                index=0, checkpoint=True)
+        self.cactusWorkflowArguments = self.addChild(loadDBJob).rv()
 
-        #Get the db running and the actual setup going.
-        if self.cactusWorkflowArguments.experimentWrapper.getDbType() == "kyoto_tycoon":
-            memory = self.evaluateResourcePoly([4.10201882, 2.01324291e+08])
-            cores = 1
-            dbElem = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
-            dbString = self.addService(KtServerService(dbElem = dbElem, isSecondary=False, memory = memory, cores = cores))
-            barJob.cactusWorkflowArguments.cactusDiskDatabaseString = dbString
-            results = self.addChild(barJob).rv()
-            return results
-        else:
-            return self.addFollowOn(barJob).rv()
-
-class CactusBarLoadPhase2(CactusPhasesJob):
-    def run(self, fileStore):
-        dbElem = DbElemWrapper(ET.fromstring(self.cactusWorkflowArguments.cactusDiskDatabaseString))
-        restoreKtServer(dbElem, fileStore.readGlobalFile(self.cactusWorkflowArguments.ktserverDump))
-        return self.makeFollowOnPhaseJob(CactusBarPhase, "bar")
-
-class CactusBarPhase(CactusPhasesJob): 
-    """Runs bar algorithm."""  
+class CactusBarPhase2(CactusPhasesJob):
+    """Runs bar algorithm."""
     def run(self, fileStore):
         assert self.cactusSequencesID
         logger.info("DatabaseID in BarPhase: %s" % self.cactusSequencesID)
@@ -817,7 +817,6 @@ class CactusBarWrapperLarge(CactusRecursionJob):
 
     def run(self, fileStore):
         logger.info("Starting the cactus bar preprocessor job to breakup the bar alignment")
-        precomputedAlignmentFiles = []
         veryLargeEndSize=self.getOptionalPhaseAttrib("veryLargeEndSize", int, default=1000000)
         maxFlowerGroupSize = self.getOptionalJobAttrib("maxFlowerGroupSize", int, 
                                             default=CactusRecursionJob.maxSequenceSizeOfFlowerGroupingDefault)
@@ -899,7 +898,7 @@ class CactusBarWrapperWithPrecomputedEndAlignments(CactusRecursionJob):
             messages = runBarForJob(self)
         for message in messages:
             fileStore.logToMaster(message)
-        
+
 ############################################################
 ############################################################
 ############################################################
@@ -1302,6 +1301,7 @@ class CactusWorkflowArguments:
         self.ingroupCoverageIDs = None
         # Same, but for the final bed file
         self.ingroupCoverageID = None
+        self.ktServerDump = None
 
         #Secondary, scratch DB
         secondaryConf = copy.deepcopy(self.experimentNode.find("cactus_disk").find("st_kv_database_conf"))
@@ -1405,5 +1405,4 @@ def _test():
     return doctest.testmod()
 
 if __name__ == '__main__':
-    from cactus.pipeline.cactus_workflow import *
     runCactusWorkflow(sys.argv)
