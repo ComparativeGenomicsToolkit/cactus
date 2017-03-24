@@ -747,7 +747,7 @@ class CactusBarPhase(CactusPhasesJob):
                                 cactusWorkflowArguments=self.cactusWorkflowArguments,
                                 phaseName='bar', topFlowerName=self.topFlowerName,
                                 index=0, checkpoint=True)
-        self.cactusWorkflowArguments = self.addChild(loadDBJob).rv()
+        return self.addChild(loadDBJob).rv()
 
 class CactusBarPhase2(CactusPhasesJob):
     """Runs bar algorithm."""
