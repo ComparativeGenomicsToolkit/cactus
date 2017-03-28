@@ -10,7 +10,7 @@ before_install:
 script:
   - pip install --pre toil
   - pip install -e .
-  - if [[ "$CACTUS_DOCKER_MODE" == 0 ]]; then make; PATH=./bin:./submodules/sonLib/bin:$PATH PYTHONPATH=.:src make test; fi
+  - if [[ "$CACTUS_DOCKER_MODE" == 0 ]]; then make; PATH=`pwd`/bin:`pwd`/submodules/sonLib/bin:$PATH PYTHONPATH=`pwd`:`pwd`/src make test; fi
   - if [[ "$CACTUS_DOCKER_MODE" == 1 ]]; then make test; fi
 os:
   - linux

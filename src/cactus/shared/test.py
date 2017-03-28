@@ -314,10 +314,6 @@ def runWorkflow_TestScript(sequences, newickTreeString,
                       toilStats=buildToilStats)
     logger.info("Ran the the workflow")
     
-    #Check if the jobtree completed sucessively.
-    runToilStatusAndFailIfNotComplete(toilDir)
-    logger.info("Checked the job tree dir")
-    
     #Check if the cactusDisk is okay..
     #runCactusCheck(cactusDiskDatabaseString, recursive=True) #This should also occur during the workflow, so this
     #is redundant, but defensive

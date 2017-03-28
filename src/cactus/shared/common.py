@@ -787,6 +787,8 @@ def runGetChunks(sequenceFiles, chunksDir, chunkSize, overlapSize, work_dir=None
 
 def pullCactusImage():
     """Ensure that the cactus Docker image is pulled."""
+    if os.environ.get('CACTUS_DOCKER_MODE') == "0":
+        return
     dockerOrg = getDockerOrg()
     dockerTag = getDockerTag()
     image = "%s/cactus:%s" % (dockerOrg, dockerTag)
