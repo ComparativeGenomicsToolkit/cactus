@@ -776,11 +776,10 @@ class CactusCafWrapper(CactusRecursionJob):
 ############################################################
 
 class CactusBarCheckpoint(CactusCheckpointJob):
-    """Load the DB, run the BAR phase, save the DB, then run the reference checkpoint."""
+    """Load the DB, run the BAR, AVG, and normalization phases, save the DB, then run the reference checkpoint."""
     def run(self, fileStore):
-        return self.runPhaseWithPrimaryDB(CactusBarPhase, finalPhase=True)
-        # self.cactusSequencesID, ktServerDump = promise.rv(0), promise.rv(1)
-        # return self.makeFollowOnCheckpointJob(CactusReferenceCheckpoint, "reference", ktServerDump=ktServerDump)
+        self.cactusSequencesID, ktServerDump = self.runPhaseWithPrimaryDB(CactusBarPhase)
+        return self.makeFollowOnCheckpointJob(CactusReferenceCheckpoint, "reference", ktServerDump=ktServerDump)
 
 class CactusBarPhase(CactusPhasesJob):
     """Runs bar algorithm."""
@@ -939,7 +938,7 @@ class CactusBarWrapperWithPrecomputedEndAlignments(CactusRecursionJob):
 ############################################################
 ############################################################
 ############################################################
-    
+
 class CactusNormalPhase(CactusPhasesJob):
     """Phase to normalise the graph, ensuring all chains are maximal
     """
@@ -983,12 +982,12 @@ class CactusNormalWrapper(CactusRecursionJob):
 ############################################################
 ############################################################
 ############################################################
-    
+
 class CactusAVGPhase(CactusPhasesJob): 
     """Phase to build avgs for each flower.
     """       
     def run(self, fileStore):
-        return self.runPhase(CactusAVGRecursion, CactusReferencePhase, "reference", doRecursion=self.getOptionalPhaseAttrib("buildAvgs", bool, False))
+        return self.runPhase(CactusAVGRecursion, SavePrimaryDB, 'avg', doRecursion=self.getOptionalPhaseAttrib("buildAvgs", bool, False))
 
 class CactusAVGRecursion(CactusRecursionJob):
     """This job does the recursive pass for the AVG phase.
@@ -1020,7 +1019,12 @@ class CactusAVGWrapper(CactusRecursionJob):
 ############################################################
 ############################################################
 ############################################################
-    
+
+class CactusReferenceCheckpoint(CactusCheckpointJob):
+    """Load the DB and run the final reference and HAL phases."""
+    def run(self, fileStore):
+        return self.runPhaseWithPrimaryDB(CactusReferencePhase, finalPhase=True)
+
 class CactusReferencePhase(CactusPhasesJob):
     def run(self, fileStore):
         """Runs the reference problem algorithm
