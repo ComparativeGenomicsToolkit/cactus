@@ -422,22 +422,22 @@ class CactusRecursionJob(CactusJob):
                           runFlowerStats=False):
         """Make set of child jobs that extend the current cactus tree.
         """
+
         jobNode = getJobNode(self.phaseNode, job)
         flowersAndSizes=runCactusExtendFlowers(cactusDiskDatabaseString=self.cactusDiskDatabaseString,
-                                              cactusSequencesPath=self.cactusSequencesPath, 
+                                              cactusSequencesPath=self.cactusSequencesPath,
                                               inputSize=sum(self.flowerSizes),
                                               jobName=job.__name__,
                                               fileStore=fileStore,
                                               flowerNames=self.flowerNames, 
-                                              minSequenceSizeOfFlower=getOptionalAttrib(jobNode, "minFlowerSize", int, 1), 
-                                              maxSequenceSizeOfFlowerGrouping=getOptionalAttrib(jobNode, "maxFlowerGroupSize", int, 
+                                              minSequenceSizeOfFlower=getOptionalAttrib(jobNode, "minFlowerSize", int, 0),
+                                              maxSequenceSizeOfFlowerGrouping=getOptionalAttrib(jobNode, "maxFlowerGroupSize", int,
                                               default=CactusRecursionJob.maxSequenceSizeOfFlowerGroupingDefault))
         return self.makeChildJobs(flowersAndSizes=flowersAndSizes, 
-                              job=job, overlargeJob=overlargeJob, 
-                              phaseNode=phaseNode,
-                              runFlowerStats=runFlowerStats)
+                                  job=job, overlargeJob=overlargeJob,
+                                  phaseNode=phaseNode,
+                                  runFlowerStats=runFlowerStats)
 
-    
     def makeWrapperJobs(self, job, overlargeJob=None, phaseNode=None, runFlowerStats=False):
         """Takes the list of flowers for a recursive job and splits them up to fit the given wrapper job(s).
         """

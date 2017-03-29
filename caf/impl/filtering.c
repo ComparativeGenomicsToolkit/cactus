@@ -100,30 +100,30 @@ static bool checkIntersection(stSortedSet *names1, stSortedSet *names2) {
     return b;
 }
 
-static stSortedSet *getNames(stPinchSegment *segment, Flower *flower) {
-    stSortedSet *names = stSortedSet_construct();
+static stSortedSet *getEvents(stPinchSegment *segment, Flower *flower) {
+    stSortedSet *events = stSortedSet_construct();
     if (stPinchSegment_getBlock(segment) != NULL) {
         stPinchBlock *block = stPinchSegment_getBlock(segment);
         stPinchBlockIt it = stPinchBlock_getSegmentIterator(block);
         while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
-            stSortedSet_insert(names, stCaf_getEvent(segment, flower));
+            stSortedSet_insert(events, stCaf_getEvent(segment, flower));
         }
     } else {
-        stSortedSet_insert(names, stCaf_getEvent(segment, flower));
+        stSortedSet_insert(events, stCaf_getEvent(segment, flower));
     }
-    return names;
+    return events;
 }
 
 bool stCaf_filterByRepeatSpecies(stPinchSegment *segment1,
                                  stPinchSegment *segment2) {
-    return checkIntersection(getNames(segment1, flower), getNames(segment2, flower));
+    return checkIntersection(getEvents(segment1, flower), getEvents(segment2, flower));
 }
 
 bool stCaf_relaxedFilterByRepeatSpecies(stPinchSegment *segment1,
                                         stPinchSegment *segment2) {
     return stPinchSegment_getBlock(segment1) != NULL
         && stPinchSegment_getBlock(segment2) != NULL
-        && checkIntersection(getNames(segment1, flower), getNames(segment2, flower));
+        && checkIntersection(getEvents(segment1, flower), getEvents(segment2, flower));
 }
 
 static stSortedSet *getChrNames(stPinchSegment *segment, Flower *flower) {
@@ -147,6 +147,38 @@ static stSortedSet *getChrNames(stPinchSegment *segment, Flower *flower) {
 bool stCaf_singleCopyChr(stPinchSegment *segment1,
                          stPinchSegment *segment2) {
     return checkIntersection(getChrNames(segment1, flower), getChrNames(segment2, flower));
+}
+
+static stSortedSet *getIngroupEvents(stPinchSegment *segment, Flower *flower) {
+    stSortedSet *events = stSortedSet_construct();
+    if (stPinchSegment_getBlock(segment) != NULL) {
+        stPinchBlock *block = stPinchSegment_getBlock(segment);
+        stPinchBlockIt it = stPinchBlock_getSegmentIterator(block);
+        while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
+            Event *event = stCaf_getEvent(segment, flower);
+            if (!event_isOutgroup(event)) {
+                stSortedSet_insert(events, event);
+            }
+        }
+    } else {
+        Event *event = stCaf_getEvent(segment, flower);
+        if (!event_isOutgroup(event)) {
+            stSortedSet_insert(events, event);
+        }
+    }
+    return events;
+}
+
+bool stCaf_singleCopyIngroup(stPinchSegment *segment1,
+                             stPinchSegment *segment2) {
+    return checkIntersection(getIngroupEvents(segment1, flower), getIngroupEvents(segment2, flower));
+}
+
+bool stCaf_relaxedSingleCopyIngroup(stPinchSegment *segment1,
+                                    stPinchSegment *segment2) {
+    return stPinchSegment_getBlock(segment1) != NULL
+        && stPinchSegment_getBlock(segment2) != NULL
+        && checkIntersection(getIngroupEvents(segment1, flower), getIngroupEvents(segment2, flower));
 }
 
 /*
