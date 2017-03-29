@@ -80,6 +80,9 @@ class TestCase(unittest.TestCase):
                                      testRestrictions=(TestStatus.TEST_VERY_LONG,),
                                      batchSystem=self.batchSystem, buildToilStats=True)
 
+    @unittest.skipIf(os.getenv("CGL_DEBUG") in ("1", "ultra") and os.getenv("TRAVIS") == "true",
+                     "Currently toil singleMachine is too slow to run this on Travis in debug mode."
+                     " Change this once singleMachine gets faster")
     @silentOnSuccess
     def testCactus_splitBarJobs(self):
         """Exercise the code paths in bar that only occur on large jobs."""
