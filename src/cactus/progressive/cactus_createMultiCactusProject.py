@@ -241,12 +241,8 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
         if configTemplate.getOutgroupStrategy() != 'none' \
         and name in mcProj.outgroup.ogMap:
             for og, ogDist in mcProj.outgroup.ogMap[name]:
-                if og in seqMap:
-                    ogPath = seqMap[og]
-                else:
-                    ogPath = os.path.join(options.path, og)
-                    ogPath = os.path.join(ogPath, refFileName(og))
-                    seqMap[og] = ogPath
+                assert og in seqMap, "No sequence found for outgroup: %s" % og
+                ogPath = seqMap[og]
                 outgroups += [og]
 
         # Get subtree connecting children + outgroups

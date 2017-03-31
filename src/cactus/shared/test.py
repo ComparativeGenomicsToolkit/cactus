@@ -112,12 +112,18 @@ def getCactusWorkflowExperimentForTest(sequences, newickTreeString, outputDir, c
 ###############
 
 def getCactusInputs_random(regionNumber=0, tempDir=None,
-                           sequenceNumber=random.choice(xrange(100)), 
-                           avgSequenceLength=random.choice(xrange(1,5000)), 
-                           treeLeafNumber=random.choice(xrange(2,10))):
+                           sequenceNumber=None,
+                           avgSequenceLength=None,
+                           treeLeafNumber=None):
     """Gets a random set of sequences, each of length given, and a species
     tree relating them. Each sequence is a assigned an event in this tree.
     """
+    if sequenceNumber is None:
+        sequenceNumber = random.choice(xrange(30))
+    if avgSequenceLength is None:
+        avgSequenceLength = random.choice(xrange(1,3000))
+    if treeLeafNumber is None:
+        treeLeafNumber = random.choice(xrange(2, 4))
     #Make tree
     binaryTree = makeRandomBinaryTree(treeLeafNumber)
     newickTreeString = printBinaryTree(binaryTree, includeDistances=True)
@@ -135,9 +141,9 @@ def getCactusInputs_random(regionNumber=0, tempDir=None,
     for i in xrange(len(newickTreeLeafNames)):
         seqDir = getTempDirectory(rootDir=tempDir)
         sequenceDirs.append(seqDir)
-        
+
     logger.info("Made a set of random directories: %s" % " ".join(sequenceDirs))
-    
+
     #Random sequences and species labelling
     sequenceFile = None
     fileHandle = None
@@ -170,7 +176,7 @@ def getCactusInputs_random(regionNumber=0, tempDir=None,
         i += 1
     if fileHandle != None:
         fileHandle.close()
-        
+
     logger.info("Made %s sequences in %s directories" % (sequenceNumber, len(sequenceDirs)))
     
     return sequenceDirs, newickTreeString
@@ -240,11 +246,34 @@ def getCactusInputs_blanchette(regionNumber=0, tempDir=None):
     assert regionNumber < 50
     #regionNumber = 1
     blanchettePath = os.path.join(TestStatus.getPathToDataSets(), "blanchettesSimulation")
-    sequences = [ os.path.join(blanchettePath, ("%.2i.job" % regionNumber), species) \
-                 for species in ("HUMAN", "CHIMP", "BABOON", "MOUSE", "RAT", "DOG", "CAT", "PIG", "COW") ] #Same order as tree
+    sequences = [os.path.join(blanchettePath, ("%.2i.job" % regionNumber), species) \
+                 for species in ("HUMAN", "CHIMP", "BABOON", "MOUSE", "RAT", "DOG", "CAT", "PIG", "COW")] #Same order as tree
     newickTreeString = parseNewickTreeFile(os.path.join(blanchettePath, "tree.newick"))
     return sequences, newickTreeString
-    
+
+def getCactusInputs_funkyHeaderNames(regionNumber=0, tempDir=None):
+    """Gets inputs (based on Blanchette region 0) that have weird header names
+    that might get parsed wrong and cause issues."""
+    sequences, newickTreeString = getCactusInputs_blanchette(regionNumber=regionNumber)
+
+    # Assign weird header names
+    if tempDir is None:
+        tempDir = getTempDir()
+    # Should also consider "bar foo", "ba rfoo", but we currently
+    # throw away everything but the first token (probably because of
+    # cigar parsing).
+    funkyHeaderNames = ['id=1|foo', 'test1|1600', 'test2|', '|test3', 'id=1|bar']
+    funkyIndex = 0
+    for i, sequencePath in enumerate(sequences):
+        newPath = os.path.join(tempDir, str(i))
+        for _, sequence in fastaRead(sequencePath):
+            header = funkyHeaderNames[funkyIndex % len(funkyHeaderNames)]
+            funkyIndex += 1
+            fastaWrite(newPath, header, sequence, 'a')
+        sequences[i] = newPath
+
+    return sequences, newickTreeString
+
 def getCactusInputs_encode(regionNumber=0, tempDir=None):
     """Gets the inputs for running cactus_workflow using an Encode pilot project region.
      (0 <= regionNumber < 15).
@@ -288,6 +317,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     logger.info("Running cactus workflow test script")
     logger.info("Got the following sequence dirs/files: %s" % " ".join(sequences))
     logger.info("Got the following tree %s" % newickTreeString)
+    
     #Setup the output dir
     assert outputDir != None
     logger.info("Using the output dir: %s" % outputDir)

@@ -182,6 +182,112 @@ bool stCaf_relaxedSingleCopyIngroup(stPinchSegment *segment1,
 }
 
 /*
+ * Special filtering for a draft HGVM, where every chromosome should
+ * be in its own component and should have no within-component cycles.
+ */
+
+static stUnionFind *threadToComponent;
+static stSet *specialComponents;
+static stSet *specialThreads;
+
+void stCaf_setupHGVMFiltering(Flower *flower, stPinchThreadSet *threadSet,
+                              char *hgvmEventName) {
+    EventTree *eventTree = flower_getEventTree(flower);
+    Event *eventToFilterOn = eventTree_getEventByHeader(eventTree, hgvmEventName);
+    if (eventToFilterOn == NULL) {
+        st_logCritical("Event %s not found in this problem, supplied by alignment filter"
+                       " hgvm:%s. Alignment filtering won't be turned on for this problem.",
+                       hgvmEventName, hgvmEventName);
+    }
+    // Set up HGVM filtering: any non-alts need to be in
+    // their own components and cycle-free.
+    stSet *threadsToBeCycleFreeIsolatedComponents = stSet_construct();
+    stPinchThreadSetIt threadSetIt = stPinchThreadSet_getIt(threadSet);
+    stPinchThread *thread;
+    while ((thread = stPinchThreadSetIt_getNext(&threadSetIt)) != NULL) {
+        Cap *cap = flower_getCap(flower, stPinchThread_getName(thread));
+        Sequence *sequence = cap_getSequence(cap);
+        Event *event = sequence_getEvent(sequence);
+        if (event == eventToFilterOn) {
+            const char *seqHeader = sequence_getHeader(sequence);
+            size_t headerLen = strlen(seqHeader);
+            if (headerLen < 4 || (strncmp(seqHeader + (headerLen - 4), "_alt", 4) != 0)) {
+                // Not an alt. Add it to the "special components" set.
+                stSet_insert(threadsToBeCycleFreeIsolatedComponents, thread);
+                st_logInfo("Filtering %s to be a cycle-free isolated component\n", seqHeader);
+            }
+        }
+    }
+    stCaf_setThreadsToBeCycleFreeIsolatedComponents(threadSet, threadsToBeCycleFreeIsolatedComponents);
+    stSet_destruct(threadsToBeCycleFreeIsolatedComponents);
+}
+
+void stCaf_setThreadsToBeCycleFreeIsolatedComponents(stPinchThreadSet *threadSet, stSet *input) {
+    threadToComponent = stUnionFind_construct();
+    stPinchThread *thread;
+    stPinchThreadSetIt threadIt = stPinchThreadSet_getIt(threadSet);
+    while ((thread = stPinchThreadSetIt_getNext(&threadIt)) != NULL) {
+        stUnionFind_add(threadToComponent, thread);
+    }
+    specialComponents = stSet_construct();
+    specialThreads = stSet_construct();
+    stSetIterator *it = stSet_getIterator(input);
+    while ((thread = stSet_getNext(it)) != NULL) {
+        stSet_insert(specialThreads, thread);
+        stSet_insert(specialComponents, stUnionFind_find(threadToComponent, thread));
+    }
+}
+
+static bool containsSpecialThread(stPinchSegment *segment) {
+    stPinchBlock *block = stPinchSegment_getBlock(segment);
+    if (block != NULL) {
+        stPinchBlockIt it = stPinchBlock_getSegmentIterator(block);
+        stPinchSegment *segment2;
+        while ((segment2 = stPinchBlockIt_getNext(&it)) != NULL) {
+            if (stSet_search(specialThreads, stPinchSegment_getThread(segment2))) {
+                return true;
+            }
+        }
+        return false;
+    }
+    return stSet_search(specialThreads, stPinchSegment_getThread(segment));
+}
+
+bool stCaf_filterToEnsureCycleFreeIsolatedComponents(stPinchSegment *segment1,
+                                                     stPinchSegment *segment2) {
+    void *component1 = stUnionFind_find(threadToComponent, stPinchSegment_getThread(segment1));
+    void *component2 = stUnionFind_find(threadToComponent, stPinchSegment_getThread(segment2));
+
+    bool specialComponent1 = stSet_search(specialComponents, component1);
+    bool specialComponent2 = stSet_search(specialComponents, component2);
+
+    // Check if this alignment will bridge two special components, or
+    // create a cycle within one. If so, reject it.
+    bool reject = false;
+    if (specialComponent1
+        && specialComponent2
+        && component1 != component2) {
+        // We reject this alignment because it bridges two components.
+        reject = true;
+    } else if (specialComponent1
+               && specialComponent2) {
+        // Check that this doesn't create a cycle.
+        if (containsSpecialThread(segment1) && containsSpecialThread(segment2)) {
+            reject = true;
+        }
+    } else {
+        // This alignment will be applied, so update the components.
+        stUnionFind_union(threadToComponent,
+                          stPinchSegment_getThread(segment1),
+                          stPinchSegment_getThread(segment2));
+        if (specialComponent1 || specialComponent2) {
+            stSet_insert(specialComponents, stUnionFind_find(threadToComponent, stPinchSegment_getThread(segment1)));
+        }
+    }
+    return reject;
+}
+
+/*
  * Functions used for filtering blocks/chains on certain criteria.
  */
 

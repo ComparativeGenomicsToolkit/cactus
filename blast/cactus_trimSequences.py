@@ -87,10 +87,14 @@ def getSeparateBedBlocks(bedFile, depth=1):
     return ret
 
 def getSeqLengths(fastaFile):
+    """Get a dict which maps header -> sequence size."""
     ret = defaultdict(int)
     chr = ""
     for line in fastaFile:
         line = line.strip()
+        if len(line) == 0:
+            # Blank line
+            continue
         if line[0] == '>':
             chr = line.split()[0][1:]
         else:
@@ -125,6 +129,9 @@ def printTrimmedFasta(fastaFile, toTrim):
     seq = None
     for line in fastaFile:
         line = line.strip()
+        if len(line) == 0:
+            # Blank line
+            continue
         if line[0] == '>':
             if seq is not None:
                 printTrimmedSeq(header, seq, toTrim[header])

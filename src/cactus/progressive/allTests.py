@@ -8,14 +8,12 @@ import unittest
 from cactus.progressive.multiCactusTreeTest import TestCase as multiCactusTreeTest
 from cactus.progressive.outgroupTest import TestCase as outgroupTest
 from cactus.progressive.scheduleTest import TestCase as scheduleTest
-from cactus.shared.experimentWrapperTest import TestCase as experimentWrapperTest
 from cactus.progressive.cactus_progressiveTest import TestCase as cactus_progressiveTest
 
 def allSuites(): 
     allTests = unittest.TestSuite((unittest.makeSuite(multiCactusTreeTest, 'test'),
                                    unittest.makeSuite(outgroupTest, 'test'),
                                    unittest.makeSuite(scheduleTest, 'test'),
-                                   unittest.makeSuite(experimentWrapperTest, 'test'),
                                    unittest.makeSuite(cactus_progressiveTest, 'test')))
     return allTests
         

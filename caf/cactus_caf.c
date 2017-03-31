@@ -347,6 +347,7 @@ int main(int argc, char *argv[]) {
     HomologyUnitType phylogenyHomologyUnitType = BLOCK;
     enum stCaf_DistanceCorrectionMethod phylogenyDistanceCorrectionMethod = JUKES_CANTOR;
     bool sortAlignments = false;
+    char *hgvmEventName = NULL;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -471,6 +472,15 @@ int main(int argc, char *argv[]) {
                 } else if (strcmp(optarg, "relaxedSingleCopyIngroup") == 0) {
                     sortAlignments = true;
                     filterFn = stCaf_relaxedSingleCopyIngroup;
+                } else if (strncmp(optarg, "hgvm:", 5) == 0) {
+                    sortAlignments = true;
+                    size_t argLen = strlen(optarg);
+                    if (argLen < 6) {
+                        st_errAbort("alignmentFilter option \"hgvm\" needs an additional argument: "
+                                    "the event name to filter on. E.g. \"hgvm:human\"");
+                    }
+                    hgvmEventName = stString_copy(optarg + 5);
+                    filterFn = stCaf_filterToEnsureCycleFreeIsolatedComponents;
                 } else if (strcmp(optarg, "none") == 0) {
                     sortAlignments = false;
                     filterFn = NULL;
@@ -753,6 +763,10 @@ int main(int argc, char *argv[]) {
 
             //Build the set of outgroup threads
             outgroupThreads = stCaf_getOutgroupThreads(flower, threadSet);
+
+            if (filterFn == stCaf_filterToEnsureCycleFreeIsolatedComponents) {
+                stCaf_setupHGVMFiltering(flower, threadSet, hgvmEventName);
+            }
 
             //Setup the alignments
             stPinchIterator *pinchIterator;

@@ -10,7 +10,10 @@ import unittest
 import os
 import sys
 import random
+import glob
 import xml.etree.ElementTree as ET
+
+from operator import itemgetter
 
 from sonLib.bioio import TestStatus
 from sonLib.bioio import getTempFile
@@ -18,10 +21,12 @@ from sonLib.bioio import getTempDirectory
 from sonLib.bioio import logger
 from sonLib.bioio import system
 from sonLib.bioio import getRandomSequence
+from sonLib.bioio import fastaRead, fastaWrite
 from sonLib.nxnewick import NXNewick
 
 from cactus.shared.test import getCactusInputs_random
 from cactus.shared.test import getCactusInputs_blanchette
+from cactus.shared.test import getCactusInputs_funkyHeaderNames
 from cactus.shared.test import getCactusInputs_encode
 from cactus.shared.test import getCactusInputs_chromosomeX
 from cactus.shared.test import runWorkflow_multipleExamples
@@ -47,6 +52,7 @@ class TestCase(unittest.TestCase):
         #Load the config file, turn on the checks.
         configWrapper = ConfigWrapper(ET.parse(os.path.join(cactusRootPath(), "cactus_progressive_config.xml")).getroot())
         configWrapper.turnAllModesOn()
+        configWrapper.turnOffHeaderChecks()
         self.tempDir = getTempDirectory(os.getcwd())
         self.configFile = os.path.join(self.tempDir, "tempConfig.xml")
         configWrapper.writeXML(self.configFile)
@@ -57,8 +63,13 @@ class TestCase(unittest.TestCase):
     @silentOnSuccess
     @unittest.skip("")
     def testCactus_Random(self):
+        # TODO: this doesn't actually need the test data, but this is
+        # being used as a signal that the tester doesn't want to run
+        # the long tests. The tests should be refactored soon.
+        if "SON_TRACE_DATASETS" not in os.environ:
+            return
         runWorkflow_multipleExamples(getCactusInputs_random,
-                                     testNumber=2,
+                                     testNumber=1,
                                      testRestrictions=(TestStatus.TEST_SHORT,),
                                      batchSystem=self.batchSystem, buildToilStats=True,
                                      progressive=True,
@@ -67,22 +78,16 @@ class TestCase(unittest.TestCase):
 
     @silentOnSuccess
     @unittest.skip("")
-    def testCactus_Random_UseOutgroup(self):
-        self.useOutgroup = True
-        runWorkflow_multipleExamples(getCactusInputs_random,
-                                     testNumber=2,
-                                     testRestrictions=(TestStatus.TEST_SHORT,),
-                                     batchSystem=self.batchSystem, buildToilStats=True,
-                                     progressive=True,
-                                     configFile=self.configFile,
-                                     cactusWorkflowFunction=self.progressiveFunction)
-    @silentOnSuccess
-    @unittest.skip("")
     def testCactus_Random_UseSubtreeRoot(self):
+        # TODO: this doesn't actually need the test data, but this is
+        # being used as a signal that the tester doesn't want to run
+        # the long tests. The tests should be refactored soon.
+        if "SON_TRACE_DATASETS" not in os.environ:
+            return
         """Tests that cactus doesn't crash when aligning a subtree of a larger
         species tree."""
         runWorkflow_multipleExamples(getCactusInputs_random,
-                                     testNumber=2,
+                                     testNumber=1,
                                      testRestrictions=(TestStatus.TEST_SHORT,),
                                      batchSystem=self.batchSystem, buildToilStats=True,
                                      progressive=True,
@@ -91,23 +96,12 @@ class TestCase(unittest.TestCase):
 
     @silentOnSuccess
     @unittest.skip("")
-    def testCactus_Random_DoSelfAlignment(self):
-        self.doSelfAlignment = True
-        runWorkflow_multipleExamples(getCactusInputs_random,
-                                     testNumber=2,
-                                     testRestrictions=(TestStatus.TEST_SHORT,),
-                                     batchSystem=self.batchSystem, buildToilStats=True,
-                                     progressive=True,
-                                     configFile=self.configFile,
-                                     cactusWorkflowFunction=self.progressiveFunction)
-
-    @silentOnSuccess
-    @unittest.skip("")
-    def testCactus_Random_UseOutgroupAndDoSelfAlignment(self):
-        self.useOutgroup = True
-        self.doSelfAlignment = True
-        runWorkflow_multipleExamples(getCactusInputs_random,
-                                     testNumber=2,
+    def testCactus_ensureFunkyHeaderNamesArentMangled(self):
+        """Ensure header names with characters like "|", " " aren't mangled."""
+        if "SON_TRACE_DATASETS" not in os.environ:
+            return
+        runWorkflow_multipleExamples(getCactusInputs_funkyHeaderNames,
+                                     testNumber=1,
                                      testRestrictions=(TestStatus.TEST_SHORT,),
                                      batchSystem=self.batchSystem, buildToilStats=True,
                                      progressive=True,
@@ -124,20 +118,12 @@ class TestCase(unittest.TestCase):
                                      progressive=True,
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
+
     @silentOnSuccess
     @unittest.skip("")
-    def testCactus_Blanchette_UseOutgroupAndDoSelfAlignment(self):
-        self.useOutgroup = True
-        self.doSelfAlignment = True
-        runWorkflow_multipleExamples(getCactusInputs_blanchette,
-                                     testNumber=1,
-                                     testRestrictions=(TestStatus.TEST_MEDIUM,),
-                                     batchSystem=self.batchSystem, buildToilStats=True,
-                                     progressive=True,
-                                     configFile=self.configFile,
-                                     cactusWorkflowFunction=self.progressiveFunction)
-    @silentOnSuccess
     def testCactus_Encode(self):
+        if "SON_TRACE_DATASETS" not in os.environ:
+            return
         runWorkflow_multipleExamples(getCactusInputs_encode,
                                      testNumber=1,
                                      testRestrictions=(TestStatus.TEST_LONG,),
@@ -148,6 +134,8 @@ class TestCase(unittest.TestCase):
     @silentOnSuccess
     @unittest.skip("")
     def testCactus_Chromosomes(self):
+        if "SON_TRACE_DATASETS" not in os.environ:
+            return
         runWorkflow_multipleExamples(getCactusInputs_chromosomeX,
                                      testRestrictions=(TestStatus.TEST_VERY_LONG,),
                                      batchSystem=self.batchSystem, buildToilStats=True,
@@ -202,11 +190,48 @@ class TestCase(unittest.TestCase):
                                           fixNames=False,
                                           root=subtreeRoot)
         logger.info("Put the temporary files in %s" % tempExperimentDir)
+
         runCactusProgressive(os.path.join(tempExperimentDir, "exp_project.xml"),
                              toilDir,
                              batchSystem=batchSystem,
                              buildAvgs=buildAvgs,
                              toilStats=toilStats)
+
+        # Check that the headers and sequences in the output are the
+        # same as the sequences in the input (minus differences in
+        # repeat-masking)
+        exp = ExperimentWrapper(ET.parse(experimentFile).getroot())
+        seqMap = exp.buildSequenceMap()
+        # Maps genome name -> headers in fasta
+        headers = {}
+        for genomeName, inputSequencePath in seqMap.items():
+            if os.path.isdir(inputSequencePath):
+                # Some "input sequence paths" are actually provided as
+                # directories containing multiple FASTAs
+                concatenatedPath = getTempFile()
+                system("cat %s/* > %s" % (inputSequencePath, concatenatedPath))
+                inputSequencePath = concatenatedPath
+            headers[genomeName] = list(map(itemgetter(0), fastaRead(inputSequencePath)))
+
+        # check headers inside .c2h output
+        for expPath in glob.glob('%s/*/*_experiment.xml' % (tempExperimentDir)):
+            subExp = ExperimentWrapper(ET.parse(expPath).getroot())
+            outgroups = subExp.getOutgroupEvents()
+            c2hPath = subExp.getHALPath()
+            with open(c2hPath) as f:
+                for line in f:
+                    fields = line.split('\t')
+                    if fields[0] == 's':
+                        # Sequence line
+                        genome = fields[1][1:-1]
+                        header = fields[2][1:-1]
+                        if genome in headers and genome not in outgroups:
+                            # This genome is an input genome
+                            self.assertTrue(header in headers[genome],
+                                            'Header %s from output c2h %s not found in input fa %s'
+                                            ' for genome %s' % (header, c2hPath, seqMap[genome], genome))
+
+
         runToilStatusAndFailIfNotComplete(toilDir)
         system("rm -rf %s" % tempDir)
         
