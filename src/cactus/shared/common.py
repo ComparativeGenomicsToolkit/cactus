@@ -918,6 +918,7 @@ def cactus_call(tool=None,
                         '--interactive',
                         '--net=host',
                         '--log-driver=none',
+                        '-u', '%s:%s' % (os.getuid(), os.getgid()),
                         '-e', 'ST_ABORT=1',
                         '-e', 'ST_ABORT_UNCAUGHT=1',
                         '-v', '{}:/data'.format(os.path.abspath(work_dir))]
@@ -1002,10 +1003,6 @@ def cactus_call(tool=None,
 
     if process.returncode != 0:
         raise RuntimeError("Command %s failed with output: %s" % (call, output))
-
-    # Fix root ownership of output files
-    if os.getuid() != 0 and not os.getenv('CACTUS_DOCKER_MODE') == "0":
-        _fixPermissions(tool, work_dir)
 
     if check_output:
         return output
