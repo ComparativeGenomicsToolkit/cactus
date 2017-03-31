@@ -53,12 +53,6 @@ def runKtserver(dbElem, killSwitchPath, maxPortsToTry=100, readOnly = False,
     if not os.path.isfile(killSwitchPath):
         raise RuntimeError("Kill switch file not found, can't " +
                            "launch without it %s" % killSwitchPath)
-    dbPathExists = False
-    if dbElem.getDbInMemory() == False:
-        if os.path.splitext(dbElem.getDbName())[1] == ".kch":
-            raise RuntimeError("Expected path to end in .kch: %s" %
-                               dbElem.getDbName())
-        dbPathExists = os.path.exists(dbPath)
 
     logPath = getLogPath(dbElem)
     logDir = os.path.dirname(logPath)
@@ -90,7 +84,7 @@ def runKtserver(dbElem, killSwitchPath, maxPortsToTry=100, readOnly = False,
             logger.info("Ktserver already on port %i" % port)
             continue
         process = cactus_call(server=True, shell=False, work_dir=os.path.dirname(logPath),
-                              parameters=['ktserver', '-log', os.path.basename(logPath),
+                              parameters=['ktserver', '-log', logPath,
                                           '-port', dbElem.getDbPort(),
                                           __getKtServerOptions(dbElem)])
 
@@ -137,8 +131,7 @@ def __validateKtserver(process, dbElem, killSwitchPath,
                     break
                 sleep(1)
             if raiseTimeout is True:
-                raise RuntimeError("Reorganization wait timeout failed. " +
-                                   "Server log is: %s" % logPath)
+                raise RuntimeError("Reorganization wait timeout failed.")
         sleep(1)
     return success
 

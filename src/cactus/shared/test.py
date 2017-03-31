@@ -337,13 +337,14 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     
     #Run the actual workflow
     cactusWorkflowFunction(experimentFile, toilDir, 
-                      batchSystem=batchSystem, buildAvgs=buildAvgs, 
-                      buildReference=buildReference,
-                      buildHal=buildHal,
-                      buildFasta=buildFasta,
-                      toilStats=buildToilStats)
+                           batchSystem=batchSystem, buildAvgs=buildAvgs,
+                           buildReference=buildReference,
+                           buildHal=buildHal,
+                           buildFasta=buildFasta,
+                           toilStats=buildToilStats,
+                           logLevel="DEBUG")
     logger.info("Ran the the workflow")
-    
+
     #Check if the cactusDisk is okay..
     #runCactusCheck(cactusDiskDatabaseString, recursive=True) #This should also occur during the workflow, so this
     #is redundant, but defensive
@@ -386,17 +387,17 @@ def runWorkflow_multipleExamples(inputGenFunction,
             else:
                 sequences, newickTreeString = inputGenFunction(regionNumber=test, tempDir=tempDir)
                 constraints = None
-            experiment = runWorkflow_TestScript(sequences, newickTreeString,
-                                                outputDir=tempDir,
-                                                batchSystem=batchSystem,
-                                                buildAvgs=buildAvgs, buildReference=buildReference, 
-                                                buildHal=buildHal,
-                                                buildFasta=buildFasta,
-                                                configFile=configFile,
-                                                buildToilStats=buildToilStats,
-                                                constraints=constraints,
-                                                progressive=progressive,
-                                                cactusWorkflowFunction=cactusWorkflowFunction)
+            runWorkflow_TestScript(sequences, newickTreeString,
+                                   outputDir=tempDir,
+                                   batchSystem=batchSystem,
+                                   buildAvgs=buildAvgs, buildReference=buildReference,
+                                   buildHal=buildHal,
+                                   buildFasta=buildFasta,
+                                   configFile=configFile,
+                                   buildToilStats=buildToilStats,
+                                   constraints=constraints,
+                                   progressive=progressive,
+                                   cactusWorkflowFunction=cactusWorkflowFunction)
             system("rm -rf %s" % tempDir)
             logger.info("Finished random test %i" % test)
 
