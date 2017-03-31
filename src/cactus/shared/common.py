@@ -911,9 +911,9 @@ def cactus_call(tool=None,
             else:
                 return path
 
-    parameters = [adjustPath(par, work_dir) for par in parameters]
+    if work_dir and os.environ.get('CACTUS_DOCKER_MODE') != "0":
+        parameters = [adjustPath(par, work_dir) for par in parameters]
 
-    
     base_docker_call = ['docker', 'run',
                         '--interactive',
                         '--net=host',
