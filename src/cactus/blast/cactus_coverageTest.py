@@ -1,7 +1,8 @@
 import unittest, os, random
-from sonLib.bioio import getTempFile, popenCatch, system
+from sonLib.bioio import getTempFile
 from textwrap import dedent
-from cactus.shared.test import getCactusInputs_encode
+from cactus.shared.common import cactus_call
+from cactus.shared.test import getCactusInputs_encode, silentOnSuccess
 
 class TestCase(unittest.TestCase):
     def setUp(self):
@@ -53,10 +54,11 @@ class TestCase(unittest.TestCase):
         os.remove(self.simpleFastaPathD)
         os.remove(self.simpleCigarPath)
 
+    @silentOnSuccess
     def testSimpleCoverageOnA(self):
         # Genome A
-        bed = popenCatch("cactus_coverage %s %s" % (self.simpleFastaPathA,
-                                                    self.simpleCigarPath))
+        bed = cactus_call(parameters=["cactus_coverage", self.simpleFastaPathA, self.simpleCigarPath],
+                          check_output=True)
         self.assertEqual(bed, dedent('''\
         id=0|simpleSeqA1\t0\t1\t\t1
         id=0|simpleSeqA1\t2\t7\t\t2
@@ -69,22 +71,25 @@ class TestCase(unittest.TestCase):
         id=1|simpleSeqA2\t9\t10\t\t1
         '''))
 
+    @silentOnSuccess
     def testSimpleCoverageOnB(self):
         # Genome B
-        bed = popenCatch("cactus_coverage %s %s" % (self.simpleFastaPathB,
-                                                    self.simpleCigarPath))
+        bed = cactus_call(parameters=["cactus_coverage", self.simpleFastaPathB, self.simpleCigarPath],
+                          check_output=True)
         self.assertEqual(bed, dedent('''\
         id=2|simpleSeqB1\t0\t12\t\t1
         id=2|simpleSeqB1\t17\t19\t\t1
         id=2|simpleSeqB1\t21\t32\t\t1
         '''))
 
+    @silentOnSuccess
     def testDepthByIDOnA(self):
         # Genome A using depthByID: all depths should be 1 except
         # where 2 different id= prefixes align to the same place:
         # position 6
-        bed = popenCatch("cactus_coverage --depthById %s %s" % (
-            self.simpleFastaPathA, self.simpleCigarPath))
+        bed = cactus_call(parameters=["cactus_coverage", "--depthById",
+                                      self.simpleFastaPathA, self.simpleCigarPath],
+                          check_output=True)
         self.assertEqual(bed, dedent('''\
         id=0|simpleSeqA1\t0\t1\t\t1
         id=0|simpleSeqA1\t2\t6\t\t1
@@ -94,25 +99,31 @@ class TestCase(unittest.TestCase):
         id=1|simpleSeqA2\t5\t10\t\t1
         '''))
 
+    @silentOnSuccess
     def testDepthByIDOnB(self):
         # Genome B using depthByID: should be the same as normal
         # except for 30-31, where it should be 2
-        bed = popenCatch("cactus_coverage --depthById %s %s" % (
-            self.simpleFastaPathB, self.simpleCigarPath))
+        bed = cactus_call(parameters=["cactus_coverage", "--depthById",
+                                      self.simpleFastaPathB, self.simpleCigarPath],
+                          check_output=True)
         self.assertEqual(bed, dedent('''\
         id=2|simpleSeqB1\t0\t12\t\t1
         id=2|simpleSeqB1\t17\t19\t\t1
         id=2|simpleSeqB1\t21\t32\t\t1
         '''))
 
+    @silentOnSuccess
     def testFromC(self):
         # Test "--from" filtering by filtering for only alignments
         # from/to D on C.
-        bed = popenCatch("cactus_coverage %s %s --from %s" % (self.simpleFastaPathC, self.simpleCigarPath, self.simpleFastaPathD))
+        bed = cactus_call(parameters=["cactus_coverage", self.simpleFastaPathC, self.simpleCigarPath,
+                                      "--from", self.simpleFastaPathD],
+                          check_output=True)
         self.assertEqual(bed, dedent('''\
         id=3|simpleSeqC1\t0\t10\t\t1
         '''))
 
+    @silentOnSuccess
     def testInvariants(self):
         if "SON_TRACE_DATASETS" not in os.environ:
             return
@@ -121,9 +132,9 @@ class TestCase(unittest.TestCase):
         seqs = [i for i in seqs if 'chimp' not in i]
         seqs = random.sample(seqs, 2)
         cigarPath = getTempFile()
-        system("cPecanLastz --format=cigar %s[multiple] %s[multiple] > %s" % \
-               (seqs[0], seqs[1], cigarPath))
-        bed = popenCatch("cactus_coverage %s %s" % (seqs[1], cigarPath))
+        cactus_call(parameters=["cPecanLastz", "--format=cigar", "%s[multiple]" % seqs[0],
+                    "%s[multiple]" % seqs[1]], outfile=cigarPath)
+        bed = cactus_call(parameters=["cactus_coverage", seqs[1], cigarPath], check_output=True)
         prevChrom = None
         prevStart = None
         prevEnd = None
