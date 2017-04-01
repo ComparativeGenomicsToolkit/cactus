@@ -1090,7 +1090,7 @@ class CactusReferenceRecursion3(CactusRecursionJob):
 class CactusSetReferenceCoordinatesUpWrapper(CactusRecursionJob):
     """Does the up pass for filling in the reference sequence coordinates, once a reference has been established.
     """
-    memoryPoly = [1.36245902e+00, 1.36316562e+09]
+    memoryPoly = [5.16161626e-01, 7.74633022e+09]
 
     def run(self, fileStore):
         self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID, mutable=True)
@@ -1116,7 +1116,7 @@ class CactusSetReferenceCoordinatesDownPhase(CactusPhasesJob):
 class CactusSetReferenceCoordinatesDownRecursion(CactusRecursionJob):
     """Does the down pass for filling Fills in the coordinates, once a reference is added.
     """
-    memoryPoly = [8.53350165e-01, 1.08914552e+09]
+    memoryPoly = [4.86666455e+09]
 
     def run(self, fileStore):
         assert self.cactusSequencesID
@@ -1134,7 +1134,7 @@ class CactusSetReferenceCoordinatesDownRecursion2(CactusRecursionJob):
 class CactusSetReferenceCoordinatesDownWrapper(CactusRecursionJob):
     """Does the down pass for filling Fills in the coordinates, once a reference is added.
     """
-    memoryPoly = [9.65818693e-01, 1.45719681e+09]
+    memoryPoly = [1.51512364e-01, 5.80164386e+09]
 
     def run(self, fileStore):
         assert self.cactusSequencesID
@@ -1257,7 +1257,7 @@ class CactusFastaGenerator(CactusRecursionJob):
 class CactusHalGeneratorRecursion(CactusRecursionJob):
     """Generate the hal file by merging indexed hal files from the children.
     """
-    memoryPoly = [3.19890954e-01, 1.59265705e+09]
+    memoryPoly = [2.28502287e+09]
     def run(self, fileStore):
         i = extractNode(self.phaseNode)
         if "outputFile" in i.attrib:
@@ -1269,7 +1269,7 @@ class CactusHalGeneratorRecursion(CactusRecursionJob):
 
 class CactusHalGeneratorUpWrapper(CactusRecursionJob):
     """Generate the .c2h strings for this flower, storing them in the secondary database."""
-    memoryPoly = [3.32474798e+00, 1.14948623e+09]
+    memoryPoly = [3.74365804e+00, 2.68968725e+09]
 
     def run(self, fileStore):
         if self.getOptionalPhaseAttrib("outputFile"):
