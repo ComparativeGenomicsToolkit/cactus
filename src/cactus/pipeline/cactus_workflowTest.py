@@ -116,12 +116,8 @@ class TestCase(unittest.TestCase):
             self.assertTrue(0)
         except:
             pass
-        self.assertEquals(findRequiredNode(self.configNode, "caf", index=0), self.configNode.findall("caf")[0])
-        try:
-            findRequiredNode(self.configNode, "caf", index=1)
-            self.assertTrue(0)
-        except:
-            pass
+        self.assertEquals(findRequiredNode(self.configNode, "caf"), self.configNode.findall("caf")[0])
+
     @unittest.skip("")
     def testExtractNode(self):
         subNode = ET.SubElement(self.barNode, "CactusSetReferenceCoordinatesDownRecursion", { "memory":"10" })

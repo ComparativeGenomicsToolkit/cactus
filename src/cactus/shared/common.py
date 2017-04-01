@@ -88,15 +88,13 @@ def getOptionalAttrib(node, attribName, typeFn=None, default=None):
         return node.attrib[attribName]
     return default
 
-def findRequiredNode(configNode, nodeName, index=0):
-    """Retrieve an xml node, complain if its not there.
-    """
+def findRequiredNode(configNode, nodeName):
+    """Retrieve an xml node, complain if it's not there."""
     nodes = configNode.findall(nodeName)
     if nodes == None:
         raise RuntimeError("Could not find any nodes with name %s in %s node" % (nodeName, configNode))
-    if index >= len(nodes):
-        raise RuntimeError("Could not find a node with name %s and index %i in %s node" % (nodeName, index, configNode))
-    return nodes[index]
+    assert len(nodes) == 1, "More than 1 node for %s in config XML" % nodeName
+    return nodes[0]
 
 #############################################
 #############################################

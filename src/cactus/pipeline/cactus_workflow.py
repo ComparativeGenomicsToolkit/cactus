@@ -155,13 +155,12 @@ class CactusJob(RoundedJob):
 class CactusPhasesJob(CactusJob):
     """Base job for each workflow phase job.
     """
-    def __init__(self, cactusWorkflowArguments=None, phaseName=None, topFlowerName=0, index=0,
+    def __init__(self, cactusWorkflowArguments=None, phaseName=None, topFlowerName=0,
                  cactusSequencesID=None, checkpoint=False, preemptable=True, halID=None,
                  fastaID=None):
         self.phaseName = phaseName
-        phaseNode = findRequiredNode(cactusWorkflowArguments.configNode, phaseName, index)
+        phaseNode = findRequiredNode(cactusWorkflowArguments.configNode, phaseName)
         constantsNode = findRequiredNode(cactusWorkflowArguments.configNode, "constants")
-        self.index = index
         self.cactusWorkflowArguments = cactusWorkflowArguments
         self.topFlowerName = topFlowerName
         self.halID = halID
@@ -192,33 +191,30 @@ class CactusPhasesJob(CactusJob):
         else:
             return self.addChild(newChild).rv()
 
-    def makeFollowOnPhaseJob(self, job, phaseName, index=0):
+    def makeFollowOnPhaseJob(self, job, phaseName):
         return self.addFollowOn(job(cactusWorkflowArguments=self.cactusWorkflowArguments, phaseName=phaseName, 
-                                    topFlowerName=self.topFlowerName, index=index, cactusSequencesID=self.cactusSequencesID, halID=self.halID, fastaID=self.fastaID)).rv()
+                                    topFlowerName=self.topFlowerName, cactusSequencesID=self.cactusSequencesID, halID=self.halID, fastaID=self.fastaID)).rv()
 
-    def runPhase(self, recursiveJob, nextPhaseJob, nextPhaseName, doRecursion=True, index=0, launchSecondaryKtForRecursiveJob=False, updateDatabase=False):
+    def runPhase(self, recursiveJob, nextPhaseJob, nextPhaseName, doRecursion=True, launchSecondaryKtForRecursiveJob=False, updateDatabase=False):
         """
         Adds a recursive child job and then a follow-on phase job. Returns the result of the follow-on
         phase job.
         """
-        logger.info("Starting %s phase job with index %i at %s seconds (recursing = %i)" % (self.phaseNode.tag, self.getPhaseIndex(), time.time(), doRecursion))
+        logger.info("Starting %s phase job at %s seconds (recursing = %i)" % (self.phaseNode.tag, time.time(), doRecursion))
         if doRecursion:
             cactusSequencesID = self.makeRecursiveChildJob(recursiveJob, launchSecondaryKtForRecursiveJob)
         if updateDatabase and doRecursion:
             self.cactusSequencesID = cactusSequencesID
-        return self.makeFollowOnPhaseJob(job=nextPhaseJob, phaseName=nextPhaseName, index=index)
+        return self.makeFollowOnPhaseJob(job=nextPhaseJob, phaseName=nextPhaseName)
 
     def makeFollowOnCheckpointJob(self, checkpointConstructor, phaseName, ktServerDump=None):
         """Add a follow-on checkpoint phase."""
         return self.addFollowOn(checkpointConstructor(\
                    phaseName=phaseName, ktServerDump=ktServerDump,
                    cactusWorkflowArguments=self.cactusWorkflowArguments,
-                   topFlowerName=self.topFlowerName, index=0,
+                   topFlowerName=self.topFlowerName,
                    cactusSequencesID=self.cactusSequencesID, halID=self.halID,
                    fastaID=self.fastaID)).rv()
-
-    def getPhaseIndex(self):
-        return self.index
 
     def getPhaseNumber(self):
         return len(self.cactusWorkflowArguments.configNode.findall(self.phaseNode.tag))
@@ -261,11 +257,10 @@ class CactusCheckpointJob(CactusPhasesJob):
         """
         job = jobConstructor(cactusWorkflowArguments=self.cactusWorkflowArguments,
                              phaseName=self.phaseName, topFlowerName=self.topFlowerName,
-                             index=0, cactusSequencesID=self.cactusSequencesID)
+                             cactusSequencesID=self.cactusSequencesID)
         startDBJob = StartPrimaryDB(job, ktServerDump=self.ktServerDump,
                                     cactusWorkflowArguments=self.cactusWorkflowArguments,
-                                    phaseName=self.phaseName, topFlowerName=self.topFlowerName,
-                                    index=0)
+                                    phaseName=self.phaseName, topFlowerName=self.topFlowerName)
         promise = self.addChild(startDBJob)
         if finalPhase:
             return promise.rv()
@@ -293,8 +288,7 @@ class StartPrimaryDB(CactusPhasesJob):
             if self.ktServerDump is not None:
                 return self.addChild(LoadPrimaryDB(self.nextJob, ktServerDump=self.ktServerDump,
                                                    cactusWorkflowArguments=self.nextJob.cactusWorkflowArguments,
-                                                   phaseName='setup', topFlowerName=self.topFlowerName,
-                                                   index=0)).rv()
+                                                   phaseName='setup', topFlowerName=self.topFlowerName)).rv()
             else:
                 return self.addChild(self.nextJob).rv()
         else:
@@ -664,7 +658,7 @@ class CactusCafPhase(CactusPhasesJob):
         if (not self.cactusWorkflowArguments.configWrapper.getDoTrimStrategy()) or (self.cactusWorkflowArguments.outgroupEventNames == None):
             setupFilteringByIdentity(self.cactusWorkflowArguments)
         #Setup any constraints
-        if self.getPhaseIndex() == 0 and self.cactusWorkflowArguments.constraintsID != None: #Setup the constraints arg
+        if self.cactusWorkflowArguments.constraintsID != None: #Setup the constraints arg
 
             constraintsFile = fileStore.readGlobalFile(self.cactusWorkflowArguments.constraintsID)
             newConstraintsFile = fileStore.getLocalTempFile()
