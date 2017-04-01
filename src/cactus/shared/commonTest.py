@@ -1,10 +1,13 @@
 import unittest
 import os
-import sys
 
 from sonLib.bioio import TestStatus
 from sonLib.bioio import getTempFile
-from cactus.shared.common import *
+from sonLib.bioio import getTempDirectory
+from sonLib.bioio import system
+from cactus.shared.common import encodeFlowerNames, decodeFirstFlowerName, \
+                                 runCactusSplitFlowersBySecondaryGrouping, \
+                                 cactus_call
 
 
 class TestCase(unittest.TestCase):
@@ -45,7 +48,6 @@ class TestCase(unittest.TestCase):
         self.assertEquals([(False, "3 9 1 1"), (False, "2 8 4"), (True, "3 13 7 8")], runCactusSplitFlowersBySecondaryGrouping("8 9 1 1 a -3 4 b 1 7 8"))
 
     def testCactusCall(self):
-        from cactus.shared.common import cactus_call
         inputFile = getTempFile(rootDir=self.tempDir)
         
         with open("/dev/urandom") as randText:
