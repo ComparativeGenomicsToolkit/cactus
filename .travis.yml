@@ -6,7 +6,7 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y libtokyocabinet-dev libkyototycoon-dev kyototycoon libkyotocabinet-dev; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install tokyo-cabinet kyoto-cabinet kyoto-tycoon; fi
 #Build docker containers
-  - if [[ "$CACTUS_DOCKER_MODE" == 1 ]]; then docker login --username $QUAY_USERNAME --password $QUAY_PASSWORD quay.io; make docker; make push; fi
+  - if [[ "$CACTUS_DOCKER_MODE" == 1 ]]; then docker login --username $QUAY_USERNAME --password $QUAY_PASSWORD quay.io; make push; fi
 script:
   - pip install --pre toil
   - pip install -e .
