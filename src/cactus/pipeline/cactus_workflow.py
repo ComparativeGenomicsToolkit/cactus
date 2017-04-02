@@ -867,7 +867,8 @@ class CactusBarWrapperLarge(CactusRecursionJob):
             if basesInEndAlignment >= veryLargeEndSize:
                 alignmentID = self.addChild(CactusBarEndAlignerWrapper(self.phaseNode, self.constantsNode,
                                                         self.cactusDiskDatabaseString, self.flowerNames,
-                                                        True, [ endToAlign ], self.cactusSequencesID,
+                                                        self.flowerSizes, True, [ endToAlign ],
+                                                        self.cactusSequencesID,
                                                         cactusWorkflowArguments=self.cactusWorkflowArguments)).rv()
                 precomputedAlignmentIDs.append(alignmentID)
                 logger.info("Precomputing very large end alignment for %s with %i caps and %i bases" % \
@@ -879,7 +880,7 @@ class CactusBarWrapperLarge(CactusRecursionJob):
                     alignmentID = self.addChild(CactusBarEndAlignerWrapper(self.phaseNode,
                                                        self.constantsNode,
                                                        self.cactusDiskDatabaseString,
-                                                       self.flowerNames, False,
+                                                       self.flowerNames, self.flowerSizes, False,
                                                        endsToAlign,
                                                        self.cactusSequencesID,
                                                        cactusWorkflowArguments=self.cactusWorkflowArguments)).rv()
@@ -887,7 +888,7 @@ class CactusBarWrapperLarge(CactusRecursionJob):
                     endsToAlign = []
                     totalSize = 0
         if len(endsToAlign) > 0:
-            precomputedAlignmentIDs.append(self.addChild(CactusBarEndAlignerWrapper(self.phaseNode, self.constantsNode, self.cactusDiskDatabaseString, self.flowerNames, False, endsToAlign, self.cactusSequencesID,
+            precomputedAlignmentIDs.append(self.addChild(CactusBarEndAlignerWrapper(self.phaseNode, self.constantsNode, self.cactusDiskDatabaseString, self.flowerNames, self.flowerSizes, False, endsToAlign, self.cactusSequencesID,
                                                 cactusWorkflowArguments=self.cactusWorkflowArguments)).rv())
         self.precomputedAlignmentIDs = precomputedAlignmentIDs
         self.makeFollowOnRecursiveJob(CactusBarWrapperWithPrecomputedEndAlignments)
@@ -897,10 +898,10 @@ class CactusBarWrapperLarge(CactusRecursionJob):
 class CactusBarEndAlignerWrapper(CactusRecursionJob):
     """Computes an end alignment."""
     memoryPoly = [3.82834548e-01, 1.28869656e+09]
-    def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge,
-                 endsToAlign, cactusSequencesID, cactusWorkflowArguments):
+    def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, flowerSizes,
+                 overlarge, endsToAlign, cactusSequencesID, cactusWorkflowArguments):
         self.cactusWorkflowArguments = cactusWorkflowArguments
-        CactusRecursionJob.__init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge, cactusSequencesID=cactusSequencesID, cactusWorkflowArguments=self.cactusWorkflowArguments, preemptable=True)
+        CactusRecursionJob.__init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, flowerSizes, overlarge, cactusSequencesID=cactusSequencesID, cactusWorkflowArguments=self.cactusWorkflowArguments, preemptable=True)
         self.endsToAlign = endsToAlign
 
     def run(self, fileStore):
