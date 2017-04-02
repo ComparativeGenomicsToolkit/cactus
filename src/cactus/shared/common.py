@@ -26,6 +26,8 @@ from cactus.shared.version import cactus_commit
 
 _log = logging.getLogger(__name__)
 
+subprocess32._has_poll = False
+
 def makeURL(path):
     if not (path.startswith("file:") or path.startswith("s3:") or path.startswith("http:")):
         return "file://" + os.path.abspath(path)
@@ -977,7 +979,7 @@ def cactus_call(tool=None,
     while True:
         try:
             # Wait a bit to see if the process is done
-            output, nothing = process.communicate(stdin_string if first_run else None, timeout=30)
+            output, nothing = process.communicate(stdin_string if first_run else None, timeout=5)
         except subprocess32.TimeoutExpired:
             # Every so often, check the memory usage of the container
             updatedMemUsage = maxMemUsageOfContainer(containerName)
