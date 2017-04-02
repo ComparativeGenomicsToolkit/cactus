@@ -273,6 +273,7 @@ class StartPrimaryDB(CactusPhasesJob):
         self.nextJob = nextJob
         self.ktServerDump = ktServerDump
         kwargs['checkpoint'] = True
+        kwargs['preemptable'] = False
         super(StartPrimaryDB, self).__init__(*args, **kwargs)
 
     def run(self, fileStore):
@@ -299,6 +300,7 @@ class LoadPrimaryDB(CactusPhasesJob):
     def __init__(self, nextJob, ktServerDump=None, *args, **kwargs):
         self.nextJob = nextJob
         self.ktServerDump = ktServerDump
+        kwargs['preemptable'] = False
         super(LoadPrimaryDB, self).__init__(*args, **kwargs)
 
     def run(self, fileStore):
@@ -309,6 +311,10 @@ class LoadPrimaryDB(CactusPhasesJob):
 
 class SavePrimaryDB(CactusPhasesJob):
     """Saves the DB to a file and clears the DB."""
+    def __init__(self, *args, **kwargs):
+        kwargs['preemptable'] = False
+        super(SavePrimaryDB, self).__init__(*args, **kwargs)
+
     def run(self, fileStore):
         tempPath = fileStore.getLocalTempFile()
         dbElem = DbElemWrapper(ET.fromstring(self.cactusWorkflowArguments.cactusDiskDatabaseString))
