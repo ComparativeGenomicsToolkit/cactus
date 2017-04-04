@@ -1033,7 +1033,6 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
      */
     reference *ref = getEmptyReference(flower, endsToNodes, nodeNumber, referenceEvent, matchingAlgorithm, stubTangleEnds, phi);
     assert(reference_getIntervalNumber(ref) == stList_length(stubTangleEnds) / 2);
-    reference_log(ref);
 
     /*
      * Invert the hash from ends to nodes to nodes to ends.
@@ -1075,14 +1074,12 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
 
     double maxPossibleScore = refAdjList_getMaxPossibleScore(aL);
     makeReferenceGreedily2(aL, dAL, ref, wiggle);
-    reference_log(ref);
     int64_t badAdjacenciesAfterGreedy = getBadAdjacencyCount(dAL, ref);
     double totalScoreAfterGreedy = getReferenceScore(aL, ref);
     st_logDebug("The score of the initial solution is %f/%" PRIi64 " out of a max possible %f\n", totalScoreAfterGreedy, badAdjacenciesAfterGreedy,
             maxPossibleScore);
 
     updateReferenceGreedily(aL, dAL, ref, permutations);
-    reference_log(ref);
 
     int64_t badAdjacenciesAfterGreedySampling = getBadAdjacencyCount(dAL, ref);
     double totalScoreAfterGreedySampling = getReferenceScore(aL, ref);
