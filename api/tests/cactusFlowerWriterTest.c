@@ -6,6 +6,48 @@
 
 #include "cactusGlobalsPrivate.h"
 
+static void testFlowerStream(CuTest *testCase) {
+    CactusDisk *cactusDisk = testCommon_getTemporaryCactusDisk();
+    char *tempPath = getTempFile();
+    FILE *f = fopen(tempPath, "w");
+    FlowerWriter *flowerWriter = flowerWriter_construct(f, 100, 50);
+    Name flowerNames[3];
+    // First test flower
+    Flower *flower = flower_construct(cactusDisk);
+    flowerNames[0] = flower_getName(flower);
+    flowerWriter_add(flowerWriter, flower_getName(flower), 1);
+    flower_destruct(flower, false);
+    flowerNames[1] = flower_getName(flower);
+    // Second test flower
+    flower = flower_construct(cactusDisk);
+    flowerWriter_add(flowerWriter, flower_getName(flower), 1);
+    flower_destruct(flower, false);
+    // Third test flower
+    flowerNames[2] = flower_getName(flower);
+    flower = flower_construct(cactusDisk);
+    flowerWriter_add(flowerWriter, flower_getName(flower), 1);
+    flower_destruct(flower, false);
+    flowerWriter_destruct(flowerWriter);
+    fclose(f);
+
+    // Now read them back in.
+    f = fopen(tempPath, "r");
+    FlowerStream *flowerStream = flowerWriter_getFlowerStream(cactusDisk, f);
+    int64_t i = 0;
+    while ((flower = flowerStream_getNext(flowerStream)) != NULL) {
+        CuAssertTrue(testCase, i < 3);
+        CuAssertIntEquals(testCase, flowerNames[i], flower_getName(flower));
+        i++;
+    }
+
+    // Check that no flowers are loaded.
+    CuAssertIntEquals(testCase, 0, stSortedSet_size(cactusDisk->flowers));
+    flowerStream_destruct(flowerStream);
+    fclose(f);
+    removeTempFile(tempPath);
+    testCommon_deleteTemporaryCactusDisk(cactusDisk);
+}
+
 static void testFlowerWriter(CuTest *testCase) {
     char *tempFile = "./flowerWriterTest.txt";
     FILE *fileHandle = fopen(tempFile, "w");
@@ -53,6 +95,7 @@ static void testFlowerWriter(CuTest *testCase) {
 
 CuSuite* cactusFlowerWriterTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
+    SUITE_ADD_TEST(suite, testFlowerStream);
     SUITE_ADD_TEST(suite, testFlowerWriter);
     return suite;
 }

@@ -171,3 +171,38 @@ stList *flowerWriter_parseFlowersFromStdin(CactusDisk *cactusDisk) {
     stList_destruct(flowerNamesList);
     return flowers;
 }
+
+static FlowerStream *flowerStream_construct(stList *flowerNames, CactusDisk *cactusDisk) {
+    FlowerStream *ret = malloc(sizeof(FlowerStream));
+    ret->flowerNames = flowerNames;
+    ret->curFlower = NULL;
+    ret->nextIdx = 0;
+    ret->cactusDisk = cactusDisk;
+    return ret;
+}
+
+FlowerStream *flowerWriter_getFlowerStream(CactusDisk *cactusDisk, FILE *file) {
+    stList *flowerNamesList = flowerWriter_parseNames(file);
+    return flowerStream_construct(flowerNamesList, cactusDisk);
+}
+
+void flowerStream_destruct(FlowerStream *flowerStream) {
+    if (flowerStream->curFlower != NULL) {
+        flower_destruct(flowerStream->curFlower, false);
+    }
+    stList_destruct(flowerStream->flowerNames);
+    free(flowerStream);
+}
+
+Flower *flowerStream_getNext(FlowerStream *flowerStream) {
+    if (flowerStream->curFlower != NULL) {
+        // Unload the previously loaded flower.
+        flower_destruct(flowerStream->curFlower, false);
+    }
+    if (flowerStream->nextIdx >= stList_length(flowerStream->flowerNames)) {
+        return NULL;
+    }
+    Name *flowerName = stList_get(flowerStream->flowerNames, flowerStream->nextIdx++);
+    flowerStream->curFlower = cactusDisk_getFlower(flowerStream->cactusDisk, *flowerName);
+    return flowerStream->curFlower;
+}
