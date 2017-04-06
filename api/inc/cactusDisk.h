@@ -31,15 +31,8 @@ CactusDisk *cactusDisk_construct(stKVDatabaseConf *conf, bool create);
  * Create a cactus disk, with the option to store the sequences in a file.
  */
 CactusDisk *cactusDisk_construct2(stKVDatabaseConf *conf,
-        const char *sequencesFileName);
-
-/*
- * Construct a cactus disk that has already been created, but which has
- * the sequnces file in a path other than the dbDir provided when creating
- * the cactus disk.
- */
-CactusDisk *cactusDisk_construct3(stKVDatabaseConf *conf,
-        const char *sequencesFileName);
+                                  bool create,
+                                  const char *sequencesFileName);
 
 /*
  * Destructs the cactus disk and all open flowers and sequences, and

@@ -275,7 +275,7 @@ int main(int argc, char *argv[]) {
     //////////////////////////////////////////////
 
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
-    cactusDisk = cactusDisk_construct3(kvDatabaseConf, cactusSequencesPath);
+    cactusDisk = cactusDisk_construct2(kvDatabaseConf, false, cactusSequencesPath);
     st_logInfo("Set up the flower disk\n");
 
     stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);

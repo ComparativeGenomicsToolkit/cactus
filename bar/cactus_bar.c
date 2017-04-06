@@ -282,7 +282,7 @@ int main(int argc, char *argv[]) {
      * Load the flowerdisk
      */
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
-    CactusDisk *cactusDisk = cactusDisk_construct3(kvDatabaseConf, cactusSequencesPath); //We precache the sequences
+    CactusDisk *cactusDisk = cactusDisk_construct2(kvDatabaseConf, false, cactusSequencesPath); //We precache the sequences
     st_logInfo("Set up the flower disk\n");
 
     /*

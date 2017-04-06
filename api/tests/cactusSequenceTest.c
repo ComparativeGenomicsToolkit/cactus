@@ -131,7 +131,7 @@ void testSequence_addAndGetBigStringsP(CuTest* testCase,
             stKVDatabaseConf *conf = stKVDatabaseConf_constructTokyoCabinet(
                         "temporaryCactusDisk");
 	    if (sequencesOnDisk) {
-	        cactusDisk = cactusDisk_construct3(conf, "cactusSequences");
+	        cactusDisk = cactusDisk_construct2(conf, false, "cactusSequences");
 	    }
 	    else {
 	        cactusDisk = cactusDisk_construct(conf, 0);

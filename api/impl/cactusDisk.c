@@ -669,12 +669,8 @@ CactusDisk *cactusDisk_construct(stKVDatabaseConf *conf, bool create) {
     return cactusDisk_constructPrivate(conf, create, NULL);
 }
 
-CactusDisk *cactusDisk_construct2(stKVDatabaseConf *conf, const char *sequencesFileName) {
-    return cactusDisk_constructPrivate(conf, 1, sequencesFileName);
-}
-
-CactusDisk *cactusDisk_construct3(stKVDatabaseConf *conf, const char *sequencesFileName) {
-    return cactusDisk_constructPrivate(conf, 0, sequencesFileName);
+CactusDisk *cactusDisk_construct2(stKVDatabaseConf *conf, bool create, const char *sequencesFileName) {
+    return cactusDisk_constructPrivate(conf, create, sequencesFileName);
 }
 
 void cactusDisk_destruct(CactusDisk *cactusDisk) {

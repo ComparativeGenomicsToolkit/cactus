@@ -30,7 +30,7 @@ int main(int argc, char *argv[]) {
 	assert(argc == 8);
 	st_setLogLevelFromString(argv[1]);
 	stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(argv[2]);
-	cactusDisk = cactusDisk_construct3(kvDatabaseConf, argv[3]);
+	cactusDisk = cactusDisk_construct2(kvDatabaseConf, false, argv[3]);
 	st_logInfo("Set up the flower disk\n");
 	flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(argv[4]));
 	assert(flower != NULL);
