@@ -505,18 +505,41 @@ def getRemoteParams(dbElem):
     return ['-port', str(dbElem.getDbPort()),
             '-host', dbElem.getDbHost() or 'localhost']
 
-def dumpKtServer(dbElem, path):
+def chunkFileByLines(path, pieces):
+    """Chunk up the file by lines into N pieces."""
+    numLines = int(popenCatch("wc -l %s" % path).split()[0])
+    linesPerFile = int(math.ceil(float(numLines)/pieces))
+    tempDir = getTempDirectory()
+    system("split -l %s %s %s/part" % (linesPerFile, path, tempDir))
+    return tempDir
+
+def dumpKtServer(dbElem, path, numProcesses=10):
     """Dump the KT server to 'path' as a gzipped TSV file."""
     temp = getTempFile()
     cactus_call(outfile=temp, parameters=['ktremotemgr', 'list', '-px'] + getRemoteParams(dbElem))
     # The ktremotemgr hex output includes spaces between each byte that it
     # can't handle when reading hex input
     system("sed -i 's/ //g' %s" % temp)
-    cactus_call(infile=temp, outfile=path,
-                parameters=['xargs', '-n', '50', 'ktremotemgr', 'getbulk', '-sx', '-px'] + getRemoteParams(dbElem))
+    tempDir = chunkFileByLines(temp, numProcesses)
     os.remove(temp)
+    # Launch several processes.
+    processes = []
+    files = []
+    for subfile in glob.glob(os.path.join(tempDir, '*')):
+        outfile = getTempFile()
+        files.append(outfile)
+        process = Process(target=lambda: cactus_call(infile=subfile, outfile=outfile,
+                                                     parameters=['xargs', '-n', '50', 'ktremotemgr',
+                                                                 'getbulk', '-sx', '-px']
+                                                                + getRemoteParams(dbElem)))
+        process.start()
+        processes.append(process)
+
+    map(lambda x: x.join(), processes)
+    system("rm -fr %s" % tempDir)
+
     # Again, have to remove the spaces from the ktremotemgr output so it can parse it properly
-    system("sed -i 's/ //g' %s" % path)
+    system("sed 's/ //g' %s > %s" % (" ".join(files), path))
     system("gzip %s" % path)
     shutil.move(path + '.gz', path)
 
@@ -532,7 +555,7 @@ def isGzipped(path):
             gzipped = True
     return gzipped
 
-def restoreKtServer(dbElem, path, processes=10):
+def restoreKtServer(dbElem, path, numProcesses=10):
     """Load a KT server with data from 'path' (a gzipped TSV file)."""
     gzipped = isGzipped(path)
     if gzipped:
@@ -541,11 +564,7 @@ def restoreKtServer(dbElem, path, processes=10):
         shutil.copy(path, temp + '.gz')
         system("gzip -d %s" % temp + '.gz')
         path = temp
-    # Chunk up the file, one chunk per process.
-    numLines = int(popenCatch("wc -l %s" % path).split()[0])
-    linesPerFile = int(math.ceil(float(numLines)/processes))
-    tempDir = getTempDirectory()
-    system("split -l %s %s %s/part" % (linesPerFile, path, tempDir))
+    tempDir = chunkFileByLines(path, numProcesses)
     # Launch several processes.
     processes = []
     for subfile in glob.glob(os.path.join(tempDir, '*')):
