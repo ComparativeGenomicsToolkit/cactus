@@ -524,14 +524,25 @@ def clearKtServer(dbElem):
     """Remove all data in the KT server."""
     cactus_call(parameters=['ktremotemgr', 'clear'] + getRemoteParams(dbElem))
 
+def isGzipped(path):
+    """Check for GZIP magic number in the file at path "path"."""
+    gzipped = False
+    with open(path) as f:
+        if f.read(2) == '\x1f\x8b':
+            gzipped = True
+    return gzipped
+
 def restoreKtServer(dbElem, path):
     """Load a KT server with data from 'path' (a gzipped TSV file)."""
-    temp = getTempFile()
-    os.remove(temp)
-    shutil.copy(path, temp + '.gz')
-    system("gzip -d %s" % temp + '.gz')
-    cactus_call(parameters=['ktremotemgr', 'import', '-sx'] + getRemoteParams(dbElem) + [temp])
-    os.remove(temp)
+    if isGzipped(path):
+        temp = getTempFile()
+        os.remove(temp)
+        shutil.copy(path, temp + '.gz')
+        system("gzip -d %s" % temp + '.gz')
+        path = temp
+    cactus_call(parameters=['ktremotemgr', 'import', '-sx'] + getRemoteParams(dbElem) + [path])
+    if isGzipped(path):
+        os.remove(temp)
 
 ###############################################################################
 # Hostnames of swarm nodes (ex kkr18u57.local) are not visible from
