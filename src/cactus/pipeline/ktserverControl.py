@@ -33,13 +33,10 @@ import math
 import glob
 from multiprocessing import Process
 from time import sleep
-from optparse import OptionParser
 
 from toil.lib.bioio import logger
 import threading
-import xml.etree.ElementTree as ET
 from sonLib.bioio import getTempFile, getTempDirectory, system, popenCatch
-from cactus.shared.experimentWrapper import ExperimentWrapper
 
 from cactus.shared.common import cactus_call, pullCactusImage
 
@@ -576,27 +573,3 @@ def getHostName():
     if hostIp.find("127.") != 0:
         return hostIp
     return hostName
-
-def main():
-    try:
-        usage = "usage: %prog <dbElem file> <killFile>"
-        description = "Open ktserver of a given dbElem until <killFile> erased"
-        parser = OptionParser(usage=usage, description=description)
-        
-        options, args = parser.parse_args()
-        
-        if len(args) != 2:
-            parser.print_help()
-            raise RuntimeError("Wrong number of arguments")
-
-        exp = ExperimentWrapper(ET.parse(args[0]).getroot())
-
-        runKtserver(exp, args[1])
-        return 0    
-    except RuntimeError, e:
-        print "ERROR " + str(e)
-        return 1
-    
-if __name__ == '__main__':    
-    main()
-    
