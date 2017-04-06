@@ -326,7 +326,8 @@ class CactusRecursionJob(CactusJob):
     """Base recursive job for traversals up and down the cactus tree.
     """
     featuresFn = lambda self: {'flowerGroupSize': sum(self.flowerSizes),
-                               'maxFlowerSize': max(self.flowerSizes)}
+                               'maxFlowerSize': max(self.flowerSizes),
+                               'numFlowers': len(self.flowerSizes)}
     feature = 'flowerGroupSize'
     maxSequenceSizeOfFlowerGroupingDefault = 1000000
     def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, flowerSizes, overlarge=False, precomputedAlignmentIDs=None, cactusSequencesID = None, checkpoint = False, cactusWorkflowArguments=None, preemptable=True, memPoly=None):
