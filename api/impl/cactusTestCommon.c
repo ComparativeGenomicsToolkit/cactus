@@ -36,9 +36,9 @@ CactusDisk *testCommon_getTemporaryCactusDisk2(bool sequencesOnDisk) {
             "temporaryCactusDisk");
     CactusDisk *cactusDisk;
     if (sequencesOnDisk) {
-        cactusDisk = cactusDisk_construct2(conf, true, "cactusSequences");
+        cactusDisk = cactusDisk_construct2(conf, true, "cactusSequences", true);
     } else {
-        cactusDisk = cactusDisk_construct(conf, true);
+        cactusDisk = cactusDisk_construct(conf, true, true);
     }
     stKVDatabaseConf_destruct(conf);
     return cactusDisk;

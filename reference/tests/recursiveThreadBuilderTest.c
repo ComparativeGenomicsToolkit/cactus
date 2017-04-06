@@ -35,7 +35,7 @@ static void recursiveFileBuilder_test(CuTest *testCase) {
     stFile_mkdir(tempDir);
     stKVDatabaseConf *conf = stKVDatabaseConf_constructTokyoCabinet(
                 stFile_pathJoin(tempDir, "temporaryCactusDisk"));
-    CactusDisk *cactusDisk = cactusDisk_construct(conf, 1);
+    CactusDisk *cactusDisk = cactusDisk_construct(conf, true, true);
     Flower *flower = flower_construct(cactusDisk);
     End *end1 = end_construct2(0, 1, flower);
     End *end2 = end_construct2(1, 1, flower);

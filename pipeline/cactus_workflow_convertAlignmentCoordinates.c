@@ -85,7 +85,7 @@ int main(int argc, char *argv[]) {
     st_logDebug("Set up logging\n");
 
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(argv[2]);
-    CactusDisk *cactusDisk = cactusDisk_construct2(kvDatabaseConf, false, argv[3]);
+    CactusDisk *cactusDisk = cactusDisk_construct2(kvDatabaseConf, false, argv[3], true);
     stKVDatabaseConf_destruct(kvDatabaseConf);
     stHash *sequenceHeaderToCapHash = makeSequenceHeaderToCapHash(cactusDisk);
     st_logDebug("Set up the flower disk and built hash\n");

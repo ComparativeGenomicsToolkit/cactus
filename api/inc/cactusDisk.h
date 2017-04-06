@@ -21,18 +21,23 @@ extern const char *CACTUS_DISK_EXCEPTION_ID;
 ////////////////////////////////////////////////
 
 /*
- * Constructs a cactus disk to load flowers. If 'create' is non-zero the cactus disk is
- * to be created. An exception will be thrown if the 'create' is non-zero and the cactus
- * disk already exists.
+ * Constructs a cactus disk to load flowers. If 'create' is non-zero
+ * the cactus disk is to be created. An exception will be thrown if
+ * the 'create' is non-zero and the cactus disk already exists. If
+ * "cache" is true, all DB requests and some sequences will be
+ * cached. If "cache" is false, no information will be cached, saving
+ * memory but possibly decreasing throughput.
  */
-CactusDisk *cactusDisk_construct(stKVDatabaseConf *conf, bool create);
+CactusDisk *cactusDisk_construct(stKVDatabaseConf *conf, bool create, bool cache);
 
 /*
- * Create a cactus disk, with the option to store the sequences in a file.
+ * Create a cactus disk, with the option to store the sequences in a
+ * file. For description of the other options see cactusDisk_construct.
  */
 CactusDisk *cactusDisk_construct2(stKVDatabaseConf *conf,
                                   bool create,
-                                  const char *sequencesFileName);
+                                  const char *sequencesFileName,
+                                  bool cache);
 
 /*
  * Destructs the cactus disk and all open flowers and sequences, and

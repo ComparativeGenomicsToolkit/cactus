@@ -16,7 +16,7 @@ int main(int argc, char *argv[]) {
     st_logDebug("Set up logging\n");
 
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(argv[2]);
-    CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
+    CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, false, true);
     stKVDatabaseConf_destruct(kvDatabaseConf);
     st_logDebug("Set up the flower disk\n");
 

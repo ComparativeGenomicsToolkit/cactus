@@ -211,6 +211,10 @@ static stList *mergeSubstrings(stList *substrings, int64_t proximityToMerge) {
 }
 
 static void cacheSubstringsFromDB(CactusDisk *cactusDisk, stList *substrings) {
+    if (cactusDisk->stringCache == NULL) {
+        // No string cache.
+        return;
+    }
     /*
      * Caches the given set of substrings in the cactusDisk cache.
      */
@@ -229,8 +233,8 @@ static void cacheSubstringsFromDB(CactusDisk *cactusDisk, stList *substrings) {
         }
         for (int64_t i = 0; i < stList_length(substrings); i++) {
             Substring *substring = stList_get(substrings, i);
-            char *string = getStringFromDisk(cactusDisk->sequencesReadFileHandle, substring->name, substring->start,
-                    substring->length);
+            char *string = getStringFromDisk(cactusDisk->sequencesReadFileHandle, substring->name,
+                                             substring->start, substring->length);
             stCache_setRecord(cactusDisk->stringCache, substring->name, substring->start, substring->length, string);
 #ifndef NDEBUG
             int64_t bytesRead;
@@ -309,6 +313,10 @@ void cactusDisk_preCacheStrings2(CactusDisk *cactusDisk, stList *substrings) {
     /*
      * Precaches the given substrings, so that they are all in memory.
      */
+    if (cactusDisk->stringCache == NULL) {
+        // No string cache.
+        return;
+    }
     //Now do some simple merging to reduce granularity
     stList *mergedSubstrings = mergeSubstrings(substrings, CACTUS_DISK_SEQUENCE_CHUNK_SIZE);
     //Now cache the sequences
@@ -358,6 +366,10 @@ void cactusDisk_preCacheStrings(CactusDisk *cactusDisk, stList *flowers) {
     /*
      * Precaches the sequences in the set of flowers, so that they are all in memory.
      */
+    if (cactusDisk->stringCache == NULL) {
+        // No string cache.
+        return;
+    }
     stList *substrings = getSubstringsForFlowers(flowers);
     cactusDisk_preCacheStrings2(cactusDisk, substrings);
     stList_destruct(substrings);
@@ -397,6 +409,10 @@ void cactusDisk_preCacheSegmentStrings(CactusDisk *cactusDisk, stList *flowers) 
     /*
      * Precaches the sequences in the set blocks of the given flowers, so that they are all in memory.
      */
+    if (cactusDisk->stringCache == NULL) {
+        // No cache.
+        return;
+    }
     stList *substrings = getSubstringsForFlowerSegments(flowers);
     cactusDisk_preCacheStrings2(cactusDisk, substrings);
     stList_destruct(substrings);
@@ -406,6 +422,10 @@ char *cactusDisk_getStringFromCache(CactusDisk *cactusDisk, Name name, int64_t s
     /*
      * Gets a sequence from the cache.
      */
+    if (cactusDisk->stringCache == NULL) {
+        // No cache.
+        return NULL;
+    }
     char *string = NULL;
     if (stCache_containsRecord(cactusDisk->stringCache, name, start, sizeof(char) * length)) {
         int64_t recordSize;
@@ -541,12 +561,15 @@ static stList *getRecords(CactusDisk *cactusDisk, stList *objectNames, char *typ
         void *record;
         stKVDatabaseBulkResult *result = stList_get(records, i);
         assert(result != NULL);
-        if (!stCache_containsRecord(cactusDisk->cache, objectName, 0, INT64_MAX)) {
+        if (cactusDisk->cache == NULL
+            || !stCache_containsRecord(cactusDisk->cache, objectName, 0, INT64_MAX)) {
             record = stKVDatabaseBulkResult_getRecord(result, &recordSize);
             assert(recordSize >= 0);
             assert(record != NULL);
             record = decompress(record, &recordSize);
-            stCache_setRecord(cactusDisk->cache, objectName, 0, recordSize, record);
+            if (cactusDisk->cache != NULL) {
+                stCache_setRecord(cactusDisk->cache, objectName, 0, recordSize, record);
+            }
         } else {
             record = stCache_getRecord(cactusDisk->cache, objectName, 0, INT64_MAX, &recordSize);
             assert(recordSize >= 0);
@@ -561,7 +584,8 @@ static stList *getRecords(CactusDisk *cactusDisk, stList *objectNames, char *typ
 static void *getRecord(CactusDisk *cactusDisk, Name objectName, char *type) {
     void *cA = NULL;
     int64_t recordSize = 0;
-    if (stCache_containsRecord(cactusDisk->cache, objectName, 0, INT64_MAX)) { //If we already have the record, we won't update it.
+    if (cactusDisk->cache != NULL
+        && stCache_containsRecord(cactusDisk->cache, objectName, 0, INT64_MAX)) { //If we already have the record, we won't update it.
         cA = stCache_getRecord(cactusDisk->cache, objectName, 0, INT64_MAX, &recordSize);
     } else {
         stTry
@@ -583,18 +607,21 @@ static void *getRecord(CactusDisk *cactusDisk, Name objectName, char *type) {
         free(cA);
         cA = cA2;
         // Add the uncompressed record to the cache.
-        stCache_setRecord(cactusDisk->cache, objectName, 0, recordSize, cA);
+        if (cactusDisk->cache != NULL) {
+            stCache_setRecord(cactusDisk->cache, objectName, 0, recordSize, cA);
+        }
     }
     return cA;
 }
 
 static bool containsRecord(CactusDisk *cactusDisk, Name objectName) {
-    return stCache_containsRecord(cactusDisk->cache, objectName, 0, INT64_MAX)
-            || stKVDatabase_containsRecord(cactusDisk->database, objectName);
+    return (cactusDisk->cache != NULL
+            && stCache_containsRecord(cactusDisk->cache, objectName, 0, INT64_MAX))
+        || stKVDatabase_containsRecord(cactusDisk->database, objectName);
 }
 
-static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf, bool create, const char *sequencesFileName) {
-    //sequencesFileName = NULL; //Disable the ability to store the sequences on disk.
+static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf, bool create,
+                                               const char *sequencesFileName, bool cache) {
     CactusDisk *cactusDisk = st_calloc(1, sizeof(CactusDisk));
 
     //construct lists of in memory objects
@@ -606,8 +633,10 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf, bool crea
 
     //Now open the database
     cactusDisk->database = stKVDatabase_construct(conf, create);
-    cactusDisk->cache = stCache_construct();
-    cactusDisk->stringCache = stCache_construct();
+    if (cache) {
+        cactusDisk->cache = stCache_construct();
+        cactusDisk->stringCache = stCache_construct();
+    }
 
     //initialise the unique ids.
     int64_t seed = (clock() << 24) | (time(NULL) << 16) | (getpid() & 65535); //Likely to be unique
@@ -621,12 +650,6 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf, bool crea
         if (create) {
             stThrowNew(CACTUS_DISK_EXCEPTION_ID, "Tried to create a cactus disk, but the cactus disk already exists");
         }
-        /*
-        if (sequencesFileName != NULL) {
-            stThrowNew(CACTUS_DISK_EXCEPTION_ID,
-                    "A sequences file name is specified, but the cactus disk is not being created");
-        }
-        */
 	if (sequencesFileName) {
 	    cactusDisk->storeSequencesInAFile = 1;
 	    cactusDisk->sequencesFileName = stString_copy(sequencesFileName);
@@ -667,12 +690,13 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf, bool crea
     return cactusDisk;
 }
 
-CactusDisk *cactusDisk_construct(stKVDatabaseConf *conf, bool create) {
-    return cactusDisk_constructPrivate(conf, create, NULL);
+CactusDisk *cactusDisk_construct(stKVDatabaseConf *conf, bool create, bool cache) {
+    return cactusDisk_constructPrivate(conf, create, NULL, cache);
 }
 
-CactusDisk *cactusDisk_construct2(stKVDatabaseConf *conf, bool create, const char *sequencesFileName) {
-    return cactusDisk_constructPrivate(conf, create, sequencesFileName);
+CactusDisk *cactusDisk_construct2(stKVDatabaseConf *conf, bool create, const char *sequencesFileName,
+                                  bool cache) {
+    return cactusDisk_constructPrivate(conf, create, sequencesFileName, cache);
 }
 
 void cactusDisk_destruct(CactusDisk *cactusDisk) {
@@ -711,8 +735,12 @@ void cactusDisk_destruct(CactusDisk *cactusDisk) {
         assert(cactusDisk->absSequencesFileName == NULL);
     }
 
-    stCache_destruct(cactusDisk->cache); //Get rid of the cache
-    stCache_destruct(cactusDisk->stringCache);
+    if (cactusDisk->cache != NULL) {
+        stCache_destruct(cactusDisk->cache);
+    }
+    if (cactusDisk->stringCache != NULL) {
+        stCache_destruct(cactusDisk->stringCache);
+    }
 
     stList_destruct(cactusDisk->updateRequests);
 
@@ -726,7 +754,8 @@ void cactusDisk_addUpdateRequest(CactusDisk *cactusDisk, Flower *flower) {
             &recordSize);
     //Compression
     vA = compress(vA, &recordSize);
-    if (containsRecord(cactusDisk, flower_getName(flower))) {
+    if (cactusDisk->cache != NULL && containsRecord(cactusDisk, flower_getName(flower))) {
+        // Check if this is a redundant update.
         int64_t recordSize2;
         void *vA2 = stCache_getRecord(cactusDisk->cache, flower_getName(flower), 0, INT64_MAX, &recordSize2);
         if (!stCache_recordsIdentical(vA, recordSize, vA2, recordSize2)) { //Only rewrite if we actually did something

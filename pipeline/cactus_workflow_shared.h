@@ -21,7 +21,7 @@ void parseArgs(int argc, char *argv[]) {
     st_logDebug("Set up logging\n");
 
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(argv[2]);
-    cactusDisk = cactusDisk_construct2(kvDatabaseConf, false, argv[3]);
+    cactusDisk = cactusDisk_construct2(kvDatabaseConf, false, argv[3], true);
     stKVDatabaseConf_destruct(kvDatabaseConf);
     st_logDebug("Set up the flower disk\n");
 
