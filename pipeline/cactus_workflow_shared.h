@@ -21,7 +21,11 @@ void parseArgs(int argc, char *argv[]) {
     st_logDebug("Set up logging\n");
 
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(argv[2]);
-    cactusDisk = cactusDisk_construct2(kvDatabaseConf, false, argv[3], true);
+    // We disable caching for these utilities--there isn't a lot to
+    // gain, and the memory advantage of "streaming" through input
+    // flowers is nullified if we keep the information around in the
+    // cactusDisk cache.
+    cactusDisk = cactusDisk_construct2(kvDatabaseConf, false, argv[3], false);
     stKVDatabaseConf_destruct(kvDatabaseConf);
     st_logDebug("Set up the flower disk\n");
 
