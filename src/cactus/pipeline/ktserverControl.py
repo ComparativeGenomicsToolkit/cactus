@@ -25,20 +25,17 @@ intended to be used as follows:
 """
 
 import os
-import sys
-import random
-import math
 import subprocess
-import signal
 import psutil
 import socket
-from toil.lib.bioio import logger
+import shutil
 from time import sleep
 from optparse import OptionParser
+
+from toil.lib.bioio import logger
 import threading
 import xml.etree.ElementTree as ET
 from sonLib.bioio import getTempFile, system
-from cactus.shared.experimentWrapper import DbElemWrapper
 from cactus.shared.experimentWrapper import ExperimentWrapper
 
 from cactus.shared.common import cactus_call, pullCactusImage
@@ -509,7 +506,7 @@ def getRemoteParams(dbElem):
             '-host', dbElem.getDbHost() or 'localhost']
 
 def dumpKtServer(dbElem, path):
-    """Dump the KT server to 'path' as a TSV file."""
+    """Dump the KT server to 'path' as a gzipped TSV file."""
     temp = getTempFile()
     cactus_call(outfile=temp, parameters=['ktremotemgr', 'list', '-px'] + getRemoteParams(dbElem))
     # The ktremotemgr hex output includes spaces between each byte that it
@@ -517,17 +514,24 @@ def dumpKtServer(dbElem, path):
     system("sed -i 's/ //g' %s" % temp)
     cactus_call(infile=temp, outfile=path,
                 parameters=['xargs', '-n', '50', 'ktremotemgr', 'getbulk', '-sx', '-px'] + getRemoteParams(dbElem))
+    os.remove(temp)
     # Again, have to remove the spaces from the ktremotemgr output so it can parse it properly
     system("sed -i 's/ //g' %s" % path)
-    os.remove(temp)
+    system("gzip %s" % path)
+    shutil.move(path + '.gz', path)
 
 def clearKtServer(dbElem):
     """Remove all data in the KT server."""
     cactus_call(parameters=['ktremotemgr', 'clear'] + getRemoteParams(dbElem))
 
 def restoreKtServer(dbElem, path):
-    """Load a KT server with data from 'path' (a TSV file)."""
-    cactus_call(parameters=['ktremotemgr', 'import', '-sx'] + getRemoteParams(dbElem) + [path])
+    """Load a KT server with data from 'path' (a gzipped TSV file)."""
+    temp = getTempFile()
+    os.remove(temp)
+    shutil.copy(path, temp + '.gz')
+    system("gzip -d %s" % temp + '.gz')
+    cactus_call(parameters=['ktremotemgr', 'import', '-sx'] + getRemoteParams(dbElem) + [temp])
+    os.remove(temp)
 
 ###############################################################################
 # Hostnames of swarm nodes (ex kkr18u57.local) are not visible from
