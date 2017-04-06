@@ -577,13 +577,15 @@ static void *getRecord(CactusDisk *cactusDisk, Name objectName, char *type) {
         if (cA == NULL) {
             return NULL;
         }
-        stCache_setRecord(cactusDisk->cache, objectName, 0, recordSize, cA); //Add the compressed record to the cache.
+        //Decompression
+        assert(recordSize > 0);
+        void *cA2 = decompress(cA, &recordSize);
+        free(cA);
+        cA = cA2;
+        // Add the uncompressed record to the cache.
+        stCache_setRecord(cactusDisk->cache, objectName, 0, recordSize, cA);
     }
-    //Decompression
-    assert(recordSize > 0);
-    void *cA2 = decompress(cA, &recordSize);
-    free(cA);
-    return cA2;
+    return cA;
 }
 
 static bool containsRecord(CactusDisk *cactusDisk, Name objectName) {
