@@ -29,13 +29,16 @@ import subprocess
 import psutil
 import socket
 import shutil
+import math
+import glob
+from multiprocessing import Process
 from time import sleep
 from optparse import OptionParser
 
 from toil.lib.bioio import logger
 import threading
 import xml.etree.ElementTree as ET
-from sonLib.bioio import getTempFile, system
+from sonLib.bioio import getTempFile, getTempDirectory, system, popenCatch
 from cactus.shared.experimentWrapper import ExperimentWrapper
 
 from cactus.shared.common import cactus_call, pullCactusImage
@@ -532,16 +535,32 @@ def isGzipped(path):
             gzipped = True
     return gzipped
 
-def restoreKtServer(dbElem, path):
+def restoreKtServer(dbElem, path, processes=10):
     """Load a KT server with data from 'path' (a gzipped TSV file)."""
-    if isGzipped(path):
+    gzipped = isGzipped(path)
+    if gzipped:
         temp = getTempFile()
         os.remove(temp)
         shutil.copy(path, temp + '.gz')
         system("gzip -d %s" % temp + '.gz')
         path = temp
-    cactus_call(parameters=['ktremotemgr', 'import', '-sx'] + getRemoteParams(dbElem) + [path])
-    if isGzipped(path):
+    # Chunk up the file, one chunk per process.
+    numLines = int(popenCatch("wc -l %s" % path).split()[0])
+    linesPerFile = int(math.ceil(float(numLines)/processes))
+    tempDir = getTempDirectory()
+    system("split -l %s %s %s/part" % (linesPerFile, path, tempDir))
+    # Launch several processes.
+    processes = []
+    for subfile in glob.glob(os.path.join(tempDir, '*')):
+        process = Process(target=lambda: cactus_call(parameters=['ktremotemgr', 'import', '-sx']
+                                                                + getRemoteParams(dbElem)
+                                                                + [subfile]))
+        process.start()
+        processes.append(process)
+
+    map(lambda x: x.join(), processes)
+    system("rm -fr %s" % tempDir)
+    if gzipped:
         os.remove(temp)
 
 ###############################################################################
