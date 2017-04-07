@@ -228,7 +228,7 @@ int main(int argc, char *argv[]) {
     //////////////////////////////////////////////
 
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
-    CactusDisk *cactusDisk = cactusDisk_construct2(kvDatabaseConf, false, cactusSequencesPath, true);
+    CactusDisk *cactusDisk = cactusDisk_construct2(kvDatabaseConf, false, cactusSequencesPath, false);
     st_logInfo("Set up the flower disk\n");
 
     ///////////////////////////////////////////////////////////////////////////
@@ -239,32 +239,39 @@ int main(int argc, char *argv[]) {
     useSimulatedAnnealing ? exponentiallyDecreasingTemperatureFn
     : constantTemperatureFn;
 
-    stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
-    preCacheNestedFlowers(cactusDisk, flowers);
-    for (j = 0; j < stList_length(flowers); j++) {
-        Flower *flower = stList_get(flowers, j);
-        st_logInfo("Processing a flower\n");
+    FlowerStream *flowerStream = flowerWriter_getFlowerStream(cactusDisk, stdin);
+    Flower *flower;
+    while ((flower = flowerStream_getNext(flowerStream)) != NULL) {
+        st_logInfo("Processing flower %" PRIi64 "\n", flower_getName(flower));
+        // Bulk-load all the nested flowers, since we will be reading them in anyway.
+        // Currently we can only cache the nested flowers of a list of flowers, so we
+        // create a singleton list.
+        stList *flowers = stList_construct();
+        stList_append(flowers, flower);
+        preCacheNestedFlowers(cactusDisk, flowers);
+        stList_destruct(flowers);
+
         if (!flower_hasParentGroup(flower)) {
             buildReferenceTopDown(flower, referenceEventString, permutations, matchingAlgorithm, temperatureFn, theta,
                     phi, maxWalkForCalculatingZ, ignoreUnalignedGaps, wiggle, numberOfNsForScaffoldGap,
                     minNumberOfSequencesToSupportAdjacency, makeScaffolds);
+            cactusDisk_addUpdateRequest(cactusDisk, flower);
         }
         Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
         Group *group;
         while ((group = flower_getNextGroup(groupIt)) != NULL) {
-            if (group_getNestedFlower(group) != NULL) {
-                buildReferenceTopDown(group_getNestedFlower(group), referenceEventString, permutations,
+            Flower *subFlower = group_getNestedFlower(group);
+            if (subFlower != NULL) {
+                buildReferenceTopDown(subFlower, referenceEventString, permutations,
                         matchingAlgorithm, temperatureFn, theta, phi, maxWalkForCalculatingZ, ignoreUnalignedGaps,
                         wiggle, numberOfNsForScaffoldGap, minNumberOfSequencesToSupportAdjacency, makeScaffolds);
+                cactusDisk_addUpdateRequest(cactusDisk, subFlower);
+                flower_unload(subFlower);
             }
         }
         flower_destructGroupIterator(groupIt);
         assert(!flower_isParentLoaded(flower));
-        if (flower_hasParentGroup(flower)) {
-            flower_unload(flower); //We haven't changed the
-        }
     }
-    stList_destruct(flowers);
 
     ///////////////////////////////////////////////////////////////////////////
     // Write the flower(s) back to disk.
