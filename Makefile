@@ -41,7 +41,6 @@ build_output: Dockerfile
 	docker run -v ${runtime_fullpath}/tools:/data cactusbuild:${tag} sh -c 'cp /home/cactus/bin/* /data'
 	docker run -v ${runtime_fullpath}/tools:/data cactusbuild:${tag} sh -c 'cp /home/cactus/submodules/sonLib/bin/* /data'
 	docker run -v ${runtime_fullpath}/tools:/data cactusbuild:${tag} sh -c 'cp /home/cactus/submodules/cactus2hal/bin/* /data'
-	docker rmi -f cactusbuild:${tag}
 
 docker: build_output runtime/Dockerfile
 	-docker rmi -f ${name}:latest

@@ -568,9 +568,12 @@ def restoreKtServer(dbElem, path, numProcesses=30):
     # Launch several processes.
     processes = []
     for subfile in glob.glob(os.path.join(tempDir, '*')):
-        process = Process(target=lambda: cactus_call(parameters=['ktremotemgr', 'import', '-sx']
-                                                                + getRemoteParams(dbElem)
-                                                                + [subfile, 'cactus-redirect', '/dev/null']))
+        call = ['ktremotemgr', 'import', '-sx'] + getRemoteParams(dbElem) + [subfile]
+        if os.environ.get("CACTUS_DOCKER_MODE") != "0":
+            # Silence the ktremotemgr process, the amount of output
+            # chokes Docker
+            call += ['cactus-redirect', '/dev/null']
+        process = Process(target=lambda: cactus_call(parameters=call))
         process.start()
         processes.append(process)
 
