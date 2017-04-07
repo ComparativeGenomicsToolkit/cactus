@@ -581,7 +581,7 @@ static stList *getRecords(CactusDisk *cactusDisk, stList *objectNames, char *typ
     return records;
 }
 
-static void *getRecord(CactusDisk *cactusDisk, Name objectName, char *type) {
+static void *getRecord(CactusDisk *cactusDisk, Name objectName, char *type, int64_t *size) {
     void *cA = NULL;
     int64_t recordSize = 0;
     if (cactusDisk->cache != NULL
@@ -610,6 +610,9 @@ static void *getRecord(CactusDisk *cactusDisk, Name objectName, char *type) {
         if (cactusDisk->cache != NULL) {
             stCache_setRecord(cactusDisk->cache, objectName, 0, recordSize, cA);
         }
+    }
+    if (size != NULL) {
+        *size = recordSize;
     }
     return cA;
 }
@@ -656,7 +659,7 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf, bool crea
 	    cactusDisk->absSequencesFileName = stString_copy(sequencesFileName);
 	}
 	else {
-	    void *record = getRecord(cactusDisk, CACTUS_DISK_PARAMETER_KEY, "cactus_disk parameters");
+	    void *record = getRecord(cactusDisk, CACTUS_DISK_PARAMETER_KEY, "cactus_disk parameters", NULL);
 	    void *record2 = record;
 	    cactusDisk_loadFromBinaryRepresentation(&record, cactusDisk, conf);
 	    free(record2);
@@ -753,21 +756,23 @@ void cactusDisk_addUpdateRequest(CactusDisk *cactusDisk, Flower *flower) {
             (void (*)(void *, void (*)(const void * ptr, size_t size, size_t count))) flower_writeBinaryRepresentation,
             &recordSize);
     //Compression
-    vA = compress(vA, &recordSize);
-    if (cactusDisk->cache != NULL && containsRecord(cactusDisk, flower_getName(flower))) {
+    int64_t compressedSize;
+    void *compressed = compress(vA, &compressedSize);
+    free(vA);
+    if (containsRecord(cactusDisk, flower_getName(flower))) {
         // Check if this is a redundant update.
         int64_t recordSize2;
-        void *vA2 = stCache_getRecord(cactusDisk->cache, flower_getName(flower), 0, INT64_MAX, &recordSize2);
+        void *vA2 = getRecord(cactusDisk, flower_getName(flower), "flower", &recordSize2);
         if (!stCache_recordsIdentical(vA, recordSize, vA2, recordSize2)) { //Only rewrite if we actually did something
             stList_append(cactusDisk->updateRequests,
-                    stKVDatabaseBulkRequest_constructUpdateRequest(flower_getName(flower), vA, recordSize));
+                    stKVDatabaseBulkRequest_constructUpdateRequest(flower_getName(flower), compressed, compressedSize));
         }
         free(vA2);
     } else {
         stList_append(cactusDisk->updateRequests,
-                stKVDatabaseBulkRequest_constructInsertRequest(flower_getName(flower), vA, recordSize));
+                stKVDatabaseBulkRequest_constructInsertRequest(flower_getName(flower), compressed, compressedSize));
     }
-    free(vA);
+    free(compressed);
 }
 
 void cactusDisk_write(CactusDisk *cactusDisk) {
@@ -909,7 +914,7 @@ Flower *cactusDisk_getFlower(CactusDisk *cactusDisk, Name flowerName) {
     if ((flower2 = stSortedSet_search(cactusDisk->flowers, &flower)) != NULL) {
         return flower2;
     }
-    void *cA = getRecord(cactusDisk, flowerName, "flower");
+    void *cA = getRecord(cactusDisk, flowerName, "flower", NULL);
 
     if (cA == NULL) {
         return NULL;
@@ -927,7 +932,7 @@ MetaSequence *cactusDisk_getMetaSequence(CactusDisk *cactusDisk, Name metaSequen
     if ((metaSequence2 = stSortedSet_search(cactusDisk->metaSequences, &metaSequence)) != NULL) {
         return metaSequence2;
     }
-    void *cA = getRecord(cactusDisk, metaSequenceName, "metaSequence");
+    void *cA = getRecord(cactusDisk, metaSequenceName, "metaSequence", NULL);
     if (cA == NULL) {
         return NULL;
     }
