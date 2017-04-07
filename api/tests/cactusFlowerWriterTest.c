@@ -17,14 +17,14 @@ static void testFlowerStream(CuTest *testCase) {
     flowerNames[0] = flower_getName(flower);
     flowerWriter_add(flowerWriter, flower_getName(flower), 1);
     flower_destruct(flower, false);
-    flowerNames[1] = flower_getName(flower);
     // Second test flower
     flower = flower_construct(cactusDisk);
+    flowerNames[1] = flower_getName(flower);
     flowerWriter_add(flowerWriter, flower_getName(flower), 1);
     flower_destruct(flower, false);
     // Third test flower
-    flowerNames[2] = flower_getName(flower);
     flower = flower_construct(cactusDisk);
+    flowerNames[2] = flower_getName(flower);
     flowerWriter_add(flowerWriter, flower_getName(flower), 1);
     flower_destruct(flower, false);
     flowerWriter_destruct(flowerWriter);
