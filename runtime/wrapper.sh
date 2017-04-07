@@ -2,9 +2,12 @@ set -e
 options="catchsegv"
 for arg in "$@"
 do
-    options="$options '${arg}'"
+    if [ "$arg" == "cactus-redirect" ]; then
+        options="$options >"
+    else
+        options="$options '${arg}'"
+    fi
 done
 
->&2 echo "Running comand ${options}"
+>&2 echo "Running command ${options}"
 eval "${options}"
-

@@ -513,7 +513,7 @@ def chunkFileByLines(path, pieces):
     system("split -l %s %s %s/part" % (linesPerFile, path, tempDir))
     return tempDir
 
-def dumpKtServer(dbElem, path, numProcesses=10):
+def dumpKtServer(dbElem, path, numProcesses=30):
     """Dump the KT server to 'path' as a gzipped TSV file."""
     temp = getTempFile()
     cactus_call(outfile=temp, parameters=['ktremotemgr', 'list', '-px'] + getRemoteParams(dbElem))
@@ -555,7 +555,7 @@ def isGzipped(path):
             gzipped = True
     return gzipped
 
-def restoreKtServer(dbElem, path, numProcesses=10):
+def restoreKtServer(dbElem, path, numProcesses=30):
     """Load a KT server with data from 'path' (a gzipped TSV file)."""
     gzipped = isGzipped(path)
     if gzipped:
@@ -570,7 +570,7 @@ def restoreKtServer(dbElem, path, numProcesses=10):
     for subfile in glob.glob(os.path.join(tempDir, '*')):
         process = Process(target=lambda: cactus_call(parameters=['ktremotemgr', 'import', '-sx']
                                                                 + getRemoteParams(dbElem)
-                                                                + [subfile]))
+                                                                + [subfile, 'cactus-redirect', '/dev/null']))
         process.start()
         processes.append(process)
 
