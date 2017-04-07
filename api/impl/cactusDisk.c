@@ -757,8 +757,7 @@ void cactusDisk_addUpdateRequest(CactusDisk *cactusDisk, Flower *flower) {
             &recordSize);
     //Compression
     int64_t compressedSize;
-    void *compressed = compress(vA, &compressedSize);
-    free(vA);
+    void *compressed = stCompression_compress(vA, recordSize, &compressedSize, -1);
     if (containsRecord(cactusDisk, flower_getName(flower))) {
         // Check if this is a redundant update.
         int64_t recordSize2;
@@ -772,6 +771,7 @@ void cactusDisk_addUpdateRequest(CactusDisk *cactusDisk, Flower *flower) {
         stList_append(cactusDisk->updateRequests,
                 stKVDatabaseBulkRequest_constructInsertRequest(flower_getName(flower), compressed, compressedSize));
     }
+    free(vA);
     free(compressed);
 }
 
