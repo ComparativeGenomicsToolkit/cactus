@@ -1087,7 +1087,7 @@ class CactusReferenceRecursion2(CactusRecursionJob):
     def run(self, fileStore):
         self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
         self.cactusSequencesID = self.makeRecursiveJobs(fileStore=fileStore,
-                                                        job=CactusReferenceRecursion)
+                                                        job=CactusReferenceRecursion2)
         return self.makeFollowOnRecursiveJob(CactusReferenceRecursion3)
 
 class CactusReferenceRecursion3(CactusRecursionJob):
