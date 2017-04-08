@@ -23,7 +23,6 @@ void usage() {
     fprintf(stderr, "-c --cactusDisk : The location of the flower disk directory\n");
     fprintf(stderr, "-c --secondaryDisk : The location of secondary disk\n");
     fprintf(stderr, "-g --referenceEventString : String identifying the reference event.\n");
-    fprintf(stderr, "-i --outgroupEventString : String identifying the reference event.\n");
     fprintf(stderr, "-j --bottomUpPhase : Do bottom up stage instead of top down.\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
@@ -41,7 +40,6 @@ int main(int argc, char *argv[]) {
     char * cactusSequencesPath = NULL;
     char * secondaryDatabaseString = NULL;
     char *referenceEventString = (char *) cactusMisc_getDefaultReferenceEventHeader();
-    char *outgroupEventString = NULL;
     bool bottomUpPhase = 0;
 
     ///////////////////////////////////////////////////////////////////////////
@@ -51,7 +49,7 @@ int main(int argc, char *argv[]) {
     while (1) {
         static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0, 'b' }, {"cactusSequencesPath", required_argument, 0, 'c'}, {
                 "secondaryDisk", required_argument, 0, 'd' }, { "referenceEventString", required_argument, 0, 'g' }, { "help", no_argument,
-                0, 'h' }, { "outgroupEventString", required_argument, 0, 'i' }, { "bottomUpPhase", no_argument, 0, 'j' }, { 0, 0, 0, 0 } };
+                0, 'h' }, { "bottomUpPhase", no_argument, 0, 'j' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
@@ -80,9 +78,6 @@ int main(int argc, char *argv[]) {
             case 'h':
                 usage();
                 return 0;
-            case 'i':
-                outgroupEventString = stString_copy(optarg);
-                break;
             case 'j':
                 bottomUpPhase = 1;
                 break;
@@ -134,14 +129,6 @@ int main(int argc, char *argv[]) {
     assert(referenceEvent != NULL);
     Name referenceEventName = event_getName(referenceEvent);
 
-    Name outgroupEventName = NULL_NAME;
-    if (outgroupEventString != NULL) {
-        Event *outgroupEvent = eventTree_getEventByHeader(flower_getEventTree(flower), outgroupEventString);
-        assert(outgroupEvent != NULL);
-        assert(event_isOutgroup(outgroupEvent));
-        outgroupEventName = event_getName(outgroupEvent);
-    }
-
     ///////////////////////////////////////////////////////////////////////////
     // Now do bottom up or top down, depending
     ///////////////////////////////////////////////////////////////////////////
@@ -153,7 +140,7 @@ int main(int argc, char *argv[]) {
         stKVDatabase *sequenceDatabase = stKVDatabase_construct(kvDatabaseConf, 0);
         stKVDatabaseConf_destruct(kvDatabaseConf);
         Flower *flower = stList_get(flowers, 0);
-        bottomUp(flowers, sequenceDatabase, referenceEventName, outgroupEventName, !flower_hasParentGroup(flower), generateJukesCantorMatrix);
+        bottomUp(flowers, sequenceDatabase, referenceEventName, !flower_hasParentGroup(flower), generateJukesCantorMatrix);
         //Now unload the nested flowers.
         for (int64_t i = 0; i < stList_length(flowers); i++) {
             Flower *flower = stList_get(flowers, i);

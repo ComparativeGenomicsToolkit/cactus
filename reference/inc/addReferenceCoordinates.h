@@ -12,7 +12,7 @@
 
 Cap *getCapForReferenceEvent(End *end, Name referenceEventName);
 
-void bottomUp(stList *flowers, stKVDatabase *sequenceDatabase, Name referenceEventName, Name outgroupEventName, bool isTop, stMatrix *(*generateSubstitutionMatrix)(double));
+void bottomUp(stList *flowers, stKVDatabase *sequenceDatabase, Name referenceEventName, bool isTop, stMatrix *(*generateSubstitutionMatrix)(double));
 
 void topDown(stList *flowers, Name referenceEventName);
 

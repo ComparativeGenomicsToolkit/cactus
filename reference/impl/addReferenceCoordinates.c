@@ -177,15 +177,12 @@ static char *terminalAdjacencyWriteFn(Cap *cap) {
     return stString_copy("");
 }
 
-//static Name segmentWriteFnOutgroupEventName;
 static stHash *segmentWriteFn_flowerToPhylogeneticTreeHash;
-
 
 static char *segmentWriteFn(Segment *segment) {
     stTree *phylogeneticTree = stHash_search(segmentWriteFn_flowerToPhylogeneticTreeHash, block_getFlower(segment_getBlock(segment)));
     assert(phylogeneticTree != NULL);
     char *segmentString = getMaximumLikelihoodString(phylogeneticTree, segment_getBlock(segment));
-    //char *segmentString = getConsensusString(segment_getBlock(segment), segmentWriteFnOutgroupEventName);
     //We append a zero to a segment string if it is part of block containing only a reference segment, else we append a 1.
     //We use these boolean values to determine if a sequence contains only these trivial strings, and is therefore trivial.
     char *appendedSegmentString = stString_print("%s%c ", segmentString, block_getInstanceNumber(segment_getBlock(segment)) == 1 ? '0' : '1');
@@ -287,8 +284,8 @@ static stList *getCaps(stList *flowers, Name referenceEventName) {
     return caps;
 }
 
-void bottomUp(stList *flowers, stKVDatabase *sequenceDatabase, Name referenceEventName, Name outgroupEventName,
-        bool isTop, stMatrix *(*generateSubstitutionMatrix)(double)) {
+void bottomUp(stList *flowers, stKVDatabase *sequenceDatabase, Name referenceEventName,
+              bool isTop, stMatrix *(*generateSubstitutionMatrix)(double)) {
     /*
      * A reference thread between the two caps
      * in each flower f may be broken into two in the children of f.
