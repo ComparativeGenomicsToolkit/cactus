@@ -105,7 +105,6 @@ def findRequiredNode(configNode, nodeName):
 def readFlowerNames(flowerStrings):
     ret = []
     for line in flowerStrings.split("\n"):
-        print line
         if line == '':
             continue
         flowersAndSizes = line[1:].split()
@@ -122,7 +121,6 @@ def readFlowerNames(flowerStrings):
             else:
                 sizes += [int(token)]
                 currentlyAFlower = True
-        print len(flowers), len(sizes), numFlowers
         assert len(sizes) == int(numFlowers)
         ret += [(bool(int(line[0])), " ".join([numFlowers] + flowers), sizes)]
     return ret
@@ -563,7 +561,7 @@ def runCactusAddReferenceCoordinates(cactusDiskDatabaseString, cactusSequencesPa
     secondaryDatabaseString = nameValue("secondaryDisk", secondaryDatabaseString, quotes=True)
     cactus_call(stdin_string=flowerNames,
                 option_string="--cactusDisk '%s'" % cactusDiskDatabaseString,
-                parameters=["cactus_addReferenceCoordinates",
+                parameters=["catchsegv", "cactus_addReferenceCoordinates",
                             "--cactusSequencesPath", cactusSequencesPath,
                             secondaryDatabaseString,
                             "--logLevel", logLevel,
