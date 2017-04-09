@@ -58,4 +58,11 @@ void flowerStream_destruct(FlowerStream *flowerStream);
  * NB: every call unloads the flower previously returned.
  */
 Flower *flowerStream_getNext(FlowerStream *flowerStream);
+
+/*
+ * Get the total number of flowers in this flower stream. NB: not
+ * affected by your current position within the stream.
+ */
+int64_t flowerStream_size(const FlowerStream *flowerStream);
+
 #endif

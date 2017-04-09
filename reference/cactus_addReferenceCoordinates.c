@@ -140,6 +140,8 @@ int main(int argc, char *argv[]) {
         stList_append(flowers, flower);
         preCacheNestedFlowers(cactusDisk, flowers);
         if (bottomUpPhase) {
+            assert(sequenceDatabase != NULL);
+
             cactusDisk_preCacheSegmentStrings(cactusDisk, flowers);
             bottomUp(flowers, sequenceDatabase, referenceEventName, !flower_hasParentGroup(flower), generateJukesCantorMatrix);
 

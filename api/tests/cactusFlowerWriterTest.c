@@ -33,6 +33,7 @@ static void testFlowerStream(CuTest *testCase) {
     // Now read them back in.
     f = fopen(tempPath, "r");
     FlowerStream *flowerStream = flowerWriter_getFlowerStream(cactusDisk, f);
+    CuAssertIntEquals(testCase, 3, flowerStream_size(flowerStream));
     int64_t i = 0;
     while ((flower = flowerStream_getNext(flowerStream)) != NULL) {
         CuAssertTrue(testCase, i < 3);

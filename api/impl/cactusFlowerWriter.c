@@ -206,3 +206,7 @@ Flower *flowerStream_getNext(FlowerStream *flowerStream) {
     flowerStream->curFlower = cactusDisk_getFlower(flowerStream->cactusDisk, *flowerName);
     return flowerStream->curFlower;
 }
+
+int64_t flowerStream_size(const FlowerStream *flowerStream) {
+    return stList_length(flowerStream->flowerNames);
+}
