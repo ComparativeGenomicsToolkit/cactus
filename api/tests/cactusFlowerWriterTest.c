@@ -10,25 +10,26 @@ static void testFlowerStream(CuTest *testCase) {
     CactusDisk *cactusDisk = testCommon_getTemporaryCactusDisk();
     char *tempPath = getTempFile();
     FILE *f = fopen(tempPath, "w");
-    FlowerWriter *flowerWriter = flowerWriter_construct(f, 100, 50);
     Name flowerNames[3];
     // First test flower
     Flower *flower = flower_construct(cactusDisk);
     flowerNames[0] = flower_getName(flower);
-    flowerWriter_add(flowerWriter, flower_getName(flower), 1);
+    fprintf(f, "3 %" PRIi64, flowerNames[0]);
     flower_destruct(flower, false);
     // Second test flower
     flower = flower_construct(cactusDisk);
     flowerNames[1] = flower_getName(flower);
-    flowerWriter_add(flowerWriter, flower_getName(flower), 1);
+    fprintf(f, " %" PRIi64, flowerNames[1] - flowerNames[0]);
     flower_destruct(flower, false);
     // Third test flower
     flower = flower_construct(cactusDisk);
     flowerNames[2] = flower_getName(flower);
-    flowerWriter_add(flowerWriter, flower_getName(flower), 1);
+    fprintf(f, " %" PRIi64, flowerNames[2] - flowerNames[1]);
     flower_destruct(flower, false);
-    flowerWriter_destruct(flowerWriter);
     fclose(f);
+
+    printf("%"PRIi64 " %" PRIi64 " %" PRIi64 "\n", flowerNames[0],
+           flowerNames[1], flowerNames[2]);
 
     // Now read them back in.
     f = fopen(tempPath, "r");
