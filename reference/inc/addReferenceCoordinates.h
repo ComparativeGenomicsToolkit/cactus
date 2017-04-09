@@ -14,6 +14,6 @@ Cap *getCapForReferenceEvent(End *end, Name referenceEventName);
 
 void bottomUp(stList *flowers, stKVDatabase *sequenceDatabase, Name referenceEventName, bool isTop, stMatrix *(*generateSubstitutionMatrix)(double));
 
-void topDown(stList *flowers, Name referenceEventName);
+void topDown(Flower *flower, Name referenceEventName);
 
 #endif /* ADDREFERENCECOORDINATES_H_ */

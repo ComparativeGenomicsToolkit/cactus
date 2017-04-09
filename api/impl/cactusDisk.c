@@ -638,8 +638,8 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf, bool crea
     cactusDisk->database = stKVDatabase_construct(conf, create);
     if (cache) {
         cactusDisk->cache = stCache_construct();
-        cactusDisk->stringCache = stCache_construct();
     }
+    cactusDisk->stringCache = stCache_construct();
 
     //initialise the unique ids.
     int64_t seed = (clock() << 24) | (time(NULL) << 16) | (getpid() & 65535); //Likely to be unique
@@ -1057,3 +1057,6 @@ int64_t cactusDisk_getUniqueID(CactusDisk *cactusDisk) {
     return cactusDisk_getUniqueIDInterval(cactusDisk, 1);
 }
 
+void cactusDisk_clearStringCache(CactusDisk *cactusDisk) {
+    stCache_clear(cactusDisk->stringCache);
+}

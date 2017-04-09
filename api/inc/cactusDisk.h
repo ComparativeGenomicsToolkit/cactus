@@ -24,9 +24,9 @@ extern const char *CACTUS_DISK_EXCEPTION_ID;
  * Constructs a cactus disk to load flowers. If 'create' is non-zero
  * the cactus disk is to be created. An exception will be thrown if
  * the 'create' is non-zero and the cactus disk already exists. If
- * "cache" is true, all DB requests and some sequences will be
- * cached. If "cache" is false, no information will be cached, saving
- * memory but possibly decreasing throughput.
+ * "cache" is true, all DB responses will be cached. If "cache" is
+ * false, no responses will be cached, saving memory but possibly
+ * decreasing throughput.
  */
 CactusDisk *cactusDisk_construct(stKVDatabaseConf *conf, bool create, bool cache);
 
@@ -94,5 +94,10 @@ void cactusDisk_preCacheStrings(CactusDisk *cactusDisk, stList *flowers);
  * Precaches all the segments sequences in the given set of flowers.
  */
 void cactusDisk_preCacheSegmentStrings(CactusDisk *cactusDisk, stList *flowers);
+
+/*
+ * Clears all cached sequences (but not cached DB responses).
+ */
+void cactusDisk_clearStringCache(CactusDisk *cactusDisk);
 
 #endif

@@ -109,42 +109,43 @@ int main(int argc, char *argv[]) {
     st_logInfo("bottomUpPhase = %i", bottomUpPhase);
 
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
-    CactusDisk *cactusDisk = cactusDisk_construct2(kvDatabaseConf, false, cactusSequencesPath, true);
+    CactusDisk *cactusDisk = cactusDisk_construct2(kvDatabaseConf, false, cactusSequencesPath, false);
     stKVDatabaseConf_destruct(kvDatabaseConf);
     st_logInfo("Set up the flower disk\n");
 
-    ///////////////////////////////////////////////////////////////////////////
-    // Get the set of flowers to manipulate
-    ///////////////////////////////////////////////////////////////////////////
-
-    stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
-    preCacheNestedFlowers(cactusDisk, flowers);
-
-    ///////////////////////////////////////////////////////////////////////////
-    // Get the appropriate event names
-    ///////////////////////////////////////////////////////////////////////////
-
-    Flower *flower = stList_peek(flowers);
-    Event *referenceEvent = eventTree_getEventByHeader(flower_getEventTree(flower), referenceEventString);
-    assert(referenceEvent != NULL);
-    Name referenceEventName = event_getName(referenceEvent);
-
-    ///////////////////////////////////////////////////////////////////////////
-    // Now do bottom up or top down, depending
-    ///////////////////////////////////////////////////////////////////////////
-
-    if (bottomUpPhase) {
-        cactusDisk_preCacheSegmentStrings(cactusDisk, flowers);
-        assert(secondaryDatabaseString != NULL);
+    stKVDatabase *sequenceDatabase = NULL;
+    if (secondaryDatabaseString != NULL) {
         kvDatabaseConf = stKVDatabaseConf_constructFromString(secondaryDatabaseString);
-        stKVDatabase *sequenceDatabase = stKVDatabase_construct(kvDatabaseConf, 0);
+        sequenceDatabase = stKVDatabase_construct(kvDatabaseConf, 0);
         stKVDatabaseConf_destruct(kvDatabaseConf);
-        Flower *flower = stList_get(flowers, 0);
-        bottomUp(flowers, sequenceDatabase, referenceEventName, !flower_hasParentGroup(flower), generateJukesCantorMatrix);
-        //Now unload the nested flowers.
-        for (int64_t i = 0; i < stList_length(flowers); i++) {
-            Flower *flower = stList_get(flowers, i);
-            //Now ensure that the nested flowers are not loaded, as this will avoid writing them to disk
+    }
+
+    FlowerStream *flowerStream = flowerWriter_getFlowerStream(cactusDisk, stdin);
+    Flower *flower;
+    while ((flower = flowerStream_getNext(flowerStream)) != NULL) {
+        st_logDebug("Processing flower %" PRIi64 "\n", flower_getName(flower));
+
+        ///////////////////////////////////////////////////////////////////////////
+        // Get the appropriate event names
+        ///////////////////////////////////////////////////////////////////////////
+
+        Event *referenceEvent = eventTree_getEventByHeader(flower_getEventTree(flower), referenceEventString);
+        assert(referenceEvent != NULL);
+        Name referenceEventName = event_getName(referenceEvent);
+
+        ///////////////////////////////////////////////////////////////////////////
+        // Now do bottom up or top down, depending
+        ///////////////////////////////////////////////////////////////////////////
+        stList *flowers = stList_construct();
+        stList_append(flowers, flower);
+        preCacheNestedFlowers(cactusDisk, flowers);
+        if (bottomUpPhase) {
+            cactusDisk_preCacheSegmentStrings(cactusDisk, flowers);
+            bottomUp(flowers, sequenceDatabase, referenceEventName, !flower_hasParentGroup(flower), generateJukesCantorMatrix);
+
+            // Unload the nested flowers to save memory. They haven't
+            // been changed, so we don't write them to the cactus
+            // disk.
             Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
             Group *group;
             while ((group = flower_getNextGroup(groupIt)) != NULL) {
@@ -154,14 +155,30 @@ int main(int argc, char *argv[]) {
             }
             flower_destructGroupIterator(groupIt);
             assert(!flower_isParentLoaded(flower));
+
+            // Write this flower to disk.
+            cactusDisk_addUpdateRequest(cactusDisk, flower);
+
+            // Unload the sequences from memory.
+            cactusDisk_clearStringCache(cactusDisk);
+        } else {
+            topDown(flower, referenceEventName);
+
+            // We've changed the nested flowers, but not this
+            // flower. We write the nested flowers to disk, then
+            // unload them to save memory. This flower will be
+            // unloaded by the flower-stream code.
+            Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
+            Group *group;
+            while ((group = flower_getNextGroup(groupIt)) != NULL) {
+                if (!group_isLeaf(group)) {
+                    cactusDisk_addUpdateRequest(cactusDisk, group_getNestedFlower(group));
+                    flower_unload(group_getNestedFlower(group));
+                }
+            }
+            flower_destructGroupIterator(groupIt);
         }
-        stKVDatabase_destruct(sequenceDatabase);
-    } else {
-        topDown(flowers, referenceEventName);
-        //Now ensure the non-nested flowers are not loaded
-        for (int64_t i = 0; i < stList_length(flowers); i++) {
-           flower_unload(stList_get(flowers, i)); //We haven't changed the parents
-        }
+        stList_destruct(flowers);
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -175,16 +192,19 @@ int main(int argc, char *argv[]) {
     //Clean up.
     ///////////////////////////////////////////////////////////////////////////
 
+    if (sequenceDatabase != NULL) {
+        stKVDatabase_destruct(sequenceDatabase);
+    }
+
     cactusDisk_destruct(cactusDisk);
 
     return 0; //Exit without clean up is quicker, enable cleanup when doing memory leak detection.
 
-    stList_destruct(flowers);
     free(cactusDiskDatabaseString);
     free(referenceEventString);
     free(logLevelString);
 
     st_logInfo("Cleaned stuff up and am finished\n");
-    //while(1);
+
     return 0;
 }
