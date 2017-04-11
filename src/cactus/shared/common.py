@@ -561,7 +561,7 @@ def runCactusAddReferenceCoordinates(cactusDiskDatabaseString, cactusSequencesPa
     secondaryDatabaseString = nameValue("secondaryDisk", secondaryDatabaseString, quotes=True)
     cactus_call(stdin_string=flowerNames,
                 option_string="--cactusDisk '%s'" % cactusDiskDatabaseString,
-                parameters=["catchsegv", "cactus_addReferenceCoordinates",
+                parameters=["cactus_addReferenceCoordinates",
                             "--cactusSequencesPath", cactusSequencesPath,
                             secondaryDatabaseString,
                             "--logLevel", logLevel,
