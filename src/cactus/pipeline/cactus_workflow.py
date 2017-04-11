@@ -795,7 +795,7 @@ class CactusBarPhase(CactusPhasesJob):
 
 class CactusBarRecursion(CactusRecursionJob):
     """This job does the get flowers down pass for the BAR alignment phase."""
-    memoryPoly = [1.47507363e-01, 1.34319212e+09]
+    memoryPoly = [2e+09]
 
     def run(self, fileStore):
         self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
@@ -1056,7 +1056,8 @@ class CactusReferenceRecursion(CactusRecursionJob):
 class CactusReferenceWrapper(CactusRecursionJob):
     """Actually run the reference code.
     """
-    memoryPoly = [5.67663286e-01, 6.31948477e+09]
+    memoryPoly = [0.71709110685129696, 141266641]
+    feature = 'maxFlowerSize'
 
     def run(self, fileStore):
         assert self.cactusSequencesID
@@ -1099,7 +1100,8 @@ class CactusReferenceRecursion3(CactusRecursionJob):
 class CactusSetReferenceCoordinatesUpWrapper(CactusRecursionJob):
     """Does the up pass for filling in the reference sequence coordinates, once a reference has been established.
     """
-    memoryPoly = [5.16161626e-01, 7.74633022e+09]
+    memoryPoly = [1.3030742924744299, 180741939.947]
+    feature = 'maxFlowerSize'
 
     def run(self, fileStore):
         self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID, mutable=True)
@@ -1133,7 +1135,7 @@ class CactusSetReferenceCoordinatesDownRecursion(CactusRecursionJob):
         return self.makeFollowOnRecursiveJob(CactusSetReferenceCoordinatesDownRecursion2)
 
 class CactusSetReferenceCoordinatesDownRecursion2(CactusRecursionJob):
-    memoryPoly = [7.31066727e-01, 1.70083157e+09]
+    memoryPoly = [2e+09]
 
     def run(self, fileStore):
         self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
@@ -1143,7 +1145,8 @@ class CactusSetReferenceCoordinatesDownRecursion2(CactusRecursionJob):
 class CactusSetReferenceCoordinatesDownWrapper(CactusRecursionJob):
     """Does the down pass for filling Fills in the coordinates, once a reference is added.
     """
-    memoryPoly = [1.51512364e-01, 5.80164386e+09]
+    memoryPoly = [0.52844015396914878, 116287385]
+    feature = 'maxFlowerSize'
 
     def run(self, fileStore):
         assert self.cactusSequencesID
@@ -1267,7 +1270,7 @@ class CactusFastaGenerator(CactusRecursionJob):
 class CactusHalGeneratorRecursion(CactusRecursionJob):
     """Generate the hal file by merging indexed hal files from the children.
     """
-    memoryPoly = [2.28502287e+09]
+    memoryPoly = [2e+09]
     def run(self, fileStore):
         i = extractNode(self.phaseNode)
         if "outputFile" in i.attrib:
