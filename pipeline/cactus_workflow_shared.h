@@ -25,7 +25,7 @@ void parseArgs(int argc, char *argv[]) {
     // gain, and the memory advantage of "streaming" through input
     // flowers is nullified if we keep the information around in the
     // cactusDisk cache.
-    cactusDisk = cactusDisk_construct2(kvDatabaseConf, false, false);
+    cactusDisk = cactusDisk_construct(kvDatabaseConf, false, false);
     stKVDatabaseConf_destruct(kvDatabaseConf);
     st_logDebug("Set up the flower disk\n");
 

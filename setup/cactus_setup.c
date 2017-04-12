@@ -279,7 +279,7 @@ int main(int argc, char *argv[]) {
     if (stKVDatabaseConf_getType(kvDatabaseConf) == stKVDatabaseTypeTokyoCabinet || stKVDatabaseConf_getType(kvDatabaseConf)
             == stKVDatabaseTypeKyotoTycoon) {
         assert(stKVDatabaseConf_getDir(kvDatabaseConf) != NULL);
-        cactusDisk = cactusDisk_construct2(kvDatabaseConf, true, true);
+        cactusDisk = cactusDisk_construct(kvDatabaseConf, true, true);
     } else {
         cactusDisk = cactusDisk_construct(kvDatabaseConf, true, true);
     }

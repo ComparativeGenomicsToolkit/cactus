@@ -31,14 +31,6 @@ extern const char *CACTUS_DISK_EXCEPTION_ID;
 CactusDisk *cactusDisk_construct(stKVDatabaseConf *conf, bool create, bool cache);
 
 /*
- * Create a cactus disk, with the option to store the sequences in a
- * file. For description of the other options see cactusDisk_construct.
- */
-CactusDisk *cactusDisk_construct2(stKVDatabaseConf *conf,
-                                  bool create,
-                                  bool cache);
-
-/*
  * Destructs the cactus disk and all open flowers and sequences, and
  * then disconnects from the cactus DB.
  */

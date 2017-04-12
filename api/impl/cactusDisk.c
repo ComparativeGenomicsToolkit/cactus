@@ -697,10 +697,6 @@ CactusDisk *cactusDisk_construct(stKVDatabaseConf *conf, bool create, bool cache
     return cactusDisk_constructPrivate(conf, create, NULL, cache);
 }
 
-CactusDisk *cactusDisk_construct2(stKVDatabaseConf *conf, bool create, bool cache) {
-    return cactusDisk_constructPrivate(conf, create, NULL, cache);
-}
-
 void cactusDisk_destruct(CactusDisk *cactusDisk) {
     Flower *flower;
     MetaSequence *metaSequence;

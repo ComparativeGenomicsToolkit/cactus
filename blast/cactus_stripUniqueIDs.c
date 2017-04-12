@@ -36,7 +36,7 @@ int main(int argc, char *argv[])
         st_errAbort("--cactusDisk option must be provided");
     }
     kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskString);
-    cactusDisk = cactusDisk_construct2(kvDatabaseConf, false, true);
+    cactusDisk = cactusDisk_construct(kvDatabaseConf, false, true);
     // Get top-level flower.
     flower = cactusDisk_getFlower(cactusDisk, 0);
     flowerIt = flower_getSequenceIterator(flower);
