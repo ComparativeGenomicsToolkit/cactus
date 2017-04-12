@@ -36,7 +36,6 @@ CactusDisk *cactusDisk_construct(stKVDatabaseConf *conf, bool create, bool cache
  */
 CactusDisk *cactusDisk_construct2(stKVDatabaseConf *conf,
                                   bool create,
-                                  const char *sequencesFileName,
                                   bool cache);
 
 /*

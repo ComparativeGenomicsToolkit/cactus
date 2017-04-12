@@ -95,7 +95,6 @@ int main(int argc, char *argv[]) {
 
     char * logLevelString = NULL;
     char * cactusDiskDatabaseString = NULL;
-    char * cactusSequencesPath = NULL;
     int64_t i, j;
     int64_t spanningTrees = 10;
     int64_t maximumLength = 1500;
@@ -124,8 +123,7 @@ int main(int argc, char *argv[]) {
      * Parse the options.
      */
     while (1) {
-        static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0, 'b' }, {"cactusSequencesPath", required_argument, 0, 'c'}, {
-                "help", no_argument, 0, 'h' }, { "spanningTrees", required_argument, 0, 'i' },
+        static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0, 'b' }, { "help", no_argument, 0, 'h' }, { "spanningTrees", required_argument, 0, 'i' },
                 { "maximumLength", required_argument, 0, 'j' }, { "useBanding", no_argument, 0, 'k' },
                 { "gapGamma", required_argument, 0, 'l' }, { "matchGamma", required_argument, 0, 'L' },
                 { "splitMatrixBiggerThanThis", required_argument, 0, 'o' }, { "anchorMatrixBiggerThanThis",
@@ -159,9 +157,6 @@ int main(int argc, char *argv[]) {
                 break;
             case 'b':
                 cactusDiskDatabaseString = stString_copy(optarg);
-                break;
-            case 'c':
-                cactusSequencesPath = stString_copy(optarg);
                 break;
             case 'h':
                 usage();
@@ -282,7 +277,7 @@ int main(int argc, char *argv[]) {
      * Load the flowerdisk
      */
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
-    CactusDisk *cactusDisk = cactusDisk_construct2(kvDatabaseConf, false, cactusSequencesPath, true); //We precache the sequences
+    CactusDisk *cactusDisk = cactusDisk_construct2(kvDatabaseConf, false, true); //We precache the sequences
     st_logInfo("Set up the flower disk\n");
 
     /*

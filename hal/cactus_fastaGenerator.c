@@ -22,8 +22,6 @@ void usage() {
     fprintf(stderr,
             "-c --cactusDisk : The location of the flower disk directory\n");
     fprintf(stderr,
-            "-d --cactusSequencesPath : The location of the cactusSequencesFile created by cactus_setup\n");
-    fprintf(stderr,
             "-g --referenceEventString : String identifying the reference event.\n");
     fprintf(stderr,
                 "-d --flowerName : Name of flower to print string for.\n");
@@ -41,7 +39,6 @@ int main(int argc, char *argv[]) {
      */
     char * logLevelString = NULL;
     char * cactusDiskDatabaseString = NULL;
-    char * cactusSequencesPath = NULL;
     char *referenceEventString =
             (char *) cactusMisc_getDefaultReferenceEventHeader();
     char *outputFile = NULL;
@@ -54,8 +51,7 @@ int main(int argc, char *argv[]) {
     while (1) {
         static struct option long_options[] = { { "logLevel",
                 required_argument, 0, 'a' }, { "cactusDisk", required_argument,
-                0, 'c' },  {"cactusSequencesPath", required_argument, 0, 'd'}, { "flowerName", required_argument,
-                        0, 'e' },
+                0, 'c' }, { "flowerName", required_argument, 0, 'e' },
                 { "referenceEventString", required_argument, 0, 'g' }, {
                         "help", no_argument, 0, 'h' }, { "outputFile",
                         required_argument, 0, 'k' },
@@ -76,9 +72,6 @@ int main(int argc, char *argv[]) {
                 break;
             case 'c':
                 cactusDiskDatabaseString = stString_copy(optarg);
-                break;
-            case 'd':
-                cactusSequencesPath = stString_copy(optarg);
                 break;
             case 'e':
                 flowerName = cactusMisc_stringToName(optarg);
@@ -116,7 +109,7 @@ int main(int argc, char *argv[]) {
 
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(
             cactusDiskDatabaseString);
-    CactusDisk *cactusDisk = cactusDisk_construct2(kvDatabaseConf, false, cactusSequencesPath, true);
+    CactusDisk *cactusDisk = cactusDisk_construct2(kvDatabaseConf, false, true);
     stKVDatabaseConf_destruct(kvDatabaseConf);
     st_logInfo("Set up the flower disk\n");
 

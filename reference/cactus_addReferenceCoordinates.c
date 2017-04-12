@@ -37,7 +37,6 @@ int main(int argc, char *argv[]) {
      */
     char * logLevelString = NULL;
     char * cactusDiskDatabaseString = NULL;
-    char * cactusSequencesPath = NULL;
     char * secondaryDatabaseString = NULL;
     char *referenceEventString = (char *) cactusMisc_getDefaultReferenceEventHeader();
     bool bottomUpPhase = 0;
@@ -47,8 +46,7 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     while (1) {
-        static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0, 'b' }, {"cactusSequencesPath", required_argument, 0, 'c'}, {
-                "secondaryDisk", required_argument, 0, 'd' }, { "referenceEventString", required_argument, 0, 'g' }, { "help", no_argument,
+        static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0, 'b' }, { "secondaryDisk", required_argument, 0, 'd' }, { "referenceEventString", required_argument, 0, 'g' }, { "help", no_argument,
                 0, 'h' }, { "bottomUpPhase", no_argument, 0, 'j' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
@@ -65,9 +63,6 @@ int main(int argc, char *argv[]) {
                 break;
             case 'b':
                 cactusDiskDatabaseString = stString_copy(optarg);
-                break;
-            case 'c':
-                cactusSequencesPath = stString_copy(optarg);
                 break;
             case 'd':
                 secondaryDatabaseString = stString_copy(optarg);
@@ -92,7 +87,6 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     assert(cactusDiskDatabaseString != NULL);
-    assert(cactusSequencesPath != NULL);
 
     //////////////////////////////////////////////
     //Set up logging
@@ -104,12 +98,11 @@ int main(int argc, char *argv[]) {
     //Load the database
     //////////////////////////////////////////////
 
-    st_logInfo("cactusSequencesPath = %s\n", cactusSequencesPath);
     st_logInfo("referenceEventString = %s", referenceEventString);
     st_logInfo("bottomUpPhase = %i", bottomUpPhase);
 
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
-    CactusDisk *cactusDisk = cactusDisk_construct2(kvDatabaseConf, false, cactusSequencesPath, false);
+    CactusDisk *cactusDisk = cactusDisk_construct2(kvDatabaseConf, false, false);
     stKVDatabaseConf_destruct(kvDatabaseConf);
     st_logInfo("Set up the flower disk\n");
 

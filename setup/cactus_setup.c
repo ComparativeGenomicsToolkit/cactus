@@ -41,7 +41,6 @@ void usage() {
 int64_t isComplete = 1;
 int64_t totalEventNumber;
 char * cactusDiskDatabaseString = NULL;
-char * cactusSequencesPath = NULL;
 CactusDisk *cactusDisk;
 Flower *flower;
 EventTree *eventTree;
@@ -211,7 +210,7 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     while (1) {
-        static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0, 'b' }, {"cactusSequencesPath", required_argument, 0, 'f'}, {
+        static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0, 'b' }, {
                 "speciesTree", required_argument, 0, 'g' }, { "outgroupEvents", required_argument, 0, 'h' },
                 { "help", no_argument, 0, 'i' }, { "makeEventHeadersAlphaNumeric", no_argument, 0, 'j' }, { 0, 0, 0, 0 } };
 
@@ -229,9 +228,6 @@ int main(int argc, char *argv[]) {
                 break;
             case 'b':
                 cactusDiskDatabaseString = optarg;
-                break;
-            case 'f':
-                cactusSequencesPath = optarg;
                 break;
             case 'g':
                 speciesTree = optarg;
@@ -283,7 +279,7 @@ int main(int argc, char *argv[]) {
     if (stKVDatabaseConf_getType(kvDatabaseConf) == stKVDatabaseTypeTokyoCabinet || stKVDatabaseConf_getType(kvDatabaseConf)
             == stKVDatabaseTypeKyotoTycoon) {
         assert(stKVDatabaseConf_getDir(kvDatabaseConf) != NULL);
-        cactusDisk = cactusDisk_construct2(kvDatabaseConf, true, cactusSequencesPath, true);
+        cactusDisk = cactusDisk_construct2(kvDatabaseConf, true, true);
     } else {
         cactusDisk = cactusDisk_construct(kvDatabaseConf, true, true);
     }

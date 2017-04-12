@@ -43,7 +43,6 @@ static void convertHeadersToNames(struct PairwiseAlignment *pA, stHash *headerTo
 int main(int argc, char *argv[])
 {
     char *cactusDiskString = NULL;
-    char *cactusSequencesPath = NULL;
     CactusDisk *cactusDisk;
     stKVDatabaseConf *kvDatabaseConf;
     stHash *headerToName;
@@ -55,7 +54,6 @@ int main(int argc, char *argv[])
     FILE *outputFile;
     bool isBedFile = false; // true if bed, false if cigar
     struct option longopts[] = { {"cactusDisk", required_argument, NULL, 'a' },
-				 {"cactusSequencesPath", required_argument, NULL, 'b'},
                                  {"bed", no_argument, NULL, 'c'},
 
                                  {0, 0, 0, 0} };
@@ -64,9 +62,6 @@ int main(int argc, char *argv[])
         switch (flag) {
         case 'a':
             cactusDiskString = stString_copy(optarg);
-            break;
-        case 'b':
-            cactusSequencesPath = stString_copy(optarg);
             break;
 	case 'c':
             isBedFile = true;
@@ -87,7 +82,7 @@ int main(int argc, char *argv[])
         st_errAbort("--cactusDisk option must be provided");
     }
     kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskString);
-    cactusDisk = cactusDisk_construct2(kvDatabaseConf, false, cactusSequencesPath, true);
+    cactusDisk = cactusDisk_construct2(kvDatabaseConf, false, true);
     flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
     assert(stList_length(flowers) == 1);
     Flower *flower = stList_get(flowers, 0);
