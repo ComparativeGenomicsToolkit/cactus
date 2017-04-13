@@ -195,7 +195,8 @@ class CactusPhasesJob(CactusJob):
         phase job.
         """
         logger.info("Starting %s phase job at %s seconds (recursing = %i)" % (self.phaseNode.tag, time.time(), doRecursion))
-        self.makeRecursiveChildJob(recursiveJob, launchSecondaryKtForRecursiveJob)
+        if doRecursion:
+            self.makeRecursiveChildJob(recursiveJob, launchSecondaryKtForRecursiveJob)
         return self.makeFollowOnPhaseJob(job=nextPhaseJob, phaseName=nextPhaseName)
 
     def makeFollowOnCheckpointJob(self, checkpointConstructor, phaseName, ktServerDump=None):
