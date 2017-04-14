@@ -502,7 +502,9 @@ static void cactusDisk_loadFromBinaryRepresentation(void **binaryString, CactusD
     cactusDisk->absSequencesFileName = NULL;
     assert(binaryRepresentation_peekNextElementType(*binaryString) == CODE_CACTUS_DISK);
     binaryRepresentation_popNextElementType(binaryString);
-    cactusDisk->storeSequencesInAFile = binaryRepresentation_getBool(binaryString);
+    // We intentionally discard the "storeSequencesInAFile" flag for
+    // backward compatibility.
+    binaryRepresentation_getBool(binaryString);
     if (cactusDisk->storeSequencesInAFile) {
 	cactusDisk->sequencesFileName = binaryRepresentation_getString(binaryString);
 	if (stKVDatabaseConf_getDir(conf) == NULL) {
