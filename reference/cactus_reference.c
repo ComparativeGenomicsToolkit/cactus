@@ -223,7 +223,7 @@ int main(int argc, char *argv[]) {
     //////////////////////////////////////////////
 
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
-    CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, false, false);
+    CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, false, true);
     st_logInfo("Set up the flower disk\n");
 
     ///////////////////////////////////////////////////////////////////////////
@@ -266,6 +266,7 @@ int main(int argc, char *argv[]) {
         }
         flower_destructGroupIterator(groupIt);
         assert(!flower_isParentLoaded(flower));
+        cactusDisk_clearCache(cactusDisk);
     }
 
     ///////////////////////////////////////////////////////////////////////////

@@ -1057,3 +1057,7 @@ int64_t cactusDisk_getUniqueID(CactusDisk *cactusDisk) {
 void cactusDisk_clearStringCache(CactusDisk *cactusDisk) {
     stCache_clear(cactusDisk->stringCache);
 }
+
+void cactusDisk_clearCache(CactusDisk *cactusDisk) {
+    stCache_clear(cactusDisk->cache);
+}

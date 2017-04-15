@@ -91,4 +91,9 @@ void cactusDisk_preCacheSegmentStrings(CactusDisk *cactusDisk, stList *flowers);
  */
 void cactusDisk_clearStringCache(CactusDisk *cactusDisk);
 
+/*
+ * Clears all cached DB responses (but not cached sequences).
+ */
+void cactusDisk_clearCache(CactusDisk *cactusDisk);
+
 #endif
