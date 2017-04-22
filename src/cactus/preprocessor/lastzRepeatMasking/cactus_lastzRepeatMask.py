@@ -50,7 +50,7 @@ class AlignFastaFragments(RoundedJob):
     def __init__(self, repeatMaskOptions, fragmentsID, targetIDs):
         if hasattr(fragmentsID, "size"):
             targetsSize = sum(targetID.size for targetID in targetIDs)
-            memory = 2*(fragmentsID.size + targetsSize)
+            memory = 3500000000
             disk = 2*(fragmentsID.size + targetsSize)
         else:
             memory = None
