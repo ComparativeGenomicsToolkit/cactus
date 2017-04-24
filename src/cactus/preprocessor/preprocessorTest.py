@@ -1,7 +1,6 @@
 import unittest
 import os
-import time
-from sonLib.bioio import popenPush, system
+from sonLib.bioio import system
 from sonLib.bioio import TestStatus
 from sonLib.bioio import fastaRead
 from sonLib.bioio import getTempDirectory
@@ -22,18 +21,18 @@ class TestCase(unittest.TestCase):
         self.toilDir = os.path.join(self.tempDir, "toil")
         self.toilOptions = Job.Runner.getDefaultOptions(self.toilDir)
         self.toilOptions.disableCaching = True
-    
+
     def tearDown(self):
         unittest.TestCase.tearDown(self)
         system("rm -rf %s" % self.tempDir)
-        
+
     def checkSequenceSetsEqualModuloSoftMasking(self, sequences1, sequences2):
         self.assertEquals(sequences1.keys(), sequences2.keys())
         for seqName in sequences1.keys():
             sequence1 = sequences1[seqName]
             sequence2 = sequences2[seqName]
             self.assertEquals(sequence1.upper(), sequence2.upper())
-        
+
 def getSequences(sequenceFile):
     sequences = {}
     fileHandle = open(sequenceFile, "r")
@@ -65,6 +64,6 @@ def getLowerCaseBases(sequenceFile):
         total += len(sequence)
     fileHandle.close()
     return total, totalMasked
-        
+
 if __name__ == '__main__':
     unittest.main()

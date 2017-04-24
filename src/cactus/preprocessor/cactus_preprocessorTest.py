@@ -1,19 +1,16 @@
-from cactus.preprocessor.preprocessorTest import *
+import os
+import unittest
+
+from cactus.preprocessor.preprocessorTest import getSequences, getMaskedBases
 from cactus.preprocessor.preprocessorTest import TestCase as PreprocessorTestCase
-from cactus.shared.common import cactusRootPath
+from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import LastzRepeatMaskJob, RepeatMaskOptions
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
-from cactus.preprocessor.cactus_preprocessor import PreprocessorOptions
-from cactus.preprocessor.cactus_preprocessor import PreprocessSequence
 import xml.etree.ElementTree as ET
-from sonLib.bioio import nameValue, logger
 from cactus.preprocessor.cactus_preprocessor import runCactusPreprocessor
 
 from toil.common import Toil
 from toil.job import Job
 from cactus.shared.common import makeURL
-from cactus.shared.common import runGetChunks
-
-
 
 """Runs cactus preprocessor using the lastz repeat mask script to show it working.
 """
@@ -74,7 +71,7 @@ class TestCase(PreprocessorTestCase):
             with Toil(toilOptions) as toil:
                 queryID = toil.importFile(makeURL(sequenceFile))
                 targetIDs = [queryID]
-                repeatMaskedID = toil.start(Job.wrapJobFn(lastzRepeatMaskJob, queryID=queryID, targetIDs=targetIDs, lastzOpts='--step=1 --ambiguous=iupac,100 --ungapped --queryhsplimit=keep,nowarn:30', minPeriod=1, proportionSampled=0.2, fragment=200))
+                repeatMaskedID = toil.start(LastzRepeatMaskJob(queryID=queryID, targetIDs=targetIDs, repeatMaskOptions=RepeatMaskOptions(lastzOpts='--step=1 --ambiguous=iupac,100 --ungapped --queryhsplimit=keep,nowarn:30', minPeriod=1, proportionSampled=0.2, fragment=200)))
                 toil.exportFile(repeatMaskedID, makeURL(self.tempOutputFile))
                 
             lastzSequencesFast = getSequences(self.tempOutputFile)
