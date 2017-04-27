@@ -536,6 +536,8 @@ def dumpKtServer(dbElem, path, numProcesses=30):
         processes.append(process)
 
     map(lambda x: x.join(), processes)
+    if any([p.exitcode != 0 for p in processes]):
+        raise RuntimeError("Saving the DB failed")
     system("rm -fr %s" % tempDir)
 
     # Again, have to remove the spaces from the ktremotemgr output so it can parse it properly
@@ -578,6 +580,8 @@ def restoreKtServer(dbElem, path, numProcesses=30):
         processes.append(process)
 
     map(lambda x: x.join(), processes)
+    if any([p.exitcode != 0 for p in processes]):
+        raise RuntimeError("Loading the DB failed")
     system("rm -fr %s" % tempDir)
     if gzipped:
         os.remove(temp)
