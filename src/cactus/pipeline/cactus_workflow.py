@@ -886,7 +886,7 @@ class CactusBarWrapperWithPrecomputedEndAlignments(CactusRecursionJob):
             precomputedAlignments = [readGlobalFileWithoutCache(fileStore, fileID) for fileID in self.precomputedAlignmentIDs]
             messages = runBarForJob(self, features=self.featuresFn(),
                                     fileStore=fileStore,
-                                    precomputedAlignments=" ".join(precomputedAlignments))
+                                    precomputedAlignments=precomputedAlignments)
         else:
             messages = runBarForJob(self)
         for message in messages:

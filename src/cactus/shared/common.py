@@ -464,7 +464,12 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
     useProgressiveMerging=nameValue("useProgressiveMerging", useProgressiveMerging, bool)
     calculateWhichEndsToComputeSeparately=nameValue("calculateWhichEndsToComputeSeparately", calculateWhichEndsToComputeSeparately, bool)
     largeEndSize=nameValue("largeEndSize", largeEndSize, int)
+    if endAlignmentsToPrecomputeOutputFile is not None:
+        endAlignmentsToPrecomputeOutputFile = os.path.basename(endAlignmentsToPrecomputeOutputFile)
     endAlignmentsToPrecomputeOutputFile=nameValue("endAlignmentsToPrecomputeOutputFile", endAlignmentsToPrecomputeOutputFile, str)
+    if precomputedAlignments is not None:
+        precomputedAlignments = map(os.path.basename, precomputedAlignments)
+        precomputedAlignments = " ".join(precomputedAlignments)
     precomputedAlignments=nameValue("precomputedAlignments", precomputedAlignments, str, quotes=True)
     ingroupCoverageFile = nameValue("ingroupCoverageFile", ingroupCoverageFile, str, quotes=True)
     minimumSizeToRescue = nameValue("minimumSizeToRescue", minimumSizeToRescue, int)
