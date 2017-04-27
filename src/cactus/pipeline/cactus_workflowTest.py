@@ -8,7 +8,7 @@
 
 import unittest
 import os
-import sys
+import xml.etree.ElementTree as ET
 
 from sonLib.bioio import TestStatus, newickTreeParser, getTempFile
 
@@ -24,7 +24,9 @@ from cactus.shared.test import initialiseGlobalDatabaseConf
 
 from cactus.shared.common import cactusRootPath
 
-from cactus.pipeline.cactus_workflow import *
+from cactus.pipeline.cactus_workflow import getOptionalAttrib, extractNode, findRequiredNode, \
+    getJobNode, CactusJob, getLongestPath, inverseJukesCantor, \
+    CactusSetReferenceCoordinatesDownRecursion
 
 class TestCase(unittest.TestCase):
     
@@ -175,5 +177,4 @@ class TestCase(unittest.TestCase):
         self.assertAlmostEquals(inverseJukesCantor(100000.0), 0.75)
 
 if __name__ == '__main__':
-    from cactus.pipeline.cactus_workflowTest import *
     unittest.main()
