@@ -122,7 +122,7 @@ class PreprocessSequence(RoundedJob):
         self.prepOptions = prepOptions 
         self.inSequenceID = inSequenceID
         self.chunksToCompute = chunksToCompute
-    
+
     def run(self, fileStore):
         logger.info("Preparing sequence for preprocessing")
         # chunk it up
