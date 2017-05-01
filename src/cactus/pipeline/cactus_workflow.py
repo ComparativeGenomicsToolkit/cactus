@@ -988,10 +988,12 @@ class CactusReferenceAndHalPhase(CactusPhasesJob):
     is to ensure the temporary DB that reference phase spawns doesn't live
     throughout all of HAL phase."""
     def run(self, fileStore):
-        self.addChild(CactusReferencePhase(cactusWorkflowArguments=self.cactusWorkflowArguments,
-                                           phaseName="reference",
-                                           topFlowerName=self.topFlowerName,
-                                           halID=self.halID, fastaID=self.fastaID))
+        experiment = self.addChild(CactusReferencePhase(cactusWorkflowArguments=self.cactusWorkflowArguments,
+                                                        phaseName="reference",
+                                                        topFlowerName=self.topFlowerName,
+                                                        halID=self.halID, fastaID=self.fastaID)).rv()
+        self.cactusWorkflowArguments = copy.deepcopy(self.cactusWorkflowArguments)
+        self.cactusWorkflowArguments.experimentWrapper = experiment
         return self.makeFollowOnPhaseJob(CactusHalGeneratorPhase, "hal")
 
 class CactusReferencePhase(CactusPhasesJob):
@@ -1124,7 +1126,8 @@ class CactusExtractReferencePhase(CactusPhasesJob):
                                       eventName, os.path.basename(referencePath), getLogLevelString()))
                     experiment.setReferenceID(fileStore.writeGlobalFile(referencePath))
         self.cactusWorkflowArguments.experimentWrapper = experiment
-        return self.makeFollowOnPhaseJob(CactusCheckPhase, "check")
+        self.makeFollowOnPhaseJob(CactusCheckPhase, "check")
+        return experiment
 
 ############################################################
 ############################################################
