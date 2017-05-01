@@ -158,9 +158,7 @@ class ProgressiveUp(RoundedJob):
         experiment = ExperimentWrapper(expXml)
         configPath = fileStore.readGlobalFile(experiment.getConfigID())
         configXml = ET.parse(configPath).getroot()
-        configWrapper = ConfigWrapper(configXml)
 
-        seqMap = experiment.buildSequenceMap()
         seqIDMap = dict()
         tree = experiment.getTree()
         seqNames = []

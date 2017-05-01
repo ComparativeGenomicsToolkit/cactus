@@ -4,12 +4,10 @@
 #
 #Released under the MIT license, see LICENSE.txt
 import unittest
-import sys
 import os
 import xml.etree.ElementTree as ET
 
 from sonLib.bioio import TestStatus
-from sonLib.bioio import system
 from sonLib.bioio import getLogLevelString
 
 from cactus.shared.test import getCactusInputs_random
@@ -24,27 +22,22 @@ from cactus.shared.common import cactus_call
 
 class TestCase(unittest.TestCase):
     @silentOnSuccess
-    @unittest.skip("")
     def testCactus_Random_Greedy(self):
         testCactus_Random(self, "greedy")
 
     @silentOnSuccess
-    @unittest.skip("")
     def testCactus_Random_Blossum(self):
         testCactus_Random(self, "blossom5")
 
     @silentOnSuccess
-    @unittest.skip("")
     def testCactus_Random_MaxCardinality(self):
         testCactus_Random(self, "maxCardinality")
 
     @silentOnSuccess
-    @unittest.skip("")
     def testCactus_Random_MaxWeight(self):
         testCactus_Random(self, "maxWeight")
 
     @silentOnSuccess
-    @unittest.skip("")
     def testCactus_Blanchette_Blossum(self):
         testCactus_Blanchette(self, "blossom5")
 
@@ -69,14 +62,14 @@ def testCactus_Random(self, matchingAlgorithm):
     
 def getConfigFile(matchingAlgorithm="greedy"):
     tempConfigFile = getTempFile(rootDir="./", suffix=".xml")
-    config = ET.parse(os.path.join(cactusRootPath(), "cactus_config.xml")).getroot()
+    config = ET.parse(os.path.join(cactusRootPath(), "cactus_progressive_config.xml")).getroot()
     #Set the matching algorithm
     config.find("reference").attrib["matching_algorithm"] = matchingAlgorithm
     #Now print the file..
     fileHandle = open(tempConfigFile, 'w')
     ET.ElementTree(config).write(fileHandle)
     fileHandle.close()
-    return tempConfigFile
+    return os.path.abspath(tempConfigFile)
 
 if __name__ == '__main__':
     unittest.main()

@@ -74,7 +74,7 @@ def silentOnSuccess(fn):
 #Stuff for setting up the experiment configuration file for a test
 ###########
 
-_GLOBAL_DATABASE_CONF_STRING = None
+_GLOBAL_DATABASE_CONF_STRING = '<st_kv_database_conf type="kyoto_tycoon"><kyoto_tycoon in_memory="1" port="1978" snapshot="0"/></st_kv_database_conf>'
 _BATCH_SYSTEM = None
 
 def getBatchSystem():
@@ -88,7 +88,7 @@ def initialiseGlobalDatabaseConf(dataString):
     is used as the database for CactusWorkflowExperiments."""
     global _GLOBAL_DATABASE_CONF_STRING
     _GLOBAL_DATABASE_CONF_STRING = dataString
-    
+
 def initialiseGlobalBatchSystem(batchSystem):
     """Initialise the global batch system variable.
     """
@@ -103,8 +103,9 @@ def getCactusWorkflowExperimentForTest(sequences, newickTreeString, outputDir, c
     """
     halFile = os.path.join(outputDir, "test.hal")
     fastaFile = os.path.join(outputDir, "test.fa")
+    databaseConf = ET.fromstring(_GLOBAL_DATABASE_CONF_STRING) if _GLOBAL_DATABASE_CONF_STRING is not None else None
     return ExperimentWrapper.createExperimentWrapper(sequences, newickTreeString, outputDir,
-                                    databaseConf=ET.fromstring(_GLOBAL_DATABASE_CONF_STRING), configFile=configFile,
+                                    databaseConf=databaseConf, configFile=configFile,
                                     halFile=halFile, fastaFile=fastaFile, constraints=constraints, progressive=progressive)
 
 ###############
