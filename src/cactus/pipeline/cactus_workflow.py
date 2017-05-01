@@ -320,7 +320,12 @@ class SavePrimaryDB(CactusPhasesJob):
         dbElem = DbElemWrapper(ET.fromstring(self.cactusWorkflowArguments.cactusDiskDatabaseString))
         dumpKtServer(dbElem, tempPath)
         clearKtServer(dbElem)
-        return self.cactusSequencesID, fileStore.writeGlobalFile(tempPath)
+        dumpFile = fileStore.writeGlobalFile(tempPath)
+        if self.cactusWorkflowArguments.dumpDBsToURL is not None:
+            # The user requested to keep the DB dumps in a separate place. Export it there.
+            url = self.cactusWorkflowArguments.dumpDBsToURL + "-" + self.phaseName
+            fileStore.exportFile(dumpFile, url)
+        return self.cactusSequencesID, dumpFile
 
 class CactusRecursionJob(CactusJob):
     """Base recursive job for traversals up and down the cactus tree.
@@ -1345,6 +1350,10 @@ class CactusWorkflowArguments:
         self.ingroupCoverageIDs = None
         # Same, but for the final bed file
         self.ingroupCoverageID = None
+        # If not None, a url prefix to dump database files to
+        # (i.e. file:///path/to/prefix). The dumps will be labeled
+        # -caf, -avg, etc.
+        self.dumpDBsToURL = options.dumpDBsToURL
         self.ktServerDump = None
 
         #Secondary, scratch DB
@@ -1358,7 +1367,7 @@ class CactusWorkflowArguments:
         if secondaryElem.getDbType() == "kyoto_tycoon":
             secondaryElem.setDbPort(secondaryElem.getDbPort() + 100)
         self.secondaryDatabaseString = secondaryElem.getConfString()
-            
+
         #The config node
         self.configNode = configNode
         self.configWrapper = ConfigWrapper(self.configNode)
@@ -1377,29 +1386,25 @@ class CactusWorkflowArguments:
 def addCactusWorkflowOptions(parser):
     parser.add_argument("--experiment", dest="experimentFile", 
                       help="The file containing a link to the experiment parameters")
-    
     parser.add_argument("--buildAvgs", dest="buildAvgs", action="store_true",
                       help="Build trees", default=False)
-    
     parser.add_argument("--buildReference", dest="buildReference", action="store_true",
                       help="Creates a reference ordering for the flowers", default=False)
-    
     parser.add_argument("--buildHal", dest="buildHal", action="store_true",
                       help="Build a hal file", default=False)
-    
     parser.add_argument("--buildFasta", dest="buildFasta", action="store_true",
                       help="Build a fasta file of the input sequences (and reference sequence, used with hal output)", 
                       default=False)
-
-    parser.add_argument("--test", dest="test", action="store_true",
-                      help="Run doctest unit tests")
+    parser.add_argument("--dumpDBsToURL",
+                        help="URL prefix to save intermediate DB dumps to (e.g. "
+                        "prefix-caf, prefix-avg, etc.)", default=None)
 
 class RunCactusPreprocessorThenCactusSetup(RoundedJob):
     def __init__(self, options, cactusWorkflowArguments):
         RoundedJob.__init__(self)
         self.options = options
         self.cactusWorkflowArguments = cactusWorkflowArguments
-        
+
     def run(self, fileStore):
         eW = self.cactusWorkflowArguments.experimentWrapper
         seqIDs = self.addChild(CactusPreprocessor(eW.seqIDMap.values(), self.cactusWorkflowArguments.configNode))
@@ -1419,13 +1424,8 @@ def runCactusWorkflow(args):
     addCactusWorkflowOptions(parser)
         
     options = parser.parse_args(args)
-    if options.test:
-        _test()
     setLoggingFromOptions(options)
     
-    #if len(args) != 0:
-     #   raise RuntimeError("Unrecognised input arguments: %s" % " ".join(args))
-
     experimentWrapper = ExperimentWrapper(ET.parse(options.experimentFile).getroot())
     with Toil(options) as toil:
         seqIDMap = dict()
@@ -1438,15 +1438,10 @@ def runCactusWorkflow(args):
                 fullSeq = seqMap[name]
             seqIDMap[name] = toil.importFile(makeURL(fullSeq))
 
-
         configNode = ET.parse(experimentWrapper.getConfigPath()).getroot()
-        cactusWorkflowArguments = CactusWorkflowArguments(options, experimentFile = options.experimentFile, configNode=configNode, seqIDMap = seqIDMap)
+        cactusWorkflowArguments = CactusWorkflowArguments(options, experimentFile = options.experimentFile, configNode=configNode, seqIDMap=seqIDMap)
 
         toil.start(RunCactusPreprocessorThenCactusSetup(options, cactusWorkflowArguments))
-
-def _test():
-    import doctest      
-    return doctest.testmod()
 
 if __name__ == '__main__':
     runCactusWorkflow(sys.argv)

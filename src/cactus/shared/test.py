@@ -245,7 +245,6 @@ def getCactusInputs_blanchette(regionNumber=0, tempDir=None):
     """
     assert regionNumber >= 0
     assert regionNumber < 50
-    #regionNumber = 1
     blanchettePath = os.path.join(TestStatus.getPathToDataSets(), "blanchettesSimulation")
     sequences = [os.path.join(blanchettePath, ("%.2i.job" % regionNumber), species) \
                  for species in ("HUMAN", "CHIMP", "BABOON", "MOUSE", "RAT", "DOG", "CAT", "PIG", "COW")] #Same order as tree
@@ -345,11 +344,6 @@ def runWorkflow_TestScript(sequences, newickTreeString,
                            toilStats=buildToilStats,
                            logLevel="DEBUG")
     logger.info("Ran the the workflow")
-
-    #Check if the cactusDisk is okay..
-    #runCactusCheck(cactusDiskDatabaseString, recursive=True) #This should also occur during the workflow, so this
-    #is redundant, but defensive
-    #logger.info("Checked the cactus tree")
     
     #Now run various utilities..
     if buildToilStats:
