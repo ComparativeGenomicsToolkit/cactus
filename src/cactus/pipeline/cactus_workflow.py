@@ -1033,19 +1033,30 @@ class CactusAVGWrapper(CactusRecursionJob):
 class CactusReferenceCheckpoint(CactusCheckpointJob):
     """Load the DB and run the final reference and HAL phases."""
     def run(self, fileStore):
-        return self.runPhaseWithPrimaryDB(CactusReferencePhase, finalPhase=True)
+        return self.runPhaseWithPrimaryDB(CactusReferenceAndHalPhase, finalPhase=True)
+
+class CactusReferenceAndHalPhase(CactusPhasesJob):
+    """Run the reference phase, then the hal phase. This intermediate job
+    is to ensure the temporary DB that reference phase spawns doesn't live
+    throughout all of HAL phase."""
+    def run(self, fileStore):
+        self.addChild(CactusReferencePhase(cactusWorkflowArguments=self.cactusWorkflowArguments,
+                                           phaseName="reference",
+                                           topFlowerName=self.topFlowerName,
+                                           cactusSequencesID=self.cactusSequencesID,
+                                           halID=self.halID, fastaID=self.fastaID))
+        return self.makeFollowOnPhaseJob(CactusHalGeneratorPhase, "hal")
 
 class CactusReferencePhase(CactusPhasesJob):
+    """Runs the reference problem algorithm"""
     def run(self, fileStore):
-        """Runs the reference problem algorithm
-        """
         assert self.cactusSequencesID
         self.setupSecondaryDatabase()
         self.phaseNode.attrib["experimentPath"] = self.cactusWorkflowArguments.experimentFile
         self.phaseNode.attrib["secondaryDatabaseString"] = self.cactusWorkflowArguments.secondaryDatabaseString
         return self.runPhase(CactusReferenceRecursion, CactusSetReferenceCoordinatesDownPhase, "reference", 
-                      doRecursion=self.getOptionalPhaseAttrib("buildReference", bool, False),
-                      launchSecondaryKtForRecursiveJob = True, updateDatabase=True)
+                             doRecursion=self.getOptionalPhaseAttrib("buildReference", bool, False),
+                             launchSecondaryKtForRecursiveJob = True, updateDatabase=True)
 
 class CactusReferenceRecursion(CactusRecursionJob):
     """This job creates the wrappers to run the reference problem algorithm, the follow on job then recurses down.
@@ -1057,7 +1068,7 @@ class CactusReferenceRecursion(CactusRecursionJob):
         logger.info("DatabaseID in RefRecursion: %s" % self.cactusSequencesID)
         self.cactusSequencesID = self.makeWrapperJobs(CactusReferenceWrapper, runFlowerStats=True)
         return self.makeFollowOnRecursiveJob(CactusReferenceRecursion2)
-        
+
 class CactusReferenceWrapper(CactusRecursionJob):
     """Actually run the reference code.
     """
@@ -1203,8 +1214,10 @@ class CactusCheckPhase(CactusPhasesJob):
     def run(self, fileStore):
         normalNode = findRequiredNode(self.cactusWorkflowArguments.configNode, "normal")
         self.phaseNode.attrib["checkNormalised"] = getOptionalAttrib(normalNode, "normalised", default="0")
-        return self.runPhase(CactusCheckRecursion, CactusHalGeneratorPhase, "hal", doRecursion=self.getOptionalPhaseAttrib("runCheck", bool, False))
-        
+        doRecursion = self.getOptionalPhaseAttrib("runCheck", bool, False)
+        if doRecursion:
+            self.makeRecursiveChildJob(CactusCheckRecursion)
+
 class CactusCheckRecursion(CactusRecursionJob):
     """This job does the recursive pass for the check phase.
     """
@@ -1271,7 +1284,7 @@ class CactusFastaGenerator(CactusRecursionJob):
                                     outputFile=tmpFasta,
                                     referenceEventString=self.getOptionalPhaseAttrib("reference"))
         return fileStore.writeGlobalFile(tmpFasta)
-            
+
 class CactusHalGeneratorRecursion(CactusRecursionJob):
     """Generate the hal file by merging indexed hal files from the children.
     """
