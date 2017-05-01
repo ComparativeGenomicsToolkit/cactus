@@ -15,42 +15,34 @@
 ////////////////////////////////////////////////
 
 stKVDatabaseConf *testCommon_getTemporaryKVDatabaseConf() {
-    testCommon_deleteTemporaryKVDatabase(0);
+    testCommon_deleteTemporaryKVDatabase();
     stKVDatabaseConf *conf = stKVDatabaseConf_constructTokyoCabinet(
             "temporaryCactusDisk");
     return conf;
 }
 
-void testCommon_deleteTemporaryKVDatabase(bool sequencesOnDisk) {
+void testCommon_deleteTemporaryKVDatabase(void) {
     int64_t i = system("rm -rf temporaryCactusDisk");
     exitOnFailure(i, "Tried to delete the temporary KV database\n");
-    if (sequencesOnDisk) {
-	i = system("rm -f cactusSequences");
-	exitOnFailure(i, "Tried to delete temporary cactusSequences file\n");
-    }
 }
 
-CactusDisk *testCommon_getTemporaryCactusDisk2(bool sequencesOnDisk) {
-    testCommon_deleteTemporaryKVDatabase(sequencesOnDisk);
+CactusDisk *testCommon_getTemporaryCactusDisk2(void) {
+    testCommon_deleteTemporaryKVDatabase();
     stKVDatabaseConf *conf = stKVDatabaseConf_constructTokyoCabinet(
             "temporaryCactusDisk");
     CactusDisk *cactusDisk;
-    if (sequencesOnDisk) {
-        cactusDisk = cactusDisk_construct2(conf, true, "cactusSequences", true);
-    } else {
-        cactusDisk = cactusDisk_construct(conf, true, true);
-    }
+    cactusDisk = cactusDisk_construct(conf, true, true);
     stKVDatabaseConf_destruct(conf);
     return cactusDisk;
 }
 
 CactusDisk *testCommon_getTemporaryCactusDisk() {
-    return testCommon_getTemporaryCactusDisk2(st_random() > 0.5);
+    return testCommon_getTemporaryCactusDisk2();
 }
 
 void testCommon_deleteTemporaryCactusDisk(CactusDisk *cactusDisk) {
     cactusDisk_destruct(cactusDisk);
-    testCommon_deleteTemporaryKVDatabase(0);
+    testCommon_deleteTemporaryKVDatabase();
 }
 
 Name testCommon_addThreadToFlower(Flower *flower, char *header, int64_t length) {

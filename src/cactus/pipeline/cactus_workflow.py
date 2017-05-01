@@ -94,13 +94,12 @@ def getJobNode(phaseNode, jobClass):
 class CactusJob(RoundedJob):
     """Base job for all cactus workflow jobs.
     """
-    def __init__(self, phaseNode, constantsNode, overlarge=False, cactusSequencesID=None,
+    def __init__(self, phaseNode, constantsNode, overlarge=False,
                  checkpoint=False, preemptable=True):
         self.phaseNode = phaseNode
         self.constantsNode = constantsNode
         self.overlarge = overlarge
         self.jobNode = getJobNode(self.phaseNode, self.__class__)
-        self.cactusSequencesID = cactusSequencesID
         if self.jobNode:
             logger.info("JobNode = %s" % self.jobNode.attrib)
 
@@ -111,10 +110,7 @@ class CactusJob(RoundedJob):
             # input size
             memory = self.evaluateResourcePoly(self.memoryPoly)
 
-        if cactusSequencesID and hasattr(cactusSequencesID, 'size'):
-            disk = 2*cactusSequencesID.size
-        else:
-            disk = None
+        disk = None
         if memory is None and overlarge:
             memory = self.getOptionalJobAttrib("overlargeMemory", typeFn=int,
                                                default=getOptionalAttrib(self.constantsNode, "defaultOverlargeMemory", int, default=sys.maxint))
@@ -156,7 +152,7 @@ class CactusPhasesJob(CactusJob):
     """Base job for each workflow phase job.
     """
     def __init__(self, cactusWorkflowArguments=None, phaseName=None, topFlowerName=0,
-                 cactusSequencesID=None, checkpoint=False, preemptable=True, halID=None,
+                 checkpoint=False, preemptable=True, halID=None,
                  fastaID=None):
         self.phaseName = phaseName
         phaseNode = findRequiredNode(cactusWorkflowArguments.configNode, phaseName)
@@ -166,8 +162,7 @@ class CactusPhasesJob(CactusJob):
         self.halID = halID
         self.fastaID = fastaID
         CactusJob.__init__(self, phaseNode=phaseNode, constantsNode=constantsNode, overlarge=False,
-                           cactusSequencesID=cactusSequencesID, checkpoint=checkpoint,
-                           preemptable=preemptable)
+                           checkpoint=checkpoint, preemptable=preemptable)
 
     def makeRecursiveChildJob(self, job, launchSecondaryKtForRecursiveJob=False):
         newChild = job(phaseNode=extractNode(self.phaseNode), 
@@ -176,7 +171,6 @@ class CactusPhasesJob(CactusJob):
                        flowerNames=encodeFlowerNames((self.topFlowerName,)),
                        flowerSizes=[self.cactusWorkflowArguments.totalSequenceSize],
                        overlarge=True,
-                       cactusSequencesID=self.cactusSequencesID,
                        cactusWorkflowArguments=self.cactusWorkflowArguments)
 
         if launchSecondaryKtForRecursiveJob and ExperimentWrapper(self.cactusWorkflowArguments.experimentNode).getDbType() == "kyoto_tycoon":
@@ -193,7 +187,7 @@ class CactusPhasesJob(CactusJob):
 
     def makeFollowOnPhaseJob(self, job, phaseName):
         return self.addFollowOn(job(cactusWorkflowArguments=self.cactusWorkflowArguments, phaseName=phaseName, 
-                                    topFlowerName=self.topFlowerName, cactusSequencesID=self.cactusSequencesID, halID=self.halID, fastaID=self.fastaID)).rv()
+                                    topFlowerName=self.topFlowerName, halID=self.halID, fastaID=self.fastaID)).rv()
 
     def runPhase(self, recursiveJob, nextPhaseJob, nextPhaseName, doRecursion=True, launchSecondaryKtForRecursiveJob=False, updateDatabase=False):
         """
@@ -202,9 +196,7 @@ class CactusPhasesJob(CactusJob):
         """
         logger.info("Starting %s phase job at %s seconds (recursing = %i)" % (self.phaseNode.tag, time.time(), doRecursion))
         if doRecursion:
-            cactusSequencesID = self.makeRecursiveChildJob(recursiveJob, launchSecondaryKtForRecursiveJob)
-        if updateDatabase and doRecursion:
-            self.cactusSequencesID = cactusSequencesID
+            self.makeRecursiveChildJob(recursiveJob, launchSecondaryKtForRecursiveJob)
         return self.makeFollowOnPhaseJob(job=nextPhaseJob, phaseName=nextPhaseName)
 
     def makeFollowOnCheckpointJob(self, checkpointConstructor, phaseName, ktServerDump=None):
@@ -213,8 +205,7 @@ class CactusPhasesJob(CactusJob):
                    phaseName=phaseName, ktServerDump=ktServerDump,
                    cactusWorkflowArguments=self.cactusWorkflowArguments,
                    topFlowerName=self.topFlowerName,
-                   cactusSequencesID=self.cactusSequencesID, halID=self.halID,
-                   fastaID=self.fastaID)).rv()
+                   halID=self.halID, fastaID=self.fastaID)).rv()
 
     def getPhaseNumber(self):
         return len(self.cactusWorkflowArguments.configNode.findall(self.phaseNode.tag))
@@ -249,23 +240,16 @@ class CactusCheckpointJob(CactusPhasesJob):
         self.ktServerDump = ktServerDump
         super(CactusCheckpointJob, self).__init__(*args, **kwargs)
 
-    def runPhaseWithPrimaryDB(self, jobConstructor, finalPhase=False):
+    def runPhaseWithPrimaryDB(self, jobConstructor):
         """Start and load a new primary DB before running the given phase.
-
-        If finalPhase is False, the phase should eventually end by
-        running SavePrimaryDB and returning its value.
         """
         job = jobConstructor(cactusWorkflowArguments=self.cactusWorkflowArguments,
-                             phaseName=self.phaseName, topFlowerName=self.topFlowerName,
-                             cactusSequencesID=self.cactusSequencesID)
+                             phaseName=self.phaseName, topFlowerName=self.topFlowerName)
         startDBJob = StartPrimaryDB(job, ktServerDump=self.ktServerDump,
                                     cactusWorkflowArguments=self.cactusWorkflowArguments,
                                     phaseName=self.phaseName, topFlowerName=self.topFlowerName)
         promise = self.addChild(startDBJob)
-        if finalPhase:
-            return promise.rv()
-        else:
-            return promise.rv(0), promise.rv(1)
+        return promise.rv()
 
 class StartPrimaryDB(CactusPhasesJob):
     """Launches a primary Cactus DB."""
@@ -325,7 +309,7 @@ class SavePrimaryDB(CactusPhasesJob):
             # The user requested to keep the DB dumps in a separate place. Export it there.
             url = self.cactusWorkflowArguments.dumpDBsToURL + "-" + self.phaseName
             fileStore.exportFile(dumpFile, url)
-        return self.cactusSequencesID, dumpFile
+        return dumpFile
 
 class CactusRecursionJob(CactusJob):
     """Base recursive job for traversals up and down the cactus tree.
@@ -335,7 +319,7 @@ class CactusRecursionJob(CactusJob):
                                'numFlowers': len(self.flowerSizes)}
     feature = 'flowerGroupSize'
     maxSequenceSizeOfFlowerGroupingDefault = 1000000
-    def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, flowerSizes, overlarge=False, precomputedAlignmentIDs=None, cactusSequencesID = None, checkpoint = False, cactusWorkflowArguments=None, preemptable=True, memPoly=None):
+    def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, flowerSizes, overlarge=False, precomputedAlignmentIDs=None, checkpoint = False, cactusWorkflowArguments=None, preemptable=True, memPoly=None):
         self.cactusDiskDatabaseString = cactusDiskDatabaseString
         self.flowerNames = flowerNames
         self.flowerSizes = flowerSizes
@@ -347,7 +331,7 @@ class CactusRecursionJob(CactusJob):
         self.precomputedAlignmentIDs = precomputedAlignmentIDs
 
         CactusJob.__init__(self, phaseNode=phaseNode, constantsNode=constantsNode, overlarge=overlarge, 
-                           cactusSequencesID=cactusSequencesID, checkpoint=checkpoint, preemptable=preemptable)
+                           checkpoint=checkpoint, preemptable=preemptable)
         
     def makeFollowOnRecursiveJob(self, job, phaseNode=None):
         """Sets the followon to the given recursive job
@@ -359,14 +343,12 @@ class CactusRecursionJob(CactusJob):
                                               flowerNames=self.flowerNames, flowerSizes=self.flowerSizes,
                                               overlarge=self.overlarge,
                                               precomputedAlignmentIDs=self.precomputedAlignmentIDs,
-                                              cactusSequencesID=self.cactusSequencesID,
                                               cactusWorkflowArguments=self.cactusWorkflowArguments)).rv()
         
     def makeChildJobs(self, flowersAndSizes, job, overlargeJob=None, 
                       phaseNode=None, runFlowerStats=False):
         """Make a set of child jobs for a given set of flowers and chosen child job
         """
-        cactusSequencesID = None
         if overlargeJob == None:
             overlargeJob = job
         if phaseNode == None:
@@ -382,28 +364,22 @@ class CactusRecursionJob(CactusJob):
                 else:
                     logger.info("Adding an oversize flower %s for job class %s" \
                                              % (decodeFirstFlowerName(flowerNames), overlargeJob))
-                cactusSequencesID = self.addChild(overlargeJob(cactusDiskDatabaseString=
-                                                               self.cactusDiskDatabaseString,
-                                                               phaseNode=phaseNode, 
-                                                               constantsNode=self.constantsNode,
-                                                               flowerNames=flowerNames,
-                                                               flowerSizes=flowerSizes,
-                                                               overlarge=True,
-                                                               cactusSequencesID=self.cactusSequencesID,
-                                                               cactusWorkflowArguments=self.cactusWorkflowArguments)).rv()
+                self.addChild(overlargeJob(cactusDiskDatabaseString=
+                                           self.cactusDiskDatabaseString,
+                                           phaseNode=phaseNode, 
+                                           constantsNode=self.constantsNode,
+                                           flowerNames=flowerNames,
+                                           flowerSizes=flowerSizes,
+                                           overlarge=True,
+                                           cactusWorkflowArguments=self.cactusWorkflowArguments)).rv()
             else:
                 logger.info("Adding recursive flower job")
-                cactusSequencesID = self.addChild(job(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
-                                                      phaseNode=phaseNode, constantsNode=self.constantsNode,
-                                                      flowerNames=flowerNames,
-                                                      flowerSizes=flowerSizes,
-                                                      overlarge=False,
-                                                      cactusSequencesID=self.cactusSequencesID,
-                                                      cactusWorkflowArguments=self.cactusWorkflowArguments)).rv()
-        if cactusSequencesID:
-            return cactusSequencesID
-        else:
-            return self.cactusSequencesID
+                self.addChild(job(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
+                                  phaseNode=phaseNode, constantsNode=self.constantsNode,
+                                  flowerNames=flowerNames,
+                                  flowerSizes=flowerSizes,
+                                  overlarge=False,
+                                  cactusWorkflowArguments=self.cactusWorkflowArguments)).rv()
 
     def makeRecursiveJobs(self, fileStore=None, job=None, phaseNode=None, runFlowerStats=False):
         """Make a set of child jobs for a given set of parent flowers.
@@ -413,7 +389,6 @@ class CactusRecursionJob(CactusJob):
         jobNode = getJobNode(self.phaseNode, job)
         logger.info("Flower names: %s" % self.flowerNames)
         flowersAndSizes=runCactusGetFlowers(cactusDiskDatabaseString=self.cactusDiskDatabaseString,
-                                            cactusSequencesPath=self.cactusSequencesPath, 
                                             features=self.featuresFn(),
                                             jobName=job.__name__,
                                             fileStore=fileStore,
@@ -434,7 +409,6 @@ class CactusRecursionJob(CactusJob):
 
         jobNode = getJobNode(self.phaseNode, job)
         flowersAndSizes=runCactusExtendFlowers(cactusDiskDatabaseString=self.cactusDiskDatabaseString,
-                                              cactusSequencesPath=self.cactusSequencesPath,
                                               features=self.featuresFn(),
                                               jobName=job.__name__,
                                               fileStore=fileStore,
@@ -592,7 +566,7 @@ def getLongestPath(node, distance=0.0):
 class CactusSetupCheckpoint(CactusCheckpointJob):
     """Start a new DB, run the setup and CAF phases, save the DB, then launch the BAR checkpoint."""
     def run(self, fileStore):
-        self.cactusSequencesID, ktServerDump = self.runPhaseWithPrimaryDB(CactusSetupPhase)
+        ktServerDump = self.runPhaseWithPrimaryDB(CactusSetupPhase)
         return self.makeFollowOnCheckpointJob(CactusBarCheckpoint, "bar", ktServerDump=ktServerDump)
 
 class CactusSetupPhase(CactusPhasesJob):   
@@ -622,14 +596,11 @@ class CactusSetupPhase(CactusPhasesJob):
         sequences = [fileStore.readGlobalFile(fileID) for fileID in sequenceIDs]
         logger.info("Sequences in cactus setup: %s" % sequenceNames)
         logger.info("Sequences in cactus setup filenames: %s" % firstLines)
-        cactusSequencesPath = fileStore.getLocalTempFile()
         messages = runCactusSetup(cactusDiskDatabaseString=self.cactusWorkflowArguments.cactusDiskDatabaseString, 
-                       cactusSequencesPath = cactusSequencesPath,
                        sequences=sequences,
                        newickTreeString=self.cactusWorkflowArguments.speciesTree, 
                        outgroupEvents=self.cactusWorkflowArguments.outgroupEventNames,
                        makeEventHeadersAlphaNumeric=self.getOptionalPhaseAttrib("makeEventHeadersAlphaNumeric", bool, False))
-        self.cactusSequencesID = fileStore.writeGlobalFile(cactusSequencesPath)
         for message in messages:
             logger.info(message)
         return self.makeFollowOnPhaseJob(CactusCafPhase, "caf")
@@ -665,9 +636,8 @@ class CactusCafPhase(CactusPhasesJob):
             bedFiles = [fileStore.readGlobalFile(path) for path in self.cactusWorkflowArguments.ingroupCoverageIDs]
             tempFile = fileStore.getLocalTempFile()
             system("cat %s > %s" % (" ".join(bedFiles), tempFile))
-            cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
             ingroupCoverageFile = fileStore.getLocalTempFile()
-            runConvertAlignmentsToInternalNames(self.cactusWorkflowArguments.cactusDiskDatabaseString, cactusSequencesPath, tempFile, ingroupCoverageFile, self.topFlowerName, isBedFile=True)
+            runConvertAlignmentsToInternalNames(self.cactusWorkflowArguments.cactusDiskDatabaseString, tempFile, ingroupCoverageFile, self.topFlowerName, isBedFile=True)
             self.cactusWorkflowArguments.ingroupCoverageID = fileStore.writeGlobalFile(ingroupCoverageFile)
 
         if (not self.cactusWorkflowArguments.configWrapper.getDoTrimStrategy()) or (self.cactusWorkflowArguments.outgroupEventNames == None):
@@ -685,13 +655,12 @@ class CactusCafPhase(CactusPhasesJob):
         alignmentsFile = fileStore.readGlobalFile(self.cactusWorkflowArguments.alignmentsID)
         convertedAlignmentsFile = fileStore.getLocalTempFile()
         # Convert the cigar file to use 64-bit cactus Names instead of the headers.
-        cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
-        runConvertAlignmentsToInternalNames(cactusDiskString=self.cactusWorkflowArguments.cactusDiskDatabaseString, cactusSequencesPath=cactusSequencesPath, alignmentsFile=alignmentsFile, outputFile=convertedAlignmentsFile, flowerName=self.topFlowerName)
+        runConvertAlignmentsToInternalNames(cactusDiskString=self.cactusWorkflowArguments.cactusDiskDatabaseString, alignmentsFile=alignmentsFile, outputFile=convertedAlignmentsFile, flowerName=self.topFlowerName)
         fileStore.logToMaster("Converted headers of cigar file %s to internal names, new file %s" % (self.cactusWorkflowArguments.alignmentsID, convertedAlignmentsFile))
         self.cactusWorkflowArguments.alignmentsID = fileStore.writeGlobalFile(convertedAlignmentsFile, cleanup=False)
         # While we're at it, remove the unique IDs prepended to
         # the headers inside the cactus DB.
-        runStripUniqueIDs(self.cactusWorkflowArguments.cactusDiskDatabaseString, cactusSequencesPath)
+        runStripUniqueIDs(self.cactusWorkflowArguments.cactusDiskDatabaseString)
         self.phaseNode.attrib["alignmentsID"] = self.cactusWorkflowArguments.alignmentsID
         return self.runPhase(CactusCafWrapper, SavePrimaryDB, "caf")
 
@@ -713,7 +682,6 @@ class CactusCafWrapper(CactusRecursionJob):
         if debugFilePath != None:
             debugFilePath += getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "reference"), "reference")
         messages = runCactusCaf(cactusDiskDatabaseString=self.cactusDiskDatabaseString,
-                          cactusSequencesPath = self.cactusSequencesPath,
                           alignments=alignmentFile, 
                           flowerNames=self.flowerNames,
                           constraints=constraints,  
@@ -771,7 +739,6 @@ class CactusCafWrapper(CactusRecursionJob):
         if "constraintsID" in self.phaseNode.attrib:
             constraints = fileStore.readGlobalFile(self.phaseNode.attrib["constraintsID"])
         logger.info("Alignments file: %s" % alignments)
-        self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
         self.runCactusCafInWorkflow(alignmentFile=alignments, constraints=constraints)
 
 
@@ -788,14 +755,12 @@ class CactusCafWrapper(CactusRecursionJob):
 class CactusBarCheckpoint(CactusCheckpointJob):
     """Load the DB, run the BAR, AVG, and normalization phases, save the DB, then run the reference checkpoint."""
     def run(self, fileStore):
-        self.cactusSequencesID, ktServerDump = self.runPhaseWithPrimaryDB(CactusBarPhase)
+        ktServerDump = self.runPhaseWithPrimaryDB(CactusBarPhase)
         return self.makeFollowOnCheckpointJob(CactusReferenceCheckpoint, "reference", ktServerDump=ktServerDump)
 
 class CactusBarPhase(CactusPhasesJob):
     """Runs bar algorithm."""
     def run(self, fileStore):
-        assert self.cactusSequencesID
-        logger.info("DatabaseID in BarPhase: %s" % self.cactusSequencesID)
         return self.runPhase(CactusBarRecursion, CactusNormalPhase, "normal", doRecursion=self.getOptionalPhaseAttrib("runBar", bool, False))
 
 class CactusBarRecursion(CactusRecursionJob):
@@ -803,7 +768,6 @@ class CactusBarRecursion(CactusRecursionJob):
     memoryPoly = [2e+09]
 
     def run(self, fileStore):
-        self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
         self.makeRecursiveJobs(fileStore=fileStore)
         self.makeExtendingJobs(fileStore=fileStore,
                                job=CactusBarWrapper, overlargeJob=CactusBarWrapperLarge, runFlowerStats=True)
@@ -813,7 +777,6 @@ def runBarForJob(self, fileStore=None, features=None, calculateWhichEndsToComput
                  fileStore=fileStore,
                  features=features,
                  cactusDiskDatabaseString=self.cactusDiskDatabaseString,
-                 cactusSequencesPath=self.cactusSequencesPath,
                  flowerNames=self.flowerNames,
                  maximumLength=self.getOptionalPhaseAttrib("bandingLimit", float),
                  spanningTrees=self.getOptionalPhaseAttrib("spanningTrees", int),
@@ -845,7 +808,6 @@ class CactusBarWrapper(CactusRecursionJob):
     memoryPoly = [2.81473430e-01, 2.96245523e+09]
 
     def run(self, fileStore):
-        self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
         messages = runBarForJob(self, features=self.featuresFn(), fileStore=fileStore)
         for message in messages:
             fileStore.logToMaster(message)
@@ -863,7 +825,6 @@ class CactusBarWrapperLarge(CactusRecursionJob):
         endsToAlign = []
         totalSize = 0
         precomputedAlignmentIDs = []
-        self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
         for line in runBarForJob(self, features=self.featuresFn(),
                                  fileStore=fileStore, calculateWhichEndsToComputeSeparately=True):
             endToAlign, sequencesInEndAlignment, basesInEndAlignment = line.split()
@@ -874,7 +835,6 @@ class CactusBarWrapperLarge(CactusRecursionJob):
                 alignmentID = self.addChild(CactusBarEndAlignerWrapper(self.phaseNode, self.constantsNode,
                                                         self.cactusDiskDatabaseString, self.flowerNames,
                                                         self.flowerSizes, True, [ endToAlign ],
-                                                        self.cactusSequencesID,
                                                         cactusWorkflowArguments=self.cactusWorkflowArguments)).rv()
                 precomputedAlignmentIDs.append(alignmentID)
                 logger.info("Precomputing very large end alignment for %s with %i caps and %i bases" % \
@@ -888,13 +848,12 @@ class CactusBarWrapperLarge(CactusRecursionJob):
                                                        self.cactusDiskDatabaseString,
                                                        self.flowerNames, self.flowerSizes, False,
                                                        endsToAlign,
-                                                       self.cactusSequencesID,
                                                        cactusWorkflowArguments=self.cactusWorkflowArguments)).rv()
                     precomputedAlignmentIDs.append(alignmentID)
                     endsToAlign = []
                     totalSize = 0
         if len(endsToAlign) > 0:
-            precomputedAlignmentIDs.append(self.addChild(CactusBarEndAlignerWrapper(self.phaseNode, self.constantsNode, self.cactusDiskDatabaseString, self.flowerNames, self.flowerSizes, False, endsToAlign, self.cactusSequencesID,
+            precomputedAlignmentIDs.append(self.addChild(CactusBarEndAlignerWrapper(self.phaseNode, self.constantsNode, self.cactusDiskDatabaseString, self.flowerNames, self.flowerSizes, False, endsToAlign,
                                                 cactusWorkflowArguments=self.cactusWorkflowArguments)).rv())
         self.precomputedAlignmentIDs = precomputedAlignmentIDs
         self.makeFollowOnRecursiveJob(CactusBarWrapperWithPrecomputedEndAlignments)
@@ -905,9 +864,9 @@ class CactusBarEndAlignerWrapper(CactusRecursionJob):
     """Computes an end alignment."""
     memoryPoly = [3.82834548e-01, 1.28869656e+09]
     def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, flowerSizes,
-                 overlarge, endsToAlign, cactusSequencesID, cactusWorkflowArguments):
+                 overlarge, endsToAlign, cactusWorkflowArguments):
         self.cactusWorkflowArguments = cactusWorkflowArguments
-        CactusRecursionJob.__init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, flowerSizes, overlarge, cactusSequencesID=cactusSequencesID, cactusWorkflowArguments=self.cactusWorkflowArguments, preemptable=True)
+        CactusRecursionJob.__init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, flowerSizes, overlarge, cactusWorkflowArguments=self.cactusWorkflowArguments, preemptable=True)
         self.endsToAlign = endsToAlign
 
     def run(self, fileStore):
@@ -915,7 +874,6 @@ class CactusBarEndAlignerWrapper(CactusRecursionJob):
         self.endsToAlign.sort()
         self.flowerNames = encodeFlowerNames((decodeFirstFlowerName(self.flowerNames),) + tuple(self.endsToAlign)) #The ends to align become like extra flower names
         alignmentFile = fileStore.getLocalTempFile()
-        self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
         messages = runBarForJob(self,
                                 endAlignmentsToPrecomputeOutputFile=alignmentFile)
         for message in messages:
@@ -931,12 +889,10 @@ class CactusBarWrapperWithPrecomputedEndAlignments(CactusRecursionJob):
     def run(self, fileStore):
         if self.precomputedAlignmentIDs:
             precomputedAlignments = [readGlobalFileWithoutCache(fileStore, fileID) for fileID in self.precomputedAlignmentIDs]
-            self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
             messages = runBarForJob(self, features=self.featuresFn(),
                                     fileStore=fileStore,
-                                    precomputedAlignments=" ".join(precomputedAlignments))
+                                    precomputedAlignments=precomputedAlignments)
         else:
-            self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
             messages = runBarForJob(self)
         for message in messages:
             fileStore.logToMaster(message)
@@ -953,7 +909,6 @@ class CactusNormalPhase(CactusPhasesJob):
     """Phase to normalise the graph, ensuring all chains are maximal
     """
     def run(self, fileStore):
-        assert self.cactusSequencesID
         normalisationIterations = self.getOptionalPhaseAttrib("iterations", int, default=0)
         if normalisationIterations > 0:
             self.phaseNode.attrib["normalised"] = "1"
@@ -966,7 +921,6 @@ class CactusNormalRecursion(CactusRecursionJob):
     """This job does the down pass for the normal phase.
     """
     def run(self, fileStore):
-        self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
         self.makeRecursiveJobs(fileStore=fileStore)
         return self.makeFollowOnRecursiveJob(CactusNormalRecursion2)
         
@@ -980,10 +934,8 @@ class CactusNormalWrapper(CactusRecursionJob):
     """This jobs run the normalisation script.
     """ 
     def run(self, fileStore):
-        self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
-        runCactusMakeNormal(self.cactusDiskDatabaseString, self.cactusSequencesPath, flowerNames=self.flowerNames, 
+        runCactusMakeNormal(self.cactusDiskDatabaseString, flowerNames=self.flowerNames, 
                             maxNumberOfChains=self.getOptionalPhaseAttrib("maxNumberOfChains", int, default=30))
-        return self.cactusSequencesID
 
 ############################################################
 ############################################################
@@ -1003,24 +955,20 @@ class CactusAVGRecursion(CactusRecursionJob):
     """This job does the recursive pass for the AVG phase.
     """
     def run(self, fileStore):
-        self.cactusSequencesID = self.makeWrapperJobs(CactusAVGWrapper)
+        self.makeWrapperJobs(CactusAVGWrapper)
         return self.makeFollowOnRecursiveJob(CactusAVGRecursion2)
         
 class CactusAVGRecursion2(CactusRecursionJob):
     """This job does the recursive pass for the AVG phase.
     """
     def run(self, fileStore):
-        self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
         self.makeRecursiveJobs(job=CactusAVGRecursion, fileStore=fileStore)
 
 class CactusAVGWrapper(CactusRecursionJob):
     """This job runs tree building
     """
     def run(self, fileStore):
-        assert self.cactusSequencesID
-        self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
-        runCactusPhylogeny(self.cactusDiskDatabaseString, self.cactusSequencesPath, flowerNames=self.flowerNames)
-        return self.cactusSequencesID
+        runCactusPhylogeny(self.cactusDiskDatabaseString, flowerNames=self.flowerNames)
 
 ############################################################
 ############################################################
@@ -1033,7 +981,7 @@ class CactusAVGWrapper(CactusRecursionJob):
 class CactusReferenceCheckpoint(CactusCheckpointJob):
     """Load the DB and run the final reference and HAL phases."""
     def run(self, fileStore):
-        return self.runPhaseWithPrimaryDB(CactusReferenceAndHalPhase, finalPhase=True)
+        return self.runPhaseWithPrimaryDB(CactusReferenceAndHalPhase)
 
 class CactusReferenceAndHalPhase(CactusPhasesJob):
     """Run the reference phase, then the hal phase. This intermediate job
@@ -1043,14 +991,12 @@ class CactusReferenceAndHalPhase(CactusPhasesJob):
         self.addChild(CactusReferencePhase(cactusWorkflowArguments=self.cactusWorkflowArguments,
                                            phaseName="reference",
                                            topFlowerName=self.topFlowerName,
-                                           cactusSequencesID=self.cactusSequencesID,
                                            halID=self.halID, fastaID=self.fastaID))
         return self.makeFollowOnPhaseJob(CactusHalGeneratorPhase, "hal")
 
 class CactusReferencePhase(CactusPhasesJob):
     """Runs the reference problem algorithm"""
     def run(self, fileStore):
-        assert self.cactusSequencesID
         self.setupSecondaryDatabase()
         self.phaseNode.attrib["experimentPath"] = self.cactusWorkflowArguments.experimentFile
         self.phaseNode.attrib["secondaryDatabaseString"] = self.cactusWorkflowArguments.secondaryDatabaseString
@@ -1064,9 +1010,7 @@ class CactusReferenceRecursion(CactusRecursionJob):
     memoryPoly = [2e+09]
 
     def run(self, fileStore):
-        assert self.cactusSequencesID
-        logger.info("DatabaseID in RefRecursion: %s" % self.cactusSequencesID)
-        self.cactusSequencesID = self.makeWrapperJobs(CactusReferenceWrapper, runFlowerStats=True)
+        self.makeWrapperJobs(CactusReferenceWrapper, runFlowerStats=True)
         return self.makeFollowOnRecursiveJob(CactusReferenceRecursion2)
 
 class CactusReferenceWrapper(CactusRecursionJob):
@@ -1076,14 +1020,10 @@ class CactusReferenceWrapper(CactusRecursionJob):
     feature = 'maxFlowerSize'
 
     def run(self, fileStore):
-        assert self.cactusSequencesID
-        logger.info("Reading database in RefWrapper: %s" % self.cactusSequencesID)
-        self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID, mutable=True)
         runCactusReference(fileStore=fileStore,
                        jobName=self.__class__.__name__,
                        features=self.featuresFn(),
                        cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
-                       cactusSequencesPath = self.cactusSequencesPath,
                        flowerNames=self.flowerNames, 
                        matchingAlgorithm=self.getOptionalPhaseAttrib("matchingAlgorithm"), 
                        permutations=self.getOptionalPhaseAttrib("permutations", int),
@@ -1097,14 +1037,12 @@ class CactusReferenceWrapper(CactusRecursionJob):
                        numberOfNs=self.getOptionalPhaseAttrib("numberOfNs", int),
                        minNumberOfSequencesToSupportAdjacency=self.getOptionalPhaseAttrib("minNumberOfSequencesToSupportAdjacency", int),
                        makeScaffolds=self.getOptionalPhaseAttrib("makeScaffolds", bool))
-        return fileStore.writeGlobalFile(self.cactusSequencesPath)
 
 class CactusReferenceRecursion2(CactusRecursionJob):
     memoryPoly = [2e+09]
     def run(self, fileStore):
-        self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
-        self.cactusSequencesID = self.makeRecursiveJobs(fileStore=fileStore,
-                                                        job=CactusReferenceRecursion)
+        self.makeRecursiveJobs(fileStore=fileStore,
+                               job=CactusReferenceRecursion)
         return self.makeFollowOnRecursiveJob(CactusReferenceRecursion3)
 
 class CactusReferenceRecursion3(CactusRecursionJob):
@@ -1120,18 +1058,14 @@ class CactusSetReferenceCoordinatesUpWrapper(CactusRecursionJob):
     feature = 'maxFlowerSize'
 
     def run(self, fileStore):
-        self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID, mutable=True)
-        assert os.path.exists(self.cactusSequencesPath)
         runCactusAddReferenceCoordinates(fileStore=fileStore, jobName=self.__class__.__name__,
                                          features=self.featuresFn(),
                                          cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
-                                         cactusSequencesPath = self.cactusSequencesPath,
                                          secondaryDatabaseString=self.getOptionalPhaseAttrib("secondaryDatabaseString"),
                                          flowerNames=self.flowerNames,
                                          referenceEventString=self.getOptionalPhaseAttrib("reference"),
                                          outgroupEventString=self.getOptionalPhaseAttrib("outgroup"),
                                          bottomUpPhase=True)
-        return fileStore.writeGlobalFile(self.cactusSequencesPath)
         
 class CactusSetReferenceCoordinatesDownPhase(CactusPhasesJob):
     """This is the second part of the reference coordinate setting, the down pass.
@@ -1146,15 +1080,13 @@ class CactusSetReferenceCoordinatesDownRecursion(CactusRecursionJob):
     memoryPoly = [2e+09]
 
     def run(self, fileStore):
-        assert self.cactusSequencesID
-        self.cactusSequencesID = self.makeWrapperJobs(CactusSetReferenceCoordinatesDownWrapper)
+        self.makeWrapperJobs(CactusSetReferenceCoordinatesDownWrapper)
         return self.makeFollowOnRecursiveJob(CactusSetReferenceCoordinatesDownRecursion2)
 
 class CactusSetReferenceCoordinatesDownRecursion2(CactusRecursionJob):
     memoryPoly = [2e+09]
 
     def run(self, fileStore):
-        self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
         return self.makeRecursiveJobs(fileStore=fileStore,
                                       job=CactusSetReferenceCoordinatesDownRecursion)
         
@@ -1165,24 +1097,18 @@ class CactusSetReferenceCoordinatesDownWrapper(CactusRecursionJob):
     feature = 'maxFlowerSize'
 
     def run(self, fileStore):
-        assert self.cactusSequencesID
-        self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID, mutable=True)
         runCactusAddReferenceCoordinates(fileStore=fileStore, features=self.featuresFn(),
                                          jobName=self.__class__.__name__,
                                          cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
-                                         cactusSequencesPath = self.cactusSequencesPath,
                                          flowerNames=self.flowerNames,
                                          referenceEventString=self.getOptionalPhaseAttrib("reference"),
                                          outgroupEventString=self.getOptionalPhaseAttrib("outgroup"), 
                                          bottomUpPhase=False)
-        return fileStore.writeGlobalFile(self.cactusSequencesPath)
 
 class CactusExtractReferencePhase(CactusPhasesJob):
     memoryPoly = [2.24519561e+00, 4.70479486e+08]
 
     def run(self, fileStore):
-        assert self.cactusSequencesID
-        self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
         experiment = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
         if hasattr(self.cactusWorkflowArguments, 'buildReference') and\
                self.cactusWorkflowArguments.buildReference:
@@ -1193,8 +1119,8 @@ class CactusExtractReferencePhase(CactusPhasesJob):
                     eventName = eventName[:eventName.rfind('.')]
                     referencePath = fileStore.getLocalTempFile()
                     cactus_call(parameters=["cactus_getReferenceSeq"],
-                                option_string="--cactusDisk '%s' --cactusSequencesPath '%s' --flowerName 0 --referenceEventString %s --outputFile %s --logLevel %s" % 
-                              (self.cactusWorkflowArguments.cactusDiskDatabaseString, os.path.basename(self.cactusSequencesPath), 
+                                option_string="--cactusDisk '%s' --flowerName 0 --referenceEventString %s --outputFile %s --logLevel %s" % 
+                              (self.cactusWorkflowArguments.cactusDiskDatabaseString,
                                       eventName, os.path.basename(referencePath), getLogLevelString()))
                     experiment.setReferenceID(fileStore.writeGlobalFile(referencePath))
         self.cactusWorkflowArguments.experimentWrapper = experiment
@@ -1222,7 +1148,6 @@ class CactusCheckRecursion(CactusRecursionJob):
     """This job does the recursive pass for the check phase.
     """
     def run(self, fileStore):
-        self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
         self.makeRecursiveJobs(fileStore=fileStore)
         self.makeWrapperJobs(CactusCheckWrapper)
         
@@ -1230,9 +1155,7 @@ class CactusCheckWrapper(CactusRecursionJob):
     """Runs the actual check wrapper
     """
     def run(self, fileStore):
-        self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
-        runCactusCheck(self.cactusDiskDatabaseString, self.cactusSequencesPath, self.flowerNames, checkNormalised=self.getOptionalPhaseAttrib("checkNormalised", bool, False))
-        return self.cactusSequencesID
+        runCactusCheck(self.cactusDiskDatabaseString, self.flowerNames, checkNormalised=self.getOptionalPhaseAttrib("checkNormalised", bool, False))
 
 ############################################################
 ############################################################
@@ -1275,14 +1198,11 @@ class CactusFastaGenerator(CactusRecursionJob):
     feature = 'totalSequenceSize'
 
     def run(self, fileStore):
-        assert self.cactusSequencesID
-        self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
         tmpFasta = fileStore.getLocalTempFile()
         runCactusFastaGenerator(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
-                                    cactusSequencesPath=self.cactusSequencesPath,
-                                    flowerName=decodeFirstFlowerName(self.flowerNames),
-                                    outputFile=tmpFasta,
-                                    referenceEventString=self.getOptionalPhaseAttrib("reference"))
+                                flowerName=decodeFirstFlowerName(self.flowerNames),
+                                outputFile=tmpFasta,
+                                referenceEventString=self.getOptionalPhaseAttrib("reference"))
         return fileStore.writeGlobalFile(tmpFasta)
 
 class CactusHalGeneratorRecursion(CactusRecursionJob):
@@ -1294,7 +1214,6 @@ class CactusHalGeneratorRecursion(CactusRecursionJob):
         if "outputFile" in i.attrib:
             i.attrib.pop("outputFile")
 
-        self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
         self.makeRecursiveJobs(fileStore=fileStore, phaseNode=i)
         return self.makeFollowOnRecursiveJob(CactusHalGeneratorUpWrapper)
 
@@ -1307,13 +1226,10 @@ class CactusHalGeneratorUpWrapper(CactusRecursionJob):
             tmpHal = fileStore.getLocalTempFile()
         else:
             tmpHal = None
-        logger.info("DatabaseID in HalGeneratorUpWrapper: %s" % self.cactusSequencesID)
-        self.cactusSequencesPath = fileStore.readGlobalFile(self.cactusSequencesID)
         runCactusHalGenerator(jobName=self.__class__.__name__,
                               features=self.featuresFn(),
                               fileStore=fileStore,
                               cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
-                              cactusSequencesPath=self.cactusSequencesPath,
                               secondaryDatabaseString=self.getOptionalPhaseAttrib("secondaryDatabaseString"),
                               flowerNames=self.flowerNames,
                               referenceEventString=self.getOptionalPhaseAttrib("reference"),

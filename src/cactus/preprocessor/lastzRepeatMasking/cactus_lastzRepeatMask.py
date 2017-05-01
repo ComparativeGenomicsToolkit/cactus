@@ -50,7 +50,7 @@ class AlignFastaFragments(RoundedJob):
     def __init__(self, repeatMaskOptions, fragmentsID, targetIDs):
         if hasattr(fragmentsID, "size"):
             targetsSize = sum(targetID.size for targetID in targetIDs)
-            memory = 2*(fragmentsID.size + targetsSize)
+            memory = 3500000000
             disk = 2*(fragmentsID.size + targetsSize)
         else:
             memory = None
@@ -59,11 +59,11 @@ class AlignFastaFragments(RoundedJob):
         self.repeatMaskOptions = repeatMaskOptions
         self.fragmentsID = fragmentsID
         self.targetIDs = targetIDs
+
     def run(self, fileStore):
         # Align each fragment against a chunk of the input sequence.  Each time a fragment aligns to a base
         # in the sequence, that base's match count is incremented.
         # the plus three for the period parameter is a fudge to ensure sufficient alignments are found
-
         fragments = fileStore.readGlobalFile(self.fragmentsID)
         targetFiles = [fileStore.readGlobalFile(fileID) for fileID in self.targetIDs]
         target = fileStore.getLocalTempFile()
@@ -78,29 +78,13 @@ class AlignFastaFragments(RoundedJob):
                                 "--querydepth=keep,nowarn:%i --format=general:name1,zstart1,end1,name2,zstart2+,end2+ --markend" % (self.repeatMaskOptions.period+3)])
         return fileStore.writeGlobalFile(alignment)
 
-class CollateAlignments(RoundedJob):
-    def __init__(self, alignmentIDs):
-        if hasattr(alignmentIDs[0], "size"):
-            disk = 2*sum([alignmentID.size for alignmentID in alignmentIDs])
-        else:
-            disk = None
-        RoundedJob.__init__(self, disk=disk, preemptable=True)
-        self.alignmentIDs = alignmentIDs
-    def run(self, fileStore):
-        alignments = [readGlobalFileWithoutCache(fileStore, alignmentID) for alignmentID in self.alignmentIDs]
-
-        #Sort the alignments by the start position of the alignment in the chunk
-        #being repeat-masked. These will be out of order due to the parallelization
-        sortedAlignments = fileStore.getLocalTempFile()
-        system("cat %s | awk '@include \"join\";{split($4,a,\"_\"); $5 += a[length(a)]; $6 += a[length(a)]; $4 = join(a, 1, length(a) - 1, \"_\"); print $0}' | sort -k4,4 -k5,5n > %s" % (" ".join(alignments), sortedAlignments))
-        return fileStore.writeGlobalFile(sortedAlignments)
-
 class MaskCoveredIntervals(RoundedJob):
     def __init__(self, repeatMaskOptions, alignmentsID, queryID):
         RoundedJob.__init__(self, preemptable=True)
         self.repeatMaskOptions = repeatMaskOptions
         self.alignmentsID = alignmentsID
         self.queryID = queryID
+
     def run(self, fileStore):
         #This runs Bob's covered intervals program, which combins the lastz alignment info into intervals of the query.
         alignments = fileStore.readGlobalFile(self.alignmentsID)
@@ -108,6 +92,7 @@ class MaskCoveredIntervals(RoundedJob):
         maskInfo = fileStore.getLocalTempFile()
         cactus_call(infile=alignments, outfile=maskInfo,
                     parameters=["cactus_covered_intervals",
+                                "--queryoffsets",
                                 "--origin=one",
                                 "M=%s" % (int(self.repeatMaskOptions.period*2))])
 
@@ -123,7 +108,8 @@ class MaskCoveredIntervals(RoundedJob):
                                 "--origin=one",
                                 unmaskString,
                                 maskInfo])
-        return fileStore.writeGlobalFile(maskedQuery)
+        tmp = fileStore.writeGlobalFile(maskedQuery)
+        return tmp
 
 class LastzRepeatMaskJob(RoundedJob):
     def __init__(self, repeatMaskOptions, queryID, targetIDs):
@@ -147,18 +133,10 @@ class LastzRepeatMaskJob(RoundedJob):
                                 "--origin=zero"])
         fragmentsID = fileStore.writeGlobalFile(fragOutput)
 
-        alignmentJobs = []
-        alignmentIDs = []
         alignmentJob = self.addChild(AlignFastaFragments(repeatMaskOptions=self.repeatMaskOptions, 
                     fragmentsID=fragmentsID, targetIDs=self.targetIDs))
-        alignmentIDs.append(alignmentJob.rv())
-        alignmentJobs.append(alignmentJob)
 
-        mergeAlignmentsJob = self.addChild(CollateAlignments(alignmentIDs=alignmentIDs))
-        for alignmentJob in alignmentJobs:
-            alignmentJob.addFollowOn(mergeAlignmentsJob)
-
-        maskCoveredIntervalsJob = self.addChild(MaskCoveredIntervals(repeatMaskOptions=self.repeatMaskOptions, alignmentsID = mergeAlignmentsJob.rv(), queryID=self.queryID))
-        mergeAlignmentsJob.addFollowOn(maskCoveredIntervalsJob)
+        maskCoveredIntervalsJob = self.addChild(MaskCoveredIntervals(repeatMaskOptions=self.repeatMaskOptions, alignmentsID=alignmentJob.rv(), queryID=self.queryID))
+        alignmentJob.addFollowOn(maskCoveredIntervalsJob)
 
         return maskCoveredIntervalsJob.rv()

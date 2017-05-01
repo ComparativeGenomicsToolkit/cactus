@@ -54,8 +54,7 @@ class PreprocessorOptions:
         self.minPeriod = minPeriod
 
 class PreprocessChunk(RoundedJob):
-    """ locally preprocess a fasta chunk, output then copied back to input
-    """
+    """locally preprocess a fasta chunk, output then copied back to input"""
     def __init__(self, prepOptions, seqIDs, proportionSampled, inChunkID):
         disk = sum([seqID.size for seqID in seqIDs]) + 3*inChunkID.size
         RoundedJob.__init__(self, memory=prepOptions.memory, cores=prepOptions.cpu, disk=disk,
@@ -63,19 +62,18 @@ class PreprocessChunk(RoundedJob):
         self.prepOptions = prepOptions 
         self.seqIDs = seqIDs
         self.inChunkID = inChunkID
-    
+
     def run(self, fileStore):
         outChunkID = None
         if self.prepOptions.preprocessJob == "checkUniqueHeaders":
             inChunk = fileStore.readGlobalFile(self.inChunkID)
-            outChunk = fileStore.getLocalTempFile()
             seqPaths = [fileStore.readGlobalFile(fileID) for fileID in self.seqIDs]
             seqString = " ".join(seqPaths)
             cactus_call(stdin_string=seqString,
                         parameters=["cactus_checkUniqueHeaders.py",
                                     nameValue("checkAssemblyHub", self.prepOptions.checkAssemblyHub, bool),
-                                    outChunk])
-            outChunkID = fileStore.writeGlobalFile(outChunk)
+                                    inChunk])
+            outChunkID = self.inChunkID
         elif self.prepOptions.preprocessJob == "lastzRepeatMask":
             repeatMaskOptions = RepeatMaskOptions(proportionSampled=self.prepOptions.proportionToSample,
                     minPeriod=self.prepOptions.minPeriod)
@@ -83,12 +81,8 @@ class PreprocessChunk(RoundedJob):
                     queryID=self.inChunkID, targetIDs=self.seqIDs)).rv()
         elif self.prepOptions.preprocessJob == "none":
             outChunkID = self.inChunkID
-        
-        
-        if self.prepOptions.check:
-            return self.inChunkID
-        else:
-            return outChunkID
+
+        return outChunkID
 
 class MergeChunks(RoundedJob):
     def __init__(self, prepOptions, chunkIDList):
@@ -97,12 +91,10 @@ class MergeChunks(RoundedJob):
         self.chunkIDList = chunkIDList
 
     def run(self, fileStore):
-
         return self.addFollowOn(MergeChunks2(self.prepOptions, self.chunkIDList)).rv()
 
 class MergeChunks2(RoundedJob):
-    """ merge a list of chunks into a fasta file
-    """
+    """merge a list of chunks into a fasta file"""
     def __init__(self, prepOptions, chunkIDList):
         disk = 2*sum([chunkID.size for chunkID in chunkIDList])
         RoundedJob.__init__(self, cores=prepOptions.cpu, memory=prepOptions.memory, disk=disk,
@@ -119,7 +111,7 @@ class MergeChunks2(RoundedJob):
         cactus_call(outfile=outSequencePath, stdin_string=" ".join(chunkList),
                     parameters=["cactus_batch_mergeChunks"])
         return fileStore.writeGlobalFile(outSequencePath)
- 
+
 class PreprocessSequence(RoundedJob):
     """Cut a sequence into chunks, process, then merge
     """
@@ -130,7 +122,7 @@ class PreprocessSequence(RoundedJob):
         self.prepOptions = prepOptions 
         self.inSequenceID = inSequenceID
         self.chunksToCompute = chunksToCompute
-    
+
     def run(self, fileStore):
         logger.info("Preparing sequence for preprocessing")
         # chunk it up
@@ -175,7 +167,6 @@ class BatchPreprocessor(RoundedJob):
     def __init__(self, prepXmlElems, inSequenceID, iteration = 0):
         self.prepXmlElems = prepXmlElems
         self.inSequenceID = inSequenceID
-        prepNode = self.prepXmlElems[iteration]
         self.iteration = iteration
         RoundedJob.__init__(self, preemptable=True)
               
@@ -195,9 +186,7 @@ class BatchPreprocessor(RoundedJob):
                                           minPeriod = getOptionalAttrib(prepNode, "minPeriod", typeFn=int, default="0"),
                                           checkAssemblyHub = getOptionalAttrib(prepNode, "checkAssemblyHub", typeFn=bool, default=False))
         
-        #output to temporary directory unless we are on the last iteration
         lastIteration = self.iteration == len(self.prepXmlElems) - 1
-
 
         if prepOptions.unmask:
             inSequence = fileStore.readGlobalFile(self.inSequenceID)
@@ -275,11 +264,11 @@ class CactusPreprocessor2(RoundedJob):
     def run(self, fileStore):
         inputSequenceFile = fileStore.readGlobalFile(self.inputSequenceID)
         prepXmlElems = self.configNode.findall("preprocessor")
-        
-        #analysisString = runCactusAnalyseAssembly(inputSequenceFile)
-        #fileStore.logToMaster("Before running any preprocessing on the assembly: %s got following stats (assembly may be listed as temp file if input sequences from a directory): %s" % \
-        #                 (self.inputSequenceID, analysisString))
-        
+
+        analysisString = runCactusAnalyseAssembly(inputSequenceFile)
+        fileStore.logToMaster("Before running any preprocessing on the assembly: %s got following stats (assembly may be listed as temp file if input sequences from a directory): %s" % \
+                         (self.inputSequenceID, analysisString))
+
         if len(prepXmlElems) == 0: #Just cp the file to the output file
             return self.inputSequenceID
         else:
@@ -299,7 +288,8 @@ def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil):
 
 def runCactusPreprocessor(outputSequenceDir, configFile, inputSequences, toilDir):
     toilOptions = Job.Runner.getDefaultOptions(toilDir)
-    toilOptions.logLevel = "CRITICAL"
+    toilOptions.logLevel = "INFO"
+    toilOptions.disableCaching = True
     with Toil(toilOptions) as toil:
         stageWorkflow(outputSequenceDir, configFile, inputSequences, toil)
                     

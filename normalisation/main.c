@@ -24,8 +24,6 @@ void usage() {
     fprintf(stderr, "-a --logLevel : Set the log level\n");
     fprintf(stderr,
             "-c --cactusDisk : stKVDatabase conf string for the cactus database\n");
-    fprintf(stderr,
-            "-d --cactusSequencesPath : The location of the cactusSequences file\n");
     fprintf(
             stderr,
             "-e --maxNumberOfChains : The maximum number of individual chains to promote into a flower.\n");
@@ -42,7 +40,6 @@ int main(int argc, char *argv[]) {
      */
     char * logLevelString = NULL;
     char * cactusDiskDatabaseString = NULL;
-    char * cactusSequencesPath = NULL;
     int64_t j;
     int64_t maxNumberOfChains = 0;
 
@@ -53,7 +50,7 @@ int main(int argc, char *argv[]) {
     while (1) {
         static struct option long_options[] = { { "logLevel",
                 required_argument, 0, 'a' }, { "cactusDisk", required_argument,
-                0, 'c' }, {"cactusSequencesPath", required_argument, 0, 'd'}, { "maxNumberOfChains", required_argument, 0, 'e' }, {
+                0, 'c' }, { "maxNumberOfChains", required_argument, 0, 'e' }, {
                 "help", no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
@@ -71,9 +68,6 @@ int main(int argc, char *argv[]) {
                 break;
             case 'c':
                 cactusDiskDatabaseString = stString_copy(optarg);
-                break;
-            case 'd':
-                cactusSequencesPath = stString_copy(optarg);
                 break;
             case 'e':
                 j = sscanf(optarg, "%" PRIi64 "", &maxNumberOfChains);
@@ -94,7 +88,6 @@ int main(int argc, char *argv[]) {
 
     //assert(logLevelString == NULL || strcmp(logLevelString, "CRITICAL") == 0 || strcmp(logLevelString, "INFO") == 0 || strcmp(logLevelString, "DEBUG") == 0);
     assert(cactusDiskDatabaseString != NULL);
-    assert(cactusSequencesPath != NULL);
 
     //////////////////////////////////////////////
     //Set up logging
@@ -108,7 +101,7 @@ int main(int argc, char *argv[]) {
 
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(
             cactusDiskDatabaseString);
-    CactusDisk *cactusDisk = cactusDisk_construct2(kvDatabaseConf, false, cactusSequencesPath, true);
+    CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, false, true);
     st_logInfo("Set up the flower disk\n");
 
     ///////////////////////////////////////////////////////////////////////////

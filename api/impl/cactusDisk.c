@@ -502,7 +502,9 @@ static void cactusDisk_loadFromBinaryRepresentation(void **binaryString, CactusD
     cactusDisk->absSequencesFileName = NULL;
     assert(binaryRepresentation_peekNextElementType(*binaryString) == CODE_CACTUS_DISK);
     binaryRepresentation_popNextElementType(binaryString);
-    cactusDisk->storeSequencesInAFile = binaryRepresentation_getBool(binaryString);
+    // We intentionally discard the "storeSequencesInAFile" flag for
+    // backward compatibility.
+    binaryRepresentation_getBool(binaryString);
     if (cactusDisk->storeSequencesInAFile) {
 	cactusDisk->sequencesFileName = binaryRepresentation_getString(binaryString);
 	if (stKVDatabaseConf_getDir(conf) == NULL) {
@@ -695,11 +697,6 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf, bool crea
 
 CactusDisk *cactusDisk_construct(stKVDatabaseConf *conf, bool create, bool cache) {
     return cactusDisk_constructPrivate(conf, create, NULL, cache);
-}
-
-CactusDisk *cactusDisk_construct2(stKVDatabaseConf *conf, bool create, const char *sequencesFileName,
-                                  bool cache) {
-    return cactusDisk_constructPrivate(conf, create, sequencesFileName, cache);
 }
 
 void cactusDisk_destruct(CactusDisk *cactusDisk) {
@@ -1059,4 +1056,8 @@ int64_t cactusDisk_getUniqueID(CactusDisk *cactusDisk) {
 
 void cactusDisk_clearStringCache(CactusDisk *cactusDisk) {
     stCache_clear(cactusDisk->stringCache);
+}
+
+void cactusDisk_clearCache(CactusDisk *cactusDisk) {
+    stCache_clear(cactusDisk->cache);
 }
