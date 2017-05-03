@@ -6,20 +6,10 @@
 
 import os
 import sys
-import random
-import math
-import xml.etree.ElementTree as ET
-
-from toil.lib.bioio import getTempFile, logger
+from toil.lib.bioio import getTempFile
 from toil.job import Job
-from cactus.shared.experimentWrapper import DbElemWrapper
-from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.pipeline.ktserverControl import runKtserver
 from cactus.pipeline.ktserverControl import blockUntilKtserverIsRunning
-from cactus.pipeline.ktserverControl import killKtServer
-from cactus.pipeline.ktserverControl import getKtServerReport
-from cactus.pipeline.ktserverControl import ktServerAlreadyRunning
-from cactus.pipeline.ktserverControl import getHostName
 from cactus.pipeline.ktserverControl import getLogPath
 
 
@@ -54,15 +44,15 @@ class KtServerService(Job.Service):
         blockUntilKtserverIsRunning(self.dbElem, self.killSwitchPath, self.blockTimeout, self.blockTimestep)
         return self.dbElem.getConfString()
         
-
     def stop(self, job):
         if self.process:
-            self.process.kill()
+            self.process.terminate()
         logPath = getLogPath(self.dbElem)
         if os.path.exists(logPath):
             os.remove(logPath)
         if self.killSwitchPath:
             os.remove(self.killSwitchPath)
+
     def check(self):
         return True
     
