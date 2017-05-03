@@ -1,5 +1,4 @@
 set -e
-
 # We forward any termination signals we receive to the underlying
 # process tree. -1 is always our process group ID when running in a
 # container.
@@ -27,4 +26,5 @@ done
 
 >&2 echo "Running command ${options}"
 eval "${options}" <&0 &
-wait
+wait $!
+exit $?
