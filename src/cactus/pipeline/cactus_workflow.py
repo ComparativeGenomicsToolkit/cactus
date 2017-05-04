@@ -176,8 +176,7 @@ class CactusPhasesJob(CactusJob):
         if launchSecondaryKtForRecursiveJob and ExperimentWrapper(self.cactusWorkflowArguments.experimentNode).getDbType() == "kyoto_tycoon":
             cw = ConfigWrapper(self.cactusWorkflowArguments.configNode)
             memory = self.evaluateResourcePoly([4.10201882, 2.01324291e+08])
-            cpu = cw.getKtserverCpu(default=getOptionalAttrib(
-                    self.constantsNode, "defaultCpu", int, default=0))
+            cpu = cw.getKtserverCpu(default=0.1)
             dbElem = ExperimentWrapper(self.cactusWorkflowArguments.scratchDbElemNode)
             dbString = self.addService(KtServerService(dbElem = dbElem, isSecondary = True, memory=memory, cores=cpu))
             newChild.phaseNode.attrib["secondaryDatabaseString"] = dbString
@@ -265,7 +264,7 @@ class StartPrimaryDB(CactusPhasesJob):
 
         if self.cactusWorkflowArguments.experimentWrapper.getDbType() == "kyoto_tycoon":
             memory = self.evaluateResourcePoly([4.10201882, 2.01324291e+08])
-            cores = cw.getKtserverCpu(default=1)
+            cores = cw.getKtserverCpu(default=0.1)
             dbElem = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
             dbString = self.addService(KtServerService(dbElem=dbElem, isSecondary=False,
                                                        memory=memory, cores=cores))
