@@ -513,7 +513,7 @@ def chunkFileByLines(path, pieces):
     system("split -l %s %s %s/part" % (linesPerFile, path, tempDir))
     return tempDir
 
-def dumpKtServer(dbElem, path, numProcesses=30):
+def dumpKtServer(dbElem, path, numProcesses=10):
     """Dump the KT server to 'path' as a gzipped TSV file."""
     temp = getTempFile()
     cactus_call(outfile=temp, parameters=['ktremotemgr', 'list', '-px'] + getRemoteParams(dbElem))
