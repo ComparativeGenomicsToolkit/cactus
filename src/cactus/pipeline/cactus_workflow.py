@@ -304,9 +304,10 @@ class SavePrimaryDB(CactusPhasesJob):
         dumpKtServer(dbElem, tempPath)
         clearKtServer(dbElem)
         dumpFile = fileStore.writeGlobalFile(tempPath)
-        if self.cactusWorkflowArguments.dumpDBsToURL is not None:
+        dumpDBsToURL = getattr(self.cactusWorkflowArguments, 'dumpDBsToURL', None)
+        if dumpDBsToURL:
             # The user requested to keep the DB dumps in a separate place. Export it there.
-            url = self.cactusWorkflowArguments.dumpDBsToURL + "-" + self.phaseName
+            url = dumpDBsToURL + "-" + self.phaseName
             fileStore.exportFile(dumpFile, url)
         return dumpFile
 
@@ -1370,7 +1371,7 @@ def runCactusWorkflow(args):
             seqIDMap[name] = toil.importFile(makeURL(fullSeq))
 
         configNode = ET.parse(experimentWrapper.getConfigPath()).getroot()
-        cactusWorkflowArguments = CactusWorkflowArguments(options, experimentFile = options.experimentFile, configNode=configNode, seqIDMap=seqIDMap)
+        cactusWorkflowArguments = CactusWorkflowArguments(options, experimentFile=options.experimentFile, configNode=configNode, seqIDMap=seqIDMap)
 
         toil.start(RunCactusPreprocessorThenCactusSetup(options, cactusWorkflowArguments))
 
