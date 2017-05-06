@@ -755,8 +755,7 @@ class CactusCafWrapper(CactusRecursionJob):
 class CactusBarCheckpoint(CactusCheckpointJob):
     """Load the DB, run the BAR, AVG, and normalization phases, save the DB, then run the reference checkpoint."""
     def run(self, fileStore):
-        ktServerDump = self.runPhaseWithPrimaryDB(CactusBarPhase)
-        return self.makeFollowOnCheckpointJob(CactusReferenceCheckpoint, "reference", ktServerDump=ktServerDump)
+        return self.runPhaseWithPrimaryDB(CactusBarPhase)
 
 class CactusBarPhase(CactusPhasesJob):
     """Runs bar algorithm."""
@@ -949,7 +948,7 @@ class CactusAVGPhase(CactusPhasesJob):
     """Phase to build avgs for each flower.
     """       
     def run(self, fileStore):
-        return self.runPhase(CactusAVGRecursion, SavePrimaryDB, 'avg', doRecursion=self.getOptionalPhaseAttrib("buildAvgs", bool, False))
+        return self.runPhase(CactusAVGRecursion, CactusReferenceAndHalPhase, 'avg', doRecursion=self.getOptionalPhaseAttrib("buildAvgs", bool, False))
 
 class CactusAVGRecursion(CactusRecursionJob):
     """This job does the recursive pass for the AVG phase.
