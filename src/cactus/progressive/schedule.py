@@ -63,27 +63,13 @@ class Schedule:
             # they are needed to form the correct paths).
             for node in tree.postOrderTraversal():
                 nodeName = tree.getName(node)
-                if not tree.isLeaf(node) and nodeName not in exp.getOutgroupEvents():
-                    # This node is just an internal node added while
-                    # creating the induced tree from the species
-                    # tree. None of the sequence is used, so skip it.
-                    continue
-
-                assert tree.hasParent(node)
-
-                if nodeName not in exp.getOutgroupEvents() and tree.getName(tree.getParent(node)) != name:
-                    # This leaf isn't an ingroup or an outgroup, it was
-                    # just added to make the species tree
-                    # binary. (Hopefully this will be unnecessary in
-                    # the future.)
-                    continue
 
                 # we don't add edges for leaves (in the global tree)
                 # as they are input sequences and do not form dependencies
                 # (it would be clever to maybe do the same with existing
                 # references when --overwrite is not specified but for now
                 # we just do the leaves)
-                if nodeName not in leafEvents:
+                if nodeName not in leafEvents and nodeName in exp.getSequenceMap():
                     self.inGraph.add_edge(name, nodeName)
             configFile = fileStore.readGlobalFile(exp.getConfigID())
             configElem = ET.parse(configFile).getroot()

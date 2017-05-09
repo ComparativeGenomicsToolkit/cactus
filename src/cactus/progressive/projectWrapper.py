@@ -151,8 +151,13 @@ class ProjectWrapper:
                          "force restart from scratch.\n")
            logFile.close()
         else:
+            if len(self.seqFile.outgroups) == 0:
+                # No outgroups specified, assume the default outgroup set
+                outgroups = None
+            else:
+                outgroups = self.seqFile.outgroups
             runCreateMultiCactusProject(expPath, projPath, fixNames=fixNames,
-                    outgroupNames=self.seqFile.outgroups,
+                    outgroupNames=outgroups,
                     rootOutgroupDists=self.options.rootOutgroupDists,
                     rootOutgroupPaths=self.options.rootOutgroupPaths,
                     root=self.options.root)

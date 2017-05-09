@@ -244,7 +244,7 @@ class RunCactusPreprocessorThenProgressiveDown(RoundedJob):
 
         #Now build the progressive-down job
         schedule = Schedule()
-        schedule.loadProject(self.project, fileStore = fileStore)
+        schedule.loadProject(self.project, fileStore=fileStore)
         schedule.compute()
         if self.options.event == None:
             self.options.event = self.project.mcTree.getRootName()
@@ -434,10 +434,6 @@ def main():
 
 
     options = parser.parse_args()
-
-    #Toil's default is way too low to accommodate downloading
-    #containers
-    options.deadlockWait = 2000
 
     if options.latest:
         os.environ["CACTUS_USE_LATEST"] = "1"
