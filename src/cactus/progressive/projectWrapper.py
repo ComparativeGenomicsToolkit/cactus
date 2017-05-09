@@ -74,19 +74,6 @@ class ProjectWrapper:
         # here we can go through the options and apply some to the config
         self.configWrapper.setBuildHal(True)
         self.configWrapper.setBuildFasta(True)
-        if self.options.outputMaf is not None:
-            self.configWrapper.setBuildMaf(True)
-            self.configWrapper.setJoinMaf(True)
-        # pre-emptively turn down maxParallelSubtree for singleMachine
-        # mode if not enough threads are provided to support it.  Probably
-        # need to do something for other ?combined? batch systems?
-        #if self.options.batchSystem == 'singleMachine' and \
-        #       self.options.database == 'kyoto_tycoon':
-        #    if int(self.options.maxThreads) < \
-        #           self.configWrapper.getMaxParallelSubtrees() * 3:
-        #        self.configWrapper.setMaxParallelSubtrees(
-        #            max(1, int(self.options.maxThreads) / 3)) 
-
         # this is a little hack to effectively toggle back to the
         # non-progressive version of cactus (as published in Gen. Res. 2011)
         # from the high-level interface. 

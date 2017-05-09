@@ -263,10 +263,17 @@ class RunCactusPreprocessorThenProgressiveDown2(RoundedJob):
         self.project = project
         self.event = event
         self.schedule = schedule
+
     def run(self, fileStore):
         self.configNode = ET.parse(fileStore.readGlobalFile(self.project.getConfigID())).getroot()
         self.configWrapper = ConfigWrapper(self.configNode)
         self.configWrapper.substituteAllPredefinedConstantsWithLiterals()
+
+        # Save preprocessed sequences
+        if self.options.urlToSaveSequencesTo is not None:
+            preprocessedSequences = self.project.getOutputSequenceIDMap()
+            for genome, seqID in preprocessedSequences.items():
+                fileStore.exportFile(seqID, self.options.urlToSaveSequencesTo + '-' + genome)
 
         project = self.addChild(ProgressiveDown(options=self.options, project=self.project, event=self.event, schedule=self.schedule, memory=self.configWrapper.getDefaultMemory())).rv()
 
@@ -338,9 +345,6 @@ def main():
     parser.add_argument("outputHal", type=str, help = "Output HAL file")
 
     #Progressive Cactus Options
-    parser.add_argument("--optionsFile", dest="optionsFile",
-                      help="Text file containing command line options to use as"\
-                      " defaults", default=None)
     parser.add_argument("--database", dest="database",
                       help="Database type: tokyo_cabinet or kyoto_tycoon"
                       " [default: %(default)s]",
@@ -380,6 +384,8 @@ def main():
                       "in the tree may be used as outgroups but will never appear"
                       " in the output.  If no root is specifed then the root"
                       " of the tree is used. ", default=None)
+    parser.add_argument("--urlToSaveSequencesTo", help="URL prefix to save "
+                        "preprocessed sequences to", default=None)
 
     #Kyoto Tycoon Options
     ktGroup = parser.add_argument_group("kyoto_tycoon Options",
@@ -457,7 +463,6 @@ def main():
         #Run the workflow
         if options.restart:
             halID = toil.restart()
-
         else:
             project.readXML(pjPath)
             #import the sequences

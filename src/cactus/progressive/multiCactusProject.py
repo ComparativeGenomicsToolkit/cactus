@@ -143,10 +143,10 @@ class MultiCactusProject:
                   outputSequenceIDs[i]
                 i += 1
         assert i == len(outputSequenceIDs)
-        
-    def getOutputSequenceIDs(self):
-        return self.outputSequenceIDs
-    
+
+    def getOutputSequenceIDMap(self):
+        return self.outputSequenceIDMap
+
     def getConfigPath(self):
         return ExperimentWrapper(ET.parse(self.expMap.values()[0]).getroot()).getConfigPath()
 
@@ -158,7 +158,7 @@ class MultiCactusProject:
 
     def setInputSequenceIDs(self, inputSequenceIDs):
         self.inputSequenceIDs = inputSequenceIDs
-      
+
 if __name__ == '__main__':
     main()
         
