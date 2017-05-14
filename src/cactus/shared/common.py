@@ -796,24 +796,28 @@ def getDockerTag():
     else:
         return cactus_commit
 
-def maxMemUsageOfContainer(containerName):
+def maxMemUsageOfContainer(containerInfo):
     """Return the max RSS usage (in bytes) of a container, or None if something failed."""
-    # Try to get the internal container ID from the docker name
-    try:
-        id = popenCatch("docker inspect -f '{{.Id}}' %s" % containerName).strip()
-    except:
-        return None
+    if containerInfo['id'] is None:
+        # Try to get the internal container ID from the docker name
+        try:
+            id = popenCatch("docker inspect -f '{{.Id}}' %s" % containerInfo['name']).strip()
+            containerInfo['id'] = id
+        except:
+            # Not yet running
+            return None
     # Try to check for the maximum memory usage ever used by that
     # container, in a few different possible locations depending on
     # the distribution
     possibleLocations = ["/sys/fs/cgroup/memory/docker/%s/memory.max_usage_in_bytes",
                          "/sys/fs/cgroup/memory/system.slice.docker-%s.scope/memory.max_usage_in_bytes"]
-    possibleLocations = [s % id for s in possibleLocations]
+    possibleLocations = [s % containerInfo['id'] for s in possibleLocations]
     for location in possibleLocations:
         try:
             with open(location) as f:
                 return int(f.read())
         except IOError:
+            # Not at this location, or sysfs isn't mounted
             continue
     return None
 
@@ -908,8 +912,8 @@ def cactus_call(tool=None,
     if port:
         base_docker_call += ["-p %d:%d" % (port, port)]
 
-    containerName = str(uuid.uuid4())
-    base_docker_call.extend(['--name', containerName])
+    containerInfo = { 'name': str(uuid.uuid4()), 'id': None }
+    base_docker_call.extend(['--name', containerInfo['name']])
     if rm:
         base_docker_call.append('--rm')
 
@@ -964,10 +968,10 @@ def cactus_call(tool=None,
     while True:
         try:
             # Wait a bit to see if the process is done
-            output, nothing = process.communicate(stdin_string if first_run else None, timeout=5)
+            output, nothing = process.communicate(stdin_string if first_run else None, timeout=10)
         except subprocess32.TimeoutExpired:
             # Every so often, check the memory usage of the container
-            updatedMemUsage = maxMemUsageOfContainer(containerName)
+            updatedMemUsage = maxMemUsageOfContainer(containerInfo)
             if updatedMemUsage is not None:
                 assert memUsage <= updatedMemUsage, "memory.max_usage_in_bytes should never decrease"
                 memUsage = updatedMemUsage
