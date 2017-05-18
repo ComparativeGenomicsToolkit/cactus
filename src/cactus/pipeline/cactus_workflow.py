@@ -861,7 +861,7 @@ class CactusBarWrapperLarge(CactusRecursionJob):
 
 class CactusBarEndAlignerWrapper(CactusRecursionJob):
     """Computes an end alignment."""
-    memoryPoly = [3.82834548e-01, 2.28869656e+09]
+    memoryPoly = [3.82834548e-01, 3.5e+09]
     feature = 'totalSequenceSize'
 
     def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, flowerSizes,
@@ -876,6 +876,7 @@ class CactusBarEndAlignerWrapper(CactusRecursionJob):
         self.flowerNames = encodeFlowerNames((decodeFirstFlowerName(self.flowerNames),) + tuple(self.endsToAlign)) #The ends to align become like extra flower names
         alignmentFile = fileStore.getLocalTempFile()
         messages = runBarForJob(self, features=self.featuresFn(),
+                                fileStore=fileStore,
                                 endAlignmentsToPrecomputeOutputFile=alignmentFile)
         for message in messages:
             fileStore.logToMaster(message)
