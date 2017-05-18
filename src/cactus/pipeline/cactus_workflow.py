@@ -644,12 +644,11 @@ class CactusCafPhase(CactusPhasesJob):
             setupFilteringByIdentity(self.cactusWorkflowArguments)
         #Setup any constraints
         if self.cactusWorkflowArguments.constraintsID != None: #Setup the constraints arg
-
             constraintsFile = fileStore.readGlobalFile(self.cactusWorkflowArguments.constraintsID)
             newConstraintsFile = fileStore.getLocalTempFile()
             runCactusConvertAlignmentToCactus(self.cactusWorkflowArguments.cactusDiskDatabaseString,
                                               constraintsFile, newConstraintsFile)
-            self.phaseNode.attrib["constraintsID"] = fileStore.writeGlobalFile(newConstraintsFile, cleanup=False)
+            self.cactusWorkflowArguments.constraintsID = fileStore.writeGlobalFile(newConstraintsFile, cleanup=False)
 
         assert self.getPhaseNumber() == 1
         alignmentsFile = fileStore.readGlobalFile(self.cactusWorkflowArguments.alignmentsID)
@@ -661,12 +660,12 @@ class CactusCafPhase(CactusPhasesJob):
         # While we're at it, remove the unique IDs prepended to
         # the headers inside the cactus DB.
         runStripUniqueIDs(self.cactusWorkflowArguments.cactusDiskDatabaseString)
-        self.phaseNode.attrib["alignmentsID"] = self.cactusWorkflowArguments.alignmentsID
         return self.runPhase(CactusCafWrapper, SavePrimaryDB, "caf")
 
 class CactusCafWrapper(CactusRecursionJob):
     """Runs cactus_caf on one flower and one alignment file.
     """
+    featuresFn = lambda self: {'alignmentsSize': self.cactusWorkflowArguments.alignmentsID.size}
     memoryPoly = [1.80395944e+01, 7.96042247e+07]
     feature = 'totalSequenceSize'
 
@@ -677,11 +676,14 @@ class CactusCafWrapper(CactusRecursionJob):
         kwargs['preemptable'] = False
         super(CactusCafWrapper, self).__init__(**kwargs)
 
-    def runCactusCafInWorkflow(self, alignmentFile, constraints=None):
+    def runCactusCafInWorkflow(self, alignmentFile, fileStore, constraints=None):
         debugFilePath = self.getOptionalPhaseAttrib("phylogenyDebugPrefix")
         if debugFilePath != None:
             debugFilePath += getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "reference"), "reference")
         messages = runCactusCaf(cactusDiskDatabaseString=self.cactusDiskDatabaseString,
+                          features=self.featuresFn(),
+                          fileStore=fileStore,
+                          jobName=self.__class__.__name__,
                           alignments=alignmentFile, 
                           flowerNames=self.flowerNames,
                           constraints=constraints,  
@@ -731,15 +733,13 @@ class CactusCafWrapper(CactusRecursionJob):
             logger.info(message)
 
     def run(self, fileStore):
-        alignments = None
-        assert "alignmentsID" in self.phaseNode.attrib
-        if "alignmentsID" in self.phaseNode.attrib:
-            alignments = fileStore.readGlobalFile(self.phaseNode.attrib["alignmentsID"])
+        alignments = fileStore.readGlobalFile(self.cactusWorkflowArguments.alignmentsID)
         constraints = None
-        if "constraintsID" in self.phaseNode.attrib:
-            constraints = fileStore.readGlobalFile(self.phaseNode.attrib["constraintsID"])
+        if self.cactusWorkflowArguments.constraintsID is not None:
+            constraints = fileStore.readGlobalFile(self.cactusWorkflowArguments.constraintsID)
         logger.info("Alignments file: %s" % alignments)
-        self.runCactusCafInWorkflow(alignmentFile=alignments, constraints=constraints)
+        self.runCactusCafInWorkflow(alignmentFile=alignments, fileStore=fileStore,
+                                    constraints=constraints)
 
 
 ############################################################

@@ -244,7 +244,7 @@ def runStripUniqueIDs(cactusDiskString):
                 parameters=["cactus_stripUniqueIDs"])
     
 
-def runCactusCaf(cactusDiskDatabaseString, alignments, 
+def runCactusCaf(cactusDiskDatabaseString, alignments,
                  flowerNames=encodeFlowerNames((0,)),
                  logLevel=None, 
                  writeDebugFiles=False,
@@ -291,7 +291,10 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
                  maxRecoverableChainsIterations=None,
                  maxRecoverableChainLength=None,
                  phylogenyHomologyUnitType=None,
-                 phylogenyDistanceCorrectionMethod=None):
+                 phylogenyDistanceCorrectionMethod=None,
+                 features=None,
+                 jobName=None,
+                 fileStore=None):
     # remove annoying carriage returns in caf command line.
     cactusDiskDatabaseString = cactusDiskDatabaseString.replace('\n', '')
 
@@ -370,7 +373,8 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
                                              phylogenyNucleotideScalingFactor, removeRecoverableChains,
                                              minimumNumberOfSpecies, phylogenyHomologyUnitType,
                                              phylogenyDistanceCorrectionMethod,
-                                             maxRecoverableChainsIterations, maxRecoverableChainLength])
+                                             maxRecoverableChainsIterations, maxRecoverableChainLength],
+                                 features=features, job_name=jobName, fileStore=fileStore)
     logger.info("Ran cactus_core okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]
     
