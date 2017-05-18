@@ -93,8 +93,10 @@ class TestCase(unittest.TestCase):
         tempConfigTree = ET.parse(self.configFile)
         tempConfigNode = tempConfigTree.getroot()
         tempConfigNode.find("bar").find("CactusBarWrapper").set("maxFlowerGroupSize", "10")
-        tempConfigNode.find("bar").set("veryLargeEndSize", "0")
-        tempConfigNode.find("bar").set("largeEndSize", "0")
+        tempConfigNode.find("bar").find("CactusBarWrapperLarge").set("maxFlowerGroupSize", "10")
+        tempConfigNode.find("bar").set("veryLargeEndSize", "20")
+        tempConfigNode.find("bar").set("largeEndSize", "10")
+        tempConfigNode.find("bar").set("bandingLimit", "5")
         tempConfigTree.write(tempConfigFile)
         runWorkflow_multipleExamples(getCactusInputs_random,
                                      testNumber=1,
