@@ -1,15 +1,24 @@
 set -e
-# We forward any termination signals we receive to the underlying
-# process tree. -1 is always our process group ID when running in a
-# container.
+# Set monitor mode: give child processes a new PGID
+set -m
+
+# Find pgid of the child process
+# Credit: https://stackoverflow.com/a/36820679
+pgid_from_pid() {
+    ps -o pgid= "$pid" 2>/dev/null | egrep -o "[0-9]+"
+}
+
+# Forward signals to the child process tree
 sigint() {
-    kill -SIGINT -- -1
+    kill -SIGINT -- -$(pgid_from_pid)
+    wait $pid
 }
 
 trap sigint SIGINT
 
 sigterm() {
-    kill -SIGTERM -- -1
+    kill -SIGTERM -- -$(pgid_from_pid)
+    wait $pid
 }
 
 trap sigterm SIGTERM
@@ -26,5 +35,6 @@ done
 
 >&2 echo "Running command ${options}"
 eval "${options}" <&0 &
-wait $!
+pid=$!
+wait $pid
 exit $?
