@@ -639,9 +639,11 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf, bool crea
     //Now open the database
     cactusDisk->database = stKVDatabase_construct(conf, create);
     if (cache) {
-        cactusDisk->cache = stCache_construct();
+        // 10MB for general DB responses
+        cactusDisk->cache = stCache_construct2(10000000);
     }
-    cactusDisk->stringCache = stCache_construct();
+    // 100MB for strings
+    cactusDisk->stringCache = stCache_construct2(10000000);
 
     //initialise the unique ids.
     int64_t seed = (clock() << 24) | (time(NULL) << 16) | (getpid() & 65535); //Likely to be unique
