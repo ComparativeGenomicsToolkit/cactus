@@ -193,14 +193,17 @@ class ProgressiveUp(RoundedJob):
         workFlowArgs.buildFasta = self.options.buildFasta
         workFlowArgs.overwrite = self.options.overwrite
         workFlowArgs.globalLeafEventSet = self.options.globalLeafEventSet
-        
+        if self.options.intermediateResultsUrl is not None:
+            # Give the URL prefix a special name for this particular
+            # subproblem (by suffixing it with the name of the
+            # internal node in the guide tree)
+            workFlowArgs.intermediateResultsUrl = self.options.intermediateResultsUrl + '-' + self.event
 
         donePath = os.path.join(os.path.dirname(workFlowArgs.experimentFile), "DONE")
         doneDone = os.path.isfile(donePath)
         refDone = not workFlowArgs.buildReference or os.path.isfile(experiment.getReferencePath())
         halDone = not workFlowArgs.buildHal or (os.path.isfile(experiment.getHALFastaPath()) and
                                                 os.path.isfile(experiment.getHALPath()))
-        finalExpID = None
                                                                
         if not workFlowArgs.overwrite and doneDone and refDone and halDone:
             self.logToMaster("Skipping %s because it is already done and overwrite is disabled" %
@@ -270,10 +273,10 @@ class RunCactusPreprocessorThenProgressiveDown2(RoundedJob):
         self.configWrapper.substituteAllPredefinedConstantsWithLiterals()
 
         # Save preprocessed sequences
-        if self.options.urlToSaveSequencesTo is not None:
+        if self.options.intermediateResultsUrl is not None:
             preprocessedSequences = self.project.getOutputSequenceIDMap()
             for genome, seqID in preprocessedSequences.items():
-                fileStore.exportFile(seqID, self.options.urlToSaveSequencesTo + '-' + genome)
+                fileStore.exportFile(seqID, self.options.intermediateResultsUrl + '-preprocessed-' + genome)
 
         project = self.addChild(ProgressiveDown(options=self.options, project=self.project, event=self.event, schedule=self.schedule, memory=self.configWrapper.getDefaultMemory())).rv()
 
@@ -384,8 +387,6 @@ def main():
                       "in the tree may be used as outgroups but will never appear"
                       " in the output.  If no root is specifed then the root"
                       " of the tree is used. ", default=None)
-    parser.add_argument("--urlToSaveSequencesTo", help="URL prefix to save "
-                        "preprocessed sequences to", default=None)
 
     #Kyoto Tycoon Options
     ktGroup = parser.add_argument_group("kyoto_tycoon Options",

@@ -287,7 +287,6 @@ class StartPrimaryDB(CactusPhasesJob):
 class SavePrimaryDB(CactusPhasesJob):
     """Saves the DB to a file and clears the DB."""
     def __init__(self, *args, **kwargs):
-        kwargs['preemptable'] = False
         super(SavePrimaryDB, self).__init__(*args, **kwargs)
 
     def run(self, fileStore):
@@ -302,6 +301,11 @@ class SavePrimaryDB(CactusPhasesJob):
                 break
             time.sleep(60)
         # We have the file now
+        intermediateResultsUrl = getattr(self.cactusWorkflowArguments, 'intermediateResultsUrl', None)
+        if intermediateResultsUrl is not None:
+            # The user requested to keep the DB dumps in a separate place. Export it there.
+            url = intermediateResultsUrl + "-dump-" + self.phaseName
+            fileStore.exportFile(path, url)
         return self.cactusWorkflowArguments.snapshotID
 
 class CactusRecursionJob(CactusJob):
@@ -1137,6 +1141,11 @@ class CactusExtractReferencePhase(CactusPhasesJob):
                               (self.cactusWorkflowArguments.cactusDiskDatabaseString,
                                       eventName, os.path.basename(referencePath), getLogLevelString()))
                     experiment.setReferenceID(fileStore.writeGlobalFile(referencePath))
+                    intermediateResultsUrl = getattr(self.cactusWorkflowArguments, 'intermediateResultsUrl', None)
+                    if intermediateResultsUrl is not None:
+                        # The user requested to keep the hal fasta files in a separate place. Export it there.
+                        url = intermediateResultsUrl + ".reference.fa"
+                        fileStore.exportFile(referencePath, url)
         self.cactusWorkflowArguments.experimentWrapper = experiment
         self.makeFollowOnPhaseJob(CactusCheckPhase, "check")
         return experiment
@@ -1218,6 +1227,11 @@ class CactusFastaGenerator(CactusRecursionJob):
                                 flowerName=decodeFirstFlowerName(self.flowerNames),
                                 outputFile=tmpFasta,
                                 referenceEventString=self.getOptionalPhaseAttrib("reference"))
+        intermediateResultsUrl = getattr(self.cactusWorkflowArguments, 'intermediateResultsUrl', None)
+        if intermediateResultsUrl is not None:
+            # The user requested to keep the hal fasta files in a separate place. Export it there.
+            url = intermediateResultsUrl + ".hal.fa"
+            fileStore.exportFile(tmpFasta, url)
         return fileStore.writeGlobalFile(tmpFasta)
 
 class CactusHalGeneratorRecursion(CactusRecursionJob):
@@ -1252,6 +1266,13 @@ class CactusHalGeneratorUpWrapper(CactusRecursionJob):
                               showOnlySubstitutionsWithRespectToReference=\
                               self.getOptionalPhaseAttrib("showOnlySubstitutionsWithRespectToReference", bool))
         if tmpHal:
+            # At top level--have the final .c2h file
+            intermediateResultsUrl = getattr(self.cactusWorkflowArguments, 'intermediateResultsUrl', None)
+            if intermediateResultsUrl is not None:
+                # The user requested to keep the c2h files in a separate place. Export it there.
+                url = intermediateResultsUrl + ".c2h"
+                fileStore.exportFile(tmpHal, url)
+
             return fileStore.writeGlobalFile(tmpHal)
         else:
             return None
@@ -1297,7 +1318,7 @@ class CactusWorkflowArguments:
         # If not None, a url prefix to dump database files to
         # (i.e. file:///path/to/prefix). The dumps will be labeled
         # -caf, -avg, etc.
-        self.dumpDBsToURL = options.dumpDBsToURL
+        self.intermediateResultsUrl = options.intermediateResultsUrl
         self.ktServerDump = None
 
         #Secondary, scratch DB
@@ -1337,11 +1358,11 @@ def addCactusWorkflowOptions(parser):
     parser.add_argument("--buildHal", dest="buildHal", action="store_true",
                       help="Build a hal file", default=False)
     parser.add_argument("--buildFasta", dest="buildFasta", action="store_true",
-                      help="Build a fasta file of the input sequences (and reference sequence, used with hal output)", 
+                      help="Build a fasta file of the input sequences (and reference sequence, used with hal output)",
                       default=False)
-    parser.add_argument("--dumpDBsToURL",
-                        help="URL prefix to save intermediate DB dumps to (e.g. "
-                        "prefix-caf, prefix-avg, etc.)", default=None)
+    parser.add_argument("--intermediateResultsUrl",
+                        help="URL prefix to save intermediate results like DB dumps to (e.g. "
+                        "prefix-dump-caf, prefix-dump-avg, etc.)", default=None)
 
 class RunCactusPreprocessorThenCactusSetup(RoundedJob):
     def __init__(self, options, cactusWorkflowArguments):
