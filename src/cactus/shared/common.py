@@ -866,10 +866,11 @@ def cactus_call(tool=None,
     #Make sure all the paths we're accessing are in the same directory
         files = [par for par in parameters if os.path.isfile(par)]
         folders = [par for par in parameters if os.path.isdir(par)]
-        work_dirs = set([os.path.dirname(fileName) for fileName in files] + [os.path.dirname(os.path.dirname(folder)) for folder in folders])
+        work_dirs = set([os.path.dirname(fileName) for fileName in files] + [os.path.dirname(folder) for folder in folders])
         _log.info("Work dirs: %s" % work_dirs)
-        assert len(work_dirs) <= 1
-        if len(work_dirs) == 1:
+        if len(work_dirs) > 1:
+            work_dir = os.path.commonprefix(work_dirs)
+        elif len(work_dirs) == 1:
             work_dir = work_dirs.pop()
 
     #If there are no input files, or if their MRCA is '' (when working
@@ -883,23 +884,15 @@ def cactus_call(tool=None,
     #so set all the paths to their basenames. The container will access them at
     #/data/<path>
     def adjustPath(path, wd):
-        if os.path.isfile(path):
-            _log.info('Found file %s' % path)
-            return os.path.basename(path)
-        if os.path.isdir(path):
-            _log.info('Found dir %s' % path)
-            return os.path.basename(os.path.dirname(path))
+        # Hack to relativize paths that are not provided as a
+        # single argument (i.e. multiple paths that are
+        # space-separated and quoted)
+        if wd != '.':
+            if not wd.endswith('/'):
+                wd = wd + '/'
+            return path.replace(wd, '')
         else:
-            _log.info('%s is neither a dir nor a file' % path)
-            # Hack to relativize paths that are not provided as a
-            # single argument (i.e. multiple paths that are
-            # space-separated and quoted)
-            if wd != '.':
-                if not wd.endswith('/'):
-                    wd = wd + '/'
-                return path.replace(wd, '')
-            else:
-                return path
+            return path
 
     if work_dir and os.environ.get('CACTUS_DOCKER_MODE') != "0":
         parameters = [adjustPath(par, work_dir) for par in parameters]
