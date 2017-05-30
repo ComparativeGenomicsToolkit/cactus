@@ -37,7 +37,7 @@ def runKtserver(dbElem, fileStore, createTimeout=30, loadTimeout=10000,
     try:
         occupiedPorts = findOccupiedPorts()
         unoccupiedPorts = set(xrange(1025,MAX_KTSERVER_PORT)) - occupiedPorts
-        port = random.choice(unoccupiedPorts)
+        port = random.choice(list(unoccupiedPorts))
     except:
         logger.warning("Can't find which ports are occupied--likely netstat is not installed."
                        " Choosing a random port to start the DB on, good luck!")
@@ -46,6 +46,7 @@ def runKtserver(dbElem, fileStore, createTimeout=30, loadTimeout=10000,
 
     process = Process(target=serverProcess,
                       args=(dbElem, logPath, fileStore, existingSnapshotID, snapshotExportID))
+    process.daemon = True
     process.start()
 
     if not __validateKtserver(dbElem, logPath, createTimeout, loadTimeout):
@@ -106,7 +107,7 @@ def __validateKtserver(dbElem, logPath, createTimeout, loadTimeout):
         if __isKtServerReorganizing(logPath):
             raiseTimeout = True
             for j in xrange(loadTimeout):
-                if __isKtServerReorganizing(dbElem) is False:
+                if __isKtServerReorganizing(logPath) is False:
                     raiseTimeout = False
                     break
                 sleep(1)
@@ -282,11 +283,13 @@ def findOccupiedPorts():
     Returns a set of ints, representing taken ports."""
     netstatOutput = cactus_call(parameters=["netstat", "-tuplen"], check_output=True)
     ports = set()
+    logger.debug(netstatOutput)
     for line in netstatOutput.split("\n"):
         fields = line.split()
-        if len(fields) != 6:
+        if len(fields) != 9:
             # Header or other garbage line
             continue
         port = int(fields[3].split(':')[-1])
         ports.add(port)
+    logger.debug('Detected ports in use: %s' % repr(ports))
     return ports
