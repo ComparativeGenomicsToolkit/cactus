@@ -68,7 +68,7 @@ from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.experimentWrapper import DbElemWrapper
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.pipeline.ktserverToil import KtServerService
-from cactus.pipeline.ktserverControl import dumpKtServer, clearKtServer, restoreKtServer
+from cactus.pipeline.ktserverControl import stopKtserver
 
 ############################################################
 ############################################################
@@ -148,6 +148,11 @@ class CactusJob(RoundedJob):
         """
         return getOptionalAttrib(node=self.jobNode, attribName=attribName, typeFn=typeFn, default=default)
 
+    def addService(self, job):
+        """Works around toil issue #1695, returning a Job rather than a Promise."""
+        super(CactusJob, self).addService(job)
+        return self._services[-1]
+
 class CactusPhasesJob(CactusJob):
     """Base job for each workflow phase job.
     """
@@ -178,7 +183,7 @@ class CactusPhasesJob(CactusJob):
             memory = self.evaluateResourcePoly([4.10201882, 2.01324291e+08])
             cpu = cw.getKtserverCpu(default=0.1)
             dbElem = ExperimentWrapper(self.cactusWorkflowArguments.scratchDbElemNode)
-            dbString = self.addService(KtServerService(dbElem = dbElem, isSecondary = True, memory=memory, cores=cpu))
+            dbString = self.addService(KtServerService(dbElem=dbElem, isSecondary=True, memory=memory, cores=cpu)).rv(0)
             newChild.phaseNode.attrib["secondaryDatabaseString"] = dbString
             return self.addChild(newChild).rv()
         else:
@@ -266,31 +271,18 @@ class StartPrimaryDB(CactusPhasesJob):
             memory = self.evaluateResourcePoly([4.10201882, 2.01324291e+08])
             cores = cw.getKtserverCpu(default=0.1)
             dbElem = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
-            dbString = self.addService(KtServerService(dbElem=dbElem, isSecondary=False,
-                                                       memory=memory, cores=cores))
+            service = self.addService(KtServerService(dbElem=dbElem,
+                                                      existingSnapshotID=self.ktServerDump,
+                                                      isSecondary=False,
+                                                      memory=memory, cores=cores))
+            dbString = service.rv(0)
+            snapshotID = service.rv(1)
             self.nextJob.cactusWorkflowArguments.cactusDiskDatabaseString = dbString
-            if self.ktServerDump is not None:
-                return self.addChild(LoadPrimaryDB(self.nextJob, ktServerDump=self.ktServerDump,
-                                                   cactusWorkflowArguments=self.nextJob.cactusWorkflowArguments,
-                                                   phaseName='setup', topFlowerName=self.topFlowerName)).rv()
-            else:
-                return self.addChild(self.nextJob).rv()
+            # TODO: This part needs to be cleaned up
+            self.nextJob.cactusWorkflowArguments.snapshotID = snapshotID
+            return self.addChild(self.nextJob).rv()
         else:
             return self.addFollowOn(self.nextJob).rv()
-
-class LoadPrimaryDB(CactusPhasesJob):
-    """Loads a primary Cactus DB with a given dump file (if specified)."""
-    def __init__(self, nextJob, ktServerDump=None, *args, **kwargs):
-        self.nextJob = nextJob
-        self.ktServerDump = ktServerDump
-        kwargs['preemptable'] = False
-        super(LoadPrimaryDB, self).__init__(*args, **kwargs)
-
-    def run(self, fileStore):
-        dbElem = DbElemWrapper(ET.fromstring(self.cactusWorkflowArguments.cactusDiskDatabaseString))
-        fileStore.logToMaster("Restoring cactus DB from %s" % self.ktServerDump)
-        restoreKtServer(dbElem, fileStore.readGlobalFile(self.ktServerDump))
-        return self.addFollowOn(self.nextJob).rv()
 
 class SavePrimaryDB(CactusPhasesJob):
     """Saves the DB to a file and clears the DB."""
@@ -299,17 +291,18 @@ class SavePrimaryDB(CactusPhasesJob):
         super(SavePrimaryDB, self).__init__(*args, **kwargs)
 
     def run(self, fileStore):
-        tempPath = fileStore.getLocalTempFile()
         dbElem = DbElemWrapper(ET.fromstring(self.cactusWorkflowArguments.cactusDiskDatabaseString))
-        dumpKtServer(dbElem, tempPath)
-        clearKtServer(dbElem)
-        dumpFile = fileStore.writeGlobalFile(tempPath)
-        dumpDBsToURL = getattr(self.cactusWorkflowArguments, 'dumpDBsToURL', None)
-        if dumpDBsToURL:
-            # The user requested to keep the DB dumps in a separate place. Export it there.
-            url = dumpDBsToURL + "-" + self.phaseName
-            fileStore.exportFile(dumpFile, url)
-        return dumpFile
+        # Send the terminate message
+        stopKtserver(dbElem)
+        # Wait for the file to appear in the right place. This may take a while
+        while True:
+            path = fileStore.readGlobalFile(self.cactusWorkflowArguments.snapshotID)
+            stat = os.stat(path)
+            if stat.st_size > 0:
+                break
+            time.sleep(60)
+        # We have the file now
+        return self.cactusWorkflowArguments.snapshotID
 
 class CactusRecursionJob(CactusJob):
     """Base recursive job for traversals up and down the cactus tree.

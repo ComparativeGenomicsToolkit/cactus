@@ -4,54 +4,33 @@
 #
 #Released under the MIT license, see LICENSE.txt
 
-import os
 import sys
-from toil.lib.bioio import getTempFile
 from toil.job import Job
-from cactus.pipeline.ktserverControl import runKtserver
-from cactus.pipeline.ktserverControl import blockUntilKtserverIsRunning
-from cactus.pipeline.ktserverControl import getLogPath
-
+from cactus.pipeline.ktserverControl import runKtserver, blockUntilKtserverIsRunning, stopKtserver, \
+    blockUntilKtserverIsFinished
 
 class KtServerService(Job.Service):
-    def __init__(self, dbElem, isSecondary, memory=None, cores=None, disk = None):
+    def __init__(self, dbElem, isSecondary, existingSnapshotID=None,
+                 memory=None, cores=None, disk=None):
         Job.Service.__init__(self, memory=memory, cores=cores, disk=disk, preemptable=False)
         self.dbElem = dbElem
         self.isSecondary = isSecondary
+        self.existingSnapshotID = existingSnapshotID
         self.blockTimestep = 10
         self.blockTimeout = sys.maxint
-        self.killSwitchPath = None
-        self.process = None
 
     def start(self, job):
-        if self.isSecondary == False:
-            self.dbElem.setDbDir(os.path.join(job.fileStore.getLocalTempDir(), "cactusDB"))
-        else:
-            self.dbElem.setDbDir(os.path.join(job.fileStore.getLocalTempDir(), "tempDB/"))
-
-        if not os.path.exists(self.dbElem.getDbDir()):
-            os.mkdir(self.dbElem.getDbDir())
-        self.killSwitchPath = getTempFile(suffix="_kill.txt",
-                                          rootDir=self.dbElem.getDbDir())
-        killSwitchFile = open(self.killSwitchPath, "w")
-        killSwitchFile.write("init")
-        killSwitchFile.close()
-
-
-        self.process = runKtserver(self.dbElem, self.killSwitchPath, fileStore = job.fileStore)
+        snapshotExportID = job.fileStore.jobStore.getEmptyFileStoreID()
+        self.dbElem, self.logPath = runKtserver(self.dbElem, fileStore=job.fileStore,
+                                                existingSnapshotID=self.existingSnapshotID,
+                                                snapshotExportID=snapshotExportID)
         assert self.dbElem.getDbHost() != None
-        
-        blockUntilKtserverIsRunning(self.dbElem, self.killSwitchPath, self.blockTimeout, self.blockTimestep)
-        return self.dbElem.getConfString()
-        
+        blockUntilKtserverIsRunning(self.dbElem, self.logPath, self.blockTimeout, self.blockTimestep)
+        return self.dbElem.getConfString(), snapshotExportID
+
     def stop(self, job):
-        if self.process:
-            self.process.terminate()
-        logPath = getLogPath(self.dbElem)
-        if os.path.exists(logPath):
-            os.remove(logPath)
-        if self.killSwitchPath:
-            os.remove(self.killSwitchPath)
+        stopKtserver(self.dbElem)
+        blockUntilKtserverIsFinished(self.logPath, timeout=600)
 
     def check(self):
         return True
