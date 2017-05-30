@@ -18,8 +18,6 @@ class KtServerService(Job.Service):
         self.dbElem = dbElem
         self.isSecondary = isSecondary
         self.existingSnapshotID = existingSnapshotID
-        self.blockTimestep = 10
-        self.blockTimeout = sys.maxint
 
     def start(self, job):
         snapshotExportID = job.fileStore.jobStore.getEmptyFileStoreID()
@@ -33,7 +31,7 @@ class KtServerService(Job.Service):
                                                 existingSnapshotID=self.existingSnapshotID,
                                                 snapshotExportID=snapshotExportID)
         assert self.dbElem.getDbHost() != None
-        blockUntilKtserverIsRunning(self.dbElem, self.logPath, self.blockTimeout, self.blockTimestep)
+        blockUntilKtserverIsRunning(self.logPath)
         return self.dbElem.getConfString(), snapshotExportID
 
     def stop(self, job):

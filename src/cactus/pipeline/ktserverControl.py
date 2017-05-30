@@ -18,8 +18,7 @@ from cactus.shared.common import cactus_call
 # For some reason ktserver believes there are only 32768 TCP ports.
 MAX_KTSERVER_PORT = 32767
 
-def runKtserver(dbElem, fileStore, createTimeout=30, loadTimeout=10000,
-                existingSnapshotID=None, snapshotExportID=None):
+def runKtserver(dbElem, fileStore, existingSnapshotID=None, snapshotExportID=None):
     """
     Run a KTServer. This function launches a separate python process that manages the server.
 
@@ -49,12 +48,17 @@ def runKtserver(dbElem, fileStore, createTimeout=30, loadTimeout=10000,
     process.daemon = True
     process.start()
 
-    if not __validateKtserver(dbElem, logPath, createTimeout, loadTimeout):
-        raise RuntimeError("Unable to launch ktserver.")
+    if not blockUntilKtserverIsRunning(logPath):
+        raise RuntimeError("Unable to launch ktserver in time.")
 
     return dbElem, logPath
 
 def serverProcess(dbElem, logPath, fileStore, existingSnapshotID=None, snapshotExportID=None):
+    """Independent process that babysits the ktserver process.
+
+    Waits for the TERMINATE flag to be set, then kills the DB and
+    copies the final snapshot to snapshotExportID.
+    """
     snapshotDir = os.path.join(fileStore.getLocalTempDir(), 'snapshot')
     os.mkdir(snapshotDir)
     if existingSnapshotID is not None:
@@ -67,8 +71,7 @@ def serverProcess(dbElem, logPath, fileStore, existingSnapshotID=None, snapshotE
     process = cactus_call(server=True, shell=False,
                           parameters=__getKtserverCommand(dbElem, logPath, snapshotDir))
 
-
-    blockUntilKtserverIsRunning(dbElem, logPath)
+    blockUntilKtserverIsRunning(logPath)
     if existingSnapshotID is not None:
         # Clear the termination flag from the snapshot
         cactus_call(parameters=["ktremotemgr", "remove"] + getRemoteParams(dbElem) + ["TERMINATE"])
@@ -92,46 +95,28 @@ def serverProcess(dbElem, logPath, fileStore, existingSnapshotID=None, snapshotE
         zipPath = shutil.make_archive(zipBasePath, 'zip', root_dir=snapshotDir)
         fileStore.jobStore.updateFile(snapshotExportID, zipPath)
 
-###############################################################################
-# Check status until it's successful, an error is found, or we timeout
-###############################################################################
-def __validateKtserver(dbElem, logPath, createTimeout, loadTimeout):
+def blockUntilKtserverIsRunning(logPath, createTimeout=1800):
+    """Check status until it's successful, an error is found, or we timeout.
+
+    Returns True if the ktserver is now running, False if something went wrong."""
     success = False
     for i in xrange(createTimeout):
         if __isKtServerFailed(logPath):
+            logger.critical('Error starting ktserver.')
             success = False
             break
-        if __isKtServerRunning(dbElem, logPath):
+        if __isKtServerRunning(logPath):
+            logger.info('Ktserver running.')
             success = True
             break
-        if __isKtServerReorganizing(logPath):
-            raiseTimeout = True
-            for j in xrange(loadTimeout):
-                if __isKtServerReorganizing(logPath) is False:
-                    raiseTimeout = False
-                    break
-                sleep(1)
-            if raiseTimeout is True:
-                raise RuntimeError("Reorganization wait timeout failed.")
         sleep(1)
     return success
 
-###############################################################################
-# Wait until a ktserver is running
-# Note that this function will update dbElem with the currnet host/port
-# information of the server
-###############################################################################
-def blockUntilKtserverIsRunning(dbElem, logPath, timeout=518400,
-                                timeStep=10):
-    for i in xrange(0, timeout, timeStep):
-        if os.path.isfile(logPath) and __isKtServerRunning(dbElem, logPath):
-            return True
-        sleep(timeStep)
-    raise RuntimeError("Timeout reached while waiting for ktserver" %
-                       logPath)
-
-def blockUntilKtserverIsFinished(logPath, timeout=518400,
+def blockUntilKtserverIsFinished(logPath, timeout=1800,
                                  timeStep=10):
+    """Wait for the ktserver log to indicate that it shut down properly.
+
+    Returns True if the server shut down, False if the timeout expired."""
     for i in xrange(0, timeout, timeStep):
         with open(logPath) as f:
             log = f.read()
@@ -141,82 +126,22 @@ def blockUntilKtserverIsFinished(logPath, timeout=518400,
     raise RuntimeError("Timeout reached while waiting for ktserver" %
                        logPath)
 
-###############################################################################
-# Test if a server is running by looking at the log
-# if the log looks okay, verify by pinging the server
-# note that some information is duplicated across the log and killswitch
-# path.  if there are any inconsistencies we raise an exception.
-# Note that this function will update dbElem with the currnet host/port
-# information of the server
-###############################################################################
-def __isKtServerRunning(dbElem, logPath):
+def __isKtServerRunning(logPath):
+    """Check if the server started running."""
     success = False
-    serverPortFromLog = None
-    if os.path.isfile(logPath):
-        try:
-            outFile = open(logPath, "r")
-        except:
-            sleep(1)
-            outFile = open(logPath, "r")
-        for line in outFile.readlines():
+    with open(logPath) as f:
+        for line in f:
             if line.lower().find("listening") >= 0:
-                success = True
-            if serverPortFromLog is None and line.find("expr=") >= 0:
-                try:
-                    hostPort = line[line.find("expr="):].split()[0]                    
-                    serverPortFromLog = int(hostPort[hostPort.find(":")+1:])
-                    if serverPortFromLog < 0:
-                        serverPortFromLog = None
-                except:
-                    serverPortFromLog = None
-            if line.lower().find("error") >= 0:
-                success = False
-                break
-    if success is False:
-        return False
-
-    if serverPortFromLog != dbElem.getDbPort():
-        raise RuntimeError("Ktserver launched on unexpected port %s (expected %s)" % (
-            str(serverPortFromLog), str(dbElem.getDbPort()),
-            logPath))
-
-    return True
-
-###############################################################################
-# Test if the server is reorganizing.  don't know what this means
-# except that it can really add to the opening time
-###############################################################################
-def __isKtServerReorganizing(logPath):
-    success = False
-    if os.path.exists(logPath):                    
-        outFile = open(logPath, "r")
-        for line in outFile.readlines():
-            if line.lower().find("listening") >= 0:
-                success = False
-                break
-            if line.lower().find("error") >= 0:
-                success = False
-                break
-            if line.lower().find("reorganizing") >= 0 or\
-                   line.find("applying a snapshot") >= 0:
                 success = True
     return success
 
 def __isKtServerFailed(logPath):
     """Does the server log contain an error?"""
     isFailed = False
-    if os.path.exists(logPath):                    
-        outFile = open(logPath, "r")
-        for line in outFile.readlines():
-            if line.lower().find("listening") >= 0:
-                isFailed = False
-                break
+    with open(logPath) as f:
+        for line in f:
             if line.lower().find("error") >= 0:
                 isFailed = True
-                break
-            if line.lower().find("reorganizing") >= 0 or\
-                   line.find("applying a snapshot") >= 0:
-                isFailed = False
                 break
     return isFailed
 
@@ -256,7 +181,7 @@ def getRemoteParams(dbElem):
             '-host', dbElem.getDbHost() or 'localhost']
 
 def stopKtserver(dbElem):
-    """Attempt to send the terminate singal to a ktserver."""
+    """Attempt to send the terminate signal to a ktserver."""
     try:
         cactus_call(parameters=['ktremotemgr', 'set'] + getRemoteParams(dbElem) + ['TERMINATE', '1'])
     except:
@@ -283,7 +208,6 @@ def findOccupiedPorts():
     Returns a set of ints, representing taken ports."""
     netstatOutput = cactus_call(parameters=["netstat", "-tuplen"], check_output=True)
     ports = set()
-    logger.debug(netstatOutput)
     for line in netstatOutput.split("\n"):
         fields = line.split()
         if len(fields) != 9:
