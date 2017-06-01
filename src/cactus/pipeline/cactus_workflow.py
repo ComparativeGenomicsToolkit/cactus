@@ -193,7 +193,7 @@ class CactusPhasesJob(CactusJob):
         return self.addFollowOn(job(cactusWorkflowArguments=self.cactusWorkflowArguments, phaseName=phaseName, 
                                     topFlowerName=self.topFlowerName, halID=self.halID, fastaID=self.fastaID)).rv()
 
-    def runPhase(self, recursiveJob, nextPhaseJob, nextPhaseName, doRecursion=True, launchSecondaryKtForRecursiveJob=False, updateDatabase=False):
+    def runPhase(self, recursiveJob, nextPhaseJob, nextPhaseName, doRecursion=True, launchSecondaryKtForRecursiveJob=False):
         """
         Adds a recursive child job and then a follow-on phase job. Returns the result of the follow-on
         phase job.
@@ -753,7 +753,8 @@ class CactusCafWrapper(CactusRecursionJob):
 class CactusBarCheckpoint(CactusCheckpointJob):
     """Load the DB, run the BAR, AVG, and normalization phases, save the DB, then run the reference checkpoint."""
     def run(self, fileStore):
-        return self.runPhaseWithPrimaryDB(CactusBarPhase)
+        ktServerDump = self.runPhaseWithPrimaryDB(CactusBarPhase)
+        return self.makeFollowOnCheckpointJob(CactusReferenceCheckpoint, "reference", ktServerDump=ktServerDump)
 
 class CactusBarPhase(CactusPhasesJob):
     """Runs bar algorithm."""
@@ -965,7 +966,7 @@ class CactusAVGPhase(CactusPhasesJob):
     """Phase to build avgs for each flower.
     """       
     def run(self, fileStore):
-        return self.runPhase(CactusAVGRecursion, CactusReferenceAndHalPhase, 'avg', doRecursion=self.getOptionalPhaseAttrib("buildAvgs", bool, False))
+        return self.runPhase(CactusAVGRecursion, SavePrimaryDB, 'avg', doRecursion=self.getOptionalPhaseAttrib("buildAvgs", bool, False))
 
 class CactusAVGRecursion(CactusRecursionJob):
     """This job does the recursive pass for the AVG phase.
@@ -1020,7 +1021,7 @@ class CactusReferencePhase(CactusPhasesJob):
         self.phaseNode.attrib["secondaryDatabaseString"] = self.cactusWorkflowArguments.secondaryDatabaseString
         return self.runPhase(CactusReferenceRecursion, CactusSetReferenceCoordinatesDownPhase, "reference", 
                              doRecursion=self.getOptionalPhaseAttrib("buildReference", bool, False),
-                             launchSecondaryKtForRecursiveJob = True, updateDatabase=True)
+                             launchSecondaryKtForRecursiveJob=True)
 
 class CactusReferenceRecursion(CactusRecursionJob):
     """This job creates the wrappers to run the reference problem algorithm, the follow on job then recurses down.
@@ -1090,7 +1091,7 @@ class CactusSetReferenceCoordinatesDownPhase(CactusPhasesJob):
     """
     def run(self, fileStore):
         self.cleanupSecondaryDatabase()
-        return self.runPhase(CactusSetReferenceCoordinatesDownRecursion, CactusExtractReferencePhase, "check", doRecursion=self.getOptionalPhaseAttrib("buildReference", bool, False), updateDatabase=True)
+        return self.runPhase(CactusSetReferenceCoordinatesDownRecursion, CactusExtractReferencePhase, "check", doRecursion=self.getOptionalPhaseAttrib("buildReference", bool, False))
         
 class CactusSetReferenceCoordinatesDownRecursion(CactusRecursionJob):
     """Does the down pass for filling Fills in the coordinates, once a reference is added.
