@@ -185,10 +185,10 @@ void testSequence_addAndGetBigStringsP(CuTest* testCase,
                 subSequence = cactusDisk_getStringFromCache(cactusDisk, sequence_getMetaSequence(sequence)->stringName,
                         start, length, strand);
             }
-            else {
+            if(preCacheSequences || subSequence == NULL) {
                 subSequence = sequence_getString(sequence, coordinateStart + start, length, strand);
             }
-            assert(subSequence != NULL);
+            CuAssertTrue(testCase, subSequence != NULL);
             for(int64_t k=0; k<length; k++) {
                 CuAssertIntEquals(testCase, subString[k], subSequence[k]);
             }
