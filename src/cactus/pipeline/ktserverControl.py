@@ -8,7 +8,7 @@ import random
 import socket
 import shutil
 import signal
-from zipfile import ZipFile
+import tarfile
 from time import sleep
 from multiprocessing import Process
 
@@ -65,9 +65,8 @@ def serverProcess(dbElem, logPath, fileStore, existingSnapshotID=None, snapshotE
         # Extract the existing snapshot (a zip file) to the snapshot
         # directory so it will be automatically loaded
         snapshot = fileStore.readGlobalFile(existingSnapshotID)
-        zip = ZipFile(snapshot)
-        zip.extractall(snapshotDir)
-        zip.close()
+        with tarfile.open(snapshot) as tar:
+            tar.extractall(snapshotDir)
     process = cactus_call(server=True, shell=False,
                           parameters=__getKtserverCommand(dbElem, logPath, snapshotDir))
 
@@ -91,9 +90,9 @@ def serverProcess(dbElem, logPath, fileStore, existingSnapshotID=None, snapshotE
     blockUntilKtserverIsFinished(logPath)
     if snapshotExportID is not None:
         # Export the snapshot file(s) to the file store
-        zipBasePath = fileStore.getLocalTempFile()
-        zipPath = shutil.make_archive(zipBasePath, 'zip', root_dir=snapshotDir)
-        fileStore.jobStore.updateFile(snapshotExportID, zipPath)
+        tarBasePath = fileStore.getLocalTempFile()
+        tarPath = shutil.make_archive(tarBasePath, 'gztar', root_dir=snapshotDir)
+        fileStore.jobStore.updateFile(snapshotExportID, tarPath)
 
 def blockUntilKtserverIsRunning(logPath, createTimeout=1800):
     """Check status until it's successful, an error is found, or we timeout.
