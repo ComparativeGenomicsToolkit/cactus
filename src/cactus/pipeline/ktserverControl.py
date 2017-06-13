@@ -169,7 +169,10 @@ def __getKtserverCommand(dbElem, logPath, snapshotDir):
     tuning = __getKtTuningOptions(dbElem)
     cmd = ["ktserver", "-host", dbElem.getDbHost(), "-port", dbElem.getDbPort()]
     cmd += serverOptions.split()
-    cmd += ["-bgs", snapshotDir, "-bgsc", "lzo"]
+    # Configure background snapshots, but set the interval between
+    # snapshots to ~ 10 days so it'll never trigger. We are only
+    # interested in the snapshot that the DB creates on termination.
+    cmd += ["-bgs", snapshotDir, "-bgsc", "lzo", "-bgsi", "1000000"]
     cmd += ["-log", logPath]
     cmd += [":" + tuning]
     return cmd
