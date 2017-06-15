@@ -109,6 +109,8 @@ class CactusJob(RoundedJob):
             # Memory should be determined by a polynomial fit on the
             # input size
             memory = self.evaluateResourcePoly(self.memoryPoly)
+            if hasattr(self, 'memoryCap'):
+                memory = int(min(memory, self.memoryCap))
 
         disk = None
         if memory is None and overlarge:
@@ -665,6 +667,7 @@ class CactusCafWrapper(CactusRecursionJob):
     """
     featuresFn = lambda self: {'alignmentsSize': self.cactusWorkflowArguments.alignmentsID.size}
     memoryPoly = [1.80395944e+01, 7.96042247e+07]
+    memoryCap = 120e09
     feature = 'totalSequenceSize'
 
     def __init__(self, **kwargs):
@@ -877,6 +880,7 @@ class CactusBarEndAlignerWrapper(CactusRecursionJob):
 
     memoryPoly = [3.82834548e-01, 3.5e+09]
     feature = 'totalSequenceSize'
+    memoryCap = 40e09
 
     def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, flowerSizes,
                  overlarge, endsToAlign, endSizes, cactusWorkflowArguments):
