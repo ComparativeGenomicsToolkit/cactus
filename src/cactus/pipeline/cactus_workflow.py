@@ -307,7 +307,7 @@ class SavePrimaryDB(CactusPhasesJob):
         if intermediateResultsUrl is not None:
             # The user requested to keep the DB dumps in a separate place. Export it there.
             url = intermediateResultsUrl + "-dump-" + self.phaseName
-            fileStore.exportFile(path, url)
+            fileStore.exportFile(self.cactusWorkflowArguments.snapshotID, url)
         return self.cactusWorkflowArguments.snapshotID
 
 class CactusRecursionJob(CactusJob):
@@ -1145,12 +1145,13 @@ class CactusExtractReferencePhase(CactusPhasesJob):
                                 option_string="--cactusDisk '%s' --flowerName 0 --referenceEventString %s --outputFile %s --logLevel %s" % 
                               (self.cactusWorkflowArguments.cactusDiskDatabaseString,
                                       eventName, os.path.basename(referencePath), getLogLevelString()))
-                    experiment.setReferenceID(fileStore.writeGlobalFile(referencePath))
+                    referenceID = fileStore.writeGlobalFile(referencePath)
+                    experiment.setReferenceID(referenceID)
                     intermediateResultsUrl = getattr(self.cactusWorkflowArguments, 'intermediateResultsUrl', None)
                     if intermediateResultsUrl is not None:
                         # The user requested to keep the hal fasta files in a separate place. Export it there.
                         url = intermediateResultsUrl + ".reference.fa"
-                        fileStore.exportFile(referencePath, url)
+                        fileStore.exportFile(referenceID, url)
         self.cactusWorkflowArguments.experimentWrapper = experiment
         self.makeFollowOnPhaseJob(CactusCheckPhase, "check")
         return experiment
@@ -1233,11 +1234,12 @@ class CactusFastaGenerator(CactusRecursionJob):
                                 outputFile=tmpFasta,
                                 referenceEventString=self.getOptionalPhaseAttrib("reference"))
         intermediateResultsUrl = getattr(self.cactusWorkflowArguments, 'intermediateResultsUrl', None)
+        fastaID = fileStore.writeGlobalFile(tmpFasta)
         if intermediateResultsUrl is not None:
             # The user requested to keep the hal fasta files in a separate place. Export it there.
             url = intermediateResultsUrl + ".hal.fa"
-            fileStore.exportFile(tmpFasta, url)
-        return fileStore.writeGlobalFile(tmpFasta)
+            fileStore.exportFile(fastaID, url)
+        return fastaID
 
 class CactusHalGeneratorRecursion(CactusRecursionJob):
     """Generate the hal file by merging indexed hal files from the children.
@@ -1273,12 +1275,12 @@ class CactusHalGeneratorUpWrapper(CactusRecursionJob):
         if tmpHal:
             # At top level--have the final .c2h file
             intermediateResultsUrl = getattr(self.cactusWorkflowArguments, 'intermediateResultsUrl', None)
+            halID = fileStore.writeGlobalFile(tmpHal)
             if intermediateResultsUrl is not None:
                 # The user requested to keep the c2h files in a separate place. Export it there.
                 url = intermediateResultsUrl + ".c2h"
-                fileStore.exportFile(tmpHal, url)
-
-            return fileStore.writeGlobalFile(tmpHal)
+                fileStore.exportFile(halID, url)
+            return halID
         else:
             return None
 
