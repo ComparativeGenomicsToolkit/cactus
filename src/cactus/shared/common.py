@@ -897,6 +897,13 @@ def cactus_call(tool=None,
     if work_dir and os.environ.get('CACTUS_DOCKER_MODE') != "0":
         parameters = [adjustPath(par, work_dir) for par in parameters]
 
+    # This is really dumb, but we have to work around an intersection
+    # between two bugs: one in CoreOS where /etc/resolv.conf is
+    # sometimes missing temporarily, and one in Docker where it
+    # refuses to start without /etc/resolv.conf.
+    while not os.path.exists('/etc/resolv.conf'):
+        pass
+
     base_docker_call = ['docker', 'run',
                         '--interactive',
                         '--net=host',
