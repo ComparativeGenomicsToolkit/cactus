@@ -825,12 +825,14 @@ class CactusBarWrapperLarge(CactusRecursionJob):
                                             default=CactusRecursionJob.maxSequenceSizeOfFlowerGroupingDefault)
         endsToAlign = []
         endSizes = []
+        effectiveEndSizes = []
         precomputedAlignmentIDs = []
         for line in runBarForJob(self, features=self.featuresFn(),
                                  fileStore=fileStore, calculateWhichEndsToComputeSeparately=True):
-            endToAlign, sequencesInEndAlignment, basesInEndAlignment = line.split()
+            endToAlign, sequencesInEndAlignment, basesInEndAlignment, alignableBasesInEndAlignment = line.split()
             sequencesInEndAlignment = int(sequencesInEndAlignment)
             basesInEndAlignment = int(basesInEndAlignment)
+            alignableBasesInEndAlignment = int(alignableBasesInEndAlignment)
 
             # Sanity check
             assert len(endsToAlign) == len(endSizes), "End alignments and size lists out of sync"
@@ -840,6 +842,7 @@ class CactusBarWrapperLarge(CactusRecursionJob):
                 alignmentID = self.addChild(CactusBarEndAlignerWrapper(self.phaseNode, self.constantsNode,
                                                         self.cactusDiskDatabaseString, self.flowerNames,
                                                         self.flowerSizes, True, [ endToAlign ], [ basesInEndAlignment ],
+                                                        [ alignableBasesInEndAlignment ],
                                                         cactusWorkflowArguments=self.cactusWorkflowArguments)).rv()
                 precomputedAlignmentIDs.append(alignmentID)
                 logger.info("Precomputing very large end alignment for %s with %i caps and %i bases" % \
@@ -847,12 +850,13 @@ class CactusBarWrapperLarge(CactusRecursionJob):
             else:
                 endsToAlign.append(endToAlign)
                 endSizes.append(basesInEndAlignment)
+                effectiveEndSizes.append(alignableBasesInEndAlignment)
                 if sum(endSizes) >= maxFlowerGroupSize:
                     alignmentID = self.addChild(CactusBarEndAlignerWrapper(self.phaseNode,
                                                        self.constantsNode,
                                                        self.cactusDiskDatabaseString,
                                                        self.flowerNames, self.flowerSizes, False,
-                                                       endsToAlign, endSizes,
+                                                       endsToAlign, endSizes, effectiveEndSizes,
                                                        cactusWorkflowArguments=self.cactusWorkflowArguments)).rv()
                     precomputedAlignmentIDs.append(alignmentID)
                     endsToAlign = []
@@ -860,7 +864,7 @@ class CactusBarWrapperLarge(CactusRecursionJob):
         if len(endsToAlign) > 0:
             precomputedAlignmentIDs.append(self.addChild(CactusBarEndAlignerWrapper(
                 self.phaseNode, self.constantsNode, self.cactusDiskDatabaseString, self.flowerNames,
-                self.flowerSizes, False, endsToAlign, endSizes,
+                self.flowerSizes, False, endsToAlign, endSizes, effectiveEndSizes,
                 cactusWorkflowArguments=self.cactusWorkflowArguments)).rv())
         self.precomputedAlignmentIDs = precomputedAlignmentIDs
         self.makeFollowOnRecursiveJob(CactusBarWrapperWithPrecomputedEndAlignments)
@@ -874,7 +878,9 @@ class CactusBarEndAlignerWrapper(CactusRecursionJob):
         have an impact on resource usage."""
         d = {'endGroupSize': sum(self.endSizes),
              'maxEndSize': max(self.endSizes),
-             'numEnds': len(self.endSizes)}
+             'numEnds': len(self.endSizes),
+             'effectiveEndGroupSize': sum(self.effectiveEndSizes),
+             'effectiveMaxEndSize': max(self.effectiveEndSizes)}
         d.update(self.flowerFeatures())
         return d
 
@@ -883,10 +889,11 @@ class CactusBarEndAlignerWrapper(CactusRecursionJob):
     memoryCap = 40e09
 
     def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, flowerSizes,
-                 overlarge, endsToAlign, endSizes, cactusWorkflowArguments):
+                 overlarge, endsToAlign, endSizes, effectiveEndSizes, cactusWorkflowArguments):
         self.cactusWorkflowArguments = cactusWorkflowArguments
         self.endsToAlign = endsToAlign
         self.endSizes = endSizes
+        self.effectiveEndSizes = effectiveEndSizes
         CactusRecursionJob.__init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, flowerSizes, overlarge, cactusWorkflowArguments=self.cactusWorkflowArguments, preemptable=True)
 
     def run(self, fileStore):
