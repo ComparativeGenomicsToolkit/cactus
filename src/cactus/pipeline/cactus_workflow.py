@@ -387,7 +387,6 @@ class CactusRecursionJob(CactusJob):
         if job == None:
             job = self.__class__
         jobNode = getJobNode(self.phaseNode, job)
-        logger.info("Flower names: %s" % self.flowerNames)
         flowersAndSizes=runCactusGetFlowers(cactusDiskDatabaseString=self.cactusDiskDatabaseString,
                                             features=self.featuresFn(),
                                             jobName=job.__name__,
