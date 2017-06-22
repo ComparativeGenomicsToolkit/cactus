@@ -877,8 +877,8 @@ class CactusBarEndAlignerWrapper(CactusRecursionJob):
         d.update(self.flowerFeatures())
         return d
 
-    memoryPoly = [3.82834548e-01, 3.5e+09]
-    feature = 'totalSequenceSize'
+    memoryPoly = [1.495e-03, 4.87e+09]
+    feature = 'maxEndSize'
     memoryCap = 40e09
 
     def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, flowerSizes,
