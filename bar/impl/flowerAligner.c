@@ -609,45 +609,6 @@ int64_t getTotalAdjacencyLength(End *end) {
     return totalAdjacencyLength;
 }
 
-
-int64_t getEffectiveTotalAdjacencyLength(End *end) {
-    End_InstanceIterator *capIt = end_getInstanceIterator(end);
-    Cap *cap;
-    int64_t effectiveTotalAdjacencyLength = 0;
-    while ((cap = end_getNext(capIt)) != NULL) {
-        Cap *adjacentCap = cap_getAdjacency(cap);
-        assert(adjacentCap != NULL);
-        // Get the string for the adjacency between the caps.
-        Sequence *sequence = cap_getSequence(cap);
-        assert(sequence == cap_getSequence(adjacentCap));
-        MetaSequence *metaSequence = sequence_getMetaSequence(sequence);
-        int64_t start;
-        int64_t end;
-        if (cap_getCoordinate(adjacentCap) >= cap_getCoordinate(cap)) {
-            start = cap_getCoordinate(cap);
-            end = cap_getCoordinate(adjacentCap);
-        } else {
-            start = cap_getCoordinate(adjacentCap);
-            end = cap_getCoordinate(cap);
-        }
-        char *seq = metaSequence_getString(metaSequence, start, end - start, 1);
-        // Count the number of alignable (non-N) characters in the
-        // sequence. We will align into the Ns a bit, but not much, so
-        // this should be a good proxy for the amount of resources
-        // we'll use.
-        int64_t effectiveAdjacencyLength = 0;
-        for (int64_t i = 0; i < end - start; i++) {
-            if (tolower(seq[i]) != 'n') {
-                effectiveAdjacencyLength++;
-            }
-        }
-        assert(effectiveAdjacencyLength <= llabs(cap_getCoordinate(adjacentCap) - cap_getCoordinate(cap)) - 1);
-        effectiveTotalAdjacencyLength += effectiveAdjacencyLength;
-    }
-    end_destructInstanceIterator(capIt);
-    return effectiveTotalAdjacencyLength;
-}
-
 stSortedSet *getEndsToAlignSeparately(Flower *flower, int64_t maxSequenceLength, int64_t largeEndSize) {
     /*
      * Picks a set of end alignments that contain more than "largeEndSize" bases and, if there are more
