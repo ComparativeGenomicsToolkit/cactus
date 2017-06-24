@@ -297,7 +297,7 @@ class SavePrimaryDB(CactusPhasesJob):
         stopKtserver(dbElem)
         # Wait for the file to appear in the right place. This may take a while
         while True:
-            path = fileStore.readGlobalFile(self.cactusWorkflowArguments.snapshotID)
+            path = fileStore.readGlobalFile(self.cactusWorkflowArguments.snapshotID, cache=False)
             stat = os.stat(path)
             if stat.st_size > 0:
                 break
