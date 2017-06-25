@@ -8,9 +8,11 @@ import random
 import socket
 import shutil
 import signal
+import sys
 import tarfile
+import traceback
 from time import sleep
-from multiprocessing import Process
+from multiprocessing import Process, Queue
 
 from toil.lib.bioio import logger
 from cactus.shared.common import cactus_call
@@ -43,56 +45,71 @@ def runKtserver(dbElem, fileStore, existingSnapshotID=None, snapshotExportID=Non
         port = random.randint(1025,MAX_KTSERVER_PORT)
     dbElem.setDbPort(port)
 
-    process = Process(target=serverProcess,
-                      args=(dbElem, logPath, fileStore, existingSnapshotID, snapshotExportID))
+    process = ServerProcess(dbElem, logPath, fileStore, existingSnapshotID, snapshotExportID)
     process.daemon = True
     process.start()
 
     if not blockUntilKtserverIsRunning(logPath):
         raise RuntimeError("Unable to launch ktserver in time.")
 
-    return dbElem, logPath
+    return process, dbElem, logPath
 
-def serverProcess(dbElem, logPath, fileStore, existingSnapshotID=None, snapshotExportID=None):
+class ServerProcess(Process):
     """Independent process that babysits the ktserver process.
 
     Waits for the TERMINATE flag to be set, then kills the DB and
     copies the final snapshot to snapshotExportID.
     """
-    snapshotDir = os.path.join(fileStore.getLocalTempDir(), 'snapshot')
-    os.mkdir(snapshotDir)
-    if existingSnapshotID is not None:
-        # Extract the existing snapshot (a zip file) to the snapshot
-        # directory so it will be automatically loaded
-        snapshot = fileStore.readGlobalFile(existingSnapshotID)
-        with tarfile.open(snapshot) as tar:
-            tar.extractall(snapshotDir)
-    process = cactus_call(server=True, shell=False,
-                          parameters=__getKtserverCommand(dbElem, logPath, snapshotDir))
+    exceptionMsg = Queue()
 
-    blockUntilKtserverIsRunning(logPath)
-    if existingSnapshotID is not None:
-        # Clear the termination flag from the snapshot
-        cactus_call(parameters=["ktremotemgr", "remove"] + getRemoteParams(dbElem) + ["TERMINATE"])
+    def __init__(self, *args, **kwargs):
+        self.args = args
+        self.kwargs = kwargs
+        super(ServerProcess, self).__init__()
 
-    while True:
+    def run(self):
+        """Run the tryRun method, signaling the main thread if an exception occurs."""
         try:
-            cactus_call(parameters=["ktremotemgr", "get"] + getRemoteParams(dbElem) + ["TERMINATE"])
-        except:
-            # No terminate signal sent yet
-            pass
-        else:
-            # Terminate signal received
-            break
-        sleep(60)
-    process.send_signal(signal.SIGINT)
-    process.wait()
-    blockUntilKtserverIsFinished(logPath)
-    if snapshotExportID is not None:
-        # Export the snapshot file(s) to the file store
-        tarBasePath = fileStore.getLocalTempFile()
-        tarPath = shutil.make_archive(tarBasePath, 'gztar', root_dir=snapshotDir)
-        fileStore.jobStore.updateFile(snapshotExportID, tarPath)
+            self.tryRun(*self.args, **self.kwargs)
+        except BaseException:
+            self.exceptionMsg.put("".join(traceback.format_exception(*sys.exc_info())))
+            raise
+
+    def tryRun(self, dbElem, logPath, fileStore, existingSnapshotID=None, snapshotExportID=None):
+        snapshotDir = os.path.join(fileStore.getLocalTempDir(), 'snapshot')
+        os.mkdir(snapshotDir)
+        if existingSnapshotID is not None:
+            # Extract the existing snapshot (a zip file) to the snapshot
+            # directory so it will be automatically loaded
+            snapshot = fileStore.readGlobalFile(existingSnapshotID)
+            with tarfile.open(snapshot) as tar:
+                tar.extractall(snapshotDir)
+        process = cactus_call(server=True, shell=False,
+                              parameters=getKtserverCommand(dbElem, logPath, snapshotDir))
+
+        blockUntilKtserverIsRunning(logPath)
+        if existingSnapshotID is not None:
+            # Clear the termination flag from the snapshot
+            cactus_call(parameters=["ktremotemgr", "remove"] + getRemoteParams(dbElem) + ["TERMINATE"])
+
+        while True:
+            try:
+                cactus_call(parameters=["ktremotemgr", "get"] + getRemoteParams(dbElem) + ["TERMINATE"])
+            except:
+                # No terminate signal sent yet
+                pass
+            else:
+                # Terminate signal received
+                break
+            sleep(60)
+        process.send_signal(signal.SIGINT)
+        process.wait()
+        blockUntilKtserverIsFinished(logPath)
+        if snapshotExportID is not None:
+            # Export the snapshot file(s) to the file store
+            tarBasePath = fileStore.getLocalTempFile()
+            tarPath = shutil.make_archive(tarBasePath, 'gztar', root_dir=snapshotDir)
+            fileStore.jobStore.updateFile(snapshotExportID, tarPath)
 
 def blockUntilKtserverIsRunning(logPath, createTimeout=1800):
     """Check status until it's successful, an error is found, or we timeout.
@@ -100,11 +117,11 @@ def blockUntilKtserverIsRunning(logPath, createTimeout=1800):
     Returns True if the ktserver is now running, False if something went wrong."""
     success = False
     for i in xrange(createTimeout):
-        if __isKtServerFailed(logPath):
+        if isKtServerFailed(logPath):
             logger.critical('Error starting ktserver.')
             success = False
             break
-        if __isKtServerRunning(logPath):
+        if isKtServerRunning(logPath):
             logger.info('Ktserver running.')
             success = True
             break
@@ -125,7 +142,7 @@ def blockUntilKtserverIsFinished(logPath, timeout=1800,
     raise RuntimeError("Timeout reached while waiting for ktserver" %
                        logPath)
 
-def __isKtServerRunning(logPath):
+def isKtServerRunning(logPath):
     """Check if the server started running."""
     success = False
     with open(logPath) as f:
@@ -134,7 +151,7 @@ def __isKtServerRunning(logPath):
                 success = True
     return success
 
-def __isKtServerFailed(logPath):
+def isKtServerFailed(logPath):
     """Does the server log contain an error?"""
     isFailed = False
     with open(logPath) as f:
@@ -144,7 +161,7 @@ def __isKtServerFailed(logPath):
                 break
     return isFailed
 
-def __getKtTuningOptions(dbElem):
+def getKtTuningOptions(dbElem):
     """Get the appropriate KTServer tuning parameters (bucket size, etc.)"""
     # these are some hardcoded defaults.  should think about moving to config
     tuningOptions = "#opts=ls#bnum=30m#msiz=50g#ktopts=p"
@@ -156,17 +173,17 @@ def __getKtTuningOptions(dbElem):
         tuningOptions = dbElem.getDbCreateTuningOptions()
     return tuningOptions
 
-def __getKtServerOptions(dbElem):
+def getKtServerOptions(dbElem):
     # these are some hardcoded defaults.  should think about moving to config
     serverOptions = "-ls -tout 200000 -th 64"
     if dbElem.getDbServerOptions() is not None:
         serverOptions = dbElem.getDbServerOptions()
     return serverOptions
 
-def __getKtserverCommand(dbElem, logPath, snapshotDir):
+def getKtserverCommand(dbElem, logPath, snapshotDir):
     """Get a ktserver command line with the proper options (in popen-type list format)."""
-    serverOptions = __getKtServerOptions(dbElem)
-    tuning = __getKtTuningOptions(dbElem)
+    serverOptions = getKtServerOptions(dbElem)
+    tuning = getKtTuningOptions(dbElem)
     cmd = ["ktserver", "-host", dbElem.getDbHost(), "-port", dbElem.getDbPort()]
     cmd += serverOptions.split()
     # Configure background snapshots, but set the interval between

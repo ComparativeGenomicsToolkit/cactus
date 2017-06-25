@@ -4,7 +4,6 @@
 #
 #Released under the MIT license, see LICENSE.txt
 
-import sys
 import os
 import stat
 from toil.job import Job
@@ -18,6 +17,8 @@ class KtServerService(Job.Service):
         self.dbElem = dbElem
         self.isSecondary = isSecondary
         self.existingSnapshotID = existingSnapshotID
+        self.failed = False
+        self.process = None
 
     def start(self, job):
         snapshotExportID = job.fileStore.jobStore.getEmptyFileStoreID()
@@ -27,17 +28,24 @@ class KtServerService(Job.Service):
         # need to write something to it, obviously that won't do.
         path = job.fileStore.readGlobalFile(snapshotExportID)
         os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH)
-        self.dbElem, self.logPath = runKtserver(self.dbElem, fileStore=job.fileStore,
-                                                existingSnapshotID=self.existingSnapshotID,
-                                                snapshotExportID=snapshotExportID)
+        self.process, self.dbElem, self.logPath = runKtserver(self.dbElem, fileStore=job.fileStore,
+                                                              existingSnapshotID=self.existingSnapshotID,
+                                                              snapshotExportID=snapshotExportID)
         assert self.dbElem.getDbHost() != None
         blockUntilKtserverIsRunning(self.logPath)
+        self.check()
         return self.dbElem.getConfString(), snapshotExportID
 
     def stop(self, job):
+        self.check()
         stopKtserver(self.dbElem)
-        blockUntilKtserverIsFinished(self.logPath, timeout=600)
+        if not self.failed:
+            blockUntilKtserverIsFinished(self.logPath, timeout=600)
 
     def check(self):
-        return True
-    
+        if self.process.exceptionMsg.empty():
+            return True
+        else:
+            self.failed = True
+            msg = self.process.exceptionMsg.get()
+            raise RuntimeError(msg)
