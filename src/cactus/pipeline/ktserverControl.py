@@ -139,8 +139,7 @@ def blockUntilKtserverIsFinished(logPath, timeout=1800,
             if '[FINISH]' in log:
                 return True
         sleep(timeStep)
-    raise RuntimeError("Timeout reached while waiting for ktserver" %
-                       logPath)
+    raise RuntimeError("Timeout reached while waiting for ktserver.")
 
 def isKtServerRunning(logPath):
     """Check if the server started running."""
