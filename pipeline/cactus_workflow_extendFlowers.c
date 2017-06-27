@@ -52,15 +52,15 @@ int main(int argc, char *argv[]) {
     parseArgs(argc, argv);
 
     st_logDebug("Starting extending flowers\n");
-    stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
-    for (int64_t i = 0; i < stList_length(flowers); i++) {
-        Flower *flower = stList_get(flowers, i);
+    FlowerStream *flowerStream = flowerWriter_getFlowerStream(cactusDisk, stdin);
+    Flower *flower;
+    while ((flower = flowerStream_getNext(flowerStream)) != NULL) {
         extendFlowers(flower, flowerIsLarge(flower));
         assert(!flower_isParentLoaded(flower)); //The parent should not be loaded.
     }
-    stList_destruct(flowers);
     st_logDebug("Finish extending flowers\n");
 
+    flowerStream_destruct(flowerStream);
     flowerWriter_destruct(flowerWriter);
 
     cactusDisk_write(cactusDisk);

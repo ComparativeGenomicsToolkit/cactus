@@ -198,6 +198,7 @@ Flower *flowerStream_getNext(FlowerStream *flowerStream) {
     if (flowerStream->curFlower != NULL) {
         // Unload the previously loaded flower.
         flower_destruct(flowerStream->curFlower, false);
+        flowerStream->curFlower = NULL;
     }
     if (flowerStream->nextIdx >= stList_length(flowerStream->flowerNames)) {
         return NULL;
