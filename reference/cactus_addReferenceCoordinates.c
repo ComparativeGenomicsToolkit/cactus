@@ -153,9 +153,6 @@ int main(int argc, char *argv[]) {
 
             // Write this flower to disk.
             cactusDisk_addUpdateRequest(cactusDisk, flower);
-
-            // Unload the sequences from memory.
-            cactusDisk_clearStringCache(cactusDisk);
         } else {
             topDown(flower, referenceEventName);
 
