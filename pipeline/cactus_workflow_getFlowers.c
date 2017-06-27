@@ -26,7 +26,6 @@ int main(int argc, char *argv[]) {
             flower_destructGroupIterator(groupIterator);
         }
     }
-    flowerStream_destruct(flowerStream);
     flowerWriter_destruct(flowerWriter);
     cactusDisk_destruct(cactusDisk);
 
