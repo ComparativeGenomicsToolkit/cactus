@@ -255,7 +255,7 @@ class CactusCheckpointJob(CactusPhasesJob):
                                     cactusWorkflowArguments=self.cactusWorkflowArguments,
                                     phaseName=self.phaseName, topFlowerName=self.topFlowerName)
         promise = self.addChild(startDBJob)
-        return promise.rv()
+        return promise
 
 class StartPrimaryDB(CactusPhasesJob):
     """Launches a primary Cactus DB."""
@@ -565,7 +565,7 @@ def getLongestPath(node, distance=0.0):
 class CactusSetupCheckpoint(CactusCheckpointJob):
     """Start a new DB, run the setup and CAF phases, save the DB, then launch the BAR checkpoint."""
     def run(self, fileStore):
-        ktServerDump = self.runPhaseWithPrimaryDB(CactusSetupPhase)
+        ktServerDump = self.runPhaseWithPrimaryDB(CactusSetupPhase).rv()
         return self.makeFollowOnCheckpointJob(CactusBarCheckpoint, "bar", ktServerDump=ktServerDump)
 
 class CactusSetupPhase(CactusPhasesJob):   
@@ -755,7 +755,7 @@ class CactusCafWrapper(CactusRecursionJob):
 class CactusBarCheckpoint(CactusCheckpointJob):
     """Load the DB, run the BAR, AVG, and normalization phases, save the DB, then run the reference checkpoint."""
     def run(self, fileStore):
-        ktServerDump = self.runPhaseWithPrimaryDB(CactusBarPhase)
+        ktServerDump = self.runPhaseWithPrimaryDB(CactusBarPhase).rv()
         return self.makeFollowOnCheckpointJob(CactusReferenceCheckpoint, "reference", ktServerDump=ktServerDump)
 
 class CactusBarPhase(CactusPhasesJob):
@@ -998,23 +998,16 @@ class CactusAVGWrapper(CactusRecursionJob):
 ############################################################
 ############################################################
 
-class CactusReferenceCheckpoint(CactusCheckpointJob):
-    """Load the DB and run the final reference and HAL phases."""
-    def run(self, fileStore):
-        return self.runPhaseWithPrimaryDB(CactusReferenceAndHalPhase)
 
-class CactusReferenceAndHalPhase(CactusPhasesJob):
-    """Run the reference phase, then the hal phase. This intermediate job
-    is to ensure the temporary DB that reference phase spawns doesn't live
-    throughout all of HAL phase."""
+class CactusReferenceCheckpoint(CactusCheckpointJob):
+    """Run reference phase, then save the DB and run the HAL phase."""
     def run(self, fileStore):
-        experiment = self.addChild(CactusReferencePhase(cactusWorkflowArguments=self.cactusWorkflowArguments,
-                                                        phaseName="reference",
-                                                        topFlowerName=self.topFlowerName,
-                                                        halID=self.halID, fastaID=self.fastaID)).rv()
+        child = self.runPhaseWithPrimaryDB(CactusReferencePhase)
+        experiment = child.rv(0)
+        ktServerDump = child.rv(1)
         self.cactusWorkflowArguments = copy.deepcopy(self.cactusWorkflowArguments)
         self.cactusWorkflowArguments.experimentWrapper = experiment
-        return self.makeFollowOnPhaseJob(CactusHalGeneratorPhase, "hal")
+        return self.makeFollowOnCheckpointJob(CactusHalCheckpoint, "hal", ktServerDump=ktServerDump)
 
 class CactusReferencePhase(CactusPhasesJob):
     """Runs the reference problem algorithm"""
@@ -1152,8 +1145,7 @@ class CactusExtractReferencePhase(CactusPhasesJob):
                         url = intermediateResultsUrl + ".reference.fa"
                         fileStore.exportFile(referenceID, url)
         self.cactusWorkflowArguments.experimentWrapper = experiment
-        self.makeFollowOnPhaseJob(CactusCheckPhase, "check")
-        return experiment
+        return experiment, self.makeFollowOnPhaseJob(CactusCheckPhase, "check")
 
 ############################################################
 ############################################################
@@ -1169,9 +1161,7 @@ class CactusCheckPhase(CactusPhasesJob):
     def run(self, fileStore):
         normalNode = findRequiredNode(self.cactusWorkflowArguments.configNode, "normal")
         self.phaseNode.attrib["checkNormalised"] = getOptionalAttrib(normalNode, "normalised", default="0")
-        doRecursion = self.getOptionalPhaseAttrib("runCheck", bool, False)
-        if doRecursion:
-            self.makeRecursiveChildJob(CactusCheckRecursion)
+        return self.runPhase(CactusCheckRecursion, SavePrimaryDB, "check", doRecursion=self.getOptionalPhaseAttrib("runCheck", bool, False))
 
 class CactusCheckRecursion(CactusRecursionJob):
     """This job does the recursive pass for the check phase.
@@ -1193,6 +1183,11 @@ class CactusCheckWrapper(CactusRecursionJob):
 ############################################################
 ############################################################
 ############################################################
+
+class CactusHalCheckpoint(CactusCheckpointJob):
+    """Load the DB and run the final reference and HAL phases."""
+    def run(self, fileStore):
+        return self.runPhaseWithPrimaryDB(CactusHalGeneratorPhase).rv()
 
 class CactusHalGeneratorPhase(CactusPhasesJob):
     def run(self, fileStore):
