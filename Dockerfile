@@ -8,6 +8,7 @@ RUN mkdir -p /home/cactus
 
 COPY . /home/cactus
 
+RUN cd /home/cactus && make clean && rm /home/cactus/submodules/hdf5/bin/h5c++
 RUN cd /home/cactus && make deps
 RUN cd /home/cactus && make
 RUN mkdir /data
