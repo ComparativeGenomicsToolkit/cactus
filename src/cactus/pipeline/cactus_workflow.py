@@ -292,6 +292,9 @@ class SavePrimaryDB(CactusPhasesJob):
         super(SavePrimaryDB, self).__init__(*args, **kwargs)
 
     def run(self, fileStore):
+        stats = runCactusFlowerStats(cactusDiskDatabaseString=self.cactusWorkflowArguments.cactusDiskDatabaseString,
+                                     flowerName=0)
+        fileStore.logToMaster("At end of %s phase, got stats %s" % (self.phaseName, stats))
         dbElem = DbElemWrapper(ET.fromstring(self.cactusWorkflowArguments.cactusDiskDatabaseString))
         # Send the terminate message
         stopKtserver(dbElem)
@@ -346,7 +349,7 @@ class CactusRecursionJob(CactusJob):
                                               cactusWorkflowArguments=self.cactusWorkflowArguments)).rv()
         
     def makeChildJobs(self, flowersAndSizes, job, overlargeJob=None, 
-                      phaseNode=None, runFlowerStats=False):
+                      phaseNode=None):
         """Make a set of child jobs for a given set of flowers and chosen child job
         """
         if overlargeJob == None:
@@ -357,13 +360,10 @@ class CactusRecursionJob(CactusJob):
         logger.info("Make wrapper jobs: There are %i flowers" % len(flowersAndSizes))
         for overlarge, flowerNames, flowerSizes in flowersAndSizes:
             if overlarge: #Make sure large flowers are on their own, in their own job
-                if runFlowerStats:
-                    flowerStatsString = runCactusFlowerStats(cactusDiskDatabaseString=self.cactusDiskDatabaseString, flowerName=decodeFirstFlowerName(flowerNames))
-                    logger.info("Adding an oversize flower for job class %s and stats %s" \
-                                             % (overlargeJob, flowerStatsString))
-                else:
-                    logger.info("Adding an oversize flower %s for job class %s" \
-                                             % (decodeFirstFlowerName(flowerNames), overlargeJob))
+                flowerStatsString = runCactusFlowerStats(cactusDiskDatabaseString=self.cactusDiskDatabaseString,
+                                                         flowerName=decodeFirstFlowerName(flowerNames))
+                self.logToMaster("Adding an oversize flower for job class %s and stats %s" \
+                                 % (overlargeJob, flowerStatsString))
                 self.addChild(overlargeJob(cactusDiskDatabaseString=
                                            self.cactusDiskDatabaseString,
                                            phaseNode=phaseNode, 
@@ -381,7 +381,7 @@ class CactusRecursionJob(CactusJob):
                                   overlarge=False,
                                   cactusWorkflowArguments=self.cactusWorkflowArguments)).rv()
 
-    def makeRecursiveJobs(self, fileStore=None, job=None, phaseNode=None, runFlowerStats=False):
+    def makeRecursiveJobs(self, fileStore=None, job=None, phaseNode=None):
         """Make a set of child jobs for a given set of parent flowers.
         """
         if job == None:
@@ -398,11 +398,9 @@ class CactusRecursionJob(CactusJob):
                                             maxSequenceSizeOfSecondaryFlowerGrouping=getOptionalAttrib(jobNode, "maxFlowerWrapperGroupSize", int, 
                                             default=CactusRecursionJob.maxSequenceSizeOfFlowerGroupingDefault))
         return self.makeChildJobs(flowersAndSizes=flowersAndSizes, 
-                              job=job, phaseNode=phaseNode,
-                              runFlowerStats=runFlowerStats)
+                              job=job, phaseNode=phaseNode)
     
-    def makeExtendingJobs(self, job, fileStore=None, overlargeJob=None, phaseNode=None,
-                          runFlowerStats=False):
+    def makeExtendingJobs(self, job, fileStore=None, overlargeJob=None, phaseNode=None):
         """Make set of child jobs that extend the current cactus tree.
         """
 
@@ -417,10 +415,9 @@ class CactusRecursionJob(CactusJob):
                                               default=CactusRecursionJob.maxSequenceSizeOfFlowerGroupingDefault))
         return self.makeChildJobs(flowersAndSizes=flowersAndSizes, 
                                   job=job, overlargeJob=overlargeJob,
-                                  phaseNode=phaseNode,
-                                  runFlowerStats=runFlowerStats)
+                                  phaseNode=phaseNode)
 
-    def makeWrapperJobs(self, job, overlargeJob=None, phaseNode=None, runFlowerStats=False):
+    def makeWrapperJobs(self, job, overlargeJob=None, phaseNode=None):
         """Takes the list of flowers for a recursive job and splits them up to fit the given wrapper job(s).
         """
         splitFlowerNames = runCactusSplitFlowersBySecondaryGrouping(self.flowerNames)
@@ -439,7 +436,7 @@ class CactusRecursionJob(CactusJob):
                "Didn't process all flowers while going through a secondary grouping."
         return self.makeChildJobs(flowersAndSizes=flowersAndSizes,
                                   job=job, overlargeJob=overlargeJob,
-                                  phaseNode=phaseNode, runFlowerStats=runFlowerStats)
+                                  phaseNode=phaseNode)
 
 ############################################################
 ############################################################
@@ -770,7 +767,7 @@ class CactusBarRecursion(CactusRecursionJob):
     def run(self, fileStore):
         self.makeRecursiveJobs(fileStore=fileStore)
         self.makeExtendingJobs(fileStore=fileStore,
-                               job=CactusBarWrapper, overlargeJob=CactusBarWrapperLarge, runFlowerStats=True)
+                               job=CactusBarWrapper, overlargeJob=CactusBarWrapperLarge)
 
 def runBarForJob(self, fileStore=None, features=None, calculateWhichEndsToComputeSeparately=None, endAlignmentsToPrecomputeOutputFile=None, precomputedAlignments=None):
     return runCactusBar(jobName=self.__class__.__name__,
@@ -1025,7 +1022,7 @@ class CactusReferenceRecursion(CactusRecursionJob):
     memoryPoly = [2e+09]
 
     def run(self, fileStore):
-        self.makeWrapperJobs(CactusReferenceWrapper, runFlowerStats=True)
+        self.makeWrapperJobs(CactusReferenceWrapper)
         return self.makeFollowOnRecursiveJob(CactusReferenceRecursion2)
 
 class CactusReferenceWrapper(CactusRecursionJob):

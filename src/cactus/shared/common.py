@@ -411,7 +411,7 @@ def runCactusFlowerStats(cactusDiskDatabaseString, flowerName, logLevel=None):
     flowerStatsString = cactus_call(check_output=True,
                                     parameters=["cactus_workflow_flowerStats",
                                                 logLevel, "'%s'" % cactusDiskDatabaseString, flowerName])
-    return flowerStatsString.split("\n")[0]
+    return flowerStatsString
 
 def runCactusMakeNormal(cactusDiskDatabaseString, flowerNames, maxNumberOfChains=0, logLevel=None):
     """Makes the given flowers normal (see normalisation for the various phases)

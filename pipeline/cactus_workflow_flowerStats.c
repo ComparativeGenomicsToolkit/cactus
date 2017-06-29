@@ -81,6 +81,22 @@ int main(int argc, char *argv[]) {
     }
     flower_destructGroupIterator(groupIt);
 
+    printf("{\n");
+    printf("  \"flowerName\": %" PRIi64 ",\n", flowerName);
+    printf("  \"totalBases\": %" PRIi64 ",\n", totalBases);
+    printf("  \"totalEnds\": %" PRIi64 ",\n", totalEnds);
+    printf("  \"totalCaps\": %" PRIi64 ",\n", totalCaps);
+    printf("  \"maxEndDegree\": %" PRIi64 ",\n", maxEndDegree);
+    printf("  \"maxAdjacencyLength\": %" PRIi64 ",\n", maxAdjacencyLength);
+    printf("  \"totalBlocks\": %" PRIi64 ",\n", totalBlocks);
+    printf("  \"totalGroups\": %" PRIi64 ",\n", totalGroups);
+    printf("  \"totalEdges\": %" PRIi64 ",\n", totalEdges);
+    printf("  \"totalFreeEnds\": %" PRIi64 ",\n", totalFreeEnds);
+    printf("  \"totalAttachedEnds\": %" PRIi64 ",\n", totalAttachedEnds);
+    printf("  \"totalChains\": %" PRIi64 ",\n", totalChains);
+    printf("  \"totalLinkGroups\": %" PRIi64 "\n", totalLinkGroups);
+    printf("}\n");
+
     printf("flower name: %" PRIi64 " total bases: %" PRIi64 " total-ends: %" PRIi64 " total-caps: %" PRIi64 " max-end-degree: %" PRIi64 " max-adjacency-length: %" PRIi64 " total-blocks: %" PRIi64 " total-groups: %" PRIi64 " total-edges: %" PRIi64 " total-free-ends: %" PRIi64 " total-attached-ends: %" PRIi64 " total-chains: %" PRIi64 " total-link groups: %" PRIi64 "\n",
             flower_getName(flower), totalBases, totalEnds, totalCaps, maxEndDegree, maxAdjacencyLength, totalBlocks, totalGroups, totalEdges/2, totalFreeEnds, totalAttachedEnds, totalChains, totalLinkGroups);
 
