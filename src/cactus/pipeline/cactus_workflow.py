@@ -362,7 +362,7 @@ class CactusRecursionJob(CactusJob):
             if overlarge: #Make sure large flowers are on their own, in their own job
                 flowerStatsString = runCactusFlowerStats(cactusDiskDatabaseString=self.cactusDiskDatabaseString,
                                                          flowerName=decodeFirstFlowerName(flowerNames))
-                self.logToMaster("Adding an oversize flower for job class %s and stats %s" \
+                self._fileStore.logToMaster("Adding an oversize flower for job class %s and stats %s" \
                                  % (overlargeJob, flowerStatsString))
                 self.addChild(overlargeJob(cactusDiskDatabaseString=
                                            self.cactusDiskDatabaseString,
