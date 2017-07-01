@@ -214,17 +214,17 @@
 		minNumberOfSequencesToSupportAdjacency="1"
 		makeScaffolds="1"
 	>
-		<CactusReferenceRecursion maxFlowerGroupSize="maxFlowerGroupSizeRecursion" maxFlowerWrapperGroupSize="50000000"/>
+		<CactusReferenceRecursion maxFlowerGroupSize="maxFlowerGroupSizeRecursion" maxFlowerWrapperGroupSize="2000000"/>
 	 	<CactusReferenceWrapper/>
 	 	<CactusSetReferenceCoordinatesUpWrapper/>
-	 	<CactusSetReferenceCoordinatesDownRecursion maxFlowerGroupSize="maxFlowerGroupSizeRecursion" maxFlowerWrapperGroupSize="50000000"/>
+	 	<CactusSetReferenceCoordinatesDownRecursion maxFlowerGroupSize="maxFlowerGroupSizeRecursion" maxFlowerWrapperGroupSize="2000000"/>
 	 	<CactusSetReferenceCoordinatesDownWrapper/>
 	</reference>
 	<!-- The check tag provides parameters to cactus_check, a script which checks that a constructed cactus database is as expected. -->
 	<check 
 		runCheck="0"
 	>
-		<CactusCheckRecursion maxFlowerGroupSize="maxFlowerGroupSizeRecursion" maxFlowerWrapperGroupSize="50000000"/>
+		<CactusCheckRecursion maxFlowerGroupSize="maxFlowerGroupSizeRecursion" maxFlowerWrapperGroupSize="2000000"/>
 		<CactusCheckWrapper/>
 	</check>
 	<!-- The hal tag controls the creation of hal and fasta files from the pipeline. -->
@@ -232,7 +232,7 @@
 		buildHal="1"
 		buildFasta="1"
 	>
-		<CactusHalGeneratorRecursion maxFlowerGroupSize="50000000"/>
+		<CactusHalGeneratorRecursion maxFlowerGroupSize="2000000"/>
 		<CactusHalGeneratorUpWrapper/>
 	</hal>
   	<multi_cactus>
