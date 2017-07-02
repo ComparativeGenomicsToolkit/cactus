@@ -12,30 +12,33 @@ static void testFlowerStream(CuTest *testCase) {
     FILE *f = fopen(tempPath, "w");
     Name flowerNames[3];
     // First test flower
-    Flower *flower = flower_construct(cactusDisk);
-    flowerNames[0] = flower_getName(flower);
+    Flower *flower1 = flower_construct(cactusDisk);
+    flowerNames[0] = flower_getName(flower1);
     fprintf(f, "3 %" PRIi64, flowerNames[0]);
-    flower_destruct(flower, false);
     // Second test flower
-    flower = flower_construct(cactusDisk);
-    flowerNames[1] = flower_getName(flower);
+    Flower *flower2 = flower_construct(cactusDisk);
+    flowerNames[1] = flower_getName(flower2);
     fprintf(f, " %" PRIi64, flowerNames[1] - flowerNames[0]);
-    flower_destruct(flower, false);
     // Third test flower
-    flower = flower_construct(cactusDisk);
-    flowerNames[2] = flower_getName(flower);
+    Flower *flower3 = flower_construct(cactusDisk);
+    flowerNames[2] = flower_getName(flower3);
     fprintf(f, " %" PRIi64, flowerNames[2] - flowerNames[1]);
-    flower_destruct(flower, false);
     fclose(f);
 
-    printf("%"PRIi64 " %" PRIi64 " %" PRIi64 "\n", flowerNames[0],
-           flowerNames[1], flowerNames[2]);
+    // Ensure the flowers are serialized to disk, because
+    // cactusDisk_getFlowers retrieves the records even if the flowers
+    // are already loaded.
+    cactusDisk_write(cactusDisk);
+    flower_destruct(flower1, false);
+    flower_destruct(flower2, false);
+    flower_destruct(flower3, false);
 
     // Now read them back in.
     f = fopen(tempPath, "r");
     FlowerStream *flowerStream = flowerWriter_getFlowerStream(cactusDisk, f);
     CuAssertIntEquals(testCase, 3, flowerStream_size(flowerStream));
     int64_t i = 0;
+    Flower *flower;
     while ((flower = flowerStream_getNext(flowerStream)) != NULL) {
         CuAssertTrue(testCase, i < 3);
         CuAssertIntEquals(testCase, flowerNames[i], flower_getName(flower));
