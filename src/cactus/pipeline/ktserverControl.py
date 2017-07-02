@@ -6,19 +6,21 @@ Functions to launch and manage KyotoTycoon servers.
 import os
 import random
 import socket
-import shutil
 import signal
 import sys
-import tarfile
 import traceback
-from time import sleep
+from glob import glob
 from multiprocessing import Process, Queue
+from time import sleep
 
 from toil.lib.bioio import logger
 from cactus.shared.common import cactus_call
 
 # For some reason ktserver believes there are only 32768 TCP ports.
 MAX_KTSERVER_PORT = 32767
+
+# The name of the snapshot that KT outputs.
+KTSERVER_SNAPSHOT_NAME = "00000000.ktss"
 
 def runKtserver(dbElem, fileStore, existingSnapshotID=None, snapshotExportID=None):
     """
@@ -78,12 +80,11 @@ class ServerProcess(Process):
     def tryRun(self, dbElem, logPath, fileStore, existingSnapshotID=None, snapshotExportID=None):
         snapshotDir = os.path.join(fileStore.getLocalTempDir(), 'snapshot')
         os.mkdir(snapshotDir)
+        snapshotPath = os.path.join(snapshotDir, KTSERVER_SNAPSHOT_NAME)
         if existingSnapshotID is not None:
-            # Extract the existing snapshot (a zip file) to the snapshot
+            # Extract the existing snapshot to the snapshot
             # directory so it will be automatically loaded
-            snapshot = fileStore.readGlobalFile(existingSnapshotID)
-            with tarfile.open(snapshot) as tar:
-                tar.extractall(snapshotDir)
+            fileStore.readGlobalFile(existingSnapshotID, userPath=snapshotPath)
         process = cactus_call(server=True, shell=False,
                               parameters=getKtserverCommand(dbElem, logPath, snapshotDir))
 
@@ -106,10 +107,17 @@ class ServerProcess(Process):
         process.wait()
         blockUntilKtserverIsFinished(logPath)
         if snapshotExportID is not None:
-            # Export the snapshot file(s) to the file store
-            tarBasePath = fileStore.getLocalTempFile()
-            tarPath = shutil.make_archive(tarBasePath, 'gztar', root_dir=snapshotDir)
-            fileStore.jobStore.updateFile(snapshotExportID, tarPath)
+            if not os.path.exists(snapshotPath):
+                raise RuntimeError("KTServer did not leave a snapshot on termination,"
+                                   " but a snapshot was requested.")
+            if len(glob(os.path.join(snapshotDir, "*.ktss"))) != 1:
+                # More than one snapshot file. It's not clear what
+                # conditions trigger this--if any--but we
+                # don't support it right now.
+                raise RuntimeError("KTServer left more than one snapshot.")
+
+            # Export the snapshot file to the file store
+            fileStore.jobStore.updateFile(snapshotExportID, snapshotPath)
 
 def blockUntilKtserverIsRunning(logPath, createTimeout=1800):
     """Check status until it's successful, an error is found, or we timeout.
