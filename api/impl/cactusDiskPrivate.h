@@ -19,11 +19,6 @@ struct _cactusDisk {
     stCache *stringCache;
     Name uniqueNumber;
     Name maxUniqueNumber;
-    bool storeSequencesInAFile;
-    char *sequencesFileName;
-    char *absSequencesFileName;
-    FILE *sequencesReadFileHandle;
-    FILE *sequencesWriteFileHandle;
 };
 
 ////////////////////////////////////////////////
