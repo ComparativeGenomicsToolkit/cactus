@@ -89,9 +89,6 @@ ucscClean: selfClean
 	cd ${PWD}/submodules/matchingAndOrdering && make clean
 
 clean: ucscClean selfClean
-	cd ${PWD}/submodules/kyotocabinet && make clean
-	cd ${PWD}/submodules/kyototycoon && make clean
-	cd ${PWD}/submodules/tokyocabinet && make clean
 	cd ${PWD}/submodules/hdf5 && make clean
 	cd ${PWD}/submodules/hal && make clean
 	cd ${PWD}/submodules/cactus2hal && make clean

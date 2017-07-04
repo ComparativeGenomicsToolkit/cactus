@@ -21,22 +21,27 @@ from sonLib.bioio import getTempFile
 from cactus.shared.common import cactus_call
 
 class TestCase(unittest.TestCase):
+    @unittest.skip('too slow')
     @silentOnSuccess
     def testCactus_Random_Greedy(self):
         testCactus_Random(self, "greedy")
 
+    @unittest.skip('too slow')
     @silentOnSuccess
     def testCactus_Random_Blossum(self):
         testCactus_Random(self, "blossom5")
 
+    @unittest.skip('too slow')
     @silentOnSuccess
     def testCactus_Random_MaxCardinality(self):
         testCactus_Random(self, "maxCardinality")
 
+    @unittest.skip('too slow')
     @silentOnSuccess
     def testCactus_Random_MaxWeight(self):
         testCactus_Random(self, "maxWeight")
 
+    @unittest.skip('too slow')
     @silentOnSuccess
     def testCactus_Blanchette_Blossum(self):
         testCactus_Blanchette(self, "blossom5")
