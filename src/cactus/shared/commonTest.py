@@ -49,12 +49,12 @@ class TestCase(unittest.TestCase):
 
     def testCactusCall(self):
         inputFile = getTempFile(rootDir=self.tempDir)
-        
+
         with open("/dev/urandom") as randText:
             with open(inputFile, 'w') as fh:
-                fh.write(randText.read(1024))
+                fh.write(randText.read(1024).encode('base64'))
         input = "".join(open(inputFile).read().split("\n"))
-        
+
         #Send input to container's stdin through a file, get output
         #from stdout
         output = "".join(cactus_call(infile=inputFile, check_output=True,
