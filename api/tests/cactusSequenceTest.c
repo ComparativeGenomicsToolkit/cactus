@@ -35,7 +35,7 @@ void cactusSequenceTestSetup2() {
 		cactusSequenceTestTeardown();
 		cactusDisk = testCommon_getTemporaryCactusDisk2();
 		flower = flower_construct(cactusDisk);
-		eventTree = eventTree_construct2(flower);
+		eventTree = eventTree_construct2(cactusDisk);
 		event = eventTree_getRootEvent(eventTree);
 		metaSequence = metaSequence_construct(1, 10, sequenceString,
 						   headerString, event_getName(event), cactusDisk);

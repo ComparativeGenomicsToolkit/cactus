@@ -288,6 +288,7 @@ static stPinchThreadSet *setupRandom(Flower *flower, stList **chain) {
 
 static void test_stCaf_splitChainP(CuTest *testCase, stPinchThreadSet *(*setup)(Flower *, stList **)) {
     CactusDisk *cactusDisk = testCommon_getTemporaryCactusDisk();
+    eventTree_construct2(cactusDisk);
     Flower *flower = flower_construct2(0, cactusDisk);
     group_construct2(flower);
 
@@ -334,6 +335,7 @@ static void test_stCaf_splitChainP(CuTest *testCase, stPinchThreadSet *(*setup)(
     stPinchThreadSet_destruct(threadSet);
     stList_destruct(partitions);
     stList_destruct(chain);
+    testCommon_deleteTemporaryCactusDisk(cactusDisk);
 }
 
 static void test_stCaf_splitChain(CuTest *testCase) {
@@ -345,6 +347,7 @@ static void test_stCaf_splitChain(CuTest *testCase) {
 
 static void test_stCaf_getHomologyUnitsP(CuTest *testCase, HomologyUnitType type, stPinchThreadSet *(*setup)(Flower *, stList **)) {
     CactusDisk *cactusDisk = testCommon_getTemporaryCactusDisk();
+    eventTree_construct2(cactusDisk);
     Flower *flower = flower_construct2(0, cactusDisk);
     group_construct2(flower);
 
@@ -372,6 +375,7 @@ static void test_stCaf_getHomologyUnitsP(CuTest *testCase, HomologyUnitType type
     stSet_destruct(homologyUnits);
     stList_destruct(chain);
     stPinchThreadSet_destruct(threadSet);
+    testCommon_deleteTemporaryCactusDisk(cactusDisk);
 }
 
 // Test that the homology units we get from the graph represent all blocks.

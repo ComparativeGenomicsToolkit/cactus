@@ -11,7 +11,6 @@
 
 struct _flower {
     Name name;
-    EventTree *eventTree;
     stSortedSet *sequences;
     stSortedSet *ends;
     stSortedSet *caps;

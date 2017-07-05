@@ -381,12 +381,16 @@ static int cactusDisk_constructMetaSequencesP(const void *o1, const void *o2) {
 static void cactusDisk_writeBinaryRepresentation(CactusDisk *cactusDisk,
         void (*writeFn)(const void * ptr, size_t size, size_t count)) {
     binaryRepresentation_writeElementType(CODE_CACTUS_DISK, writeFn);
+    if (cactusDisk->eventTree != NULL) {
+        eventTree_writeBinaryRepresentation(cactusDisk->eventTree, writeFn);
+    }
     binaryRepresentation_writeElementType(CODE_CACTUS_DISK, writeFn);
 }
 
 static void cactusDisk_loadFromBinaryRepresentation(void **binaryString, CactusDisk *cactusDisk, stKVDatabaseConf *conf) {
     assert(binaryRepresentation_peekNextElementType(*binaryString) == CODE_CACTUS_DISK);
     binaryRepresentation_popNextElementType(binaryString);
+    cactusDisk->eventTree = eventTree_loadFromBinaryRepresentation(binaryString, cactusDisk);
     assert(binaryRepresentation_peekNextElementType(*binaryString) == CODE_CACTUS_DISK);
     binaryRepresentation_popNextElementType(binaryString);
 }
@@ -507,6 +511,8 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf, bool crea
     cactusDisk->flowerNamesMarkedForDeletion = stSortedSet_construct3((int (*)(const void *, const void *)) strcmp,
             free);
     cactusDisk->updateRequests = stList_construct3(0, (void (*)(void *)) stKVDatabaseBulkRequest_destruct);
+
+    cactusDisk->eventTree = NULL;
 
     //Now open the database
     cactusDisk->database = stKVDatabase_construct(conf, create);
@@ -796,6 +802,10 @@ void cactusDisk_deleteFlowerFromDisk(CactusDisk *cactusDisk, Flower *flower) {
     }
 }
 
+void cactusDisk_setEventTree(CactusDisk *cactusDisk, EventTree *eventTree) {
+    cactusDisk->eventTree = eventTree;
+}
+
 /*
  * Function to get unique ID.
  */
@@ -888,4 +898,8 @@ void cactusDisk_clearStringCache(CactusDisk *cactusDisk) {
 
 void cactusDisk_clearCache(CactusDisk *cactusDisk) {
     stCache_clear(cactusDisk->cache);
+}
+
+EventTree *cactusDisk_getEventTree(CactusDisk *cactusDisk) {
+    return cactusDisk->eventTree;
 }

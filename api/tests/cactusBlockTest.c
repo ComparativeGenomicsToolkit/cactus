@@ -170,7 +170,6 @@ void testBlock_getChain(CuTest* testCase) {
 
     Block *block2 = block_construct(2, flower);
     Flower *flower2 = flower_construct(cactusDisk);
-    eventTree_copyConstruct(flower_getEventTree(flower), flower2, NULL);
     end_copyConstruct(block_get3End(block), flower2);
     end_copyConstruct(block_get5End(block2), flower2);
     Group *group = group_construct(flower, flower2);

@@ -51,7 +51,7 @@ static void cactusFlowerTestSetup() {
     cactusFlowerTestTeardown();
     cactusDisk = testCommon_getTemporaryCactusDisk();
     flower = flower_construct(cactusDisk);
-    eventTree = eventTree_construct2(flower);
+    eventTree = eventTree_construct2(cactusDisk);
 }
 
 static void sequenceSetup() {

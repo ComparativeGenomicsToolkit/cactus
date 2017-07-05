@@ -96,4 +96,9 @@ void cactusDisk_clearStringCache(CactusDisk *cactusDisk);
  */
 void cactusDisk_clearCache(CactusDisk *cactusDisk);
 
+/*
+ * Get the event tree.
+ */
+EventTree *cactusDisk_getEventTree(CactusDisk *cactusDisk);
+
 #endif

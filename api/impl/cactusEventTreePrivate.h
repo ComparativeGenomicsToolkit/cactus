@@ -10,9 +10,9 @@
 #include "cactusGlobals.h"
 
 struct _eventTree {
-	Event *rootEvent;
-	stSortedSet *events;
-	Flower *flower;
+    Event *rootEvent;
+    stSortedSet *events;
+    CactusDisk *cactusDisk;
 };
 
 
@@ -47,6 +47,6 @@ void eventTree_writeBinaryRepresentation(EventTree *eventTree, void (*writeFn)(c
 /*
  * Loads a eventTree into memory from a binary representation of the eventTree.
  */
-EventTree *eventTree_loadFromBinaryRepresentation(void **binaryString, Flower *flower);
+EventTree *eventTree_loadFromBinaryRepresentation(void **binaryString, CactusDisk *cactusDisk);
 
 #endif

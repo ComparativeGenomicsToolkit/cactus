@@ -17,6 +17,7 @@ struct _cactusDisk {
     stList *updateRequests;
     stCache *cache;
     stCache *stringCache;
+    EventTree *eventTree;
     Name uniqueNumber;
     Name maxUniqueNumber;
 };
@@ -88,5 +89,10 @@ char *cactusDisk_getString(CactusDisk *cactusDisk, Name name,
  * Gets the string from a cache.
  */
 char *cactusDisk_getStringFromCache(CactusDisk *cactusDisk, Name name, int64_t start, int64_t length, int64_t strand);
+
+/*
+ * Set the event tree for this disk. (Hopefully this only happens once.)
+ */
+void cactusDisk_setEventTree(CactusDisk *cactusDisk, EventTree *eventTree);
 
 #endif
