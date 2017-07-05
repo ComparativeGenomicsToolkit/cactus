@@ -40,6 +40,7 @@ def allSuites():
     allTests = unittest.TestSuite()
     allTests.addTests([unittest.makeSuite(i) for i in
                        [setupTest,
+                        cafTest,
                         workflowTest,
                         evolverTest,
                         barTest,
