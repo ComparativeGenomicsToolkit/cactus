@@ -877,7 +877,7 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     startTime = time(NULL);
-    cactusDisk_forceParameterUpdate(cactusDisk);
+    cactusDisk_forceParameterUpdate(cactusDisk, true);
     cactusDisk_write(cactusDisk);
     st_logInfo("Updated the flower on disk in: %" PRIi64 " seconds\n", time(NULL)
             - startTime);

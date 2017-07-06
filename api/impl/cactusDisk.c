@@ -606,7 +606,7 @@ void cactusDisk_addUpdateRequest(CactusDisk *cactusDisk, Flower *flower) {
     free(compressed);
 }
 
-void cactusDisk_forceParameterUpdate(CactusDisk *cactusDisk) {
+void cactusDisk_forceParameterUpdate(CactusDisk *cactusDisk, bool keyAlreadyExists) {
     int64_t recordSize;
     void *cactusDiskParameters =
         binaryRepresentation_makeBinaryRepresentation(cactusDisk,
@@ -614,9 +614,15 @@ void cactusDisk_forceParameterUpdate(CactusDisk *cactusDisk) {
                                                       &recordSize);
     //Compression
     cactusDiskParameters = compress(cactusDiskParameters, &recordSize);
-    stList_append(cactusDisk->updateRequests,
-                  stKVDatabaseBulkRequest_constructUpdateRequest(CACTUS_DISK_PARAMETER_KEY, cactusDiskParameters,
-                                                                 recordSize));
+    if (keyAlreadyExists) {
+        stList_append(cactusDisk->updateRequests,
+                      stKVDatabaseBulkRequest_constructUpdateRequest(CACTUS_DISK_PARAMETER_KEY, cactusDiskParameters,
+                                                                     recordSize));
+    } else {
+        stList_append(cactusDisk->updateRequests,
+                      stKVDatabaseBulkRequest_constructInsertRequest(CACTUS_DISK_PARAMETER_KEY, cactusDiskParameters,
+                                                                     recordSize));
+    }
     free(cactusDiskParameters);
 }
 
@@ -675,7 +681,7 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
     st_logDebug("Got the sequences we are going to add to the database.\n");
 
     if (!containsRecord(cactusDisk, CACTUS_DISK_PARAMETER_KEY)) { //We only write the parameters once.
-        cactusDisk_forceParameterUpdate(cactusDisk);
+        cactusDisk_forceParameterUpdate(cactusDisk, false);
     }
 
     st_logDebug("Checked if need to write the initial parameters\n");

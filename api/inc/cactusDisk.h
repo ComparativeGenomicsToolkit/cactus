@@ -103,8 +103,10 @@ EventTree *cactusDisk_getEventTree(CactusDisk *cactusDisk);
 
 /*
  * Forces an update of the cactusDisk base parameters (event tree,
- * etc.) on the next write.
+ * etc.) on the next write. Set keyAlreadyExists to true if this is an
+ * update of the existing parameters, false if the parameters are
+ * being inserted for the first time.
  */
-void cactusDisk_forceParameterUpdate(CactusDisk *cactusDisk);
+void cactusDisk_forceParameterUpdate(CactusDisk *cactusDisk, bool keyAlreadyExists);
 
 #endif
