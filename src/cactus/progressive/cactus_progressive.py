@@ -442,7 +442,12 @@ def main():
     setLoggingFromOptions(options)
 
     options.cactusDir = os.path.abspath(options.cactusDir)
-    
+
+    # Caching generally slows down the cactus workflow, plus some
+    # methods like readGlobalFileStream don't support forced
+    # reads directly from the job store rather than from cache.
+    options.disableCaching = True
+
     #Create the progressive cactus project 
     projWrapper = ProjectWrapper(options)
     projWrapper.writeXml()
