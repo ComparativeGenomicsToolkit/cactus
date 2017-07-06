@@ -101,4 +101,10 @@ void cactusDisk_clearCache(CactusDisk *cactusDisk);
  */
 EventTree *cactusDisk_getEventTree(CactusDisk *cactusDisk);
 
+/*
+ * Forces an update of the cactusDisk base parameters (event tree,
+ * etc.) on the next write.
+ */
+void cactusDisk_forceParameterUpdate(CactusDisk *cactusDisk);
+
 #endif

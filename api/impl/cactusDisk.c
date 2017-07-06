@@ -606,6 +606,20 @@ void cactusDisk_addUpdateRequest(CactusDisk *cactusDisk, Flower *flower) {
     free(compressed);
 }
 
+void cactusDisk_forceParameterUpdate(CactusDisk *cactusDisk) {
+    int64_t recordSize;
+    void *cactusDiskParameters =
+        binaryRepresentation_makeBinaryRepresentation(cactusDisk,
+                                                      (void (*)(void *, void (*)(const void * ptr, size_t size, size_t count))) cactusDisk_writeBinaryRepresentation,
+                                                      &recordSize);
+    //Compression
+    cactusDiskParameters = compress(cactusDiskParameters, &recordSize);
+    stList_append(cactusDisk->updateRequests,
+                  stKVDatabaseBulkRequest_constructUpdateRequest(CACTUS_DISK_PARAMETER_KEY, cactusDiskParameters,
+                                                                 recordSize));
+    free(cactusDiskParameters);
+}
+
 void cactusDisk_write(CactusDisk *cactusDisk) {
     Flower *flower;
     int64_t recordSize;
@@ -661,17 +675,7 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
     st_logDebug("Got the sequences we are going to add to the database.\n");
 
     if (!containsRecord(cactusDisk, CACTUS_DISK_PARAMETER_KEY)) { //We only write the parameters once.
-        //Finally the database info.
-        void *cactusDiskParameters =
-                binaryRepresentation_makeBinaryRepresentation(cactusDisk,
-                        (void (*)(void *, void (*)(const void * ptr, size_t size, size_t count))) cactusDisk_writeBinaryRepresentation,
-                        &recordSize);
-        //Compression
-        cactusDiskParameters = compress(cactusDiskParameters, &recordSize);
-        stList_append(cactusDisk->updateRequests,
-                stKVDatabaseBulkRequest_constructInsertRequest(CACTUS_DISK_PARAMETER_KEY, cactusDiskParameters,
-                        recordSize));
-        free(cactusDiskParameters);
+        cactusDisk_forceParameterUpdate(cactusDisk);
     }
 
     st_logDebug("Checked if need to write the initial parameters\n");
