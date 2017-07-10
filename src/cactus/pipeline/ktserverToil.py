@@ -32,7 +32,7 @@ class KtServerService(Job.Service):
                                                               existingSnapshotID=self.existingSnapshotID,
                                                               snapshotExportID=snapshotExportID)
         assert self.dbElem.getDbHost() != None
-        blockUntilKtserverIsRunning(self.logPath)
+        #blockUntilKtserverIsRunning(self.logPath)
         self.check()
         return self.dbElem.getConfString(), snapshotExportID
 

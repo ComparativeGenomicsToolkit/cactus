@@ -351,7 +351,8 @@ def main():
     parser.add_argument("--database", dest="database",
                       help="Database type: tokyo_cabinet or kyoto_tycoon"
                       " [default: %(default)s]",
-                      default="kyoto_tycoon")
+                      default="redis")
+                      #"kyoto_tycoon")
     parser.add_argument("--outputMaf", dest="outputMaf",
                       help="[DEPRECATED use hal2maf on the ouput file instead] Path of output alignment in .maf format.  This option should be avoided and will soon be removed.  It may cause sequence names to be mangled, and use a tremendous amount of memory. ",
                       default=None)

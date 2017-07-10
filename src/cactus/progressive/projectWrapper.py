@@ -85,7 +85,7 @@ class ProjectWrapper:
         #create the cactus disk
         cdElem = ET.SubElement(expXml, "cactus_disk")
         database = self.options.database
-        assert database == "kyoto_tycoon" or database == "tokyo_cabinet"
+        assert database == "kyoto_tycoon" or database == "tokyo_cabinet" or database=="redis"
         confElem = ET.SubElement(cdElem, "st_kv_database_conf")
         confElem.attrib["type"] = database
         dbElem = ET.SubElement(confElem, database)

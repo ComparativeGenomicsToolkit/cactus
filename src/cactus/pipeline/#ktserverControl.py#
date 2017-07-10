@@ -6,21 +6,19 @@ Functions to launch and manage KyotoTycoon servers.
 import os
 import random
 import socket
+import shutil
 import signal
 import sys
+import tarfile
 import traceback
-from glob import glob
-import redis
-from multiprocessing import Process, Queue
 from time import sleep
+from multiprocessing import Process, Queue
+
 from toil.lib.bioio import logger
 from cactus.shared.common import cactus_call
 
 # For some reason ktserver believes there are only 32768 TCP ports.
 MAX_KTSERVER_PORT = 32767
-
-# The name of the snapshot that redis outputs.
-KTSERVER_SNAPSHOT_NAME = "00000000.rdb"
 
 def runKtserver(dbElem, fileStore, existingSnapshotID=None, snapshotExportID=None):
     """
@@ -51,7 +49,7 @@ def runKtserver(dbElem, fileStore, existingSnapshotID=None, snapshotExportID=Non
     process.daemon = True
     process.start()
 
-    if not blockUntilKtserverIsRunning(dbElem):
+    if not blockUntilKtserverIsRunning(logPath):
         raise RuntimeError("Unable to launch ktserver in time.")
 
     return process, dbElem, logPath
@@ -80,25 +78,16 @@ class ServerProcess(Process):
     def tryRun(self, dbElem, logPath, fileStore, existingSnapshotID=None, snapshotExportID=None):
         snapshotDir = os.path.join(fileStore.getLocalTempDir(), 'snapshot')
         os.mkdir(snapshotDir)
-        snapshotPath = os.path.join(snapshotDir, KTSERVER_SNAPSHOT_NAME)
         if existingSnapshotID is not None:
-            # Extract the existing snapshot to the snapshot
+            # Extract the existing snapshot (a zip file) to the snapshot
             # directory so it will be automatically loaded
-            fileStore.readGlobalFile(existingSnapshotID, userPath=snapshotPath)
-        
-       # set_logfile = cactus_call(parameters=["redis-cli SET logfile \"", logPath,  "\""])
-        process = cactus_call(server=True, shell=False,parameters=getKtserverCommand(dbElem, logPath, snapshotDir))
-        blockUntilKtserverIsRunning(dbElem)
-        
-        
-#        save1=cactus_call(parameters=["redis-cli Config SET save \"\""],check_output=True)
- #       if "OK" not in save1:
-#            raise RuntimeError("save was not changed properly")
- #       
-  #      dir1=cactus_call(parameters= ["redis-cli Config SET dir \"", snapshotPath, "\""])
-   #     if "OK" not in dir1:
-    #        raise RuntimeError("save was not changed properly")
-        
+            snapshot = fileStore.readGlobalFile(existingSnapshotID)
+            with tarfile.open(snapshot) as tar:
+                tar.extractall(snapshotDir)
+        process = cactus_call(server=True, shell=False,
+                              parameters=getKtserverCommand(dbElem, logPath, snapshotDir))
+
+        blockUntilKtserverIsRunning(logPath)
         if existingSnapshotID is not None:
             # Clear the termination flag from the snapshot
             cactus_call(parameters=["ktremotemgr", "remove"] + getRemoteParams(dbElem) + ["TERMINATE"])
@@ -113,41 +102,29 @@ class ServerProcess(Process):
                 # Terminate signal received
                 break
             sleep(60)
-       # process.send_signal(signal.SIGINT)
-        cactus_call(parameters=["redis-cli save"])
-        cactus_call(parameters=["redis-cli shutdown"])
+        process.send_signal(signal.SIGINT)
         process.wait()
-       # blockUntilKtserverIsFinished(logPath)
+        blockUntilKtserverIsFinished(logPath)
         if snapshotExportID is not None:
-            if not os.path.exists(snapshotPath):
-                raise RuntimeError("Redis did not leave a snapshot on termination but a snapshot was requested.")
-            if len(glob(os.path.join(snapshotDir, "*.rdb"))) != 1:
-                # More than one snapshot file. It's not clear what
-                # conditions trigger this--if any--but we
-                # don't support it right now.
-                raise RuntimeError("Redis left more than one snapshot.")
+            # Export the snapshot file(s) to the file store
+            tarBasePath = fileStore.getLocalTempFile()
+            tarPath = shutil.make_archive(tarBasePath, 'gztar', root_dir=snapshotDir)
+            fileStore.jobStore.updateFile(snapshotExportID, tarPath)
 
-            # Export the snapshot file to the file store
-            fileStore.jobStore.updateFile(snapshotExportID, snapshotPath)
-
-def blockUntilKtserverIsRunning(dbElem, createTimeout=1800):
+def blockUntilKtserverIsRunning(logPath, createTimeout=1800):
     """Check status until it's successful, an error is found, or we timeout.
 
     Returns True if the ktserver is now running, False if something went wrong."""
     success = False
     for i in xrange(createTimeout):
-        running=cactus_call(shell= False, parameters= ["redis-cli -p", str(dbElem.getDbPort()) , " ping"], check_result=True)
-        if running:
-           success=True
-           break
-       # if isKtServerFailed(logPath):
-        #    logger.critical('Error starting ktserver.')
-         #   success = False
-          #  break
-       # if isKtServerRunning(logPath):
-        #    logger.info('Ktserver running.')
-         #   success = True
-          #  break
+        if isKtServerFailed(logPath):
+            logger.critical('Error starting ktserver.')
+            success = False
+            break
+        if isKtServerRunning(logPath):
+            logger.info('Ktserver running.')
+            success = True
+            break
         sleep(1)
     return success
 
@@ -156,7 +133,7 @@ def blockUntilKtserverIsFinished(logPath, timeout=1800,
     """Wait for the ktserver log to indicate that it shut down properly.
 
     Returns True if the server shut down, False if the timeout expired."""
-    for i in xrange(0, timeout, timeStep):
+for i in xrange(0, timeout, timeStep):
         with open(logPath) as f:
             log = f.read()
             if '[FINISH]' in log:
@@ -204,16 +181,16 @@ def getKtServerOptions(dbElem):
 
 def getKtserverCommand(dbElem, logPath, snapshotDir):
     """Get a ktserver command line with the proper options (in popen-type list format)."""
-    # serverOptions = getKtServerOptions(dbElem)
-    # tuning = getKtTuningOptions(dbElem)
-    cmd = ["redis-server", "--port",str(dbElem.getDbPort()), "--save \"\" --dir", snapshotDir]
-    # cmd += serverOptions.split()
+    serverOptions = getKtServerOptions(dbElem)
+    tuning = getKtTuningOptions(dbElem)
+    cmd = ["ktserver", "-host", dbElem.getDbHost(), "-port", dbElem.getDbPort()]
+    cmd += serverOptions.split()
     # Configure background snapshots, but set the interval between
     # snapshots to ~ 10 days so it'll never trigger. We are only
     # interested in the snapshot that the DB creates on termination.
-    # cmd += ["-bgs", snapshotDir, "-bgsc", "lzo", "-bgsi", "1000000"]
-    # cmd += ["-log", logPath]
-    # cmd += [":" + tuning]
+    cmd += ["-bgs", snapshotDir, "-bgsc", "lzo", "-bgsi", "1000000"]
+    cmd += ["-log", logPath]
+    cmd += [":" + tuning]
     return cmd
 
 def getRemoteParams(dbElem):
@@ -256,6 +233,5 @@ def findOccupiedPorts():
             continue
         port = int(fields[3].split(':')[-1])
         ports.add(port)
-    logger.debug('Detected ports in use: %s' % repr(ports))
+    logger.debugc('Detected ports in use: %s' % repr(ports))
     return ports
-
