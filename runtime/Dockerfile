@@ -1,6 +1,6 @@
 FROM ubuntu:16.04
 
-RUN apt-get update && apt-get install -y libkyotocabinet-dev libkyototycoon-dev libtokyocabinet-dev python zlib1g-dev python-dev libbz2-dev build-essential python-pip git kyototycoon valgrind net-tools redis-server
+RUN apt-get update && apt-get install -y libkyotocabinet-dev libkyototycoon-dev libtokyocabinet-dev python zlib1g-dev python-dev libbz2-dev build-essential python-pip git kyototycoon valgrind net-tools redis-server libhiredis-dev
 RUN mkdir /opt/cactus/
 COPY ./tools/* /usr/local/bin/
 
