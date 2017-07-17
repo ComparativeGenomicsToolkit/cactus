@@ -8,18 +8,12 @@
 
 import unittest
 import os
-import sys
-import copy
-import xml.etree.ElementTree as ET
 import random
 from operator import itemgetter
-from sonLib.bioio import TestStatus
 from sonLib.bioio import getTempDirectory
-from sonLib.bioio import logger
 from sonLib.bioio import system
 
 from cactus.progressive.multiCactusTree import MultiCactusTree
-from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.progressive.outgroup import GreedyOutgroup, DynamicOutgroup
 
 from sonLib.nxnewick import NXNewick
@@ -37,7 +31,7 @@ class TestCase(unittest.TestCase):
             f.write(">temp\nNNNNNNNCNNNNAAAAAAAAAAAAAAANNNNNNN\n")
         self.dummySeqMaps = []
         for tree in self.trees:
-            if tree.size() < 500:
+            if tree.size() < 50:
                 mcTree = MultiCactusTree(tree, tree.degree())
                 seqMap = dict()
                 for i in mcTree.breadthFirstTraversal():
@@ -46,7 +40,7 @@ class TestCase(unittest.TestCase):
                 mcTree.computeSubtreeRoots()
                 self.mcTrees.append(mcTree)
                 self.dummySeqMaps.append(seqMap)
-                
+
         seqLens = dict()
         seqLens["HUMAN"] = 57553
         seqLens["CHIMP"] = 57344
@@ -86,6 +80,21 @@ class TestCase(unittest.TestCase):
         assert og.ogMap['Anc6'][0][0] in ['CAT', 'DOG']
         assert og.ogMap['Anc7'][0][0] == 'BABOON'
 
+    def testHeightTable(self):
+        """Make sure the height-table is calculated correctly."""
+        tree = '((((HUMAN:0.006969,CHIMP:0.009727)Anc7:0.025291,BABOON:0.044568)Anc6:0.11,(MOUSE:0.072818,RAT:0.081244)Anc5:0.260342)Anc4:0.023260,((DOG:0.07,CAT:0.07)Anc3:0.087381,(PIG:0.06,COW:0.06)Anc2:0.104728)Anc1:0.04)Anc0;'
+        mcTree = MultiCactusTree(NXNewick().parseString(tree, addImpliedRoots = False))
+        mcTree.computeSubtreeRoots()
+        og = GreedyOutgroup()
+        og.importTree(mcTree)
+        htable = og.heightTable()
+        self.assertEquals(htable[mcTree.getNodeId('HUMAN')], 0)
+        self.assertEquals(htable[mcTree.getNodeId('PIG')], 0)
+        self.assertEquals(htable[mcTree.getNodeId('RAT')], 0)
+        self.assertEquals(htable[mcTree.getNodeId('Anc7')], 1)
+        self.assertEquals(htable[mcTree.getNodeId('Anc1')], 2)
+        self.assertEquals(htable[mcTree.getNodeId('Anc0')], 4)
+
     def testCandidates(self):
         tree = '((((HUMAN:0.006969,CHIMP:0.009727)Anc7:0.025291,BABOON:0.044568)Anc6:0.11,(MOUSE:0.072818,RAT:0.081244)Anc5:0.260342)Anc4:0.023260,((DOG:0.07,CAT:0.07)Anc3:0.087381,(PIG:0.06,COW:0.06)Anc2:0.104728)Anc1:0.04)Anc0;'
         mcTree = MultiCactusTree(NXNewick().parseString(tree, addImpliedRoots = False))
@@ -105,7 +114,6 @@ class TestCase(unittest.TestCase):
         og = GreedyOutgroup()
         og.importTree(mcTree)
         candidates = set(['HUMAN', 'CHIMP', 'RAT'])
-        candidateFrac = 1
         og.greedy(candidateSet=candidates, candidateChildFrac=1.0)
         assert og.ogMap['Anc1'][0][0] == 'Anc7'
         assert og.ogMap['Anc2'][0][0] == 'Anc7'
@@ -200,7 +208,6 @@ class TestCase(unittest.TestCase):
             assert all(map(lambda x: x == sorted(x, key=itemgetter(1)),
                            og.ogMap.values()))
 
-    @unittest.skip("This test hangs")
     def testDynamicOutgroupsOnRandomTrees(self):
         for tree, seqMap in zip(self.mcTrees, self.dummySeqMaps):
             degree = max([len(tree.getChildren(x)) for x in
@@ -217,7 +224,6 @@ class TestCase(unittest.TestCase):
                 assert all(map(lambda x: x == sorted(x, key=itemgetter(1)),
                                og.ogMap.values()))
 
-    @unittest.skip("This test hangs")
     def testDynamicOutgroupsJustLeaves(self):
         tree = '((((HUMAN:0.006969,CHIMP:0.009727)Anc7:0.025291,BABOON:0.044568)Anc6:0.11,(MOUSE:0.072818,RAT:0.081244)Anc5:0.260342)Anc4:0.023260,((DOG:0.07,CAT:0.07)Anc3:0.087381,(PIG:0.06,COW:0.06)Anc2:0.104728)Anc1:0.04)Anc0;'
         mcTree = MultiCactusTree(NXNewick().parseString(tree, addImpliedRoots = False))
