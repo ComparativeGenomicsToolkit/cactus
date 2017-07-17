@@ -275,14 +275,17 @@ class CactusPreprocessor2(RoundedJob):
             logger.info("Adding child batch_preprocessor target")
             return self.addChild(BatchPreprocessor(prepXmlElems, self.inputSequenceID, 0)).rv()
 
-def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil):
+def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart):
     #Replace any constants
     configNode = ET.parse(configFile).getroot()
     outputSequences = CactusPreprocessor.getOutputSequenceFiles(inputSequences, outputSequenceDir)
     if configNode.find("constants") != None:
         ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals()
     inputSequenceIDs = [toil.importFile(makeURL(seq)) for seq in inputSequences]
-    outputSequenceIDs = toil.start(CactusPreprocessor(inputSequenceIDs, configNode))
+    if not restart:
+        outputSequenceIDs = toil.start(CactusPreprocessor(inputSequenceIDs, configNode))
+    else:
+        outputSequenceIDs = toil.restart()
     for seqID, path in zip(outputSequenceIDs, outputSequences):
         toil.exportFile(seqID, makeURL(path))
 
@@ -292,14 +295,13 @@ def runCactusPreprocessor(outputSequenceDir, configFile, inputSequences, toilDir
     toilOptions.disableCaching = True
     with Toil(toilOptions) as toil:
         stageWorkflow(outputSequenceDir, configFile, inputSequences, toil)
-                    
+
 def main():
-    usage = "usage: %prog outputSequenceDir configXMLFile inputSequenceFastaFilesxN [options]"
-    parser = ArgumentParser(usage=usage)
+    parser = ArgumentParser()
     Job.Runner.addToilOptions(parser)
     parser.add_argument("--outputSequenceDir", dest="outputSequenceDir", type=str)
     parser.add_argument("--configFile", dest="configFile", type=str)
-    parser.add_argument("--inputSequences", dest="inputSequences", type=str)
+    parser.add_argument("--inputSequences", dest="inputSequences", type=str, nargs='+')
     
     options = parser.parse_args()
     setLoggingFromOptions(options)
@@ -307,7 +309,7 @@ def main():
     if not (options.outputSequenceDir and options.configFile and options.inputSequences):
         raise RuntimeError("Too few input arguments")
     with Toil(options) as toil:
-        stageWorkflow(outputSquenceDir=options.outputSequenceDir, configFile=options.configFile, inputSequences=options.inputSequences.split(), toil=toil)
+        stageWorkflow(outputSequenceDir=options.outputSequenceDir, configFile=options.configFile, inputSequences=options.inputSequences, toil=toil, restart=options.restart)
 
 def _test():
     import doctest      
