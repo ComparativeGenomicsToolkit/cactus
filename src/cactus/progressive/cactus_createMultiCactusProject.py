@@ -38,7 +38,7 @@ def createMCProject(tree, experiment, config, options):
     if options.root is not None:
         try:
             alignmentRootId = mcProj.mcTree.getNodeId(options.root)
-        except Exception as e:
+        except:
             raise RuntimeError("Specified root name %s not found in tree" % options.root)
     mcProj.outgroup = None
     if config.getOutgroupStrategy() == 'greedy':
@@ -144,7 +144,6 @@ def specifyAlignmentRoot(mcProj, alignmentRootId):
                 mcProj.externalOutgroupNames.add(name)
 
     # reroot the tree!
-    oldParent = mcProj.mcTree.getParent(alignmentRootId)
     mcProj.mcTree.reroot(alignmentRootId)
 
     # add the outgroups to the tree (and sequence map)
@@ -242,7 +241,6 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
         and name in mcProj.outgroup.ogMap:
             for og, ogDist in mcProj.outgroup.ogMap[name]:
                 assert og in seqMap, "No sequence found for outgroup: %s" % og
-                ogPath = seqMap[og]
                 outgroups += [og]
 
         # Get subtree connecting children + outgroups
@@ -277,9 +275,8 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
         exp.writeXML(expPath)
         config = ConfigWrapper(copy.deepcopy(configTemplate.xmlRoot))
         config.setReferenceName(name)
-        config.verifyMinBlockDegree(exp)
         config.writeXML(exp.getConfigPath())
-        
+
 def checkInputSequencePaths(exp):
     for event, seq in exp.seqMap.items():
         if not os.path.exists(seq):

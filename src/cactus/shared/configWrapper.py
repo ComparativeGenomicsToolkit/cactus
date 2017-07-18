@@ -10,15 +10,9 @@ considered optional, with default stored as static
 members of the configwrapper class
 
 """
-import unittest
-
-import os
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 import sys
-import random
-import math
-import copy
 from cactus.shared.common import findRequiredNode
 from cactus.shared.common import getOptionalAttrib
 
@@ -200,19 +194,7 @@ class ConfigWrapper:
     def getExportHalDisk(self):
         exportHalElem = self.xmlRoot.find("exportHal")
         return int(exportHalElem.attrib["disk"])
-            
-    # the minBlockDegree, when specified in the final, "base" 
-    # iteration, does not play nicely with the required fraction
-    # option
-    def verifyMinBlockDegree(self, experiment):  
-        barElem = self.xmlRoot.find("bar")
-        minBlockDegree = int(barElem.attrib["minimumBlockDegree"])
-        reqSpecies = experiment.xmlRoot.find("required_species")
-        if reqSpecies is not None and minBlockDegree != 2:
-            sys.stderr.write("WARNING: reverting minBlockDegree from %i to 2 because of required_species\n" % 
-                             minBlockDegree)
-            itElem.attrib["minBlockDegree"] = "2"
-            
+
     def substituteAllPredefinedConstantsWithLiterals(self):
         constants = findRequiredNode(self.xmlRoot, "constants")
         defines = constants.find("defines")

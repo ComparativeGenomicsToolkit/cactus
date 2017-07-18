@@ -38,8 +38,16 @@ class TestCase(unittest.TestCase):
                     mcTree.setName(i, "Node%s" % str(i))
                     seqMap["Node%s" % str(i)] = self.tempFa
                 mcTree.computeSubtreeRoots()
+                mcTree.nameUnlabeledInternalNodes()
                 self.mcTrees.append(mcTree)
                 self.dummySeqMaps.append(seqMap)
+
+        # Boreoeutherian tree
+        borTree = '((((HUMAN:0.006969,CHIMP:0.009727)Anc7:0.025291,BABOON:0.044568)Anc6:0.11,(MOUSE:0.072818,RAT:0.081244)Anc5:0.260342)Anc4:0.023260,((DOG:0.07,CAT:0.07)Anc3:0.087381,(PIG:0.06,COW:0.06)Anc2:0.104728)Anc1:0.04)Anc0;'
+        self.borMcTree = MultiCactusTree(NXNewick().parseString(borTree, addImpliedRoots=False))
+        self.borMcTree.computeSubtreeRoots()
+        self.borMcTree.nameUnlabeledInternalNodes()
+        self.trees.append(self.borMcTree)
 
         seqLens = dict()
         seqLens["HUMAN"] = 57553
@@ -65,12 +73,9 @@ class TestCase(unittest.TestCase):
         system("rm -rf %s" % self.tempDir)
 
     def testJustLeaves(self):
-        tree = '((((HUMAN:0.006969,CHIMP:0.009727)Anc7:0.025291,BABOON:0.044568)Anc6:0.11,(MOUSE:0.072818,RAT:0.081244)Anc5:0.260342)Anc4:0.023260,((DOG:0.07,CAT:0.07)Anc3:0.087381,(PIG:0.06,COW:0.06)Anc2:0.104728)Anc1:0.04)Anc0;'
-        mcTree = MultiCactusTree(NXNewick().parseString(tree, addImpliedRoots = False))
-        mcTree.computeSubtreeRoots()
         og = GreedyOutgroup()
-        og.importTree(mcTree)
-        candidates = set([mcTree.getName(x) for x in mcTree.getLeaves()])
+        og.importTree(self.borMcTree)
+        candidates = set([self.borMcTree.getName(x) for x in self.borMcTree.getLeaves()])
         og.greedy(candidateSet=candidates, candidateChildFrac=2.)
         assert og.ogMap['Anc1'][0][0] == 'HUMAN'
         assert og.ogMap['Anc2'][0][0] in ['CAT', 'DOG']
@@ -82,25 +87,35 @@ class TestCase(unittest.TestCase):
 
     def testHeightTable(self):
         """Make sure the height-table is calculated correctly."""
-        tree = '((((HUMAN:0.006969,CHIMP:0.009727)Anc7:0.025291,BABOON:0.044568)Anc6:0.11,(MOUSE:0.072818,RAT:0.081244)Anc5:0.260342)Anc4:0.023260,((DOG:0.07,CAT:0.07)Anc3:0.087381,(PIG:0.06,COW:0.06)Anc2:0.104728)Anc1:0.04)Anc0;'
-        mcTree = MultiCactusTree(NXNewick().parseString(tree, addImpliedRoots = False))
-        mcTree.computeSubtreeRoots()
         og = GreedyOutgroup()
-        og.importTree(mcTree)
+        og.importTree(self.borMcTree)
         htable = og.heightTable()
-        self.assertEquals(htable[mcTree.getNodeId('HUMAN')], 0)
-        self.assertEquals(htable[mcTree.getNodeId('PIG')], 0)
-        self.assertEquals(htable[mcTree.getNodeId('RAT')], 0)
-        self.assertEquals(htable[mcTree.getNodeId('Anc7')], 1)
-        self.assertEquals(htable[mcTree.getNodeId('Anc1')], 2)
-        self.assertEquals(htable[mcTree.getNodeId('Anc0')], 4)
+        self.assertEquals(htable[self.borMcTree.getNodeId('HUMAN')], 0)
+        self.assertEquals(htable[self.borMcTree.getNodeId('PIG')], 0)
+        self.assertEquals(htable[self.borMcTree.getNodeId('RAT')], 0)
+        self.assertEquals(htable[self.borMcTree.getNodeId('Anc7')], 1)
+        self.assertEquals(htable[self.borMcTree.getNodeId('Anc1')], 2)
+        self.assertEquals(htable[self.borMcTree.getNodeId('Anc0')], 4)
+
+    def testZeroThreshold(self):
+        """A threshold of 0 should produce outgroup sets that cause no additional depth in the resulting schedule."""
+        for tree in self.mcTrees:
+            og = GreedyOutgroup()
+            og.importTree(tree)
+            og.greedy(threshold=0)
+            htable = og.heightTable()
+            for node, outgroups in og.ogMap.items():
+                for outgroup, _ in outgroups:
+                    # For the outgroup assignment to create no
+                    # additional dependencies, each outgroup must have
+                    # a height lower than the node it's outgroup to
+                    # (or be a leaf)
+                    self.assertTrue(htable[tree.getNodeId(outgroup)] < htable[tree.getNodeId(node)] \
+                                    or htable[tree.getNodeId(outgroup)] == 0)
 
     def testCandidates(self):
-        tree = '((((HUMAN:0.006969,CHIMP:0.009727)Anc7:0.025291,BABOON:0.044568)Anc6:0.11,(MOUSE:0.072818,RAT:0.081244)Anc5:0.260342)Anc4:0.023260,((DOG:0.07,CAT:0.07)Anc3:0.087381,(PIG:0.06,COW:0.06)Anc2:0.104728)Anc1:0.04)Anc0;'
-        mcTree = MultiCactusTree(NXNewick().parseString(tree, addImpliedRoots = False))
-        mcTree.computeSubtreeRoots()
         og = GreedyOutgroup()
-        og.importTree(mcTree)
+        og.importTree(self.borMcTree)
         candidates = set(['HUMAN', 'CHIMP', 'RAT'])
         og.greedy(candidateSet=candidates, candidateChildFrac=0.5)
         assert og.ogMap['Anc1'][0][0] == 'Anc4'
@@ -112,7 +127,7 @@ class TestCase(unittest.TestCase):
         assert og.ogMap['Anc7'][0][0] in ['Anc5', 'MOUSE', 'RAT']
 
         og = GreedyOutgroup()
-        og.importTree(mcTree)
+        og.importTree(self.borMcTree)
         candidates = set(['HUMAN', 'CHIMP', 'RAT'])
         og.greedy(candidateSet=candidates, candidateChildFrac=1.0)
         assert og.ogMap['Anc1'][0][0] == 'Anc7'
@@ -156,11 +171,8 @@ class TestCase(unittest.TestCase):
                 assert dist2 <= dist1
 
     def testMultipleOutgroups(self):
-        tree = '((((HUMAN:0.006969,CHIMP:0.009727)Anc7:0.025291,BABOON:0.044568)Anc6:0.11,(MOUSE:0.072818,RAT:0.081244)Anc5:0.260342)Anc4:0.023260,((DOG:0.07,CAT:0.07)Anc3:0.087381,(PIG:0.06,COW:0.06)Anc2:0.104728)Anc1:0.04)Anc0;'
-        mcTree = MultiCactusTree(NXNewick().parseString(tree, addImpliedRoots = False))
-        mcTree.computeSubtreeRoots()
         og = GreedyOutgroup()
-        og.importTree(mcTree)
+        og.importTree(self.borMcTree)
         og.greedy(candidateChildFrac=0.5, maxNumOutgroups=3)
         # make sure all entries have <= 3 outgroups.
         assert all(map(lambda x: len(x) <= 3, og.ogMap.values()))
@@ -177,12 +189,9 @@ class TestCase(unittest.TestCase):
                                                         'BABOON']
 
     def testMultipleOutgroupsJustLeaves(self):
-        tree = '((((HUMAN:0.006969,CHIMP:0.009727)Anc7:0.025291,BABOON:0.044568)Anc6:0.11,(MOUSE:0.072818,RAT:0.081244)Anc5:0.260342)Anc4:0.023260,((DOG:0.07,CAT:0.07)Anc3:0.087381,(PIG:0.06,COW:0.06)Anc2:0.104728)Anc1:0.04)Anc0;'
-        mcTree = MultiCactusTree(NXNewick().parseString(tree, addImpliedRoots = False))
-        mcTree.computeSubtreeRoots()
         og = GreedyOutgroup()
-        og.importTree(mcTree)
-        candidates = set([mcTree.getName(x) for x in mcTree.getLeaves()])
+        og.importTree(self.borMcTree)
+        candidates = set([self.borMcTree.getName(x) for x in self.borMcTree.getLeaves()])
         og.greedy(candidateSet=candidates, candidateChildFrac=2.,
                   maxNumOutgroups=3)
         # make sure all entries have <= 3 outgroups.
@@ -225,11 +234,8 @@ class TestCase(unittest.TestCase):
                                og.ogMap.values()))
 
     def testDynamicOutgroupsJustLeaves(self):
-        tree = '((((HUMAN:0.006969,CHIMP:0.009727)Anc7:0.025291,BABOON:0.044568)Anc6:0.11,(MOUSE:0.072818,RAT:0.081244)Anc5:0.260342)Anc4:0.023260,((DOG:0.07,CAT:0.07)Anc3:0.087381,(PIG:0.06,COW:0.06)Anc2:0.104728)Anc1:0.04)Anc0;'
-        mcTree = MultiCactusTree(NXNewick().parseString(tree, addImpliedRoots = False))
-        mcTree.computeSubtreeRoots()
         og = DynamicOutgroup()
-        og.importTree(mcTree, self.blanchetteSeqMap)
+        og.importTree(self.borMcTree, self.blanchetteSeqMap)
         og.compute(maxNumOutgroups=3, sequenceLossWeight=0.)
         # make sure all entries have <= 3 outgroups.
         assert all(map(lambda x: len(x) <= 3, og.ogMap.values()))
@@ -241,7 +247,7 @@ class TestCase(unittest.TestCase):
         assert og.ogMap['Anc7'][0][0] == 'BABOON'
 
         og = DynamicOutgroup()
-        og.importTree(mcTree, self.blanchetteSeqMap)
+        og.importTree(self.borMcTree, self.blanchetteSeqMap)
         og.compute(maxNumOutgroups=3)
         # make sure all entries have <= 3 outgroups.
         assert all(map(lambda x: len(x) <= 3, og.ogMap.values()))
