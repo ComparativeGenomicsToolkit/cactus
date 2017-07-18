@@ -180,11 +180,12 @@ class CactusPhasesJob(CactusJob):
                        overlarge=True,
                        cactusWorkflowArguments=self.cactusWorkflowArguments)
 
-        if launchSecondaryKtForRecursiveJob and ExperimentWrapper(self.cactusWorkflowArguments.experimentNode).getDbType() == "kyoto_tycoon":
+        if launchSecondaryKtForRecursiveJob and ExperimentWrapper(self.cactusWorkflowArguments.experimentNode).getDbType() == "redis":
             cw = ConfigWrapper(self.cactusWorkflowArguments.configNode)
             memory = self.evaluateResourcePoly([4.10201882, 2.01324291e+08])
             cpu = cw.getKtserverCpu(default=0.1)
-            dbElem = ExperimentWrapper(self.cactusWorkflowArguments.scratchDbElemNode)
+            dbElem = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
+            #dbElem = ExperimentWrapper(self.cactusWorkflowArguments.scratchDbElemNode)
             dbString = self.addService(KtServerService(dbElem=dbElem, isSecondary=True, memory=memory, cores=cpu)).rv(0)
             newChild.phaseNode.attrib["secondaryDatabaseString"] = dbString
             return self.addChild(newChild).rv()
@@ -269,7 +270,7 @@ class StartPrimaryDB(CactusPhasesJob):
     def run(self, fileStore):
         cw = ConfigWrapper(self.cactusWorkflowArguments.configNode)
 
-        if self.cactusWorkflowArguments.experimentWrapper.getDbType() == "kyoto_tycoon":
+        if self.cactusWorkflowArguments.experimentWrapper.getDbType() == "redis":
             memory = self.evaluateResourcePoly([4.10201882, 2.01324291e+08])
             cores = cw.getKtserverCpu(default=0.1)
             dbElem = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
@@ -1009,7 +1010,7 @@ class CactusReferenceCheckpoint(CactusCheckpointJob):
 class CactusReferencePhase(CactusPhasesJob):
     """Runs the reference problem algorithm"""
     def run(self, fileStore):
-        self.setupSecondaryDatabase()
+        #self.setupSecondaryDatabase()
         self.phaseNode.attrib["experimentPath"] = self.cactusWorkflowArguments.experimentFile
         self.phaseNode.attrib["secondaryDatabaseString"] = self.cactusWorkflowArguments.secondaryDatabaseString
         return self.runPhase(CactusReferenceRecursion, CactusSetReferenceCoordinatesDownPhase, "reference", 
@@ -1083,7 +1084,7 @@ class CactusSetReferenceCoordinatesDownPhase(CactusPhasesJob):
     """This is the second part of the reference coordinate setting, the down pass.
     """
     def run(self, fileStore):
-        self.cleanupSecondaryDatabase()
+       # self.cleanupSecondaryDatabase()
         return self.runPhase(CactusSetReferenceCoordinatesDownRecursion, CactusExtractReferencePhase, "check", doRecursion=self.getOptionalPhaseAttrib("buildReference", bool, False))
         
 class CactusSetReferenceCoordinatesDownRecursion(CactusRecursionJob):
@@ -1199,7 +1200,7 @@ class CactusHalGeneratorPhase(CactusPhasesJob):
 class CactusHalGeneratorPhase2(CactusPhasesJob):
     def run(self, fileStore):
         if self.getOptionalPhaseAttrib("buildHal", bool, default=False):
-            self.setupSecondaryDatabase()
+            #self.setupSecondaryDatabase()
             self.phaseNode.attrib["experimentPath"] = self.cactusWorkflowArguments.experimentFile
             self.phaseNode.attrib["secondaryDatabaseString"] = self.cactusWorkflowArguments.secondaryDatabaseString
             self.phaseNode.attrib["outputFile"]=self.cactusWorkflowArguments.experimentNode.find("hal").attrib["halPath"]
@@ -1279,7 +1280,8 @@ class CactusHalGeneratorPhaseCleanup(CactusPhasesJob):
     """Cleanup the database used to build the hal
     """
     def run(self, fileStore):
-        self.cleanupSecondaryDatabase()
+        return
+        #self.cleanupSecondaryDatabase()
 
 ############################################################
 ############################################################

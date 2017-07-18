@@ -20,7 +20,7 @@ from cactus.shared.common import cactus_call
 MAX_KTSERVER_PORT = 32767
 
 # The name of the snapshot that redis outputs.
-KTSERVER_SNAPSHOT_NAME = "00000000.rdb"
+KTSERVER_SNAPSHOT_NAME = "dump.rdb"
 
 def runKtserver(dbElem, fileStore, existingSnapshotID=None, snapshotExportID=None):
     """
@@ -101,21 +101,30 @@ class ServerProcess(Process):
         
         if existingSnapshotID is not None:
             # Clear the termination flag from the snapshot
-            cactus_call(parameters=["ktremotemgr", "remove"] + getRemoteParams(dbElem) + ["TERMINATE"])
+            cactus_call(parameters=["redis-cli"] + getRemoteParams(dbElem) + ["del", "TERMINATE"])
 
+        cactus_call(parameters=["redis-cli"] + getRemoteParams(dbElem) + ["get","TERMINATE"])
         while True:
-            try:
-                cactus_call(parameters=["ktremotemgr", "get"] + getRemoteParams(dbElem) + ["TERMINATE"])
-            except:
-                # No terminate signal sent yet
-                pass
-            else:
-                # Terminate signal received
+            status=cactus_call(parameters=["redis-cli"] + getRemoteParams(dbElem) + ["get","TERMINATE"], check_output=True)
+            if "1\n" in status:
                 break
-            sleep(60)
+            else:
+                continue
+            sleep(1)
+
+       #while True:
+        #    try:
+         #       cactus_call(parameters=["redis-cli", "get"] + getRemoteParams(dbElem) + ["TERMINATE"])
+          #  except:
+           #     # No terminate signal sent yet
+            #    pass
+           # else:
+            #    # Terminate signal received
+             #   break
+           # sleep(60)
        # process.send_signal(signal.SIGINT)
-        cactus_call(parameters=["redis-cli save"])
-        cactus_call(parameters=["redis-cli shutdown"])
+        cactus_call(parameters=["redis-cli"] + getRemoteParams(dbElem) + ["save"])
+        cactus_call(parameters=["redis-cli"] + getRemoteParams(dbElem) + ["shutdown"])
         process.wait()
        # blockUntilKtserverIsFinished(logPath)
         if snapshotExportID is not None:
@@ -130,14 +139,14 @@ class ServerProcess(Process):
             # Export the snapshot file to the file store
             fileStore.jobStore.updateFile(snapshotExportID, snapshotPath)
 
-def blockUntilKtserverIsRunning(dbElem, createTimeout=1800):
+def blockUntilKtserverIsRunning(dbElem, createTimeout=180):
     """Check status until it's successful, an error is found, or we timeout.
 
     Returns True if the ktserver is now running, False if something went wrong."""
     success = False
     for i in xrange(createTimeout):
         running=cactus_call(shell= False, parameters= ["redis-cli -p", str(dbElem.getDbPort()) , " ping"], check_result=True)
-        if running:
+        if (running==0):
            success=True
            break
        # if isKtServerFailed(logPath):
@@ -151,16 +160,19 @@ def blockUntilKtserverIsRunning(dbElem, createTimeout=1800):
         sleep(1)
     return success
 
-def blockUntilKtserverIsFinished(logPath, timeout=1800,
+def blockUntilKtserverIsFinished(logPath,dbElem, timeout=180,
                                  timeStep=10):
     """Wait for the ktserver log to indicate that it shut down properly.
 
     Returns True if the server shut down, False if the timeout expired."""
     for i in xrange(0, timeout, timeStep):
-        with open(logPath) as f:
-            log = f.read()
-            if '[FINISH]' in log:
-                return True
+        running=cactus_call(shell= False, parameters= ["redis-cli -p", str(dbElem.getDbPort()) , " ping"], check_result=True)
+        if (running!=0):
+            return True
+       # with open(logPath) as f:
+        #    log = f.read()
+         #   if '[FINISH]' in log:
+          #      return True
         sleep(timeStep)
     raise RuntimeError("Timeout reached while waiting for ktserver.")
 
@@ -202,11 +214,11 @@ def getKtServerOptions(dbElem):
         serverOptions = dbElem.getDbServerOptions()
     return serverOptions
 
-def getKtserverCommand(dbElem, logPath, snapshotDir):
+def getKtserverCommand(dbElem, logPath, snapshotPath):
     """Get a ktserver command line with the proper options (in popen-type list format)."""
     # serverOptions = getKtServerOptions(dbElem)
     # tuning = getKtTuningOptions(dbElem)
-    cmd = ["redis-server", "--port",str(dbElem.getDbPort()), "--save \"\" --dir", snapshotDir]
+    cmd = ["redis-server", "--port",str(dbElem.getDbPort()),"--save \"\" --dir", snapshotPath]
     # cmd += serverOptions.split()
     # Configure background snapshots, but set the interval between
     # snapshots to ~ 10 days so it'll never trigger. We are only
@@ -218,13 +230,12 @@ def getKtserverCommand(dbElem, logPath, snapshotDir):
 
 def getRemoteParams(dbElem):
     """Get parameters to supply to ktremotemgr to connect to the right DB."""
-    return ['-port', str(dbElem.getDbPort()),
-            '-host', dbElem.getDbHost() or 'localhost']
+    return ['-p', str(dbElem.getDbPort())]
 
 def stopKtserver(dbElem):
     """Attempt to send the terminate signal to a ktserver."""
     try:
-        cactus_call(parameters=['ktremotemgr', 'set'] + getRemoteParams(dbElem) + ['TERMINATE', '1'])
+        cactus_call(parameters=['redis-cli'] + getRemoteParams(dbElem) + ['set','TERMINATE', '1'])
     except:
         # The server is likely already down.
         pass

@@ -40,7 +40,7 @@ class KtServerService(Job.Service):
         self.check()
         stopKtserver(self.dbElem)
         if not self.failed:
-            blockUntilKtserverIsFinished(self.logPath, timeout=1200)
+            blockUntilKtserverIsFinished(self.logPath, self.dbElem, timeout=1200)
 
     def check(self):
         if self.process.exceptionMsg.empty():
