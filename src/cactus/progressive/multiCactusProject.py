@@ -36,6 +36,7 @@ class MultiCactusProject:
         self.inputSequenceIDs = None
         self.outputSequenceIDMap = None
         self.configID = None
+        self.samplingRatesID = None
         
     def readXML(self, path):
         xmlRoot = ET.parse(path).getroot()
@@ -60,6 +61,8 @@ class MultiCactusProject:
         logger.info("xmlRoot = %s" % ET.tostring(xmlRoot))
         if "configID" in xmlRoot.attrib:
             self.configID = xmlRoot.attrib["configID"]
+        if "samplingRatesID" in xmlRoot.attrib:
+            self.samplingRatesID = xmlRoot.attrib["samplingRatesID"]
             
         self.outputSequenceDir = xmlRoot.attrib["outputSequenceDir"]
         self.mcTree.assignSubtreeRootNames(self.expMap)
@@ -86,6 +89,8 @@ class MultiCactusProject:
             xmlRoot.attrib["outputSequenceNames"] = " ".join(self.outputSequenceIDMap.keys())
         if self.configID:
             xmlRoot.attrib["configID"] = self.configID
+        if self.samplingRatesID:
+            xmlRoot.attrib["samplingRatesID"] = self.samplingRatesID
 
         xmlFile = open(path, "w")
         xmlString = ET.tostring(xmlRoot)
@@ -152,6 +157,9 @@ class MultiCactusProject:
 
     def setConfigID(self, configID):
         self.configID = configID
+
+    def setSamplingRatesID(self, samplingRatesID):
+        self.samplingRatesID = samplingRatesID
 
     def getConfigID(self):
         return self.configID

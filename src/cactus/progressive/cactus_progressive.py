@@ -387,6 +387,7 @@ def main():
                       "in the tree may be used as outgroups but will never appear"
                       " in the output.  If no root is specifed then the root"
                       " of the tree is used. ", default=None)
+    parser.add_argument("--seedSamplingRates", dest="seedSamplingRates")
 
     #Kyoto Tycoon Options
     ktGroup = parser.add_argument_group("kyoto_tycoon Options",
@@ -486,6 +487,10 @@ def main():
                 cactusConfigID = toil.importFile(makeURL(project.getConfigPath()))
             logger.info("Setting config id to: %s" % cactusConfigID)
             project.setConfigID(cactusConfigID)
+
+            if options.seedSamplingRates:
+                samplingRatesID = toil.importFile(makeURL(options.seedSamplingRates))
+                project.setSamplingRatesID(samplingRatesID)
 
             project.syncToFileStore(toil)
             configNode = ET.parse(project.getConfigPath()).getroot()

@@ -1246,7 +1246,7 @@ class CactusHalGeneratorRecursion(CactusRecursionJob):
 
 class CactusHalGeneratorUpWrapper(CactusRecursionJob):
     """Generate the .c2h strings for this flower, storing them in the secondary database."""
-    memoryPoly = [4e+09]
+    memoryPoly = [2e+09]
 
     def run(self, fileStore):
         if self.getOptionalPhaseAttrib("outputFile"):

@@ -1,5 +1,5 @@
 # order is important, libraries first
-modules = api setup blastLib caf bar blast normalisation phylogeny reference faces check pipeline preprocessor hal dbTest
+modules = api setup blastLib caf bar blast normalisation phylogeny reference faces check pipeline preprocessor hal dbTest repeats
 
 git_commit ?= $(shell git rev-parse HEAD)
 dockstore = quay.io/comparative-genomics-toolkit

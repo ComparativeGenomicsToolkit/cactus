@@ -65,11 +65,12 @@ class BlastOptions:
         self.trimOutgroupDepth = trimOutgroupDepth
         self.trimOutgroupFlanking = trimOutgroupFlanking
         self.keepParalogs = keepParalogs
-        
+
+
 class BlastSequencesAllAgainstAll(RoundedJob):
     """Take a set of sequences, chunks them up and blasts them.
     """
-    def __init__(self, sequenceFileIDs1, blastOptions):
+    def __init__(self, sequenceFileIDs1, blastOptions, samplingRatesID=None):
         disk = 4*sum([seqFileID.size for seqFileID in sequenceFileIDs1])
         cores = 1
         memory = blastOptions.memory
@@ -79,6 +80,7 @@ class BlastSequencesAllAgainstAll(RoundedJob):
         self.blastOptions = blastOptions
         self.blastOptions.compressFiles = False
         self.blastOptions.roundsOfCoordinateConversion = 1
+        self.samplingRatesID = samplingRatesID
 
     def run(self, fileStore):
         sequenceFiles1 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs1]
@@ -87,18 +89,19 @@ class BlastSequencesAllAgainstAll(RoundedJob):
         logger.info("Broken up the sequence files into individual 'chunk' files")
         chunkIDs = [fileStore.writeGlobalFile(chunk, cleanup=False) for chunk in chunks]
 
-        diagonalResultsID = self.addChild(MakeSelfBlasts(self.blastOptions, chunkIDs)).rv()
-        offDiagonalResultsID = self.addChild(MakeOffDiagonalBlasts(self.blastOptions, chunkIDs)).rv()
+        diagonalResultsID = self.addChild(MakeSelfBlasts(self.blastOptions, chunkIDs, samplingRatesID=self.samplingRatesID)).rv()
+        offDiagonalResultsID = self.addChild(MakeOffDiagonalBlasts(self.blastOptions, chunkIDs, samplingRatesID=self.samplingRatesID)).rv()
         logger.debug("Collating the blasts after blasting all-against-all")
         return self.addFollowOn(CollateBlasts(self.blastOptions, [diagonalResultsID, offDiagonalResultsID])).rv()
         
 class MakeSelfBlasts(RoundedJob):
     """Breaks up the inputs into bits and builds a bunch of alignment jobs.
     """
-    def __init__(self, blastOptions, chunkIDs):
+    def __init__(self, blastOptions, chunkIDs, samplingRatesID=None):
         RoundedJob.__init__(self, preemptable=True)
         self.blastOptions = blastOptions
         self.chunkIDs = chunkIDs
+        self.samplingRatesID = samplingRatesID
         
     def run(self, fileStore):
         logger.info("Chunk IDs: %s" % self.chunkIDs)
@@ -106,7 +109,7 @@ class MakeSelfBlasts(RoundedJob):
         self.blastOptions.compressFiles = self.blastOptions.compressFiles and len(self.chunkIDs) > 2
         resultsIDs = []
         for i in xrange(len(self.chunkIDs)):
-            resultsIDs.append(self.addChild(RunSelfBlast(self.blastOptions, self.chunkIDs[i])).rv())
+            resultsIDs.append(self.addChild(RunSelfBlast(self.blastOptions, self.chunkIDs[i], samplingRatesID=self.samplingRatesID)).rv())
         logger.info("Made the list of self blasts")
         #Setup job to make all-against-all blasts
         logger.debug("Collating self blasts.")
@@ -114,18 +117,19 @@ class MakeSelfBlasts(RoundedJob):
         return self.addFollowOn(CollateBlasts(self.blastOptions, resultsIDs)).rv()
     
 class MakeOffDiagonalBlasts(RoundedJob):
-        def __init__(self, blastOptions, chunkIDs):
+        def __init__(self, blastOptions, chunkIDs, samplingRatesID=None):
             RoundedJob.__init__(self, preemptable=True)
             self.chunkIDs = chunkIDs
             self.blastOptions = blastOptions
             self.blastOptions.compressFiles = False
+            self.samplingRatesID = samplingRatesID
 
         def run(self, fileStore):
             resultsIDs = []
             #Make the list of blast jobs.
             for i in xrange(0, len(self.chunkIDs)):
                 for j in xrange(i+1, len(self.chunkIDs)):
-                    resultsIDs.append(self.addChild(RunBlast(blastOptions=self.blastOptions, seqFileID1=self.chunkIDs[i], seqFileID2=self.chunkIDs[j])).rv())
+                    resultsIDs.append(self.addChild(RunBlast(blastOptions=self.blastOptions, seqFileID1=self.chunkIDs[i], seqFileID2=self.chunkIDs[j], samplingRatesID=self.samplingRatesID)).rv())
 
 
             return self.addFollowOn(CollateBlasts(self.blastOptions, resultsIDs)).rv()
@@ -134,7 +138,7 @@ class MakeOffDiagonalBlasts(RoundedJob):
 class BlastSequencesAgainstEachOther(RoundedJob):
     """Take two sets of sequences, chunks them up and blasts one set against the other.
     """
-    def __init__(self, sequenceFileIDs1, sequenceFileIDs2, blastOptions):
+    def __init__(self, sequenceFileIDs1, sequenceFileIDs2, blastOptions, samplingRatesID=None):
         disk = 3*(sum([seqID.size for seqID in sequenceFileIDs1]) + sum([seqID.size for seqID in sequenceFileIDs2]))
         cores = 1
         memory = blastOptions.memory
@@ -144,6 +148,7 @@ class BlastSequencesAgainstEachOther(RoundedJob):
         self.sequenceFileIDs2 = sequenceFileIDs2
         self.blastOptions = blastOptions
         self.blastOptions.roundsOfCoordinateConversion = 1
+        self.samplingRatesID = samplingRatesID
         
     def run(self, fileStore):
         sequenceFiles1 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs1]
@@ -159,7 +164,7 @@ class BlastSequencesAgainstEachOther(RoundedJob):
             for chunkID2 in chunkIDs2:
                 #TODO: Make the compression work
                 self.blastOptions.compressFiles = False
-                resultsIDs.append(self.addChild(RunBlast(self.blastOptions, chunkID1, chunkID2)).rv())
+                resultsIDs.append(self.addChild(RunBlast(self.blastOptions, chunkID1, chunkID2, samplingRatesID=self.samplingRatesID)).rv())
         logger.info("Made the list of blasts")
         #Set up the job to collate all the results
         return self.addFollowOn(CollateBlasts(self.blastOptions, resultsIDs)).rv()
@@ -171,18 +176,20 @@ class BlastIngroupsAndOutgroups(RoundedJob):
     outgroup.
     """
     def __init__(self, blastOptions, ingroupSequenceIDs,
-                 outgroupSequenceIDs):
+                 outgroupSequenceIDs, samplingRatesID=None):
         RoundedJob.__init__(self, memory=blastOptions.memory, preemptable=True)
         self.blastOptions = blastOptions
         self.blastOptions.roundsOfCoordinateConversion = 1
         self.ingroupSequenceIDs = ingroupSequenceIDs
         self.outgroupSequenceIDs = outgroupSequenceIDs
+        self.samplingRatesID = samplingRatesID
 
     def run(self, fileStore):
         fileStore.logToMaster("Blasting ingroups vs outgroups")
         
         ingroupAlignmentsID = self.addChild(BlastSequencesAllAgainstAll(self.ingroupSequenceIDs,
-                                                        blastOptions=self.blastOptions)).rv()
+                                                        blastOptions=self.blastOptions, 
+                                                        samplingRatesID=self.samplingRatesID)).rv()
         if len(self.outgroupSequenceIDs) > 0:
             blastFirstOutgroupJob = self.addChild(BlastFirstOutgroup(untrimmedSequenceIDs=self.ingroupSequenceIDs,
                                                                      sequenceIDs=self.ingroupSequenceIDs,
@@ -191,7 +198,8 @@ class BlastIngroupsAndOutgroups(RoundedJob):
                                                                      outgroupResultsID=None,
                                                                      blastOptions=self.blastOptions,
                                                                      outgroupNumber=1,
-                                                                     ingroupCoverageIDs=[]))
+                                                                     ingroupCoverageIDs=[],
+                                                                     samplingRatesID=self.samplingRatesID))
             outgroupAlignmentsID = blastFirstOutgroupJob.rv(0)
             outgroupFragmentIDs = blastFirstOutgroupJob.rv(1)
             ingroupCoverageIDs = blastFirstOutgroupJob.rv(2)
@@ -211,7 +219,7 @@ class BlastFirstOutgroup(RoundedJob):
     """
     def __init__(self, untrimmedSequenceIDs, sequenceIDs,
                  outgroupSequenceIDs, outgroupFragmentIDs, outgroupResultsID,
-                 blastOptions, outgroupNumber, ingroupCoverageIDs):
+                 blastOptions, outgroupNumber, ingroupCoverageIDs, samplingRatesID=None):
         RoundedJob.__init__(self, memory=blastOptions.memory, preemptable=True)
         self.untrimmedSequenceIDs = untrimmedSequenceIDs
         self.sequenceIDs = sequenceIDs
@@ -221,12 +229,14 @@ class BlastFirstOutgroup(RoundedJob):
         self.blastOptions = blastOptions
         self.outgroupNumber = outgroupNumber
         self.ingroupCoverageIDs = ingroupCoverageIDs
+        self.samplingRatesID = samplingRatesID
 
     def run(self, fileStore):
         logger.info("Blasting ingroup sequences to outgroup")
         alignmentsID = self.addChild(BlastSequencesAgainstEachOther(self.sequenceIDs,
                                                                     [self.outgroupSequenceIDs[0]],
-                                                                    self.blastOptions)).rv()
+                                                                    self.blastOptions, 
+                                                                    samplingRatesID=self.samplingRatesID)).rv()
         trimRecurseJob = self.addFollowOn(TrimAndRecurseOnOutgroups(untrimmedSequenceIDs=self.untrimmedSequenceIDs,
                                                                     sequenceIDs=self.sequenceIDs,
                                                                     outgroupSequenceIDs=self.outgroupSequenceIDs,
@@ -235,7 +245,8 @@ class BlastFirstOutgroup(RoundedJob):
                                                                     outgroupResultsID=self.outgroupResultsID,
                                                                     blastOptions=self.blastOptions,
                                                                     outgroupNumber=self.outgroupNumber,
-                                                                    ingroupCoverageIDs=self.ingroupCoverageIDs))
+                                                                    ingroupCoverageIDs=self.ingroupCoverageIDs,
+                                                                    samplingRatesID=self.samplingRatesID))
         outgroupAlignmentsID = trimRecurseJob.rv(0)
         outgroupFragmentIDs = trimRecurseJob.rv(1)
         ingroupCoverageIDs = trimRecurseJob.rv(2)
@@ -246,7 +257,8 @@ class TrimAndRecurseOnOutgroups(RoundedJob):
                  outgroupSequenceIDs, outgroupFragmentIDs,
                  mostRecentResultsID, outgroupResultsID,
                  blastOptions,
-                 outgroupNumber, ingroupCoverageIDs):
+                 outgroupNumber, ingroupCoverageIDs,
+                 samplingRatesID=None):
         RoundedJob.__init__(self, preemptable=True)
         self.untrimmedSequenceIDs = untrimmedSequenceIDs
         self.sequenceIDs = sequenceIDs
@@ -257,6 +269,7 @@ class TrimAndRecurseOnOutgroups(RoundedJob):
         self.blastOptions = blastOptions
         self.outgroupNumber = outgroupNumber
         self.ingroupCoverageIDs = ingroupCoverageIDs
+        self.samplingRatesID = samplingRatesID
 
     def run(self, fileStore):
         # TODO: split up this function, it's getting unwieldy
@@ -361,7 +374,8 @@ class TrimAndRecurseOnOutgroups(RoundedJob):
                                                    outgroupResultsID=self.outgroupResultsID,
                                                    blastOptions=self.blastOptions,
                                                    outgroupNumber=self.outgroupNumber + 1,
-                                                   ingroupCoverageIDs=self.ingroupCoverageIDs)).rv()
+                                                   ingroupCoverageIDs=self.ingroupCoverageIDs,
+                                                   samplingRatesID=self.samplingRatesID)).rv()
         else:
             # Finally, put the ingroups and outgroups results together
             return (self.outgroupResultsID, self.outgroupFragmentIDs, self.ingroupCoverageIDs)
@@ -381,18 +395,21 @@ def decompressFastaFile(fileName, tempFileName):
 class RunSelfBlast(RoundedJob):
     """Runs blast as a job.
     """
-    def __init__(self, blastOptions, seqFileID):
+    def __init__(self, blastOptions, seqFileID, samplingRatesID=None):
         disk = 3*seqFileID.size
         memory = 3*seqFileID.size
         
         RoundedJob.__init__(self, memory=memory, disk=disk, preemptable=True)
         self.blastOptions = blastOptions
         self.seqFileID = seqFileID
+        self.samplingRatesID = samplingRatesID
     
     def run(self, fileStore):   
         blastResultsFile = fileStore.getLocalTempFile()
         seqFile = fileStore.readGlobalFile(self.seqFileID)
-        runSelfLastz(seqFile, blastResultsFile, lastzArguments=self.blastOptions.lastzArguments)
+        samplingRates = fileStore.readGlobalFile(self.samplingRatesID) if self.samplingRatesID else None
+        unmask = True if samplingRates else False
+        runSelfLastz(seqFile, blastResultsFile, lastzArguments=self.blastOptions.lastzArguments, samplingRates=samplingRates, unmask=unmask)
         if self.blastOptions.realign:
             realignResultsFile = fileStore.getLocalTempFile()
             runCactusSelfRealign(seqFile, inputAlignmentsFile=blastResultsFile,
@@ -413,7 +430,7 @@ class RunSelfBlast(RoundedJob):
 class RunBlast(RoundedJob):
     """Runs blast as a job.
     """
-    def __init__(self, blastOptions, seqFileID1, seqFileID2):
+    def __init__(self, blastOptions, seqFileID1, seqFileID2, samplingRatesID=None):
         if hasattr(seqFileID1, "size") and hasattr(seqFileID2, "size"):
             disk = 2*(seqFileID1.size + seqFileID2.size)
             memory = 2*(seqFileID1.size + seqFileID2.size)
@@ -424,6 +441,7 @@ class RunBlast(RoundedJob):
         self.blastOptions = blastOptions
         self.seqFileID1 = seqFileID1
         self.seqFileID2 = seqFileID2
+        self.samplingRatesID = samplingRatesID
     
     def run(self, fileStore):
         seqFile1 = fileStore.readGlobalFile(self.seqFileID1)
@@ -432,8 +450,9 @@ class RunBlast(RoundedJob):
             seqFile1 = decompressFastaFile(seqFile1, fileStore.getLocalTempFile())
             seqFile2 = decompressFastaFile(seqFile2, fileStore.getLocalTempFile())
         blastResultsFile = fileStore.getLocalTempFile()
-
-        runLastz(seqFile1, seqFile2, blastResultsFile, lastzArguments = self.blastOptions.lastzArguments)
+        samplingRates = fileStore.readGlobalFile(self.samplingRatesID) if self.samplingRatesID else None
+        unmask = True if samplingRates else False
+        runLastz(seqFile1, seqFile2, blastResultsFile, lastzArguments = self.blastOptions.lastzArguments, samplingRates=samplingRates, unmask=unmask)
         if self.blastOptions.realign:
             realignResultsFile = fileStore.getLocalTempFile()
             runCactusRealign(seqFile1, seqFile2, inputAlignmentsFile=blastResultsFile,
