@@ -281,8 +281,8 @@ def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart):
     outputSequences = CactusPreprocessor.getOutputSequenceFiles(inputSequences, outputSequenceDir)
     if configNode.find("constants") != None:
         ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals()
-    inputSequenceIDs = [toil.importFile(makeURL(seq)) for seq in inputSequences]
     if not restart:
+        inputSequenceIDs = [toil.importFile(makeURL(seq)) for seq in inputSequences]
         outputSequenceIDs = toil.start(CactusPreprocessor(inputSequenceIDs, configNode))
     else:
         outputSequenceIDs = toil.restart()
