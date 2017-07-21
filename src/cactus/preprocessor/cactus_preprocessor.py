@@ -251,10 +251,10 @@ class CactusPreprocessor(RoundedJob):
     def getOutputSequenceFiles(inputSequences, outputSequenceDir):
         """Function to get unambiguous file names for each input sequence in the output sequence dir. 
         """
-        if not os.path.isdir(outputSequenceDir):
+        if not outputSequenceDir.startswith("s3://") and not os.path.isdir(outputSequenceDir):
             os.mkdir(outputSequenceDir)
         return [ os.path.join(outputSequenceDir, inputSequences[i].split("/")[-1] + "_%i" % i) for i in xrange(len(inputSequences)) ]
-  
+
 class CactusPreprocessor2(RoundedJob):
     def __init__(self, inputSequenceID, configNode):
         RoundedJob.__init__(self, preemptable=True)
@@ -316,5 +316,4 @@ def _test():
     return doctest.testmod()
 
 if __name__ == '__main__':
-    from cactus.preprocessor.cactus_preprocessor import *
     main()
