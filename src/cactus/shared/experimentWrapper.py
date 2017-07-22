@@ -49,18 +49,18 @@ class DbElemWrapper(object):
                 raise RuntimeError("Database conf is of type tokyo cabinet but there is no nested tokyo cabinet tag: %s" % dataString)
             if not tokyoCabinet.attrib.has_key("database_dir"):
                 raise RuntimeError("The tokyo cabinet tag has no database_dir tag: %s" % dataString)
-        elif typeString == "kyoto_tycoon":
-            kyotoTycoon = self.confElem.find("kyoto_tycoon")
-            if kyotoTycoon == None:
-                raise RuntimeError("Database conf is of kyoto tycoon but there is no nested kyoto tycoon tag: %s" % dataString)
-            if not set(("host", "port", "database_dir")).issubset(set(kyotoTycoon.attrib.keys())):
-                raise RuntimeError("The kyoto tycoon tag has a missing attribute: %s" % dataString)
+        elif typeString == "redis":
+            redis = self.confElem.find("redis")
+            if redis == None:
+                raise RuntimeError("Database conf is of redis but there is no nested redis tag: %s" % dataString)
+            if not set(("host", "port", "database_dir")).issubset(set(redis.attrib.keys())):
+                raise RuntimeError("The redis tag has a missing attribute: %s" % dataString)
         elif typeString == 'redis':
             redis = self.confElem.find("redis")
             if redis == None:
-                raise RuntimeError("Database conf is of kyoto tycoon but there is no nested kyoto tycoon tag: %s" % dataString)
-            if not set(("host", "port", "database_dir")).issubset(set(kyotoTycoon.attrib.keys())):
-                raise RuntimeError("The kyoto tycoon tag has a missing attribute: %s" % dataString)
+                raise RuntimeError("Database conf is of redis but there is no nested redis tag: %s" % dataString)
+            if not set(("host", "port", "database_dir")).issubset(set(redis.attrib.keys())):
+                raise RuntimeError("The redis tag has a missing attribute: %s" % dataString)
         else:
             raise RuntimeError("Unrecognised database type in conf string: %s" % typeString)
 
@@ -86,14 +86,14 @@ class DbElemWrapper(object):
             self.dbElem.attrib["database_dir"] = path
         
     def getDbName(self):
-        #if self.getDbType() == "kyoto_tycoon" and self.getDbInMemory() == True:
+        #if self.getDbType() == "redis" and self.getDbInMemory() == True:
         #    return ""
         if "database_name" not in self.dbElem.attrib:
             return None
         return self.dbElem.attrib["database_name"]
     
     def setDbName(self, name):
-        #if self.getDbType() == "kyoto_tycoon":
+        #if self.getDbType() == "redis":
         #    if self.getDbInMemory() == True:
         #        if "database_name" in self.dbElem.attrib:
         #            del self.dbElem.attrib["database_name"]
@@ -173,8 +173,8 @@ class DbElemWrapper(object):
     def cleanupDb(self): #Replacement for cleanupDatabase
         """Removes the database that was created.
         """
-        if self.getDbType() == "kyoto_tycoon":
-            system("ktremotemgr clear -port %s -host %s" % (self.getDbPort(), self.getDbHost()))
+        if self.getDbType() == "redis":
+            system("remotemgr clear -port %s -host %s" % (self.getDbPort(), self.getDbHost()))
             system("rm -rf %s" % self.getDbDir())
         else:
             assert self.getDbDir() != None

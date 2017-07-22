@@ -48,7 +48,7 @@
                    trimOutgroupFlanking="2000"
                    trimOutgroupDepth="1"
                    keepParalogs="0"/>
-	<ktserver memory="mediumMemory"/>
+	<server memory="mediumMemory"/>
 	<setup makeEventHeadersAlphaNumeric="0"/>
 	<!-- The caf tag contains parameters for the caf algorithm. -->
 	<!-- Increase the chunkSize in the caf tag to reduce the number of blast jobs approximately quadratically -->

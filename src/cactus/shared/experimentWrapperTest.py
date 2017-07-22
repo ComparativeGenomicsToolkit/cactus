@@ -59,9 +59,9 @@ class TestCase(unittest.TestCase):
     def __makeDiskElem(self):
         diskElem = ET.Element("cactus_disk")
         confElem = ET.Element("st_kv_database_conf")
-        confElem.attrib['type'] = 'kyoto_tycoon'
+        confElem.attrib['type'] = 'redis'
         diskElem.append(confElem)
-        dbElem = ET.Element('kyoto_tycoon')
+        dbElem = ET.Element('redis')
         confElem.append(dbElem)
         return diskElem 
             

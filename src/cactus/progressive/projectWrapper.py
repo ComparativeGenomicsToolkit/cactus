@@ -85,36 +85,36 @@ class ProjectWrapper:
         #create the cactus disk
         cdElem = ET.SubElement(expXml, "cactus_disk")
         database = self.options.database
-        assert database == "kyoto_tycoon" or database == "tokyo_cabinet" or database=="redis"
+        assert database == "redis" or database == "tokyo_cabinet" or database=="redis"
         confElem = ET.SubElement(cdElem, "st_kv_database_conf")
         confElem.attrib["type"] = database
         dbElem = ET.SubElement(confElem, database)
         self.expWrapper = ExperimentWrapper(expXml)
 
-        if self.options.database == "kyoto_tycoon":
-            self.expWrapper.setDbPort(str(self.options.ktPort))
-            if self.options.ktHost is not None:
-                self.expWrapper.setDbHost(self.options.ktHost)
-            if self.options.ktType == 'memory':
+        if self.options.database == "redis":
+            self.expWrapper.setDbPort(str(self.options.Port))
+            if self.options.Host is not None:
+                self.expWrapper.setDbHost(self.options.Host)
+            if self.options.Type == 'memory':
                 self.expWrapper.setDbInMemory(True)
                 self.expWrapper.setDbSnapshot(False)
-            elif self.options.ktType == 'snapshot':
+            elif self.options.Type == 'snapshot':
                 self.expWrapper.setDbInMemory(True)
                 self.expWrapper.setDbSnapshot(True)
             else:
-                assert self.options.ktType == 'disk'
+                assert self.options.Type == 'disk'
                 self.expWrapper.setDbInMemory(False)
                 self.expWrapper.setDbSnapshot(False)
             # sonlib doesn't allow for spaces in attributes in the db conf
             # which renders this options useless
-            # if self.options.ktOpts is not None:
-            #    self.expWrapper.setDbServerOptions(self.options.ktOpts)
-            if self.options.ktCreateTuning is not None:
+            # if self.options.Opts is not None:
+            #    self.expWrapper.setDbServerOptions(self.options.Opts)
+            if self.options.CreateTuning is not None:
                 self.expWrapper.setDbCreateTuningOptions(
-                    self.options.ktCreateTuning)
-            if self.options.ktOpenTuning is not None:
+                    self.options.CreateTuning)
+            if self.options.OpenTuning is not None:
                 self.expWrapper.setDbReadTuningOptions(
-                    self.options.ktOpenTuning)
+                    self.options.OpenTuning)
         
         #set the sequence output directory
         outSeqDir = os.path.join(self.workingDir, "sequenceData")

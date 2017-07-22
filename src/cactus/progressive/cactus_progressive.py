@@ -349,10 +349,10 @@ def main():
 
     #Progressive Cactus Options
     parser.add_argument("--database", dest="database",
-                      help="Database type: tokyo_cabinet or kyoto_tycoon"
+                      help="Database type: tokyo_cabinet or redis"
                       " [default: %(default)s]",
                       default="redis")
-                      #"kyoto_tycoon")
+                      #"redis")
     parser.add_argument("--outputMaf", dest="outputMaf",
                       help="[DEPRECATED use hal2maf on the ouput file instead] Path of output alignment in .maf format.  This option should be avoided and will soon be removed.  It may cause sequence names to be mangled, and use a tremendous amount of memory. ",
                       default=None)
@@ -368,7 +368,7 @@ def main():
                       action="store_true",
                       help="Abort automatically when jobTree monitor" +
                       " suspects a deadlock by deleting the jobTree folder." +
-                      " Will guarantee no trailing ktservers but still " +
+                      " Will guarantee no trailing servers but still " +
                       " dangerous to use until we can more robustly detect " +
                       " deadlocks.",
                       default=False)
@@ -389,40 +389,40 @@ def main():
                       " in the output.  If no root is specifed then the root"
                       " of the tree is used. ", default=None)
 
-    #Kyoto Tycoon Options
-    ktGroup = parser.add_argument_group("kyoto_tycoon Options",
-                          "Kyoto tycoon provides a client/server framework "
+    #Redis Options
+    Group = parser.add_argument_group("redis Options",
+                          "Redis provides a client/server framework "
                           "for large in-memory hash tables and is available "
                           "via the --database option.")
-    ktGroup.add_argument("--ktPort", dest="ktPort",
-                       help="starting port (lower bound of range) of ktservers"
+    Group.add_argument("--Port", dest="Port",
+                       help="starting port (lower bound of range) of servers"
                        " [default: %(default)d]",
                        default=1978)
-    ktGroup.add_argument("--ktHost", dest="ktHost",
+    Group.add_argument("--Host", dest="Host",
                        help="The hostname to use for connections to the "
-                       "ktserver (this just specifies where nodes will attempt"
-                       " to find the server, *not* where the ktserver will be"
+                       "server (this just specifies where nodes will attempt"
+                       " to find the server, *not* where the server will be"
                        " run)",
                        default=None)
-    ktGroup.add_argument("--ktType", dest="ktType",
-                       help="Kyoto Tycoon server type "
+    Group.add_argument("--Type", dest="Type",
+                       help="Redis server type "
                        "(memory, snapshot, or disk)"
                        " [default: %(default)s]",
                        default='memory')
     # sonlib doesn't allow for spaces in attributes in the db conf
     # which renders this options useless
-    #ktGroup.add_argument("--ktOpts", dest="ktOpts",
-    #                   help="Command line ktserver options",
+    #Group.add_argument("--Opts", dest="Opts",
+    #                   help="Command line server options",
     #                   default=None)
-    ktGroup.add_argument("--ktCreateTuning", dest="ktCreateTuning",
-                       help="ktserver options when creating db "\
+    Group.add_argument("--CreateTuning", dest="CreateTuning",
+                       help="server options when creating db "\
                             "(ex #bnum=30m#msiz=50g)",
                        default=None)
-    ktGroup.add_argument("--ktOpenTuning", dest="ktOpenTuning",
-                       help="ktserver options when opening existing db "\
-                            "(ex #opts=ls#ktopts=p)",
+    Group.add_argument("--OpenTuning", dest="OpenTuning",
+                       help="server options when opening existing db "\
+                            "(ex #opts=ls#opts=p)",
                        default=None)
-    parser.add_argument_group(ktGroup)
+    parser.add_argument_group(Group)
    
     parser.add_argument("--nonRecursive", dest="nonRecursive", action="store_true",
                       help="Only process given event (not children) [default=False]", 

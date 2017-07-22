@@ -74,7 +74,7 @@ def silentOnSuccess(fn):
 #Stuff for setting up the experiment configuration file for a test
 ###########
 
-_GLOBAL_DATABASE_CONF_STRING = '<st_kv_database_conf type="kyoto_tycoon"><kyoto_tycoon in_memory="1" port="1978" snapshot="0"/></st_kv_database_conf>'
+_GLOBAL_DATABASE_CONF_STRING = '<st_kv_database_conf type="redis"><redis in_memory="1" port="1978" snapshot="0"/></st_kv_database_conf>'
 _BATCH_SYSTEM = None
 
 def getBatchSystem():

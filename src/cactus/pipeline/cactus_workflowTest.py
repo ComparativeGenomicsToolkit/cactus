@@ -88,7 +88,7 @@ class TestCase(unittest.TestCase):
         # Modify the bar node in the config file so that
         # cactus_workflow will split bar jobs even on this small
         # example
-        initialiseGlobalDatabaseConf('<st_kv_database_conf type="kyoto_tycoon"><kyoto_tycoon in_memory="1" port="1978" snapshot="0"/></st_kv_database_conf>')
+        initialiseGlobalDatabaseConf('<st_kv_database_conf type="redis"><redis in_memory="1" port="1978" snapshot="0"/></st_kv_database_conf>')
         tempConfigFile = getTempFile()
         tempConfigTree = ET.parse(self.configFile)
         tempConfigNode = tempConfigTree.getroot()

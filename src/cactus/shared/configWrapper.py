@@ -181,16 +181,16 @@ class ConfigWrapper:
         assert decompElem is not None
         decompElem.attrib["max_parallel_subtrees"] = str(maxParallel)
 
-    def getKtserverMemory(self, default=sys.maxint):
-        ktServerElem = self.xmlRoot.find("ktserver")
-        if ktServerElem is not None and "memory" in ktServerElem.attrib:
-            return int(ktServerElem.attrib["memory"])
+    def getserverMemory(self, default=sys.maxint):
+        ServerElem = self.xmlRoot.find("server")
+        if ServerElem is not None and "memory" in ServerElem.attrib:
+            return int(ServerElem.attrib["memory"])
         return default
     
-    def getKtserverCpu(self, default=sys.maxint):
-        ktServerElem = self.xmlRoot.find("ktserver")
-        if ktServerElem is not None and "cpu" in ktServerElem.attrib:
-            return int(ktServerElem.attrib["cpu"])
+    def getserverCpu(self, default=sys.maxint):
+        ServerElem = self.xmlRoot.find("server")
+        if ServerElem is not None and "cpu" in ServerElem.attrib:
+            return int(ServerElem.attrib["cpu"])
         return default           
 
     def getDefaultMemory(self):

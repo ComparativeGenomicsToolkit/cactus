@@ -252,12 +252,12 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
         if expTemplate.getDbDir() is not None:
             dbBase = os.path.abspath(expTemplate.getDbDir())
         exp.setDbDir(os.path.join(dbBase, name, "%s_DB" % name))
-        if expTemplate.getDbType() == "kyoto_tycoon" and \
+        if expTemplate.getDbType() == "redis" and \
             os.path.splitext(name)[1] != ".kch":
             exp.setDbName("%s.kch" % name)
         else:
             exp.setDbName(name)
-        if expTemplate.getDbType() == "kyoto_tycoon":
+        if expTemplate.getDbType() == "redis":
             exp.setDbPort(expTemplate.getDbPort() + portOffset)
             portOffset += 1
             host = expTemplate.getDbHost()

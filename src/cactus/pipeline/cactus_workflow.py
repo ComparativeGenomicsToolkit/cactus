@@ -67,8 +67,8 @@ from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.experimentWrapper import DbElemWrapper
 from cactus.shared.configWrapper import ConfigWrapper
-from cactus.pipeline.ktserverToil import KtServerService
-from cactus.pipeline.ktserverControl import stopKtserver
+from cactus.pipeline.serverToil import ServerService
+from cactus.pipeline.serverControl import stopserver
 
 ############################################################
 ############################################################
@@ -171,7 +171,7 @@ class CactusPhasesJob(CactusJob):
         CactusJob.__init__(self, phaseNode=phaseNode, constantsNode=constantsNode, overlarge=False,
                            checkpoint=checkpoint, preemptable=preemptable)
 
-    def makeRecursiveChildJob(self, job, launchSecondaryKtForRecursiveJob=False):
+    def makeRecursiveChildJob(self, job, launchSecondaryForRecursiveJob=False):
         newChild = job(phaseNode=extractNode(self.phaseNode), 
                        constantsNode=extractNode(self.constantsNode),
                        cactusDiskDatabaseString=self.cactusWorkflowArguments.cactusDiskDatabaseString, 
@@ -180,13 +180,13 @@ class CactusPhasesJob(CactusJob):
                        overlarge=True,
                        cactusWorkflowArguments=self.cactusWorkflowArguments)
 
-        if launchSecondaryKtForRecursiveJob and ExperimentWrapper(self.cactusWorkflowArguments.experimentNode).getDbType() == "redis":
+        if launchSecondaryForRecursiveJob and ExperimentWrapper(self.cactusWorkflowArguments.experimentNode).getDbType() == "redis":
             cw = ConfigWrapper(self.cactusWorkflowArguments.configNode)
             memory = self.evaluateResourcePoly([4.10201882, 2.01324291e+08])
-            cpu = cw.getKtserverCpu(default=0.1)
+            cpu = cw.getserverCpu(default=0.1)
             dbElem = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
             #dbElem = ExperimentWrapper(self.cactusWorkflowArguments.scratchDbElemNode)
-            dbString = self.addService(KtServerService(dbElem=dbElem, isSecondary=True, memory=memory, cores=cpu)).rv(0)
+            dbString = self.addService(ServerService(dbElem=dbElem, isSecondary=True, memory=memory, cores=cpu)).rv(0)
             newChild.phaseNode.attrib["secondaryDatabaseString"] = dbString
             return self.addChild(newChild).rv()
         else:
@@ -196,20 +196,20 @@ class CactusPhasesJob(CactusJob):
         return self.addFollowOn(job(cactusWorkflowArguments=self.cactusWorkflowArguments, phaseName=phaseName, 
                                     topFlowerName=self.topFlowerName, halID=self.halID, fastaID=self.fastaID)).rv()
 
-    def runPhase(self, recursiveJob, nextPhaseJob, nextPhaseName, doRecursion=True, launchSecondaryKtForRecursiveJob=False):
+    def runPhase(self, recursiveJob, nextPhaseJob, nextPhaseName, doRecursion=True, launchSecondaryForRecursiveJob=False):
         """
         Adds a recursive child job and then a follow-on phase job. Returns the result of the follow-on
         phase job.
         """
         logger.info("Starting %s phase job at %s seconds (recursing = %i)" % (self.phaseNode.tag, time.time(), doRecursion))
         if doRecursion:
-            self.makeRecursiveChildJob(recursiveJob, launchSecondaryKtForRecursiveJob)
+            self.makeRecursiveChildJob(recursiveJob, launchSecondaryForRecursiveJob)
         return self.makeFollowOnPhaseJob(job=nextPhaseJob, phaseName=nextPhaseName)
 
-    def makeFollowOnCheckpointJob(self, checkpointConstructor, phaseName, ktServerDump=None):
+    def makeFollowOnCheckpointJob(self, checkpointConstructor, phaseName, ServerDump=None):
         """Add a follow-on checkpoint phase."""
         return self.addFollowOn(checkpointConstructor(\
-                   phaseName=phaseName, ktServerDump=ktServerDump,
+                   phaseName=phaseName, ServerDump=ServerDump,
                    cactusWorkflowArguments=self.cactusWorkflowArguments,
                    topFlowerName=self.topFlowerName,
                    halID=self.halID, fastaID=self.fastaID)).rv()
@@ -222,7 +222,7 @@ class CactusPhasesJob(CactusJob):
         """
         confXML = ET.fromstring(self.cactusWorkflowArguments.secondaryDatabaseString)
         dbElem = DbElemWrapper(confXML)
-        if dbElem.getDbType() != "kyoto_tycoon":
+        if dbElem.getDbType() != "redis":
             runCactusSecondaryDatabase(self.cactusWorkflowArguments.secondaryDatabaseString, create=True)
 
     def cleanupSecondaryDatabase(self):
@@ -230,7 +230,7 @@ class CactusPhasesJob(CactusJob):
         """
         confXML = ET.fromstring(self.cactusWorkflowArguments.secondaryDatabaseString)
         dbElem = DbElemWrapper(confXML)
-        if dbElem.getDbType() != "kyoto_tycoon":
+        if dbElem.getDbType() != "redis":
             runCactusSecondaryDatabase(self.cactusWorkflowArguments.secondaryDatabaseString, create=False)
 
 class CactusCheckpointJob(CactusPhasesJob):
@@ -243,8 +243,8 @@ class CactusCheckpointJob(CactusPhasesJob):
     that the checkpointed job is technically this job's child, which
     starts the database.
     """
-    def __init__(self, ktServerDump=None, *args, **kwargs):
-        self.ktServerDump = ktServerDump
+    def __init__(self, ServerDump=None, *args, **kwargs):
+        self.ServerDump = ServerDump
         super(CactusCheckpointJob, self).__init__(*args, **kwargs)
 
     def runPhaseWithPrimaryDB(self, jobConstructor):
@@ -252,7 +252,7 @@ class CactusCheckpointJob(CactusPhasesJob):
         """
         job = jobConstructor(cactusWorkflowArguments=self.cactusWorkflowArguments,
                              phaseName=self.phaseName, topFlowerName=self.topFlowerName)
-        startDBJob = StartPrimaryDB(job, ktServerDump=self.ktServerDump,
+        startDBJob = StartPrimaryDB(job, ServerDump=self.ServerDump,
                                     cactusWorkflowArguments=self.cactusWorkflowArguments,
                                     phaseName=self.phaseName, topFlowerName=self.topFlowerName)
         promise = self.addChild(startDBJob)
@@ -260,9 +260,9 @@ class CactusCheckpointJob(CactusPhasesJob):
 
 class StartPrimaryDB(CactusPhasesJob):
     """Launches a primary Cactus DB."""
-    def __init__(self, nextJob, ktServerDump=None, *args, **kwargs):
+    def __init__(self, nextJob, ServerDump=None, *args, **kwargs):
         self.nextJob = nextJob
-        self.ktServerDump = ktServerDump
+        self.ServerDump = ServerDump
         kwargs['checkpoint'] = True
         kwargs['preemptable'] = False
         super(StartPrimaryDB, self).__init__(*args, **kwargs)
@@ -272,10 +272,10 @@ class StartPrimaryDB(CactusPhasesJob):
 
         if self.cactusWorkflowArguments.experimentWrapper.getDbType() == "redis":
             memory = self.evaluateResourcePoly([4.10201882, 2.01324291e+08])
-            cores = cw.getKtserverCpu(default=0.1)
+            cores = cw.getserverCpu(default=0.1)
             dbElem = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
-            service = self.addService(KtServerService(dbElem=dbElem,
-                                                      existingSnapshotID=self.ktServerDump,
+            service = self.addService(ServerService(dbElem=dbElem,
+                                                      existingSnapshotID=self.ServerDump,
                                                       isSecondary=False,
                                                       memory=memory, cores=cores))
             dbString = service.rv(0)
@@ -298,7 +298,7 @@ class SavePrimaryDB(CactusPhasesJob):
         fileStore.logToMaster("At end of %s phase, got stats %s" % (self.phaseName, stats))
         dbElem = DbElemWrapper(ET.fromstring(self.cactusWorkflowArguments.cactusDiskDatabaseString))
         # Send the terminate message
-        stopKtserver(dbElem)
+        stopserver(dbElem)
         # Wait for the file to appear in the right place. This may take a while
         while True:
             path = fileStore.readGlobalFile(self.cactusWorkflowArguments.snapshotID, cache=False)
@@ -563,8 +563,8 @@ def getLongestPath(node, distance=0.0):
 class CactusSetupCheckpoint(CactusCheckpointJob):
     """Start a new DB, run the setup and CAF phases, save the DB, then launch the BAR checkpoint."""
     def run(self, fileStore):
-        ktServerDump = self.runPhaseWithPrimaryDB(CactusSetupPhase).rv()
-        return self.makeFollowOnCheckpointJob(CactusBarCheckpoint, "bar", ktServerDump=ktServerDump)
+        ServerDump = self.runPhaseWithPrimaryDB(CactusSetupPhase).rv()
+        return self.makeFollowOnCheckpointJob(CactusBarCheckpoint, "bar", ServerDump=ServerDump)
 
 class CactusSetupPhase(CactusPhasesJob):   
     """Initialises the cactus database and adapts the config file for the run."""
@@ -753,8 +753,8 @@ class CactusCafWrapper(CactusRecursionJob):
 class CactusBarCheckpoint(CactusCheckpointJob):
     """Load the DB, run the BAR, AVG, and normalization phases, save the DB, then run the reference checkpoint."""
     def run(self, fileStore):
-        ktServerDump = self.runPhaseWithPrimaryDB(CactusBarPhase).rv()
-        return self.makeFollowOnCheckpointJob(CactusReferenceCheckpoint, "reference", ktServerDump=ktServerDump)
+        ServerDump = self.runPhaseWithPrimaryDB(CactusBarPhase).rv()
+        return self.makeFollowOnCheckpointJob(CactusReferenceCheckpoint, "reference", ServerDump=ServerDump)
 
 class CactusBarPhase(CactusPhasesJob):
     """Runs bar algorithm."""
@@ -1002,10 +1002,10 @@ class CactusReferenceCheckpoint(CactusCheckpointJob):
     def run(self, fileStore):
         child = self.runPhaseWithPrimaryDB(CactusReferencePhase)
         experiment = child.rv(0)
-        ktServerDump = child.rv(1)
+        ServerDump = child.rv(1)
         self.cactusWorkflowArguments = copy.deepcopy(self.cactusWorkflowArguments)
         self.cactusWorkflowArguments.experimentWrapper = experiment
-        return self.makeFollowOnCheckpointJob(CactusHalCheckpoint, "hal", ktServerDump=ktServerDump)
+        return self.makeFollowOnCheckpointJob(CactusHalCheckpoint, "hal", ServerDump=ServerDump)
 
 class CactusReferencePhase(CactusPhasesJob):
     """Runs the reference problem algorithm"""
@@ -1015,7 +1015,7 @@ class CactusReferencePhase(CactusPhasesJob):
         self.phaseNode.attrib["secondaryDatabaseString"] = self.cactusWorkflowArguments.secondaryDatabaseString
         return self.runPhase(CactusReferenceRecursion, CactusSetReferenceCoordinatesDownPhase, "reference", 
                              doRecursion=self.getOptionalPhaseAttrib("buildReference", bool, False),
-                             launchSecondaryKtForRecursiveJob=True)
+                             launchSecondaryForRecursiveJob=True)
 
 class CactusReferenceRecursion(CactusRecursionJob):
     """This job creates the wrappers to run the reference problem algorithm, the follow on job then recurses down.
@@ -1205,7 +1205,7 @@ class CactusHalGeneratorPhase2(CactusPhasesJob):
             self.phaseNode.attrib["secondaryDatabaseString"] = self.cactusWorkflowArguments.secondaryDatabaseString
             self.phaseNode.attrib["outputFile"]=self.cactusWorkflowArguments.experimentNode.find("hal").attrib["halPath"]
 
-            self.halID = self.makeRecursiveChildJob(CactusHalGeneratorRecursion, launchSecondaryKtForRecursiveJob=True)
+            self.halID = self.makeRecursiveChildJob(CactusHalGeneratorRecursion, launchSecondaryForRecursiveJob=True)
 
         return self.makeFollowOnPhaseJob(CactusHalGeneratorPhase3, "hal")
 
@@ -1319,7 +1319,7 @@ class CactusWorkflowArguments:
         # (i.e. file:///path/to/prefix). The dumps will be labeled
         # -caf, -avg, etc.
         self.intermediateResultsUrl = options.intermediateResultsUrl
-        self.ktServerDump = None
+        self.ServerDump = None
 
         #Secondary, scratch DB
         secondaryConf = copy.deepcopy(self.experimentNode.find("cactus_disk").find("st_kv_database_conf"))
@@ -1329,7 +1329,7 @@ class CactusWorkflowArguments:
         secondaryDbPath = os.path.join(os.path.dirname(dbPath), "%s_tempSecondaryDatabaseDir_%s" % (
             os.path.basename(dbPath), random.random()))
         secondaryElem.setDbDir(secondaryDbPath)
-        if secondaryElem.getDbType() == "kyoto_tycoon":
+        if secondaryElem.getDbType() == "redis":
             secondaryElem.setDbPort(secondaryElem.getDbPort() + 100)
         self.secondaryDatabaseString = secondaryElem.getConfString()
 
