@@ -47,7 +47,14 @@ class TestCase(unittest.TestCase):
         self.borMcTree = MultiCactusTree(NXNewick().parseString(borTree, addImpliedRoots=False))
         self.borMcTree.computeSubtreeRoots()
         self.borMcTree.nameUnlabeledInternalNodes()
-        self.trees.append(self.borMcTree)
+        self.mcTrees.append(self.borMcTree)
+
+        # Eutherian backbone tree
+        backbone = '(((((((((((Homo_sapiens:0.00655,Pan_troglodytes:0.00684):0.00422,Gorilla_gorilla_gorilla:0.008964):0.009693,Pongo_abelii:0.01894):0.015511,Macaca_mulatta:0.043601):0.08444,Aotus_nancymaae:0.08):0.08,Microcebus_murinus:0.10612):0.043494,Galeopterus_variegatus:0.134937):0.04,((((Jaculus_jaculus:0.1,(Microtus_ochrogaster:0.14,(Mus_musculus:0.084509,Rattus_norvegicus:0.091589):0.047773):0.06015):0.122992,(Heterocephalus_glaber:0.1,(Cavia_porcellus:0.065629,(Chinchilla_lanigera:0.06,Octodon_degus:0.1):0.06):0.05):0.06015):0.05,Marmota_marmota:0.1):0.05,Oryctolagus_cuniculus:0.21569):0.04):0.040593,(((Sus_scrofa:0.12,(Orcinus_orca:0.069688,(Bos_taurus:0.04,Capra_hircus:0.04):0.09):0.045488):0.02,((Equus_caballus:0.109397,(Felis_catus:0.098612,(Canis_lupus_familiaris:0.052458,Mustela_putorius_furo:0.08):0.02):0.049845):0.02,(Pteropus_alecto:0.1,Eptesicus_fuscus:0.08):0.033706):0.03):0.025,Erinaceus_europaeus:0.278178):0.021227):0.023664,(((Loxodonta_africana:0.022242,Procavia_capensis:0.145358):0.076687,Chrysochloris_asiatica:0.04):0.05,Dasypus_novemcinctus:0.169809):0.02)backbone_root:0.234728,(Monodelphis_domestica:0.125686,Sarcophilus_harrisii:0.12):0.2151);'
+        self.backboneTree = MultiCactusTree(NXNewick().parseString(backbone, addImpliedRoots=False))
+        self.backboneTree.computeSubtreeRoots()
+        self.backboneTree.nameUnlabeledInternalNodes()
+        self.mcTrees.append(self.backboneTree)
 
         seqLens = dict()
         seqLens["HUMAN"] = 57553
@@ -99,19 +106,20 @@ class TestCase(unittest.TestCase):
 
     def testZeroThreshold(self):
         """A threshold of 0 should produce outgroup sets that cause no additional depth in the resulting schedule."""
-        for tree in self.mcTrees:
-            og = GreedyOutgroup()
-            og.importTree(tree)
-            og.greedy(threshold=0)
-            htable = og.heightTable()
-            for node, outgroups in og.ogMap.items():
-                for outgroup, _ in outgroups:
-                    # For the outgroup assignment to create no
-                    # additional dependencies, each outgroup must have
-                    # a height lower than the node it's outgroup to
-                    # (or be a leaf)
-                    self.assertTrue(htable[tree.getNodeId(outgroup)] < htable[tree.getNodeId(node)] \
-                                    or htable[tree.getNodeId(outgroup)] == 0)
+        tree = self.backboneTree
+        og = GreedyOutgroup()
+        og.importTree(tree)
+        og.greedy(candidateSet=set(['Homo_sapiens', 'Mus_musculus']),threshold=0, maxNumOutgroups=3, candidateChildFrac=0.75)
+        og.greedy(threshold=0, maxNumOutgroups=3, candidateChildFrac=0.75)
+        htable = og.heightTable()
+        for node, outgroups in og.ogMap.items():
+            for outgroup, _ in outgroups:
+                # For the outgroup assignment to create no
+                # additional dependencies, each outgroup must have
+                # a height lower than the node it's outgroup to
+                # (or be a leaf)
+                self.assertTrue(htable[tree.getNodeId(outgroup)] < htable[tree.getNodeId(node)] \
+                                or htable[tree.getNodeId(outgroup)] == 0)
 
     def testCandidates(self):
         og = GreedyOutgroup()

@@ -71,8 +71,6 @@ class ConfigWrapper:
         ogElem = self.getOutgroupElem()
         threshold = self.defaultOutgroupThreshold
         if (ogElem is not None and\
-            "strategy" in ogElem.attrib and\
-            ogElem.attrib["strategy"] == "greedy" and\
             "threshold" in ogElem.attrib and\
             ogElem.attrib["threshold"].lower() != 'none'):
                 threshold = int(ogElem.attrib["threshold"])
