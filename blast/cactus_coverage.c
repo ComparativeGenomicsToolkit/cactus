@@ -135,24 +135,24 @@ static void fillCoverage(struct PairwiseAlignment *pA, int contigNum,
             if(strand) {
                 for(j=curAlignmentPos; j < curAlignmentPos + op->length; j++) {
                     if(coverageArray[j] == 65535) {
-                        fprintf(stderr, "ERROR: Coverage overflow on contig: "
+                        fprintf(stderr, "WARNING: Coverage hit cap (65535) on contig: "
                                 "%s pos: %" PRIi64 "\n",
                                 contigNum == 1 ? pA->contig1 : pA->contig2, j);
-                        exit(1);
+                    } else {
+                        coverageArray[j]++;
                     }
-                    coverageArray[j]++;
                 }
                 curAlignmentPos += op->length;
                 assert(curAlignmentPos <= endPos);
             } else {
                 for(j=curAlignmentPos-1; j >= curAlignmentPos - op->length; j--) {
                     if(coverageArray[j] == 65535) {
-                        fprintf(stderr, "ERROR: Coverage overflow on contig: "
+                        fprintf(stderr, "WARNING: Coverage hit cap (65535) on contig: "
                                 "%s pos: %" PRIi64 "\n",
                                 contigNum == 1 ? pA->contig1 : pA->contig2, j);
-                        exit(1);
+                    } else {
+                        coverageArray[j]++;
                     }
-                    coverageArray[j]++;
                 }
                 curAlignmentPos -= op->length;
                 assert(curAlignmentPos >= endPos);
