@@ -126,9 +126,10 @@ class ProgressiveOut(RoundedJob):
         self.configWrapper = ConfigWrapper(self.configNode)
         self.configWrapper.substituteAllPredefinedConstantsWithLiterals()
 
-        tmpExp = fileStore.getLocalTempFile()
-        self.eventExpWrapper.writeXML(tmpExp)
-        self.project.expIDMap[self.event] = fileStore.writeGlobalFile(tmpExp)
+        if not self.schedule.isVirtual(self.event):
+            tmpExp = fileStore.getLocalTempFile()
+            self.eventExpWrapper.writeXML(tmpExp)
+            self.project.expIDMap[self.event] = fileStore.writeGlobalFile(tmpExp)
         followOnEvent = self.schedule.followOn(self.event)
         if followOnEvent is not None:
             logger.info("Adding follow-on event %s" % followOnEvent)
