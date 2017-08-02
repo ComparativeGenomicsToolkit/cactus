@@ -12,6 +12,8 @@ import subprocess32
 import logging
 import uuid
 import json
+import time
+import signal
 
 from toil.lib.bioio import logger
 from toil.lib.bioio import system
@@ -738,7 +740,8 @@ def runLastz(seq1, seq2, alignmentsFile, lastzArguments, work_dir=None):
                             "--notrivial",
                             lastzArguments,
                             "%s[multiple][nameparse=darkspace]" % os.path.basename(seq1),
-                            "%s[nameparse=darkspace]" % os.path.basename(seq2)])
+                            "%s[nameparse=darkspace]" % os.path.basename(seq2)],
+                shell=False, soft_timeout=5400)
 
 def runSelfLastz(seq, alignmentsFile, lastzArguments, work_dir=None):
     work_dir = os.path.dirname(seq)
@@ -748,7 +751,8 @@ def runSelfLastz(seq, alignmentsFile, lastzArguments, work_dir=None):
                             "--notrivial",
                             lastzArguments,
                             "%s[multiple][nameparse=darkspace]" % os.path.basename(seq),
-                            "%s[nameparse=darkspace]" % os.path.basename(seq)])
+                            "%s[nameparse=darkspace]" % os.path.basename(seq)],
+                shell=False, soft_timeout=5400)
     
 def runCactusRealign(seq1, seq2, inputAlignmentsFile, outputAlignmentsFile, realignArguments, work_dir=None):
     cactus_call(infile=inputAlignmentsFile, outfile=outputAlignmentsFile, work_dir=work_dir,
@@ -843,6 +847,7 @@ def cactus_call(tool=None,
                 port=None,
                 check_result=False,
                 dockstore=None,
+                soft_timeout=None,
                 job_name=None,
                 features=None,
                 fileStore=None):
@@ -969,6 +974,7 @@ def cactus_call(tool=None,
 
     memUsage = 0
     first_run = True
+    start_time = time.time()
     while True:
         try:
             # Wait a bit to see if the process is done
@@ -980,6 +986,10 @@ def cactus_call(tool=None,
                 assert memUsage <= updatedMemUsage, "memory.max_usage_in_bytes should never decrease"
                 memUsage = updatedMemUsage
             first_run = False
+            if soft_timeout is not None and time.time() - start_time > soft_timeout:
+                # Soft timeout has been triggered. Just return early.
+                process.send_signal(signal.SIGINT)
+                return None
         else:
             break
     _log.info("Used %s max memory" % memUsage)
@@ -1005,7 +1015,7 @@ class RunAsFollowOn(Job):
         self.job = job
     def run(self, fileStore):
         return self.addFollowOn(self.job(*self._args, **self._kwargs)).rv()
-        
+
 class RoundedJob(Job):
     """Thin wrapper around Toil.Job to round up resource requirements.
 
