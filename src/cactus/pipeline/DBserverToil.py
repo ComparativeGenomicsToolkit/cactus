@@ -7,10 +7,10 @@
 import os
 import stat
 from toil.job import Job
-from cactus.pipeline.serverControl import runserver, blockUntilserverIsRunning, stopserver, \
-    blockUntilserverIsFinished
+from cactus.pipeline.DBserverControl import runDBserver, blockUntilDBserverIsRunning, stopDBserver, \
+    blockUntilDBserverIsFinished
 
-class ServerService(Job.Service):
+class DBServerService(Job.Service):
     def __init__(self, dbElem, isSecondary, existingSnapshotID=None,
                  memory=None, cores=None, disk=None):
         Job.Service.__init__(self, memory=memory, cores=cores, disk=disk, preemptable=False)
@@ -28,7 +28,7 @@ class ServerService(Job.Service):
         # need to write something to it, obviously that won't do.
         path = job.fileStore.readGlobalFile(snapshotExportID)
         os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH)
-        self.process, self.dbElem, self.logPath = runserver(self.dbElem, fileStore=job.fileStore,
+        self.process, self.dbElem, self.logPath = runDBserver(self.dbElem, fileStore=job.fileStore,
                                                               existingSnapshotID=self.existingSnapshotID,
                                                               snapshotExportID=snapshotExportID)
         assert self.dbElem.getDbHost() != None
@@ -37,9 +37,9 @@ class ServerService(Job.Service):
 
     def stop(self, job):
         self.check()
-        stopserver(self.dbElem)
+        stopDBserver(self.dbElem)
         if not self.failed:
-            blockUntilserverIsFinished(self.logPath, self.dbElem, timeout=1200)
+            blockUntilDBserverIsFinished(self.logPath, self.dbElem, timeout=1200)
 
     def check(self):
         if self.process.exceptionMsg.empty():
