@@ -18,6 +18,7 @@ import time
 import random
 import copy
 from argparse import ArgumentParser
+from operator import itemgetter
 
 from sonLib.bioio import newickTreeParser
 
@@ -504,12 +505,12 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
         os.mkdir(renamedInputSeqDir)
         uniqueFas = prependUniqueIDs(sequences, renamedInputSeqDir)
         uniqueFaIDs = [fileStore.writeGlobalFile(seq) for seq in uniqueFas]
-        
+
         self.cactusWorkflowArguments.experimentWrapper.seqIDMap = dict(zip(self.cactusWorkflowArguments.experimentWrapper.seqIDMap.keys(), uniqueFaIDs))
-        ingroupIDs = map(lambda x: x[1], filter(lambda x: x[0] not in self.cactusWorkflowArguments.experimentWrapper.getOutgroupEvents(), self.cactusWorkflowArguments.experimentWrapper.seqIDMap.items()))
-        outgroupIDs = [self.cactusWorkflowArguments.experimentWrapper.seqIDMap[i] for i in self.cactusWorkflowArguments.experimentWrapper.getOutgroupEvents()]
-        fileStore.logToMaster("Ingroup sequences: %s" % (ingroupIDs))
-        fileStore.logToMaster("Outgroup sequences: %s" % (outgroupIDs))
+        outgroupItems = [(name, self.cactusWorkflowArguments.experimentWrapper.seqIDMap[name]) for name in self.cactusWorkflowArguments.experimentWrapper.getOutgroupEvents()]
+        ingroupItems = [(name, seqID) for name, seqID in self.cactusWorkflowArguments.experimentWrapper.seqIDMap.items() if name not in self.cactusWorkflowArguments.experimentWrapper.getOutgroupEvents()]
+        fileStore.logToMaster("Ingroup sequences: %s" % ingroupItems)
+        fileStore.logToMaster("Outgroup sequences: %s" % outgroupItems)
 
         # Change the blast arguments depending on the divergence
         setupDivergenceArgs(self.cactusWorkflowArguments)
@@ -517,23 +518,25 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
 
         # FIXME: this is really ugly and steals the options from the caf tag
         blastJob = self.addChild(BlastIngroupsAndOutgroups(
-                                          BlastOptions(chunkSize=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "chunkSize", int),
-                                                        overlapSize=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "overlapSize", int),
-                                                        lastzArguments=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "lastzArguments"),
-                                                        compressFiles=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "compressFiles", bool),
-                                                        realign=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "realign", bool), 
-                                                        realignArguments=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "realignArguments"),
-                                                        memory=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "lastzMemory", int, sys.maxint),
-                                                        smallDisk=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "lastzSmallDisk", int, sys.maxint),
-                                                        largeDisk=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "lastzLargeDisk", int, sys.maxint),
-                                                        minimumSequenceLength=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "minimumSequenceLengthForBlast", int, 1),
-                                                       trimFlanking=self.getOptionalPhaseAttrib("trimFlanking", int, 10),
-                                                       trimMinSize=self.getOptionalPhaseAttrib("trimMinSize", int, 0),
-                                                       trimThreshold=self.getOptionalPhaseAttrib("trimThreshold", float, 0.8),
-                                                       trimWindowSize=self.getOptionalPhaseAttrib("trimWindowSize", int, 10),
-                                                       trimOutgroupFlanking=self.getOptionalPhaseAttrib("trimOutgroupFlanking", int, 100),
-                                                       trimOutgroupDepth=self.getOptionalPhaseAttrib("trimOutgroupDepth", int, 1),
-                                                       keepParalogs=self.getOptionalPhaseAttrib("keepParalogs", bool, False)), ingroupIDs, outgroupIDs))
+            BlastOptions(chunkSize=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "chunkSize", int),
+                         overlapSize=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "overlapSize", int),
+                         lastzArguments=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "lastzArguments"),
+                         compressFiles=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "compressFiles", bool),
+                         realign=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "realign", bool), 
+                         realignArguments=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "realignArguments"),
+                         memory=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "lastzMemory", int, sys.maxint),
+                         smallDisk=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "lastzSmallDisk", int, sys.maxint),
+                         largeDisk=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "lastzLargeDisk", int, sys.maxint),
+                         minimumSequenceLength=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "minimumSequenceLengthForBlast", int, 1),
+                         trimFlanking=self.getOptionalPhaseAttrib("trimFlanking", int, 10),
+                         trimMinSize=self.getOptionalPhaseAttrib("trimMinSize", int, 0),
+                         trimThreshold=self.getOptionalPhaseAttrib("trimThreshold", float, 0.8),
+                         trimWindowSize=self.getOptionalPhaseAttrib("trimWindowSize", int, 10),
+                         trimOutgroupFlanking=self.getOptionalPhaseAttrib("trimOutgroupFlanking", int, 100),
+                         trimOutgroupDepth=self.getOptionalPhaseAttrib("trimOutgroupDepth", int, 1),
+                         keepParalogs=self.getOptionalPhaseAttrib("keepParalogs", bool, False)),
+            map(itemgetter(0), ingroupItems), map(itemgetter(1), ingroupItems),
+            map(itemgetter(0), outgroupItems), map(itemgetter(1), outgroupItems)))
 
         self.cactusWorkflowArguments.alignmentsID = blastJob.rv(0)
         self.cactusWorkflowArguments.outgroupFragmentIDs = blastJob.rv(1)
