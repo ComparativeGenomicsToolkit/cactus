@@ -277,19 +277,6 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
         config.setReferenceName(name)
         config.writeXML(exp.getConfigPath())
 
-def checkInputSequencePaths(exp):
-    for event, seq in exp.seqMap.items():
-        if not os.path.exists(seq):
-            sys.stderr.write("WARNING: sequence path %s does not exist\n" % seq)
-        elif os.path.isdir(seq):
-            contents = os.listdir(seq)
-            size = 0
-            for i in contents:
-                if i[0] != '.':
-                    size += 1
-            if size == 0:
-                sys.stderr.write("WARNING: sequence path %s is an empty directory\n" % seq)
-
 class CreateMultiCactusProjectOptions:
     def __init__(self, expFile, projectFile, fixNames,
             outgroupNames, rootOutgroupDists, rootOutgroupPaths,
@@ -320,7 +307,6 @@ def runCreateMultiCactusProject(expFile, projectFile, fixNames=False,
     confTemplate = ConfigWrapper(ET.parse(configPath).getroot())
     if options.fixNames:
         cleanEventTree(expTemplate)
-    checkInputSequencePaths(expTemplate)
     tree = expTemplate.getTree()
     if options.outgroupNames is not None:
         options.outgroupNames = set(options.outgroupNames)
@@ -391,7 +377,6 @@ def main():
     confTemplate = ConfigWrapper(ET.parse(configPath).getroot())
     if options.fixNames:
         cleanEventTree(expTemplate)
-    checkInputSequencePaths(expTemplate)
     tree = expTemplate.getTree()
 
     # Check that the tree is sensible (root has at least 1 child)
