@@ -9,19 +9,13 @@
 sequences. Uses the jobTree framework to parallelise the blasts.
 """
 import os
-import sys
 import math
-import errno
 from argparse import ArgumentParser
-from bz2 import BZ2File
-import copy
 import xml.etree.ElementTree as ET
 
 from toil.lib.bioio import logger
-from toil.lib.bioio import system
-from toil.lib.bioio import getLogLevelString
 
-from sonLib.bioio import catFiles, getTempFile, getTempDirectory, popenCatch, popenPush, newickTreeParser
+from sonLib.bioio import getTempDirectory
 from toil.common import Toil
 from toil.job import Job
 from cactus.shared.common import cactus_call
@@ -202,19 +196,7 @@ class BatchPreprocessor(RoundedJob):
         if lastIteration == False:
             return self.addFollowOn(BatchPreprocessor(self.prepXmlElems, outSeqID, self.iteration + 1)).rv()
         else:
-            return self.addFollowOn(RunAsFollowOn(BatchPreprocessorEnd, outSeqID)).rv()
-
-class BatchPreprocessorEnd(RoundedJob):
-    def __init__(self,  globalOutSequenceID):
-        disk = 2*globalOutSequenceID.size
-        RoundedJob.__init__(self, disk=disk, preemptable=True)
-        self.globalOutSequenceID = globalOutSequenceID
-        
-    def run(self, fileStore):
-        globalOutSequence = fileStore.readGlobalFile(self.globalOutSequenceID)
-        analysisString = runCactusAnalyseAssembly(globalOutSequence)
-        fileStore.logToMaster("After preprocessing assembly we got the following stats: %s" % analysisString)
-        return self.globalOutSequenceID
+            return outSeqID
 
 ############################################################
 ############################################################
@@ -231,7 +213,7 @@ class CactusPreprocessor(RoundedJob):
         RoundedJob.__init__(self, disk=sum([id.size for id in inputSequenceIDs]), preemptable=True)
         self.inputSequenceIDs = inputSequenceIDs
         self.configNode = configNode  
-    
+
     def run(self, fileStore):
         #HACK
         #Download and then write the sequences so that the IDs have the size attribute.
@@ -262,12 +244,7 @@ class CactusPreprocessor2(RoundedJob):
         self.configNode = configNode
         
     def run(self, fileStore):
-        inputSequenceFile = fileStore.readGlobalFile(self.inputSequenceID)
         prepXmlElems = self.configNode.findall("preprocessor")
-
-        analysisString = runCactusAnalyseAssembly(inputSequenceFile)
-        fileStore.logToMaster("Before running any preprocessing on the assembly: %s got following stats (assembly may be listed as temp file if input sequences from a directory): %s" % \
-                         (self.inputSequenceID, analysisString))
 
         if len(prepXmlElems) == 0: #Just cp the file to the output file
             return self.inputSequenceID

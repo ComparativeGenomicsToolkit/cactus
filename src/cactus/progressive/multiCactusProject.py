@@ -7,18 +7,8 @@
 """ Basic interface to the multi cactus project xml file. 
 
 """
-import unittest
-
-import os
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
-import sys
-import random
-import math
-import copy
-import filecmp
-
-from optparse import OptionParser
 
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.experimentWrapper import ExperimentWrapper
@@ -104,22 +94,18 @@ class MultiCactusProject:
             self.expIDMap[name] = toil.importFile("file://" + expPath)
 
 
-    def getInputSequenceMap(self):
-        """Return a map between event names and sequence paths.  Paths
-        are different from above in that they are not taken from experiment
-        xmls, but rather from directly from the project xml.
+    def getInputSequenceIDMap(self):
+        """Return a map between event names and sequence IDs.
         """
         inputSequenceMap = dict()
         i = 0
         for node in self.mcTree.postOrderTraversal():
             if self.mcTree.isLeaf(node) is True:
                 inputSequenceMap[self.mcTree.getName(node)] = \
-                  self.inputSequences[i]
+                  self.inputSequenceIDs[i]
                 i += 1
-        assert i == len(self.inputSequences)
+        assert i == len(self.inputSequenceIDs)
         return inputSequenceMap
-
-
 
     def getInputSequenceIDs(self):
         """Get the set of input sequences for the multicactus tree

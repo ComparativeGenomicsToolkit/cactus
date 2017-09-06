@@ -12,20 +12,11 @@ tree.
 
 import os
 import xml.etree.ElementTree as ET
-import math
 from argparse import ArgumentParser
-from collections import deque
-import random
-from itertools import izip
-from shutil import move
-import copy
-from time import sleep
 
 from toil.lib.bioio import getTempFile
 from toil.lib.bioio import system
 
-
-from toil.lib.bioio import getLogLevelString
 from toil.lib.bioio import logger
 from toil.lib.bioio import setLoggingFromOptions
 
@@ -42,16 +33,13 @@ from toil.common import Toil
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
 from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
-from cactus.pipeline.cactus_workflow import findRequiredNode
 from cactus.pipeline.cactus_workflow import CactusTrimmingBlastPhase
 
 from cactus.progressive.multiCactusProject import MultiCactusProject
-from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.schedule import Schedule
 from cactus.progressive.projectWrapper import ProjectWrapper
-from cactus.progressive.seqFile import SeqFile
 
 from sonLib.nxnewick import NXNewick
 
@@ -225,6 +213,11 @@ class ProgressiveUp(RoundedJob):
 
         return finalExpWrapper
 
+def logAssemblyStats(job, message, name, sequenceID):
+    sequenceFile = job.fileStore.readGlobalFile(sequenceID)
+    analysisString = cactus_call(parameters=["cactus_analyseAssembly", sequenceFile], check_output=True)
+    job.fileStore.logToMaster("%s, got assembly stats for genome %s: %s" % (message, name, analysisString))
+
 class RunCactusPreprocessorThenProgressiveDown(RoundedJob):
     def __init__(self, options, project, memory=None, cores=None):
         RoundedJob.__init__(self, memory=memory, cores=cores, preemptable=True)
@@ -236,7 +229,11 @@ class RunCactusPreprocessorThenProgressiveDown(RoundedJob):
         self.configWrapper = ConfigWrapper(self.configNode)
         self.configWrapper.substituteAllPredefinedConstantsWithLiterals()
 
-        #Create jobs to create the output sequences
+        # Log the stats for the un-preprocessed assemblies
+        for name, sequence in self.project.getInputSequenceIDMap().items():
+            self.addChildJobFn(logAssemblyStats, "Before preprocessing", name, sequence)
+
+        # Create jobs to create the output sequences
         logger.info("Reading config file from: %s" % self.project.getConfigID())
         configFile = fileStore.readGlobalFile(self.project.getConfigID())
         configNode = ET.parse(configFile).getroot()
@@ -278,6 +275,10 @@ class RunCactusPreprocessorThenProgressiveDown2(RoundedJob):
             preprocessedSequences = self.project.getOutputSequenceIDMap()
             for genome, seqID in preprocessedSequences.items():
                 fileStore.exportFile(seqID, self.options.intermediateResultsUrl + '-preprocessed-' + genome)
+
+        # Log the stats for the preprocessed assemblies
+        for name, sequence in self.project.getOutputSequenceIDMap().items():
+            self.addChildJobFn(logAssemblyStats, "After preprocessing", name, sequence)
 
         project = self.addChild(ProgressiveDown(options=self.options, project=self.project, event=self.event, schedule=self.schedule, memory=self.configWrapper.getDefaultMemory())).rv()
 
