@@ -79,40 +79,50 @@ class DBServerProcess(Process):
             self.exceptionMsg.put("".join(traceback.format_exception(*sys.exc_info())))
             raise
 
-    def tryRun(self, dbElem, logPath, fileStore, existingSnapshotID=None, snapshotExportID=None)
-        while True:
-            cactus_call(server=True, shell=False, parameters=['redis-cli'] + getRemoteParams(dbElem) + ['MONITOR'], outfile=getFileName(),
-                    check_result=True)
+    def tryRun(self, dbElem, logPath, fileStore, existingSnapshotID=None, snapshotExportID=None):
+        snapshotDir = os.path.join(fileStore.getLocalTempDir(), 'snapshot')
+        os.mkdir(snapshotDir)
+        snapshotPath = os.path.join(snapshotDir, DBSERVER_SNAPSHOT_NAME)
+        if existingSnapshotID is not None:
+            # Extract the existing snapshot to the snapshot
+            # directory so it will be automatically loaded
+            fileStore.readGlobalFile(existingSnapshotID, userPath=snapshotPath)
         
-            if existingSnapshotID is not None:
-                # Clear the termination and save flag from the snapshot
-                cactus_call(parameters=["redis-cli"] + getRemoteParams(dbElem) + ["del", "TERMINATE"])
-                cactus_call(parameters=["redis-cli"] + getRemoteParams(dbElem) + ["del", "SAVE"])
+        process = cactus_call(DBserver=True, shell=False,parameters=getDBserverCommand(dbElem, logPath, snapshotDir))
+        if not blockUntilDBserverIsRunning(dbElem):
+            raise RuntimeError("Unable to launch DBserver in time.")
 
-
-            cactus_call(parameters=["redis-cli"] + getRemoteParams(dbElem) + ["get","TERMINATE"])
-            status = ""
-            while True:
-                status=cactus_call(parameters=["redis-cli"] + getRemoteParams(dbElem) + ["get","TERMINATE"], check_output=True)
-                running= cactus_call(parameters=["redis-cli"] + getRemoteParams(dbElem) + ["get","SAVE"], check_output=True)
-                if "1\n" in status or running::
-                    break
-                else:
-                    continue
-                sleep(1)
-
+        # the format for debugging must be in redis-cli -p <Port>  MONITOR | head -n <number of lines to read> > <path to file> you cannot take
+        # out n or call assumes 0.
+        cactus_call(DBserver=True, shell=False, parameters=['redis-cli'] + getRemoteParams(dbElem) + ['MONITOR'], outfile=getFileName(),                             check_result=True)
+        if existingSnapshotID is not None:
+            # Clear the termination flag from the snapshot
+            cactus_call(parameters=["redis-cli"] + getRemoteParams(dbElem) + ["del", "TERMINATE"])
+        cactus_call(parameters=["redis-cli"] + getRemoteParams(dbElem) + ["get","TERMINATE"])
+        while True:
+            status=cactus_call(parameters=["redis-cli"] + getRemoteParams(dbElem) + ["get","TERMINATE"], check_output=True)
             if "1\n" in status:
                 break
-
-            #saves the database
-            waitUntilSnapshotTaken(dbElem)
-
-            #updates the database save file
-            fileStore.jobStore.updateFile(snapshotExportID, snapshotPath)
-   
-        #saves the database and shuts it down
-        cactus_call(parameters=["redis-cli"] + getRemoteParams(dbElem) + ["shutdown","save"])
+            else:
+                continue
+            sleep(1)
+        #saves the database
+        if not waitUntilSnapshotTaken(dbElem):
+            raise RuntimeError ("The snapshot was not taken properly")
+    
+        cactus_call(parameters=["redis-cli"] + getRemoteParams(dbElem) + ["shutdown"])
         process.wait()
+        if snapshotExportID is not None:
+            if not os.path.exists(snapshotPath):
+                raise RuntimeError("Redis did not leave a snapshot on termination but a snapshot was requested.")
+            if len(glob(os.path.join(snapshotDir, "*.rdb"))) != 1:
+                # More than one snapshot file. It's not clear what
+                # conditions trigger this--if any--but we
+                # don't support it right now.
+                raise RuntimeError("Redis left more than one snapshot.")
+
+            # Export the snapshot file to the file store
+            fileStore.jobStore.updateFile(snapshotExportID, snapshotPath)
 
 def waitUntilSnapshotTaken(dbElem, createTimeout=180):
     """Checks to see that the "Save" command works and snapshot was taken
@@ -120,9 +130,11 @@ def waitUntilSnapshotTaken(dbElem, createTimeout=180):
     success= False
     for i in xrange(createTimeout):
         running=cactus_call(shell= False, parameters= ["redis-cli -p", str(dbElem.getDbPort()) , " save"], check_output=True)
-        if "ok\n" in running:
+        print (running)
+        if "OK\n" in running:
             success=True
             break
+    print (success)
     return success
 
 def getFileName():  
@@ -136,7 +148,7 @@ def getFileName():
     print filename
     return filename
 
-def blockUntilDBserverIsRunning(dbElem, createTimeout=180):
+def blockUntilDBserverIsRunning(dbElem, createTimeout=60):
     """Check status until it's successful, an error is found, or we timeout.
 
     Returns True if the DBserver is now running, False if something went wrong."""
