@@ -159,7 +159,7 @@ class TestCase(unittest.TestCase):
         deepCigarPath = getTempFile()
         with open(deepCigarPath, 'w') as f:
             for _ in xrange(65537):
-                f.write('cigar: id=2|simpleSeqB1 0 9 + id=0|simpleSeqA1 10 9 - 0 M 1\n')
+                f.write('cigar: id=2|simpleSeqB1 0 1 + id=0|simpleSeqA1 10 9 - 0 M 1\n')
         bed = cactus_call(parameters=["cactus_coverage", self.simpleFastaPathA, deepCigarPath],
                           check_output=True)
         self.assertEqual(bed, dedent('''\
