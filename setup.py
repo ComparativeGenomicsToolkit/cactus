@@ -29,4 +29,4 @@ setup(
         'networkx'],
     
     entry_points={
-        'console_scripts': ['progressiveCactus = cactus.progressive.cactus_progressive:main']},)
+        'console_scripts': ['cactus = cactus.progressive.cactus_progressive:main']},)
