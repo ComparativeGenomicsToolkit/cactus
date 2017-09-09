@@ -445,10 +445,17 @@ def main():
 
     options.cactusDir = os.path.abspath(options.cactusDir)
 
+    # Mess with some toil options to create useful defaults.
+
     # Caching generally slows down the cactus workflow, plus some
     # methods like readGlobalFileStream don't support forced
     # reads directly from the job store rather than from cache.
     options.disableCaching = True
+
+    if options.retryCount is None:
+        # If the user didn't specify a retryCount value, make it 5
+        # instead of Toil's default (1).
+        options.retryCount = 5
 
     #Create the progressive cactus project 
     projWrapper = ProjectWrapper(options)
