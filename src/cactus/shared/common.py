@@ -632,10 +632,11 @@ def runCactusWorkflow(experimentFile,
                       maxCpus=None,
                       defaultMemory=None,
                       logFile=None,
+                      intermediateResultsUrl=None,
                       extraToilArgumentsString=""):
     arguments = ("--experiment %s" % experimentFile) + " " + _fn(toilDir,
                       logLevel, retryCount, batchSystem, rescueJobFrequency, skipAlignments,
-                      buildAvgs, buildReference, buildHal, buildFasta, toilStats, maxThreads, maxCpus, defaultMemory, logFile, extraToilArgumentsString=extraToilArgumentsString)
+                      buildAvgs, buildReference, buildHal, buildFasta, toilStats, maxThreads, maxCpus, defaultMemory, logFile, extraToilArgumentsString=extraToilArgumentsString) + ' ' + nameValue('intermediateResultsUrl', intermediateResultsUrl, str)
 
     import cactus.pipeline.cactus_workflow as cactus_workflow
     cactus_workflow.runCactusWorkflow(arguments.split())
@@ -1063,3 +1064,68 @@ def readGlobalFileWithoutCache(fileStore, jobStoreID):
     f = fileStore.getLocalTempFile()
     fileStore.jobStore.readFile(jobStoreID, f)
     return f
+
+class ChildTreeJob(RoundedJob):
+    """Spreads the child-job initialization work among multiple jobs.
+
+    Jobs with many children can often be a bottleneck (because they
+    are written serially into the jobStore in a consistent-write
+    fashion). Subclasses of this job will automatically spread out
+    that work amongst a tree of jobs, increasing the total work done
+    slightly, but reducing the wall-clock time taken dramatically.
+    """
+    def __init__(self, memory=None, cores=None, disk=None, preemptable=None,
+                 unitName=None, checkpoint=False, maxChildrenPerJob=20):
+        self.queuedChildJobs = []
+        self.maxChildrenPerJob = maxChildrenPerJob
+        super(ChildTreeJob, self).__init__(memory=memory, cores=cores, disk=disk,
+                                           preemptable=preemptable, unitName=unitName,
+                                           checkpoint=checkpoint)
+
+    def addChild(self, job):
+        self.queuedChildJobs.append(job)
+        return job
+
+    def _run(self, jobGraph, fileStore):
+        ret = super(ChildTreeJob, self)._run(jobGraph, fileStore)
+        if len(self.queuedChildJobs) <= self.maxChildrenPerJob:
+            # The number of children is small enough that we can just
+            # add them directly.
+            for childJob in self.queuedChildJobs:
+                super(ChildTreeJob, self).addChild(childJob)
+        else:
+            # Too many children, so we have to build a tree to avoid
+            # bottlenecking on consistently serializing all the jobs.
+            for job in self.queuedChildJobs:
+                job.prepareForPromiseRegistration(fileStore.jobStore)
+
+            curLevel = self.queuedChildJobs
+            while len(curLevel) > self.maxChildrenPerJob:
+                curLevel = [curLevel[i:i + self.maxChildrenPerJob] for i in xrange(0, len(curLevel), self.maxChildrenPerJob)]
+            # curLevel is now a nested list (of lists, of lists...)
+            # representing a tree of out-degree no higher than
+            # maxChildrenPerJob. We can pass that to SpawnChildren
+            # instances, which will run down the tree and eventually
+            # spawn the jobs we're actually interested in running.
+            for sublist in curLevel:
+                logger.debug(sublist)
+                assert isinstance(sublist, list)
+                super(ChildTreeJob, self).addChild(SpawnChildren(sublist))
+        return ret
+
+class SpawnChildren(RoundedJob):
+    """Helper class used only by ChildTreeJob."""
+    def __init__(self, childList, *args, **kwargs):
+        self.childList = childList
+        super(SpawnChildren, self).__init__(*args, **kwargs)
+
+    def run(self, fileStore):
+        for item in self.childList:
+            if isinstance(item, Job):
+                # Hit the leaf nodes of the tree, which are the
+                # jobs we actually want to run.
+                self.addChild(item)
+            else:
+                # More nested lists of jobs: we need to spawn more
+                # SpawnChildren instances to distribute the load.
+                self.addChild(SpawnChildren(item))

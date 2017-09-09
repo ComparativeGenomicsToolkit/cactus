@@ -8,24 +8,19 @@ sequences. Uses the jobTree framework to parallelise the blasts.
 """
 import os
 import shutil
-import sys
-from argparse import ArgumentParser
 from toil.lib.bioio import logger
 from toil.lib.bioio import system
-from toil.lib.bioio import getLogLevelString
-from toil.lib.bioio import getTempFile
 
 from sonLib.bioio import catFiles, nameValue, popenCatch, getTempDirectory
 
 from cactus.shared.common import RoundedJob
-from toil.common import Toil
 
-from cactus.shared.common import makeURL
 from cactus.shared.common import cactus_call
 from cactus.shared.common import runLastz, runSelfLastz
 from cactus.shared.common import runCactusRealign, runCactusSelfRealign
 from cactus.shared.common import runGetChunks
 from cactus.shared.common import readGlobalFileWithoutCache
+from cactus.shared.common import ChildTreeJob
 
 class BlastOptions(object):
     def __init__(self, chunkSize=10000000, overlapSize=10000, 
@@ -75,7 +70,7 @@ class BlastSequencesAllAgainstAll(RoundedJob):
         cores = 1
         memory = blastOptions.memory
         
-        RoundedJob.__init__(self, disk=disk, cores=cores, memory=memory, preemptable=True)
+        super(BlastSequencesAllAgainstAll, self).__init__(disk=disk, cores=cores, memory=memory, preemptable=True)
         self.sequenceFileIDs1 = sequenceFileIDs1
         self.blastOptions = blastOptions
         self.blastOptions.compressFiles = False
@@ -93,14 +88,14 @@ class BlastSequencesAllAgainstAll(RoundedJob):
         logger.debug("Collating the blasts after blasting all-against-all")
         return self.addFollowOn(CollateBlasts(self.blastOptions, [diagonalResultsID, offDiagonalResultsID])).rv()
         
-class MakeSelfBlasts(RoundedJob):
+class MakeSelfBlasts(ChildTreeJob):
     """Breaks up the inputs into bits and builds a bunch of alignment jobs.
     """
     def __init__(self, blastOptions, chunkIDs):
-        RoundedJob.__init__(self, preemptable=True)
+        super(MakeSelfBlasts, self).__init__(preemptable=True)
         self.blastOptions = blastOptions
         self.chunkIDs = chunkIDs
-        
+
     def run(self, fileStore):
         logger.info("Chunk IDs: %s" % self.chunkIDs)
         #Avoid compression if just one chunk
@@ -114,9 +109,9 @@ class MakeSelfBlasts(RoundedJob):
         logger.info("Blast file IDs: %s" % resultsIDs)
         return self.addFollowOn(CollateBlasts(self.blastOptions, resultsIDs)).rv()
 
-class MakeOffDiagonalBlasts(RoundedJob):
+class MakeOffDiagonalBlasts(ChildTreeJob):
         def __init__(self, blastOptions, chunkIDs):
-            RoundedJob.__init__(self, preemptable=True)
+            super(MakeOffDiagonalBlasts, self).__init__(preemptable=True)
             self.chunkIDs = chunkIDs
             self.blastOptions = blastOptions
             self.blastOptions.compressFiles = False
@@ -128,10 +123,9 @@ class MakeOffDiagonalBlasts(RoundedJob):
                 for j in xrange(i+1, len(self.chunkIDs)):
                     resultsIDs.append(self.addChild(RunBlast(blastOptions=self.blastOptions, seqFileID1=self.chunkIDs[i], seqFileID2=self.chunkIDs[j])).rv())
 
-
             return self.addFollowOn(CollateBlasts(self.blastOptions, resultsIDs)).rv()
 
-class BlastSequencesAgainstEachOther(RoundedJob):
+class BlastSequencesAgainstEachOther(ChildTreeJob):
     """Take two sets of sequences, chunks them up and blasts one set against the other.
     """
     def __init__(self, sequenceFileIDs1, sequenceFileIDs2, blastOptions):
@@ -139,7 +133,7 @@ class BlastSequencesAgainstEachOther(RoundedJob):
         cores = 1
         memory = blastOptions.memory
         
-        RoundedJob.__init__(self, disk=disk, cores=cores, memory=memory, preemptable=True)
+        super(BlastSequencesAgainstEachOther, self).__init__(disk=disk, cores=cores, memory=memory, preemptable=True)
         self.sequenceFileIDs1 = sequenceFileIDs1
         self.sequenceFileIDs2 = sequenceFileIDs2
         self.blastOptions = blastOptions
@@ -172,7 +166,7 @@ class BlastIngroupsAndOutgroups(RoundedJob):
     """
     def __init__(self, blastOptions, ingroupNames, ingroupSequenceIDs,
                  outgroupNames, outgroupSequenceIDs):
-        RoundedJob.__init__(self, memory=blastOptions.memory, preemptable=True)
+        super(BlastIngroupsAndOutgroups, self).__init__(memory=blastOptions.memory, preemptable=True)
         self.blastOptions = blastOptions
         self.blastOptions.roundsOfCoordinateConversion = 1
         self.ingroupNames = ingroupNames
@@ -219,7 +213,7 @@ class BlastFirstOutgroup(RoundedJob):
                  outgroupNames, outgroupSequenceIDs, outgroupFragmentIDs,
                  outgroupResultsID, blastOptions, outgroupNumber,
                  ingroupCoverageIDs):
-        RoundedJob.__init__(self, memory=blastOptions.memory, preemptable=True)
+        super(BlastFirstOutgroup, self).__init__(memory=blastOptions.memory, preemptable=True)
         self.ingroupNames = ingroupNames
         self.untrimmedSequenceIDs = untrimmedSequenceIDs
         self.sequenceIDs = sequenceIDs
@@ -260,7 +254,7 @@ class TrimAndRecurseOnOutgroups(RoundedJob):
                  outgroupNames, outgroupSequenceIDs, outgroupFragmentIDs,
                  mostRecentResultsID, outgroupResultsID,
                  blastOptions, outgroupNumber, ingroupCoverageIDs):
-        RoundedJob.__init__(self, preemptable=True)
+        super(TrimAndRecurseOnOutgroups, self).__init__(preemptable=True)
         self.ingroupNames = ingroupNames
         self.untrimmedSequenceIDs = untrimmedSequenceIDs
         self.sequenceIDs = sequenceIDs
@@ -398,7 +392,7 @@ class RunSelfBlast(RoundedJob):
         disk = 3*seqFileID.size
         memory = 3*seqFileID.size
         
-        RoundedJob.__init__(self, memory=memory, disk=disk, preemptable=True)
+        super(RunSelfBlast, self).__init__(memory=memory, disk=disk, preemptable=True)
         self.blastOptions = blastOptions
         self.seqFileID = seqFileID
     
@@ -433,7 +427,7 @@ class RunBlast(RoundedJob):
         else:
             disk = None
             memory = None
-        RoundedJob.__init__(self, memory=memory, disk=disk, preemptable=True)
+        super(RunBlast, self).__init__(memory=memory, disk=disk, preemptable=True)
         self.blastOptions = blastOptions
         self.seqFileID1 = seqFileID1
         self.seqFileID2 = seqFileID2
@@ -464,7 +458,7 @@ class RunBlast(RoundedJob):
 
 class CollateBlasts(RoundedJob):
     def __init__(self, blastOptions, resultsFileIDs):
-        RoundedJob.__init__(self, preemptable=True)
+        super(CollateBlasts, self).__init__(preemptable=True)
         self.blastOptions = blastOptions
         self.resultsFileIDs = resultsFileIDs
 
@@ -477,7 +471,7 @@ class CollateBlasts2(RoundedJob):
     def __init__(self, blastOptions, resultsFileIDs):
         disk = 8*sum([alignmentID.size for alignmentID in resultsFileIDs])
         memory = blastOptions.memory
-        RoundedJob.__init__(self, memory=memory, disk=disk, preemptable=True)
+        super(CollateBlasts2, self).__init__(memory=memory, disk=disk, preemptable=True)
         self.resultsFileIDs = resultsFileIDs
     
     def run(self, fileStore):
