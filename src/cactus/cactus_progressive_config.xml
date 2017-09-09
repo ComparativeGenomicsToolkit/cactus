@@ -237,7 +237,7 @@
 	</hal>
   	<multi_cactus>
 		<outgroup 
-			strategy="greedy"
+			strategy="greedyPreference"
 			threshold="0"
 			ancestor_quality_fraction="0.75"
                         max_num_outgroups="3"
@@ -246,7 +246,7 @@
 	 		subtree_size="2" 
 	 		self_alignment="false" 
 	 		default_internal_node_prefix="Anc"
-			max_parallel_subtrees="5"
+			max_parallel_subtrees="50000"
 	 	/>
   	</multi_cactus>
     <ProgressiveNext/>
