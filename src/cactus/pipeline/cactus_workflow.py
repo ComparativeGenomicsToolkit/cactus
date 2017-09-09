@@ -1390,8 +1390,9 @@ def runCactusWorkflow(args):
     addCactusWorkflowOptions(parser)
         
     options = parser.parse_args(args)
+    options.disableCaching = True
     setLoggingFromOptions(options)
-    
+
     experimentWrapper = ExperimentWrapper(ET.parse(options.experimentFile).getroot())
     with Toil(options) as toil:
         seqIDMap = dict()
