@@ -86,7 +86,7 @@ class BlastSequencesAllAgainstAll(RoundedJob):
         chunks = runGetChunks(sequenceFiles=sequenceFiles1, chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()), chunkSize = self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize)
         assert len(chunks) > 0
         logger.info("Broken up the sequence files into individual 'chunk' files")
-        chunkIDs = [fileStore.writeGlobalFile(chunk, cleanup=False) for chunk in chunks]
+        chunkIDs = [fileStore.writeGlobalFile(chunk, cleanup=True) for chunk in chunks]
 
         diagonalResultsID = self.addChild(MakeSelfBlasts(self.blastOptions, chunkIDs)).rv()
         offDiagonalResultsID = self.addChild(MakeOffDiagonalBlasts(self.blastOptions, chunkIDs)).rv()
@@ -144,15 +144,15 @@ class BlastSequencesAgainstEachOther(RoundedJob):
         self.sequenceFileIDs2 = sequenceFileIDs2
         self.blastOptions = blastOptions
         self.blastOptions.roundsOfCoordinateConversion = 1
-        
+
     def run(self, fileStore):
         sequenceFiles1 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs1]
         sequenceFiles2 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs2]
         chunks1 = runGetChunks(sequenceFiles=sequenceFiles1, chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()), chunkSize=self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize)
         chunks2 = runGetChunks(sequenceFiles=sequenceFiles2, chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()), chunkSize=self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize)
         logger.info("Chunks1 = %s" % chunks1)
-        chunkIDs1 = [fileStore.writeGlobalFile(chunk, cleanup=False) for chunk in chunks1]
-        chunkIDs2 = [fileStore.writeGlobalFile(chunk, cleanup=False) for chunk in chunks2]
+        chunkIDs1 = [fileStore.writeGlobalFile(chunk, cleanup=True) for chunk in chunks1]
+        chunkIDs2 = [fileStore.writeGlobalFile(chunk, cleanup=True) for chunk in chunks2]
         resultsIDs = []
         #Make the list of blast jobs.
         for chunkID1 in chunkIDs1:
@@ -363,7 +363,7 @@ class TrimAndRecurseOnOutgroups(RoundedJob):
                            windowSize=self.blastOptions.trimWindowSize,
                            depth=self.blastOptions.trimOutgroupDepth)
                 trimmedSeqs.append(trimmed)
-            trimmedSeqIDs = [fileStore.writeGlobalFile(path) for path in trimmedSeqs]
+            trimmedSeqIDs = [fileStore.writeGlobalFile(path, cleanup=True) for path in trimmedSeqs]
             return self.addChild(BlastFirstOutgroup(
                 ingroupNames=self.ingroupNames,
                 untrimmedSequenceIDs=self.untrimmedSequenceIDs,
@@ -421,7 +421,7 @@ class RunSelfBlast(RoundedJob):
             #TODO: This throws away the compressed file
             seqFile = compressFastaFile(seqFile)
         logger.info("Ran the self blast okay")
-        return fileStore.writeGlobalFile(resultsFile, cleanup=False)
+        return fileStore.writeGlobalFile(resultsFile)
     
 class RunBlast(RoundedJob):
     """Runs blast as a job.
@@ -460,7 +460,7 @@ class RunBlast(RoundedJob):
                                 resultsFile,
                                 self.blastOptions.roundsOfCoordinateConversion])
         logger.info("Ran the blast okay")
-        return fileStore.writeGlobalFile(resultsFile, cleanup=False)
+        return fileStore.writeGlobalFile(resultsFile)
 
 class CollateBlasts(RoundedJob):
     def __init__(self, blastOptions, resultsFileIDs):
@@ -486,7 +486,9 @@ class CollateBlasts2(RoundedJob):
         collatedResultsFile = fileStore.getLocalTempFile()
         catFiles(resultsFiles, collatedResultsFile)
         logger.info("Collated the alignments to the file: %s",  collatedResultsFile)
-        collatedResultsID = fileStore.writeGlobalFile(collatedResultsFile, cleanup=False)
+        collatedResultsID = fileStore.writeGlobalFile(collatedResultsFile)
+        for resultsFileID in self.resultsFileIDs:
+            fileStore.deleteGlobalFile(resultsFileID)
         return collatedResultsID
 
 def sequenceLength(sequenceFile):
