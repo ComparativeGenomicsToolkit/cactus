@@ -10,7 +10,7 @@ before_install:
 script:
   - sudo pip install --pre toil
   - sudo pip install -e .
-  - if [[ "$CACTUS_DOCKER_MODE" == 0 ]]; then make && PATH=`pwd`/bin PYTHONPATH=`pwd`:`pwd`/src make test; fi
+  - if [[ "$CACTUS_DOCKER_MODE" == 0 ]]; then make && PATH=`pwd`/bin:$PATH PYTHONPATH=`pwd`:`pwd`/src make test; fi
   - if [[ "$CACTUS_DOCKER_MODE" == 1 ]]; then make test; fi
 os:
   - linux
