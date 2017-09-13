@@ -354,87 +354,18 @@ def main():
                       help="Database type: tokyo_cabinet or kyoto_tycoon"
                       " [default: %(default)s]",
                       default="kyoto_tycoon")
-    parser.add_argument("--outputMaf", dest="outputMaf",
-                      help="[DEPRECATED use hal2maf on the ouput file instead] Path of output alignment in .maf format.  This option should be avoided and will soon be removed.  It may cause sequence names to be mangled, and use a tremendous amount of memory. ",
-                      default=None)
     parser.add_argument("--configFile", dest="configFile",
                       help="Specify cactus configuration file",
                       default=None)
-    parser.add_argument("--legacy", dest="legacy", action="store_true", help=
-                      "Run cactus directly on all input sequences "
-                      "without any progressive decomposition (ie how it "
-                      "was originally published in 2011)",
-                      default=False)
-    parser.add_argument("--autoAbortOnDeadlock", dest="autoAbortOnDeadlock",
-                      action="store_true",
-                      help="Abort automatically when jobTree monitor" +
-                      " suspects a deadlock by deleting the jobTree folder." +
-                      " Will guarantee no trailing ktservers but still " +
-                      " dangerous to use until we can more robustly detect " +
-                      " deadlocks.",
-                      default=False)
-    parser.add_argument("--overwrite", dest="overwrite", action="store_true",
-                      help="Re-align nodes in the tree that have already" +
-                      " been successfully aligned.",
-                      default=False)
-    parser.add_argument("--rootOutgroupDists", dest="rootOutgroupDists",
-                      help="root outgroup distance (--rootOutgroupPaths must " +
-                      "be given as well)", default=None)
-    parser.add_argument("--rootOutgroupPaths", dest="rootOutgroupPaths", type=str,
-                      help="root outgroup path (--rootOutgroup must be given " +
-                      "as well)", default=None)
     parser.add_argument("--root", dest="root", help="Name of ancestral node (which"
                       " must appear in NEWICK tree in <seqfile>) to use as a "
                       "root for the alignment.  Any genomes not below this node "
                       "in the tree may be used as outgroups but will never appear"
                       " in the output.  If no root is specifed then the root"
-                      " of the tree is used. ", default=None)
-
-    #Kyoto Tycoon Options
-    ktGroup = parser.add_argument_group("kyoto_tycoon Options",
-                          "Kyoto tycoon provides a client/server framework "
-                          "for large in-memory hash tables and is available "
-                          "via the --database option.")
-    ktGroup.add_argument("--ktPort", dest="ktPort",
-                       help="starting port (lower bound of range) of ktservers"
-                       " [default: %(default)d]",
-                       default=1978)
-    ktGroup.add_argument("--ktHost", dest="ktHost",
-                       help="The hostname to use for connections to the "
-                       "ktserver (this just specifies where nodes will attempt"
-                       " to find the server, *not* where the ktserver will be"
-                       " run)",
-                       default=None)
-    ktGroup.add_argument("--ktType", dest="ktType",
-                       help="Kyoto Tycoon server type "
-                       "(memory, snapshot, or disk)"
-                       " [default: %(default)s]",
-                       default='memory')
-    # sonlib doesn't allow for spaces in attributes in the db conf
-    # which renders this options useless
-    #ktGroup.add_argument("--ktOpts", dest="ktOpts",
-    #                   help="Command line ktserver options",
-    #                   default=None)
-    ktGroup.add_argument("--ktCreateTuning", dest="ktCreateTuning",
-                       help="ktserver options when creating db "\
-                            "(ex #bnum=30m#msiz=50g)",
-                       default=None)
-    ktGroup.add_argument("--ktOpenTuning", dest="ktOpenTuning",
-                       help="ktserver options when opening existing db "\
-                            "(ex #opts=ls#ktopts=p)",
-                       default=None)
-    parser.add_argument_group(ktGroup)
-   
-    parser.add_argument("--nonRecursive", dest="nonRecursive", action="store_true",
-                      help="Only process given event (not children) [default=False]", 
-                      default=False)
-    
-    parser.add_argument("--event", dest="event", 
-                      help="Target event to process [default=root]", default=None)
+                      " of the tree is used. ", default=None)   
     parser.add_argument("--latest", dest="latest", action="store_true",
             help="Use the latest, locally-built docker container rather than \
                     pulling from quay.io")
-
 
     options = parser.parse_args()
 
