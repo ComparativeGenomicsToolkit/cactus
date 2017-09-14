@@ -254,10 +254,6 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
             exp.setDbName("%s.kch" % name)
         else:
             exp.setDbName(name)
-        if configTemplate.getBuildHal() == True:
-            exp.setHALPath(os.path.join(path, "%s_hal.c2h" % name))
-        if configTemplate.getBuildFasta() == True:
-            exp.setHALFastaPath(os.path.join(path, "%s_hal.fa" % name))
         exp.updateTree(subtree, seqMap, outgroups)
         exp.setConfigPath(os.path.join(path, "%s_config.xml" % name))
         if not os.path.exists(exp.getDbDir()):

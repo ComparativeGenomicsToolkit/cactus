@@ -212,17 +212,12 @@ class ExperimentWrapper(DbElemWrapper):
             databaseConf.attrib["type"] = "tokyo_cabinet"
             tokyoCabinet = ET.SubElement(databaseConf, "tokyo_cabinet")
         self = ExperimentWrapper(rootElem) 
-        #Output dir
-        self.setOutputDir(outputDir)
         #Database name
         if self.getDbName() == None:
             self.setDbName("cactusDisk_%s_%i" % (getRandomAlphaNumericString(), os.getpid())) #Needs to be unique
         #Database dir
         if self.getDbDir() == None:
             self.setDbDir(os.path.join(outputDir, self.getDbName()))
-        #Hal file
-        if halFile != None:
-            self.setHALPath(halFile) 
         #Fasta file
         if fastaFile != None:
             self.setHALFastaPath(fastaFile)
@@ -305,28 +300,6 @@ class ExperimentWrapper(DbElemWrapper):
         configElem = ET.parse(self.getConfig()).getroot()
         refElem = configElem.find("reference")
         return refElem.attrib["reference"]
-    
-    def getOutputDir(self):
-        return self.xmlRoot.attrib["outputDir"]
-    
-    def setOutputDir(self, path):
-        self.xmlRoot.attrib["outputDir"] = str(path)
-        
-    def getHALPath(self):
-        halElem = self.xmlRoot.find("hal")
-        if halElem is None or "halPath" not in halElem.attrib:
-            return None
-        return halElem.attrib["halPath"]
-    
-    def setHALPath(self, path):
-        '''Set the location of the HAL file for this
-        experiment. Only call this function on the master
-        node.'''
-        halElem = self.xmlRoot.find("hal")
-        if halElem is None:
-            halElem = ET.Element("hal")
-            self.xmlRoot.append(halElem)
-        halElem.attrib["halPath"] = path
 
     def setHalID(self, halID):
         '''Set the file store ID of the HAL file
