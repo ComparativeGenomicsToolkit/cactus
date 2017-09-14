@@ -223,8 +223,11 @@ def stopKtserver(dbElem):
 ###############################################################################
 def getHostName():
     hostName = socket.gethostname()
-    hostIp = socket.gethostbyname(hostName)
-    if hostIp.find("127.") != 0:
+    try:
+        hostIp = socket.gethostbyname(hostName)
+    except:
+        hostIp = '127.0.0.1'
+    if hostIp.startswith("127.") != 0:
         return hostIp
     return hostName
 
