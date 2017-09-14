@@ -60,14 +60,20 @@ def sortCigarByContigAndPos(cigarPath, contigNum):
     system("sort -k %d,%d -k %d,%dn %s > %s" % (contigNameKey, contigNameKey, startPosKey, startPosKey, cigarPath, tempFile))
     return tempFile
 
-def upconvertCoords(cigarFile, seqRanges, contigNum):
+def upconvertCoords(cigarPath, fastaPath, contigNum, outputFile):
     """Convert the coordinates of the given alignment, so that the
     alignment refers to a set of trimmed sequences originating from a
     contig rather than to the contig itself."""
+    with open(fastaPath) as f:
+        seqRanges = getSequenceRanges(f)
+    validateRanges(seqRanges)
+    sortedCigarPath = sortCigarByContigAndPos(cigarPath, contigNum)
+    sortedCigarFile = open(sortedCigarPath)
+
     currentContig = None
     currentRangeIdx = None
     currentRange = None
-    for alignment in cigarRead(cigarFile):
+    for alignment in cigarRead(sortedCigarFile):
         # contig1 and contig2 are reversed in python api!!
         contig = alignment.contig2 if contigNum == 1 else alignment.contig1
         minPos = min(alignment.start2, alignment.end2) if contigNum == 1 else min(alignment.start1, alignment.end1)
@@ -100,7 +106,8 @@ def upconvertCoords(cigarFile, seqRanges, contigNum):
                                    "on %s:%d-%d" % (contig,
                                                     minPos,
                                                     maxPos))
-        cigarWrite(sys.stdout, alignment, False)
+        cigarWrite(outputFile, alignment, False)
+    os.remove(sortedCigarPath)
 
 def main():
     parser = ArgumentParser()
@@ -110,11 +117,7 @@ def main():
     parser.add_argument("contig", help="Contig # to convert in each alignment (1 or 2)", type=int)
     args = parser.parse_args()
     assert args.contig == 1 or args.contig == 2
-    seqRanges = getSequenceRanges(open(args.fasta))
-    validateRanges(seqRanges)
-    sortedCigarFile = sortCigarByContigAndPos(args.cigar, args.contig)
-    upconvertCoords(open(sortedCigarFile), seqRanges, args.contig)
-    os.remove(sortedCigarFile)
+    upconvertCoords(args.cigar, args.fasta, args.contig, sys.stdout)
 
 if __name__ == '__main__':
     main()

@@ -25,10 +25,6 @@ ${binPath}/cactus_trimSequences.py : cactus_trimSequences.py
 	cp cactus_trimSequences.py ${binPath}/cactus_trimSequences.py
 	chmod +x ${binPath}/cactus_trimSequences.py
 
-${binPath}/cactus_upconvertCoordinates.py : cactus_upconvertCoordinates.py
-	cp cactus_upconvertCoordinates.py ${binPath}/
-	chmod +x ${binPath}/cactus_upconvertCoordinates.py
-
 ${binPath}/cactus_convertAlignmentsToInternalNames : cactus_convertAlignmentsToInternalNames.c ${libPath}/cactusLib.a
 	${cxx} ${cflags} -I inc -I${libPath} -o ${binPath}/cactus_convertAlignmentsToInternalNames cactus_convertAlignmentsToInternalNames.c ${libPath}/cactusLib.a ${basicLibs}
 

@@ -14,13 +14,13 @@ from toil.lib.bioio import system
 from sonLib.bioio import catFiles, nameValue, popenCatch, getTempDirectory
 
 from cactus.shared.common import RoundedJob
-
 from cactus.shared.common import cactus_call
 from cactus.shared.common import runLastz, runSelfLastz
 from cactus.shared.common import runCactusRealign, runCactusSelfRealign
 from cactus.shared.common import runGetChunks
 from cactus.shared.common import readGlobalFileWithoutCache
 from cactus.shared.common import ChildTreeJob
+from cactus.blast.cactus_upconvertCoordinates import upconvertCoords
 
 class BlastOptions(object):
     def __init__(self, chunkSize=10000000, overlapSize=10000, 
@@ -284,11 +284,13 @@ class TrimAndRecurseOnOutgroups(RoundedJob):
                    trimmedOutgroup, flanking=self.blastOptions.trimOutgroupFlanking,
                    windowSize=1, threshold=1)
         outgroupConvertedResultsFile = fileStore.getLocalTempFile()
-        cactus_call(outfile=outgroupConvertedResultsFile,
-                    parameters=["cactus_upconvertCoordinates.py",
-                                trimmedOutgroup,
-                                mostRecentResultsFile,
-                                1])
+        with open(outgroupConvertedResultsFile, 'w') as f:
+            upconvertCoords(cigarPath=mostRecentResultsFile,
+                            fastaPath=trimmedOutgroup,
+                            contigNum=1,
+                            outputFile=f)
+
+        fileStore.logToMaster(popenCatch("head %s" % outgroupConvertedResultsFile))
 
         self.outgroupFragmentIDs.append(fileStore.writeGlobalFile(trimmedOutgroup))
         sequenceFiles = [fileStore.readGlobalFile(path) for path in self.sequenceIDs]
