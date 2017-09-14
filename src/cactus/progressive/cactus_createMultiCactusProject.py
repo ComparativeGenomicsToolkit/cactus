@@ -255,7 +255,6 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
             exp.setDbName("%s.kch" % name)
         else:
             exp.setDbName(name)
-        exp.setReferencePath(os.path.join(path, name + '.fa'))
         if configTemplate.getBuildHal() == True:
             exp.setHALPath(os.path.join(path, "%s_hal.c2h" % name))
         if configTemplate.getBuildFasta() == True:

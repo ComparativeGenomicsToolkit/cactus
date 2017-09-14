@@ -1128,22 +1128,19 @@ class CactusExtractReferencePhase(CactusPhasesJob):
         if hasattr(self.cactusWorkflowArguments, 'buildReference') and\
                self.cactusWorkflowArguments.buildReference:
             fileStore.logToMaster("Starting Reference Extract Phase")
-            if experiment.getReferencePath() is not None:
-                eventName = os.path.basename(experiment.getReferencePath())
-                if eventName.find('.') >= 0:
-                    eventName = eventName[:eventName.rfind('.')]
-                    referencePath = fileStore.getLocalTempFile()
-                    cactus_call(parameters=["cactus_getReferenceSeq"],
-                                option_string="--cactusDisk '%s' --flowerName 0 --referenceEventString %s --outputFile %s --logLevel %s" % 
-                              (self.cactusWorkflowArguments.cactusDiskDatabaseString,
-                                      eventName, os.path.basename(referencePath), getLogLevelString()))
-                    referenceID = fileStore.writeGlobalFile(referencePath)
-                    experiment.setReferenceID(referenceID)
-                    intermediateResultsUrl = getattr(self.cactusWorkflowArguments, 'intermediateResultsUrl', None)
-                    if intermediateResultsUrl is not None:
-                        # The user requested to keep the hal fasta files in a separate place. Export it there.
-                        url = intermediateResultsUrl + ".reference.fa"
-                        fileStore.exportFile(referenceID, url)
+            eventName = self.getOptionalPhaseAttrib("reference")
+            referencePath = fileStore.getLocalTempFile()
+            cactus_call(parameters=["cactus_getReferenceSeq"],
+                        option_string="--cactusDisk '%s' --flowerName 0 --referenceEventString %s --outputFile %s --logLevel %s" % 
+                        (self.cactusWorkflowArguments.cactusDiskDatabaseString,
+                         eventName, os.path.basename(referencePath), getLogLevelString()))
+            referenceID = fileStore.writeGlobalFile(referencePath)
+            experiment.setReferenceID(referenceID)
+            intermediateResultsUrl = getattr(self.cactusWorkflowArguments, 'intermediateResultsUrl', None)
+            if intermediateResultsUrl is not None:
+                # The user requested to keep the hal fasta files in a separate place. Export it there.
+                url = intermediateResultsUrl + ".reference.fa"
+                fileStore.exportFile(referenceID, url)
         self.cactusWorkflowArguments.experimentWrapper = experiment
         return experiment, self.makeFollowOnPhaseJob(CactusCheckPhase, "check")
 

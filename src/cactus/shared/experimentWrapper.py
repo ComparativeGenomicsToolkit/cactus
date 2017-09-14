@@ -8,22 +8,14 @@
 to read and motify an existing experiment
 
 """
-import unittest
-
 import os
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
-import sys
-import random
-import math
 import copy
-import filecmp
-from optparse import OptionParser
 from sonLib.bioio import getRandomAlphaNumericString
 from toil.lib.bioio import system
 
 from cactus.progressive.multiCactusTree import MultiCactusTree
-from cactus.shared.configWrapper import ConfigWrapper
 from sonLib.nxnewick import NXNewick
 from cactus.shared.common import cactusRootPath
 
@@ -298,23 +290,6 @@ class ExperimentWrapper(DbElemWrapper):
     def getSequence(self, event):
         return self.seqMap[event]
     
-    def getReferencePath(self):
-        refElem = self.xmlRoot.find("reference")
-        if refElem is None or "path" not in refElem.attrib:
-            return None
-        return refElem.attrib["path"]
-    
-    def setReferencePath(self, path):
-        '''Set the path to the reconstructed ancestral genome
-        for this experiment. This function should only be called
-        on the master node, since that is the only node where paths are
-        permanent.'''
-        refElem = self.xmlRoot.find("reference")
-        if refElem is None:
-            refElem = ET.Element("reference")
-            self.xmlRoot.append(refElem)
-        refElem.attrib["path"] = path
-
     def setReferenceID(self, refID):
         '''Set the file store ID of the reconstructed ancestral
         genome for this experiment. This should be downloaded
