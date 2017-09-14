@@ -28,7 +28,6 @@ def createMCProject(tree, experiment, config, options):
     mcProj = MultiCactusProject()
     mcProj.mcTree = mcTree
     mcProj.inputSequences = experiment.getSequences()[:] 
-    mcProj.outputSequenceDir = experiment.getOutputSequenceDir()
     if config.getDoSelfAlignment():
         mcTree.addSelfEdges()
     for name in mcProj.mcTree.getSubtreeRootNames():
@@ -305,6 +304,5 @@ def runCreateMultiCactusProject(expFile, projectFile, fixNames=False,
     mcProj = createMCProject(tree, expTemplate, confTemplate, options)
     #Replace the sequences with output sequences
     expTemplate.updateTree(mcProj.mcTree, expTemplate.buildSequenceMap())
-    expTemplate.setSequences(CactusPreprocessor.getOutputSequenceFiles(mcProj.inputSequences, expTemplate.getOutputSequenceDir()))
     #Now do the file tree creation
     createFileStructure(mcProj, expTemplate, confTemplate, options)

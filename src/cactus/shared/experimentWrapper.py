@@ -238,9 +238,6 @@ class ExperimentWrapper(DbElemWrapper):
         #Outgroup events
         if outgroupEvents != None:
             self.setOutgroupEvents(outgroupEvents)
-        #Output sequences
-        if outputSequenceDir != None:
-            self.setOutputSequenceDir(outputSequenceDir)
         return self
     
     def writeXML(self, path): #Replacement for writeExperimentFile
@@ -376,15 +373,6 @@ class ExperimentWrapper(DbElemWrapper):
     def getConstraintsID(self, fileID):
         return self.xmlRoot.attrib["constraintsID"]
         
-    def getOutputSequenceDir(self):
-        if "outputSequenceDir" not in self.xmlRoot.attrib:
-            return os.path.join(self.getOutputDir(), "processedSequences")
-        return self.xmlRoot.attrib["outputSequenceDir"]
-    
-    def setOutputSequenceDir(self, path):
-        assert os.path.isdir(path)
-        self.xmlRoot.attrib["outputSequenceDir"] = path
-            
     def getOutgroupEvents(self):
         if self.xmlRoot.attrib.has_key("outgroup_events"):
             return self.xmlRoot.attrib["outgroup_events"].split()

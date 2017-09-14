@@ -55,13 +55,7 @@ class ProjectWrapper:
         confElem.attrib["type"] = database
         ET.SubElement(confElem, database)
         self.expWrapper = ExperimentWrapper(expXml)
-        
-        #set the sequence output directory
-        outSeqDir = os.path.join(self.workingDir, "sequenceData")
-        if not os.path.exists(outSeqDir):
-            os.makedirs(outSeqDir)
-        self.expWrapper.setOutputSequenceDir(os.path.join(self.workingDir, 
-                                                          "sequenceData"))
+        os.makedirs(self.workingDir)
 
     def writeXml(self):
         assert os.path.isdir(self.workingDir)

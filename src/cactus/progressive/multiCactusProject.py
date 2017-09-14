@@ -22,11 +22,10 @@ class MultiCactusProject:
         self.expMap = dict()
         self.expIDMap = None
         self.inputSequences = []
-        self.outputSequenceDir = None
         self.inputSequenceIDs = None
         self.outputSequenceIDMap = None
         self.configID = None
-        
+
     def readXML(self, path):
         xmlRoot = ET.parse(path).getroot()
         treeElem = xmlRoot.find("tree")
@@ -51,7 +50,6 @@ class MultiCactusProject:
         if "configID" in xmlRoot.attrib:
             self.configID = xmlRoot.attrib["configID"]
             
-        self.outputSequenceDir = xmlRoot.attrib["outputSequenceDir"]
         self.mcTree.assignSubtreeRootNames(self.expMap)
 
     def writeXML(self, path):
@@ -68,7 +66,6 @@ class MultiCactusProject:
             xmlRoot.append(cactusPathElem)
         #We keep track of all the input sequences at the top level
         xmlRoot.attrib["inputSequences"] = " ".join(self.inputSequences)
-        xmlRoot.attrib["outputSequenceDir"] = self.outputSequenceDir
         if self.inputSequenceIDs:
             xmlRoot.attrib["inputSequenceIDs"] = " ".join(self.inputSequenceIDs)
         if self.outputSequenceIDMap:
@@ -114,12 +111,7 @@ class MultiCactusProject:
     
     def getInputSequencePaths(self):
         return self.inputSequences
-    
-    def getOutputSequenceDir(self):
-        """The directory where the output sequences go
-        """
-        return self.outputSequenceDir
-        
+
     def setOutputSequenceIDs(self, outputSequenceIDs):
         self.outputSequenceIDMap = dict()
         i = 0
