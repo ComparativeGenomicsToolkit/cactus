@@ -245,19 +245,8 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
         # Get subtree connecting children + outgroups
         assert len(children) > 0
         subtree = mcProj.entireTree.extractSpanningTree(children + outgroups)
-        dbBase = path
-        if expTemplate.getDbDir() is not None:
-            dbBase = os.path.abspath(expTemplate.getDbDir())
-        exp.setDbDir(os.path.join(dbBase, name, "%s_DB" % name))
-        if expTemplate.getDbType() == "kyoto_tycoon" and \
-            os.path.splitext(name)[1] != ".kch":
-            exp.setDbName("%s.kch" % name)
-        else:
-            exp.setDbName(name)
         exp.updateTree(subtree, seqMap, outgroups)
         exp.setConfigPath(os.path.join(path, "%s_config.xml" % name))
-        if not os.path.exists(exp.getDbDir()):
-            os.makedirs(exp.getDbDir())
         if not os.path.exists(path):
             os.makedirs(path)
         exp.writeXML(expPath)

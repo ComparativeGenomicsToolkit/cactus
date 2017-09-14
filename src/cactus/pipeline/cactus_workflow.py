@@ -1322,11 +1322,6 @@ class CactusWorkflowArguments:
         #Secondary, scratch DB
         secondaryConf = copy.deepcopy(self.experimentNode.find("cactus_disk").find("st_kv_database_conf"))
         secondaryElem = DbElemWrapper(secondaryConf)
-        dbPath = secondaryElem.getDbDir()
-        assert dbPath is not None
-        secondaryDbPath = os.path.join(os.path.dirname(dbPath), "%s_tempSecondaryDatabaseDir_%s" % (
-            os.path.basename(dbPath), random.random()))
-        secondaryElem.setDbDir(secondaryDbPath)
         self.secondaryDatabaseString = secondaryElem.getConfString()
 
         #The config node
