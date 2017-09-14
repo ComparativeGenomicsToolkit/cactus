@@ -264,7 +264,7 @@ class ExperimentWrapper(DbElemWrapper):
         return self.xmlRoot.attrib["config"]
 
     def setConfigID(self, configID):
-        self.xmlRoot.attrib["configID"] = configID
+        self.xmlRoot.attrib["configID"] = str(configID)
 
     def getConfigID(self):
         return self.xmlRoot.attrib["configID"]
@@ -287,7 +287,7 @@ class ExperimentWrapper(DbElemWrapper):
         self.seqMap = self.buildSequenceMap()
         
     def setSequenceIDs(self, sequenceIDs):
-        self.xmlRoot.attrib["sequenceIDs"] = " ".join(sequenceIDs)
+        self.xmlRoot.attrib["sequenceIDs"] = " ".join(map(str, sequenceIDs))
 
     def getSequences(self):
         return self.xmlRoot.attrib["sequences"].split()
@@ -320,7 +320,7 @@ class ExperimentWrapper(DbElemWrapper):
         genome for this experiment. This should be downloaded
         onto the master node after the experiment has finished running.'''
         refElem = self.xmlRoot.find("reference")
-        refElem.attrib["id"] = refID
+        refElem.attrib["id"] = str(refID)
 
     def getReferenceID(self):
         refElem = self.xmlRoot.find("reference")
@@ -338,7 +338,7 @@ class ExperimentWrapper(DbElemWrapper):
         return self.xmlRoot.attrib["outputDir"]
     
     def setOutputDir(self, path):
-        self.xmlRoot.attrib["outputDir"] = path
+        self.xmlRoot.attrib["outputDir"] = str(path)
         
     def getHALPath(self):
         halElem = self.xmlRoot.find("hal")
@@ -360,7 +360,7 @@ class ExperimentWrapper(DbElemWrapper):
         '''Set the file store ID of the HAL file
         resulting from this experiment.'''
         halElem = self.xmlRoot.find("hal")
-        halElem.attrib["halID"] = halID
+        halElem.attrib["halID"] = str(halID)
 
     def getHalID(self):
         halElem = self.xmlRoot.find("hal")
@@ -381,7 +381,7 @@ class ExperimentWrapper(DbElemWrapper):
 
     def setHalFastaID(self, halFastaID):
         halElem = self.xmlRoot.find("hal")
-        halElem.attrib["fastaID"] = halFastaID
+        halElem.attrib["fastaID"] = str(halFastaID)
 
     def getHalFastaID(self):
         halElem = self.xmlRoot.find("hal")
@@ -396,7 +396,7 @@ class ExperimentWrapper(DbElemWrapper):
         return self.xmlRoot.attrib["constraints"]
 
     def setConstraintsID(self, fileID):
-        self.xmlRoot.attrib["constraintsID"] = fileID
+        self.xmlRoot.attrib["constraintsID"] = str(fileID)
 
     def getConstraintsID(self, fileID):
         return self.xmlRoot.attrib["constraintsID"]
