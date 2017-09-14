@@ -15,7 +15,6 @@ import xml.etree.ElementTree as ET
 from argparse import ArgumentParser
 
 from toil.lib.bioio import getTempFile
-from toil.lib.bioio import system
 
 from toil.lib.bioio import logger
 from toil.lib.bioio import setLoggingFromOptions
@@ -58,15 +57,14 @@ class ProgressiveDown(RoundedJob):
         logger.info("Progressive Down: " + self.event)
 
         depProjects = dict()
-        if not self.options.nonRecursive:
-            deps = self.schedule.deps(self.event)
-            fileStore.logToMaster("There are %i dependent projects" % len(deps))
-            for child in deps:
-                fileStore.logToMaster("Adding dependent project %s" % child)
-                depProjects[child] = self.addChild(ProgressiveDown(self.options,
-                                                    self.project, child, 
-                                                                   self.schedule, memory=self.configWrapper.getDefaultMemory())).rv()
-        
+        deps = self.schedule.deps(self.event)
+        fileStore.logToMaster("There are %i dependent projects" % len(deps))
+        for child in deps:
+            fileStore.logToMaster("Adding dependent project %s" % child)
+            depProjects[child] = self.addChild(ProgressiveDown(self.options,
+                                                               self.project, child,
+                                                               self.schedule)).rv()
+
         return self.addFollowOn(ProgressiveNext(self.options, self.project, self.event,
                                                               self.schedule, depProjects, memory=self.configWrapper.getDefaultMemory())).rv()
 class ProgressiveNext(RoundedJob):
@@ -176,11 +174,11 @@ class ProgressiveUp(RoundedJob):
         configFile = fileStore.readGlobalFile(experiment.getConfigID())
         configNode = ET.parse(configFile).getroot()
         workFlowArgs = CactusWorkflowArguments(self.options, experimentFile=experimentFile, configNode=configNode, seqIDMap = seqIDMap)
+
         # copy over the options so we don't trail them around
         workFlowArgs.buildReference = self.options.buildReference
         workFlowArgs.buildHal = self.options.buildHal
         workFlowArgs.buildFasta = self.options.buildFasta
-        workFlowArgs.overwrite = self.options.overwrite
         workFlowArgs.globalLeafEventSet = self.options.globalLeafEventSet
         if self.options.intermediateResultsUrl is not None:
             # Give the URL prefix a special name for this particular
@@ -188,27 +186,8 @@ class ProgressiveUp(RoundedJob):
             # internal node in the guide tree)
             workFlowArgs.intermediateResultsUrl = self.options.intermediateResultsUrl + '-' + self.event
 
-        donePath = os.path.join(os.path.dirname(workFlowArgs.experimentFile), "DONE")
-        doneDone = os.path.isfile(donePath)
-        refDone = not workFlowArgs.buildReference or os.path.isfile(experiment.getReferencePath())
-        halDone = not workFlowArgs.buildHal or (os.path.isfile(experiment.getHALFastaPath()) and
-                                                os.path.isfile(experiment.getHALPath()))
-                                                               
-        if not workFlowArgs.overwrite and doneDone and refDone and halDone:
-            self.logToMaster("Skipping %s because it is already done and overwrite is disabled" %
-                             self.event)
-        else:
-            system("rm -f %s" % donePath)
-            # delete database 
-            # and overwrite specified (or if reference not present)
-            dbPath = os.path.join(experiment.getDbDir(), 
-                                  experiment.getDbName())
-            seqPath = os.path.join(experiment.getDbDir(), "sequences")
-            system("rm -f %s* %s %s" % (dbPath, seqPath, 
-                                        experiment.getReferencePath()))
-
-            # Use the trimming strategy to blast ingroups vs outgroups.
-            finalExpWrapper = self.addChild(CactusTrimmingBlastPhase(cactusWorkflowArguments=workFlowArgs, phaseName="trimBlast")).rv()
+        # Use the trimming strategy to blast ingroups vs outgroups.
+        finalExpWrapper = self.addChild(CactusTrimmingBlastPhase(cactusWorkflowArguments=workFlowArgs, phaseName="trimBlast")).rv()
         logger.info("Going to create alignments and define the cactus tree")
 
         return finalExpWrapper
@@ -247,9 +226,7 @@ class RunCactusPreprocessorThenProgressiveDown(RoundedJob):
         schedule = Schedule()
         schedule.loadProject(self.project, fileStore=fileStore)
         schedule.compute()
-        if self.options.event == None:
-            self.options.event = self.project.mcTree.getRootName()
-        assert self.options.event in self.project.expMap
+        self.options.event = self.project.mcTree.getRootName()
         leafNames = [ self.project.mcTree.getName(i) for i in self.project.mcTree.getLeaves() ]
         fileStore.logToMaster("Leaf names = %s" % leafNames)
         self.options.globalLeafEventSet = set(leafNames)

@@ -255,12 +255,6 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
             exp.setDbName("%s.kch" % name)
         else:
             exp.setDbName(name)
-        if expTemplate.getDbType() == "kyoto_tycoon":
-            exp.setDbPort(expTemplate.getDbPort() + portOffset)
-            portOffset += 1
-            host = expTemplate.getDbHost()
-            if host is not None:
-                exp.setDbHost(host)
         exp.setReferencePath(os.path.join(path, name + '.fa'))
         if configTemplate.getBuildHal() == True:
             exp.setHALPath(os.path.join(path, "%s_hal.c2h" % name))
@@ -279,28 +273,23 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
 
 class CreateMultiCactusProjectOptions:
     def __init__(self, expFile, projectFile, fixNames,
-            outgroupNames, rootOutgroupDists, rootOutgroupPaths,
-            root, overwrite):
+                 outgroupNames, root, overwrite):
         self.expFile = expFile
         self.path = projectFile
         self.fixNames = fixNames
         self.name = os.path.basename(self.path)
 
         self.outgroupNames = outgroupNames
-        self.rootOutgroupDists = rootOutgroupDists
-        self.rootOutgroupPaths = rootOutgroupPaths
         self.root = root
         self.overwrite = overwrite
 
 
 
 def runCreateMultiCactusProject(expFile, projectFile, fixNames=False,
-            outgroupNames=None, rootOutgroupDists=None, rootOutgroupPaths=None,
-            root=None, overwrite=False):
+            outgroupNames=None, root=None, overwrite=False):
 
     options = CreateMultiCactusProjectOptions(expFile, projectFile, fixNames=fixNames,
-            outgroupNames=outgroupNames, rootOutgroupDists=rootOutgroupDists, 
-            rootOutgroupPaths=rootOutgroupPaths, root=root, overwrite=overwrite)
+            outgroupNames=outgroupNames, root=root, overwrite=overwrite)
 
     expTemplate = ExperimentWrapper(ET.parse(options.expFile).getroot())
     configPath = expTemplate.getConfigPath()
@@ -318,26 +307,6 @@ def runCreateMultiCactusProject(expFile, projectFile, fixNames=False,
     #Replace the sequences with output sequences
     expTemplate.updateTree(mcProj.mcTree, expTemplate.buildSequenceMap())
     expTemplate.setSequences(CactusPreprocessor.getOutputSequenceFiles(mcProj.inputSequences, expTemplate.getOutputSequenceDir()))
-    if options.rootOutgroupPaths is not None:
-        # hacky -- add the root outgroup to the tree after everything
-        # else.  This ends up being ugly, but avoids running into
-        # problems with assumptions about tree structure
-        #
-        # [this hack is hopefully made redundant by the --root option]
-        #
-        mcProj.inputSequences.extend(options.rootOutgroupPaths)
-        # replace the root outgroup sequence by post-processed output
-        for i, (outgroupPath, outgroupDist) in enumerate(zip(options.rootOutgroupPaths, options.rootOutgroupDists)):
-            outgroupPath = CactusPreprocessor.getOutputSequenceFiles(expTemplate.getSequences() + options.rootOutgroupPaths[:i+1], expTemplate.getOutputSequenceDir())[-1]
-            rootOutgroupName = "rootOutgroup%d" % i
-            expTemplate.seqMap[rootOutgroupName] = outgroupPath
-            # Add to tree
-            mcProj.mcTree.addOutgroup(rootOutgroupName, outgroupDist)
-            mcProj.mcTree.computeSubtreeRoots()
-            if mcProj.mcTree.getRootName() not in mcProj.outgroup.ogMap:
-                # initialize ogMap entry
-                mcProj.outgroup.ogMap[mcProj.mcTree.getRootName()] = []
-            mcProj.outgroup.ogMap[mcProj.mcTree.getRootName()].append((rootOutgroupName, outgroupDist))
     #Now do the file tree creation
     createFileStructure(mcProj, expTemplate, confTemplate, options)
    # mcProj.check()

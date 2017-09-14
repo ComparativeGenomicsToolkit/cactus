@@ -1330,8 +1330,6 @@ class CactusWorkflowArguments:
         secondaryDbPath = os.path.join(os.path.dirname(dbPath), "%s_tempSecondaryDatabaseDir_%s" % (
             os.path.basename(dbPath), random.random()))
         secondaryElem.setDbDir(secondaryDbPath)
-        if secondaryElem.getDbType() == "kyoto_tycoon":
-            secondaryElem.setDbPort(secondaryElem.getDbPort() + 100)
         self.secondaryDatabaseString = secondaryElem.getConfString()
 
         #The config node
