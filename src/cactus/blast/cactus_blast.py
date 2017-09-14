@@ -290,8 +290,6 @@ class TrimAndRecurseOnOutgroups(RoundedJob):
                             contigNum=1,
                             outputFile=f)
 
-        fileStore.logToMaster(popenCatch("head %s" % outgroupConvertedResultsFile))
-
         self.outgroupFragmentIDs.append(fileStore.writeGlobalFile(trimmedOutgroup))
         sequenceFiles = [fileStore.readGlobalFile(path) for path in self.sequenceIDs]
         untrimmedSequenceFiles = [fileStore.readGlobalFile(path) for path in self.untrimmedSequenceIDs]
