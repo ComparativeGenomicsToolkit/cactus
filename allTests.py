@@ -30,12 +30,6 @@ from cactus.preprocessor.allTests import allSuites as preprocessorTest
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMaskTest import TestCase as lastzRepeatMaskTest
 from cactus.blast.cactus_realignTest import TestCase as realignTest
 
-def keepAlive():
-    """Keep Travis tests from failing prematurely by outputting to stdout every few minutes."""
-    while True:
-        time.sleep(240)
-        print "Still working..."
-
 def allSuites(): 
     allTests = unittest.TestSuite()
     allTests.addTests([unittest.makeSuite(i) for i in
@@ -61,10 +55,6 @@ def allSuites():
     return allTests
 
 def main():
-    keepAliveThread = Process(target=keepAlive)
-    # The keepalive process will die when the main thread dies
-    keepAliveThread.daemon = True
-    keepAliveThread.start()
     suite = allSuites()
     runner = unittest.TextTestRunner(verbosity=2)
     i = runner.run(suite)
