@@ -55,7 +55,8 @@ class ProjectWrapper:
         confElem.attrib["type"] = database
         ET.SubElement(confElem, database)
         self.expWrapper = ExperimentWrapper(expXml)
-        os.makedirs(self.workingDir)
+        if not os.path.exists(self.workingDir):
+            os.makedirs(self.workingDir)
 
     def writeXml(self):
         assert os.path.isdir(self.workingDir)
