@@ -98,8 +98,8 @@ int main(int argc, char *argv[]) {
     //Load the database
     //////////////////////////////////////////////
 
-    st_logInfo("referenceEventString = %s", referenceEventString);
-    st_logInfo("bottomUpPhase = %i", bottomUpPhase);
+    st_logInfo("referenceEventString = %s\n", referenceEventString);
+    st_logInfo("bottomUpPhase = %i\n", bottomUpPhase);
 
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
     CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, false, true);
@@ -122,6 +122,7 @@ int main(int argc, char *argv[]) {
         // Get the appropriate event names
         ///////////////////////////////////////////////////////////////////////////
 
+        st_logInfo("%s\n", eventTree_makeNewickString(flower_getEventTree(flower)));
         Event *referenceEvent = eventTree_getEventByHeader(flower_getEventTree(flower), referenceEventString);
         assert(referenceEvent != NULL);
         Name referenceEventName = event_getName(referenceEvent);
