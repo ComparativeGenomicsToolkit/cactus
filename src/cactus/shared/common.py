@@ -920,7 +920,7 @@ def cactus_call(tool=None,
                         '-v', '{}:/data'.format(os.path.abspath(work_dir))]
 
     if port:
-        base_docker_call += ["-p %d:%d" % (port, port)]
+        base_docker_call += ["-p", "%d:%d" % (port, port)]
 
     containerInfo = { 'name': str(uuid.uuid4()), 'id': None }
     base_docker_call.extend(['--name', containerInfo['name']])
