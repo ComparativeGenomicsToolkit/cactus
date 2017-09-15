@@ -4,6 +4,7 @@ Functions to launch and manage KyotoTycoon servers.
 """
 
 import os
+import platform
 import random
 import socket
 import signal
@@ -52,7 +53,12 @@ def runKtserver(dbElem, fileStore, existingSnapshotID=None, snapshotExportID=Non
     process.start()
 
     if not blockUntilKtserverIsRunning(logPath):
-        raise RuntimeError("Unable to launch ktserver in time.")
+        try:
+            with open(logPath) as f:
+                log = f.read()
+        except:
+            log = ''
+        raise RuntimeError("Unable to launch ktserver in time. Log: %s" % log)
 
     return process, dbElem, logPath
 
@@ -86,7 +92,8 @@ class ServerProcess(Process):
             # directory so it will be automatically loaded
             fileStore.readGlobalFile(existingSnapshotID, userPath=snapshotPath)
         process = cactus_call(server=True, shell=False,
-                              parameters=getKtserverCommand(dbElem, logPath, snapshotDir))
+                              parameters=getKtserverCommand(dbElem, logPath, snapshotDir),
+                              port=dbElem.getDbPort())
 
         blockUntilKtserverIsRunning(logPath)
         if existingSnapshotID is not None:
@@ -191,7 +198,7 @@ def getKtserverCommand(dbElem, logPath, snapshotDir):
     """Get a ktserver command line with the proper options (in popen-type list format)."""
     serverOptions = getKtServerOptions(dbElem)
     tuning = getKtTuningOptions(dbElem)
-    cmd = ["ktserver", "-host", dbElem.getDbHost(), "-port", dbElem.getDbPort()]
+    cmd = ["ktserver", "-port", dbElem.getDbPort()]
     cmd += serverOptions.split()
     # Configure background snapshots, but set the interval between
     # snapshots to ~ 10 days so it'll never trigger. We are only
@@ -203,8 +210,9 @@ def getKtserverCommand(dbElem, logPath, snapshotDir):
 
 def getRemoteParams(dbElem):
     """Get parameters to supply to ktremotemgr to connect to the right DB."""
+    host = dbElem.getDbHost() or 'localhost'
     return ['-port', str(dbElem.getDbPort()),
-            '-host', dbElem.getDbHost() or 'localhost']
+            '-host', host]
 
 def stopKtserver(dbElem):
     """Attempt to send the terminate signal to a ktserver."""
@@ -222,12 +230,19 @@ def stopKtserver(dbElem):
 # otherwise return primary hostname
 ###############################################################################
 def getHostName():
+    if platform.system() == 'Darwin':
+        # macOS doesn't have a true Docker bridging mode, so each
+        # container is NATed with its own local IP and can't bind
+        # to/connect to this computer's external IP. We have to
+        # hardcode the loopback IP to work around this.
+        return '127.0.0.1'
     hostName = socket.gethostname()
     try:
         hostIp = socket.gethostbyname(hostName)
     except:
-        hostIp = '127.0.0.1'
-    if hostIp.startswith("127.") != 0:
+        # Hostname is unresolvable, fallback to loopback
+        return '127.0.0.1'
+    if not hostIp.startswith("127."):
         return hostIp
     return hostName
 

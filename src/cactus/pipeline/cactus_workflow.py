@@ -1087,7 +1087,7 @@ class CactusSetReferenceCoordinatesDownPhase(CactusPhasesJob):
     """
     def run(self, fileStore):
         self.cleanupSecondaryDatabase()
-        return self.runPhase(CactusSetReferenceCoordinatesDownRecursion, CactusExtractReferencePhase, "check", doRecursion=self.getOptionalPhaseAttrib("buildReference", bool, False))
+        return self.runPhase(CactusSetReferenceCoordinatesDownRecursion, CactusExtractReferencePhase, "reference", doRecursion=self.getOptionalPhaseAttrib("buildReference", bool, False))
         
 class CactusSetReferenceCoordinatesDownRecursion(CactusRecursionJob):
     """Does the down pass for filling Fills in the coordinates, once a reference is added.
