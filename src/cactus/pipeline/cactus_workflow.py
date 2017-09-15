@@ -504,7 +504,7 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
         renamedInputSeqDir = os.path.join(fileStore.getLocalTempDir(), "renamedInputs")
         os.mkdir(renamedInputSeqDir)
         uniqueFas = prependUniqueIDs(sequences, renamedInputSeqDir)
-        uniqueFaIDs = [fileStore.writeGlobalFile(seq) for seq in uniqueFas]
+        uniqueFaIDs = [fileStore.writeGlobalFile(seq, cleanup=True) for seq in uniqueFas]
 
         self.cactusWorkflowArguments.experimentWrapper.seqIDMap = dict(zip(self.cactusWorkflowArguments.experimentWrapper.seqIDMap.keys(), uniqueFaIDs))
         outgroupItems = [(name, self.cactusWorkflowArguments.experimentWrapper.seqIDMap[name]) for name in self.cactusWorkflowArguments.experimentWrapper.getOutgroupEvents()]
@@ -647,7 +647,7 @@ class CactusCafPhase(CactusPhasesJob):
             newConstraintsFile = fileStore.getLocalTempFile()
             runCactusConvertAlignmentToCactus(self.cactusWorkflowArguments.cactusDiskDatabaseString,
                                               constraintsFile, newConstraintsFile)
-            self.cactusWorkflowArguments.constraintsID = fileStore.writeGlobalFile(newConstraintsFile, cleanup=False)
+            self.cactusWorkflowArguments.constraintsID = fileStore.writeGlobalFile(newConstraintsFile, cleanup=True)
 
         assert self.getPhaseNumber() == 1
         alignmentsFile = fileStore.readGlobalFile(self.cactusWorkflowArguments.alignmentsID)
@@ -655,7 +655,7 @@ class CactusCafPhase(CactusPhasesJob):
         # Convert the cigar file to use 64-bit cactus Names instead of the headers.
         runConvertAlignmentsToInternalNames(cactusDiskString=self.cactusWorkflowArguments.cactusDiskDatabaseString, alignmentsFile=alignmentsFile, outputFile=convertedAlignmentsFile, flowerName=self.topFlowerName)
         fileStore.logToMaster("Converted headers of cigar file %s to internal names, new file %s" % (self.cactusWorkflowArguments.alignmentsID, convertedAlignmentsFile))
-        self.cactusWorkflowArguments.alignmentsID = fileStore.writeGlobalFile(convertedAlignmentsFile, cleanup=False)
+        self.cactusWorkflowArguments.alignmentsID = fileStore.writeGlobalFile(convertedAlignmentsFile, cleanup=True)
         # While we're at it, remove the unique IDs prepended to
         # the headers inside the cactus DB.
         runStripUniqueIDs(self.cactusWorkflowArguments.cactusDiskDatabaseString)
