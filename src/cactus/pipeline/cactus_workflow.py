@@ -1192,7 +1192,6 @@ class CactusHalGeneratorPhase(CactusPhasesJob):
         if referenceNode.attrib.has_key("reference"):
             self.phaseNode.attrib["reference"] = referenceNode.attrib["reference"]
         if self.getOptionalPhaseAttrib("buildFasta", bool, default=False):
-            self.phaseNode.attrib["fastaPath"] = self.cactusWorkflowArguments.experimentNode.find("hal").attrib["fastaPath"]
             self.fastaID = self.makeRecursiveChildJob(CactusFastaGenerator)
         return self.makeFollowOnPhaseJob(CactusHalGeneratorPhase2, "hal")
 
@@ -1202,7 +1201,7 @@ class CactusHalGeneratorPhase2(CactusPhasesJob):
             self.setupSecondaryDatabase()
             self.phaseNode.attrib["experimentPath"] = self.cactusWorkflowArguments.experimentFile
             self.phaseNode.attrib["secondaryDatabaseString"] = self.cactusWorkflowArguments.secondaryDatabaseString
-            self.phaseNode.attrib["outputFile"]=self.cactusWorkflowArguments.experimentNode.find("hal").attrib["halPath"]
+            self.phaseNode.attrib["outputFile"] = "1"
 
             self.halID = self.makeRecursiveChildJob(CactusHalGeneratorRecursion, launchSecondaryKtForRecursiveJob=True)
 

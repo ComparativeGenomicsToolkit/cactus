@@ -233,11 +233,13 @@ class ExperimentWrapper(DbElemWrapper):
         genome for this experiment. This should be downloaded
         onto the master node after the experiment has finished running.'''
         refElem = self.xmlRoot.find("reference")
+        if refElem is None:
+            refElem = ET.SubElement(self.xmlRoot, "reference")
         refElem.attrib["id"] = str(refID)
 
     def getReferenceID(self):
         refElem = self.xmlRoot.find("reference")
-        if "id" in refElem.attrib:
+        if refElem is not None and "id" in refElem.attrib:
             return refElem.attrib["id"]
         else:
             return None
@@ -251,6 +253,8 @@ class ExperimentWrapper(DbElemWrapper):
         '''Set the file store ID of the HAL file
         resulting from this experiment.'''
         halElem = self.xmlRoot.find("hal")
+        if halElem is None:
+            halElem = ET.SubElement(self.xmlRoot, "hal")
         halElem.attrib["halID"] = str(halID)
 
     def getHalID(self):
@@ -259,6 +263,8 @@ class ExperimentWrapper(DbElemWrapper):
 
     def setHalFastaID(self, halFastaID):
         halElem = self.xmlRoot.find("hal")
+        if halElem is None:
+            halElem = ET.SubElement(self.xmlRoot, "hal")
         halElem.attrib["fastaID"] = str(halFastaID)
 
     def getHalFastaID(self):
