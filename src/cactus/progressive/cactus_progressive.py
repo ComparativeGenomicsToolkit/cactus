@@ -41,6 +41,7 @@ from cactus.progressive.schedule import Schedule
 from cactus.progressive.projectWrapper import ProjectWrapper
 
 from sonLib.nxnewick import NXNewick
+from sonLib.bioio import getTempDirectory
 
 class ProgressiveDown(RoundedJob):
     def __init__(self, options, project, event, schedule, memory=None, cores=None):
@@ -323,7 +324,6 @@ def main():
     addCactusWorkflowOptions(parser)
 
     parser.add_argument("seqFile", help = "Seq file")
-    parser.add_argument("cactusDir", help = "Work dir")
     parser.add_argument("outputHal", type=str, help = "Output HAL file")
 
     #Progressive Cactus Options
@@ -341,17 +341,43 @@ def main():
                       " in the output.  If no root is specifed then the root"
                       " of the tree is used. ", default=None)   
     parser.add_argument("--latest", dest="latest", action="store_true",
-            help="Use the latest, locally-built docker container rather than \
-                    pulling from quay.io")
+                        help="Use the latest, locally-built docker container "
+                        "rather than pulling from quay.io")
+    parser.add_argument("--noDocker", action="store_true", help="Use a locally "
+                        "installed version of Cactus rather than a version "
+                        "the Docker container")
 
     options = parser.parse_args()
+    options.cactusDir = getTempDirectory()
 
     if options.latest:
         os.environ["CACTUS_USE_LATEST"] = "1"
-
+    if options.noDocker:
+        os.environ["CACTUS_DOCKER_MODE"] = "0"
+    elif os.environ.get("CACTUS_DOCKER_MODE") != "0":
+        # Verify Docker exists on the target system
+        from distutils.spawn import find_executable
+        if find_executable('docker') is None:
+            raise RuntimeError("The `docker` executable wasn't found on the "
+                               "system. Please install Docker if possible, or "
+                               "use --noDocker and add cactus's bin directory "
+                               "to your PATH.")
+    # If running without Docker, verify that we can find the Cactus executables
+    if os.environ.get("CACTUS_DOCKER_MODE") == "0":
+        from distutils.spawn import find_executable
+        if find_executable('cactus_caf') is None:
+            raise RuntimeError("Cactus isn't using Docker, but it can't find "
+                               "the Cactus binaries. Please add Cactus's bin "
+                               "directory to your PATH (and run `make` in the "
+                               "Cactus directory if you haven't already).")
+        if find_executable('ktserver') is None:
+            raise RuntimeError("Cactus isn't using Docker, but it can't find "
+                               "`ktserver`, the KyotoTycoon database server. "
+                               "Please install KyotoTycoon "
+                               "(https://github.com/alticelabs/kyoto) "
+                               "and add the binary to your PATH, or use the "
+                               "Docker mode.")
     setLoggingFromOptions(options)
-
-    options.cactusDir = os.path.abspath(options.cactusDir)
 
     # Mess with some toil options to create useful defaults.
 
