@@ -21,28 +21,23 @@ stKVDatabaseConf *testCommon_getTemporaryKVDatabaseConf() {
     return conf;
 }
 
-void testCommon_deleteTemporaryKVDatabase() {
+void testCommon_deleteTemporaryKVDatabase(void) {
     int64_t i = system("rm -rf temporaryCactusDisk");
     exitOnFailure(i, "Tried to delete the temporary KV database\n");
 }
 
-CactusDisk *testCommon_getTemporaryCactusDisk2(bool sequencesOnDisk) {
+CactusDisk *testCommon_getTemporaryCactusDisk2(void) {
     testCommon_deleteTemporaryKVDatabase();
     stKVDatabaseConf *conf = stKVDatabaseConf_constructTokyoCabinet(
             "temporaryCactusDisk");
     CactusDisk *cactusDisk;
-    if (sequencesOnDisk) {
-        cactusDisk = cactusDisk_construct2(conf,
-                        "cactusSequences");
-    } else {
-        cactusDisk = cactusDisk_construct(conf, 1);
-    }
+    cactusDisk = cactusDisk_construct(conf, true, true);
     stKVDatabaseConf_destruct(conf);
     return cactusDisk;
 }
 
 CactusDisk *testCommon_getTemporaryCactusDisk() {
-    return testCommon_getTemporaryCactusDisk2(st_random() > 0.5);
+    return testCommon_getTemporaryCactusDisk2();
 }
 
 void testCommon_deleteTemporaryCactusDisk(CactusDisk *cactusDisk) {

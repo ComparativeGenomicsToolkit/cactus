@@ -21,17 +21,14 @@ extern const char *CACTUS_DISK_EXCEPTION_ID;
 ////////////////////////////////////////////////
 
 /*
- * Constructs a cactus disk to load flowers. If 'create' is non-zero the cactus disk is
- * to be created. An exception will be thrown if the 'create' is non-zero and the cactus
- * disk already exists.
+ * Constructs a cactus disk to load flowers. If 'create' is non-zero
+ * the cactus disk is to be created. An exception will be thrown if
+ * the 'create' is non-zero and the cactus disk already exists. If
+ * "cache" is true, all DB responses will be cached. If "cache" is
+ * false, no responses will be cached, saving memory but possibly
+ * decreasing throughput.
  */
-CactusDisk *cactusDisk_construct(stKVDatabaseConf *conf, bool create);
-
-/*
- * Create a cactus disk, with the option to store the sequences in a file.
- */
-CactusDisk *cactusDisk_construct2(stKVDatabaseConf *conf,
-        const char *sequencesFileName);
+CactusDisk *cactusDisk_construct(stKVDatabaseConf *conf, bool create, bool cache);
 
 /*
  * Destructs the cactus disk and all open flowers and sequences, and
@@ -88,5 +85,28 @@ void cactusDisk_preCacheStrings(CactusDisk *cactusDisk, stList *flowers);
  * Precaches all the segments sequences in the given set of flowers.
  */
 void cactusDisk_preCacheSegmentStrings(CactusDisk *cactusDisk, stList *flowers);
+
+/*
+ * Clears all cached sequences (but not cached DB responses).
+ */
+void cactusDisk_clearStringCache(CactusDisk *cactusDisk);
+
+/*
+ * Clears all cached DB responses (but not cached sequences).
+ */
+void cactusDisk_clearCache(CactusDisk *cactusDisk);
+
+/*
+ * Get the event tree.
+ */
+EventTree *cactusDisk_getEventTree(CactusDisk *cactusDisk);
+
+/*
+ * Forces an update of the cactusDisk base parameters (event tree,
+ * etc.) on the next write. Set keyAlreadyExists to true if this is an
+ * update of the existing parameters, false if the parameters are
+ * being inserted for the first time.
+ */
+void cactusDisk_forceParameterUpdate(CactusDisk *cactusDisk, bool keyAlreadyExists);
 
 #endif

@@ -136,37 +136,34 @@ static int compareCaps(Cap *cap, Cap *cap2) {
     return i;
 }
 
-static stList *getCaps(stList *flowers) {
+static stList *getCaps(Flower *flower) {
     //Get the caps in order
     stList *caps = stList_construct();
-    for (int64_t i = 0; i < stList_length(flowers); i++) {
-        Flower *flower = stList_get(flowers, i);
-        End *end;
-        Flower_EndIterator *endIt = flower_getEndIterator(flower);
-        while ((end = flower_getNextEnd(endIt)) != NULL) {
-            if (end_isStubEnd(end)) { // && end_isAttached(end)) {
-                Cap *cap; // = end_getCapForEvent(end, globalReferenceEventName);
-                End_InstanceIterator *capIt = end_getInstanceIterator(end);
-                while ((cap = end_getNext(capIt)) != NULL) {
-                    if (cap_getSequence(cap) != NULL) {
-                        cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
-                        if (!cap_getSide(cap)) {
-                            stList_append(caps, cap);
-                        }
+    End *end;
+    Flower_EndIterator *endIt = flower_getEndIterator(flower);
+    while ((end = flower_getNextEnd(endIt)) != NULL) {
+        if (end_isStubEnd(end)) { // && end_isAttached(end)) {
+            Cap *cap; // = end_getCapForEvent(end, globalReferenceEventName);
+            End_InstanceIterator *capIt = end_getInstanceIterator(end);
+            while ((cap = end_getNext(capIt)) != NULL) {
+                if (cap_getSequence(cap) != NULL) {
+                    cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
+                    if (!cap_getSide(cap)) {
+                        stList_append(caps, cap);
                     }
                 }
-                end_destructInstanceIterator(capIt);
             }
+            end_destructInstanceIterator(capIt);
         }
-        flower_destructEndIterator(endIt);
     }
+    flower_destructEndIterator(endIt);
     stList_sort(caps, (int(*)(const void *, const void *)) compareCaps);
     return caps;
 }
 
-void makeHalFormat(stList *flowers, stKVDatabase *database, Name referenceEventName, FILE *fileHandle) {
+void makeHalFormat(Flower *flower, stKVDatabase *database, Name referenceEventName, FILE *fileHandle) {
     globalReferenceEventName = referenceEventName;
-    stList *caps = getCaps(flowers);
+    stList *caps = getCaps(flower);
     if (fileHandle == NULL) {
         buildRecursiveThreads(database, caps, writeSegment, writeTerminalAdjacency);
     } else {

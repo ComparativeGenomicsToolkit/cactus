@@ -96,13 +96,13 @@ int main(int argc, char *argv[]) {
                 { "logLevel", required_argument, 0, 'a' }, 
                 { "referenceEventString", required_argument, 0, 'b' },
                 { "cactusDisk", required_argument, 0, 'c' }, 
-		{ "flowerName", required_argument, 0, 'd' },
-		{ "outputFile", required_argument, 0, 'e' },
+		{ "flowerName", required_argument, 0, 'e' },
+		{ "outputFile", required_argument, 0, 'f' },
                 { "help", no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:b:c:d:e:h", long_options,
+        int key = getopt_long(argc, argv, "a:b:c:d:e:f:h", long_options,
                 &option_index);
 
         if (key == -1) {
@@ -119,10 +119,10 @@ int main(int argc, char *argv[]) {
             case 'c':
                 cactusDiskDatabaseString = stString_copy(optarg);
                 break;
-            case 'd':
+            case 'e':
                 flowerName = stString_copy(optarg);
                 break;
-            case 'e':
+            case 'f':
                 outputFile = stString_copy(optarg);
                 break;
             case 'h':
@@ -163,7 +163,7 @@ int main(int argc, char *argv[]) {
 
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(
             cactusDiskDatabaseString);
-    CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
+    CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, false, true);
     st_logInfo("Set up the flower disk\n");
 
     ///////////////////////////////////////////////////////////////////////////

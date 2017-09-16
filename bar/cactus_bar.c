@@ -123,8 +123,7 @@ int main(int argc, char *argv[]) {
      * Parse the options.
      */
     while (1) {
-        static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0, 'b' }, {
-                "help", no_argument, 0, 'h' }, { "spanningTrees", required_argument, 0, 'i' },
+        static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0, 'b' }, { "help", no_argument, 0, 'h' }, { "spanningTrees", required_argument, 0, 'i' },
                 { "maximumLength", required_argument, 0, 'j' }, { "useBanding", no_argument, 0, 'k' },
                 { "gapGamma", required_argument, 0, 'l' }, { "matchGamma", required_argument, 0, 'L' },
                 { "splitMatrixBiggerThanThis", required_argument, 0, 'o' }, { "anchorMatrixBiggerThanThis",
@@ -278,7 +277,7 @@ int main(int argc, char *argv[]) {
      * Load the flowerdisk
      */
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
-    CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, 0); //We precache the sequences
+    CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, false, true); //We precache the sequences
     st_logInfo("Set up the flower disk\n");
 
     /*
@@ -311,6 +310,9 @@ int main(int argc, char *argv[]) {
         stList *names = flowerWriter_parseNames(stdin);
         Flower *flower = cactusDisk_getFlower(cactusDisk, *((Name *)stList_get(names, 0)));
         FILE *fileHandle = fopen(endAlignmentsToPrecomputeOutputFile, "w");
+        if (fileHandle == NULL) {
+            st_errnoAbort("Opening end alignment file %s failed", endAlignmentsToPrecomputeOutputFile);
+        }
         for(int64_t i=1; i<stList_length(names); i++) {
             End *end = flower_getEnd(flower, *((Name *)stList_get(names, i)));
             if (end == NULL) {

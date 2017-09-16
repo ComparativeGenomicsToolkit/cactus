@@ -20,21 +20,21 @@
 /*
  * Gets a temporary KV database conf file suitable for building a database in.
  */
-stKVDatabaseConf *testCommon_getTemporaryKVDatabaseConf();
+stKVDatabaseConf *testCommon_getTemporaryKVDatabaseConf(void);
 
 /*
  * Removes from disk and temporary KV database created in the location pointed
  * to by the testCommon_getTemporaryKVDatabaseConf file.
  */
-void testCommon_deleteTemporaryKVDatabase();
+void testCommon_deleteTemporaryKVDatabase(void);
 
 /*
  * Gets a temporary cactus disk, must call testCommon_deleteTemporaryCactusDisk
  * to destroy it.
  */
-CactusDisk *testCommon_getTemporaryCactusDisk();
+CactusDisk *testCommon_getTemporaryCactusDisk(void);
 
-CactusDisk *testCommon_getTemporaryCactusDisk2(bool sequencesOnDisk);
+CactusDisk *testCommon_getTemporaryCactusDisk2(void);
 
 /*
  * Destroys the object given by testCommon_getTemporaryCactusDisk and removes

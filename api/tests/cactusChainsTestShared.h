@@ -46,6 +46,7 @@ static void cactusChainsSharedTestTeardown() {
 static void cactusChainsSharedTestSetup() {
     cactusChainsSharedTestTeardown();
     cactusDisk = testCommon_getTemporaryCactusDisk();
+    eventTree_construct2(cactusDisk);
     flower = flower_construct(cactusDisk);
     nestedFlower1 = flower_construct(cactusDisk);
     nestedFlower2 = flower_construct(cactusDisk);

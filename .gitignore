@@ -7,3 +7,13 @@ lib/*
 *.pyc
 /bin
 /lib
+tmp_*
+temporaryCactusDisk
+build
+dist
+*.egg-info
+*.a
+cactusSequences
+*~
+.cache
+src/cactus/shared/version.py

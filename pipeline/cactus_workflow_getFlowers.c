@@ -8,10 +8,9 @@
 
 int main(int argc, char *argv[]) {
     parseArgs(argc, argv);
-    stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
-    //stList *flowers = parseFlowers(argv + 6, argc - 6, cactusDisk);
-    for (int64_t i = 0; i < stList_length(flowers); i++) {
-        Flower *flower = stList_get(flowers, i);
+    FlowerStream *flowerStream = flowerWriter_getFlowerStream(cactusDisk, stdin);
+    Flower *flower;
+    while ((flower = flowerStream_getNext(flowerStream)) != NULL) {
         if(!flower_isLeaf(flower)) {
             assert(flower_builtBlocks(flower)); //This recursion depends on the block structure having been properly defined for all nodes.
             Flower_GroupIterator *groupIterator = flower_getGroupIterator(flower);
@@ -30,8 +29,6 @@ int main(int argc, char *argv[]) {
     flowerWriter_destruct(flowerWriter);
     cactusDisk_destruct(cactusDisk);
 
-    return 0; //Avoid cleanup
-    stList_destruct(flowers);
     st_logDebug("Am finished\n");
     return 0;
 }

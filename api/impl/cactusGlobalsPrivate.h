@@ -19,8 +19,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include <tcutil.h>
-#include <tcbdb.h>
 #include "CuTest.h"
 #include "sonLib.h"
 #include "commonC.h"

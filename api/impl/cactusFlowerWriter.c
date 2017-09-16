@@ -1,6 +1,8 @@
 #include "sonLib.h"
 #include "cactusGlobalsPrivate.h"
 
+#define FLOWER_STREAM_BATCH_SIZE 50
+
 struct _flowerWriter {
         stList *flowerNamesAndSizes;
         int64_t maxFlowerGroupSize;
@@ -45,6 +47,10 @@ static void printName(FILE *fileHandle, Name name) {
     fprintf(fileHandle, "%" PRIi64 " ", name);
 }
 
+static void printSize(FILE *fileHandle, int64_t size) {
+    fprintf(fileHandle, "%" PRIi64 " ", size);
+}
+
 static void flowerWriter_writeFlowersString(stList *flowerNamesAndSizes, FILE *fileHandle,
         int64_t maxFlowerSecondaryGroupSize) {
     fprintf(fileHandle, "%" PRIi64 " ", stList_length(flowerNamesAndSizes));
@@ -56,6 +62,7 @@ static void flowerWriter_writeFlowersString(stList *flowerNamesAndSizes, FILE *f
             fprintf(fileHandle, "b ");
         }
         printName(fileHandle, name);
+        printSize(fileHandle, flowerNameAndSize->flowerSize);
         for (int64_t i = 1; i < stList_length(flowerNamesAndSizes); i++) {
             flowerNameAndSize = stList_get(flowerNamesAndSizes, i);
             if(totalSize + flowerNameAndSize->flowerSize > maxFlowerSecondaryGroupSize) {
@@ -68,6 +75,7 @@ static void flowerWriter_writeFlowersString(stList *flowerNamesAndSizes, FILE *f
                 }
             }
             printName(fileHandle, flowerNameAndSize->flowerName - name);
+            printSize(fileHandle, flowerNameAndSize->flowerSize);
             name = flowerNameAndSize->flowerName;
             totalSize += flowerNameAndSize->flowerSize;
         }
@@ -164,4 +172,65 @@ stList *flowerWriter_parseFlowersFromStdin(CactusDisk *cactusDisk) {
     stList *flowers = cactusDisk_getFlowers(cactusDisk, flowerNamesList);
     stList_destruct(flowerNamesList);
     return flowers;
+}
+
+static FlowerStream *flowerStream_construct(stList *flowerNames, CactusDisk *cactusDisk) {
+    FlowerStream *ret = malloc(sizeof(FlowerStream));
+    ret->flowerNames = flowerNames;
+    ret->flowerBatch = stList_construct();
+    ret->curFlower = NULL;
+    ret->nextIdx = 0;
+    ret->cactusDisk = cactusDisk;
+    return ret;
+}
+
+FlowerStream *flowerWriter_getFlowerStream(CactusDisk *cactusDisk, FILE *file) {
+    stList *flowerNamesList = flowerWriter_parseNames(file);
+    return flowerStream_construct(flowerNamesList, cactusDisk);
+}
+
+void flowerStream_destruct(FlowerStream *flowerStream) {
+    if (flowerStream->curFlower != NULL) {
+        flower_destruct(flowerStream->curFlower, false);
+    }
+    stList_destruct(flowerStream->flowerBatch);
+    stList_destruct(flowerStream->flowerNames);
+    free(flowerStream);
+}
+
+Flower *flowerStream_getNext(FlowerStream *flowerStream) {
+    if (flowerStream->curFlower != NULL) {
+        // Unload the previously loaded flower.
+        flower_destruct(flowerStream->curFlower, false);
+    }
+    if (flowerStream->nextIdx >= stList_length(flowerStream->flowerNames)) {
+        flowerStream->curFlower = NULL;
+        return NULL;
+    }
+    if (stList_length(flowerStream->flowerBatch) == 0) {
+        // Time to load the next batch of flowers from the DB.
+        // Get the next batch of names.
+        int64_t batchStart = flowerStream->nextIdx;
+        int64_t batchEnd = flowerStream->nextIdx + FLOWER_STREAM_BATCH_SIZE;
+        if (batchEnd > stList_length(flowerStream->flowerNames)) {
+            batchEnd = stList_length(flowerStream->flowerNames);
+        }
+        stList *namesBatch = stList_construct2(batchEnd - batchStart);
+        for (int64_t i = batchStart; i < batchEnd; i++) {
+            stList_set(namesBatch, i - batchStart, stList_get(flowerStream->flowerNames, i));
+        }
+        // We want to be able to treat the batch like a stack and get
+        // the same order, so we reverse it.
+        stList_reverse(namesBatch);
+        stList_destruct(flowerStream->flowerBatch);
+        flowerStream->flowerBatch = cactusDisk_getFlowers(flowerStream->cactusDisk, namesBatch);
+        stList_destruct(namesBatch);
+    }
+    flowerStream->curFlower = stList_pop(flowerStream->flowerBatch);
+    flowerStream->nextIdx++;
+    return flowerStream->curFlower;
+}
+
+int64_t flowerStream_size(const FlowerStream *flowerStream) {
+    return stList_length(flowerStream->flowerNames);
 }

@@ -66,12 +66,13 @@ static void teardown() {
 static void setup(bool includeOutgroups) {
     teardown();
     cactusDisk = testCommon_getTemporaryCactusDisk();
+    eventTree_construct2(cactusDisk);
     flower = flower_construct(cactusDisk);
     // A group must be constructed because stCaf_setup expects a leaf group.
     group_construct2(flower);
     flower_check(flower);
 
-    eventTree = eventTree_construct2(flower);
+    eventTree = eventTree_construct2(cactusDisk);
     rootEvent = eventTree_getRootEvent(eventTree);
     ancestor = event_construct3("ancestor", 0.2, rootEvent, eventTree);
     if (includeOutgroups) {

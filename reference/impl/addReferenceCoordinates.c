@@ -177,15 +177,12 @@ static char *terminalAdjacencyWriteFn(Cap *cap) {
     return stString_copy("");
 }
 
-//static Name segmentWriteFnOutgroupEventName;
 static stHash *segmentWriteFn_flowerToPhylogeneticTreeHash;
-
 
 static char *segmentWriteFn(Segment *segment) {
     stTree *phylogeneticTree = stHash_search(segmentWriteFn_flowerToPhylogeneticTreeHash, block_getFlower(segment_getBlock(segment)));
     assert(phylogeneticTree != NULL);
     char *segmentString = getMaximumLikelihoodString(phylogeneticTree, segment_getBlock(segment));
-    //char *segmentString = getConsensusString(segment_getBlock(segment), segmentWriteFnOutgroupEventName);
     //We append a zero to a segment string if it is part of block containing only a reference segment, else we append a 1.
     //We use these boolean values to determine if a sequence contains only these trivial strings, and is therefore trivial.
     char *appendedSegmentString = stString_print("%s%c ", segmentString, block_getInstanceNumber(segment_getBlock(segment)) == 1 ? '0' : '1');
@@ -287,8 +284,8 @@ static stList *getCaps(stList *flowers, Name referenceEventName) {
     return caps;
 }
 
-void bottomUp(stList *flowers, stKVDatabase *sequenceDatabase, Name referenceEventName, Name outgroupEventName,
-        bool isTop, stMatrix *(*generateSubstitutionMatrix)(double)) {
+void bottomUp(stList *flowers, stKVDatabase *sequenceDatabase, Name referenceEventName,
+              bool isTop, stMatrix *(*generateSubstitutionMatrix)(double)) {
     /*
      * A reference thread between the two caps
      * in each flower f may be broken into two in the children of f.
@@ -341,42 +338,39 @@ void bottomUp(stList *flowers, stKVDatabase *sequenceDatabase, Name referenceEve
     stList_destruct(caps);
 }
 
-void topDown(stList *flowers, Name referenceEventName) {
+void topDown(Flower *flower, Name referenceEventName) {
     /*
      * Run on each flower, top down. Sets the coordinates of each reference cap to the correct
      * sequence, and sets the bases of the reference sequence to be consensus bases.
      */
-    for (int64_t i = 0; i < stList_length(flowers); i++) {
-        Flower *flower = stList_get(flowers, i);
-        Flower_EndIterator *endIt = flower_getEndIterator(flower);
-        End *end;
-        while ((end = flower_getNextEnd(endIt)) != NULL) {
-            Cap *cap = getCapForReferenceEvent(end, referenceEventName); //The cap in the reference
-            if (cap != NULL) {
-                cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
-                if (!cap_getSide(cap)) {
-                    assert(cap_getCoordinate(cap) != INT64_MAX);
-                    Sequence *sequence = cap_getSequence(cap);
-                    assert(sequence != NULL);
-                    Group *group = end_getGroup(end);
-                    if (!group_isLeaf(group)) {
-                        Flower *nestedFlower = group_getNestedFlower(group);
-                        Cap *nestedCap = flower_getCap(nestedFlower, cap_getName(cap));
-                        assert(nestedCap != NULL);
-                        nestedCap = cap_getStrand(nestedCap) ? nestedCap : cap_getReverse(nestedCap);
-                        assert(cap_getStrand(nestedCap));
-                        assert(!cap_getSide(nestedCap));
-                        int64_t endCoordinate = setCoordinates(nestedFlower, sequence_getMetaSequence(sequence),
-                                nestedCap, cap_getCoordinate(cap));
-                        (void) endCoordinate;
-                        assert(endCoordinate == cap_getCoordinate(cap_getAdjacency(cap)));
-                        assert(endCoordinate
-                                        == cap_getCoordinate(
-                                                flower_getCap(nestedFlower, cap_getName(cap_getAdjacency(cap)))));
-                    }
+    Flower_EndIterator *endIt = flower_getEndIterator(flower);
+    End *end;
+    while ((end = flower_getNextEnd(endIt)) != NULL) {
+        Cap *cap = getCapForReferenceEvent(end, referenceEventName); //The cap in the reference
+        if (cap != NULL) {
+            cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
+            if (!cap_getSide(cap)) {
+                assert(cap_getCoordinate(cap) != INT64_MAX);
+                Sequence *sequence = cap_getSequence(cap);
+                assert(sequence != NULL);
+                Group *group = end_getGroup(end);
+                if (!group_isLeaf(group)) {
+                    Flower *nestedFlower = group_getNestedFlower(group);
+                    Cap *nestedCap = flower_getCap(nestedFlower, cap_getName(cap));
+                    assert(nestedCap != NULL);
+                    nestedCap = cap_getStrand(nestedCap) ? nestedCap : cap_getReverse(nestedCap);
+                    assert(cap_getStrand(nestedCap));
+                    assert(!cap_getSide(nestedCap));
+                    int64_t endCoordinate = setCoordinates(nestedFlower, sequence_getMetaSequence(sequence),
+                                                           nestedCap, cap_getCoordinate(cap));
+                    (void) endCoordinate;
+                    assert(endCoordinate == cap_getCoordinate(cap_getAdjacency(cap)));
+                    assert(endCoordinate
+                           == cap_getCoordinate(
+                               flower_getCap(nestedFlower, cap_getName(cap_getAdjacency(cap)))));
                 }
             }
         }
-        flower_destructEndIterator(endIt);
     }
+    flower_destructEndIterator(endIt);
 }
