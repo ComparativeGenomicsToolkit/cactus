@@ -101,6 +101,7 @@ class ServerProcess(Process):
             cactus_call(parameters=["ktremotemgr", "remove"] + getRemoteParams(dbElem) + ["TERMINATE"])
 
         while True:
+            # Check for the termination signal
             try:
                 cactus_call(parameters=["ktremotemgr", "get"] + getRemoteParams(dbElem) + ["TERMINATE"])
             except:
@@ -109,6 +110,10 @@ class ServerProcess(Process):
             else:
                 # Terminate signal received
                 break
+            # Check that the DB is still alive
+            if process.poll() is not None or isKtServerFailed(logPath):
+                with open(logPath) as f:
+                    raise RuntimeError("KTServer failed. Log: %s" % f.read())
             sleep(60)
         process.send_signal(signal.SIGINT)
         process.wait()
