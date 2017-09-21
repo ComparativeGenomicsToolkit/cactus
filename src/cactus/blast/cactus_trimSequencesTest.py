@@ -1,8 +1,10 @@
 import unittest
+from StringIO import StringIO
 from textwrap import dedent
 from sonLib.bioio import getTempFile
 from cactus.shared.common import cactus_call
 from cactus.shared.test import silentOnSuccess
+from cactus.blast.cactus_trimSequences import trimSequences
 import os
 
 class TestCase(unittest.TestCase):
@@ -34,90 +36,79 @@ class TestCase(unittest.TestCase):
     def testSimplestParameters(self):
         # Test w/ no windowing, minimum size, etc to see if bed
         # import/fasta export works
-        fa = cactus_call(parameters=["cactus_trimSequences.py", "--flanking", "0", "--minSize", "0",
-                                     "--windowSize", "1", "--threshold", "1", self.faPath,
-                                     self.bedPath],
-                         check_output=True)
+        output = StringIO()
+        trimSequences(self.faPath, self.bedPath, output, flanking=0, minSize=0, windowSize=1, threshold=1)
         self.assertTrue(dedent('''\
         >seq1|0
-        CATGC''') in fa)
+        CATGC''') in output.getvalue())
         self.assertTrue(dedent('''\
         >seq1|6
-        TGCAT''') in fa)
+        TGCAT''') in output.getvalue())
         self.assertTrue(dedent('''\
         >seq1|15
-        G''') in fa)
+        G''') in output.getvalue())
 
     @silentOnSuccess
     def testComplement(self):
-        fa = cactus_call(parameters=["cactus_trimSequences.py", "--flanking", "0", "--minSize", "0",
-                                     "--windowSize", "1", "--threshold", "1", "--complement",
-                                     self.faPath, self.bedPath],
-                         check_output=True)
+        output = StringIO()
+        trimSequences(self.faPath, self.bedPath, output, flanking=0, minSize=0, windowSize=1, threshold=1,
+                      complement=True)
         self.assertTrue(dedent('''\
         >seq1|5
-        A''') in fa)
+        A''') in output.getvalue())
         self.assertTrue(dedent('''\
-        >seq1|11''') in fa)
+        >seq1|11''') in output.getvalue())
         self.assertTrue(dedent('''\
-        >seq1|16''') in fa)
+        >seq1|16''') in output.getvalue())
         # make sure the sequence that isn't covered at all is included
         self.assertTrue(dedent('''\
-        >seq2|0''') in fa)
+        >seq2|0''') in output.getvalue())
 
     @silentOnSuccess
     def testFlanking(self):
-        fa = cactus_call(parameters=["cactus_trimSequences.py", "--flanking", "1", "--minSize", "0",
-                                     "--windowSize", "1", "--threshold", "1", self.faPath,
-                                     self.bedPath],
-                         check_output=True)
+        output = StringIO()
+        trimSequences(self.faPath, self.bedPath, output, flanking=1, minSize=0, windowSize=1, threshold=1)
         # The two blocks 0-5, 6-11 should be merged together since
         # their flanking sequence intersects. Additionally the
         # flanking sequence shouldn't go past the beginning sequence.
         self.assertTrue(dedent('''\
         >seq1|0
-        CATGCATGCATG''') in fa)
+        CATGCATGCATG''') in output.getvalue())
         self.assertTrue(dedent('''\
         >seq1|14
-        TGC''') in fa)
+        TGC''') in output.getvalue())
 
     @silentOnSuccess
     def testDepth(self):
-        fa = cactus_call(parameters=["cactus_trimSequences.py", "--flanking", "0", "--minSize", "0",
-                                     "--windowSize", "1", "--depth", "2", self.faPath,
-                                     self.bedPath],
-                         check_output=True)
-        self.assertTrue(">seq1|0" not in fa)
-        self.assertTrue(">seq1|6" in fa)
-        self.assertTrue(">seq1|15" in fa)
+        output = StringIO()
+        trimSequences(self.faPath, self.bedPath, output, flanking=0, minSize=0, windowSize=1, depth=2)
+        self.assertTrue(">seq1|0" not in output.getvalue())
+        self.assertTrue(">seq1|6" in output.getvalue())
+        self.assertTrue(">seq1|15" in output.getvalue())
 
     @silentOnSuccess
     def testMinSize(self):
-        fa = cactus_call(parameters=["cactus_trimSequences.py", "--flanking", "0", "--minSize", "2",
-                                     "--windowSize", "1", "--threshold", "1", self.faPath,
-                                     self.bedPath],
-                         check_output=True)
-        self.assertTrue(">seq1|0" in fa)
-        self.assertTrue(">seq1|6" in fa)
-        self.assertTrue(">seq1|15" not in fa)
+        output = StringIO()
+        trimSequences(self.faPath, self.bedPath, output, flanking=0, minSize=2, windowSize=1, threshold=1)
+        self.assertTrue(">seq1|0" in output.getvalue())
+        self.assertTrue(">seq1|6" in output.getvalue())
+        self.assertTrue(">seq1|15" not in output.getvalue())
 
     @silentOnSuccess
     def testWithBlankLines(self):
+        output = StringIO()
         with open(self.faPath, 'a') as f:
             f.write("\n\n\n")
-        fa = cactus_call(parameters=["cactus_trimSequences.py", "--flanking", "0", "--minSize", "0",
-                                     "--windowSize", "1", "--threshold", "1", self.faPath,
-                                     self.bedPath],
-                         check_output=True)
+        trimSequences(self.faPath, self.bedPath, output, flanking=0, minSize=0, windowSize=1, threshold=1)
         self.assertTrue(dedent('''\
         >seq1|0
-        CATGC''') in fa)
+        CATGC''') in output.getvalue())
         self.assertTrue(dedent('''\
         >seq1|6
-        TGCAT''') in fa)
+        TGCAT''') in output.getvalue())
         self.assertTrue(dedent('''\
         >seq1|15
-        G''') in fa)
+        G''') in output.getvalue())
 
 if __name__ == "__main__":
     unittest.main()

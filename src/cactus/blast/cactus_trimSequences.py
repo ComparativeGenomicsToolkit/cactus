@@ -141,7 +141,7 @@ def printTrimmedFasta(fastaFile, toTrim, outFile):
     if seq is not None:
         printTrimmedSeq(header, seq, toTrim[header], outFile)
 
-def trimSequences(fastaPath, bedPath, outputPath, flanking=0, minSize=0,
+def trimSequences(fastaPath, bedPath, outputPathOrFile, flanking=0, minSize=0,
                   windowSize=10, threshold=0.8, depth=1, complement=False):
     fastaFile = open(fastaPath)
     seqLengths = getSeqLengths(fastaFile)
@@ -161,5 +161,10 @@ def trimSequences(fastaPath, bedPath, outputPath, flanking=0, minSize=0,
                   for k, v in toTrim.items())
 
     fastaFile.seek(0)
-    with open(outputPath) as outputFile:
-        printTrimmedFasta(fastaFile, toTrim, outputFile)
+    try:
+        outputPathOrFile.write('')
+        outputFile = outputPathOrFile
+    except:
+        # Not a file
+        outputFile = open(outputPathOrFile, 'w')
+    printTrimmedFasta(fastaFile, toTrim, outputFile)

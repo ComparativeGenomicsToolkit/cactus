@@ -4,7 +4,7 @@
 #Released under the MIT license, see LICENSE.txt
 
 """Script for running an all against all (including self) set of alignments on a set of input
-sequences. Uses the jobTree framework to parallelise the blasts.
+sequences. Uses the toil framework to parallelise the blasts.
 """
 import os
 import shutil
