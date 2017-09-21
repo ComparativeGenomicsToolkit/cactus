@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-from argparse import ArgumentParser
 from collections import defaultdict
 from operator import itemgetter
 
@@ -80,7 +79,7 @@ def getSeparateBedBlocks(bedFile, depth=1):
                                           fields[11].split(',')))
             for blockStart, blockSize in zip(blockSizes, blockStarts):
                 nonRelativeBlockStart = start + blockStart
-                nonRelativeBlockEnd = nonRelBlockStart + blockSize
+                nonRelativeBlockEnd = nonRelativeBlockStart + blockSize
                 if score >= depth:
                     ret[chr].append((nonRelativeBlockStart, nonRelativeBlockEnd,
                                      score))
@@ -118,13 +117,13 @@ def complementBlocks(blocksDict, seqLengths):
             ret[chr].append((0, len))
     return ret
 
-def printTrimmedSeq(header, seq, blocks):
+def printTrimmedSeq(header, seq, blocks, outFile):
     for block in blocks:
-        print ">%s|%d" % (header, block[0])
-        print seq[block[0]:block[1]]
+        outFile.write(">%s|%d\n" % (header, block[0]))
+        outFile.write(seq[block[0]:block[1]])
+        outFile.write("\n")
 
-def printTrimmedFasta(fastaFile, toTrim):
-    pos = 0
+def printTrimmedFasta(fastaFile, toTrim, outFile):
     header = None
     seq = None
     for line in fastaFile:
@@ -134,58 +133,33 @@ def printTrimmedFasta(fastaFile, toTrim):
             continue
         if line[0] == '>':
             if seq is not None:
-                printTrimmedSeq(header, seq, toTrim[header])
+                printTrimmedSeq(header, seq, toTrim[header], outFile)
             seq = ""
             header = line[1:].split()[0]
             continue
         seq += line
     if seq is not None:
-        printTrimmedSeq(header, seq, toTrim[header])
+        printTrimmedSeq(header, seq, toTrim[header], outFile)
 
-def main():
-    argParser = ArgumentParser()
-    argParser.add_argument("--flanking", help="Amount of flanking sequence to "
-                           "leave on either end of the trimmed regions",
-                           default=0, type=int)
-    argParser.add_argument("--minSize", help="Minimum size of trimmed regions"
-                           " before overlap (smaller regions will be dropped)",
-                           default=0, type=int)
-    argParser.add_argument("--complement", action="store_true", 
-                           help="BED file specifies regions to "
-                           "keep instead of regions to trim")
-    argParser.add_argument("fasta", help="Input sequence")
-    argParser.add_argument("bed", help="Regions to trim (BED format)")
-    argParser.add_argument("--windowSize", type=int, default=10,
-                           help="Window size for averaging "
-                           "coverage over")
-    argParser.add_argument("--threshold", type=float, default=0.8,
-                           help="A window is considered covered if more than "
-                           "windowSize*threshold bases are covered")
-    argParser.add_argument("--depth", type=int, default=1,
-                           help="Assume the 4th field in the bed is coverage "
-                           "depth, and filter for regions that are covered more "
-                           "than 'depth' times.")
-    opts = argParser.parse_args()
-
-    bedFile = open(opts.bed)
-    fastaFile = open(opts.fasta)
+def trimSequences(fastaPath, bedPath, outputPath, flanking=0, minSize=0,
+                  windowSize=10, threshold=0.8, depth=1, complement=False):
+    fastaFile = open(fastaPath)
     seqLengths = getSeqLengths(fastaFile)
-    toTrim = windowFilter(opts.windowSize, opts.threshold,
-                          getSeparateBedBlocks(bedFile, opts.depth), seqLengths)
-    if opts.complement:
+    with open(bedPath) as bedFile:
+        toTrim = windowFilter(windowSize, threshold,
+                              getSeparateBedBlocks(bedFile, depth), seqLengths)
+    if complement:
         toTrim = complementBlocks(toTrim, seqLengths)
-    toTrim = uniquifyBlocks(toTrim, 2*opts.flanking)
+    toTrim = uniquifyBlocks(toTrim, 2*flanking)
     # filter based on size
-    toTrim.update((k, filter(lambda x: (x[1] - x[0]) >= opts.minSize, v))
+    toTrim.update((k, filter(lambda x: (x[1] - x[0]) >= minSize, v))
                   for k, v in toTrim.items())
     # extend blocks to include flanking regions
-    toTrim.update((k, map(lambda x: (max(x[0] - opts.flanking, 0),
-                                     min(x[1] + opts.flanking, seqLengths[k])),
+    toTrim.update((k, map(lambda x: (max(x[0] - flanking, 0),
+                                     min(x[1] + flanking, seqLengths[k])),
                           v))
                   for k, v in toTrim.items())
 
     fastaFile.seek(0)
-    printTrimmedFasta(fastaFile, toTrim)
-
-if __name__ == '__main__':
-    main()
+    with open(outputPath) as outputFile:
+        printTrimmedFasta(fastaFile, toTrim, outputFile)

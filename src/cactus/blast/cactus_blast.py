@@ -21,6 +21,7 @@ from cactus.shared.common import runGetChunks
 from cactus.shared.common import readGlobalFileWithoutCache
 from cactus.shared.common import ChildTreeJob
 from cactus.blast.cactus_upconvertCoordinates import upconvertCoords
+from cactus.blast.cactus_trimSequences import trimSequences
 
 class BlastOptions(object):
     def __init__(self, chunkSize=10000000, overlapSize=10000, 
@@ -280,9 +281,9 @@ class TrimAndRecurseOnOutgroups(RoundedJob):
         # The windowSize and threshold are fixed at 1: anything more
         # and we will run into problems with alignments that aren't
         # covered in a matching trimmed sequence.
-        trimGenome(outgroupSequenceFiles[0], outgroupCoverage,
-                   trimmedOutgroup, flanking=self.blastOptions.trimOutgroupFlanking,
-                   windowSize=1, threshold=1)
+        trimSequences(outgroupSequenceFiles[0], outgroupCoverage,
+                      trimmedOutgroup, flanking=self.blastOptions.trimOutgroupFlanking,
+                      windowSize=1, threshold=1)
         outgroupConvertedResultsFile = fileStore.getLocalTempFile()
         with open(outgroupConvertedResultsFile, 'w') as f:
             upconvertCoords(cigarPath=mostRecentResultsFile,
@@ -350,12 +351,12 @@ class TrimAndRecurseOnOutgroups(RoundedJob):
                     coverageFile = outgroupCoverageFile
 
                 trimmed = fileStore.getLocalTempFile()
-                trimGenome(sequenceFile, coverageFile, trimmed,
-                           complement=True, flanking=self.blastOptions.trimFlanking,
-                           minSize=self.blastOptions.trimMinSize,
-                           threshold=self.blastOptions.trimThreshold,
-                           windowSize=self.blastOptions.trimWindowSize,
-                           depth=self.blastOptions.trimOutgroupDepth)
+                trimSequences(sequenceFile, coverageFile, trimmed,
+                              complement=True, flanking=self.blastOptions.trimFlanking,
+                              minSize=self.blastOptions.trimMinSize,
+                              threshold=self.blastOptions.trimThreshold,
+                              windowSize=self.blastOptions.trimWindowSize,
+                              depth=self.blastOptions.trimOutgroupDepth)
                 trimmedSeqs.append(trimmed)
             trimmedSeqIDs = [fileStore.writeGlobalFile(path, cleanup=True) for path in trimmedSeqs]
             return self.addChild(BlastFirstOutgroup(
@@ -515,15 +516,6 @@ def calculateCoverage(sequenceFile, cigarFile, outputFile, fromGenome=None, dept
                             cigarFile] +
                             fromGenome +
                             [nameValue("depthById", depthById, bool)])
-
-def trimGenome(sequenceFile, coverageFile, outputFile, complement=False,
-               flanking=0, minSize=1, windowSize=10, threshold=1, depth=None):
-    cactus_call(outfile=outputFile,
-                parameters=["cactus_trimSequences.py",
-                            nameValue("complement", complement, valueType=bool),
-                            nameValue("flanking", flanking), nameValue("minSize", minSize),
-                            nameValue("windowSize", windowSize), nameValue("threshold", threshold),
-                            nameValue("depth", depth), sequenceFile, coverageFile])
 
 def subtractBed(bed1, bed2, destBed):
     """Subtract two non-bed12 beds"""
