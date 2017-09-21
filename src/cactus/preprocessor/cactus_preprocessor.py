@@ -215,15 +215,6 @@ class CactusPreprocessor(RoundedJob):
         self.configNode = configNode  
 
     def run(self, fileStore):
-        #HACK
-        #Download and then write the sequences so that the IDs have the size attribute.
-        #This is wasteful, and could fail if the worker doesn't have enough disk,
-        #but at least it confines that risk to this job rather than all future jobs.
-        #It might be necessary to have the user specify how big the sequences are prior to running, if
-        #the sequences are not being imported from the leader.
-        inputSequences = [fileStore.readGlobalFile(seqID) for seqID in self.inputSequenceIDs]
-        self.inputSequenceIDs = [fileStore.writeGlobalFile(seq) for seq in inputSequences]
-        
         outputSequenceIDs = []
         for inputSequenceID in self.inputSequenceIDs:
             outputSequenceIDs.append(self.addChild(CactusPreprocessor2(inputSequenceID, self.configNode)).rv())
