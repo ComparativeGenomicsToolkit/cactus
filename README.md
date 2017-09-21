@@ -36,7 +36,12 @@ pip install --upgrade .
 ### Compile Cactus executables (if not using Docker)
 By default Cactus uses Docker to distribute its binaries, because compiling its dependencies can sometimes be a pain. However, in some environments (e.g. HPC clusters where you can't have root access) it's not possible or desirable to use Docker. In those cases, you will have to compile the binaries and install a few dependencies.
 
-First, ensure you have KyotoTycoon installed. If you have root access, it is available through most package managers under `kyototycoon` or `kyoto-tycoon`. To compile it manually, you are best off using the [unofficial Altice Labs repository](https://github.com/alticelabs/kyoto).
+First, ensure you have KyotoTycoon installed. If you have root access, it is available through most package managers under `kyototycoon` or `kyoto-tycoon`. To compile it manually, you are best off using the [unofficial Altice Labs repository](https://github.com/alticelabs/kyoto). If you've installed KyotoTycoon (and its library, KyotoCabinet) from a package manager, you should be OK to go. If you've installed it in a non-standard location, however, (because you don't have root access, for example) you will need to set the following environment variables:
+```
+ttPrefix=<path of the PREFIX where you installed Kyoto>
+kyotoTycoonIncl = -I${ttPrefix}/include -DHAVE_KYOTO_TYCOON=1
+kyotoTycoonLib = -L${ttPrefix}/lib -Wl,-rpath,${ttPrefix}/lib -lkyototycoon -lkyotocabinet -lz -lbz2 -lpthread -lm -lstdc++
+```
 
 Once you have KyotoTycoon installed, you should be able to compile Cactus and its dependencies by running:
 ```
