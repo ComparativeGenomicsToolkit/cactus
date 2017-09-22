@@ -27,18 +27,16 @@ from sonLib.bioio import catFiles
 from sonLib.bioio import popenCatch
 
 from cactus.shared.test import checkCigar
-from cactus.blast.cactus_blast import decompressFastaFile, compressFastaFile
+from cactus.blast.blast import decompressFastaFile, compressFastaFile
 
-from cactus.shared.common import runToilStatusAndFailIfNotComplete
 from cactus.shared.common import runLastz
-from cactus.shared.common import runSelfLastz
 from cactus.shared.common import makeURL
 
-from cactus.blast.cactus_blast import BlastOptions
-from cactus.blast.cactus_blast import BlastIngroupsAndOutgroups
-from cactus.blast.cactus_blast import BlastSequencesAllAgainstAll
-from cactus.blast.cactus_blast import BlastSequencesAgainstEachOther
-from cactus.blast.cactus_blast import calculateCoverage
+from cactus.blast.blast import BlastOptions
+from cactus.blast.blast import BlastIngroupsAndOutgroups
+from cactus.blast.blast import BlastSequencesAllAgainstAll
+from cactus.blast.blast import BlastSequencesAgainstEachOther
+from cactus.blast.blast import calculateCoverage
 
 from toil.job import Job
 from toil.common import Toil

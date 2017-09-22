@@ -60,8 +60,8 @@ from cactus.shared.common import runStripUniqueIDs
 from cactus.shared.common import RoundedJob
 from cactus.shared.common import readGlobalFileWithoutCache
 
-from cactus.blast.cactus_blast import BlastIngroupsAndOutgroups
-from cactus.blast.cactus_blast import BlastOptions
+from cactus.blast.blast import BlastIngroupsAndOutgroups
+from cactus.blast.blast import BlastOptions
 
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 

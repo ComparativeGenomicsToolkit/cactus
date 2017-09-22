@@ -5,13 +5,11 @@
 #Released under the MIT license, see LICENSE.txt
 import unittest
 import os
-from multiprocessing import Process
-import time
 
 from cactus.setup.cactus_setupTest import TestCase as setupTest
-from cactus.blast.cactus_blastTest import TestCase as blastTest
+from cactus.blast.blastTest import TestCase as blastTest
 from cactus.blast.cactus_coverageTest import TestCase as coverageTest
-from cactus.blast.cactus_trimSequencesTest import TestCase as trimSequencesTest
+from cactus.blast.trimSequencesTest import TestCase as trimSequencesTest
 from cactus.pipeline.cactus_workflowTest import TestCase as workflowTest
 from cactus.pipeline.cactus_evolverTest import TestCase as evolverTest
 from cactus.bar.cactus_barTest import TestCase as barTest

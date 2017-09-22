@@ -20,8 +20,8 @@ from cactus.shared.common import runCactusRealign, runCactusSelfRealign
 from cactus.shared.common import runGetChunks
 from cactus.shared.common import readGlobalFileWithoutCache
 from cactus.shared.common import ChildTreeJob
-from cactus.blast.cactus_upconvertCoordinates import upconvertCoords
-from cactus.blast.cactus_trimSequences import trimSequences
+from cactus.blast.upconvertCoordinates import upconvertCoords
+from cactus.blast.trimSequences import trimSequences
 
 class BlastOptions(object):
     def __init__(self, chunkSize=10000000, overlapSize=10000, 

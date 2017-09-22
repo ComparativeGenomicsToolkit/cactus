@@ -1,11 +1,8 @@
 import os
-import sys
-import random
-import time
 
 from sonLib.bioio import system
 from sonLib.bioio import logger
-from cactus.blast.cactus_blastTest import *
+from cactus.blast.blastTest import *
 
 """Tests if changing parameters of lastz creates results similar to the desired default, checking at different evolutionary distances. Outputs comma seperated values.
 """

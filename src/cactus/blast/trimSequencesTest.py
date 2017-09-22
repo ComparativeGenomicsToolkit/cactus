@@ -2,9 +2,8 @@ import unittest
 from StringIO import StringIO
 from textwrap import dedent
 from sonLib.bioio import getTempFile
-from cactus.shared.common import cactus_call
 from cactus.shared.test import silentOnSuccess
-from cactus.blast.cactus_trimSequences import trimSequences
+from cactus.blast.trimSequences import trimSequences
 import os
 
 class TestCase(unittest.TestCase):

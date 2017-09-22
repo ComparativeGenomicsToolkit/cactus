@@ -108,16 +108,3 @@ def upconvertCoords(cigarPath, fastaPath, contigNum, outputFile):
                                                     maxPos))
         cigarWrite(outputFile, alignment, False)
     os.remove(sortedCigarPath)
-
-def main():
-    parser = ArgumentParser()
-    parser.add_argument("fasta", help="Trimmed fasta file")
-    parser.add_argument("cigar", help="Alignments file to convert to trimmed "
-                        "coordinates")
-    parser.add_argument("contig", help="Contig # to convert in each alignment (1 or 2)", type=int)
-    args = parser.parse_args()
-    assert args.contig == 1 or args.contig == 2
-    upconvertCoords(args.cigar, args.fasta, args.contig, sys.stdout)
-
-if __name__ == '__main__':
-    main()
