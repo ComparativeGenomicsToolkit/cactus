@@ -1130,10 +1130,10 @@ class CactusExtractReferencePhase(CactusPhasesJob):
             fileStore.logToMaster("Starting Reference Extract Phase")
             eventName = self.getOptionalPhaseAttrib("reference")
             referencePath = fileStore.getLocalTempFile()
-            cactus_call(parameters=["cactus_getReferenceSeq"],
-                        option_string="--cactusDisk '%s' --flowerName 0 --referenceEventString %s --outputFile %s --logLevel %s" % 
-                        (self.cactusWorkflowArguments.cactusDiskDatabaseString,
-                         eventName, os.path.basename(referencePath), getLogLevelString()))
+            cactus_call(parameters=["cactus_getReferenceSeq", "--cactusDisk",
+                                    self.cactusWorkflowArguments.cactusDiskDatabaseString, "--flowerName", "0",
+                                    "--referenceEventString", eventName, "--outputFile",
+                                    os.path.basename(referencePath), "--logLevel", getLogLevelString()])
             referenceID = fileStore.writeGlobalFile(referencePath)
             experiment.setReferenceID(referenceID)
             intermediateResultsUrl = getattr(self.cactusWorkflowArguments, 'intermediateResultsUrl', None)

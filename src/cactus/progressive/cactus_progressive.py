@@ -293,28 +293,26 @@ def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC
             subHALPath = job.fileStore.readGlobalFile(experiment.getHalID())
             halFastaPath = job.fileStore.readGlobalFile(experiment.getHalFastaID())
 
+            args = [os.path.basename(subHALPath), os.path.basename(halFastaPath), expTreeString, os.path.basename(HALPath)]
 
-            opts = "\'{0}\' \'{1}\' \'{2}\' \'{3}\'".format(os.path.basename(subHALPath), os.path.basename(halFastaPath), expTreeString, os.path.basename(HALPath))
-            
             if len(outgroups) > 0:
-                opts += " --outgroups {0}".format(",".join(outgroups))
+                args += ["--outgroups", ",".join(outgroups)]
             if cacheBytes is not None:
-                opts += " --cacheBytes {0}".format(cacheBytes)
+                args += ["--cacheBytes", cacheBytes]
             if cacheMDC is not None:
-                opts += " --cacheMDC {0}".format(cacheMDC)
+                args += ["--cacheMDC", cacheMDC]
             if cacheRDC is not None:
-                opts += " --cacheRDC {0}".format(cacheRDC)
+                args += ["--cacheRDC", cacheRDC]
             if cacheW0 is not None:
-                opts += " --cacheW0 {0}".format(cacheW0)
+                args += ["--cacheW0", cacheW0]
             if chunk is not None:
-                opts += " --chunk {0}".format(chunk)
+                args += ["--chunk", chunk]
             if deflate is not None:
-                opts += " --deflate {0}".format(deflate)
+                args += ["--deflate", deflate]
             if inMemory is True:
-                opts += " --inMemory"
+                args += ["--inMemory"]
 
-            cactus_call(parameters=["halAppendCactusSubtree"],
-                        option_string=opts)
+            cactus_call(parameters=["halAppendCactusSubtree"] + args)
 
     return job.fileStore.writeGlobalFile(HALPath)
 
