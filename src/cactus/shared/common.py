@@ -938,11 +938,7 @@ def cactus_call(tool=None,
                 job_name=None,
                 features=None,
                 fileStore=None):
-    mode = "docker"
-    if os.environ.get("CACTUS_USE_SINGULARITY") is not None:
-        mode = "singularity"
-    elif os.environ.get("CACTUS_USE_COMPILED") is not None:
-        mode = "localBinaries"
+    mode = os.environ.get("CACTUS_BINARIES_MODE", "docker")
 
     if dockstore is None:
         dockstore = getDockerOrg()
@@ -964,7 +960,7 @@ def cactus_call(tool=None,
     elif mode == "singularity":
         call = singularityCommand()
     else:
-        assert mode == "localBinaries"
+        assert mode == "local"
         call = parameters
 
     stdinFileHandle = None

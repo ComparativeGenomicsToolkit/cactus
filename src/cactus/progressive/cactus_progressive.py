@@ -341,27 +341,29 @@ def main():
     parser.add_argument("--latest", dest="latest", action="store_true",
                         help="Use the latest, locally-built docker container "
                         "rather than pulling from quay.io")
-    parser.add_argument("--noDocker", action="store_true", help="Use a locally "
-                        "installed version of Cactus rather than a version "
-                        "the Docker container")
+    parser.add_argument("--binaryMode", choices=["docker", "local", "singularity"],
+                        help="The way to run the Cactus binaries", default=None)
 
     options = parser.parse_args()
     options.cactusDir = getTempDirectory()
 
     if options.latest:
         os.environ["CACTUS_USE_LATEST"] = "1"
-    if options.noDocker:
-        os.environ["CACTUS_DOCKER_MODE"] = "0"
-    elif os.environ.get("CACTUS_DOCKER_MODE") != "0":
+    if options.binaryMode is not None:
+        mode = options.binaryMode
+    else:
+        mode = os.environ.get("CACTUS_BINARIES_MODE", "docker")
+    os.environ["CACTUS_BINARIES_MODE"] = mode
+    if mode == "docker":
         # Verify Docker exists on the target system
         from distutils.spawn import find_executable
         if find_executable('docker') is None:
             raise RuntimeError("The `docker` executable wasn't found on the "
                                "system. Please install Docker if possible, or "
-                               "use --noDocker and add cactus's bin directory "
-                               "to your PATH.")
+                               "use --binaryMode local and add cactus's bin "
+                               "directory to your PATH.")
     # If running without Docker, verify that we can find the Cactus executables
-    if os.environ.get("CACTUS_DOCKER_MODE") == "0":
+    if mode == "local":
         from distutils.spawn import find_executable
         if find_executable('cactus_caf') is None:
             raise RuntimeError("Cactus isn't using Docker, but it can't find "
