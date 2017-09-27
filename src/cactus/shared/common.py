@@ -837,8 +837,13 @@ def maxMemUsageOfContainer(containerInfo):
             continue
     return None
 
-def singularityCommand():
-    pass
+def singularityCommand(tool=None,
+                       work_dir=None,
+                       parameters=None,
+                       port=None):
+    base_singularity_call = ["singularity", "--silent", "run", "docker://quay.io/comparative-genomics-toolkit/cactus:latest"]
+    base_singularity_call.extend(parameters)
+    return base_singularity_call
 
 def dockerCommand(tool=None,
                   work_dir=None,
@@ -958,7 +963,8 @@ def cactus_call(tool=None,
                                             port=port,
                                             dockstore=dockstore)
     elif mode == "singularity":
-        call = singularityCommand()
+        call = singularityCommand(tool=tool, work_dir=work_dir,
+                                  parameters=parameters, port=port)
     else:
         assert mode == "local"
         call = parameters
@@ -996,7 +1002,7 @@ def cactus_call(tool=None,
                 if updatedMemUsage is not None:
                     assert memUsage <= updatedMemUsage, "memory.max_usage_in_bytes should never decrease"
                     memUsage = updatedMemUsage
-                first_run = False
+            first_run = False
             if soft_timeout is not None and time.time() - start_time > soft_timeout:
                 # Soft timeout has been triggered. Just return early.
                 process.send_signal(signal.SIGINT)

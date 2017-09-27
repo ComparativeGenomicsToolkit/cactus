@@ -8,6 +8,7 @@ from sonLib.bioio import getTempDirectory
 from sonLib.bioio import system
 from toil.job import Job
 from toil.common import Toil
+from cactus.shared.test import silentOnSuccess
 from cactus.shared.common import encodeFlowerNames, decodeFirstFlowerName, \
                                  runCactusSplitFlowersBySecondaryGrouping, \
                                  cactus_call, ChildTreeJob
@@ -70,6 +71,7 @@ class TestCase(unittest.TestCase):
 
         self.assertEquals(input, output)
 
+    @silentOnSuccess
     def testChildTreeJob(self):
         """Check that the ChildTreeJob class runs all children."""
         numChildren = 100
