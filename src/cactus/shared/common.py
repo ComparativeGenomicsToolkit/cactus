@@ -609,7 +609,7 @@ def _fn(toilDir,
       defaultMemory=None,
       logFile=None):
     logLevel = getLogLevelString2(logLevel)
-    args = ["--logLevel", logLevel]
+    args = [toilDir, "--logLevel", logLevel]
     if skipAlignments is not None:
         args += ["--skipAlignments"]
     if buildAvgs is not None:
@@ -841,7 +841,7 @@ def singularityCommand(tool=None,
                        work_dir=None,
                        parameters=None,
                        port=None):
-    base_singularity_call = ["singularity", "--silent", "run", "docker://quay.io/comparative-genomics-toolkit/cactus:latest"]
+    base_singularity_call = ["singularity", "--silent", "run", os.environ["CACTUS_SINGULARITY_IMG"]]
     base_singularity_call.extend(parameters)
     return base_singularity_call
 
