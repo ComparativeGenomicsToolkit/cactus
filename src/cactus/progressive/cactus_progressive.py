@@ -13,6 +13,7 @@ tree.
 import os
 import xml.etree.ElementTree as ET
 from argparse import ArgumentParser
+from subprocess import check_call
 
 from toil.lib.bioio import getTempFile
 
@@ -293,30 +294,78 @@ def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC
             subHALPath = job.fileStore.readGlobalFile(experiment.getHalID())
             halFastaPath = job.fileStore.readGlobalFile(experiment.getHalFastaID())
 
+            args = [os.path.basename(subHALPath), os.path.basename(halFastaPath), expTreeString, os.path.basename(HALPath)]
 
-            opts = "\'{0}\' \'{1}\' \'{2}\' \'{3}\'".format(os.path.basename(subHALPath), os.path.basename(halFastaPath), expTreeString, os.path.basename(HALPath))
-            
             if len(outgroups) > 0:
-                opts += " --outgroups {0}".format(",".join(outgroups))
+                args += ["--outgroups", ",".join(outgroups)]
             if cacheBytes is not None:
-                opts += " --cacheBytes {0}".format(cacheBytes)
+                args += ["--cacheBytes", cacheBytes]
             if cacheMDC is not None:
-                opts += " --cacheMDC {0}".format(cacheMDC)
+                args += ["--cacheMDC", cacheMDC]
             if cacheRDC is not None:
-                opts += " --cacheRDC {0}".format(cacheRDC)
+                args += ["--cacheRDC", cacheRDC]
             if cacheW0 is not None:
-                opts += " --cacheW0 {0}".format(cacheW0)
+                args += ["--cacheW0", cacheW0]
             if chunk is not None:
-                opts += " --chunk {0}".format(chunk)
+                args += ["--chunk", chunk]
             if deflate is not None:
-                opts += " --deflate {0}".format(deflate)
+                args += ["--deflate", deflate]
             if inMemory is True:
-                opts += " --inMemory"
+                args += ["--inMemory"]
 
-            cactus_call(parameters=["halAppendCactusSubtree"],
-                        option_string=opts)
+            cactus_call(parameters=["halAppendCactusSubtree"] + args)
 
     return job.fileStore.writeGlobalFile(HALPath)
+
+def setupBinaries(options):
+    """Ensure that Cactus's C/C++ components are ready to run, and set up the environment."""
+    if options.latest:
+        os.environ["CACTUS_USE_LATEST"] = "1"
+    if options.binariesMode is not None:
+        # Mode is specified on command line
+        mode = options.binariesMode
+    else:
+        # Might be specified through the environment, or not, in which
+        # case the default is to use Docker.
+        mode = os.environ.get("CACTUS_BINARIES_MODE", "docker")
+    os.environ["CACTUS_BINARIES_MODE"] = mode
+    if mode == "docker":
+        # Verify Docker exists on the target system
+        from distutils.spawn import find_executable
+        if find_executable('docker') is None:
+            raise RuntimeError("The `docker` executable wasn't found on the "
+                               "system. Please install Docker if possible, or "
+                               "use --binaryMode local and add cactus's bin "
+                               "directory to your PATH.")
+    # If running without Docker, verify that we can find the Cactus executables
+    elif mode == "local":
+        from distutils.spawn import find_executable
+        if find_executable('cactus_caf') is None:
+            raise RuntimeError("Cactus isn't using Docker, but it can't find "
+                               "the Cactus binaries. Please add Cactus's bin "
+                               "directory to your PATH (and run `make` in the "
+                               "Cactus directory if you haven't already).")
+        if find_executable('ktserver') is None:
+            raise RuntimeError("Cactus isn't using Docker, but it can't find "
+                               "`ktserver`, the KyotoTycoon database server. "
+                               "Please install KyotoTycoon "
+                               "(https://github.com/alticelabs/kyoto) "
+                               "and add the binary to your PATH, or use the "
+                               "Docker mode.")
+    else:
+        assert mode == "singularity"
+        jobStoreType, locator = Toil.parseLocator(options.jobStore)
+        if jobStoreType != "file":
+            raise RuntimeError("Singularity mode is only supported when using the FileJobStore.")
+        imgPath = os.path.join(locator, "cactus.img")
+        os.environ["CACTUS_SINGULARITY_IMG"] = imgPath
+
+def importSingularityImage():
+    """Import the Singularity image from Docker if using Singularity."""
+    mode = os.environ.get("CACTUS_BINARIES_MODE", "docker")
+    if mode == "singularity":
+        imgPath = os.environ["CACTUS_SINGULARITY_IMG"]
+        check_call(["singularity", "pull", "--size", "2000", "--name", imgPath, "docker://quay.io/comparative-genomics-toolkit/cactus:latest"])
 
 def main():
     parser = ArgumentParser()
@@ -343,40 +392,13 @@ def main():
     parser.add_argument("--latest", dest="latest", action="store_true",
                         help="Use the latest, locally-built docker container "
                         "rather than pulling from quay.io")
-    parser.add_argument("--noDocker", action="store_true", help="Use a locally "
-                        "installed version of Cactus rather than a version "
-                        "the Docker container")
+    parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
+                        help="The way to run the Cactus binaries", default=None)
 
     options = parser.parse_args()
     options.cactusDir = getTempDirectory()
 
-    if options.latest:
-        os.environ["CACTUS_USE_LATEST"] = "1"
-    if options.noDocker:
-        os.environ["CACTUS_DOCKER_MODE"] = "0"
-    elif os.environ.get("CACTUS_DOCKER_MODE") != "0":
-        # Verify Docker exists on the target system
-        from distutils.spawn import find_executable
-        if find_executable('docker') is None:
-            raise RuntimeError("The `docker` executable wasn't found on the "
-                               "system. Please install Docker if possible, or "
-                               "use --noDocker and add cactus's bin directory "
-                               "to your PATH.")
-    # If running without Docker, verify that we can find the Cactus executables
-    if os.environ.get("CACTUS_DOCKER_MODE") == "0":
-        from distutils.spawn import find_executable
-        if find_executable('cactus_caf') is None:
-            raise RuntimeError("Cactus isn't using Docker, but it can't find "
-                               "the Cactus binaries. Please add Cactus's bin "
-                               "directory to your PATH (and run `make` in the "
-                               "Cactus directory if you haven't already).")
-        if find_executable('ktserver') is None:
-            raise RuntimeError("Cactus isn't using Docker, but it can't find "
-                               "`ktserver`, the KyotoTycoon database server. "
-                               "Please install KyotoTycoon "
-                               "(https://github.com/alticelabs/kyoto) "
-                               "and add the binary to your PATH, or use the "
-                               "Docker mode.")
+    setupBinaries(options)
     setLoggingFromOptions(options)
 
     # Mess with some toil options to create useful defaults.
@@ -405,6 +427,7 @@ def main():
         os.makedirs(options.cactusDir)
 
     with Toil(options) as toil:
+        importSingularityImage()
         #Run the workflow
         if options.restart:
             halID = toil.restart()

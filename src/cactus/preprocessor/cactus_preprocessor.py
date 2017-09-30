@@ -20,11 +20,9 @@ from toil.common import Toil
 from toil.job import Job
 from cactus.shared.common import cactus_call
 from cactus.shared.common import RoundedJob
-from cactus.shared.common import getOptionalAttrib, runCactusAnalyseAssembly
-from cactus.shared.common import nameValue
+from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import runGetChunks
 from cactus.shared.common import makeURL
-from cactus.shared.common import RunAsFollowOn
 from cactus.shared.common import readGlobalFileWithoutCache
 from cactus.shared.configWrapper import ConfigWrapper
 
@@ -63,10 +61,11 @@ class PreprocessChunk(RoundedJob):
             inChunk = fileStore.readGlobalFile(self.inChunkID)
             seqPaths = [fileStore.readGlobalFile(fileID) for fileID in self.seqIDs]
             seqString = " ".join(seqPaths)
+            args = [inChunk]
+            if self.prepOptions.checkAssemblyHub:
+                args += ["--checkAssemblyHub"]
             cactus_call(stdin_string=seqString,
-                        parameters=["cactus_checkUniqueHeaders.py",
-                                    nameValue("checkAssemblyHub", self.prepOptions.checkAssemblyHub, bool),
-                                    inChunk])
+                        parameters=["cactus_checkUniqueHeaders.py"] + args)
             outChunkID = self.inChunkID
         elif self.prepOptions.preprocessJob == "lastzRepeatMask":
             repeatMaskOptions = RepeatMaskOptions(proportionSampled=self.prepOptions.proportionToSample,

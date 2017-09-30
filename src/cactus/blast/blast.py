@@ -313,7 +313,7 @@ class TrimAndRecurseOnOutgroups(RoundedJob):
                                     "--onlyContig1",
                                     outgroupConvertedResultsFile,
                                     ingroupConvertedResultsFile,
-                                    1])
+                                    "1"])
         # Append the latest results to the accumulated outgroup coverage file
         if self.outgroupResultsID:
             outgroupResultsFile = fileStore.readGlobalFile(self.outgroupResultsID, mutable=True)
@@ -411,7 +411,7 @@ class RunSelfBlast(RoundedJob):
         cactus_call(parameters=["cactus_blast_convertCoordinates",
                                 blastResultsFile,
                                 resultsFile,
-                                self.blastOptions.roundsOfCoordinateConversion])
+                                str(self.blastOptions.roundsOfCoordinateConversion)])
         if self.blastOptions.compressFiles:
             #TODO: This throws away the compressed file
             seqFile = compressFastaFile(seqFile)
@@ -453,7 +453,7 @@ class RunBlast(RoundedJob):
         cactus_call(parameters=["cactus_blast_convertCoordinates",
                                 blastResultsFile,
                                 resultsFile,
-                                self.blastOptions.roundsOfCoordinateConversion])
+                                str(self.blastOptions.roundsOfCoordinateConversion)])
         logger.info("Ran the blast okay")
         return fileStore.writeGlobalFile(resultsFile)
 
@@ -509,13 +509,13 @@ def percentCoverage(sequenceFile, coverageFile):
 def calculateCoverage(sequenceFile, cigarFile, outputFile, fromGenome=None, depthById=False, work_dir=None):
     logger.info("Calculating coverage of cigar file %s on %s, writing to %s" % (
         cigarFile, sequenceFile, outputFile))
-    fromGenome = nameValue("from", fromGenome).split()
+    args = [sequenceFile, cigarFile]
+    if fromGenome is not None:
+        args += ["--fromGenome", fromGenome]
+    if depthById:
+        args += ["--depthById"]
     cactus_call(outfile=outputFile, work_dir=work_dir,
-                parameters=["cactus_coverage",
-                            sequenceFile,
-                            cigarFile] +
-                            fromGenome +
-                            [nameValue("depthById", depthById, bool)])
+                parameters=["cactus_coverage"] + args)
 
 def subtractBed(bed1, bed2, destBed):
     """Subtract two non-bed12 beds"""

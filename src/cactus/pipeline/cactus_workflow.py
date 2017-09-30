@@ -719,7 +719,7 @@ class CactusCafWrapper(CactusRecursionJob):
                           referenceEventHeader=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "reference"), "reference"),
                           phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce=self.getOptionalPhaseAttrib("phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce"),
                           numTreeBuildingThreads=self.getOptionalPhaseAttrib("numTreeBuildingThreads"),
-                          doPhylogeny=self.getOptionalPhaseAttrib("doPhylogeny", bool, True),
+                          doPhylogeny=self.getOptionalPhaseAttrib("doPhylogeny", bool, False),
                           minimumBlockHomologySupport=self.getOptionalPhaseAttrib("minimumBlockHomologySupport"),
                           minimumBlockDegreeToCheckSupport=self.getOptionalPhaseAttrib("minimumBlockDegreeToCheckSupport"),
                           phylogenyNucleotideScalingFactor=self.getOptionalPhaseAttrib("phylogenyNucleotideScalingFactor"),
@@ -772,7 +772,7 @@ class CactusBarRecursion(CactusRecursionJob):
         self.makeExtendingJobs(fileStore=fileStore,
                                job=CactusBarWrapper, overlargeJob=CactusBarWrapperLarge)
 
-def runBarForJob(self, fileStore=None, features=None, calculateWhichEndsToComputeSeparately=None, endAlignmentsToPrecomputeOutputFile=None, precomputedAlignments=None):
+def runBarForJob(self, fileStore=None, features=None, calculateWhichEndsToComputeSeparately=False, endAlignmentsToPrecomputeOutputFile=None, precomputedAlignments=None):
     return runCactusBar(jobName=self.__class__.__name__,
                  fileStore=fileStore,
                  features=features,
@@ -1130,10 +1130,10 @@ class CactusExtractReferencePhase(CactusPhasesJob):
             fileStore.logToMaster("Starting Reference Extract Phase")
             eventName = self.getOptionalPhaseAttrib("reference")
             referencePath = fileStore.getLocalTempFile()
-            cactus_call(parameters=["cactus_getReferenceSeq"],
-                        option_string="--cactusDisk '%s' --flowerName 0 --referenceEventString %s --outputFile %s --logLevel %s" % 
-                        (self.cactusWorkflowArguments.cactusDiskDatabaseString,
-                         eventName, os.path.basename(referencePath), getLogLevelString()))
+            cactus_call(parameters=["cactus_getReferenceSeq", "--cactusDisk",
+                                    self.cactusWorkflowArguments.cactusDiskDatabaseString, "--flowerName", "0",
+                                    "--referenceEventString", eventName, "--outputFile",
+                                    os.path.basename(referencePath), "--logLevel", getLogLevelString()])
             referenceID = fileStore.writeGlobalFile(referencePath)
             experiment.setReferenceID(referenceID)
             intermediateResultsUrl = getattr(self.cactusWorkflowArguments, 'intermediateResultsUrl', None)
