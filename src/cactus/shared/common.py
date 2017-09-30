@@ -717,7 +717,7 @@ def runCactusFastaGenerator(cactusDiskDatabaseString,
                             logLevel=None):
     logLevel = getLogLevelString2(logLevel)
     cactus_call(parameters=["cactus_fastaGenerator",
-                            "--flowerName", flowerName,
+                            "--flowerName", str(flowerName),
                             "--outputFile", outputFile,
                             "--logLevel", logLevel,
                             "--cactusDisk", cactusDiskDatabaseString,
