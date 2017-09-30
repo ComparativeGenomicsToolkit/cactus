@@ -23,18 +23,7 @@ static Event *getReferenceEvent(Flower *flower, const char *referenceEventHeader
     EventTree *eventTree = flower_getEventTree(flower);
     Event *referenceEvent = eventTree_getEventByHeader(eventTree, referenceEventHeader);
     if (referenceEvent == NULL) {
-        Group *parentGroup = flower_getParentGroup(flower);
-        if (parentGroup == NULL) {
-            //We are the root, so make a new event..
-            return event_construct3(referenceEventHeader, INT64_MAX, eventTree_getRootEvent(eventTree), eventTree);
-        } else {
-            Event *parentEvent = eventTree_getEventByHeader(flower_getEventTree(group_getFlower(parentGroup)), referenceEventHeader);
-            assert(parentEvent != NULL);
-            Event *event = event_construct(event_getName(parentEvent), referenceEventHeader,
-            INT64_MAX, eventTree_getRootEvent(eventTree), eventTree);
-            assert(event_getName(event) == event_getName(parentEvent));
-            return event;
-        }
+        st_errAbort("Couldn't find reference event %s", referenceEventHeader);
     }
     return referenceEvent;
 }

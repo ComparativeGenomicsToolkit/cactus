@@ -124,7 +124,10 @@ int main(int argc, char *argv[]) {
 
         st_logInfo("%s\n", eventTree_makeNewickString(flower_getEventTree(flower)));
         Event *referenceEvent = eventTree_getEventByHeader(flower_getEventTree(flower), referenceEventString);
-        assert(referenceEvent != NULL);
+        if (referenceEvent == NULL) {
+            st_errAbort("Reference event %s not found in tree. Check your "
+                        "--referenceEventString option", referenceEventString);
+        }
         Name referenceEventName = event_getName(referenceEvent);
 
         ///////////////////////////////////////////////////////////////////////////
