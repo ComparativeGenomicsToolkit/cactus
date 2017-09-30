@@ -203,7 +203,7 @@ def getKtserverCommand(dbElem, logPath, snapshotDir):
     """Get a ktserver command line with the proper options (in popen-type list format)."""
     serverOptions = getKtServerOptions(dbElem)
     tuning = getKtTuningOptions(dbElem)
-    cmd = ["ktserver", "-port", dbElem.getDbPort()]
+    cmd = ["ktserver", "-port", str(dbElem.getDbPort())]
     cmd += serverOptions.split()
     # Configure background snapshots, but set the interval between
     # snapshots to ~ 10 days so it'll never trigger. We are only

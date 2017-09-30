@@ -719,7 +719,7 @@ class CactusCafWrapper(CactusRecursionJob):
                           referenceEventHeader=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "reference"), "reference"),
                           phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce=self.getOptionalPhaseAttrib("phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce"),
                           numTreeBuildingThreads=self.getOptionalPhaseAttrib("numTreeBuildingThreads"),
-                          doPhylogeny=self.getOptionalPhaseAttrib("doPhylogeny", bool, True),
+                          doPhylogeny=self.getOptionalPhaseAttrib("doPhylogeny", bool, False),
                           minimumBlockHomologySupport=self.getOptionalPhaseAttrib("minimumBlockHomologySupport"),
                           minimumBlockDegreeToCheckSupport=self.getOptionalPhaseAttrib("minimumBlockDegreeToCheckSupport"),
                           phylogenyNucleotideScalingFactor=self.getOptionalPhaseAttrib("phylogenyNucleotideScalingFactor"),
@@ -772,7 +772,7 @@ class CactusBarRecursion(CactusRecursionJob):
         self.makeExtendingJobs(fileStore=fileStore,
                                job=CactusBarWrapper, overlargeJob=CactusBarWrapperLarge)
 
-def runBarForJob(self, fileStore=None, features=None, calculateWhichEndsToComputeSeparately=None, endAlignmentsToPrecomputeOutputFile=None, precomputedAlignments=None):
+def runBarForJob(self, fileStore=None, features=None, calculateWhichEndsToComputeSeparately=False, endAlignmentsToPrecomputeOutputFile=None, precomputedAlignments=None):
     return runCactusBar(jobName=self.__class__.__name__,
                  fileStore=fileStore,
                  features=features,

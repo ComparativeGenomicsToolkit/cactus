@@ -321,9 +321,9 @@ def setupBinaries(options):
     """Ensure that Cactus's C/C++ components are ready to run, and set up the environment."""
     if options.latest:
         os.environ["CACTUS_USE_LATEST"] = "1"
-    if options.binaryMode is not None:
+    if options.binariesMode is not None:
         # Mode is specified on command line
-        mode = options.binaryMode
+        mode = options.binariesMode
     else:
         # Might be specified through the environment, or not, in which
         # case the default is to use Docker.

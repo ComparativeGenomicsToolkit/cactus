@@ -217,7 +217,7 @@ def runCactusSetup(cactusDiskDatabaseString, sequences,
     logger.info("Ran cactus setup okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]
 
-def runConvertAlignmentsToInternalNames(cactusDiskString, alignmentsFile, outputFile, flowerName, isBedFile = False):
+def runConvertAlignmentsToInternalNames(cactusDiskString, alignmentsFile, outputFile, flowerName, isBedFile=False):
     args = [alignmentsFile, outputFile,
             "--cactusDisk", cactusDiskString]
     if isBedFile:
@@ -248,24 +248,24 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
                  minLengthForChromosome=None,
                  proportionOfUnalignedBasesForNewChromosome=None, 
                  maximumMedianSequenceLengthBetweenLinkedEnds=None,
-                 realign=None,
+                 realign=False,
                  realignArguments=None,
                  phylogenyNumTrees=None,
                  phylogenyScoringMethod=None,
                  phylogenyRootingMethod=None,
                  phylogenyBreakpointScalingFactor=None,
-                 phylogenySkipSingleCopyBlocks=None,
+                 phylogenySkipSingleCopyBlocks=False,
                  phylogenyMaxBaseDistance=None,
                  phylogenyMaxBlockDistance=None,
                  phylogenyDebugFile=None,
-                 phylogenyKeepSingleDegreeBlocks=None,
+                 phylogenyKeepSingleDegreeBlocks=False,
                  phylogenyTreeBuildingMethod=None,
                  phylogenyCostPerDupPerBase=None,
                  phylogenyCostPerLossPerBase=None,
                  referenceEventHeader=None,
                  phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce=None,
                  numTreeBuildingThreads=None,
-                 doPhylogeny=None,
+                 doPhylogeny=False,
                  removeLargestBlock=None,
                  phylogenyNucleotideScalingFactor=None,
                  minimumBlockDegreeToCheckSupport=None,
@@ -307,7 +307,7 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
         args += ["--maxAdjacencyComponentSizeRatio", str(maxAdjacencyComponentSizeRatio)]
     if constraints is not None:
         args += ["--constraints", constraints]
-    if realign is not None:
+    if realign:
         args += ["--realign"]
     if realignArguments is not None:
         args += ["--realignArguments", realignArguments]
@@ -319,7 +319,7 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
         args += ["--phylogenyScoringMethod", phylogenyScoringMethod]
     if phylogenyBreakpointScalingFactor is not None:
         args += ["--phylogenyBreakpointScalingFactor", str(phylogenyBreakpointScalingFactor)]
-    if phylogenySkipSingleCopyBlocks is not None:
+    if phylogenySkipSingleCopyBlocks:
         args += ["--phylogenySkipSingleCopyBlocks"]
     if phylogenyMaxBaseDistance is not None:
         args += ["--phylogenyMaxBaseDistance", str(phylogenyMaxBaseDistance)]
@@ -327,7 +327,7 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
         args += ["--phylogenyMaxBlockDistance", str(phylogenyMaxBlockDistance)]
     if phylogenyDebugFile is not None:
         args += ["--phylogenyDebugFile", phylogenyDebugFile]
-    if phylogenyKeepSingleDegreeBlocks is not None:
+    if phylogenyKeepSingleDegreeBlocks:
         args += ["--phylogenyKeepSingleDegreeBlocks"]
     if phylogenyTreeBuildingMethod is not None:
         args += ["--phylogenyTreeBuildingMethod", phylogenyTreeBuildingMethod]
@@ -341,7 +341,7 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
         args += ["--phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce", str(phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce)]
     if numTreeBuildingThreads is not None:
         args += ["--numTreeBuildingThreads", str(numTreeBuildingThreads)]
-    if doPhylogeny is not None:
+    if doPhylogeny:
         args += ["--phylogeny"]
     if minimumBlockDegreeToCheckSupport is not None:
         args += ["--minimumBlockDegreeToCheckSupport", str(minimumBlockDegreeToCheckSupport)]
@@ -406,7 +406,7 @@ def runCactusFlowerStats(cactusDiskDatabaseString, flowerName, logLevel=None):
     logLevel = getLogLevelString2(logLevel)
     flowerStatsString = cactus_call(check_output=True,
                                     parameters=["cactus_workflow_flowerStats",
-                                                logLevel, cactusDiskDatabaseString, flowerName])
+                                                logLevel, cactusDiskDatabaseString, str(flowerName)])
     return flowerStatsString
 
 def runCactusMakeNormal(cactusDiskDatabaseString, flowerNames, maxNumberOfChains=0, logLevel=None):
@@ -416,7 +416,7 @@ def runCactusMakeNormal(cactusDiskDatabaseString, flowerNames, maxNumberOfChains
     cactus_call(stdin_string=flowerNames,
                 parameters=["cactus_normalisation",
                             "--cactusDisk", cactusDiskDatabaseString,
-                            "--maxNumberOfChains", maxNumberOfChains,
+                            "--maxNumberOfChains", str(maxNumberOfChains),
                             "--logLevel", logLevel])
 
 def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
@@ -431,10 +431,10 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
                  minimumBlockDegree=None,
                  minimumIngroupDegree=None,
                  minimumOutgroupDegree=None,
-                 alignAmbiguityCharacters=None,
-                 pruneOutStubAlignments=None,
-                 useProgressiveMerging=None,
-                 calculateWhichEndsToComputeSeparately=None,
+                 alignAmbiguityCharacters=False,
+                 pruneOutStubAlignments=False,
+                 useProgressiveMerging=False,
+                 calculateWhichEndsToComputeSeparately=False,
                  largeEndSize=None,
                  endAlignmentsToPrecomputeOutputFile=None,
                  precomputedAlignments=None,
@@ -472,13 +472,13 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
         args += ["--minimumIngroupDegree", str(minimumIngroupDegree)]
     if minimumOutgroupDegree is not None:
         args += ["--minimumOutgroupDegree", str(minimumOutgroupDegree)]
-    if pruneOutStubAlignments is not None:
+    if pruneOutStubAlignments:
         args += ["--pruneOutStubAlignments"]
-    if alignAmbiguityCharacters is not None:
+    if alignAmbiguityCharacters:
         args += ["--alignAmbiguityCharacters"]
-    if useProgressiveMerging is not None:
+    if useProgressiveMerging:
         args += ["--useProgressiveMerging"]
-    if calculateWhichEndsToComputeSeparately is not None:
+    if calculateWhichEndsToComputeSeparately:
         args += ["--calculateWhichEndsToComputeSeparately"]
     if largeEndSize is not None:
         args += ["--largeEndSize", str(largeEndSize)]
@@ -514,15 +514,15 @@ def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
                        matchingAlgorithm=None, 
                        referenceEventString=None, 
                        permutations=None,
-                       useSimulatedAnnealing=None,
+                       useSimulatedAnnealing=False,
                        theta=None,
                        phi=None, 
                        maxWalkForCalculatingZ=None,
-                       ignoreUnalignedGaps=None,
+                       ignoreUnalignedGaps=False,
                        wiggle=None, 
                        numberOfNs=None,
                        minNumberOfSequencesToSupportAdjacency=None,
-                       makeScaffolds=None):
+                       makeScaffolds=False):
     """Runs cactus reference."""
     logLevel = getLogLevelString2(logLevel)
     args = ["--logLevel", logLevel, "--cactusDisk", cactusDiskDatabaseString]
@@ -532,7 +532,7 @@ def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
         args += ["--referenceEventString", referenceEventString]
     if permutations is not None:
         args += ["--permutations", str(permutations)]
-    if useSimulatedAnnealing is not None:
+    if useSimulatedAnnealing:
         args += ["--useSimulatedAnnealing"]
     if theta is not None:
         args += ["--theta", str(theta)]
@@ -540,7 +540,7 @@ def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
         args += ["--phi", str(phi)]
     if maxWalkForCalculatingZ is not None:
         args += ["--maxWalkForCalculatingZ", str(maxWalkForCalculatingZ)]
-    if ignoreUnalignedGaps is not None:
+    if ignoreUnalignedGaps:
         args += ["--ignoreUnalignedGaps"]
     if wiggle is not None:
         args += ["--wiggle", str(wiggle)]
@@ -548,7 +548,7 @@ def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
         args += ["--numberOfNs", str(numberOfNs)]
     if minNumberOfSequencesToSupportAdjacency is not None:
         args += ["--minNumberOfSequencesToSupportAdjacency", str(minNumberOfSequencesToSupportAdjacency)]
-    if makeScaffolds is not None:
+    if makeScaffolds:
         args += ["--makeScaffolds"]
 
     masterMessages = cactus_call(stdin_string=flowerNames, check_output=True,
@@ -583,23 +583,22 @@ def runCactusAddReferenceCoordinates(cactusDiskDatabaseString, flowerNames,
 def runCactusCheck(cactusDiskDatabaseString, 
                    flowerNames=encodeFlowerNames((0,)), 
                    logLevel=None, 
-                   recursive=None,
-                   checkNormalised=None):
+                   recursive=False,
+                   checkNormalised=False):
     logLevel = getLogLevelString2(logLevel)
     args = ["--cactusDisk", cactusDiskDatabaseString, "--logLevel", logLevel]
-    if recursive is not None:
+    if recursive:
         args += ["--recursive"]
-    if checkNormalised is not None:
+    if checkNormalised:
         args += ["--checkNormalised"]
     cactus_call(stdin_string=flowerNames,
                 parameters=["cactus_check"] + args)
     logger.info("Ran cactus check")
 
-def _fn(toilDir, 
+def _fn(toilDir,
       logLevel=None, retryCount=0, 
       batchSystem="single_machine", 
       rescueJobFrequency=None,
-      skipAlignments=False,
       buildAvgs=False, buildReference=False,
       buildHal=False,
       buildFasta=False,
@@ -610,15 +609,13 @@ def _fn(toilDir,
       logFile=None):
     logLevel = getLogLevelString2(logLevel)
     args = [toilDir, "--logLevel", logLevel]
-    if skipAlignments is not None:
-        args += ["--skipAlignments"]
-    if buildAvgs is not None:
+    if buildAvgs:
         args += ["--buildAvgs"]
-    if buildReference is not None:
+    if buildReference:
         args += ["--buildReference"]
-    if buildHal is not None:
+    if buildHal:
         args += ["--buildHal"]
-    if buildFasta is not None:
+    if buildFasta:
         args += ["--buildFasta"]
     #Jobtree args
     if batchSystem is not None:
@@ -627,7 +624,7 @@ def _fn(toilDir,
         args += ["--retryCount", str(retryCount)]
     if rescueJobFrequency is not None:
         args += ["--rescueJobFrequency", str(rescueJobFrequency)]
-    if toilStats is not None:
+    if toilStats:
         args += ["--stats"]
     if maxThreads is not None:
         args += ["--maxThreads", str(maxThreads)]
@@ -656,7 +653,7 @@ def runCactusWorkflow(experimentFile,
                       intermediateResultsUrl=None,
                       extraToilArgumentsString=""):
     args = ["--experiment", experimentFile] + _fn(toilDir,
-                      logLevel, retryCount, batchSystem, rescueJobFrequency, skipAlignments,
+                      logLevel, retryCount, batchSystem, rescueJobFrequency,
                       buildAvgs, buildReference, buildHal, buildFasta, toilStats, maxThreads, maxCpus, defaultMemory, logFile)
     if intermediateResultsUrl is not None:
         args += ["--intermediateResultsUrl", intermediateResultsUrl]
@@ -680,7 +677,7 @@ def runCactusProgressive(inputDir,
                          logFile=None,
                          defaultMemory=None):
     command = ["cactus_progressive.py", "--project", inputDir] + _fn(toilDir, 
-                      logLevel, retryCount, batchSystem, rescueJobFrequency, skipAlignments,
+                      logLevel, retryCount, batchSystem, rescueJobFrequency,
                       buildAvgs, None,
                       buildHal,
                       buildFasta,
@@ -693,7 +690,7 @@ def runCactusHalGenerator(cactusDiskDatabaseString,
                           flowerNames,
                           referenceEventString, 
                           outputFile=None,
-                          showOnlySubstitutionsWithRespectToReference=None,
+                          showOnlySubstitutionsWithRespectToReference=False,
                           logLevel=None,
                           jobName=None,
                           features=None,
@@ -707,7 +704,7 @@ def runCactusHalGenerator(cactusDiskDatabaseString,
         args += ["--referenceEventString", referenceEventString]
     if outputFile is not None:
         args += ["--outputFile", outputFile]
-    if showOnlySubstitutionsWithRespectToReference is not None:
+    if showOnlySubstitutionsWithRespectToReference:
         args += ["--showOnlySubstitutionsWithRespectToReference"]
     cactus_call(stdin_string=flowerNames,
                 parameters=["cactus_halGenerator"] + args,
@@ -734,6 +731,7 @@ def runCactusAnalyseAssembly(sequenceFile):
 def runToilStats(toil, outputFile):
     system("toil stats %s --outputFile %s" % (toil, outputFile))
     logger.info("Ran the job-tree stats command apparently okay")
+
 def runToilStatusAndFailIfNotComplete(toilDir):
     command = "toil status %s --failIfNotComplete --verbose" % toilDir
     system(command)
@@ -889,7 +887,6 @@ def prepareWorkDir(work_dir, parameters):
         for arg in parameters:
             moveToWorkDir(work_dir, arg)
 
-    parameters = [str(par) for par in parameters]
     if not work_dir:
     #Make sure all the paths we're accessing are in the same directory
         files = [par for par in parameters if os.path.isfile(par)]
