@@ -1,0 +1,9 @@
+<?xml version="1.0" ?>
+<cactus_workflow_experiment config="/home/joel/cactus/tmp_lL00jVSjfL.xml" outputDir="/home/joel/cactus/tmp_u2T3R53ySw" sequences="/home/joel/progressiveCactusNHMerge/submodules/cactusTestData/blanchettesSimulation/00.job/HUMAN /home/joel/progressiveCactusNHMerge/submodules/cactusTestData/blanchettesSimulation/00.job/CHIMP /home/joel/progressiveCactusNHMerge/submodules/cactusTestData/blanchettesSimulation/00.job/BABOON /home/joel/progressiveCactusNHMerge/submodules/cactusTestData/blanchettesSimulation/00.job/MOUSE /home/joel/progressiveCactusNHMerge/submodules/cactusTestData/blanchettesSimulation/00.job/RAT /home/joel/progressiveCactusNHMerge/submodules/cactusTestData/blanchettesSimulation/00.job/DOG /home/joel/progressiveCactusNHMerge/submodules/cactusTestData/blanchettesSimulation/00.job/CAT /home/joel/progressiveCactusNHMerge/submodules/cactusTestData/blanchettesSimulation/00.job/PIG /home/joel/progressiveCactusNHMerge/submodules/cactusTestData/blanchettesSimulation/00.job/COW" species_tree="((((HUMAN:0.006969, CHIMP:0.009727):0.025291, BABOON:0.044568):0.11,(MOUSE:0.072818, RAT:0.081244):0.260342):0.023260,((DOG:0.07, CAT:0.07):0.087381,(PIG:0.06, COW:0.06):0.104728):0.04)blanchette_root;">
+	<cactus_disk>
+		<st_kv_database_conf type="kyoto_tycoon">
+			<kyoto_tycoon database_dir="/home/joel/cactus/tmp_u2T3R53ySw/cactusDisk_tjGnIZVxeL_17847" database_name="cactusDisk_tjGnIZVxeL_17847" in_memory="1" port="1978" snapshot="0"/>
+		</st_kv_database_conf>
+	</cactus_disk>
+	<hal fastaPath="/home/joel/cactus/tmp_u2T3R53ySw/test.fa" halPath="/home/joel/cactus/tmp_u2T3R53ySw/test.hal"/>
+</cactus_workflow_experiment>

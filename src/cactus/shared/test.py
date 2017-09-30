@@ -104,7 +104,7 @@ def getCactusWorkflowExperimentForTest(sequences, newickTreeString, outputDir, c
     halFile = os.path.join(outputDir, "test.hal")
     fastaFile = os.path.join(outputDir, "test.fa")
     databaseConf = ET.fromstring(_GLOBAL_DATABASE_CONF_STRING) if _GLOBAL_DATABASE_CONF_STRING is not None else None
-    return ExperimentWrapper.createExperimentWrapper(sequences, newickTreeString, outputDir,
+    return ExperimentWrapper.createExperimentWrapper(sequences, newickTreeString,
                                     databaseConf=databaseConf, configFile=configFile,
                                     halFile=halFile, fastaFile=fastaFile, constraints=constraints, progressive=progressive)
 
@@ -311,7 +311,8 @@ def runWorkflow_TestScript(sequences, newickTreeString,
                            buildToilStats=False,
                            constraints=None,
                            progressive=False,
-                           cactusWorkflowFunction=runCactusWorkflow):
+                           cactusWorkflowFunction=runCactusWorkflow,
+                           intermediateResultsUrl=None):
     """Runs the workflow and various downstream utilities.
     """
     logger.info("Running cactus workflow test script")
@@ -342,7 +343,8 @@ def runWorkflow_TestScript(sequences, newickTreeString,
                            buildHal=buildHal,
                            buildFasta=buildFasta,
                            toilStats=buildToilStats,
-                           logLevel="DEBUG")
+                           logLevel="DEBUG",
+                           intermediateResultsUrl=intermediateResultsUrl)
     logger.info("Ran the the workflow")
     
     #Now run various utilities..
@@ -370,7 +372,8 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                  cactusWorkflowFunction=runCactusWorkflow,
                                  buildHal=False,
                                  buildFasta=False,
-                                 progressive=False):
+                                 progressive=False,
+                                 intermediateResultsUrl=None):
     """A wrapper to run a number of examples.
     """
     if (inverseTestRestrictions and TestStatus.getTestStatus() not in testRestrictions) or \
@@ -392,7 +395,8 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                    buildToilStats=buildToilStats,
                                    constraints=constraints,
                                    progressive=progressive,
-                                   cactusWorkflowFunction=cactusWorkflowFunction)
+                                   cactusWorkflowFunction=cactusWorkflowFunction,
+                                   intermediateResultsUrl=intermediateResultsUrl)
             system("rm -rf %s" % tempDir)
             logger.info("Finished random test %i" % test)
 

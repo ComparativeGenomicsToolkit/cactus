@@ -19,7 +19,7 @@ setup(
     package_dir = {'': 'src'},
     packages=find_packages(where='src'),
     include_package_data=True,
-    package_data={'cactus': ['*_config.xml']},
+    package_data={'cactus': ['*_config.xml', 'testdata/*']},
     # We use the __file__ attribute so this package isn't zip_safe.
     zip_safe=False,
 
