@@ -33,8 +33,8 @@ Finally, to install Cactus, from the root of the `cactus` repository, run:
 ```
 pip install --upgrade .
 ```
-### Compile Cactus executables (if not using Docker)
-By default Cactus uses Docker to distribute its binaries, because compiling its dependencies can sometimes be a pain. However, in some environments (e.g. HPC clusters where you can't have root access) it's not possible or desirable to use Docker. In those cases, you will have to compile the binaries and install a few dependencies.
+### Compile Cactus executables (if not using Docker/Singularity)
+By default Cactus uses containers to distribute its binaries, because compiling its dependencies can sometimes be a pain. If you can use Docker or Singularity, you can skip this section. However, in some environments (e.g. HPC clusters) you won't be able to use Docker or Singularity, so you will have to compile the binaries and install a few dependencies.
 
 First, ensure you have KyotoTycoon installed. If you have root access, it is available through most package managers under `kyototycoon` or `kyoto-tycoon`. To compile it manually, you are best off using the [unofficial Altice Labs repository](https://github.com/alticelabs/kyoto). If you've installed KyotoTycoon (and its library, KyotoCabinet) from a package manager, you should be OK to go. If you've installed it in a non-standard location, however, (because you don't have root access, for example) you will need to set the following environment variables:
 ```
@@ -50,7 +50,7 @@ git submodule update --init
 make
 ```
 
-To run without Docker, you will need to provide the `--noDocker` option to all `cactus` commands and add the `bin` directory to your PATH.
+To run using these local executables, you will need to provide the `--binariesMode local` option to all `cactus` commands and add the `bin` directory to your PATH.
 ## System/cluster requirements
 Cactus will take about 20 CPU-hours per bacterial-sized (~4 megabase) genome, about 20 CPU-days per nematode-sized (~100 megabase) genome, and about 120 CPU-days per mammalian-sized (~3 gigabase) genome. You will need at least one machine with very large amounts of RAM (150+ GB) to run mammalian-sized genomes. The requirements will vary a bit depending on how closely related your genomes are, so these are only rough estimates.
 ## Running
@@ -62,6 +62,8 @@ cactus <jobStorePath> <seqFile> <outputHal>
 The `jobStorePath` is where intermediate files, as well as job metadata, will be stored. It must be accessible to all worker systems.
 
 When first testing out Cactus on a new system or cluster, before running anything too large, try running the small (5 600kb genomes) simulated example in `examples/evolverMammals.txt`. It should take less than an hour to run on a modern 4-core system. That example, even though it's small, should be enough to expose any major problems Cactus may have with your setup.
+### Choosing how to run the Cactus binaries (Docker/Singularity/local)
+By default, Cactus uses Docker to run its compiled components (to avoid making you install dependencies). It can instead use Singularity to run its binaries, or use a locally installed copy. To select a different way of running the binaries, you can use the `--binariesMode singularity` or `--binariesMode local` options. (If running using local binaries, you will need to make sure cactus's bin directory is in your `PATH`.)
 ### seqFile: the input file
 The input file, called a "seqFile", is just a text file containing the locations of the input sequences as well as their phylogenetic tree. The tree will be used to progressively decompose the alignment by iteratively aligning sibling genomes to estimate their parents in a bottom-up fashion. Polytomies in the tree are allowed, though the amount of computation required for a sub-alignment rises quadratically with the degree of the polytomy. The file is formatted as follows:
 
