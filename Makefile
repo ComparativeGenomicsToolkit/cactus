@@ -3,8 +3,12 @@ modules = api setup blastLib caf bar blast normalisation phylogeny reference fac
 
 git_commit ?= $(shell git rev-parse HEAD)
 dockstore = quay.io/comparative-genomics-toolkit
-name = ${dockstore}/cactus
-tag = ${git_commit}
+# This container contains the Cactus binaries and dependencies.
+binary_container_name = ${dockstore}/cactus
+container_tag = ${git_commit}
+# This container is meant to be run on the workers/leader in a
+# cluster. It contains the Cactus binaries plus Toil/Mesos.
+appliance_container_name = ${dockstore}/cactus_appliance
 runtime_fullpath = $(realpath runtime)
 
 export sonLibRootPath = ${PWD}/submodules/sonLib
@@ -17,7 +21,7 @@ libMatchingAndOrdering = ${PWD}/submodules/sonLib/lib/matchingAndOrdering.a
 halAppendCactusSubtree = ${PWD}/submodules/cactus2hal/bin/halAppendCactusSubtree
 h5c++ = ${PWD}/submodules/hdf5/bin/h5c++
 
-.PHONY: all all.% clean clean.% selfClean copyToBin
+.PHONY: all all.% clean clean.% selfClean copyToBin docker appliance
 
 all: deps ${modules:%=all.%} ${halAppendCactusSubtree} copyToBin
 
@@ -42,19 +46,26 @@ test:
 
 build_output: Dockerfile
 	mkdir -p ${runtime_fullpath}/tools
-	docker build -t cactusbuild:${tag} .
-	docker run -v ${runtime_fullpath}/tools:/data cactusbuild:${tag} sh -c 'cp /home/cactus/bin/* /data'
-	docker run -v ${runtime_fullpath}/tools:/data cactusbuild:${tag} sh -c 'cp /home/cactus/submodules/sonLib/bin/* /data'
-	docker run -v ${runtime_fullpath}/tools:/data cactusbuild:${tag} sh -c 'cp /home/cactus/submodules/cactus2hal/bin/* /data'
+	docker build -t cactusbuild:${container_tag} .
+	docker run -v ${runtime_fullpath}/tools:/data cactusbuild:${container_tag} sh -c 'cp /home/cactus/bin/* /data'
+	docker run -v ${runtime_fullpath}/tools:/data cactusbuild:${container_tag} sh -c 'cp /home/cactus/submodules/sonLib/bin/* /data'
+	docker run -v ${runtime_fullpath}/tools:/data cactusbuild:${container_tag} sh -c 'cp /home/cactus/submodules/cactus2hal/bin/* /data'
 
 docker: build_output runtime/Dockerfile
-	-docker rmi -f ${name}:latest
-	docker build -t ${name}:${tag} ./runtime/ --build-arg CACTUS_COMMIT=${git_commit}
-	docker tag ${name}:${tag} ${name}:latest
+	-docker rmi -f ${binary_container_name}:latest
+	docker build -t ${binary_container_name}:${container_tag} ./runtime/ --build-arg CACTUS_COMMIT=${git_commit}
+	docker tag ${binary_container_name}:${container_tag} ${binary_container_name}:latest
 
 push: docker
-	# Requires ~/.dockercfg
-	docker push ${name}
+	docker push ${binary_container_name}
+
+appliance: build_output
+	-docker rmi -f ${appliance_container_name}:latest
+	docker build -t ${appliance_container_name}:${container_tag} . -f appliance/Dockerfile
+	docker tag ${appliance_container_name}:${container_tag} ${appliance_container_name}:latest
+
+push_appliance: appliance
+	docker push ${appliance_container_name}
 
 ${libSonLib}:
 	@echo "Building dependency sonLib"
