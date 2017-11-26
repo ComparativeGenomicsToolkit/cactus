@@ -6,6 +6,8 @@
 """
 
 import os
+import cPickle
+import pickle
 import sys
 import shutil
 import subprocess32
@@ -1129,6 +1131,18 @@ class SpawnChildren(RoundedJob):
     """Helper class used only by ChildTreeJob."""
     def __init__(self, childList, *args, **kwargs):
         self.childList = childList
+
+        # cPickle sometimes has major issues pickling childList,
+        # crashing and complaining about attempting to pickle a bound
+        # instance method. We are certainly *not* doing that, at least
+        # not intentionally, and the (Python) pickle library has no
+        # issue pickling the same object. So we hack around this and
+        # force the use of pickle for this worker process (which
+        # should only last as long as the ChildTreeJob that creates
+        # this class).
+        cPickle.dump = pickle.dump
+        cPickle.dumps = pickle.dumps
+
         super(SpawnChildren, self).__init__(*args, **kwargs)
 
     def run(self, fileStore):
