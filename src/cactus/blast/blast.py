@@ -145,7 +145,6 @@ class BlastSequencesAgainstEachOther(ChildTreeJob):
         sequenceFiles2 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs2]
         chunks1 = runGetChunks(sequenceFiles=sequenceFiles1, chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()), chunkSize=self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize)
         chunks2 = runGetChunks(sequenceFiles=sequenceFiles2, chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()), chunkSize=self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize)
-        logger.info("Chunks1 = %s" % chunks1)
         chunkIDs1 = [fileStore.writeGlobalFile(chunk, cleanup=True) for chunk in chunks1]
         chunkIDs2 = [fileStore.writeGlobalFile(chunk, cleanup=True) for chunk in chunks2]
         resultsIDs = []
