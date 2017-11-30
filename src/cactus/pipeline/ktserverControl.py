@@ -210,7 +210,7 @@ def getKtserverCommand(dbElem, logPath, snapshotDir):
     # interested in the snapshot that the DB creates on termination.
     cmd += ["-bgs", snapshotDir, "-bgsc", "lzo", "-bgsi", "1000000"]
     cmd += ["-log", logPath]
-    cmd += [":" + tuning]
+    cmd += [os.path.join(snapshotDir, "iwm.kch") + tuning]
     return cmd
 
 def getRemoteParams(dbElem):
