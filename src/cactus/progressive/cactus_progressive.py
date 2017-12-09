@@ -357,7 +357,7 @@ def setupBinaries(options):
         jobStoreType, locator = Toil.parseLocator(options.jobStore)
         if jobStoreType != "file":
             raise RuntimeError("Singularity mode is only supported when using the FileJobStore.")
-        imgPath = os.path.join(locator, "cactus.img")
+        imgPath = os.path.join(os.path.abspath(locator), "cactus.img")
         os.environ["CACTUS_SINGULARITY_IMG"] = imgPath
 
 def importSingularityImage():
