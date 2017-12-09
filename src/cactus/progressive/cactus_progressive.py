@@ -365,12 +365,19 @@ def importSingularityImage():
     mode = os.environ.get("CACTUS_BINARIES_MODE", "docker")
     if mode == "singularity":
         imgPath = os.environ["CACTUS_SINGULARITY_IMG"]
+        # Singularity will complain if the image file already exists. Remove it.
+        try:
+            os.remove(imgPath)
+        except OSError:
+            # File doesn't exist
+            pass
         # Singularity 2.4 broke the functionality that let --name
         # point to a path instead of a name in the CWD. So we change
         # to the proper directory manually, then change back after the
         # image is pulled.
         oldCWD = os.getcwd()
         os.chdir(os.path.dirname(imgPath))
+        # --size is deprecated starting in 2.4, but is needed for 2.3 support. Keeping it in for now.
         check_call(["singularity", "pull", "--size", "2000", "--name", os.path.basename(imgPath),
                     "docker://quay.io/comparative-genomics-toolkit/cactus:latest"])
         os.chdir(oldCWD)
