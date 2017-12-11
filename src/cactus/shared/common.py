@@ -1143,7 +1143,7 @@ class SpawnChildren(RoundedJob):
         cPickle.dump = pickle.dump
         cPickle.dumps = pickle.dumps
 
-        super(SpawnChildren, self).__init__(*args, **kwargs)
+        super(SpawnChildren, self).__init__(*args, preemptable=True, **kwargs)
 
     def run(self, fileStore):
         for item in self.childList:
