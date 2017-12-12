@@ -4,6 +4,10 @@
 Cactus is a reference-free whole-genome multiple alignment program.
 
 ## Setup
+### System requirements
+Cactus uses substantial resources. For primate-sized genomes (3 gigabases each), you should expect Cactus to use approximately 120 CPU-days of compute per genome, with about 120 GB of RAM used at peak. The requirements scale roughly quadratically, so aligning two 1-megabase bacterial genomes takes only 1.5 CPU-hours and 14 GB RAM.
+
+Note that to run even the very small evolverMammals example, you will need 2 CPUs and 12 GB RAM. The actual resource requirements are much less, but the individual jobs have resource estimates based on much larger alignments, so the jobs will refuse to run unless there are enough resources to meet their estimates.
 ### Virtual environment
 To avoid problems with conflicting versions of dependencies on your system, we strongly recommend installing Cactus inside a Python [virtual environment](https://virtualenv.pypa.io/en/stable/).
 
