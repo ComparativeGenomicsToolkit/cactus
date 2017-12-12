@@ -787,9 +787,7 @@ def pullCactusImage():
     """Ensure that the cactus Docker image is pulled."""
     if os.environ.get('CACTUS_DOCKER_MODE') == "0":
         return
-    dockerOrg = getDockerOrg()
-    dockerTag = getDockerTag()
-    image = "%s/cactus:%s" % (dockerOrg, dockerTag)
+    image = getDockerImage()
     call = ["docker", "pull", image]
     process = subprocess32.Popen(call, stdout=subprocess32.PIPE,
                                  stderr=sys.stderr, bufsize=-1)
@@ -811,6 +809,10 @@ def getDockerTag():
         return "latest"
     else:
         return cactus_commit
+
+def getDockerImage():
+    """Get fully specified Docker image name."""
+    return "%s/cactus:%s" % (getDockerOrg(), getDockerTag())
 
 def maxMemUsageOfContainer(containerInfo):
     """Return the max RSS usage (in bytes) of a container, or None if something failed."""

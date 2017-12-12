@@ -26,6 +26,7 @@ from cactus.shared.common import makeURL
 from cactus.shared.common import catFiles
 from cactus.shared.common import cactus_call
 from cactus.shared.common import RoundedJob
+from cactus.shared.common import getDockerImage
 
 from toil.job import Job
 from toil.common import Toil
@@ -379,7 +380,7 @@ def importSingularityImage():
         os.chdir(os.path.dirname(imgPath))
         # --size is deprecated starting in 2.4, but is needed for 2.3 support. Keeping it in for now.
         check_call(["singularity", "pull", "--size", "2000", "--name", os.path.basename(imgPath),
-                    "docker://quay.io/comparative-genomics-toolkit/cactus:latest"])
+                    "docker://" + getDockerImage()])
         os.chdir(oldCWD)
 
 def main():
