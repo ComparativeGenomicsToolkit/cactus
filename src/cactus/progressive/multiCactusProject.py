@@ -4,7 +4,7 @@
 #
 #Released under the MIT license, see LICENSE.txt
 
-""" Basic interface to the multi cactus project xml file. 
+""" Basic interface to the multi cactus project xml file.
 
 """
 import xml.etree.ElementTree as ET
@@ -25,12 +25,8 @@ class MultiCactusProject:
         self.inputSequenceIDs = None
         self.outputSequenceIDMap = None
         self.configID = None
-<<<<<<< HEAD
         self.samplingRatesID = None
-        
-=======
 
->>>>>>> master
     def readXML(self, path):
         xmlRoot = ET.parse(path).getroot()
         treeElem = xmlRoot.find("tree")
@@ -56,7 +52,7 @@ class MultiCactusProject:
             self.configID = xmlRoot.attrib["configID"]
         if "samplingRatesID" in xmlRoot.attrib:
             self.samplingRatesID = xmlRoot.attrib["samplingRatesID"]
-            
+
         self.mcTree.assignSubtreeRootNames(self.expMap)
 
     def writeXML(self, path):
@@ -117,7 +113,7 @@ class MultiCactusProject:
         """Get the set of input sequences for the multicactus tree
         """
         return self.inputSequenceIDs
-    
+
     def getInputSequencePaths(self):
         return self.inputSequences
 
@@ -151,5 +147,3 @@ class MultiCactusProject:
 
 if __name__ == '__main__':
     main()
-        
-    

@@ -183,6 +183,9 @@ class ProgressiveUp(RoundedJob):
         workFlowArgs.buildHal = self.options.buildHal
         workFlowArgs.buildFasta = self.options.buildFasta
         workFlowArgs.globalLeafEventSet = self.options.globalLeafEventSet
+
+        workFlowArgs.samplingRatesID = self.project.samplingRatesID
+        workFlowArgs.unmask = self.options.unmask
         if self.options.intermediateResultsUrl is not None:
             # Give the URL prefix a special name for this particular
             # subproblem (by suffixing it with the name of the
@@ -411,6 +414,7 @@ def main():
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
     parser.add_argument("--samplingRates", dest="samplingRates", type=str)
+    parser.add_argument("--unmask", dest="unmask", action="store_true")
 
     options = parser.parse_args()
     options.cactusDir = getTempDirectory()
@@ -470,8 +474,8 @@ def main():
             logger.info("Setting config id to: %s" % cactusConfigID)
             project.setConfigID(cactusConfigID)
 
-            if options.seedSamplingRates:
-                samplingRatesID = toil.importFile(makeURL(options.seedSamplingRates))
+            if options.samplingRates:
+                samplingRatesID = toil.importFile(makeURL(options.samplingRates))
                 project.setSamplingRatesID(samplingRatesID)
 
             project.syncToFileStore(toil)

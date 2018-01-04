@@ -749,14 +749,9 @@ def runLastz(seq1, seq2, alignmentsFile, lastzArguments, work_dir=None, unmask=F
     if unmask:
         seq1Args += '[unmask]'
         seq2Args += '[unmask]'
-    parameters=["cPecanLastz",
-                            "--format=cigar",
-                            "--notrivial",
-                            lastzArguments,
-                            "%s%s" % (os.path.basename(seq1), seq1Args),
-                            "%s%s" % (os.path.basename(seq2), seq2Args)]
+    parameters=["cPecanLastz", "--format=cigar", "--notrivial"] + lastzArguments.split() + ["%s%s" % (os.path.basename(seq1), seq1Args), "%s%s" % (os.path.basename(seq2), seq2Args)]
     if samplingRates:
-        parameters.extend(['--samplingRates', samplingRates])
+        parameters.extend(['--samplingRates=%s' % samplingRates])
     cactus_call(work_dir=work_dir, outfile=alignmentsFile, parameters=parameters, soft_timeout=5400)
 
 
@@ -767,14 +762,9 @@ def runSelfLastz(seq, alignmentsFile, lastzArguments, work_dir=None, unmask=Fals
     if unmask:
         seq1Args += '[unmask]'
         seq2Args += '[unmask]'
-    parameters=["cPecanLastz",
-            "--format=cigar",
-            "--notrivial",
-            lastzArguments,
-            "%s%s" % (os.path.basename(seq), seq1Args),
-            "%s%s" % (os.path.basename(seq), seq2Args)]
+    parameters=["cPecanLastz", "--format=cigar", "--notrivial"] + lastzArguments.split() + ["%s%s" % (os.path.basename(seq), seq1Args), "%s%s" % (os.path.basename(seq), seq2Args)]
     if samplingRates:
-        parameters.extend(['--samplingRates', samplingRates])
+        parameters.extend(['--samplingRates=%s' % samplingRates])
     cactus_call(work_dir=work_dir, outfile=alignmentsFile, parameters=parameters, soft_timeout=5400)
     
 def runCactusRealign(seq1, seq2, inputAlignmentsFile, outputAlignmentsFile, realignArguments, work_dir=None):

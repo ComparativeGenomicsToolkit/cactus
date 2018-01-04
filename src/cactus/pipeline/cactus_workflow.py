@@ -534,9 +534,11 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
                          trimWindowSize=self.getOptionalPhaseAttrib("trimWindowSize", int, 10),
                          trimOutgroupFlanking=self.getOptionalPhaseAttrib("trimOutgroupFlanking", int, 100),
                          trimOutgroupDepth=self.getOptionalPhaseAttrib("trimOutgroupDepth", int, 1),
-                         keepParalogs=self.getOptionalPhaseAttrib("keepParalogs", bool, False)),
+                         keepParalogs=self.getOptionalPhaseAttrib("keepParalogs", bool, False),
+                         unmask=self.cactusWorkflowArguments.unmask),
             map(itemgetter(0), ingroupItems), map(itemgetter(1), ingroupItems),
-            map(itemgetter(0), outgroupItems), map(itemgetter(1), outgroupItems)))
+            map(itemgetter(0), outgroupItems), map(itemgetter(1), outgroupItems),
+            samplingRatesID = self.cactusWorkflowArguments.samplingRatesID))
 
         self.cactusWorkflowArguments.alignmentsID = blastJob.rv(0)
         self.cactusWorkflowArguments.outgroupFragmentIDs = blastJob.rv(1)

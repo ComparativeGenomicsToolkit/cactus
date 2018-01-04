@@ -1,6 +1,6 @@
 from cactus.shared.common import cactus_call, makeURL, RoundedJob
 from cactus.shared.common import runGetChunks
-from cactus.blast.cactus_blast import CollateBlasts
+from cactus.blast.blast import CollateBlasts
 
 from toil.job import Job
 from toil.common import Toil
@@ -30,9 +30,9 @@ class GetInitialSamplingRates(RoundedJob):
         catFiles(sequences, combinedSeq)
         initialSamplingRates = fileStore.getLocalTempFile()
         with open(initialSamplingRates, "w") as fh:
-            for line in cactus_call(check_output=True, parameters=["cPecanLastz", 
+            for line in cactus_call(check_output=True, parameters=["cPecanLastz",
                                 "--tableonly=count",
-                                "%s[unmask][multiple]" % combinedSeq]).split("\n"):
+                                "%s[unmask][multiple]" % os.path.basename(combinedSeq)]).split("\n"):
                 lineinfo = line.split()
                 if len(lineinfo) != 2:
                     continue
@@ -40,7 +40,7 @@ class GetInitialSamplingRates(RoundedJob):
                 packed, seed = seedInfo.split("/")
                 #remove the colon
                 seed = seed[:-1]
-                fh.write("%s %f\n" % (seed, float(self.samplingRate)))
+                fh.write("%s\t%s\t%f\n" % (seed, packed, float(self.samplingRate)))
 
         return fileStore.writeGlobalFile(initialSamplingRates)
 
@@ -65,7 +65,7 @@ class IterativeRepeatSampling(RoundedJob):
         samplingRatesID = self.addChild(initialSamplingRatesJob).rv()
         oldSamplingRate = self.options.samplingRates[0]
         for newSamplingRate in self.options.samplingRates[1:]:
-            blastJob = RunBlastAndRaiseSamplingThreshold(chunkIDs=chunkIDs, 
+            blastJob = RunBlastAndRaiseSamplingThreshold(chunkIDs=chunkIDs,
                     oldSamplingRate=oldSamplingRate, newSamplingRate=newSamplingRate,
                     options=self.options, samplingRatesID=samplingRatesID)
             prevJob.addFollowOn(blastJob)
@@ -84,14 +84,15 @@ class AdjustSamplingRates(RoundedJob):
         self.options = options
     def run(self, fileStore):
         logger.info("Raising sampling rate from %f to %f" % (self.oldSamplingRate, self.newSamplingRate))
-        coveredSeedsFiles = [fileStore.readGlobalFile(coveredSeedsID) for coveredSeedsID in
+        coveredSeedsFiles = [os.path.basename(fileStore.readGlobalFile(coveredSeedsID)) for coveredSeedsID in
                 self.coveredSeedsIDs]
         samplingRates = fileStore.readGlobalFile(self.samplingRatesID)
-        newSamplingRates = fileStore.getLocalTempFile()
+        newSamplingRates = os.path.basename(fileStore.getLocalTempFile())
+        logger.info("Work dir = %s" % os.path.dirname(samplingRates))
         cactus_call(outfile=newSamplingRates, parameters=["cactus_adjustSamplingRates",
-                                                          "--oldSamplingRate", self.oldSamplingRate,
-                                                          "--newSamplingRate", self.newSamplingRate,
-                                                          "--oldSamplingRates", samplingRates,
+                                                          "--oldSamplingRate", str(self.oldSamplingRate),
+                                                          "--newSamplingRate", str(self.newSamplingRate),
+                                                          "--oldSamplingRates", os.path.basename(samplingRates),
                                                           "--coveredSeedsFiles", ",".join(coveredSeedsFiles)])
 
         return fileStore.writeGlobalFile(newSamplingRates)
@@ -122,7 +123,7 @@ class RunBlastAndRaiseSamplingThreshold2(RoundedJob):
         for i in range(len(self.chunkIDs)):
             for j in range(i, len(self.chunkIDs)):
                 coveredSeedsIDs.append(self.addChild(RunBlast(options=self.options, chunkID1=self.chunkIDs[i], chunkID2=self.chunkIDs[j], samplingRatesID=self.samplingRatesID)).rv())
-        return self.addFollowOn(AdjustSamplingRates(coveredSeedsIDs=coveredSeedsIDs, 
+        return self.addFollowOn(AdjustSamplingRates(coveredSeedsIDs=coveredSeedsIDs,
             samplingRatesID=self.samplingRatesID, oldSamplingRate=self.oldSamplingRate, newSamplingRate=self.newSamplingRate, options=self.options)).rv()
 
 
@@ -137,17 +138,17 @@ class RunBlast(RoundedJob):
         samplingRates = fileStore.readGlobalFile(self.samplingRatesID)
         chunk1 = fileStore.readGlobalFile(self.chunkID1)
         chunk2 = fileStore.readGlobalFile(self.chunkID2)
-        lastZSequenceHandling  = '%s[multiple,unmask][nameparse=darkspace] %s[nameparse=darkspace][unmask] ' % (os.path.basename(chunk1), os.path.basename(chunk2))
+        lastZSequenceHandling  = ['%s[multiple,unmask][nameparse=darkspace]' % os.path.basename(chunk1), '%s[nameparse=darkspace][unmask]' % os.path.basename(chunk2)]
         alignments = fileStore.getLocalTempFile()
         logger.info("Work dir = %s" % os.path.dirname(chunk1))
         cactus_call(outfile=alignments,
-                    parameters=["cPecanLastz", lastZSequenceHandling,
-                                "--samplingRates=%s" % os.path.basename(samplingRates),
+                    parameters=["cPecanLastz"] + lastZSequenceHandling +
+                                ["--samplingRates=%s" % os.path.basename(samplingRates),
                                 "--notrivial",
-                                "--format=general:name1,zstart1,end1,name2,zstart2+,end2+ --markend"])
+                                "--format=general:name1,zstart1,end1,name2,zstart2+,end2+", "--markend"])
 
         coveredSeeds = fileStore.getLocalTempFile()
-        cactus_call(outfile=coveredSeeds, 
+        cactus_call(outfile=coveredSeeds,
                     parameters=["cactus_coveredSeeds",
                                 "--seq", chunk1,
                                 "--alignments", alignments])
@@ -161,6 +162,9 @@ def main():
     parser.add_argument("--outfile")
 
     args = parser.parse_args()
+
+    args.disableCaching = "True"
+
     with Toil(args) as toil:
         sequenceIDs = [toil.importFile(makeURL(seq)) for seq in args.sequences.split(",")]
         repeatsOptions = CactusRepeatsOptions()
@@ -171,4 +175,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-        

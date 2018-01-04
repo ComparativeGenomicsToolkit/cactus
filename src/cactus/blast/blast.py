@@ -40,7 +40,8 @@ class BlastOptions(object):
                  # default because it's needed for the tests (which
                  # don't use realign.)
                  trimOutgroupFlanking=2000,
-                 keepParalogs=False):
+                 keepParalogs=False,
+                 unmask=False):
         """Class defining options for blast
         """
         self.chunkSize = chunkSize
@@ -62,6 +63,7 @@ class BlastOptions(object):
         self.trimOutgroupDepth = trimOutgroupDepth
         self.trimOutgroupFlanking = trimOutgroupFlanking
         self.keepParalogs = keepParalogs
+        self.unmask = unmask
 
 class BlastSequencesAllAgainstAll(RoundedJob):
     """Take a set of sequences, chunks them up and blasts them.
@@ -412,7 +414,7 @@ class RunSelfBlast(RoundedJob):
         blastResultsFile = fileStore.getLocalTempFile()
         seqFile = fileStore.readGlobalFile(self.seqFileID)
         samplingRates = fileStore.readGlobalFile(self.samplingRatesID) if self.samplingRatesID else None
-        unmask = True if samplingRates else False
+        unmask = True if samplingRates else self.blastOptions.unmask
         runSelfLastz(seqFile, blastResultsFile, lastzArguments=self.blastOptions.lastzArguments, samplingRates=samplingRates, unmask=unmask)
         if self.blastOptions.realign:
             realignResultsFile = fileStore.getLocalTempFile()
@@ -455,7 +457,7 @@ class RunBlast(RoundedJob):
             seqFile2 = decompressFastaFile(seqFile2, fileStore.getLocalTempFile())
         blastResultsFile = fileStore.getLocalTempFile()
         samplingRates = fileStore.readGlobalFile(self.samplingRatesID) if self.samplingRatesID else None
-        unmask = True if samplingRates else False
+        unmask = True if samplingRates else self.blastOptions.unmask
         runLastz(seqFile1, seqFile2, blastResultsFile, lastzArguments = self.blastOptions.lastzArguments, samplingRates=samplingRates, unmask=unmask)
         if self.blastOptions.realign:
             realignResultsFile = fileStore.getLocalTempFile()
