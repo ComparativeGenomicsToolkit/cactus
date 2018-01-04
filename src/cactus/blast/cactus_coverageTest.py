@@ -153,5 +153,19 @@ class TestCase(unittest.TestCase):
                 self.assertTrue(start >= prevEnd)
         os.remove(cigarPath)
 
+    @silentOnSuccess
+    def testCoverageCap(self):
+        """Test if a base covered by >65535 alignments is capped at 65535 depth."""
+        deepCigarPath = getTempFile()
+        with open(deepCigarPath, 'w') as f:
+            for _ in xrange(65537):
+                f.write('cigar: id=2|simpleSeqB1 0 1 + id=0|simpleSeqA1 10 9 - 0 M 1\n')
+        bed = cactus_call(parameters=["cactus_coverage", self.simpleFastaPathA, deepCigarPath],
+                          check_output=True)
+        self.assertEqual(bed, dedent('''\
+        id=0|simpleSeqA1\t9\t10\t\t65535
+        '''))
+        os.remove(deepCigarPath)
+
 if __name__ == '__main__':
     unittest.main()

@@ -4,30 +4,27 @@
 #Released under the MIT license, see LICENSE.txt
 
 """Script for running an all against all (including self) set of alignments on a set of input
-sequences. Uses the jobTree framework to parallelise the blasts.
+sequences. Uses the toil framework to parallelise the blasts.
 """
 import os
-import sys
-from argparse import ArgumentParser
+import shutil
 from toil.lib.bioio import logger
 from toil.lib.bioio import system
-from toil.lib.bioio import getLogLevelString
-from toil.lib.bioio import getTempFile
 
 from sonLib.bioio import catFiles, nameValue, popenCatch, getTempDirectory
 
 from cactus.shared.common import RoundedJob
-from toil.common import Toil
-
-from cactus.shared.common import makeURL
 from cactus.shared.common import cactus_call
 from cactus.shared.common import runLastz, runSelfLastz
 from cactus.shared.common import runCactusRealign, runCactusSelfRealign
 from cactus.shared.common import runGetChunks
 from cactus.shared.common import readGlobalFileWithoutCache
+from cactus.shared.common import ChildTreeJob
+from cactus.blast.upconvertCoordinates import upconvertCoords
+from cactus.blast.trimSequences import trimSequences
 
-class BlastOptions:
-    def __init__(self, chunkSize=10000000, overlapSize=10000, 
+class BlastOptions(object):
+    def __init__(self, chunkSize=10000000, overlapSize=10000,
                  lastzArguments="", compressFiles=True, realign=False, realignArguments="",
                  minimumSequenceLength=1, memory=None,
                  smallDisk = None,
@@ -48,7 +45,7 @@ class BlastOptions:
         """
         self.chunkSize = chunkSize
         self.overlapSize = overlapSize
-        
+
         self.realignArguments = realignArguments
         self.lastzArguments = lastzArguments
         self.realign = realign
@@ -66,7 +63,6 @@ class BlastOptions:
         self.trimOutgroupFlanking = trimOutgroupFlanking
         self.keepParalogs = keepParalogs
 
-
 class BlastSequencesAllAgainstAll(RoundedJob):
     """Take a set of sequences, chunks them up and blasts them.
     """
@@ -74,8 +70,8 @@ class BlastSequencesAllAgainstAll(RoundedJob):
         disk = 4*sum([seqFileID.size for seqFileID in sequenceFileIDs1])
         cores = 1
         memory = blastOptions.memory
-        
-        RoundedJob.__init__(self, disk=disk, cores=cores, memory=memory, preemptable=True)
+
+        super(BlastSequencesAllAgainstAll, self).__init__(disk=disk, cores=cores, memory=memory, preemptable=True)
         self.sequenceFileIDs1 = sequenceFileIDs1
         self.blastOptions = blastOptions
         self.blastOptions.compressFiles = False
@@ -87,22 +83,22 @@ class BlastSequencesAllAgainstAll(RoundedJob):
         chunks = runGetChunks(sequenceFiles=sequenceFiles1, chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()), chunkSize = self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize)
         assert len(chunks) > 0
         logger.info("Broken up the sequence files into individual 'chunk' files")
-        chunkIDs = [fileStore.writeGlobalFile(chunk, cleanup=False) for chunk in chunks]
+        chunkIDs = [fileStore.writeGlobalFile(chunk, cleanup=True) for chunk in chunks]
 
         diagonalResultsID = self.addChild(MakeSelfBlasts(self.blastOptions, chunkIDs, samplingRatesID=self.samplingRatesID)).rv()
         offDiagonalResultsID = self.addChild(MakeOffDiagonalBlasts(self.blastOptions, chunkIDs, samplingRatesID=self.samplingRatesID)).rv()
         logger.debug("Collating the blasts after blasting all-against-all")
         return self.addFollowOn(CollateBlasts(self.blastOptions, [diagonalResultsID, offDiagonalResultsID])).rv()
-        
-class MakeSelfBlasts(RoundedJob):
+
+class MakeSelfBlasts(ChildTreeJob):
     """Breaks up the inputs into bits and builds a bunch of alignment jobs.
     """
     def __init__(self, blastOptions, chunkIDs, samplingRatesID=None):
-        RoundedJob.__init__(self, preemptable=True)
+        super(MakeSelfBlasts, self).__init__(preemptable=True)
         self.blastOptions = blastOptions
         self.chunkIDs = chunkIDs
         self.samplingRatesID = samplingRatesID
-        
+
     def run(self, fileStore):
         logger.info("Chunk IDs: %s" % self.chunkIDs)
         #Avoid compression if just one chunk
@@ -115,10 +111,10 @@ class MakeSelfBlasts(RoundedJob):
         logger.debug("Collating self blasts.")
         logger.info("Blast file IDs: %s" % resultsIDs)
         return self.addFollowOn(CollateBlasts(self.blastOptions, resultsIDs)).rv()
-    
-class MakeOffDiagonalBlasts(RoundedJob):
+
+class MakeOffDiagonalBlasts(ChildTreeJob):
         def __init__(self, blastOptions, chunkIDs, samplingRatesID=None):
-            RoundedJob.__init__(self, preemptable=True)
+            super(MakeOffDiagonalBlasts, self).__init__(preemptable=True)
             self.chunkIDs = chunkIDs
             self.blastOptions = blastOptions
             self.blastOptions.compressFiles = False
@@ -131,33 +127,30 @@ class MakeOffDiagonalBlasts(RoundedJob):
                 for j in xrange(i+1, len(self.chunkIDs)):
                     resultsIDs.append(self.addChild(RunBlast(blastOptions=self.blastOptions, seqFileID1=self.chunkIDs[i], seqFileID2=self.chunkIDs[j], samplingRatesID=self.samplingRatesID)).rv())
 
-
             return self.addFollowOn(CollateBlasts(self.blastOptions, resultsIDs)).rv()
 
-            
-class BlastSequencesAgainstEachOther(RoundedJob):
+class BlastSequencesAgainstEachOther(ChildTreeJob):
     """Take two sets of sequences, chunks them up and blasts one set against the other.
     """
     def __init__(self, sequenceFileIDs1, sequenceFileIDs2, blastOptions, samplingRatesID=None):
         disk = 3*(sum([seqID.size for seqID in sequenceFileIDs1]) + sum([seqID.size for seqID in sequenceFileIDs2]))
         cores = 1
         memory = blastOptions.memory
-        
-        RoundedJob.__init__(self, disk=disk, cores=cores, memory=memory, preemptable=True)
+
+        super(BlastSequencesAgainstEachOther, self).__init__(disk=disk, cores=cores, memory=memory, preemptable=True)
         self.sequenceFileIDs1 = sequenceFileIDs1
         self.sequenceFileIDs2 = sequenceFileIDs2
         self.blastOptions = blastOptions
         self.blastOptions.roundsOfCoordinateConversion = 1
         self.samplingRatesID = samplingRatesID
-        
+
     def run(self, fileStore):
         sequenceFiles1 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs1]
         sequenceFiles2 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs2]
         chunks1 = runGetChunks(sequenceFiles=sequenceFiles1, chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()), chunkSize=self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize)
         chunks2 = runGetChunks(sequenceFiles=sequenceFiles2, chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()), chunkSize=self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize)
-        logger.info("Chunks1 = %s" % chunks1)
-        chunkIDs1 = [fileStore.writeGlobalFile(chunk, cleanup=False) for chunk in chunks1]
-        chunkIDs2 = [fileStore.writeGlobalFile(chunk, cleanup=False) for chunk in chunks2]
+        chunkIDs1 = [fileStore.writeGlobalFile(chunk, cleanup=True) for chunk in chunks1]
+        chunkIDs2 = [fileStore.writeGlobalFile(chunk, cleanup=True) for chunk in chunks2]
         resultsIDs = []
         #Make the list of blast jobs.
         for chunkID1 in chunkIDs1:
@@ -168,43 +161,49 @@ class BlastSequencesAgainstEachOther(RoundedJob):
         logger.info("Made the list of blasts")
         #Set up the job to collate all the results
         return self.addFollowOn(CollateBlasts(self.blastOptions, resultsIDs)).rv()
-        
+
 class BlastIngroupsAndOutgroups(RoundedJob):
     """Blast ingroup sequences against each other, and against the given
     outgroup sequences in succession. The next outgroup is only
     aligned against the regions that are not found in the previous
     outgroup.
     """
-    def __init__(self, blastOptions, ingroupSequenceIDs,
-                 outgroupSequenceIDs, samplingRatesID=None):
-        RoundedJob.__init__(self, memory=blastOptions.memory, preemptable=True)
+    def __init__(self, blastOptions, ingroupNames, ingroupSequenceIDs,
+                 outgroupNames, outgroupSequenceIDs, samplingRatesID=None):
+        super(BlastIngroupsAndOutgroups, self).__init__(memory=blastOptions.memory, preemptable=True)
         self.blastOptions = blastOptions
         self.blastOptions.roundsOfCoordinateConversion = 1
+        self.ingroupNames = ingroupNames
+        self.outgroupNames = outgroupNames
         self.ingroupSequenceIDs = ingroupSequenceIDs
         self.outgroupSequenceIDs = outgroupSequenceIDs
         self.samplingRatesID = samplingRatesID
 
     def run(self, fileStore):
-        fileStore.logToMaster("Blasting ingroups vs outgroups")
-        
+        fileStore.logToMaster("Blasting ingroups vs outgroups. "
+                              "Ingroup genomes: %s, outgroup genomes: %s" \
+                              % (", ".join(self.ingroupNames), ", ".join(self.outgroupNames)))
+
         ingroupAlignmentsID = self.addChild(BlastSequencesAllAgainstAll(self.ingroupSequenceIDs,
-                                                        blastOptions=self.blastOptions, 
+                                                        blastOptions=self.blastOptions,
                                                         samplingRatesID=self.samplingRatesID)).rv()
         if len(self.outgroupSequenceIDs) > 0:
-            blastFirstOutgroupJob = self.addChild(BlastFirstOutgroup(untrimmedSequenceIDs=self.ingroupSequenceIDs,
-                                                                     sequenceIDs=self.ingroupSequenceIDs,
-                                                                     outgroupSequenceIDs=self.outgroupSequenceIDs,
-                                                                     outgroupFragmentIDs=[],
-                                                                     outgroupResultsID=None,
-                                                                     blastOptions=self.blastOptions,
-                                                                     outgroupNumber=1,
-                                                                     ingroupCoverageIDs=[],
-                                                                     samplingRatesID=self.samplingRatesID))
+            blastFirstOutgroupJob = self.addChild(BlastFirstOutgroup(
+                ingroupNames=self.ingroupNames,
+                untrimmedSequenceIDs=self.ingroupSequenceIDs,
+                sequenceIDs=self.ingroupSequenceIDs,
+                outgroupNames=self.outgroupNames,
+                outgroupSequenceIDs=self.outgroupSequenceIDs,
+                outgroupFragmentIDs=[],
+                outgroupResultsID=None,
+                blastOptions=self.blastOptions,
+                outgroupNumber=1,
+                ingroupCoverageIDs=[],
+                samplingRatesID=self.samplingRatesID))
             outgroupAlignmentsID = blastFirstOutgroupJob.rv(0)
             outgroupFragmentIDs = blastFirstOutgroupJob.rv(1)
             ingroupCoverageIDs = blastFirstOutgroupJob.rv(2)
-            alignmentsID = self.addFollowOn(CollateBlasts(blastOptions=self.blastOptions, resultsFileIDs=[ingroupAlignmentsID,
-                                                                                                          outgroupAlignmentsID])).rv()
+            alignmentsID = self.addFollowOn(CollateBlasts(blastOptions=self.blastOptions, resultsFileIDs=[ingroupAlignmentsID, outgroupAlignmentsID])).rv()
         else:
             alignmentsID = ingroupAlignmentsID
             outgroupFragmentIDs = None
@@ -217,12 +216,15 @@ class BlastFirstOutgroup(RoundedJob):
     outgroups, only aligning fragments that haven't aligned to the
     previous outgroups. Then recurse on the other outgroups.
     """
-    def __init__(self, untrimmedSequenceIDs, sequenceIDs,
-                 outgroupSequenceIDs, outgroupFragmentIDs, outgroupResultsID,
-                 blastOptions, outgroupNumber, ingroupCoverageIDs, samplingRatesID=None):
-        RoundedJob.__init__(self, memory=blastOptions.memory, preemptable=True)
+    def __init__(self, ingroupNames, untrimmedSequenceIDs, sequenceIDs,
+                 outgroupNames, outgroupSequenceIDs, outgroupFragmentIDs,
+                 outgroupResultsID, blastOptions, outgroupNumber,
+                 ingroupCoverageIDs, samplingRatesID=None):
+        super(BlastFirstOutgroup, self).__init__(memory=blastOptions.memory, preemptable=True)
+        self.ingroupNames = ingroupNames
         self.untrimmedSequenceIDs = untrimmedSequenceIDs
         self.sequenceIDs = sequenceIDs
+        self.outgroupNames = outgroupNames
         self.outgroupSequenceIDs = outgroupSequenceIDs
         self.outgroupFragmentIDs = outgroupFragmentIDs
         self.outgroupResultsID = outgroupResultsID
@@ -232,36 +234,40 @@ class BlastFirstOutgroup(RoundedJob):
         self.samplingRatesID = samplingRatesID
 
     def run(self, fileStore):
-        logger.info("Blasting ingroup sequences to outgroup")
-        alignmentsID = self.addChild(BlastSequencesAgainstEachOther(self.sequenceIDs,
-                                                                    [self.outgroupSequenceIDs[0]],
-                                                                    self.blastOptions, 
-                                                                    samplingRatesID=self.samplingRatesID)).rv()
-        trimRecurseJob = self.addFollowOn(TrimAndRecurseOnOutgroups(untrimmedSequenceIDs=self.untrimmedSequenceIDs,
-                                                                    sequenceIDs=self.sequenceIDs,
-                                                                    outgroupSequenceIDs=self.outgroupSequenceIDs,
-                                                                    outgroupFragmentIDs=self.outgroupFragmentIDs,
-                                                                    mostRecentResultsID=alignmentsID,
-                                                                    outgroupResultsID=self.outgroupResultsID,
-                                                                    blastOptions=self.blastOptions,
-                                                                    outgroupNumber=self.outgroupNumber,
-                                                                    ingroupCoverageIDs=self.ingroupCoverageIDs,
-                                                                    samplingRatesID=self.samplingRatesID))
+        logger.info("Blasting ingroup sequences to outgroup %s",
+                    self.outgroupNames[self.outgroupNumber - 1])
+        alignmentsID = self.addChild(BlastSequencesAgainstEachOther(
+            self.sequenceIDs,
+            [self.outgroupSequenceIDs[0]],
+            self.blastOptions)).rv()
+        trimRecurseJob = self.addFollowOn(TrimAndRecurseOnOutgroups(
+            ingroupNames=self.ingroupNames,
+            untrimmedSequenceIDs=self.untrimmedSequenceIDs,
+            sequenceIDs=self.sequenceIDs,
+            outgroupNames=self.outgroupNames,
+            outgroupSequenceIDs=self.outgroupSequenceIDs,
+            outgroupFragmentIDs=self.outgroupFragmentIDs,
+            mostRecentResultsID=alignmentsID,
+            outgroupResultsID=self.outgroupResultsID,
+            blastOptions=self.blastOptions,
+            outgroupNumber=self.outgroupNumber,
+            ingroupCoverageIDs=self.ingroupCoverageIDs,
+            samplingRatesID=self.samplingRatesID))
         outgroupAlignmentsID = trimRecurseJob.rv(0)
         outgroupFragmentIDs = trimRecurseJob.rv(1)
         ingroupCoverageIDs = trimRecurseJob.rv(2)
         return (outgroupAlignmentsID, outgroupFragmentIDs, ingroupCoverageIDs)
 
 class TrimAndRecurseOnOutgroups(RoundedJob):
-    def __init__(self, untrimmedSequenceIDs, sequenceIDs,
-                 outgroupSequenceIDs, outgroupFragmentIDs,
+    def __init__(self, ingroupNames, untrimmedSequenceIDs, sequenceIDs,
+                 outgroupNames, outgroupSequenceIDs, outgroupFragmentIDs,
                  mostRecentResultsID, outgroupResultsID,
-                 blastOptions,
-                 outgroupNumber, ingroupCoverageIDs,
-                 samplingRatesID=None):
-        RoundedJob.__init__(self, preemptable=True)
+                 blastOptions, outgroupNumber, ingroupCoverageIDs, samplingRatesID=None):
+        super(TrimAndRecurseOnOutgroups, self).__init__(preemptable=True)
+        self.ingroupNames = ingroupNames
         self.untrimmedSequenceIDs = untrimmedSequenceIDs
         self.sequenceIDs = sequenceIDs
+        self.outgroupNames = outgroupNames
         self.outgroupSequenceIDs = outgroupSequenceIDs
         self.outgroupFragmentIDs = outgroupFragmentIDs
         self.mostRecentResultsID = mostRecentResultsID
@@ -272,13 +278,10 @@ class TrimAndRecurseOnOutgroups(RoundedJob):
         self.samplingRatesID = samplingRatesID
 
     def run(self, fileStore):
-        # TODO: split up this function, it's getting unwieldy
-
         # Trim outgroup, convert outgroup coordinates, and add to
         # outgroup fragments dir
 
         outgroupSequenceFiles = [fileStore.readGlobalFile(fileID) for fileID in self.outgroupSequenceIDs]
-        fileStore.logToMaster("Outgroup sequence files: %s" % outgroupSequenceFiles)
         mostRecentResultsFile = fileStore.readGlobalFile(self.mostRecentResultsID)
         trimmedOutgroup = fileStore.getLocalTempFile()
         outgroupCoverage = fileStore.getLocalTempFile()
@@ -287,41 +290,39 @@ class TrimAndRecurseOnOutgroups(RoundedJob):
         # The windowSize and threshold are fixed at 1: anything more
         # and we will run into problems with alignments that aren't
         # covered in a matching trimmed sequence.
-        trimGenome(outgroupSequenceFiles[0], outgroupCoverage,
-                   trimmedOutgroup, flanking=self.blastOptions.trimOutgroupFlanking,
-                   windowSize=1, threshold=1)
+        trimSequences(outgroupSequenceFiles[0], outgroupCoverage,
+                      trimmedOutgroup, flanking=self.blastOptions.trimOutgroupFlanking,
+                      windowSize=1, threshold=1)
         outgroupConvertedResultsFile = fileStore.getLocalTempFile()
-        cactus_call(outfile=outgroupConvertedResultsFile,
-                    parameters=["cactus_upconvertCoordinates.py",
-                                trimmedOutgroup,
-                                mostRecentResultsFile,
-                                1])
+        with open(outgroupConvertedResultsFile, 'w') as f:
+            upconvertCoords(cigarPath=mostRecentResultsFile,
+                            fastaPath=trimmedOutgroup,
+                            contigNum=1,
+                            outputFile=f)
 
         self.outgroupFragmentIDs.append(fileStore.writeGlobalFile(trimmedOutgroup))
         sequenceFiles = [fileStore.readGlobalFile(path) for path in self.sequenceIDs]
         untrimmedSequenceFiles = [fileStore.readGlobalFile(path) for path in self.untrimmedSequenceIDs]
 
         # Report coverage of the latest outgroup on the trimmed ingroups.
-        for trimmedIngroupSequence, ingroupSequence in zip(sequenceFiles, untrimmedSequenceFiles):
+        for trimmedIngroupSequence, ingroupSequence, ingroupName in zip(sequenceFiles, untrimmedSequenceFiles, self.ingroupNames):
             tmpIngroupCoverage = fileStore.getLocalTempFile()
             calculateCoverage(trimmedIngroupSequence, mostRecentResultsFile,
                               tmpIngroupCoverage)
-            fileStore.logToMaster("Coverage on %s from outgroup #%d, %s: %s%% (current ingroup length %d, untrimmed length %d). Outgroup trimmed to %d bp from %d" % (os.path.basename(ingroupSequence), self.outgroupNumber, os.path.basename(outgroupSequenceFiles[0]), percentCoverage(trimmedIngroupSequence, tmpIngroupCoverage), sequenceLength(trimmedIngroupSequence), sequenceLength(ingroupSequence), sequenceLength(trimmedOutgroup), sequenceLength(outgroupSequenceFiles[0])))
-
+            fileStore.logToMaster("Coverage on %s from outgroup #%d, %s: %s%% (current ingroup length %d, untrimmed length %d). Outgroup trimmed to %d bp from %d" % (ingroupName, self.outgroupNumber, self.outgroupNames[self.outgroupNumber - 1], percentCoverage(trimmedIngroupSequence, tmpIngroupCoverage), sequenceLength(trimmedIngroupSequence), sequenceLength(ingroupSequence), sequenceLength(trimmedOutgroup), sequenceLength(outgroupSequenceFiles[0])))
 
         # Convert the alignments' ingroup coordinates.
         ingroupConvertedResultsFile = fileStore.getLocalTempFile()
         if self.sequenceIDs == self.untrimmedSequenceIDs:
             # No need to convert ingroup coordinates on first run.
-            fileStore.logToMaster("Copying outgroup results file to ingroup: %s %s" % (outgroupConvertedResultsFile, ingroupConvertedResultsFile))
-            system("cp %s %s" % (outgroupConvertedResultsFile,
-                                 ingroupConvertedResultsFile))
+            shutil.copy(outgroupConvertedResultsFile,
+                        ingroupConvertedResultsFile)
         else:
             cactus_call(parameters=["cactus_blast_convertCoordinates",
                                     "--onlyContig1",
                                     outgroupConvertedResultsFile,
                                     ingroupConvertedResultsFile,
-                                    1])
+                                    "1"])
         # Append the latest results to the accumulated outgroup coverage file
         if self.outgroupResultsID:
             outgroupResultsFile = fileStore.readGlobalFile(self.outgroupResultsID, mutable=True)
@@ -336,16 +337,16 @@ class TrimAndRecurseOnOutgroups(RoundedJob):
         # Report coverage of the all outgroup alignments so far on the ingroups.
         ingroupCoverageFiles = []
         self.ingroupCoverageIDs = []
-        for ingroupSequence in untrimmedSequenceFiles:
+        for ingroupSequence, ingroupName in zip(untrimmedSequenceFiles, self.ingroupNames):
             ingroupCoverageFile = fileStore.getLocalTempFile()
             calculateCoverage(sequenceFile=ingroupSequence, cigarFile=outgroupResultsFile,
                               outputFile=ingroupCoverageFile, depthById=self.blastOptions.trimOutgroupDepth > 1)
             ingroupCoverageFiles.append(ingroupCoverageFile)
             self.ingroupCoverageIDs.append(fileStore.writeGlobalFile(ingroupCoverageFile))
-            fileStore.logToMaster("Cumulative coverage of %d outgroups on ingroup %s: %s" % (self.outgroupNumber, os.path.basename(ingroupSequence), percentCoverage(ingroupSequence, ingroupCoverageFile)))
+            fileStore.logToMaster("Cumulative coverage of %d outgroups on ingroup %s: %s" % (self.outgroupNumber, ingroupName, percentCoverage(ingroupSequence, ingroupCoverageFile)))
 
-        # Trim ingroup seqs and recurse on the next outgroup.
         if len(self.outgroupSequenceIDs) > 1:
+            # Trim ingroup seqs and recurse on the next outgroup.
             trimmedSeqs = []
             # Use the accumulated results so far to trim away the
             # aligned parts of the ingroups.
@@ -359,23 +360,26 @@ class TrimAndRecurseOnOutgroups(RoundedJob):
                     coverageFile = outgroupCoverageFile
 
                 trimmed = fileStore.getLocalTempFile()
-                trimGenome(sequenceFile, coverageFile, trimmed,
-                           complement=True, flanking=self.blastOptions.trimFlanking,
-                           minSize=self.blastOptions.trimMinSize,
-                           threshold=self.blastOptions.trimThreshold,
-                           windowSize=self.blastOptions.trimWindowSize,
-                           depth=self.blastOptions.trimOutgroupDepth)
+                trimSequences(sequenceFile, coverageFile, trimmed,
+                              complement=True, flanking=self.blastOptions.trimFlanking,
+                              minSize=self.blastOptions.trimMinSize,
+                              threshold=self.blastOptions.trimThreshold,
+                              windowSize=self.blastOptions.trimWindowSize,
+                              depth=self.blastOptions.trimOutgroupDepth)
                 trimmedSeqs.append(trimmed)
-            trimmedSeqIDs = [fileStore.writeGlobalFile(path) for path in trimmedSeqs]
-            return self.addChild(BlastFirstOutgroup(untrimmedSequenceIDs=self.untrimmedSequenceIDs,
-                                                   sequenceIDs=trimmedSeqIDs,
-                                                   outgroupSequenceIDs=self.outgroupSequenceIDs[1:],
-                                                   outgroupFragmentIDs=self.outgroupFragmentIDs,
-                                                   outgroupResultsID=self.outgroupResultsID,
-                                                   blastOptions=self.blastOptions,
-                                                   outgroupNumber=self.outgroupNumber + 1,
-                                                   ingroupCoverageIDs=self.ingroupCoverageIDs,
-                                                   samplingRatesID=self.samplingRatesID)).rv()
+            trimmedSeqIDs = [fileStore.writeGlobalFile(path, cleanup=True) for path in trimmedSeqs]
+            return self.addChild(BlastFirstOutgroup(
+                ingroupNames=self.ingroupNames,
+                untrimmedSequenceIDs=self.untrimmedSequenceIDs,
+                sequenceIDs=trimmedSeqIDs,
+                outgroupNames=self.outgroupNames,
+                outgroupSequenceIDs=self.outgroupSequenceIDs[1:],
+                outgroupFragmentIDs=self.outgroupFragmentIDs,
+                outgroupResultsID=self.outgroupResultsID,
+                blastOptions=self.blastOptions,
+                outgroupNumber=self.outgroupNumber + 1,
+                ingroupCoverageIDs=self.ingroupCoverageIDs,
+                samplingRatesID=self.samplingRatesID)).rv()
         else:
             # Finally, put the ingroups and outgroups results together
             return (self.outgroupResultsID, self.outgroupFragmentIDs, self.ingroupCoverageIDs)
@@ -391,20 +395,20 @@ def decompressFastaFile(fileName, tempFileName):
     """
     system("bunzip2 --stdout %s > %s" % (fileName, tempFileName))
     return tempFileName
-        
+
 class RunSelfBlast(RoundedJob):
     """Runs blast as a job.
     """
     def __init__(self, blastOptions, seqFileID, samplingRatesID=None):
         disk = 3*seqFileID.size
         memory = 3*seqFileID.size
-        
-        RoundedJob.__init__(self, memory=memory, disk=disk, preemptable=True)
+
+        super(RunSelfBlast, self).__init__(memory=memory, disk=disk, preemptable=True)
         self.blastOptions = blastOptions
         self.seqFileID = seqFileID
         self.samplingRatesID = samplingRatesID
-    
-    def run(self, fileStore):   
+
+    def run(self, fileStore):
         blastResultsFile = fileStore.getLocalTempFile()
         seqFile = fileStore.readGlobalFile(self.seqFileID)
         samplingRates = fileStore.readGlobalFile(self.samplingRatesID) if self.samplingRatesID else None
@@ -420,13 +424,13 @@ class RunSelfBlast(RoundedJob):
         cactus_call(parameters=["cactus_blast_convertCoordinates",
                                 blastResultsFile,
                                 resultsFile,
-                                self.blastOptions.roundsOfCoordinateConversion])
+                                str(self.blastOptions.roundsOfCoordinateConversion)])
         if self.blastOptions.compressFiles:
             #TODO: This throws away the compressed file
             seqFile = compressFastaFile(seqFile)
         logger.info("Ran the self blast okay")
-        return fileStore.writeGlobalFile(resultsFile, cleanup=False)
-    
+        return fileStore.writeGlobalFile(resultsFile)
+
 class RunBlast(RoundedJob):
     """Runs blast as a job.
     """
@@ -437,12 +441,12 @@ class RunBlast(RoundedJob):
         else:
             disk = None
             memory = None
-        RoundedJob.__init__(self, memory=memory, disk=disk, preemptable=True)
+        super(RunBlast, self).__init__(memory=memory, disk=disk, preemptable=True)
         self.blastOptions = blastOptions
         self.seqFileID1 = seqFileID1
         self.seqFileID2 = seqFileID2
         self.samplingRatesID = samplingRatesID
-    
+
     def run(self, fileStore):
         seqFile1 = fileStore.readGlobalFile(self.seqFileID1)
         seqFile2 = fileStore.readGlobalFile(self.seqFileID2)
@@ -459,18 +463,18 @@ class RunBlast(RoundedJob):
                              outputAlignmentsFile=realignResultsFile,
                              realignArguments=self.blastOptions.realignArguments)
             blastResultsFile = realignResultsFile
-            
+
         resultsFile = fileStore.getLocalTempFile()
         cactus_call(parameters=["cactus_blast_convertCoordinates",
                                 blastResultsFile,
                                 resultsFile,
-                                self.blastOptions.roundsOfCoordinateConversion])
+                                str(self.blastOptions.roundsOfCoordinateConversion)])
         logger.info("Ran the blast okay")
-        return fileStore.writeGlobalFile(resultsFile, cleanup=False)
+        return fileStore.writeGlobalFile(resultsFile)
 
 class CollateBlasts(RoundedJob):
     def __init__(self, blastOptions, resultsFileIDs):
-        RoundedJob.__init__(self, preemptable=True)
+        super(CollateBlasts, self).__init__(preemptable=True)
         self.blastOptions = blastOptions
         self.resultsFileIDs = resultsFileIDs
 
@@ -483,16 +487,18 @@ class CollateBlasts2(RoundedJob):
     def __init__(self, blastOptions, resultsFileIDs):
         disk = 8*sum([alignmentID.size for alignmentID in resultsFileIDs])
         memory = blastOptions.memory
-        RoundedJob.__init__(self, memory=memory, disk=disk, preemptable=True)
+        super(CollateBlasts2, self).__init__(memory=memory, disk=disk, preemptable=True)
         self.resultsFileIDs = resultsFileIDs
-    
+
     def run(self, fileStore):
         logger.info("Results IDs: %s" % self.resultsFileIDs)
         resultsFiles = [readGlobalFileWithoutCache(fileStore, fileID) for fileID in self.resultsFileIDs]
         collatedResultsFile = fileStore.getLocalTempFile()
         catFiles(resultsFiles, collatedResultsFile)
         logger.info("Collated the alignments to the file: %s",  collatedResultsFile)
-        collatedResultsID = fileStore.writeGlobalFile(collatedResultsFile, cleanup=False)
+        collatedResultsID = fileStore.writeGlobalFile(collatedResultsFile)
+        for resultsFileID in self.resultsFileIDs:
+            fileStore.deleteGlobalFile(resultsFileID)
         return collatedResultsID
 
 def sequenceLength(sequenceFile):
@@ -518,22 +524,13 @@ def percentCoverage(sequenceFile, coverageFile):
 def calculateCoverage(sequenceFile, cigarFile, outputFile, fromGenome=None, depthById=False, work_dir=None):
     logger.info("Calculating coverage of cigar file %s on %s, writing to %s" % (
         cigarFile, sequenceFile, outputFile))
-    fromGenome = nameValue("from", fromGenome).split()
+    args = [sequenceFile, cigarFile]
+    if fromGenome is not None:
+        args += ["--fromGenome", fromGenome]
+    if depthById:
+        args += ["--depthById"]
     cactus_call(outfile=outputFile, work_dir=work_dir,
-                parameters=["cactus_coverage",
-                            sequenceFile,
-                            cigarFile] +
-                            fromGenome +
-                            [nameValue("depthById", depthById, bool)])
-
-def trimGenome(sequenceFile, coverageFile, outputFile, complement=False,
-               flanking=0, minSize=1, windowSize=10, threshold=1, depth=None):
-    cactus_call(outfile=outputFile,
-                parameters=["cactus_trimSequences.py",
-                            nameValue("complement", complement, valueType=bool),
-                            nameValue("flanking", flanking), nameValue("minSize", minSize),
-                            nameValue("windowSize", windowSize), nameValue("threshold", threshold),
-                            nameValue("depth", depth), sequenceFile, coverageFile])
+                parameters=["cactus_coverage"] + args)
 
 def subtractBed(bed1, bed2, destBed):
     """Subtract two non-bed12 beds"""
@@ -546,103 +543,3 @@ def subtractBed(bed1, bed2, destBed):
                     parameters=["subtract",
                                 "-a", bed1,
                                 "-b", bed2])
-
-def main():
-    ##########################################
-    #Construct the arguments.
-    ##########################################
-    
-    parser = OptionParser()
-    Stack.addJobTreeOptions(parser)
-    blastOptions = BlastOptions()
-    
-    #output stuff
-    parser.add_option("--cigars", dest="cigarFile", 
-                      help="File to write cigars in",
-                      default="cigarFile.txt")
-    
-    parser.add_option("--chunkSize", dest="chunkSize", type="int", 
-                     help="The size of chunks passed to lastz (must be at least twice as big as overlap)",
-                     default=blastOptions.chunkSize)
-    
-    parser.add_option("--overlapSize", dest="overlapSize", type="int",
-                     help="The size of the overlap between the chunks passed to lastz (min size 2)",
-                     default=blastOptions.overlapSize)
-    
-    parser.add_option("--blastString", dest="blastString", type="string",
-                     help="The default string used to call the blast program. \
-Must contain three strings: SEQ_FILE_1, SEQ_FILE_2 and CIGARS_FILE which will be \
-replaced with the two sequence files and the results file, respectively",
-                     default=blastOptions.blastString)
-    
-    parser.add_option("--selfBlastString", dest="selfBlastString", type="string",
-                     help="The default string used to call the blast program for self alignment. \
-Must contain three strings: SEQ_FILE and CIGARS_FILE which will be \
-replaced with the the sequence file and the results file, respectively",
-                     default=blastOptions.selfBlastString)
-   
-    parser.add_option("--compressFiles", dest="compressFiles", action="store_false",
-                      help="Turn of bz2 based file compression of sequences for I/O transfer", 
-                      default=blastOptions.compressFiles)
-    
-    parser.add_option("--lastzMemory", dest="memory", type="int",
-                      help="Lastz memory (in bytes)", 
-                      default=blastOptions.memory)
-    
-    parser.add_option("--trimFlanking", type=int, help="Amount of flanking sequence to leave on trimmed ingroup sequences", default=blastOptions.trimFlanking)
-    parser.add_option("--trimMinSize", type=int, help="Minimum size, before adding flanking sequence, of ingroup sequence to align against the next outgroup", default=blastOptions.trimMinSize)
-    parser.add_option("--trimThreshold", type=int, help="Coverage threshold for an ingroup region to not be aligned against the next outgroup", default=blastOptions.trimThreshold)
-    parser.add_option("--trimWindowSize", type=int, help="Windowing size to integrate ingroup coverage over", default=blastOptions.trimWindowSize)
-    parser.add_option("--trimOutgroupFlanking", type=int, help="Amount of flanking sequence to leave on trimmed outgroup sequences", default=blastOptions.trimOutgroupFlanking)
-    parser.add_option("--trimOutgroupDepth", type=int, help="Trim regions away "
-                      "after this many separate outgroups have been aligned to "
-                      "the region", default=1)
-    
-    parser.add_option("--keepParalogs", action="store_true", help="Never trim away any ingroup sequence that aligns somewhere else in the ingroup", default=blastOptions.keepParalogs)
-
-    parser.add_option("--test", dest="test", action="store_true",
-                      help="Run doctest unit tests")
-    
-    parser.add_option("--targetSequenceFiles", dest="targetSequenceFiles", type="string",
-                     help="Sequences to align against the input sequences against. If these are not provided then the input sequences are aligned against each other.",
-                     default=None)
-
-    parser.add_option("--ingroups", type=str, default=None,
-                      help="Ingroups to align (comma-separated) (--outgroups "
-                      "must be provided as well")
-
-    parser.add_option("--outgroups", type=str, default=None,
-                      help="Outgroups to align (comma-separated) (--ingroups "
-                      "must be provided as well")
-
-    parser.add_option("--outgroupFragmentsDir", type=str,
-                      default="outgroupFragments/", help= "Directory to "
-                      "store outgroup fragments in")
-
-    parser.add_option("--ingroupCoverageDir", type=str,
-                      help="Directory to store ingroup coverage beds in "
-                      "(only works in ingroups vs. outgroups mode")
-
-    options, args = parser.parse_args()
-    if options.test:
-        _test()
-
-    if (options.ingroups is not None) ^ (options.outgroups is not None):
-        raise RuntimeError("--ingroups and --outgroups must be provided "
-                           "together")
-    if options.ingroups:
-        firstTarget = BlastIngroupsAndOutgroups(options,
-                                                options.ingroups.split(','),
-                                                options.outgroups.split(','),
-                                                options.cigarFile,
-                                                options.outgroupFragmentsDir,
-                                                options.ingroupCoverageDir)
-    elif options.targetSequenceFiles == None:
-        firstTarget = BlastSequencesAllAgainstAll(args, options.cigarFile, options)
-    else:
-        firstTarget = BlastSequencesAgainstEachOther(args, options.targetSequenceFiles.split(), options.cigarFile, options)
-    Stack(firstTarget).startJobTree(options)
-
-def _test():
-    import doctest
-    return doctest.testmod()

@@ -3,7 +3,7 @@
 <cactusWorkflowConfig distanceToAddToRootAlignment="0.1">
 	<constants defaultMemory="mediumMemory" defaultOverlargeMemory="mediumMemory" defaultCpu="1" defaultOverlargeCpu="1">
 		<!-- These constants are used to control the amount of memory and cpu the different jobs in a batch are using. -->
-  		<defines littleMemory="200000000" mediumMemory="500000000" bigMemory="2000000000"/>
+  		<defines littleMemory="2000000000" mediumMemory="3500000000" bigMemory="5000000000"/>
   		<!-- These constants are used to control parameters that depend on phylogenetic distance. Setting
   		     useDefault to 0 will force it to use the default divergence controlled parameter -->
   		<divergences useDefault="0" one="0.1" two="0.15" three="0.2" four="0.25" five="0.35"/>
@@ -237,7 +237,7 @@
 	</hal>
   	<multi_cactus>
 		<outgroup 
-			strategy="greedyLeaves"
+			strategy="greedyPreference"
 			threshold="0"
 			ancestor_quality_fraction="0.75"
                         max_num_outgroups="3"
@@ -246,7 +246,7 @@
 	 		subtree_size="2" 
 	 		self_alignment="false" 
 	 		default_internal_node_prefix="Anc"
-			max_parallel_subtrees="5"
+			max_parallel_subtrees="50000"
 	 	/>
   	</multi_cactus>
     <ProgressiveNext/>

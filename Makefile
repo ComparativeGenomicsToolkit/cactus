@@ -17,12 +17,17 @@ libMatchingAndOrdering = ${PWD}/submodules/sonLib/lib/matchingAndOrdering.a
 halAppendCactusSubtree = ${PWD}/submodules/cactus2hal/bin/halAppendCactusSubtree
 h5c++ = ${PWD}/submodules/hdf5/bin/h5c++
 
-.PHONY: all all.% clean clean.% selfClean
+.PHONY: all all.% clean clean.% selfClean copyToBin
 
-all: deps ${modules:%=all.%} ${halAppendCactusSubtree}
+all: deps ${modules:%=all.%} ${halAppendCactusSubtree} copyToBin
 
 all.%:
 	cd $* && make all
+
+copyToBin:
+	cp -rp submodules/sonLib/bin/* bin/
+	cp -rp submodules/hal/bin/* bin/
+	cp -rp submodules/cactus2hal/bin/* bin/
 
 deps: ${libSonLib} ${libPinchesAndCacti} ${libMatchingAndOrdering} ${libCPecan} hdf5Rule halRule
 

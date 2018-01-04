@@ -6,17 +6,17 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y libtokyocabinet-dev libkyototycoon-dev kyototycoon libkyotocabinet-dev; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install tokyo-cabinet kyoto-cabinet kyoto-tycoon; fi
 #Build docker containers
-  - if [[ "$CACTUS_DOCKER_MODE" == 1 ]]; then docker login --username $QUAY_USERNAME --password $QUAY_PASSWORD quay.io; make push; fi
+  - if [[ "$CACTUS_BINARIES_MODE" == "docker" ]]; then docker login --username $QUAY_USERNAME --password $QUAY_PASSWORD quay.io; make push; fi
 script:
-  - pip install --pre toil
-  - pip install -e .
-  - if [[ "$CACTUS_DOCKER_MODE" == 0 ]]; then make && PATH=`pwd`/bin:`pwd`/submodules/sonLib/bin:$PATH PYTHONPATH=`pwd`:`pwd`/src make test; fi
-  - if [[ "$CACTUS_DOCKER_MODE" == 1 ]]; then make test; fi
+  - sudo pip install --pre toil
+  - sudo pip install -e .
+  - if [[ "$CACTUS_BINARIES_MODE" == "local" ]]; then make && PATH=`pwd`/bin:$PATH PYTHONPATH=`pwd`:`pwd`/src travis_wait 40 make test; fi
+  - if [[ "$CACTUS_BINARIES_MODE" == "docker" ]]; then travis_wait 40 make test; fi
 os:
   - linux
 services:
   - docker
 env:
-  - CGL_DEBUG=1 CACTUS_DOCKER_MODE=0
-  - CACTUS_DOCKER_MODE=1
-  - CGL_DEBUG=ultra ASAN_OPTIONS=detect_leaks=0 CACTUS_DOCKER_MODE=0
+  - CGL_DEBUG=1 CACTUS_BINARIES_MODE=local
+  - CACTUS_BINARIES_MODE=docker
+  - CGL_DEBUG=ultra ASAN_OPTIONS=detect_leaks=0 CACTUS_BINARIES_MODE=local

@@ -68,14 +68,16 @@ class AlignFastaFragments(RoundedJob):
         targetFiles = [fileStore.readGlobalFile(fileID) for fileID in self.targetIDs]
         target = fileStore.getLocalTempFile()
         catFiles(targetFiles, target)
-        lastZSequenceHandling  = '%s[multiple][nameparse=darkspace] %s[nameparse=darkspace] ' % (os.path.basename(target), os.path.basename(fragments))
+        lastZSequenceHandling  = ['%s[multiple][nameparse=darkspace]' % os.path.basename(target), '%s[nameparse=darkspace]' % os.path.basename(fragments)]
         if self.repeatMaskOptions.unmaskInput:
-            lastZSequenceHandling  = '%s[multiple,unmask][nameparse=darkspace] %s[unmask][nameparse=darkspace] ' % (os.path.basename(target), os.path.basename(fragments))
+            lastZSequenceHandling  = ['%s[multiple,unmask][nameparse=darkspace]' % os.path.basename(target), '%s[unmask][nameparse=darkspace]' % os.path.basename(fragments)]
         alignment = fileStore.getLocalTempFile()
         cactus_call(outfile=alignment,
-                    parameters=["cPecanLastz", lastZSequenceHandling,
-                                self.repeatMaskOptions.lastzOpts,
-                                "--querydepth=keep,nowarn:%i --format=general:name1,zstart1,end1,name2,zstart2+,end2+ --markend" % (self.repeatMaskOptions.period+3)])
+                    parameters=["cPecanLastz"] + lastZSequenceHandling +
+                                self.repeatMaskOptions.lastzOpts.split() +
+                                ["--querydepth=keep,nowarn:%i" % (self.repeatMaskOptions.period+3),
+                                 "--format=general:name1,zstart1,end1,name2,zstart2+,end2+",
+                                 "--markend"])
         return fileStore.writeGlobalFile(alignment)
 
 class MaskCoveredIntervals(RoundedJob):
@@ -96,18 +98,15 @@ class MaskCoveredIntervals(RoundedJob):
                                 "--origin=one",
                                 "M=%s" % (int(self.repeatMaskOptions.period*2))])
 
-        #open(maskInfoFile, "w").close()
         # the previous lastz command outputs a file of intervals (denoted with indices) to softmask.
         # we finish by applying these intervals to the input file, to produce the final, softmasked output. 
-        unmaskString = ""
+        args = ["--origin=one"]
         if self.repeatMaskOptions.unmaskOutput:
-            unmaskString = "--unmask"
+            args.append("--unmask")
+        args.append(maskInfo)
         maskedQuery = fileStore.getLocalTempFile()
         cactus_call(infile=query, outfile=maskedQuery,
-                    parameters=["cactus_fasta_softmask_intervals.py",
-                                "--origin=one",
-                                unmaskString,
-                                maskInfo])
+                    parameters=["cactus_fasta_softmask_intervals.py"] + args)
         tmp = fileStore.writeGlobalFile(maskedQuery)
         return tmp
 
