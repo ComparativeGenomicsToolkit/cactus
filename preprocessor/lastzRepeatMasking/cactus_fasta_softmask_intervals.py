@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2.7
 """
 Given a list of intervals, mask those bases in the fasta sequence(s).
 """

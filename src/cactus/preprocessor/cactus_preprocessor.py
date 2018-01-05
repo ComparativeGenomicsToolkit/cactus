@@ -1,9 +1,9 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2.7
 
 #Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
 #
 #Released under the MIT license, see LICENSE.txt
-#!/usr/bin/env python
+#!/usr/bin/env python2.7
 
 """Script for running an all against all (including self) set of alignments on a set of input
 sequences. Uses the jobTree framework to parallelise the blasts.

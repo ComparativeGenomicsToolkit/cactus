@@ -1,9 +1,9 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2.7
 
 #Copyright (C) 2011 by Glenn Hickey
 #
 #Released under the MIT license, see LICENSE.txt
-#!/usr/bin/env python
+#!/usr/bin/env python2.7
 
 """Create the multi_cactus xml and directory structure from a workflow template
 """ 

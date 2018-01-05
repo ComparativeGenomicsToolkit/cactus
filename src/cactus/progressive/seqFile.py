@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2.7
 
 # Progressive Cactus Package
 # Copyright (C) 2009-2012 by Glenn Hickey (hickey@soe.ucsc.edu)

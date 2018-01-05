@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2.7
 
 ## Filter small sequences out of a fasta file.  For use with flies,
 ## for example, where scaffolds of length <200kb seem to be considered
