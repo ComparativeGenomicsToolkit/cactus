@@ -10,6 +10,7 @@ import socket
 import signal
 import sys
 import traceback
+from contextlib import closing
 from glob import glob
 from multiprocessing import Process, Queue
 from time import sleep
@@ -227,13 +228,6 @@ def stopKtserver(dbElem):
         # The server is likely already down.
         pass
 
-###############################################################################
-# Hostnames of swarm nodes (ex kkr18u57.local) are not visible from
-# other swarm nodes (dropping the .local does work).  So we try to
-# work with ip addresses whenever possible. Current recipe (to review):
-# if IP address does not start with 127. return IP address
-# otherwise return primary hostname
-###############################################################################
 def getHostName():
     if platform.system() == 'Darwin':
         # macOS doesn't have a true Docker bridging mode, so each
@@ -241,15 +235,27 @@ def getHostName():
         # to/connect to this computer's external IP. We have to
         # hardcode the loopback IP to work around this.
         return '127.0.0.1'
-    hostName = socket.gethostname()
+    return getPublicIP()
+
+# Borrowed from toil code.
+def getPublicIP():
+    """Get the IP that this machine uses to contact the internet.
+    If behind a NAT, this will still be this computer's IP, and not the router's."""
     try:
-        hostIp = socket.gethostbyname(hostName)
+        # Try to get the internet-facing IP by attempting a connection
+        # to a non-existent server and reading what IP was used.
+        with closing(socket.socket(socket.AF_INET, socket.SOCK_DGRAM)) as sock:
+            # 203.0.113.0/24 is reserved as TEST-NET-3 by RFC 5737, so
+            # there is guaranteed to be no one listening on the other
+            # end (and we won't accidentally DOS anyone).
+            sock.connect(('203.0.113.1', 1))
+            ip = sock.getsockname()[0]
+        return ip
     except:
-        # Hostname is unresolvable, fallback to loopback
+        # Something went terribly wrong. Just give loopback rather
+        # than killing everything, because this is often called just
+        # to provide a default argument
         return '127.0.0.1'
-    if not hostIp.startswith("127."):
-        return hostIp
-    return hostName
 
 def findOccupiedPorts():
     """Attempt to find all currently taken TCP ports.
