@@ -82,7 +82,7 @@ hdf5Rule: ${h5c++}
 
 ${h5c++}:
 	@echo "Building dependency hdf5"
-	@cd ${PWD}/submodules/hdf5 && (output=`(./configure --prefix=$(PWD)/submodules/hdf5 --enable-cxx && CFLAGS=-std=c99 make -j4 -e && make install) 2>&1` || (echo "$$output"; exit 1))
+	@cd ${PWD}/submodules/hdf5 && (output=`(./configure --prefix=$(PWD)/submodules/hdf5 --enable-cxx && CFLAGS=-std=c99 AM_MAKEFLAGS=-e make -j4 -e && make install) 2>&1` || (echo "$$output"; exit 1))
 
 halRule: ${h5c++} ${libSonLib}
 	@echo "Building dependency hal"
