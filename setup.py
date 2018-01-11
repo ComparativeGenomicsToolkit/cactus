@@ -7,7 +7,7 @@ os.system("pip install git+https://github.com/ComparativeGenomicsToolkit/sonLib@
 versionFile = "src/cactus/shared/version.py"
 if os.path.exists(versionFile):
     os.remove(versionFile)
-git_commit = subprocess.check_output('git log --pretty=oneline -n 1 -- $(pwd)', shell=True).split()[0]
+git_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip()
 with open(versionFile, 'w') as versionFH:
     versionFH.write("cactus_commit = '%s'" % git_commit)
 
