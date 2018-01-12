@@ -997,6 +997,7 @@ def cactus_call(tool=None,
             # Wait a bit to see if the process is done
             output, nothing = process.communicate(stdin_string if first_run else None, timeout=10)
         except subprocess32.TimeoutExpired:
+            sys.stderr.write("Timeout expired\n")
             if mode == "docker":
                 # Every so often, check the memory usage of the container
                 updatedMemUsage = maxMemUsageOfContainer(containerInfo)

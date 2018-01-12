@@ -90,6 +90,11 @@ class MaskCoveredIntervals(RoundedJob):
     def run(self, fileStore):
         #This runs Bob's covered intervals program, which combins the lastz alignment info into intervals of the query.
         alignments = fileStore.readGlobalFile(self.alignmentsID)
+        with open(alignments) as f:
+            lines = map(lambda x: x.strip(), f.readlines())
+            if len(lines) >= 2:
+                sys.stderr.write("First lines: %s\n%s\n" % (lines[0], lines[1]))
+                sys.stderr.write("Last lines: %s\n%s\n" % (lines[-2], lines[-1]))
         query = fileStore.readGlobalFile(self.queryID)
         maskInfo = fileStore.getLocalTempFile()
         cactus_call(infile=alignments, outfile=maskInfo,
