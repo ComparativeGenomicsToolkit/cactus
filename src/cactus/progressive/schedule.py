@@ -10,18 +10,13 @@ on outgroups.  The input is a DAG, the output is a TREE
 
 """
 
-import os
 import xml.etree.ElementTree as ET
-import sys
-import math
-import copy
 import networkx as NX
 
 from optparse import OptionParser
 
 
 from cactus.progressive.multiCactusProject import MultiCactusProject
-from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.configWrapper import ConfigWrapper
 

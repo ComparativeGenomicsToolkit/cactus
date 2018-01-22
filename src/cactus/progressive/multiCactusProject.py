@@ -136,8 +136,3 @@ class MultiCactusProject:
 
     def setInputSequenceIDs(self, inputSequenceIDs):
         self.inputSequenceIDs = inputSequenceIDs
-
-if __name__ == '__main__':
-    main()
-        
-    

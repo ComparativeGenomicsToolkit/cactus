@@ -4,7 +4,6 @@
 #
 #Released under the MIT license, see LICENSE.txt
 import unittest
-import sys
 import os
 import random
 

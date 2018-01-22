@@ -22,17 +22,9 @@
 import os
 import sys
 import xml.etree.ElementTree as ET
-import math
-import time
-import random
-import copy
-from optparse import OptionParser
-from optparse import OptionGroup
-import imp
 import string
 import re
 
-from sonLib.bioio import absSymPath
 from sonLib.nxtree import NXTree
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import popenCatch
@@ -123,11 +115,6 @@ class SeqFile:
                 name = self.tree.getName(node)
                 if name not in self.pathMap:
                     raise RuntimeError("No sequence specified for %s" % name)
-                else:
-                    path = self.pathMap[name]
-                    #if not os.path.exists(path):
-                    #    raise RuntimeError("Sequence path not found: %s" % path)
-                    #self.sanityCheckSequence(path)
 
     def sanityCheckSequence(self, path):
         """Warns the user about common problems with the input sequences."""

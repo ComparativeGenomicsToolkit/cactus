@@ -9,7 +9,6 @@
 """ 
 import os
 import sys
-from optparse import OptionParser
 import xml.etree.ElementTree as ET
 import copy
 
@@ -19,7 +18,6 @@ from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.outgroup import GreedyOutgroup, DynamicOutgroup
 from sonLib.nxnewick import NXNewick
-from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 
 def createMCProject(tree, experiment, config, options):
     mcTree = MultiCactusTree(tree, config.getSubtreeSize())
@@ -225,7 +223,6 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
         os.makedirs(options.path)
     mcProj.writeXML(os.path.join(options.path, "%s_project.xml" % options.name))
     seqMap = expTemplate.seqMap
-    portOffset = 0
     for name, expPath in mcProj.expMap.items():
         path = os.path.join(options.path, name)
         seqMap[name] = os.path.join(path, name + '.fa')

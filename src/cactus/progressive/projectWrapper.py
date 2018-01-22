@@ -3,7 +3,6 @@
 import os
 import xml.etree.ElementTree as ET
 
-from toil.lib.bioio import system
 from sonLib.bioio import absSymPath
 
 from seqFile import SeqFile

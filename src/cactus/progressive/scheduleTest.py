@@ -7,20 +7,11 @@
 """
 
 import unittest
-import os
-import sys
-import copy
-import xml.etree.ElementTree as ET
 import networkx as NX
 import random
-from sonLib.bioio import TestStatus
-from sonLib.bioio import getTempDirectory
-from sonLib.bioio import logger
-from sonLib.bioio import system
 
 from cactus.progressive.schedule import Schedule
 
-from sonLib.nxnewick import NXNewick
 from sonLib.nxtreeTest import randomTreeSet
 
 class TestCase(unittest.TestCase):

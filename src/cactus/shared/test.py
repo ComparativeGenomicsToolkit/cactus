@@ -24,15 +24,13 @@ from sonLib.bioio import getRandomAlphaNumericString
 from sonLib.bioio import cigarWrite, PairwiseAlignment, AlignmentOperation
 
 from cactus.shared.common import runCactusWorkflow
-from cactus.shared.common import runCactusCheck
 
 from sonLib.bioio import TestStatus
 
 from sonLib.tree import makeRandomBinaryTree
 
-from cactus.shared.common import runToilStats, runToilStatusAndFailIfNotComplete
+from cactus.shared.common import runToilStats
 
-from cactus.shared.experimentWrapper import DbElemWrapper
 from cactus.shared.experimentWrapper import ExperimentWrapper
 
 def silentOnSuccess(fn):
@@ -258,7 +256,7 @@ def getCactusInputs_funkyHeaderNames(regionNumber=0, tempDir=None):
 
     # Assign weird header names
     if tempDir is None:
-        tempDir = getTempDir()
+        tempDir = getTempDirectory()
     # Should also consider "bar foo", "ba rfoo", but we currently
     # throw away everything but the first token (probably because of
     # cigar parsing).

@@ -3,18 +3,8 @@
 #Copyright (C) 2011 by Glenn Hickey
 #
 #Released under the MIT license, see LICENSE.txt
-"""
-"""
 
 import unittest
-import os
-import sys
-
-from sonLib.bioio import TestStatus
-from sonLib.bioio import getTempDirectory
-from sonLib.bioio import logger
-from sonLib.bioio import system
-
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from sonLib.nxnewick import NXNewick
 

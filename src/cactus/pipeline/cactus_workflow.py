@@ -15,7 +15,6 @@ import sys
 import xml.etree.ElementTree as ET
 import math
 import time
-import random
 import copy
 from argparse import ArgumentParser
 from operator import itemgetter

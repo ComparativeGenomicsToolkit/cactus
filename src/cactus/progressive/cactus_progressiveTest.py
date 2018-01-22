@@ -8,7 +8,6 @@
 
 import unittest
 import os
-import sys
 import random
 import glob
 import xml.etree.ElementTree as ET
@@ -20,8 +19,7 @@ from sonLib.bioio import getTempFile
 from sonLib.bioio import getTempDirectory
 from sonLib.bioio import logger
 from sonLib.bioio import system
-from sonLib.bioio import getRandomSequence
-from sonLib.bioio import fastaRead, fastaWrite
+from sonLib.bioio import fastaRead
 from sonLib.nxnewick import NXNewick
 
 from cactus.shared.test import getCactusInputs_random
