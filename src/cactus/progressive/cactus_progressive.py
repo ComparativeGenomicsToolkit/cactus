@@ -195,7 +195,7 @@ class ProgressiveUp(RoundedJob):
 
         return finalExpWrapper
 
-def logAssemblyStats(job, message, name, sequenceID):
+def logAssemblyStats(job, message, name, sequenceID, preemptable=True):
     sequenceFile = job.fileStore.readGlobalFile(sequenceID)
     analysisString = cactus_call(parameters=["cactus_analyseAssembly", sequenceFile], check_output=True)
     job.fileStore.logToMaster("%s, got assembly stats for genome %s: %s" % (message, name, analysisString))
