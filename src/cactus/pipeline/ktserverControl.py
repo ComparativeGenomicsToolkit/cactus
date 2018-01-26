@@ -104,7 +104,8 @@ class ServerProcess(Process):
         while True:
             # Check for the termination signal
             try:
-                cactus_call(parameters=["ktremotemgr", "get"] + getRemoteParams(dbElem) + ["TERMINATE"])
+                cactus_call(parameters=["ktremotemgr", "get"] + getRemoteParams(dbElem) + ["TERMINATE"],
+                            swallowStdErr=True)
             except:
                 # No terminate signal sent yet
                 pass

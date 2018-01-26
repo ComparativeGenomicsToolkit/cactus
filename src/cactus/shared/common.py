@@ -943,7 +943,8 @@ def cactus_call(tool=None,
                 soft_timeout=None,
                 job_name=None,
                 features=None,
-                fileStore=None):
+                fileStore=None,
+                swallowStdErr=False):
     mode = os.environ.get("CACTUS_BINARIES_MODE", "docker")
 
     if dockstore is None:
@@ -984,7 +985,8 @@ def cactus_call(tool=None,
     _log.info("Running the command %s" % call)
     process = subprocess32.Popen(call, shell=shell,
                                  stdin=stdinFileHandle, stdout=stdoutFileHandle,
-                                 stderr=sys.stderr, bufsize=-1)
+                                 stderr=subprocess32.PIPE if swallowStdErr else sys.stderr,
+                                 bufsize=-1)
 
     if server:
         return process
