@@ -1032,6 +1032,7 @@ class RunAsFollowOn(Job):
         self._args = args
         self._kwargs = kwargs
         self.job = job
+
     def run(self, fileStore):
         return self.addFollowOn(self.job(*self._args, **self._kwargs)).rv()
 

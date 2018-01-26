@@ -341,12 +341,12 @@ class CactusRecursionJob(CactusJob):
         """
         if phaseNode == None:
             phaseNode = self.phaseNode
-        return self.addFollowOn(RunAsFollowOn(job, phaseNode=phaseNode, constantsNode=self.constantsNode,
-                                              cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
-                                              flowerNames=self.flowerNames, flowerSizes=self.flowerSizes,
-                                              overlarge=self.overlarge,
-                                              precomputedAlignmentIDs=self.precomputedAlignmentIDs,
-                                              cactusWorkflowArguments=self.cactusWorkflowArguments)).rv()
+        return self.addFollowOn(job(phaseNode=phaseNode, constantsNode=self.constantsNode,
+                                    cactusDiskDatabaseString=self.cactusDiskDatabaseString,
+                                    flowerNames=self.flowerNames, flowerSizes=self.flowerSizes,
+                                    overlarge=self.overlarge,
+                                    precomputedAlignmentIDs=self.precomputedAlignmentIDs,
+                                    cactusWorkflowArguments=self.cactusWorkflowArguments)).rv()
         
     def makeChildJobs(self, flowersAndSizes, job, overlargeJob=None, 
                       phaseNode=None):
@@ -861,7 +861,13 @@ class CactusBarWrapperLarge(CactusRecursionJob):
                 self.flowerSizes, False, endsToAlign, endSizes,
                 cactusWorkflowArguments=self.cactusWorkflowArguments)).rv())
         self.precomputedAlignmentIDs = precomputedAlignmentIDs
-        self.makeFollowOnRecursiveJob(CactusBarWrapperWithPrecomputedEndAlignments)
+        self.addFollowOn(RunAsFollowOn(CactusBarWrapperWithPrecomputedEndAlignments,
+                                       phaseNode=self.phaseNode, constantsNode=self.constantsNode,
+                                       cactusDiskDatabaseString=self.cactusDiskDatabaseString,
+                                       flowerNames=self.flowerNames, flowerSizes=self.flowerSizes,
+                                       overlarge=self.overlarge,
+                                       precomputedAlignmentIDs=self.precomputedAlignmentIDs,
+                                       cactusWorkflowArguments=self.cactusWorkflowArguments))
         logger.info("Breaking bar job into %i separate jobs" % \
                              (len(precomputedAlignmentIDs)))
 
