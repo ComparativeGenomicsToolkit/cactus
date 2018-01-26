@@ -122,13 +122,15 @@ class ServerProcess(Process):
         blockUntilKtserverIsFinished(logPath)
         if snapshotExportID is not None:
             if not os.path.exists(snapshotPath):
-                raise RuntimeError("KTServer did not leave a snapshot on termination,"
-                                   " but a snapshot was requested.")
+                with open(logPath) as f:
+                    raise RuntimeError("KTServer did not leave a snapshot on termination,"
+                                       " but a snapshot was requested. Log: %s" % f.read())
             if len(glob(os.path.join(snapshotDir, "*.ktss"))) != 1:
                 # More than one snapshot file. It's not clear what
                 # conditions trigger this--if any--but we
                 # don't support it right now.
-                raise RuntimeError("KTServer left more than one snapshot.")
+                with open(logPath) as f:
+                    raise RuntimeError("KTServer left more than one snapshot. Log: %s" % f.read())
 
             # Export the snapshot file to the file store
             fileStore.jobStore.updateFile(snapshotExportID, snapshotPath)
