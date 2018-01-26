@@ -104,7 +104,6 @@ class CactusJob(RoundedJob):
             logger.info("JobNode = %s" % self.jobNode.attrib)
 
         memory = None
-        cores = None
         if hasattr(self, 'memoryPoly'):
             # Memory should be determined by a polynomial fit on the
             # input size
@@ -112,17 +111,20 @@ class CactusJob(RoundedJob):
             if hasattr(self, 'memoryCap'):
                 memory = int(min(memory, self.memoryCap))
 
+        cores = None
+        if hasattr(self, 'cpuUsage'):
+            # Why not check for the existence of self.cores? Well,
+            # unfortunately .cores is already a property function
+            # which will throw an error when set.
+            cores = self.cpuUsage
+
         disk = None
         if memory is None and overlarge:
             memory = self.getOptionalJobAttrib("overlargeMemory", typeFn=int,
                                                default=getOptionalAttrib(self.constantsNode, "defaultOverlargeMemory", int, default=sys.maxint))
-            cores = self.getOptionalJobAttrib("overlargeCpu", typeFn=int,
-                                              default=getOptionalAttrib(self.constantsNode, "defaultOverlargeCpu", int, default=None))
         elif memory is None:
             memory = self.getOptionalJobAttrib("memory", typeFn=int,
                                                default=getOptionalAttrib(self.constantsNode, "defaultMemory", int, default=sys.maxint))
-            cores = self.getOptionalJobAttrib("cpu", typeFn=int,
-                                              default=getOptionalAttrib(self.constantsNode, "defaultCpu", int, default=sys.maxint))
         RoundedJob.__init__(self, memory=memory, cores=cores, disk=disk,
                             checkpoint=checkpoint, preemptable=preemptable)
 
@@ -764,6 +766,7 @@ class CactusBarPhase(CactusPhasesJob):
 
 class CactusBarRecursion(CactusRecursionJob):
     """This job does the get flowers down pass for the BAR alignment phase."""
+    cpuUsage = 0.3
     memoryPoly = [2e+09]
 
     def run(self, fileStore):
@@ -1027,6 +1030,7 @@ class CactusReferencePhase(CactusPhasesJob):
 class CactusReferenceRecursion(CactusRecursionJob):
     """This job creates the wrappers to run the reference problem algorithm, the follow on job then recurses down.
     """
+    cpuUsage = 0.1
     memoryPoly = [2e+09]
 
     def run(self, fileStore):
@@ -1059,6 +1063,7 @@ class CactusReferenceWrapper(CactusRecursionJob):
                        makeScaffolds=self.getOptionalPhaseAttrib("makeScaffolds", bool))
 
 class CactusReferenceRecursion2(CactusRecursionJob):
+    cpuUsage = 0.1
     memoryPoly = [2e+09]
     def run(self, fileStore):
         self.makeRecursiveJobs(fileStore=fileStore,
@@ -1068,6 +1073,7 @@ class CactusReferenceRecursion2(CactusRecursionJob):
 class CactusReferenceRecursion3(CactusRecursionJob):
     """After completing the recursion for the reference algorithm, the up pass of adding in the reference coordinates is performed.
     """
+    cpuUsage = 0.1
     def run(self, fileStore):
         return self.makeWrapperJobs(CactusSetReferenceCoordinatesUpWrapper)
 
@@ -1239,6 +1245,7 @@ class CactusFastaGenerator(CactusRecursionJob):
 class CactusHalGeneratorRecursion(CactusRecursionJob):
     """Generate the hal file by merging indexed hal files from the children.
     """
+    cpuUsage = 0.1
     memoryPoly = [2e+09]
     def run(self, fileStore):
         i = extractNode(self.phaseNode)
