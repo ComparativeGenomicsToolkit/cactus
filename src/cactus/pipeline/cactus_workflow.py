@@ -1252,6 +1252,7 @@ class CactusHalGeneratorRecursion(CactusRecursionJob):
         if "outputFile" in i.attrib:
             i.attrib.pop("outputFile")
 
+        self.jobNode.attrib["maxFlowerGroupSize"] = "8000000"
         self.makeRecursiveJobs(fileStore=fileStore, phaseNode=i)
         return self.makeFollowOnRecursiveJob(CactusHalGeneratorUpWrapper)
 
