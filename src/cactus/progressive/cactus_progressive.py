@@ -358,7 +358,11 @@ def setupBinaries(options):
         jobStoreType, locator = Toil.parseLocator(options.jobStore)
         if jobStoreType != "file":
             raise RuntimeError("Singularity mode is only supported when using the FileJobStore.")
-        imgPath = os.path.join(os.path.abspath(locator), "cactus.img")
+        # When SINGULARITY_CACHEDIR is set, singularity will refuse to store images in the current directory
+        if 'SINGULARITY_CACHEDIR' in os.environ:
+            imgPath = os.path.join(os.environ['SINGULARITY_CACHEDIR'], "cactus.img")
+        else:
+            imgPath = os.path.join(os.path.abspath(locator), "cactus.img")
         os.environ["CACTUS_SINGULARITY_IMG"] = imgPath
 
 def importSingularityImage():
@@ -376,6 +380,8 @@ def importSingularityImage():
         # point to a path instead of a name in the CWD. So we change
         # to the proper directory manually, then change back after the
         # image is pulled.
+        # NOTE: singularity writes images in the current directory only
+        #       when SINGULARITY_CACHEDIR is not set
         oldCWD = os.getcwd()
         os.chdir(os.path.dirname(imgPath))
         # --size is deprecated starting in 2.4, but is needed for 2.3 support. Keeping it in for now.
