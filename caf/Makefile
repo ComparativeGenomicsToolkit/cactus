@@ -6,7 +6,7 @@ libHeaders = inc/*.h
 libTests = tests/*.c
 
 commonCafLibs = ${libPath}/cactusBlastAlignment.a ${sonLibPath}/stPinchesAndCacti.a ${sonLibPath}/3EdgeConnected.a ${libPath}/cactusLib.a
-stCafDependencies =  ${commonCafLibs} ${basicLibsDependencies}
+stCafDependencies =  ${commonCafLibs} ${basicLibsDependencies} -lpthread
 stCafLibs = ${commonCafLibs} ${basicLibs}
 
 all : ${libPath}/stCaf.a ${binPath}/stCafTests ${binPath}/cactus_caf
