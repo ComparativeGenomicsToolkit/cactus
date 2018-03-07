@@ -5,8 +5,9 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get -qq update; fi
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y libtokyocabinet-dev libkyototycoon-dev kyototycoon libkyotocabinet-dev; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install tokyo-cabinet kyoto-cabinet kyoto-tycoon; fi
-#Build docker containers
-  - if [[ "$CACTUS_BINARIES_MODE" == "docker" ]]; then docker login --username $QUAY_USERNAME --password $QUAY_PASSWORD quay.io; make push; fi
+# Push docker containers. We skip this on PR builds because Travis
+# doesn't include the user/password in those builds.
+  - if [[ "$CACTUS_BINARIES_MODE" == "docker" ]]; then if [[ "$TRAVIS_PULL_REQUEST" == "false" ]]; then docker login --username $QUAY_USERNAME --password $QUAY_PASSWORD quay.io; make push; else make docker; fi; fi
 script:
   - sudo pip install --pre toil
   - sudo pip install -e .
