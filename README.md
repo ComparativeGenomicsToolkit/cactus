@@ -50,7 +50,7 @@ and copy the `ktserver` binary to somewhere on your PATH, and depending on your 
 
 Once you have KyotoTycoon installed, you should be able to compile Cactus and its dependencies by running:
 ```
-git submodule update --init
+git submodule update --init --remote
 make
 ```
 
