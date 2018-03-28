@@ -429,7 +429,15 @@ def main():
     # methods like readGlobalFileStream don't support forced
     # reads directly from the job store rather than from cache.
     options.disableCaching = True
-
+    # Job chaining breaks service termination timing, causing unused
+    # databases to accumulate and waste memory for no reason.
+    options.disableChaining = True
+    # The default deadlockWait is currently 60 seconds. This can cause
+    # issues if the database processes take a while to actually begin
+    # after they're issued. Change it to at least an hour so that we
+    # don't preemptively declare a deadlock.
+    if options.deadlockWait is None or options.deadlockWait < 3600:
+        options.deadlockWait = 3600
     if options.retryCount is None:
         # If the user didn't specify a retryCount value, make it 5
         # instead of Toil's default (1).
