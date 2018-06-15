@@ -19,4 +19,9 @@ void stCaf_sortCigarsByScoreInDescendingOrder(stList *cigars);
 
 void stCaf_sortCigarsFileByScoreInDescendingOrder(char *cigarsFile, char *sortedFile);
 
+/*
+ * Sorts cigars in file into the second file, sorting in ascending order of overlap interval
+ */
+void stCaf_sortCigarsFileByFirstSequenceStartCoordinateInAscendingOrder(char *cigarsFile, char *sortedFile);
+
 #endif /* ST_LASTZALIGNMENT_H_ */
