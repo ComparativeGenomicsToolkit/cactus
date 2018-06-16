@@ -12,8 +12,9 @@ filtering the alignments to remove lower probability alignments.
   This involves chopping up alignments in T to avoid partial overlaps.
 
 - Overview of procedure (top level in Python in this script):
-        - Add mirror alignments to T (this ensures that each alignment is considered on both sequences 
-        to which it aligns): C subscript: cactus_mirrorAlignments.c
+        - Add mirror alignments to T  and ensure alignments are reported with repsect to positive strand of first sequence 
+        (this ensures that each alignment is considered on both sequences 
+        to which it aligns): C subscript: cactus_mirrorAndOrientAlignments.c
         - Sort alignments in T by coordinates on S: Unix sort
         - Split alignments in T so that they don't partially overlap on S: C subscript: cactus_splitAlignmentOverlaps
             - Each alignment defines an interval on a sequence in S

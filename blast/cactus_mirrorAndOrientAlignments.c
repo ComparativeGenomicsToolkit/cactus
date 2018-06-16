@@ -5,44 +5,7 @@
  */
 
 #include "sonLib.h"
-#include "stLastzAlignments.h"
-
-int main(int argc, char *argv[]) {
-	/*
-	 * For each alignment in the input file copy the alignment to the output file and additionally
-	 * write out the alignment with the first and second sequences reversed. For each alignment written out
-	 * we ensure the alignment is reported with respect to the positive strand of the first reported sequence.
-	 */
-	assert(argc == 4);
-	st_setLogLevelFromString(argv[1]);
-
-    FILE *fileHandleIn = fopen(argv[2], "r");
-    FILE *fileHandleOut = fopen(argv[3], "w");
-    struct PairwiseAlignment *pairwiseAlignment;
-    while ((pairwiseAlignment = cigarRead(fileHandleIn)) != NULL) {
-
-        // Write out original cigar
-    	if(!pairwiseAlignment->strand1) {
-    		invertStrands(pairwiseAlignment);
-    	}
-    	checkPairwiseAlignment(pairwiseAlignment);
-        cigarWrite(fileHandleOut, pairwiseAlignment, 0);
-
-        // Write out mirror cigar (with query and target reversed)
-        cigarReverse(pairwiseAlignment);
-        if(!pairwiseAlignment->strand1) {
-        	invertStrands(pairwiseAlignment);
-        }
-        checkPairwiseAlignment(pairwiseAlignment);
-        cigarWrite(fileHandleOut, pairwiseAlignment, 0);
-
-        // Cleanup
-        destructPairwiseAlignment(pairwiseAlignment);
-    }
-    fclose(fileHandleIn);
-    fclose(fileHandleOut);
-    return 0;
-}
+#include "pairwiseAlignment.h"
 
 void invertStrands(struct PairwiseAlignment *pairwiseAlignment) {
 	/*
@@ -101,4 +64,41 @@ void cigarReverse(struct PairwiseAlignment *pairwiseAlignment) {
 			op->opType = PAIRWISE_INDEL_Y;
 		}
 	}
+}
+
+int main(int argc, char *argv[]) {
+	/*
+	 * For each alignment in the input file copy the alignment to the output file and additionally
+	 * write out the alignment with the first and second sequences reversed. For each alignment written out
+	 * we ensure the alignment is reported with respect to the positive strand of the first reported sequence.
+	 */
+	assert(argc == 4);
+	st_setLogLevelFromString(argv[1]);
+
+    FILE *fileHandleIn = fopen(argv[2], "r");
+    FILE *fileHandleOut = fopen(argv[3], "w");
+    struct PairwiseAlignment *pairwiseAlignment;
+    while ((pairwiseAlignment = cigarRead(fileHandleIn)) != NULL) {
+
+        // Write out original cigar
+    	if(!pairwiseAlignment->strand1) {
+    		invertStrands(pairwiseAlignment);
+    	}
+    	checkPairwiseAlignment(pairwiseAlignment);
+        cigarWrite(fileHandleOut, pairwiseAlignment, 0);
+
+        // Write out mirror cigar (with query and target reversed)
+        cigarReverse(pairwiseAlignment);
+        if(!pairwiseAlignment->strand1) {
+        	invertStrands(pairwiseAlignment);
+        }
+        checkPairwiseAlignment(pairwiseAlignment);
+        cigarWrite(fileHandleOut, pairwiseAlignment, 0);
+
+        // Cleanup
+        destructPairwiseAlignment(pairwiseAlignment);
+    }
+    fclose(fileHandleIn);
+    fclose(fileHandleOut);
+    return 0;
 }
