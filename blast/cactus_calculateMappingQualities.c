@@ -20,7 +20,7 @@ int cmpAlignmentsFn(const void *a, const void *b) {
 }
 
 void updateScoresToReflectMappingQualities(stList *alignments) {
-
+	//TODO
 }
 
 int main(int argc, char *argv[]) {
@@ -28,15 +28,17 @@ int main(int argc, char *argv[]) {
 	 * For each alignment in the input file copy the alignment to the output file and additionally
 	 * write out the alignment with the query and target sequences reversed.
 	 */
-	assert(argc == 4);
+	assert(argc == 6);
 	st_setLogLevelFromString(argv[1]);
 
     FILE *fileHandleIn = fopen(argv[2], "r");
     FILE *fileHandleOut = fopen(argv[3], "w");
-    int64_t maxAlignmentsPerPosition;
-    int64_t i = sscanf(argv[4], "%" PRIi64 "", &maxAlignmentsPerPosition);
+    int64_t maxAlignmentsPerSite;
+    int64_t i = sscanf(argv[4], "%" PRIi64 "", &maxAlignmentsPerSite);
     assert(i == 1);
-
+    float minimumMapQValue;
+    i = sscanf(argv[5], "%f", &minimumMapQValue);
+    assert(i == 1);
     
     // List of totally overlapping alignments
     stList *alignments = stList_construct();
@@ -50,7 +52,7 @@ int main(int argc, char *argv[]) {
 		if(stList_length(alignments) > 0 &&
 		   	getStartCoordinate(pairwiseAlignment) != alignmentStart) {
 		   
-		   	// 
+		   	// TODO
 			updateScoresToReflectMappingQualities(alignments);
 			
 			// Sort by ascending score
@@ -59,7 +61,7 @@ int main(int argc, char *argv[]) {
 			// Report the alignments
 			for(i=0; stList_length(alignments) > 0;) {
 				struct PairwiseAlignment *pairwiseAlignment2 = stList_pop(alignments);
-				if(i++ < maxAlignmentsPerPosition) {
+				if(i++ < maxAlignmentsPerSite && pairwiseAlignment2->score >= minimumMapQValue) {
 					// Write out modified cigar
 		        	cigarWrite(fileHandleOut, pairwiseAlignment2, 0);
 				}

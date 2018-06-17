@@ -67,7 +67,7 @@ struct PairwiseAlignment *removeAlignmentPrefix(struct PairwiseAlignment *pairwi
 
 void chopPrefixes(stSortedSet *activeAlignments, uint64_t prefixEnd, FILE *fileHandleOut) {
 	struct PairwiseAlignment *pairwiseAlignment = stSortedSet_getFirst(activeAlignments);
-	//For each alignment A in S that ends before prefix end
+	//For each alignment A in S that ends before prefixEnd
 	while(stSortedSet_size(activeAlignments) > 0 &&
 			getEndCoordinate(pairwiseAlignment = stSortedSet_getFirst(activeAlignments)) <= prefixEnd) {
 		// Remove from active alignments
@@ -92,12 +92,14 @@ void chopPrefixes(stSortedSet *activeAlignments, uint64_t prefixEnd, FILE *fileH
 }
 
 void splitAlignmentOverlaps(stSortedSet *activeAlignments, uint64_t splitUpto, FILE *fileHandleOut) {
+	// Process partial overlaps between alignments that precede splitUpto
 	// while (minEndCoordinate = Min end coordinate in S) < splitUpto:
 	uint64_t minEndCoordinate;
 	while(stSortedSet_size(activeAlignments) > 0 &&
 			(minEndCoordinate = getEndCoordinate(stSortedSet_getFirst(activeAlignments))) < splitUpto) {
 		chopPrefixes(activeAlignments, minEndCoordinate, fileHandleOut);
 	}
+	// Now split at the splitUpto point
 	if(stSortedSet_size(activeAlignments) > 0) {
 		chopPrefixes(activeAlignments, splitUpto, fileHandleOut);
 	}
@@ -105,11 +107,11 @@ void splitAlignmentOverlaps(stSortedSet *activeAlignments, uint64_t splitUpto, F
 
 int main(int argc, char *argv[]) {
 	/*
-	 * Each alignment has a unique query interval, defined by where it starts and ends on the
-	 * query sequence.
-	 * Two alignments partially overlap if there query intervals overlap but are not the same.
+	 * Each alignment has a unique first sequence interval, defined by where it starts and ends on the
+	 * first sequence.
+	 * Two alignments partially overlap if their first sequence intervals overlap but are not the same.
 	 * This program breaks up alignments in the input file so that there are no partial overlaps between
-	 * alignments, outputting the non-overlapping alignments to the output file.
+	 * alignments, outputting the non-partially-overlapping alignments to the output file.
 	 */
 	assert(argc == 4);
 	st_setLogLevelFromString(argv[1]);
@@ -131,6 +133,10 @@ int main(int argc, char *argv[]) {
     // Remove remaining overlaps in alignments
     splitAlignmentOverlaps(activeAlignments, UINT64_MAX, fileHandleOut);
 
+    assert(stSortedSet_size(activeAlignments) == 0);
+
+    // Cleanup
+    stSortedSet_destruct(activeAlignments);
     fclose(fileHandleIn);
     fclose(fileHandleOut);
     return 0;

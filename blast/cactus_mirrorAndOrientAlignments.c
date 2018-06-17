@@ -7,6 +7,13 @@
 #include "sonLib.h"
 #include "pairwiseAlignment.h"
 
+/*
+ * Script takes a set of pairwise alignments using the lastz cigar format and returns a modified
+ * set such that all alignments are reported with respect to the positive strand of the first sequence
+ * and such that all alignments are mirrored, so that they are additionally reporting after flipping the first
+ * sequence for the second sequence.
+ */
+
 void invertStrands(struct PairwiseAlignment *pairwiseAlignment) {
 	/*
 	 * Inverts the strands of the alignment.

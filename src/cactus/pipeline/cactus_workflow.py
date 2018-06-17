@@ -62,6 +62,7 @@ from cactus.shared.common import readGlobalFileWithoutCache
 
 from cactus.blast.blast import BlastIngroupsAndOutgroups
 from cactus.blast.blast import BlastOptions
+from cactus.blast.mappingQualityRescoringAndFiltering import mappingQualityRescoring
 
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 
@@ -515,19 +516,21 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
         # Change the blast arguments depending on the divergence
         setupDivergenceArgs(self.cactusWorkflowArguments)
         setupFilteringByIdentity(self.cactusWorkflowArguments)
+        
+        cafNode = findRequiredNode(self.cactusWorkflowArguments.configNode, "caf")
 
         # FIXME: this is really ugly and steals the options from the caf tag
         blastJob = self.addChild(BlastIngroupsAndOutgroups(
-            BlastOptions(chunkSize=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "chunkSize", int),
-                         overlapSize=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "overlapSize", int),
-                         lastzArguments=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "lastzArguments"),
-                         compressFiles=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "compressFiles", bool),
-                         realign=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "realign", bool), 
-                         realignArguments=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "realignArguments"),
-                         memory=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "lastzMemory", int, sys.maxint),
-                         smallDisk=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "lastzSmallDisk", int, sys.maxint),
-                         largeDisk=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "lastzLargeDisk", int, sys.maxint),
-                         minimumSequenceLength=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "minimumSequenceLengthForBlast", int, 1),
+            BlastOptions(chunkSize=getOptionalAttrib(cafNode, "chunkSize", int),
+                         overlapSize=getOptionalAttrib(cafNode, "overlapSize", int),
+                         lastzArguments=getOptionalAttrib(cafNode, "lastzArguments"),
+                         compressFiles=getOptionalAttrib(cafNode, "compressFiles", bool),
+                         realign=getOptionalAttrib(cafNode, "realign", bool), 
+                         realignArguments=getOptionalAttrib(cafNode, "realignArguments"),
+                         memory=getOptionalAttrib(cafNode, "lastzMemory", int, sys.maxint),
+                         smallDisk=getOptionalAttrib(cafNode, "lastzSmallDisk", int, sys.maxint),
+                         largeDisk=getOptionalAttrib(cafNode, "lastzLargeDisk", int, sys.maxint),
+                         minimumSequenceLength=getOptionalAttrib(cafNode, "minimumSequenceLengthForBlast", int, 1),
                          trimFlanking=self.getOptionalPhaseAttrib("trimFlanking", int, 10),
                          trimMinSize=self.getOptionalPhaseAttrib("trimMinSize", int, 0),
                          trimThreshold=self.getOptionalPhaseAttrib("trimThreshold", float, 0.8),
@@ -537,8 +540,14 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
                          keepParalogs=self.getOptionalPhaseAttrib("keepParalogs", bool, False)),
             map(itemgetter(0), ingroupItems), map(itemgetter(1), ingroupItems),
             map(itemgetter(0), outgroupItems), map(itemgetter(1), outgroupItems)))
+        
+        # Alignment post processing to filter alignments
+        mapQJob = self.addChildJobFn(mappingQualityRescoring, blastJob.rv(0), 
+                                     minimumMapQValue=getOptionalAttrib(cafNode, "minimumMapQValue", float, 0.0),
+                                     maxAlignmentsPerSite=getOptionalAttrib(cafNode, "maxAlignmentsPerSite", int, 1))
+        mapQJob.addChildJob(blastJob) # Ensure the blast job runs before the mapQ job
 
-        self.cactusWorkflowArguments.alignmentsID = blastJob.rv(0)
+        self.cactusWorkflowArguments.alignmentsID = mapQJob.rv(0)
         self.cactusWorkflowArguments.outgroupFragmentIDs = blastJob.rv(1)
         self.cactusWorkflowArguments.ingroupCoverageIDs = blastJob.rv(2)
 

@@ -102,7 +102,7 @@ void stCaf_sortCigarsFileByScoreInDescendingOrder(char *cigarsFile, char *sorted
 }
 
 void stCaf_sortCigarsFileByFirstSequenceStartCoordinateInAscendingOrder(char *cigarsFile, char *sortedFile) {
-    int64_t i = st_system("sort -k10,10nr -k2,2 %s > %s", cigarsFile, sortedFile); // TODO: GET THESE RIGHT
+    int64_t i = st_system("sort -k3n -k4n %s > %s", cigarsFile, sortedFile); // TODO: GET THESE RIGHT
     if(i != 0) {
         st_errAbort("Encountered unix sort error when sorting cigar alignments in file: %s\n", cigarsFile);
     }

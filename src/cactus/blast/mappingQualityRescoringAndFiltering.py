@@ -31,15 +31,16 @@ from toil.lib.bioio import system
 
 from cactus.shared.common import cactus_call
 
-def mappingQualityRescoring(job, inputAlignmentFile, outputAlignmentFile, cactusWorkflowArguments):
+def mappingQualityRescoring(job, inputAlignmentFileID, 
+                            minimumMapQValue, maxAlignmentsPerSite):
     """
-    Function to rescore and filter alignments
+    Function to rescore and filter alignments by calculating the mapping quality of sub-alignments
     """
     # Get temporary files
-    tempAlignmentFile, tempAlignmentFile2 = job.fileStore.getLocalTemporaryFile(), 
-    job.fileStore.getLocalTemporaryFile()
+    tempAlignmentFile, tempAlignmentFile2 = job.fileStore.getLocalTempFile(), 
+    job.fileStore.getLocalTempFile()
     
-    # Mirror alignments
+    # Mirror and orient alignments
     cactus_call(parameters=["cactus_mirrorAndOrientAlignments",
                              getLogLevelString(),
                              inputAlignmentFile,
@@ -61,5 +62,8 @@ def mappingQualityRescoring(job, inputAlignmentFile, outputAlignmentFile, cactus
     cactus_call(parameters=["cactus_calculateMappingQualities",
                              getLogLevelString(),
                              tempAlignmentFile,
-                             outputAlignmentFile ])
+                             tempAlignmentFile2,
+                             minimumMapQValue, maxAlignmentsPerSite ])
     
+    # Now write back alignments results file and return
+    return fileStore.writeGlobalFile(tempAlignmentFile2)
