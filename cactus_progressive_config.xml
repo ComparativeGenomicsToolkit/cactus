@@ -102,7 +102,7 @@
                 removeRecoverableChains="unequalNumberOfIngroupCopies"
                 maxRecoverableChainsIterations="5"
                 maxRecoverableChainLength="500000"
-                doPhylogeny="1"
+                doPhylogeny="0"
                 phylogenyNumTrees="30"
                 phylogenyRootingMethod="bestRecon"
                 phylogenyScoringMethod="reconCost"
