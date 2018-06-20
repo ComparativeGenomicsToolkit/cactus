@@ -946,7 +946,6 @@ def cactus_call(tool=None,
                 fileStore=None,
                 swallowStdErr=False):
     mode = os.environ.get("CACTUS_BINARIES_MODE", "docker")
-
     if dockstore is None:
         dockstore = getDockerOrg()
     if parameters is None:

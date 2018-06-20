@@ -7,165 +7,207 @@ from cactus.shared.test import getCactusInputs_encode, silentOnSuccess
 class TestCase(unittest.TestCase):
     def setUp(self):
         unittest.TestCase.setUp(self)
-        # simple test data -- not an actual alignment, but to test if
-        # coverage is correct. no overlap on B, but overlap on A.
-        self.simpleFastaPathA = getTempFile()
-        open(self.simpleFastaPathA, 'w').write(dedent('''\
-        >id=0|simpleSeqA1 otherTokens thatDon'tMatter
-        ACTAGAGTAGGAGAGAGAGGGGGG
-        CATGCATGCATGCATGCATGCATG
-        >id=1|simpleSeqA2 otherTokens thatDon'tMatter
-        AAAAAAAAAAAAAAAACTCGTGAG
-        CATGCATGCATGCATGCATGCATG'''))
-        self.simpleFastaPathB = getTempFile()
-        open(self.simpleFastaPathB, 'w').write(dedent('''\
-        >id=2|simpleSeqB1 otherTokens
-        CATGCATGCATGCATGCATGCATG
-        CATGCATGCATGCATGCATGCATG'''))
-        self.simpleFastaPathC = getTempFile()
-        open(self.simpleFastaPathC, 'w').write(dedent('''\
-        >id=3|simpleSeqC1 otherTokens thatDon'tMatter
-        CATGCATGCATGCATGCATGCATG
-        CATGCATGCATGCATGCATGCATG'''))
-        self.simpleFastaPathD = getTempFile()
-        open(self.simpleFastaPathD, 'w').write(dedent('''\
-        >id=4|simpleSeqD otherTokens thatDon'tMatter
-        CATGCATGCATGCATGCATGCATG
-        CATGCATGCATGCATGCATGCATG'''))
-        self.simpleCigarPath = getTempFile()
-        open(self.simpleCigarPath, 'w').write(dedent('''\
-        cigar: id=2|simpleSeqB1 0 9 + id=0|simpleSeqA1 10 0 - 0 M 8 D 1 M 1
-        cigar: id=2|simpleSeqB1 9 18 + id=0|simpleSeqA1 2 6 + 0 M 3 I 5 M 1
-        cigar: id=2|simpleSeqB1 18 28 + id=1|simpleSeqA2 0 10 + 0 M 1 I 2 M 2 D 2 M 5
-        cigar: id=2|simpleSeqB1 28 30 + id=1|simpleSeqA2 6 8 + 0 M 2
-        cigar: id=2|simpleSeqB1 30 32 + id=1|simpleSeqA2 7 9 + 0 M 2
-        cigar: id=12|simpleSeqZ1 0 1 + id=0|simpleSeqA1 6 7 + 0 M 1
-        cigar: id=3|simpleSeqC1 0 5 + id=4|simpleSeqD 0 5 + 0 M 5
-        cigar: id=4|simpleSeqD 5 10 + id=3|simpleSeqC1 5 10 + 0 M 5
-        cigar: id=3|simpleSeqC1 10 15 + id=3|simpleSeqC1 15 20 + 0 M 5
-        cigar: id=303|simpleSeqNonExistent 0 10 + id=3|simpleSeqC1 0 10 + 0 M 10
-        '''))
+        # simple test data
+        self.simpleInputCigarPath = getTempFile()
+        self.inputCigars = [
+            "cigar: simpleSeqB1 0 9 + simpleSeqA1 10 0 - 0 M 8 D 1 M 1" ] #,
+            #"cigar: simpleSeqB1 9 18 + simpleSeqA1 2 6 + 0 M 3 I 5 M 1",
+            #"cigar: simpleSeqB1 18 28 + simpleSeqA2 0 10 + 0 M 1 I 2 M 2 D 2 M 5",
+            #"cigar: simpleSeqB1 28 30 + simpleSeqA2 6 8 + 0 M 2",
+            #"cigar: simpleSeqB1 30 32 + simpleSeqA2 7 9 + 0 M 2",
+            #"cigar: simpleSeqZ1 0 1 + simpleSeqA1 6 7 + 0 M 1",
+            #"cigar: simpleSeqC1 0 5 + simpleSeqD 0 5 + 0 M 5",
+            #"cigar: simpleSeqD 5 10 + simpleSeqC1 5 10 + 0 M 5",
+            #"cigar: simpleSeqC1 10 15 + simpleSeqC1 15 20 + 0 M 5",
+            #"cigar: simpleSeqNonExistent 0 10 + simpleSeqC1 0 10 + 0 M 10" ]
+        open(self.simpleInputCigarPath, 'w').write("\n".join(self.inputCigars))
+        self.simpleOutputCigarPath = getTempFile()
+        self.logLevelString = "DEBUG"
 
     def tearDown(self):
         unittest.TestCase.tearDown(self)
-        os.remove(self.simpleFastaPathA)
-        os.remove(self.simpleFastaPathB)
-        os.remove(self.simpleFastaPathC)
-        os.remove(self.simpleFastaPathD)
-        os.remove(self.simpleCigarPath)
+        os.remove(self.simpleInputCigarPath)
+        os.remove(self.simpleOutputCigarPath)
 
     @silentOnSuccess
-    def testSimpleCoverageOnA(self):
-        # Genome A
-        bed = cactus_call(parameters=["cactus_coverage", self.simpleFastaPathA, self.simpleCigarPath],
-                          check_output=True)
-        self.assertEqual(bed, dedent('''\
-        id=0|simpleSeqA1\t0\t1\t\t1
-        id=0|simpleSeqA1\t2\t7\t\t2
-        id=0|simpleSeqA1\t7\t10\t\t1
-        id=1|simpleSeqA2\t0\t3\t\t1
-        id=1|simpleSeqA2\t5\t6\t\t1
-        id=1|simpleSeqA2\t6\t7\t\t2
-        id=1|simpleSeqA2\t7\t8\t\t3
-        id=1|simpleSeqA2\t8\t9\t\t2
-        id=1|simpleSeqA2\t9\t10\t\t1
-        '''))
+    def testMirrorAndOrientAlignments(self):
+        cactus_call(parameters=["cactus_mirrorAndOrientAlignments", 
+                                 self.logLevelString, 
+                                 self.simpleInputCigarPath, 
+                                 self.simpleOutputCigarPath])
+        outputCigars = open(self.simpleOutputCigarPath).readlines()
+        
+        print "Input cigars", self.inputCigars
+        
+        print "Got", "\n".join(outputCigars)
 
-    @silentOnSuccess
-    def testSimpleCoverageOnB(self):
-        # Genome B
-        bed = cactus_call(parameters=["cactus_coverage", self.simpleFastaPathB, self.simpleCigarPath],
-                          check_output=True)
-        self.assertEqual(bed, dedent('''\
-        id=2|simpleSeqB1\t0\t12\t\t1
-        id=2|simpleSeqB1\t17\t19\t\t1
-        id=2|simpleSeqB1\t21\t32\t\t1
-        '''))
+        # For each input alignment check that we have the two, oriented alignments
+        for inputCigar in self.inputCigars: 
+            name1, start1, end1, strand1 = inputCigar.split()[1:5]
+            start1, end1 = int(start1), int(end1)
+            coordinates1 = name1, start1, end1, strand1
+            name2, start2, end2, strand2 = inputCigar.split()[5:9]
+            start2, end2 = int(start2), int(end2)
+            coordinates2 = name2, start2, end2, strand2
+            score = inputCigar.split()[9]
+            ops = inputCigar.split()[10:]
+            
+            def invertStrand(name, start, end, strand):
+                # cigar: simpleSeqB1 0 9 + simpleSeqA1 10 0 - 0 M 8 D 1 M 1
+                # cigar: simpleSeqB1 9 0 + simpleSeqA1 0 10 - 0 M 1 D 1 M 8
+                assert strand in ("+", "-")
+                if strand == "+":
+                    return name, end-1, start-1, "+" 
+                return name, end+1, start+1, "-" 
 
+            def makeCigar(coordinates1, coordinates2, ops):
+                cigar = "cigar: %s %s %s %s" % (coordinates1, coordinates2, score, " ".join(ops))
+                print "boo", cigar
+                return cigar
+            
+            def reverseOps(ops):
+                l = ops[:]
+                l.reverse()
+                l2 = []
+                for i, j in zip(l[1::2], l[::2]):
+                    l2 += [ i, j ]
+                return l2
+            
+            def invertOpsStrands(ops):
+                l = [ "I" if op == "D" else ("D" if op == "I" else op) for op in ops[::2] ]
+                l2 = []
+                for op, length in zip(l, ops[1::2]):
+                    l2 += [ op, length ]
+                return l2
+            
+            if strand1 == "+":
+                print "goo", inputCigar
+                self.assertTrue(inputCigar in outputCigars)
+                self.assertTrue(makeCigar(coordinates1, coordinates2, ops) in outputCigars)
+            else:
+                # Invert the strands
+                self.assertTrue(makeCigar(invertStrand(coordinates1), 
+                                          invertStrand(coordinates2), reverseOps(ops)) in outputCigars)
+                
+            if strand2 == "+":
+                self.assertTrue(makeCigar(coordinates2, coordinates1, 
+                                          invertOpsStrands(ops)) in outputCigars)
+            else:
+                self.assertTrue(makeCigar(invertStrand(coordinates2), invertStrand(coordinates1), 
+                                            invertOpStrands(reverseOps(ops))) in outputCigars)
+        
     @silentOnSuccess
-    def testDepthByIDOnA(self):
-        # Genome A using depthByID: all depths should be 1 except
-        # where 2 different id= prefixes align to the same place:
-        # position 6
-        bed = cactus_call(parameters=["cactus_coverage", "--depthById",
-                                      self.simpleFastaPathA, self.simpleCigarPath],
-                          check_output=True)
-        self.assertEqual(bed, dedent('''\
-        id=0|simpleSeqA1\t0\t1\t\t1
-        id=0|simpleSeqA1\t2\t6\t\t1
-        id=0|simpleSeqA1\t6\t7\t\t2
-        id=0|simpleSeqA1\t7\t10\t\t1
-        id=1|simpleSeqA2\t0\t3\t\t1
-        id=1|simpleSeqA2\t5\t10\t\t1
-        '''))
-
+    def testBlast_sortAlignmentsByQuery(self):
+        cactus_call(parameters=["cactus_blast_sortAlignmentsByQuery", 
+                                 self.logLevelString, 
+                                 self.simpleInputCigarPath, 
+                                 self.simpleOutputCigarPath])
+        cigars = open(self.simpleOutputCigarPath).readlines()
+        correctCigars = [
+            'cigar: simpleSeqB1 0 9 + simpleSeqA1 10 0 - 0 M 8 D 1 M 1\n', 
+            'cigar: simpleSeqB1 18 28 + simpleSeqA2 0 10 + 0 M 1 I 2 M 2 D 2 M 5\n', 
+            'cigar: simpleSeqB1 28 30 + simpleSeqA2 6 8 + 0 M 2\n', 
+            'cigar: simpleSeqB1 30 32 + simpleSeqA2 7 9 + 0 M 2\n', 
+            'cigar: simpleSeqB1 9 18 + simpleSeqA1 2 6 + 0 M 3 I 5 M 1\n', 
+            'cigar: simpleSeqC1 0 5 + simpleSeqD 0 5 + 0 M 5\n', 
+            'cigar: simpleSeqC1 10 15 + simpleSeqC1 15 20 + 0 M 5\n', 
+            'cigar: simpleSeqD 5 10 + simpleSeqC1 5 10 + 0 M 5\n', 
+            'cigar: simpleSeqNonExistent 0 10 + simpleSeqC1 0 10 + 0 M 10\n', 
+            'cigar: simpleSeqZ1 0 1 + simpleSeqA1 6 7 + 0 M 1\n']
+        self.assertEqual(correctCigars, cigars)
+        
     @silentOnSuccess
-    def testDepthByIDOnB(self):
-        # Genome B using depthByID: should be the same as normal
-        # except for 30-31, where it should be 2
-        bed = cactus_call(parameters=["cactus_coverage", "--depthById",
-                                      self.simpleFastaPathB, self.simpleCigarPath],
-                          check_output=True)
-        self.assertEqual(bed, dedent('''\
-        id=2|simpleSeqB1\t0\t12\t\t1
-        id=2|simpleSeqB1\t17\t19\t\t1
-        id=2|simpleSeqB1\t21\t32\t\t1
-        '''))
-
-    @silentOnSuccess
-    def testFromC(self):
-        # Test "--from" filtering by filtering for only alignments
-        # from/to D on C.
-        bed = cactus_call(parameters=["cactus_coverage", self.simpleFastaPathC, self.simpleCigarPath,
-                                      "--from", self.simpleFastaPathD],
-                          check_output=True)
-        self.assertEqual(bed, dedent('''\
-        id=3|simpleSeqC1\t0\t10\t\t1
-        '''))
-
-    @silentOnSuccess
-    def testInvariants(self):
-        if "SON_TRACE_DATASETS" not in os.environ:
-            return
-        (seqs, _) = getCactusInputs_encode(random.uniform(0, 2))
-        # Chimp encode input has duplicate header names.
-        seqs = [i for i in seqs if 'chimp' not in i]
-        seqs = random.sample(seqs, 2)
-        cigarPath = getTempFile()
-        cactus_call(parameters=["cPecanLastz", "--format=cigar", "%s[multiple]" % seqs[0],
-                    "%s[multiple]" % seqs[1]], outfile=cigarPath)
-        bed = cactus_call(parameters=["cactus_coverage", seqs[1], cigarPath], check_output=True)
-        prevChrom = None
-        prevStart = None
-        prevEnd = None
-        # Check that everything is sorted and there are no overlaps
-        for line in bed.split("\n"):
-            line.strip()
-            if line == "":
-                continue
-            fields = line.split()
-            chrom = fields[0]
-            start = int(fields[1])
-            end = int(fields[2])
-            self.assertTrue(end - start >= 1)
-            if chrom == prevChrom:
-                self.assertTrue(start > prevStart)
-                self.assertTrue(start >= prevEnd)
-        os.remove(cigarPath)
-
-    @silentOnSuccess
-    def testCoverageCap(self):
-        """Test if a base covered by >65535 alignments is capped at 65535 depth."""
-        deepCigarPath = getTempFile()
-        with open(deepCigarPath, 'w') as f:
-            for _ in xrange(65537):
-                f.write('cigar: id=2|simpleSeqB1 0 1 + id=0|simpleSeqA1 10 9 - 0 M 1\n')
-        bed = cactus_call(parameters=["cactus_coverage", self.simpleFastaPathA, deepCigarPath],
-                          check_output=True)
-        self.assertEqual(bed, dedent('''\
-        id=0|simpleSeqA1\t9\t10\t\t65535
-        '''))
-        os.remove(deepCigarPath)
+    def testSplitAlignmentsOverlaps(self):
+        return
+        cactus_call(parameters=["cactus_splitAlignmentOverlaps", 
+                                 self.logLevelString, 
+                                 self.simpleInputCigarPath, 
+                                 self.simpleOutputCigarPath])
+        outputCigars = open(self.simpleOutputCigarPath).readlines()
+        
+        # Get start and end coordinates of cigars
+        ends = set()
+        for inputCigar in self.inputCigars:
+            name1, start1, end1, strand1 = inputCigarString.split()[1:5]
+            ends.add((name1, int(start1)))
+            ends.add((name1, int(end1)))
+            
+        # Count of expected number of chopped up cigars 
+        totalExpectedCigars = 0
+        
+        # Function to split a list of ops into a prefix and suffix list
+        def splitPrefixOps(ops, cutPoint):
+            pOps, sOps = [], []
+            j = 0
+            for i in range(0, len(ops), 2):
+                op, length = ops[i], int(ops[i+1])
+                assert op in ("I", "D", "M")
+                if op == "D":
+                    pOps.append(op)
+                    pOps.append(length)
+                    continue
+                if j + length <= cutPoint:
+                    pOps.append(op)
+                    pOps.append(length)
+                    j += length
+                    if j == cutPoint:
+                        break
+                else:
+                    assert j + length > cutPoint
+                    assert j < cutPoint
+                    pOps.append(op)
+                    pOps.append(cutPoint - j)
+                    sOps.append(op)
+                    sOps.append(length - (cutPoint - j))
+                    break
+            sOps += ops[i:]  
+            
+            return pOps, sOps     
+        
+        # For each cigar:
+        for inputCigar in self.inputCigars:
+            name1, start1, end1, strand1 = inputCigarString.split()[1:5]
+            start1, end1 = int(start1), int(end1)
+            assert strand == "+"
+            name2, start2, end2, strand2 = inputCigarString.split()[5:9]
+            start2, end2 = int(start2), int(end2)
+            score = inputCigarString.split()[9]
+            ops = inputCigarString.split()[10:]
+            
+            # For each intermediate chop point
+            i = start1
+            for j in xrange(start1+1, end1):
+                if (name1, j) in ends:
+                    # Chop up cigar 
+                    coordinates1 = name1, i, j, "+"
+                    
+                    # Get sublist of ops
+                    pOps, subOps = splitPrefixOps(ops, i - start1)
+                    subOps, sOps = splitPrefixOps(subOps, j - i)
+                    
+                    k = sum([ l for op, l in pOps if l != "I"])
+                    l = k + sum([ l for op, l in subOps if l != "I"])
+                    
+                    # Get second coordinates
+                    if strand2 == "+":
+                        coordinates2 = name2, start2 + k, start2 + l, strand2
+                    else:
+                        assert strand2 == "-"
+                        coordinates2 = name2, start2 - k, start2 - l, strand2
+                    
+                    choppedCigar = "cigar: %s %s %s %s" % (coordinates1, coordinates2, score, " ".join(subOps))
+                    
+                    # Check each chopped up cigar is in output
+                    self.assertTrue(testCase, choppedCigar in outputCigars)
+                    
+                    # Inc. number of expected cigars
+                    totalExpectedCigars += 1
+                    
+                    # Check previous coordinate
+                    i = j
+                    
+        # Check we have the expected number of cigars  
+        self.assertEquals(totalExpectedCigars, len(outputCigars))
 
 if __name__ == '__main__':
     unittest.main()

@@ -545,7 +545,7 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
         mapQJob = self.addChildJobFn(mappingQualityRescoring, blastJob.rv(0), 
                                      minimumMapQValue=getOptionalAttrib(cafNode, "minimumMapQValue", float, 0.0),
                                      maxAlignmentsPerSite=getOptionalAttrib(cafNode, "maxAlignmentsPerSite", int, 1))
-        mapQJob.addChildJob(blastJob) # Ensure the blast job runs before the mapQ job
+        blastJob.addChildJob(mapQJob) # Ensure the blast job runs before the mapQ job
 
         self.cactusWorkflowArguments.alignmentsID = mapQJob.rv(0)
         self.cactusWorkflowArguments.outgroupFragmentIDs = blastJob.rv(1)
