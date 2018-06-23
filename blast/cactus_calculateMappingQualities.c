@@ -16,11 +16,32 @@ uint64_t getStartCoordinate(struct PairwiseAlignment *pairwiseAlignment) {
 int cmpAlignmentsFn(const void *a, const void *b) {
 	const struct PairwiseAlignment *pA1 = a;
 	const struct PairwiseAlignment *pA2 = b;
-	return pA1->score < pA2->score ? -1 : (pA1->score == pA2->score ? 0 : 1);
+	return pA1->score < pA2->score ? -1 : (pA1->score > pA2->score ? 1 : 0);
 }
 
 void updateScoresToReflectMappingQualities(stList *alignments) {
 	//TODO
+}
+
+void reportAlignments(stList *alignments, int64_t maxAlignmentsPerSite,
+		float minimumMapQValue, FILE *fileHandleOut) {
+	// TODO
+	updateScoresToReflectMappingQualities(alignments);
+
+	// Sort by ascending score
+	stList_sort(alignments, cmpAlignmentsFn);
+
+	// Report the alignments
+	for(int64_t i=0; stList_length(alignments) > 0;) {
+		struct PairwiseAlignment *pairwiseAlignment = stList_pop(alignments);
+		if(i++ < maxAlignmentsPerSite && pairwiseAlignment->score >= minimumMapQValue) {
+			// Write out modified cigar
+			cigarWrite(fileHandleOut, pairwiseAlignment, 0);
+		}
+
+		// Cleanup
+		destructPairwiseAlignment(pairwiseAlignment);
+	}
 }
 
 int main(int argc, char *argv[]) {
@@ -42,46 +63,27 @@ int main(int argc, char *argv[]) {
     
     // List of totally overlapping alignments
     stList *alignments = stList_construct();
-    uint64_t alignmentStart = -1;
     
     struct PairwiseAlignment *pairwiseAlignment = NULL;
     while ((pairwiseAlignment = cigarRead(fileHandleIn)) != NULL) {
     
     	// If the pairwiseAlignment does not share the same interval
-    	// as the other pairwise alignments
-		if(stList_length(alignments) > 0 &&
-		   	getStartCoordinate(pairwiseAlignment) != alignmentStart) {
+    	// as the previous pairwise alignments report the previous alignments
+		if(stList_length(alignments) == 0 ||
+			strcmp(((struct PairwiseAlignment *)stList_peek(alignments))->contig1, pairwiseAlignment->contig1) != 0 ||
+		   	getStartCoordinate(stList_peek(alignments)) != getStartCoordinate(pairwiseAlignment)) {
 		   
-		   	// TODO
-			updateScoresToReflectMappingQualities(alignments);
-			
-			// Sort by ascending score
-			stList_sort(alignments, cmpAlignmentsFn);
-			
-			// Report the alignments
-			for(i=0; stList_length(alignments) > 0;) {
-				struct PairwiseAlignment *pairwiseAlignment2 = stList_pop(alignments);
-				if(i++ < maxAlignmentsPerSite && pairwiseAlignment2->score >= minimumMapQValue) {
-					// Write out modified cigar
-		        	cigarWrite(fileHandleOut, pairwiseAlignment2, 0);
-				}
-
-				// Cleanup
-				destructPairwiseAlignment(pairwiseAlignment);
-			}
+			reportAlignments(alignments, maxAlignmentsPerSite, minimumMapQValue, fileHandleOut);
 		}
-		else {
-			alignmentStart = getStartCoordinate(pairwiseAlignment);
-		}
-
-		// Checks
-		assert(stList_length(alignments) == 0);
-		assert(alignmentStart == getStartCoordinate(pairwiseAlignment));
 
 		// Adding the pairwise alignment to the set to consider
 		stList_append(alignments, pairwiseAlignment);
     }
     
+    reportAlignments(alignments, maxAlignmentsPerSite, minimumMapQValue, fileHandleOut);
+
+    assert(stList_length(alignments) == 0);
+    stList_destruct(alignments);
     fclose(fileHandleIn);
     fclose(fileHandleOut);
     return 0;

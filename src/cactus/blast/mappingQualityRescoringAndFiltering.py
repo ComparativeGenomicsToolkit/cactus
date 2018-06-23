@@ -32,38 +32,40 @@ from toil.lib.bioio import system
 from cactus.shared.common import cactus_call
 
 def mappingQualityRescoring(job, inputAlignmentFileID, 
-                            minimumMapQValue, maxAlignmentsPerSite):
+                            minimumMapQValue, maxAlignmentsPerSite, logLevel):
     """
     Function to rescore and filter alignments by calculating the mapping quality of sub-alignments
     """
     # Get temporary files
-    tempAlignmentFile, tempAlignmentFile2 = job.fileStore.getLocalTempFile(), 
-    job.fileStore.getLocalTempFile()
+    tempAlignmentFile = job.fileStore.getLocalTempFile()
+    tempAlignmentFile2 = job.fileStore.getLocalTempFile()
+    
+    inputAlignmentFile = job.fileStore.readGlobalFile(inputAlignmentFileID)
     
     # Mirror and orient alignments
     cactus_call(parameters=["cactus_mirrorAndOrientAlignments",
-                             getLogLevelString(),
+                             logLevel,
                              inputAlignmentFile,
                              tempAlignmentFile ])
     
     # Sort
     cactus_call(parameters=[ "cactus_blast_sortAlignmentsByQuery",
-                             getLogLevelString(),
+                             logLevel,
                              tempAlignmentFile,
                              tempAlignmentFile2])
     
     # Split overlaps 
     cactus_call(parameters=["cactus_splitAlignmentOverlaps",
-                             getLogLevelString(),
+                             logLevel,
                              tempAlignmentFile2,
                              tempAlignmentFile ])
     
     # Calculate mapping qualities
     cactus_call(parameters=["cactus_calculateMappingQualities",
-                             getLogLevelString(),
+                             logLevel,
                              tempAlignmentFile,
                              tempAlignmentFile2,
-                             minimumMapQValue, maxAlignmentsPerSite ])
+                             str(maxAlignmentsPerSite), str(minimumMapQValue) ])
     
     # Now write back alignments results file and return
-    return fileStore.writeGlobalFile(tempAlignmentFile2)
+    return job.fileStore.writeGlobalFile(tempAlignmentFile2)

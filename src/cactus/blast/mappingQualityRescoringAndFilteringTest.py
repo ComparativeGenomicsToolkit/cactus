@@ -1,8 +1,14 @@
 import unittest, os, random
-from sonLib.bioio import getTempFile
+
+from toil.job import Job
+from toil.common import Toil
+
+from sonLib.bioio import getTempFile, getTempDirectory, system
 from textwrap import dedent
 from cactus.shared.common import cactus_call
 from cactus.shared.test import getCactusInputs_encode, silentOnSuccess
+from cactus.blast.mappingQualityRescoringAndFiltering import mappingQualityRescoring
+from cactus.shared.common import makeURL
 
 class TestCase(unittest.TestCase):
     def setUp(self):
@@ -10,27 +16,95 @@ class TestCase(unittest.TestCase):
         # simple test data
         self.simpleInputCigarPath = getTempFile()
         self.inputCigars = [ 
-            "cigar: simpleSeqBC 0 9 + simpleSeqAC 10 0 - 0 M 8 D 1 M 1" ,
-            "cigar: simpleSeqB1 18 9 - simpleSeqA1 6 2 - 0 M 3 I 5 M 1",
-            "cigar: simpleSeqB1 32 30 - simpleSeqA2 7 9 + 0 M 2",
-            "cigar: simpleSeqB1 9 18 + simpleSeqA1 2 6 + 0 M 3 I 5 M 1",
-            "cigar: simpleSeqB1 18 28 + simpleSeqA2 0 10 + 0 M 1 I 2 M 2 D 2 M 5",
-            "cigar: simpleSeqB1 28 30 + simpleSeqA2 6 8 + 0 M 2",
-            "cigar: simpleSeqZ1 0 1 + simpleSeqA1 6 7 + 0 M 1",
-            "cigar: simpleSeqC1 0 5 + simpleSeqD 0 5 + 0 M 5",
-            "cigar: simpleSeqD 5 10 + simpleSeqC1 5 10 + 0 M 5",
-            "cigar: simpleSeqC1 10 15 + simpleSeqC1 15 20 + 0 M 5",
-            "cigar: simpleSeqNonExistent 0 10 + simpleSeqC1 0 10 + 0 M 10" ]
+            "cigar: simpleSeqBC 0 9 + simpleSeqAC 10 0 - 5 M 8 D 1 M 1" ,
+            "cigar: simpleSeqB1 18 9 - simpleSeqA1 6 2 - 4 M 3 I 5 M 1",
+            "cigar: simpleSeqB1 32 30 - simpleSeqA2 7 9 + 72 M 2",
+            "cigar: simpleSeqB1 9 18 + simpleSeqA1 2 6 + 1 M 3 I 5 M 1",
+            "cigar: simpleSeqB1 18 28 + simpleSeqA2 0 10 + 8 M 1 I 2 M 2 D 2 M 5",
+            "cigar: simpleSeqB1 28 30 + simpleSeqA2 6 8 + 3 M 2",
+            "cigar: simpleSeqZ1 0 1 + simpleSeqA1 6 7 + 3 M 1",
+            "cigar: simpleSeqC1 0 5 + simpleSeqD 0 5 + 2 M 5",
+            "cigar: simpleSeqD 5 10 + simpleSeqC1 5 10 + 8 M 5",
+            "cigar: simpleSeqC1 10 15 + simpleSeqC1 15 20 + 19 M 5",
+            "cigar: simpleSeqNonExistent 0 10 + simpleSeqC1 0 10 + 0.5 M 10" ]
+        
         with open(self.simpleInputCigarPath, 'w') as fH:
             fH.write("\n".join(self.inputCigars) + "\n")
             
+        self.sortedNonOverlappingInputCigars = [ 
+            'cigar: simpleSeqB1 9 10 + simpleSeqA1 2 3 + 1.000000 M 1', 
+            'cigar: simpleSeqB1 10 18 + simpleSeqA1 3 6 + 1.000000 M 2 I 5 M 1', 
+            'cigar: simpleSeqB1 10 18 + simpleSeqA1 3 6 + 4.000000 M 1 I 5 M 2', 
+            'cigar: simpleSeqB1 18 19 + simpleSeqA1 6 7 + 4.000000 M 1', 
+            'cigar: simpleSeqZ1 0 1 + simpleSeqA1 6 7 + 3.000000 M 1', 
+            'cigar: simpleSeqB1 18 24 + simpleSeqA2 0 6 + 8.000000 M 1 I 2 M 2 D 2 M 1', 
+            'cigar: simpleSeqB1 28 29 + simpleSeqA2 6 7 + 3.000000 M 1', 
+            'cigar: simpleSeqB1 24 25 + simpleSeqA2 6 7 + 8.000000 M 1', 
+            'cigar: simpleSeqB1 29 30 + simpleSeqA2 7 8 + 3.000000 M 1', 
+            'cigar: simpleSeqB1 32 31 - simpleSeqA2 7 8 + 72.000000 M 1', 
+            'cigar: simpleSeqB1 25 26 + simpleSeqA2 7 8 + 8.000000 M 1', 
+            'cigar: simpleSeqB1 31 30 - simpleSeqA2 8 9 + 72.000000 M 1', 
+            'cigar: simpleSeqB1 26 27 + simpleSeqA2 8 9 + 8.000000 M 1', 
+            'cigar: simpleSeqB1 27 28 + simpleSeqA2 9 10 + 8.000000 M 1', 
+            'cigar: simpleSeqBC 8 -1 - simpleSeqAC 1 11 + 5.000000 M 1 D 1 M 8', 
+            'cigar: simpleSeqA1 2 3 + simpleSeqB1 9 10 + 1.000000 M 1', 
+            'cigar: simpleSeqA1 3 6 + simpleSeqB1 10 18 + 1.000000 M 2 D 5 M 1', 
+            'cigar: simpleSeqA1 3 6 + simpleSeqB1 10 18 + 4.000000 M 1 D 5 M 2', 
+            'cigar: simpleSeqA1 6 7 + simpleSeqB1 18 19 + 4.000000 M 1', 
+            'cigar: simpleSeqA2 0 1 + simpleSeqB1 18 19 + 8.000000 M 1', 
+            'cigar: simpleSeqA2 1 10 + simpleSeqB1 19 28 + 8.000000 D 2 M 2 I 2 M 5', 
+            'cigar: simpleSeqA2 6 8 + simpleSeqB1 28 30 + 3.000000 M 2', 
+            'cigar: simpleSeqA2 8 6 - simpleSeqB1 31 33 + 72.000000 M 2', 
+            'cigar: simpleSeqAC 10 0 - simpleSeqBC 0 9 + 5.000000 M 8 I 1 M 1', 
+            'cigar: simpleSeqD 0 5 + simpleSeqC1 0 5 + 2.000000 M 5', 
+            'cigar: simpleSeqNonExistent 0 5 + simpleSeqC1 0 5 + 0.500000 M 5', 
+            'cigar: simpleSeqNonExistent 5 10 + simpleSeqC1 5 10 + 0.500000 M 5', 
+            'cigar: simpleSeqD 5 10 + simpleSeqC1 5 10 + 8.000000 M 5', 
+            'cigar: simpleSeqC1 15 20 + simpleSeqC1 10 15 + 19.000000 M 5', 
+            'cigar: simpleSeqC1 10 15 + simpleSeqC1 15 20 + 19.000000 M 5', 
+            'cigar: simpleSeqC1 0 5 + simpleSeqD 0 5 + 2.000000 M 5', 
+            'cigar: simpleSeqC1 5 10 + simpleSeqD 5 10 + 8.000000 M 5', 
+            'cigar: simpleSeqC1 0 10 + simpleSeqNonExistent 0 10 + 0.500000 M 10', 
+            'cigar: simpleSeqA1 6 7 + simpleSeqZ1 0 1 + 3.000000 M 1' 
+        ]
+        
+        self.filteredSortedNonOverlappingInputCigars = [ 
+            'cigar: simpleSeqB1 9 10 + simpleSeqA1 2 3 + 1.000000 M 1',  
+            'cigar: simpleSeqB1 10 18 + simpleSeqA1 3 6 + 4.000000 M 1 I 5 M 2', 
+            'cigar: simpleSeqB1 18 19 + simpleSeqA1 6 7 + 4.000000 M 1',  
+            'cigar: simpleSeqB1 18 24 + simpleSeqA2 0 6 + 8.000000 M 1 I 2 M 2 D 2 M 1', 
+            'cigar: simpleSeqB1 24 25 + simpleSeqA2 6 7 + 8.000000 M 1', 
+            'cigar: simpleSeqB1 32 31 - simpleSeqA2 7 8 + 72.000000 M 1', 
+            'cigar: simpleSeqB1 31 30 - simpleSeqA2 8 9 + 72.000000 M 1', 
+            'cigar: simpleSeqB1 27 28 + simpleSeqA2 9 10 + 8.000000 M 1', 
+            'cigar: simpleSeqBC 8 -1 - simpleSeqAC 1 11 + 5.000000 M 1 D 1 M 8', 
+            'cigar: simpleSeqA1 2 3 + simpleSeqB1 9 10 + 1.000000 M 1',  
+            'cigar: simpleSeqA1 3 6 + simpleSeqB1 10 18 + 4.000000 M 1 D 5 M 2',   
+            'cigar: simpleSeqA2 0 1 + simpleSeqB1 18 19 + 8.000000 M 1', 
+            'cigar: simpleSeqA2 1 10 + simpleSeqB1 19 28 + 8.000000 D 2 M 2 I 2 M 5', 
+            'cigar: simpleSeqA2 6 8 + simpleSeqB1 28 30 + 3.000000 M 2', 
+            'cigar: simpleSeqA2 8 6 - simpleSeqB1 31 33 + 72.000000 M 2', 
+            'cigar: simpleSeqAC 10 0 - simpleSeqBC 0 9 + 5.000000 M 8 I 1 M 1', 
+            'cigar: simpleSeqD 0 5 + simpleSeqC1 0 5 + 2.000000 M 5', 
+            'cigar: simpleSeqD 5 10 + simpleSeqC1 5 10 + 8.000000 M 5', 
+            'cigar: simpleSeqC1 15 20 + simpleSeqC1 10 15 + 19.000000 M 5', 
+            'cigar: simpleSeqC1 10 15 + simpleSeqC1 15 20 + 19.000000 M 5', 
+            'cigar: simpleSeqC1 0 5 + simpleSeqD 0 5 + 2.000000 M 5', 
+            'cigar: simpleSeqC1 5 10 + simpleSeqD 5 10 + 8.000000 M 5', 
+            'cigar: simpleSeqC1 0 10 + simpleSeqNonExistent 0 10 + 0.500000 M 10', 
+            'cigar: simpleSeqA1 6 7 + simpleSeqZ1 0 1 + 3.000000 M 1' 
+        ]
+         
         self.simpleOutputCigarPath = getTempFile()
         self.logLevelString = "DEBUG"
+        
+        self.tempDir = getTempDirectory(os.getcwd())
 
     def tearDown(self):
         unittest.TestCase.tearDown(self)
         os.remove(self.simpleInputCigarPath)
         os.remove(self.simpleOutputCigarPath)
+        system("rm -rf %s" % self.tempDir)
     
     @staticmethod 
     def makeCigar(coordinates1, coordinates2, score, ops):
@@ -47,7 +121,7 @@ class TestCase(unittest.TestCase):
                                  self.simpleOutputCigarPath])
         with open(self.simpleOutputCigarPath, 'r') as fh:
             outputCigars = [ cigar[:-1] for cigar in fh.readlines() ] # Remove new lines
-            
+           
         # For each input alignment check that we have the two, oriented alignments
         for inputCigar in self.inputCigars: 
             name1, start1, end1, strand1 = inputCigar.split()[5:9]
@@ -110,44 +184,46 @@ class TestCase(unittest.TestCase):
             outputCigars = [ cigar[:-1] for cigar in fh.readlines() ] # Remove new lines
         
         correctCigars = [
-            'cigar: simpleSeqB1 9 18 + simpleSeqA1 2 6 + 0 M 3 I 5 M 1',
-            'cigar: simpleSeqB1 18 9 - simpleSeqA1 6 2 - 0 M 3 I 5 M 1',
-            'cigar: simpleSeqZ1 0 1 + simpleSeqA1 6 7 + 0 M 1',
-            'cigar: simpleSeqB1 18 28 + simpleSeqA2 0 10 + 0 M 1 I 2 M 2 D 2 M 5',
-            'cigar: simpleSeqB1 28 30 + simpleSeqA2 6 8 + 0 M 2',
-            'cigar: simpleSeqB1 32 30 - simpleSeqA2 7 9 + 0 M 2',
-            'cigar: simpleSeqBC 0 9 + simpleSeqAC 10 0 - 0 M 8 D 1 M 1',
-            'cigar: simpleSeqNonExistent 0 10 + simpleSeqC1 0 10 + 0 M 10',
-            'cigar: simpleSeqD 5 10 + simpleSeqC1 5 10 + 0 M 5',
-            'cigar: simpleSeqC1 10 15 + simpleSeqC1 15 20 + 0 M 5',
-            'cigar: simpleSeqC1 0 5 + simpleSeqD 0 5 + 0 M 5'
+            'cigar: simpleSeqB1 9 18 + simpleSeqA1 2 6 + 1 M 3 I 5 M 1',
+            'cigar: simpleSeqB1 18 9 - simpleSeqA1 6 2 - 4 M 3 I 5 M 1',
+            'cigar: simpleSeqZ1 0 1 + simpleSeqA1 6 7 + 3 M 1',
+            'cigar: simpleSeqB1 18 28 + simpleSeqA2 0 10 + 8 M 1 I 2 M 2 D 2 M 5',
+            'cigar: simpleSeqB1 28 30 + simpleSeqA2 6 8 + 3 M 2',
+            'cigar: simpleSeqB1 32 30 - simpleSeqA2 7 9 + 72 M 2',
+            'cigar: simpleSeqBC 0 9 + simpleSeqAC 10 0 - 5 M 8 D 1 M 1',
+            'cigar: simpleSeqNonExistent 0 10 + simpleSeqC1 0 10 + 0.5 M 10',
+            'cigar: simpleSeqD 5 10 + simpleSeqC1 5 10 + 8 M 5',
+            'cigar: simpleSeqC1 10 15 + simpleSeqC1 15 20 + 19 M 5',
+            'cigar: simpleSeqC1 0 5 + simpleSeqD 0 5 + 2 M 5'
             ]
         self.assertEqual(correctCigars, outputCigars)
         
     @silentOnSuccess
     def testSplitAlignmentsOverlaps(self):
-        self.inputCigars = [ 'cigar: simpleSeqB1 9 18 + simpleSeqA1 2 6 + 0.000000 M 3 I 5 M 1',
-                        'cigar: simpleSeqB1 10 19 + simpleSeqA1 3 7 + 0.000000 M 1 I 5 M 3',
-                        'cigar: simpleSeqZ1 0 1 + simpleSeqA1 6 7 + 0.000000 M 1',
-                        'cigar: simpleSeqB1 18 28 + simpleSeqA2 0 10 + 0.000000 M 1 I 2 M 2 D 2 M 5',
-                        'cigar: simpleSeqB1 28 30 + simpleSeqA2 6 8 + 0.000000 M 2',
-                        'cigar: simpleSeqB1 32 30 - simpleSeqA2 7 9 + 0.000000 M 2',
-                        'cigar: simpleSeqBC 8 -1 - simpleSeqAC 1 11 + 0.000000 M 1 D 1 M 8',
-                        'cigar: simpleSeqA1 2 6 + simpleSeqB1 9 18 + 0.000000 M 3 D 5 M 1',
-                        'cigar: simpleSeqA1 3 7 + simpleSeqB1 10 19 + 0.000000 M 1 D 5 M 3',
-                        'cigar: simpleSeqA2 0 10 + simpleSeqB1 18 28 + 0.000000 M 1 D 2 M 2 I 2 M 5',
-                        'cigar: simpleSeqA2 6 8 + simpleSeqB1 28 30 + 0.000000 M 2',
-                        'cigar: simpleSeqA2 8 6 - simpleSeqB1 31 33 + 0.000000 M 2',
-                        'cigar: simpleSeqAC 10 0 - simpleSeqBC 0 9 + 0.000000 M 8 I 1 M 1',
-                        'cigar: simpleSeqD 0 5 + simpleSeqC1 0 5 + 0.000000 M 5',
-                        'cigar: simpleSeqNonExistent 0 10 + simpleSeqC1 0 10 + 0.000000 M 10',
-                        'cigar: simpleSeqD 5 10 + simpleSeqC1 5 10 + 0.000000 M 5',
-                        'cigar: simpleSeqC1 15 20 + simpleSeqC1 10 15 + 0.000000 M 5',
-                        'cigar: simpleSeqC1 10 15 + simpleSeqC1 15 20 + 0.000000 M 5',
-                        'cigar: simpleSeqC1 0 5 + simpleSeqD 0 5 + 0.000000 M 5',
-                        'cigar: simpleSeqC1 5 10 + simpleSeqD 5 10 + 0.000000 M 5',
-                        'cigar: simpleSeqC1 0 10 + simpleSeqNonExistent 0 10 + 0.000000 M 10',
-                        'cigar: simpleSeqA1 6 7 + simpleSeqZ1 0 1 + 0.000000 M 1' ]
+        self.inputCigars = [
+            'cigar: simpleSeqB1 9 18 + simpleSeqA1 2 6 + 1.000000 M 3 I 5 M 1',
+            'cigar: simpleSeqB1 10 19 + simpleSeqA1 3 7 + 4.000000 M 1 I 5 M 3',
+            'cigar: simpleSeqZ1 0 1 + simpleSeqA1 6 7 + 3.000000 M 1',
+            'cigar: simpleSeqB1 18 28 + simpleSeqA2 0 10 + 8.000000 M 1 I 2 M 2 D 2 M 5',
+            'cigar: simpleSeqB1 28 30 + simpleSeqA2 6 8 + 3.000000 M 2',
+            'cigar: simpleSeqB1 32 30 - simpleSeqA2 7 9 + 72.000000 M 2',
+            'cigar: simpleSeqBC 8 -1 - simpleSeqAC 1 11 + 5.000000 M 1 D 1 M 8',
+            'cigar: simpleSeqA1 2 6 + simpleSeqB1 9 18 + 1.000000 M 3 D 5 M 1',
+            'cigar: simpleSeqA1 3 7 + simpleSeqB1 10 19 + 4.000000 M 1 D 5 M 3',
+            'cigar: simpleSeqA2 0 10 + simpleSeqB1 18 28 + 8.000000 M 1 D 2 M 2 I 2 M 5',
+            'cigar: simpleSeqA2 6 8 + simpleSeqB1 28 30 + 3.000000 M 2',
+            'cigar: simpleSeqA2 8 6 - simpleSeqB1 31 33 + 72.000000 M 2',
+            'cigar: simpleSeqAC 10 0 - simpleSeqBC 0 9 + 5.000000 M 8 I 1 M 1',
+            'cigar: simpleSeqD 0 5 + simpleSeqC1 0 5 + 2.000000 M 5',
+            'cigar: simpleSeqNonExistent 0 10 + simpleSeqC1 0 10 + 0.500000 M 10',
+            'cigar: simpleSeqD 5 10 + simpleSeqC1 5 10 + 8.000000 M 5',
+            'cigar: simpleSeqC1 15 20 + simpleSeqC1 10 15 + 19.000000 M 5',
+            'cigar: simpleSeqC1 10 15 + simpleSeqC1 15 20 + 19.000000 M 5',
+            'cigar: simpleSeqC1 0 5 + simpleSeqD 0 5 + 2.000000 M 5',
+            'cigar: simpleSeqC1 5 10 + simpleSeqD 5 10 + 8.000000 M 5',
+            'cigar: simpleSeqC1 0 10 + simpleSeqNonExistent 0 10 + 0.500000 M 10',
+            'cigar: simpleSeqA1 6 7 + simpleSeqZ1 0 1 + 3.000000 M 1' 
+        ]
         with open(self.simpleInputCigarPath, 'w') as fH:
             fH.write("\n".join(self.inputCigars) + "\n")
             
@@ -243,6 +319,50 @@ class TestCase(unittest.TestCase):
                     
         # Check we have the expected number of cigars  
         self.assertEquals(totalExpectedCigars, len(outputCigars))
+    
+    @silentOnSuccess
+    def testCalculateMappingQualities(self):
+        with open(self.simpleInputCigarPath, 'w') as fH:
+            fH.write("\n".join(self.sortedNonOverlappingInputCigars) + "\n")
+        
+        cactus_call(parameters=[ "cactus_calculateMappingQualities", 
+                                 self.logLevelString, 
+                                 self.simpleInputCigarPath, 
+                                 self.simpleOutputCigarPath, '1', '0' ])
+        
+        with open(self.simpleOutputCigarPath, 'r') as fh:
+            outputCigars = [ cigar[:-1] for cigar in fh.readlines() ] # Remove new lines
+        
+        self.assertEqual(self.filteredSortedNonOverlappingInputCigars, outputCigars)
+    
+    @silentOnSuccess
+    def testMappingQualityRescoringAndFiltering(self):
+        """
+        Tests the complete pipeline.
+        """
+        
+        with open(self.simpleInputCigarPath, 'w') as fH:
+            fH.write("\n".join(self.inputCigars) + "\n")
+        
+        # Tests the toil pipeline        
+        options = Job.Runner.getDefaultOptions(os.path.join(self.tempDir, "toil"))
+        options.logLevel = self.logLevelString
+        
+        with Toil(options) as toil:
+            # Import the input file into the job store
+            inputAlignmentFileID = toil.importFile(makeURL(self.simpleInputCigarPath))
+            
+            rootJob = Job.wrapJobFn(mappingQualityRescoring, inputAlignmentFileID,
+                                    minimumMapQValue=0, maxAlignmentsPerSite=1, logLevel=self.logLevelString)
+            
+            outputAlignmentsFileID = toil.start(rootJob)
+            toil.exportFile(outputAlignmentsFileID, makeURL(self.simpleOutputCigarPath))
+            
+        # Check output
+        with open(self.simpleOutputCigarPath, 'r') as fh:
+            outputCigars = [ cigar[:-1] for cigar in fh.readlines() ] # Remove new lines
+        
+        self.assertEqual(self.filteredSortedNonOverlappingInputCigars, outputCigars)
 
 if __name__ == '__main__':
     unittest.main()
