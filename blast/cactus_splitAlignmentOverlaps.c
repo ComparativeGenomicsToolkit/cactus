@@ -21,88 +21,150 @@ uint64_t getEndCoordinate(struct PairwiseAlignment *pairwiseAlignment) {
 
 struct PairwiseAlignment *removeAlignmentPrefix(struct PairwiseAlignment *pairwiseAlignment, int64_t prefixEnd) {
 	// Store the original start coordinates
+	//checkPairwiseAlignment(pairwiseAlignment);
 	int64_t start1 = pairwiseAlignment->start1, start2 = pairwiseAlignment->start2;
+	assert(pairwiseAlignment->end1 > prefixEnd);
+	assert(pairwiseAlignment->start1 < prefixEnd);
+	assert(pairwiseAlignment->strand1);
 
 	// Split the ops in the cigar string between the prefix and suffix alignments
 	struct List *prefixOps = constructEmptyList(0, (void (*)(void *))destructAlignmentOperation);
-	if(pairwiseAlignment->start1 < prefixEnd) {
-		int64_t i = 0;
-		while(pairwiseAlignment->start1 < prefixEnd) {
-			struct AlignmentOperation *op = pairwiseAlignment->operationList->list[i];
-			assert(op->length > 0);
+	int64_t i = 0;
+	do {
+		assert(i < pairwiseAlignment->operationList->length);
+		struct AlignmentOperation *op = pairwiseAlignment->operationList->list[i];
+		assert(op->length > 0);
 
+		if(op->opType == PAIRWISE_INDEL_Y) { // Insert in second sequence
+			listAppend(prefixOps, op);
+			i++;
+			pairwiseAlignment->start2 += pairwiseAlignment->strand2 ? op->length : -op->length;
+		}
+		else { // Not an insert in second sequence
 			// Op is in the prefix alignment
+			int64_t j;
 			if(pairwiseAlignment->start1 + op->length <= prefixEnd) {
 				listAppend(prefixOps, op);
 				i++;
+				j = op->length;
 			}
 			// Op spans the prefix and suffix alignments, so split it
 			else {
-				listAppend(prefixOps, constructAlignmentOperation(op->opType, prefixEnd-pairwiseAlignment->start1, op->score));
-				op->length -= prefixEnd-pairwiseAlignment->start1;
+				j = prefixEnd-pairwiseAlignment->start1;
+				assert(j > 0);
+				listAppend(prefixOps, constructAlignmentOperation(op->opType, j, op->score));
+				op->length -= j;
+				assert(op->length > 0);
+				assert(pairwiseAlignment->start1+j == prefixEnd);
 			}
 
 			// Update start coordinates of suffix alignments
-			pairwiseAlignment->start1 += op->length;
+			pairwiseAlignment->start1 += j;
 			if(op->opType != PAIRWISE_INDEL_X) {
-				pairwiseAlignment->start2 += pairwiseAlignment->strand2 ? op->length : -op->length;
+				pairwiseAlignment->start2 += pairwiseAlignment->strand2 ? j : -j;
 			}
 		}
+	} while(pairwiseAlignment->start1 < prefixEnd);
 
-		// Remove prefix ops from pairwise alignment
-		for(int64_t j=0; i<pairwiseAlignment->operationList->length;) {
-			pairwiseAlignment->operationList->list[j++] = pairwiseAlignment->operationList->list[i++];
-		}
-		pairwiseAlignment->operationList->length -= prefixOps->length;
+	assert(pairwiseAlignment->start1 == prefixEnd);
+
+	// Remove prefix ops from pairwise alignment
+	uint64_t j=0;
+	while(i<pairwiseAlignment->operationList->length) {
+		pairwiseAlignment->operationList->list[j++] = pairwiseAlignment->operationList->list[i++];
 	}
+	pairwiseAlignment->operationList->length = j;
+	assert(pairwiseAlignment->operationList->length > 0);
 
 	// Create prefix pairwiseAlignment
-	struct PairwiseAlignment *prefixAlignment = constructPairwiseAlignment(stString_copy(pairwiseAlignment->contig1),
+	struct PairwiseAlignment *prefixAlignment = constructPairwiseAlignment(pairwiseAlignment->contig1,
 			start1, pairwiseAlignment->start1, 1,
-			stString_copy(pairwiseAlignment->contig2), start2, pairwiseAlignment->start2, pairwiseAlignment->strand2,
+			pairwiseAlignment->contig2, start2, pairwiseAlignment->start2, pairwiseAlignment->strand2,
 			pairwiseAlignment->score, prefixOps);
+	//checkPairwiseAlignment(pairwiseAlignment);
+	//checkPairwiseAlignment(prefixAlignment);
 
 	return prefixAlignment;
 }
 
-void chopPrefixes(stSortedSet *activeAlignments, uint64_t prefixEnd, FILE *fileHandleOut) {
-	struct PairwiseAlignment *pairwiseAlignment = stSortedSet_getFirst(activeAlignments);
-	//For each alignment A in S that ends before prefixEnd
+void emitBlock(stSortedSet *activeAlignments, uint64_t from, uint64_t to, FILE *fileHandleOut) {
+	/*
+	 * Emits block of alignments that are all start, inclusive, at 'fromt' and end, exclusive, at 'to'.
+	 */
+	// Now split the remaining alignments, which must all end after prefixEnd
+	struct PairwiseAlignment *pairwiseAlignment;
 	while(stSortedSet_size(activeAlignments) > 0 &&
-			getEndCoordinate(pairwiseAlignment = stSortedSet_getFirst(activeAlignments)) <= prefixEnd) {
+		  getStartCoordinate(pairwiseAlignment = stSortedSet_getFirst(activeAlignments)) < to) {
+		assert(getStartCoordinate(pairwiseAlignment) == from);
+		//assert(getEndCoordinate(pairwiseAlignment) >= to);
+		
 		// Remove from active alignments
+		assert(stSortedSet_search(activeAlignments, pairwiseAlignment) == pairwiseAlignment);
 		stSortedSet_remove(activeAlignments, pairwiseAlignment);
-		// Write out the alignment
+		assert(stSortedSet_search(activeAlignments, pairwiseAlignment) == NULL);
+		
+		// If the alignment needs to be split
+		if(getEndCoordinate(pairwiseAlignment) > to) {
+			// Cleave off the prefix of the alignment
+			struct PairwiseAlignment *prefixPairwiseAlignment = removeAlignmentPrefix(pairwiseAlignment, to);
+			assert(getStartCoordinate(prefixPairwiseAlignment) == from);
+			assert(getEndCoordinate(prefixPairwiseAlignment) == to);
+			assert(getStartCoordinate(pairwiseAlignment) == to);
+
+			// Add back the suffix alignment to the set
+			stSortedSet_insert(activeAlignments, pairwiseAlignment);
+
+			// Set the prefix alignment to be written out and then cleaned up
+			pairwiseAlignment = prefixPairwiseAlignment;
+		}
+		
+		// Write out the prefix alignment up until end
 		cigarWrite(fileHandleOut, pairwiseAlignment, 0);
 		// Delete the pairwise alignment
+		assert(stSortedSet_search(activeAlignments, pairwiseAlignment) == NULL);
 		destructPairwiseAlignment(pairwiseAlignment);
 	}
-	// Now split the remaining alignments, which must all end after prefixEnd
-	stSortedSetIterator *it = stSortedSet_getIterator(activeAlignments);
-	while((pairwiseAlignment = stSortedSet_getNext(it)) != NULL) {
-		assert(getEndCoordinate(pairwiseAlignment) > prefixEnd);
-		// Cleave off the prefix of the alignment
-		pairwiseAlignment = removeAlignmentPrefix(pairwiseAlignment, prefixEnd);
-		// Write out alignment up until prefixEnd
-		cigarWrite(fileHandleOut, pairwiseAlignment, 0);
-		// Delete the prefix pairwise alignment
-		destructPairwiseAlignment(pairwiseAlignment);
-	}
-	stSortedSet_destructIterator(it);
 }
 
 void splitAlignmentOverlaps(stSortedSet *activeAlignments, uint64_t splitUpto, FILE *fileHandleOut) {
-	// Process partial overlaps between alignments that precede splitUpto
-	// while (minEndCoordinate = Min end coordinate in S) < splitUpto:
-	uint64_t minEndCoordinate;
-	while(stSortedSet_size(activeAlignments) > 0 &&
-			(minEndCoordinate = getEndCoordinate(stSortedSet_getFirst(activeAlignments))) < splitUpto) {
-		chopPrefixes(activeAlignments, minEndCoordinate, fileHandleOut);
+	if(stSortedSet_size(activeAlignments) == 0) {
+		return; // Nothing to do
 	}
+
+	// Process overlaps between alignments that precede splitUpto
+	uint64_t from = getStartCoordinate(stSortedSet_getFirst(activeAlignments));
+	uint64_t to;
+	// while (minEndCoordinate = Min end coordinate in S) < splitUpto:
+	while(stSortedSet_size(activeAlignments) > 0 &&
+		  (to = getEndCoordinate(stSortedSet_getFirst(activeAlignments))) < splitUpto) {
+		assert(from < to);
+		emitBlock(activeAlignments, from, to, fileHandleOut);
+		from = to;
+	}
+
 	// Now split at the splitUpto point
 	if(stSortedSet_size(activeAlignments) > 0) {
-		chopPrefixes(activeAlignments, splitUpto, fileHandleOut);
+		assert(from < to);
+		emitBlock(activeAlignments, from, splitUpto, fileHandleOut);
 	}
+}
+
+int comparePairwiseAlignments(const void *a, const void *b) {
+	struct PairwiseAlignment *pA1 = (struct PairwiseAlignment *)a;
+	struct PairwiseAlignment *pA2 = (struct PairwiseAlignment *)b;
+
+	int i = strcmp(pA1->contig1, pA2->contig1);
+	if(i == 0) {
+		i = pA1->start1 > pA2->start1 ? 1 : pA1->start1 < pA2->start1 ? -1 : 0;
+		if(i == 0) {
+			i = pA1->end1 > pA2->end1 ? 1 : pA1->end1 < pA2->end1 ? -1 : 0;
+			if(i == 0) {
+				i = pA1 > pA2 ? 1 : pA1 < pA2 ? -1 : 0;
+			}
+		}
+	}
+
+	return i;
 }
 
 int main(int argc, char *argv[]) {
@@ -120,19 +182,32 @@ int main(int argc, char *argv[]) {
     FILE *fileHandleOut = fopen(argv[3], "w");
 
     // Set of alignments being progressively processed, ordered by ascending query end coordinate
-    stSortedSet *activeAlignments = stSortedSet_construct();
+    stSortedSet *activeAlignments = stSortedSet_construct3(comparePairwiseAlignments, NULL);
 
     struct PairwiseAlignment *pairwiseAlignment;
     while ((pairwiseAlignment = cigarRead(fileHandleIn)) != NULL) {
-    	// Remove overlaps in alignments up to but excluding the start of pairwiseAlignment
-    	splitAlignmentOverlaps(activeAlignments, getStartCoordinate(pairwiseAlignment), fileHandleOut);
+    	////checkPairwiseAlignment(pairwiseAlignment);
 
-    	// Add pairwiseAlignemnt to the set of activeAlignemnts
+    	// There are existing alignments
+    	if(stSortedSet_size(activeAlignments) > 0) {
+    		// If the new alignment is on the same sequence as the previous sequence
+			if(strcmp(((struct PairwiseAlignment *)stSortedSet_getFirst(activeAlignments))->contig1,
+					pairwiseAlignment->contig1) == 0) {
+				// Remove overlaps in alignments up to but excluding the start of pairwiseAlignment
+				splitAlignmentOverlaps(activeAlignments, getStartCoordinate(pairwiseAlignment), fileHandleOut);
+			}
+			else {
+				// If pairwiseAlignment is on a new sequence
+				splitAlignmentOverlaps(activeAlignments, UINT64_MAX, fileHandleOut);
+				assert(stSortedSet_size(activeAlignments) == 0);
+			}
+    	}
+
+    	// Add pairwiseAlignment to the set of activeAlignemnts
     	stSortedSet_insert(activeAlignments, pairwiseAlignment);
     }
     // Remove remaining overlaps in alignments
     splitAlignmentOverlaps(activeAlignments, UINT64_MAX, fileHandleOut);
-
     assert(stSortedSet_size(activeAlignments) == 0);
 
     // Cleanup

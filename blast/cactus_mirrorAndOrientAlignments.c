@@ -25,14 +25,14 @@ void invertStrands(struct PairwiseAlignment *pairwiseAlignment) {
 		pairwiseAlignment->start1 = pairwiseAlignment->end1 + (pairwiseAlignment->strand1 ? -1 : +1);
 		pairwiseAlignment->end1 = start + (pairwiseAlignment->strand1 ? -1 : +1);;
 	}
-	pairwiseAlignment->strand1 = !pairwiseAlignment->strand1;
+	pairwiseAlignment->strand1 = pairwiseAlignment->strand1 ? 0 : 1;
 
 	if(pairwiseAlignment->start1 != pairwiseAlignment->end1) { // If alignment has non zero length on the second sequence
 		int64_t start = pairwiseAlignment->start2;
 		pairwiseAlignment->start2 = pairwiseAlignment->end2 + (pairwiseAlignment->strand2 ? -1 : +1);
 		pairwiseAlignment->end2 = start + (pairwiseAlignment->strand2 ? -1 : +1);
 	}
-	pairwiseAlignment->strand2 = !pairwiseAlignment->strand2;
+	pairwiseAlignment->strand2 = pairwiseAlignment->strand2 ? 0 : 1;
 
 	// Invert the order of the operations
 	listReverse(pairwiseAlignment->operationList);
@@ -85,6 +85,7 @@ int main(int argc, char *argv[]) {
     FILE *fileHandleIn = fopen(argv[2], "r");
     FILE *fileHandleOut = fopen(argv[3], "w");
     struct PairwiseAlignment *pairwiseAlignment;
+
     while ((pairwiseAlignment = cigarRead(fileHandleIn)) != NULL) {
 
         // Write out original cigar
