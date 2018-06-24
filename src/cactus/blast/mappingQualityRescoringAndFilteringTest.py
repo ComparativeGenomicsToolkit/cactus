@@ -34,10 +34,7 @@ class TestCase(unittest.TestCase):
         
         with open(self.simpleInputCigarPath, 'w') as fH:
             fH.write("\n".join(self.inputCigars) + "\n")
-            
-        with open("./temp.cigar", 'w') as fH:
-            fH.write("\n".join(self.inputCigars) + "\n")
-            
+              
         self.sortedNonOverlappingInputCigars = [ 
             'cigar: simpleSeqB1 9 10 + simpleSeqA1 2 3 + 1.000000 M 1', 
             'cigar: simpleSeqB1 10 18 + simpleSeqA1 3 6 + 1.000000 M 2 I 5 M 1', 
