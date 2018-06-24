@@ -86,5 +86,8 @@ int main(int argc, char *argv[]) {
     stList_destruct(alignments);
     fclose(fileHandleIn);
     fclose(fileHandleOut);
+
+    //while(1);
+
     return 0;
 }

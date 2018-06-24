@@ -35,6 +35,9 @@ class TestCase(unittest.TestCase):
         with open(self.simpleInputCigarPath, 'w') as fH:
             fH.write("\n".join(self.inputCigars) + "\n")
             
+        with open("./temp.cigar", 'w') as fH:
+            fH.write("\n".join(self.inputCigars) + "\n")
+            
         self.sortedNonOverlappingInputCigars = [ 
             'cigar: simpleSeqB1 9 10 + simpleSeqA1 2 3 + 1.000000 M 1', 
             'cigar: simpleSeqB1 10 18 + simpleSeqA1 3 6 + 1.000000 M 2 I 5 M 1', 
@@ -376,6 +379,9 @@ class TestCase(unittest.TestCase):
         startTime = time.time()
         runSelfLastz(concatenatedSequenceFile, self.simpleInputCigarPath, "")
         print "It took %s seconds to run lastz" % (time.time() - startTime)
+        with open(concatenatedSequenceFile, 'r') as fh:
+            inputCigars = [ cigar[:-1] for cigar in fh.readlines() ] # Remove new lines
+        print "There are %s cigars from lastz" % len(inputCigars)
         
         # Run toil pipeline
         startTime = time.time()
@@ -383,7 +389,7 @@ class TestCase(unittest.TestCase):
         print "It took %s seconds to run unique mapping pipeline" % (time.time() - startTime)
         
         # Check output
-        print "Total cigars:", len(outputCigars)
+        print "Total input cigars:", len(inputCigars), "total output cigars", len(outputCigars)
         #print outputCigars
     
     @silentOnSuccess

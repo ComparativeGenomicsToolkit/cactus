@@ -214,5 +214,8 @@ int main(int argc, char *argv[]) {
     stSortedSet_destruct(activeAlignments);
     fclose(fileHandleIn);
     fclose(fileHandleOut);
+
+    //while(1);
+
     return 0;
 }

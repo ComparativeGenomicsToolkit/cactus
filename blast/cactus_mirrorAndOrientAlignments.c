@@ -108,5 +108,8 @@ int main(int argc, char *argv[]) {
     }
     fclose(fileHandleIn);
     fclose(fileHandleOut);
+
+    //while(1);
+
     return 0;
 }

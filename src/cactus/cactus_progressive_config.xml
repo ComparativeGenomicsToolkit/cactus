@@ -99,6 +99,7 @@
 		minLengthForChromosome="1000000"
 		proportionOfUnalignedBasesForNewChromosome="0.8"
 		maximumMedianSequenceLengthBetweenLinkedEnds="1000"
+		runMapQFiltering="1"
 		minimumMapQValue="0.0" 
 		maxAlignmentsPerSite="1"
 		lastzMemory="littleMemory"
