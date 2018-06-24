@@ -10,6 +10,7 @@ from cactus.setup.cactus_setupTest import TestCase as setupTest
 from cactus.blast.blastTest import TestCase as blastTest
 from cactus.blast.cactus_coverageTest import TestCase as coverageTest
 from cactus.blast.trimSequencesTest import TestCase as trimSequencesTest
+from cactus.blast.mappingQualityRescoringAndFilteringTest import TestCase as mappingQualityTest
 from cactus.pipeline.cactus_workflowTest import TestCase as workflowTest
 from cactus.pipeline.cactus_evolverTest import TestCase as evolverTest
 from cactus.bar.cactus_barTest import TestCase as barTest
@@ -49,7 +50,7 @@ def allSuites():
                         commonTest]] + 
                         [progressiveSuite()])
     if "SON_TRACE_DATASETS" in os.environ:
-        allTests.addTests([unittest.makeSuite(blastTest), preprocessorTest(), unittest.makeSuite(lastzRepeatMaskTest), unittest.makeSuite(realignTest)])
+        allTests.addTests([unittest.makeSuite(blastTest), unittest.makeSuite(mappingQualityTest), preprocessorTest(), unittest.makeSuite(lastzRepeatMaskTest), unittest.makeSuite(realignTest)])
     return allTests
 
 def main():
