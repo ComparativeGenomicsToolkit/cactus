@@ -1,14 +1,18 @@
-import unittest, os, random
+import unittest, os, random, time
 
 from toil.job import Job
 from toil.common import Toil
 
 from sonLib.bioio import getTempFile, getTempDirectory, system
 from textwrap import dedent
-from cactus.shared.common import cactus_call
+from cactus.shared.common import cactus_call, runSelfLastz
 from cactus.shared.test import getCactusInputs_encode, silentOnSuccess
 from cactus.blast.mappingQualityRescoringAndFiltering import mappingQualityRescoring
 from cactus.shared.common import makeURL
+
+from cactus.shared.test import getCactusInputs_evolverMammals
+from cactus.shared.test import getCactusInputs_evolverPrimates
+from setuptools.dist import sequence
 
 class TestCase(unittest.TestCase):
     def setUp(self):
@@ -96,6 +100,7 @@ class TestCase(unittest.TestCase):
         ]
          
         self.simpleOutputCigarPath = getTempFile()
+        self.sequenceFilePath = getTempFile()
         self.logLevelString = "DEBUG"
         
         self.tempDir = getTempDirectory(os.getcwd())
@@ -104,6 +109,7 @@ class TestCase(unittest.TestCase):
         unittest.TestCase.tearDown(self)
         os.remove(self.simpleInputCigarPath)
         os.remove(self.simpleOutputCigarPath)
+        os.remove(self.sequenceFilePath)
         system("rm -rf %s" % self.tempDir)
     
     @staticmethod 
@@ -334,23 +340,15 @@ class TestCase(unittest.TestCase):
             outputCigars = [ cigar[:-1] for cigar in fh.readlines() ] # Remove new lines
         
         self.assertEqual(self.filteredSortedNonOverlappingInputCigars, outputCigars)
-    
-    @silentOnSuccess
-    def testMappingQualityRescoringAndFiltering(self):
-        """
-        Tests the complete pipeline.
-        """
         
-        with open(self.simpleInputCigarPath, 'w') as fH:
-            fH.write("\n".join(self.inputCigars) + "\n")
-        
+    def runToilPipeline(self, alignmentsFile):
         # Tests the toil pipeline        
         options = Job.Runner.getDefaultOptions(os.path.join(self.tempDir, "toil"))
         options.logLevel = self.logLevelString
         
         with Toil(options) as toil:
             # Import the input file into the job store
-            inputAlignmentFileID = toil.importFile(makeURL(self.simpleInputCigarPath))
+            inputAlignmentFileID = toil.importFile(makeURL(alignmentsFile))
             
             rootJob = Job.wrapJobFn(mappingQualityRescoring, inputAlignmentFileID,
                                     minimumMapQValue=0, maxAlignmentsPerSite=1, logLevel=self.logLevelString)
@@ -362,7 +360,61 @@ class TestCase(unittest.TestCase):
         with open(self.simpleOutputCigarPath, 'r') as fh:
             outputCigars = [ cigar[:-1] for cigar in fh.readlines() ] # Remove new lines
         
+        return outputCigars
+    
+    @silentOnSuccess
+    def testMappingQualityRescoringAndFiltering(self):
+        """
+        Tests the complete pipeline.
+        """
+        outputCigars = self.runToilPipeline(self.simpleInputCigarPath)
+        
         self.assertEqual(self.filteredSortedNonOverlappingInputCigars, outputCigars)
-
+    
+    def alignAndRunPipeline(self, concatenatedSequenceFile):
+        # Run lastz
+        startTime = time.time()
+        runSelfLastz(concatenatedSequenceFile, self.simpleInputCigarPath, "")
+        print "It took %s seconds to run lastz" % (time.time() - startTime)
+        
+        # Run toil pipeline
+        startTime = time.time()
+        outputCigars = self.runToilPipeline(self.simpleInputCigarPath)
+        print "It took %s seconds to run unique mapping pipeline" % (time.time() - startTime)
+        
+        # Check output
+        print "Total cigars:", len(outputCigars)
+        #print outputCigars
+    
+    @silentOnSuccess
+    def testMappingQualityRescoringAndFilteringScaled_Mammals(self):
+        # Test with a larger number of realistic input cigars
+        
+        # Get inputs
+        sequenceFiles, newickTreeString = getCactusInputs_evolverMammals()
+        concatenatedSequenceFile = "./tempMammals.fa" #os.path.join(self.tempDir, "tempMammals.fa")
+         # Cat the sequences together
+        system('cat %s > %s' % (" ".join(sequenceFiles), concatenatedSequenceFile))
+        
+        # Align and run the pipeline
+        self.alignAndRunPipeline(concatenatedSequenceFile)
+        
+        os.remove(concatenatedSequenceFile) # This is a hack, because the local mode of lastz call is not working
+        
+    @silentOnSuccess
+    def testMappingQualityRescoringAndFilteringScaled_Primates(self):
+        # Test with a larger number of realistic input cigars
+        
+        # Get inputs
+        sequenceFiles, newickTreeString = getCactusInputs_evolverPrimates()
+        concatenatedSequenceFile = "./tempPrimates.fa" #os.path.join(self.tempDir, "tempPrimates.fa")
+         # Cat the sequences together
+        system('cat %s > %s' % (" ".join(sequenceFiles), concatenatedSequenceFile))
+        
+        # Align and run the pipeline
+        self.alignAndRunPipeline(concatenatedSequenceFile)
+        
+        os.remove(concatenatedSequenceFile) # This is a hack, because the local mode of lastz call is not working
+        
 if __name__ == '__main__':
     unittest.main()
