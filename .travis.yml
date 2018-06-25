@@ -5,6 +5,7 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get -qq update; fi
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y libtokyocabinet-dev libkyototycoon-dev kyototycoon libkyotocabinet-dev; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install tokyo-cabinet kyoto-cabinet kyoto-tycoon; fi
+  - git clone https://github.com/UCSantaCruzComputationalGenomicsLab/cactusTestData
 # Push docker containers. We skip this on PR builds because Travis
 # doesn't include the user/password in those builds.
   - if [[ "$CACTUS_BINARIES_MODE" == "docker" ]]; then if [[ "$TRAVIS_PULL_REQUEST" == "false" ]]; then docker login --username $QUAY_USERNAME --password $QUAY_PASSWORD quay.io; make push; else make docker; fi; fi
@@ -18,6 +19,6 @@ os:
 services:
   - docker
 env:
-  - CGL_DEBUG=1 CACTUS_BINARIES_MODE=local
+  - CGL_DEBUG=1 CACTUS_BINARIES_MODE=local SON_TRACE_DATASETS=$TRAVIS_BUILD_DIR/cactusTestData
   - CACTUS_BINARIES_MODE=docker
   - CGL_DEBUG=ultra ASAN_OPTIONS=detect_leaks=0 CACTUS_BINARIES_MODE=local
