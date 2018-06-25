@@ -739,26 +739,26 @@ def runToilStatusAndFailIfNotComplete(toilDir):
     system(command)
 
 def runLastz(seq1, seq2, alignmentsFile, lastzArguments, work_dir=None):
-    #Have to specify the work_dir manually for this, since
-    #we're adding arguments to the filename
-    assert os.path.dirname(seq1) == os.path.dirname(seq2)
-    work_dir = os.path.dirname(seq1)
+    if work_dir is None:
+        assert os.path.dirname(seq1) == os.path.dirname(seq2)
+        work_dir = os.path.dirname(seq1)
     cactus_call(work_dir=work_dir, outfile=alignmentsFile,
                 parameters=["cPecanLastz",
                             "--format=cigar",
                             "--notrivial"] + lastzArguments.split() +
-                           ["%s[multiple][nameparse=darkspace]" % os.path.basename(seq1),
-                            "%s[nameparse=darkspace]" % os.path.basename(seq2)],
+                           ["%s[multiple][nameparse=darkspace]" % seq1,
+                            "%s[nameparse=darkspace]" % seq2],
                 soft_timeout=5400)
 
 def runSelfLastz(seq, alignmentsFile, lastzArguments, work_dir=None):
-    work_dir = os.path.dirname(seq)
+    if work_dir is None:
+        work_dir = os.path.dirname(seq)
     cactus_call(work_dir=work_dir, outfile=alignmentsFile,
                 parameters=["cPecanLastz",
                             "--format=cigar",
                             "--notrivial"] + lastzArguments.split() +
-                           ["%s[multiple][nameparse=darkspace]" % os.path.basename(seq),
-                            "%s[nameparse=darkspace]" % os.path.basename(seq)],
+                           ["%s[multiple][nameparse=darkspace]" % seq,
+                            "%s[nameparse=darkspace]" % seq],
                 soft_timeout=5400)
 
 def runCactusRealign(seq1, seq2, inputAlignmentsFile, outputAlignmentsFile, realignArguments, work_dir=None):

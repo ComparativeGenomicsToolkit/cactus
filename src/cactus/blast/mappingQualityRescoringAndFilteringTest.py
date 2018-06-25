@@ -395,7 +395,7 @@ class TestCase(unittest.TestCase):
         
         # Get inputs
         sequenceFiles, newickTreeString = getCactusInputs_evolverMammals()
-        concatenatedSequenceFile = "./tempMammals.fa" #os.path.join(self.tempDir, "tempMammals.fa")
+        concatenatedSequenceFile = os.path.join(self.tempDir, "tempMammals.fa")
          # Cat the sequences together
         system('cat %s > %s' % (" ".join(sequenceFiles), concatenatedSequenceFile))
         
