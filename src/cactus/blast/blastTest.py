@@ -138,8 +138,7 @@ class TestCase(unittest.TestCase):
             for i, subResults in enumerate(results):
                 for ingroup, ingroupPath in zip(ingroups, ingroupPaths):
                     ingroupCoverage = getTempFile(rootDir=self.tempDir)
-                    coverageWorkDir = getTempDirectory(rootDir=self.tempDir)
-                    calculateCoverage(work_dir=coverageWorkDir, sequenceFile=ingroupPath, cigarFile=subResults, outputFile=ingroupCoverage)
+                    calculateCoverage(sequenceFile=ingroupPath, cigarFile=subResults, outputFile=ingroupCoverage)
                     coveredBases = popenCatch("cat %s | awk '{ total += $3 - $2 } END { print total }'" % ingroupCoverage)
                     print "covered bases on %s using %d outgroups: %s" % (ingroup, i + 1, coveredBases)
 
@@ -192,8 +191,7 @@ class TestCase(unittest.TestCase):
             for outgroupFragmentPath in outgroupFragmentPaths:
                 system("cat %s >> %s" % (outgroupFragmentPath, outgroupsCombined))
             independentCoverageFile = getTempFile(rootDir=self.tempDir)
-            coverageWorkDir = getTempDirectory(rootDir=self.tempDir)
-            calculateCoverage(work_dir=coverageWorkDir, fromGenome=outgroupsCombined, sequenceFile=ingroupPath, cigarFile=self.tempOutputFile, outputFile=independentCoverageFile)
+            calculateCoverage(fromGenome=outgroupsCombined, sequenceFile=ingroupPath, cigarFile=self.tempOutputFile, outputFile=independentCoverageFile)
 
             # find the coverage file cactus_blast kept (should be
             # named according to the basename of the ingroup path
@@ -225,12 +223,10 @@ class TestCase(unittest.TestCase):
 
         # Get the coverage on the ingroup, in bases, from each run.
         coverageSetVsSetUnfiltered = getTempFile(rootDir=self.tempDir)
-        coverageSetVsSetUnfilteredWorkDir = getTempDirectory(rootDir=self.tempDir)
-        calculateCoverage(work_dir=coverageSetVsSetUnfilteredWorkDir, sequenceFile=ingroupPath, cigarFile=self.tempOutputFile, outputFile=coverageSetVsSetUnfiltered)
+        calculateCoverage(sequenceFile=ingroupPath, cigarFile=self.tempOutputFile, outputFile=coverageSetVsSetUnfiltered)
         coverageSetVsSet = int(popenCatch("cat %s | awk '{ total +=  $3 - $2} END { print total }'" % coverageSetVsSetUnfiltered))
         coverageIngroupVsOutgroupsUnfiltered = getTempFile(rootDir=self.tempDir)
-        coverageIngroupsVsOutgroupsUnfilteredWorkDir = getTempDirectory(rootDir=self.tempDir)
-        calculateCoverage(work_dir=coverageIngroupsVsOutgroupsUnfilteredWorkDir, sequenceFile=ingroupPath, cigarFile=self.tempOutputFile2, outputFile=coverageIngroupVsOutgroupsUnfiltered)
+        calculateCoverage(sequenceFile=ingroupPath, cigarFile=self.tempOutputFile2, outputFile=coverageIngroupVsOutgroupsUnfiltered)
         coverageIngroupVsOutgroups = int(popenCatch("cat %s | awk '{ total +=  $3 - $2} END { print total }'" % coverageIngroupVsOutgroupsUnfiltered))
 
         print "total coverage on human (set vs set mode, %d outgroups): %d" % (len(outgroups), coverageSetVsSet)
@@ -246,8 +242,7 @@ class TestCase(unittest.TestCase):
         outgroupAlignments = getTempFile(rootDir=self.tempDir)
         system("grep %s %s > %s" % (outgroups[-1], self.tempOutputFile, outgroupAlignments))
         coverageFileSetVsSet = getTempFile(rootDir=self.tempDir)
-        coverageSetVsSetWorkDir = getTempDirectory(rootDir=self.tempDir)
-        calculateCoverage(work_dir=coverageSetVsSetWorkDir, sequenceFile=ingroupPath, cigarFile=outgroupAlignments, outputFile=coverageFileSetVsSet)
+        calculateCoverage(sequenceFile=ingroupPath, cigarFile=outgroupAlignments, outputFile=coverageFileSetVsSet)
         
         coverageFromLastOutgroupSetVsSet = int(popenCatch("cat %s | awk '{ total +=  $3 - $2} END { print total }'" % coverageFileSetVsSet))
 
@@ -255,8 +250,7 @@ class TestCase(unittest.TestCase):
         outgroupAlignments = getTempFile(rootDir=self.tempDir)
         system("grep %s %s > %s" % (outgroups[-1], self.tempOutputFile2, outgroupAlignments))
         coverageFileInVsOut = getTempFile(rootDir=self.tempDir)
-        coverageInVsOutWorkDir = getTempDirectory(rootDir=self.tempDir)
-        calculateCoverage(work_dir=coverageInVsOutWorkDir, sequenceFile=ingroupPath, cigarFile=outgroupAlignments, outputFile=coverageFileInVsOut)      
+        calculateCoverage(sequenceFile=ingroupPath, cigarFile=outgroupAlignments, outputFile=coverageFileInVsOut)      
         coverageFromLastOutgroupInVsOut = int(popenCatch("cat %s | awk '{ total +=  $3 - $2} END { print total }'" % coverageFileInVsOut))
 
         print "total coverage on human from last outgroup in set (%s) (set vs set mode): %d" % (outgroups[-1], coverageFromLastOutgroupSetVsSet)
@@ -473,7 +467,7 @@ def runCactusBlast(sequenceFiles, alignmentsFile, toilDir,
         alignmentsID = toil.start(rootJob)
         toil.exportFile(alignmentsID, makeURL(alignmentsFile))
 
-def runCactusBlastIngroupsAndOutgroups(ingroups, outgroups, alignmentsFile, toilDir, outgroupFragmentPaths=None, ingroupCoveragePaths=None, chunkSize=None, overlapSize=None, 
+def runCactusBlastIngroupsAndOutgroups(ingroups, outgroups, alignmentsFile, toilDir, outgroupFragmentPaths=None, ingroupCoveragePaths=None, chunkSize=250000, overlapSize=10000, 
                    logLevel=None,
                    compressFiles=None,
                    lastzMemory=None):
@@ -486,7 +480,7 @@ def runCactusBlastIngroupsAndOutgroups(ingroups, outgroups, alignmentsFile, toil
     with Toil(options) as toil:
         ingroupIDs = [toil.importFile(makeURL(ingroup)) for ingroup in ingroups]
         outgroupIDs = [toil.importFile(makeURL(outgroup)) for outgroup in outgroups]
-        rootJob = BlastIngroupsAndOutgroups(blastOptions, ingroupIDs, outgroupIDs)
+        rootJob = BlastIngroupsAndOutgroups(blastOptions, ingroups, ingroupIDs, outgroups, outgroupIDs)
         blastResults = toil.start(rootJob)
         alignmentsID = blastResults[0]
         toil.exportFile(alignmentsID, makeURL(alignmentsFile))
