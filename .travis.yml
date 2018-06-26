@@ -12,7 +12,7 @@ before_install:
 script:
   - sudo pip install --pre toil
   - sudo pip install -e .
-  - if [[ "$CACTUS_BINARIES_MODE" == "local" ]]; then make && PATH=`pwd`/bin:$PATH PYTHONPATH=`pwd`:`pwd`/src travis_wait 40 make test; fi
+  - if [[ "$CACTUS_BINARIES_MODE" == "local" ]]; then make && PATH=`pwd`/bin:$PATH PYTHONPATH=`pwd`:`pwd`/src travis_wait 50 make test; fi
   - if [[ "$CACTUS_BINARIES_MODE" == "docker" ]]; then travis_wait 40 make test; fi
 os:
   - linux
