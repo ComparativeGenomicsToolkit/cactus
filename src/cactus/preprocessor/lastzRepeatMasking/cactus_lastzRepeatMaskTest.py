@@ -1,3 +1,5 @@
+import time
+
 from cactus.preprocessor.preprocessorTest import *
 from cactus.preprocessor.preprocessorTest import TestCase as PreprocessorTestCase
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import LastzRepeatMaskJob

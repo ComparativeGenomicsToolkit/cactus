@@ -19,6 +19,13 @@ os:
 services:
   - docker
 env:
-  - CGL_DEBUG=1 CACTUS_BINARIES_MODE=local SON_TRACE_DATASETS=$TRAVIS_BUILD_DIR/cactusTestData
+  # Assert-enabled tests using extra-large test data, but restricted to blast tests only to keep under 50 mins.
+  - CGL_DEBUG=1 CACTUS_BINARIES_MODE=local SON_TRACE_DATASETS=$TRAVIS_BUILD_DIR/cactusTestData CACTUS_TEST_CHOICE=blast
+  # Assert-enabled tests using extra-large test data, but restricted to non-blast tests only to keep under 50 mins.
+  - CGL_DEBUG=1 CACTUS_BINARIES_MODE=local SON_TRACE_DATASETS=$TRAVIS_BUILD_DIR/cactusTestData CACTUS_TEST_CHOICE=normal
+  # Docker container push and test.
   - CACTUS_BINARIES_MODE=docker
+  # Paranoia about memory corruption. Leak detection is disabled
+  # because many utilities are short-lived and don't bother cleaning
+  # up memory before exit.
   - CGL_DEBUG=ultra ASAN_OPTIONS=detect_leaks=0 CACTUS_BINARIES_MODE=local
