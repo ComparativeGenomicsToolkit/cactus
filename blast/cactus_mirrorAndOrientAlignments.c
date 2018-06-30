@@ -22,15 +22,15 @@ void invertStrands(struct PairwiseAlignment *pairwiseAlignment) {
 
 	if(pairwiseAlignment->start1 != pairwiseAlignment->end1) { // If alignment has non zero length on the first sequence
 		int64_t start = pairwiseAlignment->start1;
-		pairwiseAlignment->start1 = pairwiseAlignment->end1 + (pairwiseAlignment->strand1 ? -1 : +1);
-		pairwiseAlignment->end1 = start + (pairwiseAlignment->strand1 ? -1 : +1);;
+		pairwiseAlignment->start1 = pairwiseAlignment->end1;
+		pairwiseAlignment->end1 = start;
 	}
 	pairwiseAlignment->strand1 = pairwiseAlignment->strand1 ? 0 : 1;
 
 	if(pairwiseAlignment->start1 != pairwiseAlignment->end1) { // If alignment has non zero length on the second sequence
 		int64_t start = pairwiseAlignment->start2;
-		pairwiseAlignment->start2 = pairwiseAlignment->end2 + (pairwiseAlignment->strand2 ? -1 : +1);
-		pairwiseAlignment->end2 = start + (pairwiseAlignment->strand2 ? -1 : +1);
+		pairwiseAlignment->start2 = pairwiseAlignment->end2;
+		pairwiseAlignment->end2 = start;
 	}
 	pairwiseAlignment->strand2 = pairwiseAlignment->strand2 ? 0 : 1;
 

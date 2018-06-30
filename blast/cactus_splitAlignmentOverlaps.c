@@ -186,7 +186,6 @@ int main(int argc, char *argv[]) {
 
     struct PairwiseAlignment *pairwiseAlignment;
     while ((pairwiseAlignment = cigarRead(fileHandleIn)) != NULL) {
-    	////checkPairwiseAlignment(pairwiseAlignment);
 
     	// There are existing alignments
     	if(stSortedSet_size(activeAlignments) > 0) {
