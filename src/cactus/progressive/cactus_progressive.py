@@ -211,6 +211,8 @@ class RunCactusPreprocessorThenProgressiveDown(RoundedJob):
         self.configWrapper = ConfigWrapper(self.configNode)
         self.configWrapper.substituteAllPredefinedConstantsWithLiterals()
 
+        fileStore.logToMaster("Using the following configuration:\n%s" % ET.tostring(self.configNode))
+
         # Log the stats for the un-preprocessed assemblies
         for name, sequence in self.project.getInputSequenceIDMap().items():
             self.addChildJobFn(logAssemblyStats, "Before preprocessing", name, sequence)
@@ -418,7 +420,6 @@ def main():
                         help="The way to run the Cactus binaries", default=None)
 
     options = parser.parse_args()
-    options.cactusDir = getTempDirectory()
 
     setupBinaries(options)
     setLoggingFromOptions(options)
@@ -443,25 +444,26 @@ def main():
         # instead of Toil's default (1).
         options.retryCount = 5
 
-    #Create the progressive cactus project 
-    projWrapper = ProjectWrapper(options)
-    projWrapper.writeXml()
-
-    pjPath = os.path.join(options.cactusDir, ProjectWrapper.alignmentDirName,
-                          '%s_project.xml' % ProjectWrapper.alignmentDirName)
-    assert os.path.exists(pjPath)
-
-    project = MultiCactusProject()
-
-    if not os.path.isdir(options.cactusDir):
-        os.makedirs(options.cactusDir)
-
     with Toil(options) as toil:
         importSingularityImage()
         #Run the workflow
         if options.restart:
             halID = toil.restart()
         else:
+            options.cactusDir = getTempDirectory()
+            #Create the progressive cactus project 
+            projWrapper = ProjectWrapper(options)
+            projWrapper.writeXml()
+
+            pjPath = os.path.join(options.cactusDir, ProjectWrapper.alignmentDirName,
+                                  '%s_project.xml' % ProjectWrapper.alignmentDirName)
+            assert os.path.exists(pjPath)
+
+            project = MultiCactusProject()
+
+            if not os.path.isdir(options.cactusDir):
+                os.makedirs(options.cactusDir)
+
             project.readXML(pjPath)
             #import the sequences
             seqIDs = []
@@ -474,13 +476,11 @@ def main():
                 seqIDs.append(toil.importFile(seq))
             project.setInputSequenceIDs(seqIDs)
 
-
             #import cactus config
             if options.configFile:
                 cactusConfigID = toil.importFile(makeURL(options.configFile))
             else:
                 cactusConfigID = toil.importFile(makeURL(project.getConfigPath()))
-            logger.info("Setting config id to: %s" % cactusConfigID)
             project.setConfigID(cactusConfigID)
 
             project.syncToFileStore(toil)
