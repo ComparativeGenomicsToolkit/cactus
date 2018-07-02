@@ -34,10 +34,7 @@ class TestCase(unittest.TestCase):
         
         with open(self.simpleInputCigarPath, 'w') as fH:
             fH.write("\n".join(self.inputCigars) + "\n")
-            
-        with open("./temp.cigar", 'w') as fH:
-            fH.write("\n".join(self.inputCigars) + "\n")
-              
+                
         self.sortedNonOverlappingInputCigars = [ 
             'cigar: simpleSeqB1 9 18 + simpleSeqA1 2 6 + 1.000000 M 3 I 5 M 1',
             'cigar: simpleSeqB1 9 18 + simpleSeqA1 2 6 + 4.000000 M 1 I 5 M 3',
@@ -122,9 +119,7 @@ class TestCase(unittest.TestCase):
                                  self.simpleOutputCigarPath])
         with open(self.simpleOutputCigarPath, 'r') as fh:
             outputCigars = [ cigar[:-1] for cigar in fh.readlines() ] # Remove new lines
-            
-        print outputCigars
-           
+               
         # For each input alignment check that we have the two, oriented alignments
         for inputCigar in self.inputCigars: 
             name1, start1, end1, strand1 = inputCigar.split()[5:9]

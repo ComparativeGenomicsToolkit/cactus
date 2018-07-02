@@ -31,6 +31,10 @@ from toil.lib.bioio import system
 
 from cactus.shared.common import cactus_call
 
+def countLines(inputFile):
+    with open(inputFile, 'r') as f:
+        return sum(1 for line in f)
+
 def mappingQualityRescoring(job, inputAlignmentFileID, 
                             minimumMapQValue, maxAlignmentsPerSite, logLevel):
     """
@@ -42,11 +46,15 @@ def mappingQualityRescoring(job, inputAlignmentFileID,
     
     inputAlignmentFile = job.fileStore.readGlobalFile(inputAlignmentFileID)
     
+    job.fileStore.logToMaster("Input cigar file has %s lines" % countLines(inputAlignmentFile))
+    
     # Mirror and orient alignments
     cactus_call(parameters=["cactus_mirrorAndOrientAlignments",
                              logLevel,
                              inputAlignmentFile,
                              tempAlignmentFile ])
+    
+    #job.fileStore.logToMaster("Mirrored and oriented cigar file has %s lines" % countLines(tempAlignmentFile))
     
     # Sort
     cactus_call(parameters=[ "cactus_blast_sortAlignmentsByQuery",
@@ -54,11 +62,15 @@ def mappingQualityRescoring(job, inputAlignmentFileID,
                              tempAlignmentFile,
                              tempAlignmentFile2])
     
+    #job.fileStore.logToMaster("Sorted cigar file has %s lines" % countLines(tempAlignmentFile2))
+    
     # Split overlaps 
     cactus_call(parameters=["cactus_splitAlignmentOverlaps",
                              logLevel,
                              tempAlignmentFile2,
                              tempAlignmentFile ])
+    
+    job.fileStore.logToMaster("Split cigar file has %s lines" % countLines(tempAlignmentFile))
     
     # Calculate mapping qualities
     cactus_call(parameters=["cactus_calculateMappingQualities",
@@ -66,6 +78,8 @@ def mappingQualityRescoring(job, inputAlignmentFileID,
                              tempAlignmentFile,
                              tempAlignmentFile2,
                              str(maxAlignmentsPerSite), str(minimumMapQValue) ])
+    
+    job.fileStore.logToMaster("Filtered, non-overlapping cigar file has %s lines" % countLines(tempAlignmentFile2))
     
     # Now write back alignments results file and return
     return job.fileStore.writeGlobalFile(tempAlignmentFile2)

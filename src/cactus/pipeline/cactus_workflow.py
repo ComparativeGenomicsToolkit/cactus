@@ -543,18 +543,20 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
             map(itemgetter(0), outgroupItems), map(itemgetter(1), outgroupItems)))
         
         # Alignment post processing to filter alignments
-        if self.getOptionalPhaseAttrib("runMapQFiltering", bool, False):
-            minimumMapQValue=getOptionalAttrib(cafNode, "minimumMapQValue", float, 0.0),
+        if getOptionalAttrib(cafNode, "runMapQFiltering", bool, False):
+            minimumMapQValue=getOptionalAttrib(cafNode, "minimumMapQValue", float, 0.0)
             maxAlignmentsPerSite=getOptionalAttrib(cafNode, "maxAlignmentsPerSite", int, 1)
             fileStore.logToMaster("Running mapQ uniquifying with parameters, minimumMapQValue: %s, maxAlignentsPerSite %s" %
-                                  minimumMapQValue, maxAlignmentsPerSite)
-            mapQJob = self.addChildJobFn(mappingQualityRescoring, blastJob.rv(0), 
-                                         minimumMapQValue=minimumMapQValue,
-                                         maxAlignmentsPerSite=maxAlignmentsPerSite,
-                                         loglevel=getLogLevelString())
-            blastJob.addChildJob(mapQJob) # Ensure the blast job runs before the mapQ job
-            self.cactusWorkflowArguments.alignmentsID = mapQJob.rv(0)
+                                  (minimumMapQValue, maxAlignmentsPerSite))
+            blastJob = blastJob.encapsulate() # Encapsulate to ensure that blast Job and all its successors
+            # run before mapQ
+            mapQJob = blastJob.addFollowOnJobFn(mappingQualityRescoring, blastJob.rv(0), 
+                                                minimumMapQValue=minimumMapQValue,
+                                                maxAlignmentsPerSite=maxAlignmentsPerSite,
+                                                logLevel=getLogLevelString())
+            self.cactusWorkflowArguments.alignmentsID = mapQJob.rv()
         else:
+            fileStore.logToMaster("Not running mapQ filtering")
             self.cactusWorkflowArguments.alignmentsID = blastJob.rv(0)
             
         self.cactusWorkflowArguments.outgroupFragmentIDs = blastJob.rv(1)
