@@ -5,25 +5,24 @@
 """Wrapper functions for assisting in running the various programs of the cactus package.
 """
 
-import os
 import cPickle
-import pickle
-import sys
-import shutil
-import subprocess32
-import logging
-import uuid
 import json
-import time
+import logging
+import os
+import pickle
+import pipes
+import shutil
 import signal
-
-from toil.lib.bioio import logger
-from toil.lib.bioio import system
-from toil.lib.bioio import getLogLevelString
-
-from toil.job import Job
+import subprocess32
+import sys
+import time
+import uuid
 
 from sonLib.bioio import popenCatch
+from toil.job import Job
+from toil.lib.bioio import getLogLevelString
+from toil.lib.bioio import logger
+from toil.lib.bioio import system
 
 from cactus.shared.version import cactus_commit
 
@@ -852,7 +851,8 @@ def dockerCommand(tool=None,
                   parameters=None,
                   rm=True,
                   port=None,
-                  dockstore=None):
+                  dockstore=None,
+                  entrypoint=None):
     # This is really dumb, but we have to work around an intersection
     # between two bugs: one in CoreOS where /etc/resolv.conf is
     # sometimes missing temporarily, and one in Docker where it
@@ -867,7 +867,10 @@ def dockerCommand(tool=None,
                         '-u', '%s:%s' % (os.getuid(), os.getgid()),
                         '-v', '{}:/data'.format(os.path.abspath(work_dir))]
 
-    if port:
+    if entrypoint is not None:
+        base_docker_call += ['--entrypoint', entrypoint]
+
+    if port is not None:
         base_docker_call += ["-p", "%d:%d" % (port, port)]
 
     containerInfo = { 'name': str(uuid.uuid4()), 'id': None }
@@ -953,6 +956,17 @@ def cactus_call(tool=None,
     if tool is None:
         tool = "cactus"
 
+    entrypoint = None
+    if len(parameters) > 0 and type(parameters[0]) is list:
+        # We have a list of lists, which is the convention for commands piped into one another.
+        chain_params = [' '.join(p) for p in [list(map(pipes.quote, q)) for q in parameters]]
+        parameters = ['bash', '-c', 'set -eo pipefail && ' + ' | '.join(chain_params)]
+        if mode == "docker":
+            # We want to shell into bash directly rather than going
+            # through the default cactus entrypoint.
+            entrypoint = '/bin/bash'
+            parameters = parameters[1:]
+
     if mode in ("docker", "singularity"):
         work_dir, parameters = prepareWorkDir(work_dir, parameters)
 
@@ -962,7 +976,8 @@ def cactus_call(tool=None,
                                             parameters=parameters,
                                             rm=rm,
                                             port=port,
-                                            dockstore=dockstore)
+                                            dockstore=dockstore,
+                                            entrypoint=entrypoint)
     elif mode == "singularity":
         call = singularityCommand(tool=tool, work_dir=work_dir,
                                   parameters=parameters, port=port)

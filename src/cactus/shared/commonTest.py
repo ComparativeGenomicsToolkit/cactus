@@ -71,6 +71,13 @@ class TestCase(unittest.TestCase):
 
         self.assertEquals(input, output)
 
+    def testCactusCallPipes(self):
+        output = cactus_call(parameters=[['echo', 'foobar'],
+                                         ['sed', 's/foo/baz/g'],
+                                         ['awk', '{ print "quux" $0 }']],
+                             check_output=True)
+        self.assertEquals(output, 'quuxbazbar\n')
+
     @silentOnSuccess
     def testChildTreeJob(self):
         """Check that the ChildTreeJob class runs all children."""
