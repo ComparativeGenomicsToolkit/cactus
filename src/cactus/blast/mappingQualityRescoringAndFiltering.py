@@ -40,46 +40,22 @@ def mappingQualityRescoring(job, inputAlignmentFileID,
     """
     Function to rescore and filter alignments by calculating the mapping quality of sub-alignments
     """
-    # Get temporary files
-    tempAlignmentFile = job.fileStore.getLocalTempFile()
-    tempAlignmentFile2 = job.fileStore.getLocalTempFile()
-    
     inputAlignmentFile = job.fileStore.readGlobalFile(inputAlignmentFileID)
     
     job.fileStore.logToMaster("Input cigar file has %s lines" % countLines(inputAlignmentFile))
     
-    # Mirror and orient alignments
-    cactus_call(parameters=["cactus_mirrorAndOrientAlignments",
-                             logLevel,
-                             inputAlignmentFile,
-                             tempAlignmentFile ])
+    # Get temporary file
+    tempAlignmentFile = job.fileStore.getLocalTempFile()
     
-    #job.fileStore.logToMaster("Mirrored and oriented cigar file has %s lines" % countLines(tempAlignmentFile))
+    # Mirror and orient alignments, sort, split overlaps and calculate mapping qualities
+    cactus_call(parameters=[ [ "cat", inputAlignmentFile ],
+                             [ "cactus_mirrorAndOrientAlignments", logLevel ],
+                             [ "sort", "-k6,6", "-k7,7n", "-k8,8n" ], # This sorts by coordinate
+                             [ "cactus_splitAlignmentOverlaps", logLevel  ],
+                             [ "cactus_calculateMappingQualities", logLevel, str(maxAlignmentsPerSite), str(minimumMapQValue) ],
+                             [ "tee", tempAlignmentFile] ])
     
-    # Sort
-    cactus_call(parameters=[ "cactus_blast_sortAlignmentsByQuery",
-                             logLevel,
-                             tempAlignmentFile,
-                             tempAlignmentFile2])
-    
-    #job.fileStore.logToMaster("Sorted cigar file has %s lines" % countLines(tempAlignmentFile2))
-    
-    # Split overlaps 
-    cactus_call(parameters=["cactus_splitAlignmentOverlaps",
-                             logLevel,
-                             tempAlignmentFile2,
-                             tempAlignmentFile ])
-    
-    job.fileStore.logToMaster("Split cigar file has %s lines" % countLines(tempAlignmentFile))
-    
-    # Calculate mapping qualities
-    cactus_call(parameters=["cactus_calculateMappingQualities",
-                             logLevel,
-                             tempAlignmentFile,
-                             tempAlignmentFile2,
-                             str(maxAlignmentsPerSite), str(minimumMapQValue) ])
-    
-    job.fileStore.logToMaster("Filtered, non-overlapping cigar file has %s lines" % countLines(tempAlignmentFile2))
+    job.fileStore.logToMaster("Filtered, non-overlapping cigar file has %s lines" % countLines(tempAlignmentFile))
     
     # Now write back alignments results file and return
-    return job.fileStore.writeGlobalFile(tempAlignmentFile2)
+    return job.fileStore.writeGlobalFile(tempAlignmentFile)

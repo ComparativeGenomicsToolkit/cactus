@@ -100,15 +100,3 @@ void stCaf_sortCigarsFileByScoreInDescendingOrder(char *cigarsFile, char *sorted
     fclose(fileHandle);
 #endif
 }
-
-void stCaf_sortCigarsFileByFirstSequenceStartCoordinateInAscendingOrder(char *cigarsFile, char *sortedFile) {
-	// cigar: simpleSeqA1 2 6 + simpleSeqB1 9 18 + 0.000000 M 3 D 5 M 1
-	int64_t i = st_system("sort -k6,6 -k7,7n -k8,8n %s > %s", cigarsFile, sortedFile); // TODO: GET THESE RIGHT
-    if(i != 0) {
-        st_errAbort("Encountered unix sort error when sorting cigar alignments in file: %s\n", cigarsFile);
-    }
-    i = st_system("chmod 777 %s", sortedFile);
-    if(i != 0) {
-        st_errAbort("Encountered error when changing file permissions: %s\n", cigarsFile);
-    }
-}

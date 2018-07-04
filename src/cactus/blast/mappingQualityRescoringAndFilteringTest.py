@@ -172,31 +172,6 @@ class TestCase(unittest.TestCase):
                                             score, invertOpStrands(reverseOps(ops))) in outputCigars)
         
     @silentOnSuccess
-    def testBlast_sortAlignmentsByQuery(self):
-        cactus_call(parameters=["cactus_blast_sortAlignmentsByQuery", 
-                                 self.logLevelString, 
-                                 self.simpleInputCigarPath, 
-                                 self.simpleOutputCigarPath])
-        
-        with open(self.simpleOutputCigarPath, 'r') as fh:
-            outputCigars = [ cigar[:-1] for cigar in fh.readlines() ] # Remove new lines
-        
-        correctCigars = [
-            'cigar: simpleSeqB1 9 18 + simpleSeqA1 2 6 + 1 M 3 I 5 M 1',
-            'cigar: simpleSeqB1 18 9 - simpleSeqA1 6 2 - 4 M 3 I 5 M 1',
-            'cigar: simpleSeqZ1 0 1 + simpleSeqA1 6 7 + 3 M 1',
-            'cigar: simpleSeqB1 18 28 + simpleSeqA2 0 10 + 8 M 1 I 2 M 2 D 2 M 5',
-            'cigar: simpleSeqB1 28 30 + simpleSeqA2 6 8 + 3 M 2',
-            'cigar: simpleSeqB1 32 30 - simpleSeqA2 7 9 + 72 M 2',
-            'cigar: simpleSeqBC 0 9 + simpleSeqAC 10 0 - 5 M 8 D 1 M 1',
-            'cigar: simpleSeqNonExistent 0 10 + simpleSeqC1 0 10 + 0.5 M 10',
-            'cigar: simpleSeqD 5 10 + simpleSeqC1 5 10 + 8 M 5',
-            'cigar: simpleSeqC1 10 15 + simpleSeqC1 15 20 + 19 M 5',
-            'cigar: simpleSeqC1 0 5 + simpleSeqD 0 5 + 2 M 5'
-            ]
-        self.assertEqual(correctCigars, outputCigars)
-        
-    @silentOnSuccess
     def testSplitAlignmentsOverlaps(self):
         self.inputCigars = [
             'cigar: simpleSeqB1 9 18 + simpleSeqA1 2 6 + 1.000000 M 3 I 5 M 1',
@@ -322,11 +297,12 @@ class TestCase(unittest.TestCase):
     def testCalculateMappingQualities(self):
         with open(self.simpleInputCigarPath, 'w') as fH:
             fH.write("\n".join(self.sortedNonOverlappingInputCigars) + "\n")
-        
+            
         cactus_call(parameters=[ "cactus_calculateMappingQualities", 
                                  self.logLevelString, 
+                                 '1', '0',
                                  self.simpleInputCigarPath, 
-                                 self.simpleOutputCigarPath, '1', '0' ])
+                                 self.simpleOutputCigarPath ])
         
         with open(self.simpleOutputCigarPath, 'r') as fh:
             outputCigars = [ cigar[:-1] for cigar in fh.readlines() ] # Remove new lines

@@ -82,8 +82,17 @@ int main(int argc, char *argv[]) {
 	assert(argc == 4);
 	st_setLogLevelFromString(argv[1]);
 
-    FILE *fileHandleIn = fopen(argv[2], "r");
-    FILE *fileHandleOut = fopen(argv[3], "w");
+    FILE *fileHandleIn = stdin;
+	FILE *fileHandleOut = stdout;
+
+	if(argc == 4) {
+		fileHandleIn = fopen(argv[2], "r");
+		fileHandleOut = fopen(argv[3], "w");
+	}
+	else {
+		assert(argc == 2);
+	}
+
     struct PairwiseAlignment *pairwiseAlignment;
 
     while ((pairwiseAlignment = cigarRead(fileHandleIn)) != NULL) {

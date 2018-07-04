@@ -175,11 +175,20 @@ int main(int argc, char *argv[]) {
 	 * This program breaks up alignments in the input file so that there are no partial overlaps between
 	 * alignments, outputting the non-partially-overlapping alignments to the output file.
 	 */
-	assert(argc == 4);
 	st_setLogLevelFromString(argv[1]);
 
-    FILE *fileHandleIn = fopen(argv[2], "r");
-    FILE *fileHandleOut = fopen(argv[3], "w");
+	FILE *fileHandleIn;
+	FILE *fileHandleOut;
+
+	if(argc == 2) {
+		fileHandleIn = stdin;
+		fileHandleOut = stdout;
+	}
+	else {
+		assert(argc == 4);
+		fileHandleIn = fopen(argv[2], "r");
+		fileHandleOut = fopen(argv[3], "w");
+	}
 
     // Set of alignments being progressively processed, ordered by ascending query end coordinate
     stSortedSet *activeAlignments = stSortedSet_construct3(comparePairwiseAlignments, NULL);
@@ -211,8 +220,10 @@ int main(int argc, char *argv[]) {
 
     // Cleanup
     stSortedSet_destruct(activeAlignments);
-    fclose(fileHandleIn);
-    fclose(fileHandleOut);
+    if(argc == 4) {
+    	fclose(fileHandleIn);
+    	fclose(fileHandleOut);
+    }
 
     //while(1);
 

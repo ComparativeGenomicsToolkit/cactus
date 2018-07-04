@@ -49,17 +49,24 @@ int main(int argc, char *argv[]) {
 	 * For each alignment in the input file copy the alignment to the output file and additionally
 	 * write out the alignment with the query and target sequences reversed.
 	 */
-	assert(argc == 6);
 	st_setLogLevelFromString(argv[1]);
+	int64_t maxAlignmentsPerSite;
+	int64_t i = sscanf(argv[2], "%" PRIi64 "", &maxAlignmentsPerSite);
+	assert(i == 1);
+	float minimumMapQValue;
+	i = sscanf(argv[3], "%f", &minimumMapQValue);
+	assert(i == 1);
 
-    FILE *fileHandleIn = fopen(argv[2], "r");
-    FILE *fileHandleOut = fopen(argv[3], "w");
-    int64_t maxAlignmentsPerSite;
-    int64_t i = sscanf(argv[4], "%" PRIi64 "", &maxAlignmentsPerSite);
-    assert(i == 1);
-    float minimumMapQValue;
-    i = sscanf(argv[5], "%f", &minimumMapQValue);
-    assert(i == 1);
+	FILE *fileHandleIn = stdin;
+	FILE *fileHandleOut = stdout;
+
+	if(argc == 6) {
+		fileHandleIn = fopen(argv[4], "r");
+		fileHandleOut = fopen(argv[5], "w");
+	}
+	else {
+		assert(argc == 4);
+	}
     
     // List of totally overlapping alignments
     stList *alignments = stList_construct();
@@ -84,8 +91,10 @@ int main(int argc, char *argv[]) {
 
     assert(stList_length(alignments) == 0);
     stList_destruct(alignments);
-    fclose(fileHandleIn);
-    fclose(fileHandleOut);
+    if(argc == 6) {
+    	fclose(fileHandleIn);
+    	fclose(fileHandleOut);
+    }
 
     //while(1);
 
