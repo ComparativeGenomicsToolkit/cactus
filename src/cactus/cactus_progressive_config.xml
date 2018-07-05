@@ -102,6 +102,7 @@
 		runMapQFiltering="1"
 		minimumMapQValue="0.0" 
 		maxAlignmentsPerSite="1"
+		alpha="0.001"
 		lastzMemory="littleMemory"
 		lastzDisk="mediumDisk"
                 removeRecoverableChains="unequalNumberOfIngroupCopies"

@@ -546,13 +546,15 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
         if getOptionalAttrib(cafNode, "runMapQFiltering", bool, False):
             minimumMapQValue=getOptionalAttrib(cafNode, "minimumMapQValue", float, 0.0)
             maxAlignmentsPerSite=getOptionalAttrib(cafNode, "maxAlignmentsPerSite", int, 1)
-            fileStore.logToMaster("Running mapQ uniquifying with parameters, minimumMapQValue: %s, maxAlignentsPerSite %s" %
-                                  (minimumMapQValue, maxAlignmentsPerSite))
+            alpha=getOptionalAttrib(cafNode, "alpha", float, 1.0)
+            fileStore.logToMaster("Running mapQ uniquifying with parameters, minimumMapQValue: %s, maxAlignentsPerSite %s, alpha: %s" %
+                                  (minimumMapQValue, maxAlignmentsPerSite, alpha))
             blastJob = blastJob.encapsulate() # Encapsulate to ensure that blast Job and all its successors
             # run before mapQ
             mapQJob = blastJob.addFollowOnJobFn(mappingQualityRescoring, blastJob.rv(0), 
                                                 minimumMapQValue=minimumMapQValue,
                                                 maxAlignmentsPerSite=maxAlignmentsPerSite,
+                                                alpha=alpha,
                                                 logLevel=getLogLevelString())
             self.cactusWorkflowArguments.alignmentsID = mapQJob.rv()
         else:

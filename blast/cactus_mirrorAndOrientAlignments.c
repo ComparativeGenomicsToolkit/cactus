@@ -79,7 +79,6 @@ int main(int argc, char *argv[]) {
 	 * write out the alignment with the first and second sequences reversed. For each alignment written out
 	 * we ensure the alignment is reported with respect to the positive strand of the first reported sequence.
 	 */
-	assert(argc == 4);
 	st_setLogLevelFromString(argv[1]);
 
     FILE *fileHandleIn = stdin;

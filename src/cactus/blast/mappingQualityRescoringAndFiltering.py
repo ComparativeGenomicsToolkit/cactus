@@ -36,7 +36,7 @@ def countLines(inputFile):
         return sum(1 for line in f)
 
 def mappingQualityRescoring(job, inputAlignmentFileID, 
-                            minimumMapQValue, maxAlignmentsPerSite, logLevel):
+                            minimumMapQValue, maxAlignmentsPerSite, alpha, logLevel):
     """
     Function to rescore and filter alignments by calculating the mapping quality of sub-alignments
     """
@@ -51,8 +51,9 @@ def mappingQualityRescoring(job, inputAlignmentFileID,
     cactus_call(parameters=[ [ "cat", inputAlignmentFile ],
                              [ "cactus_mirrorAndOrientAlignments", logLevel ],
                              [ "sort", "-k6,6", "-k7,7n", "-k8,8n" ], # This sorts by coordinate
+                             [ "uniq" ], # This eliminates any annoying duplicates if lastz reports the alignment in both orientations
                              [ "cactus_splitAlignmentOverlaps", logLevel  ],
-                             [ "cactus_calculateMappingQualities", logLevel, str(maxAlignmentsPerSite), str(minimumMapQValue) ],
+                             [ "cactus_calculateMappingQualities", logLevel, str(maxAlignmentsPerSite), str(minimumMapQValue), str(alpha) ],
                              [ "tee", tempAlignmentFile] ])
     
     job.fileStore.logToMaster("Filtered, non-overlapping cigar file has %s lines" % countLines(tempAlignmentFile))

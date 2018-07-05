@@ -68,27 +68,27 @@ class TestCase(unittest.TestCase):
         ]
         
         self.filteredSortedNonOverlappingInputCigars = [ 
-            'cigar: simpleSeqB1 9 18 + simpleSeqA1 2 6 + 4.000000 M 1 I 5 M 3',
-            'cigar: simpleSeqZ1 0 1 + simpleSeqA1 6 7 + 3.000000 M 1',
-            'cigar: simpleSeqB1 18 24 + simpleSeqA2 0 6 + 8.000000 M 1 I 2 M 2 D 2 M 1',
-            'cigar: simpleSeqB1 24 25 + simpleSeqA2 6 7 + 8.000000 M 1',
-            'cigar: simpleSeqB1 32 31 - simpleSeqA2 7 8 + 72.000000 M 1',
-            'cigar: simpleSeqB1 31 30 - simpleSeqA2 8 9 + 72.000000 M 1',
-            'cigar: simpleSeqB1 27 28 + simpleSeqA2 9 10 + 8.000000 M 1',
-            'cigar: simpleSeqBC 9 0 - simpleSeqAC 0 10 + 5.000000 M 1 D 1 M 8',
-            'cigar: simpleSeqA1 2 6 + simpleSeqB1 9 18 + 4.000000 M 1 D 5 M 3',
-            'cigar: simpleSeqA2 0 10 + simpleSeqB1 18 28 + 8.000000 M 1 D 2 M 2 I 2 M 5',
-            'cigar: simpleSeqA2 6 8 + simpleSeqB1 28 30 + 3.000000 M 2',
-            'cigar: simpleSeqA2 9 7 - simpleSeqB1 30 32 + 72.000000 M 2',
-            'cigar: simpleSeqAC 10 0 - simpleSeqBC 0 9 + 5.000000 M 8 I 1 M 1',
-            'cigar: simpleSeqD 0 5 + simpleSeqC1 0 5 + 2.000000 M 5',
-            'cigar: simpleSeqD 5 10 + simpleSeqC1 5 10 + 8.000000 M 5',
-            'cigar: simpleSeqC1 15 20 + simpleSeqC1 10 15 + 19.000000 M 5',
-            'cigar: simpleSeqC1 10 15 + simpleSeqC1 15 20 + 19.000000 M 5',
-            'cigar: simpleSeqC1 0 5 + simpleSeqD 0 5 + 2.000000 M 5',
-            'cigar: simpleSeqC1 5 10 + simpleSeqD 5 10 + 8.000000 M 5',
-            'cigar: simpleSeqC1 0 10 + simpleSeqNonExistent 0 10 + 0.500000 M 10',
-            'cigar: simpleSeqA1 6 7 + simpleSeqZ1 0 1 + 3.000000 M 1'
+            'cigar: simpleSeqB1 9 18 + simpleSeqA1 2 6 + 30.004341 M 1 I 5 M 3',
+            'cigar: simpleSeqZ1 0 1 + simpleSeqA1 6 7 + 60.000000 M 1',
+            'cigar: simpleSeqB1 18 24 + simpleSeqA2 0 6 + 60.000000 M 1 I 2 M 2 D 2 M 1',
+            'cigar: simpleSeqB1 24 25 + simpleSeqA2 6 7 + 50.000042 M 1',
+            'cigar: simpleSeqB1 32 31 - simpleSeqA2 7 8 + 60.000000 M 1',
+            'cigar: simpleSeqB1 31 30 - simpleSeqA2 8 9 + 60.000000 M 1',
+            'cigar: simpleSeqB1 27 28 + simpleSeqA2 9 10 + 60.000000 M 1',
+            'cigar: simpleSeqBC 9 0 - simpleSeqAC 0 10 + 60.000000 M 1 D 1 M 8',
+            'cigar: simpleSeqA1 2 6 + simpleSeqB1 9 18 + 30.004341 M 1 D 5 M 3',
+            'cigar: simpleSeqA2 0 10 + simpleSeqB1 18 28 + 60.000000 M 1 D 2 M 2 I 2 M 5',
+            'cigar: simpleSeqA2 6 8 + simpleSeqB1 28 30 + 60.000000 M 2',
+            'cigar: simpleSeqA2 9 7 - simpleSeqB1 30 32 + 60.000000 M 2',
+            'cigar: simpleSeqAC 10 0 - simpleSeqBC 0 9 + 60.000000 M 8 I 1 M 1',
+            'cigar: simpleSeqD 0 5 + simpleSeqC1 0 5 + 15.135209 M 5',
+            'cigar: simpleSeqD 5 10 + simpleSeqC1 5 10 + 60.000000 M 5',
+            'cigar: simpleSeqC1 15 20 + simpleSeqC1 10 15 + 60.000000 M 5',
+            'cigar: simpleSeqC1 10 15 + simpleSeqC1 15 20 + 60.000000 M 5',
+            'cigar: simpleSeqC1 0 5 + simpleSeqD 0 5 + 60.000000 M 5',
+            'cigar: simpleSeqC1 5 10 + simpleSeqD 5 10 + 60.000000 M 5',
+            'cigar: simpleSeqC1 0 10 + simpleSeqNonExistent 0 10 + 60.000000 M 10',
+            'cigar: simpleSeqA1 6 7 + simpleSeqZ1 0 1 + 60.000000 M 1'
         ]
          
         self.simpleOutputCigarPath = getTempFile()
@@ -297,10 +297,10 @@ class TestCase(unittest.TestCase):
     def testCalculateMappingQualities(self):
         with open(self.simpleInputCigarPath, 'w') as fH:
             fH.write("\n".join(self.sortedNonOverlappingInputCigars) + "\n")
-            
+               
         cactus_call(parameters=[ "cactus_calculateMappingQualities", 
                                  self.logLevelString, 
-                                 '1', '0',
+                                 '1', '0', "1.0",
                                  self.simpleInputCigarPath, 
                                  self.simpleOutputCigarPath ])
         
@@ -309,7 +309,7 @@ class TestCase(unittest.TestCase):
         
         self.assertEqual(self.filteredSortedNonOverlappingInputCigars, outputCigars)
         
-    def runToilPipeline(self, alignmentsFile):
+    def runToilPipeline(self, alignmentsFile, alpha=0.001):
         # Tests the toil pipeline        
         options = Job.Runner.getDefaultOptions(os.path.join(self.tempDir, "toil"))
         options.logLevel = self.logLevelString
@@ -319,7 +319,7 @@ class TestCase(unittest.TestCase):
             inputAlignmentFileID = toil.importFile(makeURL(alignmentsFile))
             
             rootJob = Job.wrapJobFn(mappingQualityRescoring, inputAlignmentFileID,
-                                    minimumMapQValue=0, maxAlignmentsPerSite=1, logLevel=self.logLevelString)
+                                    minimumMapQValue=0, maxAlignmentsPerSite=1, alpha=alpha, logLevel=self.logLevelString)
             
             outputAlignmentsFileID = toil.start(rootJob)
             toil.exportFile(outputAlignmentsFileID, makeURL(self.simpleOutputCigarPath))
@@ -335,7 +335,7 @@ class TestCase(unittest.TestCase):
         """
         Tests the complete pipeline.
         """
-        outputCigars = self.runToilPipeline(self.simpleInputCigarPath)
+        outputCigars = self.runToilPipeline(self.simpleInputCigarPath, alpha=1.0)
         
         self.assertEqual(self.filteredSortedNonOverlappingInputCigars, outputCigars)
     
@@ -344,7 +344,7 @@ class TestCase(unittest.TestCase):
         startTime = time.time()
         runSelfLastz(concatenatedSequenceFile, self.simpleInputCigarPath, "")
         print "It took %s seconds to run lastz" % (time.time() - startTime)
-        with open(concatenatedSequenceFile, 'r') as fh:
+        with open(self.simpleInputCigarPath, 'r') as fh:
             inputCigars = [ cigar[:-1] for cigar in fh.readlines() ] # Remove new lines
         print "There are %s cigars from lastz" % len(inputCigars)
         

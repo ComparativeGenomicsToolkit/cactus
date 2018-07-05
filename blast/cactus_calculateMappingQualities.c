@@ -6,6 +6,7 @@
 
 #include "sonLib.h"
 #include "pairwiseAlignment.h"
+#include "math.h"
 
 uint64_t getStartCoordinate(struct PairwiseAlignment *pairwiseAlignment) {
 	assert(pairwiseAlignment->strand1); // This code assumes that the alignment is reported with respect
@@ -19,17 +20,51 @@ int cmpAlignmentsFn(const void *a, const void *b) {
 	return pA1->score < pA2->score ? -1 : (pA1->score > pA2->score ? 1 : 0);
 }
 
-void updateScoresToReflectMappingQualities(stList *alignments) {
-	//TODO
+void updateScoresToReflectMappingQualities(stList *alignments, float alpha) {
+	// Create an array of the scores
+	float *alignmentScores = st_calloc(stList_length(alignments), sizeof(float));
+	for(uint64_t i=0; i<stList_length(alignments); i++) {
+		alignmentScores[i] = ((struct PairwiseAlignment *)stList_get(alignments, i))->score;
+	}
+
+	// Calculate mapQs
+	for(uint64_t i=0; i<stList_length(alignments); i++) {
+		struct PairwiseAlignment *pA = stList_get(alignments, i);
+
+		// Cut off the calculation if clearly going to be zero
+		if(alpha * (alignmentScores[i] - alignmentScores[stList_length(alignments)-1]) < -10) {
+			pA->score = 0.0;
+		}
+
+		else {
+			// Calculate the denominator
+			double z = 0.0;
+			for(uint64_t j=0; j<stList_length(alignments); j++) {
+				z += pow(10, alpha * (alignmentScores[j] - alignmentScores[i]));
+			}
+			assert(z >= 1.0);
+
+			if(z <= 1.000001) { // Round scores to max of 60
+				pA->score = 60.0;
+			}
+			else {
+				pA->score = -10.0 * log10(1.0 - 1.0/z);
+				assert(pA->score >= 0.0);
+			}
+		}
+	}
+
+	// Cleanup
+	free(alignmentScores);
 }
 
 void reportAlignments(stList *alignments, int64_t maxAlignmentsPerSite,
-		float minimumMapQValue, FILE *fileHandleOut) {
-	// TODO
-	updateScoresToReflectMappingQualities(alignments);
-
+		float minimumMapQValue, float alpha, FILE *fileHandleOut) {
 	// Sort by ascending score
 	stList_sort(alignments, cmpAlignmentsFn);
+
+	// Calculate the mapping qualities
+	updateScoresToReflectMappingQualities(alignments, alpha);
 
 	// Report the alignments
 	for(int64_t i=0; stList_length(alignments) > 0;) {
@@ -50,22 +85,28 @@ int main(int argc, char *argv[]) {
 	 * write out the alignment with the query and target sequences reversed.
 	 */
 	st_setLogLevelFromString(argv[1]);
+
 	int64_t maxAlignmentsPerSite;
 	int64_t i = sscanf(argv[2], "%" PRIi64 "", &maxAlignmentsPerSite);
 	assert(i == 1);
+
 	float minimumMapQValue;
 	i = sscanf(argv[3], "%f", &minimumMapQValue);
+	assert(i == 1);
+
+	float alpha;
+	i = sscanf(argv[4], "%f", &alpha);
 	assert(i == 1);
 
 	FILE *fileHandleIn = stdin;
 	FILE *fileHandleOut = stdout;
 
-	if(argc == 6) {
-		fileHandleIn = fopen(argv[4], "r");
-		fileHandleOut = fopen(argv[5], "w");
+	if(argc == 7) {
+		fileHandleIn = fopen(argv[5], "r");
+		fileHandleOut = fopen(argv[6], "w");
 	}
 	else {
-		assert(argc == 4);
+		assert(argc == 5);
 	}
     
     // List of totally overlapping alignments
@@ -80,14 +121,14 @@ int main(int argc, char *argv[]) {
 			strcmp(((struct PairwiseAlignment *)stList_peek(alignments))->contig1, pairwiseAlignment->contig1) != 0 ||
 		   	getStartCoordinate(stList_peek(alignments)) != getStartCoordinate(pairwiseAlignment)) {
 		   
-			reportAlignments(alignments, maxAlignmentsPerSite, minimumMapQValue, fileHandleOut);
+			reportAlignments(alignments, maxAlignmentsPerSite, minimumMapQValue, alpha, fileHandleOut);
 		}
 
 		// Adding the pairwise alignment to the set to consider
 		stList_append(alignments, pairwiseAlignment);
     }
     
-    reportAlignments(alignments, maxAlignmentsPerSite, minimumMapQValue, fileHandleOut);
+    reportAlignments(alignments, maxAlignmentsPerSite, minimumMapQValue, alpha, fileHandleOut);
 
     assert(stList_length(alignments) == 0);
     stList_destruct(alignments);
