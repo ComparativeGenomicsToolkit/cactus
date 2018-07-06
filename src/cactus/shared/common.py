@@ -17,6 +17,8 @@ import json
 import time
 import signal
 
+from urlparse import urlparse
+
 from toil.lib.bioio import logger
 from toil.lib.bioio import system
 from toil.lib.bioio import getLogLevelString
@@ -31,11 +33,11 @@ _log = logging.getLogger(__name__)
 
 subprocess32._has_poll = False
 
-def makeURL(path):
-    if not (path.startswith("file:") or path.startswith("s3:") or path.startswith("http:")):
-        return "file://" + os.path.abspath(path)
+def makeURL(path_or_url):
+    if urlparse(path_or_url).scheme == '':
+        return "file://" + os.path.abspath(path_or_url)
     else:
-        return path
+        return path_or_url
 
 def catFiles(filesToCat, catFile):
     """Cats a bunch of files into one file. Ensures a no more than maxCat files
