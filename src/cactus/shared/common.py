@@ -1030,10 +1030,11 @@ def cactus_call(tool=None,
 
 class RunAsFollowOn(Job):
     def __init__(self, job, *args, **kwargs):
-        Job.__init__(self, memory=100000000, preemptable=True)
+        Job.__init__(self, cores=0.1, memory=100000000, preemptable=True)
         self._args = args
         self._kwargs = kwargs
         self.job = job
+
     def run(self, fileStore):
         return self.addFollowOn(self.job(*self._args, **self._kwargs)).rv()
 
