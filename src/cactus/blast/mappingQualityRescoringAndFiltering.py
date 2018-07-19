@@ -24,11 +24,6 @@ filtering the alignments to remove lower probability alignments.
         for example to only keep the primary alignment: C subscript: cactus_calculateMappingQualities
 
 """
-import os
-import shutil
-from toil.lib.bioio import logger
-from toil.lib.bioio import system
-
 from cactus.shared.common import cactus_call
 
 def countLines(inputFile):
@@ -48,13 +43,13 @@ def mappingQualityRescoring(job, inputAlignmentFileID,
     tempAlignmentFile = job.fileStore.getLocalTempFile()
     
     # Mirror and orient alignments, sort, split overlaps and calculate mapping qualities
-    cactus_call(parameters=[ [ "cat", inputAlignmentFile ],
-                             [ "cactus_mirrorAndOrientAlignments", logLevel ],
-                             [ "sort", "-k6,6", "-k7,7n", "-k8,8n" ], # This sorts by coordinate
-                             [ "uniq" ], # This eliminates any annoying duplicates if lastz reports the alignment in both orientations
-                             [ "cactus_splitAlignmentOverlaps", logLevel  ],
-                             [ "cactus_calculateMappingQualities", logLevel, str(maxAlignmentsPerSite), str(minimumMapQValue), str(alpha) ],
-                             [ "tee", tempAlignmentFile] ])
+    cactus_call(infile=inputAlignmentFile,
+                outfile=tempAlignmentFile,
+                parameters=[[ "cactus_mirrorAndOrientAlignments", logLevel ],
+                            [ "sort", "-k6,6", "-k7,7n", "-k8,8n" ], # This sorts by coordinate
+                            [ "uniq" ], # This eliminates any annoying duplicates if lastz reports the alignment in both orientations
+                            [ "cactus_splitAlignmentOverlaps", logLevel  ],
+                            [ "cactus_calculateMappingQualities", logLevel, str(maxAlignmentsPerSite), str(minimumMapQValue), str(alpha) ]])
     
     job.fileStore.logToMaster("Filtered, non-overlapping cigar file has %s lines" % countLines(tempAlignmentFile))
     

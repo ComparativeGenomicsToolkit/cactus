@@ -884,16 +884,6 @@ def dockerCommand(tool=None,
     return call, containerInfo
 
 def prepareWorkDir(work_dir, parameters):
-    def moveToWorkDir(work_dir, arg):
-        if isinstance(arg, str) and os.path.isfile(arg):
-            if not os.path.dirname(arg) == work_dir:
-                _log.info('Copying file %s to work dir' % arg)
-                shutil.copy(arg, work_dir)
-
-    if work_dir:
-        for arg in parameters:
-            moveToWorkDir(work_dir, arg)
-
     if not work_dir:
     #Make sure all the paths we're accessing are in the same directory
         files = [par for par in parameters if os.path.isfile(par)]
@@ -959,6 +949,7 @@ def cactus_call(tool=None,
     entrypoint = None
     if len(parameters) > 0 and type(parameters[0]) is list:
         # We have a list of lists, which is the convention for commands piped into one another.
+        flattened = [i for sublist in parameters for i in sublist]
         chain_params = [' '.join(p) for p in [list(map(pipes.quote, q)) for q in parameters]]
         parameters = ['bash', '-c', 'set -eo pipefail && ' + ' | '.join(chain_params)]
         if mode == "docker":
@@ -966,6 +957,7 @@ def cactus_call(tool=None,
             # through the default cactus entrypoint.
             entrypoint = '/bin/bash'
             parameters = parameters[1:]
+            work_dir, _ = prepareWorkDir(work_dir, flattened)
 
     if mode in ("docker", "singularity"):
         work_dir, parameters = prepareWorkDir(work_dir, parameters)

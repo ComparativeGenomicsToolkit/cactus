@@ -72,7 +72,12 @@ class TestCase(unittest.TestCase):
         self.assertEquals(input, output)
 
     def testCactusCallPipes(self):
-        output = cactus_call(parameters=[['echo', 'foobar'],
+        inputFile = getTempFile(rootDir=self.tempDir)
+        with open(inputFile, 'w') as f:
+            f.write('foobar\n')
+        # using 'cat' here rather than infile is intentional; it tests
+        # whether the directory is mounted into containers correctly.
+        output = cactus_call(parameters=[['cat', inputFile],
                                          ['sed', 's/foo/baz/g'],
                                          ['awk', '{ print "quux" $0 }']],
                              check_output=True)

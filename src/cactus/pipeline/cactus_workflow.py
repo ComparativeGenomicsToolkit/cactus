@@ -555,7 +555,8 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
                                                 minimumMapQValue=minimumMapQValue,
                                                 maxAlignmentsPerSite=maxAlignmentsPerSite,
                                                 alpha=alpha,
-                                                logLevel=getLogLevelString())
+                                                logLevel=getLogLevelString(),
+                                                preemptable=True)
             self.cactusWorkflowArguments.alignmentsID = mapQJob.rv()
         else:
             fileStore.logToMaster("Not running mapQ filtering")
