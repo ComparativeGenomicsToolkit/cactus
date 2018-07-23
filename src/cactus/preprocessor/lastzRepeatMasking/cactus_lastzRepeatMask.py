@@ -33,7 +33,10 @@ class RepeatMaskOptions:
 
 class LastzRepeatMaskJob(RoundedJob):
     def __init__(self, repeatMaskOptions, queryID, targetIDs):
-        RoundedJob.__init__(self, preemptable=True)
+        targetsSize = sum(targetID.size for targetID in targetIDs)
+        memory = 4*1024*1024*1024
+        disk = 2*(queryID.size + targetsSize)
+        RoundedJob.__init__(self, memory=memory, disk=disk, preemptable=True)
         self.repeatMaskOptions = repeatMaskOptions
         self.queryID = queryID
         self.targetIDs = targetIDs
