@@ -344,13 +344,28 @@ class CactusRecursionJob(CactusJob):
         """
         if phaseNode == None:
             phaseNode = self.phaseNode
+        return self.addFollowOn(job(phaseNode=phaseNode, constantsNode=self.constantsNode,
+                                    cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
+                                    flowerNames=self.flowerNames, flowerSizes=self.flowerSizes,
+                                    overlarge=self.overlarge,
+                                    precomputedAlignmentIDs=self.precomputedAlignmentIDs,
+                                    cactusWorkflowArguments=self.cactusWorkflowArguments)).rv()
+
+    def makeFollowOnRecursiveJobWithPromisedRequirements(self, job, phaseNode=None):
+        """
+        Toil's PromisedRequirements don't actually work with real job
+        classes, only functions. So this is a hacky way of working
+        around that by introducing our own level of indirection.
+        """
+        if phaseNode == None:
+            phaseNode = self.phaseNode
         return self.addFollowOn(RunAsFollowOn(job, phaseNode=phaseNode, constantsNode=self.constantsNode,
                                               cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                                               flowerNames=self.flowerNames, flowerSizes=self.flowerSizes,
                                               overlarge=self.overlarge,
                                               precomputedAlignmentIDs=self.precomputedAlignmentIDs,
                                               cactusWorkflowArguments=self.cactusWorkflowArguments)).rv()
-        
+
     def makeChildJobs(self, flowersAndSizes, job, overlargeJob=None, 
                       phaseNode=None):
         """Make a set of child jobs for a given set of flowers and chosen child job
@@ -885,7 +900,7 @@ class CactusBarWrapperLarge(CactusRecursionJob):
                 self.flowerSizes, False, endsToAlign, endSizes,
                 cactusWorkflowArguments=self.cactusWorkflowArguments)).rv())
         self.precomputedAlignmentIDs = precomputedAlignmentIDs
-        self.makeFollowOnRecursiveJob(CactusBarWrapperWithPrecomputedEndAlignments)
+        self.makeFollowOnRecursiveJobWithPromisedRequirements(CactusBarWrapperWithPrecomputedEndAlignments)
         logger.info("Breaking bar job into %i separate jobs" % \
                              (len(precomputedAlignmentIDs)))
 

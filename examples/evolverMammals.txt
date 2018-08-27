@@ -1,7 +1,7 @@
 ((simHuman_chr6:0.144018,(simMouse_chr6:0.084509,simRat_chr6:0.091589)mr:0.271974):0.020593,(simCow_chr6:0.18908,simDog_chr6:0.16303):0.032898);
 
-simCow_chr6 http://hgwdev.cse.ucsc.edu/~jcarmstr/evolverMammals/simCow.chr6
-simDog_chr6 http://hgwdev.cse.ucsc.edu/~jcarmstr/evolverMammals/simDog.chr6
-simHuman_chr6 http://hgwdev.cse.ucsc.edu/~jcarmstr/evolverMammals/simHuman.chr6
-simMouse_chr6 http://hgwdev.cse.ucsc.edu/~jcarmstr/evolverMammals/simMouse.chr6
-simRat_chr6 http://hgwdev.cse.ucsc.edu/~jcarmstr/evolverMammals/simRat.chr6
+simCow_chr6 http://s3-us-west-2.amazonaws.com/jcarmstr-misc/testRegions/evolverMammals/simCow.chr6
+simDog_chr6 http://s3-us-west-2.amazonaws.com/jcarmstr-misc/testRegions/evolverMammals/simDog.chr6
+simHuman_chr6 http://s3-us-west-2.amazonaws.com/jcarmstr-misc/testRegions/evolverMammals/simHuman.chr6
+simMouse_chr6 http://s3-us-west-2.amazonaws.com/jcarmstr-misc/testRegions/evolverMammals/simMouse.chr6
+simRat_chr6 http://s3-us-west-2.amazonaws.com/jcarmstr-misc/testRegions/evolverMammals/simRat.chr6

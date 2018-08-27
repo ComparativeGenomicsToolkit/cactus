@@ -105,7 +105,7 @@ There isn't much to configure if running locally. Most importantly, if on a shar
 ### Running on a cluster
 Cactus (through Toil) supports many batch systems, including LSF, SLURM, GridEngine, Parasol, and Torque. To run on a cluster, simply add `--batchSystem <batchSystem>`, e.g. `--batchSystem gridEngine`. If your batch system needs additional configuration, Toil exposes some [environment variables](http://toil.readthedocs.io/en/3.10.1/developingWorkflows/batchSystem.html#batch-system-enivronmental-variables) that can help.
 ### Running on the cloud
-Cactus supports running on AWS, and other clouds in the future, but please don't use this functionality just yet. The current version of Toil has only basic support for autoscaling, and hasn't quite merged the features we need yet. If you desperately want to run on the cloud, please contact us and we can point you to an experimental version that should work.
+Cactus supports running on AWS, Azure, and Google Cloud Platform using [Toil's autoscaling features](https://toil.readthedocs.io/en/latest/running/cloud/cloud.html). For more details on running in AWS, check out [these instructions](doc/running-in-aws.md) (other clouds are similar).
 ## Using the output
 Cactus outputs its alignments in the [HAL](https://github.com/ComparativeGenomicsToolkit/hal) format. This format represents the alignment in a reference-free, indexed way, but isn't readable by many tools. To export a MAF (which by its nature is usually reference-based), you can use the `hal2maf` tool to export the alignment from any particular genome: `hal2maf <hal> --refGenome <reference> <maf>`.
 

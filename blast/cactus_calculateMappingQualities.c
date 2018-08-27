@@ -138,7 +138,6 @@ int main(int argc, char *argv[]) {
     for(i=0; i<maxAlignmentsPerSite; i++) {
     	fclose(fileHandleOuts[i]);
     }
-    free(fileHandleOuts);
     if(argc == maxAlignmentsPerSite+6) {
     	fclose(fileHandleIn);
     }

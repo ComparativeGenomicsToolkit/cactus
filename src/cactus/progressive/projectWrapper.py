@@ -1,9 +1,8 @@
 #!/usr/bin/env python
-
+import logging
 import os
 import xml.etree.ElementTree as ET
 
-from toil.lib.bioio import system
 from sonLib.bioio import absSymPath
 
 from seqFile import SeqFile
@@ -13,6 +12,7 @@ from cactus.shared.common import cactusRootPath
 
 from cactus.progressive.cactus_createMultiCactusProject import runCreateMultiCactusProject
 
+log = logging.getLogger(__name__)
 
 # Wrap up the cactus_progressive interface:
 # - intialize the working directory
@@ -39,6 +39,7 @@ class ProjectWrapper:
             dir = cactusRootPath()
             configPath = os.path.join(dir,
                                       "cactus_progressive_config.xml")
+        log.info("Using config from path %s." % configPath)
         configXml = ET.parse(configPath).getroot()
         self.configWrapper = ConfigWrapper(configXml)
         # here we can go through the options and apply some to the config

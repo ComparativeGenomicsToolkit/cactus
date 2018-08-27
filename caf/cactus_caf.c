@@ -450,6 +450,9 @@ int main(int argc, char *argv[]) {
                 if (strcmp(optarg, "singleCopyOutgroup") == 0) {
                     sortAlignments = true;
                     filterFn = stCaf_filterByOutgroup;
+                } else if (strcmp(optarg, "relaxedSingleCopyOutgroupNoSort") == 0) {
+                    sortAlignments = false;
+                    filterFn = stCaf_relaxedFilterByOutgroup;
                 } else if (strcmp(optarg, "relaxedSingleCopyOutgroup") == 0) {
                     sortAlignments = true;
                     filterFn = stCaf_relaxedFilterByOutgroup;

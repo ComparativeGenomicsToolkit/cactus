@@ -5,24 +5,28 @@
 """Wrapper functions for assisting in running the various programs of the cactus package.
 """
 
-import cPickle
-import json
-import logging
 import os
+import cPickle
 import pickle
-import pipes
-import shutil
-import signal
-import subprocess32
 import sys
-import time
+import shutil
+import subprocess32
+import logging
+import pipes
 import uuid
+import json
+import time
+import signal
 
-from sonLib.bioio import popenCatch
-from toil.job import Job
-from toil.lib.bioio import getLogLevelString
+from urlparse import urlparse
+
 from toil.lib.bioio import logger
 from toil.lib.bioio import system
+from toil.lib.bioio import getLogLevelString
+
+from toil.job import Job
+
+from sonLib.bioio import popenCatch
 
 from cactus.shared.version import cactus_commit
 
@@ -30,11 +34,11 @@ _log = logging.getLogger(__name__)
 
 subprocess32._has_poll = False
 
-def makeURL(path):
-    if not (path.startswith("file:") or path.startswith("s3:") or path.startswith("http:")):
-        return "file://" + os.path.abspath(path)
+def makeURL(path_or_url):
+    if urlparse(path_or_url).scheme == '':
+        return "file://" + os.path.abspath(path_or_url)
     else:
-        return path
+        return path_or_url
 
 def catFiles(filesToCat, catFile):
     """Cats a bunch of files into one file. Ensures a no more than maxCat files
@@ -1034,10 +1038,11 @@ def cactus_call(tool=None,
 
 class RunAsFollowOn(Job):
     def __init__(self, job, *args, **kwargs):
-        Job.__init__(self, memory=100000000, preemptable=True)
+        Job.__init__(self, cores=0.1, memory=100000000, preemptable=True)
         self._args = args
         self._kwargs = kwargs
         self.job = job
+
     def run(self, fileStore):
         return self.addFollowOn(self.job(*self._args, **self._kwargs)).rv()
 
