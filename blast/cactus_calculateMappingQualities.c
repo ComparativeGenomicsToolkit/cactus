@@ -59,7 +59,7 @@ void updateScoresToReflectMappingQualities(stList *alignments, float alpha) {
 }
 
 void reportAlignments(stList *alignments, int64_t maxAlignmentsPerSite,
-		float minimumMapQValue, float alpha, FILE *fileHandleOut) {
+		float minimumMapQValue, float alpha, FILE **fileHandleOuts) {
 	// Sort by ascending score
 	stList_sort(alignments, cmpAlignmentsFn);
 
@@ -69,9 +69,9 @@ void reportAlignments(stList *alignments, int64_t maxAlignmentsPerSite,
 	// Report the alignments
 	for(int64_t i=0; stList_length(alignments) > 0;) {
 		struct PairwiseAlignment *pairwiseAlignment = stList_pop(alignments);
-		if(i++ < maxAlignmentsPerSite && pairwiseAlignment->score >= minimumMapQValue) {
+		if(i < maxAlignmentsPerSite && pairwiseAlignment->score >= minimumMapQValue) {
 			// Write out modified cigar
-			cigarWrite(fileHandleOut, pairwiseAlignment, 0);
+			cigarWrite(fileHandleOuts[i++], pairwiseAlignment, 0);
 		}
 
 		// Cleanup
@@ -98,15 +98,17 @@ int main(int argc, char *argv[]) {
 	i = sscanf(argv[4], "%f", &alpha);
 	assert(i == 1);
 
-	FILE *fileHandleIn = stdin;
-	FILE *fileHandleOut = stdout;
+	FILE **fileHandleOuts = st_malloc(sizeof(FILE *) * maxAlignmentsPerSite);
+	for(i=0; i<maxAlignmentsPerSite; i++) {
+		fileHandleOuts[i] = fopen(argv[i+5], "w");
+	}
 
-	if(argc == 7) {
-		fileHandleIn = fopen(argv[5], "r");
-		fileHandleOut = fopen(argv[6], "w");
+	FILE *fileHandleIn = stdin;
+	if(argc == maxAlignmentsPerSite+6) {
+		fileHandleIn = fopen(argv[maxAlignmentsPerSite+5], "r");
 	}
 	else {
-		assert(argc == 5);
+		assert(argc == maxAlignmentsPerSite+5);
 	}
     
     // List of totally overlapping alignments
@@ -114,27 +116,31 @@ int main(int argc, char *argv[]) {
     
     struct PairwiseAlignment *pairwiseAlignment = NULL;
     while ((pairwiseAlignment = cigarRead(fileHandleIn)) != NULL) {
-    
+
     	// If the pairwiseAlignment does not share the same interval
     	// as the previous pairwise alignments report the previous alignments
 		if(stList_length(alignments) == 0 ||
 			strcmp(((struct PairwiseAlignment *)stList_peek(alignments))->contig1, pairwiseAlignment->contig1) != 0 ||
 		   	getStartCoordinate(stList_peek(alignments)) != getStartCoordinate(pairwiseAlignment)) {
 		   
-			reportAlignments(alignments, maxAlignmentsPerSite, minimumMapQValue, alpha, fileHandleOut);
+			reportAlignments(alignments, maxAlignmentsPerSite, minimumMapQValue, alpha, fileHandleOuts);
 		}
 
 		// Adding the pairwise alignment to the set to consider
 		stList_append(alignments, pairwiseAlignment);
     }
     
-    reportAlignments(alignments, maxAlignmentsPerSite, minimumMapQValue, alpha, fileHandleOut);
+    reportAlignments(alignments, maxAlignmentsPerSite, minimumMapQValue, alpha, fileHandleOuts);
 
     assert(stList_length(alignments) == 0);
+    // Cleanup
     stList_destruct(alignments);
-    if(argc == 6) {
+    for(i=0; i<maxAlignmentsPerSite; i++) {
+    	fclose(fileHandleOuts[i]);
+    }
+    free(fileHandleOuts);
+    if(argc == maxAlignmentsPerSite+6) {
     	fclose(fileHandleIn);
-    	fclose(fileHandleOut);
     }
 
     //while(1);

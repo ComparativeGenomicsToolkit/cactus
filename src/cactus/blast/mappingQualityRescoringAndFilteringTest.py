@@ -301,8 +301,8 @@ class TestCase(unittest.TestCase):
         cactus_call(parameters=[ "cactus_calculateMappingQualities", 
                                  self.logLevelString, 
                                  '1', '0', "1.0",
-                                 self.simpleInputCigarPath, 
-                                 self.simpleOutputCigarPath ])
+                                 self.simpleOutputCigarPath,
+                                 self.simpleInputCigarPath ])
         
         with open(self.simpleOutputCigarPath, 'r') as fh:
             outputCigars = [ cigar[:-1] for cigar in fh.readlines() ] # Remove new lines
