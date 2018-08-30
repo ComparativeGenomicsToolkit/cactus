@@ -572,10 +572,12 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
                                                 alpha=alpha,
                                                 logLevel=getLogLevelString(),
                                                 preemptable=True)
-            self.cactusWorkflowArguments.alignmentsID = mapQJob.rv()
+            self.cactusWorkflowArguments.alignmentsID = mapQJob.rv(0)
+            self.cactusWorkflowArguments.secondaryAlignmentsID = mapQJob.rv(1)
         else:
             fileStore.logToMaster("Not running mapQ filtering")
             self.cactusWorkflowArguments.alignmentsID = blastJob.rv(0)
+            self.cactusWorkflowArguments.secondaryAlignmentsID = None
             
         self.cactusWorkflowArguments.outgroupFragmentIDs = blastJob.rv(1)
         self.cactusWorkflowArguments.ingroupCoverageIDs = blastJob.rv(2)
@@ -688,15 +690,28 @@ class CactusCafPhase(CactusPhasesJob):
             self.cactusWorkflowArguments.constraintsID = fileStore.writeGlobalFile(newConstraintsFile, cleanup=True)
 
         assert self.getPhaseNumber() == 1
+        
+        # Convert the cigar files to use 64-bit cactus Names instead of the headers.
+        
+        # Primary alignments first
         alignmentsFile = fileStore.readGlobalFile(self.cactusWorkflowArguments.alignmentsID)
-        convertedAlignmentsFile = fileStore.getLocalTempFile()
-        # Convert the cigar file to use 64-bit cactus Names instead of the headers.
+        convertedAlignmentsFile = fileStore.getLocalTempFile() 
         runConvertAlignmentsToInternalNames(cactusDiskString=self.cactusWorkflowArguments.cactusDiskDatabaseString, alignmentsFile=alignmentsFile, outputFile=convertedAlignmentsFile, flowerName=self.topFlowerName)
         fileStore.logToMaster("Converted headers of cigar file %s to internal names, new file %s" % (self.cactusWorkflowArguments.alignmentsID, convertedAlignmentsFile))
         self.cactusWorkflowArguments.alignmentsID = fileStore.writeGlobalFile(convertedAlignmentsFile, cleanup=True)
+        
+        # Now any secondary alignments
+        if self.cactusWorkflowArguments.secondaryAlignmentsID != None:
+            secondaryAlignmentsFile = fileStore.readGlobalFile(self.cactusWorkflowArguments.secondaryAlignmentsID)
+            convertedAlignmentsFile = fileStore.getLocalTempFile() 
+            runConvertAlignmentsToInternalNames(cactusDiskString=self.cactusWorkflowArguments.cactusDiskDatabaseString, alignmentsFile=secondaryAlignmentsFile, outputFile=convertedAlignmentsFile, flowerName=self.topFlowerName)
+            fileStore.logToMaster("Converted headers of secondary cigar file %s to internal names, new file %s" % (self.cactusWorkflowArguments.secondaryAlignmentsID, convertedAlignmentsFile))
+            self.cactusWorkflowArguments.secondaryAlignmentsID = fileStore.writeGlobalFile(convertedAlignmentsFile, cleanup=True)
+        
         # While we're at it, remove the unique IDs prepended to
         # the headers inside the cactus DB.
         runStripUniqueIDs(self.cactusWorkflowArguments.cactusDiskDatabaseString)
+        
         return self.runPhase(CactusCafWrapper, SavePrimaryDB, "caf")
 
 class CactusCafWrapper(CactusRecursionJob):
@@ -714,7 +729,7 @@ class CactusCafWrapper(CactusRecursionJob):
         kwargs['preemptable'] = False
         super(CactusCafWrapper, self).__init__(**kwargs)
 
-    def runCactusCafInWorkflow(self, alignmentFile, fileStore, constraints=None):
+    def runCactusCafInWorkflow(self, alignmentFile, secondaryAlignmentFile, fileStore, constraints=None):
         debugFilePath = self.getOptionalPhaseAttrib("phylogenyDebugPrefix")
         if debugFilePath != None:
             debugFilePath += getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "reference"), "reference")
@@ -723,6 +738,7 @@ class CactusCafWrapper(CactusRecursionJob):
                           fileStore=fileStore,
                           jobName=self.__class__.__name__,
                           alignments=alignmentFile, 
+                          secondaryAlignments=secondaryAlignmentFile,
                           flowerNames=self.flowerNames,
                           constraints=constraints,  
                           annealingRounds=self.getOptionalPhaseAttrib("annealingRounds"),  
@@ -772,11 +788,18 @@ class CactusCafWrapper(CactusRecursionJob):
 
     def run(self, fileStore):
         alignments = fileStore.readGlobalFile(self.cactusWorkflowArguments.alignmentsID)
+        logger.info("Alignments file: %s" % alignments)
+
+        secondaryAlignments = None
+        if self.cactusWorkflowArguments.secondaryAlignmentsID != None:
+            secondaryAlignments = fileStore.readGlobalFile(self.cactusWorkflowArguments.secondaryAlignmentsID)
+            
         constraints = None
         if self.cactusWorkflowArguments.constraintsID is not None:
             constraints = fileStore.readGlobalFile(self.cactusWorkflowArguments.constraintsID)
-        logger.info("Alignments file: %s" % alignments)
-        self.runCactusCafInWorkflow(alignmentFile=alignments, fileStore=fileStore,
+            
+        
+        self.runCactusCafInWorkflow(alignmentFile=alignments, secondaryAlignmentFile=secondaryAlignments, fileStore=fileStore,
                                     constraints=constraints)
 
 

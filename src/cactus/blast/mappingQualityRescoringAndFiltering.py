@@ -34,13 +34,15 @@ def mappingQualityRescoring(job, inputAlignmentFileID,
                             minimumMapQValue, maxAlignmentsPerSite, alpha, logLevel):
     """
     Function to rescore and filter alignments by calculating the mapping quality of sub-alignments
+    
+    Returns primary alignments and secondary alignments in two separate files.
     """
     inputAlignmentFile = job.fileStore.readGlobalFile(inputAlignmentFileID)
     
     job.fileStore.logToMaster("Input cigar file has %s lines" % countLines(inputAlignmentFile))
     
     # Get temporary file
-    assert maxAlignmentsPerSite >= 0
+    assert maxAlignmentsPerSite >= 1
     tempAlignmentFiles = [ job.fileStore.getLocalTempFile() for i in xrange(maxAlignmentsPerSite) ]
     
     # Mirror and orient alignments, sort, split overlaps and calculate mapping qualities
@@ -53,10 +55,12 @@ def mappingQualityRescoring(job, inputAlignmentFileID,
                              str(minimumMapQValue), str(alpha) ] + tempAlignmentFiles])
     
     # Merge together the output files in order
-    tempAlignmentFile = job.fileStore.getLocalTempFile()
-    cactus_call(parameters=[["cat" ] + tempAlignmentFiles], outfile=tempAlignmentFile)
+    secondaryTempAlignmentFile = job.fileStore.getLocalTempFile()
+    if len(tempAlignmentFiles) > 1:
+        cactus_call(parameters=[["cat" ] + tempAlignmentFiles[1:]], outfile=secondaryTempAlignmentFile)
     
-    job.fileStore.logToMaster("Filtered, non-overlapping cigar file has %s lines" % countLines(tempAlignmentFile))
+    job.fileStore.logToMaster("Filtered, non-overlapping primary cigar file has %s lines" % countLines(tempAlignmentFiles[0]))
+    job.fileStore.logToMaster("Filtered, non-overlapping secondary cigar file has %s lines" % countLines(secondaryTempAlignmentFile))
     
     # Now write back alignments results file and return
-    return job.fileStore.writeGlobalFile(tempAlignmentFile)
+    return job.fileStore.writeGlobalFile(tempAlignmentFiles[0]), job.fileStore.writeGlobalFile(secondaryTempAlignmentFile)

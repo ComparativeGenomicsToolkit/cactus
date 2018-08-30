@@ -233,7 +233,9 @@ def runConvertAlignmentsToInternalNames(cactusDiskString, alignmentsFile, output
 def runStripUniqueIDs(cactusDiskString):
     cactus_call(parameters=["cactus_stripUniqueIDs", "--cactusDisk", cactusDiskString])
 
-def runCactusCaf(cactusDiskDatabaseString, alignments,
+def runCactusCaf(cactusDiskDatabaseString, 
+                 alignments,
+                 secondaryAlignments=None,
                  flowerNames=encodeFlowerNames((0,)),
                  logLevel=None, 
                  writeDebugFiles=False,
@@ -286,6 +288,8 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
                  fileStore=None):
     logLevel = getLogLevelString2(logLevel)
     args = ["--logLevel", logLevel, "--alignments", alignments, "--cactusDisk", cactusDiskDatabaseString]
+    if secondaryAlignments is not None:
+        args += ["--secondaryAlignments", secondaryAlignments ]
     if annealingRounds is not None:
         args += ["--annealingRounds", annealingRounds]
     if deannealingRounds is not None:

@@ -92,6 +92,7 @@ class TestCase(unittest.TestCase):
         ]
          
         self.simpleOutputCigarPath = getTempFile()
+        self.simpleOutputCigarPath2 = getTempFile()
         self.sequenceFilePath = getTempFile()
         self.logLevelString = "DEBUG"
         
@@ -101,6 +102,7 @@ class TestCase(unittest.TestCase):
         unittest.TestCase.tearDown(self)
         os.remove(self.simpleInputCigarPath)
         os.remove(self.simpleOutputCigarPath)
+        os.remove(self.simpleOutputCigarPath2)
         os.remove(self.sequenceFilePath)
         system("rm -rf %s" % self.tempDir)
     
@@ -321,14 +323,18 @@ class TestCase(unittest.TestCase):
             rootJob = Job.wrapJobFn(mappingQualityRescoring, inputAlignmentFileID,
                                     minimumMapQValue=0, maxAlignmentsPerSite=1, alpha=alpha, logLevel=self.logLevelString)
             
-            outputAlignmentsFileID = toil.start(rootJob)
-            toil.exportFile(outputAlignmentsFileID, makeURL(self.simpleOutputCigarPath))
+            primaryOutputAlignmentsFileID, secondaryOutputAlignmentsFileID = toil.start(rootJob)
+            toil.exportFile(primaryOutputAlignmentsFileID, makeURL(self.simpleOutputCigarPath))
+            toil.exportFile(secondaryOutputAlignmentsFileID, makeURL(self.simpleOutputCigarPath2))
             
         # Check output
         with open(self.simpleOutputCigarPath, 'r') as fh:
-            outputCigars = [ cigar[:-1] for cigar in fh.readlines() ] # Remove new lines
+            primaryOutputCigars = [ cigar[:-1] for cigar in fh.readlines() ] # Remove new lines
         
-        return outputCigars
+        with open(self.simpleOutputCigarPath2, 'r') as fh:
+            secondaryOutputCigars = [ cigar[:-1] for cigar in fh.readlines() ] # Remove new lines
+        
+        return primaryOutputCigars + secondaryOutputCigars
     
     @silentOnSuccess
     def testMappingQualityRescoringAndFiltering(self):
