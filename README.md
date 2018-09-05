@@ -1,7 +1,15 @@
 # Cactus
 [![Build Status](https://travis-ci.org/ComparativeGenomicsToolkit/cactus.svg?branch=master)](https://travis-ci.org/ComparativeGenomicsToolkit/cactus)
 
-Cactus is a reference-free whole-genome multiple alignment program.
+Cactus is a reference-free whole-genome multiple alignment program. The principle algorithms are described here: https://doi.org/10.1101/gr.123356.111 
+
+## Acknowledgements
+
+Cactus uses many different algorithms and individual code contributions, principally from Joel Armstrong, Glenn Hickey, Mark Diekhans and Benedict Paten. We are particularly grateful to:
+
+- Peter Tsin and Nima Norouzi for contributing their 3-edge connected components algorithm, which is crucial in constructing the cactus graph structure.
+- Bob Harris for providing endless support for his LastZ pairwise blast-like genome alignment tool.
+
 
 ## Setup
 ### System requirements
