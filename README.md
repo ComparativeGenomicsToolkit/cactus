@@ -7,8 +7,8 @@ Cactus is a reference-free whole-genome multiple alignment program. The principl
 
 Cactus uses many different algorithms and individual code contributions, principally from Joel Armstrong, Glenn Hickey, Mark Diekhans and Benedict Paten. We are particularly grateful to:
 
-- Peter Tsin and Nima Norouzi for contributing their 3-edge connected components algorithm, which is crucial in constructing the cactus graph structure.
-- Bob Harris for providing endless support for his LastZ pairwise blast-like genome alignment tool.
+-  Yung H. Tsin and Nima Norouzi for contributing their 3-edge connected components program code, which is crucial in constructing the cactus graph structure, see: Tsin,Y.H., "A simple 3-edge-connected component algorithm," Theory of Computing Systems, vol.40, No.2, 2007, pp.125-142.
+- Bob Harris for providing endless support for his LastZ pairwise, blast-like genome alignment tool.
 
 
 ## Setup
