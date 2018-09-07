@@ -48,7 +48,7 @@ void testCactusDisk_getFlower(CuTest* testCase) {
     Name name2 = flower_getName(flower2);
     cactusDisk_write(cactusDisk);
     cactusDisk_destruct(cactusDisk);
-    cactusDisk = cactusDisk_construct(conf, 0);
+    cactusDisk = cactusDisk_construct(conf, false, true);
     flower = cactusDisk_getFlower(cactusDisk, name1);
     flower2 = cactusDisk_getFlower(cactusDisk, name2);
     CuAssertTrue(testCase, flower != NULL);
@@ -71,7 +71,7 @@ void testCactusDisk_getMetaSequence(CuTest* testCase) {
     Name name2 = metaSequence_getName(metaSequence2);
     cactusDisk_write(cactusDisk);
     cactusDisk_destruct(cactusDisk);
-    cactusDisk = cactusDisk_construct(conf, 0);
+    cactusDisk = cactusDisk_construct(conf, false, true);
     metaSequence = cactusDisk_getMetaSequence(cactusDisk, name1);
     metaSequence2 = cactusDisk_getMetaSequence(cactusDisk, name2);
     CuAssertTrue(testCase, metaSequence != NULL);

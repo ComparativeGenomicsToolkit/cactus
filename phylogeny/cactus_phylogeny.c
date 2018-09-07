@@ -570,44 +570,6 @@ void chainAlignment_destruct(ChainAlignment *chainAlignment) {
     free(chainAlignment);
 }
 
-Event *copyConstructUnaryEvent(Event *event, EventTree *eventTree2) {
-    /*
-     * Adds the unary event to the event tree, allowing for the possibility that other unary events in the tree
-     * of the event are not yet present in eventTree2.
-     */
-    assert(event_getChildNumber(event) == 1);
-
-    double branchLength = event_getBranchLength(event);
-
-    //Search for the first ancestor of event which is also in eventTree2, adding to the branch length as we go.
-    Event *parentEvent = event_getParent(event);
-    while (eventTree_getEvent(eventTree2, event_getName(parentEvent)) == NULL) {
-        branchLength += event_getBranchLength(parentEvent);
-        parentEvent = event_getParent(parentEvent);
-        assert(parentEvent != NULL);
-    } //at this point branch length is equal to branch length in eventTree2 from new event to common ancestor in both trees.
-    parentEvent = eventTree_getEvent(eventTree2, event_getName(parentEvent)); //now get the event in the other tree.
-    assert(parentEvent != NULL);
-
-    assert(eventTree_getEvent(eventTree2, event_getName(event)) == NULL); //check it isn't already in the tree.
-    //Search for the first descendant of the event which is also in eventTree2
-    Event *childEvent = event_getChild(event, 0);
-    assert(childEvent != NULL);
-    while (eventTree_getEvent(eventTree2, event_getName(childEvent)) == NULL) {
-        assert(event_getChildNumber(childEvent) == 1);
-        childEvent = event_getChild(childEvent, 0);
-        assert(childEvent != NULL);
-    } //at this point the child event is present in both event trees.
-    childEvent = eventTree_getEvent(eventTree2, event_getName(childEvent)); //get the child event.
-    assert(childEvent != NULL);
-    assert(event_getParent(childEvent) != NULL);
-    assert(event_getParent(childEvent) == parentEvent);
-    //assert(event_getBranchLength(childEvent) >= branchLength);
-
-    return event_construct2(event_getName(event), event_getHeader(event), branchLength,
-            parentEvent, childEvent, eventTree2);
-}
-
 void usage() {
     fprintf(
             stderr,
@@ -665,7 +627,7 @@ int main(int argc, char *argv[]) {
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:c:h", long_options, &option_index);
+        int key = getopt_long(argc, argv, "a:c:d:h", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -705,7 +667,7 @@ int main(int argc, char *argv[]) {
     //////////////////////////////////////////////
 
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
-    cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
+    cactusDisk = cactusDisk_construct(kvDatabaseConf, false, true);
     st_logInfo("Set up the flower disk\n");
 
     //////////////////////////////////////////////
@@ -857,8 +819,6 @@ int main(int argc, char *argv[]) {
                             if (eventTree_getEvent(flower_getEventTree(flower2),
                                     event_getName(event)) == NULL) {
                                 assert(event_getChildNumber(event) == 1); //must be a unary event
-                                copyConstructUnaryEvent(event,
-                                        flower_getEventTree(flower2));
                             }
                             event = eventTree_getEvent(flower_getEventTree(flower2),
                                     event_getName(event));
@@ -917,6 +877,7 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     startTime = time(NULL);
+    cactusDisk_forceParameterUpdate(cactusDisk, true);
     cactusDisk_write(cactusDisk);
     st_logInfo("Updated the flower on disk in: %" PRIi64 " seconds\n", time(NULL)
             - startTime);

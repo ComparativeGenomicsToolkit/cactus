@@ -6,12 +6,51 @@
 
 #include "cactusGlobalsPrivate.h"
 
-static char getInt(FILE *fileHandle) {
-    int64_t i;
-    int64_t j = fscanf(fileHandle, "%" PRIi64 "", &i);
-    (void)j;
-    assert(j == 1);
-    return i;
+static void testFlowerStream(CuTest *testCase) {
+    CactusDisk *cactusDisk = testCommon_getTemporaryCactusDisk();
+    char *tempPath = getTempFile();
+    FILE *f = fopen(tempPath, "w");
+    Name flowerNames[3];
+    // First test flower
+    Flower *flower1 = flower_construct(cactusDisk);
+    flowerNames[0] = flower_getName(flower1);
+    fprintf(f, "3 %" PRIi64, flowerNames[0]);
+    // Second test flower
+    Flower *flower2 = flower_construct(cactusDisk);
+    flowerNames[1] = flower_getName(flower2);
+    fprintf(f, " %" PRIi64, flowerNames[1] - flowerNames[0]);
+    // Third test flower
+    Flower *flower3 = flower_construct(cactusDisk);
+    flowerNames[2] = flower_getName(flower3);
+    fprintf(f, " %" PRIi64, flowerNames[2] - flowerNames[1]);
+    fclose(f);
+
+    // Ensure the flowers are serialized to disk, because
+    // cactusDisk_getFlowers retrieves the records even if the flowers
+    // are already loaded.
+    cactusDisk_write(cactusDisk);
+    flower_destruct(flower1, false);
+    flower_destruct(flower2, false);
+    flower_destruct(flower3, false);
+
+    // Now read them back in.
+    f = fopen(tempPath, "r");
+    FlowerStream *flowerStream = flowerWriter_getFlowerStream(cactusDisk, f);
+    CuAssertIntEquals(testCase, 3, flowerStream_size(flowerStream));
+    int64_t i = 0;
+    Flower *flower;
+    while ((flower = flowerStream_getNext(flowerStream)) != NULL) {
+        CuAssertTrue(testCase, i < 3);
+        CuAssertIntEquals(testCase, flowerNames[i], flower_getName(flower));
+        i++;
+    }
+
+    // Check that no flowers are loaded.
+    CuAssertIntEquals(testCase, 0, stSortedSet_size(cactusDisk->flowers));
+    flowerStream_destruct(flowerStream);
+    fclose(f);
+    removeTempFile(tempPath);
+    testCommon_deleteTemporaryCactusDisk(cactusDisk);
 }
 
 static void testFlowerWriter(CuTest *testCase) {
@@ -24,10 +63,8 @@ static void testFlowerWriter(CuTest *testCase) {
     flowerWriter_add(flowerWriter, 5, 4);
     flowerWriter_add(flowerWriter, 4, 5);
     flowerWriter_add(flowerWriter, 6, 1);
-    flowerWriter_add(flowerWriter, -1, 12);
     flowerWriter_add(flowerWriter, 7, 9);
-    flowerWriter_add(flowerWriter, 8, 1)
-    ;
+    flowerWriter_add(flowerWriter, 8, 1);
     flowerWriter_add(flowerWriter, 9, 1);
     flowerWriter_add(flowerWriter, 10, 1);
     flowerWriter_add(flowerWriter, 11, 1);
@@ -36,56 +73,34 @@ static void testFlowerWriter(CuTest *testCase) {
     flowerWriter_add(flowerWriter, 13, 1000);
     flowerWriter_destruct(flowerWriter);
     fclose(fileHandle);
-    st_system("cat %s\n", tempFile);
     fileHandle = fopen(tempFile, "r");
 
-    CuAssertIntEquals(testCase, 1, getInt(fileHandle));
-    stList *flowers0 = flowerWriter_parseNames(fileHandle);
-    CuAssertIntEquals(testCase, 1, stList_length(flowers0));
-    CuAssertIntEquals(testCase, -1, *(int64_t *)stList_get(flowers0, 0));
+    char *line = stFile_getLineFromFile(fileHandle);
+    CuAssertStrEquals(testCase, "0 2 1 5 a 1 5 ", line);
 
-    CuAssertIntEquals(testCase, 0, getInt(fileHandle));
-    stList *flowers1 = flowerWriter_parseNames(fileHandle);
-    CuAssertIntEquals(testCase, 2, stList_length(flowers1));
-    CuAssertIntEquals(testCase, 1, *(int64_t *)stList_get(flowers1, 0));
-    CuAssertIntEquals(testCase, 2, *(int64_t *)stList_get(flowers1, 1));
+    line = stFile_getLineFromFile(fileHandle);
+    CuAssertStrEquals(testCase, "0 2 3 5 a 1 5 ", line);
 
-    CuAssertIntEquals(testCase, 0, getInt(fileHandle));
-    stList *flowers2 = flowerWriter_parseNames(fileHandle);
-    CuAssertIntEquals(testCase, 2, stList_length(flowers2));
-    CuAssertIntEquals(testCase, 3, *(int64_t *)stList_get(flowers2, 0));
-    CuAssertIntEquals(testCase, 4, *(int64_t *)stList_get(flowers2, 1));
+    line = stFile_getLineFromFile(fileHandle);
+    CuAssertStrEquals(testCase, "0 2 5 4 1 1 ", line);
 
-    CuAssertIntEquals(testCase, 0, getInt(fileHandle));
-    stList *flowers3 = flowerWriter_parseNames(fileHandle);
-    CuAssertIntEquals(testCase, 2, stList_length(flowers3));
-    CuAssertIntEquals(testCase, 5, *(int64_t *)stList_get(flowers3, 0));
-    CuAssertIntEquals(testCase, 6, *(int64_t *)stList_get(flowers3, 1));
+    line = stFile_getLineFromFile(fileHandle);
+    CuAssertStrEquals(testCase, "0 2 b 7 9 a 1 1 ", line);
 
-    CuAssertIntEquals(testCase, 0, getInt(fileHandle));
-    stList *flowers4 = flowerWriter_parseNames(fileHandle);
-    CuAssertIntEquals(testCase, 2, stList_length(flowers4));
-    CuAssertIntEquals(testCase, 7, *(int64_t *)stList_get(flowers4, 0));
-    CuAssertIntEquals(testCase, 8, *(int64_t *)stList_get(flowers4, 1));
+    line = stFile_getLineFromFile(fileHandle);
+    CuAssertStrEquals(testCase, "0 4 9 1 1 1 1 1 b 1 7 ", line);
 
-    CuAssertIntEquals(testCase, 0, getInt(fileHandle));
-    stList *flowers5 = flowerWriter_parseNames(fileHandle);
-    CuAssertIntEquals(testCase, 4, stList_length(flowers5));
-    CuAssertIntEquals(testCase, 9, *(int64_t *)stList_get(flowers5, 0));
-    CuAssertIntEquals(testCase, 10, *(int64_t *)stList_get(flowers5, 1));
-    CuAssertIntEquals(testCase, 11, *(int64_t *)stList_get(flowers5, 2));
-    CuAssertIntEquals(testCase, 12, *(int64_t *)stList_get(flowers5, 3));
+    line = stFile_getLineFromFile(fileHandle);
+    CuAssertStrEquals(testCase, "1 1 b 13 1000 ", line);
 
-    CuAssertIntEquals(testCase, 1, getInt(fileHandle));
-    stList *flowers6 = flowerWriter_parseNames(fileHandle);
-    CuAssertIntEquals(testCase, 1, stList_length(flowers6));
-    CuAssertIntEquals(testCase, 13, *(int64_t *)stList_get(flowers6, 0));
+    CuAssertTrue(testCase, stFile_getLineFromFile(fileHandle) == NULL);
 
     stFile_rmrf(tempFile);
 }
 
 CuSuite* cactusFlowerWriterTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
+    SUITE_ADD_TEST(suite, testFlowerStream);
     SUITE_ADD_TEST(suite, testFlowerWriter);
     return suite;
 }

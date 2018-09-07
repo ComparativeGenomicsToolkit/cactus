@@ -214,7 +214,8 @@ int main(int argc, char *argv[]) {
     while (1) {
         static struct option long_options[] = { { "logLevel",
                 required_argument, 0, 'a' }, { "cactusDisk", required_argument,
-                0, 'c' }, { "recursive", no_argument, 0, 'e' },
+                0, 'c' },
+                { "recursive", no_argument, 0, 'e' },
                 { "checkNormalised", no_argument, 0, 'f' },
                 { "help",
                 no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
@@ -267,7 +268,7 @@ int main(int argc, char *argv[]) {
     //////////////////////////////////////////////
 
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
-    cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
+    cactusDisk = cactusDisk_construct(kvDatabaseConf, false, true);
     st_logInfo("Set up the flower disk\n");
 
     stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);

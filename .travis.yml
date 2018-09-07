@@ -5,27 +5,19 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get -qq update; fi
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y libtokyocabinet-dev libkyototycoon-dev kyototycoon libkyotocabinet-dev; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install tokyo-cabinet kyoto-cabinet kyoto-tycoon; fi
-  - pip install networkx
-  - pip install psutil
-  - git clone https://github.com/ComparativeGenomicsToolkit/sonLib.git
-  - git clone https://github.com/ComparativeGenomicsToolkit/matchingAndOrdering.git
-  - git clone https://github.com/ComparativeGenomicsToolkit/pinchesAndCacti.git
-  - git clone https://github.com/benedictpaten/jobTree.git
-  - git clone https://github.com/benedictpaten/cPecan.git
-  - git clone https://github.com/UCSantaCruzComputationalGenomicsLab/cactusTestData
-install:
-  - export sonLibRootPath=`pwd`/sonLib
-  - sh -c 'cd sonLib && make'
-  - sh -c 'cd matchingAndOrdering && make'
-  - sh -c 'cd pinchesAndCacti && git checkout phylogeny && make'
-  - sh -c 'cd jobTree && make'
-  - sh -c 'cd cPecan && make'
+# Push docker containers. We skip this on PR builds because Travis
+# doesn't include the user/password in those builds.
+  - if [[ "$CACTUS_BINARIES_MODE" == "docker" ]]; then if [[ "$TRAVIS_PULL_REQUEST" == "false" ]]; then docker login --username $QUAY_USERNAME --password $QUAY_PASSWORD quay.io; make push; else make docker; fi; fi
 script:
-  - export sonLibRootPath=`pwd`/sonLib
-  - make
-  - PATH=./bin:./jobTree/bin:./sonLib/bin:$PATH PYTHONPATH=.:.. make test
+  - sudo pip install --pre toil
+  - sudo pip install -e .
+  - if [[ "$CACTUS_BINARIES_MODE" == "local" ]]; then make && PATH=`pwd`/bin:$PATH PYTHONPATH=`pwd`:`pwd`/src travis_wait 40 make test; fi
+  - if [[ "$CACTUS_BINARIES_MODE" == "docker" ]]; then travis_wait 40 make test; fi
 os:
   - linux
+services:
+  - docker
 env:
-  - CGL_DEBUG=1 SON_TRACE_DATASETS=`pwd`/cactusTestData
-  - CGL_DEBUG=ultra ASAN_OPTIONS=detect_leaks=0
+  - CGL_DEBUG=1 CACTUS_BINARIES_MODE=local
+  - CACTUS_BINARIES_MODE=docker
+  - CGL_DEBUG=ultra ASAN_OPTIONS=detect_leaks=0 CACTUS_BINARIES_MODE=local

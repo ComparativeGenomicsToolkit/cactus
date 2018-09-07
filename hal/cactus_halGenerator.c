@@ -53,7 +53,7 @@ int main(int argc, char *argv[]) {
     while (1) {
         static struct option long_options[] = { { "logLevel",
                 required_argument, 0, 'a' }, { "cactusDisk", required_argument,
-                0, 'c' }, { "secondaryDisk", required_argument, 0, 'd' },
+                0, 'c' }, { "secondaryDisk", required_argument, 0, 'e' },
                 { "referenceEventString", required_argument, 0, 'g' }, {
                         "help", no_argument, 0, 'h' }, { "outputFile",
                         required_argument, 0, 'k' }, {
@@ -77,7 +77,7 @@ int main(int argc, char *argv[]) {
             case 'c':
                 cactusDiskDatabaseString = stString_copy(optarg);
                 break;
-            case 'd':
+            case 'e':
                 secondaryDatabaseString = stString_copy(optarg);
                 break;
             case 'g':
@@ -113,7 +113,7 @@ int main(int argc, char *argv[]) {
 
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(
             cactusDiskDatabaseString);
-    CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
+    CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, false, true);
     stKVDatabaseConf_destruct(kvDatabaseConf);
     st_logInfo("Set up the flower disk\n");
 
@@ -127,39 +127,37 @@ int main(int argc, char *argv[]) {
     stKVDatabaseConf_destruct(kvDatabaseConf);
     st_logInfo("Set up the secondary database\n");
 
-    ///////////////////////////////////////////////////////////////////////////
-    // Get the set of flowers to manipulate
-    ///////////////////////////////////////////////////////////////////////////
-
-    stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
-    st_logInfo("We have %" PRIi64 " flowers\n", stList_length(flowers));
-
-    ///////////////////////////////////////////////////////////////////////////
-    // Get the reference event name
-    ///////////////////////////////////////////////////////////////////////////
-
-    Flower *flower = stList_get(flowers, 0);
-    Event *referenceEvent = eventTree_getEventByHeader(
-            flower_getEventTree(flower), referenceEventString);
-    assert(referenceEvent != NULL);
-    Name referenceEventName = event_getName(referenceEvent);
-
-    ///////////////////////////////////////////////////////////////////////////
-    // Now process each flower in turn.
-    ///////////////////////////////////////////////////////////////////////////
-
-    if (outputFile != NULL && stList_length(flowers) != 1) {
+    FlowerStream *flowerStream = flowerWriter_getFlowerStream(cactusDisk, stdin);
+    if (outputFile != NULL && flowerStream_size(flowerStream) != 1) {
         stThrowNew("RUNTIME_ERROR",
-                "Output file specified, but there is more than one flower\n");
+                   "Output file specified, but there is more than one flower\n");
     }
-    
-    FILE *fileHandle = NULL;
-    if(outputFile != NULL) {
-        fileHandle = fopen(outputFile, "w");
-    }
-    makeHalFormat(flowers, sequenceDatabase, referenceEventName, fileHandle);
-    if(fileHandle != NULL) {
-        fclose(fileHandle);
+    Flower *flower;
+    while ((flower = flowerStream_getNext(flowerStream)) != NULL) {
+        ///////////////////////////////////////////////////////////////////////////
+        // Get the reference event name
+        ///////////////////////////////////////////////////////////////////////////
+
+        Event *referenceEvent = eventTree_getEventByHeader(
+            flower_getEventTree(flower), referenceEventString);
+        assert(referenceEvent != NULL);
+        Name referenceEventName = event_getName(referenceEvent);
+
+        ///////////////////////////////////////////////////////////////////////////
+        // Now process each flower in turn.
+        ///////////////////////////////////////////////////////////////////////////
+        FILE *fileHandle = NULL;
+        if(outputFile != NULL) {
+            fileHandle = fopen(outputFile, "w");
+        }
+        makeHalFormat(flower, sequenceDatabase, referenceEventName, fileHandle);
+        if(fileHandle != NULL) {
+            fclose(fileHandle);
+        }
+
+        // We aren't making any changes to the flower itself, only to
+        // the secondary database. So there's no need to save the
+        // flower here.
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -168,15 +166,13 @@ int main(int argc, char *argv[]) {
 
     cactusDisk_destruct(cactusDisk);
 
-    //return 0; //Exit without clean up is quicker, enable cleanup when doing memory leak detection.
+    return 0; //Exit without clean up is quicker, enable cleanup when doing memory leak detection.
 
-    stList_destruct(flowers);
     free(cactusDiskDatabaseString);
     free(secondaryDatabaseString);
     free(referenceEventString);
     free(logLevelString);
 
     st_logInfo("Cleaned stuff up and am finished\n");
-    //while(1);
     return 0;
 }

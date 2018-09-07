@@ -39,11 +39,6 @@ bool group_isLeaf(Group *group) {
     return group->leafGroup;
 }
 
-static int64_t returnsTrue(Event *event) {
-    assert(event != NULL);
-    return 1;
-}
-
 static void copyAdjacencies(Group *group, Flower *nestedFlower) {
     assert(flower_getParentGroup(nestedFlower) == group);
     Group_EndIterator *endIterator = group_getEndIterator(group);
@@ -81,7 +76,6 @@ Flower *group_makeEmptyNestedFlower(Group *group) {
     group->leafGroup = 0;
     Flower *nestedFlower = flower_construct2(group_getName(group), flower_getCactusDisk(group_getFlower(group)));
     flower_setParentGroup(nestedFlower, group);
-    eventTree_copyConstruct(flower_getEventTree(group_getFlower(group)), nestedFlower, returnsTrue);
     return nestedFlower;
 }
 

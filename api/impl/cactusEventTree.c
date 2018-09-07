@@ -18,17 +18,17 @@ int eventTree_constructP(const void *o1, const void *o2) {
 	return cactusMisc_nameCompare(event_getName((Event *)o1), event_getName((Event *)o2));
 }
 
-EventTree *eventTree_construct2(Flower *flower) {
-	return eventTree_construct(cactusDisk_getUniqueID(flower_getCactusDisk(flower)), flower);
+EventTree *eventTree_construct2(CactusDisk *cactusDisk) {
+	return eventTree_construct(cactusDisk, cactusDisk_getUniqueID(cactusDisk));
 }
 
-EventTree *eventTree_construct(Name rootEventName, Flower *flower) {
+EventTree *eventTree_construct(CactusDisk *cactusDisk, Name rootEventName) {
 	EventTree *eventTree;
 	eventTree = st_malloc(sizeof(EventTree));
+        eventTree->cactusDisk = cactusDisk;
+        cactusDisk_setEventTree(cactusDisk, eventTree);
 	eventTree->events = stSortedSet_construct3(eventTree_constructP, NULL);
-	eventTree->flower = flower;
 	eventTree->rootEvent = event_construct(rootEventName, "ROOT", INT64_MAX, NULL, eventTree); //do this last as reciprocal call made to add the event to the events.
-	flower_setEventTree(flower, eventTree);
 	return eventTree;
 }
 
@@ -49,10 +49,10 @@ void eventTree_copyConstructP(EventTree *eventTree, Event *event,
 }
 
 
-EventTree *eventTree_copyConstruct(EventTree *eventTree, Flower *newFlower,
-		int64_t (unaryEventFilterFn)(Event *event)) {
+EventTree *eventTree_copyConstruct(EventTree *eventTree, int64_t (unaryEventFilterFn)(Event *event)) {
 	EventTree *eventTree2;
-	eventTree2 = eventTree_construct(event_getName(eventTree_getRootEvent(eventTree)), newFlower);
+	eventTree2 = eventTree_construct(eventTree_getCactusDisk(eventTree),
+                                         event_getName(eventTree_getRootEvent(eventTree)));
 	eventTree_copyConstructP(eventTree2, eventTree_getRootEvent(eventTree), unaryEventFilterFn);
 	return eventTree2;
 }
@@ -96,10 +96,6 @@ Event *eventTree_getCommonAncestor(Event *event, Event *event2) {
 	destructList(list);
 	assert(FALSE);
 	return NULL;
-}
-
-Flower *eventTree_getFlower(EventTree *eventTree) {
-	return eventTree->flower;
 }
 
 int64_t eventTree_getEventNumber(EventTree *eventTree) {
@@ -170,70 +166,7 @@ char *eventTree_makeNewickString(EventTree *eventTree) {
 	return cA2;
 }
 
-static int64_t eventTree_addSiblingUnaryEventP(Event *event, Event *event2) {
-	/*
-	 * Event is the new event, event2 event from the event tree we're adding to.
-	 */
-	assert(event != event2);
-	Group *group1 = flower_getParentGroup(eventTree_getFlower(event_getEventTree(event)));
-	Group *group2 = flower_getParentGroup(eventTree_getFlower(event_getEventTree(event2)));
-	(void)group2;
-	if(group1 != NULL) { //both events have a parent, so we can perhaps ask if one is the ancestor
-		//of the other in the parent event tree.
-		assert(group2 != NULL);
-		Flower *parentFlower = group_getFlower(group1);
-		assert(parentFlower == group_getFlower(group2));
-		EventTree *parentEventTree = flower_getEventTree(parentFlower);
-		Event *eventP = eventTree_getEvent(parentEventTree, event_getName(event)); //get the ancestral version of the event.
-		Event *event2P = eventTree_getEvent(parentEventTree, event_getName(event2));
-		if(eventP != NULL && event2P != NULL) { //we can answer who is truly ancestral because both are in the ancestral tree.
-			assert(eventP != event2P);
-			Event *event3 = eventTree_getCommonAncestor(eventP, event2P);
-			assert(event3 == eventP || event3 == event2P); //one must be the ancestor of the other
-			return event3 == eventP;
-		}
-	}
-	else {
-		assert(group2 == NULL); //they both must be root flowers.
-	}
-	//Maybe both events are in the sibling event tree, we can refer to that tree
-	//to decide who is ancestral.
-	EventTree *eventTree = event_getEventTree(event);
-	Event *event2P = eventTree_getEvent(eventTree, event_getName(event2));
-	if(event2P != NULL) { //event2 is in the sibling event tree, so we can decide who is ancestral.
-		assert(event != event2P);
-		Event *event3 = eventTree_getCommonAncestor(event, event2P);
-		assert(event3 == event || event3 == event2P); //one must be the ancestor of the other
-		return event3 == event;
-	}
-
-	//event2 is not in the parent or the sibling, so we should schedule it after
-	//event, because the comparison might be valid for one event2's parent events..
-	return 1;
-}
-
-void eventTree_addSiblingUnaryEvent(EventTree *eventTree, Event *event) {
-	if(eventTree_getEvent(eventTree, event_getName(event)) == NULL) { //check it isn't already in there
-		Event *event2 = event;
-		do {
-			assert(event_getChildNumber(event2) == 1);
-			event2 = event_getChild(event2, 0);
-		} while(eventTree_getEvent(eventTree, event_getName(event2)) == NULL);
-		event2 = eventTree_getEvent(eventTree, event_getName(event2));
-		assert(event2 != NULL);
-		Event *event3 = event_getParent(event2);
-		while(eventTree_addSiblingUnaryEventP(event, event3)) {
-			event2 = event3;
-			event3 = event_getParent(event2);
-		}
-		event_construct2(event_getName(event), event_getHeader(event), event_getBranchLength(event), event3, event2, eventTree);
-	}
-}
-
 void eventTree_check(EventTree *eventTree) {
-	//Check flower and event tree properly connected.
-	cactusCheck(flower_getEventTree(eventTree_getFlower(eventTree)) == eventTree);
-
 	Event *event;
 	EventTree_Iterator *eventIterator = eventTree_getIterator(eventTree);
 	while((event = eventTree_getNext(eventIterator)) != NULL) {
@@ -261,7 +194,6 @@ Event *eventTree_getEventByHeader(EventTree *eventTree, const char *eventHeader)
 
 void eventTree_destruct(EventTree *eventTree) {
 	Event *event;
-	flower_removeEventTree(eventTree_getFlower(eventTree), eventTree);
 	while((event = eventTree_getFirst(eventTree)) != NULL) {
 		event_destruct(event);
 	}
@@ -301,14 +233,14 @@ void eventTree_writeBinaryRepresentation(EventTree *eventTree, void (*writeFn)(c
 	binaryRepresentation_writeElementType(CODE_EVENT_TREE, writeFn);
 }
 
-EventTree *eventTree_loadFromBinaryRepresentation(void **binaryString, Flower *flower) {
+EventTree *eventTree_loadFromBinaryRepresentation(void **binaryString, CactusDisk *cactusDisk) {
 	EventTree *eventTree;
 	Name name;
 	eventTree = NULL;
 	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_EVENT_TREE) {
 		binaryRepresentation_popNextElementType(binaryString);
 		name = binaryRepresentation_getName(binaryString);
-		eventTree = eventTree_construct(name, flower);
+		eventTree = eventTree_construct(cactusDisk, name);
 		while(event_loadFromBinaryRepresentation(binaryString, eventTree) != NULL) {
 			;
 		}
@@ -339,4 +271,8 @@ stTree *eventTree_getStTree(EventTree *eventTree) {
     assert(event_getChildNumber(rootEvent) == 1);
     Event *speciesRoot = event_getChild(rootEvent, 0);
     return eventTree_getStTree_R(speciesRoot);
+}
+
+CactusDisk *eventTree_getCactusDisk(EventTree *eventTree) {
+    return eventTree->cactusDisk;
 }

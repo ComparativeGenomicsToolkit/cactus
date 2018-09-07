@@ -20,18 +20,18 @@
 /*
  * Constructs an event tree, with given root event.
  */
-EventTree *eventTree_construct(Name rootEventName, Flower *flower);
+EventTree *eventTree_construct(CactusDisk *cactusDisk, Name rootEventName);
 
 /*
  * Constructs an event tree, with one root event.
  */
-EventTree *eventTree_construct2(Flower *flower);
+EventTree *eventTree_construct2(CactusDisk *cactusDisk);
 
 /*
- * Copy constructs the event tree, replacing the existing flower with the new flower. Only includes
+ * Copy constructs the event tree. Only includes
  * the unary events which are true, given the unary event function.
  */
-EventTree *eventTree_copyConstruct(EventTree *eventTree, Flower *newFlower, int64_t (unaryEventFilterFn)(Event *event));
+EventTree *eventTree_copyConstruct(EventTree *eventTree, int64_t (unaryEventFilterFn)(Event *event));
 
 /*
  * Returns the root event.
@@ -52,11 +52,6 @@ Event *eventTree_getEventByHeader(EventTree *eventTree, const char *eventHeader)
  * Gets the common ancestor of two events.
  */
 Event *eventTree_getCommonAncestor(Event *event, Event *event2);
-
-/*
- * Gets the parent flower.
- */
-Flower *eventTree_getFlower(EventTree *eventTree);
 
 /*
  * Gets the total number of events in the event tree.
@@ -99,12 +94,6 @@ void eventTree_destructIterator(EventTree_Iterator *iterator);
 char *eventTree_makeNewickString(EventTree *eventTree);
 
 /*
- * Insert given unary event, from a sibling event tree into the given event tree,
- * where sibling means their containing flowers have the same parent flowers.
- */
-void eventTree_addSiblingUnaryEvent(EventTree *eventTree, Event *event);
-
-/*
  * Runs event_check for each event in tree, which is sufficient to check properties of event tree.
  */
 void eventTree_check(EventTree *eventTree);
@@ -114,5 +103,10 @@ void eventTree_check(EventTree *eventTree);
  * which labels the newick tree by headers.)
  */
 stTree *eventTree_getStTree(EventTree *eventTree);
+
+/*
+ * Get the CactusDisk that owns this event tree.
+ */
+CactusDisk *eventTree_getCactusDisk(EventTree *eventTree);
 
 #endif

@@ -10,11 +10,6 @@
 #include <inttypes.h>
 
 /*
- * Includes for Tokyo Cabinet.
- */
-#include <tcutil.h>
-#include <tcbdb.h>
-/*
  * For the basic lib stuff
  */
 #include "sonLib.h"
@@ -64,7 +59,6 @@ typedef stSortedSetIterator Flower_BlockIterator;
 typedef stSortedSetIterator Flower_GroupIterator;
 typedef stSortedSetIterator Flower_ChainIterator;
 typedef stSortedSetIterator Flower_FaceIterator;
-typedef BDBCUR CactusDisk_FlowerNameIterator;
 typedef stSortedSetIterator CactusDisk_FlowerIterator;
 typedef stSortedSetIterator Reference_PseudoChromosomeIterator;
 typedef stListIterator PseudoChromsome_PseudoAdjacencyIterator;

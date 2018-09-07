@@ -23,18 +23,7 @@ static Event *getReferenceEvent(Flower *flower, const char *referenceEventHeader
     EventTree *eventTree = flower_getEventTree(flower);
     Event *referenceEvent = eventTree_getEventByHeader(eventTree, referenceEventHeader);
     if (referenceEvent == NULL) {
-        Group *parentGroup = flower_getParentGroup(flower);
-        if (parentGroup == NULL) {
-            //We are the root, so make a new event..
-            return event_construct3(referenceEventHeader, INT64_MAX, eventTree_getRootEvent(eventTree), eventTree);
-        } else {
-            Event *parentEvent = eventTree_getEventByHeader(flower_getEventTree(group_getFlower(parentGroup)), referenceEventHeader);
-            assert(parentEvent != NULL);
-            Event *event = event_construct(event_getName(parentEvent), referenceEventHeader,
-            INT64_MAX, eventTree_getRootEvent(eventTree), eventTree);
-            assert(event_getName(event) == event_getName(parentEvent));
-            return event;
-        }
+        st_errAbort("Couldn't find reference event %s", referenceEventHeader);
     }
     return referenceEvent;
 }
@@ -1034,7 +1023,6 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
      */
     reference *ref = getEmptyReference(flower, endsToNodes, nodeNumber, referenceEvent, matchingAlgorithm, stubTangleEnds, phi);
     assert(reference_getIntervalNumber(ref) == stList_length(stubTangleEnds) / 2);
-    reference_log(ref);
 
     /*
      * Invert the hash from ends to nodes to nodes to ends.
@@ -1076,14 +1064,12 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
 
     double maxPossibleScore = refAdjList_getMaxPossibleScore(aL);
     makeReferenceGreedily2(aL, dAL, ref, wiggle);
-    reference_log(ref);
     int64_t badAdjacenciesAfterGreedy = getBadAdjacencyCount(dAL, ref);
     double totalScoreAfterGreedy = getReferenceScore(aL, ref);
     st_logDebug("The score of the initial solution is %f/%" PRIi64 " out of a max possible %f\n", totalScoreAfterGreedy, badAdjacenciesAfterGreedy,
             maxPossibleScore);
 
     updateReferenceGreedily(aL, dAL, ref, permutations);
-    reference_log(ref);
 
     int64_t badAdjacenciesAfterGreedySampling = getBadAdjacencyCount(dAL, ref);
     double totalScoreAfterGreedySampling = getReferenceScore(aL, ref);

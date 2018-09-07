@@ -41,6 +41,7 @@ static void testEventWeighting(CuTest *testCase) {
      * simple (static) example.
      */
     CactusDisk *cactusDisk = testCommon_getTemporaryCactusDisk();
+    eventTree_construct2(cactusDisk);
     Flower *flower = flower_construct(cactusDisk);
 
     EventTree *eventTree = constructEventTree("((simHuman_chr6:0.144,(simMouse_chr6:0.0845,simRat_chr6:0.0916)Anc3:0.272)Anc2:0.0206,(simCow_chr6:0.1891,simDog_chr6:0.163)Anc1:0.0329)Anc0;", flower);

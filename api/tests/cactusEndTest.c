@@ -35,7 +35,6 @@ int64_t testEnd_copyConstructP(Event *event) {
 void testEnd_copyConstruct(CuTest* testCase) {
     cactusEndTestSetup();
     Flower *flower2 = flower_construct(cactusDisk);
-    eventTree_copyConstruct(eventTree, flower2, testEnd_copyConstructP);
     sequence_construct(metaSequence, flower2);
 
     End *end2 = end_copyConstruct(end, flower2);
@@ -134,7 +133,6 @@ void testEnd_getOtherBlockEnd(CuTest *testCase) {
 void testEnd_getGroup(CuTest* testCase) {
     cactusEndTestSetup();
     Flower *flower2 = flower_construct(cactusDisk);
-    eventTree_copyConstruct(eventTree, flower2, testEnd_copyConstructP);
     sequence_construct(metaSequence, flower2);
     End *end2 = end_copyConstruct(end, flower2);
     CuAssertTrue(testCase, end_getGroup(end) == NULL);

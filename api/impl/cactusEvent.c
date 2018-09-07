@@ -54,16 +54,14 @@ Event *event_construct2(Name name, const char *header, float branchLength, Event
 
 Event *event_construct3(const char *header, float branchLength, Event *parentEvent,
         EventTree *eventTree) {
-    return event_construct(cactusDisk_getUniqueID(flower_getCactusDisk(
-            eventTree_getFlower(eventTree))), header, branchLength, parentEvent,
-            eventTree);
+    return event_construct(cactusDisk_getUniqueID(eventTree_getCactusDisk(eventTree)),
+                           header, branchLength, parentEvent, eventTree);
 }
 
 Event *event_construct4(const char *header, float branchLength, Event *parentEvent,
         Event *childEvent, EventTree *eventTree) {
-    return event_construct2(cactusDisk_getUniqueID(flower_getCactusDisk(
-                eventTree_getFlower(eventTree))), header, branchLength, parentEvent, childEvent,
-                eventTree);
+    return event_construct2(cactusDisk_getUniqueID(eventTree_getCactusDisk(eventTree)),
+                            header, branchLength, parentEvent, childEvent, eventTree);
 }
 
 Event *event_getParent(Event *event) {
@@ -177,33 +175,6 @@ void event_check(Event *event) {
     for (i = 0; i < event_getChildNumber(event); i++) {
         Event *childEvent = event_getChild(event, i);
         cactusCheck(event_getParent(childEvent) == event);
-    }
-
-    //Ancestor-event --> event edge is consistent with any event tree that is in the parent of the containing flower.
-    Group *parentGroup = flower_getParentGroup(eventTree_getFlower(
-            event_getEventTree(event)));
-    if (parentGroup != NULL) {
-        EventTree *parentEventTree = flower_getEventTree(group_getFlower(
-                parentGroup));
-        Event *parentEvent = eventTree_getEvent(parentEventTree, event_getName(
-                event));
-        if (parentEvent != NULL) {
-            if (ancestorEvent == NULL) { //the case where they are both root.
-                cactusCheck(eventTree_getRootEvent(parentEventTree) == parentEvent);
-            } else {
-                //Check edge ancestorEvent --> event is in parent event tree.
-                while (1) {
-                    Event *parentAncestorEvent = eventTree_getEvent(
-                            parentEventTree, event_getName(ancestorEvent));
-                    if (parentAncestorEvent != NULL) {
-                        cactusCheck(event_isAncestor(parentEvent, parentAncestorEvent));
-                        break;
-                    }
-                    ancestorEvent = event_getParent(ancestorEvent);
-                    cactusCheck(ancestorEvent != NULL);
-                }
-            }
-        }
     }
 }
 

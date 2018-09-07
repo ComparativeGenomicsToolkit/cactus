@@ -166,6 +166,14 @@ bool stCaf_relaxedSingleCopyIngroup(stPinchSegment *segment1,
 bool stCaf_singleCopyChr(stPinchSegment *segment1, stPinchSegment *segment2);
 
 /*
+ * Run stCaf_filterToEnsureCycleFreeIsolatedComponents so that every
+ * non-alt thread (determined by its header not ending in "_alt") in
+ * the given event is in a separate thread component, and has no cycles.
+ */
+void stCaf_setupHGVMFiltering(Flower *flower, stPinchThreadSet *threadSet,
+                              char *eventName);
+
+/*
  * Set up some additional information for
  * stCaf_filterToEnsureCycleFreeIsolatedComponents. Required to run
  * this first!

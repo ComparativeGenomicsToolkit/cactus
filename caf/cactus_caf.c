@@ -354,7 +354,7 @@ int main(int argc, char *argv[]) {
 
     while (1) {
         static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "alignments", required_argument, 0, 'b' }, {
-                "cactusDisk", required_argument, 0, 'c' }, { "lastzArguments", required_argument, 0, 'd' },
+                "cactusDisk", required_argument, 0, 'c' }, { "lastzArguments", required_argument, 0, 'e' },
                 { "help", no_argument, 0, 'h' }, { "annealingRounds", required_argument, 0, 'i' }, { "trim", required_argument, 0, 'k' }, {
                         "trimChange", required_argument, 0, 'l', }, { "minimumTreeCoverage", required_argument, 0, 'm' }, { "blockTrim",
                         required_argument, 0, 'n' }, { "deannealingRounds", required_argument, 0, 'o' }, { "minimumDegree",
@@ -411,7 +411,7 @@ int main(int argc, char *argv[]) {
             case 'c':
                 cactusDiskDatabaseString = stString_copy(optarg);
                 break;
-            case 'd':
+            case 'e':
                 lastzArguments = stString_copy(optarg);
                 break;
             case 'h':
@@ -723,7 +723,7 @@ int main(int argc, char *argv[]) {
     //////////////////////////////////////////////
 
     kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
-    cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
+    cactusDisk = cactusDisk_construct(kvDatabaseConf, false, true);
     st_logInfo("Set up the flower disk\n");
 
     ///////////////////////////////////////////////////////////////////////////
@@ -761,34 +761,7 @@ int main(int argc, char *argv[]) {
             outgroupThreads = stCaf_getOutgroupThreads(flower, threadSet);
 
             if (filterFn == stCaf_filterToEnsureCycleFreeIsolatedComponents) {
-                EventTree *eventTree = flower_getEventTree(flower);
-                Event *eventToFilterOn = eventTree_getEventByHeader(eventTree, hgvmEventName);
-                if (eventToFilterOn == NULL) {
-                    st_logCritical("Event %s not found in this problem, supplied by alignment filter"
-                                   " hgvm:%s. Alignment filtering won't be turned on for this problem.",
-                                   hgvmEventName, hgvmEventName);
-                }
-                // Set up HGVM filtering: any non-alts need to be in
-                // their own components and cycle-free.
-                stSet *threadsToBeCycleFreeIsolatedComponents = stSet_construct();
-                stPinchThreadSetIt threadSetIt = stPinchThreadSet_getIt(threadSet);
-                stPinchThread *thread;
-                while ((thread = stPinchThreadSetIt_getNext(&threadSetIt)) != NULL) {
-                    Cap *cap = flower_getCap(flower, stPinchThread_getName(thread));
-                    Sequence *sequence = cap_getSequence(cap);
-                    Event *event = sequence_getEvent(sequence);
-                    if (event == eventToFilterOn) {
-                        const char *seqHeader = sequence_getHeader(sequence);
-                        size_t headerLen = strlen(seqHeader);
-                        if (headerLen < 4 || (strncmp(seqHeader + (headerLen - 4), "_alt", 4) != 0)) {
-                            // Not an alt. Add it to the "special components" set.
-                            stSet_insert(threadsToBeCycleFreeIsolatedComponents, thread);
-                            printf("Filtering %s to be a cycle-free isolated component\n", seqHeader);
-                        }
-                    }
-                }
-                stCaf_setThreadsToBeCycleFreeIsolatedComponents(threadSet, threadsToBeCycleFreeIsolatedComponents);
-                // FIXME: memory for the set leaks here, although it's not a big deal as it will only be useless at the very end.
+                stCaf_setupHGVMFiltering(flower, threadSet, hgvmEventName);
             }
 
             //Setup the alignments

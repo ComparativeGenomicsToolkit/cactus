@@ -209,8 +209,8 @@ int main(int argc, char *argv[]) {
 
     while (1) {
         static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0, 'b' }, {
-                "speciesTree", required_argument, 0, 'f' }, { "outgroupEvents", required_argument, 0, 'g' },
-                { "help", no_argument, 0, 'h' }, { "makeEventHeadersAlphaNumeric", no_argument, 0, 'i' }, { 0, 0, 0, 0 } };
+                "speciesTree", required_argument, 0, 'g' }, { "outgroupEvents", required_argument, 0, 'h' },
+                { "help", no_argument, 0, 'i' }, { "makeEventHeadersAlphaNumeric", no_argument, 0, 'j' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
@@ -227,16 +227,16 @@ int main(int argc, char *argv[]) {
             case 'b':
                 cactusDiskDatabaseString = optarg;
                 break;
-            case 'f':
+            case 'g':
                 speciesTree = optarg;
                 break;
-            case 'g':
+            case 'h':
                 outgroupEvents = optarg;
                 break;
-            case 'h':
+            case 'i':
                 usage();
                 return 0;
-            case 'i':
+            case 'j':
                 makeEventHeadersAlphaNumeric = 1;
                 break;
             default:
@@ -277,9 +277,9 @@ int main(int argc, char *argv[]) {
     if (stKVDatabaseConf_getType(kvDatabaseConf) == stKVDatabaseTypeTokyoCabinet || stKVDatabaseConf_getType(kvDatabaseConf)
             == stKVDatabaseTypeKyotoTycoon) {
         assert(stKVDatabaseConf_getDir(kvDatabaseConf) != NULL);
-        cactusDisk = cactusDisk_construct2(kvDatabaseConf, "cactusSequences");
+        cactusDisk = cactusDisk_construct(kvDatabaseConf, true, true);
     } else {
-        cactusDisk = cactusDisk_construct(kvDatabaseConf, 1);
+        cactusDisk = cactusDisk_construct(kvDatabaseConf, true, true);
     }
     st_logInfo("Set up the flower disk\n");
 
@@ -308,7 +308,7 @@ int main(int argc, char *argv[]) {
     }
     stTree_setBranchLength(tree, INT64_MAX);
     checkBranchLengthsAreDefined(tree);
-    eventTree = eventTree_construct2(flower); //creates the event tree and the root even
+    eventTree = eventTree_construct2(cactusDisk); //creates the event tree and the root event
     totalEventNumber = 1;
     st_logInfo("Constructed the basic event tree\n");
 

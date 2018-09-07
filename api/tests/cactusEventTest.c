@@ -34,8 +34,8 @@ static void cactusEventTestSetup() {
 	if(!nestedTest) {
 		cactusEventTestTeardown();
 		cactusDisk = testCommon_getTemporaryCactusDisk();
+                eventTree = eventTree_construct2(cactusDisk);
 		flower = flower_construct(cactusDisk);
-		eventTree = flower_getEventTree(flower);
 		rootEvent = eventTree_getRootEvent(eventTree);
 
 		internalEvent = event_construct3("INTERNAL", 0.5, rootEvent, eventTree);
