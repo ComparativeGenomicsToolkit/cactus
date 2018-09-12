@@ -94,7 +94,7 @@
 		minimumIngroupDegree="1"
 		minimumOutgroupDegree="0"
         minimumNumberOfSpecies="1"
-        alignmentFilter="relaxedSingleCopySecondaryNoSort"
+        alignmentFilter="filterSecondariesByMultipleSpecies"
 		maxAdjacencyComponentSizeRatio="50"
 		minLengthForChromosome="1000000"
 		proportionOfUnalignedBasesForNewChromosome="0.8"

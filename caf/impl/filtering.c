@@ -68,6 +68,38 @@ bool stCaf_filterByOutgroup(stPinchSegment *segment1,
     return isOutgroupSegment(segment1, flower) && isOutgroupSegment(segment2, flower);
 }
 
+bool stCaf_relaxedFilterByOutgroup(stPinchSegment *segment1,
+                                   stPinchSegment *segment2) {
+    stPinchBlock *block1, *block2;
+    if ((block1 = stPinchSegment_getBlock(segment1)) != NULL) {
+        if ((block2 = stPinchSegment_getBlock(segment2)) != NULL) {
+            if (block1 == block2) {
+                return stPinchBlock_getLength(block1) == 1 ? 0 : containsOutgroupSegment(block1, flower);
+            }
+            if (stPinchBlock_getDegree(block1) < stPinchBlock_getDegree(block2)) {
+                return containsOutgroupSegment(block1, flower) && containsOutgroupSegment(block2, flower);
+            }
+            return containsOutgroupSegment(block2, flower) && containsOutgroupSegment(block1, flower);
+        }
+    }
+    // If we get here, we are just adding a segment to a block, not
+    // pinching two blocks together.
+    return false;
+}
+
+/*
+ * Filtering by presence of repeat species in block. This code is inefficient and does not scale.
+ */
+
+static bool checkIntersection(stSortedSet *names1, stSortedSet *names2) {
+    stSortedSet *n12 = stSortedSet_getIntersection(names1, names2);
+    bool b = stSortedSet_size(n12) > 0;
+    stSortedSet_destruct(names1);
+    stSortedSet_destruct(names2);
+    stSortedSet_destruct(n12);
+    return b;
+}
+
 static stSortedSet *getEvents(stPinchSegment *segment, Flower *flower) {
     stSortedSet *events = stSortedSet_construct();
     if (stPinchSegment_getBlock(segment) != NULL) {
@@ -90,38 +122,23 @@ static uint64_t getEventNumber(stPinchSegment *segment, Flower *flower) {
 	return i;
 }
 
-bool stCaf_relaxedFilterByOutgroup(stPinchSegment *segment1,
+bool stCaf_filterByMultipleSpecies(stPinchSegment *segment1,
                                    stPinchSegment *segment2) {
     stPinchBlock *block1, *block2;
     if ((block1 = stPinchSegment_getBlock(segment1)) != NULL) {
         if ((block2 = stPinchSegment_getBlock(segment2)) != NULL) {
             if (block1 == block2) {
-                return stPinchBlock_getLength(block1) == 1 ? 0 : getEventNumber(segment1, flower) > 1; //containsOutgroupSegment(block1, flower);
+                return stPinchBlock_getLength(block1) == 1 ? 0 : getEventNumber(segment1, flower) > 1;
             }
             if (stPinchBlock_getDegree(block1) < stPinchBlock_getDegree(block2)) {
             	return getEventNumber(segment1, flower) > 1 && getEventNumber(segment2, flower) > 1;
-                //return containsOutgroupSegment(block1, flower) && containsOutgroupSegment(block2, flower);
             }
             return getEventNumber(segment2, flower) > 1 && getEventNumber(segment1, flower) > 1;
-            //return containsOutgroupSegment(block2, flower) && containsOutgroupSegment(block1, flower);
         }
     }
     // If we get here, we are just adding a segment to a block, not
     // pinching two blocks together.
     return false;
-}
-
-/*
- * Filtering by presence of repeat species in block. This code is inefficient and does not scale.
- */
-
-static bool checkIntersection(stSortedSet *names1, stSortedSet *names2) {
-    stSortedSet *n12 = stSortedSet_getIntersection(names1, names2);
-    bool b = stSortedSet_size(n12) > 0;
-    stSortedSet_destruct(names1);
-    stSortedSet_destruct(names2);
-    stSortedSet_destruct(n12);
-    return b;
 }
 
 bool stCaf_filterByRepeatSpecies(stPinchSegment *segment1,

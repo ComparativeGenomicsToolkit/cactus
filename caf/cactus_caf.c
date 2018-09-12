@@ -53,7 +53,7 @@ static void usage() {
                     "                       relaxedSingleCopyOutgroup: never merge two outgroup segments together if they are both already aligned to something else\n"
                     "                       singleCopy: Never align two segments from the same genome together\n"
                     "                       relaxedSingleCopy: Never align two segments from the same genome together if they are both already aligned to something else\n"
-                    "                       relaxedSingleCopySecondaryNoSort: Apply no filtering to primary alignments, but as relaxedSingleCopy for secondary, but no sorting of these alignments\n");
+                    "                       filterSecondariesByMultipleSpecies: Apply no filtering to primary alignments, for secondary alignments do not sort them and filter them so that no two blocks are merged that each already contain multiple species.\n");
     
     fprintf(stderr, "-v --minimumSequenceLengthForBlast : The minimum length of a sequence to include when blasting\n");
 
@@ -464,10 +464,10 @@ int main(int argc, char *argv[]) {
                 if (strcmp(optarg, "singleCopyOutgroup") == 0) {
                     sortAlignments = true;
                     filterFn = stCaf_filterByOutgroup;
-                } else if (strcmp(optarg, "relaxedSingleCopySecondaryNoSort") == 0) {
+                } else if (strcmp(optarg, "filterSecondariesByMultipleSpecies") == 0) {
                     sortAlignments = false;
                     filterFn = NULL;
-					secondaryFilterFn = stCaf_relaxedFilterByOutgroup;
+					secondaryFilterFn = stCaf_filterByMultipleSpecies;
                 } else if (strcmp(optarg, "relaxedSingleCopyOutgroup") == 0) {
                     sortAlignments = true;
                     filterFn = stCaf_relaxedFilterByOutgroup;
