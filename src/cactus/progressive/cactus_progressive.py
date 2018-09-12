@@ -338,7 +338,7 @@ def setupBinaries(options):
         if find_executable('docker') is None:
             raise RuntimeError("The `docker` executable wasn't found on the "
                                "system. Please install Docker if possible, or "
-                               "use --binaryMode local and add cactus's bin "
+                               "use --binariesMode local and add cactus's bin "
                                "directory to your PATH.")
     # If running without Docker, verify that we can find the Cactus executables
     elif mode == "local":
