@@ -24,6 +24,7 @@ from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import runGetChunks
 from cactus.shared.common import makeURL
 from cactus.shared.common import readGlobalFileWithoutCache
+from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 
 from toil.lib.bioio import setLoggingFromOptions
@@ -266,21 +267,15 @@ def runCactusPreprocessor(outputSequenceDir, configFile, inputSequences, toilDir
 def main():
     parser = ArgumentParser()
     Job.Runner.addToilOptions(parser)
-    parser.add_argument("--outputSequenceDir", dest="outputSequenceDir", type=str)
-    parser.add_argument("--configFile", dest="configFile", type=str)
-    parser.add_argument("--inputSequences", dest="inputSequences", type=str, nargs='+')
-    
+    parser.add_argument("outputSequenceDir", help='Directory where the processed sequences will be placed')
+    parser.add_argument("--configFile", default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
+    parser.add_argument("inputSequences", nargs='+', help='input FASTA file(s)')
+
     options = parser.parse_args()
     setLoggingFromOptions(options)
-    
-    if not (options.outputSequenceDir and options.configFile and options.inputSequences):
-        raise RuntimeError("Too few input arguments")
+
     with Toil(options) as toil:
         stageWorkflow(outputSequenceDir=options.outputSequenceDir, configFile=options.configFile, inputSequences=options.inputSequences, toil=toil, restart=options.restart)
-
-def _test():
-    import doctest      
-    return doctest.testmod()
 
 if __name__ == '__main__':
     main()
