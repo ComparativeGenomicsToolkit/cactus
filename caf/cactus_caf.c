@@ -47,14 +47,14 @@ static void usage() {
 
     fprintf(stderr, "-r --minimumOutgroupDegree : Number of outgroup sequences required in a block.\n");
 
-    fprintf(stderr, "-t --alignmentFilter : Choose alignment filter:\n"
+	fprintf(stderr, "-t --alignmentFilter : Choose alignment filter:\n"
                     "                       none: no filtering,\n"
                     "                       singleCopyOutgroup: never merge two outgroup segments together\n"
                     "                       relaxedSingleCopyOutgroup: never merge two outgroup segments together if they are both already aligned to something else\n"
                     "                       singleCopy: Never align two segments from the same genome together\n"
-                    "                       relaxedSingleCopy: Never align two segments from the same genome together if they are both already aligned to something else\n");
-
-
+                    "                       relaxedSingleCopy: Never align two segments from the same genome together if they are both already aligned to something else\n"
+                    "                       filterSecondariesByMultipleSpecies: Apply no filtering to primary alignments, for secondary alignments do not sort them and filter them so that no two blocks are merged that each already contain multiple species.\n");
+    
     fprintf(stderr, "-v --minimumSequenceLengthForBlast : The minimum length of a sequence to include when blasting\n");
 
     fprintf(
@@ -285,6 +285,7 @@ int main(int argc, char *argv[]) {
     int key, k;
 
     bool (*filterFn)(stPinchSegment *, stPinchSegment *) = NULL;
+    bool (*secondaryFilterFn)(stPinchSegment *, stPinchSegment *) = NULL;
     stSet *outgroupThreads = NULL;
 
     /*
@@ -292,6 +293,7 @@ int main(int argc, char *argv[]) {
      */
     char * logLevelString = NULL;
     char * alignmentsFile = NULL;
+    char * secondaryAlignmentsFile = NULL;
     char * constraintsFile = NULL;
     char * cactusDiskDatabaseString = NULL;
     char * lastzArguments = "";
@@ -353,44 +355,56 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     while (1) {
-        static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "alignments", required_argument, 0, 'b' }, {
-                "cactusDisk", required_argument, 0, 'c' }, { "lastzArguments", required_argument, 0, 'e' },
-                { "help", no_argument, 0, 'h' }, { "annealingRounds", required_argument, 0, 'i' }, { "trim", required_argument, 0, 'k' }, {
-                        "trimChange", required_argument, 0, 'l', }, { "minimumTreeCoverage", required_argument, 0, 'm' }, { "blockTrim",
-                        required_argument, 0, 'n' }, { "deannealingRounds", required_argument, 0, 'o' }, { "minimumDegree",
-                        required_argument, 0, 'p' }, { "minimumIngroupDegree", required_argument, 0, 'q' }, {
-                        "minimumOutgroupDegree", required_argument, 0, 'r' }, { "alignmentFilter", required_argument, 0, 't' }, {
-                        "minimumSequenceLengthForBlast", required_argument, 0, 'v' }, { "maxAdjacencyComponentSizeRatio",
-                        required_argument, 0, 'w' }, { "constraints", required_argument, 0, 'x' }, { "minLengthForChromosome",
-                        required_argument, 0, 'y' }, { "proportionOfUnalignedBasesForNewChromosome", required_argument, 0, 'z' },
-                        { "maximumMedianSequenceLengthBetweenLinkedEnds", required_argument, 0, 'A' },
-                        { "realign", no_argument, 0, 'B' }, { "realignArguments", required_argument, 0, 'C' },
-                        { "phylogenyNumTrees", required_argument, 0, 'D' },
-                        { "phylogenyRootingMethod", required_argument, 0, 'E' },
-                        { "phylogenyScoringMethod", required_argument, 0, 'F' },
-                        { "phylogenyBreakpointScalingFactor", required_argument, 0, 'G' },
-                        { "phylogenySkipSingleCopyBlocks", no_argument, 0, 'H' },
-                        { "phylogenyMaxBaseDistance", required_argument, 0, 'I' },
-                        { "phylogenyMaxBlockDistance", required_argument, 0, 'J' },
-                        { "phylogenyDebugFile", required_argument, 0, 'K' },
-                        { "phylogenyKeepSingleDegreeBlocks", no_argument, 0, 'L' },
-                        { "phylogenyTreeBuildingMethod", required_argument, 0, 'M' },
-                        { "phylogenyCostPerDupPerBase", required_argument, 0, 'N' },
-                        { "phylogenyCostPerLossPerBase", required_argument, 0, 'O' },
-                        { "referenceEventHeader", required_argument, 0, 'P' },
-                        { "phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce", required_argument, 0, 'Q' },
-                        { "numTreeBuildingThreads", required_argument, 0, 'R' },
-                        { "phylogeny", no_argument, 0, 'S' },
-                        { "minimumBlockHomologySupport", required_argument, 0, 'T' },
-                        { "phylogenyNucleotideScalingFactor", required_argument, 0, 'U' },
-                        { "minimumBlockDegreeToCheckSupport", required_argument, 0, 'V' },
-                        { "removeRecoverableChains", required_argument, 0, 'W' },
-                        { "minimumNumberOfSpecies", required_argument, 0, 'X' },
-                        { "phylogenyHomologyUnitType", required_argument, 0, 'Y' },
-                        { "phylogenyDistanceCorrectionMethod", required_argument, 0, 'Z' },
-                        { "maxRecoverableChainsIterations", required_argument, 0, '1' },
-                        { "maxRecoverableChainLength", required_argument, 0, '2' },
-                        { 0, 0, 0, 0 } };
+        static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' },
+        		{ "alignments", required_argument, 0, 'b' },
+				{ "cactusDisk", required_argument, 0, 'c' },
+				{ "lastzArguments", required_argument, 0, 'e' },
+                { "help", no_argument, 0, 'h' },
+				{ "annealingRounds", required_argument, 0, 'i' },
+				{ "trim", required_argument, 0, 'k' },
+				{ "trimChange", required_argument, 0, 'l', },
+				{ "minimumTreeCoverage", required_argument, 0, 'm' },
+				{ "blockTrim", required_argument, 0, 'n' },
+				{ "deannealingRounds", required_argument, 0, 'o' },
+				{ "minimumDegree", required_argument, 0, 'p' },
+				{ "minimumIngroupDegree", required_argument, 0, 'q' },
+				{ "minimumOutgroupDegree", required_argument, 0, 'r' },
+				{ "alignmentFilter", required_argument, 0, 't' },
+				{ "minimumSequenceLengthForBlast", required_argument, 0, 'v' },
+				{ "maxAdjacencyComponentSizeRatio", required_argument, 0, 'w' },
+				{ "constraints", required_argument, 0, 'x' },
+				{ "minLengthForChromosome", required_argument, 0, 'y' },
+				{ "proportionOfUnalignedBasesForNewChromosome", required_argument, 0, 'z' },
+				{ "maximumMedianSequenceLengthBetweenLinkedEnds", required_argument, 0, 'A' },
+				{ "realign", no_argument, 0, 'B' },
+				{ "realignArguments", required_argument, 0, 'C' },
+				{ "phylogenyNumTrees", required_argument, 0, 'D' },
+				{ "phylogenyRootingMethod", required_argument, 0, 'E' },
+				{ "phylogenyScoringMethod", required_argument, 0, 'F' },
+				{ "phylogenyBreakpointScalingFactor", required_argument, 0, 'G' },
+				{ "phylogenySkipSingleCopyBlocks", no_argument, 0, 'H' },
+				{ "phylogenyMaxBaseDistance", required_argument, 0, 'I' },
+				{ "phylogenyMaxBlockDistance", required_argument, 0, 'J' },
+				{ "phylogenyDebugFile", required_argument, 0, 'K' },
+				{ "phylogenyKeepSingleDegreeBlocks", no_argument, 0, 'L' },
+				{ "phylogenyTreeBuildingMethod", required_argument, 0, 'M' },
+				{ "phylogenyCostPerDupPerBase", required_argument, 0, 'N' },
+				{ "phylogenyCostPerLossPerBase", required_argument, 0, 'O' },
+				{ "referenceEventHeader", required_argument, 0, 'P' },
+				{ "phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce", required_argument, 0, 'Q' },
+				{ "numTreeBuildingThreads", required_argument, 0, 'R' },
+				{ "phylogeny", no_argument, 0, 'S' },
+				{ "minimumBlockHomologySupport", required_argument, 0, 'T' },
+				{ "phylogenyNucleotideScalingFactor", required_argument, 0, 'U' },
+				{ "minimumBlockDegreeToCheckSupport", required_argument, 0, 'V' },
+				{ "removeRecoverableChains", required_argument, 0, 'W' },
+				{ "minimumNumberOfSpecies", required_argument, 0, 'X' },
+				{ "phylogenyHomologyUnitType", required_argument, 0, 'Y' },
+				{ "phylogenyDistanceCorrectionMethod", required_argument, 0, 'Z' },
+				{ "maxRecoverableChainsIterations", required_argument, 0, '1' },
+				{ "maxRecoverableChainLength", required_argument, 0, '2' },
+				{ "secondaryAlignments", required_argument, 0, '3' },
+				{ 0, 0, 0, 0 } };
 
         int option_index = 0;
 
@@ -450,6 +464,10 @@ int main(int argc, char *argv[]) {
                 if (strcmp(optarg, "singleCopyOutgroup") == 0) {
                     sortAlignments = true;
                     filterFn = stCaf_filterByOutgroup;
+                } else if (strcmp(optarg, "filterSecondariesByMultipleSpecies") == 0) {
+                    sortAlignments = false;
+                    filterFn = NULL;
+					secondaryFilterFn = stCaf_filterByMultipleSpecies;
                 } else if (strcmp(optarg, "relaxedSingleCopyOutgroup") == 0) {
                     sortAlignments = true;
                     filterFn = stCaf_relaxedFilterByOutgroup;
@@ -676,6 +694,9 @@ int main(int argc, char *argv[]) {
                     st_errAbort("Error parsing the maxRecoverableChainLength argument");
                 }
                 break;
+            case '3':
+                secondaryAlignmentsFile = stString_copy(optarg);
+                break;
             default:
                 usage();
                 return 1;
@@ -727,7 +748,7 @@ int main(int argc, char *argv[]) {
     st_logInfo("Set up the flower disk\n");
 
     ///////////////////////////////////////////////////////////////////////////
-    // Sort the constraints
+    // Get the constraints
     ///////////////////////////////////////////////////////////////////////////
 
     stPinchIterator *pinchIteratorForConstraints = NULL;
@@ -766,10 +787,12 @@ int main(int argc, char *argv[]) {
 
             //Setup the alignments
             stPinchIterator *pinchIterator;
+            stPinchIterator *secondaryPinchIterator = NULL;
             stList *alignmentsList = NULL;
             if (alignmentsFile != NULL) {
                 assert(i == 0);
                 assert(stList_length(flowers) == 1);
+
                 if (sortAlignments) {
                     tempFile1 = getTempFile();
                     stCaf_sortCigarsFileByScoreInDescendingOrder(alignmentsFile, tempFile1);
@@ -777,7 +800,15 @@ int main(int argc, char *argv[]) {
                 } else {
                     pinchIterator = stPinchIterator_constructFromFile(alignmentsFile);
                 }
+
+                if(secondaryAlignmentsFile != NULL) {
+                	secondaryPinchIterator = stPinchIterator_constructFromFile(secondaryAlignmentsFile);
+                }
+
             } else {
+                assert(0);
+            	stThrowNew(CACTUS_CHECK_EXCEPTION_ID, " This is no longer supported \n"); // I think we need to clean up this code path, given that we don't do the recursive annealing thing anymore.
+
                 if (tempFile1 == NULL) {
                     tempFile1 = getTempFile();
                 }
@@ -793,11 +824,15 @@ int main(int argc, char *argv[]) {
                 int64_t minimumChainLength = annealingRounds[annealingRound];
                 int64_t alignmentTrim = annealingRound < alignmentTrimLength ? alignmentTrims[annealingRound] : 0;
                 st_logDebug("Starting annealing round with a minimum chain length of %" PRIi64 " and an alignment trim of %" PRIi64 "\n", minimumChainLength, alignmentTrim);
+
                 stPinchIterator_setTrim(pinchIterator, alignmentTrim);
+                if(secondaryPinchIterator != NULL) {
+                	stPinchIterator_setTrim(secondaryPinchIterator, alignmentTrim);
+                }
 
                 //Add back in the constraints
                 if (pinchIteratorForConstraints != NULL) {
-                    stCaf_anneal(threadSet, pinchIteratorForConstraints, filterFn);
+                    stCaf_anneal(threadSet, pinchIteratorForConstraints, NULL);
                 }
 
                 //Do the annealing
@@ -805,6 +840,15 @@ int main(int argc, char *argv[]) {
                     stCaf_anneal(threadSet, pinchIterator, filterFn);
                 } else {
                     stCaf_annealBetweenAdjacencyComponents(threadSet, pinchIterator, filterFn);
+                }
+
+                // Do the secondary annealing
+                if(secondaryPinchIterator != NULL) {
+					if (annealingRound == 0) {
+						stCaf_anneal(threadSet, secondaryPinchIterator, secondaryFilterFn);
+					} else {
+						stCaf_annealBetweenAdjacencyComponents(threadSet, secondaryPinchIterator, secondaryFilterFn);
+					}
                 }
 
                 // Dump the block degree and length distribution to a file
@@ -928,6 +972,9 @@ int main(int argc, char *argv[]) {
             //Cleanup
             stPinchThreadSet_destruct(threadSet);
             stPinchIterator_destruct(pinchIterator);
+            if(secondaryPinchIterator != NULL) {
+            	free(secondaryPinchIterator);
+            }
             stSet_destruct(outgroupThreads);
 
             if (alignmentsList != NULL) {

@@ -243,7 +243,7 @@ class CactusPreprocessor2(RoundedJob):
             logger.info("Adding child batch_preprocessor target")
             return self.addChild(BatchPreprocessor(prepXmlElems, self.inputSequenceID, 0)).rv()
 
-def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart):
+def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=False):
     #Replace any constants
     configNode = ET.parse(configFile).getroot()
     outputSequences = CactusPreprocessor.getOutputSequenceFiles(inputSequences, outputSequenceDir)
