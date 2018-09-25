@@ -225,11 +225,7 @@ def getRemoteParams(dbElem):
 
 def stopKtserver(dbElem):
     """Attempt to send the terminate signal to a ktserver."""
-    try:
-        cactus_call(parameters=['ktremotemgr', 'set'] + getRemoteParams(dbElem) + ['TERMINATE', '1'])
-    except:
-        # The server is likely already down.
-        pass
+    cactus_call(parameters=['ktremotemgr', 'set'] + getRemoteParams(dbElem) + ['TERMINATE', '1'])
 
 def getHostName():
     if platform.system() == 'Darwin':
