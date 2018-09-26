@@ -27,6 +27,7 @@ from cactus.shared.common import catFiles
 from cactus.shared.common import cactus_call
 from cactus.shared.common import RoundedJob
 from cactus.shared.common import getDockerImage
+from cactus.shared.version import cactus_commit
 
 from toil.job import Job
 from toil.common import Toil
@@ -317,6 +318,10 @@ def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC
                 args += ["--inMemory"]
 
             cactus_call(parameters=["halAppendCactusSubtree"] + args)
+
+    cactus_call(parameters=["halSetMetadata", HALPath, "CACTUS_COMMIT", cactus_commit])
+    with job.fileStore.readGlobalFileStream(project.configID) as configFile:
+        cactus_call(parameters=["halSetMetadata", HALPath, "CACTUS_CONFIG", configFile.read()])
 
     return job.fileStore.writeGlobalFile(HALPath)
 
