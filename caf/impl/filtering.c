@@ -114,12 +114,20 @@ static stSortedSet *getEvents(stPinchSegment *segment, Flower *flower) {
     return events;
 }
 
-static uint64_t getEventNumber(stPinchSegment *segment, Flower *flower) {
-	stSortedSet *events = getEvents(segment, flower);
-	uint64_t i = stSortedSet_size(events);
-	stSortedSet_destruct(events);
-
-	return i;
+static bool containsMoreThanOneEvent(stPinchSegment *segment, Flower *flower) {
+    if (stPinchSegment_getBlock(segment) == NULL) {
+        return false;
+    } else {
+        stPinchBlock *block = stPinchSegment_getBlock(segment);
+        Event *event = stCaf_getEvent(segment, flower);
+        stPinchBlockIt it = stPinchBlock_getSegmentIterator(block);
+        while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
+            if (stCaf_getEvent(segment, flower) != event) {
+                return true;
+            }
+        }
+        return false;
+    }
 }
 
 bool stCaf_filterByMultipleSpecies(stPinchSegment *segment1,
@@ -128,12 +136,12 @@ bool stCaf_filterByMultipleSpecies(stPinchSegment *segment1,
     if ((block1 = stPinchSegment_getBlock(segment1)) != NULL) {
         if ((block2 = stPinchSegment_getBlock(segment2)) != NULL) {
             if (block1 == block2) {
-                return stPinchBlock_getLength(block1) == 1 ? 0 : getEventNumber(segment1, flower) > 1;
+                return stPinchBlock_getLength(block1) == 1 ? 0 : containsMoreThanOneEvent(segment1, flower);
             }
             if (stPinchBlock_getDegree(block1) < stPinchBlock_getDegree(block2)) {
-            	return getEventNumber(segment1, flower) > 1 && getEventNumber(segment2, flower) > 1;
+            	return containsMoreThanOneEvent(segment1, flower) && containsMoreThanOneEvent(segment2, flower);
             }
-            return getEventNumber(segment2, flower) > 1 && getEventNumber(segment1, flower) > 1;
+            return containsMoreThanOneEvent(segment2, flower) && containsMoreThanOneEvent(segment1, flower);
         }
     }
     // If we get here, we are just adding a segment to a block, not
