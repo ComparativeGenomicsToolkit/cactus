@@ -20,43 +20,7 @@ int cmpAlignmentsFn(const void *a, const void *b) {
 	return pA1->score < pA2->score ? -1 : (pA1->score > pA2->score ? 1 : 0);
 }
 
-void updateScoresToReflectMappingQualities(stList *alignments, float alpha, uint64_t numAlignmentsToScore) {
-	// Create an array of the scores
-	float *alignmentScores = st_calloc(stList_length(alignments), sizeof(float));
-	for(uint64_t i=0; i<stList_length(alignments); i++) {
-		alignmentScores[i] = ((struct PairwiseAlignment *)stList_get(alignments, i))->score;
-	}
-
-	// Calculate mapQs for the best N alignments (N = numAlignmentsToScore).
-        uint64_t start = stList_length(alignments) > numAlignmentsToScore ? stList_length(alignments) - numAlignmentsToScore : 0;
-	for(uint64_t i=start; i<stList_length(alignments); i++) {
-		struct PairwiseAlignment *pA = stList_get(alignments, i);
-
-		// Cut off the calculation if clearly going to be zero
-		if(alpha * (alignmentScores[i] - alignmentScores[stList_length(alignments)-1]) < -10) {
-			pA->score = 0.0;
-		}
-
-		else {
-			// Calculate the denominator
-			double z = 0.0;
-			for(uint64_t j=0; j<stList_length(alignments); j++) {
-				z += pow(10, alpha * (alignmentScores[j] - alignmentScores[i]));
-			}
-			assert(z >= 1.0);
-
-			if(z <= 1.000001) { // Round scores to max of 60
-				pA->score = 60.0;
-			}
-			else {
-				pA->score = -10.0 * log10(1.0 - 1.0/z);
-				assert(pA->score >= 0.0);
-			}
-		}
-	}
-
-	// Cleanup
-	free(alignmentScores);
+void updateScoresToReflectMappingQualities(stList *alignments, float alpha, uint64_t maxAlignmentsPerSite) {
 }
 
 void reportAlignments(stList *alignments, int64_t maxAlignmentsPerSite,
