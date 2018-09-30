@@ -43,24 +43,25 @@ def mappingQualityRescoring(job, inputAlignmentFileID,
     
     # Get temporary file
     assert maxAlignmentsPerSite >= 1
-    tempAlignmentFiles = [ job.fileStore.getLocalTempFile() for i in xrange(maxAlignmentsPerSite) ]
+    tempAlignmentFiles = [job.fileStore.getLocalTempFile() for i in xrange(maxAlignmentsPerSite)]
     
     # Mirror and orient alignments, sort, split overlaps and calculate mapping qualities
     cactus_call(infile=inputAlignmentFile,
-                parameters=[[ "cactus_mirrorAndOrientAlignments", logLevel ],
-                            [ "sort", "-k6,6", "-k7,7n", "-k8,8n" ], # This sorts by coordinate
-                            [ "uniq" ], # This eliminates any annoying duplicates if lastz reports the alignment in both orientations
-                            [ "cactus_splitAlignmentOverlaps", logLevel  ],
-                            [ "cactus_calculateMappingQualities", logLevel, str(maxAlignmentsPerSite), 
-                             str(minimumMapQValue), str(alpha) ] + tempAlignmentFiles])
-    
+                parameters=[["cat", inputAlignmentFile],
+                            ["cactus_mirrorAndOrientAlignments", logLevel],
+                            ["sort", "-k6,6", "-k7,7n", "-k8,8n"], # This sorts by coordinate
+                            ["uniq"], # This eliminates any annoying duplicates if lastz reports the alignment in both orientations
+                            ["cactus_splitAlignmentOverlaps", logLevel],
+                            ["cactus_calculateMappingQualities", logLevel, str(maxAlignmentsPerSite),
+                             str(minimumMapQValue), str(alpha)] + tempAlignmentFiles])
+
     # Merge together the output files in order
     secondaryTempAlignmentFile = job.fileStore.getLocalTempFile()
     if len(tempAlignmentFiles) > 1:
         cactus_call(parameters=[["cat" ] + tempAlignmentFiles[1:]], outfile=secondaryTempAlignmentFile)
-    
+
     job.fileStore.logToMaster("Filtered, non-overlapping primary cigar file has %s lines" % countLines(tempAlignmentFiles[0]))
     job.fileStore.logToMaster("Filtered, non-overlapping secondary cigar file has %s lines" % countLines(secondaryTempAlignmentFile))
-    
+
     # Now write back alignments results file and return
     return job.fileStore.writeGlobalFile(tempAlignmentFiles[0]), job.fileStore.writeGlobalFile(secondaryTempAlignmentFile)
