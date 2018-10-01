@@ -46,8 +46,7 @@ def mappingQualityRescoring(job, inputAlignmentFileID,
     tempAlignmentFiles = [job.fileStore.getLocalTempFile() for i in xrange(maxAlignmentsPerSite)]
     
     # Mirror and orient alignments, sort, split overlaps and calculate mapping qualities
-    cactus_call(infile=inputAlignmentFile,
-                parameters=[["cat", inputAlignmentFile],
+    cactus_call(parameters=[["cat", inputAlignmentFile],
                             ["cactus_mirrorAndOrientAlignments", logLevel],
                             ["sort", "-k6,6", "-k7,7n", "-k8,8n"], # This sorts by coordinate
                             ["uniq"], # This eliminates any annoying duplicates if lastz reports the alignment in both orientations
