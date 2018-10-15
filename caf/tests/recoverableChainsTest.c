@@ -7,6 +7,7 @@
 // chain--this should obviously not be recoverable.
 static void testDoesNotRemoveIsolatedChain(CuTest *testCase) {
     CactusDisk *cactusDisk = testCommon_getTemporaryCactusDisk();
+    eventTree_construct2(cactusDisk);
     Flower *flower = flower_construct2(0, cactusDisk);
     group_construct2(flower);
     flower_check(flower);
@@ -35,6 +36,7 @@ static void testDoesNotRemoveIsolatedChain(CuTest *testCase) {
 // should be considered recoverable.
 static void testRemovesIndel(CuTest *testCase) {
     CactusDisk *cactusDisk = testCommon_getTemporaryCactusDisk();
+    eventTree_construct2(cactusDisk);
     Flower *flower = flower_construct2(0, cactusDisk);
     group_construct2(flower);
     flower_check(flower);
@@ -78,6 +80,7 @@ static void testRemovesIndel(CuTest *testCase) {
 // keep all blocks as all are telomere-adjacent.
 static void testRecoverableTelomereAdjacentChainsNotKept(CuTest *testCase) {
     CactusDisk *cactusDisk = testCommon_getTemporaryCactusDisk();
+    eventTree_construct2(cactusDisk);
     Flower *flower = flower_construct2(0, cactusDisk);
     group_construct2(flower);
     flower_check(flower);

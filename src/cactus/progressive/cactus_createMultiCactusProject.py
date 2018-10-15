@@ -28,7 +28,6 @@ def createMCProject(tree, experiment, config, options):
     mcProj = MultiCactusProject()
     mcProj.mcTree = mcTree
     mcProj.inputSequences = experiment.getSequences()[:] 
-    mcProj.outputSequenceDir = experiment.getOutputSequenceDir()
     if config.getDoSelfAlignment():
         mcTree.addSelfEdges()
     for name in mcProj.mcTree.getSubtreeRootNames():
@@ -38,7 +37,7 @@ def createMCProject(tree, experiment, config, options):
     if options.root is not None:
         try:
             alignmentRootId = mcProj.mcTree.getNodeId(options.root)
-        except Exception as e:
+        except:
             raise RuntimeError("Specified root name %s not found in tree" % options.root)
     mcProj.outgroup = None
     if config.getOutgroupStrategy() == 'greedy':
@@ -144,7 +143,6 @@ def specifyAlignmentRoot(mcProj, alignmentRootId):
                 mcProj.externalOutgroupNames.add(name)
 
     # reroot the tree!
-    oldParent = mcProj.mcTree.getParent(alignmentRootId)
     mcProj.mcTree.reroot(alignmentRootId)
 
     # add the outgroups to the tree (and sequence map)
@@ -242,88 +240,45 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
         and name in mcProj.outgroup.ogMap:
             for og, ogDist in mcProj.outgroup.ogMap[name]:
                 assert og in seqMap, "No sequence found for outgroup: %s" % og
-                ogPath = seqMap[og]
                 outgroups += [og]
 
         # Get subtree connecting children + outgroups
         assert len(children) > 0
         subtree = mcProj.entireTree.extractSpanningTree(children + outgroups)
-        dbBase = path
-        if expTemplate.getDbDir() is not None:
-            dbBase = os.path.abspath(expTemplate.getDbDir())
-        exp.setDbDir(os.path.join(dbBase, name, "%s_DB" % name))
-        if expTemplate.getDbType() == "redis" and \
-            os.path.splitext(name)[1] != ".kch":
-            exp.setDbName("%s.kch" % name)
-        else:
-            exp.setDbName(name)
-        if expTemplate.getDbType() == "redis":
-            exp.setDbPort(expTemplate.getDbPort() + portOffset)
-            portOffset += 1
-            host = expTemplate.getDbHost()
-            if host is not None:
-                exp.setDbHost(host)
-        exp.setReferencePath(os.path.join(path, name + '.fa'))
-        if configTemplate.getBuildHal() == True:
-            exp.setHALPath(os.path.join(path, "%s_hal.c2h" % name))
-        if configTemplate.getBuildFasta() == True:
-            exp.setHALFastaPath(os.path.join(path, "%s_hal.fa" % name))
         exp.updateTree(subtree, seqMap, outgroups)
         exp.setConfigPath(os.path.join(path, "%s_config.xml" % name))
-        if not os.path.exists(exp.getDbDir()):
-            os.makedirs(exp.getDbDir())
         if not os.path.exists(path):
             os.makedirs(path)
         exp.writeXML(expPath)
         config = ConfigWrapper(copy.deepcopy(configTemplate.xmlRoot))
         config.setReferenceName(name)
-        config.verifyMinBlockDegree(exp)
         config.writeXML(exp.getConfigPath())
-        
-def checkInputSequencePaths(exp):
-    for event, seq in exp.seqMap.items():
-        if not os.path.exists(seq):
-            sys.stderr.write("WARNING: sequence path %s does not exist\n" % seq)
-        elif os.path.isdir(seq):
-            contents = os.listdir(seq)
-            size = 0
-            for i in contents:
-                if i[0] != '.':
-                    size += 1
-            if size == 0:
-                sys.stderr.write("WARNING: sequence path %s is an empty directory\n" % seq)
 
 class CreateMultiCactusProjectOptions:
     def __init__(self, expFile, projectFile, fixNames,
-            outgroupNames, rootOutgroupDists, rootOutgroupPaths,
-            root, overwrite):
+                 outgroupNames, root, overwrite):
         self.expFile = expFile
         self.path = projectFile
         self.fixNames = fixNames
         self.name = os.path.basename(self.path)
 
         self.outgroupNames = outgroupNames
-        self.rootOutgroupDists = rootOutgroupDists
-        self.rootOutgroupPaths = rootOutgroupPaths
         self.root = root
         self.overwrite = overwrite
 
 
 
 def runCreateMultiCactusProject(expFile, projectFile, fixNames=False,
-            outgroupNames=None, rootOutgroupDists=None, rootOutgroupPaths=None,
-            root=None, overwrite=False):
+            outgroupNames=None, root=None, overwrite=False):
 
     options = CreateMultiCactusProjectOptions(expFile, projectFile, fixNames=fixNames,
-            outgroupNames=outgroupNames, rootOutgroupDists=rootOutgroupDists, 
-            rootOutgroupPaths=rootOutgroupPaths, root=root, overwrite=overwrite)
+            outgroupNames=outgroupNames, root=root, overwrite=overwrite)
 
     expTemplate = ExperimentWrapper(ET.parse(options.expFile).getroot())
     configPath = expTemplate.getConfigPath()
     confTemplate = ConfigWrapper(ET.parse(configPath).getroot())
     if options.fixNames:
         cleanEventTree(expTemplate)
-    checkInputSequencePaths(expTemplate)
     tree = expTemplate.getTree()
     if options.outgroupNames is not None:
         options.outgroupNames = set(options.outgroupNames)
@@ -334,89 +289,5 @@ def runCreateMultiCactusProject(expFile, projectFile, fixNames=False,
     mcProj = createMCProject(tree, expTemplate, confTemplate, options)
     #Replace the sequences with output sequences
     expTemplate.updateTree(mcProj.mcTree, expTemplate.buildSequenceMap())
-    expTemplate.setSequences(CactusPreprocessor.getOutputSequenceFiles(mcProj.inputSequences, expTemplate.getOutputSequenceDir()))
-    if options.rootOutgroupPaths is not None:
-        # hacky -- add the root outgroup to the tree after everything
-        # else.  This ends up being ugly, but avoids running into
-        # problems with assumptions about tree structure
-        #
-        # [this hack is hopefully made redundant by the --root option]
-        #
-        mcProj.inputSequences.extend(options.rootOutgroupPaths)
-        # replace the root outgroup sequence by post-processed output
-        for i, (outgroupPath, outgroupDist) in enumerate(zip(options.rootOutgroupPaths, options.rootOutgroupDists)):
-            outgroupPath = CactusPreprocessor.getOutputSequenceFiles(expTemplate.getSequences() + options.rootOutgroupPaths[:i+1], expTemplate.getOutputSequenceDir())[-1]
-            rootOutgroupName = "rootOutgroup%d" % i
-            expTemplate.seqMap[rootOutgroupName] = outgroupPath
-            # Add to tree
-            mcProj.mcTree.addOutgroup(rootOutgroupName, outgroupDist)
-            mcProj.mcTree.computeSubtreeRoots()
-            if mcProj.mcTree.getRootName() not in mcProj.outgroup.ogMap:
-                # initialize ogMap entry
-                mcProj.outgroup.ogMap[mcProj.mcTree.getRootName()] = []
-            mcProj.outgroup.ogMap[mcProj.mcTree.getRootName()].append((rootOutgroupName, outgroupDist))
     #Now do the file tree creation
     createFileStructure(mcProj, expTemplate, confTemplate, options)
-   # mcProj.check()
-
-       
-def main():
-    usage = "usage: %prog [options] <experiment> <output project path>"
-    description = "Setup a multi-cactus project using an experiment xml as template"
-    parser = OptionParser(usage=usage, description=description)
-    parser.add_option("--fixNames", dest="fixNames",  default = "True", 
-                      help="try to make sequence and event names MAF-compliant [default=true]")
-    parser.add_option("--outgroupNames", dest="outgroupNames",  default = None, 
-                      help="comma-separated names of high quality assemblies to use as outgroups [default=everything]")
-    parser.add_option("--root", dest="root", type=str,
-                      help="name of alignment root (must be labeled ancestral node in tree in input experiment).  Useful "
-                      "for allowing the tree to contain nodes that won't be in the alignment but can still be used for "
-                      "outgroups.",
-                      default=None)
-    parser.add_option("--overwrite", action="store_true", help="Overwrite existing experiment files", default=False)
-
-    options, args = parser.parse_args()
-    
-    if len(args) != 2:
-        parser.print_help()
-        raise RuntimeError("Wrong number of arguments")
-
-    options.expFile = args[0]    
-    options.path = os.path.abspath(args[1])
-    options.name = os.path.basename(options.path)
-    options.fixNames = not options.fixNames.lower() == "false"
-
-    if (os.path.isdir(options.path) and not options.overwrite) or os.path.isfile(options.path):
-        raise RuntimeError("Output project path %s exists\n" % options.path)
-    
-    expTemplate = ExperimentWrapper(ET.parse(options.expFile).getroot())
-    configPath = expTemplate.getConfigPath()
-    confTemplate = ConfigWrapper(ET.parse(configPath).getroot())
-    if options.fixNames:
-        cleanEventTree(expTemplate)
-    checkInputSequencePaths(expTemplate)
-    tree = expTemplate.getTree()
-
-    # Check that the tree is sensible (root has at least 1 child)
-    if len(tree.getChildren(tree.getRootId())) == 0:
-        raise RuntimeError("Input species tree has only one node.")
-
-    if options.outgroupNames is not None:
-        projNames = set([tree.getName(x) for x in tree.getLeaves()])
-        options.outgroupNames = set(options.outgroupNames.split(","))
-        for outgroupName in options.outgroupNames:
-            if outgroupName not in projNames:
-                raise RuntimeError("Specified outgroup %s not found in tree" % outgroupName)
-    mcProj = createMCProject(tree, expTemplate, confTemplate, options)
-    #Replace the sequences with output sequences
-    expTemplate.updateTree(mcProj.mcTree, expTemplate.buildSequenceMap())
-    expTemplate.setSequences(CactusPreprocessor.getOutputSequenceFiles(mcProj.inputSequences, expTemplate.getOutputSequenceDir()))
-
-    #Now do the file tree creation
-    createFileStructure(mcProj, expTemplate, confTemplate, options)
-   # mcProj.check()
-    return 0
-    
-
-if __name__ == '__main__':    
-    main()

@@ -19,3 +19,5 @@
 [submodule "submodules/cactus2hal"]
 	path = submodules/cactus2hal
 	url = https://github.com/adderan/cactus2hal
+[submodule "hal"]
+	branch = master

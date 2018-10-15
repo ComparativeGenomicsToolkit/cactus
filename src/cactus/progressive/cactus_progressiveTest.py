@@ -37,7 +37,7 @@ from cactus.shared.experimentWrapper import ExperimentWrapper
 
 from cactus.shared.common import cactusRootPath
 from cactus.shared.common import runCactusProgressive
-from cactus.shared.common import runCactusCreateMultiCactusProject
+from cactus.progressive.cactus_createMultiCactusProject import runCreateMultiCactusProject
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import runToilStatusAndFailIfNotComplete
 
@@ -185,10 +185,10 @@ class TestCase(unittest.TestCase):
                             subtreeRoot=None):
         tempDir = getTempDirectory(os.getcwd())
         tempExperimentDir = os.path.join(tempDir, "exp")
-        runCactusCreateMultiCactusProject(experimentFile,
-                                          tempExperimentDir,
-                                          fixNames=False,
-                                          root=subtreeRoot)
+        runCreateMultiCactusProject(experimentFile,
+                                    tempExperimentDir,
+                                    fixNames=False,
+                                    root=subtreeRoot)
         logger.info("Put the temporary files in %s" % tempExperimentDir)
 
         runCactusProgressive(os.path.join(tempExperimentDir, "exp_project.xml"),

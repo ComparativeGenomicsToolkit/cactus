@@ -37,7 +37,11 @@ class DBServerService(Job.Service):
 
     def stop(self, job):
         self.check()
-        stopDBserver(self.dbElem)
+        try:
+            stopDBserver(self.dbElem)
+        except:
+            # Server is probably already terminated
+            pass
         if not self.failed:
             blockUntilDBserverIsFinished(self.logPath, self.dbElem, timeout=1200)
 

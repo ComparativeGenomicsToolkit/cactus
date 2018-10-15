@@ -74,14 +74,11 @@ static Flower *flower_construct3(Name name, CactusDisk *cactusDisk) {
 
     cactusDisk_addFlower(flower->cactusDisk, flower);
 
-    flower->eventTree = NULL;
-
     return flower;
 }
 
 Flower *flower_construct2(Name name, CactusDisk *cactusDisk) {
     Flower *flower = flower_construct3(name, cactusDisk);
-    flower->eventTree = eventTree_construct2(flower);
     return flower;
 }
 
@@ -113,9 +110,6 @@ void flower_destruct(Flower *flower, int64_t recursive) {
 
     flower_destructFaces(flower);
     stSortedSet_destruct(flower->faces);
-
-    assert(flower_getEventTree(flower) != NULL);
-    eventTree_destruct(flower_getEventTree(flower));
 
     while ((sequence = flower_getFirstSequence(flower)) != NULL) {
         sequence_destruct(sequence);
@@ -156,7 +150,7 @@ CactusDisk *flower_getCactusDisk(Flower *flower) {
 }
 
 EventTree *flower_getEventTree(Flower *flower) {
-    return flower->eventTree;
+    return cactusDisk_getEventTree(flower->cactusDisk);
 }
 
 Sequence *flower_getFirstSequence(Flower *flower) {
@@ -802,18 +796,6 @@ void flower_unloadParent(Flower *flower) {
  * Private functions
  */
 
-void flower_setEventTree(Flower *flower, EventTree *eventTree) {
-    if (flower_getEventTree(flower) != NULL) {
-        eventTree_destruct(flower_getEventTree(flower));
-    }
-    flower->eventTree = eventTree;
-}
-
-void flower_removeEventTree(Flower *flower, EventTree *eventTree) {
-    assert(flower_getEventTree(flower) == eventTree);
-    flower->eventTree = NULL;
-}
-
 void flower_addSequence(Flower *flower, Sequence *sequence) {
     assert(stSortedSet_search(flower->sequences, sequence) == NULL);
     stSortedSet_insert(flower->sequences, sequence);
@@ -930,10 +912,6 @@ void flower_writeBinaryRepresentation(Flower *flower, void(*writeFn)(const void 
     binaryRepresentation_writeBool(flower_builtFaces(flower), writeFn);
     binaryRepresentation_writeName(flower->parentFlowerName, writeFn);
 
-    if (flower_getEventTree(flower) != NULL) {
-        eventTree_writeBinaryRepresentation(flower_getEventTree(flower), writeFn);
-    }
-
     sequenceIterator = flower_getSequenceIterator(flower);
     while ((sequence = flower_getNextSequence(sequenceIterator)) != NULL) {
         sequence_writeBinaryRepresentation(sequence, writeFn);
@@ -972,12 +950,11 @@ Flower *flower_loadFromBinaryRepresentation(void **binaryString, CactusDisk *cac
     bool buildFaces;
     if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_FLOWER) {
         binaryRepresentation_popNextElementType(binaryString);
-        flower = flower_construct3(binaryRepresentation_getName(binaryString), cactusDisk); //Constructed without an event tree.
+        flower = flower_construct3(binaryRepresentation_getName(binaryString), cactusDisk);
         flower_setBuiltBlocks(flower, binaryRepresentation_getBool(binaryString));
         flower_setBuiltTrees(flower, binaryRepresentation_getBool(binaryString));
         buildFaces = binaryRepresentation_getBool(binaryString);
         flower->parentFlowerName = binaryRepresentation_getName(binaryString);
-        eventTree_loadFromBinaryRepresentation(binaryString, flower);
         while (sequence_loadFromBinaryRepresentation(binaryString, flower) != NULL)
             ;
         while (end_loadFromBinaryRepresentation(binaryString, flower) != NULL)

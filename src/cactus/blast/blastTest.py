@@ -27,18 +27,16 @@ from sonLib.bioio import catFiles
 from sonLib.bioio import popenCatch
 
 from cactus.shared.test import checkCigar
-from cactus.blast.cactus_blast import decompressFastaFile, compressFastaFile
+from cactus.blast.blast import decompressFastaFile, compressFastaFile
 
-from cactus.shared.common import runToilStatusAndFailIfNotComplete
 from cactus.shared.common import runLastz
-from cactus.shared.common import runSelfLastz
 from cactus.shared.common import makeURL
 
-from cactus.blast.cactus_blast import BlastOptions
-from cactus.blast.cactus_blast import BlastIngroupsAndOutgroups
-from cactus.blast.cactus_blast import BlastSequencesAllAgainstAll
-from cactus.blast.cactus_blast import BlastSequencesAgainstEachOther
-from cactus.blast.cactus_blast import calculateCoverage
+from cactus.blast.blast import BlastOptions
+from cactus.blast.blast import BlastIngroupsAndOutgroups
+from cactus.blast.blast import BlastSequencesAllAgainstAll
+from cactus.blast.blast import BlastSequencesAgainstEachOther
+from cactus.blast.blast import calculateCoverage
 
 from toil.job import Job
 from toil.common import Toil
@@ -56,7 +54,6 @@ class TestCase(unittest.TestCase):
         self.encodePath = os.path.join(TestStatus.getPathToDataSets(), "MAY-2005")
     
     def tearDown(self):
-        pass
         for tempFile in self.tempFiles:
             if os.path.exists(tempFile):
                 os.remove(tempFile)
@@ -117,55 +114,54 @@ class TestCase(unittest.TestCase):
         that adding an extra outgroup only adds alignments if
         possible, and doesn't lose any
         """
-        encodeRegions = [ "ENm00" + str(i) for i in xrange(1,2) ]
+        encodeRegion = "ENm001"
         ingroups = ["human", "macaque"]
         outgroups = ["rabbit", "dog", "rat", "platypus", "xenopus", "fugu"]
-        # subselect 4 random ordered outgroups
-        outgroups = [outgroups[i] for i in sorted(random.sample(xrange(len(outgroups)), 4))]
-        for encodeRegion in encodeRegions:
-            regionPath = os.path.join(self.encodePath, encodeRegion)
-            ingroupPaths = map(lambda x: os.path.join(regionPath, x + "." + encodeRegion + ".fa"), ingroups)
-            outgroupPaths = map(lambda x: os.path.join(regionPath, x + "." + encodeRegion + ".fa"), outgroups)
-            results = []
-            for numOutgroups in xrange(1,5):
-                # Align w/ increasing numbers of outgroups
-                subResults = getTempFile()
-                subOutgroupPaths = outgroupPaths[:numOutgroups]
-                print "aligning %s vs %s" % (",".join(ingroupPaths), ",".join(subOutgroupPaths))
-                tmpToil = os.path.join(self.tempDir, "outgroupToil")
-                runCactusBlastIngroupsAndOutgroups(ingroupPaths, subOutgroupPaths, alignmentsFile=subResults, toilDir=tmpToil)
-                results.append(subResults)
+        MAX_NUM_OUTGROUPS = 3
+        # subselect a random set of outgroups in the same order
+        outgroups = [outgroups[i] for i in sorted(random.sample(xrange(len(outgroups)), MAX_NUM_OUTGROUPS))]
+        regionPath = os.path.join(self.encodePath, encodeRegion)
+        ingroupPaths = map(lambda x: os.path.join(regionPath, x + "." + encodeRegion + ".fa"), ingroups)
+        outgroupPaths = map(lambda x: os.path.join(regionPath, x + "." + encodeRegion + ".fa"), outgroups)
+        results = []
+        for numOutgroups in xrange(1, len(outgroups) + 1):
+            # Align w/ increasing numbers of outgroups
+            subResults = getTempFile()
+            subOutgroupPaths = outgroupPaths[:numOutgroups]
+            print "aligning %s vs %s" % (",".join(ingroupPaths), ",".join(subOutgroupPaths))
+            tmpToil = os.path.join(self.tempDir, "outgroupToil")
+            runCactusBlastIngroupsAndOutgroups(ingroupPaths, subOutgroupPaths, alignmentsFile=subResults, toilDir=tmpToil)
+            results.append(subResults)
 
-            # Print diagnostics about coverage
-            for i, subResults in enumerate(results):
-                for ingroup, ingroupPath in zip(ingroups, ingroupPaths):
-                    ingroupCoverage = getTempFile(rootDir=self.tempDir)
-                    coverageWorkDir = getTempDirectory(rootDir=self.tempDir)
-                    calculateCoverage(work_dir=coverageWorkDir, sequenceFile=ingroupPath, cigarFile=subResults, outputFile=ingroupCoverage)
-                    coveredBases = popenCatch("cat %s | awk '{ total += $3 - $2 } END { print total }'" % ingroupCoverage)
-                    print "covered bases on %s using %d outgroups: %s" % (ingroup, i + 1, coveredBases)
+        # Print diagnostics about coverage
+        for i, subResults in enumerate(results):
+            for ingroup, ingroupPath in zip(ingroups, ingroupPaths):
+                ingroupCoverage = getTempFile(rootDir=self.tempDir)
+                calculateCoverage(sequenceFile=ingroupPath, cigarFile=subResults, outputFile=ingroupCoverage)
+                coveredBases = popenCatch("cat %s | awk '{ total += $3 - $2 } END { print total }'" % ingroupCoverage)
+                print "covered bases on %s using %d outgroups: %s" % (ingroup, i + 1, coveredBases)
 
-            resultsSets = map(lambda x : loadResults(x), results)
-            for i, moreOutgroupsResults in enumerate(resultsSets[1:]):
-                # Make sure the results from (n+1) outgroups are
-                # (very nearly) a superset of the results from n outgroups
-                print "Using %d addl outgroup(s):" % (i + 1)
-                comparator =  ResultComparator(resultsSets[0], moreOutgroupsResults)
-                print comparator
-                self.assertTrue(comparator.sensitivity >= 0.99)
+        resultsSets = map(lambda x : loadResults(x), results)
+        for i, moreOutgroupsResults in enumerate(resultsSets[1:]):
+            # Make sure the results from (n+1) outgroups are
+            # (very nearly) a superset of the results from n outgroups
+            print "Using %d addl outgroup(s):" % (i + 1)
+            comparator =  ResultComparator(resultsSets[0], moreOutgroupsResults)
+            print comparator
+            self.assertTrue(comparator.sensitivity >= 0.99)
 
-            # Ensure that the new alignments don't cover more than
-            # x% of already existing alignments to human
-            for i in xrange(1, len(resultsSets)):
-                prevResults = resultsSets[i-1][0]
-                curResults = resultsSets[i][0]
-                prevResultsHumanPos = set(map(lambda x: (x[0], x[1]) if "human" in x[0] else (x[2], x[3]), filter(lambda x: "human" in x[0] or "human" in x[2], prevResults)))
-                newAlignments = curResults.difference(prevResults)
-                newAlignmentsHumanPos =  set(map(lambda x: (x[0], x[1]) if "human" in x[0] else (x[2], x[3]), filter(lambda x: "human" in x[0] or "human" in x[2], newAlignments)))
-                print "addl outgroup %d:" % i
-                print "bases re-covered: %f (%d)" % (len(newAlignmentsHumanPos.intersection(prevResultsHumanPos))/float(len(prevResultsHumanPos)), len(newAlignmentsHumanPos.intersection(prevResultsHumanPos)))
-            for subResult in results:
-                os.remove(subResult)
+        # Ensure that the new alignments don't cover more than
+        # x% of already existing alignments to human
+        for i in xrange(1, len(resultsSets)):
+            prevResults = resultsSets[i-1][0]
+            curResults = resultsSets[i][0]
+            prevResultsHumanPos = set(map(lambda x: (x[0], x[1]) if "human" in x[0] else (x[2], x[3]), filter(lambda x: "human" in x[0] or "human" in x[2], prevResults)))
+            newAlignments = curResults.difference(prevResults)
+            newAlignmentsHumanPos =  set(map(lambda x: (x[0], x[1]) if "human" in x[0] else (x[2], x[3]), filter(lambda x: "human" in x[0] or "human" in x[2], newAlignments)))
+            print "addl outgroup %d:" % i
+            print "bases re-covered: %f (%d)" % (len(newAlignmentsHumanPos.intersection(prevResultsHumanPos))/float(len(prevResultsHumanPos)), len(newAlignmentsHumanPos.intersection(prevResultsHumanPos)))
+        for subResult in results:
+            os.remove(subResult)
 
     def testKeepingCoverageOnIngroups(self):
         """Tests whether the --ingroupCoverageDir option works as
@@ -194,8 +190,7 @@ class TestCase(unittest.TestCase):
             for outgroupFragmentPath in outgroupFragmentPaths:
                 system("cat %s >> %s" % (outgroupFragmentPath, outgroupsCombined))
             independentCoverageFile = getTempFile(rootDir=self.tempDir)
-            coverageWorkDir = getTempDirectory(rootDir=self.tempDir)
-            calculateCoverage(work_dir=coverageWorkDir, fromGenome=outgroupsCombined, sequenceFile=ingroupPath, cigarFile=self.tempOutputFile, outputFile=independentCoverageFile)
+            calculateCoverage(fromGenome=outgroupsCombined, sequenceFile=ingroupPath, cigarFile=self.tempOutputFile, outputFile=independentCoverageFile)
 
             # find the coverage file cactus_blast kept (should be
             # named according to the basename of the ingroup path
@@ -227,12 +222,10 @@ class TestCase(unittest.TestCase):
 
         # Get the coverage on the ingroup, in bases, from each run.
         coverageSetVsSetUnfiltered = getTempFile(rootDir=self.tempDir)
-        coverageSetVsSetUnfilteredWorkDir = getTempDirectory(rootDir=self.tempDir)
-        calculateCoverage(work_dir=coverageSetVsSetUnfilteredWorkDir, sequenceFile=ingroupPath, cigarFile=self.tempOutputFile, outputFile=coverageSetVsSetUnfiltered)
+        calculateCoverage(sequenceFile=ingroupPath, cigarFile=self.tempOutputFile, outputFile=coverageSetVsSetUnfiltered)
         coverageSetVsSet = int(popenCatch("cat %s | awk '{ total +=  $3 - $2} END { print total }'" % coverageSetVsSetUnfiltered))
         coverageIngroupVsOutgroupsUnfiltered = getTempFile(rootDir=self.tempDir)
-        coverageIngroupsVsOutgroupsUnfilteredWorkDir = getTempDirectory(rootDir=self.tempDir)
-        calculateCoverage(work_dir=coverageIngroupsVsOutgroupsUnfilteredWorkDir, sequenceFile=ingroupPath, cigarFile=self.tempOutputFile2, outputFile=coverageIngroupVsOutgroupsUnfiltered)
+        calculateCoverage(sequenceFile=ingroupPath, cigarFile=self.tempOutputFile2, outputFile=coverageIngroupVsOutgroupsUnfiltered)
         coverageIngroupVsOutgroups = int(popenCatch("cat %s | awk '{ total +=  $3 - $2} END { print total }'" % coverageIngroupVsOutgroupsUnfiltered))
 
         print "total coverage on human (set vs set mode, %d outgroups): %d" % (len(outgroups), coverageSetVsSet)
@@ -248,8 +241,7 @@ class TestCase(unittest.TestCase):
         outgroupAlignments = getTempFile(rootDir=self.tempDir)
         system("grep %s %s > %s" % (outgroups[-1], self.tempOutputFile, outgroupAlignments))
         coverageFileSetVsSet = getTempFile(rootDir=self.tempDir)
-        coverageSetVsSetWorkDir = getTempDirectory(rootDir=self.tempDir)
-        calculateCoverage(work_dir=coverageSetVsSetWorkDir, sequenceFile=ingroupPath, cigarFile=outgroupAlignments, outputFile=coverageFileSetVsSet)
+        calculateCoverage(sequenceFile=ingroupPath, cigarFile=outgroupAlignments, outputFile=coverageFileSetVsSet)
         
         coverageFromLastOutgroupSetVsSet = int(popenCatch("cat %s | awk '{ total +=  $3 - $2} END { print total }'" % coverageFileSetVsSet))
 
@@ -257,8 +249,7 @@ class TestCase(unittest.TestCase):
         outgroupAlignments = getTempFile(rootDir=self.tempDir)
         system("grep %s %s > %s" % (outgroups[-1], self.tempOutputFile2, outgroupAlignments))
         coverageFileInVsOut = getTempFile(rootDir=self.tempDir)
-        coverageInVsOutWorkDir = getTempDirectory(rootDir=self.tempDir)
-        calculateCoverage(work_dir=coverageInVsOutWorkDir, sequenceFile=ingroupPath, cigarFile=outgroupAlignments, outputFile=coverageFileInVsOut)      
+        calculateCoverage(sequenceFile=ingroupPath, cigarFile=outgroupAlignments, outputFile=coverageFileInVsOut)      
         coverageFromLastOutgroupInVsOut = int(popenCatch("cat %s | awk '{ total +=  $3 - $2} END { print total }'" % coverageFileInVsOut))
 
         print "total coverage on human from last outgroup in set (%s) (set vs set mode): %d" % (outgroups[-1], coverageFromLastOutgroupSetVsSet)
@@ -475,7 +466,7 @@ def runCactusBlast(sequenceFiles, alignmentsFile, toilDir,
         alignmentsID = toil.start(rootJob)
         toil.exportFile(alignmentsID, makeURL(alignmentsFile))
 
-def runCactusBlastIngroupsAndOutgroups(ingroups, outgroups, alignmentsFile, toilDir, outgroupFragmentPaths=None, ingroupCoveragePaths=None, chunkSize=None, overlapSize=None, 
+def runCactusBlastIngroupsAndOutgroups(ingroups, outgroups, alignmentsFile, toilDir, outgroupFragmentPaths=None, ingroupCoveragePaths=None, chunkSize=250000, overlapSize=10000, 
                    logLevel=None,
                    compressFiles=None,
                    lastzMemory=None):
@@ -488,7 +479,7 @@ def runCactusBlastIngroupsAndOutgroups(ingroups, outgroups, alignmentsFile, toil
     with Toil(options) as toil:
         ingroupIDs = [toil.importFile(makeURL(ingroup)) for ingroup in ingroups]
         outgroupIDs = [toil.importFile(makeURL(outgroup)) for outgroup in outgroups]
-        rootJob = BlastIngroupsAndOutgroups(blastOptions, ingroupIDs, outgroupIDs)
+        rootJob = BlastIngroupsAndOutgroups(blastOptions, ingroups, ingroupIDs, outgroups, outgroupIDs)
         blastResults = toil.start(rootJob)
         alignmentsID = blastResults[0]
         toil.exportFile(alignmentsID, makeURL(alignmentsFile))

@@ -1,6 +1,8 @@
 #include "sonLib.h"
 #include "cactusGlobalsPrivate.h"
 
+#define FLOWER_STREAM_BATCH_SIZE 50
+
 struct _flowerWriter {
         stList *flowerNamesAndSizes;
         int64_t maxFlowerGroupSize;
@@ -175,6 +177,7 @@ stList *flowerWriter_parseFlowersFromStdin(CactusDisk *cactusDisk) {
 static FlowerStream *flowerStream_construct(stList *flowerNames, CactusDisk *cactusDisk) {
     FlowerStream *ret = malloc(sizeof(FlowerStream));
     ret->flowerNames = flowerNames;
+    ret->flowerBatch = stList_construct();
     ret->curFlower = NULL;
     ret->nextIdx = 0;
     ret->cactusDisk = cactusDisk;
@@ -190,6 +193,7 @@ void flowerStream_destruct(FlowerStream *flowerStream) {
     if (flowerStream->curFlower != NULL) {
         flower_destruct(flowerStream->curFlower, false);
     }
+    stList_destruct(flowerStream->flowerBatch);
     stList_destruct(flowerStream->flowerNames);
     free(flowerStream);
 }
@@ -200,10 +204,30 @@ Flower *flowerStream_getNext(FlowerStream *flowerStream) {
         flower_destruct(flowerStream->curFlower, false);
     }
     if (flowerStream->nextIdx >= stList_length(flowerStream->flowerNames)) {
+        flowerStream->curFlower = NULL;
         return NULL;
     }
-    Name *flowerName = stList_get(flowerStream->flowerNames, flowerStream->nextIdx++);
-    flowerStream->curFlower = cactusDisk_getFlower(flowerStream->cactusDisk, *flowerName);
+    if (stList_length(flowerStream->flowerBatch) == 0) {
+        // Time to load the next batch of flowers from the DB.
+        // Get the next batch of names.
+        int64_t batchStart = flowerStream->nextIdx;
+        int64_t batchEnd = flowerStream->nextIdx + FLOWER_STREAM_BATCH_SIZE;
+        if (batchEnd > stList_length(flowerStream->flowerNames)) {
+            batchEnd = stList_length(flowerStream->flowerNames);
+        }
+        stList *namesBatch = stList_construct2(batchEnd - batchStart);
+        for (int64_t i = batchStart; i < batchEnd; i++) {
+            stList_set(namesBatch, i - batchStart, stList_get(flowerStream->flowerNames, i));
+        }
+        // We want to be able to treat the batch like a stack and get
+        // the same order, so we reverse it.
+        stList_reverse(namesBatch);
+        stList_destruct(flowerStream->flowerBatch);
+        flowerStream->flowerBatch = cactusDisk_getFlowers(flowerStream->cactusDisk, namesBatch);
+        stList_destruct(namesBatch);
+    }
+    flowerStream->curFlower = stList_pop(flowerStream->flowerBatch);
+    flowerStream->nextIdx++;
     return flowerStream->curFlower;
 }
 

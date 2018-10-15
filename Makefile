@@ -17,12 +17,17 @@ libMatchingAndOrdering = ${PWD}/submodules/sonLib/lib/matchingAndOrdering.a
 halAppendCactusSubtree = ${PWD}/submodules/cactus2hal/bin/halAppendCactusSubtree
 h5c++ = ${PWD}/submodules/hdf5/bin/h5c++
 
-.PHONY: all all.% clean clean.% selfClean
+.PHONY: all all.% clean clean.% selfClean copyToBin
 
-all: deps ${modules:%=all.%} ${halAppendCactusSubtree}
+all: deps ${modules:%=all.%} ${halAppendCactusSubtree} copyToBin
 
 all.%:
 	cd $* && make all
+
+copyToBin:
+	cp -rp submodules/sonLib/bin/* bin/
+	cp -rp submodules/hal/bin/* bin/
+	cp -rp submodules/cactus2hal/bin/* bin/
 
 deps: ${libSonLib} ${libPinchesAndCacti} ${libMatchingAndOrdering} ${libCPecan} hdf5Rule halRule
 
@@ -35,16 +40,9 @@ clean.%:
 test:
 	python allTests.py
 
-build_output: Dockerfile
-	mkdir -p ${runtime_fullpath}/tools
-	docker build -t cactusbuild:${tag} .
-	docker run -v ${runtime_fullpath}/tools:/data cactusbuild:${tag} sh -c 'cp /home/cactus/bin/* /data'
-	docker run -v ${runtime_fullpath}/tools:/data cactusbuild:${tag} sh -c 'cp /home/cactus/submodules/sonLib/bin/* /data'
-	docker run -v ${runtime_fullpath}/tools:/data cactusbuild:${tag} sh -c 'cp /home/cactus/submodules/cactus2hal/bin/* /data'
-
-docker: build_output runtime/Dockerfile
+docker: Dockerfile
 	-docker rmi -f ${name}:latest
-	docker build -t ${name}:${tag} ./runtime/ --build-arg CACTUS_COMMIT=${git_commit}
+	docker build -t ${name}:${tag} . --build-arg CACTUS_COMMIT=${git_commit}
 	docker tag ${name}:${tag} ${name}:latest
 
 push: docker
@@ -77,7 +75,7 @@ hdf5Rule: ${h5c++}
 
 ${h5c++}:
 	@echo "Building dependency hdf5"
-	@cd ${PWD}/submodules/hdf5 && (output=`(./configure --prefix=$(PWD)/submodules/hdf5 --enable-cxx && CFLAGS=-std=c99 make -j4 -e && make install) 2>&1` || (echo "$$output"; exit 1))
+	@cd ${PWD}/submodules/hdf5 && (output=`(./configure --prefix=$(PWD)/submodules/hdf5 --enable-cxx && CFLAGS=-std=c99 AM_MAKEFLAGS=-e make -j4 -e && make install) 2>&1` || (echo "$$output"; exit 1))
 
 halRule: ${h5c++} ${libSonLib}
 	@echo "Building dependency hal"
@@ -89,9 +87,6 @@ ucscClean: selfClean
 	cd ${PWD}/submodules/matchingAndOrdering && make clean
 
 clean: ucscClean selfClean
-	cd ${PWD}/submodules/kyotocabinet && make clean
-	cd ${PWD}/submodules/kyototycoon && make clean
-	cd ${PWD}/submodules/tokyocabinet && make clean
 	cd ${PWD}/submodules/hdf5 && make clean
 	cd ${PWD}/submodules/hal && make clean
 	cd ${PWD}/submodules/cactus2hal && make clean

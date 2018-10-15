@@ -7,7 +7,7 @@ os.system("pip install git+https://github.com/ComparativeGenomicsToolkit/sonLib@
 versionFile = "src/cactus/shared/version.py"
 if os.path.exists(versionFile):
     os.remove(versionFile)
-git_commit = subprocess.check_output('git log --pretty=oneline -n 1 -- $(pwd)', shell=True).split()[0]
+git_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip()
 with open(versionFile, 'w') as versionFH:
     versionFH.write("cactus_commit = '%s'" % git_commit)
 
@@ -24,9 +24,12 @@ setup(
     zip_safe=False,
 
     install_requires=[
+        'decorator',
         'subprocess32',
         'psutil',
-        'networkx'],
+        'networkx==1.11',
+        'cython'],
     
     entry_points={
-        'console_scripts': ['progressiveCactus = cactus.progressive.cactus_progressive:main']},)
+        'console_scripts': ['cactus = cactus.progressive.cactus_progressive:main',
+                            'cactus_preprocess = cactus.preprocessor.cactus_preprocessor:main']},)

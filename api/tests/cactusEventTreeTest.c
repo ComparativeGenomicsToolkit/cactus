@@ -36,7 +36,7 @@ static void cactusEventTreeTestSetup() {
 		cactusDisk = testCommon_getTemporaryCactusDisk();
 		flower = flower_construct(cactusDisk);
 
-		eventTree = eventTree_construct2(flower);
+		eventTree = eventTree_construct2(cactusDisk);
 		rootEvent = eventTree_getRootEvent(eventTree);
 		internalEvent = event_construct3("INTERNAL", 0.5, rootEvent, eventTree);
 		leafEvent1 = event_construct3("LEAF1", 0.2, internalEvent, eventTree);
@@ -60,8 +60,8 @@ static int64_t unaryEventFunction(Event *event) {
 
 void testEventTree_copyConstruct(CuTest* testCase) {
 	cactusEventTreeTestSetup();
-	Flower *flower2 = flower_construct(cactusDisk);
-	EventTree *eventTree2 = eventTree_copyConstruct(eventTree, flower2, unaryEventFunction);
+	flower_construct(cactusDisk);
+	EventTree *eventTree2 = eventTree_copyConstruct(eventTree, unaryEventFunction);
 	CuAssertIntEquals(testCase, eventTree_getEventNumber(eventTree), eventTree_getEventNumber(eventTree2));
 	CuAssertTrue(testCase, event_getName(eventTree_getEvent(eventTree2, event_getName(rootEvent))) == event_getName(rootEvent));
 	CuAssertTrue(testCase, event_getName(eventTree_getEvent(eventTree2, event_getName(internalEvent))) == event_getName(internalEvent));
@@ -114,12 +114,6 @@ void testEventTree_getCommonAncestor(CuTest* testCase) {
 	cactusEventTreeTestTeardown();
 }
 
-void testEventTree_getFlower(CuTest* testCase) {
-	cactusEventTreeTestSetup();
-	CuAssertTrue(testCase, eventTree_getFlower(eventTree) == flower);
-	cactusEventTreeTestTeardown();
-}
-
 void testEventTree_getEventNumber(CuTest* testCase) {
 	cactusEventTreeTestSetup();
 	CuAssertIntEquals(testCase, 4, eventTree_getEventNumber(eventTree));
@@ -163,81 +157,6 @@ void testEventTree_makeNewickString(CuTest* testCase) {
 	cactusEventTreeTestTeardown();
 }
 
-void testEventTree_addSiblingUnaryEvent(CuTest *testCase) {
-	cactusEventTreeTestSetup();
-	//Create two sibling flowers with the basic event tree..
-	//then try adding events from on into the other.
-	Group *group1 = group_construct2(flower);
-	Group *group2 = group_construct2(flower);
-	Flower *flower2 = flower_construct(cactusDisk);
-	Flower *flower3 = flower_construct(cactusDisk);
-	flower_setParentGroup(flower2, group1);
-	flower_setParentGroup(flower3, group2);
-	EventTree *eventTree2 = eventTree_copyConstruct(flower_getEventTree(flower), flower2, NULL);
-	Event *parentUnaryEvent1 = event_construct4("UNARY1", 0.1, internalEvent, leafEvent1, eventTree);
-	Event *parentUnaryEvent2 = event_construct4("UNARY2", 0.1, parentUnaryEvent1, leafEvent1, eventTree);
-	Event *parentUnaryEvent3 = event_construct4("UNARY3", 0.1, internalEvent, leafEvent2, eventTree);
-	//now event tree contains the added unary events.
-	EventTree *eventTree3 = eventTree_copyConstruct(flower_getEventTree(flower), flower3, NULL);
-	//add a couple of denovo events into the new event tree
-	Event *internalEventChild = eventTree_getEvent(eventTree3, event_getName(internalEvent));
-	Event *unaryEvent1 = eventTree_getEvent(eventTree3, event_getName(parentUnaryEvent1));
-	Event *unaryEvent2 = eventTree_getEvent(eventTree3, event_getName(parentUnaryEvent2));
-	Event *unaryEvent3 = eventTree_getEvent(eventTree3, event_getName(parentUnaryEvent3));
-	Event *unaryEvent4 = event_construct4("UNARY4", 0.1,
-			internalEventChild, unaryEvent3, eventTree3);
-	Event *unaryEvent5 = event_construct4("UNARY5", 0.1,
-				internalEventChild, unaryEvent4, eventTree3);
-	//Now event-tree 2 does not contain the unary events but event-tree 3 does..
-
-	CuAssertTrue(testCase, eventTree_getEvent(eventTree2, event_getName(unaryEvent1)) == NULL);
-	CuAssertTrue(testCase, eventTree_getEvent(eventTree2, event_getName(unaryEvent2)) == NULL);
-	CuAssertTrue(testCase, eventTree_getEvent(eventTree2, event_getName(unaryEvent3)) == NULL);
-	CuAssertTrue(testCase, eventTree_getEvent(eventTree2, event_getName(unaryEvent4)) == NULL);
-	CuAssertTrue(testCase, eventTree_getEvent(eventTree2, event_getName(unaryEvent5)) == NULL);
-
-	eventTree_addSiblingUnaryEvent(eventTree2, unaryEvent1);
-	Event *unaryEvent12 = eventTree_getEvent(eventTree2, event_getName(unaryEvent1));
-	CuAssertTrue(testCase, unaryEvent12 != NULL);
-	CuAssertTrue(testCase, event_getName(event_getParent(unaryEvent12)) == event_getName(internalEvent));
-	CuAssertTrue(testCase, event_getChildNumber(unaryEvent12) == 1);
-	CuAssertTrue(testCase, event_getName(event_getChild(unaryEvent12, 0)) == event_getName(leafEvent1));
-
-	eventTree_addSiblingUnaryEvent(eventTree2, unaryEvent2);
-	Event *unaryEvent22 = eventTree_getEvent(eventTree2, event_getName(unaryEvent2));
-	CuAssertTrue(testCase, unaryEvent22 != NULL);
-	CuAssertTrue(testCase, event_getName(event_getParent(unaryEvent22)) == event_getName(unaryEvent1));
-	CuAssertTrue(testCase, event_getChildNumber(unaryEvent22) == 1);
-	CuAssertTrue(testCase, event_getName(event_getChild(unaryEvent22, 0)) == event_getName(leafEvent1));
-
-	eventTree_addSiblingUnaryEvent(eventTree2, unaryEvent3);
-	Event *unaryEvent32 = eventTree_getEvent(eventTree2, event_getName(unaryEvent3));
-	CuAssertTrue(testCase, unaryEvent32 != NULL);
-	CuAssertTrue(testCase, event_getName(event_getParent(unaryEvent32)) == event_getName(internalEvent));
-	CuAssertTrue(testCase, event_getChildNumber(unaryEvent32) == 1);
-	CuAssertTrue(testCase, event_getName(event_getChild(unaryEvent32, 0)) == event_getName(leafEvent2));
-
-	eventTree_addSiblingUnaryEvent(eventTree2, unaryEvent4);
-	Event *unaryEvent42 = eventTree_getEvent(eventTree2, event_getName(unaryEvent4));
-	CuAssertTrue(testCase, unaryEvent42 != NULL);
-	CuAssertTrue(testCase, event_getName(event_getParent(unaryEvent42)) == event_getName(internalEvent));
-	CuAssertTrue(testCase, event_getChildNumber(unaryEvent42) == 1);
-	CuAssertTrue(testCase, event_getName(event_getChild(unaryEvent42, 0)) == event_getName(unaryEvent3));
-
-	eventTree_addSiblingUnaryEvent(eventTree2, unaryEvent5);
-	Event *unaryEvent52 = eventTree_getEvent(eventTree2, event_getName(unaryEvent5));
-	CuAssertTrue(testCase, unaryEvent52 != NULL);
-	CuAssertTrue(testCase, event_getName(event_getParent(unaryEvent52)) == event_getName(internalEvent));
-	CuAssertTrue(testCase, event_getChildNumber(unaryEvent52) == 1);
-	CuAssertTrue(testCase, event_getName(event_getChild(unaryEvent52, 0)) == event_getName(unaryEvent4));
-
-	//uglyf("Event-tree-1 %s\n", eventTree_makeNewickString(eventTree));
-	//uglyf("Event-tree-2 %s\n", eventTree_makeNewickString(eventTree3));
-	//uglyf("Event-tree-3 %s\n", eventTree_makeNewickString(eventTree2));
-
-	cactusEventTreeTestTeardown();
-}
-
 void testEventTree_serialisation(CuTest* testCase) {
 	cactusEventTreeTestSetup();
 	int64_t i;
@@ -246,7 +165,7 @@ void testEventTree_serialisation(CuTest* testCase) {
 	CuAssertTrue(testCase, i > 0);
 	eventTree_destruct(eventTree);
 	void *vA2 = vA;
-	eventTree = eventTree_loadFromBinaryRepresentation(&vA2, flower);
+	eventTree = eventTree_loadFromBinaryRepresentation(&vA2, cactusDisk);
 	rootEvent = eventTree_getRootEvent(eventTree);
 	internalEvent = event_getChild(rootEvent, 0);
 	leafEvent1 = event_getChild(internalEvent, 0);
@@ -257,12 +176,10 @@ void testEventTree_serialisation(CuTest* testCase) {
 	testEventTree_getRootEvent(testCase);
 	testEventTree_getEvent(testCase);
 	testEventTree_getCommonAncestor(testCase);
-	testEventTree_getFlower(testCase);
 	testEventTree_getEventNumber(testCase);
 	testEventTree_getFirst(testCase);
 	testEventTree_makeNewickString(testCase);
 	testEventTree_iterator(testCase);
-	testEventTree_addSiblingUnaryEvent(testCase);
 	nestedTest = 0;
 	cactusEventTreeTestTeardown();
 }
@@ -273,12 +190,10 @@ CuSuite* cactusEventTreeTestSuite(void) {
 	SUITE_ADD_TEST(suite, testEventTree_getRootEvent);
 	SUITE_ADD_TEST(suite, testEventTree_getEvent);
 	SUITE_ADD_TEST(suite, testEventTree_getCommonAncestor);
-	SUITE_ADD_TEST(suite, testEventTree_getFlower);
 	SUITE_ADD_TEST(suite, testEventTree_getEventNumber);
 	SUITE_ADD_TEST(suite, testEventTree_getFirst);
 	SUITE_ADD_TEST(suite, testEventTree_iterator);
 	SUITE_ADD_TEST(suite, testEventTree_makeNewickString);
-	SUITE_ADD_TEST(suite, testEventTree_addSiblingUnaryEvent);
 	SUITE_ADD_TEST(suite, testEventTree_serialisation);
 	SUITE_ADD_TEST(suite, testEventTree_construct);
 	return suite;

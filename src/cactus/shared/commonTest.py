@@ -1,14 +1,17 @@
-import unittest
 import os
+import shutil
+import unittest
 
 from sonLib.bioio import TestStatus
 from sonLib.bioio import getTempFile
 from sonLib.bioio import getTempDirectory
 from sonLib.bioio import system
+from toil.job import Job
+from toil.common import Toil
+from cactus.shared.test import silentOnSuccess
 from cactus.shared.common import encodeFlowerNames, decodeFirstFlowerName, \
                                  runCactusSplitFlowersBySecondaryGrouping, \
-                                 cactus_call
-
+                                 cactus_call, ChildTreeJob
 
 class TestCase(unittest.TestCase):
     def setUp(self):
@@ -49,12 +52,12 @@ class TestCase(unittest.TestCase):
 
     def testCactusCall(self):
         inputFile = getTempFile(rootDir=self.tempDir)
-        
+
         with open("/dev/urandom") as randText:
             with open(inputFile, 'w') as fh:
-                fh.write(randText.read(1024))
+                fh.write(randText.read(1024).encode('base64'))
         input = "".join(open(inputFile).read().split("\n"))
-        
+
         #Send input to container's stdin through a file, get output
         #from stdout
         output = "".join(cactus_call(infile=inputFile, check_output=True,
@@ -67,6 +70,58 @@ class TestCase(unittest.TestCase):
                              parameters=["docker_test_script"]).split("\n"))
 
         self.assertEquals(input, output)
-      
+
+    def testCactusCallPipes(self):
+        inputFile = getTempFile(rootDir=self.tempDir)
+        with open(inputFile, 'w') as f:
+            f.write('foobar\n')
+        # using 'cat' here rather than infile is intentional; it tests
+        # whether the directory is mounted into containers correctly.
+        output = cactus_call(parameters=[['cat', inputFile],
+                                         ['sed', 's/foo/baz/g'],
+                                         ['awk', '{ print "quux" $0 }']],
+                             check_output=True)
+        self.assertEquals(output, 'quuxbazbar\n')
+
+    @silentOnSuccess
+    def testChildTreeJob(self):
+        """Check that the ChildTreeJob class runs all children."""
+        numChildren = 100
+        flagDir = getTempDirectory()
+
+        options = Job.Runner.getDefaultOptions(getTempDirectory())
+        shutil.rmtree(options.jobStore)
+
+        with Toil(options) as toil:
+            toil.start(CTTestParent(flagDir, numChildren))
+
+        # Check that all jobs ran
+        for i in xrange(numChildren):
+            self.assertTrue(os.path.exists(os.path.join(flagDir, str(i))))
+        shutil.rmtree(flagDir)
+
+class CTTestParent(ChildTreeJob):
+    def __init__(self, flagDir, numChildren):
+        self.flagDir = flagDir
+        self.numChildren = numChildren
+        super(CTTestParent, self).__init__()
+
+    def run(self, fileStore):
+        for i in xrange(self.numChildren):
+            self.addChild(CTTestChild(self.flagDir, i))
+
+class CTTestChild(Job):
+    def __init__(self, flagDir, index):
+        self.flagDir = flagDir
+        self.index = index
+        super(CTTestChild, self).__init__()
+
+    def run(self, fileStore):
+        # Mark that this job has run using a flag file
+        path = os.path.join(self.flagDir, str(self.index))
+        with open(path, 'w') as f:
+            # Empty file
+            f.write('')
+
 if __name__ == '__main__':
     unittest.main()

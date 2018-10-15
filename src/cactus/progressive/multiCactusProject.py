@@ -7,18 +7,8 @@
 """ Basic interface to the multi cactus project xml file. 
 
 """
-import unittest
-
-import os
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
-import sys
-import random
-import math
-import copy
-import filecmp
-
-from optparse import OptionParser
 
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.experimentWrapper import ExperimentWrapper
@@ -32,11 +22,10 @@ class MultiCactusProject:
         self.expMap = dict()
         self.expIDMap = None
         self.inputSequences = []
-        self.outputSequenceDir = None
         self.inputSequenceIDs = None
         self.outputSequenceIDMap = None
         self.configID = None
-        
+
     def readXML(self, path):
         xmlRoot = ET.parse(path).getroot()
         treeElem = xmlRoot.find("tree")
@@ -61,7 +50,6 @@ class MultiCactusProject:
         if "configID" in xmlRoot.attrib:
             self.configID = xmlRoot.attrib["configID"]
             
-        self.outputSequenceDir = xmlRoot.attrib["outputSequenceDir"]
         self.mcTree.assignSubtreeRootNames(self.expMap)
 
     def writeXML(self, path):
@@ -78,7 +66,6 @@ class MultiCactusProject:
             xmlRoot.append(cactusPathElem)
         #We keep track of all the input sequences at the top level
         xmlRoot.attrib["inputSequences"] = " ".join(self.inputSequences)
-        xmlRoot.attrib["outputSequenceDir"] = self.outputSequenceDir
         if self.inputSequenceIDs:
             xmlRoot.attrib["inputSequenceIDs"] = " ".join(self.inputSequenceIDs)
         if self.outputSequenceIDMap:
@@ -104,22 +91,18 @@ class MultiCactusProject:
             self.expIDMap[name] = toil.importFile("file://" + expPath)
 
 
-    def getInputSequenceMap(self):
-        """Return a map between event names and sequence paths.  Paths
-        are different from above in that they are not taken from experiment
-        xmls, but rather from directly from the project xml.
+    def getInputSequenceIDMap(self):
+        """Return a map between event names and sequence IDs.
         """
         inputSequenceMap = dict()
         i = 0
         for node in self.mcTree.postOrderTraversal():
             if self.mcTree.isLeaf(node) is True:
                 inputSequenceMap[self.mcTree.getName(node)] = \
-                  self.inputSequences[i]
+                  self.inputSequenceIDs[i]
                 i += 1
-        assert i == len(self.inputSequences)
+        assert i == len(self.inputSequenceIDs)
         return inputSequenceMap
-
-
 
     def getInputSequenceIDs(self):
         """Get the set of input sequences for the multicactus tree
@@ -128,12 +111,7 @@ class MultiCactusProject:
     
     def getInputSequencePaths(self):
         return self.inputSequences
-    
-    def getOutputSequenceDir(self):
-        """The directory where the output sequences go
-        """
-        return self.outputSequenceDir
-        
+
     def setOutputSequenceIDs(self, outputSequenceIDs):
         self.outputSequenceIDMap = dict()
         i = 0

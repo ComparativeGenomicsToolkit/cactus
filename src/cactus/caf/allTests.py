@@ -15,25 +15,28 @@ from sonLib.bioio import system
 from sonLib.bioio import getLogLevelString
 
 from cactus.shared.common import cactusRootPath
+from cactus.shared.common import cactus_call
 
 from cactus.shared.test import getCactusInputs_random
 from cactus.shared.test import getCactusInputs_blanchette
 from cactus.shared.test import runWorkflow_multipleExamples
 
 class TestCase(unittest.TestCase):
+    @unittest.skip('needs to be replaced by an actual test')
     def testCactusCore_Random(self):
         for test in xrange(TestStatus.getTestSetup()):
             randomConfigFile=getRandomConfigFile()
             runWorkflow_multipleExamples(getCactusInputs_random, 
                                          configFile=randomConfigFile)
             os.remove(randomConfigFile)
-        
+
+    @unittest.skip('needs to be replaced by an actual test')
     def testCactusCore_Blanchette(self):
         runWorkflow_multipleExamples(getCactusInputs_blanchette, 
                                      testRestrictions=(TestStatus.TEST_SHORT,), inverseTestRestrictions=True)
         
     def testCuTest(self):
-        system("stCafTests %s" % getLogLevelString())       
+        cactus_call(parameters=["stCafTests", getLogLevelString()])
         
 def getRandomConfigFile():
     tempConfigFile = getTempFile(rootDir="./", suffix=".xml")

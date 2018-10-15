@@ -9,29 +9,22 @@
 sequences. Uses the jobTree framework to parallelise the blasts.
 """
 import os
-import sys
 import math
-import errno
 from argparse import ArgumentParser
-from bz2 import BZ2File
-import copy
 import xml.etree.ElementTree as ET
 
 from toil.lib.bioio import logger
-from toil.lib.bioio import system
-from toil.lib.bioio import getLogLevelString
 
-from sonLib.bioio import catFiles, getTempFile, getTempDirectory, popenCatch, popenPush, newickTreeParser
+from sonLib.bioio import getTempDirectory
 from toil.common import Toil
 from toil.job import Job
 from cactus.shared.common import cactus_call
 from cactus.shared.common import RoundedJob
-from cactus.shared.common import getOptionalAttrib, runCactusAnalyseAssembly
-from cactus.shared.common import nameValue
+from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import runGetChunks
 from cactus.shared.common import makeURL
-from cactus.shared.common import RunAsFollowOn
 from cactus.shared.common import readGlobalFileWithoutCache
+from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 
 from toil.lib.bioio import setLoggingFromOptions
@@ -69,10 +62,11 @@ class PreprocessChunk(RoundedJob):
             inChunk = fileStore.readGlobalFile(self.inChunkID)
             seqPaths = [fileStore.readGlobalFile(fileID) for fileID in self.seqIDs]
             seqString = " ".join(seqPaths)
+            args = [inChunk]
+            if self.prepOptions.checkAssemblyHub:
+                args += ["--checkAssemblyHub"]
             cactus_call(stdin_string=seqString,
-                        parameters=["cactus_checkUniqueHeaders.py",
-                                    nameValue("checkAssemblyHub", self.prepOptions.checkAssemblyHub, bool),
-                                    inChunk])
+                        parameters=["cactus_checkUniqueHeaders.py"] + args)
             outChunkID = self.inChunkID
         elif self.prepOptions.preprocessJob == "lastzRepeatMask":
             repeatMaskOptions = RepeatMaskOptions(proportionSampled=self.prepOptions.proportionToSample,
@@ -202,19 +196,7 @@ class BatchPreprocessor(RoundedJob):
         if lastIteration == False:
             return self.addFollowOn(BatchPreprocessor(self.prepXmlElems, outSeqID, self.iteration + 1)).rv()
         else:
-            return self.addFollowOn(RunAsFollowOn(BatchPreprocessorEnd, outSeqID)).rv()
-
-class BatchPreprocessorEnd(RoundedJob):
-    def __init__(self,  globalOutSequenceID):
-        disk = 2*globalOutSequenceID.size
-        RoundedJob.__init__(self, disk=disk, preemptable=True)
-        self.globalOutSequenceID = globalOutSequenceID
-        
-    def run(self, fileStore):
-        globalOutSequence = fileStore.readGlobalFile(self.globalOutSequenceID)
-        analysisString = runCactusAnalyseAssembly(globalOutSequence)
-        fileStore.logToMaster("After preprocessing assembly we got the following stats: %s" % analysisString)
-        return self.globalOutSequenceID
+            return outSeqID
 
 ############################################################
 ############################################################
@@ -231,17 +213,8 @@ class CactusPreprocessor(RoundedJob):
         RoundedJob.__init__(self, disk=sum([id.size for id in inputSequenceIDs]), preemptable=True)
         self.inputSequenceIDs = inputSequenceIDs
         self.configNode = configNode  
-    
+
     def run(self, fileStore):
-        #HACK
-        #Download and then write the sequences so that the IDs have the size attribute.
-        #This is wasteful, and could fail if the worker doesn't have enough disk,
-        #but at least it confines that risk to this job rather than all future jobs.
-        #It might be necessary to have the user specify how big the sequences are prior to running, if
-        #the sequences are not being imported from the leader.
-        inputSequences = [fileStore.readGlobalFile(seqID) for seqID in self.inputSequenceIDs]
-        self.inputSequenceIDs = [fileStore.writeGlobalFile(seq) for seq in inputSequences]
-        
         outputSequenceIDs = []
         for inputSequenceID in self.inputSequenceIDs:
             outputSequenceIDs.append(self.addChild(CactusPreprocessor2(inputSequenceID, self.configNode)).rv())
@@ -251,10 +224,10 @@ class CactusPreprocessor(RoundedJob):
     def getOutputSequenceFiles(inputSequences, outputSequenceDir):
         """Function to get unambiguous file names for each input sequence in the output sequence dir. 
         """
-        if not os.path.isdir(outputSequenceDir):
+        if not outputSequenceDir.startswith("s3://") and not os.path.isdir(outputSequenceDir):
             os.mkdir(outputSequenceDir)
         return [ os.path.join(outputSequenceDir, inputSequences[i].split("/")[-1] + "_%i" % i) for i in xrange(len(inputSequences)) ]
-  
+
 class CactusPreprocessor2(RoundedJob):
     def __init__(self, inputSequenceID, configNode):
         RoundedJob.__init__(self, preemptable=True)
@@ -262,12 +235,7 @@ class CactusPreprocessor2(RoundedJob):
         self.configNode = configNode
         
     def run(self, fileStore):
-        inputSequenceFile = fileStore.readGlobalFile(self.inputSequenceID)
         prepXmlElems = self.configNode.findall("preprocessor")
-
-        analysisString = runCactusAnalyseAssembly(inputSequenceFile)
-        fileStore.logToMaster("Before running any preprocessing on the assembly: %s got following stats (assembly may be listed as temp file if input sequences from a directory): %s" % \
-                         (self.inputSequenceID, analysisString))
 
         if len(prepXmlElems) == 0: #Just cp the file to the output file
             return self.inputSequenceID
@@ -275,14 +243,17 @@ class CactusPreprocessor2(RoundedJob):
             logger.info("Adding child batch_preprocessor target")
             return self.addChild(BatchPreprocessor(prepXmlElems, self.inputSequenceID, 0)).rv()
 
-def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil):
+def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=False):
     #Replace any constants
     configNode = ET.parse(configFile).getroot()
     outputSequences = CactusPreprocessor.getOutputSequenceFiles(inputSequences, outputSequenceDir)
     if configNode.find("constants") != None:
         ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals()
-    inputSequenceIDs = [toil.importFile(makeURL(seq)) for seq in inputSequences]
-    outputSequenceIDs = toil.start(CactusPreprocessor(inputSequenceIDs, configNode))
+    if not restart:
+        inputSequenceIDs = [toil.importFile(makeURL(seq)) for seq in inputSequences]
+        outputSequenceIDs = toil.start(CactusPreprocessor(inputSequenceIDs, configNode))
+    else:
+        outputSequenceIDs = toil.restart()
     for seqID, path in zip(outputSequenceIDs, outputSequences):
         toil.exportFile(seqID, makeURL(path))
 
@@ -292,27 +263,19 @@ def runCactusPreprocessor(outputSequenceDir, configFile, inputSequences, toilDir
     toilOptions.disableCaching = True
     with Toil(toilOptions) as toil:
         stageWorkflow(outputSequenceDir, configFile, inputSequences, toil)
-                    
+
 def main():
-    usage = "usage: %prog outputSequenceDir configXMLFile inputSequenceFastaFilesxN [options]"
-    parser = ArgumentParser(usage=usage)
+    parser = ArgumentParser()
     Job.Runner.addToilOptions(parser)
-    parser.add_argument("--outputSequenceDir", dest="outputSequenceDir", type=str)
-    parser.add_argument("--configFile", dest="configFile", type=str)
-    parser.add_argument("--inputSequences", dest="inputSequences", type=str)
-    
+    parser.add_argument("outputSequenceDir", help='Directory where the processed sequences will be placed')
+    parser.add_argument("--configFile", default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
+    parser.add_argument("inputSequences", nargs='+', help='input FASTA file(s)')
+
     options = parser.parse_args()
     setLoggingFromOptions(options)
-    
-    if not (options.outputSequenceDir and options.configFile and options.inputSequences):
-        raise RuntimeError("Too few input arguments")
-    with Toil(options) as toil:
-        stageWorkflow(outputSquenceDir=options.outputSequenceDir, configFile=options.configFile, inputSequences=options.inputSequences.split(), toil=toil)
 
-def _test():
-    import doctest      
-    return doctest.testmod()
+    with Toil(options) as toil:
+        stageWorkflow(outputSequenceDir=options.outputSequenceDir, configFile=options.configFile, inputSequences=options.inputSequences, toil=toil, restart=options.restart)
 
 if __name__ == '__main__':
-    from cactus.preprocessor.cactus_preprocessor import *
     main()

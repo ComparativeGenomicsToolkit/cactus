@@ -3,7 +3,7 @@
 <cactusWorkflowConfig distanceToAddToRootAlignment="0.1">
 	<constants defaultMemory="mediumMemory" defaultOverlargeMemory="mediumMemory" defaultCpu="1" defaultOverlargeCpu="1">
 		<!-- These constants are used to control the amount of memory and cpu the different jobs in a batch are using. -->
-  		<defines littleMemory="200000000" mediumMemory="500000000" bigMemory="2000000000" maxFlowerGroupSizeRecursion="100000000"/>
+  		<defines littleMemory="2000000000" mediumMemory="3500000000" bigMemory="5000000000"/>
   		<!-- These constants are used to control parameters that depend on phylogenetic distance. Setting
   		     useDefault to 0 will force it to use the default divergence controlled parameter -->
   		<divergences useDefault="0" one="0.1" two="0.15" three="0.2" four="0.25" five="0.35"/>
@@ -81,7 +81,7 @@
 		realignArguments="--gapGamma 0.0 --matchGamma 0.9 --diagonalExpansion 4 --splitMatrixBiggerThanThis 10 --constraintDiagonalTrim 0 --alignAmbiguityCharacters --splitIndelsLongerThanThis 99"
 		compressFiles="1" 
 		overlapSize="10000" 
-		filterByIdentity="1" 
+		filterByIdentity="0" 
 		identityRatio="3" 
 		minimumDistance="0.01" 
 		minimumSequenceLengthForBlast="30"
@@ -93,12 +93,16 @@
 		minimumBlockDegree="2"
 		minimumIngroupDegree="1"
 		minimumOutgroupDegree="0"
-                minimumNumberOfSpecies="1"
-                alignmentFilter="relaxedSingleCopyOutgroup"
+        minimumNumberOfSpecies="1"
+        alignmentFilter="filterSecondariesByMultipleSpecies"
 		maxAdjacencyComponentSizeRatio="50"
 		minLengthForChromosome="1000000"
 		proportionOfUnalignedBasesForNewChromosome="0.8"
 		maximumMedianSequenceLengthBetweenLinkedEnds="1000"
+		runMapQFiltering="1"
+		minimumMapQValue="0.0" 
+		maxAlignmentsPerSite="5"
+		alpha="0.001"
 		lastzMemory="littleMemory"
 		lastzDisk="mediumDisk"
                 removeRecoverableChains="unequalNumberOfIngroupCopies"
@@ -173,7 +177,7 @@
                 minimumSizeToRescue="100"
                 minimumCoverageToRescue="0.5"
 	>
-		<CactusBarRecursion maxFlowerGroupSize="maxFlowerGroupSizeRecursion"/>
+		<CactusBarRecursion maxFlowerGroupSize="100000000"/>
 		<!-- The maxFlowerGroupSize in cactusBarWrapper determines how many bases to allow in one "small" job which will be run using the "littleMemory" -->
 		<CactusBarWrapper maxFlowerGroupSize="2000000" memory="littleMemory"/>
 		<!-- The maxFlowerGroupSize in cactusBarWrapperLarge determines how many of each large broken up to allow in one "small" job which will be run using the "littleMemory" -->
@@ -184,14 +188,14 @@
 	<normal 
 		iterations="0"
 	>
-		<CactusNormalRecursion maxFlowerGroupSize="maxFlowerGroupSizeRecursion" maxFlowerWrapperGroupSize="10000000"/>
+		<CactusNormalRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="10000000"/>
 		<CactusNormalWrapper/>
 	</normal>
 	<!-- The avg tag is for a prototype algorithm, currently just builds trees. Not currently compatible with cactus_progressive -->
 	<avg
 		buildAvgs="0"
 	>
-		<CactusAVGRecursion maxFlowerGroupSize="maxFlowerGroupSizeRecursion" maxFlowerWrapperGroupSize="10000000"/>
+		<CactusAVGRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="10000000"/>
 		<CactusAVGWrapper/>
 	</avg>
 	<!-- The reference tag provides parameters to cactus_reference, a method used to construct a reference genome for a given cactus database. -->
@@ -214,17 +218,17 @@
 		minNumberOfSequencesToSupportAdjacency="1"
 		makeScaffolds="1"
 	>
-		<CactusReferenceRecursion maxFlowerGroupSize="maxFlowerGroupSizeRecursion" maxFlowerWrapperGroupSize="50000000"/>
+		<CactusReferenceRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="2000000"/>
 	 	<CactusReferenceWrapper/>
 	 	<CactusSetReferenceCoordinatesUpWrapper/>
-	 	<CactusSetReferenceCoordinatesDownRecursion maxFlowerGroupSize="maxFlowerGroupSizeRecursion" maxFlowerWrapperGroupSize="50000000"/>
+	 	<CactusSetReferenceCoordinatesDownRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="2000000"/>
 	 	<CactusSetReferenceCoordinatesDownWrapper/>
 	</reference>
 	<!-- The check tag provides parameters to cactus_check, a script which checks that a constructed cactus database is as expected. -->
 	<check 
 		runCheck="0"
 	>
-		<CactusCheckRecursion maxFlowerGroupSize="maxFlowerGroupSizeRecursion" maxFlowerWrapperGroupSize="50000000"/>
+		<CactusCheckRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="2000000"/>
 		<CactusCheckWrapper/>
 	</check>
 	<!-- The hal tag controls the creation of hal and fasta files from the pipeline. -->
@@ -232,7 +236,7 @@
 		buildHal="1"
 		buildFasta="1"
 	>
-		<CactusHalGeneratorRecursion maxFlowerGroupSize="50000000"/>
+		<CactusHalGeneratorRecursion maxFlowerGroupSize="2000000"/>
 		<CactusHalGeneratorUpWrapper/>
 	</hal>
   	<multi_cactus>
@@ -246,7 +250,7 @@
 	 		subtree_size="2" 
 	 		self_alignment="false" 
 	 		default_internal_node_prefix="Anc"
-			max_parallel_subtrees="5"
+			max_parallel_subtrees="50000"
 	 	/>
   	</multi_cactus>
     <ProgressiveNext/>

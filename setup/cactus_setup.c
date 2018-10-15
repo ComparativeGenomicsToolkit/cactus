@@ -310,7 +310,7 @@ int main(int argc, char *argv[]) {
     }
     stTree_setBranchLength(tree, INT64_MAX);
     checkBranchLengthsAreDefined(tree);
-    eventTree = eventTree_construct2(flower); //creates the event tree and the root even
+    eventTree = eventTree_construct2(cactusDisk); //creates the event tree and the root event
     totalEventNumber = 1;
     st_logInfo("Constructed the basic event tree\n");
 

@@ -8,18 +8,12 @@
 
 import unittest
 import os
-import sys
-import copy
-import xml.etree.ElementTree as ET
 import random
 from operator import itemgetter
-from sonLib.bioio import TestStatus
 from sonLib.bioio import getTempDirectory
-from sonLib.bioio import logger
 from sonLib.bioio import system
 
 from cactus.progressive.multiCactusTree import MultiCactusTree
-from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.progressive.outgroup import GreedyOutgroup, DynamicOutgroup
 
 from sonLib.nxnewick import NXNewick
@@ -37,16 +31,31 @@ class TestCase(unittest.TestCase):
             f.write(">temp\nNNNNNNNCNNNNAAAAAAAAAAAAAAANNNNNNN\n")
         self.dummySeqMaps = []
         for tree in self.trees:
-            if tree.size() < 500:
+            if tree.size() < 50:
                 mcTree = MultiCactusTree(tree, tree.degree())
                 seqMap = dict()
                 for i in mcTree.breadthFirstTraversal():
                     mcTree.setName(i, "Node%s" % str(i))
                     seqMap["Node%s" % str(i)] = self.tempFa
                 mcTree.computeSubtreeRoots()
+                mcTree.nameUnlabeledInternalNodes()
                 self.mcTrees.append(mcTree)
                 self.dummySeqMaps.append(seqMap)
-                
+
+        # Boreoeutherian tree
+        borTree = '((((HUMAN:0.006969,CHIMP:0.009727)Anc7:0.025291,BABOON:0.044568)Anc6:0.11,(MOUSE:0.072818,RAT:0.081244)Anc5:0.260342)Anc4:0.023260,((DOG:0.07,CAT:0.07)Anc3:0.087381,(PIG:0.06,COW:0.06)Anc2:0.104728)Anc1:0.04)Anc0;'
+        self.borMcTree = MultiCactusTree(NXNewick().parseString(borTree, addImpliedRoots=False))
+        self.borMcTree.computeSubtreeRoots()
+        self.borMcTree.nameUnlabeledInternalNodes()
+        self.mcTrees.append(self.borMcTree)
+
+        # Eutherian backbone tree
+        backbone = '(((((((((((Homo_sapiens:0.00655,Pan_troglodytes:0.00684):0.00422,Gorilla_gorilla_gorilla:0.008964):0.009693,Pongo_abelii:0.01894):0.015511,Macaca_mulatta:0.043601):0.08444,Aotus_nancymaae:0.08):0.08,Microcebus_murinus:0.10612):0.043494,Galeopterus_variegatus:0.134937):0.04,((((Jaculus_jaculus:0.1,(Microtus_ochrogaster:0.14,(Mus_musculus:0.084509,Rattus_norvegicus:0.091589):0.047773):0.06015):0.122992,(Heterocephalus_glaber:0.1,(Cavia_porcellus:0.065629,(Chinchilla_lanigera:0.06,Octodon_degus:0.1):0.06):0.05):0.06015):0.05,Marmota_marmota:0.1):0.05,Oryctolagus_cuniculus:0.21569):0.04):0.040593,(((Sus_scrofa:0.12,(Orcinus_orca:0.069688,(Bos_taurus:0.04,Capra_hircus:0.04):0.09):0.045488):0.02,((Equus_caballus:0.109397,(Felis_catus:0.098612,(Canis_lupus_familiaris:0.052458,Mustela_putorius_furo:0.08):0.02):0.049845):0.02,(Pteropus_alecto:0.1,Eptesicus_fuscus:0.08):0.033706):0.03):0.025,Erinaceus_europaeus:0.278178):0.021227):0.023664,(((Loxodonta_africana:0.022242,Procavia_capensis:0.145358):0.076687,Chrysochloris_asiatica:0.04):0.05,Dasypus_novemcinctus:0.169809):0.02)backbone_root:0.234728,(Monodelphis_domestica:0.125686,Sarcophilus_harrisii:0.12):0.2151);'
+        self.backboneTree = MultiCactusTree(NXNewick().parseString(backbone, addImpliedRoots=False))
+        self.backboneTree.computeSubtreeRoots()
+        self.backboneTree.nameUnlabeledInternalNodes()
+        self.mcTrees.append(self.backboneTree)
+
         seqLens = dict()
         seqLens["HUMAN"] = 57553
         seqLens["CHIMP"] = 57344
@@ -71,12 +80,9 @@ class TestCase(unittest.TestCase):
         system("rm -rf %s" % self.tempDir)
 
     def testJustLeaves(self):
-        tree = '((((HUMAN:0.006969,CHIMP:0.009727)Anc7:0.025291,BABOON:0.044568)Anc6:0.11,(MOUSE:0.072818,RAT:0.081244)Anc5:0.260342)Anc4:0.023260,((DOG:0.07,CAT:0.07)Anc3:0.087381,(PIG:0.06,COW:0.06)Anc2:0.104728)Anc1:0.04)Anc0;'
-        mcTree = MultiCactusTree(NXNewick().parseString(tree, addImpliedRoots = False))
-        mcTree.computeSubtreeRoots()
         og = GreedyOutgroup()
-        og.importTree(mcTree)
-        candidates = set([mcTree.getName(x) for x in mcTree.getLeaves()])
+        og.importTree(self.borMcTree)
+        candidates = set([self.borMcTree.getName(x) for x in self.borMcTree.getLeaves()])
         og.greedy(candidateSet=candidates, candidateChildFrac=2.)
         assert og.ogMap['Anc1'][0][0] == 'HUMAN'
         assert og.ogMap['Anc2'][0][0] in ['CAT', 'DOG']
@@ -86,12 +92,38 @@ class TestCase(unittest.TestCase):
         assert og.ogMap['Anc6'][0][0] in ['CAT', 'DOG']
         assert og.ogMap['Anc7'][0][0] == 'BABOON'
 
-    def testCandidates(self):
-        tree = '((((HUMAN:0.006969,CHIMP:0.009727)Anc7:0.025291,BABOON:0.044568)Anc6:0.11,(MOUSE:0.072818,RAT:0.081244)Anc5:0.260342)Anc4:0.023260,((DOG:0.07,CAT:0.07)Anc3:0.087381,(PIG:0.06,COW:0.06)Anc2:0.104728)Anc1:0.04)Anc0;'
-        mcTree = MultiCactusTree(NXNewick().parseString(tree, addImpliedRoots = False))
-        mcTree.computeSubtreeRoots()
+    def testHeightTable(self):
+        """Make sure the height-table is calculated correctly."""
         og = GreedyOutgroup()
-        og.importTree(mcTree)
+        og.importTree(self.borMcTree)
+        htable = og.heightTable()
+        self.assertEquals(htable[self.borMcTree.getNodeId('HUMAN')], 0)
+        self.assertEquals(htable[self.borMcTree.getNodeId('PIG')], 0)
+        self.assertEquals(htable[self.borMcTree.getNodeId('RAT')], 0)
+        self.assertEquals(htable[self.borMcTree.getNodeId('Anc7')], 1)
+        self.assertEquals(htable[self.borMcTree.getNodeId('Anc1')], 2)
+        self.assertEquals(htable[self.borMcTree.getNodeId('Anc0')], 4)
+
+    def testZeroThreshold(self):
+        """A threshold of 0 should produce outgroup sets that cause no additional depth in the resulting schedule."""
+        tree = self.backboneTree
+        og = GreedyOutgroup()
+        og.importTree(tree)
+        og.greedy(candidateSet=set(['Homo_sapiens', 'Mus_musculus']),threshold=0, maxNumOutgroups=3, candidateChildFrac=0.75)
+        og.greedy(threshold=0, maxNumOutgroups=3, candidateChildFrac=0.75)
+        htable = og.heightTable()
+        for node, outgroups in og.ogMap.items():
+            for outgroup, _ in outgroups:
+                # For the outgroup assignment to create no
+                # additional dependencies, each outgroup must have
+                # a height lower than the node it's outgroup to
+                # (or be a leaf)
+                self.assertTrue(htable[tree.getNodeId(outgroup)] < htable[tree.getNodeId(node)] \
+                                or htable[tree.getNodeId(outgroup)] == 0)
+
+    def testCandidates(self):
+        og = GreedyOutgroup()
+        og.importTree(self.borMcTree)
         candidates = set(['HUMAN', 'CHIMP', 'RAT'])
         og.greedy(candidateSet=candidates, candidateChildFrac=0.5)
         assert og.ogMap['Anc1'][0][0] == 'Anc4'
@@ -103,9 +135,8 @@ class TestCase(unittest.TestCase):
         assert og.ogMap['Anc7'][0][0] in ['Anc5', 'MOUSE', 'RAT']
 
         og = GreedyOutgroup()
-        og.importTree(mcTree)
+        og.importTree(self.borMcTree)
         candidates = set(['HUMAN', 'CHIMP', 'RAT'])
-        candidateFrac = 1
         og.greedy(candidateSet=candidates, candidateChildFrac=1.0)
         assert og.ogMap['Anc1'][0][0] == 'Anc7'
         assert og.ogMap['Anc2'][0][0] == 'Anc7'
@@ -148,11 +179,8 @@ class TestCase(unittest.TestCase):
                 assert dist2 <= dist1
 
     def testMultipleOutgroups(self):
-        tree = '((((HUMAN:0.006969,CHIMP:0.009727)Anc7:0.025291,BABOON:0.044568)Anc6:0.11,(MOUSE:0.072818,RAT:0.081244)Anc5:0.260342)Anc4:0.023260,((DOG:0.07,CAT:0.07)Anc3:0.087381,(PIG:0.06,COW:0.06)Anc2:0.104728)Anc1:0.04)Anc0;'
-        mcTree = MultiCactusTree(NXNewick().parseString(tree, addImpliedRoots = False))
-        mcTree.computeSubtreeRoots()
         og = GreedyOutgroup()
-        og.importTree(mcTree)
+        og.importTree(self.borMcTree)
         og.greedy(candidateChildFrac=0.5, maxNumOutgroups=3)
         # make sure all entries have <= 3 outgroups.
         assert all(map(lambda x: len(x) <= 3, og.ogMap.values()))
@@ -169,12 +197,9 @@ class TestCase(unittest.TestCase):
                                                         'BABOON']
 
     def testMultipleOutgroupsJustLeaves(self):
-        tree = '((((HUMAN:0.006969,CHIMP:0.009727)Anc7:0.025291,BABOON:0.044568)Anc6:0.11,(MOUSE:0.072818,RAT:0.081244)Anc5:0.260342)Anc4:0.023260,((DOG:0.07,CAT:0.07)Anc3:0.087381,(PIG:0.06,COW:0.06)Anc2:0.104728)Anc1:0.04)Anc0;'
-        mcTree = MultiCactusTree(NXNewick().parseString(tree, addImpliedRoots = False))
-        mcTree.computeSubtreeRoots()
         og = GreedyOutgroup()
-        og.importTree(mcTree)
-        candidates = set([mcTree.getName(x) for x in mcTree.getLeaves()])
+        og.importTree(self.borMcTree)
+        candidates = set([self.borMcTree.getName(x) for x in self.borMcTree.getLeaves()])
         og.greedy(candidateSet=candidates, candidateChildFrac=2.,
                   maxNumOutgroups=3)
         # make sure all entries have <= 3 outgroups.
@@ -200,7 +225,6 @@ class TestCase(unittest.TestCase):
             assert all(map(lambda x: x == sorted(x, key=itemgetter(1)),
                            og.ogMap.values()))
 
-    @unittest.skip("This test hangs")
     def testDynamicOutgroupsOnRandomTrees(self):
         for tree, seqMap in zip(self.mcTrees, self.dummySeqMaps):
             degree = max([len(tree.getChildren(x)) for x in
@@ -217,13 +241,9 @@ class TestCase(unittest.TestCase):
                 assert all(map(lambda x: x == sorted(x, key=itemgetter(1)),
                                og.ogMap.values()))
 
-    @unittest.skip("This test hangs")
     def testDynamicOutgroupsJustLeaves(self):
-        tree = '((((HUMAN:0.006969,CHIMP:0.009727)Anc7:0.025291,BABOON:0.044568)Anc6:0.11,(MOUSE:0.072818,RAT:0.081244)Anc5:0.260342)Anc4:0.023260,((DOG:0.07,CAT:0.07)Anc3:0.087381,(PIG:0.06,COW:0.06)Anc2:0.104728)Anc1:0.04)Anc0;'
-        mcTree = MultiCactusTree(NXNewick().parseString(tree, addImpliedRoots = False))
-        mcTree.computeSubtreeRoots()
         og = DynamicOutgroup()
-        og.importTree(mcTree, self.blanchetteSeqMap)
+        og.importTree(self.borMcTree, self.blanchetteSeqMap)
         og.compute(maxNumOutgroups=3, sequenceLossWeight=0.)
         # make sure all entries have <= 3 outgroups.
         assert all(map(lambda x: len(x) <= 3, og.ogMap.values()))
@@ -235,7 +255,7 @@ class TestCase(unittest.TestCase):
         assert og.ogMap['Anc7'][0][0] == 'BABOON'
 
         og = DynamicOutgroup()
-        og.importTree(mcTree, self.blanchetteSeqMap)
+        og.importTree(self.borMcTree, self.blanchetteSeqMap)
         og.compute(maxNumOutgroups=3)
         # make sure all entries have <= 3 outgroups.
         assert all(map(lambda x: len(x) <= 3, og.ogMap.values()))

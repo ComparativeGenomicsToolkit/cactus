@@ -32,6 +32,7 @@ stList *flowerWriter_parseFlowersFromStdin(CactusDisk *cactusDisk);
 
 typedef struct {
     stList *flowerNames;
+    stList *flowerBatch;
     CactusDisk *cactusDisk;
     Flower *curFlower;
     size_t nextIdx;

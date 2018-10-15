@@ -33,7 +33,7 @@ static void cactusEndsTestSharedSetup() {
     cactusDisk = testCommon_getTemporaryCactusDisk();
     flower = flower_construct(cactusDisk);
 
-    eventTree = eventTree_construct2(flower);
+    eventTree = eventTree_construct2(cactusDisk);
 
     rootEvent = eventTree_getRootEvent(eventTree);
     leafEvent = event_construct3("LEAF2", 0.2, rootEvent, eventTree);

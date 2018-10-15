@@ -11,19 +11,14 @@ leaves as outgroups
 """
 
 import os
-import xml.etree.ElementTree as ET
-import sys
 import math
 import copy
-import collections
 import itertools
 import networkx as NX
 from collections import defaultdict, namedtuple
 from optparse import OptionParser
 
 from cactus.progressive.multiCactusProject import MultiCactusProject
-from cactus.progressive.multiCactusTree import MultiCactusTree
-from sonLib.bioio import popenCatch
 
 from cactus.shared.common import cactus_call
 
@@ -93,19 +88,23 @@ class GreedyOutgroup(object):
     
     # fill up a dictionary of node id -> height in tree where
     # leaves have height = 0
-    def heightTable(self, node, htable):
-        children = [x[1] for x in self.dag.out_edges(node)]
+    def heightTable(self):
+        htable = dict()
+        def rec(node):
+            children = [x[1] for x in self.dag.out_edges(node)]
 
-        # Update the table for those children not already in the
-        # table.
-        for child in children:
-            if child not in htable:
-                self.heightTable(child, htable)
+            # Update the table for those children not already in the
+            # table.
+            for child in children:
+                if child not in htable:
+                    rec(child)
 
-        if len(children) == 0:
-            htable[node] = 0
-        else:
-            htable[node] = max([htable[i] for i in children]) + 1
+            if len(children) == 0:
+                htable[node] = 0
+            else:
+                htable[node] = max([htable[i] for i in children]) + 1
+        rec(self.root)
+        return htable
 
     # check the candidate using the set and and fraction
     def inCandidateSet(self, node, candidateChildFrac):
@@ -131,10 +130,6 @@ class GreedyOutgroup(object):
             return True
         self.candidateMap[self.mcTree.getName(node)] = False
         return False
-
-    def clearOutgroupAssignments(self):
-        self.ogMap = defaultdict(list)
-        self.dag = mcTree.nxDg.copy()
 
     # greedily assign closest possible valid outgroups
     # If some outgroups are already assigned, keep the existing
@@ -167,8 +162,7 @@ class GreedyOutgroup(object):
             for candidate in candidateSet:
                 self.candidateMap[candidate] = True
 
-        htable = dict()
-        self.heightTable(self.root, htable)
+        htable = self.heightTable()
 
         for candidate in orderedPairs:
             source = candidate[1][0]
@@ -313,14 +307,14 @@ class DynamicOutgroup(GreedyOutgroup):
             self.__dpInit(node)
             self.__dpRun(node)
             nodeName = self.mcTree.getName(node)
-            bestK, bestScore = 0, 0.
+            bestK = 0
             # we look for highest k with non-zero solution.
             # (can swap >= 0.0 with bestScore below to get the global best
             # not sure we'd want fewer outgroups..)
             for i in xrange(self.numOG + 1):
                 if self.dpTable[node][i].score > 0.0:
-                    bestK, bestScore = i, self.dpTable[node][i].score
-                                
+                    bestK = i
+
             # we rank solution based on individual conservation score
             # of each outgroup vis-a-vis the target
             #rankFn = lambda x : 1. - self.__computeBranchConservation(
