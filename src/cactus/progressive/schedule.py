@@ -89,7 +89,7 @@ class Schedule:
             return '%s%d' % (pref, id)        
         self.depTree = self.inGraph.copy()
         self.transitveReduction(self.depTree)
-        tsort = NX.topological_sort(self.depTree)
+        tsort = list(NX.topological_sort(self.depTree))
         tsort.reverse()
         nextId = 0
         for node in tsort:
