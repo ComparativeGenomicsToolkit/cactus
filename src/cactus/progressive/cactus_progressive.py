@@ -472,6 +472,7 @@ def main():
             project.readXML(pjPath)
             #import the sequences
             seqIDs = []
+            print "Importing %s sequences" % (len(project.getInputSequencePaths()))
             for seq in project.getInputSequencePaths():
                 if os.path.isdir(seq):
                     tmpSeq = getTempFile()
