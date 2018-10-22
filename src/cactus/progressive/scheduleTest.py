@@ -34,11 +34,12 @@ class TestCase(unittest.TestCase):
                 dag = self.__addDagEdges(tree)
                 sched = Schedule()
                 sched.inGraph = dag
+                sched.maxParallel = 2
                 sched.compute()
                 
     def __addDagEdges(self, tree):
         count = tree.size() / random.randrange(1,10)
-        tsort = NX.topological_sort(tree)
+        tsort = list(NX.topological_sort(tree))
         for i in range(0, count):
             source = random.randrange(0, len(tsort)-1)            
             sink = random.randrange(source+1, len(tsort))
