@@ -1,20 +1,13 @@
 #!/usr/bin/env python
-
 """Checks headers are all unique.
 """
-
-import os
-from optparse import OptionParser
-
 from sonLib.bioio import fastaRead
-from sonLib.bioio import fastaWrite
-from sonLib.bioio import getTempFile
 
 def checkUniqueHeaders(inputFile, checkAlphaNumeric=True, checkUCSC=True, checkAssemblyHub=True):
     """Check that headers are unique and meet certain requirements."""
     seen = set()
     for header, seq in fastaRead(inputFile):
-        if " " or "\t" in header:
+        if " " in header or "\t" in header:
             raise RuntimeError("The fasta header '%s' contains spaces or tabs. These characters will cause issues in space-separated formats like MAF, and may not function properly when viewed in a browser. Please remove these characters from the input headers and try again." % header)
         mungedHeader = header.split()[0]
         if checkAlphaNumeric and "".join([ i for i in mungedHeader if str.isalnum(i) ]) != mungedHeader: #Check is only alpha numeric
