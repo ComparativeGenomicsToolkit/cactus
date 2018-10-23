@@ -13,6 +13,7 @@ tree.
 import os
 import xml.etree.ElementTree as ET
 from argparse import ArgumentParser
+from base64 import b64encode
 from subprocess import check_call
 
 from toil.lib.bioio import getTempFile
@@ -71,6 +72,7 @@ class ProgressiveDown(RoundedJob):
 
         return self.addFollowOn(ProgressiveNext(self.options, self.project, self.event,
                                                               self.schedule, depProjects, memory=self.configWrapper.getDefaultMemory())).rv()
+
 class ProgressiveNext(RoundedJob):
     def __init__(self, options, project, event, schedule, depProjects, memory=None, cores=None):
         RoundedJob.__init__(self, memory=memory, cores=cores, preemptable=True)
@@ -321,7 +323,7 @@ def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC
 
     cactus_call(parameters=["halSetMetadata", HALPath, "CACTUS_COMMIT", cactus_commit])
     with job.fileStore.readGlobalFileStream(project.configID) as configFile:
-        cactus_call(parameters=["halSetMetadata", HALPath, "CACTUS_CONFIG", configFile.read()])
+        cactus_call(parameters=["halSetMetadata", HALPath, "CACTUS_CONFIG", b64encode(configFile.read())])
 
     return job.fileStore.writeGlobalFile(HALPath)
 
