@@ -103,7 +103,7 @@ class CactusJob(RoundedJob):
         self.constantsNode = constantsNode
         self.overlarge = overlarge
         self.jobNode = getJobNode(self.phaseNode, self.__class__)
-        if self.jobNode:
+        if self.jobNode is not None:
             logger.info("JobNode = %s" % self.jobNode.attrib)
 
         memory = None
@@ -477,9 +477,8 @@ def prependUniqueIDs(fas, outputDir):
         out = open(outPath, 'w')
         for line in open(fa):
             if len(line) > 0 and line[0] == '>':
-                tokens = line[1:].split()
-                tokens[0] = "id=%d|%s" % (uniqueID, tokens[0])
-                out.write(">%s\n" % "".join(tokens))
+                header = "id=%d|%s" % (uniqueID, line[1:-1])
+                out.write(">%s\n" % header)
             else:
                 out.write(line)
         ret.append(outPath)

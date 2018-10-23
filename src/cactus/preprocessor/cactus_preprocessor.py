@@ -29,6 +29,7 @@ from cactus.shared.configWrapper import ConfigWrapper
 
 from toil.lib.bioio import setLoggingFromOptions
 
+from cactus.preprocessor.checkUniqueHeaders import checkUniqueHeaders
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import LastzRepeatMaskJob
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import RepeatMaskOptions
 
@@ -60,13 +61,8 @@ class PreprocessChunk(RoundedJob):
         outChunkID = None
         if self.prepOptions.preprocessJob == "checkUniqueHeaders":
             inChunk = fileStore.readGlobalFile(self.inChunkID)
-            seqPaths = [fileStore.readGlobalFile(fileID) for fileID in self.seqIDs]
-            seqString = " ".join(seqPaths)
-            args = [inChunk]
-            if self.prepOptions.checkAssemblyHub:
-                args += ["--checkAssemblyHub"]
-            cactus_call(stdin_string=seqString,
-                        parameters=["cactus_checkUniqueHeaders.py"] + args)
+            with open(inChunk) as inFile:
+                checkUniqueHeaders(inFile, checkAssemblyHub=self.prepOptions.checkAssemblyHub)
             outChunkID = self.inChunkID
         elif self.prepOptions.preprocessJob == "lastzRepeatMask":
             repeatMaskOptions = RepeatMaskOptions(proportionSampled=self.prepOptions.proportionToSample,

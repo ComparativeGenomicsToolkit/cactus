@@ -3,16 +3,12 @@ include ../include.mk
 
 cflags += ${tokyoCabinetIncl}
 
-all : ${binPath}/cactus_analyseAssembly ${binPath}/cactus_batch_mergeChunks ${binPath}/cactus_checkUniqueHeaders.py ${binPath}/cactus_makeAlphaNumericHeaders.py ${binPath}/cactus_filterSmallFastaSequences.py
+all : ${binPath}/cactus_analyseAssembly ${binPath}/cactus_batch_mergeChunks ${binPath}/cactus_makeAlphaNumericHeaders.py ${binPath}/cactus_filterSmallFastaSequences.py
 	cd lastzRepeatMasking && make all
 
 ${binPath}/cactus_filterSmallFastaSequences.py : cactus_filterSmallFastaSequences.py
 		cp cactus_filterSmallFastaSequences.py ${binPath}/cactus_filterSmallFastaSequences.py
 			chmod +x ${binPath}/cactus_filterSmallFastaSequences.py
-				
-${binPath}/cactus_checkUniqueHeaders.py : cactus_checkUniqueHeaders.py
-		cp cactus_checkUniqueHeaders.py ${binPath}/cactus_checkUniqueHeaders.py
-			chmod +x ${binPath}/cactus_checkUniqueHeaders.py
 				
 ${binPath}/cactus_makeAlphaNumericHeaders.py : cactus_makeAlphaNumericHeaders.py
 		cp cactus_makeAlphaNumericHeaders.py ${binPath}/cactus_makeAlphaNumericHeaders.py
