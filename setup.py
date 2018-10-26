@@ -27,7 +27,9 @@ setup(
         'decorator',
         'subprocess32',
         'psutil',
-        'networkx==1.11'],
+        'networkx==1.11',
+        'cython'],
     
     entry_points={
-        'console_scripts': ['cactus = cactus.progressive.cactus_progressive:main']},)
+        'console_scripts': ['cactus = cactus.progressive.cactus_progressive:main',
+                            'cactus_preprocess = cactus.preprocessor.cactus_preprocessor:main']},)

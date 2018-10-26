@@ -38,7 +38,11 @@ class KtServerService(Job.Service):
 
     def stop(self, job):
         self.check()
-        stopKtserver(self.dbElem)
+        try:
+            stopKtserver(self.dbElem)
+        except:
+            # Server is probably already terminated
+            pass
         if not self.failed:
             blockUntilKtserverIsFinished(self.logPath, timeout=1200)
 

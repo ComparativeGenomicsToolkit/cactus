@@ -23,10 +23,12 @@ from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import runGetChunks
 from cactus.shared.common import makeURL
 from cactus.shared.common import readGlobalFileWithoutCache
+from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 
 from toil.lib.bioio import setLoggingFromOptions
 
+from cactus.preprocessor.checkUniqueHeaders import checkUniqueHeaders
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import LastzRepeatMaskJob
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import RepeatMaskOptions
 
@@ -57,10 +59,8 @@ class CheckUniqueHeaders(RoundedJob):
 
     def run(self, fileStore):
         inChunk = fileStore.readGlobalFile(self.inChunkID)
-        args = [inChunk]
-        if self.prepOptions.checkAssemblyHub:
-            args += ["--checkAssemblyHub"]
-        cactus_call(parameters=["cactus_checkUniqueHeaders.py"] + args)
+        with open(inChunk) as inFile:
+            checkUniqueHeaders(inFile, checkAssemblyHub=self.prepOptions.checkAssemblyHub)
         # We re-write the file here so that the output's lifecycle
         # matches the other chunked jobs, which usually write a new
         # chunk.
@@ -255,7 +255,7 @@ class CactusPreprocessor2(RoundedJob):
             logger.info("Adding child batch_preprocessor target")
             return self.addChild(BatchPreprocessor(prepXmlElems, self.inputSequenceID, 0)).rv()
 
-def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart):
+def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=False):
     #Replace any constants
     configNode = ET.parse(configFile).getroot()
     outputSequences = CactusPreprocessor.getOutputSequenceFiles(inputSequences, outputSequenceDir)
@@ -279,21 +279,15 @@ def runCactusPreprocessor(outputSequenceDir, configFile, inputSequences, toilDir
 def main():
     parser = ArgumentParser()
     Job.Runner.addToilOptions(parser)
-    parser.add_argument("--outputSequenceDir", dest="outputSequenceDir", type=str)
-    parser.add_argument("--configFile", dest="configFile", type=str)
-    parser.add_argument("--inputSequences", dest="inputSequences", type=str, nargs='+')
-    
+    parser.add_argument("outputSequenceDir", help='Directory where the processed sequences will be placed')
+    parser.add_argument("--configFile", default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
+    parser.add_argument("inputSequences", nargs='+', help='input FASTA file(s)')
+
     options = parser.parse_args()
     setLoggingFromOptions(options)
-    
-    if not (options.outputSequenceDir and options.configFile and options.inputSequences):
-        raise RuntimeError("Too few input arguments")
+
     with Toil(options) as toil:
         stageWorkflow(outputSequenceDir=options.outputSequenceDir, configFile=options.configFile, inputSequences=options.inputSequences, toil=toil, restart=options.restart)
-
-def _test():
-    import doctest      
-    return doctest.testmod()
 
 if __name__ == '__main__':
     main()

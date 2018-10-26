@@ -12,6 +12,7 @@ import sys
 import shutil
 import subprocess32
 import logging
+import pipes
 import uuid
 import json
 import time
@@ -232,7 +233,9 @@ def runConvertAlignmentsToInternalNames(cactusDiskString, alignmentsFile, output
 def runStripUniqueIDs(cactusDiskString):
     cactus_call(parameters=["cactus_stripUniqueIDs", "--cactusDisk", cactusDiskString])
 
-def runCactusCaf(cactusDiskDatabaseString, alignments,
+def runCactusCaf(cactusDiskDatabaseString, 
+                 alignments,
+                 secondaryAlignments=None,
                  flowerNames=encodeFlowerNames((0,)),
                  logLevel=None, 
                  writeDebugFiles=False,
@@ -285,6 +288,8 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
                  fileStore=None):
     logLevel = getLogLevelString2(logLevel)
     args = ["--logLevel", logLevel, "--alignments", alignments, "--cactusDisk", cactusDiskDatabaseString]
+    if secondaryAlignments is not None:
+        args += ["--secondaryAlignments", secondaryAlignments ]
     if annealingRounds is not None:
         args += ["--annealingRounds", annealingRounds]
     if deannealingRounds is not None:
@@ -741,26 +746,26 @@ def runToilStatusAndFailIfNotComplete(toilDir):
     system(command)
 
 def runLastz(seq1, seq2, alignmentsFile, lastzArguments, work_dir=None):
-    #Have to specify the work_dir manually for this, since
-    #we're adding arguments to the filename
-    assert os.path.dirname(seq1) == os.path.dirname(seq2)
-    work_dir = os.path.dirname(seq1)
+    if work_dir is None:
+        assert os.path.dirname(seq1) == os.path.dirname(seq2)
+        work_dir = os.path.dirname(seq1)
     cactus_call(work_dir=work_dir, outfile=alignmentsFile,
                 parameters=["cPecanLastz",
                             "--format=cigar",
                             "--notrivial"] + lastzArguments.split() +
-                           ["%s[multiple][nameparse=darkspace]" % os.path.basename(seq1),
-                            "%s[nameparse=darkspace]" % os.path.basename(seq2)],
+                           ["%s[multiple][nameparse=darkspace]" % seq1,
+                            "%s[nameparse=darkspace]" % seq2],
                 soft_timeout=5400)
 
 def runSelfLastz(seq, alignmentsFile, lastzArguments, work_dir=None):
-    work_dir = os.path.dirname(seq)
+    if work_dir is None:
+        work_dir = os.path.dirname(seq)
     cactus_call(work_dir=work_dir, outfile=alignmentsFile,
                 parameters=["cPecanLastz",
                             "--format=cigar",
                             "--notrivial"] + lastzArguments.split() +
-                           ["%s[multiple][nameparse=darkspace]" % os.path.basename(seq),
-                            "%s[nameparse=darkspace]" % os.path.basename(seq)],
+                           ["%s[multiple][nameparse=darkspace]" % seq,
+                            "%s[nameparse=darkspace]" % seq],
                 soft_timeout=5400)
 
 def runCactusRealign(seq1, seq2, inputAlignmentsFile, outputAlignmentsFile, realignArguments, work_dir=None):
@@ -854,7 +859,8 @@ def dockerCommand(tool=None,
                   parameters=None,
                   rm=True,
                   port=None,
-                  dockstore=None):
+                  dockstore=None,
+                  entrypoint=None):
     # This is really dumb, but we have to work around an intersection
     # between two bugs: one in CoreOS where /etc/resolv.conf is
     # sometimes missing temporarily, and one in Docker where it
@@ -869,7 +875,10 @@ def dockerCommand(tool=None,
                         '-u', '%s:%s' % (os.getuid(), os.getgid()),
                         '-v', '{}:/data'.format(os.path.abspath(work_dir))]
 
-    if port:
+    if entrypoint is not None:
+        base_docker_call += ['--entrypoint', entrypoint]
+
+    if port is not None:
         base_docker_call += ["-p", "%d:%d" % (port, port)]
 
     containerInfo = { 'name': str(uuid.uuid4()), 'id': None }
@@ -883,16 +892,6 @@ def dockerCommand(tool=None,
     return call, containerInfo
 
 def prepareWorkDir(work_dir, parameters):
-    def moveToWorkDir(work_dir, arg):
-        if isinstance(arg, str) and os.path.isfile(arg):
-            if not os.path.dirname(arg) == work_dir:
-                _log.info('Copying file %s to work dir' % arg)
-                shutil.copy(arg, work_dir)
-
-    if work_dir:
-        for arg in parameters:
-            moveToWorkDir(work_dir, arg)
-
     if not work_dir:
     #Make sure all the paths we're accessing are in the same directory
         files = [par for par in parameters if os.path.isfile(par)]
@@ -948,13 +947,25 @@ def cactus_call(tool=None,
                 fileStore=None,
                 swallowStdErr=False):
     mode = os.environ.get("CACTUS_BINARIES_MODE", "docker")
-
     if dockstore is None:
         dockstore = getDockerOrg()
     if parameters is None:
         parameters = []
     if tool is None:
         tool = "cactus"
+
+    entrypoint = None
+    if len(parameters) > 0 and type(parameters[0]) is list:
+        # We have a list of lists, which is the convention for commands piped into one another.
+        flattened = [i for sublist in parameters for i in sublist]
+        chain_params = [' '.join(p) for p in [list(map(pipes.quote, q)) for q in parameters]]
+        parameters = ['bash', '-c', 'set -eo pipefail && ' + ' | '.join(chain_params)]
+        if mode == "docker":
+            # We want to shell into bash directly rather than going
+            # through the default cactus entrypoint.
+            entrypoint = '/bin/bash'
+            parameters = parameters[1:]
+            work_dir, _ = prepareWorkDir(work_dir, flattened)
 
     if mode in ("docker", "singularity"):
         work_dir, parameters = prepareWorkDir(work_dir, parameters)
@@ -965,7 +976,8 @@ def cactus_call(tool=None,
                                             parameters=parameters,
                                             rm=rm,
                                             port=port,
-                                            dockstore=dockstore)
+                                            dockstore=dockstore,
+                                            entrypoint=entrypoint)
     elif mode == "singularity":
         call = singularityCommand(tool=tool, work_dir=work_dir,
                                   parameters=parameters, port=port)

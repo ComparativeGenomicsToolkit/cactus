@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from Cython.Runtime.refnanny import loglevel
 
 #Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
 #
@@ -62,6 +63,7 @@ from cactus.shared.common import readGlobalFileWithoutCache
 
 from cactus.blast.blast import BlastIngroupsAndOutgroups
 from cactus.blast.blast import BlastOptions
+from cactus.blast.mappingQualityRescoringAndFiltering import mappingQualityRescoring
 
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 
@@ -101,7 +103,7 @@ class CactusJob(RoundedJob):
         self.constantsNode = constantsNode
         self.overlarge = overlarge
         self.jobNode = getJobNode(self.phaseNode, self.__class__)
-        if self.jobNode:
+        if self.jobNode is not None:
             logger.info("JobNode = %s" % self.jobNode.attrib)
 
         memory = None
@@ -475,9 +477,8 @@ def prependUniqueIDs(fas, outputDir):
         out = open(outPath, 'w')
         for line in open(fa):
             if len(line) > 0 and line[0] == '>':
-                tokens = line[1:].split()
-                tokens[0] = "id=%d|%s" % (uniqueID, tokens[0])
-                out.write(">%s\n" % "".join(tokens))
+                header = "id=%d|%s" % (uniqueID, line[1:-1])
+                out.write(">%s\n" % header)
             else:
                 out.write(line)
         ret.append(outPath)
@@ -530,19 +531,21 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
         # Change the blast arguments depending on the divergence
         setupDivergenceArgs(self.cactusWorkflowArguments)
         setupFilteringByIdentity(self.cactusWorkflowArguments)
+        
+        cafNode = findRequiredNode(self.cactusWorkflowArguments.configNode, "caf")
 
         # FIXME: this is really ugly and steals the options from the caf tag
         blastJob = self.addChild(BlastIngroupsAndOutgroups(
-            BlastOptions(chunkSize=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "chunkSize", int),
-                         overlapSize=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "overlapSize", int),
-                         lastzArguments=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "lastzArguments"),
-                         compressFiles=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "compressFiles", bool),
-                         realign=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "realign", bool), 
-                         realignArguments=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "realignArguments"),
-                         memory=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "lastzMemory", int, sys.maxint),
-                         smallDisk=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "lastzSmallDisk", int, sys.maxint),
-                         largeDisk=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "lastzLargeDisk", int, sys.maxint),
-                         minimumSequenceLength=getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "caf"), "minimumSequenceLengthForBlast", int, 1),
+            BlastOptions(chunkSize=getOptionalAttrib(cafNode, "chunkSize", int),
+                         overlapSize=getOptionalAttrib(cafNode, "overlapSize", int),
+                         lastzArguments=getOptionalAttrib(cafNode, "lastzArguments"),
+                         compressFiles=getOptionalAttrib(cafNode, "compressFiles", bool),
+                         realign=getOptionalAttrib(cafNode, "realign", bool), 
+                         realignArguments=getOptionalAttrib(cafNode, "realignArguments"),
+                         memory=getOptionalAttrib(cafNode, "lastzMemory", int, sys.maxint),
+                         smallDisk=getOptionalAttrib(cafNode, "lastzSmallDisk", int, sys.maxint),
+                         largeDisk=getOptionalAttrib(cafNode, "lastzLargeDisk", int, sys.maxint),
+                         minimumSequenceLength=getOptionalAttrib(cafNode, "minimumSequenceLengthForBlast", int, 1),
                          trimFlanking=self.getOptionalPhaseAttrib("trimFlanking", int, 10),
                          trimMinSize=self.getOptionalPhaseAttrib("trimMinSize", int, 0),
                          trimThreshold=self.getOptionalPhaseAttrib("trimThreshold", float, 0.8),
@@ -552,8 +555,29 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
                          keepParalogs=self.getOptionalPhaseAttrib("keepParalogs", bool, False)),
             map(itemgetter(0), ingroupItems), map(itemgetter(1), ingroupItems),
             map(itemgetter(0), outgroupItems), map(itemgetter(1), outgroupItems)))
-
-        self.cactusWorkflowArguments.alignmentsID = blastJob.rv(0)
+        
+        # Alignment post processing to filter alignments
+        if getOptionalAttrib(cafNode, "runMapQFiltering", bool, False):
+            minimumMapQValue=getOptionalAttrib(cafNode, "minimumMapQValue", float, 0.0)
+            maxAlignmentsPerSite=getOptionalAttrib(cafNode, "maxAlignmentsPerSite", int, 1)
+            alpha=getOptionalAttrib(cafNode, "alpha", float, 1.0)
+            fileStore.logToMaster("Running mapQ uniquifying with parameters, minimumMapQValue: %s, maxAlignmentsPerSite %s, alpha: %s" %
+                                  (minimumMapQValue, maxAlignmentsPerSite, alpha))
+            blastJob = blastJob.encapsulate() # Encapsulate to ensure that blast Job and all its successors
+            # run before mapQ
+            mapQJob = blastJob.addFollowOnJobFn(mappingQualityRescoring, blastJob.rv(0), 
+                                                minimumMapQValue=minimumMapQValue,
+                                                maxAlignmentsPerSite=maxAlignmentsPerSite,
+                                                alpha=alpha,
+                                                logLevel=getLogLevelString(),
+                                                preemptable=True)
+            self.cactusWorkflowArguments.alignmentsID = mapQJob.rv(0)
+            self.cactusWorkflowArguments.secondaryAlignmentsID = mapQJob.rv(1)
+        else:
+            fileStore.logToMaster("Not running mapQ filtering")
+            self.cactusWorkflowArguments.alignmentsID = blastJob.rv(0)
+            self.cactusWorkflowArguments.secondaryAlignmentsID = None
+            
         self.cactusWorkflowArguments.outgroupFragmentIDs = blastJob.rv(1)
         self.cactusWorkflowArguments.ingroupCoverageIDs = blastJob.rv(2)
 
@@ -665,15 +689,28 @@ class CactusCafPhase(CactusPhasesJob):
             self.cactusWorkflowArguments.constraintsID = fileStore.writeGlobalFile(newConstraintsFile, cleanup=True)
 
         assert self.getPhaseNumber() == 1
+        
+        # Convert the cigar files to use 64-bit cactus Names instead of the headers.
+        
+        # Primary alignments first
         alignmentsFile = fileStore.readGlobalFile(self.cactusWorkflowArguments.alignmentsID)
-        convertedAlignmentsFile = fileStore.getLocalTempFile()
-        # Convert the cigar file to use 64-bit cactus Names instead of the headers.
+        convertedAlignmentsFile = fileStore.getLocalTempFile() 
         runConvertAlignmentsToInternalNames(cactusDiskString=self.cactusWorkflowArguments.cactusDiskDatabaseString, alignmentsFile=alignmentsFile, outputFile=convertedAlignmentsFile, flowerName=self.topFlowerName)
         fileStore.logToMaster("Converted headers of cigar file %s to internal names, new file %s" % (self.cactusWorkflowArguments.alignmentsID, convertedAlignmentsFile))
         self.cactusWorkflowArguments.alignmentsID = fileStore.writeGlobalFile(convertedAlignmentsFile, cleanup=True)
+        
+        # Now any secondary alignments
+        if self.cactusWorkflowArguments.secondaryAlignmentsID != None:
+            secondaryAlignmentsFile = fileStore.readGlobalFile(self.cactusWorkflowArguments.secondaryAlignmentsID)
+            convertedAlignmentsFile = fileStore.getLocalTempFile() 
+            runConvertAlignmentsToInternalNames(cactusDiskString=self.cactusWorkflowArguments.cactusDiskDatabaseString, alignmentsFile=secondaryAlignmentsFile, outputFile=convertedAlignmentsFile, flowerName=self.topFlowerName)
+            fileStore.logToMaster("Converted headers of secondary cigar file %s to internal names, new file %s" % (self.cactusWorkflowArguments.secondaryAlignmentsID, convertedAlignmentsFile))
+            self.cactusWorkflowArguments.secondaryAlignmentsID = fileStore.writeGlobalFile(convertedAlignmentsFile, cleanup=True)
+        
         # While we're at it, remove the unique IDs prepended to
         # the headers inside the cactus DB.
         runStripUniqueIDs(self.cactusWorkflowArguments.cactusDiskDatabaseString)
+        
         return self.runPhase(CactusCafWrapper, SavePrimaryDB, "caf")
 
 class CactusCafWrapper(CactusRecursionJob):
@@ -691,7 +728,7 @@ class CactusCafWrapper(CactusRecursionJob):
         kwargs['preemptable'] = False
         super(CactusCafWrapper, self).__init__(**kwargs)
 
-    def runCactusCafInWorkflow(self, alignmentFile, fileStore, constraints=None):
+    def runCactusCafInWorkflow(self, alignmentFile, secondaryAlignmentFile, fileStore, constraints=None):
         debugFilePath = self.getOptionalPhaseAttrib("phylogenyDebugPrefix")
         if debugFilePath != None:
             debugFilePath += getOptionalAttrib(findRequiredNode(self.cactusWorkflowArguments.configNode, "reference"), "reference")
@@ -700,6 +737,7 @@ class CactusCafWrapper(CactusRecursionJob):
                           fileStore=fileStore,
                           jobName=self.__class__.__name__,
                           alignments=alignmentFile, 
+                          secondaryAlignments=secondaryAlignmentFile,
                           flowerNames=self.flowerNames,
                           constraints=constraints,  
                           annealingRounds=self.getOptionalPhaseAttrib("annealingRounds"),  
@@ -749,11 +787,18 @@ class CactusCafWrapper(CactusRecursionJob):
 
     def run(self, fileStore):
         alignments = fileStore.readGlobalFile(self.cactusWorkflowArguments.alignmentsID)
+        logger.info("Alignments file: %s" % alignments)
+
+        secondaryAlignments = None
+        if self.cactusWorkflowArguments.secondaryAlignmentsID != None:
+            secondaryAlignments = fileStore.readGlobalFile(self.cactusWorkflowArguments.secondaryAlignmentsID)
+            
         constraints = None
         if self.cactusWorkflowArguments.constraintsID is not None:
             constraints = fileStore.readGlobalFile(self.cactusWorkflowArguments.constraintsID)
-        logger.info("Alignments file: %s" % alignments)
-        self.runCactusCafInWorkflow(alignmentFile=alignments, fileStore=fileStore,
+            
+        
+        self.runCactusCafInWorkflow(alignmentFile=alignments, secondaryAlignmentFile=secondaryAlignments, fileStore=fileStore,
                                     constraints=constraints)
 
 

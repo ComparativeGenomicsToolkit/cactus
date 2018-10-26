@@ -161,6 +161,13 @@ bool stCaf_relaxedSingleCopyIngroup(stPinchSegment *segment1,
                                     stPinchSegment *segment2);
 
 /*
+ * Filters block alignments that would merge blocks that each already contain
+ * sequences from multiple species. The rationale of this filter is to avoid
+ * aligning together paralogous alignments that predate the speciation event.
+ */
+bool stCaf_filterByMultipleSpecies(stPinchSegment *segment1, stPinchSegment *segment2);
+
+/*
  * Forbids pinching together two copies within the same sequence.
  */
 bool stCaf_singleCopyChr(stPinchSegment *segment1, stPinchSegment *segment2);
