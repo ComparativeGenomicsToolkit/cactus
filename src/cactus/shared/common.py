@@ -787,7 +787,7 @@ def runGetChunks(sequenceFiles, chunksDir, chunkSize, overlapSize, work_dir=None
                                      getLogLevelString(),
                                      str(chunkSize),
                                      str(overlapSize),
-                         chunksDir] + sequenceFiles)
+                                     chunksDir] + sequenceFiles)
     return [chunk for chunk in chunks.split("\n") if chunk != ""]
 
 def pullCactusImage():
