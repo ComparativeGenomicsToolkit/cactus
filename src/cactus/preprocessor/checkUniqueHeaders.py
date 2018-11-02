@@ -3,7 +3,7 @@
 """
 from sonLib.bioio import fastaRead
 
-def checkUniqueHeaders(inputFile, checkAlphaNumeric=True, checkUCSC=True, checkAssemblyHub=True):
+def checkUniqueHeaders(inputFile, checkAlphaNumeric=False, checkUCSC=False, checkAssemblyHub=True):
     """Check that headers are unique and meet certain requirements."""
     seen = set()
     for header, seq in fastaRead(inputFile):
