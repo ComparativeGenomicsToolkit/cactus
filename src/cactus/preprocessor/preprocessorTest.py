@@ -1,6 +1,6 @@
-import unittest
 import os
-from sonLib.bioio import system
+import shutil
+import unittest
 from sonLib.bioio import TestStatus
 from sonLib.bioio import fastaRead
 from sonLib.bioio import getTempDirectory
@@ -24,7 +24,7 @@ class TestCase(unittest.TestCase):
 
     def tearDown(self):
         unittest.TestCase.tearDown(self)
-        system("rm -rf %s" % self.tempDir)
+        shutil.rmtree(self.tempDir)
 
     def checkSequenceSetsEqualModuloSoftMasking(self, sequences1, sequences2):
         self.assertEquals(sequences1.keys(), sequences2.keys())
