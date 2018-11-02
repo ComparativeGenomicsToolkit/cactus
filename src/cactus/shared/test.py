@@ -311,6 +311,26 @@ def getCactusInputs_chromosomeX(regionNumber=0, tempDir=None):
     newickTreeString = parseNewickTreeFile(os.path.join(chrXPath, "newickTree.txt"))
     return sequences, newickTreeString
 
+def getCactusInputs_evolverMammals():
+    """Gets the inputs for running cactus_workflow using some simulated, half megabase mammlian chromosomes.
+    
+    Requires setting SON_TRACE_DATASETS variable and having access to datasets.
+    """
+    evolverPath = os.path.join(TestStatus.getPathToDataSets(), "evolver", "mammals", "loci1")
+    sequences = [ os.path.join(evolverPath, seqFile) for seqFile in ("simHuman.chr6", "simMouse.chr6", "simRat.chr6", "simCow.chr6", "simDog.chr6") ]
+    newickTreeString = parseNewickTreeFile(os.path.join(evolverPath, "tree.newick"))
+    return sequences, newickTreeString
+
+def getCactusInputs_evolverPrimates():
+    """Gets the inputs for running cactus_workflow using some simulated, half megabase primate chromosomes.
+    
+    Requires setting SON_TRACE_DATASETS variable and having access to datasets.
+    """
+    evolverPath = os.path.join(TestStatus.getPathToDataSets(), "evolver", "primates", "loci1")
+    sequences = [ os.path.join(evolverPath, seqFile) for seqFile in ("simHuman.chr6", "simChimp.chr6", "simGorilla.chr6" , "simOrang.chr6") ]
+    newickTreeString = parseNewickTreeFile(os.path.join(evolverPath, "tree.newick"))
+    return sequences, newickTreeString
+
 def runWorkflow_TestScript(sequences, newickTreeString, 
                            outputDir=None,
                            batchSystem="single_machine",

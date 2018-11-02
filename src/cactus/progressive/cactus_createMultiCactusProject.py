@@ -124,10 +124,12 @@ def specifyAlignmentRoot(mcProj, expTemplate, alignmentRootId):
 
     # dig out every outgroup
     outGroupNames = set()
+    eventsInSubtree = set(mcProj.mcTree.getName(i) for i in mcProj.mcTree.postOrderTraversal(alignmentRootId))
     if mcProj.outgroup is not None:
         for event, ogNameDistList in mcProj.outgroup.ogMap.items():
-            for og, dist in ogNameDistList:
-                outGroupNames.add(og)
+            if event in eventsInSubtree:
+                for og, dist in ogNameDistList:
+                    outGroupNames.add(og)
 
     # find outgroups we want to extract
     keptNodes = set([x for x in mcProj.mcTree.postOrderTraversal(alignmentRootId)])

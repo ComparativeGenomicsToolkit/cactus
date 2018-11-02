@@ -38,12 +38,12 @@ class GreedyOutgroup(object):
         self.dag = mcTree.nxDg.copy()
         self.root = mcTree.rootId
         self.stripNonEvents(self.root, mcTree.subtreeRoots)
-        self.dmDirected = NX.algorithms.shortest_paths.weighted.\
-        all_pairs_dijkstra_path_length(self.dag)
+        self.dmDirected = dict(NX.algorithms.shortest_paths.weighted.\
+        all_pairs_dijkstra_path_length(self.dag))
         self.invalidSet = self.getInvalid(rootId)
         graph = NX.Graph(self.dag)
-        self.dm = NX.algorithms.shortest_paths.weighted.\
-        all_pairs_dijkstra_path_length(graph)
+        self.dm = dict(NX.algorithms.shortest_paths.weighted.\
+        all_pairs_dijkstra_path_length(graph))
         self.ogMap = defaultdict(list)
 
     # return set of ancestral nodes that aren't below alignment root

@@ -101,8 +101,8 @@ class MultiCactusTree(NXTree):
                     if node not in nodeIds:
                         # This is a spurious node in the species tree,
                         # we can and should remove
-                        childEdge = cpy.out_edges(node, data=True)[0]
-                        parentEdge = cpy.in_edges(node, data=True)[0]
+                        childEdge = list(cpy.out_edges(node, data=True))[0]
+                        parentEdge = list(cpy.in_edges(node, data=True))[0]
                         child = childEdge[1]
                         childDist = childEdge[2]['weight']
                         parent = parentEdge[0]

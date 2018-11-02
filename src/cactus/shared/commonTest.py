@@ -71,6 +71,18 @@ class TestCase(unittest.TestCase):
 
         self.assertEquals(input, output)
 
+    def testCactusCallPipes(self):
+        inputFile = getTempFile(rootDir=self.tempDir)
+        with open(inputFile, 'w') as f:
+            f.write('foobar\n')
+        # using 'cat' here rather than infile is intentional; it tests
+        # whether the directory is mounted into containers correctly.
+        output = cactus_call(parameters=[['cat', inputFile],
+                                         ['sed', 's/foo/baz/g'],
+                                         ['awk', '{ print "quux" $0 }']],
+                             check_output=True)
+        self.assertEquals(output, 'quuxbazbar\n')
+
     @silentOnSuccess
     def testChildTreeJob(self):
         """Check that the ChildTreeJob class runs all children."""

@@ -114,6 +114,41 @@ static stSortedSet *getEvents(stPinchSegment *segment, Flower *flower) {
     return events;
 }
 
+static bool containsMoreThanOneEvent(stPinchSegment *segment, Flower *flower) {
+    if (stPinchSegment_getBlock(segment) == NULL) {
+        return false;
+    } else {
+        stPinchBlock *block = stPinchSegment_getBlock(segment);
+        Event *event = stCaf_getEvent(segment, flower);
+        stPinchBlockIt it = stPinchBlock_getSegmentIterator(block);
+        while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
+            if (stCaf_getEvent(segment, flower) != event) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
+bool stCaf_filterByMultipleSpecies(stPinchSegment *segment1,
+                                   stPinchSegment *segment2) {
+    stPinchBlock *block1, *block2;
+    if ((block1 = stPinchSegment_getBlock(segment1)) != NULL) {
+        if ((block2 = stPinchSegment_getBlock(segment2)) != NULL) {
+            if (block1 == block2) {
+                return stPinchBlock_getLength(block1) == 1 ? 0 : containsMoreThanOneEvent(segment1, flower);
+            }
+            if (stPinchBlock_getDegree(block1) < stPinchBlock_getDegree(block2)) {
+            	return containsMoreThanOneEvent(segment1, flower) && containsMoreThanOneEvent(segment2, flower);
+            }
+            return containsMoreThanOneEvent(segment2, flower) && containsMoreThanOneEvent(segment1, flower);
+        }
+    }
+    // If we get here, we are just adding a segment to a block, not
+    // pinching two blocks together.
+    return false;
+}
+
 bool stCaf_filterByRepeatSpecies(stPinchSegment *segment1,
                                  stPinchSegment *segment2) {
     return checkIntersection(getEvents(segment1, flower), getEvents(segment2, flower));

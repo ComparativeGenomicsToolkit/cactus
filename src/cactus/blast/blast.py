@@ -510,7 +510,7 @@ def calculateCoverage(sequenceFile, cigarFile, outputFile, fromGenome=None, dept
         cigarFile, sequenceFile, outputFile))
     args = [sequenceFile, cigarFile]
     if fromGenome is not None:
-        args += ["--fromGenome", fromGenome]
+        args += ["--from", fromGenome]
     if depthById:
         args += ["--depthById"]
     cactus_call(outfile=outputFile, work_dir=work_dir,

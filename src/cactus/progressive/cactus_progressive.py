@@ -13,6 +13,7 @@ tree.
 import os
 import xml.etree.ElementTree as ET
 from argparse import ArgumentParser
+from base64 import b64encode
 from subprocess import check_call
 
 from toil.lib.bioio import getTempFile
@@ -27,6 +28,7 @@ from cactus.shared.common import catFiles
 from cactus.shared.common import cactus_call
 from cactus.shared.common import RoundedJob
 from cactus.shared.common import getDockerImage
+from cactus.shared.version import cactus_commit
 
 from toil.job import Job
 from toil.common import Toil
@@ -70,6 +72,7 @@ class ProgressiveDown(RoundedJob):
 
         return self.addFollowOn(ProgressiveNext(self.options, self.project, self.event,
                                                               self.schedule, depProjects, memory=self.configWrapper.getDefaultMemory())).rv()
+
 class ProgressiveNext(RoundedJob):
     def __init__(self, options, project, event, schedule, depProjects, memory=None, cores=None):
         RoundedJob.__init__(self, memory=memory, cores=cores, preemptable=True)
@@ -317,6 +320,10 @@ def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC
 
             cactus_call(parameters=["halAppendCactusSubtree"] + args)
 
+    cactus_call(parameters=["halSetMetadata", HALPath, "CACTUS_COMMIT", cactus_commit])
+    with job.fileStore.readGlobalFileStream(project.configID) as configFile:
+        cactus_call(parameters=["halSetMetadata", HALPath, "CACTUS_CONFIG", b64encode(configFile.read())])
+
     return job.fileStore.writeGlobalFile(HALPath)
 
 def setupBinaries(options):
@@ -337,7 +344,7 @@ def setupBinaries(options):
         if find_executable('docker') is None:
             raise RuntimeError("The `docker` executable wasn't found on the "
                                "system. Please install Docker if possible, or "
-                               "use --binaryMode local and add cactus's bin "
+                               "use --binariesMode local and add cactus's bin "
                                "directory to your PATH.")
     # If running without Docker, verify that we can find the Cactus executables
     elif mode == "local":
