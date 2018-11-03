@@ -10,16 +10,9 @@ called (in that order) for anything to work...
 
 """
 
-import os
-import xml.etree.ElementTree as ET
-import sys
 import math
-import copy
-
-from optparse import OptionParser
 
 from sonLib.nxtree import NXTree
-from sonLib.nxnewick import NXNewick
 
 import networkx as nx
 from networkx.algorithms.shortest_paths.weighted import dijkstra_path

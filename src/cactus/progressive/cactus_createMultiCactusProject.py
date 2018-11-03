@@ -132,7 +132,7 @@ def specifyAlignmentRoot(mcProj, expTemplate, alignmentRootId):
                     outGroupNames.add(og)
 
     # find outgroups we want to extract
-    keptNodes = set([x for x in mcProj.mcTree.postOrderTraversal(alignmentRootId)])
+    keptNodes = set(mcProj.mcTree.postOrderTraversal(alignmentRootId))
     deadNodes = []
     for node in mcProj.mcTree.postOrderTraversal():
         if node not in keptNodes:
@@ -146,7 +146,7 @@ def specifyAlignmentRoot(mcProj, expTemplate, alignmentRootId):
 
     # add the outgroups to the tree (and sequence map)
     # computing distance to new root for each one
-    for ogName in outGroupNames:
+    for ogName in mcProj.externalOutgroupNames:
         ogId = mcProj.mcTree.getNodeId(ogName)
         dist = 0.
         x = ogId
