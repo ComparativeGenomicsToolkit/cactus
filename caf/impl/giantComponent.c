@@ -175,7 +175,7 @@ static void breakEdges(stPinchThreadSet *threadSet, stPinchEnd *pinchEnd1, stPin
                         stPinchBlock_construct2(segment3);
                         st_logDebug("Split an edge in a giant component\n");
                     } else {
-                        printf("Encountered an edge in a giant component which can not be broken due its short length\n");
+                        st_logInfo("Encountered an edge in a giant component which can not be broken due its short length\n");
                     }
                 }
                 break;
@@ -215,8 +215,8 @@ void stCaf_breakupComponentsGreedily(stPinchThreadSet *threadSet, float maximumA
                 }
             }
             if (stList_length(edgesToDelete) > 0) {
-                printf("Pinch graph component with %" PRIi64 " nodes and %" PRIi64 " edges is being split up by breaking %" PRIi64 " edges to reduce size to less than %" PRIi64 " max, but found %" PRIi64 " pointless edges \n",
-                    stList_length(nodes), stList_length(edges), stList_length(edgesToDelete), maximumAdjacencyComponentSize, unbrokenEdges);
+                st_logInfo("Pinch graph component with %" PRIi64 " nodes and %" PRIi64 " edges is being split up by breaking %" PRIi64 " edges to reduce size to less than %" PRIi64 " max, but found %" PRIi64 " pointless edges \n",
+                           stList_length(nodes), stList_length(edges), stList_length(edgesToDelete), maximumAdjacencyComponentSize, unbrokenEdges);
             }
             //Cleanup
             stList_destruct(edges);

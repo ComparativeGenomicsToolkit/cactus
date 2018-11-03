@@ -117,7 +117,6 @@ static void checkComponents(CuTest *testCase, stList *filteredEdges) {
 }
 
 static void testBreakUpComponentGreedily(CuTest *testCase) {
-    //return;
     for (int64_t test = 0; test < 100; test++) {
         st_logInfo("Starting break up giant components random test %" PRIi64 "\n", test);
         setup();
