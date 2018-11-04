@@ -9,7 +9,6 @@ import os
 import cPickle
 import pickle
 import sys
-import shutil
 import subprocess32
 import logging
 import pipes

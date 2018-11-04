@@ -14,10 +14,21 @@ RUN cd /home/cactus && make
 
 # Create a thinner final Docker image in which only the binaries and necessary data exist.
 FROM ubuntu:16.04
-RUN apt-get update && apt-get install -y libkyotocabinet-dev libkyototycoon-dev libtokyocabinet-dev python zlib1g-dev python-dev libbz2-dev build-essential python-pip git kyototycoon valgrind net-tools redis-server libhiredis-dev
+RUN apt-get update && apt-get install -y libkyotocabinet-dev libkyototycoon-dev libtokyocabinet-dev python zlib1g-dev python-dev libbz2-dev build-essential python-pip git kyototycoon valgrind net-tools redis-server libhiredis-dev wget
 COPY --from=builder /home/cactus/bin/* /usr/local/bin/
 COPY --from=builder /home/cactus/submodules/sonLib/bin/* /usr/local/bin/
 COPY --from=builder /home/cactus/submodules/cactus2hal/bin/* /usr/local/bin/
+RUN wget http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/trfBig -O /bin/trfBig
+RUN chmod +x /bin/trfBig
+RUN wget https://tandem.bu.edu/trf/downloads/trf409.linux64 -O /bin/trf
+RUN chmod +x /bin/trf
+RUN wget http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/faToTwoBit -O /bin/faToTwoBit
+RUN chmod +x /bin/faToTwoBit
+RUN wget http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/twoBitMask -O /bin/twoBitMask
+RUN chmod +x /bin/twoBitMask
+RUN wget http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/twoBitToFa -O /bin/twoBitToFa
+RUN chmod +x /bin/twoBitToFa
+
 
 RUN mkdir /opt/cactus/
 COPY runtime/wrapper.sh /opt/cactus/
