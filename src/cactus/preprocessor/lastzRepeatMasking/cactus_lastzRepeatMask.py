@@ -107,14 +107,6 @@ class LastzRepeatMaskJob(RoundedJob):
         assert len(self.targetIDs) >= 1
         assert self.repeatMaskOptions.fragment > 1
         queryFile = fileStore.readGlobalFile(self.queryID)
-        # Extra TRF masking
-        trfBed = fileStore.getLocalTempFileName() + ".bed"
-        cactus_call(parameters=["trfBig", queryFile, "/dev/null", "-bedAt=%s" % trfBed])
-        twoBit = fileStore.getLocalTempFileName()
-        cactus_call(parameters=["faToTwoBit", queryFile, twoBit])
-        twoBitMasked = fileStore.getLocalTempFileName()
-        cactus_call(parameters=["twoBitMask", twoBit, "-add", trfBed, twoBitMasked])
-        cactus_call(parameters=["twoBitToFa", twoBitMasked, queryFile])
         targetFiles = [fileStore.readGlobalFile(fileID) for fileID in self.targetIDs]
 
         fragments = self.getFragments(fileStore, queryFile)
