@@ -20,15 +20,15 @@ int cmpAlignmentsFn(const void *a, const void *b) {
 	return pA1->score < pA2->score ? -1 : (pA1->score > pA2->score ? 1 : 0);
 }
 
-void updateScoresToReflectMappingQualities(stList *alignments, float alpha) {
+void updateScoresToReflectMappingQualities(stList *alignments, float alpha, uint64_t numAlignmentsToScore) {
 	// Create an array of the scores
 	float *alignmentScores = st_calloc(stList_length(alignments), sizeof(float));
 	for(uint64_t i=0; i<stList_length(alignments); i++) {
 		alignmentScores[i] = ((struct PairwiseAlignment *)stList_get(alignments, i))->score;
 	}
 
-	// Calculate mapQs
-	for(uint64_t i=0; i<stList_length(alignments); i++) {
+	// Calculate mapQs for the best N alignments (N = numAlignmentsToScore).
+	for(uint64_t i=stList_length(alignments) - numAlignmentsToScore; i<stList_length(alignments); i++) {
 		struct PairwiseAlignment *pA = stList_get(alignments, i);
 
 		// Cut off the calculation if clearly going to be zero
@@ -64,7 +64,7 @@ void reportAlignments(stList *alignments, int64_t maxAlignmentsPerSite,
 	stList_sort(alignments, cmpAlignmentsFn);
 
 	// Calculate the mapping qualities
-	updateScoresToReflectMappingQualities(alignments, alpha);
+	updateScoresToReflectMappingQualities(alignments, alpha, maxAlignmentsPerSite);
 
 	// Report the alignments
 	for(int64_t i=0; stList_length(alignments) > 0;) {
