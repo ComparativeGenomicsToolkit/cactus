@@ -28,7 +28,8 @@ void updateScoresToReflectMappingQualities(stList *alignments, float alpha, uint
 	}
 
 	// Calculate mapQs for the best N alignments (N = numAlignmentsToScore).
-	for(uint64_t i=stList_length(alignments) - numAlignmentsToScore; i<stList_length(alignments); i++) {
+        uint64_t start = stList_length(alignments) > numAlignmentsToScore ? stList_length(alignments) - numAlignmentsToScore : 0;
+	for(uint64_t i=start; i<stList_length(alignments); i++) {
 		struct PairwiseAlignment *pA = stList_get(alignments, i);
 
 		// Cut off the calculation if clearly going to be zero
