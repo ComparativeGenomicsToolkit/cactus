@@ -115,10 +115,12 @@ def specifyAlignmentRoot(mcProj, alignmentRootId):
     
     # dig out every outgroup
     outGroupNames = set()
+    eventsInSubtree = set(mcProj.mcTree.getName(i) for i in mcProj.mcTree.postOrderTraversal(alignmentRootId))
     if mcProj.outgroup is not None:
         for event, ogNameDistList in mcProj.outgroup.ogMap.items():
-            for og, dist in ogNameDistList:
-                outGroupNames.add(og)
+            if event in eventsInSubtree:
+                for og, dist in ogNameDistList:
+                    outGroupNames.add(og)
 
     # i don't like this but we have to assume here that the sequences are
     # written in postorder (as in experiments)
