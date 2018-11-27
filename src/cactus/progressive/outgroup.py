@@ -188,9 +188,14 @@ class GreedyOutgroup(object):
             if not self.inCandidateSet(sink, candidateChildFrac):
                 continue
 
-            # canditate pair exceeds given threshold, so we skip
-            if threshold is not None and \
-            htable[sink] - htable[source] + 1 > threshold:
+            # candidate (ancestral) sink is too high up the tree compared to the source, so we skip
+            if (threshold is not None and
+                not self.mcTree.isLeaf(sink) and
+                # "+ 1" because we want a threshold of 0 to indicate we
+                # probably won't have to wait for the outgroup (it will
+                # already have been finished, assuming all subproblems
+                # proceed at the same rate)
+                htable[sink] - htable[source] + 1 > threshold):
                 continue
 
             # Don't use any outgroups that are a child of another node
