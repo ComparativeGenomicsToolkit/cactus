@@ -369,7 +369,7 @@ def setupBinaries(options):
         if jobStoreType != "file":
             raise RuntimeError("Singularity mode is only supported when using the FileJobStore.")
         if options.containerImage:
-            imgPath = options.containerImage
+            imgPath = os.path.abspath(options.containerImage)
             os.environ["CACTUS_USE_LOCAL_SINGULARITY_IMG"] = "1"
         else:
             # When SINGULARITY_CACHEDIR is set, singularity will refuse to store images in the current directory
