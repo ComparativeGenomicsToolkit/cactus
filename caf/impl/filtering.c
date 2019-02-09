@@ -138,6 +138,11 @@ bool stCaf_filterByMultipleSpecies(stPinchSegment *segment1,
             if (block1 == block2) {
                 return stPinchBlock_getLength(block1) == 1 ? 0 : containsMoreThanOneEvent(segment1, flower);
             }
+            if (stPinchBlock_getDegree(block1) > 10000 || stPinchBlock_getDegree(block2) > 10000) {
+                // At this point we are just smooshing megablocks
+                // together, this is valueless.
+                return true;
+            }
             if (stPinchBlock_getDegree(block1) < stPinchBlock_getDegree(block2)) {
             	return containsMoreThanOneEvent(segment1, flower) && containsMoreThanOneEvent(segment2, flower);
             }
