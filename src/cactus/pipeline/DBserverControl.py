@@ -7,6 +7,7 @@ import os
 import random
 import socket
 import signal
+import platform
 import sys
 import traceback
 from glob import glob
@@ -15,6 +16,7 @@ from multiprocessing import Process, Queue
 from time import sleep
 from toil.lib.bioio import logger
 from cactus.shared.common import cactus_call
+from contextlib import closing
 from os import listdir
 from os.path import isfile, join
 
@@ -41,12 +43,12 @@ def runDBserver(dbElem, fileStore, existingSnapshotID=None, snapshotExportID=Non
     # Find a suitable port to run on.
     try:
         occupiedPorts = findOccupiedPorts()
-        unoccupiedPorts = set(xrange(1025,MAX_DBSERVER_PORT)) - occupiedPorts
+        unoccupiedPorts = set(xrange(1025, _MAX_DBSERVER_PORT)) - occupiedPorts
         port = random.choice(list(unoccupiedPorts))
     except:
         logger.warning("Can't find which ports are occupied--likely netstat is not installed."
                        " Choosing a random port to start the DB on, good luck!")
-        port = random.randint(1025,_MAX_DBSERVER_PORT)
+        port = random.randint(1025, _MAX_DBSERVER_PORT)
     dbElem.setDbPort(port)
 
     process = DBServerProcess(dbElem, logPath, fileStore, existingSnapshotID, snapshotExportID)
@@ -88,13 +90,10 @@ class DBServerProcess(Process):
             # directory so it will be automatically loaded
             fileStore.readGlobalFile(existingSnapshotID, userPath=snapshotPath)
         
-        process = cactus_call(DBserver=True, shell=False,parameters=getDBserverCommand(dbElem, logPath, snapshotDir))
+        process = cactus_call(server=True, shell=False, parameters=getDBserverCommand(dbElem, logPath, snapshotDir), port=dbElem.getDbPort())
         if not blockUntilDBserverIsRunning(dbElem):
             raise RuntimeError("Unable to launch DBserver in time.")
 
-        # the format for debugging must be in redis-cli -p <Port>  MONITOR | head -n <number of lines to read> > <path to file> you cannot take
-        # out n or call assumes 0.
-        cactus_call(DBserver=True, shell=False, parameters=['redis-cli'] + getRemoteParams(dbElem) + ['MONITOR'], outfile=getFileName(),                             check_result=True)
         if existingSnapshotID is not None:
             # Clear the termination flag from the snapshot
             cactus_call(parameters=["redis-cli"] + getRemoteParams(dbElem) + ["del", "TERMINATE"])
@@ -129,7 +128,7 @@ def waitUntilSnapshotTaken(dbElem, createTimeout=180):
     """
     success= False
     for i in xrange(createTimeout):
-        running=cactus_call(shell= False, parameters= ["redis-cli -p", str(dbElem.getDbPort()) , " save"], check_output=True)
+        running=cactus_call(shell= False, parameters=["redis-cli", '-p',  str(dbElem.getDbPort()), "save"], check_output=True)
         print (running)
         if "OK\n" in running:
             success=True
@@ -137,16 +136,6 @@ def waitUntilSnapshotTaken(dbElem, createTimeout=180):
     print (success)
     return success
 
-def getFileName():  
-    onlyfiles = [f for f in listdir("/home/akul/snapshot/") if isfile(join("/home/akul/snapshot/", f))]
-    max=0
-    for files in onlyfiles:
-       stat= files[7:8]
-       if int(stat) > max:
-           max = int(stat)
-    filename="/home/akul/snapshot/outfile%d.txt" %(max+1)
-    print filename
-    return filename
 
 def blockUntilDBserverIsRunning(dbElem, createTimeout=60):
     """Check status until it's successful, an error is found, or we timeout.
@@ -154,23 +143,23 @@ def blockUntilDBserverIsRunning(dbElem, createTimeout=60):
     Returns True if the DBserver is now running, False if something went wrong."""
     success = False
     for i in xrange(createTimeout):
-        running=cactus_call(shell= False, parameters= ["redis-cli -p", str(dbElem.getDbPort()) , " ping"], check_result=True)
-        if (running==0):
-            loading=cactus_call(shell= False, parameters= ["redis-cli -p", str(dbElem.getDbPort()) , " ping"], check_output=True)
+        running = cactus_call(shell=False, parameters=["redis-cli", '-p', str(dbElem.getDbPort()), "ping"], check_result=True)
+        if running == 0:
+            loading = cactus_call(shell=False, parameters=["redis-cli", '-p', str(dbElem.getDbPort()), "ping"], check_output=True)
             if 'LOADING' not in loading:
-                success=True
+                success = True
                 break
         sleep(1)
     return success
 
-def blockUntilDBserverIsFinished(logPath,dbElem, timeout=180,
+def blockUntilDBserverIsFinished(logPath, dbElem, timeout=180,
                                  timeStep=10):
     """Wait for the DBserver to indicate that it shut down properly.
 
     Returns True if the DBserver shut down, False if the timeout expired."""
     for i in xrange(0, timeout, timeStep):
-        running=cactus_call(shell= False, parameters= ["redis-cli -p", str(dbElem.getDbPort()) , " ping"], check_result=True)
-        if (running!=0):
+        running = cactus_call(shell=False, parameters=["redis-cli", '-p', str(dbElem.getDbPort()), "ping"], check_result=True)
+        if running != 0:
             return True
         sleep(timeStep)
     raise RuntimeError("Timeout reached while waiting for DBserver.")
@@ -208,7 +197,7 @@ def getTuningOptions(dbElem):
 
 def getDBserverCommand(dbElem, logPath, snapshotPath):
     """Get a ktserver command line with the proper options (in popen-type list format)."""
-    cmd = ["redis-server", "--port",str(dbElem.getDbPort()),"--save \"\" --dir", snapshotPath]
+    cmd = ["redis-server", "--port", str(dbElem.getDbPort()), "--save", '\"\"', "--dir", snapshotPath]
     return cmd
 
 def getDBServerOptions(dbElem):
@@ -247,15 +236,36 @@ def saveDBserver(dbElem):
 # otherwise return primary hostname
 ###############################################################################
 def getHostName():
-    hostName = socket.gethostname()
-    hostIp = socket.gethostbyname(hostName)
-    if hostIp.find("127.") != 0:
-        return hostIp
-    return hostName
+    if platform.system() == 'Darwin':
+        # macOS doesn't have a true Docker bridging mode, so each
+        # container is NATed with its own local IP and can't bind
+        # to/connect to this computer's external IP. We have to
+        # hardcode the loopback IP to work around this.
+        return '127.0.0.1'
+    return getPublicIP()
+
+# Borrowed from toil code.
+def getPublicIP():
+    """Get the IP that this machine uses to contact the internet.
+    If behind a NAT, this will still be this computer's IP, and not the router's."""
+    try:
+        # Try to get the internet-facing IP by attempting a connection
+        # to a non-existent server and reading what IP was used.
+        with closing(socket.socket(socket.AF_INET, socket.SOCK_DGRAM)) as sock:
+            # 203.0.113.0/24 is reserved as TEST-NET-3 by RFC 5737, so
+            # there is guaranteed to be no one listening on the other
+            # end (and we won't accidentally DOS anyone).
+            sock.connect(('203.0.113.1', 1))
+            ip = sock.getsockname()[0]
+        return ip
+    except:
+        # Something went terribly wrong. Just give loopback rather
+        # than killing everything, because this is often called just
+        # to provide a default argument
+        return '127.0.0.1'
 
 def findOccupiedPorts():
     """Attempt to find all currently taken TCP ports.
-
     Returns a set of ints, representing taken ports."""
     netstatOutput = cactus_call(parameters=["netstat", "-tuplen"], check_output=True)
     ports = set()
@@ -268,4 +278,3 @@ def findOccupiedPorts():
         ports.add(port)
     logger.debug('Detected ports in use: %s' % repr(ports))
     return ports
-

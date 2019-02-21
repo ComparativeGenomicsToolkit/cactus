@@ -1002,7 +1002,7 @@ def cactus_call(tool=None,
                                  stderr=subprocess32.PIPE if swallowStdErr else sys.stderr,
                                  bufsize=-1)
 
-    if DBserver:
+    if server:
         return process
 
     memUsage = 0

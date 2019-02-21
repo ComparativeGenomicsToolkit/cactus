@@ -407,7 +407,7 @@ def main():
     #Progressive Cactus Options
     parser.add_argument("--database", dest="database",
                         help="Database type",
-                        choices=['kyoto_tycoon', 'redis']
+                        choices=['kyoto_tycoon', 'redis'],
                         default="redis")
     parser.add_argument("--configFile", dest="configFile",
                       help="Specify cactus configuration file",
