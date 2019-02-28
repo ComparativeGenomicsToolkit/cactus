@@ -72,6 +72,8 @@ from cactus.shared.experimentWrapper import DbElemWrapper
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.pipeline.DBserverToil import DBServerService
 from cactus.pipeline.DBserverControl import stopDBserver
+from cactus.pipeline.ktserverToil import KtServerService
+from cactus.pipeline.ktserverControl import stopKtserver
 
 ############################################################
 ############################################################
@@ -188,8 +190,15 @@ class CactusPhasesJob(CactusJob):
             memory = max(2500000000, self.evaluateResourcePoly([4.10201882, 2.01324291e+08]))
             cpu = cw.getDBserverCpu(default=0.1)
             dbElem = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
-            #dbElem = ExperimentWrapper(self.cactusWorkflowArguments.scratchDbElemNode)
             dbString = self.addService(DBServerService(dbElem=dbElem, isSecondary=True, memory=memory, cores=cpu)).rv(0)
+            newChild.phaseNode.attrib["secondaryDatabaseString"] = dbString
+            return self.addChild(newChild).rv()
+        elif launchSecondaryForRecursiveJob and ExperimentWrapper(self.cactusWorkflowArguments.experimentNode).getDbType() == "kyoto_tycoon":
+            cw = ConfigWrapper(self.cactusWorkflowArguments.configNode)
+            memory = max(2500000000, self.evaluateResourcePoly([4.10201882, 2.01324291e+08]))
+            cpu = cw.getDBserverCpu(default=0.1)
+            dbElem = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
+            dbString = self.addService(KtServerService(dbElem=dbElem, isSecondary=True, memory=memory, cores=cpu)).rv(0)
             newChild.phaseNode.attrib["secondaryDatabaseString"] = dbString
             return self.addChild(newChild).rv()
         else:
@@ -225,7 +234,7 @@ class CactusPhasesJob(CactusJob):
         """
         confXML = ET.fromstring(self.cactusWorkflowArguments.secondaryDatabaseString)
         dbElem = DbElemWrapper(confXML)
-        if dbElem.getDbType() != "redis":
+        if dbElem.getDbType() not in ["redis", "kyoto_tycoon"]:
             runCactusSecondaryDatabase(self.cactusWorkflowArguments.secondaryDatabaseString, create=True)
 
     def cleanupSecondaryDatabase(self):
@@ -233,7 +242,7 @@ class CactusPhasesJob(CactusJob):
         """
         confXML = ET.fromstring(self.cactusWorkflowArguments.secondaryDatabaseString)
         dbElem = DbElemWrapper(confXML)
-        if dbElem.getDbType() != "redis":
+        if dbElem.getDbType() not in ["redis", "kyoto_tycoon"]:
             runCactusSecondaryDatabase(self.cactusWorkflowArguments.secondaryDatabaseString, create=False)
 
 class CactusCheckpointJob(CactusPhasesJob):
@@ -255,7 +264,7 @@ class CactusCheckpointJob(CactusPhasesJob):
         """
         job = jobConstructor(cactusWorkflowArguments=self.cactusWorkflowArguments,
                              phaseName=self.phaseName, topFlowerName=self.topFlowerName)
-        startDBJob = StartPrimaryDB(job, DBServerDump=self.DBServerDump,
+        startDBJob = StartPrimaryDB(job, ServerDump=self.DBServerDump,
                                     cactusWorkflowArguments=self.cactusWorkflowArguments,
                                     phaseName=self.phaseName, topFlowerName=self.topFlowerName)
         promise = self.addChild(startDBJob)
@@ -263,9 +272,9 @@ class CactusCheckpointJob(CactusPhasesJob):
 
 class StartPrimaryDB(CactusPhasesJob):
     """Launches a primary Cactus DB."""
-    def __init__(self, nextJob, DBServerDump=None, *args, **kwargs):
+    def __init__(self, nextJob, ServerDump=None, *args, **kwargs):
         self.nextJob = nextJob
-        self.DBServerDump = DBServerDump
+        self.ServerDump = ServerDump
         kwargs['checkpoint'] = True
         kwargs['preemptable'] = False
         super(StartPrimaryDB, self).__init__(*args, **kwargs)
@@ -278,7 +287,7 @@ class StartPrimaryDB(CactusPhasesJob):
             cores = cw.getDBserverCpu(default=0.1)
             dbElem = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
             service = self.addService(DBServerService(dbElem=dbElem,
-                                                      existingSnapshotID=self.DBServerDump,
+                                                      existingSnapshotID=self.ServerDump,
                                                       isSecondary=False,
                                                       memory=memory, cores=cores))
             dbString = service.rv(0)
@@ -290,6 +299,17 @@ class StartPrimaryDB(CactusPhasesJob):
         elif self.cactusWorkflowArguments.experimentWrapper.getDbType() == "kyoto_tycoon":
             memory = max(2500000000, self.evaluateResourcePoly([4.10201882, 2.01324291e+08]))
             cores = cw.getKtserverCpu(default=0.1)
+            dbElem = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
+            service = self.addService(KtServerService(dbElem=dbElem,
+                                                      existingSnapshotID=self.ServerDump,
+                                                      isSecondary=False,
+                                                      memory=memory, cores=cores))
+            dbString = service.rv(0)
+            snapshotID = service.rv(1)
+            self.nextJob.cactusWorkflowArguments.cactusDiskDatabaseString = dbString
+            # TODO: This part needs to be cleaned up
+            self.nextJob.cactusWorkflowArguments.snapshotID = snapshotID
+            return self.addChild(self.nextJob).rv()
         else:
             return self.addFollowOn(self.nextJob).rv()
 
@@ -304,7 +324,14 @@ class SavePrimaryDB(CactusPhasesJob):
         fileStore.logToMaster("At end of %s phase, got stats %s" % (self.phaseName, stats))
         dbElem = DbElemWrapper(ET.fromstring(self.cactusWorkflowArguments.cactusDiskDatabaseString))
         # Send the terminate message
-        stopDBserver(dbElem)
+        # stopDBserver(dbElem)
+        if dbElem.getDbType() == 'redis':
+            stopDBserver(dbElem)
+        elif dbElem.getDbType() == 'kyoto_tycoon':
+            stopKtserver(dbElem)
+        else:
+            raise NotImplementedError()
+
         # Wait for the file to appear in the right place. This may take a while
         while True:
             with fileStore.readGlobalFileStream(self.cactusWorkflowArguments.snapshotID) as f:
@@ -639,7 +666,7 @@ class CactusSetupPhase(CactusPhasesJob):
         sequences = [fileStore.readGlobalFile(fileID) for fileID in sequenceIDs]
         logger.info("Sequences in cactus setup: %s" % sequenceNames)
         logger.info("Sequences in cactus setup filenames: %s" % firstLines)
-        messages = runCactusSetup(cactusDiskDatabaseString=self.cactusWorkflowArguments.cactusDiskDatabaseString, 
+        messages = runCactusSetup(cactusDiskDatabaseString=self.cactusWorkflowArguments.cactusDiskDatabaseString,
                        sequences=sequences,
                        newickTreeString=self.cactusWorkflowArguments.speciesTree, 
                        outgroupEvents=self.cactusWorkflowArguments.outgroupEventNames,
@@ -722,7 +749,7 @@ class CactusCafWrapper(CactusRecursionJob):
     """Runs cactus_caf on one flower and one alignment file.
     """
     featuresFn = lambda self: {'alignmentsSize': self.cactusWorkflowArguments.alignmentsID.size}
-    memoryPoly = [1.80395944e+01, 7.96042247e+07]
+    memoryPoly = [1.80395944e+01, 7.96042247e+06]
     memoryCap = 120e09
     feature = 'totalSequenceSize'
 
@@ -1310,7 +1337,7 @@ class CactusHalGeneratorRecursion(CactusRecursionJob):
 
 class CactusHalGeneratorUpWrapper(CactusRecursionJob):
     """Generate the .c2h strings for this flower, storing them in the secondary database."""
-    memoryPoly = [4e+09]
+    memoryPoly = [1e+09]
 
     def run(self, fileStore):
         if self.getOptionalPhaseAttrib("outputFile"):
@@ -1387,8 +1414,6 @@ class CactusWorkflowArguments:
         #Secondary, scratch DB
         secondaryConf = copy.deepcopy(self.experimentNode.find("cactus_disk").find("st_kv_database_conf"))
         secondaryElem = DbElemWrapper(secondaryConf)
-        if secondaryElem.getDbType() == "redis":
-            secondaryElem.setDbPort(secondaryElem.getDbPort() + 100)
         self.secondaryDatabaseString = secondaryElem.getConfString()
 
         #The config node

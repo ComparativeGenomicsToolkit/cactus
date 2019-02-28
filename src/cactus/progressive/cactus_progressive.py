@@ -408,7 +408,7 @@ def main():
     parser.add_argument("--database", dest="database",
                         help="Database type",
                         choices=['kyoto_tycoon', 'redis'],
-                        default="redis")
+                        default="kyoto_tycoon")
     parser.add_argument("--configFile", dest="configFile",
                       help="Specify cactus configuration file",
                       default=None)

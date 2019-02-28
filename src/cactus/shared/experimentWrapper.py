@@ -21,6 +21,7 @@ class DbElemWrapper(object):
         self.dbElem = dbElem
         self.confElem = confElem
         self.dbElem.attrib["database_dir"] = "fakepath"
+        #self.dbElem.attrib['port'] = '0'
 
     def check(self):
         """Function checks the database conf is as expected and creates useful exceptions
@@ -136,6 +137,7 @@ class DbElemWrapper(object):
             system("remotemgr clear -port %s -host %s" % (self.getDbPort(), self.getDbHost()))
             system("rm -rf %s" % self.getDbDir())
         elif self.getDbType() == "kyoto_tycoon":
+            # TODO ***
             raise RuntimeError("unimplemented")
         else:
             raise RuntimeError("Unknown database type")

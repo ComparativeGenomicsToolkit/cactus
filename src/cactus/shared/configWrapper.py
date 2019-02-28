@@ -183,7 +183,19 @@ class ConfigWrapper:
         DBServerElem = self.xmlRoot.find("DBserver")
         if DBServerElem is not None and "cpu" in DBServerElem.attrib:
             return int(DBServerElem.attrib["cpu"])
-        return default           
+        return default
+
+    def getKtserverMemory(self, default=sys.maxint):
+        ktServerElem = self.xmlRoot.find("ktserver")
+        if ktServerElem is not None and "memory" in ktServerElem.attrib:
+            return int(ktServerElem.attrib["memory"])
+        return default
+
+    def getKtserverCpu(self, default=sys.maxint):
+        ktServerElem = self.xmlRoot.find("ktserver")
+        if ktServerElem is not None and "cpu" in ktServerElem.attrib:
+            return int(ktServerElem.attrib["cpu"])
+        return default
 
     def getDefaultMemory(self):
         constantsElem = self.xmlRoot.find("constants")
