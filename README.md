@@ -38,7 +38,7 @@ You can always exit out of the virtualenv by running `deactivate`. The rest of t
 ### Install Cactus and its dependencies
 Cactus uses [Toil](http://toil.ucsc-cgl.org/) to coordinate its jobs. To install Toil into your environment, run:
 ```
-pip install --upgrade toil
+pip install --upgrade toil[all]
 ```
 
 Finally, to install Cactus, from the root of the `cactus` repository, run:
