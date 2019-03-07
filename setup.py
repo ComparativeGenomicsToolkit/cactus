@@ -27,6 +27,7 @@ setup(
         'psutil',
         'networkx>=2,<3',
         'cython',
+        'redis',
         # Someone uploaded an old version of sonLib to pyPI, so we have to use this name
         'actualSonLib'],
 
