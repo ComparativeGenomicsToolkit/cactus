@@ -8,7 +8,10 @@
 
 import unittest
 import os
+import shutil
 import xml.etree.ElementTree as ET
+from tempfile import mkdtemp, NamedTemporaryFile
+from textwrap import dedent
 
 from sonLib.bioio import TestStatus, newickTreeParser, getTempFile
 
@@ -26,10 +29,9 @@ from cactus.shared.common import cactusRootPath
 
 from cactus.pipeline.cactus_workflow import getOptionalAttrib, extractNode, findRequiredNode, \
     getJobNode, CactusJob, getLongestPath, inverseJukesCantor, \
-    CactusSetReferenceCoordinatesDownRecursion
+    CactusSetReferenceCoordinatesDownRecursion, prependUniqueIDs
 
 class TestCase(unittest.TestCase):
-    
     def setUp(self):
         self.batchSystem = "singleMachine"
         if getBatchSystem() != None:
@@ -119,7 +121,6 @@ class TestCase(unittest.TestCase):
             pass
         self.assertEquals(findRequiredNode(self.configNode, "caf"), self.configNode.findall("caf")[0])
 
-    @unittest.skip("")
     def testExtractNode(self):
         subNode = ET.SubElement(self.barNode, "CactusSetReferenceCoordinatesDownRecursion", { "memory":"10" })
         barNodeCopy = extractNode(self.barNode)
@@ -132,7 +133,7 @@ class TestCase(unittest.TestCase):
         subNodeCopy = barNodeCopy.find("CactusSetReferenceCoordinatesDownRecursion")
         self.assertTrue(subNodeCopy != None)
         self.assertEquals("10", subNodeCopy.attrib["memory"])
-    @unittest.skip("")
+
     def testGetJobNode(self):
         class CactusTestJob(CactusJob):
             pass
@@ -143,30 +144,18 @@ class TestCase(unittest.TestCase):
         self.assertEquals(None, getJobNode(self.barNode, CactusTestJob2))
         node2 = ET.SubElement(self.barNode, "CactusSetReferenceCoordinatesDownRecursion")
         self.assertEquals(node2, getJobNode(self.barNode, CactusSetReferenceCoordinatesDownRecursion))
-    @unittest.skip("")
+
     def testCactusJob(self):
         class CactusTestJob(CactusJob):
             pass
         node = ET.SubElement(self.barNode, "CactusTestJob", attrib={ "memory":10, "cpu":2,  "overlargeMemory":20 })
         job = CactusTestJob(self.barNode, self.barNode)
-        self.assertEquals(job.jobNode, node)
-        self.assertEquals(job.memory, 10)
-        self.assertEquals(job.cores, 2)
-        job = CactusTestJob(self.barNode, self.barNode, overlarge=True)
-        self.assertEquals(job.memory, 20)
-        #self.assertEquals(job.cores, sys.maxint)
         self.assertEquals(job.getOptionalPhaseAttrib("diagonalExpansion", typeFn=int), 20)
         self.assertEquals(job.getOptionalPhaseAttrib("doesntExist", typeFn=int, default=1), 1)
         self.assertEquals(job.getOptionalJobAttrib("memory", typeFn=int), 10)
         self.assertEquals(job.getOptionalJobAttrib("cpu", typeFn=int, default=1), 2)
         self.assertEquals(job.getOptionalJobAttrib("overlargeCpu", typeFn=int, default=-1), -1)
-        class CactusTestJob2(CactusJob):
-            pass
-        job = CactusTestJob2(self.barNode, self.barNode)
-        self.assertEquals(job.jobNode, None)
-        #self.assertEquals(job.memory, sys.maxint)
-        #self.assertEquals(job.cores, sys.maxint)
-    @unittest.skip("")
+
     def testGetLongestPath(self):
         self.assertAlmostEquals(getLongestPath(newickTreeParser("(b(a:0.5):0.5,b(a:1.5):0.5)")), 2.0)
         self.assertAlmostEquals(getLongestPath(newickTreeParser("(b(a:0.5):0.5,b(a:1.5,c:10):0.5)")), 10.5)
@@ -177,6 +166,51 @@ class TestCase(unittest.TestCase):
         self.assertAlmostEquals(inverseJukesCantor(1.0), 0.55230214641320496)
         self.assertAlmostEquals(inverseJukesCantor(10.0), 0.74999878530240571)
         self.assertAlmostEquals(inverseJukesCantor(100000.0), 0.75)
+
+    def testPrependUniqueIDs(self):
+        # Create fake FASTA files with some interesting headers.
+        with NamedTemporaryFile() as fasta1, NamedTemporaryFile() as fasta2:
+            fasta1.write(dedent("""
+            >C10856240  2.0
+            ACTAGAGG
+            G
+
+            GG
+            >foo bar  baz
+            ACTGACGATgacgat
+            >emptyseq
+            """))
+            fasta2.write(dedent("""
+            > space
+            GTGC
+            >id=1||header
+            ATCC
+            """))
+            fasta1.flush()
+            fasta2.flush()
+            outDir = mkdtemp()
+            outputPaths = prependUniqueIDs([fasta1.name, fasta2.name], outDir)
+
+        assert len(outputPaths) == 2
+        with open(outputPaths[0]) as f:
+            self.assertEquals(f.read(), dedent("""
+            >id=0|C10856240  2.0
+            ACTAGAGG
+            G
+
+            GG
+            >id=0|foo bar  baz
+            ACTGACGATgacgat
+            >id=0|emptyseq
+            """))
+        with open(outputPaths[1]) as f:
+            self.assertEquals(f.read(), dedent("""
+            >id=1| space
+            GTGC
+            >id=1|id=1||header
+            ATCC
+            """))
+        shutil.rmtree(outDir)
 
 if __name__ == '__main__':
     unittest.main()

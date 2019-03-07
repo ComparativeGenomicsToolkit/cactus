@@ -80,8 +80,6 @@ class ConfigWrapper:
         ogElem = self.getOutgroupElem()
         fraction = self.defaultOutgroupAncestorQualityFraction
         if (ogElem is not None and\
-            "strategy" in ogElem.attrib and\
-            ogElem.attrib["strategy"] == "greedy" and\
             "ancestor_quality_fraction" in ogElem.attrib and\
             ogElem.attrib["ancestor_quality_fraction"].lower() != 'none'):
             fraction = float(ogElem.attrib["ancestor_quality_fraction"])

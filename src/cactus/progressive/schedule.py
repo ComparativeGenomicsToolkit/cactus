@@ -89,8 +89,7 @@ class Schedule:
             return '%s%d' % (pref, id)        
         self.depTree = self.inGraph.copy()
         self.transitveReduction(self.depTree)
-        tsort = NX.topological_sort(self.depTree)
-        tsort.reverse()
+        tsort = list(reversed(list(NX.topological_sort(self.depTree))))
         nextId = 0
         for node in tsort:
             #strip out cycles within parents
@@ -124,7 +123,7 @@ class Schedule:
                     # remove node from parent
                     self.depTree.remove_edge(parent, node)
                     # add parent's childrent to vpNode
-                    for child in self.depTree.successors(parent):
+                    for child in list(self.depTree.successors(parent)):
                         if not self.isFollowOn(parent, child):
                             self.depTree.remove_edge(parent, child)
                             self.depTree.add_edge(vpNode, child)
@@ -148,7 +147,7 @@ class Schedule:
 
     # friday afternoon!
     def transitveReduction(self, digraph):
-        paths = NX.all_pairs_shortest_path(digraph)
+        paths = dict(NX.all_pairs_shortest_path(digraph))
         def hasPath(node1, node2):
             if node1 == node2:
                 return False
@@ -170,7 +169,7 @@ class Schedule:
         assert self.maxParallelSubtrees > 0
         tree = self.depTree.copy()
         # remove followOn edges
-        for edge in tree.edges():
+        for edge in list(tree.edges()):
             if self.isFollowOn(edge[0], edge[1]):
                 tree.remove_edge(edge[0], edge[1])
         # get roots
@@ -216,8 +215,8 @@ class Schedule:
         chainLen = 0
         chainParent = node
         while True:
-            parents = tree.predecessors(chainParent)
-            if len(parents) == 1 and len(tree.successors(parents[0])) == 1:
+            parents = list(tree.predecessors(chainParent))
+            if len(parents) == 1 and len(list(tree.successors(parents[0]))) == 1:
                 chainParent = parents[0]
                 chainLen += 1
             else:
