@@ -210,7 +210,8 @@ def getDBServerOptions(dbElem):
 
 def getRemoteParams(dbElem):
     """Get parameters to supply to connect to the right DB."""
-    return ['-p', str(dbElem.getDbPort())]
+    host = dbElem.getDbHost() or 'localhost'
+    return ['-p', str(dbElem.getDbPort()), '-h', host]
 
 def stopDBserver(dbElem):
     """Attempt to send the terminate signal to a DBserver."""
