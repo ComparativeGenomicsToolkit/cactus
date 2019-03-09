@@ -787,12 +787,14 @@ def runGetChunks(sequenceFiles, chunksDir, chunkSize, overlapSize, work_dir=None
                                      getLogLevelString(),
                                      str(chunkSize),
                                      str(overlapSize),
-                         chunksDir] + sequenceFiles)
+                                     chunksDir] + sequenceFiles)
     return [chunk for chunk in chunks.split("\n") if chunk != ""]
 
 def pullCactusImage():
     """Ensure that the cactus Docker image is pulled."""
     if os.environ.get('CACTUS_DOCKER_MODE') == "0":
+        return
+    if os.environ.get('CACTUS_USE_LOCAL_IMAGE') == "1":
         return
     image = getDockerImage()
     call = ["docker", "pull", image]

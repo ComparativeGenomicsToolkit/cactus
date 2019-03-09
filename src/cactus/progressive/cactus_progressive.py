@@ -13,7 +13,9 @@ tree.
 import os
 import xml.etree.ElementTree as ET
 from argparse import ArgumentParser
+from base64 import b64encode
 from subprocess import check_call
+from subprocess import CalledProcessError
 
 from toil.lib.bioio import getTempFile
 
@@ -71,6 +73,7 @@ class ProgressiveDown(RoundedJob):
 
         return self.addFollowOn(ProgressiveNext(self.options, self.project, self.event,
                                                               self.schedule, depProjects, memory=self.configWrapper.getDefaultMemory())).rv()
+
 class ProgressiveNext(RoundedJob):
     def __init__(self, options, project, event, schedule, depProjects, memory=None, cores=None):
         RoundedJob.__init__(self, memory=memory, cores=cores, preemptable=True)
@@ -321,7 +324,7 @@ def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC
 
     cactus_call(parameters=["halSetMetadata", HALPath, "CACTUS_COMMIT", cactus_commit])
     with job.fileStore.readGlobalFileStream(project.configID) as configFile:
-        cactus_call(parameters=["halSetMetadata", HALPath, "CACTUS_CONFIG", configFile.read()])
+        cactus_call(parameters=["halSetMetadata", HALPath, "CACTUS_CONFIG", b64encode(configFile.read())])
 
     return job.fileStore.writeGlobalFile(HALPath)
 
@@ -365,36 +368,51 @@ def setupBinaries(options):
         jobStoreType, locator = Toil.parseLocator(options.jobStore)
         if jobStoreType != "file":
             raise RuntimeError("Singularity mode is only supported when using the FileJobStore.")
-        # When SINGULARITY_CACHEDIR is set, singularity will refuse to store images in the current directory
-        if 'SINGULARITY_CACHEDIR' in os.environ:
-            imgPath = os.path.join(os.environ['SINGULARITY_CACHEDIR'], "cactus.img")
+        if options.containerImage:
+            imgPath = os.path.abspath(options.containerImage)
+            os.environ["CACTUS_USE_LOCAL_SINGULARITY_IMG"] = "1"
         else:
-            imgPath = os.path.join(os.path.abspath(locator), "cactus.img")
+            # When SINGULARITY_CACHEDIR is set, singularity will refuse to store images in the current directory
+            if 'SINGULARITY_CACHEDIR' in os.environ:
+                imgPath = os.path.join(os.environ['SINGULARITY_CACHEDIR'], "cactus.img")
+            else:
+                imgPath = os.path.join(os.path.abspath(locator), "cactus.img")
         os.environ["CACTUS_SINGULARITY_IMG"] = imgPath
 
 def importSingularityImage():
     """Import the Singularity image from Docker if using Singularity."""
     mode = os.environ.get("CACTUS_BINARIES_MODE", "docker")
+    localImage = os.environ.get("CACTUS_USE_LOCAL_SINGULARITY_IMG", "0")
     if mode == "singularity":
         imgPath = os.environ["CACTUS_SINGULARITY_IMG"]
-        # Singularity will complain if the image file already exists. Remove it.
-        try:
-            os.remove(imgPath)
-        except OSError:
-            # File doesn't exist
-            pass
-        # Singularity 2.4 broke the functionality that let --name
-        # point to a path instead of a name in the CWD. So we change
-        # to the proper directory manually, then change back after the
-        # image is pulled.
-        # NOTE: singularity writes images in the current directory only
-        #       when SINGULARITY_CACHEDIR is not set
-        oldCWD = os.getcwd()
-        os.chdir(os.path.dirname(imgPath))
-        # --size is deprecated starting in 2.4, but is needed for 2.3 support. Keeping it in for now.
-        check_call(["singularity", "pull", "--size", "2000", "--name", os.path.basename(imgPath),
-                    "docker://" + getDockerImage()])
-        os.chdir(oldCWD)
+        # If not using local image, pull the docker image
+        if localImage == "0":
+            # Singularity will complain if the image file already exists. Remove it.
+            try:
+                os.remove(imgPath)
+            except OSError:
+                # File doesn't exist
+                pass
+            # Singularity 2.4 broke the functionality that let --name
+            # point to a path instead of a name in the CWD. So we change
+            # to the proper directory manually, then change back after the
+            # image is pulled.
+            # NOTE: singularity writes images in the current directory only
+            #       when SINGULARITY_CACHEDIR is not set
+            oldCWD = os.getcwd()
+            os.chdir(os.path.dirname(imgPath))
+            # --size is deprecated starting in 2.4, but is needed for 2.3 support. Keeping it in for now.
+            try:
+                check_call(["singularity", "pull", "--size", "2000", "--name", os.path.basename(imgPath),
+                            "docker://" + getDockerImage()])
+            except CalledProcessError:
+                # Call failed, try without --size, required for singularity 3+
+                check_call(["singularity", "pull", "--name", os.path.basename(imgPath),
+                            "docker://" + getDockerImage()])
+            os.chdir(oldCWD)
+        else:
+            logger.info("Using pre-built singularity image: '{}'".format(imgPath))
+
 
 def main():
     parser = ArgumentParser()
@@ -454,8 +472,11 @@ def main():
                        default=None)
     parser.add_argument_group(Group)
     parser.add_argument("--latest", dest="latest", action="store_true",
-                        help="Use the latest, locally-built docker container "
-                        "rather than pulling from quay.io")
+                        help="Use the latest version of the docker container "
+                        "rather than pulling one matching this version of cactus")
+    parser.add_argument("--containerImage", dest="containerImage", default=None,
+                        help="Use the the specified pre-built containter image "
+                        "rather than pulling one from quay.io")
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
 
@@ -507,6 +528,7 @@ def main():
             project.readXML(pjPath)
             #import the sequences
             seqIDs = []
+            print "Importing %s sequences" % (len(project.getInputSequencePaths()))
             for seq in project.getInputSequencePaths():
                 if os.path.isdir(seq):
                     tmpSeq = getTempFile()

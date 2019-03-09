@@ -2,8 +2,6 @@ from setuptools import setup, find_packages
 import os
 import subprocess
 
-os.system("pip install git+https://github.com/ComparativeGenomicsToolkit/sonLib@toil")
-
 versionFile = "src/cactus/shared/version.py"
 if os.path.exists(versionFile):
     os.remove(versionFile)
@@ -27,9 +25,12 @@ setup(
         'decorator',
         'subprocess32',
         'psutil',
-        'networkx==1.11',
-        'cython'],
-    
+        'networkx>=2,<3',
+        'cython',
+        'redis',
+        # Someone uploaded an old version of sonLib to pyPI, so we have to use this name
+        'actualSonLib'],
+
     entry_points={
         'console_scripts': ['cactus = cactus.progressive.cactus_progressive:main',
                             'cactus_preprocess = cactus.preprocessor.cactus_preprocessor:main']},)

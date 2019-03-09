@@ -2,27 +2,12 @@
 
 ## USE LASTZ TO SOFTMASK REPEATS OF A GIVEN FASTA SEQUENCE FILE.  
 
-############################################################
-##  NOTE:   NEW VERSION OF LASTZ REQUIRED (MINIMUM 1.02.40)
-##          lastz/tools MUST BE IN SYSTEM PATH
-############################################################
-
 import os
-import re
-import sys
-import tempfile
-import shutil
-import random
 
-from argparse import ArgumentParser
-from sonLib.bioio import system, catFiles
+from sonLib.bioio import catFiles
 
-from toil.common import Toil
-
-from cactus.shared.common import makeURL
 from cactus.shared.common import cactus_call
 from cactus.shared.common import RoundedJob
-from cactus.shared.common import readGlobalFileWithoutCache
 
 class RepeatMaskOptions:
     def __init__(self, 
@@ -46,56 +31,62 @@ class RepeatMaskOptions:
             self.fragment += 1
 
 
-class AlignFastaFragments(RoundedJob):
-    def __init__(self, repeatMaskOptions, fragmentsID, targetIDs):
-        if hasattr(fragmentsID, "size"):
-            targetsSize = sum(targetID.size for targetID in targetIDs)
-            memory = 3500000000
-            disk = 2*(fragmentsID.size + targetsSize)
-        else:
-            memory = None
-            disk = None
+class LastzRepeatMaskJob(RoundedJob):
+    def __init__(self, repeatMaskOptions, queryID, targetIDs):
+        targetsSize = sum(targetID.size for targetID in targetIDs)
+        memory = 4*1024*1024*1024
+        disk = 2*(queryID.size + targetsSize)
         RoundedJob.__init__(self, memory=memory, disk=disk, preemptable=True)
         self.repeatMaskOptions = repeatMaskOptions
-        self.fragmentsID = fragmentsID
+        self.queryID = queryID
         self.targetIDs = targetIDs
 
-    def run(self, fileStore):
-        # Align each fragment against a chunk of the input sequence.  Each time a fragment aligns to a base
-        # in the sequence, that base's match count is incremented.
-        # the plus three for the period parameter is a fudge to ensure sufficient alignments are found
-        fragments = fileStore.readGlobalFile(self.fragmentsID)
-        targetFiles = [fileStore.readGlobalFile(fileID) for fileID in self.targetIDs]
+    def getFragments(self, fileStore, queryFile):
+        """
+        Chop up the query fasta into fragments of a certain size, overlapping by half their length.
+        """
+        fragments = fileStore.getLocalTempFile()
+        cactus_call(infile=queryFile, outfile=fragments,
+                    parameters=["cactus_fasta_fragments.py",
+                                "--fragment=%s" % str(self.repeatMaskOptions.fragment),
+                                "--step=%s" % (str(self.repeatMaskOptions.fragment / 2)),
+                                "--origin=zero"])
+        return fragments
+
+    def alignFastaFragments(self, fileStore, targetFiles, fragments):
+        """
+        Align each query fragment against all the target chunks, stopping
+        early to avoid exponential blowup if too many alignments are found.
+        """
         target = fileStore.getLocalTempFile()
         catFiles(targetFiles, target)
         lastZSequenceHandling  = ['%s[multiple][nameparse=darkspace]' % os.path.basename(target), '%s[nameparse=darkspace]' % os.path.basename(fragments)]
         if self.repeatMaskOptions.unmaskInput:
             lastZSequenceHandling  = ['%s[multiple,unmask][nameparse=darkspace]' % os.path.basename(target), '%s[unmask][nameparse=darkspace]' % os.path.basename(fragments)]
         alignment = fileStore.getLocalTempFile()
+        # Each time a fragment aligns to a base in the sequence, that
+        # base's match count is incremented.  the plus three for the
+        # period parameter is a fudge to ensure sufficient alignments
+        # are found
         cactus_call(outfile=alignment,
                     parameters=["cPecanLastz"] + lastZSequenceHandling +
                                 self.repeatMaskOptions.lastzOpts.split() +
                                 ["--querydepth=keep,nowarn:%i" % (self.repeatMaskOptions.period+3),
                                  "--format=general:name1,zstart1,end1,name2,zstart2+,end2+",
                                  "--markend"])
-        return fileStore.writeGlobalFile(alignment)
+        return alignment
 
-class MaskCoveredIntervals(RoundedJob):
-    def __init__(self, repeatMaskOptions, alignmentsID, queryID):
-        RoundedJob.__init__(self, preemptable=True)
-        self.repeatMaskOptions = repeatMaskOptions
-        self.alignmentsID = alignmentsID
-        self.queryID = queryID
-
-    def run(self, fileStore):
-        #This runs Bob's covered intervals program, which combins the lastz alignment info into intervals of the query.
-        alignments = fileStore.readGlobalFile(self.alignmentsID)
-        query = fileStore.readGlobalFile(self.queryID)
+    def maskCoveredIntervals(self, fileStore, queryFile, alignment):
+        """
+        Mask the query fasta using the alignments to the target. Anything with more alignments than the period gets masked.
+        """
+        #This runs Bob's covered intervals program, which combines the lastz alignment info into intervals of the query.
         maskInfo = fileStore.getLocalTempFile()
-        cactus_call(infile=alignments, outfile=maskInfo,
+        cactus_call(infile=alignment, outfile=maskInfo,
                     parameters=["cactus_covered_intervals",
                                 "--queryoffsets",
                                 "--origin=one",
+                                # * 2 takes into account the effect of the overlap
                                 "M=%s" % (int(self.repeatMaskOptions.period*2))])
 
         # the previous lastz command outputs a file of intervals (denoted with indices) to softmask.
@@ -105,37 +96,20 @@ class MaskCoveredIntervals(RoundedJob):
             args.append("--unmask")
         args.append(maskInfo)
         maskedQuery = fileStore.getLocalTempFile()
-        cactus_call(infile=query, outfile=maskedQuery,
+        cactus_call(infile=queryFile, outfile=maskedQuery,
                     parameters=["cactus_fasta_softmask_intervals.py"] + args)
-        tmp = fileStore.writeGlobalFile(maskedQuery)
-        return tmp
-
-class LastzRepeatMaskJob(RoundedJob):
-    def __init__(self, repeatMaskOptions, queryID, targetIDs):
-        RoundedJob.__init__(self, preemptable=True)
-        self.repeatMaskOptions = repeatMaskOptions
-        self.queryID = queryID
-        self.targetIDs = targetIDs
+        return maskedQuery
 
     def run(self, fileStore):
+        """
+        Using sampled target fragments, mask repetitive regions of the query.
+        """
         assert len(self.targetIDs) >= 1
         assert self.repeatMaskOptions.fragment > 1
         queryFile = fileStore.readGlobalFile(self.queryID)
+        targetFiles = [fileStore.readGlobalFile(fileID) for fileID in self.targetIDs]
 
-        # chop up input fasta file into into fragments of specified size.  fragments overlap by 
-        # half their length.
-        fragOutput = fileStore.getLocalTempFile()
-        cactus_call(infile=queryFile, outfile=fragOutput,
-                    parameters=["cactus_fasta_fragments.py",
-                                "--fragment=%s" % str(self.repeatMaskOptions.fragment),
-                                "--step=%s" % (str(self.repeatMaskOptions.fragment /2)),
-                                "--origin=zero"])
-        fragmentsID = fileStore.writeGlobalFile(fragOutput)
-
-        alignmentJob = self.addChild(AlignFastaFragments(repeatMaskOptions=self.repeatMaskOptions, 
-                    fragmentsID=fragmentsID, targetIDs=self.targetIDs))
-
-        maskCoveredIntervalsJob = self.addChild(MaskCoveredIntervals(repeatMaskOptions=self.repeatMaskOptions, alignmentsID=alignmentJob.rv(), queryID=self.queryID))
-        alignmentJob.addFollowOn(maskCoveredIntervalsJob)
-
-        return maskCoveredIntervalsJob.rv()
+        fragments = self.getFragments(fileStore, queryFile)
+        alignment = self.alignFastaFragments(fileStore, targetFiles, fragments)
+        maskedQuery = self.maskCoveredIntervals(fileStore, queryFile, alignment)
+        return fileStore.writeGlobalFile(maskedQuery)

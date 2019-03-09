@@ -38,12 +38,12 @@ class GreedyOutgroup(object):
         self.dag = mcTree.nxDg.copy()
         self.root = mcTree.rootId
         self.stripNonEvents(self.root, mcTree.subtreeRoots)
-        self.dmDirected = NX.algorithms.shortest_paths.weighted.\
-        all_pairs_dijkstra_path_length(self.dag)
+        self.dmDirected = dict(NX.algorithms.shortest_paths.weighted.\
+        all_pairs_dijkstra_path_length(self.dag))
         self.invalidSet = self.getInvalid(rootId)
         graph = NX.Graph(self.dag)
-        self.dm = NX.algorithms.shortest_paths.weighted.\
-        all_pairs_dijkstra_path_length(graph)
+        self.dm = dict(NX.algorithms.shortest_paths.weighted.\
+        all_pairs_dijkstra_path_length(graph))
         self.ogMap = defaultdict(list)
 
     # return set of ancestral nodes that aren't below alignment root
@@ -188,9 +188,14 @@ class GreedyOutgroup(object):
             if not self.inCandidateSet(sink, candidateChildFrac):
                 continue
 
-            # canditate pair exceeds given threshold, so we skip
-            if threshold is not None and \
-            htable[sink] - htable[source] + 1 > threshold:
+            # candidate (ancestral) sink is too high up the tree compared to the source, so we skip
+            if (threshold is not None and
+                not self.mcTree.isLeaf(sink) and
+                # "+ 1" because we want a threshold of 0 to indicate we
+                # probably won't have to wait for the outgroup (it will
+                # already have been finished, assuming all subproblems
+                # proceed at the same rate)
+                htable[sink] - htable[source] + 1 > threshold):
                 continue
 
             # Don't use any outgroups that are a child of another node

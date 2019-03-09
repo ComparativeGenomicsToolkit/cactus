@@ -3,10 +3,9 @@
 #Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
 #
 #Released under the MIT license, see LICENSE.txt
-#!/usr/bin/env python
 
-"""Script for running an all against all (including self) set of alignments on a set of input
-sequences. Uses the jobTree framework to parallelise the blasts.
+"""
+
 """
 import os
 import math
@@ -29,6 +28,7 @@ from cactus.shared.configWrapper import ConfigWrapper
 
 from toil.lib.bioio import setLoggingFromOptions
 
+from cactus.preprocessor.checkUniqueHeaders import checkUniqueHeaders
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import LastzRepeatMaskJob
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import RepeatMaskOptions
 
@@ -46,37 +46,25 @@ class PreprocessorOptions:
         self.lastzOptions = lastzOptions
         self.minPeriod = minPeriod
 
-class PreprocessChunk(RoundedJob):
-    """locally preprocess a fasta chunk, output then copied back to input"""
-    def __init__(self, prepOptions, seqIDs, proportionSampled, inChunkID):
-        disk = sum([seqID.size for seqID in seqIDs]) + 3*inChunkID.size
+class CheckUniqueHeaders(RoundedJob):
+    """
+    Check that the headers of the input file meet certain naming requirements.
+    """
+    def __init__(self, prepOptions, inChunkID):
+        disk = inChunkID.size
         RoundedJob.__init__(self, memory=prepOptions.memory, cores=prepOptions.cpu, disk=disk,
                      preemptable=True)
         self.prepOptions = prepOptions 
-        self.seqIDs = seqIDs
         self.inChunkID = inChunkID
 
     def run(self, fileStore):
-        outChunkID = None
-        if self.prepOptions.preprocessJob == "checkUniqueHeaders":
-            inChunk = fileStore.readGlobalFile(self.inChunkID)
-            seqPaths = [fileStore.readGlobalFile(fileID) for fileID in self.seqIDs]
-            seqString = " ".join(seqPaths)
-            args = [inChunk]
-            if self.prepOptions.checkAssemblyHub:
-                args += ["--checkAssemblyHub"]
-            cactus_call(stdin_string=seqString,
-                        parameters=["cactus_checkUniqueHeaders.py"] + args)
-            outChunkID = self.inChunkID
-        elif self.prepOptions.preprocessJob == "lastzRepeatMask":
-            repeatMaskOptions = RepeatMaskOptions(proportionSampled=self.prepOptions.proportionToSample,
-                    minPeriod=self.prepOptions.minPeriod)
-            outChunkID = self.addChild(LastzRepeatMaskJob(repeatMaskOptions=repeatMaskOptions, 
-                    queryID=self.inChunkID, targetIDs=self.seqIDs)).rv()
-        elif self.prepOptions.preprocessJob == "none":
-            outChunkID = self.inChunkID
-
-        return outChunkID
+        inChunk = fileStore.readGlobalFile(self.inChunkID)
+        with open(inChunk) as inFile:
+            checkUniqueHeaders(inFile, checkAssemblyHub=self.prepOptions.checkAssemblyHub)
+        # We re-write the file here so that the output's lifecycle
+        # matches the other chunked jobs, which usually write a new
+        # chunk.
+        return fileStore.writeGlobalFile(inChunk)
 
 class MergeChunks(RoundedJob):
     def __init__(self, prepOptions, chunkIDList):
@@ -117,19 +105,42 @@ class PreprocessSequence(RoundedJob):
         self.inSequenceID = inSequenceID
         self.chunksToCompute = chunksToCompute
 
+    def getChunkedJobForCurrentStage(self, seqIDs, proportionSampled, inChunkID):
+        """
+        Give the chunked work to the appropriate job.
+        """
+        if self.prepOptions.preprocessJob == "checkUniqueHeaders":
+            return CheckUniqueHeaders(self.prepOptions, inChunkID)
+        elif self.prepOptions.preprocessJob == "lastzRepeatMask":
+            repeatMaskOptions = RepeatMaskOptions(proportionSampled=proportionSampled,
+                                                  minPeriod=self.prepOptions.minPeriod,
+                                                  lastzOpts=self.prepOptions.lastzOptions)
+            return LastzRepeatMaskJob(repeatMaskOptions=repeatMaskOptions,
+                                      queryID=inChunkID,
+                                      targetIDs=seqIDs)
+        else:
+            raise RuntimeError("Unknown preprocess job %s" % self.prepOptions.preprocessJob)
+
     def run(self, fileStore):
         logger.info("Preparing sequence for preprocessing")
-        # chunk it up
-        inSequence = fileStore.readGlobalFile(self.inSequenceID)
-        inChunkDirectory = getTempDirectory(rootDir=fileStore.getLocalTempDir())
-        inChunkList = runGetChunks(sequenceFiles=[inSequence], chunksDir=inChunkDirectory,
-                                   chunkSize=self.prepOptions.chunkSize,
-                                   overlapSize=0)
-        inChunkList = [os.path.abspath(path) for path in inChunkList]
-        logger.info("Chunks = %s" % inChunkList)
-        logger.info("Chunks dir = %s" % os.listdir(inChunkDirectory))
 
-        inChunkIDList = [fileStore.writeGlobalFile(chunk) for chunk in inChunkList]
+        inSequence = fileStore.readGlobalFile(self.inSequenceID)
+
+        if self.prepOptions.chunkSize <= 0:
+            # In this first case we don't need to break up the sequence
+            chunked = False
+            inChunkList = [inSequence]
+        else:
+            # chunk it up
+            chunked = True
+            inChunkDirectory = getTempDirectory(rootDir=fileStore.getLocalTempDir())
+            inChunkList = runGetChunks(sequenceFiles=[inSequence], chunksDir=inChunkDirectory,
+                                       chunkSize=self.prepOptions.chunkSize,
+                                       overlapSize=0)
+            inChunkList = [os.path.abspath(path) for path in inChunkList]
+        logger.info("Chunks = %s" % inChunkList)
+
+        inChunkIDList = [fileStore.writeGlobalFile(chunk, cleanup=True) for chunk in inChunkList]
         outChunkIDList = []
         #For each input chunk we create an output chunk, it is the output chunks that get concatenated together.
         if not self.chunksToCompute:
@@ -144,9 +155,14 @@ class PreprocessSequence(RoundedJob):
             if len(inChunkIDs) < inChunkNumber: #This logic is like making the list circular
                 inChunkIDs += inChunkIDList[:inChunkNumber-len(inChunkIDs)]
             assert len(inChunkIDs) == inChunkNumber
-            outChunkIDList.append(self.addChild(PreprocessChunk(self.prepOptions, inChunkIDs, float(inChunkNumber)/len(inChunkIDList), inChunkIDList[i])).rv())
-        # follow on to merge chunks
-        return self.addFollowOn(MergeChunks(self.prepOptions, outChunkIDList)).rv()
+            outChunkIDList.append(self.addChild(self.getChunkedJobForCurrentStage(inChunkIDs, float(inChunkNumber)/len(inChunkIDList), inChunkIDList[i])).rv())
+
+        if chunked:
+            # Merge results of the chunking process back into a genome-wide file
+            return self.addFollowOn(MergeChunks(self.prepOptions, outChunkIDList)).rv()
+        else:
+            # Didn't chunk--we have a genome-wide fasta file
+            return outChunkIDList[0]
 
 def unmaskFasta(inFasta, outFasta):
     """Uppercase a fasta file (removing the soft-masking)."""
@@ -187,11 +203,8 @@ class BatchPreprocessor(RoundedJob):
             unmaskedInputFile = fileStore.getLocalTempFile()
             unmaskFasta(inSequence, unmaskedInputFile)
             self.inSequenceID = fileStore.writeGlobalFile(inSequence)
-            
-        if prepOptions.chunkSize <= 0: #In this first case we don't need to break up the sequence
-            outSeqID = self.addChild(PreprocessChunk(prepOptions, [ self.inSequenceID ], 1.0, self.inSequenceID)).rv()
-        else:
-            outSeqID = self.addChild(PreprocessSequence(prepOptions, self.inSequenceID)).rv()
+
+        outSeqID = self.addChild(PreprocessSequence(prepOptions, self.inSequenceID)).rv()
         
         if lastIteration == False:
             return self.addFollowOn(BatchPreprocessor(self.prepXmlElems, outSeqID, self.iteration + 1)).rv()
