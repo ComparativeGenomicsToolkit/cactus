@@ -28,6 +28,7 @@ RUN pip install --pre toil
 RUN pip install git+https://github.com/ComparativeGenomicsToolkit/sonLib@toil
 
 RUN mkdir /data
+ENV ASAN_OPTIONS=detect_leaks=0
 WORKDIR /data
 
 ENTRYPOINT ["bash", "/opt/cactus/wrapper.sh"]
