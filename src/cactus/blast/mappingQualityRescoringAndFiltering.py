@@ -50,7 +50,7 @@ def mappingQualityRescoring(job, inputAlignmentFileID,
                             ["cactus_mirrorAndOrientAlignments", logLevel],
                             ["sort", "-k6,6", "-k7,7n", "-k8,8n"], # This sorts by coordinate
                             ["uniq"], # This eliminates any annoying duplicates if lastz reports the alignment in both orientations
-                            ["cactus_splitAlignmentOverlaps", logLevel],
+                            ["cactus_splitAlignmentOverlaps", logLevel, str(maxAlignmentsPerSite)],
                             ["cactus_calculateMappingQualities", logLevel, str(maxAlignmentsPerSite),
                              str(minimumMapQValue), str(alpha)] + tempAlignmentFiles])
 
