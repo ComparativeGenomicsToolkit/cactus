@@ -173,6 +173,19 @@ bool stCaf_filterByMultipleSpecies(stPinchSegment *segment1, stPinchSegment *seg
 bool stCaf_singleCopyChr(stPinchSegment *segment1, stPinchSegment *segment2);
 
 /*
+ * Forbids pinching together two blocks that contain the same anointed
+ * event (set up earlier by
+ * stCaf_setupFilterBySingleCopyInOneEvent). Used when aligning to a
+ * pre-existing parental reference.
+ */
+bool stCaf_filterBySingleCopyInOneEvent(stPinchSegment *segment1, stPinchSegment *segment2);
+
+/*
+ * Set an event that is required to have at most one copy in any block.
+ */
+
+void stCaf_setupFilterBySingleCopyInOneEvent(Event *event);
+/*
  * Run stCaf_filterToEnsureCycleFreeIsolatedComponents so that every
  * non-alt thread (determined by its header not ending in "_alt") in
  * the given event is in a separate thread component, and has no cycles.

@@ -3,10 +3,13 @@
 #include "commonC.h"
 #include "stCaf.h"
 
-// This global is a bit gross but needs to be used to work around the
+// These globals are a bit gross but are needed to work around the
 // fact that the pinch filter functions don't have an "extra data"
 // parameter.
 static Flower *flower;
+
+// Used for stCaf_filterBySingleCopyInOneEvent
+static Event *singleCopyEvent;
 
 void stCaf_setFlowerForAlignmentFiltering(Flower *input) {
     flower = input;
@@ -320,6 +323,53 @@ bool stCaf_filterToEnsureCycleFreeIsolatedComponents(stPinchSegment *segment1,
         }
     }
     return reject;
+}
+
+
+/*
+ * Used for filtering on the basis of a single event (usually for aligning to an existing parent).
+ */
+
+void stCaf_setupFilterBySingleCopyInOneEvent(Event *event) {
+    singleCopyEvent = event;
+}
+
+static bool isSegmentFromSingleCopyEvent(stPinchSegment *segment, Flower *flower) {
+    return stCaf_getEvent(segment, flower) == singleCopyEvent;
+}
+
+static bool containsSegmentFromSingleCopyEvent(stPinchBlock *block, Flower *flower) {
+    stPinchBlockIt it = stPinchBlock_getSegmentIterator(block);
+    stPinchSegment *segment;
+    while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
+        if (isSegmentFromSingleCopyEvent(segment, flower)) {
+            stPinchSegment_putSegmentFirstInBlock(segment);
+            assert(stPinchBlock_getFirst(block) == segment);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool stCaf_filterBySingleCopyInOneEvent(stPinchSegment *segment1,
+                                        stPinchSegment *segment2) {
+    stPinchBlock *block1, *block2;
+    if ((block1 = stPinchSegment_getBlock(segment1)) != NULL) {
+        if ((block2 = stPinchSegment_getBlock(segment2)) != NULL) {
+            if (block1 == block2) {
+                return stPinchBlock_getLength(block1) == 1 ? 0 : containsSegmentFromSingleCopyEvent(block1, flower);
+            }
+            if (stPinchBlock_getDegree(block1) < stPinchBlock_getDegree(block2)) {
+                return containsSegmentFromSingleCopyEvent(block1, flower) && containsSegmentFromSingleCopyEvent(block2, flower);
+            }
+            return containsSegmentFromSingleCopyEvent(block2, flower) && containsSegmentFromSingleCopyEvent(block1, flower);
+        }
+        return isSegmentFromSingleCopyEvent(segment2, flower) && containsSegmentFromSingleCopyEvent(block1, flower);
+    }
+    if ((block2 = stPinchSegment_getBlock(segment2)) != NULL) {
+        return isSegmentFromSingleCopyEvent(segment1, flower) && containsSegmentFromSingleCopyEvent(block2, flower);
+    }
+    return isSegmentFromSingleCopyEvent(segment1, flower) && isSegmentFromSingleCopyEvent(segment2, flower);
 }
 
 /*

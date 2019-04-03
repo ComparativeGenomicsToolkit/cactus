@@ -349,11 +349,58 @@ static void testHGVMFiltering(CuTest *testCase) {
     }
 }
 
+static void testSingleCopyInOneEvent(CuTest *testCase) {
+    size_t numRandomPinches = 500;
+
+    setup(false);
+    addThreadToFlower(flower, ingroup1, 100);
+    addThreadToFlower(flower, ingroup1, 100);
+    addThreadToFlower(flower, ingroup2, 100);
+    addThreadToFlower(flower, ingroup2, 100);
+    addThreadToFlower(flower, ingroup2, 100);
+
+    stCaf_setFlowerForAlignmentFiltering(flower);
+    stCaf_setupFilterBySingleCopyInOneEvent(ingroup2);
+    stPinchThreadSet *threadSet = stCaf_setup(flower);
+
+    for (size_t i = 0; i < numRandomPinches; i++) {
+        stPinch pinch = stPinchThreadSet_getRandomPinch(threadSet);
+        stPinchThread_filterPinch(stPinchThreadSet_getThread(threadSet, pinch.name1),
+                                  stPinchThreadSet_getThread(threadSet, pinch.name2),
+                                  pinch.start1,
+                                  pinch.start2,
+                                  pinch.length,
+                                  pinch.strand,
+                                  stCaf_filterBySingleCopyInOneEvent);
+    }
+
+    stPinchThreadSetBlockIt it = stPinchThreadSet_getBlockIt(threadSet);
+    stPinchBlock *block;
+    while ((block = stPinchThreadSetBlockIt_getNext(&it)) != NULL) {
+        bool foundEvent = false;
+        stPinchBlockIt segIt = stPinchBlock_getSegmentIterator(block);
+        stPinchSegment *segment;
+        while ((segment = stPinchBlockIt_getNext(&segIt)) != NULL) {
+            if (stCaf_getEvent(segment, flower) == ingroup2) {
+                if (foundEvent) {
+                    // Second occurrence within a single block -- not good.
+                    CuFail(testCase, "found 2+ occurrences of single-copy event in one block");
+                }
+                foundEvent = true;
+            }
+        }
+    }
+
+    stPinchThreadSet_destruct(threadSet);
+    teardown();
+}
+
 CuSuite* filteringTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, testChainHasUnequalNumberOfIngroupCopies);
     SUITE_ADD_TEST(suite, testChainHasUnequalNumberOfIngroupCopiesOrNoOutgroup);
     SUITE_ADD_TEST(suite, testChainHasUnequalNumberOfIngroupCopiesOrNoOutgroup_noOutgroups);
     SUITE_ADD_TEST(suite, testHGVMFiltering);
+    SUITE_ADD_TEST(suite, testSingleCopyInOneEvent);
     return suite;
 }
