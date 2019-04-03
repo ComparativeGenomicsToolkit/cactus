@@ -349,6 +349,7 @@ int main(int argc, char *argv[]) {
     enum stCaf_DistanceCorrectionMethod phylogenyDistanceCorrectionMethod = JUKES_CANTOR;
     bool sortAlignments = false;
     char *hgvmEventName = NULL;
+    char *singleCopyEventName = NULL;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -495,6 +496,15 @@ int main(int argc, char *argv[]) {
                     }
                     hgvmEventName = stString_copy(optarg + 5);
                     filterFn = stCaf_filterToEnsureCycleFreeIsolatedComponents;
+                } else if (strncmp(optarg, "singleCopy:", 11) == 0) {
+                    sortAlignments = true;
+                    size_t argLen = strlen(optarg);
+                    if (argLen < 12) {
+                        st_errAbort("alignmentFilter option \"singleCopy\" needs an additional argument: "
+                                    "the event name to filter on. E.g. \"singleCopy:human\"");
+                    }
+                    singleCopyEventName = stString_copy(optarg + 11);
+                    filterFn = stCaf_filterBySingleCopyInOneEvent;
                 } else if (strcmp(optarg, "none") == 0) {
                     sortAlignments = false;
                     filterFn = NULL;
@@ -783,6 +793,10 @@ int main(int argc, char *argv[]) {
 
             if (filterFn == stCaf_filterToEnsureCycleFreeIsolatedComponents) {
                 stCaf_setupHGVMFiltering(flower, threadSet, hgvmEventName);
+            } else if (filterFn == stCaf_filterBySingleCopyInOneEvent) {
+                EventTree *eventTree = flower_getEventTree(flower);
+                Event *event = eventTree_getEventByHeader(eventTree, singleCopyEventName);
+                stCaf_setupFilterBySingleCopyInOneEvent(event);
             }
 
             //Setup the alignments

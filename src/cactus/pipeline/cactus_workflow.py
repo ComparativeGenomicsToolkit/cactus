@@ -535,6 +535,12 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
         
         cafNode = findRequiredNode(self.cactusWorkflowArguments.configNode, "caf")
 
+        if not exp.isRootReconstructed():
+            # If aligning to a pre-existing ancestor, no outgroups are
+            # needed to polarize indels or establish duplication
+            # timing.
+            outgroupsAndNewIDs = []
+
         # FIXME: this is really ugly and steals the options from the caf tag
         blastJob = self.addChild(BlastIngroupsAndOutgroups(
             BlastOptions(chunkSize=getOptionalAttrib(cafNode, "chunkSize", int),
@@ -731,6 +737,13 @@ class CactusCafWrapper(CactusRecursionJob):
         exp = self.cactusWorkflowArguments.experimentWrapper
         if debugFilePath != None:
             debugFilePath += exp.getRootGenome()
+        if not exp.isRootReconstructed():
+            # When aligning to a pre-existing ancestral sequence, the
+            # ancestral sequence needs to be present in only one
+            # segment per block.
+            alignmentFilter = "singleCopy:" + exp.getRootGenome()
+        else:
+            alignmentFilter = self.getOptionalPhaseAttrib("alignmentFilter")
         messages = runCactusCaf(cactusDiskDatabaseString=self.cactusDiskDatabaseString,
                           features=self.featuresFn(),
                           fileStore=fileStore,
@@ -747,7 +760,7 @@ class CactusCafWrapper(CactusRecursionJob):
                           minimumBlockDegree=self.getOptionalPhaseAttrib("minimumBlockDegree", int), 
                           minimumIngroupDegree=self.getOptionalPhaseAttrib("minimumIngroupDegree", int),
                           minimumOutgroupDegree=self.getOptionalPhaseAttrib("minimumOutgroupDegree", int),
-                          alignmentFilter=self.getOptionalPhaseAttrib("alignmentFilter"),
+                          alignmentFilter=alignmentFilter,
                           lastzArguments=self.getOptionalPhaseAttrib("lastzArguments"),
                           minimumSequenceLengthForBlast=self.getOptionalPhaseAttrib("minimumSequenceLengthForBlast", int, 1),
                           maxAdjacencyComponentSizeRatio=self.getOptionalPhaseAttrib("maxAdjacencyComponentSizeRatio", float),
