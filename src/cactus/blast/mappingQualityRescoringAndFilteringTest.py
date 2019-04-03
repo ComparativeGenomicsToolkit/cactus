@@ -1,4 +1,4 @@
-import unittest, os, random, time
+import unittest, os, time
 
 from toil.job import Job
 from toil.common import Toil
@@ -6,13 +6,12 @@ from toil.common import Toil
 from sonLib.bioio import getTempFile, getTempDirectory, system
 from textwrap import dedent
 from cactus.shared.common import cactus_call, runSelfLastz
-from cactus.shared.test import getCactusInputs_encode, silentOnSuccess
+from cactus.shared.test import silentOnSuccess
 from cactus.blast.mappingQualityRescoringAndFiltering import mappingQualityRescoring
 from cactus.shared.common import makeURL
 
 from cactus.shared.test import getCactusInputs_evolverMammals
 from cactus.shared.test import getCactusInputs_evolverPrimates
-from setuptools.dist import sequence
 
 class TestCase(unittest.TestCase):
     def setUp(self):
