@@ -200,6 +200,9 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
             # Outgroup name is the first element of the ogMap tuples
             outgroups.extend(map(itemgetter(0), mcProj.outgroup.ogMap[name]))
 
+        if expTemplate.getSequenceID(name):
+            outgroups = []
+
         subtree = mcProj.entireTree.extractSpanningTree(children + [name] + outgroups)
         exp = ExperimentWrapper.createExperimentWrapper(NXNewick().writeString(subtree),
                                                         children + [name] + outgroups,
@@ -208,14 +211,15 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
         exp.setRootGenome(name)
         exp.setOutgroupGenomes(outgroups)
 
-        if not os.path.exists(path):
-            os.makedirs(path)
-        config = ConfigWrapper(copy.deepcopy(configTemplate.xmlRoot))
         if expTemplate.getSequenceID(name):
             exp.setRootReconstructed(False)
             exp.setSequenceID(name, expTemplate.getSequenceID(name))
         else:
             exp.setRootReconstructed(True)
+
+        if not os.path.exists(path):
+            os.makedirs(path)
+        config = ConfigWrapper(copy.deepcopy(configTemplate.xmlRoot))
         exp.writeXML(expPath)
         config.writeXML(exp.getConfigPath())
 
