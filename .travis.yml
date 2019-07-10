@@ -10,6 +10,11 @@ before_install:
 # doesn't include the user/password in those builds.
   - if [[ "$CACTUS_BINARIES_MODE" == "docker" ]]; then if [[ "$TRAVIS_PULL_REQUEST" == "false" ]]; then docker login --username $QUAY_USERNAME --password $QUAY_PASSWORD quay.io; make push; else make docker; fi; fi
 script:
+# dependencies so toil actually functions properly (its deps don't
+# seem to be specified correctly)
+  - sudo pip install --upgrade pip requests pathlib2
+  - sudo pip install --ignore-installed --upgrade six
+# install toil / cactus
   - sudo pip install --pre toil
   - sudo pip install -e .
   - if [[ "$CACTUS_BINARIES_MODE" == "local" ]]; then make && PATH=`pwd`/bin:$PATH PYTHONPATH=`pwd`:`pwd`/src travis_wait 50 make test; fi
