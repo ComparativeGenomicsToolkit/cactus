@@ -666,6 +666,12 @@ def inverseJukesCantor(d):
 class CactusCafPhase(CactusPhasesJob):
     memoryPoly = [2.51087392e+00, 4.49616219e+08]
 
+    def __init__(self, **kwargs):
+        # Ensure non-preemptability, since this job takes a long time
+        # when there are a ton of alignments.
+        kwargs['preemptable'] = False
+        super(CactusCafPhase, self).__init__(**kwargs)
+
     def run(self, fileStore):
         if self.cactusWorkflowArguments.ingroupCoverageIDs is not None:
             # Convert the bed files to use 64-bit cactus Names instead
