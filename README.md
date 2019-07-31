@@ -35,6 +35,11 @@ source cactus_env/bin/activate
 ```
 
 You can always exit out of the virtualenv by running `deactivate`. The rest of the README assumes you're running inside a virtual environment.
+
+If your version of `pip` or `virtualenv` uses Python 3 by default, you will need to use a Python 2 version to create your environment. To do that, use:
+```
+virtualenv -p /path-to-your-python2-install/python2.7 cactus_env
+```
 ### Install Cactus and its dependencies
 Cactus uses [Toil](http://toil.ucsc-cgl.org/) to coordinate its jobs. To install Toil into your environment, run:
 ```
