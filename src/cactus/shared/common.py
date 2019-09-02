@@ -799,6 +799,8 @@ def pullCactusImage():
     """Ensure that the cactus Docker image is pulled."""
     if os.environ.get('CACTUS_DOCKER_MODE') == "0":
         return
+    if os.environ.get('CACTUS_USE_LOCAL_IMAGE') == "1":
+        return
     image = getDockerImage()
     call = ["docker", "pull", image]
     process = subprocess32.Popen(call, stdout=subprocess32.PIPE,

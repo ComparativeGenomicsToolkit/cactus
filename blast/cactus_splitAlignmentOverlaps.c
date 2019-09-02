@@ -68,21 +68,22 @@ struct PairwiseAlignment *removeAlignmentPrefix(struct PairwiseAlignment *pairwi
 
 	assert(pairwiseAlignment->start1 == prefixEnd);
 
-	// Remove prefix ops from pairwise alignment
-	uint64_t j=0;
-	while(i<pairwiseAlignment->operationList->length) {
-		pairwiseAlignment->operationList->list[j++] = pairwiseAlignment->operationList->list[i++];
-	}
-	pairwiseAlignment->operationList->length = j;
-	assert(pairwiseAlignment->operationList->length > 0);
+        if (i > 0) {
+            // Remove prefix ops from pairwise alignment
+            uint64_t j=0;
+
+            while(i < pairwiseAlignment->operationList->length) {
+                pairwiseAlignment->operationList->list[j++] = pairwiseAlignment->operationList->list[i++];
+            }
+            pairwiseAlignment->operationList->length = j;
+        }
+        assert(pairwiseAlignment->operationList->length > 0);
 
 	// Create prefix pairwiseAlignment
 	struct PairwiseAlignment *prefixAlignment = constructPairwiseAlignment(pairwiseAlignment->contig1,
 			start1, pairwiseAlignment->start1, 1,
 			pairwiseAlignment->contig2, start2, pairwiseAlignment->start2, pairwiseAlignment->strand2,
 			pairwiseAlignment->score, prefixOps);
-	//checkPairwiseAlignment(pairwiseAlignment);
-	//checkPairwiseAlignment(prefixAlignment);
 
 	return prefixAlignment;
 }
