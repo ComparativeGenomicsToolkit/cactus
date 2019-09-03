@@ -343,6 +343,7 @@ class ExperimentWrapper(DbElemWrapper):
         """
         Sets the fileStoreID for the sequence for this genome.
         """
+        seqID = str(seqID)
         genomeNodes = self.xmlRoot.findall("genome[@name='%s']" % genome)
 
         if len(genomeNodes) == 0:

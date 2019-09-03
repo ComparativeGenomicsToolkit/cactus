@@ -17,8 +17,10 @@ script:
 # install toil / cactus
   - sudo pip install --pre toil
   - sudo pip install -e .
-  - if [[ "$CACTUS_BINARIES_MODE" == "local" ]]; then make && PATH=`pwd`/bin:$PATH PYTHONPATH=`pwd`:`pwd`/src travis_wait 50 make test; fi
-  - if [[ "$CACTUS_BINARIES_MODE" == "docker" ]]; then travis_wait 40 make test; fi
+  - if [[ "$CACTUS_TEST_CHOICE" == "normal" ]]; export MAKE_TARGET=test_nonblast; fi
+  - if [[ "$CACTUS_TEST_CHOICE" == "blast" ]]; export MAKE_TARGET=test_blast; fi
+  - if [[ "$CACTUS_BINARIES_MODE" == "local" ]]; then make && PATH=`pwd`/bin:$PATH PYTHONPATH=`pwd`:`pwd`/src travis_wait 50 make ${MAKE_TARGET}}; fi
+  - if [[ "$CACTUS_BINARIES_MODE" == "docker" ]]; then travis_wait 40 make ${MAKE_TARGET}; fi
 os:
   - linux
 services:
@@ -29,8 +31,8 @@ env:
   # Assert-enabled tests using extra-large test data, but restricted to non-blast tests only to keep under 50 mins.
   - CGL_DEBUG=1 CACTUS_BINARIES_MODE=local SON_TRACE_DATASETS=$TRAVIS_BUILD_DIR/cactusTestData CACTUS_TEST_CHOICE=normal
   # Docker container push and test.
-  - CACTUS_BINARIES_MODE=docker
+  - CACTUS_BINARIES_MODE=docker CACTUS_TEST_CHOICE=normal
   # Paranoia about memory corruption. Leak detection is disabled
   # because many utilities are short-lived and don't bother cleaning
   # up memory before exit.
-  - CGL_DEBUG=ultra ASAN_OPTIONS=detect_leaks=0 CACTUS_BINARIES_MODE=local
+  - CGL_DEBUG=ultra ASAN_OPTIONS=detect_leaks=0 CACTUS_BINARIES_MODE=local CACTUS_TEST_CHOICE=normal

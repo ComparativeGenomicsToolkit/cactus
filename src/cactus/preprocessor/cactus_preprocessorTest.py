@@ -1,4 +1,5 @@
 import os
+import pytest
 import unittest
 
 from cactus.preprocessor.preprocessorTest import getSequences, getMaskedBases
@@ -10,6 +11,7 @@ from cactus.preprocessor.cactus_preprocessor import runCactusPreprocessor
 """Runs cactus preprocessor using the lastz repeat mask script to show it working.
 """
 
+@pytest.mark.blast
 class TestCase(PreprocessorTestCase):
     def testCactusPreprocessor(self):
         #Demo sequences

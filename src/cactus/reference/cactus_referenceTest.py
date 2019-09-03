@@ -24,32 +24,32 @@ class TestCase(unittest.TestCase):
     @unittest.skip('too slow')
     @silentOnSuccess
     def testCactus_Random_Greedy(self):
-        testCactus_Random(self, "greedy")
+        runCactus_Random(self, "greedy")
 
     @unittest.skip('too slow')
     @silentOnSuccess
     def testCactus_Random_Blossum(self):
-        testCactus_Random(self, "blossom5")
+        runCactus_Random(self, "blossom5")
 
     @unittest.skip('too slow')
     @silentOnSuccess
     def testCactus_Random_MaxCardinality(self):
-        testCactus_Random(self, "maxCardinality")
+        runCactus_Random(self, "maxCardinality")
 
     @unittest.skip('too slow')
     @silentOnSuccess
     def testCactus_Random_MaxWeight(self):
-        testCactus_Random(self, "maxWeight")
+        runCactus_Random(self, "maxWeight")
 
     @unittest.skip('too slow')
     @silentOnSuccess
     def testCactus_Blanchette_Blossum(self):
-        testCactus_Blanchette(self, "blossom5")
+        runCactus_Blanchette(self, "blossom5")
 
     def testCuTest(self):
         cactus_call(parameters=["referenceTests", getLogLevelString()])
 
-def testCactus_Blanchette(self, matchingAlgorithm):
+def runCactus_Blanchette(self, matchingAlgorithm):
     configFile = getConfigFile(matchingAlgorithm)
     runWorkflow_multipleExamples(getCactusInputs_blanchette, 
                                  testRestrictions=(TestStatus.TEST_SHORT,), inverseTestRestrictions=True, 
@@ -57,7 +57,7 @@ def testCactus_Blanchette(self, matchingAlgorithm):
                                  configFile=configFile)
     os.remove(configFile)
 
-def testCactus_Random(self, matchingAlgorithm):
+def runCactus_Random(self, matchingAlgorithm):
     configFile = getConfigFile(matchingAlgorithm)
     runWorkflow_multipleExamples(getCactusInputs_random, 
                                  testNumber=TestStatus.getTestSetup(), 

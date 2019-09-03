@@ -33,22 +33,24 @@ class TestCase(unittest.TestCase):
         self.exp.setRootReconstructed(True)
         self.exp.setOutgroupGenomes(['MOUSE', 'RAT', 'DOG', 'CAT', 'PIG', 'COW'])
         for genome, seq in self.seqMap.items():
-            self.exp.setSequencePath(genome, seq)
+            # These aren't real IDs, but should still work for our
+            # purposes
+            self.exp.setSequenceID(genome, seq)
 
     def testGetSequencePath(self):
         for genome, seq in self.seqMap.items():
-            self.assertEqual(self.exp.getSequencePath(genome), seq)
+            self.assertEqual(self.exp.getSequenceID(genome), seq)
 
         # Should not be any entries for genomes not in the tree
-        self.assertEqual(self.exp.getSequencePath('DUCK'), None)
+        self.assertEqual(self.exp.getSequenceID('DUCK'), None)
 
     def testChangingSequencePaths(self):
         """Tests that changing a sequence path persists correctly."""
-        self.exp.setSequencePath('HUMAN', 'human2.txt')
-        self.assertEqual(self.exp.getSequencePath('HUMAN'), 'human2.txt')
+        self.exp.setSequenceID('HUMAN', 'human2.txt')
+        self.assertEqual(self.exp.getSequenceID('HUMAN'), 'human2.txt')
         # Reload the wrapper and try again
         self.exp = ExperimentWrapper(self.xmlRoot)
-        self.assertEqual(self.exp.getSequencePath('HUMAN'), 'human2.txt')
+        self.assertEqual(self.exp.getSequenceID('HUMAN'), 'human2.txt')
 
     def testOutgroups(self):
         self.assertEqual(set(self.exp.getOutgroupGenomes()),

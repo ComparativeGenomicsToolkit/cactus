@@ -40,7 +40,6 @@ from cactus.shared.common import cactusRootPath
 from cactus.shared.common import runCactusProgressive
 from cactus.progressive.cactus_createMultiCactusProject import runCreateMultiCactusProject
 from cactus.shared.configWrapper import ConfigWrapper
-from cactus.shared.common import runToilStatusAndFailIfNotComplete
 
 class TestCase(unittest.TestCase):
     def setUp(self):
@@ -107,9 +106,8 @@ class TestCase(unittest.TestCase):
         experiment = getCactusWorkflowExperimentForTest(sequences, tree,
                                                         outputDir,
                                                         progressive=True)
-        experiment.setSequencePath("root", rootSeq)
+        experiment.setSequenceID("root", rootSeq)
         experiment.setRootReconstructed(False)
-        experiment.cleanupDb()
         experimentFile = os.path.join(outputDir, "experiment.xml")
         experiment.writeXML(experimentFile)
 
@@ -205,56 +203,21 @@ class TestCase(unittest.TestCase):
                             buildFasta,
                             toilStats,
                             subtreeRoot=None):
-        tempDir = getTempDirectory(os.getcwd())
-        tempExperimentDir = os.path.join(tempDir, "exp")
-        runCreateMultiCactusProject(experimentFile,
-                                    tempExperimentDir,
-                                    root=subtreeRoot)
-        logger.info("Put the temporary files in %s" % tempExperimentDir)
-
-        runCactusProgressive(os.path.join(tempExperimentDir, "exp_project.xml"),
+        eW = ExperimentWrapper(ET.parse(experimentFile).getroot())
+        seqFile = getTempFile()
+        with open(seqFile, 'w') as f:
+            tree = eW.getTree()
+            newick = NXNewick().writeString(tree)
+            f.write('%s\n' % newick)
+            for genome in eW.getGenomesWithSequence():
+                f.write('%s %s\n' % (genome, eW.getSequenceID(genome)))
+        config = eW.getConfigPath()
+        runCactusProgressive(seqFile,
+                             config,
                              toilDir,
                              batchSystem=batchSystem,
                              buildAvgs=buildAvgs,
                              toilStats=toilStats)
-
-        # Check that the headers and sequences in the output are the
-        # same as the sequences in the input (minus differences in
-        # repeat-masking)
-        exp = ExperimentWrapper(ET.parse(experimentFile).getroot())
-        seqMap = dict((genome, exp.getSequencePath(genome)) for genome in exp.getGenomesWithSequence())
-        # Maps genome name -> headers in fasta
-        headers = {}
-        for genomeName, inputSequencePath in seqMap.items():
-            if os.path.isdir(inputSequencePath):
-                # Some "input sequence paths" are actually provided as
-                # directories containing multiple FASTAs
-                concatenatedPath = getTempFile()
-                system("cat %s/* > %s" % (inputSequencePath, concatenatedPath))
-                inputSequencePath = concatenatedPath
-            headers[genomeName] = list(map(itemgetter(0), fastaRead(inputSequencePath)))
-
-        # check headers inside .c2h output
-        for expPath in glob.glob('%s/*/*_experiment.xml' % (tempExperimentDir)):
-            subExp = ExperimentWrapper(ET.parse(expPath).getroot())
-            outgroups = subExp.getOutgroupGenomes()
-            c2hPath = subExp.getHALPath()
-            with open(c2hPath) as f:
-                for line in f:
-                    fields = line.split('\t')
-                    if fields[0] == 's':
-                        # Sequence line
-                        genome = fields[1][1:-1]
-                        header = fields[2][1:-1]
-                        if genome in headers and genome not in outgroups:
-                            # This genome is an input genome
-                            self.assertTrue(header in headers[genome],
-                                            'Header %s from output c2h %s not found in input fa %s'
-                                            ' for genome %s' % (header, c2hPath, seqMap[genome], genome))
-
-
-        runToilStatusAndFailIfNotComplete(toilDir)
-        system("rm -rf %s" % tempDir)
         
 if __name__ == '__main__':
     unittest.main()

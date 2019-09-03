@@ -107,8 +107,8 @@ class TestCase(unittest.TestCase):
         os.remove(tempConfigFile)
 
     def testGetOptionalAttrib(self):
-        self.assertEquals("0", getOptionalAttrib(self.barNode, "minimumBlockDegree"))
-        self.assertEquals(0, getOptionalAttrib(self.barNode, "minimumBlockDegree", typeFn=int, default=1))
+        self.assertEquals("2", getOptionalAttrib(self.barNode, "minimumBlockDegree"))
+        self.assertEquals(2, getOptionalAttrib(self.barNode, "minimumBlockDegree", typeFn=int, default=1))
         self.assertEquals(None, getOptionalAttrib(self.barNode, "doesntExist"))
         self.assertEquals(1, getOptionalAttrib(self.barNode, "doesntExist", typeFn=int, default=1))
 

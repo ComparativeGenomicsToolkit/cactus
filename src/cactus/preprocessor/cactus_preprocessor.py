@@ -223,7 +223,7 @@ class CactusPreprocessor(RoundedJob):
     """Modifies the input genomes, doing things like masking/checking, etc.
     """
     def __init__(self, inputSequenceIDs, configNode):
-        RoundedJob.__init__(self, disk=sum([id.size for id in inputSequenceIDs]), preemptable=True)
+        RoundedJob.__init__(self, disk=sum([id.size for id in inputSequenceIDs if hasattr(id, 'size')]), preemptable=True)
         self.inputSequenceIDs = inputSequenceIDs
         self.configNode = configNode  
 

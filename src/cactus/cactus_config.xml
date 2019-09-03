@@ -1,139 +1,77 @@
-<!-- This XML tree contains the parameters to cactus_workflow.py -->
-<cactusWorkflowConfig>
-	<constants defaultMemory="mediumMemory" defaultOverlargeMemory="mediumMemory" defaultCpu="1" defaultOverlargeCpu="1">
-		<!-- These constants are used to control the amount of memory and cpu the different jobs in a batch are using. -->
-  		<defines littleMemory="1147483648" mediumMemory="2589934592" bigMemory="3037418200"/>
-  		<!-- These constants are used to control parameters that depend on phylogenetic distance. -->
-  		<divergences low="0.1"/>
-  	</constants>
-	<!-- The preprocessor tags are used to modify/check the input sequences before alignment -->
-	<!-- The first preprocessor tag checks that the first word of every fasta header is unique, as this is required for HAL. It throws errors if this is not the case -->
-	<!-- The checkAssemblyHub option (if enabled) ensures that the first word contains only alphanumeric or '_', '-', ':', or '.' characters, and is unique. If you don't intend to make an assembly hub, you can turn off this option here. -->
-	<preprocessor check="1" memory="littleMemory" preprocessJob="checkUniqueHeaders" checkAssemblyHub="1"/>
-	<!-- The preprocessor for cactus_lastzRepeatMask masks every seed that is part of more than XX other alignments, this stops a combinatorial explosion in pairwise alignments -->
-	<preprocessor unmask="0" chunkSize="3000000" proportionToSample="0.2" memory="littleMemory" preprocessJob="lastzRepeatMask" minPeriod="50" lastzOpts='--step=3 --ambiguous=iupac,100,100 --ungapped --queryhsplimit=keep,nowarn:1500'/>
-        <!-- Options for trimming ingroups & outgroups using the trim strategy -->
-        <!-- Ingroup trim options: -->
-        <!-- trimFlanking: The length of flanking sequence to attach
-             to the trimmed ingroup sequences -->
-        <!-- trimMinSize: The minimum size of uncovered regions
-             (*before* adding flanking sequence) to output from the
-             trimming process -->
-        <!-- trimThreshold: The minimum amount of coverage for a
-             region to be trimmed away and not be aligned against the
-             next outgroup -->
-        <!-- trimWindowSize: The size of the window to integrate
-             coverage over -->
-        <!-- Outgroup trim options: -->
-        <!-- trimOutgroupFlanking: The amount of flanking sequence to
-             leave on the ends of the trimmed outgroup fragments -->
-        <trimBlast doTrimStrategy="1"
-                   trimFlanking="10"
-                   trimMinSize="10"
-                   trimThreshold="1"
-                   trimWindowSize="10"
-                   trimOutgroupFlanking="100"/>
+<?xml version="1.0" ?>
+<cactusWorkflowConfig distanceToAddToRootAlignment="0.1">
+	<constants defaultCpu="1" defaultMemory="mediumMemory" defaultOverlargeCpu="1" defaultOverlargeMemory="mediumMemory">
+		  
+		<defines bigMemory="5000000000" littleMemory="2000000000" mediumMemory="3500000000"/>
+		    
+		<divergences five="0.35" four="0.25" one="0.1" three="0.2" two="0.15" useDefault="0"/>
+	</constants>
+	<preprocessor check="1" checkAssemblyHub="1" memory="littleMemory" preprocessJob="checkUniqueHeaders"/>
+	<preprocessor chunkSize="3000000" lastzOpts="--step=3 --ambiguous=iupac,100,100 --ungapped --queryhsplimit=keep,nowarn:1500" memory="littleMemory" minPeriod="50" preprocessJob="lastzRepeatMask" proportionToSample="0.2" unmask="0"/>
+	                                                                                        
+	<trimBlast doTrimStrategy="1" keepParalogs="0" trimFlanking="10" trimMinSize="100" trimOutgroupDepth="1" trimOutgroupFlanking="2000" trimThreshold="1.0" trimWindowSize="1"/>
+	<ktserver memory="mediumMemory"/>
 	<setup makeEventHeadersAlphaNumeric="0"/>
-	<caf
-		realign="1"
-		realignArguments="--rescoreByIdentity --matchGamma 0.9 --diagonalExpansion 4 --splitMatrixBiggerThanThis 10 --constraintDiagonalTrim 0 --alignAmbiguityCharacters"
-		chunkSize="2000000" 
-		compressFiles="1" 
-		overlapSize="10000" 
-		filterByIdentity="1" 
-		identityRatio="6" 
-		minimumDistance="0.01" 
-		minimumSequenceLengthForBlast="30"
-		annealingRounds="2 3 4 8 16 32 64 128"
-		deannealingRounds="2 3 4 8 16 32 64 128"
-		blockTrim="2"
-                alignmentFilter="none"
-		minimumTreeCoverage="0.8" 
-		trim="0 0 0 0 0 0 0 0 0 0 0"
-		minimumBlockDegree="2"
-		maxAdjacencyComponentSizeRatio="10"
-		minLengthForChromosome="1000000"
-		proportionOfUnalignedBasesForNewChromosome="0.8"
-		maximumMedianSequenceLengthBetweenLinkedEnds="10000"
-		lastzMemory="littleMemory"
-	>
-		<divergence 
-			argName="lastzArguments"
-			low="--hspthresh=3000 --ambiguous=iupac"
-		 	default="--hspthresh=1800 --ambiguous=iupac"
-		 />
+	        
+	<caf alignmentFilter="filterSecondariesByMultipleSpecies" alpha="0.001" annealingRounds="128" blockTrim="5" chunkSize="25000000" compressFiles="1" deannealingRounds="2 8" doPhylogeny="0" filterByIdentity="0" identityRatio="3" lastzDisk="mediumDisk" lastzMemory="littleMemory" maxAdjacencyComponentSizeRatio="50" maxAlignmentsPerSite="5" maxRecoverableChainLength="500000" maxRecoverableChainsIterations="5" maximumMedianSequenceLengthBetweenLinkedEnds="1000" minLengthForChromosome="1000000" minimumBlockDegree="2" minimumBlockDegreeToCheckSupport="10" minimumBlockHomologySupport="0.05" minimumDistance="0.01" minimumIngroupDegree="1" minimumMapQValue="0.0" minimumNumberOfSpecies="1" minimumOutgroupDegree="0" minimumSequenceLengthForBlast="30" minimumTreeCoverage="0.0" numTreeBuildingThreads="2" overlapSize="10000" phylogenyBreakpointScalingFactor="1.0" phylogenyCostPerDupPerBase="0.00" phylogenyCostPerLossPerBase="0.02" phylogenyDistanceCorrectionMethod="jukesCantor" phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce="0.44" phylogenyHomologyUnitType="chain" phylogenyKeepSingleDegreeBlocks="0" phylogenyMaxBaseDistance="100" phylogenyMaxBlockDistance="50" phylogenyNumTrees="30" phylogenyRootingMethod="bestRecon" phylogenyScoringMethod="reconCost" phylogenySkipSingleCopyBlocks="1" phylogenyTreeBuildingMethod="guidedNeighborJoining,splitDecomposition" proportionOfUnalignedBasesForNewChromosome="0.8" realign="1" realignArguments="--gapGamma 0.0 --matchGamma 0.9 --diagonalExpansion 4 --splitMatrixBiggerThanThis 10 --constraintDiagonalTrim 0 --alignAmbiguityCharacters --splitIndelsLongerThanThis 99" removeRecoverableChains="unequalNumberOfIngroupCopies" runMapQFiltering="1" trim="0 0">
+		<divergence argName="lastzArguments" default="--step=1 --ambiguous=iupac,100,100 --ydrop=3000" five="--step=2 --ambiguous=iupac,100,100 --ydrop=3000" four="--step=3 --ambiguous=iupac,100,100 --ydrop=3000" one="--step=2 --ambiguous=iupac,100,100 --ydrop=3000 --notransition" three="--step=4 --ambiguous=iupac,100,100 --ydrop=3000" two="--step=5 --ambiguous=iupac,100,100 --ydrop=3000"/>
 		<CactusCafRecursion maxFlowerGroupSize="100000000"/>
-		<CactusCafWrapper minFlowerSize="5000" maxFlowerGroupSize="1000000"/>
+		<CactusCafWrapper maxFlowerGroupSize="25000000" minFlowerSize="1"/>
+		<CactusCafWrapperLarge2 overlargeMemory="bigMemory"/>
 	</caf>
-	<bar
-		runBar="1"
-		spanningTrees="5" 
-		gapGamma="0.0"
-        matchGamma="0.2"
-		bandingLimit="100000" 
-		splitMatrixBiggerThanThis="3000" 
-        anchorMatrixBiggerThanThis="500"
-        repeatMaskMatrixBiggerThanThis="500"
-        diagonalExpansion="20"
-		constraintDiagonalTrim="14" 
-		minimumBlockDegree="0" 
-		alignAmbiguityCharacters="1"
-		veryLargeEndSize="50000"
-		largeEndSize="10000"
-		useProgressiveMerging="1"
-		pruneOutStubAlignments="1"
-                rescue="1"
-	>
+	        
+	<bar alignAmbiguityCharacters="1" anchorMatrixBiggerThanThis="500" bandingLimit="1000000" constraintDiagonalTrim="14" diagonalExpansion="20" gapGamma="0.0" largeEndSize="5000" matchGamma="0.2" minimumBlockDegree="2" minimumCoverageToRescue="0.5" minimumIngroupDegree="1" minimumNumberOfSpecies="1" minimumOutgroupDegree="0" minimumSizeToRescue="100" pruneOutStubAlignments="1" repeatMaskMatrixBiggerThanThis="500" rescue="0" runBar="1" spanningTrees="5" splitMatrixBiggerThanThis="3000" useBanding="1" useProgressiveMerging="1" veryLargeEndSize="2000000">
 		<CactusBarRecursion maxFlowerGroupSize="100000000"/>
-		<CactusBarWrapper maxFlowerGroupSize="400000" memory="littleMemory"/>
-		<CactusBarWrapperLarge maxFlowerGroupSize="400000"/>
+		<CactusBarWrapper maxFlowerGroupSize="2000000" memory="littleMemory"/>
+		<CactusBarWrapperLarge maxFlowerGroupSize="2000000"/>
 		<CactusBarEndAlignerWrapper memory="littleMemory"/>
 	</bar>
-	<normal 
-		iterations="2"
-		maxNumberOfChains="30" 
-	>
-		<CactusNormalRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="1000000"/>
+	<normal iterations="0">
+		<CactusNormalRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="10000000"/>
 		<CactusNormalWrapper/>
 	</normal>
-	<avg
-		buildAvgs="1"
-	>
-		<CactusAVGRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="1000000"/>
+	<avg buildAvgs="0">
+		<CactusAVGRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="10000000"/>
 		<CactusAVGWrapper/>
 	</avg>
-	<reference 
-		matchingAlgorithm="blossom5" 
-		reference="reference" 
-		useSimulatedAnnealing="1" 
-		theta="0.0001" 
-		phi="1.0"
-		maxWalkForCalculatingZ="100000" 
-		permutations="10"
-		ignoreUnalignedGaps="1"
-		wiggle="0.9999"
-	>
-		<CactusReferenceRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="1000000"/>
-	 	<CactusReferenceWrapper/>
-	 	<CactusSetReferenceCoordinatesUpWrapper />
-	 	<CactusSetReferenceCoordinatesDownRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="1000000"/>
-	 	<CactusSetReferenceCoordinatesDownWrapper/>
+	<reference ignoreUnalignedGaps="1" makeScaffolds="1" matchingAlgorithm="blossom5" maxWalkForCalculatingZ="100000" minNumberOfSequencesToSupportAdjacency="1" numberOfNs="10" permutations="10" phi="1.0" reference="reference" theta="0.0001" useSimulatedAnnealing="1" wiggle="0.9999">
+		<CactusReferenceRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="2000000"/>
+		 
+		<CactusReferenceWrapper/>
+		 
+		<CactusSetReferenceCoordinatesUpWrapper/>
+		 
+		<CactusSetReferenceCoordinatesDownRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="2000000"/>
+		 
+		<CactusSetReferenceCoordinatesDownWrapper/>
 	</reference>
-	<check 
-		runCheck="1"
-		maxFlowerGroupSize="1000000"
-	>
-		<CactusCheckRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="1000000"/>
+	<check runCheck="0">
+		<CactusCheckRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="2000000"/>
 		<CactusCheckWrapper/>
 	</check>
-	<hal
-		buildHal="0"
-		buildMaf="0"
-		buildFasta="0"
-		joinMaf="1"
-		showOnlySubstitutionsWithRespectToReference="0"
-	>
-		<CactusHalGeneratorRecursion maxFlowerGroupSize="10000000"/>
+	<hal buildFasta="1" buildHal="1">
+		<CactusHalGeneratorRecursion maxFlowerGroupSize="2000000"/>
 		<CactusHalGeneratorUpWrapper/>
 	</hal>
+	  
+	<multi_cactus>
+		<outgroup ancestor_quality_fraction="0.75" max_num_outgroups="3" strategy="greedyPreference" threshold="0"/>
+		 
+		<decomposition default_internal_node_prefix="Anc" max_parallel_subtrees="50000" self_alignment="false"/>
+		  
+	</multi_cactus>
+	    
+	<ProgressiveNext/>
+	    
+	<ProgressiveUp/>
+	    
+	<ProgressiveDown/>
+	    
+	<ProgressiveOut/>
+	    
+	<RunCactusPreprocessorThenProgressiveDown/>
+	    
+	<RunCactusPreprocessorThenProgressiveDown2/>
+	    
+	<exportHal disk="2000000000"/>
 </cactusWorkflowConfig>

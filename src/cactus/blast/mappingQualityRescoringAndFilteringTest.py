@@ -1,4 +1,8 @@
-import unittest, os, random, time
+import os
+import pytest
+import random
+import time
+import unittest
 
 from toil.job import Job
 from toil.common import Toil
@@ -12,8 +16,11 @@ from cactus.shared.common import makeURL
 
 from cactus.shared.test import getCactusInputs_evolverMammals
 from cactus.shared.test import getCactusInputs_evolverPrimates
+from cactus.shared.test import needsTestData
 from setuptools.dist import sequence
 
+@pytest.mark.blast
+@needsTestData
 class TestCase(unittest.TestCase):
     def setUp(self):
         unittest.TestCase.setUp(self)

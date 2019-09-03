@@ -1430,10 +1430,21 @@ class RunCactusPreprocessorThenCactusSetup(RoundedJob):
         eW = self.cactusWorkflowArguments.experimentWrapper
         genomes = eW.getGenomesWithSequence()
         originalSequenceIDs = [eW.getSequenceID(genome) for genome in genomes]
-        preprocessedSeqIDs = self.addChild(CactusPreprocessor(originalSequenceIDs, self.cactusWorkflowArguments.configNode))
+        preprocessedSeqIDs = self.addChild(CactusPreprocessor(originalSequenceIDs, self.cactusWorkflowArguments.configNode)).rv()
+        self.addFollowOn(AfterPreprocessing(self.cactusWorkflowArguments, eW, genomes, preprocessedSeqIDs))
+
+class AfterPreprocessing(RoundedJob):
+    def __init__(self, cactusWorkflowArguments, eW, genomes, preprocessedSeqIDs):
+        RoundedJob.__init__(self)
+        self.cactusWorkflowArguments = cactusWorkflowArguments
+        self.eW = eW
+        self.genomes = genomes
+        self.preprocessedSeqIDs = preprocessedSeqIDs
+
+    def run(self, fileStore):
         #Now replace the input sequences with the preprocessed sequences in the experiment wrapper
-        for genome, preprocessedSeqID in zip(genomes, preprocessedSeqIDs):
-            eW.setSequenceID(genome, preprocessedSeqID)
+        for genome, preprocessedSeqID in zip(self.genomes, self.preprocessedSeqIDs):
+            self.eW.setSequenceID(genome, preprocessedSeqID)
         fileStore.logToMaster("doTrimStrategy() = %s, outgroupEventNames = %s" % (self.cactusWorkflowArguments.configWrapper.getDoTrimStrategy(), self.cactusWorkflowArguments.outgroupEventNames))
         # Use the trimming strategy to blast ingroups vs outgroups.
         self.addFollowOn(CactusTrimmingBlastPhase(cactusWorkflowArguments=self.cactusWorkflowArguments, phaseName="trimBlast"))
@@ -1454,16 +1465,20 @@ def runCactusWorkflow(args):
     experimentWrapper = ExperimentWrapper(ET.parse(options.experimentFile).getroot())
     with Toil(options) as toil:
         seqIDMap = dict()
-        seqMap = experimentWrapper.buildSequenceMap()
-        for name in seqMap:
+        for name in experimentWrapper.getGenomesWithSequence():
             fullSeq = getTempFile()
-            if os.path.isdir(seqMap[name]):
-                catFiles([os.path.join(seqMap[name], seqFile) for seqFile in os.listdir(seqMap[name])], fullSeq)
+            seq = experimentWrapper.getSequenceID(name)
+            if os.path.isdir(seq):
+                catFiles([os.path.join(seq, seqFile) for seqFile in os.listdir(seq)], fullSeq)
             else:
-                fullSeq = seqMap[name]
-            seqIDMap[name] = toil.importFile(makeURL(fullSeq))
+                fullSeq = seq
+            experimentWrapper.setSequenceID(name, toil.importFile(makeURL(fullSeq)))
+            print name, experimentWrapper.getSequenceID(name)
+
+        experimentWrapper.writeXML(options.experimentFile)
 
         configNode = ET.parse(experimentWrapper.getConfigPath()).getroot()
+        print seqIDMap
         cactusWorkflowArguments = CactusWorkflowArguments(options, experimentFile=options.experimentFile, configNode=configNode, seqIDMap=seqIDMap)
 
         toil.start(RunCactusPreprocessorThenCactusSetup(options, cactusWorkflowArguments))

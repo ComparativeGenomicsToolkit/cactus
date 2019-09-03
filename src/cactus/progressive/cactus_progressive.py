@@ -468,7 +468,9 @@ def main():
         # If the user didn't specify a retryCount value, make it 5
         # instead of Toil's default (1).
         options.retryCount = 5
+    runCactusProgressive(options)
 
+def runCactusProgressive(options):
     with Toil(options) as toil:
         importSingularityImage()
         #Run the workflow

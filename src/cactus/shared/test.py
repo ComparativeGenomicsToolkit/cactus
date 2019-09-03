@@ -7,8 +7,9 @@
 cactus workflow and the various utilities.
 """
 
-import random
 import os
+import pytest
+import random
 import xml.etree.ElementTree as ET
 
 from sonLib.bioio import logger
@@ -33,7 +34,7 @@ from sonLib.bioio import TestStatus
 
 from sonLib.tree import makeRandomBinaryTree
 
-from cactus.shared.common import runToilStats, runToilStatusAndFailIfNotComplete
+from cactus.shared.common import runToilStats
 
 from cactus.shared.experimentWrapper import DbElemWrapper
 from cactus.shared.experimentWrapper import ExperimentWrapper
@@ -73,6 +74,10 @@ def silentOnSuccess(fn):
             os.remove(tempPath)
     return wrap
 
+def needsTestData(fn):
+    return pytest.mark.skipif(os.environ.get("SON_TRACE_DATASETS") is None,
+                              reason="Test data needed")(fn)
+
 ###########
 #Stuff for setting up the experiment configuration file for a test
 ###########
@@ -109,11 +114,12 @@ def getCactusWorkflowExperimentForTest(sequences, newickTreeString, outputDir, c
     databaseConf = ET.fromstring(_GLOBAL_DATABASE_CONF_STRING) if _GLOBAL_DATABASE_CONF_STRING is not None else None
     tree = NXNewick().parseString(newickTreeString, addImpliedRoots=False)
     genomes = [tree.getName(id) for id in tree.postOrderTraversal() if tree.isLeaf(id)]
-    exp =  ExperimentWrapper.createExperimentWrapper(sequences, newickTreeString, outputDir,
+    exp =  ExperimentWrapper.createExperimentWrapper(newickTreeString, genomes, outputDir,
                                                      databaseConf=databaseConf, configFile=configFile,
                                                      halFile=halFile, fastaFile=fastaFile, constraints=constraints, progressive=progressive)
     for genome, sequence in zip(genomes, sequences):
-        exp.setSequencePath(genome, sequence)
+        print genome, sequence
+        exp.setSequenceID(genome, sequence)
     exp.setRootGenome("reference")
     if reconstruct:
         exp.setRootReconstructed(True)

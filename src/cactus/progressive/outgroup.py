@@ -49,8 +49,6 @@ class GreedyOutgroup(object):
     # return set of ancestral nodes that aren't below alignment root
     # they can't be outgroups as they are effective "out of project"
     def getInvalid(self, rootId):
-        print rootId
-        print self.mcTree.getName(rootId)
         invalid = []
         if rootId is None or rootId == self.mcTree.getRootId():
             return invalid
