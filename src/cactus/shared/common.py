@@ -694,6 +694,10 @@ def runCactusProgressive(seqFile,
     opts.logLevel = logLevel if logLevel is not None else opts.logLevel
     opts.maxCores = maxCpus if maxCpus is not None else opts.maxCores
     opts.retryCount = retryCount if retryCount is not None else opts.retryCount
+    # This *shouldn't* be necessary, but it looks like the toil
+    # deadlock-detection still has issues.
+    opts.deadlockWait = 3600
+
     opts.buildHal = buildHal
     opts.buildAvgs = buildAvgs
     opts.buildFasta = True
