@@ -7,6 +7,7 @@
 """
 
 import unittest
+import pytest
 import os
 import sys
 import random
@@ -95,6 +96,7 @@ class TestCase(unittest.TestCase):
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveWithSubtreeRootFunction)
 
+    @pytest.mark.skipif(os.environ.get("TRAVIS") is not None, reason="Travis doesn't have enough cores anymore")
     @silentOnSuccess
     def testCactus_Random_fixedAncestor(self):
         """Tests that cactus doesn't crash when aligning to a fixed ancestral sequence."""
