@@ -98,7 +98,7 @@ class TestCase(unittest.TestCase):
     @silentOnSuccess
     def testCactus_Random_fixedAncestor(self):
         """Tests that cactus doesn't crash when aligning to a fixed ancestral sequence."""
-        sequences, _ = getCactusInputs_random(treeLeafNumber=5)
+        sequences, _ = getCactusInputs_random(treeLeafNumber=3)
         rootSeq = sequences.pop()
         # Create a star tree
         tree = '(%s)root;' % ",".join([str(x) + ":1.0" for x in xrange(len(sequences))])
