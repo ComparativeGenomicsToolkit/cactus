@@ -693,6 +693,8 @@ def runCactusProgressive(seqFile,
     opts.batchSystem = batchSystem if batchSystem is not None else opts.batchSystem
     opts.logLevel = logLevel if logLevel is not None else opts.logLevel
     opts.maxCores = maxCpus if maxCpus is not None else opts.maxCores
+    # Used for tests
+    opts.scale = 0.1
     opts.retryCount = retryCount if retryCount is not None else opts.retryCount
     # This *shouldn't* be necessary, but it looks like the toil
     # deadlock-detection still has issues.

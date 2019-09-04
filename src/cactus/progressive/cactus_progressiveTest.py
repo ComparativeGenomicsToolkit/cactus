@@ -116,9 +116,6 @@ class TestCase(unittest.TestCase):
         self.progressiveFunction(experimentFile, jobTreeDir, 'singleMachine',
                                  False, True, True, False)
 
-        runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
-        system("rm -rf %s %s" % (jobTreeDir, experimentFile))
-
     @silentOnSuccess
     @unittest.skip("")
     def testCactus_ensureFunkyHeaderNamesArentMangled(self):
