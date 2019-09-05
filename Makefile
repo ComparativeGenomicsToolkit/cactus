@@ -48,7 +48,7 @@ test_nonblast:
 
 docker: Dockerfile
 	-docker rmi -f ${name}:latest
-	docker build -t ${name}:${tag} . --build-arg CACTUS_COMMIT=${git_commit}
+	docker build --network=host -t ${name}:${tag} . --build-arg CACTUS_COMMIT=${git_commit}
 	docker tag ${name}:${tag} ${name}:latest
 
 push: docker
