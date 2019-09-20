@@ -38,11 +38,17 @@ clean.%:
 	cd $* && make clean
 
 test:
-	python allTests.py
+	pytest .
+
+test_blast:
+	pytest . --suite=blast
+
+test_nonblast:
+	pytest . --suite=nonblast
 
 docker: Dockerfile
 	-docker rmi -f ${name}:latest
-	docker build -t ${name}:${tag} . --build-arg CACTUS_COMMIT=${git_commit}
+	docker build --network=host -t ${name}:${tag} . --build-arg CACTUS_COMMIT=${git_commit}
 	docker tag ${name}:${tag} ${name}:latest
 
 push: docker

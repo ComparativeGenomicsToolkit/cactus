@@ -14,7 +14,7 @@ from cactus.shared.common import makeURL
 comparing two settings of lastz.
 """
 
-
+@pytest.mark.blast
 class TestCase(PreprocessorTestCase):
     def testLastzRepeatMask(self):
         #Demo sequences

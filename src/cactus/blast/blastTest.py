@@ -10,6 +10,7 @@ import random
 import time
 import shutil
 import filecmp
+import pytest
 
 from sonLib.bioio import system
 from sonLib.bioio import logger
@@ -26,7 +27,7 @@ from sonLib.bioio import TestStatus
 from sonLib.bioio import catFiles
 from sonLib.bioio import popenCatch
 
-from cactus.shared.test import checkCigar
+from cactus.shared.test import checkCigar, needsTestData
 from cactus.blast.blast import decompressFastaFile, compressFastaFile
 
 from cactus.shared.common import runLastz
@@ -41,6 +42,8 @@ from cactus.blast.blast import calculateCoverage
 from toil.job import Job
 from toil.common import Toil
 
+@pytest.mark.blast
+@needsTestData
 class TestCase(unittest.TestCase):
     def setUp(self):
         self.testNo = TestStatus.getTestSetup(1, 5, 10, 100)
@@ -299,7 +302,6 @@ class TestCase(unittest.TestCase):
             overlapSize = random.choice(xrange(2, 100))
             toilDir = os.path.join(getTempDirectory(self.tempDir), "toil")
             runCactusBlast([ tempSeqFile ], self.tempOutputFile, toilDir, chunkSize, overlapSize)
-            #runToilStatusAndFailIfNotComplete(toilDir)
             if getLogLevelString() == "DEBUG":
                 system("cat %s" % self.tempOutputFile)
             system("rm -rf %s " % toilDir)

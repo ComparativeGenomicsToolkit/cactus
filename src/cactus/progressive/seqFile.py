@@ -207,13 +207,13 @@ class SeqFile:
     def toXMLElement(self):
         assert self.tree is not None
         elem = ET.Element("cactus_workflow_experiment")
-        seqString = ""
         for node in self.tree.postOrderTraversal():
-            if self.tree.isLeaf(node):
-                name = self.tree.getName(node)
+            name = self.tree.getName(node)
+            if name in self.pathMap:
                 path = self.pathMap[name]
-                seqString += path + " "
-        elem.attrib["sequences"] = seqString
+                genomeNode = ET.SubElement(elem, "genome")
+                genomeNode.attrib['name'] = name
+                genomeNode.attrib['sequence'] = path
         elem.attrib["species_tree"] = NXNewick().writeString(self.tree)
         elem.attrib["config"] = "defaultProgressive"
         return elem

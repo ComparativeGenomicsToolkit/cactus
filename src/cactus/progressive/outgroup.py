@@ -54,8 +54,10 @@ class GreedyOutgroup(object):
             return invalid
         good = set([x for x in self.mcTree.postOrderTraversal(rootId)])
         for node in self.mcTree.postOrderTraversal():
+            print self.mcTree.getName(node), self.mcTree.isLeaf(node), node in good
             if not self.mcTree.isLeaf(node) and node not in good:
                 invalid.append(node)
+        print [self.mcTree.getName(i) for i in invalid]
         return set(invalid)
  
     # get rid of any node that's not an event

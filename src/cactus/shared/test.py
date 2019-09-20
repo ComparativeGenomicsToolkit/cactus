@@ -7,8 +7,9 @@
 cactus workflow and the various utilities.
 """
 
-import random
 import os
+import pytest
+import random
 import xml.etree.ElementTree as ET
 
 from sonLib.bioio import logger
@@ -22,6 +23,9 @@ from sonLib.bioio import printBinaryTree
 from sonLib.bioio import system
 from sonLib.bioio import getRandomAlphaNumericString
 from sonLib.bioio import cigarWrite, PairwiseAlignment, AlignmentOperation
+from sonLib.bioio import TestStatus
+from sonLib.tree import makeRandomBinaryTree
+from sonLib.nxnewick import NXNewick
 
 from cactus.shared.common import runCactusWorkflow
 from cactus.shared.common import runCactusCheck
@@ -30,7 +34,7 @@ from sonLib.bioio import TestStatus
 
 from sonLib.tree import makeRandomBinaryTree
 
-from cactus.shared.common import runToilStats, runToilStatusAndFailIfNotComplete
+from cactus.shared.common import runToilStats
 
 from cactus.shared.experimentWrapper import DbElemWrapper
 from cactus.shared.experimentWrapper import ExperimentWrapper
@@ -70,6 +74,10 @@ def silentOnSuccess(fn):
             os.remove(tempPath)
     return wrap
 
+def needsTestData(fn):
+    return pytest.mark.skipif(os.environ.get("SON_TRACE_DATASETS") is None,
+                              reason="Test data needed")(fn)
+
 ###########
 #Stuff for setting up the experiment configuration file for a test
 ###########
@@ -97,16 +105,25 @@ def initialiseGlobalBatchSystem(batchSystem):
     _BATCH_SYSTEM = batchSystem
     
 def getCactusWorkflowExperimentForTest(sequences, newickTreeString, outputDir, configFile=None,
-                                       constraints=None, progressive=False):
+                                       constraints=None, progressive=False, reconstruct=True):
     """Wrapper to constructor of CactusWorkflowExperiment which additionally incorporates
     any globally set database conf.
     """
     halFile = os.path.join(outputDir, "test.hal")
     fastaFile = os.path.join(outputDir, "test.fa")
     databaseConf = ET.fromstring(_GLOBAL_DATABASE_CONF_STRING) if _GLOBAL_DATABASE_CONF_STRING is not None else None
-    return ExperimentWrapper.createExperimentWrapper(sequences, newickTreeString, outputDir,
-                                    databaseConf=databaseConf, configFile=configFile,
-                                    halFile=halFile, fastaFile=fastaFile, constraints=constraints, progressive=progressive)
+    tree = NXNewick().parseString(newickTreeString, addImpliedRoots=False)
+    genomes = [tree.getName(id) for id in tree.postOrderTraversal() if tree.isLeaf(id)]
+    exp =  ExperimentWrapper.createExperimentWrapper(newickTreeString, genomes, outputDir,
+                                                     databaseConf=databaseConf, configFile=configFile,
+                                                     halFile=halFile, fastaFile=fastaFile, constraints=constraints, progressive=progressive)
+    for genome, sequence in zip(genomes, sequences):
+        print genome, sequence
+        exp.setSequenceID(genome, sequence)
+    exp.setRootGenome("reference")
+    if reconstruct:
+        exp.setRootReconstructed(True)
+    return exp
 
 ###############
 #Stuff for getting random inputs to a test
@@ -125,6 +142,7 @@ def getCactusInputs_random(regionNumber=0, tempDir=None,
         avgSequenceLength = random.choice(xrange(1,3000))
     if treeLeafNumber is None:
         treeLeafNumber = random.choice(xrange(2, 4))
+
     #Make tree
     binaryTree = makeRandomBinaryTree(treeLeafNumber)
     newickTreeString = printBinaryTree(binaryTree, includeDistances=True)
@@ -152,7 +170,6 @@ def getCactusInputs_random(regionNumber=0, tempDir=None,
     emptySequenceDirs = set(sequenceDirs)
     i = 0
     while i < sequenceNumber or len(emptySequenceDirs) > 0:
-        #for i in xrange(sequenceNumber):
         if sequenceFile == None:
             if random.random() > 0.5: #Randomly choose the files to be attached or not
                 suffix = ".fa.complete"
@@ -165,7 +182,7 @@ def getCactusInputs_random(regionNumber=0, tempDir=None,
             fileHandle = open(sequenceFile, 'w')
         if random.random() > 0.8: #Get a new root sequence
             parentSequence = getRandomSequence(length=random.choice(xrange(1, 2*avgSequenceLength)))[1]
-        sequence = mutateSequence(parentSequence, distance=random.random()*0.5)
+        sequence = mutateSequence(parentSequence, distance=random.random()*0.25)
         name = getRandomAlphaNumericString(15)
         if random.random() > 0.5:
             sequence = reverseComplement(sequence)
@@ -179,7 +196,7 @@ def getCactusInputs_random(regionNumber=0, tempDir=None,
         fileHandle.close()
 
     logger.info("Made %s sequences in %s directories" % (sequenceNumber, len(sequenceDirs)))
-    
+
     return sequenceDirs, newickTreeString
 
 def getFastasFromSequence(sequenceDirs):
@@ -337,15 +354,16 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     logger.info("Running cactus workflow test script")
     logger.info("Got the following sequence dirs/files: %s" % " ".join(sequences))
     logger.info("Got the following tree %s" % newickTreeString)
-    
+
     #Setup the output dir
     assert outputDir != None
     logger.info("Using the output dir: %s" % outputDir)
     
     #Setup the flower disk.
-    experiment = getCactusWorkflowExperimentForTest(sequences, newickTreeString, 
+    experiment = getCactusWorkflowExperimentForTest(sequences, newickTreeString,
                                                     outputDir=outputDir,
                                                     configFile=configFile, constraints=constraints,
+                                                    reconstruct=buildReference,
                                                     progressive=progressive)
     experimentFile = os.path.join(outputDir, "experiment.xml")
     experiment.writeXML(experimentFile)
@@ -364,7 +382,6 @@ def runWorkflow_TestScript(sequences, newickTreeString,
                            toilStats=buildToilStats,
                            logLevel="DEBUG")
     logger.info("Ran the the workflow")
-    
     #Now run various utilities..
     if buildToilStats:
         toilStatsFile = os.path.join(outputDir, "toilStats.xml")

@@ -76,6 +76,6 @@ class ProjectWrapper:
             outgroups = None
         else:
             outgroups = self.seqFile.outgroups
-        runCreateMultiCactusProject(expPath, projPath, fixNames=0,
+        runCreateMultiCactusProject(expPath, projPath,
                                     outgroupNames=outgroups,
                                     root=self.options.root)

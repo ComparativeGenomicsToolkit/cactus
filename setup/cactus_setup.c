@@ -25,7 +25,7 @@ const char *CACTUS_SETUP_EXCEPTION = "CACTUS_SETUP_EXCEPTION";
 #include "cactus.h"
 
 void usage() {
-    fprintf(stderr, "cactus_setup [fastaFile]xN, version 0.2\n");
+    fprintf(stderr, "cactus_setup [eventName fastaFile]xN, version 0.2\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
     fprintf(stderr, "-b --cactusDisk : The location of the flower disk directory\n");
     fprintf(stderr, "-f --speciesTree : The species tree, which will form the skeleton of the event tree\n");
@@ -122,33 +122,17 @@ void setCompleteStatus(const char *fileName) {
     st_logInfo("The file %s is specified incomplete, the sequences will not be attached\n", fileName);
 }
 
-static void assignEventsAndSequences(Event *parentEvent, stTree *tree,
-                                     stSet *outgroupNameSet,
-                                     char *argv[], int64_t *j) {
-    Event *myEvent = NULL; // To distinguish from the global "event" variable.
-    assert(tree != NULL);
-    totalEventNumber++;
-    if (stTree_getChildNumber(tree) > 0) {
-        myEvent = event_construct3(stTree_getLabel(tree),
-                                   stTree_getBranchLength(tree), parentEvent,
-                                   eventTree);
-        for (int64_t i = 0; i < stTree_getChildNumber(tree); i++) {
-            assignEventsAndSequences(myEvent, stTree_getChild(tree, i),
-                                     outgroupNameSet, argv, j);
-        }
+static void assignSequences(EventTree *eventTree, char *argv[], int argc,
+                            int startIndex) {
+    if ((argc - startIndex) % 2 != 0) {
+        st_errAbort("Sequences weren't provided in a proper "
+                    "'event seq' space-separated format");
     }
-    if (stTree_getChildNumber(tree) == 0 || (stTree_getLabel(tree) != NULL && (stSet_search(outgroupNameSet, (char *)stTree_getLabel(tree)) != NULL))) {
-        // This event is a leaf and/or an outgroup, so it has
-        // associated sequence.
-        assert(stTree_getLabel(tree) != NULL);
+    for (int64_t i = startIndex; i < argc; i += 2) {
+        char *eventName = argv[i];
+        char *fileName = argv[i + 1];
 
-        assert(stTree_getBranchLength(tree) != INFINITY);
-        if (stTree_getChildNumber(tree) == 0) {
-            // Construct the leaf event
-            myEvent = event_construct3(stTree_getLabel(tree), stTree_getBranchLength(tree), parentEvent, eventTree);
-        }
-
-        char *fileName = argv[*j];
+        st_logInfo("Assigning sequence %s to %s\n", fileName, eventName);
 
         if (!stFile_exists(fileName)) {
             st_errAbort("File does not exist: %s\n", fileName);
@@ -156,7 +140,10 @@ static void assignEventsAndSequences(Event *parentEvent, stTree *tree,
 
         // Set the global "event" variable, which is needed for the
         // function provided to fastaReadToFunction.
-        event = myEvent;
+        event = eventTree_getEventByHeader(eventTree, eventName);
+        if (event == NULL) {
+            st_errAbort("No such event: %s", eventName);
+        }
         if (stFile_isDir(fileName)) {
             st_logInfo("Processing directory: %s\n", fileName);
             stList *filesInDir = stFile_getFileNamesInDirectory(fileName);
@@ -177,7 +164,18 @@ static void assignEventsAndSequences(Event *parentEvent, stTree *tree,
             fastaReadToFunction(fileHandle, processSequence);
             fclose(fileHandle);
         }
-        (*j)++;
+    }
+}
+
+static void constructEvents(Event *parentEvent, stTree *tree) {
+    Event *myEvent = NULL; // To distinguish from the global "event" variable.
+    assert(tree != NULL);
+    totalEventNumber++;
+    myEvent = event_construct3(stTree_getLabel(tree),
+                               stTree_getBranchLength(tree), parentEvent,
+                               eventTree);
+    for (int64_t i = 0; i < stTree_getChildNumber(tree); i++) {
+        constructEvents(myEvent, stTree_getChild(tree, i));
     }
 }
 
@@ -329,9 +327,8 @@ int main(int argc, char *argv[]) {
     }
 
     //now traverse the tree
-    j = optind;
-    assignEventsAndSequences(eventTree_getRootEvent(eventTree), tree,
-                             outgroupNameSet, argv, &j);
+    constructEvents(eventTree_getRootEvent(eventTree), tree);
+    assignSequences(eventTree, argv, argc, optind);
 
     char *eventTreeString = eventTree_makeNewickString(eventTree);
     st_logInfo(

@@ -10,23 +10,16 @@ called (in that order) for anything to work...
 
 """
 
-import os
-import xml.etree.ElementTree as ET
-import sys
 import math
-import copy
-
-from optparse import OptionParser
 
 from sonLib.nxtree import NXTree
-from sonLib.nxnewick import NXNewick
 
 import networkx as nx
 from networkx.algorithms.shortest_paths.weighted import dijkstra_path
 
 class MultiCactusTree(NXTree):
     self_suffix = "_self"
-    def __init__(self, tree = None, subtreeSize = 2):
+    def __init__(self, tree = None):
         if isinstance(tree, NXTree):
             NXTree.__init__(self, tree.nxDg)
         else:   
@@ -38,8 +31,6 @@ class MultiCactusTree(NXTree):
         for node in self.breadthFirstTraversal():
             if self.hasName(node):
                 self.nameToId[self.getName(node)] = node
-        # size a subtree (in number of leaves)
-        self.subtreeSize = subtreeSize
         
     # fill in unlabeled node ids with a breadth-first
     # traversal numbering from the root
@@ -59,17 +50,9 @@ class MultiCactusTree(NXTree):
             self.nameToId[self.getName(node)] = node
     
     # identify roots of subclades in the tree and 
-    # add them to the self.claderoots dicitonary
-    def computeSubtreeRoots(self, root = None):
-        if root is None:
-            root = self.rootId
-            self.subtreeRoots = set()
-        assert root not in self.subtreeRoots
-        self.subtreeRoots.add(root)
-        leaves = self.getSubtreeLeaves(root)    
-        for subtreeLeaf in leaves:
-            if not self.isLeaf(subtreeLeaf):
-                self.computeSubtreeRoots(subtreeLeaf)
+    # add them to the self.subtreeRoots set
+    def computeSubtreeRoots(self):
+        self.subtreeRoots = set(node for node in self.breadthFirstTraversal() if not self.isLeaf(node))
         
     # blindly read in the roots from given list of names 
     def assignSubtreeRootNames(self, rootNames):
@@ -123,7 +106,7 @@ class MultiCactusTree(NXTree):
                         graphWasModified = True
                         break
 
-        mcCpy = MultiCactusTree(cpy, 2)
+        mcCpy = MultiCactusTree(cpy)
         mcCpy.nameUnlabeledInternalNodes(prefix="thisPrefixShouldNeverAppear")
         mcCpy.computeSubtreeRoots()
         return mcCpy
@@ -132,6 +115,8 @@ class MultiCactusTree(NXTree):
     def getChildNames(self, name):
         id = self.nameToId[name]
         subtree = [i for i in self.traverseSubtree(id, id)]
+        # remove the root from the set of children
+        subtree.remove(id)
         names = [self.getName(i) for i in subtree]
         return names
 
@@ -140,7 +125,7 @@ class MultiCactusTree(NXTree):
         root = self.nameToId[name]
         subtree = [i for i in self.traverseSubtree(root, root)]
         cpy = self.nxDg.subgraph(subtree).copy()
-        mcCpy = MultiCactusTree(cpy, 2)
+        mcCpy = MultiCactusTree(cpy)
         mcCpy.assignSubtreeRootNames(self.getSubtreeRootNames())
         return mcCpy
         
@@ -157,26 +142,6 @@ class MultiCactusTree(NXTree):
                 return self.getName(parent)
             parent = self.getParent(parent)
         return None
-        
-    # find the leaves of af subtree, subject to 
-    # 1) number of leaves maximal but less than self.subtreeSize
-    # 2) if a node is returned, its sibling must me as well
-    def getSubtreeLeaves(self, node):
-        curLevel = []
-        nextLevel = self.getChildren(node)
-        while True:
-            curLevel = nextLevel
-            curLevel.sort()
-            nextLevel = []
-            for node in curLevel:
-                if self.isLeaf(node):
-                    nextLevel.append(node)
-                else:
-                    nextLevel += self.getChildren(node)
-            nextLevel.sort()
-            if len(nextLevel) > self.subtreeSize or curLevel == nextLevel:
-                break
-        return curLevel
     
     # safe id to insert is current max + 1
     def getNextIndex(self):

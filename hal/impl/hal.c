@@ -110,14 +110,21 @@ static char *writeTerminalAdjacency(Cap *cap) {
 static char *writeSegment(Segment *segment) {
     Block *block = segment_getBlock(segment);
     Segment *referenceSegment = block_getSegmentForEvent(block, globalReferenceEventName);
-    assert(referenceSegment != NULL);
+    if (referenceSegment == NULL) {
+        Cap *cap5 = segment_get5Cap(segment);
+        Cap *cap3 = segment_get3Cap(segment);
+        Sequence *sequence = cap_getSequence(cap5);
+        return stString_print("a\t%" PRIi64 "\t%" PRIi64 "\n", cap_getCoordinate(cap5) - sequence_getStart(sequence), cap_getCoordinate(cap3) - cap_getCoordinate(cap5) + 1);
+    }
     Sequence *sequence = segment_getSequence(segment);
     assert(sequence != NULL);
-    if (referenceSegment != segment) { //Is a top segment
+    Name eventName = event_getName(segment_getEvent(segment));
+    if (referenceSegment != segment && eventName != globalReferenceEventName) { //Is a top segment
         return stString_print("a\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\n", segment_getStart(segment) - sequence_getStart(sequence), segment_getLength(segment), segment_getName(referenceSegment), segment_getStrand(referenceSegment));
+    } else {
+        //Is a bottom segment
+        return stString_print("a\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\n", segment_getName(segment), segment_getStart(segment) - sequence_getStart(sequence), segment_getLength(segment));
     }
-    //Is a bottom segment
-    return stString_print("a\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\n", segment_getName(segment), segment_getStart(segment) - sequence_getStart(sequence), segment_getLength(segment));
 }
 
 static int compareCaps(Cap *cap, Cap *cap2) {

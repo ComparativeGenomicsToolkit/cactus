@@ -2,10 +2,9 @@ sudo: required
 dist: trusty
 language: c++
 before_install:
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get -qq update; fi
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y libtokyocabinet-dev libkyototycoon-dev kyototycoon libkyotocabinet-dev; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install tokyo-cabinet kyoto-cabinet kyoto-tycoon; fi
-  - git clone https://github.com/UCSantaCruzComputationalGenomicsLab/cactusTestData
+  - if [[ "$TRAVIS_OS_NAME" == "linux" && "$CACTUS_BINARIES_MODE" == "local" ]]; then sudo apt-get -qq update; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" && "$CACTUS_BINARIES_MODE" == "local" ]]; then sudo apt-get install -y libtokyocabinet-dev libkyototycoon-dev kyototycoon libkyotocabinet-dev; fi
+  - if [[ ! -z "$SON_TRACE_DATASETS" ]]; then git clone https://github.com/UCSantaCruzComputationalGenomicsLab/cactusTestData; fi
 # Push docker containers. We skip this on PR builds because Travis
 # doesn't include the user/password in those builds.
   - if [[ "$CACTUS_BINARIES_MODE" == "docker" ]]; then if [[ "$TRAVIS_PULL_REQUEST" == "false" ]]; then docker login --username $QUAY_USERNAME --password $QUAY_PASSWORD quay.io; make push; else make docker; fi; fi
@@ -17,8 +16,10 @@ script:
 # install toil / cactus
   - sudo pip install --pre toil
   - sudo pip install -e .
-  - if [[ "$CACTUS_BINARIES_MODE" == "local" ]]; then make && PATH=`pwd`/bin:$PATH PYTHONPATH=`pwd`:`pwd`/src travis_wait 50 make test; fi
-  - if [[ "$CACTUS_BINARIES_MODE" == "docker" ]]; then travis_wait 40 make test; fi
+  - if [[ "$CACTUS_TEST_CHOICE" == "normal" ]]; then export MAKE_TARGET=test_nonblast; fi
+  - if [[ "$CACTUS_TEST_CHOICE" == "blast" ]]; then export MAKE_TARGET=test_blast; fi
+  - if [[ "$CACTUS_BINARIES_MODE" == "local" ]]; then make && PATH=`pwd`/bin:$PATH PYTHONPATH=`pwd`:`pwd`/src travis_wait 50 make ${MAKE_TARGET}; fi
+  - if [[ "$CACTUS_BINARIES_MODE" == "docker" ]]; then travis_wait 40 make ${MAKE_TARGET}; fi
 os:
   - linux
 services:
@@ -29,8 +30,8 @@ env:
   # Assert-enabled tests using extra-large test data, but restricted to non-blast tests only to keep under 50 mins.
   - CGL_DEBUG=1 CACTUS_BINARIES_MODE=local SON_TRACE_DATASETS=$TRAVIS_BUILD_DIR/cactusTestData CACTUS_TEST_CHOICE=normal
   # Docker container push and test.
-  - CACTUS_BINARIES_MODE=docker
+  - CACTUS_BINARIES_MODE=docker CACTUS_TEST_CHOICE=normal
   # Paranoia about memory corruption. Leak detection is disabled
   # because many utilities are short-lived and don't bother cleaning
   # up memory before exit.
-  - CGL_DEBUG=ultra ASAN_OPTIONS=detect_leaks=0 CACTUS_BINARIES_MODE=local
+  - CGL_DEBUG=ultra ASAN_OPTIONS=detect_leaks=0 CACTUS_BINARIES_MODE=local CACTUS_TEST_CHOICE=normal

@@ -69,7 +69,7 @@ class Schedule:
                 # (it would be clever to maybe do the same with existing
                 # references when --overwrite is not specified but for now
                 # we just do the leaves)
-                if nodeName not in leafEvents and nodeName in exp.getSequenceMap():
+                if nodeName not in leafEvents and tree.isLeaf(node):
                     self.inGraph.add_edge(name, nodeName)
             configFile = fileStore.readGlobalFile(exp.getConfigID())
             configElem = ET.parse(configFile).getroot()

@@ -199,8 +199,8 @@ class BlastIngroupsAndOutgroups(RoundedJob):
             alignmentsID = self.addFollowOn(CollateBlasts(blastOptions=self.blastOptions, resultsFileIDs=[ingroupAlignmentsID, outgroupAlignmentsID])).rv()
         else:
             alignmentsID = ingroupAlignmentsID
-            outgroupFragmentIDs = None
-            ingroupCoverageIDs = None
+            outgroupFragmentIDs = []
+            ingroupCoverageIDs = []
 
         return (alignmentsID, outgroupFragmentIDs, ingroupCoverageIDs)
 

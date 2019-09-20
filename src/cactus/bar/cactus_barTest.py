@@ -22,7 +22,6 @@ from cactus.shared.common import runCactusWorkflow
 
 from cactus.shared.test import getCactusWorkflowExperimentForTest
 from cactus.shared.test import silentOnSuccess
-from cactus.shared.common import runToilStatusAndFailIfNotComplete
 from cactus.shared.common import cactus_call
 
 """Tests cactus_bar. Requires the installation of cactusTools and mafTools.

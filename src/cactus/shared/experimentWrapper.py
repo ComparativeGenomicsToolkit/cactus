@@ -144,20 +144,17 @@ class ExperimentWrapper(DbElemWrapper):
         super(ExperimentWrapper, self).__init__(confElem)
         self.xmlRoot = xmlRoot
 
-        self.seqMap = self.buildSequenceMap()
-        self.seqIDMap = None
-
     @staticmethod
-    def createExperimentWrapper(sequences, newickTreeString, outputDir,
-                 outgroupEvents=None,
-                 databaseConf=None, configFile=None,
-                 halFile=None, fastaFile=None,
-                 constraints=None, progressive=False,
-                 outputSequenceDir=None):
+    def createExperimentWrapper(newickTreeString,
+                                genomes,
+                                outgroupGenomes=None,
+                                databaseConf=None, configFile=None,
+                                halFile=None, fastaFile=None,
+                                constraints=None, progressive=False,
+                                outputSequenceDir=None):
         #Establish the basics
         rootElem =  ET.Element("cactus_workflow_experiment")
         rootElem.attrib['species_tree'] = newickTreeString
-        rootElem.attrib['sequences'] = " ".join(sequences)
         #Stuff for the database
         database = ET.SubElement(rootElem, "cactus_disk")
         if databaseConf != None:
@@ -173,12 +170,15 @@ class ExperimentWrapper(DbElemWrapper):
             self.setConfigPath("defaultProgressive")
         if configFile != None:
             self.setConfigPath(configFile)
+        for genome in genomes:
+            genomeNode = ET.SubElement(rootElem, "genome")
+            genomeNode.attrib['name'] = genome
         #Constraints
         if constraints != None:
             self.setConstraintsFilePath(constraints)
-        #Outgroup events
-        if outgroupEvents != None:
-            self.setOutgroupEvents(outgroupEvents)
+        #Outgroup genomes
+        if outgroupGenomes != None:
+            self.setOutgroupGenomes(outgroupGenomes)
         return self
 
     def writeXML(self, path): #Replacement for writeExperimentFile
@@ -189,9 +189,6 @@ class ExperimentWrapper(DbElemWrapper):
         xmlString = minidom.parseString(xmlString).toprettyxml()
         xmlFile.write(xmlString)
         xmlFile.close()
-
-    def getConfig(self):
-        return self.xmlRoot.attrib["config"]
 
     def setConfigID(self, configID):
         self.xmlRoot.attrib["configID"] = str(configID)
@@ -209,24 +206,52 @@ class ExperimentWrapper(DbElemWrapper):
             multiCactus = MultiCactusTree(ret)
             multiCactus.nameUnlabeledInternalNodes()
             multiCactus.computeSubtreeRoots()
-            ret = multiCactus.extractSubTree(self.getReferenceNameFromConfig())
+            ret = multiCactus.extractSubTree(self.getRootGenome())
         return ret
 
-    def setSequences(self, sequences):
-        self.xmlRoot.attrib["sequences"] = " ".join(sequences)
-        self.seqMap = self.buildSequenceMap()
+    def isRootReconstructed(self):
+        """
+        Return True if this is a reconstruction problem and False otherwise.
+        """
+        rootElem = self.xmlRoot.find('root')
+        if rootElem is None:
+            return False
+        return 'reconstruction' in rootElem.attrib and rootElem.attrib['reconstruction'] == '1'
 
-    def setSequenceIDs(self, sequenceIDs):
-        self.xmlRoot.attrib["sequenceIDs"] = " ".join(map(str, sequenceIDs))
+    def setRootReconstructed(self, reconstructed):
+        """
+        Set whether this is a reconstruction problem or not.
+        """
+        rootElem = self.xmlRoot.find('root')
+        if reconstructed:
+            rootElem.attrib['reconstruction'] = '1'
+        else:
+            refElem = self.xmlRoot.find("reference")
+            if refElem is not None:
+                del refElem
+            if 'reconstruction' in rootElem.attrib:
+                del rootElem.attrib['reconstruction']
 
-    def getSequences(self):
-        return self.xmlRoot.attrib["sequences"].split()
+    def getRootGenome(self):
+        """
+        Get the root of the subtree to be aligned.
+        """
+        rootElem = self.xmlRoot.find('root')
+        if rootElem is None:
+            return None
+        # The text can contain '\n's and whitespace so we remove them
+        return rootElem.text.strip()
 
-    def getSequenceIDs(self):
-        return self.xmlRoot.attrib["sequenceIDs"].split()
+    def setRootGenome(self, root):
+        """
+        Set the root of the subtree to be aligned.
 
-    def getSequence(self, event):
-        return self.seqMap[event]
+        (the genome to be reconstructed if this is a reconstruction problem)
+        """
+        rootElem = self.xmlRoot.find('root')
+        if rootElem is None:
+            rootElem = ET.SubElement(self.xmlRoot, 'root')
+        rootElem.text = root
 
     def setReferenceID(self, refID):
         '''Set the file store ID of the reconstructed ancestral
@@ -243,11 +268,6 @@ class ExperimentWrapper(DbElemWrapper):
             return refElem.attrib["id"]
         else:
             return None
-
-    def getReferenceNameFromConfig(self):
-        configElem = ET.parse(self.getConfig()).getroot()
-        refElem = configElem.find("reference")
-        return refElem.attrib["reference"]
 
     def setHalID(self, halID):
         '''Set the file store ID of the HAL file
@@ -271,27 +291,24 @@ class ExperimentWrapper(DbElemWrapper):
         halElem = self.xmlRoot.find("hal")
         return halElem.attrib["fastaID"]
 
-    def setConstraintsFilePath(self, path):
-        self.xmlRoot.attrib["constraints"] = path
+    def getOutgroupGenomes(self):
+        genomeNodes = self.xmlRoot.findall("genome")
+        return [genome.attrib['name'] for genome in genomeNodes if 'outgroup' in genome.attrib and genome.attrib['outgroup'] == "1"]
 
-    def getConstraintsFilePath(self):
-        if "constraints" not in self.xmlRoot.attrib:
-            return None
-        return self.xmlRoot.attrib["constraints"]
+    def setOutgroupGenomes(self, outgroupGenomes):
+        genomeNodes = self.xmlRoot.findall("genome")
+        for node in genomeNodes:
+            if 'outgroup' in node.attrib:
+                del node.attrib['outgroup']
+        outgroupNodes = [node for node in genomeNodes if node.attrib['name'] in outgroupGenomes]
+        for node in outgroupNodes:
+            node.attrib['outgroup'] = "1"
 
     def setConstraintsID(self, fileID):
         self.xmlRoot.attrib["constraintsID"] = str(fileID)
 
     def getConstraintsID(self, fileID):
         return self.xmlRoot.attrib["constraintsID"]
-
-    def getOutgroupEvents(self):
-        if self.xmlRoot.attrib.has_key("outgroup_events"):
-            return self.xmlRoot.attrib["outgroup_events"].split()
-        return []
-
-    def setOutgroupEvents(self, outgroupEvents):
-        self.xmlRoot.attrib["outgroup_events"] = " ".join(outgroupEvents)
 
     def getConfigPath(self):
         config = self.xmlRoot.attrib["config"]
@@ -304,64 +321,72 @@ class ExperimentWrapper(DbElemWrapper):
     def setConfigPath(self, path):
         self.xmlRoot.attrib["config"] = path
 
-    # map event names to sequence paths
-    def buildSequenceMap(self):
-        tree = self.getTree()
-        sequenceString = self.xmlRoot.attrib["sequences"]
-        sequences = sequenceString.split()
-        nameIterator = iter(sequences)
-        seqMap = dict()
-        for node in tree.postOrderTraversal():
-            if tree.isLeaf(node) or tree.getName(node) in self.getOutgroupEvents():
-                seqMap[tree.getName(node)] = nameIterator.next()
+    def getSequenceID(self, genome):
+        """
+        Gets the fileStoreID for the sequence for this genome.
+        Returns None if the genome is not found or there is no sequence.
+        """
+        genomeNodes = self.xmlRoot.findall("genome[@name='%s']" % genome)
 
-        # Check that there are no sequences left unassigned
-        assert len(seqMap.keys()) == len(sequences)
+        if len(genomeNodes) == 0:
+            return None
 
-        return seqMap
+        assert len(genomeNodes) == 1
+        genomeNode = genomeNodes[0]
+        if 'sequence' in genomeNode.attrib:
+            id = genomeNode.attrib['sequence']
+        else:
+            id = None
+        return id
 
-    # load in a new tree (using input seqMap if specified,
-    # current one otherwise
-    def updateTree(self, tree, seqMap = None, outgroups = None):
-        if seqMap is not None:
-            self.seqMap = seqMap
-        newMap = dict()
+    def setSequenceID(self, genome, seqID):
+        """
+        Sets the fileStoreID for the sequence for this genome.
+        """
+        seqID = str(seqID)
+        genomeNodes = self.xmlRoot.findall("genome[@name='%s']" % genome)
+
+        if len(genomeNodes) == 0:
+            # Need to create a new genome element for this sequence
+            genomeNode = ET.SubElement(self.xmlRoot, 'genome')
+            genomeNode.attrib['name'] = genome
+        else:
+            assert len(genomeNodes) == 1
+            genomeNode = genomeNodes[0]
+        genomeNode.attrib['sequence'] = seqID
+
+    def getGenomesWithSequence(self):
+        """
+        Return a list of names of genomes in the problem which have sequence.
+        """
+        genomeNodes = self.xmlRoot.findall("genome")
+        return [node.attrib['name'] for node in genomeNodes if 'sequence' in node.attrib]
+
+    def getSequenceIDs(self):
+        """
+        Convenience method for returning the paths to all sequences in the problem
+        (in an arbitrary order).
+        """
+        return [self.getSequenceID(genome) for genome in self.getGenomesWithSequence()]
+
+    def setTree(self, tree):
+        """
+        Load a new tree.
+        """
+        # Write the new string to the XML
         treeString = NXNewick().writeString(tree)
         self.xmlRoot.attrib["species_tree"] = treeString
-        if outgroups is not None and len(outgroups) > 0:
-            self.setOutgroupEvents(outgroups)
 
-        sequences = ""
-        for node in tree.postOrderTraversal():
-            if tree.isLeaf(node) or tree.getName(node) in self.getOutgroupEvents():
-                nodeName = tree.getName(node)
-                if len(sequences) > 0:
-                    sequences += " "
-                sequences += seqMap[nodeName]
-                newMap[nodeName] = seqMap[nodeName]
-        self.xmlRoot.attrib["sequences"] = sequences
-        self.seqMap = newMap
+        # Ensure the changes are reflected in the genome elements
+        # (adding and deleting elements as necessary).
+        genomesInTree = set(tree.getName(id) for id in tree.postOrderTraversal() if tree.hasName(id))
+        genomeNodes = self.xmlRoot.findall('genome')
+        genomeNamesInXML = set(node.attrib['name'] for node in genomeNodes)
+        for node in genomeNodes:
+            if node.attrib['name'] not in genomesInTree:
+                self.xmlRoot.remove(node)
 
-    # return internal structure that maps event names to paths
-    def getSequenceMap(self):
-        return self.seqMap
-
-    def checkSequenceIDs(self, fileStore):
-        tree = self.getTree()
-        sequences = [fileStore.readGlobalFile(seqID) for seqID in self.seqIDMap.values()]
-        nameIter = iter(self.seqIDMap.keys())
-        seqIter = iter(sequences)
-        for node in tree.postOrderTraversal():
-            if tree.isLeaf(node):
-                name = nameIter.next()
-                seq = seqIter.next()
-                if not name == tree.getName(node):
-                    raise RuntimeError("name = %s, traversalName = %s" % (name, tree.getName(node)))
-                first_line = ""
-                with open(seq, 'r') as seqFH:
-                    first_line = seqFH.readline()
-                first_line = first_line[1:]
-                first_line = first_line.split("|")[1]
-                if not first_line.startswith(name):
-                    raise RuntimeError("First_line = %s, name = %s" % (first_line, name))
-
+        for genome in genomesInTree:
+            if genome not in genomeNamesInXML:
+                node = ET.SubElement(self.xmlRoot, 'genome')
+                node.attrib['name'] = genome

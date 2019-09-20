@@ -993,6 +993,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
      * Get the reference event
      */
     Event *referenceEvent = getReferenceEvent(flower, referenceEventHeader);
+    fprintf(stderr, "Chose reference event %" PRIi64 ": %s\n", event_getName(referenceEvent), event_getHeader(referenceEvent));
 
     /*
      * Get any extra ends to balance the group from the parent problem.

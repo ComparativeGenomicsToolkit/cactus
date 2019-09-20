@@ -32,31 +32,29 @@ class TestCase(unittest.TestCase):
         mcTree1 = MultiCactusTree(parser.parseString(self.tree1, addImpliedRoots = False))
         tree1String = NXNewick().writeString(mcTree1)  
         self.assertEqual(tree1String, self.tree1)
-        mcTree2 = MultiCactusTree(parser.parseString(self.tree2, addImpliedRoots = False), subtreeSize = 3)
+        mcTree2 = MultiCactusTree(parser.parseString(self.tree2, addImpliedRoots = False))
         tree2String = NXNewick().writeString(mcTree2)
         self.assertEqual(tree2String, self.tree2)
         
     def testSubtrees(self):
         roots1 = ["Anc0", "Anc1", "Anc2", "Anc3", "Anc4", "Anc5", "Anc6", "Anc7"]
-        roots1a = ["Anc0", "Anc3", "Anc4", "Anc5", "Anc6"]
-        roots2 = ["Anc0", "Anc1", "Anc2", "Anc3", "Anc4"]
+        roots2 = ["Anc0", "Anc1", "Anc2", "Anc3", "Anc4", "Anc5"]
         
         subTree1_a3 = '(Anc7:0.025291,BABOON:0.044568)Anc3;'
-        subTree1a_a0 = '((Anc3:0.11,Anc4:0.260342)Anc1:0.02326,(Anc5:0.087381,Anc6:0.104728)Anc2:0.04)Anc0;'
-        subTree2_a3 = '(monkey:100.8593,cat:47.14069)Anc5;'
+        subTree2_a5 = '(monkey:100.8593,cat:47.14069)Anc5;'
         
-        trueRoots = [roots1, roots1a, roots2]
-        trueSubtrees = [subTree1_a3, subTree1a_a0, subTree2_a3]
-        trees = [self.mcTree1, self.mcTree1a, self.mcTree2]
-        ancs = ["Anc3", "Anc0", "Anc5"]
+        trueRoots = [roots1, roots2]
+        trueSubtrees = [subTree1_a3, subTree2_a5]
+        trees = [self.mcTree1, self.mcTree2]
+        ancs = ["Anc3", "Anc5"]
         
-        for i in range(0, 3):
-            roots = trees[i].getSubtreeRootNames()
-            self.assertEqual(sorted(roots), sorted(trueRoots[i]))
-            subtree = trees[i].extractSubTree(ancs[i])
+        for tree, trueRoot, anc, trueSubtree in zip(trees, trueRoots, ancs, trueSubtrees):
+            roots = tree.getSubtreeRootNames()
+            self.assertEqual(sorted(roots), sorted(trueRoot))
+            subtree = tree.extractSubTree(anc)
             subtree = NXNewick().writeString(subtree)
-            self.assertEqual(subtree, trueSubtrees[i])
-    
+            self.assertEqual(subtree, trueSubtree)
+
     def testAddSelf(self):
         trueSelf = '((((((((HUMAN:0.006969)HUMAN_self:0.006969,(CHIMP:0.009727)CHIMP_self:0.009727)Anc7:0.025291)Anc7_self:0.025291,(BABOON:0.044568)BABOON_self:0.044568)Anc3:0.11)Anc3_self:0.11,(((MOUSE:0.072818)MOUSE_self:0.072818,(RAT:0.081244)RAT_self:0.081244)Anc4:0.260342)Anc4_self:0.260342)Anc1:0.02326)Anc1_self:0.02326,(((((DOG:0.07)DOG_self:0.07,(CAT:0.07)CAT_self:0.07)Anc5:0.087381)Anc5_self:0.087381,(((PIG:0.06)PIG_self:0.06,(COW:0.06)COW_self:0.06)Anc6:0.104728)Anc6_self:0.104728)Anc2:0.04)Anc2_self:0.04)Anc0;'
         tree = MultiCactusTree(self.mcTree1)
@@ -103,19 +101,19 @@ class TestCase(unittest.TestCase):
         self.assertEqual(NXNewick().writeString(self.mcTree1), prevNewick1)
         self.assertEqual(NXNewick().writeString(spanHCC), "((HUMAN:0.006969,CHIMP:0.009727)Anc7:0.158551,CAT:0.197381)Anc0;")
 
+    def testGetChildren(self):
+        self.assertEqual(self.mcTree1.getChildNames('Anc6'), ['PIG', 'COW'])
+
     def __generateTrees(self):
         self.tree1 = '((((HUMAN:0.006969,CHIMP:0.009727):0.025291,BABOON:0.044568):0.11,(MOUSE:0.072818,RAT:0.081244):0.260342):0.02326,((DOG:0.07,CAT:0.07):0.087381,(PIG:0.06,COW:0.06):0.104728):0.04);'
         self.tree2 = '((raccoon:19.19959,bear:6.80041):0.846,((sea_lion:11.997,seal:12.003):7.52973,((monkey:100.8593,cat:47.14069):20.59201,weasel:18.87953):2.0946):3.87382,dog:25.46154);'
         parser = NXNewick()
         self.mcTree1 = MultiCactusTree(parser.parseString(self.tree1, addImpliedRoots = False))
-        self.mcTree1a = MultiCactusTree(parser.parseString(self.tree1, addImpliedRoots = False), subtreeSize = 4)
-        self.mcTree2 = MultiCactusTree(parser.parseString(self.tree2, addImpliedRoots = False), subtreeSize = 3)
+        self.mcTree2 = MultiCactusTree(parser.parseString(self.tree2, addImpliedRoots = False))
         self.mcTree1.nameUnlabeledInternalNodes()
-        self.mcTree1a.nameUnlabeledInternalNodes()
         self.mcTree2.nameUnlabeledInternalNodes()
         self.mcTree1.computeSubtreeRoots()
-        self.mcTree1a.computeSubtreeRoots()
-        self.mcTree2.computeSubtreeRoots()        
+        self.mcTree2.computeSubtreeRoots()
     
 def main():
     unittest.main()

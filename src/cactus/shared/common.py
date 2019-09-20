@@ -24,9 +24,11 @@ from toil.lib.bioio import logger
 from toil.lib.bioio import system
 from toil.lib.bioio import getLogLevelString
 
+from toil.common import Toil
 from toil.job import Job
 
 from sonLib.bioio import popenCatch
+from sonLib.bioio import getTempDirectory
 
 from cactus.shared.version import cactus_commit
 
@@ -206,18 +208,23 @@ def runCactusSplitFlowersBySecondaryGrouping(flowerNames):
 #############################################
 #############################################  
 
-def runCactusSetup(cactusDiskDatabaseString, sequences, 
-                   newickTreeString, logLevel=None, outgroupEvents=None,
+def runCactusSetup(cactusDiskDatabaseString, seqMap,
+                   newickTreeString,
+                   logLevel=None, outgroupEvents=None,
                    makeEventHeadersAlphaNumeric=False):
     logLevel = getLogLevelString2(logLevel)
-    args = ["--speciesTree", newickTreeString, "--cactusDisk", cactusDiskDatabaseString,
+    # We pass in the genome->sequence map as a series of paired arguments: [genome, faPath]*N.
+    pairs = [[genome, faPath] for genome, faPath in seqMap.items()]
+    args = [item for sublist in pairs for item in sublist]
+
+    args += ["--speciesTree", newickTreeString, "--cactusDisk", cactusDiskDatabaseString,
             "--logLevel", logLevel]
     if makeEventHeadersAlphaNumeric:
         args += ["--makeEventHeadersAlphaNumeric"]
-    if outgroupEvents is not None:
-        args += ["--outgroupEvents", outgroupEvents]
+    if outgroupEvents:
+        args += ["--outgroupEvents", " ".join(outgroupEvents)]
     masterMessages = cactus_call(check_output=True,
-                                 parameters=["cactus_setup"] + args + sequences)
+                                 parameters=["cactus_setup"] + args)
 
     logger.info("Ran cactus setup okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]
@@ -670,30 +677,43 @@ def runCactusWorkflow(experimentFile,
     import cactus.pipeline.cactus_workflow as cactus_workflow
     cactus_workflow.runCactusWorkflow(args)
     logger.info("Ran the cactus workflow okay")
-    
-def runCactusProgressive(inputDir,
-                         toilDir, 
+
+def runCactusProgressive(seqFile,
+                         configFile,
+                         toilDir,
                          logLevel=None, retryCount=0, 
                          batchSystem="single_machine", 
                          rescueJobFrequency=None,
                          skipAlignments=False,
-                         buildHal=None,
-                         buildFasta=None,
-                         buildAvgs=False, 
+                         buildHal=True,
+                         buildAvgs=False,
                          toilStats=False,
-                         maxThreads=None,
-                         maxCpus=None,
-                         logFile=None,
-                         defaultMemory=None):
-    command = ["cactus_progressive.py", "--project", inputDir] + _fn(toilDir, 
-                      logLevel, retryCount, batchSystem, rescueJobFrequency,
-                      buildAvgs, None,
-                      buildHal,
-                      buildFasta,
-                      toilStats, maxThreads, maxCpus, defaultMemory, logFile)
-    system(command)                   
-    logger.info("Ran the cactus progressive okay")
-    
+                         maxCpus=None):
+    opts = Job.Runner.getDefaultOptions(toilDir)
+    opts.batchSystem = batchSystem if batchSystem is not None else opts.batchSystem
+    opts.logLevel = logLevel if logLevel is not None else opts.logLevel
+    opts.maxCores = maxCpus if maxCpus is not None else opts.maxCores
+    # Used for tests
+    opts.scale = 0.1
+    opts.retryCount = retryCount if retryCount is not None else opts.retryCount
+    # This *shouldn't* be necessary, but it looks like the toil
+    # deadlock-detection still has issues.
+    opts.deadlockWait = 3600
+
+    opts.buildHal = buildHal
+    opts.buildAvgs = buildAvgs
+    opts.buildFasta = True
+    if toilStats:
+        opts.stats = True
+    opts.seqFile = seqFile
+    opts.configFile = configFile
+    opts.database = 'kyoto_tycoon'
+    opts.root = None
+    opts.outputHal = '/dev/null'
+    opts.intermediateResultsUrl = None
+    from cactus.progressive.cactus_progressive import runCactusProgressive as runRealCactusProgressive
+    runRealCactusProgressive(opts)
+
 def runCactusHalGenerator(cactusDiskDatabaseString,
                           secondaryDatabaseString, 
                           flowerNames,
@@ -740,10 +760,6 @@ def runCactusAnalyseAssembly(sequenceFile):
 def runToilStats(toil, outputFile):
     system("toil stats %s --outputFile %s" % (toil, outputFile))
     logger.info("Ran the job-tree stats command apparently okay")
-
-def runToilStatusAndFailIfNotComplete(toilDir):
-    command = "toil status %s --failIfNotComplete --verbose" % toilDir
-    system(command)
 
 def runLastz(seq1, seq2, alignmentsFile, lastzArguments, work_dir=None):
     if work_dir is None:

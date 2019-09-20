@@ -32,7 +32,7 @@ class TestCase(unittest.TestCase):
         self.dummySeqMaps = []
         for tree in self.trees:
             if tree.size() < 50:
-                mcTree = MultiCactusTree(tree, tree.degree())
+                mcTree = MultiCactusTree(tree)
                 seqMap = dict()
                 for i in mcTree.breadthFirstTraversal():
                     mcTree.setName(i, "Node%s" % str(i))

@@ -18,7 +18,6 @@ from cactus.shared.common import getOptionalAttrib
 
 class ConfigWrapper:
     defaultOutgroupStrategy = 'none'
-    defaultSubtreeSize = 2
     defaultDoSelf = 'false'
     defaultCoverageFraction = 0
     defaultSingleCopyStrategy = 'none'
@@ -27,7 +26,7 @@ class ConfigWrapper:
     defaultOutgroupAncestorQualityFraction = 0.75
     defaultMaxParallelSubtrees = 3
     defaultMaxNumOutgroups = 1
-    
+
     def __init__(self, xmlRoot):
         self.xmlRoot = xmlRoot
 
@@ -39,14 +38,10 @@ class ConfigWrapper:
         xmlString = minidom.parseString(xmlString).toprettyxml()
         xmlFile.write(xmlString)
         xmlFile.close()
-    
-    def setReferenceName(self, name):
-        refElem = self.xmlRoot.find("reference")
-        refElem.attrib["reference"] = name
-        
+
     def getMCElem(self):
         return self.xmlRoot.find("multi_cactus")
-    
+
     def getOutgroupElem(self):
         mcElem = self.getMCElem()
         if mcElem is not None:
@@ -94,19 +89,6 @@ class ConfigWrapper:
             maxNumOutgroups = int(ogElem.attrib["max_num_outgroups"])
         return maxNumOutgroups
     
-    def getSubtreeSize(self):
-        decompElem = self.getDecompositionElem()
-        subtreeSize = self.defaultSubtreeSize
-        if decompElem is not None and "subtree_size" in decompElem.attrib:
-            subtreeSize = int(decompElem.attrib["subtree_size"])
-        assert subtreeSize > 1
-        return subtreeSize
-
-    def setSubtreeSize(self, subtreeSize):
-        decompElem = self.getDecompositionElem()
-        assert decompElem is not None
-        decompElem.attrib["subtree_size"] = str(subtreeSize)
-            
     def getDoTrimStrategy(self):
         trimBlastNode = findRequiredNode(self.xmlRoot, "trimBlast")
         if "doTrimStrategy" in trimBlastNode.attrib:

@@ -157,20 +157,17 @@ class ProgressiveUp(RoundedJob):
         tree = experiment.getTree()
         seqNames = []
         for node in tree.postOrderTraversal():
-            if tree.isLeaf(node):
-                name = tree.getName(node)
+            name = tree.getName(node)
+            if tree.isLeaf(node) or (name == experiment.getRootGenome() and experiment.isRootReconstructed() == False):
                 seqIDMap[name] = self.project.outputSequenceIDMap[name]
                 seqNames.append(name)
         logger.info("Sequences in progressive, %s: %s" % (self.event, seqNames))
-            
+
         experimentFile = fileStore.getLocalTempFile()
         experiment.writeXML(experimentFile)
         self.options.experimentFileID = fileStore.writeGlobalFile(experimentFile)
 
         # take union of command line options and config options for hal and reference
-        if self.options.buildReference == False:
-            refNode = findRequiredNode(configXml, "reference")
-            self.options.buildReference = getOptionalAttrib(refNode, "buildReference", bool, False)
         halNode = findRequiredNode(configXml, "hal")
         if self.options.buildHal == False:
             self.options.buildHal = getOptionalAttrib(halNode, "buildHal", bool, False)
@@ -183,7 +180,6 @@ class ProgressiveUp(RoundedJob):
         workFlowArgs = CactusWorkflowArguments(self.options, experimentFile=experimentFile, configNode=configNode, seqIDMap = seqIDMap)
 
         # copy over the options so we don't trail them around
-        workFlowArgs.buildReference = self.options.buildReference
         workFlowArgs.buildHal = self.options.buildHal
         workFlowArgs.buildFasta = self.options.buildFasta
         workFlowArgs.globalLeafEventSet = self.options.globalLeafEventSet
@@ -218,7 +214,7 @@ class RunCactusPreprocessorThenProgressiveDown(RoundedJob):
         fileStore.logToMaster("Using the following configuration:\n%s" % ET.tostring(self.configNode))
 
         # Log the stats for the un-preprocessed assemblies
-        for name, sequence in self.project.getInputSequenceIDMap().items():
+        for name, sequence in self.project.inputSequenceIDMap.items():
             self.addChildJobFn(logAssemblyStats, "Before preprocessing", name, sequence)
 
         # Create jobs to create the output sequences
@@ -228,8 +224,11 @@ class RunCactusPreprocessorThenProgressiveDown(RoundedJob):
         ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals() #This is necessary..
         #Add the preprocessor child job. The output is a job promise value that will be
         #converted into a list of the IDs of the preprocessed sequences in the follow on job.
-        preprocessorJob = self.addChild(CactusPreprocessor(self.project.getInputSequenceIDs(), configNode))
-        self.project.setOutputSequenceIDs([preprocessorJob.rv(i) for i in range(len(self.project.getInputSequenceIDs()))])
+        preprocessorJob = self.addChild(CactusPreprocessor(self.project.inputSequenceIDMap.values(), configNode))
+        rvs = [preprocessorJob.rv(i) for i in range(len(self.project.inputSequenceIDMap))]
+        fileStore.logToMaster('input sequence IDs: %s' % self.project.inputSequenceIDMap)
+        for genome, rv in zip(self.project.inputSequenceIDMap.keys(), rvs):
+            self.project.outputSequenceIDMap[genome] = rv
 
         #Now build the progressive-down job
         schedule = Schedule()
@@ -258,12 +257,12 @@ class RunCactusPreprocessorThenProgressiveDown2(RoundedJob):
 
         # Save preprocessed sequences
         if self.options.intermediateResultsUrl is not None:
-            preprocessedSequences = self.project.getOutputSequenceIDMap()
+            preprocessedSequences = self.project.outputSequenceIDMap
             for genome, seqID in preprocessedSequences.items():
                 fileStore.exportFile(seqID, self.options.intermediateResultsUrl + '-preprocessed-' + genome)
 
         # Log the stats for the preprocessed assemblies
-        for name, sequence in self.project.getOutputSequenceIDMap().items():
+        for name, sequence in self.project.outputSequenceIDMap.items():
             self.addChildJobFn(logAssemblyStats, "After preprocessing", name, sequence)
 
         project = self.addChild(ProgressiveDown(options=self.options, project=self.project, event=self.event, schedule=self.schedule, memory=self.configWrapper.getDefaultMemory())).rv()
@@ -292,7 +291,7 @@ def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC
             experimentFilePath = job.fileStore.readGlobalFile(project.expIDMap[genomeName])
             experiment = ExperimentWrapper(ET.parse(experimentFilePath).getroot())
 
-            outgroups = experiment.getOutgroupEvents()
+            outgroups = experiment.getOutgroupGenomes()
             experiment.setConfigPath(job.fileStore.readGlobalFile(experiment.getConfigID()))
             expTreeString = NXNewick().writeString(experiment.getTree(onlyThisSubtree=True))
             assert len(expTreeString) > 1
@@ -469,7 +468,9 @@ def main():
         # If the user didn't specify a retryCount value, make it 5
         # instead of Toil's default (1).
         options.retryCount = 5
+    runCactusProgressive(options)
 
+def runCactusProgressive(options):
     with Toil(options) as toil:
         importSingularityImage()
         #Run the workflow
@@ -492,16 +493,13 @@ def main():
 
             project.readXML(pjPath)
             #import the sequences
-            seqIDs = []
-            print "Importing %s sequences" % (len(project.getInputSequencePaths()))
-            for seq in project.getInputSequencePaths():
+            for genome, seq in project.inputSequenceMap.items():
                 if os.path.isdir(seq):
                     tmpSeq = getTempFile()
                     catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
                     seq = tmpSeq
                 seq = makeURL(seq)
-                seqIDs.append(toil.importFile(seq))
-            project.setInputSequenceIDs(seqIDs)
+                project.inputSequenceIDMap[genome] = toil.importFile(seq)
 
             #import cactus config
             if options.configFile:

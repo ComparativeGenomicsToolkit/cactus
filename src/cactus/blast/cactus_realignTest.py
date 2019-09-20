@@ -1,6 +1,8 @@
+import os
+import pytest
+import sys
 import unittest
 
-import os, sys
 from sonLib.bioio import cigarReadFromString, cigarWrite
 from sonLib.bioio import popenCatch
 from sonLib.bioio import logger
@@ -14,7 +16,10 @@ from cactus.shared.common import runSelfLastz
 from cactus.shared.common import runCactusRealign
 from cactus.shared.common import runCactusSelfRealign
 from cactus.shared.common import runCactusCoverage
+from cactus.shared.test import needsTestData
 
+@pytest.mark.blast
+@needsTestData
 class TestCase(unittest.TestCase):
     
     def setUp(self):
