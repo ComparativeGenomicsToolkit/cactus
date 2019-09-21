@@ -57,12 +57,28 @@ which isn't exactly obvious. The meaning behind specifying these genomes is to o
 
 The branch lengths don't impact the alignment at this stage, they only impact the Newick tree that HAL displays.
 ### Adding to a node
-TODO
+Adding a genome as a new child of an existing ancestor requires creating only a single alignment (though that alignment will be more computationally expensive than usual, since it will involve more genomes than in the add-to-branch case). Again following our example, the sequence file should look something like this, with names and paths modified to suit your specific situation:
+
+"add_to_node.txt"
+```
+(genome4, genome6, genome3)genome5;
+
+genome6 genome6.fa
+genome5 genome5.fa
+[...]
+```
+
+Run this alignment as you would normally to create "add_to_node.hal". Then you can run:
+```
+halReplaceGenome alignment_to_add_to.hal --bottomAlignmentFile add_to_node.hal --topAlignmentFile alignment_to_add_to.hal genome5
+```
+
+After that, `alignment_to_add_to.hal` should contain the new genome.
 ## Replacing a genome
-TODO
+A genome can be replaced (for example to update an assembly version) by removing it and then following the "add-to-node" procedure to add the new version back as a child of its parent.
 ## Validating the file
 It's a good idea to run a validation against the resulting file to make sure the operation went OK. Run:
 ```sh
 halValidate --genome <genome you modified> <hal file>
 ```
-If it doesn't raise an error, you should be good to go!
+If it doesn't raise an error, you should be good to go! If it does raise an error, please raise an issue on the [HAL github page](https://github.com/ComparativeGenomicsToolkit/hal).
