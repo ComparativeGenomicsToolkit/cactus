@@ -17,15 +17,20 @@ import uuid
 import json
 import time
 import signal
+import hashlib
+import tempfile
+import timeit
 
 from urlparse import urlparse
+from datetime import datetime
 
 from toil.lib.bioio import logger
 from toil.lib.bioio import system
 from toil.lib.bioio import getLogLevelString
-
+from toil.lib.misc import mkdir_p
 from toil.common import Toil
 from toil.job import Job
+from toil.realtimeLogger import RealtimeLogger
 
 from sonLib.bioio import popenCatch
 from sonLib.bioio import getTempDirectory
@@ -864,13 +869,112 @@ def maxMemUsageOfContainer(containerInfo):
             continue
     return None
 
+# send a time/date stamped message to the realtime logger, truncating it
+# if it's too long (so it's less likely to be dropped)
+def cactus_realtime_log_info(msg, max_len = 1000):
+    if len(msg) > max_len:
+        msg = msg[:max_len] + "..."
+    RealtimeLogger.info("{}: {}".format(datetime.now(), msg))
+
 def singularityCommand(tool=None,
                        work_dir=None,
                        parameters=None,
-                       port=None):
-    base_singularity_call = ["singularity", "--silent", "run", os.environ["CACTUS_SINGULARITY_IMG"]]
-    base_singularity_call.extend(parameters)
-    return base_singularity_call
+                       port=None,
+                       file_store=None):
+    if "CACTUS_SINGULARITY_IMG" in os.environ:
+        # old logic: just run a local image
+        # (this was toggled by only setting CACTUS_SINGULARITY_IMG when using a local jobstore in cactus_progressive.py)
+        base_singularity_call = ["singularity", "--silent", "run", os.environ["CACTUS_SINGULARITY_IMG"]]
+        base_singularity_call.extend(parameters)
+        return base_singularity_call
+    else:
+        # workaround for kubernetes toil: explicitly make a local image
+        # (see https://github.com/vgteam/toil-vg/blob/master/src/toil_vg/singularity.py)
+
+        if parameters is None:
+            parameters = []
+        if work_dir is None:
+            work_dir = os.getcwd()
+
+        baseSingularityCall = ['singularity', '-q', 'exec']
+        
+        # Mount workdir as /mnt and work in there.
+        # Hope the image actually has a /mnt available.
+        # Otherwise this silently doesn't mount.
+        # But with -u (user namespaces) we have no luck pointing in-container
+        # home at anything other than our real home (like something under /var
+        # where Toil puts things).
+        # Note that we target Singularity 3+.
+        baseSingularityCall += ['-u', '-B', '{}:{}'.format(os.path.abspath(work_dir), '/mnt'), '--pwd', '/mnt']
+
+        # Problem: Multiple Singularity downloads sharing the same cache directory will
+        # not work correctly. See https://github.com/sylabs/singularity/issues/3634
+        # and https://github.com/sylabs/singularity/issues/4555.
+
+        # As a workaround, we have out own cache which we manage ourselves.
+        cache_dir = os.path.join(os.environ.get('SINGULARITY_CACHEDIR',  os.path.join(os.environ.get('HOME'), '.singularity')), 'toil')
+        mkdir_p(cache_dir)
+
+        # hack to transform back to docker image
+        if tool == 'cactus':
+            tool = getDockerImage()
+        # not a url or local file? try it as a Docker specifier
+        if not tool.startswith('/') and '://' not in tool:
+            tool = 'docker://' + tool
+
+        # What name in the cache dir do we want?
+        # We cache everything as sandbox directories and not .sif files because, as
+        # laid out in https://github.com/sylabs/singularity/issues/4617, there
+        # isn't a way to run from a .sif file and have write permissions on system
+        # directories in the container, because the .sif build process makes
+        # everything owned by root inside the image. Since some toil-vg containers
+        # (like the R one) want to touch system files (to install R packages at
+        # runtime), we do it this way to act more like Docker.
+        #
+        # Also, only sandbox directories work with user namespaces, and only user
+        # namespaces work inside unprivileged Docker containers like the Toil
+        # appliance.
+        sandbox_dirname = os.path.join(cache_dir, '{}.sandbox'.format(hashlib.sha256(tool).hexdigest()))
+
+        if not os.path.exists(sandbox_dirname):
+            # We atomically drop the sandbox at that name when we get it
+
+            # Make a temp directory to be the sandbox
+            temp_sandbox_dirname = tempfile.mkdtemp(dir=cache_dir)
+
+            # Download with a fresh cache to a sandbox
+            download_env = os.environ.copy()
+            download_env['SINGULARITY_CACHEDIR'] = file_store.getLocalTempDir() if file_store else tempfile.mkdtemp(dir=work_dir)
+            build_cmd = ['singularity', 'build', '-s', '-F', temp_sandbox_dirname, tool]
+
+            cactus_realtime_log_info("Running the command: \"{}\"".format(' '.join(build_cmd)))
+            start_time = timeit.default_timer()
+            subprocess32.check_call(build_cmd, env=download_env)
+            end_time = timeit.default_timer()
+            run_time = end_time - start_time
+            cactus_realtime_log_info("Successfully ran the command: \"{}\" in {} seconds".format(' '.join(build_cmd), run_time))
+
+            # Clean up the Singularity cache since it is single use
+            shutil.rmtree(download_env['SINGULARITY_CACHEDIR'])
+
+            try:
+                # This may happen repeatedly but it is atomic
+                os.rename(temp_sandbox_dirname, sandbox_dirname)
+            except OSError as e:
+                if e.errno == errno.EEXIST:
+                    # Can't rename a directory over another
+                    # Make sure someone else has made the directory
+                    assert os.path.exists(sandbox_dirname)
+                    # Remove our redundant copy
+                    shutil.rmtree(temp_sandbox_name)
+                else:
+                    raise
+
+            # TODO: we could save some downloading by having one process download
+            # and the others wait, but then we would need a real fnctl locking
+            # system here.
+        return baseSingularityCall + [sandbox_dirname] + parameters
+            
 
 def dockerCommand(tool=None,
                   work_dir=None,
@@ -945,7 +1049,7 @@ def prepareWorkDir(work_dir, parameters):
     if work_dir and os.environ.get('CACTUS_DOCKER_MODE') != "0":
         parameters = [adjustPath(par, work_dir) for par in parameters]
     return work_dir, parameters
-
+    
 def cactus_call(tool=None,
                 work_dir=None,
                 parameters=None,
@@ -998,7 +1102,7 @@ def cactus_call(tool=None,
                                             entrypoint=entrypoint)
     elif mode == "singularity":
         call = singularityCommand(tool=tool, work_dir=work_dir,
-                                  parameters=parameters, port=port)
+                                  parameters=parameters, port=port, file_store=fileStore)
     else:
         assert mode == "local"
         call = parameters
@@ -1015,10 +1119,26 @@ def cactus_call(tool=None,
         stdoutFileHandle = subprocess32.PIPE
 
     _log.info("Running the command %s" % call)
+    cactus_realtime_log_info("Running the command: \"{}\"".format(' '.join(call)))
+    start_time = timeit.default_timer()
     process = subprocess32.Popen(call, shell=shell,
                                  stdin=stdinFileHandle, stdout=stdoutFileHandle,
                                  stderr=subprocess32.PIPE if swallowStdErr else sys.stderr,
                                  bufsize=-1)
+
+    if mode == "singularity":
+        # After Singularity exits, it is possible that cleanup of the container's
+        # temporary files is still in progress (sicne it also waits for the
+        # container to exit). If we return immediately and the Toil job then
+        # immediately finishes, we can have a race between Toil's temp
+        # cleanup/space tracking code and Singularity's temp cleanup code to delete
+        # the same directory tree. Toil doesn't handle this well, and crashes when
+        # files it expected to be able to see are missing (at least on some
+        # versions). So we introduce a delay here to try and make sure that
+        # Singularity wins the race with high probability.
+        #
+        # See https://github.com/sylabs/singularity/issues/1255
+        time.sleep(0.5)
 
     if server:
         return process
@@ -1049,6 +1169,12 @@ def cactus_call(tool=None,
         fileStore.logToMaster("Max memory used for job %s (tool %s) "
                               "on JSON features %s: %s" % (job_name, parameters[0],
                                                            json.dumps(features), memUsage))
+
+    if process.returncode == 0:
+        end_time = timeit.default_timer()
+        run_time = end_time - start_time
+        cactus_realtime_log_info("Successfully ran the command: \"{}\" in {} seconds".format(' '.join(call), run_time))
+
     if check_result:
         return process.returncode
 
@@ -1084,7 +1210,10 @@ class RoundedJob(Job):
         if memory is not None:
             memory = self.roundUp(memory)
         if disk is not None:
-            disk = self.roundUp(disk)
+            # hack: we may need extra space to cook up a singularity image on the fly
+            #       so we add it (1.5G) here.
+            # todo: only do this when needed
+            disk = 1500*1024*1024 + self.roundUp(disk)
         super(RoundedJob, self).__init__(memory=memory, cores=cores, disk=disk,
                                          preemptable=preemptable, unitName=unitName,
                                          checkpoint=checkpoint)

@@ -12,6 +12,7 @@ tree.
 
 import os
 import xml.etree.ElementTree as ET
+import timeit
 from argparse import ArgumentParser
 from base64 import b64encode
 from subprocess import check_call
@@ -365,24 +366,25 @@ def setupBinaries(options):
     else:
         assert mode == "singularity"
         jobStoreType, locator = Toil.parseLocator(options.jobStore)
-        if jobStoreType != "file":
-            raise RuntimeError("Singularity mode is only supported when using the FileJobStore.")
-        if options.containerImage:
-            imgPath = os.path.abspath(options.containerImage)
-            os.environ["CACTUS_USE_LOCAL_SINGULARITY_IMG"] = "1"
-        else:
-            # When SINGULARITY_CACHEDIR is set, singularity will refuse to store images in the current directory
-            if 'SINGULARITY_CACHEDIR' in os.environ:
-                imgPath = os.path.join(os.environ['SINGULARITY_CACHEDIR'], "cactus.img")
+        if jobStoreType == "file":
+            # if not using a local jobStore, then don't set the `SINGULARITY_CACHEDIR`
+            # in this case, the image will be downloaded on each call
+            if options.containerImage:
+                imgPath = os.path.abspath(options.containerImage)
+                os.environ["CACTUS_USE_LOCAL_SINGULARITY_IMG"] = "1"
             else:
-                imgPath = os.path.join(os.path.abspath(locator), "cactus.img")
-        os.environ["CACTUS_SINGULARITY_IMG"] = imgPath
+                # When SINGULARITY_CACHEDIR is set, singularity will refuse to store images in the current directory
+                if 'SINGULARITY_CACHEDIR' in os.environ:
+                    imgPath = os.path.join(os.environ['SINGULARITY_CACHEDIR'], "cactus.img")
+                else:
+                    imgPath = os.path.join(os.path.abspath(locator), "cactus.img")
+            os.environ["CACTUS_SINGULARITY_IMG"] = imgPath
 
-def importSingularityImage():
+def importSingularityImage(options):
     """Import the Singularity image from Docker if using Singularity."""
     mode = os.environ.get("CACTUS_BINARIES_MODE", "docker")
     localImage = os.environ.get("CACTUS_USE_LOCAL_SINGULARITY_IMG", "0")
-    if mode == "singularity":
+    if mode == "singularity" and Toil.parseLocator(options.jobStore)[0] == "file":
         imgPath = os.environ["CACTUS_SINGULARITY_IMG"]
         # If not using local image, pull the docker image
         if localImage == "0":
@@ -470,9 +472,15 @@ def main():
         options.retryCount = 5
     runCactusProgressive(options)
 
+    start_time = timeit.default_timer()        
+    runCactusProgressive(options)
+    end_time = timeit.default_timer()
+    run_time = end_time - start_time
+    logger.info("Cactus has finished after {} seconds".format(run_time))
+    
 def runCactusProgressive(options):
     with Toil(options) as toil:
-        importSingularityImage()
+        importSingularityImage(options)
         #Run the workflow
         if options.restart:
             halID = toil.restart()

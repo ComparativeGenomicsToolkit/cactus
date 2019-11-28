@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-from Cython.Runtime.refnanny import loglevel
 
 #Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
 #
