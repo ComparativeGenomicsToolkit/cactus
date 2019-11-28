@@ -1183,7 +1183,10 @@ class RoundedJob(Job):
         if memory is not None:
             memory = self.roundUp(memory)
         if disk is not None:
-            disk = self.roundUp(disk)
+            # hack: we may need extra space to cook up a singularity image on the fly
+            #       so we add it (1.5G) here.
+            # todo: only do this when needed
+            disk = 1500*1024*1024 + self.roundUp(disk)
         super(RoundedJob, self).__init__(memory=memory, cores=cores, disk=disk,
                                          preemptable=preemptable, unitName=unitName,
                                          checkpoint=checkpoint)
