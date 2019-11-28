@@ -12,6 +12,7 @@ tree.
 
 import os
 import xml.etree.ElementTree as ET
+import timeit
 from argparse import ArgumentParser
 from base64 import b64encode
 from subprocess import check_call
@@ -471,6 +472,12 @@ def main():
         options.retryCount = 5
     runCactusProgressive(options)
 
+    start_time = timeit.default_timer()        
+    runCactusProgressive(options)
+    end_time = timeit.default_timer()
+    run_time = end_time - start_time
+    logger.info("Cactus has finished after {} seconds".format(run_time))
+    
 def runCactusProgressive(options):
     with Toil(options) as toil:
         importSingularityImage(options)
