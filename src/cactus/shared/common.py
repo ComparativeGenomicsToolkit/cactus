@@ -19,8 +19,10 @@ import time
 import signal
 import hashlib
 import tempfile
+import timeit
 
 from urlparse import urlparse
+from datetime import datetime
 
 from toil.lib.bioio import logger
 from toil.lib.bioio import system
@@ -867,6 +869,13 @@ def maxMemUsageOfContainer(containerInfo):
             continue
     return None
 
+# send a time/date stamped message to the realtime logger, truncating it
+# if it's too long (so it's less likely to be dropped)
+def cactus_realtime_log_info(msg, max_len = 1000):
+    if len(msg) > max_len:
+        msg = msg[:max_len] + "..."
+    RealtimeLogger.info("{}: {}".format(datetime.now(), msg))
+
 def singularityCommand(tool=None,
                        work_dir=None,
                        parameters=None,
@@ -936,7 +945,14 @@ def singularityCommand(tool=None,
             # Download with a fresh cache to a sandbox
             download_env = os.environ.copy()
             download_env['SINGULARITY_CACHEDIR'] = file_store.getLocalTempDir() if file_store else tempfile.mkdtemp(dir=work_dir)
-            subprocess32.check_call(['singularity', 'build', '-s', '-F', temp_sandbox_dirname, tool], env=download_env)
+            build_cmd = ['singularity', 'build', '-s', '-F', temp_sandbox_dirname, tool]
+
+            cactus_realtime_log_info("Running the command: \"{}\"".format(' '.join(build_cmd)))
+            start_time = timeit.default_timer()
+            subprocess32.check_call(build_cmd, env=download_env)
+            end_time = timeit.default_timer()
+            run_time = end_time - start_time
+            cactus_realtime_log_info("Successfully ran the command: \"{}\" in {} seconds".format(' '.join(build_cmd), run_time))
 
             # Clean up the Singularity cache since it is single use
             shutil.rmtree(download_env['SINGULARITY_CACHEDIR'])
@@ -944,12 +960,15 @@ def singularityCommand(tool=None,
             try:
                 # This may happen repeatedly but it is atomic
                 os.rename(temp_sandbox_dirname, sandbox_dirname)
-            except FileExistsError:
-                # Can't rename a directory over another
-                # Make sure someone else has made the directory
-                assert os.path.exists(sandbox_dirname)
-                # Remove our redundant copy
-                shutil.rmtree(temp_sandbox_name)
+            except OSError as e:
+                if e.errno == errno.EEXIST:
+                    # Can't rename a directory over another
+                    # Make sure someone else has made the directory
+                    assert os.path.exists(sandbox_dirname)
+                    # Remove our redundant copy
+                    shutil.rmtree(temp_sandbox_name)
+                else:
+                    raise
 
             # TODO: we could save some downloading by having one process download
             # and the others wait, but then we would need a real fnctl locking
@@ -1030,7 +1049,7 @@ def prepareWorkDir(work_dir, parameters):
     if work_dir and os.environ.get('CACTUS_DOCKER_MODE') != "0":
         parameters = [adjustPath(par, work_dir) for par in parameters]
     return work_dir, parameters
-
+    
 def cactus_call(tool=None,
                 work_dir=None,
                 parameters=None,
@@ -1099,7 +1118,9 @@ def cactus_call(tool=None,
     if check_output:
         stdoutFileHandle = subprocess32.PIPE
 
-    RealtimeLogger.info("Running the command {}".format(call))
+    _log.info("Running the command %s" % call)
+    cactus_realtime_log_info("Running the command: \"{}\"".format(' '.join(call)))
+    start_time = timeit.default_timer()
     process = subprocess32.Popen(call, shell=shell,
                                  stdin=stdinFileHandle, stdout=stdoutFileHandle,
                                  stderr=subprocess32.PIPE if swallowStdErr else sys.stderr,
@@ -1148,6 +1169,12 @@ def cactus_call(tool=None,
         fileStore.logToMaster("Max memory used for job %s (tool %s) "
                               "on JSON features %s: %s" % (job_name, parameters[0],
                                                            json.dumps(features), memUsage))
+
+    if process.returncode == 0:
+        end_time = timeit.default_timer()
+        run_time = end_time - start_time
+        cactus_realtime_log_info("Successfully ran the command: \"{}\" in {} seconds".format(' '.join(call), run_time))
+
     if check_result:
         return process.returncode
 
