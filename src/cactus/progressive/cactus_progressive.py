@@ -470,7 +470,6 @@ def main():
         # If the user didn't specify a retryCount value, make it 5
         # instead of Toil's default (1).
         options.retryCount = 5
-    runCactusProgressive(options)
 
     start_time = timeit.default_timer()        
     runCactusProgressive(options)
