@@ -39,7 +39,7 @@ class KtServerService(Job.Service):
     def stop(self, job):
         self.check()
         try:
-            stopKtserver(self.dbElem)
+            stopKtserver(self.dbElem, fileStore=job.fileStore)
         except:
             # Server is probably already terminated
             pass

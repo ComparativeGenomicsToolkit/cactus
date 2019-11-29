@@ -31,6 +31,7 @@ from toil.lib.misc import mkdir_p
 from toil.common import Toil
 from toil.job import Job
 from toil.realtimeLogger import RealtimeLogger
+from toil.fileStores import FileID
 
 from sonLib.bioio import popenCatch
 from sonLib.bioio import getTempDirectory
@@ -216,7 +217,8 @@ def runCactusSplitFlowersBySecondaryGrouping(flowerNames):
 def runCactusSetup(cactusDiskDatabaseString, seqMap,
                    newickTreeString,
                    logLevel=None, outgroupEvents=None,
-                   makeEventHeadersAlphaNumeric=False):
+                   makeEventHeadersAlphaNumeric=False,
+                   fileStore=None):
     logLevel = getLogLevelString2(logLevel)
     # We pass in the genome->sequence map as a series of paired arguments: [genome, faPath]*N.
     pairs = [[genome, faPath] for genome, faPath in seqMap.items()]
@@ -229,21 +231,24 @@ def runCactusSetup(cactusDiskDatabaseString, seqMap,
     if outgroupEvents:
         args += ["--outgroupEvents", " ".join(outgroupEvents)]
     masterMessages = cactus_call(check_output=True,
-                                 parameters=["cactus_setup"] + args)
+                                 parameters=["cactus_setup"] + args,
+                                 fileStore=fileStore)
 
     logger.info("Ran cactus setup okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]
 
-def runConvertAlignmentsToInternalNames(cactusDiskString, alignmentsFile, outputFile, flowerName, isBedFile=False):
+def runConvertAlignmentsToInternalNames(cactusDiskString, alignmentsFile, outputFile, flowerName, isBedFile=False, fileStore=None):
     args = [alignmentsFile, outputFile,
             "--cactusDisk", cactusDiskString]
     if isBedFile:
         args += ["--bed"]
     cactus_call(stdin_string=encodeFlowerNames((flowerName,)),
-                parameters=["cactus_convertAlignmentsToInternalNames"] + args)
+                parameters=["cactus_convertAlignmentsToInternalNames"] + args,
+                fileStore=fileStore)
 
-def runStripUniqueIDs(cactusDiskString):
-    cactus_call(parameters=["cactus_stripUniqueIDs", "--cactusDisk", cactusDiskString])
+def runStripUniqueIDs(cactusDiskString, fileStore=None):
+    cactus_call(parameters=["cactus_stripUniqueIDs", "--cactusDisk", cactusDiskString],
+                fileStore=fileStore)
 
 def runCactusCaf(cactusDiskDatabaseString, 
                  alignments,
@@ -397,40 +402,45 @@ def runCactusCaf(cactusDiskDatabaseString,
 
 def runCactusPhylogeny(cactusDiskDatabaseString,
                        flowerNames=encodeFlowerNames((0,)),
+                       fileStore=None,
                        logLevel=None):
     logLevel = getLogLevelString2(logLevel)
     cactus_call(stdin_string=flowerNames,
                 parameters=["cactus_phylogeny",
                             "--cactusDisk", cactusDiskDatabaseString,
-                            "--logLevel", logLevel])
+                            "--logLevel", logLevel],
+                fileStore=fileStore)
     logger.info("Ran cactus_phylogeny okay")
 
-def runCactusAdjacencies(cactusDiskDatabaseString, flowerNames=encodeFlowerNames((0,)), logLevel=None):
+def runCactusAdjacencies(cactusDiskDatabaseString, flowerNames=encodeFlowerNames((0,)), logLevel=None, fileStore=None):
     logLevel = getLogLevelString2(logLevel)
     cactus_call(stdin_string=flowerNames,
                 parameters=["cactus_fillAdjacencies",
                             "--cactusDisk", cactusDiskDatabaseString,
-                            "--logLevel", logLevel])
+                            "--logLevel", logLevel],
+                fileStore=fileStore)
     logger.info("Ran cactus_fillAdjacencies OK")
 
-def runCactusConvertAlignmentToCactus(cactusDiskDatabaseString, constraintsFile, newConstraintsFile, logLevel=None):
+def runCactusConvertAlignmentToCactus(cactusDiskDatabaseString, constraintsFile, newConstraintsFile, logLevel=None, fileStore=None):
     """Takes a cigar file and makes an equivalent cigar file using the internal coordinate system format of cactus.
     """
     logLevel = getLogLevelString2(logLevel)
     cactus_call(parameters=["cactus_workflow_convertAlignmentCoordinates",
                             logLevel, cactusDiskDatabaseString,
-                            constraintsFile, newConstraintsFile])
+                            constraintsFile, newConstraintsFile],
+                fileStore=fileStore)
 
-def runCactusFlowerStats(cactusDiskDatabaseString, flowerName, logLevel=None):
+def runCactusFlowerStats(cactusDiskDatabaseString, flowerName, logLevel=None, fileStore=None):
     """Prints stats for the given flower
     """
     logLevel = getLogLevelString2(logLevel)
     flowerStatsString = cactus_call(check_output=True,
                                     parameters=["cactus_workflow_flowerStats",
-                                                logLevel, cactusDiskDatabaseString, str(flowerName)])
+                                                logLevel, cactusDiskDatabaseString, str(flowerName)],
+                                    fileStore=fileStore)
     return flowerStatsString
 
-def runCactusMakeNormal(cactusDiskDatabaseString, flowerNames, maxNumberOfChains=0, logLevel=None):
+def runCactusMakeNormal(cactusDiskDatabaseString, flowerNames, maxNumberOfChains=0, logLevel=None, fileStore=None):
     """Makes the given flowers normal (see normalisation for the various phases)
     """
     logLevel = getLogLevelString2(logLevel)
@@ -526,9 +536,10 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
     logger.info("Ran cactus_bar okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]
 
-def runCactusSecondaryDatabase(secondaryDatabaseString, create=True):
+def runCactusSecondaryDatabase(secondaryDatabaseString, create=True, fileStore=None):
     cactus_call(parameters=["cactus_secondaryDatabase",
-                secondaryDatabaseString, create])
+                            secondaryDatabaseString, create],
+                fileStore=fileStore)
             
 def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
                        jobName=None, features=None, fileStore=None,
@@ -605,7 +616,8 @@ def runCactusCheck(cactusDiskDatabaseString,
                    flowerNames=encodeFlowerNames((0,)), 
                    logLevel=None, 
                    recursive=False,
-                   checkNormalised=False):
+                   checkNormalised=False,
+                   fileStore=None):
     logLevel = getLogLevelString2(logLevel)
     args = ["--cactusDisk", cactusDiskDatabaseString, "--logLevel", logLevel]
     if recursive:
@@ -613,7 +625,8 @@ def runCactusCheck(cactusDiskDatabaseString,
     if checkNormalised:
         args += ["--checkNormalised"]
     cactus_call(stdin_string=flowerNames,
-                parameters=["cactus_check"] + args)
+                parameters=["cactus_check"] + args,
+                fileStore=fileStore)
     logger.info("Ran cactus check")
 
 def _fn(toilDir,
@@ -748,25 +761,28 @@ def runCactusFastaGenerator(cactusDiskDatabaseString,
                             flowerName,
                             outputFile,
                             referenceEventString,
-                            logLevel=None):
+                            logLevel=None,
+                            fileStore=None):
     logLevel = getLogLevelString2(logLevel)
     cactus_call(parameters=["cactus_fastaGenerator",
                             "--flowerName", str(flowerName),
                             "--outputFile", outputFile,
                             "--logLevel", logLevel,
                             "--cactusDisk", cactusDiskDatabaseString,
-                            "--referenceEventString", referenceEventString])
+                            "--referenceEventString", referenceEventString],
+                fileStore=fileStore)
 
-def runCactusAnalyseAssembly(sequenceFile):
+def runCactusAnalyseAssembly(sequenceFile, fileStore=None):
     return cactus_call(check_output=True,
                 parameters=["cactus_analyseAssembly",
-                            sequenceFile])[:-1]
+                            sequenceFile],
+                       fileStore=fileStore)[:-1]
     
 def runToilStats(toil, outputFile):
     system("toil stats %s --outputFile %s" % (toil, outputFile))
     logger.info("Ran the job-tree stats command apparently okay")
 
-def runLastz(seq1, seq2, alignmentsFile, lastzArguments, work_dir=None):
+def runLastz(seq1, seq2, alignmentsFile, lastzArguments, work_dir=None, fileStore=None):
     if work_dir is None:
         assert os.path.dirname(seq1) == os.path.dirname(seq2)
         work_dir = os.path.dirname(seq1)
@@ -776,9 +792,10 @@ def runLastz(seq1, seq2, alignmentsFile, lastzArguments, work_dir=None):
                             "--notrivial"] + lastzArguments.split() +
                            ["%s[multiple][nameparse=darkspace]" % seq1,
                             "%s[nameparse=darkspace]" % seq2],
-                soft_timeout=5400)
+                soft_timeout=5400,
+                fileStore=fileStore)
 
-def runSelfLastz(seq, alignmentsFile, lastzArguments, work_dir=None):
+def runSelfLastz(seq, alignmentsFile, lastzArguments, work_dir=None, fileStore=None):
     if work_dir is None:
         work_dir = os.path.dirname(seq)
     cactus_call(work_dir=work_dir, outfile=alignmentsFile,
@@ -787,28 +804,33 @@ def runSelfLastz(seq, alignmentsFile, lastzArguments, work_dir=None):
                             "--notrivial"] + lastzArguments.split() +
                            ["%s[multiple][nameparse=darkspace]" % seq,
                             "%s[nameparse=darkspace]" % seq],
-                soft_timeout=5400)
+                soft_timeout=5400,
+                fileStore=fileStore)
 
-def runCactusRealign(seq1, seq2, inputAlignmentsFile, outputAlignmentsFile, realignArguments, work_dir=None):
+def runCactusRealign(seq1, seq2, inputAlignmentsFile, outputAlignmentsFile, realignArguments, work_dir=None, fileStore=None):
     cactus_call(infile=inputAlignmentsFile, outfile=outputAlignmentsFile, work_dir=work_dir,
-                parameters=["cPecanRealign"] + realignArguments.split() + [seq1, seq2])
+                parameters=["cPecanRealign"] + realignArguments.split() + [seq1, seq2],
+                fileStore=fileStore)
 
-def runCactusSelfRealign(seq, inputAlignmentsFile, outputAlignmentsFile, realignArguments, work_dir=None):
+def runCactusSelfRealign(seq, inputAlignmentsFile, outputAlignmentsFile, realignArguments, work_dir=None, fileStore=None):
     cactus_call(infile=inputAlignmentsFile, outfile=outputAlignmentsFile, work_dir=work_dir,
-                parameters=["cPecanRealign"] + realignArguments.split() + [seq])
+                parameters=["cPecanRealign"] + realignArguments.split() + [seq],
+                fileStore=fileStore)
 
-def runCactusCoverage(sequenceFile, alignmentsFile, work_dir=None):
+def runCactusCoverage(sequenceFile, alignmentsFile, work_dir=None, fileStore=None):
     return cactus_call(check_output=True, work_dir=work_dir,
-                parameters=["cactus_coverage", sequenceFile, alignmentsFile])
+                       parameters=["cactus_coverage", sequenceFile, alignmentsFile],
+                       fileStore=fileStore)
 
-def runGetChunks(sequenceFiles, chunksDir, chunkSize, overlapSize, work_dir=None):
+def runGetChunks(sequenceFiles, chunksDir, chunkSize, overlapSize, work_dir=None, fileStore=None):
     chunks = cactus_call(work_dir=work_dir,
                          check_output=True,
                          parameters=["cactus_blast_chunkSequences",
                                      getLogLevelString(),
                                      str(chunkSize),
                                      str(overlapSize),
-                                     chunksDir] + sequenceFiles)
+                                     chunksDir] + sequenceFiles,
+                         fileStore=fileStore)
     return [chunk for chunk in chunks.split("\n") if chunk != ""]
 
 def pullCactusImage():
@@ -881,100 +903,22 @@ def singularityCommand(tool=None,
                        parameters=None,
                        port=None,
                        file_store=None):
-    if "CACTUS_SINGULARITY_IMG" in os.environ:
-        # old logic: just run a local image
-        # (this was toggled by only setting CACTUS_SINGULARITY_IMG when using a local jobstore in cactus_progressive.py)
-        base_singularity_call = ["singularity", "--silent", "run", os.environ["CACTUS_SINGULARITY_IMG"]]
-        base_singularity_call.extend(parameters)
-        return base_singularity_call
+    if "CACTUS_SINGULARITY_IMG_ID" in os.environ:
+        if "CACTUS_SINGULARITY_IMG" in os.environ and os.path.exists(os.environ["CACTUS_SINGULARITY_IMG"]):
+            # we must have already downloaded it in this job
+            img_path = os.environ["CACTUS_SINGULARITY_IMG"]
+        else:
+            # get it from the file store
+            img_path = os.path.join(file_store.getLocalTempDir(), 'cactus')
+            file_store.readGlobalFile(FileID.unpack(os.environ["CACTUS_SINGULARITY_IMG_ID"]), img_path)
+            os.environ["CACTUS_SINGULARITY_IMG"] = img_path
     else:
-        # workaround for kubernetes toil: explicitly make a local image
-        # (see https://github.com/vgteam/toil-vg/blob/master/src/toil_vg/singularity.py)
+        # we assume that we have the image locally
+        img_path = os.environ["CACTUS_SINGULARITY_IMG"]
 
-        if parameters is None:
-            parameters = []
-        if work_dir is None:
-            work_dir = os.getcwd()
-
-        baseSingularityCall = ['singularity', '-q', 'exec']
-        
-        # Mount workdir as /mnt and work in there.
-        # Hope the image actually has a /mnt available.
-        # Otherwise this silently doesn't mount.
-        # But with -u (user namespaces) we have no luck pointing in-container
-        # home at anything other than our real home (like something under /var
-        # where Toil puts things).
-        # Note that we target Singularity 3+.
-        baseSingularityCall += ['-u', '-B', '{}:{}'.format(os.path.abspath(work_dir), '/mnt'), '--pwd', '/mnt']
-
-        # Problem: Multiple Singularity downloads sharing the same cache directory will
-        # not work correctly. See https://github.com/sylabs/singularity/issues/3634
-        # and https://github.com/sylabs/singularity/issues/4555.
-
-        # As a workaround, we have out own cache which we manage ourselves.
-        cache_dir = os.path.join(os.environ.get('SINGULARITY_CACHEDIR',  os.path.join(os.environ.get('HOME'), '.singularity')), 'toil')
-        mkdir_p(cache_dir)
-
-        # hack to transform back to docker image
-        if tool == 'cactus':
-            tool = getDockerImage()
-        # not a url or local file? try it as a Docker specifier
-        if not tool.startswith('/') and '://' not in tool:
-            tool = 'docker://' + tool
-
-        # What name in the cache dir do we want?
-        # We cache everything as sandbox directories and not .sif files because, as
-        # laid out in https://github.com/sylabs/singularity/issues/4617, there
-        # isn't a way to run from a .sif file and have write permissions on system
-        # directories in the container, because the .sif build process makes
-        # everything owned by root inside the image. Since some toil-vg containers
-        # (like the R one) want to touch system files (to install R packages at
-        # runtime), we do it this way to act more like Docker.
-        #
-        # Also, only sandbox directories work with user namespaces, and only user
-        # namespaces work inside unprivileged Docker containers like the Toil
-        # appliance.
-        sandbox_dirname = os.path.join(cache_dir, '{}.sandbox'.format(hashlib.sha256(tool).hexdigest()))
-
-        if not os.path.exists(sandbox_dirname):
-            # We atomically drop the sandbox at that name when we get it
-
-            # Make a temp directory to be the sandbox
-            temp_sandbox_dirname = tempfile.mkdtemp(dir=cache_dir)
-
-            # Download with a fresh cache to a sandbox
-            download_env = os.environ.copy()
-            download_env['SINGULARITY_CACHEDIR'] = file_store.getLocalTempDir() if file_store else tempfile.mkdtemp(dir=work_dir)
-            build_cmd = ['singularity', 'build', '-s', '-F', temp_sandbox_dirname, tool]
-
-            cactus_realtime_log_info("Running the command: \"{}\"".format(' '.join(build_cmd)))
-            start_time = timeit.default_timer()
-            subprocess32.check_call(build_cmd, env=download_env)
-            end_time = timeit.default_timer()
-            run_time = end_time - start_time
-            cactus_realtime_log_info("Successfully ran the command: \"{}\" in {} seconds".format(' '.join(build_cmd), run_time))
-
-            # Clean up the Singularity cache since it is single use
-            shutil.rmtree(download_env['SINGULARITY_CACHEDIR'])
-
-            try:
-                # This may happen repeatedly but it is atomic
-                os.rename(temp_sandbox_dirname, sandbox_dirname)
-            except OSError as e:
-                if e.errno == errno.EEXIST:
-                    # Can't rename a directory over another
-                    # Make sure someone else has made the directory
-                    assert os.path.exists(sandbox_dirname)
-                    # Remove our redundant copy
-                    shutil.rmtree(temp_sandbox_name)
-                else:
-                    raise
-
-            # TODO: we could save some downloading by having one process download
-            # and the others wait, but then we would need a real fnctl locking
-            # system here.
-        return baseSingularityCall + [sandbox_dirname] + parameters
-            
+    base_singularity_call = ["singularity", "--silent", "run", img_path]
+    base_singularity_call.extend(parameters)
+    return base_singularity_call
 
 def dockerCommand(tool=None,
                   work_dir=None,

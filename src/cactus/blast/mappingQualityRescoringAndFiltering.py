@@ -52,12 +52,14 @@ def mappingQualityRescoring(job, inputAlignmentFileID,
                             ["uniq"], # This eliminates any annoying duplicates if lastz reports the alignment in both orientations
                             ["cactus_splitAlignmentOverlaps", logLevel],
                             ["cactus_calculateMappingQualities", logLevel, str(maxAlignmentsPerSite),
-                             str(minimumMapQValue), str(alpha)] + tempAlignmentFiles])
+                             str(minimumMapQValue), str(alpha)] + tempAlignmentFiles],
+                fileStore=job.fileStore)
 
     # Merge together the output files in order
     secondaryTempAlignmentFile = job.fileStore.getLocalTempFile()
     if len(tempAlignmentFiles) > 1:
-        cactus_call(parameters=[["cat" ] + tempAlignmentFiles[1:]], outfile=secondaryTempAlignmentFile)
+        cactus_call(parameters=[["cat" ] + tempAlignmentFiles[1:]], outfile=secondaryTempAlignmentFile,
+                    fileStore=job.fileStore)
 
     job.fileStore.logToMaster("Filtered, non-overlapping primary cigar file has %s lines" % countLines(tempAlignmentFiles[0]))
     job.fileStore.logToMaster("Filtered, non-overlapping secondary cigar file has %s lines" % countLines(secondaryTempAlignmentFile))
