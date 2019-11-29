@@ -915,9 +915,15 @@ def singularityCommand(tool=None,
     else:
         # we assume that we have the image locally
         img_path = os.environ["CACTUS_SINGULARITY_IMG"]
+    
+    if not work_dir:
+        work_dir = os.getcwd()
+    else:
+        work_dir = os.path.abspath(work_dir)
 
-    base_singularity_call = ["singularity", "--silent", "run", img_path]
-    base_singularity_call.extend(parameters)
+    base_singularity_call = ["singularity", "--silent", "run"]
+    base_singularity_call += ["-B", "{}:{}".format(work_dir, "/mnt"), "--pwd", "/mnt"]
+    base_singularity_call += [img_path] + parameters
     return base_singularity_call
 
 def dockerCommand(tool=None,
