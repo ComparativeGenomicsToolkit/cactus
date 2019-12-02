@@ -20,6 +20,7 @@ import signal
 import hashlib
 import tempfile
 import timeit
+import subprocess
 
 from urlparse import urlparse
 from datetime import datetime
@@ -909,21 +910,23 @@ def singularityCommand(tool=None,
             img_path = os.environ["CACTUS_SINGULARITY_IMG"]
         else:
             # get it from the file store
-            img_path = os.path.join(file_store.getLocalTempDir(), 'cactus')
-            file_store.readGlobalFile(FileID.unpack(os.environ["CACTUS_SINGULARITY_IMG_ID"]), img_path)
+            img_path = os.path.join(file_store.getLocalTempDir(), 'cactus.img.sb')
+            file_store.readGlobalFile(FileID.unpack(os.environ["CACTUS_SINGULARITY_IMG_ID"]), img_path + '.tar')
+            # extract it
+            untar_cmd = ["tar", "xf", os.path.basename(img_path) + '.tar']
+            subprocess.check_call(untar_cmd, cwd=os.path.dirname(img_path))
+            # remember it
             os.environ["CACTUS_SINGULARITY_IMG"] = img_path
+        singularity_opts = ["-u"]
     else:
         # we assume that we have the image locally
         img_path = os.environ["CACTUS_SINGULARITY_IMG"]
-    
-    if not work_dir:
-        work_dir = os.getcwd()
-    else:
-        work_dir = os.path.abspath(work_dir)
+        singularity_opts = []
 
     base_singularity_call = ["singularity", "--silent", "run"]
-    base_singularity_call += ["-B", "{}:{}".format(work_dir, "/mnt"), "--pwd", "/mnt"]
-    base_singularity_call += [img_path] + parameters
+    if work_dir and work_dir != '.':
+        base_singularity_call += ["-B", "{}:{}".format(work_dir, "/mnt"), "--pwd", "/mnt"]
+    base_singularity_call += singularity_opts + [img_path] + parameters
     return base_singularity_call
 
 def dockerCommand(tool=None,
@@ -1160,10 +1163,13 @@ class RoundedJob(Job):
         if memory is not None:
             memory = self.roundUp(memory)
         if disk is not None:
-            # hack: we may need extra space to cook up a singularity image on the fly
-            #       so we add it (1.5G) here.
-            # todo: only do this when needed
-            disk = 1500*1024*1024 + self.roundUp(disk)
+            disk = self.roundUp(disk)
+            # we may need extra space to download the tarred singularity
+            # sandbox (1.2G) and extract it (another 1.2G) when getting it from a
+            # remote store
+            if "CACTUS_SINGULARITY_IMG_ID" in os.environ:
+                disk += 2500*1024*1024
+
         super(RoundedJob, self).__init__(memory=memory, cores=cores, disk=disk,
                                          preemptable=preemptable, unitName=unitName,
                                          checkpoint=checkpoint)
