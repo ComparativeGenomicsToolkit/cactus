@@ -913,7 +913,7 @@ def singularityCommand(tool=None,
             img_path = os.path.join(file_store.getLocalTempDir(), 'cactus.img.sb')
             file_store.readGlobalFile(FileID.unpack(os.environ["CACTUS_SINGULARITY_IMG_ID"]), img_path + '.tar')
             # extract it
-            untar_cmd = ["tar", "xf", os.path.basename(img_path) + '.tar']
+            untar_cmd = ["tar", "--format=pax", "-xf", os.path.basename(img_path) + '.tar']
             subprocess.check_call(untar_cmd, cwd=os.path.dirname(img_path))
             # remember it
             os.environ["CACTUS_SINGULARITY_IMG"] = img_path

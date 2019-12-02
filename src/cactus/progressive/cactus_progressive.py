@@ -420,11 +420,11 @@ def importSingularityImage(options, toil):
                 check_call(["singularity", "build", "-F", "-s", os.path.basename(imgPath) + ".sb", os.path.basename(imgPath)])
                 # the sandbox is a directory.  we tar it up so it get be uploaded to the job store.
                 # note: the python tarfile module seems about 10x slower than just running tar, so we
-                # stick with the latter.  the --format=posix seems to be necessary to avoid encoding errors when
+                # stick with the latter.  the --format=pax seems to be necessary to avoid encoding errors when
                 # tarring/untarring on different systems (ie unicode vs ascii)
                 # we could gzip by using czf instead of cf and .sb.tar.gz instead of .sb.tar below.  but assume for
                 # now that it's faster to download the uncompressed version than it is to decompress it. 
-                check_call(["tar", "--format=posix", "-cf", os.path.basename(imgPath) + ".sb.tar", os.path.basename(imgPath) + ".sb"])
+                check_call(["tar", "--format=pax", "-cf", os.path.basename(imgPath) + ".sb.tar", os.path.basename(imgPath) + ".sb"])
                 # now upload it to the job store
                 singularity_image_id = toil.importFile("file://" + imgPath + ".sb.tar")
                 # any toil job can use this ID to download the sandbox to its local file store
