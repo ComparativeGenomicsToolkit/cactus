@@ -43,6 +43,10 @@ _log = logging.getLogger(__name__)
 
 subprocess32._has_poll = False
 
+if sys.version_info[0] < 3:
+    # Define the error we see when trying to clobber a directory with a rename
+    FileExistsError = OSError
+
 def makeURL(path_or_url):
     if urlparse(path_or_url).scheme == '':
         return "file://" + os.path.abspath(path_or_url)
@@ -910,13 +914,36 @@ def singularityCommand(tool=None,
             img_path = os.environ["CACTUS_SINGULARITY_IMG"]
         else:
             # get it from the file store
-            img_path = os.path.join(file_store.getLocalTempDir(), 'cactus.img.sb')
-            file_store.readGlobalFile(FileID.unpack(os.environ["CACTUS_SINGULARITY_IMG_ID"]), img_path + '.tar')
-            # extract it
-            untar_cmd = ["tar", "--format=pax", "-xf", os.path.basename(img_path) + '.tar']
-            subprocess.check_call(untar_cmd, cwd=os.path.dirname(img_path))
+            img_path = os.path.join(file_store.getLocalTempDir(), 'cactus.img')
+            file_store.readGlobalFile(FileID.unpack(os.environ["CACTUS_SINGULARITY_IMG_ID"]), img_path)
+                        
+            # Extract with a fresh cache to a sandbox
+            temp_sandbox_dirname = tempfile.mkdtemp(dir=file_store.getLocalTempDir())                        
+            download_env = os.environ.copy()
+            download_env['SINGULARITY_CACHEDIR'] = file_store.getLocalTempDir()
+            start_time = timeit.default_timer()
+            sb_command = ['singularity', 'build', '-s', '-F', temp_sandbox_dirname, img_path]
+            # todo: *only* do this on kubernetes, it's a waste of time on mesos and local which can use the image directly
+            subprocess.check_call(sb_command, env=download_env)
+            end_time = timeit.default_timer()
+            run_time = end_time - start_time
+            cactus_realtime_log_info("Successfully ran the command: \"{}\" in {} seconds".format(' '.join(sb_command), run_time))
+
+            # Clean up the Singularity cache since it is single use
+            shutil.rmtree(download_env['SINGULARITY_CACHEDIR'])        
+            try:
+                # This may happen repeatedly but it is atomic
+                os.rename(temp_sandbox_dirname, img_path + '.sb')
+            except FileExistsError:
+                # Can't rename a directory over another
+                # Make sure someone else has made the directory
+                assert os.path.exists(sandbox_dirname)
+                # Remove our redundant copy
+                shutil.rmtree(temp_sandbox_name)
+
             # remember it
-            os.environ["CACTUS_SINGULARITY_IMG"] = img_path
+            img_path += '.sb'
+            os.environ["CACTUS_SINGULARITY_IMG"] = img_path 
         singularity_opts = ["-u"]
     else:
         # we assume that we have the image locally
@@ -1164,10 +1191,8 @@ class RoundedJob(Job):
             memory = self.roundUp(memory)
         if disk is not None:
             disk = self.roundUp(disk)
-            # we may need extra space to download the tarred singularity
-            # sandbox (1.2G) and extract it (another 1.2G) when getting it from a
-            # remote store
             if "CACTUS_SINGULARITY_IMG_ID" in os.environ:
+                # downloading and extracting the singularity sandbox takes some extra disk
                 disk += 2500*1024*1024
 
         super(RoundedJob, self).__init__(memory=memory, cores=cores, disk=disk,

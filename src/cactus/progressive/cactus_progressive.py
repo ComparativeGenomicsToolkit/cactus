@@ -415,20 +415,8 @@ def importSingularityImage(options, toil):
                             "docker://" + getDockerImage()])
 
             if Toil.parseLocator(options.jobStore)[0] != "file":
-                # convert the image to a sandbox.  this lets it get run with -u, which seems
-                # to be a requirement with toil on kubernetes
-                check_call(["singularity", "build", "-F", "-s", os.path.basename(imgPath) + ".sb", os.path.basename(imgPath)])
-                # the sandbox is a directory.  we tar it up so it get be uploaded to the job store.
-                # note: the python tarfile module seems about 10x slower than just running tar, so we
-                # stick with the latter.  the --format=pax seems to be necessary to avoid encoding errors when
-                # tarring/untarring on different systems (ie unicode vs ascii)
-                # we could gzip by using czf instead of cf and .sb.tar.gz instead of .sb.tar below.  but assume for
-                # now that it's faster to download the uncompressed version than it is to decompress it. 
-                check_call(["tar", "--format=pax", "-cf", os.path.basename(imgPath) + ".sb.tar", os.path.basename(imgPath) + ".sb"])
-                # now upload it to the job store
-                singularity_image_id = toil.importFile("file://" + imgPath + ".sb.tar")
-                # any toil job can use this ID to download the sandbox to its local file store
-                # it will need to be untarred before being run.
+                # if we are using a remote jobstore, we pop the singularity image inside for future use
+                singularity_image_id = toil.importFile("file://" + imgPath)
                 os.environ["CACTUS_SINGULARITY_IMG_ID"] = singularity_image_id.pack()
                 
             os.chdir(oldCWD)
