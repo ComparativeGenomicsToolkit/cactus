@@ -908,21 +908,21 @@ def singularityCommand(tool=None,
                        parameters=None,
                        port=None,
                        file_store=None):
-    if "CACTUS_SINGULARITY_IMG_ID" in os.environ:
+    if "CACTUS_DOCKER_IMG_ID" in os.environ:
         if "CACTUS_SINGULARITY_IMG" in os.environ and os.path.exists(os.environ["CACTUS_SINGULARITY_IMG"]):
             # we must have already downloaded it in this job
             img_path = os.environ["CACTUS_SINGULARITY_IMG"]
         else:
             # get it from the file store
             img_path = os.path.join(file_store.getLocalTempDir(), 'cactus.img')
-            file_store.readGlobalFile(FileID.unpack(os.environ["CACTUS_SINGULARITY_IMG_ID"]), img_path)
+            file_store.readGlobalFile(FileID.unpack(os.environ["CACTUS_DOCKER_IMG_ID"]), img_path)
                         
             # Extract with a fresh cache to a sandbox
             temp_sandbox_dirname = tempfile.mkdtemp(dir=file_store.getLocalTempDir())                        
             download_env = os.environ.copy()
             download_env['SINGULARITY_CACHEDIR'] = file_store.getLocalTempDir()
             start_time = timeit.default_timer()
-            sb_command = ['singularity', 'build', '-s', '-F', temp_sandbox_dirname, img_path]
+            sb_command = ['singularity', 'build', '-s', '-F', temp_sandbox_dirname, 'docker-archive://' + img_path]
             # todo: *only* do this on kubernetes, it's a waste of time on mesos and local which can use the image directly
             subprocess.check_call(sb_command, env=download_env)
             end_time = timeit.default_timer()
@@ -1191,7 +1191,7 @@ class RoundedJob(Job):
             memory = self.roundUp(memory)
         if disk is not None:
             disk = self.roundUp(disk)
-            if "CACTUS_SINGULARITY_IMG_ID" in os.environ:
+            if "CACTUS_DOCKER_IMG_ID" in os.environ:
                 # downloading and extracting the singularity sandbox takes some extra disk
                 disk += 2500*1024*1024
 

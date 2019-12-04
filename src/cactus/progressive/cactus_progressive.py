@@ -406,18 +406,23 @@ def importSingularityImage(options, toil):
             oldCWD = os.getcwd()
             os.chdir(os.path.dirname(imgPath))
             # --size is deprecated starting in 2.4, but is needed for 2.3 support. Keeping it in for now.
-            try:
-                check_call(["singularity", "pull", "--size", "2000", "--name", os.path.basename(imgPath),
-                            "docker://" + getDockerImage()])
-            except CalledProcessError:
-                # Call failed, try without --size, required for singularity 3+
-                check_call(["singularity", "pull", "--name", os.path.basename(imgPath),
-                            "docker://" + getDockerImage()])
-
-            if Toil.parseLocator(options.jobStore)[0] != "file":
-                # if we are using a remote jobstore, we pop the singularity image inside for future use
-                singularity_image_id = toil.importFile("file://" + imgPath)
-                os.environ["CACTUS_SINGULARITY_IMG_ID"] = singularity_image_id.pack()
+            if Toil.parseLocator(options.jobStore)[0] == "file":
+                try:
+                    check_call(["singularity", "pull", "--size", "2000", "--name", os.path.basename(imgPath),
+                                "docker://" + getDockerImage()])
+                except CalledProcessError:
+                    # Call failed, try without --size, required for singularity 3+
+                    check_call(["singularity", "pull", "--name", os.path.basename(imgPath),
+                                "docker://" + getDockerImage()])
+            else:
+                # If we are using a remote jobstore, we use it to cache the Docker image
+                # to avoid latency pulling it from quay.  Using it in this way requires
+                # Singularity v >= 3.  I would like to cache the Singularity image
+                # (or better, sandbox), but keep running into unicode errors when Jobs
+                # try to clean it out of there filestores with shutil.rmtree().  
+                check_call(["docker", "save", getDockerImage(), "-o", os.path.basename(imgPath)])
+                docker_image_id = toil.importFile("file://" + imgPath)
+                os.environ["CACTUS_DOCKER_IMG_ID"] = docker_image_id.pack()
                 
             os.chdir(oldCWD)
         else:
