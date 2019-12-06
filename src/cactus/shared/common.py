@@ -1223,7 +1223,7 @@ class ChildTreeJob(RoundedJob):
     slightly, but reducing the wall-clock time taken dramatically.
     """
     def __init__(self, memory=None, cores=None, disk=None, preemptable=None,
-                 unitName=None, checkpoint=False, maxChildrenPerJob=20):
+                 unitName=None, checkpoint=False, maxChildrenPerJob=sys.maxint):
         self.queuedChildJobs = []
         self.maxChildrenPerJob = maxChildrenPerJob
         super(ChildTreeJob, self).__init__(memory=memory, cores=cores, disk=disk,
