@@ -22,7 +22,7 @@ h5c++ = ${PWD}/submodules/hdf5/bin/h5c++
 all: deps ${modules:%=all.%} ${halAppendCactusSubtree} copyToBin
 
 all.%:
-	cd $* && make all
+	cd $* && ${MAKE} all
 
 copyToBin:
 	cp -rp submodules/sonLib/bin/* bin/
@@ -35,7 +35,7 @@ selfClean:  ${modules:%=clean.%}
 	rm -rf lib/*.h bin/*.dSYM
 
 clean.%:
-	cd $* && make clean
+	cd $* && ${MAKE} clean
 
 test:
 	pytest .
@@ -57,42 +57,42 @@ push: docker
 
 ${libSonLib}:
 	@echo "Building dependency sonLib"
-	@cd ${PWD}/submodules/sonLib && (output=$$(make 2>&1) || (echo "$$output"; exit 1))
+	@cd ${PWD}/submodules/sonLib && ${MAKE}
 
 sonLibRule: ${libSonLib}
 
 ${libPinchesAndCacti}: ${libSonLib}
 	@echo "Building dependency pinchesAndCacti"
-	@cd ${PWD}/submodules/pinchesAndCacti && (output=`make 2>&1` || (echo "$$output"; exit 1))
+	@cd ${PWD}/submodules/pinchesAndCacti && ${MAKE}
 
 ${libMatchingAndOrdering}: ${libSonLib}
 	@echo "Building dependency matchingAndOrdering"
-	@cd ${PWD}/submodules/matchingAndOrdering && (output=`make 2>&1` || (echo "$$output"; exit 1))
+	@cd ${PWD}/submodules/matchingAndOrdering && ${MAKE}
 
 ${libCPecan}: ${libSonLib}
 	@echo "Building dependency cPecan"
-	@cd ${PWD}/submodules/cPecan && (output=`make 2>&1` || (echo "$$output"; exit 1))
+	@cd ${PWD}/submodules/cPecan && ${MAKE}
 
 ${halAppendCactusSubtree}: ${h5c++} halRule all.api
 	@echo "Building dependency cactus2hal"
-	@cd ${PWD}/submodules/cactus2hal && (PATH=${PWD}/submodules/hdf5/bin:$(PATH) output=`make 2>&1` || (echo "$$output"; exit 1))
+	@cd ${PWD}/submodules/cactus2hal && PATH=${PWD}/submodules/hdf5/bin:$(PATH) ${MAKE}
 
 hdf5Rule: ${h5c++}
 
 ${h5c++}:
 	@echo "Building dependency hdf5"
-	@cd ${PWD}/submodules/hdf5 && (output=`(./configure --prefix=$(PWD)/submodules/hdf5 --enable-cxx && CFLAGS=-std=c99 AM_MAKEFLAGS=-e make -j4 -e && make install) 2>&1` || (echo "$$output"; exit 1))
+	@cd ${PWD}/submodules/hdf5 && ./configure --prefix=$(PWD)/submodules/hdf5 --enable-cxx && CFLAGS=-std=c99 AM_MAKEFLAGS=-e ${MAKE} -j4 -e && ${MAKE} install
 
 halRule: ${h5c++} ${libSonLib}
 	@echo "Building dependency hal"
-	@cd ${PWD}/submodules/hal && (PATH=${PWD}/submodules/hdf5/bin:$(PATH) output=`make 2>&1` || (echo "$$output"; exit 1))
+	@cd ${PWD}/submodules/hal && PATH=${PWD}/submodules/hdf5/bin:$(PATH) ${MAKE}
 
 ucscClean: selfClean
-	cd ${PWD}/submodules/sonLib && make clean
-	cd ${PWD}/submodules/pinchesAndCacti && make clean
-	cd ${PWD}/submodules/matchingAndOrdering && make clean
+	cd ${PWD}/submodules/sonLib && ${MAKE} clean
+	cd ${PWD}/submodules/pinchesAndCacti && ${MAKE} clean
+	cd ${PWD}/submodules/matchingAndOrdering && ${MAKE} clean
 
 clean: ucscClean selfClean
-	cd ${PWD}/submodules/hdf5 && make clean
-	cd ${PWD}/submodules/hal && make clean
-	cd ${PWD}/submodules/cactus2hal && make clean
+	cd ${PWD}/submodules/hdf5 && ${MAKE} clean
+	cd ${PWD}/submodules/hal && ${MAKE} clean
+	cd ${PWD}/submodules/cactus2hal && ${MAKE} clean

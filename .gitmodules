@@ -6,7 +6,7 @@
 	url = http://github.com/ComparativeGenomicsToolkit/matchingAndOrdering
 [submodule "submodules/cPecan"]
 	path = submodules/cPecan
-	url = http://github.com/benedictpaten/cPecan
+	url = http://github.com/ComparativeGenomicsToolkit/cPecan
 [submodule "submodules/sonLib"]
 	path = submodules/sonLib
 	url = http://github.com/ComparativeGenomicsToolkit/sonLib
@@ -15,9 +15,9 @@
 	url = https://github.com/UCSCReconGroup/hdf5
 [submodule "submodules/hal"]
 	path = submodules/hal
-	url = https://github.com/glennhickey/hal
+	url = https://github.com/ComparativeGenomicsToolkit/hal
 [submodule "submodules/cactus2hal"]
 	path = submodules/cactus2hal
-	url = https://github.com/adderan/cactus2hal
+	url = https://github.com/ComparativeGenomicsToolkit/cactus2hal
 [submodule "hal"]
 	branch = master
