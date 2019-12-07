@@ -19,5 +19,3 @@
 [submodule "submodules/cactus2hal"]
 	path = submodules/cactus2hal
 	url = https://github.com/ComparativeGenomicsToolkit/cactus2hal
-[submodule "hal"]
-	branch = master

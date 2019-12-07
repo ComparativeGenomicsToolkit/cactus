@@ -6,7 +6,9 @@ cflags += ${tokyoCabinetIncl}
 libSources = blastAlignmentLib.c
 libHeaders = blastAlignmentLib.h
 
-all : ${libPath}/cactusBlastAlignment.a
+all: all_libs all_progs
+all_libs: ${libPath}/cactusBlastAlignment.a
+all_progs: 
 
 ${libPath}/cactusBlastAlignment.a : ${libSources} ${libHeaders} ${libPath}/cactusLib.a ${basicLibsDependencies}
 	${cxx} ${cflags} -I inc -I ${libPath}/ -c ${libSources}

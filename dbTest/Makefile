@@ -24,11 +24,13 @@ jobTree=${tempDir}/jobTree
 log = ${tempDir}/log.txt
 databaseDir=${tempDir}/testDb
 
-all : ${binPath}/dbTestScript 
+all: all_libs all_progs
+all_libs: 
+all_progs: ${binPath}/dbTestScript 
 
 ${binPath}/dbTestScript  : ${basicLibsDependencies} *.c
 	${cxx} ${cflags} -I inc -I${libPath} -Wno-error -o ${binPath}/dbTestScript *.c ${basicLibs}
-	
+
 clean :
 	rm -rf ${binPath}/dbTestScript
 

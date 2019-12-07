@@ -9,7 +9,9 @@ commonBarLibs =  ${libPath}/stCaf.a ${sonLibPath}/stPinchesAndCacti.a ${libPath}
 stBarDependencies =  ${commonBarLibs} ${basicLibsDependencies}
 stBarLibs = ${commonBarLibs} ${basicLibs}
 
-all : ${libPath}/cactusBarLib.a ${binPath}/cactus_bar ${binPath}/cactus_barTests
+all: all_libs all_progs
+all_libs: ${libPath}/cactusBarLib.a
+all_progs: ${binPath}/cactus_bar ${binPath}/cactus_barTests
 
 clean : 
 	rm -f ${binPath}/cactus_barTests  ${libPath}/cactusBarLib.a

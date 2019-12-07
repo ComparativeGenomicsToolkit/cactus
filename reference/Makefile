@@ -11,8 +11,10 @@ commonReferenceLibs = ${sonLibPath}/matchingAndOrdering.a ${libPath}/cactusLib.a
 stReferenceDependencies =  ${commonReferenceLibs} ${basicLibsDependencies}
 stReferenceLibs = ${commonReferenceLibs} ${basicLibs}
 
-all : ${libPath}/stReference.a ${binPath}/cactus_reference ${binPath}/cactus_addReferenceCoordinates ${binPath}/referenceTests ${binPath}/cactus_getReferenceSeq
-	
+all: all_libs all_progs
+all_libs: ${libPath}/stReference.a
+all_progs: ${binPath}/cactus_reference ${binPath}/cactus_addReferenceCoordinates ${binPath}/referenceTests ${binPath}/cactus_getReferenceSeq
+
 ${binPath}/cactus_reference : cactus_reference.c ${libSources} ${libHeaders} ${stReferenceDependencies}
 	${cxx} ${cflags} -I inc -I${libPath} -o ${binPath}/cactus_reference cactus_reference.c ${libSources} ${stReferenceLibs}
 

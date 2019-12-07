@@ -3,7 +3,9 @@ include ../include.mk
 
 cflags += ${tokyoCabinetIncl}
 
-all : ${binPath}/cactus_convertAlignmentsToInternalNames ${binPath}/cactus_stripUniqueIDs ${binPath}/cactus_blast_convertCoordinates ${binPath}/cactus_blast_chunkSequences ${binPath}/cactus_blast_chunkFlowerSequences ${binPath}/cactus_blast_sortAlignments ${binPath}/cactus_calculateMappingQualities ${binPath}/cactus_mirrorAndOrientAlignments ${binPath}/cactus_splitAlignmentOverlaps ${binPath}/cactus_coverage
+all: all_libs all_progs
+all_libs: 
+all_progs: ${binPath}/cactus_convertAlignmentsToInternalNames ${binPath}/cactus_stripUniqueIDs ${binPath}/cactus_blast_convertCoordinates ${binPath}/cactus_blast_chunkSequences ${binPath}/cactus_blast_chunkFlowerSequences ${binPath}/cactus_blast_sortAlignments ${binPath}/cactus_calculateMappingQualities ${binPath}/cactus_mirrorAndOrientAlignments ${binPath}/cactus_splitAlignmentOverlaps ${binPath}/cactus_coverage
 
 ${binPath}/cactus_blast_chunkFlowerSequences : *.c ${libPath}/cactusBlastAlignment.a ${libPath}/cactusLib.a ${basicLibsDependencies}
 	${cxx} ${cflags} -I${libPath} -o ${binPath}/cactus_blast_chunkFlowerSequences cactus_blast_chunkFlowerSequences.c ${libPath}/cactusBlastAlignment.a ${libPath}/cactusLib.a ${basicLibs}

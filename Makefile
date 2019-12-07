@@ -1,5 +1,9 @@
-# order is important, libraries first
 modules = api setup blastLib caf bar blast normalisation phylogeny reference faces check pipeline preprocessor hal dbTest
+
+# submodules are in two passes, since cactus2hal requires api which requires sonLib
+submodules1 = cPecan hal hdf5 matchingAndOrdering pinchesAndCacti sonLib
+submodules2 = cactus2hal
+submodules = ${submodules1} ${submodules2}
 
 git_commit ?= $(shell git rev-parse HEAD)
 dockstore = quay.io/comparative-genomics-toolkit
@@ -7,36 +11,35 @@ name = ${dockstore}/cactus
 tag = ${git_commit}
 runtime_fullpath = $(realpath runtime)
 
-export sonLibRootPath = ${PWD}/submodules/sonLib
+CWD = ${PWD}
 
-libSonLib = ${PWD}/submodules/sonLib/sonLib.a
-libPinchesAndCacti = ${PWD}/submodules/sonLib/lib/stPinchesAndCacti.a
-libCPecan = ${PWD}/submodules/sonLib/lib/cPecanLib.a
-libMatchingAndOrdering = ${PWD}/submodules/sonLib/lib/matchingAndOrdering.a
+export sonLibRootPath = ${CWD}/submodules/sonLib
+hdf5Bin = ${CWD}/submodules/hdf5/bin
+.PHONY: all all.% clean clean.% selfClean suball suball.% subclean.%
 
-halAppendCactusSubtree = ${PWD}/submodules/cactus2hal/bin/halAppendCactusSubtree
-h5c++ = ${PWD}/submodules/hdf5/bin/h5c++
+##
+# Building.  First build submodules, then a pass for libs and a pass for bins
+##
+all:
+	${MAKE} suball1
+	${MAKE} all_libs
+	${MAKE} all_progs
+	${MAKE} suball2
+all_libs:
+	${MAKE} ${modules:%=all_libs.%}
+all_progs: all_libs
+	${MAKE} ${modules:%=all_progs.%s}
 
-.PHONY: all all.% clean clean.% selfClean copyToBin
+all_libs.%:
+	cd $* && ${MAKE} all_libs
+all_progs.%:
+	cd $* && ${MAKE} all_progs
 
-all: deps ${modules:%=all.%} ${halAppendCactusSubtree} copyToBin
 
-all.%:
-	cd $* && ${MAKE} all
 
-copyToBin:
-	cp -rp submodules/sonLib/bin/* bin/
-	cp -rp submodules/hal/bin/* bin/
-	cp -rp submodules/cactus2hal/bin/* bin/
-
-deps: ${libSonLib} ${libPinchesAndCacti} ${libMatchingAndOrdering} ${libCPecan} hdf5Rule halRule
-
-selfClean:  ${modules:%=clean.%}
-	rm -rf lib/*.h bin/*.dSYM
-
-clean.%:
-	cd $* && ${MAKE} clean
-
+##
+# tests
+##
 test:
 	pytest .
 
@@ -46,53 +49,64 @@ test_blast:
 test_nonblast:
 	pytest . --suite=nonblast
 
+##
+# clean targets
+##
+selfClean: ${modules:%=clean.%}
+	rm -rf lib/*.h bin/*.dSYM
+
+clean.%:
+	cd $* && ${MAKE} clean
+
+clean: ${modules:%=clean.%} ${submodules:%=subclean.%}
+
+##
+# submodules
+##
+suball1: ${submodules1:%=suball.%}
+suball2: ${submodules2:%=suball.%}
+suball.sonLib:
+	cd submodules/sonLib && ${MAKE}
+	mkdir -p bin
+	ln -f submodules/sonLib/bin/* bin/
+
+suball.pinchesAndCacti: suball.sonLib
+	cd submodules/pinchesAndCacti && ${MAKE}
+
+suball.matchingAndOrdering: suball.sonLib
+	cd submodules/matchingAndOrdering && ${MAKE}
+
+suball.cPecan: suball.sonLib
+	cd submodules/cPecan && ${MAKE}
+
+suball.cactus2hal: suball.sonLib suball.hal all_libs.api
+	cd submodules/cactus2hal && PATH=${hdf5Bin}:$(PATH) ${MAKE}
+	mkdir -p bin
+	ln -f submodules/cactus2hal/bin/* bin/
+
+suball.hal: suball.hdf5 suball.sonLib
+	cd submodules/hal && PATH=${CWD}/submodules/hdf5/bin:$(PATH) ${MAKE}
+	mkdir -p bin
+	ln -f submodules/hal/bin/* bin/
+
+# hdf5 insists on running configure, so it isn't quick.  We shouldn't be building this anyway.
+someHdf5File = submodules/hdf5/bin/yodconfigure 
+suball.hdf5: ${someHdf5File}
+${someHdf5File}:
+	cd submodules/hdf5 && ./configure --prefix=${CWD}/submodules/hdf5 --enable-cxx && CFLAGS=-std=c99 AM_MAKEFLAGS=-e ${MAKE} -j4 -e && ${MAKE} install
+
+subclean.%:
+	cd submodules/$* && ${MAKE} clean
+
+##
+# docker
+##
 docker: Dockerfile
 	-docker rmi -f ${name}:latest
 	docker build --network=host -t ${name}:${tag} . --build-arg CACTUS_COMMIT=${git_commit}
 	docker tag ${name}:${tag} ${name}:latest
 
+# Requires ~/.dockercfg
 push: docker
-	# Requires ~/.dockercfg
 	docker push ${name}
 
-${libSonLib}:
-	@echo "Building dependency sonLib"
-	@cd ${PWD}/submodules/sonLib && ${MAKE}
-
-sonLibRule: ${libSonLib}
-
-${libPinchesAndCacti}: ${libSonLib}
-	@echo "Building dependency pinchesAndCacti"
-	@cd ${PWD}/submodules/pinchesAndCacti && ${MAKE}
-
-${libMatchingAndOrdering}: ${libSonLib}
-	@echo "Building dependency matchingAndOrdering"
-	@cd ${PWD}/submodules/matchingAndOrdering && ${MAKE}
-
-${libCPecan}: ${libSonLib}
-	@echo "Building dependency cPecan"
-	@cd ${PWD}/submodules/cPecan && ${MAKE}
-
-${halAppendCactusSubtree}: ${h5c++} halRule all.api
-	@echo "Building dependency cactus2hal"
-	@cd ${PWD}/submodules/cactus2hal && PATH=${PWD}/submodules/hdf5/bin:$(PATH) ${MAKE}
-
-hdf5Rule: ${h5c++}
-
-${h5c++}:
-	@echo "Building dependency hdf5"
-	@cd ${PWD}/submodules/hdf5 && ./configure --prefix=$(PWD)/submodules/hdf5 --enable-cxx && CFLAGS=-std=c99 AM_MAKEFLAGS=-e ${MAKE} -j4 -e && ${MAKE} install
-
-halRule: ${h5c++} ${libSonLib}
-	@echo "Building dependency hal"
-	@cd ${PWD}/submodules/hal && PATH=${PWD}/submodules/hdf5/bin:$(PATH) ${MAKE}
-
-ucscClean: selfClean
-	cd ${PWD}/submodules/sonLib && ${MAKE} clean
-	cd ${PWD}/submodules/pinchesAndCacti && ${MAKE} clean
-	cd ${PWD}/submodules/matchingAndOrdering && ${MAKE} clean
-
-clean: ucscClean selfClean
-	cd ${PWD}/submodules/hdf5 && ${MAKE} clean
-	cd ${PWD}/submodules/hal && ${MAKE} clean
-	cd ${PWD}/submodules/cactus2hal && ${MAKE} clean

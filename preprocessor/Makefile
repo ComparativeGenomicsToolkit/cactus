@@ -3,7 +3,9 @@ include ../include.mk
 
 cflags += ${tokyoCabinetIncl}
 
-all : ${binPath}/cactus_analyseAssembly ${binPath}/cactus_batch_mergeChunks ${binPath}/cactus_makeAlphaNumericHeaders.py ${binPath}/cactus_filterSmallFastaSequences.py
+all: all_libs all_progs
+all_libs: 
+all_progs: ${binPath}/cactus_analyseAssembly ${binPath}/cactus_batch_mergeChunks ${binPath}/cactus_makeAlphaNumericHeaders.py ${binPath}/cactus_filterSmallFastaSequences.py
 	cd lastzRepeatMasking && ${MAKE} all
 
 ${binPath}/cactus_filterSmallFastaSequences.py : cactus_filterSmallFastaSequences.py

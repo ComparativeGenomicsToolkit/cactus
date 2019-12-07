@@ -1,7 +1,9 @@
 rootPath = ../
 include ../include.mk
 
-all : ${binPath}/cactus_workflow_getFlowers ${binPath}/cactus_workflow_extendFlowers ${binPath}/cactus_workflow_flowerStats ${binPath}/cactus_workflow_convertAlignmentCoordinates ${binPath}/cactus_secondaryDatabase ${binPath}/docker_test_script
+all: all_libs all_progs
+all_libs: 
+all_progs: ${binPath}/cactus_workflow_getFlowers ${binPath}/cactus_workflow_extendFlowers ${binPath}/cactus_workflow_flowerStats ${binPath}/cactus_workflow_convertAlignmentCoordinates ${binPath}/cactus_secondaryDatabase ${binPath}/docker_test_script
 
 ${binPath}/cactus_workflow_getFlowers : *.c *.h ${libPath}/cactusLib.a ${basicLibsDependencies}
 	${cxx} ${cflags} -I${libPath} -o ${binPath}/cactus_workflow_getFlowers cactus_workflow_getFlowers.c ${libPath}/cactusLib.a ${basicLibs}

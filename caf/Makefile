@@ -9,7 +9,9 @@ commonCafLibs = ${libPath}/cactusBlastAlignment.a ${sonLibPath}/stPinchesAndCact
 stCafDependencies =  ${commonCafLibs} ${basicLibsDependencies}
 stCafLibs = ${commonCafLibs} ${basicLibs}
 
-all : ${libPath}/stCaf.a ${binPath}/stCafTests ${binPath}/cactus_caf
+all: all_libs all_progs
+all_libs: ${libPath}/stCaf.a
+all_progs: ${binPath}/stCafTests ${binPath}/cactus_caf
 
 ${libPath}/stCaf.a : ${libSources} ${libHeaders} ${stCafDependencies}
 	${cxx} ${cflags} -I inc -I ${libPath}/ -c ${libSources}
