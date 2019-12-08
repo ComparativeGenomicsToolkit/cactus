@@ -1,15 +1,15 @@
 [submodule "submodules/pinchesAndCacti"]
 	path = submodules/pinchesAndCacti
-	url = http://github.com/ComparativeGenomicsToolkit/pinchesAndCacti
+	url = https://github.com/ComparativeGenomicsToolkit/pinchesAndCacti
 [submodule "submodules/matchingAndOrdering"]
 	path = submodules/matchingAndOrdering
-	url = http://github.com/ComparativeGenomicsToolkit/matchingAndOrdering
+	url = https://github.com/ComparativeGenomicsToolkit/matchingAndOrdering
 [submodule "submodules/cPecan"]
 	path = submodules/cPecan
-	url = http://github.com/ComparativeGenomicsToolkit/cPecan
+	url = https://github.com/ComparativeGenomicsToolkit/cPecan
 [submodule "submodules/sonLib"]
 	path = submodules/sonLib
-	url = http://github.com/ComparativeGenomicsToolkit/sonLib
+	url = https://github.com/ComparativeGenomicsToolkit/sonLib
 [submodule "submodules/hdf5"]
 	path = submodules/hdf5
 	url = https://github.com/UCSCReconGroup/hdf5
