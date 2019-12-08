@@ -1,5 +1,5 @@
-rootPath = ../
-include ../include.mk
+rootPath = ..
+include ${rootPath}/include.mk
 
 cflags += ${tokyoCabinetIncl}
 
@@ -13,7 +13,8 @@ stReferenceLibs = ${commonReferenceLibs} ${basicLibs}
 
 all: all_libs all_progs
 all_libs: ${libPath}/stReference.a
-all_progs: ${binPath}/cactus_reference ${binPath}/cactus_addReferenceCoordinates ${binPath}/referenceTests ${binPath}/cactus_getReferenceSeq
+all_progs: all_libs
+	${MAKE} ${binPath}/cactus_reference ${binPath}/cactus_addReferenceCoordinates ${binPath}/referenceTests ${binPath}/cactus_getReferenceSeq
 
 ${binPath}/cactus_reference : cactus_reference.c ${libSources} ${libHeaders} ${stReferenceDependencies}
 	${cxx} ${cflags} -I inc -I${libPath} -o ${binPath}/cactus_reference cactus_reference.c ${libSources} ${stReferenceLibs}
@@ -27,13 +28,12 @@ ${binPath}/cactus_getReferenceSeq: cactus_getReferenceSeq.c ${stReferenceDepende
 ${binPath}/referenceTests : ${libTests} ${libSources} ${libHeaders} ${stReferenceDependencies}
 	${cxx} ${cflags} -I inc -I impl -I${libPath} -o ${binPath}/referenceTests ${libTests} ${libSources} ${stReferenceLibs}
 
-${libPath}/stReference.a : ${libSources} ${libHeaders} ${stReferenceDependencies}
+${libPath}/stReference.a : ${libSources} ${libHeaders}
 	${cxx} ${cflags} -I inc -I ${libPath}/ -c ${libSources}
 	ar rc stReference.a *.o
 	ranlib stReference.a 
 	rm *.o
 	mv stReference.a ${libPath}/
-	cp ${libHeaders} ${libPath}/
 
 clean : 
 	rm -f *.o

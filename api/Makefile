@@ -1,5 +1,5 @@
-rootPath = ../
-include ../include.mk
+rootPath = ..
+include ${rootPath}/include.mk
 
 libSources = impl/cactus*.c
 libHeaders = inc/cactus*.h
@@ -9,13 +9,13 @@ libTestsHeaders = tests/cactus*.h
 
 all: all_libs all_progs
 all_libs: ${libPath}/cactusLib.a
-all_progs: ${binPath}/cactusAPITests 
+all_progs: all_libs
+	${MAKE} ${binPath}/cactusAPITests 
 
 clean : 
 	rm -f ${libPath}/cactusLib.a ${libPath}/cactus*.h ${binPath}/cactusAPITests
 
-${libPath}/cactusLib.a : ${libSources} ${libHeaders} ${libInternalHeaders} ${basicLibsDependencies}
-	cp ${libHeaders} ${libPath}/
+${libPath}/cactusLib.a : ${libSources} ${libHeaders} ${libInternalHeaders}
 	${cxx} ${cflags} -I inc -I ${libPath}/ -c ${libSources}
 	ar rc cactusLib.a *.o
 	ranlib cactusLib.a 

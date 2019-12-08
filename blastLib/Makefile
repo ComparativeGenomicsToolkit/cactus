@@ -1,5 +1,5 @@
-rootPath = ../
-include ../include.mk
+rootPath = ..
+include ${rootPath}/include.mk
 
 cflags += ${tokyoCabinetIncl}
 
@@ -10,13 +10,12 @@ all: all_libs all_progs
 all_libs: ${libPath}/cactusBlastAlignment.a
 all_progs: 
 
-${libPath}/cactusBlastAlignment.a : ${libSources} ${libHeaders} ${libPath}/cactusLib.a ${basicLibsDependencies}
+${libPath}/cactusBlastAlignment.a : ${libSources} ${libHeaders}
 	${cxx} ${cflags} -I inc -I ${libPath}/ -c ${libSources}
 	ar rc cactusBlastAlignment.a *.o
 	ranlib cactusBlastAlignment.a 
 	rm *.o
 	mv cactusBlastAlignment.a ${libPath}/
-	cp ${libHeaders} ${libPath}/
 
 clean : 
 	rm -f *.o

@@ -1,5 +1,5 @@
-rootPath = ../../
-include ../../include.mk
+rootPath = ../..
+include ${rootPath}/include.mk
 
 cflags += ${tokyoCabinetIncl}
 

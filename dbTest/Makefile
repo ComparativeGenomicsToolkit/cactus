@@ -1,5 +1,5 @@
-rootPath = ../
-include ../include.mk
+rootPath = ..
+include ${rootPath}/include.mk
 
 #host=kolossus-10
 #batchSystem = parasol 
@@ -26,7 +26,8 @@ databaseDir=${tempDir}/testDb
 
 all: all_libs all_progs
 all_libs: 
-all_progs: ${binPath}/dbTestScript 
+all_progs: all_libs
+	${MAKE} ${binPath}/dbTestScript 
 
 ${binPath}/dbTestScript  : ${basicLibsDependencies} *.c
 	${cxx} ${cflags} -I inc -I${libPath} -Wno-error -o ${binPath}/dbTestScript *.c ${basicLibs}

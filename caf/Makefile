@@ -1,5 +1,5 @@
-rootPath = ../
-include ../include.mk
+rootPath = ..
+include ${rootPath}/include.mk
 
 libSources = impl/*.c
 libHeaders = inc/*.h
@@ -11,15 +11,15 @@ stCafLibs = ${commonCafLibs} ${basicLibs}
 
 all: all_libs all_progs
 all_libs: ${libPath}/stCaf.a
-all_progs: ${binPath}/stCafTests ${binPath}/cactus_caf
+all_progs: all_libs
+	${MAKE} ${binPath}/stCafTests ${binPath}/cactus_caf
 
-${libPath}/stCaf.a : ${libSources} ${libHeaders} ${stCafDependencies}
+${libPath}/stCaf.a : ${libSources} ${libHeaders}
 	${cxx} ${cflags} -I inc -I ${libPath}/ -c ${libSources}
 	ar rc stCaf.a *.o
 	ranlib stCaf.a 
 	rm *.o
 	mv stCaf.a ${libPath}/
-	cp ${libHeaders} ${libPath}/
 
 ${binPath}/stCafTests : ${libTests} ${libPath}/stCaf.a ${stCafDependencies}
 	${cxx} ${cflags} -I inc -I impl -I${libPath} -o ${binPath}/stCafTests ${libTests} ${libSources} ${libPath}/stCaf.a ${stCafLibs} -lpthread

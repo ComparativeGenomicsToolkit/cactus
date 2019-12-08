@@ -1,5 +1,5 @@
-rootPath = ../
-include ../include.mk
+rootPath = ..
+include ${rootPath}/include.mk
 
 libSources = impl/*.c
 libHeaders = inc/*.h
@@ -11,7 +11,8 @@ stBarLibs = ${commonBarLibs} ${basicLibs}
 
 all: all_libs all_progs
 all_libs: ${libPath}/cactusBarLib.a
-all_progs: ${binPath}/cactus_bar ${binPath}/cactus_barTests
+all_progs: all_libs
+	${MAKE} ${binPath}/cactus_bar ${binPath}/cactus_barTests
 
 clean : 
 	rm -f ${binPath}/cactus_barTests  ${libPath}/cactusBarLib.a
@@ -22,10 +23,9 @@ ${binPath}/cactus_bar : cactus_bar.c  ${libPath}/cactusBarLib.a ${stBarDependenc
 ${binPath}/cactus_barTests : ${libTests} tests/*.h ${libPath}/cactusBarLib.a ${stBarDependencies}
 	${cxx} ${cflags} -I inc -I${libPath} -Wno-error -o ${binPath}/cactus_barTests ${libTests} ${libPath}/cactusBarLib.a ${stBarLibs}
 
-${libPath}/cactusBarLib.a : ${libSources} ${libHeaders} ${stBarDependencies}
+${libPath}/cactusBarLib.a : ${libSources} ${libHeaders}
 	${cxx} ${cflags} -I inc -I ${libPath}/ -c ${libSources} 
 	ar rc cactusBarLib.a *.o
 	ranlib cactusBarLib.a 
 	rm *.o
 	mv cactusBarLib.a ${libPath}/
-	cp ${libHeaders} ${libPath}/

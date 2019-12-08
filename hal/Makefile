@@ -1,5 +1,5 @@
-rootPath = ../
-include ../include.mk
+rootPath = ..
+include ${rootPath}/include.mk
 
 libSources = impl/*.c
 libHeaders = inc/*.h
@@ -9,8 +9,11 @@ commonHalLibs = ${libPath}/stReference.a ${libPath}/cactusLib.a
 stHalDependencies =  ${commonHalLibs} ${basicLibsDependencies}
 stHalLibs = ${commonHalLibs} ${basicLibs}
 
-all : ${binPath}/cactus_halGenerator ${binPath}/cactus_halGeneratorTests ${binPath}/cactus_fastaGenerator
- 
+all: all_libs all_progs
+all_libs: 
+all_progs: all_libs
+	${MAKE} ${binPath}/cactus_halGenerator ${binPath}/cactus_halGeneratorTests ${binPath}/cactus_fastaGenerator
+
 clean : 
 	rm -f ${binPath}/cactus_halGenerator ${binPath}/cactus_halGeneratorTests 
 

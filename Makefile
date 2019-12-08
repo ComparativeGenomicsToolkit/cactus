@@ -1,9 +1,13 @@
-modules = api setup blastLib caf bar blast normalisation phylogeny reference faces check pipeline preprocessor hal dbTest
+rootPath = .
+modules = api setup blastLib caf bar blast normalisation hal phylogeny reference faces check pipeline preprocessor hal dbTest
 
-# submodules are in two passes, since cactus2hal requires api which requires sonLib
-submodules1 = cPecan hal hdf5 matchingAndOrdering pinchesAndCacti sonLib
+# submodules are in multiple pass to handle dependencies cactus2hal being dependent on
+# both cactus and sonLib
+submodules1 = sonLib hdf5 cPecan hal matchingAndOrdering pinchesAndCacti
 submodules2 = cactus2hal
 submodules = ${submodules1} ${submodules2}
+
+
 
 git_commit ?= $(shell git rev-parse HEAD)
 dockstore = quay.io/comparative-genomics-toolkit
@@ -13,6 +17,7 @@ runtime_fullpath = $(realpath runtime)
 
 CWD = ${PWD}
 
+# these must be absolute, as used in submodules.
 export sonLibRootPath = ${CWD}/submodules/sonLib
 hdf5Bin = ${CWD}/submodules/hdf5/bin
 .PHONY: all all.% clean clean.% selfClean suball suball.% subclean.%
@@ -28,14 +33,15 @@ all:
 all_libs:
 	${MAKE} ${modules:%=all_libs.%}
 all_progs: all_libs
-	${MAKE} ${modules:%=all_progs.%s}
+	${MAKE} ${modules:%=all_progs.%}
 
 all_libs.%:
 	cd $* && ${MAKE} all_libs
 all_progs.%:
 	cd $* && ${MAKE} all_progs
 
-
+# special ordering
+all_libs.blastLib: all_libs.api
 
 ##
 # tests
@@ -58,7 +64,7 @@ selfClean: ${modules:%=clean.%}
 clean.%:
 	cd $* && ${MAKE} clean
 
-clean: ${modules:%=clean.%} ${submodules:%=subclean.%}
+clean: selfClean ${submodules:%=subclean.%}
 
 ##
 # submodules
@@ -88,11 +94,12 @@ suball.hal: suball.hdf5 suball.sonLib
 	cd submodules/hal && PATH=${CWD}/submodules/hdf5/bin:$(PATH) ${MAKE}
 	mkdir -p bin
 	ln -f submodules/hal/bin/* bin/
+	ln -f submodules/hal/lib/libHal.a submodules/hal/lib/halLib.a
 
-# hdf5 insists on running configure, so it isn't quick.  We shouldn't be building this anyway.
-someHdf5File = submodules/hdf5/bin/yodconfigure 
-suball.hdf5: ${someHdf5File}
-${someHdf5File}:
+# hdf5 insists on running configure, so it isn't quick.
+hdf5Cmd = submodules/hdf5/bin/h5c++
+suball.hdf5: ${hdf5Cmd}
+${hdf5Cmd}:
 	cd submodules/hdf5 && ./configure --prefix=${CWD}/submodules/hdf5 --enable-cxx && CFLAGS=-std=c99 AM_MAKEFLAGS=-e ${MAKE} -j4 -e && ${MAKE} install
 
 subclean.%:

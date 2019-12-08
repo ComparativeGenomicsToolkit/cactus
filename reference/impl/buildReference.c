@@ -1,7 +1,6 @@
 #include "cactus.h"
 #include "sonLib.h"
 #include "stCheckEdges.h"
-#include "stReferenceProblem.h"
 #include "stPerfectMatching.h"
 #include "stCheckEdges.h"
 #include "stMatchingAlgorithms.h"
