@@ -100,7 +100,9 @@ suball.hal: suball.hdf5 suball.sonLib
 hdf5Cmd = submodules/hdf5/bin/h5c++
 suball.hdf5: ${hdf5Cmd}
 ${hdf5Cmd}:
-	cd submodules/hdf5 && ./configure --prefix=${CWD}/submodules/hdf5 --enable-cxx && CFLAGS=-std=c99 AM_MAKEFLAGS=-e ${MAKE} -j4 -e && ${MAKE} install
+	cd submodules/hdf5 && ./configure --prefix=${CWD}/submodules/hdf5 --enable-cxx
+	cd submodules/hdf5 && CFLAGS=-std=c99 AM_MAKEFLAGS=-e ${MAKE}
+	cd submodules/hdf5 && ${MAKE} install
 
 subclean.%:
 	cd submodules/$* && ${MAKE} clean
