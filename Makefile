@@ -101,7 +101,7 @@ hdf5Cmd = submodules/hdf5/bin/h5c++
 suball.hdf5: ${hdf5Cmd}
 ${hdf5Cmd}:
 	cd submodules/hdf5 && ./configure --prefix=${CWD}/submodules/hdf5 --enable-cxx
-	cd submodules/hdf5 && CFLAGS=-std=c99 AM_MAKEFLAGS=-e ${MAKE}
+	cd submodules/hdf5 && CFLAGS=-std=c99 AM_MAKEFLAGS=-e ${MAKE} -e
 	cd submodules/hdf5 && ${MAKE} install
 
 subclean.%:
