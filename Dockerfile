@@ -8,8 +8,7 @@ RUN mkdir -p /home/cactus
 
 COPY . /home/cactus
 
-RUN cd /home/cactus && make clean && rm -f /home/cactus/submodules/hdf5/bin/h5c++
-RUN cd /home/cactus && make deps
+RUN cd /home/cactus && make clean
 RUN cd /home/cactus && make
 
 # Create a thinner final Docker image in which only the binaries and necessary data exist.
