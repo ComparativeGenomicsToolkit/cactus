@@ -104,6 +104,10 @@ ${hdf5Cmd}:
 	cd submodules/hdf5 && CFLAGS=-std=c99 AM_MAKEFLAGS=-e ${MAKE} -e
 	cd submodules/hdf5 && ${MAKE} install
 
+# hdf5 make file is built by configure
+subclean.hdf5:
+	if [ -e submodules/hdf5/Makefile ] ; then cd submodules/hdf5 && ${MAKE} distclean; fi
+
 subclean.%:
 	cd submodules/$* && ${MAKE} clean
 
