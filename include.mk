@@ -1,3 +1,10 @@
+# if include.local.mk exists, include it first to set various options
+# it shuld not be checked in
+includeLocal = ${rootPath}/include.local.mk
+ifneq ($(wildcard ${includeLocal}),)
+   include ${includeLocal}
+endif
+
 #Location of sonLib
 binPath=${rootPath}/bin/
 libPath=${rootPath}/lib/
