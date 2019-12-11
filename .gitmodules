@@ -9,13 +9,10 @@
 	url = https://github.com/ComparativeGenomicsToolkit/cPecan
 [submodule "submodules/sonLib"]
 	path = submodules/sonLib
-	url = https://github.com/ComparativeGenomicsToolkit/sonLib
-[submodule "submodules/hdf5"]
-	path = submodules/hdf5
-	url = https://github.com/UCSCReconGroup/hdf5
+	url = https://github.com/diekhans/sonLib
 [submodule "submodules/hal"]
 	path = submodules/hal
-	url = https://github.com/ComparativeGenomicsToolkit/hal
+	url = https://github.com/diekhans/hal
 [submodule "submodules/cactus2hal"]
 	path = submodules/cactus2hal
 	url = https://github.com/ComparativeGenomicsToolkit/cactus2hal

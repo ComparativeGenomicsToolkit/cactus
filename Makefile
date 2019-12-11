@@ -3,7 +3,7 @@ modules = api setup blastLib caf bar blast normalisation hal phylogeny reference
 
 # submodules are in multiple pass to handle dependencies cactus2hal being dependent on
 # both cactus and sonLib
-submodules1 = sonLib hdf5 cPecan hal matchingAndOrdering pinchesAndCacti
+submodules1 = sonLib cPecan hal matchingAndOrdering pinchesAndCacti
 submodules2 = cactus2hal
 submodules = ${submodules1} ${submodules2}
 
@@ -19,7 +19,6 @@ CWD = ${PWD}
 
 # these must be absolute, as used in submodules.
 export sonLibRootPath = ${CWD}/submodules/sonLib
-hdf5Bin = ${CWD}/submodules/hdf5/bin
 .PHONY: all all.% clean clean.% selfClean suball suball.% subclean.%
 
 ##
@@ -86,27 +85,15 @@ suball.cPecan: suball.sonLib
 	cd submodules/cPecan && ${MAKE}
 
 suball.cactus2hal: suball.sonLib suball.hal all_libs.api
-	cd submodules/cactus2hal && PATH=${hdf5Bin}:$(PATH) ${MAKE}
+	cd submodules/cactus2hal && ${MAKE}
 	mkdir -p bin
 	ln -f submodules/cactus2hal/bin/* bin/
 
-suball.hal: suball.hdf5 suball.sonLib
-	cd submodules/hal && PATH=${CWD}/submodules/hdf5/bin:$(PATH) ${MAKE}
+suball.hal: suball.sonLib
+	cd submodules/hal &&  ${MAKE}
 	mkdir -p bin
 	ln -f submodules/hal/bin/* bin/
 	ln -f submodules/hal/lib/libHal.a submodules/hal/lib/halLib.a
-
-# hdf5 insists on running configure, so it isn't quick.
-hdf5Cmd = submodules/hdf5/bin/h5c++
-suball.hdf5: ${hdf5Cmd}
-${hdf5Cmd}:
-	cd submodules/hdf5 && ./configure --prefix=${CWD}/submodules/hdf5 --enable-cxx
-	cd submodules/hdf5 && CFLAGS=-std=c99 AM_MAKEFLAGS=-e ${MAKE} -e
-	cd submodules/hdf5 && ${MAKE} install
-
-# hdf5 make file is built by configure
-subclean.hdf5:
-	if [ -e submodules/hdf5/Makefile ] ; then cd submodules/hdf5 && ${MAKE} distclean; fi
 
 subclean.%:
 	cd submodules/$* && ${MAKE} clean
