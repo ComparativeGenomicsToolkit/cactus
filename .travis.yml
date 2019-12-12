@@ -3,7 +3,7 @@ dist: trusty
 language: c++
 before_install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" && "$CACTUS_BINARIES_MODE" == "local" ]]; then sudo apt-get -qq update; fi
-  - if [[ "$TRAVIS_OS_NAME" == "linux" && "$CACTUS_BINARIES_MODE" == "local" ]]; then sudo apt-get install -y libtokyocabinet-dev libkyototycoon-dev kyototycoon libkyotocabinet-dev; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" && "$CACTUS_BINARIES_MODE" == "local" ]]; then sudo apt-get install -y libtokyocabinet-dev libkyototycoon-dev kyototycoon libkyotocabinet-dev libhdf5-cpp-11 libhdf5-dev; fi
   - if [[ ! -z "$SON_TRACE_DATASETS" ]]; then git clone https://github.com/UCSantaCruzComputationalGenomicsLab/cactusTestData; fi
 # Push docker containers. We skip this on PR builds because Travis
 # doesn't include the user/password in those builds.
