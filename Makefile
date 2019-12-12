@@ -1,4 +1,7 @@
 rootPath = .
+
+include ${rootPath}/include.mk
+
 modules = api setup blastLib caf bar blast normalisation hal phylogeny reference faces check pipeline preprocessor hal dbTest
 
 # submodules are in multiple pass to handle dependencies cactus2hal being dependent on
