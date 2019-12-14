@@ -10,13 +10,14 @@ submodules1 = sonLib cPecan hal matchingAndOrdering pinchesAndCacti
 submodules2 = cactus2hal
 submodules = ${submodules1} ${submodules2}
 
-
-
 git_commit ?= $(shell git rev-parse HEAD)
 dockstore = quay.io/comparative-genomics-toolkit
 name = ${dockstore}/cactus
 tag = ${git_commit}
 runtime_fullpath = $(realpath runtime)
+
+# FIXME: this is also built by setup.py need to sort this out
+versionPy = src/cactus/shared/version.py
 
 CWD = ${PWD}
 
@@ -32,6 +33,7 @@ all:
 	${MAKE} all_libs
 	${MAKE} all_progs
 	${MAKE} suball2
+
 all_libs:
 	${MAKE} ${modules:%=all_libs.%}
 all_progs: all_libs
@@ -48,20 +50,25 @@ all_libs.blastLib: all_libs.api
 ##
 # tests
 ##
-test:
+export PYTHONPATH = ${CWD}/submodules:${CWD}/src
+test: ${versionPy}
 	pytest .
 
-test_blast:
+test_blast: ${versionPy}
 	pytest . --suite=blast
 
-test_nonblast:
+test_nonblast: ${versionPy}
 	pytest . --suite=nonblast
+
+${versionPy}:
+	echo "cactus_commit = '${git_commit}'" >$@
+
 
 ##
 # clean targets
 ##
 selfClean: ${modules:%=clean.%}
-	rm -rf lib/*.h bin/*.dSYM
+	rm -rf lib/*.h bin/*.dSYM ${versionPy}
 
 clean.%:
 	cd $* && ${MAKE} clean

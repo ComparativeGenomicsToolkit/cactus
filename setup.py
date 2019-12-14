@@ -2,13 +2,13 @@ from setuptools import setup, find_packages
 import os
 import subprocess
 
+# FIXME this is duplicated in makefile, we need to sort this out
 versionFile = "src/cactus/shared/version.py"
 if os.path.exists(versionFile):
     os.remove(versionFile)
 git_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip()
 with open(versionFile, 'w') as versionFH:
     versionFH.write("cactus_commit = '%s'\n" % git_commit)
-
 
 setup(
     name="progressiveCactus",
