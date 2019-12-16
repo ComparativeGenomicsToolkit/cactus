@@ -921,7 +921,7 @@ def singularityCommand(tool=None,
     else:
         # we assume that we have the image locally
         img_path = os.environ["CACTUS_SINGULARITY_IMG"]
-        singularity_opts = []
+        singularity_opts = ["-u"]
 
     base_singularity_call = ["singularity", "--silent", "run"]
     if work_dir and work_dir != '.':

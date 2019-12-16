@@ -405,14 +405,9 @@ def importSingularityImage(options, toil):
             #       when SINGULARITY_CACHEDIR is not set
             oldCWD = os.getcwd()
             os.chdir(os.path.dirname(imgPath))
-            # --size is deprecated starting in 2.4, but is needed for 2.3 support. Keeping it in for now.
-            try:
-                check_call(["singularity", "pull", "--size", "2000", "--name", os.path.basename(imgPath),
-                            "docker://" + getDockerImage()])
-            except CalledProcessError:
-                # Call failed, try without --size, required for singularity 3+
-                check_call(["singularity", "pull", "--name", os.path.basename(imgPath),
-                            "docker://" + getDockerImage()])
+            # using a sandbox lets us call singularity run with -u which lets us run it inside docker
+            check_call(['singularity', 'build', '-s', os.path.basename(imgPath),
+                        "docker://" + getDockerImage()])
 
             if Toil.parseLocator(options.jobStore)[0] != "file":
                 # convert the image to a sandbox.  this lets it get run with -u, which seems
