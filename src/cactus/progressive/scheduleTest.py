@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python33
 
 #Copyright (C) 2011 by Glenn Hickey
 #

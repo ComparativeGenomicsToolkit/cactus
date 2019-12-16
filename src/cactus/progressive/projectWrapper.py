@@ -1,11 +1,11 @@
-#!/usr/bin/env python
+#!/usr/bin/env python33
 import logging
 import os
 import xml.etree.ElementTree as ET
 
 from sonLib.bioio import absSymPath
 
-from seqFile import SeqFile
+from .seqFile import SeqFile
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.shared.common import cactusRootPath

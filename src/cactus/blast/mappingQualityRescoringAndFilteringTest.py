@@ -268,7 +268,7 @@ class TestCase(unittest.TestCase):
             
             # For each intermediate chop point
             i = start1
-            for j in xrange(start1+1, end1+1):
+            for j in range(start1+1, end1+1):
                 if (name1, j) in ends:
                     # Chop up cigar 
                     coordinates1 = name1, i, j, "+"
@@ -300,7 +300,7 @@ class TestCase(unittest.TestCase):
                     i = j
                     
         # Check we have the expected number of cigars  
-        self.assertEquals(totalExpectedCigars, len(outputCigars))
+        self.assertEqual(totalExpectedCigars, len(outputCigars))
     
     @silentOnSuccess
     def testCalculateMappingQualities(self):
@@ -356,18 +356,18 @@ class TestCase(unittest.TestCase):
         # Run lastz
         startTime = time.time()
         runSelfLastz(concatenatedSequenceFile, self.simpleInputCigarPath, "")
-        print "It took %s seconds to run lastz" % (time.time() - startTime)
+        print(("It took %s seconds to run lastz" % (time.time() - startTime)))
         with open(self.simpleInputCigarPath, 'r') as fh:
             inputCigars = [ cigar[:-1] for cigar in fh.readlines() ] # Remove new lines
-        print "There are %s cigars from lastz" % len(inputCigars)
+        print(("There are %s cigars from lastz" % len(inputCigars)))
         
         # Run toil pipeline
         startTime = time.time()
         outputCigars = self.runToilPipeline(self.simpleInputCigarPath)
-        print "It took %s seconds to run unique mapping pipeline" % (time.time() - startTime)
+        print(("It took %s seconds to run unique mapping pipeline" % (time.time() - startTime)))
         
         # Check output
-        print "Total input cigars:", len(inputCigars), "total output cigars", len(outputCigars)
+        print(("Total input cigars:", len(inputCigars), "total output cigars", len(outputCigars)))
         #print outputCigars
     
     @silentOnSuccess

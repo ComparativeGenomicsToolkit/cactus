@@ -18,7 +18,7 @@ comparing two settings of lastz.
 class TestCase(PreprocessorTestCase):
     def testLastzRepeatMask(self):
         #Demo sequences
-        sequenceFiles = [ os.path.join(self.encodePath, self.encodeRegion, "%s.ENm001.fa" % species) for species in 'human', "hedgehog" ]
+        sequenceFiles = [ os.path.join(self.encodePath, self.encodeRegion, "%s.ENm001.fa" % species) for species in ('human', "hedgehog") ]
         #Max occurrences of a repeat within the sequence
         maxOccurrence = 1
 
@@ -28,7 +28,7 @@ class TestCase(PreprocessorTestCase):
             #Get the masked bases
             maskedBasesOriginal = getMaskedBases(originalSequences)
             #Total bases
-            totalBases = sum([ len(i) for i in originalSequences.values() ])
+            totalBases = sum([ len(i) for i in list(originalSequences.values()) ])
             #Calculate number of hard masked bases
             totalNBases = len([ (header, i, base) for (header, i, base) in maskedBasesOriginal if base.upper() == "N" ])
             
@@ -43,7 +43,7 @@ class TestCase(PreprocessorTestCase):
 
                 outputID = toil.start(LastzRepeatMaskJob(repeatMaskOptions=repeatMaskOptions, queryID=sequenceID, targetIDs=[sequenceID]))
                 toil.exportFile(outputID, makeURL(self.tempOutputFile))
-            print "It took %s seconds to run lastzMasking" % (time.time()-startTime)
+            print(("It took %s seconds to run lastzMasking" % (time.time()-startTime)))
 
             #Parse lastz masked sequences into dictionary
             lastzSequences = getSequences(self.tempOutputFile)
@@ -54,14 +54,14 @@ class TestCase(PreprocessorTestCase):
             #Compare the proportion of bases masked by lastz with original repeat masking
             maskedBasesOriginal = getMaskedBases(originalSequences)
             maskedBasesLastzMasked = getMaskedBases(lastzSequences)
-            print " For the sequence file ", sequenceFile, \
+            print((" For the sequence file ", sequenceFile, \
              " the total number of sequences is ", len(originalSequences), \
              " the total number of bases ", totalBases, \
              " the number of bases originally masked was: ", len(maskedBasesOriginal),\
              " the number of bases masked after running lastz repeat masking is: ", len(maskedBasesLastzMasked), \
              " the intersection of these masked sets is: ", len(maskedBasesLastzMasked.intersection(maskedBasesOriginal)), \
              " the total number of bases that are Ns ", totalNBases, \
-             " lastz was filter for max-occurrences of more than : ", maxOccurrence
+             " lastz was filter for max-occurrences of more than : ", maxOccurrence))
             #self.assertGreater(len(maskedBasesLastzMasked), len(maskedBasesOriginal))
 
             #Run lastz repeat masker using heuristic settings for comparison with the slower settings
@@ -74,7 +74,7 @@ class TestCase(PreprocessorTestCase):
                                                     fragment=200)
                 outputID = toil.start(LastzRepeatMaskJob(repeatMaskOptions=repeatMaskOptions, queryID=sequenceID, targetIDs=[sequenceID]))
                 toil.exportFile(outputID, makeURL(self.tempOutputFile))
-            print "It took %s seconds to run lastzMasking fast" % (time.time()-startTime)
+            print(("It took %s seconds to run lastzMasking fast" % (time.time()-startTime)))
             lastzSequencesFast = getSequences(self.tempOutputFile)
             maskedBasesLastzMaskedFast = getMaskedBases(lastzSequencesFast)
 

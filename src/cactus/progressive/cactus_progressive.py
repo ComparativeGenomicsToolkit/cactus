@@ -1,9 +1,9 @@
-#!/usr/bin/env python
+#!/usr/bin/env python33
 
 #Copyright (C) 2011 by Glenn Hickey
 #
 #Released under the MIT license, see LICENSE.txt
-#!/usr/bin/env python
+#!/usr/bin/env python33
 
 """Wrapper to run the cactus_workflow progressively, using the input species tree as a guide
 
@@ -215,7 +215,7 @@ class RunCactusPreprocessorThenProgressiveDown(RoundedJob):
         fileStore.logToMaster("Using the following configuration:\n%s" % ET.tostring(self.configNode))
 
         # Log the stats for the un-preprocessed assemblies
-        for name, sequence in self.project.inputSequenceIDMap.items():
+        for name, sequence in list(self.project.inputSequenceIDMap.items()):
             self.addChildJobFn(logAssemblyStats, "Before preprocessing", name, sequence)
 
         # Create jobs to create the output sequences
@@ -225,10 +225,10 @@ class RunCactusPreprocessorThenProgressiveDown(RoundedJob):
         ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals() #This is necessary..
         #Add the preprocessor child job. The output is a job promise value that will be
         #converted into a list of the IDs of the preprocessed sequences in the follow on job.
-        preprocessorJob = self.addChild(CactusPreprocessor(self.project.inputSequenceIDMap.values(), configNode))
+        preprocessorJob = self.addChild(CactusPreprocessor(list(self.project.inputSequenceIDMap.values()), configNode))
         rvs = [preprocessorJob.rv(i) for i in range(len(self.project.inputSequenceIDMap))]
         fileStore.logToMaster('input sequence IDs: %s' % self.project.inputSequenceIDMap)
-        for genome, rv in zip(self.project.inputSequenceIDMap.keys(), rvs):
+        for genome, rv in zip(list(self.project.inputSequenceIDMap.keys()), rvs):
             self.project.outputSequenceIDMap[genome] = rv
 
         #Now build the progressive-down job
@@ -259,11 +259,11 @@ class RunCactusPreprocessorThenProgressiveDown2(RoundedJob):
         # Save preprocessed sequences
         if self.options.intermediateResultsUrl is not None:
             preprocessedSequences = self.project.outputSequenceIDMap
-            for genome, seqID in preprocessedSequences.items():
+            for genome, seqID in list(preprocessedSequences.items()):
                 fileStore.exportFile(seqID, self.options.intermediateResultsUrl + '-preprocessed-' + genome)
 
         # Log the stats for the preprocessed assemblies
-        for name, sequence in self.project.outputSequenceIDMap.items():
+        for name, sequence in list(self.project.outputSequenceIDMap.items()):
             self.addChildJobFn(logAssemblyStats, "After preprocessing", name, sequence)
 
         project = self.addChild(ProgressiveDown(options=self.options, project=self.project, event=self.event, schedule=self.schedule, memory=self.configWrapper.getDefaultMemory())).rv()
@@ -500,7 +500,7 @@ def runCactusProgressive(options):
 
             project.readXML(pjPath)
             #import the sequences
-            for genome, seq in project.inputSequenceMap.items():
+            for genome, seq in list(project.inputSequenceMap.items()):
                 if os.path.isdir(seq):
                     tmpSeq = getTempFile()
                     catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)

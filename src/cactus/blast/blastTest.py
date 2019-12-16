@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python33
 
 #Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
 #
@@ -67,12 +67,12 @@ class TestCase(unittest.TestCase):
         """We compare the output with a naive run of the blast program, to check the results are nearly
         equivalent.
         """
-        encodeRegions = [ "ENm00" + str(i) for i in xrange(1,2) ] #, 2) ] #Could go to six
+        encodeRegions = [ "ENm00" + str(i) for i in range(1,2) ] #, 2) ] #Could go to six
         species = ("human", "mouse", "dog")
         #Other species to try "rat", "monodelphis", "macaque", "chimp"
         for encodeRegion in encodeRegions:
             regionPath = os.path.join(self.encodePath, encodeRegion)
-            for i in xrange(len(species)):
+            for i in range(len(species)):
                 species1 = species[i]
                 for species2 in species[i+1:]:
                     seqFile1 = os.path.join(regionPath, "%s.%s.fa" % (species1, encodeRegion))
@@ -122,16 +122,16 @@ class TestCase(unittest.TestCase):
         outgroups = ["rabbit", "dog", "rat", "platypus", "xenopus", "fugu"]
         MAX_NUM_OUTGROUPS = 3
         # subselect a random set of outgroups in the same order
-        outgroups = [outgroups[i] for i in sorted(random.sample(xrange(len(outgroups)), MAX_NUM_OUTGROUPS))]
+        outgroups = [outgroups[i] for i in sorted(random.sample(list(range(len(outgroups))), MAX_NUM_OUTGROUPS))]
         regionPath = os.path.join(self.encodePath, encodeRegion)
-        ingroupPaths = map(lambda x: os.path.join(regionPath, x + "." + encodeRegion + ".fa"), ingroups)
-        outgroupPaths = map(lambda x: os.path.join(regionPath, x + "." + encodeRegion + ".fa"), outgroups)
+        ingroupPaths = [os.path.join(regionPath, x + "." + encodeRegion + ".fa") for x in ingroups]
+        outgroupPaths = [os.path.join(regionPath, x + "." + encodeRegion + ".fa") for x in outgroups]
         results = []
-        for numOutgroups in xrange(1, len(outgroups) + 1):
+        for numOutgroups in range(1, len(outgroups) + 1):
             # Align w/ increasing numbers of outgroups
             subResults = getTempFile()
             subOutgroupPaths = outgroupPaths[:numOutgroups]
-            print "aligning %s vs %s" % (",".join(ingroupPaths), ",".join(subOutgroupPaths))
+            print(("aligning %s vs %s" % (",".join(ingroupPaths), ",".join(subOutgroupPaths))))
             tmpToil = os.path.join(self.tempDir, "outgroupToil")
             runCactusBlastIngroupsAndOutgroups(ingroupPaths, subOutgroupPaths, alignmentsFile=subResults, toilDir=tmpToil)
             results.append(subResults)
@@ -142,27 +142,27 @@ class TestCase(unittest.TestCase):
                 ingroupCoverage = getTempFile(rootDir=self.tempDir)
                 calculateCoverage(sequenceFile=ingroupPath, cigarFile=subResults, outputFile=ingroupCoverage)
                 coveredBases = popenCatch("cat %s | awk '{ total += $3 - $2 } END { print total }'" % ingroupCoverage)
-                print "covered bases on %s using %d outgroups: %s" % (ingroup, i + 1, coveredBases)
+                print(("covered bases on %s using %d outgroups: %s" % (ingroup, i + 1, coveredBases)))
 
-        resultsSets = map(lambda x : loadResults(x), results)
+        resultsSets = [loadResults(x) for x in results]
         for i, moreOutgroupsResults in enumerate(resultsSets[1:]):
             # Make sure the results from (n+1) outgroups are
             # (very nearly) a superset of the results from n outgroups
-            print "Using %d addl outgroup(s):" % (i + 1)
+            print(("Using %d addl outgroup(s):" % (i + 1)))
             comparator =  ResultComparator(resultsSets[0], moreOutgroupsResults)
-            print comparator
+            print(comparator)
             self.assertTrue(comparator.sensitivity >= 0.99)
 
         # Ensure that the new alignments don't cover more than
         # x% of already existing alignments to human
-        for i in xrange(1, len(resultsSets)):
+        for i in range(1, len(resultsSets)):
             prevResults = resultsSets[i-1][0]
             curResults = resultsSets[i][0]
-            prevResultsHumanPos = set(map(lambda x: (x[0], x[1]) if "human" in x[0] else (x[2], x[3]), filter(lambda x: "human" in x[0] or "human" in x[2], prevResults)))
+            prevResultsHumanPos = set([(x[0], x[1]) if "human" in x[0] else (x[2], x[3]) for x in [x for x in prevResults if "human" in x[0] or "human" in x[2]]])
             newAlignments = curResults.difference(prevResults)
-            newAlignmentsHumanPos =  set(map(lambda x: (x[0], x[1]) if "human" in x[0] else (x[2], x[3]), filter(lambda x: "human" in x[0] or "human" in x[2], newAlignments)))
-            print "addl outgroup %d:" % i
-            print "bases re-covered: %f (%d)" % (len(newAlignmentsHumanPos.intersection(prevResultsHumanPos))/float(len(prevResultsHumanPos)), len(newAlignmentsHumanPos.intersection(prevResultsHumanPos)))
+            newAlignmentsHumanPos =  set([(x[0], x[1]) if "human" in x[0] else (x[2], x[3]) for x in [x for x in newAlignments if "human" in x[0] or "human" in x[2]]])
+            print(("addl outgroup %d:" % i))
+            print(("bases re-covered: %f (%d)" % (len(newAlignmentsHumanPos.intersection(prevResultsHumanPos))/float(len(prevResultsHumanPos)), len(newAlignmentsHumanPos.intersection(prevResultsHumanPos)))))
         for subResult in results:
             os.remove(subResult)
 
@@ -173,8 +173,8 @@ class TestCase(unittest.TestCase):
         ingroups = ["human", "cow"]
         outgroups = ["macaque", "rabbit", "dog"]
         regionPath = os.path.join(self.encodePath, encodeRegion)
-        ingroupPaths = map(lambda x: os.path.join(regionPath, x + "." + encodeRegion + ".fa"), ingroups)
-        outgroupPaths = map(lambda x: os.path.join(regionPath, x + "." + encodeRegion + ".fa"), outgroups)
+        ingroupPaths = [os.path.join(regionPath, x + "." + encodeRegion + ".fa") for x in ingroups]
+        outgroupPaths = [os.path.join(regionPath, x + "." + encodeRegion + ".fa") for x in outgroups]
         # Run blast in "ingroup vs outgroups" mode, requesting to keep
         # the bed files that show outgroup coverage on the ingroup.
         toilDir = os.path.join(self.tempDir, "tmp_toil")
@@ -211,7 +211,7 @@ class TestCase(unittest.TestCase):
         outgroups = ["macaque", "rabbit", "dog"]
         regionPath = os.path.join(self.encodePath, encodeRegion)
         ingroupPath = os.path.join(regionPath, ingroup + "." + encodeRegion + ".fa")
-        outgroupPaths = map(lambda x: os.path.join(regionPath, x + "." + encodeRegion + ".fa"), outgroups)
+        outgroupPaths = [os.path.join(regionPath, x + "." + encodeRegion + ".fa") for x in outgroups]
         # Run in "set against set" mode, aligning the entire ingroup
         # vs each outgroup
         runCactusBlast([ingroupPath], alignmentsFile=self.tempOutputFile,
@@ -231,8 +231,8 @@ class TestCase(unittest.TestCase):
         calculateCoverage(sequenceFile=ingroupPath, cigarFile=self.tempOutputFile2, outputFile=coverageIngroupVsOutgroupsUnfiltered)
         coverageIngroupVsOutgroups = int(popenCatch("cat %s | awk '{ total +=  $3 - $2} END { print total }'" % coverageIngroupVsOutgroupsUnfiltered))
 
-        print "total coverage on human (set vs set mode, %d outgroups): %d" % (len(outgroups), coverageSetVsSet)
-        print "total coverage on human (ingroup vs outgroup mode, %d outgroups): %d" % (len(outgroups), coverageIngroupVsOutgroups)
+        print(("total coverage on human (set vs set mode, %d outgroups): %d" % (len(outgroups), coverageSetVsSet)))
+        print(("total coverage on human (ingroup vs outgroup mode, %d outgroups): %d" % (len(outgroups), coverageIngroupVsOutgroups)))
 
         # Make sure we're getting a reasonable fraction of the
         # alignments when using the trimming strategy.
@@ -255,8 +255,8 @@ class TestCase(unittest.TestCase):
         calculateCoverage(sequenceFile=ingroupPath, cigarFile=outgroupAlignments, outputFile=coverageFileInVsOut)      
         coverageFromLastOutgroupInVsOut = int(popenCatch("cat %s | awk '{ total +=  $3 - $2} END { print total }'" % coverageFileInVsOut))
 
-        print "total coverage on human from last outgroup in set (%s) (set vs set mode): %d" % (outgroups[-1], coverageFromLastOutgroupSetVsSet)
-        print "total coverage on human from last outgroup in set (%s) (ingroup vs outgroup mode): %d" % (outgroups[-1], coverageFromLastOutgroupInVsOut)
+        print(("total coverage on human from last outgroup in set (%s) (set vs set mode): %d" % (outgroups[-1], coverageFromLastOutgroupSetVsSet)))
+        print(("total coverage on human from last outgroup in set (%s) (ingroup vs outgroup mode): %d" % (outgroups[-1], coverageFromLastOutgroupInVsOut)))
 
         self.assertTrue(float(coverageFromLastOutgroupInVsOut)/coverageFromLastOutgroupSetVsSet <= 0.10)
 
@@ -267,7 +267,7 @@ class TestCase(unittest.TestCase):
         species = ("human", "mouse", "dog")
         #Other species to try "rat", "monodelphis", "macaque", "chimp"
         regionPath = os.path.join(self.encodePath, encodeRegion)
-        for i in xrange(len(species)):
+        for i in range(len(species)):
             species1 = species[i]
             for species2 in species[i+1:]:
                 seqFile1 = os.path.join(regionPath, "%s.%s.fa" % (species1, encodeRegion))
@@ -289,17 +289,17 @@ class TestCase(unittest.TestCase):
         """
         tempSeqFile = os.path.join(self.tempDir, "tempSeq.fa")
         self.tempFiles.append(tempSeqFile)
-        for test in xrange(self.testNo):
-            seqNo = random.choice(xrange(0, 10))
+        for test in range(self.testNo):
+            seqNo = random.choice(list(range(0, 10)))
             seq = getRandomSequence(8000)[1]
             fileHandle = open(tempSeqFile, 'w')
-            for fastaHeader, seq in [ (str(i), mutateSequence(seq, 0.3*random.random())) for i in xrange(seqNo) ]:
+            for fastaHeader, seq in [ (str(i), mutateSequence(seq, 0.3*random.random())) for i in range(seqNo) ]:
                 if random.random() > 0.5:
                     seq = reverseComplement(seq)
                 fastaWrite(fileHandle, fastaHeader, seq)
             fileHandle.close()
-            chunkSize = random.choice(xrange(500, 9000))
-            overlapSize = random.choice(xrange(2, 100))
+            chunkSize = random.choice(list(range(500, 9000)))
+            overlapSize = random.choice(list(range(2, 100)))
             toilDir = os.path.join(getTempDirectory(self.tempDir), "toil")
             runCactusBlast([ tempSeqFile ], self.tempOutputFile, toilDir, chunkSize, overlapSize)
             if getLogLevelString() == "DEBUG":
@@ -411,7 +411,7 @@ def loadResults(resultsFile):
                 j += operation.length * s2
             else:
                 assert operation.type == PairwiseAlignment.PAIRWISE_MATCH
-                for k in xrange(operation.length):
+                for k in range(operation.length):
                     if pairwiseAlignment.contig1 <= pairwiseAlignment.contig2:
                         if pairwiseAlignment.contig1 != pairwiseAlignment.contig2 or i != j: #Avoid self alignments
                             pairsSet.add((pairwiseAlignment.contig1, i, pairwiseAlignment.contig2, j)) 

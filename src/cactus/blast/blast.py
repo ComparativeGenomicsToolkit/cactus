@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python33
 #Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
 #
 #Released under the MIT license, see LICENSE.txt
@@ -102,7 +102,7 @@ class MakeSelfBlasts(ChildTreeJob):
         #Avoid compression if just one chunk
         self.blastOptions.compressFiles = self.blastOptions.compressFiles and len(self.chunkIDs) > 2
         resultsIDs = []
-        for i in xrange(len(self.chunkIDs)):
+        for i in range(len(self.chunkIDs)):
             resultsIDs.append(self.addChild(RunSelfBlast(self.blastOptions, self.chunkIDs[i])).rv())
         logger.info("Made the list of self blasts")
         #Setup job to make all-against-all blasts
@@ -120,8 +120,8 @@ class MakeOffDiagonalBlasts(ChildTreeJob):
         def run(self, fileStore):
             resultsIDs = []
             #Make the list of blast jobs.
-            for i in xrange(0, len(self.chunkIDs)):
-                for j in xrange(i+1, len(self.chunkIDs)):
+            for i in range(0, len(self.chunkIDs)):
+                for j in range(i+1, len(self.chunkIDs)):
                     resultsIDs.append(self.addChild(RunBlast(blastOptions=self.blastOptions, seqFileID1=self.chunkIDs[i], seqFileID2=self.chunkIDs[j])).rv())
 
             return self.addFollowOn(CollateBlasts(self.blastOptions, resultsIDs)).rv()

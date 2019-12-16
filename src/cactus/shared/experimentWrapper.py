@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python33
 
 #Copyright (C) 2011 by Glenn Hickey
 #
@@ -28,14 +28,14 @@ class DbElemWrapper(object):
         dataString = ET.tostring(self.confElem)
         if self.confElem.tag != "st_kv_database_conf":
             raise RuntimeError("The database conf string is improperly formatted: %s" % dataString)
-        if not self.confElem.attrib.has_key("type"):
+        if "type" not in self.confElem.attrib:
             raise RuntimeError("The database conf string does not have a type attrib: %s" % dataString)
         typeString = self.confElem.attrib["type"]
         if typeString == "tokyo_cabinet":
             tokyoCabinet = self.confElem.find("tokyo_cabinet")
             if tokyoCabinet == None:
                 raise RuntimeError("Database conf is of type tokyo cabinet but there is no nested tokyo cabinet tag: %s" % dataString)
-            if not tokyoCabinet.attrib.has_key("database_dir"):
+            if "database_dir" not in tokyoCabinet.attrib:
                 raise RuntimeError("The tokyo cabinet tag has no database_dir tag: %s" % dataString)
         elif typeString == "kyoto_tycoon":
             kyotoTycoon = self.confElem.find("kyoto_tycoon")

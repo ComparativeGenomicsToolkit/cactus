@@ -155,12 +155,12 @@ def seqFilePairGenerator():
         return
      ##Get sequences
     encodePath = os.path.join(TestStatus.getPathToDataSets(), "MAY-2005")
-    encodeRegions = [ "ENm00" + str(i) for i in xrange(1,2) ] #, 2) ] #Could go to six
+    encodeRegions = [ "ENm00" + str(i) for i in range(1,2) ] #, 2) ] #Could go to six
     species = ("human", "mouse") #, "dog")#, "chimp") 
     #Other species to try "rat", "monodelphis", "macaque", "chimp"
     for encodeRegion in encodeRegions:
         regionPath = os.path.join(encodePath, encodeRegion)
-        for i in xrange(len(species)):
+        for i in range(len(species)):
             species1 = species[i]
             for species2 in species[i+1:]:
                 seqFile1 = os.path.join(regionPath, "%s.%s.fa" % (species1, encodeRegion))

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python33
 
 """Script to generate a series of random
 """
@@ -31,7 +31,7 @@ class AddKeysPhase(Target):
     
     def run(self):
         keyIndex = 0
-        for jobIndex in xrange(int(self.options.totalJobs)):
+        for jobIndex in range(int(self.options.totalJobs)):
             self.addChildTarget(AddKeys(self.options, keyIndex))
             keyIndex += int(self.options.keysPerJob)
         self.setFollowOnTarget(SetKeysPhase(self.options))
@@ -48,7 +48,7 @@ class AddKeys(Target):
 class SetKeysPhase(AddKeysPhase):
     def run(self):
         keyIndex = 0
-        for jobIndex in xrange(int(self.options.totalJobs)):
+        for jobIndex in range(int(self.options.totalJobs)):
             self.addChildTarget(SetKeys(self.options, keyIndex))
             keyIndex += int(self.options.keysPerJob)
 

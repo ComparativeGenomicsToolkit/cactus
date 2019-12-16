@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python33
 """Checks headers are all unique.
 """
 from sonLib.bioio import fastaRead

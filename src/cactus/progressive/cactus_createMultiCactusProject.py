@@ -1,9 +1,9 @@
-#!/usr/bin/env python
+#!/usr/bin/env python33
 
 #Copyright (C) 2011 by Glenn Hickey
 #
 #Released under the MIT license, see LICENSE.txt
-#!/usr/bin/env python
+#!/usr/bin/env python33
 
 """Create the multi_cactus xml and directory structure from a workflow template
 """ 
@@ -126,7 +126,7 @@ def specifyAlignmentRoot(mcProj, expTemplate, alignmentRootId):
     outGroupNames = set()
     eventsInSubtree = set(mcProj.mcTree.getName(i) for i in mcProj.mcTree.postOrderTraversal(alignmentRootId))
     if mcProj.outgroup is not None:
-        for event, ogNameDistList in mcProj.outgroup.ogMap.items():
+        for event, ogNameDistList in list(mcProj.outgroup.ogMap.items()):
             if event in eventsInSubtree:
                 for og, dist in ogNameDistList:
                     outGroupNames.add(og)
@@ -161,7 +161,7 @@ def specifyAlignmentRoot(mcProj, expTemplate, alignmentRootId):
         mcProj.mcTree.addOutgroup(ogName, dist)
 
     # remove any experiment directories that have become invalid
-    for event in mcProj.expMap.keys():
+    for event in list(mcProj.expMap.keys()):
         if mcProj.mcTree.getNodeId(event) in deadNodes:
             del mcProj.expMap[event]
             
@@ -189,7 +189,7 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
         os.makedirs(options.path)
     mcProj.writeXML(os.path.join(options.path, "%s_project.xml" % options.name))
 
-    for name, expPath in mcProj.expMap.items():
+    for name, expPath in list(mcProj.expMap.items()):
         path = os.path.join(options.path, name)
         children = mcProj.entireTree.getChildNames(name)
 
@@ -198,7 +198,7 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
         if configTemplate.getOutgroupStrategy() != 'none' \
         and name in mcProj.outgroup.ogMap:
             # Outgroup name is the first element of the ogMap tuples
-            outgroups.extend(map(itemgetter(0), mcProj.outgroup.ogMap[name]))
+            outgroups.extend(list(map(itemgetter(0), mcProj.outgroup.ogMap[name])))
 
         subtree = mcProj.entireTree.extractSpanningTree(children + [name] + outgroups)
         exp = ExperimentWrapper.createExperimentWrapper(NXNewick().writeString(subtree),

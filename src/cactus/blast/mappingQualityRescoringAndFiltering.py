@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python33
 #Copyright (C) 2009-2018 by Benedict Paten (benedictpaten@gmail.com)
 #
 #Released under the MIT license, see LICENSE.txt
@@ -43,7 +43,7 @@ def mappingQualityRescoring(job, inputAlignmentFileID,
     
     # Get temporary file
     assert maxAlignmentsPerSite >= 1
-    tempAlignmentFiles = [job.fileStore.getLocalTempFile() for i in xrange(maxAlignmentsPerSite)]
+    tempAlignmentFiles = [job.fileStore.getLocalTempFile() for i in range(maxAlignmentsPerSite)]
     
     # Mirror and orient alignments, sort, split overlaps and calculate mapping qualities
     cactus_call(parameters=[["cat", inputAlignmentFile],

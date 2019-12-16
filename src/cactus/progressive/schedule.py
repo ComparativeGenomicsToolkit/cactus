@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python33
 
 #Copyright (C) 2011 by Glenn Hickey
 #
@@ -53,7 +53,7 @@ class Schedule:
         else:
             expMap = mcProject.expMap
             
-        for name, expPath in expMap.items():
+        for name, expPath in list(expMap.items()):
             exp = ExperimentWrapper(ET.parse(expPath).getroot())
             tree = exp.getTree()
             self.inGraph.add_node(name)

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python33
 
 #Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
 #
@@ -103,7 +103,7 @@ class TestCase(unittest.TestCase):
         sequences, _ = getCactusInputs_random(treeLeafNumber=3)
         rootSeq = sequences.pop()
         # Create a star tree
-        tree = '(%s)root;' % ",".join([str(x) + ":1.0" for x in xrange(len(sequences))])
+        tree = '(%s)root;' % ",".join([str(x) + ":1.0" for x in range(len(sequences))])
         outputDir = getTempDirectory()
         experiment = getCactusWorkflowExperimentForTest(sequences, tree,
                                                         outputDir,

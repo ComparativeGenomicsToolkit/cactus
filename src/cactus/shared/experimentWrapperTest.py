@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python33
 
 #Copyright (C) 2011 by Glenn Hickey
 #
@@ -32,13 +32,13 @@ class TestCase(unittest.TestCase):
         self.exp.setRootGenome('anc1')
         self.exp.setRootReconstructed(True)
         self.exp.setOutgroupGenomes(['MOUSE', 'RAT', 'DOG', 'CAT', 'PIG', 'COW'])
-        for genome, seq in self.seqMap.items():
+        for genome, seq in list(self.seqMap.items()):
             # These aren't real IDs, but should still work for our
             # purposes
             self.exp.setSequenceID(genome, seq)
 
     def testGetSequencePath(self):
-        for genome, seq in self.seqMap.items():
+        for genome, seq in list(self.seqMap.items()):
             self.assertEqual(self.exp.getSequenceID(genome), seq)
 
         # Should not be any entries for genomes not in the tree

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python33
 #Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
 #
 #Released under the MIT license, see LICENSE.txt
@@ -6,7 +6,7 @@
 """
 
 import os
-import cPickle
+import pickle
 import pickle
 import sys
 import shutil
@@ -21,7 +21,7 @@ import hashlib
 import tempfile
 import timeit
 
-from urlparse import urlparse
+from urllib.parse import urlparse
 from datetime import datetime
 
 from toil.lib.bioio import logger
@@ -79,7 +79,7 @@ def getLogLevelString2(logLevelString):
 def getOptionalAttrib(node, attribName, typeFn=None, default=None):
     """Get an optional attrib, or default if not set or node is None
     """
-    if node != None and node.attrib.has_key(attribName):
+    if node != None and attribName in node.attrib:
         if typeFn != None:
             if typeFn == bool:
                 return bool(int(node.attrib[attribName]))
@@ -174,7 +174,7 @@ def runCactusExtendFlowers(cactusDiskDatabaseString, flowerNames,
 def encodeFlowerNames(flowerNames):
     if len(flowerNames) == 0:
         return "0"
-    return "%i %s" % (len(flowerNames), " ".join([ str(flowerNames[0]) ] + [ str(flowerNames[i] - flowerNames[i-1]) for i in xrange(1, len(flowerNames)) ]))
+    return "%i %s" % (len(flowerNames), " ".join([ str(flowerNames[0]) ] + [ str(flowerNames[i] - flowerNames[i-1]) for i in range(1, len(flowerNames)) ]))
     
 def decodeFirstFlowerName(encodedFlowerNames):
     tokens = encodedFlowerNames.split()
@@ -219,7 +219,7 @@ def runCactusSetup(cactusDiskDatabaseString, seqMap,
                    makeEventHeadersAlphaNumeric=False):
     logLevel = getLogLevelString2(logLevel)
     # We pass in the genome->sequence map as a series of paired arguments: [genome, faPath]*N.
-    pairs = [[genome, faPath] for genome, faPath in seqMap.items()]
+    pairs = [[genome, faPath] for genome, faPath in list(seqMap.items())]
     args = [item for sublist in pairs for item in sublist]
 
     args += ["--speciesTree", newickTreeString, "--cactusDisk", cactusDiskDatabaseString,
@@ -507,7 +507,7 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
         endAlignmentsToPrecomputeOutputFile = os.path.basename(endAlignmentsToPrecomputeOutputFile)
         args += ["--endAlignmentsToPrecomputeOutputFile", endAlignmentsToPrecomputeOutputFile]
     if precomputedAlignments is not None:
-        precomputedAlignments = map(os.path.basename, precomputedAlignments)
+        precomputedAlignments = list(map(os.path.basename, precomputedAlignments))
         precomputedAlignments = " ".join(precomputedAlignments)
         args += ["--precomputedAlignments", precomputedAlignments]
     if ingroupCoverageFile is not None:
@@ -1291,7 +1291,7 @@ class ChildTreeJob(RoundedJob):
 
             curLevel = self.queuedChildJobs
             while len(curLevel) > self.maxChildrenPerJob:
-                curLevel = [curLevel[i:i + self.maxChildrenPerJob] for i in xrange(0, len(curLevel), self.maxChildrenPerJob)]
+                curLevel = [curLevel[i:i + self.maxChildrenPerJob] for i in range(0, len(curLevel), self.maxChildrenPerJob)]
             # curLevel is now a nested list (of lists, of lists...)
             # representing a tree of out-degree no higher than
             # maxChildrenPerJob. We can pass that to SpawnChildren
@@ -1316,8 +1316,8 @@ class SpawnChildren(RoundedJob):
         # force the use of pickle for this worker process (which
         # should only last as long as the ChildTreeJob that creates
         # this class).
-        cPickle.dump = pickle.dump
-        cPickle.dumps = pickle.dumps
+        pickle.dump = pickle.dump
+        pickle.dumps = pickle.dumps
 
         super(SpawnChildren, self).__init__(*args, preemptable=True, **kwargs)
 

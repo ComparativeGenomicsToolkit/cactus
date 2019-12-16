@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python33
 
 ## Filter small sequences out of a fasta file.  For use with flies,
 ## for example, where scaffolds of length <200kb seem to be considered
@@ -33,11 +33,11 @@ def containedSequences(inputFile):
                 assert len(lookup) == 0
                 return None
             if int(offset) == 0:
-                assert lookup.has_key(name) == False
+                assert (name in lookup) == False
                 lookup[name] = (len(seq), False)
-            elif lookup.has_key(name) == True:
+            elif (name in lookup) == True:
                 lookup[name] = (max(lookup[name][0], int(offset) + len(seq)), lookup[name][1])
-            if name != prev and lookup.has_key(prev):
+            if name != prev and prev in lookup:
                 lookup[prev] = (lookup[prev][0], True)
             prev = name
     return lookup
@@ -46,7 +46,7 @@ def tooShort(header, seq, options, contTable):
     isTooShort = False
     if contTable is not None:
         key = header[:header.find('|1|')]
-        if contTable.has_key(key):
+        if key in contTable:
             length, flag = contTable[key]
             isTooShort = flag and length < options.length
     else:

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python33
 
 #Copyright (C) 2011 by Glenn Hickey
 #
@@ -39,14 +39,14 @@ class MultiCactusProject:
             self.expMap[nameElem] = pathElem
             if "experiment_id" in cactusPathElem.attrib:
                 self.expIDMap[nameElem] = cactusPathElem.attrib["experiment_id"]
-        self.inputSequenceMap = dict(zip(xmlRoot.attrib["inputSequenceNames"].split(),
-                                         xmlRoot.attrib["inputSequences"].split()))
+        self.inputSequenceMap = dict(list(zip(xmlRoot.attrib["inputSequenceNames"].split(),
+                                         xmlRoot.attrib["inputSequences"].split())))
         if "inputSequenceIDs" in xmlRoot.attrib:
-            self.inputSequenceIDMap = dict(zip(xmlRoot.attrib["inputSequenceIDNames"].split(),
-                                               xmlRoot.attrib["inputSequenceIDs"].split()))
+            self.inputSequenceIDMap = dict(list(zip(xmlRoot.attrib["inputSequenceIDNames"].split(),
+                                               xmlRoot.attrib["inputSequenceIDs"].split())))
         if "outputSequenceIDs" in xmlRoot.attrib:
-            self.outputSequenceIDMap = dict(zip(xmlRoot.attrib["outputSequenceNames"].split(),
-                                                xmlRoot.attrib["outputSequenceIDs"].split()))
+            self.outputSequenceIDMap = dict(list(zip(xmlRoot.attrib["outputSequenceNames"].split(),
+                                                xmlRoot.attrib["outputSequenceIDs"].split())))
 
         logger.info("xmlRoot = %s" % ET.tostring(xmlRoot))
         if "configID" in xmlRoot.attrib:
@@ -59,7 +59,7 @@ class MultiCactusProject:
         treeElem = ET.Element("tree")
         treeElem.text = NXNewick().writeString(self.mcTree)
         xmlRoot.append(treeElem)
-        for name, expPath in self.expMap.items():
+        for name, expPath in list(self.expMap.items()):
             cactusPathElem = ET.Element("cactus")
             cactusPathElem.attrib["name"] = name
             cactusPathElem.attrib["experiment_path"] = expPath
@@ -67,14 +67,14 @@ class MultiCactusProject:
                 cactusPathElem.attrib["experiment_id"] = self.expIDMap[name]
             xmlRoot.append(cactusPathElem)
         #We keep track of all the input sequences at the top level
-        xmlRoot.attrib["inputSequences"] = " ".join(self.inputSequenceMap.values())
-        xmlRoot.attrib["inputSequenceNames"] = " ".join(self.inputSequenceMap.keys())
+        xmlRoot.attrib["inputSequences"] = " ".join(list(self.inputSequenceMap.values()))
+        xmlRoot.attrib["inputSequenceNames"] = " ".join(list(self.inputSequenceMap.keys()))
         if self.inputSequenceIDMap:
-            xmlRoot.attrib["inputSequenceIDs"] = " ".join(self.inputSequenceIDMap.values())
-            xmlRoot.attrib["inputSequenceIDNames"] = " ".join(self.inputSequenceIDMap.keys())
+            xmlRoot.attrib["inputSequenceIDs"] = " ".join(list(self.inputSequenceIDMap.values()))
+            xmlRoot.attrib["inputSequenceIDNames"] = " ".join(list(self.inputSequenceIDMap.keys()))
         if self.outputSequenceIDMap:
-            xmlRoot.attrib["outputSequenceIDs"] = " ".join(self.outputSequenceIDMap.values())
-            xmlRoot.attrib["outputSequenceNames"] = " ".join(self.outputSequenceIDMap.keys())
+            xmlRoot.attrib["outputSequenceIDs"] = " ".join(list(self.outputSequenceIDMap.values()))
+            xmlRoot.attrib["outputSequenceNames"] = " ".join(list(self.outputSequenceIDMap.keys()))
         if self.configID:
             xmlRoot.attrib["configID"] = self.configID
 
@@ -86,14 +86,14 @@ class MultiCactusProject:
 
     def syncToFileStore(self, toil):
         self.expIDMap = dict()
-        for name, expPath in self.expMap.items():
+        for name, expPath in list(self.expMap.items()):
             expWrapper = ExperimentWrapper(ET.parse(expPath).getroot())
             expWrapper.setConfigID(toil.importFile("file://" + expWrapper.getConfigPath()))
             expWrapper.writeXML(expPath)
             self.expIDMap[name] = toil.importFile("file://" + expPath)
 
     def getConfigPath(self):
-        return ExperimentWrapper(ET.parse(self.expMap.values()[0]).getroot()).getConfigPath()
+        return ExperimentWrapper(ET.parse(list(self.expMap.values())[0]).getroot()).getConfigPath()
 
     def setConfigID(self, configID):
         self.configID = configID

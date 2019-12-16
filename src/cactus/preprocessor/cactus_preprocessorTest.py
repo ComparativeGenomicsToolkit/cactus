@@ -48,17 +48,17 @@ class TestCase(PreprocessorTestCase):
             maskedBasesOriginal = getMaskedBases(originalSequences)
             maskedBasesLastzMasked = getMaskedBases(processedSequences)
             #Total bases
-            totalBases = sum([ len(i) for i in originalSequences.values() ])
+            totalBases = sum([ len(i) for i in list(originalSequences.values()) ])
             #Calculate number of hard masked bases
             totalNBases = len([ (header, i, base) for (header, i, base) in maskedBasesOriginal if base.upper() == "N" ])
             
-            print " For the sequence file ", sequenceFile, \
+            print((" For the sequence file ", sequenceFile, \
              " the total number of sequences is ", len(originalSequences), \
              " the total number of bases ", totalBases, \
              " the number of bases originally masked was: ", len(maskedBasesOriginal),\
              " the number of bases masked after running lastz repeat masking is: ", len(maskedBasesLastzMasked), \
              " the intersection of these masked sets is: ", len(maskedBasesLastzMasked.intersection(maskedBasesOriginal)), \
-             " the total number of bases that are Ns ", totalNBases
+             " the total number of bases that are Ns ", totalNBases))
             self.assertGreater(maskedBasesLastzMasked, maskedBasesOriginal)
 
         

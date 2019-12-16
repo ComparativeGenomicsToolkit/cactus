@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python33
 
 #Copyright (C) 2011 by Glenn Hickey
 #
@@ -54,10 +54,10 @@ class GreedyOutgroup(object):
             return invalid
         good = set([x for x in self.mcTree.postOrderTraversal(rootId)])
         for node in self.mcTree.postOrderTraversal():
-            print self.mcTree.getName(node), self.mcTree.isLeaf(node), node in good
+            print((self.mcTree.getName(node), self.mcTree.isLeaf(node), node in good))
             if not self.mcTree.isLeaf(node) and node not in good:
                 invalid.append(node)
-        print [self.mcTree.getName(i) for i in invalid]
+        print([self.mcTree.getName(i) for i in invalid])
         return set(invalid)
  
     # get rid of any node that's not an event
@@ -152,8 +152,8 @@ class GreedyOutgroup(object):
     def greedy(self, threshold = None, candidateSet = None,
                candidateChildFrac = 2., maxNumOutgroups = 1):
         orderedPairs = []
-        for source, sinks in self.dm.items():
-            for sink, dist in sinks.items():
+        for source, sinks in list(self.dm.items()):
+            for sink, dist in list(sinks.items()):
                 if source != self.root and sink != self.root:
                     orderedPairs.append((dist, (source, sink)))
         orderedPairs.sort(key = lambda x: x[0])
@@ -227,7 +227,7 @@ class GreedyOutgroup(object):
         # it, sort the outgroups by distance again. Sorting the
         # outgroups is critical for the multiple-outgroups code to
         # work well.
-        for node, outgroups in self.ogMap.items():
+        for node, outgroups in list(self.ogMap.items()):
             self.ogMap[node] = sorted(outgroups, key=lambda x: x[1])
 
 
@@ -268,7 +268,7 @@ class DynamicOutgroup(GreedyOutgroup):
         assert seqMap is not None
         # map name to (numSequences, totalLength)
         self.sequenceInfo = dict()
-        for event, inPath in seqMap.items():
+        for event, inPath in list(seqMap.items()):
             node = self.mcTree.getNodeId(event)
             if os.path.isdir(inPath):
                 fastaPaths = [os.path.join(inPath, f) for
@@ -318,7 +318,7 @@ class DynamicOutgroup(GreedyOutgroup):
             # we look for highest k with non-zero solution.
             # (can swap >= 0.0 with bestScore below to get the global best
             # not sure we'd want fewer outgroups..)
-            for i in xrange(self.numOG + 1):
+            for i in range(self.numOG + 1):
                 if self.dpTable[node][i].score > 0.0:
                     bestK = i
 
@@ -368,7 +368,7 @@ class DynamicOutgroup(GreedyOutgroup):
         # set table to 0
         for node in self.dpTree.preOrderTraversal():
             self.dpTable[node] = []
-            for i in xrange(self.numOG + 1):
+            for i in range(self.numOG + 1):
                 self.dpTable[node].append(self.DPEntry(0.0, []))
                 
     # compute score for given node from its children using the dynamic
@@ -384,7 +384,7 @@ class DynamicOutgroup(GreedyOutgroup):
             # (very inefficeint since we only want unique solutions with
             # sum <= numOG, but assume numbers are small enough so doesn't
             # matter for now)
-            cset = [x for x in xrange(0, self.numOG + 1)]
+            cset = [x for x in range(0, self.numOG + 1)]
             if math.pow(len(cset), numChildren) > 1e6:
                 raise RuntimeError("Dynamic Outgroup selection error for"
                                    " %s: degree limit exceeded.  Need to fix "
@@ -549,10 +549,10 @@ def main():
     try:
         NX.drawing.nx_agraph.write_dot(outgroup.dag, args[1])
     except Exception as e:
-        print "NetworkX failed: %s" % str(e)
-        print "Writing ogMap in non-graphviz format"
+        print(("NetworkX failed: %s" % str(e)))
+        print("Writing ogMap in non-graphviz format")
         with open(args[1], "w") as f:
-            for node, ogs in outgroup.ogMap.items():
+            for node, ogs in list(outgroup.ogMap.items()):
                 f.write("%s -> %s\n" % (node, str(ogs)))            
         
     return 0

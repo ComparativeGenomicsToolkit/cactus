@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python33
 
 # Progressive Cactus Package
 # Copyright (C) 2009-2012 by Glenn Hickey (hickey@soe.ucsc.edu)
@@ -108,7 +108,7 @@ class SeqFile:
         label = 0
         self.tree.nxDg.add_node(label)
         self.tree.rootId = label
-        for name in self.pathMap.keys():
+        for name in list(self.pathMap.keys()):
             label += 1
             self.tree.nxDg.add_edge(0, label)
             self.tree.setName(label, name)

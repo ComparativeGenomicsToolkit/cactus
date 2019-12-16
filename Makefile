@@ -52,13 +52,13 @@ all_libs.blastLib: all_libs.api
 ##
 export PYTHONPATH = ${CWD}/submodules:${CWD}/src
 test: ${versionPy}
-	pytest .
+	${PYTHON} -m pytest .
 
 test_blast: ${versionPy}
-	pytest . --suite=blast
+	${PYTHON} -m pytest . --suite=blast
 
 test_nonblast: ${versionPy}
-	pytest . --suite=nonblast
+	${PYTHON} -m pytest . --suite=nonblast
 
 ${versionPy}:
 	echo "cactus_commit = '${git_commit}'" >$@

@@ -1,5 +1,5 @@
 import unittest
-from StringIO import StringIO
+from io import StringIO
 from textwrap import dedent
 from sonLib.bioio import getTempFile
 from cactus.shared.test import silentOnSuccess

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python33
 
 #Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
 #
@@ -107,19 +107,19 @@ class TestCase(unittest.TestCase):
         os.remove(tempConfigFile)
 
     def testGetOptionalAttrib(self):
-        self.assertEquals("2", getOptionalAttrib(self.barNode, "minimumBlockDegree"))
-        self.assertEquals(2, getOptionalAttrib(self.barNode, "minimumBlockDegree", typeFn=int, default=1))
-        self.assertEquals(None, getOptionalAttrib(self.barNode, "doesntExist"))
-        self.assertEquals(1, getOptionalAttrib(self.barNode, "doesntExist", typeFn=int, default=1))
+        self.assertEqual("2", getOptionalAttrib(self.barNode, "minimumBlockDegree"))
+        self.assertEqual(2, getOptionalAttrib(self.barNode, "minimumBlockDegree", typeFn=int, default=1))
+        self.assertEqual(None, getOptionalAttrib(self.barNode, "doesntExist"))
+        self.assertEqual(1, getOptionalAttrib(self.barNode, "doesntExist", typeFn=int, default=1))
 
     def testFindRequiredNode(self):
-        self.assertEquals(findRequiredNode(self.configNode, "bar"), self.barNode)
+        self.assertEqual(findRequiredNode(self.configNode, "bar"), self.barNode)
         try:
             findRequiredNode(self.configNode, "doesntExist")
             self.assertTrue(0)
         except:
             pass
-        self.assertEquals(findRequiredNode(self.configNode, "caf"), self.configNode.findall("caf")[0])
+        self.assertEqual(findRequiredNode(self.configNode, "caf"), self.configNode.findall("caf")[0])
 
     def testExtractNode(self):
         subNode = ET.SubElement(self.barNode, "CactusSetReferenceCoordinatesDownRecursion", { "memory":"10" })
@@ -129,10 +129,10 @@ class TestCase(unittest.TestCase):
         self.barNode.attrib["added2"] = "1"
         self.assertTrue("added2" in self.barNode.attrib)
         self.assertFalse("added2" in barNodeCopy.attrib)
-        self.assertEquals(subNode, self.barNode.find("CactusSetReferenceCoordinatesDownRecursion"))
+        self.assertEqual(subNode, self.barNode.find("CactusSetReferenceCoordinatesDownRecursion"))
         subNodeCopy = barNodeCopy.find("CactusSetReferenceCoordinatesDownRecursion")
         self.assertTrue(subNodeCopy != None)
-        self.assertEquals("10", subNodeCopy.attrib["memory"])
+        self.assertEqual("10", subNodeCopy.attrib["memory"])
 
     def testGetJobNode(self):
         class CactusTestJob(CactusJob):
@@ -140,32 +140,32 @@ class TestCase(unittest.TestCase):
         class CactusTestJob2(CactusJob):
             pass
         node = ET.SubElement(self.barNode, "CactusTestJob")
-        self.assertEquals(node, getJobNode(self.barNode, CactusTestJob))
-        self.assertEquals(None, getJobNode(self.barNode, CactusTestJob2))
+        self.assertEqual(node, getJobNode(self.barNode, CactusTestJob))
+        self.assertEqual(None, getJobNode(self.barNode, CactusTestJob2))
         node2 = ET.SubElement(self.barNode, "CactusSetReferenceCoordinatesDownRecursion")
-        self.assertEquals(node2, getJobNode(self.barNode, CactusSetReferenceCoordinatesDownRecursion))
+        self.assertEqual(node2, getJobNode(self.barNode, CactusSetReferenceCoordinatesDownRecursion))
 
     def testCactusJob(self):
         class CactusTestJob(CactusJob):
             pass
         node = ET.SubElement(self.barNode, "CactusTestJob", attrib={ "memory":10, "cpu":2,  "overlargeMemory":20 })
         job = CactusTestJob(self.barNode, self.barNode)
-        self.assertEquals(job.getOptionalPhaseAttrib("diagonalExpansion", typeFn=int), 20)
-        self.assertEquals(job.getOptionalPhaseAttrib("doesntExist", typeFn=int, default=1), 1)
-        self.assertEquals(job.getOptionalJobAttrib("memory", typeFn=int), 10)
-        self.assertEquals(job.getOptionalJobAttrib("cpu", typeFn=int, default=1), 2)
-        self.assertEquals(job.getOptionalJobAttrib("overlargeCpu", typeFn=int, default=-1), -1)
+        self.assertEqual(job.getOptionalPhaseAttrib("diagonalExpansion", typeFn=int), 20)
+        self.assertEqual(job.getOptionalPhaseAttrib("doesntExist", typeFn=int, default=1), 1)
+        self.assertEqual(job.getOptionalJobAttrib("memory", typeFn=int), 10)
+        self.assertEqual(job.getOptionalJobAttrib("cpu", typeFn=int, default=1), 2)
+        self.assertEqual(job.getOptionalJobAttrib("overlargeCpu", typeFn=int, default=-1), -1)
 
     def testGetLongestPath(self):
-        self.assertAlmostEquals(getLongestPath(newickTreeParser("(b(a:0.5):0.5,b(a:1.5):0.5)")), 2.0)
-        self.assertAlmostEquals(getLongestPath(newickTreeParser("(b(a:0.5):0.5,b(a:1.5,c:10):0.5)")), 10.5)
-        self.assertAlmostEquals(getLongestPath(newickTreeParser("(b(a:0.5):0.5,b(a:1.5,c:10,e,f:20):0.5)")), 20.5)
+        self.assertAlmostEqual(getLongestPath(newickTreeParser("(b(a:0.5):0.5,b(a:1.5):0.5)")), 2.0)
+        self.assertAlmostEqual(getLongestPath(newickTreeParser("(b(a:0.5):0.5,b(a:1.5,c:10):0.5)")), 10.5)
+        self.assertAlmostEqual(getLongestPath(newickTreeParser("(b(a:0.5):0.5,b(a:1.5,c:10,e,f:20):0.5)")), 20.5)
 
     def testInverseJukesCantor(self):
-        self.assertAlmostEquals(inverseJukesCantor(0.5), 0.36493716072555599)
-        self.assertAlmostEquals(inverseJukesCantor(1.0), 0.55230214641320496)
-        self.assertAlmostEquals(inverseJukesCantor(10.0), 0.74999878530240571)
-        self.assertAlmostEquals(inverseJukesCantor(100000.0), 0.75)
+        self.assertAlmostEqual(inverseJukesCantor(0.5), 0.36493716072555599)
+        self.assertAlmostEqual(inverseJukesCantor(1.0), 0.55230214641320496)
+        self.assertAlmostEqual(inverseJukesCantor(10.0), 0.74999878530240571)
+        self.assertAlmostEqual(inverseJukesCantor(100000.0), 0.75)
 
     def testPrependUniqueIDs(self):
         # Create fake FASTA files with some interesting headers.
@@ -193,7 +193,7 @@ class TestCase(unittest.TestCase):
 
         assert len(outputPaths) == 2
         with open(outputPaths[0]) as f:
-            self.assertEquals(f.read(), dedent("""
+            self.assertEqual(f.read(), dedent("""
             >id=0|C10856240  2.0
             ACTAGAGG
             G
@@ -204,7 +204,7 @@ class TestCase(unittest.TestCase):
             >id=0|emptyseq
             """))
         with open(outputPaths[1]) as f:
-            self.assertEquals(f.read(), dedent("""
+            self.assertEqual(f.read(), dedent("""
             >id=1| space
             GTGC
             >id=1|id=1||header

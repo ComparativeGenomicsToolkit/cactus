@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python33
 
 #Copyright (C) 2011 by Glenn Hickey
 #
@@ -153,13 +153,13 @@ class ConfigWrapper:
         assert decompElem is not None
         decompElem.attrib["max_parallel_subtrees"] = str(maxParallel)
 
-    def getKtserverMemory(self, default=sys.maxint):
+    def getKtserverMemory(self, default=sys.maxsize):
         ktServerElem = self.xmlRoot.find("ktserver")
         if ktServerElem is not None and "memory" in ktServerElem.attrib:
             return int(ktServerElem.attrib["memory"])
         return default
     
-    def getKtserverCpu(self, default=sys.maxint):
+    def getKtserverCpu(self, default=sys.maxsize):
         ktServerElem = self.xmlRoot.find("ktserver")
         if ktServerElem is not None and "cpu" in ktServerElem.attrib:
             return int(ktServerElem.attrib["cpu"])
@@ -197,10 +197,10 @@ class ConfigWrapper:
                     if child.tag == "divergence":
                         attribName = child.attrib["argName"]
                         arg = child.attrib["default"]
-                        divergence = sys.maxint
+                        divergence = sys.maxsize
                         if not useDefaultDivergences:
-                            for i in child.attrib.keys():
-                                if i in divergences.attrib.keys():
+                            for i in list(child.attrib.keys()):
+                                if i in list(divergences.attrib.keys()):
                                     j = float(divergences.attrib[i])
                                     if j < divergence and j >= maxDivergence:
                                         arg = child.attrib[i]

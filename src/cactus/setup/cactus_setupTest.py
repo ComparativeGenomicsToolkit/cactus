@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python33
 
 #Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
 #
@@ -27,9 +27,9 @@ class TestCase(unittest.TestCase):
     def testCactusSetup(self): 
         """Creates a bunch of random inputs and then passes them to cactus setup.
         """
-        for test in xrange(self.testNo): 
+        for test in range(self.testNo): 
             tempDir = os.path.relpath(getTempDirectory(os.getcwd()))
-            sequenceNumber = random.choice(xrange(100))
+            sequenceNumber = random.choice(list(range(100)))
             sequences, newickTreeString = getCactusInputs_random(tempDir=tempDir, sequenceNumber=sequenceNumber)
 
             #Setup the flower disk.

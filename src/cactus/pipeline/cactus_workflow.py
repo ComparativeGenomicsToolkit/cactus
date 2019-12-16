@@ -1,9 +1,9 @@
-#!/usr/bin/env python
+#!/usr/bin/env python33
 
 #Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
 #
 #Released under the MIT license, see LICENSE.txt
-#!/usr/bin/env python
+#!/usr/bin/env python33
 
 """Script strings together all the components to make the basic pipeline for reconstruction.
 
@@ -116,14 +116,14 @@ class CactusJob(RoundedJob):
         disk = None
         if memory is None and overlarge:
             memory = self.getOptionalJobAttrib("overlargeMemory", typeFn=int,
-                                               default=getOptionalAttrib(self.constantsNode, "defaultOverlargeMemory", int, default=sys.maxint))
+                                               default=getOptionalAttrib(self.constantsNode, "defaultOverlargeMemory", int, default=sys.maxsize))
             cores = self.getOptionalJobAttrib("overlargeCpu", typeFn=int,
                                               default=getOptionalAttrib(self.constantsNode, "defaultOverlargeCpu", int, default=None))
         elif memory is None:
             memory = self.getOptionalJobAttrib("memory", typeFn=int,
-                                               default=getOptionalAttrib(self.constantsNode, "defaultMemory", int, default=sys.maxint))
+                                               default=getOptionalAttrib(self.constantsNode, "defaultMemory", int, default=sys.maxsize))
             cores = self.getOptionalJobAttrib("cpu", typeFn=int,
-                                              default=getOptionalAttrib(self.constantsNode, "defaultCpu", int, default=sys.maxint))
+                                              default=getOptionalAttrib(self.constantsNode, "defaultCpu", int, default=sys.maxsize))
         RoundedJob.__init__(self, memory=memory, cores=cores, disk=disk,
                             checkpoint=checkpoint, preemptable=preemptable)
 
@@ -513,10 +513,10 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
         ingroupsAndOriginalIDs = [(g, exp.getSequenceID(g)) for g in exp.getGenomesWithSequence() if g not in exp.getOutgroupGenomes()]
         outgroupsAndOriginalIDs = [(g, exp.getSequenceID(g)) for g in exp.getOutgroupGenomes()]
         from sonLib.nxnewick import NXNewick
-        print NXNewick().writeString(exp.getTree())
-        print exp.getRootGenome()
-        print ingroupsAndOriginalIDs
-        print outgroupsAndOriginalIDs
+        print((NXNewick().writeString(exp.getTree())))
+        print((exp.getRootGenome()))
+        print(ingroupsAndOriginalIDs)
+        print(outgroupsAndOriginalIDs)
         sequences = [fileStore.readGlobalFile(id) for id in map(itemgetter(1), ingroupsAndOriginalIDs + outgroupsAndOriginalIDs)]
         self.cactusWorkflowArguments.totalSequenceSize = sum(os.stat(x).st_size for x in sequences)
 
@@ -525,8 +525,8 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
         uniqueFaIDs = [fileStore.writeGlobalFile(seq, cleanup=True) for seq in uniqueFas]
 
         # Set the uniquified IDs for the ingroups and outgroups
-        ingroupsAndNewIDs = zip(map(itemgetter(0), ingroupsAndOriginalIDs), uniqueFaIDs[:len(ingroupsAndOriginalIDs)])
-        outgroupsAndNewIDs = zip(map(itemgetter(0), outgroupsAndOriginalIDs), uniqueFaIDs[len(ingroupsAndOriginalIDs):])
+        ingroupsAndNewIDs = list(zip(list(map(itemgetter(0), ingroupsAndOriginalIDs)), uniqueFaIDs[:len(ingroupsAndOriginalIDs)]))
+        outgroupsAndNewIDs = list(zip(list(map(itemgetter(0), outgroupsAndOriginalIDs)), uniqueFaIDs[len(ingroupsAndOriginalIDs):]))
 
         # Change the blast arguments depending on the divergence
         setupDivergenceArgs(self.cactusWorkflowArguments)
@@ -542,9 +542,9 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
                          compressFiles=getOptionalAttrib(cafNode, "compressFiles", bool),
                          realign=getOptionalAttrib(cafNode, "realign", bool), 
                          realignArguments=getOptionalAttrib(cafNode, "realignArguments"),
-                         memory=getOptionalAttrib(cafNode, "lastzMemory", int, sys.maxint),
-                         smallDisk=getOptionalAttrib(cafNode, "lastzSmallDisk", int, sys.maxint),
-                         largeDisk=getOptionalAttrib(cafNode, "lastzLargeDisk", int, sys.maxint),
+                         memory=getOptionalAttrib(cafNode, "lastzMemory", int, sys.maxsize),
+                         smallDisk=getOptionalAttrib(cafNode, "lastzSmallDisk", int, sys.maxsize),
+                         largeDisk=getOptionalAttrib(cafNode, "lastzLargeDisk", int, sys.maxsize),
                          minimumSequenceLength=getOptionalAttrib(cafNode, "minimumSequenceLengthForBlast", int, 1),
                          trimFlanking=self.getOptionalPhaseAttrib("trimFlanking", int, 10),
                          trimMinSize=self.getOptionalPhaseAttrib("trimMinSize", int, 0),
@@ -553,8 +553,8 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
                          trimOutgroupFlanking=self.getOptionalPhaseAttrib("trimOutgroupFlanking", int, 100),
                          trimOutgroupDepth=self.getOptionalPhaseAttrib("trimOutgroupDepth", int, 1),
                          keepParalogs=self.getOptionalPhaseAttrib("keepParalogs", bool, False)),
-            map(itemgetter(0), ingroupsAndNewIDs), map(itemgetter(1), ingroupsAndNewIDs),
-            map(itemgetter(0), outgroupsAndNewIDs), map(itemgetter(1), outgroupsAndNewIDs)))
+            list(map(itemgetter(0), ingroupsAndNewIDs)), list(map(itemgetter(1), ingroupsAndNewIDs)),
+            list(map(itemgetter(0), outgroupsAndNewIDs)), list(map(itemgetter(1), outgroupsAndNewIDs))))
 
         # Alignment post processing to filter alignments
         if getOptionalAttrib(cafNode, "runMapQFiltering", bool, False):
@@ -587,7 +587,7 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
             self.cactusWorkflowArguments.experimentWrapper.setSequenceID(genome, seqID)
 
         updateJob = blastJob.addFollowOnJobFn(updateExpWrapperForOutgroups, self.cactusWorkflowArguments.experimentWrapper,
-                                              map(itemgetter(0), outgroupsAndNewIDs), self.cactusWorkflowArguments.outgroupFragmentIDs)
+                                              list(map(itemgetter(0), outgroupsAndNewIDs)), self.cactusWorkflowArguments.outgroupFragmentIDs)
         self.cactusWorkflowArguments.experimentWrapper = updateJob.rv()
 
         return self.makeFollowOnCheckpointJob(CactusSetupCheckpoint, "setup")
@@ -629,7 +629,7 @@ class CactusSetupPhase(CactusPhasesJob):
             setupDivergenceArgs(self.cactusWorkflowArguments)
         # Build up a genome -> fasta map.
         seqIDMap = dict((genome, experiment.getSequenceID(genome)) for genome in experiment.getGenomesWithSequence())
-        seqMap = dict((genome, fileStore.readGlobalFile(id)) for genome, id in seqIDMap.items())
+        seqMap = dict((genome, fileStore.readGlobalFile(id)) for genome, id in list(seqIDMap.items()))
 
         messages = runCactusSetup(cactusDiskDatabaseString=self.cactusWorkflowArguments.cactusDiskDatabaseString,
                                   seqMap=seqMap,
@@ -1363,8 +1363,8 @@ class CactusWorkflowArguments:
         self.scratchDbElemNode = ET.parse(self.experimentFile).getroot()
         self.experimentWrapper = ExperimentWrapper(self.experimentNode)
         self.alignmentsID = None
-        for genome, seqID in seqIDMap.items():
-            print 'setting this', genome, seqID
+        for genome, seqID in list(seqIDMap.items()):
+            print(('setting this', genome, seqID))
             self.experimentWrapper.setSequenceID(genome, seqID)
         #Get the database string
         self.cactusDiskDatabaseString = ET.tostring(self.experimentNode.find("cactus_disk").find("st_kv_database_conf")).translate(None, '\n')
@@ -1472,12 +1472,12 @@ def runCactusWorkflow(args):
             else:
                 fullSeq = seq
             experimentWrapper.setSequenceID(name, toil.importFile(makeURL(fullSeq)))
-            print name, experimentWrapper.getSequenceID(name)
+            print((name, experimentWrapper.getSequenceID(name)))
 
         experimentWrapper.writeXML(options.experimentFile)
 
         configNode = ET.parse(experimentWrapper.getConfigPath()).getroot()
-        print seqIDMap
+        print(seqIDMap)
         cactusWorkflowArguments = CactusWorkflowArguments(options, experimentFile=options.experimentFile, configNode=configNode, seqIDMap=seqIDMap)
 
         toil.start(RunCactusPreprocessorThenCactusSetup(options, cactusWorkflowArguments))

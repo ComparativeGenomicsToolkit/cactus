@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python33
 
 #Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
 #
@@ -118,7 +118,7 @@ def getCactusWorkflowExperimentForTest(sequences, newickTreeString, outputDir, c
                                                      databaseConf=databaseConf, configFile=configFile,
                                                      halFile=halFile, fastaFile=fastaFile, constraints=constraints, progressive=progressive)
     for genome, sequence in zip(genomes, sequences):
-        print genome, sequence
+        print((genome, sequence))
         exp.setSequenceID(genome, sequence)
     exp.setRootGenome("reference")
     if reconstruct:
@@ -137,11 +137,11 @@ def getCactusInputs_random(regionNumber=0, tempDir=None,
     tree relating them. Each sequence is a assigned an event in this tree.
     """
     if sequenceNumber is None:
-        sequenceNumber = random.choice(xrange(30))
+        sequenceNumber = random.choice(list(range(30)))
     if avgSequenceLength is None:
-        avgSequenceLength = random.choice(xrange(1,3000))
+        avgSequenceLength = random.choice(list(range(1,3000)))
     if treeLeafNumber is None:
-        treeLeafNumber = random.choice(xrange(2, 4))
+        treeLeafNumber = random.choice(list(range(2, 4)))
 
     #Make tree
     binaryTree = makeRandomBinaryTree(treeLeafNumber)
@@ -157,7 +157,7 @@ def getCactusInputs_random(regionNumber=0, tempDir=None,
     logger.info("Made random binary tree: %s" % newickTreeString)
     
     sequenceDirs = []
-    for i in xrange(len(newickTreeLeafNames)):
+    for i in range(len(newickTreeLeafNames)):
         seqDir = getTempDirectory(rootDir=tempDir)
         sequenceDirs.append(seqDir)
 
@@ -166,7 +166,7 @@ def getCactusInputs_random(regionNumber=0, tempDir=None,
     #Random sequences and species labelling
     sequenceFile = None
     fileHandle = None
-    parentSequence = getRandomSequence(length=random.choice(xrange(1, 2*avgSequenceLength)))[1]
+    parentSequence = getRandomSequence(length=random.choice(list(range(1, 2*avgSequenceLength))))[1]
     emptySequenceDirs = set(sequenceDirs)
     i = 0
     while i < sequenceNumber or len(emptySequenceDirs) > 0:
@@ -181,7 +181,7 @@ def getCactusInputs_random(regionNumber=0, tempDir=None,
             sequenceFile = getTempFile(rootDir=sequenceDir, suffix=suffix)
             fileHandle = open(sequenceFile, 'w')
         if random.random() > 0.8: #Get a new root sequence
-            parentSequence = getRandomSequence(length=random.choice(xrange(1, 2*avgSequenceLength)))[1]
+            parentSequence = getRandomSequence(length=random.choice(list(range(1, 2*avgSequenceLength))))[1]
         sequence = mutateSequence(parentSequence, distance=random.random()*0.25)
         name = getRandomAlphaNumericString(15)
         if random.random() > 0.5:
@@ -214,7 +214,7 @@ def makeRandomConstraints(fastaSeqs):
     #Now make the fake alignments and write to file
     constraints = []
     if len(fastaSeqs) > 0:
-        for i in xrange(random.randint(0, 1000)):
+        for i in range(random.randint(0, 1000)):
             name1, sequence1 = random.choice(fastaSeqs)
             name2, sequence2 = random.choice(fastaSeqs)
             if len(sequence1) == 0 or len(sequence2) == 0:
@@ -412,7 +412,7 @@ def runWorkflow_multipleExamples(inputGenFunction,
     """
     if (inverseTestRestrictions and TestStatus.getTestStatus() not in testRestrictions) or \
         (not inverseTestRestrictions and TestStatus.getTestStatus() in testRestrictions):
-        for test in xrange(testNumber): 
+        for test in range(testNumber): 
             tempDir = getTempDirectory(os.getcwd())
             if useConstraints:
                 sequences, newickTreeString, constraints = inputGenFunction(regionNumber=test, tempDir=tempDir)

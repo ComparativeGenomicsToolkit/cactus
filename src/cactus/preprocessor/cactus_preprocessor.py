@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python33
 
 #Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
 #
@@ -144,7 +144,7 @@ class PreprocessSequence(RoundedJob):
         outChunkIDList = []
         #For each input chunk we create an output chunk, it is the output chunks that get concatenated together.
         if not self.chunksToCompute:
-            self.chunksToCompute = range(len(inChunkList))
+            self.chunksToCompute = list(range(len(inChunkList)))
         for i in self.chunksToCompute:
             #Calculate the number of chunks to use
             inChunkNumber = int(max(1, math.ceil(len(inChunkList) * self.prepOptions.proportionToSample)))
@@ -239,7 +239,7 @@ class CactusPreprocessor(RoundedJob):
         """
         if not outputSequenceDir.startswith("s3://") and not os.path.isdir(outputSequenceDir):
             os.mkdir(outputSequenceDir)
-        return [ os.path.join(outputSequenceDir, inputSequences[i].split("/")[-1] + "_%i" % i) for i in xrange(len(inputSequences)) ]
+        return [ os.path.join(outputSequenceDir, inputSequences[i].split("/")[-1] + "_%i" % i) for i in range(len(inputSequences)) ]
 
 class CactusPreprocessor2(RoundedJob):
     def __init__(self, inputSequenceID, configNode):
