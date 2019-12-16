@@ -1170,7 +1170,7 @@ class RoundedJob(Job):
             if "CACTUS_SINGULARITY_IMG_ID" in os.environ:
                 disk += 2500*1024*1024
                 # and hack a little more
-                disk *= 20
+                disk *= 4
 
         super(RoundedJob, self).__init__(memory=memory, cores=cores, disk=disk,
                                          preemptable=preemptable, unitName=unitName,
