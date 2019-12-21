@@ -53,7 +53,7 @@ test_blast:
 	pytest . --suite=blast
 
 test_nonblast:
-	pytest . --suite=nonblast
+	pytest -s . --suite=nonblast
 
 ##
 # clean targets

@@ -1,0 +1,63 @@
+pool:
+  vmImage: 'Ubuntu-16.04'
+jobs:
+  - job: docker
+    timeoutInMinutes: 0
+    steps:
+      - script: |
+          sudo apt-get update
+          sudo apt-get install -y libtokyocabinet-dev libkyototycoon-dev kyototycoon libkyotocabinet-dev python-pip python-virtualenv
+          virtualenv venv
+          source venv/bin/activate
+          pip install --upgrade requests pathlib2 pytest
+          pip install --ignore-installed --upgrade six
+          pip install toil==3.20.0
+          pip install -e .
+          git submodule update --init
+          make docker
+          CACTUS_BINARIES_MODE=docker make test_nonblast
+  - job: asan
+    timeoutInMinutes: 0
+    steps:
+      - script: |
+          sudo apt-get update
+          sudo apt-get install -y libtokyocabinet-dev libkyototycoon-dev kyototycoon libkyotocabinet-dev python-pip python-virtualenv
+          virtualenv venv
+          source venv/bin/activate
+          pip install --upgrade requests pathlib2 pytest
+          pip install --ignore-installed --upgrade six
+          pip install toil==3.20.0
+          pip install -e .
+          git submodule update --init
+          CGL_DEBUG=ultra make -j 2
+          PATH=`pwd`/bin:$PATH CACTUS_BINARIES_MODE=local ASAN_OPTIONS=detect_leaks=0 make test_nonblast
+  - job: debug
+    timeoutInMinutes: 0
+    steps:
+      - script: |
+          sudo apt-get update
+          sudo apt-get install -y libtokyocabinet-dev libkyototycoon-dev kyototycoon libkyotocabinet-dev python-pip python-virtualenv
+          virtualenv venv
+          source venv/bin/activate
+          pip install --upgrade requests pathlib2 pytest
+          pip install --ignore-installed --upgrade six
+          pip install toil==3.20.0
+          pip install -e .
+          git submodule update --init
+          CGL_DEBUG=1 make -j 2
+          PATH=`pwd`/bin:$PATH CACTUS_BINARIES_MODE=local make test_nonblast
+  - job: test_blast
+    timeoutInMinutes: 0
+    steps:
+      - script: |
+          sudo apt-get update
+          sudo apt-get install -y libtokyocabinet-dev libkyototycoon-dev kyototycoon libkyotocabinet-dev python-pip python-virtualenv
+          virtualenv venv
+          source venv/bin/activate
+          pip install --upgrade requests pathlib2 pytest
+          pip install --ignore-installed --upgrade six
+          pip install toil==3.20.0
+          pip install -e .
+          git submodule update --init
+          CGL_DEBUG=1 make -j 2
+          PATH=`pwd`/bin:$PATH CACTUS_BINARIES_MODE=local make test_blast

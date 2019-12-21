@@ -25,7 +25,7 @@ setup(
         'decorator',
         'subprocess32',
         'psutil',
-        'networkx>=2,<3',
+        'networkx==2.2',
         'cython',
         'pytest',
         # Someone uploaded an old version of sonLib to pyPI, so we have to use this name
