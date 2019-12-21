@@ -40,7 +40,7 @@ def runKtserver(dbElem, fileStore, existingSnapshotID=None, snapshotExportID=Non
 
     # Find a suitable port to run on.
     try:
-        occupiedPorts = findOccupiedPorts()
+        occupiedPorts = findOccupiedPorts(fileStore=fileStore)
         unoccupiedPorts = set(xrange(1025,MAX_KTSERVER_PORT)) - occupiedPorts
         port = random.choice(list(unoccupiedPorts))
     except:
@@ -94,18 +94,20 @@ class ServerProcess(Process):
             fileStore.readGlobalFile(existingSnapshotID, userPath=snapshotPath)
         process = cactus_call(server=True, shell=False,
                               parameters=getKtserverCommand(dbElem, logPath, snapshotDir),
-                              port=dbElem.getDbPort())
+                              port=dbElem.getDbPort(),
+                              fileStore=fileStore)
 
         blockUntilKtserverIsRunning(logPath)
         if existingSnapshotID is not None:
             # Clear the termination flag from the snapshot
-            cactus_call(parameters=["ktremotemgr", "remove"] + getRemoteParams(dbElem) + ["TERMINATE"])
+            cactus_call(parameters=["ktremotemgr", "remove"] + getRemoteParams(dbElem) + ["TERMINATE"],
+                        fileStore=fileStore)
 
         while True:
             # Check for the termination signal
             try:
                 cactus_call(parameters=["ktremotemgr", "get"] + getRemoteParams(dbElem) + ["TERMINATE"],
-                            swallowStdErr=True)
+                            swallowStdErr=True, fileStore=fileStore)
             except:
                 # No terminate signal sent yet
                 pass
@@ -223,9 +225,10 @@ def getRemoteParams(dbElem):
     return ['-port', str(dbElem.getDbPort()),
             '-host', host]
 
-def stopKtserver(dbElem):
+def stopKtserver(dbElem, fileStore=None):
     """Attempt to send the terminate signal to a ktserver."""
-    cactus_call(parameters=['ktremotemgr', 'set'] + getRemoteParams(dbElem) + ['TERMINATE', '1'])
+    cactus_call(parameters=['ktremotemgr', 'set'] + getRemoteParams(dbElem) + ['TERMINATE', '1'],
+                fileStore=fileStore)
 
 def getHostName():
     if platform.system() == 'Darwin':
@@ -256,11 +259,12 @@ def getPublicIP():
         # to provide a default argument
         return '127.0.0.1'
 
-def findOccupiedPorts():
+def findOccupiedPorts(fileStore=None):
     """Attempt to find all currently taken TCP ports.
 
     Returns a set of ints, representing taken ports."""
-    netstatOutput = cactus_call(parameters=["netstat", "-tuplen"], check_output=True)
+    netstatOutput = cactus_call(parameters=["netstat", "-tuplen"], check_output=True,
+                                fileStore=fileStore)
     ports = set()
     for line in netstatOutput.split("\n"):
         fields = line.split()

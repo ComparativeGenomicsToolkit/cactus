@@ -50,7 +50,8 @@ class LastzRepeatMaskJob(RoundedJob):
                     parameters=["cactus_fasta_fragments.py",
                                 "--fragment=%s" % str(self.repeatMaskOptions.fragment),
                                 "--step=%s" % (str(self.repeatMaskOptions.fragment / 2)),
-                                "--origin=zero"])
+                                "--origin=zero"],
+                    fileStore=fileStore)
         return fragments
 
     def alignFastaFragments(self, fileStore, targetFiles, fragments):
@@ -73,7 +74,8 @@ class LastzRepeatMaskJob(RoundedJob):
                                 self.repeatMaskOptions.lastzOpts.split() +
                                 ["--querydepth=keep,nowarn:%i" % (self.repeatMaskOptions.period+3),
                                  "--format=general:name1,zstart1,end1,name2,zstart2+,end2+",
-                                 "--markend"])
+                                 "--markend"],
+                    fileStore=fileStore)
         return alignment
 
     def maskCoveredIntervals(self, fileStore, queryFile, alignment):
@@ -87,7 +89,8 @@ class LastzRepeatMaskJob(RoundedJob):
                                 "--queryoffsets",
                                 "--origin=one",
                                 # * 2 takes into account the effect of the overlap
-                                "M=%s" % (int(self.repeatMaskOptions.period*2))])
+                                "M=%s" % (int(self.repeatMaskOptions.period*2))],
+                    fileStore=fileStore)
 
         # the previous lastz command outputs a file of intervals (denoted with indices) to softmask.
         # we finish by applying these intervals to the input file, to produce the final, softmasked output. 
@@ -97,7 +100,8 @@ class LastzRepeatMaskJob(RoundedJob):
         args.append(maskInfo)
         maskedQuery = fileStore.getLocalTempFile()
         cactus_call(infile=queryFile, outfile=maskedQuery,
-                    parameters=["cactus_fasta_softmask_intervals.py"] + args)
+                    parameters=["cactus_fasta_softmask_intervals.py"] + args,
+                    fileStore=fileStore)
         return maskedQuery
 
     def run(self, fileStore):

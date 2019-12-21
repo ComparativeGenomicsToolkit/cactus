@@ -238,7 +238,7 @@ class GreedyOutgroup(object):
 # Only works with leaves for now (ie will never choose ancestor as outgroup)
 #
 class DynamicOutgroup(GreedyOutgroup):
-    def __init__(self):
+    def __init__(self, fileStore=None):
         self.SeqInfo = namedtuple("SeqInfo", "count totalLen umLen n50 umN50")
         self.sequenceInfo = None
         self.numOG = 1
@@ -252,6 +252,7 @@ class DynamicOutgroup(GreedyOutgroup):
         # distance to sequence endpoint where we consider bases unalignable due
         # to fragmentation. 
         self.edgeLen = 100
+        self.fileStore=fileStore
 
     # create map of leaf id -> sequence stats by scanninf the FASTA
     # files.  will be used to determine assembly quality for each input
@@ -482,7 +483,7 @@ class DynamicOutgroup(GreedyOutgroup):
         isCandidate = False
         if self.candidateSet is not None and event in self.candidateSet:
             isCandidate = True
-        analyseOutput = cactus_call(parameters=cmdLine, work_dir=os.path.dirname(faPath), check_output=True)
+        analyseOutput = cactus_call(parameters=cmdLine, work_dir=os.path.dirname(faPath), check_output=True, fileStore=self.fileStore)
         tsIdx = analyseOutput.index("Total-sequences:")
         assert tsIdx >= 0 and tsIdx < len(analyseOutput) - 1
         numSequences = int(analyseOutput[tsIdx + len("Total-sequences:") + 1])

@@ -20,7 +20,7 @@ from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.outgroup import GreedyOutgroup, DynamicOutgroup
 from sonLib.nxnewick import NXNewick
 
-def createMCProject(tree, experiment, config, options):
+def createMCProject(tree, experiment, config, options, fileStore=None):
     """
     Creates a properly initialized MultiCactusProject.
 
@@ -45,7 +45,7 @@ def createMCProject(tree, experiment, config, options):
         except:
             raise RuntimeError("Specified root name %s not found in tree" % options.root)
 
-    fillInOutgroups(mcProj, options.outgroupNames, config, alignmentRootId)
+    fillInOutgroups(mcProj, options.outgroupNames, config, alignmentRootId, fileStore=fileStore)
 
     # if necessary, we reroot the tree at the specified alignment root id.  all leaf genomes
     # that are no longer in the tree, but still used as outgroups, are moved into special fields
@@ -53,7 +53,7 @@ def createMCProject(tree, experiment, config, options):
     specifyAlignmentRoot(mcProj, experiment, alignmentRootId)
     return mcProj
 
-def fillInOutgroups(mcProj, outgroupNames, config, alignmentRootId):
+def fillInOutgroups(mcProj, outgroupNames, config, alignmentRootId, fileStore=None):
     """
     Determines the outgroups for a MultiCactusProject using the strategy from the config.
     """
@@ -96,7 +96,7 @@ def fillInOutgroups(mcProj, outgroupNames, config, alignmentRootId):
         # some things better than greedy approaches such as properly account
         # for phylogenetic redundancy, as well as try to factor assembly
         # size/quality automatically. 
-        mcProj.outgroup = DynamicOutgroup()
+        mcProj.outgroup = DynamicOutgroup(fileStore=fileStore)
         mcProj.outgroup.importTree(mcProj.mcTree, mcProj.inputSequenceMap, alignmentRootId,
                                    candidateSet=outgroupNames)
         mcProj.outgroup.compute(maxNumOutgroups=config.getMaxNumOutgroups())
@@ -244,7 +244,8 @@ class CreateMultiCactusProjectOptions:
         self.overwrite = overwrite
 
 def runCreateMultiCactusProject(expFile, projectFile,
-            outgroupNames=None, root=None, overwrite=False):
+                                outgroupNames=None, root=None, overwrite=False,
+                                fileStore=None):
     options = CreateMultiCactusProjectOptions(expFile, projectFile,
             outgroupNames=outgroupNames, root=root, overwrite=overwrite)
 
@@ -259,7 +260,7 @@ def runCreateMultiCactusProject(expFile, projectFile,
             if outgroupName not in projNames:
                 raise RuntimeError("Specified outgroup %s not found in tree" % outgroupName)
 
-    mcProj = createMCProject(tree, expTemplate, confTemplate, options)
+    mcProj = createMCProject(tree, expTemplate, confTemplate, options, fileStore=fileStore)
 
     expTemplate.setTree(mcProj.mcTree)
 

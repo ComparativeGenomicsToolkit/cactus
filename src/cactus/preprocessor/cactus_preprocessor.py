@@ -91,7 +91,8 @@ class MergeChunks2(RoundedJob):
         chunkList = [os.path.basename(chunk) for chunk in chunkList]
         outSequencePath = fileStore.getLocalTempFile()
         cactus_call(outfile=outSequencePath, stdin_string=" ".join(chunkList),
-                    parameters=["cactus_batch_mergeChunks"])
+                    parameters=["cactus_batch_mergeChunks"],
+                    fileStore=fileStore)
         return fileStore.writeGlobalFile(outSequencePath)
 
 class PreprocessSequence(RoundedJob):
@@ -136,7 +137,8 @@ class PreprocessSequence(RoundedJob):
             inChunkDirectory = getTempDirectory(rootDir=fileStore.getLocalTempDir())
             inChunkList = runGetChunks(sequenceFiles=[inSequence], chunksDir=inChunkDirectory,
                                        chunkSize=self.prepOptions.chunkSize,
-                                       overlapSize=0)
+                                       overlapSize=0,
+                                       fileStore=fileStore)
             inChunkList = [os.path.abspath(path) for path in inChunkList]
         logger.info("Chunks = %s" % inChunkList)
 

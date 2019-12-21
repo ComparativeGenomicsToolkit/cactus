@@ -79,7 +79,7 @@ class BlastSequencesAllAgainstAll(RoundedJob):
 
     def run(self, fileStore):
         sequenceFiles1 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs1]
-        chunks = runGetChunks(sequenceFiles=sequenceFiles1, chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()), chunkSize = self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize)
+        chunks = runGetChunks(sequenceFiles=sequenceFiles1, chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()), chunkSize = self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize, fileStore=fileStore)
         assert len(chunks) > 0
         logger.info("Broken up the sequence files into individual 'chunk' files")
         chunkIDs = [fileStore.writeGlobalFile(chunk, cleanup=True) for chunk in chunks]
@@ -143,8 +143,8 @@ class BlastSequencesAgainstEachOther(ChildTreeJob):
     def run(self, fileStore):
         sequenceFiles1 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs1]
         sequenceFiles2 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs2]
-        chunks1 = runGetChunks(sequenceFiles=sequenceFiles1, chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()), chunkSize=self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize)
-        chunks2 = runGetChunks(sequenceFiles=sequenceFiles2, chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()), chunkSize=self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize)
+        chunks1 = runGetChunks(sequenceFiles=sequenceFiles1, chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()), chunkSize=self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize, fileStore=fileStore)
+        chunks2 = runGetChunks(sequenceFiles=sequenceFiles2, chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()), chunkSize=self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize, fileStore=fileStore)
         chunkIDs1 = [fileStore.writeGlobalFile(chunk, cleanup=True) for chunk in chunks1]
         chunkIDs2 = [fileStore.writeGlobalFile(chunk, cleanup=True) for chunk in chunks2]
         resultsIDs = []
@@ -276,7 +276,7 @@ class TrimAndRecurseOnOutgroups(RoundedJob):
         trimmedOutgroup = fileStore.getLocalTempFile()
         outgroupCoverage = fileStore.getLocalTempFile()
         calculateCoverage(outgroupSequenceFiles[0],
-                          mostRecentResultsFile, outgroupCoverage)
+                          mostRecentResultsFile, outgroupCoverage, fileStore=fileStore)
         # The windowSize and threshold are fixed at 1: anything more
         # and we will run into problems with alignments that aren't
         # covered in a matching trimmed sequence.
@@ -298,7 +298,7 @@ class TrimAndRecurseOnOutgroups(RoundedJob):
         for trimmedIngroupSequence, ingroupSequence, ingroupName in zip(sequenceFiles, untrimmedSequenceFiles, self.ingroupNames):
             tmpIngroupCoverage = fileStore.getLocalTempFile()
             calculateCoverage(trimmedIngroupSequence, mostRecentResultsFile,
-                              tmpIngroupCoverage)
+                              tmpIngroupCoverage, fileStore=fileStore)
             fileStore.logToMaster("Coverage on %s from outgroup #%d, %s: %s%% (current ingroup length %d, untrimmed length %d). Outgroup trimmed to %d bp from %d" % (ingroupName, self.outgroupNumber, self.outgroupNames[self.outgroupNumber - 1], percentCoverage(trimmedIngroupSequence, tmpIngroupCoverage), sequenceLength(trimmedIngroupSequence), sequenceLength(ingroupSequence), sequenceLength(trimmedOutgroup), sequenceLength(outgroupSequenceFiles[0])))
 
         # Convert the alignments' ingroup coordinates.
@@ -312,7 +312,8 @@ class TrimAndRecurseOnOutgroups(RoundedJob):
                                     "--onlyContig1",
                                     outgroupConvertedResultsFile,
                                     ingroupConvertedResultsFile,
-                                    "1"])
+                                    "1"],
+                        fileStore=fileStore)
         # Append the latest results to the accumulated outgroup coverage file
         if self.outgroupResultsID:
             outgroupResultsFile = fileStore.readGlobalFile(self.outgroupResultsID, mutable=True)
@@ -330,7 +331,8 @@ class TrimAndRecurseOnOutgroups(RoundedJob):
         for ingroupSequence, ingroupName in zip(untrimmedSequenceFiles, self.ingroupNames):
             ingroupCoverageFile = fileStore.getLocalTempFile()
             calculateCoverage(sequenceFile=ingroupSequence, cigarFile=outgroupResultsFile,
-                              outputFile=ingroupCoverageFile, depthById=self.blastOptions.trimOutgroupDepth > 1)
+                              outputFile=ingroupCoverageFile, depthById=self.blastOptions.trimOutgroupDepth > 1,
+                              fileStore=fileStore)
             ingroupCoverageFiles.append(ingroupCoverageFile)
             self.ingroupCoverageIDs.append(fileStore.writeGlobalFile(ingroupCoverageFile))
             fileStore.logToMaster("Cumulative coverage of %d outgroups on ingroup %s: %s" % (self.outgroupNumber, ingroupName, percentCoverage(ingroupSequence, ingroupCoverageFile)))
@@ -345,7 +347,7 @@ class TrimAndRecurseOnOutgroups(RoundedJob):
                 selfCoverageFile = fileStore.getLocalTempFile()
                 coverageFile = fileStore.getLocalTempFile()
                 if self.blastOptions.keepParalogs:
-                    subtractBed(outgroupCoverageFile, selfCoverageFile, coverageFile)
+                    subtractBed(outgroupCoverageFile, selfCoverageFile, coverageFile, fileStore=fileStore)
                 else:
                     coverageFile = outgroupCoverageFile
 
@@ -399,18 +401,21 @@ class RunSelfBlast(RoundedJob):
     def run(self, fileStore):   
         blastResultsFile = fileStore.getLocalTempFile()
         seqFile = fileStore.readGlobalFile(self.seqFileID)
-        runSelfLastz(seqFile, blastResultsFile, lastzArguments=self.blastOptions.lastzArguments)
+        runSelfLastz(seqFile, blastResultsFile, lastzArguments=self.blastOptions.lastzArguments,
+                     fileStore=fileStore)
         if self.blastOptions.realign:
             realignResultsFile = fileStore.getLocalTempFile()
             runCactusSelfRealign(seqFile, inputAlignmentsFile=blastResultsFile,
                                  outputAlignmentsFile=realignResultsFile,
-                                 realignArguments=self.blastOptions.realignArguments)
+                                 realignArguments=self.blastOptions.realignArguments,
+                                 fileStore=fileStore)
             blastResultsFile = realignResultsFile
         resultsFile = fileStore.getLocalTempFile()
         cactus_call(parameters=["cactus_blast_convertCoordinates",
                                 blastResultsFile,
                                 resultsFile,
-                                str(self.blastOptions.roundsOfCoordinateConversion)])
+                                str(self.blastOptions.roundsOfCoordinateConversion)],
+                    fileStore=fileStore)
         if self.blastOptions.compressFiles:
             #TODO: This throws away the compressed file
             seqFile = compressFastaFile(seqFile)
@@ -440,19 +445,22 @@ class RunBlast(RoundedJob):
             seqFile2 = decompressFastaFile(seqFile2, fileStore.getLocalTempFile())
         blastResultsFile = fileStore.getLocalTempFile()
 
-        runLastz(seqFile1, seqFile2, blastResultsFile, lastzArguments = self.blastOptions.lastzArguments)
+        runLastz(seqFile1, seqFile2, blastResultsFile, lastzArguments = self.blastOptions.lastzArguments,
+                 fileStore=fileStore)
         if self.blastOptions.realign:
             realignResultsFile = fileStore.getLocalTempFile()
             runCactusRealign(seqFile1, seqFile2, inputAlignmentsFile=blastResultsFile,
                              outputAlignmentsFile=realignResultsFile,
-                             realignArguments=self.blastOptions.realignArguments)
+                             realignArguments=self.blastOptions.realignArguments,
+                             fileStore=fileStore)
             blastResultsFile = realignResultsFile
             
         resultsFile = fileStore.getLocalTempFile()
         cactus_call(parameters=["cactus_blast_convertCoordinates",
                                 blastResultsFile,
                                 resultsFile,
-                                str(self.blastOptions.roundsOfCoordinateConversion)])
+                                str(self.blastOptions.roundsOfCoordinateConversion)],
+                    fileStore=fileStore)
         logger.info("Ran the blast okay")
         return fileStore.writeGlobalFile(resultsFile)
 
@@ -505,7 +513,7 @@ def percentCoverage(sequenceFile, coverageFile):
         return 0
     return 100*float(coverage)/sequenceLen
 
-def calculateCoverage(sequenceFile, cigarFile, outputFile, fromGenome=None, depthById=False, work_dir=None):
+def calculateCoverage(sequenceFile, cigarFile, outputFile, fromGenome=None, depthById=False, work_dir=None, fileStore=None):
     logger.info("Calculating coverage of cigar file %s on %s, writing to %s" % (
         cigarFile, sequenceFile, outputFile))
     args = [sequenceFile, cigarFile]
@@ -514,9 +522,10 @@ def calculateCoverage(sequenceFile, cigarFile, outputFile, fromGenome=None, dept
     if depthById:
         args += ["--depthById"]
     cactus_call(outfile=outputFile, work_dir=work_dir,
-                parameters=["cactus_coverage"] + args)
+                parameters=["cactus_coverage"] + args,
+                fileStore=fileStore)
 
-def subtractBed(bed1, bed2, destBed):
+def subtractBed(bed1, bed2, destBed, fileStore=None):
     """Subtract two non-bed12 beds"""
     # tmp. don't really want to use bedtools
     if os.path.getsize(bed1) == 0 or os.path.getsize(bed2) == 0:
@@ -526,5 +535,6 @@ def subtractBed(bed1, bed2, destBed):
         cactus_call(outfile=destBed,
                     parameters=["subtract",
                                 "-a", bed1,
-                                "-b", bed2])
+                                "-b", bed2],
+                    fileStore=fileStore)
 
