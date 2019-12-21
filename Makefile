@@ -74,7 +74,7 @@ suball2: ${submodules2:%=suball.%}
 suball.sonLib:
 	cd submodules/sonLib && ${MAKE}
 	mkdir -p bin
-	ln -f submodules/sonLib/bin/* bin/
+	-ln -f submodules/sonLib/bin/* bin/
 
 suball.pinchesAndCacti: suball.sonLib
 	cd submodules/pinchesAndCacti && ${MAKE}
@@ -88,13 +88,13 @@ suball.cPecan: suball.sonLib
 suball.cactus2hal: suball.sonLib suball.hal all_libs.api
 	cd submodules/cactus2hal && PATH=${hdf5Bin}:$(PATH) ${MAKE}
 	mkdir -p bin
-	ln -f submodules/cactus2hal/bin/* bin/
+	-ln -f submodules/cactus2hal/bin/* bin/
 
 suball.hal: suball.hdf5 suball.sonLib
 	cd submodules/hal && PATH=${CWD}/submodules/hdf5/bin:$(PATH) ${MAKE}
 	mkdir -p bin
-	ln -f submodules/hal/bin/* bin/
-	ln -f submodules/hal/lib/libHal.a submodules/hal/lib/halLib.a
+	-ln -f submodules/hal/bin/* bin/
+	-ln -f submodules/hal/lib/libHal.a submodules/hal/lib/halLib.a
 
 # hdf5 insists on running configure, so it isn't quick.
 hdf5Cmd = submodules/hdf5/bin/h5c++
