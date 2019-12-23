@@ -1,13 +1,13 @@
-#!/usr/bin/env python33
+#!/usr/bin/env python3
 
 #Copyright (C) 2011 by Glenn Hickey
 #
 #Released under the MIT license, see LICENSE.txt
-#!/usr/bin/env python33
+#!/usr/bin/env python3
 
 """Wrapper to run the cactus_workflow progressively, using the input species tree as a guide
 
-tree.  
+tree.
 """
 
 import os
@@ -56,7 +56,7 @@ class ProgressiveDown(RoundedJob):
         self.project = project
         self.event = event
         self.schedule = schedule
-    
+
     def run(self, fileStore):
         self.configNode = ET.parse(fileStore.readGlobalFile(self.project.getConfigID())).getroot()
         self.configWrapper = ConfigWrapper(self.configNode)
@@ -83,7 +83,7 @@ class ProgressiveNext(RoundedJob):
         self.event = event
         self.schedule = schedule
         self.depProjects = depProjects
-    
+
     def run(self, fileStore):
         self.configNode = ET.parse(fileStore.readGlobalFile(self.project.getConfigID())).getroot()
         self.configWrapper = ConfigWrapper(self.configNode)
@@ -92,14 +92,14 @@ class ProgressiveNext(RoundedJob):
         fileStore.logToMaster("Project has %i dependencies" % len(self.depProjects))
         for projName in self.depProjects:
             depProject = self.depProjects[projName]
-            for expName in depProject.expIDMap: 
+            for expName in depProject.expIDMap:
                 expID = depProject.expIDMap[expName]
                 experiment = ExperimentWrapper(ET.parse(fileStore.readGlobalFile(expID)).getroot())
                 fileStore.logToMaster("Reference ID for experiment %s: %s" % (expName, experiment.getReferenceID()))
                 if experiment.getReferenceID():
                     self.project.expIDMap[expName] = expID
                     self.project.outputSequenceIDMap[expName] = experiment.getReferenceID()
-                        
+
         eventExpWrapper = None
         logger.info("Progressive Next: " + self.event)
         if not self.schedule.isVirtual(self.event):
@@ -114,7 +114,7 @@ class ProgressiveOut(RoundedJob):
         self.event = event
         self.eventExpWrapper = eventExpWrapper
         self.schedule = schedule
-        
+
     def run(self, fileStore):
         self.configNode = ET.parse(fileStore.readGlobalFile(self.project.getConfigID())).getroot()
         self.configWrapper = ConfigWrapper(self.configNode)
@@ -131,14 +131,14 @@ class ProgressiveOut(RoundedJob):
                                                     self.schedule, memory=self.configWrapper.getDefaultMemory())).rv()
 
         return self.project
-    
+
 class ProgressiveUp(RoundedJob):
     def __init__(self, options, project, event, memory=None, cores=None):
         RoundedJob.__init__(self, memory=memory, cores=cores, preemptable=True)
         self.options = options
         self.project = project
         self.event = event
-    
+
     def run(self, fileStore):
         self.configNode = ET.parse(fileStore.readGlobalFile(self.project.getConfigID())).getroot()
         self.configWrapper = ConfigWrapper(self.configNode)
@@ -206,13 +206,13 @@ class RunCactusPreprocessorThenProgressiveDown(RoundedJob):
         RoundedJob.__init__(self, memory=memory, cores=cores, preemptable=True)
         self.options = options
         self.project = project
-        
+
     def run(self, fileStore):
         self.configNode = ET.parse(fileStore.readGlobalFile(self.project.getConfigID())).getroot()
         self.configWrapper = ConfigWrapper(self.configNode)
         self.configWrapper.substituteAllPredefinedConstantsWithLiterals()
 
-        fileStore.logToMaster("Using the following configuration:\n%s" % ET.tostring(self.configNode))
+        fileStore.logToMaster("Using the following configuration:\n%s" % ET.tostring(self.configNode, encoding='unicode'))
 
         # Log the stats for the un-preprocessed assemblies
         for name, sequence in list(self.project.inputSequenceIDMap.items()):
@@ -436,7 +436,7 @@ def main():
                       "root for the alignment.  Any genomes not below this node "
                       "in the tree may be used as outgroups but will never appear"
                       " in the output.  If no root is specifed then the root"
-                      " of the tree is used. ", default=None)   
+                      " of the tree is used. ", default=None)
     parser.add_argument("--latest", dest="latest", action="store_true",
                         help="Use the latest version of the docker container "
                         "rather than pulling one matching this version of cactus")
@@ -471,12 +471,12 @@ def main():
         # instead of Toil's default (1).
         options.retryCount = 5
 
-    start_time = timeit.default_timer()        
+    start_time = timeit.default_timer()
     runCactusProgressive(options)
     end_time = timeit.default_timer()
     run_time = end_time - start_time
     logger.info("Cactus has finished after {} seconds".format(run_time))
-    
+
 def runCactusProgressive(options):
     with Toil(options) as toil:
         importSingularityImage(options)
@@ -485,7 +485,7 @@ def runCactusProgressive(options):
             halID = toil.restart()
         else:
             options.cactusDir = getTempDirectory()
-            #Create the progressive cactus project 
+            #Create the progressive cactus project
             projWrapper = ProjectWrapper(options)
             projWrapper.writeXml()
 

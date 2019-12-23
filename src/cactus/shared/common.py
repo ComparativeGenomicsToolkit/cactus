@@ -1,4 +1,4 @@
-#!/usr/bin/env python33
+#!/usr/bin/env python3
 #Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
 #
 #Released under the MIT license, see LICENSE.txt
@@ -10,7 +10,7 @@ import pickle
 import pickle
 import sys
 import shutil
-import subprocess32
+import subprocess
 import logging
 import pipes
 import uuid
@@ -39,7 +39,7 @@ from cactus.shared.version import cactus_commit
 
 _log = logging.getLogger(__name__)
 
-subprocess32._has_poll = False
+subprocess._has_poll = False
 
 def makeURL(path_or_url):
     if urlparse(path_or_url).scheme == '':
@@ -100,7 +100,7 @@ def findRequiredNode(configNode, nodeName):
 #Following used to gather the names of flowers
 #in problems
 #############################################
-#############################################  
+#############################################
 
 def readFlowerNames(flowerStrings):
     ret = []
@@ -128,10 +128,10 @@ def readFlowerNames(flowerStrings):
 def runCactusGetFlowers(cactusDiskDatabaseString, flowerNames,
                         jobName=None, features=None, fileStore=None,
                         minSequenceSizeOfFlower=1,
-                        maxSequenceSizeOfFlowerGrouping=-1, 
-                        maxSequenceSizeOfSecondaryFlowerGrouping=-1, 
+                        maxSequenceSizeOfFlowerGrouping=-1,
+                        maxSequenceSizeOfSecondaryFlowerGrouping=-1,
                         logLevel=None):
-    """Gets a list of flowers attached to the given flower. 
+    """Gets a list of flowers attached to the given flower.
     """
     logLevel = getLogLevelString2(logLevel)
     flowerStrings = cactus_call(check_output=True, stdin_string=flowerNames,
@@ -147,11 +147,11 @@ def runCactusGetFlowers(cactusDiskDatabaseString, flowerNames,
     l = readFlowerNames(flowerStrings)
     return l
 
-def runCactusExtendFlowers(cactusDiskDatabaseString, flowerNames, 
+def runCactusExtendFlowers(cactusDiskDatabaseString, flowerNames,
                         jobName=None, features=None, fileStore=None,
                         minSequenceSizeOfFlower=1,
-                        maxSequenceSizeOfFlowerGrouping=-1, 
-                        maxSequenceSizeOfSecondaryFlowerGrouping=-1, 
+                        maxSequenceSizeOfFlowerGrouping=-1,
+                        maxSequenceSizeOfSecondaryFlowerGrouping=-1,
                         logLevel=None):
     """Extends the terminal groups in the cactus and returns the list
     of their child flowers with which to pass to core.
@@ -175,7 +175,7 @@ def encodeFlowerNames(flowerNames):
     if len(flowerNames) == 0:
         return "0"
     return "%i %s" % (len(flowerNames), " ".join([ str(flowerNames[0]) ] + [ str(flowerNames[i] - flowerNames[i-1]) for i in range(1, len(flowerNames)) ]))
-    
+
 def decodeFirstFlowerName(encodedFlowerNames):
     tokens = encodedFlowerNames.split()
     if int(tokens[0]) == 0:
@@ -211,7 +211,7 @@ def runCactusSplitFlowersBySecondaryGrouping(flowerNames):
 #All the following provide command line wrappers
 #for core programs in the cactus pipeline.
 #############################################
-#############################################  
+#############################################
 
 def runCactusSetup(cactusDiskDatabaseString, seqMap,
                    newickTreeString,
@@ -245,11 +245,11 @@ def runConvertAlignmentsToInternalNames(cactusDiskString, alignmentsFile, output
 def runStripUniqueIDs(cactusDiskString):
     cactus_call(parameters=["cactus_stripUniqueIDs", "--cactusDisk", cactusDiskString])
 
-def runCactusCaf(cactusDiskDatabaseString, 
+def runCactusCaf(cactusDiskDatabaseString,
                  alignments,
                  secondaryAlignments=None,
                  flowerNames=encodeFlowerNames((0,)),
-                 logLevel=None, 
+                 logLevel=None,
                  writeDebugFiles=False,
                  annealingRounds=None,
                  deannealingRounds=None,
@@ -265,7 +265,7 @@ def runCactusCaf(cactusDiskDatabaseString,
                  maxAdjacencyComponentSizeRatio=None,
                  constraints=None,
                  minLengthForChromosome=None,
-                 proportionOfUnalignedBasesForNewChromosome=None, 
+                 proportionOfUnalignedBasesForNewChromosome=None,
                  maximumMedianSequenceLengthBetweenLinkedEnds=None,
                  realign=False,
                  realignArguments=None,
@@ -441,7 +441,7 @@ def runCactusMakeNormal(cactusDiskDatabaseString, flowerNames, maxNumberOfChains
                             "--logLevel", logLevel])
 
 def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
-                 spanningTrees=None, maximumLength=None, 
+                 spanningTrees=None, maximumLength=None,
                  gapGamma=None,
                  matchGamma=None,
                  splitMatrixBiggerThanThis=None,
@@ -529,18 +529,18 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
 def runCactusSecondaryDatabase(secondaryDatabaseString, create=True):
     cactus_call(parameters=["cactus_secondaryDatabase",
                 secondaryDatabaseString, create])
-            
+
 def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
                        jobName=None, features=None, fileStore=None,
-                       matchingAlgorithm=None, 
-                       referenceEventString=None, 
+                       matchingAlgorithm=None,
+                       referenceEventString=None,
                        permutations=None,
                        useSimulatedAnnealing=False,
                        theta=None,
-                       phi=None, 
+                       phi=None,
                        maxWalkForCalculatingZ=None,
                        ignoreUnalignedGaps=False,
-                       wiggle=None, 
+                       wiggle=None,
                        numberOfNs=None,
                        minNumberOfSequencesToSupportAdjacency=None,
                        makeScaffolds=False):
@@ -579,7 +579,7 @@ def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
                                  fileStore=fileStore)
     logger.info("Ran cactus_reference okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]
-    
+
 def runCactusAddReferenceCoordinates(cactusDiskDatabaseString, flowerNames,
                                      jobName=None, fileStore=None, features=None,
                                      logLevel=None, referenceEventString=None,
@@ -601,9 +601,9 @@ def runCactusAddReferenceCoordinates(cactusDiskDatabaseString, flowerNames,
                 features=features,
                 fileStore=fileStore)
 
-def runCactusCheck(cactusDiskDatabaseString, 
-                   flowerNames=encodeFlowerNames((0,)), 
-                   logLevel=None, 
+def runCactusCheck(cactusDiskDatabaseString,
+                   flowerNames=encodeFlowerNames((0,)),
+                   logLevel=None,
                    recursive=False,
                    checkNormalised=False):
     logLevel = getLogLevelString2(logLevel)
@@ -617,8 +617,8 @@ def runCactusCheck(cactusDiskDatabaseString,
     logger.info("Ran cactus check")
 
 def _fn(toilDir,
-      logLevel=None, retryCount=0, 
-      batchSystem="single_machine", 
+      logLevel=None, retryCount=0,
+      batchSystem="single_machine",
       rescueJobFrequency=None,
       buildAvgs=False, buildReference=False,
       buildHal=False,
@@ -658,9 +658,9 @@ def _fn(toilDir,
     return args
 
 def runCactusWorkflow(experimentFile,
-                      toilDir, 
-                      logLevel=None, retryCount=0, 
-                      batchSystem="single_machine", 
+                      toilDir,
+                      logLevel=None, retryCount=0,
+                      batchSystem="single_machine",
                       rescueJobFrequency=None,
                       skipAlignments=False,
                       buildAvgs=False, buildReference=False,
@@ -686,8 +686,8 @@ def runCactusWorkflow(experimentFile,
 def runCactusProgressive(seqFile,
                          configFile,
                          toilDir,
-                         logLevel=None, retryCount=0, 
-                         batchSystem="single_machine", 
+                         logLevel=None, retryCount=0,
+                         batchSystem="single_machine",
                          rescueJobFrequency=None,
                          skipAlignments=False,
                          buildHal=True,
@@ -720,9 +720,9 @@ def runCactusProgressive(seqFile,
     runRealCactusProgressive(opts)
 
 def runCactusHalGenerator(cactusDiskDatabaseString,
-                          secondaryDatabaseString, 
+                          secondaryDatabaseString,
                           flowerNames,
-                          referenceEventString, 
+                          referenceEventString,
                           outputFile=None,
                           showOnlySubstitutionsWithRespectToReference=False,
                           logLevel=None,
@@ -761,7 +761,7 @@ def runCactusAnalyseAssembly(sequenceFile):
     return cactus_call(check_output=True,
                 parameters=["cactus_analyseAssembly",
                             sequenceFile])[:-1]
-    
+
 def runToilStats(toil, outputFile):
     system("toil stats %s --outputFile %s" % (toil, outputFile))
     logger.info("Ran the job-tree stats command apparently okay")
@@ -819,7 +819,7 @@ def pullCactusImage():
         return
     image = getDockerImage()
     call = ["docker", "pull", image]
-    process = subprocess32.Popen(call, stdout=subprocess32.PIPE,
+    process = subprocess.Popen(call, stdout=subprocess.PIPE,
                                  stderr=sys.stderr, bufsize=-1)
     output, _ = process.communicate()
     if process.returncode != 0:
@@ -897,7 +897,7 @@ def singularityCommand(tool=None,
             work_dir = os.getcwd()
 
         baseSingularityCall = ['singularity', '-q', 'exec']
-        
+
         # Mount workdir as /mnt and work in there.
         # Hope the image actually has a /mnt available.
         # Otherwise this silently doesn't mount.
@@ -949,7 +949,7 @@ def singularityCommand(tool=None,
 
             cactus_realtime_log_info("Running the command: \"{}\"".format(' '.join(build_cmd)))
             start_time = timeit.default_timer()
-            subprocess32.check_call(build_cmd, env=download_env)
+            subprocess.check_call(build_cmd, env=download_env)
             end_time = timeit.default_timer()
             run_time = end_time - start_time
             cactus_realtime_log_info("Successfully ran the command: \"{}\" in {} seconds".format(' '.join(build_cmd), run_time))
@@ -974,7 +974,7 @@ def singularityCommand(tool=None,
             # and the others wait, but then we would need a real fnctl locking
             # system here.
         return baseSingularityCall + [sandbox_dirname] + parameters
-            
+
 
 def dockerCommand(tool=None,
                   work_dir=None,
@@ -1049,7 +1049,7 @@ def prepareWorkDir(work_dir, parameters):
     if work_dir and os.environ.get('CACTUS_DOCKER_MODE') != "0":
         parameters = [adjustPath(par, work_dir) for par in parameters]
     return work_dir, parameters
-    
+
 def cactus_call(tool=None,
                 work_dir=None,
                 parameters=None,
@@ -1110,20 +1110,20 @@ def cactus_call(tool=None,
     stdinFileHandle = None
     stdoutFileHandle = None
     if stdin_string:
-        stdinFileHandle = subprocess32.PIPE
+        stdinFileHandle = subprocess.PIPE
     elif infile:
         stdinFileHandle = open(infile, 'r')
     if outfile:
         stdoutFileHandle = open(outfile, 'w')
     if check_output:
-        stdoutFileHandle = subprocess32.PIPE
+        stdoutFileHandle = subprocess.PIPE
 
     _log.info("Running the command %s" % call)
     cactus_realtime_log_info("Running the command: \"{}\"".format(' '.join(call)))
     start_time = timeit.default_timer()
-    process = subprocess32.Popen(call, shell=shell,
+    process = subprocess.Popen(call, shell=shell,
                                  stdin=stdinFileHandle, stdout=stdoutFileHandle,
-                                 stderr=subprocess32.PIPE if swallowStdErr else sys.stderr,
+                                 stderr=subprocess.PIPE if swallowStdErr else sys.stderr,
                                  bufsize=-1)
 
     if mode == "singularity":
@@ -1150,7 +1150,7 @@ def cactus_call(tool=None,
         try:
             # Wait a bit to see if the process is done
             output, nothing = process.communicate(stdin_string if first_run else None, timeout=10)
-        except subprocess32.TimeoutExpired:
+        except subprocess.TimeoutExpired:
             if mode == "docker":
                 # Every so often, check the memory usage of the container
                 updatedMemUsage = maxMemUsageOfContainer(containerInfo)

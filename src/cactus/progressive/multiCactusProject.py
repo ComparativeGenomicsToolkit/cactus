@@ -1,10 +1,10 @@
-#!/usr/bin/env python33
+#!/usr/bin/env python3
 
 #Copyright (C) 2011 by Glenn Hickey
 #
 #Released under the MIT license, see LICENSE.txt
 
-""" Basic interface to the multi cactus project xml file. 
+""" Basic interface to the multi cactus project xml file.
 
 """
 import xml.etree.ElementTree as ET
@@ -48,10 +48,10 @@ class MultiCactusProject:
             self.outputSequenceIDMap = dict(list(zip(xmlRoot.attrib["outputSequenceNames"].split(),
                                                 xmlRoot.attrib["outputSequenceIDs"].split())))
 
-        logger.info("xmlRoot = %s" % ET.tostring(xmlRoot))
+        logger.info("xmlRoot = %s" % ET.tostring(xmlRoot, encoding='unicode'))
         if "configID" in xmlRoot.attrib:
             self.configID = xmlRoot.attrib["configID"]
-            
+
         self.mcTree.assignSubtreeRootNames(self.expMap)
 
     def writeXML(self, path):
@@ -79,7 +79,7 @@ class MultiCactusProject:
             xmlRoot.attrib["configID"] = self.configID
 
         xmlFile = open(path, "w")
-        xmlString = ET.tostring(xmlRoot)
+        xmlString = ET.tostring(xmlRoot, encoding='unicode')
         xmlString = minidom.parseString(xmlString).toprettyxml()
         xmlFile.write(xmlString)
         xmlFile.close()
@@ -103,5 +103,3 @@ class MultiCactusProject:
 
 if __name__ == '__main__':
     main()
-        
-    

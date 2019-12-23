@@ -1,4 +1,4 @@
-#!/usr/bin/env python33
+#!/usr/bin/env python3
 """
 Given a list of intervals, mask those bases in the fasta sequence(s).
 """

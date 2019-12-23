@@ -23,7 +23,6 @@ setup(
 
     install_requires=[
         'decorator',
-        'subprocess32',
         'psutil',
         'networkx>=2,<3',
         'cython',

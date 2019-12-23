@@ -5,16 +5,6 @@ ifneq ($(wildcard ${includeLocal}),)
    include ${includeLocal}
 endif
 
-# special handling to get C++ ABI right on UCSC Centos 6 servers
-ifeq (${CXX_ABI_DEF},)
-ifneq ($(wildcard /etc/redhat-release),)
-ifeq ($(shell hostname -d), gi.ucsc.edu)
-    export CXX_ABI_DEF = -D_GLIBCXX_USE_CXX11_ABI=0
-endif
-endif
-endif
-
-
 #Location of sonLib
 binPath=${rootPath}/bin/
 libPath=${rootPath}/lib/

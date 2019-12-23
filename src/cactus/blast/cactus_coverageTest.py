@@ -10,41 +10,46 @@ class TestCase(unittest.TestCase):
         # simple test data -- not an actual alignment, but to test if
         # coverage is correct. no overlap on B, but overlap on A.
         self.simpleFastaPathA = getTempFile()
-        open(self.simpleFastaPathA, 'w').write(dedent('''\
-        >id=0|simpleSeqA1 otherTokens thatDon'tMatter
-        ACTAGAGTAGGAGAGAGAGGGGGG
-        CATGCATGCATGCATGCATGCATG
-        >id=1|simpleSeqA2 otherTokens thatDon'tMatter
-        AAAAAAAAAAAAAAAACTCGTGAG
-        CATGCATGCATGCATGCATGCATG'''))
+        with open(self.simpleFastaPathA, 'w') as fh:
+            fh.write(dedent('''
+            >id=0|simpleSeqA1 otherTokens thatDon'tMatter
+            ACTAGAGTAGGAGAGAGAGGGGGG
+            CATGCATGCATGCATGCATGCATG
+            >id=1|simpleSeqA2 otherTokens thatDon'tMatter
+            AAAAAAAAAAAAAAAACTCGTGAG
+            CATGCATGCATGCATGCATGCATG'''))
         self.simpleFastaPathB = getTempFile()
-        open(self.simpleFastaPathB, 'w').write(dedent('''\
-        >id=2|simpleSeqB1 otherTokens
-        CATGCATGCATGCATGCATGCATG
-        CATGCATGCATGCATGCATGCATG'''))
+        with open(self.simpleFastaPathB, 'w') as fh:
+            fh.write(dedent('''\
+            >id=2|simpleSeqB1 otherTokens
+            CATGCATGCATGCATGCATGCATG
+            CATGCATGCATGCATGCATGCATG'''))
         self.simpleFastaPathC = getTempFile()
-        open(self.simpleFastaPathC, 'w').write(dedent('''\
-        >id=3|simpleSeqC1 otherTokens thatDon'tMatter
-        CATGCATGCATGCATGCATGCATG
-        CATGCATGCATGCATGCATGCATG'''))
-        self.simpleFastaPathD = getTempFile()
-        open(self.simpleFastaPathD, 'w').write(dedent('''\
-        >id=4|simpleSeqD otherTokens thatDon'tMatter
-        CATGCATGCATGCATGCATGCATG
-        CATGCATGCATGCATGCATGCATG'''))
+        with open(self.simpleFastaPathC, 'w') as fh:
+            fh.write(dedent('''\
+            >id=3|simpleSeqC1 otherTokens thatDon'tMatter
+            CATGCATGCATGCATGCATGCATG
+            CATGCATGCATGCATGCATGCATG'''))
+            self.simpleFastaPathD = getTempFile()
+        with open(self.simpleFastaPathD, 'w') as fh:
+            fh.write(dedent('''\
+            >id=4|simpleSeqD otherTokens thatDon'tMatter
+            CATGCATGCATGCATGCATGCATG
+            CATGCATGCATGCATGCATGCATG'''))
         self.simpleCigarPath = getTempFile()
-        open(self.simpleCigarPath, 'w').write(dedent('''\
-        cigar: id=2|simpleSeqB1 0 9 + id=0|simpleSeqA1 10 0 - 0 M 8 D 1 M 1
-        cigar: id=2|simpleSeqB1 9 18 + id=0|simpleSeqA1 2 6 + 0 M 3 I 5 M 1
-        cigar: id=2|simpleSeqB1 18 28 + id=1|simpleSeqA2 0 10 + 0 M 1 I 2 M 2 D 2 M 5
-        cigar: id=2|simpleSeqB1 28 30 + id=1|simpleSeqA2 6 8 + 0 M 2
-        cigar: id=2|simpleSeqB1 30 32 + id=1|simpleSeqA2 7 9 + 0 M 2
-        cigar: id=12|simpleSeqZ1 0 1 + id=0|simpleSeqA1 6 7 + 0 M 1
-        cigar: id=3|simpleSeqC1 0 5 + id=4|simpleSeqD 0 5 + 0 M 5
-        cigar: id=4|simpleSeqD 5 10 + id=3|simpleSeqC1 5 10 + 0 M 5
-        cigar: id=3|simpleSeqC1 10 15 + id=3|simpleSeqC1 15 20 + 0 M 5
-        cigar: id=303|simpleSeqNonExistent 0 10 + id=3|simpleSeqC1 0 10 + 0 M 10
-        '''))
+        with open(self.simpleCigarPath, 'w') as fh:
+            fh.write(dedent('''\
+            cigar: id=2|simpleSeqB1 0 9 + id=0|simpleSeqA1 10 0 - 0 M 8 D 1 M 1
+            cigar: id=2|simpleSeqB1 9 18 + id=0|simpleSeqA1 2 6 + 0 M 3 I 5 M 1
+            cigar: id=2|simpleSeqB1 18 28 + id=1|simpleSeqA2 0 10 + 0 M 1 I 2 M 2 D 2 M 5
+            cigar: id=2|simpleSeqB1 28 30 + id=1|simpleSeqA2 6 8 + 0 M 2
+            cigar: id=2|simpleSeqB1 30 32 + id=1|simpleSeqA2 7 9 + 0 M 2
+            cigar: id=12|simpleSeqZ1 0 1 + id=0|simpleSeqA1 6 7 + 0 M 1
+            cigar: id=3|simpleSeqC1 0 5 + id=4|simpleSeqD 0 5 + 0 M 5
+            cigar: id=4|simpleSeqD 5 10 + id=3|simpleSeqC1 5 10 + 0 M 5
+            cigar: id=3|simpleSeqC1 10 15 + id=3|simpleSeqC1 15 20 + 0 M 5
+            cigar: id=303|simpleSeqNonExistent 0 10 + id=3|simpleSeqC1 0 10 + 0 M 10
+            '''))
 
     def tearDown(self):
         unittest.TestCase.tearDown(self)

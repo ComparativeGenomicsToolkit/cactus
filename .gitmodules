@@ -21,3 +21,4 @@
 [submodule "submodules/cactus2hal"]
 	path = submodules/cactus2hal
 	url = https://github.com/diekhans/cactus2hal
+        branch = py3

@@ -1,4 +1,4 @@
-#!/usr/bin/env python33
+#!/usr/bin/env python3
 
 """Removes all non-alpha-numeric chatavyers from the fasta headers of a fasta file.
 """

@@ -34,7 +34,7 @@ all:
 	${MAKE} all_progs
 	${MAKE} suball2
 
-all_libs:
+all_libs:  ${versionPy}
 	${MAKE} ${modules:%=all_libs.%}
 all_progs: all_libs
 	${MAKE} ${modules:%=all_progs.%}
@@ -50,7 +50,7 @@ all_libs.blastLib: all_libs.api
 ##
 # tests
 ##
-export PYTHONPATH = ${CWD}/submodules:${CWD}/src
+export PYTHONPATH = ${CWD}/submodules/sonLib/src:${CWD}/submodules:${CWD}/src
 test: ${versionPy}
 	${PYTHON} -m pytest .
 

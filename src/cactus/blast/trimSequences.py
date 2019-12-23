@@ -1,4 +1,4 @@
-#!/usr/bin/env python33
+#!/usr/bin/env python3
 from collections import defaultdict
 from operator import itemgetter
 

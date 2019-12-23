@@ -1,4 +1,4 @@
-#!/usr/bin/env python33
+#!/usr/bin/env python3
 
 #Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
 #
@@ -45,7 +45,7 @@ class TestCase(unittest.TestCase):
     @silentOnSuccess
     @unittest.skip("")
     def testCactus_random(self):
-        runWorkflow_multipleExamples(getCactusInputs_random, 
+        runWorkflow_multipleExamples(getCactusInputs_random,
                                      testNumber=1,
                                      testRestrictions=(TestStatus.TEST_SHORT,),
                                      buildAvgs=True, buildReference=True,
@@ -54,7 +54,7 @@ class TestCase(unittest.TestCase):
     @silentOnSuccess
     @unittest.skip("")
     def testCactus_randomWithConstraints(self):
-        runWorkflow_multipleExamples(getCactusInputs_randomWithConstraints, 
+        runWorkflow_multipleExamples(getCactusInputs_randomWithConstraints,
                                      testNumber=1,
                                      testRestrictions=(TestStatus.TEST_SHORT,),
                                      buildAvgs=True, buildReference=True,
@@ -64,15 +64,15 @@ class TestCase(unittest.TestCase):
     @silentOnSuccess
     @unittest.skip("")
     def testCactus_blanchette(self):
-        runWorkflow_multipleExamples(getCactusInputs_blanchette, 
+        runWorkflow_multipleExamples(getCactusInputs_blanchette,
                                      testNumber=1,
                                      testRestrictions=(TestStatus.TEST_MEDIUM,),
                                      buildAvgs=True, buildReference=True,
                                      batchSystem=self.batchSystem, buildToilStats=True)
     @silentOnSuccess
     @unittest.skip("")
-    def testCactus_encode(self): 
-        runWorkflow_multipleExamples(getCactusInputs_encode, 
+    def testCactus_encode(self):
+        runWorkflow_multipleExamples(getCactusInputs_encode,
                                      testNumber=1,
                                      testRestrictions=(TestStatus.TEST_LONG,),
                                      buildAvgs=True, buildReference=True,
@@ -80,7 +80,7 @@ class TestCase(unittest.TestCase):
     @silentOnSuccess
     @unittest.skip("")
     def testCactus_chromosomes(self):
-        runWorkflow_multipleExamples(getCactusInputs_chromosomeX, 
+        runWorkflow_multipleExamples(getCactusInputs_chromosomeX,
                                      testRestrictions=(TestStatus.TEST_VERY_LONG,),
                                      batchSystem=self.batchSystem, buildToilStats=True)
 
@@ -169,7 +169,7 @@ class TestCase(unittest.TestCase):
 
     def testPrependUniqueIDs(self):
         # Create fake FASTA files with some interesting headers.
-        with NamedTemporaryFile() as fasta1, NamedTemporaryFile() as fasta2:
+        with NamedTemporaryFile(mode='w', encoding='ascii') as fasta1, NamedTemporaryFile(mode='w', encoding='ascii') as fasta2:
             fasta1.write(dedent("""
             >C10856240  2.0
             ACTAGAGG

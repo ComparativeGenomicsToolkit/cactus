@@ -25,7 +25,7 @@ COPY runtime/wrapper.sh /opt/cactus/
 ARG CACTUS_COMMIT
 
 RUN pip install --pre toil
-RUN pip install git+https://github.com/ComparativeGenomicsToolkit/sonLib@toil
+RUN pip install git+https://github.com/ComparativeGenomicsToolkit/sonLib
 
 RUN mkdir /data
 WORKDIR /data

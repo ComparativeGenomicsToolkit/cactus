@@ -1,4 +1,4 @@
-#!/usr/bin/env python33
+#!/usr/bin/env python3
 
 #Copyright (C) 2011 by Glenn Hickey
 #
@@ -25,7 +25,7 @@ class DbElemWrapper(object):
     def check(self):
         """Function checks the database conf is as expected and creates useful exceptions
         if not"""
-        dataString = ET.tostring(self.confElem)
+        dataString = ET.tostring(self.confElem, encoding='unicode')
         if self.confElem.tag != "st_kv_database_conf":
             raise RuntimeError("The database conf string is improperly formatted: %s" % dataString)
         if "type" not in self.confElem.attrib:
@@ -50,7 +50,7 @@ class DbElemWrapper(object):
         return self.dbElem
 
     def getConfString(self):
-        return ET.tostring(self.confElem)
+        return ET.tostring(self.confElem, encoding='unicode')
 
     def getDbType(self):
         return self.dbElem.tag
@@ -183,7 +183,7 @@ class ExperimentWrapper(DbElemWrapper):
 
     def writeXML(self, path): #Replacement for writeExperimentFile
         xmlFile = open(path, "w")
-        xmlString = ET.tostring(self.xmlRoot)
+        xmlString = ET.tostring(self.xmlRoot, encoding='unicode')
         xmlString = xmlString.replace("\n", "")
         xmlString = xmlString.replace("\t", "")
         xmlString = minidom.parseString(xmlString).toprettyxml()
