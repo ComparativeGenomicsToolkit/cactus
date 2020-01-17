@@ -28,7 +28,6 @@ import random
 import copy
 from optparse import OptionParser
 from optparse import OptionGroup
-import imp
 import string
 import re
 
