@@ -1,4 +1,4 @@
-toil[all]
+toil[aws]
 networkx>=2,<3
 pytest
 decorator
