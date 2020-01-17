@@ -1,4 +1,4 @@
-FROM ubuntu:16.04 AS builder
+FROM ubuntu:18.04 AS builder
 
 RUN apt-get update
 RUN apt-get install -y git gcc g++ build-essential python-dev zlib1g-dev libkyototycoon-dev libtokyocabinet-dev libkyotocabinet-dev wget valgrind libbz2-dev libhiredis-dev pkg-config libhdf5-cpp-11 libhdf5-dev
@@ -24,8 +24,8 @@ COPY runtime/wrapper.sh /opt/cactus/
 
 ARG CACTUS_COMMIT
 
-RUN pip install --pre toil
-RUN pip install git+https://github.com/ComparativeGenomicsToolkit/sonLib@toil
+RUN pip3 install --pre toil
+RUN pip3 install git+https://github.com/ComparativeGenomicsToolkit/sonLib@toil
 
 RUN mkdir /data
 WORKDIR /data
