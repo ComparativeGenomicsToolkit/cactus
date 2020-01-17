@@ -1,4 +1,4 @@
-#!/usr/bin/env python33
+#!/usr/bin/env python3
 
 #Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
 #
@@ -217,6 +217,6 @@ class TestCase(unittest.TestCase):
                              batchSystem=batchSystem,
                              buildAvgs=buildAvgs,
                              toilStats=toilStats)
-        
+
 if __name__ == '__main__':
     unittest.main()

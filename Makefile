@@ -49,8 +49,20 @@ all_libs.blastLib: all_libs.api
 
 ##
 # tests
+# environment variables controlling tests
+#   CACTUS_BINARIES_MODE - how are cactus programs found?
+#     docker <default>
+#     singularity
+#     local
+#   CACTUS_DOCKER_MODE - is Docker being used
+#     1 <default>
+#     0
+#   CACTUS_USE_LOCAL_IMAGE - is Docker image on local server?
+#     0 <default>
+#     1
 ##
-export PYTHONPATH = ${CWD}/submodules:${CWD}/src
+export PATH := ${CWD}/bin:${PATH}
+export PYTHONPATH = ${CWD}/submodules/sonLib/src:${CWD}/submodules:${CWD}/src
 test: ${versionPy}
 	${PYTHON} -m pytest .
 
@@ -83,7 +95,7 @@ suball2: ${submodules2:%=suball.%}
 suball.sonLib:
 	cd submodules/sonLib && ${MAKE}
 	mkdir -p bin
-	ln -f submodules/sonLib/bin/* bin/
+	ln -f submodules/sonLib/bin/[a-zA-Z]* bin/
 
 suball.pinchesAndCacti: suball.sonLib
 	cd submodules/pinchesAndCacti && ${MAKE}

@@ -2,7 +2,6 @@ toil[all]
 networkx>=2,<3
 pytest
 decorator
-subprocess32
 psutil
 cython
 pytest

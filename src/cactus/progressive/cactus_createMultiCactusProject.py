@@ -1,12 +1,11 @@
-#!/usr/bin/env python33
+#!/usr/bin/env python3
 
 #Copyright (C) 2011 by Glenn Hickey
 #
 #Released under the MIT license, see LICENSE.txt
-#!/usr/bin/env python33
 
 """Create the multi_cactus xml and directory structure from a workflow template
-""" 
+"""
 import os
 import xml.etree.ElementTree as ET
 import copy
@@ -49,7 +48,7 @@ def createMCProject(tree, experiment, config, options):
 
     # if necessary, we reroot the tree at the specified alignment root id.  all leaf genomes
     # that are no longer in the tree, but still used as outgroups, are moved into special fields
-    # so that we can remember to, say, get their paths for preprocessing. 
+    # so that we can remember to, say, get their paths for preprocessing.
     specifyAlignmentRoot(mcProj, experiment, alignmentRootId)
     return mcProj
 
@@ -95,7 +94,7 @@ def fillInOutgroups(mcProj, outgroupNames, config, alignmentRootId):
         # the model used for optimization is super naive. Still, it does
         # some things better than greedy approaches such as properly account
         # for phylogenetic redundancy, as well as try to factor assembly
-        # size/quality automatically. 
+        # size/quality automatically.
         mcProj.outgroup = DynamicOutgroup()
         mcProj.outgroup.importTree(mcProj.mcTree, mcProj.inputSequenceMap, alignmentRootId,
                                    candidateSet=outgroupNames)
@@ -164,7 +163,7 @@ def specifyAlignmentRoot(mcProj, expTemplate, alignmentRootId):
     for event in list(mcProj.expMap.keys()):
         if mcProj.mcTree.getNodeId(event) in deadNodes:
             del mcProj.expMap[event]
-            
+
     # flush out all unused nodes, set the new root, and update the
     # experiment template tree to match the new project tree
     for node in deadNodes:

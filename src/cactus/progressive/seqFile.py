@@ -1,4 +1,4 @@
-#!/usr/bin/env python33
+#!/usr/bin/env python3
 
 # Progressive Cactus Package
 # Copyright (C) 2009-2012 by Glenn Hickey (hickey@soe.ucsc.edu)
@@ -97,7 +97,7 @@ class SeqFile:
                     self.pathMap[name] = path
                 elif len(tokens) > 0:
                     sys.stderr.write("Skipping line %s\n" % l)
-        
+
         if self.tree is None:
             self.starTree()
         self.cleanTree()
@@ -113,7 +113,7 @@ class SeqFile:
             self.tree.nxDg.add_edge(0, label)
             self.tree.setName(label, name)
             self.tree.setWeight(0, label, SeqFile.branchLen)
-        
+
     def validate(self):
         if len([i for i in self.tree.postOrderTraversal()]) <= 2:
             raise RuntimeError("At least two valid leaf genomes required in"
@@ -198,7 +198,7 @@ class SeqFile:
                         "No branch length for %s: setting to %d\n" % (
                             self.tree.getName(node), SeqFile.branchLen))
                     self.tree.setWeight(parent, node, SeqFile.branchLen)
-                    
+
 
     # create the cactus_workflow_experiment xml element which serves as
     # the root node of the experiment template file needed by

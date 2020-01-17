@@ -1,4 +1,4 @@
-#!/usr/bin/env python33
+#!/usr/bin/env python3
 
 #Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
 #
@@ -29,7 +29,7 @@ class TestCase(unittest.TestCase):
         runWorkflow_multipleExamples(getCactusInputs_blanchette,
                                      testRestrictions=(TestStatus.TEST_SHORT,), inverseTestRestrictions=True,
                                      buildReference=True, buildHal=True, buildFasta=True)
-    
+
     def testHalGeneratorFunctions(self):
         """Run all the CuTests, fail if any of them fail.
         """

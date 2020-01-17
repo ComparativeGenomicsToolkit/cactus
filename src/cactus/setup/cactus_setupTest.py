@@ -1,4 +1,4 @@
-#!/usr/bin/env python33
+#!/usr/bin/env python3
 
 #Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
 #
@@ -22,12 +22,12 @@ class TestCase(unittest.TestCase):
     def setUp(self):
         self.testNo = TestStatus.getTestSetup()
         unittest.TestCase.setUp(self)
-       
+
     @unittest.skip("")
-    def testCactusSetup(self): 
+    def testCactusSetup(self):
         """Creates a bunch of random inputs and then passes them to cactus setup.
         """
-        for test in range(self.testNo): 
+        for test in range(self.testNo):
             tempDir = os.path.relpath(getTempDirectory(os.getcwd()))
             sequenceNumber = random.choice(list(range(100)))
             sequences, newickTreeString = getCactusInputs_random(tempDir=tempDir, sequenceNumber=sequenceNumber)
@@ -36,7 +36,7 @@ class TestCase(unittest.TestCase):
             experiment = getCactusWorkflowExperimentForTest(sequences, newickTreeString, os.path.join('/data', os.path.relpath(tempDir)))
             cactusDiskDatabaseString = experiment.getDiskDatabaseString()
             cactusSequencesPath = os.path.join(experiment.getDbDir(), "cactusSequences")
-            
+
             runCactusSetup(cactusDiskDatabaseString=cactusDiskDatabaseString,
                            cactusSequencesPath=cactusSequencesPath, sequences=sequences,
                            newickTreeString=newickTreeString)
@@ -46,10 +46,10 @@ class TestCase(unittest.TestCase):
 
             experiment.cleanupDb()
             system("rm -rf %s" % tempDir)
-            logger.info("Finished test %i of cactus_setup.py", test) 
- 
+            logger.info("Finished test %i of cactus_setup.py", test)
+
 def main():
     unittest.main()
-        
+
 if __name__ == '__main__':
     main()

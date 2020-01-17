@@ -1,4 +1,4 @@
-#!/usr/bin/env python33
+#!/usr/bin/env python3
 
 #Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
 #
@@ -17,15 +17,15 @@ class TestCase(unittest.TestCase):
     @silentOnSuccess
     @unittest.skip("")
     def testCactus_Random(self):
-        runWorkflow_multipleExamples(getCactusInputs_random, 
-                                     testNumber=TestStatus.getTestSetup(), 
+        runWorkflow_multipleExamples(getCactusInputs_random,
+                                     testNumber=TestStatus.getTestSetup(),
                                      buildAvgs=True)
     @silentOnSuccess
     @unittest.skip("")
     def testCactus_Blanchette(self):
         runWorkflow_multipleExamples(getCactusInputs_blanchette,
-                                     testRestrictions=(TestStatus.TEST_SHORT,), inverseTestRestrictions=True, 
+                                     testRestrictions=(TestStatus.TEST_SHORT,), inverseTestRestrictions=True,
                                      buildAvgs=True)
-        
+
 if __name__ == '__main__':
     unittest.main()

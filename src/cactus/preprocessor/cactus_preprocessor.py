@@ -1,4 +1,4 @@
-#!/usr/bin/env python33
+#!/usr/bin/env python3
 
 #Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
 #
@@ -54,7 +54,7 @@ class CheckUniqueHeaders(RoundedJob):
         disk = inChunkID.size
         RoundedJob.__init__(self, memory=prepOptions.memory, cores=prepOptions.cpu, disk=disk,
                      preemptable=True)
-        self.prepOptions = prepOptions 
+        self.prepOptions = prepOptions
         self.inChunkID = inChunkID
 
     def run(self, fileStore):
@@ -81,7 +81,7 @@ class MergeChunks2(RoundedJob):
         disk = 2*sum([chunkID.size for chunkID in chunkIDList])
         RoundedJob.__init__(self, cores=prepOptions.cpu, memory=prepOptions.memory, disk=disk,
                      preemptable=True)
-        self.prepOptions = prepOptions 
+        self.prepOptions = prepOptions
         self.chunkIDList = chunkIDList
 
     def run(self, fileStore):
@@ -101,7 +101,7 @@ class PreprocessSequence(RoundedJob):
         disk = 3*inSequenceID.size if hasattr(inSequenceID, "size") else None
         RoundedJob.__init__(self, cores=prepOptions.cpu, memory=prepOptions.memory, disk=disk,
                      preemptable=True)
-        self.prepOptions = prepOptions 
+        self.prepOptions = prepOptions
         self.inSequenceID = inSequenceID
         self.chunksToCompute = chunksToCompute
 
@@ -179,11 +179,11 @@ class BatchPreprocessor(RoundedJob):
         self.inSequenceID = inSequenceID
         self.iteration = iteration
         RoundedJob.__init__(self, preemptable=True)
-              
+
     def run(self, fileStore):
-        # Parse the "preprocessor" config xml element     
+        # Parse the "preprocessor" config xml element
         assert self.iteration < len(self.prepXmlElems)
-        
+
         prepNode = self.prepXmlElems[self.iteration]
         prepOptions = PreprocessorOptions(chunkSize = int(prepNode.get("chunkSize", default="-1")),
                                           preprocessJob=prepNode.attrib["preprocessJob"],
@@ -195,7 +195,7 @@ class BatchPreprocessor(RoundedJob):
                                           lastzOptions = getOptionalAttrib(prepNode, "lastzOpts", default=""),
                                           minPeriod = getOptionalAttrib(prepNode, "minPeriod", typeFn=int, default="0"),
                                           checkAssemblyHub = getOptionalAttrib(prepNode, "checkAssemblyHub", typeFn=bool, default=False))
-        
+
         lastIteration = self.iteration == len(self.prepXmlElems) - 1
 
         if prepOptions.unmask:
@@ -205,7 +205,7 @@ class BatchPreprocessor(RoundedJob):
             self.inSequenceID = fileStore.writeGlobalFile(inSequence)
 
         outSeqID = self.addChild(PreprocessSequence(prepOptions, self.inSequenceID)).rv()
-        
+
         if lastIteration == False:
             return self.addFollowOn(BatchPreprocessor(self.prepXmlElems, outSeqID, self.iteration + 1)).rv()
         else:
@@ -225,17 +225,17 @@ class CactusPreprocessor(RoundedJob):
     def __init__(self, inputSequenceIDs, configNode):
         RoundedJob.__init__(self, disk=sum([id.size for id in inputSequenceIDs if hasattr(id, 'size')]), preemptable=True)
         self.inputSequenceIDs = inputSequenceIDs
-        self.configNode = configNode  
+        self.configNode = configNode
 
     def run(self, fileStore):
         outputSequenceIDs = []
         for inputSequenceID in self.inputSequenceIDs:
             outputSequenceIDs.append(self.addChild(CactusPreprocessor2(inputSequenceID, self.configNode)).rv())
         return outputSequenceIDs
-  
+
     @staticmethod
     def getOutputSequenceFiles(inputSequences, outputSequenceDir):
-        """Function to get unambiguous file names for each input sequence in the output sequence dir. 
+        """Function to get unambiguous file names for each input sequence in the output sequence dir.
         """
         if not outputSequenceDir.startswith("s3://") and not os.path.isdir(outputSequenceDir):
             os.mkdir(outputSequenceDir)
@@ -246,7 +246,7 @@ class CactusPreprocessor2(RoundedJob):
         RoundedJob.__init__(self, preemptable=True)
         self.inputSequenceID = inputSequenceID
         self.configNode = configNode
-        
+
     def run(self, fileStore):
         prepXmlElems = self.configNode.findall("preprocessor")
 

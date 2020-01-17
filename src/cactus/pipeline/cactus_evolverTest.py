@@ -1,4 +1,4 @@
-#!/usr/bin/env python33
+#!/usr/bin/env python3
 
 #Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
 #
@@ -16,7 +16,7 @@ from cactus.shared.test import getBatchSystem
 from cactus.shared.test import silentOnSuccess
 
 class TestCase(unittest.TestCase):
-    
+
     def setUp(self):
         self.batchSystem = "singleMachine"
         if getBatchSystem() != None:

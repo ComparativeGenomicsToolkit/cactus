@@ -1,4 +1,4 @@
-#!/usr/bin/env python33
+#!/usr/bin/env python3
 
 #Copyright (C) 2011 by Glenn Hickey
 #
@@ -257,7 +257,7 @@ class TestCase(unittest.TestCase):
 
         # we keep dynamic outgroups sorted by distance too
         assert all([x == sorted(x, key=itemgetter(1)) for x in list(og.ogMap.values())])
-                        
+
 
     def testMultipleIdenticalRunsProduceSameResult(self):
         """The code now allows for multiple greedy() calls with different

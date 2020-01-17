@@ -1,4 +1,4 @@
-#!/usr/bin/env python33
+#!/usr/bin/env python3
 
 #Copyright (C) 2011 by Glenn Hickey
 #
@@ -13,7 +13,7 @@ from cactus.shared.experimentWrapper import ExperimentWrapper
 from sonLib.nxnewick import NXNewick
 
 class TestCase(unittest.TestCase):
-    
+
     def setUp(self):
         unittest.TestCase.setUp(self)
         self.tree = NXNewick().parseString('((((HUMAN:0.006969,CHIMP:0.009727)anc2:0.025291,BABOON:0.044568)anc1:0.11,(MOUSE:0.072818,RAT:0.081244):0.260342):0.02326,((DOG:0.07,CAT:0.07):0.087381,(PIG:0.06,COW:0.06):0.104728):0.04);')
@@ -74,7 +74,7 @@ class TestCase(unittest.TestCase):
         rootElem =  ET.Element("dummy")
         rootElem.append(self.__makeDiskElem())
         return rootElem
-        
+
     def __makeDiskElem(self):
         diskElem = ET.Element("cactus_disk")
         confElem = ET.Element("st_kv_database_conf")
@@ -82,11 +82,11 @@ class TestCase(unittest.TestCase):
         diskElem.append(confElem)
         dbElem = ET.Element('kyoto_tycoon')
         confElem.append(dbElem)
-        return diskElem 
-            
-    
+        return diskElem
+
+
 def main():
     unittest.main()
-    
+
 if __name__ == '__main__':
     main()

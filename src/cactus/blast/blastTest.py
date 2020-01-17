@@ -1,4 +1,4 @@
-#!/usr/bin/env python33
+#!/usr/bin/env python3
 
 #Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
 #
@@ -53,16 +53,16 @@ class TestCase(unittest.TestCase):
         self.tempOutputFile = os.path.join(self.tempDir, "results1.txt")
         self.tempFiles.append(self.tempOutputFile)
         self.tempOutputFile2 = os.path.join(self.tempDir, "results2.txt")
-        self.tempFiles.append(self.tempOutputFile2) 
+        self.tempFiles.append(self.tempOutputFile2)
         self.encodePath = os.path.join(TestStatus.getPathToDataSets(), "MAY-2005")
-    
+
     def tearDown(self):
         for tempFile in self.tempFiles:
             if os.path.exists(tempFile):
                 os.remove(tempFile)
         unittest.TestCase.tearDown(self)
         system("rm -rf %s" % self.tempDir)
-        
+
     def runComparisonOfBlastScriptVsNaiveBlast(self, blastMode):
         """We compare the output with a naive run of the blast program, to check the results are nearly
         equivalent.
@@ -81,7 +81,7 @@ class TestCase(unittest.TestCase):
                     #Run simple blast
                     runNaiveBlast(seqFile1, seqFile2, self.tempOutputFile, self.tempDir)
                     logger.info("Ran the naive blast okay")
-                    
+
                     #Run cactus blast pipeline
                     toilDir = os.path.join(getTempDirectory(self.tempDir), "toil")
                     if blastMode == "allAgainstAll":
@@ -100,15 +100,15 @@ class TestCase(unittest.TestCase):
 
 
     def testBlastEncodeAllAgainstAll(self):
-        """For each encode region, for set of pairwise species, run 
-        cactus_blast.py in all-against-all mode. 
+        """For each encode region, for set of pairwise species, run
+        cactus_blast.py in all-against-all mode.
         """
         self.runComparisonOfBlastScriptVsNaiveBlast(blastMode="allAgainstAll")
 
 
     def testBlastEncode(self):
-        """For each encode region, for set of pairwise species, run 
-        cactus_blast.py in one set of sequences against another set mode. 
+        """For each encode region, for set of pairwise species, run
+        cactus_blast.py in one set of sequences against another set mode.
         """
         self.runComparisonOfBlastScriptVsNaiveBlast(blastMode="againstEachOther")
 
@@ -245,14 +245,14 @@ class TestCase(unittest.TestCase):
         system("grep %s %s > %s" % (outgroups[-1], self.tempOutputFile, outgroupAlignments))
         coverageFileSetVsSet = getTempFile(rootDir=self.tempDir)
         calculateCoverage(sequenceFile=ingroupPath, cigarFile=outgroupAlignments, outputFile=coverageFileSetVsSet)
-        
+
         coverageFromLastOutgroupSetVsSet = int(popenCatch("cat %s | awk '{ total +=  $3 - $2} END { print total }'" % coverageFileSetVsSet))
 
-        
+
         outgroupAlignments = getTempFile(rootDir=self.tempDir)
         system("grep %s %s > %s" % (outgroups[-1], self.tempOutputFile2, outgroupAlignments))
         coverageFileInVsOut = getTempFile(rootDir=self.tempDir)
-        calculateCoverage(sequenceFile=ingroupPath, cigarFile=outgroupAlignments, outputFile=coverageFileInVsOut)      
+        calculateCoverage(sequenceFile=ingroupPath, cigarFile=outgroupAlignments, outputFile=coverageFileInVsOut)
         coverageFromLastOutgroupInVsOut = int(popenCatch("cat %s | awk '{ total +=  $3 - $2} END { print total }'" % coverageFileInVsOut))
 
         print(("total coverage on human from last outgroup in set (%s) (set vs set mode): %d" % (outgroups[-1], coverageFromLastOutgroupSetVsSet)))
@@ -272,19 +272,19 @@ class TestCase(unittest.TestCase):
             for species2 in species[i+1:]:
                 seqFile1 = os.path.join(regionPath, "%s.%s.fa" % (species1, encodeRegion))
                 seqFile2 = os.path.join(regionPath, "%s.%s.fa" % (species2, encodeRegion))
-                
+
                 #Run the random
                 runNaiveBlast(seqFile1, seqFile2, self.tempOutputFile2, self.tempDir,
                               lastzArguments="--nogapped --hspthresh=3000 --ambiguous=iupac")
                 #Run the blast
                 runNaiveBlast(seqFile1, seqFile2, self.tempOutputFile, self.tempDir,
                               lastzArguments="--nogapped --step=3 --hspthresh=3000 --ambiguous=iupac")
-                
+
                 logger.critical("Comparing blast settings")
                 compareResultsFile(self.tempOutputFile, self.tempOutputFile2, 0.7)
 
     def testBlastRandom(self):
-        """Make some sequences, put them in a file, call blast with random parameters 
+        """Make some sequences, put them in a file, call blast with random parameters
         and check it runs okay.
         """
         tempSeqFile = os.path.join(self.tempDir, "tempSeq.fa")
@@ -337,11 +337,11 @@ class TestCase(unittest.TestCase):
 def compareResultsFile(results1, results2, closeness=0.95):
     results1 = loadResults(results1)
     logger.info("Loaded first results")
-    
+
     #Now compare the results
     results2 = loadResults(results2)
     logger.info("Loaded second results")
-    
+
     checkResultsAreApproximatelyEqual(ResultComparator(results2, results1), closeness)
     logger.info("Compared the blast results, using the first results as the 'true' results, and the second results as the predicted results")
 
@@ -352,7 +352,7 @@ def checkResultsAreApproximatelyEqual(resultsComparator, closeness=0.95):
     logger.critical("Results are: %s" % resultsComparator)
     assert resultsComparator.sensitivity >= closeness
     assert resultsComparator.specificity >= closeness
-    
+
 class ResultComparator:
     def __init__(self, trueResults, predictedResults):
         """Compares two sets of results and returns a set of statistics comparing them.
@@ -379,12 +379,12 @@ class ResultComparator:
 intersection size: %s, symmetric difference: %s, \
 true difference: %s, sensitivity: %s, \
 predicted difference: %s, specificity: %s" % \
-    (self.trueLength, self.predictedLength, self.unionSize, 
+    (self.trueLength, self.predictedLength, self.unionSize,
      self.intersectionSize, self.symmDiff,
      self.trueDifference, self.sensitivity,
      self.predictedDifference, self.specificity)
 
-def loadResults(resultsFile):  
+def loadResults(resultsFile):
     """Puts the results in a set.
     """
     pairsSet = set()
@@ -397,13 +397,13 @@ def loadResults(resultsFile):
         if not pairwiseAlignment.strand1:
             i -= 1
             s1 = -1
-            
+
         j = pairwiseAlignment.start2
         s2 = 1
         if not pairwiseAlignment.strand2:
             j -= 1
             s2 = -1
-        
+
         for operation in pairwiseAlignment.operationList:
             if operation.type == PairwiseAlignment.PAIRWISE_INDEL_X:
                 i += operation.length * s1
@@ -414,24 +414,24 @@ def loadResults(resultsFile):
                 for k in range(operation.length):
                     if pairwiseAlignment.contig1 <= pairwiseAlignment.contig2:
                         if pairwiseAlignment.contig1 != pairwiseAlignment.contig2 or i != j: #Avoid self alignments
-                            pairsSet.add((pairwiseAlignment.contig1, i, pairwiseAlignment.contig2, j)) 
+                            pairsSet.add((pairwiseAlignment.contig1, i, pairwiseAlignment.contig2, j))
                     else:
                         pairsSet.add((pairwiseAlignment.contig2, j, pairwiseAlignment.contig1, i))
                     i += s1
                     j += s2
-        
+
         if pairwiseAlignment.strand1:
             assert i == pairwiseAlignment.end1
         else:
             assert i == pairwiseAlignment.end1-1
-        
+
         if pairwiseAlignment.strand2:
             assert j == pairwiseAlignment.end2
         else:
             assert j == pairwiseAlignment.end2-1
-            
+
         #assert j == pairwiseAlignment.end2
-    fileHandle.close()      
+    fileHandle.close()
     return (pairsSet, totalHits)
 
 def runNaiveBlast(seqFile1, seqFile2, outputFile, tempDir, lastzArguments=""):
@@ -446,12 +446,12 @@ def runNaiveBlast(seqFile1, seqFile2, outputFile, tempDir, lastzArguments=""):
     return time.time()-startTime
 
 def runCactusBlast(sequenceFiles, alignmentsFile, toilDir,
-                   chunkSize=None, overlapSize=None, 
-                   logLevel=None, 
+                   chunkSize=None, overlapSize=None,
+                   logLevel=None,
                    compressFiles=None,
                    lastzMemory=None,
                    targetSequenceFiles=None):
-    
+
     options = Job.Runner.getDefaultOptions(toilDir)
     options.logLevel = "CRITICAL"
     blastOptions = BlastOptions(chunkSize=chunkSize, overlapSize=overlapSize,
@@ -468,7 +468,7 @@ def runCactusBlast(sequenceFiles, alignmentsFile, toilDir,
         alignmentsID = toil.start(rootJob)
         toil.exportFile(alignmentsID, makeURL(alignmentsFile))
 
-def runCactusBlastIngroupsAndOutgroups(ingroups, outgroups, alignmentsFile, toilDir, outgroupFragmentPaths=None, ingroupCoveragePaths=None, chunkSize=250000, overlapSize=10000, 
+def runCactusBlastIngroupsAndOutgroups(ingroups, outgroups, alignmentsFile, toilDir, outgroupFragmentPaths=None, ingroupCoveragePaths=None, chunkSize=250000, overlapSize=10000,
                    logLevel=None,
                    compressFiles=None,
                    lastzMemory=None):
@@ -502,7 +502,7 @@ def main():
     parseCactusSuiteTestOptions()
     sys.argv = sys.argv[:1]
     unittest.main()
-        
+
 if __name__ == '__main__':
     if "SON_TRACE_DATASETS" in os.environ:
         unittest.main()

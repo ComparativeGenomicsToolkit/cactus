@@ -1,4 +1,4 @@
-#!/usr/bin/env python33
+#!/usr/bin/env python3
 
 #Copyright (C) 2011 by Glenn Hickey
 #
@@ -19,35 +19,35 @@ from cactus.progressive.multiCactusTree import MultiCactusTree
 from sonLib.nxnewick import NXNewick
 
 class TestCase(unittest.TestCase):
-    
+
     def setUp(self):
         unittest.TestCase.setUp(self)
         self.mcTree1 = None
         self.mcTree1a = None
         self.mcTree2 = None
         self.__generateTrees()
-    
+
     def testSanity(self):
         parser = NXNewick()
         mcTree1 = MultiCactusTree(parser.parseString(self.tree1, addImpliedRoots = False))
-        tree1String = NXNewick().writeString(mcTree1)  
+        tree1String = NXNewick().writeString(mcTree1)
         self.assertEqual(tree1String, self.tree1)
         mcTree2 = MultiCactusTree(parser.parseString(self.tree2, addImpliedRoots = False))
         tree2String = NXNewick().writeString(mcTree2)
         self.assertEqual(tree2String, self.tree2)
-        
+
     def testSubtrees(self):
         roots1 = ["Anc0", "Anc1", "Anc2", "Anc3", "Anc4", "Anc5", "Anc6", "Anc7"]
         roots2 = ["Anc0", "Anc1", "Anc2", "Anc3", "Anc4", "Anc5"]
-        
+
         subTree1_a3 = '(Anc7:0.025291,BABOON:0.044568)Anc3;'
         subTree2_a5 = '(monkey:100.8593,cat:47.14069)Anc5;'
-        
+
         trueRoots = [roots1, roots2]
         trueSubtrees = [subTree1_a3, subTree2_a5]
         trees = [self.mcTree1, self.mcTree2]
         ancs = ["Anc3", "Anc5"]
-        
+
         for tree, trueRoot, anc, trueSubtree in zip(trees, trueRoots, ancs, trueSubtrees):
             roots = tree.getSubtreeRootNames()
             self.assertEqual(sorted(roots), sorted(trueRoot))
@@ -69,7 +69,7 @@ class TestCase(unittest.TestCase):
         tree = MultiCactusTree(self.mcTree1)
         tree.nameUnlabeledInternalNodes()
         tree.computeSubtreeRoots()
-        tree.addOutgroup("outgroup", 1.7)        
+        tree.addOutgroup("outgroup", 1.7)
         treeString = NXNewick().writeString(tree)
         self.assertEqual(treeString, trueOg)
 
@@ -114,9 +114,9 @@ class TestCase(unittest.TestCase):
         self.mcTree2.nameUnlabeledInternalNodes()
         self.mcTree1.computeSubtreeRoots()
         self.mcTree2.computeSubtreeRoots()
-    
+
 def main():
     unittest.main()
-    
+
 if __name__ == '__main__':
     main()

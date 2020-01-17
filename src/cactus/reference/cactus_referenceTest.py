@@ -1,4 +1,4 @@
-#!/usr/bin/env python33
+#!/usr/bin/env python3
 
 #Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
 #
@@ -51,20 +51,20 @@ class TestCase(unittest.TestCase):
 
 def runCactus_Blanchette(self, matchingAlgorithm):
     configFile = getConfigFile(matchingAlgorithm)
-    runWorkflow_multipleExamples(getCactusInputs_blanchette, 
-                                 testRestrictions=(TestStatus.TEST_SHORT,), inverseTestRestrictions=True, 
+    runWorkflow_multipleExamples(getCactusInputs_blanchette,
+                                 testRestrictions=(TestStatus.TEST_SHORT,), inverseTestRestrictions=True,
                                  buildReference=True,
                                  configFile=configFile)
     os.remove(configFile)
 
 def runCactus_Random(self, matchingAlgorithm):
     configFile = getConfigFile(matchingAlgorithm)
-    runWorkflow_multipleExamples(getCactusInputs_random, 
-                                 testNumber=TestStatus.getTestSetup(), 
+    runWorkflow_multipleExamples(getCactusInputs_random,
+                                 testNumber=TestStatus.getTestSetup(),
                                  buildReference=True,
                                  configFile=configFile)
     os.remove(configFile)
-    
+
 def getConfigFile(matchingAlgorithm="greedy"):
     tempConfigFile = getTempFile(rootDir="./", suffix=".xml")
     config = ET.parse(os.path.join(cactusRootPath(), "cactus_progressive_config.xml")).getroot()

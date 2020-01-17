@@ -1,4 +1,4 @@
-#!/usr/bin/env python33
+#!/usr/bin/env python3
 
 #Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
 #
@@ -28,7 +28,7 @@ from cactus.shared.common import cactus_call
 """
 
 class TestCase(unittest.TestCase):
-    
+
     def setUp(self):
         self.testNo = TestStatus.getTestSetup(3, 10, 0, 0)
         self.batchSystem = "parasol"

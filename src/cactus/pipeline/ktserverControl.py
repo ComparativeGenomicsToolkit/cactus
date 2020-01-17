@@ -1,4 +1,4 @@
-#!/usr/bin/env python33
+#!/usr/bin/env python3
 """
 Functions to launch and manage KyotoTycoon servers.
 """
@@ -189,7 +189,7 @@ def getKtTuningOptions(dbElem):
     # these are some hardcoded defaults.  should think about moving to config
     tuningOptions = "#opts=ls#bnum=30m#msiz=50g#ktopts=p"
     # override default ktserver settings if they are present in the
-    # experiment xml file. 
+    # experiment xml file.
     if dbElem.getDbTuningOptions() is not None:
         tuningOptions = dbElem.getDbTuningOptions()
     if dbElem.getDbCreateTuningOptions() is not None:
