@@ -114,7 +114,7 @@ class Schedule:
                 nextId += 1
                 for parent in parents:
                     # insert vpNode above all the parents
-                    for inEdge in self.depTree.in_edges(parent):
+                    for inEdge in list(self.depTree.in_edges(parent)):
                         if not self.isFollowOn(inEdge[0], inEdge[1]):
                             self.depTree.add_edge(inEdge[0], vpNode)
                             self.depTree.remove_edge(inEdge[0], inEdge[1])
@@ -255,7 +255,7 @@ class Schedule:
 
     # test if node corresponds to genome event or was added to break a virtual
     def isVirtual(self, name):
-        node = self.depTree.node[name]
+        node = self.depTree.nodes[name]
         return 'virtual' in node and str(node['virtual']) == '1'
 
     # write to graphviz dot file

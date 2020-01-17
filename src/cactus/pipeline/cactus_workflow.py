@@ -301,7 +301,7 @@ class SavePrimaryDB(CactusPhasesJob):
         # Wait for the file to appear in the right place. This may take a while
         while True:
             with fileStore.readGlobalFileStream(self.cactusWorkflowArguments.snapshotID) as f:
-                if f.read(1) != '':
+                if f.read(1) != b'':
                     # The file is no longer empty
                     break
             time.sleep(10)

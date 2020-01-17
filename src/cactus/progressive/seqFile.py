@@ -91,7 +91,7 @@ class SeqFile:
                     if name[0] == '*':
                         name = name[1:]
                         self.outgroups.append(name)
-                    path = string.join(tokens[1:])
+                    path = " ".join(tokens[1:])
                     if name in self.pathMap:
                         raise RuntimeError("Duplicate name found: %s" % name)
                     self.pathMap[name] = path

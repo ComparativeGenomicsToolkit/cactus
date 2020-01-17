@@ -38,7 +38,7 @@ class TestCase(unittest.TestCase):
                 sched.compute()
 
     def __addDagEdges(self, tree):
-        count = tree.size() / random.randrange(1,10)
+        count = tree.size() // random.randrange(1,10)
         tsort = list(NX.topological_sort(tree))
         for i in range(0, count):
             source = random.randrange(0, len(tsort)-1)

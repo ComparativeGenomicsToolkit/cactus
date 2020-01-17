@@ -1,6 +1,7 @@
 import os
 import shutil
 import unittest
+from base64 import b64encode
 
 from sonLib.bioio import TestStatus
 from sonLib.bioio import getTempFile
@@ -19,16 +20,16 @@ class TestCase(unittest.TestCase):
         self.tempDir = getTempDirectory(os.getcwd())
         self.tempFiles = []
         unittest.TestCase.setUp(self)
-        
+
     def tearDown(self):
         unittest.TestCase.tearDown(self)
         system("rm -rf %s" % self.tempDir)
-        
+
     def testEncodeFlowerNames(self):
         self.assertEqual("3 100 -95 995", encodeFlowerNames([ 100, 5, 1000 ]))
         self.assertEqual("0", encodeFlowerNames([  ]))
         self.assertEqual("1 1", encodeFlowerNames([ 1 ]))
-    
+
     def testDecodeFirstFlowerName(self):
         self.assertEqual(None, decodeFirstFlowerName("0 b"))
         self.assertEqual(None, decodeFirstFlowerName("0"))
@@ -53,9 +54,9 @@ class TestCase(unittest.TestCase):
     def testCactusCall(self):
         inputFile = getTempFile(rootDir=self.tempDir)
 
-        with open("/dev/urandom") as randText:
+        with open("/dev/urandom", "rb") as randText:
             with open(inputFile, 'w') as fh:
-                fh.write(randText.read(1024).encode('base64'))
+                fh.write(b64encode(randText.read(1024)).decode())
         input = "".join(open(inputFile).read().split("\n"))
 
         #Send input to container's stdin through a file, get output
