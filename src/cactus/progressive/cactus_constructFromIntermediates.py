@@ -10,6 +10,8 @@ from subprocess import check_output, check_call
 from copy import deepcopy
 
 def postorder_create(node, prefix, hal):
+    if node.name is None:
+        raise RuntimeError("Requires a tree with all ancestors labeled.")
     sys.stderr.write("working on node %r\n" % (node.name))
     c2h = prefix + '-' + node.name + '.c2h'
     hal_fa = prefix + '-' + node.name + '.hal.fa'
