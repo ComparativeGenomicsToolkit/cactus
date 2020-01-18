@@ -29,7 +29,8 @@ COPY runtime/wrapper.sh /opt/cactus/
 
 ARG CACTUS_COMMIT
 
-RUN pip3 install --pre toil
+# FIXME: install from git until new release
+RUN pip3 install --pre git+https://github.com/DataBiosphere/toil.git
 RUN pip3 install /home/cactus/submodules/sonLib/src
 
 RUN mkdir /data
