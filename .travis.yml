@@ -1,9 +1,9 @@
 sudo: required
-dist: xenial
+dist: bionic
 language: python
 
 python:
-  - "3.7"
+  - "3.6"
 
 before_install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" && "$CACTUS_BINARIES_MODE" == "local" ]]; then sudo apt-get -qq update; fi
@@ -18,7 +18,7 @@ script:
   - sudo pip install --upgrade pip requests pathlib2
   - sudo pip install --ignore-installed --upgrade six
 # install toil / cactus
-  - sudo pip install toil==3.20.0[aws]
+  - sudo pip install toil
   - sudo pip install -r requirements.txt
   - sudo pip install -e .
   - if [[ "$CACTUS_TEST_CHOICE" == "normal" ]]; then export MAKE_TARGET=test_nonblast; fi

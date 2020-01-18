@@ -48,18 +48,7 @@ all_progs.%:
 all_libs.blastLib: all_libs.api
 
 ##
-# tests
-# environment variables controlling tests
-#   CACTUS_BINARIES_MODE - how are cactus programs found?
-#     docker <default>
-#     singularity
-#     local
-#   CACTUS_DOCKER_MODE - is Docker being used
-#     1 <default>
-#     0
-#   CACTUS_USE_LOCAL_IMAGE - is Docker image on local server?
-#     0 <default>
-#     1
+# tests, see DEVELOPMENT.md for environment variables controling tests.
 ##
 export PATH := ${CWD}/bin:${PATH}
 export PYTHONPATH = ${CWD}/submodules/sonLib/src:${CWD}/submodules:${CWD}/src
