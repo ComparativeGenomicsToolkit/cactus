@@ -1,5 +1,9 @@
 # Notes on developing and debugging cactus
 
+## Overriding make settings
+A file include.local.mk can be created in the root directory
+to override make variables, including setting environment variables.
+This should not be committed.
 
 ## Environment variables controlling how cactus is run
 - CACTUS_BINARIES_MODE - how are cactus programs found?

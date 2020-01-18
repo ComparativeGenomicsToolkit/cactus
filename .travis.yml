@@ -6,12 +6,33 @@ python:
   - "3.6"
 
 before_install:
-  - if [[ "$TRAVIS_OS_NAME" == "linux" && "$CACTUS_BINARIES_MODE" == "local" ]]; then sudo apt-get -qq update; fi
-  - if [[ "$TRAVIS_OS_NAME" == "linux" && "$CACTUS_BINARIES_MODE" == "local" ]]; then sudo apt-get install -y libtokyocabinet-dev libkyototycoon-dev kyototycoon libkyotocabinet-dev libhdf5-cpp-11 libhdf5-dev; fi
-  - if [[ ! -z "$SON_TRACE_DATASETS" ]]; then git clone https://github.com/UCSantaCruzComputationalGenomicsLab/cactusTestData; fi
-# Push docker containers. We skip this on PR builds because Travis
-# doesn't include the user/password in those builds.
-  - if [[ "$CACTUS_BINARIES_MODE" == "docker" ]]; then if [[ "$TRAVIS_PULL_REQUEST" == "false" ]]; then docker login --username $QUAY_USERNAME --password $QUAY_PASSWORD quay.io; make push; else make docker; fi; fi
+  - |
+    if [[ "$TRAVIS_OS_NAME" == "linux" && "$CACTUS_BINARIES_MODE" == "local" ]]; then
+       sudo apt-get -qq update
+       sudo apt-get install -y software-properties-common
+       sudo add-apt-repository "deb http://mirrors.kernel.org/ubuntu/ xenial universe"
+       sudo apt-get install -y libtokyocabinet-dev libkyototycoon-dev kyototycoon libkyotocabinet-dev libhdf5-cpp-11 libhdf5-dev
+    fi
+  - |
+    if [[ "$TRAVIS_OS_NAME" == "linux" && "$CACTUS_BINARIES_MODE" == "local" ]]; then
+       sudo apt-get install -y libtokyocabinet-dev libkyototycoon-dev kyototycoon libkyotocabinet-dev libhdf5-cpp-11 libhdf5-dev
+    fi
+  - |
+    if [[ ! -z "$SON_TRACE_DATASETS" ]]; then
+       git clone https://github.com/UCSantaCruzComputationalGenomicsLab/cactusTestData
+    fi
+
+  # Push docker containers. We skip this on PR builds because Travis
+  # doesn't include the user/password in those builds.
+  - |
+    if [[ "$CACTUS_BINARIES_MODE" == "docker" ]]; then
+       if [[ "$TRAVIS_PULL_REQUEST" == "false" ]]; then
+          docker login --username $QUAY_USERNAME --password $QUAY_PASSWORD quay.io
+          make push
+       else
+          make docker
+       fi
+    fi
 script:
 # dependencies so toil actually functions properly (its deps don't
 # seem to be specified correctly)
