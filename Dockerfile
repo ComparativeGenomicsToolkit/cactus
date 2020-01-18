@@ -1,4 +1,4 @@
-FROM ubuntu:18.04 AS builder
+FROM ubuntu:16.04 AS builder
 
 RUN apt-get update
 RUN apt-get install -y software-properties-common
@@ -15,7 +15,7 @@ RUN cd /home/cactus && make -j 10 clean
 RUN cd /home/cactus && make -j 10
 
 # Create a thinner final Docker image in which only the binaries and necessary data exist.
-FROM ubuntu:18.04
+FROM ubuntu:16.04
 RUN apt-get update
 RUN apt-get install -y software-properties-common
 RUN add-apt-repository "deb http://mirrors.kernel.org/ubuntu/ xenial universe"

@@ -1,5 +1,5 @@
 sudo: required
-dist: bionic
+dist: xenial
 language: python
 
 python:
@@ -9,8 +9,6 @@ before_install:
   - |
     if [[ "$TRAVIS_OS_NAME" == "linux" && "$CACTUS_BINARIES_MODE" == "local" ]]; then
        sudo apt-get -qq update
-       sudo apt-get install -y software-properties-common
-       sudo add-apt-repository "deb http://mirrors.kernel.org/ubuntu/ xenial universe"
        sudo apt-get install -y libtokyocabinet-dev libkyototycoon-dev kyototycoon libkyotocabinet-dev libhdf5-cpp-11 libhdf5-dev
     fi
   - |
