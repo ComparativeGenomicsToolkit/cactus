@@ -37,8 +37,6 @@ script:
   - sudo pip install --upgrade pip requests pathlib2
   - sudo pip install --ignore-installed --upgrade six
 # install toil / cactus
-  # FIXME: install from git until neew release
-  - sudo pip install git+https://github.com/DataBiosphere/toil.git
   - sudo pip install -r requirements.txt
   - sudo pip install -e .
   - if [[ "$CACTUS_TEST_CHOICE" == "normal" ]]; then export MAKE_TARGET=test_nonblast; fi
