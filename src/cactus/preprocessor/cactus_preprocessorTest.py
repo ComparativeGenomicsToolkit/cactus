@@ -2,6 +2,7 @@ import os
 import pytest
 import unittest
 
+from sonLib.bioio import TestStatus
 from cactus.preprocessor.preprocessorTest import getSequences, getMaskedBases
 from cactus.preprocessor.preprocessorTest import TestCase as PreprocessorTestCase
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
@@ -13,6 +14,7 @@ from cactus.preprocessor.cactus_preprocessor import runCactusPreprocessor
 
 @pytest.mark.blast
 class TestCase(PreprocessorTestCase):
+    @TestStatus.shortLength
     def testCactusPreprocessor(self):
         #Demo sequences
         sequenceNames = [ "%s.ENm001.fa" % species for species in ['human', 'hedgehog'] ]

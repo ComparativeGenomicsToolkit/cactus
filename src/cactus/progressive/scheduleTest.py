@@ -28,6 +28,7 @@ class TestCase(unittest.TestCase):
     def setUp(self):
         unittest.TestCase.setUp(self)
 
+    @TestStatus.shortLength
     def testRunsOnRandom(self):
         for tree in randomTreeSet():
             if tree.size() < 120:

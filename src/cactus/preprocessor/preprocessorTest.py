@@ -7,13 +7,12 @@ from sonLib.bioio import fastaRead
 from sonLib.bioio import getTempDirectory
 
 from toil.job import Job
-from cactus.shared.test import needsTestData
 
 """Base case used for testing the preprocessor and lastz repeat masking
 """
 
 @pytest.mark.blast
-@needsTestData
+@TestStatus.needsTestData
 class TestCase(unittest.TestCase):
     def setUp(self):
         unittest.TestCase.setUp(self)

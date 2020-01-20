@@ -1,5 +1,6 @@
 import unittest, os, random
 from sonLib.bioio import getTempFile
+from sonLib.bioio import TestStatus
 from textwrap import dedent
 from cactus.shared.common import cactus_call
 from cactus.shared.test import getCactusInputs_encode, silentOnSuccess
@@ -55,6 +56,7 @@ class TestCase(unittest.TestCase):
         os.remove(self.simpleCigarPath)
 
     @silentOnSuccess
+    @TestStatus.shortLength
     def testSimpleCoverageOnA(self):
         # Genome A
         bed = cactus_call(parameters=["cactus_coverage", self.simpleFastaPathA, self.simpleCigarPath],
@@ -72,6 +74,7 @@ class TestCase(unittest.TestCase):
         '''))
 
     @silentOnSuccess
+    @TestStatus.shortLength
     def testSimpleCoverageOnB(self):
         # Genome B
         bed = cactus_call(parameters=["cactus_coverage", self.simpleFastaPathB, self.simpleCigarPath],
@@ -83,6 +86,7 @@ class TestCase(unittest.TestCase):
         '''))
 
     @silentOnSuccess
+    @TestStatus.shortLength
     def testDepthByIDOnA(self):
         # Genome A using depthByID: all depths should be 1 except
         # where 2 different id= prefixes align to the same place:
@@ -100,6 +104,7 @@ class TestCase(unittest.TestCase):
         '''))
 
     @silentOnSuccess
+    @TestStatus.shortLength
     def testDepthByIDOnB(self):
         # Genome B using depthByID: should be the same as normal
         # except for 30-31, where it should be 2
@@ -113,6 +118,7 @@ class TestCase(unittest.TestCase):
         '''))
 
     @silentOnSuccess
+    @TestStatus.shortLength
     def testFromC(self):
         # Test "--from" filtering by filtering for only alignments
         # from/to D on C.
@@ -124,9 +130,9 @@ class TestCase(unittest.TestCase):
         '''))
 
     @silentOnSuccess
+    @TestStatus.needsTestData
+    @TestStatus.shortLength
     def testInvariants(self):
-        if "SON_TRACE_DATASETS" not in os.environ:
-            return
         (seqs, _) = getCactusInputs_encode(random.uniform(0, 2))
         # Chimp encode input has duplicate header names.
         seqs = [i for i in seqs if 'chimp' not in i]
@@ -154,6 +160,7 @@ class TestCase(unittest.TestCase):
         os.remove(cigarPath)
 
     @silentOnSuccess
+    @TestStatus.shortLength
     def testCoverageCap(self):
         """Test if a base covered by >65535 alignments is capped at 65535 depth."""
         deepCigarPath = getTempFile()

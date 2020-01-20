@@ -18,8 +18,15 @@ This should not be committed.
   - 1
 
 ## Environment variables controlling tests
-- SON_TRACE_DATASETS location of test data set, currently available in
+- SON_TRACE_DATASETS location of test data set, currently available with
     git clone https://github.com/UCSantaCruzComputationalGenomicsLab/cactusTestData
+
+- SONLIB_TEST_LENGTH  filters tests by maximum run time length category (case-insensitive)
+  - SHORT - tests taking less than ~10 seconds, with some exceptions <default>
+  - MEDIUM - tests taking less than ~100 seconds
+  - LONG - test taking less than ~1000 seconds
+  - VERG_LONG - test taking longer
+medium
 
 ## Running tests with docker in single machine mode
     make docker

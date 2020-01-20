@@ -10,6 +10,7 @@ import unittest
 import os
 import random
 from operator import itemgetter
+from sonLib.bioio import TestStatus
 from sonLib.bioio import getTempDirectory
 from sonLib.bioio import system
 
@@ -79,6 +80,7 @@ class TestCase(unittest.TestCase):
         unittest.TestCase.tearDown(self)
         system("rm -rf %s" % self.tempDir)
 
+    @TestStatus.shortLength
     def testJustLeaves(self):
         og = GreedyOutgroup()
         og.importTree(self.borMcTree)
@@ -92,6 +94,7 @@ class TestCase(unittest.TestCase):
         assert og.ogMap['Anc6'][0][0] in ['CAT', 'DOG']
         assert og.ogMap['Anc7'][0][0] == 'BABOON'
 
+    @TestStatus.shortLength
     def testHeightTable(self):
         """Make sure the height-table is calculated correctly."""
         og = GreedyOutgroup()
@@ -104,6 +107,7 @@ class TestCase(unittest.TestCase):
         self.assertEqual(htable[self.borMcTree.getNodeId('Anc1')], 2)
         self.assertEqual(htable[self.borMcTree.getNodeId('Anc0')], 4)
 
+    @TestStatus.shortLength
     def testZeroThreshold(self):
         """A threshold of 0 should produce outgroup sets that cause no additional depth in the resulting schedule."""
         tree = self.backboneTree
@@ -121,6 +125,7 @@ class TestCase(unittest.TestCase):
                 self.assertTrue(htable[tree.getNodeId(outgroup)] < htable[tree.getNodeId(node)] \
                                 or htable[tree.getNodeId(outgroup)] == 0)
 
+    @TestStatus.shortLength
     def testCandidates(self):
         og = GreedyOutgroup()
         og.importTree(self.borMcTree)
@@ -146,6 +151,7 @@ class TestCase(unittest.TestCase):
         assert og.ogMap['Anc6'][0][0] == 'RAT'
         assert og.ogMap['Anc7'][0][0] == 'RAT'
 
+    @TestStatus.shortLength
     def testGeneralBetterThanLeaves(self):
         for tree in self.mcTrees:
             og1 = GreedyOutgroup()
@@ -162,6 +168,7 @@ class TestCase(unittest.TestCase):
                 dist2 = og2.ogMap[i][0][1]
                 assert dist2 <= dist1
 
+    @TestStatus.shortLength
     def testGeneralConstrainedBetterThanLeaves(self):
         for tree in self.mcTrees:
             og1 = GreedyOutgroup()
@@ -178,6 +185,7 @@ class TestCase(unittest.TestCase):
                 dist2 = og2.ogMap[i][0][1]
                 assert dist2 <= dist1
 
+    @TestStatus.shortLength
     def testMultipleOutgroups(self):
         og = GreedyOutgroup()
         og.importTree(self.borMcTree)
@@ -195,6 +203,7 @@ class TestCase(unittest.TestCase):
         assert list(map(itemgetter(0), og.ogMap['Anc1'])) == ['HUMAN', 'CHIMP',
                                                         'BABOON']
 
+    @TestStatus.shortLength
     def testMultipleOutgroupsJustLeaves(self):
         og = GreedyOutgroup()
         og.importTree(self.borMcTree)
@@ -212,6 +221,7 @@ class TestCase(unittest.TestCase):
         assert og.ogMap['Anc7'][1][0] in ['CAT', 'DOG']
         assert og.ogMap['Anc7'][2][0] in ['CAT', 'DOG']
 
+    @TestStatus.shortLength
     def testMultipleOutgroupsOnRandomTrees(self):
         for tree in self.mcTrees:
             og = GreedyOutgroup()
@@ -222,6 +232,7 @@ class TestCase(unittest.TestCase):
             # and for all entries, the closest must be first.
             assert all([x == sorted(x, key=itemgetter(1)) for x in list(og.ogMap.values())])
 
+    @TestStatus.shortLength
     def testDynamicOutgroupsOnRandomTrees(self):
         for tree, seqMap in zip(self.mcTrees, self.dummySeqMaps):
             degree = max([len(tree.getChildren(x)) for x in
@@ -237,6 +248,7 @@ class TestCase(unittest.TestCase):
                 # (this will be true because all sequences are the same)
                 assert all([x == sorted(x, key=itemgetter(1)) for x in list(og.ogMap.values())])
 
+    @TestStatus.shortLength
     def testDynamicOutgroupsJustLeaves(self):
         og = DynamicOutgroup()
         og.importTree(self.borMcTree, self.blanchetteSeqMap)
@@ -259,6 +271,7 @@ class TestCase(unittest.TestCase):
         assert all([x == sorted(x, key=itemgetter(1)) for x in list(og.ogMap.values())])
 
 
+    @TestStatus.shortLength
     def testMultipleIdenticalRunsProduceSameResult(self):
         """The code now allows for multiple greedy() calls with different
         candidate sets, so that some outgroups can be 'preferred' over
@@ -287,6 +300,7 @@ class TestCase(unittest.TestCase):
                 assert i in ogMultipleTimes.ogMap
                 assert ogOnce.ogMap[i] == ogMultipleTimes.ogMap[i]
 
+    @TestStatus.shortLength
     def testPreferredCandidateSets(self):
         """Test that running greedy() multiple times with different candidate
         sets will behave properly, i.e. keep all the existing outgroup
@@ -314,6 +328,7 @@ class TestCase(unittest.TestCase):
                     for i in oneRunOutgroups:
                         assert i in twoRunOutgroups
 
+    @TestStatus.shortLength
     def testNoOutgroupIsADescendantOfAnother(self):
         """No two outgroups should be on the same path to the root."""
         for tree in self.mcTrees:

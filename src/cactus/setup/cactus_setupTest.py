@@ -23,7 +23,8 @@ class TestCase(unittest.TestCase):
         self.testNo = TestStatus.getTestSetup()
         unittest.TestCase.setUp(self)
 
-    @unittest.skip("")
+    @unittest.skip("ExperimentWrapper.getDiskDatabaseString() isn't around anymore")
+    @TestStatus.shortLength
     def testCactusSetup(self):
         """Creates a bunch of random inputs and then passes them to cactus setup.
         """

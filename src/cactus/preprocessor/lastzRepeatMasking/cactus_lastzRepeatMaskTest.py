@@ -10,12 +10,13 @@ from toil.job import Job
 
 from cactus.shared.common import makeURL
 
-"""This test compares running the lastz repeat masking script to the underlying repeat masking of input sequences, 
+"""This test compares running the lastz repeat masking script to the underlying repeat masking of input sequences,
 comparing two settings of lastz.
 """
 
 @pytest.mark.blast
 class TestCase(PreprocessorTestCase):
+    @TestStatus.shortLength
     def testLastzRepeatMask(self):
         #Demo sequences
         sequenceFiles = [ os.path.join(self.encodePath, self.encodeRegion, "%s.ENm001.fa" % species) for species in ('human', "hedgehog") ]
@@ -31,7 +32,7 @@ class TestCase(PreprocessorTestCase):
             totalBases = sum([ len(i) for i in list(originalSequences.values()) ])
             #Calculate number of hard masked bases
             totalNBases = len([ (header, i, base) for (header, i, base) in maskedBasesOriginal if base.upper() == "N" ])
-            
+
             #Run lastz repeat masker
             startTime = time.time()
             with Toil(self.toilOptions) as toil:
@@ -85,6 +86,6 @@ class TestCase(PreprocessorTestCase):
             self.assertGreater(precision, 0.93)
             self.assertGreater(recall, 0.93)
 
-        
+
 if __name__ == '__main__':
     unittest.main()

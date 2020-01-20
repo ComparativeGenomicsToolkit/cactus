@@ -25,11 +25,13 @@ class TestCase(unittest.TestCase):
         unittest.TestCase.tearDown(self)
         system("rm -rf %s" % self.tempDir)
 
+    @TestStatus.shortLength
     def testEncodeFlowerNames(self):
         self.assertEqual("3 100 -95 995", encodeFlowerNames([ 100, 5, 1000 ]))
         self.assertEqual("0", encodeFlowerNames([  ]))
         self.assertEqual("1 1", encodeFlowerNames([ 1 ]))
 
+    @TestStatus.shortLength
     def testDecodeFirstFlowerName(self):
         self.assertEqual(None, decodeFirstFlowerName("0 b"))
         self.assertEqual(None, decodeFirstFlowerName("0"))
@@ -41,6 +43,7 @@ class TestCase(unittest.TestCase):
         self.assertEqual(9, decodeFirstFlowerName("4 9 1 1 b 1"))
         self.assertEqual(13, decodeFirstFlowerName("1 b 13"))
 
+    @TestStatus.shortLength
     def testRunCactusSplitFlowersBySecondaryGrouping(self):
         self.assertEqual([(True, "1 -1") ], runCactusSplitFlowersBySecondaryGrouping("1 b -1"))
         self.assertEqual([(False, "1 1"), (False, "1 2")], runCactusSplitFlowersBySecondaryGrouping("2 1 a 1"))
@@ -51,6 +54,7 @@ class TestCase(unittest.TestCase):
         self.assertEqual([(True, "1 13") ], runCactusSplitFlowersBySecondaryGrouping("1 b 13"))
         self.assertEqual([(False, "3 9 1 1"), (False, "2 8 4"), (True, "3 13 7 8")], runCactusSplitFlowersBySecondaryGrouping("8 9 1 1 a -3 4 b 1 7 8"))
 
+    @TestStatus.shortLength
     def testCactusCall(self):
         inputFile = getTempFile(rootDir=self.tempDir)
 
@@ -72,6 +76,7 @@ class TestCase(unittest.TestCase):
 
         self.assertEqual(input, output)
 
+    @TestStatus.shortLength
     def testCactusCallPipes(self):
         inputFile = getTempFile(rootDir=self.tempDir)
         with open(inputFile, 'w') as f:
@@ -85,6 +90,7 @@ class TestCase(unittest.TestCase):
         self.assertEqual(output, 'quuxbazbar\n')
 
     @silentOnSuccess
+    @TestStatus.shortLength
     def testChildTreeJob(self):
         """Check that the ChildTreeJob class runs all children."""
         numChildren = 100

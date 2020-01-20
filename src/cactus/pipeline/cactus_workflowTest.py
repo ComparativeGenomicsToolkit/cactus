@@ -43,48 +43,47 @@ class TestCase(unittest.TestCase):
         assert self.barNode != None
 
     @silentOnSuccess
-    @unittest.skip("")
+    @TestStatus.shortLength
     def testCactus_random(self):
         runWorkflow_multipleExamples(getCactusInputs_random,
                                      testNumber=1,
-                                     testRestrictions=(TestStatus.TEST_SHORT,),
                                      buildAvgs=True, buildReference=True,
                                      batchSystem=self.batchSystem, buildToilStats=True)
 
     @silentOnSuccess
-    @unittest.skip("")
+    @unittest.skip("ExperimentWrapper.setConstraintsFilePath has gone missing")  # FIXME
+    @TestStatus.shortLength
     def testCactus_randomWithConstraints(self):
         runWorkflow_multipleExamples(getCactusInputs_randomWithConstraints,
                                      testNumber=1,
-                                     testRestrictions=(TestStatus.TEST_SHORT,),
                                      buildAvgs=True, buildReference=True,
                                      batchSystem=self.batchSystem, buildToilStats=True,
                                      useConstraints=True)
 
     @silentOnSuccess
-    @unittest.skip("")
+    @TestStatus.needsTestData
+    @TestStatus.mediumLength
     def testCactus_blanchette(self):
         runWorkflow_multipleExamples(getCactusInputs_blanchette,
                                      testNumber=1,
-                                     testRestrictions=(TestStatus.TEST_MEDIUM,),
                                      buildAvgs=True, buildReference=True,
                                      batchSystem=self.batchSystem, buildToilStats=True)
     @silentOnSuccess
-    @unittest.skip("")
+    @TestStatus.longLength
     def testCactus_encode(self):
         runWorkflow_multipleExamples(getCactusInputs_encode,
                                      testNumber=1,
-                                     testRestrictions=(TestStatus.TEST_LONG,),
                                      buildAvgs=True, buildReference=True,
                                      batchSystem=self.batchSystem, buildToilStats=True)
     @silentOnSuccess
-    @unittest.skip("")
+    @TestStatus.needsTestData
+    @TestStatus.veryLongLength
     def testCactus_chromosomes(self):
         runWorkflow_multipleExamples(getCactusInputs_chromosomeX,
-                                     testRestrictions=(TestStatus.TEST_VERY_LONG,),
                                      batchSystem=self.batchSystem, buildToilStats=True)
 
     @silentOnSuccess
+    @TestStatus.mediumLength
     def testCactus_splitBarJobs(self):
         """Exercise the code paths in bar that only occur on large jobs."""
         # Modify the bar node in the config file so that
@@ -106,12 +105,14 @@ class TestCase(unittest.TestCase):
                                      configFile=tempConfigFile)
         os.remove(tempConfigFile)
 
+    @TestStatus.shortLength
     def testGetOptionalAttrib(self):
         self.assertEqual("2", getOptionalAttrib(self.barNode, "minimumBlockDegree"))
         self.assertEqual(2, getOptionalAttrib(self.barNode, "minimumBlockDegree", typeFn=int, default=1))
         self.assertEqual(None, getOptionalAttrib(self.barNode, "doesntExist"))
         self.assertEqual(1, getOptionalAttrib(self.barNode, "doesntExist", typeFn=int, default=1))
 
+    @TestStatus.shortLength
     def testFindRequiredNode(self):
         self.assertEqual(findRequiredNode(self.configNode, "bar"), self.barNode)
         try:
@@ -121,6 +122,7 @@ class TestCase(unittest.TestCase):
             pass
         self.assertEqual(findRequiredNode(self.configNode, "caf"), self.configNode.findall("caf")[0])
 
+    @TestStatus.shortLength
     def testExtractNode(self):
         subNode = ET.SubElement(self.barNode, "CactusSetReferenceCoordinatesDownRecursion", { "memory":"10" })
         barNodeCopy = extractNode(self.barNode)
@@ -134,6 +136,7 @@ class TestCase(unittest.TestCase):
         self.assertTrue(subNodeCopy != None)
         self.assertEqual("10", subNodeCopy.attrib["memory"])
 
+    @TestStatus.shortLength
     def testGetJobNode(self):
         class CactusTestJob(CactusJob):
             pass
@@ -145,6 +148,7 @@ class TestCase(unittest.TestCase):
         node2 = ET.SubElement(self.barNode, "CactusSetReferenceCoordinatesDownRecursion")
         self.assertEqual(node2, getJobNode(self.barNode, CactusSetReferenceCoordinatesDownRecursion))
 
+    @TestStatus.shortLength
     def testCactusJob(self):
         class CactusTestJob(CactusJob):
             pass
@@ -156,17 +160,20 @@ class TestCase(unittest.TestCase):
         self.assertEqual(job.getOptionalJobAttrib("cpu", typeFn=int, default=1), 2)
         self.assertEqual(job.getOptionalJobAttrib("overlargeCpu", typeFn=int, default=-1), -1)
 
+    @TestStatus.shortLength
     def testGetLongestPath(self):
         self.assertAlmostEqual(getLongestPath(newickTreeParser("(b(a:0.5):0.5,b(a:1.5):0.5)")), 2.0)
         self.assertAlmostEqual(getLongestPath(newickTreeParser("(b(a:0.5):0.5,b(a:1.5,c:10):0.5)")), 10.5)
         self.assertAlmostEqual(getLongestPath(newickTreeParser("(b(a:0.5):0.5,b(a:1.5,c:10,e,f:20):0.5)")), 20.5)
 
+    @TestStatus.shortLength
     def testInverseJukesCantor(self):
         self.assertAlmostEqual(inverseJukesCantor(0.5), 0.36493716072555599)
         self.assertAlmostEqual(inverseJukesCantor(1.0), 0.55230214641320496)
         self.assertAlmostEqual(inverseJukesCantor(10.0), 0.74999878530240571)
         self.assertAlmostEqual(inverseJukesCantor(100000.0), 0.75)
 
+    @TestStatus.shortLength
     def testPrependUniqueIDs(self):
         # Create fake FASTA files with some interesting headers.
         with NamedTemporaryFile(mode='w+') as fasta1, NamedTemporaryFile(mode='w+') as fasta2:

@@ -74,10 +74,6 @@ def silentOnSuccess(fn):
             os.remove(tempPath)
     return wrap
 
-def needsTestData(fn):
-    return pytest.mark.skipif(os.environ.get("SON_TRACE_DATASETS") is None,
-                              reason="Test data needed")(fn)
-
 ###########
 #Stuff for setting up the experiment configuration file for a test
 ###########
@@ -393,13 +389,8 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     #Return so calling function can cleanup
     return experiment
 
-testRestrictions_NotShort = ()
-
 def runWorkflow_multipleExamples(inputGenFunction,
                                  testNumber=1,
-                                 testRestrictions=(TestStatus.TEST_SHORT, TestStatus.TEST_MEDIUM, \
-                                                   TestStatus.TEST_LONG, TestStatus.TEST_VERY_LONG,),
-                                 inverseTestRestrictions=False,
                                  batchSystem="single_machine",
                                  buildAvgs=False, buildReference=False,
                                  configFile=None, buildToilStats=False,
@@ -410,28 +401,26 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                  progressive=False):
     """A wrapper to run a number of examples.
     """
-    if (inverseTestRestrictions and TestStatus.getTestStatus() not in testRestrictions) or \
-        (not inverseTestRestrictions and TestStatus.getTestStatus() in testRestrictions):
-        for test in range(testNumber):
-            tempDir = getTempDirectory(os.getcwd())
-            if useConstraints:
-                sequences, newickTreeString, constraints = inputGenFunction(regionNumber=test, tempDir=tempDir)
-            else:
-                sequences, newickTreeString = inputGenFunction(regionNumber=test, tempDir=tempDir)
-                constraints = None
-            runWorkflow_TestScript(sequences, newickTreeString,
-                                   outputDir=tempDir,
-                                   batchSystem=batchSystem,
-                                   buildAvgs=buildAvgs, buildReference=buildReference,
-                                   buildHal=buildHal,
-                                   buildFasta=buildFasta,
-                                   configFile=configFile,
-                                   buildToilStats=buildToilStats,
-                                   constraints=constraints,
-                                   progressive=progressive,
-                                   cactusWorkflowFunction=cactusWorkflowFunction)
-            system("rm -rf %s" % tempDir)
-            logger.info("Finished random test %i" % test)
+    for test in range(testNumber):
+        tempDir = getTempDirectory(os.getcwd())
+        if useConstraints:
+            sequences, newickTreeString, constraints = inputGenFunction(regionNumber=test, tempDir=tempDir)
+        else:
+            sequences, newickTreeString = inputGenFunction(regionNumber=test, tempDir=tempDir)
+            constraints = None
+        runWorkflow_TestScript(sequences, newickTreeString,
+                               outputDir=tempDir,
+                               batchSystem=batchSystem,
+                               buildAvgs=buildAvgs, buildReference=buildReference,
+                               buildHal=buildHal,
+                               buildFasta=buildFasta,
+                               configFile=configFile,
+                               buildToilStats=buildToilStats,
+                               constraints=constraints,
+                               progressive=progressive,
+                               cactusWorkflowFunction=cactusWorkflowFunction)
+        system("rm -rf %s" % tempDir)
+        logger.info("Finished random test %i" % test)
 
 def checkCigar(filename):
     lines = 0

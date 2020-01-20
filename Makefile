@@ -50,16 +50,43 @@ all_libs.blastLib: all_libs.api
 ##
 # tests, see DEVELOPMENT.md for environment variables controling tests.
 ##
+
+# under test modules under src/cactus/, we can run them in parallel.
+testModules = \
+    bar/cactus_barTest.py \
+    blast/blastTest.py \
+    blast/cactus_coverageTest.py \
+    blast/cactus_realignTest.py \
+    blast/mappingQualityRescoringAndFilteringTest.py \
+    blast/trimSequencesTest.py \
+    faces/cactus_fillAdjacenciesTest.py \
+    hal/cactus_halTest.py \
+    normalisation/cactus_normalisationTest.py \
+    phylogeny/cactus_phylogenyTest.py \
+    pipeline/cactus_evolverTest.py \
+    pipeline/cactus_workflowTest.py \
+    preprocessor/cactus_preprocessorTest.py \
+    preprocessor/lastzRepeatMasking/cactus_lastzRepeatMaskTest.py \
+    progressive/cactus_progressiveTest.py \
+    progressive/multiCactusTreeTest.py \
+    progressive/outgroupTest.py \
+    progressive/scheduleTest.py \
+    reference/cactus_referenceTest.py \
+    setup/cactus_setupTest.py \
+    shared/commonTest.py \
+    shared/experimentWrapperTest.py
+
 export PATH := ${CWD}/bin:${PATH}
 export PYTHONPATH = ${CWD}/submodules/sonLib/src:${CWD}/submodules:${CWD}/src
+pytestOpts = --tb=native --durations=0
 test: ${versionPy}
-	${PYTHON} -m pytest .
+	${PYTHON} -m pytest ${pytestOpts} .
 
 test_blast: ${versionPy}
-	${PYTHON} -m pytest . --suite=blast
+	${PYTHON} -m pytest ${pytestOpts} . --suite=blast
 
 test_nonblast: ${versionPy}
-	${PYTHON} -m pytest . --suite=nonblast
+	${PYTHON} -m pytest ${pytestOpts} . --suite=nonblast
 
 ${versionPy}:
 	echo "cactus_commit = '${git_commit}'" >$@

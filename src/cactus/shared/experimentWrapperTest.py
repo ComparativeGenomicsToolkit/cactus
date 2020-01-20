@@ -9,6 +9,7 @@
 import unittest
 import os
 import xml.etree.ElementTree as ET
+from sonLib.bioio import TestStatus
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from sonLib.nxnewick import NXNewick
 
@@ -37,6 +38,7 @@ class TestCase(unittest.TestCase):
             # purposes
             self.exp.setSequenceID(genome, seq)
 
+    @TestStatus.shortLength
     def testGetSequencePath(self):
         for genome, seq in list(self.seqMap.items()):
             self.assertEqual(self.exp.getSequenceID(genome), seq)
@@ -44,6 +46,7 @@ class TestCase(unittest.TestCase):
         # Should not be any entries for genomes not in the tree
         self.assertEqual(self.exp.getSequenceID('DUCK'), None)
 
+    @TestStatus.shortLength
     def testChangingSequencePaths(self):
         """Tests that changing a sequence path persists correctly."""
         self.exp.setSequenceID('HUMAN', 'human2.txt')
@@ -52,17 +55,20 @@ class TestCase(unittest.TestCase):
         self.exp = ExperimentWrapper(self.xmlRoot)
         self.assertEqual(self.exp.getSequenceID('HUMAN'), 'human2.txt')
 
+    @TestStatus.shortLength
     def testOutgroups(self):
         self.assertEqual(set(self.exp.getOutgroupGenomes()),
                          set(['MOUSE', 'RAT', 'DOG', 'CAT', 'PIG', 'COW']))
         self.exp.setOutgroupGenomes([])
         self.assertEqual(self.exp.getOutgroupGenomes(), [])
 
+    @TestStatus.shortLength
     def testRootGenome(self):
         self.assertEqual(self.exp.getRootGenome(), 'anc1')
         self.exp.setRootGenome('anc2')
         self.assertEqual(self.exp.getRootGenome(), 'anc2')
 
+    @TestStatus.shortLength
     def testSetTree(self):
         # A modfied version, with fewer genomes and a new one
         tree2 = NXNewick().parseString('((HUMAN:0.006969,CHIMP:0.009727):0.025291,BABOON:0.044568,ARMADILLO:1.0);')

@@ -34,6 +34,7 @@ class TestCase(unittest.TestCase):
         self.batchSystem = "parasol"
         unittest.TestCase.setUp(self)
 
+    @TestStatus.shortLength
     def testPosetAlignerAPI(self):
         """Run all the cactus base aligner CuTests, fail if any of them fail.
         """

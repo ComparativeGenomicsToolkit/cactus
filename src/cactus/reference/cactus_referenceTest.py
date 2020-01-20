@@ -21,38 +21,38 @@ from sonLib.bioio import getTempFile
 from cactus.shared.common import cactus_call
 
 class TestCase(unittest.TestCase):
-    @unittest.skip('too slow')
     @silentOnSuccess
+    @TestStatus.mediumLength
     def testCactus_Random_Greedy(self):
         runCactus_Random(self, "greedy")
 
-    @unittest.skip('too slow')
     @silentOnSuccess
+    @TestStatus.mediumLength
     def testCactus_Random_Blossum(self):
         runCactus_Random(self, "blossom5")
 
-    @unittest.skip('too slow')
     @silentOnSuccess
+    @TestStatus.mediumLength
     def testCactus_Random_MaxCardinality(self):
         runCactus_Random(self, "maxCardinality")
 
-    @unittest.skip('too slow')
     @silentOnSuccess
+    @TestStatus.mediumLength
     def testCactus_Random_MaxWeight(self):
         runCactus_Random(self, "maxWeight")
 
-    @unittest.skip('too slow')
     @silentOnSuccess
+    @TestStatus.mediumLength
     def testCactus_Blanchette_Blossum(self):
         runCactus_Blanchette(self, "blossom5")
 
+    @TestStatus.shortLength
     def testCuTest(self):
         cactus_call(parameters=["referenceTests", getLogLevelString()])
 
 def runCactus_Blanchette(self, matchingAlgorithm):
     configFile = getConfigFile(matchingAlgorithm)
     runWorkflow_multipleExamples(getCactusInputs_blanchette,
-                                 testRestrictions=(TestStatus.TEST_SHORT,), inverseTestRestrictions=True,
                                  buildReference=True,
                                  configFile=configFile)
     os.remove(configFile)
@@ -68,12 +68,8 @@ def runCactus_Random(self, matchingAlgorithm):
 def getConfigFile(matchingAlgorithm="greedy"):
     tempConfigFile = getTempFile(rootDir="./", suffix=".xml")
     config = ET.parse(os.path.join(cactusRootPath(), "cactus_progressive_config.xml")).getroot()
-    #Set the matching algorithm
     config.find("reference").attrib["matching_algorithm"] = matchingAlgorithm
-    #Now print the file..
-    fileHandle = open(tempConfigFile, 'w')
-    ET.ElementTree(config).write(fileHandle)
-    fileHandle.close()
+    ET.ElementTree(config).write(tempConfigFile)
     return os.path.abspath(tempConfigFile)
 
 if __name__ == '__main__':
