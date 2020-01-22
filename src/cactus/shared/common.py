@@ -775,8 +775,7 @@ def runLastz(seq1, seq2, alignmentsFile, lastzArguments, work_dir=None):
                             "--format=cigar",
                             "--notrivial"] + lastzArguments.split() +
                            ["%s[multiple][nameparse=darkspace]" % seq1,
-                            "%s[nameparse=darkspace]" % seq2],
-                soft_timeout=5400)
+                            "%s[nameparse=darkspace]" % seq2])
 
 def runSelfLastz(seq, alignmentsFile, lastzArguments, work_dir=None):
     if work_dir is None:
@@ -786,8 +785,7 @@ def runSelfLastz(seq, alignmentsFile, lastzArguments, work_dir=None):
                             "--format=cigar",
                             "--notrivial"] + lastzArguments.split() +
                            ["%s[multiple][nameparse=darkspace]" % seq,
-                            "%s[nameparse=darkspace]" % seq],
-                soft_timeout=5400)
+                            "%s[nameparse=darkspace]" % seq])
 
 def runCactusRealign(seq1, seq2, inputAlignmentsFile, outputAlignmentsFile, realignArguments, work_dir=None):
     cactus_call(infile=inputAlignmentsFile, outfile=outputAlignmentsFile, work_dir=work_dir,
