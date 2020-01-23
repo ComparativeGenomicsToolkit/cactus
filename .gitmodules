@@ -1,23 +1,18 @@
 [submodule "submodules/pinchesAndCacti"]
 	path = submodules/pinchesAndCacti
 	url = https://github.com/diekhans/pinchesAndCacti
-        branch = py3
 [submodule "submodules/matchingAndOrdering"]
 	path = submodules/matchingAndOrdering
 	url = https://github.com/diekhans/matchingAndOrdering
-        branch = py3
 [submodule "submodules/cPecan"]
 	path = submodules/cPecan
 	url = https://github.com/diekhans/cPecan
-        branch = py3
 [submodule "submodules/sonLib"]
 	path = submodules/sonLib
 	url = https://github.com/diekhans/sonLib
-        branch = py3
 [submodule "submodules/hal"]
 	path = submodules/hal
 	url = https://github.com/diekhans/hal
-        branch = py3
 [submodule "submodules/cactus2hal"]
 	path = submodules/cactus2hal
 	url = https://github.com/diekhans/cactus2hal
