@@ -1,0 +1,8 @@
+git+https://github.com/DataBiosphere/toil.git
+networkx>=2,<3
+pytest
+decorator
+psutil
+cython
+pytest
+

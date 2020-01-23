@@ -63,7 +63,7 @@ tempDir = getTempDirectory(os.getcwd())
 tempOutputFile = os.path.join(tempDir, "results1.txt")
 tempOutputFile2 = os.path.join(tempDir, "results2.txt")
 
-print ",".join(["species1", "species2", "setting", "distance", "sensitivity", "specificity", "intersectionSize", "unionSize", "totalPairsMissed", "totalPairsGained", "totalTrueHits", "totalPredictedHits", "hitsDifference", "base-runtime", "runtime" ])
+print((",".join(["species1", "species2", "setting", "distance", "sensitivity", "specificity", "intersectionSize", "unionSize", "totalPairsMissed", "totalPairsGained", "totalTrueHits", "totalPredictedHits", "hitsDifference", "base-runtime", "runtime" ])))
 
 for species1, species2, distance in speciesPairs:
     seqFile1 = os.path.join(regionPath, "%s.%s.fa" % (species1, encodeRegion))
@@ -93,10 +93,10 @@ for species1, species2, distance in speciesPairs:
             return str(int(f))
         
         resultsComparator = ResultComparator(results1, results2)
-        print ",".join([ species1, species2, "_".join(("_".join(setting.split())).split(",")), fm(distance), fm(resultsComparator.sensitivity),
+        print((",".join([ species1, species2, "_".join(("_".join(setting.split())).split(",")), fm(distance), fm(resultsComparator.sensitivity),
                          fm(resultsComparator.specificity),
                          fm2(resultsComparator.intersectionSize), fm2(resultsComparator.unionSize),
                          fm2(resultsComparator.trueDifference), fm2(resultsComparator.predictedDifference),
-                         fm2(resultsComparator.trueHits), fm2(resultsComparator.predictedHits), fm2(resultsComparator.trueHits -resultsComparator.predictedHits), fm(baseRuntime), fm(runtime) ])
+                         fm2(resultsComparator.trueHits), fm2(resultsComparator.predictedHits), fm2(resultsComparator.trueHits -resultsComparator.predictedHits), fm(baseRuntime), fm(runtime) ])))
         
 system("rm -rf %s" % tempDir)

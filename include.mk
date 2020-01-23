@@ -1,9 +1,26 @@
+# if include.local.mk exists, include it first to set various options
+# it shuld not be checked in
+includeLocal = ${rootPath}/include.local.mk
+ifneq ($(wildcard ${includeLocal}),)
+   include ${includeLocal}
+endif
+
+# special handling to get C++ ABI right on UCSC Centos 6 servers
+ifeq (${CXX_ABI_DEF},)
+ifneq ($(wildcard /etc/redhat-release),)
+ifeq ($(shell hostname -d), gi.ucsc.edu)
+    export CXX_ABI_DEF = -D_GLIBCXX_USE_CXX11_ABI=0
+endif
+endif
+endif
+
+
 #Location of sonLib
 binPath=${rootPath}/bin/
 libPath=${rootPath}/lib/
 
 #Modify this variable to set the location of sonLib
-sonLibRootPath?=${PWD}/../sonLib
+sonLibRootPath ?= ${rootPath}/submodules/sonLib
 sonLibPath=${sonLibRootPath}/lib
 
 include ${sonLibRootPath}/include.mk
