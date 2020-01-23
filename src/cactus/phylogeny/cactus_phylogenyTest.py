@@ -21,9 +21,9 @@ class TestCase(unittest.TestCase):
                                      testNumber=TestStatus.getTestSetup(),
                                      buildAvgs=True)
     @silentOnSuccess
-    @unittest.skip("BUG: consumes some resource that prevents forking on a very large machines")  # FIXME
     @TestStatus.needsTestData
-    @TestStatus.shortLength
+    @TestStatus.toilThreadHog
+    @TestStatus.mediumLength
     def testCactus_Blanchette(self):
         runWorkflow_multipleExamples(getCactusInputs_blanchette,
                                      buildAvgs=True)

@@ -620,7 +620,7 @@ def _fn(toilDir,
       logLevel=None, retryCount=0,
       batchSystem="single_machine",
       rescueJobFrequency=None,
-      buildAvgs=False, buildReference=False,
+      buildAvgs=False,
       buildHal=False,
       buildFasta=False,
       toilStats=False,
@@ -632,8 +632,6 @@ def _fn(toilDir,
     args = [toilDir, "--logLevel", logLevel]
     if buildAvgs:
         args += ["--buildAvgs"]
-    if buildReference:
-        args += ["--buildReference"]
     if buildHal:
         args += ["--buildHal"]
     if buildFasta:
@@ -663,7 +661,7 @@ def runCactusWorkflow(experimentFile,
                       batchSystem="single_machine",
                       rescueJobFrequency=None,
                       skipAlignments=False,
-                      buildAvgs=False, buildReference=False,
+                      buildAvgs=False,
                       buildHal=False,
                       buildFasta=False,
                       toilStats=False,
@@ -675,7 +673,7 @@ def runCactusWorkflow(experimentFile,
                       extraToilArgumentsString=""):
     args = ["--experiment", experimentFile] + _fn(toilDir,
                       logLevel, retryCount, batchSystem, rescueJobFrequency,
-                      buildAvgs, buildReference, buildHal, buildFasta, toilStats, maxThreads, maxCpus, defaultMemory, logFile)
+                      buildAvgs, buildHal, buildFasta, toilStats, maxThreads, maxCpus, defaultMemory, logFile)
     if intermediateResultsUrl is not None:
         args += ["--intermediateResultsUrl", intermediateResultsUrl]
 

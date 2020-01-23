@@ -337,7 +337,6 @@ def runWorkflow_TestScript(sequences, newickTreeString,
                            outputDir=None,
                            batchSystem="single_machine",
                            buildAvgs=False,
-                           buildReference=False,
                            buildHal=False,
                            buildFasta=False,
                            configFile=None,
@@ -359,7 +358,6 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     experiment = getCactusWorkflowExperimentForTest(sequences, newickTreeString,
                                                     outputDir=outputDir,
                                                     configFile=configFile, constraints=constraints,
-                                                    reconstruct=buildReference,
                                                     progressive=progressive)
     experimentFile = os.path.join(outputDir, "experiment.xml")
     experiment.writeXML(experimentFile)
@@ -372,11 +370,9 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     #Run the actual workflow
     cactusWorkflowFunction(experimentFile, toilDir,
                            batchSystem=batchSystem, buildAvgs=buildAvgs,
-                           buildReference=buildReference,
                            buildHal=buildHal,
                            buildFasta=buildFasta,
-                           toilStats=buildToilStats,
-                           logLevel="DEBUG")
+                           toilStats=buildToilStats)
     logger.info("Ran the the workflow")
     #Now run various utilities..
     if buildToilStats:
@@ -392,7 +388,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
 def runWorkflow_multipleExamples(inputGenFunction,
                                  testNumber=1,
                                  batchSystem="single_machine",
-                                 buildAvgs=False, buildReference=False,
+                                 buildAvgs=False,
                                  configFile=None, buildToilStats=False,
                                  useConstraints=False,
                                  cactusWorkflowFunction=runCactusWorkflow,
@@ -411,7 +407,7 @@ def runWorkflow_multipleExamples(inputGenFunction,
         runWorkflow_TestScript(sequences, newickTreeString,
                                outputDir=tempDir,
                                batchSystem=batchSystem,
-                               buildAvgs=buildAvgs, buildReference=buildReference,
+                               buildAvgs=buildAvgs,
                                buildHal=buildHal,
                                buildFasta=buildFasta,
                                configFile=configFile,

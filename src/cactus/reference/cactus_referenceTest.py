@@ -53,7 +53,6 @@ class TestCase(unittest.TestCase):
 def runCactus_Blanchette(self, matchingAlgorithm):
     configFile = getConfigFile(matchingAlgorithm)
     runWorkflow_multipleExamples(getCactusInputs_blanchette,
-                                 buildReference=True,
                                  configFile=configFile)
     os.remove(configFile)
 
@@ -61,7 +60,6 @@ def runCactus_Random(self, matchingAlgorithm):
     configFile = getConfigFile(matchingAlgorithm)
     runWorkflow_multipleExamples(getCactusInputs_random,
                                  testNumber=TestStatus.getTestSetup(),
-                                 buildReference=True,
                                  configFile=configFile)
     os.remove(configFile)
 

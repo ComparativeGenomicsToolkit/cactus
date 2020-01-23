@@ -18,8 +18,6 @@ from sonLib.bioio import fastaAlignmentWrite
 from sonLib.bioio import fastaReadHeaders
 from sonLib.bioio import getLogLevelString
 
-from cactus.shared.common import runCactusWorkflow
-
 from cactus.shared.test import getCactusWorkflowExperimentForTest
 from cactus.shared.test import silentOnSuccess
 from cactus.shared.common import cactus_call

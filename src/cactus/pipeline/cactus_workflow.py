@@ -1399,10 +1399,7 @@ class CactusWorkflowArguments:
         self.configWrapper.setBuildFasta(options.buildFasta)
 
         #Now build the remaining options from the arguments
-        if options.buildAvgs:
-            findRequiredNode(self.configNode, "avg").attrib["buildAvgs"] = "1"
-        else:
-            findRequiredNode(self.configNode, "avg").attrib["buildAvgs"] = "0"
+        findRequiredNode(self.configNode, "avg").attrib["buildAvgs"] = "1" if options.buildAvgs else "0"
 
 def addCactusWorkflowOptions(parser):
     parser.add_argument("--experiment", dest="experimentFile",

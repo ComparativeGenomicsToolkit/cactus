@@ -87,7 +87,7 @@ class TestCase(unittest.TestCase):
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveWithSubtreeRootFunction)
 
-    @pytest.mark.skipif(os.environ.get("TRAVIS") is not None, reason="Travis doesn't have enough cores anymore")
+    @TestStatus.travisCoreLimit
     @silentOnSuccess
     @TestStatus.shortLength
     def testCactus_Random_fixedAncestor(self):
@@ -155,7 +155,6 @@ class TestCase(unittest.TestCase):
 
     def progressiveWithSubtreeRootFunction(self, experimentFile, toilDir,
                                            batchSystem, buildAvgs,
-                                           buildReference,
                                            buildHal,
                                            buildFasta,
                                            toilStats):
@@ -192,7 +191,7 @@ class TestCase(unittest.TestCase):
         seqFile = getTempFile()
         with open(seqFile, 'w') as f:
             tree = eW.getTree()
-            newick = NXNewick().writeString(tree)
+o            newick = NXNewick().writeString(tree)
             f.write('%s\n' % newick)
             for genome in eW.getGenomesWithSequence():
                 f.write('%s %s\n' % (genome, eW.getSequenceID(genome)))

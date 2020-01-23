@@ -45,20 +45,8 @@ class TestCase(unittest.TestCase):
 
     @silentOnSuccess
     @TestStatus.needsTestData
-    @TestStatus.mediumLength
-    def testEvolver_Primates_Small(self):
-        inputDir = os.path.join(TestStatus.getPathToDataSets(), "evolver", "primates", "small")
-        primateSequences = ("simChimp.fa", "simGorilla.fa", "simHuman.fa", "simOrang.fa")
-        runWorkflow_multipleExamples(lambda regionNumber=0, tempDir=None : getInputs(inputDir, primateSequences),
-                                     batchSystem=self.batchSystem,
-                                     buildToilStats=True)
-
-    @silentOnSuccess
-    @TestStatus.needsTestData
     @TestStatus.longLength
     def testEvolver_Mammals_Medium(self):
-        if "SON_TRACE_DATASETS" not in os.environ:
-            return
         inputDir = os.path.join(TestStatus.getPathToDataSets(), "evolver", "mammals", "medium")
         mammalSequences = ("simCow.masked.fa", "simDog.masked.fa", "simHuman.masked.fa", "simMouse.masked.fa", "simRat.masked.fa")
         runWorkflow_multipleExamples(lambda regionNumber=0, tempDir=None : getInputs(inputDir, mammalSequences),
@@ -69,8 +57,6 @@ class TestCase(unittest.TestCase):
     @TestStatus.needsTestData
     @TestStatus.veryLongLength
     def testEvolver_Primates_Large(self):
-        if "SON_TRACE_DATASETS" not in os.environ:
-            return
         inputDir = os.path.join(TestStatus.getPathToDataSets(), "evolver", "primates", "large")
         primateSequences = ("simChimp.masked.fa", "simGorilla.masked.fa", "simHuman.masked.fa", "simOrang.masked.fa")
         runWorkflow_multipleExamples(lambda regionNumber=0, tempDir=None : getInputs(inputDir, primateSequences),

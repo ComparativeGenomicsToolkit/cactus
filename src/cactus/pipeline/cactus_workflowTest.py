@@ -47,7 +47,7 @@ class TestCase(unittest.TestCase):
     def testCactus_random(self):
         runWorkflow_multipleExamples(getCactusInputs_random,
                                      testNumber=1,
-                                     buildAvgs=True, buildReference=True,
+                                     buildAvgs=True,
                                      batchSystem=self.batchSystem, buildToilStats=True)
 
     @silentOnSuccess
@@ -56,7 +56,7 @@ class TestCase(unittest.TestCase):
     def testCactus_randomWithConstraints(self):
         runWorkflow_multipleExamples(getCactusInputs_randomWithConstraints,
                                      testNumber=1,
-                                     buildAvgs=True, buildReference=True,
+                                     buildAvgs=True,
                                      batchSystem=self.batchSystem, buildToilStats=True,
                                      useConstraints=True)
 
@@ -66,14 +66,14 @@ class TestCase(unittest.TestCase):
     def testCactus_blanchette(self):
         runWorkflow_multipleExamples(getCactusInputs_blanchette,
                                      testNumber=1,
-                                     buildAvgs=True, buildReference=True,
+                                     buildAvgs=True,
                                      batchSystem=self.batchSystem, buildToilStats=True)
     @silentOnSuccess
     @TestStatus.longLength
     def testCactus_encode(self):
         runWorkflow_multipleExamples(getCactusInputs_encode,
                                      testNumber=1,
-                                     buildAvgs=True, buildReference=True,
+                                     buildAvgs=True,
                                      batchSystem=self.batchSystem, buildToilStats=True)
     @silentOnSuccess
     @TestStatus.needsTestData

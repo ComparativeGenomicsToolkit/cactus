@@ -51,7 +51,7 @@ all_libs.blastLib: all_libs.api
 # tests, see DEVELOPMENT.md for environment variables controling tests.
 ##
 
-# under test modules under src/cactus/, we can run them in parallel.
+# under test modules under src/cactus/, split up to allowing run them in parallel.
 testModules = \
     bar/cactus_barTest.py \
     blast/blastTest.py \
@@ -72,21 +72,30 @@ testModules = \
     progressive/outgroupTest.py \
     progressive/scheduleTest.py \
     reference/cactus_referenceTest.py \
-    setup/cactus_setupTest.py \
     shared/commonTest.py \
     shared/experimentWrapperTest.py
 
 export PATH := ${CWD}/bin:${PATH}
 export PYTHONPATH = ${CWD}/submodules/sonLib/src:${CWD}/submodules:${CWD}/src
-pytestOpts = --tb=native --durations=0
-test: ${versionPy}
-	${PYTHON} -m pytest ${pytestOpts} .
+pytestOpts = --tb=native --durations=0 -rsx
+testLogDir = testlogs
 
-test_blast: ${versionPy}
-	${PYTHON} -m pytest ${pytestOpts} . --suite=blast
+test: ${testModules:%=%_runtest}
+test_blast: ${testModules:%=%_runtest}
+test_nonblast: ${testModules:%=%_runtest_nonblast}
 
-test_nonblast: ${versionPy}
-	${PYTHON} -m pytest ${pytestOpts} . --suite=nonblast
+# run one test and save output
+%_runtest: ${versionPy}
+	@mkdir -p ${testLogDir}
+	${PYTHON} -m pytest ${pytestOpts} src/cactus/$* >& ${testLogDir}/$(basename $(notdir $*)).log
+
+%_runtest_blast: ${versionPy}
+	@mkdir -p ${testLogDir}
+	${PYTHON} -m pytest ${pytestOpts} src/cactus/$* --suite=blast >& ${testLogDir}/$(basename $(notdir $*)).blast.log
+
+%_runtest_nonblast: ${versionPy}
+	@mkdir -p ${testLogDir}
+	${PYTHON} -m pytest ${pytestOpts} src/cactus/$* --suite=nonblast >& ${testLogDir}/$(basename $(notdir $*)).nonblast.log
 
 ${versionPy}:
 	echo "cactus_commit = '${git_commit}'" >$@
@@ -96,7 +105,7 @@ ${versionPy}:
 # clean targets
 ##
 selfClean: ${modules:%=clean.%}
-	rm -rf lib/*.h bin/*.dSYM ${versionPy}
+	rm -rf lib/*.h bin/*.dSYM ${versionPy} ${testLogDir}
 
 clean.%:
 	cd $* && ${MAKE} clean
