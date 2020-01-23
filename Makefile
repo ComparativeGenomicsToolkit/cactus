@@ -75,6 +75,17 @@ testModules = \
     shared/commonTest.py \
     shared/experimentWrapperTest.py
 
+# if running travis, we want output to go to stdout/stderr so it can be seen in the
+# log file, as opposed to indlvidual files, which are much easier to read when
+# running tests in parallel.
+ifeq (${TRAVIS},)
+define testErrOut
+     >& ${testLogDir}/$(basename $(notdir $*)).log
+endef
+else
+    testErrOut =
+endif
+
 export PATH := ${CWD}/bin:${PATH}
 export PYTHONPATH = ${CWD}/submodules/sonLib/src:${CWD}/submodules:${CWD}/src
 pytestOpts = --tb=native --durations=0 -rsx
@@ -87,7 +98,7 @@ test_nonblast: ${testModules:%=%_runtest_nonblast}
 # run one test and save output
 %_runtest: ${versionPy}
 	@mkdir -p ${testLogDir}
-	${PYTHON} -m pytest ${pytestOpts} src/cactus/$* >& ${testLogDir}/$(basename $(notdir $*)).log
+	${PYTHON} -m pytest ${pytestOpts} src/cactus/$* ${testErrOut}
 
 %_runtest_blast: ${versionPy}
 	@mkdir -p ${testLogDir}

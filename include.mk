@@ -1,3 +1,5 @@
+SHELL = /bin/bash
+
 # if include.local.mk exists, include it first to set various options
 # it shuld not be checked in
 includeLocal = ${rootPath}/include.local.mk
