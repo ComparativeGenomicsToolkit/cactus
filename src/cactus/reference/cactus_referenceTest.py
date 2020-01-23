@@ -13,7 +13,6 @@ from sonLib.bioio import getLogLevelString
 from cactus.shared.test import getCactusInputs_random
 from cactus.shared.test import getCactusInputs_blanchette
 from cactus.shared.test import runWorkflow_multipleExamples
-from cactus.shared.test import silentOnSuccess
 
 from cactus.shared.common import cactusRootPath
 from sonLib.bioio import getTempFile
@@ -21,27 +20,22 @@ from sonLib.bioio import getTempFile
 from cactus.shared.common import cactus_call
 
 class TestCase(unittest.TestCase):
-    @silentOnSuccess
     @TestStatus.mediumLength
     def testCactus_Random_Greedy(self):
         runCactus_Random(self, "greedy")
 
-    @silentOnSuccess
     @TestStatus.mediumLength
     def testCactus_Random_Blossum(self):
         runCactus_Random(self, "blossom5")
 
-    @silentOnSuccess
     @TestStatus.mediumLength
     def testCactus_Random_MaxCardinality(self):
         runCactus_Random(self, "maxCardinality")
 
-    @silentOnSuccess
     @TestStatus.mediumLength
     def testCactus_Random_MaxWeight(self):
         runCactus_Random(self, "maxWeight")
 
-    @silentOnSuccess
     @TestStatus.mediumLength
     def testCactus_Blanchette_Blossum(self):
         runCactus_Blanchette(self, "blossom5")

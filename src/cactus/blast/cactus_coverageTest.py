@@ -3,7 +3,7 @@ from sonLib.bioio import getTempFile
 from sonLib.bioio import TestStatus
 from textwrap import dedent
 from cactus.shared.common import cactus_call
-from cactus.shared.test import getCactusInputs_encode, silentOnSuccess
+from cactus.shared.test import getCactusInputs_encode
 
 class TestCase(unittest.TestCase):
     def setUp(self):
@@ -55,7 +55,6 @@ class TestCase(unittest.TestCase):
         os.remove(self.simpleFastaPathD)
         os.remove(self.simpleCigarPath)
 
-    @silentOnSuccess
     @TestStatus.shortLength
     def testSimpleCoverageOnA(self):
         # Genome A
@@ -73,7 +72,6 @@ class TestCase(unittest.TestCase):
         id=1|simpleSeqA2\t9\t10\t\t1
         '''))
 
-    @silentOnSuccess
     @TestStatus.shortLength
     def testSimpleCoverageOnB(self):
         # Genome B
@@ -85,7 +83,6 @@ class TestCase(unittest.TestCase):
         id=2|simpleSeqB1\t21\t32\t\t1
         '''))
 
-    @silentOnSuccess
     @TestStatus.shortLength
     def testDepthByIDOnA(self):
         # Genome A using depthByID: all depths should be 1 except
@@ -103,7 +100,6 @@ class TestCase(unittest.TestCase):
         id=1|simpleSeqA2\t5\t10\t\t1
         '''))
 
-    @silentOnSuccess
     @TestStatus.shortLength
     def testDepthByIDOnB(self):
         # Genome B using depthByID: should be the same as normal
@@ -117,7 +113,6 @@ class TestCase(unittest.TestCase):
         id=2|simpleSeqB1\t21\t32\t\t1
         '''))
 
-    @silentOnSuccess
     @TestStatus.shortLength
     def testFromC(self):
         # Test "--from" filtering by filtering for only alignments
@@ -129,7 +124,6 @@ class TestCase(unittest.TestCase):
         id=3|simpleSeqC1\t0\t10\t\t1
         '''))
 
-    @silentOnSuccess
     @TestStatus.needsTestData
     @TestStatus.shortLength
     def testInvariants(self):
@@ -159,7 +153,6 @@ class TestCase(unittest.TestCase):
                 self.assertTrue(start >= prevEnd)
         os.remove(cigarPath)
 
-    @silentOnSuccess
     @TestStatus.shortLength
     def testCoverageCap(self):
         """Test if a base covered by >65535 alignments is capped at 65535 depth."""

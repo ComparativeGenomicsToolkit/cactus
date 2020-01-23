@@ -39,41 +39,6 @@ from cactus.shared.common import runToilStats
 from cactus.shared.experimentWrapper import DbElemWrapper
 from cactus.shared.experimentWrapper import ExperimentWrapper
 
-def silentOnSuccess(fn):
-    """
-    Redirect stdout, stderr for a test function, then output them if it fails.
-    """
-    def wrap(self):
-        # Pretty much ripped from the toil worker.py setup.
-        tempPath = getTempFile()
-        oldStdout = os.dup(1)
-        oldStderr = os.dup(2)
-
-        #Open the file to send stdout/stderr to.
-        logFh = os.open(tempPath, os.O_RDWR | os.O_CREAT | os.O_APPEND)
-
-        #Replace standard output with a descriptor for the log file
-        os.dup2(logFh, 1)
-
-        #Replace standard error with a descriptor for the log file
-        os.dup2(logFh, 2)
-        try:
-            fn(self)
-        except:
-            oldStdoutFile = os.fdopen(oldStdout, 'w')
-            logFile = os.fdopen(os.dup(logFh))
-            logFile.seek(0)
-            oldStdoutFile.write(logFile.read())
-            raise
-        finally:
-            # Close the descriptor we used to open the file
-            os.close(logFh)
-            # Reset stdout and stderr
-            os.dup2(oldStdout, 1)
-            os.dup2(oldStderr, 2)
-            os.remove(tempPath)
-    return wrap
-
 ###########
 #Stuff for setting up the experiment configuration file for a test
 ###########

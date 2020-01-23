@@ -32,7 +32,6 @@ from cactus.shared.test import getCactusInputs_encode
 from cactus.shared.test import getCactusInputs_chromosomeX
 from cactus.shared.test import runWorkflow_multipleExamples
 from cactus.shared.test import getBatchSystem
-from cactus.shared.test import silentOnSuccess
 from cactus.shared.test import getCactusWorkflowExperimentForTest
 
 from cactus.shared.experimentWrapper import ExperimentWrapper
@@ -62,7 +61,6 @@ class TestCase(unittest.TestCase):
     def tearDown(self):
         system("rm -rf %s" % self.tempDir)
 
-    @silentOnSuccess
     @TestStatus.needsTestData
     @TestStatus.longLength
     def testCactus_Random(self):
@@ -73,7 +71,6 @@ class TestCase(unittest.TestCase):
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
 
-    @silentOnSuccess
     @TestStatus.needsTestData
     @TestStatus.longLength
     def testCactus_Random_UseSubtreeRoot(self):
@@ -88,7 +85,6 @@ class TestCase(unittest.TestCase):
                                      cactusWorkflowFunction=self.progressiveWithSubtreeRootFunction)
 
     @TestStatus.travisCoreLimit
-    @silentOnSuccess
     @TestStatus.shortLength
     def testCactus_Random_fixedAncestor(self):
         """Tests that cactus doesn't crash when aligning to a fixed ancestral sequence."""
@@ -110,7 +106,6 @@ class TestCase(unittest.TestCase):
         self.progressiveFunction(experimentFile, jobTreeDir, 'singleMachine',
                                  False, True, True, False)
 
-    @silentOnSuccess
     @TestStatus.needsTestData
     @TestStatus.shortLength
     def testCactus_ensureFunkyHeaderNamesArentMangled(self):
@@ -122,7 +117,6 @@ class TestCase(unittest.TestCase):
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
 
-    @silentOnSuccess
     @TestStatus.needsTestData
     @TestStatus.mediumLength
     def testCactus_Blanchette(self):
@@ -133,7 +127,6 @@ class TestCase(unittest.TestCase):
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
 
-    @silentOnSuccess
     @TestStatus.needsTestData
     @TestStatus.longLength
     def testCactus_Encode(self):
@@ -143,7 +136,6 @@ class TestCase(unittest.TestCase):
                                      progressive=True,
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
-    @silentOnSuccess
     @TestStatus.needsTestData
     @TestStatus.veryLongLength
     def testCactus_Chromosomes(self):

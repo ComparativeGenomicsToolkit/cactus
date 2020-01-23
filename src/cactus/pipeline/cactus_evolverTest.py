@@ -13,7 +13,6 @@ from sonLib.bioio import TestStatus
 from cactus.shared.test import getInputs
 from cactus.shared.test import runWorkflow_multipleExamples
 from cactus.shared.test import getBatchSystem
-from cactus.shared.test import silentOnSuccess
 
 @TestStatus.needsTestData
 class TestCase(unittest.TestCase):
@@ -23,7 +22,6 @@ class TestCase(unittest.TestCase):
             self.batchSystem = getBatchSystem()
         unittest.TestCase.setUp(self)
 
-    @silentOnSuccess
     @TestStatus.needsTestData
     @TestStatus.longLength
     def testEvolver_Primates_Loci1(self):
@@ -33,7 +31,6 @@ class TestCase(unittest.TestCase):
                                      batchSystem=self.batchSystem,
                                      buildToilStats=True)
 
-    @silentOnSuccess
     @TestStatus.needsTestData
     @TestStatus.longLength
     def testEvolver_Mammals_Loci1(self):
@@ -43,7 +40,6 @@ class TestCase(unittest.TestCase):
                                      batchSystem=self.batchSystem,
                                      buildToilStats=True)
 
-    @silentOnSuccess
     @TestStatus.needsTestData
     @TestStatus.longLength
     def testEvolver_Mammals_Medium(self):
@@ -53,7 +49,6 @@ class TestCase(unittest.TestCase):
                                      batchSystem=self.batchSystem,
                                      buildToilStats=True)
 
-    @silentOnSuccess
     @TestStatus.needsTestData
     @TestStatus.veryLongLength
     def testEvolver_Primates_Large(self):
@@ -63,7 +58,6 @@ class TestCase(unittest.TestCase):
                                      batchSystem=self.batchSystem,
                                      buildToilStats=True)
 
-    @silentOnSuccess
     @TestStatus.needsTestData
     @TestStatus.veryLongLength
     def testEvolver_Mammals_Large(self):

@@ -11,19 +11,16 @@ from sonLib.bioio import TestStatus, system, getLogLevelString
 from cactus.shared.test import getCactusInputs_random
 from cactus.shared.test import getCactusInputs_blanchette
 from cactus.shared.test import runWorkflow_multipleExamples
-from cactus.shared.test import silentOnSuccess
 
 from cactus.shared.common import cactus_call
 
 class TestCase(unittest.TestCase):
-    @silentOnSuccess
     @TestStatus.mediumLength
     def testCactusRecursiveHalGenerator_Random(self):
         runWorkflow_multipleExamples(getCactusInputs_random,
                                      testNumber=TestStatus.getTestSetup(),
                                      buildHal=True, buildFasta=True)
 
-    @silentOnSuccess
     @TestStatus.mediumLength
     def testCactusRecursiveHalGenerator_Blanchette(self):
         runWorkflow_multipleExamples(getCactusInputs_blanchette,

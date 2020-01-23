@@ -22,7 +22,6 @@ from cactus.shared.test import getCactusInputs_encode
 from cactus.shared.test import getCactusInputs_chromosomeX
 from cactus.shared.test import runWorkflow_multipleExamples
 from cactus.shared.test import getBatchSystem
-from cactus.shared.test import silentOnSuccess
 from cactus.shared.test import initialiseGlobalDatabaseConf
 
 from cactus.shared.common import cactusRootPath
@@ -42,7 +41,6 @@ class TestCase(unittest.TestCase):
         self.barNode = self.configNode.find("bar")
         assert self.barNode != None
 
-    @silentOnSuccess
     @TestStatus.shortLength
     def testCactus_random(self):
         runWorkflow_multipleExamples(getCactusInputs_random,
@@ -50,7 +48,6 @@ class TestCase(unittest.TestCase):
                                      buildAvgs=True,
                                      batchSystem=self.batchSystem, buildToilStats=True)
 
-    @silentOnSuccess
     @unittest.skip("ExperimentWrapper.setConstraintsFilePath has gone missing")  # FIXME
     @TestStatus.shortLength
     def testCactus_randomWithConstraints(self):
@@ -60,7 +57,6 @@ class TestCase(unittest.TestCase):
                                      batchSystem=self.batchSystem, buildToilStats=True,
                                      useConstraints=True)
 
-    @silentOnSuccess
     @TestStatus.needsTestData
     @TestStatus.mediumLength
     def testCactus_blanchette(self):
@@ -68,21 +64,18 @@ class TestCase(unittest.TestCase):
                                      testNumber=1,
                                      buildAvgs=True,
                                      batchSystem=self.batchSystem, buildToilStats=True)
-    @silentOnSuccess
     @TestStatus.longLength
     def testCactus_encode(self):
         runWorkflow_multipleExamples(getCactusInputs_encode,
                                      testNumber=1,
                                      buildAvgs=True,
                                      batchSystem=self.batchSystem, buildToilStats=True)
-    @silentOnSuccess
     @TestStatus.needsTestData
     @TestStatus.veryLongLength
     def testCactus_chromosomes(self):
         runWorkflow_multipleExamples(getCactusInputs_chromosomeX,
                                      batchSystem=self.batchSystem, buildToilStats=True)
 
-    @silentOnSuccess
     @TestStatus.mediumLength
     def testCactus_splitBarJobs(self):
         """Exercise the code paths in bar that only occur on large jobs."""

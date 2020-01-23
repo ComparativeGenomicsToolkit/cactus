@@ -11,7 +11,7 @@ from sonLib.bioio import getTempFile, getTempDirectory, system
 from sonLib.bioio import TestStatus
 from textwrap import dedent
 from cactus.shared.common import cactus_call, runSelfLastz
-from cactus.shared.test import getCactusInputs_encode, silentOnSuccess
+from cactus.shared.test import getCactusInputs_encode
 from cactus.blast.mappingQualityRescoringAndFiltering import mappingQualityRescoring
 from cactus.shared.common import makeURL
 
@@ -120,7 +120,6 @@ class TestCase(unittest.TestCase):
                                         float(score), " ".join(map(str, ops)))
         return cigar
 
-    @silentOnSuccess
     @TestStatus.shortLength
     def testMirrorAndOrientAlignments(self):
         cactus_call(parameters=["cactus_mirrorAndOrientAlignments",
@@ -181,7 +180,6 @@ class TestCase(unittest.TestCase):
                 self.assertTrue(self.makeCigar(invertStrand(coordinates2), invertStrand(coordinates1),
                                             score, invertOpStrands(reverseOps(ops))) in outputCigars)
 
-    @silentOnSuccess
     @TestStatus.shortLength
     def testSplitAlignmentsOverlaps(self):
         self.inputCigars = [
@@ -304,7 +302,6 @@ class TestCase(unittest.TestCase):
         # Check we have the expected number of cigars
         self.assertEqual(totalExpectedCigars, len(outputCigars))
 
-    @silentOnSuccess
     @TestStatus.shortLength
     def testCalculateMappingQualities(self):
         with open(self.simpleInputCigarPath, 'w') as fH:
@@ -346,7 +343,6 @@ class TestCase(unittest.TestCase):
 
         return primaryOutputCigars + secondaryOutputCigars
 
-    @silentOnSuccess
     @TestStatus.shortLength
     def testMappingQualityRescoringAndFiltering(self):
         """
@@ -374,7 +370,6 @@ class TestCase(unittest.TestCase):
         print(("Total input cigars:", len(inputCigars), "total output cigars", len(outputCigars)))
         #print outputCigars
 
-    @silentOnSuccess
     @TestStatus.longLength
     def testMappingQualityRescoringAndFilteringScaled_Mammals(self):
         # Test with a larger number of realistic input cigars
@@ -390,7 +385,6 @@ class TestCase(unittest.TestCase):
 
         os.remove(concatenatedSequenceFile) # This is a hack, because the local mode of lastz call is not working
 
-    @silentOnSuccess
     @TestStatus.mediumLength
     def testMappingQualityRescoringAndFilteringScaled_Primates(self):
         # Test with a larger number of realistic input cigars

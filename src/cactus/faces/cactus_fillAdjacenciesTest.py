@@ -11,16 +11,13 @@ from sonLib.bioio import TestStatus
 from cactus.shared.test import getCactusInputs_random
 from cactus.shared.test import getCactusInputs_blanchette
 from cactus.shared.test import runWorkflow_multipleExamples
-from cactus.shared.test import silentOnSuccess
 
 class TestCase(unittest.TestCase):
-    @silentOnSuccess
     @TestStatus.longLength
     def testCactus_Random(self):
         runWorkflow_multipleExamples(getCactusInputs_random,
                                      testNumber=TestStatus.getTestSetup(),
                                      buildAvgs=True)
-    @silentOnSuccess
     @TestStatus.longLength
     def testCactus_Blanchette(self):
         runWorkflow_multipleExamples(getCactusInputs_blanchette,
