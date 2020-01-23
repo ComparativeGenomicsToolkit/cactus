@@ -191,7 +191,7 @@ class TestCase(unittest.TestCase):
         seqFile = getTempFile()
         with open(seqFile, 'w') as f:
             tree = eW.getTree()
-o            newick = NXNewick().writeString(tree)
+            newick = NXNewick().writeString(tree)
             f.write('%s\n' % newick)
             for genome in eW.getGenomesWithSequence():
                 f.write('%s %s\n' % (genome, eW.getSequenceID(genome)))
