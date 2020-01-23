@@ -1,8 +1,9 @@
 import unittest
-from StringIO import StringIO
+from io import StringIO
 from textwrap import dedent
 from sonLib.bioio import getTempFile
 from cactus.shared.test import silentOnSuccess
+from sonLib.bioio import TestStatus
 from cactus.blast.trimSequences import trimSequences
 import os
 
@@ -32,6 +33,7 @@ class TestCase(unittest.TestCase):
         os.remove(self.bedPath)
 
     @silentOnSuccess
+    @TestStatus.shortLength
     def testSimplestParameters(self):
         # Test w/ no windowing, minimum size, etc to see if bed
         # import/fasta export works
@@ -48,6 +50,7 @@ class TestCase(unittest.TestCase):
         G''') in output.getvalue())
 
     @silentOnSuccess
+    @TestStatus.shortLength
     def testComplement(self):
         output = StringIO()
         trimSequences(self.faPath, self.bedPath, output, flanking=0, minSize=0, windowSize=1, threshold=1,
@@ -64,6 +67,7 @@ class TestCase(unittest.TestCase):
         >seq2|0''') in output.getvalue())
 
     @silentOnSuccess
+    @TestStatus.shortLength
     def testFlanking(self):
         output = StringIO()
         trimSequences(self.faPath, self.bedPath, output, flanking=1, minSize=0, windowSize=1, threshold=1)
@@ -78,6 +82,7 @@ class TestCase(unittest.TestCase):
         TGC''') in output.getvalue())
 
     @silentOnSuccess
+    @TestStatus.shortLength
     def testDepth(self):
         output = StringIO()
         trimSequences(self.faPath, self.bedPath, output, flanking=0, minSize=0, windowSize=1, depth=2)
@@ -86,6 +91,7 @@ class TestCase(unittest.TestCase):
         self.assertTrue(">seq1|15" in output.getvalue())
 
     @silentOnSuccess
+    @TestStatus.shortLength
     def testMinSize(self):
         output = StringIO()
         trimSequences(self.faPath, self.bedPath, output, flanking=0, minSize=2, windowSize=1, threshold=1)
@@ -94,6 +100,7 @@ class TestCase(unittest.TestCase):
         self.assertTrue(">seq1|15" not in output.getvalue())
 
     @silentOnSuccess
+    @TestStatus.shortLength
     def testWithBlankLines(self):
         output = StringIO()
         with open(self.faPath, 'a') as f:

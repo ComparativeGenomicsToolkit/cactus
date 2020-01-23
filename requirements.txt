@@ -1,8 +1,7 @@
-toil[all]
+git+https://github.com/DataBiosphere/toil.git
 networkx>=2,<3
 pytest
 decorator
-subprocess32
 psutil
 cython
 pytest

@@ -48,17 +48,54 @@ all_progs.%:
 all_libs.blastLib: all_libs.api
 
 ##
-# tests
+# tests, see DEVELOPMENT.md for environment variables controling tests.
 ##
-export PYTHONPATH = ${CWD}/submodules:${CWD}/src
-test: ${versionPy}
-	pytest .
 
-test_blast: ${versionPy}
-	pytest . --suite=blast
+# under test modules under src/cactus/, split up to allowing run them in parallel.
+testModules = \
+    bar/cactus_barTest.py \
+    blast/blastTest.py \
+    blast/cactus_coverageTest.py \
+    blast/cactus_realignTest.py \
+    blast/mappingQualityRescoringAndFilteringTest.py \
+    blast/trimSequencesTest.py \
+    faces/cactus_fillAdjacenciesTest.py \
+    hal/cactus_halTest.py \
+    normalisation/cactus_normalisationTest.py \
+    phylogeny/cactus_phylogenyTest.py \
+    pipeline/cactus_evolverTest.py \
+    pipeline/cactus_workflowTest.py \
+    preprocessor/cactus_preprocessorTest.py \
+    preprocessor/lastzRepeatMasking/cactus_lastzRepeatMaskTest.py \
+    progressive/cactus_progressiveTest.py \
+    progressive/multiCactusTreeTest.py \
+    progressive/outgroupTest.py \
+    progressive/scheduleTest.py \
+    reference/cactus_referenceTest.py \
+    shared/commonTest.py \
+    shared/experimentWrapperTest.py
 
-test_nonblast: ${versionPy}
-	pytest . --suite=nonblast
+export PATH := ${CWD}/bin:${PATH}
+export PYTHONPATH = ${CWD}/submodules/sonLib/src:${CWD}/submodules:${CWD}/src
+pytestOpts = --tb=native --durations=0 -rsx
+testLogDir = testlogs
+
+test: ${testModules:%=%_runtest}
+test_blast: ${testModules:%=%_runtest}
+test_nonblast: ${testModules:%=%_runtest_nonblast}
+
+# run one test and save output
+%_runtest: ${versionPy}
+	@mkdir -p ${testLogDir}
+	${PYTHON} -m pytest ${pytestOpts} src/cactus/$* >& ${testLogDir}/$(basename $(notdir $*)).log
+
+%_runtest_blast: ${versionPy}
+	@mkdir -p ${testLogDir}
+	${PYTHON} -m pytest ${pytestOpts} src/cactus/$* --suite=blast >& ${testLogDir}/$(basename $(notdir $*)).blast.log
+
+%_runtest_nonblast: ${versionPy}
+	@mkdir -p ${testLogDir}
+	${PYTHON} -m pytest ${pytestOpts} src/cactus/$* --suite=nonblast >& ${testLogDir}/$(basename $(notdir $*)).nonblast.log
 
 ${versionPy}:
 	echo "cactus_commit = '${git_commit}'" >$@
@@ -68,7 +105,7 @@ ${versionPy}:
 # clean targets
 ##
 selfClean: ${modules:%=clean.%}
-	rm -rf lib/*.h bin/*.dSYM ${versionPy}
+	rm -rf lib/*.h bin/*.dSYM ${versionPy} ${testLogDir}
 
 clean.%:
 	cd $* && ${MAKE} clean
@@ -83,7 +120,7 @@ suball2: ${submodules2:%=suball.%}
 suball.sonLib:
 	cd submodules/sonLib && ${MAKE}
 	mkdir -p bin
-	ln -f submodules/sonLib/bin/* bin/
+	ln -f submodules/sonLib/bin/[a-zA-Z]* bin/
 
 suball.pinchesAndCacti: suball.sonLib
 	cd submodules/pinchesAndCacti && ${MAKE}
