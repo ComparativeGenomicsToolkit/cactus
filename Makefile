@@ -76,7 +76,7 @@ testModules = \
     shared/experimentWrapperTest.py
 
 # if running travis, we want output to go to stdout/stderr so it can be seen in the
-# log file, as opposed to indlvidual files, which are much easier to read when
+# log file, as opposed to individual files, which are much easier to read when
 # running tests in parallel.
 ifeq (${TRAVIS},)
 define testErrOut
