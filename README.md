@@ -19,16 +19,16 @@ Cactus uses substantial resources. For primate-sized genomes (3 gigabases each),
 
 Note that to run even the very small evolverMammals example, you will need 2 CPUs and 12 GB RAM. The actual resource requirements are much less, but the individual jobs have resource estimates based on much larger alignments, so the jobs will refuse to run unless there are enough resources to meet their estimates.
 ### Virtual environment
-To avoid problems with conflicting versions of dependencies on your system, we strongly recommend installing Cactus inside a Python [virtual environment](https://virtualenv.pypa.io/en/stable/). Note that Cactus will only currently work with Python 2.7, until some of our dependencies become Python 3 compatible.
+To avoid problems with conflicting versions of dependencies on your system, we strongly recommend installing Cactus inside a Python 3 [virtual environment](https://virtualenv.pypa.io/en/stable/).
 
 To install the `virtualenv` command, if you don't have it already, run:
 ```
-pip install virtualenv
+python3 -m pip install virtualenv
 ```
 
 To set up a virtual environment in the directory `cactus_env`, run:
 ```
-virtualenv cactus_env
+python3 -m virtualenv cactus_env
 ```
 
 Then, to enter the virtualenv, run:
@@ -38,10 +38,6 @@ source cactus_env/bin/activate
 
 You can always exit out of the virtualenv by running `deactivate`. The rest of the README assumes you're running inside a virtual environment.
 
-If your version of `pip` or `virtualenv` uses Python 3 by default, you will need to use a Python 2 version to create your environment. To do that, use:
-```
-virtualenv -p /path-to-your-python2-install/python2.7 cactus_env
-```
 ### Install Cactus and its dependencies
 Cactus uses [Toil](http://toil.ucsc-cgl.org/) to coordinate its jobs. To install Toil into your environment, run:
 ```
@@ -137,8 +133,6 @@ Example:
 There isn't much to configure if running locally. Most importantly, if on a shared system, you can adjust the maximum number of processors used with `--maxCores <N>` (by default, Cactus will use all cores).
 ### Running on a cluster
 Cactus (through Toil) supports many batch systems, including LSF, SLURM, GridEngine, Parasol, and Torque. To run on a cluster, simply add `--batchSystem <batchSystem>`, e.g. `--batchSystem gridEngine`. If your batch system needs additional configuration, Toil exposes some [environment variables](http://toil.readthedocs.io/en/3.10.1/developingWorkflows/batchSystem.html#batch-system-enivronmental-variables) that can help.
-
-Note that certain Toil environment options may affect its ability to interact with certain batch systems; for example, Slurm will fail to run jobs if the TOIL_WORKDIR variable (or `--workDir` argument) is not set to a shared location accessible by every worker and the Cactus/Toil processes.
 ### Running on the cloud
 Cactus supports running on AWS, Azure, and Google Cloud Platform using [Toil's autoscaling features](https://toil.readthedocs.io/en/latest/running/cloud/cloud.html). For more details on running in AWS, check out [these instructions](doc/running-in-aws.md) (other clouds are similar).
 ## Using the output
