@@ -308,7 +308,8 @@ def runWorkflow_TestScript(sequences, newickTreeString,
                            buildToilStats=False,
                            constraints=None,
                            progressive=False,
-                           cactusWorkflowFunction=runCactusWorkflow):
+                           cactusWorkflowFunction=runCactusWorkflow,
+                           logLevel=None):
     """Runs the workflow and various downstream utilities.
     """
     logger.info("Running cactus workflow test script")
@@ -337,7 +338,8 @@ def runWorkflow_TestScript(sequences, newickTreeString,
                            batchSystem=batchSystem, buildAvgs=buildAvgs,
                            buildHal=buildHal,
                            buildFasta=buildFasta,
-                           toilStats=buildToilStats)
+                           toilStats=buildToilStats,
+                           logLevel=logLevel)
     logger.info("Ran the the workflow")
     #Now run various utilities..
     if buildToilStats:
@@ -357,6 +359,7 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                  configFile=None, buildToilStats=False,
                                  useConstraints=False,
                                  cactusWorkflowFunction=runCactusWorkflow,
+                                 logLevel=None,
                                  buildHal=False,
                                  buildFasta=False,
                                  progressive=False):
@@ -379,7 +382,8 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                buildToilStats=buildToilStats,
                                constraints=constraints,
                                progressive=progressive,
-                               cactusWorkflowFunction=cactusWorkflowFunction)
+                               cactusWorkflowFunction=cactusWorkflowFunction,
+                               logLevel=logLevel)
         system("rm -rf %s" % tempDir)
         logger.info("Finished random test %i" % test)
 

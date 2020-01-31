@@ -48,15 +48,6 @@ class TestCase(unittest.TestCase):
                                      buildAvgs=True,
                                      batchSystem=self.batchSystem, buildToilStats=True)
 
-    @unittest.skip("ExperimentWrapper.setConstraintsFilePath has gone missing")  # FIXME
-    @TestStatus.shortLength
-    def testCactus_randomWithConstraints(self):
-        runWorkflow_multipleExamples(getCactusInputs_randomWithConstraints,
-                                     testNumber=1,
-                                     buildAvgs=True,
-                                     batchSystem=self.batchSystem, buildToilStats=True,
-                                     useConstraints=True)
-
     @TestStatus.needsTestData
     @TestStatus.mediumLength
     def testCactus_blanchette(self):
