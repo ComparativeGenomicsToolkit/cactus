@@ -19,7 +19,7 @@ class PostInstallCommand(install):
         install.run(self)
 
 setup(
-    name = "progressiveCactus",
+    name = "Cactus",
     version = "1.0",
     author = "Benedict Paten",
     package_dir = {'': 'src'},
@@ -35,7 +35,6 @@ setup(
 
     install_requires = [
         'decorator',
-        'subprocess32',
         'psutil',
         'networkx>=2,<3',
         'cython',
