@@ -1011,13 +1011,13 @@ def dockerCommand(tool=None,
 
 def prepareWorkDir(work_dir, parameters):
     if not work_dir:
-    #Make sure all the paths we're accessing are in the same directory
+        # Make sure all the paths we're accessing are in the same directory
         files = [par for par in parameters if os.path.isfile(par)]
         folders = [par for par in parameters if os.path.isdir(par)]
         work_dirs = set([os.path.dirname(fileName) for fileName in files] + [os.path.dirname(folder) for folder in folders])
         _log.info("Work dirs: %s" % work_dirs)
         if len(work_dirs) > 1:
-            work_dir = os.path.commonprefix(work_dirs)
+            work_dir = os.path.commonprefix(list(work_dirs))
         elif len(work_dirs) == 1:
             work_dir = work_dirs.pop()
 
