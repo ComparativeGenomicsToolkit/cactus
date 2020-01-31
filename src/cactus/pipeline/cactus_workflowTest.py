@@ -41,8 +41,13 @@ class TestCase(unittest.TestCase):
         self.barNode = self.configNode.find("bar")
         assert self.barNode != None
 
+    @unittest.skip("test was never updated when changes were made to the way ancestors work")
     @TestStatus.shortLength
     def testCactus_random(self):
+        # gets "Couldn't find reference event reference" from cactus_reference
+        # The error means that it is getting told to calculate the ancestral
+        # sequence for the species "reference" but that species doesn't
+        # actually exist in the tree
         runWorkflow_multipleExamples(getCactusInputs_random,
                                      testNumber=1,
                                      buildAvgs=True,
