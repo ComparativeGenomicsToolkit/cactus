@@ -7,17 +7,19 @@ Cactus is a reference-free whole-genome multiple alignment program. The principa
 
 Cactus uses many different algorithms and individual code contributions, principally from Joel Armstrong, Glenn Hickey, Mark Diekhans and Benedict Paten. We are particularly grateful to:
 
--  Yung H. Tsin and Nima Norouzi for contributing their 3-edge connected components program code, which is crucial in constructing the cactus graph structure, see: Tsin,Y.H., "A simple 3-edge-connected component algorithm," Theory of Computing Systems, vol.40, No.2, 2007, pp.125-142.
+- Yung H. Tsin and Nima Norouzi for contributing their 3-edge connected components program code, which is crucial in constructing the cactus graph structure, see: Tsin,Y.H., "A simple 3-edge-connected component algorithm," Theory of Computing Systems, vol.40, No.2, 2007, pp.125-142.
 - Bob Harris for providing endless support for his LastZ pairwise, blast-like genome alignment tool.
 
 
 ## Setup
+
 ### System requirements
 We regularly test on Ubuntu 16.04 (Xenial) and to a more limited degree on Mac OS X (using Docker).
 
 Cactus uses substantial resources. For primate-sized genomes (3 gigabases each), you should expect Cactus to use approximately 120 CPU-days of compute per genome, with about 120 GB of RAM used at peak. The requirements scale roughly quadratically, so aligning two 1-megabase bacterial genomes takes only 1.5 CPU-hours and 14 GB RAM.
 
 Note that to run even the very small evolverMammals example, you will need 2 CPUs and 12 GB RAM. The actual resource requirements are much less, but the individual jobs have resource estimates based on much larger alignments, so the jobs will refuse to run unless there are enough resources to meet their estimates.
+
 ### Virtual environment
 To avoid problems with conflicting versions of dependencies on your system, we strongly recommend installing Cactus inside a Python 3 [virtual environment](https://virtualenv.pypa.io/en/stable/).
 
@@ -42,6 +44,13 @@ You can always exit out of the virtualenv by running `deactivate`. The rest of t
 Cactus uses [Toil](http://toil.ucsc-cgl.org/) to coordinate its jobs. To install Toil into your environment, run:
 ```
 pip install --upgrade toil[all]
+```
+
+Note that if you are using Python 3.7, there is an issued that caused the
+Toil dependency package *http_parser* C code to fail to compile.  This is easily worked
+around by setting an environment variable before installing Toil:
+```
+CPPFLAGS='-DPYPY_VERSION' pip install toil[all]
 ```
 
 Finally, to install Cactus, from the root of the `cactus` repository, run:

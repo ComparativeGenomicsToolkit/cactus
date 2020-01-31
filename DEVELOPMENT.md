@@ -25,8 +25,7 @@ This should not be committed.
   - SHORT - tests taking less than ~10 seconds, with some exceptions <default>
   - MEDIUM - tests taking less than ~100 seconds
   - LONG - test taking less than ~1000 seconds
-  - VERG_LONG - test taking longer
-medium
+  - VERG_LONG - test taking even longer
 
 ## Running tests with docker in single machine mode
     make docker
