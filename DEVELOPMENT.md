@@ -27,6 +27,10 @@ This should not be committed.
   - LONG - test taking less than ~1000 seconds
   - VERG_LONG - test taking even longer
 
+- CACTUS_TEST_LOG_LEVEL - Set log-level used for the test, may not set it for all test, but very useful for Toil.
+  
+
+
 ## Running tests with docker in single machine mode
     make docker
     export CACTUS_USE_LOCAL_IMAGE=1

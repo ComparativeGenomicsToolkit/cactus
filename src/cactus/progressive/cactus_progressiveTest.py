@@ -64,7 +64,8 @@ class TestCase(unittest.TestCase):
     @TestStatus.needsTestData
     @TestStatus.longLength
     def testCactus_Random(self):
-        runWorkflow_multipleExamples(getCactusInputs_random,
+        runWorkflow_multipleExamples(self.id(),
+                                     getCactusInputs_random,
                                      testNumber=1,
                                      batchSystem=self.batchSystem, buildToilStats=True,
                                      progressive=True,
@@ -77,7 +78,8 @@ class TestCase(unittest.TestCase):
         """Tests that cactus doesn't crash when aligning a subtree of a larger
         species tree."""
         getBigSpeciesTree = lambda regionNumber=0,tempDir=None: getCactusInputs_random(regionNumber, tempDir, treeLeafNumber=5)
-        runWorkflow_multipleExamples(getBigSpeciesTree,
+        runWorkflow_multipleExamples(self.id(),
+                                     getBigSpeciesTree,
                                      testNumber=1,
                                      batchSystem=self.batchSystem, buildToilStats=True,
                                      progressive=True,
@@ -93,7 +95,8 @@ class TestCase(unittest.TestCase):
         # Create a star tree
         tree = '(%s)root;' % ",".join([str(x) + ":1.0" for x in range(len(sequences))])
         outputDir = getTempDirectory()
-        experiment = getCactusWorkflowExperimentForTest(sequences, tree,
+        experiment = getCactusWorkflowExperimentForTest(self.id(),
+                                                        sequences, tree,
                                                         outputDir,
                                                         progressive=True)
         experiment.setSequenceID("root", rootSeq)
@@ -107,10 +110,11 @@ class TestCase(unittest.TestCase):
                                  False, True, True, False)
 
     @TestStatus.needsTestData
-    @TestStatus.shortLength
+    @TestStatus.longLength
     def testCactus_ensureFunkyHeaderNamesArentMangled(self):
         """Ensure header names with characters like "|", " " aren't mangled."""
-        runWorkflow_multipleExamples(getCactusInputs_funkyHeaderNames,
+        runWorkflow_multipleExamples(self.id(),
+                                     getCactusInputs_funkyHeaderNames,
                                      testNumber=1,
                                      batchSystem=self.batchSystem, buildToilStats=True,
                                      progressive=True,
@@ -120,7 +124,8 @@ class TestCase(unittest.TestCase):
     @TestStatus.needsTestData
     @TestStatus.mediumLength
     def testCactus_Blanchette(self):
-        runWorkflow_multipleExamples(getCactusInputs_blanchette,
+        runWorkflow_multipleExamples(self.id(),
+                                     getCactusInputs_blanchette,
                                      testNumber=1,
                                      batchSystem=self.batchSystem, buildToilStats=True,
                                      progressive=True,
@@ -130,7 +135,8 @@ class TestCase(unittest.TestCase):
     @TestStatus.needsTestData
     @TestStatus.longLength
     def testCactus_Encode(self):
-        runWorkflow_multipleExamples(getCactusInputs_encode,
+        runWorkflow_multipleExamples(self.id(),
+                                     getCactusInputs_encode,
                                      testNumber=1,
                                      batchSystem=self.batchSystem, buildToilStats=True,
                                      progressive=True,
@@ -139,7 +145,8 @@ class TestCase(unittest.TestCase):
     @TestStatus.needsTestData
     @TestStatus.veryLongLength
     def testCactus_Chromosomes(self):
-        runWorkflow_multipleExamples(getCactusInputs_chromosomeX,
+        runWorkflow_multipleExamples(self.id(),
+                                     getCactusInputs_chromosomeX,
                                      batchSystem=self.batchSystem, buildToilStats=True,
                                      progressive=True,
                                      configFile=self.configFile,
@@ -178,7 +185,8 @@ class TestCase(unittest.TestCase):
                             buildHal,
                             buildFasta,
                             toilStats,
-                            subtreeRoot=None):
+                            subtreeRoot=None,
+                            logLevel=None):
         eW = ExperimentWrapper(ET.parse(experimentFile).getroot())
         seqFile = getTempFile()
         with open(seqFile, 'w') as f:
@@ -193,7 +201,8 @@ class TestCase(unittest.TestCase):
                              toilDir,
                              batchSystem=batchSystem,
                              buildAvgs=buildAvgs,
-                             toilStats=toilStats)
+                             toilStats=toilStats,
+                             logLevel=logLevel)
 
 if __name__ == '__main__':
     unittest.main()

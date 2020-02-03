@@ -27,7 +27,8 @@ class TestCase(unittest.TestCase):
     def testEvolver_Primates_Loci1(self):
         inputDir = os.path.join(TestStatus.getPathToDataSets(), "evolver", "primates", "loci1")
         primateSequences = ("simChimp.chr6", "simGorilla.chr6", "simHuman.chr6", "simOrang.chr6")
-        runWorkflow_multipleExamples(lambda regionNumber=0, tempDir=None : getInputs(inputDir, primateSequences),
+        runWorkflow_multipleExamples(self.id(),
+                                     lambda regionNumber=0, tempDir=None : getInputs(inputDir, primateSequences),
                                      batchSystem=self.batchSystem,
                                      buildToilStats=True)
 
@@ -36,7 +37,8 @@ class TestCase(unittest.TestCase):
     def testEvolver_Mammals_Loci1(self):
         inputDir = os.path.join(TestStatus.getPathToDataSets(), "evolver", "mammals", "loci1")
         mammalSequences = ("simCow.chr6", "simDog.chr6", "simHuman.chr6", "simMouse.chr6", "simRat.chr6")
-        runWorkflow_multipleExamples(lambda regionNumber=0, tempDir=None : getInputs(inputDir, mammalSequences),
+        runWorkflow_multipleExamples(self.id(),
+                                     lambda regionNumber=0, tempDir=None : getInputs(inputDir, mammalSequences),
                                      batchSystem=self.batchSystem,
                                      buildToilStats=True)
 
@@ -45,7 +47,8 @@ class TestCase(unittest.TestCase):
     def testEvolver_Mammals_Medium(self):
         inputDir = os.path.join(TestStatus.getPathToDataSets(), "evolver", "mammals", "medium")
         mammalSequences = ("simCow.masked.fa", "simDog.masked.fa", "simHuman.masked.fa", "simMouse.masked.fa", "simRat.masked.fa")
-        runWorkflow_multipleExamples(lambda regionNumber=0, tempDir=None : getInputs(inputDir, mammalSequences),
+        runWorkflow_multipleExamples(self.id(),
+                                     lambda regionNumber=0, tempDir=None : getInputs(inputDir, mammalSequences),
                                      batchSystem=self.batchSystem,
                                      buildToilStats=True)
 
@@ -54,7 +57,8 @@ class TestCase(unittest.TestCase):
     def testEvolver_Primates_Large(self):
         inputDir = os.path.join(TestStatus.getPathToDataSets(), "evolver", "primates", "large")
         primateSequences = ("simChimp.masked.fa", "simGorilla.masked.fa", "simHuman.masked.fa", "simOrang.masked.fa")
-        runWorkflow_multipleExamples(lambda regionNumber=0, tempDir=None : getInputs(inputDir, primateSequences),
+        runWorkflow_multipleExamples(self.id(),
+                                     lambda regionNumber=0, tempDir=None : getInputs(inputDir, primateSequences),
                                      batchSystem=self.batchSystem,
                                      buildToilStats=True)
 
@@ -63,7 +67,8 @@ class TestCase(unittest.TestCase):
     def testEvolver_Mammals_Large(self):
         inputDir = os.path.join(TestStatus.getPathToDataSets(), "evolver", "mammals", "large")
         mammalSequences = ("simCow.masked.fa", "simDog.masked.fa", "simHuman.masked.fa", "simMouse.masked.fa", "simRat.masked.fa")
-        runWorkflow_multipleExamples(lambda regionNumber=0, tempDir=None : getInputs(inputDir, mammalSequences),
+        runWorkflow_multipleExamples(self.id(),
+                                     lambda regionNumber=0, tempDir=None : getInputs(inputDir, mammalSequences),
                                      batchSystem=self.batchSystem,
                                      buildToilStats=True)
 

@@ -46,13 +46,15 @@ class TestCase(unittest.TestCase):
 
 def runCactus_Blanchette(self, matchingAlgorithm):
     configFile = getConfigFile(matchingAlgorithm)
-    runWorkflow_multipleExamples(getCactusInputs_blanchette,
+    runWorkflow_multipleExamples(self.id(),
+                                 getCactusInputs_blanchette,
                                  configFile=configFile)
     os.remove(configFile)
 
 def runCactus_Random(self, matchingAlgorithm):
     configFile = getConfigFile(matchingAlgorithm)
-    runWorkflow_multipleExamples(getCactusInputs_random,
+    runWorkflow_multipleExamples(self.id(),
+                                 getCactusInputs_random,
                                  testNumber=TestStatus.getTestSetup(),
                                  configFile=configFile)
     os.remove(configFile)

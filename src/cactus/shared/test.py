@@ -43,14 +43,40 @@ from cactus.shared.experimentWrapper import ExperimentWrapper
 #Stuff for setting up the experiment configuration file for a test
 ###########
 
-_GLOBAL_DATABASE_CONF_STRING = '<st_kv_database_conf type="kyoto_tycoon"><kyoto_tycoon in_memory="1" port="1978" snapshot="0"/></st_kv_database_conf>'
+# this should have {port} format string in it.
+_GLOBAL_DATABASE_CONF_STRING = '<st_kv_database_conf type="kyoto_tycoon"><kyoto_tycoon in_memory="1" port="{port}" snapshot="0"/></st_kv_database_conf>'
 _BATCH_SYSTEM = None
+
+_LOG_LEVEL = os.environ.get("CACTUS_TEST_LOG_LEVEL", None)
+
+# Assign ports by test module.  This allows us to run the tests in parallel
+# using make.
+
+portBase = 10110
+_TEST_MODULE_DATABASE_PORTS = {
+    "cactus.faces.cactus_fillAdjacenciesTest": portBase + 0,
+    "cactus.hal.cactus_halTest": portBase + 1,
+    "cactus.normalisation.cactus_normalisationTest": portBase + 2,
+    "cactus.phylogeny.cactus_phylogenyTest": portBase + 3,
+    "cactus.pipeline.cactus_workflowTest": portBase + 4,
+    "cactus.reference.cactus_referenceTest": portBase + 5,
+    "cactus.progressive.cactus_progressiveTest": portBase + 6,
+}
 
 def getBatchSystem():
     return _BATCH_SYSTEM
 
 def getGlobalDatabaseConf():
     return _GLOBAL_DATABASE_CONF_STRING
+
+def getTestDatabasePort(testId):
+    "get the database port to use for the module containing this test"
+    # remove test class and function to get module
+    testMod = ".".join(testId.split('.')[0:-2])
+    port = _TEST_MODULE_DATABASE_PORTS.get(testMod)
+    if port is None:
+        raise Exception("No port defined for test module \"{}\", update {}".format(testMod, __file__))
+    return port
 
 def initialiseGlobalDatabaseConf(dataString):
     """Initialises the global database conf string which, if defined,
@@ -65,14 +91,14 @@ def initialiseGlobalBatchSystem(batchSystem):
     assert batchSystem in ("singleMachine", "parasol", "gridEngine")
     _BATCH_SYSTEM = batchSystem
 
-def getCactusWorkflowExperimentForTest(sequences, newickTreeString, outputDir, configFile=None,
+def getCactusWorkflowExperimentForTest(testId, sequences, newickTreeString, outputDir, configFile=None,
                                        constraints=None, progressive=False, reconstruct=True):
     """Wrapper to constructor of CactusWorkflowExperiment which additionally incorporates
     any globally set database conf.
     """
     halFile = os.path.join(outputDir, "test.hal")
     fastaFile = os.path.join(outputDir, "test.fa")
-    databaseConf = ET.fromstring(_GLOBAL_DATABASE_CONF_STRING) if _GLOBAL_DATABASE_CONF_STRING is not None else None
+    databaseConf = ET.fromstring(_GLOBAL_DATABASE_CONF_STRING.format(port=getTestDatabasePort(testId))) if _GLOBAL_DATABASE_CONF_STRING is not None else None
     tree = NXNewick().parseString(newickTreeString, addImpliedRoots=False)
     genomes = [tree.getName(id) for id in tree.postOrderTraversal() if tree.isLeaf(id)]
     exp =  ExperimentWrapper.createExperimentWrapper(newickTreeString, genomes, outputDir,
@@ -298,7 +324,7 @@ def getCactusInputs_evolverPrimates():
     newickTreeString = parseNewickTreeFile(os.path.join(evolverPath, "tree.newick"))
     return sequences, newickTreeString
 
-def runWorkflow_TestScript(sequences, newickTreeString,
+def runWorkflow_TestScript(testId, sequences, newickTreeString,
                            outputDir=None,
                            batchSystem="single_machine",
                            buildAvgs=False,
@@ -311,6 +337,8 @@ def runWorkflow_TestScript(sequences, newickTreeString,
                            cactusWorkflowFunction=runCactusWorkflow,
                            logLevel=None):
     """Runs the workflow and various downstream utilities.
+    The testId parameter is used to allocate a unique port so that tests
+    can run in parallel.
     """
     logger.info("Running cactus workflow test script")
     logger.info("Got the following sequence dirs/files: %s" % " ".join(sequences))
@@ -321,7 +349,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     logger.info("Using the output dir: %s" % outputDir)
 
     #Setup the flower disk.
-    experiment = getCactusWorkflowExperimentForTest(sequences, newickTreeString,
+    experiment = getCactusWorkflowExperimentForTest(testId, sequences, newickTreeString,
                                                     outputDir=outputDir,
                                                     configFile=configFile, constraints=constraints,
                                                     progressive=progressive)
@@ -352,7 +380,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     #Return so calling function can cleanup
     return experiment
 
-def runWorkflow_multipleExamples(inputGenFunction,
+def runWorkflow_multipleExamples(testId, inputGenFunction,
                                  testNumber=1,
                                  batchSystem="single_machine",
                                  buildAvgs=False,
@@ -364,7 +392,11 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                  buildFasta=False,
                                  progressive=False):
     """A wrapper to run a number of examples.
+    The testId parameter is used to allocate a unique port so that tests
+    can run in parallel.
     """
+    if logLevel is None:
+        logLevel = _LOG_LEVEL
     for test in range(testNumber):
         tempDir = getTempDirectory(os.getcwd())
         if useConstraints:
@@ -372,7 +404,7 @@ def runWorkflow_multipleExamples(inputGenFunction,
         else:
             sequences, newickTreeString = inputGenFunction(regionNumber=test, tempDir=tempDir)
             constraints = None
-        runWorkflow_TestScript(sequences, newickTreeString,
+        runWorkflow_TestScript(testId, sequences, newickTreeString,
                                outputDir=tempDir,
                                batchSystem=batchSystem,
                                buildAvgs=buildAvgs,

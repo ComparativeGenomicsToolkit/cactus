@@ -7,7 +7,7 @@
 #include "cactusGlobalsPrivate.h"
 
 static void testFlowerStream(CuTest *testCase) {
-    CactusDisk *cactusDisk = testCommon_getTemporaryCactusDisk();
+    CactusDisk *cactusDisk = testCommon_getTemporaryCactusDisk(testCase->name);
     char *tempPath = getTempFile();
     FILE *f = fopen(tempPath, "w");
     Name flowerNames[3];
@@ -50,7 +50,7 @@ static void testFlowerStream(CuTest *testCase) {
     flowerStream_destruct(flowerStream);
     fclose(f);
     removeTempFile(tempPath);
-    testCommon_deleteTemporaryCactusDisk(cactusDisk);
+    testCommon_deleteTemporaryCactusDisk(testCase->name, cactusDisk);
 }
 
 static void testFlowerWriter(CuTest *testCase) {
@@ -95,7 +95,7 @@ static void testFlowerWriter(CuTest *testCase) {
 
     CuAssertTrue(testCase, stFile_getLineFromFile(fileHandle) == NULL);
 
-    stFile_rmrf(tempFile);
+    stFile_rmtree(tempFile);
 }
 
 CuSuite* cactusFlowerWriterTestSuite(void) {

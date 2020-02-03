@@ -42,7 +42,7 @@ stList *getinducedAlignment2(stSortedSet *endAlignment, AdjacencySequence *adjac
 
 void test_getInducedAlignment(CuTest *testCase) {
     for(int64_t test=0; test<100; test++) {
-        setup();
+        setup(testCase);
 
         stSortedSet *sortedAlignment = stSortedSet_construct3((int (*)(const void *, const void *))alignedPair_cmpFn,
                        (void (*)(void *))alignedPair_destruct);
@@ -99,7 +99,7 @@ void test_getInducedAlignment(CuTest *testCase) {
 
         //cleanup
         stSortedSet_destruct(sortedAlignment);
-        teardown();
+        teardown(testCase);
     }
 }
 
@@ -107,7 +107,7 @@ void test_getInducedAlignment(CuTest *testCase) {
  * Just runs the flower alignment through, doesn't really check its okay.
  */
 void test_flowerAlignerRandom(CuTest *testCase) {
-    setup();
+    setup(testCase);
     int64_t maxLength = 5;
     StateMachine *sM = stateMachine5_construct(fiveState);
     stSortedSet *flowerAlignment = makeFlowerAlignment(sM, flower, 5, maxLength, 1, 0.5, pairwiseParameters, st_random() > 0.5);
@@ -123,7 +123,7 @@ void test_flowerAlignerRandom(CuTest *testCase) {
     stSortedSet_destructIterator(iterator);
     stSortedSet_destruct(flowerAlignment);
 
-    teardown();
+    teardown(testCase);
 }
 
 CuSuite* flowerAlignerTestSuite(void) {

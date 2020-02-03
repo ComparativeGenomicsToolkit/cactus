@@ -15,14 +15,14 @@ from cactus.shared.test import runWorkflow_multipleExamples
 class TestCase(unittest.TestCase):
     @TestStatus.longLength
     def testCactus_Random(self):
-        runWorkflow_multipleExamples(getCactusInputs_random,
+        runWorkflow_multipleExamples(self.id(), getCactusInputs_random,
                                      testNumber=TestStatus.getTestSetup(),
                                      buildAvgs=True)
     @TestStatus.needsTestData
     @TestStatus.toilThreadHog
     @TestStatus.mediumLength
     def testCactus_Blanchette(self):
-        runWorkflow_multipleExamples(getCactusInputs_blanchette,
+        runWorkflow_multipleExamples(self.id(), getCactusInputs_blanchette,
                                      buildAvgs=True)
 
 if __name__ == '__main__':

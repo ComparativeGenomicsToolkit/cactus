@@ -17,13 +17,13 @@ from cactus.shared.common import cactus_call
 class TestCase(unittest.TestCase):
     @TestStatus.mediumLength
     def testCactusRecursiveHalGenerator_Random(self):
-        runWorkflow_multipleExamples(getCactusInputs_random,
+        runWorkflow_multipleExamples(self.id(), getCactusInputs_random,
                                      testNumber=TestStatus.getTestSetup(),
                                      buildHal=True, buildFasta=True)
 
     @TestStatus.mediumLength
     def testCactusRecursiveHalGenerator_Blanchette(self):
-        runWorkflow_multipleExamples(getCactusInputs_blanchette,
+        runWorkflow_multipleExamples(self.id(), getCactusInputs_blanchette,
                                      buildHal=True, buildFasta=True)
 
     def testHalGeneratorFunctions(self):

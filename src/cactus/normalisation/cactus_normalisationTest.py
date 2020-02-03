@@ -15,13 +15,14 @@ from cactus.shared.test import runWorkflow_multipleExamples
 class TestCase(unittest.TestCase):
     @TestStatus.mediumLength
     def testCactusNormalisation_Random(self):
-        runWorkflow_multipleExamples(getCactusInputs_random,
+        runWorkflow_multipleExamples(self.id(), getCactusInputs_random,
                                      testNumber=TestStatus.getTestSetup())
 
+    @unittest.skip("test was never updated when changes were made to the way ancestors work")
     @TestStatus.needsTestData
     @TestStatus.shortLength
     def testCactusNormalisation_Blanchette(self):
-        runWorkflow_multipleExamples(getCactusInputs_blanchette)
+        runWorkflow_multipleExamples(self.id(), getCactusInputs_blanchette)
 
 if __name__ == '__main__':
     unittest.main()

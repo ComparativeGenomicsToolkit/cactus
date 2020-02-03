@@ -48,28 +48,33 @@ class TestCase(unittest.TestCase):
         # The error means that it is getting told to calculate the ancestral
         # sequence for the species "reference" but that species doesn't
         # actually exist in the tree
-        runWorkflow_multipleExamples(getCactusInputs_random,
+        runWorkflow_multipleExamples(self.id(),
+                                     getCactusInputs_random,
                                      testNumber=1,
                                      buildAvgs=True,
                                      batchSystem=self.batchSystem, buildToilStats=True)
 
+    @unittest.skip("test was never updated when changes were made to the way ancestors work")
     @TestStatus.needsTestData
     @TestStatus.mediumLength
     def testCactus_blanchette(self):
-        runWorkflow_multipleExamples(getCactusInputs_blanchette,
+        runWorkflow_multipleExamples(self.id(),
+                                     getCactusInputs_blanchette,
                                      testNumber=1,
                                      buildAvgs=True,
                                      batchSystem=self.batchSystem, buildToilStats=True)
     @TestStatus.longLength
     def testCactus_encode(self):
-        runWorkflow_multipleExamples(getCactusInputs_encode,
+        runWorkflow_multipleExamples(self.id(),
+                                     getCactusInputs_encode,
                                      testNumber=1,
                                      buildAvgs=True,
                                      batchSystem=self.batchSystem, buildToilStats=True)
     @TestStatus.needsTestData
     @TestStatus.veryLongLength
     def testCactus_chromosomes(self):
-        runWorkflow_multipleExamples(getCactusInputs_chromosomeX,
+        runWorkflow_multipleExamples(self.id(),
+                                     getCactusInputs_chromosomeX,
                                      batchSystem=self.batchSystem, buildToilStats=True)
 
     @TestStatus.mediumLength
@@ -78,7 +83,6 @@ class TestCase(unittest.TestCase):
         # Modify the bar node in the config file so that
         # cactus_workflow will split bar jobs even on this small
         # example
-        initialiseGlobalDatabaseConf('<st_kv_database_conf type="kyoto_tycoon"><kyoto_tycoon in_memory="1" port="1978" snapshot="0"/></st_kv_database_conf>')
         tempConfigFile = getTempFile()
         tempConfigTree = ET.parse(self.configFile)
         tempConfigNode = tempConfigTree.getroot()
@@ -88,7 +92,8 @@ class TestCase(unittest.TestCase):
         tempConfigNode.find("bar").set("largeEndSize", "10")
         tempConfigNode.find("bar").set("bandingLimit", "5")
         tempConfigTree.write(tempConfigFile)
-        runWorkflow_multipleExamples(getCactusInputs_random,
+        runWorkflow_multipleExamples(self.id(),
+                                     getCactusInputs_random,
                                      testNumber=1,
                                      batchSystem=self.batchSystem,
                                      configFile=tempConfigFile)

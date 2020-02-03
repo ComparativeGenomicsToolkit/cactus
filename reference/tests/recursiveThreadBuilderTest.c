@@ -30,7 +30,7 @@ static void recursiveFileBuilder_test(CuTest *testCase) {
 
     const char *tempDir = "recursiveFileBuilderTestTempDir";
     if(stFile_exists(tempDir)) {
-        stFile_rmrf(tempDir);
+        stFile_rmtree(tempDir);
     }
     stFile_mkdir(tempDir);
     stKVDatabaseConf *conf = stKVDatabaseConf_constructTokyoCabinet(
@@ -96,7 +96,7 @@ static void recursiveFileBuilder_test(CuTest *testCase) {
     CuAssertStrEquals(testCase, "1 ACG 3 TA ", stList_get(threadStrings, 0));
 
     cactusDisk_destruct(cactusDisk);
-    stFile_rmrf(tempDir);
+    stFile_rmtree(tempDir);
 }
 
 CuSuite* recursiveThreadBuilderTestSuite(void) {

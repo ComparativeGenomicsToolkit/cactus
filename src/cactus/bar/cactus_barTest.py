@@ -18,7 +18,6 @@ from sonLib.bioio import fastaAlignmentWrite
 from sonLib.bioio import fastaReadHeaders
 from sonLib.bioio import getLogLevelString
 
-from cactus.shared.test import getCactusWorkflowExperimentForTest
 from cactus.shared.common import cactus_call
 
 """Tests cactus_bar. Requires the installation of cactusTools and mafTools.
