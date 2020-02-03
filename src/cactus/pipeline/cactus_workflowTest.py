@@ -41,7 +41,7 @@ class TestCase(unittest.TestCase):
         self.barNode = self.configNode.find("bar")
         assert self.barNode != None
 
-    @unittest.skip("test was never updated when changes were made to the way ancestors work")
+    @unittest.skip("test was never updated when changes were made to the way ancestors work (ERROR: Couldn't find reference event reference)")
     @TestStatus.shortLength
     def testCactus_random(self):
         # gets "Couldn't find reference event reference" from cactus_reference
@@ -54,7 +54,7 @@ class TestCase(unittest.TestCase):
                                      buildAvgs=True,
                                      batchSystem=self.batchSystem, buildToilStats=True)
 
-    @unittest.skip("test was never updated when changes were made to the way ancestors work")
+    @unittest.skip("test was never updated when changes were made to the way ancestors work (ERROR: Couldn't find reference event reference)")
     @TestStatus.needsTestData
     @TestStatus.mediumLength
     def testCactus_blanchette(self):
