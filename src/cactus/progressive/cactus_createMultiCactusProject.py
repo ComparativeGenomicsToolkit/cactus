@@ -216,7 +216,6 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
         else:
             exp.setRootReconstructed(True)
         exp.writeXML(expPath)
-        config.writeXML(exp.getConfigPath())
 
 def checkInputSequencePaths(exp):
     for seq in exp.getSequences():
