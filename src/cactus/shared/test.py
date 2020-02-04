@@ -61,6 +61,7 @@ _TEST_MODULE_DATABASE_PORTS = {
     "cactus.pipeline.cactus_workflowTest": portBase + 4,
     "cactus.reference.cactus_referenceTest": portBase + 5,
     "cactus.progressive.cactus_progressiveTest": portBase + 6,
+    "cactus.pipeline.cactus_evolverTest":  portBase + 7,
 }
 
 def getBatchSystem():
@@ -68,6 +69,9 @@ def getBatchSystem():
 
 def getGlobalDatabaseConf():
     return _GLOBAL_DATABASE_CONF_STRING
+
+def getTestLogLevel():
+    return _LOG_LEVEL
 
 def getTestDatabasePort(testId):
     "get the database port to use for the module containing this test"

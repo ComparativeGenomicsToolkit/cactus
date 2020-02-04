@@ -63,6 +63,8 @@ class TestCase(unittest.TestCase):
                                      testNumber=1,
                                      buildAvgs=True,
                                      batchSystem=self.batchSystem, buildToilStats=True)
+
+    @unittest.skip("test was never updated when changes were made to the way ancestors work (ERROR: Couldn't find reference event reference)")
     @TestStatus.longLength
     def testCactus_encode(self):
         runWorkflow_multipleExamples(self.id(),
@@ -70,6 +72,7 @@ class TestCase(unittest.TestCase):
                                      testNumber=1,
                                      buildAvgs=True,
                                      batchSystem=self.batchSystem, buildToilStats=True)
+    @unittest.skip("needs missing cactusTestData/evolver/chr_x")
     @TestStatus.needsTestData
     @TestStatus.veryLongLength
     def testCactus_chromosomes(self):
@@ -77,6 +80,7 @@ class TestCase(unittest.TestCase):
                                      getCactusInputs_chromosomeX,
                                      batchSystem=self.batchSystem, buildToilStats=True)
 
+    @unittest.skip("FASTA header contains spaces")
     @TestStatus.mediumLength
     def testCactus_splitBarJobs(self):
         """Exercise the code paths in bar that only occur on large jobs."""

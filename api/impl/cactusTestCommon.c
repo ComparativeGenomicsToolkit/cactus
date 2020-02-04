@@ -15,7 +15,7 @@
 ////////////////////////////////////////////////
 
 char *testCommon_getTmpTestDir(const char *testName) {
-    return stFile_pathJoin("test.tmp", testName);
+    return stFile_pathJoin("test-output/tmp", testName);
 }
 
 

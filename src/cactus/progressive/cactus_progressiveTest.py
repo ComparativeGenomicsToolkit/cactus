@@ -54,7 +54,7 @@ class TestCase(unittest.TestCase):
         configWrapper = ConfigWrapper(ET.parse(os.path.join(cactusRootPath(), "cactus_progressive_config.xml")).getroot())
         configWrapper.turnAllModesOn()
         configWrapper.turnOffHeaderChecks()
-        self.tempDir = getTempDirectory(os.getcwd())
+        self.tempDir = getTempDirectory()
         self.configFile = os.path.join(self.tempDir, "tempConfig.xml")
         configWrapper.writeXML(self.configFile)
 
@@ -132,6 +132,7 @@ class TestCase(unittest.TestCase):
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
 
+    @unittest.skip("FASTA header contains spaces")
     @TestStatus.needsTestData
     @TestStatus.longLength
     def testCactus_Encode(self):
@@ -156,7 +157,7 @@ class TestCase(unittest.TestCase):
                                            batchSystem, buildAvgs,
                                            buildHal,
                                            buildFasta,
-                                           toilStats):
+                                           toilStats, logLevel=None):
         """Choose an arbitrary subtree from the larger species tree to run the
         alignment on. This function is necessary to keep
         runWorkflow_multipleExamples general (specifying a subtree
@@ -178,7 +179,8 @@ class TestCase(unittest.TestCase):
                                  batchSystem, buildAvgs,
                                  buildHal,
                                  buildFasta,
-                                 toilStats, subtreeRoot)
+                                 toilStats, subtreeRoot,
+                                 logLevel=logLevel)
 
     def progressiveFunction(self, experimentFile, toilDir,
                             batchSystem, buildAvgs,

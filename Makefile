@@ -89,7 +89,8 @@ endif
 export PATH := ${CWD}/bin:${PATH}
 export PYTHONPATH = ${CWD}/submodules/sonLib/src:${CWD}/submodules:${CWD}/src
 pytestOpts = --tb=native --durations=0 -rsx
-testLogDir = testlogs
+testOutDir = test-output
+testLogDir = ${testOutDir}/logs
 
 test: ${testModules:%=%_runtest}
 test_blast: ${testModules:%=%_runtest}
@@ -116,7 +117,7 @@ ${versionPy}:
 # clean targets
 ##
 selfClean: ${modules:%=clean.%}
-	rm -rf lib/*.h bin/*.dSYM ${versionPy} ${testLogDir}
+	rm -rf lib/*.h bin/*.dSYM ${versionPy} ${testOutDir}
 
 clean.%:
 	cd $* && ${MAKE} clean

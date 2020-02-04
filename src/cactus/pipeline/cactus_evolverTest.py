@@ -22,6 +22,7 @@ class TestCase(unittest.TestCase):
             self.batchSystem = getBatchSystem()
         unittest.TestCase.setUp(self)
 
+    @unittest.skip("test was never updated when changes were made to the way ancestors work (ERROR: Couldn't find reference event reference)")
     @TestStatus.needsTestData
     @TestStatus.longLength
     def testEvolver_Primates_Loci1(self):
@@ -32,6 +33,7 @@ class TestCase(unittest.TestCase):
                                      batchSystem=self.batchSystem,
                                      buildToilStats=True)
 
+    @unittest.skip("test was never updated when changes were made to the way ancestors work (ERROR: Couldn't find reference event reference)")
     @TestStatus.needsTestData
     @TestStatus.longLength
     def testEvolver_Mammals_Loci1(self):
@@ -42,6 +44,7 @@ class TestCase(unittest.TestCase):
                                      batchSystem=self.batchSystem,
                                      buildToilStats=True)
 
+    @unittest.skip("needs missing cactusTestData/evolver/mammals/medium")
     @TestStatus.needsTestData
     @TestStatus.longLength
     def testEvolver_Mammals_Medium(self):
@@ -52,6 +55,7 @@ class TestCase(unittest.TestCase):
                                      batchSystem=self.batchSystem,
                                      buildToilStats=True)
 
+    @unittest.skip("needs missing cactusTestData/evolver/primates/large")
     @TestStatus.needsTestData
     @TestStatus.veryLongLength
     def testEvolver_Primates_Large(self):
@@ -62,6 +66,7 @@ class TestCase(unittest.TestCase):
                                      batchSystem=self.batchSystem,
                                      buildToilStats=True)
 
+    @unittest.skip("needs missing cactusTestData/evolver/mammals/large")
     @TestStatus.needsTestData
     @TestStatus.veryLongLength
     def testEvolver_Mammals_Large(self):

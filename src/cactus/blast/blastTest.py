@@ -22,12 +22,11 @@ from sonLib.bioio import getTempFile
 from sonLib.bioio import getTempDirectory
 from sonLib.bioio import cigarRead
 from sonLib.bioio import PairwiseAlignment
-from sonLib.bioio import getLogLevelString
 from sonLib.bioio import TestStatus
 from sonLib.bioio import catFiles
 from sonLib.bioio import popenCatch
 
-from cactus.shared.test import checkCigar
+from cactus.shared.test import checkCigar, getTestLogLevel
 from cactus.blast.blast import decompressFastaFile, compressFastaFile
 
 from cactus.shared.common import runLastz
@@ -307,8 +306,6 @@ class TestCase(unittest.TestCase):
             overlapSize = random.choice(list(range(2, 100)))
             toilDir = os.path.join(getTempDirectory(self.tempDir), "toil")
             runCactusBlast([ tempSeqFile ], self.tempOutputFile, toilDir, chunkSize, overlapSize)
-            if getLogLevelString() == "DEBUG":
-                system("cat %s" % self.tempOutputFile)
             system("rm -rf %s " % toilDir)
 
     @TestStatus.shortLength
@@ -453,13 +450,12 @@ def runNaiveBlast(seqFile1, seqFile2, outputFile, tempDir, lastzArguments=""):
 
 def runCactusBlast(sequenceFiles, alignmentsFile, toilDir,
                    chunkSize=None, overlapSize=None,
-                   logLevel=None,
                    compressFiles=None,
                    lastzMemory=None,
                    targetSequenceFiles=None):
 
     options = Job.Runner.getDefaultOptions(toilDir)
-    options.logLevel = "CRITICAL"
+    options.logLevel = getTestLogLevel()
     blastOptions = BlastOptions(chunkSize=chunkSize, overlapSize=overlapSize,
                                 compressFiles=compressFiles,
                                 memory=lastzMemory)
@@ -475,12 +471,11 @@ def runCactusBlast(sequenceFiles, alignmentsFile, toilDir,
         toil.exportFile(alignmentsID, makeURL(alignmentsFile))
 
 def runCactusBlastIngroupsAndOutgroups(ingroups, outgroups, alignmentsFile, toilDir, outgroupFragmentPaths=None, ingroupCoveragePaths=None, chunkSize=250000, overlapSize=10000,
-                   logLevel=None,
                    compressFiles=None,
                    lastzMemory=None):
     options = Job.Runner.getDefaultOptions(toilDir)
     options.disableCaching = True
-    options.logLevel = "CRITICAL"
+    options.logLevel = getTestLogLevel()
     blastOptions = BlastOptions(chunkSize=chunkSize, overlapSize=overlapSize,
                                 compressFiles=compressFiles,
                                 memory=lastzMemory)
