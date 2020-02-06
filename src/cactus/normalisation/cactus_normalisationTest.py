@@ -13,7 +13,6 @@ from cactus.shared.test import getCactusInputs_blanchette
 from cactus.shared.test import runWorkflow_multipleExamples
 
 class TestCase(unittest.TestCase):
-    @unittest.skip("test was never updated when changes were made to the way ancestors work (ERROR: Couldn't find reference event reference)")
     @TestStatus.mediumLength
     def testCactusNormalisation_Random(self):
         runWorkflow_multipleExamples(self.id(), getCactusInputs_random,

@@ -79,8 +79,11 @@ class BlastSequencesAllAgainstAll(RoundedJob):
 
     def run(self, fileStore):
         sequenceFiles1 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs1]
-        chunks = runGetChunks(sequenceFiles=sequenceFiles1, chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()), chunkSize = self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize)
-        assert len(chunks) > 0
+        chunks = runGetChunks(sequenceFiles=sequenceFiles1,
+                              chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()),
+                              chunkSize=self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize)
+        if len(chunks) == 0:
+            raise Exception("no chunks produced for files: {} ".format(sequenceFiles1))
         logger.info("Broken up the sequence files into individual 'chunk' files")
         chunkIDs = [fileStore.writeGlobalFile(chunk, cleanup=True) for chunk in chunks]
 

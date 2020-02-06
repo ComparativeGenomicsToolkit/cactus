@@ -92,6 +92,10 @@ pytestOpts = --tb=native --durations=0 -rsx
 testOutDir = test-output
 testLogDir = ${testOutDir}/logs
 
+# parallel tests don't currenty work, not all cases of collission have
+# been fixed
+.NOTPARALLEL: test test_blast test_nonblast
+
 test: ${testModules:%=%_runtest}
 test_blast: ${testModules:%=%_runtest}
 test_nonblast: ${testModules:%=%_runtest_nonblast}

@@ -143,6 +143,8 @@ class TestCase(unittest.TestCase):
                                      progressive=True,
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
+
+    @unittest.skip("needs missing cactusTestData/evolver/chr_x/medium")
     @TestStatus.needsTestData
     @TestStatus.veryLongLength
     def testCactus_Chromosomes(self):
