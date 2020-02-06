@@ -52,6 +52,9 @@ Finally, to install Cactus, from the root of the `cactus` repository, run:
 ```
 pip install --upgrade .
 ```
+
+IMPORTANT:  It is highly recommend that one **not** run Cactus using the Toil Grid Engine-like batch systems (GridEngine, HTCondor, LSF, SLURM, or Torque).  Cactus creates a very large number of small jobs, which can overwhelm these systems.
+
 ### Compile Cactus executables (if not using Docker/Singularity)
 By default Cactus uses containers to distribute its binaries, because compiling its dependencies can sometimes be a pain. If you can use Docker or Singularity, *which we highly recommend*, you can skip this section since all that needs to be installed in that case is the Python workflow as described above. However, in some environments (e.g. HPC clusters) you won't be able to use Docker or Singularity, so you will have to compile the binaries and install a few dependencies.
 
