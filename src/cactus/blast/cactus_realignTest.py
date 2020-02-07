@@ -37,7 +37,7 @@ class TestCase(unittest.TestCase):
     def tearDown(self):
         unittest.TestCase.tearDown(self)
 
-    @TestStatus.shortLength
+    @TestStatus.mediumLength
     def testCactusRealignDummy(self):
         """Runs cactus realign using the "rescoreOriginalAlignment" mode
         and checks the output is equivalent to what you'd get by just running lastz.
@@ -59,7 +59,7 @@ class TestCase(unittest.TestCase):
                 self.assertTrue(realignCigar != None)
                 self.assertTrue(realignCigar == lastzCigar)
 
-    @TestStatus.shortLength
+    @TestStatus.mediumLength
     def testCactusRealign(self):
         """Runs cactus realign using the default parameters and checks that the realigned output cigars align
         the same subsequences.

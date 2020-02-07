@@ -125,7 +125,7 @@ class TestCase(unittest.TestCase):
         '''))
 
     @TestStatus.needsTestData
-    @TestStatus.shortLength
+    @TestStatus.mediumLength
     def testInvariants(self):
         (seqs, _) = getCactusInputs_encode(random.uniform(0, 2))
         # Chimp encode input has duplicate header names.

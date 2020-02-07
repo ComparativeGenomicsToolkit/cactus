@@ -88,7 +88,7 @@ class TestCase(unittest.TestCase):
                              check_output=True)
         self.assertEqual(output, 'quuxbazbar\n')
 
-    @TestStatus.shortLength
+    @TestStatus.mediumLength
     def testChildTreeJob(self):
         """Check that the ChildTreeJob class runs all children."""
         numChildren = 100
