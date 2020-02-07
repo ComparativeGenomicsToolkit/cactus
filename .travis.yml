@@ -34,11 +34,11 @@ before_install:
 script:
 # dependencies so toil actually functions properly (its deps don't
 # seem to be specified correctly)
-  - sudo pip install --upgrade pip requests pathlib2
-  - sudo pip install --ignore-installed --upgrade six
+  - pip install --upgrade pip requests pathlib2
+  - pip install --ignore-installed --upgrade six
 # install toil / cactus
-  - sudo pip install -r requirements.txt
-  - sudo pip install -e .
+  - pip install -r requirements.txt
+  - pip install -e .
   - if [[ "$CACTUS_TEST_CHOICE" == "normal" ]]; then export MAKE_TARGET=test_nonblast; fi
   - if [[ "$CACTUS_TEST_CHOICE" == "blast" ]]; then export MAKE_TARGET=test_blast; fi
   - if [[ "$CACTUS_BINARIES_MODE" == "local" ]]; then make && PATH=`pwd`/bin:$PATH PYTHONPATH=`pwd`:`pwd`/src travis_wait 50 make ${MAKE_TARGET}; fi

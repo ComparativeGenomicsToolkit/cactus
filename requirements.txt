@@ -1,4 +1,4 @@
-toil>=
+toil
 networkx>=2,<3
 pytest
 decorator
