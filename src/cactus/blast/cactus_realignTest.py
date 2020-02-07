@@ -79,7 +79,7 @@ class TestCase(unittest.TestCase):
                 lastzCigar = cigarReadFromString(lastzLine)
                 self.assertTrue(realignCigar.sameCoordinates(lastzCigar))
 
-    @TestStatus.shortLength
+    @TestStatus.mediumLength
     def testCactusRealignSplitSequences(self):
         """Runs cactus realign, splitting indels longer than 100bp, and check
         that the coverage from the results is the same as the coverage from
@@ -110,7 +110,7 @@ class TestCase(unittest.TestCase):
             os.remove(realignOutput)
             os.remove(splitRealignOutput)
 
-    @TestStatus.shortLength
+    @TestStatus.mediumLength
     def testCactusRealignRescoreByIdentityAndProb(self):
         """Runs cactus realign using the default parameters and checks that the realigned output cigars align
         the same subsequences.

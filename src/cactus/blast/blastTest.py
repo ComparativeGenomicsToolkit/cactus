@@ -262,7 +262,7 @@ class TestCase(unittest.TestCase):
 
         self.assertTrue(float(coverageFromLastOutgroupInVsOut)/coverageFromLastOutgroupSetVsSet <= 0.10)
 
-    @TestStatus.shortLength
+    @TestStatus.mediumLength
     def testBlastParameters(self):
         """Tests if changing parameters of lastz creates results similar to the desired default.
         """
@@ -309,7 +309,7 @@ class TestCase(unittest.TestCase):
             runCactusBlast([ tempSeqFile ], self.tempOutputFile, toilDir, chunkSize, overlapSize)
             system("rm -rf %s " % toilDir)
 
-    @TestStatus.shortLength
+    @TestStatus.mediumLength
     def testCompression(self):
         tempSeqFile = os.path.join(self.tempDir, "tempSeq.fa")
         tempSeqFile2 = os.path.join(self.tempDir, "tempSeq2.fa")

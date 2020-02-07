@@ -16,7 +16,7 @@ comparing two settings of lastz.
 
 @pytest.mark.blast
 class TestCase(PreprocessorTestCase):
-    @TestStatus.shortLength
+    @TestStatus.mediumLength
     def testLastzRepeatMask(self):
         #Demo sequences
         sequenceFiles = [ os.path.join(self.encodePath, self.encodeRegion, "%s.ENm001.fa" % species) for species in ('human', "hedgehog") ]

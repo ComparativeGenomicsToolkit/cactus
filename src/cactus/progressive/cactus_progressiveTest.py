@@ -87,7 +87,7 @@ class TestCase(unittest.TestCase):
                                      cactusWorkflowFunction=self.progressiveWithSubtreeRootFunction)
 
     @TestStatus.travisCoreLimit
-    @TestStatus.shortLength
+    @TestStatus.longLength
     def testCactus_Random_fixedAncestor(self):
         """Tests that cactus doesn't crash when aligning to a fixed ancestral sequence."""
         sequences, _ = getCactusInputs_random(treeLeafNumber=3)

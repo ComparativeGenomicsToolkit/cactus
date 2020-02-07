@@ -14,7 +14,7 @@ from cactus.preprocessor.cactus_preprocessor import runCactusPreprocessor
 
 @pytest.mark.blast
 class TestCase(PreprocessorTestCase):
-    @TestStatus.shortLength
+    @TestStatus.mediumLength
     def testCactusPreprocessor(self):
         #Demo sequences
         sequenceNames = [ "%s.ENm001.fa" % species for species in ['human', 'hedgehog'] ]
