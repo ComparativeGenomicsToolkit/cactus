@@ -43,6 +43,6 @@ setup(
     cmdclass = {
         'install': PostInstallCommand,
     },
-    entry_points={
+    entry_points= {
         'console_scripts': ['cactus = cactus.progressive.cactus_progressive:main',
                             'cactus_preprocess = cactus.preprocessor.cactus_preprocessor:main']},)

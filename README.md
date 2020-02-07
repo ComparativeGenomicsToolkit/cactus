@@ -3,6 +3,8 @@
 
 Cactus is a reference-free whole-genome multiple alignment program. The principal algorithms are described here: https://doi.org/10.1101/gr.123356.111 
 
+Please subscribe to the [cactus-announce](https://groups.google.com/d/forum/cactus-announce) low-volume mailing list so we may reach about releases and other announcements.
+
 ## Acknowledgements
 
 Cactus uses many different algorithms and individual code contributions, principally from Joel Armstrong, Glenn Hickey, Mark Diekhans and Benedict Paten. We are particularly grateful to:
@@ -22,6 +24,8 @@ Note that to run even the very small evolverMammals example, you will need 2 CPU
 
 ### Virtual environment
 To avoid problems with conflicting versions of dependencies on your system, we strongly recommend installing Cactus inside a Python 3 [virtual environment](https://virtualenv.pypa.io/en/stable/).
+
+Python 2 is no longer supported by Cactus.
 
 To install the `virtualenv` command, if you don't have it already, run:
 ```
