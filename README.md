@@ -79,7 +79,7 @@ HDF5 is available through most package managers or can be manual installed from 
 export PATH := <hdf5 bin dir>:${PATH}
 ```
 
-KyotoTycoon is available through most package managers under `kyototycoon` or `kyoto-tycoon`. To compile it manually, you are best off using the [unofficial Altice Labs repository](https://github.com/alticelabs/kyoto). If you've installed KyotoTycoon (and its library, KyotoCabinet) from a package manager, you should be OK to go. If you've installed it in a non-standard location, add the following to
+KyotoTycoon is available through most package managers under `kyototycoon` or `kyoto-tycoon`. To compile it manually, you are best off using the [unofficial repository](https://github.com/carlosefr/kyoto). If you've installed KyotoTycoon (and its library, KyotoCabinet) from a package manager, you should be OK to go. If you've installed it in a non-standard location, add the following to
 `include.local.mk`:
 ```
 ttPrefix = <path of the PREFIX where you installed Kyoto>
