@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 #Copyright (C) 2009-2018 by Benedict Paten (benedictpaten@gmail.com)
 #
 #Released under the MIT license, see LICENSE.txt
@@ -7,20 +7,20 @@
 filtering the alignments to remove lower probability alignments.
 
 - Input: set of sequences S and set of pairwise alignments T
-- Output: modified set of alignments T' in which scores are replaced with mapping qualities,
+- Output: modified set of alignments T' in which scores are replaced with mapping qualities, 
   and optionally filtered to keep only the single most probable alignment per position (the primary alignments).
   This involves chopping up alignments in T to avoid partial overlaps.
 
 - Overview of procedure (top level in Python in this script):
-        - Add mirror alignments to T  and ensure alignments are reported with repsect to positive strand of first sequence
-        (this ensures that each alignment is considered on both sequences
+        - Add mirror alignments to T  and ensure alignments are reported with repsect to positive strand of first sequence 
+        (this ensures that each alignment is considered on both sequences 
         to which it aligns): C subscript: cactus_mirrorAndOrientAlignments.c
         - Sort alignments in T by coordinates on S: Unix sort
         - Split alignments in T so that they don't partially overlap on S: C subscript: cactus_splitAlignmentOverlaps
             - Each alignment defines an interval on a sequence in S
-            - Split alignments into sub-alignments so for any two alignments in the set
-            if they overlap they have the same interval.
-        - Calculate mapping qualities for each alignments and optionally filter alignments,
+            - Split alignments into sub-alignments so for any two alignments in the set 
+            if they overlap they have the same interval. 
+        - Calculate mapping qualities for each alignments and optionally filter alignments, 
         for example to only keep the primary alignment: C subscript: cactus_calculateMappingQualities
 
 """
@@ -30,21 +30,21 @@ def countLines(inputFile):
     with open(inputFile, 'r') as f:
         return sum(1 for line in f)
 
-def mappingQualityRescoring(job, inputAlignmentFileID,
+def mappingQualityRescoring(job, inputAlignmentFileID, 
                             minimumMapQValue, maxAlignmentsPerSite, alpha, logLevel):
     """
     Function to rescore and filter alignments by calculating the mapping quality of sub-alignments
-
+    
     Returns primary alignments and secondary alignments in two separate files.
     """
     inputAlignmentFile = job.fileStore.readGlobalFile(inputAlignmentFileID)
-
+    
     job.fileStore.logToMaster("Input cigar file has %s lines" % countLines(inputAlignmentFile))
-
+    
     # Get temporary file
     assert maxAlignmentsPerSite >= 1
-    tempAlignmentFiles = [job.fileStore.getLocalTempFile() for i in range(maxAlignmentsPerSite)]
-
+    tempAlignmentFiles = [job.fileStore.getLocalTempFile() for i in xrange(maxAlignmentsPerSite)]
+    
     # Mirror and orient alignments, sort, split overlaps and calculate mapping qualities
     cactus_call(parameters=[["cat", inputAlignmentFile],
                             ["cactus_mirrorAndOrientAlignments", logLevel],

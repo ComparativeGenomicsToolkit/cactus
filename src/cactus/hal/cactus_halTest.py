@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 #Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
 #
@@ -11,22 +11,25 @@ from sonLib.bioio import TestStatus, system, getLogLevelString
 from cactus.shared.test import getCactusInputs_random
 from cactus.shared.test import getCactusInputs_blanchette
 from cactus.shared.test import runWorkflow_multipleExamples
+from cactus.shared.test import silentOnSuccess
 
 from cactus.shared.common import cactus_call
 
 class TestCase(unittest.TestCase):
-    @TestStatus.mediumLength
+    @silentOnSuccess
+    @unittest.skip("")
     def testCactusRecursiveHalGenerator_Random(self):
-        runWorkflow_multipleExamples(self.id(), getCactusInputs_random,
+        runWorkflow_multipleExamples(getCactusInputs_random,
                                      testNumber=TestStatus.getTestSetup(),
-                                     buildHal=True, buildFasta=True)
+                                     buildReference=True, buildHal=True, buildFasta=True)
 
-    @unittest.skip("test was never updated when changes were made to the way ancestors work (ERROR: Couldn't find reference event reference)")
-    @TestStatus.mediumLength
+    @silentOnSuccess
+    @unittest.skip("")
     def testCactusRecursiveHalGenerator_Blanchette(self):
-        runWorkflow_multipleExamples(self.id(), getCactusInputs_blanchette,
-                                     buildHal=True, buildFasta=True)
-
+        runWorkflow_multipleExamples(getCactusInputs_blanchette,
+                                     testRestrictions=(TestStatus.TEST_SHORT,), inverseTestRestrictions=True,
+                                     buildReference=True, buildHal=True, buildFasta=True)
+    
     def testHalGeneratorFunctions(self):
         """Run all the CuTests, fail if any of them fail.
         """

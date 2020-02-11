@@ -38,7 +38,7 @@ clean :
 test :
 	ktserver -log ${log} -host ${host} -port ${port} ${databaseOptions} &
 	rm -rf ${databaseDir} ${jobTree}
-	${PYTHON} dbTestScript.py --maxThreads=${maxThreads} --parasolCommand="${parasolCommand}" --batchSystem ${batchSystem} --logLevel DEBUG --jobTree ${jobTree} --stats --keysPerJob ${keysPerJob} --totalJobs ${totalJobs} --host ${host} --port ${port} --databaseDir ${databaseDir} --databaseOption "${databaseOptions}" --minRecordSize ${minRecordSize} --maxRecordSize ${maxRecordSize}
+	python dbTestScript.py --maxThreads=${maxThreads} --parasolCommand="${parasolCommand}" --batchSystem ${batchSystem} --logLevel DEBUG --jobTree ${jobTree} --stats --keysPerJob ${keysPerJob} --totalJobs ${totalJobs} --host ${host} --port ${port} --databaseDir ${databaseDir} --databaseOption "${databaseOptions}" --minRecordSize ${minRecordSize} --maxRecordSize ${maxRecordSize}
 	jobTreeStats --jobTree ${jobTree} --outputFile ./jobTreeStatsTest.xml
 	ktremotemgr report -host ${host} -port ${port}
 	rm -rf ${databaseDir} ${jobTree} ${log}

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 #Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
 #

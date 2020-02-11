@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
 Functions to launch and manage KyotoTycoon servers.
 """
@@ -41,7 +41,7 @@ def runKtserver(dbElem, fileStore, existingSnapshotID=None, snapshotExportID=Non
     # Find a suitable port to run on.
     try:
         occupiedPorts = findOccupiedPorts()
-        unoccupiedPorts = set(range(1025,MAX_KTSERVER_PORT)) - occupiedPorts
+        unoccupiedPorts = set(xrange(1025,MAX_KTSERVER_PORT)) - occupiedPorts
         port = random.choice(list(unoccupiedPorts))
     except:
         logger.warning("Can't find which ports are occupied--likely netstat is not installed."
@@ -140,7 +140,7 @@ def blockUntilKtserverIsRunning(logPath, createTimeout=1800):
 
     Returns True if the ktserver is now running, False if something went wrong."""
     success = False
-    for i in range(createTimeout):
+    for i in xrange(createTimeout):
         if isKtServerFailed(logPath):
             logger.critical('Error starting ktserver.')
             success = False
@@ -157,7 +157,7 @@ def blockUntilKtserverIsFinished(logPath, timeout=1800,
     """Wait for the ktserver log to indicate that it shut down properly.
 
     Returns True if the server shut down, False if the timeout expired."""
-    for i in range(0, timeout, timeStep):
+    for i in xrange(0, timeout, timeStep):
         with open(logPath) as f:
             log = f.read()
             if '[FINISH]' in log:
@@ -189,7 +189,7 @@ def getKtTuningOptions(dbElem):
     # these are some hardcoded defaults.  should think about moving to config
     tuningOptions = "#opts=ls#bnum=30m#msiz=50g#ktopts=p"
     # override default ktserver settings if they are present in the
-    # experiment xml file.
+    # experiment xml file. 
     if dbElem.getDbTuningOptions() is not None:
         tuningOptions = dbElem.getDbTuningOptions()
     if dbElem.getDbCreateTuningOptions() is not None:

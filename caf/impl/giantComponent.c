@@ -41,9 +41,7 @@ stList *stCaf_breakupComponentGreedily(stList *nodes, stList *edges, int64_t max
     int64_t totalComponents = stList_length(nodes);
     while (stList_length(sortedEdges) > 0) {
         stIntTuple *edge = stList_pop(sortedEdges);
-        if (edgeScore < stIntTuple_get(edge, 0)) {
-            st_errAbort("bad edgeScore");
-        }
+        assert(edgeScore >= stIntTuple_get(edge, 0));
         edgeScore = stIntTuple_get(edge, 0);
         stSortedSet *component1 = getValue(nodeToComponents, stIntTuple_get(edge, 1));
         stSortedSet *component2 = getValue(nodeToComponents, stIntTuple_get(edge, 2));

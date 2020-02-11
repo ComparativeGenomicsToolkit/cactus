@@ -94,7 +94,7 @@ int64_t isInAdjacency(AlignedPair *alignedPair, End *end, int64_t maxLength) {
 }
 
 static void testMakeEndAlignments(CuTest *testCase) {
-    setup(testCase);
+    setup();
     End *ends[3] = { end1, end2, end3 };
     int64_t maxLength = 4;
     for (int64_t endIndex = 0; endIndex < 3; endIndex++) {
@@ -115,11 +115,11 @@ static void testMakeEndAlignments(CuTest *testCase) {
         stSortedSet_destructIterator(iterator);
         stSortedSet_destruct(endAlignment);
     }
-    teardown(testCase);
+    teardown();
 }
 
 static void testReadAndWriteEndAlignments(CuTest *testCase) {
-    setup(testCase);
+    setup();
     End *ends[3] = { end1, end2, end3 };
     int64_t maxLength = 4;
     for (int64_t endIndex = 0; endIndex < 3; endIndex++) {
@@ -144,9 +144,9 @@ static void testReadAndWriteEndAlignments(CuTest *testCase) {
         stSortedSet_destruct(endAlignment);
         stSortedSet_destruct(endAlignment2);
         stSortedSet_destruct(endAlignment3);
-        stFile_rmtree(temporaryEndAlignmentFile);
+        stFile_rmrf(temporaryEndAlignmentFile);
     }
-    teardown(testCase);
+    teardown();
 }
 
 CuSuite* endAlignerTestSuite(void) {

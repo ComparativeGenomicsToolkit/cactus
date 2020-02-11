@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 #Copyright (C) 2011 by Glenn Hickey
 #
@@ -6,7 +6,7 @@
 
 """ Schedule jobs based on the dependencies between their associated
 events.  These dependencies are based 1, on the phylogeny and 2,
-on outgroups.  The input is a DAG, the output is a TREE
+on outgroups.  The input is a DAG, the output is a TREE 
 
 """
 
@@ -52,8 +52,8 @@ class Schedule:
                 expMap[name] = fileStore.readGlobalFile(mcProject.expIDMap[name])
         else:
             expMap = mcProject.expMap
-
-        for name, expPath in list(expMap.items()):
+            
+        for name, expPath in expMap.items():
             exp = ExperimentWrapper(ET.parse(expPath).getroot())
             tree = exp.getTree()
             self.inGraph.add_node(name)
@@ -80,13 +80,13 @@ class Schedule:
             else:
                 assert self.maxParallelSubtrees == conf.getMaxParallelSubtrees()
         assert NX.is_directed_acyclic_graph(self.inGraph)
-
+    
     # break all the cycles in reverse topological order
     def compute(self):
         def getName(pref, id):
             while '%s%d' % (pref, id) in self.depTree:
                 id += 1
-            return '%s%d' % (pref, id)
+            return '%s%d' % (pref, id)        
         self.depTree = self.inGraph.copy()
         self.transitveReduction(self.depTree)
         tsort = list(reversed(list(NX.topological_sort(self.depTree))))
@@ -100,7 +100,7 @@ class Schedule:
                         if pedge[1] in parents:
                             self.depTree.remove_edge(parent, node)
                             break
-
+                        
             parents = [i[0] for i in self.depTree.in_edges(node)]
             if len(parents) > 1:
                 # insert new "virtual" node as parent to all parents
@@ -114,7 +114,7 @@ class Schedule:
                 nextId += 1
                 for parent in parents:
                     # insert vpNode above all the parents
-                    for inEdge in list(self.depTree.in_edges(parent)):
+                    for inEdge in self.depTree.in_edges(parent):
                         if not self.isFollowOn(inEdge[0], inEdge[1]):
                             self.depTree.add_edge(inEdge[0], vpNode)
                             self.depTree.remove_edge(inEdge[0], inEdge[1])
@@ -137,9 +137,9 @@ class Schedule:
                 assert(len(self.depTree.in_edges(node)) == 1)
                 # process virtual node next
                 tsort.insert(tsort.index(node) + 1, vpNode)
-
+                
             assert len(self.depTree.in_edges(node)) < 2
-
+        
         for node in tsort:
             assert len(self.depTree.in_edges(node)) < 2
         assert NX.is_directed_acyclic_graph(self.depTree)
@@ -159,8 +159,8 @@ class Schedule:
                     if (x != z and digraph.has_edge(x, z) and hasPath(x, y) and
                         hasPath(y, z)):
                         digraph.remove_edge(x, z)
-
-
+                        
+                        
     # add dependencies to ensure that more than self.maxParallelSubtrees
     # different jobs can never be scheduled at the same time
     def enforceMaxParallel(self):
@@ -222,12 +222,12 @@ class Schedule:
             else:
                 break
         return (chainLen, node, chainParent)
-
-    # for a given event name, get the names of all the
-    # events that are directly dependent on it in the
+        
+    # for a given event name, get the names of all the 
+    # events that are directly dependent on it in the 
     # schedule
     def deps(self, name):
-        assert name in self.depTree
+        assert name in self.depTree        
         edges = self.depTree.out_edges(name)
         depList = []
         for edge in edges:
@@ -248,33 +248,33 @@ class Schedule:
             return depList[0]
         return None
 
-    # test if an edge is a follow on
+    # test if an edge is a follow on 
     def isFollowOn(self, parent, child):
         edge = self.depTree[parent][child]
         return 'followOn' in edge and str(edge['followOn']) == '1'
-
+    
     # test if node corresponds to genome event or was added to break a virtual
     def isVirtual(self, name):
-        node = self.depTree.nodes[name]
+        node = self.depTree.node[name]
         return 'virtual' in node and str(node['virtual']) == '1'
-
+    
     # write to graphviz dot file
     def writeToFile(self, path):
         NX.drawing.nx_agraph.write_dot(self.depTree, path)
-
+    
     # read from graphviz dot file
     def readFromFile(self, path):
         self.depTree = NX.read_edgelist(path)
         self.checkDepTree()
-
-
+        
+        
 def main():
     usage = "usage: %prog <project> <output graphviz .dot file>"
     description = "TEST: create schedule from project file"
     parser = OptionParser(usage=usage, description=description)
-
+    
     options, args = parser.parse_args()
-
+    
     if len(args) != 2:
         parser.print_help()
         raise RuntimeError("Wrong number of arguments")
@@ -284,7 +284,7 @@ def main():
     schedule = Schedule()
     schedule.loadProject(proj)
     schedule.compute()
-    schedule.writeToFile(args[1])
+    schedule.writeToFile(args[1])    
 
-if __name__ == '__main__':
+if __name__ == '__main__':    
     main()

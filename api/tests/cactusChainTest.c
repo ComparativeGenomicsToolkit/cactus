@@ -8,60 +8,60 @@
 
 static bool nestedTest = 0;
 
-static void cactusChainTestTeardown(CuTest* testCase) {
+static void cactusChainTestTeardown() {
     if (!nestedTest) {
-        cactusChainsSharedTestTeardown(testCase->name);
+        cactusChainsSharedTestTeardown();
     }
 }
 
-static void cactusChainTestSetup(CuTest* testCase) {
+static void cactusChainTestSetup() {
     if (!nestedTest) {
-        cactusChainsSharedTestSetup(testCase->name);
+        cactusChainsSharedTestSetup();
     }
 }
 
 void testChain_construct(CuTest* testCase) {
     nestedTest = 0;
-    cactusChainTestSetup(testCase);
+    cactusChainTestSetup();
     CuAssertTrue(testCase, chain != NULL);
     CuAssertTrue(testCase, link1 != NULL);
     CuAssertTrue(testCase, link2 != NULL);
     CuAssertTrue(testCase, link5 != NULL);
-    cactusChainTestTeardown(testCase);
+    cactusChainTestTeardown();
 }
 
 void testChain_getFirst(CuTest* testCase) {
-    cactusChainTestSetup(testCase);
+    cactusChainTestSetup();
     CuAssertTrue(testCase, chain_getFirst(chain) == link1);
     CuAssertTrue(testCase, chain_getFirst(chain3) == link5);
     Chain *chain6 = chain_construct(flower);
     CuAssertTrue(testCase, chain_getFirst(chain6) == NULL);
     //CuAssertTrue(testCase, 0);
-    cactusChainTestTeardown(testCase);
+    cactusChainTestTeardown();
 }
 
 void testChain_getLast(CuTest* testCase) {
-    cactusChainTestSetup(testCase);
+    cactusChainTestSetup();
     CuAssertTrue(testCase, chain_getLast(chain) == link2);
     CuAssertTrue(testCase, chain_getLast(chain2) == link4);
     CuAssertTrue(testCase, chain_getLast(chain3) == link5);
     Chain *chain6 = chain_construct(flower);
     CuAssertTrue(testCase, chain_getLast(chain6) == NULL);
     //CuAssertTrue(testCase, 0);
-    cactusChainTestTeardown(testCase);
+    cactusChainTestTeardown();
 }
 
 
 
 void testChain_getLength(CuTest* testCase) {
-    cactusChainTestSetup(testCase);
+    cactusChainTestSetup();
     CuAssertTrue(testCase, chain_getLength(chain) == 2);
     CuAssertTrue(testCase, chain_getLength(chain3) == 1);
-    cactusChainTestTeardown(testCase);
+    cactusChainTestTeardown();
 }
 
 void testChain_getBlockChain(CuTest* testCase) {
-    cactusChainTestSetup(testCase);
+    cactusChainTestSetup();
     int64_t i;
     Block **blockChain = chain_getBlockChain(chain, &i);
     CuAssertTrue(testCase, i == 1);
@@ -74,32 +74,32 @@ void testChain_getBlockChain(CuTest* testCase) {
     CuAssertTrue(testCase, blockChain[0] == block4);
     free(blockChain);
 
-    cactusChainTestTeardown(testCase);
+    cactusChainTestTeardown();
 }
 
 void testChain_getName(CuTest* testCase) {
-    cactusChainTestSetup(testCase);
+    cactusChainTestSetup();
     CuAssertTrue(testCase, chain_getName(chain) != NULL_NAME);
     CuAssertTrue(testCase, flower_getChain(flower, chain_getName(chain)) == chain);
-    cactusChainTestTeardown(testCase);
+    cactusChainTestTeardown();
 }
 
 void testChain_getFlower(CuTest* testCase) {
-    cactusChainTestSetup(testCase);
+    cactusChainTestSetup();
     CuAssertTrue(testCase, chain_getFlower(chain) == flower);
-    cactusChainTestTeardown(testCase);
+    cactusChainTestTeardown();
 }
 
 void testChain_isCircular(CuTest* testCase) {
-    cactusChainTestSetup(testCase);
+    cactusChainTestSetup();
     CuAssertTrue(testCase, !chain_isCircular(chain));
     CuAssertTrue(testCase, !chain_isCircular(chain2));
     CuAssertTrue(testCase, chain_isCircular(chain3));
-    cactusChainTestTeardown(testCase);
+    cactusChainTestTeardown();
 }
 
 void testChain_serialisation(CuTest* testCase) {
-    cactusChainTestSetup(testCase);
+    cactusChainTestSetup();
     int64_t i;
     void
             *vA =
@@ -119,7 +119,7 @@ void testChain_serialisation(CuTest* testCase) {
     testChain_getName(testCase);
     testChain_getFlower(testCase);
     nestedTest = 0;
-    cactusChainTestTeardown(testCase);
+    cactusChainTestTeardown();
 }
 
 CuSuite* cactusChainTestSuite(void) {

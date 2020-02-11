@@ -14,42 +14,35 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-char *testCommon_getTmpTestDir(const char *testName) {
-    return stFile_pathJoin("test-output/tmp", testName);
-}
-
-
-static char* getTestDatabasePath(const char *testName) {
-    return stFile_pathJoin(testCommon_getTmpTestDir(testName), "cactusDisk");
-}
-
-stKVDatabaseConf *testCommon_getTemporaryKVDatabaseConf(const char *testName) {
-    testCommon_deleteTemporaryKVDatabase(testName);
-    char *dbPath = getTestDatabasePath(testName);
-    stFile_mkdirp(dbPath);
-    stKVDatabaseConf *conf = stKVDatabaseConf_constructTokyoCabinet(dbPath);
+stKVDatabaseConf *testCommon_getTemporaryKVDatabaseConf() {
+    testCommon_deleteTemporaryKVDatabase();
+    stKVDatabaseConf *conf = stKVDatabaseConf_constructTokyoCabinet(
+            "temporaryCactusDisk");
     return conf;
 }
 
-void testCommon_deleteTemporaryKVDatabase(const char *testName) {
-    stFile_rmtree(getTestDatabasePath(testName));
+void testCommon_deleteTemporaryKVDatabase(void) {
+    int64_t i = system("rm -rf temporaryCactusDisk");
+    exitOnFailure(i, "Tried to delete the temporary KV database\n");
 }
 
-CactusDisk *testCommon_getTemporaryCactusDisk(const char *testName) {
-    testCommon_deleteTemporaryKVDatabase(testName);
-    char *dbPath = getTestDatabasePath(testName);
-    stFile_mkdirp(dbPath);
-    stKVDatabaseConf *conf = stKVDatabaseConf_constructTokyoCabinet(dbPath);
+CactusDisk *testCommon_getTemporaryCactusDisk2(void) {
+    testCommon_deleteTemporaryKVDatabase();
+    stKVDatabaseConf *conf = stKVDatabaseConf_constructTokyoCabinet(
+            "temporaryCactusDisk");
     CactusDisk *cactusDisk;
     cactusDisk = cactusDisk_construct(conf, true, true);
     stKVDatabaseConf_destruct(conf);
     return cactusDisk;
 }
 
-void testCommon_deleteTemporaryCactusDisk(const char *testName,
-                                          CactusDisk *cactusDisk) {
+CactusDisk *testCommon_getTemporaryCactusDisk() {
+    return testCommon_getTemporaryCactusDisk2();
+}
+
+void testCommon_deleteTemporaryCactusDisk(CactusDisk *cactusDisk) {
     cactusDisk_destruct(cactusDisk);
-    testCommon_deleteTemporaryKVDatabase(testName);
+    testCommon_deleteTemporaryKVDatabase();
 }
 
 Name testCommon_addThreadToFlower(Flower *flower, char *header, int64_t length) {

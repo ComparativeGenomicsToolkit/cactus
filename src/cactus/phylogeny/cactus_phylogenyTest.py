@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 #Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
 #
@@ -11,20 +11,21 @@ from sonLib.bioio import TestStatus
 from cactus.shared.test import getCactusInputs_random
 from cactus.shared.test import getCactusInputs_blanchette
 from cactus.shared.test import runWorkflow_multipleExamples
+from cactus.shared.test import silentOnSuccess
 
 class TestCase(unittest.TestCase):
-    @TestStatus.longLength
+    @silentOnSuccess
+    @unittest.skip("")
     def testCactus_Random(self):
-        runWorkflow_multipleExamples(self.id(), getCactusInputs_random,
-                                     testNumber=TestStatus.getTestSetup(),
+        runWorkflow_multipleExamples(getCactusInputs_random, 
+                                     testNumber=TestStatus.getTestSetup(), 
                                      buildAvgs=True)
-
-    @TestStatus.needsTestData
-    @TestStatus.toilThreadHog
-    @TestStatus.mediumLength
+    @silentOnSuccess
+    @unittest.skip("")
     def testCactus_Blanchette(self):
-        runWorkflow_multipleExamples(self.id(), getCactusInputs_blanchette,
+        runWorkflow_multipleExamples(getCactusInputs_blanchette, 
+                                     testRestrictions=(TestStatus.TEST_SHORT,), inverseTestRestrictions=True, 
                                      buildAvgs=True)
-
+    
 if __name__ == '__main__':
     unittest.main()

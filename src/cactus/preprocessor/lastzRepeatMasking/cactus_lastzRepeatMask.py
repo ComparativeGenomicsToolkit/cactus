@@ -1,6 +1,6 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
-## USE LASTZ TO SOFTMASK REPEATS OF A GIVEN FASTA SEQUENCE FILE.
+## USE LASTZ TO SOFTMASK REPEATS OF A GIVEN FASTA SEQUENCE FILE.  
 
 import os
 
@@ -10,7 +10,7 @@ from cactus.shared.common import cactus_call
 from cactus.shared.common import RoundedJob
 
 class RepeatMaskOptions:
-    def __init__(self,
+    def __init__(self, 
             fragment=200,
             minPeriod=10,
             lastzOpts="",
@@ -26,7 +26,7 @@ class RepeatMaskOptions:
 
         self.period = max(1, round(self.proportionSampled * self.minPeriod))
 
-        # make sure fragment size is even so they can overlap by exactly one half.
+        # make sure fragment size is even so they can overlap by exactly one half. 
         if self.fragment % 2:
             self.fragment += 1
 
@@ -49,7 +49,7 @@ class LastzRepeatMaskJob(RoundedJob):
         cactus_call(infile=queryFile, outfile=fragments,
                     parameters=["cactus_fasta_fragments.py",
                                 "--fragment=%s" % str(self.repeatMaskOptions.fragment),
-                                "--step=%s" % (str(self.repeatMaskOptions.fragment // 2)),
+                                "--step=%s" % (str(self.repeatMaskOptions.fragment / 2)),
                                 "--origin=zero"])
         return fragments
 
@@ -90,7 +90,7 @@ class LastzRepeatMaskJob(RoundedJob):
                                 "M=%s" % (int(self.repeatMaskOptions.period*2))])
 
         # the previous lastz command outputs a file of intervals (denoted with indices) to softmask.
-        # we finish by applying these intervals to the input file, to produce the final, softmasked output.
+        # we finish by applying these intervals to the input file, to produce the final, softmasked output. 
         args = ["--origin=one"]
         if self.repeatMaskOptions.unmaskOutput:
             args.append("--unmask")

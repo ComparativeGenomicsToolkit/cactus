@@ -52,9 +52,9 @@ static stCactusEdgeEnd *getChainEndFromBlock(stCactusGraph *cactusGraph,
     return result;
 }
 
-static void teardown(CuTest* testCase) {
+static void teardown() {
     if (cactusDisk != NULL) {
-        testCommon_deleteTemporaryCactusDisk(testCase->name, cactusDisk);
+        testCommon_deleteTemporaryCactusDisk(cactusDisk);
         cactusDisk = NULL;
     }
 }
@@ -63,9 +63,9 @@ static void teardown(CuTest* testCase) {
 // ((ingroup1, ingroup2)ancestor, outgroup1, outgroup2)root;
 // If the includeOutgroups parameter is false outgroup1 and outgroup2
 // aren't added.
-static void setup(CuTest* testCase, bool includeOutgroups) {
-    teardown(testCase);
-    cactusDisk = testCommon_getTemporaryCactusDisk(testCase->name);
+static void setup(bool includeOutgroups) {
+    teardown();
+    cactusDisk = testCommon_getTemporaryCactusDisk();
     eventTree_construct2(cactusDisk);
     flower = flower_construct(cactusDisk);
     // A group must be constructed because stCaf_setup expects a leaf group.
@@ -86,7 +86,7 @@ static void setup(CuTest* testCase, bool includeOutgroups) {
 }
 
 static void testChainHasUnequalNumberOfIngroupCopies(CuTest *testCase) {
-    setup(testCase, true);
+    setup(true);
     Name ingroup1Seq1 = addThreadToFlower(flower, ingroup1, 100);
     Name ingroup1Seq2 = addThreadToFlower(flower, ingroup1, 100);
     Name ingroup2Seq1 = addThreadToFlower(flower, ingroup2, 100);
@@ -152,11 +152,11 @@ static void testChainHasUnequalNumberOfIngroupCopies(CuTest *testCase) {
     stCactusEdgeEnd *chainD = getChainEndFromBlock(cactusGraph, blockD);
     CuAssertTrue(testCase, stCaf_chainHasUnequalNumberOfIngroupCopies(chainD, flower) == true);
 
-    teardown(testCase);
+    teardown();
 }
 
 static void testChainHasUnequalNumberOfIngroupCopiesOrNoOutgroup(CuTest *testCase) {
-    setup(testCase, true);
+    setup(true);
 
     Name ingroup1Seq1 = addThreadToFlower(flower, ingroup1, 100);
     Name ingroup1Seq2 = addThreadToFlower(flower, ingroup1, 100);
@@ -233,13 +233,13 @@ static void testChainHasUnequalNumberOfIngroupCopiesOrNoOutgroup(CuTest *testCas
     stCactusEdgeEnd *chainE = getChainEndFromBlock(cactusGraph, blockE);
     CuAssertTrue(testCase, stCaf_chainHasUnequalNumberOfIngroupCopiesOrNoOutgroup(chainE, flower) == true);
 
-    teardown(testCase);
+    teardown();
 }
 
 // Test chainHasUnequalNumberOfIngroupCopiesOrNoOutgroup under the
 // case where there are no outgroups in the tree.
 static void testChainHasUnequalNumberOfIngroupCopiesOrNoOutgroup_noOutgroups(CuTest *testCase) {
-    setup(testCase, false);
+    setup(false);
 
     Name ingroup1Seq1 = addThreadToFlower(flower, ingroup1, 100);
     Name ingroup1Seq2 = addThreadToFlower(flower, ingroup1, 100);
@@ -284,7 +284,7 @@ static void testChainHasUnequalNumberOfIngroupCopiesOrNoOutgroup_noOutgroups(CuT
 
     stPinchThreadSet_destruct(threadSet);
 
-    teardown(testCase);
+    teardown();
 }
 
 static void checkCycleFree(CuTest *testCase, stPinchThread *thread) {
@@ -307,7 +307,7 @@ static void checkCycleFree(CuTest *testCase, stPinchThread *thread) {
 static void testHGVMFiltering(CuTest *testCase) {
     for (int64_t testNum = 0; testNum < 50; testNum++) {
         int64_t numRandomPinches = 500;
-        setup(testCase, false);
+        setup(false);
         Name ingroup1Seq1 = addThreadToFlower(flower, ingroup1, 100);
         Name ingroup1Seq2 = addThreadToFlower(flower, ingroup1, 100);
         addThreadToFlower(flower, ingroup1, 100);
@@ -345,7 +345,7 @@ static void testHGVMFiltering(CuTest *testCase) {
         stSortedSet_destruct(threadComponents);
         stPinchThreadSet_destruct(threadSet);
 
-        teardown(testCase);
+        teardown();
     }
 }
 

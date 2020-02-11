@@ -101,7 +101,7 @@ static void testPinchIteratorFromFile(CuTest *testCase) {
         testIterator(testCase, pinchIterator, pairwiseAlignments);
         //Cleanup
         stPinchIterator_destruct(pinchIterator);
-        stFile_rmtree(tempFile);
+        stFile_rmrf(tempFile);
         stList_destruct(pairwiseAlignments);
     }
 }

@@ -18,22 +18,22 @@ static const char *headerString = ">one";
 
 static bool nestedTest = 0;
 
-static void cactusSequenceTestTeardown(CuTest* testCase) {
-    if(!nestedTest && cactusDisk != NULL) {
-        testCommon_deleteTemporaryCactusDisk(testCase->name, cactusDisk);
-        cactusDisk = NULL;
-        flower = NULL;
-        event = NULL;
-        eventTree = NULL;
-        metaSequence = NULL;
-        sequence = NULL;
-    }
+void cactusSequenceTestTeardown() {
+	if(!nestedTest && cactusDisk != NULL) {
+		testCommon_deleteTemporaryCactusDisk(cactusDisk);
+		cactusDisk = NULL;
+		flower = NULL;
+		event = NULL;
+		eventTree = NULL;
+		metaSequence = NULL;
+		sequence = NULL;
+	}
 }
 
-static void cactusSequenceTestSetup(CuTest* testCase) {
+void cactusSequenceTestSetup2() {
 	if(!nestedTest) {
-		cactusSequenceTestTeardown(testCase);
-		cactusDisk = testCommon_getTemporaryCactusDisk(testCase->name);
+		cactusSequenceTestTeardown();
+		cactusDisk = testCommon_getTemporaryCactusDisk2();
 		flower = flower_construct(cactusDisk);
 		eventTree = eventTree_construct2(cactusDisk);
 		event = eventTree_getRootEvent(eventTree);
@@ -43,45 +43,49 @@ static void cactusSequenceTestSetup(CuTest* testCase) {
 	}
 }
 
+void cactusSequenceTestSetup() {
+    cactusSequenceTestSetup2();
+}
+
 void testSequence_construct(CuTest* testCase) {
-	cactusSequenceTestSetup(testCase);
+	cactusSequenceTestSetup();
 	CuAssertTrue(testCase, sequence != NULL);
-	cactusSequenceTestTeardown(testCase);
+	cactusSequenceTestTeardown();
 }
 
 void testSequence_getMetaSequence(CuTest* testCase) {
-	cactusSequenceTestSetup(testCase);
+	cactusSequenceTestSetup();
 	CuAssertTrue(testCase, metaSequence == sequence_getMetaSequence(sequence));
-	cactusSequenceTestTeardown(testCase);
+	cactusSequenceTestTeardown();
 }
 
 void testSequence_getStart(CuTest* testCase) {
-	cactusSequenceTestSetup(testCase);
+	cactusSequenceTestSetup();
 	CuAssertIntEquals(testCase, 1, sequence_getStart(sequence));
-	cactusSequenceTestTeardown(testCase);
+	cactusSequenceTestTeardown();
 }
 
 void testSequence_getLength(CuTest* testCase) {
-	cactusSequenceTestSetup(testCase);
+	cactusSequenceTestSetup();
 	CuAssertIntEquals(testCase, 10, sequence_getLength(sequence));
-	cactusSequenceTestTeardown(testCase);
+	cactusSequenceTestTeardown();
 }
 
 void testSequence_getName(CuTest* testCase) {
-	cactusSequenceTestSetup(testCase);
+	cactusSequenceTestSetup();
 	CuAssertTrue(testCase, sequence_getName(sequence) != NULL_NAME);
 	CuAssertTrue(testCase, flower_getSequence(flower, sequence_getName(sequence)) == sequence);
-	cactusSequenceTestTeardown(testCase);
+	cactusSequenceTestTeardown();
 }
 
 void testSequence_getEvent(CuTest* testCase) {
-	cactusSequenceTestSetup(testCase);
+	cactusSequenceTestSetup();
 	CuAssertTrue(testCase, sequence_getEvent(sequence) == event);
-	cactusSequenceTestTeardown(testCase);
+	cactusSequenceTestTeardown();
 }
 
 void testSequence_getString(CuTest* testCase) {
-	cactusSequenceTestSetup(testCase);
+	cactusSequenceTestSetup();
 	int64_t i, j;
 	for(i=1; i<11; i++) {
 		for(j=11-i; j>=0; j--) {
@@ -89,7 +93,7 @@ void testSequence_getString(CuTest* testCase) {
 			CuAssertStrEquals(testCase, metaSequence_getString(metaSequence, i, j, 0), sequence_getString(sequence, i, j, 0));
 		}
 	}
-	cactusSequenceTestTeardown(testCase);
+	cactusSequenceTestTeardown();
 }
 
 static char *getRandomDNASequence(int64_t minSequenceLength, int64_t maxSequenceLength) {
@@ -107,7 +111,7 @@ void testSequence_addAndGetBigStringsP(CuTest* testCase,
         bool preCacheSequences, bool reopenCactusDisk,
         int64_t minSequenceLength, int64_t maxSequenceLength, int64_t testNo) {
     for(int64_t i=0; i<testNo; i++) {
-        cactusSequenceTestSetup(testCase);
+        cactusSequenceTestSetup2();
         //Create a bunch of sequences
         stList *strings = stList_construct3(0, free);
         stList *sequenceNames = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
@@ -124,10 +128,11 @@ void testSequence_addAndGetBigStringsP(CuTest* testCase,
         if(reopenCactusDisk) {
             cactusDisk_write(cactusDisk);
             cactusDisk_destruct(cactusDisk);
-            stKVDatabaseConf *conf = testCommon_getTemporaryKVDatabaseConf(testCase->name);
+            stKVDatabaseConf *conf = stKVDatabaseConf_constructTokyoCabinet(
+                        "temporaryCactusDisk");
             cactusDisk = cactusDisk_construct(conf, false, true);
             flower = cactusDisk_getFlower(cactusDisk, flowerName);
-            testCommon_deleteTemporaryKVDatabase(testCase->name);
+            stKVDatabaseConf_destruct(conf);
         }
 
         stList *sequences = stList_construct(); //Get the meta-sequences from the reopened cactusDisk.
@@ -193,7 +198,7 @@ void testSequence_addAndGetBigStringsP(CuTest* testCase,
         }
         stList_destruct(sequences);
         stList_destruct(sequenceNames);
-        cactusSequenceTestTeardown(testCase);
+        cactusSequenceTestTeardown();
         stList_destruct(strings);
     }
 }
@@ -219,19 +224,19 @@ void testSequence_addAndGetBigStrings_massive(CuTest* testCase) {
 }
 
 void testSequence_getHeader(CuTest* testCase) {
-	cactusSequenceTestSetup(testCase);
+	cactusSequenceTestSetup();
 	CuAssertStrEquals(testCase, headerString, sequence_getHeader(sequence));
-	cactusSequenceTestTeardown(testCase);
+	cactusSequenceTestTeardown();
 }
 
 void testSequence_getFlower(CuTest* testCase) {
-	cactusSequenceTestSetup(testCase);
+	cactusSequenceTestSetup();
 	CuAssertTrue(testCase, sequence_getFlower(sequence) == flower);
-	cactusSequenceTestTeardown(testCase);
+	cactusSequenceTestTeardown();
 }
 
 void testSequence_serialisation(CuTest* testCase) {
-	cactusSequenceTestSetup(testCase);
+	cactusSequenceTestSetup();
 	int64_t i;
 	void *vA = binaryRepresentation_makeBinaryRepresentation(sequence,
 			(void (*)(void *, void (*)(const void *, size_t, size_t)))sequence_writeBinaryRepresentation, &i);
@@ -249,7 +254,7 @@ void testSequence_serialisation(CuTest* testCase) {
 	testSequence_getHeader(testCase);
 	testSequence_getFlower(testCase);
 	nestedTest = 0;
-	cactusSequenceTestTeardown(testCase);
+	cactusSequenceTestTeardown();
 }
 
 CuSuite* cactusSequenceTestSuite(void) {

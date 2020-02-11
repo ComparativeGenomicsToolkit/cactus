@@ -16,16 +16,16 @@ static Cap * topCap1, * topCap2, *topCap3, *topCap4;
 static Cap * bottomCap1, * bottomCap2, *bottomCap3, *bottomCap4;
 static Face * face;
 
-static void cactusFacesTestSharedTeardown(CuTest* testCase) {
+static void cactusFacesTestSharedTeardown() {
 	if(cactusDisk != NULL) {
-        testCommon_deleteTemporaryCactusDisk(testCase->name, cactusDisk);
-        cactusDisk = NULL;
+		testCommon_deleteTemporaryCactusDisk(cactusDisk);
+		cactusDisk = NULL;
 	}
 }
 
-static void cactusFacesTestSharedSetup(CuTest* testCase) {
-	cactusFacesTestSharedTeardown(testCase);
-	cactusDisk = testCommon_getTemporaryCactusDisk(testCase->name);
+static void cactusFacesTestSharedSetup() {
+	cactusFacesTestSharedTeardown();
+	cactusDisk = testCommon_getTemporaryCactusDisk();
 	flower = flower_construct(cactusDisk);
 
 	eventTree = eventTree_construct2(cactusDisk);

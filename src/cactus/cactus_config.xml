@@ -6,7 +6,7 @@
 		    
 		<divergences five="0.35" four="0.25" one="0.1" three="0.2" two="0.15" useDefault="0"/>
 	</constants>
-	<preprocessor check="1" checkAssemblyHub="0" memory="littleMemory" preprocessJob="checkUniqueHeaders"/>
+	<preprocessor check="1" checkAssemblyHub="1" memory="littleMemory" preprocessJob="checkUniqueHeaders"/>
 	<preprocessor chunkSize="3000000" lastzOpts="--step=3 --ambiguous=iupac,100,100 --ungapped --queryhsplimit=keep,nowarn:1500" memory="littleMemory" minPeriod="50" preprocessJob="lastzRepeatMask" proportionToSample="0.2" unmask="0"/>
 	                                                                                        
 	<trimBlast doTrimStrategy="1" keepParalogs="0" trimFlanking="10" trimMinSize="100" trimOutgroupDepth="1" trimOutgroupFlanking="2000" trimThreshold="1.0" trimWindowSize="1"/>
@@ -26,7 +26,7 @@
 		<CactusBarWrapperLarge maxFlowerGroupSize="2000000"/>
 		<CactusBarEndAlignerWrapper memory="littleMemory"/>
 	</bar>
-	<normal iterations="2">
+	<normal iterations="0">
 		<CactusNormalRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="10000000"/>
 		<CactusNormalWrapper/>
 	</normal>
@@ -45,7 +45,7 @@
 		 
 		<CactusSetReferenceCoordinatesDownWrapper/>
 	</reference>
-	<check runCheck="1">
+	<check runCheck="0">
 		<CactusCheckRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="2000000"/>
 		<CactusCheckWrapper/>
 	</check>
