@@ -40,7 +40,7 @@ static void testEventWeighting(CuTest *testCase) {
      * Test that calculating the event weighting works correctly on a
      * simple (static) example.
      */
-    CactusDisk *cactusDisk = testCommon_getTemporaryCactusDisk();
+    CactusDisk *cactusDisk = testCommon_getTemporaryCactusDisk(testCase->name);
     eventTree_construct2(cactusDisk);
     Flower *flower = flower_construct(cactusDisk);
 
@@ -79,7 +79,7 @@ static void testEventWeighting(CuTest *testCase) {
     trueScore = exp(-phi * 0.2426) * 0.21585/0.2426;
     CuAssertDblEquals(testCase, trueScore, stDoubleTuple_getPosition(stHash_search(weights, event), 0), 0.001);
 
-    testCommon_deleteTemporaryCactusDisk(cactusDisk);
+    testCommon_deleteTemporaryCactusDisk(testCase->name, cactusDisk);
     stHash_destruct(weights);
     stSet_destruct(chosenEvents);
 }

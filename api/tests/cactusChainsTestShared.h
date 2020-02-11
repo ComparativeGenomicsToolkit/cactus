@@ -36,16 +36,16 @@ static Link *link5;
 static Segment *segment3;
 
 
-static void cactusChainsSharedTestTeardown() {
+static void cactusChainsSharedTestTeardown(const char *testName) {
     if (cactusDisk != NULL) {
-        testCommon_deleteTemporaryCactusDisk(cactusDisk);
+        testCommon_deleteTemporaryCactusDisk(testName, cactusDisk);
         cactusDisk = NULL;
     }
 }
 
-static void cactusChainsSharedTestSetup() {
-    cactusChainsSharedTestTeardown();
-    cactusDisk = testCommon_getTemporaryCactusDisk();
+static void cactusChainsSharedTestSetup(const char *testName) {
+    cactusChainsSharedTestTeardown(testName);
+    cactusDisk = testCommon_getTemporaryCactusDisk(testName);
     eventTree_construct2(cactusDisk);
     flower = flower_construct(cactusDisk);
     nestedFlower1 = flower_construct(cactusDisk);

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 Given a list of intervals, mask those bases in the fasta sequence(s).
 """
@@ -24,7 +24,7 @@ def usage(s=None):
     --mask=<character>        mask with a particular character (usually X or N)
                               (default is to mask with lowercase)
     --unmask                  remove any previous softmasking from sequence being masked (covert to upper case
-                              before masking)                       
+                              before masking)
                               """
 
 	if (s == None): exit (message)
@@ -75,7 +75,7 @@ def main():
 
 	# read the intervals
 
-	f = file(intervalsFile,"rt")
+	f = open(intervalsFile, "rt")
 
 	chromToIntervals = {}
 
@@ -137,12 +137,12 @@ def main():
 			prevEnd = end
 		if (prevEnd < len(seq)):   newSeq += [seq[prevEnd:]]
 
-		print ">%s" % chrom
+		print((">%s" % chrom))
 		newSeq = "".join(newSeq)
 		assert (len(newSeq) == len(seq)), "internal error"
 
 		for i in range(0,len(newSeq),wrapLength):
-			print "".join(newSeq[i:i+wrapLength])
+			print(("".join(newSeq[i:i+wrapLength])))
 
 	# make sure all sequences were given
 

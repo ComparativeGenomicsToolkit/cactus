@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 #Copyright (C) 2011 by Glenn Hickey
 #
@@ -24,10 +24,11 @@ from sonLib.nxnewick import NXNewick
 from sonLib.nxtreeTest import randomTreeSet
 
 class TestCase(unittest.TestCase):
-    
+
     def setUp(self):
         unittest.TestCase.setUp(self)
-    
+
+    @TestStatus.shortLength
     def testRunsOnRandom(self):
         for tree in randomTreeSet():
             if tree.size() < 120:
@@ -36,12 +37,12 @@ class TestCase(unittest.TestCase):
                 sched.inGraph = dag
                 sched.maxParallel = 2
                 sched.compute()
-                
+
     def __addDagEdges(self, tree):
-        count = tree.size() / random.randrange(1,10)
+        count = tree.size() // random.randrange(1,10)
         tsort = list(NX.topological_sort(tree))
         for i in range(0, count):
-            source = random.randrange(0, len(tsort)-1)            
+            source = random.randrange(0, len(tsort)-1)
             sink = random.randrange(source+1, len(tsort))
             sourceNode = tsort[source]
             sinkNode = tsort[sink]
@@ -50,10 +51,10 @@ class TestCase(unittest.TestCase):
                 tree.add_edge(sourceNode, sinkNode)
         assert NX.is_directed_acyclic_graph(tree)
         return tree
-            
-            
+
+
 def main():
     unittest.main()
-    
+
 if __name__ == '__main__':
     main()

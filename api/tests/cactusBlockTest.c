@@ -8,87 +8,87 @@
 
 static bool nestedTest = 0;
 
-static void cactusBlockTestTeardown() {
+static void cactusBlockTestTeardown(const char *testName) {
     if (!nestedTest) {
-        cactusBlocksTestSharedTeardown();
+        cactusBlocksTestSharedTeardown(testName);
     }
 }
 
-static void cactusBlockTestSetup() {
+static void cactusBlockTestSetup(const char *testName) {
     if (!nestedTest) {
-        cactusBlocksTestSharedSetup();
+        cactusBlocksTestSharedSetup(testName);
     }
 }
 
 void testBlock_construct(CuTest* testCase) {
     nestedTest = 0;
-    cactusBlockTestSetup();
+    cactusBlockTestSetup(testCase->name);
     CuAssertTrue(testCase, block != NULL);
-    cactusBlockTestTeardown();
+    cactusBlockTestTeardown(testCase->name);
 }
 
 void testBlock_getName(CuTest* testCase) {
-    cactusBlockTestSetup();
+    cactusBlockTestSetup(testCase->name);
     CuAssertTrue(testCase, block_getName(block) != NULL_NAME);
     CuAssertTrue(testCase, flower_getBlock(flower, block_getName(block)) == block);
     CuAssertTrue(testCase, block_getName(block) == block_getName(block_getReverse(block)));
-    cactusBlockTestTeardown();
+    cactusBlockTestTeardown(testCase->name);
 }
 
 void testBlock_getOrientation(CuTest* testCase) {
-    cactusBlockTestSetup();
+    cactusBlockTestSetup(testCase->name);
     CuAssertTrue(testCase, block_getOrientation(block));
     CuAssertTrue(testCase, !block_getOrientation(block_getReverse(block)));
-    cactusBlockTestTeardown();
+    cactusBlockTestTeardown(testCase->name);
 }
 
 void testBlock_getReverse(CuTest* testCase) {
-    cactusBlockTestSetup();
+    cactusBlockTestSetup(testCase->name);
     CuAssertTrue(testCase, block_getReverse(block) != NULL);
     CuAssertTrue(testCase, block_getReverse(block_getReverse(block)) == block);
-    cactusBlockTestTeardown();
+    cactusBlockTestTeardown(testCase->name);
 }
 
 void testBlock_getLength(CuTest* testCase) {
-    cactusBlockTestSetup();
+    cactusBlockTestSetup(testCase->name);
     CuAssertIntEquals(testCase, 3, block_getLength(block));
-    cactusBlockTestTeardown();
+    cactusBlockTestTeardown(testCase->name);
 }
 
 void testBlock_getFlower(CuTest* testCase) {
-    cactusBlockTestSetup();
+    cactusBlockTestSetup(testCase->name);
     CuAssertTrue(testCase, block_getFlower(block) == flower);
-    cactusBlockTestTeardown();
+    cactusBlockTestTeardown(testCase->name);
 }
 
 void testBlock_getLeftEnd(CuTest* testCase) {
-    cactusBlockTestSetup();
+    cactusBlockTestSetup(testCase->name);
     End *leftEnd = block_get5End(block);
     CuAssertTrue(testCase, leftEnd != NULL);
     CuAssertTrue(testCase, end_getBlock(leftEnd) == block);
     CuAssertTrue(testCase, block_getOrientation(block) == end_getOrientation(leftEnd));
-    cactusBlockTestTeardown();
+    cactusBlockTestTeardown(testCase->name);
 }
 
 void testBlock_getRightEnd(CuTest* testCase) {
-    cactusBlockTestSetup();
+    cactusBlockTestSetup(testCase->name);
     End *rightEnd = block_get3End(block);
     CuAssertTrue(testCase, rightEnd != NULL);
     CuAssertTrue(testCase, end_getBlock(rightEnd) == block);
     CuAssertTrue(testCase, block_getOrientation(block) == end_getOrientation(rightEnd));
-    cactusBlockTestTeardown();
+    cactusBlockTestTeardown(testCase->name);
 }
 
 void testBlock_getInstanceNumber(CuTest* testCase) {
-    cactusBlockTestSetup();
+    cactusBlockTestSetup(testCase->name);
     CuAssertTrue(testCase, block_getInstanceNumber(block) == 3);
     Block *block2 = block_construct(1, flower);
     CuAssertTrue(testCase, block_getInstanceNumber(block2) == 0);
-    cactusBlockTestTeardown();
+    cactusBlockTestTeardown(testCase->name);
 }
 
 void testBlock_getInstance(CuTest* testCase) {
-    cactusBlockTestSetup();
+    cactusBlockTestSetup(testCase->name);
     CuAssertTrue(testCase, block_getInstance(block, segment_getName(rootSegment)) == segment_getReverse(rootSegment));
     CuAssertTrue(testCase, block_getInstance(block, segment_getName(leaf1Segment)) == leaf1Segment);
     CuAssertTrue(testCase, block_getInstance(block, segment_getName(leaf2Segment)) == segment_getReverse(leaf2Segment));
@@ -97,21 +97,21 @@ void testBlock_getInstance(CuTest* testCase) {
     CuAssertTrue(testCase, block_getInstance(block_getReverse(block), segment_getName(leaf1Segment)) == segment_getReverse(leaf1Segment));
     CuAssertTrue(testCase, block_getInstance(block_getReverse(block), segment_getName(leaf2Segment)) == leaf2Segment);
 
-    cactusBlockTestTeardown();
+    cactusBlockTestTeardown(testCase->name);
 }
 
 void testBlock_getFirst(CuTest* testCase) {
-    cactusBlockTestSetup();
+    cactusBlockTestSetup(testCase->name);
     CuAssertTrue(testCase, block_getFirst(block) == segment_getReverse(rootSegment));
     CuAssertTrue(testCase, block_getFirst(block_getReverse(block)) == rootSegment);
     Block *block2 = block_construct(1, flower);
     CuAssertTrue(testCase, block_getFirst(block2) == NULL);
     CuAssertTrue(testCase, block_getFirst(block_getReverse(block2)) == NULL);
-    cactusBlockTestTeardown();
+    cactusBlockTestTeardown(testCase->name);
 }
 
 void testBlock_getSetRootInstance(CuTest *testCase) {
-    cactusBlockTestSetup();
+    cactusBlockTestSetup(testCase->name);
     Block *block2 = block_construct(1, flower);
     CuAssertTrue(testCase, block_getRootInstance(block2) == NULL);
     block_destruct(block2);
@@ -119,11 +119,11 @@ void testBlock_getSetRootInstance(CuTest *testCase) {
     CuAssertTrue(testCase, block_getRootInstance(block) == segment_getReverse(rootSegment));
     CuAssertTrue(testCase, end_getRootInstance(block_get5End(block)) == segment_get5Cap(segment_getReverse(rootSegment)));
     CuAssertTrue(testCase, end_getRootInstance(block_get3End(block)) == segment_get3Cap(segment_getReverse(rootSegment)));
-    cactusBlockTestTeardown();
+    cactusBlockTestTeardown(testCase->name);
 }
 
 void testBlock_instanceIterator(CuTest* testCase) {
-    cactusBlockTestSetup();
+    cactusBlockTestSetup(testCase->name);
     Block_InstanceIterator *iterator;
     iterator = block_getInstanceIterator(block);
 
@@ -162,11 +162,11 @@ void testBlock_instanceIterator(CuTest* testCase) {
 
     block_destructInstanceIterator(iterator);
 
-    cactusBlockTestTeardown();
+    cactusBlockTestTeardown(testCase->name);
 }
 
 void testBlock_getChain(CuTest* testCase) {
-    cactusBlockTestSetup();
+    cactusBlockTestSetup(testCase->name);
 
     Block *block2 = block_construct(2, flower);
     Flower *flower2 = flower_construct(cactusDisk);
@@ -180,22 +180,22 @@ void testBlock_getChain(CuTest* testCase) {
     CuAssertTrue(testCase, block_getChain(block) == chain);
     CuAssertTrue(testCase, block_getChain(block2) == chain);
 
-    cactusBlockTestTeardown();
+    cactusBlockTestTeardown(testCase->name);
 }
 
 void testBlock_getSegmentForEvent(CuTest* testCase) {
-    cactusBlockTestSetup();
+    cactusBlockTestSetup(testCase->name);
 
     CuAssertPtrEquals(testCase, block_getSegmentForEvent(block_getReverse(block), event_getName(rootEvent)), rootSegment);
     Segment *segment = block_getSegmentForEvent(block, event_getName(leafEvent));
     CuAssertTrue(testCase, segment == leaf1Segment || segment == segment_getReverse(leaf2Segment));
     CuAssertTrue(testCase, block_getSegmentForEvent(block, NULL_NAME) == NULL);
 
-    cactusBlockTestTeardown();
+    cactusBlockTestTeardown(testCase->name);
 }
 
 void testBlock_splitBlock(CuTest* testCase) {
-    cactusBlockTestSetup();
+    cactusBlockTestSetup(testCase->name);
 
     Block *leftBlock, *rightBlock;
     block_split(block, 2, &leftBlock, &rightBlock);
@@ -212,12 +212,12 @@ void testBlock_splitBlock(CuTest* testCase) {
     CuAssertIntEquals(testCase, 3, block_getInstanceNumber(leftRightBlock));
 
     //doesn't currently check the instances.
-    cactusBlockTestTeardown();
+    cactusBlockTestTeardown(testCase->name);
 }
 
 void testBlock_makeNewickString(CuTest *testCase) {
     assert(testCase != NULL);
-    cactusBlockTestSetup();
+    cactusBlockTestSetup(testCase->name);
     char *cA1 = block_makeNewickString(block, 1, 0);
     char *cA2 = block_makeNewickString(block, 1, 1);
     char *cA3 = block_makeNewickString(block, 0, 0);
@@ -231,11 +231,11 @@ void testBlock_makeNewickString(CuTest *testCase) {
     free(cA2);
     free(cA3);
     free(cA4);
-    cactusBlockTestTeardown();
+    cactusBlockTestTeardown(testCase->name);
 }
 
 void testBlock_isTrivialChain(CuTest *testCase) {
-    cactusBlockTestSetup();
+    cactusBlockTestSetup(testCase->name);
     Group *group = group_construct2(flower);
     end_setGroup(block_get5End(block), group);
     end_setGroup(block_get3End(block), group);
@@ -252,11 +252,11 @@ void testBlock_isTrivialChain(CuTest *testCase) {
     CuAssertTrue(testCase, block_isTrivialChain(block));
     CuAssertTrue(testCase, !block_isTrivialChain(block1));
     CuAssertTrue(testCase, !block_isTrivialChain(block2));
-    cactusBlockTestTeardown();
+    cactusBlockTestTeardown(testCase->name);
 }
 
 void testBlock_serialisation(CuTest* testCase) {
-    cactusBlockTestSetup();
+    cactusBlockTestSetup(testCase->name);
     Name rootInstanceName = segment_getName(rootSegment);
     Name leaf1InstanceName = segment_getName(leaf1Segment);
     Name leaf2InstanceName = segment_getName(leaf2Segment);
@@ -294,7 +294,7 @@ void testBlock_serialisation(CuTest* testCase) {
     testBlock_getChain(testCase);
     testBlock_getSegmentForEvent(testCase);
     nestedTest = 0;
-    cactusBlockTestTeardown();
+    cactusBlockTestTeardown(testCase->name);
 }
 
 CuSuite* cactusBlockTestSuite(void) {

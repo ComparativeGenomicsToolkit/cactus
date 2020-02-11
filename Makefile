@@ -1,13 +1,14 @@
 rootPath = .
+
+include ${rootPath}/include.mk
+
 modules = api setup blastLib caf bar blast normalisation hal phylogeny reference faces check pipeline preprocessor hal dbTest
 
 # submodules are in multiple pass to handle dependencies cactus2hal being dependent on
 # both cactus and sonLib
-submodules1 = sonLib hdf5 cPecan hal matchingAndOrdering pinchesAndCacti
+submodules1 = sonLib cPecan hal matchingAndOrdering pinchesAndCacti
 submodules2 = cactus2hal
 submodules = ${submodules1} ${submodules2}
-
-
 
 git_commit ?= $(shell git rev-parse HEAD)
 dockstore = quay.io/comparative-genomics-toolkit
@@ -15,11 +16,13 @@ name = ${dockstore}/cactus
 tag = ${git_commit}
 runtime_fullpath = $(realpath runtime)
 
+# FIXME: this is also built by setup.py need to sort this out
+versionPy = src/cactus/shared/version.py
+
 CWD = ${PWD}
 
 # these must be absolute, as used in submodules.
 export sonLibRootPath = ${CWD}/submodules/sonLib
-hdf5Bin = ${CWD}/submodules/hdf5/bin
 .PHONY: all all.% clean clean.% selfClean suball suball.% subclean.%
 
 ##
@@ -30,6 +33,7 @@ all:
 	${MAKE} all_libs
 	${MAKE} all_progs
 	${MAKE} suball2
+
 all_libs:
 	${MAKE} ${modules:%=all_libs.%}
 all_progs: all_libs
@@ -44,22 +48,80 @@ all_progs.%:
 all_libs.blastLib: all_libs.api
 
 ##
-# tests
+# tests, see DEVELOPMENT.md for environment variables controling tests.
 ##
-test:
-	pytest .
 
-test_blast:
-	pytest . --suite=blast
+# under test modules under src/cactus/, split up to allowing run them in parallel.
+testModules = \
+    bar/cactus_barTest.py \
+    blast/blastTest.py \
+    blast/cactus_coverageTest.py \
+    blast/cactus_realignTest.py \
+    blast/mappingQualityRescoringAndFilteringTest.py \
+    blast/trimSequencesTest.py \
+    faces/cactus_fillAdjacenciesTest.py \
+    hal/cactus_halTest.py \
+    normalisation/cactus_normalisationTest.py \
+    phylogeny/cactus_phylogenyTest.py \
+    pipeline/cactus_evolverTest.py \
+    pipeline/cactus_workflowTest.py \
+    preprocessor/cactus_preprocessorTest.py \
+    preprocessor/lastzRepeatMasking/cactus_lastzRepeatMaskTest.py \
+    progressive/cactus_progressiveTest.py \
+    progressive/multiCactusTreeTest.py \
+    progressive/outgroupTest.py \
+    progressive/scheduleTest.py \
+    reference/cactus_referenceTest.py \
+    shared/commonTest.py \
+    shared/experimentWrapperTest.py
 
-test_nonblast:
-	pytest . --suite=nonblast
+# if running travis, we want output to go to stdout/stderr so it can be seen in the
+# log file, as opposed to individual files, which are much easier to read when
+# running tests in parallel.
+ifeq (${TRAVIS},)
+define testErrOut
+     >& ${testLogDir}/$(basename $(notdir $*)).log
+endef
+else
+    testErrOut =
+endif
+
+export PATH := ${CWD}/bin:${PATH}
+export PYTHONPATH = ${CWD}/submodules/sonLib/src:${CWD}/submodules:${CWD}/src
+pytestOpts = --tb=native --durations=0 -rsx
+testOutDir = test-output
+testLogDir = ${testOutDir}/logs
+
+# parallel tests don't currenty work, not all cases of collission have
+# been fixed
+.NOTPARALLEL: test test_blast test_nonblast
+
+test: ${testModules:%=%_runtest}
+test_blast: ${testModules:%=%_runtest}
+test_nonblast: ${testModules:%=%_runtest_nonblast}
+
+# run one test and save output
+%_runtest: ${versionPy}
+	@mkdir -p ${testLogDir}
+	${PYTHON} -m pytest ${pytestOpts} src/cactus/$* ${testErrOut}
+
+%_runtest_blast: ${versionPy}
+	@mkdir -p ${testLogDir}
+	${PYTHON} -m pytest ${pytestOpts} src/cactus/$* --suite=blast >& ${testLogDir}/$(basename $(notdir $*)).blast.log
+
+%_runtest_nonblast: ${versionPy}
+	@mkdir -p ${testLogDir}
+	${PYTHON} -m pytest ${pytestOpts} src/cactus/$* --suite=nonblast >& ${testLogDir}/$(basename $(notdir $*)).nonblast.log
+
+${versionPy}:
+	echo "cactus_commit = '${git_commit}'" >$@
+
 
 ##
 # clean targets
 ##
 selfClean: ${modules:%=clean.%}
-	rm -rf lib/*.h bin/*.dSYM
+	rm -rf lib/*.h bin/*.dSYM ${versionPy} ${testOutDir}
 
 clean.%:
 	cd $* && ${MAKE} clean
@@ -74,7 +136,7 @@ suball2: ${submodules2:%=suball.%}
 suball.sonLib:
 	cd submodules/sonLib && ${MAKE}
 	mkdir -p bin
-	-ln -f submodules/sonLib/bin/* bin/
+	ln -f submodules/sonLib/bin/[a-zA-Z]* bin/
 
 suball.pinchesAndCacti: suball.sonLib
 	cd submodules/pinchesAndCacti && ${MAKE}
@@ -86,27 +148,15 @@ suball.cPecan: suball.sonLib
 	cd submodules/cPecan && ${MAKE}
 
 suball.cactus2hal: suball.sonLib suball.hal all_libs.api
-	cd submodules/cactus2hal && PATH=${hdf5Bin}:$(PATH) ${MAKE}
+	cd submodules/cactus2hal && ${MAKE}
 	mkdir -p bin
 	-ln -f submodules/cactus2hal/bin/* bin/
 
-suball.hal: suball.hdf5 suball.sonLib
-	cd submodules/hal && PATH=${CWD}/submodules/hdf5/bin:$(PATH) ${MAKE}
+suball.hal: suball.sonLib
+	cd submodules/hal &&  ${MAKE}
 	mkdir -p bin
 	-ln -f submodules/hal/bin/* bin/
 	-ln -f submodules/hal/lib/libHal.a submodules/hal/lib/halLib.a
-
-# hdf5 insists on running configure, so it isn't quick.
-hdf5Cmd = submodules/hdf5/bin/h5c++
-suball.hdf5: ${hdf5Cmd}
-${hdf5Cmd}:
-	cd submodules/hdf5 && ./configure --prefix=${CWD}/submodules/hdf5 --enable-cxx
-	cd submodules/hdf5 && CFLAGS=-std=c99 AM_MAKEFLAGS=-e ${MAKE} -e
-	cd submodules/hdf5 && ${MAKE} install
-
-# hdf5 make file is built by configure
-subclean.hdf5:
-	if [ -e submodules/hdf5/Makefile ] ; then cd submodules/hdf5 && ${MAKE} distclean; fi
 
 subclean.%:
 	cd submodules/$* && ${MAKE} clean

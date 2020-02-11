@@ -10,9 +10,6 @@
 [submodule "submodules/sonLib"]
 	path = submodules/sonLib
 	url = https://github.com/ComparativeGenomicsToolkit/sonLib
-[submodule "submodules/hdf5"]
-	path = submodules/hdf5
-	url = https://github.com/UCSCReconGroup/hdf5
 [submodule "submodules/hal"]
 	path = submodules/hal
 	url = https://github.com/ComparativeGenomicsToolkit/hal

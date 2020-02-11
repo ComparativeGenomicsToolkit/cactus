@@ -8,28 +8,28 @@
 
 static bool nestedTest = 0;
 
-static void cactusSegmentTestTeardown() {
+static void cactusSegmentTestTeardown(CuTest* testCase) {
 	if(!nestedTest) {
-		cactusBlocksTestSharedTeardown();
+		cactusBlocksTestSharedTeardown(testCase->name);
 	}
 }
 
-static void cactusSegmentTestSetup() {
+static void cactusSegmentTestSetup(CuTest* testCase) {
 	if(!nestedTest) {
-		cactusBlocksTestSharedSetup();
+		cactusBlocksTestSharedSetup(testCase->name);
 	}
 }
 
 void testSegment_construct(CuTest* testCase) {
 	nestedTest = 0;
-	cactusSegmentTestSetup();
+	cactusSegmentTestSetup(testCase);
 	CuAssertTrue(testCase, rootSegment != NULL);
 	CuAssertTrue(testCase, leaf1Segment != NULL);
-	cactusSegmentTestTeardown();
+	cactusSegmentTestTeardown(testCase);
 }
 
 void testSegment_getBlock(CuTest* testCase) {
-	cactusSegmentTestSetup();
+	cactusSegmentTestSetup(testCase);
 	CuAssertTrue(testCase, segment_getBlock(rootSegment) == block_getReverse(block));
 	CuAssertTrue(testCase, segment_getBlock(leaf1Segment) == block);
 	CuAssertTrue(testCase, segment_getBlock(leaf2Segment) == block_getReverse(block));
@@ -38,11 +38,11 @@ void testSegment_getBlock(CuTest* testCase) {
 	CuAssertTrue(testCase, segment_getBlock(segment_getReverse(leaf1Segment)) == block_getReverse(block));
 	CuAssertTrue(testCase, segment_getBlock(segment_getReverse(leaf2Segment)) == block);
 
-	cactusSegmentTestTeardown();
+	cactusSegmentTestTeardown(testCase);
 }
 
 void testSegment_getName(CuTest* testCase) {
-	cactusSegmentTestSetup();
+	cactusSegmentTestSetup(testCase);
 
 	CuAssertTrue(testCase, segment_getName(rootSegment) != NULL_NAME);
 	CuAssertTrue(testCase, block_getInstance(block, segment_getName(rootSegment)) == segment_getReverse(rootSegment));
@@ -56,11 +56,11 @@ void testSegment_getName(CuTest* testCase) {
 	CuAssertTrue(testCase, block_getInstance(block, segment_getName(leaf2Segment)) == segment_getReverse(leaf2Segment));
 	CuAssertTrue(testCase, block_getInstance(block_getReverse(block), segment_getName(leaf2Segment)) == leaf2Segment);
 
-	cactusSegmentTestTeardown();
+	cactusSegmentTestTeardown(testCase);
 }
 
 void testSegment_getOrientation(CuTest* testCase) {
-	cactusSegmentTestSetup();
+	cactusSegmentTestSetup(testCase);
 
 	CuAssertTrue(testCase, segment_getOrientation(rootSegment) == block_getOrientation(block_getReverse(block)));
 	CuAssertTrue(testCase, segment_getOrientation(leaf1Segment) == block_getOrientation(block));
@@ -68,11 +68,11 @@ void testSegment_getOrientation(CuTest* testCase) {
 
 	CuAssertTrue(testCase, segment_getOrientation(leaf1Segment) != segment_getOrientation(leaf2Segment));
 
-	cactusSegmentTestTeardown();
+	cactusSegmentTestTeardown(testCase);
 }
 
 void testSegment_getReverse(CuTest* testCase) {
-	cactusSegmentTestSetup();
+	cactusSegmentTestSetup(testCase);
 
 	CuAssertTrue(testCase, segment_getReverse(rootSegment) != NULL);
 	CuAssertTrue(testCase, segment_getReverse(segment_getReverse(rootSegment)) == rootSegment);
@@ -83,21 +83,21 @@ void testSegment_getReverse(CuTest* testCase) {
 	CuAssertTrue(testCase, segment_getReverse(leaf2Segment) != NULL);
 	CuAssertTrue(testCase, segment_getReverse(segment_getReverse(leaf2Segment)) == leaf2Segment);
 
-	cactusSegmentTestTeardown();
+	cactusSegmentTestTeardown(testCase);
 }
 
 void testSegment_getEvent(CuTest* testCase) {
-	cactusSegmentTestSetup();
+	cactusSegmentTestSetup(testCase);
 
 	CuAssertTrue(testCase, segment_getEvent(rootSegment) == rootEvent);
 	CuAssertTrue(testCase, segment_getEvent(leaf1Segment) == leafEvent);
 	CuAssertTrue(testCase, segment_getEvent(leaf2Segment) == leafEvent);
 
-	cactusSegmentTestTeardown();
+	cactusSegmentTestTeardown(testCase);
 }
 
 void testSegment_getStart(CuTest* testCase) {
-	cactusSegmentTestSetup();
+	cactusSegmentTestSetup(testCase);
 
 	CuAssertTrue(testCase, segment_getStart(rootSegment) == INT64_MAX);
 	CuAssertTrue(testCase, segment_getStart(segment_getReverse(rootSegment)) == INT64_MAX);
@@ -108,11 +108,11 @@ void testSegment_getStart(CuTest* testCase) {
 	CuAssertTrue(testCase, segment_getStart(leaf2Segment) == 6);
 	CuAssertTrue(testCase, segment_getStart(segment_getReverse(leaf2Segment)) == 4);
 
-	cactusSegmentTestTeardown();
+	cactusSegmentTestTeardown(testCase);
 }
 
 void testSegment_getStrand(CuTest* testCase) {
-	cactusSegmentTestSetup();
+	cactusSegmentTestSetup(testCase);
 
 	CuAssertTrue(testCase, segment_getStrand(rootSegment));
 	CuAssertTrue(testCase, segment_getStrand(rootSegment) != segment_getStrand(segment_getReverse(rootSegment)));
@@ -135,11 +135,11 @@ void testSegment_getStrand(CuTest* testCase) {
 	CuAssertTrue(testCase, segment_getStrand(segment_getReverse(leaf2Segment)) == cap_getStrand(cap_getReverse(segment_get5Cap(leaf2Segment))));
 	CuAssertTrue(testCase, segment_getStrand(segment_getReverse(leaf2Segment)) == cap_getStrand(cap_getReverse(segment_get3Cap(leaf2Segment))));
 
-	cactusSegmentTestTeardown();
+	cactusSegmentTestTeardown(testCase);
 }
 
 void testSegment_getLength(CuTest* testCase) {
-	cactusSegmentTestSetup();
+	cactusSegmentTestSetup(testCase);
 
 	CuAssertTrue(testCase, segment_getLength(rootSegment) == block_getLength(block));
 	CuAssertTrue(testCase, segment_getLength(segment_getReverse(rootSegment)) == block_getLength(block));
@@ -150,11 +150,11 @@ void testSegment_getLength(CuTest* testCase) {
 	CuAssertTrue(testCase, segment_getLength(leaf2Segment) == block_getLength(block));
 	CuAssertTrue(testCase, segment_getLength(segment_getReverse(leaf2Segment)) == block_getLength(block));
 
-	cactusSegmentTestTeardown();
+	cactusSegmentTestTeardown(testCase);
 }
 
 void testSegment_getSequence(CuTest* testCase) {
-	cactusSegmentTestSetup();
+	cactusSegmentTestSetup(testCase);
 
 	CuAssertTrue(testCase, segment_getSequence(rootSegment) == NULL);
 	CuAssertTrue(testCase, segment_getSequence(segment_getReverse(rootSegment)) == NULL);
@@ -165,11 +165,11 @@ void testSegment_getSequence(CuTest* testCase) {
 	CuAssertTrue(testCase, segment_getSequence(leaf2Segment) == sequence);
 	CuAssertTrue(testCase, segment_getSequence(segment_getReverse(leaf2Segment)) == sequence);
 
-	cactusSegmentTestTeardown();
+	cactusSegmentTestTeardown(testCase);
 }
 
 void testSegment_getStringP(CuTest* testCase, bool cacheSegmentStrings) {
-	cactusSegmentTestSetup();
+	cactusSegmentTestSetup(testCase);
 
 	if(cacheSegmentStrings) {
         stList *flowers = stList_construct();
@@ -187,7 +187,7 @@ void testSegment_getStringP(CuTest* testCase, bool cacheSegmentStrings) {
 	CuAssertStrEquals(testCase, "GTC", segment_getString(leaf2Segment));
 	CuAssertStrEquals(testCase, "GAC", segment_getString(segment_getReverse(leaf2Segment)));
 
-	cactusSegmentTestTeardown();
+	cactusSegmentTestTeardown(testCase);
 }
 
 void testSegment_getString(CuTest* testCase) {
@@ -199,7 +199,7 @@ void testSegment_getStringWithPrecaching(CuTest* testCase) {
 }
 
 void testSegment_get5And3End(CuTest* testCase) {
-	cactusSegmentTestSetup();
+	cactusSegmentTestSetup(testCase);
 
 	Cap *cap5 = segment_get5Cap(rootSegment);
 	Cap *cap3 = segment_get3Cap(rootSegment);
@@ -217,11 +217,11 @@ void testSegment_get5And3End(CuTest* testCase) {
 	CuAssertTrue(testCase, cap_getOrientation(cap5) == segment_getOrientation(segment_getReverse(rootSegment)));
 	CuAssertTrue(testCase, cap_getOrientation(cap3) == segment_getOrientation(segment_getReverse(rootSegment)));
 
-	cactusSegmentTestTeardown();
+	cactusSegmentTestTeardown(testCase);
 }
 
 void testSegment_getParent(CuTest* testCase) {
-	cactusSegmentTestSetup();
+	cactusSegmentTestSetup(testCase);
 
 	CuAssertTrue(testCase, segment_getParent(rootSegment) == NULL);
 	CuAssertTrue(testCase, segment_getParent(segment_getReverse(rootSegment)) == NULL);
@@ -232,11 +232,11 @@ void testSegment_getParent(CuTest* testCase) {
 	CuAssertTrue(testCase, segment_getParent(leaf2Segment) == rootSegment);
 	CuAssertTrue(testCase, segment_getParent(segment_getReverse(leaf2Segment)) == segment_getReverse(rootSegment));
 
-	cactusSegmentTestTeardown();
+	cactusSegmentTestTeardown(testCase);
 }
 
 void testSegment_getChildNumber(CuTest* testCase) {
-	cactusSegmentTestSetup();
+	cactusSegmentTestSetup(testCase);
 
 	CuAssertTrue(testCase, segment_getChildNumber(rootSegment) == 2);
 	CuAssertTrue(testCase, segment_getChildNumber(leaf1Segment) == 0);
@@ -246,11 +246,11 @@ void testSegment_getChildNumber(CuTest* testCase) {
 	CuAssertTrue(testCase, segment_getChildNumber(segment_getReverse(leaf1Segment)) == 0);
 	CuAssertTrue(testCase, segment_getChildNumber(segment_getReverse(leaf2Segment)) == 0);
 
-	cactusSegmentTestTeardown();
+	cactusSegmentTestTeardown(testCase);
 }
 
 void testSegment_getChild(CuTest* testCase) {
-	cactusSegmentTestSetup();
+	cactusSegmentTestSetup(testCase);
 
 	CuAssertTrue(testCase, segment_getChild(rootSegment, 0) == segment_getReverse(leaf1Segment));
 	CuAssertTrue(testCase, segment_getChild(segment_getReverse(rootSegment), 0) == leaf1Segment);
@@ -258,11 +258,11 @@ void testSegment_getChild(CuTest* testCase) {
 	CuAssertTrue(testCase, segment_getChild(rootSegment, 1) == leaf2Segment);
 	CuAssertTrue(testCase, segment_getChild(segment_getReverse(rootSegment), 1) == segment_getReverse(leaf2Segment));
 
-	cactusSegmentTestTeardown();
+	cactusSegmentTestTeardown(testCase);
 }
 
 void testSegment_serialisation(CuTest* testCase) {
-	cactusSegmentTestSetup();
+	cactusSegmentTestSetup(testCase);
 	int64_t i;
 	void *vA = binaryRepresentation_makeBinaryRepresentation(leaf1Segment,
 			(void (*)(void *, void (*)(const void *, size_t, size_t)))segment_writeBinaryRepresentation, &i);
@@ -288,7 +288,7 @@ void testSegment_serialisation(CuTest* testCase) {
 	testSegment_getChild(testCase);
 	nestedTest = 0;
 
-	cactusSegmentTestTeardown();
+	cactusSegmentTestTeardown(testCase);
 }
 
 CuSuite* cactusSegmentTestSuite(void) {

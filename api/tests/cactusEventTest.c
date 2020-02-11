@@ -18,23 +18,23 @@ static EventTree *eventTree;
 
 static bool nestedTest = 0;
 
-static void cactusEventTestTeardown() {
-	if(!nestedTest && cactusDisk != NULL) {
-		testCommon_deleteTemporaryCactusDisk(cactusDisk);
-		cactusDisk = NULL;
-		eventTree = NULL;
-		rootEvent = NULL;
-		internalEvent = NULL;
-		leafEvent1 = NULL;
-		leafEvent2 = NULL;
-	}
+static void cactusEventTestTeardown(CuTest* testCase) {
+    if(!nestedTest && cactusDisk != NULL) {
+        testCommon_deleteTemporaryCactusDisk(testCase->name, cactusDisk);
+        cactusDisk = NULL;
+        eventTree = NULL;
+        rootEvent = NULL;
+        internalEvent = NULL;
+        leafEvent1 = NULL;
+        leafEvent2 = NULL;
+    }
 }
 
-static void cactusEventTestSetup() {
-	if(!nestedTest) {
-		cactusEventTestTeardown();
-		cactusDisk = testCommon_getTemporaryCactusDisk();
-                eventTree = eventTree_construct2(cactusDisk);
+static void cactusEventTestSetup(CuTest* testCase) {
+    if(!nestedTest) {
+		cactusEventTestTeardown(testCase);
+		cactusDisk = testCommon_getTemporaryCactusDisk(testCase->name);
+        eventTree = eventTree_construct2(cactusDisk);
 		flower = flower_construct(cactusDisk);
 		rootEvent = eventTree_getRootEvent(eventTree);
 
@@ -48,97 +48,97 @@ static void cactusEventTestSetup() {
 
 void testEvent_construct(CuTest* testCase) {
 	nestedTest = 0;
-	cactusEventTestSetup();
+	cactusEventTestSetup(testCase);
 	CuAssertTrue(testCase, eventTree != NULL);
 	CuAssertTrue(testCase, rootEvent != NULL);
 	CuAssertTrue(testCase, internalEvent != NULL);
 	CuAssertTrue(testCase, leafEvent1 != NULL);
 	CuAssertTrue(testCase, leafEvent2 != NULL);
-	cactusEventTestTeardown();
+	cactusEventTestTeardown(testCase);
 }
 
 void testEvent_getParent(CuTest* testCase) {
-	cactusEventTestSetup();
+	cactusEventTestSetup(testCase);
 	CuAssertTrue(testCase, event_getParent(rootEvent) == NULL);
 	CuAssertTrue(testCase, event_getParent(internalEvent) == rootEvent);
 	CuAssertTrue(testCase, event_getParent(leafEvent1) == internalEvent);
 	CuAssertTrue(testCase, event_getParent(leafEvent2) == internalEvent);
-	cactusEventTestTeardown();
+	cactusEventTestTeardown(testCase);
 }
 
 void testEvent_getName(CuTest* testCase) {
-	cactusEventTestSetup();
+	cactusEventTestSetup(testCase);
 	CuAssertTrue(testCase, event_getName(rootEvent) != NULL_NAME);
 	CuAssertTrue(testCase, event_getName(internalEvent) != NULL_NAME);
 	CuAssertTrue(testCase, event_getName(leafEvent1) != NULL_NAME);
 	CuAssertTrue(testCase, event_getName(leafEvent2) != NULL_NAME);
-	cactusEventTestTeardown();
+	cactusEventTestTeardown(testCase);
 }
 
 void testEvent_getHeader(CuTest* testCase) {
-	cactusEventTestSetup();
+	cactusEventTestSetup(testCase);
 	CuAssertStrEquals(testCase, "ROOT", event_getHeader(rootEvent));
 	CuAssertStrEquals(testCase, "INTERNAL", event_getHeader(internalEvent));
 	CuAssertStrEquals(testCase, "LEAF1", event_getHeader(leafEvent1));
 	CuAssertStrEquals(testCase, "", event_getHeader(leafEvent2));
-	cactusEventTestTeardown();
+	cactusEventTestTeardown(testCase);
 }
 
 void testEvent_getBranchLength(CuTest* testCase) {
-	cactusEventTestSetup();
+	cactusEventTestSetup(testCase);
 	CuAssertDblEquals(testCase, INT64_MAX, event_getBranchLength(rootEvent), 1.000);
 	CuAssertDblEquals(testCase, 0.5, event_getBranchLength(internalEvent), 0.001);
 	CuAssertDblEquals(testCase, 0.2, event_getBranchLength(leafEvent1), 0.001);
 	CuAssertDblEquals(testCase, 1.3, event_getBranchLength(leafEvent2), 0.001);
-	cactusEventTestTeardown();
+	cactusEventTestTeardown(testCase);
 }
 
 void testEvent_getSubTreeBranchLength(CuTest* testCase) {
-	cactusEventTestSetup();
+	cactusEventTestSetup(testCase);
 	CuAssertDblEquals(testCase, 2.0, event_getSubTreeBranchLength(rootEvent), 0.001);
 	CuAssertDblEquals(testCase, 1.5, event_getSubTreeBranchLength(internalEvent), 0.001);
 	CuAssertDblEquals(testCase, 0.0, event_getSubTreeBranchLength(leafEvent1), 0.001);
 	CuAssertDblEquals(testCase, 0.0, event_getSubTreeBranchLength(leafEvent2), 0.001);
-	cactusEventTestTeardown();
+	cactusEventTestTeardown(testCase);
 }
 
 void testEvent_getSubTreeEventNumber(CuTest* testCase) {
-	cactusEventTestSetup();
+	cactusEventTestSetup(testCase);
 	CuAssertTrue(testCase, event_getSubTreeEventNumber(rootEvent) == 3);
 	CuAssertTrue(testCase, event_getSubTreeEventNumber(internalEvent) == 2);
 	CuAssertTrue(testCase, event_getSubTreeEventNumber(leafEvent1) == 0);
 	CuAssertTrue(testCase, event_getSubTreeEventNumber(leafEvent2) == 0);
-	cactusEventTestTeardown();
+	cactusEventTestTeardown(testCase);
 }
 
 void testEvent_getChildNumber(CuTest* testCase) {
-	cactusEventTestSetup();
+	cactusEventTestSetup(testCase);
 	CuAssertTrue(testCase, event_getChildNumber(rootEvent) == 1);
 	CuAssertTrue(testCase, event_getChildNumber(internalEvent) == 2);
 	CuAssertTrue(testCase, event_getChildNumber(leafEvent1) == 0);
 	CuAssertTrue(testCase, event_getChildNumber(leafEvent2) == 0);
-	cactusEventTestTeardown();
+	cactusEventTestTeardown(testCase);
 }
 
 void testEvent_getChild(CuTest* testCase) {
-	cactusEventTestSetup();
+	cactusEventTestSetup(testCase);
 	CuAssertTrue(testCase, event_getChild(rootEvent, 0) == internalEvent);
 	CuAssertTrue(testCase, event_getChild(internalEvent, 0) == leafEvent1);
 	CuAssertTrue(testCase, event_getChild(internalEvent, 1) == leafEvent2);
-	cactusEventTestTeardown();
+	cactusEventTestTeardown(testCase);
 }
 
 void testEvent_getEventTree(CuTest* testCase) {
-	cactusEventTestSetup();
+	cactusEventTestSetup(testCase);
 	CuAssertTrue(testCase, event_getEventTree(rootEvent) == eventTree);
 	CuAssertTrue(testCase, event_getEventTree(internalEvent) == eventTree);
 	CuAssertTrue(testCase, event_getEventTree(leafEvent1) == eventTree);
 	CuAssertTrue(testCase, event_getEventTree(leafEvent2) == eventTree);
-	cactusEventTestTeardown();
+	cactusEventTestTeardown(testCase);
 }
 
 void testEvent_isAncestor(CuTest* testCase) {
-	cactusEventTestSetup();
+	cactusEventTestSetup(testCase);
 	//negatives
 	CuAssertTrue(testCase, !event_isAncestor(leafEvent1, leafEvent2));
 	CuAssertTrue(testCase, !event_isAncestor(leafEvent2, leafEvent1));
@@ -159,11 +159,11 @@ void testEvent_isAncestor(CuTest* testCase) {
 	CuAssertTrue(testCase, event_isAncestor(leafEvent2, rootEvent));
 	CuAssertTrue(testCase, event_isAncestor(internalEvent, rootEvent));
 
-	cactusEventTestTeardown();
+	cactusEventTestTeardown(testCase);
 }
 
 void testEvent_isDescendant(CuTest* testCase) {
-	cactusEventTestSetup();
+	cactusEventTestSetup(testCase);
 	//negatives
 	CuAssertTrue(testCase, !event_isDescendant(leafEvent1, leafEvent2));
 	CuAssertTrue(testCase, !event_isDescendant(leafEvent2, leafEvent1));
@@ -184,11 +184,11 @@ void testEvent_isDescendant(CuTest* testCase) {
 	CuAssertTrue(testCase, event_isDescendant(rootEvent, leafEvent1));
 	CuAssertTrue(testCase, event_isDescendant(rootEvent, leafEvent2));
 
-	cactusEventTestTeardown();
+	cactusEventTestTeardown(testCase);
 }
 
 void testEvent_isSibling(CuTest* testCase) {
-	cactusEventTestSetup();
+	cactusEventTestSetup(testCase);
 	//negatives
 	CuAssertTrue(testCase, !event_isSibling(leafEvent1, rootEvent));
 	CuAssertTrue(testCase, !event_isSibling(leafEvent2, rootEvent));
@@ -210,22 +210,22 @@ void testEvent_isSibling(CuTest* testCase) {
 	CuAssertTrue(testCase, event_isSibling(leafEvent1, leafEvent2));
 	CuAssertTrue(testCase, event_isSibling(leafEvent2, leafEvent1));
 
-	cactusEventTestTeardown();
+	cactusEventTestTeardown(testCase);
 }
 
 void testEvent_isOutgroup(CuTest *testCase) {
-    cactusEventTestSetup();
+    cactusEventTestSetup(testCase);
     CuAssertTrue(testCase, event_isOutgroup(leafEvent1));
     CuAssertTrue(testCase, !event_isOutgroup(leafEvent2));
     event_setOutgroupStatus(leafEvent1, 0);
     event_setOutgroupStatus(leafEvent2, 1);
     CuAssertTrue(testCase, !event_isOutgroup(leafEvent1));
     CuAssertTrue(testCase, event_isOutgroup(leafEvent2));
-    cactusEventTestTeardown();
+    cactusEventTestTeardown(testCase);
 }
 
 void testEvent_serialisation(CuTest* testCase) {
-	cactusEventTestSetup();
+	cactusEventTestSetup(testCase);
 	int64_t i;
 	void *vA = binaryRepresentation_makeBinaryRepresentation(leafEvent1,
 			(void (*)(void *, void (*)(const void *, size_t, size_t)))event_writeBinaryRepresentation, &i);
@@ -253,7 +253,7 @@ void testEvent_serialisation(CuTest* testCase) {
 	testEvent_isSibling(testCase);
 	testEvent_isOutgroup(testCase);
 	nestedTest = 0;
-	cactusEventTestTeardown();
+	cactusEventTestTeardown(testCase);
 }
 
 CuSuite* cactusEventTestSuite(void) {

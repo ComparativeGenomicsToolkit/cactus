@@ -12,22 +12,22 @@
  *      Author: benedictpaten
  */
 
-static void testTearDown() {
-	cactusFacesTestSharedTeardown();
+static void testTearDown(CuTest* testCase) {
+    cactusFacesTestSharedTeardown(testCase);
 }
 
-static void testSetup() {
-	cactusFacesTestSharedSetup();
+static void testSetup(CuTest* testCase) {
+	cactusFacesTestSharedSetup(testCase);
 }
 
 void testFaceEnd_construct(CuTest* testCase) {
-	testSetup();
+	testSetup(testCase);
 	assert(testCase != NULL);
-	testTearDown();
+	testTearDown(testCase);
 }
 
 void testFaceEnd_getTopNode(CuTest* testCase) {
-	testSetup();
+	testSetup(testCase);
 	FaceEnd *faceEnd1 = face_getFaceEndForTopNode(face, topCap1);
 	CuAssertTrue(testCase, faceEnd_getTopNode(faceEnd1) == cap_getPositiveOrientation(topCap1));
 
@@ -39,20 +39,20 @@ void testFaceEnd_getTopNode(CuTest* testCase) {
 
 	FaceEnd *faceEnd4 = face_getFaceEndForTopNode(face, topCap4);
 	CuAssertTrue(testCase, faceEnd_getTopNode(faceEnd4) == cap_getPositiveOrientation(topCap4));
-	testTearDown();
+	testTearDown(testCase);
 }
 
 void testFaceEnd_getFace(CuTest* testCase) {
-	testSetup();
+	testSetup(testCase);
 	FaceEnd *faceEnd1 = face_getFaceEndForTopNode(face, topCap1);
 	CuAssertTrue(testCase, faceEnd_getFace(faceEnd1) == face);
 	FaceEnd *faceEnd2 = face_getFaceEndForTopNode(face, topCap2);
 	CuAssertTrue(testCase, faceEnd_getFace(faceEnd2) == face);
-	testTearDown();
+	testTearDown(testCase);
 }
 
 void testFaceEnd_getNumberOfBottomNodes(CuTest* testCase) {
-	testSetup();
+	testSetup(testCase);
 	FaceEnd *faceEnd1 = face_getFaceEndForTopNode(face, topCap1);
 	CuAssertTrue(testCase, faceEnd_getNumberOfBottomNodes(faceEnd1) == 1);
 
@@ -64,11 +64,11 @@ void testFaceEnd_getNumberOfBottomNodes(CuTest* testCase) {
 
 	FaceEnd *faceEnd4 = face_getFaceEndForTopNode(face, topCap4);
 	CuAssertTrue(testCase, faceEnd_getNumberOfBottomNodes(faceEnd4) == 1);
-	testTearDown();
+	testTearDown(testCase);
 }
 
 void testFaceEnd_bottomNodeIterator(CuTest* testCase) {
-	testSetup();
+	testSetup(testCase);
 
 	FaceEnd *faceEnd1 = face_getFaceEndForTopNode(face, topCap1);
 	CuAssertTrue(testCase, faceEnd_getNumberOfBottomNodes(faceEnd1) == 1);
@@ -90,7 +90,7 @@ void testFaceEnd_bottomNodeIterator(CuTest* testCase) {
 	faceEnd_destructBottomNodeIterator(iterator);
 	faceEnd_destructBottomNodeIterator(iterator2);
 
-	testTearDown();
+	testTearDown(testCase);
 }
 
 CuSuite* cactusFaceEndTestSuite(void) {
