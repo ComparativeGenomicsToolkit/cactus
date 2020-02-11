@@ -1,10 +1,10 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """Script to generate a series of random
 """
 
 from optparse import OptionParser
-from jobTree.scriptTree.target import Target 
+from jobTree.scriptTree.target import Target
 from jobTree.scriptTree.stack import Stack
 from sonLib.bioio import system, spawnDaemon, setLoggingFromOptions, logger, getLogLevelString
 from jobTree.src.common import runJobTreeStatusAndFailIfNotComplete
@@ -28,27 +28,27 @@ class AddKeysPhase(Target):
     def __init__(self, options):
         Target.__init__(self)
         self.options = options
-    
+
     def run(self):
         keyIndex = 0
-        for jobIndex in xrange(int(self.options.totalJobs)):
+        for jobIndex in range(int(self.options.totalJobs)):
             self.addChildTarget(AddKeys(self.options, keyIndex))
             keyIndex += int(self.options.keysPerJob)
         self.setFollowOnTarget(SetKeysPhase(self.options))
-    
+
 class AddKeys(Target):
     def __init__(self, options, firstKey):
         Target.__init__(self)
         self.options = options
         self.firstKey = firstKey
-        
+
     def run(self):
         runDbTestScript(self.options, self.firstKey, self.options.keysPerJob, addRecords=True)
 
 class SetKeysPhase(AddKeysPhase):
     def run(self):
         keyIndex = 0
-        for jobIndex in xrange(int(self.options.totalJobs)):
+        for jobIndex in range(int(self.options.totalJobs)):
             self.addChildTarget(SetKeys(self.options, keyIndex))
             keyIndex += int(self.options.keysPerJob)
 
@@ -62,7 +62,7 @@ def main():
     ##########################################
 
     parser = OptionParser()
-    
+
     parser.add_option("--host", dest="host")
     parser.add_option("--port", dest="port")
     parser.add_option("--databaseDir", dest="databaseDir")
@@ -73,7 +73,7 @@ def main():
     parser.add_option("--maxRecordSize", dest="maxRecordSize")
     parser.add_option("--test", dest="test", action="store_true",
                       help="Run doctest unit tests")
-    
+
     Stack.addJobTreeOptions(parser)
 
     options, args = parser.parse_args()
@@ -83,11 +83,11 @@ def main():
 
     if len(args) != 0:
         raise RuntimeError("Unrecognised input arguments: %s" % " ".join(args))
-    
+
     Stack(AddKeysPhase(options)).startJobTree(options)
 
 def _test():
-    import doctest      
+    import doctest
     return doctest.testmod()
 
 if __name__ == '__main__':

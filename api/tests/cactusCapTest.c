@@ -8,37 +8,37 @@
 
 static bool nestedTest = 0;
 
-void cactusCapTestSetup() {
+void cactusCapTestSetup(CuTest* testCase) {
     if (!nestedTest) {
-        cactusEndsTestSharedSetup();
+        cactusEndsTestSharedSetup(testCase->name);
     }
 }
 
-void cactusCapTestTeardown() {
+void cactusCapTestTeardown(CuTest* testCase) {
     if (!nestedTest) {
-        cactusEndsTestSharedTeardown();
+        cactusEndsTestSharedTeardown(testCase->name);
     }
 }
 
 void testCap_construct(CuTest* testCase) {
     nestedTest = 0;
-    cactusCapTestSetup();
+    cactusCapTestSetup(testCase);
     CuAssertTrue(testCase, rootCap != NULL);
-    cactusCapTestTeardown();
+    cactusCapTestTeardown(testCase);
 }
 
 void testCap_getName(CuTest* testCase) {
-    cactusCapTestSetup();
+    cactusCapTestSetup(testCase);
     CuAssertTrue(testCase, cap_getName(rootCap) != NULL_NAME);
     CuAssertTrue(testCase, end_getInstance(end, cap_getName(rootCap)) == cap_getReverse(rootCap));
     CuAssertTrue(testCase, cap_getName(leaf2Cap) != NULL_NAME);
     CuAssertTrue(testCase, end_getInstance(end, cap_getName(leaf2Cap)) == leaf2Cap);
 
-    cactusCapTestTeardown();
+    cactusCapTestTeardown(testCase);
 }
 
 void testCap_getOrientation(CuTest* testCase) {
-    cactusCapTestSetup();
+    cactusCapTestSetup(testCase);
     CuAssertTrue(testCase, cap_getOrientation(rootCap) == end_getOrientation(cap_getEnd(rootCap)));
     CuAssertTrue(testCase, cap_getOrientation(leaf1Cap) == end_getOrientation(cap_getEnd(leaf1Cap)));
     CuAssertTrue(testCase, cap_getOrientation(leaf2Cap) == end_getOrientation(cap_getEnd(leaf2Cap)));
@@ -50,34 +50,34 @@ void testCap_getOrientation(CuTest* testCase) {
     CuAssertTrue(testCase, cap_getOrientation(leaf1Cap) == cap_getOrientation(rootCap));
     CuAssertTrue(testCase, cap_getOrientation(leaf1Cap) != cap_getOrientation(leaf2Cap));
 
-    cactusCapTestTeardown();
+    cactusCapTestTeardown(testCase);
 }
 
 void testCap_getReverse(CuTest* testCase) {
-    cactusCapTestSetup();
+    cactusCapTestSetup(testCase);
     CuAssertTrue(testCase, cap_getReverse(rootCap) != NULL);
     CuAssertTrue(testCase, cap_getReverse(cap_getReverse(rootCap)) == rootCap);
-    cactusCapTestTeardown();
+    cactusCapTestTeardown(testCase);
 }
 
 void testCap_getEvent(CuTest* testCase) {
-    cactusCapTestSetup();
+    cactusCapTestSetup(testCase);
     CuAssertTrue(testCase, cap_getEvent(rootCap) == rootEvent);
     CuAssertTrue(testCase, cap_getEvent(cap_getReverse(rootCap)) == rootEvent);
-    cactusCapTestTeardown();
+    cactusCapTestTeardown(testCase);
 }
 
 void testCap_getEnd(CuTest* testCase) {
-    cactusCapTestSetup();
+    cactusCapTestSetup(testCase);
     CuAssertTrue(testCase, cap_getEnd(rootCap) == end_getReverse(end));
     CuAssertTrue(testCase, cap_getEnd(cap_getReverse(rootCap)) == end);
     CuAssertTrue(testCase, cap_getEnd(leaf2Cap) == end);
     CuAssertTrue(testCase, cap_getEnd(cap_getReverse(leaf2Cap)) == end_getReverse(end));
-    cactusCapTestTeardown();
+    cactusCapTestTeardown(testCase);
 }
 
 void testCap_getSegment(CuTest* testCase) {
-    cactusCapTestSetup();
+    cactusCapTestSetup(testCase);
     Block *block = block_construct(2, flower);
     Segment *segment = segment_construct(block, rootEvent);
     CuAssertTrue(testCase, cap_getSegment(segment_get5Cap(segment)) == segment);
@@ -86,11 +86,11 @@ void testCap_getSegment(CuTest* testCase) {
     CuAssertTrue(testCase, cap_getOrientation(segment_get3Cap(segment)) == segment_getOrientation(segment));
     CuAssertTrue(testCase, cap_getSegment(cap_getReverse(segment_get5Cap(segment))) == segment_getReverse(segment));
     CuAssertTrue(testCase, cap_getSegment(cap_getReverse(segment_get3Cap(segment))) == segment_getReverse(segment));
-    cactusCapTestTeardown();
+    cactusCapTestTeardown(testCase);
 }
 
 void testCap_getOtherSegmentCap(CuTest *testCase) {
-    cactusCapTestSetup();
+    cactusCapTestSetup(testCase);
 
     Block *block = block_construct(3, flower);
     Segment *segment = segment_construct2(block, 2, 1, sequence);
@@ -106,14 +106,14 @@ void testCap_getOtherSegmentCap(CuTest *testCase) {
     CuAssertTrue(testCase, cap_getOtherSegmentCap(cap_getReverse(_5Cap)) == cap_getReverse(_3Cap));
     CuAssertTrue(testCase, cap_getOtherSegmentCap(cap_getReverse(_3Cap)) == cap_getReverse(_5Cap));
 
-    cactusCapTestTeardown();
+    cactusCapTestTeardown(testCase);
 }
 
 void testCap_segmentCoordinates(CuTest* testCase) {
     /*
      * Tests the coordinates of an segment and its 5 and 3 prime caps.
      */
-    cactusCapTestSetup();
+    cactusCapTestSetup(testCase);
 
     Block *block = block_construct(3, flower);
     Segment *segment = segment_construct2(block, 2, 1, sequence);
@@ -140,14 +140,14 @@ void testCap_segmentCoordinates(CuTest* testCase) {
     CuAssertIntEquals(testCase, 4, segment_getStart(segment_getReverse(segment)));
     CuAssertIntEquals(testCase, 3, segment_getLength(segment_getReverse(segment)));
 
-    cactusCapTestTeardown();
+    cactusCapTestTeardown(testCase);
 }
 
 void testCap_segmentCoordinatesReverseStrand(CuTest* testCase) {
     /*
      * Tests the coordinates of an segment and its 5 and 3 prime caps.
      */
-    cactusCapTestSetup();
+    cactusCapTestSetup(testCase);
 
     Block *block = block_construct(3, flower);
     Segment *segment = segment_construct2(block, 2, 0, sequence);
@@ -174,20 +174,20 @@ void testCap_segmentCoordinatesReverseStrand(CuTest* testCase) {
     CuAssertIntEquals(testCase, 2, segment_getStart(segment_getReverse(segment)));
     CuAssertIntEquals(testCase, 3, segment_getLength(segment_getReverse(segment)));
 
-    cactusCapTestTeardown();
+    cactusCapTestTeardown(testCase);
 }
 
 void testCap_getCoordinate(CuTest* testCase) {
-    cactusCapTestSetup();
+    cactusCapTestSetup(testCase);
     CuAssertTrue(testCase, cap_getCoordinate(rootCap) == INT64_MAX);
     CuAssertTrue(testCase, cap_getCoordinate(cap_getReverse(rootCap)) == INT64_MAX);
     CuAssertTrue(testCase, cap_getCoordinate(leaf1Cap) == 4);
     CuAssertTrue(testCase, cap_getCoordinate(cap_getReverse(leaf1Cap)) == 4);
-    cactusCapTestTeardown();
+    cactusCapTestTeardown(testCase);
 }
 
 void testCap_setCoordinate(CuTest* testCase) {
-    cactusCapTestSetup();
+    cactusCapTestSetup(testCase);
     CuAssertTrue(testCase, cap_getCoordinate(rootCap) == INT64_MAX);
     CuAssertTrue(testCase, cap_getStrand(rootCap));
     CuAssertTrue(testCase, cap_getSequence(rootCap) == NULL);
@@ -199,42 +199,42 @@ void testCap_setCoordinate(CuTest* testCase) {
     CuAssertTrue(testCase, cap_getCoordinate(rootCap) == INT64_MAX);
     CuAssertTrue(testCase, cap_getStrand(rootCap));
     CuAssertTrue(testCase, cap_getSequence(rootCap) == NULL);
-    cactusCapTestTeardown();
+    cactusCapTestTeardown(testCase);
 }
 
 void testCap_getStrand(CuTest* testCase) {
-    cactusCapTestSetup();
+    cactusCapTestSetup(testCase);
     CuAssertTrue(testCase, cap_getStrand(rootCap));
     CuAssertTrue(testCase, !cap_getStrand(cap_getReverse(rootCap)));
     CuAssertTrue(testCase, cap_getStrand(leaf1Cap));
     CuAssertTrue(testCase, !cap_getStrand(cap_getReverse(leaf1Cap)));
     CuAssertTrue(testCase, !cap_getStrand(leaf2Cap));
     CuAssertTrue(testCase, cap_getStrand(cap_getReverse(leaf2Cap)));
-    cactusCapTestTeardown();
+    cactusCapTestTeardown(testCase);
 }
 
 void testCap_getSide(CuTest* testCase) {
-    cactusCapTestSetup();
+    cactusCapTestSetup(testCase);
     CuAssertTrue(testCase, !cap_getSide(rootCap));
     CuAssertTrue(testCase, cap_getSide(cap_getReverse(rootCap)));
     CuAssertTrue(testCase, !cap_getSide(leaf1Cap));
     CuAssertTrue(testCase, cap_getSide(cap_getReverse(leaf1Cap)));
     CuAssertTrue(testCase, cap_getSide(leaf2Cap));
     CuAssertTrue(testCase, !cap_getSide(cap_getReverse(leaf2Cap)));
-    cactusCapTestTeardown();
+    cactusCapTestTeardown(testCase);
 }
 
 void testCap_getSequence(CuTest* testCase) {
-    cactusCapTestSetup();
+    cactusCapTestSetup(testCase);
     CuAssertTrue(testCase, cap_getSequence(rootCap) == NULL);
     CuAssertTrue(testCase, cap_getSequence(cap_getReverse(rootCap)) == NULL);
     CuAssertTrue(testCase, cap_getSequence(leaf1Cap) == sequence);
     CuAssertTrue(testCase, cap_getSequence(cap_getReverse(leaf1Cap)) == sequence);
-    cactusCapTestTeardown();
+    cactusCapTestTeardown(testCase);
 }
 
 void testCap_adjacent(CuTest* testCase) {
-    cactusCapTestSetup();
+    cactusCapTestSetup(testCase);
     CuAssertTrue(testCase, cap_getAdjacency(leaf1Cap) == NULL);
     CuAssertTrue(testCase, cap_getAdjacency(leaf3Cap) == NULL);
     cap_makeAdjacent(leaf1Cap, leaf3Cap);
@@ -242,11 +242,11 @@ void testCap_adjacent(CuTest* testCase) {
     CuAssertTrue(testCase, cap_getAdjacency(leaf3Cap) == cap_getReverse(leaf1Cap));
     CuAssertTrue(testCase, cap_getAdjacency(cap_getReverse(leaf1Cap)) == leaf3Cap);
     CuAssertTrue(testCase, cap_getAdjacency(cap_getReverse(leaf3Cap)) == leaf1Cap);
-    cactusCapTestTeardown();
+    cactusCapTestTeardown(testCase);
 }
 
 void testCap_getTopCap(CuTest* testCase) {
-    cactusCapTestSetup();
+    cactusCapTestSetup(testCase);
     End *end1 = end_construct(0, flower);
     End *end2 = end_construct(0, flower);
     End *end3 = end_construct(0, flower);
@@ -291,20 +291,20 @@ void testCap_getTopCap(CuTest* testCase) {
 
     CuAssertTrue(testCase, cap_getTopCap(cap1T) == NULL);
 
-    cactusCapTestTeardown();
+    cactusCapTestTeardown(testCase);
 }
 
 void testCap_getTopFace(CuTest* testCase) {
-    cactusCapTestSetup();
+    cactusCapTestSetup(testCase);
     Face *face = face_construct(flower);
     cap_setTopFace(rootCap, face);
     CuAssertTrue(testCase, cap_getTopFace(rootCap) == face);
     CuAssertTrue(testCase, cap_getTopFace(cap_getReverse(rootCap)) == face);
-    cactusCapTestTeardown();
+    cactusCapTestTeardown(testCase);
 }
 
 void testCap_getBottomAndTopFaceEnd(CuTest* testCase) {
-    cactusCapTestSetup();
+    cactusCapTestSetup(testCase);
 
     End *end1 = end_construct(0, flower);
     Cap *cap1T = cap_construct(end1, rootEvent);
@@ -348,28 +348,28 @@ void testCap_getBottomAndTopFaceEnd(CuTest* testCase) {
     CuAssertTrue(testCase, cap_getBottomFaceEnd(cap1L) == faceEnd1);
     CuAssertTrue(testCase, cap_getBottomFaceEnd(cap2L) == faceEnd2);
 
-    cactusCapTestTeardown();
+    cactusCapTestTeardown(testCase);
 }
 
 void testCap_getParent(CuTest* testCase) {
-    cactusCapTestSetup();
+    cactusCapTestSetup(testCase);
     CuAssertTrue(testCase, cap_getParent(rootCap) == NULL);
     CuAssertTrue(testCase, cap_getParent(leaf1Cap) == rootCap);
     CuAssertTrue(testCase, cap_getParent(leaf2Cap) == cap_getReverse(rootCap));
-    cactusCapTestTeardown();
+    cactusCapTestTeardown(testCase);
 }
 
 void testCap_getChildNumber(CuTest* testCase) {
-    cactusCapTestSetup();
+    cactusCapTestSetup(testCase);
     CuAssertIntEquals(testCase, 3, cap_getChildNumber(rootCap));
     CuAssertIntEquals(testCase, 0, cap_getChildNumber(leaf1Cap));
     CuAssertIntEquals(testCase, 0, cap_getChildNumber(leaf2Cap));
     CuAssertIntEquals(testCase, 0, cap_getChildNumber(leaf3Cap));
-    cactusCapTestTeardown();
+    cactusCapTestTeardown(testCase);
 }
 
 void testCap_getChild(CuTest* testCase) {
-    cactusCapTestSetup();
+    cactusCapTestSetup(testCase);
     CuAssertTrue(testCase, cap_getChild(rootCap, 0) == leaf1Cap);
     if (!nestedTest) {
         CuAssertTrue(testCase, cap_getChild(rootCap, 1) == cap_getReverse(leaf2Cap));
@@ -378,19 +378,19 @@ void testCap_getChild(CuTest* testCase) {
         // serialized, deleted, and unserialized.
         CuAssertTrue(testCase, cap_getChild(rootCap, 2) == cap_getReverse(leaf2Cap));
     }
-    cactusCapTestTeardown();
+    cactusCapTestTeardown(testCase);
 }
 
 void testCap_isInternal(CuTest* testCase) {
-    cactusCapTestSetup();
+    cactusCapTestSetup(testCase);
     CuAssertTrue(testCase, cap_isInternal(rootCap));
     CuAssertTrue(testCase, !cap_isInternal(leaf1Cap));
     CuAssertTrue(testCase, !cap_isInternal(leaf2Cap));
-    cactusCapTestTeardown();
+    cactusCapTestTeardown(testCase);
 }
 
 void testCap_serialisation(CuTest* testCase) {
-    cactusCapTestSetup();
+    cactusCapTestSetup(testCase);
     int64_t i;
     void
             *vA =
@@ -426,7 +426,7 @@ void testCap_serialisation(CuTest* testCase) {
     testCap_getChild(testCase);
     testCap_isInternal(testCase);
     nestedTest = 0;
-    cactusCapTestTeardown();
+    cactusCapTestTeardown(testCase);
 }
 
 CuSuite* cactusCapTestSuite(void) {

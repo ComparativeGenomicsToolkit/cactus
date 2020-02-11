@@ -38,7 +38,7 @@ static void checkTree(CuTest *testCase, stTree *tree, stSet *eventsSet) {
 
 static void testMLStringRandom(CuTest *testCase) {
     for(int64_t i=0; i<100; i++) {
-        CactusDisk *cactusDisk = testCommon_getTemporaryCactusDisk();
+        CactusDisk *cactusDisk = testCommon_getTemporaryCactusDisk(testCase->name);
         eventTree_construct2(cactusDisk);
         Flower *flower = flower_construct(cactusDisk);
         //Make a random eventTree.
@@ -122,7 +122,7 @@ static void testMLStringRandom(CuTest *testCase) {
         free(mlString);
         cleanupPhylogeneticTree(tree);
         stList_destruct(events);
-        testCommon_deleteTemporaryCactusDisk(cactusDisk);
+        testCommon_deleteTemporaryCactusDisk(testCase->name, cactusDisk);
     }
 }
 
@@ -134,7 +134,7 @@ static void testMLStringMakesScaffoldGaps(CuTest *testCase) {
      * i.e. that contain *only* a reference segment, are scaffold gaps.
      */
     for (int64_t testNum = 0; testNum < 100; testNum++) {
-        CactusDisk *cactusDisk = testCommon_getTemporaryCactusDisk();
+        CactusDisk *cactusDisk = testCommon_getTemporaryCactusDisk(testCase->name);
         eventTree_construct2(cactusDisk);
         Flower *flower = flower_construct(cactusDisk);
         Block *block = block_construct(st_randomInt64(1, 500), flower);
@@ -153,7 +153,7 @@ static void testMLStringMakesScaffoldGaps(CuTest *testCase) {
         //Cleanup
         free(mlString);
         cleanupPhylogeneticTree(tree);
-        testCommon_deleteTemporaryCactusDisk(cactusDisk);
+        testCommon_deleteTemporaryCactusDisk(testCase->name, cactusDisk);
     }
 }
 

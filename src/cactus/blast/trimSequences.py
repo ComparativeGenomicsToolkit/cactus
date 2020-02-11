@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 from collections import defaultdict
 from operator import itemgetter
 
@@ -7,15 +7,15 @@ def windowFilter(windowSize, threshold, blockDict, seqLengths):
         # Don't need to do expensive window-filtering
         return blockDict
     ret = defaultdict(list)
-    for seq, blocks in blockDict.items():
+    for seq, blocks in list(blockDict.items()):
         curBlock = 0
         inRegion = False
         regionStart = 0
-        for i in xrange(seqLengths[seq]):
+        for i in range(seqLengths[seq]):
             score = 0
             while curBlock < len(blocks) and blocks[curBlock][1] < i:
                 curBlock += 1
-            for blockNum in xrange(curBlock, len(blocks)):
+            for blockNum in range(curBlock, len(blocks)):
                 block = blocks[blockNum]
                 if block[0] > i + windowSize:
                     break
@@ -35,7 +35,7 @@ def uniquifyBlocks(blocksDict, mergeDistance):
     """Take list of blocks and return sorted list of non-overlapping and
     blocks (merging blocks that are mergeDistance or less apart)."""
     ret = defaultdict(list)
-    for chr, blocks in blocksDict.items():
+    for chr, blocks in list(blocksDict.items()):
         blocks = sorted(blocks, key=itemgetter(0))
         newBlocks = []
         prevBlock = None
@@ -73,10 +73,8 @@ def getSeparateBedBlocks(bedFile, depth=1):
                 ret[chr].append((start, stop, score))
         else:
             assert(len(fields) == 12)
-            blockSizes = map(int, filter(lambda x: x != '',
-                                         fields[10].split(',')))
-            blockStarts = map(int, filter(lambda x: x != '',
-                                          fields[11].split(',')))
+            blockSizes = list(map(int, [x for x in fields[10].split(',') if x != '']))
+            blockStarts = list(map(int, [x for x in fields[11].split(',') if x != '']))
             for blockStart, blockSize in zip(blockSizes, blockStarts):
                 nonRelativeBlockStart = start + blockStart
                 nonRelativeBlockEnd = nonRelativeBlockStart + blockSize
@@ -103,7 +101,7 @@ def getSeqLengths(fastaFile):
 def complementBlocks(blocksDict, seqLengths):
     """Complement a sorted block-dict."""
     ret = defaultdict(list)
-    for chr, blocks in blocksDict.items():
+    for chr, blocks in list(blocksDict.items()):
         len = seqLengths[chr]
         start = 0
         for block in blocks:
@@ -112,7 +110,7 @@ def complementBlocks(blocksDict, seqLengths):
         if start != len:
             ret[chr].append((start, len))
     # Add in blocks for the sequences that aren't covered at all.
-    for chr, len in seqLengths.items():
+    for chr, len in list(seqLengths.items()):
         if chr not in ret: # This still works with defaultdicts
             ret[chr].append((0, len))
     return ret
@@ -152,13 +150,12 @@ def trimSequences(fastaPath, bedPath, outputPathOrFile, flanking=0, minSize=0,
         toTrim = complementBlocks(toTrim, seqLengths)
     toTrim = uniquifyBlocks(toTrim, 2*flanking)
     # filter based on size
-    toTrim.update((k, filter(lambda x: (x[1] - x[0]) >= minSize, v))
-                  for k, v in toTrim.items())
+    toTrim.update((k, [x for x in v if (x[1] - x[0]) >= minSize])
+                  for k, v in list(toTrim.items()))
     # extend blocks to include flanking regions
-    toTrim.update((k, map(lambda x: (max(x[0] - flanking, 0),
-                                     min(x[1] + flanking, seqLengths[k])),
-                          v))
-                  for k, v in toTrim.items())
+    toTrim.update((k, [(max(x[0] - flanking, 0),
+                                     min(x[1] + flanking, seqLengths[k])) for x in v])
+                  for k, v in list(toTrim.items()))
 
     fastaFile.seek(0)
     try:

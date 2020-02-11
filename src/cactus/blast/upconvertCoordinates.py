@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 from argparse import ArgumentParser
 from collections import defaultdict
 import sys
@@ -34,7 +34,7 @@ def getSequenceRanges(fa):
                         curTrimmedStart + len(curSeq))
         untrimmedHeader = "|".join(curHeader.split("|")[:-1])
         ret[untrimmedHeader].append(trimmedRange)
-    for key in ret.keys():
+    for key in list(ret.keys()):
         # Sort by range's start pos
         ret[key] = sorted(ret[key], key=lambda x: x[0])
     return ret
@@ -43,7 +43,7 @@ def validateRanges(seqRanges):
     """Fail if the given range dict contains overlapping ranges or if the
     ranges aren't sorted.
     """
-    for seq, ranges in seqRanges.items():
+    for seq, ranges in list(seqRanges.items()):
         for i, range in enumerate(ranges):
             start = range[0]
             if i - 1 >= 0:
