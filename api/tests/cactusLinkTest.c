@@ -8,70 +8,70 @@
 
 static bool nestedTest = 0;
 
-void cactusLinkTestSetup(CuTest* testCase) {
+void cactusLinkTestSetup() {
     if (!nestedTest) {
-        cactusChainsSharedTestSetup(testCase->name);
+        cactusChainsSharedTestSetup();
     }
 }
 
-void cactusLinkTestTeardown(CuTest* testCase) {
+void cactusLinkTestTeardown() {
     if (!nestedTest) {
-        cactusChainsSharedTestTeardown(testCase->name);
+        cactusChainsSharedTestTeardown();
     }
 }
 
 void testLink_construct(CuTest* testCase) {
     nestedTest = 0;
-    cactusLinkTestSetup(testCase);
+    cactusLinkTestSetup();
     CuAssertTrue(testCase, link1 != NULL);
     CuAssertTrue(testCase, link2 != NULL);
-    cactusLinkTestTeardown(testCase);
+    cactusLinkTestTeardown();
 }
 
 void testLink_getNextLink(CuTest* testCase) {
-    cactusLinkTestSetup(testCase);
+    cactusLinkTestSetup();
     CuAssertTrue(testCase, link_getNextLink(link1) == link2);
     CuAssertTrue(testCase, link_getNextLink(link2) == NULL);
-    cactusLinkTestTeardown(testCase);
+    cactusLinkTestTeardown();
 }
 
 void testLink_getPreviousLink(CuTest* testCase) {
-    cactusLinkTestSetup(testCase);
+    cactusLinkTestSetup();
     CuAssertTrue(testCase, link_getPreviousLink(link2) == link1);
     CuAssertTrue(testCase, link_getPreviousLink(link1) == NULL);
-    cactusLinkTestTeardown(testCase);
+    cactusLinkTestTeardown();
 }
 
 void testLink_getGroup(CuTest* testCase) {
-    cactusLinkTestSetup(testCase);
+    cactusLinkTestSetup();
     CuAssertTrue(testCase, link_getGroup(link1) == group1);
     CuAssertTrue(testCase, link_getGroup(link2) == group2);
-    cactusLinkTestTeardown(testCase);
+    cactusLinkTestTeardown();
 }
 
 void testLink_getLeft(CuTest* testCase) {
-    cactusLinkTestSetup(testCase);
+    cactusLinkTestSetup();
     CuAssertTrue(testCase, link_get3End(link1) == end1);
     CuAssertTrue(testCase, link_get3End(link2) == block_get3End(block));
-    cactusLinkTestTeardown(testCase);
+    cactusLinkTestTeardown();
 }
 
 void testLink_getRight(CuTest* testCase) {
-    cactusLinkTestSetup(testCase);
+    cactusLinkTestSetup();
     CuAssertTrue(testCase, link_get5End(link1) == block_get5End(block));
     CuAssertTrue(testCase, link_get5End(link2) == end2);
-    cactusLinkTestTeardown(testCase);
+    cactusLinkTestTeardown();
 }
 
 void testLink_getChain(CuTest* testCase) {
-    cactusLinkTestSetup(testCase);
+    cactusLinkTestSetup();
     CuAssertTrue(testCase, link_getChain(link1) == chain);
     CuAssertTrue(testCase, link_getChain(link2) == chain);
-    cactusLinkTestTeardown(testCase);
+    cactusLinkTestTeardown();
 }
 
 void testLink_split(CuTest *testCase) {
-    cactusLinkTestSetup(testCase);
+    cactusLinkTestSetup();
     CuAssertTrue(testCase, flower_getChainNumber(flower) == 3);
     CuAssertTrue(testCase, chain_getLength(chain) == 2);
     CuAssertTrue(testCase, group_getLink(group1) == link1);
@@ -92,11 +92,11 @@ void testLink_split(CuTest *testCase) {
     CuAssertTrue(testCase, flower_getChainNumber(flower) == 2);
     CuAssertTrue(testCase, group_getLink(group1) == NULL);
     CuAssertTrue(testCase, group_getLink(group2) == NULL);
-    cactusLinkTestTeardown(testCase);
+    cactusLinkTestTeardown();
 }
 
 void testLink_serialisation(CuTest* testCase) {
-    cactusLinkTestSetup(testCase);
+    cactusLinkTestSetup();
     int64_t i;
     void
             *vA =
@@ -117,20 +117,20 @@ void testLink_serialisation(CuTest* testCase) {
     testLink_getChain(testCase);
     //testLink_split(testCase); //can't do that test, because it disrupts stuff..
     nestedTest = 0;
-    cactusLinkTestTeardown(testCase);
+    cactusLinkTestTeardown();
 }
 
 void testLink_isTrivial(CuTest *testCase) {
-    cactusLinkTestSetup(testCase);
+    cactusLinkTestSetup();
     CuAssertTrue(testCase, !link_isTrivial(link1));
     CuAssertTrue(testCase, !link_isTrivial(link2));
     CuAssertTrue(testCase, link_isTrivial(link4));
     //CuAssertTrue(testCase, !link_isTrivial(link5));
-    cactusLinkTestTeardown(testCase);
+    cactusLinkTestTeardown();
 }
 
 void testLink_mergeIfTrivial(CuTest *testCase) {
-    cactusLinkTestSetup(testCase);
+    cactusLinkTestSetup();
     CuAssertTrue(testCase, !link_mergeIfTrivial(link1));
     CuAssertTrue(testCase, !link_mergeIfTrivial(link2));
     //CuAssertTrue(testCase, !link_mergeIfTrivial(link5));
@@ -163,7 +163,7 @@ void testLink_mergeIfTrivial(CuTest *testCase) {
     CuAssertTrue(testCase, block_getLength(mergedBlock) == 2);
     CuAssertTrue(testCase, block_isTrivialChain(mergedBlock));
 
-    cactusLinkTestTeardown(testCase);
+    cactusLinkTestTeardown();
 }
 
 CuSuite* cactusLinkTestSuite(void) {

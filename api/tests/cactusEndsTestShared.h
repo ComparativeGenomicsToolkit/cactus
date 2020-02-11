@@ -21,16 +21,16 @@ static Cap *leaf1Cap;
 static Cap *leaf2Cap;
 static Cap *leaf3Cap;
 
-static void cactusEndsTestSharedTeardown(const char *testName) {
+static void cactusEndsTestSharedTeardown() {
     if (cactusDisk != NULL) {
-        testCommon_deleteTemporaryCactusDisk(testName, cactusDisk);
+        testCommon_deleteTemporaryCactusDisk(cactusDisk);
         cactusDisk = NULL;
     }
 }
 
-static void cactusEndsTestSharedSetup(const char *testName) {
-    cactusEndsTestSharedTeardown(testName);
-    cactusDisk = testCommon_getTemporaryCactusDisk(testName);
+static void cactusEndsTestSharedSetup() {
+    cactusEndsTestSharedTeardown();
+    cactusDisk = testCommon_getTemporaryCactusDisk();
     flower = flower_construct(cactusDisk);
 
     eventTree = eventTree_construct2(cactusDisk);

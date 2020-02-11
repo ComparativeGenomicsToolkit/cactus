@@ -3,38 +3,32 @@
 
 Cactus is a reference-free whole-genome multiple alignment program. The principal algorithms are described here: https://doi.org/10.1101/gr.123356.111 
 
-Please subscribe to the [cactus-announce](https://groups.google.com/d/forum/cactus-announce) low-volume mailing list so we may reach about releases and other announcements.
-
 ## Acknowledgements
 
 Cactus uses many different algorithms and individual code contributions, principally from Joel Armstrong, Glenn Hickey, Mark Diekhans and Benedict Paten. We are particularly grateful to:
 
-- Yung H. Tsin and Nima Norouzi for contributing their 3-edge connected components program code, which is crucial in constructing the cactus graph structure, see: Tsin,Y.H., "A simple 3-edge-connected component algorithm," Theory of Computing Systems, vol.40, No.2, 2007, pp.125-142.
+-  Yung H. Tsin and Nima Norouzi for contributing their 3-edge connected components program code, which is crucial in constructing the cactus graph structure, see: Tsin,Y.H., "A simple 3-edge-connected component algorithm," Theory of Computing Systems, vol.40, No.2, 2007, pp.125-142.
 - Bob Harris for providing endless support for his LastZ pairwise, blast-like genome alignment tool.
 
 
 ## Setup
-
 ### System requirements
 We regularly test on Ubuntu 16.04 (Xenial) and to a more limited degree on Mac OS X (using Docker).
 
 Cactus uses substantial resources. For primate-sized genomes (3 gigabases each), you should expect Cactus to use approximately 120 CPU-days of compute per genome, with about 120 GB of RAM used at peak. The requirements scale roughly quadratically, so aligning two 1-megabase bacterial genomes takes only 1.5 CPU-hours and 14 GB RAM.
 
 Note that to run even the very small evolverMammals example, you will need 2 CPUs and 12 GB RAM. The actual resource requirements are much less, but the individual jobs have resource estimates based on much larger alignments, so the jobs will refuse to run unless there are enough resources to meet their estimates.
-
 ### Virtual environment
-To avoid problems with conflicting versions of dependencies on your system, we strongly recommend installing Cactus inside a Python 3 [virtual environment](https://virtualenv.pypa.io/en/stable/).
-
-Python 2 is no longer supported by Cactus.
+To avoid problems with conflicting versions of dependencies on your system, we strongly recommend installing Cactus inside a Python [virtual environment](https://virtualenv.pypa.io/en/stable/). Note that Cactus will only currently work with Python 2.7, until some of our dependencies become Python 3 compatible.
 
 To install the `virtualenv` command, if you don't have it already, run:
 ```
-python3 -m pip install virtualenv
+pip install virtualenv
 ```
 
 To set up a virtual environment in the directory `cactus_env`, run:
 ```
-python3 -m virtualenv cactus_env
+virtualenv cactus_env
 ```
 
 Then, to enter the virtualenv, run:
@@ -44,17 +38,14 @@ source cactus_env/bin/activate
 
 You can always exit out of the virtualenv by running `deactivate`. The rest of the README assumes you're running inside a virtual environment.
 
+If your version of `pip` or `virtualenv` uses Python 3 by default, you will need to use a Python 2 version to create your environment. To do that, use:
+```
+virtualenv -p /path-to-your-python2-install/python2.7 cactus_env
+```
 ### Install Cactus and its dependencies
 Cactus uses [Toil](http://toil.ucsc-cgl.org/) to coordinate its jobs. To install Toil into your environment, run:
 ```
 pip install --upgrade toil[all]
-```
-
-Note that if you are using Python 3.7, there is an issued that caused the
-Toil dependency package *http_parser* C code to fail to compile.  This is easily worked
-around by setting an environment variable before installing Toil:
-```
-CPPFLAGS='-DPYPY_VERSION' pip install toil[all]
 ```
 
 Finally, to install Cactus, from the root of the `cactus` repository, run:
@@ -67,28 +58,15 @@ IMPORTANT:  It is highly recommend that one **not** run Cactus using the Toil Gr
 ### Compile Cactus executables (if not using Docker/Singularity)
 By default Cactus uses containers to distribute its binaries, because compiling its dependencies can sometimes be a pain. If you can use Docker or Singularity, *which we highly recommend*, you can skip this section since all that needs to be installed in that case is the Python workflow as described above. However, in some environments (e.g. HPC clusters) you won't be able to use Docker or Singularity, so you will have to compile the binaries and install a few dependencies.
 
-The HDF5 and the KV database KyotoTycoon are compile-time dependencies.
-Compile time settings can be overridden by creating a make include file 
+First, ensure you have KyotoTycoon installed. If you have root access, it is available through most package managers under `kyototycoon` or `kyoto-tycoon`. To compile it manually, you are best off using the [unofficial Altice Labs repository](https://github.com/alticelabs/kyoto). If you've installed KyotoTycoon (and its library, KyotoCabinet) from a package manager, you should be OK to go. If you've installed it in a non-standard location, however, (because you don't have root access, for example) you will need to set the following environment variables:
 ```
-include.local.mk
+ttPrefix=<path of the PREFIX where you installed Kyoto>
+export kyotoTycoonIncl="-I${ttPrefix}/include -DHAVE_KYOTO_TYCOON=1"
+export kyotoTycoonLib="-L${ttPrefix}/lib -Wl,-rpath,${ttPrefix}/lib -lkyototycoon -lkyotocabinet -lz -lbz2 -lpthread -lm -lstdc++"
 ```
-in the top level cactus directory.
+and copy the `ktserver` binary to somewhere on your PATH, and depending on your install directory, you may also need to add `${ttPrefix}/lib` to your LD_LIBRARY_PATH. (This can be a bit of a pain--we have an updated `scons`-based build system in the works that will automate most of this, but it's not ready yet.)
 
-HDF5 is available through most package managers or can be manual installed from source files at [The HDF Group](https://www.hdfgroup.org/).   HDF5 should be configured with the `--enable-cxx` option. If you've installed it in a non-standard location, have the `h5c++` command in your `PATH` or add this to `include.local.mk`:
-```
-export PATH := <hdf5 bin dir>:${PATH}
-```
-
-KyotoTycoon is available through most package managers under `kyototycoon` or `kyoto-tycoon`. To compile it manually, you are best off using the [unofficial repository](https://github.com/carlosefr/kyoto). If you've installed KyotoTycoon (and its library, KyotoCabinet) from a package manager, you should be OK to go. If you've installed it in a non-standard location, add the following to
-`include.local.mk`:
-```
-ttPrefix = <path of the PREFIX where you installed Kyoto>
-export kyotoTycoonIncl = -I${ttPrefix}/include -DHAVE_KYOTO_TYCOON=1
-export kyotoTycoonLib = -L${ttPrefix}/lib -Wl,-rpath,${ttPrefix}/lib -lkyototycoon -lkyotocabinet -lz -lbz2 -lpthread -lm -lstdc++
-```
-and copy the `ktserver` binary to somewhere on your PATH, and depending on your install directory, you may also need to add `${ttPrefix}/lib` to your LD_LIBRARY_PATH. 
-
-Once you have HDF5 and KyotoTycoon installed, you should be able to compile Cactus and its dependencies by running:
+Once you have KyotoTycoon installed, you should be able to compile Cactus and its dependencies by running:
 ```
 git submodule update --init
 make

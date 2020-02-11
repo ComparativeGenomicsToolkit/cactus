@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 #Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
 #
@@ -32,6 +32,7 @@ from cactus.shared.test import getCactusInputs_encode
 from cactus.shared.test import getCactusInputs_chromosomeX
 from cactus.shared.test import runWorkflow_multipleExamples
 from cactus.shared.test import getBatchSystem
+from cactus.shared.test import silentOnSuccess
 from cactus.shared.test import getCactusWorkflowExperimentForTest
 
 from cactus.shared.experimentWrapper import ExperimentWrapper
@@ -41,7 +42,6 @@ from cactus.shared.common import runCactusProgressive
 from cactus.progressive.cactus_createMultiCactusProject import runCreateMultiCactusProject
 from cactus.shared.configWrapper import ConfigWrapper
 
-@TestStatus.needsTestData
 class TestCase(unittest.TestCase):
     def setUp(self):
         self.batchSystem = "singleMachine"
@@ -54,49 +54,58 @@ class TestCase(unittest.TestCase):
         configWrapper = ConfigWrapper(ET.parse(os.path.join(cactusRootPath(), "cactus_progressive_config.xml")).getroot())
         configWrapper.turnAllModesOn()
         configWrapper.turnOffHeaderChecks()
-        self.tempDir = getTempDirectory()
+        self.tempDir = getTempDirectory(os.getcwd())
         self.configFile = os.path.join(self.tempDir, "tempConfig.xml")
         configWrapper.writeXML(self.configFile)
 
     def tearDown(self):
         system("rm -rf %s" % self.tempDir)
 
-    @TestStatus.needsTestData
-    @TestStatus.longLength
+    @silentOnSuccess
+    @unittest.skip("")
     def testCactus_Random(self):
-        runWorkflow_multipleExamples(self.id(),
-                                     getCactusInputs_random,
+        # TODO: this doesn't actually need the test data, but this is
+        # being used as a signal that the tester doesn't want to run
+        # the long tests. The tests should be refactored soon.
+        if "SON_TRACE_DATASETS" not in os.environ:
+            return
+        runWorkflow_multipleExamples(getCactusInputs_random,
                                      testNumber=1,
+                                     testRestrictions=(TestStatus.TEST_SHORT,),
                                      batchSystem=self.batchSystem, buildToilStats=True,
                                      progressive=True,
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
 
-    @TestStatus.needsTestData
-    @TestStatus.longLength
+    @silentOnSuccess
+    @unittest.skip("")
     def testCactus_Random_UseSubtreeRoot(self):
+        # TODO: this doesn't actually need the test data, but this is
+        # being used as a signal that the tester doesn't want to run
+        # the long tests. The tests should be refactored soon.
+        if "SON_TRACE_DATASETS" not in os.environ:
+            return
         """Tests that cactus doesn't crash when aligning a subtree of a larger
         species tree."""
         getBigSpeciesTree = lambda regionNumber=0,tempDir=None: getCactusInputs_random(regionNumber, tempDir, treeLeafNumber=5)
-        runWorkflow_multipleExamples(self.id(),
-                                     getBigSpeciesTree,
+        runWorkflow_multipleExamples(getBigSpeciesTree,
                                      testNumber=1,
+                                     testRestrictions=(TestStatus.TEST_SHORT,),
                                      batchSystem=self.batchSystem, buildToilStats=True,
                                      progressive=True,
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveWithSubtreeRootFunction)
 
-    @TestStatus.travisCoreLimit
-    @TestStatus.longLength
+    @pytest.mark.skipif(os.environ.get("TRAVIS") is not None, reason="Travis doesn't have enough cores anymore")
+    @silentOnSuccess
     def testCactus_Random_fixedAncestor(self):
         """Tests that cactus doesn't crash when aligning to a fixed ancestral sequence."""
         sequences, _ = getCactusInputs_random(treeLeafNumber=3)
         rootSeq = sequences.pop()
         # Create a star tree
-        tree = '(%s)root;' % ",".join([str(x) + ":1.0" for x in range(len(sequences))])
+        tree = '(%s)root;' % ",".join([str(x) + ":1.0" for x in xrange(len(sequences))])
         outputDir = getTempDirectory()
-        experiment = getCactusWorkflowExperimentForTest(self.id(),
-                                                        sequences, tree,
+        experiment = getCactusWorkflowExperimentForTest(sequences, tree,
                                                         outputDir,
                                                         progressive=True)
         experiment.setSequenceID("root", rootSeq)
@@ -109,47 +118,50 @@ class TestCase(unittest.TestCase):
         self.progressiveFunction(experimentFile, jobTreeDir, 'singleMachine',
                                  False, True, True, False)
 
-    @TestStatus.needsTestData
-    @TestStatus.longLength
+    @silentOnSuccess
+    @unittest.skip("")
     def testCactus_ensureFunkyHeaderNamesArentMangled(self):
         """Ensure header names with characters like "|", " " aren't mangled."""
-        runWorkflow_multipleExamples(self.id(),
-                                     getCactusInputs_funkyHeaderNames,
+        if "SON_TRACE_DATASETS" not in os.environ:
+            return
+        runWorkflow_multipleExamples(getCactusInputs_funkyHeaderNames,
                                      testNumber=1,
+                                     testRestrictions=(TestStatus.TEST_SHORT,),
                                      batchSystem=self.batchSystem, buildToilStats=True,
                                      progressive=True,
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
 
-    @TestStatus.needsTestData
-    @TestStatus.mediumLength
+    @silentOnSuccess
+    @unittest.skip("")
     def testCactus_Blanchette(self):
-        runWorkflow_multipleExamples(self.id(),
-                                     getCactusInputs_blanchette,
+        runWorkflow_multipleExamples(getCactusInputs_blanchette,
                                      testNumber=1,
+                                     testRestrictions=(TestStatus.TEST_MEDIUM,),
                                      batchSystem=self.batchSystem, buildToilStats=True,
                                      progressive=True,
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
 
-    @unittest.skip("FASTA header contains spaces")
-    @TestStatus.needsTestData
-    @TestStatus.longLength
+    @silentOnSuccess
+    @unittest.skip("")
     def testCactus_Encode(self):
-        runWorkflow_multipleExamples(self.id(),
-                                     getCactusInputs_encode,
+        if "SON_TRACE_DATASETS" not in os.environ:
+            return
+        runWorkflow_multipleExamples(getCactusInputs_encode,
                                      testNumber=1,
+                                     testRestrictions=(TestStatus.TEST_LONG,),
                                      batchSystem=self.batchSystem, buildToilStats=True,
                                      progressive=True,
                                      configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
-
-    @unittest.skip("needs missing cactusTestData/evolver/chr_x/medium")
-    @TestStatus.needsTestData
-    @TestStatus.veryLongLength
+    @silentOnSuccess
+    @unittest.skip("")
     def testCactus_Chromosomes(self):
-        runWorkflow_multipleExamples(self.id(),
-                                     getCactusInputs_chromosomeX,
+        if "SON_TRACE_DATASETS" not in os.environ:
+            return
+        runWorkflow_multipleExamples(getCactusInputs_chromosomeX,
+                                     testRestrictions=(TestStatus.TEST_VERY_LONG,),
                                      batchSystem=self.batchSystem, buildToilStats=True,
                                      progressive=True,
                                      configFile=self.configFile,
@@ -157,9 +169,10 @@ class TestCase(unittest.TestCase):
 
     def progressiveWithSubtreeRootFunction(self, experimentFile, toilDir,
                                            batchSystem, buildAvgs,
+                                           buildReference,
                                            buildHal,
                                            buildFasta,
-                                           toilStats, logLevel=None):
+                                           toilStats):
         """Choose an arbitrary subtree from the larger species tree to run the
         alignment on. This function is necessary to keep
         runWorkflow_multipleExamples general (specifying a subtree
@@ -181,16 +194,14 @@ class TestCase(unittest.TestCase):
                                  batchSystem, buildAvgs,
                                  buildHal,
                                  buildFasta,
-                                 toilStats, subtreeRoot,
-                                 logLevel=logLevel)
+                                 toilStats, subtreeRoot)
 
     def progressiveFunction(self, experimentFile, toilDir,
                             batchSystem, buildAvgs,
                             buildHal,
                             buildFasta,
                             toilStats,
-                            subtreeRoot=None,
-                            logLevel=None):
+                            subtreeRoot=None):
         eW = ExperimentWrapper(ET.parse(experimentFile).getroot())
         seqFile = getTempFile()
         with open(seqFile, 'w') as f:
@@ -205,8 +216,7 @@ class TestCase(unittest.TestCase):
                              toilDir,
                              batchSystem=batchSystem,
                              buildAvgs=buildAvgs,
-                             toilStats=toilStats,
-                             logLevel=logLevel)
-
+                             toilStats=toilStats)
+        
 if __name__ == '__main__':
     unittest.main()

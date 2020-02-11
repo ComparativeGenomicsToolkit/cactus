@@ -8,30 +8,30 @@
 
 static CactusDisk *cactusDisk = NULL;
 
-static void cactusMiscTestTeardown(CuTest* testCase) {
+static void cactusMiscTestTeardown() {
     if (cactusDisk != NULL) {
-        testCommon_deleteTemporaryCactusDisk(testCase->name, cactusDisk);
+        testCommon_deleteTemporaryCactusDisk(cactusDisk);
         cactusDisk = NULL;
     }
 }
 
-static void cactusMiscTestSetup(CuTest* testCase) {
-    cactusMiscTestTeardown(testCase);
-    cactusDisk = testCommon_getTemporaryCactusDisk(testCase->name);
+static void cactusMiscTestSetup() {
+    cactusMiscTestTeardown();
+    cactusDisk = testCommon_getTemporaryCactusDisk();
 }
 
 void testCactusMisc_nameCompare(CuTest* testCase) {
-    cactusMiscTestSetup(testCase);
+    cactusMiscTestSetup();
     Name name = cactusDisk_getUniqueID(cactusDisk);
     Name name2 = cactusDisk_getUniqueID(cactusDisk);
     CuAssertTrue(testCase, cactusMisc_nameCompare(name, name2) == -1);
     CuAssertTrue(testCase, cactusMisc_nameCompare(name2, name) == 1);
     CuAssertTrue(testCase, cactusMisc_nameCompare(name, name) == 0);
-    cactusMiscTestTeardown(testCase);
+    cactusMiscTestTeardown();
 }
 
 void testCactusMisc_stringNameFns(CuTest* testCase) {
-    cactusMiscTestSetup(testCase);
+    cactusMiscTestSetup();
     int64_t i;
     for (i = 0; i < 1000000; i++) {
         Name name = cactusDisk_getUniqueID(cactusDisk);
@@ -45,7 +45,7 @@ void testCactusMisc_stringNameFns(CuTest* testCase) {
         CuAssertStrEquals(testCase, cA, cactusMisc_nameToStringStatic(name));
         free(cA);
     }
-    cactusMiscTestTeardown(testCase);
+    cactusMiscTestTeardown();
 }
 
 static void testCactusCheck(CuTest* testCase) {

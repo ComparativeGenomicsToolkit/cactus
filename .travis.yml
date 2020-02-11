@@ -1,44 +1,21 @@
 sudo: required
-dist: xenial
-language: python
-
-python:
-  - "3.6"
-
+dist: trusty
+language: c++
 before_install:
-  - |
-    if [[ "$TRAVIS_OS_NAME" == "linux" && "$CACTUS_BINARIES_MODE" == "local" ]]; then
-       sudo apt-get -qq update
-       sudo apt-get install -y libtokyocabinet-dev libkyototycoon-dev kyototycoon libkyotocabinet-dev libhdf5-cpp-11 libhdf5-dev
-    fi
-  - |
-    if [[ "$TRAVIS_OS_NAME" == "linux" && "$CACTUS_BINARIES_MODE" == "local" ]]; then
-       sudo apt-get install -y libtokyocabinet-dev libkyototycoon-dev kyototycoon libkyotocabinet-dev libhdf5-cpp-11 libhdf5-dev
-    fi
-  - |
-    if [[ ! -z "$SON_TRACE_DATASETS" ]]; then
-       git clone https://github.com/UCSantaCruzComputationalGenomicsLab/cactusTestData
-    fi
-
-  # Push docker containers. We skip this on PR builds because Travis
-  # doesn't include the user/password in those builds.
-  - |
-    if [[ "$CACTUS_BINARIES_MODE" == "docker" ]]; then
-       if [[ "$TRAVIS_PULL_REQUEST" == "false" ]]; then
-          docker login --username $QUAY_USERNAME --password $QUAY_PASSWORD quay.io
-          make push
-       else
-          make docker
-       fi
-    fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" && "$CACTUS_BINARIES_MODE" == "local" ]]; then sudo apt-get -qq update; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" && "$CACTUS_BINARIES_MODE" == "local" ]]; then sudo apt-get install -y libtokyocabinet-dev libkyototycoon-dev kyototycoon libkyotocabinet-dev; fi
+  - if [[ ! -z "$SON_TRACE_DATASETS" ]]; then git clone https://github.com/UCSantaCruzComputationalGenomicsLab/cactusTestData; fi
+# Push docker containers. We skip this on PR builds because Travis
+# doesn't include the user/password in those builds.
+  - if [[ "$CACTUS_BINARIES_MODE" == "docker" ]]; then if [[ "$TRAVIS_PULL_REQUEST" == "false" ]]; then docker login --username $QUAY_USERNAME --password $QUAY_PASSWORD quay.io; make push; else make docker; fi; fi
 script:
 # dependencies so toil actually functions properly (its deps don't
 # seem to be specified correctly)
-  - pip install --upgrade pip requests pathlib2
-  - pip install --ignore-installed --upgrade six
+  - sudo pip install --upgrade pip requests pathlib2
+  - sudo pip install --ignore-installed --upgrade six
 # install toil / cactus
-  - pip install -r requirements.txt
-  - pip install -e .
+  - sudo pip install toil==3.20.0
+  - sudo pip install -e .
   - if [[ "$CACTUS_TEST_CHOICE" == "normal" ]]; then export MAKE_TARGET=test_nonblast; fi
   - if [[ "$CACTUS_TEST_CHOICE" == "blast" ]]; then export MAKE_TARGET=test_blast; fi
   - if [[ "$CACTUS_BINARIES_MODE" == "local" ]]; then make && PATH=`pwd`/bin:$PATH PYTHONPATH=`pwd`:`pwd`/src travis_wait 50 make ${MAKE_TARGET}; fi

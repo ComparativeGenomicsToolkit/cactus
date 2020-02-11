@@ -1,11 +1,12 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 #Copyright (C) 2011 by Glenn Hickey
 #
 #Released under the MIT license, see LICENSE.txt
+#!/usr/bin/env python
 
 """Create the multi_cactus xml and directory structure from a workflow template
-"""
+""" 
 import os
 import xml.etree.ElementTree as ET
 import copy
@@ -48,7 +49,7 @@ def createMCProject(tree, experiment, config, options):
 
     # if necessary, we reroot the tree at the specified alignment root id.  all leaf genomes
     # that are no longer in the tree, but still used as outgroups, are moved into special fields
-    # so that we can remember to, say, get their paths for preprocessing.
+    # so that we can remember to, say, get their paths for preprocessing. 
     specifyAlignmentRoot(mcProj, experiment, alignmentRootId)
     return mcProj
 
@@ -94,7 +95,7 @@ def fillInOutgroups(mcProj, outgroupNames, config, alignmentRootId):
         # the model used for optimization is super naive. Still, it does
         # some things better than greedy approaches such as properly account
         # for phylogenetic redundancy, as well as try to factor assembly
-        # size/quality automatically.
+        # size/quality automatically. 
         mcProj.outgroup = DynamicOutgroup()
         mcProj.outgroup.importTree(mcProj.mcTree, mcProj.inputSequenceMap, alignmentRootId,
                                    candidateSet=outgroupNames)
@@ -125,7 +126,7 @@ def specifyAlignmentRoot(mcProj, expTemplate, alignmentRootId):
     outGroupNames = set()
     eventsInSubtree = set(mcProj.mcTree.getName(i) for i in mcProj.mcTree.postOrderTraversal(alignmentRootId))
     if mcProj.outgroup is not None:
-        for event, ogNameDistList in list(mcProj.outgroup.ogMap.items()):
+        for event, ogNameDistList in mcProj.outgroup.ogMap.items():
             if event in eventsInSubtree:
                 for og, dist in ogNameDistList:
                     outGroupNames.add(og)
@@ -160,10 +161,10 @@ def specifyAlignmentRoot(mcProj, expTemplate, alignmentRootId):
         mcProj.mcTree.addOutgroup(ogName, dist)
 
     # remove any experiment directories that have become invalid
-    for event in list(mcProj.expMap.keys()):
+    for event in mcProj.expMap.keys():
         if mcProj.mcTree.getNodeId(event) in deadNodes:
             del mcProj.expMap[event]
-
+            
     # flush out all unused nodes, set the new root, and update the
     # experiment template tree to match the new project tree
     for node in deadNodes:
@@ -188,7 +189,7 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
         os.makedirs(options.path)
     mcProj.writeXML(os.path.join(options.path, "%s_project.xml" % options.name))
 
-    for name, expPath in list(mcProj.expMap.items()):
+    for name, expPath in mcProj.expMap.items():
         path = os.path.join(options.path, name)
         children = mcProj.entireTree.getChildNames(name)
 
@@ -197,7 +198,7 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
         if configTemplate.getOutgroupStrategy() != 'none' \
         and name in mcProj.outgroup.ogMap:
             # Outgroup name is the first element of the ogMap tuples
-            outgroups.extend(list(map(itemgetter(0), mcProj.outgroup.ogMap[name])))
+            outgroups.extend(map(itemgetter(0), mcProj.outgroup.ogMap[name]))
 
         subtree = mcProj.entireTree.extractSpanningTree(children + [name] + outgroups)
         exp = ExperimentWrapper.createExperimentWrapper(NXNewick().writeString(subtree),
@@ -216,6 +217,7 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
         else:
             exp.setRootReconstructed(True)
         exp.writeXML(expPath)
+        config.writeXML(exp.getConfigPath())
 
 def checkInputSequencePaths(exp):
     for seq in exp.getSequences():

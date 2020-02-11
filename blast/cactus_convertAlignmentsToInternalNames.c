@@ -203,7 +203,7 @@ int main(int argc, char *argv[])
             free(line);
         }
         fclose(tempFile);
-        stFile_rmtree(tempPath);
+        stFile_rmrf(tempPath);
     } else {
         // Input is a cigar file.
         // Scan over the given alignment file and convert the headers to
