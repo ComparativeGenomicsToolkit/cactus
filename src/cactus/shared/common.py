@@ -1274,7 +1274,16 @@ class ChildTreeJob(RoundedJob):
 
     def _run(self, jobGraph, fileStore):
         ret = super(ChildTreeJob, self)._run(jobGraph, fileStore)
-        if len(self.queuedChildJobs) <= self.maxChildrenPerJob:
+        #
+        # Note: Making SpawnChildren jobs doesn't work with the latest Toil
+        # due to pickling problms (https://github.com/DataBiosphere/toil/issues/2881)
+        # so I'm disabling it by hacking in a "True or" to make the below condition
+        # always happen.  
+        #
+        # This is to be a temporary patch.  Will either need to re-write to do
+        # less pickling or remove altogether or change toil etc.
+        #
+        if True or len(self.queuedChildJobs) <= self.maxChildrenPerJob:
             # The number of children is small enough that we can just
             # add them directly.
             for childJob in self.queuedChildJobs:
