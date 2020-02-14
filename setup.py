@@ -34,6 +34,7 @@ setup(
     python_requires = '>=3.6',
 
     install_requires = [
+        'toil>=3.24',
         'decorator',
         'psutil',
         'networkx>=2,<3',
