@@ -57,18 +57,18 @@ static Cap *cap12;
 
 static PairwiseAlignmentParameters *pairwiseParameters;
 
-static void teardown() {
+static void teardown(CuTest* testCase) {
     if (cactusDisk != NULL) {
-        testCommon_deleteTemporaryCactusDisk(cactusDisk);
+        testCommon_deleteTemporaryCactusDisk(testCase->name, cactusDisk);
         cactusDisk = NULL;
         pairwiseAlignmentBandingParameters_destruct(pairwiseParameters);
         stateMachine_destruct(stateMachine);
     }
 }
 
-static void setup() {
-    teardown();
-    cactusDisk = testCommon_getTemporaryCactusDisk();
+static void setup(CuTest* testCase) {
+    teardown(testCase);
+    cactusDisk = testCommon_getTemporaryCactusDisk(testCase->name);
     flower = flower_construct(cactusDisk);
     stateMachine = stateMachine5_construct(fiveState);
 

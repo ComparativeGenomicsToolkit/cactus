@@ -6,7 +6,7 @@
 // Test a simple case where two threads only align in a single
 // chain--this should obviously not be recoverable.
 static void testDoesNotRemoveIsolatedChain(CuTest *testCase) {
-    CactusDisk *cactusDisk = testCommon_getTemporaryCactusDisk();
+    CactusDisk *cactusDisk = testCommon_getTemporaryCactusDisk(testCase->name);
     eventTree_construct2(cactusDisk);
     Flower *flower = flower_construct2(0, cactusDisk);
     group_construct2(flower);
@@ -29,13 +29,13 @@ static void testDoesNotRemoveIsolatedChain(CuTest *testCase) {
     CuAssertIntEquals(testCase, 7, stPinchThreadSet_getTotalBlockNumber(threadSet));
 
     stPinchThreadSet_destruct(threadSet);
-    testCommon_deleteTemporaryCactusDisk(cactusDisk);
+    testCommon_deleteTemporaryCactusDisk(testCase->name, cactusDisk);
 }
 
 // If there are three threads, two of which share an indel, that indel
 // should be considered recoverable.
 static void testRemovesIndel(CuTest *testCase) {
-    CactusDisk *cactusDisk = testCommon_getTemporaryCactusDisk();
+    CactusDisk *cactusDisk = testCommon_getTemporaryCactusDisk(testCase->name);
     eventTree_construct2(cactusDisk);
     Flower *flower = flower_construct2(0, cactusDisk);
     group_construct2(flower);
@@ -66,7 +66,7 @@ static void testRemovesIndel(CuTest *testCase) {
     CuAssertTrue(testCase, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 45)) == NULL);
 
     stPinchThreadSet_destruct(threadSet);
-    testCommon_deleteTemporaryCactusDisk(cactusDisk);
+    testCommon_deleteTemporaryCactusDisk(testCase->name, cactusDisk);
 }
 
 // If the alignment looks like this, with = representing aligned columns:
@@ -79,7 +79,7 @@ static void testRemovesIndel(CuTest *testCase) {
 // then only the middle block should be kept. The older method would
 // keep all blocks as all are telomere-adjacent.
 static void testRecoverableTelomereAdjacentChainsNotKept(CuTest *testCase) {
-    CactusDisk *cactusDisk = testCommon_getTemporaryCactusDisk();
+    CactusDisk *cactusDisk = testCommon_getTemporaryCactusDisk(testCase->name);
     eventTree_construct2(cactusDisk);
     Flower *flower = flower_construct2(0, cactusDisk);
     group_construct2(flower);
@@ -115,7 +115,7 @@ static void testRecoverableTelomereAdjacentChainsNotKept(CuTest *testCase) {
     CuAssertTrue(testCase, stPinchSegment_getBlock(stPinchThread_getSegment(thread1, 35)) != NULL);
 
     stPinchThreadSet_destruct(threadSet);
-    testCommon_deleteTemporaryCactusDisk(cactusDisk);
+    testCommon_deleteTemporaryCactusDisk(testCase->name, cactusDisk);
 }
 
 CuSuite *recoverableChainsTestSuite(void) {

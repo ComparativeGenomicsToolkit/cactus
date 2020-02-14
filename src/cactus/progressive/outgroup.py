@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 #Copyright (C) 2011 by Glenn Hickey
 #
@@ -30,7 +30,7 @@ class GreedyOutgroup(object):
         self.root = None
         self.ogMap = None
         self.mcTree = None
-        
+
     # add edges from sonlib tree to self.dag
     # compute self.dm: an undirected distance matrix
     def importTree(self, mcTree, rootId = None):
@@ -54,12 +54,12 @@ class GreedyOutgroup(object):
             return invalid
         good = set([x for x in self.mcTree.postOrderTraversal(rootId)])
         for node in self.mcTree.postOrderTraversal():
-            print self.mcTree.getName(node), self.mcTree.isLeaf(node), node in good
+            print((self.mcTree.getName(node), self.mcTree.isLeaf(node), node in good))
             if not self.mcTree.isLeaf(node) and node not in good:
                 invalid.append(node)
-        print [self.mcTree.getName(i) for i in invalid]
+        print([self.mcTree.getName(i) for i in invalid])
         return set(invalid)
- 
+
     # get rid of any node that's not an event
     def stripNonEvents(self, id, subtreeRoots):
         children = []
@@ -76,18 +76,18 @@ class GreedyOutgroup(object):
             for child in children:
                 self.dag.add_edge(parent, child)
                 self.stripNonEvents(child, subtreeRoots)
-    
+
     # are source and sink son same path to to root? if so,
-    # they shouldn't be outgroups of each other.             
+    # they shouldn't be outgroups of each other.
     def onSamePath(self, source, sink):
         if source in self.dmDirected:
             if sink in self.dmDirected[source]:
                 return True
         if sink in self.dmDirected:
             if source in self.dmDirected[sink]:
-                return True 
+                return True
         return False
-    
+
     # fill up a dictionary of node id -> height in tree where
     # leaves have height = 0
     def heightTable(self):
@@ -137,7 +137,7 @@ class GreedyOutgroup(object):
     # If some outgroups are already assigned, keep the existing
     # assignments but attempt to add more, if possible.
     # all outgroups are stored in self.ogMap
-    # edges between leaves ARE NOT kept in the dag    
+    # edges between leaves ARE NOT kept in the dag
     # the threshold parameter specifies how much parallelism can
     # be sacrificed by the selection of an outgroup
     # threshold = None : just greedy with no constraints
@@ -152,8 +152,8 @@ class GreedyOutgroup(object):
     def greedy(self, threshold = None, candidateSet = None,
                candidateChildFrac = 2., maxNumOutgroups = 1):
         orderedPairs = []
-        for source, sinks in self.dm.items():
-            for sink, dist in sinks.items():
+        for source, sinks in list(self.dm.items()):
+            for sink, dist in list(sinks.items()):
                 if source != self.root and sink != self.root:
                     orderedPairs.append((dist, (source, sink)))
         orderedPairs.sort(key = lambda x: x[0])
@@ -227,7 +227,7 @@ class GreedyOutgroup(object):
         # it, sort the outgroups by distance again. Sorting the
         # outgroups is critical for the multiple-outgroups code to
         # work well.
-        for node, outgroups in self.ogMap.items():
+        for node, outgroups in list(self.ogMap.items()):
             self.ogMap[node] = sorted(outgroups, key=lambda x: x[1])
 
 
@@ -250,13 +250,13 @@ class DynamicOutgroup(GreedyOutgroup):
         self.fragFac = 1.
         self.mutFac = 1.
         # distance to sequence endpoint where we consider bases unalignable due
-        # to fragmentation. 
+        # to fragmentation.
         self.edgeLen = 100
 
     # create map of leaf id -> sequence stats by scanninf the FASTA
     # files.  will be used to determine assembly quality for each input
     # genome (in a very crude manner, at least to start).
-    # 
+    #
     # for internal nodes, we store the stats of the max leaf underneath
     def importTree(self, mcTree, seqMap, rootId = None, candidateSet = None,
                    candidateBoost = 1.5):
@@ -268,7 +268,7 @@ class DynamicOutgroup(GreedyOutgroup):
         assert seqMap is not None
         # map name to (numSequences, totalLength)
         self.sequenceInfo = dict()
-        for event, inPath in seqMap.items():
+        for event, inPath in list(seqMap.items()):
             node = self.mcTree.getNodeId(event)
             if os.path.isdir(inPath):
                 fastaPaths = [os.path.join(inPath, f) for
@@ -282,7 +282,7 @@ class DynamicOutgroup(GreedyOutgroup):
             # can speed this up by O(N) but not sure if necessary..
             # we are conservative here in that we assume that the
             # ancestor has the longest, least fragmented genome possible
-            # when judging from its descendants. 
+            # when judging from its descendants.
             x = node
             while self.mcTree.hasParent(x):
                 x = self.mcTree.getParent(x)
@@ -300,7 +300,7 @@ class DynamicOutgroup(GreedyOutgroup):
             #    print self.mcTree.getName(node), info
 
     # run the dynamic programming algorithm on each internal node
-    def compute(self, maxNumOutgroups, 
+    def compute(self, maxNumOutgroups,
                 mutationWeight = 1,
                 sequenceLossWeight = .5):
         self.mutFac = mutationWeight
@@ -318,7 +318,7 @@ class DynamicOutgroup(GreedyOutgroup):
             # we look for highest k with non-zero solution.
             # (can swap >= 0.0 with bestScore below to get the global best
             # not sure we'd want fewer outgroups..)
-            for i in xrange(self.numOG + 1):
+            for i in range(self.numOG + 1):
                 if self.dpTable[node][i].score > 0.0:
                     bestK = i
 
@@ -332,7 +332,7 @@ class DynamicOutgroup(GreedyOutgroup):
                                     key = rankFn)
             # convert to EventName,Dist format.  Note that distance
             # here is not necessarily what we're ranking on, and we include
-            # it for consistency only.  
+            # it for consistency only.
             self.ogMap[nodeName] = [(self.dpTree.getName(x),
                                      self.__getOgDist(x))
                                      for x in rankedSolution]
@@ -340,7 +340,7 @@ class DynamicOutgroup(GreedyOutgroup):
                 self.dag.add_edge(node, self.mcTree.getNodeId(og),
                                   weight=dist, info="outgroup")
                 #print self.dpTree.getName(node), "-->", og
-                
+
     # initialize dynamic programming table
     def __dpInit(self, ancestralNodeId):
         self.dpTree = copy.deepcopy(self.mcTree)
@@ -368,9 +368,9 @@ class DynamicOutgroup(GreedyOutgroup):
         # set table to 0
         for node in self.dpTree.preOrderTraversal():
             self.dpTable[node] = []
-            for i in xrange(self.numOG + 1):
+            for i in range(self.numOG + 1):
                 self.dpTable[node].append(self.DPEntry(0.0, []))
-                
+
     # compute score for given node from its children using the dynamic
     # programming table
     def __dpNode(self, node):
@@ -384,7 +384,7 @@ class DynamicOutgroup(GreedyOutgroup):
             # (very inefficeint since we only want unique solutions with
             # sum <= numOG, but assume numbers are small enough so doesn't
             # matter for now)
-            cset = [x for x in xrange(0, self.numOG + 1)]
+            cset = [x for x in range(0, self.numOG + 1)]
             if math.pow(len(cset), numChildren) > 1e6:
                 raise RuntimeError("Dynamic Outgroup selection error for"
                                    " %s: degree limit exceeded.  Need to fix "
@@ -410,26 +410,26 @@ class DynamicOutgroup(GreedyOutgroup):
                 if consProb > self.dpTable[node][csetK].score and \
                   len(solution) == csetK:
                     self.dpTable[node][csetK] = self.DPEntry(consProb, solution)
-                    
+
     # get the dynamic programming solution (for a single ancestor set in
     # __dpInit...)
     def __dpRun(self, node):
         for child in self.dpTree.getChildren(node):
             self.__dpRun(child)
         self.__dpNode(node)
-        
+
     # compute the probability that a base is not "lost" on a branch
     # from given node to its parent
     # ancestor parameter allows us to consider a path from the node
     # to any ancestor in the tree as a single "branch" for purposes
-    # of computation.  if none, then the immediate parent is used. 
+    # of computation.  if none, then the immediate parent is used.
     def __computeBranchConservation(self, node, ancestor=None):
         if ancestor is None:
             ancestor = self.dpTree.getParent(node)
         nodeInfo = self.sequenceInfo[node]
         ancInfo = self.sequenceInfo[ancestor]
-        
-        # Loss probablity models alignment lost due to assembly quality.  We 
+
+        # Loss probablity models alignment lost due to assembly quality.  We
         # use proportion of N50 (minus Ns) as crude proxy
         if nodeInfo.umN50 >= ancInfo.umN50:
             pLoss = 0.
@@ -499,22 +499,22 @@ class DynamicOutgroup(GreedyOutgroup):
         n50Idx = analyseOutput.index("N50:")
         assert n50Idx >= 0 and n50Idx < len(analyseOutput) - 1
         n50 = int(analyseOutput[n50Idx + 1])
-        
+
         if isCandidate is True:
             totalLength *= self.candidateBoost
             n50 *= self.candidateBoost
 
         umLength = max(0, totalLength * (1. - nsPct))
         umN50 = max(0, n50 * (1. - nsPct))
-        
+
         return self.SeqInfo(numSequences, totalLength, umLength, n50, umN50)
-        
-            
+
+
 def main():
     usage = "usage: %prog <project> <output graphviz .dot file>"
     description = "TEST: draw the outgroup DAG"
     parser = OptionParser(usage=usage, description=description)
-    parser.add_option("--justLeaves", dest="justLeaves", action="store_true", 
+    parser.add_option("--justLeaves", dest="justLeaves", action="store_true",
                       default = False, help="Assign only leaves as outgroups")
     parser.add_option("--threshold", dest="threshold", type='int',
                       default = None, help="greedy threshold")
@@ -523,7 +523,7 @@ def main():
     parser.add_option("--dynamic", help="Use new dynamic programming"
                       " algorithm", action="store_true", default=False)
     options, args = parser.parse_args()
-    
+
     if len(args) != 2:
         parser.print_help()
         raise RuntimeError("Wrong number of arguments")
@@ -549,13 +549,13 @@ def main():
     try:
         NX.drawing.nx_agraph.write_dot(outgroup.dag, args[1])
     except Exception as e:
-        print "NetworkX failed: %s" % str(e)
-        print "Writing ogMap in non-graphviz format"
+        print(("NetworkX failed: %s" % str(e)))
+        print("Writing ogMap in non-graphviz format")
         with open(args[1], "w") as f:
-            for node, ogs in outgroup.ogMap.items():
-                f.write("%s -> %s\n" % (node, str(ogs)))            
-        
+            for node, ogs in list(outgroup.ogMap.items()):
+                f.write("%s -> %s\n" % (node, str(ogs)))
+
     return 0
 
-if __name__ == '__main__':    
+if __name__ == '__main__':
     main()

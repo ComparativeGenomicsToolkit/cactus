@@ -19,16 +19,16 @@ static Segment *rootSegment;
 static Segment *leaf1Segment;
 static Segment *leaf2Segment;
 
-static void cactusBlocksTestSharedTeardown() {
+static void cactusBlocksTestSharedTeardown(const char *testName) {
     if (cactusDisk != NULL) {
-        testCommon_deleteTemporaryCactusDisk(cactusDisk);
+        testCommon_deleteTemporaryCactusDisk(testName, cactusDisk);
         cactusDisk = NULL;
     }
 }
 
-static void cactusBlocksTestSharedSetup() {
-    cactusBlocksTestSharedTeardown();
-    cactusDisk = testCommon_getTemporaryCactusDisk();
+static void cactusBlocksTestSharedSetup(const char *testName) {
+    cactusBlocksTestSharedTeardown(testName);
+    cactusDisk = testCommon_getTemporaryCactusDisk(testName);
     flower = flower_construct(cactusDisk);
 
     eventTree = eventTree_construct2(cactusDisk);

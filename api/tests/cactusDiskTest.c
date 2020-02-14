@@ -9,36 +9,36 @@
 static CactusDisk *cactusDisk = NULL;
 static stKVDatabaseConf *conf = NULL;
 
-static void cactusDiskTestTeardown() {
+static void cactusDiskTestTeardown(CuTest* testCase) {
     if (cactusDisk != NULL) {
-        testCommon_deleteTemporaryCactusDisk(cactusDisk);
+        testCommon_deleteTemporaryCactusDisk(testCase->name, cactusDisk);
         stKVDatabaseConf_destruct(conf);
         cactusDisk = NULL;
     }
 }
 
-static void cactusDiskTestSetup() {
-    cactusDiskTestTeardown();
-    conf = testCommon_getTemporaryKVDatabaseConf();
-    cactusDisk = testCommon_getTemporaryCactusDisk();
+static void cactusDiskTestSetup(CuTest* testCase) {
+    cactusDiskTestTeardown(testCase);
+    conf = testCommon_getTemporaryKVDatabaseConf(testCase->name);
+    cactusDisk = testCommon_getTemporaryCactusDisk(testCase->name);
 }
 
 void testCactusDisk_constructAndDestruct(CuTest* testCase) {
-    cactusDiskTestSetup();
+    cactusDiskTestSetup(testCase);
     CuAssertTrue(testCase, cactusDisk != NULL); //check the flower is actually constructed.
-    cactusDiskTestTeardown();
+    cactusDiskTestTeardown(testCase);
 }
 
 void testCactusDisk_write(CuTest* testCase) {
     assert(testCase != NULL);
-    cactusDiskTestSetup();
+    cactusDiskTestSetup(testCase);
     flower_construct(cactusDisk);
     cactusDisk_write(cactusDisk);
-    cactusDiskTestTeardown();
+    cactusDiskTestTeardown(testCase);
 }
 
 void testCactusDisk_getFlower(CuTest* testCase) {
-    cactusDiskTestSetup();
+    cactusDiskTestSetup(testCase);
     Flower *flower = flower_construct(cactusDisk);
     Flower *flower2 = flower_construct(cactusDisk);
     CuAssertTrue(testCase, cactusDisk_getFlower(cactusDisk, flower_getName(flower)) == flower);
@@ -55,11 +55,11 @@ void testCactusDisk_getFlower(CuTest* testCase) {
     CuAssertTrue(testCase, flower2 != NULL);
     CuAssertTrue(testCase, flower_getName(flower) == name1);
     CuAssertTrue(testCase, flower_getName(flower2) == name2);
-    cactusDiskTestTeardown();
+    cactusDiskTestTeardown(testCase);
 }
 
 void testCactusDisk_getMetaSequence(CuTest* testCase) {
-    cactusDiskTestSetup();
+    cactusDiskTestSetup(testCase);
     MetaSequence *metaSequence = metaSequence_construct(1, 10, "ACTGACTGAG",
             "FOO", 10, cactusDisk);
     MetaSequence *metaSequence2 = metaSequence_construct(2, 10, "CCCCCCCCCC",
@@ -78,18 +78,18 @@ void testCactusDisk_getMetaSequence(CuTest* testCase) {
     CuAssertTrue(testCase, metaSequence2 != NULL);
     CuAssertTrue(testCase, metaSequence_getName(metaSequence) == name1);
     CuAssertTrue(testCase, metaSequence_getName(metaSequence2) == name2);
-    cactusDiskTestTeardown();
+    cactusDiskTestTeardown(testCase);
 }
 
 void testCactusDisk_getUniqueID(CuTest* testCase) {
-    cactusDiskTestSetup();
+    cactusDiskTestSetup(testCase);
     for (int64_t i = 0; i < 1000000; i++) { //Gets a billion ids, checks we are good.
         Name uniqueName = cactusDisk_getUniqueID(cactusDisk);
         CuAssertTrue(testCase, uniqueName > 0);
         CuAssertTrue(testCase, uniqueName < INT64_MAX);
         CuAssertTrue(testCase, uniqueName != NULL_NAME);
     }
-    cactusDiskTestTeardown();
+    cactusDiskTestTeardown(testCase);
 }
 
 int testCactusDisk_getUniqueID_UniqueP(const void *a, const void *b) {
@@ -97,7 +97,7 @@ int testCactusDisk_getUniqueID_UniqueP(const void *a, const void *b) {
 }
 
 void testCactusDisk_getUniqueID_Unique(CuTest* testCase) {
-    cactusDiskTestSetup();
+    cactusDiskTestSetup(testCase);
     stSortedSet *uniqueNames = stSortedSet_construct3(testCactusDisk_getUniqueID_UniqueP, free);
     for (int64_t i = 0; i < 100000; i++) { //Gets a billion ids, checks we are good.
         Name uniqueName = cactusDisk_getUniqueID(cactusDisk);
@@ -110,11 +110,11 @@ void testCactusDisk_getUniqueID_Unique(CuTest* testCase) {
         stSortedSet_insert(uniqueNames, cA);
     }
     stSortedSet_destruct(uniqueNames);
-    cactusDiskTestTeardown();
+    cactusDiskTestTeardown(testCase);
 }
 
 void testCactusDisk_getUniqueID_UniqueIntervals(CuTest* testCase) {
-    cactusDiskTestSetup();
+    cactusDiskTestSetup(testCase);
     stSortedSet *uniqueNames = stSortedSet_construct3(testCactusDisk_getUniqueID_UniqueP, free);
     for (int64_t i = 0; i < 10; i++) { //Gets a billion ids, checks we are good.
         int64_t intervalSize = st_randomInt(0, 100000);
@@ -131,7 +131,7 @@ void testCactusDisk_getUniqueID_UniqueIntervals(CuTest* testCase) {
         }
     }
     stSortedSet_destruct(uniqueNames);
-    cactusDiskTestTeardown();
+    cactusDiskTestTeardown(testCase);
 }
 
 CuSuite* cactusDiskTestSuite(void) {
