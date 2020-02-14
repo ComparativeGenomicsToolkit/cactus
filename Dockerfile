@@ -22,15 +22,12 @@ COPY --from=builder /home/cactus/bin/* /usr/local/bin/
 COPY --from=builder /home/cactus/submodules/sonLib/bin/* /usr/local/bin/
 COPY --from=builder /home/cactus/submodules/cactus2hal/bin/* /usr/local/bin/
 COPY --from=builder /home/cactus/submodules/sonLib /tmp/sonLib/
-RUN ls -1 /tmp/*
 
 RUN mkdir /opt/cactus/
 COPY runtime/wrapper.sh /opt/cactus/
 
 ARG CACTUS_COMMIT
 
-# FIXME: install from git until new release
-RUN pip3 install --pre git+https://github.com/DataBiosphere/toil.git
 RUN pip3 install /tmp/sonLib
 RUN rm -rf /tmp/sonLib
 
