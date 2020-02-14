@@ -32,10 +32,6 @@ before_install:
        fi
     fi
 script:
-# dependencies so toil actually functions properly (its deps don't
-# seem to be specified correctly)
-  - pip install --upgrade pip requests pathlib2
-  - pip install --ignore-installed --upgrade six
 # install toil / cactus
   - pip install -r requirements.txt
   - pip install -e .
