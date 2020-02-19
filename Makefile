@@ -6,7 +6,7 @@ modules = api setup blastLib caf bar blast normalisation hal phylogeny reference
 
 # submodules are in multiple pass to handle dependencies cactus2hal being dependent on
 # both cactus and sonLib
-submodules1 = sonLib cPecan hal matchingAndOrdering pinchesAndCacti
+submodules1 = kyoto sonLib cPecan hal matchingAndOrdering pinchesAndCacti
 submodules2 = cactus2hal
 submodules = ${submodules1} ${submodules2}
 
@@ -121,7 +121,7 @@ ${versionPy}:
 # clean targets
 ##
 selfClean: ${modules:%=clean.%}
-	rm -rf lib/*.h bin/*.dSYM ${versionPy} ${testOutDir}
+	rm -rf include/* lib/*.h bin/*.dSYM ${versionPy} ${testOutDir}
 
 clean.%:
 	cd $* && ${MAKE} clean
@@ -133,7 +133,10 @@ clean: selfClean ${submodules:%=subclean.%}
 ##
 suball1: ${submodules1:%=suball.%}
 suball2: ${submodules2:%=suball.%}
-suball.sonLib:
+suball.kyoto:
+	cd submodules/kyoto && KT_OPTIONS=--disable-lua ${MAKE} PREFIX=${CWD} && ${MAKE} install
+
+suball.sonLib: suball.kyoto
 	cd submodules/sonLib && ${MAKE}
 	mkdir -p bin
 	ln -f submodules/sonLib/bin/[a-zA-Z]* bin/
