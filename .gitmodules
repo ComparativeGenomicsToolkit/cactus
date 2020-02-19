@@ -16,3 +16,6 @@
 [submodule "submodules/cactus2hal"]
 	path = submodules/cactus2hal
 	url = https://github.com/ComparativeGenomicsToolkit/cactus2hal
+[submodule "submodules/kyoto"]
+	path = submodules/kyoto
+	url = https://github.com/ComparativeGenomicsToolkit/kyoto.git
