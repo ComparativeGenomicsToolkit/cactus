@@ -70,7 +70,7 @@ IMPORTANT:  It is highly recommend that one **not** run Cactus using the Toil Gr
 ### Compile Cactus executables (if not using Docker/Singularity)
 By default Cactus uses containers to distribute its binaries, because compiling its dependencies can sometimes be a pain. If you can use Docker or Singularity, *which we highly recommend*, you can skip this section since all that needs to be installed in that case is the Python workflow as described above. However, in some environments (e.g. HPC clusters) you won't be able to use Docker or Singularity, so you will have to compile the binaries and install a few dependencies. Looking at the [Dockerfile](Dockerfile) itself can serve as a guide for building on Ubuntu. 
 
-HDF5 is a compile-time dependencies.
+HDF5 is a compile-time dependency.
 Compile time settings can be overridden by creating a make include file 
 ```
 include.local.mk
