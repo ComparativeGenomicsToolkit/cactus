@@ -34,7 +34,7 @@ python3 -m pip install virtualenv
 
 To set up a virtual environment in the directory `cactus_env`, run:
 ```
-python3 -m virtualenv cactus_env
+virtualenv -p python3.6 cactus_env
 ```
 
 Then, to enter the virtualenv, run:
