@@ -137,7 +137,7 @@ suball.kyoto:
 	cd submodules/kyoto && KT_OPTIONS=--disable-lua ${MAKE} PREFIX=${CWD} && ${MAKE} install
 
 suball.sonLib: suball.kyoto
-	cd submodules/sonLib && ${MAKE}
+	cd submodules/sonLib && PKG_CONFIG_PATH=${CWD}/lib/pkgconfig:${PKG_CONFIG_PATH} ${MAKE}
 	mkdir -p bin
 	ln -f submodules/sonLib/bin/[a-zA-Z]* bin/
 
