@@ -2,7 +2,7 @@ FROM ubuntu:bionic-20200112 AS builder
 
 
 RUN apt-get update
-RUN apt-get install -y git gcc g++ build-essential python3 python3-dev zlib1g-dev wget valgrind libbz2-dev libhiredis-dev pkg-config libhdf5-dev liblzo2-dev
+RUN apt-get install -y git gcc g++ build-essential python3 python3-dev zlib1g-dev wget valgrind libbz2-dev libhiredis-dev pkg-config libhdf5-dev liblzo2-dev libtokyocabinet-dev
 
 RUN mkdir -p /home/cactus
 
@@ -16,7 +16,7 @@ FROM ubuntu:bionic-20200112
 
 RUN apt-get update
 
-RUN apt-get install -y python3 zlib1g-dev python3-dev libbz2-dev build-essential python3-pip git net-tools redis-server libhiredis-dev libhdf5-100 liblzo2-2
+RUN apt-get install -y python3 zlib1g-dev python3-dev libbz2-dev build-essential python3-pip git net-tools redis-server libhiredis-dev libhdf5-100 liblzo2-2 libtokyocabinet-dev
 COPY --from=builder /home/cactus/bin/* /usr/local/bin/
 COPY --from=builder /home/cactus/lib/* /usr/local/lib/
 COPY --from=builder /home/cactus/submodules/sonLib/bin/* /usr/local/bin/
