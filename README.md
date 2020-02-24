@@ -57,10 +57,13 @@ around by setting an environment variable before installing Toil:
 CPPFLAGS='-DPYPY_VERSION' pip install toil[all]
 ```
 
-Finally, to install Cactus, from the root of the `cactus` repository, run:
+Finally, to install Cactus, clone it and its submodules from github and install it with pip:
 ```
+git clone https://github.com/ComparativeGenomicsToolkit/cactus.git --recursive
+cd cactus
 pip install --upgrade .
 ```
+IMPORTANT:  The `--recursive` option is required to download submodules.  If you omit it, you will need to run `git submodule update --init` from the `cactus/` directory before installing.
 
 IMPORTANT:  It is highly recommend that one **not** run Cactus using the Toil Grid Engine-like batch systems (GridEngine, HTCondor, LSF, SLURM, or Torque).  Cactus creates a very large number of small jobs, which can overwhelm these systems.
 
