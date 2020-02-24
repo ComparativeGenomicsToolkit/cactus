@@ -44,7 +44,7 @@ source cactus_env/bin/activate
 
 You can always exit out of the virtualenv by running `deactivate`. The rest of the README assumes you're running inside a virtual environment.
 
-### Install Cactus and its dependencies
+### Build and installing Cactus
 Cactus uses [Toil](http://toil.ucsc-cgl.org/) to coordinate its jobs. To install Toil into your environment, run:
 ```
 pip install --upgrade toil[all]
@@ -57,14 +57,6 @@ around by setting an environment variable before installing Toil:
 CPPFLAGS='-DPYPY_VERSION' pip install toil[all]
 ```
 
-Finally, to install Cactus, from the root of the `cactus` repository, run:
-```
-pip install --upgrade .
-```
-
-IMPORTANT:  It is highly recommend that one **not** run Cactus using the Toil Grid Engine-like batch systems (GridEngine, HTCondor, LSF, SLURM, or Torque).  Cactus creates a very large number of small jobs, which can overwhelm these systems.
-
-### Compile Cactus executables (if not using Docker/Singularity)
 By default Cactus uses containers to distribute its binaries, because compiling its dependencies can sometimes be a pain. If you can use Docker or Singularity, *which we highly recommend*, you can skip this section since all that needs to be installed in that case is the Python workflow as described above. However, in some environments (e.g. HPC clusters) you won't be able to use Docker or Singularity, so you will have to compile the binaries and install a few dependencies.
 
 The HDF5 and the KV database KyotoTycoon are compile-time dependencies.
@@ -94,9 +86,22 @@ git submodule update --init
 make
 ```
 
+To speed up compiles, you may using the build in parallel with the make ```-j N' option.
+
+Finally, to install Cactus into the virtualenv, from the root of the `cactus` repository, run:
+```
+pip install --upgrade .
+```
+
 To run using these local executables, you will need to provide the `--binariesMode local` option to all `cactus` commands and add the `bin` directory to your PATH.
+
+### Compile Cactus executables (if not using Docker/Singularity)
+
+IMPORTANT:  It is highly recommend that one **not** run Cactus using the Toil Grid Engine-like batch systems (GridEngine, HTCondor, LSF, SLURM, or Torque).  Cactus creates a very large number of small jobs, which can overwhelm these systems.
+
 ## System/cluster requirements
 Cactus will take about 20 CPU-hours per bacterial-sized (~4 megabase) genome, about 20 CPU-days per nematode-sized (~100 megabase) genome, and about 120 CPU-days per mammalian-sized (~3 gigabase) genome. You will need at least one machine with very large amounts of RAM (150+ GB) to run mammalian-sized genomes. The requirements will vary a bit depending on how closely related your genomes are, so these are only rough estimates.
+
 ## Running
 To run Cactus, the basic format is:
 ```
