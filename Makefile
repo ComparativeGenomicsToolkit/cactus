@@ -116,6 +116,11 @@ test_nonblast: ${testModules:%=%_runtest_nonblast}
 ${versionPy}:
 	echo "cactus_commit = '${git_commit}'" >$@
 
+evolver_test:
+	-docker rmi -f evolvertestdocker/cactus:latest
+	docker build --network=host -t evolvertestdocker/cactus:latest . --build-arg CACTUS_COMMIT=${git_commit}
+	PYTHONPATH="" CACTUS_DOCKER_ORG=evolvertestdocker ${PYTHON} -m pytest -s ${pytestOpts} test
+	docker rmi -f evolvertestdocker/cactus:latest
 
 ##
 # clean targets
