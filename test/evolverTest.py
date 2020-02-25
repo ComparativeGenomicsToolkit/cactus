@@ -34,15 +34,15 @@ class TestCase(unittest.TestCase):
         """ Compare halStats otuput of given file to baseline 
         """
         # this is just pasted from a successful run.  it will be used to catch serious regressions
-        ground_truth = '''Anc0, 2, 545125, 9, 0, 14471
-        Anc1, 2, 569645, 6, 16862, 54019
-        simHuman_chr6, 0, 601863, 1, 53463, 0
-        mr, 2, 611571, 3, 52338, 55582
-        simMouse_chr6, 0, 636262, 1, 56172, 0
-        simRat_chr6, 0, 647215, 1, 55687, 0
-        Anc2, 2, 577109, 15, 17350, 57130
-        simCow_chr6, 0, 602619, 1, 56309, 0
-        simDog_chr6, 0, 593897, 1, 55990, 0'''
+        ground_truth = '''Anc0, 2, 543803, 22, 0, 5169
+        Anc1, 2, 568840, 32, 7511, 33681
+        simHuman_chr6, 0, 601863, 1, 33051, 0
+        mr, 2, 611438, 17, 31652, 34064
+        simMouse_chr6, 0, 636262, 1, 34566, 0
+        simRat_chr6, 0, 647215, 1, 34080, 0
+        Anc2, 2, 576869, 49, 8024, 36376
+        simCow_chr6, 0, 602619, 1, 35306, 0
+        simDog_chr6, 0, 593897, 1, 35153, 0'''
 
         # run halStats on the evolver output
         proc = subprocess.Popen(['bin/halStats',  halPath], stdout=subprocess.PIPE)
@@ -79,9 +79,17 @@ class TestCase(unittest.TestCase):
             oval = output_table[key]
             self.assertEqual(len(val), len(oval))
             for i in range(len(val)):
-                delta = delta_pct * int(val[i])
-                self.assertGreaterEqual(int(oval[i]), int(val[i]) - delta_pct)
-                self.assertLessEqual(int(oval[i]), int(val[i]) + delta_pct)
+                is_leaf = key.startswith('sim')
+                # exact comparison for NumChildren and, for leaves, Lengh and NumSequences
+                exact_comp = i == 0 or (is_leaf and i in [1,2])
+                # no comparison for NumSequences in Ancestors as it seems to be all over the place
+                no_comp = i == 2 and not is_leaf
+                if exact_comp:
+                    self.assertEqual(int(oval[i]), int(val[i]))
+                elif not no_comp:
+                    delta = delta_pct * int(val[i])
+                    self.assertGreaterEqual(int(oval[i]), int(val[i]) - delta)
+                    self.assertLessEqual(int(oval[i]), int(val[i]) + delta)
             
     def testEvolverLocal(self):
         """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode local is 

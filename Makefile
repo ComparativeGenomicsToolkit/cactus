@@ -116,10 +116,10 @@ test_nonblast: ${testModules:%=%_runtest_nonblast}
 ${versionPy}:
 	echo "cactus_commit = '${git_commit}'" >$@
 
-evolver_test:
+evolver_test: all
 	-docker rmi -f evolvertestdocker/cactus:latest
 	docker build --network=host -t evolvertestdocker/cactus:latest . --build-arg CACTUS_COMMIT=${git_commit}
-	PYTHONPATH="" CACTUS_DOCKER_ORG=evolvertestdocker ${PYTHON} -m pytest -s ${pytestOpts} test
+	LD_LIBARY_PATH=${PWD}/lib:${LD_LIBARY_PATH} PYTHONPATH="" CACTUS_DOCKER_ORG=evolvertestdocker ${PYTHON} -m pytest -s ${pytestOpts} test
 	docker rmi -f evolvertestdocker/cactus:latest
 
 ##
