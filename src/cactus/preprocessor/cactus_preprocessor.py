@@ -155,7 +155,7 @@ class PreprocessSequence(RoundedJob):
             if len(inChunkIDs) < inChunkNumber: #This logic is like making the list circular
                 inChunkIDs += inChunkIDList[:inChunkNumber-len(inChunkIDs)]
             assert len(inChunkIDs) == inChunkNumber
-            outChunkIDList.append(self.addChild(self.getChunkedJobForCurrentStage(inChunkIDs, float(inChunkNumber)//len(inChunkIDList), inChunkIDList[i])).rv())
+            outChunkIDList.append(self.addChild(self.getChunkedJobForCurrentStage(inChunkIDs, float(inChunkNumber)/len(inChunkIDList), inChunkIDList[i])).rv())
 
         if chunked:
             # Merge results of the chunking process back into a genome-wide file
