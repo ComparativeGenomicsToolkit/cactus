@@ -119,7 +119,7 @@ By default, Cactus uses Docker to run its compiled components (to avoid making y
 ### seqFile: the input file
 The input file, called a "seqFile", is just a text file containing the locations of the input sequences as well as their phylogenetic tree. The tree will be used to progressively decompose the alignment by iteratively aligning sibling genomes to estimate their parents in a bottom-up fashion. Polytomies in the tree are allowed, though the amount of computation required for a sub-alignment rises quadratically with the degree of the polytomy. The file is formatted as follows:
 
-    NEWICK tree (optional)
+    NEWICK tree
     name1 path1
     name2 path2
     ...
