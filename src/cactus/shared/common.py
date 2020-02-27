@@ -19,6 +19,9 @@ import time
 import signal
 import hashlib
 import tempfile
+import timeit
+import math
+
 
 from urllib.parse import urlparse
 from datetime import datetime
@@ -1256,16 +1259,7 @@ class ChildTreeJob(RoundedJob):
 
     def _run(self, jobGraph, fileStore):
         ret = super(ChildTreeJob, self)._run(jobGraph, fileStore)
-        #
-        # Note: Making SpawnChildren jobs doesn't work with the latest Toil
-        # due to pickling problms (https://github.com/DataBiosphere/toil/issues/2881)
-        # so I'm disabling it by hacking in a "True or" to make the below condition
-        # always happen.  
-        #
-        # This is to be a temporary patch.  Will either need to re-write to do
-        # less pickling or remove altogether or change toil etc.
-        #
-        if True or len(self.queuedChildJobs) <= self.maxChildrenPerJob:
+        if len(self.queuedChildJobs) <= self.maxChildrenPerJob:
             # The number of children is small enough that we can just
             # add them directly.
             for childJob in self.queuedChildJobs:
@@ -1273,48 +1267,42 @@ class ChildTreeJob(RoundedJob):
         else:
             # Too many children, so we have to build a tree to avoid
             # bottlenecking on consistently serializing all the jobs.
-            for job in self.queuedChildJobs:
-                job.prepareForPromiseRegistration(fileStore.jobStore)
 
-            curLevel = self.queuedChildJobs
-            while len(curLevel) > self.maxChildrenPerJob:
-                curLevel = [curLevel[i:i + self.maxChildrenPerJob] for i in range(0, len(curLevel), self.maxChildrenPerJob)]
-            # curLevel is now a nested list (of lists, of lists...)
-            # representing a tree of out-degree no higher than
-            # maxChildrenPerJob. We can pass that to SpawnChildren
-            # instances, which will run down the tree and eventually
-            # spawn the jobs we're actually interested in running.
-            for sublist in curLevel:
-                logger.debug(sublist)
-                assert isinstance(sublist, list)
-                super(ChildTreeJob, self).addChild(SpawnChildren(sublist))
+            # compute the number of levels (after root) of our job tree
+            num_levels = math.floor(math.log(len(self.queuedChildJobs), self.maxChildrenPerJob))
+
+            # fill out all the internal nodes of the tree, where the root is self
+            # they will be empty RoundedJobs
+            prev_level = [self]
+            level = []
+            for i in range(num_levels):
+                for parent_job in prev_level:
+                    # with this check, we allow a partial split of the last level
+                    # to account for rounding
+                    if len(level) * self.maxChildrenPerJob < len(self.queuedChildJobs):
+                        for j in range(self.maxChildrenPerJob):
+                            child_job = RoundedJob()
+                            if parent_job is self:
+                                super(ChildTreeJob, self).addChild(child_job)
+                            else:
+                                parent_job.addChild(child_job)
+                            level.append(child_job)
+                    else:
+                        level.append(parent_job)
+                        
+                prev_level = level
+                level = []
+
+            # add the leaves.  these will be the jobs in self.queuedChildJobs
+            leaves_added = 0
+            for parent_job in prev_level:
+                num_children = min(len(self.queuedChildJobs) - leaves_added, self.maxChildrenPerJob)
+                for j in range(num_children):
+                    if parent_job is self:
+                        super(ChildTreeJob, self).addChild(self.queuedChildJobs[leaves_added])
+                    else:
+                        parent_job.addChild(self.queuedChildJobs[leaves_added])
+                    leaves_added += 1
+            assert leaves_added == len(self.queuedChildJobs)
+            
         return ret
-
-class SpawnChildren(RoundedJob):
-    """Helper class used only by ChildTreeJob."""
-    def __init__(self, childList, *args, **kwargs):
-        self.childList = childList
-
-        # cPickle sometimes has major issues pickling childList,
-        # crashing and complaining about attempting to pickle a bound
-        # instance method. We are certainly *not* doing that, at least
-        # not intentionally, and the (Python) pickle library has no
-        # issue pickling the same object. So we hack around this and
-        # force the use of pickle for this worker process (which
-        # should only last as long as the ChildTreeJob that creates
-        # this class).
-        pickle.dump = pickle.dump
-        pickle.dumps = pickle.dumps
-
-        super(SpawnChildren, self).__init__(*args, preemptable=True, **kwargs)
-
-    def run(self, fileStore):
-        for item in self.childList:
-            if isinstance(item, Job):
-                # Hit the leaf nodes of the tree, which are the
-                # jobs we actually want to run.
-                self.addChild(item)
-            else:
-                # More nested lists of jobs: we need to spawn more
-                # SpawnChildren instances to distribute the load.
-                self.addChild(SpawnChildren(item))
