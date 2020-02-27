@@ -468,7 +468,7 @@ class CollateBlasts(RoundedJob):
     def run(self, fileStore):
         return self.addFollowOn(CollateBlasts2(self.blastOptions, self.resultsFileIDs)).rv()
 
-class CollateBlasts2(RoundedJob):
+class CollateBlasts2(ChildTreeJob):
     """Collates all the blasts into a single alignments file.
     """
     def __init__(self, blastOptions, resultsFileIDs):
@@ -476,6 +476,8 @@ class CollateBlasts2(RoundedJob):
         memory = blastOptions.memory
         super(CollateBlasts2, self).__init__(memory=memory, disk=disk, preemptable=True)
         self.resultsFileIDs = resultsFileIDs
+        # it's slow to run fileStore.deleteGlobalFile, so we do it in parallel batches
+        self.delete_batch_size = 50
 
     def run(self, fileStore):
         logger.info("Results IDs: %s" % self.resultsFileIDs)
@@ -484,9 +486,20 @@ class CollateBlasts2(RoundedJob):
         catFiles(resultsFiles, collatedResultsFile)
         logger.info("Collated the alignments to the file: %s",  collatedResultsFile)
         collatedResultsID = fileStore.writeGlobalFile(collatedResultsFile)
-        for resultsFileID in self.resultsFileIDs:
-            fileStore.deleteGlobalFile(resultsFileID)
+        for i in range(0, len(self.resultsFileIDs), self.delete_batch_size):
+            self.addChild(DeleteFileIDs(self.resultsFileIDs[i:i+self.delete_batch_size]))        
         return collatedResultsID
+
+class DeleteFileIDs(RoundedJob):
+    """Deletes some files from the file store
+    """
+    def __init__(self, fileIDs):
+        super(DeleteFileIDs, self).__init__(preemptable=True)
+        self.fileIDs = fileIDs
+        
+    def run(self, fileStore):
+        for fileID in self.fileIDs:
+            fileStore.deleteGlobalFile(fileID)        
 
 def sequenceLength(sequenceFile):
     """Get the total # of bp from a fasta file."""
