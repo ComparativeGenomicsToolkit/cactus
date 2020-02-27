@@ -155,7 +155,7 @@ class PreprocessSequence(RoundedJob):
             if len(inChunkIDs) < inChunkNumber: #This logic is like making the list circular
                 inChunkIDs += inChunkIDList[:inChunkNumber-len(inChunkIDs)]
             assert len(inChunkIDs) == inChunkNumber
-            outChunkIDList.append(self.addChild(self.getChunkedJobForCurrentStage(inChunkIDs, float(inChunkNumber)//len(inChunkIDList), inChunkIDList[i])).rv())
+            outChunkIDList.append(self.addChild(self.getChunkedJobForCurrentStage(inChunkIDs, float(inChunkNumber)/len(inChunkIDList), inChunkIDList[i])).rv())
 
         if chunked:
             # Merge results of the chunking process back into a genome-wide file
@@ -193,7 +193,7 @@ class BatchPreprocessor(RoundedJob):
                                           proportionToSample = getOptionalAttrib(prepNode, "proportionToSample", typeFn=float, default=1.0),
                                           unmask = getOptionalAttrib(prepNode, "unmask", typeFn=bool, default=False),
                                           lastzOptions = getOptionalAttrib(prepNode, "lastzOpts", default=""),
-                                          minPeriod = getOptionalAttrib(prepNode, "minPeriod", typeFn=int, default="0"),
+                                          minPeriod = getOptionalAttrib(prepNode, "minPeriod", typeFn=int, default=0),
                                           checkAssemblyHub = getOptionalAttrib(prepNode, "checkAssemblyHub", typeFn=bool, default=False))
 
         lastIteration = self.iteration == len(self.prepXmlElems) - 1
