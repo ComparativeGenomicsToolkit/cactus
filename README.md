@@ -34,7 +34,7 @@ python3 -m pip install virtualenv
 
 To set up a virtual environment in the directory `cactus_env`, run:
 ```
-python3 -m virtualenv cactus_env
+virtualenv -p python3.6 cactus_env
 ```
 
 Then, to enter the virtualenv, run:
@@ -68,30 +68,26 @@ IMPORTANT:  The `--recursive` option is required to download submodules.  If you
 IMPORTANT:  It is highly recommend that one **not** run Cactus using the Toil Grid Engine-like batch systems (GridEngine, HTCondor, LSF, SLURM, or Torque).  Cactus creates a very large number of small jobs, which can overwhelm these systems.
 
 ### Compile Cactus executables (if not using Docker/Singularity)
-By default Cactus uses containers to distribute its binaries, because compiling its dependencies can sometimes be a pain. If you can use Docker or Singularity, *which we highly recommend*, you can skip this section since all that needs to be installed in that case is the Python workflow as described above. However, in some environments (e.g. HPC clusters) you won't be able to use Docker or Singularity, so you will have to compile the binaries and install a few dependencies.
+By default Cactus uses containers to distribute its binaries, because compiling its dependencies can sometimes be a pain. If you can use Docker or Singularity, *which we highly recommend*, you can skip this section since all that needs to be installed in that case is the Python workflow as described above. However, in some environments (e.g. HPC clusters) you won't be able to use Docker or Singularity, so you will have to compile the binaries and install a few dependencies. Looking at the [Dockerfile](Dockerfile) itself can serve as a guide for building on Ubuntu. 
 
-The HDF5 and the KV database KyotoTycoon are compile-time dependencies.
+HDF5 is a compile-time dependency.
 Compile time settings can be overridden by creating a make include file 
 ```
 include.local.mk
 ```
 in the top level cactus directory.
 
-HDF5 is available through most package managers or can be manual installed from source files at [The HDF Group](https://www.hdfgroup.org/).   HDF5 should be configured with the `--enable-cxx` option. If you've installed it in a non-standard location, have the `h5c++` command in your `PATH` or add this to `include.local.mk`:
+HDF5 is available through most package managers (`apt-get install libhdf5-dev`) or can be manual installed from source files at [The HDF Group](https://www.hdfgroup.org/).   HDF5 should be configured with the `--enable-cxx` option. If you've installed it in a non-standard location, have the `h5c++` command in your `PATH` or add this to `include.local.mk`:
 ```
 export PATH := <hdf5 bin dir>:${PATH}
 ```
 
-KyotoTycoon is available through most package managers under `kyototycoon` or `kyoto-tycoon`. To compile it manually, you are best off using the [unofficial repository](https://github.com/carlosefr/kyoto). If you've installed KyotoTycoon (and its library, KyotoCabinet) from a package manager, you should be OK to go. If you've installed it in a non-standard location, add the following to
-`include.local.mk`:
+KyotoTycoon is compiled as a submodule, but its libraries need to be available at runtime.  One way to do this is to run
 ```
-ttPrefix = <path of the PREFIX where you installed Kyoto>
-export kyotoTycoonIncl = -I${ttPrefix}/include -DHAVE_KYOTO_TYCOON=1
-export kyotoTycoonLib = -L${ttPrefix}/lib -Wl,-rpath,${ttPrefix}/lib -lkyototycoon -lkyotocabinet -lz -lbz2 -lpthread -lm -lstdc++
+export LD_LIBRARY_PATH = <path where cactus is installed>/lib:${LD_LIBRARY_PATH}
 ```
-and copy the `ktserver` binary to somewhere on your PATH, and depending on your install directory, you may also need to add `${ttPrefix}/lib` to your LD_LIBRARY_PATH. 
 
-Once you have HDF5 and KyotoTycoon installed, you should be able to compile Cactus and its dependencies by running:
+Once you have HDF5 installed, you should be able to compile Cactus and its dependencies by running:
 ```
 git submodule update --init
 make
