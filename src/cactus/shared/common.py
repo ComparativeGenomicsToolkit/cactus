@@ -22,6 +22,7 @@ import tempfile
 import timeit
 import math
 
+
 from urllib.parse import urlparse
 from datetime import datetime
 
@@ -945,10 +946,9 @@ def singularityCommand(tool=None,
             build_cmd = ['singularity', 'build', '-s', '-F', temp_sandbox_dirname, tool]
 
             cactus_realtime_log_info("Running the command: \"{}\"".format(' '.join(build_cmd)))
-            start_time = timeit.default_timer()
+            start_time = time.time()
             subprocess.check_call(build_cmd, env=download_env)
-            end_time = timeit.default_timer()
-            run_time = end_time - start_time
+            run_time = time.time() - start_time
             cactus_realtime_log_info("Successfully ran the command: \"{}\" in {} seconds".format(' '.join(build_cmd), run_time))
 
             # Clean up the Singularity cache since it is single use
@@ -1117,25 +1117,10 @@ def cactus_call(tool=None,
 
     _log.info("Running the command %s" % call)
     cactus_realtime_log_info("Running the command: \"{}\"".format(' '.join(call)))
-    start_time = timeit.default_timer()
     process = subprocess.Popen(call, shell=shell, encoding="ascii",
                                stdin=stdinFileHandle, stdout=stdoutFileHandle,
                                stderr=subprocess.PIPE if swallowStdErr else sys.stderr,
                                bufsize=-1)
-
-    if mode == "singularity":
-        # After Singularity exits, it is possible that cleanup of the container's
-        # temporary files is still in progress (sicne it also waits for the
-        # container to exit). If we return immediately and the Toil job then
-        # immediately finishes, we can have a race between Toil's temp
-        # cleanup/space tracking code and Singularity's temp cleanup code to delete
-        # the same directory tree. Toil doesn't handle this well, and crashes when
-        # files it expected to be able to see are missing (at least on some
-        # versions). So we introduce a delay here to try and make sure that
-        # Singularity wins the race with high probability.
-        #
-        # See https://github.com/sylabs/singularity/issues/1255
-        time.sleep(0.5)
 
     if server:
         return process
@@ -1168,8 +1153,7 @@ def cactus_call(tool=None,
                                                            json.dumps(features), memUsage))
 
     if process.returncode == 0:
-        end_time = timeit.default_timer()
-        run_time = end_time - start_time
+        run_time = time.time() - start_time
         cactus_realtime_log_info("Successfully ran the command: \"{}\" in {} seconds".format(' '.join(call), run_time))
 
     if check_result:

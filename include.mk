@@ -35,4 +35,7 @@ inclDirs = api/inc bar/inc caf/inc hal/inc reference/inc submodules/sonLib/C/inc
 
 cflags += ${inclDirs:%=-I${rootPath}/%}
 basicLibs = ${sonLibPath}/sonLib.a ${sonLibPath}/cuTest.a ${dblibs}
-basicLibsDependencies = ${sonLibPath}/sonLib.a ${sonLibPath}/cuTest.a 
+basicLibsDependencies = ${sonLibPath}/sonLib.a ${sonLibPath}/cuTest.a
+
+kyotoTycoonIncl=-I${rootPath}/include -DHAVE_KYOTO_TYCOON=1
+kyotoTycoonLib=-L${rootPath}/lib -Wl,-rpath,${rootPath}/lib -lkyototycoon -lkyotocabinet -lz -lbz2 -lpthread -lm -lstdc++
