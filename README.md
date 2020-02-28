@@ -82,11 +82,6 @@ HDF5 is available through most package managers (`apt-get install libhdf5-dev`) 
 export PATH := <hdf5 bin dir>:${PATH}
 ```
 
-KyotoTycoon is compiled as a submodule, but its libraries need to be available at runtime.  One way to do this is to run
-```
-export LD_LIBRARY_PATH = <path where cactus is installed>/lib:${LD_LIBRARY_PATH}
-```
-
 Once you have HDF5 installed, you should be able to compile Cactus and its dependencies by running:
 ```
 git submodule update --init
