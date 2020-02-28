@@ -119,7 +119,7 @@ ${versionPy}:
 evolver_test: all
 	-docker rmi -f evolvertestdocker/cactus:latest
 	docker build --network=host -t evolvertestdocker/cactus:latest . --build-arg CACTUS_COMMIT=${git_commit}
-	LD_LIBRARY_PATH=${PWD}/lib:${LD_LIBARY_PATH} PYTHONPATH="" CACTUS_DOCKER_ORG=evolvertestdocker ${PYTHON} -m pytest -s ${pytestOpts} test
+	PYTHONPATH="" CACTUS_DOCKER_ORG=evolvertestdocker ${PYTHON} -m pytest -s ${pytestOpts} test
 	docker rmi -f evolvertestdocker/cactus:latest
 
 ##
@@ -139,7 +139,8 @@ clean: selfClean ${submodules:%=subclean.%}
 suball1: ${submodules1:%=suball.%}
 suball2: ${submodules2:%=suball.%}
 suball.kyoto:
-	cd submodules/kyoto && KT_OPTIONS=--disable-lua ${MAKE} PREFIX=${CWD} && ${MAKE} install
+	cd submodules/kyoto && ${MAKE} PREFIX=${CWD}
+	cd submodules/kyoto && ${MAKE} PREFIX=${CWD} install
 
 suball.sonLib: suball.kyoto
 	cd submodules/sonLib && PKG_CONFIG_PATH=${CWD}/lib/pkgconfig:${PKG_CONFIG_PATH} ${MAKE}
