@@ -249,9 +249,12 @@ int main(int argc, char *argv[]) {
     // (0) Check the inputs.
     ///////////////////////////////////////////////////////////////////////////
 
-    //assert(logLevelString == NULL || strcmp(logLevelString, "CRITICAL") == 0 || strcmp(logLevelString, "INFO") == 0 || strcmp(logLevelString, "DEBUG") == 0);
-    assert(cactusDiskDatabaseString != NULL);
-    assert(speciesTree != NULL);
+    if (cactusDiskDatabaseString == NULL) {
+        st_errAbort("must supply --cactusDisk (-b))");
+    }
+    if (speciesTree == NULL) {
+        st_errAbort("must supply --speciesTree (-f)");
+    }
 
     //////////////////////////////////////////////
     //Set up logging
