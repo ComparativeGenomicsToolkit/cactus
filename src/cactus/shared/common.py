@@ -1104,12 +1104,13 @@ def cactus_call(tool=None,
         assert mode == "local"
         call = parameters
 
-    stdinFileHandle = None
-    stdoutFileHandle = None
     if stdin_string:
         stdinFileHandle = subprocess.PIPE
     elif infile:
         stdinFileHandle = open(infile, 'r')
+    else:
+        stdinFileHandle = subprocess.DEVNULL
+    stdoutFileHandle = None
     if outfile:
         stdoutFileHandle = open(outfile, 'w')
     if check_output:
@@ -1289,7 +1290,7 @@ class ChildTreeJob(RoundedJob):
                             level.append(child_job)
                     else:
                         level.append(parent_job)
-                        
+
                 prev_level = level
                 level = []
 
@@ -1304,5 +1305,5 @@ class ChildTreeJob(RoundedJob):
                         parent_job.addChild(self.queuedChildJobs[leaves_added])
                     leaves_added += 1
             assert leaves_added == len(self.queuedChildJobs)
-            
+
         return ret
