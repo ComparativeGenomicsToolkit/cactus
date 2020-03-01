@@ -477,7 +477,7 @@ class CollateBlasts2(ChildTreeJob):
         super(CollateBlasts2, self).__init__(memory=memory, disk=disk, preemptable=True)
         self.resultsFileIDs = resultsFileIDs
         # it's slow to run fileStore.deleteGlobalFile, so we do it in parallel batches
-        self.delete_batch_size = 50
+        self.delete_batch_size = 1000
 
     def run(self, fileStore):
         logger.info("Results IDs: %s" % self.resultsFileIDs)
