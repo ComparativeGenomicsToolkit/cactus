@@ -43,6 +43,8 @@ def createMCProject(tree, experiment, config, options):
             alignmentRootId = mcProj.mcTree.getNodeId(options.root)
         except:
             raise RuntimeError("Specified root name %s not found in tree" % options.root)
+    if len(mcProj.mcTree.getChildren(alignmentRootId)) == 0:
+        raise RuntimeError("Root node {} is a leaf node".format(mcProj.mcTree.getName(alignmentRootId)))
 
     fillInOutgroups(mcProj, options.outgroupNames, config, alignmentRootId)
 
