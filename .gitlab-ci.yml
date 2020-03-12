@@ -19,6 +19,7 @@ stages:
 test-job:
   stage: test
   script:
+    - git submodule update --init --recursive
     - virtualenv -p python3.6 venv
     - source venv/bin/activate
     - pip install toil==3.24.0
