@@ -15,7 +15,7 @@ from cactus.progressive.cactus_createMultiCactusProject import runCreateMultiCac
 log = logging.getLogger(__name__)
 
 # Wrap up the cactus_progressive interface:
-# - intialize the working directory
+# - initialize the working directory
 # - create Experiment file from seqfile and options
 # - create Config file from options
 # - run cactus_createMultiCactusProject

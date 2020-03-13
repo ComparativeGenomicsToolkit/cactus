@@ -33,6 +33,8 @@ class MultiCactusProject:
         self.expMap = dict()
         self.expIDMap = dict()
         cactusPathElemList = xmlRoot.findall("cactus")
+        if len(cactusPathElemList) == 0:
+            raise RuntimeError("No <cactus> elements found in {}".format(path))
         for cactusPathElem in cactusPathElemList:
             nameElem = cactusPathElem.attrib["name"]
             pathElem = cactusPathElem.attrib["experiment_path"]
