@@ -216,3 +216,17 @@ class SeqFile:
         elem.attrib["species_tree"] = NXNewick().writeString(self.tree)
         elem.attrib["config"] = "defaultProgressive"
         return elem
+
+    # convert to string
+    def __str__(self):
+        og_set = set(self.outgroups)
+            
+        s = NXNewick().writeString(self.tree)
+        s += '\n'
+        for name, path in self.pathMap.items():
+            if name in og_set:
+                s += '*'
+            s += '{}\t{}\n'.format(name, path)
+
+        return s
+            

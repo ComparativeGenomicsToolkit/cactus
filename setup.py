@@ -46,4 +46,5 @@ setup(
     },
     entry_points= {
         'console_scripts': ['cactus = cactus.progressive.cactus_progressive:main',
-                            'cactus_preprocess = cactus.preprocessor.cactus_preprocessor:main']},)
+                            'cactus-preprocess = cactus.preprocessor.cactus_preprocessor:main',
+                            'cactus-prepare = cactus.progressive.cactus_prepare:main']},)
