@@ -287,7 +287,7 @@ def main():
     parser.add_argument("seqFile", help = "Input Seq file")
     parser.add_argument("outSeqFile", help = "Output Seq file (ex generated with cactus-prepare)")
     parser.add_argument("--configFile", default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
-    parser.add_argument("inputNames", nargs='*', help='input genome names (not paths) to preprocess (all leaves from Input Seq file if none specified)')
+    parser.add_argument("--inputNames", nargs='*', help='input genome names (not paths) to preprocess (all leaves from Input Seq file if none specified)')
 
     options = parser.parse_args()
     setLoggingFromOptions(options)
