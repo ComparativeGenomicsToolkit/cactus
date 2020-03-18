@@ -991,6 +991,7 @@ def dockerCommand(tool=None,
                         '--interactive',
                         '--net=host',
                         '--log-driver=none',
+                        '--entrypoint', 'bash', '/opt/cactus/wrapper.sh',
                         '-u', '%s:%s' % (os.getuid(), os.getgid()),
                         '-v', '{}:/data'.format(os.path.abspath(work_dir))]
 
