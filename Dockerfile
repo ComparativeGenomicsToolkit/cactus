@@ -43,4 +43,3 @@ RUN pip3 install --upgrade pip
 COPY --from=builder /home/cactus /tmp/cactus
 RUN pip3 install -U /tmp/cactus
 RUN rm -rf /tmp/cactus
-
