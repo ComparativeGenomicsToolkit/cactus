@@ -25,6 +25,7 @@ COPY --from=builder /home/cactus/submodules/sonLib /tmp/sonLib/
 
 RUN mkdir /opt/cactus/
 COPY runtime/wrapper.sh /opt/cactus/
+RUN chmod 777 /opt/cactus/wrapper.sh
 
 ARG CACTUS_COMMIT
 

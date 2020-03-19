@@ -1,3 +1,5 @@
+#!/bin/bash
+
 set -e
 # Set monitor mode: give child processes a new PGID
 set -m
