@@ -16,7 +16,7 @@ Cactus uses many different algorithms and individual code contributions, princip
 ## Setup
 
 ### System requirements
-We regularly test on Ubuntu 16.04 (Xenial) and to a more limited degree on Mac OS X (using Docker).
+We regularly test on Ubuntu 18.04 (Bionic) and to a more limited degree on Mac OS X (using Docker).
 
 Cactus uses substantial resources. For primate-sized genomes (3 gigabases each), you should expect Cactus to use approximately 120 CPU-days of compute per genome, with about 120 GB of RAM used at peak. The requirements scale roughly quadratically, so aligning two 1-megabase bacterial genomes takes only 1.5 CPU-hours and 14 GB RAM.
 
@@ -107,6 +107,12 @@ cactus jobStore examples/evolverMammals.txt examples/evolverMammals.hal --root m
 Within an hour at most (on modern computers), you should have a [HAL](https://github.com/ComparativeGenomicsToolkit/hal) file which relates simulated mouse and rat genomes.
 ### Choosing how to run the Cactus binaries (Docker/Singularity/local)
 By default, Cactus uses Docker to run its compiled components (to avoid making you install dependencies). It can instead use Singularity to run its binaries, or use a locally installed copy. To select a different way of running the binaries, you can use the `--binariesMode singularity` or `--binariesMode local` options. (If running using local binaries, you will need to make sure cactus's bin directory is in your `PATH`.)
+
+You can also run Cactus directly from Docker:
+```
+docker run -v $(pwd)/examples:/data/examples --rm -it quay.io/comparative-genomics-toolkit/cactus:latest cactus jobStore /data/examples/evolverMammals.txt /data/examples/evolverMammals.hal --root mr --binariesMode local
+```
+
 ### seqFile: the input file
 The input file, called a "seqFile", is just a text file containing the locations of the input sequences as well as their phylogenetic tree. The tree will be used to progressively decompose the alignment by iteratively aligning sibling genomes to estimate their parents in a bottom-up fashion. Polytomies in the tree are allowed, though the amount of computation required for a sub-alignment rises quadratically with the degree of the polytomy.  Cactus uses the predicted branch lengths from the tree to determine appropriate pairwise alignment parameters, allowing closely related species to be aligned more quickly with no loss in accuracy. The file is formatted as follows:
 

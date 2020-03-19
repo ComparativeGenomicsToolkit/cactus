@@ -996,6 +996,8 @@ def dockerCommand(tool=None,
 
     if entrypoint is not None:
         base_docker_call += ['--entrypoint', entrypoint]
+    else:
+        base_docker_call += ['--entrypoint', '/opt/cactus/wrapper.sh']
 
     if port is not None:
         base_docker_call += ["-p", "%d:%d" % (port, port)]

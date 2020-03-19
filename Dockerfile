@@ -25,6 +25,7 @@ COPY --from=builder /home/cactus/submodules/sonLib /tmp/sonLib/
 
 RUN mkdir /opt/cactus/
 COPY runtime/wrapper.sh /opt/cactus/
+RUN chmod 777 /opt/cactus/wrapper.sh
 
 ARG CACTUS_COMMIT
 
@@ -36,4 +37,9 @@ WORKDIR /data
 
 ENV LD_LIBRARY_PATH="/usr/local/lib/:${LD_LIBRARY_PATH}"
 
-ENTRYPOINT ["bash", "/opt/cactus/wrapper.sh"]
+# Install cactus so the dockerfile can be run standalone (unlikely to work execept with --binariesMode local)
+RUN ln -s /usr/bin/python3 /usr/bin/python
+RUN pip3 install --upgrade pip
+COPY --from=builder /home/cactus /tmp/cactus
+RUN pip3 install -U /tmp/cactus
+RUN rm -rf /tmp/cactus
