@@ -12,6 +12,7 @@ tree.
 import os
 import xml.etree.ElementTree as ET
 import timeit
+import multiprocessing
 from argparse import ArgumentParser
 from base64 import b64encode
 from subprocess import check_call
@@ -336,19 +337,17 @@ def setupBinaries(options):
         mode = options.binariesMode
     else:
         # Might be specified through the environment, or not, in which
-        # case the default is to use Docker.
-        mode = os.environ.get("CACTUS_BINARIES_MODE", "docker")
-    os.environ["CACTUS_BINARIES_MODE"] = mode
-    if mode == "docker":
-        # Verify Docker exists on the target system
+        mode = os.environ.get("CACTUS_BINARIES_MODE")
+
+    def verify_docker():
+        # If running without Docker, verify that we can find the Cactus executables
         from distutils.spawn import find_executable
         if find_executable('docker') is None:
             raise RuntimeError("The `docker` executable wasn't found on the "
                                "system. Please install Docker if possible, or "
                                "use --binariesMode local and add cactus's bin "
                                "directory to your PATH.")
-    # If running without Docker, verify that we can find the Cactus executables
-    elif mode == "local":
+    def verify_local():
         from distutils.spawn import find_executable
         if find_executable('cactus_caf') is None:
             raise RuntimeError("Cactus isn't using Docker, but it can't find "
@@ -362,6 +361,19 @@ def setupBinaries(options):
                                "(https://github.com/alticelabs/kyoto) "
                                "and add the binary to your PATH, or use the "
                                "Docker mode.")
+
+    if mode is None:
+        # there is no mode set, we use local if it's available, otherwise default to docker
+        try:
+            verify_local()
+            mode = "local"
+        except:
+            verify_docker()
+            mode = "docker"
+    elif mode == "docker":
+        verify_docker()
+    elif mode == "local":
+        verify_local()
     else:
         assert mode == "singularity"
         jobStoreType, locator = Toil.parseLocator(options.jobStore)
@@ -378,6 +390,8 @@ def setupBinaries(options):
                 else:
                     imgPath = os.path.join(os.path.abspath(locator), "cactus.img")
             os.environ["CACTUS_SINGULARITY_IMG"] = imgPath
+            
+    os.environ["CACTUS_BINARIES_MODE"] = mode
 
 def importSingularityImage(options):
     """Import the Singularity image from Docker if using Singularity."""
@@ -423,10 +437,6 @@ def main():
     parser.add_argument("outputHal", type=str, help = "Output HAL file")
 
     #Progressive Cactus Options
-    parser.add_argument("--database", dest="database",
-                      help="Database type: tokyo_cabinet or kyoto_tycoon"
-                      " [default: %(default)s]",
-                      default="kyoto_tycoon")
     parser.add_argument("--configFile", dest="configFile",
                       help="Specify cactus configuration file",
                       default=None)
@@ -449,6 +459,19 @@ def main():
 
     setupBinaries(options)
     setLoggingFromOptions(options)
+
+    # cactus doesn't run with 1 core
+    if options.batchSystem == 'singleMachine':
+        if options.maxCores is not None:
+            if int(options.maxCores) < 2:
+                raise RuntimeError('Cactus requires --maxCores > 1')
+        else:
+            # is there a way to get this out of Toil?  That would be more consistent
+            if multiprocessing.cpu_count() < 2:
+                raise RuntimeError('Only 1 CPU detected.  Cactus requires at least 2')        
+    
+    # tokyo_cabinet is no longer supported
+    options.database = "kyoto_tycoon"
 
     # Mess with some toil options to create useful defaults.
 
