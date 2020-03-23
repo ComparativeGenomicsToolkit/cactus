@@ -556,7 +556,8 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
                          trimWindowSize=self.getOptionalPhaseAttrib("trimWindowSize", int, 10),
                          trimOutgroupFlanking=self.getOptionalPhaseAttrib("trimOutgroupFlanking", int, 100),
                          trimOutgroupDepth=self.getOptionalPhaseAttrib("trimOutgroupDepth", int, 1),
-                         keepParalogs=self.getOptionalPhaseAttrib("keepParalogs", bool, False)),
+                         keepParalogs=self.getOptionalPhaseAttrib("keepParalogs", bool, False),
+                         lastzCommand=getOptionalAttrib(cafNode, "lastzCommand", str, None)),
             list(map(itemgetter(0), ingroupsAndNewIDs)), list(map(itemgetter(1), ingroupsAndNewIDs)),
             list(map(itemgetter(0), outgroupsAndNewIDs)), list(map(itemgetter(1), outgroupsAndNewIDs))))
 

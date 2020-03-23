@@ -10,6 +10,7 @@ import os
 import shutil
 from toil.lib.bioio import logger
 from toil.lib.bioio import system
+from toil.realtimeLogger import RealtimeLogger
 
 from sonLib.bioio import catFiles, nameValue, popenCatch, getTempDirectory
 
@@ -40,7 +41,8 @@ class BlastOptions(object):
                  # default because it's needed for the tests (which
                  # don't use realign.)
                  trimOutgroupFlanking=2000,
-                 keepParalogs=False):
+                 keepParalogs=False,
+                 lastzCommand=None):
         """Class defining options for blast
         """
         self.chunkSize = chunkSize
@@ -62,6 +64,7 @@ class BlastOptions(object):
         self.trimOutgroupDepth = trimOutgroupDepth
         self.trimOutgroupFlanking = trimOutgroupFlanking
         self.keepParalogs = keepParalogs
+        self.lastzCommand = lastzCommand
 
 class BlastSequencesAllAgainstAll(RoundedJob):
     """Take a set of sequences, chunks them up and blasts them.
@@ -402,7 +405,8 @@ class RunSelfBlast(RoundedJob):
     def run(self, fileStore):
         blastResultsFile = fileStore.getLocalTempFile()
         seqFile = fileStore.readGlobalFile(self.seqFileID)
-        runSelfLastz(seqFile, blastResultsFile, lastzArguments=self.blastOptions.lastzArguments)
+        runSelfLastz(seqFile, blastResultsFile, lastzArguments=self.blastOptions.lastzArguments,
+                     lastzCommand = self.blastOptions.lastzCommand)
         if self.blastOptions.realign:
             realignResultsFile = fileStore.getLocalTempFile()
             runCactusSelfRealign(seqFile, inputAlignmentsFile=blastResultsFile,
@@ -442,8 +446,8 @@ class RunBlast(RoundedJob):
             seqFile1 = decompressFastaFile(seqFile1, fileStore.getLocalTempFile())
             seqFile2 = decompressFastaFile(seqFile2, fileStore.getLocalTempFile())
         blastResultsFile = fileStore.getLocalTempFile()
-
-        runLastz(seqFile1, seqFile2, blastResultsFile, lastzArguments = self.blastOptions.lastzArguments)
+        runLastz(seqFile1, seqFile2, blastResultsFile, lastzArguments = self.blastOptions.lastzArguments,
+                 lastzCommand = self.blastOptions.lastzCommand)
         if self.blastOptions.realign:
             realignResultsFile = fileStore.getLocalTempFile()
             runCactusRealign(seqFile1, seqFile2, inputAlignmentsFile=blastResultsFile,
