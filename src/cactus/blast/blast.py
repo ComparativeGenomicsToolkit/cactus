@@ -529,7 +529,10 @@ def calculateCoverage(sequenceFile, cigarFile, outputFile, fromGenome=None, dept
     logger.info("Calculating coverage of cigar file %s on %s, writing to %s" % (
         cigarFile, sequenceFile, outputFile))
     args = [sequenceFile, cigarFile]
-    if fromGenome is not None:
+    if isinstance(fromGenome, list):
+        for fg in fromGenome:
+            args += ["--from", fg]
+    elif fromGenome is not None:
         args += ["--from", fromGenome]
     if depthById:
         args += ["--depthById"]

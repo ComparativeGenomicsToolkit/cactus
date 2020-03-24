@@ -27,6 +27,7 @@ from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
 from cactus.pipeline.cactus_workflow import CactusTrimmingBlastPhase
 from cactus.pipeline.cactus_workflow import CactusSetupCheckpoint
 from cactus.pipeline.cactus_workflow import prependUniqueIDs
+from cactus.blast.blast import calculateCoverage
 from cactus.shared.common import makeURL
 from toil.realtimeLogger import RealtimeLogger
 
@@ -134,9 +135,24 @@ def runCactusAfterBlastOnly(options):
             outgroups = experiment.getOutgroupGenomes()
             genome_set = set(leaves + outgroups)
 
+            # import the outgroups
+            outgroupIDs = []
+            cactus_blast_input = True
+            for i, outgroup in enumerate(outgroups):
+                try:
+                    outgroupID = toil.importFile(makeURL(options.blastOutput) + '.og_fragment_{}'.format(i))
+                    outgroupIDs.append(outgroupID)
+                    experiment.setSequenceID(outgroup, outgroupID)
+                except:
+                    # we assume that input is not coming from cactus blast, so we'll treat output
+                    # sequences normally and not go looking for fragments
+                    outgroupIDs = []
+                    cactus_blast_input = False
+                    break
+
             #import the sequences (that we need to align for the given event, ie leaves and outgroups)
             for genome, seq in list(project.inputSequenceMap.items()):
-                if genome in leaves:
+                if genome in leaves or (not cactus_blast_input and genome in outgroups):
                     if os.path.isdir(seq):
                         tmpSeq = getTempFile()
                         catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
@@ -144,14 +160,10 @@ def runCactusAfterBlastOnly(options):
                     seq = makeURL(seq)
                     
                     experiment.setSequenceID(genome, toil.importFile(seq))
-
-            # import the outgroups
-            outgroupIDs = []
-            for i, outgroup in enumerate(outgroups):
-                outgroupID = toil.importFile(makeURL(options.blastOutput) + '.og_fragment_{}'.format(i))
-                outgroupIDs.append(outgroupID)
-                experiment.setSequenceID(outgroup, outgroupID)
-
+                    
+            if not cactus_blast_input:
+                outgroupIDs = [experiment.getSequenceID(outgroup) for outgroup in outgroups]
+    
             # write back the experiment, as CactusWorkflowArguments wants a path
             experiment.writeXML(experimentFile)
 
@@ -177,25 +189,30 @@ def runCactusAfterBlastOnly(options):
                 workFlowArgs.secondaryAlignmentsID = None
             workFlowArgs.outgroupFragmentIDs = outgroupIDs
             workFlowArgs.ingroupCoverageIDs = []
-            for i in range(len(leaves)):
-                workFlowArgs.ingroupCoverageIDs.append(toil.importFile(makeURL(options.blastOutput) + '.ig_coverage_{}'.format(i)))
+            if cactus_blast_input:
+                for i in range(len(leaves)):
+                    workFlowArgs.ingroupCoverageIDs.append(toil.importFile(makeURL(options.blastOutput) + '.ig_coverage_{}'.format(i)))
 
-            halID = toil.start(Job.wrapJobFn(run_cactus_align, configWrapper, workFlowArgs, project))
+            halID = toil.start(Job.wrapJobFn(run_cactus_align, configWrapper, workFlowArgs, project, cactus_blast_input))
 
         # export the hal
         print("export {} -> {}".format(halID, makeURL(options.outputHal)))
         toil.exportFile(halID, makeURL(options.outputHal))
         
-def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project):
+def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, cactus_blast_input):
 
-    # cactus expects unique ids, but they weren't saved from cactus-blast
-    ids_job = job.addChildJobFn(run_prepend_unique_ids, cactusWorkflowArguments, project,
-                                #todo disk=
-                                )
-    cactusWorkflowArguments = ids_job.rv()
+    if cactus_blast_input:
+        # cactus expects unique ids, but they weren't saved from cactus-blast
+        first_job = job.addChildJobFn(run_prepend_unique_ids, cactusWorkflowArguments, project,
+                                    #todo disk=
+        )
+    else:
+        # we only have cigar input, so compute the ingroup coverage bed files now
+        first_job = job.addChildJobFn(run_ingroup_coverage, cactusWorkflowArguments, project)
+    cactusWorkflowArguments = first_job.rv()        
     
     # run cactus setup all the way through cactus2hal generation
-    setup_job = ids_job.addFollowOnJobFn(run_setup_phase, cactusWorkflowArguments)
+    setup_job = first_job.addFollowOnJobFn(run_setup_phase, cactusWorkflowArguments)
 
     # set up the project
     prepare_hal_export_job = setup_job.addFollowOnJobFn(run_prepare_hal_export, project, setup_job.rv())
@@ -226,6 +243,23 @@ def run_prepend_unique_ids(job, cactusWorkflowArguments, project):
         cactusWorkflowArguments.experimentWrapper.setSequenceID(event, sequenceID)
     return cactusWorkflowArguments
 
+def run_ingroup_coverage(job, cactusWorkflowArguments, project):
+    """ for every ingroup genome, make a bed file by computing its coverge vs the outgroups """
+    work_dir=job.fileStore.getLocalTempDir()
+    exp = cactusWorkflowArguments.experimentWrapper
+    ingroupsAndOriginalIDs = [(g, exp.getSequenceID(g)) for g in exp.getGenomesWithSequence() if g not in exp.getOutgroupGenomes()]
+    outgroups = [job.fileStore.readGlobalFile(id) for id in cactusWorkflowArguments.outgroupFragmentIDs]
+    sequences = [job.fileStore.readGlobalFile(id) for id in map(itemgetter(1), ingroupsAndOriginalIDs)]
+    cactusWorkflowArguments.totalSequenceSize = sum(os.stat(x).st_size for x in sequences)
+    ingroups = map(itemgetter(0), ingroupsAndOriginalIDs)
+    cigar = job.fileStore.readGlobalFile(cactusWorkflowArguments.alignmentsID)
+    # should we parallelize with child jobs?
+    for ingroup, sequence in zip(ingroups, sequences):
+        coverage_path = os.path.join(work_dir, '{}.coverage'.format(sequence))
+        calculateCoverage(sequence, cigar, coverage_path, fromGenome=outgroups, work_dir=work_dir)
+        cactusWorkflowArguments.ingroupCoverageIDs.append(job.fileStore.writeGlobalFile(coverage_path))
+    return cactusWorkflowArguments
+    
 def run_setup_phase(job, cactusWorkflowArguments):
     # needs to be its own job to resovolve the workflowargument promise
     return job.addChild(CactusSetupCheckpoint(cactusWorkflowArguments=cactusWorkflowArguments, phaseName="setup")).rv()
