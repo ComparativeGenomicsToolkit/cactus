@@ -205,6 +205,7 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
         exp = ExperimentWrapper.createExperimentWrapper(NXNewick().writeString(subtree),
                                                         children + [name] + outgroups,
                                                         databaseConf=expTemplate.confElem)
+        exp.setConfigPath(expTemplate.getConfigPath())
 
         exp.setRootGenome(name)
         exp.setOutgroupGenomes(outgroups)
