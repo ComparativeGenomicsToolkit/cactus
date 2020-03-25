@@ -22,25 +22,19 @@ log = logging.getLogger(__name__)
 # - now ready to launch cactus progressive
 class ProjectWrapper:
     alignmentDirName = 'progressiveAlignment'
-    def __init__(self, options):
+    def __init__(self, options, configPath):
         self.options = options
         self.seqFile = SeqFile(options.seqFile)
         self.workingDir = options.cactusDir
         self.configWrapper = None
+        self.configPath = configPath
         self.expWrapper = None
         self.processConfig()
         self.processExperiment()
 
     def processConfig(self):
-        # read in the default right out of cactus
-        if self.options.configFile is not None:
-            configPath = self.options.configFile
-        else:
-            dir = cactusRootPath()
-            configPath = os.path.join(dir,
-                                      "cactus_progressive_config.xml")
-        log.info("Using config from path %s." % configPath)
-        configXml = ET.parse(configPath).getroot()
+        log.info("Using config from path %s." % self.configPath)
+        configXml = ET.parse(self.configPath).getroot()
         self.configWrapper = ConfigWrapper(configXml)
         # here we can go through the options and apply some to the config
         self.configWrapper.setBuildHal(True)
@@ -51,11 +45,12 @@ class ProjectWrapper:
         #create the cactus disk
         cdElem = ET.SubElement(expXml, "cactus_disk")
         database = self.options.database
-        assert database == "kyoto_tycoon" or database == "tokyo_cabinet"
+        assert database == "kyoto_tycoon"
         confElem = ET.SubElement(cdElem, "st_kv_database_conf")
         confElem.attrib["type"] = database
         ET.SubElement(confElem, database)
         self.expWrapper = ExperimentWrapper(expXml)
+        self.expWrapper.setConfigPath(self.configPath)
         if not os.path.exists(self.workingDir):
             os.makedirs(self.workingDir)
 

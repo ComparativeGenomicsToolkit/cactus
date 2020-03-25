@@ -22,6 +22,7 @@ from toil.lib.bioio import getTempFile
 
 from toil.lib.bioio import logger
 from toil.lib.bioio import setLoggingFromOptions
+from toil.realtimeLogger import RealtimeLogger
 
 from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import findRequiredNode
@@ -31,6 +32,7 @@ from cactus.shared.common import cactus_call
 from cactus.shared.common import RoundedJob
 from cactus.shared.common import getDockerImage
 from cactus.shared.version import cactus_commit
+from cactus.shared.common import cactusRootPath
 
 from toil.job import Job
 from toil.common import Toil
@@ -438,8 +440,8 @@ def main():
 
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
-                      help="Specify cactus configuration file",
-                      default=None)
+                        help="Specify cactus configuration file",
+                        default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
     parser.add_argument("--root", dest="root", help="Name of ancestral node (which"
                       " must appear in NEWICK tree in <seqfile>) to use as a "
                       "root for the alignment.  Any genomes not below this node "
@@ -506,9 +508,10 @@ def runCactusProgressive(options):
         if options.restart:
             halID = toil.restart()
         else:
+            
             options.cactusDir = getTempDirectory()
             #Create the progressive cactus project
-            projWrapper = ProjectWrapper(options)
+            projWrapper = ProjectWrapper(options, options.configFile)
             projWrapper.writeXml()
 
             pjPath = os.path.join(options.cactusDir, ProjectWrapper.alignmentDirName,
@@ -531,10 +534,7 @@ def runCactusProgressive(options):
                 project.inputSequenceIDMap[genome] = toil.importFile(seq)
 
             #import cactus config
-            if options.configFile:
-                cactusConfigID = toil.importFile(makeURL(options.configFile))
-            else:
-                cactusConfigID = toil.importFile(makeURL(project.getConfigPath()))
+            cactusConfigID = toil.importFile(makeURL(options.configFile))
             project.setConfigID(cactusConfigID)
 
             project.syncToFileStore(toil)

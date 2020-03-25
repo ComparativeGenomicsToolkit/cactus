@@ -313,10 +313,9 @@ class ExperimentWrapper(DbElemWrapper):
 
     def getConfigPath(self):
         config = self.xmlRoot.attrib["config"]
-        if config == 'default':
-            config = os.path.join(cactusRootPath(), "cactus_config.xml")
-        if config == 'defaultProgressive':
-            config = os.path.join(cactusRootPath(), "cactus_progressive_config.xml")
+        if config in ['default', 'defaultProgressive']:
+            # pretoil functionality we are trying to weed out
+            assert False
         return config
 
     def setConfigPath(self, path):
