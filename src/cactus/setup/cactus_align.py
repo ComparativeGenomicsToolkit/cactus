@@ -15,7 +15,8 @@ from operator import itemgetter
 
 from cactus.progressive.seqFile import SeqFile
 from cactus.progressive.multiCactusTree import MultiCactusTree
-from cactus.progressive.cactus_progressive import setupBinaries, importSingularityImage, exportHal
+from cactus.shared.common import setupBinaries, importSingularityImage
+from cactus.progressive.cactus_progressive import exportHal
 from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.progressive.schedule import Schedule
@@ -50,8 +51,8 @@ def main():
 
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
-                      help="Specify cactus configuration file",
-                      default=None)
+                        help="Specify cactus configuration file",
+                        default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
     parser.add_argument("--root", dest="root", help="Name of ancestral node (which"
                         " must appear in NEWICK tree in <seqfile>) to use as a "
                         "root for the alignment.  Any genomes not below this node "
@@ -107,7 +108,7 @@ def runCactusAfterBlastOnly(options):
             options.cactusDir = getTempDirectory()
             
             #Create the progressive cactus project (as we do in runCactusProgressive)
-            projWrapper = ProjectWrapper(options)
+            projWrapper = ProjectWrapper(options, options.configFile, ignoreSeqPaths=options.root)
             projWrapper.writeXml()
 
             pjPath = os.path.join(options.cactusDir, ProjectWrapper.alignmentDirName,
@@ -189,14 +190,13 @@ def runCactusAfterBlastOnly(options):
                 workFlowArgs.secondaryAlignmentsID = None
             workFlowArgs.outgroupFragmentIDs = outgroupIDs
             workFlowArgs.ingroupCoverageIDs = []
-            if cactus_blast_input:
+            if cactus_blast_input and len(outgroups) > 0:
                 for i in range(len(leaves)):
                     workFlowArgs.ingroupCoverageIDs.append(toil.importFile(makeURL(options.blastOutput) + '.ig_coverage_{}'.format(i)))
 
             halID = toil.start(Job.wrapJobFn(run_cactus_align, configWrapper, workFlowArgs, project, cactus_blast_input))
 
         # export the hal
-        print("export {} -> {}".format(halID, makeURL(options.outputHal)))
         toil.exportFile(halID, makeURL(options.outputHal))
         
 def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, cactus_blast_input):

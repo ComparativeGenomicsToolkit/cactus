@@ -26,7 +26,7 @@ from cactus.shared.common import readGlobalFileWithoutCache
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.seqFile import SeqFile
-
+from cactus.shared.common import setupBinaries, importSingularityImage
 from toil.lib.bioio import setLoggingFromOptions
 
 from cactus.preprocessor.checkUniqueHeaders import checkUniqueHeaders
@@ -288,8 +288,18 @@ def main():
     parser.add_argument("outSeqFile", help = "Output Seq file (ex generated with cactus-prepare)")
     parser.add_argument("--configFile", default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
     parser.add_argument("--inputNames", nargs='*', help='input genome names (not paths) to preprocess (all leaves from Input Seq file if none specified)')
+    parser.add_argument("--latest", dest="latest", action="store_true",
+                        help="Use the latest version of the docker container "
+                        "rather than pulling one matching this version of cactus")
+    parser.add_argument("--containerImage", dest="containerImage", default=None,
+                        help="Use the the specified pre-built containter image "
+                        "rather than pulling one from quay.io")
+    parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
+                        help="The way to run the Cactus binaries", default=None)
+
 
     options = parser.parse_args()
+    setupBinaries(options)
     setLoggingFromOptions(options)
     
     inSeqFile = SeqFile(options.seqFile)

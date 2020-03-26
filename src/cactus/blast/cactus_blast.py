@@ -15,7 +15,7 @@ from operator import itemgetter
 
 from cactus.progressive.seqFile import SeqFile
 from cactus.progressive.multiCactusTree import MultiCactusTree
-from cactus.progressive.cactus_progressive import setupBinaries, importSingularityImage
+from cactus.shared.common import setupBinaries, importSingularityImage
 from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.progressive.schedule import Schedule
@@ -49,8 +49,8 @@ def main():
                       " [default: %(default)s]",
                       default="kyoto_tycoon")
     parser.add_argument("--configFile", dest="configFile",
-                      help="Specify cactus configuration file",
-                      default=None)
+                        help="Specify cactus configuration file",
+                        default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
     parser.add_argument("--root", dest="root", help="Name of ancestral node (which"
                       " must appear in NEWICK tree in <seqfile>) to use as a "
                       "root for the alignment.  Any genomes not below this node "
@@ -103,7 +103,7 @@ def runCactusBlastOnly(options):
             options.cactusDir = getTempDirectory()
             
             #Create the progressive cactus project (as we do in runCactusProgressive)
-            projWrapper = ProjectWrapper(options)
+            projWrapper = ProjectWrapper(options, options.configFile, ignoreSeqPaths=options.root)
             projWrapper.writeXml()
 
             pjPath = os.path.join(options.cactusDir, ProjectWrapper.alignmentDirName,
@@ -121,13 +121,14 @@ def runCactusBlastOnly(options):
             # note that we copy the path into the options here
             experimentFile = project.expMap[options.root]
             expXml = ET.parse(experimentFile).getroot()
+            logger.info("Experiment {}".format(ET.tostring(expXml)))
             experiment = ExperimentWrapper(expXml)
             configPath = experiment.getConfigPath()
             configXml = ET.parse(configPath).getroot()
             
             seqIDMap = dict()
             tree = MultiCactusTree(experiment.getTree()).extractSubTree(options.root)
-            leaves = [tree.getName(leaf) for leaf in tree.getLeaves()]
+            leaves = tree.getChildNames(tree.getRootName())
             outgroups = experiment.getOutgroupGenomes()
             genome_set = set(leaves + outgroups)
             logger.info("Genomes in blastonly, {}: {}".format(options.root, list(genome_set)))
@@ -142,8 +143,8 @@ def runCactusBlastOnly(options):
                     seq = makeURL(seq)
                     project.inputSequenceIDMap[genome] = toil.importFile(seq)
                 else:
-                    assert False
-                    project.inputSequenceIDMap[genome] = None
+                    # out-of-scope sequences will only cause trouble later on
+                    del project.inputSequenceMap[genome]
 
             #import cactus config
             if options.configFile:
@@ -163,14 +164,14 @@ def runCactusBlastOnly(options):
 
         # export the alignments
         toil.exportFile(outWorkFlowArgs.alignmentsID, makeURL(options.outputFile))
-        # some hacky stuff that gets passed between blast and setup phases
-        toil.exportFile(outWorkFlowArgs.totalSequenceSizeID, makeURL(options.outputFile) + '.total_sequence_size')
         outWorkFlowArgs.experimentWrapper.writeXML(options.outputFile + '.exp.xml')
-        # and all the other alignment stuff that's going to be hard for other aligners to interface with
+        # optional secondary alignments
         if outWorkFlowArgs.secondaryAlignmentsID:
             toil.exportFile(outWorkFlowArgs.secondaryAlignmentsID, makeURL(options.outputFile) + '.secondary')
+        # outgroup fragments and coverage are necessary for cactus-align, as the sequence names got changed in the above alignemnts
         for i, outgroupFragmentID in enumerate(outWorkFlowArgs.outgroupFragmentIDs):
             toil.exportFile(outgroupFragmentID, makeURL(options.outputFile) + '.og_fragment_{}'.format(i))
+        # cactus-align can recompute coverage on the fly, but we save them because we have them 
         for i, ingroupCoverageID in enumerate(outWorkFlowArgs.ingroupCoverageIDs):
             toil.exportFile(ingroupCoverageID, makeURL(options.outputFile) + '.ig_coverage_{}'.format(i))
         

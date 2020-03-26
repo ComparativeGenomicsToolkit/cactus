@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 # - now ready to launch cactus progressive
 class ProjectWrapper:
     alignmentDirName = 'progressiveAlignment'
-    def __init__(self, options, configPath):
+    def __init__(self, options, configPath, ignoreSeqPaths=[]):
         self.options = options
         self.seqFile = SeqFile(options.seqFile)
         self.workingDir = options.cactusDir
@@ -30,7 +30,7 @@ class ProjectWrapper:
         self.configPath = configPath
         self.expWrapper = None
         self.processConfig()
-        self.processExperiment()
+        self.processExperiment(ignoreSeqPaths)
 
     def processConfig(self):
         log.info("Using config from path %s." % self.configPath)
@@ -40,8 +40,8 @@ class ProjectWrapper:
         self.configWrapper.setBuildHal(True)
         self.configWrapper.setBuildFasta(True)
 
-    def processExperiment(self):
-        expXml = self.seqFile.toXMLElement()
+    def processExperiment(self, ignoreSeqPaths):
+        expXml = self.seqFile.toXMLElement(ignoreSeqPaths)
         #create the cactus disk
         cdElem = ET.SubElement(expXml, "cactus_disk")
         database = self.options.database
