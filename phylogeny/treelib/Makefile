@@ -5,14 +5,14 @@ treelibSrc = src/*.c
 treelibInc = inc
 treelibObj = *.o
 
-cflags += -DNDEBUG -I${treelibInc}
+CFLAGS += -DNDEBUG -I${treelibInc}
 
 all: libtree.a
 
 libtree.a: ${treelibSrc}
-	${cxx} ${cflags} -c ${treelibSrc}
-	ar rc libtree.a ${treelibObj}
-	ranlib libtree.a
+	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -c ${treelibSrc}
+	${AR} rc libtree.a ${treelibObj}
+	${RANLIB} libtree.a
 	rm -f ${treelibObj}
 
 clean:

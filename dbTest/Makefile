@@ -27,13 +27,13 @@ databaseDir=${tempDir}/testDb
 all: all_libs all_progs
 all_libs: 
 all_progs: all_libs
-	${MAKE} ${binPath}/dbTestScript 
+	${MAKE} ${BINDIR}/dbTestScript 
 
-${binPath}/dbTestScript  : ${basicLibsDependencies} *.c
-	${cxx} ${cflags} -I inc -I${libPath} -Wno-error -o ${binPath}/dbTestScript *.c ${basicLibs}
+${BINDIR}/dbTestScript  : ${LIBDEPENDS} *.c
+	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -Wno-error -o ${BINDIR}/dbTestScript *.c ${LDLIBS}
 
 clean :
-	rm -rf ${binPath}/dbTestScript
+	rm -rf ${BINDIR}/dbTestScript
 
 test :
 	ktserver -log ${log} -host ${host} -port ${port} ${databaseOptions} &

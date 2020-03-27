@@ -7,20 +7,21 @@ libInternalHeaders = impl/*.h
 libTests = tests/cactus*.c
 libTestsHeaders = tests/cactus*.h
 
+CPPFLAGS += -I{tests} -Iimpl
+
 all: all_libs all_progs
-all_libs: ${libPath}/cactusLib.a
+all_libs: ${LIBDIR}/cactusLib.a
 all_progs: all_libs
-	${MAKE} ${binPath}/cactusAPITests 
+	${MAKE} ${BINDIR}/cactusAPITests 
 
 clean : 
-	rm -f ${libPath}/cactusLib.a ${libPath}/cactus*.h ${binPath}/cactusAPITests
+	rm -f ${LIBDIR}/cactusLib.a ${LIBDIR}/cactus*.h ${BINDIR}/cactusAPITests *.o
 
-${libPath}/cactusLib.a : ${libSources} ${libHeaders} ${libInternalHeaders}
-	${cxx} ${cflags} -I inc -I ${libPath}/ -c ${libSources}
-	ar rc cactusLib.a *.o
-	ranlib cactusLib.a 
-	rm *.o
-	mv cactusLib.a ${libPath}/
+${LIBDIR}/cactusLib.a : ${libSources} ${libHeaders} ${libInternalHeaders}
+	${CC} ${CPPFLAGS} ${CFLAGS} -I inc -I ${LIBDIR}/ -c ${libSources}
+	${AR} rc cactusLib.a *.o
+	${RANLIB} cactusLib.a 
+	mv cactusLib.a ${LIBDIR}/
 
-${binPath}/cactusAPITests : ${libTests} ${libTestsHeaders} ${libSources} ${libHeaders} ${libInternalHeaders} tests/allTests.c ${libPath}/cactusLib.a ${basicLibsDependencies}
-	${cxx} ${cflags} -I inc -I ${libPath} -I impl -I tests -o ${binPath}/cactusAPITests tests/allTests.c ${libTests} ${libPath}/cactusLib.a ${basicLibs}
+${BINDIR}/cactusAPITests : ${libTests} ${libTestsHeaders} ${libSources} ${libHeaders} ${libInternalHeaders} tests/allTests.c ${LIBDIR}/cactusLib.a ${LIBDEPENDS}
+	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o ${BINDIR}/cactusAPITests tests/allTests.c ${libTests} ${LIBDIR}/cactusLib.a ${LDLIBS}

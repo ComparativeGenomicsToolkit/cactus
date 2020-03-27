@@ -1,22 +1,21 @@
 rootPath = ..
 include ${rootPath}/include.mk
 
-cflags += ${tokyoCabinetIncl}
+CFLAGS += ${tokyoCabinetIncl}
 
 libSources = blastAlignmentLib.c
 libHeaders = blastAlignmentLib.h
 
 all: all_libs all_progs
-all_libs: ${libPath}/cactusBlastAlignment.a
+all_libs: ${LIBDIR}/cactusBlastAlignment.a
 all_progs: 
 
-${libPath}/cactusBlastAlignment.a : ${libSources} ${libHeaders}
-	${cxx} ${cflags} -I inc -I ${libPath}/ -c ${libSources}
-	ar rc cactusBlastAlignment.a *.o
-	ranlib cactusBlastAlignment.a 
-	rm *.o
-	mv cactusBlastAlignment.a ${libPath}/
+${LIBDIR}/cactusBlastAlignment.a : ${libSources} ${libHeaders}
+	${CC} ${CPPFLAGS} ${CFLAGS} -I inc -I ${LIBDIR}/ -c ${libSources}
+	${AR} rc cactusBlastAlignment.a *.o
+	${RANLIB} cactusBlastAlignment.a 
+	mv cactusBlastAlignment.a ${LIBDIR}/
 
 clean : 
 	rm -f *.o
-	rm -f ${libPath}/cactusBlastAlignment.a
+	rm -f ${LIBDIR}/cactusBlastAlignment.a

@@ -22,7 +22,7 @@ versionPy = src/cactus/shared/version.py
 CWD = ${PWD}
 
 # these must be absolute, as used in submodules.
-export sonLibRootPath = ${CWD}/submodules/sonLib
+export sonLibRootDir = ${CWD}/submodules/sonLib
 .PHONY: all all.% clean clean.% selfClean suball suball.% subclean.%
 
 ##
@@ -33,6 +33,13 @@ all:
 	${MAKE} all_libs
 	${MAKE} all_progs
 	${MAKE} suball2
+
+static:
+	CFLAGS="$${CFLAGS} -static" \
+	CXXFLAGS="$${CXXFLAGS} -static" \
+	KC_OPTIONS="--enable-lzo --enable-static --disable-shared" \
+	KT_OPTIONS="--without-lua --enable-static --disable-shared" \
+	${MAKE} all
 
 all_libs:
 	${MAKE} ${modules:%=all_libs.%}
@@ -75,10 +82,10 @@ testModules = \
     shared/commonTest.py \
     shared/experimentWrapperTest.py
 
-# if running travis, we want output to go to stdout/stderr so it can be seen in the
-# log file, as opposed to individual files, which are much easier to read when
-# running tests in parallel.
-ifeq (${TRAVIS},)
+# if running travis or gitlab, we want output to go to stdout/stderr so it can
+# be seen in the log file, as opposed to individual files, which are much
+# easier to read when running tests in parallel.
+ifeq (${TRAVIS}${GITLAB_CI},) 
 define testErrOut
      >& ${testLogDir}/$(basename $(notdir $*)).log
 endef
@@ -107,11 +114,11 @@ test_nonblast: ${testModules:%=%_runtest_nonblast}
 
 %_runtest_blast: ${versionPy}
 	@mkdir -p ${testLogDir}
-	${PYTHON} -m pytest ${pytestOpts} src/cactus/$* --suite=blast >& ${testLogDir}/$(basename $(notdir $*)).blast.log
+	${PYTHON} -m pytest ${pytestOpts} src/cactus/$* --suite=blast ${testErrOut} 
 
 %_runtest_nonblast: ${versionPy}
 	@mkdir -p ${testLogDir}
-	${PYTHON} -m pytest ${pytestOpts} src/cactus/$* --suite=nonblast >& ${testLogDir}/$(basename $(notdir $*)).nonblast.log
+	${PYTHON} -m pytest ${pytestOpts} src/cactus/$* --suite=nonblast ${testErrOut}
 
 ${versionPy}:
 	echo "cactus_commit = '${git_commit}'" >$@
@@ -144,8 +151,9 @@ suball.kyoto:
 
 suball.sonLib: suball.kyoto
 	cd submodules/sonLib && PKG_CONFIG_PATH=${CWD}/lib/pkgconfig:${PKG_CONFIG_PATH} ${MAKE}
-	mkdir -p bin
-	ln -f submodules/sonLib/bin/[a-zA-Z]* bin/
+	mkdir -p ${BINDIR} ${LIBDIR}
+	ln -f submodules/sonLib/bin/[a-zA-Z]* ${BINDIR}
+	ln -f submodules/sonLib/lib/*.a ${LIBDIR}
 
 suball.pinchesAndCacti: suball.sonLib
 	cd submodules/pinchesAndCacti && ${MAKE}
