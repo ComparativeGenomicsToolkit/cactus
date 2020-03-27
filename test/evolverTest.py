@@ -62,7 +62,7 @@ class TestCase(unittest.TestCase):
                 output_stats[toks[0]] = toks[1:]
         return output_stats
 
-    def _check_stats(self, halPath, delta_pct=0.25):
+    def _check_stats(self, halPath, delta_pct):
         """ Compare halStats otuput of given file to baseline 
         """
         # this is just pasted from a successful run.  it will be used to catch serious regressions
@@ -105,7 +105,7 @@ class TestCase(unittest.TestCase):
                     self.assertGreaterEqual(int(oval[i]), int(val[i]) - delta)
                     self.assertLessEqual(int(oval[i]), int(val[i]) + delta)
 
-    def _check_coverage(self, halPath, delta_pct=0.05):
+    def _check_coverage(self, halPath, delta_pct):
         """ Compare halStats otuput of given file to baseline 
         """
         # this is just pasted from a successful run.  it will be used to catch serious regressions
@@ -144,8 +144,8 @@ class TestCase(unittest.TestCase):
         self._run_evolver_decomposed("local")
 
         # check the output
-        self._check_stats(self._out_hal("local"))
-        self._check_coverage(self._out_hal("local"))
+        self._check_stats(self._out_hal("local"), delta_pct=0.65)
+        self._check_coverage(self._out_hal("local"), delta_pct=0.10)
 
     def testEvolverDocker(self):
         """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode docker is 
@@ -155,8 +155,8 @@ class TestCase(unittest.TestCase):
         self._run_evolver("docker")
 
         # check the output
-        self._check_stats(self._out_hal("docker"))
-        self._check_coverage(self._out_hal("docker"))
+        self._check_stats(self._out_hal("docker"), delta_pct=0.25)
+        self._check_coverage(self._out_hal("docker"), delta_pct=0.05)
 
 if __name__ == '__main__':
     unittest.main()
