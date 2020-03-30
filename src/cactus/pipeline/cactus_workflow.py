@@ -29,6 +29,7 @@ from sonLib.bioio import getLogLevelString
 
 from toil.job import Job
 from toil.common import Toil
+from toil.realtimeLogger import RealtimeLogger
 
 from cactus.shared.common import makeURL
 from cactus.shared.common import cactus_call
@@ -505,6 +506,10 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
     """Blast ingroups vs outgroups using the trimming strategy before
     running cactus setup.
     """
+    def __init__(self, standAlone = False, *args, **kwargs):
+        self.standAlone = standAlone
+        super(CactusTrimmingBlastPhase, self).__init__(*args, **kwargs)
+        
     def run(self, fileStore):
         fileStore.logToMaster("Running blast using the trimming strategy")
 
@@ -551,7 +556,8 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
                          trimWindowSize=self.getOptionalPhaseAttrib("trimWindowSize", int, 10),
                          trimOutgroupFlanking=self.getOptionalPhaseAttrib("trimOutgroupFlanking", int, 100),
                          trimOutgroupDepth=self.getOptionalPhaseAttrib("trimOutgroupDepth", int, 1),
-                         keepParalogs=self.getOptionalPhaseAttrib("keepParalogs", bool, False)),
+                         keepParalogs=self.getOptionalPhaseAttrib("keepParalogs", bool, False),
+                         lastzCommand=getOptionalAttrib(cafNode, "lastzCommand", str, None)),
             list(map(itemgetter(0), ingroupsAndNewIDs)), list(map(itemgetter(1), ingroupsAndNewIDs)),
             list(map(itemgetter(0), outgroupsAndNewIDs)), list(map(itemgetter(1), outgroupsAndNewIDs))))
 
@@ -588,6 +594,10 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
         updateJob = blastJob.addFollowOnJobFn(updateExpWrapperForOutgroups, self.cactusWorkflowArguments.experimentWrapper,
                                               list(map(itemgetter(0), outgroupsAndNewIDs)), self.cactusWorkflowArguments.outgroupFragmentIDs)
         self.cactusWorkflowArguments.experimentWrapper = updateJob.rv()
+
+        # hack to get cactus-blast standalone tool working
+        if self.standAlone:
+            return self.cactusWorkflowArguments
 
         return self.makeFollowOnCheckpointJob(CactusSetupCheckpoint, "setup")
 
@@ -1266,7 +1276,6 @@ class CactusHalGeneratorPhase2(CactusPhasesJob):
             self.phaseNode.attrib["experimentPath"] = self.cactusWorkflowArguments.experimentFile
             self.phaseNode.attrib["secondaryDatabaseString"] = self.cactusWorkflowArguments.secondaryDatabaseString
             self.phaseNode.attrib["outputFile"] = "1"
-
             self.halID = self.makeRecursiveChildJob(CactusHalGeneratorRecursion, launchSecondaryKtForRecursiveJob=True)
 
         return self.makeFollowOnPhaseJob(CactusHalGeneratorPhase3, "hal")

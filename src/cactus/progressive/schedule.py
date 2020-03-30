@@ -71,7 +71,11 @@ class Schedule:
                 # we just do the leaves)
                 if nodeName not in leafEvents and tree.isLeaf(node):
                     self.inGraph.add_edge(name, nodeName)
-            configFile = fileStore.readGlobalFile(exp.getConfigID())
+            if fileStore:
+                configFile = fileStore.readGlobalFile(exp.getConfigID())
+            else:
+                # hack from running from cactus-prepare
+                configFile = exp.getConfigPath()
             configElem = ET.parse(configFile).getroot()
             conf = ConfigWrapper(configElem)
             # load max parellel subtrees from the node's config

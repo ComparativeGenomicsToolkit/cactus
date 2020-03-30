@@ -27,7 +27,7 @@ test-job:
     - make -j 4 evolver_test
   artifacts:
     # Let Gitlab see the junit report
-    reports:
-      junit: test-report.xml
-    when: always
+    #reports:
+    #  junit: test-report.xml
+    #when: always
   

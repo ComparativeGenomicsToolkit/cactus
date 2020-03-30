@@ -203,7 +203,7 @@ class SeqFile:
     # the root node of the experiment template file needed by
     # cactus_createMultiCactusProject.  Note the element is incomplete
     # until the cactus_disk child element has been added
-    def toXMLElement(self):
+    def toXMLElement(self, ignoreSeqPaths=[]):
         assert self.tree is not None
         elem = ET.Element("cactus_workflow_experiment")
         for node in self.tree.postOrderTraversal():
@@ -212,7 +212,22 @@ class SeqFile:
                 path = self.pathMap[name]
                 genomeNode = ET.SubElement(elem, "genome")
                 genomeNode.attrib['name'] = name
-                genomeNode.attrib['sequence'] = path
+                if name not in ignoreSeqPaths:
+                    genomeNode.attrib['sequence'] = path
         elem.attrib["species_tree"] = NXNewick().writeString(self.tree)
         elem.attrib["config"] = "defaultProgressive"
         return elem
+
+    # convert to string
+    def __str__(self):
+        og_set = set(self.outgroups)
+            
+        s = NXNewick().writeString(self.tree)
+        s += '\n'
+        for name, path in self.pathMap.items():
+            if name in og_set:
+                s += '*'
+            s += '{}\t{}\n'.format(name, path)
+
+        return s
+            

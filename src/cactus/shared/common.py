@@ -766,26 +766,21 @@ def runToilStats(toil, outputFile):
     system("toil stats %s --outputFile %s" % (toil, outputFile))
     logger.info("Ran the job-tree stats command apparently okay")
 
-def runLastz(seq1, seq2, alignmentsFile, lastzArguments, work_dir=None):
+def runLastz(seq1, seq2, alignmentsFile, lastzArguments, work_dir=None, lastzCommand=None):
     if work_dir is None:
         assert os.path.dirname(seq1) == os.path.dirname(seq2)
         work_dir = os.path.dirname(seq1)
+    if lastzCommand is None:
+        lastzCommand = "cPecanLastz"
+    # this is a dirty hack for wga_gpu integration, as it doesn't currently support these
+    if "lastz" in os.path.basename(lastzCommand).lower():    
+        seq1 += "[multiple][nameparse=darkspace]"
+        seq2 += "[nameparse=darkspace]"
     cactus_call(work_dir=work_dir, outfile=alignmentsFile,
-                parameters=["cPecanLastz",
-                            "--format=cigar",
-                            "--notrivial"] + lastzArguments.split() +
-                           ["%s[multiple][nameparse=darkspace]" % seq1,
-                            "%s[nameparse=darkspace]" % seq2])
+                parameters=[lastzCommand, seq1, seq2, "--format=cigar", "--notrivial"] + lastzArguments.split())
 
-def runSelfLastz(seq, alignmentsFile, lastzArguments, work_dir=None):
-    if work_dir is None:
-        work_dir = os.path.dirname(seq)
-    cactus_call(work_dir=work_dir, outfile=alignmentsFile,
-                parameters=["cPecanLastz",
-                            "--format=cigar",
-                            "--notrivial"] + lastzArguments.split() +
-                           ["%s[multiple][nameparse=darkspace]" % seq,
-                            "%s[nameparse=darkspace]" % seq])
+def runSelfLastz(seq, alignmentsFile, lastzArguments, work_dir=None, lastzCommand=None):
+    return runLastz(seq, seq, alignmentsFile, lastzArguments, work_dir, lastzCommand)
 
 def runCactusRealign(seq1, seq2, inputAlignmentsFile, outputAlignmentsFile, realignArguments, work_dir=None):
     cactus_call(infile=inputAlignmentsFile, outfile=outputAlignmentsFile, work_dir=work_dir,
@@ -874,6 +869,105 @@ def cactus_realtime_log_info(msg, max_len = 1000):
         msg = msg[:max_len] + "..."
     RealtimeLogger.info("{}: {}".format(datetime.now(), msg))
 
+def setupBinaries(options):
+    """Ensure that Cactus's C/C++ components are ready to run, and set up the environment."""
+    if options.latest:
+        os.environ["CACTUS_USE_LATEST"] = "1"
+    if options.binariesMode is not None:
+        # Mode is specified on command line
+        mode = options.binariesMode
+    else:
+        # Might be specified through the environment, or not, in which
+        mode = os.environ.get("CACTUS_BINARIES_MODE")
+
+    def verify_docker():
+        # If running without Docker, verify that we can find the Cactus executables
+        from distutils.spawn import find_executable
+        if find_executable('docker') is None:
+            raise RuntimeError("The `docker` executable wasn't found on the "
+                               "system. Please install Docker if possible, or "
+                               "use --binariesMode local and add cactus's bin "
+                               "directory to your PATH.")
+    def verify_local():
+        from distutils.spawn import find_executable
+        if find_executable('cactus_caf') is None:
+            raise RuntimeError("Cactus isn't using Docker, but it can't find "
+                               "the Cactus binaries. Please add Cactus's bin "
+                               "directory to your PATH (and run `make` in the "
+                               "Cactus directory if you haven't already).")
+        if find_executable('ktserver') is None:
+            raise RuntimeError("Cactus isn't using Docker, but it can't find "
+                               "`ktserver`, the KyotoTycoon database server. "
+                               "Please install KyotoTycoon "
+                               "(https://github.com/alticelabs/kyoto) "
+                               "and add the binary to your PATH, or use the "
+                               "Docker mode.")
+
+    if mode is None:
+        # there is no mode set, we use local if it's available, otherwise default to docker
+        try:
+            verify_local()
+            mode = "local"
+        except:
+            verify_docker()
+            mode = "docker"
+    elif mode == "docker":
+        verify_docker()
+    elif mode == "local":
+        verify_local()
+    else:
+        assert mode == "singularity"
+        jobStoreType, locator = Toil.parseLocator(options.jobStore)
+        if jobStoreType == "file":
+            # if not using a local jobStore, then don't set the `SINGULARITY_CACHEDIR`
+            # in this case, the image will be downloaded on each call
+            if options.containerImage:
+                imgPath = os.path.abspath(options.containerImage)
+                os.environ["CACTUS_USE_LOCAL_SINGULARITY_IMG"] = "1"
+            else:
+                # When SINGULARITY_CACHEDIR is set, singularity will refuse to store images in the current directory
+                if 'SINGULARITY_CACHEDIR' in os.environ:
+                    imgPath = os.path.join(os.environ['SINGULARITY_CACHEDIR'], "cactus.img")
+                else:
+                    imgPath = os.path.join(os.path.abspath(locator), "cactus.img")
+            os.environ["CACTUS_SINGULARITY_IMG"] = imgPath
+            
+    os.environ["CACTUS_BINARIES_MODE"] = mode
+
+def importSingularityImage(options):
+    """Import the Singularity image from Docker if using Singularity."""
+    mode = os.environ.get("CACTUS_BINARIES_MODE", "docker")
+    localImage = os.environ.get("CACTUS_USE_LOCAL_SINGULARITY_IMG", "0")
+    if mode == "singularity" and Toil.parseLocator(options.jobStore)[0] == "file":
+        imgPath = os.environ["CACTUS_SINGULARITY_IMG"]
+        # If not using local image, pull the docker image
+        if localImage == "0":
+            # Singularity will complain if the image file already exists. Remove it.
+            try:
+                os.remove(imgPath)
+            except OSError:
+                # File doesn't exist
+                pass
+            # Singularity 2.4 broke the functionality that let --name
+            # point to a path instead of a name in the CWD. So we change
+            # to the proper directory manually, then change back after the
+            # image is pulled.
+            # NOTE: singularity writes images in the current directory only
+            #       when SINGULARITY_CACHEDIR is not set
+            oldCWD = os.getcwd()
+            os.chdir(os.path.dirname(imgPath))
+            # --size is deprecated starting in 2.4, but is needed for 2.3 support. Keeping it in for now.
+            try:
+                check_call(["singularity", "pull", "--size", "2000", "--name", os.path.basename(imgPath),
+                            "docker://" + getDockerImage()])
+            except CalledProcessError:
+                # Call failed, try without --size, required for singularity 3+
+                check_call(["singularity", "pull", "--name", os.path.basename(imgPath),
+                            "docker://" + getDockerImage()])
+            os.chdir(oldCWD)
+        else:
+            logger.info("Using pre-built singularity image: '{}'".format(imgPath))
+    
 def singularityCommand(tool=None,
                        work_dir=None,
                        parameters=None,

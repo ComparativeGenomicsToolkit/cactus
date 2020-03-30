@@ -25,7 +25,8 @@ from cactus.shared.common import makeURL
 from cactus.shared.common import readGlobalFileWithoutCache
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
-
+from cactus.progressive.seqFile import SeqFile
+from cactus.shared.common import setupBinaries, importSingularityImage
 from toil.lib.bioio import setLoggingFromOptions
 
 from cactus.preprocessor.checkUniqueHeaders import checkUniqueHeaders
@@ -256,10 +257,13 @@ class CactusPreprocessor2(RoundedJob):
             logger.info("Adding child batch_preprocessor target")
             return self.addChild(BatchPreprocessor(prepXmlElems, self.inputSequenceID, 0)).rv()
 
-def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=False):
+def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=False, outputSequences = []):
     #Replace any constants
     configNode = ET.parse(configFile).getroot()
-    outputSequences = CactusPreprocessor.getOutputSequenceFiles(inputSequences, outputSequenceDir)
+    if not outputSequences:
+        outputSequences = CactusPreprocessor.getOutputSequenceFiles(inputSequences, outputSequenceDir)
+    else:
+        assert len(outputSequences) == len(inputSequences)
     if configNode.find("constants") != None:
         ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals()
     if not restart:
@@ -280,15 +284,53 @@ def runCactusPreprocessor(outputSequenceDir, configFile, inputSequences, toilDir
 def main():
     parser = ArgumentParser()
     Job.Runner.addToilOptions(parser)
-    parser.add_argument("outputSequenceDir", help='Directory where the processed sequences will be placed')
+    parser.add_argument("seqFile", help = "Input Seq file")
+    parser.add_argument("outSeqFile", help = "Output Seq file (ex generated with cactus-prepare)")
     parser.add_argument("--configFile", default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
-    parser.add_argument("inputSequences", nargs='+', help='input FASTA file(s)')
+    parser.add_argument("--inputNames", nargs='*', help='input genome names (not paths) to preprocess (all leaves from Input Seq file if none specified)')
+    parser.add_argument("--latest", dest="latest", action="store_true",
+                        help="Use the latest version of the docker container "
+                        "rather than pulling one matching this version of cactus")
+    parser.add_argument("--containerImage", dest="containerImage", default=None,
+                        help="Use the the specified pre-built containter image "
+                        "rather than pulling one from quay.io")
+    parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
+                        help="The way to run the Cactus binaries", default=None)
+
 
     options = parser.parse_args()
+    setupBinaries(options)
     setLoggingFromOptions(options)
+    
+    inSeqFile = SeqFile(options.seqFile)
+    outSeqFile = SeqFile(options.outSeqFile)
+
+    inNames = options.inputNames
+    if not inNames:
+        inNames = [inSeqFile.tree.getName(node) for node in inSeqFile.tree.getLeaves()]
+
+    inSeqPaths = []
+    outSeqPaths = []
+    
+    for inName in inNames:
+        if inName not in inSeqFile.pathMap or inName not in outSeqFile.pathMap:
+            raise RuntimeError('{} not present in input and output Seq files'.format(inNmae))
+        inPath = inSeqFile.pathMap[inName]
+        outPath = outSeqFile.pathMap[inName]
+        if os.path.isdir(inPath):
+            try:
+                os.makedirs(outPath)
+            except:
+                pass
+            assert os.path.isdir(inPath) == os.path.isdir(outPath)
+            inSeqPaths += [os.path.join(inPath, seqPath) for seqPath in os.listdir(inPath)]
+            outSeqPaths += [os.path.join(outPath, seqPath) for seqPath in os.listdir(inPath)]
+        else:
+            inSeqPaths += [inPath]
+            outSeqPaths += [outPath]
 
     with Toil(options) as toil:
-        stageWorkflow(outputSequenceDir=options.outputSequenceDir, configFile=options.configFile, inputSequences=options.inputSequences, toil=toil, restart=options.restart)
+        stageWorkflow(outputSequenceDir=None, configFile=options.configFile, inputSequences=inSeqPaths, toil=toil, restart=options.restart, outputSequences=outSeqPaths)
 
 if __name__ == '__main__':
     main()
