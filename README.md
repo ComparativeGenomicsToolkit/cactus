@@ -47,14 +47,15 @@ You can always exit out of the virtualenv by running `deactivate`. The rest of t
 ### Install Cactus and its dependencies
 Cactus uses [Toil](http://toil.ucsc-cgl.org/) to coordinate its jobs. To install Toil into your environment, run:
 ```
-pip install --upgrade toil[all]
+pip install --upgrade setuptools pip
+pip install --upgrade toil[all]==3.24.0
 ```
 
 Note that if you are using Python 3.7, there is an issued that caused the
 Toil dependency package *http_parser* C code to fail to compile.  This is easily worked
 around by setting an environment variable before installing Toil:
 ```
-CPPFLAGS='-DPYPY_VERSION' pip install toil[all]
+CPPFLAGS='-DPYPY_VERSION' pip install toil[all]==3.24.0
 ```
 
 Finally, to install Cactus, clone it and its submodules from github and install it with pip:
