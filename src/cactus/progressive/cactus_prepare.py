@@ -108,7 +108,7 @@ def cactusPrepare(options, project):
 def get_plan(options, project, outSeqFile):
 
     plan = ''
-    
+
     # preprocessing
     plan += '\n## Preprocessor\n'
     leaves = [outSeqFile.tree.getName(leaf) for leaf in outSeqFile.tree.getLeaves()]
@@ -126,17 +126,56 @@ def get_plan(options, project, outSeqFile):
     events = set(outSeqFile.pathMap.keys()) - set(leaves)
     resolved = set(leaves)
 
+    # convert follow-ons to dependencies
+    follow_on_deps = {}
+    for event in events:
+        fo = schedule.followOn(event)
+        if fo:
+            follow_on_deps[fo] = event
+
+    def get_deps(event):
+        deps = set(schedule.deps(event))
+        if event in follow_on_deps:
+            deps = deps.union(set(follow_on_deps[event]))
+        # I don't know why the schedule doesn't always give the children
+        # todo: understand!
+        try:
+            has_name = outSeqFile.tree.getNodeId(event) is not None
+        except:
+            has_name = False
+        if has_name:
+            for node in outSeqFile.tree.getChildren(outSeqFile.tree.getNodeId(event)):
+                if not outSeqFile.tree.isLeaf(node):
+                    deps.add(outSeqFile.tree.getName(node))
+        return deps
+
+    events_and_virtuals = set()
+    for event in events:
+        events_and_virtuals.add(event)
+        if get_deps(event):
+            events_and_virtuals = events_and_virtuals.union(get_deps(event))
+
     # group jobs into rounds.  where all jobs of round i can be run in parallel
     groups = []
-    while len(events) > 0:
+    while len(events_and_virtuals) > 0:
         group = []
-        for event in events:
-            if all([dep in resolved for dep in schedule.deps(event)]):
-                group.append(event)
+        to_remove = []
+        added = 0
+        for event in events_and_virtuals:
+            if all([dep in resolved for dep in get_deps(event)]):
+                if not schedule.isVirtual(event):
+                    group.append(event)
+                to_remove.append(event)
+                added += 1
+        if added == 0:
+            sys.stderr.write("schedule deadlock:\n")
+            for event in events_and_virtuals:
+                sys.stderr.write("{} has deps {}\b".format(event, get_deps(event)))
+            sys.exit(1)
+        for tr in to_remove:
+            resolved.add(tr)
+            events_and_virtuals.remove(tr)
         groups.append(group)
-        for event in group:
-            resolved.add(event)
-            events.remove(event)
 
     def halPath(event):
         if event == project.mcTree.getRootName():
