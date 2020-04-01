@@ -145,7 +145,7 @@ class TestCase(unittest.TestCase):
 
         # check the output
         self._check_stats(self._out_hal("local"), delta_pct=0.65)
-        self._check_coverage(self._out_hal("local"), delta_pct=0.10)
+        self._check_coverage(self._out_hal("local"), delta_pct=0.20)
 
     def testEvolverDocker(self):
         """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode docker is 
@@ -156,7 +156,7 @@ class TestCase(unittest.TestCase):
 
         # check the output
         self._check_stats(self._out_hal("docker"), delta_pct=0.25)
-        self._check_coverage(self._out_hal("docker"), delta_pct=0.10)
+        self._check_coverage(self._out_hal("docker"), delta_pct=0.20)
 
 if __name__ == '__main__':
     unittest.main()
