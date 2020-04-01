@@ -119,7 +119,7 @@ ${versionPy}:
 evolver_test: all
 	-docker rmi -f evolvertestdocker/cactus:latest
 	docker build --network=host -t evolvertestdocker/cactus:latest . --build-arg CACTUS_COMMIT=${git_commit}
-	PYTHONPATH="" CACTUS_DOCKER_ORG=evolvertestdocker ${PYTHON} -m pytest -s ${pytestOpts} test
+	PYTHONPATH="" CACTUS_DOCKER_ORG=evolvertestdocker ${PYTHON} -m pytest ${pytestOpts} test
 	docker rmi -f evolvertestdocker/cactus:latest
 
 ##
