@@ -155,20 +155,10 @@ Cactus supports running on AWS, Azure, and Google Cloud Platform using [Toil's a
 ### Running step by step (experimental)
 Breaking Cactus up into smaller jobs can be practical, both for development and debugging, and managing larger workflows.  Here is an example of how to break the Evolver Mammals example up into three steps: 1) Preprocessing 2) Blast 3) Multiple Aligment:
 ```
-# setup the output directory
-mkdir -p steps-output
-cactus-prepare examples/evolverMammals.txt steps-output steps-output/evovlerMammals.txt
-
-# run the preprocessing
-cactus-preprocess jobStore examples/evolverMammals.txt steps-output/evovlerMammals.txt
-
-# run the blast pairwise alignment phase
-cactus-blast jobStore steps-output/evovlerMammals.txt steps-output/blast-results --root mr
-
-# set up the Cactus graph using the pairwise alignments, and finish the multiple alignment
-cactus-align jobStore steps-output/evovlerMammals.txt steps-output/blast-results steps-output/mr.hal
-
+cactus-prepare examples/evolverMammals.txt steps-output steps-output/evovlerMammals.txt steps-output/evolverMammals.hal --jobStore jobstore
 ```
+
+It will print the sequence of commands to run the alignment step-by-step.  Blocks of commands within each alignment run can be run in parallel
 
 ## Using the output
 Cactus outputs its alignments in the [HAL](https://github.com/ComparativeGenomicsToolkit/hal) format. This format represents the alignment in a reference-free, indexed way, but isn't readable by many tools. To export a MAF (which by its nature is usually reference-based), you can use the `hal2maf` tool to export the alignment from any particular genome: `hal2maf <hal> --refGenome <reference> <maf>`.
