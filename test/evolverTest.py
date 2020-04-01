@@ -156,7 +156,7 @@ class TestCase(unittest.TestCase):
 
         # check the output
         self._check_stats(self._out_hal("docker"), delta_pct=0.25)
-        self._check_coverage(self._out_hal("docker"), delta_pct=0.05)
+        self._check_coverage(self._out_hal("docker"), delta_pct=0.10)
 
 if __name__ == '__main__':
     unittest.main()
