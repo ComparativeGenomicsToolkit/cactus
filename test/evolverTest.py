@@ -109,15 +109,15 @@ class TestCase(unittest.TestCase):
         """ Compare halStats otuput of given file to baseline 
         """
         # this is just pasted from a successful run.  it will be used to catch serious regressions
-        ground_truth = '''Genome, sitesCovered1Times, sitesCovered2Times
-        simMouse_chr6, 1000000, 0
-        simHuman_chr6, 721276, 4846
-        simCow_chr6, 671888, 7535
-        simDog_chr6, 680661, 4527
-        simRat_chr6, 902624, 6863'''
+        ground_truth = '''Genome, sitesCovered1Times, sitesCovered2Times, sitesCovered3Times
+        simMouse_chr6, 636262, 24981, 567
+        simRat_chr6, 574916, 21476, 1328
+        simHuman_chr6, 459323, 3948, 0
+        simCow_chr6, 427278, 4610, 0
+        simDog_chr6, 433022, 2905, 0'''
 
         # run halCoverage on the evolver output
-        proc = subprocess.Popen(['bin/halCoverage',  halPath, 'simMouse_chr6', '--hdf5InMemory'], stdout=subprocess.PIPE)
+        proc = subprocess.Popen(['bin/halStats',  halPath, '--coverage', 'simMouse_chr6', '--hdf5InMemory'], stdout=subprocess.PIPE)
         output, errors = proc.communicate()
         sts = proc.wait()
         self.assertEqual(sts, 0)
