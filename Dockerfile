@@ -25,23 +25,21 @@ FROM ubuntu:bionic-20200112
 # apt dependencies for runtime
 RUN apt-get update && apt-get install -y --no-install-recommends git python3 python3-pip python3-distutils zlib1g libbz2-1.0 net-tools libhdf5-100 liblzo2-2 libtokyocabinet9
 
-# copy cactus binaries from build image
-COPY --from=builder /home/cactus/bin/* /usr/local/bin/
-
 # copy temporary files for installing cactus
 COPY --from=builder /home/cactus /tmp/cactus
 COPY --from=builder /wheels /wheels
 
+# COPY doesn't support copying shared library symlinks, so have to do it from the copy
+# of everything just made
+RUN cd /tmp/cactus && cp -rP bin /usr/local/
+RUN cd /tmp/cactus && cp -rP lib/*.so* /usr/local/lib/
+
+
 # install the python3 binaries then clean up
-<<<<<<< HEAD
-RUN pip3 install -U pip wheel setuptools && \
-    pip3 install -f /wheels toil[all]==3.24.0 && \
-    pip3 install -f /wheels /tmp/cactus && \
-=======
 RUN python3 -m pip install -U pip wheel setuptools && \
+    python3 -m pip install -f /wheels toil[all]==3.24.0 && \
     python3 -m pip install -f /wheels /tmp/cactus && \
-	 python3 -m pip install -f /wheels /tmp/cactus/submodules/sonLib && \
->>>>>>> docker build now working at ucsc
+    python3 -m pip install -f /wheels /tmp/cactus/submodules/sonLib && \
     rm -rf /wheels /root/.cache/pip/* /tmp/cactus && \
     apt-get remove -y git python3-pip && \
     apt-get auto-remove -y
