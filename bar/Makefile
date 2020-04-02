@@ -4,28 +4,27 @@ include ${rootPath}/include.mk
 libSources = impl/*.c
 libHeaders = inc/*.h
 libTests = tests/*.c
-#${libPath}/stCaf.a
-commonBarLibs =  ${libPath}/stCaf.a ${sonLibPath}/stPinchesAndCacti.a ${libPath}/cactusLib.a ${sonLibPath}/3EdgeConnected.a ${sonLibPath}/cPecanLib.a  
-stBarDependencies =  ${commonBarLibs} ${basicLibsDependencies}
-stBarLibs = ${commonBarLibs} ${basicLibs}
+#${LIBDIR}/stCaf.a
+commonBarLibs =  ${LIBDIR}/stCaf.a ${sonLibDir}/stPinchesAndCacti.a ${LIBDIR}/cactusLib.a ${sonLibDir}/3EdgeConnected.a ${sonLibDir}/cPecanLib.a  
+stBarDependencies =  ${commonBarLibs} ${LIBDEPENDS}
+LDLIBS += ${commonBarLibs} ${sonLibDir}/sonLib.a ${databaseLibs} -lm
 
 all: all_libs all_progs
-all_libs: ${libPath}/cactusBarLib.a
+all_libs: ${LIBDIR}/cactusBarLib.a
 all_progs: all_libs
-	${MAKE} ${binPath}/cactus_bar ${binPath}/cactus_barTests
+	${MAKE} ${BINDIR}/cactus_bar ${BINDIR}/cactus_barTests
 
 clean : 
-	rm -f ${binPath}/cactus_barTests  ${libPath}/cactusBarLib.a
+	rm -f ${BINDIR}/cactus_barTests  ${LIBDIR}/cactusBarLib.a *.o
 
-${binPath}/cactus_bar : cactus_bar.c  ${libPath}/cactusBarLib.a ${stBarDependencies} 
-	${cxx} ${cflags} -I inc -I${libPath} -o ${binPath}/cactus_bar cactus_bar.c ${libPath}/cactusBarLib.a ${stBarLibs}
+${BINDIR}/cactus_bar : cactus_bar.c  ${LIBDIR}/cactusBarLib.a ${stBarDependencies} 
+	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o ${BINDIR}/cactus_bar cactus_bar.c ${LIBDIR}/cactusBarLib.a ${LDLIBS}
 
-${binPath}/cactus_barTests : ${libTests} tests/*.h ${libPath}/cactusBarLib.a ${stBarDependencies}
-	${cxx} ${cflags} -I inc -I${libPath} -Wno-error -o ${binPath}/cactus_barTests ${libTests} ${libPath}/cactusBarLib.a ${stBarLibs}
+${BINDIR}/cactus_barTests : ${libTests} tests/*.h ${LIBDIR}/cactusBarLib.a ${stBarDependencies}
+	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -Wno-error -o ${BINDIR}/cactus_barTests ${libTests} ${LIBDIR}/cactusBarLib.a ${LDLIBS}
 
-${libPath}/cactusBarLib.a : ${libSources} ${libHeaders}
-	${cxx} ${cflags} -I inc -I ${libPath}/ -c ${libSources} 
-	ar rc cactusBarLib.a *.o
-	ranlib cactusBarLib.a 
-	rm *.o
-	mv cactusBarLib.a ${libPath}/
+${LIBDIR}/cactusBarLib.a : ${libSources} ${libHeaders}
+	${CC} ${CPPFLAGS} ${CFLAGS} -c ${libSources} 
+	${AR} rc cactusBarLib.a *.o
+	${RANLIB} cactusBarLib.a 
+	mv cactusBarLib.a ${LIBDIR}/

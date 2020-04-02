@@ -6,6 +6,10 @@ RUN apt-get update && apt-get install -y build-essential git python3 python3-dev
 # build cactus binaries
 RUN mkdir -p /home/cactus
 COPY . /home/cactus
+
+# clean out stuff before build.
+RUN find /home/cactus -name include.local.mk -exec rm -f {} \;
+RUN cd /home/cactus && make clean -j $(nproc)
 RUN cd /home/cactus && make -j $(nproc)
 
 # make the binaries smaller by removing debug symbols 
@@ -13,7 +17,7 @@ RUN cd /home/cactus && strip -d bin/* 2> /dev/null || true
 
 # build cactus python3
 RUN ln -s /usr/bin/python3 /usr/bin/python
-RUN mkdir -p /wheels && cd /wheels && pip3 install -U pip && pip3 wheel toil[all]==3.24.0 && pip3 wheel /home/cactus
+RUN mkdir -p /wheels && cd /wheels && python3 -m pip install -U pip && python3 -m pip wheel toil[all]==3.24.0 && python3 -m pip wheel /home/cactus
 
 # Create a thinner final Docker image in which only the binaries and necessary data exist.
 FROM ubuntu:bionic-20200112
@@ -21,17 +25,21 @@ FROM ubuntu:bionic-20200112
 # apt dependencies for runtime
 RUN apt-get update && apt-get install -y --no-install-recommends git python3 python3-pip python3-distutils zlib1g libbz2-1.0 net-tools libhdf5-100 liblzo2-2 libtokyocabinet9
 
-# copy cactus binaries from build image
-COPY --from=builder /home/cactus/bin/* /usr/local/bin/
-
 # copy temporary files for installing cactus
 COPY --from=builder /home/cactus /tmp/cactus
 COPY --from=builder /wheels /wheels
 
+# COPY doesn't support copying shared library symlinks, so have to do it from the copy
+# of everything just made
+RUN cd /tmp/cactus && cp -rP bin /usr/local/
+RUN cd /tmp/cactus && cp -rP lib/*.so* /usr/local/lib/
+
+
 # install the python3 binaries then clean up
-RUN pip3 install -U pip wheel setuptools && \
-    pip3 install -f /wheels toil[all]==3.24.0 && \
-    pip3 install -f /wheels /tmp/cactus && \
+RUN python3 -m pip install -U pip wheel setuptools && \
+    python3 -m pip install -f /wheels toil[all]==3.24.0 && \
+    python3 -m pip install -f /wheels /tmp/cactus && \
+    python3 -m pip install -f /wheels /tmp/cactus/submodules/sonLib && \
     rm -rf /wheels /root/.cache/pip/* /tmp/cactus && \
     apt-get remove -y git python3-pip && \
     apt-get auto-remove -y

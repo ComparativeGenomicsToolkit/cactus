@@ -1,16 +1,16 @@
 rootPath = ..
 include ${rootPath}/include.mk
 
-cflags += ${tokyoCabinetIncl}
+CFLAGS += ${tokyoCabinetIncl}
 
 all: all_libs all_progs
 all_libs: 
 all_progs: all_libs
-	${MAKE} ${binPath}/cactus_check 
+	${MAKE} ${BINDIR}/cactus_check 
 
-${binPath}/cactus_check : *.c ${libPath}/cactusLib.a ${basicLibsDependencies}
-	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_check cactus_check.c ${libPath}/cactusLib.a ${basicLibs}
+${BINDIR}/cactus_check : *.c ${LIBDIR}/cactusLib.a ${LIBDEPENDS}
+	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o ${BINDIR}/cactus_check cactus_check.c ${LIBDIR}/cactusLib.a ${LDLIBS}
 
 clean :
 	rm -f *.o
-	rm -f ${binPath}/cactus_check 
+	rm -f ${BINDIR}/cactus_check 
