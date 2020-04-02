@@ -773,7 +773,7 @@ def runLastz(seq1, seq2, alignmentsFile, lastzArguments, work_dir=None, lastzCom
     if lastzCommand is None:
         lastzCommand = "cPecanLastz"
     # this is a dirty hack for wga_gpu integration, as it doesn't currently support these
-    if "lastz" in os.path.basename(lastzCommand).lower():    
+    if "lastz" in os.path.basename(lastzCommand).lower():
         seq1 += "[multiple][nameparse=darkspace]"
         seq2 += "[nameparse=darkspace]"
     cactus_call(work_dir=work_dir, outfile=alignmentsFile,
@@ -931,7 +931,7 @@ def setupBinaries(options):
                 else:
                     imgPath = os.path.join(os.path.abspath(locator), "cactus.img")
             os.environ["CACTUS_SINGULARITY_IMG"] = imgPath
-            
+
     os.environ["CACTUS_BINARIES_MODE"] = mode
 
 def importSingularityImage(options):
@@ -958,16 +958,16 @@ def importSingularityImage(options):
             os.chdir(os.path.dirname(imgPath))
             # --size is deprecated starting in 2.4, but is needed for 2.3 support. Keeping it in for now.
             try:
-                check_call(["singularity", "pull", "--size", "2000", "--name", os.path.basename(imgPath),
-                            "docker://" + getDockerImage()])
-            except CalledProcessError:
+                subprocess.check_call(["singularity", "pull", "--size", "2000", "--name", os.path.basename(imgPath),
+                                       "docker://" + getDockerImage()])
+            except subprocess.CalledProcessError:
                 # Call failed, try without --size, required for singularity 3+
-                check_call(["singularity", "pull", "--name", os.path.basename(imgPath),
-                            "docker://" + getDockerImage()])
+                subprocess.check_call(["singularity", "pull", "--name", os.path.basename(imgPath),
+                                       "docker://" + getDockerImage()])
             os.chdir(oldCWD)
         else:
             logger.info("Using pre-built singularity image: '{}'".format(imgPath))
-    
+
 def singularityCommand(tool=None,
                        work_dir=None,
                        parameters=None,
