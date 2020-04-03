@@ -68,6 +68,11 @@ IMPORTANT:  The `--recursive` option is required to download submodules.  If you
 
 IMPORTANT:  It is highly recommend that one **not** run Cactus using the Toil Grid Engine-like batch systems (GridEngine, HTCondor, LSF, SLURM, or Torque).  Cactus creates a very large number of small jobs, which can overwhelm these systems.
 
+### Install Docker or Singularity
+By default, Cactus uses Docker to run its compiled components. It can instead use Singularity to run its binaries, or use a locally installed copy. To select a different way of running the binaries, you can use the `--binariesMode singularity` or `--binariesMode local` options.
+
+Note, you must use Singularity 2.3 - 2.6 or Singularity 3.1.0+. Singularity 3 versions below 3.1.0 are incompatible with cactus (see [issue #55](https://github.com/ComparativeGenomicsToolkit/cactus/issues/55) and [issue #60](https://github.com/ComparativeGenomicsToolkit/cactus/issues/60)).
+
 ### Compile Cactus executables (if not using Docker/Singularity)
 By default Cactus uses containers to distribute its binaries, because compiling its dependencies can sometimes be a pain. If you can use Docker or Singularity, *which we highly recommend*, you can skip this section since all that needs to be installed in that case is the Python workflow as described above. However, in some environments (e.g. HPC clusters) you won't be able to use Docker or Singularity, so you will have to compile the binaries and install a few dependencies. Looking at the [Dockerfile](Dockerfile) itself can serve as a guide for building on Ubuntu. 
 
