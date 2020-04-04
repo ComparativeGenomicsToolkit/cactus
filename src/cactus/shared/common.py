@@ -7,7 +7,6 @@
 
 import os
 import pickle
-import pickle
 import sys
 import shutil
 import subprocess
@@ -21,6 +20,8 @@ import hashlib
 import tempfile
 import timeit
 import math
+import threading
+import traceback
 
 
 from urllib.parse import urlparse
@@ -1403,3 +1404,18 @@ class ChildTreeJob(RoundedJob):
             assert leaves_added == len(self.queuedChildJobs)
 
         return ret
+
+def dumpStacksHandler(signal, frame):
+    """Signal handler to print the stacks of all threads to stderr"""
+    fh = sys.stderr
+    print("###### stack traces {} ######".format(datetime.now().isoformat()), file=fh)
+    id2name = dict([(th.ident, th.name) for th in threading.enumerate()])
+    for threadId, stack in sys._current_frames().items():
+        print("# Thread: {}({})".format(id2name.get(threadId,""), threadId), file=fh)
+        traceback.print_stack(f=stack, file=fh)
+    print("\n", file=fh)
+    fh.flush()
+
+def enableDumpStack(sig=signal.SIGUSR1):
+    """enable dumping stacks when the specified signal is received"""
+    signal.signal(sig, dumpStacksHandler)
