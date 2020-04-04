@@ -3,7 +3,7 @@
 #Released under the MIT license, see LICENSE.txt
 
 """Run the pairwise blast stage only
-   
+
 """
 import os
 from argparse import ArgumentParser
@@ -26,6 +26,7 @@ from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
 from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
 from cactus.pipeline.cactus_workflow import CactusTrimmingBlastPhase
 from cactus.shared.common import makeURL
+from cactus.shared.common import enableDumpStack
 
 from toil.job import Job
 from toil.common import Toil
@@ -70,6 +71,7 @@ def main():
 
     setupBinaries(options)
     setLoggingFromOptions(options)
+    enableDumpStack()
 
     options.database = 'kyoto_tycoon'
 
@@ -101,7 +103,7 @@ def runCactusBlastOnly(options):
             alignmentID = toil.restart()
         else:
             options.cactusDir = getTempDirectory()
-            
+
             #Create the progressive cactus project (as we do in runCactusProgressive)
             projWrapper = ProjectWrapper(options, options.configFile, ignoreSeqPaths=options.root)
             projWrapper.writeXml()
@@ -125,7 +127,7 @@ def runCactusBlastOnly(options):
             experiment = ExperimentWrapper(expXml)
             configPath = experiment.getConfigPath()
             configXml = ET.parse(configPath).getroot()
-            
+
             seqIDMap = dict()
             tree = MultiCactusTree(experiment.getTree()).extractSubTree(options.root)
             leaves = tree.getChildNames(tree.getRootName())
@@ -171,10 +173,10 @@ def runCactusBlastOnly(options):
         # outgroup fragments and coverage are necessary for cactus-align, as the sequence names got changed in the above alignemnts
         for i, outgroupFragmentID in enumerate(outWorkFlowArgs.outgroupFragmentIDs):
             toil.exportFile(outgroupFragmentID, makeURL(options.outputFile) + '.og_fragment_{}'.format(i))
-        # cactus-align can recompute coverage on the fly, but we save them because we have them 
+        # cactus-align can recompute coverage on the fly, but we save them because we have them
         for i, ingroupCoverageID in enumerate(outWorkFlowArgs.ingroupCoverageIDs):
             toil.exportFile(ingroupCoverageID, makeURL(options.outputFile) + '.ig_coverage_{}'.format(i))
-        
-        
+
+
 if __name__ == '__main__':
     main()

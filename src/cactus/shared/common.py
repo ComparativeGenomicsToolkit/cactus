@@ -7,7 +7,6 @@
 
 import os
 import pickle
-import pickle
 import sys
 import shutil
 import subprocess
@@ -21,6 +20,8 @@ import hashlib
 import tempfile
 import timeit
 import math
+import threading
+import traceback
 
 
 from urllib.parse import urlparse
@@ -773,7 +774,7 @@ def runLastz(seq1, seq2, alignmentsFile, lastzArguments, work_dir=None, lastzCom
     if lastzCommand is None:
         lastzCommand = "cPecanLastz"
     # this is a dirty hack for wga_gpu integration, as it doesn't currently support these
-    if "lastz" in os.path.basename(lastzCommand).lower():    
+    if "lastz" in os.path.basename(lastzCommand).lower():
         seq1 += "[multiple][nameparse=darkspace]"
         seq2 += "[nameparse=darkspace]"
     cactus_call(work_dir=work_dir, outfile=alignmentsFile,
@@ -931,7 +932,7 @@ def setupBinaries(options):
                 else:
                     imgPath = os.path.join(os.path.abspath(locator), "cactus.img")
             os.environ["CACTUS_SINGULARITY_IMG"] = imgPath
-            
+
     os.environ["CACTUS_BINARIES_MODE"] = mode
 
 def importSingularityImage(options):
@@ -967,7 +968,7 @@ def importSingularityImage(options):
             os.chdir(oldCWD)
         else:
             logger.info("Using pre-built singularity image: '{}'".format(imgPath))
-    
+
 def singularityCommand(tool=None,
                        work_dir=None,
                        parameters=None,
@@ -1403,3 +1404,18 @@ class ChildTreeJob(RoundedJob):
             assert leaves_added == len(self.queuedChildJobs)
 
         return ret
+
+def dumpStacksHandler(signal, frame):
+    """Signal handler to print the stacks of all threads to stderr"""
+    fh = sys.stderr
+    print("###### stack traces {} ######".format(datetime.now().isoformat()), file=fh)
+    id2name = dict([(th.ident, th.name) for th in threading.enumerate()])
+    for threadId, stack in sys._current_frames().items():
+        print("# Thread: {}({})".format(id2name.get(threadId,""), threadId), file=fh)
+        traceback.print_stack(f=stack, file=fh)
+    print("\n", file=fh)
+    fh.flush()
+
+def enableDumpStack(sig=signal.SIGUSR1):
+    """enable dumping stacks when the specified signal is received"""
+    signal.signal(sig, dumpStacksHandler)

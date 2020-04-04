@@ -33,6 +33,7 @@ from cactus.shared.common import RoundedJob
 from cactus.shared.common import getDockerImage
 from cactus.shared.version import cactus_commit
 from cactus.shared.common import cactusRootPath
+from cactus.shared.common import enableDumpStack
 
 from toil.job import Job
 from toil.common import Toil
@@ -363,6 +364,7 @@ def main():
 
     setupBinaries(options)
     setLoggingFromOptions(options)
+    enableDumpStack()
 
     # cactus doesn't run with 1 core
     if options.batchSystem == 'singleMachine':
@@ -372,8 +374,8 @@ def main():
         else:
             # is there a way to get this out of Toil?  That would be more consistent
             if multiprocessing.cpu_count() < 2:
-                raise RuntimeError('Only 1 CPU detected.  Cactus requires at least 2')        
-    
+                raise RuntimeError('Only 1 CPU detected.  Cactus requires at least 2')
+
     # tokyo_cabinet is no longer supported
     options.database = "kyoto_tycoon"
 
@@ -410,7 +412,7 @@ def runCactusProgressive(options):
         if options.restart:
             halID = toil.restart()
         else:
-            
+
             options.cactusDir = getTempDirectory()
             #Create the progressive cactus project
             projWrapper = ProjectWrapper(options, options.configFile)

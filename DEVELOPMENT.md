@@ -35,3 +35,11 @@ This should not be committed.
     make docker
     export CACTUS_USE_LOCAL_IMAGE=1
     make test
+
+## Debugging hints
+   - The main Cactus Python process will print out a stack trace of all of the Python
+     threads if sent a SIGUSR1 signal.  They will then continue execution.  This
+     maybe useful in determining the state of cactus.
+   
+   
+

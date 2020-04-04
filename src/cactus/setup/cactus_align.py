@@ -3,7 +3,7 @@
 #Released under the MIT license, see LICENSE.txt
 
 """Run the multiple alignment on pairwise alignment input (ie cactus_setup_phase and beyond)
-   
+
 """
 import os
 from argparse import ArgumentParser
@@ -30,6 +30,7 @@ from cactus.pipeline.cactus_workflow import CactusSetupCheckpoint
 from cactus.pipeline.cactus_workflow import prependUniqueIDs
 from cactus.blast.blast import calculateCoverage
 from cactus.shared.common import makeURL
+from cactus.shared.common import enableDumpStack
 from toil.realtimeLogger import RealtimeLogger
 
 from toil.job import Job
@@ -72,12 +73,13 @@ def main():
 
     setupBinaries(options)
     setLoggingFromOptions(options)
+    enableDumpStack()
 
     options.database = 'kyoto_tycoon'
 
     options.buildHal = True
     options.buildFasta = True
-    
+
     # Mess with some toil options to create useful defaults.
 
     # Caching generally slows down the cactus workflow, plus some
@@ -106,7 +108,7 @@ def runCactusAfterBlastOnly(options):
             alignmentID = toil.restart()
         else:
             options.cactusDir = getTempDirectory()
-            
+
             #Create the progressive cactus project (as we do in runCactusProgressive)
             projWrapper = ProjectWrapper(options, options.configFile, ignoreSeqPaths=options.root)
             projWrapper.writeXml()
@@ -129,7 +131,7 @@ def runCactusAfterBlastOnly(options):
             experiment = ExperimentWrapper(expXml)
             configPath = experiment.getConfigPath()
             configXml = ET.parse(configPath).getroot()
-            
+
             seqIDMap = dict()
             tree = MultiCactusTree(experiment.getTree()).extractSubTree(options.root)
             leaves = [tree.getName(leaf) for leaf in tree.getLeaves()]
@@ -159,12 +161,12 @@ def runCactusAfterBlastOnly(options):
                         catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
                         seq = tmpSeq
                     seq = makeURL(seq)
-                    
+
                     experiment.setSequenceID(genome, toil.importFile(seq))
-                    
+
             if not cactus_blast_input:
                 outgroupIDs = [experiment.getSequenceID(outgroup) for outgroup in outgroups]
-    
+
             # write back the experiment, as CactusWorkflowArguments wants a path
             experiment.writeXML(experimentFile)
 
@@ -178,8 +180,8 @@ def runCactusAfterBlastOnly(options):
             project.syncToFileStore(toil)
             configNode = ET.parse(project.getConfigPath()).getroot()
             configWrapper = ConfigWrapper(configNode)
-            configWrapper.substituteAllPredefinedConstantsWithLiterals()            
-            
+            configWrapper.substituteAllPredefinedConstantsWithLiterals()
+
             workFlowArgs = CactusWorkflowArguments(options, experimentFile=experimentFile, configNode=configNode, seqIDMap = project.inputSequenceIDMap)
 
             #import the files that cactus-blast made
@@ -198,7 +200,7 @@ def runCactusAfterBlastOnly(options):
 
         # export the hal
         toil.exportFile(halID, makeURL(options.outputHal))
-        
+
 def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, cactus_blast_input):
 
     if cactus_blast_input:
@@ -209,8 +211,8 @@ def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, cactu
     else:
         # we only have cigar input, so compute the ingroup coverage bed files now
         first_job = job.addChildJobFn(run_ingroup_coverage, cactusWorkflowArguments, project)
-    cactusWorkflowArguments = first_job.rv()        
-    
+    cactusWorkflowArguments = first_job.rv()
+
     # run cactus setup all the way through cactus2hal generation
     setup_job = first_job.addFollowOnJobFn(run_setup_phase, cactusWorkflowArguments)
 
@@ -259,7 +261,7 @@ def run_ingroup_coverage(job, cactusWorkflowArguments, project):
         calculateCoverage(sequence, cigar, coverage_path, fromGenome=outgroups, work_dir=work_dir)
         cactusWorkflowArguments.ingroupCoverageIDs.append(job.fileStore.writeGlobalFile(coverage_path))
     return cactusWorkflowArguments
-    
+
 def run_setup_phase(job, cactusWorkflowArguments):
     # needs to be its own job to resovolve the workflowargument promise
     return job.addChild(CactusSetupCheckpoint(cactusWorkflowArguments=cactusWorkflowArguments, phaseName="setup")).rv()
@@ -272,7 +274,7 @@ def run_prepare_hal_export(job, project, experiment):
     project.expMap = {event : experiment}
     project.expIDMap = {event : job.fileStore.writeGlobalFile(exp_path)}
     return project, event
-    
+
 
 if __name__ == '__main__':
     main()

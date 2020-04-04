@@ -2,8 +2,8 @@
 
 #Released under the MIT license, see LICENSE.txt
 
-"""Set up a given seqfile to include proprocessed/ancestral sequences, as well as to 
-   
+"""Set up a given seqfile to include proprocessed/ancestral sequences, as well as to
+
 """
 import os
 from argparse import ArgumentParser
@@ -16,6 +16,7 @@ from operator import itemgetter
 from cactus.progressive.seqFile import SeqFile
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.common import cactusRootPath
+from cactus.shared.common import enableDumpStack
 from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.configWrapper import ConfigWrapper
@@ -40,23 +41,24 @@ def main():
     options.root = None
 
     # need to go through this garbage (copied from the main() in progressive_cactus) to
-    # come up with the project    
+    # come up with the project
     options.cactusDir = getTempDirectory()
     #Create the progressive cactus project
     projWrapper = ProjectWrapper(options, options.configFile)
     projWrapper.writeXml()
-    
+
     pjPath = os.path.join(options.cactusDir, ProjectWrapper.alignmentDirName,
                           '%s_project.xml' % ProjectWrapper.alignmentDirName)
     assert os.path.exists(pjPath)
-    
+
     project = MultiCactusProject()
-    
+
     if not os.path.isdir(options.cactusDir):
         os.makedirs(options.cactusDir)
-        
+
     project.readXML(pjPath)
 
+    enableDumpStack()
     cactusPrepare(options, project)
 
 def cactusPrepare(options, project):
@@ -100,7 +102,7 @@ def cactusPrepare(options, project):
     # write the output
     with open(options.outSeqFile, 'w') as out_sf:
         out_sf.write(str(outSeqFile))
-        
+
 
     # write the instructions
     print(get_plan(options, project, outSeqFile))
@@ -184,7 +186,7 @@ def get_plan(options, project, outSeqFile):
             return os.path.join(options.outSeqDir, event + '.hal')
     def cigarPath(event):
         return os.path.join(options.outSeqDir, event + '.cigar')
-    
+
     # alignment groups
     plan += '\n## Alignment\n'
     for i, group in enumerate(groups):

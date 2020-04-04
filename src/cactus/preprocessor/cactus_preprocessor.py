@@ -27,6 +27,7 @@ from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.seqFile import SeqFile
 from cactus.shared.common import setupBinaries, importSingularityImage
+from cactus.shared.common import enableDumpStack
 from toil.lib.bioio import setLoggingFromOptions
 
 from cactus.preprocessor.checkUniqueHeaders import checkUniqueHeaders
@@ -301,7 +302,8 @@ def main():
     options = parser.parse_args()
     setupBinaries(options)
     setLoggingFromOptions(options)
-    
+    enableDumpStack()
+
     inSeqFile = SeqFile(options.seqFile)
     outSeqFile = SeqFile(options.outSeqFile)
 
@@ -311,7 +313,7 @@ def main():
 
     inSeqPaths = []
     outSeqPaths = []
-    
+
     for inName in inNames:
         if inName not in inSeqFile.pathMap or inName not in outSeqFile.pathMap:
             raise RuntimeError('{} not present in input and output Seq files'.format(inNmae))
