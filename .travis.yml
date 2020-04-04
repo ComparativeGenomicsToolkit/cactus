@@ -17,7 +17,7 @@ before_install:
     fi
   - |
     if [[ ! -z "$SON_TRACE_DATASETS" ]]; then
-       git clone https://github.com/UCSantaCruzComputationalGenomicsLab/cactusTestData
+       git clone https://github.com/ComparativeGenomicsToolkit/cactusTestData
     fi
 
   # Push docker containers. We skip this on PR builds because Travis
