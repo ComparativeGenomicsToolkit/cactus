@@ -19,7 +19,7 @@ This should not be committed.
 
 ## Environment variables controlling tests
 - SON_TRACE_DATASETS location of test data set, currently available with
-    git clone https://github.com/UCSantaCruzComputationalGenomicsLab/cactusTestData
+    git clone https://github.com/ComparativeGenomicsToolkit/cactusTestData
 
 - SONLIB_TEST_LENGTH  filters tests by maximum run time length category (case-insensitive)
   - SHORT - tests taking less than ~10 seconds, with some exceptions <default>
