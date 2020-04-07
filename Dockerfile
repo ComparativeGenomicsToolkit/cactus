@@ -29,10 +29,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends git python3 pyt
 COPY --from=builder /home/cactus /tmp/cactus
 COPY --from=builder /wheels /wheels
 
-# COPY doesn't support copying shared library symlinks, so have to do it from the copy
-# of everything just made
 RUN cd /tmp/cactus && cp -rP bin /usr/local/
-RUN cd /tmp/cactus && cp -rP lib/*.so* /usr/local/lib/
 
 
 # install the python3 binaries then clean up
