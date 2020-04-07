@@ -224,3 +224,10 @@ class ConfigWrapper:
         for node in self.xmlRoot.findall("preprocessor"):
             if 'checkAssemblyHub' in node.attrib:
                 node.attrib['checkAssemblyHub'] = '0'
+
+    def removePreprocessors(self):
+        """Remove all preprocessor elements """
+        for node in self.xmlRoot.findall("preprocessor"):
+            self.xmlRoot.remove(node)
+
+        

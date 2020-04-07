@@ -34,6 +34,7 @@ def main():
     parser.add_argument("--jobStore", type=str, default="$JOBSTORE", help="jobstore to use in suggested commands")
     parser.add_argument("--halOptions", type=str, default="--hdf5InMemory", help="options for every hal command")
     parser.add_argument("--cactusOptions", type=str, default="--realTimeLogging --logInfo", help="options for every cactus command")
+    parser.add_argument("--preprocessOnly", action="store_true", help="only decompose into preprocessor and cactus jobs")
 
     options = parser.parse_args()
     options.database = 'kyoto_tycoon'
@@ -80,6 +81,17 @@ def cactusPrepare(options, project):
     if not os.access(options.outSeqDir, os.W_OK):
         logger.warning('Output sequence directory is not writeable: \'{}\''.format(options.outSeqDir))
 
+    # hack the configfile to skip preprocessing and write it to the output dir
+    if options.preprocessOnly:
+        config.removePreprocessors()
+        options.configFile = os.path.join(options.outSeqDir, 'config.xml')
+        config.writeXML(options.configFile)
+        
+    # pass through the config file to the options
+    # todo (don't like second hard-code check of .xml path)
+    if options.configFile != os.path.join(cactusRootPath(), "cactus_progressive_config.xml"):
+        options.cactusOptions += ' --configFile {}'.format(options.configFile)
+
     # get the ancestor names
     tree = MultiCactusTree(seqFile.tree)
     tree.nameUnlabeledInternalNodes(prefix = config.getDefaultInternalNodePrefix())
@@ -91,18 +103,16 @@ def cactusPrepare(options, project):
     outSeqFile.outgroups = seqFile.outgroups
 
     # update paths for preprocessed leaves or inferred ancestors
-    preprocess = len(configNode.findall('preprocessor')) > 0
     for node in outSeqFile.tree.breadthFirstTraversal():
         name = outSeqFile.tree.getName(node)
         leaf = outSeqFile.tree.isLeaf(node)
-        if (leaf and preprocess) or (not leaf and name not in seqFile.pathMap):
+        if leaf or (not leaf and name not in seqFile.pathMap and not options.preprocessOnly):
             out_basename = seqFile.pathMap[name] if name in seqFile.pathMap else '{}.fa'.format(name)
             outSeqFile.pathMap[name] = os.path.join(options.outSeqDir, os.path.basename(out_basename))
 
     # write the output
     with open(options.outSeqFile, 'w') as out_sf:
         out_sf.write(str(outSeqFile))
-
 
     # write the instructions
     print(get_plan(options, project, outSeqFile))
@@ -118,6 +128,13 @@ def get_plan(options, project, outSeqFile):
         pre_batch = leaves[i:i+options.preprocessBatchSize]
         plan += 'cactus-preprocess {} {} {} --inputNames {} --realTimeLogging --logInfo\n'.format(
             options.jobStore, options.seqFile, options.outSeqFile, ' '.join(pre_batch))
+
+    if options.preprocessOnly:
+        # if we're only making preprocess jobs, we can end early
+        plan += '\n## Cactus\n'
+        plan += 'cactus {} {} {} {}\n'.format(options.jobStore, options.outSeqFile,
+                                              options.outputHal, options.cactusOptions)
+        return plan
 
     # shedule up the alignments
     schedule = Schedule()
