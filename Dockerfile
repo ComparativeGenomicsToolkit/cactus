@@ -17,7 +17,7 @@ RUN cd /home/cactus && strip -d bin/* 2> /dev/null || true
 
 # build cactus python3
 RUN ln -s /usr/bin/python3 /usr/bin/python
-RUN mkdir -p /wheels && cd /wheels && python3 -m pip install -U pip && python3 -m pip wheel toil[all]==3.24.0 && python3 -m pip wheel /home/cactus
+RUN mkdir -p /wheels && cd /wheels && python3 -m pip install -U pip && python3 -m pip wheel -r /home/cactus/toil-requirement.txt && python3 -m pip wheel /home/cactus
 
 # Create a thinner final Docker image in which only the binaries and necessary data exist.
 FROM ubuntu:bionic-20200112
@@ -29,19 +29,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends git python3 pyt
 COPY --from=builder /home/cactus /tmp/cactus
 COPY --from=builder /wheels /wheels
 
+# install the cactus binaries
 RUN cd /tmp/cactus && cp -rP bin /usr/local/
-
 
 # install the python3 binaries then clean up
 RUN python3 -m pip install -U pip wheel setuptools && \
-    python3 -m pip install -f /wheels toil[all]==3.24.0 && \
+    python3 -m pip install -f /wheels -r /tmp/cactus/toil-requirement.txt && \
     python3 -m pip install -f /wheels /tmp/cactus && \
-    python3 -m pip install -f /wheels /tmp/cactus/submodules/sonLib && \
     rm -rf /wheels /root/.cache/pip/* /tmp/cactus && \
     apt-get remove -y git python3-pip && \
     apt-get auto-remove -y
 
-# wrapper.sh is used when running using the docker image with --binariesMode local
+# wrapper.sh is used when running using the docker image with --binariesMode docker
 RUN mkdir /opt/cactus/
 COPY runtime/wrapper.sh /opt/cactus/
 RUN chmod 777 /opt/cactus/wrapper.sh

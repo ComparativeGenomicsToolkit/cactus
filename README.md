@@ -48,14 +48,14 @@ You can always exit out of the virtualenv by running `deactivate`. The rest of t
 Cactus uses [Toil](http://toil.ucsc-cgl.org/) to coordinate its jobs. To install Toil into your environment, run:
 ```
 pip install --upgrade setuptools pip
-pip install --upgrade toil[all]==3.24.0
+pip install --upgrade -r toil-requirement.txt
 ```
 
 Note that if you are using Python 3.7, there is an issued that caused the
 Toil dependency package *http_parser* C code to fail to compile.  This is easily worked
 around by setting an environment variable before installing Toil:
 ```
-CPPFLAGS='-DPYPY_VERSION' pip install toil[all]==3.24.0
+CPPFLAGS='-DPYPY_VERSION' pip install -r toil-requirement.txt
 ```
 
 Finally, to install Cactus, clone it and its submodules from github and install it with pip:
@@ -111,12 +111,23 @@ cactus jobStore examples/evolverMammals.txt examples/evolverMammals.hal --root m
 ```
 
 Within an hour at most (on modern computers), you should have a [HAL](https://github.com/ComparativeGenomicsToolkit/hal) file which relates simulated mouse and rat genomes.
-### Choosing how to run the Cactus binaries (Docker/Singularity/local)
-By default, Cactus uses Docker to run its compiled components (to avoid making you install dependencies). It can instead use Singularity to run its binaries, or use a locally installed copy. To select a different way of running the binaries, you can use the `--binariesMode singularity` or `--binariesMode local` options. (If running using local binaries, you will need to make sure cactus's bin directory is in your `PATH`.)
 
-You can also run Cactus directly from Docker:
+### Choosing how to run the Cactus binaries (Docker/Singularity/local)
+
+If Docker is installed, and no local binaries are found, Cacus will use Docker to run its compiled components.  To do this it will attempt to find the image with the tag matching the current git commit from https://quay.io/repository/comparative-genomics-toolkit/cactus?tab=tags and run it as needed.
+
+To run the binaries locally, build them with `make` and add cactus's bin directory to your `PATH`.  Cactus will use them automatically if found:
+```
+export PATH=$(pwd)/bin:$PATH
+```
+
+The `--binariesMode` option can force Cactus to use either `local`, `docker` or `singularity` binaries. 
+
+You can also run Cactus directly from Docker the docker image (as opposed to using it only for compiled binaries).  To do this you do not need to clone the cactus repo, install toil, make a virtualenv or anything else.  Simply run as follows (note this example assumes the `cactus/examples` folder from the git repo is available:
 ```
 docker run -v $(pwd)/examples:/data/examples --rm -it quay.io/comparative-genomics-toolkit/cactus:latest cactus jobStore /data/examples/evolverMammals.txt /data/examples/evolverMammals.hal --root mr --binariesMode local
+
+**Note** We don't currently have a system of tagging and releasing docker images.  Unfortunately, the latest tag may point to a development branch.  
 ```
 
 ### seqFile: the input file

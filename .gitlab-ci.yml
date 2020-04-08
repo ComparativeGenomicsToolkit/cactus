@@ -20,11 +20,11 @@ test-job:
   stage: test
   script:
     - git submodule update --init --recursive
-    - virtualenv -p python3.6 venv
+    - virtualenv -p python3 venv
     - source venv/bin/activate
-    - pip install toil==3.24.0
+    - pip install -r toil-requirement.txt
     - pip install -U .
-    - make -j 4 evolver_test
+    - make -j $(nproc) evolver_test
   artifacts:
     # Let Gitlab see the junit report
     #reports:
