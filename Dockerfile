@@ -17,7 +17,7 @@ RUN cd /home/cactus && strip -d bin/* 2> /dev/null || true
 
 # build cactus python3
 RUN ln -s /usr/bin/python3 /usr/bin/python
-RUN mkdir -p /wheels && cd /wheels && python3 -m pip install -U pip && python3 -m pip wheel toil[all]==4.0.0 && python3 -m pip wheel /home/cactus
+RUN mkdir -p /wheels && cd /wheels && python3 -m pip install -U pip && python3 -m pip wheel -r /home/cactus/toil-requirement.txt && python3 -m pip wheel /home/cactus
 
 # Create a thinner final Docker image in which only the binaries and necessary data exist.
 FROM ubuntu:bionic-20200112
@@ -34,7 +34,7 @@ RUN cd /tmp/cactus && cp -rP bin /usr/local/
 
 # install the python3 binaries then clean up
 RUN python3 -m pip install -U pip wheel setuptools && \
-    python3 -m pip install -f /wheels toil[all]==4.0.0 && \
+    python3 -m pip install -f /wheels -r /tmp/cactus/toil-requirement.txt && \
     python3 -m pip install -f /wheels /tmp/cactus && \
     rm -rf /wheels /root/.cache/pip/* /tmp/cactus && \
     apt-get remove -y git python3-pip && \

@@ -22,7 +22,7 @@ test-job:
     - git submodule update --init --recursive
     - virtualenv -p python3 venv
     - source venv/bin/activate
-    - pip install toil==4.0.0
+    - pip install -r toil-requirement.txt
     - pip install -U .
     - make -j $(nproc) evolver_test
   artifacts:

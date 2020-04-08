@@ -33,7 +33,7 @@ before_install:
     fi
 script:
 # install toil / cactus
-  - pip install toil==4.0.0
+  - pip install -r toil-requirement.txt
   - pip install -U .
   - if [[ "$CACTUS_TEST_CHOICE" == "normal" ]]; then export MAKE_TARGET=test_nonblast; fi
   - if [[ "$CACTUS_TEST_CHOICE" == "blast" ]]; then export MAKE_TARGET=test_blast; fi
