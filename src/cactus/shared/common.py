@@ -1226,10 +1226,11 @@ def cactus_call(tool=None,
     memUsage = 0
     first_run = True
     start_time = time.time()
+    output = stderr = None  # used later to report errors
     while True:
         try:
             # Wait a bit to see if the process is done
-            output, nothing = process.communicate(stdin_string if first_run else None, timeout=10)
+            output, stderr = process.communicate(stdin_string if first_run else None, timeout=10)
         except subprocess.TimeoutExpired:
             if mode == "docker":
                 # Every so often, check the memory usage of the container
@@ -1258,7 +1259,13 @@ def cactus_call(tool=None,
         return process.returncode
 
     if process.returncode != 0:
-        raise RuntimeError("Command %s failed with output: %s" % (call, output))
+        out = "stdout={}".format(output)
+        if swallowStdErr:
+            out += ", stderr={}".format(stderr)
+        if process.returncode > 0:
+            raise RuntimeError("Command {} exited {}: {}".format(call, process.returncode, out))
+        else:
+            raise RuntimeError("Command {} signaled {}: {}".format(call, signal.Signals(-process.returncode).name, out))
 
     if check_output:
         return output
