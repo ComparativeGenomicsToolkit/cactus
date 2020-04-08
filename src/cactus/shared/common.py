@@ -1171,7 +1171,7 @@ def cactus_call(tool=None,
         tool = "cactus"
 
     entrypoint = None
-    if len(parameters) > 0 and type(parameters[0]) is list:
+    if (len(parameters) > 0) and isinstance(parameters[0], list):
         # We have a list of lists, which is the convention for commands piped into one another.
         flattened = [i for sublist in parameters for i in sublist]
         chain_params = [' '.join(p) for p in [list(map(pipes.quote, q)) for q in parameters]]
