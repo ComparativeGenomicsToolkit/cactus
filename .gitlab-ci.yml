@@ -24,7 +24,7 @@ test-job:
     - source venv/bin/activate
     - pip install -r toil-requirement.txt
     - pip install -U .
-    - make -j $(nproc) evolver_test
+    - make -j 8 evolver_test
   artifacts:
     # Let Gitlab see the junit report
     #reports:

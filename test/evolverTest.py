@@ -27,7 +27,8 @@ class TestCase(unittest.TestCase):
         # todo: it'd be nice to have an interface for setting tag to something not latest or commit
         if binariesMode == 'docker':
             cmd += ['--latest']
-            
+
+        sys.stderr.write('Running {}'.format(' '.format(cmd)))
         subprocess.check_call(' '.join(cmd), shell=True)
 
     def _run_evolver_decomposed(self, binariesMode):
@@ -46,6 +47,7 @@ class TestCase(unittest.TestCase):
         for line in job_plan.split('\n'):
             line = line.strip()
             if len(line) > 0 and not line.startswith('#'):
+                sys.stderr.write('Running {}'.format(line))
                 subprocess.check_call(line, shell=True)
 
     def _csvstr_to_table(self, csvstr, header_fields):
