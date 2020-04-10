@@ -126,8 +126,9 @@ def get_plan(options, project, outSeqFile):
     leaves = [outSeqFile.tree.getName(leaf) for leaf in outSeqFile.tree.getLeaves()]
     for i in range(0, len(leaves), options.preprocessBatchSize):
         pre_batch = leaves[i:i+options.preprocessBatchSize]
-        plan += 'cactus-preprocess {} {} {} --inputNames {} --realTimeLogging --logInfo\n'.format(
-            options.jobStore, options.seqFile, options.outSeqFile, ' '.join(pre_batch))
+        plan += 'cactus-preprocess {} {} {} --inputNames {} {}\n'.format(
+            options.jobStore, options.seqFile, options.outSeqFile, ' '.join(pre_batch),
+            options.cactusOptions)
 
     if options.preprocessOnly:
         # if we're only making preprocess jobs, we can end early
