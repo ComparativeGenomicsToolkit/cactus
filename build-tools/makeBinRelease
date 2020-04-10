@@ -1,0 +1,51 @@
+#!/bin/bash
+# Generate release tar file static-compiled binaries 
+# Must be run after tree is tagged and pushed to master.
+
+set -x
+set -beEu -o pipefail
+mydir=$(dirname $(which $0))
+source ${mydir}/releaseLib.sh
+
+buildDir=$(realpath -m build)
+binBuildDir="${buildDir}/bin-tmp"
+
+rm -rf ${binBuildDir}
+mkdir -p ${binBuildDir}
+cd ${binBuildDir}
+git clone --recursive https://github.com/ComparativeGenomicsToolkit/cactus.git
+cd cactus
+git fetch --tags origin
+
+REL_TAG=$(getLatestReleaseTag)
+git checkout "${REL_TAG}"
+git submodule update --init --recursive
+
+
+# There was a recomendation of using -march=nehalem increases portability,
+# however this is not recognized by GCC 4.8
+
+make -j $(nproc) static
+
+binPackageDir=cactus-bin-${REL_TAG}
+mkdir ${binPackageDir}
+cd ${binPackageDir}
+virtualenv -p ${PYTHON} venv
+source venv/bin/activate
+mkdir wheels
+cd wheels
+${PIP} install -U pip
+${PIP} wheel ../..
+cd ..
+deactivate
+rm -rf venv
+cp -r ../bin ../src ../examples .
+cp ../*.md ../*.py ../*.txt .
+# needed for pip install
+mkdir submodules
+cp -r ../submodules/sonLib submodules/
+cp -r ../.git .
+strip -d bin/* 2> /dev/null || true
+cd ..
+tar -czf ${buildDir}/cactus-bin-${REL_TAG}.tar.gz ${binPackageDir}
+rm -Rf ${binBuildDir}

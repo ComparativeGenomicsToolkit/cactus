@@ -1,0 +1,27 @@
+#!/bin/bash
+# Generate release tar file of source
+# Must be run after tree is tagged and pushed to master.
+
+set -x
+set -beEu -o pipefail
+mydir=$(dirname $(which $0))
+source ${mydir}/releaseLib.sh
+
+buildDir=$(realpath -m build)
+srcBuildDir="${buildDir}/src-tmp"
+
+rm -rf ${srcBuildDir}
+mkdir -p ${srcBuildDir}
+cd ${srcBuildDir}
+git clone --recursive https://github.com/ComparativeGenomicsToolkit/cactus.git
+cd cactus
+git fetch --tags origin
+
+REL_TAG=$(getLatestReleaseTag)
+git checkout "${REL_TAG}"
+git submodule update --init --recursive
+find submodules -name ".git" -exec rm -Rf "{}" \;
+cd ..
+mv cactus cactus-${REL_TAG}
+tar -czf ${buildDir}/cactus-${REL_TAG}.tar.gz cactus-${REL_TAG}
+rm -Rf ${srcBuildDir}
