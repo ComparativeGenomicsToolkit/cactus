@@ -30,6 +30,7 @@ make -j $(nproc) static
 binPackageDir=cactus-bin-${REL_TAG}
 mkdir ${binPackageDir}
 cd ${binPackageDir}
+cp ${binBuildDir}/cactus/BIN-INSTALL.md .
 virtualenv -p ${PYTHON} venv
 source venv/bin/activate
 mkdir wheels

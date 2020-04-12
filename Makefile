@@ -133,7 +133,7 @@ evolver_test: all
 # clean targets
 ##
 selfClean: ${modules:%=clean.%}
-	rm -rf include lib bin libexec ${versionPy} ${testOutDir} testTCDatabase
+	rm -rf include lib bin libexec ${versionPy} ${testOutDir} testTCDatabase build
 
 clean.%:
 	cd $* && ${MAKE} clean
