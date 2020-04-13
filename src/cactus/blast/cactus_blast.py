@@ -166,7 +166,6 @@ def runCactusBlastOnly(options):
 
         # export the alignments
         toil.exportFile(outWorkFlowArgs.alignmentsID, makeURL(options.outputFile))
-        outWorkFlowArgs.experimentWrapper.writeXML(options.outputFile + '.exp.xml')
         # optional secondary alignments
         if outWorkFlowArgs.secondaryAlignmentsID:
             toil.exportFile(outWorkFlowArgs.secondaryAlignmentsID, makeURL(options.outputFile) + '.secondary')
