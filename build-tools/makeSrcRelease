@@ -1,15 +1,21 @@
 #!/bin/bash
 # Generate release tar file of source
 # Must be run after tree is tagged and pushed to master.
+# Use --keep to keep working directory for debugging.
 
-set -x
 set -beEu -o pipefail
 mydir=$(dirname $(which $0))
 source ${mydir}/releaseLib.sh
 
+keep=no
+if [ $1 = '--keep' ] ; then
+    keep=yes
+fi
+
 buildDir=$(realpath -m build)
 srcBuildDir="${buildDir}/src-tmp"
 
+set -x
 rm -rf ${srcBuildDir}
 mkdir -p ${srcBuildDir}
 cd ${srcBuildDir}
@@ -24,4 +30,6 @@ find submodules -name ".git" -exec rm -Rf "{}" \;
 cd ..
 mv cactus cactus-${REL_TAG}
 tar -czf ${buildDir}/cactus-${REL_TAG}.tar.gz cactus-${REL_TAG}
-rm -Rf ${srcBuildDir}
+if [ "$keep" = "no" ] ; then
+    rm -Rf ${srcBuildDir}
+fi

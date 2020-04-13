@@ -1,15 +1,21 @@
 #!/bin/bash
 # Generate release tar file static-compiled binaries 
 # Must be run after tree is tagged and pushed to master.
+# Use --keep to keep working directory for debugging.
 
-set -x
 set -beEu -o pipefail
 mydir=$(dirname $(which $0))
 source ${mydir}/releaseLib.sh
 
+keep=no
+if [ $1 = '--keep' ] ; then
+    keep=yes
+fi
+
 buildDir=$(realpath -m build)
 binBuildDir="${buildDir}/bin-tmp"
 
+set -x
 rm -rf ${binBuildDir}
 mkdir -p ${binBuildDir}
 cd ${binBuildDir}
@@ -28,18 +34,17 @@ git submodule update --init --recursive
 make -j $(nproc) static
 
 binPackageDir=cactus-bin-${REL_TAG}
+virtualenv -p ${PYTHON} venv
+source venv/bin/activate
 mkdir ${binPackageDir}
 cd ${binPackageDir}
 cp ${binBuildDir}/cactus/BIN-INSTALL.md .
-virtualenv -p ${PYTHON} venv
-source venv/bin/activate
 mkdir wheels
 cd wheels
 ${PIP} install -U pip
-${PIP} wheel ../..
+${PIP} wheel --no-deps ../..
 cd ..
 deactivate
-rm -rf venv
 cp -r ../bin ../src ../examples .
 cp ../*.md ../*.py ../*.txt .
 # needed for pip install
@@ -49,4 +54,6 @@ cp -r ../.git .
 strip -d bin/* 2> /dev/null || true
 cd ..
 tar -czf ${buildDir}/cactus-bin-${REL_TAG}.tar.gz ${binPackageDir}
-rm -Rf ${binBuildDir}
+if [ "$keep" = "no" ] ; then
+    rm -Rf ${binBuildDir}
+fi
