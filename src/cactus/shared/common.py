@@ -85,7 +85,13 @@ def getOptionalAttrib(node, attribName, typeFn=None, default=None):
     if node != None and attribName in node.attrib:
         if typeFn != None:
             if typeFn == bool:
-                return bool(int(node.attrib[attribName]))
+                aname = node.attrib[attribName].lower()
+                if aname == 'false':
+                    return False
+                elif aname == 'true':
+                    return True
+                else:
+                    return bool(int(node.attrib[attribName]))
             return typeFn(node.attrib[attribName])
         return node.attrib[attribName]
     return default
@@ -767,21 +773,21 @@ def runToilStats(toil, outputFile):
     system("toil stats %s --outputFile %s" % (toil, outputFile))
     logger.info("Ran the job-tree stats command apparently okay")
 
-def runLastz(seq1, seq2, alignmentsFile, lastzArguments, work_dir=None, lastzCommand=None):
+def runLastz(seq1, seq2, alignmentsFile, lastzArguments, work_dir=None, gpuLastz=False):
     if work_dir is None:
         assert os.path.dirname(seq1) == os.path.dirname(seq2)
         work_dir = os.path.dirname(seq1)
-    if lastzCommand is None:
+    if gpuLastz == True:
+        lastzCommand = "run_wga_gpu"
+    else:
         lastzCommand = "cPecanLastz"
-    # this is a dirty hack for wga_gpu integration, as it doesn't currently support these
-    if "lastz" in os.path.basename(lastzCommand).lower():
         seq1 += "[multiple][nameparse=darkspace]"
         seq2 += "[nameparse=darkspace]"
     cactus_call(work_dir=work_dir, outfile=alignmentsFile,
                 parameters=[lastzCommand, seq1, seq2, "--format=cigar", "--notrivial"] + lastzArguments.split())
 
-def runSelfLastz(seq, alignmentsFile, lastzArguments, work_dir=None, lastzCommand=None):
-    return runLastz(seq, seq, alignmentsFile, lastzArguments, work_dir, lastzCommand)
+def runSelfLastz(seq, alignmentsFile, lastzArguments, work_dir=None, gpuLastz=False):
+    return runLastz(seq, seq, alignmentsFile, lastzArguments, work_dir, gpuLastz)
 
 def runCactusRealign(seq1, seq2, inputAlignmentsFile, outputAlignmentsFile, realignArguments, work_dir=None):
     cactus_call(infile=inputAlignmentsFile, outfile=outputAlignmentsFile, work_dir=work_dir,

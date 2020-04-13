@@ -42,7 +42,7 @@ class BlastOptions(object):
                  # don't use realign.)
                  trimOutgroupFlanking=2000,
                  keepParalogs=False,
-                 lastzCommand=None):
+                 gpuLastz=False):
         """Class defining options for blast
         """
         self.chunkSize = chunkSize
@@ -64,7 +64,7 @@ class BlastOptions(object):
         self.trimOutgroupDepth = trimOutgroupDepth
         self.trimOutgroupFlanking = trimOutgroupFlanking
         self.keepParalogs = keepParalogs
-        self.lastzCommand = lastzCommand
+        self.gpuLastz = gpuLastz
 
 class BlastSequencesAllAgainstAll(RoundedJob):
     """Take a set of sequences, chunks them up and blasts them.
@@ -82,6 +82,9 @@ class BlastSequencesAllAgainstAll(RoundedJob):
 
     def run(self, fileStore):
         sequenceFiles1 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs1]
+        if self.blastOptions.gpuLastz == True:
+            # wga-gpu has a 3G limit. 
+            self.blastOptions.chunkSize = 3000000000
         chunks = runGetChunks(sequenceFiles=sequenceFiles1,
                               chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()),
                               chunkSize=self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize)
@@ -149,6 +152,9 @@ class BlastSequencesAgainstEachOther(ChildTreeJob):
     def run(self, fileStore):
         sequenceFiles1 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs1]
         sequenceFiles2 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs2]
+        if self.blastOptions.gpuLastz == True:
+            # wga-gpu has a 3G limit. 
+            self.blastOptions.chunkSize = 3000000000
         chunks1 = runGetChunks(sequenceFiles=sequenceFiles1, chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()), chunkSize=self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize)
         chunks2 = runGetChunks(sequenceFiles=sequenceFiles2, chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()), chunkSize=self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize)
         chunkIDs1 = [fileStore.writeGlobalFile(chunk, cleanup=True) for chunk in chunks1]
@@ -230,7 +236,7 @@ class BlastFirstOutgroup(RoundedJob):
         self.blastOptions = blastOptions
         self.outgroupNumber = outgroupNumber
         self.ingroupCoverageIDs = ingroupCoverageIDs
-
+        
     def run(self, fileStore):
         logger.info("Blasting ingroup sequences to outgroup %s",
                     self.outgroupNames[self.outgroupNumber - 1])
@@ -406,7 +412,7 @@ class RunSelfBlast(RoundedJob):
         blastResultsFile = fileStore.getLocalTempFile()
         seqFile = fileStore.readGlobalFile(self.seqFileID)
         runSelfLastz(seqFile, blastResultsFile, lastzArguments=self.blastOptions.lastzArguments,
-                     lastzCommand = self.blastOptions.lastzCommand)
+                     gpuLastz = self.blastOptions.gpuLastz)
         if self.blastOptions.realign:
             realignResultsFile = fileStore.getLocalTempFile()
             runCactusSelfRealign(seqFile, inputAlignmentsFile=blastResultsFile,
@@ -447,7 +453,7 @@ class RunBlast(RoundedJob):
             seqFile2 = decompressFastaFile(seqFile2, fileStore.getLocalTempFile())
         blastResultsFile = fileStore.getLocalTempFile()
         runLastz(seqFile1, seqFile2, blastResultsFile, lastzArguments = self.blastOptions.lastzArguments,
-                 lastzCommand = self.blastOptions.lastzCommand)
+                 gpuLastz = self.blastOptions.gpuLastz)
         if self.blastOptions.realign:
             realignResultsFile = fileStore.getLocalTempFile()
             runCactusRealign(seqFile1, seqFile2, inputAlignmentsFile=blastResultsFile,

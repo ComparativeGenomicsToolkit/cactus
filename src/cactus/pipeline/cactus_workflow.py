@@ -557,10 +557,10 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
                          trimOutgroupFlanking=self.getOptionalPhaseAttrib("trimOutgroupFlanking", int, 100),
                          trimOutgroupDepth=self.getOptionalPhaseAttrib("trimOutgroupDepth", int, 1),
                          keepParalogs=self.getOptionalPhaseAttrib("keepParalogs", bool, False),
-                         lastzCommand=getOptionalAttrib(cafNode, "lastzCommand", str, None)),
+                         gpuLastz=getOptionalAttrib(cafNode, "gpuLastz", bool, False)),
             list(map(itemgetter(0), ingroupsAndNewIDs)), list(map(itemgetter(1), ingroupsAndNewIDs)),
             list(map(itemgetter(0), outgroupsAndNewIDs)), list(map(itemgetter(1), outgroupsAndNewIDs))))
-
+        
         # Alignment post processing to filter alignments
         if getOptionalAttrib(cafNode, "runMapQFiltering", bool, False):
             minimumMapQValue=getOptionalAttrib(cafNode, "minimumMapQValue", float, 0.0)
