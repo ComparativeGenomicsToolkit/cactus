@@ -68,6 +68,8 @@ def main():
                         "rather than pulling one from quay.io")
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
+    parser.add_argument("--nonBlastInput", action="store_true",
+                        help="Input does not come from cactus-blast: Do not append ids to fasta names")
 
     options = parser.parse_args()
 
@@ -140,17 +142,18 @@ def runCactusAfterBlastOnly(options):
 
             # import the outgroups
             outgroupIDs = []
-            cactus_blast_input = True
+            cactus_blast_input = not options.nonBlastInput
             for i, outgroup in enumerate(outgroups):
                 try:
                     outgroupID = toil.importFile(makeURL(options.blastOutput) + '.og_fragment_{}'.format(i))
                     outgroupIDs.append(outgroupID)
                     experiment.setSequenceID(outgroup, outgroupID)
                 except:
+                    if cactus_blast_input:
+                        raise
                     # we assume that input is not coming from cactus blast, so we'll treat output
                     # sequences normally and not go looking for fragments
                     outgroupIDs = []
-                    cactus_blast_input = False
                     break
 
             #import the sequences (that we need to align for the given event, ie leaves and outgroups)
