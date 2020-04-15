@@ -31,7 +31,7 @@ class TestCase(unittest.TestCase):
         sys.stderr.write('Running {}'.format(' '.format(cmd)))
         subprocess.check_call(' '.join(cmd), shell=True)
 
-    def _run_evolver_decomposed(self, binariesMode):
+    def _run_evolver_decomposed(self, name):
         """ Run the full evolver test, putting the jobstore and output in tempDir
         but instead of doing in in one shot like above, use cactus-prepare, cactus-blast
         and cactus-align to break it into different steps """
@@ -39,14 +39,17 @@ class TestCase(unittest.TestCase):
         out_dir = os.path.join(self.tempDir, 'output')
         out_seqfile = os.path.join(out_dir, 'evolverMammalsOut.txt')
         in_seqfile = './examples/evolverMammals.txt'
-        cmd = ['cactus-prepare', in_seqfile, out_dir, out_seqfile, self._out_hal(binariesMode),
-               '--jobStore', self._job_store(binariesMode)]
+        cmd = ['cactus-prepare', in_seqfile, out_dir, out_seqfile, self._out_hal(name),
+               '--jobStore', self._job_store(name)]
 
         job_plan = popenCatch(' '.join(cmd))
 
         for line in job_plan.split('\n'):
             line = line.strip()
             if len(line) > 0 and not line.startswith('#'):
+                # do Anc2 in binariesMode docker to broaden test coverage
+                if 'Anc2' in line and line.startswith('cactus-'):
+                    line += ' --binariesMode docker --latest'
                 sys.stderr.write('Running {}'.format(line))
                 subprocess.check_call(line, shell=True)
 
@@ -143,11 +146,12 @@ class TestCase(unittest.TestCase):
         is reasonable
         """
         # run cactus step by step via the plan made by cactus-prepare
-        self._run_evolver_decomposed("local")
+        name = "decomposed"
+        self._run_evolver_decomposed(name)
 
         # check the output
-        self._check_stats(self._out_hal("local"), delta_pct=0.65)
-        self._check_coverage(self._out_hal("local"), delta_pct=0.20)
+        self._check_stats(self._out_hal(name), delta_pct=0.65)
+        self._check_coverage(self._out_hal(name), delta_pct=0.20)
 
     def testEvolverDocker(self):
         """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode docker is 
