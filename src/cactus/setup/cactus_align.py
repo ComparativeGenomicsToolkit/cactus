@@ -206,18 +206,21 @@ def runCactusAfterBlastOnly(options):
 
 def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, cactus_blast_input):
 
-    if cactus_blast_input:
-        # cactus expects unique ids, but they weren't saved from cactus-blast
-        first_job = job.addChildJobFn(run_prepend_unique_ids, cactusWorkflowArguments, project,
-                                    #todo disk=
-        )
-    else:
-        # we only have cigar input, so compute the ingroup coverage bed files now
-        first_job = job.addChildJobFn(run_ingroup_coverage, cactusWorkflowArguments, project)
-    cactusWorkflowArguments = first_job.rv()
+    # do the name mangling cactus expects, where every fasta sequence starts with id=0|, id=1| etc
+    # and the cigar files match up.  If reading cactus-blast output, the cigars are fine, just need
+    # the fastas (todo: make this less hacky somehow)
+    cur_job = job.addChildJobFn(run_prepend_unique_ids, cactusWorkflowArguments, project, cactus_blast_input
+                                #todo disk=
+                                )
+    cactusWorkflowArguments = cur_job.rv()
+    
+    if not cactus_blast_input:
+        # if we're not taking cactus_blast input, then we need to recompute the ingroup coverage
+        cur_job = cur_job.addFollowOnJobFn(run_ingroup_coverage, cactusWorkflowArguments, project)
+        cactusWorkflowArguments = cur_job.rv()
 
     # run cactus setup all the way through cactus2hal generation
-    setup_job = first_job.addFollowOnJobFn(run_setup_phase, cactusWorkflowArguments)
+    setup_job = cur_job.addFollowOnJobFn(run_setup_phase, cactusWorkflowArguments)
 
     # set up the project
     prepare_hal_export_job = setup_job.addFollowOnJobFn(run_prepare_hal_export, project, setup_job.rv())
@@ -229,7 +232,26 @@ def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, cactu
                                                              preemptable=False)
     return hal_export_job.rv()
 
-def run_prepend_unique_ids(job, cactusWorkflowArguments, project):
+def prepend_cigar_ids(cigars, outputDir, idMap):
+    """ like cactus_workflow.prependUniqueIDs, but runs on cigar files.  requires name map
+    updated by prependUniqueIDs """
+    ret = []
+    for cigar in cigars:
+        outPath = os.path.join(outputDir, os.path.basename(cigar))
+        with open(outPath, 'w') as outfile, open(cigar, 'r') as infile:
+            for line in infile:
+                toks = line.split()
+                if toks[1] not in idMap:
+                    raise RuntimeError('cigar id {} not found in id-map {}'.format(toks[1], idMap))
+                if toks[5] not in idMap:
+                    raise RuntimeError('cigar id {} not found in id-map {}'.format(toks[5], idMap))
+                toks[1] = idMap[toks[1]]
+                toks[5] = idMap[toks[5]]
+                outfile.write('{}\n'.format(' '.join(toks)))
+        ret.append(outPath)
+    return ret
+
+def run_prepend_unique_ids(job, cactusWorkflowArguments, project, cactus_blast_input):
     """ prepend the unique ids on the input fasta.  this is required for cactus to work (would be great to relax it though"""
 
     # note, there is an order dependence to everything where we have to match what was done in cactus_workflow
@@ -240,12 +262,28 @@ def run_prepend_unique_ids(job, cactusWorkflowArguments, project):
     sequences = [job.fileStore.readGlobalFile(id) for id in map(itemgetter(1), ingroupsAndOriginalIDs)]
     cactusWorkflowArguments.totalSequenceSize = sum(os.stat(x).st_size for x in sequences)
     renamedInputSeqDir = job.fileStore.getLocalTempDir()
-    uniqueFas = prependUniqueIDs(sequences, renamedInputSeqDir)
+    id_map = {}
+    uniqueFas = prependUniqueIDs(sequences, renamedInputSeqDir, id_map)
     uniqueFaIDs = [job.fileStore.writeGlobalFile(seq, cleanup=True) for seq in uniqueFas]
     # Set the uniquified IDs for the ingroups and outgroups
     ingroupsAndNewIDs = list(zip(list(map(itemgetter(0), ingroupsAndOriginalIDs)), uniqueFaIDs[:len(ingroupsAndOriginalIDs)]))
     for event, sequenceID in ingroupsAndNewIDs:
         cactusWorkflowArguments.experimentWrapper.setSequenceID(event, sequenceID)
+
+    # if we're not taking the blast input, then we have to apply to the cigar files too
+    if not cactus_blast_input:
+        alignments = job.fileStore.readGlobalFile(cactusWorkflowArguments.alignmentsID)
+        renamed_alignments = prepend_cigar_ids([alignments], renamedInputSeqDir, id_map)
+        cactusWorkflowArguments.alignmentsID = job.fileStore.writeGlobalFile(renamed_alignments[0], cleanup=True)
+        if cactusWorkflowArguments.secondaryAlignmentsID:
+            sec_alignments = job.fileStore.readGlobalFile(cactusWorkflowArguments.secondaryAlignmentsID)
+            renamed_sec_alignments = prepend_cigar_ids([sec_alignments], renamedInputSeqDir, id_map)
+            cactusWorkflowArguments.secondaryAlignmentsID = job.fileStore.writeGlobalFile(renamed_sec_alignments[0], cleanup=True)
+        if cactusWorkflowArguments.outgroupFragmentIDs:
+            og_alignments= job.fileStore.readGlobalFile(cactusWorkflowArguments.outgroupFragmentIDs)
+            renamed_og_alignments = prepend_cigar_ids(og_alignments, renamedInputSeqDir, id_map)
+            cactusWorkflowArguments.outgroupFragmentIDs = [job.fileStore.writeGlobalFile(rga, cleanup=True) for rga in renamed_og_alignments]
+    
     return cactusWorkflowArguments
 
 def run_ingroup_coverage(job, cactusWorkflowArguments, project):
@@ -258,11 +296,12 @@ def run_ingroup_coverage(job, cactusWorkflowArguments, project):
     cactusWorkflowArguments.totalSequenceSize = sum(os.stat(x).st_size for x in sequences)
     ingroups = map(itemgetter(0), ingroupsAndOriginalIDs)
     cigar = job.fileStore.readGlobalFile(cactusWorkflowArguments.alignmentsID)
-    # should we parallelize with child jobs?
-    for ingroup, sequence in zip(ingroups, sequences):
-        coverage_path = os.path.join(work_dir, '{}.coverage'.format(sequence))
-        calculateCoverage(sequence, cigar, coverage_path, fromGenome=outgroups, work_dir=work_dir)
-        cactusWorkflowArguments.ingroupCoverageIDs.append(job.fileStore.writeGlobalFile(coverage_path))
+    if len(outgroups) > 0:
+        # should we parallelize with child jobs?
+        for ingroup, sequence in zip(ingroups, sequences):
+            coverage_path = os.path.join(work_dir, '{}.coverage'.format(sequence))
+            calculateCoverage(sequence, cigar, coverage_path, fromGenome=outgroups, work_dir=work_dir)
+            cactusWorkflowArguments.ingroupCoverageIDs.append(job.fileStore.writeGlobalFile(coverage_path))
     return cactusWorkflowArguments
 
 def run_setup_phase(job, cactusWorkflowArguments):

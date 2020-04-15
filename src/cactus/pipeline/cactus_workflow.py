@@ -462,7 +462,7 @@ class CactusRecursionJob(CactusJob):
 ############################################################
 ############################################################
 
-def prependUniqueIDs(fas, outputDir):
+def prependUniqueIDs(fas, outputDir, idMap=None):
     """Prepend unique ints to fasta headers.
 
     (prepend rather than append since trimmed outgroups have a start
@@ -477,6 +477,8 @@ def prependUniqueIDs(fas, outputDir):
             if len(line) > 0 and line[0] == '>':
                 header = "id=%d|%s" % (uniqueID, line[1:-1])
                 out.write(">%s\n" % header)
+                if idMap is not None:
+                    idMap[line[1:-1].rstrip()] = header.rstrip()
             else:
                 out.write(line)
         ret.append(outPath)
