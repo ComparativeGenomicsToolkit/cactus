@@ -258,11 +258,12 @@ def run_ingroup_coverage(job, cactusWorkflowArguments, project):
     cactusWorkflowArguments.totalSequenceSize = sum(os.stat(x).st_size for x in sequences)
     ingroups = map(itemgetter(0), ingroupsAndOriginalIDs)
     cigar = job.fileStore.readGlobalFile(cactusWorkflowArguments.alignmentsID)
-    # should we parallelize with child jobs?
-    for ingroup, sequence in zip(ingroups, sequences):
-        coverage_path = os.path.join(work_dir, '{}.coverage'.format(sequence))
-        calculateCoverage(sequence, cigar, coverage_path, fromGenome=outgroups, work_dir=work_dir)
-        cactusWorkflowArguments.ingroupCoverageIDs.append(job.fileStore.writeGlobalFile(coverage_path))
+    if len(outgroups) > 0:
+        # should we parallelize with child jobs?
+        for ingroup, sequence in zip(ingroups, sequences):
+            coverage_path = os.path.join(work_dir, '{}.coverage'.format(sequence))
+            calculateCoverage(sequence, cigar, coverage_path, fromGenome=outgroups, work_dir=work_dir)
+            cactusWorkflowArguments.ingroupCoverageIDs.append(job.fileStore.writeGlobalFile(coverage_path))
     return cactusWorkflowArguments
 
 def run_setup_phase(job, cactusWorkflowArguments):
