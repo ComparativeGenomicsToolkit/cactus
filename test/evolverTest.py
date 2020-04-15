@@ -217,7 +217,7 @@ class TestCase(unittest.TestCase):
         self._run_evolver_decomposed_no_outgroup("docker")
 
         # check the output
-        self._check_stats(self._out_hal("docker"), delta_pct=0.25, subset=['simMouse_chr6', 'simRat_chr6', 'Anc0'])
+        self._check_stats(self._out_hal("docker"), delta_pct=2.5, subset=['simMouse_chr6', 'simRat_chr6', 'Anc0'])
         self._check_coverage(self._out_hal("docker"), delta_pct=0.20, subset=['simMouse_chr6', 'simRat_chr6', 'Anc0'], columns=1)
 
     def testEvolverPrepareNoOutgroupLocal(self):
@@ -226,7 +226,7 @@ class TestCase(unittest.TestCase):
         self._run_evolver_decomposed_no_outgroup("local")
 
         # check the output
-        self._check_stats(self._out_hal("local"), delta_pct=0.25, subset=['simMouse_chr6', 'simRat_chr6', 'Anc0'])
+        self._check_stats(self._out_hal("local"), delta_pct=2.5, subset=['simMouse_chr6', 'simRat_chr6', 'Anc0'])
         self._check_coverage(self._out_hal("local"), delta_pct=0.20, subset=['simMouse_chr6', 'simRat_chr6', 'Anc0'], columns=1)
         
 if __name__ == '__main__':
