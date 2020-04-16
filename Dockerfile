@@ -7,6 +7,10 @@ RUN apt-get update && apt-get install -y build-essential git python3 python3-dev
 RUN mkdir -p /home/cactus
 COPY . /home/cactus
 
+# compile with nehalem architecture target to improve portablity
+ENV CFLAGS -march=nehalem
+ENV CXXFLAGS -march=nehalem
+
 # clean out stuff before build.
 RUN find /home/cactus -name include.local.mk -exec rm -f {} \;
 RUN cd /home/cactus && make clean -j $(nproc)
