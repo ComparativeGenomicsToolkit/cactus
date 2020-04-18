@@ -29,27 +29,21 @@ git submodule update --init --recursive
 
 
 # There was a recomendation of using -march=nehalem increases portability,
-# however this is not recognized by GCC 4.8
+# however this is not recognized by GCC 4.8.  Add this if moving to a
+# newer compiler
 
 make -j $(nproc) static
 
 binPackageDir=cactus-bin-${REL_TAG}
-virtualenv -p ${PYTHON} venv
-source venv/bin/activate
+rm -rf ${binPackageDir}
 mkdir ${binPackageDir}
-cd ${binPackageDir}
-cp ${binBuildDir}/cactus/BIN-INSTALL.md .
-cd ..
-deactivate
-cp -r ../bin ../src ../examples .
-cp ../*.md ../*.py ../*.txt .
-# needed for pip install
-mkdir submodules
-cp -r ../submodules/sonLib submodules/
-cp -r ../.git .
-strip -d bin/* 2> /dev/null || true
-cd ..
+cp -r bin src examples ${binPackageDir}
+cp *.md *.py *.txt ${binPackageDir}
+# sonLib needed for pip install
+find submodules/sonLib -name '*.py' | cpio -pdum ${binPackageDir}
+cp -r .git ${binPackageDir}
+strip -d ${binPackageDir}/bin/* 2> /dev/null || true
 tar -czf ${buildDir}/cactus-bin-${REL_TAG}.tar.gz ${binPackageDir}
 if [ "$keep" = "no" ] ; then
-    rm -Rf ${binBuildDir}
+    rm -Rf ${binBuildDir} ${binPackageDir}
 fi
