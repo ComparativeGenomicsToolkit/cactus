@@ -3,7 +3,6 @@
 # Must be run after tree is tagged and pushed to master.
 # Use --keep to keep working directory for debugging.
 
-set -beEu -o pipefail
 mydir=$(dirname $(which $0))
 source ${mydir}/releaseLib.sh
 
@@ -11,6 +10,7 @@ keep=no
 if [ $1 = '--keep' ] ; then
     keep=yes
 fi
+set -beEu -o pipefail
 
 buildDir=$(realpath -m build)
 srcBuildDir="${buildDir}/src-tmp"

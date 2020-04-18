@@ -190,3 +190,9 @@ docker: Dockerfile
 push: docker
 	docker push ${name}
 
+
+binRelease:
+	./build-tools/makeBinRelease
+
+srcRelease:
+	./build-tools/makeSrcRelease

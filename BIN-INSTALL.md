@@ -17,8 +17,8 @@ To build a python virtualenv and activate, do the following steps:
 virtualenv -p python3.6 venv
 source venv/bin/activate
 pip install -U setuptools pip
-pip install -U -r ./toil-requirement.txt -f ./wheels
-pip install -U . -f ./wheels
+pip install -U -r ./toil-requirement.txt
+pip install -U .
 export PATH=$(pwd)/bin:$PATH
 ```
 

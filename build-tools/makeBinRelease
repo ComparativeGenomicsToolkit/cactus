@@ -3,7 +3,6 @@
 # Must be run after tree is tagged and pushed to master.
 # Use --keep to keep working directory for debugging.
 
-set -beEu -o pipefail
 mydir=$(dirname $(which $0))
 source ${mydir}/releaseLib.sh
 
@@ -11,6 +10,7 @@ keep=no
 if [ $1 = '--keep' ] ; then
     keep=yes
 fi
+set -beEu -o pipefail
 
 buildDir=$(realpath -m build)
 binBuildDir="${buildDir}/bin-tmp"
@@ -39,10 +39,6 @@ source venv/bin/activate
 mkdir ${binPackageDir}
 cd ${binPackageDir}
 cp ${binBuildDir}/cactus/BIN-INSTALL.md .
-mkdir wheels
-cd wheels
-${PIP} install -U pip
-${PIP} wheel --no-deps ../..
 cd ..
 deactivate
 cp -r ../bin ../src ../examples .
