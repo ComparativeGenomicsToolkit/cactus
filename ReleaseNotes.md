@@ -1,5 +1,5 @@
 
-# Release 1.0.0   2020-04-16
+# Release 1.0.0   2020-04-19
 
 This is the first official release of Cactus.  The goal is to provide a
 stable, track-able version of Cactus to users.  The releases is provided in
