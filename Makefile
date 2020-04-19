@@ -133,7 +133,7 @@ evolver_test: all
 # clean targets
 ##
 selfClean: ${modules:%=clean.%}
-	rm -rf include lib bin libexec ${versionPy} ${testOutDir} testTCDatabase
+	rm -rf include lib bin libexec ${versionPy} ${testOutDir} testTCDatabase build
 
 clean.%:
 	cd $* && ${MAKE} clean
@@ -190,3 +190,9 @@ docker: Dockerfile
 push: docker
 	docker push ${name}
 
+
+binRelease:
+	./build-tools/makeBinRelease
+
+srcRelease:
+	./build-tools/makeSrcRelease

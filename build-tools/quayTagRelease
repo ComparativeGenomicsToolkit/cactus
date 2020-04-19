@@ -1,0 +1,12 @@
+#!/bin/bash
+# tag the docker image at quay.io corresponding to the release
+
+set -x
+set -beEu -o pipefail
+mydir=$(dirname $(which $0))
+source ${mydir}/releaseLib.sh
+
+REL_TAG=$(getLatestReleaseTag)
+REL_COMMIT=$(git rev-list -n 1 ${REL_TAG})
+
+docker image tag ${dockname}:${REL_COMMIT} ${dockname}:${REL_TAG}
