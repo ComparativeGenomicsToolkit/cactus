@@ -2,7 +2,8 @@ import os, sys
 import pytest
 import unittest
 import subprocess
-from sonLib.bioio import getTempDirectory, popenCatch
+import shutil
+from sonLib.bioio import getTempDirectory, popenCatch, popen
 
 class TestCase(unittest.TestCase):
     def setUp(self):
@@ -11,7 +12,7 @@ class TestCase(unittest.TestCase):
 
     def tearDown(self):
         unittest.TestCase.tearDown(self)
-        os.system("rm -rf %s" % self.tempDir)
+        os.system("rm -rf %s || true" % self.tempDir)
 
     def _job_store(self, binariesMode):
         return os.path.join(self.tempDir, 'js-{}'.format(binariesMode))
@@ -53,6 +54,45 @@ class TestCase(unittest.TestCase):
                 sys.stderr.write('Running {}'.format(line))
                 subprocess.check_call(line, shell=True)
 
+    def _run_evolver_decomposed_wdl(self, name):
+        """ Run the full evolver test, putting the jobstore and output in tempDir
+        but instead of doing in in one shot, use cactus-prepare to make a wdl
+        script and run that locally through cromwell """
+
+        out_seqfile = os.path.join(self.tempDir, 'evolverMammalsOut.txt')
+        in_seqfile = './examples/evolverMammals.txt'
+        out_wdl = os.path.join(self.tempDir, 'prepared.wdl')
+        cmd = ['cactus-prepare', in_seqfile, '.', out_seqfile, self._out_hal(name),
+               '--jobStore', self._job_store(name), '--wdl',
+               '--dockerImage', 'evolvertestdocker/cactus:latest',
+               '--preprocessCores', '2',
+               '--blastCores', '4',
+               '--alignCores', '4']
+
+        # specify an output directory
+        cw_optionsfile = os.path.join(self.tempDir, 'options.json')
+        cw_output = os.path.join(self.tempDir, 'cromwell-output')
+        with open(cw_optionsfile, 'w') as cw_opts:
+            cw_opts.write('{\n')
+            cw_opts.write('    \"final_workflow_outputs_dir\": \"{}\",\n'.format(cw_output))
+            cw_opts.write('    \"use_relative_output_paths\": true\n')
+            cw_opts.write('}\n')
+
+        # download cromwell
+        subprocess.check_call(['wget', 'https://github.com/broadinstitute/cromwell/releases/download/49/cromwell-49.jar'],
+                              cwd=self.tempDir)
+
+        # run cactus-prepare and write the output to a wdl file
+        popen(' '.join(cmd), out_wdl)
+
+        # run the wdl script in cromwell
+        subprocess.check_call(['java', '-jar', './cromwell-49.jar', 'run',
+                               out_wdl, '-o', cw_optionsfile], cwd=self.tempDir)
+
+        # fish the file out of cromwell
+        shutil.copyfile(os.path.join(cw_output, os.path.basename(self._out_hal(name))), self._out_hal(name))
+
+                
     def _run_evolver_decomposed_no_outgroup(self, binariesMode):
         """ Run just the mouse-rat alignment.  Inspired by issues arising here
         https://github.com/ComparativeGenomicsToolkit/cactus/pull/216
@@ -197,8 +237,17 @@ class TestCase(unittest.TestCase):
         self._run_evolver_decomposed(name)
 
         # check the output
-        self._check_stats(self._out_hal(name), delta_pct=0.65)
+        self._check_stats(self._out_hal(name), delta_pct=0.25)
         self._check_coverage(self._out_hal(name), delta_pct=0.20)
+
+    def testEvolverPrepareWDL(self):
+
+        # run cactus step by step via a WDL workflow made by cactus-prepare
+        self._run_evolver_decomposed_wdl("wdl")
+
+        # check the output
+        self._check_stats(self._out_hal("wdl"), delta_pct=0.25)
+        self._check_coverage(self._out_hal("wdl"), delta_pct=0.20)
 
     def testEvolverDocker(self):
         """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode docker is 
@@ -228,6 +277,7 @@ class TestCase(unittest.TestCase):
         # check the output
         self._check_stats(self._out_hal("local"), delta_pct=2.5, subset=['simMouse_chr6', 'simRat_chr6', 'Anc0'])
         self._check_coverage(self._out_hal("local"), delta_pct=0.20, subset=['simMouse_chr6', 'simRat_chr6', 'Anc0'], columns=1)
+        
         
 if __name__ == '__main__':
     unittest.main()

@@ -43,6 +43,8 @@ def main():
 
     parser.add_argument("seqFile", help = "Seq file")
     parser.add_argument("outputFile", type=str, help = "Output pairwise alignment file")
+    parser.add_argument("--pathOverrides", nargs="*", help="paths (multiple allowd) to override from seqFile")
+    parser.add_argument("--pathOverrideNames", nargs="*", help="names (must be same number as --paths) of path overrides")
 
     #Progressive Cactus Options
     parser.add_argument("--database", dest="database",
@@ -72,6 +74,11 @@ def main():
     setupBinaries(options)
     setLoggingFromOptions(options)
     enableDumpStack()
+
+    if (options.pathOverrides or options.pathOverrideNames):
+        if not options.pathOverrides or not options.pathOverrideNames or \
+           len(options.pathOverrideNames) != len(options.pathOverrides):
+            raise RuntimeError('same number of values must be passed to --pathOverrides and --pathOverrideNames')
 
     options.database = 'kyoto_tycoon'
 
@@ -104,8 +111,28 @@ def runCactusBlastOnly(options):
         else:
             options.cactusDir = getTempDirectory()
 
+            # apply path overrides.  this was necessary for wdl which doesn't take kindly to
+            # text files of local paths (ie seqfile).  one way to fix would be to add support
+            # for s3 paths and force wdl to use it.  a better way would be a more fundamental
+            # interface shift away from files of paths throughout all of cactus
+            if options.pathOverrides:
+                seqFile = SeqFile(options.seqFile)
+                for name, override in zip(options.pathOverrideNames, options.pathOverrides):
+                    if name not in seqFile.pathMap:
+                        raise RuntimeError('Override {} not found in seqFile'.format(name))
+                    seqFile.pathMap[name] = override
+                override_seq = os.path.join(options.cactusDir, 'seqFile.override')
+                with open(override_seq, 'w') as out_sf:
+                    out_sf.write(str(seqFile))
+                options.seqFile = override_seq
+
+            #to be consistent with all-in-one cactus, we make sure the project
+            #isn't limiting itself to the subtree (todo: parameterize so root can
+            #be passed through from prepare to blast/align)
+            proj_options = copy.deepcopy(options)
+            proj_options.root = None
             #Create the progressive cactus project (as we do in runCactusProgressive)
-            projWrapper = ProjectWrapper(options, options.configFile, ignoreSeqPaths=options.root)
+            projWrapper = ProjectWrapper(proj_options, proj_options.configFile, ignoreSeqPaths=options.root)
             projWrapper.writeXml()
 
             pjPath = os.path.join(options.cactusDir, ProjectWrapper.alignmentDirName,
