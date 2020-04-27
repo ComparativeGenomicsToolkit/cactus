@@ -374,8 +374,7 @@ def wdl_workflow_start(options, in_seq_file):
 
     # we need to explicitly import local files
     s += '    input {\n'
-    s += '        File seq_file=\"{}\"\n'.format(os.path.abspath(options.seqFile))
-    s += '        File out_seq_file=\"{}\"\n'.format(os.path.abspath(options.outSeqFile))
+    s += '        File prep_seq_file=\"{}\"\n'.format(os.path.abspath(options.outSeqFile))
     for name, fa_path in in_seq_file.pathMap.items():
         # todo: replace with check from toil
         if '://' not in fa_path:
@@ -476,7 +475,7 @@ def wdl_call_blast(options, project, event, cigar_name):
             
     s = '    call cactus_blast as {} {{\n'.format(blast_call_name(event))
     s += '        input:'
-    s += ' in_seq_file=out_seq_file,'
+    s += ' in_seq_file=prep_seq_file,'
     s += ' in_fa_names=[{}],'.format(', '.join(['\"{}\"'.format(name) for name in input_names]))
     s += ' in_fa_files=[{}],'.format(', '.join(input_fas))
     s += ' in_root=\"{}\",'.format(event)
@@ -535,7 +534,7 @@ def wdl_call_align(options, project, event, cigar_name, hal_path, fa_path):
 
     s = '    call cactus_align as {} {{\n'.format(align_call_name(event))
     s += '        input:'
-    s += ' in_seq_file=out_seq_file,'
+    s += ' in_seq_file=prep_seq_file,'
     s += ' in_fa_names=[{}],'.format(', '.join(['\"{}\"'.format(name) for name in input_names]))
     s += ' in_fa_files=[{}],'.format(', '.join(input_fas))    
     s += ' in_blast_files={}.out_files,'.format(blast_call_name(event))
