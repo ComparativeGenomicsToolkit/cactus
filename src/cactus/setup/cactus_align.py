@@ -47,8 +47,10 @@ def main():
     addCactusWorkflowOptions(parser)
 
     parser.add_argument("seqFile", help = "Seq file")
-    parser.add_argument("blastOutput", type=str, help = "Blast output (from cactus-blast)")
+    parser.add_argument("blastOutput", nargs="+", help = "Blast output (from cactus-blast)")
     parser.add_argument("outputHal", type=str, help = "Output HAL file")
+    parser.add_argument("--pathOverrides", nargs="*", help="paths (multiple allowd) to override from seqFile")
+    parser.add_argument("--pathOverrideNames", nargs="*", help="names (must be same number as --paths) of path overrides")
 
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -71,11 +73,17 @@ def main():
     parser.add_argument("--nonBlastInput", action="store_true",
                         help="Input does not come from cactus-blast: Do not append ids to fasta names")
 
+
     options = parser.parse_args()
 
     setupBinaries(options)
     setLoggingFromOptions(options)
     enableDumpStack()
+
+    if (options.pathOverrides or options.pathOverrideNames):
+        if not options.pathOverrides or not options.pathOverrideNames or \
+           len(options.pathOverrideNames) != len(options.pathOverrides):
+            raise RuntimeError('same number of values must be passed to --pathOverrides and --pathOverrideNames')
 
     options.database = 'kyoto_tycoon'
 
@@ -111,8 +119,28 @@ def runCactusAfterBlastOnly(options):
         else:
             options.cactusDir = getTempDirectory()
 
+            # apply path overrides.  this was necessary for wdl which doesn't take kindly to
+            # text files of local paths (ie seqfile).  one way to fix would be to add support
+            # for s3 paths and force wdl to use it.  a better way would be a more fundamental
+            # interface shift away from files of paths throughout all of cactus
+            if options.pathOverrides:
+                seqFile = SeqFile(options.seqFile)
+                for name, override in zip(options.pathOverrideNames, options.pathOverrides):
+                    if name not in seqFile.pathMap:
+                        raise RuntimeError('Override {} not found in seqFile'.format(name))
+                    seqFile.pathMap[name] = override
+                override_seq = os.path.join(options.cactusDir, 'seqFile.override')
+                with open(override_seq, 'w') as out_sf:
+                    out_sf.write(str(seqFile))
+                options.seqFile = override_seq
+
+            #to be consistent with all-in-one cactus, we make sure the project
+            #isn't limiting itself to the subtree (todo: parameterize so root can
+            #be passed through from prepare to blast/align)
+            proj_options = copy.deepcopy(options)
+            proj_options.root = None
             #Create the progressive cactus project (as we do in runCactusProgressive)
-            projWrapper = ProjectWrapper(options, options.configFile, ignoreSeqPaths=options.root)
+            projWrapper = ProjectWrapper(proj_options, proj_options.configFile, ignoreSeqPaths=options.root)
             projWrapper.writeXml()
 
             pjPath = os.path.join(options.cactusDir, ProjectWrapper.alignmentDirName,
@@ -140,12 +168,22 @@ def runCactusAfterBlastOnly(options):
             outgroups = experiment.getOutgroupGenomes()
             genome_set = set(leaves + outgroups)
 
+            # this is a hack to allow specifying all the input on the command line, rather than using suffix lookups
+            def get_input_path(suffix=''):
+                base_path = options.blastOutput[0]
+                for input_path in options.blastOutput:
+                    if suffix and input_path.endswith(suffix):
+                        return input_path
+                    if os.path.basename(base_path).startswith(os.path.basename(input_path)):
+                        base_path = input_path
+                return base_path + suffix
+
             # import the outgroups
             outgroupIDs = []
             cactus_blast_input = not options.nonBlastInput
             for i, outgroup in enumerate(outgroups):
                 try:
-                    outgroupID = toil.importFile(makeURL(options.blastOutput) + '.og_fragment_{}'.format(i))
+                    outgroupID = toil.importFile(makeURL(get_input_path('.og_fragment_{}'.format(i))))
                     outgroupIDs.append(outgroupID)
                     experiment.setSequenceID(outgroup, outgroupID)
                 except:
@@ -188,16 +226,16 @@ def runCactusAfterBlastOnly(options):
             workFlowArgs = CactusWorkflowArguments(options, experimentFile=experimentFile, configNode=configNode, seqIDMap = project.inputSequenceIDMap)
 
             #import the files that cactus-blast made
-            workFlowArgs.alignmentsID = toil.importFile(makeURL(options.blastOutput))
+            workFlowArgs.alignmentsID = toil.importFile(makeURL(get_input_path()))
             try:
-                workFlowArgs.secondaryAlignmentsID = toil.importFile(makeURL(options.blastOutput) + '.secondary')
+                workFlowArgs.secondaryAlignmentsID = toil.importFile(makeURL(get_input_path('.secondary')))
             except:
                 workFlowArgs.secondaryAlignmentsID = None
             workFlowArgs.outgroupFragmentIDs = outgroupIDs
             workFlowArgs.ingroupCoverageIDs = []
             if cactus_blast_input and len(outgroups) > 0:
                 for i in range(len(leaves)):
-                    workFlowArgs.ingroupCoverageIDs.append(toil.importFile(makeURL(options.blastOutput) + '.ig_coverage_{}'.format(i)))
+                    workFlowArgs.ingroupCoverageIDs.append(toil.importFile(makeURL(get_input_path('.ig_coverage_{}'.format(i)))))
 
             halID = toil.start(Job.wrapJobFn(run_cactus_align, configWrapper, workFlowArgs, project, cactus_blast_input))
 

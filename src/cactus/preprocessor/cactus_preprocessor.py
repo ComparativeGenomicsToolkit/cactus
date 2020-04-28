@@ -285,10 +285,12 @@ def runCactusPreprocessor(outputSequenceDir, configFile, inputSequences, toilDir
 def main():
     parser = ArgumentParser()
     Job.Runner.addToilOptions(parser)
-    parser.add_argument("seqFile", help = "Input Seq file")
-    parser.add_argument("outSeqFile", help = "Output Seq file (ex generated with cactus-prepare)")
+    parser.add_argument("inSeqFile", type=str, nargs='?', default=None, help = "Input Seq file")
+    parser.add_argument("outSeqFile", type=str, nargs='?', default=None, help = "Output Seq file (ex generated with cactus-prepare)")
     parser.add_argument("--configFile", default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
     parser.add_argument("--inputNames", nargs='*', help='input genome names (not paths) to preprocess (all leaves from Input Seq file if none specified)')
+    parser.add_argument("--inPaths", nargs='*', help='Space-separated list of input fasta paths (to be used in place of --inSeqFile')
+    parser.add_argument("--outPaths", nargs='*', help='Space-separated list of output fasta paths (one for each inPath, used in place of --outSeqFile)')
     parser.add_argument("--latest", dest="latest", action="store_true",
                         help="Use the latest version of the docker container "
                         "rather than pulling one matching this version of cactus")
@@ -298,38 +300,58 @@ def main():
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
 
-
     options = parser.parse_args()
     setupBinaries(options)
     setLoggingFromOptions(options)
     enableDumpStack()
 
-    inSeqFile = SeqFile(options.seqFile)
-    outSeqFile = SeqFile(options.outSeqFile)
+    # we have two modes: operate directly on paths or rely on the seqfiles.  they cannot be mixed
+    if options.inSeqFile or options.outSeqFile:
+        if not options.inSeqFile or not options.outSeqFile or options.inPaths or options.outPaths:
+            raise RuntimeError('--inSeqFile must be used in conjunction with --outSeqFile and not with --inPaths nor --outPaths')
+    elif options.inPaths or options.outPaths:
+        if not options.inPaths or not options.outPaths or options.inSeqFile or options.outSeqFile or options.inputNames:
+            raise RuntimeError('--inPaths must be used in conjunction with --outPaths and not with --inSeqFile, --outSeqFile nor --inputNames')
+        if len(options.inPaths) != len(options.outPaths):
+            raise RuntimeError('--inPaths and --outPaths must have the same number of arguments')
+    else:
+        raise RuntimeError('--inSeqFile/--outSeqFile/--inputNames or --inPaths/--outPaths required to specify input')
 
-    inNames = options.inputNames
-    if not inNames:
-        inNames = [inSeqFile.tree.getName(node) for node in inSeqFile.tree.getLeaves()]
 
     inSeqPaths = []
     outSeqPaths = []
 
-    for inName in inNames:
-        if inName not in inSeqFile.pathMap or inName not in outSeqFile.pathMap:
-            raise RuntimeError('{} not present in input and output Seq files'.format(inNmae))
-        inPath = inSeqFile.pathMap[inName]
-        outPath = outSeqFile.pathMap[inName]
-        if os.path.isdir(inPath):
-            try:
-                os.makedirs(outPath)
-            except:
-                pass
-            assert os.path.isdir(inPath) == os.path.isdir(outPath)
-            inSeqPaths += [os.path.join(inPath, seqPath) for seqPath in os.listdir(inPath)]
-            outSeqPaths += [os.path.join(outPath, seqPath) for seqPath in os.listdir(inPath)]
-        else:
-            inSeqPaths += [inPath]
-            outSeqPaths += [outPath]
+    # mine the paths out of the seqfiles
+    if options.inSeqFile:
+        inSeqFile = SeqFile(options.inSeqFile)
+        outSeqFile = SeqFile(options.outSeqFile)
+
+        inNames = options.inputNames
+        if not inNames:
+            inNames = [inSeqFile.tree.getName(node) for node in inSeqFile.tree.getLeaves()]
+
+
+        for inName in inNames:
+            if inName not in inSeqFile.pathMap or inName not in outSeqFile.pathMap:
+                raise RuntimeError('{} not present in input and output Seq files'.format(inNmae))
+            inPath = inSeqFile.pathMap[inName]
+            outPath = outSeqFile.pathMap[inName]
+            if os.path.isdir(inPath):
+                try:
+                    os.makedirs(outPath)
+                except:
+                    pass
+                assert os.path.isdir(inPath) == os.path.isdir(outPath)
+                inSeqPaths += [os.path.join(inPath, seqPath) for seqPath in os.listdir(inPath)]
+                outSeqPaths += [os.path.join(outPath, seqPath) for seqPath in os.listdir(inPath)]
+            else:
+                inSeqPaths += [inPath]
+                outSeqPaths += [outPath]
+
+    # we got path names directly from the command line
+    else:
+        inSeqPaths = options.inPaths
+        outSeqPaths = options.outPaths
 
     with Toil(options) as toil:
         stageWorkflow(outputSequenceDir=None, configFile=options.configFile, inputSequences=inSeqPaths, toil=toil, restart=options.restart, outputSequences=outSeqPaths)
