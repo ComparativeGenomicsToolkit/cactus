@@ -117,9 +117,11 @@ def runCactusBlastOnly(options):
             # interface shift away from files of paths throughout all of cactus
             if options.pathOverrides:
                 seqFile = SeqFile(options.seqFile)
+                configNode = ET.parse(options.configFile).getroot()
+                config = ConfigWrapper(configNode)
+                tree = MultiCactusTree(seqFile.tree)
+                tree.nameUnlabeledInternalNodes(prefix = config.getDefaultInternalNodePrefix())
                 for name, override in zip(options.pathOverrideNames, options.pathOverrides):
-                    if name not in seqFile.pathMap:
-                        raise RuntimeError('Override {} not found in seqFile'.format(name))
                     seqFile.pathMap[name] = override
                 override_seq = os.path.join(options.cactusDir, 'seqFile.override')
                 with open(override_seq, 'w') as out_sf:
@@ -161,6 +163,9 @@ def runCactusBlastOnly(options):
             outgroups = experiment.getOutgroupGenomes()
             genome_set = set(leaves + outgroups)
             logger.info("Genomes in blastonly, {}: {}".format(options.root, list(genome_set)))
+
+            print (str(project.inputSequenceMap))
+
 
             #import the sequences (that we need to align for the given event, ie leaves and outgroups)
             for genome, seq in list(project.inputSequenceMap.items()):

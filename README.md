@@ -167,20 +167,49 @@ Cactus (through Toil) supports many batch systems, including LSF, SLURM, GridEng
 Cactus supports running on AWS, Azure, and Google Cloud Platform using [Toil's autoscaling features](https://toil.readthedocs.io/en/latest/running/cloud/cloud.html). For more details on running in AWS, check out [these instructions](doc/running-in-aws.md) (other clouds are similar).
 
 ### Running step by step (experimental)
+
+#### Printing a list of commands to run locally
+
 Breaking Cactus up into smaller jobs can be practical, both for development and debugging, and managing larger workflows.  Here is an example of how to break the Evolver Mammals example up into three steps: 1) Preprocessing 2) Blast 3) Multiple Aligment:
 ```
-cactus-prepare examples/evolverMammals.txt steps-output steps-output/evovlerMammals.txt steps-output/evolverMammals.hal --jobStore jobstore
+cactus-prepare examples/evolverMammals.txt --outDir steps-output --outSeqFile steps-output/evovlerMammals.txt --outHal steps-output/evolverMammals.hal --jobStore jobstore
 ```
 
 It will print the sequence of commands to run the alignment step-by-step.  Blocks of commands within each alignment run can be run in parallel
 
 `cactus-prepare` can also be used to simplify preprocessing sequences without decomposing the remaining workflow:
 
+#### Creading a WDL script to run on Cromwell or Terra
+
+The `--wdl` option in `cactus-prepare` can be used to generate a bespoke [WDL](https://github.com/openwdl/wdl/blob/master/versions/1.0/SPEC.md) script for running the alignment from the input seqFile.  Here is an example on how to run locally in [Cromwell](https://github.com/broadinstitute/cromwell)
 ```
-cactus-prepare examples/evolverMammals.txt steps-output steps-output/evovlerMammals.txt steps-output/evolverMammals.hal --jobStore jobstore --preprocessOnly
+cactus-prepare examples/evolverMammals.txt --wdl > evolver.wdl
+wget https://github.com/broadinstitute/cromwell/releases/download/49/cromwell-49.jar
+javac -jar ./cromwell-49.jar run evolver.wdl
+
 ```
 
-Note that the `--preprocessBatchSize` option can be used to determine the size of each `cactus-preprocess` job.
+To run on [Terra](https://terra.bio/), use the `--noLocalInputs` option to make sure no local files are embedded in the script.  Also, care must be taken to specify some minimum resource requirements.
+
+```
+cactus-prepare examples/evolverMammals.txt --wdl --noLocalInputs --alignCores 2 --defaultMem 16 > evolver_terra.wdl
+
+```
+
+Then in Terra's [workspace menu](https://app.terra.bio/#workspaces):
+* Create a new workspace if necessary with the "+" button.
+* Click on the workspace
+* Click on the "DATA" tab in the workspace menu and use the "Files" link to upload `examples/evolverMammals.txt` to Goggle Cloud
+* Click on the "WORKFLOWS" tab
+* Click the "+" button to add a workflow
+* Click the link in the bottom right to the "Broad Methods Repository"
+* Click the "Create New Method... +" button
+* Choose and namespace and name, then either upload or paste `evolver_terra.wdl` as created above and save
+* It should now appear as a card in the Terra "workflows" tab
+* To run it, click the workflow then click the "INPUTS" tab, and select the `evolverMammals.txt` file in the Attribute field for Taks=`cactus_prepare` Variable=`prep_seq_file`
+* Save and click "RUN ANALYSIS"
+
+In the evolver example, all input sequences are specified in public URLs.  If sequences are not specified as URLs in the seqfile, then they must be uploaded in similar fashion to how the evolverMammals.txt was uploaded and selected in the example above.  
 
 ## Using the output
 Cactus outputs its alignments in the [HAL](https://github.com/ComparativeGenomicsToolkit/hal) format. This format represents the alignment in a reference-free, indexed way, but isn't readable by many tools. To export a MAF (which by its nature is usually reference-based), you can use the `hal2maf` tool to export the alignment from any particular genome: `hal2maf <hal> --refGenome <reference> <maf>`.
