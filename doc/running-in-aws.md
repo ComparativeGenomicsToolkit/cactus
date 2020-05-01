@@ -15,12 +15,12 @@ By default, AWS will restrict you to running only a few small instances at a tim
 ## Installing Cactus on your local machine
 Follow the steps in the README, making sure to install toil with its extra AWS support:
 ```
-git clone https://github.com/comparativegenomicstoolkit/cactus.git
+git clone https://github.com/comparativegenomicstoolkit/cactus.git --recursive
 cd cactus
-virtualenv venv
+virtualenv -p python 3.6 venv
 source venv/bin/activate
+pip install -r toil-requirement.txt
 pip install --upgrade .
-pip install --upgrade toil[aws]
 ```
 ## Estimating the maximum number of worker instances you'll need
 The cluster will automatically scale up and down, but you'll want to set a maximum number of nodes so the scaler doesn't get overly aggressive and waste money, or go over your AWS limits. We typically use `c4.8xlarge` on the spot market for most jobs, and `r4.8xlarge` on-demand for database jobs. Here are some very rough estimates of what we typically use for the maximum of each type (round up):
@@ -63,7 +63,7 @@ Install Cactus in a virtual environment on the leader:
 ```
 apt update
 apt install -y git tmux
-virtualenv --system-site-packages venv
+virtualenv --system-site-packages -p python3.6 venv
 source venv/bin/activate
 git clone https://github.com/comparativegenomicstoolkit/cactus.git
 cd cactus
