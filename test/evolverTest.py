@@ -40,7 +40,7 @@ class TestCase(unittest.TestCase):
         out_dir = os.path.join(self.tempDir, 'output')
         out_seqfile = os.path.join(out_dir, 'evolverMammalsOut.txt')
         in_seqfile = './examples/evolverMammals.txt'
-        cmd = ['cactus-prepare', in_seqfile, out_dir, out_seqfile, self._out_hal(name),
+        cmd = ['cactus-prepare', in_seqfile, '--outDir', out_dir, '--outSeqFile', out_seqfile, '--outHal', self._out_hal(name),
                '--jobStore', self._job_store(name)]
 
         job_plan = popenCatch(' '.join(cmd))
@@ -62,7 +62,7 @@ class TestCase(unittest.TestCase):
         out_seqfile = os.path.join(self.tempDir, 'evolverMammalsOut.txt')
         in_seqfile = './examples/evolverMammals.txt'
         out_wdl = os.path.join(self.tempDir, 'prepared.wdl')
-        cmd = ['cactus-prepare', in_seqfile, '.', out_seqfile, self._out_hal(name),
+        cmd = ['cactus-prepare', in_seqfile, '--outHal', self._out_hal(name),
                '--jobStore', self._job_store(name), '--wdl',
                '--dockerImage', 'evolvertestdocker/cactus:latest',
                '--preprocessCores', '2',
@@ -106,7 +106,7 @@ class TestCase(unittest.TestCase):
             inseq.write('simMouse_chr6 http://s3-us-west-2.amazonaws.com/jcarmstr-misc/testRegions/evolverMammals/simMouse.chr6\n')
             inseq.write('simRat_chr6 http://s3-us-west-2.amazonaws.com/jcarmstr-misc/testRegions/evolverMammals/simRat.chr6\n')
 
-        cmd = ['cactus-prepare', in_seqfile, out_dir, out_seqfile, self._out_hal(binariesMode),
+        cmd = ['cactus-prepare', in_seqfile, '--outDir', out_dir, '--outSeqFile', out_seqfile, '--outHal', self._out_hal(binariesMode),
                '--jobStore', self._job_store(binariesMode)]
         job_plan = popenCatch(' '.join(cmd))
 

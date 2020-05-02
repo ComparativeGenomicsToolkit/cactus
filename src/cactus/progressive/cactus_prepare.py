@@ -29,22 +29,27 @@ from cactus.shared.version import cactus_commit
 def main():
     parser = ArgumentParser()
     parser.add_argument("seqFile", help = "Seq file")
-    parser.add_argument("outSeqDir", help='Directory where the processed leaf sequence and ancestral sequences will be placed')
-    parser.add_argument("outSeqFile", help = "Path for annotated Seq file output")
-    parser.add_argument("outputHal", type=str, help = "Output HAL file")
+    parser.add_argument("--outDir", help='Directory where the processed leaf sequence and ancestral sequences will be placed.'
+                        ' Required when not using --wdl')
+    parser.add_argument("--outSeqFile", help="Path for annotated Seq file output [default: outDir/seqFile]")
+    parser.add_argument("--outHal", help="Output HAL file [default: outDir/out.hal]")
+    parser.add_argument("--wdl", action="store_true", help="output wdl workflow instead of list of commands")
+    parser.add_argument("--noLocalInputs", action="store_true", help="dont embed local input paths in WDL script (as they will need"
+                        " to be respecified when running on Terra")
     parser.add_argument("--configFile", default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
     parser.add_argument("--preprocessBatchSize", type=int, default=3, help="size (number of genomes) of suggested preprocessing jobs")
     parser.add_argument("--jobStore", type=str, default="./jobstore", help="base directory of jobStores to use in suggested commands")
     parser.add_argument("--halOptions", type=str, default="--hdf5InMemory", help="options for every hal command")
     parser.add_argument("--cactusOptions", type=str, default="--realTimeLogging --logInfo", help="options for every cactus command")
     parser.add_argument("--preprocessOnly", action="store_true", help="only decompose into preprocessor and cactus jobs")
-    parser.add_argument("--wdl", action="store_true", help="output wdl workflow instead of list of commands")
     parser.add_argument("--dockerImage", type=str, help="docker image to use as wdl runtime")
 
+    parser.add_argument("--defaultCores", type=int, help="Number of cores for each job unless otherwise specified")
     parser.add_argument("--preprocessCores", type=int, help="Number of cores for each cactus-preprocess job")
     parser.add_argument("--blastCores", type=int, help="Number of cores for each cactus-blast job")
     parser.add_argument("--alignCores", type=int, help="Number of cores for each cactus-align job")
 
+    parser.add_argument("--defaultMem", type=float, help="Memory in GB for each job unless otherwise specified")
     parser.add_argument("--preprocessMem", type=float, help="Memory in GB for each cactus-preprocess job")
     parser.add_argument("--blastMem", type=float, help="Memory in GB for each cactus-blast job")
     parser.add_argument("--alignMem", type=float, help="Memory in GB for each cactus-align job")
@@ -54,20 +59,57 @@ def main():
     #todo support root option
     options.root = None
 
+    if not options.wdl:
+        if not options.outDir:
+            raise RuntimeError("--outDir option required when not using --wdl")
+        if not options.outSeqFile:
+            options.outSeqFile = os.path.join(options.outDir, os.path.basename(options.seqFile))
+            if os.path.abspath(options.seqFile) == os.path.abspath(options.outSeqFile):
+                options.outSeqFile += '.1'
+
+    if not options.outHal:
+        options.outHal = os.path.join(options.outDir if options.outDir else '', 'out.hal')
+
     if options.wdl:
         if options.preprocessBatchSize != 1:
-            sys.stderr.write("Warning: --preprocessBatchSize reset to 1 for --wdl support\n")
+            if options.preprocessBatchSize != 3:
+                # hacky way to only warn for non-default
+                sys.stderr.write("Warning: --preprocessBatchSize reset to 1 for --wdl support\n")
             options.preprocessBatchSize = 1
-        if options.outSeqDir != ".":
-            # todo: generalize
-            options.outSeqDir = "."
+        # wdl handles output file structure
+        if options.outDir:
+            sys.stderr.write("Warning: --outDir option ignored with --wdl")
+        options.outDir = "."
+        if options.outSeqFile:
+            sys.stderr.write("Warning: --outSeqFile option ignored with --wdl")
+            options.outSeqFile = None
         if options.preprocessOnly:
             raise RuntimeError('--preprocessOnly cannot be used in conjunction with --wdl')
         # keep toil scratch directory inside cromwell's working directory
         if '--workDir' not in options.cactusOptions:
             options.cactusOptions += ' --workDir .'
+        if not options.alignCores:
+            options.alignCores = 2
     if not options.dockerImage:
         options.dockerImage = getDockerImage()
+    # apply defaults
+    if options.defaultCores:
+        if not options.preprocessCores:
+            options.preprocessCores = options.defaultCores
+        if not options.blastCores:
+            options.blastCores = options.defaultCores
+        if not options.alignCores:
+            options.alignCores = options.defaultCores
+    if options.defaultMem:
+        if not options.preprocessMem:
+            options.preprocessMem = options.defaultMem
+        if not options.blastMem:
+            options.blastMem = options.defaultMem
+        if not options.alignMem:
+            options.alignMem = options.defaultMem
+    if options.alignCores == 1:
+        sys.stderr.write("Warning: --alignCores changed from 1 to 2\n")
+        options.alignCores = 2
 
     # need to go through this garbage (copied from the main() in progressive_cactus) to
     # come up with the project
@@ -158,26 +200,27 @@ def cactusPrepare(options, project):
     configNode = ET.parse(options.configFile).getroot()
     config = ConfigWrapper(configNode)
 
-    # prepare output sequence directory
-    # todo: support remote (ie s3) output directory
-    try:
-        os.makedirs(options.outSeqDir)
-    except:
-        pass
-    if not os.path.isdir(options.outSeqDir):
-        raise RuntimeError('Unable to create output sequence directory \'{}\''.format(options.outSeqDir))
-    if not os.access(options.outSeqDir, os.W_OK):
-        logger.warning('Output sequence directory is not writeable: \'{}\''.format(options.outSeqDir))
+    if not options.wdl:
+        # prepare output sequence directory
+        # todo: support remote (ie s3) output directory
+        try:
+            os.makedirs(options.outDir)
+        except:
+            pass
+        if not os.path.isdir(options.outDir):
+            raise RuntimeError('Unable to create output sequence directory \'{}\''.format(options.outDir))
+        if not os.access(options.outDir, os.W_OK):
+            logger.warning('Output sequence directory is not writeable: \'{}\''.format(options.outDir))
 
     # hack the configfile to skip preprocessing and write it to the output dir
     if options.preprocessOnly:
         config.removePreprocessors()
-        options.configFile = os.path.join(options.outSeqDir, 'config.xml')
+        options.configFile = os.path.join(options.outDir, 'config.xml')
         config.writeXML(options.configFile)
         
     # pass through the config file to the options
     # todo (don't like second hard-code check of .xml path)
-    if options.configFile != os.path.join(cactusRootPath(), "cactus_progressive_config.xml"):
+    if options.configFile != os.path.join(cactusRootPath(), "cactus_progressive_config.xml") and not options.wdl:
         options.cactusOptions += ' --configFile {}'.format(options.configFile)
 
     # get the ancestor names
@@ -196,14 +239,15 @@ def cactusPrepare(options, project):
         leaf = outSeqFile.tree.isLeaf(node)
         if leaf or (not leaf and name not in seqFile.pathMap and not options.preprocessOnly):
             out_basename = seqFile.pathMap[name] if name in seqFile.pathMap else '{}.fa'.format(name)
-            outSeqFile.pathMap[name] = os.path.join(options.outSeqDir, os.path.basename(out_basename))
+            outSeqFile.pathMap[name] = os.path.join(options.outDir, os.path.basename(out_basename))
             if options.wdl:
                 # uniquify name in wdl to prevent collisions
                 outSeqFile.pathMap[name] += '.pp'
 
     # write the output
-    with open(options.outSeqFile, 'w') as out_sf:
-        out_sf.write(str(outSeqFile))
+    if options.outSeqFile:
+        with open(options.outSeqFile, 'w') as out_sf:
+            out_sf.write(str(outSeqFile))
 
     # write the instructions
     print(get_plan(options, project, seqFile, outSeqFile))
@@ -232,7 +276,7 @@ def get_plan(options, project, inSeqFile, outSeqFile):
         # if we're only making preprocess jobs, we can end early
         plan += '\n## Cactus\n'
         plan += 'cactus {} {} {} {}\n'.format(get_jobstore(options), options.outSeqFile,
-                                              options.outputHal, options.cactusOptions)
+                                              options.outHal, options.cactusOptions)
         return plan
 
     # shedule up the alignments
@@ -297,11 +341,11 @@ def get_plan(options, project, inSeqFile, outSeqFile):
 
     def halPath(event):
         if event == project.mcTree.getRootName():
-            return options.outputHal
+            return options.outHal
         else:
-            return os.path.join(options.outSeqDir, event + '.hal')
+            return os.path.join(options.outDir, event + '.hal')
     def cigarPath(event):
-        return os.path.join(options.outSeqDir, event + '.cigar')
+        return os.path.join(options.outDir, event + '.cigar')
 
     # alignment groups
     plan += '\n## Alignment\n'
@@ -374,11 +418,24 @@ def wdl_workflow_start(options, in_seq_file):
 
     # we need to explicitly import local files
     s += '    input {\n'
-    s += '        File prep_seq_file=\"{}\"\n'.format(os.path.abspath(options.outSeqFile))
+
+    s += '        File seq_file'
+    if not options.noLocalInputs:
+        s += '=\"{}\"'.format(os.path.abspath(options.seqFile))
+    s += '\n'
+
+    s += '        File? config_file'
+    if not options.noLocalInputs and options.configFile != os.path.join(cactusRootPath(), "cactus_progressive_config.xml"):
+        s += '=\"{}\"'.format(os.path.abspath(options.configFile))
+    s += '\n'
+    
     for name, fa_path in in_seq_file.pathMap.items():
         # todo: replace with check from toil
         if '://' not in fa_path:
-            s += '        File {}=\"{}\"\n'.format(input_fa_name(name), os.path.abspath(fa_path))
+            s += '        File {}'
+            if not options.noLocalInputs:
+                s += '=\"{}\"'.format(input_fa_name(name), os.path.abspath(fa_path))
+            s += '\n'
     s += '    }\n'
     return s
 
@@ -399,11 +456,14 @@ def wdl_task_preprocess(options):
     s += '    input {\n'
     s += '        File? in_file\n'
     s += '        String? in_url\n'
+    s += '        File? in_config_file\n'
     s += '        String out_name\n'
     s += '    }\n'
     s += '    command {\n        '
     s += 'cactus-preprocess {} --inPaths ${{default=\"\" in_file}} ${{default=\"\" in_url}}'.format(get_jobstore(options))
-    s += ' --outPaths ${{out_name}} {} {}\n'.format(options.cactusOptions, get_toil_resource_opts(options, 'preprocess'))
+    s += ' --outPaths ${{out_name}} {} {}'.format(options.cactusOptions, get_toil_resource_opts(options, 'preprocess'))
+    s += ' ${\"--configFile \" + in_config_file}'
+    s += '\n'
     s += '    }\n'
     
     s += '    runtime {\n'
@@ -424,10 +484,11 @@ def wdl_call_preprocess(options, in_seq_file, out_seq_file, name):
 
     s = '    call cactus_preprocess as {} {{\n'.format(preprocess_call_name(name))
     if '://' in in_path:
-        s += '        input: in_url=\"{}\"'.format(in_path)
+        s += '        input: in_url=\"{}\",'.format(in_path)
     else:
-        s += '        input: in_file={}'.format(input_fa_name(name))
-    s +=', out_name=\"{}\"'.format(out_name)
+        s += '        input: in_file={},'.format(input_fa_name(name))
+    s += ' in_config_file=config_file,'
+    s += ' out_name=\"{}\"'.format(out_name)
     s += '\n    }\n'
 
     return s
@@ -439,12 +500,13 @@ def wdl_task_blast(options):
     s += '        Array[String] in_fa_names\n'
     s += '        Array[File] in_fa_files\n'
     s += '        String in_root\n'
+    s += '        File? in_config_file\n'
     s += '        String out_name\n'
     s += '    }\n'
     s += '    command {\n        '
     s += 'cactus-blast {} ${{in_seq_file}} ${{out_name}} --root ${{in_root}}'.format(get_jobstore(options))
     s += ' --pathOverrides ${sep=\" \" in_fa_files} --pathOverrideNames ${sep=\" \" in_fa_names}'
-    s += ' {} {}'.format(options.cactusOptions, get_toil_resource_opts(options, 'blast'))
+    s += ' {} {} ${{\"--configFile \" + in_config_file}}'.format(options.cactusOptions, get_toil_resource_opts(options, 'blast'))
     s += '\n    }\n'
     s += '    runtime {\n'
     s += '        docker: \"{}\"\n'.format(options.dockerImage)
@@ -475,10 +537,11 @@ def wdl_call_blast(options, project, event, cigar_name):
             
     s = '    call cactus_blast as {} {{\n'.format(blast_call_name(event))
     s += '        input:'
-    s += ' in_seq_file=prep_seq_file,'
+    s += ' in_seq_file=seq_file,'
     s += ' in_fa_names=[{}],'.format(', '.join(['\"{}\"'.format(name) for name in input_names]))
     s += ' in_fa_files=[{}],'.format(', '.join(input_fas))
     s += ' in_root=\"{}\",'.format(event)
+    s += ' in_config_file=config_file,'
     s += ' out_name=\"{}\"'.format(os.path.basename(cigar_name))
     s += '\n    }\n'
 
@@ -491,14 +554,15 @@ def wdl_task_align(options):
     s += '        Array[String] in_fa_names\n'
     s += '        Array[File] in_fa_files\n'
     s += '        Array[File] in_blast_files\n'
-    s += '        String in_root\n'    
+    s += '        String in_root\n'
+    s += '        File? in_config_file\n'
     s += '        String out_hal_name\n'
     s += '        String out_fa_name\n'
     s += '    }\n'
     s += '    command {\n        '
     s += 'cactus-align {} ${{in_seq_file}} ${{sep=\" \" in_blast_files}} ${{out_hal_name}} --root ${{in_root}}'.format(get_jobstore(options))
     s += ' --pathOverrides ${{sep=\" \" in_fa_files}} --pathOverrideNames ${{sep=\" \" in_fa_names}} {}'.format(options.cactusOptions)
-    s += ' {}'.format(get_toil_resource_opts(options, 'align'))
+    s += ' {} ${{\"--configFile \" + in_config_file}}'.format(get_toil_resource_opts(options, 'align'))
     s += '\n        '
     s += 'hal2fasta ${{out_hal_name}} ${{in_root}} {} > ${{out_fa_name}}'.format(options.halOptions)
     s += '\n    }\n'
@@ -534,11 +598,12 @@ def wdl_call_align(options, project, event, cigar_name, hal_path, fa_path):
 
     s = '    call cactus_align as {} {{\n'.format(align_call_name(event))
     s += '        input:'
-    s += ' in_seq_file=prep_seq_file,'
+    s += ' in_seq_file=seq_file,'
     s += ' in_fa_names=[{}],'.format(', '.join(['\"{}\"'.format(name) for name in input_names]))
     s += ' in_fa_files=[{}],'.format(', '.join(input_fas))    
     s += ' in_blast_files={}.out_files,'.format(blast_call_name(event))
     s += ' in_root=\"{}\",'.format(event)
+    s += ' in_config_file=config_file,'
     s += ' out_hal_name=\"{}\",'.format(os.path.basename(hal_path))
     s += ' out_fa_name=\"{}\"'.format(os.path.basename(fa_path))
     s += '\n    }\n'

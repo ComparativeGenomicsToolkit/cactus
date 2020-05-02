@@ -10,7 +10,7 @@ from argparse import ArgumentParser
 import xml.etree.ElementTree as ET
 import copy
 import timeit
-
+import multiprocessing
 from operator import itemgetter
 
 from cactus.progressive.seqFile import SeqFile
@@ -85,6 +85,19 @@ def main():
            len(options.pathOverrideNames) != len(options.pathOverrides):
             raise RuntimeError('same number of values must be passed to --pathOverrides and --pathOverrideNames')
 
+    # cactus doesn't run with 1 core
+    if options.batchSystem == 'singleMachine':
+        if options.maxCores is not None:
+            if int(options.maxCores) < 2:
+                raise RuntimeError('Cactus requires --maxCores > 1')
+        else:
+            # is there a way to get this out of Toil?  That would be more consistent
+            if multiprocessing.cpu_count() < 2:
+                raise RuntimeError('Only 1 CPU detected.  Cactus requires at least 2')
+
+    # tokyo_cabinet is no longer supported
+    options.database = "kyoto_tycoon"
+        
     options.database = 'kyoto_tycoon'
 
     options.buildHal = True
@@ -108,7 +121,7 @@ def main():
     runCactusAfterBlastOnly(options)
     end_time = timeit.default_timer()
     run_time = end_time - start_time
-    logger.info("cactus-blast has finished after {} seconds".format(run_time))
+    logger.info("cactus-align has finished after {} seconds".format(run_time))
 
 def runCactusAfterBlastOnly(options):
     with Toil(options) as toil:
@@ -125,9 +138,11 @@ def runCactusAfterBlastOnly(options):
             # interface shift away from files of paths throughout all of cactus
             if options.pathOverrides:
                 seqFile = SeqFile(options.seqFile)
+                configNode = ET.parse(options.configFile).getroot()
+                config = ConfigWrapper(configNode)
+                tree = MultiCactusTree(seqFile.tree)
+                tree.nameUnlabeledInternalNodes(prefix = config.getDefaultInternalNodePrefix())                
                 for name, override in zip(options.pathOverrideNames, options.pathOverrides):
-                    if name not in seqFile.pathMap:
-                        raise RuntimeError('Override {} not found in seqFile'.format(name))
                     seqFile.pathMap[name] = override
                 override_seq = os.path.join(options.cactusDir, 'seqFile.override')
                 with open(override_seq, 'w') as out_sf:
