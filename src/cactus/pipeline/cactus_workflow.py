@@ -69,8 +69,7 @@ from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.experimentWrapper import DbElemWrapper
 from cactus.shared.configWrapper import ConfigWrapper
-from cactus.pipeline.ktserverToil import KtServerService
-from cactus.pipeline.ktserverControl import stopKtserver
+from cactus.pipeline.dbserverToil import DbServerService, getDbServer
 
 ############################################################
 ############################################################
@@ -187,7 +186,7 @@ class CactusPhasesJob(CactusJob):
             memory = max(2500000000, self.evaluateResourcePoly([4.10201882, 2.01324291e+08]))
             cpu = cw.getKtserverCpu(default=0.1)
             dbElem = ExperimentWrapper(self.cactusWorkflowArguments.scratchDbElemNode)
-            dbString = self.addService(KtServerService(dbElem=dbElem, isSecondary=True, memory=memory, cores=cpu)).rv(0)
+            dbString = self.addService(DbServerService(dbElem=dbElem, isSecondary=True, memory=memory, cores=cpu)).rv(0)
             newChild.phaseNode.attrib["secondaryDatabaseString"] = dbString
             return self.addChild(newChild).rv()
         else:
@@ -275,7 +274,7 @@ class StartPrimaryDB(CactusPhasesJob):
             memory = max(2500000000, self.evaluateResourcePoly([4.10201882, 2.01324291e+08]))
             cores = cw.getKtserverCpu(default=0.1)
             dbElem = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
-            service = self.addService(KtServerService(dbElem=dbElem,
+            service = self.addService(DbServerService(dbElem=dbElem,
                                                       existingSnapshotID=self.ktServerDump,
                                                       isSecondary=False,
                                                       memory=memory, cores=cores))
@@ -299,7 +298,7 @@ class SavePrimaryDB(CactusPhasesJob):
         fileStore.logToMaster("At end of %s phase, got stats %s" % (self.phaseName, stats))
         dbElem = DbElemWrapper(ET.fromstring(self.cactusWorkflowArguments.cactusDiskDatabaseString))
         # Send the terminate message
-        stopKtserver(dbElem)
+        getDbServer(dbElem, fileStore).stopServer()
         # Wait for the file to appear in the right place. This may take a while
         while True:
             with fileStore.readGlobalFileStream(self.cactusWorkflowArguments.snapshotID) as f:
