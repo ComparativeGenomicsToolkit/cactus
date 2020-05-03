@@ -69,7 +69,7 @@ from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.experimentWrapper import DbElemWrapper
 from cactus.shared.configWrapper import ConfigWrapper
-from cactus.pipeline.dbserverToil import DbServerService, getDbServer
+from cactus.pipeline.dbServerToil import DbServerService, getDbServer
 
 ############################################################
 ############################################################
