@@ -55,6 +55,9 @@ class DbElemWrapper(object):
     def getDbType(self):
         return self.dbElem.tag
 
+    def setDbType(self, dbType):
+        self.dbElem.tag = dbType
+
     def getDbPort(self):
         assert self.getDbType() == "kyoto_tycoon"
         return int(self.dbElem.attrib["port"])
