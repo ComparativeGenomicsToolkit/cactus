@@ -23,6 +23,7 @@ from toil.lib.bioio import getTempFile
 from toil.lib.bioio import logger
 from toil.lib.bioio import setLoggingFromOptions
 from toil.realtimeLogger import RealtimeLogger
+from toil.lib.threading import cpu_count
 
 from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import findRequiredNode
@@ -373,7 +374,7 @@ def main():
                 raise RuntimeError('Cactus requires --maxCores > 1')
         else:
             # is there a way to get this out of Toil?  That would be more consistent
-            if multiprocessing.cpu_count() < 2:
+            if cpu_count() < 2:
                 raise RuntimeError('Only 1 CPU detected.  Cactus requires at least 2')
 
     # tokyo_cabinet is no longer supported
@@ -394,7 +395,7 @@ def main():
     # don't preemptively declare a deadlock.
     if options.deadlockWait is None or options.deadlockWait < 3600:
         options.deadlockWait = 3600
-    if options.retryCount is None:
+    if options.retryCount is None and options.batchSystem != 'singleMachine' :
         # If the user didn't specify a retryCount value, make it 5
         # instead of Toil's default (1).
         options.retryCount = 5

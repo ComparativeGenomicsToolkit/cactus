@@ -53,6 +53,6 @@ RUN chmod 777 /opt/cactus/wrapper.sh
 ARG CACTUS_COMMIT
 
 # UCSC convention is to work in /data
-RUN mkdir /data
+RUN mkdir -p /data
 WORKDIR /data
 
