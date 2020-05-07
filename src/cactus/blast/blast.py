@@ -11,6 +11,7 @@ import shutil
 from toil.lib.bioio import logger
 from toil.lib.bioio import system
 from toil.realtimeLogger import RealtimeLogger
+from toil.lib.threading import cpu_count
 
 from sonLib.bioio import catFiles, nameValue, popenCatch, getTempDirectory
 
@@ -440,7 +441,12 @@ class RunBlast(RoundedJob):
         else:
             disk = None
             memory = None
-        super(RunBlast, self).__init__(memory=memory, disk=disk, preemptable=True)
+        if blastOptions.gpuLastz:
+            # gpu jobs get the whole node
+            cores = cpu_count()
+        else:
+            cores = None
+        super(RunBlast, self).__init__(memory=memory, disk=disk, cores=cores, preemptable=True)
         self.blastOptions = blastOptions
         self.seqFileID1 = seqFileID1
         self.seqFileID2 = seqFileID2

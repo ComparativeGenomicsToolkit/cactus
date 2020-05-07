@@ -58,7 +58,7 @@ python3 -m pip install virtualenv
 
 To set up a virtual environment in the directory `cactus_env`, run:
 ```
-virtualenv -p python3.6 cactus_env
+python3 -m virtualenv -p python3.6 cactus_env
 ```
 
 Then, to enter the virtualenv, run:
@@ -197,16 +197,18 @@ cactus-prepare examples/evolverMammals.txt --wdl --noLocalInputs --alignCores 2 
 ```
 
 Then in Terra's [workspace menu](https://app.terra.bio/#workspaces):
-* Create a new workspace if necessary with the "+" button.
+* Create a new workspace if necessary with the "+" button
 * Click on the workspace
 * Click on the "DATA" tab in the workspace menu and use the "Files" link to upload `examples/evolverMammals.txt` to Goggle Cloud
 * Click on the "WORKFLOWS" tab
 * Click the "+" button to add a workflow
 * Click the link in the bottom right to the "Broad Methods Repository"
 * Click the "Create New Method... +" button
-* Choose and namespace and name, then either upload or paste `evolver_terra.wdl` as created above and save
-* It should now appear as a card in the Terra "workflows" tab
+* Choose and namespace and name, then either upload or paste `evolver_terra.wdl` as created above and click "Upload"
+* If this WDL is valid, you can use the "Export To Workspace" button to link it to the Terra Workspace (using a blank configuraiton)
+* You can select the option to go back to the Terra Workspace, otherwise the workflow should now appear as a card in the Terra "workflows" tab the next time you navigate there
 * To run it, click the workflow then click the "INPUTS" tab, and select the `evolverMammals.txt` file in the Attribute field for Taks=`cactus_prepare` Variable=`prep_seq_file`
+* Tick "Run workflow with inputs defined by file paths"
 * Save and click "RUN ANALYSIS"
 
 In the evolver example, all input sequences are specified in public URLs.  If sequences are not specified as URLs in the seqfile, then they must be uploaded in similar fashion to how the evolverMammals.txt was uploaded and selected in the example above.  

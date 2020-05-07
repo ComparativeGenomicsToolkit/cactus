@@ -37,6 +37,7 @@ from toil.job import Job
 from toil.common import Toil
 from toil.lib.bioio import logger
 from toil.lib.bioio import setLoggingFromOptions
+from toil.lib.threading import cpu_count
 
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory
@@ -92,7 +93,7 @@ def main():
                 raise RuntimeError('Cactus requires --maxCores > 1')
         else:
             # is there a way to get this out of Toil?  That would be more consistent
-            if multiprocessing.cpu_count() < 2:
+            if cpu_count() < 2:
                 raise RuntimeError('Only 1 CPU detected.  Cactus requires at least 2')
 
     # tokyo_cabinet is no longer supported
@@ -295,9 +296,9 @@ def prepend_cigar_ids(cigars, outputDir, idMap):
             for line in infile:
                 toks = line.split()
                 if toks[1] not in idMap:
-                    raise RuntimeError('cigar id {} not found in id-map {}'.format(toks[1], idMap))
+                    raise RuntimeError('cigar id {} not found in id-map {}'.format(toks[1], str(idMap)[:1000]))
                 if toks[5] not in idMap:
-                    raise RuntimeError('cigar id {} not found in id-map {}'.format(toks[5], idMap))
+                    raise RuntimeError('cigar id {} not found in id-map {}'.format(toks[5], str(idMap)[:1000]))
                 toks[1] = idMap[toks[1]]
                 toks[5] = idMap[toks[5]]
                 outfile.write('{}\n'.format(' '.join(toks)))

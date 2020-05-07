@@ -25,6 +25,7 @@ from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.schedule import Schedule
 from cactus.progressive.projectWrapper import ProjectWrapper
 from cactus.shared.version import cactus_commit
+from cactus.shared.common import findRequiredNode
 
 def main():
     parser = ArgumentParser()
@@ -43,6 +44,12 @@ def main():
     parser.add_argument("--cactusOptions", type=str, default="--realTimeLogging --logInfo", help="options for every cactus command")
     parser.add_argument("--preprocessOnly", action="store_true", help="only decompose into preprocessor and cactus jobs")
     parser.add_argument("--dockerImage", type=str, help="docker image to use as wdl runtime")
+    
+    parser.add_argument("--gpu", action="store_true", help="use gpu-enabled lastz in cactus-blast")
+    parser.add_argument("--gpuType", default="nvidia-tesla-v100", help="GPU type (to set in WDL runtime parameters)")
+    parser.add_argument("--gpuCount", default=1, help="GPU count (to set in WDL runtime parameters)")
+    parser.add_argument("--nvidiaDriver", default="440.64.00", help="Nvidia driver version")
+    parser.add_argument("--zone", default="us-central1-c", help="zone used for gpu task")
 
     parser.add_argument("--defaultCores", type=int, help="Number of cores for each job unless otherwise specified")
     parser.add_argument("--preprocessCores", type=int, help="Number of cores for each cactus-preprocess job")
@@ -66,6 +73,9 @@ def main():
             options.outSeqFile = os.path.join(options.outDir, os.path.basename(options.seqFile))
             if os.path.abspath(options.seqFile) == os.path.abspath(options.outSeqFile):
                 options.outSeqFile += '.1'
+                
+    if (not options.wdl or not options.gpu) and (options.gpuCount > 1 or options.gpuType != "nvidia-tesla-v100"):
+        raise RuntimeError("--gpuType and gpuCount can only be used with --wdl --gpu")
 
     if not options.outHal:
         options.outHal = os.path.join(options.outDir if options.outDir else '', 'out.hal')
@@ -78,10 +88,10 @@ def main():
             options.preprocessBatchSize = 1
         # wdl handles output file structure
         if options.outDir:
-            sys.stderr.write("Warning: --outDir option ignored with --wdl")
+            sys.stderr.write("Warning: --outDir option ignored with --wdl\n")
         options.outDir = "."
         if options.outSeqFile:
-            sys.stderr.write("Warning: --outSeqFile option ignored with --wdl")
+            sys.stderr.write("Warning: --outSeqFile option ignored with --wdl\n")
             options.outSeqFile = None
         if options.preprocessOnly:
             raise RuntimeError('--preprocessOnly cannot be used in conjunction with --wdl')
@@ -110,6 +120,13 @@ def main():
     if options.alignCores == 1:
         sys.stderr.write("Warning: --alignCores changed from 1 to 2\n")
         options.alignCores = 2
+
+    # https://cromwell.readthedocs.io/en/stable/RuntimeAttributes/#gpucount-gputype-and-nvidiadriverversion
+    # note: k80 not included as WGA_GPU doesn't run on it.  
+    acceptable_gpus = ['nvidia-tesla-v100', 'nvidia-tesla-p100', 'nvidia-tesla-p4', 'nvidia-tesla-t4']
+    if options.gpuType not in acceptable_gpus:
+        raise RuntimeError('--gpuType {} not supported by Terra.  Acceptable types are {}'.format(
+            options.gpuType, acceptable_gpus))
 
     # need to go through this garbage (copied from the main() in progressive_cactus) to
     # come up with the project
@@ -212,9 +229,22 @@ def cactusPrepare(options, project):
         if not os.access(options.outDir, os.W_OK):
             logger.warning('Output sequence directory is not writeable: \'{}\''.format(options.outDir))
 
-    # hack the configfile to skip preprocessing and write it to the output dir
-    if options.preprocessOnly:
-        config.removePreprocessors()
+    if options.preprocessOnly or options.gpu:
+        if options.preprocessOnly:
+            # hack the configfile to skip preprocessing and write it to the output dir
+            config.removePreprocessors()
+        if options.gpu:
+            # hack the configfile to toggle on gpu lastz
+            cafNode = findRequiredNode(config.xmlRoot, "caf")
+            cafNode.attrib["gpuLastz"] = "true"
+        options.configFile = os.path.join(options.outDir, 'config.xml')
+        sys.stderr.write("configuration saved in {}\n".format(options.configFile))
+        config.writeXML(options.configFile)
+
+
+    if options.gpu:
+        cafNode = findRequiredNode(config.xmlRoot, "caf")
+        cafNode.attrib["gpuLastz"] = "true"
         options.configFile = os.path.join(options.outDir, 'config.xml')
         config.writeXML(options.configFile)
         
@@ -371,6 +401,7 @@ def get_plan(options, project, inSeqFile, outSeqFile):
     plan += '\n## HAL merging\n'
     root = project.mcTree.getRootName()
     prev_event = None
+    append_count = 0
     for group in reversed(groups):
         for event in group:
             if event != root:
@@ -379,10 +410,11 @@ def get_plan(options, project, inSeqFile, outSeqFile):
                 else:
                     plan += 'halAppendSubtree {} {} {} {} --merge {}\n'.format(
                         halPath(root), halPath(event), event, event, options.halOptions)
+                append_count += 1
             prev_event = event
 
     if options.wdl:
-        plan += wdl_workflow_end(options, prev_event)
+        plan += wdl_workflow_end(options, prev_event, append_count > 1)
 
     return plan
 
@@ -439,10 +471,13 @@ def wdl_workflow_start(options, in_seq_file):
     s += '    }\n'
     return s
 
-def wdl_workflow_end(options, event):
+def wdl_workflow_end(options, event, was_appended):
     s = '\n'
     s += '    output {\n'
-    s += '        File out_hal = {}.out_file\n'.format(hal_append_call_name(event))
+    if was_appended:
+        s += '        File out_hal = {}.out_file\n'.format(hal_append_call_name(event))
+    else:
+        s += '        File out_hal = {}.out_hal_file\n'.format(align_call_name(event))
     s += '    }\n'
     s += '}\n'
     return s
@@ -511,9 +546,15 @@ def wdl_task_blast(options):
     s += '    runtime {\n'
     s += '        docker: \"{}\"\n'.format(options.dockerImage)
     if options.blastCores:
-        s+= '        cpu: \"{}\"\n'.format(options.blastCores)
+        s += '        cpu: \"{}\"\n'.format(options.blastCores)
     if options.blastMem:
-        s+= '        memory: \"{}GB\"\n'.format(options.blastMem)
+        s += '        memory: \"{}GB\"\n'.format(options.blastMem)
+    if options.gpu:
+        s += '        gpuType: \"{}\"\n'.format(options.gpuType)
+        s += '        gpuCount: \"{}\"\n'.format(options.gpuCount)
+        s += '        bootDiskSizeGb: 20\n'
+        s += '        nvidiaDriverVersion: \"{}\"\n'.format(options.nvidiaDriver)
+        s += '        zones: \"{}\"\n'.format(options.zone)
     s += '    }\n'
     s += '    output {\n        Array[File] out_files=glob(\"${out_name}*\")\n    }\n'
     s += '}\n'
