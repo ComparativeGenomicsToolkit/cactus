@@ -5,10 +5,13 @@ from toil.job import Job
 from cactus.shared.experimentWrapper import DbElemWrapper
 from cactus.shared.common import cactus_call
 from cactus.pipeline.dbServerToil import DbServerService
-from cactus.shared.test import getGlobalDatabaseConf
 from cactus.pipeline.ktserverControl import KtServer
+from cactus.pipeline.redisServerControl import RedisServer
 
 import xml.etree.ElementTree as ET
+
+KT_CONF_STRING = '<st_kv_database_conf type="kyoto_tycoon"><kyoto_tycoon in_memory="1" port="{port}" snapshot="0"/></st_kv_database_conf>'
+REDIS_CONF_STRING = '<st_kv_database_conf type="redis"><redis in_memory="1" port="{port}" snapshot="0"/></st_kv_database_conf>'
 
 
 class DbTestJob(Job):
@@ -47,22 +50,24 @@ def _testKt(xmlString):
 
 
 def _testRedis(xmlString):
-    pass
+    dbElem = DbElemWrapper(ET.fromstring(xmlString))
+    redisServer = RedisServer(dbElem)
+    pingOut = cactus_call(parameters=['redis-cli'] + redisServer.getRemoteParams() + ['PING'],
+                          check_output=True)
+    assert pingOut.strip() == "PONG"
 
 
 class TestCase(unittest.TestCase):
-    def setUp(self):
-        xmlString = getGlobalDatabaseConf()
-        self.initialDbElem = DbElemWrapper(ET.fromstring(xmlString))
 
+    #@unittest.skip("skip KT!")
     def testKtServerService(self):
-        self.initialDbElem.setDbType("kyoto_tycoon")
-        runAndTestDbServerService(self.initialDbElem, _testKt)
+        initialDbElem = DbElemWrapper(ET.fromstring(KT_CONF_STRING))
+        runAndTestDbServerService(initialDbElem, _testKt)
 
-    @unittest.skip("redis is not supported yet")
+    #@unittest.skip("skip Redis!")
     def testRedisServerService(self):
-        self.initialDbElem.setDbType("redis")
-        runAndTestDbServerService(self.initialDbElem, _testRedis)
+        initialDbElem = DbElemWrapper(ET.fromstring(REDIS_CONF_STRING))
+        runAndTestDbServerService(initialDbElem, _testRedis)
 
 
 if __name__ == '__main__':
