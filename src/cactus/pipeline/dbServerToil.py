@@ -8,6 +8,7 @@ import os
 import stat
 from toil.job import Job
 from cactus.pipeline.ktserverControl import KtServer
+from cactus.pipeline.redisServerControl import RedisServer
 
 class DbServerService(Job.Service):
     def __init__(self, dbElem, isSecondary, existingSnapshotID=None,
@@ -63,4 +64,6 @@ def getDbServer(dbElem, fileStore=None, existingSnapshotID=None, snapshotExportI
     """
     if dbElem.getDbType() == "kyoto_tycoon":
         return KtServer(dbElem, fileStore, existingSnapshotID, snapshotExportID)
+    elif dbElem.getDbType() == "redis":
+        return RedisServer(dbElem, fileStore, existingSnapshotID, snapshotExportID)
     raise RuntimeError("The database type, %s, is not supported" % dbElem.getDbType())
