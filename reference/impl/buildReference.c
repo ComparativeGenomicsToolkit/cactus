@@ -231,11 +231,14 @@ static void getEventWeightingP(Event *pEvent, Event *event,
     }
     if(stSet_search(chosenEvents, event) != NULL) { //Defines a leaf event that is not the reference, which we need to give a score for
         assert(adjustedPathLength <= pathLength);
-        assert(exp(-phi * pathLength) <= 1.0);
-        assert(exp(-phi * pathLength) >= 0.0);
-        double score = exp(-phi * pathLength) * adjustedPathLength/pathLength;
+        double score = exp(-phi * pathLength);
         assert(score <= 1.0);
         assert(score >= 0.0);
+        if (pathLength > 0.0) {
+            score *= adjustedPathLength/pathLength;
+            assert(score <= 1.0);
+            assert(score >= 0.0);
+        }
         // fprintf(stdout, "Chose weight %lf for event %s (multiplicity %" PRIi64 "). Adj path length %lf, path length %lf.\n", score, event_getHeader(event), stIntTuple_get(stHash_search(branchesToMultiplicity, event), 0), adjustedPathLength, pathLength);
         stHash_insert(eventToWeights, event, stDoubleTuple_construct(1, score));
     }
