@@ -43,6 +43,13 @@ class DbElemWrapper(object):
                 raise RuntimeError("Database conf is of kyoto tycoon but there is no nested kyoto tycoon tag: %s" % dataString)
             if not set(("host", "port", "database_dir")).issubset(set(kyotoTycoon.attrib.keys())):
                 raise RuntimeError("The kyoto tycoon tag has a missing attribute: %s" % dataString)
+        elif typeString == "redis":
+            redis = self.confElem.find("redis")
+            if redis == None:
+                raise RuntimeError("Database conf is of redis but there is no nested redis tag: %s" % dataString)
+            if not set(("host", "port", "database_dir")).issubset(set(redis.attrib.keys())):
+                raise RuntimeError("The redis tag has a missing attribute: %s" % dataString)
+
         else:
             raise RuntimeError("Unrecognised database type in conf string: %s" % typeString)
 
@@ -59,65 +66,65 @@ class DbElemWrapper(object):
         self.dbElem.tag = dbType
 
     def getDbPort(self):
-        assert self.getDbType() == "kyoto_tycoon"
+        assert self.getDbType() in ["kyoto_tycoon", "redis"]
         return int(self.dbElem.attrib["port"])
 
     def setDbPort(self, port):
-        assert self.getDbType() == "kyoto_tycoon"
+        assert self.getDbType() in ["kyoto_tycoon", "redis"]
         self.dbElem.attrib["port"] = str(port)
 
     def getDbHost(self):
-        assert self.getDbType() == "kyoto_tycoon"
+        assert self.getDbType() in ["kyoto_tycoon", "redis"]
         if "host" in self.dbElem.attrib:
             return self.dbElem.attrib["host"]
         return None
 
     def setDbHost(self, host):
-        assert self.getDbType() == "kyoto_tycoon"
+        assert self.getDbType() in ["kyoto_tycoon", "redis"]
         self.dbElem.attrib["host"] = host
 
     def getDbServerOptions(self):
-        assert self.getDbType() == "kyoto_tycoon"
+        assert self.getDbType() in ["kyoto_tycoon", "redis"]
         if "server_options" in self.dbElem.attrib:
             return self.dbElem.attrib["server_options"]
         return None
 
     def setDbServerOptions(self, options):
-        assert self.getDbType() == "kyoto_tycoon"
+        assert self.getDbType() in ["kyoto_tycoon", "redis"]
         self.dbElem.attrib["server_options"] = str(options)
 
     def getDbTuningOptions(self):
-        assert self.getDbType() == "kyoto_tycoon"
+        assert self.getDbType() in ["kyoto_tycoon", "redis"]
         if "tuning_options" in self.dbElem.attrib:
             return self.dbElem.attrib["tuning_options"]
         return None
 
     def setDbTuningOptions(self, options):
-        assert self.getDbType() == "kyoto_tycoon"
+        assert self.getDbType() in ["kyoto_tycoon", "redis"]
         self.dbElem.attrib["tuning_options"] = str(options)
 
     def getDbCreateTuningOptions(self):
-        assert self.getDbType() == "kyoto_tycoon"
+        assert self.getDbType() in ["kyoto_tycoon", "redis"]
         if "create_tuning_options" in self.dbElem.attrib:
             return self.dbElem.attrib["create_tuning_options"]
         return None
 
     def setDbCreateTuningOptions(self, options):
-        assert self.getDbType() == "kyoto_tycoon"
+        assert self.getDbType() in ["kyoto_tycoon", "redis"]
         self.dbElem.attrib["create_tuning_options"] = str(options)
 
     def getDbReadTuningOptions(self):
-        assert self.getDbType() == "kyoto_tycoon"
+        assert self.getDbType() in ["kyoto_tycoon", "redis"]
         if "read_tuning_options" in self.dbElem.attrib:
             return self.dbElem.attrib["read_tuning_options"]
         return None
 
     def setDbReadTuningOptions(self, options):
-        assert self.getDbType() == "kyoto_tycoon"
+        assert self.getDbType() in ["kyoto_tycoon", "redis"]
         self.dbElem.attrib["read_tuning_options"] = str(options)
 
     def getDbInMemory(self):
-        assert self.getDbType() == "kyoto_tycoon"
+        assert self.getDbType() in ["kyoto_tycoon", "redis"]
         if "in_memory" in self.dbElem.attrib:
             val = self.dbElem.attrib["in_memory"]
             retVal = val.lower() == "true" or val == "1"
@@ -126,19 +133,20 @@ class DbElemWrapper(object):
         return False
 
     def setDbInMemory(self, inMemory):
-        assert self.getDbType() == "kyoto_tycoon"
+        assert self.getDbType() in ["kyoto_tycoon", "redis"]
         self.dbElem.attrib["in_memory"] = str(int(inMemory))
 
     def getDbSnapshot(self):
-        assert self.getDbType() == "kyoto_tycoon"
+        assert self.getDbType() in ["kyoto_tycoon", "redis"]
         if "snapshot" in self.dbElem.attrib:
             val = self.dbElem.attrib["snapshot"]
             return val.lower() == "true" or val == "1"
         return self.getDbInMemory()
 
     def setDbSnapshot(self, snapshot):
-        assert self.getDbType() == "kyoto_tycoon"
+        assert self.getDbType() in ["kyoto_tycoon", "redis"]
         self.dbElem.attrib["snapshot"] = str(int(snapshot))
+
 
 class ExperimentWrapper(DbElemWrapper):
     def __init__(self, xmlRoot):
