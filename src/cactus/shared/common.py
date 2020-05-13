@@ -1033,7 +1033,7 @@ def singularityCommand(tool=None,
         # Also, only sandbox directories work with user namespaces, and only user
         # namespaces work inside unprivileged Docker containers like the Toil
         # appliance.
-        sandbox_dirname = os.path.join(cache_dir, '{}.sandbox'.format(hashlib.sha256(tool).hexdigest()))
+        sandbox_dirname = os.path.join(cache_dir, '{}.sandbox'.format(hashlib.sha256(tool.encode('utf-8')).hexdigest()))
 
         if not os.path.exists(sandbox_dirname):
             # We atomically drop the sandbox at that name when we get it
