@@ -4,8 +4,12 @@ before_script:
   - whoami
   - sudo apt-get -q -y update
   # Cactus dependencies from Dockerfile (todo: centralize)
-  - sudo apt-get -q -y install build-essential git python3 python3-dev python3-pip zlib1g-dev wget libbz2-dev pkg-config libhdf5-dev liblzo2-dev libtokyocabinet-dev
-  # Get cromwell
+  - sudo apt-get -q -y install build-essential git python3 python3-dev python3-pip zlib1g-dev wget libbz2-dev pkg-config libhdf5-dev liblzo2-dev
+  # this fails sporradically on gitlab for reasons unknown (curse), so give it a couple tries
+  - sudo apt-get -q -y install libtokyocabinet-dev || sleep 60
+  - sudo apt-get -q -y install libtokyocabinet-dev || sleep 600
+  - sudo apt-get -q -y install libtokyocabinet-dev
+  # Get cromwell dependencies
   - sudo apt-get -q -y install default-jre wget
   # Make sure we have some curl stuff for pycurl which we need for some Python stuff
   - sudo apt-get -q -y install docker.io python-virtualenv libcurl4-gnutls-dev libgnutls28-dev
