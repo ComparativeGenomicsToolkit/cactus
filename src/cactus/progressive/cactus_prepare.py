@@ -464,9 +464,9 @@ def wdl_workflow_start(options, in_seq_file):
     for name, fa_path in in_seq_file.pathMap.items():
         # todo: replace with check from toil
         if '://' not in fa_path:
-            s += '        File {}'
+            s += '        File {}'.format(input_fa_name(name))
             if not options.noLocalInputs:
-                s += '=\"{}\"'.format(input_fa_name(name), os.path.abspath(fa_path))
+                s += '=\"{}\"'.format(os.path.abspath(fa_path))
             s += '\n'
     s += '    }\n'
     return s
