@@ -46,6 +46,7 @@ inclDirs = api/inc bar/inc caf/inc hal/inc reference/inc submodules/sonLib/C/inc
 
 kyotoTycoonIncl=-I${rootPath}/include -DHAVE_KYOTO_TYCOON=1
 kyotoTycoonLib=-L${rootPath}/lib -Wl,-rpath,${rootPath}/lib -lkyototycoon -lkyotocabinet -lz -lbz2 -lpthread -lm -lstdc++
+hiredisIncl=$(shell pkg-config --cflags hiredis) -DHAVE_REDIS=1
 hiredisLib=-lhiredis
 
 CPPFLAGS += ${inclDirs:%=-I${rootPath}/%} -I${LIBDIR} ${kyotoTycoonIncl}
