@@ -11,6 +11,7 @@ import sys
 import shutil
 import subprocess
 import logging
+import pathlib
 import pipes
 import uuid
 import json
@@ -1011,7 +1012,9 @@ def singularityCommand(tool=None,
         # and https://github.com/sylabs/singularity/issues/4555.
 
         # As a workaround, we have out own cache which we manage ourselves.
-        cache_dir = os.path.join(os.environ.get('SINGULARITY_CACHEDIR',  os.path.join(os.environ.get('HOME'), '.singularity')), 'toil')
+        home_dir = str(pathlib.Path.home())
+        default_singularity_dir = os.path.join(home_dir, '.singularity')
+        cache_dir = os.path.join(os.environ.get('SINGULARITY_CACHEDIR',  default_singularity_dir), 'toil')
         mkdir_p(cache_dir)
 
         # hack to transform back to docker image
