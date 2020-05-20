@@ -22,6 +22,7 @@ import timeit
 import math
 import threading
 import traceback
+import errno
 
 
 from urllib.parse import urlparse
