@@ -1065,7 +1065,7 @@ def singularityCommand(tool=None,
                     # Make sure someone else has made the directory
                     assert os.path.exists(sandbox_dirname)
                     # Remove our redundant copy
-                    shutil.rmtree(temp_sandbox_name)
+                    shutil.rmtree(temp_sandbox_dirname)
                 else:
                     raise
 
