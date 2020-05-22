@@ -404,8 +404,12 @@ class RunSelfBlast(RoundedJob):
     def __init__(self, blastOptions, seqFileID):
         disk = 3*seqFileID.size
         memory = 3*seqFileID.size
-
-        super(RunSelfBlast, self).__init__(memory=memory, disk=disk, preemptable=True)
+        if blastOptions.gpuLastz:
+            # gpu jobs get the whole node
+            cores = cpu_count()
+        else:
+            cores = None
+        super(RunSelfBlast, self).__init__(memory=memory, disk=disk, cores=cores, preemptable=True)
         self.blastOptions = blastOptions
         self.seqFileID = seqFileID
 
