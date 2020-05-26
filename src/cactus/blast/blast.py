@@ -84,8 +84,8 @@ class BlastSequencesAllAgainstAll(RoundedJob):
     def run(self, fileStore):
         sequenceFiles1 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs1]
         if self.blastOptions.gpuLastz == True:
-            # wga-gpu has a 3G limit. 
-            self.blastOptions.chunkSize = 3000000000
+            # wga-gpu has a 6G limit. 
+            self.blastOptions.chunkSize = 6000000000
         chunks = runGetChunks(sequenceFiles=sequenceFiles1,
                               chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()),
                               chunkSize=self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize)
@@ -154,8 +154,8 @@ class BlastSequencesAgainstEachOther(ChildTreeJob):
         sequenceFiles1 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs1]
         sequenceFiles2 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs2]
         if self.blastOptions.gpuLastz == True:
-            # wga-gpu has a 3G limit. 
-            self.blastOptions.chunkSize = 3000000000
+            # wga-gpu has a 6G limit. 
+            self.blastOptions.chunkSize = 6000000000
         chunks1 = runGetChunks(sequenceFiles=sequenceFiles1, chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()), chunkSize=self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize)
         chunks2 = runGetChunks(sequenceFiles=sequenceFiles2, chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()), chunkSize=self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize)
         chunkIDs1 = [fileStore.writeGlobalFile(chunk, cleanup=True) for chunk in chunks1]
