@@ -179,6 +179,10 @@ It will print the sequence of commands to run the alignment step-by-step.  Block
 
 `cactus-prepare` can also be used to simplify preprocessing sequences without decomposing the remaining workflow:
 
+```
+cactus-prepare examples/evolverMammals.txt --outDir steps-output --outSeqFile steps-output/evovlerMammals.txt --outHal steps-output/evolverMammals.hal --jobStore jobstore --preprocessOnly
+```
+
 #### Creading a WDL script to run on Cromwell or Terra
 
 The `--wdl` option in `cactus-prepare` can be used to generate a bespoke [WDL](https://github.com/openwdl/wdl/blob/master/versions/1.0/SPEC.md) script for running the alignment from the input seqFile.  Here is an example on how to run locally in [Cromwell](https://github.com/broadinstitute/cromwell)
