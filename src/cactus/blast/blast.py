@@ -428,7 +428,7 @@ class RunSelfBlast(RoundedJob):
     """Runs blast as a job.
     """
     def __init__(self, blastOptions, seqFileID):
-        memory, disk = blastOptions.calcMemoryDiskSizes([seqFileID], memoryMult=3, diskMult=3)
+        memory, disk = blastOptions.calcMemoryDiskSizes([seqFileID], memoryMult=5, diskMult=3)
 
         super(RunSelfBlast, self).__init__(memory=memory, disk=disk, preemptable=True)
         self.blastOptions = blastOptions
