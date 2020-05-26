@@ -56,7 +56,7 @@ class BlastOptions(object):
         self.compressFiles = compressFiles
         self.minimumSequenceLength = 10
         self.memory = memory
-        self.smallDisk = smallDisk
+        self.smallDisk = smallDisk    # FIXME: never distinguish between the two
         self.largeDisk = largeDisk
         self.trimFlanking = trimFlanking
         self.trimMinSize = trimMinSize
@@ -67,13 +67,40 @@ class BlastOptions(object):
         self.keepParalogs = keepParalogs
         self.gpuLastz = gpuLastz
 
+    def calcMemoryDiskSizes(self, seqFileIDs=None, *, memoryMult=None, diskMult=None):
+        """Calculate the memory and disk sizes to use.  If seqFileIDs is
+        specified, the sum of all of the file size is computed and multipiled
+        by memoryMult or diskMult to produce the correspond memory. If
+        multipliers are not specied, the default in this object is used.  The
+        max of the compute values or the fields in this object are used.  If
+        either end up as None, the default Toil values are used.
+        """
+        def maxWithNones(a, b):
+            if a is None:
+                return b
+            elif b is None:
+                return a
+            else:
+                return max(a, b)
+
+        memory = disk = None
+        if seqFileIDs is not None:
+            if memoryMult is not None:
+                memory = memoryMult * sum([s.size for s in seqFileIDs])
+            if diskMult is not None:
+                disk = diskMult * sum([s.size for s in seqFileIDs])
+        memory = maxWithNones(memory, self.memory)
+        disk = maxWithNones(disk, self.smallDisk)
+        disk = maxWithNones(disk, self.largeDisk)
+        return memory, disk
+
 class BlastSequencesAllAgainstAll(RoundedJob):
     """Take a set of sequences, chunks them up and blasts them.
     """
     def __init__(self, sequenceFileIDs1, blastOptions):
-        disk = 4*sum([seqFileID.size for seqFileID in sequenceFileIDs1])
+        # this doesn't need a lot of memory, so just use default
+        memory, disk = blastOptions.calcMemoryDiskSizes(seqFileID, diskMult=4)
         cores = 1
-        memory = blastOptions.memory
 
         super(BlastSequencesAllAgainstAll, self).__init__(disk=disk, cores=cores, memory=memory, preemptable=True)
         self.sequenceFileIDs1 = sequenceFileIDs1
@@ -84,7 +111,7 @@ class BlastSequencesAllAgainstAll(RoundedJob):
     def run(self, fileStore):
         sequenceFiles1 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs1]
         if self.blastOptions.gpuLastz == True:
-            # wga-gpu has a 3G limit. 
+            # wga-gpu has a 3G limit.
             self.blastOptions.chunkSize = 3000000000
         chunks = runGetChunks(sequenceFiles=sequenceFiles1,
                               chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()),
@@ -140,9 +167,8 @@ class BlastSequencesAgainstEachOther(ChildTreeJob):
     """Take two sets of sequences, chunks them up and blasts one set against the other.
     """
     def __init__(self, sequenceFileIDs1, sequenceFileIDs2, blastOptions):
-        disk = 3*(sum([seqID.size for seqID in sequenceFileIDs1]) + sum([seqID.size for seqID in sequenceFileIDs2]))
+        memory, disk = blastOptions.calcMemoryDiskSizes(sequenceFileIDs1 + sequenceFileIDs2, diskMult=3)
         cores = 1
-        memory = blastOptions.memory
 
         super(BlastSequencesAgainstEachOther, self).__init__(disk=disk, cores=cores, memory=memory, preemptable=True)
         self.sequenceFileIDs1 = sequenceFileIDs1
@@ -154,7 +180,7 @@ class BlastSequencesAgainstEachOther(ChildTreeJob):
         sequenceFiles1 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs1]
         sequenceFiles2 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs2]
         if self.blastOptions.gpuLastz == True:
-            # wga-gpu has a 3G limit. 
+            # wga-gpu has a 3G limit.
             self.blastOptions.chunkSize = 3000000000
         chunks1 = runGetChunks(sequenceFiles=sequenceFiles1, chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()), chunkSize=self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize)
         chunks2 = runGetChunks(sequenceFiles=sequenceFiles2, chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()), chunkSize=self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize)
@@ -237,7 +263,7 @@ class BlastFirstOutgroup(RoundedJob):
         self.blastOptions = blastOptions
         self.outgroupNumber = outgroupNumber
         self.ingroupCoverageIDs = ingroupCoverageIDs
-        
+
     def run(self, fileStore):
         logger.info("Blasting ingroup sequences to outgroup %s",
                     self.outgroupNames[self.outgroupNumber - 1])
@@ -402,8 +428,7 @@ class RunSelfBlast(RoundedJob):
     """Runs blast as a job.
     """
     def __init__(self, blastOptions, seqFileID):
-        disk = 3*seqFileID.size
-        memory = 3*seqFileID.size
+        memory, disk = blastOptions.calcMemoryDiskSizes([seqFileID], memoryMult=3, diskMult=3)
 
         super(RunSelfBlast, self).__init__(memory=memory, disk=disk, preemptable=True)
         self.blastOptions = blastOptions
@@ -435,12 +460,8 @@ class RunBlast(RoundedJob):
     """Runs blast as a job.
     """
     def __init__(self, blastOptions, seqFileID1, seqFileID2):
-        if hasattr(seqFileID1, "size") and hasattr(seqFileID2, "size"):
-            disk = 2*(seqFileID1.size + seqFileID2.size)
-            memory = 2*(seqFileID1.size + seqFileID2.size)
-        else:
-            disk = None
-            memory = None
+        seqFilesIds = [seqFilesId1, seqFileID2] if hasattr(seqFileID1, "size") and hasattr(seqFileID2, "size") else None
+        memory, disk = blastOptions.calcMemoryDiskSizes(seqFileIds, memoryMult=2, diskMult=2)
         if blastOptions.gpuLastz:
             # gpu jobs get the whole node
             cores = cpu_count()
@@ -488,8 +509,7 @@ class CollateBlasts2(ChildTreeJob):
     """Collates all the blasts into a single alignments file.
     """
     def __init__(self, blastOptions, resultsFileIDs):
-        disk = 8*sum([alignmentID.size for alignmentID in resultsFileIDs])
-        memory = blastOptions.memory
+        memory, disk = blastOptions.calcMemoryDiskSizes(resultsFileIDs, diskMult=8)
         super(CollateBlasts2, self).__init__(memory=memory, disk=disk, preemptable=True)
         self.resultsFileIDs = resultsFileIDs
         # it's slow to run fileStore.deleteGlobalFile, so we do it in parallel batches
@@ -503,7 +523,7 @@ class CollateBlasts2(ChildTreeJob):
         logger.info("Collated the alignments to the file: %s",  collatedResultsFile)
         collatedResultsID = fileStore.writeGlobalFile(collatedResultsFile)
         for i in range(0, len(self.resultsFileIDs), self.delete_batch_size):
-            self.addChild(DeleteFileIDs(self.resultsFileIDs[i:i+self.delete_batch_size]))        
+            self.addChild(DeleteFileIDs(self.resultsFileIDs[i:i+self.delete_batch_size]))
         return collatedResultsID
 
 class DeleteFileIDs(RoundedJob):
@@ -512,10 +532,10 @@ class DeleteFileIDs(RoundedJob):
     def __init__(self, fileIDs):
         super(DeleteFileIDs, self).__init__(preemptable=True)
         self.fileIDs = fileIDs
-        
+
     def run(self, fileStore):
         for fileID in self.fileIDs:
-            fileStore.deleteGlobalFile(fileID)        
+            fileStore.deleteGlobalFile(fileID)
 
 def sequenceLength(sequenceFile):
     """Get the total # of bp from a fasta file."""
