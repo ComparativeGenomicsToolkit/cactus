@@ -9,6 +9,7 @@
 tree.
 """
 
+import logging
 import os
 import xml.etree.ElementTree as ET
 import timeit
@@ -20,7 +21,6 @@ from subprocess import CalledProcessError
 
 from toil.lib.bioio import getTempFile
 
-from toil.lib.bioio import logger
 from toil.lib.bioio import setLoggingFromOptions
 from toil.realtimeLogger import RealtimeLogger
 from toil.lib.threading import cpu_count
@@ -53,6 +53,8 @@ from cactus.shared.common import setupBinaries, importSingularityImage
 
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory
+
+logger = logging.getLogger(__name__)
 
 class ProgressiveDown(RoundedJob):
     def __init__(self, options, project, event, schedule, memory=None, cores=None):
