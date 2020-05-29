@@ -99,7 +99,7 @@ class BlastSequencesAllAgainstAll(RoundedJob):
     """
     def __init__(self, sequenceFileIDs1, blastOptions):
         # this doesn't need a lot of memory, so just use default
-        memory, disk = blastOptions.calcMemoryDiskSizes(seqFileID, diskMult=4)
+        memory, disk = blastOptions.calcMemoryDiskSizes(sequenceFileIDs1, diskMult=4)
         cores = 1
 
         super(BlastSequencesAllAgainstAll, self).__init__(disk=disk, cores=cores, memory=memory, preemptable=True)
