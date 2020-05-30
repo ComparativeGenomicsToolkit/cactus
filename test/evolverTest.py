@@ -21,7 +21,7 @@ class TestCase(unittest.TestCase):
         return os.path.join(self.tempDir, 'evovler-{}.hal'.format(binariesMode))
 
     def _run_evolver(self, binariesMode):
-        """ Run the full evolver test, putting the jobstore and output in tempDir 
+        """ Run the full evolver test, putting the jobstore and output in tempDir
         """
         cmd = ['cactus', self._job_store(binariesMode), './examples/evolverMammals.txt', self._out_hal(binariesMode),
                                '--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir]
@@ -92,7 +92,7 @@ class TestCase(unittest.TestCase):
         # fish the file out of cromwell
         shutil.copyfile(os.path.join(cw_output, os.path.basename(self._out_hal(name))), self._out_hal(name))
 
-                
+
     def _run_evolver_decomposed_no_outgroup(self, binariesMode):
         """ Run just the mouse-rat alignment.  Inspired by issues arising here
         https://github.com/ComparativeGenomicsToolkit/cactus/pull/216
@@ -123,7 +123,7 @@ class TestCase(unittest.TestCase):
                     subprocess.check_call('sed -i -e \'s/id=[0,1]|//g\' {}/Anc0.cigar*'.format(out_dir), shell=True)
                     line += ' --nonBlastInput'
                 sys.stderr.write('Running {}'.format(line))
-                subprocess.check_call(line, shell=True)        
+                subprocess.check_call(line, shell=True)
 
     def _csvstr_to_table(self, csvstr, header_fields):
         """ Hacky csv parse """
@@ -134,7 +134,7 @@ class TestCase(unittest.TestCase):
             toks = [tok.strip() for tok in str(line).split(',')]
             if skip:
                 if all([header in toks for header in header_fields]):
-                    skip = False                    
+                    skip = False
             elif len(toks) > len(header_fields):
                 output_stats[toks[0]] = toks[1:]
         return output_stats
@@ -151,7 +151,7 @@ class TestCase(unittest.TestCase):
         return ret
 
     def _check_stats(self, halPath, delta_pct, subset={}):
-        """ Compare halStats otuput of given file to baseline 
+        """ Compare halStats otuput of given file to baseline
         """
         # this is just pasted from a successful run.  it will be used to catch serious regressions
         ground_truth = '''GenomeName, NumChildren, Length, NumSequences, NumTopSegments, NumBottomSegments
@@ -174,7 +174,7 @@ class TestCase(unittest.TestCase):
         self.assertEqual(sts, 0)
         sys.stderr.write("\nComparing stats\n{}\nvs ground truth\n{}\n".format(output.decode("utf-8"), ground_truth))
         output_table = self._csvstr_to_table(output.decode("utf-8"), ['GenomeName', 'NumChildren'])
-        truth_table = self._csvstr_to_table(ground_truth, ['GenomeName', 'NumChildren'])        
+        truth_table = self._csvstr_to_table(ground_truth, ['GenomeName', 'NumChildren'])
 
         # make sure the stats are roughly the same
         self.assertEqual(len(truth_table), len(output_table))
@@ -196,7 +196,7 @@ class TestCase(unittest.TestCase):
                     self.assertLessEqual(int(oval[i]), int(val[i]) + delta)
 
     def _check_coverage(self, halPath, delta_pct, subset={}, columns=3):
-        """ Compare halStats otuput of given file to baseline 
+        """ Compare halStats otuput of given file to baseline
         """
         # this is just pasted from a successful run.  it will be used to catch serious regressions
         ground_truth = '''Genome, sitesCovered1Times, sitesCovered2Times, sitesCovered3Times
@@ -226,15 +226,15 @@ class TestCase(unittest.TestCase):
             for i in range(columns):
                 delta = delta_pct * int(val[i])
                 self.assertGreaterEqual(int(oval[i]), int(val[i]) - delta)
-                self.assertLessEqual(int(oval[i]), int(val[i]) + delta)                    
-            
-    def testEvolverLocalPrepare(self):
-        """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode local is 
+                self.assertLessEqual(int(oval[i]), int(val[i]) + delta)
+
+    def testEvolverLocal(self):
+        """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode local is
         is reasonable
         """
-        # run cactus step by step via the plan made by cactus-prepare
-        name = "decomposed"
-        self._run_evolver_decomposed(name)
+        # run cactus directly, the old school way
+        name = "local"
+        self._run_evolver(name)
 
         # check the output
         self._check_stats(self._out_hal(name), delta_pct=0.25)
@@ -249,8 +249,20 @@ class TestCase(unittest.TestCase):
         self._check_stats(self._out_hal("wdl"), delta_pct=0.25)
         self._check_coverage(self._out_hal("wdl"), delta_pct=0.20)
 
+    def testEvolverDecomposedLocal(self):
+        """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode local is
+        is reasonable
+        """
+        # run cactus step by step via the plan made by cactus-prepare
+        name = "decomposed"
+        self._run_evolver_decomposed(name)
+
+        # check the output
+        self._check_stats(self._out_hal(name), delta_pct=0.25)
+        self._check_coverage(self._out_hal(name), delta_pct=0.20)
+
     def testEvolverDocker(self):
-        """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode docker is 
+        """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode docker is
         is reasonable.  Note: the local image being tested should be set up via CACTUS_DOCKER_ORG (with tag==latest)
         """
         # run cactus
@@ -277,7 +289,7 @@ class TestCase(unittest.TestCase):
         # check the output
         self._check_stats(self._out_hal("local"), delta_pct=2.5, subset=['simMouse_chr6', 'simRat_chr6', 'Anc0'])
         self._check_coverage(self._out_hal("local"), delta_pct=0.20, subset=['simMouse_chr6', 'simRat_chr6', 'Anc0'], columns=1)
-        
-        
+
+
 if __name__ == '__main__':
     unittest.main()
