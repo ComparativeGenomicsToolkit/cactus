@@ -511,7 +511,7 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
     def __init__(self, standAlone = False, *args, **kwargs):
         self.standAlone = standAlone
         super(CactusTrimmingBlastPhase, self).__init__(*args, **kwargs)
-        
+
     def run(self, fileStore):
         fileStore.logToMaster("Running blast using the trimming strategy")
 
@@ -541,6 +541,8 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
         cafNode = findRequiredNode(self.cactusWorkflowArguments.configNode, "caf")
 
         # FIXME: this is really ugly and steals the options from the caf tag
+        # FIXME: defaulting values to sys.maxsize causes Toil to refuse to run the job
+        #        if these values are actually use
         blastJob = self.addChild(BlastIngroupsAndOutgroups(
             BlastOptions(chunkSize=getOptionalAttrib(cafNode, "chunkSize", int),
                          overlapSize=getOptionalAttrib(cafNode, "overlapSize", int),
@@ -548,9 +550,9 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
                          compressFiles=getOptionalAttrib(cafNode, "compressFiles", bool),
                          realign=getOptionalAttrib(cafNode, "realign", bool),
                          realignArguments=getOptionalAttrib(cafNode, "realignArguments"),
-                         memory=getOptionalAttrib(cafNode, "lastzMemory", int, sys.maxsize),
-                         smallDisk=getOptionalAttrib(cafNode, "lastzSmallDisk", int, sys.maxsize),
-                         largeDisk=getOptionalAttrib(cafNode, "lastzLargeDisk", int, sys.maxsize),
+                         memory=getOptionalAttrib(cafNode, "lastzMemory", int, None),
+                         smallDisk=getOptionalAttrib(cafNode, "lastzSmallDisk", int),
+                         largeDisk=getOptionalAttrib(cafNode, "lastzLargeDisk", int),
                          minimumSequenceLength=getOptionalAttrib(cafNode, "minimumSequenceLengthForBlast", int, 1),
                          trimFlanking=self.getOptionalPhaseAttrib("trimFlanking", int, 10),
                          trimMinSize=self.getOptionalPhaseAttrib("trimMinSize", int, 0),
@@ -562,7 +564,7 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
                          gpuLastz=getOptionalAttrib(cafNode, "gpuLastz", bool, False)),
             list(map(itemgetter(0), ingroupsAndNewIDs)), list(map(itemgetter(1), ingroupsAndNewIDs)),
             list(map(itemgetter(0), outgroupsAndNewIDs)), list(map(itemgetter(1), outgroupsAndNewIDs))))
-        
+
         # Alignment post processing to filter alignments
         if getOptionalAttrib(cafNode, "runMapQFiltering", bool, False):
             minimumMapQValue=getOptionalAttrib(cafNode, "minimumMapQValue", float, 0.0)

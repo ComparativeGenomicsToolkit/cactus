@@ -84,14 +84,17 @@ class BlastOptions(object):
                 return max(a, b)
 
         memory = disk = None
+        totSize = None
         if seqFileIDs is not None:
+            totSize = sum([s.size for s in seqFileIDs])
             if memoryMult is not None:
-                memory = memoryMult * sum([s.size for s in seqFileIDs])
+                memory = memoryMult * totSize
             if diskMult is not None:
-                disk = diskMult * sum([s.size for s in seqFileIDs])
+                disk = diskMult * totSize
         memory = maxWithNones(memory, self.memory)
         disk = maxWithNones(disk, self.smallDisk)
         disk = maxWithNones(disk, self.largeDisk)
+        logger.debug(f"calcMemoryDiskSizes: memory={memory} disk={disk} totSize={totSize} memoryMult={memoryMult} diskMult={diskMult} conf.memory={self.memory} conf.smallDisk={self.smallDisk} conf.largeDisk={self.largeDisk}")
         return memory, disk
 
 class BlastSequencesAllAgainstAll(RoundedJob):
@@ -460,8 +463,8 @@ class RunBlast(RoundedJob):
     """Runs blast as a job.
     """
     def __init__(self, blastOptions, seqFileID1, seqFileID2):
-        seqFilesIds = [seqFilesId1, seqFileID2] if hasattr(seqFileID1, "size") and hasattr(seqFileID2, "size") else None
-        memory, disk = blastOptions.calcMemoryDiskSizes(seqFileIds, memoryMult=2, diskMult=2)
+        seqFileIDs = [seqFileID1, seqFileID2] if hasattr(seqFileID1, "size") and hasattr(seqFileID2, "size") else None
+        memory, disk = blastOptions.calcMemoryDiskSizes(seqFileIDs, memoryMult=2, diskMult=2)
         if blastOptions.gpuLastz:
             # gpu jobs get the whole node
             cores = cpu_count()
