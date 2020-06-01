@@ -9,9 +9,15 @@ class TestCase(unittest.TestCase):
     def setUp(self):
         self.tempDir = getTempDirectory(os.getcwd())
         unittest.TestCase.setUp(self)
+        self.cromwell = False
 
     def tearDown(self):
         unittest.TestCase.tearDown(self)
+        if self.cromwell:
+            # try to catch some cromwell root mode directories that above missies
+            # see https://github.com/ComparativeGenomicsToolkit/cactus/issues/255
+            os.system("docker run --rm -it -v {}:/data evolvertestdocker/cactus:latest rm -rf {}".format(
+                os.path.dirname(self.tempDir.rstrip('/')), os.path.join('/data', os.path.basename(self.tempDir))))
         os.system("rm -rf %s || true" % self.tempDir)
 
     def _job_store(self, binariesMode):
@@ -59,6 +65,10 @@ class TestCase(unittest.TestCase):
         but instead of doing in in one shot, use cactus-prepare to make a wdl
         script and run that locally through cromwell """
 
+        # hack to use docker to remove filetree in teardown, as cromwell
+        # can leave root files hanging around there
+        self.cromwell = True
+        
         out_seqfile = os.path.join(self.tempDir, 'evolverMammalsOut.txt')
         in_seqfile = './examples/evolverMammals.txt'
         out_wdl = os.path.join(self.tempDir, 'prepared.wdl')
