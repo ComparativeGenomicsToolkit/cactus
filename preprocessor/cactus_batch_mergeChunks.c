@@ -22,7 +22,7 @@
 /* Read fasta sequence from files into the "cur" variables.
  * Then merge into the outputFile (stdout)
  */
-static void readFastaCallback(const char *fastaHeader, const char *sequence, int64_t length) {
+static void readFastaCallback(void* destination, const char *fastaHeader, const char *sequence, int64_t length) {
     stList *attributes = fastaDecodeHeader(fastaHeader);
     int64_t offset;
     int64_t i = sscanf(stList_peek(attributes), "%" PRIi64 "", &offset);
@@ -45,7 +45,7 @@ int main(int argc, char *argv[]) {
         stList *files = stString_split(line);
         for(int64_t i=0; i<stList_length(files); i++) {
             FILE* chunkFile = fopen(stList_get(files, i), "r");
-            fastaReadToFunction(chunkFile, readFastaCallback);
+            fastaReadToFunction(chunkFile, NULL, readFastaCallback);
             fclose(chunkFile);
         }
         stList_destruct(files);

@@ -21,7 +21,7 @@ void convertCoordinatesOfPairwiseAlignment(struct PairwiseAlignment *pairwiseAli
 
 void setupToChunkSequences(int64_t chunkSize2, int64_t overlapSize2, const char *chunksDir2);
 
-void processSequenceToChunk(const char *fastaHeader, const char *sequence, int64_t length);
+void processSequenceToChunk(void* destination, const char *fastaHeader, const char *sequence, int64_t length);
 
 void finishChunkingSequences();
 

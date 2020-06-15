@@ -24,7 +24,7 @@ static stSet *otherGenomeSequences = NULL;
 static stHash *IDToSequenceCoverage;
 
 // Add a sequence from the genome to sequenceLength and sequenceNames
-static void addSequenceLength(const char *name, const char *seq, int64_t len)
+static void addSequenceLength(void* destination, const char *name, const char *seq, int64_t len)
 {
     char *identifier = stString_copy(name);
     // lastz only takes the first token of a fasta header as the seq ID.
@@ -44,7 +44,7 @@ static void addSequenceLength(const char *name, const char *seq, int64_t len)
     stHash_insert(sequenceLengths, stString_copy(identifier), heapLen);
 }
 
-static void addOtherGenomeSequence(const char *name, const char *seq,
+static void addOtherGenomeSequence(void* destination, const char *name, const char *seq,
                                    int64_t len)
 {
     // Only use the first space-separated token to identify seq.
@@ -253,7 +253,7 @@ int main(int argc, char *argv[])
             if(otherGenomeFastaHandle == NULL) {
                 st_errAbort("Could not open fasta file %s", fastaPath);
             }
-            fastaReadToFunction(otherGenomeFastaHandle, addOtherGenomeSequence);
+            fastaReadToFunction(otherGenomeFastaHandle, NULL, addOtherGenomeSequence);
             fclose(otherGenomeFastaHandle);
         }
         stList_destructIterator(it);
@@ -282,7 +282,7 @@ int main(int argc, char *argv[])
     if (!fastaHandle) {
     	st_errAbort("Could not open fasta file %s", fastaPath);
     }
-    fastaReadToFunction(fastaHandle, addSequenceLength);
+    fastaReadToFunction(fastaHandle, NULL, addSequenceLength);
     fclose(fastaHandle);
 
     // Fill coverage arrays with the alignments

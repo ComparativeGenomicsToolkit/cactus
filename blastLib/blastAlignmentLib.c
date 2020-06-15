@@ -110,7 +110,7 @@ static int64_t processSubsequenceChunk(char *fastaHeader, int64_t start, char *s
     return lengthOfSubsequence;
 }
 
-void processSequenceToChunk(const char *fastaHeader, const char *sequence, int64_t sequenceLength) {
+void processSequenceToChunk(void* dest, const char *fastaHeader, const char *sequence, int64_t sequenceLength) {
     if (sequenceLength > 0) {
         int64_t lengthOfSubsequence = processSubsequenceChunk((char *) fastaHeader, 0, (char *) sequence, sequenceLength, chunkRemaining);
         while (sequenceLength - lengthOfSubsequence > 0) {
