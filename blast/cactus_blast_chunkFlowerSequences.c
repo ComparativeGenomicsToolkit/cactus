@@ -44,7 +44,7 @@ int main(int argc, char *argv[]) {
 	i = sscanf(argv[6], "%" PRIi64 "", &minimumSequenceLength);
 	assert(i == 1);
 	setupToChunkSequences(chunkSize, chunkOverlapSize, argv[7]);
-	writeFlowerSequences(flower, processSequenceToChunk, minimumSequenceLength);
+	writeFlowerSequencesUnsafe(flower, processSequenceToChunk, minimumSequenceLength);
 	finishChunkingSequences();
 	st_logInfo("Written the sequences from the flower into a file");
 	cactusDisk_destruct(cactusDisk);

@@ -15,7 +15,9 @@
 
 int64_t writeFlowerSequencesInFile(Flower *flower, const char *tempFile1, int64_t minimumSequenceLength);
 
-int64_t writeFlowerSequences(Flower *flower, void(*processSequence)(const char *, const char *, int64_t), int64_t minimumSequenceLength);
+int64_t writeFlowerSequences(Flower *flower, void(*processSequence)(void *destination, const char *name, const char *seq, int64_t length), void *destination, int64_t minimumSequenceLength);
+
+int64_t writeFlowerSequencesUnsafe(Flower *flower, void(*processSequence)(void *destination, const char *name, const char *seq, int64_t length), int64_t minimumSequenceLength);
 
 void convertCoordinatesOfPairwiseAlignment(struct PairwiseAlignment *pairwiseAlignment, int convertContig1, int convertContig2);
 

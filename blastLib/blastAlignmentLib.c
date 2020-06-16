@@ -145,7 +145,7 @@ void setupToChunkSequences(int64_t chunkSize2, int64_t overlapSize2, const char 
  * Get the flowers in a file.
  */
 
-int64_t writeFlowerSequences(Flower *flower, void(*processSequence)(const char *, const char *, int64_t), int64_t minimumSequenceLength) {
+int64_t writeFlowerSequences(Flower *flower, void(*processSequence)(void *destination, const char *name, const char *seq, int64_t length), void *destination, int64_t minimumSequenceLength) {
     Flower_EndIterator *endIterator = flower_getEndIterator(flower);
     End *end;
     int64_t sequencesWritten = 0;
@@ -167,7 +167,7 @@ int64_t writeFlowerSequences(Flower *flower, void(*processSequence)(const char *
                     assert(sequence != NULL);
                     char *string = sequence_getString(sequence, cap_getCoordinate(cap) + 1, length, 1);
                     char *header = stString_print("%s|%" PRIi64 "", cactusMisc_nameToStringStatic(cap_getName(cap)), cap_getCoordinate(cap) + 1);
-                    processSequence(header, string, strlen(string));
+                    processSequence(destination, header, string, strlen(string));
                     free(string);
                     free(header);
                     sequencesWritten++;
@@ -180,21 +180,33 @@ int64_t writeFlowerSequences(Flower *flower, void(*processSequence)(const char *
     return sequencesWritten;
 }
 
-static FILE *sequenceFileHandle;
-static const char *tempSequenceFile;
-static void writeSequenceInFile(const char *fastaHeader, const char *sequence, int64_t length) {
-    if (sequenceFileHandle == NULL) {
-        sequenceFileHandle = fopen(tempSequenceFile, "w");
+/* hack to remain compatible until blastAlignmentLib can be made thread safe */
+int64_t writeFlowerSequencesUnsafe(Flower *flower, void(*processSequence)(void *destination, const char *name, const char *seq, int64_t length), int64_t minimumSequenceLength) {
+    return writeFlowerSequences(flower, processSequence, NULL, minimumSequenceLength);
+}
+    
+
+
+// Delay opening so it doesn't write file if no flowers.  Not sure if this behavior is
+// relied on, so keeping old behavior when making code thread safe.
+typedef struct {
+    FILE *fh;
+    const char *fname;
+} SeqFileInfo;
+
+static void writeSequenceInFile(void *destination, const char *fastaHeader, const char *sequence, int64_t length) {
+    SeqFileInfo *seqFileInfo = destination;
+    if (seqFileInfo->fh == NULL) {
+        seqFileInfo->fh = fopen(seqFileInfo->fname, "w");
     }
-    fastaWrite((char *)sequence, (char *)fastaHeader, sequenceFileHandle);
+    fastaWrite((char *)sequence, (char *)fastaHeader, seqFileInfo->fh);
 }
 
 int64_t writeFlowerSequencesInFile(Flower *flower, const char *tempFile, int64_t minimumSequenceLength) {
-    sequenceFileHandle = NULL;
-    tempSequenceFile = tempFile;
-    int64_t sequencesWritten = writeFlowerSequences(flower, writeSequenceInFile, minimumSequenceLength);
-    if (sequenceFileHandle != NULL) {
-        fclose(sequenceFileHandle);
+    SeqFileInfo seqFileInfo = {NULL, tempFile};
+    int64_t sequencesWritten = writeFlowerSequences(flower, writeSequenceInFile, &seqFileInfo, minimumSequenceLength);
+    if (seqFileInfo.fh != NULL) {
+        fclose(seqFileInfo.fh);
     }
     return sequencesWritten;
 }
