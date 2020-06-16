@@ -129,6 +129,12 @@ evolver_test: all
 	PYTHONPATH="" CACTUS_DOCKER_ORG=evolvertestdocker ${PYTHON} -m pytest ${pytestOpts} test/evolverTest.py
 	docker rmi -f evolvertestdocker/cactus:latest
 
+evolver_test_hack: 
+	#-docker rmi -f evolvertestdocker/cactus:latest
+	#docker build --network=host -t evolvertestdocker/cactus:latest . --build-arg CACTUS_COMMIT=${git_commit}
+	PYTHONPATH="" CACTUS_DOCKER_ORG=evolvertestdocker ${PYTHON} -m pytest ${pytestOpts} test/evolverTest.py::TestCase::testEvolverPrepareWDL
+	#docker rmi -f evolvertestdocker/cactus:latest
+
 evolver_test_local: all
 	CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} test/evolverTest.py::TestCase::testEvolverLocal
 

@@ -74,8 +74,9 @@ class TestCase(unittest.TestCase):
         cw_output = os.path.join(self.tempDir, 'cromwell-output')
         with open(cw_optionsfile, 'w') as cw_opts:
             cw_opts.write('{\n')
-            cw_opts.write('    \"final_workflow_outputs_dir\": \"{}\",\n'.format(cw_output))
-            cw_opts.write('    \"use_relative_output_paths\": true\n')
+            cw_opts.write('    "final_workflow_outputs_dir": "{}",\n'.format(cw_output))
+            cw_opts.write('    "use_relative_output_paths": true\n')
+            cw_opts.write('    "use_relative_output_paths": true\n')
             cw_opts.write('}\n')
 
         # download cromwell
