@@ -49,7 +49,7 @@ def main():
     parser.add_argument("--gpuType", default="nvidia-tesla-v100", help="GPU type (to set in WDL runtime parameters)")
     parser.add_argument("--gpuCount", default=1, help="GPU count (to set in WDL runtime parameters)")
     parser.add_argument("--nvidiaDriver", default="440.64.00", help="Nvidia driver version")
-    parser.add_argument("--zone", default="us-central1-c", help="zone used for gpu task")
+    parser.add_argument("--zone", default="us-west2-a", help="zone used for gpu task")
 
     parser.add_argument("--defaultCores", type=int, help="Number of cores for each job unless otherwise specified")
     parser.add_argument("--preprocessCores", type=int, help="Number of cores for each cactus-preprocess job")
@@ -544,6 +544,7 @@ def wdl_task_preprocess(options):
         s += '        memory: \"{}GB\"\n'.format(options.preprocessMem)
     if options.preprocessDisk:
         s += '        disks: \"{}\"\n'.format(wdl_disk(options, 'preprocess')[0])
+    s += '        zones: \"{}\"\n'.format(options.zone)
     s += '    }\n'
     s += '    output {\n        File out_file="${out_name}"\n    }\n'
     s += '}\n'
@@ -595,7 +596,7 @@ def wdl_task_blast(options):
         s += '        gpuCount: {}\n'.format(options.gpuCount)
         s += '        bootDiskSizeGb: 20\n'
         s += '        nvidiaDriverVersion: \"{}\"\n'.format(options.nvidiaDriver)
-        s += '        zones: \"{}\"\n'.format(options.zone)
+    s += '        zones: \"{}\"\n'.format(options.zone)
     s += '    }\n'
     s += '    output {\n        Array[File] out_files=glob(\"${out_name}*\")\n    }\n'
     s += '}\n'
@@ -657,7 +658,8 @@ def wdl_task_align(options):
     if options.alignMem:
         s += '        memory: \"{}GB\"\n'.format(options.alignMem)
     if options.alignDisk:
-        s += '        disks: \"{}\"\n'.format(wdl_disk(options, 'align')[0])            
+        s += '        disks: \"{}\"\n'.format(wdl_disk(options, 'align')[0])
+    s += '        zones: \"{}\"\n'.format(options.zone)
     s += '    }\n'
     s += '    output {\n'
     s += '        File out_hal_file=\"${out_hal_name}\"\n'
@@ -720,7 +722,8 @@ def wdl_task_hal_append(options):
     if options.alignMem:
         s+= '        memory: \"{}GB\"\n'.format(options.alignMem)
     if options.halAppendDisk:
-        s += '        disks: \"{}\"\n'.format(wdl_disk(options, 'halAppend')[0])        
+        s += '        disks: \"{}\"\n'.format(wdl_disk(options, 'halAppend')[0])
+    s += '        zones: \"{}\"\n'.format(options.zone)
     s += '    }\n'
     s += '    output {\n'
     s += '        File out_file=\"{}/${{parent_name}}\"\n'.format(wdl_disk(options, 'halAppend')[1])
