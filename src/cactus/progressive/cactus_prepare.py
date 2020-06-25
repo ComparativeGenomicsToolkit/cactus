@@ -395,7 +395,7 @@ def get_plan(options, project, inSeqFile, outSeqFile):
                     get_jobstore(options), options.outSeqFile, cigarPath(event), halPath(event), event,
                     options.cactusOptions, get_toil_resource_opts(options, 'align'))
                 # todo: just output the fasta in cactus-align.
-                plan += 'hal2fasta {} {} {} > {}\n'.format(halPath(event), event, options.halOptions, outSeqFile.pathMap[event])
+                plan += 'hal2fasta {} {} {} --onlySequenceNames > {}\n'.format(halPath(event), event, options.halOptions, outSeqFile.pathMap[event])
 
     # stitch together the final tree
     plan += '\n## HAL merging\n'
