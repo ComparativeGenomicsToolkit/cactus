@@ -238,7 +238,7 @@ class TestCase(unittest.TestCase):
                 self.assertGreaterEqual(int(oval[i]), int(val[i]) - delta)
                 self.assertLessEqual(int(oval[i]), int(val[i]) + delta)
 
-    def testEvolverLocal(self):
+    def xtestEvolverLocal(self):
         """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode local is
         is reasonable
         """
@@ -259,7 +259,7 @@ class TestCase(unittest.TestCase):
         self._check_stats(self._out_hal("wdl"), delta_pct=0.25)
         self._check_coverage(self._out_hal("wdl"), delta_pct=0.20)
 
-    def testEvolverDecomposedLocal(self):
+    def xtestEvolverDecomposedLocal(self):
         """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode local is
         is reasonable
         """
@@ -271,7 +271,7 @@ class TestCase(unittest.TestCase):
         self._check_stats(self._out_hal(name), delta_pct=0.25)
         self._check_coverage(self._out_hal(name), delta_pct=0.20)
 
-    def testEvolverDocker(self):
+    def xtestEvolverDocker(self):
         """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode docker is
         is reasonable.  Note: the local image being tested should be set up via CACTUS_DOCKER_ORG (with tag==latest)
         """
@@ -282,7 +282,7 @@ class TestCase(unittest.TestCase):
         self._check_stats(self._out_hal("docker"), delta_pct=0.25)
         self._check_coverage(self._out_hal("docker"), delta_pct=0.20)
 
-    def testEvolverPrepareNoOutgroupDocker(self):
+    def xtestEvolverPrepareNoOutgroupDocker(self):
 
         # run cactus step by step via the plan made by cactus-prepare, hacking to apply --nonBlastInput option to cactus-align
         self._run_evolver_decomposed_no_outgroup("docker")
@@ -291,7 +291,7 @@ class TestCase(unittest.TestCase):
         self._check_stats(self._out_hal("docker"), delta_pct=2.5, subset=['simMouse_chr6', 'simRat_chr6', 'Anc0'])
         self._check_coverage(self._out_hal("docker"), delta_pct=0.20, subset=['simMouse_chr6', 'simRat_chr6', 'Anc0'], columns=1)
 
-    def testEvolverPrepareNoOutgroupLocal(self):
+    def xtestEvolverPrepareNoOutgroupLocal(self):
 
         # run cactus step by step via the plan made by cactus-prepare, hacking to apply --nonBlastInput option to cactus-align
         self._run_evolver_decomposed_no_outgroup("local")
