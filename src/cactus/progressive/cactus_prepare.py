@@ -605,7 +605,7 @@ def wdl_task_align(options):
     s += ' --pathOverrides ${{sep=\" \" in_fa_files}} --pathOverrideNames ${{sep=\" \" in_fa_names}} {}'.format(options.cactusOptions)
     s += ' {} ${{\"--configFile \" + in_config_file}}'.format(get_toil_resource_opts(options, 'align'))
     s += '\n        '
-    s += 'hal2fasta ${{out_hal_name}} ${{in_root}} {} > ${{out_fa_name}}'.format(options.halOptions)
+    s += 'hal2fasta ${{out_hal_name}} ${{in_root}} {} --onlySequenceNames > ${{out_fa_name}}'.format(options.halOptions)
     s += '\n    }\n'
     s += '    runtime {\n'
     s += '        docker: \"{}\"\n'.format(options.dockerImage)
