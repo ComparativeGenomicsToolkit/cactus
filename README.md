@@ -209,13 +209,26 @@ Then in Terra's [workspace menu](https://app.terra.bio/#workspaces):
 * Click the link in the bottom right to the "Broad Methods Repository"
 * Click the "Create New Method... +" button
 * Choose and namespace and name, then either upload or paste `evolver_terra.wdl` as created above and click "Upload"
-* If this WDL is valid, you can use the "Export To Workspace" button to link it to the Terra Workspace (using a blank configuraiton)
-* You can select the option to go back to the Terra Workspace, otherwise the workflow should now appear as a card in the Terra "workflows" tab the next time you navigate there
+* If this WDL is valid, you can use the "Export To Workspace" button to link it to the Terra Workspace (using a blank configuration)
+* You can select the option to go back to the Terra Workspace, otherwise the workflow should now appear as a card in the Terra "workflows" tab the next time you navigate there or refresh
 * To run it, click the workflow then click the "INPUTS" tab, and select the `evolverMammals.txt` file in the Attribute field for Taks=`cactus_prepare` Variable=`prep_seq_file`
 * Tick "Run workflow with inputs defined by file paths"
 * Save and click "RUN ANALYSIS"
 
-In the evolver example, all input sequences are specified in public URLs.  If sequences are not specified as URLs in the seqfile, then they must be uploaded in similar fashion to how the evolverMammals.txt was uploaded and selected in the example above.  
+In the evolver example, all input sequences are specified in public URLs.  If sequences are not specified as URLs in the seqfile, then they must be uploaded in similar fashion to how the evolverMammals.txt was uploaded and selected in the example above.
+
+Here is an example of some settings that have worked on a mammalian-sized genome alignment on Terra:
+
+```
+cactus-prepare --wdl mammals.txt --noLocalInputs --alignDisk 3000 --halAppendDisk 3000 --defaultDisk 300 --defaultCores 64 > mammals.wdl
+
+```
+
+If the workflow fails for whatever reason, it can be edited (to, say, increase job requirements) then resumed as follows:
+* In the Workflows tab, click the scripts link beside "Source:" to go back to the Firecloud page to edit the WDL script
+* Edit it and "Save a New Snapshot"
+* Back in the Terra Workflows tab for the workflow, refresh the page, and select the new snapshot from the "Snapshots" menu.
+* Click the "Save" button, ensure that "Use call caching" is ticked, then "Run Analysis" again to resume the workflow.
 
 ## Using the output
 Cactus outputs its alignments in the [HAL](https://github.com/ComparativeGenomicsToolkit/hal) format. This format represents the alignment in a reference-free, indexed way, but isn't readable by many tools. To export a MAF (which by its nature is usually reference-based), you can use the `hal2maf` tool to export the alignment from any particular genome: `hal2maf <hal> --refGenome <reference> <maf>`.
