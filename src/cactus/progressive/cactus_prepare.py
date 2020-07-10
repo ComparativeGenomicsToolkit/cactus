@@ -49,7 +49,8 @@ def main():
     parser.add_argument("--gpuType", default="nvidia-tesla-v100", help="GPU type (to set in WDL runtime parameters)")
     parser.add_argument("--gpuCount", default=1, help="GPU count (to set in WDL runtime parameters)")
     parser.add_argument("--nvidiaDriver", default="440.64.00", help="Nvidia driver version")
-    parser.add_argument("--zone", default="us-west2-a", help="zone used for gpu task")
+    parser.add_argument("--gpuZone", default="us-central1-c", help="zone used for gpu task")
+    parser.add_argument("--zone", default="us-west2-a", help="zone used for all but gpu tasks")
 
     parser.add_argument("--defaultCores", type=int, help="Number of cores for each job unless otherwise specified")
     parser.add_argument("--preprocessCores", type=int, help="Number of cores for each cactus-preprocess job")
@@ -67,8 +68,11 @@ def main():
     parser.add_argument("--alignDisk", type=int, help="Disk in GB for each cactus-align job")
     parser.add_argument("--halAppendDisk", type=int, help="Disk in GB for each halAppendSubtree job")
 
-    parser.add_argument("--preemptible", type=int, default=1, help="Preemptible tries for WDL [default=1]")
-    
+    parser.add_argument("--preprocessPreemptible", type=int, help="Preemptible in GB for each cactus-preprocess job [default=2]", default=2)
+    parser.add_argument("--blastPreemptible", type=int, help="Preemptible in GB for each cactus-blast job [default=1]", default=1)
+    parser.add_argument("--alignPreemptible", type=int, help="Preemptible in GB for each cactus-align job [default=1]", default=1)
+    parser.add_argument("--halAppendPreemptible", type=int, help="Preemptible in GB for each halAppendSubtree job [default=1]", default=1)
+
     options = parser.parse_args()
     options.database = 'kyoto_tycoon'
     #todo support root option
@@ -134,6 +138,11 @@ def main():
         if not options.halAppendDisk:
             options.halAppendDisk = options.defaultDisk
 
+    # todo: we need a gpu-cactus release, then we need cactus-prepare to default to this or the docs to make it very clear
+    # how to point to it.  
+    if options.gpu:
+        sys.stderr.write("Warning: --gpu option not yet supported in official release. User must verify Cactus Docker image is accelerated\n")
+
     # https://cromwell.readthedocs.io/en/stable/RuntimeAttributes/#gpucount-gputype-and-nvidiadriverversion
     # note: k80 not included as WGA_GPU doesn't run on it.  
     acceptable_gpus = ['nvidia-tesla-v100', 'nvidia-tesla-p100', 'nvidia-tesla-p4', 'nvidia-tesla-t4']
@@ -164,10 +173,14 @@ def main():
     enableDumpStack()
     cactusPrepare(options, project)
 
-def get_jobstore(options):
+def get_jobstore(options, task=None):
     if options.wdl and '://' not in options.jobStore:
         # if using local jobstore in WDL, it must be relative
-        return os.path.join('.', os.path.basename(options.jobStore.rstrip('/')))
+        if task:
+            prefix = wdl_disk(options, task)[1]
+        else:
+            prefix = '.'
+        return os.path.join(prefix, os.path.basename(options.jobStore.rstrip('/')))
     if '://' not in options.jobStore and options.jobStoreCount == 0:
         # toil won't be able to make a subdir for us if the base dir doesn't exist
         try:
@@ -218,8 +231,8 @@ def wdl_disk(options, task, max_local=300):
         return "", "."
     wdl_disk_options = "local-disk {} LOCAL".format(min(disk, max_local))
     if disk > max_local:
-        wdl_disk_options += ", /mnt/my_work {} HDD".format(disk)
-        cactus_opts = "/mnt/my_work"
+        wdl_disk_options += ", /mnt/hdd {} HDD".format(disk)
+        cactus_opts = "/mnt/hdd"
     else:
         cactus_opts = "."
     return wdl_disk_options, cactus_opts
@@ -528,8 +541,8 @@ def wdl_task_preprocess(options):
     s += '        String out_name\n'
     s += '    }\n'
     s += '    command {\n        '
-    s += 'cactus-preprocess {} --inPaths ${{default=\"\" in_file}} ${{default=\"\" in_url}}'.format(get_jobstore(options))
-    s += ' --outPaths ${{out_name}} {} {} --workDir {}'.format(options.cactusOptions, get_toil_resource_opts(options, 'preprocess'),
+    s += 'cactus-preprocess {} --inPaths ${{default=\"\" in_file}} ${{default=\"\" in_url}}'.format(get_jobstore(options, 'preprocess'))
+    s += ' --outPaths ${{out_name}} {} {} --workDir {}/work'.format(options.cactusOptions, get_toil_resource_opts(options, 'preprocess'),
                                                                wdl_disk(options, 'preprocess')[1])
     s += ' ${\"--configFile \" + in_config_file}'
     s += '\n'
@@ -537,7 +550,7 @@ def wdl_task_preprocess(options):
     
     s += '    runtime {\n'
     s += '        docker: \"{}\"\n'.format(options.dockerImage)
-    s += '        preemptible: {}\n'.format(options.preemptible)
+    s += '        preemptible: {}\n'.format(options.preprocessPreemptible)
     if options.preprocessCores:
         s += '        cpu: {}\n'.format(options.preprocessCores)
     if options.preprocessMem:
@@ -577,14 +590,14 @@ def wdl_task_blast(options):
     s += '        String out_name\n'
     s += '    }\n'
     s += '    command {\n        '
-    s += 'cactus-blast {} ${{in_seq_file}} ${{out_name}} --root ${{in_root}}'.format(get_jobstore(options))
+    s += 'cactus-blast {} ${{in_seq_file}} ${{out_name}} --root ${{in_root}}'.format(get_jobstore(options, 'blast'))
     s += ' --pathOverrides ${sep=\" \" in_fa_files} --pathOverrideNames ${sep=\" \" in_fa_names}'
-    s += ' {} {} --workDir {} ${{\"--configFile \" + in_config_file}}'.format(options.cactusOptions, get_toil_resource_opts(options, 'blast'),
+    s += ' {} {} --workDir {}/work ${{\"--configFile \" + in_config_file}}'.format(options.cactusOptions, get_toil_resource_opts(options, 'blast'),
                                                                               wdl_disk(options, 'blast')[1])
     s += '\n    }\n'
     s += '    runtime {\n'
     s += '        docker: \"{}\"\n'.format(options.dockerImage)
-    s += '        preemptible: {}\n'.format(options.preemptible)
+    s += '        preemptible: {}\n'.format(options.blastPreemptible)
     if options.blastCores:
         s += '        cpu: {}\n'.format(options.blastCores)
     if options.blastMem:
@@ -596,7 +609,9 @@ def wdl_task_blast(options):
         s += '        gpuCount: {}\n'.format(options.gpuCount)
         s += '        bootDiskSizeGb: 20\n'
         s += '        nvidiaDriverVersion: \"{}\"\n'.format(options.nvidiaDriver)
-    s += '        zones: \"{}\"\n'.format(options.zone)
+        s += '        zones: \"{}\"\n'.format(options.gpuZone)
+    else:
+        s += '        zones: \"{}\"\n'.format(options.zone)
     s += '    }\n'
     s += '    output {\n        Array[File] out_files=glob(\"${out_name}*\")\n    }\n'
     s += '}\n'
@@ -643,16 +658,16 @@ def wdl_task_align(options):
     s += '        String out_fa_name\n'
     s += '    }\n'
     s += '    command {\n        '
-    s += 'cactus-align {} ${{in_seq_file}} ${{sep=\" \" in_blast_files}} ${{out_hal_name}} --root ${{in_root}}'.format(get_jobstore(options))
+    s += 'cactus-align {} ${{in_seq_file}} ${{sep=\" \" in_blast_files}} ${{out_hal_name}} --root ${{in_root}}'.format(get_jobstore(options, 'align'))
     s += ' --pathOverrides ${{sep=\" \" in_fa_files}} --pathOverrideNames ${{sep=\" \" in_fa_names}} {}'.format(options.cactusOptions)
-    s += ' {} --workDir {} ${{\"--configFile \" + in_config_file}}'.format(get_toil_resource_opts(options, 'align'),
+    s += ' {} --workDir {}/work ${{\"--configFile \" + in_config_file}}'.format(get_toil_resource_opts(options, 'align'),
                                                                            wdl_disk(options, 'align')[1])
     s += '\n        '
     s += 'hal2fasta ${{out_hal_name}} ${{in_root}} {} > ${{out_fa_name}}'.format(options.halOptions)
     s += '\n    }\n'
     s += '    runtime {\n'
     s += '        docker: \"{}\"\n'.format(options.dockerImage)
-    s += '        preemptible: {}\n'.format(options.preemptible)
+    s += '        preemptible: {}\n'.format(options.alignPreemptible)
     if options.alignCores:
         s += '        cpu: {}\n'.format(options.alignCores)
     if options.alignMem:
@@ -717,7 +732,7 @@ def wdl_task_hal_append(options):
     s += '\n    }\n'
     s += '    runtime {\n'
     s += '        docker: \"{}\"\n'.format(options.dockerImage)
-    s += '        preemptible: {}\n'.format(options.preemptible)
+    s += '        preemptible: {}\n'.format(options.halAppendPreemptible)
     s += '        cpu: 1\n'
     if options.alignMem:
         s+= '        memory: \"{}GB\"\n'.format(options.alignMem)
