@@ -542,7 +542,7 @@ def wdl_task_preprocess(options):
     s += '    }\n'
     s += '    command {\n        '
     s += 'cactus-preprocess {} --inPaths ${{default=\"\" in_file}} ${{default=\"\" in_url}}'.format(get_jobstore(options, 'preprocess'))
-    s += ' --outPaths ${{out_name}} {} {} --workDir {}/work'.format(options.cactusOptions, get_toil_resource_opts(options, 'preprocess'),
+    s += ' --outPaths ${{out_name}} {} {} --workDir {}'.format(options.cactusOptions, get_toil_resource_opts(options, 'preprocess'),
                                                                wdl_disk(options, 'preprocess')[1])
     s += ' ${\"--configFile \" + in_config_file}'
     s += '\n'
@@ -592,7 +592,7 @@ def wdl_task_blast(options):
     s += '    command {\n        '
     s += 'cactus-blast {} ${{in_seq_file}} ${{out_name}} --root ${{in_root}}'.format(get_jobstore(options, 'blast'))
     s += ' --pathOverrides ${sep=\" \" in_fa_files} --pathOverrideNames ${sep=\" \" in_fa_names}'
-    s += ' {} {} --workDir {}/work ${{\"--configFile \" + in_config_file}}'.format(options.cactusOptions, get_toil_resource_opts(options, 'blast'),
+    s += ' {} {} --workDir {} ${{\"--configFile \" + in_config_file}}'.format(options.cactusOptions, get_toil_resource_opts(options, 'blast'),
                                                                               wdl_disk(options, 'blast')[1])
     s += '\n    }\n'
     s += '    runtime {\n'
@@ -660,7 +660,7 @@ def wdl_task_align(options):
     s += '    command {\n        '
     s += 'cactus-align {} ${{in_seq_file}} ${{sep=\" \" in_blast_files}} ${{out_hal_name}} --root ${{in_root}}'.format(get_jobstore(options, 'align'))
     s += ' --pathOverrides ${{sep=\" \" in_fa_files}} --pathOverrideNames ${{sep=\" \" in_fa_names}} {}'.format(options.cactusOptions)
-    s += ' {} --workDir {}/work ${{\"--configFile \" + in_config_file}}'.format(get_toil_resource_opts(options, 'align'),
+    s += ' {} --workDir {} ${{\"--configFile \" + in_config_file}}'.format(get_toil_resource_opts(options, 'align'),
                                                                            wdl_disk(options, 'align')[1])
     s += '\n        '
     s += 'hal2fasta ${{out_hal_name}} ${{in_root}} {} > ${{out_fa_name}}'.format(options.halOptions)
