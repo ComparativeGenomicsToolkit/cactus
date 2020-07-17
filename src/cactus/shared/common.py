@@ -310,7 +310,7 @@ def runCactusCaf(cactusDiskDatabaseString,
                  jobName=None,
                  fileStore=None):
     logLevel = getLogLevelString2(logLevel)
-    args = ["--logLevel", logLevel, "--alignments", alignments, "--cactusDisk", cactusDiskDatabaseString]
+    args = ["--logLevel", "DEBUG", "--alignments", alignments, "--cactusDisk", cactusDiskDatabaseString]
     if secondaryAlignments is not None:
         args += ["--secondaryAlignments", secondaryAlignments ]
     if annealingRounds is not None:
@@ -400,9 +400,12 @@ def runCactusCaf(cactusDiskDatabaseString,
     if maximumMedianSequenceLengthBetweenLinkedEnds is not None:
         args += ["--maximumMedianSequenceLengthBetweenLinkedEnds", str(maximumMedianSequenceLengthBetweenLinkedEnds)]
 
+
+    hack_log = "{}/caf.{}.log".format(os.environ["HOME"], uuid.uuid4())
+    
     masterMessages = cactus_call(stdin_string=flowerNames, check_output=True,
                                  parameters=["cactus_caf"] + args,
-                                 features=features, job_name=jobName, fileStore=fileStore)
+                                 features=features, job_name=jobName, fileStore=fileStore, errfile=hack_log)
     logger.info("Ran cactus_caf okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]
 
@@ -1171,7 +1174,8 @@ def cactus_call(tool=None,
                 job_name=None,
                 features=None,
                 fileStore=None,
-                swallowStdErr=False):
+                swallowStdErr=False,
+                errfile=None):
     mode = os.environ.get("CACTUS_BINARIES_MODE", "docker")
     if dockstore is None:
         dockstore = getDockerOrg()
@@ -1220,6 +1224,8 @@ def cactus_call(tool=None,
     stdoutFileHandle = None
     if outfile:
         stdoutFileHandle = open(outfile, 'w')
+    if errfile:
+        errFileHandle = open(errfile, 'w')
     if check_output:
         stdoutFileHandle = subprocess.PIPE
 
@@ -1227,7 +1233,7 @@ def cactus_call(tool=None,
     cactus_realtime_log_info("Running the command: \"{}\"".format(' '.join(call)))
     process = subprocess.Popen(call, shell=shell, encoding="ascii",
                                stdin=stdinFileHandle, stdout=stdoutFileHandle,
-                               stderr=subprocess.PIPE if swallowStdErr else sys.stderr,
+                               stderr=errFileHandle if errfile else subprocess.PIPE if swallowStdErr else sys.stderr,
                                bufsize=-1)
 
     if server:
