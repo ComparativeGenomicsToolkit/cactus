@@ -122,7 +122,7 @@ static bool containsMoreThanOneEvent(stPinchSegment *segment, Flower *flower) {
         Event *event = stCaf_getEvent(segment, flower);
         stPinchBlockIt it = stPinchBlock_getSegmentIterator(block);
         while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
-            if (stCaf_getEvent(segment, flower) != event) {
+          if (false) { //stCaf_getEvent(segment, flower) != event) {
                 return true;
             }
         }
