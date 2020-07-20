@@ -850,7 +850,7 @@ int main(int argc, char *argv[]) {
                 if(secondaryPinchIterator != NULL) {
 					if (annealingRound == 0) {
                                             st_logDebug("stCaf_anneal(threadSet, secondaryPinchIterator, secondaryFilterFn\n");
-						stCaf_anneal(threadSet, secondaryPinchIterator, secondaryFilterFn);
+						stCaf_anneal(threadSet, secondaryPinchIterator, NULL);
 					} else {
                                             st_logDebug("stCaf_annealBetweenAdjacencyComponents(threadSet, secondaryPinchIterator, secondaryFilterFn)\n");
 						stCaf_annealBetweenAdjacencyComponents(threadSet, secondaryPinchIterator, secondaryFilterFn);
