@@ -827,26 +827,32 @@ int main(int argc, char *argv[]) {
 
                 stPinchIterator_setTrim(pinchIterator, alignmentTrim);
                 if(secondaryPinchIterator != NULL) {
+                    st_logDebug("Setting the trim\n");
                 	stPinchIterator_setTrim(secondaryPinchIterator, alignmentTrim);
                 }
 
                 //Add back in the constraints
                 if (pinchIteratorForConstraints != NULL) {
+                    st_logDebug("Adding constraints\n");
                     stCaf_anneal(threadSet, pinchIteratorForConstraints, NULL);
                 }
 
                 //Do the annealing
                 if (annealingRound == 0) {
+                    st_logDebug("stCaf_anneal(threadSet, pinchIterator, filterFn)\n");
                     stCaf_anneal(threadSet, pinchIterator, filterFn);
                 } else {
+                    st_logDebug("stCaf_annealBetweenAdjacencyComponents(threadSet, pinchIterator, filterFn)\n");
                     stCaf_annealBetweenAdjacencyComponents(threadSet, pinchIterator, filterFn);
                 }
 
                 // Do the secondary annealing
                 if(secondaryPinchIterator != NULL) {
 					if (annealingRound == 0) {
+                                            st_logDebug("stCaf_anneal(threadSet, secondaryPinchIterator, secondaryFilterFn\n");
 						stCaf_anneal(threadSet, secondaryPinchIterator, secondaryFilterFn);
 					} else {
+                                            st_logDebug("stCaf_annealBetweenAdjacencyComponents(threadSet, secondaryPinchIterator, secondaryFilterFn)\n");
 						stCaf_annealBetweenAdjacencyComponents(threadSet, secondaryPinchIterator, secondaryFilterFn);
 					}
                 }

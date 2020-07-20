@@ -34,22 +34,28 @@ void stCaf_joinTrivialBoundaries(stPinchThreadSet *threadSet) {
 
 void stCaf_anneal2(stPinchThreadSet *threadSet, stPinch *(*pinchIterator)(void *), void *extraArg) {
     stPinch *pinch;
+    size_t it = 0;
     while ((pinch = pinchIterator(extraArg)) != NULL) {
         stPinchThread *thread1 = stPinchThreadSet_getThread(threadSet, pinch->name1);
         stPinchThread *thread2 = stPinchThreadSet_getThread(threadSet, pinch->name2);
         assert(thread1 != NULL && thread2 != NULL);
         stPinchThread_pinch(thread1, thread2, pinch->start1, pinch->start2, pinch->length, pinch->strand);
+        ++it;
     }
+    st_logDebug("Ran stCaf_anneal2 for %" PRIi64 " iterations\n", it);
 }
 
 static void stCaf_annealWithFilter2(stPinchThreadSet *threadSet, stPinch *(*pinchIterator)(void *), void *extraArg, bool (*filterFn)(stPinchSegment *, stPinchSegment *)) {
     stPinch *pinch;
+    size_t it = 0;
     while ((pinch = pinchIterator(extraArg)) != NULL) {
         stPinchThread *thread1 = stPinchThreadSet_getThread(threadSet, pinch->name1);
         stPinchThread *thread2 = stPinchThreadSet_getThread(threadSet, pinch->name2);
         assert(thread1 != NULL && thread2 != NULL);
         stPinchThread_filterPinch(thread1, thread2, pinch->start1, pinch->start2, pinch->length, pinch->strand, filterFn);
+        ++it;        
     }
+    st_logDebug("Ran stCaf_annealWithFilter2 for %" PRIi64 " iterations\n", it);
 }
 
 void stCaf_anneal(stPinchThreadSet *threadSet, stPinchIterator *pinchIterator, bool (*filterFn)(stPinchSegment *, stPinchSegment *)) {
