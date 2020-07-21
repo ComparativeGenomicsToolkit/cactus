@@ -283,10 +283,12 @@ def cactusPrepare(options, project):
             # hack the configfile to toggle on gpu lastz
             cafNode = findRequiredNode(config.xmlRoot, "caf")
             cafNode.attrib["gpuLastz"] = "true"
+            # realigning doesn't mix well with lastz so we make sure it's off
+            # https://github.com/ComparativeGenomicsToolkit/cactus/issues/271
+            cafNode.attrib["realign"] = "0"
         options.configFile = os.path.join(options.outDir, 'config.xml')
         sys.stderr.write("configuration saved in {}\n".format(options.configFile))
         config.writeXML(options.configFile)
-
 
     if options.gpu:
         cafNode = findRequiredNode(config.xmlRoot, "caf")
