@@ -120,8 +120,9 @@ static bool containsMoreThanOneEvent(stPinchSegment *segment, Flower *flower) {
     } else {
         stPinchBlock *block = stPinchSegment_getBlock(segment);
         // we use this flag to bypass the loop below, which can be quite costly in practice
+        bool found_flag = false;
         if (stPinchBlock_getFilterFlag(block)) {
-            return true;
+            found_flag = true;
         }
         Event *event = stCaf_getEvent(segment, flower);
         stPinchBlockIt it = stPinchBlock_getSegmentIterator(block);
@@ -132,6 +133,10 @@ static bool containsMoreThanOneEvent(stPinchSegment *segment, Flower *flower) {
                 return true;
             }
           //++count;
+        }
+        if (found_flag == true) {
+            fprintf(stderr, "Sanity check fails in caf\n");
+            exit(1);
         }
         return false;
     }
