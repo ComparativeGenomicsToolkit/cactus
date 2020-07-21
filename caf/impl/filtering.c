@@ -119,14 +119,19 @@ static bool containsMoreThanOneEvent(stPinchSegment *segment, Flower *flower) {
         return false;
     } else {
         stPinchBlock *block = stPinchSegment_getBlock(segment);
+        // we use this flag to bypass the loop below, which can be quite costly in practice
+        if (stPinchBlock_getFilterFlag(block)) {
+            return true;
+        }
         Event *event = stCaf_getEvent(segment, flower);
         stPinchBlockIt it = stPinchBlock_getSegmentIterator(block);
         size_t count = 0;
         while ((segment = stPinchBlockIt_getNext(&it)) != NULL && count < 10) {
           if (stCaf_getEvent(segment, flower) != event) {
+                stPinchBlock_setFilterFlag(block, true);
                 return true;
             }
-          ++count;
+          //++count;
         }
         return false;
     }
