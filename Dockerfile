@@ -20,7 +20,7 @@ RUN cd /home/cactus && make -j $(nproc)
 RUN cd /home/cactus && strip -d bin/* 2> /dev/null || true
 
 # build cactus python3
-RUN ln -s /usr/bin/python3 /usr/bin/python
+RUN ln -fs /usr/bin/python3 /usr/bin/python
 RUN mkdir -p /wheels && cd /wheels && python3 -m pip install -U pip && python3 -m pip wheel -r /home/cactus/toil-requirement.txt && python3 -m pip wheel /home/cactus
 
 # Create a thinner final Docker image in which only the binaries and necessary data exist.
