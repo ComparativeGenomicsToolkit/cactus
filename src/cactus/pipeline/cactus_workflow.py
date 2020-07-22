@@ -201,7 +201,7 @@ class CactusPhasesJob(CactusJob):
         Adds a recursive child job and then a follow-on phase job. Returns the result of the follow-on
         phase job.
         """
-        logger.info("Starting %s phase job at %s seconds (recursing = %i)" % (self.phaseNode.tag, time.time(), doRecursion))
+        RealtimeLogger.info("Starting %s phase job at %s seconds (recursing = %i)" % (self.phaseNode.tag, time.time(), doRecursion))
         if doRecursion:
             self.makeRecursiveChildJob(recursiveJob, launchSecondaryKtForRecursiveJob)
         return self.makeFollowOnPhaseJob(job=nextPhaseJob, phaseName=nextPhaseName)

@@ -780,7 +780,7 @@ def runLastz(seq1, seq2, alignmentsFile, lastzArguments, work_dir=None, gpuLastz
         assert os.path.dirname(seq1) == os.path.dirname(seq2)
         work_dir = os.path.dirname(seq1)
     if gpuLastz == True:
-        lastzCommand = "run_wga_gpu"
+        lastzCommand = "run_segalign"
     else:
         lastzCommand = "cPecanLastz"
         seq1 += "[multiple][nameparse=darkspace]"
@@ -875,7 +875,7 @@ def maxMemUsageOfContainer(containerInfo):
 # if it's too long (so it's less likely to be dropped)
 def cactus_realtime_log_info(msg, max_len = 1000):
     if len(msg) > max_len:
-        msg = msg[:max_len] + "..."
+        msg = msg[:max_len-107] + " <...> " + msg[-100:]
     RealtimeLogger.info("{}: {}".format(datetime.now(), msg))
 
 def setupBinaries(options):
