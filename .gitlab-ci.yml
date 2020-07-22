@@ -2,7 +2,6 @@ image: quay.io/glennhickey/cactus-ci-base:latest
 
 before_script:
   - whoami
-  - sudo apt-get -q -y update && apt-get -q -y upgrade
   - startdocker || true
   - docker info
 
