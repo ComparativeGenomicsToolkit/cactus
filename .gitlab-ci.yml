@@ -1,4 +1,4 @@
-image: quay.io/vgteam/dind
+image: quay.io/glennhickey/cactus-ci-base:latest
 
 before_script:
   - whoami
