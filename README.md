@@ -103,6 +103,11 @@ and added to the PATH with
 export PATH=$(pwd)/bin:$PATH
 ```
 
+To use HAL python scripts such as `hal2mafMP.py`, add the submodules directory to the PYTHONPATH with
+```
+export PYTHONPATH=$(pwd)/submodules:$PYTHONPATH
+```
+
 #### Python Install With Docker Binaries
 
 Cactus can be setup and used in a virtual environment as in the [previous section](#build-from-source), without compiling the binaries.  When used like this (which will happen automatically when running `cactus` without the appropriate binaries in the `PATH` environment variable), a Docker image will be automatically pulled to run commands as needed.  The main use case for this is running with Toils AWS provisioner as [described here](doc/running-in-aws.md).

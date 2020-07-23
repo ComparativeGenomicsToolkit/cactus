@@ -89,7 +89,7 @@ class TestCase(unittest.TestCase):
             cw_opts.write('}\n')
 
         # download cromwell
-        subprocess.check_call(['wget', 'https://github.com/broadinstitute/cromwell/releases/download/49/cromwell-49.jar'],
+        subprocess.check_call(['wget', '-q', 'https://github.com/broadinstitute/cromwell/releases/download/49/cromwell-49.jar'],
                               cwd=self.tempDir)
 
         # run cactus-prepare and write the output to a wdl file
