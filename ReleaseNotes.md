@@ -1,3 +1,16 @@
+# Release 1.1.0   ???
+
+This release contains some important bug fixes, as well as major improvements to `cactus-prepare` functionality.
+
+Notable Changes:
+ - `cactus-prepare` improvements including:
+    - WDL / Terra support
+	 - GPU lastz support
+	 - bug fixes
+- Upgrade to Toil 4.1.0
+- Fix bug causing `cactus-reference` to run forever in presence of 0-length branches
+- Major speed improvement for `cactus-caf` by fixing secondary alignment filter.
+- Include HAL python tools in Docker images
 
 # Release 1.0.0   2020-04-19
 
