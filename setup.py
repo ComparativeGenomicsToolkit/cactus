@@ -38,7 +38,8 @@ setup(
         'psutil',
         'networkx>=2,<3',
         'cython',
-        'pytest'],
+        'pytest',
+        'biopython'], # cactus doesn't really need it, but some hal tools do
 
     cmdclass = {
         'install': PostInstallCommand,
