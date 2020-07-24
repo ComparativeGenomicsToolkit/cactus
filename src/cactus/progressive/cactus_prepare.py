@@ -390,10 +390,19 @@ def get_plan(options, project, inSeqFile, outSeqFile):
         return deps
 
     events_and_virtuals = set()
+    # there can be chains of virtual events not caught by a single round
+    # of get_deps, so we iterate till we have them all
+    to_add = set()
     for event in events:
-        events_and_virtuals.add(event)
-        if get_deps(event):
-            events_and_virtuals = events_and_virtuals.union(get_deps(event))
+        to_add.add(event)
+    while len(to_add) > 0:
+        to_add1 = set()
+        for event in to_add:
+            events_and_virtuals.add(event)
+            for dep in get_deps(event):
+                if dep not in events_and_virtuals and dep not in to_add:
+                    to_add1.add(dep)
+        to_add = to_add1
 
     # group jobs into rounds.  where all jobs of round i can be run in parallel
     groups = []
@@ -410,7 +419,7 @@ def get_plan(options, project, inSeqFile, outSeqFile):
         if added == 0:
             sys.stderr.write("schedule deadlock:\n")
             for event in events_and_virtuals:
-                sys.stderr.write("{} has deps {}\b".format(event, get_deps(event)))
+                sys.stderr.write("{} has deps {}\n".format(event, ["{}(resolved={})".format(d, d in resolved) for d in get_deps(event)]))
             sys.exit(1)
         for tr in to_remove:
             resolved.add(tr)
