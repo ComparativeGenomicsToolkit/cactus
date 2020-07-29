@@ -6,7 +6,6 @@
 """
 
 import os
-import pickle
 import sys
 import shutil
 import subprocess
@@ -19,7 +18,6 @@ import time
 import signal
 import hashlib
 import tempfile
-import timeit
 import math
 import threading
 import traceback
@@ -32,13 +30,11 @@ from datetime import datetime
 from toil.lib.bioio import logger
 from toil.lib.bioio import system
 from toil.lib.bioio import getLogLevelString
-from toil.lib.misc import mkdir_p
 from toil.common import Toil
 from toil.job import Job
 from toil.realtimeLogger import RealtimeLogger
 
 from sonLib.bioio import popenCatch
-from sonLib.bioio import getTempDirectory
 
 from cactus.shared.version import cactus_commit
 
@@ -1016,7 +1012,7 @@ def singularityCommand(tool=None,
         home_dir = str(pathlib.Path.home())
         default_singularity_dir = os.path.join(home_dir, '.singularity')
         cache_dir = os.path.join(os.environ.get('SINGULARITY_CACHEDIR',  default_singularity_dir), 'toil')
-        mkdir_p(cache_dir)
+        os.makedirs(cache_dir, exist_ok=True)
 
         # hack to transform back to docker image
         if tool == 'cactus':
