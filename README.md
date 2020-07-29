@@ -202,7 +202,7 @@ javac -jar ./cromwell-49.jar run evolver.wdl
 To run on [Terra](https://terra.bio/), use the `--noLocalInputs` option to make sure no local files are embedded in the script.  Also, care must be taken to specify some minimum resource requirements.
 
 ```
-cactus-prepare examples/evolverMammals.txt --wdl --noLocalInputs --alignCores 2 --defaultMem 16 > evolver_terra.wdl
+cactus-prepare examples/evolverMammals.txt --wdl --noLocalInputs --alignCores 2 --defaultMemory 16 > evolver_terra.wdl
 
 ```
 

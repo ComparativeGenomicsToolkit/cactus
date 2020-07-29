@@ -48,5 +48,6 @@ setup(
         'console_scripts': ['cactus = cactus.progressive.cactus_progressive:main',
                             'cactus-preprocess = cactus.preprocessor.cactus_preprocessor:main',
                             'cactus-prepare = cactus.progressive.cactus_prepare:main',
+                            'cactus-prepare-toil = cactus.progressive.cactus_prepare:main_toil',
                             'cactus-blast = cactus.blast.cactus_blast:main',
                             'cactus-align = cactus.setup.cactus_align:main']},)
