@@ -27,8 +27,6 @@ REL_TAG=$(getLatestReleaseTag)
 git checkout "${REL_TAG}"
 git submodule update --init --recursive
 
-
-set -e
 if [ $(man gcc | grep nehalem | wc -l) -ge 1 ]
 then
 	 # attempt to increase portability by using older architecture
@@ -44,6 +42,10 @@ cp -r bin src examples ${binPackageDir}
 cp *.md *.py *.txt ${binPackageDir}
 # sonLib needed for pip install
 find submodules/sonLib -name '*.py' | cpio -pdum ${binPackageDir}
+# install the hal python libraries, requires PYTHONPATH set by user.
+# todo: probably a better way
+mkdir -p $(binPackageDir)/lib
+rsync -avm --include='*.py' -f 'hide,! */' ./submodules/hal ${binPackageDir}/lib
 # need .git dir for pip install -U ., but don't need everything
 cp -r .git ${binPackageDir}
 rm -rf ${binPackageDir}/modules

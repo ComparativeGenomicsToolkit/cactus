@@ -201,10 +201,9 @@ javac -jar ./cromwell-49.jar run evolver.wdl
 To run on [Terra](https://terra.bio/), use the `--noLocalInputs` option to make sure no local files are embedded in the script.  Also, care must be taken to specify some minimum resource requirements.
 
 ```
-cactus-prepare examples/evolverMammals.txt --wdl --noLocalInputs --alignCores 2 --defaultMem 16 --gpu > evolver_terra.wdl
+cactus-prepare examples/evolverMammals.txt --wdl --noLocalInputs --alignCores 2 --defaultMem 16 > evolver_terra.wdl
 
 ```
-When using the `--gpu` option as above, it is important to upload the generated `config-prepared.xml` file and pass it as the config_file input variable.
 
 Then in Terra's [workspace menu](https://app.terra.bio/#workspaces):
 * Create a new workspace if necessary with the "+" button
@@ -226,9 +225,11 @@ In the evolver example, all input sequences are specified in public URLs.  If se
 Here is an example of some settings that have worked on a mammalian-sized genome alignment on Terra:
 
 ```
-cactus-prepare --wdl mammals.txt --noLocalInputs --alignDisk 3000 --halAppendDisk 3000 --defaultDisk 300 --defaultCores 64 > mammals.wdl
+cactus-prepare --wdl mammals.txt --noLocalInputs --alignDisk 3000 --halAppendDisk 3000 --defaultDisk 500 --defaultCores 64 --gpu --gpuCount 8 --defaultMemory 385 > mammals.wdl
 
 ```
+
+When using the `--gpu` option as above, it is important to upload the generated `config-prepared.xml` file and pass it as the config_file input variable.
 
 If the workflow fails for whatever reason, it can be edited (to, say, increase job requirements) then resumed as follows:
 * In the Workflows tab, click the scripts link beside "Source:" to go back to the Firecloud page to edit the WDL script
