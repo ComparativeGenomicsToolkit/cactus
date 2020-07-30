@@ -39,7 +39,6 @@ script:
   - if [[ "$CACTUS_TEST_CHOICE" == "blast" ]]; then export MAKE_TARGET=test_blast; fi
   - if [[ "$CACTUS_BINARIES_MODE" == "local" ]]; then make && PATH=`pwd`/bin:$PATH PYTHONPATH=`pwd`:`pwd`/src travis_wait 50 make ${MAKE_TARGET}; fi
   - if [[ "$CACTUS_BINARIES_MODE" == "docker" ]]; then travis_wait 40 make ${MAKE_TARGET}; fi
-  - if [[ "$CACTUS_BINARIES_MODE" == "static" ]]; then make check-static; fi
 os:
   - linux
 services:
@@ -55,4 +54,3 @@ env:
   # because many utilities are short-lived and don't bother cleaning
   # up memory before exit.
   - CGL_DEBUG=ultra ASAN_OPTIONS=detect_leaks=0 CACTUS_BINARIES_MODE=local CACTUS_TEST_CHOICE=normal
-  - CACTUS_BINARIES_MODE=static
