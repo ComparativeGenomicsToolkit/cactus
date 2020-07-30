@@ -15,7 +15,7 @@ Notable Changes:
 - Provide GPU-enabled Docker image for release
 - Included HAL tools contains several crash fixes
 
-[GPU Lastz version used in GPU-enabled Docker image](https://github.com/gsneha26/SegAlign/commit/3e14c3b8ceeb139b3b929b5993d96d8e5d3ef9fa)
+GPU Lastz version used in GPU-enabled Docker image: [3e14c3b8ceeb139b3b929b5993d96d8e5d3ef9fa](https://github.com/ComparativeGenomicsToolkit/SegAlign/commit/3e14c3b8ceeb139b3b929b5993d96d8e5d3ef9fa)
 
 # Release 1.0.0   2020-04-19
 

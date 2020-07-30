@@ -10,7 +10,8 @@ Please subscribe to the [cactus-announce](https://groups.google.com/d/forum/cact
 Cactus uses many different algorithms and individual code contributions, principally from Joel Armstrong, Glenn Hickey, Mark Diekhans and Benedict Paten. We are particularly grateful to:
 
 - Yung H. Tsin and Nima Norouzi for contributing their 3-edge connected components program code, which is crucial in constructing the cactus graph structure, see: Tsin,Y.H., "A simple 3-edge-connected component algorithm," Theory of Computing Systems, vol.40, No.2, 2007, pp.125-142.
-- Bob Harris for providing endless support for his LastZ pairwise, blast-like genome alignment tool.
+- Bob Harris for providing endless support for his [LastZ](https://github.com/lastz/lastz) pairwise, blast-like genome alignment tool.
+- Sneha Goenka and Yatish Turakhia for the [GPU-accelerated version of LastZ](https://github.com/ComparativeGenomicsToolkit/SegAlign).
 
 
 ## Setup
@@ -229,13 +230,15 @@ cactus-prepare --wdl mammals.txt --noLocalInputs --alignDisk 3000 --halAppendDis
 
 ```
 
-When using the `--gpu` option as above, it is important to upload the generated `config-prepared.xml` file and pass it as the config_file input variable.
-
 If the workflow fails for whatever reason, it can be edited (to, say, increase job requirements) then resumed as follows:
 * In the Workflows tab, click the scripts link beside "Source:" to go back to the Firecloud page to edit the WDL script
 * Edit it and "Save a New Snapshot"
 * Back in the Terra Workflows tab for the workflow, refresh the page, and select the new snapshot from the "Snapshots" menu.
 * Click the "Save" button, ensure that "Use call caching" is ticked, then "Run Analysis" again to resume the workflow.
+
+## GPU Acceleration
+
+A [GPU-accelerated version of lastz](https://github.com/ComparativeGenomicsToolkit/SegAlign) can be used in the `blast` phase to speed up the runtime considerably, provided the right hardware is available. The easiest way to use it is on Terra with `cactus-prepare --gpu --wdl` (see above example).  The [GPU-enabled Docker releases](https://github.com/ComparativeGenomicsToolkit/cactus/releases) have this turned on by default.  It is also possible to [manually install it](https://github.com/ComparativeGenomicsToolkit/SegAlign#-dependencies) from git and then enable it in `cactus` via the `--configFile` cactus option.  A template can be found [here](https://github.com/ComparativeGenomicsToolkit/cactus/blob/master/src/cactus/cactus_progressive_config.xml), and modified to activate the GPU by setting `gpuLastz="true"` and `realign="0"` in the `<caf>` section. 
 
 ## Using the output
 Cactus outputs its alignments in the [HAL](https://github.com/ComparativeGenomicsToolkit/hal) format. This format represents the alignment in a reference-free, indexed way, but isn't readable by many tools. To export a MAF (which by its nature is usually reference-based), you can use the `hal2maf` tool to export the alignment from any particular genome: `hal2maf <hal> --refGenome <reference> <maf>`.
