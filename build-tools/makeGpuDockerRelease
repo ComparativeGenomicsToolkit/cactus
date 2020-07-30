@@ -1,0 +1,20 @@
+#!/bin/bash
+# Make a gpu-enabled docker image and push it to quay
+# Todo: it'd be nice to get travis to do this to be more consistent with normal docker
+# Note: must be run for cactus/ directory
+
+set -x
+set -beEu -o pipefail
+mydir=$(dirname $(which $0))
+source ${mydir}/releaseLib.sh
+
+docker build . -f Dockerfile.segalign -t segalign:local
+sed "s/FROM ubuntu:bionic-20200112$/FROM segalign:local/" Dockerfile > Dockerfile.gpu
+docker build . -f Dockerfile.gpu -t ${dockname}:$(getLatestReleaseTag)-gpu
+read -p "Are you sure you want to push ${dockname}:$(getLatestReleaseTag)-gpu to quay?" yn
+case $yn in
+    [Yy]* ) docker push ${dockname}:$(getLatestReleaseTag)-gpu; break;;
+    [Nn]* ) exit;;
+    * ) echo "Please answer yes or no.";;
+esac
+popd

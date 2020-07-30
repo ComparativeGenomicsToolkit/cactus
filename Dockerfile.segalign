@@ -1,0 +1,46 @@
+FROM nvidia/cuda:10.2-devel as builder
+
+# system dependencies are installed by ./installUbuntu.sh below, but we need sudo first
+RUN apt-get -qq -y update && \
+    apt-get -qq -y upgrade && \
+    apt-get -qq -y install \
+    sudo git
+
+# Use the commit from the file
+COPY build-tools/Segalign.commit /
+
+# clone Segalign
+RUN git clone https://github.com/gsneha26/SegAlign.git --recursive /WGA_GPU && cd WGA_GPU && git checkout $(cat /Segalign.commit)
+
+# build and install everything but cuda using the install script
+RUN cd /WGA_GPU && rm -rf build && ./scripts/installUbuntu.sh -c && git rev-parse HEAD > /Segalign.commit
+
+# Create a thinner final Docker image with only runtime dependencies
+FROM nvidia/cuda:10.2-runtime
+
+# Install runtime dependencies
+RUN apt-get -qq -y update && \
+    apt-get -qq -y upgrade && \
+    apt-get -qq -y install \
+    libkrb5-3 \
+    libk5crypto3 \
+    libboost-dev \
+    libboost-program-options-dev \
+    zlib1g \
+    parallel
+
+# copy all the binaries
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# copy the tbb shared library
+COPY --from=builder /WGA_GPU/build/tbb_cmake_build/tbb_cmake_build_subdir_release/lib* /usr/local/lib/
+
+# add the library path
+ENV LD_LIBRARY_PATH="/usr/local/lib/:${LD_LIBRARY_PATH}"
+
+# remember that commit
+COPY --from=builder /Segalign.commit /
+
+# UCSC convention is to work in /data
+RUN mkdir -p /data
+WORKDIR /data

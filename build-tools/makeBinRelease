@@ -44,6 +44,9 @@ cp -r bin src examples ${binPackageDir}
 cp *.md *.py *.txt ${binPackageDir}
 # sonLib needed for pip install
 find submodules/sonLib -name '*.py' | cpio -pdum ${binPackageDir}
+# need .git dir for pip install -U ., but don't need everything
+cp -r .git ${binPackageDir}
+rm -rf ${binPackageDir}/modules
 strip -d ${binPackageDir}/bin/* 2> /dev/null || true
 tar -czf ${buildDir}/cactus-bin-${REL_TAG}.tar.gz ${binPackageDir}
 if [ "$keep" = "no" ] ; then
