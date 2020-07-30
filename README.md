@@ -10,7 +10,8 @@ Please subscribe to the [cactus-announce](https://groups.google.com/d/forum/cact
 Cactus uses many different algorithms and individual code contributions, principally from Joel Armstrong, Glenn Hickey, Mark Diekhans and Benedict Paten. We are particularly grateful to:
 
 - Yung H. Tsin and Nima Norouzi for contributing their 3-edge connected components program code, which is crucial in constructing the cactus graph structure, see: Tsin,Y.H., "A simple 3-edge-connected component algorithm," Theory of Computing Systems, vol.40, No.2, 2007, pp.125-142.
-- Bob Harris for providing endless support for his LastZ pairwise, blast-like genome alignment tool.
+- Bob Harris for providing endless support for his [LastZ](https://github.com/lastz/lastz) pairwise, blast-like genome alignment tool.
+- Sneha Goenka and Yatish Turakhia for the [GPU-accelerated version of LastZ](https://github.com/ComparativeGenomicsToolkit/SegAlign).
 
 
 ## Setup
@@ -36,10 +37,10 @@ There are many different ways to install and run Cactus:
 
 #### Docker Image
 
-Cactus docker images are hosted on [quay](https://quay.io/repository/comparative-genomics-toolkit/cactus).  The image for the latest release is listed on the [Releases Page](https://github.com/ComparativeGenomicsToolkit/cactus/releases).  Here is an command line to run the included evolver mammals example with release 1.0.0
+Cactus docker images are hosted on [quay](https://quay.io/repository/comparative-genomics-toolkit/cactus).  The image for the latest release is listed on the [Releases Page](https://github.com/ComparativeGenomicsToolkit/cactus/releases).  Here is an command line to run the included evolver mammals example with release 1.1.0
 ```
 wget https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactus/master/examples/evolverMammals.txt
-docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v1.0.0 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal --root mr --binariesMode local
+docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v1.1.0 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal --root mr --binariesMode local
 
 ```
 
@@ -171,7 +172,7 @@ Cactus (through Toil) supports many batch systems, including LSF, SLURM, GridEng
 ### Running on the cloud
 Cactus supports running on AWS, Azure, and Google Cloud Platform using [Toil's autoscaling features](https://toil.readthedocs.io/en/latest/running/cloud/cloud.html). For more details on running in AWS, check out [these instructions](doc/running-in-aws.md) (other clouds are similar).
 
-### Running step by step (experimental)
+### Running step by step
 
 #### Printing a list of commands to run locally
 
@@ -216,7 +217,7 @@ Then in Terra's [workspace menu](https://app.terra.bio/#workspaces):
 * Choose and namespace and name, then either upload or paste `evolver_terra.wdl` as created above and click "Upload"
 * If this WDL is valid, you can use the "Export To Workspace" button to link it to the Terra Workspace (using a blank configuration)
 * You can select the option to go back to the Terra Workspace, otherwise the workflow should now appear as a card in the Terra "workflows" tab the next time you navigate there or refresh
-* To run it, click the workflow then click the "INPUTS" tab, and select the `evolverMammals.txt` file in the Attribute field for Taks=`cactus_prepare` Variable=`prep_seq_file`
+* To run it, click the workflow then click the "INPUTS" tab, and select the `evolverMammals.txt` file in the Attribute field for Task=`cactus_prepare` Variable=`prep_seq_file`
 * Tick "Run workflow with inputs defined by file paths"
 * Save and click "RUN ANALYSIS"
 
@@ -225,7 +226,7 @@ In the evolver example, all input sequences are specified in public URLs.  If se
 Here is an example of some settings that have worked on a mammalian-sized genome alignment on Terra:
 
 ```
-cactus-prepare --wdl mammals.txt --noLocalInputs --alignDisk 3000 --halAppendDisk 3000 --defaultDisk 300 --defaultCores 64 > mammals.wdl
+cactus-prepare --wdl mammals.txt --noLocalInputs --alignDisk 3000 --halAppendDisk 3000 --defaultDisk 500 --defaultCores 64 --gpu --gpuCount 8 --defaultMemory 385 > mammals.wdl
 
 ```
 
@@ -234,6 +235,10 @@ If the workflow fails for whatever reason, it can be edited (to, say, increase j
 * Edit it and "Save a New Snapshot"
 * Back in the Terra Workflows tab for the workflow, refresh the page, and select the new snapshot from the "Snapshots" menu.
 * Click the "Save" button, ensure that "Use call caching" is ticked, then "Run Analysis" again to resume the workflow.
+
+## GPU Acceleration
+
+A [GPU-accelerated version of lastz](https://github.com/ComparativeGenomicsToolkit/SegAlign) can be used in the `blast` phase to speed up the runtime considerably, provided the right hardware is available. The easiest way to use it is on Terra with `cactus-prepare --gpu --wdl` (see above example).  The [GPU-enabled Docker releases](https://github.com/ComparativeGenomicsToolkit/cactus/releases) have this turned on by default.  It is also possible to [manually install it](https://github.com/ComparativeGenomicsToolkit/SegAlign#-dependencies) from git and then enable it in `cactus` via the `--configFile` cactus option.  A template can be found [here](https://github.com/ComparativeGenomicsToolkit/cactus/blob/master/src/cactus/cactus_progressive_config.xml), and modified to activate the GPU by setting `gpuLastz="true"` and `realign="0"` in the `<caf>` section. 
 
 ## Using the output
 Cactus outputs its alignments in the [HAL](https://github.com/ComparativeGenomicsToolkit/hal) format. This format represents the alignment in a reference-free, indexed way, but isn't readable by many tools. To export a MAF (which by its nature is usually reference-based), you can use the `hal2maf` tool to export the alignment from any particular genome: `hal2maf <hal> --refGenome <reference> <maf>`.

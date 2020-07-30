@@ -20,6 +20,7 @@ pip install -U setuptools pip
 pip install -U -r ./toil-requirement.txt
 pip install -U .
 export PATH=$(pwd)/bin:$PATH
+export PYTHONPATH=$(pwd)/lib:$PYTHONPATH
 ```
 
 ## Testing
