@@ -41,6 +41,14 @@ static:
 	KT_OPTIONS="--without-lua --enable-static --disable-shared" \
 	${MAKE} all
 
+check-static: static
+ifeq ($(shell ldd bin/* | grep "not a dynamic" | wc -l), $(shell ls bin/* | wc -l))
+	$(info ldd verified that all files in .bin/ are static
+	echo "All static"
+else
+	$(error ldd found dnymaic linked binary in .bin/)
+endif
+
 all_libs:
 	${MAKE} ${modules:%=all_libs.%}
 all_progs: all_libs

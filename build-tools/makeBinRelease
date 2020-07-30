@@ -31,8 +31,8 @@ git submodule update --init --recursive
 # There was a recomendation of using -march=nehalem increases portability,
 # however this is not recognized by GCC 4.8.  Add this if moving to a
 # newer compiler
-
-make -j $(nproc) static
+set -e
+make -j $(nproc) check-static
 
 binPackageDir=cactus-bin-${REL_TAG}
 rm -rf ${binPackageDir}
