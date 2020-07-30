@@ -34,6 +34,9 @@ all:
 	${MAKE} all_progs
 	${MAKE} suball2
 
+# Note: hdf5 from apt doesn't seem to work for static builds.  It should be installed
+# from source and configured with "--enable-static --disable-shared", then have its
+# bin put at the front of PATH
 static:
 	CFLAGS="$${CFLAGS} -static" \
 	CXXFLAGS="$${CXXFLAGS} -static" \
@@ -43,7 +46,7 @@ static:
 
 check-static: static
 ifeq ($(shell ldd bin/* | grep "not a dynamic" | wc -l), $(shell ls bin/* | wc -l))
-	$(info ldd verified that all files in .bin/ are static
+	$(info ldd verified that all files in .bin/ are static)
 	echo "All static"
 else
 	$(error ldd found dnymaic linked binary in .bin/)

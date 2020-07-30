@@ -36,10 +36,10 @@ There are many different ways to install and run Cactus:
 
 #### Docker Image
 
-Cactus docker images are hosted on [quay](https://quay.io/repository/comparative-genomics-toolkit/cactus).  The image for the latest release is listed on the [Releases Page](https://github.com/ComparativeGenomicsToolkit/cactus/releases).  Here is an command line to run the included evolver mammals example with release 1.0.0
+Cactus docker images are hosted on [quay](https://quay.io/repository/comparative-genomics-toolkit/cactus).  The image for the latest release is listed on the [Releases Page](https://github.com/ComparativeGenomicsToolkit/cactus/releases).  Here is an command line to run the included evolver mammals example with release 1.1.0
 ```
 wget https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactus/master/examples/evolverMammals.txt
-docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v1.0.0 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal --root mr --binariesMode local
+docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v1.1.0 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal --root mr --binariesMode local
 
 ```
 
@@ -171,7 +171,7 @@ Cactus (through Toil) supports many batch systems, including LSF, SLURM, GridEng
 ### Running on the cloud
 Cactus supports running on AWS, Azure, and Google Cloud Platform using [Toil's autoscaling features](https://toil.readthedocs.io/en/latest/running/cloud/cloud.html). For more details on running in AWS, check out [these instructions](doc/running-in-aws.md) (other clouds are similar).
 
-### Running step by step (experimental)
+### Running step by step
 
 #### Printing a list of commands to run locally
 
@@ -201,9 +201,10 @@ javac -jar ./cromwell-49.jar run evolver.wdl
 To run on [Terra](https://terra.bio/), use the `--noLocalInputs` option to make sure no local files are embedded in the script.  Also, care must be taken to specify some minimum resource requirements.
 
 ```
-cactus-prepare examples/evolverMammals.txt --wdl --noLocalInputs --alignCores 2 --defaultMem 16 > evolver_terra.wdl
+cactus-prepare examples/evolverMammals.txt --wdl --noLocalInputs --alignCores 2 --defaultMem 16 --gpu > evolver_terra.wdl
 
 ```
+When using the `--gpu` option as above, it is important to upload the generated `config-prepared.xml` file and pass it as the config_file input variable.
 
 Then in Terra's [workspace menu](https://app.terra.bio/#workspaces):
 * Create a new workspace if necessary with the "+" button
@@ -216,7 +217,7 @@ Then in Terra's [workspace menu](https://app.terra.bio/#workspaces):
 * Choose and namespace and name, then either upload or paste `evolver_terra.wdl` as created above and click "Upload"
 * If this WDL is valid, you can use the "Export To Workspace" button to link it to the Terra Workspace (using a blank configuration)
 * You can select the option to go back to the Terra Workspace, otherwise the workflow should now appear as a card in the Terra "workflows" tab the next time you navigate there or refresh
-* To run it, click the workflow then click the "INPUTS" tab, and select the `evolverMammals.txt` file in the Attribute field for Taks=`cactus_prepare` Variable=`prep_seq_file`
+* To run it, click the workflow then click the "INPUTS" tab, and select the `evolverMammals.txt` file in the Attribute field for Task=`cactus_prepare` Variable=`prep_seq_file`
 * Tick "Run workflow with inputs defined by file paths"
 * Save and click "RUN ANALYSIS"
 
