@@ -18,7 +18,7 @@ from cactus.progressive.seqFile import SeqFile
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.common import cactusRootPath
 from cactus.shared.common import enableDumpStack
-from cactus.shared.common import getDockerImage
+from cactus.shared.common import getDockerImage, getDockerRelease
 from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.configWrapper import ConfigWrapper
@@ -137,11 +137,6 @@ def main():
             options.alignDisk = options.defaultDisk
         if not options.halAppendDisk:
             options.halAppendDisk = options.defaultDisk
-
-    # todo: we need a gpu-cactus release, then we need cactus-prepare to default to this or the docs to make it very clear
-    # how to point to it.  
-    if options.gpu:
-        sys.stderr.write("Warning: --gpu option not yet supported in official release. User must verify Cactus Docker image is accelerated\n")
 
     # https://cromwell.readthedocs.io/en/stable/RuntimeAttributes/#gpucount-gputype-and-nvidiadriverversion
     # note: k80 not included as WGA_GPU doesn't run on it.  
@@ -286,14 +281,8 @@ def cactusPrepare(options, project):
             # realigning doesn't mix well with lastz so we make sure it's off
             # https://github.com/ComparativeGenomicsToolkit/cactus/issues/271
             cafNode.attrib["realign"] = "0"
-        options.configFile = os.path.join(options.outDir, 'config.xml')
+        options.configFile = os.path.join(options.outDir, 'config-prepared.xml')
         sys.stderr.write("configuration saved in {}\n".format(options.configFile))
-        config.writeXML(options.configFile)
-
-    if options.gpu:
-        cafNode = findRequiredNode(config.xmlRoot, "caf")
-        cafNode.attrib["gpuLastz"] = "true"
-        options.configFile = os.path.join(options.outDir, 'config.xml')
         config.writeXML(options.configFile)
         
     # pass through the config file to the options
@@ -607,7 +596,6 @@ def wdl_task_blast(options):
                                                                               wdl_disk(options, 'blast')[1])
     s += '\n    }\n'
     s += '    runtime {\n'
-    s += '        docker: \"{}\"\n'.format(options.dockerImage)
     s += '        preemptible: {}\n'.format(options.blastPreemptible)
     if options.blastCores:
         s += '        cpu: {}\n'.format(options.blastCores)
@@ -620,8 +608,10 @@ def wdl_task_blast(options):
         s += '        gpuCount: {}\n'.format(options.gpuCount)
         s += '        bootDiskSizeGb: 20\n'
         s += '        nvidiaDriverVersion: \"{}\"\n'.format(options.nvidiaDriver)
+        s += '        docker: \"{}\"\n'.format(getDockerRelease(gpu=True))
         s += '        zones: \"{}\"\n'.format(options.gpuZone)
     else:
+        s += '        docker: \"{}\"\n'.format(options.dockerImage)
         s += '        zones: \"{}\"\n'.format(options.zone)
     s += '    }\n'
     s += '    output {\n        Array[File] out_files=glob(\"${out_name}*\")\n    }\n'
