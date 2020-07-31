@@ -8,7 +8,22 @@ set -beEu -o pipefail
 mydir=$(dirname $(which $0))
 source ${mydir}/releaseLib.sh
 
-docker build . -f Dockerfile.segalign -t segalign:local
+buildDir=$(realpath -m build)
+binBuildDir="${buildDir}/gpu-docker-tmp"
+
+set -x
+rm -rf ${binBuildDir}
+mkdir -p ${binBuildDir}
+cd ${binBuildDir}
+git clone --recursive https://github.com/ComparativeGenomicsToolkit/cactus.git
+cd cactus
+git fetch --tags origin
+
+REL_TAG=$(getLatestReleaseTag)
+git checkout "${REL_TAG}"
+git submodule update --init --recursive
+
+CFLAGS="" CXXFLAGS="" docker build . -f Dockerfile.segalign -t segalign:local
 sed "s/FROM ubuntu:bionic-[0-9]*$/FROM segalign:local/" Dockerfile > Dockerfile.gpu
 # enable gpu by default
 sed -i src/cactus/cactus_progressive_config.xml -e 's/gpuLastz="false"/gpuLastz="true"/' -e 's/realign="1"/realign="0"/'
