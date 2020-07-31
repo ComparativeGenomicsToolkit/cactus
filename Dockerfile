@@ -36,7 +36,7 @@ RUN mkdir -p /wheels && cd /wheels && python3 -m pip install -U pip && python3 -
 FROM ubuntu:bionic-20200112
 
 # apt dependencies for runtime
-RUN apt-get update && apt-get install -y --no-install-recommends git python3 python3-pip python3-distutils zlib1g libbz2-1.0 net-tools libhdf5-100 liblzo2-2 libtokyocabinet9 rsync
+RUN apt-get update && apt-get install -y --no-install-recommends git python3 python3-pip python3-distutils zlib1g libbz2-1.0 net-tools libhdf5-100 liblzo2-2 libtokyocabinet9 rsync libkrb5-3 libk5crypto3
 
 # copy temporary files for installing cactus
 COPY --from=builder /home/cactus /tmp/cactus
@@ -56,6 +56,9 @@ RUN python3 -m pip install -U pip wheel setuptools && \
     rm -rf /wheels /root/.cache/pip/* /tmp/cactus && \
     apt-get remove -y git python3-pip rsync && \
     apt-get auto-remove -y
+
+# check the linking on all our binaries (those kent tools above aren't static)
+RUN for i in /usr/local/bin/* ; do if [ -f ${i} ] && [ $(ldd ${i} | grep "not found" | wc -l) -ge 1 ]; then exit 1; fi; done
 
 # wrapper.sh is used when running using the docker image with --binariesMode docker
 RUN mkdir /opt/cactus/

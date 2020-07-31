@@ -1,3 +1,13 @@
+# Release 1.1.1   2020-07-31
+
+This release fixes how Kent tools required for `hal2assemblyHub.py` were packaged in 1.1.0 (thanks @nathanweeks).  
+
+Notable Changes:
+ - The required shared libaries to run the Kent tools are added to the Docker Image
+ - The same Kent tools are removed from the binary release.  They were included under the assumption that they were statically built and fully standalone, but they are not.  Instead, instrucitons are provided to guide interested users to installing them on their own. 
+
+GPU Lastz version used in GPU-enabled Docker image: [3e14c3b8ceeb139b3b929b5993d96d8e5d3ef9fa](https://github.com/ComparativeGenomicsToolkit/SegAlign/commit/3e14c3b8ceeb139b3b929b5993d96d8e5d3ef9fa)
+
 # Release 1.1.0   2020-07-30
 
 This release contains some important bug fixes, as well as major improvements to `cactus-prepare` functionality.
