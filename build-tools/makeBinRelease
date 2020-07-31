@@ -48,7 +48,12 @@ mkdir -p $(binPackageDir)/lib
 rsync -avm --include='*.py' -f 'hide,! */' ./submodules/hal ${binPackageDir}/lib
 # need .git dir for pip install -U ., but don't need everything
 cp -r .git ${binPackageDir}
-rm -rf ${binPackageDir}/modules
+rm -rf ${binPackageDir}/.git/modules
+# install (opensource) kent tools needed by hal2assemblyhub.py
+pushd ${binPackageDir}/bin && for i in wigToBigWig faToTwoBit bedToBigBed bigBedToBed; do wget -q http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/${i}; chmod ugo+x ${i}; done && popd
+# remove test executables
+rm -f ${binPackageDir}/bin/*test ${binPackageDir}/bin/*tests ${binPackageDir}/bin/*Test ${binPackageDir}/bin/*Tests
+# make binaries smaller
 strip -d ${binPackageDir}/bin/* 2> /dev/null || true
 tar -czf ${buildDir}/cactus-bin-${REL_TAG}.tar.gz ${binPackageDir}
 if [ "$keep" = "no" ] ; then
