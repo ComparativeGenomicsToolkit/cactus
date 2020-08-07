@@ -20,7 +20,7 @@ from operator import itemgetter
 from cactus.progressive.seqFile import SeqFile
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.common import cactusRootPath
-from cactus.shared.common import enableDumpStack
+from cactus.shared.common import enableDumpStack, setupBinaries
 from cactus.shared.common import getDockerImage, getDockerRelease
 from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.shared.experimentWrapper import ExperimentWrapper
@@ -45,6 +45,12 @@ def main(toil_mode=False):
     parser = ArgumentParser()
     if toil_mode:
         Job.Runner.addToilOptions(parser)
+        parser.add_argument("--latest", dest="latest", action="store_true",
+                            help="Use the latest version of the docker container "
+                            "rather than pulling one matching this version of cactus")
+        parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
+                            help="The way to run the Cactus binaries (at top level; use --cactusOpts to set it in nested calls)",
+                            default=None)
     parser.add_argument("seqFile", help = "Seq file")
     parser.add_argument("--outDir", help='Directory where the processed leaf sequence and ancestral sequences will be placed.'
                         ' Required when not using --wdl')
@@ -102,6 +108,7 @@ def main(toil_mode=False):
         options.wdl = False
         options.noLocalInputs = False
         options.outDir = '.'
+        setupBinaries(options)
     options.toil = toil_mode
 
     if not options.wdl and not options.toil:
@@ -519,7 +526,7 @@ def get_plan(options, project, inSeqFile, outSeqFile, toil):
                     get_jobstore(options), options.outSeqFile, cigarPath(event), halPath(event), event,
                     options.cactusOptions, get_toil_resource_opts(options, 'align'))
                 # todo: just output the fasta in cactus-align.
-                plan += 'hal2fasta {} {} {} --onlySequenceNames > {}\n'.format(halPath(event), event, options.halOptions, outSeqFile.pathMap[event])
+                plan += 'hal2fasta {} {} {} > {}\n'.format(halPath(event), event, options.halOptions, outSeqFile.pathMap[event])
 
     # advance toil phase
     if options.toil:
@@ -566,11 +573,6 @@ def get_plan(options, project, inSeqFile, outSeqFile, toil):
         logger.info("cactus-prepare-toil has finished after {} seconds".format(run_time))
         
     return plan
-
-def toil_job(job, cmd):
-    """ todo: lots, obviously """
-    RealtimeLogger.info("Run: {}".format(cmd))
-    subprocess.check_call(cmd, shell=True)
 
 def input_fa_name(name):
     """ map event name to input fasta wdl variable name """
@@ -714,7 +716,7 @@ def toil_call_preprocess(job, options, in_seq_file, out_seq_file, name):
            '--outPaths', out_name, '--workDir', work_dir,
            '--maxCores', str(job.cores), '--maxDisk', str(job.disk), '--maxMemory', str(job.memory)] + options.cactusOptions.strip().split(' ')
     
-    subprocess.check_call(cmd)
+    cactus_call(parameters=cmd)
 
     out_fa_id = job.fileStore.writeGlobalFile(out_name)
 
@@ -764,12 +766,15 @@ def wdl_call_blast(options, project, event, cigar_name):
 
     leaf_deps, anc_deps = get_dep_names(options, project, event)
     input_fas = []
+    input_names = []
     for input_name in leaf_deps:
         # take fasta from cactus-preprocess for leaves
         input_fas.append('{}.out_file'.format(preprocess_call_name(input_name)))
+        input_names.append(input_name)
     for input_name in anc_deps:
         # take fasta from cactus-align for internal nodes
         input_fas.append('{}.out_fa_file'.format(align_call_name(input_name)))
+        input_names.append(input_name)
                     
     s = '    call cactus_blast as {} {{\n'.format(blast_call_name(event))
     s += '        input:'
@@ -798,9 +803,9 @@ def toil_call_blast(job, options, seq_file, project, event, cigar_name, dep_name
     for fa_path, fa_id in zip(fa_paths, dep_fa_ids):
         job.fileStore.readGlobalFile(fa_id, fa_path)
             
-    subprocess.check_call(['cactus-blast', os.path.join(work_dir, 'js'), seq_file_path, os.path.join(work_dir, os.path.basename(cigar_name)),
-                           '--root', event, '--pathOverrides'] + fa_paths+ ['--pathOverrideNames'] + dep_names +
-                          ['--workDir', work_dir, '--maxCores', str(job.cores), '--maxDisk', str(job.disk), '--maxMemory', str(job.memory)] + options.cactusOptions.strip().split(' '))
+    cactus_call(parameters=['cactus-blast', os.path.join(work_dir, 'js'), seq_file_path, os.path.join(work_dir, os.path.basename(cigar_name)),
+                 '--root', event, '--pathOverrides'] + fa_paths+ ['--pathOverrideNames'] + dep_names +
+                ['--workDir', work_dir, '--maxCores', str(job.cores), '--maxDisk', str(job.disk), '--maxMemory', str(job.memory)] + options.cactusOptions.strip().split(' '))
 
     # scrape the output files out of the workdir
     out_nameids = []
@@ -828,7 +833,7 @@ def wdl_task_align(options):
     s += ' {} --workDir {} ${{\"--configFile \" + in_config_file}}'.format(get_toil_resource_opts(options, 'align'),
                                                                            wdl_disk(options, 'align')[1])
     s += '\n        '
-    s += 'hal2fasta ${{out_hal_name}} ${{in_root}} {} --onlySequenceNames > ${{out_fa_name}}'.format(options.halOptions)
+    s += 'hal2fasta ${{out_hal_name}} ${{in_root}} {} > ${{out_fa_name}}'.format(options.halOptions)
     s += '\n    }\n'
     s += '    runtime {\n'
     s += '        docker: \"{}\"\n'.format(options.dockerImage)
@@ -853,12 +858,15 @@ def wdl_call_align(options, project, event, cigar_name, hal_path, fa_path):
 
     leaf_deps, anc_deps = get_dep_names(options, project, event)
     input_fas = []
+    input_names = []
     for input_name in leaf_deps:
         # take fasta from cactus-preprocess for leaves
         input_fas.append('{}.out_file'.format(preprocess_call_name(input_name)))
+        input_names.append(input_name)
     for input_name in anc_deps:
         # take fasta from cactus-align for internal nodes
         input_fas.append('{}.out_fa_file'.format(align_call_name(input_name)))
+        input_names.append(input_name)
 
     s = '    call cactus_align as {} {{\n'.format(align_call_name(event))
     s += '        input:'
@@ -897,10 +905,10 @@ def toil_call_align(job, options, seq_file, project, event, cigar_name, hal_path
 
     # call cactus-align
     out_hal_path = os.path.join(work_dir, os.path.basename(hal_path))
-    subprocess.check_call(['cactus-align', os.path.join(work_dir, 'js'), seq_file_path] + blast_files +
-                           [out_hal_path, '--root', event,
-                           '--pathOverrides'] + fa_paths + ['--pathOverrideNames'] + dep_names +
-                          ['--workDir', work_dir, '--maxCores', str(job.cores), '--maxDisk', str(job.disk), '--maxMemory', str(job.memory)] + options.cactusOptions.strip().split(' '))
+    cactus_call(parameters=['cactus-align', os.path.join(work_dir, 'js'), seq_file_path] + blast_files +
+                [out_hal_path, '--root', event,
+                 '--pathOverrides'] + fa_paths + ['--pathOverrideNames'] + dep_names +
+                ['--workDir', work_dir, '--maxCores', str(job.cores), '--maxDisk', str(job.disk), '--maxMemory', str(job.memory)] + options.cactusOptions.strip().split(' '))
 
     out_hal_id = job.fileStore.writeGlobalFile(out_hal_path)
 
