@@ -29,6 +29,7 @@ from cactus.progressive.seqFile import SeqFile
 from cactus.shared.common import setupBinaries, importSingularityImage
 from cactus.shared.common import enableDumpStack
 from toil.lib.bioio import setLoggingFromOptions
+from toil.realtimeLogger import RealtimeLogger
 
 from cactus.preprocessor.checkUniqueHeaders import checkUniqueHeaders
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import LastzRepeatMaskJob
@@ -36,7 +37,8 @@ from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import Repeat
 
 class PreprocessorOptions:
     def __init__(self, chunkSize, memory, cpu, check, proportionToSample, unmask,
-                 preprocessJob, checkAssemblyHub=None, lastzOptions=None, minPeriod=None):
+                 preprocessJob, checkAssemblyHub=None, lastzOptions=None, minPeriod=None,
+                 gpuLastz=False):
         self.chunkSize = chunkSize
         self.memory = memory
         self.cpu = cpu
@@ -47,6 +49,10 @@ class PreprocessorOptions:
         self.checkAssemblyHub = checkAssemblyHub
         self.lastzOptions = lastzOptions
         self.minPeriod = minPeriod
+        self.gpuLastz = gpuLastz
+        self.gpuLastzInterval = self.chunkSize
+        if self.gpuLastz:
+            self.chunkSize = 0
 
 class CheckUniqueHeaders(RoundedJob):
     """
@@ -116,7 +122,9 @@ class PreprocessSequence(RoundedJob):
         elif self.prepOptions.preprocessJob == "lastzRepeatMask":
             repeatMaskOptions = RepeatMaskOptions(proportionSampled=proportionSampled,
                                                   minPeriod=self.prepOptions.minPeriod,
-                                                  lastzOpts=self.prepOptions.lastzOptions)
+                                                  lastzOpts=self.prepOptions.lastzOptions,
+                                                  gpuLastz=self.prepOptions.gpuLastz,
+                                                  gpuLastzInterval=self.prepOptions.gpuLastzInterval)
             return LastzRepeatMaskJob(repeatMaskOptions=repeatMaskOptions,
                                       queryID=inChunkID,
                                       targetIDs=seqIDs)
@@ -196,7 +204,8 @@ class BatchPreprocessor(RoundedJob):
                                           unmask = getOptionalAttrib(prepNode, "unmask", typeFn=bool, default=False),
                                           lastzOptions = getOptionalAttrib(prepNode, "lastzOpts", default=""),
                                           minPeriod = getOptionalAttrib(prepNode, "minPeriod", typeFn=int, default=0),
-                                          checkAssemblyHub = getOptionalAttrib(prepNode, "checkAssemblyHub", typeFn=bool, default=False))
+                                          checkAssemblyHub = getOptionalAttrib(prepNode, "checkAssemblyHub", typeFn=bool, default=False),
+                                          gpuLastz = getOptionalAttrib(prepNode, "gpuLastz", typeFn=bool, default=False))
 
         lastIteration = self.iteration == len(self.prepXmlElems) - 1
 
