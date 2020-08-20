@@ -165,7 +165,13 @@ class PreprocessSequence(RoundedJob):
             if len(inChunkIDs) < inChunkNumber: #This logic is like making the list circular
                 inChunkIDs += inChunkIDList[:inChunkNumber-len(inChunkIDs)]
             assert len(inChunkIDs) == inChunkNumber
-            outChunkIDList.append(self.addChild(self.getChunkedJobForCurrentStage(inChunkIDs, float(inChunkNumber)/len(inChunkIDList), inChunkIDList[i])).rv())
+            if self.prepOptions.gpuLastz:
+                # when using lastz, we pass through the proportion directly to segalign
+                proportionSampled = self.prepOptions.proportionToSample
+            else:
+                # otherwise, it's taken from the ratio of chunks
+                proportionSampled = float(inChunkNumber)/len(inChunkIDList)
+            outChunkIDList.append(self.addChild(self.getChunkedJobForCurrentStage(inChunkIDs, proportionSampled, inChunkIDList[i])).rv())
 
         if chunked:
             # Merge results of the chunking process back into a genome-wide file

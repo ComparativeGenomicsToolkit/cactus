@@ -114,7 +114,8 @@ class LastzRepeatMaskJob(RoundedJob):
         cmd = ["run_segalign_repeat_masker",
                targetFile,
                "--lastz_interval={}".format(self.repeatMaskOptions.gpuLastzInterval),
-               "--markend"] + gpu_opts
+               "--markend",
+               "--neighbor_proportion", str(self.repeatMaskOptions.proportionSampled)] + gpu_opts
         
         cactus_call(outfile=alignment, parameters=cmd, work_dir=fileStore.getLocalTempDir())
 
