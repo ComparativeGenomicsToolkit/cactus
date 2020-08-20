@@ -1,3 +1,9 @@
+# Release 1.2.0   ???
+
+This release adds GPU lastz repeatmasking support in the preprocessor
+
+GPU Lastz version used in GPU-enabled Docker image: [f84a94663bbd6c42543f63b50c5843b0b5025dda](https://github.com/ComparativeGenomicsToolkit/SegAlign/commit/f84a94663bbd6c42543f63b50c5843b0b5025dda)
+
 # Release 1.1.1   2020-07-31
 
 This release fixes how Kent tools required for `hal2assemblyHub.py` were packaged in 1.1.0 (thanks @nathanweeks).  
