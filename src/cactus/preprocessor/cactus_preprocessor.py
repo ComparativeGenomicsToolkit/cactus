@@ -29,6 +29,7 @@ from cactus.progressive.seqFile import SeqFile
 from cactus.shared.common import setupBinaries, importSingularityImage
 from cactus.shared.common import enableDumpStack
 from toil.lib.bioio import setLoggingFromOptions
+from toil.realtimeLogger import RealtimeLogger
 
 from cactus.preprocessor.checkUniqueHeaders import checkUniqueHeaders
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import LastzRepeatMaskJob
@@ -36,7 +37,8 @@ from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import Repeat
 
 class PreprocessorOptions:
     def __init__(self, chunkSize, memory, cpu, check, proportionToSample, unmask,
-                 preprocessJob, checkAssemblyHub=None, lastzOptions=None, minPeriod=None):
+                 preprocessJob, checkAssemblyHub=None, lastzOptions=None, minPeriod=None,
+                 gpuLastz=False):
         self.chunkSize = chunkSize
         self.memory = memory
         self.cpu = cpu
@@ -47,6 +49,10 @@ class PreprocessorOptions:
         self.checkAssemblyHub = checkAssemblyHub
         self.lastzOptions = lastzOptions
         self.minPeriod = minPeriod
+        self.gpuLastz = gpuLastz
+        self.gpuLastzInterval = self.chunkSize
+        if self.gpuLastz:
+            self.chunkSize = 0
 
 class CheckUniqueHeaders(RoundedJob):
     """
@@ -116,7 +122,9 @@ class PreprocessSequence(RoundedJob):
         elif self.prepOptions.preprocessJob == "lastzRepeatMask":
             repeatMaskOptions = RepeatMaskOptions(proportionSampled=proportionSampled,
                                                   minPeriod=self.prepOptions.minPeriod,
-                                                  lastzOpts=self.prepOptions.lastzOptions)
+                                                  lastzOpts=self.prepOptions.lastzOptions,
+                                                  gpuLastz=self.prepOptions.gpuLastz,
+                                                  gpuLastzInterval=self.prepOptions.gpuLastzInterval)
             return LastzRepeatMaskJob(repeatMaskOptions=repeatMaskOptions,
                                       queryID=inChunkID,
                                       targetIDs=seqIDs)
@@ -157,7 +165,13 @@ class PreprocessSequence(RoundedJob):
             if len(inChunkIDs) < inChunkNumber: #This logic is like making the list circular
                 inChunkIDs += inChunkIDList[:inChunkNumber-len(inChunkIDs)]
             assert len(inChunkIDs) == inChunkNumber
-            outChunkIDList.append(self.addChild(self.getChunkedJobForCurrentStage(inChunkIDs, float(inChunkNumber)/len(inChunkIDList), inChunkIDList[i])).rv())
+            if self.prepOptions.gpuLastz:
+                # when using lastz, we pass through the proportion directly to segalign
+                proportionSampled = self.prepOptions.proportionToSample
+            else:
+                # otherwise, it's taken from the ratio of chunks
+                proportionSampled = float(inChunkNumber)/len(inChunkIDList)
+            outChunkIDList.append(self.addChild(self.getChunkedJobForCurrentStage(inChunkIDs, proportionSampled, inChunkIDList[i])).rv())
 
         if chunked:
             # Merge results of the chunking process back into a genome-wide file
@@ -196,7 +210,8 @@ class BatchPreprocessor(RoundedJob):
                                           unmask = getOptionalAttrib(prepNode, "unmask", typeFn=bool, default=False),
                                           lastzOptions = getOptionalAttrib(prepNode, "lastzOpts", default=""),
                                           minPeriod = getOptionalAttrib(prepNode, "minPeriod", typeFn=int, default=0),
-                                          checkAssemblyHub = getOptionalAttrib(prepNode, "checkAssemblyHub", typeFn=bool, default=False))
+                                          checkAssemblyHub = getOptionalAttrib(prepNode, "checkAssemblyHub", typeFn=bool, default=False),
+                                          gpuLastz = getOptionalAttrib(prepNode, "gpuLastz", typeFn=bool, default=False))
 
         lastIteration = self.iteration == len(self.prepXmlElems) - 1
 

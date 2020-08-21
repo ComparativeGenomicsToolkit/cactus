@@ -549,7 +549,6 @@ def wdl_task_preprocess(options):
     s += '    }\n'
     
     s += '    runtime {\n'
-    s += '        docker: \"{}\"\n'.format(options.dockerImage)
     s += '        preemptible: {}\n'.format(options.preprocessPreemptible)
     if options.preprocessCores:
         s += '        cpu: {}\n'.format(options.preprocessCores)
@@ -557,7 +556,16 @@ def wdl_task_preprocess(options):
         s += '        memory: \"{}GB\"\n'.format(options.preprocessMem)
     if options.preprocessDisk:
         s += '        disks: \"{}\"\n'.format(wdl_disk(options, 'preprocess')[0])
-    s += '        zones: \"{}\"\n'.format(options.zone)
+    if options.gpu:
+        s += '        gpuType: \"{}\"\n'.format(options.gpuType)
+        s += '        gpuCount: {}\n'.format(options.gpuCount)
+        s += '        bootDiskSizeGb: 20\n'
+        s += '        nvidiaDriverVersion: \"{}\"\n'.format(options.nvidiaDriver)
+        s += '        docker: \"{}\"\n'.format(getDockerRelease(gpu=True))
+        s += '        zones: \"{}\"\n'.format(options.gpuZone)
+    else:
+        s += '        docker: \"{}\"\n'.format(options.dockerImage)
+        s += '        zones: \"{}\"\n'.format(options.zone)
     s += '    }\n'
     s += '    output {\n        File out_file="${out_name}"\n    }\n'
     s += '}\n'
