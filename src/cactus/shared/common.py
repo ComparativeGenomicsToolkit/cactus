@@ -1164,6 +1164,7 @@ def cactus_call(tool=None,
                 check_output=False,
                 infile=None,
                 outfile=None,
+                outappend=False,
                 stdin_string=None,
                 server=False,
                 shell=False,
@@ -1222,7 +1223,7 @@ def cactus_call(tool=None,
         stdinFileHandle = subprocess.DEVNULL
     stdoutFileHandle = None
     if outfile:
-        stdoutFileHandle = open(outfile, 'w')
+        stdoutFileHandle = open(outfile, 'a' if outappend else 'w')
     if check_output:
         stdoutFileHandle = subprocess.PIPE
 
