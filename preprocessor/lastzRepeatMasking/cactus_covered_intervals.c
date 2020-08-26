@@ -14,9 +14,11 @@
 #include <ctype.h>
 #include <stdarg.h>
 #include <limits.h>
-
 #include <inttypes.h>
 #include <stdint.h>
+
+#include "sonLib.h"
+
 typedef int8_t   s8;
 typedef uint8_t  u8;
 typedef int32_t  s32;
@@ -35,18 +37,17 @@ typedef uint32_t u32;
 //
 //----------
 
-// linked list for chromosomes seen
+// hash table record for chromosomes seen
 
-typedef struct info
+typedef struct chr_info
     {
-    struct info* next;          // next item in a linked list
     char*        chrom;         // chromosome name
     u32          lineNumber;    // line number where this chromosome first seen
-    } info;
+    } chr_info;
 
 // command line options
 
-info* chromsSeen      = NULL;
+stHash* chromsSeen    = NULL;
 u32   windowSize      = 1*1000*1000;
 int   inputHasOffsets = false;
 int   originOne       = false;
@@ -77,7 +78,7 @@ static void  emit_intervals      (FILE* f, u8 minDepth,
 static u32   emit_some_intervals (FILE* f, u8 minDepth,
                                   u8* window, char* chrom,
                                   u32 pendingRun, u32 windowStart, u32 windowEnd);
-static info* find_chromosome     (char* chrom);
+static chr_info* find_chromosome (char* chrom);
 static int   read_alignment      (FILE* f,
                                   char* buffer, int bufferLen,
                                   u32* lineNumber,
@@ -290,7 +291,7 @@ int main
     u32     windowStart, pendingRun, newWindowStart, prefixSize, suffixSize;
     u32     lineNumber;
     char*   rChrom, *qChrom;
-    info*   chromInfo, *nextInfo;
+    chr_info*   chromInfo;
     u32     rStart, rEnd, qStart, qEnd, qStartOriginal, qEndOriginal;
     u32     ix;
     int     ok;
@@ -303,6 +304,8 @@ int main
 
     window = (u8*) malloc (windowSize);
     if (window == NULL) goto cant_allocate_window;
+
+    chromsSeen = stHash_construct3(stHash_stringKey, stHash_stringEqualKey, free, free);
 
     //////////
     // process intervals
@@ -341,11 +344,11 @@ int main
             chromInfo = find_chromosome (qChrom);
             if (chromInfo != NULL) goto chrom_not_together;
 
-            chromInfo = (info*) malloc (sizeof(info));
+            chromInfo = (chr_info*) malloc (sizeof(chr_info));
             if (chromInfo == NULL) goto cant_allocate_info;
-            chromInfo->next       = chromsSeen;
             chromInfo->chrom      = copy_string (qChrom);
             chromInfo->lineNumber = lineNumber;
+            stHash_insert(chromsSeen, chromInfo->chrom, chromInfo);
 
             if (reportChroms)
                 fprintf (stderr, "progress: reading %s (line %u)\n", qChrom, lineNumber);
@@ -421,12 +424,7 @@ int main
 
     free (window);
 
-    for (chromInfo=chromsSeen ; chromInfo!=NULL ; chromInfo=nextInfo)
-        {
-        nextInfo = chromInfo->next;
-        if (chromInfo->chrom  != NULL) free (chromInfo->chrom);
-        free (chromInfo);
-        }
+    stHash_destruct(chromsSeen);
     chromsSeen = NULL;
 
     if (endComment)
@@ -445,7 +443,7 @@ cant_allocate_window:
 
 cant_allocate_info:
     fprintf (stderr, "failed to allocate %d-entry info record for %s\n",
-                     (int) sizeof(info), qChrom);
+                     (int) sizeof(chr_info), qChrom);
     return EXIT_FAILURE;
 
 window_slide_problem:
@@ -555,20 +553,15 @@ static u32 emit_some_intervals
 //
 // Returns:
 //  a pointer to the record for the chromosome;  NULL if the chromosome is not
-//  in our list.
+//  in our table.
 //
 //----------
 
-static info* find_chromosome
+static chr_info* find_chromosome
    (char*   chrom)
     {
-    info*   scanInfo;
-
-    for (scanInfo=chromsSeen ; scanInfo!=NULL ; scanInfo=scanInfo->next)
-        { if (strcmp (chrom, scanInfo->chrom) == 0) return scanInfo; }
-
-    return NULL;
-    }
+    return (chr_info*)stHash_search(chromsSeen, chrom);
+}
 
 //----------
 //
