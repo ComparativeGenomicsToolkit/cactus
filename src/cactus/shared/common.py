@@ -1231,7 +1231,7 @@ def cactus_call(tool=None,
     process = subprocess.Popen(call, shell=shell, encoding="ascii",
                                stdin=stdinFileHandle, stdout=stdoutFileHandle,
                                stderr=subprocess.PIPE if swallowStdErr else sys.stderr,
-                               bufsize=-1)
+                               bufsize=-1, cwd=work_dir)
 
     if server:
         return process
