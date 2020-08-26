@@ -226,7 +226,7 @@ In the evolver example, all input sequences are specified in public URLs.  If se
 Here is an example of some settings that have worked on a mammalian-sized genome alignment on Terra:
 
 ```
-cactus-prepare --wdl mammals.txt --noLocalInputs --alignDisk 3000 --halAppendDisk 3000 --defaultDisk 500 --defaultCores 64 --gpu --gpuCount 8 --defaultMemory 385 > mammals.wdl
+cactus-prepare --wdl mammals.txt --noLocalInputs --preprocessBatchSize 5 --alignDisk 3000 --halAppendDisk 3000 --preprocessDisk 3000 --defaultDisk 1000 --defaultCores 64 --gpu --gpuCount 8 --defaultMemory 385 > mammals.wdl
 
 ```
 
