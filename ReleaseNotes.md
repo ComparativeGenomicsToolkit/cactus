@@ -1,4 +1,4 @@
-# Release 1.2.1
+# Release 1.2.1   2020-08-31
 
 This release fixes bugs related to GPU lastz
 
