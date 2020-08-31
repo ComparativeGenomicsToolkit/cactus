@@ -1,3 +1,16 @@
+# Release 1.2.1
+
+This release fixes bugs related to GPU lastz
+
+- Cactus fixed to correctly handle GPU lastz repeatmasking output, as well to keep temporary files inside Toil's working directory.
+- `cactus-prepare --wdl` updated to support `--preprocessorBatchSize > 1`
+- `cactus_covered_intervals` bug fix and speedup
+- GPU lastz updated to fix crash
+
+GPU Lastz version used in GPU-enabled Docker image: [12af3c295da7e1ca87e01186ddf5b0088cb29685](https://github.com/ComparativeGenomicsToolkit/SegAlign/commit/12af3c295da7e1ca87e01186ddf5b0088cb29685)
+hal2vg version included: [v1.0.0](https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.0/hal2vg)
+
+
 # Release 1.2.0   2020-08-21
 
 This release adds GPU lastz repeatmasking support in the preprocessor, and includes hal2vg

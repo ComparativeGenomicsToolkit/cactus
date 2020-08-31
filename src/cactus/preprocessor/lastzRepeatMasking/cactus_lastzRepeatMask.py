@@ -147,7 +147,7 @@ class LastzRepeatMaskJob(RoundedJob):
             for work_file in os.listdir(alignment):
                 if work_file.startswith('output_') and os.path.isdir(os.path.join(alignment, work_file)):
                     assert not out_append
-                    for block_file in os.listdir(os.path.join(alignment, work_file)):
+                    for block_file in sorted(os.listdir(os.path.join(alignment, work_file))):
                         block_path = os.path.join(alignment, work_file, block_file)
                         if os.path.isfile(block_path) and block_file.startswith('tmp') and block_file.endswith('.segments'):
                             cactus_call(infile=block_path, outfile=maskInfo, outappend=out_append, parameters=covered_call_cmd)
