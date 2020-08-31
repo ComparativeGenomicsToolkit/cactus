@@ -844,7 +844,7 @@ def getDockerImage():
 
 def getDockerRelease(gpu=False):
     """Get the most recent docker release."""
-    r = "quay.io/comparative-genomics-toolkit/cactus:v1.2.0"
+    r = "quay.io/comparative-genomics-toolkit/cactus:v1.2.1"
     if gpu:
         r += "-gpu"
     return r
@@ -1164,6 +1164,7 @@ def cactus_call(tool=None,
                 check_output=False,
                 infile=None,
                 outfile=None,
+                outappend=False,
                 stdin_string=None,
                 server=False,
                 shell=False,
@@ -1222,7 +1223,7 @@ def cactus_call(tool=None,
         stdinFileHandle = subprocess.DEVNULL
     stdoutFileHandle = None
     if outfile:
-        stdoutFileHandle = open(outfile, 'w')
+        stdoutFileHandle = open(outfile, 'a' if outappend else 'w')
     if check_output:
         stdoutFileHandle = subprocess.PIPE
 
@@ -1231,7 +1232,7 @@ def cactus_call(tool=None,
     process = subprocess.Popen(call, shell=shell, encoding="ascii",
                                stdin=stdinFileHandle, stdout=stdoutFileHandle,
                                stderr=subprocess.PIPE if swallowStdErr else sys.stderr,
-                               bufsize=-1)
+                               bufsize=-1, cwd=work_dir)
 
     if server:
         return process

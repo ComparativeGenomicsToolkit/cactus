@@ -10,6 +10,7 @@ from sonLib.bioio import catFiles
 
 from cactus.shared.common import cactus_call
 from cactus.shared.common import RoundedJob
+from toil.realtimeLogger import RealtimeLogger
 
 class RepeatMaskOptions:
     def __init__(self,
@@ -93,7 +94,7 @@ class LastzRepeatMaskJob(RoundedJob):
         This is the gpu version of above.  It's much simpler in that there's no chunking or fragmenting
         """
 
-        alignment = fileStore.getLocalTempFile()
+        alignment_dir = fileStore.getLocalTempDir()
 
         # dont think gpu lastz can handle this
         assert not self.repeatMaskOptions.unmaskInput
@@ -117,9 +118,9 @@ class LastzRepeatMaskJob(RoundedJob):
                "--markend",
                "--neighbor_proportion", str(self.repeatMaskOptions.proportionSampled)] + gpu_opts
         
-        cactus_call(outfile=alignment, parameters=cmd, work_dir=fileStore.getLocalTempDir())
+        cactus_call(parameters=cmd, work_dir=alignment_dir)
 
-        return alignment
+        return alignment_dir
 
     def maskCoveredIntervals(self, fileStore, queryFile, alignment):
         """
@@ -137,9 +138,24 @@ class LastzRepeatMaskJob(RoundedJob):
 
         if not self.repeatMaskOptions.gpuLastz:
             covered_call_cmd += ["--queryoffsets"]
-            
-        cactus_call(infile=alignment, outfile=maskInfo,
-                    parameters=covered_call_cmd)
+            cactus_call(infile=alignment, outfile=maskInfo, parameters=covered_call_cmd)
+        else:
+            # in gpu mode we don't get a file in the alignment parameter, rather
+            # we scrape the segalign output fragments and run them all
+            # todo: parallelize?
+            out_append=False
+            for work_file in os.listdir(alignment):
+                if work_file.startswith('output_') and os.path.isdir(os.path.join(alignment, work_file)):
+                    assert not out_append
+                    for block_file in sorted(os.listdir(os.path.join(alignment, work_file))):
+                        block_path = os.path.join(alignment, work_file, block_file)
+                        if os.path.isfile(block_path) and block_file.startswith('tmp') and block_file.endswith('.segments'):
+                            cactus_call(infile=block_path, outfile=maskInfo, outappend=out_append, parameters=covered_call_cmd)
+                            # these can add up:  erase as we go to not double storage cost
+                            os.remove(block_path)
+                            out_append=True
+
+            assert out_append # should have scanned at least one file
 
         # the previous lastz command outputs a file of intervals (denoted with indices) to softmask.
         # we finish by applying these intervals to the input file, to produce the final, softmasked output.
