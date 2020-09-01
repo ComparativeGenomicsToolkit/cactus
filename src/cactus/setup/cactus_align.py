@@ -31,8 +31,9 @@ from cactus.pipeline.cactus_workflow import prependUniqueIDs
 from cactus.blast.blast import calculateCoverage
 from cactus.shared.common import makeURL
 from cactus.shared.common import enableDumpStack
-from toil.realtimeLogger import RealtimeLogger
+from cactus.shared.common import cactus_override_toil_options
 
+from toil.realtimeLogger import RealtimeLogger
 from toil.job import Job
 from toil.common import Toil
 from toil.lib.bioio import logger
@@ -105,18 +106,7 @@ def main():
     options.buildFasta = True
 
     # Mess with some toil options to create useful defaults.
-
-    # Caching generally slows down the cactus workflow, plus some
-    # methods like readGlobalFileStream don't support forced
-    # reads directly from the job store rather than from cache.
-    options.disableCaching = True
-    # Job chaining breaks service termination timing, causing unused
-    # databases to accumulate and waste memory for no reason.
-    options.disableChaining = True
-    if options.retryCount is None:
-        # If the user didn't specify a retryCount value, make it 5
-        # instead of Toil's default (1).
-        options.retryCount = 5
+    cactus_override_toil_options(options)
 
     start_time = timeit.default_timer()
     runCactusAfterBlastOnly(options)
