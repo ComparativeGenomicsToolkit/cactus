@@ -226,7 +226,7 @@ In the evolver example, all input sequences are specified in public URLs.  If se
 Here is an example of some settings that have worked on a mammalian-sized genome alignment on Terra:
 
 ```
-cactus-prepare --wdl mammals.txt --noLocalInputs --alignDisk 3000 --halAppendDisk 3000 --defaultDisk 500 --defaultCores 64 --gpu --gpuCount 8 --defaultMemory 385 > mammals.wdl
+cactus-prepare --wdl mammals.txt --noLocalInputs --preprocessBatchSize 5 --alignDisk 3000 --halAppendDisk 3000 --preprocessDisk 3000 --defaultDisk 1000 --defaultCores 64 --gpu --gpuCount 8 --defaultMemory 385 > mammals.wdl
 
 ```
 
@@ -245,7 +245,7 @@ Cactus outputs its alignments in the [HAL](https://github.com/ComparativeGenomic
 
 You can use the alignment to generate gene annotatations for your assemblies, using the [Comparative Annotation Toolkit](https://github.com/ComparativeGenomicsToolkit/Comparative-Annotation-Toolkit).
 
-You can also [covert the HAL alignment into a Pangenome Graph](https://github.com/ComparativeGenomicsToolkit/hal#pangenome-graph-export-gfa-and-vg)
+You can also [convert the HAL alignment into a Pangenome Graph](https://github.com/ComparativeGenomicsToolkit/hal#pangenome-graph-export-gfa-and-vg).  `hal2vg` is now included in the Cactus Docker images and binary release. 
 
 ## Updating existing alignments
 Cactus supports incrementally updating existing alignments to add, remove, or update genomes. The process involves minor surgery on the output HAL files. See [this document](doc/updating-alignments.md) for details.

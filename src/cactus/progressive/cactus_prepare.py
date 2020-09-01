@@ -9,6 +9,7 @@ import os, sys
 from argparse import ArgumentParser
 import xml.etree.ElementTree as ET
 import copy
+import hashlib
 from sonLib.bioio import getTempDirectory
 from datetime import datetime
 import subprocess
@@ -64,7 +65,7 @@ def main(toil_mode=False):
     parser.add_argument("--configFile", default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
     parser.add_argument("--preprocessBatchSize", type=int, default=3, help="size (number of genomes) of suggested preprocessing jobs")
     parser.add_argument("--halOptions", type=str, default="--hdf5InMemory", help="options for every hal command")
-    parser.add_argument("--cactusOptions", type=str, default="--realTimeLogging --logInfo", help="options for every cactus command")
+    parser.add_argument("--cactusOptions", type=str, default="--realTimeLogging --logInfo --retryCount 0", help="options for every cactus command")
     parser.add_argument("--preprocessOnly", action="store_true", help="only decompose into preprocessor and cactus jobs")
     parser.add_argument("--dockerImage", type=str, help="docker image to use as wdl runtime")
     
@@ -129,11 +130,6 @@ def main(toil_mode=False):
         options.outHal = os.path.join(options.outDir if options.outDir else '', 'out.hal')
 
     if options.wdl:
-        if options.preprocessBatchSize != 1:
-            if options.preprocessBatchSize != 3:
-                # hacky way to only warn for non-default
-                sys.stderr.write("Warning: --preprocessBatchSize reset to 1 for --wdl support\n")
-            options.preprocessBatchSize = 1
         # wdl handles output file structure
         if options.outDir:
             sys.stderr.write("Warning: --outDir option ignored with --wdl\n")
@@ -381,6 +377,7 @@ def get_plan(options, project, inSeqFile, outSeqFile, toil):
 
     if options.wdl:
         plan += wdl_workflow_start(options, inSeqFile)
+        options.pp_map = {}
 
     if options.toil:
         # kick things off with an empty job which we will hook subsequent jobs onto
@@ -396,8 +393,7 @@ def get_plan(options, project, inSeqFile, outSeqFile, toil):
     for i in range(0, len(leaves), options.preprocessBatchSize):
         pre_batch = leaves[i:i+options.preprocessBatchSize]
         if options.wdl:
-            assert len(pre_batch) == 1
-            plan += wdl_call_preprocess(options, inSeqFile, outSeqFile, leaves[i])
+            plan += wdl_call_preprocess(options, inSeqFile, outSeqFile, pre_batch)
         elif options.toil:
             job_idx[("preprocess", leaves[i])] = parent_job.addChildJobFn(toil_call_preprocess, options, inSeqFile, outSeqFile, leaves[i],
                                                                           cores=options.preprocessCores,
@@ -583,9 +579,18 @@ def input_fa_name(name):
     """ map event name to input fasta wdl variable name """
     return '{}_fa'.format(name)
 
-def preprocess_call_name(name):
-    """ map an event name to a preprocess call name """
-    return 'preprocess_{}'.format(name)
+def preprocess_call_name(names):
+    """ map an event name list to a preprocess call name """
+    tag = '_'.join(names)
+    if len(tag) > 80:
+        # avoid giant names
+        cs = '_' + hashlib.md5(tag.encode()).hexdigest()
+        tag = tag[:80-len(cs)] + cs
+    return 'preprocess_{}'.format(tag)
+
+def preprocess_output(options, name):
+    """ map an event name to its preprocessed output file """
+    return '{}.out_files[{}]'.format(options.pp_map[name][0], options.pp_map[name][1])
 
 def blast_call_name(name):
     """ map an event name to a blast call name """
@@ -660,27 +665,26 @@ def wdl_workflow_end(options, event, was_appended):
     return s
 
 def wdl_task_preprocess(options):
-    """ preprocess a single genome. expects one of in_file or in_url.  toil can take them both
+    """ preprocess a set of genomes. input either a list of files or a list of urls.  toil can take them both
     as inputs, but they are kept separate due to the distinction between File and String types
     """
     
     s = 'task cactus_preprocess {\n'
     s += '    input {\n'
-    s += '        File? in_file\n'
-    s += '        String? in_url\n'
+    s += '        Array[File]? in_files\n'
+    s += '        Array[String]? in_urls\n'
     s += '        File? in_config_file\n'
-    s += '        String out_name\n'
+    s += '        Array[String] out_names\n'
     s += '    }\n'
     s += '    command {\n        '
-    s += 'cactus-preprocess {} --inPaths ${{default=\"\" in_file}} ${{default=\"\" in_url}}'.format(get_jobstore(options, 'preprocess'))
-    s += ' --outPaths ${{out_name}} {} {} --workDir {}'.format(options.cactusOptions, get_toil_resource_opts(options, 'preprocess'),
-                                                               wdl_disk(options, 'preprocess')[1])
+    s += 'cactus-preprocess {} --inPaths ${{sep=\" \" default=\"\" in_files}} ${{sep=\" \" default=\"\" in_urls}}'.format(get_jobstore(options, 'preprocess'))
+    s += ' --outPaths ${{sep=\" \" out_names}} {} {} --workDir {}'.format(options.cactusOptions, get_toil_resource_opts(options, 'preprocess'),
+                                                                          wdl_disk(options, 'preprocess')[1])
     s += ' ${\"--configFile \" + in_config_file}'
     s += '\n'
     s += '    }\n'
     
     s += '    runtime {\n'
-    s += '        docker: \"{}\"\n'.format(options.dockerImage)
     s += '        preemptible: {}\n'.format(options.preprocessPreemptible)
     if options.preprocessCores:
         s += '        cpu: {}\n'.format(options.preprocessCores)
@@ -688,24 +692,37 @@ def wdl_task_preprocess(options):
         s += '        memory: \"{}GB\"\n'.format(options.preprocessMemory)
     if options.preprocessDisk:
         s += '        disks: \"{}\"\n'.format(wdl_disk(options, 'preprocess')[0])
-    s += '        zones: \"{}\"\n'.format(options.zone)
+    if options.gpu:
+        s += '        gpuType: \"{}\"\n'.format(options.gpuType)
+        s += '        gpuCount: {}\n'.format(options.gpuCount)
+        s += '        bootDiskSizeGb: 20\n'
+        s += '        nvidiaDriverVersion: \"{}\"\n'.format(options.nvidiaDriver)
+        s += '        docker: \"{}\"\n'.format(getDockerRelease(gpu=True))
+        s += '        zones: \"{}\"\n'.format(options.gpuZone)
+    else:
+        s += '        docker: \"{}\"\n'.format(options.dockerImage)
+        s += '        zones: \"{}\"\n'.format(options.zone)
     s += '    }\n'
-    s += '    output {\n        File out_file="${out_name}"\n    }\n'
+    s += '    output {\n        Array[File] out_files=out_names\n    }\n'
     s += '}\n'
     return s
 
-def wdl_call_preprocess(options, in_seq_file, out_seq_file, name):
+def wdl_call_preprocess(options, in_seq_file, out_seq_file, names):
 
-    in_path = in_seq_file.pathMap[name]
-    out_name = os.path.basename(out_seq_file.pathMap[name])
+    in_paths = [in_seq_file.pathMap[name] for name in names]
+    out_names = [os.path.basename(out_seq_file.pathMap[name]) for name in names]
+    # save a link back from the name to its output
+    for i, name in enumerate(names):
+        assert name not in options.pp_map
+        options.pp_map[name] = (preprocess_call_name(names), i)
 
-    s = '    call cactus_preprocess as {} {{\n'.format(preprocess_call_name(name))
-    if '://' in in_path:
-        s += '        input: in_url=\"{}\",'.format(in_path)
+    s = '    call cactus_preprocess as {} {{\n'.format(preprocess_call_name(names))
+    if '://' in in_paths[0]:
+        s += '        input: in_urls=[{}],'.format(', '.join(['\"{}\"'.format(in_path) for in_path in in_paths]))
     else:
-        s += '        input: in_file={},'.format(input_fa_name(name))
+        s += '        input: in_file=[{}],'.format(', '.join([input_fa_name(name) for name in names]))
     s += ' in_config_file=config_file,'
-    s += ' out_name=\"{}\"'.format(out_name)
+    s += ' out_names=[{}]'.format(', '.join(['\"{}\"'.format(out_name) for out_name in out_names]))
     s += '\n    }\n'
 
     return s
