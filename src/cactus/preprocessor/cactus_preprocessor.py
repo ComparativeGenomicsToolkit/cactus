@@ -31,6 +31,7 @@ from cactus.shared.common import enableDumpStack
 from toil.lib.bioio import setLoggingFromOptions
 from toil.realtimeLogger import RealtimeLogger
 
+from cactus.shared.common import cactus_override_toil_options
 from cactus.preprocessor.checkUniqueHeaders import checkUniqueHeaders
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import LastzRepeatMaskJob
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import RepeatMaskOptions
@@ -319,6 +320,9 @@ def main():
     setupBinaries(options)
     setLoggingFromOptions(options)
     enableDumpStack()
+
+    # Mess with some toil options to create useful defaults.
+    cactus_override_toil_options(options)
 
     # we have two modes: operate directly on paths or rely on the seqfiles.  they cannot be mixed
     if options.inSeqFile or options.outSeqFile:

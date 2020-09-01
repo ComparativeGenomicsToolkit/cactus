@@ -35,6 +35,7 @@ from cactus.shared.common import getDockerImage
 from cactus.shared.version import cactus_commit
 from cactus.shared.common import cactusRootPath
 from cactus.shared.common import enableDumpStack
+from cactus.shared.common import cactus_override_toil_options
 
 from toil.job import Job
 from toil.common import Toil
@@ -334,8 +335,7 @@ def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC
         cactus_call(parameters=["halSetMetadata", HALPath, "CACTUS_CONFIG", b64encode(configFile.read()).decode()])
 
     return job.fileStore.writeGlobalFile(HALPath)
-
-
+        
 def main():
     parser = ArgumentParser()
     Job.Runner.addToilOptions(parser)
@@ -379,28 +379,8 @@ def main():
             if cpu_count() < 2:
                 raise RuntimeError('Only 1 CPU detected.  Cactus requires at least 2')
 
-    # tokyo_cabinet is no longer supported
-    options.database = "kyoto_tycoon"
-
     # Mess with some toil options to create useful defaults.
-
-    # Caching generally slows down the cactus workflow, plus some
-    # methods like readGlobalFileStream don't support forced
-    # reads directly from the job store rather than from cache.
-    options.disableCaching = True
-    # Job chaining breaks service termination timing, causing unused
-    # databases to accumulate and waste memory for no reason.
-    options.disableChaining = True
-    # The default deadlockWait is currently 60 seconds. This can cause
-    # issues if the database processes take a while to actually begin
-    # after they're issued. Change it to at least an hour so that we
-    # don't preemptively declare a deadlock.
-    if options.deadlockWait is None or options.deadlockWait < 3600:
-        options.deadlockWait = 3600
-    if options.retryCount is None and options.batchSystem != 'singleMachine' :
-        # If the user didn't specify a retryCount value, make it 5
-        # instead of Toil's default (1).
-        options.retryCount = 5
+    cactus_override_toil_options(options)
 
     start_time = timeit.default_timer()
     runCactusProgressive(options)
