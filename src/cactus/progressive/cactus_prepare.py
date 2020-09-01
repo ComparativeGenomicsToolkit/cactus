@@ -109,6 +109,9 @@ def main(toil_mode=False):
         options.noLocalInputs = False
         options.outDir = '.'
         setupBinaries(options)
+        # need to avoid nested container calls, so set toil-inside-toil jobs to local by default
+        if "--binariesMode" not in options.cactusOptions:
+            options.cactusOptions += " --binariesMode local"
     options.toil = toil_mode
 
     if not options.wdl and not options.toil:
