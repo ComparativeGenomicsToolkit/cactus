@@ -29,7 +29,7 @@ from cactus.progressive.schedule import Schedule
 from cactus.progressive.projectWrapper import ProjectWrapper
 from cactus.shared.version import cactus_commit
 from cactus.shared.common import findRequiredNode
-from cactus.shared.common import makeURL, cactus_call
+from cactus.shared.common import makeURL, cactus_call, RoundedJob
 
 from toil.job import Job
 from toil.common import Toil
@@ -381,7 +381,9 @@ def get_plan(options, project, inSeqFile, outSeqFile, toil):
 
     if options.toil:
         # kick things off with an empty job which we will hook subsequent jobs onto
-        start_job = Job()
+        # (using RoundedJob because root job must be sublcass of Job,
+        #  https://github.com/ComparativeGenomicsToolkit/cactus/pull/284#issuecomment-684125478)
+        start_job = RoundedJob()
         parent_job = start_job
         job_idx = {}
     
