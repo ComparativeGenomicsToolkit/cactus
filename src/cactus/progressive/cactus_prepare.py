@@ -718,7 +718,7 @@ def toil_call_preprocess(job, options, in_seq_file, out_seq_file, name):
            '--outPaths', out_name, '--workDir', work_dir,
            '--maxCores', str(job.cores), '--maxDisk', str(job.disk), '--maxMemory', str(job.memory)] + options.cactusOptions.strip().split(' ')
     
-    cactus_call(parameters=cmd)
+    subprocess.check_call(cmd)
 
     out_fa_id = job.fileStore.writeGlobalFile(out_name)
 
@@ -805,9 +805,9 @@ def toil_call_blast(job, options, seq_file, project, event, cigar_name, dep_name
     for fa_path, fa_id in zip(fa_paths, dep_fa_ids):
         job.fileStore.readGlobalFile(fa_id, fa_path)
             
-    cactus_call(parameters=['cactus-blast', os.path.join(work_dir, 'js'), seq_file_path, os.path.join(work_dir, os.path.basename(cigar_name)),
-                 '--root', event, '--pathOverrides'] + fa_paths+ ['--pathOverrideNames'] + dep_names +
-                ['--workDir', work_dir, '--maxCores', str(job.cores), '--maxDisk', str(job.disk), '--maxMemory', str(job.memory)] + options.cactusOptions.strip().split(' '))
+    subprocess.check_call(['cactus-blast', os.path.join(work_dir, 'js'), seq_file_path, os.path.join(work_dir, os.path.basename(cigar_name)),
+                           '--root', event, '--pathOverrides'] + fa_paths+ ['--pathOverrideNames'] + dep_names +
+                          ['--workDir', work_dir, '--maxCores', str(job.cores), '--maxDisk', str(job.disk), '--maxMemory', str(job.memory)] + options.cactusOptions.strip().split(' '))
 
     # scrape the output files out of the workdir
     out_nameids = []
@@ -907,10 +907,10 @@ def toil_call_align(job, options, seq_file, project, event, cigar_name, hal_path
 
     # call cactus-align
     out_hal_path = os.path.join(work_dir, os.path.basename(hal_path))
-    cactus_call(parameters=['cactus-align', os.path.join(work_dir, 'js'), seq_file_path] + blast_files +
-                [out_hal_path, '--root', event,
-                 '--pathOverrides'] + fa_paths + ['--pathOverrideNames'] + dep_names +
-                ['--workDir', work_dir, '--maxCores', str(job.cores), '--maxDisk', str(job.disk), '--maxMemory', str(job.memory)] + options.cactusOptions.strip().split(' '))
+    subprocess.check_call(['cactus-align', os.path.join(work_dir, 'js'), seq_file_path] + blast_files +
+                          [out_hal_path, '--root', event,
+                           '--pathOverrides'] + fa_paths + ['--pathOverrideNames'] + dep_names +
+                          ['--workDir', work_dir, '--maxCores', str(job.cores), '--maxDisk', str(job.disk), '--maxMemory', str(job.memory)] + options.cactusOptions.strip().split(' '))
 
     out_hal_id = job.fileStore.writeGlobalFile(out_hal_path)
 
