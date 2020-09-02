@@ -15,6 +15,12 @@ from datetime import datetime
 import subprocess
 import timeit
 import shutil
+try:
+    import boto3
+    import botocore
+    has_s3 = True
+except:
+    has_s3 = False
 
 from operator import itemgetter
 
@@ -113,6 +119,11 @@ def main(toil_mode=False):
         # need to avoid nested container calls, so set toil-inside-toil jobs to local by default
         if "--binariesMode" not in options.cactusOptions:
             options.cactusOptions += " --binariesMode local"
+        if options.jobStore.startswith('aws'):
+            if not options.outHal.startswith('s3://'):
+                raise RuntimeError("--outHal must be s3:// address when using s3 job store")
+            if not has_s3:
+                raise RuntimeError("S3 support requires toil to be installed with [aws]")
     options.toil = toil_mode
 
     if not options.wdl and not options.toil:
@@ -228,6 +239,26 @@ def get_jobstore(options, task=None):
     js = os.path.join(options.jobStore, str(options.jobStoreCount))
     options.jobStoreCount += 1
     return js
+
+def write_s3(options, local_path, s3_path):
+    """ cribbed from toil-vg.  more convenient just to throw hal output on s3
+    than pass it as a promise all the way back to the start job to export it locally """
+    assert s3_path.startswith('s3://')
+    assert options.jobStore.startswith('aws')
+    bucket_name, name_prefix = s3_path[5:].split("/", 1)
+    region = options.jobstore.split(':')[1]
+    botocore_session = botocore.session.get_session()
+    botocore_session.get_component('credential_provider').get_provider('assume-role').cache = botocore.credentials.JSONFileCache()
+    boto3_session = boto3.Session(botocore_session=botocore_session)
+
+    # Connect to the s3 bucket service where we keep everything
+    s3 = boto3_session.client('s3')
+    try:
+        s3.head_bucket(Bucket=bucket_name)
+    except:
+        s3.create_bucket(Bucket=bucket_name, CreateBucketConfiguration={'LocationConstraint':region})
+
+    s3.upload_file(local_path, bucket_name, name_prefix)
 
 def addG(val):
     return '{}G'.format(val) if val else val
@@ -791,7 +822,7 @@ def wdl_call_blast(options, project, event, cigar_name):
     input_names = []
     for input_name in leaf_deps:
         # take fasta from cactus-preprocess for leaves
-        input_fas.append('{}.out_file'.format(preprocess_call_name(input_name)))
+        input_fas.append(preprocess_output(options, input_name))
         input_names.append(input_name)
     for input_name in anc_deps:
         # take fasta from cactus-align for internal nodes
@@ -1011,9 +1042,16 @@ def toil_call_hal_append_subtrees(job, options, project, root_name, root_hal_id,
         cactus_call(parameters=['halAppendSubtree', root_file, hal_files[-1], event_name, event_name, '--merge'] +
                     options.halOptions.strip().split(' '))
 
-    # write the output to disk (bypassing exportFile for now as it only works on promises returned by teh
-    # start job, which isn't how this is set up
-    shutil.copy2(root_file,  options.outHal)
+    # bypassing toil.exportFile for now as it only works on promises returned by the
+    # start job, which isn't how this is set up. also in practice it's often more convenient
+    # to output to s3
+    # todo: can we just use job.fileStore?
+    if options.outHal.startswith('s3://'):
+        # write it directly to s3
+        write_s3(options, root_file, options.outHal)
+    else:
+        # write the output to disk
+        shutil.copy2(root_file,  options.outHal)
 
     return job.fileStore.writeGlobalFile(root_file)
 
