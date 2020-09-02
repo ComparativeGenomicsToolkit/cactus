@@ -246,7 +246,7 @@ def write_s3(options, local_path, s3_path):
     assert s3_path.startswith('s3://')
     assert options.jobStore.startswith('aws')
     bucket_name, name_prefix = s3_path[5:].split("/", 1)
-    region = options.jobstore.split(':')[1]
+    region = options.jobStore.split(':')[1]
     botocore_session = botocore.session.get_session()
     botocore_session.get_component('credential_provider').get_provider('assume-role').cache = botocore.credentials.JSONFileCache()
     boto3_session = boto3.Session(botocore_session=botocore_session)
