@@ -914,7 +914,7 @@ def wdl_call_align(options, project, event, cigar_name, hal_path, fa_path):
     input_names = []
     for input_name in leaf_deps:
         # take fasta from cactus-preprocess for leaves
-        input_fas.append('{}.out_file'.format(preprocess_call_name(input_name)))
+        input_fas.append(preprocess_output(options, input_name))
         input_names.append(input_name)
     for input_name in anc_deps:
         # take fasta from cactus-align for internal nodes
