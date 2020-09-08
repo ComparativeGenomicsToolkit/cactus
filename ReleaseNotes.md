@@ -1,3 +1,9 @@
+# Release 1.2.2   ???
+
+- hal2vg updated to version 1.0.1
+
+hal2vg version included: [v1.0.1](https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.1/hal2vg)
+
 # Release 1.2.1   2020-08-31
 
 This release fixes bugs related to GPU lastz
