@@ -1,12 +1,7 @@
-image: quay.io/vgteam/dind
+image: quay.io/glennhickey/cactus-ci-base:latest
 
 before_script:
   - whoami
-  - sudo apt-get -q -y update
-  # Cactus dependencies from Dockerfile (todo: centralize)
-  - sudo apt-get -q -y install build-essential git python3 python3-dev python3-pip zlib1g-dev wget libbz2-dev pkg-config libhdf5-dev liblzo2-dev libtokyocabinet-dev
-  # Make sure we have some curl stuff for pycurl which we need for some Python stuff
-  - sudo apt-get -q -y install docker.io python-virtualenv libcurl4-gnutls-dev libgnutls28-dev
   - startdocker || true
   - docker info
 
@@ -20,14 +15,14 @@ test-job:
   stage: test
   script:
     - git submodule update --init --recursive
-    - virtualenv -p python3.6 venv
+    - virtualenv -p python3 venv
     - source venv/bin/activate
-    - pip install toil==3.24.0
+    - pip install -r toil-requirement.txt
     - pip install -U .
-    - make -j 4 evolver_test
+    - make -j 8 evolver_test
   artifacts:
     # Let Gitlab see the junit report
-    reports:
-      junit: test-report.xml
-    when: always
+    #reports:
+    #  junit: test-report.xml
+    #when: always
   

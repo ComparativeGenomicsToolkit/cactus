@@ -24,7 +24,7 @@ static stSet *otherGenomeSequences = NULL;
 static stHash *IDToSequenceCoverage;
 
 // Add a sequence from the genome to sequenceLength and sequenceNames
-static void addSequenceLength(const char *name, const char *seq, int64_t len)
+static void addSequenceLength(void* destination, const char *name, const char *seq, int64_t len)
 {
     char *identifier = stString_copy(name);
     // lastz only takes the first token of a fasta header as the seq ID.
@@ -44,7 +44,7 @@ static void addSequenceLength(const char *name, const char *seq, int64_t len)
     stHash_insert(sequenceLengths, stString_copy(identifier), heapLen);
 }
 
-static void addOtherGenomeSequence(const char *name, const char *seq,
+static void addOtherGenomeSequence(void* destination, const char *name, const char *seq,
                                    int64_t len)
 {
     // Only use the first space-separated token to identify seq.
@@ -70,7 +70,7 @@ static void usage(void)
             "different prefixes that align to a region, rather than the total "
             "number of alignments. Uses much more memory than the standard mode."
             "\n");
-    fprintf(stderr, "--from <fromFastaFile>: Only consider alignments for which one sequence is in fastaFile and the other is in fromFastaFile.\n");
+    fprintf(stderr, "--from <fromFastaFile>: Only consider alignments for which one sequence is in fastaFile and the other is in fromFastaFile (multiple allowed).\n");
 }
 
 static void printCoverage(char *name, uint16_t *array, int64_t length) {
@@ -206,7 +206,7 @@ static uint16_t *getCoverageArray(char *onHeader, char *fromHeader,
 int main(int argc, char *argv[])
 {
     char *fastaPath = NULL;
-    char *otherGenomeFastaPath = NULL;
+    stList* otherGenomeFastaPaths = stList_construct3(0, free);
     struct option opts[] = { {"onlyContig1", no_argument, NULL, '1'},
                              {"onlyContig2", no_argument, NULL, '2'},
                              {"depthById", no_argument, NULL, 'i'},
@@ -226,7 +226,7 @@ int main(int argc, char *argv[])
             depthById = TRUE;
             break;
         case 'f':
-            otherGenomeFastaPath = stString_copy(optarg);
+            stList_append(otherGenomeFastaPaths, stString_copy(optarg));
             break;
         case '?':
         default:
@@ -240,18 +240,26 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    if(otherGenomeFastaPath) {
-        // Load the "query" genome (we will only look for alignments
-        // from/to the main genome and this other genome).
-        FILE *otherGenomeFastaHandle = fopen(otherGenomeFastaPath, "r");
-        if(otherGenomeFastaHandle == NULL) {
-            st_errAbort("Could not open fasta file %s", fastaPath);
-        }
+    if(stList_length(otherGenomeFastaPaths) > 0) {
         otherGenomeSequences = stSet_construct3(stHash_stringKey,
                                                 stHash_stringEqualKey, free);
-        fastaReadToFunction(otherGenomeFastaHandle, addOtherGenomeSequence);
-        fclose(otherGenomeFastaHandle);
+
+        stListIterator* it = stList_getIterator(otherGenomeFastaPaths);
+        char* otherGenomeFastaPath;
+        while ((otherGenomeFastaPath = stList_getNext(it)) != NULL) {
+            // Load the "query" genome (we will only look for alignments
+            // from/to the main genome and this other genome).
+            FILE *otherGenomeFastaHandle = fopen(otherGenomeFastaPath, "r");
+            if(otherGenomeFastaHandle == NULL) {
+                st_errAbort("Could not open fasta file %s", fastaPath);
+            }
+            fastaReadToFunction(otherGenomeFastaHandle, NULL, addOtherGenomeSequence);
+            fclose(otherGenomeFastaHandle);
+        }
+        stList_destructIterator(it);
     }
+    stList_destruct(otherGenomeFastaPaths);
+    otherGenomeFastaPaths = NULL;
 
     sequenceLengths = stHash_construct3(stHash_stringKey,
                                         stHash_stringEqualKey, free, free);
@@ -274,7 +282,7 @@ int main(int argc, char *argv[])
     if (!fastaHandle) {
     	st_errAbort("Could not open fasta file %s", fastaPath);
     }
-    fastaReadToFunction(fastaHandle, addSequenceLength);
+    fastaReadToFunction(fastaHandle, NULL, addSequenceLength);
     fclose(fastaHandle);
 
     // Fill coverage arrays with the alignments

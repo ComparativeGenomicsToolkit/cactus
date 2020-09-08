@@ -1,7 +1,13 @@
 SHELL = /bin/bash
 
+##
+# Users can set CPPFLAGS, CFLAGS, LIBS to reference external packages.  These
+# can be set in environment of config.local.mk.  LDLIBS should not be modified,
+# as it is not seen my kyoto configure.
+##
+
 # if include.local.mk exists, include it first to set various options
-# it shuld not be checked in
+# it should not be checked into git
 includeLocal = ${rootPath}/include.local.mk
 ifneq ($(wildcard ${includeLocal}),)
    include ${includeLocal}
@@ -18,14 +24,19 @@ endif
 
 
 #Location of sonLib
-binPath=${rootPath}/bin/
-libPath=${rootPath}/lib/
+BINDIR = ${rootPath}/bin
+LIBDIR = ${rootPath}/lib
+INCLDIR = ${rootPath}/include
 
 #Modify this variable to set the location of sonLib
-sonLibRootPath ?= ${rootPath}/submodules/sonLib
-sonLibPath=${sonLibRootPath}/lib
+sonLibRootDir ?= ${rootPath}/submodules/sonLib
+sonLibDir=${sonLibRootDir}/lib
 
-include ${sonLibRootPath}/include.mk
+include ${sonLibRootDir}/include.mk
+
+#Turn asserts back on in spite of sonLib
+#https://github.com/ComparativeGenomicsToolkit/cactus/issues/235
+CFLAGS += -UNDEBUG
 
 dataSetsPath=/Users/benedictpaten/Dropbox/Documents/work/myPapers/genomeCactusPaper/dataSets
 
@@ -33,9 +44,16 @@ inclDirs = api/inc bar/inc caf/inc hal/inc reference/inc submodules/sonLib/C/inc
 	blastLib submodules/sonLib/externalTools/cutest submodules/pinchesAndCacti/inc \
 	submodules/matchingAndOrdering/inc submodules/cPecan/inc
 
-cflags += ${inclDirs:%=-I${rootPath}/%}
-basicLibs = ${sonLibPath}/sonLib.a ${sonLibPath}/cuTest.a ${dblibs}
-basicLibsDependencies = ${sonLibPath}/sonLib.a ${sonLibPath}/cuTest.a
-
 kyotoTycoonIncl=-I${rootPath}/include -DHAVE_KYOTO_TYCOON=1
 kyotoTycoonLib=-L${rootPath}/lib -Wl,-rpath,${rootPath}/lib -lkyototycoon -lkyotocabinet -lz -lbz2 -lpthread -lm -lstdc++
+
+CPPFLAGS += ${inclDirs:%=-I${rootPath}/%} -I${LIBDIR} ${kyotoTycoonIncl}
+
+# libraries can't be added until they are build, so add as to LDLIBS until needed
+cactusLibs = ${LIBDIR}/stCaf.a ${LIBDIR}/stReference.a ${LIBDIR}/cactusBarLib.a ${LIBDIR}/cactusBlastAlignment.a ${LIBDIR}/cactusLib.a
+sonLibLibs = ${sonLibDir}/sonLib.a ${sonLibDir}/cuTest.a
+
+databaseLibs = ${kyotoTycoonLib} ${tokyoCabinetLib}
+
+LDLIBS += ${cactusLibs} ${sonLibLibs} ${databaseLibs} ${LIBS} -lm
+LIBDEPENDS = ${sonLibDir}/sonLib.a ${sonLibDir}/cuTest.a

@@ -12,15 +12,14 @@ You'll also need to have your AWS access credentials set up in `~/.aws/credentia
 By default, AWS will restrict you to running only a few small instances at a time. If you have a new AWS account, or you're not sure what your limits are, you will probably need to increase them. See [this guide](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-resource-limits.html) for information on how to check your existing limits and how to increase them if necessary. AWS support takes only one or two business days to process your request if you have the default "basic" support package.
 
 [Look below](#estimating-the-maximum-number-of-worker-instances-youll-need) for tips on how many instances you may need for your specific alignment. Keep in mind that spot-market instance limits are separate from "on-demand" (non-preemptable) instance limits. (You'll probably want to request a slightly higher limit than you think you need, just in case you want to tweak the number of instances later on.)
-## Installing Cactus on your local machine
+## Installing Toil on your local machine
 Follow the steps in the README, making sure to install toil with its extra AWS support:
 ```
 git clone https://github.com/comparativegenomicstoolkit/cactus.git
 cd cactus
-virtualenv venv
+virtualenv -p python 3.6 venv
 source venv/bin/activate
-pip install --upgrade .
-pip install --upgrade toil[aws]
+pip install -r toil-requirement.txt
 ```
 ## Estimating the maximum number of worker instances you'll need
 The cluster will automatically scale up and down, but you'll want to set a maximum number of nodes so the scaler doesn't get overly aggressive and waste money, or go over your AWS limits. We typically use `c4.8xlarge` on the spot market for most jobs, and `r4.8xlarge` on-demand for database jobs. Here are some very rough estimates of what we typically use for the maximum of each type (round up):
@@ -63,9 +62,9 @@ Install Cactus in a virtual environment on the leader:
 ```
 apt update
 apt install -y git tmux
-virtualenv --system-site-packages venv
+virtualenv --system-site-packages -p python3.6 venv
 source venv/bin/activate
-git clone https://github.com/comparativegenomicstoolkit/cactus.git
+git clone https://github.com/comparativegenomicstoolkit/cactus.git --recursive
 cd cactus
 pip install --upgrade .
 cd /

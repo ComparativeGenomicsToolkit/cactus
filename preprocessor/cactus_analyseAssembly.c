@@ -38,7 +38,7 @@ void setupStatsCollation(const char *fileName) {
     nCount = 0;
 }
 
-void processSequenceForStats(const char *fastaHeader, const char *string, int64_t length) {
+void processSequenceForStats(void* destination, const char *fastaHeader, const char *string, int64_t length) {
     //Collate stats
     int64_t sequenceLength = strlen(string);
     stList_append(sequenceLengths, stIntTuple_construct1(sequenceLength));
@@ -98,7 +98,7 @@ int main(int argc, char *argv[]) {
             }
         }
         setupStatsCollation(argv[j]);
-        fastaReadToFunction(fileHandle, processSequenceForStats);
+        fastaReadToFunction(fileHandle, NULL, processSequenceForStats);
         cleanupAndReportStatsCollection();
         fclose(fileHandle);
     }

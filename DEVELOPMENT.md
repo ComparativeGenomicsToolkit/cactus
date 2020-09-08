@@ -19,7 +19,7 @@ This should not be committed.
 
 ## Environment variables controlling tests
 - SON_TRACE_DATASETS location of test data set, currently available with
-    git clone https://github.com/UCSantaCruzComputationalGenomicsLab/cactusTestData
+    git clone https://github.com/ComparativeGenomicsToolkit/cactusTestData
 
 - SONLIB_TEST_LENGTH  filters tests by maximum run time length category (case-insensitive)
   - SHORT - tests taking less than ~10 seconds, with some exceptions <default>
@@ -35,3 +35,11 @@ This should not be committed.
     make docker
     export CACTUS_USE_LOCAL_IMAGE=1
     make test
+
+## Debugging hints
+   - The main Cactus Python process will print out a stack trace of all of the Python
+     threads if sent a SIGUSR1 signal.  They will then continue execution.  This
+     maybe useful in determining the state of cactus.
+   
+   
+

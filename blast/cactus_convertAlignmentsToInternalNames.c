@@ -217,6 +217,7 @@ int main(int argc, char *argv[])
             convertHeadersToNames(pA, headerToName);
             checkPairwiseAlignment(pA);
             cigarWrite(outputFile, pA, TRUE);
+            destructPairwiseAlignment(pA);
         }
     }
 

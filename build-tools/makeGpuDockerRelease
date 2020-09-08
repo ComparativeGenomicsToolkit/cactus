@@ -1,0 +1,39 @@
+#!/bin/bash
+# Make a gpu-enabled docker image and push it to quay
+# Todo: it'd be nice to get travis to do this to be more consistent with normal docker
+# Note: must be run for cactus/ directory
+
+set -x
+set -beEu -o pipefail
+mydir=$(dirname $(which $0))
+source ${mydir}/releaseLib.sh
+
+buildDir=$(realpath -m build)
+binBuildDir="${buildDir}/gpu-docker-tmp"
+
+set -x
+rm -rf ${binBuildDir}
+mkdir -p ${binBuildDir}
+cd ${binBuildDir}
+git clone --recursive https://github.com/ComparativeGenomicsToolkit/cactus.git
+cd cactus
+git fetch --tags origin
+
+REL_TAG=$(getLatestReleaseTag)
+git checkout "${REL_TAG}"
+git submodule update --init --recursive
+
+CFLAGS="" CXXFLAGS="" docker build . -f Dockerfile.segalign -t segalign:local
+sed "s/FROM ubuntu:bionic-[0-9]*$/FROM segalign:local/" Dockerfile > Dockerfile.gpu
+# enable gpu by default
+sed -i src/cactus/cactus_progressive_config.xml -e 's/gpuLastz="false"/gpuLastz="true"/g' -e 's/realign="1"/realign="0"/'
+docker build . -f Dockerfile.gpu -t ${dockname}:$(getLatestReleaseTag)-gpu
+# disable it again
+sed -i src/cactus/cactus_progressive_config.xml -e 's/gpuLastz="true"/gpuLastz="false"/g' -e 's/realign="0"/realign="1"/'
+read -p "Are you sure you want to push ${dockname}:$(getLatestReleaseTag)-gpu to quay?" yn
+case $yn in
+    [Yy]* ) docker push ${dockname}:$(getLatestReleaseTag)-gpu; break;;
+    [Nn]* ) exit;;
+    * ) echo "Please answer yes or no.";;
+esac
+popd

@@ -1,43 +1,43 @@
 rootPath = ..
 include ${rootPath}/include.mk
 
-cflags += ${tokyoCabinetIncl}
+CFLAGS += ${tokyoCabinetIncl}
 
 all: all_libs all_progs
 all_libs: 
 all_progs: all_libs
-	${MAKE} ${binPath}/cactus_convertAlignmentsToInternalNames ${binPath}/cactus_stripUniqueIDs ${binPath}/cactus_blast_convertCoordinates ${binPath}/cactus_blast_chunkSequences ${binPath}/cactus_blast_chunkFlowerSequences ${binPath}/cactus_blast_sortAlignments ${binPath}/cactus_calculateMappingQualities ${binPath}/cactus_mirrorAndOrientAlignments ${binPath}/cactus_splitAlignmentOverlaps ${binPath}/cactus_coverage
+	${MAKE} ${BINDIR}/cactus_convertAlignmentsToInternalNames ${BINDIR}/cactus_stripUniqueIDs ${BINDIR}/cactus_blast_convertCoordinates ${BINDIR}/cactus_blast_chunkSequences ${BINDIR}/cactus_blast_chunkFlowerSequences ${BINDIR}/cactus_blast_sortAlignments ${BINDIR}/cactus_calculateMappingQualities ${BINDIR}/cactus_mirrorAndOrientAlignments ${BINDIR}/cactus_splitAlignmentOverlaps ${BINDIR}/cactus_coverage
 
-${binPath}/cactus_blast_chunkFlowerSequences : *.c ${libPath}/cactusBlastAlignment.a ${libPath}/cactusLib.a ${basicLibsDependencies}
-	${cxx} ${cflags} -I${libPath} -o ${binPath}/cactus_blast_chunkFlowerSequences cactus_blast_chunkFlowerSequences.c ${libPath}/cactusBlastAlignment.a ${libPath}/cactusLib.a ${basicLibs}
+${BINDIR}/cactus_blast_chunkFlowerSequences : *.c ${LIBDIR}/cactusBlastAlignment.a ${LIBDIR}/cactusLib.a ${LIBDEPENDS}
+	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o ${BINDIR}/cactus_blast_chunkFlowerSequences cactus_blast_chunkFlowerSequences.c ${LIBDIR}/cactusBlastAlignment.a ${LIBDIR}/cactusLib.a ${LDLIBS}
 
-${binPath}/cactus_blast_chunkSequences : *.c ${libPath}/cactusBlastAlignment.a ${libPath}/cactusLib.a ${basicLibsDependencies}
-	${cxx} ${cflags} -I${libPath} -o ${binPath}/cactus_blast_chunkSequences cactus_blast_chunkSequences.c ${libPath}/cactusBlastAlignment.a ${libPath}/cactusLib.a ${basicLibs}
+${BINDIR}/cactus_blast_chunkSequences : *.c ${LIBDIR}/cactusBlastAlignment.a ${LIBDIR}/cactusLib.a ${LIBDEPENDS}
+	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o ${BINDIR}/cactus_blast_chunkSequences cactus_blast_chunkSequences.c ${LIBDIR}/cactusBlastAlignment.a ${LIBDIR}/cactusLib.a ${LDLIBS}
 
-${binPath}/cactus_blast_convertCoordinates : *.c ${libPath}/cactusBlastAlignment.a ${libPath}/cactusLib.a ${basicLibsDependencies}
-	${cxx} ${cflags} -I${libPath} -o ${binPath}/cactus_blast_convertCoordinates cactus_blast_convertCoordinates.c ${libPath}/cactusBlastAlignment.a ${libPath}/cactusLib.a ${basicLibs}
+${BINDIR}/cactus_blast_convertCoordinates : *.c ${LIBDIR}/cactusBlastAlignment.a ${LIBDIR}/cactusLib.a ${LIBDEPENDS}
+	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o ${BINDIR}/cactus_blast_convertCoordinates cactus_blast_convertCoordinates.c ${LIBDIR}/cactusBlastAlignment.a ${LIBDIR}/cactusLib.a ${LDLIBS}
 
-${binPath}/cactus_blast_sortAlignments : cactus_blast_sortAlignments.c ${libPath}/stCaf.a ${libPath}/cactusLib.a ${basicLibsDependencies}
-	${cxx} ${cflags} -I inc -I${libPath} -o ${binPath}/cactus_blast_sortAlignments cactus_blast_sortAlignments.c ${libPath}/stCaf.a ${libPath}/cactusBlastAlignment.a ${libPath}/cactusLib.a ${basicLibs}
+${BINDIR}/cactus_blast_sortAlignments : cactus_blast_sortAlignments.c ${LIBDIR}/stCaf.a ${LIBDIR}/cactusLib.a ${LIBDEPENDS}
+	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o ${BINDIR}/cactus_blast_sortAlignments cactus_blast_sortAlignments.c ${LIBDIR}/stCaf.a ${LIBDIR}/cactusBlastAlignment.a ${LIBDIR}/cactusLib.a ${LDLIBS}
 
-${binPath}/cactus_calculateMappingQualities : cactus_calculateMappingQualities.c ${libPath}/stCaf.a ${libPath}/cactusLib.a ${basicLibsDependencies}
-	${cxx} ${cflags} -I inc -I${libPath} -o ${binPath}/cactus_calculateMappingQualities cactus_calculateMappingQualities.c ${libPath}/stCaf.a ${libPath}/cactusBlastAlignment.a ${libPath}/cactusLib.a ${basicLibs}
+${BINDIR}/cactus_calculateMappingQualities : cactus_calculateMappingQualities.c ${LIBDIR}/stCaf.a ${LIBDIR}/cactusLib.a ${LIBDEPENDS}
+	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o ${BINDIR}/cactus_calculateMappingQualities cactus_calculateMappingQualities.c ${LIBDIR}/stCaf.a ${LIBDIR}/cactusBlastAlignment.a ${LIBDIR}/cactusLib.a ${LDLIBS}
 
-${binPath}/cactus_mirrorAndOrientAlignments : cactus_mirrorAndOrientAlignments.c ${libPath}/stCaf.a ${libPath}/cactusLib.a ${basicLibsDependencies}
-	${cxx} ${cflags} -I inc -I${libPath} -o ${binPath}/cactus_mirrorAndOrientAlignments cactus_mirrorAndOrientAlignments.c ${libPath}/stCaf.a ${libPath}/cactusBlastAlignment.a ${libPath}/cactusLib.a ${basicLibs}
+${BINDIR}/cactus_mirrorAndOrientAlignments : cactus_mirrorAndOrientAlignments.c ${LIBDIR}/stCaf.a ${LIBDIR}/cactusLib.a ${LIBDEPENDS}
+	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o ${BINDIR}/cactus_mirrorAndOrientAlignments cactus_mirrorAndOrientAlignments.c ${LIBDIR}/stCaf.a ${LIBDIR}/cactusBlastAlignment.a ${LIBDIR}/cactusLib.a ${LDLIBS}
 
-${binPath}/cactus_splitAlignmentOverlaps : cactus_splitAlignmentOverlaps.c ${libPath}/stCaf.a ${libPath}/cactusLib.a ${basicLibsDependencies}
-	${cxx} ${cflags} -I inc -I${libPath} -o ${binPath}/cactus_splitAlignmentOverlaps cactus_splitAlignmentOverlaps.c ${libPath}/stCaf.a ${libPath}/cactusBlastAlignment.a ${libPath}/cactusLib.a ${basicLibs}
+${BINDIR}/cactus_splitAlignmentOverlaps : cactus_splitAlignmentOverlaps.c ${LIBDIR}/stCaf.a ${LIBDIR}/cactusLib.a ${LIBDEPENDS}
+	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o ${BINDIR}/cactus_splitAlignmentOverlaps cactus_splitAlignmentOverlaps.c ${LIBDIR}/stCaf.a ${LIBDIR}/cactusBlastAlignment.a ${LIBDIR}/cactusLib.a ${LDLIBS}
 
-${binPath}/cactus_coverage : cactus_coverage.c ${basicLibsDependencies}
-	${cxx} ${cflags} -I inc -I${libPath} -o ${binPath}/cactus_coverage cactus_coverage.c ${basicLibs}
+${BINDIR}/cactus_coverage : cactus_coverage.c ${LIBDEPENDS}
+	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o ${BINDIR}/cactus_coverage cactus_coverage.c ${LDLIBS}
 
-${binPath}/cactus_convertAlignmentsToInternalNames : cactus_convertAlignmentsToInternalNames.c ${libPath}/cactusLib.a
-	${cxx} ${cflags} -I inc -I${libPath} -o ${binPath}/cactus_convertAlignmentsToInternalNames cactus_convertAlignmentsToInternalNames.c ${libPath}/cactusLib.a ${basicLibs}
+${BINDIR}/cactus_convertAlignmentsToInternalNames : cactus_convertAlignmentsToInternalNames.c ${LIBDIR}/cactusLib.a
+	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o ${BINDIR}/cactus_convertAlignmentsToInternalNames cactus_convertAlignmentsToInternalNames.c ${LIBDIR}/cactusLib.a ${LDLIBS}
 
-${binPath}/cactus_stripUniqueIDs : cactus_stripUniqueIDs.c ${libPath}/cactusLib.a
-	${cxx} ${cflags} -I inc -I${libPath} -o ${binPath}/cactus_stripUniqueIDs cactus_stripUniqueIDs.c ${libPath}/cactusLib.a ${basicLibs}
+${BINDIR}/cactus_stripUniqueIDs : cactus_stripUniqueIDs.c ${LIBDIR}/cactusLib.a
+	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o ${BINDIR}/cactus_stripUniqueIDs cactus_stripUniqueIDs.c ${LIBDIR}/cactusLib.a ${LDLIBS}
 
 clean : 
 	rm -f *.o
-	rm -f ${libPath}/cactusBlastAlignment.a ${binPath}/cactus_blast.py ${binPath}/cactus_blast_chunkSequences ${binPath}/cactus_blast_sortAlignments ${binPath}/cactus_calculateMappingQualities ${binPath}/cactus_mirrorAndOrientAlignments ${binPath}/cactus_splitAlignmentOverlaps ${binPath}/cactus_blast_chunkFlowerSequences ${binPath}/cactus_blast_convertCoordinates 
+	rm -f ${LIBDIR}/cactusBlastAlignment.a ${BINDIR}/cactus_blast.py ${BINDIR}/cactus_blast_chunkSequences ${BINDIR}/cactus_blast_sortAlignments ${BINDIR}/cactus_calculateMappingQualities ${BINDIR}/cactus_mirrorAndOrientAlignments ${BINDIR}/cactus_splitAlignmentOverlaps ${BINDIR}/cactus_blast_chunkFlowerSequences ${BINDIR}/cactus_blast_convertCoordinates 

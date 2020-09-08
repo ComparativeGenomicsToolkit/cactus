@@ -29,6 +29,7 @@ from sonLib.bioio import getLogLevelString
 
 from toil.job import Job
 from toil.common import Toil
+from toil.realtimeLogger import RealtimeLogger
 
 from cactus.shared.common import makeURL
 from cactus.shared.common import cactus_call
@@ -200,7 +201,7 @@ class CactusPhasesJob(CactusJob):
         Adds a recursive child job and then a follow-on phase job. Returns the result of the follow-on
         phase job.
         """
-        logger.info("Starting %s phase job at %s seconds (recursing = %i)" % (self.phaseNode.tag, time.time(), doRecursion))
+        RealtimeLogger.info("Starting %s phase job at %s seconds (recursing = %i)" % (self.phaseNode.tag, time.time(), doRecursion))
         if doRecursion:
             self.makeRecursiveChildJob(recursiveJob, launchSecondaryKtForRecursiveJob)
         return self.makeFollowOnPhaseJob(job=nextPhaseJob, phaseName=nextPhaseName)
@@ -461,7 +462,7 @@ class CactusRecursionJob(CactusJob):
 ############################################################
 ############################################################
 
-def prependUniqueIDs(fas, outputDir):
+def prependUniqueIDs(fas, outputDir, idMap=None):
     """Prepend unique ints to fasta headers.
 
     (prepend rather than append since trimmed outgroups have a start
@@ -476,6 +477,8 @@ def prependUniqueIDs(fas, outputDir):
             if len(line) > 0 and line[0] == '>':
                 header = "id=%d|%s" % (uniqueID, line[1:-1])
                 out.write(">%s\n" % header)
+                if idMap is not None:
+                    idMap[line[1:-1].rstrip()] = header.rstrip()
             else:
                 out.write(line)
         ret.append(outPath)
@@ -505,6 +508,10 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
     """Blast ingroups vs outgroups using the trimming strategy before
     running cactus setup.
     """
+    def __init__(self, standAlone = False, *args, **kwargs):
+        self.standAlone = standAlone
+        super(CactusTrimmingBlastPhase, self).__init__(*args, **kwargs)
+        
     def run(self, fileStore):
         fileStore.logToMaster("Running blast using the trimming strategy")
 
@@ -551,10 +558,11 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
                          trimWindowSize=self.getOptionalPhaseAttrib("trimWindowSize", int, 10),
                          trimOutgroupFlanking=self.getOptionalPhaseAttrib("trimOutgroupFlanking", int, 100),
                          trimOutgroupDepth=self.getOptionalPhaseAttrib("trimOutgroupDepth", int, 1),
-                         keepParalogs=self.getOptionalPhaseAttrib("keepParalogs", bool, False)),
+                         keepParalogs=self.getOptionalPhaseAttrib("keepParalogs", bool, False),
+                         gpuLastz=getOptionalAttrib(cafNode, "gpuLastz", bool, False)),
             list(map(itemgetter(0), ingroupsAndNewIDs)), list(map(itemgetter(1), ingroupsAndNewIDs)),
             list(map(itemgetter(0), outgroupsAndNewIDs)), list(map(itemgetter(1), outgroupsAndNewIDs))))
-
+        
         # Alignment post processing to filter alignments
         if getOptionalAttrib(cafNode, "runMapQFiltering", bool, False):
             minimumMapQValue=getOptionalAttrib(cafNode, "minimumMapQValue", float, 0.0)
@@ -588,6 +596,10 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
         updateJob = blastJob.addFollowOnJobFn(updateExpWrapperForOutgroups, self.cactusWorkflowArguments.experimentWrapper,
                                               list(map(itemgetter(0), outgroupsAndNewIDs)), self.cactusWorkflowArguments.outgroupFragmentIDs)
         self.cactusWorkflowArguments.experimentWrapper = updateJob.rv()
+
+        # hack to get cactus-blast standalone tool working
+        if self.standAlone:
+            return self.cactusWorkflowArguments
 
         return self.makeFollowOnCheckpointJob(CactusSetupCheckpoint, "setup")
 
@@ -1266,7 +1278,6 @@ class CactusHalGeneratorPhase2(CactusPhasesJob):
             self.phaseNode.attrib["experimentPath"] = self.cactusWorkflowArguments.experimentFile
             self.phaseNode.attrib["secondaryDatabaseString"] = self.cactusWorkflowArguments.secondaryDatabaseString
             self.phaseNode.attrib["outputFile"] = "1"
-
             self.halID = self.makeRecursiveChildJob(CactusHalGeneratorRecursion, launchSecondaryKtForRecursiveJob=True)
 
         return self.makeFollowOnPhaseJob(CactusHalGeneratorPhase3, "hal")

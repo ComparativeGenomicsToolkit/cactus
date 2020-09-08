@@ -10,7 +10,8 @@ Please subscribe to the [cactus-announce](https://groups.google.com/d/forum/cact
 Cactus uses many different algorithms and individual code contributions, principally from Joel Armstrong, Glenn Hickey, Mark Diekhans and Benedict Paten. We are particularly grateful to:
 
 - Yung H. Tsin and Nima Norouzi for contributing their 3-edge connected components program code, which is crucial in constructing the cactus graph structure, see: Tsin,Y.H., "A simple 3-edge-connected component algorithm," Theory of Computing Systems, vol.40, No.2, 2007, pp.125-142.
-- Bob Harris for providing endless support for his LastZ pairwise, blast-like genome alignment tool.
+- Bob Harris for providing endless support for his [LastZ](https://github.com/lastz/lastz) pairwise, blast-like genome alignment tool.
+- Sneha Goenka and Yatish Turakhia for the [GPU-accelerated version of LastZ](https://github.com/ComparativeGenomicsToolkit/SegAlign).
 
 
 ## Setup
@@ -18,23 +19,47 @@ Cactus uses many different algorithms and individual code contributions, princip
 ### System requirements
 We regularly test on Ubuntu 18.04 (Bionic) and to a more limited degree on Mac OS X (using Docker).
 
+Cactus requires Python 3.
+
 Cactus uses substantial resources. For primate-sized genomes (3 gigabases each), you should expect Cactus to use approximately 120 CPU-days of compute per genome, with about 120 GB of RAM used at peak. The requirements scale roughly quadratically, so aligning two 1-megabase bacterial genomes takes only 1.5 CPU-hours and 14 GB RAM.
 
 Note that to run even the very small evolverMammals example, you will need 2 CPUs and 12 GB RAM. The actual resource requirements are much less, but the individual jobs have resource estimates based on much larger alignments, so the jobs will refuse to run unless there are enough resources to meet their estimates.
 
-### Virtual environment
-To avoid problems with conflicting versions of dependencies on your system, we strongly recommend installing Cactus inside a Python 3 [virtual environment](https://virtualenv.pypa.io/en/stable/).
+IMPORTANT:  It is highly recommend that one **not** run Cactus using the Toil Grid Engine-like batch systems (GridEngine, HTCondor, LSF, SLURM, or Torque).  Cactus creates a very large number of small jobs, which can overwhelm these systems.
 
-Python 2 is no longer supported by Cactus.
+### Installation Overview
 
-To install the `virtualenv` command, if you don't have it already, run:
+There are many different ways to install and run Cactus:
+* [Docker Image](#docker-image)
+* [Precompiled Binaries](#precompiled-binaries)
+* [Build From Source](#build-from-source)
+* [Python Install with Docker Binaries](#python-install-with-docker-binaries)
+
+#### Docker Image
+
+Cactus docker images are hosted on [quay](https://quay.io/repository/comparative-genomics-toolkit/cactus).  The image for the latest release is listed on the [Releases Page](https://github.com/ComparativeGenomicsToolkit/cactus/releases).  Here is an command line to run the included evolver mammals example with release 1.1.1
+```
+wget https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactus/master/examples/evolverMammals.txt
+docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v1.1.1 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal --root mr --binariesMode local
+
+```
+
+#### Precompiled Binaries
+
+Precompiled binaries can be found on the [Releases Page](https://github.com/ComparativeGenomicsToolkit/cactus/releases).  Download by clicking the `cactus-bin-vx.x.x.tar.gz` and install following the instructions in the `BIN-INSTALL.md` link.
+
+#### Build From Source
+
+##### Install the Cactus Python package and its dependencies
+
+To avoid problems with conflicting versions of dependencies on your system, we strongly recommend installing Cactus inside a Python 3 [virtual environment](https://virtualenv.pypa.io/en/stable/). To install the `virtualenv` command, if you don't have it already, run:
 ```
 python3 -m pip install virtualenv
 ```
 
 To set up a virtual environment in the directory `cactus_env`, run:
 ```
-virtualenv -p python3.6 cactus_env
+python3 -m virtualenv -p python3.6 cactus_env
 ```
 
 Then, to enter the virtualenv, run:
@@ -42,55 +67,56 @@ Then, to enter the virtualenv, run:
 source cactus_env/bin/activate
 ```
 
-You can always exit out of the virtualenv by running `deactivate`. The rest of the README assumes you're running inside a virtual environment.
+You can always exit out of the virtualenv by running `deactivate`.
 
-### Install Cactus and its dependencies
-Cactus uses [Toil](http://toil.ucsc-cgl.org/) to coordinate its jobs. To install Toil into your environment, run:
-```
-pip install --upgrade toil[all]
-```
 
-Note that if you are using Python 3.7, there is an issued that caused the
-Toil dependency package *http_parser* C code to fail to compile.  This is easily worked
-around by setting an environment variable before installing Toil:
-```
-CPPFLAGS='-DPYPY_VERSION' pip install toil[all]
-```
-
-Finally, to install Cactus, clone it and its submodules from github and install it with pip:
+To install Cactus in Python, clone it and **its submodules with --recursive** from github and install it with pip:
 ```
 git clone https://github.com/ComparativeGenomicsToolkit/cactus.git --recursive
 cd cactus
+pip install --upgrade setuptools pip
+pip install --upgrade -r toil-requirement.txt
 pip install --upgrade .
 ```
-IMPORTANT:  The `--recursive` option is required to download submodules.  If you omit it, you will need to run `git submodule update --init` from the `cactus/` directory before installing.
 
-IMPORTANT:  It is highly recommend that one **not** run Cactus using the Toil Grid Engine-like batch systems (GridEngine, HTCondor, LSF, SLURM, or Torque).  Cactus creates a very large number of small jobs, which can overwhelm these systems.
+##### Build the Cactus Binaries
 
-### Compile Cactus executables (if not using Docker/Singularity)
-By default Cactus uses containers to distribute its binaries, because compiling its dependencies can sometimes be a pain. If you can use Docker or Singularity, *which we highly recommend*, you can skip this section since all that needs to be installed in that case is the Python workflow as described above. However, in some environments (e.g. HPC clusters) you won't be able to use Docker or Singularity, so you will have to compile the binaries and install a few dependencies. Looking at the [Dockerfile](Dockerfile) itself can serve as a guide for building on Ubuntu. 
+Several binaries are required to run Cactus.  They can be built as follows:
 
-HDF5 is a compile-time dependency.
-Compile time settings can be overridden by creating a make include file 
+Compile time settings can be overridden by creating a make include file in the top level cactus directory.  
 ```
-include.local.mk
+cactus/include.local.mk
 ```
-in the top level cactus directory.
 
-HDF5 is available through most package managers (`apt-get install libhdf5-dev`) or can be manual installed from source files at [The HDF Group](https://www.hdfgroup.org/).   HDF5 should be configured with the `--enable-cxx` option. If you've installed it in a non-standard location, have the `h5c++` command in your `PATH` or add this to `include.local.mk`:
+Cactus has several dependencies that need to be installed on the system, including HDF5. HDF5 is available through most package managers (`apt-get install libhdf5-dev`) or can be manual installed from source files at [The HDF Group](https://www.hdfgroup.org/).   HDF5 should be configured with the `--enable-cxx` option. If you've installed it in a non-standard location, have the `h5c++` command in your `PATH` or add this to `include.local.mk`:
 ```
 export PATH := <hdf5 bin dir>:${PATH}
 ```
 
-Once you have HDF5 installed, you should be able to compile Cactus and its dependencies by running:
+You can use the the [Dockerfile](Dockerfile) as a guide to see how all dependencies are installed with `apt` on Ubuntu.
+
+In the top level cactus directory.  The binaries can then be built with
 ```
-git submodule update --init
-make
+make -j $(nproc)
+```
+and added to the PATH with
+```
+export PATH=$(pwd)/bin:$PATH
 ```
 
-To run using these local executables, you will need to provide the `--binariesMode local` option to all `cactus` commands and add the `bin` directory to your PATH.
-## System/cluster requirements
-Cactus will take about 20 CPU-hours per bacterial-sized (~4 megabase) genome, about 20 CPU-days per nematode-sized (~100 megabase) genome, and about 120 CPU-days per mammalian-sized (~3 gigabase) genome. You will need at least one machine with very large amounts of RAM (150+ GB) to run mammalian-sized genomes. The requirements will vary a bit depending on how closely related your genomes are, so these are only rough estimates.
+To use HAL python scripts such as `hal2mafMP.py`, add the submodules directory to the PYTHONPATH with
+```
+export PYTHONPATH=$(pwd)/submodules:$PYTHONPATH
+```
+
+#### Python Install With Docker Binaries
+
+Cactus can be setup and used in a virtual environment as in the [previous section](#build-from-source), without compiling the binaries.  When used like this (which will happen automatically when running `cactus` without the appropriate binaries in the `PATH` environment variable), a Docker image will be automatically pulled to run commands as needed.  The main use case for this is running with Toils AWS provisioner as [described here](doc/running-in-aws.md).
+
+Singularity binaries can be used in place of docker binaries with the `--binariesMode singularity` flag.  Note, you must use Singularity 2.3 - 2.6 or Singularity 3.1.0+. Singularity 3 versions below 3.1.0 are incompatible with cactus (see [issue #55](https://github.com/ComparativeGenomicsToolkit/cactus/issues/55) and [issue #60](https://github.com/ComparativeGenomicsToolkit/cactus/issues/60)).
+
+The `--binariesMode local` flag can be used to force `cactus` to run local binaries -- this is the default behavior if they are found. 
+
 ## Running
 To run Cactus, the basic format is:
 ```
@@ -105,13 +131,7 @@ cactus jobStore examples/evolverMammals.txt examples/evolverMammals.hal --root m
 ```
 
 Within an hour at most (on modern computers), you should have a [HAL](https://github.com/ComparativeGenomicsToolkit/hal) file which relates simulated mouse and rat genomes.
-### Choosing how to run the Cactus binaries (Docker/Singularity/local)
-By default, Cactus uses Docker to run its compiled components (to avoid making you install dependencies). It can instead use Singularity to run its binaries, or use a locally installed copy. To select a different way of running the binaries, you can use the `--binariesMode singularity` or `--binariesMode local` options. (If running using local binaries, you will need to make sure cactus's bin directory is in your `PATH`.)
 
-You can also run Cactus directly from Docker:
-```
-docker run -v $(pwd)/examples:/data/examples --rm -it quay.io/comparative-genomics-toolkit/cactus:latest cactus jobStore /data/examples/evolverMammals.txt /data/examples/evolverMammals.hal --root mr --binariesMode local
-```
 
 ### seqFile: the input file
 The input file, called a "seqFile", is just a text file containing the locations of the input sequences as well as their phylogenetic tree. The tree will be used to progressively decompose the alignment by iteratively aligning sibling genomes to estimate their parents in a bottom-up fashion. Polytomies in the tree are allowed, though the amount of computation required for a sub-alignment rises quadratically with the degree of the polytomy.  Cactus uses the predicted branch lengths from the tree to determine appropriate pairwise alignment parameters, allowing closely related species to be aligned more quickly with no loss in accuracy. The file is formatted as follows:
@@ -145,16 +165,88 @@ Example:
      *chimp /data/genomes/chimp/
      *gorilla /data/genomes/gorilla/gorilla.fa
      orang /cluster/home/data/orang/
-### Running locally
-There isn't much to configure if running locally. Most importantly, if on a shared system, you can adjust the maximum number of processors used with `--maxCores <N>` (by default, Cactus will use all cores).
+
 ### Running on a cluster
 Cactus (through Toil) supports many batch systems, including LSF, SLURM, GridEngine, Parasol, and Torque. To run on a cluster, simply add `--batchSystem <batchSystem>`, e.g. `--batchSystem gridEngine`. If your batch system needs additional configuration, Toil exposes some [environment variables](http://toil.readthedocs.io/en/3.10.1/developingWorkflows/batchSystem.html#batch-system-enivronmental-variables) that can help.
+
 ### Running on the cloud
 Cactus supports running on AWS, Azure, and Google Cloud Platform using [Toil's autoscaling features](https://toil.readthedocs.io/en/latest/running/cloud/cloud.html). For more details on running in AWS, check out [these instructions](doc/running-in-aws.md) (other clouds are similar).
+
+### Running step by step
+
+#### Printing a list of commands to run locally
+
+Breaking Cactus up into smaller jobs can be practical, both for development and debugging, and managing larger workflows.  Here is an example of how to break the Evolver Mammals example up into three steps: 1) Preprocessing 2) Blast 3) Multiple Aligment:
+```
+cactus-prepare examples/evolverMammals.txt --outDir steps-output --outSeqFile steps-output/evovlerMammals.txt --outHal steps-output/evolverMammals.hal --jobStore jobstore
+```
+
+It will print the sequence of commands to run the alignment step-by-step.  Blocks of commands within each alignment run can be run in parallel
+
+`cactus-prepare` can also be used to simplify preprocessing sequences without decomposing the remaining workflow:
+
+```
+cactus-prepare examples/evolverMammals.txt --outDir steps-output --outSeqFile steps-output/evovlerMammals.txt --outHal steps-output/evolverMammals.hal --jobStore jobstore --preprocessOnly
+```
+
+#### Creading a WDL script to run on Cromwell or Terra
+
+The `--wdl` option in `cactus-prepare` can be used to generate a bespoke [WDL](https://github.com/openwdl/wdl/blob/master/versions/1.0/SPEC.md) script for running the alignment from the input seqFile.  Here is an example on how to run locally in [Cromwell](https://github.com/broadinstitute/cromwell)
+```
+cactus-prepare examples/evolverMammals.txt --wdl > evolver.wdl
+wget https://github.com/broadinstitute/cromwell/releases/download/49/cromwell-49.jar
+javac -jar ./cromwell-49.jar run evolver.wdl
+
+```
+
+To run on [Terra](https://terra.bio/), use the `--noLocalInputs` option to make sure no local files are embedded in the script.  Also, care must be taken to specify some minimum resource requirements.
+
+```
+cactus-prepare examples/evolverMammals.txt --wdl --noLocalInputs --alignCores 2 --defaultMem 16 > evolver_terra.wdl
+
+```
+
+Then in Terra's [workspace menu](https://app.terra.bio/#workspaces):
+* Create a new workspace if necessary with the "+" button
+* Click on the workspace
+* Click on the "DATA" tab in the workspace menu and use the "Files" link to upload `examples/evolverMammals.txt` to Goggle Cloud
+* Click on the "WORKFLOWS" tab
+* Click the "+" button to add a workflow
+* Click the link in the bottom right to the "Broad Methods Repository"
+* Click the "Create New Method... +" button
+* Choose and namespace and name, then either upload or paste `evolver_terra.wdl` as created above and click "Upload"
+* If this WDL is valid, you can use the "Export To Workspace" button to link it to the Terra Workspace (using a blank configuration)
+* You can select the option to go back to the Terra Workspace, otherwise the workflow should now appear as a card in the Terra "workflows" tab the next time you navigate there or refresh
+* To run it, click the workflow then click the "INPUTS" tab, and select the `evolverMammals.txt` file in the Attribute field for Task=`cactus_prepare` Variable=`prep_seq_file`
+* Tick "Run workflow with inputs defined by file paths"
+* Save and click "RUN ANALYSIS"
+
+In the evolver example, all input sequences are specified in public URLs.  If sequences are not specified as URLs in the seqfile, then they must be uploaded in similar fashion to how the evolverMammals.txt was uploaded and selected in the example above.
+
+Here is an example of some settings that have worked on a mammalian-sized genome alignment on Terra:
+
+```
+cactus-prepare --wdl mammals.txt --noLocalInputs --preprocessBatchSize 5 --alignDisk 3000 --halAppendDisk 3000 --preprocessDisk 3000 --defaultDisk 1000 --defaultCores 64 --gpu --gpuCount 8 --defaultMemory 385 > mammals.wdl
+
+```
+
+If the workflow fails for whatever reason, it can be edited (to, say, increase job requirements) then resumed as follows:
+* In the Workflows tab, click the scripts link beside "Source:" to go back to the Firecloud page to edit the WDL script
+* Edit it and "Save a New Snapshot"
+* Back in the Terra Workflows tab for the workflow, refresh the page, and select the new snapshot from the "Snapshots" menu.
+* Click the "Save" button, ensure that "Use call caching" is ticked, then "Run Analysis" again to resume the workflow.
+
+## GPU Acceleration
+
+A [GPU-accelerated version of lastz](https://github.com/ComparativeGenomicsToolkit/SegAlign) can be used in the `blast` phase to speed up the runtime considerably, provided the right hardware is available. The easiest way to use it is on Terra with `cactus-prepare --gpu --wdl` (see above example).  The [GPU-enabled Docker releases](https://github.com/ComparativeGenomicsToolkit/cactus/releases) have this turned on by default.  It is also possible to [manually install it](https://github.com/ComparativeGenomicsToolkit/SegAlign#-dependencies) from git and then enable it in `cactus` via the `--configFile` cactus option.  A template can be found [here](https://github.com/ComparativeGenomicsToolkit/cactus/blob/master/src/cactus/cactus_progressive_config.xml), and modified to activate the GPU by setting `gpuLastz="true"` and `realign="0"` in the `<caf>` section. 
+
 ## Using the output
 Cactus outputs its alignments in the [HAL](https://github.com/ComparativeGenomicsToolkit/hal) format. This format represents the alignment in a reference-free, indexed way, but isn't readable by many tools. To export a MAF (which by its nature is usually reference-based), you can use the `hal2maf` tool to export the alignment from any particular genome: `hal2maf <hal> --refGenome <reference> <maf>`.
 
 You can use the alignment to generate gene annotatations for your assemblies, using the [Comparative Annotation Toolkit](https://github.com/ComparativeGenomicsToolkit/Comparative-Annotation-Toolkit).
+
+You can also [convert the HAL alignment into a Pangenome Graph](https://github.com/ComparativeGenomicsToolkit/hal#pangenome-graph-export-gfa-and-vg).  `hal2vg` is now included in the Cactus Docker images and binary release. 
+
 ## Updating existing alignments
 Cactus supports incrementally updating existing alignments to add, remove, or update genomes. The process involves minor surgery on the output HAL files. See [this document](doc/updating-alignments.md) for details.
 # Frequently Asked Questions

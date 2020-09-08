@@ -237,7 +237,7 @@ void getScore(Cap *cap, stList *inducedAlignment1, stList *inducedAlignment2, st
     stHash_insert(capScoresFnHash, cap, maxScore);
 }
 
-static int sortCapsFn(const void *cap1, const void *cap2, const void *capScoresFnHash) {
+static int sortCapsFn(const void *cap1, const void *cap2, void *capScoresFnHash) {
     assert(stHash_search((stHash *)capScoresFnHash, (void *) cap1) != NULL);
     assert(stHash_search((stHash *)capScoresFnHash, (void *) cap2) != NULL);
     int64_t i = ((int64_t *) stHash_search((stHash *)capScoresFnHash, (void *) cap1))[0] - ((int64_t *) stHash_search(

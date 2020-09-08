@@ -25,16 +25,21 @@ from cactus.shared.common import makeURL
 from cactus.shared.common import readGlobalFileWithoutCache
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
-
+from cactus.progressive.seqFile import SeqFile
+from cactus.shared.common import setupBinaries, importSingularityImage
+from cactus.shared.common import enableDumpStack
 from toil.lib.bioio import setLoggingFromOptions
+from toil.realtimeLogger import RealtimeLogger
 
+from cactus.shared.common import cactus_override_toil_options
 from cactus.preprocessor.checkUniqueHeaders import checkUniqueHeaders
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import LastzRepeatMaskJob
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import RepeatMaskOptions
 
 class PreprocessorOptions:
     def __init__(self, chunkSize, memory, cpu, check, proportionToSample, unmask,
-                 preprocessJob, checkAssemblyHub=None, lastzOptions=None, minPeriod=None):
+                 preprocessJob, checkAssemblyHub=None, lastzOptions=None, minPeriod=None,
+                 gpuLastz=False):
         self.chunkSize = chunkSize
         self.memory = memory
         self.cpu = cpu
@@ -45,6 +50,10 @@ class PreprocessorOptions:
         self.checkAssemblyHub = checkAssemblyHub
         self.lastzOptions = lastzOptions
         self.minPeriod = minPeriod
+        self.gpuLastz = gpuLastz
+        self.gpuLastzInterval = self.chunkSize
+        if self.gpuLastz:
+            self.chunkSize = 0
 
 class CheckUniqueHeaders(RoundedJob):
     """
@@ -114,7 +123,9 @@ class PreprocessSequence(RoundedJob):
         elif self.prepOptions.preprocessJob == "lastzRepeatMask":
             repeatMaskOptions = RepeatMaskOptions(proportionSampled=proportionSampled,
                                                   minPeriod=self.prepOptions.minPeriod,
-                                                  lastzOpts=self.prepOptions.lastzOptions)
+                                                  lastzOpts=self.prepOptions.lastzOptions,
+                                                  gpuLastz=self.prepOptions.gpuLastz,
+                                                  gpuLastzInterval=self.prepOptions.gpuLastzInterval)
             return LastzRepeatMaskJob(repeatMaskOptions=repeatMaskOptions,
                                       queryID=inChunkID,
                                       targetIDs=seqIDs)
@@ -155,7 +166,13 @@ class PreprocessSequence(RoundedJob):
             if len(inChunkIDs) < inChunkNumber: #This logic is like making the list circular
                 inChunkIDs += inChunkIDList[:inChunkNumber-len(inChunkIDs)]
             assert len(inChunkIDs) == inChunkNumber
-            outChunkIDList.append(self.addChild(self.getChunkedJobForCurrentStage(inChunkIDs, float(inChunkNumber)/len(inChunkIDList), inChunkIDList[i])).rv())
+            if self.prepOptions.gpuLastz:
+                # when using lastz, we pass through the proportion directly to segalign
+                proportionSampled = self.prepOptions.proportionToSample
+            else:
+                # otherwise, it's taken from the ratio of chunks
+                proportionSampled = float(inChunkNumber)/len(inChunkIDList)
+            outChunkIDList.append(self.addChild(self.getChunkedJobForCurrentStage(inChunkIDs, proportionSampled, inChunkIDList[i])).rv())
 
         if chunked:
             # Merge results of the chunking process back into a genome-wide file
@@ -194,7 +211,8 @@ class BatchPreprocessor(RoundedJob):
                                           unmask = getOptionalAttrib(prepNode, "unmask", typeFn=bool, default=False),
                                           lastzOptions = getOptionalAttrib(prepNode, "lastzOpts", default=""),
                                           minPeriod = getOptionalAttrib(prepNode, "minPeriod", typeFn=int, default=0),
-                                          checkAssemblyHub = getOptionalAttrib(prepNode, "checkAssemblyHub", typeFn=bool, default=False))
+                                          checkAssemblyHub = getOptionalAttrib(prepNode, "checkAssemblyHub", typeFn=bool, default=False),
+                                          gpuLastz = getOptionalAttrib(prepNode, "gpuLastz", typeFn=bool, default=False))
 
         lastIteration = self.iteration == len(self.prepXmlElems) - 1
 
@@ -256,10 +274,13 @@ class CactusPreprocessor2(RoundedJob):
             logger.info("Adding child batch_preprocessor target")
             return self.addChild(BatchPreprocessor(prepXmlElems, self.inputSequenceID, 0)).rv()
 
-def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=False):
+def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=False, outputSequences = []):
     #Replace any constants
     configNode = ET.parse(configFile).getroot()
-    outputSequences = CactusPreprocessor.getOutputSequenceFiles(inputSequences, outputSequenceDir)
+    if not outputSequences:
+        outputSequences = CactusPreprocessor.getOutputSequenceFiles(inputSequences, outputSequenceDir)
+    else:
+        assert len(outputSequences) == len(inputSequences)
     if configNode.find("constants") != None:
         ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals()
     if not restart:
@@ -280,15 +301,79 @@ def runCactusPreprocessor(outputSequenceDir, configFile, inputSequences, toilDir
 def main():
     parser = ArgumentParser()
     Job.Runner.addToilOptions(parser)
-    parser.add_argument("outputSequenceDir", help='Directory where the processed sequences will be placed')
+    parser.add_argument("inSeqFile", type=str, nargs='?', default=None, help = "Input Seq file")
+    parser.add_argument("outSeqFile", type=str, nargs='?', default=None, help = "Output Seq file (ex generated with cactus-prepare)")
     parser.add_argument("--configFile", default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
-    parser.add_argument("inputSequences", nargs='+', help='input FASTA file(s)')
+    parser.add_argument("--inputNames", nargs='*', help='input genome names (not paths) to preprocess (all leaves from Input Seq file if none specified)')
+    parser.add_argument("--inPaths", nargs='*', help='Space-separated list of input fasta paths (to be used in place of --inSeqFile')
+    parser.add_argument("--outPaths", nargs='*', help='Space-separated list of output fasta paths (one for each inPath, used in place of --outSeqFile)')
+    parser.add_argument("--latest", dest="latest", action="store_true",
+                        help="Use the latest version of the docker container "
+                        "rather than pulling one matching this version of cactus")
+    parser.add_argument("--containerImage", dest="containerImage", default=None,
+                        help="Use the the specified pre-built containter image "
+                        "rather than pulling one from quay.io")
+    parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
+                        help="The way to run the Cactus binaries", default=None)
 
     options = parser.parse_args()
+    setupBinaries(options)
     setLoggingFromOptions(options)
+    enableDumpStack()
+
+    # Mess with some toil options to create useful defaults.
+    cactus_override_toil_options(options)
+
+    # we have two modes: operate directly on paths or rely on the seqfiles.  they cannot be mixed
+    if options.inSeqFile or options.outSeqFile:
+        if not options.inSeqFile or not options.outSeqFile or options.inPaths or options.outPaths:
+            raise RuntimeError('--inSeqFile must be used in conjunction with --outSeqFile and not with --inPaths nor --outPaths')
+    elif options.inPaths or options.outPaths:
+        if not options.inPaths or not options.outPaths or options.inSeqFile or options.outSeqFile or options.inputNames:
+            raise RuntimeError('--inPaths must be used in conjunction with --outPaths and not with --inSeqFile, --outSeqFile nor --inputNames')
+        if len(options.inPaths) != len(options.outPaths):
+            raise RuntimeError('--inPaths and --outPaths must have the same number of arguments')
+    else:
+        raise RuntimeError('--inSeqFile/--outSeqFile/--inputNames or --inPaths/--outPaths required to specify input')
+
+
+    inSeqPaths = []
+    outSeqPaths = []
+
+    # mine the paths out of the seqfiles
+    if options.inSeqFile:
+        inSeqFile = SeqFile(options.inSeqFile)
+        outSeqFile = SeqFile(options.outSeqFile)
+
+        inNames = options.inputNames
+        if not inNames:
+            inNames = [inSeqFile.tree.getName(node) for node in inSeqFile.tree.getLeaves()]
+
+
+        for inName in inNames:
+            if inName not in inSeqFile.pathMap or inName not in outSeqFile.pathMap:
+                raise RuntimeError('{} not present in input and output Seq files'.format(inNmae))
+            inPath = inSeqFile.pathMap[inName]
+            outPath = outSeqFile.pathMap[inName]
+            if os.path.isdir(inPath):
+                try:
+                    os.makedirs(outPath)
+                except:
+                    pass
+                assert os.path.isdir(inPath) == os.path.isdir(outPath)
+                inSeqPaths += [os.path.join(inPath, seqPath) for seqPath in os.listdir(inPath)]
+                outSeqPaths += [os.path.join(outPath, seqPath) for seqPath in os.listdir(inPath)]
+            else:
+                inSeqPaths += [inPath]
+                outSeqPaths += [outPath]
+
+    # we got path names directly from the command line
+    else:
+        inSeqPaths = options.inPaths
+        outSeqPaths = options.outPaths
 
     with Toil(options) as toil:
-        stageWorkflow(outputSequenceDir=options.outputSequenceDir, configFile=options.configFile, inputSequences=options.inputSequences, toil=toil, restart=options.restart)
+        stageWorkflow(outputSequenceDir=None, configFile=options.configFile, inputSequences=inSeqPaths, toil=toil, restart=options.restart, outputSequences=outSeqPaths)
 
 if __name__ == '__main__':
     main()

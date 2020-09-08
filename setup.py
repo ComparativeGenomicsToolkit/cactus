@@ -34,16 +34,19 @@ setup(
     python_requires = '>=3.6',
 
     install_requires = [
-        'toil>=3.24',
         'decorator',
         'psutil',
         'networkx>=2,<3',
         'cython',
-        'pytest'],
+        'pytest',
+        'biopython'], # cactus doesn't really need it, but some hal tools do
 
     cmdclass = {
         'install': PostInstallCommand,
     },
     entry_points= {
         'console_scripts': ['cactus = cactus.progressive.cactus_progressive:main',
-                            'cactus_preprocess = cactus.preprocessor.cactus_preprocessor:main']},)
+                            'cactus-preprocess = cactus.preprocessor.cactus_preprocessor:main',
+                            'cactus-prepare = cactus.progressive.cactus_prepare:main',
+                            'cactus-blast = cactus.blast.cactus_blast:main',
+                            'cactus-align = cactus.setup.cactus_align:main']},)

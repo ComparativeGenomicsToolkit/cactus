@@ -6,12 +6,11 @@
 """
 
 import os
-import pickle
-import pickle
 import sys
 import shutil
 import subprocess
 import logging
+import pathlib
 import pipes
 import uuid
 import json
@@ -19,8 +18,10 @@ import time
 import signal
 import hashlib
 import tempfile
-import timeit
 import math
+import threading
+import traceback
+import errno
 
 
 from urllib.parse import urlparse
@@ -29,19 +30,39 @@ from datetime import datetime
 from toil.lib.bioio import logger
 from toil.lib.bioio import system
 from toil.lib.bioio import getLogLevelString
-from toil.lib.misc import mkdir_p
 from toil.common import Toil
 from toil.job import Job
 from toil.realtimeLogger import RealtimeLogger
 
 from sonLib.bioio import popenCatch
-from sonLib.bioio import getTempDirectory
 
 from cactus.shared.version import cactus_commit
 
 _log = logging.getLogger(__name__)
 
 subprocess._has_poll = False
+
+def cactus_override_toil_options(options):
+    """  Mess with some toil options to create useful defaults. """
+    # tokyo_cabinet is no longer supported
+    options.database = "kyoto_tycoon"
+    # Caching generally slows down the cactus workflow, plus some
+    # methods like readGlobalFileStream don't support forced
+    # reads directly from the job store rather than from cache.
+    options.disableCaching = True
+    # Job chaining breaks service termination timing, causing unused
+    # databases to accumulate and waste memory for no reason.
+    options.disableChaining = True
+    # The default deadlockWait is currently 60 seconds. This can cause
+    # issues if the database processes take a while to actually begin
+    # after they're issued. Change it to at least an hour so that we
+    # don't preemptively declare a deadlock.
+    if options.deadlockWait is None or options.deadlockWait < 3600:
+        options.deadlockWait = 3600
+    if options.retryCount is None and options.batchSystem != 'singleMachine' :
+        # If the user didn't specify a retryCount value, make it 5
+        # instead of Toil's default (1).
+        options.retryCount = 5
 
 def makeURL(path_or_url):
     if urlparse(path_or_url).scheme == '':
@@ -84,7 +105,13 @@ def getOptionalAttrib(node, attribName, typeFn=None, default=None):
     if node != None and attribName in node.attrib:
         if typeFn != None:
             if typeFn == bool:
-                return bool(int(node.attrib[attribName]))
+                aname = node.attrib[attribName].lower()
+                if aname == 'false':
+                    return False
+                elif aname == 'true':
+                    return True
+                else:
+                    return bool(int(node.attrib[attribName]))
             return typeFn(node.attrib[attribName])
         return node.attrib[attribName]
     return default
@@ -766,26 +793,21 @@ def runToilStats(toil, outputFile):
     system("toil stats %s --outputFile %s" % (toil, outputFile))
     logger.info("Ran the job-tree stats command apparently okay")
 
-def runLastz(seq1, seq2, alignmentsFile, lastzArguments, work_dir=None):
+def runLastz(seq1, seq2, alignmentsFile, lastzArguments, work_dir=None, gpuLastz=False):
     if work_dir is None:
         assert os.path.dirname(seq1) == os.path.dirname(seq2)
         work_dir = os.path.dirname(seq1)
+    if gpuLastz == True:
+        lastzCommand = "run_segalign"
+    else:
+        lastzCommand = "cPecanLastz"
+        seq1 += "[multiple][nameparse=darkspace]"
+        seq2 += "[nameparse=darkspace]"
     cactus_call(work_dir=work_dir, outfile=alignmentsFile,
-                parameters=["cPecanLastz",
-                            "--format=cigar",
-                            "--notrivial"] + lastzArguments.split() +
-                           ["%s[multiple][nameparse=darkspace]" % seq1,
-                            "%s[nameparse=darkspace]" % seq2])
+                parameters=[lastzCommand, seq1, seq2, "--format=cigar", "--notrivial"] + lastzArguments.split())
 
-def runSelfLastz(seq, alignmentsFile, lastzArguments, work_dir=None):
-    if work_dir is None:
-        work_dir = os.path.dirname(seq)
-    cactus_call(work_dir=work_dir, outfile=alignmentsFile,
-                parameters=["cPecanLastz",
-                            "--format=cigar",
-                            "--notrivial"] + lastzArguments.split() +
-                           ["%s[multiple][nameparse=darkspace]" % seq,
-                            "%s[nameparse=darkspace]" % seq])
+def runSelfLastz(seq, alignmentsFile, lastzArguments, work_dir=None, gpuLastz=False):
+    return runLastz(seq, seq, alignmentsFile, lastzArguments, work_dir, gpuLastz)
 
 def runCactusRealign(seq1, seq2, inputAlignmentsFile, outputAlignmentsFile, realignArguments, work_dir=None):
     cactus_call(infile=inputAlignmentsFile, outfile=outputAlignmentsFile, work_dir=work_dir,
@@ -842,6 +864,13 @@ def getDockerImage():
     """Get fully specified Docker image name."""
     return "%s/cactus:%s" % (getDockerOrg(), getDockerTag())
 
+def getDockerRelease(gpu=False):
+    """Get the most recent docker release."""
+    r = "quay.io/comparative-genomics-toolkit/cactus:v1.2.1"
+    if gpu:
+        r += "-gpu"
+    return r
+
 def maxMemUsageOfContainer(containerInfo):
     """Return the max RSS usage (in bytes) of a container, or None if something failed."""
     if containerInfo['id'] is None:
@@ -871,8 +900,107 @@ def maxMemUsageOfContainer(containerInfo):
 # if it's too long (so it's less likely to be dropped)
 def cactus_realtime_log_info(msg, max_len = 1000):
     if len(msg) > max_len:
-        msg = msg[:max_len] + "..."
+        msg = msg[:max_len-107] + " <...> " + msg[-100:]
     RealtimeLogger.info("{}: {}".format(datetime.now(), msg))
+
+def setupBinaries(options):
+    """Ensure that Cactus's C/C++ components are ready to run, and set up the environment."""
+    if options.latest:
+        os.environ["CACTUS_USE_LATEST"] = "1"
+    if options.binariesMode is not None:
+        # Mode is specified on command line
+        mode = options.binariesMode
+    else:
+        # Might be specified through the environment, or not, in which
+        mode = os.environ.get("CACTUS_BINARIES_MODE")
+
+    def verify_docker():
+        # If running without Docker, verify that we can find the Cactus executables
+        from distutils.spawn import find_executable
+        if find_executable('docker') is None:
+            raise RuntimeError("The `docker` executable wasn't found on the "
+                               "system. Please install Docker if possible, or "
+                               "use --binariesMode local and add cactus's bin "
+                               "directory to your PATH.")
+    def verify_local():
+        from distutils.spawn import find_executable
+        if find_executable('cactus_caf') is None:
+            raise RuntimeError("Cactus isn't using Docker, but it can't find "
+                               "the Cactus binaries. Please add Cactus's bin "
+                               "directory to your PATH (and run `make` in the "
+                               "Cactus directory if you haven't already).")
+        if find_executable('ktserver') is None:
+            raise RuntimeError("Cactus isn't using Docker, but it can't find "
+                               "`ktserver`, the KyotoTycoon database server. "
+                               "Please install KyotoTycoon "
+                               "(https://github.com/alticelabs/kyoto) "
+                               "and add the binary to your PATH, or use the "
+                               "Docker mode.")
+
+    if mode is None:
+        # there is no mode set, we use local if it's available, otherwise default to docker
+        try:
+            verify_local()
+            mode = "local"
+        except:
+            verify_docker()
+            mode = "docker"
+    elif mode == "docker":
+        verify_docker()
+    elif mode == "local":
+        verify_local()
+    else:
+        assert mode == "singularity"
+        jobStoreType, locator = Toil.parseLocator(options.jobStore)
+        if jobStoreType == "file":
+            # if not using a local jobStore, then don't set the `SINGULARITY_CACHEDIR`
+            # in this case, the image will be downloaded on each call
+            if options.containerImage:
+                imgPath = os.path.abspath(options.containerImage)
+                os.environ["CACTUS_USE_LOCAL_SINGULARITY_IMG"] = "1"
+            else:
+                # When SINGULARITY_CACHEDIR is set, singularity will refuse to store images in the current directory
+                if 'SINGULARITY_CACHEDIR' in os.environ:
+                    imgPath = os.path.join(os.environ['SINGULARITY_CACHEDIR'], "cactus.img")
+                else:
+                    imgPath = os.path.join(os.path.abspath(locator), "cactus.img")
+            os.environ["CACTUS_SINGULARITY_IMG"] = imgPath
+
+    os.environ["CACTUS_BINARIES_MODE"] = mode
+
+def importSingularityImage(options):
+    """Import the Singularity image from Docker if using Singularity."""
+    mode = os.environ.get("CACTUS_BINARIES_MODE", "docker")
+    localImage = os.environ.get("CACTUS_USE_LOCAL_SINGULARITY_IMG", "0")
+    if mode == "singularity" and Toil.parseLocator(options.jobStore)[0] == "file":
+        imgPath = os.environ["CACTUS_SINGULARITY_IMG"]
+        # If not using local image, pull the docker image
+        if localImage == "0":
+            # Singularity will complain if the image file already exists. Remove it.
+            try:
+                os.remove(imgPath)
+            except OSError:
+                # File doesn't exist
+                pass
+            # Singularity 2.4 broke the functionality that let --name
+            # point to a path instead of a name in the CWD. So we change
+            # to the proper directory manually, then change back after the
+            # image is pulled.
+            # NOTE: singularity writes images in the current directory only
+            #       when SINGULARITY_CACHEDIR is not set
+            oldCWD = os.getcwd()
+            os.chdir(os.path.dirname(imgPath))
+            # --size is deprecated starting in 2.4, but is needed for 2.3 support. Keeping it in for now.
+            try:
+                subprocess.check_call(["singularity", "pull", "--size", "2000", "--name", os.path.basename(imgPath),
+                                       "docker://" + getDockerImage()])
+            except subprocess.CalledProcessError:
+                # Call failed, try without --size, required for singularity 3+
+                subprocess.check_call(["singularity", "pull", "--name", os.path.basename(imgPath),
+                                       "docker://" + getDockerImage()])
+            os.chdir(oldCWD)
+        else:
+            logger.info("Using pre-built singularity image: '{}'".format(imgPath))
 
 def singularityCommand(tool=None,
                        work_dir=None,
@@ -910,8 +1038,10 @@ def singularityCommand(tool=None,
         # and https://github.com/sylabs/singularity/issues/4555.
 
         # As a workaround, we have out own cache which we manage ourselves.
-        cache_dir = os.path.join(os.environ.get('SINGULARITY_CACHEDIR',  os.path.join(os.environ.get('HOME'), '.singularity')), 'toil')
-        mkdir_p(cache_dir)
+        home_dir = str(pathlib.Path.home())
+        default_singularity_dir = os.path.join(home_dir, '.singularity')
+        cache_dir = os.path.join(os.environ.get('SINGULARITY_CACHEDIR',  default_singularity_dir), 'toil')
+        os.makedirs(cache_dir, exist_ok=True)
 
         # hack to transform back to docker image
         if tool == 'cactus':
@@ -932,7 +1062,7 @@ def singularityCommand(tool=None,
         # Also, only sandbox directories work with user namespaces, and only user
         # namespaces work inside unprivileged Docker containers like the Toil
         # appliance.
-        sandbox_dirname = os.path.join(cache_dir, '{}.sandbox'.format(hashlib.sha256(tool).hexdigest()))
+        sandbox_dirname = os.path.join(cache_dir, '{}.sandbox'.format(hashlib.sha256(tool.encode('utf-8')).hexdigest()))
 
         if not os.path.exists(sandbox_dirname):
             # We atomically drop the sandbox at that name when we get it
@@ -963,7 +1093,7 @@ def singularityCommand(tool=None,
                     # Make sure someone else has made the directory
                     assert os.path.exists(sandbox_dirname)
                     # Remove our redundant copy
-                    shutil.rmtree(temp_sandbox_name)
+                    shutil.rmtree(temp_sandbox_dirname)
                 else:
                     raise
 
@@ -1056,6 +1186,7 @@ def cactus_call(tool=None,
                 check_output=False,
                 infile=None,
                 outfile=None,
+                outappend=False,
                 stdin_string=None,
                 server=False,
                 shell=False,
@@ -1076,7 +1207,7 @@ def cactus_call(tool=None,
         tool = "cactus"
 
     entrypoint = None
-    if len(parameters) > 0 and type(parameters[0]) is list:
+    if (len(parameters) > 0) and isinstance(parameters[0], list):
         # We have a list of lists, which is the convention for commands piped into one another.
         flattened = [i for sublist in parameters for i in sublist]
         chain_params = [' '.join(p) for p in [list(map(pipes.quote, q)) for q in parameters]]
@@ -1114,7 +1245,7 @@ def cactus_call(tool=None,
         stdinFileHandle = subprocess.DEVNULL
     stdoutFileHandle = None
     if outfile:
-        stdoutFileHandle = open(outfile, 'w')
+        stdoutFileHandle = open(outfile, 'a' if outappend else 'w')
     if check_output:
         stdoutFileHandle = subprocess.PIPE
 
@@ -1123,7 +1254,7 @@ def cactus_call(tool=None,
     process = subprocess.Popen(call, shell=shell, encoding="ascii",
                                stdin=stdinFileHandle, stdout=stdoutFileHandle,
                                stderr=subprocess.PIPE if swallowStdErr else sys.stderr,
-                               bufsize=-1)
+                               bufsize=-1, cwd=work_dir)
 
     if server:
         return process
@@ -1131,10 +1262,11 @@ def cactus_call(tool=None,
     memUsage = 0
     first_run = True
     start_time = time.time()
+    output = stderr = None  # used later to report errors
     while True:
         try:
             # Wait a bit to see if the process is done
-            output, nothing = process.communicate(stdin_string if first_run else None, timeout=10)
+            output, stderr = process.communicate(stdin_string if first_run else None, timeout=10)
         except subprocess.TimeoutExpired:
             if mode == "docker":
                 # Every so often, check the memory usage of the container
@@ -1163,7 +1295,13 @@ def cactus_call(tool=None,
         return process.returncode
 
     if process.returncode != 0:
-        raise RuntimeError("Command %s failed with output: %s" % (call, output))
+        out = "stdout={}".format(output)
+        if swallowStdErr:
+            out += ", stderr={}".format(stderr)
+        if process.returncode > 0:
+            raise RuntimeError("Command {} exited {}: {}".format(call, process.returncode, out))
+        else:
+            raise RuntimeError("Command {} signaled {}: {}".format(call, signal.Signals(-process.returncode).name, out))
 
     if check_output:
         return output
@@ -1309,3 +1447,18 @@ class ChildTreeJob(RoundedJob):
             assert leaves_added == len(self.queuedChildJobs)
 
         return ret
+
+def dumpStacksHandler(signal, frame):
+    """Signal handler to print the stacks of all threads to stderr"""
+    fh = sys.stderr
+    print("###### stack traces {} ######".format(datetime.now().isoformat()), file=fh)
+    id2name = dict([(th.ident, th.name) for th in threading.enumerate()])
+    for threadId, stack in sys._current_frames().items():
+        print("# Thread: {}({})".format(id2name.get(threadId,""), threadId), file=fh)
+        traceback.print_stack(f=stack, file=fh)
+    print("\n", file=fh)
+    fh.flush()
+
+def enableDumpStack(sig=signal.SIGUSR1):
+    """enable dumping stacks when the specified signal is received"""
+    signal.signal(sig, dumpStacksHandler)

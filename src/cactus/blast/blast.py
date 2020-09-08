@@ -10,6 +10,8 @@ import os
 import shutil
 from toil.lib.bioio import logger
 from toil.lib.bioio import system
+from toil.realtimeLogger import RealtimeLogger
+from toil.lib.threading import cpu_count
 
 from sonLib.bioio import catFiles, nameValue, popenCatch, getTempDirectory
 
@@ -40,7 +42,8 @@ class BlastOptions(object):
                  # default because it's needed for the tests (which
                  # don't use realign.)
                  trimOutgroupFlanking=2000,
-                 keepParalogs=False):
+                 keepParalogs=False,
+                 gpuLastz=False):
         """Class defining options for blast
         """
         self.chunkSize = chunkSize
@@ -62,6 +65,7 @@ class BlastOptions(object):
         self.trimOutgroupDepth = trimOutgroupDepth
         self.trimOutgroupFlanking = trimOutgroupFlanking
         self.keepParalogs = keepParalogs
+        self.gpuLastz = gpuLastz
 
 class BlastSequencesAllAgainstAll(RoundedJob):
     """Take a set of sequences, chunks them up and blasts them.
@@ -79,6 +83,9 @@ class BlastSequencesAllAgainstAll(RoundedJob):
 
     def run(self, fileStore):
         sequenceFiles1 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs1]
+        if self.blastOptions.gpuLastz == True:
+            # wga-gpu has a 6G limit. 
+            self.blastOptions.chunkSize = 6000000000
         chunks = runGetChunks(sequenceFiles=sequenceFiles1,
                               chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()),
                               chunkSize=self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize)
@@ -146,6 +153,9 @@ class BlastSequencesAgainstEachOther(ChildTreeJob):
     def run(self, fileStore):
         sequenceFiles1 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs1]
         sequenceFiles2 = [fileStore.readGlobalFile(fileID) for fileID in self.sequenceFileIDs2]
+        if self.blastOptions.gpuLastz == True:
+            # wga-gpu has a 6G limit. 
+            self.blastOptions.chunkSize = 6000000000
         chunks1 = runGetChunks(sequenceFiles=sequenceFiles1, chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()), chunkSize=self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize)
         chunks2 = runGetChunks(sequenceFiles=sequenceFiles2, chunksDir=getTempDirectory(rootDir=fileStore.getLocalTempDir()), chunkSize=self.blastOptions.chunkSize, overlapSize=self.blastOptions.overlapSize)
         chunkIDs1 = [fileStore.writeGlobalFile(chunk, cleanup=True) for chunk in chunks1]
@@ -227,7 +237,7 @@ class BlastFirstOutgroup(RoundedJob):
         self.blastOptions = blastOptions
         self.outgroupNumber = outgroupNumber
         self.ingroupCoverageIDs = ingroupCoverageIDs
-
+        
     def run(self, fileStore):
         logger.info("Blasting ingroup sequences to outgroup %s",
                     self.outgroupNames[self.outgroupNumber - 1])
@@ -394,15 +404,20 @@ class RunSelfBlast(RoundedJob):
     def __init__(self, blastOptions, seqFileID):
         disk = 3*seqFileID.size
         memory = 3*seqFileID.size
-
-        super(RunSelfBlast, self).__init__(memory=memory, disk=disk, preemptable=True)
+        if blastOptions.gpuLastz:
+            # gpu jobs get the whole node
+            cores = cpu_count()
+        else:
+            cores = None
+        super(RunSelfBlast, self).__init__(memory=memory, disk=disk, cores=cores, preemptable=True)
         self.blastOptions = blastOptions
         self.seqFileID = seqFileID
 
     def run(self, fileStore):
         blastResultsFile = fileStore.getLocalTempFile()
         seqFile = fileStore.readGlobalFile(self.seqFileID)
-        runSelfLastz(seqFile, blastResultsFile, lastzArguments=self.blastOptions.lastzArguments)
+        runSelfLastz(seqFile, blastResultsFile, lastzArguments=self.blastOptions.lastzArguments,
+                     gpuLastz = self.blastOptions.gpuLastz)
         if self.blastOptions.realign:
             realignResultsFile = fileStore.getLocalTempFile()
             runCactusSelfRealign(seqFile, inputAlignmentsFile=blastResultsFile,
@@ -430,7 +445,12 @@ class RunBlast(RoundedJob):
         else:
             disk = None
             memory = None
-        super(RunBlast, self).__init__(memory=memory, disk=disk, preemptable=True)
+        if blastOptions.gpuLastz:
+            # gpu jobs get the whole node
+            cores = cpu_count()
+        else:
+            cores = None
+        super(RunBlast, self).__init__(memory=memory, disk=disk, cores=cores, preemptable=True)
         self.blastOptions = blastOptions
         self.seqFileID1 = seqFileID1
         self.seqFileID2 = seqFileID2
@@ -442,8 +462,8 @@ class RunBlast(RoundedJob):
             seqFile1 = decompressFastaFile(seqFile1, fileStore.getLocalTempFile())
             seqFile2 = decompressFastaFile(seqFile2, fileStore.getLocalTempFile())
         blastResultsFile = fileStore.getLocalTempFile()
-
-        runLastz(seqFile1, seqFile2, blastResultsFile, lastzArguments = self.blastOptions.lastzArguments)
+        runLastz(seqFile1, seqFile2, blastResultsFile, lastzArguments = self.blastOptions.lastzArguments,
+                 gpuLastz = self.blastOptions.gpuLastz)
         if self.blastOptions.realign:
             realignResultsFile = fileStore.getLocalTempFile()
             runCactusRealign(seqFile1, seqFile2, inputAlignmentsFile=blastResultsFile,
@@ -525,7 +545,10 @@ def calculateCoverage(sequenceFile, cigarFile, outputFile, fromGenome=None, dept
     logger.info("Calculating coverage of cigar file %s on %s, writing to %s" % (
         cigarFile, sequenceFile, outputFile))
     args = [sequenceFile, cigarFile]
-    if fromGenome is not None:
+    if isinstance(fromGenome, list):
+        for fg in fromGenome:
+            args += ["--from", fg]
+    elif fromGenome is not None:
         args += ["--from", fromGenome]
     if depthById:
         args += ["--depthById"]

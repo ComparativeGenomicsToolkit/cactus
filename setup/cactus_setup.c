@@ -51,6 +51,10 @@ void checkBranchLengthsAreDefined(stTree *tree) {
     if (isinf(stTree_getBranchLength(tree))) {
         st_errAbort("Got a non defined branch length in the input tree: %s.\n", stTree_getNewickTreeString(tree));
     }
+    if (stTree_getBranchLength(tree) == 0.0) {
+        stTree_setBranchLength(tree, DBL_MIN);
+        st_logCritical("0-length branch found for %s. Resetting to very small value\n", stTree_getLabel(tree)); 
+    }
     for (int64_t i = 0; i < stTree_getChildNumber(tree); i++) {
         checkBranchLengthsAreDefined(stTree_getChild(tree, i));
     }
@@ -77,7 +81,7 @@ void makeEventHeadersAlphaNumericFn(stTree *tree) {
     }
 }
 
-void processSequence(const char *fastaHeader, const char *string, int64_t length) {
+void processSequence(void* destination, const char *fastaHeader, const char *string, int64_t length) {
     /*
      * Processes a sequence by adding it to the flower disk.
      */
@@ -152,7 +156,7 @@ static void assignSequences(EventTree *eventTree, char *argv[], int argc,
                 assert(stFile_exists(absChildFileName));
                 setCompleteStatus(absChildFileName); //decide if the sequences in the file should be free or attached.
                 FILE *fileHandle = fopen(absChildFileName, "r");
-                fastaReadToFunction(fileHandle, processSequence);
+                fastaReadToFunction(fileHandle, NULL, processSequence);
                 fclose(fileHandle);
                 free(absChildFileName);
             }
@@ -161,7 +165,7 @@ static void assignSequences(EventTree *eventTree, char *argv[], int argc,
             st_logInfo("Processing file: %s\n", fileName);
             setCompleteStatus(fileName); //decide if the sequences in the file should be free or attached.
             FILE *fileHandle = fopen(fileName, "r");
-            fastaReadToFunction(fileHandle, processSequence);
+            fastaReadToFunction(fileHandle, NULL, processSequence);
             fclose(fileHandle);
         }
     }
