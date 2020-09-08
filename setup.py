@@ -49,4 +49,5 @@ setup(
                             'cactus-preprocess = cactus.preprocessor.cactus_preprocessor:main',
                             'cactus-prepare = cactus.progressive.cactus_prepare:main',
                             'cactus-blast = cactus.blast.cactus_blast:main',
+                            'cactus-reference-aligner = cactus.reference_aligner.cactus_reference_aligner:main',
                             'cactus-align = cactus.setup.cactus_align:main']},)
