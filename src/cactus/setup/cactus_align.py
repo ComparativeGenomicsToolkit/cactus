@@ -74,7 +74,10 @@ def main():
                         help="The way to run the Cactus binaries", default=None)
     parser.add_argument("--nonBlastInput", action="store_true",
                         help="Input does not come from cactus-blast: Do not append ids to fasta names")
-
+    parser.add_argument("--nonBlastMegablockFilter", action="store_true",
+                        help="By default, the megablock filter is off for --nonBlastInput, as it does not play"
+                        "nicely with reference-based alignments.  This flag will turn it back on")
+    
 
     options = parser.parse_args()
 
@@ -228,6 +231,10 @@ def runCactusAfterBlastOnly(options):
             configNode = ET.parse(project.getConfigPath()).getroot()
             configWrapper = ConfigWrapper(configNode)
             configWrapper.substituteAllPredefinedConstantsWithLiterals()
+
+            if options.nonBlastInput and not options.nonBlastMegablockFilter:
+                # turn off the megablock filter as it ruins non-all-to-all alignments
+                configWrapper.disableCafMegablockFilter()
 
             workFlowArgs = CactusWorkflowArguments(options, experimentFile=experimentFile, configNode=configNode, seqIDMap = project.inputSequenceIDMap)
 

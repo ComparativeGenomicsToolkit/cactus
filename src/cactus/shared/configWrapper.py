@@ -212,6 +212,12 @@ class ConfigWrapper:
             replaceAllDivergenceParameters(self.xmlRoot)
         return messages
 
+    def disableCafMegablockFilter(self):
+        """Make sure the filter is off in caf """
+        cafNode = findRequiredNode(self.xmlRoot, "caf")
+        cafNode.attrib["minimumBlockHomologySupport"] = "0"
+        cafNode.attrib["minimumBlockDegreeToCheckSupport"] = "9999999999"
+
     def turnAllModesOn(self):
         """Switches on check, normalisation etc. to use when debugging/testing
         """

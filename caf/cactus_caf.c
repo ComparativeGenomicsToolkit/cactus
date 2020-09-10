@@ -859,25 +859,27 @@ int main(int argc, char *argv[]) {
                 printf("Sequence graph statistics after annealing:\n");
                 printThreadSetStatistics(threadSet, flower, stdout);
 
-                // Check for poorly-supported blocks--those that have
-                // been transitively aligned together but with very
-                // few homologies supporting the transitive
-                // alignment. These "megablocks" can snarl up the
-                // graph so that a lot of extra gets thrown away in
-                // the first melting step.
-                stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
-                stPinchBlock *block;
-                while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
-                    if (stPinchBlock_getDegree(block) > minimumBlockDegreeToCheckSupport) {
-                        uint64_t supportingHomologies = stPinchBlock_getNumSupportingHomologies(block);
-                        uint64_t possibleSupportingHomologies = numPossibleSupportingHomologies(block, flower);
-                        double support = ((double) supportingHomologies) / possibleSupportingHomologies;
-                        if (support < minimumBlockHomologySupport) {
-                            fprintf(stdout, "Destroyed a megablock with degree %" PRIi64
-                                    " and %" PRIi64 " supporting homologies out of a maximum "
-                                    "of %" PRIi64 " (%lf%%).\n", stPinchBlock_getDegree(block),
-                                    supportingHomologies, possibleSupportingHomologies, support);
-                            stPinchBlock_destruct(block);
+                if (minimumBlockHomologySupport > 0) {
+                    // Check for poorly-supported blocks--those that have
+                    // been transitively aligned together but with very
+                    // few homologies supporting the transitive
+                    // alignment. These "megablocks" can snarl up the
+                    // graph so that a lot of extra gets thrown away in
+                    // the first melting step.
+                    stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
+                    stPinchBlock *block;
+                    while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
+                        if (stPinchBlock_getDegree(block) > minimumBlockDegreeToCheckSupport) {
+                            uint64_t supportingHomologies = stPinchBlock_getNumSupportingHomologies(block);
+                            uint64_t possibleSupportingHomologies = numPossibleSupportingHomologies(block, flower);
+                            double support = ((double) supportingHomologies) / possibleSupportingHomologies;
+                            if (support < minimumBlockHomologySupport) {
+                                fprintf(stdout, "Destroyed a megablock with degree %" PRIi64
+                                        " and %" PRIi64 " supporting homologies out of a maximum "
+                                        "of %" PRIi64 " (%lf%%).\n", stPinchBlock_getDegree(block),
+                                        supportingHomologies, possibleSupportingHomologies, support);
+                                stPinchBlock_destruct(block);
+                            }
                         }
                     }
                 }
