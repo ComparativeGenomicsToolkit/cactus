@@ -119,7 +119,7 @@ def runCactusAfterBlastOnly(options):
         importSingularityImage(options)
         #Run the workflow
         if options.restart:
-            alignmentID = toil.restart()
+            halID = toil.restart()
         else:
             options.cactusDir = getTempDirectory()
 
