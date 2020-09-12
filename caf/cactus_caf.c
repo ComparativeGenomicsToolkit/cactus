@@ -348,6 +348,7 @@ int main(int argc, char *argv[]) {
     HomologyUnitType phylogenyHomologyUnitType = BLOCK;
     enum stCaf_DistanceCorrectionMethod phylogenyDistanceCorrectionMethod = JUKES_CANTOR;
     bool sortAlignments = false;
+    bool sortSecondaryAlignments = false;
     char *hgvmEventName = NULL;
 
     ///////////////////////////////////////////////////////////////////////////
@@ -500,6 +501,11 @@ int main(int argc, char *argv[]) {
                     filterFn = NULL;
                 } else {
                     st_errAbort("Could not recognize alignmentFilter option %s", optarg);
+                }
+                // by default we apply all primary filtering to secondary alignments too
+                if (secondaryFilterFn == NULL && filterFn != NULL) {
+                    secondaryFilterFn = filterFn;
+                    sortSecondaryAlignments = sortAlignments;
                 }
                 break;
             case 'v':
@@ -768,6 +774,7 @@ int main(int argc, char *argv[]) {
         cactusDisk_preCacheStrings(cactusDisk, flowers);
     }
     char *tempFile1 = NULL;
+    char *tempFile2 = NULL;
     for (int64_t i = 0; i < stList_length(flowers); i++) {
         flower = stList_get(flowers, i);
         if (!flower_builtBlocks(flower)) { // Do nothing if the flower already has defined blocks
@@ -802,7 +809,13 @@ int main(int argc, char *argv[]) {
                 }
 
                 if(secondaryAlignmentsFile != NULL) {
-                	secondaryPinchIterator = stPinchIterator_constructFromFile(secondaryAlignmentsFile);
+                    if (sortSecondaryAlignments) {
+                        tempFile2 = getTempFile();
+                        stCaf_sortCigarsFileByScoreInDescendingOrder(secondaryAlignmentsFile, tempFile2);
+                        secondaryPinchIterator = stPinchIterator_constructFromFile(tempFile2);
+                    } else {
+                        secondaryPinchIterator = stPinchIterator_constructFromFile(secondaryAlignmentsFile);
+                    }
                 }
 
             } else {
@@ -859,25 +872,27 @@ int main(int argc, char *argv[]) {
                 printf("Sequence graph statistics after annealing:\n");
                 printThreadSetStatistics(threadSet, flower, stdout);
 
-                // Check for poorly-supported blocks--those that have
-                // been transitively aligned together but with very
-                // few homologies supporting the transitive
-                // alignment. These "megablocks" can snarl up the
-                // graph so that a lot of extra gets thrown away in
-                // the first melting step.
-                stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
-                stPinchBlock *block;
-                while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
-                    if (stPinchBlock_getDegree(block) > minimumBlockDegreeToCheckSupport) {
-                        uint64_t supportingHomologies = stPinchBlock_getNumSupportingHomologies(block);
-                        uint64_t possibleSupportingHomologies = numPossibleSupportingHomologies(block, flower);
-                        double support = ((double) supportingHomologies) / possibleSupportingHomologies;
-                        if (support < minimumBlockHomologySupport) {
-                            fprintf(stdout, "Destroyed a megablock with degree %" PRIi64
-                                    " and %" PRIi64 " supporting homologies out of a maximum "
-                                    "of %" PRIi64 " (%lf%%).\n", stPinchBlock_getDegree(block),
-                                    supportingHomologies, possibleSupportingHomologies, support);
-                            stPinchBlock_destruct(block);
+                if (minimumBlockHomologySupport > 0) {
+                    // Check for poorly-supported blocks--those that have
+                    // been transitively aligned together but with very
+                    // few homologies supporting the transitive
+                    // alignment. These "megablocks" can snarl up the
+                    // graph so that a lot of extra gets thrown away in
+                    // the first melting step.
+                    stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
+                    stPinchBlock *block;
+                    while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
+                        if (stPinchBlock_getDegree(block) > minimumBlockDegreeToCheckSupport) {
+                            uint64_t supportingHomologies = stPinchBlock_getNumSupportingHomologies(block);
+                            uint64_t possibleSupportingHomologies = numPossibleSupportingHomologies(block, flower);
+                            double support = ((double) supportingHomologies) / possibleSupportingHomologies;
+                            if (support < minimumBlockHomologySupport) {
+                                fprintf(stdout, "Destroyed a megablock with degree %" PRIi64
+                                        " and %" PRIi64 " supporting homologies out of a maximum "
+                                        "of %" PRIi64 " (%lf%%).\n", stPinchBlock_getDegree(block),
+                                        supportingHomologies, possibleSupportingHomologies, support);
+                                stPinchBlock_destruct(block);
+                            }
                         }
                     }
                 }
@@ -988,6 +1003,9 @@ int main(int argc, char *argv[]) {
     stList_destruct(flowers);
     if (tempFile1 != NULL) {
         st_system("rm %s", tempFile1);
+    }
+    if (tempFile2 != NULL) {
+        st_system("rm %s", tempFile2);
     }
 
     if (constraintsFile != NULL) {
