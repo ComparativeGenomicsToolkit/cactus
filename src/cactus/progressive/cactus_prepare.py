@@ -44,6 +44,7 @@ from toil.lib.bioio import logger
 from toil.lib.bioio import setLoggingFromOptions
 from toil.lib.threading import cpu_count
 from toil.realtimeLogger import RealtimeLogger
+from toil.lib.humanize import human2bytes, bytes2human
 
 def main_toil():
     return main(toil_mode=True)
@@ -89,22 +90,31 @@ def main(toil_mode=False):
     parser.add_argument("--alignCores", type=int, help="Number of cores for each cactus-align job")
 
     if not toil_mode:
-        parser.add_argument("--defaultMemory", type=float, help="Memory in GB for each job unless otherwise specified")
-    parser.add_argument("--preprocessMemory", type=float, help="Memory in GB for each cactus-preprocess job")
-    parser.add_argument("--blastMemory", type=float, help="Memory in GB for each cactus-blast job")
-    parser.add_argument("--alignMemory", type=float, help="Memory in GB for each cactus-align job")
+        parser.add_argument("--defaultMemory", type=human2bytesN, help="Memory for each job unless otherwise specified. "
+                            "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes)")
+    parser.add_argument("--preprocessMemory", type=human2bytesN, help="Memory for each cactus-preprocess job. "
+                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes)")
+    parser.add_argument("--blastMemory", type=human2bytesN, help="Memory for each cactus-blast job. "
+                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes)")                                
+    parser.add_argument("--alignMemory", type=human2bytesN, help="Memory for each cactus-align job. "
+                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes)")
 
     if not toil_mode:
-        parser.add_argument("--defaultDisk", type=int, help="Disk in GB for each job unless otherwise specified")
-    parser.add_argument("--preprocessDisk", type=int, help="Disk in GB for each cactus-preprocess job")
-    parser.add_argument("--blastDisk", type=int, help="Disk in GB for each cactus-blast job")
-    parser.add_argument("--alignDisk", type=int, help="Disk in GB for each cactus-align job")
-    parser.add_argument("--halAppendDisk", type=int, help="Disk in GB for each halAppendSubtree job")
+        parser.add_argument("--defaultDisk", type=human2bytesN, help="Disk for each job unless otherwise specified. "
+                            "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes)")
+    parser.add_argument("--preprocessDisk", type=human2bytesN, help="Disk for each cactus-preprocess job. "
+                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes)")
+    parser.add_argument("--blastDisk", type=human2bytesN, help="Disk for each cactus-blast job. "
+                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes)")
+    parser.add_argument("--alignDisk", type=human2bytesN, help="Disk for each cactus-align job. "
+                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes)")
+    parser.add_argument("--halAppendDisk", type=human2bytesN, help="Disk for each halAppendSubtree job. "
+                        "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes)")
 
-    parser.add_argument("--preprocessPreemptible", type=int, help="Preemptible in GB for each cactus-preprocess job [default=2]", default=2)
-    parser.add_argument("--blastPreemptible", type=int, help="Preemptible in GB for each cactus-blast job [default=1]", default=1)
-    parser.add_argument("--alignPreemptible", type=int, help="Preemptible in GB for each cactus-align job [default=1]", default=1)
-    parser.add_argument("--halAppendPreemptible", type=int, help="Preemptible in GB for each halAppendSubtree job [default=1]", default=1)
+    parser.add_argument("--preprocessPreemptible", type=int, help="Preemptible attempt count for each cactus-preprocess job [default=2]", default=2)
+    parser.add_argument("--blastPreemptible", type=int, help="Preemptible attempt count for each cactus-blast job [default=1]", default=1)
+    parser.add_argument("--alignPreemptible", type=int, help="Preemptible attempt count for each cactus-align job [default=1]", default=1)
+    parser.add_argument("--halAppendPreemptible", type=int, help="Preemptible attempt count for each halAppendSubtree job [default=1]", default=1)
 
     options = parser.parse_args()
     options.database = 'kyoto_tycoon'
@@ -260,8 +270,11 @@ def write_s3(options, local_path, s3_path):
 
     s3.upload_file(local_path, bucket_name, name_prefix)
 
-def addG(val):
-    return '{}G'.format(val) if val else val
+def human2bytesN(s):
+    return human2bytes(s) if s else s
+
+def bytes2gigs(n):
+    return int(int(n)/pow(2,30))
 
 def get_toil_resource_opts(options, task):
     if task == 'preprocess':
@@ -285,7 +298,7 @@ def get_toil_resource_opts(options, task):
     if mem and not options.wdl:
         if s:
             s += ' '
-        s += '--maxMemory {}G'.format(mem)
+        s += '--maxMemory {}'.format(bytes2human(mem))
     return s
 
 def wdl_disk(options, task, max_local=300):
@@ -300,9 +313,9 @@ def wdl_disk(options, task, max_local=300):
         disk = options.halAppendDisk        
     if not disk:
         return "", "."
-    wdl_disk_options = "local-disk {} LOCAL".format(min(disk, max_local))
+    wdl_disk_options = "local-disk {} LOCAL".format(min(bytes2gigs(disk), max_local))
     if disk > max_local:
-        wdl_disk_options += ", /mnt/hdd {} HDD".format(disk)
+        wdl_disk_options += ", /mnt/hdd {} HDD".format(bytes2gigs(disk))
         cactus_opts = "/mnt/hdd"
     else:
         cactus_opts = "."
@@ -428,8 +441,8 @@ def get_plan(options, project, inSeqFile, outSeqFile, toil):
         elif options.toil:
             job_idx[("preprocess", leaves[i])] = parent_job.addChildJobFn(toil_call_preprocess, options, inSeqFile, outSeqFile, leaves[i],
                                                                           cores=options.preprocessCores,
-                                                                          memory=addG(options.preprocessMemory),
-                                                                          disk=addG(options.preprocessDisk))
+                                                                          memory=options.preprocessMemory,
+                                                                          disk=options.preprocessDisk)
         else:
             plan += 'cactus-preprocess {} {} {} --inputNames {} {} {}\n'.format(
                 get_jobstore(options), options.seqFile, options.outSeqFile, ' '.join(pre_batch),
@@ -535,8 +548,8 @@ def get_plan(options, project, inSeqFile, outSeqFile, toil):
                                                                      leaf_deps + anc_deps,
                                                                      *fa_promises,
                                                                      cores=options.blastCores,
-                                                                     memory=addG(options.blastMemory),
-                                                                     disk=addG(options.preprocessDisk))
+                                                                     memory=options.blastMemory,
+                                                                     disk=options.preprocessDisk)
                 job_idx[("align", event)] = job_idx[("blast", event)].addFollowOnJobFn(toil_call_align,
                                                                                        options, outSeqFile,
                                                                                        project,
@@ -547,8 +560,8 @@ def get_plan(options, project, inSeqFile, outSeqFile, toil):
                                                                                        job_idx[("blast", event)].rv(),
                                                                                        leaf_deps + anc_deps, *fa_promises,
                                                                                        cores=options.alignCores,
-                                                                                       memory=addG(options.alignMemory),
-                                                                                       disk=addG(options.alignDisk))
+                                                                                       memory=options.alignMemory,
+                                                                                       disk=options.alignDisk)
             else:
                 # todo: support cactus interface (it's easy enough here, but cactus_progressive.py needs changes to handle)
                 plan += 'cactus-blast {} {} {} --root {} {} {}\n'.format(
@@ -591,8 +604,8 @@ def get_plan(options, project, inSeqFile, outSeqFile, toil):
                                                          event_list,
                                                          *[job_idx[('align', e)].rv(1) for e in event_list],
                                                          cores=1,
-                                                         memory=addG(options.alignMemory),
-                                                         disk=addG(options.halAppendDisk))
+                                                         memory=options.alignMemory,
+                                                         disk=options.halAppendDisk)
 
     if options.wdl:
         plan += wdl_workflow_end(options, prev_event, append_count > 1)
@@ -720,7 +733,7 @@ def wdl_task_preprocess(options):
     if options.preprocessCores:
         s += '        cpu: {}\n'.format(options.preprocessCores)
     if options.preprocessMemory:
-        s += '        memory: \"{}GB\"\n'.format(options.preprocessMemory)
+        s += '        memory: \"{}GB\"\n'.format(bytes2gigs(options.preprocessMemory))
     if options.preprocessDisk:
         s += '        disks: \"{}\"\n'.format(wdl_disk(options, 'preprocess')[0])
     if options.gpu:
@@ -767,7 +780,7 @@ def toil_call_preprocess(job, options, in_seq_file, out_seq_file, name):
 
     cmd = ['cactus-preprocess', os.path.join(work_dir, 'js'), '--inPaths', in_path,
            '--outPaths', out_name, '--workDir', work_dir,
-           '--maxCores', str(job.cores), '--maxDisk', str(job.disk), '--maxMemory', str(job.memory)] + options.cactusOptions.strip().split(' ')
+           '--maxCores', str(int(job.cores)), '--maxDisk', bytes2human(job.disk), '--maxMemory', bytes2human(job.memory)] + options.cactusOptions.strip().split(' ')
     
     cactus_call(parameters=cmd)
 
@@ -796,7 +809,7 @@ def wdl_task_blast(options):
     if options.blastCores:
         s += '        cpu: {}\n'.format(options.blastCores)
     if options.blastMemory:
-        s += '        memory: \"{}GB\"\n'.format(options.blastMemory)
+        s += '        memory: \"{}GB\"\n'.format(bytes2gigs(options.blastMemory))
     if options.blastDisk:
         s += '        disks: \"{}\"\n'.format(wdl_disk(options, 'blast')[0])    
     if options.gpu:
@@ -858,7 +871,7 @@ def toil_call_blast(job, options, seq_file, project, event, cigar_name, dep_name
             
     cactus_call(parameters=['cactus-blast', os.path.join(work_dir, 'js'), seq_file_path, os.path.join(work_dir, os.path.basename(cigar_name)),
                  '--root', event, '--pathOverrides'] + fa_paths+ ['--pathOverrideNames'] + dep_names +
-                ['--workDir', work_dir, '--maxCores', str(job.cores), '--maxDisk', str(job.disk), '--maxMemory', str(job.memory)] + options.cactusOptions.strip().split(' '))
+                ['--workDir', work_dir, '--maxCores', str(int(job.cores)), '--maxDisk', bytes2human(job.disk), '--maxMemory', bytes2human(job.memory)] + options.cactusOptions.strip().split(' '))
 
     # scrape the output files out of the workdir
     out_nameids = []
@@ -894,7 +907,7 @@ def wdl_task_align(options):
     if options.alignCores:
         s += '        cpu: {}\n'.format(options.alignCores)
     if options.alignMemory:
-        s += '        memory: \"{}GB\"\n'.format(options.alignMemory)
+        s += '        memory: \"{}GB\"\n'.format(bytes2gigs(options.alignMemory))
     if options.alignDisk:
         s += '        disks: \"{}\"\n'.format(wdl_disk(options, 'align')[0])
     s += '        zones: \"{}\"\n'.format(options.zone)
@@ -961,7 +974,7 @@ def toil_call_align(job, options, seq_file, project, event, cigar_name, hal_path
     cactus_call(parameters=['cactus-align', os.path.join(work_dir, 'js'), seq_file_path] + blast_files +
                 [out_hal_path, '--root', event,
                  '--pathOverrides'] + fa_paths + ['--pathOverrideNames'] + dep_names +
-                ['--workDir', work_dir, '--maxCores', str(job.cores), '--maxDisk', str(job.disk), '--maxMemory', str(job.memory)] + options.cactusOptions.strip().split(' '))
+                ['--workDir', work_dir, '--maxCores', str(int(job.cores)), '--maxDisk', bytes2human(job.disk), '--maxMemory', bytes2human(job.memory)] + options.cactusOptions.strip().split(' '))
 
     out_hal_id = job.fileStore.writeGlobalFile(out_hal_path)
 
@@ -995,7 +1008,7 @@ def wdl_task_hal_append(options):
     s += '        preemptible: {}\n'.format(options.halAppendPreemptible)
     s += '        cpu: 1\n'
     if options.alignMemory:
-        s+= '        memory: \"{}GB\"\n'.format(options.alignMemory)
+        s+= '        memory: \"{}GB\"\n'.format(bytes2gigs(options.alignMemory))
     if options.halAppendDisk:
         s += '        disks: \"{}\"\n'.format(wdl_disk(options, 'halAppend')[0])
     s += '        zones: \"{}\"\n'.format(options.zone)
