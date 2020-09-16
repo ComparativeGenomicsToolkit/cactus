@@ -236,6 +236,14 @@ If the workflow fails for whatever reason, it can be edited (to, say, increase j
 * Back in the Terra Workflows tab for the workflow, refresh the page, and select the new snapshot from the "Snapshots" menu.
 * Click the "Save" button, ensure that "Use call caching" is ticked, then "Run Analysis" again to resume the workflow.
 
+#### Running the step-by-step workflow direclty in Toil
+
+`cactus-prepare-toil` shares the interface of `cactus-prepare` except instead of printing the command lines or WDL script, it runs them directly from Toil.  An example use case of this is within UCSC's kubernetes cluster.  Like many computing environments, the number of jobs that can be scheduled is limited, so running `cactus` directly using Toil's `kubernetes` batch system will swamp the cluster.  But if the computation can be broken up into a handful of steps, and a job is only created for each step (as in the Cromwell/WDL method), then it can run through.  So `cactus-prepare-toil` will run as a high-level Toil workflow on the specified batch system, and it will launch jobs for each command (`cactus-preprocess, cactus-blast, cactus-align`), and each one of these jobs will get scheduled on a node and run its command with the `singleMachine` batch system.  Here is an example invocation for kubernetes:
+
+```
+cactus-prepare-toil aws:us-west-2:<JOBSTORE-NAME> examples/evolverMammals.txt --binariesMode singularity --batchSystem kubernetes --realTimeLogging --outHal s3://<BUCKET-NAME>/out.hal --defaultDisk 20G --defaultMemory 12G --defaultCores 4
+```
+
 ## GPU Acceleration
 
 A [GPU-accelerated version of lastz](https://github.com/ComparativeGenomicsToolkit/SegAlign) can be used in the `blast` phase to speed up the runtime considerably, provided the right hardware is available. The easiest way to use it is on Terra with `cactus-prepare --gpu --wdl` (see above example).  The [GPU-enabled Docker releases](https://github.com/ComparativeGenomicsToolkit/cactus/releases) have this turned on by default.  It is also possible to [manually install it](https://github.com/ComparativeGenomicsToolkit/SegAlign#-dependencies) from git and then enable it in `cactus` via the `--configFile` cactus option.  A template can be found [here](https://github.com/ComparativeGenomicsToolkit/cactus/blob/master/src/cactus/cactus_progressive_config.xml), and modified to activate the GPU by setting `gpuLastz="true"` and `realign="0"` in the `<caf>` section. 
