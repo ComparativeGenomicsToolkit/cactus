@@ -12,10 +12,10 @@ def paf_to_lastz(job, paf_file):
     secondary = list()
     other = list()
     
-    print("in paf_to_Lastz - looking for the cg tag.")
+    # print("in paf_to_Lastz - looking for the cg tag.")
     with open(job.fileStore.readGlobalFile(paf_file)) as inf:
         for line in inf:
-            print(line)
+            # print(line)
             if "tp:A:P" in line or "tp:A:I" in line:
                 #then the line is a primary output file.
                 primary.append(line)
@@ -39,9 +39,9 @@ def paf_to_lastz(job, paf_file):
                 subprocess.run(["paftools.js", "view", "-f", "lastz-cigar", sort_files[i]], stdout=outf, stderr=debugf)
             fix_negative_strand_mappings(paftool_files[i], job.fileStore.readGlobalFile(out_files[i]))
 
-    with open(stderr_debug) as debugf:
-        for line in debugf:
-            print("stderr_debug\t", line)
+    # with open(stderr_debug) as debugf:
+    #     for line in debugf:
+    #         print("stderr_debug\t", line)
 
             
     return out_files
