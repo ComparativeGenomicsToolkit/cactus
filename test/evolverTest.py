@@ -110,7 +110,7 @@ class TestCase(unittest.TestCase):
         out_dir = os.path.join(self.tempDir, 'output')
         in_seqfile = './examples/evolverMammals.txt'
         cmd = ['cactus-prepare-toil', self._job_store(name), in_seqfile, '--outDir', out_dir, '--outHal', self._out_hal(name),
-               "--defaultMemory", "16", "--defaultDisk", "20", "--alignCores", "4"]
+               "--defaultMemory", "16G", "--defaultDisk", "20G", "--alignCores", "4"]
         subprocess.check_call(cmd)
 
     def _run_evolver_decomposed_no_outgroup(self, binariesMode):
