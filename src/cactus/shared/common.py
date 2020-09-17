@@ -898,11 +898,14 @@ def maxMemUsageOfContainer(containerInfo):
 
 # send a time/date stamped message to the realtime logger, truncating it
 # if it's too long (so it's less likely to be dropped)
-def cactus_realtime_log_info(msg, max_len = 1000):
+def cactus_realtime_log(msg, max_len = 1000, log_debug=False):
     if len(msg) > max_len:
         msg = msg[:max_len-107] + " <...> " + msg[-100:]
-    RealtimeLogger.info("{}: {}".format(datetime.now(), msg))
-
+    if not log_debug:
+        RealtimeLogger.info("{}: {}".format(datetime.now(), msg))
+    else:
+        RealtimeLogger.debug("{}: {}".format(datetime.now(), msg))
+        
 def setupBinaries(options):
     """Ensure that Cactus's C/C++ components are ready to run, and set up the environment."""
     if options.latest:
@@ -1075,11 +1078,11 @@ def singularityCommand(tool=None,
             download_env['SINGULARITY_CACHEDIR'] = file_store.getLocalTempDir() if file_store else tempfile.mkdtemp(dir=work_dir)
             build_cmd = ['singularity', 'build', '-s', '-F', temp_sandbox_dirname, tool]
 
-            cactus_realtime_log_info("Running the command: \"{}\"".format(' '.join(build_cmd)))
+            cactus_realtime_log("Running the command: \"{}\"".format(' '.join(build_cmd)))
             start_time = time.time()
             subprocess.check_call(build_cmd, env=download_env)
             run_time = time.time() - start_time
-            cactus_realtime_log_info("Successfully ran the command: \"{}\" in {} seconds".format(' '.join(build_cmd), run_time))
+            cactus_realtime_log("Successfully ran the command: \"{}\" in {} seconds".format(' '.join(build_cmd), run_time))
 
             # Clean up the Singularity cache since it is single use
             shutil.rmtree(download_env['SINGULARITY_CACHEDIR'])
@@ -1250,7 +1253,7 @@ def cactus_call(tool=None,
         stdoutFileHandle = subprocess.PIPE
 
     _log.info("Running the command %s" % call)
-    cactus_realtime_log_info("Running the command: \"{}\"".format(' '.join(call)))
+    cactus_realtime_log("Running the command: \"{}\"".format(' '.join(call)), log_debug = 'ktremotemgr' in call)
     process = subprocess.Popen(call, shell=shell, encoding="ascii",
                                stdin=stdinFileHandle, stdout=stdoutFileHandle,
                                stderr=subprocess.PIPE if swallowStdErr else sys.stderr,
@@ -1289,7 +1292,8 @@ def cactus_call(tool=None,
 
     if process.returncode == 0:
         run_time = time.time() - start_time
-        cactus_realtime_log_info("Successfully ran the command: \"{}\" in {} seconds".format(' '.join(call), run_time))
+        cactus_realtime_log("Successfully ran the command: \"{}\" in {} seconds".format(' '.join(call), run_time),
+                            log_debug = 'ktremotemgr' in call)
 
     if check_result:
         return process.returncode

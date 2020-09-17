@@ -138,7 +138,7 @@ evolver_test: all
 	-docker rmi -f evolvertestdocker/cactus:latest
 	sed -i -e 's/FROM.*AS builder/FROM quay.io\/glennhickey\/cactus-ci-base:latest as builder/' Dockerfile
 	docker build --network=host -t evolvertestdocker/cactus:latest . --build-arg CACTUS_COMMIT=${git_commit}
-	PYTHONPATH="" CACTUS_DOCKER_ORG=evolvertestdocker ${PYTHON} -m pytest ${pytestOpts} test/evolverTest.py
+	PYTHONPATH="" CACTUS_DOCKER_ORG=evolvertestdocker CACTUS_USE_LATEST=1 ${PYTHON} -m pytest ${pytestOpts} test/evolverTest.py
 	docker rmi -f evolvertestdocker/cactus:latest
 
 evolver_test_local: all

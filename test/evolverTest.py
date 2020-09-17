@@ -102,6 +102,16 @@ class TestCase(unittest.TestCase):
         # fish the file out of cromwell
         shutil.copyfile(os.path.join(cw_output, os.path.basename(self._out_hal(name))), self._out_hal(name))
 
+    def _run_evolver_decomposed_toil(self, name, binariesMode):
+        """ Run the full evolver test, putting the jobstore and output in tempDir
+        but instead of doing with "cactus", use "cactus-prepare-toil" to run
+        the toil-in-toil workflow """
+
+        out_dir = os.path.join(self.tempDir, 'output')
+        in_seqfile = './examples/evolverMammals.txt'
+        cmd = ['cactus-prepare-toil', self._job_store(name), in_seqfile, '--outDir', out_dir, '--outHal', self._out_hal(name),
+               "--defaultMemory", "16G", "--defaultDisk", "20G", "--alignCores", "4"]
+        subprocess.check_call(cmd)
 
     def _run_evolver_decomposed_no_outgroup(self, binariesMode):
         """ Run just the mouse-rat alignment.  Inspired by issues arising here
@@ -258,6 +268,16 @@ class TestCase(unittest.TestCase):
         # check the output
         self._check_stats(self._out_hal("wdl"), delta_pct=0.25)
         self._check_coverage(self._out_hal("wdl"), delta_pct=0.20)
+
+    def testEvolverPrepareToil(self):
+
+        # run cactus step by step via toil in toil
+        name = "toil-in-toil"
+        self._run_evolver_decomposed_toil(name, "docker")
+
+        # check the output
+        self._check_stats(self._out_hal(name), delta_pct=0.25)
+        self._check_coverage(self._out_hal(name), delta_pct=0.20)                
 
     def testEvolverDecomposedLocal(self):
         """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode local is
