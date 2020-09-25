@@ -1,17 +1,41 @@
 #!/usr/bin/env python3
 
+"""Feature Wishlist
+Top priority:
+Internal contig name system (see prependUniqueIDs in cactus/src/cactus/pipeline/cactus_workflow.py, line 465)
+Called in line 529:
+    renamedInputSeqDir = fileStore.getLocalTempDir()
+    uniqueFas = prependUniqueIDs(sequences, renamedInputSeqDir)
+    uniqueFaIDs = [fileStore.writeGlobalFile(seq, cleanup=True) for seq in uniqueFas]
+
+    I'm currently calling prependUniqueIDs outside of the workflow/fileStore. I should
+        check to make sure that Cactus also ultimately exports the uniqueID files,
+        like I'm doing. Otherwise, I should delete the prepended IDs before finishing 
+        the pipeline.
+
+
+
+Implement options.pathOverrides
+Implement "Progressive Cactus Options" (see cactus_blast ArgumentParser)
+    This includes s3 compatibility, I think?
+logger.info timer (see line 91 of cactus_blast)
+
+    """
+
+
 from toil.common import Toil
 from toil.job import Job
 
 import subprocess
 import os
 from argparse import ArgumentParser
+import collections as col
 
 from cactus.reference_align import paf_to_lastz
 from cactus.reference_align import fasta_preprocessing
 
 from cactus.shared.common import makeURL
-
+from cactus.pipeline.cactus_workflow import prependUniqueIDs
 
 ## utilitary fxns:
 
@@ -75,7 +99,7 @@ def consolidate_mappings(job, mapping_files):
     return job.fileStore.writeGlobalFile(consolidated_mappings)
 
 def get_asms_from_seqfile(seqfile):
-    asm_files = dict()
+    asm_files = col.OrderedDict()
 
     with open(seqfile) as inf:
         #skip the Newick tree on the first line:
@@ -92,7 +116,7 @@ def get_asms_from_seqfile(seqfile):
 
     return asm_files
 
-def import_asms(options, workflow):
+def import_asms_non_blast_output(options, workflow):
     """Import asms; deduplicating contig ids if not --all_unique_ids
 
     Args:
@@ -131,6 +155,34 @@ def import_asms(options, workflow):
     # Import asms.
     for asm_id, asm in asms.items():
         asms[asm_id] = workflow.importFile('file://' + os.path.abspath(asm))
+
+    return asms
+
+def import_asms(options, workflow):
+    """Import asms; deduplicating contig ids if not --all_unique_ids
+
+    Args:
+        options ([type]):
+        workflow ([type]): [description]
+
+    Returns:
+        [type]: [description]
+    """
+    # asms is orderedDict of all asms (not counting reference) with key: asm_name, value: imported global toil file.
+
+    asms = get_asms_from_seqfile(options.seqFile)
+
+    # Prepend unique IDs.
+    uniqueFas = prependUniqueIDs(asms.values(), options.assembly_save_dir)
+
+    i = 0
+    for asm_id in asms.keys():
+        asms[asm_id] = uniqueFas[i]
+        i += 1
+        
+    # Import asms.
+    for asm_id, asm in asms.items():
+        asms[asm_id] = workflow.importFile(makeURL(asm))
 
     return asms
 
@@ -211,11 +263,16 @@ def get_options():
     # parser.add_argument('--secondary', default="secondary.cigar", type=str, 
     #                     help='Filename for where to write lastz cigar output for secondary mappings.')
                         
-    # options for importing assemblies:
+    ## options for importing assemblies:
+    # following arguments are only useful under --non_blast_output
+    parser.add_argument('--non_blast_output', action='store_true', 
+                    help="Instead of using cactus-blast-style prepended ids, use an alternative import method that only alters contig ids if absolutely necessary.")
     parser.add_argument('--all_unique_ids', action='store_true', 
-                        help="Don't clean the assembly files; the user promises that they don't contain any duplicate contig ids.")
+                        help="Prevents the program from touching the assembly files; the user promises that they don't contain any duplicate contig ids. In reality, there should never be contig renamings if there are no duplicate fasta ids.")
     parser.add_argument('--overwrite_assemblies', action='store_true', 
-                        help="When cleaning the assembly files to make sure there are no duplicate contig ids, don't overwrite the assembly files. Copy them to a neigboring folder with the affix '_edited_for_duplicate_contig_ids' instead.")
+                        help="When cleaning the assembly files to make sure there are no duplicate contig ids, overwrite the assembly files. Copy them to a neigboring folder with the affix '_edited_for_duplicate_contig_ids' instead.")
+
+    # Useful in normal asms import
     parser.add_argument('--assembly_save_dir', type=str, default='./unique_id_assemblies/',
                         help='While deduplicating contig ids in the input fastas, save the assemblies in this directory. Ignored when used in conjunction with --overwrite_assemblies.')
                         
@@ -232,8 +289,11 @@ def main():
 
     with Toil(options) as workflow:
         ## Preprocessing:
-        # Import asms; deduplicating contig ids if not --all_unique_ids
-        asms = import_asms(options, workflow)
+        # Import asms; by default, prepends unique IDs in the technique used in cactus-blast.
+        if options.non_blast_output:
+            asms = import_asms_non_blast_output(options, workflow)
+        else:
+            asms = import_asms(options, workflow)
             
         ## Perform alignments:
         if not workflow.options.restart:
