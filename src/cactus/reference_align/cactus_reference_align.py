@@ -172,6 +172,10 @@ def import_asms(options, workflow):
 
     asms = get_asms_from_seqfile(options.seqFile)
 
+    # first, ensure the new asm save location exists.
+    if not os.path.isdir(options.assembly_save_dir):
+        os.mkdir(options.assembly_save_dir)
+
     # Prepend unique IDs.
     uniqueFas = prependUniqueIDs(asms.values(), options.assembly_save_dir)
 
@@ -236,7 +240,7 @@ def map_a_to_b(job, a, b, dipcall_filter):
     map_to_ref_paf = job.fileStore.writeGlobalFile(tmp)
 
     if dipcall_filter:
-        subprocess.call(["minimap2", "-cx", "asm5", "-r2k", "-o", job.fileStore.readGlobalFile(map_to_ref_paf),
+        subprocess.call(["minimap2", "-c", "-xasm5", "--cs", "-r2k", "-o", job.fileStore.readGlobalFile(map_to_ref_paf),
                         job.fileStore.readGlobalFile(b), job.fileStore.readGlobalFile(a)])
     else:
         subprocess.call(["minimap2", "-cx", "asm5", "-o", job.fileStore.readGlobalFile(map_to_ref_paf),
@@ -308,7 +312,7 @@ def main():
             for asm, mapping_file in alignments[2].items():
                 workflow.exportFile(mapping_file, 'file://' + os.path.abspath("debug_" + asm + "_mapping_to_ref.txt"))
                 break
-            workflow.exportFile(alignments[3], 'file://' + os.path.abspath("debug_paf_mappings.txt"))
+            workflow.exportFile(alignments[3], 'file://' + os.path.abspath("debug_paf_mappings.paf"))
 
         ## Save alignments:
         if not options.dipcall_filter:
