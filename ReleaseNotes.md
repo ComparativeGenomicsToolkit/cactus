@@ -1,8 +1,12 @@
-# Release 1.2.2   ???
+# Release 1.2.2   2020-10-02
 
 - hal2vg updated to version 1.0.1
+- GPU lastz updated for more disk-efficient repeat masking and better error handling
+- Fixed memory in `cactus_convertAlignmentsToInternalNames`
+- CAF fixes targeted towards pangenome construction
 
 hal2vg version included: [v1.0.1](https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.1/hal2vg)
+GPU Lastz version used in GPU-enabled Docker image: [8b63a0fe1c06b3511dfc4660bd0f9fb7ad7176e7](https://github.com/ComparativeGenomicsToolkit/SegAlign/commit/8b63a0fe1c06b3511dfc4660bd0f9fb7ad7176e7)
 
 # Release 1.2.1   2020-08-31
 
