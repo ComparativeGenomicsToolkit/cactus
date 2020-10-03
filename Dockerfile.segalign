@@ -33,7 +33,7 @@ RUN apt-get -qq -y update && \
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # copy the tbb shared library
-COPY --from=builder /WGA_GPU/build/tbb_cmake_build/tbb_cmake_build_subdir_release/lib* /usr/local/lib/
+COPY --from=builder /WGA_GPU/tbb*/lib/intel64/gcc*/lib* /usr/local/lib/
 
 # add the library path
 ENV LD_LIBRARY_PATH="/usr/local/lib/:${LD_LIBRARY_PATH}"
