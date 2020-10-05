@@ -9,8 +9,9 @@ def paf_to_lastz(job, paf_file):
     in the output, one for the primary and the other for secondary.
     """
     primary = list()
+    primary_mapqs = list()
     secondary = list()
-    other = list()
+    secondary_mapqs = list()
     
     # print("in paf_to_Lastz - looking for the cg tag.")
     with open(job.fileStore.readGlobalFile(paf_file)) as inf:
@@ -19,15 +20,19 @@ def paf_to_lastz(job, paf_file):
             if "tp:A:P" in line or "tp:A:I" in line:
                 #then the line is a primary output file.
                 primary.append(line)
+                primary_mapqs.append(line.split()[11])
             # elif "tp:A:S" in line:
             else:
                 #then the line is a secondary output file.
                 secondary.append(line)
+                secondary_mapqs.append(line.split()[11])
 
     # write output to files; convert to lastz:
     lines = [primary, secondary]
+    mapqs = [primary_mapqs, secondary_mapqs]
     sort_files = [job.fileStore.getLocalTempFile() for i in range(len(lines))]
     paftool_files = [job.fileStore.getLocalTempFile() for i in range(len(lines))]
+    fixed_paftool_files = [job.fileStore.getLocalTempFile() for i in range(len(lines))]
     out_files = [job.fileStore.writeGlobalFile(job.fileStore.getLocalTempFile()) for i in range(len(lines))]
 
     stderr_debug = job.fileStore.getLocalTempFile()
@@ -37,7 +42,21 @@ def paf_to_lastz(job, paf_file):
                 sortf.writelines(lines[i])
             with open(paftool_files[i], "w") as outf:
                 subprocess.run(["paftools.js", "view", "-f", "lastz-cigar", sort_files[i]], stdout=outf, stderr=debugf)
-            fix_negative_strand_mappings(paftool_files[i], job.fileStore.readGlobalFile(out_files[i]))
+            fix_negative_strand_mappings(paftool_files[i], fixed_paftool_files[i])
+            add_original_mapqs( mapqs[i], fixed_paftool_files[i], job.fileStore.readGlobalFile(out_files[i]))
+
+    
+    # check that the lines going into paftools.js are in same order as lines going out.
+    with open(job.fileStore.readGlobalFile(out_files[0])) as inf:
+        i = 0
+        for line in inf:
+            #comparing primary from paf to final lastz output.
+            paf_parsed = lines[0][i].split()
+            lastz_parsed = line.split()
+            if (lastz_parsed[3] == "+" and paf_parsed[2] != lastz_parsed[1]) or (lastz_parsed[3] == "-" and paf_parsed[2] != lastz_parsed[2]):
+                # print("Lines differ between paf and paftools.js lastz output! paf line: " + lines[0][i] + " lastz line " + line)
+                raise ValueError("Lines differ between paf and paftools.js lastz output! paf line: " + lines[0][i] + " lastz line " + line)
+            i += 1
 
     # with open(stderr_debug) as debugf:
     #     for line in debugf:
@@ -45,6 +64,23 @@ def paf_to_lastz(job, paf_file):
 
             
     return out_files
+
+def add_original_mapqs(mapqs, infile, outfile):
+    """
+    paftools.js uses "raw mapping score" instead of mapq. This replaces those fields with mapq again.
+    """
+    with open (outfile, "w") as outf:
+        with open(infile) as inf:
+            i = 0
+            for line in inf:
+                # this code assumes that paftools.js never drops any mappings (or reorder them) from paf when converting to lastz. Preliminary investigation suggests this is the case. Hopefully that's true. 
+                parsed = line.split()
+                parsed[9] = mapqs[i]
+                i += 1
+                outf.write(" ".join(parsed) + "\n")
+    if len(mapqs) != i:
+        raise ValueError("len(mapqs) != len(lines). Conversion from paf to lastz caused some lines to drop from alignment. len(mapqs): " + str(len(mapqs)) + " len(lines): " + str(len(lines)))
+
 
 def fix_negative_strand_mappings(infile, outfile):
     """

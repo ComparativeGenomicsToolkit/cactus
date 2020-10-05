@@ -33,38 +33,12 @@ import collections as col
 
 from cactus.reference_align import paf_to_lastz
 from cactus.reference_align import fasta_preprocessing
+from cactus.reference_align import apply_dipcall_bed_filter
 
 from cactus.shared.common import makeURL
 from cactus.pipeline.cactus_workflow import prependUniqueIDs
 
 ## utilitary fxns:
-
-def apply_dipcall_flt(job, infile, min_var_len=50000, min_mapq=5):
-    """Filters out all mappings below min_var_len and min_mapq.
-    NOTE: Assumes all secondary mappings are already removed. 
-    Also: lastz cigars need to have <score> field filled with mapq, not raw score.
-    Args:
-        infile (lastz cigar format): [description]
-        outfile ([type]): [description]
-        min_var_len ([type]): [description]
-        min_mapq ([type]): [description]
-    """
-    # debug = 0
-    with open(job.fileStore.readGlobalFile(infile)) as inf:
-        filtered = job.fileStore.getLocalTempFile()
-        with open(filtered, "w+") as outf:
-            for line in inf:
-                parsed = line.split()
-                # print(parsed, "\t", variation_length(parsed[10:]), "\t", parsed[9])
-                # debug += 1
-                # if debug == 2:
-                #     break
-                # if (parsed[3] - parsed[2]) >= min_var_len: This measures the length of the SV from the query point of view. Dipcall also includes deletions in measuring variation length.
-                if variation_length(parsed[10:]) >= min_var_len:
-                    if int(parsed[9]) >= min_mapq:
-                        outf.write(line)
-
-    return job.fileStore.writeGlobalFile(filtered)
 
 def variation_length(lastz_cig_list):
     # 0, 2, 4,... are the type of variation.
@@ -196,9 +170,56 @@ def empty(job):
     """
     return
 
+## dipcall filter functions
+
+def apply_dipcall_vcf_filter(job, infile, min_var_len=50000, min_mapq=5):
+    """Filters out all mappings below min_var_len and min_mapq.
+    NOTE: Assumes all secondary mappings are already removed. 
+    Also: lastz cigars need to have <score> field filled with mapq, not raw score.
+    Args:
+        infile (lastz cigar format): [description]
+        outfile ([type]): [description]
+        min_var_len ([type]): [description]
+        min_mapq ([type]): [description]
+    """
+    # debug = 0
+    with open(job.fileStore.readGlobalFile(infile)) as inf:
+        filtered = job.fileStore.getLocalTempFile()
+        with open(filtered, "w+") as outf:
+            for line in inf:
+                parsed = line.split()
+                # print(parsed, "\t", variation_length(parsed[10:]), "\t", parsed[9])
+                # debug += 1
+                # if debug == 2:
+                #     break
+                # if (parsed[3] - parsed[2]) >= min_var_len: This measures the length of the SV from the query point of view. Dipcall also includes deletions in measuring variation length.
+                if variation_length(parsed[10:]) >= min_var_len:
+                    if int(parsed[9]) >= min_mapq:
+                        outf.write(line)
+
+    return job.fileStore.writeGlobalFile(filtered)
+
+def filter_out_secondaries_from_paf(job, paf):
+    # secondary_paf = job.fileStore.getLocalTempFile()
+    primary_paf = job.fileStore.getLocalTempFile()
+    # with open(secondary_paf, "w") as secondary_outf:
+    with open(primary_paf, "w") as outf:
+        with open(job.fileStore.readGlobalFile(paf)) as inf:
+            for line in inf:
+                parsed = line.split()
+                for i in parsed[11:]:
+                    if i[:6] == "tp:A:P" or i[:6] == "tp:A:I":
+                        outf.write(line)
+                        break
+                    # elif i[:5] == "tp:A:S":
+                    #     secondary_outf.write(line)
+        
+    return job.fileStore.writeGlobalFile(primary_paf)
+    # return (job.fileStore.writeGlobalFile(primary_paf), job.fileStore.writeGlobalFile(secondary_paf))
+
 ## mapping fxns:
 
-def map_all_to_ref(job, assembly_files, reference, debug_export, dipcall_filter=False):
+def map_all_to_ref(job, assembly_files, reference, debug_export, dipcall_bed_filter=False, dipcall_vcf_filter=False):
     """
     Primarily for use with option_all_to_ref_only. Otherwise, use map_all_to_ref_and_get_poor_mappings.
     """
@@ -206,23 +227,45 @@ def map_all_to_ref(job, assembly_files, reference, debug_export, dipcall_filter=
 
     # map all assemblies to the reference. Don't map reference to reference, though.
     ref_mappings = dict()
+    secondary_mappings = dict()
+    primary_mappings = dict()
     for assembly, assembly_file in assembly_files.items():
         if assembly != reference:
-            ref_mappings[assembly] = lead_job.addChildJobFn(map_a_to_b, assembly_file, assembly_files[reference], dipcall_filter).rv()
-    
-    consolidate_job = lead_job.addFollowOnJobFn(consolidate_mappings, ref_mappings)
-    paf_mappings = consolidate_job.rv()
+            # map to a to b
+            map_job = lead_job.addChildJobFn(map_a_to_b, assembly_file, assembly_files[reference], (dipcall_bed_filter or dipcall_vcf_filter))
+            ref_mappings[assembly] = map_job.rv()
 
-    conversion_job = consolidate_job.addFollowOnJobFn(paf_to_lastz.paf_to_lastz, paf_mappings)
-    lastz_mappings = conversion_job.rv()
+            # if dipcall_bed_filter:
+            #     secondaries_filter_job = map_job.addFollowOnJobFn(filter_out_secondaries_from_paf, ref_mappings[assembly])
+            #     primary_paf = secondaries_filter_job.rv()
 
-    primary_mappings = conversion_job.addChildJobFn(unpack_promise, lastz_mappings, 0).rv()
-    secondary_mappings = conversion_job.addChildJobFn(unpack_promise, lastz_mappings, 1).rv()
+            #     dipcall_bed_filter_job = secondaries_filter_job.addFollowOnJobFn(apply_dipcall_bed_filter.apply_dipcall_bed_filter, primary_paf)
+            #     primary_mappings[assembly] = dipcall_bed_filter_job.rv()
+            if dipcall_bed_filter:
+                secondaries_filter_job = map_job.addFollowOnJobFn(filter_out_secondaries_from_paf, ref_mappings[assembly])
+                primary_paf = secondaries_filter_job.rv()
 
+                dipcall_bed_filter_job = secondaries_filter_job.addFollowOnJobFn(apply_dipcall_bed_filter.apply_dipcall_bed_filter, primary_paf)
+                bed_filtered_primary_mappings = dipcall_bed_filter_job.rv()
+
+                conversion_job = dipcall_bed_filter_job.addFollowOnJobFn(paf_to_lastz.paf_to_lastz, bed_filtered_primary_mappings)
+                lastz_mappings = conversion_job.rv()
+            else:
+                # convert mapping to lastz (and filter into primary and secondary mappings)
+                conversion_job = map_job.addFollowOnJobFn(paf_to_lastz.paf_to_lastz, paf_mappings)
+                lastz_mappings = conversion_job.rv()
+
+            # extract the primary and secondary mappings.
+            primary_mappings[assembly] = conversion_job.addFollowOnJobFn(unpack_promise, lastz_mappings, 0).rv()
+            secondary_mappings[assembly] = conversion_job.addFollowOnJobFn(unpack_promise, lastz_mappings, 1).rv()
+
+    # consolidate the primary mappings into a single file; same for secondary mappings.
+    all_primary = lead_job.addFollowOnJobFn(consolidate_mappings, primary_mappings).rv()
+    all_secondary = lead_job.addFollowOnJobFn(consolidate_mappings, secondary_mappings).rv()
     if debug_export:
-        return (primary_mappings, secondary_mappings, ref_mappings, paf_mappings )
+        return (all_primary, all_secondary, ref_mappings, primary_mappings, secondary_mappings)
     else:
-        return (primary_mappings, secondary_mappings)
+        return (all_primary, all_secondary)
 
 def map_a_to_b(job, a, b, dipcall_filter):
     """Maps fasta a to fasta b.
@@ -240,6 +283,9 @@ def map_a_to_b(job, a, b, dipcall_filter):
     map_to_ref_paf = job.fileStore.writeGlobalFile(tmp)
 
     if dipcall_filter:
+        # note: in dipcall, they include argument "--paf-no-hit". 
+        # I don't see why they would include these "mappings", only to be filtered out 
+        # later. I have not included the argument.
         subprocess.call(["minimap2", "-c", "-xasm5", "--cs", "-r2k", "-o", job.fileStore.readGlobalFile(map_to_ref_paf),
                         job.fileStore.readGlobalFile(b), job.fileStore.readGlobalFile(a)])
     else:
@@ -256,14 +302,21 @@ def get_options():
     parser = ArgumentParser()
     Job.Runner.addToilOptions(parser)
     
+    # ### For quick debugging of apply_dipcall_bed_filter:
+    # parser.add_argument('paf', type=str,
+    #                     help='For quick debugging of apply_dipcall_bed_filter.')
+
+    
     # options for basic input/output
     parser.add_argument('seqFile', type=str,
                         help='A file containing all the information specified by cactus in construction. This aligner ignores the newick tree.')
     parser.add_argument('refID', type=str, 
                         help='Specifies which asm in seqFile should be treated as the reference.')
     parser.add_argument("outputFile", type=str, help = "Output pairwise alignment file")
-    parser.add_argument('--dipcall_filter', action='store_true', 
-                        help="Applies filters & minimap2 arguments used in dipcall. Only affects the primary mappings file. Secondary mappings aren't used in dipcall.")
+    parser.add_argument('--dipcall_bed_filter', action='store_true', 
+                        help="Applies filters & minimap2 arguments used to make the bedfile in dipcall. Only affects the primary mappings file. Secondary mappings aren't used in dipcall.")
+    parser.add_argument('--dipcall_vcf_filter', action='store_true', 
+                        help="Applies filters & minimap2 arguments used to make the vcf in dipcall. Only affects the primary mappings file. Secondary mappings aren't used in dipcall.")
     # parser.add_argument('--secondary', default="secondary.cigar", type=str, 
     #                     help='Filename for where to write lastz cigar output for secondary mappings.')
                         
@@ -283,7 +336,8 @@ def get_options():
     # for debugging:
     parser.add_argument('--debug_export', action='store_true',
                         help='Export several other files for debugging inspection.')
-
+    parser.add_argument('--debug_export_dir', type=str, default='./debug_export_dir/',
+                        help='Location of the exported debug files.')
 
     options = parser.parse_args()
     return options
@@ -292,6 +346,13 @@ def main():
     options = get_options()
 
     with Toil(options) as workflow:
+        ### For quick debugging of apply_dipcall_bed_filter:
+        # paf = workflow.importFile('file://' + os.path.abspath(options.paf))
+        # alignments = workflow.start(Job.wrapJobFn(apply_dipcall_bed_filter.apply_dipcall_bed_filter, paf))
+        # workflow.exportFile(alignments, makeURL(options.paf + ".bed_filtered"))
+
+
+
         ## Preprocessing:
         # Import asms; by default, prepends unique IDs in the technique used in cactus-blast.
         if options.non_blast_output:
@@ -301,31 +362,33 @@ def main():
             
         ## Perform alignments:
         if not workflow.options.restart:
-            alignments = workflow.start(Job.wrapJobFn(map_all_to_ref, asms, options.refID, options.debug_export, options.dipcall_filter))
+            alignments = workflow.start(Job.wrapJobFn(map_all_to_ref, asms, options.refID, options.debug_export, options.dipcall_bed_filter, options.dipcall_vcf_filter))
 
         else:
             alignments = workflow.restart()
 
         if options.debug_export:
+            # first, ensure the debug dir exists.
+            if not os.path.isdir(options.debug_export_dir):
+                os.mkdir(options.debug_export_dir)
+            
             print(alignments)
-            # Then return value is: (primary_mappings, secondary_mappings, ref_mappings, paf_mappings )
+            # Then return value is: (all_primary, all_secondary, ref_mappings, primary_mappings, secondary_mappings)
             for asm, mapping_file in alignments[2].items():
-                workflow.exportFile(mapping_file, 'file://' + os.path.abspath("debug_" + asm + "_mapping_to_ref.txt"))
-                break
-            workflow.exportFile(alignments[3], 'file://' + os.path.abspath("debug_paf_mappings.paf"))
+                workflow.exportFile(mapping_file, 'file://' + os.path.abspath("mappings_for_" + asm + ".paf"))
+            for asm, mapping_file in alignments[3].items():
+                workflow.exportFile(mapping_file, 'file://' + os.path.abspath("mappings_for_" + asm + ".cigar"))
+            for asm, mapping_file in alignments[4].items():
+                workflow.exportFile(mapping_file, 'file://' + os.path.abspath("mappings_for_" + asm + ".cigar.secondry"))
 
         ## Save alignments:
-        if not options.dipcall_filter:
-            workflow.exportFile(alignments[0], makeURL(options.outputFile))
-            workflow.exportFile(alignments[1], makeURL(options.outputFile + ".secondary"))
-        else:
-            dipcall_filtered = workflow.start(Job.wrapJobFn(apply_dipcall_flt, alignments[0]))
+        if options.dipcall_vcf_filter:
+            dipcall_filtered = workflow.start(Job.wrapJobFn(apply_dipcall_vcf_filter, alignments[0]))
             workflow.exportFile(dipcall_filtered, makeURL(options.outputFile))
             workflow.exportFile(alignments[1], makeURL(options.outputFile + ".secondary"))
-
-        
-        # workflow.exportFile(alignments[0], 'file://' + os.path.abspath(options.primary))
-        # workflow.exportFile(alignments[1], 'file://' + os.path.abspath(options.secondary))
+        else:
+            workflow.exportFile(alignments[0], makeURL(options.outputFile))
+            workflow.exportFile(alignments[1], makeURL(options.outputFile + ".secondary"))
 
 if __name__ == "__main__":
     main()
