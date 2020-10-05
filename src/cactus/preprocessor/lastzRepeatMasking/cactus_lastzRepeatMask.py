@@ -163,7 +163,10 @@ class LastzRepeatMaskJob(RoundedJob):
 
         # the previous lastz command outputs a file of intervals (denoted with indices) to softmask.
         # we finish by applying these intervals to the input file, to produce the final, softmasked output.
-        args = ["--origin=one"]
+        if self.repeatMaskOptions.gpuLastz:
+            args = ["--origin=zero"]
+        else:
+            args = ["--origin=one"]
         if self.repeatMaskOptions.unmaskOutput:
             args.append("--unmask")
         args.append(maskInfo)
