@@ -1403,8 +1403,17 @@ class ChildTreeJob(RoundedJob):
         self.queuedChildJobs.append(job)
         return job
 
-    def _run(self, jobGraph, fileStore):
-        ret = super(ChildTreeJob, self)._run(jobGraph, fileStore)
+    def _run(self, *args, **kwargs):
+        # We really shouldn't be overriding _run, but we need to to hook in
+        # some code after the derived class's run() but before it saves all its
+        # child relationships. So we handle our arguments with tweezers,
+        # because they could be anything.
+
+        # Pass them along to the real _run, which will call back to our derived
+        # class's run()
+        ret = super(ChildTreeJob, self)._run(*args, **kwargs)
+
+        # Now we can do our actual work.
         if len(self.queuedChildJobs) <= self.maxChildrenPerJob:
             # The number of children is small enough that we can just
             # add them directly.
