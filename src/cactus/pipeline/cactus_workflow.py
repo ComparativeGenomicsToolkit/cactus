@@ -152,9 +152,18 @@ class CactusJob(RoundedJob):
         return getOptionalAttrib(node=self.jobNode, attribName=attribName, typeFn=typeFn, default=default)
 
     def addService(self, job):
-        """Works around toil issue #1695, returning a Job rather than a Promise."""
-        super(CactusJob, self).addService(job)
-        return self._services[-1]
+        """Works around toil issue #1695, returning something we can index for multiple return values."""
+        rv = super(CactusJob, self).addService(job)
+        if hasattr(rv, '__getitem__'):
+            # New Toil. Promise we got is indexable for more sub-Promises.
+            # Return the indexable root return value promise, from which
+            # promises for different indexes can be obtained.
+            return rv
+        else:
+            # Running on old Toil. Return the whole service host job so we can
+            # get more Promises out of it. TODO: Remove this when everyone has
+            # upgraded Toil.
+            return self._services[-1]
 
 class CactusPhasesJob(CactusJob):
     """Base job for each workflow phase job.
@@ -186,7 +195,13 @@ class CactusPhasesJob(CactusJob):
             memory = max(2500000000, self.evaluateResourcePoly([4.10201882, 2.01324291e+08]))
             cpu = cw.getKtserverCpu(default=0.1)
             dbElem = ExperimentWrapper(self.cactusWorkflowArguments.scratchDbElemNode)
-            dbString = self.addService(KtServerService(dbElem=dbElem, isSecondary=True, memory=memory, cores=cpu)).rv(0)
+            dbRet = self.addService(KtServerService(dbElem=dbElem, isSecondary=True, memory=memory, cores=cpu))
+            if hasattr(dbRet, '__getitem__'):
+                # New Toil: indexable promise
+                dbString = dbRet[0]
+            else:
+                # Old Toil: we have a whole service host job
+                dbString = dbRet.rv(0)
             newChild.phaseNode.attrib["secondaryDatabaseString"] = dbString
             return self.addChild(newChild).rv()
         else:
@@ -274,12 +289,18 @@ class StartPrimaryDB(CactusPhasesJob):
             memory = max(2500000000, self.evaluateResourcePoly([4.10201882, 2.01324291e+08]))
             cores = cw.getKtserverCpu(default=0.1)
             dbElem = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
-            service = self.addService(KtServerService(dbElem=dbElem,
-                                                      existingSnapshotID=self.ktServerDump,
-                                                      isSecondary=False,
-                                                      memory=memory, cores=cores))
-            dbString = service.rv(0)
-            snapshotID = service.rv(1)
+            dbRet = self.addService(KtServerService(dbElem=dbElem,
+                                                    existingSnapshotID=self.ktServerDump,
+                                                    isSecondary=False,
+                                                    memory=memory, cores=cores))
+            if hasattr(dbRet, '__getitem__'):
+                # New Toil: indexable promise
+                dbString = dbRet[0]
+                snapshotID = dbRet[1]
+            else:
+                # Old Toil with hack: entire service host job
+                dbString = dbRet.rv(0)
+                snapshotID = dbRet.rv(1)
             self.nextJob.cactusWorkflowArguments.cactusDiskDatabaseString = dbString
             # TODO: This part needs to be cleaned up
             self.nextJob.cactusWorkflowArguments.snapshotID = snapshotID
