@@ -2,11 +2,11 @@ rootPath = .
 
 include ${rootPath}/include.mk
 
-modules = api setup blastLib caf bar blast normalisation hal phylogeny reference faces check pipeline preprocessor hal dbTest
+modules = api setup blastLib caf bar blast normalisation hal phylogeny reference faces check pipeline preprocessor dbTest
 
 # submodules are in multiple pass to handle dependencies cactus2hal being dependent on
 # both cactus and sonLib
-submodules1 = kyoto sonLib cPecan hal matchingAndOrdering pinchesAndCacti
+submodules1 = kyoto sonLib cPecan hal matchingAndOrdering pinchesAndCacti abPOA
 submodules2 = cactus2hal
 submodules = ${submodules1} ${submodules2}
 
@@ -189,6 +189,11 @@ suball.hal: suball.sonLib
 	mkdir -p bin
 	-ln -f submodules/hal/bin/* bin/
 	-ln -f submodules/hal/lib/libHal.a submodules/hal/lib/halLib.a
+
+suball.abPOA:
+	cd submodules/abPOA && ${MAKE}
+	ln -f submodules/abPOA/lib/*.a ${LIBDIR}
+	ln -f submodules/abPOA/include/*.h ${INCLDIR}
 
 subclean.%:
 	cd submodules/$* && ${MAKE} clean
