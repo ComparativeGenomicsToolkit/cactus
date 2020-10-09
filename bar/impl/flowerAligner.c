@@ -523,7 +523,8 @@ static stSortedSet *getEndsToAlign(Flower *flower, int64_t maxSequenceLength) {
 
 static void computeMissingEndAlignments(StateMachine *sM, Flower *flower, stHash *endAlignments, int64_t spanningTrees,
         int64_t maxSequenceLength, bool useProgressiveMerging, float gapGamma,
-        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
+        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters,
+        bool poa) {
     /*
      * Creates end alignments for the ends that
      * do not have an alignment in the "endAlignments" hash, only creating
@@ -541,7 +542,7 @@ static void computeMissingEndAlignments(StateMachine *sM, Flower *flower, stHash
                         end,
                         makeEndAlignment(sM, end, spanningTrees, maxSequenceLength,
                                 useProgressiveMerging, gapGamma,
-                                pairwiseAlignmentBandingParameters));
+                                pairwiseAlignmentBandingParameters, poa));
             } else {
                 stHash_insert(endAlignments, end, stSortedSet_construct());
             }
@@ -553,10 +554,10 @@ static void computeMissingEndAlignments(StateMachine *sM, Flower *flower, stHash
 
 stSortedSet *makeFlowerAlignment(StateMachine *sM, Flower *flower, int64_t spanningTrees, int64_t maxSequenceLength,
         bool useProgressiveMerging, float gapGamma,
-        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, bool pruneOutStubAlignments) {
+        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, bool pruneOutStubAlignments, bool poa) {
     stHash *endAlignments = stHash_construct2(NULL, (void(*)(void *)) stSortedSet_destruct);
     computeMissingEndAlignments(sM, flower, endAlignments, spanningTrees, maxSequenceLength,
-            useProgressiveMerging, gapGamma, pairwiseAlignmentBandingParameters);
+            useProgressiveMerging, gapGamma, pairwiseAlignmentBandingParameters, poa);
     return makeFlowerAlignment2(flower, endAlignments, pruneOutStubAlignments);
 }
 
@@ -578,13 +579,13 @@ static void loadEndAlignments(Flower *flower, stHash *endAlignments, stList *lis
 
 stSortedSet *makeFlowerAlignment3(StateMachine *sM, Flower *flower, stList *listOfEndAlignmentFiles, int64_t spanningTrees,
         int64_t maxSequenceLength, bool useProgressiveMerging, float gapGamma,
-        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, bool pruneOutStubAlignments) {
+        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, bool pruneOutStubAlignments, bool poa) {
     stHash *endAlignments = stHash_construct2(NULL, (void(*)(void *)) stSortedSet_destruct);
     if(listOfEndAlignmentFiles != NULL) {
         loadEndAlignments(flower, endAlignments, listOfEndAlignmentFiles);
     }
     computeMissingEndAlignments(sM, flower, endAlignments, spanningTrees, maxSequenceLength,
-            useProgressiveMerging, gapGamma, pairwiseAlignmentBandingParameters);
+            useProgressiveMerging, gapGamma, pairwiseAlignmentBandingParameters, poa);
     return makeFlowerAlignment2(flower, endAlignments, pruneOutStubAlignments);
 }
 

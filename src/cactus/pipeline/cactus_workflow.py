@@ -875,7 +875,8 @@ def runBarForJob(self, fileStore=None, features=None, calculateWhichEndsToComput
                  ingroupCoverageFile=self.cactusWorkflowArguments.ingroupCoverageID if self.getOptionalPhaseAttrib("rescue", bool) else None,
                  minimumSizeToRescue=self.getOptionalPhaseAttrib("minimumSizeToRescue"),
                  minimumCoverageToRescue=self.getOptionalPhaseAttrib("minimumCoverageToRescue"),
-                 minimumNumberOfSpecies=self.getOptionalPhaseAttrib("minimumNumberOfSpecies", int))
+                 minimumNumberOfSpecies=self.getOptionalPhaseAttrib("minimumNumberOfSpecies", int),
+                 partialOrderAlignment=self.getOptionalPhaseAttrib("partialOrderAlignment", bool))
 
 class CactusBarWrapper(CactusRecursionJob):
     """Runs the BAR algorithm implementation.
