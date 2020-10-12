@@ -124,6 +124,9 @@ MultipleAlignment *makePartialOrderAlignment(StateMachine *sM, stList *seqFrags,
     free(seq_lens);
     abpoa_free(ab, abpt);
     abpoa_free_para(abpt); 
+
+    // in debug mode, cactus uses the dreaded -Wall -Werror combo.  This line is a hack to allow compilition with these flags
+    if (false) SIMDMalloc(0, 0);
     
     return mA;
 }
