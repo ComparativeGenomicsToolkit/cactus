@@ -12,7 +12,15 @@
 #include "poaAligner.h"
 #include "adjacencySequences.h"
 #include "pairwiseAligner.h"
+#include "sonLib.h"
+#include "stPosetAlignment.h"
+#include "pairwiseAligner.h"
+#include <stdlib.h>
+#include <math.h>
+#include "stGraph.h"
+#include <inttypes.h>
 
+// char <--> uint8_t conversion copied over from abPOA example
 // AaCcGgTtNn ==> 0,1,2,3,4
 static unsigned char nst_nt4_table[256] = {
     4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4, 
@@ -33,9 +41,15 @@ static unsigned char nst_nt4_table[256] = {
     4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4
 };
 
+static inline char toBase(uint8_t n) {
+    return "ACGTN-"[n];
+}
+
+static inline uint8_t toByte(char c) {
+    return nst_nt4_table[(int)c];
+}
+
 MultipleAlignment *makePartialOrderAlignment(StateMachine *sM, stList *seqFrags,
-                                             int64_t spanningTrees, int64_t maxPairsToConsider,
-                                             bool useProgressiveMerging,
                                              float matchGamma,
                                              PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
 
@@ -51,12 +65,11 @@ MultipleAlignment *makePartialOrderAlignment(StateMachine *sM, stList *seqFrags,
     int i = 0;
     int j = 0;    
     while ((frag = stList_getNext(it)) != NULL) {
-        fprintf(stderr, "frag = %s\n", frag->seq);
         seq_lens[i] = frag->length;
         bseqs[i] = (uint8_t*)malloc(sizeof(uint8_t) * frag->length);
         for (j = 0; j < frag->length; ++j) {
-            // todo: support iupac characters!
-            bseqs[i][j] = nst_nt4_table[(int)frag->seq[j]];
+            // todo: support iupac characters?
+            bseqs[i][j] = toByte(frag->seq[j]);
         }
         ++i;
     }
@@ -64,6 +77,8 @@ MultipleAlignment *makePartialOrderAlignment(StateMachine *sM, stList *seqFrags,
     // initialize variables
     abpoa_t *ab = abpoa_init();
     abpoa_para_t *abpt = abpoa_init_para();
+
+    // todo: try to convert pecan parameters into the abpoa scores
 
     // alignment parameters
     // abpt->align_mode = 0; // 0:global alignment, 1:extension
@@ -84,38 +99,22 @@ MultipleAlignment *makePartialOrderAlignment(StateMachine *sM, stList *seqFrags,
 
     abpoa_post_set_para(abpt);
 
-    // variables to store result
-    uint8_t **cons_seq; int **cons_cov, *cons_l, cons_n=0;
+    // variables to store resulting MSA;
     uint8_t **msa_seq; int msa_l=0;
 
     // perform abpoa-msa
-    abpoa_msa(ab, abpt, n_seqs, NULL, seq_lens, bseqs, NULL, &cons_seq, &cons_cov, &cons_l, &cons_n, &msa_seq, &msa_l);
-
-    // print
-    fprintf(stdout, "=== output to variables ===\n");
-    for (i = 0; i < cons_n; ++i) {
-        fprintf(stdout, ">Consensus_sequence\n");
-        for (j = 0; j < cons_l[i]; ++j)
-            fprintf(stdout, "%c", "ACGTN"[cons_seq[i][j]]);
-        fprintf(stdout, "\n");
-    }
+    abpoa_msa(ab, abpt, n_seqs, NULL, seq_lens, bseqs, NULL, NULL, NULL, NULL, NULL, &msa_seq, &msa_l);
 
     // todo: score
-    MultipleAlignment* mA = poaMatrixToMultipleAlignment(msa_seq, n_seqs, msa_l, 0, seqFrags);
+    MultipleAlignment *mA = st_calloc(1, sizeof(MultipleAlignment));
+            
+    mA->alignedPairs = poaMatrixToAlignedPairs(msa_seq, n_seqs, msa_l, 0, seqFrags);
         
     // clean up
-    if (cons_n) {
-        for (i = 0; i < cons_n; ++i) {
-            free(cons_seq[i]); free(cons_cov[i]);
-        }
-        free(cons_seq); free(cons_cov); free(cons_l);
+    for (i = 0; i < n_seqs; ++i) {
+      free(msa_seq[i]);
     }
-    if (msa_l) {
-        for (i = 0; i < n_seqs; ++i) {
-            free(msa_seq[i]);
-        }
-        free(msa_seq);
-    }
+    free(msa_seq);
 
     for (i = 0; i < n_seqs; ++i) {
         free(bseqs[i]);
@@ -129,11 +128,7 @@ MultipleAlignment *makePartialOrderAlignment(StateMachine *sM, stList *seqFrags,
     return mA;
 }
 
-static inline char toBase(uint8_t n) {
-    return "ACGTN-"[n];
-}
-
-MultipleAlignment *poaMatrixToMultipleAlignment(uint8_t** msaSeq, int numSeqs, int msaWidth, int score, stList* seqFrags) {
+stList *poaMatrixToAlignedPairs(uint8_t** msaSeq, int numSeqs, int msaWidth, int score, stList* seqFrags) {
 
     fprintf(stdout, ">Multiple_sequence_alignment\n");
     for (int i = 0; i < numSeqs; ++i) {
@@ -161,10 +156,8 @@ MultipleAlignment *poaMatrixToMultipleAlignment(uint8_t** msaSeq, int numSeqs, i
         assert(offset >= seqLength);
     }
     
-    MultipleAlignment *mA = st_calloc(1, sizeof(MultipleAlignment));
-
     //pairwise alignment pairs, with sequence indices
-    mA->alignedPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct); //pairwise alignment pairs, with sequence indices
+    stList* alignedPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct); //pairwise alignment pairs, with sequence indices
 
     for (int column = 0; column < msaWidth; ++column) {
         int anchor = -1;
@@ -173,7 +166,7 @@ MultipleAlignment *poaMatrixToMultipleAlignment(uint8_t** msaSeq, int numSeqs, i
                 if (anchor == -1) {
                     anchor = seqIdx;
                 } else if (anchor >= 0) {
-                    stList_append(mA->alignedPairs, stIntTuple_construct5(
+                    stList_append(alignedPairs, stIntTuple_construct5(
                                       score,
                                       anchor,
                                       offsets[anchor][column],
@@ -183,7 +176,12 @@ MultipleAlignment *poaMatrixToMultipleAlignment(uint8_t** msaSeq, int numSeqs, i
             }
         }
     }
-    return mA;
+
+    for (int i = 0; i < numSeqs; ++i) {
+        free(offsets[i]);
+    }
+    free(offsets);
     
+    return alignedPairs;
 }
 

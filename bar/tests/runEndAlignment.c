@@ -305,6 +305,16 @@ int main(int argc, char *argv[]) {
     stList* seqFrags = stList_construct3(0, free);
 
     fastaReadToFunction(fastaFile, seqFrags, add_fasta_fragment);
+
+    // cap the lengths
+    stListIterator *it = stList_getIterator(seqFrags);
+    SeqFrag* frag;
+    while ((frag = stList_getNext(it)) != NULL) {
+        if (frag->length > maximumLength) {
+            frag->length = maximumLength;
+            frag->seq[maximumLength] = '\0';
+        }
+    }
     
     fclose(fastaFile);
 
@@ -318,11 +328,11 @@ int main(int argc, char *argv[]) {
 
     fprintf(stderr, "doing poa alignment\n");
     t = clock();
-    MultipleAlignment *pA = makePartialOrderAlignment(sM, seqFrags, spanningTrees, 100000000, useProgressiveMerging, pairwiseAlignmentBandingParameters->gapGamma, pairwiseAlignmentBandingParameters);
+    MultipleAlignment *pA = makePartialOrderAlignment(sM, seqFrags, pairwiseAlignmentBandingParameters->gapGamma, pairwiseAlignmentBandingParameters);
     t = clock() - t;
     double abpoaTime = ((double)t)/CLOCKS_PER_SEC;
 
-    print_results(mA);
+    print_results(pA);
 
     fprintf(stderr, "Pecan Time = %lf seconds   abPOA Time = %lf seconds\n", pecanTime, abpoaTime);
 

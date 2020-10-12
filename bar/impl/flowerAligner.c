@@ -541,7 +541,7 @@ static void computeMissingEndAlignments(StateMachine *sM, Flower *flower, stHash
                         end,
                         makeEndAlignment(sM, end, spanningTrees, maxSequenceLength,
                                 useProgressiveMerging, gapGamma,
-                                pairwiseAlignmentBandingParameters));
+                                pairwiseAlignmentBandingParameters, false));
             } else {
                 stHash_insert(endAlignments, end, stSortedSet_construct());
             }

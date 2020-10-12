@@ -8,6 +8,7 @@
 #include "multipleAligner.h"
 #include "adjacencySequences.h"
 #include "pairwiseAligner.h"
+#include "poaAligner.h"
 
 AlignedPair *alignedPair_construct(int64_t subsequenceIdentifier1, int64_t position1, bool strand1,
         int64_t subsequenceIdentifier2, int64_t position2, bool strand2, int64_t score, int64_t rScore) {
@@ -54,7 +55,8 @@ int alignedPair_cmpFn(const AlignedPair *alignedPair1, const AlignedPair *aligne
 
 stSortedSet *makeEndAlignment(StateMachine *sM, End *end, int64_t spanningTrees, int64_t maxSequenceLength,
         bool useProgressiveMerging, float gapGamma,
-        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
+        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters,
+        bool poa) {
     //Make an alignment of the sequences in the ends
 
     //Get the adjacency sequences to be aligned.
@@ -84,7 +86,26 @@ stSortedSet *makeEndAlignment(StateMachine *sM, End *end, int64_t spanningTrees,
     end_destructInstanceIterator(it);
 
     //Get the alignment.
-    MultipleAlignment *mA = makeAlignment(sM, seqFrags, spanningTrees, 100000000, useProgressiveMerging, gapGamma, pairwiseAlignmentBandingParameters);
+    MultipleAlignment *mA;
+    if (poa) {
+        mA = makePartialOrderAlignment(sM, seqFrags, gapGamma, pairwiseAlignmentBandingParameters);
+        // todo: not sure what this distinction means in the land of poa, but it's required below
+        //       would be more reasonable to share the pointer instead of copying, but we start with safest for now
+        //       as the way its destructed isn't immediately obvious
+        mA->chosenPairwiseAlignments = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+        stListIterator *it = stList_getIterator(mA->alignedPairs);
+        stIntTuple* alignedPair;
+        while ((alignedPair = stList_getNext(it)) != NULL) {
+            stList_append(mA->chosenPairwiseAlignments, stIntTuple_construct5(
+                              stIntTuple_get(alignedPair, 0),
+                              stIntTuple_get(alignedPair, 1),
+                              stIntTuple_get(alignedPair, 2),
+                              stIntTuple_get(alignedPair, 3),
+                              stIntTuple_get(alignedPair, 4)));
+        }
+    } else {
+        mA = makeAlignment(sM, seqFrags, spanningTrees, 100000000, useProgressiveMerging, gapGamma, pairwiseAlignmentBandingParameters);
+    }
 
     //Build an array of weights to reweight pairs in the alignment.
     int64_t *pairwiseAlignmentsPerSequenceNonCommonEnds = st_calloc(stList_length(seqFrags), sizeof(int64_t));
