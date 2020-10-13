@@ -96,12 +96,10 @@ stSortedSet *makeEndAlignment(StateMachine *sM, End *end, int64_t spanningTrees,
         stListIterator *it = stList_getIterator(mA->alignedPairs);
         stIntTuple* alignedPair;
         while ((alignedPair = stList_getNext(it)) != NULL) {
-            stList_append(mA->chosenPairwiseAlignments, stIntTuple_construct5(
+            stList_append(mA->chosenPairwiseAlignments, stIntTuple_construct3(
                               stIntTuple_get(alignedPair, 0),
                               stIntTuple_get(alignedPair, 1),
-                              stIntTuple_get(alignedPair, 2),
-                              stIntTuple_get(alignedPair, 3),
-                              stIntTuple_get(alignedPair, 4)));
+                              stIntTuple_get(alignedPair, 3)));
         }
     } else {
         mA = makeAlignment(sM, seqFrags, spanningTrees, 100000000, useProgressiveMerging, gapGamma, pairwiseAlignmentBandingParameters);
