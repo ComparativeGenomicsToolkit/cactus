@@ -109,6 +109,8 @@ MultipleAlignment *makePartialOrderAlignment(StateMachine *sM, stList *seqFrags,
     MultipleAlignment *mA = st_calloc(1, sizeof(MultipleAlignment));
             
     mA->alignedPairs = poaMatrixToAlignedPairs(msa_seq, n_seqs, msa_l, 0, seqFrags);
+
+    mA->columns = makeColumns(seqFrags);
         
     // clean up
     for (i = 0; i < n_seqs; ++i) {
@@ -132,7 +134,7 @@ MultipleAlignment *makePartialOrderAlignment(StateMachine *sM, stList *seqFrags,
 }
 
 stList *poaMatrixToAlignedPairs(uint8_t** msaSeq, int numSeqs, int msaWidth, int score, stList* seqFrags) {
-
+/*
     fprintf(stdout, ">Multiple_sequence_alignment\n");
     for (int i = 0; i < numSeqs; ++i) {
         for (int j = 0; j < msaWidth; ++j) {
@@ -140,7 +142,7 @@ stList *poaMatrixToAlignedPairs(uint8_t** msaSeq, int numSeqs, int msaWidth, int
         }
         fprintf(stdout, "\n");
     }
-
+*/
     // this is a big waste of memory
     // todo: can we go lower into the poa api to avoid, or perhaps just use an interval index
     int32_t** offsets = st_calloc(numSeqs, sizeof(int32_t*));
