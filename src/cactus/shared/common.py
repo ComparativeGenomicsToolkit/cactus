@@ -549,10 +549,8 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
         args += ["--minimumCoverageToRescue", str(minimumCoverageToRescue)]
     if minimumNumberOfSpecies is not None:
         args += ["--minimumNumberOfSpecies", str(minimumNumberOfSpecies)]
-    if partialOrderAlignment is not None:
+    if partialOrderAlignment is True:
         args += ["--partialOrderAlignment"]
-    else:
-        assert False
 
     masterMessages = cactus_call(stdin_string=flowerNames, check_output=True,
                                  parameters=["cactus_bar"] + args,
@@ -1313,11 +1311,13 @@ def cactus_call(tool=None,
 
     if process.returncode == 0:
         run_time = time.time() - start_time
-        rt_message = "Successfully ran: \"{}\"" 
+        if time_v:
+            call = call[len("/usr/bin/time -v "):]
+        rt_message = "Successfully ran: \"{}\"".format(' '.join(call) if not shell else call)
         if features:
             rt_message += ' (features={})'.format(features)
-        rt_message += " in {} seconds".format(' '.join(call) if not shell else call, run_time)
-        if time_v:
+        rt_message += " in {} seconds".format(round(run_time, 4))
+        if time_v:            
             for line in stderr.split('\n'):
                 if 'Maximum resident set size (kbytes):' in line:
                     rt_message += ' and {} memory'.format(bytes2human(int(line.split()[-1]) * 1024))
