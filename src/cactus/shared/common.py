@@ -1313,13 +1313,16 @@ def cactus_call(tool=None,
 
     if process.returncode == 0:
         run_time = time.time() - start_time
-        rt_msg = "Successfully ran: \"{}\" in {} seconds".format(' '.join(call) if not shell else call, run_time)
+        rt_message = "Successfully ran: \"{}\"" 
+        if features:
+            rt_message += ' (features={})'.format(features)
+        rt_message += " in {} seconds".format(' '.join(call) if not shell else call, run_time)
         if time_v:
             for line in stderr.split('\n'):
                 if 'Maximum resident set size (kbytes):' in line:
-                    rt_msg += ' and {} memory'.format(bytes2human(int(line.split()[-1]) * 1024))
+                    rt_message += ' and {} memory'.format(bytes2human(int(line.split()[-1]) * 1024))
                     break
-        cactus_realtime_log(rt_msg, log_debug = 'ktremotemgr' in call)
+        cactus_realtime_log(rt_message, log_debug = 'ktremotemgr' in call)
 
     if check_result:
         return process.returncode
