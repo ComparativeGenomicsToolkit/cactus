@@ -5,6 +5,8 @@ import subprocess
 import shutil
 from sonLib.bioio import getTempDirectory, popenCatch, popen
 import xml.etree.ElementTree as ET
+from xml.dom import minidom
+from cactus.shared.common import cactusRootPath
 
 class TestCase(unittest.TestCase):
     def setUp(self):
@@ -27,11 +29,14 @@ class TestCase(unittest.TestCase):
     def _out_hal(self, binariesMode):
         return os.path.join(self.tempDir, 'evovler-{}.hal'.format(binariesMode))
 
-    def _run_evolver(self, binariesMode):
+    def _run_evolver(self, binariesMode, configFile = None):
         """ Run the full evolver test, putting the jobstore and output in tempDir
         """
         cmd = ['cactus', self._job_store(binariesMode), './examples/evolverMammals.txt', self._out_hal(binariesMode),
                                '--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir]
+        if configFile:
+            cmd += ['--configFile', configFile]
+            
         # todo: it'd be nice to have an interface for setting tag to something not latest or commit
         if binariesMode == 'docker':
             cmd += ['--latest']
@@ -258,7 +263,7 @@ class TestCase(unittest.TestCase):
         ground_truth_file = 'test/all.maf'
 
         # run mafComparator on the evolver output
-        subprocess.check_call(['bin/hal2maf', halPath,  halPath + '.maf'], shell=False)
+        subprocess.check_call(['bin/hal2maf', halPath,  halPath + '.maf', '--onlySequenceNames'], shell=False)
         subprocess.check_call(['bin/mafComparator', '--maf1', halPath + '.maf', '--maf2', ground_truth_file, '--samples', '100000000', '--out', halPath + 'comp.xml'])
 
         # grab the two accuracy values out of the XML
@@ -269,7 +274,7 @@ class TestCase(unittest.TestCase):
             first, second = None, None
             for comp_root in comp_roots:
                 avg_val = float(comp_root.find("aggregateResults").find("all").attrib["average"])
-                if comp_root.attrib["fileB"] == ground_truth_file:
+                if os.path.basename(comp_root.attrib["fileB"]) == os.path.basename(ground_truth_file):
                     first = avg_val
                 else:
                     second = avg_val
@@ -295,7 +300,7 @@ class TestCase(unittest.TestCase):
         # check the output
         self._check_stats(self._out_hal(name), delta_pct=0.25)
         self._check_coverage(self._out_hal(name), delta_pct=0.20)
-        self._check_maf_accuracy(self._out_hal(name), delta=0.01)
+        self._check_maf_accuracy(self._out_hal(name), delta=0.01)        
 
     def testEvolverPrepareWDL(self):
 
@@ -361,6 +366,33 @@ class TestCase(unittest.TestCase):
         self._check_stats(self._out_hal("local"), delta_pct=2.5, subset=['simMouse_chr6', 'simRat_chr6', 'Anc0'])
         self._check_coverage(self._out_hal("local"), delta_pct=0.20, subset=['simMouse_chr6', 'simRat_chr6', 'Anc0'], columns=1)
 
+    def testEvolverPOALocal(self):
+        """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode local is
+        is reasonable... when using POA mode in BAR.
+        """
+        # use the same logic cactus does to get default config
+        config_path = os.path.join(cactusRootPath(), "cactus_progressive_config.xml")
+        
+        xml_root = ET.parse(config_path).getroot()
+        bar_elem = xml_root.find("bar")
+        bar_elem.attrib["partialOrderAlignment"] = "1"
+
+        poa_config_path = os.path.join(self.tempDir, "config.poa.xml")
+        with open(poa_config_path, 'w') as poa_config_file:
+            xmlString = ET.tostring(xml_root, encoding='unicode')
+            xmlString = minidom.parseString(xmlString).toprettyxml()
+            poa_config_file.write(xmlString)
+
+        # run cactus directly, the old school way
+        name = "local"
+        self._run_evolver(name, configFile = poa_config_path)
+
+        hack_name = "/home/hickey/dev/cactus/evolverMammals-poa.hal"
+            
+        # check the output
+        self._check_stats(self._out_hal("local"), delta_pct=2.5) # todo: why stats so different?
+        self._check_coverage(self._out_hal("local"), delta_pct=0.20, columns=1)
+        self._check_maf_accuracy(self._out_hal("local"), delta=0.01)
 
 if __name__ == '__main__':
     unittest.main()
