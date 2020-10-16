@@ -148,7 +148,7 @@ evolver_test: all bin/mafComparator
 	PYTHONPATH="" CACTUS_DOCKER_ORG=evolvertestdocker CACTUS_USE_LATEST=1 ${PYTHON} -m pytest ${pytestOpts} test/evolverTest.py
 	docker rmi -f evolvertestdocker/cactus:latest
 
-evolver_test_local: all
+evolver_test_local: all bin/mafComparator
 	CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} test/evolverTest.py::TestCase::testEvolverLocal
 
 ##
