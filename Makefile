@@ -178,6 +178,7 @@ suball.kyoto:
 suball.sonLib: suball.kyoto
 	cd submodules/sonLib && PKG_CONFIG_PATH=${CWD}/lib/pkgconfig:${PKG_CONFIG_PATH} ${MAKE}
 	mkdir -p ${BINDIR} ${LIBDIR}
+	rm -rf submodules/sonLib/bin/*.dSYM
 	ln -f submodules/sonLib/bin/[a-zA-Z]* ${BINDIR}
 	ln -f submodules/sonLib/lib/*.a ${LIBDIR}
 

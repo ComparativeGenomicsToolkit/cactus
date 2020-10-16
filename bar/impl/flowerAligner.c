@@ -373,7 +373,7 @@ static stSortedSet *makeFlowerAlignment2(Flower *flower, stHash *endAlignments, 
     stList *freeStubCaps = stList_construct(); //Caps that we'll use when pruning the stub only ends of alignments.
     while (stList_length(caps) > 0) {
         //Pick cap with greatest number of deleted aligned pairs.
-        //This bias the bar algorithm to pick cutpoints that consistent
+        //This biases the bar algorithm to pick cutpoints that are consistent
         //with previously selected cutpoints.
         Cap *cap = NULL;
         int64_t deletedPairsForChosenCap = 0;

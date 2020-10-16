@@ -89,18 +89,6 @@ stSortedSet *makeEndAlignment(StateMachine *sM, End *end, int64_t spanningTrees,
     MultipleAlignment *mA;
     if (poa && stList_length(seqFrags) > 1) {
         mA = makePartialOrderAlignment(sM, seqFrags, gapGamma, pairwiseAlignmentBandingParameters);
-        // todo: not sure what this distinction means in the land of poa, but it's required below
-        //       would be more reasonable to share the pointer instead of copying, but we start with safest for now
-        //       as the way its destructed isn't immediately obvious
-        mA->chosenPairwiseAlignments = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
-        stListIterator *it = stList_getIterator(mA->alignedPairs);
-        stIntTuple* alignedPair;
-        while ((alignedPair = stList_getNext(it)) != NULL) {
-            stList_append(mA->chosenPairwiseAlignments, stIntTuple_construct3(
-                              stIntTuple_get(alignedPair, 0),
-                              stIntTuple_get(alignedPair, 1),
-                              stIntTuple_get(alignedPair, 3)));
-        }
     } else {
         mA = makeAlignment(sM, seqFrags, spanningTrees, 100000000, useProgressiveMerging, gapGamma, pairwiseAlignmentBandingParameters);
     }
