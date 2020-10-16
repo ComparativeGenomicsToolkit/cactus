@@ -68,6 +68,9 @@ RUN mkdir /opt/cactus/
 COPY runtime/wrapper.sh /opt/cactus/
 RUN chmod 777 /opt/cactus/wrapper.sh
 
+# log the memory usage (with --realTimeLogging) for local commands
+ENV CACTUS_LOG_MEMORY 1
+
 # remember where we came from
 ARG CACTUS_COMMIT
 
