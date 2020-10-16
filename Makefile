@@ -134,7 +134,14 @@ test_nonblast: ${testModules:%=%_runtest_nonblast}
 ${versionPy}:
 	echo "cactus_commit = '${git_commit}'" >$@
 
-evolver_test: all
+bin/mafComparator:
+	rm -rf submodules/mafTools
+	cd submodules && git clone https://github.com/dentearl/mafTools.git && cd mafTools && git checkout 82077ac39c9966ac8fb8efe9796fbcfb7da55477
+	cd submodules/mafTools && sed -i 's/-Werror//g' inc/common.mk lib/Makefile && sed -i 's/mafExtractor//g' Makefile && make
+	cp submodules/mafTools/bin/mafComparator bin/
+	cd ${CWD}/test && wget -q https://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/mammals/loci1/all.maf -O all.maf
+
+evolver_test: all bin/mafComparator
 	-docker rmi -f evolvertestdocker/cactus:latest
 	sed -i -e 's/FROM.*AS builder/FROM quay.io\/glennhickey\/cactus-ci-base:latest as builder/' Dockerfile
 	docker build --network=host -t evolvertestdocker/cactus:latest . --build-arg CACTUS_COMMIT=${git_commit}

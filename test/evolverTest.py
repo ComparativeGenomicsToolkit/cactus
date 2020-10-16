@@ -4,6 +4,7 @@ import unittest
 import subprocess
 import shutil
 from sonLib.bioio import getTempDirectory, popenCatch, popen
+import xml.etree.ElementTree as ET
 
 class TestCase(unittest.TestCase):
     def setUp(self):
@@ -248,6 +249,41 @@ class TestCase(unittest.TestCase):
                 self.assertGreaterEqual(int(oval[i]), int(val[i]) - delta)
                 self.assertLessEqual(int(oval[i]), int(val[i]) + delta)
 
+    def _check_maf_accuracy(self, halPath, delta):
+        """ Compare mafComparator output of evolver mammals to baseline
+        """
+        # this is just pasted from a successful run.  it will be used to catch serious regressions
+        baseline_file = 'test/evolverMammals-default.comp.xml'
+        # this is downloaded in the Makefile
+        ground_truth_file = 'test/all.maf'
+
+        # run mafComparator on the evolver output
+        subprocess.check_call(['bin/hal2maf', halPath,  halPath + '.maf'], shell=False)
+        subprocess.check_call(['bin/mafComparator', '--maf1', halPath + '.maf', '--maf2', ground_truth_file, '--samples', '100000000', '--out', halPath + 'comp.xml'])
+
+        # grab the two accuracy values out of the XML
+        def parse_mafcomp_output(xml_path):
+            xml_root = ET.parse(xml_path).getroot()
+            comp_roots = xml_root.findall("homologyTests")
+            assert len(comp_roots) == 2            
+            first, second = None, None
+            for comp_root in comp_roots:
+                avg_val = float(comp_root.find("aggregateResults").find("all").attrib["average"])
+                if comp_root.attrib["fileB"] == ground_truth_file:
+                    first = avg_val
+                else:
+                    second = avg_val
+            assert first is not None and second is not None
+            return first, second
+
+        baseline_acc = parse_mafcomp_output(baseline_file)
+        acc = parse_mafcomp_output(halPath + 'comp.xml')
+
+        sys.stderr.write("Comparing mafcomp accuracy {},{} to baseline accuracy {},{} with threshold {}\n".format(acc[0], acc[1], baseline_acc[0], baseline_acc[1], delta))
+
+        self.assertGreaterEqual(acc[0] + delta, baseline_acc[0])
+        self.assertGreaterEqual(acc[1] + delta, baseline_acc[1])
+
     def testEvolverLocal(self):
         """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode local is
         is reasonable
@@ -259,6 +295,7 @@ class TestCase(unittest.TestCase):
         # check the output
         self._check_stats(self._out_hal(name), delta_pct=0.25)
         self._check_coverage(self._out_hal(name), delta_pct=0.20)
+        self._check_maf_accuracy(self._out_hal(name), delta_pct=0.01)
 
     def testEvolverPrepareWDL(self):
 
@@ -268,6 +305,7 @@ class TestCase(unittest.TestCase):
         # check the output
         self._check_stats(self._out_hal("wdl"), delta_pct=0.25)
         self._check_coverage(self._out_hal("wdl"), delta_pct=0.20)
+        self._check_maf_accuracy(self._out_hal(name), delta_pct=0.01)
 
     def testEvolverPrepareToil(self):
 
@@ -277,7 +315,8 @@ class TestCase(unittest.TestCase):
 
         # check the output
         self._check_stats(self._out_hal(name), delta_pct=0.25)
-        self._check_coverage(self._out_hal(name), delta_pct=0.20)                
+        self._check_coverage(self._out_hal(name), delta_pct=0.20)
+        self._check_maf_accuracy(self._out_hal(name), delta_pct=0.01)
 
     def testEvolverDecomposedLocal(self):
         """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode local is
@@ -290,6 +329,7 @@ class TestCase(unittest.TestCase):
         # check the output
         self._check_stats(self._out_hal(name), delta_pct=0.25)
         self._check_coverage(self._out_hal(name), delta_pct=0.20)
+        self._check_maf_accuracy(self._out_hal(name), delta_pct=0.01)
 
     def testEvolverDocker(self):
         """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode docker is
@@ -301,6 +341,7 @@ class TestCase(unittest.TestCase):
         # check the output
         self._check_stats(self._out_hal("docker"), delta_pct=0.25)
         self._check_coverage(self._out_hal("docker"), delta_pct=0.20)
+        self._check_maf_accuracy(self._out_hal(name), delta_pct=0.01)        
 
     def testEvolverPrepareNoOutgroupDocker(self):
 
