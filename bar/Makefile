@@ -3,7 +3,7 @@ include ${rootPath}/include.mk
 
 libSources = impl/*.c
 libHeaders = inc/*.h
-libTests = tests/adjacencySequencesTest.c tests/allTests.c tests/endAlignerTest.c tests/flowerAlignerTest.c tests/flowersShared.h tests/rescueTest.c
+libTests = tests/adjacencySequencesTest.c tests/allTests.c tests/endAlignerTest.c tests/flowerAlignerTest.c tests/rescueTest.c
 libRunEndAlignment = tests/runEndAlignment.c
 
 #${LIBDIR}/stCaf.a
