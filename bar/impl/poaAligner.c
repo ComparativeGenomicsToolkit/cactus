@@ -114,7 +114,7 @@ MultipleAlignment *makePartialOrderAlignment(StateMachine *sM, stList *seqFrags,
     if(allPairs) {
         for (int64_t i = 0; i < n_seqs; i++) {
             for (int64_t j =i+1; j < n_seqs; j++) {
-                stList_append(mA->chosenPairwiseAlignments, stIntTuple_construct2(i, j));
+                stList_append(mA->chosenPairwiseAlignments, stIntTuple_construct3(0, i, j));
             }
         }
     }
@@ -160,7 +160,7 @@ stList *poaMatrixToAlignedPairs(uint8_t** msaSeq, int numSeqs, int msaWidth, int
             for (int seqIdx = 0; seqIdx < numSeqs; ++seqIdx) {
                 if (toBase(msaSeq[seqIdx][column]) != '-') { // If is not a gap
                     int64_t seqCoordinate = offsets[seqIdx]++;
-                    for (int seqIdx2 = seqIdx; seqIdx2 < numSeqs; ++seqIdx2) {
+                    for (int seqIdx2 = seqIdx + 1; seqIdx2 < numSeqs; ++seqIdx2) {
                         if (toBase(msaSeq[seqIdx2][column]) != '-') { // If is not a gap
                             stList_append(alignedPairs, stIntTuple_construct5(
                                     score, seqIdx, seqCoordinate,
