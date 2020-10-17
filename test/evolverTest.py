@@ -6,7 +6,6 @@ import shutil
 from sonLib.bioio import getTempDirectory, popenCatch, popen
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
-from cactus.shared.common import cactusRootPath
 
 class TestCase(unittest.TestCase):
     def setUp(self):
@@ -346,7 +345,7 @@ class TestCase(unittest.TestCase):
         # check the output
         self._check_stats(self._out_hal("docker"), delta_pct=0.25)
         self._check_coverage(self._out_hal("docker"), delta_pct=0.20)
-        self._check_maf_accuracy(self._out_hal(name), delta=0.01)        
+        self._check_maf_accuracy(self._out_hal("docker"), delta=0.01)        
 
     def testEvolverPrepareNoOutgroupDocker(self):
 
@@ -371,7 +370,7 @@ class TestCase(unittest.TestCase):
         is reasonable... when using POA mode in BAR.
         """
         # use the same logic cactus does to get default config
-        config_path = os.path.join(cactusRootPath(), "cactus_progressive_config.xml")
+        config_path = 'src/cactus/cactus_progressive_config.xml'
         
         xml_root = ET.parse(config_path).getroot()
         bar_elem = xml_root.find("bar")
