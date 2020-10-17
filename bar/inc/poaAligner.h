@@ -35,7 +35,9 @@ MultipleAlignment *makePartialOrderAlignment(StateMachine *sM, stList *seqFrags,
  *   - scan until the first non-gapped entry, mark its sequence as the anchor
  *   - keep scanning, reporting a pairwise alignment of each subsequent sequence and the anchor if non-gapped
  * So the number of pairs here is O(N * L) (or linear in the size of the MSA matrix)
+ * The all pairs option enumerates all possible pairs of aligned positions. If this is zero then only a linear number
+ * of alignment pairs are constructed per column.
  */
-stList *poaMatrixToAlignedPairs(uint8_t** msaSeq, int numSeqs, int msaWidth, int score, stList* seqFrags);
+stList *poaMatrixToAlignedPairs(uint8_t** msaSeq, int numSeqs, int msaWidth, int score, stList* seqFrags, bool allPairs);
 
 #endif

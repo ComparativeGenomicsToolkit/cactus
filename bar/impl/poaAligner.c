@@ -106,11 +106,18 @@ MultipleAlignment *makePartialOrderAlignment(StateMachine *sM, stList *seqFrags,
     abpoa_msa(ab, abpt, n_seqs, NULL, seq_lens, bseqs, NULL, NULL, NULL, NULL, NULL, &msa_seq, &msa_l);
 
     // todo: score
+    bool allPairs = 1;
     MultipleAlignment *mA = st_calloc(1, sizeof(MultipleAlignment));
-            
-    mA->alignedPairs = poaMatrixToAlignedPairs(msa_seq, n_seqs, msa_l, 1.0, seqFrags);
+    mA->alignedPairs = poaMatrixToAlignedPairs(msa_seq, n_seqs, msa_l, 1.0, seqFrags, allPairs);
     // todo: refactor the multiple alignment object, as these should be optional
     mA->chosenPairwiseAlignments = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+    if(allPairs) {
+        for (int64_t i = 0; i < n_seqs; i++) {
+            for (int64_t j =i+1; j < n_seqs; j++) {
+                stList_append(mA->chosenPairwiseAlignments, stIntTuple_construct2(i, j));
+            }
+        }
+    }
     mA->columns = stSet_construct(); //makeColumns(seqFrags);
         
     // clean up
@@ -134,7 +141,7 @@ MultipleAlignment *makePartialOrderAlignment(StateMachine *sM, stList *seqFrags,
     return mA;
 }
 
-stList *poaMatrixToAlignedPairs(uint8_t** msaSeq, int numSeqs, int msaWidth, int score, stList* seqFrags) {
+stList *poaMatrixToAlignedPairs(uint8_t** msaSeq, int numSeqs, int msaWidth, int score, stList* seqFrags, bool allPairs) {
 /*
     fprintf(stdout, ">Multiple_sequence_alignment\n");
     for (int i = 0; i < numSeqs; ++i) {
@@ -148,25 +155,43 @@ stList *poaMatrixToAlignedPairs(uint8_t** msaSeq, int numSeqs, int msaWidth, int
     stList *alignedPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
     int64_t* offsets = st_calloc(numSeqs, sizeof(int64_t));
 
-    for (int column = 0; column < msaWidth; ++column) { // For each column
-        int64_t anchor = -1, anchorCoordinate;
-        for (int seqIdx = 0; seqIdx < numSeqs; ++seqIdx) {
-            if(toBase(msaSeq[seqIdx][column]) != '-') { // If is not a gap
-                int64_t seqCoordinate = offsets[seqIdx]++;
-                if (toBase(msaSeq[seqIdx][column]) != 'N') { // If is not an ambiguous base
-                    if (anchor == -1) { // Set as the anchoring base
-                        anchor = seqIdx;
-                        anchorCoordinate = seqCoordinate;
-                    } else { // Otherwise make an aligned pair between the anchor and the base
-                        stList_append(alignedPairs, stIntTuple_construct5(
-                                score, anchor, anchorCoordinate,
-                                seqIdx, seqCoordinate));
+    if(allPairs) {
+        for (int column = 0; column < msaWidth; ++column) { // For each column
+            for (int seqIdx = 0; seqIdx < numSeqs; ++seqIdx) {
+                if (toBase(msaSeq[seqIdx][column]) != '-') { // If is not a gap
+                    int64_t seqCoordinate = offsets[seqIdx]++;
+                    for (int seqIdx2 = seqIdx; seqIdx2 < numSeqs; ++seqIdx2) {
+                        if (toBase(msaSeq[seqIdx2][column]) != '-') { // If is not a gap
+                            stList_append(alignedPairs, stIntTuple_construct5(
+                                    score, seqIdx, seqCoordinate,
+                                    seqIdx2, offsets[seqIdx2]));
+                        }
                     }
                 }
-
             }
         }
     }
+    else {
+        for (int column = 0; column < msaWidth; ++column) { // For each column
+            int64_t anchor = -1, anchorCoordinate;
+            for (int seqIdx = 0; seqIdx < numSeqs; ++seqIdx) {
+                if (toBase(msaSeq[seqIdx][column]) != '-') { // If is not a gap
+                    int64_t seqCoordinate = offsets[seqIdx]++;
+                    if (toBase(msaSeq[seqIdx][column]) != 'N') { // If is not an ambiguous base
+                        if (anchor == -1) { // Set as the anchoring base
+                            anchor = seqIdx;
+                            anchorCoordinate = seqCoordinate;
+                        } else { // Otherwise make an aligned pair between the anchor and the base
+                            stList_append(alignedPairs, stIntTuple_construct5(
+                                    score, anchor, anchorCoordinate,
+                                    seqIdx, seqCoordinate));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
 
     free(offsets);
 
