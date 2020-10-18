@@ -309,7 +309,7 @@ class TestCase(unittest.TestCase):
         # check the output
         self._check_stats(self._out_hal("wdl"), delta_pct=0.25)
         self._check_coverage(self._out_hal("wdl"), delta_pct=0.20)
-        self._check_maf_accuracy(self._out_hal(name), delta=0.01)
+        self._check_maf_accuracy(self._out_hal("wdl"), delta=0.01)
 
     def testEvolverPrepareToil(self):
 
