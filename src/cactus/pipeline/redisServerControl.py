@@ -125,7 +125,7 @@ class RedisServer:
         """Get the appropriate redis-server tuning parameters (bucket size, etc.)"""
         # these are some hardcoded defaults.  should think about moving to config
         # TODO: check if every necessary tuning option is added (maybe to be merged with getServerOptions())
-        tuningOptions = "--maxmemory 50Gb"
+        tuningOptions = "--maxmemory 1000Gb"
         # override default redis-server settings if they are present in the
         # experiment xml file.
         if self.dbElem.getDbTuningOptions() is not None:
@@ -151,7 +151,7 @@ class RedisServer:
         # Configure background snapshots, but set the interval between
         # snapshots to ~ 10 days so it'll never trigger. We are only
         # interested in the snapshot that the DB creates on termination.
-        cmd += ["--save", "1000000", "1"]
+        cmd += ["--save", "", "--save", "1000000", "1000000"]
         cmd += ["--dir", snapshotDir, "--dbfilename", REDIS_SNAPSHOT_NAME]
         cmd += ["--logfile", 'redis.log']
         cmd += tuning.split()
@@ -159,9 +159,7 @@ class RedisServer:
 
     def getRemoteParams(self):
         """Get parameters to supply to redis-cli to connect to the right DB."""
-        # TODO: find why redis-cli raise error when called with an IP as the host
-        #host = self.dbElem.getDbHost() or 'localhost'
-        host = 'localhost'
+        host = self.dbElem.getDbHost() or 'localhost'
         return ['-p', str(self.dbElem.getDbPort()), '-h', host]
 
     def stopServer(self):
