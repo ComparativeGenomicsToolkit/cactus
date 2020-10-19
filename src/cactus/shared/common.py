@@ -45,8 +45,6 @@ subprocess._has_poll = False
 
 def cactus_override_toil_options(options):
     """  Mess with some toil options to create useful defaults. """
-    # tokyo_cabinet is no longer supported
-    options.database = "kyoto_tycoon"
     # Caching generally slows down the cactus workflow, plus some
     # methods like readGlobalFileStream don't support forced
     # reads directly from the job store rather than from cache.
