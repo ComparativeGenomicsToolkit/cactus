@@ -28,10 +28,10 @@ class TestCase(unittest.TestCase):
     def _out_hal(self, binariesMode):
         return os.path.join(self.tempDir, 'evovler-{}.hal'.format(binariesMode))
 
-    def _run_evolver(self, binariesMode, configFile = None):
+    def _run_evolver(self, binariesMode, configFile = None, seqFile = './examples/evolverMammals.txt'):
         """ Run the full evolver test, putting the jobstore and output in tempDir
         """
-        cmd = ['cactus', self._job_store(binariesMode), './examples/evolverMammals.txt', self._out_hal(binariesMode),
+        cmd = ['cactus', self._job_store(binariesMode), seqFile, self._out_hal(binariesMode),
                                '--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir]
         if configFile:
             cmd += ['--configFile', configFile]
@@ -42,6 +42,17 @@ class TestCase(unittest.TestCase):
 
         sys.stderr.write('Running {}'.format(' '.format(cmd)))
         subprocess.check_call(' '.join(cmd), shell=True)
+
+    def _run_evolver_primates_star(self, binariesMode, configFile = None):
+        """ Run cactus on the evolver primates with a star topology
+        """
+        seq_file_path = os.path.join(self.tempDir, 'primates.txt')
+        with open(seq_file_path, 'w') as seq_file:
+            seq_file.write('simChimp\thttps://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simChimp.chr6\n')
+            seq_file.write('simGorilla\thttps://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simGorilla.chr6\n')
+            seq_file.write('simOrang\thttps://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simOrang.chr6\n')
+            seq_file.write('simHuman\thttps://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simHuman.chr6\n')
+        self._run_evolver(binariesMode, configFile=configFile, seqFile=seq_file_path)
 
     def _run_evolver_decomposed(self, name):
         """ Run the full evolver test, putting the jobstore and output in tempDir
@@ -253,13 +264,14 @@ class TestCase(unittest.TestCase):
                 self.assertGreaterEqual(int(oval[i]), int(val[i]) - delta)
                 self.assertLessEqual(int(oval[i]), int(val[i]) + delta)
 
-    def _check_maf_accuracy(self, halPath, delta):
+    def _check_maf_accuracy(self, halPath, delta, dataset="mammals"):
         """ Compare mafComparator output of evolver mammals to baseline
         """
+        assert dataset in ('mammals', 'primates')
         # this is just pasted from a successful run.  it will be used to catch serious regressions
-        baseline_file = 'test/evolverMammals-default.comp.xml'
+        baseline_file = 'test/evolver{}-default.comp.xml'.format(dataset.capitalize())
         # this is downloaded in the Makefile
-        ground_truth_file = 'test/all.maf'
+        ground_truth_file = 'test/{}-truth.maf'.format(dataset)
 
         # run mafComparator on the evolver output
         subprocess.check_call(['bin/hal2maf', halPath,  halPath + '.maf', '--onlySequenceNames'], shell=False)
@@ -384,14 +396,10 @@ class TestCase(unittest.TestCase):
 
         # run cactus directly, the old school way
         name = "local"
-        self._run_evolver(name, configFile = poa_config_path)
+        self._run_evolver_primates_star(name, configFile = poa_config_path)
 
-        hack_name = "/home/hickey/dev/cactus/evolverMammals-poa.hal"
-            
         # check the output
-        self._check_stats(self._out_hal("local"), delta_pct=2.5) # todo: why stats so different?
-        self._check_coverage(self._out_hal("local"), delta_pct=0.20, columns=1)
-        self._check_maf_accuracy(self._out_hal("local"), delta=0.01)
+        self._check_maf_accuracy(self._out_hal("local"), delta=0.0025, dataset='primates')
 
 if __name__ == '__main__':
     unittest.main()
