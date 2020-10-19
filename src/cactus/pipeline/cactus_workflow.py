@@ -30,6 +30,7 @@ from sonLib.bioio import getLogLevelString
 from toil.job import Job
 from toil.common import Toil
 from toil.realtimeLogger import RealtimeLogger
+from toil.lib.humanize import bytes2human
 
 from cactus.shared.common import makeURL
 from cactus.shared.common import cactus_call
@@ -848,6 +849,10 @@ class CactusBarRecursion(CactusRecursionJob):
                                job=CactusBarWrapper, overlargeJob=CactusBarWrapperLarge)
 
 def runBarForJob(self, fileStore=None, features=None, calculateWhichEndsToComputeSeparately=False, endAlignmentsToPrecomputeOutputFile=None, precomputedAlignments=None):
+    if features is not None:
+        # this will cause it to be printed out to the realtime logger in cactus_call which, with CACTUS_LOG_MEMORY defined will
+        # also print the actual memory.  the two values together can be used to assess how well resources are being set
+        features["jobMem"] = bytes2human(self.memory)
     return runCactusBar(jobName=self.__class__.__name__,
                  fileStore=fileStore,
                  features=features,
