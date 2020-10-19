@@ -396,7 +396,7 @@ class TestCase(unittest.TestCase):
 
         # run cactus directly, the old school way
         name = "local"
-        #self._run_evolver_primates_star(name, configFile = poa_config_path)
+        self._run_evolver_primates_star(name, configFile = poa_config_path)
 
         # check the output
         self._check_maf_accuracy(self._out_hal("local"), delta=0.0025, dataset='primates')
