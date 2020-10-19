@@ -974,7 +974,7 @@ class CactusBarEndAlignerWrapper(CactusRecursionJob):
                                 endAlignmentsToPrecomputeOutputFile=alignmentFile)
         for message in messages:
             fileStore.logToMaster(message)
-        return fileStore.writeGlobalFile(alignmentFile, cleanup=False)
+        return fileStore.writeGlobalFile(alignmentFile, cleanup=True)
 
 class CactusBarWrapperWithPrecomputedEndAlignments(CactusRecursionJob):
     """Runs the BAR algorithm implementation with some precomputed end alignments."""
