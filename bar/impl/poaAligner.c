@@ -108,9 +108,10 @@ MultipleAlignment *makePartialOrderAlignment(StateMachine *sM, stList *seqFrags,
     // todo: score
     MultipleAlignment *mA = st_calloc(1, sizeof(MultipleAlignment));
             
-    mA->alignedPairs = poaMatrixToAlignedPairs(msa_seq, n_seqs, msa_l, 0, seqFrags);
-
-    mA->columns = makeColumns(seqFrags);
+    mA->alignedPairs = poaMatrixToAlignedPairs(msa_seq, n_seqs, msa_l, 1.0, seqFrags);
+    // todo: refactor the multiple alignment object, as these should be optional
+    mA->chosenPairwiseAlignments = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+    mA->columns = stSet_construct(); //makeColumns(seqFrags);
         
     // clean up
     for (i = 0; i < n_seqs; ++i) {
@@ -143,50 +144,32 @@ stList *poaMatrixToAlignedPairs(uint8_t** msaSeq, int numSeqs, int msaWidth, int
         fprintf(stdout, "\n");
     }
 */
-    // this is a big waste of memory
-    // todo: can we go lower into the poa api to avoid, or perhaps just use an interval index
-    int32_t** offsets = st_calloc(numSeqs, sizeof(int32_t*));
-    for (int i = 0; i < numSeqs; ++i) {
-        offsets[i] = st_calloc(msaWidth, sizeof(int32_t));
-    }
-    for (int i = 0; i < numSeqs; ++i) {
-        int32_t offset = 0;
-        for (int j = 0; j < msaWidth; ++j) {
-            offsets[i][j] = offset;
-            if (toBase(msaSeq[i][j]) != '-') {
-                ++offset;
-            }
-        }
-        int64_t seqLength = ((SeqFrag*)stList_get(seqFrags, i))->length;
-        assert(offset >= seqLength);
-    }
-    
-    //pairwise alignment pairs, with sequence indices
-    stList* alignedPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct); //pairwise alignment pairs, with sequence indices
 
-    for (int column = 0; column < msaWidth; ++column) {
-        int anchor = -1;
+    stList *alignedPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+    int64_t* offsets = st_calloc(numSeqs, sizeof(int64_t));
+
+    for (int column = 0; column < msaWidth; ++column) { // For each column
+        int64_t anchor = -1, anchorCoordinate;
         for (int seqIdx = 0; seqIdx < numSeqs; ++seqIdx) {
-            if (toBase(msaSeq[seqIdx][column]) != 'N' && toBase(msaSeq[seqIdx][column]) != '-') {
-                if (anchor == -1) {
-                    anchor = seqIdx;
-                } else if (anchor >= 0) {
-                    stList_append(alignedPairs, stIntTuple_construct5(
-                                      score,
-                                      anchor,
-                                      offsets[anchor][column],
-                                      seqIdx,
-                                      offsets[seqIdx][column]));
+            if(toBase(msaSeq[seqIdx][column]) != '-') { // If is not a gap
+                int64_t seqCoordinate = offsets[seqIdx]++;
+                if (toBase(msaSeq[seqIdx][column]) != 'N') { // If is not an ambiguous base
+                    if (anchor == -1) { // Set as the anchoring base
+                        anchor = seqIdx;
+                        anchorCoordinate = seqCoordinate;
+                    } else { // Otherwise make an aligned pair between the anchor and the base
+                        stList_append(alignedPairs, stIntTuple_construct5(
+                                score, anchor, anchorCoordinate,
+                                seqIdx, seqCoordinate));
+                    }
                 }
+
             }
         }
     }
 
-    for (int i = 0; i < numSeqs; ++i) {
-        free(offsets[i]);
-    }
     free(offsets);
-    
+
     return alignedPairs;
 }
 
