@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
-<alignmentComparisons numberOfSamples="100000000" near="0" seed="105039039046552" maf1="evolverMammals-default.maf" maf2="all.maf" numberOfPairsInMaf1="4544153" numberOfPairsInMaf2="5755666" version="version 0.9 May 2013" buildDate="2020-07-10T14:42EDT" buildBranch="master" buildCommit="6b6a73ceba29805a64caf40e06a02f44d782365a">
-	<homologyTests fileA="evolverMammals-default.maf" fileB="all.maf">
+<alignmentComparisons numberOfSamples="100000000" near="0" seed="105039039046552" maf1="mammals-default.maf" maf2="mammals-truth.maf" numberOfPairsInMaf1="4544153" numberOfPairsInMaf2="5755666" version="version 0.9 May 2013" buildDate="2020-07-10T14:42EDT" buildBranch="master" buildCommit="6b6a73ceba29805a64caf40e06a02f44d782365a">
+	<homologyTests fileA="mammals-default.maf" fileB="mammals-truth.maf">
 		<aggregateResults>
 			<all totalTests="4544153" totalTrue="3476823" totalFalse="1067330" average="0.765120"/>
 		</aggregateResults>
@@ -259,7 +259,7 @@
 			</homologyTest>
 		</homologyPairTests>
 	</homologyTests>
-	<homologyTests fileA="all.maf" fileB="evolverMammals-default.maf">
+	<homologyTests fileA="mammals-truth.maf" fileB="mammals-default.maf">
 		<aggregateResults>
 			<all totalTests="5755666" totalTrue="3476823" totalFalse="2278843" average="0.604070"/>
 		</aggregateResults>
