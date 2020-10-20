@@ -325,7 +325,7 @@ def get_options():
     parser.add_argument('--non_blast_output', action='store_true', 
                     help="Instead of using cactus-blast-style prepended ids, use an alternative import method that only alters contig ids if absolutely necessary.")
     parser.add_argument('--all_unique_ids', action='store_true', 
-                        help="Prevents the program from touching the assembly files; the user promises that they don't contain any duplicate contig ids. In reality, there should never be contig renamings if there are no duplicate fasta ids.")
+                        help="Only take effect when called with --non_blast_output. Prevents the program from touching the assembly files; the user promises that they don't contain any duplicate contig ids. In reality, there should never be contig renamings if there are no duplicate fasta ids.")
     parser.add_argument('--overwrite_assemblies', action='store_true', 
                         help="When cleaning the assembly files to make sure there are no duplicate contig ids, overwrite the assembly files. Copy them to a neigboring folder with the affix '_edited_for_duplicate_contig_ids' instead.")
 

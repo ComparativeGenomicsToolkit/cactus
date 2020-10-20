@@ -32,6 +32,7 @@ from cactus.blast.blast import calculateCoverage
 from cactus.shared.common import makeURL
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
+from cactus.reference_align import paf_to_lastz
 
 from toil.realtimeLogger import RealtimeLogger
 from toil.job import Job
@@ -74,6 +75,8 @@ def main():
                         help="The way to run the Cactus binaries", default=None)
     parser.add_argument("--nonBlastInput", action="store_true",
                         help="Input does not come from cactus-blast: Do not append ids to fasta names")
+    parser.add_argument("--pafInput", action="store_true",
+                        help="Input is in paf format, rather than lastz cigars.")
 
 
     options = parser.parse_args()
@@ -242,6 +245,12 @@ def runCactusAfterBlastOnly(options):
             if cactus_blast_input and len(outgroups) > 0:
                 for i in range(len(leaves)):
                     workFlowArgs.ingroupCoverageIDs.append(toil.importFile(makeURL(get_input_path('.ig_coverage_{}'.format(i)))))
+
+            if options.pafInput:
+                # convert the paf input to lastz format.
+                workFlowArgs.alignmentsID = toil.start(Job.wrapJobFn(paf_to_lastz.paf_to_lastz, workFlowArgs.alignmentsID, False))
+                if workFlowArgs.secondaryAlignmentsID: 
+                    workFlowArgs.secondaryAlignmentsID = toil.start(Job.wrapJobFn(paf_to_lastz.paf_to_lastz, workFlowArgs.secondaryAlignmentsID, False))
 
             halID = toil.start(Job.wrapJobFn(run_cactus_align, configWrapper, workFlowArgs, project, cactus_blast_input))
 

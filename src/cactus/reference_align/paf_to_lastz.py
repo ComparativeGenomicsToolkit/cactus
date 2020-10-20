@@ -3,29 +3,39 @@ from toil.job import Job
 
 import subprocess
 
-def paf_to_lastz(job, paf_file):
+def paf_to_lastz(job, paf_file, sort_secondaries=True):
     """
     Makes lastz output using paftools.js. Also splits the input paf_file into two files
     in the output, one for the primary and the other for secondary.
+
+    sort_secondaries bool, if true, will cause fxn to return two files instead of one.
+    
     """
     primary = list()
     primary_mapqs = list()
     secondary = list()
     secondary_mapqs = list()
     
-    # print("in paf_to_Lastz - looking for the cg tag.")
-    with open(job.fileStore.readGlobalFile(paf_file)) as inf:
-        for line in inf:
-            # print(line)
-            if "tp:A:P" in line or "tp:A:I" in line:
-                #then the line is a primary output file.
+    if not sort_secondaries:
+        with open(job.fileStore.readGlobalFile(paf_file)) as inf:
+            for line in inf:
                 primary.append(line)
                 primary_mapqs.append(line.split()[11])
-            # elif "tp:A:S" in line:
-            else:
-                #then the line is a secondary output file.
-                secondary.append(line)
-                secondary_mapqs.append(line.split()[11])
+
+    else:
+        # print("in paf_to_Lastz - looking for the cg tag.")
+        with open(job.fileStore.readGlobalFile(paf_file)) as inf:
+            for line in inf:
+                # print(line)
+                if "tp:A:P" in line or "tp:A:I" in line:
+                    #then the line is a primary output file.
+                    primary.append(line)
+                    primary_mapqs.append(line.split()[11])
+                # elif "tp:A:S" in line:
+                else:
+                    #then the line is a secondary output file.
+                    secondary.append(line)
+                    secondary_mapqs.append(line.split()[11])
 
     # write output to files; convert to lastz:
     lines = [primary, secondary]
@@ -54,16 +64,18 @@ def paf_to_lastz(job, paf_file):
             paf_parsed = lines[0][i].split()
             lastz_parsed = line.split()
             if (lastz_parsed[3] == "+" and paf_parsed[2] != lastz_parsed[1]) or (lastz_parsed[3] == "-" and paf_parsed[2] != lastz_parsed[2]):
-                # print("Lines differ between paf and paftools.js lastz output! paf line: " + lines[0][i] + " lastz line " + line)
-                raise ValueError("Lines differ between paf and paftools.js lastz output! paf line: " + lines[0][i] + " lastz line " + line)
+                # print("Lines differ between paf and paftools.js lastz output! Paftools.js may be acting in an unexpected manner. paf line: " + lines[0][i] + " lastz line " + line)
+                raise ValueError("Lines differ between paf and paftools.js lastz output! Paftools.js may be acting in an unexpected manner. paf line: " + lines[0][i] + " lastz line " + line)
             i += 1
 
     # with open(stderr_debug) as debugf:
     #     for line in debugf:
     #         print("stderr_debug\t", line)
 
-            
-    return out_files
+    if not sort_secondaries:
+        return out_files[0]
+    else:
+        return out_files
 
 def add_original_mapqs(mapqs, infile, outfile):
     """
