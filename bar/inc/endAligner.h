@@ -50,7 +50,7 @@ int alignedPair_cmpFn(const AlignedPair *alignedPair1, const AlignedPair *aligne
 stSortedSet *makeEndAlignment(StateMachine *sM, End *end, int64_t spanningTrees, int64_t maxSequenceLength,
                               bool useProgressiveMerging, float gapGamma,
                               PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters,
-                              bool poa);
+                              int64_t poaWindow);
 
 /*
  * Writes an end alignment to the given file.

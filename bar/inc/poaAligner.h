@@ -22,12 +22,11 @@
  * For larger numbers of sequences, it can be orders of magnitude faster than Pecan.  But... the maximum
  * length needs to be bounded or it'll just crash out right away trying to allocated a big matrix.   
  */
-MultipleAlignment *makePartialOrderAlignment(StateMachine *sM, stList *seqFrags,
+MultipleAlignment *makePartialOrderAlignment(StateMachine *sM,
+                                             stList *seqFrags,
                                              float matchGamma,
-                                             PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters);
-
-
-
+                                             PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters,
+                                             int64_t windowSize);
 
 /**
  * Convert the gapped matrix structure that abpoa returns into list of aligned pairs.  The algorithm used is
@@ -36,6 +35,12 @@ MultipleAlignment *makePartialOrderAlignment(StateMachine *sM, stList *seqFrags,
  *   - keep scanning, reporting a pairwise alignment of each subsequent sequence and the anchor if non-gapped
  * So the number of pairs here is O(N * L) (or linear in the size of the MSA matrix)
  */
-stList *poaMatrixToAlignedPairs(uint8_t** msaSeq, int numSeqs, int msaWidth, int score, stList* seqFrags);
+void poaMatrixToAlignedPairs(uint8_t** msaSeq,
+                             int64_t numSeqs,
+                             int64_t msaWidth,
+                             int64_t score,
+                             stList* seqFrags,
+                             int64_t* offsets,
+                             stList* outPairs);
 
 #endif

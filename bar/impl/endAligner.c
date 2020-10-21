@@ -56,7 +56,7 @@ int alignedPair_cmpFn(const AlignedPair *alignedPair1, const AlignedPair *aligne
 stSortedSet *makeEndAlignment(StateMachine *sM, End *end, int64_t spanningTrees, int64_t maxSequenceLength,
         bool useProgressiveMerging, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters,
-        bool poa) {
+        int64_t poaWindow) {
     //Make an alignment of the sequences in the ends
 
     //Get the adjacency sequences to be aligned.
@@ -87,8 +87,8 @@ stSortedSet *makeEndAlignment(StateMachine *sM, End *end, int64_t spanningTrees,
 
     //Get the alignment.
     MultipleAlignment *mA;
-    if (poa && stList_length(seqFrags) > 1) {
-        mA = makePartialOrderAlignment(sM, seqFrags, gapGamma, pairwiseAlignmentBandingParameters);
+    if (poaWindow > 0 && stList_length(seqFrags) > 1) {
+        mA = makePartialOrderAlignment(sM, seqFrags, gapGamma, pairwiseAlignmentBandingParameters, poaWindow);
     } else {
         mA = makeAlignment(sM, seqFrags, spanningTrees, 100000000, useProgressiveMerging, gapGamma, pairwiseAlignmentBandingParameters);
     }
@@ -121,7 +121,7 @@ stSortedSet *makeEndAlignment(StateMachine *sM, End *end, int64_t spanningTrees,
         int64_t commonInstanceNumber = *(int64_t *)stHash_search(endInstanceNumbers, otherEnd);
         int64_t nonCommonInstanceNumber = stList_length(seqFrags) - commonInstanceNumber;
 
-        if (poa) {
+        if (poaWindow > 0) {
             // hack hack hack
             scoreAdjustmentsNonCommonEnds[i] = 1;
             scoreAdjustmentsCommonEnds[i] = 1;

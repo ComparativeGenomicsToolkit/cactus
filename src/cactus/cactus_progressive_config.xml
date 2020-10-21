@@ -178,6 +178,7 @@
                 minimumSizeToRescue="100"
                 minimumCoverageToRescue="0.5"
 		partialOrderAlignment="0"
+		partialOrderAlignmentWindow="10000"
 	>
 		<CactusBarRecursion maxFlowerGroupSize="100000000"/>
 		<!-- The maxFlowerGroupSize in cactusBarWrapper determines how many bases to allow in one "small" job which will be run using the "littleMemory" -->
