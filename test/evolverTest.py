@@ -4,6 +4,8 @@ import unittest
 import subprocess
 import shutil
 from sonLib.bioio import getTempDirectory, popenCatch, popen
+import xml.etree.ElementTree as ET
+from xml.dom import minidom
 
 class TestCase(unittest.TestCase):
     def setUp(self):
@@ -26,17 +28,31 @@ class TestCase(unittest.TestCase):
     def _out_hal(self, binariesMode):
         return os.path.join(self.tempDir, 'evovler-{}.hal'.format(binariesMode))
 
-    def _run_evolver(self, binariesMode):
+    def _run_evolver(self, binariesMode, configFile = None, seqFile = './examples/evolverMammals.txt'):
         """ Run the full evolver test, putting the jobstore and output in tempDir
         """
-        cmd = ['cactus', self._job_store(binariesMode), './examples/evolverMammals.txt', self._out_hal(binariesMode),
+        cmd = ['cactus', self._job_store(binariesMode), seqFile, self._out_hal(binariesMode),
                                '--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir]
+        if configFile:
+            cmd += ['--configFile', configFile]
+            
         # todo: it'd be nice to have an interface for setting tag to something not latest or commit
         if binariesMode == 'docker':
             cmd += ['--latest']
 
         sys.stderr.write('Running {}'.format(' '.format(cmd)))
         subprocess.check_call(' '.join(cmd), shell=True)
+
+    def _run_evolver_primates_star(self, binariesMode, configFile = None):
+        """ Run cactus on the evolver primates with a star topology
+        """
+        seq_file_path = os.path.join(self.tempDir, 'primates.txt')
+        with open(seq_file_path, 'w') as seq_file:
+            seq_file.write('simChimp\thttps://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simChimp.chr6\n')
+            seq_file.write('simGorilla\thttps://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simGorilla.chr6\n')
+            seq_file.write('simOrang\thttps://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simOrang.chr6\n')
+            seq_file.write('simHuman\thttps://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simHuman.chr6\n')
+        self._run_evolver(binariesMode, configFile=configFile, seqFile=seq_file_path)
 
     def _run_evolver_decomposed(self, name):
         """ Run the full evolver test, putting the jobstore and output in tempDir
@@ -248,6 +264,42 @@ class TestCase(unittest.TestCase):
                 self.assertGreaterEqual(int(oval[i]), int(val[i]) - delta)
                 self.assertLessEqual(int(oval[i]), int(val[i]) + delta)
 
+    def _check_maf_accuracy(self, halPath, delta, dataset="mammals"):
+        """ Compare mafComparator output of evolver mammals to baseline
+        """
+        assert dataset in ('mammals', 'primates')
+        # this is just pasted from a successful run.  it will be used to catch serious regressions
+        baseline_file = 'test/evolver{}-default.comp.xml'.format(dataset.capitalize())
+        # this is downloaded in the Makefile
+        ground_truth_file = 'test/{}-truth.maf'.format(dataset)
+
+        # run mafComparator on the evolver output
+        subprocess.check_call(['bin/hal2maf', halPath,  halPath + '.maf', '--onlySequenceNames'], shell=False)
+        subprocess.check_call(['bin/mafComparator', '--maf1', halPath + '.maf', '--maf2', ground_truth_file, '--samples', '100000000', '--out', halPath + 'comp.xml'])
+
+        # grab the two accuracy values out of the XML
+        def parse_mafcomp_output(xml_path):
+            xml_root = ET.parse(xml_path).getroot()
+            comp_roots = xml_root.findall("homologyTests")
+            assert len(comp_roots) == 2            
+            first, second = None, None
+            for comp_root in comp_roots:
+                avg_val = float(comp_root.find("aggregateResults").find("all").attrib["average"])
+                if os.path.basename(comp_root.attrib["fileB"]) == os.path.basename(ground_truth_file):
+                    first = avg_val
+                else:
+                    second = avg_val
+            assert first is not None and second is not None
+            return first, second
+
+        baseline_acc = parse_mafcomp_output(baseline_file)
+        acc = parse_mafcomp_output(halPath + 'comp.xml')
+
+        sys.stderr.write("Comparing mafcomp accuracy {},{} to baseline accuracy {},{} with threshold {}\n".format(acc[0], acc[1], baseline_acc[0], baseline_acc[1], delta))
+
+        self.assertGreaterEqual(acc[0] + delta, baseline_acc[0])
+        self.assertGreaterEqual(acc[1] + delta, baseline_acc[1])
+
     def testEvolverLocal(self):
         """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode local is
         is reasonable
@@ -259,6 +311,7 @@ class TestCase(unittest.TestCase):
         # check the output
         self._check_stats(self._out_hal(name), delta_pct=0.25)
         self._check_coverage(self._out_hal(name), delta_pct=0.20)
+        self._check_maf_accuracy(self._out_hal(name), delta=0.01)        
 
     def testEvolverPrepareWDL(self):
 
@@ -268,6 +321,7 @@ class TestCase(unittest.TestCase):
         # check the output
         self._check_stats(self._out_hal("wdl"), delta_pct=0.25)
         self._check_coverage(self._out_hal("wdl"), delta_pct=0.20)
+        self._check_maf_accuracy(self._out_hal("wdl"), delta=0.01)
 
     def testEvolverPrepareToil(self):
 
@@ -277,7 +331,8 @@ class TestCase(unittest.TestCase):
 
         # check the output
         self._check_stats(self._out_hal(name), delta_pct=0.25)
-        self._check_coverage(self._out_hal(name), delta_pct=0.20)                
+        self._check_coverage(self._out_hal(name), delta_pct=0.20)
+        self._check_maf_accuracy(self._out_hal(name), delta=0.01)
 
     def testEvolverDecomposedLocal(self):
         """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode local is
@@ -290,6 +345,7 @@ class TestCase(unittest.TestCase):
         # check the output
         self._check_stats(self._out_hal(name), delta_pct=0.25)
         self._check_coverage(self._out_hal(name), delta_pct=0.20)
+        self._check_maf_accuracy(self._out_hal(name), delta=0.01)
 
     def testEvolverDocker(self):
         """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode docker is
@@ -301,6 +357,7 @@ class TestCase(unittest.TestCase):
         # check the output
         self._check_stats(self._out_hal("docker"), delta_pct=0.25)
         self._check_coverage(self._out_hal("docker"), delta_pct=0.20)
+        self._check_maf_accuracy(self._out_hal("docker"), delta=0.01)        
 
     def testEvolverPrepareNoOutgroupDocker(self):
 
@@ -320,6 +377,29 @@ class TestCase(unittest.TestCase):
         self._check_stats(self._out_hal("local"), delta_pct=2.5, subset=['simMouse_chr6', 'simRat_chr6', 'Anc0'])
         self._check_coverage(self._out_hal("local"), delta_pct=0.20, subset=['simMouse_chr6', 'simRat_chr6', 'Anc0'], columns=1)
 
+    def testEvolverPOALocal(self):
+        """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode local is
+        is reasonable... when using POA mode in BAR.
+        """
+        # use the same logic cactus does to get default config
+        config_path = 'src/cactus/cactus_progressive_config.xml'
+        
+        xml_root = ET.parse(config_path).getroot()
+        bar_elem = xml_root.find("bar")
+        bar_elem.attrib["partialOrderAlignment"] = "1"
+
+        poa_config_path = os.path.join(self.tempDir, "config.poa.xml")
+        with open(poa_config_path, 'w') as poa_config_file:
+            xmlString = ET.tostring(xml_root, encoding='unicode')
+            xmlString = minidom.parseString(xmlString).toprettyxml()
+            poa_config_file.write(xmlString)
+
+        # run cactus directly, the old school way
+        name = "local"
+        self._run_evolver_primates_star(name, configFile = poa_config_path)
+
+        # check the output
+        self._check_maf_accuracy(self._out_hal("local"), delta=0.0025, dataset='primates')
 
 if __name__ == '__main__':
     unittest.main()

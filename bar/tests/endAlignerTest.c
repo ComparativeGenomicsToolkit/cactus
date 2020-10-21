@@ -99,7 +99,7 @@ static void testMakeEndAlignments(CuTest *testCase) {
     int64_t maxLength = 4;
     for (int64_t endIndex = 0; endIndex < 3; endIndex++) {
         End *end = ends[endIndex];
-        stSortedSet *endAlignment = makeEndAlignment(stateMachine, end, 5, maxLength, end_getInstanceNumber(end) > 50, 0.5, pairwiseParameters);
+        stSortedSet *endAlignment = makeEndAlignment(stateMachine, end, 5, maxLength, end_getInstanceNumber(end) > 50, 0.5, pairwiseParameters, false);
 
         stSortedSetIterator *iterator = stSortedSet_getIterator(endAlignment);
         AlignedPair *alignedPair;
@@ -124,7 +124,7 @@ static void testReadAndWriteEndAlignments(CuTest *testCase) {
     int64_t maxLength = 4;
     for (int64_t endIndex = 0; endIndex < 3; endIndex++) {
         End *end = ends[endIndex];
-        stSortedSet *endAlignment = makeEndAlignment(stateMachine, end, 5, maxLength, end_getInstanceNumber(end) > 50, 0.5, pairwiseParameters);
+        stSortedSet *endAlignment = makeEndAlignment(stateMachine, end, 5, maxLength, end_getInstanceNumber(end) > 50, 0.5, pairwiseParameters, false);
         char *temporaryEndAlignmentFile = "temporaryEndAlignmentFile.end";
         FILE *fileHandle = fopen(temporaryEndAlignmentFile, "w");
         writeEndAlignmentToDisk(end, endAlignment, fileHandle);

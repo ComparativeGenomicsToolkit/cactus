@@ -1,4 +1,4 @@
-FROM ubuntu:bionic-20200112 AS builder
+FROM quay.io/glennhickey/cactus-ci-base:latest as builder
 
 # apt dependencies for build
 RUN apt-get update && apt-get install -y build-essential git python3 python3-dev python3-pip zlib1g-dev wget libbz2-dev pkg-config libhdf5-dev liblzo2-dev libtokyocabinet-dev wget
@@ -26,7 +26,7 @@ RUN cd /home/cactus/bin && for i in wigToBigWig faToTwoBit bedToBigBed bigBedToB
 RUN cd /home/cactus/bin && ../build-tools/downloadHal2vg
 
 # remove test executables
-RUN cd /home/cactus && rm -f ${binPackageDir}/bin/*test ${binPackageDir}/bin/*tests ${binPackageDir}/bin/*Test ${binPackageDir}/bin/*Tests
+RUN cd /home/cactus && rm -f ${binPackageDir}/bin/*test ${binPackageDir}/bin/*tests ${binPackageDir}/bin/*Test ${binPackageDir}/bin/*Tests ${binPackageDir}/bin/cactus_runEndAlignment
 
 # make the binaries smaller by removing debug symbols 
 RUN cd /home/cactus && strip -d bin/* 2> /dev/null || true
@@ -39,7 +39,7 @@ RUN mkdir -p /wheels && cd /wheels && python3 -m pip install -U pip && python3 -
 FROM ubuntu:bionic-20200112
 
 # apt dependencies for runtime
-RUN apt-get update && apt-get install -y --no-install-recommends git python3 python3-pip python3-distutils zlib1g libbz2-1.0 net-tools libhdf5-100 liblzo2-2 libtokyocabinet9 rsync libkrb5-3 libk5crypto3
+RUN apt-get update && apt-get install -y --no-install-recommends git python3 python3-pip python3-distutils zlib1g libbz2-1.0 net-tools libhdf5-100 liblzo2-2 libtokyocabinet9 rsync libkrb5-3 libk5crypto3 time
 
 # copy temporary files for installing cactus
 COPY --from=builder /home/cactus /tmp/cactus
@@ -67,6 +67,9 @@ RUN for i in /usr/local/bin/* ; do if [ -f ${i} ] && [ $(ldd ${i} | grep "not fo
 RUN mkdir /opt/cactus/
 COPY runtime/wrapper.sh /opt/cactus/
 RUN chmod 777 /opt/cactus/wrapper.sh
+
+# log the memory usage (with --realTimeLogging) for local commands
+ENV CACTUS_LOG_MEMORY 1
 
 # remember where we came from
 ARG CACTUS_COMMIT

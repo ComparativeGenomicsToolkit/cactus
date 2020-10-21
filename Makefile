@@ -2,11 +2,11 @@ rootPath = .
 
 include ${rootPath}/include.mk
 
-modules = api setup blastLib caf bar blast normalisation hal phylogeny reference faces check pipeline preprocessor hal dbTest
+modules = api setup blastLib caf bar blast normalisation hal phylogeny reference faces check pipeline preprocessor dbTest
 
 # submodules are in multiple pass to handle dependencies cactus2hal being dependent on
 # both cactus and sonLib
-submodules1 = kyoto sonLib cPecan hal matchingAndOrdering pinchesAndCacti
+submodules1 = kyoto sonLib cPecan hal matchingAndOrdering pinchesAndCacti abPOA
 submodules2 = cactus2hal
 submodules = ${submodules1} ${submodules2}
 
@@ -134,15 +134,27 @@ test_nonblast: ${testModules:%=%_runtest_nonblast}
 ${versionPy}:
 	echo "cactus_commit = '${git_commit}'" >$@
 
-evolver_test: all
+bin/mafComparator:
+	rm -rf submodules/mafTools
+	cd submodules && git clone https://github.com/dentearl/mafTools.git && cd mafTools && git checkout 82077ac39c9966ac8fb8efe9796fbcfb7da55477
+	cd submodules/mafTools && sed -i -e 's/-Werror//g' inc/common.mk lib/Makefile && sed -i -e 's/mafExtractor//g' Makefile && make
+	cp submodules/mafTools/bin/mafComparator bin/
+	cd ${CWD}/test && wget -q https://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/mammals/loci1/all.maf -O mammals-truth.maf
+	cd ${CWD}/test && wget -q https://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/all.maf -O primates-truth.maf
+
+evolver_test: all bin/mafComparator
 	-docker rmi -f evolvertestdocker/cactus:latest
 	sed -i -e 's/FROM.*AS builder/FROM quay.io\/glennhickey\/cactus-ci-base:latest as builder/' Dockerfile
 	docker build --network=host -t evolvertestdocker/cactus:latest . --build-arg CACTUS_COMMIT=${git_commit}
 	PYTHONPATH="" CACTUS_DOCKER_ORG=evolvertestdocker CACTUS_USE_LATEST=1 ${PYTHON} -m pytest ${pytestOpts} test/evolverTest.py
 	docker rmi -f evolvertestdocker/cactus:latest
 
-evolver_test_local: all
+evolver_test_local: all bin/mafComparator
 	CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} test/evolverTest.py::TestCase::testEvolverLocal
+
+evolver_test_poa_local: all bin/mafComparator
+	CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPOALocal
+
 
 ##
 # clean targets
@@ -167,6 +179,7 @@ suball.kyoto:
 suball.sonLib: suball.kyoto
 	cd submodules/sonLib && PKG_CONFIG_PATH=${CWD}/lib/pkgconfig:${PKG_CONFIG_PATH} ${MAKE}
 	mkdir -p ${BINDIR} ${LIBDIR}
+	rm -rf submodules/sonLib/bin/*.dSYM
 	ln -f submodules/sonLib/bin/[a-zA-Z]* ${BINDIR}
 	ln -f submodules/sonLib/lib/*.a ${LIBDIR}
 
@@ -189,6 +202,11 @@ suball.hal: suball.sonLib
 	mkdir -p bin
 	-ln -f submodules/hal/bin/* bin/
 	-ln -f submodules/hal/lib/libHal.a submodules/hal/lib/halLib.a
+
+suball.abPOA:
+	cd submodules/abPOA && ${MAKE}
+	ln -f submodules/abPOA/lib/*.a ${LIBDIR}
+	ln -f submodules/abPOA/include/*.h ${INCLDIR}
 
 subclean.%:
 	cd submodules/$* && ${MAKE} clean

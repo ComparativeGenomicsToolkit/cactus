@@ -30,6 +30,7 @@ from sonLib.bioio import getLogLevelString
 from toil.job import Job
 from toil.common import Toil
 from toil.realtimeLogger import RealtimeLogger
+from toil.lib.humanize import bytes2human
 
 from cactus.shared.common import makeURL
 from cactus.shared.common import cactus_call
@@ -848,6 +849,10 @@ class CactusBarRecursion(CactusRecursionJob):
                                job=CactusBarWrapper, overlargeJob=CactusBarWrapperLarge)
 
 def runBarForJob(self, fileStore=None, features=None, calculateWhichEndsToComputeSeparately=False, endAlignmentsToPrecomputeOutputFile=None, precomputedAlignments=None):
+    if features is not None:
+        # this will cause it to be printed out to the realtime logger in cactus_call which, with CACTUS_LOG_MEMORY defined will
+        # also print the actual memory.  the two values together can be used to assess how well resources are being set
+        features["jobMem"] = bytes2human(self.memory)
     return runCactusBar(jobName=self.__class__.__name__,
                  fileStore=fileStore,
                  features=features,
@@ -875,14 +880,35 @@ def runBarForJob(self, fileStore=None, features=None, calculateWhichEndsToComput
                  ingroupCoverageFile=self.cactusWorkflowArguments.ingroupCoverageID if self.getOptionalPhaseAttrib("rescue", bool) else None,
                  minimumSizeToRescue=self.getOptionalPhaseAttrib("minimumSizeToRescue"),
                  minimumCoverageToRescue=self.getOptionalPhaseAttrib("minimumCoverageToRescue"),
-                 minimumNumberOfSpecies=self.getOptionalPhaseAttrib("minimumNumberOfSpecies", int))
+                 minimumNumberOfSpecies=self.getOptionalPhaseAttrib("minimumNumberOfSpecies", int),
+                 partialOrderAlignment=self.getOptionalPhaseAttrib("partialOrderAlignment", bool))
 
 class CactusBarWrapper(CactusRecursionJob):
     """Runs the BAR algorithm implementation.
     """
-    memoryPoly = [2.81473430e-01, 2.96245523e+09]
+    def featuresFn(self):
+        """Merges both end size features and flower features--they will both
+        have an impact on resource usage."""
+        maximumLength=self.getOptionalPhaseAttrib("bandingLimit", int)
+        d = {'poaSize': min(float(max(self.flowerSizes)) / 2, maximumLength)}
+        d.update(self.flowerFeatures())
+        return d
+
+    def __init__(self, *args, **kwargs):
+        self.cactusWorkflowArguments = kwargs["cactusWorkflowArguments"]
+        self.phaseNode = kwargs["phaseNode"]
+
+        if self.getOptionalPhaseAttrib("partialOrderAlignment"):
+            self.feature = 'poaSize'
+            # observe poa needs about 20 * N^2 to operate, and this bounds the memory usage
+            self.memoryPoly = [23, 0, 3.96245523e+09]
+        else:
+           self.memoryPoly = [2.81473430e-01, 2.96245523e+09]
+           
+        CactusRecursionJob.__init__(self, *args, **kwargs)
 
     def run(self, fileStore):
+        
         messages = runBarForJob(self, features=self.featuresFn(), fileStore=fileStore)
         for message in messages:
             fileStore.logToMaster(message)
@@ -943,12 +969,14 @@ class CactusBarWrapperLarge(CactusRecursionJob):
 
 class CactusBarEndAlignerWrapper(CactusRecursionJob):
     """Computes an end alignment."""
+
     def featuresFn(self):
         """Merges both end size features and flower features--they will both
         have an impact on resource usage."""
         d = {'endGroupSize': sum(self.endSizes),
              'maxEndSize': max(self.endSizes),
-             'numEnds': len(self.endSizes)}
+             'numEnds': len(self.endSizes),             
+        }
         d.update(self.flowerFeatures())
         return d
 
@@ -961,6 +989,13 @@ class CactusBarEndAlignerWrapper(CactusRecursionJob):
         self.cactusWorkflowArguments = cactusWorkflowArguments
         self.endsToAlign = endsToAlign
         self.endSizes = endSizes
+        self.phaseNode = phaseNode
+
+        # poa mode needs a little extra memory
+        if self.getOptionalPhaseAttrib("partialOrderAlignment"):
+            maximumLength = self.getOptionalPhaseAttrib("bandingLimit", int)
+            self.memoryPoly[-1] += 23 * maximumLength * maximumLength
+                 
         CactusRecursionJob.__init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, flowerSizes, overlarge, cactusWorkflowArguments=self.cactusWorkflowArguments, preemptable=True)
 
     def run(self, fileStore):
@@ -977,9 +1012,21 @@ class CactusBarEndAlignerWrapper(CactusRecursionJob):
 
 class CactusBarWrapperWithPrecomputedEndAlignments(CactusRecursionJob):
     """Runs the BAR algorithm implementation with some precomputed end alignments."""
+
     featuresFn = lambda self: {'alignmentsSize': sum([fileID.size for fileID in self.precomputedAlignmentIDs])}
     feature = 'alignmentsSize'
     memoryPoly = [1.99700749e+00, 3.29659639e+08]
+
+    def __init__(self, *args, **kwargs):
+        self.cactusWorkflowArguments = kwargs["cactusWorkflowArguments"]
+        self.phaseNode = kwargs["phaseNode"]
+
+        # poa mode needs a little extra memory
+        if self.getOptionalPhaseAttrib("partialOrderAlignment"):
+            maximumLength = self.getOptionalPhaseAttrib("bandingLimit", int)
+            self.memoryPoly[0] += 0.0000023 * maximumLength * maximumLength
+                 
+        CactusRecursionJob.__init__(self, *args, **kwargs)
 
     def run(self, fileStore):
         if self.precomputedAlignmentIDs:
@@ -987,6 +1034,11 @@ class CactusBarWrapperWithPrecomputedEndAlignments(CactusRecursionJob):
             messages = runBarForJob(self, features=self.featuresFn(),
                                     fileStore=fileStore,
                                     precomputedAlignments=precomputedAlignments)
+            # these are created with cleanup=false, so we clean them up after they are used here to prevent
+            # the jobstore getting clogged
+            for fileID in self.precomputedAlignmentIDs:
+                fileStore.deleteGlobalFile(fileID)
+            self.precomputedAlignmentIDs = None
         else:
             messages = runBarForJob(self)
         for message in messages:

@@ -52,7 +52,7 @@ build-tools/downloadHal2vg && mv hal2vg ${binPackageDir}/bin
 cp -r .git ${binPackageDir}
 rm -rf ${binPackageDir}/.git/modules
 # remove test executables
-rm -f ${binPackageDir}/bin/*test ${binPackageDir}/bin/*tests ${binPackageDir}/bin/*Test ${binPackageDir}/bin/*Tests
+rm -f ${binPackageDir}/bin/*test ${binPackageDir}/bin/*tests ${binPackageDir}/bin/*Test ${binPackageDir}/bin/*Tests ${binPackageDir}/bin/cactus_runEndAlignment
 # make binaries smaller
 strip -d ${binPackageDir}/bin/* 2> /dev/null || true
 tar -czf ${buildDir}/cactus-bin-${REL_TAG}.tar.gz ${binPackageDir}
