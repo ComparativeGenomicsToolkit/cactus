@@ -36,6 +36,7 @@ from cactus.reference_align import fasta_preprocessing
 from cactus.reference_align import apply_dipcall_bed_filter
 
 from cactus.shared.common import makeURL
+from cactus.progressive.seqFile import SeqFile
 from cactus.pipeline.cactus_workflow import prependUniqueIDs
 
 ## utilitary fxns:
@@ -72,97 +73,87 @@ def consolidate_mappings(job, mapping_files):
                         outfile.write(line)
     return job.fileStore.writeGlobalFile(consolidated_mappings)
 
-def get_asms_from_seqfile(seqfile):
-    asm_files = col.OrderedDict()
+def get_asms_from_seqfile(seqFile, workflow):
+    seqFile = SeqFile(seqFile)
+    seqDict = col.OrderedDict(seqFile.pathMap)
+    print(seqDict)
+    for name, seqURL in seqDict.items():
+        seqDict[name] = workflow.importFile(makeURL(seqURL))
+    return seqDict
 
-    with open(seqfile) as inf:
-        #skip the Newick tree on the first line:
-        next(inf)
-        
-        for line in inf:
-            parsed = line.split()
-            if len(parsed) >= 2:
-                #note: fastas can be in a directory containing single consecutive spaces. Two spaces in a row breaks my file parsing system. 
-                if parsed[0][0] == "*":
-                    asm_files[parsed[0][1:]] = " ".join(parsed[1:])
-                else:
-                    asm_files[parsed[0]] = " ".join(parsed[1:])
+# def import_asms_non_blast_output(options, workflow):
+#     """Import asms; deduplicating contig ids if not --all_unique_ids
 
-    return asm_files
+#     Args:
+#         seqfile ([type]): [description]
+#         workflow ([type]): [description]
 
-def import_asms_non_blast_output(options, workflow):
-    """Import asms; deduplicating contig ids if not --all_unique_ids
+#     Returns:
+#         [type]: [description]
+#     """
+#     # asms is dictionary of all asms (not counting reference) with key: asm_name, value: imported global toil file.
+#     asms = get_asms_from_seqfile(options.seqFile)
 
-    Args:
-        seqfile ([type]): [description]
-        workflow ([type]): [description]
+#     if not options.all_unique_ids:
+#         # deduplicate contig id names, if user hasn't guaranteed unique contig ids.
+#         # new_fastas is the location of the asms with unique ids.
+#         if options.overwrite_assemblies:
+#             # overwrite the original assemblies. Note that the reference is never overwritten, as it is never altered. 
+#             # (Code assumes that the reference is internally free of duplicate ids, and just ensures other asms don't use reference ids.)
+#             asms = fasta_preprocessing.rename_duplicate_contig_ids(asms, options.refID, asms)
+#         else:
+#             # don't overwrite the original assemblies.
+#             # first, determine the new asm save locations.
+#             if not os.path.isdir(options.assembly_save_dir):
+#                 os.mkdir(options.assembly_save_dir)
 
-    Returns:
-        [type]: [description]
-    """
-    # asms is dictionary of all asms (not counting reference) with key: asm_name, value: imported global toil file.
-    asms = get_asms_from_seqfile(options.seqFile)
-
-    if not options.all_unique_ids:
-        # deduplicate contig id names, if user hasn't guaranteed unique contig ids.
-        # new_fastas is the location of the asms with unique ids.
-        if options.overwrite_assemblies:
-            # overwrite the original assemblies. Note that the reference is never overwritten, as it is never altered. 
-            # (Code assumes that the reference is internally free of duplicate ids, and just ensures other asms don't use reference ids.)
-            asms = fasta_preprocessing.rename_duplicate_contig_ids(asms, options.refID, asms)
-        else:
-            # don't overwrite the original assemblies.
-            # first, determine the new asm save locations.
-            if not os.path.isdir(options.assembly_save_dir):
-                os.mkdir(options.assembly_save_dir)
-
-            new_asms = dict()
-            for asm_id, asm in asms.items():
-                if asm_id != options.refID:
-                    new_asms[asm_id] = options.assembly_save_dir + asm.split("/")[-1]
-                else:
-                    # reference file never needs deduplication of contig ids, since ref contig ids are counted before all other asms.
-                    new_asms[asm_id] = asm
+#             new_asms = dict()
+#             for asm_id, asm in asms.items():
+#                 if asm_id != options.refID:
+#                     new_asms[asm_id] = options.assembly_save_dir + asm.split("/")[-1]
+#                 else:
+#                     # reference file never needs deduplication of contig ids, since ref contig ids are counted before all other asms.
+#                     new_asms[asm_id] = asm
                     
-            asms = fasta_preprocessing.rename_duplicate_contig_ids(asms, options.refID, new_asms)
+#             asms = fasta_preprocessing.rename_duplicate_contig_ids(asms, options.refID, new_asms)
 
-    # Import asms.
-    for asm_id, asm in asms.items():
-        asms[asm_id] = workflow.importFile('file://' + os.path.abspath(asm))
+#     # Import asms.
+#     for asm_id, asm in asms.items():
+#         asms[asm_id] = workflow.importFile('file://' + os.path.abspath(asm))
 
-    return asms
+#     return asms
 
-def import_asms(options, workflow):
-    """Import asms; deduplicating contig ids if not --all_unique_ids
+# def import_asms(options, workflow):
+#     """Import asms; deduplicating contig ids if not --all_unique_ids
 
-    Args:
-        options ([type]):
-        workflow ([type]): [description]
+#     Args:
+#         options ([type]):
+#         workflow ([type]): [description]
 
-    Returns:
-        [type]: [description]
-    """
-    # asms is orderedDict of all asms (not counting reference) with key: asm_name, value: imported global toil file.
+#     Returns:
+#         [type]: [description]
+#     """
+#     # asms is orderedDict of all asms (not counting reference) with key: asm_name, value: imported global toil file.
 
-    asms = get_asms_from_seqfile(options.seqFile)
+#     asms = get_asms_from_seqfile(options.seqFile)
 
-    # first, ensure the new asm save location exists.
-    if not os.path.isdir(options.assembly_save_dir):
-        os.mkdir(options.assembly_save_dir)
+#     # first, ensure the new asm save location exists.
+#     if not os.path.isdir(options.assembly_save_dir):
+#         os.mkdir(options.assembly_save_dir)
 
-    # Prepend unique IDs.
-    uniqueFas = prependUniqueIDs(asms.values(), options.assembly_save_dir)
+#     # Prepend unique IDs.
+#     uniqueFas = prependUniqueIDs(asms.values(), options.assembly_save_dir)
 
-    i = 0
-    for asm_id in asms.keys():
-        asms[asm_id] = uniqueFas[i]
-        i += 1
+#     i = 0
+#     for asm_id in asms.keys():
+#         asms[asm_id] = uniqueFas[i]
+#         i += 1
         
-    # Import asms.
-    for asm_id, asm in asms.items():
-        asms[asm_id] = workflow.importFile(makeURL(asm))
+#     # Import asms.
+#     for asm_id, asm in asms.items():
+#         asms[asm_id] = workflow.importFile(makeURL(asm))
 
-    return asms
+#     return asms
 
 def empty(job):
     """
@@ -217,11 +208,38 @@ def filter_out_secondaries_from_paf(job, paf):
     return job.fileStore.writeGlobalFile(primary_paf)
     # return (job.fileStore.writeGlobalFile(primary_paf), job.fileStore.writeGlobalFile(secondary_paf))
 
+def run_prepend_unique_ids(job, assembly_files):
+    print("assembly_files", assembly_files)
+    sequences = [job.fileStore.readGlobalFile(id) for id in assembly_files.values()]
+    print("sequences", sequences)
+    renamedInputSeqDir = job.fileStore.getLocalTempDir()
+    id_map = {}
+    uniqueFas = prependUniqueIDs(sequences, renamedInputSeqDir, id_map)
+    print("uniqueFas", uniqueFas)
+    uniqueFaIDs = [job.fileStore.writeGlobalFile(seq, cleanup=True) for seq in uniqueFas]
+    print("uniqueFaIDs", uniqueFaIDs)
+    i = 0
+    for assembly in assembly_files:
+        assembly_files[assembly] = uniqueFaIDs[i]
+        i += 1
+    print("assembly_files", assembly_files)
+    return assembly_files
+
+
 ## mapping fxns:
 
-def map_all_to_ref(job, assembly_files, reference, debug_export, dipcall_bed_filter=False, dipcall_vcf_filter=False):
+def run_cactus_reference_align(job, assembly_files, reference, preprocessing_options, debug_export=False, dipcall_bed_filter=False, dipcall_vcf_filter=False):
+    ## Note: this is adapted from run_prepend_unique_ids in cactus_align, in order to maintain order-dependent renamings.
+    ## Because cactus-reference-align assumes that all input sequences are ingroups, it does not attempt to avoid renaming outgroup genomes.  
+    preprocess_job = job.addChildJobFn(run_prepend_unique_ids, assembly_files)
+    assembly_files = preprocess_job.rv()
+    mappings = preprocess_job.addFollowOnJobFn(map_all_to_ref, assembly_files, reference, preprocessing_options, debug_export, dipcall_bed_filter, dipcall_vcf_filter).rv()
+    return mappings
+
+def map_all_to_ref(job, assembly_files, reference, preprocessing_options, debug_export=False, dipcall_bed_filter=False, dipcall_vcf_filter=False):
     """
     Primarily for use with option_all_to_ref_only. Otherwise, use map_all_to_ref_and_get_poor_mappings.
+    assembly_files is an orderedDict (or theoretically works with normal dict, if we can assume order within the dictionary. This is guaranteed at or past python 3.7.)
     """
     lead_job = job.addChildJobFn(empty)
 
@@ -322,16 +340,16 @@ def get_options():
                         
     ## options for importing assemblies:
     # following arguments are only useful under --non_blast_output
-    parser.add_argument('--non_blast_output', action='store_true', 
-                    help="Instead of using cactus-blast-style prepended ids, use an alternative import method that only alters contig ids if absolutely necessary.")
-    parser.add_argument('--all_unique_ids', action='store_true', 
-                        help="Only take effect when called with --non_blast_output. Prevents the program from touching the assembly files; the user promises that they don't contain any duplicate contig ids. In reality, there should never be contig renamings if there are no duplicate fasta ids.")
-    parser.add_argument('--overwrite_assemblies', action='store_true', 
-                        help="When cleaning the assembly files to make sure there are no duplicate contig ids, overwrite the assembly files. Copy them to a neigboring folder with the affix '_edited_for_duplicate_contig_ids' instead.")
+    # parser.add_argument('--non_blast_output', action='store_true', 
+    #                 help="Instead of using cactus-blast-style prepended ids, use an alternative import method that only alters contig ids if absolutely necessary.")
+    # parser.add_argument('--all_unique_ids', action='store_true', 
+    #                     help="Only take effect when called with --non_blast_output. Prevents the program from touching the assembly files; the user promises that they don't contain any duplicate contig ids. In reality, there should never be contig renamings if there are no duplicate fasta ids.")
+    # parser.add_argument('--overwrite_assemblies', action='store_true', 
+    #                     help="When cleaning the assembly files to make sure there are no duplicate contig ids, overwrite the assembly files. Copy them to a neigboring folder with the affix '_edited_for_duplicate_contig_ids' instead.")
 
-    # Useful in normal asms import
-    parser.add_argument('--assembly_save_dir', type=str, default='./unique_id_assemblies/',
-                        help='While deduplicating contig ids in the input fastas, save the assemblies in this directory. Ignored when used in conjunction with --overwrite_assemblies.')
+    # # Useful in normal asms import
+    # parser.add_argument('--assembly_save_dir', type=str, default='./unique_id_assemblies/',
+    #                     help='While deduplicating contig ids in the input fastas, save the assemblies in this directory. Ignored when used in conjunction with --overwrite_assemblies.')
                         
     # for debugging:
     parser.add_argument('--debug_export', action='store_true',
@@ -346,23 +364,18 @@ def main():
     options = get_options()
 
     with Toil(options) as workflow:
-        ### For quick debugging of apply_dipcall_bed_filter:
-        # paf = workflow.importFile('file://' + os.path.abspath(options.paf))
-        # alignments = workflow.start(Job.wrapJobFn(apply_dipcall_bed_filter.apply_dipcall_bed_filter, paf))
-        # workflow.exportFile(alignments, makeURL(options.paf + ".bed_filtered"))
-
-
-
         ## Preprocessing:
         # Import asms; by default, prepends unique IDs in the technique used in cactus-blast.
-        if options.non_blast_output:
-            asms = import_asms_non_blast_output(options, workflow)
-        else:
-            asms = import_asms(options, workflow)
+        asms = get_asms_from_seqfile(options.seqFile, workflow)
+        
+        # if options.non_blast_output:
+        #     asms = import_asms_non_blast_output(options, workflow)
+        # else:
+        #     asms = import_asms(options, workflow)
             
         ## Perform alignments:
         if not workflow.options.restart:
-            alignments = workflow.start(Job.wrapJobFn(map_all_to_ref, asms, options.refID, options.debug_export, options.dipcall_bed_filter, options.dipcall_vcf_filter))
+            alignments = workflow.start(Job.wrapJobFn(run_cactus_reference_align, asms, options.refID, options, options.debug_export, options.dipcall_bed_filter, options.dipcall_vcf_filter))
 
         else:
             alignments = workflow.restart()
@@ -382,10 +395,10 @@ def main():
                 workflow.exportFile(mapping_file, 'file://' + os.path.abspath("mappings_for_" + asm + ".cigar.secondry"))
 
         ## Save alignments:
-        if options.dipcall_vcf_filter:
+        if options.dipcall_vcf_filter: # this is substantially less restrictive than the dipcall_bed_filter. 
             dipcall_filtered = workflow.start(Job.wrapJobFn(apply_dipcall_vcf_filter, alignments[0]))
             workflow.exportFile(dipcall_filtered, makeURL(options.outputFile))
-            workflow.exportFile(alignments[1], makeURL(options.outputFile + ".secondary"))
+            workflow.exportFile(alignments[1], makeURL(options.outputFile + ".unfiltered.secondary"))
         else:
             workflow.exportFile(alignments[0], makeURL(options.outputFile))
             workflow.exportFile(alignments[1], makeURL(options.outputFile + ".secondary"))
