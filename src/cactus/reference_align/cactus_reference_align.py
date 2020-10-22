@@ -81,80 +81,6 @@ def get_asms_from_seqfile(seqFile, workflow):
         seqDict[name] = workflow.importFile(makeURL(seqURL))
     return seqDict
 
-# def import_asms_non_blast_output(options, workflow):
-#     """Import asms; deduplicating contig ids if not --all_unique_ids
-
-#     Args:
-#         seqfile ([type]): [description]
-#         workflow ([type]): [description]
-
-#     Returns:
-#         [type]: [description]
-#     """
-#     # asms is dictionary of all asms (not counting reference) with key: asm_name, value: imported global toil file.
-#     asms = get_asms_from_seqfile(options.seqFile)
-
-#     if not options.all_unique_ids:
-#         # deduplicate contig id names, if user hasn't guaranteed unique contig ids.
-#         # new_fastas is the location of the asms with unique ids.
-#         if options.overwrite_assemblies:
-#             # overwrite the original assemblies. Note that the reference is never overwritten, as it is never altered. 
-#             # (Code assumes that the reference is internally free of duplicate ids, and just ensures other asms don't use reference ids.)
-#             asms = fasta_preprocessing.rename_duplicate_contig_ids(asms, options.refID, asms)
-#         else:
-#             # don't overwrite the original assemblies.
-#             # first, determine the new asm save locations.
-#             if not os.path.isdir(options.assembly_save_dir):
-#                 os.mkdir(options.assembly_save_dir)
-
-#             new_asms = dict()
-#             for asm_id, asm in asms.items():
-#                 if asm_id != options.refID:
-#                     new_asms[asm_id] = options.assembly_save_dir + asm.split("/")[-1]
-#                 else:
-#                     # reference file never needs deduplication of contig ids, since ref contig ids are counted before all other asms.
-#                     new_asms[asm_id] = asm
-                    
-#             asms = fasta_preprocessing.rename_duplicate_contig_ids(asms, options.refID, new_asms)
-
-#     # Import asms.
-#     for asm_id, asm in asms.items():
-#         asms[asm_id] = workflow.importFile('file://' + os.path.abspath(asm))
-
-#     return asms
-
-# def import_asms(options, workflow):
-#     """Import asms; deduplicating contig ids if not --all_unique_ids
-
-#     Args:
-#         options ([type]):
-#         workflow ([type]): [description]
-
-#     Returns:
-#         [type]: [description]
-#     """
-#     # asms is orderedDict of all asms (not counting reference) with key: asm_name, value: imported global toil file.
-
-#     asms = get_asms_from_seqfile(options.seqFile)
-
-#     # first, ensure the new asm save location exists.
-#     if not os.path.isdir(options.assembly_save_dir):
-#         os.mkdir(options.assembly_save_dir)
-
-#     # Prepend unique IDs.
-#     uniqueFas = prependUniqueIDs(asms.values(), options.assembly_save_dir)
-
-#     i = 0
-#     for asm_id in asms.keys():
-#         asms[asm_id] = uniqueFas[i]
-#         i += 1
-        
-#     # Import asms.
-#     for asm_id, asm in asms.items():
-#         asms[asm_id] = workflow.importFile(makeURL(asm))
-
-#     return asms
-
 def empty(job):
     """
     An empty job, for easier toil job organization.
@@ -270,7 +196,7 @@ def map_all_to_ref(job, assembly_files, reference, preprocessing_options, debug_
                 lastz_mappings = conversion_job.rv()
             else:
                 # convert mapping to lastz (and filter into primary and secondary mappings)
-                conversion_job = map_job.addFollowOnJobFn(paf_to_lastz.paf_to_lastz, paf_mappings)
+                conversion_job = map_job.addFollowOnJobFn(paf_to_lastz.paf_to_lastz, ref_mappings[assembly])
                 lastz_mappings = conversion_job.rv()
 
             # extract the primary and secondary mappings.
@@ -331,12 +257,12 @@ def get_options():
     parser.add_argument('refID', type=str, 
                         help='Specifies which asm in seqFile should be treated as the reference.')
     parser.add_argument("outputFile", type=str, help = "Output pairwise alignment file")
+
+    # dipcall-like filters
     parser.add_argument('--dipcall_bed_filter', action='store_true', 
                         help="Applies filters & minimap2 arguments used to make the bedfile in dipcall. Only affects the primary mappings file. Secondary mappings aren't used in dipcall.")
     parser.add_argument('--dipcall_vcf_filter', action='store_true', 
                         help="Applies filters & minimap2 arguments used to make the vcf in dipcall. Only affects the primary mappings file. Secondary mappings aren't used in dipcall.")
-    # parser.add_argument('--secondary', default="secondary.cigar", type=str, 
-    #                     help='Filename for where to write lastz cigar output for secondary mappings.')
                         
     ## options for importing assemblies:
     # following arguments are only useful under --non_blast_output

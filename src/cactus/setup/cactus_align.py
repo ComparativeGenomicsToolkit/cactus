@@ -76,7 +76,7 @@ def main():
     parser.add_argument("--nonBlastInput", action="store_true",
                         help="Input does not come from cactus-blast: Do not append ids to fasta names")
     parser.add_argument("--pafInput", action="store_true",
-                        help="Input is in paf format, rather than lastz cigars.")
+                        help="'blastOutput' input is in paf format, rather than lastz cigars.")
 
 
     options = parser.parse_args()
