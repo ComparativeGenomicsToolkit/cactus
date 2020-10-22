@@ -75,6 +75,10 @@ void usage() {
 
     fprintf(stderr, "-M --minimumCoverageToRescue : Unaligned segments must have at least this proportion of their bases covered by an outgroup to be rescued.\n");
 
+    fprintf(stderr, "-P --partialOrderAlignmentLength (int >= 0): Use partial order aligner instead of Pecan for multiple alignment subproblems, on blocks up to given length (0=disable POA).\n");
+
+    fprintf(stderr, "-n --noPecan: Dont do pecan, just poa\n");
+    
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -122,6 +126,8 @@ int main(int argc, char *argv[]) {
     char *ingroupCoverageFilePath = NULL;
     int64_t minimumSizeToRescue = 1;
     double minimumCoverageToRescue = 0.0;
+    int64_t poaWindow = 10000;
+    bool doPecan = true;
 
     PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters = pairwiseAlignmentBandingParameters_construct();
 
@@ -158,11 +164,13 @@ int main(int argc, char *argv[]) {
                                                 {"minimumCoverageToRescue", required_argument, 0, 'M'},
                                                 { "minimumNumberOfSpecies", required_argument, 0, 'N' },
                                                 {"inputFasta", required_argument, 0, 'f'},
+                                                {"partialOrderAlignmentLength", required_argument, 0, 'P'},
+                                                {"noPecan", no_argument, 0, 'n'},
                                                 { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:b:hi:j:kl:o:p:q:r:t:u:wy:A:B:D:E:FGI:J:K:L:M:N:f:", long_options, &option_index);
+        int key = getopt_long(argc, argv, "a:b:hi:j:kl:o:p:q:r:t:u:wy:A:B:D:E:FGI:J:K:L:M:N:f:P:n", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -286,6 +294,15 @@ int main(int argc, char *argv[]) {
                     st_errAbort("Error parsing minimumNumberOfSpecies parameter");
                 }
                 break;
+            case 'P':
+                i = sscanf(optarg, "%" PRIi64 "", &poaWindow);
+                if (i != 1) {
+                    st_errAbort("Error parsing poaWindow parameter");
+                }
+                break;
+            case 'n':
+                doPecan = false;
+                break;
             default:
                 usage();
                 return 1;
@@ -320,15 +337,20 @@ int main(int argc, char *argv[]) {
 
     fprintf(stderr, "doing pecan alignment\n");
     clock_t t = clock();
-    MultipleAlignment *mA = makeAlignment(sM, seqFrags, spanningTrees, 100000000, useProgressiveMerging, pairwiseAlignmentBandingParameters->gapGamma, pairwiseAlignmentBandingParameters);
+    MultipleAlignment *mA = NULL;
+    if (doPecan) {
+        mA = makeAlignment(sM, seqFrags, spanningTrees, 100000000, useProgressiveMerging, pairwiseAlignmentBandingParameters->gapGamma, pairwiseAlignmentBandingParameters);
+    }
     t = clock() - t;
     double pecanTime = ((double)t)/CLOCKS_PER_SEC;
 
-    print_results(mA);
+    if (doPecan) {
+        print_results(mA);
+    }
 
     fprintf(stderr, "doing poa alignment\n");
     t = clock();
-    MultipleAlignment *pA = makePartialOrderAlignment(sM, seqFrags, pairwiseAlignmentBandingParameters->gapGamma, pairwiseAlignmentBandingParameters);
+    MultipleAlignment *pA = makePartialOrderAlignment(sM, seqFrags, pairwiseAlignmentBandingParameters->gapGamma, pairwiseAlignmentBandingParameters, poaWindow);
     t = clock() - t;
     double abpoaTime = ((double)t)/CLOCKS_PER_SEC;
 

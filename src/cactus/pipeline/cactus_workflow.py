@@ -881,7 +881,8 @@ def runBarForJob(self, fileStore=None, features=None, calculateWhichEndsToComput
                  minimumSizeToRescue=self.getOptionalPhaseAttrib("minimumSizeToRescue"),
                  minimumCoverageToRescue=self.getOptionalPhaseAttrib("minimumCoverageToRescue"),
                  minimumNumberOfSpecies=self.getOptionalPhaseAttrib("minimumNumberOfSpecies", int),
-                 partialOrderAlignment=self.getOptionalPhaseAttrib("partialOrderAlignment", bool))
+                 partialOrderAlignment=self.getOptionalPhaseAttrib("partialOrderAlignment", bool),
+                 partialOrderAlignmentWindow=self.getOptionalPhaseAttrib("partialOrderAlignmentWindow", int))
 
 class CactusBarWrapper(CactusRecursionJob):
     """Runs the BAR algorithm implementation.
@@ -889,8 +890,12 @@ class CactusBarWrapper(CactusRecursionJob):
     def featuresFn(self):
         """Merges both end size features and flower features--they will both
         have an impact on resource usage."""
-        maximumLength=self.getOptionalPhaseAttrib("bandingLimit", int)
-        d = {'poaSize': min(float(max(self.flowerSizes)) / 2, maximumLength)}
+        if self.getOptionalPhaseAttrib("partialOrderAlignment"):
+            maximumLength=self.getOptionalPhaseAttrib("partialOrderAlignmentWindow", int)
+            assert maximumLength is not None
+            d = {'poaSize': min(float(max(self.flowerSizes)) / 2, maximumLength)}
+        else:
+            d = {}
         d.update(self.flowerFeatures())
         return d
 
@@ -980,20 +985,20 @@ class CactusBarEndAlignerWrapper(CactusRecursionJob):
         d.update(self.flowerFeatures())
         return d
 
-    memoryPoly = [1.495e-03, 4.87e+09]
-    feature = 'maxEndSize'
-    memoryCap = 40e09
-
     def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, flowerSizes,
                  overlarge, endsToAlign, endSizes, cactusWorkflowArguments):
         self.cactusWorkflowArguments = cactusWorkflowArguments
         self.endsToAlign = endsToAlign
         self.endSizes = endSizes
         self.phaseNode = phaseNode
+        self.memoryPoly = [1.495e-03, 4.87e+09]
+        self.feature = 'maxEndSize'
+        self.memoryCap = 40e09
 
         # poa mode needs a little extra memory
         if self.getOptionalPhaseAttrib("partialOrderAlignment"):
-            maximumLength = self.getOptionalPhaseAttrib("bandingLimit", int)
+            maximumLength = self.getOptionalPhaseAttrib("partialOrderAlignmentWindow", int)
+            assert maximumLength is not None
             self.memoryPoly[-1] += 23 * maximumLength * maximumLength
                  
         CactusRecursionJob.__init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, flowerSizes, overlarge, cactusWorkflowArguments=self.cactusWorkflowArguments, preemptable=True)
@@ -1013,18 +1018,22 @@ class CactusBarEndAlignerWrapper(CactusRecursionJob):
 class CactusBarWrapperWithPrecomputedEndAlignments(CactusRecursionJob):
     """Runs the BAR algorithm implementation with some precomputed end alignments."""
 
-    featuresFn = lambda self: {'alignmentsSize': sum([fileID.size for fileID in self.precomputedAlignmentIDs])}
-    feature = 'alignmentsSize'
-    memoryPoly = [1.99700749e+00, 3.29659639e+08]
-
+    def featuresFn(self):
+        return {'alignmentsSize': sum([fileID.size for fileID in self.precomputedAlignmentIDs])}
+    
     def __init__(self, *args, **kwargs):
         self.cactusWorkflowArguments = kwargs["cactusWorkflowArguments"]
         self.phaseNode = kwargs["phaseNode"]
+        self.precomputedAlignmentIDs = kwargs['precomputedAlignmentIDs']
+        self.memoryPoly = [1.99700749e+00, 3.29659639e+08]
+        self.feature = 'alignmentsSize'
 
         # poa mode needs a little extra memory
         if self.getOptionalPhaseAttrib("partialOrderAlignment"):
-            maximumLength = self.getOptionalPhaseAttrib("bandingLimit", int)
-            self.memoryPoly[0] += 0.0000023 * maximumLength * maximumLength
+            maximumLength = self.getOptionalPhaseAttrib("partialOrderAlignmentWindow", int)
+            assert maximumLength is not None
+            alignmentsSize = self.featuresFn()['alignmentsSize']
+            self.memoryPoly[1] += 0.0000023 * min(alignmentsSize, 10000000) * maximumLength * maximumLength
                  
         CactusRecursionJob.__init__(self, *args, **kwargs)
 

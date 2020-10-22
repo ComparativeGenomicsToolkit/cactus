@@ -22,7 +22,7 @@
 
 // char <--> uint8_t conversion copied over from abPOA example
 // AaCcGgTtNn ==> 0,1,2,3,4
-static unsigned char nst_nt4_table[256] = {
+static uint8_t nst_nt4_table[256] = {
     4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4, 
     4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4, 
     4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 5 /*'-'*/, 4, 4,
@@ -49,31 +49,50 @@ static inline uint8_t toByte(char c) {
     return nst_nt4_table[(int)c];
 }
 
+/** Copy the fragment sequences into the matrix format that abpoa expects, using 
+ * offsets and windowSize to subset as needed.  updates bseqs and chunk_lens
+ */
+static void toPoaInput(stList* seqFrags, int64_t n_seqs, int64_t* seq_lens, int64_t* seq_offsets,
+                       int64_t windowSize, uint8_t** bseqs, int* chunk_lens) {
+    for (int64_t i = 0; i < n_seqs; ++i) {
+        chunk_lens[i] = 0;
+        SeqFrag* frag = (SeqFrag*)stList_get(seqFrags, i);
+        for (int64_t j = seq_offsets[i]; j < seq_lens[i] && chunk_lens[i] < windowSize; ++j, ++chunk_lens[i]) {
+            // todo: support iupac characters?
+            bseqs[i][chunk_lens[i]] = toByte(frag->seq[j]);
+        }
+    }
+}
+
 MultipleAlignment *makePartialOrderAlignment(StateMachine *sM, stList *seqFrags,
                                              float matchGamma,
-                                             PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
-
+                                             PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters,
+                                             int64_t windowSize) {
+    
     // transorm the input for abpoa, using its example.c as a guide
     int64_t n_seqs = stList_length(seqFrags);
     
-    // collect sequence length, trasform ACGT to 0123
-    int *seq_lens = (int*)malloc(sizeof(int) * n_seqs);
-    uint8_t **bseqs = (uint8_t**)malloc(sizeof(uint8_t*) * n_seqs);
+    // lengths of each input fragment
+    int64_t *seq_lens = (int64_t*)st_malloc(sizeof(int64_t) * n_seqs);
+    int64_t bases_remaining = 0;
+    
+    // keep track of current lengths
+    int *chunk_lens = (int*)st_malloc(sizeof(int) * n_seqs);
+    // keep track of current offsets
+    int64_t* seq_offsets = (int64_t*)st_calloc(n_seqs, sizeof(int64_t));
+    // keep track of empty chunks
+    bool* empty_seqs = (bool*)st_calloc(n_seqs, sizeof(bool));
 
-    stListIterator *it = stList_getIterator(seqFrags);
-    SeqFrag* frag;
-    int i = 0;
-    int j = 0;    
-    while ((frag = stList_getNext(it)) != NULL) {
+    // initialize the poa input matrix
+    uint8_t **bseqs = (uint8_t**)st_malloc(sizeof(uint8_t*) * n_seqs);
+    for (int64_t i = 0; i < n_seqs; ++i) {
+        SeqFrag* frag = stList_get(seqFrags, i);
         seq_lens[i] = frag->length;
-        bseqs[i] = (uint8_t*)malloc(sizeof(uint8_t) * frag->length);
-        for (j = 0; j < frag->length; ++j) {
-            // todo: support iupac characters?
-            bseqs[i][j] = toByte(frag->seq[j]);
-        }
-        ++i;
+        int64_t chunk_len = windowSize < seq_lens[i] ? windowSize : seq_lens[i];
+        bseqs[i] = (uint8_t*)st_malloc(sizeof(uint8_t) * (chunk_len));
+        bases_remaining += seq_lens[i];
     }
-
+    
     // initialize variables
     abpoa_t *ab = abpoa_init();
     abpoa_para_t *abpt = abpoa_init_para();
@@ -99,32 +118,95 @@ MultipleAlignment *makePartialOrderAlignment(StateMachine *sM, stList *seqFrags,
 
     abpoa_post_set_para(abpt);
 
-    // variables to store resulting MSA;
-    uint8_t **msa_seq; int msa_l=0;
-
-    // perform abpoa-msa
-    abpoa_msa(ab, abpt, n_seqs, NULL, seq_lens, bseqs, NULL, NULL, NULL, NULL, NULL, &msa_seq, &msa_l);
-
     // todo: score
     MultipleAlignment *mA = st_calloc(1, sizeof(MultipleAlignment));
-            
-    mA->alignedPairs = poaMatrixToAlignedPairs(msa_seq, n_seqs, msa_l, 1.0, seqFrags);
+    mA->alignedPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
     // todo: refactor the multiple alignment object, as these should be optional
     mA->chosenPairwiseAlignments = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
     mA->columns = stSet_construct(); //makeColumns(seqFrags);
-        
-    // clean up
-    for (i = 0; i < n_seqs; ++i) {
-      free(msa_seq[i]);
-    }
-    free(msa_seq);
 
-    for (i = 0; i < n_seqs; ++i) {
+    int64_t prev_bases_remaining = bases_remaining;
+    while (bases_remaining > 0) {
+
+        // load up to windowSize of each sequence into the input matrix for poa
+        toPoaInput(seqFrags, n_seqs, seq_lens, seq_offsets, windowSize, bseqs, chunk_lens);        
+        
+        // variables to store resulting MSA;
+        uint8_t **msa_seq; int msa_l=0;
+
+        // poa can't handle empty sequences.  this is a hack to get around that
+        int emptyCount = 0;
+        for (int64_t i = 0; i < n_seqs; ++i) {
+            if (chunk_lens[i] == 0) {
+                empty_seqs[i] = true;
+                chunk_lens[i] = 1;
+                bseqs[i][0] = toByte('N');
+                ++emptyCount;
+            } else {
+                empty_seqs[i] = false;
+            }
+        }
+
+        // perform abpoa-msa
+        abpoa_msa(ab, abpt, n_seqs, NULL, chunk_lens, bseqs, NULL, NULL, NULL, NULL, NULL, &msa_seq, &msa_l);
+
+        // mask out empty sequences that were phonied in as Ns above
+        for (int64_t i = 0; i < n_seqs && emptyCount > 0; ++i) {
+            if (empty_seqs[i] == true) {
+                for (int j = 0; j < msa_l; ++j) {
+                    if (toBase(msa_seq[i][j]) != '-') {
+                        assert(toBase(msa_seq[i][j]) == 'N');
+                        msa_seq[i][j] = toByte('-');
+                        --chunk_lens[i];
+                        assert(chunk_lens[i] == 0);
+                        --emptyCount;
+                        break;
+                    }
+                }
+            }
+        }
+        assert(emptyCount == 0);
+
+        // todo: lots of room to be smarter about finding the next anchor here by, for example, unaligning any
+        // bad-looking columns at the end of the matrix (and updating the various offset structures) or
+        // just using a sliding window with overlap, and ignoring alignments near the end
+        
+        // todo: do we want to use global alignment each time? 
+
+        // add the msa matrix as tuples to our aligned pairs list
+        // note that seq_offsets is modified in place here, updating the position along the original sequences
+        poaMatrixToAlignedPairs(msa_seq, n_seqs, msa_l, 1.0, seqFrags, seq_offsets, mA->alignedPairs);
+
+        // clean up
+        for (int64_t i = 0; i < n_seqs; ++i) {
+            free(msa_seq[i]);
+        }
+        free(msa_seq);
+
+        // remember how much we aligned this round
+        for (int64_t i = 0; i < n_seqs; ++i) {
+            bases_remaining -= chunk_lens[i];
+        }
+        // and use for sanity check        
+        assert(prev_bases_remaining > bases_remaining && bases_remaining >= 0);
+
+        if (bases_remaining > 0) {
+            // reset graph before re-use
+            abpoa_reset_graph(ab, abpt, seq_lens[0]); 
+        }
+
+        //used only for sanity check
+        prev_bases_remaining = bases_remaining; 
+    }
+
+    for (int64_t i = 0; i < n_seqs; ++i) {
         free(bseqs[i]);
     }
-    
     free(bseqs);
     free(seq_lens);
+    free(chunk_lens);
+    free(seq_offsets);
+    free(empty_seqs);
     abpoa_free(ab, abpt);
     abpoa_free_para(abpt); 
 
@@ -134,23 +216,20 @@ MultipleAlignment *makePartialOrderAlignment(StateMachine *sM, stList *seqFrags,
     return mA;
 }
 
-stList *poaMatrixToAlignedPairs(uint8_t** msaSeq, int numSeqs, int msaWidth, int score, stList* seqFrags) {
+void poaMatrixToAlignedPairs(uint8_t** msaSeq, int64_t numSeqs, int64_t msaWidth, int64_t score, stList* seqFrags, int64_t* offsets, stList* outPairs) {
 /*
     fprintf(stdout, ">Multiple_sequence_alignment\n");
-    for (int i = 0; i < numSeqs; ++i) {
-        for (int j = 0; j < msaWidth; ++j) {
+    for (int64_t i = 0; i < numSeqs; ++i) {
+        for (int64_t j = 0; j < msaWidth; ++j) {
             fprintf(stdout, "%c", toBase(msaSeq[i][j]));
         }
         fprintf(stdout, "\n");
     }
 */
 
-    stList *alignedPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
-    int64_t* offsets = st_calloc(numSeqs, sizeof(int64_t));
-
-    for (int column = 0; column < msaWidth; ++column) { // For each column
+    for (int64_t column = 0; column < msaWidth; ++column) { // For each column
         int64_t anchor = -1, anchorCoordinate;
-        for (int seqIdx = 0; seqIdx < numSeqs; ++seqIdx) {
+        for (int64_t seqIdx = 0; seqIdx < numSeqs; ++seqIdx) {
             if(toBase(msaSeq[seqIdx][column]) != '-') { // If is not a gap
                 int64_t seqCoordinate = offsets[seqIdx]++;
                 if (toBase(msaSeq[seqIdx][column]) != 'N') { // If is not an ambiguous base
@@ -158,7 +237,7 @@ stList *poaMatrixToAlignedPairs(uint8_t** msaSeq, int numSeqs, int msaWidth, int
                         anchor = seqIdx;
                         anchorCoordinate = seqCoordinate;
                     } else { // Otherwise make an aligned pair between the anchor and the base
-                        stList_append(alignedPairs, stIntTuple_construct5(
+                        stList_append(outPairs, stIntTuple_construct5(
                                 score, anchor, anchorCoordinate,
                                 seqIdx, seqCoordinate));
                     }
@@ -168,8 +247,5 @@ stList *poaMatrixToAlignedPairs(uint8_t** msaSeq, int numSeqs, int msaWidth, int
         }
     }
 
-    free(offsets);
-
-    return alignedPairs;
 }
 

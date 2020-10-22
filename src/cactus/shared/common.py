@@ -494,6 +494,7 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
                  minimumCoverageToRescue=None,
                  minimumNumberOfSpecies=None,
                  partialOrderAlignment=None,
+                 partialOrderAlignmentWindow=None,
                  jobName=None,
                  fileStore=None,
                  features=None):
@@ -550,7 +551,8 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
     if minimumNumberOfSpecies is not None:
         args += ["--minimumNumberOfSpecies", str(minimumNumberOfSpecies)]
     if partialOrderAlignment is True:
-        args += ["--partialOrderAlignment"]
+        assert partialOrderAlignmentWindow is not None and int(partialOrderAlignmentWindow) > 1
+        args += ["--partialOrderAlignmentWindow", str(partialOrderAlignmentWindow)]
 
     masterMessages = cactus_call(stdin_string=flowerNames, check_output=True,
                                  parameters=["cactus_bar"] + args,
