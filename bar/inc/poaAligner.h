@@ -41,6 +41,7 @@ void poaMatrixToAlignedPairs(uint8_t** msaSeq,
                              int64_t score,
                              stList* seqFrags,
                              int64_t* offsets,
-                             stList* outPairs);
+                             stList* outPairs,
+                             bool allPairs);
 
 #endif

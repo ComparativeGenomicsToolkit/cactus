@@ -119,17 +119,25 @@ MultipleAlignment *makePartialOrderAlignment(StateMachine *sM, stList *seqFrags,
     abpoa_post_set_para(abpt);
 
     // todo: score
+    bool allPairs = true;
     MultipleAlignment *mA = st_calloc(1, sizeof(MultipleAlignment));
     mA->alignedPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
     // todo: refactor the multiple alignment object, as these should be optional
     mA->chosenPairwiseAlignments = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+    if(allPairs) {
+        for (int64_t i = 0; i < n_seqs; i++) {
+            for (int64_t j =i+1; j < n_seqs; j++) {
+                stList_append(mA->chosenPairwiseAlignments, stIntTuple_construct3(0, i, j));
+            }
+        }
+    }
     mA->columns = stSet_construct(); //makeColumns(seqFrags);
 
     int64_t prev_bases_remaining = bases_remaining;
     while (bases_remaining > 0) {
 
         // load up to windowSize of each sequence into the input matrix for poa
-        toPoaInput(seqFrags, n_seqs, seq_lens, seq_offsets, windowSize, bseqs, chunk_lens);        
+        toPoaInput(seqFrags, n_seqs, seq_lens, seq_offsets, windowSize, bseqs, chunk_lens);
         
         // variables to store resulting MSA;
         uint8_t **msa_seq; int msa_l=0;
@@ -175,7 +183,7 @@ MultipleAlignment *makePartialOrderAlignment(StateMachine *sM, stList *seqFrags,
 
         // add the msa matrix as tuples to our aligned pairs list
         // note that seq_offsets is modified in place here, updating the position along the original sequences
-        poaMatrixToAlignedPairs(msa_seq, n_seqs, msa_l, 1.0, seqFrags, seq_offsets, mA->alignedPairs);
+        poaMatrixToAlignedPairs(msa_seq, n_seqs, msa_l, 1.0, seqFrags, seq_offsets, mA->alignedPairs, allPairs);
 
         // clean up
         for (int64_t i = 0; i < n_seqs; ++i) {
@@ -216,7 +224,7 @@ MultipleAlignment *makePartialOrderAlignment(StateMachine *sM, stList *seqFrags,
     return mA;
 }
 
-void poaMatrixToAlignedPairs(uint8_t** msaSeq, int64_t numSeqs, int64_t msaWidth, int64_t score, stList* seqFrags, int64_t* offsets, stList* outPairs) {
+void poaMatrixToAlignedPairs(uint8_t** msaSeq, int64_t numSeqs, int64_t msaWidth, int64_t score, stList* seqFrags, int64_t* offsets, stList* outPairs, bool allPairs) {
 /*
     fprintf(stdout, ">Multiple_sequence_alignment\n");
     for (int64_t i = 0; i < numSeqs; ++i) {
@@ -227,25 +235,43 @@ void poaMatrixToAlignedPairs(uint8_t** msaSeq, int64_t numSeqs, int64_t msaWidth
     }
 */
 
-    for (int64_t column = 0; column < msaWidth; ++column) { // For each column
-        int64_t anchor = -1, anchorCoordinate;
-        for (int64_t seqIdx = 0; seqIdx < numSeqs; ++seqIdx) {
-            if(toBase(msaSeq[seqIdx][column]) != '-') { // If is not a gap
-                int64_t seqCoordinate = offsets[seqIdx]++;
-                if (toBase(msaSeq[seqIdx][column]) != 'N') { // If is not an ambiguous base
-                    if (anchor == -1) { // Set as the anchoring base
-                        anchor = seqIdx;
-                        anchorCoordinate = seqCoordinate;
-                    } else { // Otherwise make an aligned pair between the anchor and the base
-                        stList_append(outPairs, stIntTuple_construct5(
-                                score, anchor, anchorCoordinate,
-                                seqIdx, seqCoordinate));
+    if(allPairs) {
+         for (int column = 0; column < msaWidth; ++column) { // For each column
+             for (int seqIdx = 0; seqIdx < numSeqs; ++seqIdx) {
+                 if (toBase(msaSeq[seqIdx][column]) != '-') { // If is not a gap
+                     int64_t seqCoordinate = offsets[seqIdx]++;
+                     for (int seqIdx2 = seqIdx + 1; seqIdx2 < numSeqs; ++seqIdx2) {
+                         if (toBase(msaSeq[seqIdx2][column]) != '-') { // If is not a gap
+                             stList_append(outPairs, stIntTuple_construct5(
+                                     score, seqIdx, seqCoordinate,
+                                     seqIdx2, offsets[seqIdx2]));
+                         }
+                     }
+                 }
+             }
+         }
+     }
+    
+    else {
+        for (int64_t column = 0; column < msaWidth; ++column) { // For each column
+            int64_t anchor = -1, anchorCoordinate;
+            for (int64_t seqIdx = 0; seqIdx < numSeqs; ++seqIdx) {
+                if(toBase(msaSeq[seqIdx][column]) != '-') { // If is not a gap
+                    int64_t seqCoordinate = offsets[seqIdx]++;
+                    if (toBase(msaSeq[seqIdx][column]) != 'N') { // If is not an ambiguous base
+                        if (anchor == -1) { // Set as the anchoring base
+                            anchor = seqIdx;
+                            anchorCoordinate = seqCoordinate;
+                        } else { // Otherwise make an aligned pair between the anchor and the base
+                            stList_append(outPairs, stIntTuple_construct5(
+                                              score, anchor, anchorCoordinate,
+                                              seqIdx, seqCoordinate));
+                        }
                     }
-                }
 
+                }
             }
         }
     }
-
 }
 
