@@ -22,7 +22,7 @@ import math
 import threading
 import traceback
 import errno
-
+import shlex
 
 from urllib.parse import urlparse
 from datetime import datetime
@@ -33,6 +33,7 @@ from toil.lib.bioio import getLogLevelString
 from toil.common import Toil
 from toil.job import Job
 from toil.realtimeLogger import RealtimeLogger
+from toil.lib.humanize import bytes2human
 
 from sonLib.bioio import popenCatch
 
@@ -492,6 +493,8 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
                  minimumSizeToRescue=None,
                  minimumCoverageToRescue=None,
                  minimumNumberOfSpecies=None,
+                 partialOrderAlignment=None,
+                 partialOrderAlignmentWindow=None,
                  jobName=None,
                  fileStore=None,
                  features=None):
@@ -547,6 +550,9 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
         args += ["--minimumCoverageToRescue", str(minimumCoverageToRescue)]
     if minimumNumberOfSpecies is not None:
         args += ["--minimumNumberOfSpecies", str(minimumNumberOfSpecies)]
+    if partialOrderAlignment is True:
+        assert partialOrderAlignmentWindow is not None and int(partialOrderAlignmentWindow) > 1
+        args += ["--partialOrderAlignmentWindow", str(partialOrderAlignmentWindow)]
 
     masterMessages = cactus_call(stdin_string=flowerNames, check_output=True,
                                  parameters=["cactus_bar"] + args,
@@ -866,7 +872,7 @@ def getDockerImage():
 
 def getDockerRelease(gpu=False):
     """Get the most recent docker release."""
-    r = "quay.io/comparative-genomics-toolkit/cactus:v1.2.1"
+    r = "quay.io/comparative-genomics-toolkit/cactus:v1.2.3"
     if gpu:
         r += "-gpu"
     return r
@@ -898,11 +904,14 @@ def maxMemUsageOfContainer(containerInfo):
 
 # send a time/date stamped message to the realtime logger, truncating it
 # if it's too long (so it's less likely to be dropped)
-def cactus_realtime_log_info(msg, max_len = 1000):
+def cactus_realtime_log(msg, max_len = 1500, log_debug=False):
     if len(msg) > max_len:
-        msg = msg[:max_len-107] + " <...> " + msg[-100:]
-    RealtimeLogger.info("{}: {}".format(datetime.now(), msg))
-
+        msg = msg[:max_len-207] + " <...> " + msg[-200:]
+    if not log_debug:
+        RealtimeLogger.info("{}: {}".format(datetime.now(), msg))
+    else:
+        RealtimeLogger.debug("{}: {}".format(datetime.now(), msg))
+        
 def setupBinaries(options):
     """Ensure that Cactus's C/C++ components are ready to run, and set up the environment."""
     if options.latest:
@@ -1075,11 +1084,11 @@ def singularityCommand(tool=None,
             download_env['SINGULARITY_CACHEDIR'] = file_store.getLocalTempDir() if file_store else tempfile.mkdtemp(dir=work_dir)
             build_cmd = ['singularity', 'build', '-s', '-F', temp_sandbox_dirname, tool]
 
-            cactus_realtime_log_info("Running the command: \"{}\"".format(' '.join(build_cmd)))
+            cactus_realtime_log("Running the command: \"{}\"".format(' '.join(build_cmd)))
             start_time = time.time()
             subprocess.check_call(build_cmd, env=download_env)
             run_time = time.time() - start_time
-            cactus_realtime_log_info("Successfully ran the command: \"{}\" in {} seconds".format(' '.join(build_cmd), run_time))
+            cactus_realtime_log("Successfully ran the command: \"{}\" in {} seconds".format(' '.join(build_cmd), run_time))
 
             # Clean up the Singularity cache since it is single use
             shutil.rmtree(download_env['SINGULARITY_CACHEDIR'])
@@ -1206,6 +1215,9 @@ def cactus_call(tool=None,
     if tool is None:
         tool = "cactus"
 
+    # hack to keep track of memory usage for single machine
+    time_v = os.environ.get("CACTUS_LOG_MEMORY") is not None
+    
     entrypoint = None
     if (len(parameters) > 0) and isinstance(parameters[0], list):
         # We have a list of lists, which is the convention for commands piped into one another.
@@ -1250,7 +1262,19 @@ def cactus_call(tool=None,
         stdoutFileHandle = subprocess.PIPE
 
     _log.info("Running the command %s" % call)
-    cactus_realtime_log_info("Running the command: \"{}\"".format(' '.join(call)))
+    rt_message = 'Running the command: \"{}\"'.format(' '.join(call))
+    if features:
+        rt_message += ' (features={})'.format(features)
+    cactus_realtime_log(rt_message, log_debug = 'ktremotemgr' in call)
+
+    # use /usr/bin/time -v to get peak memory usage
+    if time_v and 'ktserver' not in call:
+        if not shell:
+            shell = True
+            call = ' '.join(shlex.quote(t) for t in call)
+        swallowStdErr = True
+        call = '/usr/bin/time -v {}'.format(call)
+        
     process = subprocess.Popen(call, shell=shell, encoding="ascii",
                                stdin=stdinFileHandle, stdout=stdoutFileHandle,
                                stderr=subprocess.PIPE if swallowStdErr else sys.stderr,
@@ -1289,7 +1313,18 @@ def cactus_call(tool=None,
 
     if process.returncode == 0:
         run_time = time.time() - start_time
-        cactus_realtime_log_info("Successfully ran the command: \"{}\" in {} seconds".format(' '.join(call), run_time))
+        if time_v:
+            call = call[len("/usr/bin/time -v "):]
+        rt_message = "Successfully ran: \"{}\"".format(' '.join(call) if not shell else call)
+        if features:
+            rt_message += ' (features={})'.format(features)
+        rt_message += " in {} seconds".format(round(run_time, 4))
+        if time_v:            
+            for line in stderr.split('\n'):
+                if 'Maximum resident set size (kbytes):' in line:
+                    rt_message += ' and {} memory'.format(bytes2human(int(line.split()[-1]) * 1024))
+                    break
+        cactus_realtime_log(rt_message, log_debug = 'ktremotemgr' in call)
 
     if check_result:
         return process.returncode

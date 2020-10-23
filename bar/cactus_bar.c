@@ -70,6 +70,8 @@ void usage() {
 
     fprintf(stderr, "-M --minimumCoverageToRescue : Unaligned segments must have at least this proportion of their bases covered by an outgroup to be rescued.\n");
 
+    fprintf(stderr, "-P --partialOrderAlignmentWindow (int >= 0): Use partial order aligner instead of Pecan for multiple alignment subproblems, on blocks up to given length (0=disable POA).\n");
+
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -111,6 +113,9 @@ int main(int argc, char *argv[]) {
     char *ingroupCoverageFilePath = NULL;
     int64_t minimumSizeToRescue = 1;
     double minimumCoverageToRescue = 0.0;
+    // toggle from pecan to abpoa for multiple alignment, by setting to non-zero
+    // Note that poa uses about N^2, so maximum value is generally in 10s of kb
+    int64_t poaWindow = 0;
 
     PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters = pairwiseAlignmentBandingParameters_construct();
 
@@ -140,11 +145,12 @@ int main(int argc, char *argv[]) {
                         {"minimumSizeToRescue", required_argument, 0, 'K'},
                         {"minimumCoverageToRescue", required_argument, 0, 'M'},
                         { "minimumNumberOfSpecies", required_argument, 0, 'N' },
+                        {"partialOrderAlignmentWindow", required_argument, 0, 'P'},                        
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:b:hi:j:kl:o:p:q:r:t:u:wy:A:B:D:E:FGI:J:K:L:M:N:", long_options, &option_index);
+        int key = getopt_long(argc, argv, "a:b:hi:j:kl:o:p:q:r:t:u:wy:A:B:D:E:FGI:J:K:L:M:N:P:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -265,6 +271,12 @@ int main(int argc, char *argv[]) {
                     st_errAbort("Error parsing minimumNumberOfSpecies parameter");
                 }
                 break;
+            case 'P':
+                i = sscanf(optarg, "%" PRIi64 "", &poaWindow);
+                if (i != 1) {
+                    st_errAbort("Error parsing poaLength parameter");
+                }
+                break;
             default:
                 usage();
                 return 1;
@@ -319,7 +331,7 @@ int main(int argc, char *argv[]) {
                 st_errAbort("The end %" PRIi64 " was not found in the flower\n", *((Name *)stList_get(names, i)));
             }
             stSortedSet *endAlignment = makeEndAlignment(sM, end, spanningTrees, maximumLength, useProgressiveMerging,
-                            matchGamma, pairwiseAlignmentBandingParameters);
+                                                         matchGamma, pairwiseAlignmentBandingParameters, poaWindow);
             writeEndAlignmentToDisk(end, endAlignment, fileHandle);
             stSortedSet_destruct(endAlignment);
         }
@@ -372,7 +384,7 @@ int main(int argc, char *argv[]) {
             st_logInfo("Processing a flower\n");
 
             stSortedSet *alignedPairs = makeFlowerAlignment3(sM, flower, listOfEndAlignmentFiles, spanningTrees, maximumLength,
-                    useProgressiveMerging, matchGamma, pairwiseAlignmentBandingParameters, pruneOutStubAlignments);
+                    useProgressiveMerging, matchGamma, pairwiseAlignmentBandingParameters, pruneOutStubAlignments, poaWindow);
             st_logInfo("Created the alignment: %" PRIi64 " pairs\n", stSortedSet_size(alignedPairs));
             stPinchIterator *pinchIterator = stPinchIterator_constructFromAlignedPairs(alignedPairs, getNextAlignedPairAlignment);
 

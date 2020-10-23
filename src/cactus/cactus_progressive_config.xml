@@ -147,12 +147,12 @@
 	<!-- The caf tag contains parameters for the bar algorithm. -->
 	<!-- The veryLargeEndSize parameter determines how big an end needs to be (in terms of bases in sequences incident with the end)
 	for the end to be aligned on its own. -->
-        <!-- The rescue parameter defines whether to run "bar rescue",
-             which makes single-degree blocks for anything that was
-             covered by an outgroup in the bar phase but is still
-             unaligned at the end of bar. This pushes those regions
-             into the ancestor, hopefully to get aligned to something
-             else eventually -->
+   <!-- The rescue parameter defines whether to run "bar rescue",
+        which makes single-degree blocks for anything that was
+        covered by an outgroup in the bar phase but is still
+        unaligned at the end of bar. This pushes those regions
+        into the ancestor, hopefully to get aligned to something
+        else eventually -->
 	<bar
 		runBar="1"
 		spanningTrees="5" 
@@ -177,6 +177,8 @@
                 rescue="0"
                 minimumSizeToRescue="100"
                 minimumCoverageToRescue="0.5"
+		partialOrderAlignment="0"
+		partialOrderAlignmentWindow="10000"
 	>
 		<CactusBarRecursion maxFlowerGroupSize="100000000"/>
 		<!-- The maxFlowerGroupSize in cactusBarWrapper determines how many bases to allow in one "small" job which will be run using the "littleMemory" -->

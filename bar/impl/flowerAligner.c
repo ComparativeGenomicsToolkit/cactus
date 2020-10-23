@@ -373,7 +373,7 @@ static stSortedSet *makeFlowerAlignment2(Flower *flower, stHash *endAlignments, 
     stList *freeStubCaps = stList_construct(); //Caps that we'll use when pruning the stub only ends of alignments.
     while (stList_length(caps) > 0) {
         //Pick cap with greatest number of deleted aligned pairs.
-        //This bias the bar algorithm to pick cutpoints that consistent
+        //This biases the bar algorithm to pick cutpoints that are consistent
         //with previously selected cutpoints.
         Cap *cap = NULL;
         int64_t deletedPairsForChosenCap = 0;
@@ -523,7 +523,8 @@ static stSortedSet *getEndsToAlign(Flower *flower, int64_t maxSequenceLength) {
 
 static void computeMissingEndAlignments(StateMachine *sM, Flower *flower, stHash *endAlignments, int64_t spanningTrees,
         int64_t maxSequenceLength, bool useProgressiveMerging, float gapGamma,
-        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
+        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters,
+        int64_t poaWindow) {
     /*
      * Creates end alignments for the ends that
      * do not have an alignment in the "endAlignments" hash, only creating
@@ -541,7 +542,7 @@ static void computeMissingEndAlignments(StateMachine *sM, Flower *flower, stHash
                         end,
                         makeEndAlignment(sM, end, spanningTrees, maxSequenceLength,
                                 useProgressiveMerging, gapGamma,
-                                pairwiseAlignmentBandingParameters));
+                                pairwiseAlignmentBandingParameters, poaWindow));
             } else {
                 stHash_insert(endAlignments, end, stSortedSet_construct());
             }
@@ -553,10 +554,10 @@ static void computeMissingEndAlignments(StateMachine *sM, Flower *flower, stHash
 
 stSortedSet *makeFlowerAlignment(StateMachine *sM, Flower *flower, int64_t spanningTrees, int64_t maxSequenceLength,
         bool useProgressiveMerging, float gapGamma,
-        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, bool pruneOutStubAlignments) {
+        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, bool pruneOutStubAlignments, int64_t poaWindow) {
     stHash *endAlignments = stHash_construct2(NULL, (void(*)(void *)) stSortedSet_destruct);
     computeMissingEndAlignments(sM, flower, endAlignments, spanningTrees, maxSequenceLength,
-            useProgressiveMerging, gapGamma, pairwiseAlignmentBandingParameters);
+            useProgressiveMerging, gapGamma, pairwiseAlignmentBandingParameters, poaWindow);
     return makeFlowerAlignment2(flower, endAlignments, pruneOutStubAlignments);
 }
 
@@ -578,13 +579,13 @@ static void loadEndAlignments(Flower *flower, stHash *endAlignments, stList *lis
 
 stSortedSet *makeFlowerAlignment3(StateMachine *sM, Flower *flower, stList *listOfEndAlignmentFiles, int64_t spanningTrees,
         int64_t maxSequenceLength, bool useProgressiveMerging, float gapGamma,
-        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, bool pruneOutStubAlignments) {
+        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, bool pruneOutStubAlignments, int64_t poaWindow) {
     stHash *endAlignments = stHash_construct2(NULL, (void(*)(void *)) stSortedSet_destruct);
     if(listOfEndAlignmentFiles != NULL) {
         loadEndAlignments(flower, endAlignments, listOfEndAlignmentFiles);
     }
     computeMissingEndAlignments(sM, flower, endAlignments, spanningTrees, maxSequenceLength,
-            useProgressiveMerging, gapGamma, pairwiseAlignmentBandingParameters);
+            useProgressiveMerging, gapGamma, pairwiseAlignmentBandingParameters, poaWindow);
     return makeFlowerAlignment2(flower, endAlignments, pruneOutStubAlignments);
 }
 

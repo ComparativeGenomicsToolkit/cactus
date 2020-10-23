@@ -3,6 +3,9 @@
 ## USE LASTZ TO SOFTMASK REPEATS OF A GIVEN FASTA SEQUENCE FILE.
 
 import os
+import re
+import sys
+import shutil
 
 from toil.lib.threading import cpu_count
 
@@ -103,8 +106,8 @@ class LastzRepeatMaskJob(RoundedJob):
         lastz_opts = self.repeatMaskOptions.lastzOpts.split()
         gpu_opts = []
         for i in range(len(lastz_opts)):
-            if lastz_opts[i] == "--ungapped":
-                gpu_opts += ["--nogapped"]
+            if lastz_opts[i] == "--ungapped" or lastz_opts[i] == "--nogapped":
+                pass
             elif lastz_opts[i] is None or lastz_opts[i].startswith("--queryhsplimit="):
                 pass
             elif lastz_opts[i] == "--queryhsplimit":
@@ -112,15 +115,30 @@ class LastzRepeatMaskJob(RoundedJob):
             else:
                 gpu_opts += [lastz_opts[i]]
                         
-        cmd = ["run_segalign_repeat_masker",
+        cmd = ["segalign_repeat_masker",
                targetFile,
                "--lastz_interval={}".format(self.repeatMaskOptions.gpuLastzInterval),
                "--markend",
-               "--neighbor_proportion", str(self.repeatMaskOptions.proportionSampled)] + gpu_opts
+               "--neighbor_proportion", str(self.repeatMaskOptions.proportionSampled),
+               # note: segalign now includes cactus_covered_intervals, so we pass the threshold here
+               # and skip running it below
+               "--M", str(self.repeatMaskOptions.period)] + gpu_opts
         
         cactus_call(parameters=cmd, work_dir=alignment_dir)
 
-        return alignment_dir
+        # scrape the segalign output into one big file, making an effort to read in numeric order
+        merged_path = fileStore.getLocalTempFile()
+        with open(merged_path, "a") as merged_file:
+            for work_file in sorted(os.listdir(alignment_dir), key = lambda x : int(re.sub("[^0-9]", "", x))):
+                # segalign_repeat_masker makes files that look like "tmp10.block0.intervals"
+                # (not that there should be anything else in this directory)
+                if work_file.startswith("tmp") and work_file.endswith("intervals"):
+                    # append it do the merged file and delete it right away to keep disk usage lower
+                    with open(os.path.join(alignment_dir, work_file), "r") as frag_file:
+                        shutil.copyfileobj(frag_file, merged_file)
+                    os.remove(os.path.join(alignment_dir, work_file))
+
+        return merged_path
 
     def maskCoveredIntervals(self, fileStore, queryFile, alignment):
         """
@@ -129,37 +147,26 @@ class LastzRepeatMaskJob(RoundedJob):
         #This runs Bob's covered intervals program, which combines the lastz alignment info into intervals of the query.
         maskInfo = fileStore.getLocalTempFile()
 
-        # * 2 takes into account the effect of the overlap
-        scale_period = 2 if not self.repeatMaskOptions.gpuLastz else 1
+        # covered_intervals is part of segalign, so only run if not in gpu mode
+        if self.repeatMaskOptions.gpuLastz:
+            maskInfo = alignment
+        else:
+            # * 2 takes into account the effect of the overlap
+            scale_period = 2
 
-        covered_call_cmd = ["cactus_covered_intervals",
-                            "--origin=one",
-                            "M=%s" % (int(self.repeatMaskOptions.period * scale_period))]
+            covered_call_cmd = ["cactus_covered_intervals",
+                                "--origin=one",
+                                "M=%s" % (int(self.repeatMaskOptions.period * scale_period))]
 
-        if not self.repeatMaskOptions.gpuLastz:
             covered_call_cmd += ["--queryoffsets"]
             cactus_call(infile=alignment, outfile=maskInfo, parameters=covered_call_cmd)
-        else:
-            # in gpu mode we don't get a file in the alignment parameter, rather
-            # we scrape the segalign output fragments and run them all
-            # todo: parallelize?
-            out_append=False
-            for work_file in os.listdir(alignment):
-                if work_file.startswith('output_') and os.path.isdir(os.path.join(alignment, work_file)):
-                    assert not out_append
-                    for block_file in sorted(os.listdir(os.path.join(alignment, work_file))):
-                        block_path = os.path.join(alignment, work_file, block_file)
-                        if os.path.isfile(block_path) and block_file.startswith('tmp') and block_file.endswith('.segments'):
-                            cactus_call(infile=block_path, outfile=maskInfo, outappend=out_append, parameters=covered_call_cmd)
-                            # these can add up:  erase as we go to not double storage cost
-                            os.remove(block_path)
-                            out_append=True
-
-            assert out_append # should have scanned at least one file
 
         # the previous lastz command outputs a file of intervals (denoted with indices) to softmask.
         # we finish by applying these intervals to the input file, to produce the final, softmasked output.
-        args = ["--origin=one"]
+        if self.repeatMaskOptions.gpuLastz:
+            args = ["--origin=zero"]
+        else:
+            args = ["--origin=one"]
         if self.repeatMaskOptions.unmaskOutput:
             args.append("--unmask")
         args.append(maskInfo)
@@ -183,6 +190,5 @@ class LastzRepeatMaskJob(RoundedJob):
         else:
             fragments = self.getFragments(fileStore, queryFile)
             alignment = self.alignFastaFragments(fileStore, targetFiles, fragments)
-            
         maskedQuery = self.maskCoveredIntervals(fileStore, queryFile, alignment)
         return fileStore.writeGlobalFile(maskedQuery)

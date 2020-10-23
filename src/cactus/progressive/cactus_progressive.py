@@ -281,7 +281,7 @@ class RunCactusPreprocessorThenProgressiveDown2(RoundedJob):
                                      disk=self.configWrapper.getExportHalDisk(),
                                      preemptable=False).rv()
 
-def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC=None, cacheW0=None, chunk=None, deflate=None, inMemory=False):
+def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC=None, cacheW0=None, chunk=None, deflate=None, inMemory=True):
 
     HALPath = "tmp_alignment.hal"
 

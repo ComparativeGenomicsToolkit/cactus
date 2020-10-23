@@ -55,5 +55,5 @@ sonLibLibs = ${sonLibDir}/sonLib.a ${sonLibDir}/cuTest.a
 
 databaseLibs = ${kyotoTycoonLib} ${tokyoCabinetLib}
 
-LDLIBS += ${cactusLibs} ${sonLibLibs} ${databaseLibs} ${LIBS} -lm
+LDLIBS += ${cactusLibs} ${sonLibLibs} ${databaseLibs} ${LIBS} -lm -labpoa
 LIBDEPENDS = ${sonLibDir}/sonLib.a ${sonLibDir}/cuTest.a

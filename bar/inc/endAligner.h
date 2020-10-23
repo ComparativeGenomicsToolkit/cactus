@@ -48,8 +48,9 @@ int alignedPair_cmpFn(const AlignedPair *alignedPair1, const AlignedPair *aligne
  * to the alignerPair comparison function.
  */
 stSortedSet *makeEndAlignment(StateMachine *sM, End *end, int64_t spanningTrees, int64_t maxSequenceLength,
-        bool useProgressiveMerging, float gapGamma,
-        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters);
+                              bool useProgressiveMerging, float gapGamma,
+                              PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters,
+                              int64_t poaWindow);
 
 /*
  * Writes an end alignment to the given file.
