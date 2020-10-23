@@ -30,6 +30,7 @@ import subprocess
 import os
 from argparse import ArgumentParser
 import collections as col
+import xml.etree.ElementTree as ET
 
 from cactus.reference_align import paf_to_lastz
 from cactus.reference_align import fasta_preprocessing
@@ -38,23 +39,37 @@ from cactus.reference_align import apply_dipcall_bed_filter
 from cactus.shared.common import makeURL
 from cactus.progressive.seqFile import SeqFile
 from cactus.pipeline.cactus_workflow import prependUniqueIDs
+from cactus.shared.configWrapper import ConfigWrapper
+from cactus.progressive.multiCactusTree import MultiCactusTree
+from cactus.shared.common import cactusRootPath
+
 
 ## utilitary fxns:
 
-def variation_length(lastz_cig_list):
-    # 0, 2, 4,... are the type of variation.
-    # 1, 3, 5,... are the length of the variation of that type.
+def variation_length(lastz_cig):
+    """Determines how long the mapping is (sum of insertion/deletion/match), based on the 
+    lastz cig.
+    Args:
+        lastz_cig (string): a lastz cigar, e.g. "M50D3I5M30"
+
+    Returns:
+        int: sum of I+D+M in cigar.
+    """
+    # Parsing cigars:
+    # indices 0, 2, 4,... are the type of variation.
+    # indices 1, 3, 5,... are the length of the variation of that type.
     # there should be an even number of entries in the cig list: pairs of type, value.
     var_len = 0
-    for i in range(0, len(lastz_cig_list), 2):
-        print(i, lastz_cig_list[i], lastz_cig_list[i+1])
-        if lastz_cig_list[i] in "IDM":
-            var_len += int(lastz_cig_list[i+1])
+    for i in range(0, len(lastz_cig), 2):
+        print(i, lastz_cig[i], lastz_cig[i+1])
+        if lastz_cig[i] in "IDM":
+            var_len += int(lastz_cig[i+1])
     return var_len
 
 def unpack_promise(job, iterable, i):
     """
-    passed an iterable and a location i, returns ith item.
+    passed an iterable and a location i, returns ith item. Useful for accessing the 
+    contents of a toil promise.
     """
     return iterable[i]
 
@@ -74,6 +89,15 @@ def consolidate_mappings(job, mapping_files):
     return job.fileStore.writeGlobalFile(consolidated_mappings)
 
 def get_asms_from_seqfile(seqFile, workflow):
+    """[summary]
+
+    Args:
+        seqFile ([type]): [description]
+        workflow ([type]): [description]
+
+    Returns:
+        [type]: [description]
+    """
     seqFile = SeqFile(seqFile)
     seqDict = col.OrderedDict(seqFile.pathMap)
     print(seqDict)
@@ -90,7 +114,7 @@ def empty(job):
 ## dipcall filter functions
 
 def apply_dipcall_vcf_filter(job, infile, min_var_len=50000, min_mapq=5):
-    """Filters out all mappings below min_var_len and min_mapq.
+    """Filters out all mappings below min_var_len and min_mapq from a lastz file.
     NOTE: Assumes all secondary mappings are already removed. 
     Also: lastz cigars need to have <score> field filled with mapq, not raw score.
     Args:
@@ -99,17 +123,11 @@ def apply_dipcall_vcf_filter(job, infile, min_var_len=50000, min_mapq=5):
         min_var_len ([type]): [description]
         min_mapq ([type]): [description]
     """
-    # debug = 0
     with open(job.fileStore.readGlobalFile(infile)) as inf:
         filtered = job.fileStore.getLocalTempFile()
         with open(filtered, "w+") as outf:
             for line in inf:
                 parsed = line.split()
-                # print(parsed, "\t", variation_length(parsed[10:]), "\t", parsed[9])
-                # debug += 1
-                # if debug == 2:
-                #     break
-                # if (parsed[3] - parsed[2]) >= min_var_len: This measures the length of the SV from the query point of view. Dipcall also includes deletions in measuring variation length.
                 if variation_length(parsed[10:]) >= min_var_len:
                     if int(parsed[9]) >= min_mapq:
                         outf.write(line)
@@ -117,9 +135,10 @@ def apply_dipcall_vcf_filter(job, infile, min_var_len=50000, min_mapq=5):
     return job.fileStore.writeGlobalFile(filtered)
 
 def filter_out_secondaries_from_paf(job, paf):
-    # secondary_paf = job.fileStore.getLocalTempFile()
+    """
+    Removes all secondary mappings from paf file.
+    """
     primary_paf = job.fileStore.getLocalTempFile()
-    # with open(secondary_paf, "w") as secondary_outf:
     with open(primary_paf, "w") as outf:
         with open(job.fileStore.readGlobalFile(paf)) as inf:
             for line in inf:
@@ -128,13 +147,14 @@ def filter_out_secondaries_from_paf(job, paf):
                     if i[:6] == "tp:A:P" or i[:6] == "tp:A:I":
                         outf.write(line)
                         break
-                    # elif i[:5] == "tp:A:S":
-                    #     secondary_outf.write(line)
-        
     return job.fileStore.writeGlobalFile(primary_paf)
-    # return (job.fileStore.writeGlobalFile(primary_paf), job.fileStore.writeGlobalFile(secondary_paf))
 
 def run_prepend_unique_ids(job, assembly_files):
+    """
+    Ensures all input sequences from assembly_files have unique names.
+    This is adapted from run_prepend_unique_ids in cactus_align, in order to maintain order-dependent renamings.
+    Because cactus-reference-align assumes that all input sequences are ingroups, it does not attempt to avoid renaming outgroup genomes.  
+    """
     print("assembly_files", assembly_files)
     sequences = [job.fileStore.readGlobalFile(id) for id in assembly_files.values()]
     print("sequences", sequences)
@@ -154,18 +174,35 @@ def run_prepend_unique_ids(job, assembly_files):
 
 ## mapping fxns:
 
-def run_cactus_reference_align(job, assembly_files, reference, preprocessing_options, debug_export=False, dipcall_bed_filter=False, dipcall_vcf_filter=False):
+def run_cactus_reference_align(job, assembly_files, reference, debug_export=False, dipcall_bed_filter=False, dipcall_vcf_filter=False):
+    """
+    Preprocesses assemblies, then runs mappings.
+    """
     ## Note: this is adapted from run_prepend_unique_ids in cactus_align, in order to maintain order-dependent renamings.
     ## Because cactus-reference-align assumes that all input sequences are ingroups, it does not attempt to avoid renaming outgroup genomes.  
     preprocess_job = job.addChildJobFn(run_prepend_unique_ids, assembly_files)
     assembly_files = preprocess_job.rv()
-    mappings = preprocess_job.addFollowOnJobFn(map_all_to_ref, assembly_files, reference, preprocessing_options, debug_export, dipcall_bed_filter, dipcall_vcf_filter).rv()
+    mappings = preprocess_job.addFollowOnJobFn(map_all_to_ref, assembly_files, reference, debug_export, dipcall_bed_filter, dipcall_vcf_filter).rv()
     return mappings
 
-def map_all_to_ref(job, assembly_files, reference, preprocessing_options, debug_export=False, dipcall_bed_filter=False, dipcall_vcf_filter=False):
-    """
-    Primarily for use with option_all_to_ref_only. Otherwise, use map_all_to_ref_and_get_poor_mappings.
-    assembly_files is an orderedDict (or theoretically works with normal dict, if we can assume order within the dictionary. This is guaranteed at or past python 3.7.)
+def map_all_to_ref(job, assembly_files, reference, debug_export=False, dipcall_bed_filter=False, dipcall_vcf_filter=False):
+    """The meat of cactus-reference-align. Performs all mappings; applies dipcall 
+    filter_bed_filter if necessary, then converts to lastz cigars.
+
+    Args:
+        assembly_files (orderedDict): key: asm_name; value: asm_file
+        reference (string): asm_name of the reference.
+        debug_export (bool): Export some intermediate files of the workflow, for debugging. Defaults to False.
+        dipcall_bed_filter (bool): Apply the dipcall bed filter to the mappings. This will:
+                                    Guarantee that there will be no overlapping mappings.
+                                    * include mappings >=min_var_len=50kb in size.
+                                    * BUT: will exclude regions of these mappings which overlap any other mappings >=min_size_mapping=10kb in size. (This includes other >=50kb mappings).
+                                    * all mappings considered for inclusion or overlap must have >= 5 mapQ.
+                                        Defaults to False.
+        dipcall_vcf_filter (bool): Applies the preliminary requirements for the less-stringent vcf-filter. Ultimately, vcf-filter:
+                                    * removes all secondary mappings
+                                    * Filters out all mappings below min_var_len=50k and min_mapq=5 from a lastz file
+                                     Defaults to False.
     """
     lead_job = job.addChildJobFn(empty)
 
@@ -179,12 +216,6 @@ def map_all_to_ref(job, assembly_files, reference, preprocessing_options, debug_
             map_job = lead_job.addChildJobFn(map_a_to_b, assembly_file, assembly_files[reference], (dipcall_bed_filter or dipcall_vcf_filter))
             ref_mappings[assembly] = map_job.rv()
 
-            # if dipcall_bed_filter:
-            #     secondaries_filter_job = map_job.addFollowOnJobFn(filter_out_secondaries_from_paf, ref_mappings[assembly])
-            #     primary_paf = secondaries_filter_job.rv()
-
-            #     dipcall_bed_filter_job = secondaries_filter_job.addFollowOnJobFn(apply_dipcall_bed_filter.apply_dipcall_bed_filter, primary_paf)
-            #     primary_mappings[assembly] = dipcall_bed_filter_job.rv()
             if dipcall_bed_filter:
                 secondaries_filter_job = map_job.addFollowOnJobFn(filter_out_secondaries_from_paf, ref_mappings[assembly])
                 primary_paf = secondaries_filter_job.rv()
@@ -257,13 +288,21 @@ def get_options():
     parser.add_argument('refID', type=str, 
                         help='Specifies which asm in seqFile should be treated as the reference.')
     parser.add_argument("outputFile", type=str, help = "Output pairwise alignment file")
+    parser.add_argument("--pathOverrides", nargs="*", help="paths (multiple allowd) to override from seqFile")
+    parser.add_argument("--pathOverrideNames", nargs="*", help="names (must be same number as --paths) of path overrides")
 
     # dipcall-like filters
     parser.add_argument('--dipcall_bed_filter', action='store_true', 
                         help="Applies filters & minimap2 arguments used to make the bedfile in dipcall. Only affects the primary mappings file. Secondary mappings aren't used in dipcall.")
     parser.add_argument('--dipcall_vcf_filter', action='store_true', 
                         help="Applies filters & minimap2 arguments used to make the vcf in dipcall. Only affects the primary mappings file. Secondary mappings aren't used in dipcall.")
-                        
+
+    # Progressive Cactus Options:
+    parser.add_argument("--configFile", dest="configFile",
+                        help="Specify cactus configuration file",
+                        default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
+      
+
     ## options for importing assemblies:
     # following arguments are only useful under --non_blast_output
     # parser.add_argument('--non_blast_output', action='store_true', 
@@ -291,17 +330,34 @@ def main():
 
     with Toil(options) as workflow:
         ## Preprocessing:
+        if (options.pathOverrides or options.pathOverrideNames):
+            if not options.pathOverrides or not options.pathOverrideNames or \
+            len(options.pathOverrideNames) != len(options.pathOverrides):
+                raise RuntimeError('same number of values must be passed to --pathOverrides and --pathOverrideNames')
+
+        # apply path overrides.  this was necessary for wdl which doesn't take kindly to
+        # text files of local paths (ie seqfile).  one way to fix would be to add support
+        # for s3 paths and force wdl to use it.  a better way would be a more fundamental
+        # interface shift away from files of paths throughout all of cactus
+        if options.pathOverrides:
+            seqFile = SeqFile(options.seqFile)
+            configNode = ET.parse(options.configFile).getroot()
+            config = ConfigWrapper(configNode)
+            tree = MultiCactusTree(seqFile.tree)
+            tree.nameUnlabeledInternalNodes(prefix = config.getDefaultInternalNodePrefix())                
+            for name, override in zip(options.pathOverrideNames, options.pathOverrides):
+                seqFile.pathMap[name] = override
+            override_seq = os.path.join(options.cactusDir, 'seqFile.override')
+            with open(override_seq, 'w') as out_sf:
+                out_sf.write(str(seqFile))
+            options.seqFile = override_seq
+
         # Import asms; by default, prepends unique IDs in the technique used in cactus-blast.
         asms = get_asms_from_seqfile(options.seqFile, workflow)
-        
-        # if options.non_blast_output:
-        #     asms = import_asms_non_blast_output(options, workflow)
-        # else:
-        #     asms = import_asms(options, workflow)
-            
+
         ## Perform alignments:
         if not workflow.options.restart:
-            alignments = workflow.start(Job.wrapJobFn(run_cactus_reference_align, asms, options.refID, options, options.debug_export, options.dipcall_bed_filter, options.dipcall_vcf_filter))
+            alignments = workflow.start(Job.wrapJobFn(run_cactus_reference_align, asms, options.refID, options.debug_export, options.dipcall_bed_filter, options.dipcall_vcf_filter))
 
         else:
             alignments = workflow.restart()

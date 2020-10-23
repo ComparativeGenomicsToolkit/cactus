@@ -26,17 +26,11 @@ def paf_to_lastz(job, paf_file, sort_secondaries=True):
         # print("in paf_to_Lastz - looking for the cg tag.")
         with open(job.fileStore.readGlobalFile(paf_file)) as inf:
             for line in inf:
-                print("checking line")
-                if "tp:A:S" in line:
-                    print("line of interest: ", line)
                 if "tp:A:P" in line or "tp:A:I" in line:
-                    print("sent to primary")
                     #then the line is a primary output file.
                     primary.append(line)
                     primary_mapqs.append(line.split()[11])
-                # elif "tp:A:S" in line:
                 else:
-                    print("sent to secondary")
                     #then the line is a secondary output file.
                     secondary.append(line)
                     secondary_mapqs.append(line.split()[11])
@@ -62,12 +56,6 @@ def paf_to_lastz(job, paf_file, sort_secondaries=True):
             fix_negative_strand_mappings(paftool_files[i], fixed_paftool_files[i])
             add_original_mapqs( mapqs[i], fixed_paftool_files[i], job.fileStore.readGlobalFile(out_files[i]))
 
-    # print("debug info!")
-    # with open(stderr_debug) as debugf:
-    #     for line in debugf:
-    #         print(line)
-
-        
     # check that the lines going into paftools.js are in same order as lines going out.
     with open(job.fileStore.readGlobalFile(out_files[0])) as inf:
         i = 0
@@ -76,13 +64,8 @@ def paf_to_lastz(job, paf_file, sort_secondaries=True):
             paf_parsed = lines[0][i].split()
             lastz_parsed = line.split()
             if (lastz_parsed[3] == "+" and paf_parsed[2] != lastz_parsed[1]) or (lastz_parsed[3] == "-" and paf_parsed[2] != lastz_parsed[2]):
-                # print("Lines differ between paf and paftools.js lastz output! Paftools.js may be acting in an unexpected manner. paf line: " + lines[0][i] + " lastz line " + line)
                 raise ValueError("Lines differ between paf and paftools.js lastz output! Paftools.js may be acting in an unexpected manner. paf line: " + lines[0][i] + " lastz line " + line)
             i += 1
-
-    # with open(stderr_debug) as debugf:
-    #     for line in debugf:
-    #         print("stderr_debug\t", line)
 
     if not sort_secondaries:
         return out_files[0]
