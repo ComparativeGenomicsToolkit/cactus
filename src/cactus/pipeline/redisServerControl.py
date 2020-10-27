@@ -137,7 +137,7 @@ class RedisServer:
     def getServerOptions(self):
         # these are some hardcoded defaults.  should think about moving to config
         # TODO: check if every necessary option is added
-        serverOptions = "--timeout 0 --databases 1 --protected-mode no"
+        serverOptions = "--timeout 0 --databases 1 --protected-mode no --maxclients 200"
         if self.dbElem.getDbServerOptions() is not None:
             serverOptions = self.dbElem.getDbServerOptions()
         return serverOptions
