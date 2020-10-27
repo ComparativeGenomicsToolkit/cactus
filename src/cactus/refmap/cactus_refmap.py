@@ -26,17 +26,17 @@ logger.info timer (see line 91 of cactus_blast)
 from toil.common import Toil
 from toil.job import Job
 
-import subprocess
 import os
 from argparse import ArgumentParser
 import collections as col
 import xml.etree.ElementTree as ET
 
-from cactus.reference_align import paf_to_lastz
-from cactus.reference_align import fasta_preprocessing
-from cactus.reference_align import apply_dipcall_bed_filter
+from cactus.refmap import paf_to_lastz
+from cactus.refmap import fasta_preprocessing
+from cactus.refmap import apply_dipcall_bed_filter
 
 from cactus.shared.common import makeURL
+from cactus.shared.common import cactus_call
 from cactus.progressive.seqFile import SeqFile
 from cactus.pipeline.cactus_workflow import prependUniqueIDs
 from cactus.shared.configWrapper import ConfigWrapper
@@ -261,10 +261,10 @@ def map_a_to_b(job, a, b, dipcall_filter):
         # note: in dipcall, they include argument "--paf-no-hit". 
         # I don't see why they would include these "mappings", only to be filtered out 
         # later. I have not included the argument.
-        subprocess.call(["minimap2", "-c", "-xasm5", "--cs", "-r2k", "-o", job.fileStore.readGlobalFile(map_to_ref_paf),
+        cactus_call(parameters=["minimap2", "-c", "-xasm5", "--cs", "-r2k", "-o", job.fileStore.readGlobalFile(map_to_ref_paf),
                         job.fileStore.readGlobalFile(b), job.fileStore.readGlobalFile(a)])
     else:
-        subprocess.call(["minimap2", "-cx", "asm5", "-o", job.fileStore.readGlobalFile(map_to_ref_paf),
+        cactus_call(parameters=["minimap2", "-cx", "asm5", "-o", job.fileStore.readGlobalFile(map_to_ref_paf),
                         job.fileStore.readGlobalFile(b), job.fileStore.readGlobalFile(a)])
     
 

@@ -1,7 +1,6 @@
 from toil.common import Toil
 from toil.job import Job
-
-import subprocess
+from cactus.shared.common import cactus_call
 
 def paf_to_lastz(job, paf_file, sort_secondaries=True):
     """
@@ -47,14 +46,13 @@ def paf_to_lastz(job, paf_file, sort_secondaries=True):
     print("len(lines in secondary:", len(lines[1]))
 
     stderr_debug = job.fileStore.getLocalTempFile()
-    with open(stderr_debug, "w") as debugf:
-        for i in range(len(lines)):
-            with open(sort_files[i], "w") as sortf:
-                sortf.writelines(lines[i])
-            with open(paftool_files[i], "w") as outf:
-                subprocess.run(["paftools.js", "view", "-f", "lastz-cigar", sort_files[i]], stdout=outf, stderr=debugf)
-            fix_negative_strand_mappings(paftool_files[i], fixed_paftool_files[i])
-            add_original_mapqs( mapqs[i], fixed_paftool_files[i], job.fileStore.readGlobalFile(out_files[i]))
+    for i in range(len(lines)):
+        with open(sort_files[i], "w") as sortf:
+            sortf.writelines(lines[i])
+        # cactus_call(parameters=["sort", "-k6,6", "-k8,8n"])
+        cactus_call(parameters=["paftools.js", "view", "-f", "lastz-cigar", sort_files[i]], outfile=paftool_files[i])
+        fix_negative_strand_mappings(paftool_files[i], fixed_paftool_files[i])
+        add_original_mapqs( mapqs[i], fixed_paftool_files[i], job.fileStore.readGlobalFile(out_files[i]))
 
     # check that the lines going into paftools.js are in same order as lines going out.
     with open(job.fileStore.readGlobalFile(out_files[0])) as inf:

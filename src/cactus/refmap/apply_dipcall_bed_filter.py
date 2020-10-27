@@ -2,7 +2,6 @@
 
 import copy
 import operator
-# from toil.common import Toil
 from toil.job import Job
 from cigar import Cigar
 import collections as col

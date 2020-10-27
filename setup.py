@@ -50,5 +50,5 @@ setup(
                             'cactus-prepare = cactus.progressive.cactus_prepare:main',
                             'cactus-prepare-toil = cactus.progressive.cactus_prepare:main_toil',
                             'cactus-blast = cactus.blast.cactus_blast:main',
-                            'cactus-reference-align = cactus.reference_align.cactus_reference_align:main',
+                            'cactus-refmap = cactus.refmap.cactus_refmap:main',
                             'cactus-align = cactus.setup.cactus_align:main']},)
