@@ -1266,7 +1266,7 @@ def cactus_call(tool=None,
     cactus_realtime_log(rt_message, log_debug = 'ktremotemgr' in call)
 
     # use /usr/bin/time -v to get peak memory usage
-    if time_v and 'ktserver' not in call:
+    if time_v and 'ktserver' not in call and 'redis-server' not in call:
         if not shell:
             shell = True
             call = ' '.join(shlex.quote(t) for t in call)
