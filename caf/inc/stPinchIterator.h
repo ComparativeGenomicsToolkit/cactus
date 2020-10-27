@@ -11,7 +11,13 @@
 #include "sonLib.h"
 #include "stPinchGraphs.h"
 
-typedef struct _stPinchIterator stPinchIterator;
+typedef struct _stPinchIterator {
+    int64_t alignmentTrim;
+    void *alignmentArg;
+    stPinch *(*getNextAlignment)(void *);
+    void *(*startAlignmentStack)(void *);
+    void (*destructAlignmentArg)(void *);
+} stPinchIterator;
 
 /*
  * Get next alignment from iterator.

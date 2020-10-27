@@ -8,7 +8,6 @@
 
 #include "abpoa.h"
 #include "poaEndAligner.h"
-#include "../inc/poaEndAligner.h"
 
 // char <--> uint8_t conversion copied over from abPOA example
 // AaCcGgTtNn ==> 0,1,2,3,4
@@ -478,4 +477,62 @@ stList *makeFlowerAlignmentPOA(Flower *flower, bool pruneOutStubAlignments) {
     stHash_destruct(caps_to_indices);
 
     return alignment_blocks;
+}
+
+/*
+ * The following is used for converting the alignment blocks into pinches consumed by the CAF code.
+ */
+
+/**
+ * Iterator over the list of alignment blocks used to get stPinches in succession.
+ */
+typedef struct _alignmentBlockIterator {
+    stList *alignment_blocks; // The list of alignment blocks
+    int64_t i; // Index of the iterator into the alignment_blocks
+    AlignmentBlock *current_block; // The current block being considered
+} AlignmentBlockIterator;
+
+AlignmentBlockIterator *alignmentBlockIterator_construct(stList *alignment_blocks) {
+    AlignmentBlockIterator *alignmentBlockIterator = st_calloc(1, sizeof(AlignmentBlockIterator));
+    alignmentBlockIterator->alignment_blocks = alignment_blocks;
+    return alignmentBlockIterator;
+}
+
+void alignmentBlockIterator_destruct(AlignmentBlockIterator *it) {
+    stList_length(it->alignment_blocks);
+    free(it);
+}
+
+void alignmentBlockIterator_start(AlignmentBlockIterator *it) {
+    it->i = 0;
+    it->current_block = NULL;
+}
+
+stPinch *alignmentBlockIterator_get_next(AlignmentBlockIterator *it) {
+    // If there is no current alignment block or the alignment block contains no further pinches
+    if(it->current_block == NULL || it->current_block->next == NULL) {
+        if(it->i >= stList_length(it->alignment_blocks)) { // We are done
+            return NULL;
+        }
+        it->current_block = stList_get(it->alignment_blocks, it->i++);
+    }
+    assert(it->current_block->next != NULL); // All alignment blocks should contain at least two sequences
+
+    AlignmentBlock *b = it->current_block;
+    static stPinch pinch;
+    stPinch_fillOut(&pinch, b->subsequenceIdentifier, b->next->subsequenceIdentifier,
+                    b->position, b->next->position, 1, b->strand == b->next->strand);
+
+    it->current_block = b->next; // Shift to the next sequence to ready the next pinch
+
+    return &pinch;
+}
+
+stPinchIterator *stPinchIterator_constructFromAlignedBlocks(stList *alignment_blocks) {
+    stPinchIterator *pinchIterator = st_calloc(1, sizeof(stPinchIterator));
+    pinchIterator->alignmentArg = alignmentBlockIterator_construct(alignment_blocks);
+    pinchIterator->getNextAlignment = (stPinch *(*)(void *)) alignmentBlockIterator_get_next;
+    pinchIterator->destructAlignmentArg = (void(*)(void *)) alignmentBlockIterator_destruct;
+    pinchIterator->startAlignmentStack = (void *(*)(void *)) alignmentBlockIterator_start;
+    return pinchIterator;
 }

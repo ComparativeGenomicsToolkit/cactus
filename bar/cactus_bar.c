@@ -13,6 +13,7 @@
 #include "cactus.h"
 #include "sonLib.h"
 #include "endAligner.h"
+#include "poaEndAligner.h"
 #include "flowerAligner.h"
 #include "rescue.h"
 #include "commonC.h"
@@ -379,11 +380,28 @@ int main(int argc, char *argv[]) {
             flower = stList_get(flowers, j);
             st_logInfo("Processing a flower\n");
 
-            stSortedSet *alignedPairs = makeFlowerAlignment3(sM, flower, listOfEndAlignmentFiles, spanningTrees, maximumLength,
-                    useProgressiveMerging, matchGamma, pairwiseAlignmentBandingParameters, pruneOutStubAlignments, poaMode);
-            st_logInfo("Created the alignment: %" PRIi64 " pairs\n", stSortedSet_size(alignedPairs));
-            stPinchIterator *pinchIterator = stPinchIterator_constructFromAlignedPairs(alignedPairs, getNextAlignedPairAlignment);
+            stPinchIterator *pinchIterator;
+            stSortedSet *alignedPairs;
 
+            if(poaMode) {
+                /*
+                 * This makes a consistent set of alignments using abPoa.
+                 *
+                 * It does not use any precomputed alignments, if they are provided they will be ignored
+                 */
+                stList *alignment_blocks = makeFlowerAlignmentPOA(flower, pruneOutStubAlignments);
+                pinchIterator = stPinchIterator_constructFromAlignedBlocks(alignment_blocks);
+            }
+            else {
+                alignedPairs = makeFlowerAlignment3(sM, flower, listOfEndAlignmentFiles, spanningTrees, maximumLength,
+                                                    useProgressiveMerging, matchGamma,
+                                                    pairwiseAlignmentBandingParameters,
+                                                    pruneOutStubAlignments, poaMode);
+                st_logInfo("Created the alignment: %"
+                PRIi64
+                " pairs\n", stSortedSet_size(alignedPairs));
+                pinchIterator = stPinchIterator_constructFromAlignedPairs(alignedPairs, getNextAlignedPairAlignment);
+            }
             /*
              * Run the cactus caf functions to build cactus.
              */
@@ -424,7 +442,9 @@ int main(int argc, char *argv[]) {
              */
             //Clean up the sorted set after cleaning up the iterator
             stPinchIterator_destruct(pinchIterator);
-            stSortedSet_destruct(alignedPairs);
+            if(!poaMode) {
+                stSortedSet_destruct(alignedPairs);
+            }
 
             st_logInfo("Finished filling in the alignments for the flower\n");
         }

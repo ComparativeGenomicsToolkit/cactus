@@ -9,6 +9,7 @@
 
 #include "sonLib.h"
 #include "cactus.h"
+#include "stPinchIterator.h"
 
 /**
  * Object representing a multiple sequence alignment
@@ -69,5 +70,12 @@ void alignmentBlock_destruct(AlignmentBlock *alignmentBlock);
  * Returns a list of AlignmentBlock ojects
  */
 stList *makeFlowerAlignmentPOA(Flower *flower, bool pruneOutStubAlignments);
+
+/**
+ * Create a pinch iterator for a list of alignment blocks.
+ * @param alignment_blocks A list of AlignmentBlock instances
+ * @return A pinch iterator for all the alignments in alignment_blocks
+ */
+stPinchIterator *stPinchIterator_constructFromAlignedBlocks(stList *alignment_blocks);
 
 #endif

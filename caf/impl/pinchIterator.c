@@ -12,14 +12,6 @@
 #include "pairwiseAlignment.h"
 #include "cactus.h"
 
-struct _stPinchIterator {
-    int64_t alignmentTrim;
-    void *alignmentArg;
-    stPinch *(*getNextAlignment)(void *);
-    void *(*startAlignmentStack)(void *);
-    void (*destructAlignmentArg)(void *);
-};
-
 stPinch *stPinchIterator_getNext(stPinchIterator *pinchIterator) {
     stPinch *pinch = NULL;
     while (1) {
