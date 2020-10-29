@@ -23,10 +23,32 @@ typedef struct _Msa {
 } Msa;
 
 /**
- * Cleanup an MSA
+ * Convert a base in the POA alphabet to an ASCII base.
+ */
+char msa_to_base(uint8_t n);
+
+/**
+ * Convert an ASCII base into the corresponding POA alphabet integer
+ */
+uint8_t msa_to_byte(char c);
+
+/**
+ * Clean up an MSA
  */
 void msa_destruct(Msa *msa);
 
+/**
+ * Pretty prints an MSA object
+ */
+void msa_print(Msa *msa, FILE *f);
+
+/**
+ * Creates a partial order alignment
+ * @param seqs An array of DNA string
+ * @param seq_lens An array giving the string lengths
+ * @param seq_no The number of strings
+ * @return An msa of the strings.
+ */
 Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no);
 
 /**
@@ -48,7 +70,7 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
  * @param right_end_row_indexes For each string, the index of the row of its reverse complement
  * @return A consistent Msa for each end
  */
-Msa **makeConsistentPartialOrderAlignments(int64_t end_no, int64_t *end_lengths, char ***end_strings,
+Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_lengths, char ***end_strings,
         int **end_string_lengths, int64_t **right_end_indexes, int64_t **right_end_row_indexes);
 
 /**
@@ -69,7 +91,7 @@ void alignmentBlock_destruct(AlignmentBlock *alignmentBlock);
  *
  * Returns a list of AlignmentBlock ojects
  */
-stList *makeFlowerAlignmentPOA(Flower *flower, bool pruneOutStubAlignments);
+stList *make_flower_alignment_poa(Flower *flower, bool pruneOutStubAlignments);
 
 /**
  * Create a pinch iterator for a list of alignment blocks.
