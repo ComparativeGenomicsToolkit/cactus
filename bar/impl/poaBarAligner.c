@@ -7,7 +7,7 @@
  */
 
 #include "abpoa.h"
-#include "poaEndAligner.h"
+#include "poaBarAligner.h"
 
 // char <--> uint8_t conversion copied over from abPOA example
 // AaCcGgTtNn ==> 0,1,2,3,4
@@ -30,17 +30,11 @@ static unsigned char nst_nt4_table[256] = {
     4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4
 };
 
-/**
- * Convert a base in the POA alphabet to an ASCII base.
- */
-static inline char toBase(uint8_t n) {
+char msa_to_base(uint8_t n) {
     return "ACGTN-"[n];
 }
 
-/**
- * Convert an ASCII base into the corresponding POA alphabet integer
- */
-static inline uint8_t toByte(char c) {
+uint8_t msa_to_byte(char c) {
     return nst_nt4_table[(int)c];
 }
 
@@ -53,6 +47,18 @@ void msa_destruct(Msa *msa) {
     free(msa->msa_seq);
     free(msa->seq_lens);
     free(msa);
+}
+
+void msa_print(Msa *msa, FILE *f) {
+    fprintf(f, "MSA. Seq no: %" PRIi64 " column no: %" PRIi64 " \n", msa->seq_no, msa->column_no);
+    for(int64_t i=0; i<msa->seq_no; i++) {
+        fprintf(f, "Row:%i\t", (int)i);
+        for(int64_t j=0; j<msa->column_no; j++) {
+            fprintf(f, "%c", msa_to_base(msa->msa_seq[i][j]));
+        }
+        fprintf(f, "\n");
+    }
+    fprintf(f, "\n");
 }
 
 Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no) {
@@ -69,7 +75,7 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
         bseqs[i] = (uint8_t *) malloc(sizeof(uint8_t) * seq_lens[i]);
         for (int64_t j = 0; j < seq_lens[i]; ++j) {
             // todo: support iupac characters?
-            bseqs[i][j] = toByte(seqs[i][j]);
+            bseqs[i][j] = msa_to_byte(seqs[i][j]);
         }
     }
 
@@ -124,7 +130,7 @@ float *make_column_scores(Msa *msa) {
     float *column_scores = st_calloc(sizeof(float), msa->column_no);
     for(int64_t i=0; i<msa->column_no; i++) {
         for(int64_t j=0; j<msa->seq_no; j++) {
-            if(toBase(msa->msa_seq[j][i]) != '-') {
+            if(msa_to_base(msa->msa_seq[j][i]) != '-') {
                 column_scores[i]++;
             }
         }
@@ -143,7 +149,7 @@ void sum_column_scores(int64_t row, Msa *msa, float *column_scores, float *cu_co
     float cu_score = 0.0; // The cumulative sum of column scores containing bases for the given row
     int64_t j=0; // The index in the DNA string for the given row
     for(int64_t i=0; i<msa->column_no; i++) {
-        if(toBase(msa->msa_seq[row][i]) != '-') {
+        if(msa_to_base(msa->msa_seq[row][i]) != '-') {
             cu_score += column_scores[i];
             cu_column_scores[j++] = cu_score;
         }
@@ -158,9 +164,9 @@ void sum_column_scores(int64_t row, Msa *msa, float *column_scores, float *cu_co
 void trim_msa_suffix(Msa *msa, float *column_scores, int64_t row, int64_t suffix_start) {
     int64_t seq_index = 0;
     for(int64_t i=0; i<msa->column_no; i++) {
-        if(toBase(msa->msa_seq[row][i]) != '-') {
+        if(msa_to_base(msa->msa_seq[row][i]) != '-') {
             if(seq_index++ >= suffix_start) {
-                msa->msa_seq[row][i] = toByte('-');
+                msa->msa_seq[row][i] = msa_to_byte('-');
                 column_scores[i] = column_scores[i]-1 > 0 ? column_scores[i]-1 : 0;
             }
         }
@@ -202,7 +208,7 @@ void trim(int64_t row1, Msa *msa1, float *column_scores1,
     trim_msa_suffix(msa2, column_scores2, row2, seq_len-max_cut_point);
 }
 
-Msa **makeConsistentPartialOrderAlignments(int64_t end_no, int64_t *end_lengths, char ***end_strings,
+Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_lengths, char ***end_strings,
         int **end_string_lengths, int64_t **right_end_indexes, int64_t **right_end_row_indexes) {
     // Calculate the initial, potentially inconsistent msas and column scores for each msa
     float *column_scores[end_no];
@@ -277,7 +283,7 @@ int64_t get_next_maximal_block_dimensions(Msa *msa, int64_t start, bool *rows_in
     // Calculate which sequences are in the block
     *sequences_in_block = 0;
     for(int64_t i=0; i<msa->seq_no; i++) {
-        rows_in_block[i] = toBase(msa->msa_seq[i][start]) != '-';
+        rows_in_block[i] = msa_to_base(msa->msa_seq[i][start]) != '-';
         *sequences_in_block += 1;
     }
 
@@ -286,7 +292,7 @@ int64_t get_next_maximal_block_dimensions(Msa *msa, int64_t start, bool *rows_in
     int64_t end = start;
     while(++end < msa->column_no) {
         for(int64_t i=0; i<msa->seq_no; i++) {
-            bool p = toBase(msa->msa_seq[i][end]) == '-';
+            bool p = msa_to_base(msa->msa_seq[i][end]) == '-';
             if(p != rows_in_block[i]) {
                 return end;
             }
@@ -374,7 +380,7 @@ void create_alignment_blocks(Msa *msa, Cap **row_indexes_to_caps, stList *alignm
     }
 }
 
-stList *makeFlowerAlignmentPOA(Flower *flower, bool pruneOutStubAlignments) {
+stList *make_flower_alignment_poa(Flower *flower, bool pruneOutStubAlignments) {
     // Arrays of ends and connecting the strings necessary to build the POA alignment
     int64_t end_no = flower_getEndNumber(flower); // The number of ends
     int64_t end_lengths[end_no]; // The number of strings incident with each end
@@ -456,8 +462,8 @@ stList *makeFlowerAlignmentPOA(Flower *flower, bool pruneOutStubAlignments) {
     flower_destructEndIterator(endIterator);
 
     // Now make the consistent MSAs
-    Msa **msas = makeConsistentPartialOrderAlignments(end_no, end_lengths, end_strings, end_string_lengths,
-                                                      right_end_indexes, right_end_row_indexes);
+    Msa **msas = make_consistent_partial_order_alignments(end_no, end_lengths, end_strings, end_string_lengths,
+                                                          right_end_indexes, right_end_row_indexes);
 
     // TODO: stub-alignments?
 

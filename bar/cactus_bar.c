@@ -13,7 +13,7 @@
 #include "cactus.h"
 #include "sonLib.h"
 #include "endAligner.h"
-#include "poaEndAligner.h"
+#include "poaBarAligner.h"
 #include "flowerAligner.h"
 #include "rescue.h"
 #include "commonC.h"
@@ -389,7 +389,7 @@ int main(int argc, char *argv[]) {
                  *
                  * It does not use any precomputed alignments, if they are provided they will be ignored
                  */
-                stList *alignment_blocks = makeFlowerAlignmentPOA(flower, pruneOutStubAlignments);
+                stList *alignment_blocks = make_flower_alignment_poa(flower, pruneOutStubAlignments);
                 pinchIterator = stPinchIterator_constructFromAlignedBlocks(alignment_blocks);
             }
             else {
@@ -397,9 +397,7 @@ int main(int argc, char *argv[]) {
                                                     useProgressiveMerging, matchGamma,
                                                     pairwiseAlignmentBandingParameters,
                                                     pruneOutStubAlignments, poaMode);
-                st_logInfo("Created the alignment: %"
-                PRIi64
-                " pairs\n", stSortedSet_size(alignedPairs));
+                st_logInfo("Created the alignment: %" PRIi64 " pairs\n", stSortedSet_size(alignedPairs));
                 pinchIterator = stPinchIterator_constructFromAlignedPairs(alignedPairs, getNextAlignedPairAlignment);
             }
             /*

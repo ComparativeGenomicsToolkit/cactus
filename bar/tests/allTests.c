@@ -14,15 +14,20 @@ CuSuite* adjacencySequenceTestSuite(void);
 CuSuite* endAlignerTestSuite(void);
 CuSuite* flowerAlignerTestSuite(void);
 CuSuite* rescueTestSuite(void);
+CuSuite* poaBarAlignerTestSuite(void);
 
 int stBaseAlignerRunAllTests(void) {
 	CuString *output = CuStringNew();
 	CuSuite* suite = CuSuiteNew();
-	CuSuiteAddSuite(suite, adjacencySequenceTestSuite());
+
+    CuSuiteAddSuite(suite, poaBarAlignerTestSuite());
+
+	/*CuSuiteAddSuite(suite, adjacencySequenceTestSuite());
 	CuSuiteAddSuite(suite, endAlignerTestSuite());
 	CuSuiteAddSuite(suite, flowerAlignerTestSuite());
     CuSuiteAddSuite(suite, rescueTestSuite());
-	CuSuiteRun(suite);
+    CuSuiteAddSuite(suite, poaBarAlignerTestSuite());*/
+    CuSuiteRun(suite);
 	CuSuiteSummary(suite, output);
 	CuSuiteDetails(suite, output);
 	printf("%s\n", output->buffer);
