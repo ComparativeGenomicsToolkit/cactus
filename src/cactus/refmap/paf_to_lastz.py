@@ -48,8 +48,8 @@ def paf_to_lastz(job, paf_file, sort_secondaries=True):
     stderr_debug = job.fileStore.getLocalTempFile()
     for i in range(len(lines)):
         with open(sort_files[i], "w") as sortf:
+            # convert list to file for paftools input
             sortf.writelines(lines[i])
-        # cactus_call(parameters=["sort", "-k6,6", "-k8,8n"])
         cactus_call(parameters=["paftools.js", "view", "-f", "lastz-cigar", sort_files[i]], outfile=paftool_files[i])
         fix_negative_strand_mappings(paftool_files[i], fixed_paftool_files[i])
         add_original_mapqs( mapqs[i], fixed_paftool_files[i], job.fileStore.readGlobalFile(out_files[i]))

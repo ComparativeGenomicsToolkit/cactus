@@ -32,7 +32,7 @@ from cactus.blast.blast import calculateCoverage
 from cactus.shared.common import makeURL
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
-from cactus.reference_align import paf_to_lastz
+from cactus.refmap import paf_to_lastz
 
 from toil.realtimeLogger import RealtimeLogger
 from toil.job import Job

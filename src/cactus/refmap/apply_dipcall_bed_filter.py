@@ -1,4 +1,4 @@
-#todo: consider mkaing extract_single_mappings clever-er so that it doesn't have to scan every possible "single_mapping_region" when its determining what regions to extract.
+#todo: consider making extract_single_mappings clever-er so that it doesn't have to scan every possible "single_mapping_region" when its determining what regions to extract.
 
 import copy
 import operator

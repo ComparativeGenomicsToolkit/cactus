@@ -35,6 +35,7 @@ from cactus.refmap import paf_to_lastz
 from cactus.refmap import fasta_preprocessing
 from cactus.refmap import apply_dipcall_bed_filter
 
+from cactus.shared.common import setupBinaries, importSingularityImage
 from cactus.shared.common import makeURL
 from cactus.shared.common import cactus_call
 from cactus.progressive.seqFile import SeqFile
@@ -42,6 +43,7 @@ from cactus.pipeline.cactus_workflow import prependUniqueIDs
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.common import cactusRootPath
+# from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
 
 
 ## utilitary fxns:
@@ -213,6 +215,7 @@ def map_all_to_ref(job, assembly_files, reference, debug_export=False, dipcall_b
     for assembly, assembly_file in assembly_files.items():
         if assembly != reference:
             # map to a to b
+            print("about to run map a to b. a:", assembly, job.fileStore.readGlobalFile(assembly_file), "b (ref):", reference, job.fileStore.readGlobalFile(assembly_files[reference]))
             map_job = lead_job.addChildJobFn(map_a_to_b, assembly_file, assembly_files[reference], (dipcall_bed_filter or dipcall_vcf_filter))
             ref_mappings[assembly] = map_job.rv()
 
@@ -253,6 +256,7 @@ def map_a_to_b(job, a, b, dipcall_filter):
         [type]: [description]
     """
     
+    print("in map a to b. a:", a, "b:", b)
     # map_to_ref_paf = job.fileStore.writeGlobalFile(job.fileStore.getLocalTempFile())
     tmp = job.fileStore.getLocalTempFile()
     map_to_ref_paf = job.fileStore.writeGlobalFile(tmp)
@@ -276,6 +280,7 @@ def map_a_to_b(job, a, b, dipcall_filter):
 def get_options():
     parser = ArgumentParser()
     Job.Runner.addToilOptions(parser)
+    # addCactusWorkflowOptions(parser)
     
     # ### For quick debugging of apply_dipcall_bed_filter:
     # parser.add_argument('paf', type=str,
@@ -301,7 +306,14 @@ def get_options():
     parser.add_argument("--configFile", dest="configFile",
                         help="Specify cactus configuration file",
                         default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
-      
+    parser.add_argument("--latest", dest="latest", action="store_true",
+                        help="Use the latest version of the docker container "
+                        "rather than pulling one matching this version of cactus")
+    parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
+                        help="The way to run the Cactus binaries", default=None)      
+    parser.add_argument("--containerImage", dest="containerImage", default=None,
+                        help="Use the the specified pre-built containter image "
+                        "rather than pulling one from quay.io")
 
     ## options for importing assemblies:
     # following arguments are only useful under --non_blast_output
@@ -321,7 +333,6 @@ def get_options():
                         help='Export several other files for debugging inspection.')
     parser.add_argument('--debug_export_dir', type=str, default='./debug_export_dir/',
                         help='Location of the exported debug files.')
-
     options = parser.parse_args()
     return options
 
@@ -329,6 +340,10 @@ def main():
     options = get_options()
 
     with Toil(options) as workflow:
+        setupBinaries(options)
+
+        importSingularityImage(options)
+
         ## Preprocessing:
         if (options.pathOverrides or options.pathOverrideNames):
             if not options.pathOverrides or not options.pathOverrideNames or \
