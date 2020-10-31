@@ -59,6 +59,10 @@ class RedisServer:
                            " Choosing a random port to start the DB on, good luck!")
             port = random.randint(1025, MAX_REDIS_PORT)
         self.dbElem.setDbPort(port)
+        try:
+            cactus_call(shell=False, parameters=['redis-server','--version'])
+        except:
+            raise RuntimeError("redis-server is not installed")
         process = RedisServerProcess(self)
         process.daemon = True
         process.start()
