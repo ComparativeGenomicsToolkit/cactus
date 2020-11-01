@@ -87,6 +87,18 @@ typedef struct _AlignmentBlock {
 void alignmentBlock_destruct(AlignmentBlock *alignmentBlock);
 
 /**
+ * Prints a human readable version of the alignment block.
+ * @param ab
+ * @param f file-handle to print to.
+ */
+void alignmentBlock_print(AlignmentBlock *ab, FILE *f);
+
+/**
+ * Get the string connecting two ends for the given cap
+ */
+char *get_adjacency_string(Cap *cap, int *length);
+
+/**
  * Makes alignments of the the unaligned sequence using the bar algorithm.
  *
  * Returns a list of AlignmentBlock ojects
