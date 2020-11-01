@@ -7,6 +7,7 @@
 #include "flowersShared.h"
 #include "randomSequences.h"
 #include "poaBarAligner.h"
+#include "stCaf.h"
 #include <stdio.h>
 #include <ctype.h>
 
@@ -122,7 +123,7 @@ void test_make_consistent_partial_order_alignments_two_ends(CuTest *testCase) {
 
         // print the msas
         for(int64_t i=0; i<end_no; i++) {
-            fprintf(stderr, "MSA: %i\n", i);
+            fprintf(stderr, "MSA: %i\n", (int)i);
             msa_print(msas[i], stderr);
         }
 
@@ -149,12 +150,75 @@ void test_make_consistent_partial_order_alignments_two_ends(CuTest *testCase) {
 void test_make_flower_alignment_poa(CuTest *testCase) {
     setup(testCase);
 
+    fprintf(stderr, "There are %i ends in the flower\n", (int)flower_getEndNumber(flower));
+    End *end;
+    Flower_EndIterator *endIterator = flower_getEndIterator(flower);
+    int64_t i=0; // Index of the end
+    while ((end = flower_getNextEnd(endIterator)) != NULL) {
+        // Now get each string incident with the end
+        Cap *cap;
+        End_InstanceIterator *capIterator = end_getInstanceIterator(end);
+        int64_t j=0;
+        while ((cap = end_getNext(capIterator)) != NULL) {
+            if (cap_getSide(cap)) {
+                cap = cap_getReverse(cap);
+            }
+            int length;
+            char *s = get_adjacency_string(cap, &length);
+            Cap *adjacentCap = cap_getAdjacency(cap);
+            fprintf(stderr, "For end: %i, cap: %i (% " PRIi64 " to %" PRIi64 ") we have string: %s\n", (int)i, (int)j, cap_getName(cap), cap_getName(adjacentCap), s);
+            j++;
+        }
+        end_destructInstanceIterator(capIterator);
+        i++;
+    }
+    flower_destructEndIterator(endIterator);
+
     stList *alignment_blocks = make_flower_alignment_poa(flower, false);
 
     for(int64_t i=0; i<stList_length(alignment_blocks); i++) {
         AlignmentBlock *b = stList_get(alignment_blocks, i);
-        //todo: complete
+        alignmentBlock_print(b, stderr);
     }
+
+    teardown(testCase);
+}
+
+void test_alignment_block_iterator(CuTest *testCase) {
+    setup(testCase);
+
+    stList *alignment_blocks = make_flower_alignment_poa(flower, false);
+
+    for(int64_t i=0; i<stList_length(alignment_blocks); i++) {
+        AlignmentBlock *b = stList_get(alignment_blocks, i);
+        alignmentBlock_print(b, stderr);
+    }
+
+    stPinchIterator *it = stPinchIterator_constructFromAlignedBlocks(alignment_blocks);
+
+    //stPinchThreadSet *threadSet = stCaf_setup(flower);
+    //stCaf_anneal(threadSet, it, NULL);
+
+    stPinch *pinch;
+    while((pinch = stPinchIterator_getNext(it)) != NULL) {
+
+        /*typedef struct _stPinch {
+            int64_t name1;
+            int64_t name2;
+            int64_t start1;
+            int64_t start2;
+            int64_t length;
+            bool strand;
+        } stPinch;*/
+
+        fprintf(stderr, "Pinch: name1: %" PRIi64 " s1:%i, name2: %" PRIi64 " s2:%i, length:%i, strand:%i\n",
+                pinch->name1, (int)pinch->start1, pinch->name2, (int)pinch->start2,
+                (int)pinch->length, (int)pinch->strand);
+    }
+
+    stPinchIterator_destruct(it);
+
+
 
     teardown(testCase);
 }
@@ -164,5 +228,6 @@ CuSuite* poaBarAlignerTestSuite(void) {
     SUITE_ADD_TEST(suite, test_make_partial_order_alignment);
     SUITE_ADD_TEST(suite, test_make_consistent_partial_order_alignments_two_ends);
     SUITE_ADD_TEST(suite, test_make_flower_alignment_poa);
+    SUITE_ADD_TEST(suite, test_alignment_block_iterator);
     return suite;
 }

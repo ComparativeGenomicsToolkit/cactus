@@ -50,7 +50,7 @@ void msa_destruct(Msa *msa) {
 }
 
 void msa_print(Msa *msa, FILE *f) {
-    fprintf(f, "MSA. Seq no: %" PRIi64 " column no: %" PRIi64 " \n", msa->seq_no, msa->column_no);
+    fprintf(f, "MSA. Seq no: %i column no: %i \n", (int)msa->seq_no, (int)msa->column_no);
     for(int64_t i=0; i<msa->seq_no; i++) {
         fprintf(f, "Row:%i\t", (int)i);
         for(int64_t j=0; j<msa->column_no; j++) {
@@ -127,7 +127,7 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
  * is the score of the column in the alignment.
  */
 float *make_column_scores(Msa *msa) {
-    float *column_scores = st_calloc(sizeof(float), msa->column_no);
+    float *column_scores = st_calloc(msa->column_no, sizeof(float));
     for(int64_t i=0; i<msa->column_no; i++) {
         for(int64_t j=0; j<msa->seq_no; j++) {
             if(msa_to_base(msa->msa_seq[j][i]) != '-') {
@@ -243,17 +243,14 @@ Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_leng
 
 void alignmentBlock_destruct(AlignmentBlock *alignmentBlock) {
     AlignmentBlock *a;
-    while(alignmentBlock->next != NULL) {
+    while(alignmentBlock != NULL) {
         a = alignmentBlock;
         alignmentBlock = alignmentBlock->next;
         free(a);
     }
 }
 
-/**
- * Get the string connecting two ends for the given cap
- */
-static char *get_adjacency_string(Cap *cap, int *length) {
+char *get_adjacency_string(Cap *cap, int *length) {
     assert(!cap_getSide(cap));
     Sequence *sequence = cap_getSequence(cap);
     assert(sequence != NULL);
@@ -280,11 +277,15 @@ static char *get_adjacency_string(Cap *cap, int *length) {
  * @return
  */
 int64_t get_next_maximal_block_dimensions(Msa *msa, int64_t start, bool *rows_in_block, int64_t *sequences_in_block) {
+    assert(start < msa->column_no);
+
     // Calculate which sequences are in the block
     *sequences_in_block = 0;
     for(int64_t i=0; i<msa->seq_no; i++) {
         rows_in_block[i] = msa_to_base(msa->msa_seq[i][start]) != '-';
-        *sequences_in_block += 1;
+        if(rows_in_block[i]) {
+            *sequences_in_block += 1;
+        }
     }
 
     // Calculate the maximal block length by looking at successive columns of the MSA and
@@ -292,7 +293,7 @@ int64_t get_next_maximal_block_dimensions(Msa *msa, int64_t start, bool *rows_in
     int64_t end = start;
     while(++end < msa->column_no) {
         for(int64_t i=0; i<msa->seq_no; i++) {
-            bool p = msa_to_base(msa->msa_seq[i][end]) == '-';
+            bool p = msa_to_base(msa->msa_seq[i][end]) != '-'; // Is not a gap
             if(p != rows_in_block[i]) {
                 return end;
             }
@@ -326,9 +327,12 @@ AlignmentBlock *make_alignment_block(int64_t seq_no, int64_t start, int64_t leng
             // Calculate the sequence coordinate using Cactus coordinates
             if(b->strand) {
                 b->position = seq_indexes[i] + cap_getCoordinate(cap) + 1;
+                assert(b->position >= 0);
             }
             else {
+                //fprintf(stderr, " Boo %i %i\n", (int)cap_getCoordinate(cap), (int)seq_indexes[i]);
                 b->position = cap_getCoordinate(cap) - 1 - seq_indexes[i];
+                assert(b->position >= 0);
             }
 
             // If this is not the first sequence in the block link to the previous sequence in the block
@@ -341,7 +345,18 @@ AlignmentBlock *make_alignment_block(int64_t seq_no, int64_t start, int64_t leng
             }
         }
     }
+    assert(block != NULL);
     return block;
+}
+
+void alignmentBlock_print(AlignmentBlock *ab, FILE *f) {
+    fprintf(f, "Alignment block:\n");
+    while(ab != NULL) {
+        fprintf(f, "\tName: %" PRIi64 "\tPosition: %" PRIi64"\tStrand: %i\tLength: %" PRIi64 "\n",
+                ab->subsequenceIdentifier, ab->position, (int)ab->strand, ab->length);
+        ab = ab->next;
+    }
+    fprintf(f, "\n");
 }
 
 /**
@@ -352,15 +367,21 @@ AlignmentBlock *make_alignment_block(int64_t seq_no, int64_t start, int64_t leng
  */
 void create_alignment_blocks(Msa *msa, Cap **row_indexes_to_caps, stList *alignment_blocks) {
     int64_t i=0; // The left most index of the current block
-    int64_t j=0; // The right most index of the current block
     bool rows_in_block[msa->seq_no]; // An array of bools used to indicate which sequences are present in a block
     int64_t seq_indexes[msa->seq_no]; // The start offsets of the current block
+    for(int64_t k=0; k<msa->seq_no; k++) { // Initialize to zero
+        seq_indexes[k] = 0;
+    }
     int64_t sequences_in_block; // The number of sequences in the block
 
+    //fprintf(stderr, "Start. Col no: %i\n", (int)msa->column_no);
+    //msa_print(msa, stderr);
+
     // Walk through successive gapless blocks
-    while((j += get_next_maximal_block_dimensions(msa, j,
-                                                  rows_in_block, &sequences_in_block)) < msa->column_no) {
+    while(i < msa->column_no) {
+        int64_t j = get_next_maximal_block_dimensions(msa, i, rows_in_block, &sequences_in_block);
         assert(j > i);
+        assert(j <= msa->column_no);
 
         // Make the next alignment block
         if(sequences_in_block > 1) { // Only make a block if it contains two or more sequences
@@ -378,6 +399,7 @@ void create_alignment_blocks(Msa *msa, Cap **row_indexes_to_caps, stList *alignm
 
         i = j;
     }
+    assert(i == msa->column_no);
 }
 
 stList *make_flower_alignment_poa(Flower *flower, bool pruneOutStubAlignments) {
@@ -464,6 +486,10 @@ stList *make_flower_alignment_poa(Flower *flower, bool pruneOutStubAlignments) {
     // Now make the consistent MSAs
     Msa **msas = make_consistent_partial_order_alignments(end_no, end_lengths, end_strings, end_string_lengths,
                                                           right_end_indexes, right_end_row_indexes);
+
+    //for(int64_t i=0; i<end_no; i++) {
+    //    msa_print(msas[i], stderr);
+    //}
 
     // TODO: stub-alignments?
 
