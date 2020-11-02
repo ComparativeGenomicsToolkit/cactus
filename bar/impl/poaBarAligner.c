@@ -8,6 +8,7 @@
 
 #include "abpoa.h"
 #include "poaBarAligner.h"
+#include "../inc/poaBarAligner.h"
 
 // char <--> uint8_t conversion copied over from abPOA example
 // AaCcGgTtNn ==> 0,1,2,3,4
@@ -321,17 +322,21 @@ AlignmentBlock *make_alignment_block(int64_t seq_no, int64_t start, int64_t leng
             AlignmentBlock *b = st_calloc(1, sizeof(AlignmentBlock));
             Cap *cap = row_indexes_to_caps[i];
             assert(!cap_getSide(cap));
-            b->subsequenceIdentifier = cap_getName(cap);
+            assert(cap_getSequence(cap) != NULL);
+            assert(length > 0);
+
             b->strand = cap_getStrand(cap);
             b->length = length;
             // Calculate the sequence coordinate using Cactus coordinates
             if(b->strand) {
-                b->position = seq_indexes[i] + cap_getCoordinate(cap) + 1;
+                b->subsequenceIdentifier = cap_getName(cap);
+                b->position = cap_getCoordinate(cap) + 1 + seq_indexes[i];
                 assert(b->position >= 0);
             }
-            else {
-                //fprintf(stderr, " Boo %i %i\n", (int)cap_getCoordinate(cap), (int)seq_indexes[i]);
-                b->position = cap_getCoordinate(cap) - 1 - seq_indexes[i];
+            else { // In the alignment block all the coordinates are reported with respect to the positive strand sequence
+                assert(cap_getAdjacency(cap) != NULL);
+                b->subsequenceIdentifier = cap_getName(cap_getAdjacency(cap));
+                b->position = cap_getCoordinate(cap) - seq_indexes[i] - length;
                 assert(b->position >= 0);
             }
 
@@ -553,7 +558,7 @@ stPinch *alignmentBlockIterator_get_next(AlignmentBlockIterator *it) {
     AlignmentBlock *b = it->current_block;
     static stPinch pinch;
     stPinch_fillOut(&pinch, b->subsequenceIdentifier, b->next->subsequenceIdentifier,
-                    b->position, b->next->position, 1, b->strand == b->next->strand);
+                    b->position, b->next->position, b->length, b->strand == b->next->strand);
 
     it->current_block = b->next; // Shift to the next sequence to ready the next pinch
 
