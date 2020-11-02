@@ -19,7 +19,7 @@ test-job:
     - source venv/bin/activate
     - pip install -r toil-requirement.txt
     - pip install -U .
-    - make -j 8 evolver_test
+    - make -j 8 evolver_test_poa_local
   artifacts:
     # Let Gitlab see the junit report
     #reports:
