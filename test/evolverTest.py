@@ -28,14 +28,15 @@ class TestCase(unittest.TestCase):
     def _out_hal(self, binariesMode):
         return os.path.join(self.tempDir, 'evovler-{}.hal'.format(binariesMode))
 
-    def _run_evolver(self, binariesMode, configFile = None, seqFile = './examples/evolverMammals.txt'):
+    def _run_evolver(self, binariesMode, configFile = None, seqFile = './examples/evolverMammals.txt',database='kyoto_tycoon'):
         """ Run the full evolver test, putting the jobstore and output in tempDir
         """
         cmd = ['cactus', self._job_store(binariesMode), seqFile, self._out_hal(binariesMode),
-                               '--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir]
+                        '--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir,
+                        '--database', database]
         if configFile:
             cmd += ['--configFile', configFile]
-            
+
         # todo: it'd be nice to have an interface for setting tag to something not latest or commit
         if binariesMode == 'docker':
             cmd += ['--latest']
@@ -145,7 +146,6 @@ class TestCase(unittest.TestCase):
         cmd = ['cactus-prepare', in_seqfile, '--outDir', out_dir, '--outSeqFile', out_seqfile, '--outHal', self._out_hal(binariesMode),
                '--jobStore', self._job_store(binariesMode)]
         job_plan = popenCatch(' '.join(cmd))
-
         for line in job_plan.split('\n'):
             line = line.strip()
             if len(line) > 0 and not line.startswith('#'):
@@ -307,6 +307,19 @@ class TestCase(unittest.TestCase):
         # run cactus directly, the old school way
         name = "local"
         self._run_evolver(name)
+
+        # check the output
+        self._check_stats(self._out_hal(name), delta_pct=0.25)
+        self._check_coverage(self._out_hal(name), delta_pct=0.20)
+        self._check_maf_accuracy(self._out_hal(name), delta=0.01)
+
+    def testEvolverRedisLocal(self):
+        """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode local and --database redis is
+        is reasonable
+        """
+        # run cactus directly, the old school way
+        name = "local"
+        self._run_evolver(name, database = 'redis')
 
         # check the output
         self._check_stats(self._out_hal(name), delta_pct=0.25)

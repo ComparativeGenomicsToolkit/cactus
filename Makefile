@@ -83,6 +83,7 @@ testModules = \
     phylogeny/cactus_phylogenyTest.py \
     pipeline/cactus_evolverTest.py \
     pipeline/cactus_workflowTest.py \
+    pipeline/dbServerTest.py \
     preprocessor/cactus_preprocessorTest.py \
     preprocessor/lastzRepeatMasking/cactus_lastzRepeatMaskTest.py \
     progressive/cactus_progressiveTest.py \
@@ -151,6 +152,9 @@ evolver_test: all bin/mafComparator
 
 evolver_test_local: all bin/mafComparator
 	CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} test/evolverTest.py::TestCase::testEvolverLocal
+
+evolver_test_redis_local: all bin/mafComparator
+	CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} test/evolverTest.py::TestCase::testEvolverRedisLocal
 
 evolver_test_poa_local: all bin/mafComparator
 	CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPOALocal

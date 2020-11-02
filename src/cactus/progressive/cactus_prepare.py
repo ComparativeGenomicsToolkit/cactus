@@ -115,9 +115,9 @@ def main(toil_mode=False):
     parser.add_argument("--blastPreemptible", type=int, help="Preemptible attempt count for each cactus-blast job [default=1]", default=1)
     parser.add_argument("--alignPreemptible", type=int, help="Preemptible attempt count for each cactus-align job [default=1]", default=1)
     parser.add_argument("--halAppendPreemptible", type=int, help="Preemptible attempt count for each halAppendSubtree job [default=1]", default=1)
+    parser.add_argument("--database", choices=["kyoto_tycoon", "redis"], help="The type of database", default="kyoto_tycoon")
 
     options = parser.parse_args()
-    options.database = 'kyoto_tycoon'
     #todo support root option
     options.root = None
 
@@ -574,9 +574,9 @@ def get_plan(options, project, inSeqFile, outSeqFile, toil):
                 plan += 'cactus-blast {} {} {} --root {} {} {}\n'.format(
                     get_jobstore(options), options.outSeqFile, cigarPath(event), event,
                     options.cactusOptions, get_toil_resource_opts(options, 'blast'))
-                plan += 'cactus-align {} {} {} {} --root {} {} {}\n'.format(
+                plan += 'cactus-align {} {} {} {} --root {} {} {} --database {}\n'.format(
                     get_jobstore(options), options.outSeqFile, cigarPath(event), halPath(event), event,
-                    options.cactusOptions, get_toil_resource_opts(options, 'align'))
+                    options.cactusOptions, get_toil_resource_opts(options, 'align'), options.database)
                 # todo: just output the fasta in cactus-align.
                 plan += 'hal2fasta {} {} {} > {}\n'.format(halPath(event), event, options.halOptions, outSeqFile.pathMap[event])
 
