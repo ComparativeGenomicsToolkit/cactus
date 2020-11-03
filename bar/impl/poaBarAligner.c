@@ -130,15 +130,16 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
 float *make_column_scores(Msa *msa) {
     float *column_scores = st_calloc(msa->column_no, sizeof(float));
     for(int64_t i=0; i<msa->column_no; i++) {
+        // Score is simply max(number of aligned bases in the column - 1, 0)
         for(int64_t j=0; j<msa->seq_no; j++) {
             if(msa_to_base(msa->msa_seq[j][i]) != '-') {
-                column_scores[i]++; // Score is simply the number of aligned bases in the column
+                column_scores[i]++;
             }
         }
-        column_scores[i] -= 1.0;
-        if(column_scores[i] < 0.0) { // Make score 0 for columns containing 1 aligned position
-            column_scores[i] = 0.0;
+        if(column_scores[i] >= 1.0) {
+            column_scores[i]--;
         }
+        assert(column_scores[i] >= 0.0);
     }
     return column_scores;
 }
@@ -170,6 +171,7 @@ void trim_msa_suffix(Msa *msa, float *column_scores, int64_t row, int64_t suffix
             if(seq_index++ >= suffix_start) {
                 msa->msa_seq[row][i] = msa_to_byte('-');
                 column_scores[i] = column_scores[i]-1 > 0 ? column_scores[i]-1 : 0;
+                assert(column_scores[i] >= 0.0);
             }
         }
     }
@@ -235,6 +237,11 @@ Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_leng
         }
     }
 
+    // Cleanup
+    for(int64_t i=0; i<end_no; i++) {
+        free(column_scores[i]);
+    }
+
     return msas;
 }
 
@@ -260,10 +267,12 @@ char *get_adjacency_string(Cap *cap, int *length) {
     assert(cap2 != NULL);
     assert(cap_getSide(cap2));
     if (cap_getStrand(cap)) {
+        assert(cap_getCoordinate(cap2) > cap_getCoordinate(cap));
         *length = cap_getCoordinate(cap2) - cap_getCoordinate(cap) - 1;
         assert(*length >= 0);
         return sequence_getString(sequence, cap_getCoordinate(cap) + 1, *length, 1);
     } else {
+        assert(cap_getCoordinate(cap) > cap_getCoordinate(cap2));
         *length = cap_getCoordinate(cap) - cap_getCoordinate(cap2) - 1;
         assert(*length >= 0);
         return sequence_getString(sequence, cap_getCoordinate(cap2) + 1, *length, 0);
@@ -342,15 +351,17 @@ AlignmentBlock *make_alignment_block(int64_t seq_no, int64_t start, int64_t leng
                 b->position = cap_getCoordinate(cap) - seq_indexes[i] - length;
                 assert(b->position >= 0);
                 assert(b->position + length <= cap_getCoordinate(cap));
+                assert(b->position > cap_getCoordinate(adjacentCap));
             }
 
             // If this is not the first sequence in the block link to the previous sequence in the block
             if (pB != NULL) {
                 pB->next = b;
                 pB = b;
+                assert(b->next == NULL);
             } else { // Otherwise this is the first sequence in the block
-                pB = b;
                 block = b;
+                pB = b;
             }
         }
     }
@@ -509,19 +520,20 @@ stList *make_flower_alignment_poa(Flower *flower, bool pruneOutStubAlignments) {
         create_alignment_blocks(msas[i], indices_to_caps[i], alignment_blocks);
     }
 
-    // Temp debug output
-    for(int64_t i=0; i<stList_length(alignment_blocks); i++) {
-        alignmentBlock_print(stList_get(alignment_blocks, i), stderr);
-    }
-
     // Cleanup
     for(int64_t i=0; i<end_no; i++) {
-        free(msas[i]);
+        msa_destruct(msas[i]);
         free(right_end_indexes[i]);
         free(right_end_row_indexes[i]);
         free(indices_to_caps[i]);
     }
+    free(msas);
     stHash_destruct(caps_to_indices);
+
+    // Temp debug output
+    for(int64_t i=0; i<stList_length(alignment_blocks); i++) {
+        alignmentBlock_print(stList_get(alignment_blocks, i), stderr);
+    }
 
     return alignment_blocks;
 }
@@ -563,6 +575,8 @@ stPinch *alignmentBlockIterator_get_next(AlignmentBlockIterator *it) {
         }
         it->current_block = stList_get(it->alignment_blocks, it->i++);
     }
+    fprintf(stderr, "Pinching\n");
+    alignmentBlock_print(it->current_block, stderr);
     assert(it->current_block->next != NULL); // All alignment blocks should contain at least two sequences
 
     AlignmentBlock *b = it->current_block;
