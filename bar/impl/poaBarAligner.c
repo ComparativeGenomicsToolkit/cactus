@@ -1,7 +1,5 @@
 /**
- * This is designed as a drop-in replacement for the multiple aligner from pecan that gets used in the end aligner. 
- * The idea is that this will scale better for larger numbers of input samples, which seems to blow up the memory
- * in pecan.  
+ * This is designed as a drop-in replacement for the bar aligner, using the abpoa multiple sequence aligner.
  *
  * Released under the MIT license, see LICENSE.txt
  */
@@ -119,7 +117,7 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
     abpoa_free(ab, abpt);
     abpoa_free_para(abpt);
 
-    // in debug mode, cactus uses the dreaded -Wall -Werror combo.  This line is a hack to allow compilition with these flags
+    // in debug mode, cactus uses the dreaded -Wall -Werror combo.  This line is a hack to allow compilation with these flags
     if (false) SIMDMalloc(0, 0);
 
     return msa;
@@ -134,10 +132,11 @@ float *make_column_scores(Msa *msa) {
     for(int64_t i=0; i<msa->column_no; i++) {
         for(int64_t j=0; j<msa->seq_no; j++) {
             if(msa_to_base(msa->msa_seq[j][i]) != '-') {
-                column_scores[i]++;
+                column_scores[i]++; // Score is simply the number of aligned bases in the column
             }
         }
-        if(column_scores[i] <= 1.0) { // Make score 0 for columns containing 1 aligned position
+        column_scores[i] -= 1.0;
+        if(column_scores[i] < 0.0) { // Make score 0 for columns containing 1 aligned position
             column_scores[i] = 0.0;
         }
     }
@@ -497,6 +496,7 @@ stList *make_flower_alignment_poa(Flower *flower, bool pruneOutStubAlignments) {
     Msa **msas = make_consistent_partial_order_alignments(end_no, end_lengths, end_strings, end_string_lengths,
                                                           right_end_indexes, right_end_row_indexes);
 
+    // Temp debug output
     for(int64_t i=0; i<end_no; i++) {
         msa_print(msas[i], stderr);
     }
@@ -507,6 +507,11 @@ stList *make_flower_alignment_poa(Flower *flower, bool pruneOutStubAlignments) {
     stList *alignment_blocks = stList_construct3(0, (void (*)(void *))alignmentBlock_destruct);
     for(int64_t i=0; i<end_no; i++) {
         create_alignment_blocks(msas[i], indices_to_caps[i], alignment_blocks);
+    }
+
+    // Temp debug output
+    for(int64_t i=0; i<stList_length(alignment_blocks); i++) {
+        alignmentBlock_print(stList_get(alignment_blocks, i), stderr);
     }
 
     // Cleanup
