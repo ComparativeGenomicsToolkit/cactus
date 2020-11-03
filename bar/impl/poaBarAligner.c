@@ -579,5 +579,6 @@ stPinchIterator *stPinchIterator_constructFromAlignedBlocks(stList *alignment_bl
     pinchIterator->getNextAlignment = (stPinch *(*)(void *)) alignmentBlockIterator_get_next;
     pinchIterator->destructAlignmentArg = (void(*)(void *)) alignmentBlockIterator_destruct;
     pinchIterator->startAlignmentStack = (void *(*)(void *)) alignmentBlockIterator_start;
+
     return pinchIterator;
 }
