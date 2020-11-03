@@ -65,6 +65,7 @@ void msa_print(Msa *msa, FILE *f) {
 Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no) {
     // Make Msa object
     Msa *msa = st_malloc(sizeof(Msa));
+    assert(seq_no > 0);
     msa->seq_no = seq_no;
     msa->seqs = seqs;
     msa->seq_lens = seq_lens;
@@ -73,6 +74,7 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
     uint8_t **bseqs = (uint8_t**)malloc(sizeof(uint8_t*) * msa->seq_no);
 
     for(int64_t i=0; i<msa->seq_no; i++) {
+        //assert(seq_lens[i] > 0);
         bseqs[i] = (uint8_t *) malloc(sizeof(uint8_t) * seq_lens[i]);
         for (int64_t j = 0; j < seq_lens[i]; ++j) {
             // todo: support iupac characters?
@@ -332,12 +334,15 @@ AlignmentBlock *make_alignment_block(int64_t seq_no, int64_t start, int64_t leng
                 b->subsequenceIdentifier = cap_getName(cap);
                 b->position = cap_getCoordinate(cap) + 1 + seq_indexes[i];
                 assert(b->position >= 0);
+                assert(b->position + length <= cap_getCoordinate(cap_getAdjacency(cap)));
             }
             else { // In the alignment block all the coordinates are reported with respect to the positive strand sequence
-                assert(cap_getAdjacency(cap) != NULL);
-                b->subsequenceIdentifier = cap_getName(cap_getAdjacency(cap));
+                Cap *adjacentCap = cap_getAdjacency(cap);
+                assert(adjacentCap != NULL);
+                b->subsequenceIdentifier = cap_getName(adjacentCap);
                 b->position = cap_getCoordinate(cap) - seq_indexes[i] - length;
                 assert(b->position >= 0);
+                assert(b->position + length <= cap_getCoordinate(cap));
             }
 
             // If this is not the first sequence in the block link to the previous sequence in the block
@@ -557,6 +562,9 @@ stPinch *alignmentBlockIterator_get_next(AlignmentBlockIterator *it) {
 
     AlignmentBlock *b = it->current_block;
     static stPinch pinch;
+    assert(b->position >= 0);
+    assert(b->next->position >= 0);
+    assert(b->length > 0);
     stPinch_fillOut(&pinch, b->subsequenceIdentifier, b->next->subsequenceIdentifier,
                     b->position, b->next->position, b->length, b->strand == b->next->strand);
 
