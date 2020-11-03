@@ -562,9 +562,10 @@ void alignmentBlockIterator_destruct(AlignmentBlockIterator *it) {
     free(it);
 }
 
-void alignmentBlockIterator_start(AlignmentBlockIterator *it) {
+AlignmentBlockIterator *alignmentBlockIterator_start(AlignmentBlockIterator *it) {
     it->i = 0;
     it->current_block = NULL;
+    return it;
 }
 
 stPinch *alignmentBlockIterator_get_next(AlignmentBlockIterator *it) {
@@ -593,6 +594,16 @@ stPinch *alignmentBlockIterator_get_next(AlignmentBlockIterator *it) {
 }
 
 stPinchIterator *stPinchIterator_constructFromAlignedBlocks(stList *alignment_blocks) {
+
+    /*typedef struct _stPinchIterator {
+    int64_t alignmentTrim;
+    void *alignmentArg;
+    stPinch *(*getNextAlignment)(void *);
+    void *(*startAlignmentStack)(void *);
+    void (*destructAlignmentArg)(void *);
+} stPinchIterator;*/
+
+
     stPinchIterator *pinchIterator = st_calloc(1, sizeof(stPinchIterator));
     pinchIterator->alignmentArg = alignmentBlockIterator_construct(alignment_blocks);
     pinchIterator->getNextAlignment = (stPinch *(*)(void *)) alignmentBlockIterator_get_next;

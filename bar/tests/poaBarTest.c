@@ -196,6 +196,7 @@ void test_alignment_block_iterator(CuTest *testCase) {
 
     stPinchIterator *it = stPinchIterator_constructFromAlignedBlocks(alignment_blocks);
 
+    stPinchIterator_reset(it);
     //stPinchThreadSet *threadSet = stCaf_setup(flower);
     //stCaf_anneal(threadSet, it, NULL);
 
