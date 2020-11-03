@@ -74,7 +74,7 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
     uint8_t **bseqs = (uint8_t**)malloc(sizeof(uint8_t*) * msa->seq_no);
 
     for(int64_t i=0; i<msa->seq_no; i++) {
-        //assert(seq_lens[i] > 0);
+        // assert(seq_lens[i] > 0);
         bseqs[i] = (uint8_t *) malloc(sizeof(uint8_t) * seq_lens[i]);
         for (int64_t j = 0; j < seq_lens[i]; ++j) {
             // todo: support iupac characters?
