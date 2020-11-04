@@ -386,6 +386,7 @@ int main(int argc, char *argv[]) {
 
             stPinchIterator *pinchIterator;
             stSortedSet *alignedPairs;
+            stList *alignment_blocks;
 
             if(poaMode) {
                 /*
@@ -393,10 +394,9 @@ int main(int argc, char *argv[]) {
                  *
                  * It does not use any precomputed alignments, if they are provided they will be ignored
                  */
-                stList *alignment_blocks = make_flower_alignment_poa(flower, pruneOutStubAlignments);
-                fprintf(stderr, "Okay got %i alignment blocks\n", (int)stList_length(alignment_blocks));
+                alignment_blocks = make_flower_alignment_poa(flower, pruneOutStubAlignments);
+                st_logInfo("Created the poa alignments: %" PRIi64 " poa alignment blocks\n", stList_length(alignment_blocks));
                 pinchIterator = stPinchIterator_constructFromAlignedBlocks(alignment_blocks);
-                fprintf(stderr, "Okay built the pinch iterator\n");
             }
             else {
                 alignedPairs = makeFlowerAlignment3(sM, flower, listOfEndAlignmentFiles, spanningTrees, maximumLength,
@@ -411,9 +411,7 @@ int main(int argc, char *argv[]) {
              * Run the cactus caf functions to build cactus.
              */
             stPinchThreadSet *threadSet = stCaf_setup(flower);
-            fprintf(stderr, "Starting to pinch.\n");
             stCaf_anneal(threadSet, pinchIterator, NULL);
-            fprintf(stderr, "Finished pinching\n");
             if (minimumDegree < 2) {
                 stCaf_makeDegreeOneBlocks(threadSet);
             }
@@ -449,7 +447,10 @@ int main(int argc, char *argv[]) {
              */
             //Clean up the sorted set after cleaning up the iterator
             stPinchIterator_destruct(pinchIterator);
-            if(!poaMode) {
+            if(poaMode) {
+                stList_destruct(alignment_blocks);
+            }
+            else {
                 stSortedSet_destruct(alignedPairs);
             }
 
