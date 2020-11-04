@@ -6,7 +6,7 @@
 
 #include "abpoa.h"
 #include "poaBarAligner.h"
-#include "../inc/poaBarAligner.h"
+#include "flowerAligner.h"
 
 // char <--> uint8_t conversion copied over from abPOA example
 // AaCcGgTtNn ==> 0,1,2,3,4
@@ -422,7 +422,7 @@ void create_alignment_blocks(Msa *msa, Cap **row_indexes_to_caps, stList *alignm
     assert(i == msa->column_no);
 }
 
-stList *make_flower_alignment_poa(Flower *flower, bool pruneOutStubAlignments) {
+stList *make_flower_alignment_poa2(Flower *flower, bool pruneOutStubAlignments) {
     // Arrays of ends and connecting the strings necessary to build the POA alignment
     int64_t end_no = flower_getEndNumber(flower); // The number of ends
     int64_t end_lengths[end_no]; // The number of strings incident with each end
@@ -508,9 +508,9 @@ stList *make_flower_alignment_poa(Flower *flower, bool pruneOutStubAlignments) {
                                                           right_end_indexes, right_end_row_indexes);
 
     // Temp debug output
-    for(int64_t i=0; i<end_no; i++) {
-        msa_print(msas[i], stderr);
-    }
+    //for(int64_t i=0; i<end_no; i++) {
+    //    msa_print(msas[i], stderr);
+    //}
 
     // TODO: stub-alignments?
 
@@ -531,11 +531,57 @@ stList *make_flower_alignment_poa(Flower *flower, bool pruneOutStubAlignments) {
     stHash_destruct(caps_to_indices);
 
     // Temp debug output
-    for(int64_t i=0; i<stList_length(alignment_blocks); i++) {
-        alignmentBlock_print(stList_get(alignment_blocks, i), stderr);
-    }
+    //for(int64_t i=0; i<stList_length(alignment_blocks); i++) {
+    //    alignmentBlock_print(stList_get(alignment_blocks, i), stderr);
+    //}
 
     return alignment_blocks;
+}
+
+stList *make_flower_alignment_poa(Flower *flower, bool pruneOutStubAlignments) {
+    End *dominantEnd = getDominantEnd(flower); //an end to which all adjacencies are incident
+    if (dominantEnd != NULL) { // If there is a dominant end we need only form a single alignment from that end.
+        int64_t seq_no = end_getInstanceNumber(dominantEnd); // The number of strings incident with the end
+        char **end_strings = st_malloc(sizeof(char *)*seq_no); // The actual strings connecting to the end
+        int *seq_lengths = st_malloc(sizeof(int)*seq_no); // Length of the strings connecting the end
+        Cap **rows_to_caps = st_malloc(sizeof(Cap *)*seq_no); // The cap for each end
+
+        // Fill out the arrays
+        Cap *cap;
+        End_InstanceIterator *capIterator = end_getInstanceIterator(dominantEnd);
+        int64_t j=0; // Index of the cap in the end's arrays
+        while ((cap = end_getNext(capIterator)) != NULL) {
+            assert(j < seq_no);
+            // Ensure we have the cap in the correct orientation
+            if (cap_getSide(cap)) {
+                cap = cap_getReverse(cap);
+            }
+            // Get the string and its length
+            end_strings[j] = get_adjacency_string(cap, &(seq_lengths[j]));
+
+            // Populate the caps to end/row indices, and vice versa, data structures
+            rows_to_caps[j] = cap;
+
+            j++;
+        }
+        end_destructInstanceIterator(capIterator);
+        assert(seq_no == j);
+
+        // Make the alignemnt
+        Msa *msa = msa_make_partial_order_alignment(end_strings, seq_lengths, seq_no);
+
+        //Now convert to set of alignment blocks
+        stList *alignment_blocks = stList_construct3(0, (void (*)(void *))alignmentBlock_destruct);
+        create_alignment_blocks(msa, rows_to_caps, alignment_blocks);
+
+        // Cleanup
+        free(rows_to_caps);
+        msa_destruct(msa);
+
+        return alignment_blocks;
+    }
+    // If there is no dominant end then use the pruning algorithm
+    return make_flower_alignment_poa2(flower, pruneOutStubAlignments);
 }
 
 /*
@@ -576,8 +622,6 @@ stPinch *alignmentBlockIterator_get_next(AlignmentBlockIterator *it) {
         }
         it->current_block = stList_get(it->alignment_blocks, it->i++);
     }
-    fprintf(stderr, "Pinching\n");
-    alignmentBlock_print(it->current_block, stderr);
     assert(it->current_block->next != NULL); // All alignment blocks should contain at least two sequences
 
     AlignmentBlock *b = it->current_block;
@@ -594,16 +638,6 @@ stPinch *alignmentBlockIterator_get_next(AlignmentBlockIterator *it) {
 }
 
 stPinchIterator *stPinchIterator_constructFromAlignedBlocks(stList *alignment_blocks) {
-
-    /*typedef struct _stPinchIterator {
-    int64_t alignmentTrim;
-    void *alignmentArg;
-    stPinch *(*getNextAlignment)(void *);
-    void *(*startAlignmentStack)(void *);
-    void (*destructAlignmentArg)(void *);
-} stPinchIterator;*/
-
-
     stPinchIterator *pinchIterator = st_calloc(1, sizeof(stPinchIterator));
     pinchIterator->alignmentArg = alignmentBlockIterator_construct(alignment_blocks);
     pinchIterator->getNextAlignment = (stPinch *(*)(void *)) alignmentBlockIterator_get_next;

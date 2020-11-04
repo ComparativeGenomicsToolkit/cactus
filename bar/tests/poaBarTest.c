@@ -202,24 +202,12 @@ void test_alignment_block_iterator(CuTest *testCase) {
 
     stPinch *pinch;
     while((pinch = stPinchIterator_getNext(it)) != NULL) {
-
-        /*typedef struct _stPinch {
-            int64_t name1;
-            int64_t name2;
-            int64_t start1;
-            int64_t start2;
-            int64_t length;
-            bool strand;
-        } stPinch;*/
-
         fprintf(stderr, "Pinch: name1: %" PRIi64 " s1:%i, name2: %" PRIi64 " s2:%i, length:%i, strand:%i\n",
                 pinch->name1, (int)pinch->start1, pinch->name2, (int)pinch->start2,
                 (int)pinch->length, (int)pinch->strand);
     }
 
     stPinchIterator_destruct(it);
-
-
 
     teardown(testCase);
 }
