@@ -538,8 +538,50 @@ stList *make_flower_alignment_poa2(Flower *flower, bool pruneOutStubAlignments) 
     return alignment_blocks;
 }
 
+End *getDominantEnd2(Flower *flower) {
+    /*
+     * Returns an end, if exists, that has cap involved in every adjacency, else returns null.
+     */
+    //return NULL;
+    assert(flower_getGroupNumber(flower) <= 1);
+    if(flower_getEndNumber(flower) > 2) {
+        return NULL;
+    }
+
+    Flower_EndIterator *endIt = flower_getEndIterator(flower);
+    End *end;
+    int64_t maxInstanceNumber = 0;
+    End *dominantEnd = NULL;
+    while ((end = flower_getNextEnd(endIt)) != NULL) {
+        if (end_getInstanceNumber(end) > maxInstanceNumber) {
+            maxInstanceNumber = end_getInstanceNumber(end);
+            dominantEnd = end;
+        }
+    }
+    flower_destructEndIterator(endIt);
+    if (dominantEnd == NULL) {
+        return NULL;
+    }
+    assert(end_getOrientation(dominantEnd));
+    if (end_getInstanceNumber(dominantEnd) * 2 < flower_getCapNumber(flower)) {
+        return NULL;
+    }
+    Cap *cap;
+    Flower_CapIterator *capIt = flower_getCapIterator(flower);
+    while ((cap = flower_getNextCap(capIt)) != NULL) {
+        assert(cap_getAdjacency(cap) != NULL);
+        if (end_getPositiveOrientation(cap_getEnd(cap)) != dominantEnd && end_getPositiveOrientation(
+                cap_getEnd(cap_getAdjacency(cap))) != dominantEnd) {
+            flower_destructCapIterator(capIt);
+            return NULL;
+        }
+    }
+    flower_destructCapIterator(capIt);
+    return dominantEnd;
+}
+
 stList *make_flower_alignment_poa(Flower *flower, bool pruneOutStubAlignments) {
-    End *dominantEnd = getDominantEnd(flower); //an end to which all adjacencies are incident
+    End *dominantEnd = getDominantEnd2(flower); //an end to which all adjacencies are incident
     if (dominantEnd != NULL) { // If there is a dominant end we need only form a single alignment from that end.
         int64_t seq_no = end_getInstanceNumber(dominantEnd); // The number of strings incident with the end
         char **end_strings = st_malloc(sizeof(char *)*seq_no); // The actual strings connecting to the end
