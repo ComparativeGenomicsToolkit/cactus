@@ -46,12 +46,11 @@ class TestCase(unittest.TestCase):
     def _write_primates_seqfile(self, seq_file_path):
         """ create the primates seqfile at given path"""
         with open(seq_file_path, 'w') as seq_file:
+            seq_file.write('simHuman\thttps://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simHuman.chr6\n')            
             seq_file.write('simChimp\thttps://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simChimp.chr6\n')
             seq_file.write('simGorilla\thttps://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simGorilla.chr6\n')
             seq_file.write('simOrang\thttps://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simOrang.chr6\n')
-            seq_file.write('simHuman\thttps://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simHuman.chr6\n')
 
-        
     def _run_evolver_primates_star(self, binariesMode, configFile = None):
         """ Run cactus on the evolver primates with a star topology
         """
@@ -165,6 +164,28 @@ class TestCase(unittest.TestCase):
                     line += ' --nonBlastInput'
                 sys.stderr.write('Running {}'.format(line))
                 subprocess.check_call(line, shell=True)
+
+    def _run_evolver_primates_refmap(self, binariesMode):
+        """ primates star test but using graphmap pangenome pipeline
+        """
+        # borrow seqfile from other primates test
+        # todo: make a seqfile and add it to the repo
+        seq_file_path = os.path.join(self.tempDir, 'primates.txt')
+        self._write_primates_seqfile(seq_file_path)
+
+        # do the mapping
+        cigar_path = os.path.join(self.tempDir, 'aln.cigar')
+        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir]
+        # todo: it'd be nice to have an interface for setting tag to something not latest or commit
+        if binariesMode == 'docker':
+            cactus_opts += ['--latest']
+        
+        subprocess.check_call(['cactus-refmap', self._job_store(binariesMode), seq_file_path, "simHuman", cigar_path] + cactus_opts)
+
+        # do the alignment
+        subprocess.check_call(['cactus-align', self._job_store(binariesMode), seq_file_path, cigar_path, self._out_hal(binariesMode),
+                               '--root', 'Anc0'] + cactus_opts)            
+                
 
     def _run_evolver_primates_graphmap(self, binariesMode):
         """ primates star test but using graphmap pangenome pipeline
@@ -442,6 +463,15 @@ class TestCase(unittest.TestCase):
         # check the output
         self._check_maf_accuracy(self._out_hal("local"), delta=0.0025, dataset='primates')
 
+    def testEvolverRefmapLocal(self):
+        """ Use the new minimap pangenome pipeline to create an alignment of the primates, then compare with the baseline
+        """
+        name = "local"
+        self._run_evolver_primates_refmap(name)
+
+        # check the output
+        self._check_maf_accuracy(self._out_hal("local"), delta=0.01, dataset='primates')
+
     def testEvolverMinigraphLocal(self):
         """ Use the new minigraph pangenome pipeline to create an alignment of the primates, then compare with the baseline
         """
@@ -451,6 +481,7 @@ class TestCase(unittest.TestCase):
         # check the output
         # todo: tune config so that delta can be reduced
         self._check_maf_accuracy(self._out_hal("local"), delta=0.025, dataset='primates')
+        
         
 
 if __name__ == '__main__':
