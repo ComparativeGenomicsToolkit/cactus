@@ -158,6 +158,9 @@ evolver_test_poa_local: all bin/mafComparator
 evolver_test_refmap_local: all bin/mafComparator
 	CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverRefmapLocal
 
+evolver_test_graphmap_local: all bin/mafComparator
+	PYTHONPATH="" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverMinigraphLocal
+
 ##
 # clean targets
 ##

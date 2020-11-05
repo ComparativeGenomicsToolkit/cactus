@@ -50,9 +50,7 @@ def paf_to_lastz(job, paf_file, sort_secondaries=True):
         with open(sort_files[i], "w") as sortf:
             # convert list to file for paftools input
             sortf.writelines(lines[i])
-        cactus_call(parameters=["paftools.js", "view", "-f", "lastz-cigar", sort_files[i]], outfile=paftool_files[i])
-        fix_negative_strand_mappings(paftool_files[i], fixed_paftool_files[i])
-        add_original_mapqs( mapqs[i], fixed_paftool_files[i], job.fileStore.readGlobalFile(out_files[i]))
+        cactus_call(parameters=["paf2lastz", "-q", sort_files[i]], outfile=job.fileStore.readGlobalFile(out_files[i]))
 
     # check that the lines going into paftools.js are in same order as lines going out.
     with open(job.fileStore.readGlobalFile(out_files[0])) as inf:
@@ -70,6 +68,8 @@ def paf_to_lastz(job, paf_file, sort_secondaries=True):
     else:
         return out_files
 
+# deprecated after switching from paftools view to paf2lastz
+# todo : clean up this whole module
 def add_original_mapqs(mapqs, infile, outfile):
     """
     paftools.js uses "raw mapping score" instead of mapq. This replaces those fields with mapq again.

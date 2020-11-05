@@ -48,6 +48,8 @@ mkdir -p $(binPackageDir)/lib
 rsync -avm --include='*.py' -f 'hide,! */' ./submodules/hal ${binPackageDir}/lib
 # copy in hal2vg
 build-tools/downloadHal2vg && mv hal2vg ${binPackageDir}/bin
+# download minimap/graph tools used for pangenome pipeline
+build-tools/downloadMiniTools
 # need .git dir for pip install -U ., but don't need everything
 cp -r .git ${binPackageDir}
 rm -rf ${binPackageDir}/.git/modules
