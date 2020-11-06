@@ -100,7 +100,7 @@ int main(int argc, char *argv[]) {
     char * cactusDiskDatabaseString = NULL;
     int64_t i, j;
     int64_t spanningTrees = 10;
-    int64_t maximumLength = 100;
+    int64_t maximumLength = 1500;
     bool useProgressiveMerging = 0;
     float matchGamma = 0.5;
     bool useBanding = 0;
@@ -390,7 +390,7 @@ int main(int argc, char *argv[]) {
                  *
                  * It does not use any precomputed alignments, if they are provided they will be ignored
                  */
-                alignment_blocks = make_flower_alignment_poa(flower, maximumLength);
+                alignment_blocks = make_flower_alignment_poa(flower, 100);
                 st_logInfo("Created the poa alignments: %" PRIi64 " poa alignment blocks\n", stList_length(alignment_blocks));
                 pinchIterator = stPinchIterator_constructFromAlignedBlocks(alignment_blocks);
             }
