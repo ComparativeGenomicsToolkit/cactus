@@ -302,6 +302,11 @@ int main(int argc, char *argv[]) {
      * For each flower.
      */
     if (calculateWhichEndsToComputeSeparately) {
+        if(poaMode) {
+            return 0; // Do not compute ends separately if using the poa aligner, as the poa aligner is so fast
+            // this is unnecessary
+            // todo: avoid calling with this flag if using poaMode
+        }
         stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
         if (stList_length(flowers) != 1) {
             st_errAbort("We are breaking up a flower's end alignments for precomputation but we have %" PRIi64 " flowers.\n", stList_length(flowers));
@@ -394,7 +399,7 @@ int main(int argc, char *argv[]) {
                  *
                  * It does not use any precomputed alignments, if they are provided they will be ignored
                  */
-                alignment_blocks = make_flower_alignment_poa(flower, 10);
+                alignment_blocks = make_flower_alignment_poa(flower, maximumLength);
                 st_logInfo("Created the poa alignments: %" PRIi64 " poa alignment blocks\n", stList_length(alignment_blocks));
                 pinchIterator = stPinchIterator_constructFromAlignedBlocks(alignment_blocks);
             }
