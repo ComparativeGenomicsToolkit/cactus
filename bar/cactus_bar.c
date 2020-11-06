@@ -390,7 +390,7 @@ int main(int argc, char *argv[]) {
                  *
                  * It does not use any precomputed alignments, if they are provided they will be ignored
                  */
-                alignment_blocks = make_flower_alignment_poa(flower, 100);
+                alignment_blocks = make_flower_alignment_poa(flower, 10);
                 st_logInfo("Created the poa alignments: %" PRIi64 " poa alignment blocks\n", stList_length(alignment_blocks));
                 pinchIterator = stPinchIterator_constructFromAlignedBlocks(alignment_blocks);
             }
