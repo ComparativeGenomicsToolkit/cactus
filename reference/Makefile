@@ -1,7 +1,7 @@
 rootPath = ..
 include ${rootPath}/include.mk
 
-CFLAGS += ${tokyoCabinetIncl}
+CFLAGS += ${tokyoCabinetIncl} ${hiredisIncl}
 
 libSources = impl/*.c
 libHeaders = inc/*.h

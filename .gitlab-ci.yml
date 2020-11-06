@@ -2,6 +2,8 @@ image: quay.io/glennhickey/cactus-ci-base:latest
 
 before_script:
   - whoami
+  - sudo apt-get -q -y update
+  - sudo apt-get -q -y install redis-server libhiredis0.13 libhiredis-dev
   - startdocker || true
   - docker info
 

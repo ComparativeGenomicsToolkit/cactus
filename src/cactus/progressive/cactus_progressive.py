@@ -362,6 +362,8 @@ def main():
                         "rather than pulling one from quay.io")
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
+    parser.add_argument("--database", choices=["kyoto_tycoon", "redis"],
+                        help="The type of database", default="kyoto_tycoon")
 
     options = parser.parse_args()
 

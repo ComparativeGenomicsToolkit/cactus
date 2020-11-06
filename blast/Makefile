@@ -1,7 +1,7 @@
 rootPath = ..
 include ${rootPath}/include.mk
 
-CFLAGS += ${tokyoCabinetIncl}
+CFLAGS += ${tokyoCabinetIncl} ${hiredisIncl}
 
 all: all_libs all_progs
 all_libs: 

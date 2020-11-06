@@ -80,6 +80,8 @@ def main():
                         "nicely with reference-based alignments.  This flag will turn it back on")
     parser.add_argument("--pafInput", action="store_true",
                         help="'blastOutput' input is in paf format, rather than lastz cigars.")    
+    parser.add_argument("--database", choices=["kyoto_tycoon", "redis"],
+                        help="The type of database", default="kyoto_tycoon")
 
     options = parser.parse_args()
 
@@ -101,11 +103,6 @@ def main():
             # is there a way to get this out of Toil?  That would be more consistent
             if cpu_count() < 2:
                 raise RuntimeError('Only 1 CPU detected.  Cactus requires at least 2')
-
-    # tokyo_cabinet is no longer supported
-    options.database = "kyoto_tycoon"
-        
-    options.database = 'kyoto_tycoon'
 
     options.buildHal = True
     options.buildFasta = True

@@ -48,10 +48,6 @@ def main():
     parser.add_argument("--pathOverrideNames", nargs="*", help="names (must be same number as --pathOverrides) of path overrides")
 
     #Progressive Cactus Options
-    parser.add_argument("--database", dest="database",
-                      help="Database type: tokyo_cabinet or kyoto_tycoon"
-                      " [default: %(default)s]",
-                      default="kyoto_tycoon")
     parser.add_argument("--configFile", dest="configFile",
                         help="Specify cactus configuration file",
                         default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
@@ -69,8 +65,8 @@ def main():
                         "rather than pulling one from quay.io")
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
-
     options = parser.parse_args()
+    options.database = "kyoto_tycoon"
 
     setupBinaries(options)
     setLoggingFromOptions(options)
