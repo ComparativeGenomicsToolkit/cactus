@@ -25,14 +25,14 @@
  */
 stSortedSet *makeFlowerAlignment(StateMachine *sM, Flower *flower, int64_t spanningTrees,
         int64_t maxSequenceLength, bool useProgressiveMerging, float gapGamma,
-        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, bool pruneOutStubAlignments, bool poa);
+        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, bool pruneOutStubAlignments, int64_t poaWindow);
 
 /*
  * As above, but including alignments from disk.
  */
 stSortedSet *makeFlowerAlignment3(StateMachine *sM, Flower *flower, stList *listOfEndAlignmentFiles, int64_t spanningTrees,
         int64_t maxSequenceLength, bool useProgressiveMerging, float gapGamma,
-        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, bool pruneOutStubAlignments, bool poa);
+        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, bool pruneOutStubAlignments, int64_t poaWindow);
 
 /*
  * Ascertain which ends should be aligned separately.
@@ -43,10 +43,5 @@ stSortedSet *getEndsToAlignSeparately(Flower *flower, int64_t maxSequenceLength,
  * The total number of unaligned bases in adjacencies incident with the end.
  */
 int64_t getTotalAdjacencyLength(End *end);
-
-/*
- * Gets an end that all adjacencies are connected to in the flower.
- */
-End *getDominantEnd(Flower *flower);
 
 #endif /* NETALIGNER_H_ */

@@ -115,9 +115,9 @@ def main(toil_mode=False):
     parser.add_argument("--blastPreemptible", type=int, help="Preemptible attempt count for each cactus-blast job [default=1]", default=1)
     parser.add_argument("--alignPreemptible", type=int, help="Preemptible attempt count for each cactus-align job [default=1]", default=1)
     parser.add_argument("--halAppendPreemptible", type=int, help="Preemptible attempt count for each halAppendSubtree job [default=1]", default=1)
+    parser.add_argument("--database", choices=["kyoto_tycoon", "redis"], help="The type of database", default="kyoto_tycoon")
 
     options = parser.parse_args()
-    options.database = 'kyoto_tycoon'
     #todo support root option
     options.root = None
 
@@ -486,11 +486,18 @@ def get_plan(options, project, inSeqFile, outSeqFile, toil):
                     deps.add(outSeqFile.tree.getName(node))
         return deps
 
-    events_and_virtuals = set()
-    for event in events:
-        events_and_virtuals.add(event)
-        if get_deps(event):
-            events_and_virtuals = events_and_virtuals.union(get_deps(event))
+    events_and_virtuals = set(events)
+    # add all events, potentially looping through virtual dependency chains
+    # (hence the double loop)
+    batch = set(events_and_virtuals)
+    while len(batch) > 0:
+        next_batch = set()
+        for event in batch:
+            for dep in get_deps(event):
+                if dep not in events_and_virtuals:
+                    next_batch.add(dep)
+                    events_and_virtuals.add(dep)
+        batch = next_batch
 
     # group jobs into rounds.  where all jobs of round i can be run in parallel
     groups = []
@@ -507,7 +514,7 @@ def get_plan(options, project, inSeqFile, outSeqFile, toil):
         if added == 0:
             sys.stderr.write("schedule deadlock:\n")
             for event in events_and_virtuals:
-                sys.stderr.write("{} has deps {}\b".format(event, get_deps(event)))
+                sys.stderr.write("{} has deps {}\n".format(event, get_deps(event)))
             sys.exit(1)
         for tr in to_remove:
             resolved.add(tr)
@@ -567,9 +574,9 @@ def get_plan(options, project, inSeqFile, outSeqFile, toil):
                 plan += 'cactus-blast {} {} {} --root {} {} {}\n'.format(
                     get_jobstore(options), options.outSeqFile, cigarPath(event), event,
                     options.cactusOptions, get_toil_resource_opts(options, 'blast'))
-                plan += 'cactus-align {} {} {} {} --root {} {} {}\n'.format(
+                plan += 'cactus-align {} {} {} {} --root {} {} {} --database {}\n'.format(
                     get_jobstore(options), options.outSeqFile, cigarPath(event), halPath(event), event,
-                    options.cactusOptions, get_toil_resource_opts(options, 'align'))
+                    options.cactusOptions, get_toil_resource_opts(options, 'align'), options.database)
                 # todo: just output the fasta in cactus-align.
                 plan += 'hal2fasta {} {} {} > {}\n'.format(halPath(event), event, options.halOptions, outSeqFile.pathMap[event])
 

@@ -45,8 +45,6 @@ subprocess._has_poll = False
 
 def cactus_override_toil_options(options):
     """  Mess with some toil options to create useful defaults. """
-    # tokyo_cabinet is no longer supported
-    options.database = "kyoto_tycoon"
     # Caching generally slows down the cactus workflow, plus some
     # methods like readGlobalFileStream don't support forced
     # reads directly from the job store rather than from cache.
@@ -494,6 +492,7 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
                  minimumCoverageToRescue=None,
                  minimumNumberOfSpecies=None,
                  partialOrderAlignment=None,
+                 partialOrderAlignmentWindow=None,
                  jobName=None,
                  fileStore=None,
                  features=None):
@@ -550,7 +549,8 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
     if minimumNumberOfSpecies is not None:
         args += ["--minimumNumberOfSpecies", str(minimumNumberOfSpecies)]
     if partialOrderAlignment is True:
-        args += ["--partialOrderAlignment"]
+        assert partialOrderAlignmentWindow is not None and int(partialOrderAlignmentWindow) > 1
+        args += ["--partialOrderAlignmentWindow", str(partialOrderAlignmentWindow)]
 
     masterMessages = cactus_call(stdin_string=flowerNames, check_output=True,
                                  parameters=["cactus_bar"] + args,
@@ -1266,7 +1266,7 @@ def cactus_call(tool=None,
     cactus_realtime_log(rt_message, log_debug = 'ktremotemgr' in call)
 
     # use /usr/bin/time -v to get peak memory usage
-    if time_v and 'ktserver' not in call:
+    if time_v and 'ktserver' not in call and 'redis-server' not in call:
         if not shell:
             shell = True
             call = ' '.join(shlex.quote(t) for t in call)

@@ -281,7 +281,7 @@ class RunCactusPreprocessorThenProgressiveDown2(RoundedJob):
                                      disk=self.configWrapper.getExportHalDisk(),
                                      preemptable=False).rv()
 
-def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC=None, cacheW0=None, chunk=None, deflate=None, inMemory=False):
+def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC=None, cacheW0=None, chunk=None, deflate=None, inMemory=True):
 
     HALPath = "tmp_alignment.hal"
 
@@ -362,6 +362,8 @@ def main():
                         "rather than pulling one from quay.io")
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
+    parser.add_argument("--database", choices=["kyoto_tycoon", "redis"],
+                        help="The type of database", default="kyoto_tycoon")
 
     options = parser.parse_args()
 
