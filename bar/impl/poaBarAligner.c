@@ -572,9 +572,9 @@ stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length) {
                                                           right_end_indexes, right_end_row_indexes, overlaps);
 
     // Temp debug output
-    for(int64_t i=0; i<end_no; i++) {
-        msa_print(msas[i], stderr);
-    }
+    //for(int64_t i=0; i<end_no; i++) {
+    //    msa_print(msas[i], stderr);
+    //}
 
     //Now convert to set of alignment blocks
     stList *alignment_blocks = stList_construct3(0, (void (*)(void *))alignmentBlock_destruct);
@@ -594,9 +594,9 @@ stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length) {
     stHash_destruct(caps_to_indices);
 
     // Temp debug output
-    for(int64_t i=0; i<stList_length(alignment_blocks); i++) {
-        alignmentBlock_print(stList_get(alignment_blocks, i), stderr);
-    }
+    //for(int64_t i=0; i<stList_length(alignment_blocks); i++) {
+    //    alignmentBlock_print(stList_get(alignment_blocks, i), stderr);
+    //}
 
     return alignment_blocks;
 }
