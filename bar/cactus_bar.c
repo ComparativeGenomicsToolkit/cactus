@@ -302,7 +302,7 @@ int main(int argc, char *argv[]) {
      * For each flower.
      */
     if (calculateWhichEndsToComputeSeparately) {
-        if(poaMode) {
+        if(poaWindow != 0) {
             return 0; // Do not compute ends separately if using the poa aligner, as the poa aligner is so fast
             // this is unnecessary
             // todo: avoid calling with this flag if using poaMode
@@ -451,7 +451,7 @@ int main(int argc, char *argv[]) {
              */
             //Clean up the sorted set after cleaning up the iterator
             stPinchIterator_destruct(pinchIterator);
-            if(poaMode) {
+            if(poaWindow != 0) {
                 stList_destruct(alignment_blocks);
             }
             else {
