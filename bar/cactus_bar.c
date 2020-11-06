@@ -146,7 +146,7 @@ int main(int argc, char *argv[]) {
                         {"minimumSizeToRescue", required_argument, 0, 'K'},
                         {"minimumCoverageToRescue", required_argument, 0, 'M'},
                         { "minimumNumberOfSpecies", required_argument, 0, 'N' },
-                        {"partialOrderAlignmentWindow", required_argument, 0, 'P'},                        
+                        {"partialOrderAlignmentWindow", required_argument, 0, 'P'},
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
@@ -302,7 +302,7 @@ int main(int argc, char *argv[]) {
      * For each flower.
      */
     if (calculateWhichEndsToComputeSeparately) {
-        if(poaMode) {
+        if(poaWindow != 0) {
             return 0; // Do not compute ends separately if using the poa aligner, as the poa aligner is so fast
             // this is unnecessary
             // todo: avoid calling with this flag if using poaMode
@@ -389,11 +389,11 @@ int main(int argc, char *argv[]) {
             flower = stList_get(flowers, j);
             st_logInfo("Processing a flower\n");
 
-            stPinchIterator *pinchIterator;
-            stSortedSet *alignedPairs;
-            stList *alignment_blocks;
+            stPinchIterator *pinchIterator = NULL;
+            stSortedSet *alignedPairs = NULL;
+            stList *alignment_blocks = NULL;
 
-            if(poaMode) {
+            if(poaWindow != 0) {
                 /*
                  * This makes a consistent set of alignments using abPoa.
                  *
@@ -407,11 +407,10 @@ int main(int argc, char *argv[]) {
                 alignedPairs = makeFlowerAlignment3(sM, flower, listOfEndAlignmentFiles, spanningTrees, maximumLength,
                                                     useProgressiveMerging, matchGamma,
                                                     pairwiseAlignmentBandingParameters,
-                                                    pruneOutStubAlignments, poaMode);
+                                                    pruneOutStubAlignments, poaWindow);
                 st_logInfo("Created the alignment: %" PRIi64 " pairs\n", stSortedSet_size(alignedPairs));
                 pinchIterator = stPinchIterator_constructFromAlignedPairs(alignedPairs, getNextAlignedPairAlignment);
             }
-            
             /*
              * Run the cactus caf functions to build cactus.
              */
@@ -452,7 +451,7 @@ int main(int argc, char *argv[]) {
              */
             //Clean up the sorted set after cleaning up the iterator
             stPinchIterator_destruct(pinchIterator);
-            if(poaMode) {
+            if(poaWindow != 0) {
                 stList_destruct(alignment_blocks);
             }
             else {

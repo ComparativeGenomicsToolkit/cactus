@@ -44,9 +44,4 @@ stSortedSet *getEndsToAlignSeparately(Flower *flower, int64_t maxSequenceLength,
  */
 int64_t getTotalAdjacencyLength(End *end);
 
-/*
- * Gets an end that all adjacencies are connected to in the flower.
- */
-End *getDominantEnd(Flower *flower);
-
 #endif /* NETALIGNER_H_ */
