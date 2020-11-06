@@ -68,10 +68,11 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
  * @param end_string_lengths Length of the strings connecting the ends
  * @param right_end_indexes For each string, the index of the right end that it is connecting
  * @param right_end_row_indexes For each string, the index of the row of its reverse complement
+ * @param overlaps For each prefix string, the length of the overlap with its reverse complement adjacency
  * @return A consistent Msa for each end
  */
 Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_lengths, char ***end_strings,
-        int **end_string_lengths, int64_t **right_end_indexes, int64_t **right_end_row_indexes);
+        int **end_string_lengths, int64_t **right_end_indexes, int64_t **right_end_row_indexes, int64_t **overlaps);
 
 /**
  * Represents a gapless alignment of a set of sequences.
@@ -94,16 +95,18 @@ void alignmentBlock_destruct(AlignmentBlock *alignmentBlock);
 void alignmentBlock_print(AlignmentBlock *ab, FILE *f);
 
 /**
- * Get the string connecting two ends for the given cap
+ * Get the string connecting two ends for the given cap.
  */
 char *get_adjacency_string(Cap *cap, int *length);
 
 /**
  * Makes alignments of the the unaligned sequence using the bar algorithm.
  *
+ * @param max_seq_length is the maximum length of the prefix of an unaligned sequence
+ * to attempt to align.
  * Returns a list of AlignmentBlock ojects
  */
-stList *make_flower_alignment_poa(Flower *flower, bool pruneOutStubAlignments);
+stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length);
 
 /**
  * Create a pinch iterator for a list of alignment blocks.

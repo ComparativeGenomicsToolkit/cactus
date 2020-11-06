@@ -181,9 +181,17 @@ void trim_msa_suffix(Msa *msa, float *column_scores, int64_t row, int64_t suffix
  * Used to make two MSAs consistent with each other for a shared sequence
  */
 void trim(int64_t row1, Msa *msa1, float *column_scores1,
-          int64_t row2, Msa *msa2, float *column_scores2) {
-    int64_t seq_len = msa1->seq_lens[row1]; // The length of the shared sequence
-    assert(seq_len == msa2->seq_lens[row2]);
+          int64_t row2, Msa *msa2, float *column_scores2, int64_t overlap) {
+    if(overlap == 0) { // There is no overlap, so no need to trim either MSA
+        return;
+    }
+    assert(overlap > 0); // Otherwise the overlap must be positivie
+
+    int64_t seq_len1 = msa1->seq_lens[row1]; // The prefix length of the forward complement sequence in the first MSA
+    int64_t seq_len2 = msa2->seq_lens[row2]; // The prefix length of the reverse complement sequence in the second MSA
+    // They can be different if either MSA does not include the whole sequence
+    assert(overlap <= seq_len1); // The overlap must be less than the length of the prefixes
+    assert(overlap <= seq_len2);
 
     // Get the cumulative cut scores for the columns containing the shared sequence
     float cu_column_scores1[msa1->column_no];
@@ -191,29 +199,46 @@ void trim(int64_t row1, Msa *msa1, float *column_scores1,
     sum_column_scores(row1, msa1, column_scores1, cu_column_scores1);
     sum_column_scores(row2, msa2, column_scores2, cu_column_scores2);
 
-    float max_cut_score = cu_column_scores2[seq_len-1]; // The score if we cut all of msa1 and keep all of msa2
-    int64_t max_cut_point = 0; // the length of the prefix of msa1 to keep
-    for(int64_t i=0; i<seq_len-1; i++) {
-        assert(seq_len-i-2 >= 0); // Sanity check
-        float cut_score = cu_column_scores1[i] + cu_column_scores2[seq_len-i-2]; // The score if we keep prefix up to
-        // and including column 1 of MSA1, and the prefix of msa2 up to and including column seq_len-i-2
+    // The score if we cut all of the overlap in msa1 and keep all of the overlap in msa2
+    assert(seq_len2 <= msa2->column_no);
+    float max_cut_score = cu_column_scores2[seq_len2-1];
+    if(overlap < seq_len1) { // The overlap is less than the length of the first sequence
+        assert(seq_len1-overlap-1 >= 0);
+        max_cut_score += cu_column_scores1[seq_len1-overlap-1]; // We will keep everything before the overlap
+    }
+    int64_t max_overlap_cut_point = 0; // the length of the prefix of the overlap of msa1 to keep
+
+    // Not walk through each possible cut point within the overlap
+    for(int64_t i=0; i<overlap-1; i++) {
+        assert(seq_len2-i-2 >= 0); // Sanity check
+        float cut_score = cu_column_scores1[seq_len1-overlap+i] + cu_column_scores2[seq_len2-i-2]; // The score if we keep prefix up to
+        // and including column i of MSA1's overlap, and the prefix of msa2 up to and including column seq_len-i-2
         if(cut_score > max_cut_score) {
-            max_cut_point = i+1;
+            max_overlap_cut_point = i + 1;
             max_cut_score = cut_score;
         }
     }
-    if(cu_column_scores1[seq_len-1] > max_cut_score) { // The score if we cut all of msa2 and keep all of msa1
-        max_cut_point = seq_len;
-        max_cut_score = cu_column_scores1[seq_len-1];
+
+    // The score if we cut all of msa2's overlap and keep all of msa1's
+    float f = cu_column_scores1[seq_len1-1];
+    if(overlap < seq_len2) {
+        assert(seq_len2-overlap-1 >= 0);
+        f += cu_column_scores2[seq_len2-overlap-1];
+    }
+
+    if(f > max_cut_score) {
+        max_cut_score = f;
+        max_overlap_cut_point = overlap;
     }
 
     // Now trim back the two MSAs
-    trim_msa_suffix(msa1, column_scores1, row1, max_cut_point);
-    trim_msa_suffix(msa2, column_scores2, row2, seq_len-max_cut_point);
+    assert(max_overlap_cut_point <= overlap);
+    trim_msa_suffix(msa1, column_scores1, row1, seq_len1 - overlap + max_overlap_cut_point);
+    trim_msa_suffix(msa2, column_scores2, row2, seq_len2 - max_overlap_cut_point);
 }
 
 Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_lengths, char ***end_strings,
-        int **end_string_lengths, int64_t **right_end_indexes, int64_t **right_end_row_indexes) {
+        int **end_string_lengths, int64_t **right_end_indexes, int64_t **right_end_row_indexes, int64_t **overlaps) {
     // Calculate the initial, potentially inconsistent msas and column scores for each msa
     float *column_scores[end_no];
     Msa **msas = st_malloc(sizeof(Msa *) * end_no);
@@ -232,7 +257,7 @@ Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_leng
             // If it hasn't already been trimmed
             if(right_end_index > i || (right_end_index == i /* self loop */ && right_end_row_index > j)) {
                 trim(j, msa, column_scores[i],
-                        right_end_row_index, msas[right_end_index], column_scores[right_end_index]);
+                        right_end_row_index, msas[right_end_index], column_scores[right_end_index], overlaps[i][j]) ;
             }
         }
     }
@@ -277,6 +302,42 @@ char *get_adjacency_string(Cap *cap, int *length) {
         assert(*length >= 0);
         return sequence_getString(sequence, cap_getCoordinate(cap2) + 1, *length, 0);
     }
+}
+
+/**
+ * Used to get a prefix of a given adjacency sequence.
+ * @param seq_length
+ * @param length
+ * @param overlap
+ * @param max_seq_length
+ * @return
+ */
+char *get_adjacency_string_and_overlap(Cap *cap, int *length, int64_t *overlap, int64_t max_seq_length) {
+    // Get the complete adjacency string
+    int seq_length;
+    char *adjacency_string = get_adjacency_string(cap, &seq_length);
+    assert(seq_length >= 0);
+
+    // Calculate the length of the prefix up to max_seq_length
+    *length = seq_length > max_seq_length ? max_seq_length : seq_length;
+    assert(*length >= 0);
+
+    // Cleanup the string
+    adjacency_string[*length] = '\0'; // Terminate the string at the given length
+    char *c = stString_copy(adjacency_string);
+    free(adjacency_string);
+    adjacency_string = c;
+
+    // Calculate the overlap with the reverse complement
+    if(2*(*length) > seq_length) { // There is overlap
+        *overlap = 2*(*length) - seq_length;
+        assert(*overlap >= 0);
+    }
+    else { // There is no overlap
+        *overlap = 0;
+    }
+
+    return adjacency_string;
 }
 
 /**
@@ -422,7 +483,7 @@ void create_alignment_blocks(Msa *msa, Cap **row_indexes_to_caps, stList *alignm
     assert(i == msa->column_no);
 }
 
-stList *make_flower_alignment_poa(Flower *flower, bool pruneOutStubAlignments) {
+stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length) {
     // Arrays of ends and connecting the strings necessary to build the POA alignment
     int64_t end_no = flower_getEndNumber(flower); // The number of ends
     int64_t end_lengths[end_no]; // The number of strings incident with each end
@@ -430,6 +491,7 @@ stList *make_flower_alignment_poa(Flower *flower, bool pruneOutStubAlignments) {
     int *end_string_lengths[end_no]; // Length of the strings connecting the ends
     int64_t *right_end_indexes[end_no];  // For each string the index of the right end that it is connecting
     int64_t *right_end_row_indexes[end_no]; // For each string the index of the row of its reverse complement
+    int64_t *overlaps[end_no]; // For each string the amount it suffix overlaps with its reverse complement
 
     // Data structures to translate between caps and sequences in above end arrays
     Cap **indices_to_caps[end_no]; // For each string the corresponding Cap
@@ -447,6 +509,7 @@ stList *make_flower_alignment_poa(Flower *flower, bool pruneOutStubAlignments) {
         right_end_indexes[i] = st_malloc(sizeof(int64_t)*end_lengths[i]);
         right_end_row_indexes[i] = st_malloc(sizeof(int64_t)*end_lengths[i]);
         indices_to_caps[i] = st_malloc(sizeof(Cap *)*end_lengths[i]);
+        overlaps[i] = st_malloc(sizeof(int64_t)*end_lengths[i]);
 
         // Now get each string incident with the end
         Cap *cap;
@@ -458,8 +521,9 @@ stList *make_flower_alignment_poa(Flower *flower, bool pruneOutStubAlignments) {
             if (cap_getSide(cap)) {
                 cap = cap_getReverse(cap);
             }
-            // Get the string and its length
-            end_strings[i][j] = get_adjacency_string(cap, &(end_string_lengths[i][j]));
+            // Get the prefix of the adjacency string and its length and overlap with its reverse complement
+            end_strings[i][j] = get_adjacency_string_and_overlap(cap, &(end_string_lengths[i][j]),
+                                                                 &(overlaps[i][j]), max_seq_length);
 
             // Populate the caps to end/row indices, and vice versa, data structures
             indices_to_caps[i][j] = cap;
@@ -505,14 +569,12 @@ stList *make_flower_alignment_poa(Flower *flower, bool pruneOutStubAlignments) {
 
     // Now make the consistent MSAs
     Msa **msas = make_consistent_partial_order_alignments(end_no, end_lengths, end_strings, end_string_lengths,
-                                                          right_end_indexes, right_end_row_indexes);
+                                                          right_end_indexes, right_end_row_indexes, overlaps);
 
     // Temp debug output
-    //for(int64_t i=0; i<end_no; i++) {
-    //    msa_print(msas[i], stderr);
-    //}
-
-    // TODO: stub-alignments?
+    for(int64_t i=0; i<end_no; i++) {
+        msa_print(msas[i], stderr);
+    }
 
     //Now convert to set of alignment blocks
     stList *alignment_blocks = stList_construct3(0, (void (*)(void *))alignmentBlock_destruct);
@@ -526,14 +588,15 @@ stList *make_flower_alignment_poa(Flower *flower, bool pruneOutStubAlignments) {
         free(right_end_indexes[i]);
         free(right_end_row_indexes[i]);
         free(indices_to_caps[i]);
+        free(overlaps[i]);
     }
     free(msas);
     stHash_destruct(caps_to_indices);
 
     // Temp debug output
-    //for(int64_t i=0; i<stList_length(alignment_blocks); i++) {
-    //    alignmentBlock_print(stList_get(alignment_blocks, i), stderr);
-    //}
+    for(int64_t i=0; i<stList_length(alignment_blocks); i++) {
+        alignmentBlock_print(stList_get(alignment_blocks, i), stderr);
+    }
 
     return alignment_blocks;
 }
