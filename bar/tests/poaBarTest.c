@@ -92,6 +92,7 @@ void test_make_consistent_partial_order_alignments_two_ends(CuTest *testCase) {
         int *end_string_lengths[end_no];
         int64_t *right_end_indexes[end_no];
         int64_t *right_end_row_indexes[end_no];
+        int64_t *overlaps[end_no];
 
         for(int64_t i=0; i<end_no; i++) {
             end_lengths[i] = seq_no;
@@ -99,6 +100,7 @@ void test_make_consistent_partial_order_alignments_two_ends(CuTest *testCase) {
             end_string_lengths[i] = st_malloc(sizeof(int) * seq_no);
             right_end_indexes[i] = st_malloc(sizeof(int64_t) * seq_no);
             right_end_row_indexes[i] = st_malloc(sizeof(int64_t) * seq_no);
+            overlaps[i] = st_malloc(sizeof(int64_t) * seq_no);
         }
 
         int64_t j=st_randomInt(0, 1000);
@@ -110,16 +112,18 @@ void test_make_consistent_partial_order_alignments_two_ends(CuTest *testCase) {
             end_string_lengths[0][i] = strlen(c);
             right_end_indexes[0][i] = 1;
             right_end_row_indexes[0][i] = k;
+            overlaps[0][i] = strlen(c);
 
             end_strings[1][k] = stString_reverseComplementString(c);
             end_string_lengths[1][k] = strlen(c);
             right_end_indexes[1][k] = 0;
             right_end_row_indexes[1][k] = i;
+            overlaps[1][k] = strlen(c);
         }
 
         // generate the alignments
         Msa **msas = make_consistent_partial_order_alignments(end_no, end_lengths, end_strings, end_string_lengths,
-                                                              right_end_indexes, right_end_row_indexes);
+                                                              right_end_indexes, right_end_row_indexes, overlaps);
 
         // print the msas
         for(int64_t i=0; i<end_no; i++) {
@@ -141,6 +145,7 @@ void test_make_consistent_partial_order_alignments_two_ends(CuTest *testCase) {
             msa_destruct(msas[i]);
             free(right_end_indexes[i]);
             free(right_end_row_indexes[i]);
+            free(overlaps[i]);
         }
         free(msas);
         free(parent_string);
@@ -174,7 +179,7 @@ void test_make_flower_alignment_poa(CuTest *testCase) {
     }
     flower_destructEndIterator(endIterator);
 
-    stList *alignment_blocks = make_flower_alignment_poa(flower, false);
+    stList *alignment_blocks = make_flower_alignment_poa(flower, 2);
 
     for(int64_t i=0; i<stList_length(alignment_blocks); i++) {
         AlignmentBlock *b = stList_get(alignment_blocks, i);
@@ -187,7 +192,7 @@ void test_make_flower_alignment_poa(CuTest *testCase) {
 void test_alignment_block_iterator(CuTest *testCase) {
     setup(testCase);
 
-    stList *alignment_blocks = make_flower_alignment_poa(flower, false);
+    stList *alignment_blocks = make_flower_alignment_poa(flower, 10000);
 
     for(int64_t i=0; i<stList_length(alignment_blocks); i++) {
         AlignmentBlock *b = stList_get(alignment_blocks, i);
