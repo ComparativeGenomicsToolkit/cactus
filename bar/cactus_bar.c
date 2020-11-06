@@ -299,7 +299,7 @@ int main(int argc, char *argv[]) {
      */
     if (calculateWhichEndsToComputeSeparately) {
         if(poaMode) {
-            return; // Do not compute ends separately if using the poa aligner, as the poa aligner is so fast
+            return 0; // Do not compute ends separately if using the poa aligner, as the poa aligner is so fast
             // this is unnecessary
             // todo: avoid calling with this flag if using poaMode
         }
