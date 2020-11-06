@@ -39,6 +39,7 @@ setup(
         'networkx>=2,<3',
         'cython',
         'pytest',
+        'cigar',
         'biopython'], # cactus doesn't really need it, but some hal tools do
 
     cmdclass = {
