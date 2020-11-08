@@ -32,6 +32,7 @@ from cactus.blast.blast import calculateCoverage
 from cactus.shared.common import makeURL
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
+from cactus.refmap import paf_to_lastz
 
 from toil.realtimeLogger import RealtimeLogger
 from toil.job import Job
@@ -77,6 +78,8 @@ def main():
     parser.add_argument("--nonBlastMegablockFilter", action="store_true",
                         help="By default, the megablock filter is off for --nonBlastInput, as it does not play"
                         "nicely with reference-based alignments.  This flag will turn it back on")
+    parser.add_argument("--pafInput", action="store_true",
+                        help="'blastOutput' input is in paf format, rather than lastz cigars.")    
     parser.add_argument("--database", choices=["kyoto_tycoon", "redis"],
                         help="The type of database", default="kyoto_tycoon")
 
@@ -246,17 +249,27 @@ def runCactusAfterBlastOnly(options):
                 for i in range(len(leaves)):
                     workFlowArgs.ingroupCoverageIDs.append(toil.importFile(makeURL(get_input_path('.ig_coverage_{}'.format(i)))))
 
-            halID = toil.start(Job.wrapJobFn(run_cactus_align, configWrapper, workFlowArgs, project, cactus_blast_input))
+            halID = toil.start(Job.wrapJobFn(run_cactus_align, configWrapper, workFlowArgs, project, cactus_blast_input, pafInput=options.pafInput))
 
         # export the hal
         toil.exportFile(halID, makeURL(options.outputHal))
 
-def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, cactus_blast_input):
+def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, cactus_blast_input, pafInput=False):
+    head_job = job.addChildJobFn(empty)
+
+    # allow for input in paf format:
+    if pafInput:
+        # convert the paf input to lastz format.
+        cactusWorkflowArguments.alignmentsID = head_job.addChildJobFn(paf_to_lastz.paf_to_lastz, cactusWorkflowArguments.alignmentsID, False).rv()
+        if cactusWorkflowArguments.secondaryAlignmentsID:
+            cactusWorkflowArguments.secondaryAlignmentsID = head_job.addChildJobFn(paf_to_lastz.paf_to_lastz, cactusWorkflowArguments.secondaryAlignmentsID, False).rv()
+
+    conversion_jobs = head_job.encapsulate()
 
     # do the name mangling cactus expects, where every fasta sequence starts with id=0|, id=1| etc
     # and the cigar files match up.  If reading cactus-blast output, the cigars are fine, just need
     # the fastas (todo: make this less hacky somehow)
-    cur_job = job.addChildJobFn(run_prepend_unique_ids, cactusWorkflowArguments, project, cactus_blast_input
+    cur_job = conversion_jobs.addFollowOnJobFn(run_prepend_unique_ids, cactusWorkflowArguments, project, cactus_blast_input
                                 #todo disk=
                                 )
     cactusWorkflowArguments = cur_job.rv()
@@ -364,6 +377,11 @@ def run_prepare_hal_export(job, project, experiment):
     project.expIDMap = {event : job.fileStore.writeGlobalFile(exp_path)}
     return project, event
 
+def empty(job):
+    """
+    An empty job, for easier toil job organization.
+    """
+    return
 
 if __name__ == '__main__':
     main()
