@@ -12,7 +12,8 @@ Cactus uses many different algorithms and individual code contributions, princip
 - Yung H. Tsin and Nima Norouzi for contributing their 3-edge connected components program code, which is crucial in constructing the cactus graph structure, see: Tsin,Y.H., "A simple 3-edge-connected component algorithm," Theory of Computing Systems, vol.40, No.2, 2007, pp.125-142.
 - Bob Harris for providing endless support for his [LastZ](https://github.com/lastz/lastz) pairwise, blast-like genome alignment tool.
 - Sneha Goenka and Yatish Turakhia for the [GPU-accelerated version of LastZ](https://github.com/ComparativeGenomicsToolkit/SegAlign).
-
+- Yan Gao et al. for [abPOA](https://github.com/yangao07/abPOA)
+- Heng Li for [minigraph](https://github.com/lh3/minigraph), [minimap2](https://github.com/lh3/minimap2) and [gfatools](https://github.com/lh3/gfatools)
 
 ## Setup
 
@@ -115,7 +116,18 @@ Cactus can be setup and used in a virtual environment as in the [previous sectio
 
 Singularity binaries can be used in place of docker binaries with the `--binariesMode singularity` flag.  Note, you must use Singularity 2.3 - 2.6 or Singularity 3.1.0+. Singularity 3 versions below 3.1.0 are incompatible with cactus (see [issue #55](https://github.com/ComparativeGenomicsToolkit/cactus/issues/55) and [issue #60](https://github.com/ComparativeGenomicsToolkit/cactus/issues/60)).
 
-The `--binariesMode local` flag can be used to force `cactus` to run local binaries -- this is the default behavior if they are found. 
+The `--binariesMode local` flag can be used to force `cactus` to run local binaries -- this is the default behavior if they are found.
+
+#### Adding additional external tools
+
+Some tools not installed by `apt` can be downloaded locally as follows (the Dockerfile can also serve as a guide)
+
+```
+# copy in hal2vg
+build-tools/downloadHal2vg && mv hal2vg ./bin
+# download minimap/graph tools used for pangenome pipeline
+build-tools/downloadMiniTools
+```
 
 ## Running
 To run Cactus, the basic format is:

@@ -39,6 +39,7 @@ setup(
         'networkx>=2,<3',
         'cython',
         'pytest',
+        'cigar',
         'biopython'], # cactus doesn't really need it, but some hal tools do
 
     cmdclass = {
@@ -50,4 +51,6 @@ setup(
                             'cactus-prepare = cactus.progressive.cactus_prepare:main',
                             'cactus-prepare-toil = cactus.progressive.cactus_prepare:main_toil',
                             'cactus-blast = cactus.blast.cactus_blast:main',
+                            'cactus-refmap = cactus.refmap.cactus_refmap:main',
+                            'cactus-graphmap = cactus.refmap.cactus_graphmap:main',
                             'cactus-align = cactus.setup.cactus_align:main']},)

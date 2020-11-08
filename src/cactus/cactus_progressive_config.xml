@@ -241,6 +241,20 @@
 		<CactusHalGeneratorRecursion maxFlowerGroupSize="2000000"/>
 		<CactusHalGeneratorUpWrapper/>
 	</hal>
+	<!-- cactus-refgraph options -->
+	<!-- assemblyName: special name of "virtual" minigraph assembly, which is just the list of sequences from the graph. -->
+	<!-- universalMZFilter: only use minimizers who appear in this proportion (1.0 == 100%) of sequences that map over them. -->
+	<!-- minMZBlockLength: only use minimizers that form contiguous blocks at least this long -->
+	<!-- minMAPQ: ignore minigraph alignments with mapping quality less than this -->
+	<!-- minGAFBlockLength: ignore minigraph alignments with block length less than this -->	
+	<refgraph
+		 assemblyName="__MINIGRAPH_SEQUENCES__"
+		 minigraphMapOptions="-S --write-mz -xasm -K4g --inv=no"
+		 universalMZFilter="1.0"
+		 minMZBlockLength="50"
+		 minMAPQ="5"
+		 minGAFBlockLength="100000"
+	/>
   	<multi_cactus>
 		<outgroup 
 			strategy="greedyPreference"

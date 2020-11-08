@@ -44,8 +44,8 @@ def main():
 
     parser.add_argument("seqFile", help = "Seq file")
     parser.add_argument("outputFile", type=str, help = "Output pairwise alignment file")
-    parser.add_argument("--pathOverrides", nargs="*", help="paths (multiple allowd) to override from seqFile")
-    parser.add_argument("--pathOverrideNames", nargs="*", help="names (must be same number as --paths) of path overrides")
+    parser.add_argument("--pathOverrides", nargs="*", help="paths (multiple allowed) to override from seqFile")
+    parser.add_argument("--pathOverrideNames", nargs="*", help="names (must be same number as --pathOverrides) of path overrides")
 
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",

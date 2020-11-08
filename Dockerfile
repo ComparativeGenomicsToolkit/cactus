@@ -25,6 +25,9 @@ RUN cd /home/cactus/bin && for i in wigToBigWig faToTwoBit bedToBigBed bigBedToB
 # download hal2vg
 RUN cd /home/cactus/bin && ../build-tools/downloadHal2vg
 
+# download minimap/graph tools used for pangenome pipeline
+RUN cd /home/cactus && ./build-tools/downloadMiniTools
+
 # remove test executables
 RUN cd /home/cactus && rm -f ${binPackageDir}/bin/*test ${binPackageDir}/bin/*tests ${binPackageDir}/bin/*Test ${binPackageDir}/bin/*Tests ${binPackageDir}/bin/cactus_runEndAlignment
 

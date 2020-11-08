@@ -21,6 +21,7 @@ test-job:
     - source venv/bin/activate
     - pip install -r toil-requirement.txt
     - pip install -U .
+    - build-tools/downloadMiniTools
     - make -j 8 evolver_test
   artifacts:
     # Let Gitlab see the junit report
