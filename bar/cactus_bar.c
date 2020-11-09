@@ -389,9 +389,9 @@ int main(int argc, char *argv[]) {
             flower = stList_get(flowers, j);
             st_logInfo("Processing a flower\n");
 
-            stPinchIterator *pinchIterator;
-            stSortedSet *alignedPairs;
-            stList *alignment_blocks;
+            stPinchIterator *pinchIterator = NULL;
+            stSortedSet *alignedPairs = NULL;
+            stList *alignment_blocks = NULL;
 
             if(poaWindow != 0) {
                 /*
