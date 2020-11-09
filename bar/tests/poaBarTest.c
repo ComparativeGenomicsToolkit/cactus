@@ -34,41 +34,43 @@ void validate_msa(CuTest *testCase, Msa *msa, int64_t *lengths) {
  */
 void test_make_partial_order_alignment(CuTest *testCase) {
     for(int64_t test=0; test<100; test++) {
-        fprintf(stderr, "Running test_make_partial_order_alignment, test %i\n", (int)test);
+        for (int64_t poa_window_size = 5; poa_window_size < 120; poa_window_size += 15) {
+            fprintf(stderr, "Running test_make_partial_order_alignment, test %i\n", (int)test);
 
-        // parent string from which other strings are created
+            // parent string from which other strings are created
 
-        char *parent_string = getRandomACGTSequence(st_randomInt(1, 100));
-        fprintf(stderr, "Parent string (length: %i): %s\n", (int)strlen(parent_string), parent_string);
+            char *parent_string = getRandomACGTSequence(st_randomInt(1, 100));
+            fprintf(stderr, "Parent string (length: %i): %s\n", (int)strlen(parent_string), parent_string);
 
-                // get random string no
-        int64_t seq_no = st_randomInt(1, 20);
+            // get random string no
+            int64_t seq_no = st_randomInt(1, 20);
 
-        // get random strings
-        char **seqs = st_malloc(sizeof(char *) * seq_no);
-        int *seq_lens = st_malloc(sizeof(int) * seq_no);
-        for(int64_t i=0; i<seq_no; i++) {
-            seqs[i] = evolveSequence(parent_string);
-            seq_lens[i] = strlen(seqs[i]);
-            fprintf(stderr, "String %i to align: %s (length: %i)\n", (int)i, seqs[i], (int)seq_lens[i]);
+            // get random strings
+            char **seqs = st_malloc(sizeof(char *) * seq_no);
+            int *seq_lens = st_malloc(sizeof(int) * seq_no);
+            for(int64_t i=0; i<seq_no; i++) {
+                seqs[i] = evolveSequence(parent_string);
+                seq_lens[i] = strlen(seqs[i]);
+                fprintf(stderr, "String %i to align: %s (length: %i)\n", (int)i, seqs[i], (int)seq_lens[i]);
+            }
+
+            // generate the alignment
+            Msa *msa = msa_make_partial_order_alignment(seqs, seq_lens, seq_no, poa_window_size);
+
+            // print the msa
+            msa_print(msa, stderr);
+
+            // validate the msa
+            int64_t lengths[seq_no];
+            validate_msa(testCase, msa, lengths);
+            for(int64_t i=0; i<seq_no; i++) {
+                CuAssertTrue(testCase, lengths[i] == seq_lens[i]);
+            }
+
+            // clean up
+            msa_destruct(msa);
+            free(parent_string);
         }
-
-        // generate the alignment
-        Msa *msa = msa_make_partial_order_alignment(seqs, seq_lens, seq_no);
-
-        // print the msa
-        msa_print(msa, stderr);
-
-        // validate the msa
-        int64_t lengths[seq_no];
-        validate_msa(testCase, msa, lengths);
-        for(int64_t i=0; i<seq_no; i++) {
-            CuAssertTrue(testCase, lengths[i] == seq_lens[i]);
-        }
-
-        // clean up
-        msa_destruct(msa);
-        free(parent_string);
     }
 }
 
@@ -123,7 +125,7 @@ void test_make_consistent_partial_order_alignments_two_ends(CuTest *testCase) {
 
         // generate the alignments
         Msa **msas = make_consistent_partial_order_alignments(end_no, end_lengths, end_strings, end_string_lengths,
-                                                              right_end_indexes, right_end_row_indexes, overlaps);
+                                                              right_end_indexes, right_end_row_indexes, overlaps, 1000000);
 
         // print the msas
         for(int64_t i=0; i<end_no; i++) {
@@ -179,7 +181,7 @@ void test_make_flower_alignment_poa(CuTest *testCase) {
     }
     flower_destructEndIterator(endIterator);
 
-    stList *alignment_blocks = make_flower_alignment_poa(flower, 2);
+    stList *alignment_blocks = make_flower_alignment_poa(flower, 2, 1000000);
 
     for(int64_t i=0; i<stList_length(alignment_blocks); i++) {
         AlignmentBlock *b = stList_get(alignment_blocks, i);
@@ -192,7 +194,7 @@ void test_make_flower_alignment_poa(CuTest *testCase) {
 void test_alignment_block_iterator(CuTest *testCase) {
     setup(testCase);
 
-    stList *alignment_blocks = make_flower_alignment_poa(flower, 10000);
+    stList *alignment_blocks = make_flower_alignment_poa(flower, 10000, 1000000);
 
     for(int64_t i=0; i<stList_length(alignment_blocks); i++) {
         AlignmentBlock *b = stList_get(alignment_blocks, i);

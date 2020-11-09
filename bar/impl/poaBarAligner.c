@@ -60,7 +60,7 @@ void msa_print(Msa *msa, FILE *f) {
     fprintf(f, "\n");
 }
 
-Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no) {
+Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no, int64_t window_size) {
     // Make Msa object
     Msa *msa = st_malloc(sizeof(Msa));
     assert(seq_no > 0);
@@ -68,16 +68,21 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
     msa->seqs = seqs;
     msa->seq_lens = seq_lens;
 
-    // collect sequence length, trasform ACGT to 0123
-    uint8_t **bseqs = (uint8_t**)malloc(sizeof(uint8_t*) * msa->seq_no);
+    // keep track of what's left to align for the sliding window
+    int64_t bases_remaining = 0;
+    // keep track of current lengths
+    int *chunk_lens = (int*)st_malloc(sizeof(int) * msa->seq_no);
+    // keep track of current offsets
+    int64_t* seq_offsets = (int64_t*)st_calloc(msa->seq_no, sizeof(int64_t));
+    // keep track of empty chunks
+    bool* empty_seqs = (bool*)st_calloc(msa->seq_no, sizeof(bool));
 
-    for(int64_t i=0; i<msa->seq_no; i++) {
-        // assert(seq_lens[i] > 0);
-        bseqs[i] = (uint8_t *) malloc(sizeof(uint8_t) * seq_lens[i]);
-        for (int64_t j = 0; j < seq_lens[i]; ++j) {
-            // todo: support iupac characters?
-            bseqs[i][j] = msa_to_byte(seqs[i][j]);
-        }
+    // initialize the poa input matrix
+    uint8_t **bseqs = (uint8_t**)st_malloc(sizeof(uint8_t*) * msa->seq_no);
+    for (int64_t i = 0; i < msa->seq_no; ++i) {
+        int64_t chunk_len = window_size < msa->seq_lens[i] ? window_size : msa->seq_lens[i];
+        bseqs[i] = (uint8_t*)st_malloc(sizeof(uint8_t) * (chunk_len));
+        bases_remaining += msa->seq_lens[i];
     }
 
     // initialize variables
@@ -104,15 +109,128 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
 
     abpoa_post_set_para(abpt);
 
-    // perform abpoa-msa
-    abpoa_msa(ab, abpt, msa->seq_no, NULL, msa->seq_lens, bseqs, NULL, NULL, NULL, NULL, NULL,
-            &(msa->msa_seq), &(msa->column_no));
+    // collect our windowed outputs here, to be stiched at the end
+    stList* msa_windows = stList_construct();
+    stList* msa_window_sizes = stList_construct();
+    int64_t total_window_size = 0;
+
+    int64_t prev_bases_remaining = bases_remaining;
+    for (int64_t iteration = 0; bases_remaining > 0; ++iteration) {
+
+        // load up to window_size of each sequence into the input matrix for poa
+        for (int64_t i = 0; i < msa->seq_no; ++i) {
+            chunk_lens[i] = 0;
+            for (int64_t j = seq_offsets[i]; j < msa->seq_lens[i] && chunk_lens[i] < window_size; ++j, ++chunk_lens[i]) {
+                // todo: support iupac characters?
+                bseqs[i][chunk_lens[i]] = msa_to_byte(msa->seqs[i][j]);
+            }
+        }
+
+        // variables to store resulting MSA;
+        uint8_t **msa_seq_window;
+        int msa_l_window = 0;
+
+        // poa can't handle empty sequences.  this is a hack to get around that
+        int emptyCount = 0;
+        for (int64_t i = 0; i < msa->seq_no; ++i) {
+            if (chunk_lens[i] == 0) {
+                empty_seqs[i] = true;
+                chunk_lens[i] = 1;
+                bseqs[i][0] = msa_to_byte('N');
+                ++emptyCount;
+            } else {
+                empty_seqs[i] = false;
+            }
+        }
+
+        // perform abpoa-msa
+        abpoa_msa(ab, abpt, msa->seq_no, NULL, chunk_lens, bseqs, NULL, NULL, NULL, NULL, NULL, &msa_seq_window, &msa_l_window);
+
+        // mask out empty sequences that were phonied in as Ns above
+        for (int64_t i = 0; i < msa->seq_no && emptyCount > 0; ++i) {
+            if (empty_seqs[i] == true) {
+                for (int j = 0; j < msa_l_window; ++j) {
+                    if (msa_to_base(msa_seq_window[i][j]) != '-') {
+                        assert(msa_to_base(msa_seq_window[i][j]) == 'N');
+                        msa_seq_window[i][j] = msa_to_byte('-');
+                        --chunk_lens[i];
+                        assert(chunk_lens[i] == 0);
+                        --emptyCount;
+                        break;
+                    }
+                }
+            }
+        }
+        assert(emptyCount == 0);
+
+        // remember how much we aligned this round
+        for (int64_t i = 0; i < msa->seq_no; ++i) {
+            // todo: rewind up to X bases along poorly aligned rows to give them a shot at the next window
+            bases_remaining -= chunk_lens[i];
+            seq_offsets[i] += chunk_lens[i];
+        }
+
+        if (bases_remaining == 0 && iteration == 0) {
+            // if there was no windowing, we can just move the output into our msa
+            msa->msa_seq = msa_seq_window;
+            msa->column_no = msa_l_window;
+        } else {
+            // otherwise, we put it in the list
+            stList_append(msa_windows, (void*)msa_seq_window);
+            stList_append(msa_window_sizes, (void*)(int64_t)msa_l_window);
+            total_window_size += msa_l_window;
+        }
+
+        // and use for sanity check        
+        assert(prev_bases_remaining > bases_remaining && bases_remaining >= 0);
+
+        if (bases_remaining > 0) {
+            // reset graph before re-use
+            abpoa_reset_graph(ab, abpt, msa->seq_lens[0]); 
+        }
+
+        //used only for sanity check
+        prev_bases_remaining = bases_remaining; 
+    }
+
+    int64_t num_windows = stList_length(msa_windows);
+    if (num_windows > 0) {
+        // stitch the windows together into the final output
+        msa->msa_seq = st_malloc(sizeof(uint8_t *) * msa->seq_no);
+        for (int64_t i = 0; i < msa->seq_no; ++i) {
+            msa->msa_seq[i] = st_malloc(sizeof(uint8_t) * total_window_size);
+            int64_t offset = 0;
+            for (int64_t j = 0; j < num_windows; ++j) {
+                uint8_t* window_row = ((uint8_t**)stList_get(msa_windows, j))[i];
+                int64_t msa_window_size = (int64_t)stList_get(msa_window_sizes, j);
+                for (int64_t k = 0; k < msa_window_size; ++k) {
+                    msa->msa_seq[i][offset++] = window_row[k];
+                }
+            }
+            assert(offset == total_window_size);
+        }
+        msa->column_no = total_window_size;
+    } 
 
     // Clean up
     for (int64_t i = 0; i < seq_no; ++i) {
         free(bseqs[i]);
     }
     free(bseqs);
+    free(chunk_lens);
+    free(seq_offsets);
+    free(empty_seqs);
+
+    // free the windows
+    for (int64_t i = 0; i < stList_length(msa_windows); ++i) {
+        char** msa_window = stList_get(msa_windows, i);
+        for (int64_t j = 0; j < msa->seq_no; ++j) {
+            free(msa_window[j]);
+        }
+        free(msa_window);
+    }    
+    stList_destruct(msa_windows);
+    stList_destruct(msa_window_sizes);
 
     abpoa_free(ab, abpt);
     abpoa_free_para(abpt);
@@ -238,12 +356,13 @@ void trim(int64_t row1, Msa *msa1, float *column_scores1,
 }
 
 Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_lengths, char ***end_strings,
-        int **end_string_lengths, int64_t **right_end_indexes, int64_t **right_end_row_indexes, int64_t **overlaps) {
+        int **end_string_lengths, int64_t **right_end_indexes, int64_t **right_end_row_indexes, int64_t **overlaps,
+        int64_t window_size) {
     // Calculate the initial, potentially inconsistent msas and column scores for each msa
     float *column_scores[end_no];
     Msa **msas = st_malloc(sizeof(Msa *) * end_no);
     for(int64_t i=0; i<end_no; i++) {
-        msas[i] = msa_make_partial_order_alignment(end_strings[i], end_string_lengths[i], end_lengths[i]);
+        msas[i] = msa_make_partial_order_alignment(end_strings[i], end_string_lengths[i], end_lengths[i], window_size);
         column_scores[i] = make_column_scores(msas[i]);
     }
 
@@ -483,7 +602,7 @@ void create_alignment_blocks(Msa *msa, Cap **row_indexes_to_caps, stList *alignm
     assert(i == msa->column_no);
 }
 
-stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length) {
+stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_t window_size) {
     // Arrays of ends and connecting the strings necessary to build the POA alignment
     int64_t end_no = flower_getEndNumber(flower); // The number of ends
     int64_t end_lengths[end_no]; // The number of strings incident with each end
@@ -569,7 +688,7 @@ stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length) {
 
     // Now make the consistent MSAs
     Msa **msas = make_consistent_partial_order_alignments(end_no, end_lengths, end_strings, end_string_lengths,
-                                                          right_end_indexes, right_end_row_indexes, overlaps);
+                                                          right_end_indexes, right_end_row_indexes, overlaps, window_size);
 
     // Temp debug output
     //for(int64_t i=0; i<end_no; i++) {

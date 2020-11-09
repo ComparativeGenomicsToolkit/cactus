@@ -8,7 +8,6 @@
 #include "multipleAligner.h"
 #include "adjacencySequences.h"
 #include "pairwiseAligner.h"
-#include "poaAligner.h"
 
 AlignedPair *alignedPair_construct(int64_t subsequenceIdentifier1, int64_t position1, bool strand1,
         int64_t subsequenceIdentifier2, int64_t position2, bool strand2, int64_t score, int64_t rScore) {
@@ -55,8 +54,7 @@ int alignedPair_cmpFn(const AlignedPair *alignedPair1, const AlignedPair *aligne
 
 stSortedSet *makeEndAlignment(StateMachine *sM, End *end, int64_t spanningTrees, int64_t maxSequenceLength,
         bool useProgressiveMerging, float gapGamma,
-        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters,
-        int64_t poaWindow) {
+        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
     //Make an alignment of the sequences in the ends
 
     //Get the adjacency sequences to be aligned.
@@ -86,12 +84,7 @@ stSortedSet *makeEndAlignment(StateMachine *sM, End *end, int64_t spanningTrees,
     end_destructInstanceIterator(it);
 
     //Get the alignment.
-    MultipleAlignment *mA;
-    if (poaWindow > 0 && stList_length(seqFrags) > 1) {
-        mA = makePartialOrderAlignment(sM, seqFrags, gapGamma, pairwiseAlignmentBandingParameters, poaWindow);
-    } else {
-        mA = makeAlignment(sM, seqFrags, spanningTrees, 100000000, useProgressiveMerging, gapGamma, pairwiseAlignmentBandingParameters);
-    }
+    MultipleAlignment *mA  = makeAlignment(sM, seqFrags, spanningTrees, 100000000, useProgressiveMerging, gapGamma, pairwiseAlignmentBandingParameters);
 
     //Build an array of weights to reweight pairs in the alignment.
     int64_t *pairwiseAlignmentsPerSequenceNonCommonEnds = st_calloc(stList_length(seqFrags), sizeof(int64_t));
@@ -121,35 +114,29 @@ stSortedSet *makeEndAlignment(StateMachine *sM, End *end, int64_t spanningTrees,
         int64_t commonInstanceNumber = *(int64_t *)stHash_search(endInstanceNumbers, otherEnd);
         int64_t nonCommonInstanceNumber = stList_length(seqFrags) - commonInstanceNumber;
 
-        if (poaWindow > 0) {
-            // hack hack hack
-            scoreAdjustmentsNonCommonEnds[i] = 1;
-            scoreAdjustmentsCommonEnds[i] = 1;
-        } else {
-            assert(commonInstanceNumber > 0 && nonCommonInstanceNumber >= 0);
-            assert(pairwiseAlignmentsPerSequenceNonCommonEnds[i] <= nonCommonInstanceNumber);
-            assert(pairwiseAlignmentsPerSequenceNonCommonEnds[i] >= 0);
-            assert(pairwiseAlignmentsPerSequenceCommonEnds[i] < commonInstanceNumber);
-            assert(pairwiseAlignmentsPerSequenceCommonEnds[i] >= 0);
+        assert(commonInstanceNumber > 0 && nonCommonInstanceNumber >= 0);
+        assert(pairwiseAlignmentsPerSequenceNonCommonEnds[i] <= nonCommonInstanceNumber);
+        assert(pairwiseAlignmentsPerSequenceNonCommonEnds[i] >= 0);
+        assert(pairwiseAlignmentsPerSequenceCommonEnds[i] < commonInstanceNumber);
+        assert(pairwiseAlignmentsPerSequenceCommonEnds[i] >= 0);
 
-            //scoreAdjustmentsNonCommonEnds[i] = ((double)nonCommonInstanceNumber + commonInstanceNumber - 1)/(pairwiseAlignmentsPerSequenceNonCommonEnds[i] + pairwiseAlignmentsPerSequenceCommonEnds[i]);
-            //scoreAdjustmentsCommonEnds[i] = scoreAdjustmentsNonCommonEnds[i];
-            if(pairwiseAlignmentsPerSequenceNonCommonEnds[i] > 0) {
-                scoreAdjustmentsNonCommonEnds[i] = ((double)nonCommonInstanceNumber)/pairwiseAlignmentsPerSequenceNonCommonEnds[i];
-                assert(scoreAdjustmentsNonCommonEnds[i] >= 1.0);
-                assert(scoreAdjustmentsNonCommonEnds[i] <= nonCommonInstanceNumber);
-            }
-            else {
-                scoreAdjustmentsNonCommonEnds[i] = INT64_MIN;
-            }
-            if(pairwiseAlignmentsPerSequenceCommonEnds[i] > 0) {
-                scoreAdjustmentsCommonEnds[i] = ((double)commonInstanceNumber-1)/pairwiseAlignmentsPerSequenceCommonEnds[i];
-                assert(scoreAdjustmentsCommonEnds[i] >= 1.0);
-                assert(scoreAdjustmentsCommonEnds[i] <= commonInstanceNumber-1);
-            }
-            else {
-                scoreAdjustmentsCommonEnds[i] = INT64_MIN;
-            }
+        //scoreAdjustmentsNonCommonEnds[i] = ((double)nonCommonInstanceNumber + commonInstanceNumber - 1)/(pairwiseAlignmentsPerSequenceNonCommonEnds[i] + pairwiseAlignmentsPerSequenceCommonEnds[i]);
+        //scoreAdjustmentsCommonEnds[i] = scoreAdjustmentsNonCommonEnds[i];
+        if(pairwiseAlignmentsPerSequenceNonCommonEnds[i] > 0) {
+          scoreAdjustmentsNonCommonEnds[i] = ((double)nonCommonInstanceNumber)/pairwiseAlignmentsPerSequenceNonCommonEnds[i];
+          assert(scoreAdjustmentsNonCommonEnds[i] >= 1.0);
+          assert(scoreAdjustmentsNonCommonEnds[i] <= nonCommonInstanceNumber);
+        }
+        else {
+          scoreAdjustmentsNonCommonEnds[i] = INT64_MIN;
+        }
+        if(pairwiseAlignmentsPerSequenceCommonEnds[i] > 0) {
+          scoreAdjustmentsCommonEnds[i] = ((double)commonInstanceNumber-1)/pairwiseAlignmentsPerSequenceCommonEnds[i];
+          assert(scoreAdjustmentsCommonEnds[i] >= 1.0);
+          assert(scoreAdjustmentsCommonEnds[i] <= commonInstanceNumber-1);
+        }
+        else {
+          scoreAdjustmentsCommonEnds[i] = INT64_MIN;
         }
     }
 

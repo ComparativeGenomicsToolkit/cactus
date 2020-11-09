@@ -336,8 +336,9 @@ int main(int argc, char *argv[]) {
             if (end == NULL) {
                 st_errAbort("The end %" PRIi64 " was not found in the flower\n", *((Name *)stList_get(names, i)));
             }
+            assert(poaWindow == 0);
             stSortedSet *endAlignment = makeEndAlignment(sM, end, spanningTrees, maximumLength, useProgressiveMerging,
-                                                         matchGamma, pairwiseAlignmentBandingParameters, poaWindow);
+                                                         matchGamma, pairwiseAlignmentBandingParameters);
             writeEndAlignmentToDisk(end, endAlignment, fileHandle);
             stSortedSet_destruct(endAlignment);
         }
@@ -399,7 +400,7 @@ int main(int argc, char *argv[]) {
                  *
                  * It does not use any precomputed alignments, if they are provided they will be ignored
                  */
-                alignment_blocks = make_flower_alignment_poa(flower, maximumLength);
+                alignment_blocks = make_flower_alignment_poa(flower, maximumLength, poaWindow);
                 st_logInfo("Created the poa alignments: %" PRIi64 " poa alignment blocks\n", stList_length(alignment_blocks));
                 pinchIterator = stPinchIterator_constructFromAlignedBlocks(alignment_blocks);
             }
@@ -407,7 +408,7 @@ int main(int argc, char *argv[]) {
                 alignedPairs = makeFlowerAlignment3(sM, flower, listOfEndAlignmentFiles, spanningTrees, maximumLength,
                                                     useProgressiveMerging, matchGamma,
                                                     pairwiseAlignmentBandingParameters,
-                                                    pruneOutStubAlignments, poaWindow);
+                                                    pruneOutStubAlignments);
                 st_logInfo("Created the alignment: %" PRIi64 " pairs\n", stSortedSet_size(alignedPairs));
                 pinchIterator = stPinchIterator_constructFromAlignedPairs(alignedPairs, getNextAlignedPairAlignment);
             }

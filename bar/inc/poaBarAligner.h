@@ -47,9 +47,10 @@ void msa_print(Msa *msa, FILE *f);
  * @param seqs An array of DNA string
  * @param seq_lens An array giving the string lengths
  * @param seq_no The number of strings
+ * @param window_size Sliding window size which limits length of poa sub-alignments.  Memory usage is quardatic in this. 
  * @return An msa of the strings.
  */
-Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no);
+Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no, int64_t window_size);
 
 /**
  * Takes a set of ends and returns a set of consistent multiple alignments,
@@ -69,10 +70,12 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
  * @param right_end_indexes For each string, the index of the right end that it is connecting
  * @param right_end_row_indexes For each string, the index of the row of its reverse complement
  * @param overlaps For each prefix string, the length of the overlap with its reverse complement adjacency
+ * @param window_size Sliding window size which limits length of poa sub-alignments.  Memory usage is quardatic in this. 
  * @return A consistent Msa for each end
  */
 Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_lengths, char ***end_strings,
-        int **end_string_lengths, int64_t **right_end_indexes, int64_t **right_end_row_indexes, int64_t **overlaps);
+        int **end_string_lengths, int64_t **right_end_indexes, int64_t **right_end_row_indexes, int64_t **overlaps,
+        int64_t window_size);
 
 /**
  * Represents a gapless alignment of a set of sequences.
@@ -104,9 +107,10 @@ char *get_adjacency_string(Cap *cap, int *length);
  *
  * @param max_seq_length is the maximum length of the prefix of an unaligned sequence
  * to attempt to align.
+ * @param window_size Sliding window size which limits length of poa sub-alignments.  Memory usage is quardatic in this. 
  * Returns a list of AlignmentBlock ojects
  */
-stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length);
+stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_t window_size);
 
 /**
  * Create a pinch iterator for a list of alignment blocks.
