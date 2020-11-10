@@ -8,6 +8,9 @@
 #include "poaBarAligner.h"
 #include "flowerAligner.h"
 
+#include <stdio.h>
+#include <ctype.h>
+
 // char <--> uint8_t conversion copied over from abPOA example
 // AaCcGgTtNn ==> 0,1,2,3,4
 static unsigned char nst_nt4_table[256] = {
@@ -37,9 +40,17 @@ uint8_t msa_to_byte(char c) {
     return nst_nt4_table[(int)c];
 }
 
+static uint8_t rc_table[6] = { 3, 2, 1, 0, 4, 5 };
+
+static inline uint8_t msa_to_rc(uint8_t n) {
+    return rc_table[n];
+}
+
 void msa_destruct(Msa *msa) {
     for(int64_t i=0; i<msa->seq_no; i++) {
-        free(msa->seqs[i]);
+        if (msa->seqs != NULL) {
+            free(msa->seqs[i]);
+        }
         free(msa->msa_seq[i]);
     }
     free(msa->seqs);
@@ -51,7 +62,7 @@ void msa_destruct(Msa *msa) {
 void msa_print(Msa *msa, FILE *f) {
     fprintf(f, "MSA. Seq no: %i column no: %i \n", (int)msa->seq_no, (int)msa->column_no);
     for(int64_t i=0; i<msa->seq_no; i++) {
-        fprintf(f, "Row:%i\t", (int)i);
+        fprintf(f, "Row:%i [len=%i]\t", (int)i, (int)msa->seq_lens[i]);
         for(int64_t j=0; j<msa->column_no; j++) {
             fprintf(f, "%c", msa_to_base(msa->msa_seq[i][j]));
         }
@@ -60,192 +71,31 @@ void msa_print(Msa *msa, FILE *f) {
     fprintf(f, "\n");
 }
 
-Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no, int64_t window_size) {
-    // Make Msa object
-    Msa *msa = st_malloc(sizeof(Msa));
-    assert(seq_no > 0);
-    msa->seq_no = seq_no;
-    msa->seqs = seqs;
-    msa->seq_lens = seq_lens;
-
-    // keep track of what's left to align for the sliding window
-    int64_t bases_remaining = 0;
-    // keep track of current lengths
-    int *chunk_lens = (int*)st_malloc(sizeof(int) * msa->seq_no);
-    // keep track of current offsets
-    int64_t* seq_offsets = (int64_t*)st_calloc(msa->seq_no, sizeof(int64_t));
-    // keep track of empty chunks
-    bool* empty_seqs = (bool*)st_calloc(msa->seq_no, sizeof(bool));
-
-    // initialize the poa input matrix
-    uint8_t **bseqs = (uint8_t**)st_malloc(sizeof(uint8_t*) * msa->seq_no);
-    for (int64_t i = 0; i < msa->seq_no; ++i) {
-        int64_t chunk_len = window_size < msa->seq_lens[i] ? window_size : msa->seq_lens[i];
-        bseqs[i] = (uint8_t*)st_malloc(sizeof(uint8_t) * (chunk_len));
-        bases_remaining += msa->seq_lens[i];
+/**
+ * flip msa to its reverse complement (for trimming purposees)
+ */
+static void flip_msa_seq(Msa* msa) {
+    if (msa != NULL) {
+        int64_t middle = msa->column_no / 2;
+        bool odd = msa->column_no % 2 == 1;
+        for (int64_t i = 0; i < msa->seq_no; ++i) {
+            for (int64_t j = 0; j < middle; ++j) {
+                uint8_t buf = msa->msa_seq[i][j];
+                msa->msa_seq[i][j] = msa_to_rc(msa->msa_seq[i][msa->column_no - 1 - j]);
+                msa->msa_seq[i][msa->column_no - 1 - j] = msa_to_rc(buf);
+            }
+            if (odd) {
+                msa->msa_seq[i][middle] = msa_to_rc(msa->msa_seq[i][middle]);
+            }
+        }
     }
-
-    // initialize variables
-    abpoa_t *ab = abpoa_init();
-    abpoa_para_t *abpt = abpoa_init_para();
-
-    // todo: support including modifying abpoa params
-    // alignment parameters
-    // abpt->align_mode = 0; // 0:global alignment, 1:extension
-    // abpt->match = 2;      // match score
-    // abpt->mismatch = 4;   // mismatch penalty
-    // abpt->gap_mode = ABPOA_CONVEX_GAP; // gap penalty mode
-    // abpt->gap_open1 = 4;  // gap open penalty #1
-    // abpt->gap_ext1 = 2;   // gap extension penalty #1
-    // abpt->gap_open2 = 24; // gap open penalty #2
-    // abpt->gap_ext2 = 1;   // gap extension penalty #2
-                             // gap_penalty = min{gap_open1 + gap_len * gap_ext1, gap_open2 + gap_len * gap_ext2}
-    // abpt->bw = 10;        // extra band used in adaptive banded DP
-    // abpt->bf = 0.01; 
-     
-    // output options
-    abpt->out_msa = 1; // generate Row-Column multiple sequence alignment(RC-MSA), set 0 to disable
-    abpt->out_cons = 0; // generate consensus sequence, set 0 to disable
-
-    abpoa_post_set_para(abpt);
-
-    // collect our windowed outputs here, to be stiched at the end
-    stList* msa_windows = stList_construct();
-    stList* msa_window_sizes = stList_construct();
-    int64_t total_window_size = 0;
-
-    int64_t prev_bases_remaining = bases_remaining;
-    for (int64_t iteration = 0; bases_remaining > 0; ++iteration) {
-
-        // load up to window_size of each sequence into the input matrix for poa
-        for (int64_t i = 0; i < msa->seq_no; ++i) {
-            chunk_lens[i] = 0;
-            for (int64_t j = seq_offsets[i]; j < msa->seq_lens[i] && chunk_lens[i] < window_size; ++j, ++chunk_lens[i]) {
-                // todo: support iupac characters?
-                bseqs[i][chunk_lens[i]] = msa_to_byte(msa->seqs[i][j]);
-            }
-        }
-
-        // variables to store resulting MSA;
-        uint8_t **msa_seq_window;
-        int msa_l_window = 0;
-
-        // poa can't handle empty sequences.  this is a hack to get around that
-        int emptyCount = 0;
-        for (int64_t i = 0; i < msa->seq_no; ++i) {
-            if (chunk_lens[i] == 0) {
-                empty_seqs[i] = true;
-                chunk_lens[i] = 1;
-                bseqs[i][0] = msa_to_byte('N');
-                ++emptyCount;
-            } else {
-                empty_seqs[i] = false;
-            }
-        }
-
-        // perform abpoa-msa
-        abpoa_msa(ab, abpt, msa->seq_no, NULL, chunk_lens, bseqs, NULL, NULL, NULL, NULL, NULL, &msa_seq_window, &msa_l_window);
-
-        // mask out empty sequences that were phonied in as Ns above
-        for (int64_t i = 0; i < msa->seq_no && emptyCount > 0; ++i) {
-            if (empty_seqs[i] == true) {
-                for (int j = 0; j < msa_l_window; ++j) {
-                    if (msa_to_base(msa_seq_window[i][j]) != '-') {
-                        assert(msa_to_base(msa_seq_window[i][j]) == 'N');
-                        msa_seq_window[i][j] = msa_to_byte('-');
-                        --chunk_lens[i];
-                        assert(chunk_lens[i] == 0);
-                        --emptyCount;
-                        break;
-                    }
-                }
-            }
-        }
-        assert(emptyCount == 0);
-
-        // remember how much we aligned this round
-        for (int64_t i = 0; i < msa->seq_no; ++i) {
-            // todo: rewind up to X bases along poorly aligned rows to give them a shot at the next window
-            bases_remaining -= chunk_lens[i];
-            seq_offsets[i] += chunk_lens[i];
-        }
-
-        if (bases_remaining == 0 && iteration == 0) {
-            // if there was no windowing, we can just move the output into our msa
-            msa->msa_seq = msa_seq_window;
-            msa->column_no = msa_l_window;
-        } else {
-            // otherwise, we put it in the list
-            stList_append(msa_windows, (void*)msa_seq_window);
-            stList_append(msa_window_sizes, (void*)(int64_t)msa_l_window);
-            total_window_size += msa_l_window;
-        }
-
-        // and use for sanity check        
-        assert(prev_bases_remaining > bases_remaining && bases_remaining >= 0);
-
-        if (bases_remaining > 0) {
-            // reset graph before re-use
-            abpoa_reset_graph(ab, abpt, msa->seq_lens[0]); 
-        }
-
-        //used only for sanity check
-        prev_bases_remaining = bases_remaining; 
-    }
-
-    int64_t num_windows = stList_length(msa_windows);
-    if (num_windows > 0) {
-        // stitch the windows together into the final output
-        msa->msa_seq = st_malloc(sizeof(uint8_t *) * msa->seq_no);
-        for (int64_t i = 0; i < msa->seq_no; ++i) {
-            msa->msa_seq[i] = st_malloc(sizeof(uint8_t) * total_window_size);
-            int64_t offset = 0;
-            for (int64_t j = 0; j < num_windows; ++j) {
-                uint8_t* window_row = ((uint8_t**)stList_get(msa_windows, j))[i];
-                int64_t msa_window_size = (int64_t)stList_get(msa_window_sizes, j);
-                for (int64_t k = 0; k < msa_window_size; ++k) {
-                    msa->msa_seq[i][offset++] = window_row[k];
-                }
-            }
-            assert(offset == total_window_size);
-        }
-        msa->column_no = total_window_size;
-    } 
-
-    // Clean up
-    for (int64_t i = 0; i < seq_no; ++i) {
-        free(bseqs[i]);
-    }
-    free(bseqs);
-    free(chunk_lens);
-    free(seq_offsets);
-    free(empty_seqs);
-
-    // free the windows
-    for (int64_t i = 0; i < stList_length(msa_windows); ++i) {
-        char** msa_window = stList_get(msa_windows, i);
-        for (int64_t j = 0; j < msa->seq_no; ++j) {
-            free(msa_window[j]);
-        }
-        free(msa_window);
-    }    
-    stList_destruct(msa_windows);
-    stList_destruct(msa_window_sizes);
-
-    abpoa_free(ab, abpt);
-    abpoa_free_para(abpt);
-
-    // in debug mode, cactus uses the dreaded -Wall -Werror combo.  This line is a hack to allow compilation with these flags
-    if (false) SIMDMalloc(0, 0);
-
-    return msa;
 }
 
 /**
  * Returns an array of floats, one for each corresponding column in the MSA. Each float
  * is the score of the column in the alignment.
  */
-float *make_column_scores(Msa *msa) {
+static float *make_column_scores(Msa *msa) {
     float *column_scores = st_calloc(msa->column_no, sizeof(float));
     for(int64_t i=0; i<msa->column_no; i++) {
         // Score is simply max(number of aligned bases in the column - 1, 0)
@@ -266,7 +116,7 @@ float *make_column_scores(Msa *msa) {
  * Fills in cu_column_scores with the cumulative sum of column scores, from left-to-right, of columns
  * containing a non-gap character in the given "row".
  */
-void sum_column_scores(int64_t row, Msa *msa, float *column_scores, float *cu_column_scores) {
+static void sum_column_scores(int64_t row, Msa *msa, float *column_scores, float *cu_column_scores) {
     float cu_score = 0.0; // The cumulative sum of column scores containing bases for the given row
     int64_t j=0; // The index in the DNA string for the given row
     for(int64_t i=0; i<msa->column_no; i++) {
@@ -282,7 +132,7 @@ void sum_column_scores(int64_t row, Msa *msa, float *column_scores, float *cu_co
  * Removes the suffix of the given row from the MSA and updates the column scores. suffix_start is the beginning
  * suffix to remove.
  */
-void trim_msa_suffix(Msa *msa, float *column_scores, int64_t row, int64_t suffix_start) {
+static void trim_msa_suffix(Msa *msa, float *column_scores, int64_t row, int64_t suffix_start) {
     int64_t seq_index = 0;
     for(int64_t i=0; i<msa->column_no; i++) {
         if(msa_to_base(msa->msa_seq[row][i]) != '-') {
@@ -298,8 +148,8 @@ void trim_msa_suffix(Msa *msa, float *column_scores, int64_t row, int64_t suffix
 /**
  * Used to make two MSAs consistent with each other for a shared sequence
  */
-void trim(int64_t row1, Msa *msa1, float *column_scores1,
-          int64_t row2, Msa *msa2, float *column_scores2, int64_t overlap) {
+static void trim(int64_t row1, Msa *msa1, float *column_scores1,
+                 int64_t row2, Msa *msa2, float *column_scores2, int64_t overlap) {
     if(overlap == 0) { // There is no overlap, so no need to trim either MSA
         return;
     }
@@ -353,6 +203,267 @@ void trim(int64_t row1, Msa *msa1, float *column_scores1,
     assert(max_overlap_cut_point <= overlap);
     trim_msa_suffix(msa1, column_scores1, row1, seq_len1 - overlap + max_overlap_cut_point);
     trim_msa_suffix(msa2, column_scores2, row2, seq_len2 - max_overlap_cut_point);
+}
+
+/**
+ * recompute the seq_lens of a trimmed msa and clip off empty suffix columns
+ * (todo: can this be built into trimming code?)
+ */
+static void msa_fix_trimmed(Msa* msa) {
+    for (int64_t i = 0; i < msa->seq_no; ++i) {
+        // recompute the seq_len
+        msa->seq_lens[i] = 0;
+        for (int64_t j = 0; j < msa->column_no; ++j) {
+            if (msa_to_base(msa->msa_seq[i][j]) != '-') {
+                ++msa->seq_lens[i];
+            }
+        }
+    }
+    // trim empty columns
+    int64_t empty_columns = 0;
+    for (bool still_empty = true; empty_columns < msa->column_no; ++empty_columns) {
+        for (int64_t i = 0; i < msa->seq_no && still_empty; ++i) {
+            still_empty = msa_to_base(msa->msa_seq[i][msa->column_no - 1 - empty_columns]) == '-';
+        }
+        if (!still_empty) {
+            break;
+        }
+    }
+    msa->column_no -= empty_columns;
+}
+
+Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no, int64_t window_size) {
+
+    assert(seq_no > 0);
+    
+    // we overlap the sliding window, and use the trimming logic to find the best cut point between consecutive windows
+    // todo: cli-facing parameter
+    float window_overlap_frac = 0.5;
+    int64_t window_overlap_size = window_overlap_frac * window_size;
+    if (window_overlap_size > 0) {
+        --window_overlap_size; // don't want empty window when fully trimmed on each end
+    }
+    // keep track of what's left to align for the sliding window
+    int64_t bases_remaining = 0;
+    // keep track of current offsets
+    int64_t* seq_offsets = (int64_t*)st_calloc(seq_no, sizeof(int64_t));
+    // keep track of empty chunks
+    bool* empty_seqs = (bool*)st_calloc(seq_no, sizeof(bool));
+    // keep track of overlaps
+    int64_t* row_overlaps = (int64_t*)st_calloc(seq_no, sizeof(int64_t));
+
+    // allocate the poa input buffer
+    uint8_t **bseqs = (uint8_t**)st_malloc(sizeof(uint8_t*) * seq_no);
+    for (int64_t i = 0; i < seq_no; ++i) {
+        int64_t row_size = seq_lens[i] < window_size ? seq_lens[i] : window_size;
+        bseqs[i] = (uint8_t*)st_malloc(sizeof(uint8_t) * row_size);
+        bases_remaining += seq_lens[i];
+    }
+
+    // initialize variables
+    abpoa_t *ab = abpoa_init();
+    abpoa_para_t *abpt = abpoa_init_para();
+
+    // todo: support including modifying abpoa params
+    // alignment parameters
+    // abpt->align_mode = 0; // 0:global alignment, 1:extension
+    // abpt->match = 2;      // match score
+    // abpt->mismatch = 4;   // mismatch penalty
+    // abpt->gap_mode = ABPOA_CONVEX_GAP; // gap penalty mode
+    // abpt->gap_open1 = 4;  // gap open penalty #1
+    // abpt->gap_ext1 = 2;   // gap extension penalty #1
+    // abpt->gap_open2 = 24; // gap open penalty #2
+    // abpt->gap_ext2 = 1;   // gap extension penalty #2
+                             // gap_penalty = min{gap_open1 + gap_len * gap_ext1, gap_open2 + gap_len * gap_ext2}
+    // abpt->bw = 10;        // extra band used in adaptive banded DP
+    // abpt->bf = 0.01; 
+     
+    // output options
+    abpt->out_msa = 1; // generate Row-Column multiple sequence alignment(RC-MSA), set 0 to disable
+    abpt->out_cons = 0; // generate consensus sequence, set 0 to disable
+
+    abpoa_post_set_para(abpt);
+
+    // collect our windowed outputs here, to be stiched at the end. 
+    stList* msa_windows = stList_construct3(0, (void(*)(void *)) msa_destruct);
+    
+    // remember the previous window
+    Msa* prev_msa = NULL;
+    
+    int64_t prev_bases_remaining = bases_remaining;
+    for (int64_t iteration = 0; bases_remaining > 0; ++iteration) {
+
+        // compute the number of bases this msa will overlap with the previous msa per row,
+        // assuming that the alignments overlap by window_overlap_size
+        if (prev_msa != NULL) {
+            for (int64_t i = 0; i < seq_no; ++i) {
+                assert(prev_msa->column_no > window_overlap_size);
+                row_overlaps[i] = 0;
+                for (int64_t j = prev_msa->column_no - window_overlap_size; j < prev_msa->column_no; ++j) {
+                    if (msa_to_base(prev_msa->msa_seq[i][j]) != '-') {
+                        ++row_overlaps[i];
+                    }
+                }
+                // take the overlaps into account in other other counters
+                assert(seq_offsets[i] >= row_overlaps[i]);
+                seq_offsets[i] -= row_overlaps[i];
+                bases_remaining += row_overlaps[i];
+            }
+        }
+
+        // Make Msa object
+        Msa *msa = st_malloc(sizeof(Msa));
+        msa->seq_no = seq_no;
+        msa->seqs = NULL;
+        msa->seq_lens = st_malloc(sizeof(int) * msa->seq_no);
+        
+        // load up to window_size of each sequence into the input matrix for poa
+        for (int64_t i = 0; i < msa->seq_no; ++i) {
+            msa->seq_lens[i] = 0;
+            for (int64_t j = seq_offsets[i]; j < seq_lens[i] && msa->seq_lens[i] < window_size; ++j, ++msa->seq_lens[i]) {
+                // todo: support iupac characters?
+                bseqs[i][msa->seq_lens[i]] = msa_to_byte(seqs[i][j]);
+            }
+        }
+
+        // poa can't handle empty sequences.  this is a hack to get around that
+        int emptyCount = 0;
+        for (int64_t i = 0; i < msa->seq_no; ++i) {
+            if (msa->seq_lens[i] == 0) {
+                empty_seqs[i] = true;
+                msa->seq_lens[i] = 1;
+                bseqs[i][0] = msa_to_byte('N');
+                ++emptyCount;
+            } else {
+                empty_seqs[i] = false;
+            }
+        }
+
+        // perform abpoa-msa
+        abpoa_msa(ab, abpt, msa->seq_no, NULL, msa->seq_lens, bseqs, NULL, NULL, NULL, NULL, NULL,
+                  &(msa->msa_seq), &(msa->column_no));
+
+        // mask out empty sequences that were phonied in as Ns above
+        for (int64_t i = 0; i < msa->seq_no && emptyCount > 0; ++i) {
+            if (empty_seqs[i] == true) {
+                for (int j = 0; j < msa->column_no; ++j) {
+                    if (msa_to_base(msa->msa_seq[i][j]) != '-') {
+                        assert(msa_to_base(msa->msa_seq[i][j]) == 'N');
+                        msa->msa_seq[i][j] = msa_to_byte('-');
+                        --msa->seq_lens[i];
+                        assert(msa->seq_lens[i] == 0);
+                        --emptyCount;
+                        break;
+                    }
+                }
+            }
+        }
+        assert(emptyCount == 0);
+
+        //if (prev_msa) {
+        //    fprintf(stderr, "PREV MSA\n");
+        //    msa_print(prev_msa, stderr);
+        //}
+        //fprintf(stderr, "CUR MSA\n");
+        //msa_print(msa, stderr);
+
+        // remember how much we aligned this round
+        for (int64_t i = 0; i < msa->seq_no; ++i) {
+            bases_remaining -= msa->seq_lens[i];
+            seq_offsets[i] += msa->seq_lens[i];
+        }
+
+        // todo: there is obviously room for optimization here, as we compute full scores twice for each msa
+        //       in addition to flipping the prev_msa back and forth
+        //       (not sure if this is at all noticeable on top of abpoa running time though)
+        if (prev_msa) {
+            // trim() presently assumes we're looking at reverse-complement sequence:
+            flip_msa_seq(msa);
+            float* prev_column_scores = make_column_scores(prev_msa);
+            float* column_scores = make_column_scores(msa);
+
+            // trim with the previous alignment
+            for (int64_t i = 0; i < msa->seq_no; ++i) {
+                int64_t overlap = msa->seq_lens[i] < row_overlaps[i] ? msa->seq_lens[i] : row_overlaps[i];
+                if (overlap > 0) {
+                    trim(i, msa, column_scores, i, prev_msa, prev_column_scores, overlap);
+                }
+            }
+            // todo: can this be done as part of trim?
+            msa_fix_trimmed(msa);
+            msa_fix_trimmed(prev_msa);            
+            // flip our msa back to its original strand
+            flip_msa_seq(msa);
+        }
+
+        // add the msa to our list
+        stList_append(msa_windows, msa);
+        
+        // sanity check        
+        assert(prev_bases_remaining > bases_remaining && bases_remaining >= 0);
+
+        if (bases_remaining > 0) {
+            // reset graph before re-use
+            abpoa_reset_graph(ab, abpt, msa->seq_lens[0]); 
+        }
+
+        prev_msa = msa;
+        
+        //used only for sanity check
+        prev_bases_remaining = bases_remaining; 
+    }
+
+    int64_t num_windows = stList_length(msa_windows);
+    Msa *output_msa;
+    if (num_windows == 1) {
+        // if we have only one window, return it
+        output_msa = stList_removeFirst(msa_windows);
+        output_msa->seqs = seqs;
+        output_msa->seq_lens = seq_lens;
+    } else {
+        // otherwise, we stitch all the window msas into a new output msa
+        output_msa = st_malloc(sizeof(Msa));
+        assert(seq_no > 0);
+        output_msa->seq_no = seq_no;
+        output_msa->seqs = seqs;
+        output_msa->seq_lens = seq_lens;
+        output_msa->column_no = 0;
+        for (int64_t i = 0; i < num_windows; ++i) {
+            Msa* msa_i = (Msa*)stList_get(msa_windows, i);
+            output_msa->column_no += msa_i->column_no;
+        }
+        output_msa->msa_seq = st_malloc(sizeof(uint8_t *) * output_msa->seq_no);
+        for (int64_t i = 0; i < output_msa->seq_no; ++i) {
+            output_msa->msa_seq[i] = st_malloc(sizeof(uint8_t) * output_msa->column_no);
+            int64_t offset = 0;
+            for (int64_t j = 0; j < num_windows; ++j) {
+                Msa* msa_j = stList_get(msa_windows, j);
+                uint8_t* window_row = msa_j->msa_seq[i];
+                for (int64_t k = 0; k < msa_j->column_no; ++k) {
+                    output_msa->msa_seq[i][offset++] = window_row[k];
+                }
+            }
+            assert(offset == output_msa->column_no);
+        }
+    } 
+
+    // Clean up
+    for (int64_t i = 0; i < seq_no; ++i) {
+        free(bseqs[i]);
+    }
+    free(bseqs);
+    free(seq_offsets);
+    free(empty_seqs);
+    free(row_overlaps);
+    stList_destruct(msa_windows);
+
+    abpoa_free(ab, abpt);
+    abpoa_free_para(abpt);
+
+    // in debug mode, cactus uses the dreaded -Wall -Werror combo.  This line is a hack to allow compilation with these flags
+    if (false) SIMDMalloc(0, 0);
+
+    return output_msa;
 }
 
 Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_lengths, char ***end_strings,
