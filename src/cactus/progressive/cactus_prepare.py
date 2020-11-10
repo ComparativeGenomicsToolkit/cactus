@@ -56,6 +56,9 @@ def main(toil_mode=False):
         parser.add_argument("--latest", dest="latest", action="store_true",
                             help="Use the latest version of the docker container "
                             "rather than pulling one matching this version of cactus")
+        parser.add_argument("--containerImage", dest="containerImage", default=None,
+                            help="Use the the specified pre-built containter image "
+                            "rather than pulling one from quay.io")
         parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                             help="The way to run the Cactus binaries (at top level; use --cactusOpts to set it in nested calls)",
                             default=None)
