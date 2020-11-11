@@ -231,7 +231,7 @@ def runCactusAfterBlastOnly(options):
             configWrapper = ConfigWrapper(configNode)
             configWrapper.substituteAllPredefinedConstantsWithLiterals()
 
-            if options.nonBlastInput and not options.nonBlastMegablockFilter:
+            if (options.nonBlastInput or options.pafInput) and not options.nonBlastMegablockFilter:
                 # turn off the megablock filter as it ruins non-all-to-all alignments
                 configWrapper.disableCafMegablockFilter()
 
