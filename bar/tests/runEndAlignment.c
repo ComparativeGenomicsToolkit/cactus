@@ -25,7 +25,7 @@
 #include "stPinchIterator.h"
 #include "stateMachine.h"
 #include "multipleAligner.h"
-#include "poaAligner.h"
+#include "poaBarAligner.h"
 
 void usage() {
     fprintf(stderr, "cactus_runEndAlignment [input-fasta], version 0.2\n");
@@ -349,12 +349,21 @@ int main(int argc, char *argv[]) {
     }
 
     fprintf(stderr, "doing poa alignment\n");
-    t = clock();
-    MultipleAlignment *pA = makePartialOrderAlignment(sM, seqFrags, pairwiseAlignmentBandingParameters->gapGamma, pairwiseAlignmentBandingParameters, poaWindow);
+    int64_t seq_no = stList_length(seqFrags);
+    int* seq_lens = malloc(seq_no * sizeof(int));
+    char** seqs = malloc(seq_no * sizeof(char*));
+    for (int i = 0; i < seq_no; ++i) {
+        seq_lens[i] = ((SeqFrag*)stList_get(seqFrags, i))->length;
+        seqs[i] = ((SeqFrag*)stList_get(seqFrags, i))->seq;
+    }
+    
+    t = clock();    
+    Msa *msa = msa_make_partial_order_alignment(seqs, seq_lens, seq_no, poaWindow);    
     t = clock() - t;
     double abpoaTime = ((double)t)/CLOCKS_PER_SEC;
 
-    print_results(pA);
+    msa_print(msa, stderr);
+    msa_destruct(msa);
 
     fprintf(stderr, "Pecan Time = %lf seconds   abPOA Time = %lf seconds\n", pecanTime, abpoaTime);
 
