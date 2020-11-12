@@ -1212,9 +1212,6 @@ def cactus_call(tool=None,
         parameters = []
     if tool is None:
         tool = "cactus"
-
-    # hack to keep track of memory usage for single machine
-    time_v = os.environ.get("CACTUS_LOG_MEMORY") is not None
     
     entrypoint = None
     if (len(parameters) > 0) and isinstance(parameters[0], list):
@@ -1265,8 +1262,11 @@ def cactus_call(tool=None,
         rt_message += ' (features={})'.format(features)
     cactus_realtime_log(rt_message, log_debug = 'ktremotemgr' in call)
 
+    # hack to keep track of memory usage for single machine
+    time_v = os.environ.get("CACTUS_LOG_MEMORY") is not None and 'ktserver' not in call and 'redis-server' not in call
+
     # use /usr/bin/time -v to get peak memory usage
-    if time_v and 'ktserver' not in call and 'redis-server' not in call:
+    if time_v:
         if not shell:
             shell = True
             call = ' '.join(shlex.quote(t) for t in call)
