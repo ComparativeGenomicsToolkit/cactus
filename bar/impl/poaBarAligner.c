@@ -162,8 +162,8 @@ static void trim(int64_t row1, Msa *msa1, float *column_scores1,
     assert(overlap <= seq_len2);
 
     // Get the cumulative cut scores for the columns containing the shared sequence
-    float cu_column_scores1[msa1->column_no];
-    float cu_column_scores2[msa2->column_no];
+    float *cu_column_scores1 = st_malloc(msa1->column_no * sizeof(float));
+    float *cu_column_scores2 = st_malloc(msa2->column_no * sizeof(float));
     sum_column_scores(row1, msa1, column_scores1, cu_column_scores1);
     sum_column_scores(row2, msa2, column_scores2, cu_column_scores2);
 
@@ -203,6 +203,9 @@ static void trim(int64_t row1, Msa *msa1, float *column_scores1,
     assert(max_overlap_cut_point <= overlap);
     trim_msa_suffix(msa1, column_scores1, row1, seq_len1 - overlap + max_overlap_cut_point);
     trim_msa_suffix(msa2, column_scores2, row2, seq_len2 - max_overlap_cut_point);
+
+    free(cu_column_scores1);
+    free(cu_column_scores2);
 }
 
 /**
