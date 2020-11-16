@@ -161,7 +161,7 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event):
     if options.outputFasta:
         fa_job = job.addChildJobFn(make_minigraph_fasta, gfa_id, graph_event)
         fa_id = fa_job.rv()
-        
+    
     paf_job = job.addChildJobFn(minigraph_map_all, config, gfa_id, seq_id_map)
 
     return paf_job.rv(), fa_id                                

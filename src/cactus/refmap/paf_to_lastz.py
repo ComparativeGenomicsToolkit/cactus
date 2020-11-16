@@ -5,7 +5,7 @@ from cactus.shared.common import cactus_call
 
 def paf_to_lastz(job, paf_file, sort_secondaries=True):
     """
-    Makes lastz output using paf2last. Also splits the input paf_file into two files
+    Makes lastz output using paf2lastz. Also splits the input paf_file into two files
     in the output, one for the primary and the other for secondary.
 
     sort_secondaries bool, if true, will cause fxn to return two files instead of one.
@@ -19,7 +19,7 @@ def paf_to_lastz(job, paf_file, sort_secondaries=True):
 
     job.fileStore.readGlobalFile(paf_file, paf_path)
 
-    cmd = ['paf2lastz', paf_path]
+    cmd = ['paf2lastz', paf_path, '-q']
     if sort_secondaries:
         cmd += ['-s', secondary_lastz_path]
 

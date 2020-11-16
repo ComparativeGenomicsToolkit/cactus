@@ -161,7 +161,7 @@ class TestCase(unittest.TestCase):
                 if line.startswith('cactus-align'):
                     #Remove all the id prefixes to pretend the cigars came not cactus-blast
                     subprocess.check_call('sed -i -e \'s/id=[0,1]|//g\' {}/Anc0.cigar*'.format(out_dir), shell=True)
-                    line += ' --nonBlastInput'
+                    line += ' --nonCactusInput'
                 sys.stderr.write('Running {}'.format(line))
                 subprocess.check_call(line, shell=True)
 
@@ -184,7 +184,7 @@ class TestCase(unittest.TestCase):
 
         # do the alignment
         subprocess.check_call(['cactus-align', self._job_store(binariesMode), seq_file_path, cigar_path, self._out_hal(binariesMode),
-                               '--root', 'Anc0'] + cactus_opts)            
+                               '--root', 'Anc0', '--pangenome'] + cactus_opts)            
                 
 
     def _run_evolver_primates_graphmap(self, binariesMode):
@@ -221,7 +221,7 @@ class TestCase(unittest.TestCase):
 
         # do the alignment
         subprocess.check_call(['cactus-align', self._job_store(binariesMode), seq_file_path, paf_path, self._out_hal(binariesMode),
-                               '--pafInput', '--nonBlastInput', '--root', 'Anc0'] + cactus_opts)            
+                               '--pafInput', '--pangenome', '--root', 'Anc0'] + cactus_opts)            
                 
     def _csvstr_to_table(self, csvstr, header_fields):
         """ Hacky csv parse """
@@ -436,7 +436,7 @@ class TestCase(unittest.TestCase):
 
     def testEvolverPrepareNoOutgroupDocker(self):
 
-        # run cactus step by step via the plan made by cactus-prepare, hacking to apply --nonBlastInput option to cactus-align
+        # run cactus step by step via the plan made by cactus-prepare, hacking to apply --nonCactusInput option to cactus-align
         self._run_evolver_decomposed_no_outgroup("docker")
 
         # check the output
@@ -445,7 +445,7 @@ class TestCase(unittest.TestCase):
 
     def testEvolverPrepareNoOutgroupLocal(self):
 
-        # run cactus step by step via the plan made by cactus-prepare, hacking to apply --nonBlastInput option to cactus-align
+        # run cactus step by step via the plan made by cactus-prepare, hacking to apply --nonCactusInput option to cactus-align
         self._run_evolver_decomposed_no_outgroup("local")
 
         # check the output
