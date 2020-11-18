@@ -69,7 +69,7 @@ fi
 cd ${miniBuildDir}
 git clone https://github.com/glennhickey/mzgaf2paf.git
 cd mzgaf2paf
-git checkout 57fe57f9a5101ddf15da5b42b9ab3dcaf147af62
+git checkout b29f62a4a1ac1fb5abf658f55bd74607b50d2d67
 CXXFLAGS="-static" make -j 4
 if [ $(ldd mzgaf2paf | grep so | wc -l) -eq 0 ]
 then
