@@ -153,7 +153,8 @@ def runCactusGraphMap(options):
             toil.exportFile(gfa_fa_id, makeURL(options.outputFasta))
 
         # update the input seqfile (in place!)
-        add_genome_to_seqfile(options.seqFile, makeURL(options.outputFasta), graph_event)
+        if options.outputFasta:
+            add_genome_to_seqfile(options.seqFile, makeURL(options.outputFasta), graph_event)
 
 def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event):
     """ Overall workflow takes command line options and returns (paf-id, (optional) fa-id) """
