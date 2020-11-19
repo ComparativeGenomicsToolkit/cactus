@@ -50,7 +50,7 @@ def main():
     addCactusWorkflowOptions(parser)
 
     parser.add_argument("seqFile", help = "Seq file")
-    parser.add_argument("blastOutput", nargs="+", help = "Blast output (from cactus-blast)")
+    parser.add_argument("cigarsFile", nargs="+", help = "Pairiwse aliginments (from cactus-blast, cactus-refmap or cactus-graphmap)")
     parser.add_argument("outputHal", type=str, help = "Output HAL file")
     parser.add_argument("--pathOverrides", nargs="*", help="paths (multiple allowd) to override from seqFile")
     parser.add_argument("--pathOverrideNames", nargs="*", help="names (must be same number as --paths) of path overrides")
@@ -73,13 +73,12 @@ def main():
                         "rather than pulling one from quay.io")
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
-    parser.add_argument("--nonBlastInput", action="store_true",
-                        help="Input does not come from cactus-blast: Do not append ids to fasta names")
-    parser.add_argument("--nonBlastMegablockFilter", action="store_true",
-                        help="By default, the megablock filter is off for --nonBlastInput, as it does not play"
-                        "nicely with reference-based alignments.  This flag will turn it back on")
+    parser.add_argument("--nonCactusInput", action="store_true",
+                        help="Input lastz cigars do not come from cactus-blast or cactus-refmap: Prepend ids in cigars")
+    parser.add_argument("--pangenome", action="store_true",
+                        help="Override some CAF settings whose defaults are not suited to star trees")
     parser.add_argument("--pafInput", action="store_true",
-                        help="'blastOutput' input is in paf format, rather than lastz cigars.")    
+                        help="'cigarsFile' arugment is in PAF format, rather than lastz cigars.")    
     parser.add_argument("--database", choices=["kyoto_tycoon", "redis"],
                         help="The type of database", default="kyoto_tycoon")
 
@@ -103,6 +102,11 @@ def main():
             # is there a way to get this out of Toil?  That would be more consistent
             if cpu_count() < 2:
                 raise RuntimeError('Only 1 CPU detected.  Cactus requires at least 2')
+
+    if options.pafInput:
+        # cactus-graphmap does not do any prepending to simplify interface with minigraph node names
+        # so it must be done here
+        options.nonCactusInput = True
 
     options.buildHal = True
     options.buildFasta = True
@@ -178,8 +182,8 @@ def runCactusAfterBlastOnly(options):
 
             # this is a hack to allow specifying all the input on the command line, rather than using suffix lookups
             def get_input_path(suffix=''):
-                base_path = options.blastOutput[0]
-                for input_path in options.blastOutput:
+                base_path = options.cigarsFile[0]
+                for input_path in options.cigarsFile:
                     if suffix and input_path.endswith(suffix):
                         return input_path
                     if os.path.basename(base_path).startswith(os.path.basename(input_path)):
@@ -188,15 +192,15 @@ def runCactusAfterBlastOnly(options):
 
             # import the outgroups
             outgroupIDs = []
-            cactus_blast_input = not options.nonBlastInput
+            outgroup_fragment_found = False
             for i, outgroup in enumerate(outgroups):
                 try:
                     outgroupID = toil.importFile(makeURL(get_input_path('.og_fragment_{}'.format(i))))
                     outgroupIDs.append(outgroupID)
                     experiment.setSequenceID(outgroup, outgroupID)
+                    outgroup_fragment_found = True
+                    assert not options.pangenome
                 except:
-                    if cactus_blast_input:
-                        raise
                     # we assume that input is not coming from cactus blast, so we'll treat output
                     # sequences normally and not go looking for fragments
                     outgroupIDs = []
@@ -204,7 +208,7 @@ def runCactusAfterBlastOnly(options):
 
             #import the sequences (that we need to align for the given event, ie leaves and outgroups)
             for genome, seq in list(project.inputSequenceMap.items()):
-                if genome in leaves or (not cactus_blast_input and genome in outgroups):
+                if genome in leaves or (not outgroup_fragment_found and genome in outgroups):
                     if os.path.isdir(seq):
                         tmpSeq = getTempFile()
                         catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
@@ -213,7 +217,7 @@ def runCactusAfterBlastOnly(options):
 
                     experiment.setSequenceID(genome, toil.importFile(seq))
 
-            if not cactus_blast_input:
+            if not outgroup_fragment_found:
                 outgroupIDs = [experiment.getSequenceID(outgroup) for outgroup in outgroups]
 
             # write back the experiment, as CactusWorkflowArguments wants a path
@@ -231,50 +235,54 @@ def runCactusAfterBlastOnly(options):
             configWrapper = ConfigWrapper(configNode)
             configWrapper.substituteAllPredefinedConstantsWithLiterals()
 
-            if options.nonBlastInput and not options.nonBlastMegablockFilter:
+            if options.pangenome:
                 # turn off the megablock filter as it ruins non-all-to-all alignments
                 configWrapper.disableCafMegablockFilter()
+                # the recoverable chains parameter does not seem to play nicely with star-like alignments either
+                #configWrapper.disableRecoverableChains()
 
             workFlowArgs = CactusWorkflowArguments(options, experimentFile=experimentFile, configNode=configNode, seqIDMap = project.inputSequenceIDMap)
 
             #import the files that cactus-blast made
             workFlowArgs.alignmentsID = toil.importFile(makeURL(get_input_path()))
-            try:
-                workFlowArgs.secondaryAlignmentsID = toil.importFile(makeURL(get_input_path('.secondary')))
-            except:
-                workFlowArgs.secondaryAlignmentsID = None
+            workFlowArgs.secondaryAlignmentsID = None
+            if not options.pafInput:
+                try:
+                    workFlowArgs.secondaryAlignmentsID = toil.importFile(makeURL(get_input_path('.secondary')))
+                except:
+                    pass
             workFlowArgs.outgroupFragmentIDs = outgroupIDs
             workFlowArgs.ingroupCoverageIDs = []
-            if cactus_blast_input and len(outgroups) > 0:
+            if outgroup_fragment_found and len(outgroups) > 0:
                 for i in range(len(leaves)):
                     workFlowArgs.ingroupCoverageIDs.append(toil.importFile(makeURL(get_input_path('.ig_coverage_{}'.format(i)))))
 
-            halID = toil.start(Job.wrapJobFn(run_cactus_align, configWrapper, workFlowArgs, project, cactus_blast_input, pafInput=options.pafInput))
+            halID = toil.start(Job.wrapJobFn(run_cactus_align, configWrapper, workFlowArgs, project, doRenaming=options.nonCactusInput, pafInput=options.pafInput))
 
         # export the hal
         toil.exportFile(halID, makeURL(options.outputHal))
 
-def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, cactus_blast_input, pafInput=False):
-    head_job = job.addChildJobFn(empty)
+def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, doRenaming, pafInput):
+    head_job = Job()
+    job.addChild(head_job)
 
     # allow for input in paf format:
     if pafInput:
-        # convert the paf input to lastz format.
-        cactusWorkflowArguments.alignmentsID = head_job.addChildJobFn(paf_to_lastz.paf_to_lastz, cactusWorkflowArguments.alignmentsID, False).rv()
-        if cactusWorkflowArguments.secondaryAlignmentsID:
-            cactusWorkflowArguments.secondaryAlignmentsID = head_job.addChildJobFn(paf_to_lastz.paf_to_lastz, cactusWorkflowArguments.secondaryAlignmentsID, False).rv()
-
-    conversion_jobs = head_job.encapsulate()
+        # convert the paf input to lastz format, splitting out into primary and secondary files
+        paf_to_lastz_job = head_job.addChildJobFn(paf_to_lastz.paf_to_lastz, cactusWorkflowArguments.alignmentsID, True)
+        cactusWorkflowArguments.alignmentsID = paf_to_lastz_job.rv(0)
+        cactusWorkflowArguments.secondaryAlignmentsID = paf_to_lastz_job.rv(1)
 
     # do the name mangling cactus expects, where every fasta sequence starts with id=0|, id=1| etc
     # and the cigar files match up.  If reading cactus-blast output, the cigars are fine, just need
     # the fastas (todo: make this less hacky somehow)
-    cur_job = conversion_jobs.addFollowOnJobFn(run_prepend_unique_ids, cactusWorkflowArguments, project, cactus_blast_input
-                                #todo disk=
-                                )
+    cur_job = head_job.addFollowOnJobFn(run_prepend_unique_ids, cactusWorkflowArguments, project, doRenaming
+                                        #todo disk=
+    )
+    no_ingroup_coverage = not cactusWorkflowArguments.ingroupCoverageIDs
     cactusWorkflowArguments = cur_job.rv()
     
-    if not cactus_blast_input:
+    if no_ingroup_coverage:
         # if we're not taking cactus_blast input, then we need to recompute the ingroup coverage
         cur_job = cur_job.addFollowOnJobFn(run_ingroup_coverage, cactusWorkflowArguments, project)
         cactusWorkflowArguments = cur_job.rv()
@@ -311,7 +319,7 @@ def prepend_cigar_ids(cigars, outputDir, idMap):
         ret.append(outPath)
     return ret
 
-def run_prepend_unique_ids(job, cactusWorkflowArguments, project, cactus_blast_input):
+def run_prepend_unique_ids(job, cactusWorkflowArguments, project, renameCigars):
     """ prepend the unique ids on the input fasta.  this is required for cactus to work (would be great to relax it though"""
 
     # note, there is an order dependence to everything where we have to match what was done in cactus_workflow
@@ -330,8 +338,8 @@ def run_prepend_unique_ids(job, cactusWorkflowArguments, project, cactus_blast_i
     for event, sequenceID in ingroupsAndNewIDs:
         cactusWorkflowArguments.experimentWrapper.setSequenceID(event, sequenceID)
 
-    # if we're not taking the blast input, then we have to apply to the cigar files too
-    if not cactus_blast_input:
+    # if we're not taking cactus-[blast|refmap] input, then we have to apply to the cigar files too
+    if renameCigars:
         alignments = job.fileStore.readGlobalFile(cactusWorkflowArguments.alignmentsID)
         renamed_alignments = prepend_cigar_ids([alignments], renamedInputSeqDir, id_map)
         cactusWorkflowArguments.alignmentsID = job.fileStore.writeGlobalFile(renamed_alignments[0], cleanup=True)
@@ -376,12 +384,6 @@ def run_prepare_hal_export(job, project, experiment):
     project.expMap = {event : experiment}
     project.expIDMap = {event : job.fileStore.writeGlobalFile(exp_path)}
     return project, event
-
-def empty(job):
-    """
-    An empty job, for easier toil job organization.
-    """
-    return
 
 if __name__ == '__main__':
     main()
