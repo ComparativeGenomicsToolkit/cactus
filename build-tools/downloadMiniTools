@@ -13,6 +13,8 @@ set -beEu -o pipefail
 
 miniBuildDir=$(realpath -m build-mini)
 binDir=$(pwd)/bin
+# just use cactusRootPath for now
+dataDir=$(pwd)/src/cactus
 CWD=$(pwd)
 
 set -x
@@ -65,6 +67,22 @@ else
 	 exit 1
 fi
 
+# dna-brnn
+cd ${miniBuildDir}
+git clone https://github.com/lh3/dna-nn.git
+cd dna-nn
+git checkout 2e6d242ae339457b985f50086e85194c3ce418b1
+# hack in a static build
+sed -i Makefile -e 's/CFLAGS=/CFLAGS+=/' -e 's/LIBS=/LIBS+=/'
+CFLAGS="-static" LIBS="-static" make -j 4
+if [ $(ldd dna-brnn | grep so | wc -l) -eq 0 ]
+then
+	 mv dna-brnn ${binDir}
+	 cp models/attcc-alpha.knm ${dataDir}
+else
+	 exit 1
+fi
+
 # mzgaf2paf
 cd ${miniBuildDir}
 git clone https://github.com/glennhickey/mzgaf2paf.git
@@ -90,3 +108,7 @@ fi
 
 cd ${CWD}
 rm -rf ${miniBuildDir}
+
+echo "--------------------------------------------------"
+echo "(re)run pip install -U . to install dna-brnn model"
+echo "--------------------------------------------------"

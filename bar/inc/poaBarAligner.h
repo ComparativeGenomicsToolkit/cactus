@@ -108,9 +108,10 @@ char *get_adjacency_string(Cap *cap, int *length);
  * @param max_seq_length is the maximum length of the prefix of an unaligned sequence
  * to attempt to align.
  * @param window_size Sliding window size which limits length of poa sub-alignments.  Memory usage is quardatic in this. 
+ * @param mask_filter Trim input sequences if encountering this many consecutive soft of hard masked bases (0 = disabled)
  * Returns a list of AlignmentBlock ojects
  */
-stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_t window_size);
+stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_t window_size, int64_t mask_filter);
 
 /**
  * Create a pinch iterator for a list of alignment blocks.

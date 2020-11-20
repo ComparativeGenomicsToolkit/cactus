@@ -883,7 +883,8 @@ def runBarForJob(self, fileStore=None, features=None, calculateWhichEndsToComput
                  minimumCoverageToRescue=self.getOptionalPhaseAttrib("minimumCoverageToRescue"),
                  minimumNumberOfSpecies=self.getOptionalPhaseAttrib("minimumNumberOfSpecies", int),
                  partialOrderAlignment=self.getOptionalPhaseAttrib("partialOrderAlignment", bool),
-                 partialOrderAlignmentWindow=self.getOptionalPhaseAttrib("partialOrderAlignmentWindow", int))
+                 partialOrderAlignmentWindow=self.getOptionalPhaseAttrib("partialOrderAlignmentWindow", int),
+                 partialOrderAlignmentMaskFilter=self.getOptionalPhaseAttrib("partialOrderAlignmentMaskFilter", int))
 
 class CactusBarWrapper(CactusRecursionJob):
     """Runs the BAR algorithm implementation.

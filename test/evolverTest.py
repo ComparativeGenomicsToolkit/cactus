@@ -166,7 +166,7 @@ class TestCase(unittest.TestCase):
                 subprocess.check_call(line, shell=True)
 
     def _run_evolver_primates_refmap(self, binariesMode):
-        """ primates star test but using graphmap pangenome pipeline
+        """ primates star test but using refmap pangenome pipeline
         """
         # borrow seqfile from other primates test
         # todo: make a seqfile and add it to the repo
@@ -195,6 +195,29 @@ class TestCase(unittest.TestCase):
         seq_file_path = os.path.join(self.tempDir, 'primates.txt')
         self._write_primates_seqfile(seq_file_path)
 
+        # use the same logic cactus does to get default config
+        config_path = 'src/cactus/cactus_progressive_config.xml'
+        
+        xml_root = ET.parse(config_path).getroot()
+        bar_elem = xml_root.find("bar")
+        bar_elem.attrib["partialOrderAlignment"] = "1"
+        bar_elem.attrib["partialOrderAlignmentMaskFilter"] = "1"
+
+        poa_config_path = os.path.join(self.tempDir, "config.poa.xml")
+        with open(poa_config_path, 'w') as poa_config_file:
+            xmlString = ET.tostring(xml_root, encoding='unicode')
+            xmlString = minidom.parseString(xmlString).toprettyxml()
+            poa_config_file.write(xmlString)
+
+        # make an output seqfile for preprocessed sequences
+        out_seq_file_path = os.path.join(self.tempDir, 'prepared', 'primates.txt')
+        subprocess.check_call(['cactus-prepare', seq_file_path, '--outDir', os.path.dirname(out_seq_file_path)])
+
+        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir, '--configFile', poa_config_path]
+        
+        # preprocess with dna-brnn
+        subprocess.check_call(['cactus-preprocess', self._job_store(binariesMode), seq_file_path, out_seq_file_path, '--maskAlpha'] + cactus_opts)
+
         # make the reference graph
         mg_cmd = ['minigraph', '-xggs', '-t', '4']
         with open(seq_file_path, 'r') as seq_file:
@@ -211,16 +234,15 @@ class TestCase(unittest.TestCase):
         # do the mapping
         paf_path = os.path.join(self.tempDir, 'aln.paf')
         fa_path = os.path.join(self.tempDir, 'refgraph.gfa.fa')
-        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir]
         # todo: it'd be nice to have an interface for setting tag to something not latest or commit
         if binariesMode == 'docker':
             cactus_opts += ['--latest']
         
-        subprocess.check_call(['cactus-graphmap', self._job_store(binariesMode), seq_file_path, mg_path, paf_path,
-                               '--outputFasta', fa_path] + cactus_opts)
+        subprocess.check_call(['cactus-graphmap', self._job_store(binariesMode), out_seq_file_path, mg_path, paf_path,
+                               '--outputFasta', fa_path, '--ignoreSoftmasked'] + cactus_opts)
 
         # do the alignment
-        subprocess.check_call(['cactus-align', self._job_store(binariesMode), seq_file_path, paf_path, self._out_hal(binariesMode),
+        subprocess.check_call(['cactus-align', self._job_store(binariesMode), out_seq_file_path, paf_path, self._out_hal(binariesMode),
                                '--pafInput', '--pangenome', '--root', 'Anc0'] + cactus_opts)            
                 
     def _csvstr_to_table(self, csvstr, header_fields):
