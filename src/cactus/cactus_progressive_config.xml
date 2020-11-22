@@ -253,6 +253,7 @@
 	<!-- cactus-graphmap options -->
 	<!-- assemblyName: special name of "virtual" minigraph assembly, which is just the list of sequences from the graph. -->
 	<!-- universalMZFilter: only use minimizers who appear in this proportion (1.0 == 100%) of sequences that map over them. -->
+	<!-- nodeBasedUniversal: universal filter calculated in terms of nodes istead of mapped regions. -->
 	<!-- minMZBlockLength: only use minimizers that form contiguous blocks at least this long -->
 	<!-- minMAPQ: ignore minigraph alignments with mapping quality less than this -->
 	<!-- minGAFBlockLength: ignore minigraph alignments with block length less than this -->	
@@ -260,9 +261,11 @@
 		 assemblyName="__MINIGRAPH_SEQUENCES__"
 		 minigraphMapOptions="-S --write-mz -xasm -K4g --inv=no"
 		 universalMZFilter="1.0"
+		 nodeBasedUniversal="1"
 		 minMZBlockLength="50"
 		 minMAPQ="5"
 		 minGAFBlockLength="100000"
+		 
 	/>
   	<multi_cactus>
 		<outgroup 

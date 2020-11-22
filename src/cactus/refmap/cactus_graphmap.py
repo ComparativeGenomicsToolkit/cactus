@@ -257,6 +257,8 @@ def merge_gafs_into_paf(job, config, gaf_file_ids):
     mz_filter = getOptionalAttrib(xml_node, "universalMZFilter", float)
     if mz_filter:
         mzgaf2paf_opts += ['-u', str(mz_filter)]
+    if getOptionalAttrib(xml_node, "nodeBasedUniversal", typeFn=bool, default=False):
+        mzgaf2paf_opts += ['-n']
     min_mz = getOptionalAttrib(xml_node, "minMZBlockLength", int)
     if min_mz:
         mzgaf2paf_opts += ['-m', str(min_mz)]
