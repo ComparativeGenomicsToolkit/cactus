@@ -50,6 +50,7 @@ def main():
     parser.add_argument("minigraphGFA", help = "Minigraph-compatible reference graph in GFA format (can be gzipped)")
     parser.add_argument("outputPAF", type=str, help = "Output pairwise alignment file in PAF format")
     parser.add_argument("--outputFasta", type=str, help = "Output graph sequence file in FASTA format (required if not present in seqFile)")
+    parser.add_argument("--ignoreSoftmasked", action="store_true", help = "Ignore softmasked sequence (by hardmasking before sending to minigraph)")
 
     #WDL hacks
     parser.add_argument("--pathOverrides", nargs="*", help="paths (multiple allowed) to override from seqFile")
@@ -120,7 +121,7 @@ def runCactusGraphMap(options):
             config.substituteAllPredefinedConstantsWithLiterals()
 
             # get the minigraph "virutal" assembly name
-            graph_event = getOptionalAttrib(findRequiredNode(configNode, "refgraph"), "assemblyName", default="__MINIGRAPH_SEQUENCES__")
+            graph_event = getOptionalAttrib(findRequiredNode(configNode, "graphmap"), "assemblyName", default="__MINIGRAPH_SEQUENCES__")
 
             # load the seqfile
             seqFile = SeqFile(options.seqFile)
@@ -135,8 +136,9 @@ def runCactusGraphMap(options):
 
             #import the sequences (that we need to align for the given event, ie leaves and outgroups)
             seqIDMap = {}
+            leaves = set([seqFile.tree.getName(node) for node in seqFile.tree.getLeaves()])
             for genome, seq in seqFile.pathMap.items():
-                if genome != graph_event:
+                if genome != graph_event and genome in leaves:
                     if os.path.isdir(seq):
                         tmpSeq = getTempFile()
                         catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
@@ -163,7 +165,7 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event):
         fa_job = job.addChildJobFn(make_minigraph_fasta, gfa_id, graph_event)
         fa_id = fa_job.rv()
     
-    paf_job = job.addChildJobFn(minigraph_map_all, config, gfa_id, seq_id_map)
+    paf_job = job.addChildJobFn(minigraph_map_all, config, gfa_id, seq_id_map, options.ignoreSoftmasked)
 
     return paf_job.rv(), fa_id                                
         
@@ -177,13 +179,12 @@ def make_minigraph_fasta(job, gfa_file_id, name):
     
     job.fileStore.readGlobalFile(gfa_file_id, gfa_path)
 
-    with open(fa_path, "w") as fa_file:
-        cactus_call(work_dir=work_dir, outfile=fa_path,
-                    parameters=["gfatools", "gfa2fa", os.path.basename(gfa_path)])
+    cactus_call(work_dir=work_dir, outfile=fa_path,
+                parameters=["gfatools", "gfa2fa", os.path.basename(gfa_path)])
 
     return job.fileStore.writeGlobalFile(fa_path)
 
-def minigraph_map_all(job, config, gfa_id, fa_id_map):
+def minigraph_map_all(job, config, gfa_id, fa_id_map, ignore_softmasked):
     """ top-level job to run the minigraph mapping in parallel, returns paf """
     
     # hang everything on this job, to self-contain workflow
@@ -195,6 +196,7 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map):
     for event, fa_id in fa_id_map.items():
         RealtimeLogger.info("adding child event={} faid={} gfaid={}".format(event, fa_id, gfa_id))
         minigraph_map_job = top_job.addChildJobFn(minigraph_map_one, config, event, fa_id, gfa_id,
+                                                  ignore_softmasked,
                                                   cores=1, disk=5*(fa_id.size + gfa_id.size))
         gaf_ids.append(minigraph_map_job.rv())
 
@@ -203,7 +205,7 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map):
 
     return paf_job.rv()
 
-def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
+def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id, ignore_softmasked):
     """ Run minigraph to map a Fasta file to a GFA graph, producing a GAF output """
 
     work_dir = job.fileStore.getLocalTempDir()
@@ -215,7 +217,7 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
     job.fileStore.readGlobalFile(fa_file_id, fa_path)
 
     # parse options from the config
-    xml_node = findRequiredNode(config.xmlRoot, "refgraph")
+    xml_node = findRequiredNode(config.xmlRoot, "graphmap")
     minigraph_opts = getOptionalAttrib(xml_node, "minigraphMapOptions", str, default="")     
     opts_list = minigraph_opts.split()
     # add required options if not present
@@ -226,11 +228,17 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id):
     if "-t" not in opts_list:
         opts_list += ["-t", str(int(job.cores))]
 
+    cmd = ["minigraph",
+           os.path.basename(gfa_path),
+           os.path.basename(fa_path),
+           "-o", os.path.basename(gaf_path)] + opts_list
+
+    if ignore_softmasked:
+        cmd[2] = '-'
+        cmd = [['cactus_softmask2hardmask', os.path.basename(fa_path)], cmd]
+    
     # todo: pipe into gzip directly as these files can be huge!!! (requires gzip support be added to mzgaf2paf)
-    cactus_call(work_dir=work_dir, parameters=["minigraph",
-                                               os.path.basename(gfa_path),
-                                               os.path.basename(fa_path),
-                                               "-o", os.path.basename(gaf_path)] + opts_list)
+    cactus_call(work_dir=work_dir, parameters=cmd)
 
     return job.fileStore.writeGlobalFile(gaf_path)
 
@@ -244,11 +252,13 @@ def merge_gafs_into_paf(job, config, gaf_file_ids):
         gaf_paths.append("mz_alignment_{}.gaf".format(i))
         job.fileStore.readGlobalFile(gaf_id, os.path.join(work_dir, gaf_paths[-1]))
 
-    xml_node = findRequiredNode(config.xmlRoot, "refgraph")
+    xml_node = findRequiredNode(config.xmlRoot, "graphmap")
     mzgaf2paf_opts = []
     mz_filter = getOptionalAttrib(xml_node, "universalMZFilter", float)
     if mz_filter:
         mzgaf2paf_opts += ['-u', str(mz_filter)]
+    if getOptionalAttrib(xml_node, "nodeBasedUniversal", typeFn=bool, default=False):
+        mzgaf2paf_opts += ['-n']
     min_mz = getOptionalAttrib(xml_node, "minMZBlockLength", int)
     if min_mz:
         mzgaf2paf_opts += ['-m', str(min_mz)]

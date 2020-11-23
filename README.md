@@ -13,7 +13,7 @@ Cactus uses many different algorithms and individual code contributions, princip
 - Bob Harris for providing endless support for his [LastZ](https://github.com/lastz/lastz) pairwise, blast-like genome alignment tool.
 - Sneha Goenka and Yatish Turakhia for the [GPU-accelerated version of LastZ](https://github.com/ComparativeGenomicsToolkit/SegAlign).
 - Yan Gao et al. for [abPOA](https://github.com/yangao07/abPOA)
-- Heng Li for [minigraph](https://github.com/lh3/minigraph), [minimap2](https://github.com/lh3/minimap2) and [gfatools](https://github.com/lh3/gfatools)
+- Heng Li for [minigraph](https://github.com/lh3/minigraph), [minimap2](https://github.com/lh3/minimap2), [gfatools](https://github.com/lh3/gfatools) and [dna-brnn](https://github.com/lh3/dna-rnn)
 
 ## Setup
 

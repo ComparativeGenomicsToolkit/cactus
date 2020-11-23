@@ -241,4 +241,22 @@ class ConfigWrapper:
         for node in self.xmlRoot.findall("preprocessor"):
             self.xmlRoot.remove(node)
 
+    def setPreprocessorActive(self, preprocessorJob, state):
+        """Set active flag of preprocessor """
+        assert state in (True, False)
+        set_count = 0
+        for node in self.xmlRoot.findall("preprocessor"):
+            if getOptionalAttrib(node, "preprocessJob") == preprocessorJob:
+                node.attrib["active"] = "1" if state else "0"
+                set_count += 1
+        return set_count
+
+    def getPreprocessorActive(self, preprocessorJob, default_val=True):
+        """Get active flag of preprocessor (first one with name match)"""
+        for node in self.xmlRoot.findall("preprocessor"):
+            if getOptionalAttrib(node, "preprocessJob") == preprocessorJob:
+                return getOptionalAttrib(node, "active", default="1" if default_val else "0") == "1"
+        return default_val
+                        
+
         

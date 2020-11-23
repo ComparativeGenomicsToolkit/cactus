@@ -25,6 +25,7 @@ def usage(s=None):
                               (default is to mask with lowercase)
     --unmask                  remove any previous softmasking from sequence being masked (covert to upper case
                               before masking)
+    --minLength=<N>           ignore intervals less than N
                               """
 
 	if (s == None): exit (message)
@@ -41,6 +42,7 @@ def main():
 	maskChar         = None
 	intervalsFile    = None
 	unmask = False
+	minLength = None        
 
 	for arg in argv[1:]:
 		if ("=" in arg):
@@ -63,6 +65,8 @@ def main():
 			if (len(maskChar) != 1): usage("--mask requires a single character")
 		elif (arg.startswith("--unmask")):
 			unmask = True
+		elif (arg.startswith("--minLength=")):
+			minLength = int(argVal)
 		elif (arg.startswith("--")):
 			usage("can't understand %s" % arg)
 		elif (intervalsFile == None):
@@ -104,7 +108,8 @@ def main():
 			continue
 
 		if (chrom not in chromToIntervals): chromToIntervals[chrom] = []
-		chromToIntervals[chrom] += [(start,end)]
+		if minLength is None or end-start >= minLength:
+			chromToIntervals[chrom] += [(start,end)]
 
 	f.close()
 

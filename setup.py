@@ -26,7 +26,7 @@ setup(
     packages = find_packages(where='src'),
     include_package_data = True,
     package_data = {
-        'cactus': ['*_config.xml']
+        'cactus': ['*_config.xml', '*.knm']
     },
     # We use the __file__ attribute so this package isn't zip_safe.
     zip_safe = False,

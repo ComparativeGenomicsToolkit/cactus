@@ -11,9 +11,13 @@
 	<!-- The preprocessor tags are used to modify/check the input sequences before alignment -->
 	<!-- The first preprocessor tag checks that the first word of every fasta header is unique, as this is required for HAL. It throws errors if this is not the case -->
 	<!-- The checkAssemblyHub option (if enabled) ensures that the first word contains only alphanumeric or '_', '-', ':', or '.' characters, and is unique. If you don't intend to make an assembly hub, you can turn off this option here. -->
-	<preprocessor check="1" memory="littleMemory" preprocessJob="checkUniqueHeaders" checkAssemblyHub="1"/>
+	<preprocessor check="1" memory="littleMemory" preprocessJob="checkUniqueHeaders" checkAssemblyHub="1" active="1"/>
 	<!-- The preprocessor for cactus_lastzRepeatMask masks every seed that is part of more than XX other alignments, this stops a combinatorial explosion in pairwise alignments -->
-	<preprocessor unmask="0" chunkSize="3000000" proportionToSample="0.2" memory="littleMemory" preprocessJob="lastzRepeatMask" minPeriod="50" lastzOpts='--step=3 --ambiguous=iupac,100,100 --ungapped --queryhsplimit=keep,nowarn:1500' gpuLastz="false"/>
+	<preprocessor unmask="0" chunkSize="3000000" proportionToSample="0.2" memory="littleMemory" preprocessJob="lastzRepeatMask" minPeriod="50" lastzOpts='--step=3 --ambiguous=iupac,100,100 --ungapped --queryhsplimit=keep,nowarn:1500' gpuLastz="false" active="1"/>
+	<!-- Softmask alpha-satellite blocks of at least "minLength" using the dna-brnn tool -->
+	<!-- This preprocessor is off by default, and will replace the lastzRepeatMask preprocessor via command line toggle (or setting active=1)-->
+	<!-- It will attempt to load its included "attcc-alpha.knm" model by default unless a different one is specified below -->
+	<preprocessor unmask="1" memory="littleMemory" preprocessJob="dna-brnn" minLength="100000" dna-brnnOpts='-A' active="0"/>			  	
         <!-- Options for trimming ingroups & outgroups using the trim strategy -->
         <!-- Ingroup trim options: -->
         <!-- trimFlanking: The length of flanking sequence to attach
@@ -153,6 +157,10 @@
         unaligned at the end of bar. This pushes those regions
         into the ancestor, hopefully to get aligned to something
         else eventually -->
+   <!-- bandingLimit is the maximum sequence size fed into the multiple aligner.  Sequences longer than this are trimmed accordingly -->
+   <!-- partialOrderAlignment toggles between cPecan and abpoa for the core multiple alignment algorithm.  abpoa is much faster but not as reliable for divered sequences -->
+   <!-- partialOrderAlignmentWindow a sliding window approach (with hardcoded 50% overlap) is used to perform abpoa alignments.  memory is quadratic in this.  it is applied after bandingLimit -->
+   <!-- partialOrderAlignmentMaskFilter trim input sequences as soon as this many soft or hard masked bases are encountered (0=disabled) -->
 	<bar
 		runBar="1"
 		spanningTrees="5" 
@@ -179,6 +187,7 @@
                 minimumCoverageToRescue="0.5"
 		partialOrderAlignment="0"
 		partialOrderAlignmentWindow="10000"
+		partialOrderAlignmentMaskFilter="0"
 	>
 		<CactusBarRecursion maxFlowerGroupSize="100000000"/>
 		<!-- The maxFlowerGroupSize in cactusBarWrapper determines how many bases to allow in one "small" job which will be run using the "littleMemory" -->
@@ -241,19 +250,22 @@
 		<CactusHalGeneratorRecursion maxFlowerGroupSize="2000000"/>
 		<CactusHalGeneratorUpWrapper/>
 	</hal>
-	<!-- cactus-refgraph options -->
+	<!-- cactus-graphmap options -->
 	<!-- assemblyName: special name of "virtual" minigraph assembly, which is just the list of sequences from the graph. -->
 	<!-- universalMZFilter: only use minimizers who appear in this proportion (1.0 == 100%) of sequences that map over them. -->
+	<!-- nodeBasedUniversal: universal filter calculated in terms of nodes istead of mapped regions. -->
 	<!-- minMZBlockLength: only use minimizers that form contiguous blocks at least this long -->
 	<!-- minMAPQ: ignore minigraph alignments with mapping quality less than this -->
 	<!-- minGAFBlockLength: ignore minigraph alignments with block length less than this -->	
-	<refgraph
+	<graphmap
 		 assemblyName="__MINIGRAPH_SEQUENCES__"
 		 minigraphMapOptions="-S --write-mz -xasm -K4g --inv=no"
 		 universalMZFilter="1.0"
+		 nodeBasedUniversal="1"
 		 minMZBlockLength="50"
 		 minMAPQ="5"
 		 minGAFBlockLength="100000"
+		 
 	/>
   	<multi_cactus>
 		<outgroup 
