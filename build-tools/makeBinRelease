@@ -46,10 +46,8 @@ find submodules/sonLib -name '*.py' | cpio -pdum ${binPackageDir}
 # todo: probably a better way
 mkdir -p $(binPackageDir)/lib
 rsync -avm --include='*.py' -f 'hide,! */' ./submodules/hal ${binPackageDir}/lib
-# copy in hal2vg
-build-tools/downloadHal2vg && mv hal2vg ${binPackageDir}/bin
-# download minimap/graph tools used for pangenome pipeline
-build-tools/downloadMiniTools
+# download all external tools used for pangenome pipeline
+build-tools/downloadPangenomeTools
 # need .git dir for pip install -U ., but don't need everything
 cp -r .git ${binPackageDir}
 rm -rf ${binPackageDir}/.git/modules

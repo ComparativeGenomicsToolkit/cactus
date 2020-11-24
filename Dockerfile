@@ -22,11 +22,8 @@ RUN cd /home/cactus && make -j $(nproc)
 # RUN cd /home/cactus/bin && for i in wigToBigWig faToTwoBit bedToBigBed bigBedToBed bedSort hgGcPercent; do wget -q http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/${i}; chmod ugo+x ${i}; done
 RUN cd /home/cactus/bin && for i in wigToBigWig faToTwoBit bedToBigBed bigBedToBed; do wget -q http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/${i}; chmod ugo+x ${i}; done
 
-# download hal2vg
-RUN cd /home/cactus/bin && ../build-tools/downloadHal2vg
-
-# download minimap/graph tools used for pangenome pipeline
-RUN cd /home/cactus && ./build-tools/downloadMiniTools
+# download tools used for pangenome pipeline
+RUN cd /home/cactus && ./build-tools/downloadPangenomeTools
 
 # remove test executables
 RUN cd /home/cactus && rm -f ${binPackageDir}/bin/*test ${binPackageDir}/bin/*tests ${binPackageDir}/bin/*Test ${binPackageDir}/bin/*Tests ${binPackageDir}/bin/cactus_runEndAlignment

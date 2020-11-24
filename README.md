@@ -123,10 +123,8 @@ The `--binariesMode local` flag can be used to force `cactus` to run local binar
 Some tools not installed by `apt` can be downloaded locally as follows (the Dockerfile can also serve as a guide)
 
 ```
-# copy in hal2vg
-build-tools/downloadHal2vg && mv hal2vg ./bin
-# download minimap/graph tools used for pangenome pipeline
-build-tools/downloadMiniTools
+# download tools used for pangenome pipeline
+build-tools/downloadPangenomeTools
 ```
 
 ## Running
