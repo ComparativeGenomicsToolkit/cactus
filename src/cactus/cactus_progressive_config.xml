@@ -263,10 +263,10 @@
 		 minigraphMapOptions="-S --write-mz -xasm -K4g --inv=no"
 		 universalMZFilter="1.0"
 		 nodeBasedUniversal="1"
-		 minMZBlockLength="50"
+		 minMZBlockLength="0"
 		 minMAPQ="5"
 		 minGAFBlockLength="100000"
-		 minGAFNodeLength="1000"
+		 minGAFNodeLength="500"
 	/>
   	<multi_cactus>
 		<outgroup 
