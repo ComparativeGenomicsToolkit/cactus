@@ -263,6 +263,7 @@
 		 minigraphMapOptions="-S --write-mz -xasm -K4g --inv=no"
 		 universalMZFilter="1.0"
 		 nodeBasedUniversal="1"
+		 strictUniversal="0"
 		 minMZBlockLength="0"
 		 minMAPQ="5"
 		 minGAFBlockLength="100000"
