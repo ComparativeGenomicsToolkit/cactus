@@ -45,7 +45,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://github.com/lh3/minigraph.git
 pushd minigraph
-git checkout 78ce999c96756b677567e3069a5c6fc3962500fb
+git checkout 274aec227d4bd9cccc9c7a4454ac3a890eed40b8
 # hack in a static build
 sed -i Makefile -e 's/CFLAGS=/CFLAGS+=/'
 CFLAGS="-static" make -j 4
