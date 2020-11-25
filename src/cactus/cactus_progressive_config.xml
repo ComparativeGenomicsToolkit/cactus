@@ -161,6 +161,8 @@
    <!-- partialOrderAlignment toggles between cPecan and abpoa for the core multiple alignment algorithm.  abpoa is much faster but not as reliable for divered sequences -->
    <!-- partialOrderAlignmentWindow a sliding window approach (with hardcoded 50% overlap) is used to perform abpoa alignments.  memory is quadratic in this.  it is applied after bandingLimit -->
    <!-- partialOrderAlignmentMaskFilter trim input sequences as soon as this many soft or hard masked bases are encountered (0=disabled) -->
+   <!-- partialOrderAlignmentBand abpoa adaptive band size is <partialOrderAlignmentBand> + <partialOrderAlignmentBandFraction>*<Length>.  Negative value here disables adaptive banding -->
+   <!-- partialOrderAlignmentBandFraction abpoa adaptibe band second parameter (see above) -->
 	<bar
 		runBar="1"
 		spanningTrees="5" 
@@ -188,6 +190,8 @@
 		partialOrderAlignment="0"
 		partialOrderAlignmentWindow="10000"
 		partialOrderAlignmentMaskFilter="0"
+		partialOrderAlignmentBandConstant="10"
+		partialOrderAlignmentBandFraction="0.01"
 	>
 		<CactusBarRecursion maxFlowerGroupSize="100000000"/>
 		<!-- The maxFlowerGroupSize in cactusBarWrapper determines how many bases to allow in one "small" job which will be run using the "littleMemory" -->

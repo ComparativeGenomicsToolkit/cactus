@@ -235,7 +235,8 @@ static void msa_fix_trimmed(Msa* msa) {
     msa->column_no -= empty_columns;
 }
 
-Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no, int64_t window_size) {
+Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no, int64_t window_size,
+                                      int64_t poa_band_constant, double poa_band_fraction) {
 
     assert(seq_no > 0);
     
@@ -278,8 +279,8 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
     // abpt->gap_open2 = 24; // gap open penalty #2
     // abpt->gap_ext2 = 1;   // gap extension penalty #2
                              // gap_penalty = min{gap_open1 + gap_len * gap_ext1, gap_open2 + gap_len * gap_ext2}
-    // abpt->bw = 10;        // extra band used in adaptive banded DP
-    // abpt->bf = 0.01; 
+    abpt->wb = poa_band_constant;        // extra band used in adaptive banded DP
+    abpt->wf = poa_band_fraction;        // adaptive band is wb + wf * length 
      
     // output options
     abpt->out_msa = 1; // generate Row-Column multiple sequence alignment(RC-MSA), set 0 to disable
@@ -471,12 +472,13 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
 
 Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_lengths, char ***end_strings,
         int **end_string_lengths, int64_t **right_end_indexes, int64_t **right_end_row_indexes, int64_t **overlaps,
-        int64_t window_size) {
+        int64_t window_size, int64_t poa_band_constant, double poa_band_fraction) {
     // Calculate the initial, potentially inconsistent msas and column scores for each msa
     float *column_scores[end_no];
     Msa **msas = st_malloc(sizeof(Msa *) * end_no);
     for(int64_t i=0; i<end_no; i++) {
-        msas[i] = msa_make_partial_order_alignment(end_strings[i], end_string_lengths[i], end_lengths[i], window_size);
+        msas[i] = msa_make_partial_order_alignment(end_strings[i], end_string_lengths[i], end_lengths[i], window_size,
+                                                   poa_band_constant, poa_band_fraction);
         column_scores[i] = make_column_scores(msas[i]);
     }
 
@@ -757,7 +759,8 @@ void create_alignment_blocks(Msa *msa, Cap **row_indexes_to_caps, stList *alignm
     assert(i == msa->column_no);
 }
 
-stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_t window_size, int64_t mask_filter) {
+stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_t window_size, int64_t mask_filter,
+                                  int64_t poa_band_constant, double poa_band_fraction) {
     // Arrays of ends and connecting the strings necessary to build the POA alignment
     int64_t end_no = flower_getEndNumber(flower); // The number of ends
     int64_t end_lengths[end_no]; // The number of strings incident with each end
@@ -843,7 +846,8 @@ stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_
 
     // Now make the consistent MSAs
     Msa **msas = make_consistent_partial_order_alignments(end_no, end_lengths, end_strings, end_string_lengths,
-                                                          right_end_indexes, right_end_row_indexes, overlaps, window_size);
+                                                          right_end_indexes, right_end_row_indexes, overlaps, window_size,
+                                                          poa_band_constant, poa_band_fraction);
 
     // Temp debug output
     //for(int64_t i=0; i<end_no; i++) {

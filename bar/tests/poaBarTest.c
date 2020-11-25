@@ -55,7 +55,7 @@ void test_make_partial_order_alignment(CuTest *testCase) {
             }
 
             // generate the alignment
-            Msa *msa = msa_make_partial_order_alignment(seqs, seq_lens, seq_no, poa_window_size);
+            Msa *msa = msa_make_partial_order_alignment(seqs, seq_lens, seq_no, poa_window_size, 10, 0.01);
 
             // print the msa
             msa_print(msa, stderr);
@@ -125,7 +125,7 @@ void test_make_consistent_partial_order_alignments_two_ends(CuTest *testCase) {
 
         // generate the alignments
         Msa **msas = make_consistent_partial_order_alignments(end_no, end_lengths, end_strings, end_string_lengths,
-                                                              right_end_indexes, right_end_row_indexes, overlaps, 1000000);
+                                                              right_end_indexes, right_end_row_indexes, overlaps, 1000000, 10, 0.01);
 
         // print the msas
         for(int64_t i=0; i<end_no; i++) {
@@ -181,7 +181,7 @@ void test_make_flower_alignment_poa(CuTest *testCase) {
     }
     flower_destructEndIterator(endIterator);
 
-    stList *alignment_blocks = make_flower_alignment_poa(flower, 2, 1000000, 5);
+    stList *alignment_blocks = make_flower_alignment_poa(flower, 2, 1000000, 5, 10, 0.01);
 
     for(int64_t i=0; i<stList_length(alignment_blocks); i++) {
         AlignmentBlock *b = stList_get(alignment_blocks, i);
@@ -194,7 +194,7 @@ void test_make_flower_alignment_poa(CuTest *testCase) {
 void test_alignment_block_iterator(CuTest *testCase) {
     setup(testCase);
 
-    stList *alignment_blocks = make_flower_alignment_poa(flower, 10000, 1000000, 5);
+    stList *alignment_blocks = make_flower_alignment_poa(flower, 10000, 1000000, 5, 10, 0.01);
 
     for(int64_t i=0; i<stList_length(alignment_blocks); i++) {
         AlignmentBlock *b = stList_get(alignment_blocks, i);
