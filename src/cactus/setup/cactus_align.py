@@ -76,7 +76,7 @@ def main():
     parser.add_argument("--nonCactusInput", action="store_true",
                         help="Input lastz cigars do not come from cactus-blast or cactus-refmap: Prepend ids in cigars")
     parser.add_argument("--pangenome", action="store_true",
-                        help="Override some CAF settings whose defaults are not suited to star trees")
+                        help="Activate pangenome mode (suitable for star trees of closely related samples) by overriding several configuration settings")
     parser.add_argument("--pafInput", action="store_true",
                         help="'cigarsFile' arugment is in PAF format, rather than lastz cigars.")
     parser.add_argument("--usePafSecondaries", action="store_true",
@@ -239,9 +239,16 @@ def runCactusAfterBlastOnly(options):
 
             if options.pangenome:
                 # turn off the megablock filter as it ruins non-all-to-all alignments
-                configWrapper.disableCafMegablockFilter()
-                # the recoverable chains parameter does not seem to play nicely with star-like alignments either
-                #configWrapper.disableRecoverableChains()
+                findRequiredNode(configWrapper.xmlRoot, "caf")["minimumBlockHomologySupport"] = "0"
+                findRequiredNode(configWrapper.xmlRoot, "caf")["minimumBlockDegreeToCheckSupport"] = "9999999999"
+                # set single copy filter
+                findRequiredNode(configWrapper.xmlRoot, "caf")["alignmentFilter"] = "singleCopy"
+                # turn off mapq filtering
+                findRequiredNode(configWrapper.xmlRoot, "caf")["runMapQFiltering"] = "0"
+                # turn down minimum block degree to get a fat ancestor
+                findRequiredNode(configWrapper.xmlRoot, "bar")["minimumBlockDegree"] = "1"
+                # turn on POA
+                findRequiredNode(configWrapper.xmlRoot, "bar")["partialOrderAlignment"] = "1"
 
             workFlowArgs = CactusWorkflowArguments(options, experimentFile=experimentFile, configNode=configNode, seqIDMap = project.inputSequenceIDMap)
 
