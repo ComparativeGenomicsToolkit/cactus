@@ -358,7 +358,7 @@ int main(int argc, char *argv[]) {
     }
     
     t = clock();    
-    Msa *msa = msa_make_partial_order_alignment(seqs, seq_lens, seq_no, poaWindow);    
+    Msa *msa = msa_make_partial_order_alignment(seqs, seq_lens, seq_no, poaWindow, 10, 0.01);    
     t = clock() - t;
     double abpoaTime = ((double)t)/CLOCKS_PER_SEC;
 

@@ -75,6 +75,10 @@ void usage() {
 
     fprintf(stderr, "-m --maskFilter (int N >= 0) : Trim sequences to align at run of >=N masked bases. Only implemented for POA. [N==0 : disabled] (default=0)\n");
 
+    fprintf(stderr, "-C --partialOrderAlignmentBandConstant (int N) : abpoa \"b\" parameter where band is b+F*<length> [N<0 : adaptive banding disabled] (default=10)\n");
+
+    fprintf(stderr, "-R --partialOrderAlignmentBandFraction (float F) : abpoa \"f\" parameter where band is b+F*<length> (default=0.01)\n");
+
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -120,6 +124,8 @@ int main(int argc, char *argv[]) {
     // Note that poa uses about N^2 memory, so maximum value is generally in 10s of kb
     int64_t poaWindow = 0;
     int64_t maskFilter = 0;
+    int64_t poaBandConstant = 10; //defaults from abpoa
+    double poaBandFraction = 0.01;
 
     PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters = pairwiseAlignmentBandingParameters_construct();
 
@@ -150,12 +156,14 @@ int main(int argc, char *argv[]) {
                         {"minimumCoverageToRescue", required_argument, 0, 'M'},
                         { "minimumNumberOfSpecies", required_argument, 0, 'N' },
                         {"partialOrderAlignmentWindow", required_argument, 0, 'P'},
-                        {"maskFilter", required_argument, 0, 'm'},                                                
+                        {"maskFilter", required_argument, 0, 'm'},
+                        {"partialOrderAlignmentBandConstant", required_argument, 0, 'C'},
+                        {"partialOrderAlignmentBandFraction", required_argument, 0, 'R'},
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:b:hi:j:kl:o:p:q:r:t:u:wy:A:B:D:E:FGI:J:K:L:M:N:P:m:", long_options, &option_index);
+        int key = getopt_long(argc, argv, "a:b:hi:j:kl:o:p:q:r:t:u:wy:A:B:D:E:FGI:J:K:L:M:N:P:m:C:R:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -279,13 +287,25 @@ int main(int argc, char *argv[]) {
             case 'P':
                 i = sscanf(optarg, "%" PRIi64 "", &poaWindow);
                 if (i != 1) {
-                    st_errAbort("Error parsing poaLength parameter");
+                    st_errAbort("Error parsing partialOrderAlignmentWindow parameter");
                 }
                 break;
             case 'm':
                 i = sscanf(optarg, "%" PRIi64 "", &maskFilter);
                 if (i != 1) {
-                    st_errAbort("Error parsing poaLength parameter");
+                    st_errAbort("Error parsing maskFilter parameter");
+                }
+                break;
+            case 'C':
+                i = sscanf(optarg, "%" PRIi64 "", &poaBandConstant);
+                if (i != 1) {
+                    st_errAbort("Error parsing partialOrderAlignmentBandConstant parameter");
+                }
+                break;
+            case 'R':
+              i = sscanf(optarg, "%lf", &poaBandFraction);
+                if (i != 1) {
+                    st_errAbort("Error parsing partialOrderAlignmentBandFraction parameter");
                 }
                 break;
             default:
@@ -410,7 +430,7 @@ int main(int argc, char *argv[]) {
                  *
                  * It does not use any precomputed alignments, if they are provided they will be ignored
                  */
-                alignment_blocks = make_flower_alignment_poa(flower, maximumLength, poaWindow, maskFilter);
+                alignment_blocks = make_flower_alignment_poa(flower, maximumLength, poaWindow, maskFilter, poaBandConstant, poaBandFraction);
                 st_logInfo("Created the poa alignments: %" PRIi64 " poa alignment blocks\n", stList_length(alignment_blocks));
                 pinchIterator = stPinchIterator_constructFromAlignedBlocks(alignment_blocks);
             }

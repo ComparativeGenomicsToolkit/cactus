@@ -20,7 +20,7 @@ test-job:
     - virtualenv -p python3 venv
     - source venv/bin/activate
     - pip install -r toil-requirement.txt
-    - build-tools/downloadMiniTools
+    - build-tools/downloadPangenomeTools
     - pip install -U .	 
     - make -j 8 evolver_test
   artifacts:

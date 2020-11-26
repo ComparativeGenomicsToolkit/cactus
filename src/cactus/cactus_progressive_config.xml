@@ -161,6 +161,8 @@
    <!-- partialOrderAlignment toggles between cPecan and abpoa for the core multiple alignment algorithm.  abpoa is much faster but not as reliable for divered sequences -->
    <!-- partialOrderAlignmentWindow a sliding window approach (with hardcoded 50% overlap) is used to perform abpoa alignments.  memory is quadratic in this.  it is applied after bandingLimit -->
    <!-- partialOrderAlignmentMaskFilter trim input sequences as soon as this many soft or hard masked bases are encountered (0=disabled) -->
+   <!-- partialOrderAlignmentBand abpoa adaptive band size is <partialOrderAlignmentBand> + <partialOrderAlignmentBandFraction>*<Length>.  Negative value here disables adaptive banding -->
+   <!-- partialOrderAlignmentBandFraction abpoa adaptibe band second parameter (see above) -->
 	<bar
 		runBar="1"
 		spanningTrees="5" 
@@ -188,6 +190,8 @@
 		partialOrderAlignment="0"
 		partialOrderAlignmentWindow="10000"
 		partialOrderAlignmentMaskFilter="0"
+		partialOrderAlignmentBandConstant="10"
+		partialOrderAlignmentBandFraction="0.01"
 	>
 		<CactusBarRecursion maxFlowerGroupSize="100000000"/>
 		<!-- The maxFlowerGroupSize in cactusBarWrapper determines how many bases to allow in one "small" job which will be run using the "littleMemory" -->
@@ -256,16 +260,18 @@
 	<!-- nodeBasedUniversal: universal filter calculated in terms of nodes istead of mapped regions. -->
 	<!-- minMZBlockLength: only use minimizers that form contiguous blocks at least this long -->
 	<!-- minMAPQ: ignore minigraph alignments with mapping quality less than this -->
-	<!-- minGAFBlockLength: ignore minigraph alignments with block length less than this -->	
+	<!-- minGAFBlockLength: ignore minigraph alignments with block length less than this -->
+	<!-- minGAFNodeLength: ignore minigraph nodes with length less than this -->		
 	<graphmap
 		 assemblyName="__MINIGRAPH_SEQUENCES__"
 		 minigraphMapOptions="-S --write-mz -xasm -K4g --inv=no"
-		 universalMZFilter="1.0"
-		 nodeBasedUniversal="1"
-		 minMZBlockLength="50"
-		 minMAPQ="5"
-		 minGAFBlockLength="100000"
-		 
+		 universalMZFilter="0"
+		 nodeBasedUniversal="0"
+		 strictUniversal="0"
+		 minMZBlockLength="0"
+		 minMAPQ="0"
+		 minGAFBlockLength="0"
+		 minGAFNodeLength="200"
 	/>
   	<multi_cactus>
 		<outgroup 

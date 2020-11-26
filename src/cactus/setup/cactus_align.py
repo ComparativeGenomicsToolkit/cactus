@@ -78,7 +78,9 @@ def main():
     parser.add_argument("--pangenome", action="store_true",
                         help="Override some CAF settings whose defaults are not suited to star trees")
     parser.add_argument("--pafInput", action="store_true",
-                        help="'cigarsFile' arugment is in PAF format, rather than lastz cigars.")    
+                        help="'cigarsFile' arugment is in PAF format, rather than lastz cigars.")
+    parser.add_argument("--usePafSecondaries", action="store_true",
+                        help="use the secondary alignments from the PAF input.  They are ignored by default.")
     parser.add_argument("--database", choices=["kyoto_tycoon", "redis"],
                         help="The type of database", default="kyoto_tycoon")
 
@@ -257,12 +259,13 @@ def runCactusAfterBlastOnly(options):
                 for i in range(len(leaves)):
                     workFlowArgs.ingroupCoverageIDs.append(toil.importFile(makeURL(get_input_path('.ig_coverage_{}'.format(i)))))
 
-            halID = toil.start(Job.wrapJobFn(run_cactus_align, configWrapper, workFlowArgs, project, doRenaming=options.nonCactusInput, pafInput=options.pafInput))
+            halID = toil.start(Job.wrapJobFn(run_cactus_align, configWrapper, workFlowArgs, project, doRenaming=options.nonCactusInput, pafInput=options.pafInput,
+                                             pafSecondaries=options.usePafSecondaries))
 
         # export the hal
         toil.exportFile(halID, makeURL(options.outputHal))
 
-def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, doRenaming, pafInput):
+def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, doRenaming, pafInput, pafSecondaries):
     head_job = Job()
     job.addChild(head_job)
 
@@ -271,7 +274,7 @@ def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, doRen
         # convert the paf input to lastz format, splitting out into primary and secondary files
         paf_to_lastz_job = head_job.addChildJobFn(paf_to_lastz.paf_to_lastz, cactusWorkflowArguments.alignmentsID, True)
         cactusWorkflowArguments.alignmentsID = paf_to_lastz_job.rv(0)
-        cactusWorkflowArguments.secondaryAlignmentsID = paf_to_lastz_job.rv(1)
+        cactusWorkflowArguments.secondaryAlignmentsID = paf_to_lastz_job.rv(1) if pafSecondaries else None
 
     # do the name mangling cactus expects, where every fasta sequence starts with id=0|, id=1| etc
     # and the cigar files match up.  If reading cactus-blast output, the cigars are fine, just need
