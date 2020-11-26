@@ -265,13 +265,13 @@
 	<graphmap
 		 assemblyName="__MINIGRAPH_SEQUENCES__"
 		 minigraphMapOptions="-S --write-mz -xasm -K4g --inv=no"
-		 universalMZFilter="1.0"
-		 nodeBasedUniversal="1"
+		 universalMZFilter="0"
+		 nodeBasedUniversal="0"
 		 strictUniversal="0"
 		 minMZBlockLength="0"
-		 minMAPQ="5"
-		 minGAFBlockLength="100000"
-		 minGAFNodeLength="500"
+		 minMAPQ="0"
+		 minGAFBlockLength="0"
+		 minGAFNodeLength="200"
 	/>
   	<multi_cactus>
 		<outgroup 
