@@ -32,6 +32,7 @@ from cactus.blast.blast import calculateCoverage
 from cactus.shared.common import makeURL
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
+from cactus.shared.common import findRequiredNode
 from cactus.refmap import paf_to_lastz
 
 from toil.realtimeLogger import RealtimeLogger
@@ -64,7 +65,7 @@ def main():
                         "root for the alignment.  Any genomes not below this node "
                         "in the tree may be used as outgroups but will never appear"
                         " in the output.  If no root is specifed then the root"
-                        " of the tree is used. ", default=None, required=True)
+                        " of the tree is used. ", default=None)
     parser.add_argument("--latest", dest="latest", action="store_true",
                         help="Use the latest version of the docker container "
                         "rather than pulling one matching this version of cactus")
@@ -76,7 +77,8 @@ def main():
     parser.add_argument("--nonCactusInput", action="store_true",
                         help="Input lastz cigars do not come from cactus-blast or cactus-refmap: Prepend ids in cigars")
     parser.add_argument("--pangenome", action="store_true",
-                        help="Activate pangenome mode (suitable for star trees of closely related samples) by overriding several configuration settings")
+                        help="Activate pangenome mode (suitable for star trees of closely related samples) by overriding several configuration settings."
+                        " The overridden configuration will be saved in <outputHal>.pg-conf.xml")
     parser.add_argument("--pafInput", action="store_true",
                         help="'cigarsFile' arugment is in PAF format, rather than lastz cigars.")
     parser.add_argument("--usePafSecondaries", action="store_true",
@@ -147,6 +149,10 @@ def runCactusAfterBlastOnly(options):
                 with open(override_seq, 'w') as out_sf:
                     out_sf.write(str(seqFile))
                 options.seqFile = override_seq
+
+            if not options.root:
+                seqFile = SeqFile(options.seqFile)
+                options.root = seqFile.tree.getRootName()
 
             #to be consistent with all-in-one cactus, we make sure the project
             #isn't limiting itself to the subtree (todo: parameterize so root can
@@ -239,16 +245,20 @@ def runCactusAfterBlastOnly(options):
 
             if options.pangenome:
                 # turn off the megablock filter as it ruins non-all-to-all alignments
-                findRequiredNode(configWrapper.xmlRoot, "caf")["minimumBlockHomologySupport"] = "0"
-                findRequiredNode(configWrapper.xmlRoot, "caf")["minimumBlockDegreeToCheckSupport"] = "9999999999"
+                findRequiredNode(configWrapper.xmlRoot, "caf").attrib["minimumBlockHomologySupport"] = "0"
+                findRequiredNode(configWrapper.xmlRoot, "caf").attrib["minimumBlockDegreeToCheckSupport"] = "9999999999"
                 # set single copy filter
-                findRequiredNode(configWrapper.xmlRoot, "caf")["alignmentFilter"] = "singleCopy"
+                findRequiredNode(configWrapper.xmlRoot, "caf").attrib["alignmentFilter"] = "singleCopy"
                 # turn off mapq filtering
-                findRequiredNode(configWrapper.xmlRoot, "caf")["runMapQFiltering"] = "0"
+                findRequiredNode(configWrapper.xmlRoot, "caf").attrib["runMapQFiltering"] = "0"
                 # turn down minimum block degree to get a fat ancestor
-                findRequiredNode(configWrapper.xmlRoot, "bar")["minimumBlockDegree"] = "1"
+                findRequiredNode(configWrapper.xmlRoot, "bar").attrib["minimumBlockDegree"] = "1"
                 # turn on POA
-                findRequiredNode(configWrapper.xmlRoot, "bar")["partialOrderAlignment"] = "1"
+                findRequiredNode(configWrapper.xmlRoot, "bar").attrib["partialOrderAlignment"] = "1"
+                # save it
+                pg_file = options.outputHal + ".pg-conf.xml"
+                configWrapper.writeXML(pg_file)
+                logger.info("pangenome configuration overrides saved in {}".format(pg_file))
 
             workFlowArgs = CactusWorkflowArguments(options, experimentFile=experimentFile, configNode=configNode, seqIDMap = project.inputSequenceIDMap)
 

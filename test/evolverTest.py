@@ -184,7 +184,7 @@ class TestCase(unittest.TestCase):
 
         # do the alignment
         subprocess.check_call(['cactus-align', self._job_store(binariesMode), seq_file_path, cigar_path, self._out_hal(binariesMode),
-                               '--root', 'Anc0', '--pangenome'] + cactus_opts)            
+                               '--pangenome'] + cactus_opts)            
                 
 
     def _run_evolver_primates_graphmap(self, binariesMode):
@@ -243,7 +243,7 @@ class TestCase(unittest.TestCase):
 
         # do the alignment
         subprocess.check_call(['cactus-align', self._job_store(binariesMode), out_seq_file_path, paf_path, self._out_hal(binariesMode),
-                               '--pafInput', '--pangenome', '--root', 'Anc0'] + cactus_opts)            
+                               '--pafInput', '--pangenome'] + cactus_opts) 
                 
     def _csvstr_to_table(self, csvstr, header_fields):
         """ Hacky csv parse """
