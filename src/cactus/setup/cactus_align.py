@@ -152,7 +152,11 @@ def runCactusAfterBlastOnly(options):
 
             if not options.root:
                 seqFile = SeqFile(options.seqFile)
-                options.root = seqFile.tree.getRootName()
+                configNode = ET.parse(options.configFile).getroot()
+                config = ConfigWrapper(configNode)
+                mcTree = MultiCactusTree(seqFile.tree)
+                mcTree.nameUnlabeledInternalNodes(prefix=config.getDefaultInternalNodePrefix())
+                options.root = mcTree.getRootName()
 
             #to be consistent with all-in-one cactus, we make sure the project
             #isn't limiting itself to the subtree (todo: parameterize so root can
