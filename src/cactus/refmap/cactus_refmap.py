@@ -295,6 +295,7 @@ def get_options():
     parser.add_argument("outputFile", type=str, help = "Output pairwise alignment file")
     parser.add_argument("--pathOverrides", nargs="*", help="paths (multiple allowd) to override from seqFile")
     parser.add_argument("--pathOverrideNames", nargs="*", help="names (must be same number as --paths) of path overrides")
+    parser.add_argument("--writeSecondaries", action="store_true", help="write secondary alignments file (secondaries not written by default)")
 
     # dipcall-like filters
     parser.add_argument('--dipcall_bed_filter', action='store_true', 
@@ -395,10 +396,12 @@ def main():
         if options.dipcall_vcf_filter: # this is substantially less restrictive than the dipcall_bed_filter. 
             dipcall_filtered = workflow.start(Job.wrapJobFn(apply_dipcall_vcf_filter, alignments[0]))
             workflow.exportFile(dipcall_filtered, makeURL(options.outputFile))
-            workflow.exportFile(alignments[1], makeURL(options.outputFile + ".unfiltered.secondary"))
+            if options.writeSecondaries:
+                workflow.exportFile(alignments[1], makeURL(options.outputFile + ".unfiltered.secondary"))
         else:
             workflow.exportFile(alignments[0], makeURL(options.outputFile))
-            workflow.exportFile(alignments[1], makeURL(options.outputFile + ".secondary"))
+            if options.writeSecondaries:
+                workflow.exportFile(alignments[1], makeURL(options.outputFile + ".secondary"))
 
 if __name__ == "__main__":
     main()
