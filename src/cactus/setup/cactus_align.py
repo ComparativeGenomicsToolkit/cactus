@@ -251,8 +251,6 @@ def runCactusAfterBlastOnly(options):
                 # turn off the megablock filter as it ruins non-all-to-all alignments
                 findRequiredNode(configWrapper.xmlRoot, "caf").attrib["minimumBlockHomologySupport"] = "0"
                 findRequiredNode(configWrapper.xmlRoot, "caf").attrib["minimumBlockDegreeToCheckSupport"] = "9999999999"
-                # set single copy filter
-                findRequiredNode(configWrapper.xmlRoot, "caf").attrib["alignmentFilter"] = "singleCopy"
                 # turn off mapq filtering
                 findRequiredNode(configWrapper.xmlRoot, "caf").attrib["runMapQFiltering"] = "0"
                 # turn down minimum block degree to get a fat ancestor
