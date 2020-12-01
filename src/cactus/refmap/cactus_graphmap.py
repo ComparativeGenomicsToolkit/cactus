@@ -174,7 +174,7 @@ def make_minigraph_fasta(job, gfa_file_id, name):
 
     # note: using the toil-vg convention of naming working files manually so that logging is more readable
     work_dir = job.fileStore.getLocalTempDir()
-    gfa_path = os.path.join(work_dir, "minigraph.gfa")
+    gfa_path = os.path.join(work_dir, "mg.gfa")
     fa_path = os.path.join(work_dir, "minigraph_sequences.fa")
     
     job.fileStore.readGlobalFile(gfa_file_id, gfa_path)
@@ -209,7 +209,7 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id, ignore_s
     """ Run minigraph to map a Fasta file to a GFA graph, producing a GAF output """
 
     work_dir = job.fileStore.getLocalTempDir()
-    gfa_path = os.path.join(work_dir, "minigraph.gfa")
+    gfa_path = os.path.join(work_dir, "mg.gfa")
     fa_path = os.path.join(work_dir, "{}.fa".format(event_name))
     gaf_path = os.path.join(work_dir, "{}.gaf".format(event_name))
     

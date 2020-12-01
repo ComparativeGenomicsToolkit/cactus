@@ -166,6 +166,32 @@ bool stCaf_relaxedFilterByRepeatSpecies(stPinchSegment *segment1,
         && checkIntersection(getEvents(segment1, flower), getEvents(segment2, flower));
 }
 
+static Event* singleCopyEvent = NULL;
+void stCaf_setSingleCopyEvent(Flower* flower, char *singleCopyEventName) {
+    EventTree *eventTree = flower_getEventTree(flower);
+    singleCopyEvent = eventTree_getEventByHeader(eventTree, singleCopyEventName);
+    if (singleCopyEvent == NULL) {
+        st_logCritical("Event %s not found in this problem, supplied by alignment filter"
+                       " singleCopyEvent:%s. Alignment filtering won't be turned on for this problem.",
+                       singleCopyEventName, singleCopyEventName);
+    }
+}
+
+bool stCaf_filterBySingleCopyEvent(stPinchSegment *segment1,
+                                   stPinchSegment *segment2) {
+    bool b = false;
+    if (singleCopyEvent != NULL) {
+        stSortedSet *names1 = getEvents(segment1, flower);
+        if (stSortedSet_search(names1, singleCopyEvent) != NULL) {
+            stSortedSet *names2 = getEvents(segment2, flower);
+            b = stSortedSet_search(names2, singleCopyEvent) != NULL;
+            stSortedSet_destruct(names2);
+        }
+        stSortedSet_destruct(names1);
+    }
+    return b;
+}
+
 static stSortedSet *getChrNames(stPinchSegment *segment, Flower *flower) {
     stSortedSet *names = stSortedSet_construct();
     if (stPinchSegment_getBlock(segment) != NULL) {
