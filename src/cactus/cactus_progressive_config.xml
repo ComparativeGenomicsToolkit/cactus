@@ -271,7 +271,7 @@
 		 minMZBlockLength="0"
 		 minMAPQ="0"
 		 minGAFBlockLength="0"
-		 minGAFNodeLength="200"
+		 minGAFNodeLength="0"
 	/>
   	<multi_cactus>
 		<outgroup 

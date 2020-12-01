@@ -1,7 +1,0 @@
-#!/bin/bash
-# Download a standalone hal2vg release to include in cactus as a convenience
-# If, updating the version here, update the release notes as well
-
-rm -f hal2vg
-wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.1/hal2vg
-chmod +x hal2vg
