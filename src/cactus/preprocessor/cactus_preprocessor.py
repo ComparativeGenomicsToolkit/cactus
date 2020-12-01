@@ -40,7 +40,7 @@ from cactus.preprocessor.dnabrnnMasking import DnabrnnMaskJob
 class PreprocessorOptions:
     def __init__(self, chunkSize, memory, cpu, check, proportionToSample, unmask,
                  preprocessJob, checkAssemblyHub=None, lastzOptions=None, minPeriod=None,
-                 gpuLastz=False, dnabrnnOpts=None, dnabrnnLength=None):
+                 gpuLastz=False, dnabrnnOpts=None, dnabrnnLength=None, hardmask=None):
         self.chunkSize = chunkSize
         self.memory = memory
         self.cpu = cpu
@@ -57,6 +57,7 @@ class PreprocessorOptions:
             self.chunkSize = 0
         self.dnabrnnOpts = dnabrnnOpts
         self.dnabrnnLength = dnabrnnLength
+        self.hardmask = hardmask
 
 class CheckUniqueHeaders(RoundedJob):
     """
@@ -135,7 +136,8 @@ class PreprocessSequence(RoundedJob):
         elif self.prepOptions.preprocessJob == "dna-brnn":
             return DnabrnnMaskJob(inChunkID,
                                   minLength=self.prepOptions.dnabrnnLength,
-                                  dnabrnnOpts=self.prepOptions.dnabrnnOpts)
+                                  dnabrnnOpts=self.prepOptions.dnabrnnOpts,
+                                  hardmask=self.prepOptions.hardmask)
         else:
             raise RuntimeError("Unknown preprocess job %s" % self.prepOptions.preprocessJob)
 
@@ -224,7 +226,8 @@ class BatchPreprocessor(RoundedJob):
                                               checkAssemblyHub = getOptionalAttrib(prepNode, "checkAssemblyHub", typeFn=bool, default=False),
                                               gpuLastz = getOptionalAttrib(prepNode, "gpuLastz", typeFn=bool, default=False),
                                               dnabrnnOpts = getOptionalAttrib(prepNode, "dna-brnnOpts", default=""),
-                                              dnabrnnLength = getOptionalAttrib(prepNode, "minLength", typeFn=int, default=1))
+                                              dnabrnnLength = getOptionalAttrib(prepNode, "minLength", typeFn=int, default=1),
+                                              hardmask = getOptionalAttrib(prepNode, "hardmask", typeFn=bool, default=False))
 
             if prepOptions.unmask:
                 inSequence = fileStore.readGlobalFile(self.inSequenceID)

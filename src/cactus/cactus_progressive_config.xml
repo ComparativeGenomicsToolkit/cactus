@@ -17,7 +17,7 @@
 	<!-- Softmask alpha-satellite blocks of at least "minLength" using the dna-brnn tool -->
 	<!-- This preprocessor is off by default, and will replace the lastzRepeatMask preprocessor via command line toggle (or setting active=1)-->
 	<!-- It will attempt to load its included "attcc-alpha.knm" model by default unless a different one is specified below -->
-	<preprocessor unmask="1" memory="littleMemory" preprocessJob="dna-brnn" minLength="100000" dna-brnnOpts='-A' active="0"/>			  	
+	<preprocessor unmask="1" memory="littleMemory" preprocessJob="dna-brnn" minLength="100000" dna-brnnOpts='-A' active="0" hardmask="0"/>			  	
         <!-- Options for trimming ingroups & outgroups using the trim strategy -->
         <!-- Ingroup trim options: -->
         <!-- trimFlanking: The length of flanking sequence to attach
