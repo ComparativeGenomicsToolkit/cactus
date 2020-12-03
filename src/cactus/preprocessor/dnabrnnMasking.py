@@ -17,11 +17,10 @@ from cactus.shared.common import cactusRootPath
 from toil.realtimeLogger import RealtimeLogger
 
 class DnabrnnMaskJob(RoundedJob):
-    def __init__(self, fastaID, minLength, dnabrnnOpts, hardmask):
+    def __init__(self, fastaID, minLength, dnabrnnOpts, hardmask, cpu):
         memory = 4*1024*1024*1024
         disk = 2*(fastaID.size)
-        # todo: clean up
-        cores = cpu_count()
+        cores = min(cpu_count(), cpu)
         RoundedJob.__init__(self, memory=memory, disk=disk, cores=cores, preemptable=True)
         self.fastaID = fastaID
         self.minLength = minLength

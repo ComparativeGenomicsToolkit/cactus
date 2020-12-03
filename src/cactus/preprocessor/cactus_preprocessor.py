@@ -137,7 +137,8 @@ class PreprocessSequence(RoundedJob):
             return DnabrnnMaskJob(inChunkID,
                                   minLength=self.prepOptions.dnabrnnLength,
                                   dnabrnnOpts=self.prepOptions.dnabrnnOpts,
-                                  hardmask=self.prepOptions.hardmask)
+                                  hardmask=self.prepOptions.hardmask,
+                                  cpu=self.prepOptions.cpu)
         else:
             raise RuntimeError("Unknown preprocess job %s" % self.prepOptions.preprocessJob)
 
