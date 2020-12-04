@@ -66,7 +66,8 @@ def main():
                         help="use the secondary alignments from the PAF input.  They are ignored by default.")
     parser.add_argument("--singleCopySpecies", type=str,
                         help="Filter out all self-alignments in given species")
-
+    parser.add_argument("--barMaskFilter", type=int, default=None,
+                        help="BAR's POA aligner will ignore softmasked regions greater than this length. (shortcut for partialOrderAlignmentMaskFilter in config)")
     
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -254,6 +255,9 @@ def runCactusAfterBlastOnly(options):
 
             if options.singleCopySpecies:
                 findRequiredNode(configWrapper.xmlRoot, "caf").attrib["alignmentFilter"] = "singleCopyEvent:{}".format(options.singleCopySpecies)
+
+            if options.barMaskFilter:
+                findRequiredNode(configWrapper.xmlRoot, "bar").attrib["partialOrderAlignmentMaskFilter"] = str(options.barMaskFilter)
 
             if options.pangenome:
                 # turn off the megablock filter as it ruins non-all-to-all alignments
