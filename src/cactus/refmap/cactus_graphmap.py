@@ -37,6 +37,7 @@ from toil.common import Toil
 from toil.lib.bioio import logger
 from toil.lib.bioio import setLoggingFromOptions
 from toil.realtimeLogger import RealtimeLogger
+from toil.lib.threading import cpu_count
 
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory
@@ -94,7 +95,7 @@ def runCactusGraphMap(options):
         importSingularityImage(options)
         #Run the workflow
         if options.restart:
-            alignmentID = toil.restart()
+            paf_id, gfa_fa_id = toil.restart()
         else:
             options.cactusDir = getTempDirectory()
 
@@ -190,14 +191,17 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map, ignore_softmasked):
     # hang everything on this job, to self-contain workflow
     top_job = Job()
     job.addChild(top_job)
+
+    mg_cores = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "cpu", typeFn=int, default=1)
+    mg_cores = min(mg_cores, cpu_count())
     
     # do the mapping
     gaf_ids = []
     for event, fa_id in fa_id_map.items():
-        RealtimeLogger.info("adding child event={} faid={} gfaid={}".format(event, fa_id, gfa_id))
         minigraph_map_job = top_job.addChildJobFn(minigraph_map_one, config, event, fa_id, gfa_id,
                                                   ignore_softmasked,
-                                                  cores=1, disk=5*(fa_id.size + gfa_id.size))
+                                                  # todo: estimate RAM
+                                                  cores=mg_cores, disk=5*(fa_id.size + gfa_id.size))
         gaf_ids.append(minigraph_map_job.rv())
 
     # convert to paf

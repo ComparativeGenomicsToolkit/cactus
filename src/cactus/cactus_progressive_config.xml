@@ -261,7 +261,8 @@
 	<!-- minMZBlockLength: only use minimizers that form contiguous blocks at least this long -->
 	<!-- minMAPQ: ignore minigraph alignments with mapping quality less than this -->
 	<!-- minGAFBlockLength: ignore minigraph alignments with block length less than this -->
-	<!-- minGAFNodeLength: ignore minigraph nodes with length less than this -->		
+	<!-- minGAFNodeLength: ignore minigraph nodes with length less than this -->
+	<!-- cpu: use up to this many cpus for each minigraph command. -->
 	<graphmap
 		 assemblyName="__MINIGRAPH_SEQUENCES__"
 		 minigraphMapOptions="-S --write-mz -xasm -K4g --inv=no"
@@ -272,6 +273,7 @@
 		 minMAPQ="0"
 		 minGAFBlockLength="0"
 		 minGAFNodeLength="0"
+		 cpu="4"
 	/>
   	<multi_cactus>
 		<outgroup 
