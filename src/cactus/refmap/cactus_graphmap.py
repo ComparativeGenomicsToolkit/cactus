@@ -276,7 +276,10 @@ def merge_gafs_into_paf(job, config, gaf_file_ids):
         mzgaf2paf_opts += ['-b', str(gaf_block)]
     gaf_node = getOptionalAttrib(xml_node, "minGAFNodeLength", int)
     if gaf_node:
-        mzgaf2paf_opts += ['-s', str(gaf_node)]        
+        mzgaf2paf_opts += ['-s', str(gaf_node)]
+    overlap_filter_len = getOptionalAttrib(xml_node, "minGAFQueryOverlapFitler", int)
+    if overlap_filter_len:
+        mzgaf2paf_opts += ['-o', str(overlap_filter_len)]
 
     cactus_call(work_dir=work_dir, outfile=paf_path, parameters=["mzgaf2paf"] + gaf_paths + mzgaf2paf_opts)
 

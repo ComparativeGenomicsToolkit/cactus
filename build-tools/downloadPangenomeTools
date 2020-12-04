@@ -91,7 +91,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://github.com/glennhickey/mzgaf2paf.git
 cd mzgaf2paf
-git checkout 17c04625abd6ab432ee217eda712bc09c3466ea4
+git checkout dcf67cf08f7dd8f2f8281817b81410fbc77f43db
 CXXFLAGS="-static" make -j 4
 if [ $(ldd mzgaf2paf | grep so | wc -l) -eq 0 ]
 then
