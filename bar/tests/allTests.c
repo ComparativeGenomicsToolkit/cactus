@@ -19,14 +19,11 @@ CuSuite* poaBarAlignerTestSuite(void);
 int stBaseAlignerRunAllTests(void) {
 	CuString *output = CuStringNew();
 	CuSuite* suite = CuSuiteNew();
-
-    CuSuiteAddSuite(suite, poaBarAlignerTestSuite());
-
-	/*CuSuiteAddSuite(suite, adjacencySequenceTestSuite());
+	CuSuiteAddSuite(suite, adjacencySequenceTestSuite());
 	CuSuiteAddSuite(suite, endAlignerTestSuite());
 	CuSuiteAddSuite(suite, flowerAlignerTestSuite());
     CuSuiteAddSuite(suite, rescueTestSuite());
-    CuSuiteAddSuite(suite, poaBarAlignerTestSuite());*/
+    CuSuiteAddSuite(suite, poaBarAlignerTestSuite());
     CuSuiteRun(suite);
 	CuSuiteSummary(suite, output);
 	CuSuiteDetails(suite, output);
