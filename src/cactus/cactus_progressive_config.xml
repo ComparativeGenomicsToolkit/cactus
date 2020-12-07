@@ -262,7 +262,7 @@
 	<!-- minMAPQ: ignore minigraph alignments with mapping quality less than this -->
 	<!-- minGAFBlockLength: ignore minigraph alignments with block length less than this -->
 	<!-- minGAFNodeLength: ignore minigraph nodes with length less than this -->
-	<!-- minGAFQueryOverlapFitler: if 2 or more query regions in blocks of at least this size, filter them out. -->
+	<!-- minGAFQueryOverlapFilter: if 2 or more query regions in blocks of at least this size, filter them out. -->
 	<!--                           if 1 query region in a block of at least this size overlaps query regions in blocks smaller than this, filter out the smaller ones -->
 	<!--                           Filter is disabled when set to 0.  Any non-zero value will prevent query overlaps -->
 	<!-- cpu: use up to this many cpus for each minigraph command. -->
@@ -276,7 +276,7 @@
 		 minMAPQ="0"
 		 minGAFBlockLength="0"
 		 minGAFNodeLength="0"
-		 minGAFQueryOverlapFitler="10000"
+		 minGAFQueryOverlapFilter="10000"
 		 cpu="4"
 	/>
   	<multi_cactus>

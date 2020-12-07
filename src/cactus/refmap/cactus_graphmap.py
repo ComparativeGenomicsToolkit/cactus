@@ -277,7 +277,7 @@ def merge_gafs_into_paf(job, config, gaf_file_ids):
     gaf_node = getOptionalAttrib(xml_node, "minGAFNodeLength", int)
     if gaf_node:
         mzgaf2paf_opts += ['-s', str(gaf_node)]
-    overlap_filter_len = getOptionalAttrib(xml_node, "minGAFQueryOverlapFitler", int)
+    overlap_filter_len = getOptionalAttrib(xml_node, "minGAFQueryOverlapFilter", int)
     if overlap_filter_len:
         mzgaf2paf_opts += ['-o', str(overlap_filter_len)]
 
