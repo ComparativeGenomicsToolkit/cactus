@@ -268,7 +268,7 @@
 	<!-- cpu: use up to this many cpus for each minigraph command. -->
 	<graphmap
 		 assemblyName="__MINIGRAPH_SEQUENCES__"
-		 minigraphMapOptions="-S --write-mz -xasm -K4g --inv=no"
+		 minigraphMapOptions="-S --write-mz -xasm"
 		 universalMZFilter="0"
 		 nodeBasedUniversal="0"
 		 strictUniversal="0"
