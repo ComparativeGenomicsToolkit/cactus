@@ -265,6 +265,7 @@
 	<!-- minGAFQueryOverlapFilter: if 2 or more query regions in blocks of at least this size, filter them out. -->
 	<!--                           if 1 query region in a block of at least this size overlaps query regions in blocks smaller than this, filter out the smaller ones -->
 	<!--                           Filter is disabled when set to 0.  Any non-zero value will prevent query overlaps -->
+	<!-- maskFilter: any softmasked sequence intervals > than this many bp will be hardmasked before being read by the minigraph mapper [negative value = disable]-->
 	<!-- cpu: use up to this many cpus for each minigraph command. -->
 	<graphmap
 		 assemblyName="__MINIGRAPH_SEQUENCES__"
@@ -277,6 +278,7 @@
 		 minGAFBlockLength="0"
 		 minGAFNodeLength="0"
 		 minGAFQueryOverlapFilter="10000"
+		 maskFilter="-1"
 		 cpu="4"
 	/>
   	<multi_cactus>

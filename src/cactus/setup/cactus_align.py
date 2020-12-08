@@ -67,7 +67,7 @@ def main():
     parser.add_argument("--singleCopySpecies", type=str,
                         help="Filter out all self-alignments in given species")
     parser.add_argument("--barMaskFilter", type=int, default=None,
-                        help="BAR's POA aligner will ignore softmasked regions greater than this length. (shortcut for partialOrderAlignmentMaskFilter in config)")
+                        help="BAR's POA aligner will ignore softmasked regions greater than this length. (overrides partialOrderAlignmentMaskFilter in config)")
     
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",

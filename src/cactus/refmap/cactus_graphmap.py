@@ -52,7 +52,7 @@ def main():
     parser.add_argument("minigraphGFA", help = "Minigraph-compatible reference graph in GFA format (can be gzipped)")
     parser.add_argument("outputPAF", type=str, help = "Output pairwise alignment file in PAF format")
     parser.add_argument("--outputFasta", type=str, help = "Output graph sequence file in FASTA format (required if not present in seqFile)")
-    parser.add_argument("--ignoreSoftmasked", action="store_true", help = "Ignore softmasked sequence (by hardmasking before sending to minigraph)")
+    parser.add_argument("--maskFilter", type=int, help = "Ignore softmasked sequence intervals > Nbp (overrides config option of same name)")
 
     #WDL hacks
     parser.add_argument("--pathOverrides", nargs="*", help="paths (multiple allowed) to override from seqFile")
@@ -122,6 +122,10 @@ def runCactusGraphMap(options):
             config = ConfigWrapper(configNode)
             config.substituteAllPredefinedConstantsWithLiterals()
 
+            #apply the maskfilter override
+            if options.maskFilter is not None:
+                findRequiredNode(configNode, "graphmap").attrib["maskFilter"] = str(options.maskFilter)
+
             # get the minigraph "virutal" assembly name
             graph_event = getOptionalAttrib(findRequiredNode(configNode, "graphmap"), "assemblyName", default="__MINIGRAPH_SEQUENCES__")
 
@@ -173,7 +177,7 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event):
         fa_job = job.addChildJobFn(make_minigraph_fasta, gfa_id, graph_event)
         fa_id = fa_job.rv()
     
-    paf_job = job.addChildJobFn(minigraph_map_all, config, gfa_id, seq_id_map, cactus_id_map, graph_event, options.ignoreSoftmasked)
+    paf_job = job.addChildJobFn(minigraph_map_all, config, gfa_id, seq_id_map, cactus_id_map, graph_event)
 
     return paf_job.rv(), fa_id                                
         
@@ -192,7 +196,7 @@ def make_minigraph_fasta(job, gfa_file_id, name):
 
     return job.fileStore.writeGlobalFile(fa_path)
 
-def minigraph_map_all(job, config, gfa_id, fa_id_map, cactus_id_map, graph_event, ignore_softmasked):
+def minigraph_map_all(job, config, gfa_id, fa_id_map, cactus_id_map, graph_event):
     """ top-level job to run the minigraph mapping in parallel, returns paf """
     
     # hang everything on this job, to self-contain workflow
@@ -207,7 +211,6 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map, cactus_id_map, graph_event
     for event, fa_id in fa_id_map.items():
         cactus_id = cactus_id_map[event] if cactus_id_map else None
         minigraph_map_job = top_job.addChildJobFn(minigraph_map_one, config, event, fa_id, gfa_id, cactus_id,
-                                                  ignore_softmasked,
                                                   # todo: estimate RAM
                                                   cores=mg_cores, disk=5*(fa_id.size + gfa_id.size))
         gaf_ids.append(minigraph_map_job.rv())
@@ -218,7 +221,7 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map, cactus_id_map, graph_event
 
     return paf_job.rv()
 
-def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id, cactus_id, ignore_softmasked):
+def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id, cactus_id):
     """ Run minigraph to map a Fasta file to a GFA graph, producing a GAF output """
 
     work_dir = job.fileStore.getLocalTempDir()
@@ -251,9 +254,10 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id, cactus_i
            os.path.basename(fa_path),
            "-o", os.path.basename(gaf_path)] + opts_list
 
-    if ignore_softmasked:
+    mask_filter = getOptionalAttrib(xml_node, "maskFilter", int, default=-1)
+    if mask_filter >= 0:
         cmd[2] = '-'
-        cmd = [['cactus_softmask2hardmask', os.path.basename(fa_path)], cmd]
+        cmd = [['cactus_softmask2hardmask', os.path.basename(fa_path), '-m', str(mask_filter)], cmd]
     
     # todo: pipe into gzip directly as these files can be huge!!! (requires gzip support be added to mzgaf2paf)
     cactus_call(work_dir=work_dir, parameters=cmd)

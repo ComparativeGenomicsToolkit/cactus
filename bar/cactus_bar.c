@@ -73,7 +73,7 @@ void usage() {
 
     fprintf(stderr, "-P --partialOrderAlignmentWindow (int >= 0): Use partial order aligner instead of Pecan for multiple alignment subproblems, on blocks up to given length (0=disable POA).\n");
 
-    fprintf(stderr, "-m --maskFilter (int N >= 0) : Trim sequences to align at run of >=N masked bases. Only implemented for POA. [N==0 : disabled] (default=0)\n");
+    fprintf(stderr, "-m --maskFilter (int N >= 0) : Trim sequences to align at run of >N masked bases. Only implemented for POA. [N==0 : disabled] (default=0)\n");
 
     fprintf(stderr, "-C --partialOrderAlignmentBandConstant (int N) : abpoa \"b\" parameter where band is b+F*<length> [N<0 : adaptive banding disabled] (default=10)\n");
 
