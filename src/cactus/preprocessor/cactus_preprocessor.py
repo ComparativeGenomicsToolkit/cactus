@@ -305,11 +305,35 @@ def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=F
         ConfigWrapper(configNode).setPreprocessorActive("dna-brnn", True)
     if not restart:
         inputSequenceIDs = [toil.importFile(makeURL(seq)) for seq in inputSequences]
-        outputSequenceIDs = toil.start(CactusPreprocessor(inputSequenceIDs, configNode))
+        unzip_job = Job.wrapJobFn(unzip_gzs, inputSequences, inputSequenceIDs)
+        unzip_job.addFollowOn(CactusPreprocessor([unzip_job.rv(i) for i in range(len(inputSequenceIDs))], configNode))
+        outputSequenceIDs = toil.start(unzip_job)
     else:
         outputSequenceIDs = toil.restart()
     for seqID, path in zip(outputSequenceIDs, outputSequences):
         toil.exportFile(seqID, makeURL(path))
+
+def unzip_gzs(job, input_fa_paths, input_fa_ids):
+    """ go through a list of fasta paths and unzip any that end with .gz and return a list 
+    of updated ids.  files that don't end in .gz are just passed through.  relying on the extension
+    is pretty fragile but better than nothing """
+    unzipped_ids = []
+    for fa_path, fa_id in zip(input_fa_paths, input_fa_ids):
+        if fa_path.endswith('.gz'):
+            unzip_job = job.addChildJobFn(unzip_gz, fa_path, fa_id, disk=10*fa_id.size)
+            unzipped_ids.append(unzip_job.rv())
+        else:
+            unzipped_ids.append(fa_id)
+    return unzipped_ids
+
+def unzip_gz(job, input_fa_path, input_fa_id):
+    """ unzip a single file """
+    work_dir = job.fileStore.getLocalTempDir()
+    assert input_fa_path.endswith('.gz')
+    fa_path = os.path.join(work_dir, os.path.basename(input_fa_path))
+    job.fileStore.readGlobalFile(input_fa_id, fa_path, mutable=True)
+    cactus_call(parameters=['gzip', '-d', os.path.basename(fa_path)], work_dir=work_dir)
+    return job.fileStore.writeGlobalFile(fa_path[:-3])
 
 def runCactusPreprocessor(outputSequenceDir, configFile, inputSequences, toilDir):
     toilOptions = Job.Runner.getDefaultOptions(toilDir)
