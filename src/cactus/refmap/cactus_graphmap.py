@@ -53,6 +53,7 @@ def main():
     parser.add_argument("outputPAF", type=str, help = "Output pairwise alignment file in PAF format")
     parser.add_argument("--outputFasta", type=str, help = "Output graph sequence file in FASTA format (required if not present in seqFile)")
     parser.add_argument("--maskFilter", type=int, help = "Ignore softmasked sequence intervals > Nbp (overrides config option of same name)")
+    parser.add_argument("--outputGAFDir", type=str, help = "Output GAF alignments (raw minigraph output before PAF conversion) to this directory")
 
     #WDL hacks
     parser.add_argument("--pathOverrides", nargs="*", help="paths (multiple allowed) to override from seqFile")
@@ -77,6 +78,10 @@ def main():
     setLoggingFromOptions(options)
     enableDumpStack()
 
+    if options.outputGAFDir:
+        if not os.path.isdir(options.outputGAFDir):
+            os.makedirs(options.outputGAFDir)
+
     if (options.pathOverrides or options.pathOverrideNames):
         if not options.pathOverrides or not options.pathOverrideNames or \
            len(options.pathOverrideNames) != len(options.pathOverrides):
@@ -96,7 +101,7 @@ def runCactusGraphMap(options):
         importSingularityImage(options)
         #Run the workflow
         if options.restart:
-            paf_id, gfa_fa_id = toil.restart()
+            paf_id, gfa_fa_id, gaf_id_map = toil.restart()
         else:
             options.cactusDir = getTempDirectory()
 
@@ -153,12 +158,18 @@ def runCactusGraphMap(options):
                     seqIDMap[genome] = toil.importFile(seq)
 
             # run the workflow
-            paf_id, gfa_fa_id = toil.start(Job.wrapJobFn(minigraph_workflow, options, config, seqIDMap, gfa_id, graph_event))
+            paf_id, gfa_fa_id, gaf_id_map = toil.start(Job.wrapJobFn(minigraph_workflow, options, config, seqIDMap, gfa_id, graph_event))
 
         #export the paf
         toil.exportFile(paf_id, makeURL(options.outputPAF))
         if gfa_fa_id:
             toil.exportFile(gfa_fa_id, makeURL(options.outputFasta))
+
+        #export the gafs
+        if options.outputGAFDir:
+            for event, gaf_id in gaf_id_map.items():
+                gaf_path = os.path.join(options.outputGAFDir, '{}.gaf'.format(event))
+                toil.exportFile(gaf_id, makeURL(gaf_path))
 
         # update the input seqfile (in place!)
         if options.outputFasta:
@@ -177,9 +188,9 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event):
         fa_job = job.addChildJobFn(make_minigraph_fasta, gfa_id, graph_event)
         fa_id = fa_job.rv()
     
-    paf_job = job.addChildJobFn(minigraph_map_all, config, gfa_id, seq_id_map, cactus_id_map, graph_event)
+    paf_job = job.addChildJobFn(minigraph_map_all, config, gfa_id, seq_id_map, cactus_id_map, graph_event, options.outputGAFDir is not None)
 
-    return paf_job.rv(), fa_id                                
+    return paf_job.rv(0), fa_id, paf_job.rv(1)
         
 def make_minigraph_fasta(job, gfa_file_id, name):
     """ Use gfatools to make the minigraph "assembly" """
@@ -196,7 +207,7 @@ def make_minigraph_fasta(job, gfa_file_id, name):
 
     return job.fileStore.writeGlobalFile(fa_path)
 
-def minigraph_map_all(job, config, gfa_id, fa_id_map, cactus_id_map, graph_event):
+def minigraph_map_all(job, config, gfa_id, fa_id_map, cactus_id_map, graph_event, keep_gaf):
     """ top-level job to run the minigraph mapping in parallel, returns paf """
     
     # hang everything on this job, to self-contain workflow
@@ -207,19 +218,23 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map, cactus_id_map, graph_event
     mg_cores = min(mg_cores, cpu_count())
     
     # do the mapping
-    gaf_ids = []
+    gaf_id_map = {}
+                
     for event, fa_id in fa_id_map.items():
         cactus_id = cactus_id_map[event] if cactus_id_map else None
         minigraph_map_job = top_job.addChildJobFn(minigraph_map_one, config, event, fa_id, gfa_id, cactus_id,
                                                   # todo: estimate RAM
                                                   cores=mg_cores, disk=5*(fa_id.size + gfa_id.size))
-        gaf_ids.append(minigraph_map_job.rv())
+        gaf_id_map[event] = minigraph_map_job.rv()
 
     # convert to paf
-    paf_job = top_job.addFollowOnJobFn(merge_gafs_into_paf, config, gaf_ids,
+    paf_job = top_job.addFollowOnJobFn(merge_gafs_into_paf, config, gaf_id_map,
                                        cactus_id_map[graph_event] if cactus_id_map else None)
 
-    return paf_job.rv()
+    if not keep_gaf:
+        gaf_id_map = None
+        
+    return paf_job.rv(), gaf_id_map
 
 def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id, cactus_id):
     """ Run minigraph to map a Fasta file to a GFA graph, producing a GAF output """
@@ -264,14 +279,14 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id, cactus_i
 
     return job.fileStore.writeGlobalFile(gaf_path)
 
-def merge_gafs_into_paf(job, config, gaf_file_ids, cactus_mg_graph_id):
+def merge_gafs_into_paf(job, config, gaf_file_id_map, cactus_mg_graph_id):
     """ Merge GAF alignments into a single PAF, applying some filters """
 
     work_dir = job.fileStore.getLocalTempDir()
     paf_path = os.path.join(work_dir, "mz_alignments.paf")
     gaf_paths = []
-    for i, gaf_id in enumerate(gaf_file_ids):
-        gaf_paths.append("mz_alignment_{}.gaf".format(i))
+    for event, gaf_id in gaf_file_id_map.items():
+        gaf_paths.append("{}.gaf".format(event))
         job.fileStore.readGlobalFile(gaf_id, os.path.join(work_dir, gaf_paths[-1]))
 
     xml_node = findRequiredNode(config.xmlRoot, "graphmap")
@@ -303,10 +318,6 @@ def merge_gafs_into_paf(job, config, gaf_file_ids, cactus_mg_graph_id):
         mzgaf2paf_opts += ['-o', str(overlap_filter_len)]
 
     cactus_call(work_dir=work_dir, outfile=paf_path, parameters=["mzgaf2paf"] + gaf_paths + mzgaf2paf_opts)
-
-    # these are big, get rid of them as soon as we can (which is now)
-    for gaf_id in gaf_file_ids:
-        job.fileStore.deleteGlobalFile(gaf_id)
 
     return job.fileStore.writeGlobalFile(paf_path)
                                                
