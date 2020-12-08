@@ -113,11 +113,6 @@ def main():
             if cpu_count() < 2:
                 raise RuntimeError('Only 1 CPU detected.  Cactus requires at least 2')
 
-    if options.pafInput:
-        # cactus-graphmap does not do any prepending to simplify interface with minigraph node names
-        # so it must be done here
-        options.nonCactusInput = True
-
     options.buildHal = True
     options.buildFasta = True
 
