@@ -135,7 +135,6 @@ class PreprocessSequence(RoundedJob):
                                       targetIDs=seqIDs)
         elif self.prepOptions.preprocessJob == "dna-brnn":
             return DnabrnnMaskJob(inChunkID,
-                                  minLength=self.prepOptions.dnabrnnLength,
                                   dnabrnnOpts=self.prepOptions.dnabrnnOpts,
                                   hardmask=self.prepOptions.hardmask,
                                   cpu=self.prepOptions.cpu)

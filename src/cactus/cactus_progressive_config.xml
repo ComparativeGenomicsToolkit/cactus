@@ -14,10 +14,10 @@
 	<preprocessor check="1" memory="littleMemory" preprocessJob="checkUniqueHeaders" checkAssemblyHub="1" active="1"/>
 	<!-- The preprocessor for cactus_lastzRepeatMask masks every seed that is part of more than XX other alignments, this stops a combinatorial explosion in pairwise alignments -->
 	<preprocessor unmask="0" chunkSize="3000000" proportionToSample="0.2" memory="littleMemory" preprocessJob="lastzRepeatMask" minPeriod="50" lastzOpts='--step=3 --ambiguous=iupac,100,100 --ungapped --queryhsplimit=keep,nowarn:1500' gpuLastz="false" active="1"/>
-	<!-- Softmask alpha-satellite blocks of at least "minLength" using the dna-brnn tool -->
+	<!-- Softmask alpha-satellite using the dna-brnn tool -->
 	<!-- This preprocessor is off by default, and will replace the lastzRepeatMask preprocessor via command line toggle (or setting active=1)-->
 	<!-- It will attempt to load its included "attcc-alpha.knm" model by default unless a different one is specified below -->
-	<preprocessor unmask="1" memory="littleMemory" preprocessJob="dna-brnn" minLength="100000" dna-brnnOpts='-A' active="0" hardmask="0" cpu="2"/>
+	<preprocessor unmask="1" memory="littleMemory" preprocessJob="dna-brnn" dna-brnnOpts='-A' active="0" hardmask="0" cpu="2"/>
         <!-- Options for trimming ingroups & outgroups using the trim strategy -->
         <!-- Ingroup trim options: -->
         <!-- trimFlanking: The length of flanking sequence to attach

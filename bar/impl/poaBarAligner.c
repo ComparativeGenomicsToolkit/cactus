@@ -545,7 +545,7 @@ char *get_adjacency_string(Cap *cap, int *length) {
  * @param seq_length : The length of the string
  * @param length : The maximum length we want to search in
  * @param reversed : If true, scan from the end of the string
- * @param mask_filter : Cut a string as soon as we hit this more than many hard or softmasked bases (cut is before first masked base)
+ * @param mask_filter : Cut a string as soon as we hit more than this many hard or softmasked bases (cut is before first masked base)
  * @return length of the filtered string
  */
 static int get_unmasked_length(char* seq, int64_t seq_length, int64_t length, bool reversed, int64_t mask_filter) {

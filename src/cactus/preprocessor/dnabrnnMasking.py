@@ -17,7 +17,7 @@ from cactus.shared.common import cactusRootPath
 from toil.realtimeLogger import RealtimeLogger
 
 class DnabrnnMaskJob(RoundedJob):
-    def __init__(self, fastaID, minLength, dnabrnnOpts, hardmask, cpu):
+    def __init__(self, fastaID, dnabrnnOpts, hardmask, cpu, minLength=None):
         memory = 4*1024*1024*1024
         disk = 2*(fastaID.size)
         cores = min(cpu_count(), cpu)
@@ -49,7 +49,9 @@ class DnabrnnMaskJob(RoundedJob):
 
         maskedFile = fileStore.getLocalTempFile()
 
-        mask_cmd = ['cactus_fasta_softmask_intervals.py', '--origin=zero', '--minLength={}'.format(self.minLength), bedFile]
+        mask_cmd = ['cactus_fasta_softmask_intervals.py', '--origin=zero', bedFile]
+        if self.minLength:
+            mask_cmd += '--minLength={}'.format(self.minLength)
 
         if self.hardmask:
             mask_cmd += ['--mask=N']
