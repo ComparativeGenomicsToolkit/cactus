@@ -190,8 +190,8 @@
 		partialOrderAlignment="0"
 		partialOrderAlignmentWindow="10000"
 		partialOrderAlignmentMaskFilter="0"
-		partialOrderAlignmentBandConstant="10"
-		partialOrderAlignmentBandFraction="0.01"
+		partialOrderAlignmentBandConstant="100"
+		partialOrderAlignmentBandFraction="0.05"
 	>
 		<CactusBarRecursion maxFlowerGroupSize="100000000"/>
 		<!-- The maxFlowerGroupSize in cactusBarWrapper determines how many bases to allow in one "small" job which will be run using the "littleMemory" -->
