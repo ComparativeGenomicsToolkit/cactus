@@ -264,6 +264,8 @@ def runCactusAfterBlastOnly(options):
                 findRequiredNode(configWrapper.xmlRoot, "bar").attrib["minimumBlockDegree"] = "1"
                 # turn on POA
                 findRequiredNode(configWrapper.xmlRoot, "bar").attrib["partialOrderAlignment"] = "1"
+                # boost up the BAR sequence length (better pruned using the mask filters)
+                findRequiredNode(configWrapper.xmlRoot, "bar").attrib["bandingLimit"] = "50000000"
                 # save it
                 pg_file = options.outputHal + ".pg-conf.xml"
                 configWrapper.writeXML(pg_file)
