@@ -156,23 +156,17 @@ def run_prepend_unique_ids(job, assembly_files):
     Ensures all input sequences from assembly_files have unique names.
     This is adapted from run_prepend_unique_ids in cactus_align, in order to maintain order-dependent renamings.
     Because cactus-reference-align assumes that all input sequences are ingroups, it does not attempt to avoid renaming outgroup genomes.  
-    """
-    print("assembly_files", assembly_files)
-    sequences = [job.fileStore.readGlobalFile(id) for id in assembly_files.values()]
-    print("sequences", sequences)
-    renamedInputSeqDir = job.fileStore.getLocalTempDir()
-    id_map = {}
-    uniqueFas = prependUniqueIDs(sequences, renamedInputSeqDir, id_map)
-    print("uniqueFas", uniqueFas)
-    uniqueFaIDs = [job.fileStore.writeGlobalFile(seq, cleanup=True) for seq in uniqueFas]
-    print("uniqueFaIDs", uniqueFaIDs)
-    i = 0
-    for assembly in assembly_files:
-        assembly_files[assembly] = uniqueFaIDs[i]
-        i += 1
-    print("assembly_files", assembly_files)
+    """    
+    # note: cactus now determines ids alphabetically, so we sort here to match that
+    events = sorted(assembly_files.keys())
+    # download all the sequence files
+    sequence_paths = [job.fileStore.readGlobalFile(assembly_files[event]) for event in events]
+    # prepend unique id to each one
+    prepended_sequence_paths = prependUniqueIDs(sequence_paths, job.fileStore.getLocalTempDir())
+    # write the prepended files back to the job store and return the dict
+    for event, prepended_sequence_path in zip(events, prepended_sequence_paths):
+        assembly_files[event] = job.fileStore.writeGlobalFile(prepended_sequence_path, cleanup=True)
     return assembly_files
-
 
 ## mapping fxns:
 
