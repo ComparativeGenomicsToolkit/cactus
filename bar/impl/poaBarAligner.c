@@ -153,7 +153,7 @@ static void trim(int64_t row1, Msa *msa1, float *column_scores1,
     if(overlap == 0) { // There is no overlap, so no need to trim either MSA
         return;
     }
-    assert(overlap > 0); // Otherwise the overlap must be positivie
+    assert(overlap > 0); // Otherwise the overlap must be positive
 
     int64_t seq_len1 = msa1->seq_lens[row1]; // The prefix length of the forward complement sequence in the first MSA
     int64_t seq_len2 = msa2->seq_lens[row2]; // The prefix length of the reverse complement sequence in the second MSA
@@ -492,7 +492,7 @@ Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_leng
             // If it hasn't already been trimmed
             if(right_end_index > i || (right_end_index == i /* self loop */ && right_end_row_index > j)) {
                 trim(j, msa, column_scores[i],
-                        right_end_row_index, msas[right_end_index], column_scores[right_end_index], overlaps[i][j]) ;
+                        right_end_row_index, msas[right_end_index], column_scores[right_end_index], overlaps[i][j]);
             }
         }
     }
@@ -587,15 +587,12 @@ char *get_adjacency_string_and_overlap(Cap *cap, int *length, int64_t *overlap, 
     // Calculate the length of the prefix up to max_seq_length
     *length = seq_length > max_seq_length ? max_seq_length : seq_length;
     assert(*length >= 0);
+    int length_backward = *length;
 
     if (mask_filter > 0) {
         // apply the mask filter on the forward strand
-        int unmasked_length = get_unmasked_length(adjacency_string, seq_length, *length, false, mask_filter);
-        if (unmasked_length < *length) {
-            // if anything got filtered, check the reverse strand and take the minimum, this way the same
-            // length is returned no matter which strand we're on
-            *length = get_unmasked_length(adjacency_string, seq_length, unmasked_length, true, mask_filter);
-        }
+        *length = get_unmasked_length(adjacency_string, seq_length, *length, true, mask_filter);
+        length_backward = get_unmasked_length(adjacency_string, seq_length, *length, false, mask_filter);
     }
 
     // Cleanup the string
@@ -605,11 +602,10 @@ char *get_adjacency_string_and_overlap(Cap *cap, int *length, int64_t *overlap, 
     adjacency_string = c;
 
     // Calculate the overlap with the reverse complement
-    if(2*(*length) > seq_length) { // There is overlap
-        *overlap = 2*(*length) - seq_length;
+    if (*length + length_backward > seq_length) { // There is overlap
+        *overlap = *length + length_backward - seq_length;
         assert(*overlap >= 0);
-    }
-    else { // There is no overlap
+    } else { // There is no overlap
         *overlap = 0;
     }
 
