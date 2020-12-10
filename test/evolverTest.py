@@ -175,7 +175,7 @@ class TestCase(unittest.TestCase):
 
         # do the mapping
         cigar_path = os.path.join(self.tempDir, 'aln.cigar')
-        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir]
+        cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', '/home/hickey/dev/cactus/tontan', '--cleanWorkDir', 'never']
         # todo: it'd be nice to have an interface for setting tag to something not latest or commit
         if binariesMode == 'docker':
             cactus_opts += ['--latest']
@@ -239,7 +239,7 @@ class TestCase(unittest.TestCase):
             cactus_opts += ['--latest']
         
         subprocess.check_call(['cactus-graphmap', self._job_store(binariesMode), out_seq_file_path, mg_path, paf_path,
-                               '--outputFasta', fa_path, '--ignoreSoftmasked'] + cactus_opts)
+                               '--outputFasta', fa_path, '--maskFilter', '10000'] + cactus_opts)
 
         # do the alignment
         subprocess.check_call(['cactus-align', self._job_store(binariesMode), out_seq_file_path, paf_path, self._out_hal(binariesMode),
