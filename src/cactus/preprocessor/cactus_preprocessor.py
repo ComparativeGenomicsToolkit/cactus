@@ -204,7 +204,7 @@ class BatchPreprocessor(RoundedJob):
         self.prepXmlElems = prepXmlElems
         self.inSequenceID = inSequenceID
         self.iteration = iteration
-        RoundedJob.__init__(self, preemptable=True)
+        RoundedJob.__init__(self, preemptable=True, disk=2*inSequenceID.size)
 
     def run(self, fileStore):
         # Parse the "preprocessor" config xml element
