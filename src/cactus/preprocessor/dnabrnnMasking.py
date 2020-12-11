@@ -23,7 +23,7 @@ def loadDnaBrnnModel(toil, configNode, maskAlpha = False):
     """ store the model in a toil file id so it can be used in any workflow """
     for prepXml in configNode.findall("preprocessor"):
         if prepXml.attrib["preprocessJob"] == "dna-brnn":
-            if maskAlpha or getOptionalAttrib(prepXml, "active", type_fn=bool, default=False):
+            if maskAlpha or getOptionalAttrib(prepXml, "active", typeFn=bool, default=False):
                 dnabrnnOpts = getOptionalAttrib(prepXml, "dna-brnnOpts", default="")
                 if '-i' in dnabrnnOpts:
                     model_path = dnabrnnOpts[dnabrnnOpts.index('-i') + 1]
