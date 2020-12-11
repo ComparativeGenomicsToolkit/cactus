@@ -29,7 +29,7 @@ from cactus.pipeline.cactus_workflow import CactusTrimmingBlastPhase
 from cactus.pipeline.cactus_workflow import CactusSetupCheckpoint
 from cactus.pipeline.cactus_workflow import prependUniqueIDs
 from cactus.blast.blast import calculateCoverage
-from cactus.shared.common import makeURL
+from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import findRequiredNode
