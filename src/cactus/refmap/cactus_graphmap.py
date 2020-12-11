@@ -168,7 +168,7 @@ def runCactusGraphMap(options):
         #export the gafs
         if options.outputGAFDir:
             for event, gaf_id in gaf_id_map.items():
-                gaf_path = os.path.join(options.outputGAFDir, '{}.gaf'.format(event))
+                gaf_path = os.path.join(options.outputGAFDir, '{}.gaf.gz'.format(event))
                 toil.exportFile(gaf_id, makeURL(gaf_path))
 
         # update the input seqfile (in place!)
@@ -244,6 +244,8 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map, cactus_id_map, graph_event
 
     if not keep_gaf:
         gaf_id_map = None
+    else:
+        gaf_id_map = paf_job.addFollowOnJobFn(compress_gafs, gaf_id_map).rv()
         
     return paf_job.rv(), gaf_id_map
 
@@ -345,6 +347,18 @@ def merge_pafs(job, paf_file_id_map):
     merged_path = job.fileStore.getLocalTempFile()
     catFiles(paf_paths, merged_path)
     return job.fileStore.writeGlobalFile(merged_path)
+
+def compress_gafs(job, gaf_file_id_map):
+    for event, file_id in gaf_file_id_map.items():
+        gaf_file_id_map[event] = job.addChildJobFn(compress_gaf, file_id, disk=int(1.5 * file_id.size)).rv()
+    return gaf_file_id_map
+
+def compress_gaf(job, gaf_file_id):
+    gaf_path = job.fileStore.readGlobalFile(gaf_file_id)
+    zip_path = job.fileStore.getLocalTempFile()
+    cactus_call(parameters=['gzip', gaf_path, '-c', ], outfile=zip_path)
+    job.fileStore.deleteGlobalFile(gaf_file_id)
+    return job.fileStore.writeGlobalFile(zip_path)
     
 def add_genome_to_seqfile(seqfile_path, fasta_path, name):
     """ hack the auto-generated minigraph assembly back into the seqfile for future use """
