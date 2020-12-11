@@ -31,13 +31,20 @@ class DnabrnnMaskJob(RoundedJob):
         """
         mask alpha satellites with dna-brnn
         """
-        fastaFile = fileStore.readGlobalFile(self.fastaID)
+        work_dir = fileStore.getLocalTempDir()
+        fastaFile = os.path.join(work_dir, 'seq.fa')
+        fileStore.readGlobalFile(self.fastaID, fastaFile)
 
         cmd = ['dna-brnn', fastaFile] + self.dnabrnnOpts.split()
+        
         if '-i' not in self.dnabrnnOpts:
             # pull up the model
             # todo: is there are more robust way?
-            cmd += ['-i', os.path.join(cactusRootPath(), 'attcc-alpha.knm')]
+            model_path = os.path.join(work_dir, 'model.knm')
+            embedded_model = os.path.join(cactusRootPath(), 'attcc-alpha.knm')
+            # we copy it over for container purposes
+            shutil.copyfile(embedded_model, model_path)
+            cmd += ['-i', model_path]        
         
         if self.cores:
             cmd += ['-t', str(self.cores)]
