@@ -337,7 +337,7 @@ def merge_gafs_into_paf(job, config, gaf_file_id_map, cactus_mg_graph_id, gaf_pa
     if overlap_filter_len:
         mzgaf2paf_opts += ['-o', str(overlap_filter_len)]
 
-    cactus_call(work_dir=work_dir, outfile=paf_path, parameters=["mzgaf2paf"] + gaf_paths + mzgaf2paf_opts)
+    cactus_call(outfile=paf_path, parameters=["mzgaf2paf"] + gaf_paths + mzgaf2paf_opts)
 
     return job.fileStore.writeGlobalFile(paf_path)
                                                
