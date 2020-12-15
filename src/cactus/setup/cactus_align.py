@@ -260,6 +260,8 @@ def runCactusAfterBlastOnly(options):
                 findRequiredNode(configWrapper.xmlRoot, "caf").attrib["minimumBlockDegreeToCheckSupport"] = "9999999999"
                 # turn off mapq filtering
                 findRequiredNode(configWrapper.xmlRoot, "caf").attrib["runMapQFiltering"] = "0"
+                # more iterations here helps quite a bit to reduce underalignment
+                findRequiredNode(configWrapper.xmlRoot, "caf").attrib["maxRecoverableChainsIterations"] = "50"                
                 # turn down minimum block degree to get a fat ancestor
                 findRequiredNode(configWrapper.xmlRoot, "bar").attrib["minimumBlockDegree"] = "1"
                 # turn on POA
