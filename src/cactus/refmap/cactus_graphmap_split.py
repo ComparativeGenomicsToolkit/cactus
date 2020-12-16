@@ -123,13 +123,16 @@ def runCactusGraphMapSplit(options):
             seqIDMap = {}
             leaves = set([seqFile.tree.getName(node) for node in seqFile.tree.getLeaves()])
             for genome, seq in seqFile.pathMap.items():
-                if genome != graph_event and genome in leaves:
+                if genome in leaves:
                     if os.path.isdir(seq):
                         tmpSeq = getTempFile()
                         catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
                         seq = tmpSeq
                     seq = makeURL(seq)
                     seqIDMap[genome] = toil.importFile(seq)
+
+            # todo: better error -- its easy to make this mistake
+            assert graph_event in seqIDMap
 
             # run the workflow
             split_id_map = toil.start(Job.wrapJobFn(graphmap_split_workflow, options, config, seqIDMap,
@@ -166,7 +169,7 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
     gather_fas_job = split_fas_job.addFollowOnJobFn(gather_fas, seqIDMap, split_gfa_job.rv(), split_fas_job.rv())
 
     # return all the files
-    return split_fas_job.rv()
+    return gather_fas_job.rv()
 
 def split_gfa(job, gfa_id, paf_id, ref_contigs):
     """ Use rgfa-split to divide a GFA and PAF into chromosomes.  The GFA must be in minigraph RGFA output using
@@ -230,12 +233,13 @@ def split_fa_into_contigs(job, event, fa_id, cactus_id, split_id_map):
     unique_id = 'id={}|'.format(cactus_id)
                         
     contig_fa_dict = {}
-    
+
     for ref_contig in split_id_map.keys():
         query_contig_list_id = split_id_map[ref_contig]['fa_contigs']
         list_path = os.path.join(work_dir, '{}.fa_contigs'.format(ref_contig))
         job.fileStore.readGlobalFile(query_contig_list_id, list_path)
         faidx_input_path = os.path.join(work_dir, '{}.fa_contigs.clean'.format(ref_contig))
+        contig_count = 0
         with open(list_path, 'r') as list_file, open(faidx_input_path, 'w') as clean_file:
             for line in list_file:
                 query_contig = line.strip()
@@ -243,10 +247,16 @@ def split_fa_into_contigs(job, event, fa_id, cactus_id, split_id_map):
                     assert query_contig.startswith(unique_id)
                     query_contig = query_contig[len(unique_id):]
                     clean_file.write('{}\n'.format(query_contig))
-        contig_fasta_path = os.path.join(work_dir, '{}_{}.fa'.format(event, ref_contig))                    
-        cmd = ['samtools', 'faidx', fa_path, '--region-file', faidx_input_path]
-        cactus_call(parameters=cmd, outfile=contig_fasta_path)
-        contig_fa_dict[ref_contig] = job.fileStore.writeGlobalFile(contig_fasta_path)
+                    contig_count += 1
+        contig_fasta_path = os.path.join(work_dir, '{}_{}.fa'.format(event, ref_contig))
+        if contig_count > 0:
+            cmd = ['samtools', 'faidx', fa_path, '--region-file', faidx_input_path]            
+            cactus_call(parameters=cmd, outfile=contig_fasta_path)
+            contig_fa_dict[ref_contig] = job.fileStore.writeGlobalFile(contig_fasta_path)
+        else:
+            # TODO: FIX THIS!!!!!
+            assert event == '__MINIGRAPH_SEQUENCES__'
+            contig_fa_dict[ref_contig] = fa_id
 
     return contig_fa_dict
 
@@ -257,7 +267,7 @@ def gather_fas(job, seq_id_map, output_id_map, contig_fa_map):
     for ref_contig in output_id_map.keys():
         output_id_map[ref_contig]['fa'] = {}
         for event, fa_id in contig_fa_map.items():
-            output_id_map[ref_contig]['fa'][event] = fa_id
+            output_id_map[ref_contig]['fa'][event] = fa_id[ref_contig]
 
     return output_id_map
 
@@ -279,9 +289,12 @@ def export_split_data(toil, output_id_map, output_dir):
 
         # Fasta: <output_dir>/<contig>/fasta/<event>_<contig>.fa ..
         seq_file_map = {}
-        for event, ref_contig_fa_id in output_id_map[ref_contog]['fa'].items():
-            fa_path = makeURL(os.path.join(ref_contig_path, 'fasta', '{}_{}.fa'.format(event, ref_contig)))
-            seq_file_amp[event] = fa_path
+        for event, ref_contig_fa_id in output_id_map[ref_contig]['fa'].items():
+            fa_base = os.path.join(ref_contig_path, 'fasta')
+            if not os.path.isdir(fa_base):
+                os.makedirs(fa_base)
+            fa_path = makeURL(os.path.join(fa_base, '{}_{}.fa'.format(event, ref_contig)))
+            seq_file_map[event] = fa_path
             toil.exportFile(ref_contig_fa_id, fa_path)
 
         # Seqfile: <output_dir>/<contig>/<contig>.seqfile
