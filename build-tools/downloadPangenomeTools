@@ -104,7 +104,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://github.com/glennhickey/mzgaf2paf.git
 cd mzgaf2paf
-git checkout dcf67cf08f7dd8f2f8281817b81410fbc77f43db
+git checkout 95596e0c73f723ae4e7fdb5ce485a720f2d1c44c
 CXXFLAGS="-static" make -j 4
 if [ $(ldd mzgaf2paf | grep so | wc -l) -eq 0 ]
 then
@@ -112,6 +112,13 @@ then
 else
 	 exit 1
 fi
+if [ $(ldd rgfa-split | grep so | wc -l) -eq 0 ]
+then
+	 mv rgfa-split ${binDir}
+else
+	 exit 1
+fi
+
 
 # paf2lastz
 wget https://github.com/glennhickey/paf2lastz/releases/download/v1.1/paf2lastz
