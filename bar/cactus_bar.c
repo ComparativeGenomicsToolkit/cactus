@@ -73,7 +73,7 @@ void usage() {
 
     fprintf(stderr, "-P --partialOrderAlignmentWindow (int >= 0): Use partial order aligner instead of Pecan for multiple alignment subproblems, on blocks up to given length (0=disable POA).\n");
 
-    fprintf(stderr, "-m --maskFilter (int N >= 0) : Trim sequences to align at run of >=N masked bases. Only implemented for POA. [N==0 : disabled] (default=0)\n");
+    fprintf(stderr, "-m --maskFilter (int N) : Trim sequences to align at run of >N masked bases. Only implemented for POA. [N==-1 : disabled] (default=-1)\n");
 
     fprintf(stderr, "-C --partialOrderAlignmentBandConstant (int N) : abpoa \"b\" parameter where band is b+F*<length> [N<0 : adaptive banding disabled] (default=10)\n");
 
@@ -123,7 +123,7 @@ int main(int argc, char *argv[]) {
     // toggle from pecan to abpoa for multiple alignment, by setting to non-zero
     // Note that poa uses about N^2 memory, so maximum value is generally in 10s of kb
     int64_t poaWindow = 0;
-    int64_t maskFilter = 0;
+    int64_t maskFilter = -1;
     int64_t poaBandConstant = 10; //defaults from abpoa
     double poaBandFraction = 0.01;
 

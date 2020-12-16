@@ -545,11 +545,11 @@ char *get_adjacency_string(Cap *cap, int *length) {
  * @param seq_length : The length of the string
  * @param length : The maximum length we want to search in
  * @param reversed : If true, scan from the end of the string
- * @param mask_filter : Cut a string as soon as we hit this many hard or softmasked bases (cut is before first masked base)
+ * @param mask_filter : Cut a string as soon as we hit more than this many hard or softmasked bases (cut is before first masked base)
  * @return length of the filtered string
  */
 static int get_unmasked_length(char* seq, int64_t seq_length, int64_t length, bool reversed, int64_t mask_filter) {
-    if (mask_filter > 0) {
+    if (mask_filter >= 0) {
         int64_t run_start = -1;
         for (int64_t i = 0; i < length; ++i) {
             char base = reversed ? seq[seq_length - 1 - i] : seq[i];
@@ -558,8 +558,8 @@ static int get_unmasked_length(char* seq, int64_t seq_length, int64_t length, bo
                     // start masked run
                     run_start = i;
                 }
-                if (i + 1 - run_start >= mask_filter) {
-                    // our run exceeds or equals mask_filter, cap before the first masked base
+                if (i + 1 - run_start > mask_filter) {
+                    // our run exceeds the mask_filter, cap before the first masked base
                     return (int)run_start;
                 }
             } else {
@@ -589,7 +589,7 @@ char *get_adjacency_string_and_overlap(Cap *cap, int *length, int64_t *overlap, 
     assert(*length >= 0);
     int length_backward = *length;
 
-    if (mask_filter > 0) {
+    if (mask_filter >= 0) {
         // apply the mask filter on the forward strand
         *length = get_unmasked_length(adjacency_string, seq_length, *length, true, mask_filter);
         length_backward = get_unmasked_length(adjacency_string, seq_length, *length, false, mask_filter);

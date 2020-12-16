@@ -14,30 +14,55 @@ from sonLib.bioio import catFiles
 from cactus.shared.common import cactus_call
 from cactus.shared.common import RoundedJob
 from cactus.shared.common import cactusRootPath
+from cactus.shared.common import getOptionalAttrib
+from cactus.shared.common import makeURL
+
 from toil.realtimeLogger import RealtimeLogger
 
+def loadDnaBrnnModel(toil, configNode, maskAlpha = False):
+    """ store the model in a toil file id so it can be used in any workflow """
+    for prepXml in configNode.findall("preprocessor"):
+        if prepXml.attrib["preprocessJob"] == "dna-brnn":
+            if maskAlpha or getOptionalAttrib(prepXml, "active", typeFn=bool, default=False):
+                dnabrnnOpts = getOptionalAttrib(prepXml, "dna-brnnOpts", default="")
+                if '-i' in dnabrnnOpts:
+                    model_path = dnabrnnOpts[dnabrnnOpts.index('-i') + 1]
+                else:
+                    model_path = os.path.join(cactusRootPath(), 'attcc-alpha.knm')
+                os.environ["CACTUS_DNA_BRNN_MODEL_ID"] = toil.importFile(makeURL(model_path))
+
 class DnabrnnMaskJob(RoundedJob):
-    def __init__(self, fastaID, minLength, dnabrnnOpts):
+    def __init__(self, fastaID, dnabrnnOpts, hardmask, cpu, minLength=None):
         memory = 4*1024*1024*1024
         disk = 2*(fastaID.size)
-        # todo: clean up
-        cores = cpu_count()
+        cores = min(cpu_count(), cpu)
         RoundedJob.__init__(self, memory=memory, disk=disk, cores=cores, preemptable=True)
         self.fastaID = fastaID
         self.minLength = minLength
         self.dnabrnnOpts = dnabrnnOpts
+        self.hardmask = hardmask
 
     def run(self, fileStore):
         """
         mask alpha satellites with dna-brnn
         """
-        fastaFile = fileStore.readGlobalFile(self.fastaID)
+        work_dir = fileStore.getLocalTempDir()
+        fastaFile = os.path.join(work_dir, 'seq.fa')
+        fileStore.readGlobalFile(self.fastaID, fastaFile)
 
-        cmd = ['dna-brnn', fastaFile] + self.dnabrnnOpts.split()
-        if '-i' not in self.dnabrnnOpts:
-            # pull up the model
-            # todo: is there are more robust way?
-            cmd += ['-i', os.path.join(cactusRootPath(), 'attcc-alpha.knm')]
+        # download the model
+        modelFile = os.path.join(work_dir, 'model.knm')
+        assert os.environ.get("CACTUS_DNA_BRNN_MODEL_ID") is not None        
+        modelID = os.environ.get("CACTUS_DNA_BRNN_MODEL_ID")
+        fileStore.readGlobalFile(modelID, modelFile)
+
+        # ignore existing model flag
+        if '-i' in self.dnabrnnOpts:
+            i = self.dnabrnnOpts.index('-i')
+            del self.dnabrnnOpts[i]
+            del self.dnabrnnOpts[i]
+
+        cmd = ['dna-brnn', fastaFile] + self.dnabrnnOpts.split() + ['-i', modelFile]
         
         if self.cores:
             cmd += ['-t', str(self.cores)]
@@ -49,7 +74,12 @@ class DnabrnnMaskJob(RoundedJob):
 
         maskedFile = fileStore.getLocalTempFile()
 
-        mask_cmd = ['cactus_fasta_softmask_intervals.py', '--origin=zero', '--minLength={}'.format(self.minLength), bedFile]
+        mask_cmd = ['cactus_fasta_softmask_intervals.py', '--origin=zero', bedFile]
+        if self.minLength:
+            mask_cmd += '--minLength={}'.format(self.minLength)
+
+        if self.hardmask:
+            mask_cmd += ['--mask=N']
 
         # do the softmasking
         cactus_call(infile=fastaFile, outfile=maskedFile, parameters=mask_cmd)

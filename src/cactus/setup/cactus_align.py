@@ -29,7 +29,7 @@ from cactus.pipeline.cactus_workflow import CactusTrimmingBlastPhase
 from cactus.pipeline.cactus_workflow import CactusSetupCheckpoint
 from cactus.pipeline.cactus_workflow import prependUniqueIDs
 from cactus.blast.blast import calculateCoverage
-from cactus.shared.common import makeURL
+from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import findRequiredNode
@@ -56,6 +56,19 @@ def main():
     parser.add_argument("--pathOverrides", nargs="*", help="paths (multiple allowd) to override from seqFile")
     parser.add_argument("--pathOverrideNames", nargs="*", help="names (must be same number as --paths) of path overrides")
 
+    #Pangenome Options
+    parser.add_argument("--pangenome", action="store_true",
+                        help="Activate pangenome mode (suitable for star trees of closely related samples) by overriding several configuration settings."
+                        " The overridden configuration will be saved in <outputHal>.pg-conf.xml")
+    parser.add_argument("--pafInput", action="store_true",
+                        help="'cigarsFile' arugment is in PAF format, rather than lastz cigars.")
+    parser.add_argument("--usePafSecondaries", action="store_true",
+                        help="use the secondary alignments from the PAF input.  They are ignored by default.")
+    parser.add_argument("--singleCopySpecies", type=str,
+                        help="Filter out all self-alignments in given species")
+    parser.add_argument("--barMaskFilter", type=int, default=None,
+                        help="BAR's POA aligner will ignore softmasked regions greater than this length. (overrides partialOrderAlignmentMaskFilter in config)")
+    
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
                         help="Specify cactus configuration file",
@@ -76,13 +89,6 @@ def main():
                         help="The way to run the Cactus binaries", default=None)
     parser.add_argument("--nonCactusInput", action="store_true",
                         help="Input lastz cigars do not come from cactus-blast or cactus-refmap: Prepend ids in cigars")
-    parser.add_argument("--pangenome", action="store_true",
-                        help="Activate pangenome mode (suitable for star trees of closely related samples) by overriding several configuration settings."
-                        " The overridden configuration will be saved in <outputHal>.pg-conf.xml")
-    parser.add_argument("--pafInput", action="store_true",
-                        help="'cigarsFile' arugment is in PAF format, rather than lastz cigars.")
-    parser.add_argument("--usePafSecondaries", action="store_true",
-                        help="use the secondary alignments from the PAF input.  They are ignored by default.")
     parser.add_argument("--database", choices=["kyoto_tycoon", "redis"],
                         help="The type of database", default="kyoto_tycoon")
 
@@ -106,11 +112,6 @@ def main():
             # is there a way to get this out of Toil?  That would be more consistent
             if cpu_count() < 2:
                 raise RuntimeError('Only 1 CPU detected.  Cactus requires at least 2')
-
-    if options.pafInput:
-        # cactus-graphmap does not do any prepending to simplify interface with minigraph node names
-        # so it must be done here
-        options.nonCactusInput = True
 
     options.buildHal = True
     options.buildFasta = True
@@ -247,16 +248,26 @@ def runCactusAfterBlastOnly(options):
             configWrapper = ConfigWrapper(configNode)
             configWrapper.substituteAllPredefinedConstantsWithLiterals()
 
+            if options.singleCopySpecies:
+                findRequiredNode(configWrapper.xmlRoot, "caf").attrib["alignmentFilter"] = "singleCopyEvent:{}".format(options.singleCopySpecies)
+
+            if options.barMaskFilter:
+                findRequiredNode(configWrapper.xmlRoot, "bar").attrib["partialOrderAlignmentMaskFilter"] = str(options.barMaskFilter)
+
             if options.pangenome:
                 # turn off the megablock filter as it ruins non-all-to-all alignments
                 findRequiredNode(configWrapper.xmlRoot, "caf").attrib["minimumBlockHomologySupport"] = "0"
                 findRequiredNode(configWrapper.xmlRoot, "caf").attrib["minimumBlockDegreeToCheckSupport"] = "9999999999"
                 # turn off mapq filtering
                 findRequiredNode(configWrapper.xmlRoot, "caf").attrib["runMapQFiltering"] = "0"
+                # more iterations here helps quite a bit to reduce underalignment
+                findRequiredNode(configWrapper.xmlRoot, "caf").attrib["maxRecoverableChainsIterations"] = "50"                
                 # turn down minimum block degree to get a fat ancestor
                 findRequiredNode(configWrapper.xmlRoot, "bar").attrib["minimumBlockDegree"] = "1"
                 # turn on POA
                 findRequiredNode(configWrapper.xmlRoot, "bar").attrib["partialOrderAlignment"] = "1"
+                # boost up the BAR sequence length (better pruned using the mask filters)
+                findRequiredNode(configWrapper.xmlRoot, "bar").attrib["bandingLimit"] = "50000000"
                 # save it
                 pg_file = options.outputHal + ".pg-conf.xml"
                 configWrapper.writeXML(pg_file)

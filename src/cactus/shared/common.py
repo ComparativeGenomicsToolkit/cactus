@@ -554,7 +554,7 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
     if partialOrderAlignment is True:
         assert partialOrderAlignmentWindow is not None and int(partialOrderAlignmentWindow) > 1
         args += ["--partialOrderAlignmentWindow", str(partialOrderAlignmentWindow)]
-    if partialOrderAlignmentMaskFilter:
+    if partialOrderAlignmentMaskFilter is not None and partialOrderAlignmentMaskFilter >= 0:
         args += ["--maskFilter", str(partialOrderAlignmentMaskFilter)]
     if partialOrderAlignmentBandConstant:
         args += ["--partialOrderAlignmentBandConstant", str(partialOrderAlignmentBandConstant)]

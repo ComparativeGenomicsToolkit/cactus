@@ -35,12 +35,12 @@ from cactus.shared.common import cactus_override_toil_options
 from cactus.preprocessor.checkUniqueHeaders import checkUniqueHeaders
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import LastzRepeatMaskJob
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import RepeatMaskOptions
-from cactus.preprocessor.dnabrnnMasking import DnabrnnMaskJob
+from cactus.preprocessor.dnabrnnMasking import DnabrnnMaskJob, loadDnaBrnnModel
 
 class PreprocessorOptions:
     def __init__(self, chunkSize, memory, cpu, check, proportionToSample, unmask,
                  preprocessJob, checkAssemblyHub=None, lastzOptions=None, minPeriod=None,
-                 gpuLastz=False, dnabrnnOpts=None, dnabrnnLength=None):
+                 gpuLastz=False, dnabrnnOpts=None, dnabrnnLength=None, hardmask=None):
         self.chunkSize = chunkSize
         self.memory = memory
         self.cpu = cpu
@@ -57,6 +57,7 @@ class PreprocessorOptions:
             self.chunkSize = 0
         self.dnabrnnOpts = dnabrnnOpts
         self.dnabrnnLength = dnabrnnLength
+        self.hardmask = hardmask
 
 class CheckUniqueHeaders(RoundedJob):
     """
@@ -134,8 +135,9 @@ class PreprocessSequence(RoundedJob):
                                       targetIDs=seqIDs)
         elif self.prepOptions.preprocessJob == "dna-brnn":
             return DnabrnnMaskJob(inChunkID,
-                                  minLength=self.prepOptions.dnabrnnLength,
-                                  dnabrnnOpts=self.prepOptions.dnabrnnOpts)
+                                  dnabrnnOpts=self.prepOptions.dnabrnnOpts,
+                                  hardmask=self.prepOptions.hardmask,
+                                  cpu=self.prepOptions.cpu)
         else:
             raise RuntimeError("Unknown preprocess job %s" % self.prepOptions.preprocessJob)
 
@@ -224,7 +226,8 @@ class BatchPreprocessor(RoundedJob):
                                               checkAssemblyHub = getOptionalAttrib(prepNode, "checkAssemblyHub", typeFn=bool, default=False),
                                               gpuLastz = getOptionalAttrib(prepNode, "gpuLastz", typeFn=bool, default=False),
                                               dnabrnnOpts = getOptionalAttrib(prepNode, "dna-brnnOpts", default=""),
-                                              dnabrnnLength = getOptionalAttrib(prepNode, "minLength", typeFn=int, default=1))
+                                              dnabrnnLength = getOptionalAttrib(prepNode, "minLength", typeFn=int, default=1),
+                                              hardmask = getOptionalAttrib(prepNode, "hardmask", typeFn=bool, default=False))
 
             if prepOptions.unmask:
                 inSequence = fileStore.readGlobalFile(self.inSequenceID)
@@ -294,6 +297,10 @@ def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=F
         outputSequences = CactusPreprocessor.getOutputSequenceFiles(inputSequences, outputSequenceDir)
     else:
         assert len(outputSequences) == len(inputSequences)
+
+    # Make sure we have the dna-brnn model in the filestore if we need it
+    loadDnaBrnnModel(toil, ET.parse(configFile).getroot(), maskAlpha = maskAlpha)
+        
     if configNode.find("constants") != None:
         ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals()
     if maskAlpha:
@@ -301,11 +308,40 @@ def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=F
         ConfigWrapper(configNode).setPreprocessorActive("dna-brnn", True)
     if not restart:
         inputSequenceIDs = [toil.importFile(makeURL(seq)) for seq in inputSequences]
-        outputSequenceIDs = toil.start(CactusPreprocessor(inputSequenceIDs, configNode))
+        unzip_job = Job.wrapJobFn(unzip_then_pp, configNode, inputSequences, inputSequenceIDs)
+        outputSequenceIDs = toil.start(unzip_job)
     else:
         outputSequenceIDs = toil.restart()
     for seqID, path in zip(outputSequenceIDs, outputSequences):
         toil.exportFile(seqID, makeURL(path))
+
+def unzip_then_pp(job, config_node, input_fa_paths, input_fa_ids):
+    """ unzip then preprocess """
+    unzip_job = job.addChildJobFn(unzip_gzs, input_fa_paths, input_fa_ids)
+    pp_job = unzip_job.addFollowOn(CactusPreprocessor([unzip_job.rv(i) for i in range(len(input_fa_ids))], config_node))
+    return pp_job.rv()
+    
+def unzip_gzs(job, input_paths, input_ids):
+    """ go through a list of files and unzip any that end with .gz and return a list 
+    of updated ids.  files that don't end in .gz are just passed through.  relying on the extension
+    is pretty fragile but better than nothing """
+    unzipped_ids = []
+    for input_path, input_id in zip(input_paths, input_ids):
+        if input_path.endswith('.gz'):
+            unzip_job = job.addChildJobFn(unzip_gz, input_path, input_id, disk=10*input_id.size)
+            unzipped_ids.append(unzip_job.rv())
+        else:
+            unzipped_ids.append(input_id)
+    return unzipped_ids
+
+def unzip_gz(job, input_path, input_id):
+    """ unzip a single file """
+    work_dir = job.fileStore.getLocalTempDir()
+    assert input_path.endswith('.gz')
+    fa_path = os.path.join(work_dir, os.path.basename(input_path))
+    job.fileStore.readGlobalFile(input_id, fa_path, mutable=True)
+    cactus_call(parameters=['gzip', '-d', os.path.basename(fa_path)], work_dir=work_dir)
+    return job.fileStore.writeGlobalFile(fa_path[:-3])
 
 def runCactusPreprocessor(outputSequenceDir, configFile, inputSequences, toilDir):
     toilOptions = Job.Runner.getDefaultOptions(toilDir)

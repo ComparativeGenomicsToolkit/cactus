@@ -239,7 +239,7 @@ class TestCase(unittest.TestCase):
             cactus_opts += ['--latest']
         
         subprocess.check_call(['cactus-graphmap', self._job_store(binariesMode), out_seq_file_path, mg_path, paf_path,
-                               '--outputFasta', fa_path, '--ignoreSoftmasked'] + cactus_opts)
+                               '--outputFasta', fa_path, '--maskFilter', '10000'] + cactus_opts)
 
         # do the alignment
         subprocess.check_call(['cactus-align', self._job_store(binariesMode), out_seq_file_path, paf_path, self._out_hal(binariesMode),

@@ -369,9 +369,11 @@ class ExperimentWrapper(DbElemWrapper):
     def getGenomesWithSequence(self):
         """
         Return a list of names of genomes in the problem which have sequence.
+        We keep them sorted alphabetically, as this method is used when assigning ID prefixes
+        and we want to try to keep a consistent numbering
         """
         genomeNodes = self.xmlRoot.findall("genome")
-        return [node.attrib['name'] for node in genomeNodes if 'sequence' in node.attrib]
+        return sorted([node.attrib['name'] for node in genomeNodes if 'sequence' in node.attrib])
 
     def getSequenceIDs(self):
         """

@@ -464,13 +464,13 @@ class CactusRecursionJob(CactusJob):
 ############################################################
 ############################################################
 
-def prependUniqueIDs(fas, outputDir, idMap=None):
+def prependUniqueIDs(fas, outputDir, idMap=None, firstID=0):
     """Prepend unique ints to fasta headers.
 
     (prepend rather than append since trimmed outgroups have a start
     token appended, which complicates removal slightly)
     """
-    uniqueID = 0
+    uniqueID = firstID
     ret = []
     for fa in fas:
         outPath = os.path.join(outputDir, os.path.basename(fa))

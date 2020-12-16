@@ -41,6 +41,7 @@ from toil.job import Job
 from toil.common import Toil
 
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
+from cactus.preprocessor.dnabrnnMasking import loadDnaBrnnModel
 from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
 from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
 from cactus.pipeline.cactus_workflow import CactusTrimmingBlastPhase
@@ -421,7 +422,7 @@ def runCactusProgressive(options):
                     seq = tmpSeq
                 seq = makeURL(seq)
                 project.inputSequenceIDMap[genome] = toil.importFile(seq)
-
+                
             #import cactus config
             cactusConfigID = toil.importFile(makeURL(options.configFile))
             project.setConfigID(cactusConfigID)
@@ -431,6 +432,8 @@ def runCactusProgressive(options):
             configWrapper = ConfigWrapper(configNode)
             configWrapper.substituteAllPredefinedConstantsWithLiterals()
 
+            # Make sure we have the dna-brnn model in the filestore if we need it
+            loadDnaBrnnModel(toil, configNode)
 
             project.writeXML(pjPath)
             halID = toil.start(RunCactusPreprocessorThenProgressiveDown(options, project, memory=configWrapper.getDefaultMemory()))

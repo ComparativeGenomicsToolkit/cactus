@@ -14,10 +14,10 @@
 	<preprocessor check="1" memory="littleMemory" preprocessJob="checkUniqueHeaders" checkAssemblyHub="1" active="1"/>
 	<!-- The preprocessor for cactus_lastzRepeatMask masks every seed that is part of more than XX other alignments, this stops a combinatorial explosion in pairwise alignments -->
 	<preprocessor unmask="0" chunkSize="3000000" proportionToSample="0.2" memory="littleMemory" preprocessJob="lastzRepeatMask" minPeriod="50" lastzOpts='--step=3 --ambiguous=iupac,100,100 --ungapped --queryhsplimit=keep,nowarn:1500' gpuLastz="false" active="1"/>
-	<!-- Softmask alpha-satellite blocks of at least "minLength" using the dna-brnn tool -->
+	<!-- Softmask alpha-satellite using the dna-brnn tool -->
 	<!-- This preprocessor is off by default, and will replace the lastzRepeatMask preprocessor via command line toggle (or setting active=1)-->
 	<!-- It will attempt to load its included "attcc-alpha.knm" model by default unless a different one is specified below -->
-	<preprocessor unmask="1" memory="littleMemory" preprocessJob="dna-brnn" minLength="100000" dna-brnnOpts='-A' active="0"/>			  	
+	<preprocessor unmask="1" memory="littleMemory" preprocessJob="dna-brnn" dna-brnnOpts='-A' active="0" hardmask="0" cpu="2"/>
         <!-- Options for trimming ingroups & outgroups using the trim strategy -->
         <!-- Ingroup trim options: -->
         <!-- trimFlanking: The length of flanking sequence to attach
@@ -160,7 +160,7 @@
    <!-- bandingLimit is the maximum sequence size fed into the multiple aligner.  Sequences longer than this are trimmed accordingly -->
    <!-- partialOrderAlignment toggles between cPecan and abpoa for the core multiple alignment algorithm.  abpoa is much faster but not as reliable for divered sequences -->
    <!-- partialOrderAlignmentWindow a sliding window approach (with hardcoded 50% overlap) is used to perform abpoa alignments.  memory is quadratic in this.  it is applied after bandingLimit -->
-   <!-- partialOrderAlignmentMaskFilter trim input sequences as soon as this many soft or hard masked bases are encountered (0=disabled) -->
+   <!-- partialOrderAlignmentMaskFilter trim input sequences as soon as more than this many soft or hard masked bases are encountered (-1=disabled) -->
    <!-- partialOrderAlignmentBand abpoa adaptive band size is <partialOrderAlignmentBand> + <partialOrderAlignmentBandFraction>*<Length>.  Negative value here disables adaptive banding -->
    <!-- partialOrderAlignmentBandFraction abpoa adaptibe band second parameter (see above) -->
 	<bar
@@ -189,9 +189,9 @@
                 minimumCoverageToRescue="0.5"
 		partialOrderAlignment="0"
 		partialOrderAlignmentWindow="10000"
-		partialOrderAlignmentMaskFilter="0"
-		partialOrderAlignmentBandConstant="10"
-		partialOrderAlignmentBandFraction="0.01"
+		partialOrderAlignmentMaskFilter="-1"
+		partialOrderAlignmentBandConstant="25"
+		partialOrderAlignmentBandFraction="0.025"
 	>
 		<CactusBarRecursion maxFlowerGroupSize="100000000"/>
 		<!-- The maxFlowerGroupSize in cactusBarWrapper determines how many bases to allow in one "small" job which will be run using the "littleMemory" -->
@@ -261,10 +261,15 @@
 	<!-- minMZBlockLength: only use minimizers that form contiguous blocks at least this long -->
 	<!-- minMAPQ: ignore minigraph alignments with mapping quality less than this -->
 	<!-- minGAFBlockLength: ignore minigraph alignments with block length less than this -->
-	<!-- minGAFNodeLength: ignore minigraph nodes with length less than this -->		
+	<!-- minGAFNodeLength: ignore minigraph nodes with length less than this -->
+	<!-- minGAFQueryOverlapFilter: if 2 or more query regions in blocks of at least this size, filter them out. -->
+	<!--                           if 1 query region in a block of at least this size overlaps query regions in blocks smaller than this, filter out the smaller ones -->
+	<!--                           Filter is disabled when set to 0.  Any non-zero value will prevent query overlaps -->
+	<!-- maskFilter: any softmasked sequence intervals > than this many bp will be hardmasked before being read by the minigraph mapper [negative value = disable]-->
+	<!-- cpu: use up to this many cpus for each minigraph command. -->
 	<graphmap
 		 assemblyName="__MINIGRAPH_SEQUENCES__"
-		 minigraphMapOptions="-S --write-mz -xasm -K4g --inv=no"
+		 minigraphMapOptions="-S --write-mz -xasm"
 		 universalMZFilter="0"
 		 nodeBasedUniversal="0"
 		 strictUniversal="0"
@@ -272,6 +277,9 @@
 		 minMAPQ="0"
 		 minGAFBlockLength="0"
 		 minGAFNodeLength="0"
+		 minGAFQueryOverlapFilter="10000"
+		 maskFilter="-1"
+		 cpu="4"
 	/>
   	<multi_cactus>
 		<outgroup 
