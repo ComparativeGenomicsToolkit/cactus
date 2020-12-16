@@ -129,7 +129,7 @@ def runCactusGraphMapSplit(options):
                         catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
                         seq = tmpSeq
                     seq = makeURL(seq)
-                    seqIDMap[genome] = toil.importFile(seq)
+                    seqIDMap[genome] = (seq, toil.importFile(seq))
 
             # todo: better error -- its easy to make this mistake
             assert graph_event in seqIDMap
@@ -214,21 +214,27 @@ def split_fas(job, seq_id_map, split_id_map):
     # map event name to dict of contgs.  ex fa_contigs["CHM13"]["chr13"] = file_id
     fa_contigs = {}
     # we do each fasta in parallel
-    for event, fa_id in seq_id_map.items():
+    for event in seq_id_map.keys():
+        fa_path, fa_id = seq_id_map[event]
         cactus_id = cactus_id_map[event]
-        fa_contigs[event] = root_job.addChildJobFn(split_fa_into_contigs, event, fa_id, cactus_id, split_id_map,
+        fa_contigs[event] = root_job.addChildJobFn(split_fa_into_contigs, event, fa_id, fa_path, cactus_id, split_id_map,
                                                    disk=fa_id.size * 3).rv()
 
     return fa_contigs
 
-def split_fa_into_contigs(job, event, fa_id, cactus_id, split_id_map):
+def split_fa_into_contigs(job, event, fa_id, fa_path, cactus_id, split_id_map):
     """ Use samtools turn on fasta into one for each contig. this relies on the informatino in .fa_contigs
     files made by rgfa-split """
 
     # download the fasta
     work_dir = job.fileStore.getLocalTempDir()
-    fa_path = os.path.join(work_dir, '{}.fa'.format(event))
-    job.fileStore.readGlobalFile(fa_id, fa_path)
+    fa_path = os.path.join(work_dir, os.path.basename(fa_path))
+    is_gz = fa_path.endswith(".gz")
+    job.fileStore.readGlobalFile(fa_id, fa_path, mutable=is_gz)
+    if is_gz:
+        # samtools can only work on bgzipped files.  so we uncompress here to be able to support gzipped too
+        cactus_call(parameters=['gzip', '-fd', fa_path])
+        fa_path = fa_path[:-3]
 
     unique_id = 'id={}|'.format(cactus_id)
                         
