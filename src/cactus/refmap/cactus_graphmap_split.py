@@ -159,11 +159,17 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
         paf_id = root_job.addChildJobFn(unzip_gz, paf_path, paf_id, disk=paf_id.size * 10).rv()
         paf_size *= 10
 
+    # cactus-ids use alphabetical ordering.  we need this as our paf file will have them
+    cactus_id_map = {}
+    for i, event in enumerate(sorted(set(list(seqIDMap.keys())))):
+        cactus_id_map[event] = i
+        
     # use rgfa-split to split the gfa and paf up by contig
-    split_gfa_job = root_job.addFollowOnJobFn(split_gfa, gfa_id, paf_id, ref_contigs, disk=(gfa_size + paf_size) * 5)
+    split_gfa_job = root_job.addFollowOnJobFn(split_gfa, config, gfa_id, paf_id, ref_contigs, cactus_id_map,
+                                              disk=(gfa_size + paf_size) * 5)
 
     # use the output of the above splitting to do the fasta splitting
-    split_fas_job = split_gfa_job.addFollowOnJobFn(split_fas, seqIDMap, split_gfa_job.rv())
+    split_fas_job = split_gfa_job.addFollowOnJobFn(split_fas, seqIDMap, cactus_id_map, split_gfa_job.rv())
 
     # gather everythign up into a table
     gather_fas_job = split_fas_job.addFollowOnJobFn(gather_fas, seqIDMap, split_gfa_job.rv(), split_fas_job.rv())
@@ -171,7 +177,7 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
     # return all the files
     return gather_fas_job.rv()
 
-def split_gfa(job, gfa_id, paf_id, ref_contigs):
+def split_gfa(job, config, gfa_id, paf_id, ref_contigs, cactus_id_map):
     """ Use rgfa-split to divide a GFA and PAF into chromosomes.  The GFA must be in minigraph RGFA output using
     the desired reference. """
 
@@ -184,7 +190,12 @@ def split_gfa(job, gfa_id, paf_id, ref_contigs):
     job.fileStore.readGlobalFile(gfa_id, gfa_path)
     job.fileStore.readGlobalFile(paf_id, paf_path)
 
-    cmd = ['rgfa-split', '-g', gfa_path, '-p', paf_path, '-b', out_path + "/"]
+    # get the minigraph "virutal" assembly name
+    graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="__MINIGRAPH_SEQUENCES__")
+    # and look up its unique id prefix.  this will be needed to pick its contigs out of the list
+    mg_id = cactus_id_map[graph_event]
+
+    cmd = ['rgfa-split', '-g', gfa_path, '-p', paf_path, '-b', out_path + "/", '-i', 'id={}|'.format(mg_id)]
     for contig in ref_contigs:
         cmd += ['-c', contig]
 
@@ -200,17 +211,12 @@ def split_gfa(job, gfa_id, paf_id, ref_contigs):
             
     return output_id_map
 
-def split_fas(job, seq_id_map, split_id_map):
+def split_fas(job, seq_id_map, cactus_id_map, split_id_map):
     """ Use samtools to split a bunch of fasta files into reference contigs, using the output of rgfa-split as a guide"""
 
     root_job = Job()
     job.addChild(root_job)
     
-    # cactus-ids use alphabetical ordering.  we need this as our paf file will have them
-    cactus_id_map = {}
-    for i, event in enumerate(sorted(set(list(seq_id_map.keys())))):
-        cactus_id_map[event] = i
-
     # map event name to dict of contgs.  ex fa_contigs["CHM13"]["chr13"] = file_id
     fa_contigs = {}
     # we do each fasta in parallel
@@ -256,13 +262,13 @@ def split_fa_into_contigs(job, event, fa_id, fa_path, cactus_id, split_id_map):
                     contig_count += 1
         contig_fasta_path = os.path.join(work_dir, '{}_{}.fa'.format(event, ref_contig))
         if contig_count > 0:
-            cmd = ['samtools', 'faidx', fa_path, '--region-file', faidx_input_path]            
+            cmd = ['samtools', 'faidx', fa_path, '--region-file', faidx_input_path] 
             cactus_call(parameters=cmd, outfile=contig_fasta_path)
-            contig_fa_dict[ref_contig] = job.fileStore.writeGlobalFile(contig_fasta_path)
         else:
-            # TODO: FIX THIS!!!!!
-            assert event == '__MINIGRAPH_SEQUENCES__'
-            contig_fa_dict[ref_contig] = fa_id
+            # TODO: review how cases like this are handled
+            with open(contig_fasta_path, 'w') as empty_file:
+                empty_file.write("")
+        contig_fa_dict[ref_contig] = job.fileStore.writeGlobalFile(contig_fasta_path)
 
     return contig_fa_dict
 
