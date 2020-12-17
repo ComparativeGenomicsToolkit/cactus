@@ -33,6 +33,8 @@ from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import findRequiredNode
+from cactus.shared.common import getOptionalAttrib
+from cactus.shared.common import cactus_call
 from cactus.refmap import paf_to_lastz
 
 from toil.realtimeLogger import RealtimeLogger
@@ -52,14 +54,14 @@ def main():
 
     parser.add_argument("seqFile", help = "Seq file")
     parser.add_argument("cigarsFile", nargs="+", help = "Pairiwse aliginments (from cactus-blast, cactus-refmap or cactus-graphmap)")
-    parser.add_argument("outputHal", type=str, help = "Output HAL file")
+    parser.add_argument("outHal", type=str, help = "Output HAL file")
     parser.add_argument("--pathOverrides", nargs="*", help="paths (multiple allowd) to override from seqFile")
     parser.add_argument("--pathOverrideNames", nargs="*", help="names (must be same number as --paths) of path overrides")
 
     #Pangenome Options
     parser.add_argument("--pangenome", action="store_true",
                         help="Activate pangenome mode (suitable for star trees of closely related samples) by overriding several configuration settings."
-                        " The overridden configuration will be saved in <outputHal>.pg-conf.xml")
+                        " The overridden configuration will be saved in <outHal>.pg-conf.xml")
     parser.add_argument("--pafInput", action="store_true",
                         help="'cigarsFile' arugment is in PAF format, rather than lastz cigars.")
     parser.add_argument("--usePafSecondaries", action="store_true",
@@ -68,6 +70,7 @@ def main():
                         help="Filter out all self-alignments in given species")
     parser.add_argument("--barMaskFilter", type=int, default=None,
                         help="BAR's POA aligner will ignore softmasked regions greater than this length. (overrides partialOrderAlignmentMaskFilter in config)")
+    parser.add_argument("--outVG", type=str, help = "export pangenome graph in VG format to this path")
     
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -130,7 +133,7 @@ def runCactusAfterBlastOnly(options):
         importSingularityImage(options)
         #Run the workflow
         if options.restart:
-            halID = toil.restart()
+            halID, vgID = toil.restart()
         else:
             options.cactusDir = getTempDirectory()
 
@@ -269,7 +272,7 @@ def runCactusAfterBlastOnly(options):
                 # boost up the BAR sequence length (better pruned using the mask filters)
                 findRequiredNode(configWrapper.xmlRoot, "bar").attrib["bandingLimit"] = "50000000"
                 # save it
-                pg_file = options.outputHal + ".pg-conf.xml"
+                pg_file = options.outHal + ".pg-conf.xml"
                 configWrapper.writeXML(pg_file)
                 logger.info("pangenome configuration overrides saved in {}".format(pg_file))
 
@@ -289,13 +292,22 @@ def runCactusAfterBlastOnly(options):
                 for i in range(len(leaves)):
                     workFlowArgs.ingroupCoverageIDs.append(toil.importFile(makeURL(get_input_path('.ig_coverage_{}'.format(i)))))
 
-            halID = toil.start(Job.wrapJobFn(run_cactus_align, configWrapper, workFlowArgs, project, doRenaming=options.nonCactusInput, pafInput=options.pafInput,
-                                             pafSecondaries=options.usePafSecondaries))
+            halID, vgID = toil.start(Job.wrapJobFn(run_cactus_align,
+                                                   configWrapper,
+                                                   workFlowArgs,
+                                                   project,
+                                                   doRenaming=options.nonCactusInput,
+                                                   pafInput=options.pafInput,
+                                                   pafSecondaries=options.usePafSecondaries,
+                                                   doVG=options.outVG is not None))
 
         # export the hal
-        toil.exportFile(halID, makeURL(options.outputHal))
+        toil.exportFile(halID, makeURL(options.outHal))
+        # export the vg
+        if options.outVG:
+            toil.exportFile(vgID, makeURL(options.outVG))
 
-def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, doRenaming, pafInput, pafSecondaries):
+def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, doRenaming, pafInput, pafSecondaries, doVG):
     head_job = Job()
     job.addChild(head_job)
 
@@ -331,7 +343,15 @@ def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, doRen
                                                              memory=configWrapper.getDefaultMemory(),
                                                              disk=configWrapper.getExportHalDisk(),
                                                              preemptable=False)
-    return hal_export_job.rv()
+
+    # optionally create the VG
+    if doVG:
+        vg_export_job = hal_export_job.addFollowOnJobFn(export_vg, hal_export_job.rv(), configWrapper)
+        vg_file_id = vg_export_job.rv()
+    else:
+        vg_file_id = None
+        
+    return hal_export_job.rv(), vg_file_id
 
 def prepend_cigar_ids(cigars, outputDir, idMap):
     """ like cactus_workflow.prependUniqueIDs, but runs on cigar files.  requires name map
@@ -417,6 +437,30 @@ def run_prepare_hal_export(job, project, experiment):
     project.expMap = {event : experiment}
     project.expIDMap = {event : job.fileStore.writeGlobalFile(exp_path)}
     return project, event
+
+def export_vg(job, hal_id, configWrapper, resource_spec = False):
+    """ use hal2vg to convert the HAL to vg format """
+
+    if not resource_spec:
+        # caller couldn't figure out the resrouces from hal_id promise.  do that
+        # now and try again
+        return job.addChildJobFn(export_vg, hal_id, configWrapper,
+                                 resource_spec = True,
+                                 disk=hal_id.size * 3,
+                                 memory=hal_id.size * 10).rv()
+        
+    work_dir = job.fileStore.getLocalTempDir()
+    hal_path = os.path.join(work_dir, "out.hal")
+    job.fileStore.readGlobalFile(hal_id, hal_path)
+    
+    graph_event = getOptionalAttrib(findRequiredNode(configWrapper.xmlRoot, "graphmap"), "assemblyName", default="__MINIGRAPH_SEQUENCES__")
+
+    vg_path = os.path.join(work_dir, "out.vg")
+    cmd = ['hal2vg', hal_path, '--inMemory', '--progress', '--ignoreGenomes', 'Anc0,{}'.format(graph_event)]
+
+    cactus_call(parameters=cmd, outfile=vg_path)
+
+    return job.fileStore.writeGlobalFile(vg_path)
 
 if __name__ == '__main__':
     main()
