@@ -28,6 +28,7 @@ from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.seqFile import SeqFile
 from cactus.shared.common import setupBinaries, importSingularityImage
 from cactus.shared.common import enableDumpStack
+from cactus.shared.common import unzip_gzs
 from toil.lib.bioio import setLoggingFromOptions
 from toil.realtimeLogger import RealtimeLogger
 
@@ -321,28 +322,6 @@ def unzip_then_pp(job, config_node, input_fa_paths, input_fa_ids):
     pp_job = unzip_job.addFollowOn(CactusPreprocessor([unzip_job.rv(i) for i in range(len(input_fa_ids))], config_node))
     return pp_job.rv()
     
-def unzip_gzs(job, input_paths, input_ids):
-    """ go through a list of files and unzip any that end with .gz and return a list 
-    of updated ids.  files that don't end in .gz are just passed through.  relying on the extension
-    is pretty fragile but better than nothing """
-    unzipped_ids = []
-    for input_path, input_id in zip(input_paths, input_ids):
-        if input_path.endswith('.gz'):
-            unzip_job = job.addChildJobFn(unzip_gz, input_path, input_id, disk=10*input_id.size)
-            unzipped_ids.append(unzip_job.rv())
-        else:
-            unzipped_ids.append(input_id)
-    return unzipped_ids
-
-def unzip_gz(job, input_path, input_id):
-    """ unzip a single file """
-    work_dir = job.fileStore.getLocalTempDir()
-    assert input_path.endswith('.gz')
-    fa_path = os.path.join(work_dir, os.path.basename(input_path))
-    job.fileStore.readGlobalFile(input_id, fa_path, mutable=True)
-    cactus_call(parameters=['gzip', '-d', os.path.basename(fa_path)], work_dir=work_dir)
-    return job.fileStore.writeGlobalFile(fa_path[:-3])
-
 def runCactusPreprocessor(outputSequenceDir, configFile, inputSequences, toilDir):
     toilOptions = Job.Runner.getDefaultOptions(toilDir)
     toilOptions.logLevel = "INFO"

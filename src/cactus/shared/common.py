@@ -1504,3 +1504,26 @@ def dumpStacksHandler(signal, frame):
 def enableDumpStack(sig=signal.SIGUSR1):
     """enable dumping stacks when the specified signal is received"""
     signal.signal(sig, dumpStacksHandler)
+
+def unzip_gzs(job, input_paths, input_ids):
+    """ go through a list of files and unzip any that end with .gz and return a list 
+    of updated ids.  files that don't end in .gz are just passed through.  relying on the extension
+    is pretty fragile but better than nothing """
+    unzipped_ids = []
+    for input_path, input_id in zip(input_paths, input_ids):
+        if input_path.endswith('.gz'):
+            unzip_job = job.addChildJobFn(unzip_gz, input_path, input_id, disk=10*input_id.size)
+            unzipped_ids.append(unzip_job.rv())
+        else:
+            unzipped_ids.append(input_id)
+    return unzipped_ids
+
+def unzip_gz(job, input_path, input_id):
+    """ unzip a single file """
+    work_dir = job.fileStore.getLocalTempDir()
+    assert input_path.endswith('.gz')
+    fa_path = os.path.join(work_dir, os.path.basename(input_path))
+    job.fileStore.readGlobalFile(input_id, fa_path, mutable=True)
+    cactus_call(parameters=['gzip', '-d', os.path.basename(fa_path)], work_dir=work_dir)
+    return job.fileStore.writeGlobalFile(fa_path[:-3])
+    
