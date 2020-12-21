@@ -104,6 +104,12 @@ class DnabrnnMaskJob(RoundedJob):
             allRegionsFile = os.path.join(work_dir, 'chroms.bed')
             cactus_call(parameters=['samtools', 'faidx', fastaFile])
             cactus_call(outfile=allRegionsFile, parameters=['awk', '{print $1 "\\t0\\t" $2}', fastaFile + '.fai'])
+            # load the contig lengths
+            contig_lengths = {}
+            with open(fastaFile + '.fai', 'r') as fai:
+                for line in fai:
+                    toks = line.strip().split('\t')
+                    contig_lengths[toks[0]] = int(toks[1])
             # now we cut out the regions
             clippedRegionsFile = os.path.join(work_dir, 'clipped.bed')
             cactus_call(outfile=clippedRegionsFile, parameters=['bedtools', 'subtract', '-a', allRegionsFile, '-b', mergedBedFile])
@@ -114,7 +120,7 @@ class DnabrnnMaskJob(RoundedJob):
                     toks = line.strip().split("\t")
                     if len(toks) > 2:
                         seq, start, end = toks[0], int(toks[1]), int(toks[2])
-                        if end - start > self.minLength:
+                        if end - start > self.minLength or contig_lengths[seq] <= self.minLength:
                             # go from 0-based end exlusive to 1-based end inclusive when
                             # converting from BED to samtools region
                             listFile.write('{}:{}-{}\n'.format(seq, start + 1, end))
