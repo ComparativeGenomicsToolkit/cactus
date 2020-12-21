@@ -360,6 +360,7 @@ def main():
     parser.add_argument("--outPaths", nargs='*', help='Space-separated list of output fasta paths (one for each inPath, used in place of --outSeqFile)')
     parser.add_argument("--maskAlpha", action='store_true', help='Use dna-brnn instead of lastz for repeatmasking')
     parser.add_argument("--clipAlpha", type=int, help='use dna-brnn instead of lastz for repeatmasking.  Also, clip sequence using given minimum length instead of softmasking')
+    parser.add_argument("--ignore", nargs='*', help='Space-separate list of genomes from inSeqFile to ignore', default=[])
     parser.add_argument("--latest", dest="latest", action="store_true",
                         help="Use the latest version of the docker container "
                         "rather than pulling one matching this version of cactus")
@@ -407,6 +408,11 @@ def main():
 
 
         for inName in inNames:
+            if inName in options.ignore:
+                # "convenience" functionality: we let the --ignore option update the output seqfile
+                # to reflect the fact that we're not touching the original input
+                outSeqFile.pathMap[inName] = inSeqFile.pathMap[inName]
+                continue
             if inName not in inSeqFile.pathMap or inName not in outSeqFile.pathMap:
                 raise RuntimeError('{} not present in input and output Seq files'.format(inNmae))
             inPath = inSeqFile.pathMap[inName]
@@ -422,6 +428,11 @@ def main():
             else:
                 inSeqPaths += [inPath]
                 outSeqPaths += [outPath]
+
+        if options.ignore:
+            # see comment above
+            with open(options.outSeqFile, 'w') as outSF:
+                outSF.write(str(outSeqFile))
 
     # we got path names directly from the command line
     else:
