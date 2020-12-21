@@ -41,7 +41,8 @@ from cactus.preprocessor.dnabrnnMasking import DnabrnnMaskJob, loadDnaBrnnModel
 class PreprocessorOptions:
     def __init__(self, chunkSize, memory, cpu, check, proportionToSample, unmask,
                  preprocessJob, checkAssemblyHub=None, lastzOptions=None, minPeriod=None,
-                 gpuLastz=False, dnabrnnOpts=None, dnabrnnLength=None, hardmask=None):
+                 gpuLastz=False, dnabrnnOpts=None, dnabrnnLength=None, dnabrnnMerge=None,
+                 dnabrnnAction=None):
         self.chunkSize = chunkSize
         self.memory = memory
         self.cpu = cpu
@@ -58,7 +59,9 @@ class PreprocessorOptions:
             self.chunkSize = 0
         self.dnabrnnOpts = dnabrnnOpts
         self.dnabrnnLength = dnabrnnLength
-        self.hardmask = hardmask
+        self.dnabrnnMerge = dnabrnnMerge
+        self.dnabrnnAction = dnabrnnAction
+        assert dnabrnnAction in ('softmask', 'hardmask', 'clip')
 
 class CheckUniqueHeaders(RoundedJob):
     """
@@ -137,7 +140,9 @@ class PreprocessSequence(RoundedJob):
         elif self.prepOptions.preprocessJob == "dna-brnn":
             return DnabrnnMaskJob(inChunkID,
                                   dnabrnnOpts=self.prepOptions.dnabrnnOpts,
-                                  hardmask=self.prepOptions.hardmask,
+                                  minLength=self.prepOptions.dnabrnnLength,
+                                  mergeLength=self.prepOptions.dnabrnnMerge,
+                                  action=self.prepOptions.dnabrnnAction,
                                   cpu=self.prepOptions.cpu)
         else:
             raise RuntimeError("Unknown preprocess job %s" % self.prepOptions.preprocessJob)
@@ -228,7 +233,8 @@ class BatchPreprocessor(RoundedJob):
                                               gpuLastz = getOptionalAttrib(prepNode, "gpuLastz", typeFn=bool, default=False),
                                               dnabrnnOpts = getOptionalAttrib(prepNode, "dna-brnnOpts", default=""),
                                               dnabrnnLength = getOptionalAttrib(prepNode, "minLength", typeFn=int, default=1),
-                                              hardmask = getOptionalAttrib(prepNode, "hardmask", typeFn=bool, default=False))
+                                              dnabrnnMerge = getOptionalAttrib(prepNode, "mergeLength", typeFn=int, default=0),
+                                              dnabrnnAction = getOptionalAttrib(prepNode, "action", typeFn=str, default="softmask"))
 
             if prepOptions.unmask:
                 inSequence = fileStore.readGlobalFile(self.inSequenceID)
@@ -291,7 +297,7 @@ class CactusPreprocessor2(RoundedJob):
             logger.info("Adding child batch_preprocessor target")
             return self.addChild(BatchPreprocessor(prepXmlElems, self.inputSequenceID, 0)).rv()
 
-def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=False, outputSequences = [], maskAlpha=False):
+def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=False, outputSequences = [], maskAlpha=False, clipAlpha=None):
     #Replace any constants
     configNode = ET.parse(configFile).getroot()
     if not outputSequences:
@@ -304,9 +310,16 @@ def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=F
         
     if configNode.find("constants") != None:
         ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals()
-    if maskAlpha:
+    if maskAlpha or clipAlpha:
         ConfigWrapper(configNode).setPreprocessorActive("lastzRepeatMask", False)
         ConfigWrapper(configNode).setPreprocessorActive("dna-brnn", True)
+        if clipAlpha:
+            for node in configNode.findall("preprocessor"):
+                if getOptionalAttrib(node, "preprocessJob") == 'dna-brnn':
+                    node.attrib["action"] = "clip"
+                    node.attrib["minLength"] = clipAlpha
+                    node.attrib["mergeLength"] = clipAlpha
+        
     if not restart:
         inputSequenceIDs = [toil.importFile(makeURL(seq)) for seq in inputSequences]
         unzip_job = Job.wrapJobFn(unzip_then_pp, configNode, inputSequences, inputSequenceIDs)
@@ -314,7 +327,14 @@ def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=F
     else:
         outputSequenceIDs = toil.restart()
     for seqID, path in zip(outputSequenceIDs, outputSequences):
-        toil.exportFile(seqID, makeURL(path))
+        try:
+            iter(seqID)
+            # dna-brnn will output a couple of bed files.  we scrape those out here
+            toil.exportFile(seqID[0], makeURL(path))
+            toil.exportFile(seqID[1], makeURL(path) + '.bed')
+            toil.exportFile(seqID[2], makeURL(path) + '.mask.bed')
+        except:
+            toil.exportFile(seqID, makeURL(path))
 
 def unzip_then_pp(job, config_node, input_fa_paths, input_fa_ids):
     """ unzip then preprocess """
@@ -339,6 +359,7 @@ def main():
     parser.add_argument("--inPaths", nargs='*', help='Space-separated list of input fasta paths (to be used in place of --inSeqFile')
     parser.add_argument("--outPaths", nargs='*', help='Space-separated list of output fasta paths (one for each inPath, used in place of --outSeqFile)')
     parser.add_argument("--maskAlpha", action='store_true', help='Use dna-brnn instead of lastz for repeatmasking')
+    parser.add_argument("--clipAlpha", type=int, help='use dna-brnn instead of lastz for repeatmasking.  Also, clip sequence using given minimum length instead of softmasking')
     parser.add_argument("--latest", dest="latest", action="store_true",
                         help="Use the latest version of the docker container "
                         "rather than pulling one matching this version of cactus")
@@ -367,7 +388,10 @@ def main():
             raise RuntimeError('--inPaths and --outPaths must have the same number of arguments')
     else:
         raise RuntimeError('--inSeqFile/--outSeqFile/--inputNames or --inPaths/--outPaths required to specify input')
-
+    if options.maskAlpha and options.clipAlpha:
+        raise RuntimeError('--maskAlpha and --clipAlpha cannot be used together')
+    if options.clipAlpha:
+        options.maskAlpha = True
 
     inSeqPaths = []
     outSeqPaths = []
@@ -406,7 +430,7 @@ def main():
 
     with Toil(options) as toil:
         stageWorkflow(outputSequenceDir=None, configFile=options.configFile, inputSequences=inSeqPaths, toil=toil, restart=options.restart, outputSequences=outSeqPaths,
-                      maskAlpha=options.maskAlpha)
+                      maskAlpha=options.maskAlpha, clipAlpha=options.clipAlpha)
 
 if __name__ == '__main__':
     main()
