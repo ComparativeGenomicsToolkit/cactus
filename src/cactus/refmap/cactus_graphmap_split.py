@@ -190,7 +190,7 @@ def split_gfa(job, config, gfa_id, paf_id, ref_contigs, cactus_id_map, other_con
     work_dir = job.fileStore.getLocalTempDir()
     gfa_path = os.path.join(work_dir, "mg.gfa")
     paf_path = os.path.join(work_dir, "mg.paf")
-    out_prefix = "split_"
+    out_prefix = os.path.join(work_dir, "split_")
 
     job.fileStore.readGlobalFile(gfa_id, gfa_path)
     job.fileStore.readGlobalFile(paf_id, paf_path)
@@ -201,8 +201,8 @@ def split_gfa(job, config, gfa_id, paf_id, ref_contigs, cactus_id_map, other_con
     mg_id = cactus_id_map[graph_event]
 
     cmd = ['rgfa-split', '-i', 'id={}|'.format(mg_id), '-G',
-           '-g', os.path.basename(gfa_path),
-           '-p', os.path.basename(paf_path),
+           '-g', gfa_path,
+           '-p', paf_path,
            '-b', out_prefix]    
     if other_contig:
         cmd += ['-o', other_contig]
@@ -215,8 +215,8 @@ def split_gfa(job, config, gfa_id, paf_id, ref_contigs, cactus_id_map, other_con
     output_id_map = {}
     for out_name in os.listdir(work_dir):
         file_name, ext = os.path.splitext(out_name)
-        if file_name.startswith(out_prefix) and ext in [".gfa", ".paf", ".fa_contigs"]:
-            name = file_name[len(out_prefix):]
+        if file_name.startswith(os.path.basename(out_prefix)) and ext in [".gfa", ".paf", ".fa_contigs"]:
+            name = file_name[len(os.path.basename(out_prefix)):]
             if name not in output_id_map:
                 output_id_map[name] = {}
             output_id_map[name][ext[1:]] = job.fileStore.writeGlobalFile(os.path.join(work_dir, out_name))
