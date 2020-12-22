@@ -121,9 +121,14 @@ class DnabrnnMaskJob(RoundedJob):
                     if len(toks) > 2:
                         seq, start, end = toks[0], int(toks[1]), int(toks[2])
                         if end - start > self.minLength or contig_lengths[seq] <= self.minLength:
-                            # go from 0-based end exlusive to 1-based end inclusive when
-                            # converting from BED to samtools region
-                            listFile.write('{}:{}-{}\n'.format(seq, start + 1, end))
+                            region = seq
+                            if end - start < contig_lengths[seq]:
+                                # go from 0-based end exlusive to 1-based end inclusive when
+                                # converting from BED to samtools region
+                                region += ':{}-{}'.format(start + 1, end)
+                            else:
+                                assert start == 0 and end == contig_lengths[seq]
+                            listFile.write('{}\n'.format(region))
                         else:
                             # the region was too small, we remember it in our filtered bed file
                             mergeFile.write(line)
