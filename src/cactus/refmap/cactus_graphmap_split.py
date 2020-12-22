@@ -190,8 +190,7 @@ def split_gfa(job, config, gfa_id, paf_id, ref_contigs, cactus_id_map, other_con
     work_dir = job.fileStore.getLocalTempDir()
     gfa_path = os.path.join(work_dir, "mg.gfa")
     paf_path = os.path.join(work_dir, "mg.paf")
-    out_path = os.path.join(work_dir, "output")
-    os.makedirs(out_path)
+    out_prefix = "split_"
 
     job.fileStore.readGlobalFile(gfa_id, gfa_path)
     job.fileStore.readGlobalFile(paf_id, paf_path)
@@ -204,7 +203,7 @@ def split_gfa(job, config, gfa_id, paf_id, ref_contigs, cactus_id_map, other_con
     cmd = ['rgfa-split', '-i', 'id={}|'.format(mg_id), '-G',
            '-g', os.path.basename(gfa_path),
            '-p', os.path.basename(paf_path),
-           '-b', os.path.basename(out_path) + "/"]    
+           '-b', out_prefix]    
     if other_contig:
         cmd += ['-o', other_contig]
         
@@ -214,12 +213,13 @@ def split_gfa(job, config, gfa_id, paf_id, ref_contigs, cactus_id_map, other_con
     cactus_call(parameters=cmd, work_dir=work_dir)
 
     output_id_map = {}
-    for out_name in os.listdir(out_path):
-        name, ext = os.path.splitext(out_name)
-        if ext in [".gfa", ".paf", ".fa_contigs"]:
+    for out_name in os.listdir(work_dir):
+        file_name, ext = os.path.splitext(out_name)
+        if file_name.startswith(out_prefix) and ext in [".gfa", ".paf", ".fa_contigs"]:
+            name = file_name[len(out_prefix):]
             if name not in output_id_map:
                 output_id_map[name] = {}
-            output_id_map[name][ext[1:]] = job.fileStore.writeGlobalFile(os.path.join(out_path, out_name))
+            output_id_map[name][ext[1:]] = job.fileStore.writeGlobalFile(os.path.join(work_dir, out_name))
             
     return output_id_map
 
