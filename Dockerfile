@@ -8,8 +8,8 @@ RUN mkdir -p /home/cactus
 COPY . /home/cactus
 
 # compile with nehalem architecture target to improve portablity
-ENV CFLAGS -march=nehalem
-ENV CXXFLAGS -march=nehalem
+ENV CFLAGS -march=haswell
+ENV CXXFLAGS -march=haswell
 
 # clean out stuff before build.
 RUN find /home/cactus -name include.local.mk -exec rm -f {} \;
