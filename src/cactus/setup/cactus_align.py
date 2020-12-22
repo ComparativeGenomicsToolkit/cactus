@@ -282,6 +282,7 @@ def make_align_job(options, toil):
                 seq = tmpSeq
             seq = makeURL(seq)
 
+            logger.info("Importing {}".format(seq))
             experiment.setSequenceID(genome, toil.importFile(seq))
 
     if not outgroup_fragment_found:

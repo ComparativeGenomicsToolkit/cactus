@@ -321,7 +321,10 @@ def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=F
                     node.attrib["mergeLength"] = clipAlpha
         
     if not restart:
-        inputSequenceIDs = [toil.importFile(makeURL(seq)) for seq in inputSequences]
+        inputSequenceIDs = []
+        for seq in inputSequences:
+            logger.info("Importing {}".format(seq))
+            inputSequenceIDs.append(seq)
         unzip_job = Job.wrapJobFn(unzip_then_pp, configNode, inputSequences, inputSequenceIDs)
         outputSequenceIDs = toil.start(unzip_job)
     else:
