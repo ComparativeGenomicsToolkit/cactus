@@ -29,7 +29,7 @@ git submodule update --init --recursive
 
 if [ -z ${CACTUS_LEGACY_ARCH+x} ]
 then
-	 CACTUS_MARCH=haswell
+	 CACTUS_MARCH=sandybridge
 else
 	 CACTUS_MARCH=prescott
 fi
