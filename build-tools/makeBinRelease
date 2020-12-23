@@ -27,10 +27,16 @@ REL_TAG=$(getLatestReleaseTag)
 git checkout "${REL_TAG}"
 git submodule update --init --recursive
 
-if [ $(man gcc | grep nehalem | wc -l) -ge 1 ]
+if [ -z ${CACTUS_LEGACY_ARCH+x} ]
+then
+	 CACTUS_MARCH=sandybridge
+else
+	 CACTUS_MARCH=prescott
+fi
+if [ $(man gcc | grep ${CACTUS_MARCH} | wc -l) -ge 1 ]
 then
 	 # attempt to increase portability by using older architecture
-	 CFLAGS="-march=nehalem" CXXFLAGS="-march=nehalem" make -j $(nproc) check-static
+	 CFLAGS="-march=${CACTUS_MARCH}" CXXFLAGS="-march=${CACTUS_MARCH}" make -j $(nproc) check-static
 else
 	 make -j $(nproc) check-static
 fi
@@ -47,7 +53,11 @@ find submodules/sonLib -name '*.py' | cpio -pdum ${binPackageDir}
 mkdir -p $(binPackageDir)/lib
 rsync -avm --include='*.py' -f 'hide,! */' ./submodules/hal ${binPackageDir}/lib
 # download all external tools used for pangenome pipeline
-build-tools/downloadPangenomeTools
+# (only works for newer architectures due to abpoa dep)
+if [ -z ${CACTUS_LEGACY_ARCH+x} ]	
+then
+	 build-tools/downloadPangenomeTools
+fi
 # need .git dir for pip install -U ., but don't need everything
 cp -r .git ${binPackageDir}
 rm -rf ${binPackageDir}/.git/modules
@@ -55,7 +65,13 @@ rm -rf ${binPackageDir}/.git/modules
 rm -f ${binPackageDir}/bin/*test ${binPackageDir}/bin/*tests ${binPackageDir}/bin/*Test ${binPackageDir}/bin/*Tests ${binPackageDir}/bin/cactus_runEndAlignment
 # make binaries smaller
 strip -d ${binPackageDir}/bin/* 2> /dev/null || true
-tar -czf ${buildDir}/cactus-bin-${REL_TAG}.tar.gz ${binPackageDir}
+if [ -z ${CACTUS_LEGACY_ARCH+x} ]	
+then
+	 outArchive=${buildDir}/cactus-bin-${REL_TAG}.tar.gz
+else
+	 outArchive=${buildDir}/cactus-bin-legacy-${REL_TAG}.tar.gz
+fi
+tar -czf ${outArchive} ${binPackageDir}
 if [ "$keep" = "no" ] ; then
     rm -Rf ${binBuildDir} ${binPackageDir}
 fi

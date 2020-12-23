@@ -235,6 +235,7 @@ push: docker
 
 binRelease:
 	./build-tools/makeBinRelease
+	CACTUS_LEGACY_ARCH=1 ./build-tools/makeBinRelease
 
 srcRelease:
 	./build-tools/makeSrcRelease

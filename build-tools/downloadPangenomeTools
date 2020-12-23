@@ -72,7 +72,7 @@ else
 fi
 
 #samtools
-wget https://github.com/samtools/samtools/releases/download/1.11/samtools-1.11.tar.bz2
+wget -q https://github.com/samtools/samtools/releases/download/1.11/samtools-1.11.tar.bz2
 tar -xf samtools-1.11.tar.bz2
 cd samtools-1.11
 CFLAGS="-static" LDFLAGS="-static" ./configure --without-curses
@@ -80,6 +80,18 @@ make -j 4
 if [ $(ldd samtools | grep so | wc -l) -eq 0 ]
 then
 	 mv samtools ${binDir}
+else
+	 exit 1
+fi
+
+#bedtools
+wget -q https://github.com/arq5x/bedtools2/releases/download/v2.29.1/bedtools-2.29.1.tar.gz
+tar -zxf bedtools-2.29.1.tar.gz
+cd bedtools2
+make static -j 4
+if [ $(ldd bin/bedtools.static | grep so | wc -l) -eq 0 ]
+then
+	 mv bin/bedtools.static ${binDir}/bedtools
 else
 	 exit 1
 fi
@@ -104,7 +116,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://github.com/glennhickey/mzgaf2paf.git
 cd mzgaf2paf
-git checkout 3067797fc4175c30d35cdf3ab63a2e9519d771bf
+git checkout 4b70b73b8debf7e021e43615b9643d69a6857a79
 CXXFLAGS="-static" make -j 4
 if [ $(ldd mzgaf2paf | grep so | wc -l) -eq 0 ]
 then
@@ -121,7 +133,7 @@ fi
 
 
 # paf2lastz
-wget https://github.com/glennhickey/paf2lastz/releases/download/v1.1/paf2lastz
+wget -q https://github.com/glennhickey/paf2lastz/releases/download/v1.1/paf2lastz
 chmod +x paf2lastz
 if [ $(ldd paf2lastz | grep so | wc -l) -eq 0 ]
 then
@@ -131,7 +143,7 @@ else
 fi 
 
 # hal2vg
-wget https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.2/hal2vg
+wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.2/hal2vg
 chmod +x hal2vg
 if [ $(ldd hal2vg | grep so | wc -l) -eq 0 ]
 then
@@ -141,7 +153,7 @@ else
 fi
 
 # vg
-wget https://github.com/vgteam/vg/releases/download/v1.29.0/vg
+wget -q https://github.com/vgteam/vg/releases/download/v1.29.0/vg
 chmod +x vg
 if [ $(ldd vg | grep so | wc -l) -eq 0 ]
 then

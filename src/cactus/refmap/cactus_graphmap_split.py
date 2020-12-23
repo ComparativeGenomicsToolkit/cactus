@@ -50,6 +50,7 @@ def main():
     parser.add_argument("--outDir", required=True, type=str, help = "Output directory")
     parser.add_argument("--refContigs", nargs="*", help = "Subset to these reference contigs (multiple allowed)", default=[])
     parser.add_argument("--refContigsFile", type=str, help = "Subset to (newline-separated) reference contigs in this file")
+    parser.add_argument("--otherContig", type=str, help = "Lump all reference contigs unselected by above options into single one with this name")
     
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -107,6 +108,9 @@ def runCactusGraphMapSplit(options):
                         if len(line.strip()):
                             ref_contigs.add(line.strip().split()[0])
 
+            if options.otherContig:
+                assert options.otherContig not in ref_contigs
+
             # get the minigraph "virutal" assembly name
             graph_event = getOptionalAttrib(findRequiredNode(configNode, "graphmap"), "assemblyName", default="__MINIGRAPH_SEQUENCES__")
 
@@ -129,6 +133,7 @@ def runCactusGraphMapSplit(options):
                         catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
                         seq = tmpSeq
                     seq = makeURL(seq)
+                    logger.info("Importing {}".format(seq))
                     seqIDMap[genome] = (seq, toil.importFile(seq))
 
             # todo: better error -- its easy to make this mistake
@@ -137,12 +142,12 @@ def runCactusGraphMapSplit(options):
             # run the workflow
             split_id_map = toil.start(Job.wrapJobFn(graphmap_split_workflow, options, config, seqIDMap,
                                                     gfa_id, options.minigraphGFA,
-                                                    paf_id, options.graphmapPAF, ref_contigs))
+                                                    paf_id, options.graphmapPAF, ref_contigs, options.otherContig))
 
         #export the split data
         export_split_data(toil, split_id_map, options.outDir)
 
-def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, paf_id, paf_path, ref_contigs):
+def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, paf_id, paf_path, ref_contigs, other_contig):
 
     root_job = Job()
     job.addChild(root_job)
@@ -166,6 +171,7 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
         
     # use rgfa-split to split the gfa and paf up by contig
     split_gfa_job = root_job.addFollowOnJobFn(split_gfa, config, gfa_id, paf_id, ref_contigs, cactus_id_map,
+                                              other_contig,
                                               disk=(gfa_size + paf_size) * 5)
 
     # use the output of the above splitting to do the fasta splitting
@@ -177,15 +183,14 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
     # return all the files
     return gather_fas_job.rv()
 
-def split_gfa(job, config, gfa_id, paf_id, ref_contigs, cactus_id_map):
+def split_gfa(job, config, gfa_id, paf_id, ref_contigs, cactus_id_map, other_contig):
     """ Use rgfa-split to divide a GFA and PAF into chromosomes.  The GFA must be in minigraph RGFA output using
     the desired reference. """
 
     work_dir = job.fileStore.getLocalTempDir()
     gfa_path = os.path.join(work_dir, "mg.gfa")
     paf_path = os.path.join(work_dir, "mg.paf")
-    out_path = os.path.join(work_dir, "output")
-    os.makedirs(out_path)
+    out_prefix = os.path.join(work_dir, "split_")
 
     job.fileStore.readGlobalFile(gfa_id, gfa_path)
     job.fileStore.readGlobalFile(paf_id, paf_path)
@@ -195,19 +200,26 @@ def split_gfa(job, config, gfa_id, paf_id, ref_contigs, cactus_id_map):
     # and look up its unique id prefix.  this will be needed to pick its contigs out of the list
     mg_id = cactus_id_map[graph_event]
 
-    cmd = ['rgfa-split', '-g', gfa_path, '-p', paf_path, '-b', out_path + "/", '-i', 'id={}|'.format(mg_id)]
+    cmd = ['rgfa-split', '-i', 'id={}|'.format(mg_id), '-G',
+           '-g', gfa_path,
+           '-p', paf_path,
+           '-b', out_prefix]    
+    if other_contig:
+        cmd += ['-o', other_contig]
+        
     for contig in ref_contigs:
         cmd += ['-c', contig]
 
-    cactus_call(parameters=cmd)
+    cactus_call(parameters=cmd, work_dir=work_dir)
 
     output_id_map = {}
-    for out_name in os.listdir(out_path):
-        name, ext = os.path.splitext(out_name)
-        if ext in [".gfa", ".paf", ".fa_contigs"]:
+    for out_name in os.listdir(work_dir):
+        file_name, ext = os.path.splitext(out_name)
+        if file_name.startswith(os.path.basename(out_prefix)) and ext in [".gfa", ".paf", ".fa_contigs"]:
+            name = file_name[len(os.path.basename(out_prefix)):]
             if name not in output_id_map:
                 output_id_map[name] = {}
-            output_id_map[name][ext[1:]] = job.fileStore.writeGlobalFile(os.path.join(out_path, out_name))
+            output_id_map[name][ext[1:]] = job.fileStore.writeGlobalFile(os.path.join(work_dir, out_name))
             
     return output_id_map
 
@@ -297,7 +309,8 @@ def export_split_data(toil, output_id_map, output_dir):
         toil.exportFile(output_id_map[ref_contig]['gfa'], makeURL(os.path.join(ref_contig_path, '{}.gfa'.format(ref_contig))))
 
         # PAF: <output_dir>/<contig>/<contig>.paf
-        toil.exportFile(output_id_map[ref_contig]['paf'], makeURL(os.path.join(ref_contig_path, '{}.paf'.format(ref_contig))))
+        paf_path = os.path.join(ref_contig_path, '{}.paf'.format(ref_contig))
+        toil.exportFile(output_id_map[ref_contig]['paf'], makeURL(paf_path))
 
         # Fasta: <output_dir>/<contig>/fasta/<event>_<contig>.fa ..
         seq_file_map = {}
@@ -316,12 +329,12 @@ def export_split_data(toil, output_id_map, output_dir):
                 seq_file.write('{}\t{}\n'.format(event, fa_path))
 
         # Top-level seqfile
-        chrom_file_map[ref_contig] = makeURL(seq_file_path)
+        chrom_file_map[ref_contig] = seq_file_path, paf_path
         
         
     with open(os.path.join(output_dir, 'chromfile.txt'), 'w') as chromfile:
-        for ref_contig, seqfile_path in chrom_file_map.items():
-            chromfile.write('{}\t{}\n'.format(ref_contig, makeURL(seqfile_path)))
+        for ref_contig, seqfile_paf in chrom_file_map.items():
+            chromfile.write('{}\t{}\t{}\n'.format(ref_contig, seqfile_paf[0], seqfile_paf[1]))
     
 if __name__ == "__main__":
     main()

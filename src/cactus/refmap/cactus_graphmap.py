@@ -136,8 +136,6 @@ def runCactusGraphMap(options):
 
             # load the seqfile
             seqFile = SeqFile(options.seqFile)
-            
-            logger.info("Genomes for graphmap, {}".format(seqFile.pathMap))
 
             if not options.outputFasta and graph_event not in seqFile.pathMap:
                 raise RuntimeError("{} assembly not found in seqfile so it must be specified with --outputFasta".format(graph_event))
@@ -155,6 +153,7 @@ def runCactusGraphMap(options):
                         catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
                         seq = tmpSeq
                     seq = makeURL(seq)
+                    logger.info("Importing {}".format(seq))
                     seqIDMap[genome] = toil.importFile(seq)
 
             # run the workflow
