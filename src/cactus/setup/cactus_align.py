@@ -53,7 +53,7 @@ def main():
     addCactusWorkflowOptions(parser)
 
     parser.add_argument("seqFile", help = "Seq file")
-    parser.add_argument("cigarsFile", nargs="+", help = "Pairiwse aliginments (from cactus-blast, cactus-refmap or cactus-graphmap)")
+    parser.add_argument("cigarsFile", nargs="*", help = "Pairiwse aliginments (from cactus-blast, cactus-refmap or cactus-graphmap)")
     parser.add_argument("outHal", type=str, help = "Output HAL file (or directory in --batch mode)")
     parser.add_argument("--pathOverrides", nargs="*", help="paths (multiple allowd) to override from seqFile")
     parser.add_argument("--pathOverrideNames", nargs="*", help="names (must be same number as --paths) of path overrides")
@@ -125,6 +125,9 @@ def main():
         # the output hal is a directory, make sure it's there
         if not os.path.isdir(options.outHal):
             os.makedirs(options.outHal)
+        assert len(options.cigarsFile) == 0
+    else:
+        assert len(options.cigarsFile) > 0
 
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
@@ -177,11 +180,12 @@ def make_batch_align_jobs(options, toil):
             for line in chrom_file:
                 toks = line.strip().split()
                 if len(toks):
-                    assert len(toks) == 2
-                    chrom, seqfile = toks[0], toks[1]
+                    assert len(toks) == 3
+                    chrom, seqfile, alnFile = toks[0], toks[1], toks[2]
                     chrom_options = copy.deepcopy(options)
                     chrom_options.batch = False
                     chrom_options.seqFile = seqfile
+                    chrom_options.cigarsFile = [alnFile]
                     chrom_align_job = make_align_job(chrom_options, toil)
                     result_dict[chrom] = chrom_align_job
     else:

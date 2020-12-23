@@ -309,7 +309,8 @@ def export_split_data(toil, output_id_map, output_dir):
         toil.exportFile(output_id_map[ref_contig]['gfa'], makeURL(os.path.join(ref_contig_path, '{}.gfa'.format(ref_contig))))
 
         # PAF: <output_dir>/<contig>/<contig>.paf
-        toil.exportFile(output_id_map[ref_contig]['paf'], makeURL(os.path.join(ref_contig_path, '{}.paf'.format(ref_contig))))
+        paf_path = os.path.join(ref_contig_path, '{}.paf'.format(ref_contig))
+        toil.exportFile(output_id_map[ref_contig]['paf'], makeURL(paf_path))
 
         # Fasta: <output_dir>/<contig>/fasta/<event>_<contig>.fa ..
         seq_file_map = {}
@@ -328,12 +329,12 @@ def export_split_data(toil, output_id_map, output_dir):
                 seq_file.write('{}\t{}\n'.format(event, fa_path))
 
         # Top-level seqfile
-        chrom_file_map[ref_contig] = makeURL(seq_file_path)
+        chrom_file_map[ref_contig] = seq_file_path, paf_path
         
         
     with open(os.path.join(output_dir, 'chromfile.txt'), 'w') as chromfile:
-        for ref_contig, seqfile_path in chrom_file_map.items():
-            chromfile.write('{}\t{}\n'.format(ref_contig, makeURL(seqfile_path)))
+        for ref_contig, seqfile_paf in chrom_file_map.items():
+            chromfile.write('{}\t{}\t{}\n'.format(ref_contig, seqfile_paf[0], seqfile_paf[1]))
     
 if __name__ == "__main__":
     main()
