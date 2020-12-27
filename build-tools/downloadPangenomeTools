@@ -13,7 +13,7 @@
 #
 # all binaries get copied into cactus/bin
 
-set -beEu -o pipefail
+set -beE -o pipefail
 
 pangenomeBuildDir=$(realpath -m build-pangenome-tools)
 binDir=$(pwd)/bin
