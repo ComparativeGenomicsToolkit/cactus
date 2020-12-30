@@ -181,7 +181,7 @@ def main():
     end_time = timeit.default_timer()
     run_time = end_time - start_time
     logger.info("cactus-align has finished after {} seconds".format(run_time))
-
+    
 def run_batch_align_jobs(job, jobs_dict):
     """ todo: clean this up """
     rv_dict = {}
@@ -566,6 +566,135 @@ def export_vg(job, hal_id, configWrapper, doVG, doGFA, checkpointInfo=None, reso
     gfa_id = job.fileStore.writeGlobalFile(gfa_path) if doGFA else None
 
     return vg_id, gfa_id
+
+def main_batch():
+    """ this is a bit like cactus-align --batch except it will use toil-in-toil to assign each chromosome to a machine.
+    pros: much less chance of a problem with one chromosome affecting anything else
+          more forgiving for inexact resource specs
+          could be ported to Terra
+    cons: less efficient use of resources
+    """
+    parser = ArgumentParser()
+    Job.Runner.addToilOptions(parser)
+    addCactusWorkflowOptions(parser)
+
+    parser.add_argument("chromFile", help = "chroms file")
+    parser.add_argument("outHal", type=str, help = "Output directory (can be s3://)")
+    parser.add_argument("--alignOptions", type=str, help = "Options to pass through to cactus-align (don't forget to wrap in quotes)")
+    parser.add_argument("--alignCores", type=int, help = "Number of cores per align job")
+
+    parser.add_argument("--configFile", dest="configFile",
+                        help="Specify cactus configuration file",
+                        default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
+
+    options = parser.parse_args()
+
+    options.containerImage=None
+    options.binariesMode=None
+    options.root=None
+    options.latest=None
+    options.database="kyoto_tycoon"
+
+    setupBinaries(options)
+    setLoggingFromOptions(options)
+    enableDumpStack()
+
+    # Mess with some toil options to create useful defaults.
+    cactus_override_toil_options(options)
+
+    start_time = timeit.default_timer()
+    with Toil(options) as toil:
+        importSingularityImage(options)
+        if options.restart:
+            results_dict = toil.restart()
+        else:
+            config_id = toil.importFile(makeURL(options.configFile))
+            # load the chromfile into memory
+            chrom_dict = {}
+            with open(options.chromFile, 'r') as chrom_file:
+                for line in chrom_file:
+                    toks = line.strip().split()
+                    if len(toks):
+                        assert len(toks) == 3
+                        chrom, seqfile, alnFile = toks[0], toks[1], toks[2]
+                        chrom_dict[chrom] = toil.importFile(makeURL(seqfile)), toil.importFile(makeURL(alnFile))
+            results_dict = toil.start(Job.wrapJobFn(align_toil_batch, chrom_dict, config_id, options))
+
+        # when using s3 output urls, things get checkpointed as they're made so no reason to export
+        # todo: make a more unified interface throughout cactus for this
+        # (see toil-vg's outstore logic which, while not perfect, would be an improvement
+        if not options.outHal.startswith('s3://'):
+            if options.batch:
+                for chrom, results in results_dict.items():
+                    toil.exportFile(results[0], makeURL(os.path.join(options.outHal, '{}.hal'.format(chrom))))
+                    if options.outVG:
+                        toil.exportFile(results[1], makeURL(os.path.join(options.outHal, '{}.vg'.format(chrom))))
+                    if options.outGFA:
+                        toil.exportFile(results[2], makeURL(os.path.join(options.outHal, '{}.gfa.gz'.format(chrom))))                    
+            else:
+                assert len(results_dict) == 1 and None in results_dict
+                halID, vgID, gfaID = results_dict[None][0], results_dict[None][1], results_dict[None][2]
+                # export the hal
+                toil.exportFile(halID, makeURL(options.outHal))
+                # export the vg
+                if options.outVG:
+                    toil.exportFile(vgID, makeURL(os.path.splitext(options.outHal)[0] + '.vg'))
+                if options.outGFA:
+                    toil.exportFile(gfaID, makeURL(os.path.splitext(options.outHal)[0] + '.gfa.gz'))
+                                
+    end_time = timeit.default_timer()
+    run_time = end_time - start_time
+    logger.info("cactus-align-batch has finished after {} seconds".format(run_time))
+
+def align_toil_batch(job, chrom_dict, config_id, options):
+    """ spawn a toil job for each cactus-align """
+
+    results_dict = {}
+    for chrom in chrom_dict.keys():
+        seq_file_id, paf_file_id = chrom_dict[chrom]
+        align_job = job.addChildJobFn(align_toil, chrom, seq_file_id, paf_file_id, config_id, options,
+                                      cores=options.alignCores)
+        results_dict[chrom] = align_job.rv()
+
+    return results_dict
+
+def align_toil(job, chrom, seq_file_id, paf_file_id, config_id, options):
+    """ run cactus-align """
+    
+    work_dir = job.fileStore.getLocalTempDir()
+    config_file = os.path.join(work_dir, 'config.xml')
+    job.fileStore.readGlobalFile(config_id, config_file)
+
+    seq_file = os.path.join(work_dir, '{}_seq_file.txt'.format(chrom))
+    job.fileStore.readGlobalFile(seq_file_id, seq_file)
+
+    paf_file = os.path.join(work_dir, '{}.paf'.format(chrom))
+    job.fileStore.readGlobalFile(paf_file_id, paf_file)
+
+    js = os.path.join(work_dir, 'js')
+
+    if options.outHal.startswith('s3://'):
+        out_file = os.path.join(options.outHal, '{}.hal'.format(chrom))
+    else:
+        out_file = os.path.join(work_dir, '{}.hal'.format(chrom))
+
+    cmd = ['cactus-align', js, seq_file, paf_file, out_file] + options.alignOptions.split()
+
+    cactus_call(parameters=cmd)
+
+    ret_ids = [None, None, None]
+
+    if not options.outHal.startswith('s3://'):
+        # we're not checkpoint directly to s3, so we return 
+        ret_ids[0] = job.fileStore.writeGlobalFile(out_file)
+        out_vg = os.path.splitext(out_file)[0] + '.vg'
+        if os.path.exists(out_vg):
+            ret_ids[1] = job.fileStore.writeGlobalFile(out_vg)
+        out_gfa = os.path.splitext(out_file)[0] + '.gfa.gz'
+        if os.path.exists(out_gfa):
+            ret_ids[2] = job.fileStore.writeGlobalFile(out_gfa)
+
+    return ret_ids
 
 if __name__ == '__main__':
     main()
