@@ -86,7 +86,7 @@ Flower *flower_construct(CactusDisk *cactusDisk) {
     return flower_construct2(cactusDisk_getUniqueID(cactusDisk), cactusDisk);
 }
 
-void flower_destruct(Flower *flower, int64_t recursive) {
+void flower_destruct_memonly(Flower *flower, int64_t recursive) {
     Flower_GroupIterator *iterator;
     Sequence *sequence;
     End *end;
@@ -100,7 +100,7 @@ void flower_destruct(Flower *flower, int64_t recursive) {
         while ((group = flower_getNextGroup(iterator)) != NULL) {
             nestedFlower = group_getNestedFlower(group);
             if (nestedFlower != NULL) {
-                flower_destruct(nestedFlower, recursive);
+                flower_destruct_memonly(nestedFlower, recursive);
             }
         }
         flower_destructGroupIterator(iterator);
@@ -139,6 +139,29 @@ void flower_destruct(Flower *flower, int64_t recursive) {
     stSortedSet_destruct(flower->groups);
 
     free(flower);
+}
+
+void flower_destruct(Flower *flower, int64_t recursive) {
+    Flower_GroupIterator *iterator;
+    Group *group;
+    Flower *nestedFlower;
+
+    if (recursive) {
+        iterator = flower_getGroupIterator(flower);
+        while ((group = flower_getNextGroup(iterator)) != NULL) {
+            nestedFlower = group_getNestedFlower(group);
+            if (nestedFlower != NULL) {
+                flower_destruct(nestedFlower, recursive);
+            }
+        }
+        flower_destructGroupIterator(iterator);
+    }
+
+    // remove it from the disk
+    cactusDisk_removeFlower(flower->cactusDisk, flower);
+
+    // remove it from memory
+    flower_destruct_memonly(flower, 0);
 }
 
 Name flower_getName(Flower *flower) {

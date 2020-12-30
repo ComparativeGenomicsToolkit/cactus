@@ -28,6 +28,17 @@ Flower *flower_construct(CactusDisk *cactusDisk);
 Flower *flower_construct2(Name name, CactusDisk *cactusDisk);
 
 /*
+ * Destructs the flower struct from memory.
+ */
+void flower_destruct_memonly(Flower *flower, int64_t recursive);
+
+/*
+ * Destructs the flower (as above) *and* removes it from the disk
+ */
+
+void flower_destruct(Flower *flower, int64_t recursive);
+
+/*
  * Gets the name of the flower.
  */
 Name flower_getName(Flower *flower);

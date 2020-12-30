@@ -52,13 +52,17 @@ int main(int argc, char *argv[]) {
     parseArgs(argc, argv);
 
     st_logDebug("Starting extending flowers\n");
-    stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
-    for (int64_t i = 0; i < stList_length(flowers); i++) {
-        Flower *flower = stList_get(flowers, i);
+    stList *flowerNamesList = flowerWriter_parseNames(stdin);
+    // the flower list can be very large at the top level, so we read them
+    // one at a time and destruct as we go. 
+    for (int64_t i = 0; i < stList_length(flowerNamesList); i++) {
+        Name flowerName = *((int64_t *) stList_get(flowerNamesList, i));
+        Flower* flower = cactusDisk_getFlower(cactusDisk, flowerName);
         extendFlowers(flower, flowerIsLarge(flower));
         assert(!flower_isParentLoaded(flower)); //The parent should not be loaded.
+        flower_destruct_memonly(flower, 1);
     }
-    stList_destruct(flowers);
+    stList_destruct(flowerNamesList);
     st_logDebug("Finish extending flowers\n");
 
     flowerWriter_destruct(flowerWriter);
