@@ -145,7 +145,7 @@ def runCactusGraphMapSplit(options):
                                                     paf_id, options.graphmapPAF, ref_contigs, options.otherContig))
 
         #export the split data
-        export_split_data(toil, split_id_map, options.outDir)
+        export_split_data(toil, seqIDMap, split_id_map, options.outDir)
 
 def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, paf_id, paf_path, ref_contigs, other_contig):
 
@@ -274,7 +274,9 @@ def split_fa_into_contigs(job, event, fa_id, fa_path, cactus_id, split_id_map):
                     contig_count += 1
         contig_fasta_path = os.path.join(work_dir, '{}_{}.fa'.format(event, ref_contig))
         if contig_count > 0:
-            cmd = ['samtools', 'faidx', fa_path, '--region-file', faidx_input_path] 
+            cmd = ['samtools', 'faidx', fa_path, '--region-file', faidx_input_path]
+            if is_gz:
+                cmd = [cmd, ['gzip']]
             cactus_call(parameters=cmd, outfile=contig_fasta_path)
         else:
             # TODO: review how cases like this are handled
@@ -295,7 +297,7 @@ def gather_fas(job, seq_id_map, output_id_map, contig_fa_map):
 
     return output_id_map
 
-def export_split_data(toil, output_id_map, output_dir):
+def export_split_data(toil, input_seq_id_map, output_id_map, output_dir):
     """ download all the split data locally """
 
     chrom_file_map = {}
@@ -319,6 +321,8 @@ def export_split_data(toil, output_id_map, output_dir):
             if not os.path.isdir(fa_base):
                 os.makedirs(fa_base)
             fa_path = makeURL(os.path.join(fa_base, '{}_{}.fa'.format(event, ref_contig)))
+            if input_seq_id_map[event][0].endswith('.gz'):
+                fa_path += '.gz'
             seq_file_map[event] = fa_path
             toil.exportFile(ref_contig_fa_id, fa_path)
 

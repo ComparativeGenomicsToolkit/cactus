@@ -1526,4 +1526,38 @@ def unzip_gz(job, input_path, input_id):
     job.fileStore.readGlobalFile(input_id, fa_path, mutable=True)
     cactus_call(parameters=['gzip', '-d', os.path.basename(fa_path)], work_dir=work_dir)
     return job.fileStore.writeGlobalFile(fa_path[:-3])
+
+def zip_gzs(job, input_paths, input_ids, list_elems = None):
+    """ zip up some files.  the input_ids can be a list of lists.  if it is, then list_elems
+    can be used to only zip a subset (leaving everything else) on each list."""
+    zipped_ids = []
+    for input_path, input_list in zip(input_paths, input_ids):
+        if input_path.endswith('.gz'):
+            try:
+                iter(input_list)
+                is_list = True
+            except:
+                is_list = False
+            if is_list:
+                output_list = []
+                for i, elem in enumerate(input_list):
+                    if not list_elems or i in list_elems:
+                        output_list.append(job.addChildJobFn(zip_gz, input_path, elem, disk=2*elem.size).rv())
+                    else:
+                        output_list.append(elem)
+                zipped_ids.append(output_list)
+            else:
+                zipped_ids.append(job.addChildJobFn(zip_gz, input_path, input_id, disk=2*input_id.size).rv())
+        else:
+            zipped_ids.append(input_list)
+    return zipped_ids
     
+def zip_gz(job, input_path, input_id):
+    """ zip a single file """
+    work_dir = job.fileStore.getLocalTempDir()
+    fa_path = os.path.join(work_dir, os.path.basename(input_path))
+    if fa_path.endswith('.gz'):
+        fa_path = fa_path[:-3]
+    job.fileStore.readGlobalFile(input_id, fa_path, mutable=True)
+    cactus_call(parameters=['gzip', os.path.basename(fa_path)], work_dir=work_dir)
+    return job.fileStore.writeGlobalFile(fa_path + '.gz')

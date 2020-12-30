@@ -154,7 +154,7 @@ def runCactusGraphMap(options):
                         seq = tmpSeq
                     seq = makeURL(seq)
                     logger.info("Importing {}".format(seq))
-                    seqIDMap[genome] = toil.importFile(seq)
+                    seqIDMap[genome] = (seq, toil.importFile(seq))
 
             # run the workflow
             paf_id, gfa_fa_id, gaf_id_map = toil.start(Job.wrapJobFn(minigraph_workflow, options, config, seqIDMap, gfa_id, graph_event))
@@ -226,9 +226,11 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map, cactus_id_map, graph_event
     gaf_id_map = {}
     paf_id_map = {}
                 
-    for event, fa_id in fa_id_map.items():
+    for event, fa_path_fa_id in fa_id_map.items():
+        fa_path = fa_path_fa_id[0]
+        fa_id = fa_path_fa_id[1]
         cactus_id = cactus_id_map[event] if cactus_id_map else None
-        minigraph_map_job = top_job.addChildJobFn(minigraph_map_one, config, event, fa_id, gfa_id, cactus_id,
+        minigraph_map_job = top_job.addChildJobFn(minigraph_map_one, config, event, fa_path, fa_id, gfa_id, cactus_id,
                                                   keep_gaf or not paf_per_genome, paf_per_genome, cactus_mg_graph_id,
                                                   # todo: estimate RAM
                                                   cores=mg_cores, disk=5*(fa_id.size + gfa_id.size))
@@ -248,17 +250,21 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map, cactus_id_map, graph_event
         
     return paf_job.rv(), gaf_id_map
 
-def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id, cactus_id, gaf_output, paf_output, cactus_mg_graph_id):
+def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id, cactus_id, gaf_output, paf_output, cactus_mg_graph_id):
     """ Run minigraph to map a Fasta file to a GFA graph, producing a GAF output """
 
     work_dir = job.fileStore.getLocalTempDir()
     gfa_path = os.path.join(work_dir, "mg.gfa")
     fa_dir = work_dir if cactus_id is None else job.fileStore.getLocalTempDir()
-    fa_path = os.path.join(fa_dir, "{}.fa".format(event_name))
+    fa_path = os.path.join(fa_dir, os.path.basename(fa_path))
     gaf_path = os.path.join(work_dir, "{}.gaf".format(event_name))
     
     job.fileStore.readGlobalFile(gfa_file_id, gfa_path)
     job.fileStore.readGlobalFile(fa_file_id, fa_path)
+
+    if fa_path.endswith('.gz'):
+        fa_path = fa_path[:-3]
+        cactus_call(parameters = ['gzip', '-d', '-c', fa_path + '.gz'], outfile=fa_path)
 
     if cactus_id is not None:
         # prepend the unique id before mapping so the GAF has cactus-compatible event names

@@ -438,7 +438,16 @@ def run_prepend_unique_ids(job, cactusWorkflowArguments, project, renameCigars):
     # this is horrible and needs to be fixed via drastic interface refactor
     exp = cactusWorkflowArguments.experimentWrapper
     ingroupsAndOriginalIDs = [(g, exp.getSequenceID(g)) for g in exp.getGenomesWithSequence() if g not in exp.getOutgroupGenomes()]
-    sequences = [job.fileStore.readGlobalFile(id) for id in map(itemgetter(1), ingroupsAndOriginalIDs)]
+    sequences = []
+    for g, seqID in ingroupsAndOriginalIDs:
+        seqPath = job.fileStore.getLocalTempFile() + '.fa'
+        if project.inputSequenceMap[g].endswith('.gz'):
+            seqPath += '.gz'
+        job.fileStore.readGlobalFile(seqID, seqPath)
+        if seqPath.endswith('.gz'):
+            cactus_call(parameters=['gzip', '-d', '-c', seqPath], outfile=seqPath[:-3])
+            seqPath = seqPath[:-3]
+        sequences.append(seqPath)            
     cactusWorkflowArguments.totalSequenceSize = sum(os.stat(x).st_size for x in sequences)
     renamedInputSeqDir = job.fileStore.getLocalTempDir()
     id_map = {}
