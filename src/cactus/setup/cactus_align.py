@@ -207,7 +207,7 @@ def make_batch_align_jobs(options, toil):
                     chrom_options.cigarsFile = [alnFile]
                     if chrom_options.checkpointInfo:
                         chrom_options.checkpointInfo = (chrom_options.checkpointInfo[0],
-                                                        os.path.join(chrom_options.checkpointInfo[1], chrom, '.hal'))
+                                                        os.path.join(chrom_options.checkpointInfo[1], chrom + '.hal'))
                     chrom_align_job = make_align_job(chrom_options, toil)
                     result_dict[chrom] = chrom_align_job
     else:
