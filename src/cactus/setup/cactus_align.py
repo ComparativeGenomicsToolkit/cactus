@@ -36,6 +36,7 @@ from cactus.shared.common import findRequiredNode
 from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import cactus_call
 from cactus.refmap import paf_to_lastz
+from cactus.shared.common import write_s3, has_s3, get_aws_region
 
 from toil.realtimeLogger import RealtimeLogger
 from toil.job import Job
@@ -121,6 +122,20 @@ def main():
     options.buildHal = True
     options.buildFasta = True
 
+    if options.outHal.startswith('s3://'):
+        if not options.jobStore.startswith('aws'):
+            raise RuntimeError('S3 output only supported with S3 job store')
+        if not has_s3:
+            raise RuntimeError("S3 support requires toil to be installed with [aws]")
+        # write a little something to the bucket now to catch any glaring problems asap
+        test_file = os.path.join(getTempDirectory(), 'check')
+        with open(test_file, 'w') as test_o:
+                test_o.write("\n")
+        write_s3(options, test_file, options.outHal if options.outHal.endswith('.hal') else os.path.join(options.outHal, 'test'))
+        options.checkpointInfo = (get_aws_region(options.jobStore), options.outHal)
+    else:
+        options.checkpointInfo = None
+        
     if options.batch:
         # the output hal is a directory, make sure it's there
         if not os.path.isdir(options.outHal):
@@ -141,23 +156,27 @@ def main():
             align_jobs = make_batch_align_jobs(options, toil)
             results_dict = toil.start(Job.wrapJobFn(run_batch_align_jobs, align_jobs))
 
-        if options.batch:
-            for chrom, results in results_dict.items():
-                toil.exportFile(results[0], makeURL(os.path.join(options.outHal, '{}.hal'.format(chrom))))
+        # when using s3 output urls, things get checkpointed as they're made so no reason to export
+        # todo: make a more unified interface throughout cactus for this
+        # (see toil-vg's outstore logic which, while not perfect, would be an improvement
+        if not options.outHal.startswith('s3://'):
+            if options.batch:
+                for chrom, results in results_dict.items():
+                    toil.exportFile(results[0], makeURL(os.path.join(options.outHal, '{}.hal'.format(chrom))))
+                    if options.outVG:
+                        toil.exportFile(results[1], makeURL(os.path.join(options.outHal, '{}.vg'.format(chrom))))
+                    if options.outGFA:
+                        toil.exportFile(results[2], makeURL(os.path.join(options.outHal, '{}.gfa.gz'.format(chrom))))                    
+            else:
+                assert len(results_dict) == 1 and None in results_dict
+                halID, vgID, gfaID = results_dict[None][0], results_dict[None][1], results_dict[None][2]
+                # export the hal
+                toil.exportFile(halID, makeURL(options.outHal))
+                # export the vg
                 if options.outVG:
-                    toil.exportFile(results[1], makeURL(os.path.join(options.outHal, '{}.vg'.format(chrom))))
+                    toil.exportFile(vgID, makeURL(os.path.splitext(options.outHal)[0] + '.vg'))
                 if options.outGFA:
-                    toil.exportFile(results[2], makeURL(os.path.join(options.outHal, '{}.gfa.gz'.format(chrom))))                    
-        else:
-            assert len(results_dict) == 1 and None in results_dict
-            halID, vgID, gfaID = results_dict[None][0], results_dict[None][1], results_dict[None][2]
-            # export the hal
-            toil.exportFile(halID, makeURL(options.outHal))
-            # export the vg
-            if options.outVG:
-                toil.exportFile(vgID, makeURL(os.path.splitext(options.outHal)[0] + '.vg'))
-            if options.outGFA:
-                toil.exportFile(gfaID, makeURL(os.path.splitext(options.outHal)[0] + '.gfa.gz'))
+                    toil.exportFile(gfaID, makeURL(os.path.splitext(options.outHal)[0] + '.gfa.gz'))
                                 
     end_time = timeit.default_timer()
     run_time = end_time - start_time
@@ -186,6 +205,9 @@ def make_batch_align_jobs(options, toil):
                     chrom_options.batch = False
                     chrom_options.seqFile = seqfile
                     chrom_options.cigarsFile = [alnFile]
+                    if chrom_options.checkpointInfo:
+                        chrom_options.checkpointInfo = (chrom_options.checkpointInfo[0],
+                                                        os.path.join(chrom_options.checkpointInfo[1], chrom, '.hal'))
                     chrom_align_job = make_align_job(chrom_options, toil)
                     result_dict[chrom] = chrom_align_job
     else:
@@ -357,6 +379,7 @@ def make_align_job(options, toil):
                               configWrapper,
                               workFlowArgs,
                               project,
+                              checkpointInfo=options.checkpointInfo,
                               doRenaming=options.nonCactusInput,
                               pafInput=options.pafInput,
                               pafSecondaries=options.usePafSecondaries,
@@ -364,8 +387,7 @@ def make_align_job(options, toil):
                               doGFA=options.outGFA)
     return align_job
 
-
-def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, doRenaming, pafInput, pafSecondaries, doVG, doGFA):
+def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, checkpointInfo, doRenaming, pafInput, pafSecondaries, doVG, doGFA):
     head_job = Job()
     job.addChild(head_job)
 
@@ -398,13 +420,15 @@ def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, doRen
 
     # create the hal
     hal_export_job = prepare_hal_export_job.addFollowOnJobFn(exportHal, prepare_hal_export_job.rv(0), event=prepare_hal_export_job.rv(1),
+                                                             checkpointInfo=checkpointInfo,
                                                              memory=configWrapper.getDefaultMemory(),
                                                              disk=configWrapper.getExportHalDisk(),
                                                              preemptable=False)
 
     # optionally create the VG
     if doVG or doGFA:
-        vg_export_job = hal_export_job.addFollowOnJobFn(export_vg, hal_export_job.rv(), configWrapper, doVG, doGFA)
+        vg_export_job = hal_export_job.addFollowOnJobFn(export_vg, hal_export_job.rv(), configWrapper, doVG, doGFA,
+                                                        checkpointInfo=checkpointInfo)
         vg_file_id, gfa_file_id = vg_export_job.rv(0), vg_export_job.rv(1)
     else:
         vg_file_id, gfa_file_id = None, None
@@ -505,13 +529,13 @@ def run_prepare_hal_export(job, project, experiment):
     project.expIDMap = {event : job.fileStore.writeGlobalFile(exp_path)}
     return project, event
 
-def export_vg(job, hal_id, configWrapper, doVG, doGFA, resource_spec = False):
+def export_vg(job, hal_id, configWrapper, doVG, doGFA, checkpointInfo=None, resource_spec = False):
     """ use hal2vg to convert the HAL to vg format """
 
     if not resource_spec:
         # caller couldn't figure out the resrouces from hal_id promise.  do that
         # now and try again
-        return job.addChildJobFn(export_vg, hal_id, configWrapper, doVG, doGFA,
+        return job.addChildJobFn(export_vg, hal_id, configWrapper, doVG, doGFA, checkpointInfo,
                                  resource_spec = True,
                                  disk=hal_id.size * 3,
                                  memory=hal_id.size * 10).rv()
@@ -527,10 +551,16 @@ def export_vg(job, hal_id, configWrapper, doVG, doGFA, resource_spec = False):
 
     cactus_call(parameters=cmd, outfile=vg_path)
 
+    if checkpointInfo:
+        write_s3(checkpointInfo[0], vg_path, os.path.splitext(checkpointInfo[1])[0] + '.vg')
+
     gfa_path = os.path.join(work_dir, "out.gfa.gz")
     if doGFA:
         gfa_cmd = [ ['vg', 'view', '-g', vg_path], ['gzip'] ]
         cactus_call(parameters=gfa_cmd, outfile=gfa_path)
+
+        if checkpointInfo:
+            write_s3(checkpointInfo[0], gfa_path, os.path.splitext(checkpointInfo[1])[0] + '.gfa.gz')
 
     vg_id = job.fileStore.writeGlobalFile(vg_path) if doVG else None
     gfa_id = job.fileStore.writeGlobalFile(gfa_path) if doGFA else None

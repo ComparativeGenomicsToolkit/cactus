@@ -24,6 +24,13 @@ import traceback
 import errno
 import shlex
 
+try:
+    import boto3
+    import botocore
+    has_s3 = True
+except:
+    has_s3 = False
+
 from urllib.parse import urlparse
 from datetime import datetime
 
@@ -1561,3 +1568,26 @@ def zip_gz(job, input_path, input_id):
     job.fileStore.readGlobalFile(input_id, fa_path, mutable=True)
     cactus_call(parameters=['gzip', os.path.basename(fa_path)], work_dir=work_dir)
     return job.fileStore.writeGlobalFile(fa_path + '.gz')
+
+def get_aws_region(full_path):
+    """ parse aws:region:url  to just get region (toil surely has better way to do this but in rush)"""
+    assert full_path.startswith('aws:')
+    return full_path.split(':')[1]
+
+def write_s3(region, local_path, s3_path):
+    """ cribbed from toil-vg.  more convenient just to throw hal output on s3
+    than pass it as a promise all the way back to the start job to export it locally """
+    assert s3_path.startswith('s3://')
+    bucket_name, name_prefix = s3_path[5:].split("/", 1)
+    botocore_session = botocore.session.get_session()
+    botocore_session.get_component('credential_provider').get_provider('assume-role').cache = botocore.credentials.JSONFileCache()
+    boto3_session = boto3.Session(botocore_session=botocore_session)
+
+    # Connect to the s3 bucket service where we keep everything
+    s3 = boto3_session.client('s3')
+    try:
+        s3.head_bucket(Bucket=bucket_name)
+    except:
+        s3.create_bucket(Bucket=bucket_name, CreateBucketConfiguration={'LocationConstraint':region})
+
+    s3.upload_file(local_path, bucket_name, name_prefix)
