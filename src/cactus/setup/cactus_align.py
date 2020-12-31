@@ -703,7 +703,7 @@ def align_toil(job, chrom, seq_file_id, paf_file_id, config_id, options):
             ret_ids[2] = job.fileStore.writeGlobalFile(out_gfa)
         ret_ids[3] = job.fileStore.writeGlobalFile(log_file)
     else:
-        write_s3(log_file, out_file, region=get_aws_region(options.jobStore))            
+        write_s3(log_file, out_file + '.log', region=get_aws_region(options.jobStore))            
 
     return ret_ids
 
