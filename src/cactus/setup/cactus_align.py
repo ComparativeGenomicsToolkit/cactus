@@ -354,9 +354,16 @@ def make_align_job(options, toil):
         # boost up the BAR sequence length (better pruned using the mask filters)
         findRequiredNode(configWrapper.xmlRoot, "bar").attrib["bandingLimit"] = "50000000"
         # save it
-        pg_file = options.outHal + ".pg-conf.xml"
-        configWrapper.writeXML(pg_file)
-        logger.info("pangenome configuration overrides saved in {}".format(pg_file))
+        if not options.batch:
+            pg_file = options.outHal + ".pg-conf.xml"
+            if pg_file.startswith('s3://'):
+                pg_temp_file = getTempFile()
+            else:
+                pg_temp_file = pg_file            
+            configWrapper.writeXML(pg_temp_file)
+            if pg_file.startswith('s3://'):
+                write_s3(pg_temp_file, pg_file, region=get_aws_region(options.jobStore))
+            logger.info("pangenome configuration overrides saved in {}".format(pg_file))
 
     workFlowArgs = CactusWorkflowArguments(options, experimentFile=experimentFile, configNode=configNode, seqIDMap = project.inputSequenceIDMap)
 
