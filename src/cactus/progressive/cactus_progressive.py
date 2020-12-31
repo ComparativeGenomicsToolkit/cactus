@@ -338,7 +338,7 @@ def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC
         cactus_call(parameters=["halSetMetadata", HALPath, "CACTUS_CONFIG", b64encode(configFile.read()).decode()])
 
     if checkpointInfo:
-        write_s3(checkpointInfo[0], HALPath, checkpointInfo[1])
+        write_s3(HALPath, checkpointInfo[1], region=checkpointInfo[0])
 
     return job.fileStore.writeGlobalFile(HALPath)
         

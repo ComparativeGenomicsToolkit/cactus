@@ -1046,7 +1046,7 @@ def toil_call_hal_append_subtrees(job, options, project, root_name, root_hal_id,
     # todo: can we just use job.fileStore?
     if options.outHal.startswith('s3://'):
         # write it directly to s3
-        write_s3(get_aws_region(options.jobStore), root_file, options.outHal)
+        write_s3(root_file, options.outHal, region=get_aws_region(options.jobStore))
     else:
         # write the output to disk
         shutil.copy2(root_file,  options.outHal)

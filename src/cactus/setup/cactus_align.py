@@ -123,15 +123,14 @@ def main():
     options.buildFasta = True
 
     if options.outHal.startswith('s3://'):
-        if not options.jobStore.startswith('aws'):
-            raise RuntimeError('S3 output only supported with S3 job store')
         if not has_s3:
             raise RuntimeError("S3 support requires toil to be installed with [aws]")
         # write a little something to the bucket now to catch any glaring problems asap
         test_file = os.path.join(getTempDirectory(), 'check')
         with open(test_file, 'w') as test_o:
                 test_o.write("\n")
-        write_s3(options, test_file, options.outHal if options.outHal.endswith('.hal') else os.path.join(options.outHal, 'test'))
+        region = get_aws_region(options.jobStore) if options.jobStore.startswith('aws:') else None
+        write_s3(test_file, options.outHal if options.outHal.endswith('.hal') else os.path.join(options.outHal, 'test'), region=region)
         options.checkpointInfo = (get_aws_region(options.jobStore), options.outHal)
     else:
         options.checkpointInfo = None
@@ -552,7 +551,7 @@ def export_vg(job, hal_id, configWrapper, doVG, doGFA, checkpointInfo=None, reso
     cactus_call(parameters=cmd, outfile=vg_path)
 
     if checkpointInfo:
-        write_s3(checkpointInfo[0], vg_path, os.path.splitext(checkpointInfo[1])[0] + '.vg')
+        write_s3(vg_path, os.path.splitext(checkpointInfo[1])[0] + '.vg', region=checkpointInfo[0])
 
     gfa_path = os.path.join(work_dir, "out.gfa.gz")
     if doGFA:
@@ -560,7 +559,7 @@ def export_vg(job, hal_id, configWrapper, doVG, doGFA, checkpointInfo=None, reso
         cactus_call(parameters=gfa_cmd, outfile=gfa_path)
 
         if checkpointInfo:
-            write_s3(checkpointInfo[0], gfa_path, os.path.splitext(checkpointInfo[1])[0] + '.gfa.gz')
+            write_s3(gfa_path, os.path.splitext(checkpointInfo[1])[0] + '.gfa.gz', region=checkpointInfo[0])
 
     vg_id = job.fileStore.writeGlobalFile(vg_path) if doVG else None
     gfa_id = job.fileStore.writeGlobalFile(gfa_path) if doGFA else None

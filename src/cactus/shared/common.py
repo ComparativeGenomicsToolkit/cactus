@@ -1571,10 +1571,12 @@ def zip_gz(job, input_path, input_id):
 
 def get_aws_region(full_path):
     """ parse aws:region:url  to just get region (toil surely has better way to do this but in rush)"""
-    assert full_path.startswith('aws:')
-    return full_path.split(':')[1]
+    if full_path.startswith('aws:'):
+        return full_path.split(':')[1]
+    else:
+        return None
 
-def write_s3(region, local_path, s3_path):
+def write_s3(local_path, s3_path, region=None):
     """ cribbed from toil-vg.  more convenient just to throw hal output on s3
     than pass it as a promise all the way back to the start job to export it locally """
     assert s3_path.startswith('s3://')
@@ -1588,6 +1590,9 @@ def write_s3(region, local_path, s3_path):
     try:
         s3.head_bucket(Bucket=bucket_name)
     except:
-        s3.create_bucket(Bucket=bucket_name, CreateBucketConfiguration={'LocationConstraint':region})
+        if region:
+            s3.create_bucket(Bucket=bucket_name, CreateBucketConfiguration={'LocationConstraint':region})
+        else:
+            s3.create_bucket(Bucket=bucket_name)
 
     s3.upload_file(local_path, bucket_name, name_prefix)
