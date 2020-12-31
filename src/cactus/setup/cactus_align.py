@@ -629,17 +629,8 @@ def main_batch():
                     if options.outVG:
                         toil.exportFile(results[1], makeURL(os.path.join(options.outHal, '{}.vg'.format(chrom))))
                     if options.outGFA:
-                        toil.exportFile(results[2], makeURL(os.path.join(options.outHal, '{}.gfa.gz'.format(chrom))))                    
-            else:
-                assert len(results_dict) == 1 and None in results_dict
-                halID, vgID, gfaID = results_dict[None][0], results_dict[None][1], results_dict[None][2]
-                # export the hal
-                toil.exportFile(halID, makeURL(options.outHal))
-                # export the vg
-                if options.outVG:
-                    toil.exportFile(vgID, makeURL(os.path.splitext(options.outHal)[0] + '.vg'))
-                if options.outGFA:
-                    toil.exportFile(gfaID, makeURL(os.path.splitext(options.outHal)[0] + '.gfa.gz'))
+                        toil.exportFile(results[2], makeURL(os.path.join(options.outHal, '{}.gfa.gz'.format(chrom))))
+                    toil.exportFile(results[3], makeURL(os.path.join(options.outHal, '{}.hal.log'.format(chrom))))
                                 
     end_time = timeit.default_timer()
     run_time = end_time - start_time
@@ -677,11 +668,13 @@ def align_toil(job, chrom, seq_file_id, paf_file_id, config_id, options):
     else:
         out_file = os.path.join(work_dir, '{}.hal'.format(chrom))
 
-    cmd = ['cactus-align', js, seq_file, paf_file, out_file] + options.alignOptions.split()
+    log_file = os.path.join(work_dir, '{}.hal.log'.format(chrom))
+
+    cmd = ['cactus-align', js, seq_file, paf_file, out_file, '--logFile', log_file] + options.alignOptions.split()
 
     cactus_call(parameters=cmd)
 
-    ret_ids = [None, None, None]
+    ret_ids = [None, None, None, None]
 
     if not options.outHal.startswith('s3://'):
         # we're not checkpoint directly to s3, so we return 
@@ -692,6 +685,9 @@ def align_toil(job, chrom, seq_file_id, paf_file_id, config_id, options):
         out_gfa = os.path.splitext(out_file)[0] + '.gfa.gz'
         if os.path.exists(out_gfa):
             ret_ids[2] = job.fileStore.writeGlobalFile(out_gfa)
+        ret_ids[3] = job.fileStore.writeGlobalFile(log_file)
+    else:
+        write_s3(log_file, out_file, region=get_aws_region(options.jobStore))            
 
     return ret_ids
 
