@@ -46,7 +46,7 @@ from toil.lib.bioio import setLoggingFromOptions
 from toil.lib.threading import cpu_count
 
 from sonLib.nxnewick import NXNewick
-from sonLib.bioio import getTempDirectory
+from sonLib.bioio import getTempDirectory, getTempFile
 
 def main():
     parser = ArgumentParser()

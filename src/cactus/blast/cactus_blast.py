@@ -35,7 +35,7 @@ from toil.lib.bioio import logger
 from toil.lib.bioio import setLoggingFromOptions
 
 from sonLib.nxnewick import NXNewick
-from sonLib.bioio import getTempDirectory
+from sonLib.bioio import getTempDirectory, getTempFile
 
 def main():
     parser = ArgumentParser()
