@@ -356,8 +356,6 @@ def make_align_job(options, toil):
         findRequiredNode(configWrapper.xmlRoot, "bar").attrib["minimumBlockDegree"] = "1"
         # turn on POA
         findRequiredNode(configWrapper.xmlRoot, "bar").attrib["partialOrderAlignment"] = "1"
-        # boost up the BAR sequence length (better pruned using the mask filters)
-        findRequiredNode(configWrapper.xmlRoot, "bar").attrib["bandingLimit"] = "5000000"
         # save it
         if not options.batch:
             pg_file = options.outHal + ".pg-conf.xml"
