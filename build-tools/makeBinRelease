@@ -29,14 +29,14 @@ git submodule update --init --recursive
 
 if [ -z ${CACTUS_LEGACY_ARCH+x} ]
 then
-	 CACTUS_MARCH=sandybridge
+	 CACTUS_MARCH="-march=sandybridge"
 else
-	 CACTUS_MARCH=prescott
+	 CACTUS_MARCH="-march=prescott"
 fi
 if [ $(man gcc | grep ${CACTUS_MARCH} | wc -l) -ge 1 ]
 then
 	 # attempt to increase portability by using older architecture
-	 CFLAGS="-march=${CACTUS_MARCH}" CXXFLAGS="-march=${CACTUS_MARCH}" make -j $(nproc) check-static
+	 CFLAGS="${CACTUS_MARCH}" CXXFLAGS="${CACTUS_MARCH}" make -j $(nproc) check-static
 else
 	 make -j $(nproc) check-static
 fi

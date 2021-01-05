@@ -28,7 +28,7 @@ from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
-from cactus.shared.common import unzip_gz
+from cactus.shared.common import unzip_gz, write_s3
 from toil.job import Job
 from toil.common import Toil
 from toil.lib.bioio import logger
@@ -37,7 +37,7 @@ from toil.realtimeLogger import RealtimeLogger
 from toil.lib.threading import cpu_count
 
 from sonLib.nxnewick import NXNewick
-from sonLib.bioio import getTempDirectory
+from sonLib.bioio import getTempDirectory, getTempFile
 
 def main():
     parser = ArgumentParser()
@@ -145,7 +145,7 @@ def runCactusGraphMapSplit(options):
                                                     paf_id, options.graphmapPAF, ref_contigs, options.otherContig))
 
         #export the split data
-        export_split_data(toil, split_id_map, options.outDir)
+        export_split_data(toil, seqIDMap, split_id_map, options.outDir)
 
 def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, paf_id, paf_path, ref_contigs, other_contig):
 
@@ -274,7 +274,9 @@ def split_fa_into_contigs(job, event, fa_id, fa_path, cactus_id, split_id_map):
                     contig_count += 1
         contig_fasta_path = os.path.join(work_dir, '{}_{}.fa'.format(event, ref_contig))
         if contig_count > 0:
-            cmd = ['samtools', 'faidx', fa_path, '--region-file', faidx_input_path] 
+            cmd = ['samtools', 'faidx', fa_path, '--region-file', faidx_input_path]
+            if is_gz:
+                cmd = [cmd, ['gzip']]
             cactus_call(parameters=cmd, outfile=contig_fasta_path)
         else:
             # TODO: review how cases like this are handled
@@ -295,7 +297,7 @@ def gather_fas(job, seq_id_map, output_id_map, contig_fa_map):
 
     return output_id_map
 
-def export_split_data(toil, output_id_map, output_dir):
+def export_split_data(toil, input_seq_id_map, output_id_map, output_dir):
     """ download all the split data locally """
 
     chrom_file_map = {}
@@ -319,22 +321,43 @@ def export_split_data(toil, output_id_map, output_dir):
             if not os.path.isdir(fa_base):
                 os.makedirs(fa_base)
             fa_path = makeURL(os.path.join(fa_base, '{}_{}.fa'.format(event, ref_contig)))
+            if input_seq_id_map[event][0].endswith('.gz'):
+                fa_path += '.gz'
             seq_file_map[event] = fa_path
             toil.exportFile(ref_contig_fa_id, fa_path)
 
-        # Seqfile: <output_dir>/<contig>/<contig>.seqfile
-        seq_file_path = os.path.join(ref_contig_path, '{}.seqfile'.format(ref_contig))
-        with open(seq_file_path, 'w') as seq_file:
+        # Seqfile: <output_dir>/seqfiles/<contig>.seqfile
+        seq_file_path = os.path.join(output_dir, 'seqfiles', '{}.seqfile'.format(ref_contig))
+        if seq_file_path.startswith('s3://'):
+            seq_file_temp_path = getTempFile()
+        else:
+            seq_file_temp_path = seq_file_path
+            if not os.path.isdir(os.path.dirname(seq_file_path)):
+                os.makedirs(os.path.dirname(seq_file_path))
+        with open(seq_file_temp_path, 'w') as seq_file:
             for event, fa_path in seq_file_map.items():
                 seq_file.write('{}\t{}\n'.format(event, fa_path))
+        if seq_file_path.startswith('s3://'):
+            write_s3(seq_file_temp_path, seq_file_path)
 
         # Top-level seqfile
         chrom_file_map[ref_contig] = seq_file_path, paf_path
-        
-        
-    with open(os.path.join(output_dir, 'chromfile.txt'), 'w') as chromfile:
+
+    # Chromfile : <coutput_dir>/chromfile.txt
+    chrom_file_path = os.path.join(output_dir, 'chromfile.txt')
+    if chrom_file_path.startswith('s3://'):
+        chrom_file_temp_path = getTempFile()
+    else:
+        chrom_file_temp_path = chrom_file_path        
+    with open(chrom_file_temp_path, 'w') as chromfile:
         for ref_contig, seqfile_paf in chrom_file_map.items():
-            chromfile.write('{}\t{}\t{}\n'.format(ref_contig, seqfile_paf[0], seqfile_paf[1]))
+            seqfile, paf = seqfile_paf[0], seqfile_paf[1]
+            if seqfile.startswith('s3://'):
+                # no use to have absolute s3 reference as cactus-align requires seqfiles passed locally
+                seqfile = 'seqfiles/{}'.format(os.path.basename(seqfile))
+            chromfile.write('{}\t{}\t{}\n'.format(ref_contig, seqfile, paf))
+    if chrom_file_path.startswith('s3://'):
+        write_s3(chrom_file_temp_path, chrom_file_path)
     
 if __name__ == "__main__":
     main()

@@ -54,4 +54,5 @@ setup(
                             'cactus-refmap = cactus.refmap.cactus_refmap:main',
                             'cactus-graphmap = cactus.refmap.cactus_graphmap:main',
                             'cactus-graphmap-split = cactus.refmap.cactus_graphmap_split:main',                            
-                            'cactus-align = cactus.setup.cactus_align:main']},)
+                            'cactus-align = cactus.setup.cactus_align:main',
+                            'cactus-align-batch = cactus.setup.cactus_align:main_batch']},)

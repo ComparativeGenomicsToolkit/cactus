@@ -15,12 +15,6 @@ from datetime import datetime
 import subprocess
 import timeit
 import shutil
-try:
-    import boto3
-    import botocore
-    has_s3 = True
-except:
-    has_s3 = False
 
 from operator import itemgetter
 
@@ -37,6 +31,7 @@ from cactus.progressive.projectWrapper import ProjectWrapper
 from cactus.shared.version import cactus_commit
 from cactus.shared.common import findRequiredNode
 from cactus.shared.common import makeURL, cactus_call, RoundedJob
+from cactus.shared.common import write_s3, has_s3, get_aws_region
 
 from toil.job import Job
 from toil.common import Toil
@@ -252,26 +247,6 @@ def get_jobstore(options, task=None):
     js = os.path.join(options.jobStore, str(options.jobStoreCount))
     options.jobStoreCount += 1
     return js
-
-def write_s3(options, local_path, s3_path):
-    """ cribbed from toil-vg.  more convenient just to throw hal output on s3
-    than pass it as a promise all the way back to the start job to export it locally """
-    assert s3_path.startswith('s3://')
-    assert options.jobStore.startswith('aws')
-    bucket_name, name_prefix = s3_path[5:].split("/", 1)
-    region = options.jobStore.split(':')[1]
-    botocore_session = botocore.session.get_session()
-    botocore_session.get_component('credential_provider').get_provider('assume-role').cache = botocore.credentials.JSONFileCache()
-    boto3_session = boto3.Session(botocore_session=botocore_session)
-
-    # Connect to the s3 bucket service where we keep everything
-    s3 = boto3_session.client('s3')
-    try:
-        s3.head_bucket(Bucket=bucket_name)
-    except:
-        s3.create_bucket(Bucket=bucket_name, CreateBucketConfiguration={'LocationConstraint':region})
-
-    s3.upload_file(local_path, bucket_name, name_prefix)
 
 def human2bytesN(s):
     return human2bytes(s) if s else s
@@ -1071,7 +1046,7 @@ def toil_call_hal_append_subtrees(job, options, project, root_name, root_hal_id,
     # todo: can we just use job.fileStore?
     if options.outHal.startswith('s3://'):
         # write it directly to s3
-        write_s3(options, root_file, options.outHal)
+        write_s3(root_file, options.outHal, region=get_aws_region(options.jobStore))
     else:
         # write the output to disk
         shutil.copy2(root_file,  options.outHal)

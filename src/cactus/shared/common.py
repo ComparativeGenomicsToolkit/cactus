@@ -24,6 +24,13 @@ import traceback
 import errno
 import shlex
 
+try:
+    import boto3
+    import botocore
+    has_s3 = True
+except:
+    has_s3 = False
+
 from urllib.parse import urlparse
 from datetime import datetime
 
@@ -1526,4 +1533,66 @@ def unzip_gz(job, input_path, input_id):
     job.fileStore.readGlobalFile(input_id, fa_path, mutable=True)
     cactus_call(parameters=['gzip', '-d', os.path.basename(fa_path)], work_dir=work_dir)
     return job.fileStore.writeGlobalFile(fa_path[:-3])
+
+def zip_gzs(job, input_paths, input_ids, list_elems = None):
+    """ zip up some files.  the input_ids can be a list of lists.  if it is, then list_elems
+    can be used to only zip a subset (leaving everything else) on each list."""
+    zipped_ids = []
+    for input_path, input_list in zip(input_paths, input_ids):
+        if input_path.endswith('.gz'):
+            try:
+                iter(input_list)
+                is_list = True
+            except:
+                is_list = False
+            if is_list:
+                output_list = []
+                for i, elem in enumerate(input_list):
+                    if not list_elems or i in list_elems:
+                        output_list.append(job.addChildJobFn(zip_gz, input_path, elem, disk=2*elem.size).rv())
+                    else:
+                        output_list.append(elem)
+                zipped_ids.append(output_list)
+            else:
+                zipped_ids.append(job.addChildJobFn(zip_gz, input_path, input_id, disk=2*input_id.size).rv())
+        else:
+            zipped_ids.append(input_list)
+    return zipped_ids
     
+def zip_gz(job, input_path, input_id):
+    """ zip a single file """
+    work_dir = job.fileStore.getLocalTempDir()
+    fa_path = os.path.join(work_dir, os.path.basename(input_path))
+    if fa_path.endswith('.gz'):
+        fa_path = fa_path[:-3]
+    job.fileStore.readGlobalFile(input_id, fa_path, mutable=True)
+    cactus_call(parameters=['gzip', os.path.basename(fa_path)], work_dir=work_dir)
+    return job.fileStore.writeGlobalFile(fa_path + '.gz')
+
+def get_aws_region(full_path):
+    """ parse aws:region:url  to just get region (toil surely has better way to do this but in rush)"""
+    if full_path.startswith('aws:'):
+        return full_path.split(':')[1]
+    else:
+        return None
+
+def write_s3(local_path, s3_path, region=None):
+    """ cribbed from toil-vg.  more convenient just to throw hal output on s3
+    than pass it as a promise all the way back to the start job to export it locally """
+    assert s3_path.startswith('s3://')
+    bucket_name, name_prefix = s3_path[5:].split("/", 1)
+    botocore_session = botocore.session.get_session()
+    botocore_session.get_component('credential_provider').get_provider('assume-role').cache = botocore.credentials.JSONFileCache()
+    boto3_session = boto3.Session(botocore_session=botocore_session)
+
+    # Connect to the s3 bucket service where we keep everything
+    s3 = boto3_session.client('s3')
+    try:
+        s3.head_bucket(Bucket=bucket_name)
+    except:
+        if region:
+            s3.create_bucket(Bucket=bucket_name, CreateBucketConfiguration={'LocationConstraint':region})
+        else:
+            s3.create_bucket(Bucket=bucket_name)
+
+    s3.upload_file(local_path, bucket_name, name_prefix)
