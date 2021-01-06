@@ -261,7 +261,7 @@ def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id,
         cactus_call(parameters = ['gzip', '-d', '-c', fa_path + '.gz'], outfile=fa_path)
 
     # prepend the unique id before mapping so the GAF has cactus-compatible event names
-    fa_path = prependUniqueIDs({event_name : fa_path}, work_dir, eventNameAsID=True)[0]
+    fa_path = prependUniqueIDs({event_name : fa_path}, work_dir, eventNameAsID=True)[event_name]
 
     # parse options from the config
     xml_node = findRequiredNode(config.xmlRoot, "graphmap")

@@ -163,10 +163,10 @@ def run_prepend_unique_ids(job, assembly_files):
         event_to_path[event] = job.fileStore.readGlobalFile(assembly_id)
 
     # prepend unique id to each one (using event name instead of numeric id, as it's more stable across tools)
-    prepended_sequence_paths = prependUniqueIDs(event_to_path, job.fileStore.getLocalTempDir(), eventNameAsID=True)
+    event_to_unique_path = prependUniqueIDs(event_to_path, job.fileStore.getLocalTempDir(), eventNameAsID=True)
 
     # write the prepended files back to the job store and return the dict
-    for event, prepended_sequence_path in zip(events, prepended_sequence_paths):
+    for event, prepended_sequence_path in event_to_unique_path.items():
         assembly_files[event] = job.fileStore.writeGlobalFile(prepended_sequence_path, cleanup=True)
     return assembly_files
 

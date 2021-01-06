@@ -478,7 +478,7 @@ def prependUniqueIDs(eventToFa, outputDir, idMap=None, firstID=0,
     Event Name IDs are better for paf-based pipeline as they are stable across commands even when working on subsets of events
     """
     uniqueID = firstID
-    ret = []
+    ret = {}
     for event in sorted(eventToFa.keys()):
         fa = eventToFa[event]
         outPath = os.path.join(outputDir, os.path.basename(fa))
@@ -492,7 +492,7 @@ def prependUniqueIDs(eventToFa, outputDir, idMap=None, firstID=0,
                     idMap[line[1:-1].rstrip()] = header.rstrip()
             else:
                 out.write(line)
-        ret.append(outPath)
+        ret[event] = outPath
         uniqueID += 1
     return ret
 
@@ -526,27 +526,27 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
     def run(self, fileStore):
         fileStore.logToMaster("Running blast using the trimming strategy")
 
+        # download the sequences
         exp = self.cactusWorkflowArguments.experimentWrapper
-        ingroupsAndOriginalIDs = [(g, exp.getSequenceID(g)) for g in exp.getGenomesWithSequence() if g not in exp.getOutgroupGenomes()]
-        outgroupsAndOriginalIDs = [(g, exp.getSequenceID(g)) for g in exp.getOutgroupGenomes()]
-        from sonLib.nxnewick import NXNewick
-        print((NXNewick().writeString(exp.getTree())))
-        print((exp.getRootGenome()))
-        print(ingroupsAndOriginalIDs)
-        print(outgroupsAndOriginalIDs)
+        igEvents = [g for g in exp.getGenomesWithSequence() if g not in exp.getOutgroupGenomes()]
+        ogEvents = [g for g in exp.getOutgroupGenomes()]
         eventToSequence = {}
-        for g, id in ingroupsAndOriginalIDs + outgroupsAndOriginalIDs:
-            eventToSequence[g] = fileStore.readGlobalFile(id)
-        self.cactusWorkflowArguments.totalSequenceSize = sum(os.stat(x).st_size for x in eventToSequence.values())
+        for event in igEvents + ogEvents:
+            eventToSequence[event] = fileStore.readGlobalFile(exp.getSequenceID(event))
 
+        # prepend the ids
         renamedInputSeqDir = fileStore.getLocalTempDir()
-        uniqueFas = prependUniqueIDs(eventToSequence, renamedInputSeqDir)
-        uniqueFaIDs = [fileStore.writeGlobalFile(seq, cleanup=True) for seq in uniqueFas]
+        eventToUnique = prependUniqueIDs(eventToSequence, renamedInputSeqDir)
 
-        # Set the uniquified IDs for the ingroups and outgroups
-        ingroupsAndNewIDs = list(zip(list(map(itemgetter(0), ingroupsAndOriginalIDs)), uniqueFaIDs[:len(ingroupsAndOriginalIDs)]))
-        outgroupsAndNewIDs = list(zip(list(map(itemgetter(0), outgroupsAndOriginalIDs)), uniqueFaIDs[len(ingroupsAndOriginalIDs):]))
-
+        # upload them and remember the size
+        eventToUniqueID = {}
+        for event, uniqueFa in eventToUnique.items():
+            eventToUniqueID[event] = fileStore.writeGlobalFile(eventToUnique[event], cleanup=True)
+        self.cactusWorkflowArguments.totalSequenceSize = sum(os.stat(x).st_size for x in eventToSequence.values())
+            
+        ingroupsAndNewIDs = [(event, eventToUniqueID[event]) for event in igEvents]
+        outgroupsAndNewIDs = [(event, eventToUniqueID[event]) for event in ogEvents]
+            
         # Change the blast arguments depending on the divergence
         setupDivergenceArgs(self.cactusWorkflowArguments)
         setupFilteringByIdentity(self.cactusWorkflowArguments)

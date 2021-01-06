@@ -500,12 +500,11 @@ def run_prepend_unique_ids(job, cactusWorkflowArguments, project, renameCigars, 
     cactusWorkflowArguments.totalSequenceSize = sum(os.stat(x).st_size for x in eventToSequence.values())
     renamedInputSeqDir = job.fileStore.getLocalTempDir()
     id_map = {}
-    uniqueFas = prependUniqueIDs(eventToSequence, renamedInputSeqDir, id_map)
-    uniqueFaIDs = [job.fileStore.writeGlobalFile(seq, cleanup=True) for seq in uniqueFas]
+    eventToUnique = prependUniqueIDs(eventToSequence, renamedInputSeqDir, id_map)
     # Set the uniquified IDs for the ingroups and outgroups
-    ingroupsAndNewIDs = list(zip(list(map(itemgetter(0), ingroupsAndOriginalIDs)), uniqueFaIDs[:len(ingroupsAndOriginalIDs)]))
-    for event, sequenceID in ingroupsAndNewIDs:
-        cactusWorkflowArguments.experimentWrapper.setSequenceID(event, sequenceID)
+    for event, uniqueFa in eventToUnique.items():
+        uniqueFaID = job.fileStore.writeGlobalFile(uniqueFa, cleanup=True)
+        cactusWorkflowArguments.experimentWrapper.setSequenceID(event, uniqueFaID)
 
     # if we're not taking cactus-[blast|refmap] input, then we have to apply to the cigar files too
     if renameCigars:
