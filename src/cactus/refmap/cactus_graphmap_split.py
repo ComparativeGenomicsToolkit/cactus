@@ -145,7 +145,7 @@ def runCactusGraphMapSplit(options):
                                                     paf_id, options.graphmapPAF, ref_contigs, options.otherContig))
 
         #export the split data
-        export_split_data(toil, seqIDMap, split_id_map, options.outDir)
+        export_split_data(toil, seqIDMap, split_id_map, options.outDir, config)
 
 def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, paf_id, paf_path, ref_contigs, other_contig):
 
@@ -200,10 +200,18 @@ def split_gfa(job, config, gfa_id, paf_id, ref_contigs, cactus_id_map, other_con
     # and look up its unique id prefix.  this will be needed to pick its contigs out of the list
     mg_id = cactus_id_map[graph_event]
 
+    # get the specificity filters
+    query_coverage = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minQueryCoverage", default="0")
+    query_uniqueness = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minQueryUniqueness", default="0")
+    amb_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "ambiguousName", default="__AMBIGUOUS_SEQUENCES__")
+
     cmd = ['rgfa-split', '-i', 'id={}|'.format(mg_id), '-G',
            '-g', gfa_path,
            '-p', paf_path,
-           '-b', out_prefix]    
+           '-b', out_prefix,
+           '-n', query_coverage,
+           '-Q', query_uniqueness,
+           '-a', amb_event]
     if other_contig:
         cmd += ['-o', other_contig]
         
@@ -297,9 +305,11 @@ def gather_fas(job, seq_id_map, output_id_map, contig_fa_map):
 
     return output_id_map
 
-def export_split_data(toil, input_seq_id_map, output_id_map, output_dir):
+def export_split_data(toil, input_seq_id_map, output_id_map, output_dir, config):
     """ download all the split data locally """
 
+    amb_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "ambiguousName", default="__AMBIGUOUS_SEQUENCES__")
+    
     chrom_file_map = {}
     
     for ref_contig in output_id_map.keys():
@@ -308,7 +318,9 @@ def export_split_data(toil, input_seq_id_map, output_id_map, output_dir):
             os.makedirs(ref_contig_path)
 
         # GFA: <output_dir>/<contig>/<contig>.gfa
-        toil.exportFile(output_id_map[ref_contig]['gfa'], makeURL(os.path.join(ref_contig_path, '{}.gfa'.format(ref_contig))))
+        if 'gfa' in output_id_map[ref_contig]:
+            # we do this check because no gfa made for ambiguous sequences "contig"
+            toil.exportFile(output_id_map[ref_contig]['gfa'], makeURL(os.path.join(ref_contig_path, '{}.gfa'.format(ref_contig))))
 
         # PAF: <output_dir>/<contig>/<contig>.paf
         paf_path = os.path.join(ref_contig_path, '{}.paf'.format(ref_contig))
@@ -336,7 +348,10 @@ def export_split_data(toil, input_seq_id_map, output_id_map, output_dir):
                 os.makedirs(os.path.dirname(seq_file_path))
         with open(seq_file_temp_path, 'w') as seq_file:
             for event, fa_path in seq_file_map.items():
-                seq_file.write('{}\t{}\n'.format(event, fa_path))
+                # cactus can't handle empty fastas.  if there are no sequences for a sample for this
+                # contig, just don't add it.
+                if output_id_map[ref_contig]['fa'][event].size > 0:
+                    seq_file.write('{}\t{}\n'.format(event, fa_path))
         if seq_file_path.startswith('s3://'):
             write_s3(seq_file_temp_path, seq_file_path)
 
@@ -351,11 +366,12 @@ def export_split_data(toil, input_seq_id_map, output_id_map, output_dir):
         chrom_file_temp_path = chrom_file_path        
     with open(chrom_file_temp_path, 'w') as chromfile:
         for ref_contig, seqfile_paf in chrom_file_map.items():
-            seqfile, paf = seqfile_paf[0], seqfile_paf[1]
-            if seqfile.startswith('s3://'):
-                # no use to have absolute s3 reference as cactus-align requires seqfiles passed locally
-                seqfile = 'seqfiles/{}'.format(os.path.basename(seqfile))
-            chromfile.write('{}\t{}\t{}\n'.format(ref_contig, seqfile, paf))
+            if ref_contig != amb_event:
+                seqfile, paf = seqfile_paf[0], seqfile_paf[1]
+                if seqfile.startswith('s3://'):
+                    # no use to have absolute s3 reference as cactus-align requires seqfiles passed locally
+                    seqfile = 'seqfiles/{}'.format(os.path.basename(seqfile))
+                chromfile.write('{}\t{}\t{}\n'.format(ref_contig, seqfile, paf))
     if chrom_file_path.startswith('s3://'):
         write_s3(chrom_file_temp_path, chrom_file_path)
     

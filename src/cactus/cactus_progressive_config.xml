@@ -284,7 +284,16 @@
 		 minGAFQueryOverlapFilter="10000"
 		 maskFilter="-1"
 		 cpu="4"
-	/>
+		 />
+	<!-- cactus-graphmap-split options -->
+	<!-- minQueryCoverage: At least this fraction of input contig must align to reference contig for it to be assigned. -->
+	<!-- minQueryUniqueness: The ratio of the number of query bases aligned to the chosen ref contig vs the next best ref contig must exceed this threshold to not be considered ambigious. -->
+	<!-- ambiguousName: Contigs deemed ambiguous using the above filters get added to a "contig" with this name, and are preserved in output. -->		
+	<graphmap_split
+		 minQueryCoverage="0.99"
+		 minQueryUniqueness="2"
+		 ambiguousName="__AMBIGUOUS_SEQUENCES__"
+		 />
   	<multi_cactus>
 		<outgroup 
 			strategy="greedyPreference"
