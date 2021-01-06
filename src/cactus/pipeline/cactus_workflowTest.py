@@ -195,7 +195,7 @@ class TestCase(unittest.TestCase):
             fasta1.flush()
             fasta2.flush()
             outDir = mkdtemp()
-            eventToFa = {"A" : fasta1.name, "B" : fasta2.name}
+            eventToFa = {0 : fasta1.name, 1 : fasta2.name}
             outputPaths = prependUniqueIDs(eventToFa, outDir)
 
         assert len(outputPaths) == 2
