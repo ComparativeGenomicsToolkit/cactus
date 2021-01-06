@@ -51,6 +51,7 @@ def main():
     parser.add_argument("--refContigs", nargs="*", help = "Subset to these reference contigs (multiple allowed)", default=[])
     parser.add_argument("--refContigsFile", type=str, help = "Subset to (newline-separated) reference contigs in this file")
     parser.add_argument("--otherContig", type=str, help = "Lump all reference contigs unselected by above options into single one with this name")
+    parser.add_argument("--reference", type=str, help = "Name of reference (in seqFile).  Ambiguity filters will not be applied to it")
     
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -116,6 +117,9 @@ def runCactusGraphMapSplit(options):
 
             # load the seqfile
             seqFile = SeqFile(options.seqFile)
+
+            if options.reference:
+                assert options.reference in seqFile.pathMap
             
             #import the graph
             gfa_id = toil.importFile(makeURL(options.minigraphGFA))
@@ -171,7 +175,7 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
         
     # use rgfa-split to split the gfa and paf up by contig
     split_gfa_job = root_job.addFollowOnJobFn(split_gfa, config, gfa_id, paf_id, ref_contigs, cactus_id_map,
-                                              other_contig,
+                                              other_contig, options.reference,
                                               disk=(gfa_size + paf_size) * 5)
 
     # use the output of the above splitting to do the fasta splitting
@@ -183,7 +187,7 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
     # return all the files
     return gather_fas_job.rv()
 
-def split_gfa(job, config, gfa_id, paf_id, ref_contigs, cactus_id_map, other_contig):
+def split_gfa(job, config, gfa_id, paf_id, ref_contigs, cactus_id_map, other_contig, reference_event):
     """ Use rgfa-split to divide a GFA and PAF into chromosomes.  The GFA must be in minigraph RGFA output using
     the desired reference. """
 
@@ -214,6 +218,8 @@ def split_gfa(job, config, gfa_id, paf_id, ref_contigs, cactus_id_map, other_con
            '-a', amb_event]
     if other_contig:
         cmd += ['-o', other_contig]
+    if reference_event:
+        cmd += ['-r', 'id={}|'.format(cactus_id_map[reference_event])]
         
     for contig in ref_contigs:
         cmd += ['-c', contig]
