@@ -148,6 +148,16 @@ def main():
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
 
+    # We set which type of unique ids to expect.  Numeric (from cactus-blast) or Eventname (cactus-refmap or cactus-grpahmap)
+    # This is a bit ugly, since we don't have a good way to differentiate refmap from blast, and use --pangenome as a proxy
+    # But I don't think there's a real use case yet of making a separate parameter
+    options.eventNameAsID = os.environ.get('CACTUS_EVENT_NAME_AS_UNIQUE_ID')
+    if options.eventNameAsID is not None:
+        options.eventNameAsID = bool(eventNameAsID)
+    else:
+        options.eventNameAsID = options.pangenome or options.pafInput
+        os.environ['CACTUS_EVENT_NAME_AS_UNIQUE_ID'] = str(int(options.eventNameAsID))
+
     start_time = timeit.default_timer()
     with Toil(options) as toil:
         importSingularityImage(options)
@@ -394,10 +404,11 @@ def make_align_job(options, toil):
                               pafSecondaries=options.usePafSecondaries,
                               doVG=options.outVG,
                               doGFA=options.outGFA,
-                              delay=options.stagger)
+                              delay=options.stagger,
+                              eventNameAsID=options.eventNameAsID)
     return align_job
 
-def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, checkpointInfo, doRenaming, pafInput, pafSecondaries, doVG, doGFA, delay=0):
+def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, checkpointInfo, doRenaming, pafInput, pafSecondaries, doVG, doGFA, delay=0, eventNameAsID=False):
     # this option (--stagger) can be used in batch mode to avoid starting all the alignment jobs at the same time
     time.sleep(delay)
     
@@ -414,7 +425,7 @@ def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, check
     # do the name mangling cactus expects, where every fasta sequence starts with id=0|, id=1| etc
     # and the cigar files match up.  If reading cactus-blast output, the cigars are fine, just need
     # the fastas (todo: make this less hacky somehow)
-    cur_job = head_job.addFollowOnJobFn(run_prepend_unique_ids, cactusWorkflowArguments, project, doRenaming
+    cur_job = head_job.addFollowOnJobFn(run_prepend_unique_ids, cactusWorkflowArguments, project, doRenaming, eventNameAsID,
                                         #todo disk=
     )
     no_ingroup_coverage = not cactusWorkflowArguments.ingroupCoverageIDs
@@ -467,15 +478,16 @@ def prepend_cigar_ids(cigars, outputDir, idMap):
         ret.append(outPath)
     return ret
 
-def run_prepend_unique_ids(job, cactusWorkflowArguments, project, renameCigars):
+def run_prepend_unique_ids(job, cactusWorkflowArguments, project, renameCigars, eventNameAsID):
     """ prepend the unique ids on the input fasta.  this is required for cactus to work (would be great to relax it though"""
 
     # note, there is an order dependence to everything where we have to match what was done in cactus_workflow
     # (so the code is pasted exactly as it is there)
     # this is horrible and needs to be fixed via drastic interface refactor
+    # update: this has been somewhat fixed with a minor refactor: prependUniqueIDs is no longer order dependent (but takes dict instead of list)
     exp = cactusWorkflowArguments.experimentWrapper
     ingroupsAndOriginalIDs = [(g, exp.getSequenceID(g)) for g in exp.getGenomesWithSequence() if g not in exp.getOutgroupGenomes()]
-    sequences = []
+    eventToSequence = {}
     for g, seqID in ingroupsAndOriginalIDs:
         seqPath = job.fileStore.getLocalTempFile() + '.fa'
         if project.inputSequenceMap[g].endswith('.gz'):
@@ -484,11 +496,11 @@ def run_prepend_unique_ids(job, cactusWorkflowArguments, project, renameCigars):
         if seqPath.endswith('.gz'):
             cactus_call(parameters=['gzip', '-d', '-c', seqPath], outfile=seqPath[:-3])
             seqPath = seqPath[:-3]
-        sequences.append(seqPath)            
-    cactusWorkflowArguments.totalSequenceSize = sum(os.stat(x).st_size for x in sequences)
+        eventToSequence[g] = seqPath
+    cactusWorkflowArguments.totalSequenceSize = sum(os.stat(x).st_size for x in eventToSequence.values())
     renamedInputSeqDir = job.fileStore.getLocalTempDir()
     id_map = {}
-    uniqueFas = prependUniqueIDs(sequences, renamedInputSeqDir, id_map)
+    uniqueFas = prependUniqueIDs(eventToSequence, renamedInputSeqDir, id_map)
     uniqueFaIDs = [job.fileStore.writeGlobalFile(seq, cleanup=True) for seq in uniqueFas]
     # Set the uniquified IDs for the ingroups and outgroups
     ingroupsAndNewIDs = list(zip(list(map(itemgetter(0), ingroupsAndOriginalIDs)), uniqueFaIDs[:len(ingroupsAndOriginalIDs)]))

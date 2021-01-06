@@ -464,20 +464,29 @@ class CactusRecursionJob(CactusJob):
 ############################################################
 ############################################################
 
-def prependUniqueIDs(fas, outputDir, idMap=None, firstID=0):
+def prependUniqueIDs(eventToFa, outputDir, idMap=None, firstID=0,
+                     eventNameAsID=os.environ.get('CACTUS_EVENT_NAME_AS_UNIQUE_ID', 0) != 0):
     """Prepend unique ints to fasta headers.
 
     (prepend rather than append since trimmed outgroups have a start
     token appended, which complicates removal slightly)
+    
+    The input is a map from event name to fasta path
+
+    Numeric IDs (on by default) make sense for normal cactus which churns out heaps of giant cigar files. They 
+    are based on a sorted order of the input event names. 
+    Event Name IDs are better for paf-based pipeline as they are stable across commands even when working on subsets of events
     """
     uniqueID = firstID
     ret = []
-    for fa in fas:
+    for event in sorted(eventToFa.keys()):
+        fa = eventToFa[event]
         outPath = os.path.join(outputDir, os.path.basename(fa))
         out = open(outPath, 'w')
         for line in open(fa):
             if len(line) > 0 and line[0] == '>':
-                header = "id=%d|%s" % (uniqueID, line[1:-1])
+                idTag = event if eventNameAsID else uniqueID
+                header = "id={}|{}".format(idTag, line[1:-1])
                 out.write(">%s\n" % header)
                 if idMap is not None:
                     idMap[line[1:-1].rstrip()] = header.rstrip()
@@ -525,11 +534,13 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
         print((exp.getRootGenome()))
         print(ingroupsAndOriginalIDs)
         print(outgroupsAndOriginalIDs)
-        sequences = [fileStore.readGlobalFile(id) for id in map(itemgetter(1), ingroupsAndOriginalIDs + outgroupsAndOriginalIDs)]
-        self.cactusWorkflowArguments.totalSequenceSize = sum(os.stat(x).st_size for x in sequences)
+        eventToSequence = {}
+        for g, id in ingroupsAndOriginalIDs + outgroupsAndOriginalIDs:
+            eventToSequence[g] = fileStore.readGlobalFile(id)
+        self.cactusWorkflowArguments.totalSequenceSize = sum(os.stat(x).st_size for x in eventToSequence.values())
 
         renamedInputSeqDir = fileStore.getLocalTempDir()
-        uniqueFas = prependUniqueIDs(sequences, renamedInputSeqDir)
+        uniqueFas = prependUniqueIDs(eventToSequence, renamedInputSeqDir)
         uniqueFaIDs = [fileStore.writeGlobalFile(seq, cleanup=True) for seq in uniqueFas]
 
         # Set the uniquified IDs for the ingroups and outgroups

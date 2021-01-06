@@ -132,7 +132,7 @@ def runCactusGraphMap(options):
                 findRequiredNode(configNode, "graphmap").attrib["maskFilter"] = str(options.maskFilter)
 
             # get the minigraph "virutal" assembly name
-            graph_event = getOptionalAttrib(findRequiredNode(configNode, "graphmap"), "assemblyName", default="__MINIGRAPH_SEQUENCES__")
+            graph_event = getOptionalAttrib(findRequiredNode(configNode, "graphmap"), "assemblyName", default="_MINIGRAPH_")
 
             # load the seqfile
             seqFile = SeqFile(options.seqFile)
@@ -177,17 +177,13 @@ def runCactusGraphMap(options):
 def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event):
     """ Overall workflow takes command line options and returns (paf-id, (optional) fa-id) """
     fa_id = None
-    # cactus-ids use alphabetical ordering
-    cactus_id_map = {}
-    for i, event in enumerate(sorted(set(list(seq_id_map.keys()) + [graph_event]))):
-        cactus_id_map[event] = i
         
     if options.outputFasta:
         # convert GFA to fasta
         fa_job = job.addChildJobFn(make_minigraph_fasta, gfa_id, graph_event)
         fa_id = fa_job.rv()
     
-    paf_job = job.addChildJobFn(minigraph_map_all, config, gfa_id, seq_id_map, cactus_id_map, graph_event, options.outputGAFDir is not None)
+    paf_job = job.addChildJobFn(minigraph_map_all, config, gfa_id, seq_id_map, graph_event, options.outputGAFDir is not None)
 
     return paf_job.rv(0), fa_id, paf_job.rv(1)
         
@@ -206,7 +202,7 @@ def make_minigraph_fasta(job, gfa_file_id, name):
 
     return job.fileStore.writeGlobalFile(fa_path)
 
-def minigraph_map_all(job, config, gfa_id, fa_id_map, cactus_id_map, graph_event, keep_gaf):
+def minigraph_map_all(job, config, gfa_id, fa_id_map, graph_event, keep_gaf):
     """ top-level job to run the minigraph mapping in parallel, returns paf """
     
     # hang everything on this job, to self-contain workflow
@@ -220,7 +216,6 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map, cactus_id_map, graph_event
     # with doing this if the universal filter (which needs to process everything at once) is disabled
     xml_node = findRequiredNode(config.xmlRoot, "graphmap")
     paf_per_genome = not getOptionalAttrib(xml_node, "universalMZFilter", float)
-    cactus_mg_graph_id = cactus_id_map[graph_event] if cactus_id_map else None
     
     # do the mapping
     gaf_id_map = {}
@@ -229,9 +224,8 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map, cactus_id_map, graph_event
     for event, fa_path_fa_id in fa_id_map.items():
         fa_path = fa_path_fa_id[0]
         fa_id = fa_path_fa_id[1]
-        cactus_id = cactus_id_map[event] if cactus_id_map else None
-        minigraph_map_job = top_job.addChildJobFn(minigraph_map_one, config, event, fa_path, fa_id, gfa_id, cactus_id,
-                                                  keep_gaf or not paf_per_genome, paf_per_genome, cactus_mg_graph_id,
+        minigraph_map_job = top_job.addChildJobFn(minigraph_map_one, config, event, fa_path, fa_id, gfa_id,
+                                                  keep_gaf or not paf_per_genome, paf_per_genome,
                                                   # todo: estimate RAM
                                                   cores=mg_cores, disk=5*(fa_id.size + gfa_id.size))
         gaf_id_map[event] = minigraph_map_job.rv(0)
@@ -241,7 +235,7 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map, cactus_id_map, graph_event
     if paf_per_genome:
         paf_job = top_job.addFollowOnJobFn(merge_pafs, paf_id_map)
     else:
-        paf_job = top_job.addFollowOnJobFn(merge_gafs_into_paf, config, gaf_id_map, cactus_mg_graph_id)
+        paf_job = top_job.addFollowOnJobFn(merge_gafs_into_paf, config, gaf_id_map)
 
     if not keep_gaf:
         gaf_id_map = None
@@ -250,12 +244,12 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map, cactus_id_map, graph_event
         
     return paf_job.rv(), gaf_id_map
 
-def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id, cactus_id, gaf_output, paf_output, cactus_mg_graph_id):
+def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id, gaf_output, paf_output):
     """ Run minigraph to map a Fasta file to a GFA graph, producing a GAF output """
 
     work_dir = job.fileStore.getLocalTempDir()
     gfa_path = os.path.join(work_dir, "mg.gfa")
-    fa_dir = work_dir if cactus_id is None else job.fileStore.getLocalTempDir()
+    fa_dir = job.fileStore.getLocalTempDir()
     fa_path = os.path.join(fa_dir, os.path.basename(fa_path))
     gaf_path = os.path.join(work_dir, "{}.gaf".format(event_name))
     
@@ -266,9 +260,8 @@ def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id,
         fa_path = fa_path[:-3]
         cactus_call(parameters = ['gzip', '-d', '-c', fa_path + '.gz'], outfile=fa_path)
 
-    if cactus_id is not None:
-        # prepend the unique id before mapping so the GAF has cactus-compatible event names
-        fa_path = prependUniqueIDs([fa_path], work_dir, firstID=cactus_id)[0]
+    # prepend the unique id before mapping so the GAF has cactus-compatible event names
+    fa_path = prependUniqueIDs({event_name : fa_path}, work_dir, eventNameAsID=True)[0]
 
     # parse options from the config
     xml_node = findRequiredNode(config.xmlRoot, "graphmap")
@@ -298,13 +291,13 @@ def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id,
     if paf_output:
         # optional gaf->paf step.  we are not piping directly out of minigraph because mzgaf2paf's overlap filter
         # (which is usually on) requires 2 passes so it won't read stdin when it's enabled
-        paf_id =  merge_gafs_into_paf(job, config, None, cactus_mg_graph_id, [gaf_path])
+        paf_id =  merge_gafs_into_paf(job, config, None, [gaf_path])
     if gaf_output:
         gaf_id = job.fileStore.writeGlobalFile(gaf_path)
 
     return gaf_id, paf_id
 
-def merge_gafs_into_paf(job, config, gaf_file_id_map, cactus_mg_graph_id, gaf_paths = []):
+def merge_gafs_into_paf(job, config, gaf_file_id_map, gaf_paths = []):
     """ Merge GAF alignments into a single PAF, applying some filters """
 
     work_dir = job.fileStore.getLocalTempDir()
@@ -316,9 +309,9 @@ def merge_gafs_into_paf(job, config, gaf_file_id_map, cactus_mg_graph_id, gaf_pa
 
     xml_node = findRequiredNode(config.xmlRoot, "graphmap")
     mzgaf2paf_opts = []
-    if cactus_mg_graph_id is not None:
-        # this must be consistent with prependUniqueIDs() in cactus_workflow.py
-        mzgaf2paf_opts += ['-p', 'id={}|'.format(cactus_mg_graph_id)]
+    graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
+    # this must be consistent with prependUniqueIDs() in cactus_workflow.py
+    mzgaf2paf_opts += ['-p', 'id={}|'.format(graph_event)]
     mz_filter = getOptionalAttrib(xml_node, "universalMZFilter", float)
     if mz_filter:
         mzgaf2paf_opts += ['-u', str(mz_filter)]

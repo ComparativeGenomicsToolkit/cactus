@@ -22,7 +22,6 @@ from cactus.shared.configWrapper import ConfigWrapper
 from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
 from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
 from cactus.pipeline.cactus_workflow import CactusTrimmingBlastPhase
-from cactus.pipeline.cactus_workflow import prependUniqueIDs
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
@@ -113,7 +112,7 @@ def runCactusGraphMapSplit(options):
                 assert options.otherContig not in ref_contigs
 
             # get the minigraph "virutal" assembly name
-            graph_event = getOptionalAttrib(findRequiredNode(configNode, "graphmap"), "assemblyName", default="__MINIGRAPH_SEQUENCES__")
+            graph_event = getOptionalAttrib(findRequiredNode(configNode, "graphmap"), "assemblyName", default="_MINIGRAPH_")
 
             # load the seqfile
             seqFile = SeqFile(options.seqFile)
@@ -167,19 +166,14 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
     if paf_path.endswith(".gz"):
         paf_id = root_job.addChildJobFn(unzip_gz, paf_path, paf_id, disk=paf_id.size * 10).rv()
         paf_size *= 10
-
-    # cactus-ids use alphabetical ordering.  we need this as our paf file will have them
-    cactus_id_map = {}
-    for i, event in enumerate(sorted(set(list(seqIDMap.keys())))):
-        cactus_id_map[event] = i
         
     # use rgfa-split to split the gfa and paf up by contig
-    split_gfa_job = root_job.addFollowOnJobFn(split_gfa, config, gfa_id, paf_id, ref_contigs, cactus_id_map,
+    split_gfa_job = root_job.addFollowOnJobFn(split_gfa, config, gfa_id, paf_id, ref_contigs,
                                               other_contig, options.reference,
                                               disk=(gfa_size + paf_size) * 5)
 
     # use the output of the above splitting to do the fasta splitting
-    split_fas_job = split_gfa_job.addFollowOnJobFn(split_fas, seqIDMap, cactus_id_map, split_gfa_job.rv())
+    split_fas_job = split_gfa_job.addFollowOnJobFn(split_fas, seqIDMap, split_gfa_job.rv())
 
     # gather everythign up into a table
     gather_fas_job = split_fas_job.addFollowOnJobFn(gather_fas, seqIDMap, split_gfa_job.rv(), split_fas_job.rv())
@@ -187,7 +181,7 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
     # return all the files
     return gather_fas_job.rv()
 
-def split_gfa(job, config, gfa_id, paf_id, ref_contigs, cactus_id_map, other_contig, reference_event):
+def split_gfa(job, config, gfa_id, paf_id, ref_contigs, other_contig, reference_event):
     """ Use rgfa-split to divide a GFA and PAF into chromosomes.  The GFA must be in minigraph RGFA output using
     the desired reference. """
 
@@ -200,14 +194,14 @@ def split_gfa(job, config, gfa_id, paf_id, ref_contigs, cactus_id_map, other_con
     job.fileStore.readGlobalFile(paf_id, paf_path)
 
     # get the minigraph "virutal" assembly name
-    graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="__MINIGRAPH_SEQUENCES__")
+    graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
     # and look up its unique id prefix.  this will be needed to pick its contigs out of the list
-    mg_id = cactus_id_map[graph_event]
+    mg_id = graph_event
 
     # get the specificity filters
     query_coverage = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minQueryCoverage", default="0")
     query_uniqueness = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minQueryUniqueness", default="0")
-    amb_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "ambiguousName", default="__AMBIGUOUS_SEQUENCES__")
+    amb_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "ambiguousName", default="_AMBIGUOUS_")
 
     cmd = ['rgfa-split', '-i', 'id={}|'.format(mg_id), '-G',
            '-g', gfa_path,
@@ -219,7 +213,7 @@ def split_gfa(job, config, gfa_id, paf_id, ref_contigs, cactus_id_map, other_con
     if other_contig:
         cmd += ['-o', other_contig]
     if reference_event:
-        cmd += ['-r', 'id={}|'.format(cactus_id_map[reference_event])]
+        cmd += ['-r', 'id={}|'.format(reference_event)]
         
     for contig in ref_contigs:
         cmd += ['-c', contig]
@@ -237,7 +231,7 @@ def split_gfa(job, config, gfa_id, paf_id, ref_contigs, cactus_id_map, other_con
             
     return output_id_map
 
-def split_fas(job, seq_id_map, cactus_id_map, split_id_map):
+def split_fas(job, seq_id_map, split_id_map):
     """ Use samtools to split a bunch of fasta files into reference contigs, using the output of rgfa-split as a guide"""
 
     root_job = Job()
@@ -248,13 +242,12 @@ def split_fas(job, seq_id_map, cactus_id_map, split_id_map):
     # we do each fasta in parallel
     for event in seq_id_map.keys():
         fa_path, fa_id = seq_id_map[event]
-        cactus_id = cactus_id_map[event]
-        fa_contigs[event] = root_job.addChildJobFn(split_fa_into_contigs, event, fa_id, fa_path, cactus_id, split_id_map,
+        fa_contigs[event] = root_job.addChildJobFn(split_fa_into_contigs, event, fa_id, fa_path, split_id_map,
                                                    disk=fa_id.size * 3).rv()
 
     return fa_contigs
 
-def split_fa_into_contigs(job, event, fa_id, fa_path, cactus_id, split_id_map):
+def split_fa_into_contigs(job, event, fa_id, fa_path, split_id_map):
     """ Use samtools turn on fasta into one for each contig. this relies on the informatino in .fa_contigs
     files made by rgfa-split """
 
@@ -268,7 +261,7 @@ def split_fa_into_contigs(job, event, fa_id, fa_path, cactus_id, split_id_map):
         cactus_call(parameters=['gzip', '-fd', fa_path])
         fa_path = fa_path[:-3]
 
-    unique_id = 'id={}|'.format(cactus_id)
+    unique_id = 'id={}|'.format(event)
                         
     contig_fa_dict = {}
 
@@ -314,7 +307,7 @@ def gather_fas(job, seq_id_map, output_id_map, contig_fa_map):
 def export_split_data(toil, input_seq_id_map, output_id_map, output_dir, config):
     """ download all the split data locally """
 
-    amb_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "ambiguousName", default="__AMBIGUOUS_SEQUENCES__")
+    amb_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "ambiguousName", default="_AMBIGUOUS_")
     
     chrom_file_map = {}
     

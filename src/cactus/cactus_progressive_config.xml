@@ -272,7 +272,7 @@
 	<!-- maskFilter: any softmasked sequence intervals > than this many bp will be hardmasked before being read by the minigraph mapper [negative value = disable]-->
 	<!-- cpu: use up to this many cpus for each minigraph command. -->
 	<graphmap
-		 assemblyName="__MINIGRAPH_SEQUENCES__"
+		 assemblyName="_MINIGRAPH_"
 		 minigraphMapOptions="-S --write-mz -xasm"
 		 universalMZFilter="0"
 		 nodeBasedUniversal="0"
@@ -292,7 +292,7 @@
 	<graphmap_split
 		 minQueryCoverage="0.80"
 		 minQueryUniqueness="2"
-		 ambiguousName="__AMBIGUOUS_SEQUENCES__"
+		 ambiguousName="_AMBIGUOUS_"
 		 />
   	<multi_cactus>
 		<outgroup 
