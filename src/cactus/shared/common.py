@@ -36,6 +36,7 @@ from toil.realtimeLogger import RealtimeLogger
 from toil.lib.humanize import bytes2human
 
 from sonLib.bioio import popenCatch
+from sonLib.bioio import getTempDirectory
 
 from cactus.shared.version import cactus_commit
 
@@ -263,8 +264,13 @@ def runCactusSetup(cactusDiskDatabaseString, seqMap,
     return [ i for i in masterMessages.split("\n") if i != '' ]
 
 def runConvertAlignmentsToInternalNames(cactusDiskString, alignmentsFile, outputFile, flowerName, isBedFile=False):
+    # keep temp files alongside data (ie in job's filestore)
+    # (this should happen via cactus overriding TMPDIR in Rounded Job but maybe not always?
+    #  https://github.com/ComparativeGenomicsToolkit/cactus/issues/301#issuecomment-738192236)
+    workDir = getTempDirectory(rootDir=os.path.dirname(alignmentsFile))
     args = [alignmentsFile, outputFile,
-            "--cactusDisk", cactusDiskString]
+            "--cactusDisk", cactusDiskString,
+            "--workDir", workDir]
     if isBedFile:
         args += ["--bed"]
     cactus_call(stdin_string=encodeFlowerNames((flowerName,)),
