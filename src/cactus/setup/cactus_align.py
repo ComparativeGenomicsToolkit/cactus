@@ -568,7 +568,7 @@ def export_vg(job, hal_id, configWrapper, doVG, doGFA, checkpointInfo=None, reso
     hal_path = os.path.join(work_dir, "out.hal")
     job.fileStore.readGlobalFile(hal_id, hal_path)
     
-    graph_event = getOptionalAttrib(findRequiredNode(configWrapper.xmlRoot, "graphmap"), "assemblyName", default="__MINIGRAPH_SEQUENCES__")
+    graph_event = getOptionalAttrib(findRequiredNode(configWrapper.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
 
     vg_path = os.path.join(work_dir, "out.vg")
     cmd = ['hal2vg', hal_path, '--inMemory', '--progress', '--ignoreGenomes', 'Anc0,{}'.format(graph_event)]

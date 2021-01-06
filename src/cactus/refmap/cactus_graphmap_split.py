@@ -117,8 +117,6 @@ def runCactusGraphMapSplit(options):
             # load the seqfile
             seqFile = SeqFile(options.seqFile)
 
-            if options.reference:
-                assert options.reference in seqFile.pathMap
             
             #import the graph
             gfa_id = toil.importFile(makeURL(options.minigraphGFA))
@@ -129,6 +127,12 @@ def runCactusGraphMapSplit(options):
             #import the sequences (that we need to align for the given event, ie leaves and outgroups)
             seqIDMap = {}
             leaves = set([seqFile.tree.getName(node) for node in seqFile.tree.getLeaves()])
+            
+            if graph_event not in leaves:
+                raise RuntimeError("Minigraph name {} not found in seqfile".format(graph_event))
+            if options.reference and options.reference not in leaves:
+                raise RuntimeError("Name given with --reference {} not found in seqfile".format(options.reference))
+                
             for genome, seq in seqFile.pathMap.items():
                 if genome in leaves:
                     if os.path.isdir(seq):
@@ -138,9 +142,6 @@ def runCactusGraphMapSplit(options):
                     seq = makeURL(seq)
                     logger.info("Importing {}".format(seq))
                     seqIDMap[genome] = (seq, toil.importFile(seq))
-
-            # todo: better error -- its easy to make this mistake
-            assert graph_event in seqIDMap
 
             # run the workflow
             split_id_map = toil.start(Job.wrapJobFn(graphmap_split_workflow, options, config, seqIDMap,
