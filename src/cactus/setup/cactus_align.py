@@ -153,10 +153,10 @@ def main():
     # But I don't think there's a real use case yet of making a separate parameter
     options.eventNameAsID = os.environ.get('CACTUS_EVENT_NAME_AS_UNIQUE_ID')
     if options.eventNameAsID is not None:
-        options.eventNameAsID = bool(eventNameAsID)
+        options.eventNameAsID = False if not bool(eventName) or eventName == '0' else True
     else:
         options.eventNameAsID = options.pangenome or options.pafInput
-        os.environ['CACTUS_EVENT_NAME_AS_UNIQUE_ID'] = str(int(options.eventNameAsID))
+    os.environ['CACTUS_EVENT_NAME_AS_UNIQUE_ID'] = str(int(options.eventNameAsID))
 
     start_time = timeit.default_timer()
     with Toil(options) as toil:
@@ -569,9 +569,21 @@ def export_vg(job, hal_id, configWrapper, doVG, doGFA, checkpointInfo=None, reso
     job.fileStore.readGlobalFile(hal_id, hal_path)
     
     graph_event = getOptionalAttrib(findRequiredNode(configWrapper.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
+    hal2vg_opts = getOptionalAttrib(findRequiredNode(configWrapper.xmlRoot, "hal2vg"), "hal2vgOptions", default="")
+    if hal2vg_opts:
+        hal2vg_opts = hal2vg_opts.split(",")
+    else:
+        hal2vg_opts = []
+    ignore_events = []
+    if not getOptionalAttrib(findRequiredNode(configWrapper.xmlRoot, "hal2vg"), "includeMinigraph", default=0):
+        ignore_events.append(graph_event)
+    if not getOptionalAttrib(findRequiredNode(configWrapper.xmlRoot, "hal2vg"), "includeAncestor", default=0):
+        ignore_events.append(configWrapper.getDefaultInternalNodePrefix() + '0')
+    if ignore_events:
+        hal2vg_opts += ['--ignoreGenomes', ','.join(ignore_events)]
 
     vg_path = os.path.join(work_dir, "out.vg")
-    cmd = ['hal2vg', hal_path, '--inMemory', '--progress', '--ignoreGenomes', 'Anc0,{}'.format(graph_event)]
+    cmd = ['hal2vg', hal_path] + hal2vg_opts
 
     cactus_call(parameters=cmd, outfile=vg_path)
 
@@ -606,6 +618,7 @@ def main_batch():
     parser.add_argument("outHal", type=str, help = "Output directory (can be s3://)")
     parser.add_argument("--alignOptions", type=str, help = "Options to pass through to cactus-align (don't forget to wrap in quotes)")
     parser.add_argument("--alignCores", type=int, help = "Number of cores per align job")
+    parser.add_argument("--alignCoresOverrides", nargs="*", help = "Override align job cores for a chromosome. Space-separated list of chrom,cores pairse epxected")
 
     parser.add_argument("--configFile", dest="configFile",
                         help="Specify cactus configuration file",
@@ -625,6 +638,17 @@ def main_batch():
 
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
+
+    # Turn the overrides into a dict
+    cores_overrides = {}
+    if options.alignCoresOverrides:
+        for o in options.alignCoresOverrides:
+            try:
+                chrom, cores = o.split()
+                cores_overrides[chrom] = int(cores)
+            except:
+                raise RuntimeError("Error parsing alignCoresOverrides \"{}\"".format(o))
+    options.alignCoresOverrides = cores_overrides                
 
     start_time = timeit.default_timer()
     with Toil(options) as toil:
@@ -668,7 +692,7 @@ def align_toil_batch(job, chrom_dict, config_id, options):
     for chrom in chrom_dict.keys():
         seq_file_id, paf_file_id = chrom_dict[chrom]
         align_job = job.addChildJobFn(align_toil, chrom, seq_file_id, paf_file_id, config_id, options,
-                                      cores=options.alignCores)
+                                      cores=options.alignCoresOverrides[chrom] if chrom in options.alignCoresOverrides else options.alignCores)
         results_dict[chrom] = align_job.rv()
 
     return results_dict

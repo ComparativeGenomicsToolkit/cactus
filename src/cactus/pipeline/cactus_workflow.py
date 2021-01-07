@@ -477,7 +477,8 @@ def prependUniqueIDs(eventToFa, outputDir, idMap=None, firstID=0, eventNameAsID=
     Event Name IDs are better for paf-based pipeline as they are stable across commands even when working on subsets of events
     """
     if eventNameAsID is None:
-        eventNameAsID = bool(os.environ.get('CACTUS_EVENT_NAME_AS_UNIQUE_ID', '0'))
+        eventNameAsID = os.environ.get('CACTUS_EVENT_NAME_AS_UNIQUE_ID', False)
+        eventNameAsID = False if not bool(eventNameAsID) or eventNameAsID == '0' else True
         
     uniqueID = firstID
     ret = {}
