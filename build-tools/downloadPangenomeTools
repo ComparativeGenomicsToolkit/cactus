@@ -1,0 +1,171 @@
+#!/bin/bash
+# Download and statically build tools needed for cactus-refmap and cactus-graphmap.  They are
+# - minimap2
+# - minigraph
+# - gfatools
+# - dna-brnn
+# - mzgaf2paf
+# - paf2lastz
+# The following tools are included to export and work with pangenome graph formats
+# - hal2vg
+# - vg
+# If, updating any versions here, update the release notes as well
+#
+# all binaries get copied into cactus/bin
+
+set -beE -o pipefail
+
+pangenomeBuildDir=$(realpath -m build-pangenome-tools)
+binDir=$(pwd)/bin
+# just use cactusRootPath for now
+dataDir=$(pwd)/src/cactus
+CWD=$(pwd)
+
+set -x
+rm -rf ${pangenomeBuildDir}
+mkdir -p ${pangenomeBuildDir}
+mkdir -p ${binDir}
+
+# minimap2
+cd ${pangenomeBuildDir}
+git clone https://github.com/lh3/minimap2.git
+cd minimap2
+git checkout c9874e2dc50e32bbff4ded01cf5ec0e9be0a53dd
+# hack in a static build
+sed -i Makefile -e 's/CFLAGS=/CFLAGS+=/'
+CFLAGS="-static ${CACTUS_MARCH}" make -j 4
+if [ $(ldd minimap2 | grep so | wc -l) -eq 0 ]
+then
+	 mv minimap2 ${binDir}
+else
+	 exit 1
+fi
+
+# minigraph
+cd ${pangenomeBuildDir}
+git clone https://github.com/lh3/minigraph.git
+pushd minigraph
+git checkout 274aec227d4bd9cccc9c7a4454ac3a890eed40b8
+# hack in a static build
+sed -i Makefile -e 's/CFLAGS=/CFLAGS+=/'
+CFLAGS="-static ${CACTUS_MARCH}" make -j 4
+if [ $(ldd minigraph | grep so | wc -l) -eq 0 ]
+then
+	 mv minigraph ${binDir}
+else
+	 exit 1
+fi
+
+# gfatools
+cd ${pangenomeBuildDir}
+git clone https://github.com/lh3/gfatools.git
+cd gfatools
+git checkout a1abaf3d6d4510bc73e5defab274cfb288a11255
+# hack in a static build
+sed -i Makefile -e 's/CFLAGS=/CFLAGS+=/'
+CFLAGS="-static ${CACTUS_MARCH}" make -j 4
+if [ $(ldd gfatools | grep so | wc -l) -eq 0 ]
+then
+	 mv gfatools ${binDir}
+else
+	 exit 1
+fi
+
+#samtools
+wget -q https://github.com/samtools/samtools/releases/download/1.11/samtools-1.11.tar.bz2
+tar -xf samtools-1.11.tar.bz2
+cd samtools-1.11
+CFLAGS="-static ${CACTUS_MARCH}" LDFLAGS="-static ${CACTUS_MARCH}" ./configure --without-curses
+make -j 4
+if [ $(ldd samtools | grep so | wc -l) -eq 0 ]
+then
+	 mv samtools ${binDir}
+else
+	 exit 1
+fi
+
+#bedtools
+wget -q https://github.com/arq5x/bedtools2/releases/download/v2.29.1/bedtools-2.29.1.tar.gz
+tar -zxf bedtools-2.29.1.tar.gz
+cd bedtools2
+CXXFLAGS="${CACTUS_MARCH}" make static -j 4
+if [ $(ldd bin/bedtools.static | grep so | wc -l) -eq 0 ]
+then
+	 mv bin/bedtools.static ${binDir}/bedtools
+else
+	 exit 1
+fi
+
+# dna-brnn
+cd ${pangenomeBuildDir}
+git clone https://github.com/lh3/dna-nn.git
+cd dna-nn
+git checkout 2e6d242ae339457b985f50086e85194c3ce418b1
+# hack in a static build
+sed -i Makefile -e 's/CFLAGS=/CFLAGS+=/' -e 's/LIBS=/LIBS+=/'
+CFLAGS="-static ${CACTUS_MARCH}" LIBS="-static ${CACTUS_MARCH}" make -j 4
+if [ $(ldd dna-brnn | grep so | wc -l) -eq 0 ]
+then
+	 mv dna-brnn ${binDir}
+	 cp models/attcc-alpha.knm ${dataDir}
+else
+	 exit 1
+fi
+
+# mzgaf2paf
+cd ${pangenomeBuildDir}
+git clone https://github.com/glennhickey/mzgaf2paf.git
+cd mzgaf2paf
+git checkout 5ec8846ae83e4079be5397bf176a391e95e25f77
+CXXFLAGS="-static ${CACTUS_MARCH}" make -j 4
+if [ $(ldd mzgaf2paf | grep so | wc -l) -eq 0 ]
+then
+	 mv mzgaf2paf ${binDir}
+else
+	 exit 1
+fi
+if [ $(ldd rgfa-split | grep so | wc -l) -eq 0 ]
+then
+	 mv rgfa-split ${binDir}
+else
+	 exit 1
+fi
+
+# paf2lastz
+wget -q https://github.com/glennhickey/paf2lastz/releases/download/v1.1/paf2lastz
+chmod +x paf2lastz
+if [ $(ldd paf2lastz | grep so | wc -l) -eq 0 ]
+then
+	 mv paf2lastz ${binDir}
+else
+	 exit 1
+fi 
+
+# hal2vg
+wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.2/hal2vg
+chmod +x hal2vg
+if [ $(ldd hal2vg | grep so | wc -l) -eq 0 ]
+then
+	 mv hal2vg ${binDir}
+else
+	 exit 1
+fi
+
+# vg
+wget -q https://github.com/vgteam/vg/releases/download/v1.29.0/vg
+chmod +x vg
+if [ $(ldd vg | grep so | wc -l) -eq 0 ]
+then
+	 mv vg ${binDir}
+else
+	 exit 1
+fi	 
+
+cd ${CWD}
+rm -rf ${pangenomeBuildDir}
+
+set +x
+echo ""
+echo "--------------------------------------------------"
+echo "(re)run pip install -U . to install dna-brnn model"
+echo "--------------------------------------------------"

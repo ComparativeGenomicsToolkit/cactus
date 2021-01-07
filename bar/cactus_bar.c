@@ -13,6 +13,7 @@
 #include "cactus.h"
 #include "sonLib.h"
 #include "endAligner.h"
+#include "poaBarAligner.h"
 #include "flowerAligner.h"
 #include "rescue.h"
 #include "commonC.h"
@@ -70,6 +71,14 @@ void usage() {
 
     fprintf(stderr, "-M --minimumCoverageToRescue : Unaligned segments must have at least this proportion of their bases covered by an outgroup to be rescued.\n");
 
+    fprintf(stderr, "-P --partialOrderAlignmentWindow (int >= 0): Use partial order aligner instead of Pecan for multiple alignment subproblems, on blocks up to given length (0=disable POA).\n");
+
+    fprintf(stderr, "-m --maskFilter (int N) : Trim sequences to align at run of >N masked bases. Only implemented for POA. [N==-1 : disabled] (default=-1)\n");
+
+    fprintf(stderr, "-C --partialOrderAlignmentBandConstant (int N) : abpoa \"b\" parameter where band is b+F*<length> [N<0 : adaptive banding disabled] (default=10)\n");
+
+    fprintf(stderr, "-R --partialOrderAlignmentBandFraction (float F) : abpoa \"f\" parameter where band is b+F*<length> (default=0.01)\n");
+
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -111,6 +120,12 @@ int main(int argc, char *argv[]) {
     char *ingroupCoverageFilePath = NULL;
     int64_t minimumSizeToRescue = 1;
     double minimumCoverageToRescue = 0.0;
+    // toggle from pecan to abpoa for multiple alignment, by setting to non-zero
+    // Note that poa uses about N^2 memory, so maximum value is generally in 10s of kb
+    int64_t poaWindow = 0;
+    int64_t maskFilter = -1;
+    int64_t poaBandConstant = 10; //defaults from abpoa
+    double poaBandFraction = 0.01;
 
     PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters = pairwiseAlignmentBandingParameters_construct();
 
@@ -140,11 +155,15 @@ int main(int argc, char *argv[]) {
                         {"minimumSizeToRescue", required_argument, 0, 'K'},
                         {"minimumCoverageToRescue", required_argument, 0, 'M'},
                         { "minimumNumberOfSpecies", required_argument, 0, 'N' },
+                        {"partialOrderAlignmentWindow", required_argument, 0, 'P'},
+                        {"maskFilter", required_argument, 0, 'm'},
+                        {"partialOrderAlignmentBandConstant", required_argument, 0, 'C'},
+                        {"partialOrderAlignmentBandFraction", required_argument, 0, 'R'},
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:b:hi:j:kl:o:p:q:r:t:u:wy:A:B:D:E:FGI:J:K:L:M:N:", long_options, &option_index);
+        int key = getopt_long(argc, argv, "a:b:hi:j:kl:o:p:q:r:t:u:wy:A:B:D:E:FGI:J:K:L:M:N:P:m:C:R:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -265,6 +284,30 @@ int main(int argc, char *argv[]) {
                     st_errAbort("Error parsing minimumNumberOfSpecies parameter");
                 }
                 break;
+            case 'P':
+                i = sscanf(optarg, "%" PRIi64 "", &poaWindow);
+                if (i != 1) {
+                    st_errAbort("Error parsing partialOrderAlignmentWindow parameter");
+                }
+                break;
+            case 'm':
+                i = sscanf(optarg, "%" PRIi64 "", &maskFilter);
+                if (i != 1) {
+                    st_errAbort("Error parsing maskFilter parameter");
+                }
+                break;
+            case 'C':
+                i = sscanf(optarg, "%" PRIi64 "", &poaBandConstant);
+                if (i != 1) {
+                    st_errAbort("Error parsing partialOrderAlignmentBandConstant parameter");
+                }
+                break;
+            case 'R':
+              i = sscanf(optarg, "%lf", &poaBandFraction);
+                if (i != 1) {
+                    st_errAbort("Error parsing partialOrderAlignmentBandFraction parameter");
+                }
+                break;
             default:
                 usage();
                 return 1;
@@ -289,6 +332,11 @@ int main(int argc, char *argv[]) {
      * For each flower.
      */
     if (calculateWhichEndsToComputeSeparately) {
+        if(poaWindow != 0) {
+            return 0; // Do not compute ends separately if using the poa aligner, as the poa aligner is so fast
+            // this is unnecessary
+            // todo: avoid calling with this flag if using poaMode
+        }
         stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
         if (stList_length(flowers) != 1) {
             st_errAbort("We are breaking up a flower's end alignments for precomputation but we have %" PRIi64 " flowers.\n", stList_length(flowers));
@@ -318,8 +366,9 @@ int main(int argc, char *argv[]) {
             if (end == NULL) {
                 st_errAbort("The end %" PRIi64 " was not found in the flower\n", *((Name *)stList_get(names, i)));
             }
+            assert(poaWindow == 0);
             stSortedSet *endAlignment = makeEndAlignment(sM, end, spanningTrees, maximumLength, useProgressiveMerging,
-                            matchGamma, pairwiseAlignmentBandingParameters);
+                                                         matchGamma, pairwiseAlignmentBandingParameters);
             writeEndAlignmentToDisk(end, endAlignment, fileHandle);
             stSortedSet_destruct(endAlignment);
         }
@@ -371,11 +420,28 @@ int main(int argc, char *argv[]) {
             flower = stList_get(flowers, j);
             st_logInfo("Processing a flower\n");
 
-            stSortedSet *alignedPairs = makeFlowerAlignment3(sM, flower, listOfEndAlignmentFiles, spanningTrees, maximumLength,
-                    useProgressiveMerging, matchGamma, pairwiseAlignmentBandingParameters, pruneOutStubAlignments);
-            st_logInfo("Created the alignment: %" PRIi64 " pairs\n", stSortedSet_size(alignedPairs));
-            stPinchIterator *pinchIterator = stPinchIterator_constructFromAlignedPairs(alignedPairs, getNextAlignedPairAlignment);
+            stPinchIterator *pinchIterator = NULL;
+            stSortedSet *alignedPairs = NULL;
+            stList *alignment_blocks = NULL;
 
+            if(poaWindow != 0) {
+                /*
+                 * This makes a consistent set of alignments using abPoa.
+                 *
+                 * It does not use any precomputed alignments, if they are provided they will be ignored
+                 */
+                alignment_blocks = make_flower_alignment_poa(flower, maximumLength, poaWindow, maskFilter, poaBandConstant, poaBandFraction);
+                st_logInfo("Created the poa alignments: %" PRIi64 " poa alignment blocks\n", stList_length(alignment_blocks));
+                pinchIterator = stPinchIterator_constructFromAlignedBlocks(alignment_blocks);
+            }
+            else {
+                alignedPairs = makeFlowerAlignment3(sM, flower, listOfEndAlignmentFiles, spanningTrees, maximumLength,
+                                                    useProgressiveMerging, matchGamma,
+                                                    pairwiseAlignmentBandingParameters,
+                                                    pruneOutStubAlignments);
+                st_logInfo("Created the alignment: %" PRIi64 " pairs\n", stSortedSet_size(alignedPairs));
+                pinchIterator = stPinchIterator_constructFromAlignedPairs(alignedPairs, getNextAlignedPairAlignment);
+            }
             /*
              * Run the cactus caf functions to build cactus.
              */
@@ -416,7 +482,12 @@ int main(int argc, char *argv[]) {
              */
             //Clean up the sorted set after cleaning up the iterator
             stPinchIterator_destruct(pinchIterator);
-            stSortedSet_destruct(alignedPairs);
+            if(poaWindow != 0) {
+                stList_destruct(alignment_blocks);
+            }
+            else {
+                stSortedSet_destruct(alignedPairs);
+            }
 
             st_logInfo("Finished filling in the alignments for the flower\n");
         }

@@ -22,7 +22,14 @@ import math
 import threading
 import traceback
 import errno
+import shlex
 
+try:
+    import boto3
+    import botocore
+    has_s3 = True
+except:
+    has_s3 = False
 
 from urllib.parse import urlparse
 from datetime import datetime
@@ -33,8 +40,10 @@ from toil.lib.bioio import getLogLevelString
 from toil.common import Toil
 from toil.job import Job
 from toil.realtimeLogger import RealtimeLogger
+from toil.lib.humanize import bytes2human
 
 from sonLib.bioio import popenCatch
+from sonLib.bioio import getTempDirectory
 
 from cactus.shared.version import cactus_commit
 
@@ -44,8 +53,6 @@ subprocess._has_poll = False
 
 def cactus_override_toil_options(options):
     """  Mess with some toil options to create useful defaults. """
-    # tokyo_cabinet is no longer supported
-    options.database = "kyoto_tycoon"
     # Caching generally slows down the cactus workflow, plus some
     # methods like readGlobalFileStream don't support forced
     # reads directly from the job store rather than from cache.
@@ -264,8 +271,13 @@ def runCactusSetup(cactusDiskDatabaseString, seqMap,
     return [ i for i in masterMessages.split("\n") if i != '' ]
 
 def runConvertAlignmentsToInternalNames(cactusDiskString, alignmentsFile, outputFile, flowerName, isBedFile=False):
+    # keep temp files alongside data (ie in job's filestore)
+    # (this should happen via cactus overriding TMPDIR in Rounded Job but maybe not always?
+    #  https://github.com/ComparativeGenomicsToolkit/cactus/issues/301#issuecomment-738192236)
+    workDir = getTempDirectory(rootDir=os.path.dirname(alignmentsFile))
     args = [alignmentsFile, outputFile,
-            "--cactusDisk", cactusDiskString]
+            "--cactusDisk", cactusDiskString,
+            "--workDir", workDir]
     if isBedFile:
         args += ["--bed"]
     cactus_call(stdin_string=encodeFlowerNames((flowerName,)),
@@ -492,6 +504,11 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
                  minimumSizeToRescue=None,
                  minimumCoverageToRescue=None,
                  minimumNumberOfSpecies=None,
+                 partialOrderAlignment=None,
+                 partialOrderAlignmentWindow=None,
+                 partialOrderAlignmentMaskFilter=None,
+                 partialOrderAlignmentBandConstant=None,
+                 partialOrderAlignmentBandFraction=None,
                  jobName=None,
                  fileStore=None,
                  features=None):
@@ -547,7 +564,16 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
         args += ["--minimumCoverageToRescue", str(minimumCoverageToRescue)]
     if minimumNumberOfSpecies is not None:
         args += ["--minimumNumberOfSpecies", str(minimumNumberOfSpecies)]
-
+    if partialOrderAlignment is True:
+        assert partialOrderAlignmentWindow is not None and int(partialOrderAlignmentWindow) > 1
+        args += ["--partialOrderAlignmentWindow", str(partialOrderAlignmentWindow)]
+    if partialOrderAlignmentMaskFilter is not None and partialOrderAlignmentMaskFilter >= 0:
+        args += ["--maskFilter", str(partialOrderAlignmentMaskFilter)]
+    if partialOrderAlignmentBandConstant:
+        args += ["--partialOrderAlignmentBandConstant", str(partialOrderAlignmentBandConstant)]
+    if partialOrderAlignmentBandFraction:
+        args += ["--partialOrderAlignmentBandFraction", str(partialOrderAlignmentBandFraction)]
+        
     masterMessages = cactus_call(stdin_string=flowerNames, check_output=True,
                                  parameters=["cactus_bar"] + args,
                                  job_name=jobName, fileStore=fileStore, features=features)
@@ -898,9 +924,9 @@ def maxMemUsageOfContainer(containerInfo):
 
 # send a time/date stamped message to the realtime logger, truncating it
 # if it's too long (so it's less likely to be dropped)
-def cactus_realtime_log(msg, max_len = 1000, log_debug=False):
+def cactus_realtime_log(msg, max_len = 1500, log_debug=False):
     if len(msg) > max_len:
-        msg = msg[:max_len-107] + " <...> " + msg[-100:]
+        msg = msg[:max_len-207] + " <...> " + msg[-200:]
     if not log_debug:
         RealtimeLogger.info("{}: {}".format(datetime.now(), msg))
     else:
@@ -1208,7 +1234,7 @@ def cactus_call(tool=None,
         parameters = []
     if tool is None:
         tool = "cactus"
-
+    
     entrypoint = None
     if (len(parameters) > 0) and isinstance(parameters[0], list):
         # We have a list of lists, which is the convention for commands piped into one another.
@@ -1253,7 +1279,22 @@ def cactus_call(tool=None,
         stdoutFileHandle = subprocess.PIPE
 
     _log.info("Running the command %s" % call)
-    cactus_realtime_log("Running the command: \"{}\"".format(' '.join(call)), log_debug = 'ktremotemgr' in call)
+    rt_message = 'Running the command: \"{}\"'.format(' '.join(call))
+    if features:
+        rt_message += ' (features={})'.format(features)
+    cactus_realtime_log(rt_message, log_debug = 'ktremotemgr' in call)
+
+    # hack to keep track of memory usage for single machine
+    time_v = os.environ.get("CACTUS_LOG_MEMORY") is not None and 'ktserver' not in call and 'redis-server' not in call
+
+    # use /usr/bin/time -v to get peak memory usage
+    if time_v:
+        if not shell:
+            shell = True
+            call = ' '.join(shlex.quote(t) for t in call)
+        swallowStdErr = True
+        call = '/usr/bin/time -v {}'.format(call)
+        
     process = subprocess.Popen(call, shell=shell, encoding="ascii",
                                stdin=stdinFileHandle, stdout=stdoutFileHandle,
                                stderr=subprocess.PIPE if swallowStdErr else sys.stderr,
@@ -1292,8 +1333,18 @@ def cactus_call(tool=None,
 
     if process.returncode == 0:
         run_time = time.time() - start_time
-        cactus_realtime_log("Successfully ran the command: \"{}\" in {} seconds".format(' '.join(call), run_time),
-                            log_debug = 'ktremotemgr' in call)
+        if time_v:
+            call = call[len("/usr/bin/time -v "):]
+        rt_message = "Successfully ran: \"{}\"".format(' '.join(call) if not shell else call)
+        if features:
+            rt_message += ' (features={})'.format(features)
+        rt_message += " in {} seconds".format(round(run_time, 4))
+        if time_v:            
+            for line in stderr.split('\n'):
+                if 'Maximum resident set size (kbytes):' in line:
+                    rt_message += ' and {} memory'.format(bytes2human(int(line.split()[-1]) * 1024))
+                    break
+        cactus_realtime_log(rt_message, log_debug = 'ktremotemgr' in call)
 
     if check_result:
         return process.returncode
@@ -1476,3 +1527,88 @@ def dumpStacksHandler(signal, frame):
 def enableDumpStack(sig=signal.SIGUSR1):
     """enable dumping stacks when the specified signal is received"""
     signal.signal(sig, dumpStacksHandler)
+
+def unzip_gzs(job, input_paths, input_ids):
+    """ go through a list of files and unzip any that end with .gz and return a list 
+    of updated ids.  files that don't end in .gz are just passed through.  relying on the extension
+    is pretty fragile but better than nothing """
+    unzipped_ids = []
+    for input_path, input_id in zip(input_paths, input_ids):
+        if input_path.endswith('.gz'):
+            unzip_job = job.addChildJobFn(unzip_gz, input_path, input_id, disk=10*input_id.size)
+            unzipped_ids.append(unzip_job.rv())
+        else:
+            unzipped_ids.append(input_id)
+    return unzipped_ids
+
+def unzip_gz(job, input_path, input_id):
+    """ unzip a single file """
+    work_dir = job.fileStore.getLocalTempDir()
+    assert input_path.endswith('.gz')
+    fa_path = os.path.join(work_dir, os.path.basename(input_path))
+    job.fileStore.readGlobalFile(input_id, fa_path, mutable=True)
+    cactus_call(parameters=['gzip', '-d', os.path.basename(fa_path)], work_dir=work_dir)
+    return job.fileStore.writeGlobalFile(fa_path[:-3])
+
+def zip_gzs(job, input_paths, input_ids, list_elems = None):
+    """ zip up some files.  the input_ids can be a list of lists.  if it is, then list_elems
+    can be used to only zip a subset (leaving everything else) on each list."""
+    zipped_ids = []
+    for input_path, input_list in zip(input_paths, input_ids):
+        if input_path.endswith('.gz'):
+            try:
+                iter(input_list)
+                is_list = True
+            except:
+                is_list = False
+            if is_list:
+                output_list = []
+                for i, elem in enumerate(input_list):
+                    if not list_elems or i in list_elems:
+                        output_list.append(job.addChildJobFn(zip_gz, input_path, elem, disk=2*elem.size).rv())
+                    else:
+                        output_list.append(elem)
+                zipped_ids.append(output_list)
+            else:
+                zipped_ids.append(job.addChildJobFn(zip_gz, input_path, input_id, disk=2*input_id.size).rv())
+        else:
+            zipped_ids.append(input_list)
+    return zipped_ids
+    
+def zip_gz(job, input_path, input_id):
+    """ zip a single file """
+    work_dir = job.fileStore.getLocalTempDir()
+    fa_path = os.path.join(work_dir, os.path.basename(input_path))
+    if fa_path.endswith('.gz'):
+        fa_path = fa_path[:-3]
+    job.fileStore.readGlobalFile(input_id, fa_path, mutable=True)
+    cactus_call(parameters=['gzip', os.path.basename(fa_path)], work_dir=work_dir)
+    return job.fileStore.writeGlobalFile(fa_path + '.gz')
+
+def get_aws_region(full_path):
+    """ parse aws:region:url  to just get region (toil surely has better way to do this but in rush)"""
+    if full_path.startswith('aws:'):
+        return full_path.split(':')[1]
+    else:
+        return None
+
+def write_s3(local_path, s3_path, region=None):
+    """ cribbed from toil-vg.  more convenient just to throw hal output on s3
+    than pass it as a promise all the way back to the start job to export it locally """
+    assert s3_path.startswith('s3://')
+    bucket_name, name_prefix = s3_path[5:].split("/", 1)
+    botocore_session = botocore.session.get_session()
+    botocore_session.get_component('credential_provider').get_provider('assume-role').cache = botocore.credentials.JSONFileCache()
+    boto3_session = boto3.Session(botocore_session=botocore_session)
+
+    # Connect to the s3 bucket service where we keep everything
+    s3 = boto3_session.client('s3')
+    try:
+        s3.head_bucket(Bucket=bucket_name)
+    except:
+        if region:
+            s3.create_bucket(Bucket=bucket_name, CreateBucketConfiguration={'LocationConstraint':region})
+        else:
+            s3.create_bucket(Bucket=bucket_name)
+
+    s3.upload_file(local_path, bucket_name, name_prefix)

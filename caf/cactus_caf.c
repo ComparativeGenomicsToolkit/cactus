@@ -53,6 +53,7 @@ static void usage() {
                     "                       relaxedSingleCopyOutgroup: never merge two outgroup segments together if they are both already aligned to something else\n"
                     "                       singleCopy: Never align two segments from the same genome together\n"
                     "                       relaxedSingleCopy: Never align two segments from the same genome together if they are both already aligned to something else\n"
+                    "                       singleCopyEvent:<EVENT>: Never align two segments from the <EVENT> together\n"                
                     "                       filterSecondariesByMultipleSpecies: Apply no filtering to primary alignments, for secondary alignments do not sort them and filter them so that no two blocks are merged that each already contain multiple species.\n");
     
     fprintf(stderr, "-v --minimumSequenceLengthForBlast : The minimum length of a sequence to include when blasting\n");
@@ -287,6 +288,7 @@ int main(int argc, char *argv[]) {
     bool (*filterFn)(stPinchSegment *, stPinchSegment *) = NULL;
     bool (*secondaryFilterFn)(stPinchSegment *, stPinchSegment *) = NULL;
     stSet *outgroupThreads = NULL;
+    char * singleCopyEventName = NULL;
 
     /*
      * Arguments/options
@@ -478,6 +480,9 @@ int main(int argc, char *argv[]) {
                 } else if (strcmp(optarg, "relaxedSingleCopy") == 0) {
                     sortAlignments = true;
                     filterFn = stCaf_relaxedFilterByRepeatSpecies;
+                } else if (strncmp(optarg, "singleCopyEvent:", 16) == 0) {
+                    singleCopyEventName = stString_copy(optarg + 16);
+                    filterFn = stCaf_filterBySingleCopyEvent;
                 } else if (strcmp(optarg, "singleCopyChr") == 0) {
                     sortAlignments = true;
                     filterFn = stCaf_singleCopyChr;
@@ -787,6 +792,11 @@ int main(int argc, char *argv[]) {
 
             //Build the set of outgroup threads
             outgroupThreads = stCaf_getOutgroupThreads(flower, threadSet);
+
+            // Set the single copy event
+            if (singleCopyEventName != NULL) {
+                stCaf_setSingleCopyEvent(flower, singleCopyEventName);
+            }
 
             if (filterFn == stCaf_filterToEnsureCycleFreeIsolatedComponents) {
                 stCaf_setupHGVMFiltering(flower, threadSet, hgvmEventName);

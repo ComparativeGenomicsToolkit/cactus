@@ -25,7 +25,7 @@ from cactus.shared.configWrapper import ConfigWrapper
 from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
 from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
 from cactus.pipeline.cactus_workflow import CactusTrimmingBlastPhase
-from cactus.shared.common import makeURL
+from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
 
@@ -35,7 +35,7 @@ from toil.lib.bioio import logger
 from toil.lib.bioio import setLoggingFromOptions
 
 from sonLib.nxnewick import NXNewick
-from sonLib.bioio import getTempDirectory
+from sonLib.bioio import getTempDirectory, getTempFile
 
 def main():
     parser = ArgumentParser()
@@ -44,14 +44,10 @@ def main():
 
     parser.add_argument("seqFile", help = "Seq file")
     parser.add_argument("outputFile", type=str, help = "Output pairwise alignment file")
-    parser.add_argument("--pathOverrides", nargs="*", help="paths (multiple allowd) to override from seqFile")
-    parser.add_argument("--pathOverrideNames", nargs="*", help="names (must be same number as --paths) of path overrides")
+    parser.add_argument("--pathOverrides", nargs="*", help="paths (multiple allowed) to override from seqFile")
+    parser.add_argument("--pathOverrideNames", nargs="*", help="names (must be same number as --pathOverrides) of path overrides")
 
     #Progressive Cactus Options
-    parser.add_argument("--database", dest="database",
-                      help="Database type: tokyo_cabinet or kyoto_tycoon"
-                      " [default: %(default)s]",
-                      default="kyoto_tycoon")
     parser.add_argument("--configFile", dest="configFile",
                         help="Specify cactus configuration file",
                         default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
@@ -69,8 +65,8 @@ def main():
                         "rather than pulling one from quay.io")
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
-
     options = parser.parse_args()
+    options.database = "kyoto_tycoon"
 
     setupBinaries(options)
     setLoggingFromOptions(options)
@@ -95,7 +91,7 @@ def runCactusBlastOnly(options):
         importSingularityImage(options)
         #Run the workflow
         if options.restart:
-            alignmentID = toil.restart()
+            outWorkFlowArgs = toil.restart()
         else:
             options.cactusDir = getTempDirectory()
 

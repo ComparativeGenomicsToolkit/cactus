@@ -26,7 +26,7 @@ setup(
     packages = find_packages(where='src'),
     include_package_data = True,
     package_data = {
-        'cactus': ['*_config.xml']
+        'cactus': ['*_config.xml', '*.knm']
     },
     # We use the __file__ attribute so this package isn't zip_safe.
     zip_safe = False,
@@ -39,6 +39,7 @@ setup(
         'networkx>=2,<3',
         'cython',
         'pytest',
+        'cigar',
         'biopython'], # cactus doesn't really need it, but some hal tools do
 
     cmdclass = {
@@ -50,4 +51,8 @@ setup(
                             'cactus-prepare = cactus.progressive.cactus_prepare:main',
                             'cactus-prepare-toil = cactus.progressive.cactus_prepare:main_toil',
                             'cactus-blast = cactus.blast.cactus_blast:main',
-                            'cactus-align = cactus.setup.cactus_align:main']},)
+                            'cactus-refmap = cactus.refmap.cactus_refmap:main',
+                            'cactus-graphmap = cactus.refmap.cactus_graphmap:main',
+                            'cactus-graphmap-split = cactus.refmap.cactus_graphmap_split:main',                            
+                            'cactus-align = cactus.setup.cactus_align:main',
+                            'cactus-align-batch = cactus.setup.cactus_align:main_batch']},)

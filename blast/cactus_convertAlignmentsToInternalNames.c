@@ -53,18 +53,23 @@ int main(int argc, char *argv[])
     FILE *inputFile;
     FILE *outputFile;
     bool isBedFile = false; // true if bed, false if cigar
+    char *workDir = NULL;
     struct option longopts[] = { {"cactusDisk", required_argument, NULL, 'a' },
                                  {"bed", no_argument, NULL, 'c'},
+                                 {"workDir", required_argument, NULL, 'w' },
 
                                  {0, 0, 0, 0} };
     int flag;
-    while ((flag = getopt_long(argc, argv, "", longopts, NULL)) != -1) {
+    while ((flag = getopt_long(argc, argv, "a:cw:", longopts, NULL)) != -1) {
         switch (flag) {
         case 'a':
             cactusDiskString = stString_copy(optarg);
             break;
 	case 'c':
             isBedFile = true;
+            break;
+        case 'w':
+            workDir = stString_copy(optarg);
             break;
         case '?':
         default:
@@ -178,9 +183,17 @@ int main(int argc, char *argv[])
             free(line);
         }
         fclose(outputFile);
+        char *tempOpts = "\0";
+        if (workDir != NULL) {
+            // this should put tempPath (below) into our workDir
+            initialiseTempFileTree(workDir, 1000, 1);
+            // this should make sort use the workDir for scratch space
+            tempOpts = st_malloc((10 + strlen(workDir)) * sizeof(char));
+            sprintf(tempOpts, "-T %s", workDir);
+        }
         // Sort the generated bed file into a temporary file.
         char *tempPath = getTempFile();
-        int ret = st_system("sort -k1n -k2n -k3n %s > %s", argv[optind + 1], tempPath);
+        int ret = st_system("sort -k1n -k2n -k3n %s %s > %s", argv[optind + 1], tempOpts, tempPath);
         if (ret) {
             st_errAbort("Sort failed on bed file %s", argv[optind + 1]);
         }

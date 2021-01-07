@@ -1,3 +1,13 @@
+# Release 2.0.0   ???
+
+This release adds preliminary support for using cactus to align samples from the same species together in order to create a pangenome.  This is achieved with several new options and new tools. Link to pangenome documentation should go here:
+
+- `cactus_bar` now has a POA-mode via the abpoa aligner, which scales better than Pecan for large numbers of sequences and is nearly as accurate if the sequences are highly similar
+- `cactus-refmap` tool added to produce cactus alignment anchors with all-to-reference minimap2 alignments instead of all-to-all lastz
+- `cactus-graphmap` tool added to produce cactus alignment anchors with all-to-reference-graph minigraph alignments instead of all-to-all lastsz
+- `--maskAlpha` option added to `cactus-preprocess` to softmask satellite sequence using `dna-brnn`
+- `cactus_bar` now has an option to ignore masked sequence with a given length threshold. 
+
 # Release 1.2.3   2020-10-05
 
 - Fix bug where `cactus_fasta_softmask_intervals.py` was expecting 1-based intervals from GPU lastz repeatmasker.

@@ -15,12 +15,6 @@ from datetime import datetime
 import subprocess
 import timeit
 import shutil
-try:
-    import boto3
-    import botocore
-    has_s3 = True
-except:
-    has_s3 = False
 
 from operator import itemgetter
 
@@ -37,6 +31,7 @@ from cactus.progressive.projectWrapper import ProjectWrapper
 from cactus.shared.version import cactus_commit
 from cactus.shared.common import findRequiredNode
 from cactus.shared.common import makeURL, cactus_call, RoundedJob
+from cactus.shared.common import write_s3, has_s3, get_aws_region
 
 from toil.job import Job
 from toil.common import Toil
@@ -56,6 +51,9 @@ def main(toil_mode=False):
         parser.add_argument("--latest", dest="latest", action="store_true",
                             help="Use the latest version of the docker container "
                             "rather than pulling one matching this version of cactus")
+        parser.add_argument("--containerImage", dest="containerImage", default=None,
+                            help="Use the the specified pre-built containter image "
+                            "rather than pulling one from quay.io")
         parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                             help="The way to run the Cactus binaries (at top level; use --cactusOpts to set it in nested calls)",
                             default=None)
@@ -115,9 +113,9 @@ def main(toil_mode=False):
     parser.add_argument("--blastPreemptible", type=int, help="Preemptible attempt count for each cactus-blast job [default=1]", default=1)
     parser.add_argument("--alignPreemptible", type=int, help="Preemptible attempt count for each cactus-align job [default=1]", default=1)
     parser.add_argument("--halAppendPreemptible", type=int, help="Preemptible attempt count for each halAppendSubtree job [default=1]", default=1)
+    parser.add_argument("--database", choices=["kyoto_tycoon", "redis"], help="The type of database", default="kyoto_tycoon")
 
     options = parser.parse_args()
-    options.database = 'kyoto_tycoon'
     #todo support root option
     options.root = None
 
@@ -249,26 +247,6 @@ def get_jobstore(options, task=None):
     js = os.path.join(options.jobStore, str(options.jobStoreCount))
     options.jobStoreCount += 1
     return js
-
-def write_s3(options, local_path, s3_path):
-    """ cribbed from toil-vg.  more convenient just to throw hal output on s3
-    than pass it as a promise all the way back to the start job to export it locally """
-    assert s3_path.startswith('s3://')
-    assert options.jobStore.startswith('aws')
-    bucket_name, name_prefix = s3_path[5:].split("/", 1)
-    region = options.jobStore.split(':')[1]
-    botocore_session = botocore.session.get_session()
-    botocore_session.get_component('credential_provider').get_provider('assume-role').cache = botocore.credentials.JSONFileCache()
-    boto3_session = boto3.Session(botocore_session=botocore_session)
-
-    # Connect to the s3 bucket service where we keep everything
-    s3 = boto3_session.client('s3')
-    try:
-        s3.head_bucket(Bucket=bucket_name)
-    except:
-        s3.create_bucket(Bucket=bucket_name, CreateBucketConfiguration={'LocationConstraint':region})
-
-    s3.upload_file(local_path, bucket_name, name_prefix)
 
 def human2bytesN(s):
     return human2bytes(s) if s else s
@@ -486,11 +464,18 @@ def get_plan(options, project, inSeqFile, outSeqFile, toil):
                     deps.add(outSeqFile.tree.getName(node))
         return deps
 
-    events_and_virtuals = set()
-    for event in events:
-        events_and_virtuals.add(event)
-        if get_deps(event):
-            events_and_virtuals = events_and_virtuals.union(get_deps(event))
+    events_and_virtuals = set(events)
+    # add all events, potentially looping through virtual dependency chains
+    # (hence the double loop)
+    batch = set(events_and_virtuals)
+    while len(batch) > 0:
+        next_batch = set()
+        for event in batch:
+            for dep in get_deps(event):
+                if dep not in events_and_virtuals:
+                    next_batch.add(dep)
+                    events_and_virtuals.add(dep)
+        batch = next_batch
 
     # group jobs into rounds.  where all jobs of round i can be run in parallel
     groups = []
@@ -507,7 +492,7 @@ def get_plan(options, project, inSeqFile, outSeqFile, toil):
         if added == 0:
             sys.stderr.write("schedule deadlock:\n")
             for event in events_and_virtuals:
-                sys.stderr.write("{} has deps {}\b".format(event, get_deps(event)))
+                sys.stderr.write("{} has deps {}\n".format(event, get_deps(event)))
             sys.exit(1)
         for tr in to_remove:
             resolved.add(tr)
@@ -567,9 +552,9 @@ def get_plan(options, project, inSeqFile, outSeqFile, toil):
                 plan += 'cactus-blast {} {} {} --root {} {} {}\n'.format(
                     get_jobstore(options), options.outSeqFile, cigarPath(event), event,
                     options.cactusOptions, get_toil_resource_opts(options, 'blast'))
-                plan += 'cactus-align {} {} {} {} --root {} {} {}\n'.format(
+                plan += 'cactus-align {} {} {} {} --root {} {} {} --database {}\n'.format(
                     get_jobstore(options), options.outSeqFile, cigarPath(event), halPath(event), event,
-                    options.cactusOptions, get_toil_resource_opts(options, 'align'))
+                    options.cactusOptions, get_toil_resource_opts(options, 'align'), options.database)
                 # todo: just output the fasta in cactus-align.
                 plan += 'hal2fasta {} {} {} > {}\n'.format(halPath(event), event, options.halOptions, outSeqFile.pathMap[event])
 
@@ -1061,7 +1046,7 @@ def toil_call_hal_append_subtrees(job, options, project, root_name, root_hal_id,
     # todo: can we just use job.fileStore?
     if options.outHal.startswith('s3://'):
         # write it directly to s3
-        write_s3(options, root_file, options.outHal)
+        write_s3(root_file, options.outHal, region=get_aws_region(options.jobStore))
     else:
         # write the output to disk
         shutil.copy2(root_file,  options.outHal)

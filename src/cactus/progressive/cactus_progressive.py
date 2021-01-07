@@ -36,11 +36,13 @@ from cactus.shared.version import cactus_commit
 from cactus.shared.common import cactusRootPath
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
+from cactus.shared.common import write_s3
 
 from toil.job import Job
 from toil.common import Toil
 
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
+from cactus.preprocessor.dnabrnnMasking import loadDnaBrnnModel
 from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
 from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
 from cactus.pipeline.cactus_workflow import CactusTrimmingBlastPhase
@@ -281,7 +283,8 @@ class RunCactusPreprocessorThenProgressiveDown2(RoundedJob):
                                      disk=self.configWrapper.getExportHalDisk(),
                                      preemptable=False).rv()
 
-def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC=None, cacheW0=None, chunk=None, deflate=None, inMemory=False):
+def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC=None, cacheW0=None, chunk=None, deflate=None, inMemory=True,
+              checkpointInfo=None):
 
     HALPath = "tmp_alignment.hal"
 
@@ -334,6 +337,9 @@ def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC
     with job.fileStore.readGlobalFileStream(project.configID) as configFile:
         cactus_call(parameters=["halSetMetadata", HALPath, "CACTUS_CONFIG", b64encode(configFile.read()).decode()])
 
+    if checkpointInfo:
+        write_s3(HALPath, checkpointInfo[1], region=checkpointInfo[0])
+
     return job.fileStore.writeGlobalFile(HALPath)
         
 def main():
@@ -362,6 +368,8 @@ def main():
                         "rather than pulling one from quay.io")
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
+    parser.add_argument("--database", choices=["kyoto_tycoon", "redis"],
+                        help="The type of database", default="kyoto_tycoon")
 
     options = parser.parse_args()
 
@@ -419,7 +427,7 @@ def runCactusProgressive(options):
                     seq = tmpSeq
                 seq = makeURL(seq)
                 project.inputSequenceIDMap[genome] = toil.importFile(seq)
-
+                
             #import cactus config
             cactusConfigID = toil.importFile(makeURL(options.configFile))
             project.setConfigID(cactusConfigID)
@@ -429,6 +437,8 @@ def runCactusProgressive(options):
             configWrapper = ConfigWrapper(configNode)
             configWrapper.substituteAllPredefinedConstantsWithLiterals()
 
+            # Make sure we have the dna-brnn model in the filestore if we need it
+            loadDnaBrnnModel(toil, configNode)
 
             project.writeXML(pjPath)
             halID = toil.start(RunCactusPreprocessorThenProgressiveDown(options, project, memory=configWrapper.getDefaultMemory()))

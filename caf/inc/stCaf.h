@@ -154,6 +154,13 @@ bool stCaf_filterByRepeatSpecies(stPinchSegment *segment1,
 bool stCaf_relaxedFilterByRepeatSpecies(stPinchSegment *segment1,
                                         stPinchSegment *segment2);
 
+/**
+ * As stCaf_filterByRepeatSpecies, but apply filter only to a particular event
+ */
+void stCaf_setSingleCopyEvent(Flower* flower, char *singleCopyEventName);
+bool stCaf_filterBySingleCopyEvent(stPinchSegment *segment1,
+                                   stPinchSegment *segment2);
+
 bool stCaf_singleCopyIngroup(stPinchSegment *segment1,
                              stPinchSegment *segment2);
 

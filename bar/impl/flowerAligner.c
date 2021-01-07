@@ -373,7 +373,7 @@ static stSortedSet *makeFlowerAlignment2(Flower *flower, stHash *endAlignments, 
     stList *freeStubCaps = stList_construct(); //Caps that we'll use when pruning the stub only ends of alignments.
     while (stList_length(caps) > 0) {
         //Pick cap with greatest number of deleted aligned pairs.
-        //This bias the bar algorithm to pick cutpoints that consistent
+        //This biases the bar algorithm to pick cutpoints that are consistent
         //with previously selected cutpoints.
         Cap *cap = NULL;
         int64_t deletedPairsForChosenCap = 0;
@@ -553,7 +553,7 @@ static void computeMissingEndAlignments(StateMachine *sM, Flower *flower, stHash
 
 stSortedSet *makeFlowerAlignment(StateMachine *sM, Flower *flower, int64_t spanningTrees, int64_t maxSequenceLength,
         bool useProgressiveMerging, float gapGamma,
-        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, bool pruneOutStubAlignments) {
+        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, bool pruneOutStubAlignments, int64_t poaWindow) {
     stHash *endAlignments = stHash_construct2(NULL, (void(*)(void *)) stSortedSet_destruct);
     computeMissingEndAlignments(sM, flower, endAlignments, spanningTrees, maxSequenceLength,
             useProgressiveMerging, gapGamma, pairwiseAlignmentBandingParameters);

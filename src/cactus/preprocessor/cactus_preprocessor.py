@@ -28,6 +28,8 @@ from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.seqFile import SeqFile
 from cactus.shared.common import setupBinaries, importSingularityImage
 from cactus.shared.common import enableDumpStack
+from cactus.shared.common import unzip_gzs
+from cactus.shared.common import zip_gzs
 from toil.lib.bioio import setLoggingFromOptions
 from toil.realtimeLogger import RealtimeLogger
 
@@ -35,11 +37,13 @@ from cactus.shared.common import cactus_override_toil_options
 from cactus.preprocessor.checkUniqueHeaders import checkUniqueHeaders
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import LastzRepeatMaskJob
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import RepeatMaskOptions
+from cactus.preprocessor.dnabrnnMasking import DnabrnnMaskJob, loadDnaBrnnModel
 
 class PreprocessorOptions:
     def __init__(self, chunkSize, memory, cpu, check, proportionToSample, unmask,
                  preprocessJob, checkAssemblyHub=None, lastzOptions=None, minPeriod=None,
-                 gpuLastz=False):
+                 gpuLastz=False, dnabrnnOpts=None, dnabrnnLength=None, dnabrnnMerge=None,
+                 dnabrnnAction=None):
         self.chunkSize = chunkSize
         self.memory = memory
         self.cpu = cpu
@@ -54,6 +58,11 @@ class PreprocessorOptions:
         self.gpuLastzInterval = self.chunkSize
         if self.gpuLastz:
             self.chunkSize = 0
+        self.dnabrnnOpts = dnabrnnOpts
+        self.dnabrnnLength = dnabrnnLength
+        self.dnabrnnMerge = dnabrnnMerge
+        self.dnabrnnAction = dnabrnnAction
+        assert dnabrnnAction in ('softmask', 'hardmask', 'clip')
 
 class CheckUniqueHeaders(RoundedJob):
     """
@@ -129,6 +138,13 @@ class PreprocessSequence(RoundedJob):
             return LastzRepeatMaskJob(repeatMaskOptions=repeatMaskOptions,
                                       queryID=inChunkID,
                                       targetIDs=seqIDs)
+        elif self.prepOptions.preprocessJob == "dna-brnn":
+            return DnabrnnMaskJob(inChunkID,
+                                  dnabrnnOpts=self.prepOptions.dnabrnnOpts,
+                                  minLength=self.prepOptions.dnabrnnLength,
+                                  mergeLength=self.prepOptions.dnabrnnMerge,
+                                  action=self.prepOptions.dnabrnnAction,
+                                  cpu=self.prepOptions.cpu)
         else:
             raise RuntimeError("Unknown preprocess job %s" % self.prepOptions.preprocessJob)
 
@@ -201,28 +217,36 @@ class BatchPreprocessor(RoundedJob):
         # Parse the "preprocessor" config xml element
         assert self.iteration < len(self.prepXmlElems)
 
-        prepNode = self.prepXmlElems[self.iteration]
-        prepOptions = PreprocessorOptions(chunkSize = int(prepNode.get("chunkSize", default="-1")),
-                                          preprocessJob=prepNode.attrib["preprocessJob"],
-                                          memory = int(prepNode.get("memory", default=0)),
-                                          cpu = int(prepNode.get("cpu", default=1)),
-                                          check = bool(int(prepNode.get("check", default="0"))),
-                                          proportionToSample = getOptionalAttrib(prepNode, "proportionToSample", typeFn=float, default=1.0),
-                                          unmask = getOptionalAttrib(prepNode, "unmask", typeFn=bool, default=False),
-                                          lastzOptions = getOptionalAttrib(prepNode, "lastzOpts", default=""),
-                                          minPeriod = getOptionalAttrib(prepNode, "minPeriod", typeFn=int, default=0),
-                                          checkAssemblyHub = getOptionalAttrib(prepNode, "checkAssemblyHub", typeFn=bool, default=False),
-                                          gpuLastz = getOptionalAttrib(prepNode, "gpuLastz", typeFn=bool, default=False))
-
         lastIteration = self.iteration == len(self.prepXmlElems) - 1
 
-        if prepOptions.unmask:
-            inSequence = fileStore.readGlobalFile(self.inSequenceID)
-            unmaskedInputFile = fileStore.getLocalTempFile()
-            unmaskFasta(inSequence, unmaskedInputFile)
-            self.inSequenceID = fileStore.writeGlobalFile(inSequence)
+        prepNode = self.prepXmlElems[self.iteration]
+        if getOptionalAttrib(prepNode, "active", typeFn = bool, default=True):
+            prepOptions = PreprocessorOptions(chunkSize = int(prepNode.get("chunkSize", default="-1")),
+                                              preprocessJob=prepNode.attrib["preprocessJob"],
+                                              memory = int(prepNode.get("memory", default=0)),
+                                              cpu = int(prepNode.get("cpu", default=1)),
+                                              check = bool(int(prepNode.get("check", default="0"))),
+                                              proportionToSample = getOptionalAttrib(prepNode, "proportionToSample", typeFn=float, default=1.0),
+                                              unmask = getOptionalAttrib(prepNode, "unmask", typeFn=bool, default=False),
+                                              lastzOptions = getOptionalAttrib(prepNode, "lastzOpts", default=""),
+                                              minPeriod = getOptionalAttrib(prepNode, "minPeriod", typeFn=int, default=0),
+                                              checkAssemblyHub = getOptionalAttrib(prepNode, "checkAssemblyHub", typeFn=bool, default=False),
+                                              gpuLastz = getOptionalAttrib(prepNode, "gpuLastz", typeFn=bool, default=False),
+                                              dnabrnnOpts = getOptionalAttrib(prepNode, "dna-brnnOpts", default=""),
+                                              dnabrnnLength = getOptionalAttrib(prepNode, "minLength", typeFn=int, default=1),
+                                              dnabrnnMerge = getOptionalAttrib(prepNode, "mergeLength", typeFn=int, default=0),
+                                              dnabrnnAction = getOptionalAttrib(prepNode, "action", typeFn=str, default="softmask"))
 
-        outSeqID = self.addChild(PreprocessSequence(prepOptions, self.inSequenceID)).rv()
+            if prepOptions.unmask:
+                inSequence = fileStore.readGlobalFile(self.inSequenceID)
+                unmaskedInputFile = fileStore.getLocalTempFile()
+                unmaskFasta(inSequence, unmaskedInputFile)
+                self.inSequenceID = fileStore.writeGlobalFile(unmaskedInputFile)
+
+            outSeqID = self.addChild(PreprocessSequence(prepOptions, self.inSequenceID)).rv()
+        else:
+            logger.info("Skipping inactive preprocessor {}".format(prepNode.attrib["preprocessJob"]))
+            outSeqID = self.inSequenceID
 
         if lastIteration == False:
             return self.addFollowOn(BatchPreprocessor(self.prepXmlElems, outSeqID, self.iteration + 1)).rv()
@@ -274,23 +298,55 @@ class CactusPreprocessor2(RoundedJob):
             logger.info("Adding child batch_preprocessor target")
             return self.addChild(BatchPreprocessor(prepXmlElems, self.inputSequenceID, 0)).rv()
 
-def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=False, outputSequences = []):
+def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=False, outputSequences = [], maskAlpha=False, clipAlpha=None):
     #Replace any constants
     configNode = ET.parse(configFile).getroot()
     if not outputSequences:
         outputSequences = CactusPreprocessor.getOutputSequenceFiles(inputSequences, outputSequenceDir)
     else:
         assert len(outputSequences) == len(inputSequences)
+
+    # Make sure we have the dna-brnn model in the filestore if we need it
+    loadDnaBrnnModel(toil, ET.parse(configFile).getroot(), maskAlpha = maskAlpha)
+        
     if configNode.find("constants") != None:
         ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals()
+    if maskAlpha or clipAlpha:
+        ConfigWrapper(configNode).setPreprocessorActive("lastzRepeatMask", False)
+        ConfigWrapper(configNode).setPreprocessorActive("dna-brnn", True)
+        if clipAlpha:
+            for node in configNode.findall("preprocessor"):
+                if getOptionalAttrib(node, "preprocessJob") == 'dna-brnn':
+                    node.attrib["action"] = "clip"
+                    node.attrib["minLength"] = clipAlpha
+                    node.attrib["mergeLength"] = clipAlpha
+        
     if not restart:
-        inputSequenceIDs = [toil.importFile(makeURL(seq)) for seq in inputSequences]
-        outputSequenceIDs = toil.start(CactusPreprocessor(inputSequenceIDs, configNode))
+        inputSequenceIDs = []
+        for seq in inputSequences:
+            logger.info("Importing {}".format(seq))
+            inputSequenceIDs.append(toil.importFile(makeURL(seq)))
+        unzip_job = Job.wrapJobFn(unzip_then_pp, configNode, inputSequences, inputSequenceIDs)
+        outputSequenceIDs = toil.start(unzip_job)
     else:
         outputSequenceIDs = toil.restart()
     for seqID, path in zip(outputSequenceIDs, outputSequences):
-        toil.exportFile(seqID, makeURL(path))
+        try:
+            iter(seqID)
+            # dna-brnn will output a couple of bed files.  we scrape those out here
+            toil.exportFile(seqID[0], makeURL(path))
+            toil.exportFile(seqID[1], makeURL(path) + '.bed')
+            toil.exportFile(seqID[2], makeURL(path) + '.mask.bed')
+        except:
+            toil.exportFile(seqID, makeURL(path))
 
+def unzip_then_pp(job, config_node, input_fa_paths, input_fa_ids):
+    """ unzip then preprocess """
+    unzip_job = job.addChildJobFn(unzip_gzs, input_fa_paths, input_fa_ids)
+    pp_job = unzip_job.addFollowOn(CactusPreprocessor([unzip_job.rv(i) for i in range(len(input_fa_ids))], config_node))
+    zip_job = pp_job.addFollowOnJobFn(zip_gzs, input_fa_paths,  pp_job.rv(), list_elems = [0])
+    return zip_job.rv()
+    
 def runCactusPreprocessor(outputSequenceDir, configFile, inputSequences, toilDir):
     toilOptions = Job.Runner.getDefaultOptions(toilDir)
     toilOptions.logLevel = "INFO"
@@ -307,6 +363,9 @@ def main():
     parser.add_argument("--inputNames", nargs='*', help='input genome names (not paths) to preprocess (all leaves from Input Seq file if none specified)')
     parser.add_argument("--inPaths", nargs='*', help='Space-separated list of input fasta paths (to be used in place of --inSeqFile')
     parser.add_argument("--outPaths", nargs='*', help='Space-separated list of output fasta paths (one for each inPath, used in place of --outSeqFile)')
+    parser.add_argument("--maskAlpha", action='store_true', help='Use dna-brnn instead of lastz for repeatmasking')
+    parser.add_argument("--clipAlpha", type=int, help='use dna-brnn instead of lastz for repeatmasking.  Also, clip sequence using given minimum length instead of softmasking')
+    parser.add_argument("--ignore", nargs='*', help='Space-separate list of genomes from inSeqFile to ignore', default=[])
     parser.add_argument("--latest", dest="latest", action="store_true",
                         help="Use the latest version of the docker container "
                         "rather than pulling one matching this version of cactus")
@@ -335,7 +394,10 @@ def main():
             raise RuntimeError('--inPaths and --outPaths must have the same number of arguments')
     else:
         raise RuntimeError('--inSeqFile/--outSeqFile/--inputNames or --inPaths/--outPaths required to specify input')
-
+    if options.maskAlpha and options.clipAlpha:
+        raise RuntimeError('--maskAlpha and --clipAlpha cannot be used together')
+    if options.clipAlpha:
+        options.maskAlpha = True
 
     inSeqPaths = []
     outSeqPaths = []
@@ -351,6 +413,11 @@ def main():
 
 
         for inName in inNames:
+            if inName in options.ignore:
+                # "convenience" functionality: we let the --ignore option update the output seqfile
+                # to reflect the fact that we're not touching the original input
+                outSeqFile.pathMap[inName] = inSeqFile.pathMap[inName]
+                continue
             if inName not in inSeqFile.pathMap or inName not in outSeqFile.pathMap:
                 raise RuntimeError('{} not present in input and output Seq files'.format(inNmae))
             inPath = inSeqFile.pathMap[inName]
@@ -367,13 +434,19 @@ def main():
                 inSeqPaths += [inPath]
                 outSeqPaths += [outPath]
 
+        if options.ignore:
+            # see comment above
+            with open(options.outSeqFile, 'w') as outSF:
+                outSF.write(str(outSeqFile))
+
     # we got path names directly from the command line
     else:
         inSeqPaths = options.inPaths
         outSeqPaths = options.outPaths
 
     with Toil(options) as toil:
-        stageWorkflow(outputSequenceDir=None, configFile=options.configFile, inputSequences=inSeqPaths, toil=toil, restart=options.restart, outputSequences=outSeqPaths)
+        stageWorkflow(outputSequenceDir=None, configFile=options.configFile, inputSequences=inSeqPaths, toil=toil, restart=options.restart, outputSequences=outSeqPaths,
+                      maskAlpha=options.maskAlpha, clipAlpha=options.clipAlpha)
 
 if __name__ == '__main__':
     main()

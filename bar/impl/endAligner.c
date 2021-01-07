@@ -84,7 +84,7 @@ stSortedSet *makeEndAlignment(StateMachine *sM, End *end, int64_t spanningTrees,
     end_destructInstanceIterator(it);
 
     //Get the alignment.
-    MultipleAlignment *mA = makeAlignment(sM, seqFrags, spanningTrees, 100000000, useProgressiveMerging, gapGamma, pairwiseAlignmentBandingParameters);
+    MultipleAlignment *mA  = makeAlignment(sM, seqFrags, spanningTrees, 100000000, useProgressiveMerging, gapGamma, pairwiseAlignmentBandingParameters);
 
     //Build an array of weights to reweight pairs in the alignment.
     int64_t *pairwiseAlignmentsPerSequenceNonCommonEnds = st_calloc(stList_length(seqFrags), sizeof(int64_t));
@@ -123,24 +123,24 @@ stSortedSet *makeEndAlignment(StateMachine *sM, End *end, int64_t spanningTrees,
         //scoreAdjustmentsNonCommonEnds[i] = ((double)nonCommonInstanceNumber + commonInstanceNumber - 1)/(pairwiseAlignmentsPerSequenceNonCommonEnds[i] + pairwiseAlignmentsPerSequenceCommonEnds[i]);
         //scoreAdjustmentsCommonEnds[i] = scoreAdjustmentsNonCommonEnds[i];
         if(pairwiseAlignmentsPerSequenceNonCommonEnds[i] > 0) {
-            scoreAdjustmentsNonCommonEnds[i] = ((double)nonCommonInstanceNumber)/pairwiseAlignmentsPerSequenceNonCommonEnds[i];
-            assert(scoreAdjustmentsNonCommonEnds[i] >= 1.0);
-            assert(scoreAdjustmentsNonCommonEnds[i] <= nonCommonInstanceNumber);
+          scoreAdjustmentsNonCommonEnds[i] = ((double)nonCommonInstanceNumber)/pairwiseAlignmentsPerSequenceNonCommonEnds[i];
+          assert(scoreAdjustmentsNonCommonEnds[i] >= 1.0);
+          assert(scoreAdjustmentsNonCommonEnds[i] <= nonCommonInstanceNumber);
         }
         else {
-            scoreAdjustmentsNonCommonEnds[i] = INT64_MIN;
+          scoreAdjustmentsNonCommonEnds[i] = INT64_MIN;
         }
         if(pairwiseAlignmentsPerSequenceCommonEnds[i] > 0) {
-            scoreAdjustmentsCommonEnds[i] = ((double)commonInstanceNumber-1)/pairwiseAlignmentsPerSequenceCommonEnds[i];
-            assert(scoreAdjustmentsCommonEnds[i] >= 1.0);
-            assert(scoreAdjustmentsCommonEnds[i] <= commonInstanceNumber-1);
+          scoreAdjustmentsCommonEnds[i] = ((double)commonInstanceNumber-1)/pairwiseAlignmentsPerSequenceCommonEnds[i];
+          assert(scoreAdjustmentsCommonEnds[i] >= 1.0);
+          assert(scoreAdjustmentsCommonEnds[i] <= commonInstanceNumber-1);
         }
         else {
-            scoreAdjustmentsCommonEnds[i] = INT64_MIN;
+          scoreAdjustmentsCommonEnds[i] = INT64_MIN;
         }
     }
 
-	//Convert the alignment pairs to an alignment of the caps..
+    //Convert the alignment pairs to an alignment of the caps..
     stSortedSet *sortedAlignment =
                 stSortedSet_construct3((int (*)(const void *, const void *))alignedPair_cmpFn,
                 (void (*)(void *))alignedPair_destruct);
@@ -175,7 +175,6 @@ stSortedSet *makeEndAlignment(StateMachine *sM, End *end, int64_t spanningTrees,
         stSortedSet_insert(sortedAlignment, alignedPair2->reverse);
         stIntTuple_destruct(alignedPair);
     }
-
     //Cleanup
     stList_destruct(seqFrags);
     stList_destruct(sequences);
