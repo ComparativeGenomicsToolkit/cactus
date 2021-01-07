@@ -498,6 +498,9 @@ def run_prepend_unique_ids(job, cactusWorkflowArguments, project, renameCigars, 
             seqPath = seqPath[:-3]
         eventToSequence[g] = seqPath
     cactusWorkflowArguments.totalSequenceSize = sum(os.stat(x).st_size for x in eventToSequence.values())
+    # need to have outgroups in there just for id naming (don't need their sequence)
+    for g in exp.getOutgroupGenomes():
+        eventToSequence[g] = None
     renamedInputSeqDir = job.fileStore.getLocalTempDir()
     id_map = {}
     eventToUnique = prependUniqueIDs(eventToSequence, renamedInputSeqDir, idMap=id_map, eventNameAsID=eventNameAsID)    

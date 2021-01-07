@@ -479,23 +479,25 @@ def prependUniqueIDs(eventToFa, outputDir, idMap=None, firstID=0, eventNameAsID=
     if eventNameAsID is None:
         eventNameAsID = os.environ.get('CACTUS_EVENT_NAME_AS_UNIQUE_ID', False)
         eventNameAsID = False if not bool(eventNameAsID) or eventNameAsID == '0' else True
-        
+
     uniqueID = firstID
     ret = {}
     for event in sorted(eventToFa.keys()):
         fa = eventToFa[event]
-        outPath = os.path.join(outputDir, os.path.basename(fa))
-        out = open(outPath, 'w')
-        for line in open(fa):
-            if len(line) > 0 and line[0] == '>':
-                idTag = event if eventNameAsID else uniqueID
-                header = "id={}|{}".format(idTag, line[1:-1])
-                out.write(">%s\n" % header)
-                if idMap is not None:
-                    idMap[line[1:-1].rstrip()] = header.rstrip()
-            else:
-                out.write(line)
-        ret[event] = outPath
+        # can handle none-values which serve only to space ids -- dont show in output
+        if fa:
+            outPath = os.path.join(outputDir, os.path.basename(fa))
+            out = open(outPath, 'w')
+            for line in open(fa):
+                if len(line) > 0 and line[0] == '>':
+                    idTag = event if eventNameAsID else uniqueID
+                    header = "id={}|{}".format(idTag, line[1:-1])
+                    out.write(">%s\n" % header)
+                    if idMap is not None:
+                        idMap[line[1:-1].rstrip()] = header.rstrip()
+                else:
+                    out.write(line)
+            ret[event] = outPath
         uniqueID += 1
     return ret
 
