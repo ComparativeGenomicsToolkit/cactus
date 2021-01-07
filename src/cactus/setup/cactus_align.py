@@ -500,7 +500,7 @@ def run_prepend_unique_ids(job, cactusWorkflowArguments, project, renameCigars, 
     cactusWorkflowArguments.totalSequenceSize = sum(os.stat(x).st_size for x in eventToSequence.values())
     renamedInputSeqDir = job.fileStore.getLocalTempDir()
     id_map = {}
-    eventToUnique = prependUniqueIDs(eventToSequence, renamedInputSeqDir, id_map)
+    eventToUnique = prependUniqueIDs(eventToSequence, renamedInputSeqDir, idMap=id_map, eventNameAsID=eventNameAsID)    
     # Set the uniquified IDs for the ingroups and outgroups
     for event, uniqueFa in eventToUnique.items():
         uniqueFaID = job.fileStore.writeGlobalFile(uniqueFa, cleanup=True)

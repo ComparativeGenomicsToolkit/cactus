@@ -464,8 +464,7 @@ class CactusRecursionJob(CactusJob):
 ############################################################
 ############################################################
 
-def prependUniqueIDs(eventToFa, outputDir, idMap=None, firstID=0,
-                     eventNameAsID=os.environ.get('CACTUS_EVENT_NAME_AS_UNIQUE_ID', 0) != 0):
+def prependUniqueIDs(eventToFa, outputDir, idMap=None, firstID=0, eventNameAsID=None):
     """Prepend unique ints to fasta headers.
 
     (prepend rather than append since trimmed outgroups have a start
@@ -477,6 +476,9 @@ def prependUniqueIDs(eventToFa, outputDir, idMap=None, firstID=0,
     are based on a sorted order of the input event names. 
     Event Name IDs are better for paf-based pipeline as they are stable across commands even when working on subsets of events
     """
+    if eventNameAsID is None:
+        eventNameAsID = bool(os.environ.get('CACTUS_EVENT_NAME_AS_UNIQUE_ID', '0'))
+        
     uniqueID = firstID
     ret = {}
     for event in sorted(eventToFa.keys()):
