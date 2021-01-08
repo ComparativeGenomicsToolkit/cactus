@@ -116,7 +116,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://github.com/glennhickey/mzgaf2paf.git
 cd mzgaf2paf
-git checkout 5ec8846ae83e4079be5397bf176a391e95e25f77
+git checkout 2e64e9437f7e41daae8816027d54668a7b74a021
 CXXFLAGS="-static ${CACTUS_MARCH}" make -j 4
 if [ $(ldd mzgaf2paf | grep so | wc -l) -eq 0 ]
 then

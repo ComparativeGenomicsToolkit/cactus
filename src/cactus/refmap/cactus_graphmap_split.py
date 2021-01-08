@@ -22,7 +22,6 @@ from cactus.shared.configWrapper import ConfigWrapper
 from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
 from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
 from cactus.pipeline.cactus_workflow import CactusTrimmingBlastPhase
-from cactus.pipeline.cactus_workflow import prependUniqueIDs
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
@@ -51,6 +50,7 @@ def main():
     parser.add_argument("--refContigs", nargs="*", help = "Subset to these reference contigs (multiple allowed)", default=[])
     parser.add_argument("--refContigsFile", type=str, help = "Subset to (newline-separated) reference contigs in this file")
     parser.add_argument("--otherContig", type=str, help = "Lump all reference contigs unselected by above options into single one with this name")
+    parser.add_argument("--reference", type=str, help = "Name of reference (in seqFile).  Ambiguity filters will not be applied to it")
     
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -112,10 +112,11 @@ def runCactusGraphMapSplit(options):
                 assert options.otherContig not in ref_contigs
 
             # get the minigraph "virutal" assembly name
-            graph_event = getOptionalAttrib(findRequiredNode(configNode, "graphmap"), "assemblyName", default="__MINIGRAPH_SEQUENCES__")
+            graph_event = getOptionalAttrib(findRequiredNode(configNode, "graphmap"), "assemblyName", default="_MINIGRAPH_")
 
             # load the seqfile
             seqFile = SeqFile(options.seqFile)
+
             
             #import the graph
             gfa_id = toil.importFile(makeURL(options.minigraphGFA))
@@ -126,6 +127,12 @@ def runCactusGraphMapSplit(options):
             #import the sequences (that we need to align for the given event, ie leaves and outgroups)
             seqIDMap = {}
             leaves = set([seqFile.tree.getName(node) for node in seqFile.tree.getLeaves()])
+            
+            if graph_event not in leaves:
+                raise RuntimeError("Minigraph name {} not found in seqfile".format(graph_event))
+            if options.reference and options.reference not in leaves:
+                raise RuntimeError("Name given with --reference {} not found in seqfile".format(options.reference))
+                
             for genome, seq in seqFile.pathMap.items():
                 if genome in leaves:
                     if os.path.isdir(seq):
@@ -136,16 +143,13 @@ def runCactusGraphMapSplit(options):
                     logger.info("Importing {}".format(seq))
                     seqIDMap[genome] = (seq, toil.importFile(seq))
 
-            # todo: better error -- its easy to make this mistake
-            assert graph_event in seqIDMap
-
             # run the workflow
             split_id_map = toil.start(Job.wrapJobFn(graphmap_split_workflow, options, config, seqIDMap,
                                                     gfa_id, options.minigraphGFA,
                                                     paf_id, options.graphmapPAF, ref_contigs, options.otherContig))
 
         #export the split data
-        export_split_data(toil, seqIDMap, split_id_map, options.outDir)
+        export_split_data(toil, seqIDMap, split_id_map, options.outDir, config)
 
 def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, paf_id, paf_path, ref_contigs, other_contig):
 
@@ -163,19 +167,14 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
     if paf_path.endswith(".gz"):
         paf_id = root_job.addChildJobFn(unzip_gz, paf_path, paf_id, disk=paf_id.size * 10).rv()
         paf_size *= 10
-
-    # cactus-ids use alphabetical ordering.  we need this as our paf file will have them
-    cactus_id_map = {}
-    for i, event in enumerate(sorted(set(list(seqIDMap.keys())))):
-        cactus_id_map[event] = i
         
     # use rgfa-split to split the gfa and paf up by contig
-    split_gfa_job = root_job.addFollowOnJobFn(split_gfa, config, gfa_id, paf_id, ref_contigs, cactus_id_map,
-                                              other_contig,
+    split_gfa_job = root_job.addFollowOnJobFn(split_gfa, config, gfa_id, paf_id, ref_contigs,
+                                              other_contig, options.reference,
                                               disk=(gfa_size + paf_size) * 5)
 
     # use the output of the above splitting to do the fasta splitting
-    split_fas_job = split_gfa_job.addFollowOnJobFn(split_fas, seqIDMap, cactus_id_map, split_gfa_job.rv())
+    split_fas_job = split_gfa_job.addFollowOnJobFn(split_fas, seqIDMap, split_gfa_job.rv())
 
     # gather everythign up into a table
     gather_fas_job = split_fas_job.addFollowOnJobFn(gather_fas, seqIDMap, split_gfa_job.rv(), split_fas_job.rv())
@@ -183,7 +182,7 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
     # return all the files
     return gather_fas_job.rv()
 
-def split_gfa(job, config, gfa_id, paf_id, ref_contigs, cactus_id_map, other_contig):
+def split_gfa(job, config, gfa_id, paf_id, ref_contigs, other_contig, reference_event):
     """ Use rgfa-split to divide a GFA and PAF into chromosomes.  The GFA must be in minigraph RGFA output using
     the desired reference. """
 
@@ -196,16 +195,26 @@ def split_gfa(job, config, gfa_id, paf_id, ref_contigs, cactus_id_map, other_con
     job.fileStore.readGlobalFile(paf_id, paf_path)
 
     # get the minigraph "virutal" assembly name
-    graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="__MINIGRAPH_SEQUENCES__")
+    graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
     # and look up its unique id prefix.  this will be needed to pick its contigs out of the list
-    mg_id = cactus_id_map[graph_event]
+    mg_id = graph_event
+
+    # get the specificity filters
+    query_coverage = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minQueryCoverage", default="0")
+    query_uniqueness = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minQueryUniqueness", default="0")
+    amb_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "ambiguousName", default="_AMBIGUOUS_")
 
     cmd = ['rgfa-split', '-i', 'id={}|'.format(mg_id), '-G',
            '-g', gfa_path,
            '-p', paf_path,
-           '-b', out_prefix]    
+           '-b', out_prefix,
+           '-n', query_coverage,
+           '-Q', query_uniqueness,
+           '-a', amb_event]
     if other_contig:
         cmd += ['-o', other_contig]
+    if reference_event:
+        cmd += ['-r', 'id={}|'.format(reference_event)]
         
     for contig in ref_contigs:
         cmd += ['-c', contig]
@@ -223,7 +232,7 @@ def split_gfa(job, config, gfa_id, paf_id, ref_contigs, cactus_id_map, other_con
             
     return output_id_map
 
-def split_fas(job, seq_id_map, cactus_id_map, split_id_map):
+def split_fas(job, seq_id_map, split_id_map):
     """ Use samtools to split a bunch of fasta files into reference contigs, using the output of rgfa-split as a guide"""
 
     root_job = Job()
@@ -234,13 +243,12 @@ def split_fas(job, seq_id_map, cactus_id_map, split_id_map):
     # we do each fasta in parallel
     for event in seq_id_map.keys():
         fa_path, fa_id = seq_id_map[event]
-        cactus_id = cactus_id_map[event]
-        fa_contigs[event] = root_job.addChildJobFn(split_fa_into_contigs, event, fa_id, fa_path, cactus_id, split_id_map,
+        fa_contigs[event] = root_job.addChildJobFn(split_fa_into_contigs, event, fa_id, fa_path, split_id_map,
                                                    disk=fa_id.size * 3).rv()
 
     return fa_contigs
 
-def split_fa_into_contigs(job, event, fa_id, fa_path, cactus_id, split_id_map):
+def split_fa_into_contigs(job, event, fa_id, fa_path, split_id_map):
     """ Use samtools turn on fasta into one for each contig. this relies on the informatino in .fa_contigs
     files made by rgfa-split """
 
@@ -254,7 +262,7 @@ def split_fa_into_contigs(job, event, fa_id, fa_path, cactus_id, split_id_map):
         cactus_call(parameters=['gzip', '-fd', fa_path])
         fa_path = fa_path[:-3]
 
-    unique_id = 'id={}|'.format(cactus_id)
+    unique_id = 'id={}|'.format(event)
                         
     contig_fa_dict = {}
 
@@ -297,9 +305,11 @@ def gather_fas(job, seq_id_map, output_id_map, contig_fa_map):
 
     return output_id_map
 
-def export_split_data(toil, input_seq_id_map, output_id_map, output_dir):
+def export_split_data(toil, input_seq_id_map, output_id_map, output_dir, config):
     """ download all the split data locally """
 
+    amb_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "ambiguousName", default="_AMBIGUOUS_")
+    
     chrom_file_map = {}
     
     for ref_contig in output_id_map.keys():
@@ -308,7 +318,9 @@ def export_split_data(toil, input_seq_id_map, output_id_map, output_dir):
             os.makedirs(ref_contig_path)
 
         # GFA: <output_dir>/<contig>/<contig>.gfa
-        toil.exportFile(output_id_map[ref_contig]['gfa'], makeURL(os.path.join(ref_contig_path, '{}.gfa'.format(ref_contig))))
+        if 'gfa' in output_id_map[ref_contig]:
+            # we do this check because no gfa made for ambiguous sequences "contig"
+            toil.exportFile(output_id_map[ref_contig]['gfa'], makeURL(os.path.join(ref_contig_path, '{}.gfa'.format(ref_contig))))
 
         # PAF: <output_dir>/<contig>/<contig>.paf
         paf_path = os.path.join(ref_contig_path, '{}.paf'.format(ref_contig))
@@ -336,7 +348,10 @@ def export_split_data(toil, input_seq_id_map, output_id_map, output_dir):
                 os.makedirs(os.path.dirname(seq_file_path))
         with open(seq_file_temp_path, 'w') as seq_file:
             for event, fa_path in seq_file_map.items():
-                seq_file.write('{}\t{}\n'.format(event, fa_path))
+                # cactus can't handle empty fastas.  if there are no sequences for a sample for this
+                # contig, just don't add it.
+                if output_id_map[ref_contig]['fa'][event].size > 0:
+                    seq_file.write('{}\t{}\n'.format(event, fa_path))
         if seq_file_path.startswith('s3://'):
             write_s3(seq_file_temp_path, seq_file_path)
 
@@ -351,11 +366,12 @@ def export_split_data(toil, input_seq_id_map, output_id_map, output_dir):
         chrom_file_temp_path = chrom_file_path        
     with open(chrom_file_temp_path, 'w') as chromfile:
         for ref_contig, seqfile_paf in chrom_file_map.items():
-            seqfile, paf = seqfile_paf[0], seqfile_paf[1]
-            if seqfile.startswith('s3://'):
-                # no use to have absolute s3 reference as cactus-align requires seqfiles passed locally
-                seqfile = 'seqfiles/{}'.format(os.path.basename(seqfile))
-            chromfile.write('{}\t{}\t{}\n'.format(ref_contig, seqfile, paf))
+            if ref_contig != amb_event:
+                seqfile, paf = seqfile_paf[0], seqfile_paf[1]
+                if seqfile.startswith('s3://'):
+                    # no use to have absolute s3 reference as cactus-align requires seqfiles passed locally
+                    seqfile = 'seqfiles/{}'.format(os.path.basename(seqfile))
+                chromfile.write('{}\t{}\t{}\n'.format(ref_contig, seqfile, paf))
     if chrom_file_path.startswith('s3://'):
         write_s3(chrom_file_temp_path, chrom_file_path)
     
