@@ -78,7 +78,7 @@ fi
 wget -q https://github.com/samtools/samtools/releases/download/1.11/samtools-1.11.tar.bz2
 tar -xf samtools-1.11.tar.bz2
 cd samtools-1.11
-./configure --without-curses
+./configure --without-curses --disable-libcurl
 make -j 4
 if [[ $STATIC_CHECK -ne 1 || $(ldd samtools | grep so | wc -l) -eq 0 ]]
 then
