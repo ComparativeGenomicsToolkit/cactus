@@ -1,23 +1,20 @@
 rootPath = ..
 include ${rootPath}/include.mk
 
-# Hack to include libxml2
-CFLAGS+= -I/usr/include/libxml2 -lxml2 ${LDFLAGS}
-
-libSources = impl/*.c
-libHeaders = inc/*.h
 libTests = tests/*.c
+
+commonCafLibs = ${LIBDIR}/stCaf.a ${LIBDIR}/stCactusSetup.a ${LIBDIR}/cactusBlastAlignment.a ${sonLibDir}/stPinchesAndCacti.a ${sonLibDir}/3EdgeConnected.a ${LIBDIR}/cactusLib.a
 
 all: all_libs all_progs
 all_libs: 
 all_progs: all_libs
 	${MAKE} ${BINDIR}/stPipelineTests ${BINDIR}/cactus_consolidated ${BINDIR}/cactus_workflow_getFlowers ${BINDIR}/cactus_workflow_extendFlowers ${BINDIR}/cactus_workflow_flowerStats ${BINDIR}/cactus_workflow_convertAlignmentCoordinates ${BINDIR}/cactus_secondaryDatabase ${BINDIR}/docker_test_script
 
-${BINDIR}/stPipelineTests : ${libTests} ${libSources} ${libHeaders} ${LIBDIR}/cactusLib.a ${LIBDEPENDS}
-	${CC} ${CPPFLAGS} ${CFLAGS} -o ${BINDIR}/stPipelineTests ${libTests} ${libSources} ${LIBDIR}/cactusLib.a ${LDLIBS}
+${BINDIR}/stPipelineTests : ${libTests} ${LIBDIR}/cactusLib.a ${LIBDEPENDS}
+	${CC} ${CPPFLAGS} ${CFLAGS} -o ${BINDIR}/stPipelineTests ${libTests} ${LIBDIR}/cactusLib.a ${LDLIBS}
 
-${BINDIR}/cactus_consolidated : ${libSources} ${libHeaders} *.c *.h ${LIBDIR}/cactusLib.a ${LIBDEPENDS}
-	${CC} ${CPPFLAGS} ${CFLAGS} -o ${BINDIR}/cactus_consolidated cactus_consolidated.c ${libSources} ${LIBDIR}/cactusLib.a ${LDLIBS}
+${BINDIR}/cactus_consolidated : ${libHeaders} *.c *.h ${LIBDIR}/cactusLib.a ${LIBDIR}/stCactusSetup.a ${LIBDEPENDS} ${commonCafLibs}
+	${CC} ${CPPFLAGS} ${CFLAGS} -o ${BINDIR}/cactus_consolidated cactus_consolidated.c ${commonCafLibs} ${LDLIBS}
 
 ${BINDIR}/cactus_workflow_getFlowers : *.c *.h ${LIBDIR}/cactusLib.a ${LIBDEPENDS}
 	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o ${BINDIR}/cactus_workflow_getFlowers cactus_workflow_getFlowers.c ${LIBDIR}/cactusLib.a ${LDLIBS}

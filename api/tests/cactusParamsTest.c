@@ -22,6 +22,12 @@ static void testCactusParams(CuTest *testCase) {
     double d = cactusParams_get_float(p, 3, "reference", "CactusReferenceRecursion", "maxFlowerWrapperGroupSize");
     CuAssertDblEquals(testCase, 2000000, d, 0.0);
 
+    int64_t length;
+    int64_t *l = cactusParams_get_ints(p, &length, 2, "caf", "deannealingRounds");
+    CuAssertIntEquals(testCase, 2, length);
+    CuAssertIntEquals(testCase, l[0], 2);
+    CuAssertIntEquals(testCase, l[1], 8);
+
     // Test moving the root of the search
     cactusParams_set_root(p, 1, "caf");
 
@@ -34,6 +40,7 @@ static void testCactusParams(CuTest *testCase) {
     CuAssertIntEquals(testCase, 5, i);
 
     cactusParams_destruct(p); // Cleanup
+    free(l);
 }
 
 CuSuite* cactusParamsTestSuite(void) {

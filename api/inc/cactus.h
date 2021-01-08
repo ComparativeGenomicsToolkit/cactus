@@ -27,5 +27,6 @@
 #include "cactusSequence.h"
 #include "cactusTestCommon.h"
 #include "cactusFlowerWriter.h"
+#include "cactus_params_parser.h"
 
 #endif

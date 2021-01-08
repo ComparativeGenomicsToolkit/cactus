@@ -38,9 +38,12 @@ include ${sonLibRootDir}/include.mk
 #https://github.com/ComparativeGenomicsToolkit/cactus/issues/235
 CFLAGS += -UNDEBUG
 
+# Hack to include libxml2
+CFLAGS+= -I/usr/include/libxml2 -lxml2 ${LDFLAGS}
+
 dataSetsPath=/Users/benedictpaten/Dropbox/Documents/work/myPapers/genomeCactusPaper/dataSets
 
-inclDirs = api/inc bar/inc caf/inc hal/inc reference/inc submodules/sonLib/C/inc \
+inclDirs = api/inc setup/inc bar/inc caf/inc hal/inc reference/inc submodules/sonLib/C/inc \
 	blastLib submodules/sonLib/externalTools/cutest submodules/pinchesAndCacti/inc \
 	submodules/matchingAndOrdering/inc submodules/cPecan/inc
 

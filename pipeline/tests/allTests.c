@@ -12,7 +12,6 @@ CuSuite* cactusParamsTestSuite(void);
 int cactusPipelineRunAllTests(void) {
     CuString *output = CuStringNew();
     CuSuite* suite = CuSuiteNew();
-    CuSuiteAddSuite(suite, cactusParamsTestSuite());
 
     CuSuiteRun(suite);
     CuSuiteSummary(suite, output);
