@@ -1412,15 +1412,16 @@ class RoundedJob(Job):
             return bytesRequirement
         return (bytesRequirement // self.roundingAmount + 1) * self.roundingAmount
 
-    def _runner(self, jobGraph, jobStore, fileStore, defer=None):
+    def _runner(self, *args, jobStore=None, fileStore=None, **kwargs):
+        # We aren't supposed to override this. Toil can change the signature at
+        # any time. But Toil has passed all the arguments by name=value for a
+        # while, so we are pretty safe fetching out just the jobStore and
+        # fileStore like this.
         if jobStore.config.workDir is not None:
             os.environ['TMPDIR'] = fileStore.getLocalTempDir()
-        if defer:
-            # Toil v 3.21 or later
-            super(RoundedJob, self)._runner(jobGraph=jobGraph, jobStore=jobStore, fileStore=fileStore, defer=defer)
-        else:
-            # Older versions of toil
-            super(RoundedJob, self)._runner(jobGraph=jobGraph, jobStore=jobStore, fileStore=fileStore)
+
+        super(RoundedJob, self)._runner(*args, jobStore=jobStore,
+                                        fileStore=fileStore, **kwargs)
 
 def readGlobalFileWithoutCache(fileStore, jobStoreID):
     """Reads a jobStoreID into a file and returns it, without touching
@@ -1453,8 +1454,17 @@ class ChildTreeJob(RoundedJob):
         self.queuedChildJobs.append(job)
         return job
 
-    def _run(self, jobGraph, fileStore):
-        ret = super(ChildTreeJob, self)._run(jobGraph, fileStore)
+    def _run(self, *args, **kwargs):
+        # We really shouldn't be overriding _run, but we need to to hook in
+        # some code after the derived class's run() but before it saves all its
+        # child relationships. So we handle our arguments with tweezers,
+        # because they could be anything.
+
+        # Pass them along to the real _run, which will call back to our derived
+        # class's run()
+        ret = super(ChildTreeJob, self)._run(*args, **kwargs)
+
+        # Now we can do our actual work.
         if len(self.queuedChildJobs) <= self.maxChildrenPerJob:
             # The number of children is small enough that we can just
             # add them directly.
