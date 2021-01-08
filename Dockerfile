@@ -7,9 +7,10 @@ RUN apt-get update && apt-get install -y build-essential git python3 python3-dev
 RUN mkdir -p /home/cactus
 COPY . /home/cactus
 
-# compile with sandybridghe architecture target to improve portablity (while keeping abpoa support)
-ENV CFLAGS -march=sandybridge
-ENV CXXFLAGS -march=sandybridge
+# compile with nehalem architecture target to improve portablity
+ENV CFLAGS -march=nehalem
+ENV CXXFLAGS -march=nehalem
+ENV LDFLAGS -march=nehalem
 
 # clean out stuff before build.
 RUN find /home/cactus -name include.local.mk -exec rm -f {} \;
