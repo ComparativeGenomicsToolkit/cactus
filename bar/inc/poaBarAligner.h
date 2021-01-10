@@ -10,6 +10,17 @@
 #include "sonLib.h"
 #include "cactus.h"
 #include "stPinchIterator.h"
+#include "pairwiseAligner.h"
+
+/*
+ * Overall coordination function to run the bar algorithm.
+ */
+void bar(stList *flowers, CactusParams *p, CactusDisk *cactusDisk, stList *listOfEndAlignmentFiles);
+
+/*
+ * Construct a pairwise alignment parameters object parsing the cactus params specified parameters.
+ */
+PairwiseAlignmentParameters *pairwiseAlignmentParameters_constructFromCactusParams(CactusParams *params);
 
 /**
  * Object representing a multiple sequence alignment

@@ -8,6 +8,7 @@
 #include "cactus.h"
 #include "cactus_setup.h"
 #include "stCaf.h"
+#include "poaBarAligner.h"
 
 /*
  * TODOs:
@@ -177,12 +178,16 @@ int main(int argc, char *argv[]) {
     //Call cactus caf
     //////////////////////////////////////////////
 
+    flower = NULL; // Get the nested flower to complete
     caf(flower, params, alignmentsFile, secondaryAlignmentsFile, constraintAlignmentsFile);
     st_logInfo("Ran cactus caf, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     //////////////////////////////////////////////
     //Call cactus bar
     //////////////////////////////////////////////
+
+    stList *flowers = NULL; // Get the nested flowers to complete
+    bar(flowers, params, cactusDisk, NULL);
 
     //////////////////////////////////////////////
     //Call cactus reference
