@@ -28,7 +28,7 @@ Note that to run even the very small evolverMammals example, you will need 2 CPU
 
 IMPORTANT:  It is highly recommend that one **not** run Cactus using the Toil Grid Engine-like batch systems (GridEngine, HTCondor, LSF, SLURM, or Torque).  Cactus creates a very large number of small jobs, which can overwhelm these systems.  There is a work-around described [here](#running-the-step-by-step-workflow-direclty-in-toil) for clusters with large compute nodes available.
 
-NEW:  Cactus can now align individuals from the same species without a tree using the [Cactus Pangenome Pipeline](https://github.com/ComparativeGenomicsToolkit/cactus/blob/master/doc/pangenome.md).
+NEW:  Cactus can now align individuals from the same species without a tree using the [Cactus Pangenome Pipeline](doc/pangenome.md).
 
 ### Installation Overview
 
@@ -105,7 +105,7 @@ and added to the PATH with
 export PATH=$(pwd)/bin:$PATH
 ```
 
-In order to run the [Cactus Pangenome Pipeline](https://github.com/ComparativeGenomicsToolkit/cactus/blob/master/doc/pangenome.md), additional tools must be installed with:
+In order to run the [Cactus Pangenome Pipeline](doc/pangenome.md), additional tools must be installed with:
 ```
 build-tools/downloadPangenomeTools
 ```
@@ -129,7 +129,7 @@ To run Cactus, the basic format is:
 cactus <jobStorePath> <seqFile> <outputHal>
 ```
 
-Note: alternative ways of running include the [step-by-step interface](#running-step-by-step) and the [Cactus Pangenome Pipeline](https://github.com/ComparativeGenomicsToolkit/cactus/blob/master/doc/pangenome.md).
+Note: alternative ways of running include the [step-by-step interface](#running-step-by-step) and the [Cactus Pangenome Pipeline](doc/pangenome.md).
 
 The `jobStorePath` is where intermediate files, as well as job metadata, will be stored. It must be accessible to all worker systems.
 
@@ -256,7 +256,7 @@ cactus-prepare-toil aws:us-west-2:<JOBSTORE-NAME> examples/evolverMammals.txt --
 
 ### Pangenome Pipeline
 
-[The Cactus Pangenome Pipeline is described here](https://github.com/ComparativeGenomicsToolkit/cactus/blob/master/doc/pangenome.md)
+[The Cactus Pangenome Pipeline is described here](doc/pangenome.md)
 
 ## GPU Acceleration
 
