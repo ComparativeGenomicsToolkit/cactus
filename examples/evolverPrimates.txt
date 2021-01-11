@@ -3,4 +3,4 @@ simHuman	https://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/c
 simChimp	https://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simChimp.chr6
 simGorilla	https://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simGorilla.chr6
 simOrang	https://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/simOrang.chr6
-_MINIGRAPH_	file:///home/hickey/dev/cactus/primates.gfa.fa
+
