@@ -503,7 +503,7 @@ def run_prepend_unique_ids(job, cactusWorkflowArguments, project, renameCigars, 
         eventToSequence[g] = None
     renamedInputSeqDir = job.fileStore.getLocalTempDir()
     id_map = {}
-    eventToUnique = prependUniqueIDs(eventToSequence, renamedInputSeqDir, idMap=id_map, eventNameAsID=eventNameAsID)    
+    eventToUnique = prependUniqueIDs(eventToSequence, renamedInputSeqDir, idMap=id_map, eventNameAsID=eventNameAsID)
     # Set the uniquified IDs for the ingroups and outgroups
     for event, uniqueFa in eventToUnique.items():
         uniqueFaID = job.fileStore.writeGlobalFile(uniqueFa, cleanup=True)
@@ -574,16 +574,18 @@ def export_vg(job, hal_id, configWrapper, doVG, doGFA, checkpointInfo=None, reso
     graph_event = getOptionalAttrib(findRequiredNode(configWrapper.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
     hal2vg_opts = getOptionalAttrib(findRequiredNode(configWrapper.xmlRoot, "hal2vg"), "hal2vgOptions", default="")
     if hal2vg_opts:
-        hal2vg_opts = hal2vg_opts.split(",")
+        hal2vg_opts = hal2vg_opts.split(' ')
     else:
         hal2vg_opts = []
     ignore_events = []
-    if not getOptionalAttrib(findRequiredNode(configWrapper.xmlRoot, "hal2vg"), "includeMinigraph", default=0):
+    if not getOptionalAttrib(findRequiredNode(configWrapper.xmlRoot, "hal2vg"), "includeMinigraph", typeFn=bool, default=False):
         ignore_events.append(graph_event)
-    if not getOptionalAttrib(findRequiredNode(configWrapper.xmlRoot, "hal2vg"), "includeAncestor", default=0):
+    if not getOptionalAttrib(findRequiredNode(configWrapper.xmlRoot, "hal2vg"), "includeAncestor", typeFn=bool, default=False):
         ignore_events.append(configWrapper.getDefaultInternalNodePrefix() + '0')
     if ignore_events:
         hal2vg_opts += ['--ignoreGenomes', ','.join(ignore_events)]
+    if not getOptionalAttrib(findRequiredNode(configWrapper.xmlRoot, "hal2vg"), "prependGenomeNames", typeFn=bool, default=True):
+        hal2vg_opts += ['--onlySequenceNames']
 
     vg_path = os.path.join(work_dir, "out.vg")
     cmd = ['hal2vg', hal_path] + hal2vg_opts
@@ -647,7 +649,7 @@ def main_batch():
     if options.alignCoresOverrides:
         for o in options.alignCoresOverrides:
             try:
-                chrom, cores = o.split()
+                chrom, cores = o.split(',')
                 cores_overrides[chrom] = int(cores)
             except:
                 raise RuntimeError("Error parsing alignCoresOverrides \"{}\"".format(o))

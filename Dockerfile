@@ -7,9 +7,10 @@ RUN apt-get update && apt-get install -y build-essential git python3 python3-dev
 RUN mkdir -p /home/cactus
 COPY . /home/cactus
 
-# compile with sandybridghe architecture target to improve portablity (while keeping abpoa support)
-ENV CFLAGS -march=sandybridge
-ENV CXXFLAGS -march=sandybridge
+# compile with nehalem architecture target to improve portablity
+ENV CFLAGS -march=nehalem
+ENV CXXFLAGS -march=nehalem
+ENV LDFLAGS -march=nehalem
 
 # clean out stuff before build.
 RUN find /home/cactus -name include.local.mk -exec rm -f {} \;
@@ -39,7 +40,7 @@ RUN mkdir -p /wheels && cd /wheels && python3 -m pip install -U pip && python3 -
 FROM ubuntu:bionic-20200112
 
 # apt dependencies for runtime
-RUN apt-get update && apt-get install -y --no-install-recommends git python3 python3-pip python3-distutils zlib1g libbz2-1.0 net-tools libhdf5-100 liblzo2-2 libtokyocabinet9 rsync libkrb5-3 libk5crypto3 time redis-server libhiredis0.13
+RUN apt-get update && apt-get install -y --no-install-recommends git python3 python3-pip python3-distutils zlib1g libbz2-1.0 net-tools libhdf5-100 liblzo2-2 libtokyocabinet9 rsync libkrb5-3 libk5crypto3 time redis-server libhiredis0.13 liblzma5
 
 # copy temporary files for installing cactus
 COPY --from=builder /home/cactus /tmp/cactus
