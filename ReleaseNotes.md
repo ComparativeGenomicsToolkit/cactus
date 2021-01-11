@@ -1,12 +1,21 @@
 # Release 2.0.0   ???
 
-This release adds preliminary support for using cactus to align samples from the same species together in order to create a pangenome.  This is achieved with several new options and new tools. Link to pangenome documentation should go here:
+This release introduces the [Cactus Pangenome Pipeline](https://github.com/ComparativeGenomicsToolkit/cactus/blob/master/doc/pangenome.md), which can be used to align together samples from the same species in order to create a pangenome graph:
 
 - `cactus_bar` now has a POA-mode via the abpoa aligner, which scales better than Pecan for large numbers of sequences and is nearly as accurate if the sequences are highly similar
 - `cactus-refmap` tool added to produce cactus alignment anchors with all-to-reference minimap2 alignments instead of all-to-all lastz
 - `cactus-graphmap` tool added to produce cactus alignment anchors with all-to-reference-graph minigraph alignments instead of all-to-all lastsz
-- `--maskAlpha` option added to `cactus-preprocess` to softmask satellite sequence using `dna-brnn`
-- `cactus_bar` now has an option to ignore masked sequence with a given length threshold. 
+- `--maskAlpha` option added to `cactus-preprocess` to softmask (or clip out) satellite sequence using `dna-brnn.
+- `cactus_bar` now has an option to ignore masked sequence with a given length threshold.
+- `cactus-graphmap-split` tool added to split input fasta sequences into chromosomes using minigraph alignments in order to create alignment subproblems and improve scaling.
+- `cactus-align-batch` tool added to align several chromsomes at once using one job per chromosome. (`--batch` option added to `cactus-align` to achieve the same using many jobs per chromosome)
+- `--outVG` and `outGFA` options added to `cactus-align` to output pangenome graphs in addtion to hal.
+
+Other changes:
+- `cactus-prepare` scheduling bug fix
+- `--database redis` option added to use Redis instead of Kyoto Tycoon
+- `cactus-blast --restart` bug fix
+- "Legacy" binary release provided for those whose hardware is too old to run the normal release. 
 
 # Release 1.2.3   2020-10-05
 
