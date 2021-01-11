@@ -29,6 +29,8 @@ int main(int argc, char *argv[]) {
      * Script for adding a reference genome to a flower.
      */
 
+    time_t startTime = time(NULL);
+
     /*
      * Arguments/options
      */
@@ -103,8 +105,8 @@ int main(int argc, char *argv[]) {
     // Run the cactus reference algorithm
     ///////////////////////////////////////////////////////////////////////////
 
-    stList *flowers = NULL;
-    //cactus_make_reference(flowers, cactusDisk, params);
+    stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
+    cactus_make_reference(flowers, cactusDisk, params);
 
     ///////////////////////////////////////////////////////////////////////////
     // Write the flower(s) back to disk.

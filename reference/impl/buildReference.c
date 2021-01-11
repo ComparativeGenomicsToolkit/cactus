@@ -11,94 +11,6 @@ const char *REFERENCE_BUILDING_EXCEPTION = "REFERENCE_BUILDING_EXCEPTION";
 
 ////////////////////////////////////
 ////////////////////////////////////
-//Overall coordination function
-////////////////////////////////////
-////////////////////////////////////
-
-void cactus_make_reference(stList *flowers, CactusDisk *cactusDisk, CactusParams *params) {
-    ///////////////////////////////////////////////////////////////////////////
-    // Build the reference
-    ///////////////////////////////////////////////////////////////////////////
-
-    char *referenceEventString = cactusParams_get_string(params, 2, "reference", "reference");
-    //(char *) cactusMisc_getDefaultReferenceEventHeader();
-
-    int64_t permutations = cactusParams_get_int(params, 2, "reference", "permutations");
-    double theta = cactusParams_get_float(params, 2, "reference", "theta");
-    double phi = cactusParams_get_float(params, 2, "reference", "phi");
-    bool useSimulatedAnnealing = cactusParams_get_int(params, 2, "reference", "useSimulatedAnnealing");
-    int64_t maxWalkForCalculatingZ = cactusParams_get_int(params, 2, "reference", "maxWalkForCalculatingZ");
-    bool ignoreUnalignedGaps = cactusParams_get_int(params, 2, "reference", "ignoreUnalignedGaps");
-    double wiggle = cactusParams_get_float(params, 2, "reference", "wiggle");
-    int64_t numberOfNsForScaffoldGap = cactusParams_get_int(params, 2, "reference", "numberOfNs");
-    int64_t minNumberOfSequencesToSupportAdjacency = cactusParams_get_int(params, 2, "reference", "minNumberOfSequencesToSupportAdjacency");
-    bool makeScaffolds = cactusParams_get_int(params, 2, "reference", "makeScaffolds");
-
-    stList *(*matchingAlgorithm)(stList *edges, int64_t nodeNumber) = chooseMatching_greedy;
-    char *matchAlgorithmString = cactusParams_get_string(params, 2, "reference", "matchingAlgorithm");
-    if (strcmp("greedy", matchAlgorithmString) == 0) {
-        matchingAlgorithm = chooseMatching_greedy;
-    } else if (strcmp("maxCardinality", matchAlgorithmString) == 0) {
-        matchingAlgorithm = chooseMatching_maximumCardinalityMatching;
-    } else if (strcmp("maxWeight", matchAlgorithmString) == 0) {
-        matchingAlgorithm = chooseMatching_maximumWeightMatching;
-    } else if (strcmp("blossom5", matchAlgorithmString) == 0) {
-        matchingAlgorithm = chooseMatching_blossom5;
-    } else {
-        stThrowNew(REFERENCE_BUILDING_EXCEPTION, "Input error: unrecognized matching algorithm: %s", matchAlgorithmString);
-    }
-
-    st_logInfo("The theta parameter has been set to %lf\n", theta);
-    st_logInfo("The ignore unaligned gaps parameter is %i\n", ignoreUnalignedGaps);
-    st_logInfo("The number of permutations is %" PRIi64 "\n", permutations);
-    st_logInfo("Simulated annealing is %" PRIi64 "\n", useSimulatedAnnealing);
-    st_logInfo("Max number of segments in thread to calculate z-score between is %" PRIi64 "\n",
-            maxWalkForCalculatingZ);
-    st_logInfo("Wiggle is %f\n", wiggle);
-    st_logInfo("Max number of Ns for a scaffold gap is: %" PRIi64 "\n", numberOfNsForScaffoldGap);
-    st_logInfo("Min number of sequences to required to support an adjacency is: %" PRIi64 "\n",
-            minNumberOfSequencesToSupportAdjacency);
-    st_logInfo("Make scaffolds is: %i\n", makeScaffolds);
-
-    double (*temperatureFn)(double) = useSimulatedAnnealing ? exponentiallyDecreasingTemperatureFn : constantTemperatureFn;
-
-    for(int64_t i=0; i<stList_length(flowers); i++) {
-        Flower *flower = stList_get(flowers, i);
-        st_logInfo("Processing flower %" PRIi64 "\n", flower_getName(flower));
-        // Bulk-load all the nested flowers, since we will be reading them in anyway.
-        // Currently we can only cache the nested flowers of a list of flowers, so we
-        // create a singleton list.
-        stList *flowers = stList_construct();
-        stList_append(flowers, flower);
-        preCacheNestedFlowers(cactusDisk, flowers);
-        stList_destruct(flowers);
-
-        if (!flower_hasParentGroup(flower)) {
-            buildReferenceTopDown(flower, referenceEventString, permutations, matchingAlgorithm, temperatureFn, theta,
-                                  phi, maxWalkForCalculatingZ, ignoreUnalignedGaps, wiggle, numberOfNsForScaffoldGap,
-                                  minNumberOfSequencesToSupportAdjacency, makeScaffolds);
-            cactusDisk_addUpdateRequest(cactusDisk, flower);
-        }
-        Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
-        Group *group;
-        while ((group = flower_getNextGroup(groupIt)) != NULL) {
-            Flower *subFlower = group_getNestedFlower(group);
-            if (subFlower != NULL) {
-                buildReferenceTopDown(subFlower, referenceEventString, permutations,
-                                      matchingAlgorithm, temperatureFn, theta, phi, maxWalkForCalculatingZ, ignoreUnalignedGaps,
-                                      wiggle, numberOfNsForScaffoldGap, minNumberOfSequencesToSupportAdjacency, makeScaffolds);
-                cactusDisk_addUpdateRequest(cactusDisk, subFlower);
-                flower_unload(subFlower);
-            }
-        }
-        flower_destructGroupIterator(groupIt);
-        assert(!flower_isParentLoaded(flower));
-        cactusDisk_clearCache(cactusDisk);
-    }
-}
-
-////////////////////////////////////
-////////////////////////////////////
 //Get the reference event
 ////////////////////////////////////
 ////////////////////////////////////
@@ -637,7 +549,7 @@ static End *getStubEdgesFromParent2(End *end) {
     }
 }
 
-static void getStubEdgesFromParent(reference *ref, Flower *flower, Event *referenceEvent, stHash *endsToNodes, stList *stubEnds) {
+static void getStubEdgesFromParent(refOrdering *ref, Flower *flower, Event *referenceEvent, stHash *endsToNodes, stList *stubEnds) {
     /*
      * For each attached stub in the flower, get the end in the parent group, and add its
      * adjacency to the group.
@@ -675,7 +587,7 @@ stHash *makeStubEdgesToNodesHash(stList *stubEnds, stHash *endsToNodes) {
     return stubEndsToNodes;
 }
 
-static void getStubEdgesInTopLevelFlower(reference *ref, Flower *flower, stHash *endsToNodes, int64_t nodeNumber, Event *referenceEvent,
+static void getStubEdgesInTopLevelFlower(refOrdering *ref, Flower *flower, stHash *endsToNodes, int64_t nodeNumber, Event *referenceEvent,
         stList *(*matchingAlgorithm)(stList *edges, int64_t nodeNumber), stList *stubEnds, double phi) {
     /*
      * Create a matching for the parent stub edges.
@@ -726,9 +638,9 @@ static void getStubEdgesInTopLevelFlower(reference *ref, Flower *flower, stHash 
     refAdjList_destruct(stubAL);
 }
 
-static reference *getEmptyReference(Flower *flower, stHash *endsToNodes, int64_t nodeNumber, Event *referenceEvent,
+static refOrdering *getEmptyReference(Flower *flower, stHash *endsToNodes, int64_t nodeNumber, Event *referenceEvent,
         stList *(*matchingAlgorithm)(stList *edges, int64_t nodeNumber), stList *stubEnds, double phi) {
-    reference *ref = reference_construct(nodeNumber);
+    refOrdering *ref = reference_construct(nodeNumber);
     if (flower_getParentGroup(flower) != NULL) {
         getStubEdgesFromParent(ref, flower, referenceEvent, endsToNodes, stubEnds);
     } else {
@@ -975,7 +887,7 @@ static void assignGroups(stList *newEnds, Flower *flower, Event *referenceEvent)
     }
 }
 
-static stList *convertReferenceToAdjacencyEdges2(reference *ref) {
+static stList *convertReferenceToAdjacencyEdges2(refOrdering *ref) {
     stList *edges = stList_construct3(0, (void (*)(void *)) stIntTuple_destruct);
     for (int64_t i = 0; i < reference_getIntervalNumber(ref); i++) {
         int64_t n = -reference_getFirstOfInterval(ref, i);
@@ -1010,7 +922,7 @@ static void addAdditionalStubEnds(stList *extraStubNodes, Flower *flower, stHash
  * (1) Absence of a direct adjacency.
  * (2) Absence of substantial amounts of indirect adjacencies.
  */
-bool referenceSplitFn(int64_t pNode, reference *ref, void *extraArgs) {
+bool referenceSplitFn(int64_t pNode, refOrdering *ref, void *extraArgs) {
     assert(reference_getNext(ref, pNode) != INT64_MAX);
     /*
      * We do not split if not a leaf adjacency.
@@ -1052,7 +964,7 @@ bool referenceSplitFn(int64_t pNode, reference *ref, void *extraArgs) {
     return refAdjList_getWeight(dAL, -pNode, reference_getNext(ref, pNode)) < minNumberOfSequencesToSupportAdjacency;
 }
 
-stList *getReferenceIntervalsToPreserve(reference *ref, refAdjList *dAL, int64_t minNumberOfSequencesToSupportAdjacency) {
+stList *getReferenceIntervalsToPreserve(refOrdering *ref, refAdjList *dAL, int64_t minNumberOfSequencesToSupportAdjacency) {
     stList *referenceIntervalsToPreserve = stList_construct3(0, (void (*)(void *)) stIntTuple_destruct);
     for (int64_t interval = 0; interval < reference_getIntervalNumber(ref); interval++) {
         int64_t firstNode = reference_getFirstOfInterval(ref, interval);
@@ -1111,7 +1023,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     /*
      * Get the reference with chosen stub matched intervals
      */
-    reference *ref = getEmptyReference(flower, endsToNodes, nodeNumber, referenceEvent, matchingAlgorithm, stubTangleEnds, phi);
+    refOrdering *ref = getEmptyReference(flower, endsToNodes, nodeNumber, referenceEvent, matchingAlgorithm, stubTangleEnds, phi);
     assert(reference_getIntervalNumber(ref) == stList_length(stubTangleEnds) / 2);
 
     /*
@@ -1250,4 +1162,92 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     reference_destruct(ref);
     stList_destruct(stubTangleEnds);
     stList_destruct(extraStubNodes);
+}
+
+////////////////////////////////////
+////////////////////////////////////
+//Overall coordination function
+////////////////////////////////////
+////////////////////////////////////
+
+void cactus_make_reference(stList *flowers, CactusDisk *cactusDisk, CactusParams *params) {
+    ///////////////////////////////////////////////////////////////////////////
+    // Build the reference
+    ///////////////////////////////////////////////////////////////////////////
+
+    char *referenceEventString = cactusParams_get_string(params, 2, "reference", "reference");
+    //(char *) cactusMisc_getDefaultReferenceEventHeader();
+
+    int64_t permutations = cactusParams_get_int(params, 2, "reference", "permutations");
+    double theta = cactusParams_get_float(params, 2, "reference", "theta");
+    double phi = cactusParams_get_float(params, 2, "reference", "phi");
+    bool useSimulatedAnnealing = cactusParams_get_int(params, 2, "reference", "useSimulatedAnnealing");
+    int64_t maxWalkForCalculatingZ = cactusParams_get_int(params, 2, "reference", "maxWalkForCalculatingZ");
+    bool ignoreUnalignedGaps = cactusParams_get_int(params, 2, "reference", "ignoreUnalignedGaps");
+    double wiggle = cactusParams_get_float(params, 2, "reference", "wiggle");
+    int64_t numberOfNsForScaffoldGap = cactusParams_get_int(params, 2, "reference", "numberOfNs");
+    int64_t minNumberOfSequencesToSupportAdjacency = cactusParams_get_int(params, 2, "reference", "minNumberOfSequencesToSupportAdjacency");
+    bool makeScaffolds = cactusParams_get_int(params, 2, "reference", "makeScaffolds");
+
+    stList *(*matchingAlgorithm)(stList *edges, int64_t nodeNumber) = chooseMatching_greedy;
+    char *matchAlgorithmString = cactusParams_get_string(params, 2, "reference", "matchingAlgorithm");
+    if (strcmp("greedy", matchAlgorithmString) == 0) {
+        matchingAlgorithm = chooseMatching_greedy;
+    } else if (strcmp("maxCardinality", matchAlgorithmString) == 0) {
+        matchingAlgorithm = chooseMatching_maximumCardinalityMatching;
+    } else if (strcmp("maxWeight", matchAlgorithmString) == 0) {
+        matchingAlgorithm = chooseMatching_maximumWeightMatching;
+    } else if (strcmp("blossom5", matchAlgorithmString) == 0) {
+        matchingAlgorithm = chooseMatching_blossom5;
+    } else {
+        stThrowNew(REFERENCE_BUILDING_EXCEPTION, "Input error: unrecognized matching algorithm: %s", matchAlgorithmString);
+    }
+
+    st_logInfo("The theta parameter has been set to %lf\n", theta);
+    st_logInfo("The ignore unaligned gaps parameter is %i\n", ignoreUnalignedGaps);
+    st_logInfo("The number of permutations is %" PRIi64 "\n", permutations);
+    st_logInfo("Simulated annealing is %" PRIi64 "\n", useSimulatedAnnealing);
+    st_logInfo("Max number of segments in thread to calculate z-score between is %" PRIi64 "\n",
+            maxWalkForCalculatingZ);
+    st_logInfo("Wiggle is %f\n", wiggle);
+    st_logInfo("Max number of Ns for a scaffold gap is: %" PRIi64 "\n", numberOfNsForScaffoldGap);
+    st_logInfo("Min number of sequences to required to support an adjacency is: %" PRIi64 "\n",
+            minNumberOfSequencesToSupportAdjacency);
+    st_logInfo("Make scaffolds is: %i\n", makeScaffolds);
+
+    double (*temperatureFn)(double) = useSimulatedAnnealing ? exponentiallyDecreasingTemperatureFn : constantTemperatureFn;
+
+    for(int64_t i=0; i<stList_length(flowers); i++) {
+        Flower *flower = stList_get(flowers, i);
+        st_logInfo("Processing flower %" PRIi64 "\n", flower_getName(flower));
+        // Bulk-load all the nested flowers, since we will be reading them in anyway.
+        // Currently we can only cache the nested flowers of a list of flowers, so we
+        // create a singleton list.
+        stList *flowers = stList_construct();
+        stList_append(flowers, flower);
+        preCacheNestedFlowers(cactusDisk, flowers);
+        stList_destruct(flowers);
+
+        if (!flower_hasParentGroup(flower)) {
+            buildReferenceTopDown(flower, referenceEventString, permutations, matchingAlgorithm, temperatureFn, theta,
+                                  phi, maxWalkForCalculatingZ, ignoreUnalignedGaps, wiggle, numberOfNsForScaffoldGap,
+                                  minNumberOfSequencesToSupportAdjacency, makeScaffolds);
+            cactusDisk_addUpdateRequest(cactusDisk, flower);
+        }
+        Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
+        Group *group;
+        while ((group = flower_getNextGroup(groupIt)) != NULL) {
+            Flower *subFlower = group_getNestedFlower(group);
+            if (subFlower != NULL) {
+                buildReferenceTopDown(subFlower, referenceEventString, permutations,
+                                      matchingAlgorithm, temperatureFn, theta, phi, maxWalkForCalculatingZ, ignoreUnalignedGaps,
+                                      wiggle, numberOfNsForScaffoldGap, minNumberOfSequencesToSupportAdjacency, makeScaffolds);
+                cactusDisk_addUpdateRequest(cactusDisk, subFlower);
+                flower_unload(subFlower);
+            }
+        }
+        flower_destructGroupIterator(groupIt);
+        assert(!flower_isParentLoaded(flower));
+        cactusDisk_clearCache(cactusDisk);
+    }
 }

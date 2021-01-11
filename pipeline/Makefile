@@ -3,7 +3,7 @@ include ${rootPath}/include.mk
 
 libTests = tests/*.c
 
-commonCafLibs = ${LIBDIR}/stReference.a ${LIBDIR}/cactusBarLib.a ${LIBDIR}/stCaf.a ${LIBDIR}/stCactusSetup.a ${LIBDIR}/cactusBlastAlignment.a ${sonLibDir}/stPinchesAndCacti.a ${sonLibDir}/3EdgeConnected.a ${sonLibDir}/cPecanLib.a  ${LIBDIR}/cactusLib.a
+commonCafLibs = ${LIBDIR}/stReference.a ${LIBDIR}/cactusBarLib.a ${LIBDIR}/stCaf.a ${LIBDIR}/stCactusSetup.a ${LIBDIR}/cactusBlastAlignment.a ${sonLibDir}/stPinchesAndCacti.a ${sonLibDir}/matchingAndOrdering.a ${sonLibDir}/3EdgeConnected.a ${sonLibDir}/cPecanLib.a  ${LIBDIR}/cactusLib.a
 
 all: all_libs all_progs
 all_libs: 
