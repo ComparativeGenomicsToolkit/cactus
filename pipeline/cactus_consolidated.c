@@ -9,6 +9,7 @@
 #include "cactus_setup.h"
 #include "stCaf.h"
 #include "poaBarAligner.h"
+#include "cactusReference.h"
 
 /*
  * TODOs:
@@ -192,6 +193,8 @@ int main(int argc, char *argv[]) {
     //////////////////////////////////////////////
     //Call cactus reference
     //////////////////////////////////////////////
+
+    cactus_make_reference(flowers, cactusDisk, params);
 
     //////////////////////////////////////////////
     //Cleanup

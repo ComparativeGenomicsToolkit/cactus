@@ -22,6 +22,11 @@
 extern const char *REFERENCE_BUILDING_EXCEPTION;
 
 /*
+ * Overall coordination function
+ */
+void cactus_make_reference(stList *flowers, CactusDisk *cactusDisk, CactusParams *params);
+
+/*
  * Construct a reference for the flower, top down.
  */
 void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
