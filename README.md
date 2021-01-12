@@ -28,6 +28,8 @@ Note that to run even the very small evolverMammals example, you will need 2 CPU
 
 IMPORTANT:  It is highly recommend that one **not** run Cactus using the Toil Grid Engine-like batch systems (GridEngine, HTCondor, LSF, SLURM, or Torque).  Cactus creates a very large number of small jobs, which can overwhelm these systems.  There is a work-around described [here](#running-the-step-by-step-workflow-direclty-in-toil) for clusters with large compute nodes available.
 
+NEW:  Cactus can now align individuals from the same species without a tree using the [Cactus Pangenome Pipeline](doc/pangenome.md).
+
 ### Installation Overview
 
 There are many different ways to install and run Cactus:
@@ -82,7 +84,7 @@ pip install --upgrade .
 
 ##### Build the Cactus Binaries
 
-Several binaries are required to run Cactus.  They can be built as follows:
+Several binaries are required to run Cactus.  They can be built as follows.
 
 Compile time settings can be overridden by creating a make include file in the top level cactus directory.  
 ```
@@ -90,9 +92,7 @@ cactus/include.local.mk
 ```
 
 Cactus has several dependencies that need to be installed on the system, including HDF5. HDF5 is available through most package managers (`apt-get install libhdf5-dev`) or can be manual installed from source files at [The HDF Group](https://www.hdfgroup.org/).   HDF5 should be configured with the `--enable-cxx` option. If you've installed it in a non-standard location, have the `h5c++` command in your `PATH` or add this to `include.local.mk`:
-```
-export PATH := <hdf5 bin dir>:${PATH}
-```
+`export PATH := <hdf5 bin dir>:${PATH}`
 
 You can use the the [Dockerfile](Dockerfile) as a guide to see how all dependencies are installed with `apt` on Ubuntu.
 
@@ -103,6 +103,11 @@ make -j $(nproc)
 and added to the PATH with
 ```
 export PATH=$(pwd)/bin:$PATH
+```
+
+In order to run the [Cactus Pangenome Pipeline](doc/pangenome.md), additional tools must be installed with:
+```
+build-tools/downloadPangenomeTools
 ```
 
 To use HAL python scripts such as `hal2mafMP.py`, add the submodules directory to the PYTHONPATH with
@@ -118,20 +123,13 @@ Singularity binaries can be used in place of docker binaries with the `--binarie
 
 The `--binariesMode local` flag can be used to force `cactus` to run local binaries -- this is the default behavior if they are found.
 
-#### Adding additional external tools
-
-Some tools not installed by `apt` can be downloaded locally as follows (the Dockerfile can also serve as a guide)
-
-```
-# download tools used for pangenome pipeline
-build-tools/downloadPangenomeTools
-```
-
 ## Running
 To run Cactus, the basic format is:
 ```
 cactus <jobStorePath> <seqFile> <outputHal>
 ```
+
+Note: alternative ways of running include the [step-by-step interface](#running-step-by-step) and the [Cactus Pangenome Pipeline](doc/pangenome.md).
 
 The `jobStorePath` is where intermediate files, as well as job metadata, will be stored. It must be accessible to all worker systems.
 
@@ -255,6 +253,10 @@ If the workflow fails for whatever reason, it can be edited (to, say, increase j
 ```
 cactus-prepare-toil aws:us-west-2:<JOBSTORE-NAME> examples/evolverMammals.txt --binariesMode singularity --batchSystem kubernetes --realTimeLogging --outHal s3://<BUCKET-NAME>/out.hal --defaultDisk 20G --defaultMemory 12G --defaultCores 4
 ```
+
+### Pangenome Pipeline
+
+[The Cactus Pangenome Pipeline is described here](doc/pangenome.md)
 
 ## GPU Acceleration
 
