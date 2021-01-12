@@ -54,6 +54,7 @@ def main():
     parser.add_argument("--outputFasta", type=str, help = "Output graph sequence file in FASTA format (required if not present in seqFile)")
     parser.add_argument("--maskFilter", type=int, help = "Ignore softmasked sequence intervals > Nbp (overrides config option of same name)")
     parser.add_argument("--outputGAFDir", type=str, help = "Output GAF alignments (raw minigraph output before PAF conversion) to this directory")
+    parser.add_argument("--refFromGFA", type=str, help = "Do not align given genome from seqfile, and instead extract its alignment from the rGFA tags (must have been used as reference for minigraph GFA construction)")
 
     #WDL hacks
     parser.add_argument("--pathOverrides", nargs="*", help="paths (multiple allowed) to override from seqFile")
@@ -137,6 +138,12 @@ def runCactusGraphMap(options):
             # load the seqfile
             seqFile = SeqFile(options.seqFile)
 
+            if options.refFromGFA:
+                if options.refFromGFA not in seqFile.pathMap:
+                    raise RuntimeError("{}, specified with --refFromGFA, was not found in the seqfile".format(options.refFromGFA))
+                # we're not going to need the fasta for anything, so forget about it now
+                del seqFile.pathMap[options.refFromGFA]
+                
             if not options.outputFasta and graph_event not in seqFile.pathMap:
                 raise RuntimeError("{} assembly not found in seqfile so it must be specified with --outputFasta".format(graph_event))
 
@@ -147,7 +154,7 @@ def runCactusGraphMap(options):
             seqIDMap = {}
             leaves = set([seqFile.tree.getName(node) for node in seqFile.tree.getLeaves()])
             for genome, seq in seqFile.pathMap.items():
-                if genome != graph_event and genome in leaves:
+                if genome != graph_event and genome in leaves and genome != options.refFromGFA:
                     if os.path.isdir(seq):
                         tmpSeq = getTempFile()
                         catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
@@ -182,10 +189,22 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event):
         # convert GFA to fasta
         fa_job = job.addChildJobFn(make_minigraph_fasta, gfa_id, graph_event)
         fa_id = fa_job.rv()
-    
-    paf_job = job.addChildJobFn(minigraph_map_all, config, gfa_id, seq_id_map, graph_event, options.outputGAFDir is not None)
 
-    return paf_job.rv(0), fa_id, paf_job.rv(1)
+    paf_job = job.addChildJobFn(minigraph_map_all, config, gfa_id, seq_id_map, graph_event, options.outputGAFDir is not None)
+    
+    if options.refFromGFA:
+        # extract a PAF directly from the rGFAs tag for the given reference
+        gfa2paf_job = job.addChildJobFn(extract_paf_from_gfa, gfa_id, options.minigraphGFA, options.refFromGFA, graph_event,
+                                        disk=gfa_id.size * 12)
+
+        merge_paf_job = Job.wrapJobFn(merge_pafs, {"1" : paf_job.rv(0), "2" : gfa2paf_job.rv()}, disk=gfa_id.size * 12)
+        paf_job.addFollowOn(merge_paf_job)
+        gfa2paf_job.addFollowOn(merge_paf_job)
+        out_paf_id = merge_paf_job.rv()
+    else:
+        out_paf_id = paf_job.rv(0)
+
+    return out_paf_id, fa_id, paf_job.rv(1)
         
 def make_minigraph_fasta(job, gfa_file_id, name):
     """ Use gfatools to make the minigraph "assembly" """
@@ -357,6 +376,23 @@ def compress_gaf(job, gaf_file_id):
     cactus_call(parameters=['gzip', gaf_path, '-c', ], outfile=zip_path)
     job.fileStore.deleteGlobalFile(gaf_file_id)
     return job.fileStore.writeGlobalFile(zip_path)
+
+def extract_paf_from_gfa(job, gfa_id, gfa_path, ref_event, graph_event):
+    """ make a paf directly from the rGFA tags.  rgfa2paf supports other ranks, but we're only
+    using rank=0 here to produce an alignment for the reference genome """
+    work_dir = job.fileStore.getLocalTempDir()
+
+    # download the gfa
+    gfa_path = os.path.join(work_dir, os.path.basename(gfa_path))
+    job.fileStore.readGlobalFile(gfa_id, gfa_path, mutable=True)
+    # unzip if needed
+    if gfa_path.endswith(".gz"):
+        cactus_call(parameters=['gzip', '-fd', gfa_path])
+        gfa_path = gfa_path[:-3]
+    # make the paf
+    paf_path = job.fileStore.getLocalTempFile()
+    cactus_call(parameters=['rgfa2paf', gfa_path, '-T', 'id={}|'.format(graph_event), '-P', 'id={}|'.format(ref_event)], outfile=paf_path)
+    return job.fileStore.writeGlobalFile(paf_path)
     
 def add_genome_to_seqfile(seqfile_path, fasta_path, name):
     """ hack the auto-generated minigraph assembly back into the seqfile for future use """
