@@ -2,6 +2,8 @@ rootPath = ..
 include ${rootPath}/include.mk
 
 libTests = tests/*.c
+libSources = impl/*.c
+libHeaders = inc/*.h
 
 commonCafLibs = ${LIBDIR}/stReference.a ${LIBDIR}/cactusBarLib.a ${LIBDIR}/stCaf.a ${LIBDIR}/stCactusSetup.a ${LIBDIR}/cactusBlastAlignment.a ${sonLibDir}/stPinchesAndCacti.a ${sonLibDir}/matchingAndOrdering.a ${sonLibDir}/3EdgeConnected.a ${sonLibDir}/cPecanLib.a  ${LIBDIR}/cactusLib.a
 
@@ -13,8 +15,8 @@ all_progs: all_libs
 ${BINDIR}/stPipelineTests : ${libTests} ${LIBDIR}/cactusLib.a ${LIBDEPENDS}
 	${CC} ${CPPFLAGS} ${CFLAGS} -o ${BINDIR}/stPipelineTests ${libTests} ${LIBDIR}/cactusLib.a ${LDLIBS}
 
-${BINDIR}/cactus_consolidated : ${libHeaders} *.c *.h ${LIBDEPENDS} ${commonCafLibs}
-	${CC} ${CPPFLAGS} ${CFLAGS} -o ${BINDIR}/cactus_consolidated cactus_consolidated.c ${commonCafLibs} ${LDLIBS}
+${BINDIR}/cactus_consolidated : ${libHeaders} *.c *.h ${LIBDEPENDS} ${commonCafLibs} ${libSources} ${libHeaders}
+	${CC} ${CPPFLAGS} ${CFLAGS} -o ${BINDIR}/cactus_consolidated cactus_consolidated.c ${libSources} ${commonCafLibs} ${LDLIBS}
 
 ${BINDIR}/cactus_workflow_getFlowers : *.c *.h ${LIBDIR}/cactusLib.a ${LIBDEPENDS}
 	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o ${BINDIR}/cactus_workflow_getFlowers cactus_workflow_getFlowers.c ${LIBDIR}/cactusLib.a ${LDLIBS}

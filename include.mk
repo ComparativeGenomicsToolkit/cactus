@@ -43,7 +43,7 @@ CFLAGS+= -I/usr/include/libxml2 -lxml2 ${LDFLAGS}
 
 dataSetsPath=/Users/benedictpaten/Dropbox/Documents/work/myPapers/genomeCactusPaper/dataSets
 
-inclDirs = api/inc setup/inc bar/inc caf/inc hal/inc reference/inc submodules/sonLib/C/inc \
+inclDirs = api/inc setup/inc bar/inc caf/inc hal/inc reference/inc pipeline/inc submodules/sonLib/C/inc \
 	blastLib submodules/sonLib/externalTools/cutest submodules/pinchesAndCacti/inc \
 	submodules/matchingAndOrdering/inc submodules/cPecan/inc
 

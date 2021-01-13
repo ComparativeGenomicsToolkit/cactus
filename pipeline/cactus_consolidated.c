@@ -10,6 +10,7 @@
 #include "stCaf.h"
 #include "poaBarAligner.h"
 #include "cactusReference.h"
+#include "traverseFlowers.h"
 
 /*
  * TODOs:
@@ -17,9 +18,10 @@
  * integrate with cactus_workflow
  * test cactus_setup
  * test cactus_caf
+ * test cactus_bar
+ * test cactus_ref
  * setup a test for cactus_consolidate which feeds in inputs and checks for output...
  *
- * refactor bar
  * refactor reference
  * refactor output
  */
@@ -179,7 +181,7 @@ int main(int argc, char *argv[]) {
     //Call cactus caf
     //////////////////////////////////////////////
 
-    flower = NULL; // Get the nested flower to complete
+    assert(!flower_builtBlocks(flower));
     caf(flower, params, alignmentsFile, secondaryAlignmentsFile, constraintAlignmentsFile);
     st_logInfo("Ran cactus caf, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
@@ -187,19 +189,38 @@ int main(int argc, char *argv[]) {
     //Call cactus bar
     //////////////////////////////////////////////
 
-    stList *flowers = NULL; // Get the nested flowers to complete
-    bar(flowers, params, cactusDisk, NULL);
+    stList *leafFlowers = stList_construct();
+    extendFlowers(flower, leafFlowers, 1); // Get nested flowers to complete
+    bar(leafFlowers, params, cactusDisk, NULL);
 
     //////////////////////////////////////////////
     //Call cactus reference
     //////////////////////////////////////////////
 
-    cactus_make_reference(flowers, cactusDisk, params);
+    stList *flowerLayers = getFlowerHierarchyInLayers(flower);
+    for(int64_t i=0; i<stList_length(flowerLayers); i++) {
+        cactus_make_reference(stList_get(flowerLayers, i), cactusDisk, params);
+    }
+
+    //////////////////////////////////////////////
+    //Call cactus reference coordinates
+    //////////////////////////////////////////////
+
+    for(int64_t i=stList_length(flowerLayers)-1; i>=0 ; i--) {
+        //cactus_add_reference_coordinates(stList_get(flowerLayers, i), cactusDisk, params);
+    }
+
+    //////////////////////////////////////////////
+    //Make c2h files, then build hal
+    //////////////////////////////////////////////
+
+
 
     //////////////////////////////////////////////
     //Cleanup
     //////////////////////////////////////////////
 
+    stList_destruct(flowerLayers);
     cactusParams_destruct(params);
 
     return 0;
