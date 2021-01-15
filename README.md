@@ -11,7 +11,7 @@ Cactus uses many different algorithms and individual code contributions, princip
 
 - Yung H. Tsin and Nima Norouzi for contributing their 3-edge connected components program code, which is crucial in constructing the cactus graph structure, see: Tsin,Y.H., "A simple 3-edge-connected component algorithm," Theory of Computing Systems, vol.40, No.2, 2007, pp.125-142.
 - Bob Harris for providing endless support for his [LastZ](https://github.com/lastz/lastz) pairwise, blast-like genome alignment tool.
-- Sneha Goenka and Yatish Turakhia for the [GPU-accelerated version of LastZ](https://github.com/ComparativeGenomicsToolkit/SegAlign).
+- Sneha Goenka and Yatish Turakhia for [SegAlign](https://github.com/ComparativeGenomicsToolkit/SegAlign), the GPU-accelerated version of LastZ.
 - Yan Gao et al. for [abPOA](https://github.com/yangao07/abPOA)
 - Heng Li for [minigraph](https://github.com/lh3/minigraph), [minimap2](https://github.com/lh3/minimap2), [gfatools](https://github.com/lh3/gfatools) and [dna-brnn](https://github.com/lh3/dna-rnn)
 
@@ -260,7 +260,8 @@ cactus-prepare-toil aws:us-west-2:<JOBSTORE-NAME> examples/evolverMammals.txt --
 
 ## GPU Acceleration
 
-A [GPU-accelerated version of lastz](https://github.com/ComparativeGenomicsToolkit/SegAlign) can be used in the `blast` phase to speed up the runtime considerably, provided the right hardware is available. The easiest way to use it is on Terra with `cactus-prepare --gpu --wdl` (see above example).  The [GPU-enabled Docker releases](https://github.com/ComparativeGenomicsToolkit/cactus/releases) have this turned on by default.  It is also possible to [manually install it](https://github.com/ComparativeGenomicsToolkit/SegAlign#-dependencies) from git and then enable it in `cactus` via the `--configFile` cactus option.  A template can be found [here](https://github.com/ComparativeGenomicsToolkit/cactus/blob/master/src/cactus/cactus_progressive_config.xml), and modified to activate the GPU by setting `gpuLastz="true"` and `realign="0"` in the `<caf>` section. 
+[SegAlign](https://github.com/ComparativeGenomicsToolkit/SegAlign), a GPU-accelerated version of lastz can be used in the `blast` phase to speed up the runtime considerably, provided the right hardware is available. The easiest way to use it is on Terra with `cactus-prepare --gpu --wdl` (see above example).  The [GPU-enabled Docker releases](https://github.com/ComparativeGenomicsToolkit/cactus/releases) have this turned on by default.  It is also possible to [manually install it](https://github.com/ComparativeGenomicsToolkit/SegAlign#-dependencies) from git and then enable it in `cactus` via the `--configFile` cactus option.  A template can be found [here](https://github.com/ComparativeGenomicsToolkit/cactus/blob/master/src/cactus/cactus_progressive_config.xml), and modified to activate the GPU by setting `gpuLastz="true"` and `realign="0"` in the `<caf>` section. 
+Citing SegAlign: S. Goenka, Y. Turakhia, B. Paten and M. Horowitz, "SegAlign: A Scalable GPU-Based Whole Genome Aligner," in 2020 SC20: International Conference for High Performance Computing, Networking, Storage and Analysis (SC), Atlanta, GA, US, 2020 pp. 540-552. doi: 10.1109/SC41405.2020.00043 
 
 ## Using the output
 Cactus outputs its alignments in the [HAL](https://github.com/ComparativeGenomicsToolkit/hal) format. This format represents the alignment in a reference-free, indexed way, but isn't readable by many tools. To export a MAF (which by its nature is usually reference-based), you can use the `hal2maf` tool to export the alignment from any particular genome: `hal2maf <hal> --refGenome <reference> <maf>`.
