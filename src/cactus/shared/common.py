@@ -1547,7 +1547,7 @@ def unzip_gz(job, input_path, input_id):
     assert input_path.endswith('.gz')
     fa_path = os.path.join(work_dir, os.path.basename(input_path))
     job.fileStore.readGlobalFile(input_id, fa_path, mutable=True)
-    cactus_call(parameters=['gzip', '-d', os.path.basename(fa_path)], work_dir=work_dir)
+    cactus_call(parameters=['gzip', '-fd', os.path.basename(fa_path)], work_dir=work_dir)
     return job.fileStore.writeGlobalFile(fa_path[:-3])
 
 def zip_gzs(job, input_paths, input_ids, list_elems = None):

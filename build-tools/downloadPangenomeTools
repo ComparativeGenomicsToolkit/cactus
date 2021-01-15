@@ -131,7 +131,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://github.com/ComparativeGenomicsToolkit/cactus-gfa-tools.git
 cd cactus-gfa-tools
-git checkout a563813cab1f3ef231a720b88401ce84bd98fad7
+git checkout d0be4d05522f11a008337e40fabeec645aba51ce
 make -j 4
 if [[ $STATIC_CHECK -ne 1 || $(ldd paf2lastz | grep so | wc -l) -eq 0 ]]
 then
@@ -148,6 +148,12 @@ fi
 if [[ $STATIC_CHECK -ne 1 || $(ldd rgfa-split | grep so | wc -l) -eq 0 ]]
 then
 	 mv rgfa-split ${binDir}
+else
+	 exit 1
+fi
+if [[ $STATIC_CHECK -ne 1 || $(ldd rgfa2paf | grep so | wc -l) -eq 0 ]]
+then
+	 mv rgfa2paf ${binDir}
 else
 	 exit 1
 fi
