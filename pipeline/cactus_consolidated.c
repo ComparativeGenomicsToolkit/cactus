@@ -14,16 +14,15 @@
 #include "traverseFlowers.h"
 #include "blockMLString.h"
 #include "hal.h"
+#include "convertAlignmentCoordinates.h"
 
 /*
  * TODOs:
  *
+ * - add glue from cactus_workflow.py
+ *
  * setup a test for cactus_consolidate which feeds in inputs and checks for output...
  * integrate with cactus_workflow
- * test cactus_setup
- * test cactus_caf
- * test cactus_bar
- * test cactus_ref
  *
  */
 
@@ -43,6 +42,12 @@ void usage() {
     fprintf(stderr, "-h --help : Print this help message\n");
 }
 
+static char *convertAlignments(char *alignmentsFile, CactusDisk *cactusDisk) {
+    char *tempFile = getTempFile();
+    convertAlignmentCoordinates(alignmentsFile, tempFile, cactusDisk);
+    return tempFile;
+}
+
 int main(int argc, char *argv[]) {
     time_t startTime = time(NULL);
 
@@ -57,7 +62,7 @@ int main(int argc, char *argv[]) {
     char *sequenceFilesAndEvents = NULL;
     char *alignmentsFile = NULL;
     char *secondaryAlignmentsFile = NULL;
-    char * constraintAlignmentsFile = NULL;
+    char *constraintAlignmentsFile = NULL;
     char *speciesTree = NULL;
     char *outgroupEvents = NULL;
 
@@ -201,7 +206,21 @@ int main(int argc, char *argv[]) {
     //////////////////////////////////////////////
 
     Flower *flower = cactus_setup_first_flower(cactusDisk, params, speciesTree, outgroupEvents, sequenceFilesAndEvents);
+    stripUniqueIdsFromMetaSequences(flower); // Not clear if this is needed
     st_logInfo("Established the first Flower in the hierarchy, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+
+    //////////////////////////////////////////////
+    //Convert alignment coordinates
+    //////////////////////////////////////////////
+
+    alignmentsFile = convertAlignments(alignmentsFile, cactusDisk);
+    if(secondaryAlignmentsFile != NULL) {
+        secondaryAlignmentsFile = convertAlignments(secondaryAlignmentsFile, cactusDisk);
+    }
+    if(constraintAlignmentsFile != NULL) {
+        constraintAlignmentsFile = convertAlignments(constraintAlignmentsFile, cactusDisk);
+    }
+    st_logInfo("Converted alignment coordinates, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     //////////////////////////////////////////////
     //Call cactus caf
@@ -277,6 +296,15 @@ int main(int argc, char *argv[]) {
 
     stList_destruct(flowerLayers);
     cactusParams_destruct(params);
+    st_system("rm %s", alignmentsFile);
+    if(secondaryAlignmentsFile != NULL) {
+        st_system("rm %s", secondaryAlignmentsFile);
+    }
+    if(constraintAlignmentsFile != NULL) {
+        st_system("rm %s", constraintAlignmentsFile);
+    }
+
+    // more to do here...
 
     return 0;
 }

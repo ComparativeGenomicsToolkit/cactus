@@ -27,8 +27,8 @@ ${BINDIR}/cactus_workflow_extendFlowers : *.c *.h ${LIBDIR}/cactusLib.a ${LIBDEP
 ${BINDIR}/cactus_workflow_flowerStats : *.c *.h ${LIBDIR}/cactusLib.a ${LIBDEPENDS}
 	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o ${BINDIR}/cactus_workflow_flowerStats cactus_workflow_flowerStats.c ${LIBDIR}/cactusLib.a ${LDLIBS}
 
-${BINDIR}/cactus_workflow_convertAlignmentCoordinates : *.c *.h ${LIBDIR}/cactusLib.a ${LIBDEPENDS}
-	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o ${BINDIR}/cactus_workflow_convertAlignmentCoordinates cactus_workflow_convertAlignmentCoordinates.c ${LIBDIR}/cactusLib.a ${LDLIBS}
+${BINDIR}/cactus_workflow_convertAlignmentCoordinates : *.c *.h ${LIBDIR}/cactusLib.a ${LIBDEPENDS} ${libSources} ${libHeaders}
+	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o ${BINDIR}/cactus_workflow_convertAlignmentCoordinates cactus_workflow_convertAlignmentCoordinates.c ${libSources} ${LIBDIR}/cactusLib.a ${LDLIBS}
 
 ${BINDIR}/cactus_secondaryDatabase : *.c *.h ${LIBDIR}/cactusLib.a ${LIBDEPENDS}
 	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o ${BINDIR}/cactus_secondaryDatabase cactus_secondaryDatabase.c ${LIBDIR}/cactusLib.a ${LDLIBS}

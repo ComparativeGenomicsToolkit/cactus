@@ -36,6 +36,7 @@ from cactus.shared.common import makeURL
 from cactus.shared.common import cactus_call
 from cactus.shared.common import RunAsFollowOn
 from cactus.shared.common import getOptionalAttrib
+from cactus.shared.common import runCactusConsolidated
 from cactus.shared.common import runCactusSetup
 from cactus.shared.common import runCactusCaf
 from cactus.shared.common import runCactusGetFlowers
@@ -609,6 +610,79 @@ def updateExpWrapperForOutgroups(job, expWrapper, outgroupGenomes, outgroupFragm
     for genome, outgroupFragmentID in zip(outgroupGenomes, outgroupFragmentIDs):
         expWrapper.setSequenceID(genome, outgroupFragmentID)
     return expWrapper
+
+############################################################
+############################################################
+############################################################
+##The optional consolidate phase, which runs the setup, caf,
+## bar, reference and cactus to hal algorithms in one job
+## on a multi-node machine
+############################################################
+############################################################
+############################################################
+
+class CactusConsolidated(CactusCheckpointJob):
+    """Start a new DB, run the setup and CAF phases, save the DB, then launch the BAR checkpoint."""
+    def run(self, fileStore):
+        return self.runPhase(CactusConsolidatePhase, CactusSetReferenceCoordinatesDownPhase, "reference",
+                      launchSecondaryDbForRecursiveJob=True)
+        launchSecondaryDbForRecursiveJob=True
+        #dbServerDump = self.runPhaseWithPrimaryDB(CactusSetupPhase).rv()
+        #return self.makeFollowOnCheckpointJob(CactusBarCheckpoint, "bar", dbServerDump=dbServerDump)
+launchSecondaryDbForRecursiveJob=True
+
+class CactusConsolidatePhase(CactusPhasesJob):
+    """Initialises the cactus database and adapts the config file for the run."""
+    def run(self, fileStore):
+        # Get the experiment obkect
+        experiment = self.cactusWorkflowArguments.experimentWrapper
+        if (not self.cactusWorkflowArguments.configWrapper.getDoTrimStrategy()) or (self.cactusWorkflowArguments.outgroupEventNames == None):
+            setupDivergenceArgs(self.cactusWorkflowArguments)
+
+        # Build up a genome -> fasta map.
+        seqIDMap = dict((genome, experiment.getSequenceID(genome)) for genome in experiment.getGenomesWithSequence())
+        seqMap = dict((genome, fileStore.readGlobalFile(id)) for genome, id in list(seqIDMap.items()))
+
+        # Get the alignment files
+        alignments = fileStore.readGlobalFile(self.cactusWorkflowArguments.alignmentsID)
+        logger.info("Alignments file: %s" % alignments)
+
+        secondaryAlignments = None
+        if self.cactusWorkflowArguments.secondaryAlignmentsID != None:
+            secondaryAlignments = fileStore.readGlobalFile(self.cactusWorkflowArguments.secondaryAlignmentsID)
+
+        constraints = None
+        if self.cactusWorkflowArguments.constraintsID is not None:
+            constraints = fileStore.readGlobalFile(self.cactusWorkflowArguments.constraintsID)
+
+        # Temporary place to store the output c2h file
+        tmpHal = fileStore.getLocalTempFile()
+
+        messages = runCactusConsolidated(cactusParams=experiment.getConfigPath(),
+                                         cactusDiskDatabaseString=self.cactusWorkflowArguments.cactusDiskDatabaseString,
+                                         seqMap=seqMap,
+                                         newickTreeString=self.cactusWorkflowArguments.speciesTree,
+                                         alignmentsFile=alignments,
+                                         secondaryDatabaseString=self.cactusWorkflowArguments.secondaryDatabaseString,
+                                         outputFile=tmpHal,
+                                         secondaryAlignmentsFile=secondaryAlignments,
+                                         constraintAlignmentsFile=constraints,
+                                         logLevel=None,
+                                         outgroupEvents=experiment.getOutgroupGenomes())
+
+        # Log back any messages
+        for message in messages:
+            logger.info(message)
+
+        # Write the temporary output file to the final output
+        # At top level--have the final .c2h file
+        intermediateResultsUrl = getattr(self.cactusWorkflowArguments, 'intermediateResultsUrl', None)
+        halID = fileStore.writeGlobalFile(tmpHal)
+        if intermediateResultsUrl is not None:
+            # The user requested to keep the c2h files in a separate place. Export it there.
+            url = intermediateResultsUrl + ".c2h"
+            fileStore.exportFile(halID, url)
+        return halID
 
 ############################################################
 ############################################################

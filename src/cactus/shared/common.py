@@ -241,6 +241,32 @@ def runCactusSplitFlowersBySecondaryGrouping(flowerNames):
 #############################################
 #############################################
 
+def runCactusConsolidated(cactusDiskDatabaseString, seqMap,
+                          newickTreeString, cactusParams,
+                          alignmentsFile, secondaryDatabaseString, outputFile,
+                          secondaryAlignmentsFile=None,
+                          constraintAlignmentsFile=None,
+                          logLevel=None, outgroupEvents=None):
+    logLevel = getLogLevelString2(logLevel)
+    # We pass in the genome->sequence map as a series of paired arguments: [genome, faPath]*N.
+    pairs = [[genome, faPath] for genome, faPath in list(seqMap.items())]
+    args = [item for sublist in pairs for item in sublist]
+
+    args += ["--speciesTree", newickTreeString, "--cactusDisk", cactusDiskDatabaseString,
+             "--logLevel", logLevel, "--alignments", alignmentsFile, "--params", cactusParams,
+             "--outputDisk", secondaryDatabaseString, "--outputFile", outputFile]
+    if outgroupEvents:
+        args += ["--outgroupEvents", " ".join(outgroupEvents)]
+    if secondaryAlignmentsFile:
+        args += ["--secondaryAlignments", " ".join(secondaryAlignmentsFile)]
+    if constraintAlignmentsFile:
+        args += ["--constraintAlignments", " ".join(constraintAlignmentsFile)]
+    masterMessages = cactus_call(check_output=True,
+                                 parameters=["cactus_consolidated"] + args)
+
+    logger.info("Ran cactus setup okay")
+    return [ i for i in masterMessages.split("\n") if i != '' ]
+
 def runCactusSetup(cactusDiskDatabaseString, seqMap,
                    newickTreeString,
                    logLevel=None, outgroupEvents=None,
