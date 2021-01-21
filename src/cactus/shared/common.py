@@ -250,17 +250,16 @@ def runCactusConsolidated(cactusDiskDatabaseString, seqMap,
     logLevel = getLogLevelString2(logLevel)
     # We pass in the genome->sequence map as a series of paired arguments: [genome, faPath]*N.
     pairs = [[genome, faPath] for genome, faPath in list(seqMap.items())]
-    args = [item for sublist in pairs for item in sublist]
-
+    args = ["--sequences", " ".join([item for sublist in pairs for item in sublist])]
     args += ["--speciesTree", newickTreeString, "--cactusDisk", cactusDiskDatabaseString,
              "--logLevel", logLevel, "--alignments", alignmentsFile, "--params", cactusParams,
              "--outputDisk", secondaryDatabaseString, "--outputFile", outputFile]
     if outgroupEvents:
         args += ["--outgroupEvents", " ".join(outgroupEvents)]
     if secondaryAlignmentsFile:
-        args += ["--secondaryAlignments", " ".join(secondaryAlignmentsFile)]
+        args += ["--secondaryAlignments", secondaryAlignmentsFile]
     if constraintAlignmentsFile:
-        args += ["--constraintAlignments", " ".join(constraintAlignmentsFile)]
+        args += ["--constraintAlignments", constraintAlignmentsFile]
     masterMessages = cactus_call(check_output=True,
                                  parameters=["cactus_consolidated"] + args)
 

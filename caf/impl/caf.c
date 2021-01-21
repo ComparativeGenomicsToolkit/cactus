@@ -176,17 +176,17 @@ static void printThreadSetStatistics(stPinchThreadSet *threadSet, Flower *flower
         i++;
     }
 
-    printf("There were %" PRIu64 " blocks in the sequence graph, representing %" PRIi64
+    fprintf(f, "There were %" PRIu64 " blocks in the sequence graph, representing %" PRIi64
     " total aligned bases\n", numBlocks, totalAlignedBases);
 
     qsort(blockDegrees, numBlocks, sizeof(uint64_t),
           (int (*)(const void *, const void *)) uint64_cmp);
     qsort(blockSupports, numBlocks, sizeof(double),
           (int (*)(const void *, const void *)) double_cmp);
-    printf("Block degree stats: min %" PRIu64 ", avg %lf, median %" PRIu64 ", max %" PRIu64 "\n",
+    fprintf(f, "Block degree stats: min %" PRIu64 ", avg %lf, median %" PRIu64 ", max %" PRIu64 "\n",
             blockDegrees[0], totalDegree/numBlocks, blockDegrees[(numBlocks - 1) / 2],
             blockDegrees[numBlocks - 1]);
-    printf("Block support stats: min %lf, avg %lf, median %lf, max %lf\n",
+    fprintf(f, "Block support stats: min %lf, avg %lf, median %lf, max %lf\n",
            blockSupports[0], totalSupport/numBlocks, blockSupports[(numBlocks - 1) / 2],
            blockSupports[numBlocks - 1]);
     free(blockDegrees);
@@ -435,8 +435,8 @@ void caf(Flower *flowerP, CactusParams *params, char *alignmentsFile, char *seco
             //    dumpBlockInfo(threadSet, stString_print("%s-blockStats-preMelting", debugFileName));
             //}
 
-            printf("Sequence graph statistics after annealing:\n");
-            printThreadSetStatistics(threadSet, flower, stdout);
+            fprintf(stderr, "Sequence graph statistics after annealing:\n");
+            printThreadSetStatistics(threadSet, flower, stderr);
 
             if (minimumBlockHomologySupport > 0) {
                 // Check for poorly-supported blocks--those that have
@@ -485,8 +485,8 @@ void caf(Flower *flowerP, CactusParams *params, char *alignmentsFile, char *seco
         //    dumpBlockInfo(threadSet, stString_print("%s-blockStats-postMelting", debugFileName));
         //}
 
-        printf("Sequence graph statistics after melting:\n");
-        printThreadSetStatistics(threadSet, flower, stdout);
+        fprintf(stderr, "Sequence graph statistics after melting:\n");
+        printThreadSetStatistics(threadSet, flower, stderr);
 
         //TODO: Determine if to remove or rescue phylogeny building code
         /*
@@ -633,6 +633,7 @@ void caf(Flower *flowerP, CactusParams *params, char *alignmentsFile, char *seco
             st_logDebug("Breaking up components greedily\n");
             stCaf_breakupComponentsGreedily(threadSet, maximumAdjacencyComponentSizeRatio);
         }
+
 
         //Finish up
         stCaf_finish(flower, threadSet, chainLengthForBigFlower, longChain, minLengthForChromosome,

@@ -140,7 +140,7 @@ int64_t *cactusParams_get_ints(CactusParams *p, int64_t *length, int num, ...) {
     *length = stList_length(l);
     int64_t *ints = st_malloc(sizeof(int64_t) * *length);
     for(int64_t i=0; i<*length; i++) {
-        int j = sscanf(c, "%" PRIi64 "", &(ints[i]));
+        int j = sscanf(stList_get(l, i), "%" PRIi64 "", &(ints[i]));
         assert(j == 1);
     }
     stList_destruct(l);

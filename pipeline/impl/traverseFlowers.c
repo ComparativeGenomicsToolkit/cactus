@@ -17,7 +17,7 @@ void extendFlowers(Flower *flower, stList *extendedFlowers, int64_t minFlowerSiz
         else { // Recursively search for more nested flowers to exnted
             Flower *nestedFlower = group_getNestedFlower(group);
             assert(nestedFlower != NULL);
-            extendFlowers(nestedFlower, extendedFlowers, minFlowerSize);
+            //extendFlowers(nestedFlower, extendedFlowers, minFlowerSize);
         }
     }
     flower_destructGroupIterator(groupIterator);

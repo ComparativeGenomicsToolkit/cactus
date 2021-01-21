@@ -279,8 +279,8 @@ static void makeFlower(stCactusNode *cactusNode, Flower *flower, bool orientatio
     else {
         flower_setBuiltBlocks(flower, 1);
         //Now serialise for writing, compress and free the memory of the flower
-        cactusDisk_addUpdateRequest(flower_getCactusDisk(flower), flower);
-        flower_unload(flower);
+        //cactusDisk_addUpdateRequest(flower_getCactusDisk(flower), flower);
+        //flower_unload(flower);
     }
 }
 

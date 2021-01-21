@@ -7,6 +7,7 @@
 #include "cactus.h"
 #include "sonLib.h"
 #include "pairwiseAlignment.h"
+#include "bioioC.h"
 
 void stripUniqueIdsFromMetaSequences(Flower *flower) {
     Flower_SequenceIterator *flowerIt = flower_getSequenceIterator(flower);
@@ -27,7 +28,6 @@ void stripUniqueIdsFromMetaSequences(Flower *flower) {
         newHeader = fastaEncodeHeader(tokens);
         metaSequence_setHeader(metaSequence, newHeader);
     }
-    cactusDisk_write(cactusDisk);
 }
 
 /*

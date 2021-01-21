@@ -604,7 +604,9 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
         if self.standAlone:
             return self.cactusWorkflowArguments
 
-        return self.makeFollowOnCheckpointJob(CactusSetupCheckpoint, "setup")
+        return self.makeFollowOnPhaseJob(CactusConsolidated1, phaseName="consolidated")
+
+        #return self.makeFollowOnCheckpointJob(CactusSetupCheckpoint, "setup")
 
 def updateExpWrapperForOutgroups(job, expWrapper, outgroupGenomes, outgroupFragmentIDs):
     for genome, outgroupFragmentID in zip(outgroupGenomes, outgroupFragmentIDs):
@@ -621,17 +623,26 @@ def updateExpWrapperForOutgroups(job, expWrapper, outgroupGenomes, outgroupFragm
 ############################################################
 ############################################################
 
-class CactusConsolidated(CactusCheckpointJob):
-    """Start a new DB, run the setup and CAF phases, save the DB, then launch the BAR checkpoint."""
+class CactusConsolidated1(CactusPhasesJob):
+    """Start a new DB, run the CactusConsolidated."""
     def run(self, fileStore):
-        return self.runPhase(CactusConsolidatePhase, CactusSetReferenceCoordinatesDownPhase, "reference",
-                      launchSecondaryDbForRecursiveJob=True)
-        launchSecondaryDbForRecursiveJob=True
-        #dbServerDump = self.runPhaseWithPrimaryDB(CactusSetupPhase).rv()
-        #return self.makeFollowOnCheckpointJob(CactusBarCheckpoint, "bar", dbServerDump=dbServerDump)
-launchSecondaryDbForRecursiveJob=True
+        job = CactusConsolidated2(cactusWorkflowArguments=self.cactusWorkflowArguments,
+                             phaseName="consolidated2", topFlowerName=self.topFlowerName)
+        startDBJob = StartPrimaryDB(job, #dbServerDump=self.dbServerDump,
+                                    cactusWorkflowArguments=self.cactusWorkflowArguments,
+                                    phaseName="consolidated2", topFlowerName=self.topFlowerName)
+        self.addChild(startDBJob)
 
-class CactusConsolidatePhase(CactusPhasesJob):
+class CactusConsolidated2(CactusPhasesJob):
+    """Start the secondary DB."""
+    def run(self, fileStore):
+        #self.setupSecondaryDatabase()
+        #self.phaseNode.attrib["experimentPath"] = self.cactusWorkflowArguments.experimentFile
+        #self.phaseNode.attrib["secondaryDatabaseString"] = self.cactusWorkflowArguments.secondaryDatabaseString
+        #self.phaseNode.attrib["outputFile"] = "1"
+        return self.makeRecursiveChildJob(CactusConsolidated3, launchSecondaryDbForRecursiveJob=True)
+
+class CactusConsolidated3(CactusRecursionJob):
     """Initialises the cactus database and adapts the config file for the run."""
     def run(self, fileStore):
         # Get the experiment obkect

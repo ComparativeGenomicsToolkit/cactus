@@ -196,9 +196,9 @@ int main(int argc, char *argv[]) {
     st_logInfo("Set up the cactus disk, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     // Load the output disk
-    stKVDatabaseConf *kvOutputDatabaseConf = stKVDatabaseConf_constructFromString(outputDiskDatabaseString);
-    stKVDatabase *outputDatabase = stKVDatabase_construct(kvOutputDatabaseConf, 0);
-    stKVDatabaseConf_destruct(kvOutputDatabaseConf);
+    //stKVDatabaseConf *kvOutputDatabaseConf = stKVDatabaseConf_constructFromString(outputDiskDatabaseString);
+    stKVDatabase *outputDatabase = NULL; //stKVDatabase_construct(kvOutputDatabaseConf, 0);
+    //stKVDatabaseConf_destruct(kvOutputDatabaseConf);
     st_logInfo("Set up the output disk, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     //////////////////////////////////////////////
@@ -206,8 +206,10 @@ int main(int argc, char *argv[]) {
     //////////////////////////////////////////////
 
     Flower *flower = cactus_setup_first_flower(cactusDisk, params, speciesTree, outgroupEvents, sequenceFilesAndEvents);
-    stripUniqueIdsFromMetaSequences(flower); // Not clear if this is needed
+    //stripUniqueIdsFromMetaSequences(flower); // Not clear if this is needed
     st_logInfo("Established the first Flower in the hierarchy, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+
+    flower_checkRecursive(flower);
 
     //////////////////////////////////////////////
     //Convert alignment coordinates
@@ -228,7 +230,10 @@ int main(int argc, char *argv[]) {
 
     assert(!flower_builtBlocks(flower));
     caf(flower, params, alignmentsFile, secondaryAlignmentsFile, constraintAlignmentsFile);
+    assert(flower_builtBlocks(flower));
     st_logInfo("Ran cactus caf, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+
+    flower_checkRecursive(flower);
 
     //////////////////////////////////////////////
     //Call cactus bar
@@ -236,7 +241,14 @@ int main(int argc, char *argv[]) {
 
     stList *leafFlowers = stList_construct();
     extendFlowers(flower, leafFlowers, 1); // Get nested flowers to complete
+
+    flower_checkRecursive(flower);
+
+    st_logInfo("Ran extended flowers ready for bar, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
     bar(leafFlowers, params, cactusDisk, NULL);
+    st_logInfo("Ran cactus bar, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+
+    flower_checkRecursive(flower);
 
     //////////////////////////////////////////////
     //Call cactus reference
