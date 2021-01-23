@@ -37,13 +37,13 @@ from cactus.shared.common import cactus_override_toil_options
 from cactus.preprocessor.checkUniqueHeaders import checkUniqueHeaders
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import LastzRepeatMaskJob
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import RepeatMaskOptions
-from cactus.preprocessor.dnabrnnMasking import DnabrnnMaskJob, loadDnaBrnnModel
+from cactus.preprocessor.dnabrnnMasking import DnabrnnMaskJob, loadDnaBrnnModel, computePAFCoverage
 
 class PreprocessorOptions:
     def __init__(self, chunkSize, memory, cpu, check, proportionToSample, unmask,
                  preprocessJob, checkAssemblyHub=None, lastzOptions=None, minPeriod=None,
                  gpuLastz=False, dnabrnnOpts=None, dnabrnnLength=None, dnabrnnMerge=None,
-                 dnabrnnAction=None):
+                 dnabrnnAction=None, dnabrnnInputBedID=None, dnabrnnEventName=None):
         self.chunkSize = chunkSize
         self.memory = memory
         self.cpu = cpu
@@ -63,6 +63,8 @@ class PreprocessorOptions:
         self.dnabrnnMerge = dnabrnnMerge
         self.dnabrnnAction = dnabrnnAction
         assert dnabrnnAction in ('softmask', 'hardmask', 'clip')
+        self.dnabrnnInputBedID = dnabrnnInputBedID
+        self.dnabrnnEventName = dnabrnnEventName
 
 class CheckUniqueHeaders(RoundedJob):
     """
@@ -144,6 +146,8 @@ class PreprocessSequence(RoundedJob):
                                   minLength=self.prepOptions.dnabrnnLength,
                                   mergeLength=self.prepOptions.dnabrnnMerge,
                                   action=self.prepOptions.dnabrnnAction,
+                                  inputBedID=self.prepOptions.dnabrnnInputBedID,
+                                  eventName=self.prepOptions.dnabrnnEventName,
                                   cpu=self.prepOptions.cpu)
         else:
             raise RuntimeError("Unknown preprocess job %s" % self.prepOptions.preprocessJob)
@@ -235,7 +239,9 @@ class BatchPreprocessor(RoundedJob):
                                               dnabrnnOpts = getOptionalAttrib(prepNode, "dna-brnnOpts", default=""),
                                               dnabrnnLength = getOptionalAttrib(prepNode, "minLength", typeFn=int, default=1),
                                               dnabrnnMerge = getOptionalAttrib(prepNode, "mergeLength", typeFn=int, default=0),
-                                              dnabrnnAction = getOptionalAttrib(prepNode, "action", typeFn=str, default="softmask"))
+                                              dnabrnnAction = getOptionalAttrib(prepNode, "action", typeFn=str, default="softmask"),
+                                              dnabrnnInputBedID = getOptionalAttrib(prepNode, "inputBedID", typeFn=str, default=None),
+                                              dnabrnnEventName = getOptionalAttrib(prepNode, "eventName", typeFn=str, default=None))
 
             if prepOptions.unmask:
                 inSequence = fileStore.readGlobalFile(self.inSequenceID)
@@ -264,14 +270,20 @@ class BatchPreprocessor(RoundedJob):
 class CactusPreprocessor(RoundedJob):
     """Modifies the input genomes, doing things like masking/checking, etc.
     """
-    def __init__(self, inputSequenceIDs, configNode):
+    def __init__(self, inputSequenceIDs, configNode, eventNames=[]):
         RoundedJob.__init__(self, disk=sum([id.size for id in inputSequenceIDs if hasattr(id, 'size')]), preemptable=True)
         self.inputSequenceIDs = inputSequenceIDs
         self.configNode = configNode
+        self.eventNames = eventNames
 
     def run(self, fileStore):
         outputSequenceIDs = []
-        for inputSequenceID in self.inputSequenceIDs:
+        for i, inputSequenceID in enumerate(self.inputSequenceIDs):
+            eventName = self.eventNames[i] if self.eventNames and i < len(self.eventNames) else None
+            if eventName:
+                for node in self.configNode.findall("preprocessor"):
+                    if getOptionalAttrib(node, "preprocessJob") == 'dna-brnn':
+                        node.attrib["eventName"] = eventName
             outputSequenceIDs.append(self.addChild(CactusPreprocessor2(inputSequenceID, self.configNode)).rv())
         return outputSequenceIDs
 
@@ -298,7 +310,8 @@ class CactusPreprocessor2(RoundedJob):
             logger.info("Adding child batch_preprocessor target")
             return self.addChild(BatchPreprocessor(prepXmlElems, self.inputSequenceID, 0)).rv()
 
-def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=False, outputSequences = [], maskAlpha=False, clipAlpha=None):
+def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=False, outputSequences = [], maskAlpha=False, clipAlpha=None,
+                  maskPAF=None, inputEventNames=None):
     #Replace any constants
     configNode = ET.parse(configFile).getroot()
     if not outputSequences:
@@ -326,7 +339,11 @@ def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=F
         for seq in inputSequences:
             logger.info("Importing {}".format(seq))
             inputSequenceIDs.append(toil.importFile(makeURL(seq)))
-        unzip_job = Job.wrapJobFn(unzip_then_pp, configNode, inputSequences, inputSequenceIDs)
+        if maskPAF:
+            inputPAFID = toil.importFile(makeURL(maskPAF))
+        else:
+            inputPAFID = None
+        unzip_job = Job.wrapJobFn(unzip_then_pp, configNode, inputSequences, inputSequenceIDs, inputEventNames, maskPAF, inputPAFID)
         outputSequenceIDs = toil.start(unzip_job)
     else:
         outputSequenceIDs = toil.restart()
@@ -340,10 +357,13 @@ def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=F
         except:
             toil.exportFile(seqID, makeURL(path))
 
-def unzip_then_pp(job, config_node, input_fa_paths, input_fa_ids):
+def unzip_then_pp(job, config_node, input_fa_paths, input_fa_ids, input_event_names, input_paf_path, input_paf_id):
     """ unzip then preprocess """
     unzip_job = job.addChildJobFn(unzip_gzs, input_fa_paths, input_fa_ids)
-    pp_job = unzip_job.addFollowOn(CactusPreprocessor([unzip_job.rv(i) for i in range(len(input_fa_ids))], config_node))
+    if input_paf_id is not None:
+        paf_unzip_job = unzip_job.addChildJobFn(unzip_gzs, [input_paf_path], [input_paf_id])
+        config_node = paf_unzip_job.addFollowOnJobFn(computePAFCoverage, config_node, paf_unzip_job.rv(0), disk=input_paf_id.size*20).rv()
+    pp_job = unzip_job.addFollowOn(CactusPreprocessor([unzip_job.rv(i) for i in range(len(input_fa_ids))], config_node, input_event_names))
     zip_job = pp_job.addFollowOnJobFn(zip_gzs, input_fa_paths,  pp_job.rv(), list_elems = [0])
     return zip_job.rv()
     
@@ -366,6 +386,7 @@ def main():
     parser.add_argument("--maskAlpha", action='store_true', help='Use dna-brnn instead of lastz for repeatmasking')
     parser.add_argument("--clipAlpha", type=int, help='use dna-brnn instead of lastz for repeatmasking.  Also, clip sequence using given minimum length instead of softmasking')
     parser.add_argument("--ignore", nargs='*', help='Space-separate list of genomes from inSeqFile to ignore', default=[])
+    parser.add_argument("--maskPAF", type=str, help='Incorporate coverage gaps from given PAF when masking.  Only implemented for dna-brnn masking')
     parser.add_argument("--latest", dest="latest", action="store_true",
                         help="Use the latest version of the docker container "
                         "rather than pulling one matching this version of cactus")
@@ -388,8 +409,8 @@ def main():
         if not options.inSeqFile or not options.outSeqFile or options.inPaths or options.outPaths:
             raise RuntimeError('--inSeqFile must be used in conjunction with --outSeqFile and not with --inPaths nor --outPaths')
     elif options.inPaths or options.outPaths:
-        if not options.inPaths or not options.outPaths or options.inSeqFile or options.outSeqFile or options.inputNames:
-            raise RuntimeError('--inPaths must be used in conjunction with --outPaths and not with --inSeqFile, --outSeqFile nor --inputNames')
+        if not options.inPaths or not options.outPaths or options.inSeqFile or options.outSeqFile:
+            raise RuntimeError('--inPaths must be used in conjunction with --outPaths and not with --inSeqFile nor --outSeqFile')
         if len(options.inPaths) != len(options.outPaths):
             raise RuntimeError('--inPaths and --outPaths must have the same number of arguments')
     else:
@@ -398,19 +419,20 @@ def main():
         raise RuntimeError('--maskAlpha and --clipAlpha cannot be used together')
     if options.clipAlpha:
         options.maskAlpha = True
+    if options.maskPAF and not options.inputNames and not options.inSeqFile:
+        raise RuntimeError('--maskPAF requires event names specified wither with an input seqfile or with --inputNames')
 
     inSeqPaths = []
     outSeqPaths = []
-
+    inNames = options.inputNames
+    
     # mine the paths out of the seqfiles
     if options.inSeqFile:
         inSeqFile = SeqFile(options.inSeqFile)
         outSeqFile = SeqFile(options.outSeqFile)
 
-        inNames = options.inputNames
         if not inNames:
             inNames = [inSeqFile.tree.getName(node) for node in inSeqFile.tree.getLeaves()]
-
 
         for inName in inNames:
             if inName in options.ignore:
@@ -445,8 +467,16 @@ def main():
         outSeqPaths = options.outPaths
 
     with Toil(options) as toil:
-        stageWorkflow(outputSequenceDir=None, configFile=options.configFile, inputSequences=inSeqPaths, toil=toil, restart=options.restart, outputSequences=outSeqPaths,
-                      maskAlpha=options.maskAlpha, clipAlpha=options.clipAlpha)
+        stageWorkflow(outputSequenceDir=None,
+                      configFile=options.configFile,
+                      inputSequences=inSeqPaths,
+                      toil=toil,
+                      restart=options.restart,
+                      outputSequences=outSeqPaths,
+                      maskAlpha=options.maskAlpha,
+                      clipAlpha=options.clipAlpha,
+                      maskPAF=options.maskPAF,
+                      inputEventNames=inNames)
 
 if __name__ == '__main__':
     main()

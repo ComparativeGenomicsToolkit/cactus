@@ -87,10 +87,10 @@ Note: To mask the centromeres and leave them as unaligned bubbles in the graph (
 
 ### Map contigs to minigraph (about 3 hours)
 
-Use `cactus-graphmap` to do the mapping.  It will produce a PAF file of pairwise alignments for cactus to build on.  It will also edit the input seqfile in order to add the minigraph fasta (specfied with `--outputFasta`).  
+Use `cactus-graphmap` to do the mapping.  It will produce a PAF file of pairwise alignments for cactus to build on.  It will also edit the input seqfile in order to add the minigraph fasta (specfied with `--outputFasta`).  Note that `--refFromGFA hg38` is used in order to not map hg38 and instead pull its alignments from the rGFA tags.  
 
 ```
-cactus-graphmap <jobstore> `masked/seqfile.txt` <minigraph GFA> s3://<bucket>/GRCh38-freeze1.paf --realTimeLogging --logFile graphmap.log --batchSystem mesos --provisioner aws --defaultPreemptable --nodeTypes r3.8xlarge:0.7 --maxNodes 20 --outputFasta s3://<bucket>/GRCh38-freeze1.gfa.fa
+cactus-graphmap <jobstore> `masked/seqfile.txt` <minigraph GFA> s3://<bucket>/GRCh38-freeze1.paf --realTimeLogging --logFile graphmap.log --batchSystem mesos --provisioner aws --defaultPreemptable --nodeTypes r3.8xlarge:0.7 --maxNodes 20 --outputFasta s3://<bucket>/GRCh38-freeze1.gfa.fa --refFromGFA hg38
 ```
 
 ### Split the sequences by reference chromosome (about 1 hour)
