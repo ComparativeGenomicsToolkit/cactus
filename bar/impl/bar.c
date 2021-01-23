@@ -48,7 +48,7 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
 
     minimumIngroupDegree = cactusParams_get_int(params, 2, "bar", "minimumIngroupDegree");
     minimumOutgroupDegree = cactusParams_get_int(params, 2, "bar", "minimumOutgroupDegree");
-    minimumDegree = cactusParams_get_int(params, 2, "bar", "minimumDegree");
+    minimumDegree = cactusParams_get_int(params, 2, "bar", "minimumBlockDegree");
     minimumNumberOfSpecies = cactusParams_get_int(params, 2, "bar", "minimumNumberOfSpecies");
 
     // Hardcoded parameters

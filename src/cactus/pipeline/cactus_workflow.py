@@ -631,21 +631,13 @@ class CactusConsolidated1(CactusPhasesJob):
         startDBJob = StartPrimaryDB(job, #dbServerDump=self.dbServerDump,
                                     cactusWorkflowArguments=self.cactusWorkflowArguments,
                                     phaseName="consolidated2", topFlowerName=self.topFlowerName)
-        self.addChild(startDBJob)
+
+        return self.addChild(startDBJob).rv()
 
 class CactusConsolidated2(CactusPhasesJob):
     """Start the secondary DB."""
     def run(self, fileStore):
-        #self.setupSecondaryDatabase()
-        #self.phaseNode.attrib["experimentPath"] = self.cactusWorkflowArguments.experimentFile
-        #self.phaseNode.attrib["secondaryDatabaseString"] = self.cactusWorkflowArguments.secondaryDatabaseString
-        #self.phaseNode.attrib["outputFile"] = "1"
-        return self.makeRecursiveChildJob(CactusConsolidated3, launchSecondaryDbForRecursiveJob=True)
-
-class CactusConsolidated3(CactusRecursionJob):
-    """Initialises the cactus database and adapts the config file for the run."""
-    def run(self, fileStore):
-        # Get the experiment obkect
+        # Get the experiment object
         experiment = self.cactusWorkflowArguments.experimentWrapper
         if (not self.cactusWorkflowArguments.configWrapper.getDoTrimStrategy()) or (self.cactusWorkflowArguments.outgroupEventNames == None):
             setupDivergenceArgs(self.cactusWorkflowArguments)
@@ -668,32 +660,53 @@ class CactusConsolidated3(CactusRecursionJob):
 
         # Temporary place to store the output c2h file
         tmpHal = fileStore.getLocalTempFile()
+        tmpFasta = fileStore.getLocalTempFile()
+        tmpRef = fileStore.getLocalTempFile()
 
         messages = runCactusConsolidated(cactusParams=experiment.getConfigPath(),
                                          cactusDiskDatabaseString=self.cactusWorkflowArguments.cactusDiskDatabaseString,
                                          seqMap=seqMap,
                                          newickTreeString=self.cactusWorkflowArguments.speciesTree,
                                          alignmentsFile=alignments,
-                                         secondaryDatabaseString=self.cactusWorkflowArguments.secondaryDatabaseString,
+                                         #secondaryDatabaseString=self.cactusWorkflowArguments.secondaryDatabaseString,
                                          outputFile=tmpHal,
+                                         outputHalFastaFile=tmpFasta,
+                                         outputReferenceFile=tmpRef,
                                          secondaryAlignmentsFile=secondaryAlignments,
                                          constraintAlignmentsFile=constraints,
                                          logLevel=None,
-                                         outgroupEvents=experiment.getOutgroupGenomes())
+                                         outgroupEvents=experiment.getOutgroupGenomes(),
+                                         referenceEvent=experiment.getRootGenome())
 
         # Log back any messages
         for message in messages:
             logger.info(message)
 
-        # Write the temporary output file to the final output
+        # Write the temporary output files to the final output
         # At top level--have the final .c2h file
-        intermediateResultsUrl = getattr(self.cactusWorkflowArguments, 'intermediateResultsUrl', None)
         halID = fileStore.writeGlobalFile(tmpHal)
+        fastaID = fileStore.writeGlobalFile(tmpFasta)
+        referenceID = fileStore.writeGlobalFile(tmpRef)
+
+        intermediateResultsUrl = getattr(self.cactusWorkflowArguments, 'intermediateResultsUrl', None)
         if intermediateResultsUrl is not None:
             # The user requested to keep the c2h files in a separate place. Export it there.
             url = intermediateResultsUrl + ".c2h"
             fileStore.exportFile(halID, url)
-        return halID
+
+            # The user requested to keep the hal fasta files in a separate place. Export it there.
+            url = intermediateResultsUrl + ".hal.fa"
+            fileStore.exportFile(fastaID, url)
+
+            # The user requested to keep the reference fasta files in a separate place. Export it there.
+            url = intermediateResultsUrl + ".reference.fa"
+            fileStore.exportFile(referenceID, url)
+
+        self.cactusWorkflowArguments.experimentWrapper.setHalID(halID)
+        self.cactusWorkflowArguments.experimentWrapper.setHalFastaID(fastaID)
+        self.cactusWorkflowArguments.experimentWrapper.setReferenceID(referenceID)
+
+        return self.cactusWorkflowArguments.experimentWrapper
 
 ############################################################
 ############################################################

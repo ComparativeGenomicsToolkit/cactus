@@ -21,6 +21,7 @@ void usage() {
     fprintf(stderr, "-l --logLevel : Set the log level\n");
     fprintf(stderr, "-p --params : [Required] The cactus config file\n");
     fprintf(stderr, "-d --cactusDisk : The location of the flower disk directory\n");
+    fprintf(stderr, "-r --referenceEvent : [Required] The name of the reference event\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -37,6 +38,7 @@ int main(int argc, char *argv[]) {
     char * logLevelString = NULL;
     char * cactusDiskDatabaseString = NULL;
     char * paramsFile = NULL;
+    char * referenceEventString = NULL;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -52,11 +54,13 @@ int main(int argc, char *argv[]) {
                 { "logLevel", required_argument, 0, 'l' },
                 { "params", required_argument, 0, 'p' },
                 { "cactusDisk", required_argument, 0, 'd' },
-                { "help", no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
+                { "help", no_argument, 0, 'h' },
+                { "referenceEvent", required_argument, 0, 'r' },
+                { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "l:d:h", long_options, &option_index);
+        int key = getopt_long(argc, argv, "l:d:hr:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -71,6 +75,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 'p':
                 paramsFile = optarg;
+                break;
+            case 'r':
+                referenceEventString = optarg;
                 break;
             case 'h':
                 usage();
@@ -106,7 +113,7 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
-    cactus_make_reference(flowers, cactusDisk, params);
+    cactus_make_reference(flowers, referenceEventString, cactusDisk, params);
 
     ///////////////////////////////////////////////////////////////////////////
     // Write the flower(s) back to disk.

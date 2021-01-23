@@ -243,19 +243,25 @@ def runCactusSplitFlowersBySecondaryGrouping(flowerNames):
 
 def runCactusConsolidated(cactusDiskDatabaseString, seqMap,
                           newickTreeString, cactusParams,
-                          alignmentsFile, secondaryDatabaseString, outputFile,
-                          secondaryAlignmentsFile=None,
-                          constraintAlignmentsFile=None,
-                          logLevel=None, outgroupEvents=None):
+                          alignmentsFile, outputFile, outputHalFastaFile=None,
+                          outputReferenceFile=None, secondaryAlignmentsFile=None, constraintAlignmentsFile=None,
+                          logLevel=None, outgroupEvents=None, referenceEvent=None):
     logLevel = getLogLevelString2(logLevel)
     # We pass in the genome->sequence map as a series of paired arguments: [genome, faPath]*N.
     pairs = [[genome, faPath] for genome, faPath in list(seqMap.items())]
     args = ["--sequences", " ".join([item for sublist in pairs for item in sublist])]
     args += ["--speciesTree", newickTreeString, "--cactusDisk", cactusDiskDatabaseString,
              "--logLevel", logLevel, "--alignments", alignmentsFile, "--params", cactusParams,
-             "--outputDisk", secondaryDatabaseString, "--outputFile", outputFile]
+             "--outputFile", outputFile]
+
+    if outputHalFastaFile:
+        args += ["--outputHalFastaFile", outputHalFastaFile]
+    if outputReferenceFile:
+        args += ["--outputReferenceFile", outputReferenceFile]
     if outgroupEvents:
         args += ["--outgroupEvents", " ".join(outgroupEvents)]
+    if referenceEvent:
+        args += ["--referenceEvent", referenceEvent]
     if secondaryAlignmentsFile:
         args += ["--secondaryAlignments", secondaryAlignmentsFile]
     if constraintAlignmentsFile:
