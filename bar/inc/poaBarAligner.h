@@ -15,7 +15,7 @@
 /*
  * Overall coordination function to run the bar algorithm.
  */
-void bar(stList *flowers, CactusParams *p, CactusDisk *cactusDisk, stList *listOfEndAlignmentFiles);
+void bar(stList *flowers, CactusParams *p, CactusDisk *cactusDisk, stList *listOfEndAlignmentFiles, bool cleanupMemory);
 
 /*
  * Construct a pairwise alignment parameters object parsing the cactus params specified parameters.

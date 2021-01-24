@@ -41,7 +41,7 @@ bool blockFilterFn(stPinchBlock *pinchBlock) {
     return !stCaf_containsRequiredSpecies(pinchBlock, flower, minimumIngroupDegree, minimumOutgroupDegree, minimumDegree, minimumNumberOfSpecies);
 }
 
-void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *listOfEndAlignmentFiles) {
+void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *listOfEndAlignmentFiles, bool cleanupMemory) {
     //////////////////////////////////////////////
     //Parse the many, many necessary parameters from the params file
     //////////////////////////////////////////////
@@ -180,7 +180,7 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
             stCaf_joinTrivialBoundaries(threadSet);
         }*/
 
-        stCaf_finish(flower, threadSet, chainLengthForBigFlower, longChain, INT64_MAX, INT64_MAX); //Flower now destroyed.
+        stCaf_finish(flower, threadSet, chainLengthForBigFlower, longChain, INT64_MAX, INT64_MAX, cleanupMemory); //Flower now destroyed.
         stPinchThreadSet_destruct(threadSet);
         st_logInfo("Ran the cactus core script.\n");
 

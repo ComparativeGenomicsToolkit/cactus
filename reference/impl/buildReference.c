@@ -1176,9 +1176,6 @@ void cactus_make_reference(stList *flowers, char *referenceEventString,
     // Build the reference
     ///////////////////////////////////////////////////////////////////////////
 
-    //char *referenceEventString = cactusParams_get_string(params, 2, "reference", "reference");
-    //(char *) cactusMisc_getDefaultReferenceEventHeader();
-
     int64_t permutations = cactusParams_get_int(params, 2, "reference", "permutations");
     double theta = cactusParams_get_float(params, 2, "reference", "theta");
     double phi = cactusParams_get_float(params, 2, "reference", "phi");
@@ -1204,7 +1201,7 @@ void cactus_make_reference(stList *flowers, char *referenceEventString,
         stThrowNew(REFERENCE_BUILDING_EXCEPTION, "Input error: unrecognized matching algorithm: %s", matchAlgorithmString);
     }
 
-    st_logInfo("The reference event string: %s\n", referenceEventString);
+    /*st_logInfo("The reference event string: %s\n", referenceEventString);
     st_logInfo("The theta parameter has been set to %lf\n", theta);
     st_logInfo("The ignore unaligned gaps parameter is %i\n", ignoreUnalignedGaps);
     st_logInfo("The number of permutations is %" PRIi64 "\n", permutations);
@@ -1215,41 +1212,52 @@ void cactus_make_reference(stList *flowers, char *referenceEventString,
     st_logInfo("Max number of Ns for a scaffold gap is: %" PRIi64 "\n", numberOfNsForScaffoldGap);
     st_logInfo("Min number of sequences to required to support an adjacency is: %" PRIi64 "\n",
             minNumberOfSequencesToSupportAdjacency);
-    st_logInfo("Make scaffolds is: %i\n", makeScaffolds);
+    st_logInfo("Make scaffolds is: %i\n", makeScaffolds);*/
 
     double (*temperatureFn)(double) = useSimulatedAnnealing ? exponentiallyDecreasingTemperatureFn : constantTemperatureFn;
 
     for(int64_t i=0; i<stList_length(flowers); i++) {
         Flower *flower = stList_get(flowers, i);
         st_logInfo("Processing flower %" PRIi64 "\n", flower_getName(flower));
+        buildReferenceTopDown(flower, referenceEventString, permutations, matchingAlgorithm, temperatureFn, theta,
+                              phi, maxWalkForCalculatingZ, ignoreUnalignedGaps, wiggle, numberOfNsForScaffoldGap,
+                              minNumberOfSequencesToSupportAdjacency, makeScaffolds);
+    }
+}
+
+void cactus_make_reference_for_children(stList *flowers, char *referenceEventString,
+                                        CactusDisk *cactusDisk, CactusParams *params) {
+    for(int64_t i=0; i<stList_length(flowers); i++) {
+        Flower *flower = stList_get(flowers, i);
+        st_logInfo("Processing flower %" PRIi64 "\n", flower_getName(flower));
         // Bulk-load all the nested flowers, since we will be reading them in anyway.
         // Currently we can only cache the nested flowers of a list of flowers, so we
         // create a singleton list.
-        //stList *flowers = stList_construct();
-        //stList_append(flowers, flower);
-        //preCacheNestedFlowers(cactusDisk, flowers);
-        //stList_destruct(flowers);
+        stList *flowers2 = stList_construct();
+        stList_append(flowers2, flower);
+        preCacheNestedFlowers(cactusDisk, flowers2);
 
-        //if (!flower_hasParentGroup(flower)) {
-            buildReferenceTopDown(flower, referenceEventString, permutations, matchingAlgorithm, temperatureFn, theta,
-                                  phi, maxWalkForCalculatingZ, ignoreUnalignedGaps, wiggle, numberOfNsForScaffoldGap,
-                                  minNumberOfSequencesToSupportAdjacency, makeScaffolds);
-            //cactusDisk_addUpdateRequest(cactusDisk, flower);
-        /*}
+        if (!flower_hasParentGroup(flower)) {
+            cactus_make_reference(flowers2, referenceEventString, cactusDisk, params);
+            cactusDisk_addUpdateRequest(cactusDisk, flower);
+        }
+        stList_pop(flowers2);
+
         Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
         Group *group;
         while ((group = flower_getNextGroup(groupIt)) != NULL) {
             Flower *subFlower = group_getNestedFlower(group);
             if (subFlower != NULL) {
-                buildReferenceTopDown(subFlower, referenceEventString, permutations,
-                                      matchingAlgorithm, temperatureFn, theta, phi, maxWalkForCalculatingZ, ignoreUnalignedGaps,
-                                      wiggle, numberOfNsForScaffoldGap, minNumberOfSequencesToSupportAdjacency, makeScaffolds);
+                stList_append(flowers2, subFlower);
+                cactus_make_reference(flowers2, referenceEventString, cactusDisk, params);
+                stList_pop(flowers2);
                 cactusDisk_addUpdateRequest(cactusDisk, subFlower);
                 flower_unload(subFlower);
             }
         }
         flower_destructGroupIterator(groupIt);
         assert(!flower_isParentLoaded(flower));
-        cactusDisk_clearCache(cactusDisk);*/
+        cactusDisk_clearCache(cactusDisk);
+        stList_destruct(flowers2);
     }
 }

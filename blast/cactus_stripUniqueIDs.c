@@ -51,10 +51,11 @@ int main(int argc, char *argv[])
         tokens = fastaDecodeHeader(header);
         assert(stList_length(tokens) > 1);
         firstToken = stList_removeFirst(tokens);
-        assert(!strncmp(firstToken, "id=", 3));
+        assert(!strncmp(firstToken, "id=", 3)); // this first token will be id=
         free(firstToken);
         newHeader = fastaEncodeHeader(tokens);
         metaSequence_setHeader(metaSequence, newHeader);
+        stList_destruct(tokens);
     }
     cactusDisk_write(cactusDisk);
 }

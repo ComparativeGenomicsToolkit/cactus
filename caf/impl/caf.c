@@ -637,7 +637,7 @@ void caf(Flower *flowerP, CactusParams *params, char *alignmentsFile, char *seco
 
         //Finish up
         stCaf_finish(flower, threadSet, chainLengthForBigFlower, longChain, minLengthForChromosome,
-                     proportionOfUnalignedBasesForNewChromosome); //Flower is then destroyed at this point.
+                     proportionOfUnalignedBasesForNewChromosome, 0);
         st_logInfo("Ran the cactus core script\n");
 
         //Cleanup

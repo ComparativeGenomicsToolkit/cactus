@@ -226,7 +226,6 @@ int main(int argc, char *argv[]) {
     //////////////////////////////////////////////
 
     Flower *flower = cactus_setup_first_flower(cactusDisk, params, speciesTree, outgroupEvents, sequenceFilesAndEvents);
-    //stripUniqueIdsFromMetaSequences(flower); // Not clear if this is needed
     st_logInfo("Established the first Flower in the hierarchy, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     flower_checkRecursive(flower);
@@ -243,6 +242,13 @@ int main(int argc, char *argv[]) {
         constraintAlignmentsFile = convertAlignments(constraintAlignmentsFile, cactusDisk);
     }
     st_logInfo("Converted alignment coordinates, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+
+    //////////////////////////////////////////////
+    //Strip the unique IDs
+    //////////////////////////////////////////////
+
+    stripUniqueIdsFromMetaSequences(flower);
+    st_logInfo("Stripped the unique IDs, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     //////////////////////////////////////////////
     //Call cactus caf
@@ -263,7 +269,7 @@ int main(int argc, char *argv[]) {
     extendFlowers(flower, leafFlowers, 1); // Get nested flowers to complete
     st_logInfo("Ran extended flowers ready for bar, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
-    bar(leafFlowers, params, cactusDisk, NULL);
+    bar(leafFlowers, params, cactusDisk, NULL, 0);
     st_logInfo("Ran cactus bar, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     flower_checkRecursive(flower);

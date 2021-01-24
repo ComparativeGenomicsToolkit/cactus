@@ -28,6 +28,7 @@ void stripUniqueIdsFromMetaSequences(Flower *flower) {
         newHeader = fastaEncodeHeader(tokens);
         metaSequence_setHeader(metaSequence, newHeader);
     }
+    flower_destructSequenceIterator(flowerIt);
 }
 
 /*

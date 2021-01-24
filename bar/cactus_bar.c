@@ -206,7 +206,7 @@ int main(int argc, char *argv[]) {
          * Run the actual bar algorithm
          */
         stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
-        bar(flowers, params, cactusDisk, listOfEndAlignmentFiles);
+        bar(flowers, params, cactusDisk, listOfEndAlignmentFiles, 1);
         cactusDisk_write(cactusDisk); // Write and close the cactusdisk.
     }
 
