@@ -9,6 +9,7 @@
 """
 import os
 import math
+import copy
 from argparse import ArgumentParser
 import xml.etree.ElementTree as ET
 
