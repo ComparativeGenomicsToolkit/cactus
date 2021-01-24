@@ -432,6 +432,7 @@ def main():
     inSeqPaths = []
     outSeqPaths = []
     inNames = options.inputNames
+    eventNames = []
     
     # mine the paths out of the seqfiles
     if options.inSeqFile:
@@ -462,6 +463,7 @@ def main():
             else:
                 inSeqPaths += [inPath]
                 outSeqPaths += [outPath]
+            eventNames.append(inName)
 
         if options.ignore:
             # see comment above
@@ -483,7 +485,7 @@ def main():
                       maskAlpha=options.maskAlpha,
                       clipAlpha=options.clipAlpha,
                       maskPAF=options.maskPAF,
-                      inputEventNames=inNames)
+                      inputEventNames=eventNames)
 
 if __name__ == '__main__':
     main()
