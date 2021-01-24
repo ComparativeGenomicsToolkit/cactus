@@ -441,7 +441,7 @@ def main():
                 outSeqFile.pathMap[inName] = inSeqFile.pathMap[inName]
                 continue
             if inName not in inSeqFile.pathMap or inName not in outSeqFile.pathMap:
-                raise RuntimeError('{} not present in input and output Seq files'.format(inNmae))
+                raise RuntimeError('{} not present in input and output Seq files'.format(inName))
             inPath = inSeqFile.pathMap[inName]
             outPath = outSeqFile.pathMap[inName]
             if os.path.isdir(inPath):
