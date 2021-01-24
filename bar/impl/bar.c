@@ -66,6 +66,7 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
 
     // toggle from pecan to abpoa for multiple alignment, by setting to non-zero
     // Note that poa uses about N^2 memory, so maximum value is generally in 10s of kb
+    int64_t usePoa = cactusParams_get_int(params, 2, "bar", "partialOrderAlignment");
     int64_t poaWindow = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentWindow");
     int64_t maskFilter = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentMaskFilter");
     int64_t poaBandConstant = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentBandConstant");
@@ -129,7 +130,7 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
         stSortedSet *alignedPairs = NULL;
         stList *alignment_blocks = NULL;
 
-        if(poaWindow != 0) {
+        if(usePoa) {
             /*
              * This makes a consistent set of alignments using abPoa.
              *
