@@ -335,12 +335,10 @@ def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=F
     if maskAlpha or clipAlpha:
         ConfigWrapper(configNode).setPreprocessorActive("lastzRepeatMask", False)
         ConfigWrapper(configNode).setPreprocessorActive("dna-brnn", True)
-        if clipAlpha:
-            for node in configNode.findall("preprocessor"):
-                if getOptionalAttrib(node, "preprocessJob") == 'dna-brnn':
-                    node.attrib["action"] = "clip"
-                    node.attrib["minLength"] = clipAlpha
-                    node.attrib["mergeLength"] = clipAlpha
+        for node in configNode.findall("preprocessor"):
+            if getOptionalAttrib(node, "preprocessJob") == 'dna-brnn':
+                if clipAlpha:
+                    node.attrib["action"] = "clip"                    
     if brnnCores is not None:
         for node in configNode.findall("preprocessor"):
             if getOptionalAttrib(node, "preprocessJob") == 'dna-brnn':
@@ -396,7 +394,7 @@ def main():
     parser.add_argument("--inPaths", nargs='*', help='Space-separated list of input fasta paths (to be used in place of --inSeqFile')
     parser.add_argument("--outPaths", nargs='*', help='Space-separated list of output fasta paths (one for each inPath, used in place of --outSeqFile)')
     parser.add_argument("--maskAlpha", action='store_true', help='Use dna-brnn instead of lastz for repeatmasking')
-    parser.add_argument("--clipAlpha", type=int, help='use dna-brnn instead of lastz for repeatmasking.  Also, clip sequence using given minimum length instead of softmasking')
+    parser.add_argument("--clipAlpha", action='store_true', help='use dna-brnn instead of lastz for repeatmasking.  Also, clip sequence using given minimum length instead of softmasking')
     parser.add_argument("--ignore", nargs='*', help='Space-separate list of genomes from inSeqFile to ignore', default=[])
     parser.add_argument("--maskPAF", type=str, help='Incorporate coverage gaps from given PAF when masking.  Only implemented for dna-brnn masking')
     parser.add_argument("--brnnCores", type=int, help='Specify number of cores for each dna-brnn job (overriding default value from the config)')

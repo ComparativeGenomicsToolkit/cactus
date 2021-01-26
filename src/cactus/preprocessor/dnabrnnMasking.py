@@ -134,7 +134,7 @@ class DnabrnnMaskJob(RoundedJob):
         maskedFile = os.path.join(work_dir, 'masked.fa')
         
         if self.action in ('softmask', 'hardmask'):
-            mask_cmd = ['cactus_fasta_softmask_intervals.py', '--origin=zero', bedFile]
+            mask_cmd = ['cactus_fasta_softmask_intervals.py', '--origin=zero', mergedBedFile]
             if self.minLength:
                 mask_cmd += ['--minLength={}'.format(self.minLength)]
             if self.action == 'hardmask':
