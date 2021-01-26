@@ -205,25 +205,6 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
             stCaf_melt(flower, threadSet, blockFilterFn, 0, 0, 0, INT64_MAX);
         }
 
-        /*if (ingroupCoverageFilePath != NULL) {
-            // Rescue any sequence that is covered by outgroups
-            // but currently unaligned into single-degree blocks.
-            stPinchThreadSetIt pinchIt = stPinchThreadSet_getIt(threadSet);
-            stPinchThread *thread;
-            while ((thread = stPinchThreadSetIt_getNext(&pinchIt)) != NULL) {
-                Cap *cap = flower_getCap(flower,
-                                         stPinchThread_getName(thread));
-                assert(cap != NULL);
-                Sequence *sequence = cap_getSequence(cap);
-                assert(sequence != NULL);
-                rescueCoveredRegions(thread, bedRegions, numBeds,
-                                     sequence_getName(sequence),
-                                     minimumSizeToRescue,
-                                     minimumCoverageToRescue);
-            }
-            stCaf_joinTrivialBoundaries(threadSet);
-        }*/
-
         stCaf_finish(flower, threadSet, chainLengthForBigFlower, longChain, INT64_MAX, INT64_MAX, cleanupMemory); //Flower now destroyed.
         stPinchThreadSet_destruct(threadSet);
         st_logInfo("Ran the cactus core script.\n");

@@ -32,7 +32,6 @@ void usage() {
     fprintf(stderr, "-D --precomputedAlignments : Precomputed end alignments.\n");
     fprintf(stderr, "-E --endAlignmentsToPrecomputeOutputFile [fileName] : If this output file is provided then bar will read stdin first to parse the flower, then to parse the names of the end alignments to precompute. The results will be placed in this file.\n");
     fprintf(stderr, "-G --calculateWhichEndsToComputeSeparately : Decide which end alignments to compute separately.\n");
-    //fprintf(stderr, "-J --ingroupCoverageFile : Binary coverage file containing ingroup regions that are covered by outgroups. These regions will be 'rescued' into single-degree blocks if they haven't been aligned to anything after the bar phase finished.\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -42,7 +41,6 @@ int main(int argc, char *argv[]) {
     stList *listOfEndAlignmentFiles = NULL;
     char *endAlignmentsToPrecomputeOutputFile = NULL;
     bool calculateWhichEndsToComputeSeparately = 0;
-    //char *ingroupCoverageFilePath = NULL;
     char * logLevelString = NULL;
     char * cactusDiskDatabaseString = NULL;
     char * paramsFile = NULL;
@@ -65,7 +63,6 @@ int main(int argc, char *argv[]) {
                 { "precomputedAlignments", required_argument, 0, 'D' },
                 {"endAlignmentsToPrecomputeOutputFile", required_argument, 0, 'E' },
                 { "calculateWhichEndsToComputeSeparately", no_argument, 0, 'G' },
-                //{"ingroupCoverageFile", required_argument, 0, 'J'},
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
@@ -90,13 +87,6 @@ int main(int argc, char *argv[]) {
             case 'h':
                 usage();
                 return 0;
-
-            //case 'j':
-            //    i = sscanf(optarg, "%" PRIi64 "", &maximumLength);
-            //    assert(i == 1);
-            //    assert(maximumLength >= 0);
-            //    break;
-
             case 'D':
                 listOfEndAlignmentFiles = stString_split(optarg);
                 break;
@@ -106,9 +96,6 @@ int main(int argc, char *argv[]) {
             case 'G':
                 calculateWhichEndsToComputeSeparately = 1;
                 break;
-            //case 'J':
-            //    ingroupCoverageFilePath = stString_copy(optarg);
-            //    break;
             default:
                 usage();
                 return 1;

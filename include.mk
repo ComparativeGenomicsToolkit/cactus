@@ -41,6 +41,9 @@ CFLAGS += -UNDEBUG
 # Hack to include libxml2
 CFLAGS+= -I/usr/include/libxml2 -lxml2 ${LDFLAGS}
 
+# Hack to include openmp on os x after "brew install lomp
+CFLAGS+= -Xpreprocessor -fopenmp -lomp
+
 dataSetsPath=/Users/benedictpaten/Dropbox/Documents/work/myPapers/genomeCactusPaper/dataSets
 
 inclDirs = hal/inc api/inc setup/inc bar/inc caf/inc hal/inc reference/inc pipeline/inc submodules/sonLib/C/inc \
