@@ -9,6 +9,7 @@
 """
 import os
 import math
+import copy
 from argparse import ArgumentParser
 import xml.etree.ElementTree as ET
 
@@ -278,13 +279,20 @@ class CactusPreprocessor(RoundedJob):
 
     def run(self, fileStore):
         outputSequenceIDs = []
-        for i, inputSequenceID in enumerate(self.inputSequenceIDs):
-            eventName = self.eventNames[i] if self.eventNames and i < len(self.eventNames) else None
-            if eventName:
-                for node in self.configNode.findall("preprocessor"):
+        if self.eventNames:
+            assert len(self.eventNames) == len(self.inputSequenceIDs)
+            configs = []
+            for eventName in self.eventNames:
+                conf = copy.deepcopy(self.configNode)
+                for node in conf.findall("preprocessor"):
                     if getOptionalAttrib(node, "preprocessJob") == 'dna-brnn':
                         node.attrib["eventName"] = eventName
-            outputSequenceIDs.append(self.addChild(CactusPreprocessor2(inputSequenceID, self.configNode)).rv())
+                # if we don't make different configs, the same reference somehow gets passed to mulitple childs below
+                configs.append(conf)
+
+        for i, inputSequenceID in enumerate(self.inputSequenceIDs):
+            confNode = configs[i] if self.eventNames else self.configNode
+            outputSequenceIDs.append(self.addChild(CactusPreprocessor2(inputSequenceID, confNode)).rv())
         return outputSequenceIDs
 
     @staticmethod
@@ -425,6 +433,7 @@ def main():
     inSeqPaths = []
     outSeqPaths = []
     inNames = options.inputNames
+    eventNames = []
     
     # mine the paths out of the seqfiles
     if options.inSeqFile:
@@ -441,7 +450,7 @@ def main():
                 outSeqFile.pathMap[inName] = inSeqFile.pathMap[inName]
                 continue
             if inName not in inSeqFile.pathMap or inName not in outSeqFile.pathMap:
-                raise RuntimeError('{} not present in input and output Seq files'.format(inNmae))
+                raise RuntimeError('{} not present in input and output Seq files'.format(inName))
             inPath = inSeqFile.pathMap[inName]
             outPath = outSeqFile.pathMap[inName]
             if os.path.isdir(inPath):
@@ -455,6 +464,7 @@ def main():
             else:
                 inSeqPaths += [inPath]
                 outSeqPaths += [outPath]
+            eventNames.append(inName)
 
         if options.ignore:
             # see comment above
@@ -476,7 +486,7 @@ def main():
                       maskAlpha=options.maskAlpha,
                       clipAlpha=options.clipAlpha,
                       maskPAF=options.maskPAF,
-                      inputEventNames=inNames)
+                      inputEventNames=eventNames)
 
 if __name__ == '__main__':
     main()

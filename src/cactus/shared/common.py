@@ -1582,7 +1582,7 @@ def zip_gz(job, input_path, input_id):
     if fa_path.endswith('.gz'):
         fa_path = fa_path[:-3]
     job.fileStore.readGlobalFile(input_id, fa_path, mutable=True)
-    cactus_call(parameters=['gzip', os.path.basename(fa_path)], work_dir=work_dir)
+    cactus_call(parameters=['gzip', '-f', os.path.basename(fa_path)], work_dir=work_dir)
     return job.fileStore.writeGlobalFile(fa_path + '.gz')
 
 def get_aws_region(full_path):

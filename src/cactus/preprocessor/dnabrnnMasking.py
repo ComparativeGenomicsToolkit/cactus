@@ -101,6 +101,7 @@ class DnabrnnMaskJob(RoundedJob):
 
         # merge in the input bed file
         if inputBedFile:
+            input_line_count = 0
             with open(inputBedFile, 'r') as inputBedStream, open(bedFile, 'a') as bedStream:
                 if self.eventName:
                     eventPrefix = 'id={}|'.format(self.eventName)
@@ -119,6 +120,8 @@ class DnabrnnMaskJob(RoundedJob):
                         if toks[0] in contig_lengths:
                             assert from_event
                             bedStream.write('\t'.join(toks))
+                            input_line_count += 1
+            RealtimeLogger.info("Merged in {} bed lines from input bed file for eventPrefix=\"{}\"".format(input_line_count, eventPrefix))
                             
         # merge up the intervals into a new bed file
         mergedBedFile = os.path.join(work_dir, 'filtered.bed')
