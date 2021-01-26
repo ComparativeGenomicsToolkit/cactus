@@ -591,8 +591,8 @@ char *get_adjacency_string_and_overlap(Cap *cap, int *length, int64_t *overlap, 
 
     if (mask_filter >= 0) {
         // apply the mask filter on the forward strand
-        *length = get_unmasked_length(adjacency_string, seq_length, *length, true, mask_filter);
-        length_backward = get_unmasked_length(adjacency_string, seq_length, *length, false, mask_filter);
+        *length = get_unmasked_length(adjacency_string, seq_length, *length, false, mask_filter);
+        length_backward = get_unmasked_length(adjacency_string, seq_length, *length, true, mask_filter);
     }
 
     // Cleanup the string
