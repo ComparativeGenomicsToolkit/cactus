@@ -319,7 +319,7 @@ class CactusPreprocessor2(RoundedJob):
             return self.addChild(BatchPreprocessor(prepXmlElems, self.inputSequenceID, 0)).rv()
 
 def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=False, outputSequences = [], maskAlpha=False, clipAlpha=None,
-                  maskPAF=None, inputEventNames=None):
+                  maskPAF=None, inputEventNames=None, brnnCores=None):
     #Replace any constants
     configNode = ET.parse(configFile).getroot()
     if not outputSequences:
@@ -341,6 +341,10 @@ def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=F
                     node.attrib["action"] = "clip"
                     node.attrib["minLength"] = clipAlpha
                     node.attrib["mergeLength"] = clipAlpha
+    if brnnCores is not None:
+        for node in configNode.findall("preprocessor"):
+            if getOptionalAttrib(node, "preprocessJob") == 'dna-brnn':
+                node.attrib["cpu"] = brnnCores
         
     if not restart:
         inputSequenceIDs = []
@@ -395,6 +399,7 @@ def main():
     parser.add_argument("--clipAlpha", type=int, help='use dna-brnn instead of lastz for repeatmasking.  Also, clip sequence using given minimum length instead of softmasking')
     parser.add_argument("--ignore", nargs='*', help='Space-separate list of genomes from inSeqFile to ignore', default=[])
     parser.add_argument("--maskPAF", type=str, help='Incorporate coverage gaps from given PAF when masking.  Only implemented for dna-brnn masking')
+    parser.add_argument("--brnnCores", type=int, help='Specify number of cores for each dna-brnn job (overriding default value from the config)')
     parser.add_argument("--latest", dest="latest", action="store_true",
                         help="Use the latest version of the docker container "
                         "rather than pulling one matching this version of cactus")
@@ -429,6 +434,8 @@ def main():
         options.maskAlpha = True
     if options.maskPAF and not options.inputNames and not options.inSeqFile:
         raise RuntimeError('--maskPAF requires event names specified wither with an input seqfile or with --inputNames')
+    if options.ignore and options.clipAlpha is None:
+        raise RuntimeError('--ignore can only be used with --clipAlpha')
 
     inSeqPaths = []
     outSeqPaths = []
@@ -486,7 +493,8 @@ def main():
                       maskAlpha=options.maskAlpha,
                       clipAlpha=options.clipAlpha,
                       maskPAF=options.maskPAF,
-                      inputEventNames=eventNames)
+                      inputEventNames=eventNames,
+                      brnnCores=options.brnnCores)
 
 if __name__ == '__main__':
     main()
