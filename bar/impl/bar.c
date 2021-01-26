@@ -11,6 +11,11 @@
 #include "stateMachine.h"
 #include "pairwiseAligner.h"
 
+// OpenMP
+#if defined(_OPENMP)
+#include <omp.h>
+#endif
+
 PairwiseAlignmentParameters *pairwiseAlignmentParameters_constructFromCactusParams(CactusParams *params) {
     PairwiseAlignmentParameters *p = pairwiseAlignmentBandingParameters_construct();
     p->gapGamma = cactusParams_get_float(params, 2, "bar", "gapGamma");
@@ -76,44 +81,6 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
     PairwiseAlignmentParameters *pairwiseAlignmentParameters = pairwiseAlignmentParameters_constructFromCactusParams(params);
     bool pruneOutStubAlignments = cactusParams_get_int(params, 2, "bar", "pruneOutStubAlignments");
 
-    /*
-     * Setup the input parameters for cactus core.
-     */
-
-    /*
-     * Compute complete flower alignments, possibly loading some precomputed alignments.
-     */
-    /*bedRegion *bedRegions = NULL;
-    size_t numBeds = 0;
-    if (ingroupCoverageFilePath != NULL) {
-        // Pre-load the mmap for the coverage file.
-        FILE *coverageFile = fopen(ingroupCoverageFilePath, "rb");
-        if (coverageFile == NULL) {
-            st_errnoAbort("Opening coverage file %s failed",
-                          ingroupCoverageFilePath);
-        }
-        fseek(coverageFile, 0, SEEK_END);
-        int64_t coverageFileLen = ftell(coverageFile);
-        assert(coverageFileLen >= 0);
-        assert(coverageFileLen % sizeof(bedRegion) == 0);
-        if (coverageFileLen == 0) {
-            // mmap doesn't like length-0 mappings, for obvious
-            // reasons. Pretend that the coverage file doesn't
-            // exist in this case, since it contains no data.
-            ingroupCoverageFilePath = NULL;
-        } else {
-            // Establish a memory mapping for the file.
-            bedRegions = mmap(NULL, coverageFileLen, PROT_READ, MAP_SHARED,
-                              fileno(coverageFile), 0);
-            if (bedRegions == MAP_FAILED) {
-                st_errnoAbort("Failure mapping coverage file");
-            }
-
-            numBeds = coverageFileLen / sizeof(bedRegion);
-        }
-        fclose(coverageFile);
-    }*/
-
     //////////////////////////////////////////////
     //Run the bar algorithm
     //////////////////////////////////////////////
@@ -122,6 +89,82 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
         st_errAbort("We have precomputed alignments but %" PRIi64 " flowers to align.\n", stList_length(flowers));
     }
     cactusDisk_preCacheStrings(cactusDisk, flowers);
+
+#if defined(_OPENMP)
+    stList *alignments = stList_construct();
+#pragma omp parallel for
+    for (int64_t j = 0; j<stList_length(flowers); j++) {
+        flower = stList_get(flowers, j);
+        if (usePoa) {
+            /*
+             * This makes a consistent set of alignments using abPoa.
+             *
+             * It does not use any precomputed alignments, if they are provided they will be ignored
+             */
+            stList_append(alignments,
+                          make_flower_alignment_poa(flower, maximumLength, poaWindow, maskFilter, poaBandConstant,
+                                                    poaBandFraction));
+            st_logInfo("Created the poa alignments: %" PRIi64 " poa alignment blocks for flower\n", stList_length(stList_get(alignments, j)));
+        } else {
+            StateMachine *sM = stateMachine5_construct(fiveState);
+            stList_append(alignments,
+                          makeFlowerAlignment3(sM, flower, listOfEndAlignmentFiles, spanningTrees, maximumLength,
+                                               useProgressiveMerging, matchGamma,
+                                               pairwiseAlignmentParameters,
+                                               pruneOutStubAlignments));
+            stateMachine_destruct(sM);
+            st_logInfo("Created the alignment: %" PRIi64 " pairs for flower\n", stSortedSet_size(stList_get(alignments, j)));
+        }
+    }
+    st_logInfo("Created the alignments\n");
+
+    for (int64_t j = 0; j < stList_length(flowers); j++) {
+        flower = stList_get(flowers, j);
+        st_logInfo("Processing a flower\n");
+
+        stPinchIterator *pinchIterator = NULL;
+        if(usePoa) {
+            pinchIterator = stPinchIterator_constructFromAlignedBlocks(stList_get(alignments, j));
+        }
+        else {
+            pinchIterator = stPinchIterator_constructFromAlignedPairs(stList_get(alignments, j), getNextAlignedPairAlignment);
+        }
+        /*
+         * Run the cactus caf functions to build cactus.
+         */
+        stPinchThreadSet *threadSet = stCaf_setup(flower);
+        stCaf_anneal(threadSet, pinchIterator, NULL);
+        if (minimumDegree < 2) {
+            stCaf_makeDegreeOneBlocks(threadSet);
+        }
+        if (minimumIngroupDegree > 0 || minimumOutgroupDegree > 0 || minimumDegree > 1) {
+            stCaf_melt(flower, threadSet, blockFilterFn, 0, 0, 0, INT64_MAX);
+        }
+
+        stCaf_finish(flower, threadSet, chainLengthForBigFlower, longChain, INT64_MAX, INT64_MAX, cleanupMemory); //Flower now destroyed.
+        stPinchThreadSet_destruct(threadSet);
+        st_logInfo("Ran the cactus core script.\n");
+
+        /*
+         * Cleanup
+         */
+        //Clean up the sorted set after cleaning up the iterator
+        stPinchIterator_destruct(pinchIterator);
+        if(poaWindow != 0) {
+            stList_destruct(stList_get(alignments, j));
+        }
+        else {
+            stSortedSet_destruct(stList_get(alignments, j));
+        }
+
+        st_logInfo("Finished filling in the alignments for the flower\n");
+    }
+    stList_destruct(alignments);
+
+    //st_logInfo("Created the alignment: %" PRIi64 " pairs\n", stSortedSet_size(alignedPairs));
+    //pinchIterator = stPinchIterator_constructFromAlignedPairs(alignedPairs, getNextAlignedPairAlignment);
+    //}
+#else
     for (int64_t j = 0; j < stList_length(flowers); j++) {
         flower = stList_get(flowers, j);
         st_logInfo("Processing a flower\n");
@@ -199,6 +242,7 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
 
         st_logInfo("Finished filling in the alignments for the flower\n");
     }
+#endif
 
     //////////////////////////////////////////////
     //Clean up
