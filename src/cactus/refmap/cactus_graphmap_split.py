@@ -201,6 +201,8 @@ def split_gfa(job, config, gfa_id, paf_id, ref_contigs, other_contig, reference_
 
     # get the specificity filters
     query_coverage = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minQueryCoverage", default="0")
+    small_query_coverage = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minQuerySmallCoverage", default="0")
+    small_coverage_threshold = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minQuerySmallThreshold", default="0")
     query_uniqueness = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minQueryUniqueness", default="0")
     amb_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "ambiguousName", default="_AMBIGUOUS_")
 
@@ -209,6 +211,8 @@ def split_gfa(job, config, gfa_id, paf_id, ref_contigs, other_contig, reference_
            '-p', paf_path,
            '-b', out_prefix,
            '-n', query_coverage,
+           '-N', small_query_coverage,
+           '-T', small_coverage_threshold,
            '-Q', query_uniqueness,
            '-a', amb_event]
     if other_contig:

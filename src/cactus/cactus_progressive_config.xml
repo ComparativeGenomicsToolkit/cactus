@@ -278,8 +278,8 @@
 		 nodeBasedUniversal="0"
 		 strictUniversal="0"
 		 minMZBlockLength="0"
-		 minMAPQ="0"
-		 minGAFBlockLength="0"
+		 minMAPQ="5"
+		 minGAFBlockLength="100000"
 		 minGAFNodeLength="0"
 		 minGAFQueryOverlapFilter="10000"
 		 maskFilter="-1"
@@ -287,10 +287,14 @@
 		 />
 	<!-- cactus-graphmap-split options -->
 	<!-- minQueryCoverage: At least this fraction of input contig must align to reference contig for it to be assigned. -->
+	<!-- minQuerySmallCoverage: Like minQueryCoverage, but applied only to contigs with length < minQuerySmallThreshold. -->
+	<!-- minQuerySmallThreshold: Threshold used to toggle between minQueryCoverage and minuQuerySmallCoverage. -->
 	<!-- minQueryUniqueness: The ratio of the number of query bases aligned to the chosen ref contig vs the next best ref contig must exceed this threshold to not be considered ambigious. -->
 	<!-- ambiguousName: Contigs deemed ambiguous using the above filters get added to a "contig" with this name, and are preserved in output. -->		
 	<graphmap_split
 		 minQueryCoverage="0.55"
+		 minQuerySmallCoverage="0.85"
+		 minQuerySmallThreshold="5000000"
 		 minQueryUniqueness="2"
 		 ambiguousName="_AMBIGUOUS_"
 		 />
