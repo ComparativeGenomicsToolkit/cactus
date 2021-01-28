@@ -11,6 +11,11 @@
 #include <stdio.h>
 #include <ctype.h>
 
+// OpenMP
+#if defined(_OPENMP)
+#include <omp.h>
+#endif
+
 // char <--> uint8_t conversion copied over from abPOA example
 // AaCcGgTtNn ==> 0,1,2,3,4
 static unsigned char nst_nt4_table[256] = {
@@ -476,11 +481,20 @@ Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_leng
     // Calculate the initial, potentially inconsistent msas and column scores for each msa
     float *column_scores[end_no];
     Msa **msas = st_malloc(sizeof(Msa *) * end_no);
+#if defined(_OPENMP)
+#pragma omp parallel for
     for(int64_t i=0; i<end_no; i++) {
         msas[i] = msa_make_partial_order_alignment(end_strings[i], end_string_lengths[i], end_lengths[i], window_size,
                                                    poa_band_constant, poa_band_fraction);
         column_scores[i] = make_column_scores(msas[i]);
     }
+#else
+    for(int64_t i=0; i<end_no; i++) {
+        msas[i] = msa_make_partial_order_alignment(end_strings[i], end_string_lengths[i], end_lengths[i], window_size,
+                                                   poa_band_constant, poa_band_fraction);
+        column_scores[i] = make_column_scores(msas[i]);
+    }
+#endif
 
     // Make the msas consistent with one another
     for(int64_t i=0; i<end_no; i++) { // For each end

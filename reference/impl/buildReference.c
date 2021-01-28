@@ -995,7 +995,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
      * Get the reference event
      */
     Event *referenceEvent = getReferenceEvent(flower, referenceEventHeader);
-    fprintf(stderr, "Chose reference event %" PRIi64 ": %s\n", event_getName(referenceEvent), event_getHeader(referenceEvent));
+    st_logDebug("Chose reference event %" PRIi64 ": %s\n", event_getName(referenceEvent), event_getHeader(referenceEvent));
 
     /*
      * Get any extra ends to balance the group from the parent problem.
@@ -1014,7 +1014,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
      */
     stList *stubTangleEnds = getTangleStubEnds(flower, endsToNodes);
     int64_t nodeNumber = chainNumber + stList_length(stubTangleEnds);
-    st_logInfo(
+    st_logDebug(
             "For flower: %" PRIi64 " we have %" PRIi64 " nodes for: %" PRIi64 " ends, %" PRIi64 " chains, %" PRIi64 " stubs and %" PRIi64 " blocks\n",
             flower_getName(flower), nodeNumber, flower_getEndNumber(flower), flower_getChainNumber(flower), stList_length(stubTangleEnds),
             flower_getBlockNumber(flower));
@@ -1201,24 +1201,24 @@ void cactus_make_reference(stList *flowers, char *referenceEventString,
         stThrowNew(REFERENCE_BUILDING_EXCEPTION, "Input error: unrecognized matching algorithm: %s", matchAlgorithmString);
     }
 
-    /*st_logInfo("The reference event string: %s\n", referenceEventString);
-    st_logInfo("The theta parameter has been set to %lf\n", theta);
-    st_logInfo("The ignore unaligned gaps parameter is %i\n", ignoreUnalignedGaps);
-    st_logInfo("The number of permutations is %" PRIi64 "\n", permutations);
-    st_logInfo("Simulated annealing is %" PRIi64 "\n", useSimulatedAnnealing);
-    st_logInfo("Max number of segments in thread to calculate z-score between is %" PRIi64 "\n",
+    /*st_logDebug("The reference event string: %s\n", referenceEventString);
+    st_logDebug("The theta parameter has been set to %lf\n", theta);
+    st_logDebug("The ignore unaligned gaps parameter is %i\n", ignoreUnalignedGaps);
+    st_logDebug("The number of permutations is %" PRIi64 "\n", permutations);
+    st_logDebug("Simulated annealing is %" PRIi64 "\n", useSimulatedAnnealing);
+    st_logDebug("Max number of segments in thread to calculate z-score between is %" PRIi64 "\n",
             maxWalkForCalculatingZ);
-    st_logInfo("Wiggle is %f\n", wiggle);
-    st_logInfo("Max number of Ns for a scaffold gap is: %" PRIi64 "\n", numberOfNsForScaffoldGap);
-    st_logInfo("Min number of sequences to required to support an adjacency is: %" PRIi64 "\n",
+    st_logDebug("Wiggle is %f\n", wiggle);
+    st_logDebug("Max number of Ns for a scaffold gap is: %" PRIi64 "\n", numberOfNsForScaffoldGap);
+    st_logDebug("Min number of sequences to required to support an adjacency is: %" PRIi64 "\n",
             minNumberOfSequencesToSupportAdjacency);
-    st_logInfo("Make scaffolds is: %i\n", makeScaffolds);*/
+    st_logDebug("Make scaffolds is: %i\n", makeScaffolds);*/
 
     double (*temperatureFn)(double) = useSimulatedAnnealing ? exponentiallyDecreasingTemperatureFn : constantTemperatureFn;
 
     for(int64_t i=0; i<stList_length(flowers); i++) {
         Flower *flower = stList_get(flowers, i);
-        st_logInfo("Processing flower %" PRIi64 "\n", flower_getName(flower));
+        st_logDebug("Processing flower %" PRIi64 "\n", flower_getName(flower));
         buildReferenceTopDown(flower, referenceEventString, permutations, matchingAlgorithm, temperatureFn, theta,
                               phi, maxWalkForCalculatingZ, ignoreUnalignedGaps, wiggle, numberOfNsForScaffoldGap,
                               minNumberOfSequencesToSupportAdjacency, makeScaffolds);
@@ -1229,7 +1229,7 @@ void cactus_make_reference_for_children(stList *flowers, char *referenceEventStr
                                         CactusDisk *cactusDisk, CactusParams *params) {
     for(int64_t i=0; i<stList_length(flowers); i++) {
         Flower *flower = stList_get(flowers, i);
-        st_logInfo("Processing flower %" PRIi64 "\n", flower_getName(flower));
+        st_logDebug("Processing flower %" PRIi64 "\n", flower_getName(flower));
         // Bulk-load all the nested flowers, since we will be reading them in anyway.
         // Currently we can only cache the nested flowers of a list of flowers, so we
         // create a singleton list.

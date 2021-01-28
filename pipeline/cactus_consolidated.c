@@ -228,7 +228,7 @@ int main(int argc, char *argv[]) {
     Flower *flower = cactus_setup_first_flower(cactusDisk, params, speciesTree, outgroupEvents, sequenceFilesAndEvents);
     st_logInfo("Established the first Flower in the hierarchy, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
-    flower_checkRecursive(flower);
+    //flower_checkRecursive(flower);
 
     //////////////////////////////////////////////
     //Convert alignment coordinates
@@ -316,6 +316,7 @@ int main(int argc, char *argv[]) {
     st_logInfo("Ran cactus make reference top down coordinates, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     flower_checkRecursive(flower);
+    st_logInfo("Ran cactus check, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     //////////////////////////////////////////////
     //Make c2h files, then build hal

@@ -102,7 +102,7 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
              * It does not use any precomputed alignments, if they are provided they will be ignored
              */
             alignments[j] = make_flower_alignment_poa(flower, maximumLength, poaWindow, maskFilter, poaBandConstant, poaBandFraction);
-            st_logInfo("Created the poa alignments: %" PRIi64 " poa alignment blocks for flower\n", stList_length(alignments[j]));
+            st_logDebug("Created the poa alignments: %" PRIi64 " poa alignment blocks for flower\n", stList_length(alignments[j]));
         } else {
             StateMachine *sM = stateMachine5_construct(fiveState);
             alignments[j] = makeFlowerAlignment3(sM, flower, listOfEndAlignmentFiles, spanningTrees, maximumLength,
@@ -110,14 +110,14 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
                                                 pairwiseAlignmentParameters,
                                                 pruneOutStubAlignments);
             stateMachine_destruct(sM);
-            st_logInfo("Created the alignment: %" PRIi64 " pairs for flower\n", stSortedSet_size(alignments[j]));
+            st_logDebug("Created the alignment: %" PRIi64 " pairs for flower\n", stSortedSet_size(alignments[j]));
         }
     }
-    st_logInfo("Created the alignments\n");
+    st_logDebug("Created the alignments\n");
 
     for (int64_t j = 0; j < stList_length(flowers); j++) {
         flower = stList_get(flowers, j);
-        st_logInfo("Processing a flower\n");
+        st_logDebug("Processing a flower\n");
 
         stPinchIterator *pinchIterator = NULL;
         if(usePoa) {
@@ -140,7 +140,7 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
 
         stCaf_finish(flower, threadSet, chainLengthForBigFlower, longChain, INT64_MAX, INT64_MAX, cleanupMemory); //Flower now destroyed.
         stPinchThreadSet_destruct(threadSet);
-        st_logInfo("Ran the cactus core script.\n");
+        st_logDebug("Ran the cactus core script.\n");
 
         /*
          * Cleanup
@@ -154,17 +154,17 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
             stSortedSet_destruct(alignments[j]);
         }
 
-        st_logInfo("Finished filling in the alignments for the flower\n");
+        st_logDebug("Finished filling in the alignments for the flower\n");
     }
     free(alignments);
 
-    //st_logInfo("Created the alignment: %" PRIi64 " pairs\n", stSortedSet_size(alignedPairs));
+    //st_logDebug("Created the alignment: %" PRIi64 " pairs\n", stSortedSet_size(alignedPairs));
     //pinchIterator = stPinchIterator_constructFromAlignedPairs(alignedPairs, getNextAlignedPairAlignment);
     //}
 #else
     for (int64_t j = 0; j < stList_length(flowers); j++) {
         flower = stList_get(flowers, j);
-        st_logInfo("Processing a flower\n");
+        st_logDebug("Processing a flower\n");
 
         stPinchIterator *pinchIterator = NULL;
         stSortedSet *alignedPairs = NULL;
@@ -177,7 +177,7 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
              * It does not use any precomputed alignments, if they are provided they will be ignored
              */
             alignment_blocks = make_flower_alignment_poa(flower, maximumLength, poaWindow, maskFilter, poaBandConstant, poaBandFraction);
-            st_logInfo("Created the poa alignments: %" PRIi64 " poa alignment blocks\n", stList_length(alignment_blocks));
+            st_logDebug("Created the poa alignments: %" PRIi64 " poa alignment blocks\n", stList_length(alignment_blocks));
             pinchIterator = stPinchIterator_constructFromAlignedBlocks(alignment_blocks);
         }
         else {
@@ -187,7 +187,7 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
                                                 pairwiseAlignmentParameters,
                                                 pruneOutStubAlignments);
             stateMachine_destruct(sM);
-            st_logInfo("Created the alignment: %" PRIi64 " pairs\n", stSortedSet_size(alignedPairs));
+            st_logDebug("Created the alignment: %" PRIi64 " pairs\n", stSortedSet_size(alignedPairs));
             pinchIterator = stPinchIterator_constructFromAlignedPairs(alignedPairs, getNextAlignedPairAlignment);
         }
         /*
@@ -204,7 +204,7 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
 
         stCaf_finish(flower, threadSet, chainLengthForBigFlower, longChain, INT64_MAX, INT64_MAX, cleanupMemory); //Flower now destroyed.
         stPinchThreadSet_destruct(threadSet);
-        st_logInfo("Ran the cactus core script.\n");
+        st_logDebug("Ran the cactus core script.\n");
 
         /*
          * Cleanup
@@ -218,7 +218,7 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
             stSortedSet_destruct(alignedPairs);
         }
 
-        st_logInfo("Finished filling in the alignments for the flower\n");
+        st_logDebug("Finished filling in the alignments for the flower\n");
     }
 #endif
 

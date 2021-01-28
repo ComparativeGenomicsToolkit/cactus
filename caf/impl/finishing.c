@@ -171,8 +171,10 @@ static void makeChain(stCactusEdgeEnd *cactusEdgeEnd, Flower *flower, bool orien
             if(makeSpacerFlowers) { //Cleanup memory of spacer flowers
                 stCaf_addAdjacencies(spacerFlower);
                 flower_setBuiltBlocks(spacerFlower, 1);
-                cactusDisk_addUpdateRequest(flower_getCactusDisk(spacerFlower), spacerFlower);
-                flower_unload(spacerFlower);
+                if(cleanupMemory) {
+                    cactusDisk_addUpdateRequest(flower_getCactusDisk(spacerFlower), spacerFlower);
+                    flower_unload(spacerFlower);
+                }
             }
 
             //stList_append(stack, stCactusEdgeEnd_getNode(cactusEdgeEnd));

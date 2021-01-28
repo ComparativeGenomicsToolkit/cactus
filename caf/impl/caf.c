@@ -344,7 +344,7 @@ void caf(Flower *flowerP, CactusParams *params, char *alignmentsFile, char *seco
     stPinchIterator *pinchIteratorForConstraints = NULL;
     if (constraintsFile != NULL) {
         pinchIteratorForConstraints = stPinchIterator_constructFromFile(constraintsFile);
-        st_logInfo("Created an iterator for the alignment constaints from file: %s\n", constraintsFile);
+        st_logDebug("Created an iterator for the alignment constaints from file: %s\n", constraintsFile);
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -435,7 +435,7 @@ void caf(Flower *flowerP, CactusParams *params, char *alignmentsFile, char *seco
             //    dumpBlockInfo(threadSet, stString_print("%s-blockStats-preMelting", debugFileName));
             //}
 
-            fprintf(stderr, "Sequence graph statistics after annealing:\n");
+            st_logDebug("Sequence graph statistics after annealing:\n");
             printThreadSetStatistics(threadSet, flower, stderr);
 
             if (minimumBlockHomologySupport > 0) {
@@ -453,7 +453,7 @@ void caf(Flower *flowerP, CactusParams *params, char *alignmentsFile, char *seco
                         uint64_t possibleSupportingHomologies = numPossibleSupportingHomologies(block, flower);
                         double support = ((double) supportingHomologies) / possibleSupportingHomologies;
                         if (support < minimumBlockHomologySupport) {
-                            fprintf(stdout, "Destroyed a megablock with degree %" PRIi64
+                            st_logDebug("Destroyed a megablock with degree %" PRIi64
                             " and %" PRIi64 " supporting homologies out of a maximum "
                                             "of %" PRIi64 " (%lf%%).\n", stPinchBlock_getDegree(block),
                                     supportingHomologies, possibleSupportingHomologies, support);
@@ -485,8 +485,10 @@ void caf(Flower *flowerP, CactusParams *params, char *alignmentsFile, char *seco
         //    dumpBlockInfo(threadSet, stString_print("%s-blockStats-postMelting", debugFileName));
         //}
 
-        fprintf(stderr, "Sequence graph statistics after melting:\n");
-        printThreadSetStatistics(threadSet, flower, stderr);
+        st_logDebug("Sequence graph statistics after melting:\n");
+        if(st_getLogLevel() == debug) {
+            printThreadSetStatistics(threadSet, flower, stderr);
+        }
 
         //TODO: Determine if to remove or rescue phylogeny building code
         /*
@@ -638,7 +640,7 @@ void caf(Flower *flowerP, CactusParams *params, char *alignmentsFile, char *seco
         //Finish up
         stCaf_finish(flower, threadSet, chainLengthForBigFlower, longChain, minLengthForChromosome,
                      proportionOfUnalignedBasesForNewChromosome, 0);
-        st_logInfo("Ran the cactus core script\n");
+        st_logDebug("Ran the cactus core script\n");
 
         //Cleanup
         stPinchThreadSet_destruct(threadSet);
@@ -651,9 +653,9 @@ void caf(Flower *flowerP, CactusParams *params, char *alignmentsFile, char *seco
         if (alignmentsList != NULL) {
             stList_destruct(alignmentsList);
         }
-        st_logInfo("Cleaned up from main loop\n");
+        st_logDebug("Cleaned up from main loop\n");
     } else {
-        st_logInfo("We've already built blocks / alignments for this flower\n");
+        st_logDebug("We've already built blocks / alignments for this flower\n");
     }
 
     if (constraintsFile != NULL) {

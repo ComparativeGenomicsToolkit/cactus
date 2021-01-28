@@ -182,14 +182,14 @@ void buildRecursiveThreads(stKVDatabase *database, stList *caps, char *(*segment
     stCache *cache = cacheRecords(database, caps, segmentWriteFn, terminalAdjacencyWriteFn);
 
     //Build new threads
-    stList *records = stList_construct3(0, (void(*)(void *)) stKVDatabaseBulkRequest_destruct);
+    stList *records = stList_construct3(stList_length(caps), (void(*)(void *)) stKVDatabaseBulkRequest_destruct);
     for (int64_t i = 0; i < stList_length(caps); i++) {
         Cap *cap = stList_get(caps, i);
         char *string = getThread(cache, cap);
         assert(string != NULL);
         int64_t recordSize;
         void *data = compress(string, &recordSize);
-        stList_append(records, stKVDatabaseBulkRequest_constructInsertRequest(cap_getName(cap), data, recordSize));
+        stList_set(records, i, stKVDatabaseBulkRequest_constructInsertRequest(cap_getName(cap), data, recordSize));
         free(data);
     }
 
@@ -210,7 +210,7 @@ void buildRecursiveThreads(stKVDatabase *database, stList *caps, char *(*segment
 
 stList *buildRecursiveThreadsInList(stKVDatabase *database, stList *caps, char *(*segmentWriteFn)(Segment *),
         char *(*terminalAdjacencyWriteFn)(Cap *)) {
-    stList *threadStrings = stList_construct3(0, free);
+    stList *threadStrings = stList_construct3(stList_length(caps), free);
 
     //Cache records
     stCache *cache = cacheRecords(database, caps, segmentWriteFn, terminalAdjacencyWriteFn);
@@ -218,7 +218,7 @@ stList *buildRecursiveThreadsInList(stKVDatabase *database, stList *caps, char *
     //Build new threads
     for (int64_t i = 0; i < stList_length(caps); i++) {
         Cap *cap = stList_get(caps, i);
-        stList_append(threadStrings, getThread(cache, cap));
+        stList_set(threadStrings, i, getThread(cache, cap));
     }
 
     stCache_destruct(cache);
