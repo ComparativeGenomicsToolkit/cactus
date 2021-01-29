@@ -279,7 +279,7 @@
 		 strictUniversal="0"
 		 minMZBlockLength="0"
 		 minMAPQ="5"
-		 minGAFBlockLength="100000"
+		 minGAFBlockLength="5000"
 		 minGAFNodeLength="0"
 		 minGAFQueryOverlapFilter="10000"
 		 maskFilter="-1"
