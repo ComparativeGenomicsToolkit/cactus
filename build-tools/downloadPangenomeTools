@@ -49,7 +49,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://github.com/lh3/minigraph.git
 pushd minigraph
-git checkout 274aec227d4bd9cccc9c7a4454ac3a890eed40b8
+git checkout 0004952995a8d50a9758c9e22a660c67bda09eec
 # hack in flags support
 sed -i Makefile -e 's/CFLAGS=/CFLAGS+=/'
 make -j 4
@@ -131,7 +131,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://github.com/ComparativeGenomicsToolkit/cactus-gfa-tools.git
 cd cactus-gfa-tools
-git checkout ce4c5dd1a08f1be05abca3bb258ac09dec1802b1
+git checkout da055afd5371c40937fe197490f166f167ee47ca
 make -j 4
 if [[ $STATIC_CHECK -ne 1 || $(ldd paf2lastz | grep so | wc -l) -eq 0 ]]
 then
