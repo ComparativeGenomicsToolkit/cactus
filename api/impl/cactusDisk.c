@@ -12,6 +12,12 @@
 #include <unistd.h>
 #include <math.h>
 #include <time.h>
+
+// OpenMP
+#if defined(_OPENMP)
+#include <omp.h>
+#endif
+
 #define CACTUS_DISK_NAME_INCREMENT 16384
 #define CACTUS_DISK_BUCKET_NUMBER 65536
 #define CACTUS_DISK_PARAMETER_KEY -100000
@@ -35,35 +41,6 @@ void cactusDisk_removeMetaSequence(CactusDisk *cactusDisk, MetaSequence *metaSeq
  * Functions on strings stored by the flower disk.
  */
 
-Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
-    /*
-     * Adds a string to the database.
-     */
-    int64_t stringSize = strlen(string);
-    int64_t intervalSize = ceil((double) stringSize / CACTUS_DISK_SEQUENCE_CHUNK_SIZE);
-    Name name = cactusDisk_getUniqueIDInterval(cactusDisk, intervalSize);
-    stList *insertRequests = stList_construct3(0, (void (*)(void *)) stKVDatabaseBulkRequest_destruct);
-    for (int64_t i = 0; i * CACTUS_DISK_SEQUENCE_CHUNK_SIZE < stringSize; i++) {
-        int64_t j =
-            (i + 1) * CACTUS_DISK_SEQUENCE_CHUNK_SIZE < stringSize ?
-            CACTUS_DISK_SEQUENCE_CHUNK_SIZE : stringSize - i * CACTUS_DISK_SEQUENCE_CHUNK_SIZE;
-        char *subString = stString_getSubString(string, i * CACTUS_DISK_SEQUENCE_CHUNK_SIZE, j);
-        stList_append(insertRequests, stKVDatabaseBulkRequest_constructInsertRequest(name + i, subString, j + 1));
-        free(subString);
-    }
-    stTry
-    {
-        stKVDatabase_bulkSetRecords(cactusDisk->database, insertRequests);
-    }
-    stCatch(except)
-    {
-        stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
-                        "An unknown database error occurred when we tried to add a string to the cactus disk");
-    }stTryEnd
-         ;
-    stList_destruct(insertRequests);
-    return name;
-}
 
 /*
  * Functions used to precache the sequences in the database for a given set of flowers.
@@ -337,6 +314,44 @@ char *cactusDisk_getStringFromCache(CactusDisk *cactusDisk, Name name, int64_t s
     return string;
 }
 
+Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
+    /*
+     * Adds a string to the database.
+     */
+
+    if(cactusDisk->inMemory) { // Case we are storing everything in memory
+        //Name *name = st_malloc(sizeof(Name));
+        Name name = cactusDisk_getUniqueID(cactusDisk);
+        stHash_insert(cactusDisk->allStrings, (void *)name, stString_copy(string)); // Cheeky 64bit to pointer conversion
+        return name;
+    }
+
+    int64_t stringSize = strlen(string);
+    int64_t intervalSize = ceil((double) stringSize / CACTUS_DISK_SEQUENCE_CHUNK_SIZE);
+    Name name = cactusDisk_getUniqueIDInterval(cactusDisk, intervalSize);
+    stList *insertRequests = stList_construct3(0, (void (*)(void *)) stKVDatabaseBulkRequest_destruct);
+    for (int64_t i = 0; i * CACTUS_DISK_SEQUENCE_CHUNK_SIZE < stringSize; i++) {
+        int64_t j =
+                (i + 1) * CACTUS_DISK_SEQUENCE_CHUNK_SIZE < stringSize ?
+                CACTUS_DISK_SEQUENCE_CHUNK_SIZE : stringSize - i * CACTUS_DISK_SEQUENCE_CHUNK_SIZE;
+        char *subString = stString_getSubString(string, i * CACTUS_DISK_SEQUENCE_CHUNK_SIZE, j);
+        stList_append(insertRequests, stKVDatabaseBulkRequest_constructInsertRequest(name + i, subString, j + 1));
+        free(subString);
+    }
+    stTry
+    {
+        stKVDatabase_bulkSetRecords(cactusDisk->database, insertRequests);
+    }
+    stCatch(except)
+    {
+        stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
+                        "An unknown database error occurred when we tried to add a string to the cactus disk");
+    }stTryEnd
+            ;
+    stList_destruct(insertRequests);
+    return name;
+}
+
 char *cactusDisk_getString(CactusDisk *cactusDisk, Name name, int64_t start, int64_t length, int64_t strand,
         int64_t totalSequenceLength) {
     /*
@@ -347,6 +362,21 @@ char *cactusDisk_getString(CactusDisk *cactusDisk, Name name, int64_t start, int
     if (length == 0) {
         return stString_copy("");
     }
+
+    // If in memory
+    if(cactusDisk->inMemory) {
+        char *string = stHash_search(cactusDisk->allStrings, (void *)name); // Cheeky 64bit int to pointer conversion
+        assert(string != NULL);
+        assert(strlen(string) >= length);
+        string = stString_getSubString(string, start, length);
+        if(!strand) {
+            char *reverseComplement = stString_reverseComplementString(string);
+            free(string);
+            return reverseComplement;
+        }
+        return string;
+    }
+
     //First try getting it from the cache
     char *string = cactusDisk_getStringFromCache(cactusDisk, name, start, length, strand);
     if (string == NULL) { //If not in the cache, add it to the cache and then get it from the cache.
@@ -502,7 +532,7 @@ static bool containsRecord(CactusDisk *cactusDisk, Name objectName) {
         || stKVDatabase_containsRecord(cactusDisk->database, objectName);
 }
 
-static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf, bool create, bool cache) {
+static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf, bool create, bool cache, bool inMemory) {
     CactusDisk *cactusDisk = st_calloc(1, sizeof(CactusDisk));
 
     //construct lists of in memory objects
@@ -514,6 +544,12 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf, bool crea
 
     cactusDisk->eventTree = NULL;
 
+    if(inMemory) {
+        cactusDisk->inMemory = 1;
+        cactusDisk->allStrings = stHash_construct2(NULL, free);
+        cactusDisk->currentName = 1; // Start the naming of objects from 1
+    }
+
     //Now open the database
     cactusDisk->database = stKVDatabase_construct(conf, create);
     if (cache) {
@@ -521,7 +557,7 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf, bool crea
         cactusDisk->cache = stCache_construct2(10000000);
     }
     // 100MB for strings
-    cactusDisk->stringCache = stCache_construct2(10000000);
+    cactusDisk->stringCache = inMemory ? NULL : stCache_construct2(10000000);
 
     //initialise the unique ids.
     int64_t seed = (clock() << 24) | (time(NULL) << 16) | (getpid() & 65535); //Likely to be unique
@@ -547,7 +583,11 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf, bool crea
 }
 
 CactusDisk *cactusDisk_construct(stKVDatabaseConf *conf, bool create, bool cache) {
-    return cactusDisk_constructPrivate(conf, create, cache);
+    return cactusDisk_constructPrivate(conf, create, cache, 0);
+}
+
+CactusDisk *cactusDisk_constructInMemory(stKVDatabaseConf *conf, bool create, bool cache) {
+    return cactusDisk_constructPrivate(conf, create, cache, 1);
 }
 
 void cactusDisk_destruct(CactusDisk *cactusDisk) {
@@ -732,7 +772,7 @@ stList *cactusDisk_getFlowers(CactusDisk *cactusDisk, stList *flowerNames) {
     stList *flowers = stList_construct();
     for (int64_t i = 0; i < stList_length(flowerNames); i++) {
         Name flowerName = *((int64_t *) stList_get(flowerNames, i));
-        static Flower flower;
+        Flower flower;
         flower.name = flowerName;
         Flower *flower2;
         if ((flower2 = stSortedSet_search(cactusDisk->flowers, &flower)) == NULL) {
@@ -749,7 +789,7 @@ stList *cactusDisk_getFlowers(CactusDisk *cactusDisk, stList *flowerNames) {
 }
 
 Flower *cactusDisk_getFlower(CactusDisk *cactusDisk, Name flowerName) {
-    static Flower flower;
+    Flower flower;
     flower.name = flowerName;
     Flower *flower2;
     if ((flower2 = stSortedSet_search(cactusDisk->flowers, &flower)) != NULL) {
@@ -767,7 +807,7 @@ Flower *cactusDisk_getFlower(CactusDisk *cactusDisk, Name flowerName) {
 }
 
 MetaSequence *cactusDisk_getMetaSequence(CactusDisk *cactusDisk, Name metaSequenceName) {
-    static MetaSequence metaSequence;
+    MetaSequence metaSequence;
     metaSequence.name = metaSequenceName;
     MetaSequence *metaSequence2;
     if ((metaSequence2 = stSortedSet_search(cactusDisk->metaSequences, &metaSequence)) != NULL) {
@@ -788,7 +828,7 @@ MetaSequence *cactusDisk_getMetaSequence(CactusDisk *cactusDisk, Name metaSequen
  */
 
 bool cactusDisk_flowerIsLoaded(CactusDisk *cactusDisk, Name flowerName) {
-    static Flower flower;
+    Flower flower;
     flower.name = flowerName;
     return stSortedSet_search(cactusDisk->flowers, &flower) != NULL;
 }
@@ -889,6 +929,19 @@ void cactusDisk_getBlockOfUniqueIDs(CactusDisk *cactusDisk, int64_t intervalSize
 }
 
 int64_t cactusDisk_getUniqueIDInterval(CactusDisk *cactusDisk, int64_t intervalSize) {
+    if(cactusDisk->inMemory) { // If in memory we can just use a counter
+/*#if defined(_OPENMP)
+#pragma omp critical {
+        Name n = cactusDisk->currentName;
+        cactusDisk->currentName += intervalSize;
+    }
+#else*/
+        Name n = cactusDisk->currentName;
+        cactusDisk->currentName += intervalSize;
+//#endif
+        return n;
+    }
+
     assert(cactusDisk->uniqueNumber <= cactusDisk->maxUniqueNumber);
     if (cactusDisk->uniqueNumber + intervalSize > cactusDisk->maxUniqueNumber) {
         cactusDisk_getBlockOfUniqueIDs(cactusDisk, intervalSize);

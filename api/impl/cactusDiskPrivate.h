@@ -20,6 +20,11 @@ struct _cactusDisk {
     EventTree *eventTree;
     Name uniqueNumber;
     Name maxUniqueNumber;
+
+    // Structures used if cactus disk is to only be held in memory
+    bool inMemory;
+    stHash *allStrings; // If the strings are being all stored in memory, a map of names to strings
+    Name currentName; // Used as a counter for issuing names
 };
 
 ////////////////////////////////////////////////

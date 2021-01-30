@@ -12,6 +12,11 @@
 #include "cactus.h"
 #include "sonLib.h"
 
+// OpenMP
+#if defined(_OPENMP)
+#include <omp.h>
+#endif
+
 static void *compress(char *string, int64_t *dataSize) {
     void *data = stCompression_compress(string, strlen(string) + 1, dataSize, 1); //going with least, fastest compression-1);
     free(string);
@@ -183,6 +188,7 @@ void buildRecursiveThreads(stKVDatabase *database, stList *caps, char *(*segment
 
     //Build new threads
     stList *records = stList_construct3(stList_length(caps), (void(*)(void *)) stKVDatabaseBulkRequest_destruct);
+//#pragma omp parallel for
     for (int64_t i = 0; i < stList_length(caps); i++) {
         Cap *cap = stList_get(caps, i);
         char *string = getThread(cache, cap);
@@ -216,6 +222,7 @@ stList *buildRecursiveThreadsInList(stKVDatabase *database, stList *caps, char *
     stCache *cache = cacheRecords(database, caps, segmentWriteFn, terminalAdjacencyWriteFn);
 
     //Build new threads
+//#pragma omp parallel for
     for (int64_t i = 0; i < stList_length(caps); i++) {
         Cap *cap = stList_get(caps, i);
         stList_set(threadStrings, i, getThread(cache, cap));

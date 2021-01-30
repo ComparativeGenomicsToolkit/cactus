@@ -213,7 +213,7 @@ int main(int argc, char *argv[]) {
 
     // Load the cactus disk
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
-    CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, true, true);
+    CactusDisk *cactusDisk = cactusDisk_constructInMemory(kvDatabaseConf, true, true);
 
     // Load the output disk
     stKVDatabase *outputDatabase = stKVDatabase_construct(kvDatabaseConf, 0); // This uses the same db as the cactus
@@ -368,7 +368,7 @@ int main(int argc, char *argv[]) {
         st_system("rm %s", constraintAlignmentsFile);
     }
 
-    //assert(0);
+    assert(0);
 
     // more to do here...
 

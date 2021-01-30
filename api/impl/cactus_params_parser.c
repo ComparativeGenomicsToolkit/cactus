@@ -93,7 +93,7 @@ void cactusParams_set_root(CactusParams *p, int num, ...) {
     va_end(args);
 }
 
-static const char *cactusParams_get_string2(CactusParams *p, int num, va_list args) {
+static char *cactusParams_get_string2(CactusParams *p, int num, va_list args) {
     xmlNodePtr c = get_descendant_node(p->cur, num-1, args);
 
     if(c == NULL) {
@@ -112,7 +112,7 @@ static const char *cactusParams_get_string2(CactusParams *p, int num, va_list ar
 char *cactusParams_get_string(CactusParams *p, int num, ...) {
     va_list args;
     va_start(args, num);
-    const char *c = cactusParams_get_string2(p, num, args);
+    char *c = cactusParams_get_string2(p, num, args);
     va_end(args);
 
     return c;
@@ -122,7 +122,7 @@ int64_t cactusParams_get_int(CactusParams *p, int num, ...) {
     va_list args;
     va_start(args, num);
 
-    const char *c = cactusParams_get_string2(p, num, args);
+    char *c = cactusParams_get_string2(p, num, args);
     int64_t j;
     int i = sscanf(c, "%" PRIi64 "", &j);
     assert(i == 1);

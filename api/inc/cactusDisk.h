@@ -31,6 +31,11 @@ extern const char *CACTUS_DISK_EXCEPTION_ID;
 CactusDisk *cactusDisk_construct(stKVDatabaseConf *conf, bool create, bool cache);
 
 /*
+ * As construct, but for case that the database will never be written to disk.
+ */
+CactusDisk *cactusDisk_constructInMemory(stKVDatabaseConf *conf, bool create, bool cache);
+
+/*
  * Destructs the cactus disk and all open flowers and sequences, and
  * then disconnects from the cactus DB.
  */
