@@ -368,7 +368,7 @@ int main(int argc, char *argv[]) {
         st_system("rm %s", constraintAlignmentsFile);
     }
 
-    assert(0);
+    //assert(0);
 
     // more to do here...
 
