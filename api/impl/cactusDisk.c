@@ -367,7 +367,6 @@ char *cactusDisk_getString(CactusDisk *cactusDisk, Name name, int64_t start, int
     if(cactusDisk->inMemory) {
         char *string = stHash_search(cactusDisk->allStrings, (void *)name); // Cheeky 64bit int to pointer conversion
         assert(string != NULL);
-        assert(strlen(string) >= length);
         string = stString_getSubString(string, start, length);
         if(!strand) {
             char *reverseComplement = stString_reverseComplementString(string);
