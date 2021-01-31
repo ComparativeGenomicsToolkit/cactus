@@ -11,19 +11,32 @@
 
 #include "cactus.h"
 #include "sonLib.h"
+#include "recursiveThreadBuilder.h"
 
 // OpenMP
 #if defined(_OPENMP)
 #include <omp.h>
 #endif
 
-static void *compress(char *string, int64_t *dataSize) {
-    void *data = stCompression_compress(string, strlen(string) + 1, dataSize, 1); //going with least, fastest compression-1);
-    free(string);
-    return data;
+RecordHolder *recordHolder_construct() {
+    return stHash_construct2(NULL, free);
+}
+
+void recordHolder_destruct(RecordHolder *rh) {
+    stHash_destruct(rh);
+}
+
+/*static void *compress(char *string, int64_t *dataSize) {
+    *dataSize = (1+strlen(string)) * sizeof(char);
+    return string;
+
+    //void *data = stCompression_compress(string, strlen(string) + 1, dataSize, 1); //going with least, fastest compression-1);
+    //free(string);
+    //return data;
 }
 
 static char *decompress(void *data, int64_t dataSize) {
+    return data;
     int64_t uncompressedSize;
     char *string = stCompression_decompress(data, dataSize, &uncompressedSize);
     assert(strlen(string)+1 == uncompressedSize);
@@ -31,33 +44,49 @@ static char *decompress(void *data, int64_t dataSize) {
     return string;
 }
 
-static void cacheNonNestedRecords(stCache *cache, stList *caps, char *(*segmentWriteFn)(Segment *),
+static char *recordHolder_get(RecordHolder *rh, Name name) {
+    return stHash_search(rh, name);
+}*/
+
+static void recordHolder_add(RecordHolder *rh, Name name, char *string) {
+    assert(stHash_search(rh, (void *)name) == NULL);
+    stHash_insert(rh, (void *)name, string);
+}
+
+static char *recordHolder_remove(RecordHolder *rh, Name name) {
+    return stHash_remove(rh, (void *)name);
+}
+
+static void cacheNonNestedRecords(RecordHolder *rh, stList *caps, char *(*segmentWriteFn)(Segment *),
         char *(*terminalAdjacencyWriteFn)(Cap *)) {
     /*
      * Caches the set of terminal adjacency and segment records present in the threads.
      */
     for (int64_t i = 0; i < stList_length(caps); i++) {
         Cap *cap = stList_get(caps, i);
-        int64_t recordSize;
+        //int64_t recordSize;
         while (1) {
             Cap *adjacentCap = cap_getAdjacency(cap);
             assert(adjacentCap != NULL);
             Group *group = end_getGroup(cap_getEnd(cap));
             assert(group != NULL);
             if (group_isLeaf(group)) { //Record must not be in the database already
+                recordHolder_add(rh, cap_getName(cap), terminalAdjacencyWriteFn(cap));
+                /*assert(!recordHolder_get(rh, cap_getName(cap)));
                 void *data = compress(terminalAdjacencyWriteFn(cap), &recordSize);
                 assert(!stCache_containsRecord(cache, cap_getName(cap), 0, INT64_MAX));
                 stCache_setRecord(cache, cap_getName(cap), 0, recordSize, data);
-                free(data);
+                free(data);*/
             }
             if ((cap = cap_getOtherSegmentCap(adjacentCap)) == NULL) {
                 break;
             }
             Segment *segment = cap_getSegment(adjacentCap);
-            assert(!stCache_containsRecord(cache, segment_getName(segment), 0, INT64_MAX));
+            recordHolder_add(rh, segment_getName(segment), segmentWriteFn(segment));
+            /*assert(!stCache_containsRecord(cache, segment_getName(segment), 0, INT64_MAX));
             void *data = compress(segmentWriteFn(segment), &recordSize);
             stCache_setRecord(cache, segment_getName(segment), 0, recordSize, data);
-            free(data);
+            free(data);*/
         }
     }
 }
@@ -87,7 +116,7 @@ static stList *getNestedRecordNames(stList *caps) {
     return getRequests;
 }
 
-static void cacheNestedRecords(stKVDatabase *database, stCache *cache, stList *caps) {
+static void cacheNestedRecords(stKVDatabase *database, RecordHolder *rh, stList *caps) {
     /*
      * Caches all the non-terminal adjacencies by retrieving them from the database.
      */
@@ -113,8 +142,9 @@ static void cacheNestedRecords(stKVDatabase *database, stCache *cache, stList *c
         int64_t recordSize;
         void *record = stKVDatabaseBulkResult_getRecord(result, &recordSize);
         assert(record != NULL);
-        assert(!stCache_containsRecord(cache, *recordName, 0, INT64_MAX));
-        stCache_setRecord(cache, *recordName, 0, recordSize, record);
+        recordHolder_add(rh, *recordName, stString_copy(record));
+        /*assert(!stCache_containsRecord(cache, *recordName, 0, INT64_MAX));
+        stCache_setRecord(cache, *recordName, 0, recordSize, record);*/
         stKVDatabaseBulkResult_destruct(result); //Cleanup the memory as we go.
         free(recordName);
     }
@@ -123,15 +153,15 @@ static void cacheNestedRecords(stKVDatabase *database, stCache *cache, stList *c
     stList_destruct(records);
 }
 
-static stCache *cacheRecords(stKVDatabase *database, stList *caps, char *(*segmentWriteFn)(Segment *),
+static RecordHolder *cacheRecords(stKVDatabase *database, stList *caps, char *(*segmentWriteFn)(Segment *),
         char *(*terminalAdjacencyWriteFn)(Cap *)) {
     /*
      * Cache all the elements needed to construct the set of threads.
      */
-    stCache *cache = stCache_construct();
-    cacheNestedRecords(database, cache, caps);
-    cacheNonNestedRecords(cache, caps, segmentWriteFn, terminalAdjacencyWriteFn);
-    return cache;
+    RecordHolder *rh = recordHolder_construct(); //stCache_construct();
+    cacheNestedRecords(database, rh, caps);
+    cacheNonNestedRecords(rh, caps, segmentWriteFn, terminalAdjacencyWriteFn);
+    return rh;
 }
 
 static void deleteNestedRecords(stKVDatabase *database, stList *caps) {
@@ -156,25 +186,41 @@ static void deleteNestedRecords(stKVDatabase *database, stList *caps) {
     stList_destruct(deleteRequests);
 }
 
-static char *getThread(stCache *cache, Cap *startCap) {
+static char *getThread(RecordHolder *rh, Cap *startCap, bool deleteUsedRecords) {
     /*
      * Iterate through, first calculating the length of the final record, then concatenating the results.
      */
     Cap *cap = startCap;
     stList *strings = stList_construct3(0, free);
     while (1) { //Calculate the size of the entries in the DB that represent the thread.
+        char *s = recordHolder_remove(rh, cap_getName(cap));
+        assert(s != NULL);
+        stList_append(strings, s);
+
         Cap *adjacentCap = cap_getAdjacency(cap);
         assert(adjacentCap != NULL);
-        int64_t recordSize;
+
+        /*int64_t recordSize;
         assert(stCache_containsRecord(cache, cap_getName(cap), 0, INT64_MAX));
         void *data = stCache_getRecord(cache, cap_getName(cap), 0, INT64_MAX, &recordSize);
         stList_append(strings, decompress(data, recordSize));
+        if(deleteUsedRecords) {
+            recordHolder_delete(rh, cap_getName(cap));
+            //stCache_delete(cache, cap_getName(cap));
+        }*/
         if ((cap = cap_getOtherSegmentCap(adjacentCap)) == NULL) {
             break;
         }
-        assert(stCache_containsRecord(cache, segment_getName(cap_getSegment(adjacentCap)), 0, INT64_MAX));
+        s = recordHolder_remove(rh, segment_getName(cap_getSegment(adjacentCap)));
+        assert(s != NULL);
+        stList_append(strings, s);
+
+        /*assert(stCache_containsRecord(cache, segment_getName(cap_getSegment(adjacentCap)), 0, INT64_MAX));
         data = stCache_getRecord(cache, segment_getName(cap_getSegment(adjacentCap)), 0, INT64_MAX, &recordSize);
         stList_append(strings, decompress(data, recordSize));
+        if(deleteUsedRecords) {
+            //stCache_deleteRecord(cache, segment_getName(cap_getSegment(adjacentCap)));
+        }*/
     }
     char *string = stString_join2("", strings);
     stList_destruct(strings);
@@ -184,19 +230,21 @@ static char *getThread(stCache *cache, Cap *startCap) {
 void buildRecursiveThreads(stKVDatabase *database, stList *caps, char *(*segmentWriteFn)(Segment *),
         char *(*terminalAdjacencyWriteFn)(Cap *)) {
     //Cache records
-    stCache *cache = cacheRecords(database, caps, segmentWriteFn, terminalAdjacencyWriteFn);
+    RecordHolder *rh = cacheRecords(database, caps, segmentWriteFn, terminalAdjacencyWriteFn);
 
     //Build new threads
     stList *records = stList_construct3(stList_length(caps), (void(*)(void *)) stKVDatabaseBulkRequest_destruct);
 //#pragma omp parallel for
     for (int64_t i = 0; i < stList_length(caps); i++) {
         Cap *cap = stList_get(caps, i);
-        char *string = getThread(cache, cap);
+        char *string = getThread(rh, cap, 0);
         assert(string != NULL);
-        int64_t recordSize;
-        void *data = compress(string, &recordSize);
-        stList_set(records, i, stKVDatabaseBulkRequest_constructInsertRequest(cap_getName(cap), data, recordSize));
-        free(data);
+        //int64_t recordSize;
+        //void *data = compress(string, &recordSize);
+        stList_set(records, i, stKVDatabaseBulkRequest_constructInsertRequest(cap_getName(cap),
+                                                                              string, sizeof(char)*(strlen(string)+1))); //data, recordSize));
+        //free(data);
+        free(string);
     }
 
     //Delete old records and insert new records
@@ -210,26 +258,51 @@ void buildRecursiveThreads(stKVDatabase *database, stList *caps, char *(*segment
             }stTryEnd;
 
     //Cleanup
-    stCache_destruct(cache);
+    recordHolder_destruct(rh);
+    //stCache_destruct(cache);
     stList_destruct(records);
+}
+
+stList *buildRecursiveThreadsInListP(RecordHolder *rh, stList *caps, char *(*segmentWriteFn)(Segment *),
+                                    char *(*terminalAdjacencyWriteFn)(Cap *), bool deleteUsedRecords) {
+    //Build new threads
+    stList *threadStrings = stList_construct3(stList_length(caps), free);
+    for (int64_t i = 0; i < stList_length(caps); i++) {
+        Cap *cap = stList_get(caps, i);
+        stList_set(threadStrings, i, getThread(rh, cap, deleteUsedRecords));
+    }
+    return threadStrings;
 }
 
 stList *buildRecursiveThreadsInList(stKVDatabase *database, stList *caps, char *(*segmentWriteFn)(Segment *),
         char *(*terminalAdjacencyWriteFn)(Cap *)) {
-    stList *threadStrings = stList_construct3(stList_length(caps), free);
-
     //Cache records
-    stCache *cache = cacheRecords(database, caps, segmentWriteFn, terminalAdjacencyWriteFn);
-
-    //Build new threads
-//#pragma omp parallel for
-    for (int64_t i = 0; i < stList_length(caps); i++) {
-        Cap *cap = stList_get(caps, i);
-        stList_set(threadStrings, i, getThread(cache, cap));
-    }
-
-    stCache_destruct(cache);
-
+    RecordHolder *rh = cacheRecords(database, caps, segmentWriteFn, terminalAdjacencyWriteFn);
+    stList *threadStrings = buildRecursiveThreadsInListP(rh, caps, segmentWriteFn, terminalAdjacencyWriteFn, 0);
+    recordHolder_destruct(rh);
     return threadStrings;
 }
+
+void buildRecursiveThreadsNoDb(RecordHolder *rh, stList *caps, char *(*segmentWriteFn)(Segment *),
+                           char *(*terminalAdjacencyWriteFn)(Cap *)) {
+    //Cache records
+    cacheNonNestedRecords(rh, caps, segmentWriteFn, terminalAdjacencyWriteFn);
+
+    //Build new threads and add to cache
+    for (int64_t i = 0; i < stList_length(caps); i++) {
+        Cap *cap = stList_get(caps, i);
+        char *string = getThread(rh, cap, 1);
+        assert(string != NULL);
+        /*int64_t recordSize;
+        void *data = compress(string, &recordSize); // this frees the string*/
+        recordHolder_add(rh, cap_getName(cap), string);
+    }
+}
+
+stList *buildRecursiveThreadsInListNoDb(RecordHolder *rh, stList *caps, char *(*segmentWriteFn)(Segment *),
+                                    char *(*terminalAdjacencyWriteFn)(Cap *)) {
+    cacheNonNestedRecords(rh, caps, segmentWriteFn, terminalAdjacencyWriteFn);
+    return buildRecursiveThreadsInListP(rh, caps, segmentWriteFn, terminalAdjacencyWriteFn, 1);
+}
+
 

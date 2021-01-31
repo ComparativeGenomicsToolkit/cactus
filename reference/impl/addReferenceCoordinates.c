@@ -284,14 +284,7 @@ static stList *getCaps(stList *flowers, Name referenceEventName) {
     return caps;
 }
 
-void bottomUp(stList *flowers, stKVDatabase *sequenceDatabase, Name referenceEventName,
-              bool isTop, stMatrix *(*generateSubstitutionMatrix)(double)) {
-    /*
-     * A reference thread between the two caps
-     * in each flower f may be broken into two in the children of f.
-     * Therefore, for each flower f first identify attached stub ends present in the children of f that are
-     * not present in f and copy them into f, reattaching the reference caps as needed.
-     */
+static stList *bottomUp1(stList *flowers, Name referenceEventName, stMatrix *(*generateSubstitutionMatrix)(double)) {
     stList *caps = getCaps(flowers, referenceEventName);
     for (int64_t i = stList_length(caps) - 1; i >= 0; i--) { //Start from end, as we add to this list.
         setAdjacencyLengthsAndRecoverNewCapsAndBrokenAdjacencies(stList_get(caps, i), caps);
@@ -309,30 +302,61 @@ void bottomUp(stList *flowers, stKVDatabase *sequenceDatabase, Name referenceEve
         stHash_insert(segmentWriteFn_flowerToPhylogeneticTreeHash, flower, getPhylogeneticTreeRootedAtGivenEvent(refEvent, generateSubstitutionMatrix));
     }
 
+    return caps;
+}
+
+static void bottomUp2(stList *threadStrings, stList *caps) {
+    assert(stList_length(threadStrings) == stList_length(caps));
+    int64_t nonTrivialSeqIndex = 0, trivialSeqIndex = stList_length(threadStrings); //These are used as indices for the names of trivial and non-trivial sequences.
+    for (int64_t i = 0; i < stList_length(threadStrings); i++) {
+        Cap *cap = stList_get(caps, i);
+        assert(cap_getStrand(cap));
+        assert(!cap_getSide(cap));
+        Flower *flower = end_getFlower(cap_getEnd(cap));
+        char *threadString = stList_get(threadStrings, i);
+        bool trivialString = isTrivialString(&threadString); //This alters the original string
+        MetaSequence *metaSequence = addMetaSequence(flower, cap, trivialString ? trivialSeqIndex++ : nonTrivialSeqIndex++,
+                                                     threadString, trivialString);
+        free(threadString);
+        int64_t endCoordinate = setCoordinates(flower, metaSequence, cap, metaSequence_getStart(metaSequence) - 1);
+        (void) endCoordinate;
+        assert(endCoordinate == metaSequence_getLength(metaSequence) + metaSequence_getStart(metaSequence));
+    }
+    stList_setDestructor(threadStrings, NULL); //The strings are already cleaned up by the above loop
+    stList_destruct(threadStrings);
+}
+
+void bottomUp(stList *flowers, stKVDatabase *sequenceDatabase, Name referenceEventName,
+              bool isTop, stMatrix *(*generateSubstitutionMatrix)(double)) {
+    /*
+     * A reference thread between the two caps
+     * in each flower f may be broken into two in the children of f.
+     * Therefore, for each flower f first identify attached stub ends present in the children of f that are
+     * not present in f and copy them into f, reattaching the reference caps as needed.
+     */
+    stList *caps = bottomUp1(flowers, referenceEventName, generateSubstitutionMatrix);
+
     if (isTop) {
         stList *threadStrings = buildRecursiveThreadsInList(sequenceDatabase, caps, segmentWriteFn,
                 terminalAdjacencyWriteFn);
-        assert(stList_length(threadStrings) == stList_length(caps));
-
-        int64_t nonTrivialSeqIndex = 0, trivialSeqIndex = stList_length(threadStrings); //These are used as indices for the names of trivial and non-trivial sequences.
-        for (int64_t i = 0; i < stList_length(threadStrings); i++) {
-            Cap *cap = stList_get(caps, i);
-            assert(cap_getStrand(cap));
-            assert(!cap_getSide(cap));
-            Flower *flower = end_getFlower(cap_getEnd(cap));
-            char *threadString = stList_get(threadStrings, i);
-            bool trivialString = isTrivialString(&threadString); //This alters the original string
-            MetaSequence *metaSequence = addMetaSequence(flower, cap, trivialString ? trivialSeqIndex++ : nonTrivialSeqIndex++,
-                    threadString, trivialString);
-            free(threadString);
-            int64_t endCoordinate = setCoordinates(flower, metaSequence, cap, metaSequence_getStart(metaSequence) - 1);
-            (void) endCoordinate;
-            assert(endCoordinate == metaSequence_getLength(metaSequence) + metaSequence_getStart(metaSequence));
-        }
-        stList_setDestructor(threadStrings, NULL); //The strings are already cleaned up by the above loop
-        stList_destruct(threadStrings);
+        bottomUp2(threadStrings, caps);
     } else {
         buildRecursiveThreads(sequenceDatabase, caps, segmentWriteFn, terminalAdjacencyWriteFn);
+    }
+    stHash_destruct(segmentWriteFn_flowerToPhylogeneticTreeHash);
+    stList_destruct(caps);
+}
+
+void bottomUpNoDb(stList *flowers, RecordHolder *rh, Name referenceEventName,
+              bool isTop, stMatrix *(*generateSubstitutionMatrix)(double)) {
+    stList *caps = bottomUp1(flowers, referenceEventName, generateSubstitutionMatrix);
+
+    if (isTop) {
+        stList *threadStrings = buildRecursiveThreadsInListNoDb(rh, caps, segmentWriteFn,
+                                                            terminalAdjacencyWriteFn);
+        bottomUp2(threadStrings, caps);
+    } else {
+        buildRecursiveThreadsNoDb(rh, caps, segmentWriteFn, terminalAdjacencyWriteFn);
     }
     stHash_destruct(segmentWriteFn_flowerToPhylogeneticTreeHash);
     stList_destruct(caps);

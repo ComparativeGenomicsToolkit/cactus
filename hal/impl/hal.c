@@ -187,3 +187,23 @@ void makeHalFormat(Flower *flower, stKVDatabase *database, Name referenceEventNa
     }
     stList_destruct(caps);
 }
+
+void makeHalFormatNoDb(Flower *flower, RecordHolder *rh, Name referenceEventName, FILE *fileHandle) {
+    globalReferenceEventName = referenceEventName;
+    stList *caps = getCaps(flower);
+    if (fileHandle == NULL) {
+        buildRecursiveThreadsNoDb(rh, caps, writeSegment, writeTerminalAdjacency);
+    } else {
+        stList *threadStrings = buildRecursiveThreadsInListNoDb(rh, caps, writeSegment, writeTerminalAdjacency);
+        assert(stList_length(threadStrings) == stList_length(caps));
+        for (int64_t i = 0; i < stList_length(threadStrings); i++) {
+            Cap *cap = stList_get(caps, i);
+            if(!metaSequence_isTrivialSequence(sequence_getMetaSequence(cap_getSequence(cap)))) {
+                char *threadString = stList_get(threadStrings, i);
+                writeSequenceHeader(fileHandle, cap_getSequence(cap));
+                fprintf(fileHandle, "%s\n", threadString);
+            }
+        }
+    }
+    stList_destruct(caps);
+}

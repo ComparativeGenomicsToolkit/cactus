@@ -16,6 +16,11 @@
 #include "hal.h"
 #include "convertAlignmentCoordinates.h"
 
+// OpenMP
+#if defined(_OPENMP)
+#include <omp.h>
+#endif
+
 /*
  * TODOs:
  *
@@ -216,7 +221,7 @@ int main(int argc, char *argv[]) {
     CactusDisk *cactusDisk = cactusDisk_constructInMemory(kvDatabaseConf, true, true);
 
     // Load the output disk
-    stKVDatabase *outputDatabase = stKVDatabase_construct(kvDatabaseConf, 0); // This uses the same db as the cactus
+    //stKVDatabase *outputDatabase = stKVDatabase_construct(kvDatabaseConf, 0); // This uses the same db as the cactus
     // disk, but since we never write anything to it with the cactus disk, it doesn't matter.
 
     st_logInfo("Set up the cactus disk, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
@@ -294,21 +299,25 @@ int main(int argc, char *argv[]) {
     // Top-down this constructs the reference sequence
     for(int64_t i=0; i<stList_length(flowerLayers); i++) {
         stList *flowerLayer = stList_get(flowerLayers, i);
-        st_logInfo("In the %" PRIi64 " layer there are %" PRIi64 " layers in the flowers hierarchy\n", i,
+        st_logInfo("In the %" PRIi64 " layer there are %" PRIi64 " flowers in the flowers hierarchy\n", i,
                    stList_length(flowerLayer));
         cactus_make_reference(flowerLayer, referenceEventString, cactusDisk, params);
     }
     st_logInfo("Ran cactus make reference, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     // Bottom-up reference coordinates phase
+    RecordHolder *rh = recordHolder_construct();
     for(int64_t i=stList_length(flowerLayers)-1; i>=0 ; i--) {
-        bottomUp(stList_get(flowerLayers, i), outputDatabase, referenceEventName, i==0, generateJukesCantorMatrix);
+        //bottomUp(stList_get(flowerLayers, i), outputDatabase, referenceEventName, i==0, generateJukesCantorMatrix);
+        bottomUpNoDb(stList_get(flowerLayers, i), rh, referenceEventName, i==0, generateJukesCantorMatrix);
     }
+    recordHolder_destruct(rh);
     st_logInfo("Ran cactus make reference bottom up coordinates, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     // Top-down reference coordinates phase
     for(int64_t i=0; i<stList_length(flowerLayers); i++) {
         stList *flowers = stList_get(flowerLayers, i);
+#pragma omp parallel for
         for(int64_t j=0; j<stList_length(flowers); j++) {
             topDown(stList_get(flowers, j), referenceEventName);
         }
@@ -323,17 +332,19 @@ int main(int argc, char *argv[]) {
     //////////////////////////////////////////////
 
     // Bottom-up reference coordinates phase
+    rh = recordHolder_construct();
     for(int64_t i=stList_length(flowerLayers)-1; i>0 ; i--) {
         stList *flowers = stList_get(flowerLayers, i);
         for (int64_t j = 0; j < stList_length(flowers); j++) {
-            makeHalFormat(stList_get(flowers, j), outputDatabase, referenceEventName, NULL);
+            makeHalFormatNoDb(stList_get(flowers, j), rh, referenceEventName, NULL);
         }
     }
 
     // Now write the complete cactus to hal file.
     FILE *fileHandle = fopen(outputFile, "w");
-    makeHalFormat(flower, outputDatabase, referenceEventName, fileHandle);
+    makeHalFormatNoDb(flower, rh, referenceEventName, fileHandle);
     fclose(fileHandle);
+    recordHolder_destruct(rh);
     st_logInfo("Ran cactus to hal stage, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     //////////////////////////////////////////////

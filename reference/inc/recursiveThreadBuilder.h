@@ -16,4 +16,16 @@ stList *buildRecursiveThreadsInList(stKVDatabase *database, stList *caps,
         char *(*segmentWriteFn)(Segment *),
         char *(*terminalAdjacencyWriteFn)(Cap *));
 
+typedef stHash RecordHolder;
+
+RecordHolder *recordHolder_construct();
+
+void recordHolder_destruct(RecordHolder *rh);
+
+void buildRecursiveThreadsNoDb(RecordHolder *rh, stList *caps, char *(*segmentWriteFn)(Segment *),
+                               char *(*terminalAdjacencyWriteFn)(Cap *));
+
+stList *buildRecursiveThreadsInListNoDb(RecordHolder *rh, stList *caps, char *(*segmentWriteFn)(Segment *),
+                                        char *(*terminalAdjacencyWriteFn)(Cap *));
+
 #endif /* RECURSIVETHREADBUILDER_H_ */
