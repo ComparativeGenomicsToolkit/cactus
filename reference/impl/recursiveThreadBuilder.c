@@ -18,16 +18,16 @@
 #include <omp.h>
 #endif
 
-static omp_lock_t writelock;
+//static omp_lock_t writelock;
 
 RecordHolder *recordHolder_construct() {
-    omp_init_lock(&writelock);
+    //omp_init_lock(&writelock);
     return stHash_construct2(NULL, free);
 }
 
 void recordHolder_destruct(RecordHolder *rh) {
     stHash_destruct(rh);
-    omp_destroy_lock(&writelock);
+    //omp_destroy_lock(&writelock);
 }
 
 /*static void *compress(char *string, int64_t *dataSize) {
@@ -53,16 +53,17 @@ static char *recordHolder_get(RecordHolder *rh, Name name) {
 }*/
 
 static void recordHolder_add(RecordHolder *rh, Name name, char *string) {
-    omp_set_lock(&writelock);
+    //omp_set_lock(&writelock);
     assert(stHash_search(rh, (void *)name) == NULL);
     stHash_insert(rh, (void *)name, string);
-    omp_unset_lock(&writelock);
+    //omp_unset_lock(&writelock);
 }
 
 static char *recordHolder_remove(RecordHolder *rh, Name name) {
-    omp_set_lock(&writelock);
-    return stHash_remove(rh, (void *)name);
-    omp_unset_lock(&writelock);
+    //omp_set_lock(&writelock);
+    char *string = stHash_remove(rh, (void *)name);
+    //omp_unset_lock(&writelock);
+    return string;
 }
 
 static void cacheNonNestedRecords(RecordHolder *rh, stList *caps, char *(*segmentWriteFn)(Segment *),
@@ -275,7 +276,7 @@ stList *buildRecursiveThreadsInListP(RecordHolder *rh, stList *caps, char *(*seg
                                     char *(*terminalAdjacencyWriteFn)(Cap *), bool deleteUsedRecords) {
     //Build new threads
     stList *threadStrings = stList_construct3(stList_length(caps), free);
-#pragma omp parallel for
+//#pragma omp parallel for
     for (int64_t i = 0; i < stList_length(caps); i++) {
         Cap *cap = stList_get(caps, i);
         stList_set(threadStrings, i, getThread(rh, cap, deleteUsedRecords));
@@ -298,7 +299,7 @@ void buildRecursiveThreadsNoDb(RecordHolder *rh, stList *caps, char *(*segmentWr
     cacheNonNestedRecords(rh, caps, segmentWriteFn, terminalAdjacencyWriteFn);
 
     //Build new threads and add to cache
-#pragma omp parallel for
+//#pragma omp parallel for
     for (int64_t i = 0; i < stList_length(caps); i++) {
         Cap *cap = stList_get(caps, i);
         char *string = getThread(rh, cap, 1);

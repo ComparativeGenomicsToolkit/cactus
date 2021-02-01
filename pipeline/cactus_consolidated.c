@@ -335,6 +335,7 @@ int main(int argc, char *argv[]) {
     rh = recordHolder_construct();
     for(int64_t i=stList_length(flowerLayers)-1; i>0 ; i--) {
         stList *flowers = stList_get(flowerLayers, i);
+//#pragma omp parallel for
         for (int64_t j = 0; j < stList_length(flowers); j++) {
             makeHalFormatNoDb(stList_get(flowers, j), rh, referenceEventName, NULL);
         }
@@ -379,7 +380,7 @@ int main(int argc, char *argv[]) {
         st_system("rm %s", constraintAlignmentsFile);
     }
 
-    //assert(0);
+    assert(0);
 
     // more to do here...
 
