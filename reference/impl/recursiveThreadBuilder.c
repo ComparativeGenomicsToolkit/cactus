@@ -18,15 +18,16 @@
 #include <omp.h>
 #endif
 
-omp_lock_t writelock;
-omp_init_lock(&writelock);
+static omp_lock_t writelock;
 
 RecordHolder *recordHolder_construct() {
+    omp_init_lock(&writelock);
     return stHash_construct2(NULL, free);
 }
 
 void recordHolder_destruct(RecordHolder *rh) {
     stHash_destruct(rh);
+    omp_destroy_lock(&writelock);
 }
 
 /*static void *compress(char *string, int64_t *dataSize) {
