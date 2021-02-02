@@ -195,7 +195,7 @@ def get_mask_bed(job, seq_id_map, min_length):
     beds = []
     for event in seq_id_map.keys():
         fa_path, fa_id = seq_id_map[event]
-        beds.append(job.addChildJobFn(get_mask_bed_from_fasta, event, fa_id, fa_path, min_length, disk=fa_id.size * 2).rv())
+        beds.append(job.addChildJobFn(get_mask_bed_from_fasta, event, fa_id, fa_path, min_length, disk=fa_id.size * 5).rv())
     return job.addFollowOnJobFn(cat_beds, beds).rv()
 
 def get_mask_bed_from_fasta(job, event, fa_id, fa_path, min_length):
