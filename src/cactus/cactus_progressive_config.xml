@@ -292,9 +292,9 @@
 	<!-- minQueryUniqueness: The ratio of the number of query bases aligned to the chosen ref contig vs the next best ref contig must exceed this threshold to not be considered ambigious. -->
 	<!-- ambiguousName: Contigs deemed ambiguous using the above filters get added to a "contig" with this name, and are preserved in output. -->		
 	<graphmap_split
-		 minQueryCoverage="0.80"
-		 minQuerySmallCoverage="0"
-		 minQuerySmallThreshold="0"
+		 minQueryCoverage="0.75"
+		 minQuerySmallCoverage="0.85"
+		 minQuerySmallThreshold="1000000"
 		 minQueryUniqueness="2"
 		 ambiguousName="_AMBIGUOUS_"
 		 />
