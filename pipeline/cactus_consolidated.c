@@ -24,10 +24,7 @@
 /*
  * TODOs:
  *
- * - add glue from cactus_workflow.py
- *
- * fix makeFlower in finishing so it unloads the flower for normal execution
- * fix cactus_getReference
+ * get bar non-poa to run in parallel
  *
  */
 
@@ -55,6 +52,55 @@ static char *convertAlignments(char *alignmentsFile, CactusDisk *cactusDisk) {
     return tempFile;
 }
 
+static RecordHolder *getMergedRecordHolders(stHash *recordHolders, Flower *flower) {
+    stList *children = stList_construct();
+    getChildFlowers(flower, children);
+    RecordHolder *rh = recordHolder_construct();
+    for(int64_t i=0; i<stList_length(children); i++) {
+        RecordHolder *rh2 = stHash_search(recordHolders, stList_get(children, i));
+        assert(rh2 != NULL);
+        recordHolder_transferAll(rh, rh2);
+    }
+    return rh;
+}
+
+static void callBottomUp(Flower *flower, RecordHolder *rh, void *extraArg) {
+    bottomUpNoDb(flower, rh, (Name)extraArg, 0, generateJukesCantorMatrix);
+}
+
+static void callHalFn(Flower *flower, RecordHolder *rh, void *extraArg) {
+    makeHalFormatNoDb(flower, rh, (Name)extraArg, NULL);
+}
+
+static RecordHolder *doBottomUpTraversal(stList *flowerLayers,
+                                         void (*bottomUpFn)(Flower *, RecordHolder *, void *), void *extraArgs) {
+    // Bottom-up reference coordinates phase
+    stHash *recordHolders = stHash_construct();
+    for(int64_t i=stList_length(flowerLayers)-1; i>0 ; i--) {
+        stList *flowers = stList_get(flowerLayers, i);
+
+        // List to keep the RecordHolder for each flower
+        stList *recordHoldersForFlowers = stList_construct3(stList_length(flowers), NULL);
+
+#pragma omp parallel for
+        for (int64_t j = 0; j < stList_length(flowers); j++) {
+            stList_set(recordHoldersForFlowers, j, getMergedRecordHolders(recordHolders, stList_get(flowers, j)));
+            bottomUpFn(stList_get(flowers, j), stList_get(recordHoldersForFlowers, j), extraArgs);
+        }
+
+        // Make new map of flowers in the layer to RecordHolders
+        stHash_destruct(recordHolders);
+        recordHolders = stHash_construct();
+        for (int64_t j = 0; j < stList_length(flowers); j++) {
+            stHash_insert(recordHolders, stList_get(flowers, j), stList_get(recordHoldersForFlowers, j));
+        }
+        stList_destruct(recordHoldersForFlowers);
+    }
+    RecordHolder *rh = getMergedRecordHolders(recordHolders, stList_get(stList_get(flowerLayers, 0), 0));
+    stHash_destruct(recordHolders);
+    return rh;
+}
+
 int main(int argc, char *argv[]) {
     time_t startTime = time(NULL);
 
@@ -64,7 +110,6 @@ int main(int argc, char *argv[]) {
     char *logLevelString = NULL;
     char *paramsFile = NULL;
     char *cactusDiskDatabaseString = NULL;
-    //char *outputDiskDatabaseString = NULL;
     char *outputFile = NULL;
     char *outputHalFastaFile = NULL;
     char *outputReferenceFile = NULL;
@@ -220,10 +265,6 @@ int main(int argc, char *argv[]) {
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
     CactusDisk *cactusDisk = cactusDisk_constructInMemory(kvDatabaseConf, true, true);
 
-    // Load the output disk
-    //stKVDatabase *outputDatabase = stKVDatabase_construct(kvDatabaseConf, 0); // This uses the same db as the cactus
-    // disk, but since we never write anything to it with the cactus disk, it doesn't matter.
-
     st_logInfo("Set up the cactus disk, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     //////////////////////////////////////////////
@@ -306,11 +347,8 @@ int main(int argc, char *argv[]) {
     st_logInfo("Ran cactus make reference, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     // Bottom-up reference coordinates phase
-    RecordHolder *rh = recordHolder_construct();
-    for(int64_t i=stList_length(flowerLayers)-1; i>=0 ; i--) {
-        //bottomUp(stList_get(flowerLayers, i), outputDatabase, referenceEventName, i==0, generateJukesCantorMatrix);
-        bottomUpNoDb(stList_get(flowerLayers, i), rh, referenceEventName, i==0, generateJukesCantorMatrix);
-    }
+    RecordHolder *rh = doBottomUpTraversal(flowerLayers, callBottomUp, (void *)referenceEventName);
+    bottomUpNoDb(flower, rh, referenceEventName, 1, generateJukesCantorMatrix);
     recordHolder_destruct(rh);
     st_logInfo("Ran cactus make reference bottom up coordinates, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
@@ -331,17 +369,7 @@ int main(int argc, char *argv[]) {
     //Make c2h files, then build hal
     //////////////////////////////////////////////
 
-    // Bottom-up reference coordinates phase
-    rh = recordHolder_construct();
-    for(int64_t i=stList_length(flowerLayers)-1; i>0 ; i--) {
-        stList *flowers = stList_get(flowerLayers, i);
-//#pragma omp parallel for
-        for (int64_t j = 0; j < stList_length(flowers); j++) {
-            makeHalFormatNoDb(stList_get(flowers, j), rh, referenceEventName, NULL);
-        }
-    }
-
-    // Now write the complete cactus to hal file.
+    rh = doBottomUpTraversal(flowerLayers, callHalFn, (void *)referenceEventName);
     FILE *fileHandle = fopen(outputFile, "w");
     makeHalFormatNoDb(flower, rh, referenceEventName, fileHandle);
     fclose(fileHandle);

@@ -12,11 +12,11 @@
 #include "CuTest.h"
 #include "recursiveThreadBuilder.h"
 
-static char *writeSegment(Segment *segment) {
+static char *writeSegment(Segment *segment, void *extraArg) {
     return stString_print("%" PRIi64 " %s ", segment_getStart(segment), segment_getString(segment));
 }
 
-static char *writeTerminalAdjacency(Cap *cap) {
+static char *writeTerminalAdjacency(Cap *cap, void *extraArg) {
     if(cap_getCoordinate(cap_getAdjacency(cap)) - cap_getCoordinate(cap) - 1 == 0) {
         return stString_print("");
     }
@@ -82,14 +82,14 @@ static void recursiveFileBuilder_test(CuTest *testCase) {
     stKVDatabase *secondaryDatabase = stKVDatabase_construct(secondaryConf, 1);
     stList *caps = stList_construct();
     stList_append(caps, flower_getCap(nestedFlower, cap_getName(cap1)));
-    buildRecursiveThreads(secondaryDatabase, caps, writeSegment, writeTerminalAdjacency);
+    buildRecursiveThreads(secondaryDatabase, caps, writeSegment, writeTerminalAdjacency, NULL);
     stKVDatabase_destruct(secondaryDatabase);
 
     //Now complete the alignment
     secondaryDatabase = stKVDatabase_construct(secondaryConf, 0);
     stList_pop(caps);
     stList_append(caps, cap1);
-    stList *threadStrings = buildRecursiveThreadsInList(secondaryDatabase, caps, writeSegment, writeTerminalAdjacency);
+    stList *threadStrings = buildRecursiveThreadsInList(secondaryDatabase, caps, writeSegment, writeTerminalAdjacency, NULL);
     stKVDatabase_deleteFromDisk(secondaryDatabase);
 
     CuAssertIntEquals(testCase, 1, stList_length(threadStrings));

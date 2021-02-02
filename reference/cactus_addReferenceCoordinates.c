@@ -140,7 +140,10 @@ int main(int argc, char *argv[]) {
             assert(sequenceDatabase != NULL);
 
             cactusDisk_preCacheSegmentStrings(cactusDisk, flowers);
-            bottomUp(flowers, sequenceDatabase, referenceEventName, !flower_hasParentGroup(flower), generateJukesCantorMatrix);
+            for(int64_t i=0; i<stList_length(flowers); i++) {
+                bottomUp(stList_get(flowers, i), sequenceDatabase, referenceEventName, !flower_hasParentGroup(flower),
+                         generateJukesCantorMatrix);
+            }
 
             // Unload the nested flowers to save memory. They haven't
             // been changed, so we don't write them to the cactus

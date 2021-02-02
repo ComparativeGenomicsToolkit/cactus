@@ -173,15 +173,12 @@ static void recoverBrokenAdjacencies(Flower *flower, stList *recoveredCaps, Name
     flower_destructGroupIterator(groupIt);
 }
 
-static char *terminalAdjacencyWriteFn(Cap *cap) {
+static char *terminalAdjacencyWriteFn(Cap *cap, void *extraArg) {
     return stString_copy("");
 }
 
-static stHash *segmentWriteFn_flowerToPhylogeneticTreeHash;
-
-static char *segmentWriteFn(Segment *segment) {
-    stTree *phylogeneticTree = stHash_search(segmentWriteFn_flowerToPhylogeneticTreeHash, block_getFlower(segment_getBlock(segment)));
-    assert(phylogeneticTree != NULL);
+static char *segmentWriteFn(Segment *segment, void *extraArg) {
+    stTree *phylogeneticTree = extraArg;
     char *segmentString = getMaximumLikelihoodString(phylogeneticTree, segment_getBlock(segment));
     //We append a zero to a segment string if it is part of block containing only a reference segment, else we append a 1.
     //We use these boolean values to determine if a sequence contains only these trivial strings, and is therefore trivial.
@@ -261,46 +258,32 @@ static int64_t setCoordinates(Flower *flower, MetaSequence *metaSequence, Cap *c
     return coordinate;
 }
 
-static stList *getCaps(stList *flowers, Name referenceEventName) {
+static stList *getCaps(Flower *flower, Name referenceEventName) {
     stList *caps = stList_construct();
-    for (int64_t i = 0; i < stList_length(flowers); i++) {
-        Flower *flower = stList_get(flowers, i);
-        //Get list of caps
-        Flower_EndIterator *endIt = flower_getEndIterator(flower);
-        End *end;
-        while ((end = flower_getNextEnd(endIt)) != NULL) {
-            if (end_isStubEnd(end)) {
-                Cap *cap = getCapForReferenceEvent(end, referenceEventName); //The cap in the reference
-                if(cap != NULL) {
-                    cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
-                    if (!cap_getSide(cap)) {
-                        stList_append(caps, cap);
-                    }
+    //Get list of caps
+    Flower_EndIterator *endIt = flower_getEndIterator(flower);
+    End *end;
+    while ((end = flower_getNextEnd(endIt)) != NULL) {
+        if (end_isStubEnd(end)) {
+            Cap *cap = getCapForReferenceEvent(end, referenceEventName); //The cap in the reference
+            if(cap != NULL) {
+                cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
+                if (!cap_getSide(cap)) {
+                    stList_append(caps, cap);
                 }
             }
         }
-        flower_destructEndIterator(endIt);
     }
+    flower_destructEndIterator(endIt);
     return caps;
 }
 
-static stList *bottomUp1(stList *flowers, Name referenceEventName, stMatrix *(*generateSubstitutionMatrix)(double)) {
-    stList *caps = getCaps(flowers, referenceEventName);
+static stList *bottomUp1(Flower *flower, Name referenceEventName, stMatrix *(*generateSubstitutionMatrix)(double)) {
+    stList *caps = getCaps(flower, referenceEventName);
     for (int64_t i = stList_length(caps) - 1; i >= 0; i--) { //Start from end, as we add to this list.
         setAdjacencyLengthsAndRecoverNewCapsAndBrokenAdjacencies(stList_get(caps, i), caps);
     }
-    for(int64_t i=0; i<stList_length(flowers); i++) {
-        recoverBrokenAdjacencies(stList_get(flowers, i), caps, referenceEventName);
-    }
-
-    //Build the phylogenetic event trees for base calling.
-    segmentWriteFn_flowerToPhylogeneticTreeHash = stHash_construct2(NULL, (void (*)(void *))cleanupPhylogeneticTree);
-    for(int64_t i=0; i<stList_length(flowers); i++) {
-        Flower *flower = stList_get(flowers, i);
-        Event *refEvent = eventTree_getEvent(flower_getEventTree(flower), referenceEventName);
-        assert(refEvent != NULL);
-        stHash_insert(segmentWriteFn_flowerToPhylogeneticTreeHash, flower, getPhylogeneticTreeRootedAtGivenEvent(refEvent, generateSubstitutionMatrix));
-    }
+    recoverBrokenAdjacencies(flower, caps, referenceEventName);
 
     return caps;
 }
@@ -326,7 +309,7 @@ static void bottomUp2(stList *threadStrings, stList *caps) {
     stList_destruct(threadStrings);
 }
 
-void bottomUp(stList *flowers, stKVDatabase *sequenceDatabase, Name referenceEventName,
+void bottomUp(Flower *flower, stKVDatabase *sequenceDatabase, Name referenceEventName,
               bool isTop, stMatrix *(*generateSubstitutionMatrix)(double)) {
     /*
      * A reference thread between the two caps
@@ -334,31 +317,41 @@ void bottomUp(stList *flowers, stKVDatabase *sequenceDatabase, Name referenceEve
      * Therefore, for each flower f first identify attached stub ends present in the children of f that are
      * not present in f and copy them into f, reattaching the reference caps as needed.
      */
-    stList *caps = bottomUp1(flowers, referenceEventName, generateSubstitutionMatrix);
+    stList *caps = bottomUp1(flower, referenceEventName, generateSubstitutionMatrix);
+
+    //Get the phylogenetic event trees for base calling.
+    stTree *phylogeneticTree =
+            getPhylogeneticTreeRootedAtGivenEvent(eventTree_getEvent(flower_getEventTree(flower), referenceEventName),
+                                                  generateSubstitutionMatrix);
 
     if (isTop) {
         stList *threadStrings = buildRecursiveThreadsInList(sequenceDatabase, caps, segmentWriteFn,
-                terminalAdjacencyWriteFn);
+                terminalAdjacencyWriteFn, phylogeneticTree);
         bottomUp2(threadStrings, caps);
     } else {
-        buildRecursiveThreads(sequenceDatabase, caps, segmentWriteFn, terminalAdjacencyWriteFn);
+        buildRecursiveThreads(sequenceDatabase, caps, segmentWriteFn, terminalAdjacencyWriteFn, phylogeneticTree);
     }
-    stHash_destruct(segmentWriteFn_flowerToPhylogeneticTreeHash);
+    cleanupPhylogeneticTree(phylogeneticTree);
     stList_destruct(caps);
 }
 
-void bottomUpNoDb(stList *flowers, RecordHolder *rh, Name referenceEventName,
+void bottomUpNoDb(Flower *flower, RecordHolder *rh, Name referenceEventName,
               bool isTop, stMatrix *(*generateSubstitutionMatrix)(double)) {
-    stList *caps = bottomUp1(flowers, referenceEventName, generateSubstitutionMatrix);
+    stList *caps = bottomUp1(flower, referenceEventName, generateSubstitutionMatrix);
+
+    //Get the phylogenetic event trees for base calling.
+    stTree *phylogeneticTree =
+            getPhylogeneticTreeRootedAtGivenEvent(eventTree_getEvent(flower_getEventTree(flower), referenceEventName),
+                                                  generateSubstitutionMatrix);
 
     if (isTop) {
         stList *threadStrings = buildRecursiveThreadsInListNoDb(rh, caps, segmentWriteFn,
-                                                            terminalAdjacencyWriteFn);
+                                                            terminalAdjacencyWriteFn, phylogeneticTree);
         bottomUp2(threadStrings, caps);
     } else {
-        buildRecursiveThreadsNoDb(rh, caps, segmentWriteFn, terminalAdjacencyWriteFn);
+        buildRecursiveThreadsNoDb(rh, caps, segmentWriteFn, terminalAdjacencyWriteFn, phylogeneticTree);
     }
-    stHash_destruct(segmentWriteFn_flowerToPhylogeneticTreeHash);
+    cleanupPhylogeneticTree(phylogeneticTree);
     stList_destruct(caps);
 }
 

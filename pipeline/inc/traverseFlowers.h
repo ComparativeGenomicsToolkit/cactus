@@ -17,6 +17,11 @@
 void extendFlowers(Flower *flower, stList *extendedFlowers, int64_t minFlowerSize);
 
 /*
+ * Get all the child flowers of a given flower, putting them in children.
+ */
+void getChildFlowers(Flower *flower, stList *children);
+
+/*
  * Returns a list of lists of the flowers, where the flowers in layer i are the children of those
  * in layer i-1 and the parents of those in layer i+1.
  */

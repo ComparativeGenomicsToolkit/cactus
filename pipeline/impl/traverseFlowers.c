@@ -24,24 +24,22 @@ void extendFlowers(Flower *flower, stList *extendedFlowers, int64_t minFlowerSiz
 }
 
 /*
- * Get all the child flowers of a list of flowers
+ * Get all the child flowers of a given flower.
  */
-static void getChildFlowers(stList *flowers, stList *children) {
-    for(int64_t i=0; i<stList_length(flowers); i++) {
-        Flower *flower = stList_get(flowers, i);
-        if (!flower_isLeaf(flower)) {
-            assert(flower_builtBlocks(
-                    flower)); //This recursion depends on the block structure having been properly defined for all nodes.
-            Flower_GroupIterator *groupIterator = flower_getGroupIterator(flower);
-            Group *group;
-            while ((group = flower_getNextGroup(groupIterator)) != NULL) {
-                if (!group_isLeaf(group)) {
-                    Flower *nestedFlower = group_getNestedFlower(group);
-                    assert(nestedFlower != NULL);
-                    stList_append(children, nestedFlower);
-                }
+void getChildFlowers(Flower *flower, stList *children) {
+    if (!flower_isLeaf(flower)) {
+        assert(flower_builtBlocks(
+                flower)); //This recursion depends on the block structure having been properly defined for all nodes.
+        Flower_GroupIterator *groupIterator = flower_getGroupIterator(flower);
+        Group *group;
+        while ((group = flower_getNextGroup(groupIterator)) != NULL) {
+            if (!group_isLeaf(group)) {
+                Flower *nestedFlower = group_getNestedFlower(group);
+                assert(nestedFlower != NULL);
+                stList_append(children, nestedFlower);
             }
         }
+        flower_destructGroupIterator(groupIterator);
     }
 }
 
@@ -51,7 +49,9 @@ stList *getFlowerHierarchyInLayers(Flower *rootFlower) {
     stList *flowerLayers = stList_construct3(0, (void (*)(void *)) stList_destruct);
     while (stList_length(flowers) > 0) {
         stList *childFlowers = stList_construct();
-        getChildFlowers(flowers, childFlowers);
+        for(int64_t i=0; i<stList_length(flowers); i++) {
+            getChildFlowers(stList_get(flowers, i), childFlowers);
+        }
         stList_append(flowerLayers, flowers);
         flowers = childFlowers;
     }
