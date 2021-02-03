@@ -20,7 +20,7 @@ from toil.common import Toil
 from toil.job import Job
 from cactus.shared.common import cactus_call
 from cactus.shared.common import RoundedJob
-from cactus.shared.common import getOptionalAttrib
+from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.common import runGetChunks
 from cactus.shared.common import makeURL
 from cactus.shared.common import readGlobalFileWithoutCache
@@ -435,10 +435,17 @@ def main():
     if options.ignore and options.clipAlpha is None:
         raise RuntimeError('--ignore can only be used with --clipAlpha')
 
+    
     inSeqPaths = []
     outSeqPaths = []
     inNames = options.inputNames
     eventNames = []
+
+    #load cactus config
+    configNode = ET.parse(options.configFile).getroot()
+    #we never want to preprocess minigraph sequences
+    graph_event = getOptionalAttrib(findRequiredNode(configNode, "graphmap"), "assemblyName", default="_MINIGRAPH_")
+    options.ignore.append(graph_event)
     
     # mine the paths out of the seqfiles
     if options.inSeqFile:
