@@ -61,6 +61,7 @@ static RecordHolder *getMergedRecordHolders(stHash *recordHolders, Flower *flowe
         assert(rh2 != NULL);
         recordHolder_transferAll(rh, rh2);
     }
+    stList_destruct(children);
     return rh;
 }
 
@@ -317,6 +318,7 @@ int main(int argc, char *argv[]) {
 
     bar(leafFlowers, params, cactusDisk, NULL, 0);
     st_logInfo("Ran cactus bar, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+    stList_destruct(leafFlowers);
 
     flower_checkRecursive(flower);
 
@@ -349,6 +351,7 @@ int main(int argc, char *argv[]) {
     // Bottom-up reference coordinates phase
     RecordHolder *rh = doBottomUpTraversal(flowerLayers, callBottomUp, (void *)referenceEventName);
     bottomUpNoDb(flower, rh, referenceEventName, 1, generateJukesCantorMatrix);
+    assert(recordHolder_size(rh) == 0);
     recordHolder_destruct(rh);
     st_logInfo("Ran cactus make reference bottom up coordinates, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
@@ -373,6 +376,7 @@ int main(int argc, char *argv[]) {
     FILE *fileHandle = fopen(outputFile, "w");
     makeHalFormatNoDb(flower, rh, referenceEventName, fileHandle);
     fclose(fileHandle);
+    assert(recordHolder_size(rh) == 0);
     recordHolder_destruct(rh);
     st_logInfo("Ran cactus to hal stage, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
@@ -407,10 +411,11 @@ int main(int argc, char *argv[]) {
     if(constraintAlignmentsFile != NULL) {
         st_system("rm %s", constraintAlignmentsFile);
     }
+    cactusDisk_destruct(cactusDisk);
+    stKVDatabaseConf_destruct(kvDatabaseConf);
 
-    assert(0);
-
-    // more to do here...
+    //while(1);
+    //assert(0);
 
     return 0;
 }

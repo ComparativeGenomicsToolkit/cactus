@@ -428,6 +428,7 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
         // if we have only one window, return it
         output_msa = stList_removeFirst(msa_windows);
         output_msa->seqs = seqs;
+        free(output_msa->seq_lens); // cleanup old memory
         output_msa->seq_lens = seq_lens;
     } else {
         // otherwise, we stitch all the window msas into a new output msa

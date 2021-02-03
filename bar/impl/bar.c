@@ -226,7 +226,7 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
     //Clean up
     //////////////////////////////////////////////
 
-    stList_destruct(flowers);
+    //stList_destruct(flowers);
     pairwiseAlignmentBandingParameters_destruct(pairwiseAlignmentParameters);
 
     /*if (bedRegions != NULL) {

@@ -615,6 +615,10 @@ void cactusDisk_destruct(CactusDisk *cactusDisk) {
         stCache_destruct(cactusDisk->stringCache);
     }
 
+    if(cactusDisk->inMemory) {
+        stHash_destruct(cactusDisk->allStrings); // cleanup the library of strings we hold in memory
+    }
+
     stList_destruct(cactusDisk->updateRequests);
 
     free(cactusDisk);

@@ -248,6 +248,7 @@ void caf(Flower *flowerP, CactusParams *params, char *alignmentsFile, char *seco
     } else {
         st_errAbort("Could not parse removeRecoverableChains argument");
     }
+    free(removeRecoverableChainsStr);
 
     int64_t maxRecoverableChainsIterations = cactusParams_get_int(params, 2, "caf", "maxRecoverableChainsIterations");
     int64_t maxRecoverableChainLength = cactusParams_get_int(params, 2, "caf", "maxRecoverableChainLength");
@@ -306,6 +307,7 @@ void caf(Flower *flowerP, CactusParams *params, char *alignmentsFile, char *seco
     } else {
         st_errAbort("Could not recognize alignmentFilter option %s", alignmentFilter);
     }
+    free(alignmentFilter);
     // by default we apply all primary filtering to secondary alignments too
     if (secondaryFilterFn == NULL && filterFn != NULL) {
         secondaryFilterFn = filterFn;
@@ -317,6 +319,7 @@ void caf(Flower *flowerP, CactusParams *params, char *alignmentsFile, char *seco
     ///////////////////////////////////////////////////////////////////////////
 
     //TODO: Add more here.
+
 
     assert(minimumTreeCoverage >= 0.0);
     assert(minimumTreeCoverage <= 1.0);
@@ -375,7 +378,7 @@ void caf(Flower *flowerP, CactusParams *params, char *alignmentsFile, char *seco
         }
 
         //Setup the alignments
-        stPinchIterator *pinchIterator;
+        stPinchIterator *pinchIterator = NULL;
         stPinchIterator *secondaryPinchIterator = NULL;
         stList *alignmentsList = NULL;
         assert(alignmentsFile != NULL);
@@ -646,7 +649,7 @@ void caf(Flower *flowerP, CactusParams *params, char *alignmentsFile, char *seco
         stPinchThreadSet_destruct(threadSet);
         stPinchIterator_destruct(pinchIterator);
         if(secondaryPinchIterator != NULL) {
-            free(secondaryPinchIterator);
+            stPinchIterator_destruct(secondaryPinchIterator);
         }
         stSet_destruct(outgroupThreads);
 
@@ -657,6 +660,11 @@ void caf(Flower *flowerP, CactusParams *params, char *alignmentsFile, char *seco
     } else {
         st_logDebug("We've already built blocks / alignments for this flower\n");
     }
+
+    // Cleanup
+    free(annealingRounds);
+    free(meltingRounds);
+    free(alignmentTrims);
 
     if (constraintsFile != NULL) {
         stPinchIterator_destruct(pinchIteratorForConstraints);

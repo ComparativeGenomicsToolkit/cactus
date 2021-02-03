@@ -114,8 +114,9 @@ char *cactusParams_get_string(CactusParams *p, int num, ...) {
     va_start(args, num);
     char *c = cactusParams_get_string2(p, num, args);
     va_end(args);
-
-    return c;
+    char *d = stString_copy(c);
+    xmlFree(c);
+    return d;
 }
 
 int64_t cactusParams_get_int(CactusParams *p, int num, ...) {
@@ -125,6 +126,7 @@ int64_t cactusParams_get_int(CactusParams *p, int num, ...) {
     char *c = cactusParams_get_string2(p, num, args);
     int64_t j;
     int i = sscanf(c, "%" PRIi64 "", &j);
+    xmlFree(c);
     assert(i == 1);
 
     va_end(args);
@@ -137,6 +139,7 @@ int64_t *cactusParams_get_ints(CactusParams *p, int64_t *length, int num, ...) {
 
     char *c = cactusParams_get_string2(p, num, args);
     stList *l = stString_split(c);
+    xmlFree(c);
     *length = stList_length(l);
     int64_t *ints = st_malloc(sizeof(int64_t) * *length);
     for(int64_t i=0; i<*length; i++) {
@@ -156,6 +159,7 @@ double cactusParams_get_float(CactusParams *p, int num, ...) {
     const char *c = cactusParams_get_string2(p, num, args);
     float j;
     int i = sscanf(c, "%f", &j);
+    xmlFree(c);
     assert(i == 1);
 
     va_end(args);

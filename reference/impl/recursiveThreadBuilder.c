@@ -52,6 +52,10 @@ static char *recordHolder_get(RecordHolder *rh, Name name) {
     return stHash_search(rh, name);
 }*/
 
+int64_t recordHolder_size(RecordHolder *rh) {
+    return stHash_size(rh);
+}
+
 static void recordHolder_add(RecordHolder *rh, Name name, char *string) {
     //omp_set_lock(&writelock);
     assert(stHash_search(rh, (void *)name) == NULL);

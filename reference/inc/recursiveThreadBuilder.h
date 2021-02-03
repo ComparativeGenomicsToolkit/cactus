@@ -22,6 +22,8 @@ RecordHolder *recordHolder_construct();
 
 void recordHolder_destruct(RecordHolder *rh);
 
+int64_t recordHolder_size(RecordHolder *rh);
+
 /*
  * Removes the records from rhToAdd and puts them in rhToAddTo, leaving rhToAdd empty.
  */

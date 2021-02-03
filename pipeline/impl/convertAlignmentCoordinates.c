@@ -16,17 +16,17 @@ void stripUniqueIdsFromMetaSequences(Flower *flower) {
         MetaSequence *metaSequence = sequence_getMetaSequence(sequence);
         const char *header;
         char *firstToken, *newHeader;
-        stList *tokens;
         // Strip the ID token from the header (should be the first
         // |-separated token) and complain if there isn't one.
         header = metaSequence_getHeader(metaSequence);
-        tokens = fastaDecodeHeader(header);
+        stList *tokens = fastaDecodeHeader(header);
         assert(stList_length(tokens) > 1);
         firstToken = stList_removeFirst(tokens);
         assert(!strncmp(firstToken, "id=", 3));
         free(firstToken);
         newHeader = fastaEncodeHeader(tokens);
         metaSequence_setHeader(metaSequence, newHeader);
+        stList_destruct(tokens);
     }
     flower_destructSequenceIterator(flowerIt);
 }

@@ -23,11 +23,12 @@ void getReferenceSequences(FILE *fileHandle, Flower *flower, char *referenceEven
         if (strcmp(eventName, referenceEventString) == 0 &&
             sequence_getLength(sequence) > 0 &&
             !metaSequence_isTrivialSequence(sequence_getMetaSequence(sequence))) {
-            const char *sequenceHeader = formatSequenceHeader(sequence);
+            char *sequenceHeader = formatSequenceHeader(sequence);
             st_logInfo("Sequence %s\n", sequenceHeader);
             char *string = sequence_getString(sequence, sequence_getStart(sequence), sequence_getLength(sequence), 1);
-            fastaWrite(string, (char *)sequenceHeader, fileHandle);
+            fastaWrite(string, sequenceHeader, fileHandle);
             free(string);
+            free(sequenceHeader);
         }
     }
     flower_destructSequenceIterator(seqIterator);

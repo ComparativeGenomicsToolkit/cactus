@@ -204,6 +204,7 @@ void makeHalFormatNoDb(Flower *flower, RecordHolder *rh, Name referenceEventName
                 fprintf(fileHandle, "%s\n", threadString);
             }
         }
+        stList_destruct(threadStrings);
     }
     stList_destruct(caps);
 }

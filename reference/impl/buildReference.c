@@ -1200,6 +1200,7 @@ void cactus_make_reference(stList *flowers, char *referenceEventString,
     } else {
         stThrowNew(REFERENCE_BUILDING_EXCEPTION, "Input error: unrecognized matching algorithm: %s", matchAlgorithmString);
     }
+    free(matchAlgorithmString);
 
     /*st_logDebug("The reference event string: %s\n", referenceEventString);
     st_logDebug("The theta parameter has been set to %lf\n", theta);
