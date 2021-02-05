@@ -18,35 +18,72 @@ Cap *cap_construct(End *end, Event *event) {
     return cap_construct3(cactusDisk_getUniqueID(flower_getCactusDisk(end_getFlower(end))), event, end);
 }
 
+CapContents *cap_getContents(Cap *cap) {
+    return (CapContents *)(cap->order ? cap+2 : cap+1);
+}
+
 Cap *cap_construct3(Name instance, Event *event, End *end) {
     assert(end != NULL);
     assert(event != NULL);
     assert(instance != NULL_NAME);
     Cap *cap;
 
-    cap = st_malloc(sizeof(Cap));
-    cap->capContents = st_malloc(sizeof(CapContents));
-    cap->rCap = st_malloc(sizeof(Cap));
-    cap->rCap->rCap = cap;
-    cap->rCap->capContents = cap->capContents;
+    cap = st_malloc(2*sizeof(Cap) + sizeof(CapContents));
+    cap->order = 1;
+    (cap+1)->order = 0;
 
-    cap->end = end;
-    cap->rCap->end = end_getReverse(end);
+    //cap_getContents(cap) = st_malloc(sizeof(CapContents));
+    //cap->rCap = st_malloc(sizeof(Cap));
+    //cap->rCap->rCap = cap;
+    //cap->rcap_getContents(cap) = cap_getContents(cap);
 
-    cap->capContents->instance = instance;
-    cap->capContents->coordinate = INT64_MAX;
-    cap->capContents->sequence = NULL;
-    cap->capContents->adjacency = NULL;
-    cap->capContents->adjacency2 = NULL;
-    cap->capContents->face = NULL;
-    cap->capContents->segment = NULL;
-    cap->capContents->parent = NULL;
-    cap->capContents->children = constructEmptyList(0, NULL);
-    cap->capContents->event = event;
-    cap->capContents->strand = end_getOrientation(end);
+    //cap->end = end;
+
+    //cap->rCap->end = end_getReverse(end);
+
+    cap_getContents(cap)->nCap = NULL;
+
+    cap_getContents(cap)->instance = instance;
+    cap_getContents(cap)->coordinate = INT64_MAX;
+    cap_getContents(cap)->sequence = NULL;
+    cap_getContents(cap)->adjacency = NULL;
+    //cap_getContents(cap)->adjacency2 = NULL;
+    //cap_getContents(cap)->face = NULL;
+    cap_getContents(cap)->segment = NULL;
+    //cap_getContents(cap)->parent = NULL;
+    //cap_getContents(cap)->children = constructEmptyList(0, NULL);
+    cap_getContents(cap)->event = event;
+    cap_getContents(cap)->strand = end_getOrientation(end);
+    cap_getContents(cap)->end = end;
 
     end_addInstance(end, cap);
     flower_addCap(end_getFlower(end), cap);
+
+    assert(cap_getReverse(cap_getReverse(cap)) == cap); // check reversal works
+    assert(cap_getContents(cap) == cap_getContents(cap_getReverse(cap)));
+
+    assert(cap_getName(cap) == instance);
+    assert(cap_getCoordinate(cap) == INT64_MAX);
+    assert(cap_getSequence(cap) == NULL);
+    assert(cap_getAdjacency(cap) == NULL);
+    assert(cap_getSegment(cap) == NULL);
+    assert(cap_getEvent(cap) == event);
+    assert(cap_getStrand(cap) == 1);
+    assert(cap_getEnd(cap) == end);
+
+    assert(cap_getName(cap_getReverse(cap)) == instance);
+    assert(cap_getCoordinate(cap_getReverse(cap)) == INT64_MAX);
+    assert(cap_getSequence(cap_getReverse(cap)) == NULL);
+    assert(cap_getAdjacency(cap_getReverse(cap)) == NULL);
+    assert(cap_getSegment(cap_getReverse(cap)) == NULL);
+    assert(cap_getEvent(cap_getReverse(cap)) == event);
+    assert(cap_getStrand(cap_getReverse(cap)) == 0);
+    assert(cap_getEnd(cap_getReverse(cap)) == end_getReverse(end));
+
+    assert(end_getInstance(end, instance) == cap);
+    assert(end_getInstance(end_getReverse(end), instance) == cap_getReverse(cap));
+    assert(flower_getCap(end_getFlower(end), instance) == cap_getPositiveOrientation(cap));
+
     return cap;
 }
 
@@ -58,9 +95,9 @@ Cap *cap_construct2(End *end, int64_t coordinate, bool strand, Sequence *sequenc
 Cap *cap_construct4(Name instance, End *end, int64_t coordinate, bool strand, Sequence *sequence) {
     Cap *cap;
     cap = cap_construct3(instance, sequence_getEvent(sequence), end);
-    cap->capContents->coordinate = coordinate;
-    cap->capContents->strand = cap_getOrientation(cap) ? strand : !strand;
-    cap->capContents->sequence = sequence;
+    cap_getContents(cap)->coordinate = coordinate;
+    cap_getContents(cap)->strand = cap_getOrientation(cap) ? strand : !strand;
+    cap_getContents(cap)->sequence = sequence;
     return cap;
 }
 
@@ -69,9 +106,9 @@ Cap *cap_construct5(Event *event, End *end) {
 }
 
 void cap_setCoordinates(Cap *cap, int64_t coordinate, bool strand, Sequence *sequence) {
-    cap->capContents->coordinate = coordinate;
-    cap->capContents->strand = cap_getOrientation(cap) ? strand : !strand;
-    cap->capContents->sequence = sequence;
+    cap_getContents(cap)->coordinate = coordinate;
+    cap_getContents(cap)->strand = cap_getOrientation(cap) ? strand : !strand;
+    cap_getContents(cap)->sequence = sequence;
 }
 
 Cap *cap_copyConstruct(End *end, Cap *cap) {
@@ -106,25 +143,30 @@ void cap_destruct(Cap *cap) {
     flower_removeCap(end_getFlower(cap_getEnd(cap)), cap);
 
     // Remove parent->child link from parent (if any).
-    Cap *capParent = cap->capContents->parent;
-    if (capParent != NULL) {
-        listRemove(capParent->capContents->children, cap);
-    }
+    //Cap *capParent = cap_getContents(cap)->parent;
+    //if (capParent != NULL) {
+    //    listRemove(capParent->capContents->children, cap);
+    //}
 
     // Remove child->parent link from children (if any).
-    for (int64_t i = 0; i < cap->capContents->children->length; i++) {
-        Cap *capChild = cap->capContents->children->list[i];
-        capChild->capContents->parent = NULL;
-    }
+    //for (int64_t i = 0; i < cap_getContents(cap)->children->length; i++) {
+    //    Cap *capChild = cap_getContents(cap)->children->list[i];
+    //    capChild->capContents->parent = NULL;
+    //}
 
-    destructList(cap->capContents->children);
-    free(cap->rCap);
-    free(cap->capContents);
-    free(cap);
+    //destructList(cap_getContents(cap)->children);
+    //free(cap->rCap);
+    //free(cap_getContents(cap));
+    free(cap->order ? cap : cap_getReverse(cap));
 }
 
 Name cap_getName(Cap *cap) {
-    return cap->capContents->instance;
+    return cap_getContents(cap)->instance;
+}
+
+End *cap_getEnd(Cap *cap) {
+    End *end = cap_getContents(cap)->end;
+    return cap->order ? end : end_getReverse(end); // cap->end;
 }
 
 bool cap_getOrientation(Cap *cap) {
@@ -136,20 +178,16 @@ Cap *cap_getPositiveOrientation(Cap *cap) {
 }
 
 Cap *cap_getReverse(Cap *cap) {
-    return cap->rCap;
+    return cap->order ? cap+1 : cap-1; //->rCap;
 }
 
 Event *cap_getEvent(Cap *cap) {
-    return cap->capContents->event;
-}
-
-End *cap_getEnd(Cap *cap) {
-    return cap->end;
+    return cap_getContents(cap)->event;
 }
 
 Segment *cap_getSegment(Cap *cap) {
-    return cap_getOrientation(cap) ? cap->capContents->segment
-            : (cap->capContents->segment != NULL ? segment_getReverse(cap->capContents->segment) : NULL);
+    return cap_getOrientation(cap) ? cap_getContents(cap)->segment
+            : (cap_getContents(cap)->segment != NULL ? segment_getReverse(cap_getContents(cap)->segment) : NULL);
 }
 
 Cap *cap_getOtherSegmentCap(Cap *cap) {
@@ -165,11 +203,11 @@ Cap *cap_getOtherSegmentCap(Cap *cap) {
 }
 
 int64_t cap_getCoordinate(Cap *cap) {
-    return cap->capContents->coordinate;
+    return cap_getContents(cap)->coordinate;
 }
 
 bool cap_getStrand(Cap *cap) {
-    return cap_getOrientation(cap) ? cap->capContents->strand : !cap->capContents->strand;
+    return cap_getOrientation(cap) ? cap_getContents(cap)->strand : !cap_getContents(cap)->strand;
 }
 
 bool cap_getSide(Cap *cap) {
@@ -177,7 +215,7 @@ bool cap_getSide(Cap *cap) {
 }
 
 Sequence *cap_getSequence(Cap *cap) {
-    return cap->capContents->sequence;
+    return cap_getContents(cap)->sequence;
 }
 
 void cap_makeAdjacent(Cap *cap, Cap *cap2) {
@@ -189,8 +227,8 @@ void cap_makeAdjacent(Cap *cap, Cap *cap2) {
     cap_breakAdjacency(cap);
     cap_breakAdjacency(cap2);
     //we ensure we have them right with respect there orientation.
-    cap->capContents->adjacency = cap_getOrientation(cap) ? cap2 : cap_getReverse(cap2);
-    cap2->capContents->adjacency = cap_getOrientation(cap2) ? cap : cap_getReverse(cap);
+    cap_getContents(cap)->adjacency = cap_getOrientation(cap) ? cap2 : cap_getReverse(cap2);
+    cap_getContents(cap2)->adjacency = cap_getOrientation(cap2) ? cap : cap_getReverse(cap);
 }
 
 Cap *cap_getP(Cap *cap, Cap *connectedCap) {
@@ -198,7 +236,7 @@ Cap *cap_getP(Cap *cap, Cap *connectedCap) {
 }
 
 Cap *cap_getAdjacency(Cap *cap) {
-    return cap_getP(cap, cap->capContents->adjacency);
+    return cap_getP(cap, cap_getContents(cap)->adjacency);
 }
 
 Cap *cap_getTopCap(Cap *cap) {
@@ -221,44 +259,48 @@ Cap *cap_getTopCap(Cap *cap) {
 }
 
 Face *cap_getTopFace(Cap *cap) {
-    return cap->capContents->face;
+    return NULL; //cap_getContents(cap)->face;
 }
 
 FaceEnd *cap_getTopFaceEnd(Cap *cap) {
-    Face *face = cap_getTopFace(cap);
+    return NULL;
+    /*Face *face = cap_getTopFace(cap);
     if (face != NULL) {
         FaceEnd *faceEnd = face_getFaceEndForTopNode(face, cap);
         assert(faceEnd != NULL);
         return faceEnd;
     }
-    return NULL;
+    return NULL;*/
 }
 
 FaceEnd *cap_getBottomFaceEnd(Cap *cap) {
-    Cap *topNode = cap_getTopCap(cap);
+    return NULL;
+    /*Cap *topNode = cap_getTopCap(cap);
     if (topNode != NULL) {
         return cap_getTopFaceEnd(topNode);
     }
-    return NULL;
+    return NULL;*/
 }
 
 Cap *cap_getParent(Cap *cap) {
-    Cap *e = cap->capContents->parent;
-    return e == NULL ? NULL : cap_getOrientation(cap) ? e : cap_getReverse(e);
+    return NULL;
+    //Cap *e = cap_getContents(cap)->parent;
+    //return e == NULL ? NULL : cap_getOrientation(cap) ? e : cap_getReverse(e);
 }
 
 int64_t cap_getChildNumber(Cap *cap) {
-    return cap->capContents->children->length;
+    return 0; //cap_getContents(cap)->children->length;
 }
 
 Cap *cap_getChild(Cap *cap, int64_t index) {
-    assert(cap_getChildNumber(cap) > index);
+    return NULL;
+    /*assert(cap_getChildNumber(cap) > index);
     assert(index >= 0);
-    return cap_getP(cap, cap->capContents->children->list[index]);
+    return cap_getP(cap, cap_getContents(cap)->children->list[index]);*/
 }
 
 void cap_makeParentAndChild(Cap *capParent, Cap *capChild) {
-    capParent = cap_getPositiveOrientation(capParent);
+    /*capParent = cap_getPositiveOrientation(capParent);
     capChild = cap_getPositiveOrientation(capChild);
     assert(capChild->capContents->parent == NULL);
 
@@ -266,11 +308,11 @@ void cap_makeParentAndChild(Cap *capParent, Cap *capChild) {
         assert(event_isDescendant(cap_getEvent(capParent), cap_getEvent(capChild)));
         listAppend(capParent->capContents->children, capChild);
     }
-    capChild->capContents->parent = capParent;
+    capChild->capContents->parent = capParent;*/
 }
 
 void cap_changeParentAndChild(Cap* newCapParent, Cap* capChild) {
-    Cap * oldCapParent = cap_getParent(capChild);
+    /*Cap * oldCapParent = cap_getParent(capChild);
     newCapParent = cap_getPositiveOrientation(newCapParent);
     capChild = cap_getPositiveOrientation(capChild);
     assert(oldCapParent);
@@ -278,7 +320,7 @@ void cap_changeParentAndChild(Cap* newCapParent, Cap* capChild) {
         listAppend(newCapParent->capContents->children, capChild);
     }
     listRemove(oldCapParent->capContents->children, capChild);
-    capChild->capContents->parent = newCapParent;
+    capChild->capContents->parent = newCapParent;*/
 }
 
 bool cap_isInternal(Cap *cap) {
@@ -404,19 +446,19 @@ void cap_check(Cap *cap) {
  */
 
 void cap_setSegment(Cap *cap, Segment *segment) {
-    cap->capContents->segment = cap_getOrientation(cap) ? segment : segment_getReverse(segment);
+    cap_getContents(cap)->segment = cap_getOrientation(cap) ? segment : segment_getReverse(segment);
 }
 
 void cap_setTopFace(Cap *cap, Face *face) {
-    cap->capContents->face = face;
+    //cap_getContents(cap)->face = face;
 }
 
 void cap_breakAdjacency(Cap *cap) {
     Cap *cap2;
     cap2 = cap_getAdjacency(cap);
     if (cap2 != NULL) {
-        cap2->capContents->adjacency = NULL;
-        cap->capContents->adjacency = NULL;
+        cap_getContents(cap2)->adjacency = NULL;
+        cap_getContents(cap)->adjacency = NULL;
     }
 }
 
@@ -520,9 +562,9 @@ Cap *cap_loadFromBinaryRepresentation(void **binaryString, End *end) {
 }
 
 void cap_setEvent(Cap *cap, Event *event) {
-    cap->capContents->event = event;
+    cap_getContents(cap)->event = event;
 }
 
 void cap_setSequence(Cap *cap, Sequence *sequence) {
-    cap->capContents->sequence = sequence;
+    cap_getContents(cap)->sequence = sequence;
 }

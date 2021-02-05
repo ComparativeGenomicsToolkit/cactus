@@ -15,13 +15,15 @@ typedef struct _endContents {
 	bool isAttached;
 	Name name;
 	Block *attachedBlock;
-	stSortedSet *caps;
+	//stSortedSet *caps;
+	Cap *firstCap;
 	Group *group;
 	Flower *flower;
 } EndContents;
 
 struct _end_instanceIterator {
-	stSortedSetIterator *iterator;
+	//stSortedSetIterator *iterator;
+	Cap *cap;
 	End *end;
 };
 

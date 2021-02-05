@@ -156,7 +156,7 @@ double cactusParams_get_float(CactusParams *p, int num, ...) {
     va_list args;
     va_start(args, num);
 
-    const char *c = cactusParams_get_string2(p, num, args);
+    char *c = cactusParams_get_string2(p, num, args);
     float j;
     int i = sscanf(c, "%f", &j);
     xmlFree(c);

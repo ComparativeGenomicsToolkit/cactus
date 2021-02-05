@@ -14,9 +14,9 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-static int end_constructP(const void *o1, const void *o2) {
-    return cactusMisc_nameCompare(cap_getName((Cap *) o1), cap_getName((Cap *) o2));
-}
+//static int end_constructP(const void *o1, const void *o2) {
+//    return cactusMisc_nameCompare(cap_getName((Cap *) o1), cap_getName((Cap *) o2));
+//}
 
 End *end_construct(bool isAttached, Flower *flower) {
     return end_construct3(cactusDisk_getUniqueID(flower_getCactusDisk(flower)), 1,
@@ -52,7 +52,8 @@ End *end_construct3(Name name, int64_t isStub, int64_t isAttached,
 
     end->endContents->rootInstance = NULL;
     end->endContents->name = name;
-    end->endContents->caps = stSortedSet_construct3(end_constructP, NULL);
+    //end->endContents->caps = stSortedSet_construct3(end_constructP, NULL);
+    end->endContents->firstCap = NULL;
     end->endContents->attachedBlock = NULL;
     end->endContents->group = NULL;
     end->endContents->flower = flower;
@@ -109,7 +110,7 @@ void end_destruct(End *end) {
         cap_destruct(cap);
     }
     //now the actual instances.
-    stSortedSet_destruct(end->endContents->caps);
+    //stSortedSet_destruct(end->endContents->caps);
 
     free(end->endContents);
     free(end->rEnd);
@@ -169,7 +170,13 @@ Group *end_getGroup(End *end) {
 }
 
 int64_t end_getInstanceNumber(End *end) {
-    return stSortedSet_size(end->endContents->caps);
+    Cap *cap = end->endContents->firstCap;
+    int64_t totalCaps = 0;
+    while(cap != NULL) {
+        totalCaps++; cap = cap_getContents(cap)->nCap;
+    }
+    return totalCaps;
+    //return stSortedSet_size(end->endContents->caps);
 }
 
 Cap *end_getInstanceP(End *end, Cap *connectedCap) {
@@ -179,16 +186,30 @@ Cap *end_getInstanceP(End *end, Cap *connectedCap) {
 }
 
 Cap *end_getInstance(End *end, Name name) {
-    Cap cap;
-    CapContents capContents;
-    cap.capContents = &capContents;
-    capContents.instance = name;
-    return end_getInstanceP(end,
-            stSortedSet_search(end->endContents->caps, &cap));
+    Cap *cap = end->endContents->firstCap;
+    while(cap != NULL) {
+        if(cap_getName(cap) == name) {
+            return end_getInstanceP(end, cap);
+        }
+        cap = cap_getContents(cap)->nCap;
+    }
+    return NULL;
+
+    //CapContents capContents[2];
+    //Cap *cap = (Cap *)&capContents; // Very ugly hack
+    //cap_getContents(cap)->instance = name;
+    //assert(cap_getName(cap) == name);
+    //Cap cap;
+    //CapContents capContents;
+    //cap.capContents = &capContents;
+    //capContents.instance = name;
+    //return end_getInstanceP(end,
+    //        stSortedSet_search(end->endContents->caps, cap));
 }
 
 Cap *end_getFirst(End *end) {
-    return end_getInstanceP(end, stSortedSet_getFirst(end->endContents->caps));
+    return end_getInstanceP(end, end->endContents->firstCap);
+    //return end_getInstanceP(end, stSortedSet_getFirst(end->endContents->caps));
 }
 
 Cap *end_getRootInstance(End *end) {
@@ -204,30 +225,41 @@ End_InstanceIterator *end_getInstanceIterator(End *end) {
     End_InstanceIterator *iterator;
     iterator = st_malloc(sizeof(struct _end_instanceIterator));
     iterator->end = end;
-    iterator->iterator = stSortedSet_getIterator(end->endContents->caps);
+    iterator->cap = end->endContents->firstCap;
+    //iterator->iterator = stSortedSet_getIterator(end->endContents->caps);
     return iterator;
 }
 
 Cap *end_getNext(End_InstanceIterator *iterator) {
-    return end_getInstanceP(iterator->end, stSortedSet_getNext(
-            iterator->iterator));
+    Cap *cap = iterator->cap;
+    if(cap == NULL) {
+        return NULL;
+    }
+    iterator->cap = cap_getContents(cap)->nCap;
+    return end_getInstanceP(iterator->end, cap);
+    //return end_getInstanceP(iterator->end, stSortedSet_getNext(
+    //        iterator->iterator));
 }
 
 Cap *end_getPrevious(End_InstanceIterator *iterator) {
-    return end_getInstanceP(iterator->end, stSortedSet_getPrevious(
-            iterator->iterator));
+    assert(0);
+    return NULL;
+    //return end_getInstanceP(iterator->end, stSortedSet_getPrevious(
+    //        iterator->iterator));
 }
 
 End_InstanceIterator *end_copyInstanceIterator(End_InstanceIterator *iterator) {
+    assert(0);
     End_InstanceIterator *iterator2;
     iterator2 = st_malloc(sizeof(struct _end_instanceIterator));
     iterator2->end = iterator->end;
-    iterator2->iterator = stSortedSet_copyIterator(iterator->iterator);
+    iterator2->cap = iterator->cap;
+    //iterator2->iterator = stSortedSet_copyIterator(iterator->iterator);
     return iterator2;
 }
 
 void end_destructInstanceIterator(End_InstanceIterator *iterator) {
-    stSortedSet_destructIterator(iterator->iterator);
+    //stSortedSet_destructIterator(iterator->iterator);
     free(iterator);
 }
 
@@ -269,64 +301,64 @@ void end_makeAttached(End *end) {
 
 void end_check(End *end) {
     //Check is connected to flower properly
-    cactusCheck(flower_getEnd(end_getFlower(end), end_getName(end)) == end_getPositiveOrientation(end));
+    assert(flower_getEnd(end_getFlower(end), end_getName(end)) == end_getPositiveOrientation(end));
 
     //check end is part of group..
     Group *group = end_getGroup(end);
-    cactusCheck(group != NULL);
-    cactusCheck(group_getEnd(group, end_getName(end)) == end_getPositiveOrientation(end));
+    assert(group != NULL);
+    assert(group_getEnd(group, end_getName(end)) == end_getPositiveOrientation(end));
 
     if (end_isBlockEnd(end)) {
-        cactusCheck(!end_isStubEnd(end));
-        cactusCheck(end_isFree(end));
+        assert(!end_isStubEnd(end));
+        assert(end_isFree(end));
         //Check block..
         Block *block = end_getBlock(end);
-        cactusCheck(block != NULL);
-        cactusCheck(block_getOrientation(block) == end_getOrientation(end));
+        assert(block != NULL);
+        assert(block_getOrientation(block) == end_getOrientation(end));
         //check not attached
-        cactusCheck(end_isFree(end));
-        cactusCheck(!end_isAttached(end));
+        assert(end_isFree(end));
+        assert(!end_isAttached(end));
         //Check sides correspond..
         if (end_getSide(end)) {
-            cactusCheck(block_get5End(block) == end);
+            assert(block_get5End(block) == end);
         } else {
-            cactusCheck(block_get3End(block) == end);
+            assert(block_get3End(block) == end);
         }
     } else {
-        cactusCheck(end_isStubEnd(end)); //Is stub end:
+        assert(end_isStubEnd(end)); //Is stub end:
         //there must be no attached block.
-        cactusCheck(end_getBlock(end) == NULL);
+        assert(end_getBlock(end) == NULL);
         Group *parentGroup = flower_getParentGroup(end_getFlower(end));
         if (parentGroup != NULL) {
             // if attached the is inherited from a parent flower to the containing flower.
             End *parentEnd = group_getEnd(parentGroup, end_getName(end));
-            cactusCheck(end_getOrientation(parentEnd));
+            assert(end_getOrientation(parentEnd));
             if (end_isAttached(end)) {
-                cactusCheck(parentEnd != NULL);
+                assert(parentEnd != NULL);
             }
             if (parentEnd != NULL) {
-                cactusCheck(end_getSide(parentEnd) == end_getSide(end_getPositiveOrientation(end)));
+                assert(end_getSide(parentEnd) == end_getSide(end_getPositiveOrientation(end)));
             }
         }
     }
 
     //Check reverse, not comprehensively, perhaps.
     End *rEnd = end_getReverse(end);
-    cactusCheck(rEnd != NULL);
-    cactusCheck(end_getReverse(rEnd) == end);
-    cactusCheck(end_getOrientation(end) == !end_getOrientation(rEnd));
-    cactusCheck(end_getSide(end) == !end_getSide(rEnd));
-    cactusCheck(end_getName(end) == end_getName(rEnd));
-    cactusCheck(end_getInstanceNumber(end) == end_getInstanceNumber(rEnd));
-    cactusCheck(end_isAttached(end) == end_isAttached(rEnd));
-    cactusCheck(end_isStubEnd(end) == end_isStubEnd(rEnd));
+    assert(rEnd != NULL);
+    assert(end_getReverse(rEnd) == end);
+    assert(end_getOrientation(end) == !end_getOrientation(rEnd));
+    assert(end_getSide(end) == !end_getSide(rEnd));
+    assert(end_getName(end) == end_getName(rEnd));
+    assert(end_getInstanceNumber(end) == end_getInstanceNumber(rEnd));
+    assert(end_isAttached(end) == end_isAttached(rEnd));
+    assert(end_isStubEnd(end) == end_isStubEnd(rEnd));
     if (end_getRootInstance(end) == NULL) {
-        cactusCheck(end_getRootInstance(rEnd) == NULL);
+        assert(end_getRootInstance(rEnd) == NULL);
     } else {
-        cactusCheck(end_getRootInstance(end) == cap_getReverse(end_getRootInstance(rEnd)));
+        assert(end_getRootInstance(end) == cap_getReverse(end_getRootInstance(rEnd)));
     }
     if (end_getInstanceNumber(end) > 0) {
-        cactusCheck(end_getFirst(end) == cap_getReverse(end_getFirst(rEnd)));
+        assert(end_getFirst(end) == cap_getReverse(end_getFirst(rEnd)));
     }
 
     //Check has tree if built_trees set
@@ -364,11 +396,22 @@ Cap *end_getCapForEvent(End *end, Name eventName) {
  */
 
 void end_addInstance(End *end, Cap *cap) {
-    stSortedSet_insert(end->endContents->caps, cap_getPositiveOrientation(cap));
+    assert(cap_getContents(cap)->nCap == NULL);
+    cap_getContents(cap)->nCap = end->endContents->firstCap;
+    end->endContents->firstCap = cap_getPositiveOrientation(cap);
+    //stSortedSet_insert(end->endContents->caps, cap_getPositiveOrientation(cap));
 }
 
 void end_removeInstance(End *end, Cap *cap) {
-    stSortedSet_remove(end->endContents->caps, cap);
+    Cap **capP = &(end->endContents->firstCap);
+    while(*capP != NULL) {
+        if(cap_getName(cap) == cap_getName(*capP)) {
+            (*capP) = cap_getContents(*capP)->nCap; // Splice it out
+            return;
+        }
+        capP = &(cap_getContents(*capP)->nCap);
+    }
+    //stSortedSet_remove(end->endContents->caps, cap);
 }
 
 void end_setFlower(End *end, Flower *flower) {

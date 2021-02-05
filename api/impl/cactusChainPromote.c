@@ -93,11 +93,11 @@ static void promoteBlockEnd(End *end, Flower *flower, Flower *parentFlower) {
     while ((cap = end_getNext(it)) != NULL) {
         Event *event = eventTree_getEvent(eventTree, event_getName(cap_getEvent(cap)));
         assert(event != NULL);
-        cap->capContents->event = event;
+        cap_getContents(cap)->event = event;
         if (cap_getSequence(cap) != NULL) {
             Sequence *sequence = flower_getSequence(parentFlower, sequence_getName(cap_getSequence(cap)));
             assert(sequence != NULL);
-            cap->capContents->sequence = sequence;
+            cap_getContents(cap)->sequence = sequence;
         }
         flower_removeCap(flower, cap);
         flower_addCap(parentFlower, cap);

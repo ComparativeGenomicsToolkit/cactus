@@ -264,7 +264,7 @@ int main(int argc, char *argv[]) {
 
     // Load the cactus disk
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
-    CactusDisk *cactusDisk = cactusDisk_constructInMemory(kvDatabaseConf, true, true);
+    CactusDisk *cactusDisk = cactusDisk_constructInMemory(kvDatabaseConf, true, 0);
 
     st_logInfo("Set up the cactus disk, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 

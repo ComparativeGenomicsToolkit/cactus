@@ -16,17 +16,20 @@ typedef struct _capContents {
     Event *event;
     Sequence *sequence;
     Cap *adjacency;
-    Cap *adjacency2;
-    Face *face;
+    //Cap *adjacency2;
+    //Face *face;
     Segment *segment;
-    Cap *parent;
-    struct List *children;
+    End *end;
+    //Cap *parent;
+    //struct List *children;
+    Cap *nCap; // Links together different caps in the end
 } CapContents;
 
 struct _cap {
-    CapContents *capContents;
-    End *end;
-    Cap *rCap;
+    bool order;
+    //CapContents *capContents;
+    //End *end;
+    //Cap *rCap;
 };
 
 ////////////////////////////////////////////////
@@ -36,6 +39,11 @@ struct _cap {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
+
+/*
+ * Get the cap contents object
+ */
+CapContents *cap_getContents(Cap *cap);
 
 /*
  * Constructs an cap, but not its connecting objects. Instance is the suffix m of the instance name n.m.

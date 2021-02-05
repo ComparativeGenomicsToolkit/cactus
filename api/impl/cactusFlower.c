@@ -194,11 +194,14 @@ Cap *flower_getFirstCap(Flower *flower) {
 }
 
 Cap *flower_getCap(Flower *flower, Name name) {
-    Cap cap;
-    CapContents capContents;
-    cap.capContents = &capContents;
-    cap.capContents->instance = name;
-    return stSortedSet_search(flower->caps, &cap);
+    //Cap cap;
+    CapContents capContents[2];
+    Cap *cap = (Cap *)(&capContents); // Very ugly hack
+    cap_getContents(cap)->instance = name;
+    assert(cap_getName(cap) == name);
+    //cap.capContents = &capContents;
+    //cap.capContents->instance = name;
+    return stSortedSet_search(flower->caps, cap);
 }
 
 int64_t flower_getCapNumber(Flower *flower) {
