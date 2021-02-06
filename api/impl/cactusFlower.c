@@ -55,9 +55,9 @@ static Flower *flower_construct3(Name name, CactusDisk *cactusDisk) {
     flower->name = name;
 
     flower->sequences = stSortedSet_construct3(flower_constructSequencesP, NULL);
-    flower->caps = stSortedSet_construct3(flower_constructCapsP, NULL);
+    flower->caps = stList_construct3(0, NULL); //stSortedSet_construct3(flower_constructCapsP, NULL);
     flower->ends = stSortedSet_construct3(flower_constructEndsP, NULL);
-    flower->segments = stSortedSet_construct3(flower_constructSegmentsP, NULL);
+    flower->segments = NULL; //stSortedSet_construct3(flower_constructSegmentsP, NULL);
     flower->blocks = stSortedSet_construct3(flower_constructBlocksP, NULL);
     flower->groups = stSortedSet_construct3(flower_constructGroupsP, NULL);
     flower->chains = stSortedSet_construct3(flower_constructChainsP, NULL);
@@ -124,13 +124,14 @@ void flower_destruct(Flower *flower, int64_t recursive) {
     while ((end = flower_getFirstEnd(flower)) != NULL) {
         end_destruct(end);
     }
-    stSortedSet_destruct(flower->caps);
+    //stSortedSet_destruct(flower->caps);
+    stList_destruct(flower->caps);
     stSortedSet_destruct(flower->ends);
 
     while ((block = flower_getFirstBlock(flower)) != NULL) {
         block_destruct(block);
     }
-    stSortedSet_destruct(flower->segments);
+    //stSortedSet_destruct(flower->segments);
     stSortedSet_destruct(flower->blocks);
 
     while ((group = flower_getFirstGroup(flower)) != NULL) {
@@ -190,7 +191,7 @@ void flower_destructSequenceIterator(Flower_SequenceIterator *sequenceIterator) 
 }
 
 Cap *flower_getFirstCap(Flower *flower) {
-    return stSortedSet_getFirst(flower->caps);
+    return stList_length(flower->caps) > 0 ? stList_get(flower->caps, 0) : NULL; //stSortedSet_getFirst(flower->caps);
 }
 
 Cap *flower_getCap(Flower *flower, Name name) {
@@ -201,31 +202,31 @@ Cap *flower_getCap(Flower *flower, Name name) {
     assert(cap_getName(cap) == name);
     //cap.capContents = &capContents;
     //cap.capContents->instance = name;
-    return stSortedSet_search(flower->caps, cap);
+    return stList_binarySearch(flower->caps, cap, flower_constructCapsP); //stSortedSet_search(flower->caps, cap);
 }
 
 int64_t flower_getCapNumber(Flower *flower) {
-    return stSortedSet_size(flower->caps);
+    return stList_length(flower->caps); //stSortedSet_size(flower->caps);
 }
 
 Flower_CapIterator *flower_getCapIterator(Flower *flower) {
-    return stSortedSet_getIterator(flower->caps);
+    return stList_getIterator(flower->caps); //stSortedSet_getIterator(flower->caps);
 }
 
 Cap *flower_getNextCap(Flower_CapIterator *capIterator) {
-    return stSortedSet_getNext(capIterator);
+    return stList_getNext(capIterator); //stSortedSet_getNext(capIterator);
 }
 
 Cap *flower_getPreviousCap(Flower_CapIterator *capIterator) {
-    return stSortedSet_getPrevious(capIterator);
+    return stList_getPrevious(capIterator); //stSortedSet_getPrevious(capIterator);
 }
 
 Flower_CapIterator *flower_copyCapIterator(Flower_CapIterator *capIterator) {
-    return stSortedSet_copyIterator(capIterator);
+    return stList_copyIterator(capIterator); //stSortedSet_copyIterator(capIterator);
 }
 
 void flower_destructCapIterator(Flower_CapIterator *capIterator) {
-    stSortedSet_destructIterator(capIterator);
+    stList_destructIterator(capIterator); //stSortedSet_destructIterator(capIterator);
 }
 
 End *flower_getFirstEnd(Flower *flower) {
@@ -826,14 +827,23 @@ void flower_removeSequence(Flower *flower, Sequence *sequence) {
 
 void flower_addCap(Flower *flower, Cap *cap) {
     cap = cap_getPositiveOrientation(cap);
-    assert(stSortedSet_search(flower->caps, cap) == NULL);
-    stSortedSet_insert(flower->caps, cap);
+    stList_append(flower->caps, cap);
+    // Now ensure we have fixed the sort
+    int64_t i = stList_length(flower->caps)-1;
+    while(--i >= 0 && cap_getName(stList_get(flower->caps, i)) > cap_getName(cap)) {
+        // swap
+        stList_set(flower->caps, i+1, stList_get(flower->caps, i));
+        stList_set(flower->caps, i, cap);
+    }
+    //assert(stSortedSet_search(flower->caps, cap) == NULL);
+    //stSortedSet_insert(flower->caps, cap);
 }
 
 void flower_removeCap(Flower *flower, Cap *cap) {
-    cap = cap_getPositiveOrientation(cap);
-    assert(stSortedSet_search(flower->caps, cap) != NULL);
-    stSortedSet_remove(flower->caps, cap);
+    return;
+    //cap = cap_getPositiveOrientation(cap);
+    //assert(stSortedSet_search(flower->caps, cap) != NULL);
+    //stSortedSet_remove(flower->caps, cap);
 }
 
 void flower_addEnd(Flower *flower, End *end) {
@@ -849,12 +859,14 @@ void flower_removeEnd(Flower *flower, End *end) {
 }
 
 void flower_addSegment(Flower *flower, Segment *segment) {
+    return;
     segment = segment_getPositiveOrientation(segment);
     assert(stSortedSet_search(flower->segments, segment) == NULL);
     stSortedSet_insert(flower->segments, segment);
 }
 
 void flower_removeSegment(Flower *flower, Segment *segment) {
+    return;
     segment = segment_getPositiveOrientation(segment);
     assert(stSortedSet_search(flower->segments, segment) != NULL);
     stSortedSet_remove(flower->segments, segment);

@@ -140,7 +140,7 @@ Cap *cap_copyConstruct(End *end, Cap *cap) {
 void cap_destruct(Cap *cap) {
     //Remove from end.
     end_removeInstance(cap_getEnd(cap), cap);
-    flower_removeCap(end_getFlower(cap_getEnd(cap)), cap);
+    //flower_removeCap(end_getFlower(cap_getEnd(cap)), cap);
 
     // Remove parent->child link from parent (if any).
     //Cap *capParent = cap_getContents(cap)->parent;

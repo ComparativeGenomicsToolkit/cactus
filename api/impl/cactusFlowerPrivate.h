@@ -13,7 +13,7 @@ struct _flower {
     Name name;
     stSortedSet *sequences;
     stSortedSet *ends;
-    stSortedSet *caps;
+    stList *caps;
     stSortedSet *blocks;
     stSortedSet *segments;
     stSortedSet *groups;
