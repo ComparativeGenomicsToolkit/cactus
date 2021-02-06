@@ -13,8 +13,14 @@ struct _group {
 	Flower *flower;
 	Link *link;
 	Name name;
-	stSortedSet *ends;
+	//stSortedSet *ends;
+	End *firstEnd;
 	bool leafGroup;
+};
+
+struct _group_endIterator {
+    Group *group;
+    End *end;
 };
 
 ////////////////////////////////////////////////

@@ -27,7 +27,7 @@ static void promoteBlock(Block *block, Flower *flower, Flower *parentFlower) {
     block_destructInstanceIterator(it);
     flower_removeBlock(flower, block);
     flower_addBlock(parentFlower, block);
-    block->blockContents->flower = parentFlower;
+    block_getContents(block)->flower = parentFlower;
 }
 
 static void mergeStubEnd(End *end, Flower *flower, Flower *parentFlower) {
@@ -105,7 +105,7 @@ static void promoteBlockEnd(End *end, Flower *flower, Flower *parentFlower) {
     end_destructInstanceIterator(it);
     flower_removeEnd(flower, end);
     flower_addEnd(parentFlower, end);
-    end->endContents->flower = parentFlower;
+    end_getContents(end)->flower = parentFlower;
 }
 
 static void promoteEndsBlocksAndGroups(Chain *chain, Flower *flower, Flower *parentFlower) {

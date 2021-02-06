@@ -1137,11 +1137,11 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
      * Check the matching we have.
      */
     assert(stList_length(chosenEdges) * 2 == stHash_size(nodesToEnds));
-    stList *nodes = stHash_getValues(nodesToEnds);
+    /*stList *nodes = stHash_getValues(nodesToEnds);
     stSortedSet *nodesSet = stList_getSortedSet(nodes, (int (*)(const void *, const void *)) stIntTuple_cmpFn);
     assert(stHash_size(nodesToEnds) == stSortedSet_size(nodesSet));
     stSortedSet_destruct(nodesSet);
-    stList_destruct(nodes);
+    stList_destruct(nodes);*/
 
     /*
      * Add the reference genome into flower

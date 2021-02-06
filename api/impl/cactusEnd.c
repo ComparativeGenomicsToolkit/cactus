@@ -14,6 +14,10 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
+EndContents *end_getContents(End *end) {
+    return (EndContents *)(end->order ? end+2 : end+1);
+}
+
 //static int end_constructP(const void *o1, const void *o2) {
 //    return cactusMisc_nameCompare(cap_getName((Cap *) o1), cap_getName((Cap *) o2));
 //}
@@ -31,32 +35,39 @@ End *end_construct2(bool side, bool isAttached, Flower *flower) {
 End *end_construct3(Name name, int64_t isStub, int64_t isAttached,
         int64_t side, Flower *flower) {
     End *end;
-    end = st_malloc(sizeof(End));
-    end->rEnd = st_malloc(sizeof(End));
-    end->rEnd->rEnd = end;
-    end->endContents = st_malloc(sizeof(EndContents));
-    end->rEnd->endContents = end->endContents;
+    end = st_malloc(2*sizeof(End) + sizeof(EndContents));
+    end->order = 1;
+    (end+1)->order = 0;
+    //end->rEnd = st_malloc(sizeof(End));
+    //end->rEnd->rEnd = end;
+    //end_getContents(end) = st_malloc(sizeof(EndContents));
+    //end->rend_getContents(end) = end_getContents(end);
 
-    end->orientation = 1;
-    end->rEnd->orientation = 0;
+    //end_getContents(end)->orientation = 1;
+    end_getContents(end)->side = side;
 
-    end->side = side;
-    end->rEnd->side = !side;
+    end_getContents(end)->nEnd = NULL;
+
+    //end->orientation = 1;
+    //end->rEnd->orientation = 0;
+
+    //end->side = side;
+    //end->rEnd->side = !side;
 
     if (!isStub) {
         assert(!isAttached);
     }
 
-    end->endContents->isStub = isStub;
-    end->endContents->isAttached = isAttached;
+    end_getContents(end)->isStub = isStub;
+    end_getContents(end)->isAttached = isAttached;
 
-    end->endContents->rootInstance = NULL;
-    end->endContents->name = name;
-    //end->endContents->caps = stSortedSet_construct3(end_constructP, NULL);
-    end->endContents->firstCap = NULL;
-    end->endContents->attachedBlock = NULL;
-    end->endContents->group = NULL;
-    end->endContents->flower = flower;
+    //end_getContents(end)->rootInstance = NULL;
+    end_getContents(end)->name = name;
+    //end_getContents(end)->caps = stSortedSet_construct3(end_constructP, NULL);
+    end_getContents(end)->firstCap = NULL;
+    end_getContents(end)->attachedBlock = NULL;
+    end_getContents(end)->group = NULL;
+    end_getContents(end)->flower = flower;
     flower_addEnd(flower, end);
     return end;
 }
@@ -110,25 +121,25 @@ void end_destruct(End *end) {
         cap_destruct(cap);
     }
     //now the actual instances.
-    //stSortedSet_destruct(end->endContents->caps);
+    //stSortedSet_destruct(end_getContents(end)->caps);
 
-    free(end->endContents);
-    free(end->rEnd);
-    free(end);
+    //free(end_getContents(end));
+    //free(end->rEnd);
+    free(end->order ? end : end_getReverse(end));
 }
 
 void end_setBlock(End *end, Block *block) {
     assert(end_getOrientation(end));
     assert(block_getOrientation(block));
-    end->endContents->attachedBlock = block;
+    end_getContents(end)->attachedBlock = block;
 }
 
 Name end_getName(End *end) {
-    return end->endContents->name;
+    return end_getContents(end)->name;
 }
 
 bool end_getOrientation(End *end) {
-    return end->orientation;
+    return end->order; // ^ end_getContents(end)->orienta;
 }
 
 End *end_getPositiveOrientation(End *end) {
@@ -136,19 +147,19 @@ End *end_getPositiveOrientation(End *end) {
 }
 
 End *end_getReverse(End *end) {
-    return end->rEnd;
+    return end->order ? end+1 : end-1; //end->rEnd;
 }
 
 bool end_getSide(End *end) {
-    return end->side;
+    return !(end->order ^ end_getContents(end)->side);
 }
 
 Flower *end_getFlower(End *end) {
-    return end->endContents->flower;
+    return end_getContents(end)->flower;
 }
 
 Block *end_getBlock(End *end) {
-    Block *a = end->endContents->attachedBlock;
+    Block *a = end_getContents(end)->attachedBlock;
     return a == NULL || end_getOrientation(end) ? a : block_getReverse(a);
 }
 
@@ -166,17 +177,17 @@ End *end_getOtherBlockEnd(End *end) {
 }
 
 Group *end_getGroup(End *end) {
-    return end->endContents->group;
+    return end_getContents(end)->group;
 }
 
 int64_t end_getInstanceNumber(End *end) {
-    Cap *cap = end->endContents->firstCap;
+    Cap *cap = end_getContents(end)->firstCap;
     int64_t totalCaps = 0;
     while(cap != NULL) {
         totalCaps++; cap = cap_getContents(cap)->nCap;
     }
     return totalCaps;
-    //return stSortedSet_size(end->endContents->caps);
+    //return stSortedSet_size(end_getContents(end)->caps);
 }
 
 Cap *end_getInstanceP(End *end, Cap *connectedCap) {
@@ -186,7 +197,7 @@ Cap *end_getInstanceP(End *end, Cap *connectedCap) {
 }
 
 Cap *end_getInstance(End *end, Name name) {
-    Cap *cap = end->endContents->firstCap;
+    Cap *cap = end_getContents(end)->firstCap;
     while(cap != NULL) {
         if(cap_getName(cap) == name) {
             return end_getInstanceP(end, cap);
@@ -204,29 +215,31 @@ Cap *end_getInstance(End *end, Name name) {
     //cap.capContents = &capContents;
     //capContents.instance = name;
     //return end_getInstanceP(end,
-    //        stSortedSet_search(end->endContents->caps, cap));
+    //        stSortedSet_search(end_getContents(end)->caps, cap));
 }
 
 Cap *end_getFirst(End *end) {
-    return end_getInstanceP(end, end->endContents->firstCap);
-    //return end_getInstanceP(end, stSortedSet_getFirst(end->endContents->caps));
+    return end_getInstanceP(end, end_getContents(end)->firstCap);
+    //return end_getInstanceP(end, stSortedSet_getFirst(end_getContents(end)->caps));
 }
 
 Cap *end_getRootInstance(End *end) {
-    return end_getInstanceP(end, end->endContents->rootInstance);
+    return NULL;
+    //return end_getInstanceP(end, end_getContents(end)->rootInstance);
 }
 
 void end_setRootInstance(End *end, Cap *cap) {
-    end->endContents->rootInstance = cap_getOrientation(cap) ? cap
-            : cap_getReverse(cap);
+    assert(0);
+    //end_getContents(end)->rootInstance = cap_getOrientation(cap) ? cap
+    //        : cap_getReverse(cap);
 }
 
 End_InstanceIterator *end_getInstanceIterator(End *end) {
     End_InstanceIterator *iterator;
     iterator = st_malloc(sizeof(struct _end_instanceIterator));
     iterator->end = end;
-    iterator->cap = end->endContents->firstCap;
-    //iterator->iterator = stSortedSet_getIterator(end->endContents->caps);
+    iterator->cap = end_getContents(end)->firstCap;
+    //iterator->iterator = stSortedSet_getIterator(end_getContents(end)->caps);
     return iterator;
 }
 
@@ -268,11 +281,11 @@ bool end_isBlockEnd(End *end) {
 }
 
 bool end_isStubEnd(End *end) {
-    return end->endContents->isStub;
+    return end_getContents(end)->isStub;
 }
 
 bool end_isAttached(End *end) {
-    return end->endContents->isAttached;
+    return end_getContents(end)->isAttached;
 }
 
 bool end_isFree(End *end) {
@@ -283,7 +296,7 @@ void end_setGroup(End *end, Group *group) {
     if (end_getGroup(end) != NULL) {
         group_removeEnd(end_getGroup(end), end);
     }
-    end->endContents->group = group;
+    end_getContents(end)->group = group;
     if (group != NULL) {
         group_addEnd(group, end);
     }
@@ -296,7 +309,7 @@ void end_makeAttached(End *end) {
     if(end_getGroup(end) != NULL) {
         assert(group_isLeaf(end_getGroup(end)));
     }
-    end->endContents->isAttached = 1;
+    end_getContents(end)->isAttached = 1;
 }
 
 void end_check(End *end) {
@@ -397,13 +410,13 @@ Cap *end_getCapForEvent(End *end, Name eventName) {
 
 void end_addInstance(End *end, Cap *cap) {
     assert(cap_getContents(cap)->nCap == NULL);
-    cap_getContents(cap)->nCap = end->endContents->firstCap;
-    end->endContents->firstCap = cap_getPositiveOrientation(cap);
-    //stSortedSet_insert(end->endContents->caps, cap_getPositiveOrientation(cap));
+    cap_getContents(cap)->nCap = end_getContents(end)->firstCap;
+    end_getContents(end)->firstCap = cap_getPositiveOrientation(cap);
+    //stSortedSet_insert(end_getContents(end)->caps, cap_getPositiveOrientation(cap));
 }
 
 void end_removeInstance(End *end, Cap *cap) {
-    Cap **capP = &(end->endContents->firstCap);
+    Cap **capP = &(end_getContents(end)->firstCap);
     while(*capP != NULL) {
         if(cap_getName(cap) == cap_getName(*capP)) {
             (*capP) = cap_getContents(*capP)->nCap; // Splice it out
@@ -411,12 +424,12 @@ void end_removeInstance(End *end, Cap *cap) {
         }
         capP = &(cap_getContents(*capP)->nCap);
     }
-    //stSortedSet_remove(end->endContents->caps, cap);
+    //stSortedSet_remove(end_getContents(end)->caps, cap);
 }
 
 void end_setFlower(End *end, Flower *flower) {
     flower_removeEnd(end_getFlower(end), end);
-    end->endContents->flower = flower;
+    end_getContents(end)->flower = flower;
     flower_addEnd(flower, end);
 }
 

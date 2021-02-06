@@ -14,6 +14,10 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
+BlockContents *block_getContents(Block *block) {
+    return (BlockContents *)(block->order ? block+2 : block+1);
+}
+
 int blockConstruct_constructP(const void *o1, const void *o2) {
 	return cactusMisc_nameCompare(segment_getName((Segment *)o1), segment_getName((Segment *)o2));
 }
@@ -28,23 +32,27 @@ Block *block_construct2(Name name, int64_t length,
 		End *leftEnd, End *rightEnd,
 		Flower *flower) {
 	Block *block;
-	block = st_malloc(sizeof(Block));
-	block->rBlock = st_malloc(sizeof(Block));
-	block->rBlock->rBlock = block;
-	block->blockContents = st_malloc(sizeof(BlockContents));
-	block->rBlock->blockContents = block->blockContents;
+	block = st_malloc(2*sizeof(Block) + sizeof(BlockContents));
+	block->order = 1;
+    (block+1)->order = 0;
+	//block_getContents(block)->rBlock = st_malloc(sizeof(Block));
+	//block_getContents(block)->rblock_getContents(block)->rBlock = block;
+	//block_getContents(block) = st_malloc(sizeof(BlockContents));
+	//block_getContents(block)->rblock_getContents(block) = block_getContents(block);
 
-	block->orientation = 1;
-	block->rBlock->orientation = 0;
+	//block_getContents(block)->orientation = 1;
+	//block_getContents(block)->rblock_getContents(block)->orientation = 0;
 
-	block->blockContents->name = name;
-	block->blockContents->segments = stSortedSet_construct3(blockConstruct_constructP, NULL);
-	block->blockContents->length = length;
-	block->blockContents->flower = flower;
+	block_getContents(block)->name = name;
+	//block_getContents(block)->segments = stSortedSet_construct3(blockConstruct_constructP, NULL);
+    block_getContents(block)->firstSegment = NULL;
+	block_getContents(block)->length = length;
+	block_getContents(block)->flower = flower;
 
-	block->leftEnd = leftEnd;
+	block_getContents(block)->leftEnd = leftEnd;
 	end_setBlock(leftEnd, block);
-	block->rBlock->leftEnd = end_getReverse(rightEnd);
+    block_getContents(block)->rightEnd = rightEnd;
+	//block_getContents(block)->rblock_getContents(block)->leftEnd = end_getReverse(rightEnd);
 	end_setBlock(rightEnd, block);
 
 	flower_addBlock(flower, block);
@@ -53,24 +61,24 @@ Block *block_construct2(Name name, int64_t length,
 }
 
 void block_destruct(Block *block) {
-	Segment *segment;
 	//remove from flower.
 	flower_removeBlock(block_getFlower(block), block);
 
 	//remove instances
+    Segment *segment;
 	while((segment = block_getFirst(block)) != NULL) {
 		segment_destruct(segment);
 	}
 	//now the actual instances.
-	stSortedSet_destruct(block->blockContents->segments);
+	//stSortedSet_destruct(block_getContents(block)->segments);
 
-	free(block->rBlock);
-	free(block->blockContents);
-	free(block);
+	//free(block_getContents(block)->rBlock);
+	//free(block_getContents(block));
+	free(block->order ? block : block_getReverse(block));
 }
 
 bool block_getOrientation(Block *block) {
-	return block->orientation;
+	return block->order; // block_getContents(block)->orientation;
 }
 
 Block *block_getPositiveOrientation(Block *block) {
@@ -78,31 +86,37 @@ Block *block_getPositiveOrientation(Block *block) {
 }
 
 Block *block_getReverse(Block *block) {
-	return block->rBlock;
+	return block->order ? block+1 : block-1; //block_getContents(block)->rBlock;
 }
 
 Name block_getName(Block *block) {
-	return block->blockContents->name;
+	return block_getContents(block)->name;
 }
 
 int64_t block_getLength(Block *block) {
-	return block->blockContents->length;
+	return block_getContents(block)->length;
 }
 
 Flower *block_getFlower(Block *block) {
-	return block->blockContents->flower;
+	return block_getContents(block)->flower;
 }
 
 End *block_get5End(Block *block) {
-	return block->leftEnd;
+	return block->order ? block_getContents(block)->leftEnd : end_getReverse(block_getContents(block)->rightEnd);
 }
 
 End *block_get3End(Block *block) {
-	return end_getReverse(block->rBlock->leftEnd);
+	return block->order ? block_getContents(block)->rightEnd : end_getReverse(block_getContents(block)->leftEnd); //end_getReverse(block_getContents(block)->rblock_getContents(block)->leftEnd);
 }
 
 int64_t block_getInstanceNumber(Block *block) {
-	return stSortedSet_size(block->blockContents->segments);
+    Segment *segment = block_getContents(block)->firstSegment;
+    int64_t totalSegments=0;
+    while(segment != NULL) {
+        totalSegments++; segment = segment_getContents(segment)->nSegment;
+    }
+    return totalSegments;
+	//return stSortedSet_size(block_getContents(block)->segments);
 }
 
 Segment *block_getInstanceP(Block *block, Segment *connectedSegment) {
@@ -110,54 +124,74 @@ Segment *block_getInstanceP(Block *block, Segment *connectedSegment) {
 }
 
 Segment *block_getInstance(Block *block, Name name) {
-	Segment segment;
-	segment.name = name;
-	return block_getInstanceP(block, stSortedSet_search(block->blockContents->segments, &segment));
+    Segment *segment = block_getContents(block)->firstSegment;
+    while(segment != NULL) {
+        if(segment_getName(segment) == name) {
+            return block_getInstanceP(block, segment);
+        }
+        segment = segment_getContents(segment)->nSegment; ;
+    }
+    return NULL;
+	//Segment segment;
+	//segment.name = name;
+	//return block_getInstanceP(block, stSortedSet_search(block_getContents(block)->segments, &segment));
 }
 
 Segment *block_getFirst(Block *block) {
-	return block_getInstanceP(block, stSortedSet_getFirst(block->blockContents->segments));
+	return block_getInstanceP(block, block_getContents(block)->firstSegment); //block_getInstanceP(block, stSortedSet_getFirst(block_getContents(block)->segments));
 }
 
 Segment *block_getRootInstance(Block *block) {
-	Cap *cap = end_getRootInstance(block_get5End(block));
-	return cap != NULL ? cap_getSegment(cap) : NULL;
+    return NULL;
+	//Cap *cap = end_getRootInstance(block_get5End(block));
+	//return cap != NULL ? cap_getSegment(cap) : NULL;
 }
 
 void block_setRootInstance(Block *block, Segment *segment) {
-	block = block_getPositiveOrientation(block);
+    assert(0);
+	/*block = block_getPositiveOrientation(block);
 	segment = segment_getPositiveOrientation(segment);
 	assert(block_getInstance(block, segment_getName(segment)) == segment);
 	end_setRootInstance(block_get5End(block), segment_get5Cap(segment));
-	end_setRootInstance(block_get3End(block), segment_get3Cap(segment));
+	end_setRootInstance(block_get3End(block), segment_get3Cap(segment));*/
 }
 
 Block_InstanceIterator *block_getInstanceIterator(Block *block) {
 	Block_InstanceIterator *iterator;
 	iterator = st_malloc(sizeof(struct _block_instanceIterator));
 	iterator->block = block;
-	iterator->iterator = stSortedSet_getIterator(block->blockContents->segments);
+	iterator->segment = block_getContents(block)->firstSegment;
+	//iterator->iterator = stSortedSet_getIterator(block_getContents(block)->segments);
 	return iterator;
 }
 
 Segment *block_getNext(Block_InstanceIterator *iterator) {
-	return block_getInstanceP(iterator->block, stSortedSet_getNext(iterator->iterator));
+    Segment *segment = iterator->segment;
+    if(segment == NULL) {
+        return NULL;
+    }
+    iterator->segment = segment_getContents(segment)->nSegment;
+    return block_getInstanceP(iterator->block, segment);
+	//return block_getInstanceP(iterator->block, stSortedSet_getNext(iterator->iterator));
 }
 
 Segment *block_getPrevious(Block_InstanceIterator *iterator) {
-	return block_getInstanceP(iterator->block, stSortedSet_getPrevious(iterator->iterator));
+    assert(0);
+	//return block_getInstanceP(iterator->block, stSortedSet_getPrevious(iterator->iterator));
 }
 
 Block_InstanceIterator *block_copyInstanceIterator(Block_InstanceIterator *iterator) {
+    assert(0);
 	Block_InstanceIterator *iterator2;
 	iterator2 = st_malloc(sizeof(struct _block_instanceIterator));
 	iterator2->block = iterator->block;
-	iterator2->iterator = stSortedSet_copyIterator(iterator->iterator);
+	iterator2->segment = iterator->segment;
+	//iterator2->iterator = stSortedSet_copyIterator(iterator->iterator);
 	return iterator2;
 }
 
 void block_destructInstanceIterator(Block_InstanceIterator *iterator) {
-	stSortedSet_destructIterator(iterator->iterator);
+	//stSortedSet_destructIterator(iterator->iterator);
 	free(iterator);
 }
 
@@ -258,40 +292,40 @@ void block_split(Block *block, int64_t splitPoint, Block **leftBlock, Block **ri
 
 void block_check(Block *block) {
 	//Check is connected to flower properly
-	cactusCheck(flower_getBlock(block_getFlower(block), block_getName(block)) == block_getPositiveOrientation(block));
+	assert(flower_getBlock(block_getFlower(block), block_getName(block)) == block_getPositiveOrientation(block));
 	//Check we have actually set built blocks for the flower..
-	cactusCheck(flower_builtBlocks(block_getFlower(block)));
+	assert(flower_builtBlocks(block_getFlower(block)));
 
 	//Checks the two ends are block ends.
 	End *_5End = block_get5End(block);
 	End *_3End = block_get3End(block);
-	cactusCheck(end_isBlockEnd(_5End));
-	cactusCheck(end_isBlockEnd(_3End));
-	cactusCheck(end_getOrientation(_5End) == block_getOrientation(block));
-	cactusCheck(end_getOrientation(_3End) == block_getOrientation(block));
-	cactusCheck(end_getBlock(_5End) == block);
-	cactusCheck(end_getBlock(_3End) == block);
-	cactusCheck(end_getSide(_5End)); //Check the sides of the ends are consistent.
-	cactusCheck(!end_getSide(_3End));
+	assert(end_isBlockEnd(_5End));
+	assert(end_isBlockEnd(_3End));
+	assert(end_getOrientation(_5End) == block_getOrientation(block));
+	assert(end_getOrientation(_3End) == block_getOrientation(block));
+	assert(end_getBlock(_5End) == block);
+	assert(end_getBlock(_3End) == block);
+	assert(end_getSide(_5End)); //Check the sides of the ends are consistent.
+	assert(!end_getSide(_3End));
 
-	cactusCheck(block_getLength(block) > 0); //check block has non-zero length
+	assert(block_getLength(block) > 0); //check block has non-zero length
 
 	//Check reverse
 	Block *rBlock = block_getReverse(block);
-	cactusCheck(rBlock != NULL);
-	cactusCheck(block_getReverse(block) == rBlock);
-	cactusCheck(block_getOrientation(block) == !block_getOrientation(rBlock));
-	cactusCheck(block_getLength(block) == block_getLength(rBlock));
-	cactusCheck(block_get5End(block) == end_getReverse(block_get3End(rBlock)));
-	cactusCheck(block_get3End(block) == end_getReverse(block_get5End(rBlock)));
-	cactusCheck(block_getInstanceNumber(block) == block_getInstanceNumber(rBlock));
+	assert(rBlock != NULL);
+	assert(block_getReverse(block) == rBlock);
+	assert(block_getOrientation(block) == !block_getOrientation(rBlock));
+	assert(block_getLength(block) == block_getLength(rBlock));
+	assert(block_get5End(block) == end_getReverse(block_get3End(rBlock)));
+	assert(block_get3End(block) == end_getReverse(block_get5End(rBlock)));
+	assert(block_getInstanceNumber(block) == block_getInstanceNumber(rBlock));
 	if(block_getInstanceNumber(block) > 0) {
-		cactusCheck(block_getFirst(block) == segment_getReverse(block_getFirst(rBlock)));
+		assert(block_getFirst(block) == segment_getReverse(block_getFirst(rBlock)));
 		if(block_getRootInstance(block) == NULL) {
-			cactusCheck(block_getRootInstance(rBlock) == NULL);
+			assert(block_getRootInstance(rBlock) == NULL);
 		}
 		else {
-			cactusCheck(block_getRootInstance(block) == segment_getReverse(block_getRootInstance(rBlock)));
+			assert(block_getRootInstance(block) == segment_getReverse(block_getRootInstance(rBlock)));
 		}
 	}
 
@@ -355,16 +389,28 @@ bool block_isTrivialChain(Block *block) {
  */
 
 void block_addInstance(Block *block, Segment *segment) {
-	stSortedSet_insert(block->blockContents->segments, segment_getPositiveOrientation(segment));
+    segment = segment_getPositiveOrientation(segment);
+    assert(segment_getContents(segment)->nSegment == NULL);
+    segment_getContents(segment)->nSegment = block_getContents(block)->firstSegment;
+    block_getContents(block)->firstSegment = segment;
+	//stSortedSet_insert(block_getContents(block)->segments, segment_getPositiveOrientation(segment));
 }
 
 void block_removeInstance(Block *block, Segment *segment) {
-	stSortedSet_remove(block->blockContents->segments, segment_getPositiveOrientation(segment));
+    Segment **segmentP = &(block_getContents(block)->firstSegment);
+    while(*segmentP != NULL) {
+        if(segment_getName(segment) == segment_getName(*segmentP)) {
+            (*segmentP) = segment_getContents(*segmentP)->nSegment; // Splice it out
+            return;
+        }
+        segmentP = &(segment_getContents(*segmentP)->nSegment);
+    }
+	//stSortedSet_remove(block_getContents(block)->segments, segment_getPositiveOrientation(segment));
 }
 
 void block_setFlower(Block *block, Flower *flower) {
 	flower_removeBlock(block_getFlower(block), block);
-	block->blockContents->flower = flower;
+	block_getContents(block)->flower = flower;
 	flower_addBlock(flower, block);
 }
 

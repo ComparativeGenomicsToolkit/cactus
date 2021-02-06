@@ -9,24 +9,28 @@
 
 #include "cactusGlobals.h"
 
-
 typedef struct _blockContents {
 	Name name;
-	stSortedSet *segments;
+	//stSortedSet *segments;
+	Segment *firstSegment;
 	int64_t length;
 	Flower *flower;
+    End *leftEnd;
+    End *rightEnd;
 } BlockContents;
 
 struct _block_instanceIterator {
-	stSortedSetIterator *iterator;
+	//stSortedSetIterator *iterator;
+	Segment *segment;
 	Block *block;
 };
 
 struct _block {
-	BlockContents *blockContents;
-	bool orientation;
-	End *leftEnd;
-	Block *rBlock;
+    bool order;
+	//BlockContents *blockContents;
+	//bool orientation;
+	//End *leftEnd;
+	//Block *rBlock;
 };
 
 ////////////////////////////////////////////////
@@ -36,6 +40,11 @@ struct _block {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
+
+/*
+ * Get the block contents object
+ */
+BlockContents *block_getContents(Block *block);
 
 /*
  * Constructs the block, but not its ends.

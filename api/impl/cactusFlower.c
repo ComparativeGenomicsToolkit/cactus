@@ -233,12 +233,18 @@ End *flower_getFirstEnd(Flower *flower) {
 }
 
 End *flower_getEnd(Flower *flower, Name name) {
-    End end;
-    EndContents endContents;
-    end.endContents = &endContents;
-    endContents.name = name;
-    end.orientation = 1;
-    return stSortedSet_search(flower->ends, &end);
+    EndContents endContents[2];
+    End *end = (End *)(&endContents); // Very ugly hack
+    end->order = 1;
+    end_getContents(end)->name = name;
+    assert(end_getName(end) == name);
+
+    //End end;
+    //EndContents endContents;
+    //end.endContents = &endContents;
+    //endContents.name = name;
+    //end.orientation = 1;
+    return stSortedSet_search(flower->ends, end);
 }
 
 int64_t flower_getEndNumber(Flower *flower) {
@@ -295,8 +301,13 @@ Segment *flower_getFirstSegment(Flower *flower) {
 }
 
 Segment *flower_getSegment(Flower *flower, Name name) {
-    Segment segment;
-    segment.name = name;
+    SegmentContents segmentContents[2];
+    Segment *segment = (Segment *)(&segmentContents); // Very ugly hack
+    segment_getContents(segment)->name = name;
+    assert(segment_getName(segment) == name);
+
+    //Segment segment;
+    //segment_getContents(segment)->name = name;
     return stSortedSet_search(flower->segments, &segment);
 }
 
@@ -329,11 +340,15 @@ Block *flower_getFirstBlock(Flower *flower) {
 }
 
 Block *flower_getBlock(Flower *flower, Name name) {
-    Block block;
-    BlockContents blockContents;
-    block.blockContents = &blockContents;
-    blockContents.name = name;
-    return stSortedSet_search(flower->blocks, &block);
+    BlockContents blockContents[2];
+    Block *block = (Block *)(&blockContents); // Very ugly hack
+    block_getContents(block)->name = name;
+    assert(block_getName(block) == name);
+    //Block block;
+    //BlockContents blockContents;
+    //block.blockContents = &blockContents;
+    //blockContents.name = name;
+    return stSortedSet_search(flower->blocks, block);
 }
 
 int64_t flower_getBlockNumber(Flower *flower) {

@@ -10,7 +10,7 @@
 #include "cactusGlobals.h"
 
 typedef struct _endContents {
-	Cap *rootInstance;
+	//Cap *rootInstance;
 	bool isStub;
 	bool isAttached;
 	Name name;
@@ -19,6 +19,9 @@ typedef struct _endContents {
 	Cap *firstCap;
 	Group *group;
 	Flower *flower;
+    //bool orientation;
+    bool side;
+    End *nEnd;
 } EndContents;
 
 struct _end_instanceIterator {
@@ -28,10 +31,11 @@ struct _end_instanceIterator {
 };
 
 struct _end {
-	EndContents *endContents;
-	bool orientation;
-	bool side;
-	End *rEnd;
+	//EndContents *endContents;
+	//bool orientation;
+	//bool side;
+	//End *rEnd;
+	bool order;
 };
 
 
@@ -42,6 +46,11 @@ struct _end {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
+
+/*
+ * Get the contents object shared between the ends.
+ */
+EndContents *end_getContents(End *end);
 
 /*
  * Constructs the end, but not any attached block.

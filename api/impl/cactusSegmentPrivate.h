@@ -9,11 +9,16 @@
 
 #include "cactusGlobals.h"
 
-struct _segment {
+typedef struct _segmentContents {
 	Cap *_5Cap;
-	Segment *rInstance;
+	Cap *_3Cap;
 	Name name;
 	Block *block;
+	Segment *nSegment;
+} SegmentContents;
+
+struct _segment {
+    bool order;
 };
 
 
@@ -24,6 +29,11 @@ struct _segment {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
+
+/*
+ * Get the cap contents object
+ */
+SegmentContents *segment_getContents(Segment *segment);
 
 /*
  * Constructs segment with the two caps, which must both have the same instance name.

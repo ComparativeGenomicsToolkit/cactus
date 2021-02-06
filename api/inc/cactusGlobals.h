@@ -50,7 +50,9 @@ typedef struct _flowerWriter FlowerWriter;
 typedef stSortedSetIterator EventTree_Iterator;
 typedef struct _end_instanceIterator End_InstanceIterator;
 typedef struct _block_instanceIterator Block_InstanceIterator;
-typedef stSortedSetIterator Group_EndIterator;
+//typedef stSortedSetIterator Group_EndIterator;
+typedef struct _group_endIterator Group_EndIterator;
+
 typedef stSortedSetIterator Flower_SequenceIterator;
 typedef stSortedSetIterator Flower_CapIterator;
 typedef stSortedSetIterator Flower_SegmentIterator;
@@ -60,6 +62,7 @@ typedef stSortedSetIterator Flower_GroupIterator;
 typedef stSortedSetIterator Flower_ChainIterator;
 typedef stSortedSetIterator Flower_FaceIterator;
 typedef stSortedSetIterator CactusDisk_FlowerIterator;
+
 typedef stSortedSetIterator Reference_PseudoChromosomeIterator;
 typedef stListIterator PseudoChromsome_PseudoAdjacencyIterator;
 typedef struct _face_FaceEndIterator Face_FaceEndIterator;

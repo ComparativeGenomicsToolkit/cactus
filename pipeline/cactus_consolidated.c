@@ -411,7 +411,7 @@ int main(int argc, char *argv[]) {
     if(constraintAlignmentsFile != NULL) {
         st_system("rm %s", constraintAlignmentsFile);
     }
-    cactusDisk_destruct(cactusDisk);
+    //cactusDisk_destruct(cactusDisk);
     stKVDatabaseConf_destruct(kvDatabaseConf);
 
     //while(1);
