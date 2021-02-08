@@ -83,6 +83,7 @@ static void promoteBlockEnd(End *end, Flower *flower, Flower *parentFlower) {
     /*
      * Redirects all the pointers in the block end to the higher level flower.
      */
+    assert(0); // This code is broken, somewhat
     assert(end_isBlockEnd(end));
     assert(end_getFlower(end) == flower);
     assert(flower != parentFlower);
@@ -93,12 +94,10 @@ static void promoteBlockEnd(End *end, Flower *flower, Flower *parentFlower) {
     while ((cap = end_getNext(it)) != NULL) {
         Event *event = eventTree_getEvent(eventTree, event_getName(cap_getEvent(cap)));
         assert(event != NULL);
-        cap_getContents(cap)->event = event;
-        if (cap_getSequence(cap) != NULL) {
-            Sequence *sequence = flower_getSequence(parentFlower, sequence_getName(cap_getSequence(cap)));
-            assert(sequence != NULL);
-            cap_getContents(cap)->sequence = sequence;
-        }
+        cap_getContents(cap)->eventOrSequence = cap_getSequence(cap) == NULL ? event :
+                flower_getSequence(parentFlower, sequence_getName(cap_getSequence(cap)));
+        cap_setEventNotSequence(cap, cap_getSequence(cap) == NULL);
+        cap_setEventNotSequence(cap_getReverse(cap), cap_getSequence(cap) == NULL);
         flower_removeCap(flower, cap);
         flower_addCap(parentFlower, cap);
     }

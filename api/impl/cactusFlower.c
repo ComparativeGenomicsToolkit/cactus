@@ -572,7 +572,7 @@ void flower_check(Flower *flower) {
     while ((chain = flower_getNextChain(chainIterator)) != NULL) {
         chain_check(chain);
     }
-    flower_destructCapIterator(chainIterator);
+    flower_destructChainIterator(chainIterator);
 
     //We check built trees in here.
     Flower_EndIterator *endIterator = flower_getEndIterator(flower);

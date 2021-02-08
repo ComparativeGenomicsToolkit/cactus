@@ -12,9 +12,10 @@
 typedef struct _capContents {
     Name instance;
     int64_t coordinate;
-    bool strand;
-    Event *event;
-    Sequence *sequence;
+    //bool strand;
+    void *eventOrSequence;
+    //Event *event;
+    //Sequence *sequence;
     Cap *adjacency;
     //Cap *adjacency2;
     //Face *face;
@@ -26,7 +27,7 @@ typedef struct _capContents {
 } CapContents;
 
 struct _cap {
-    bool order;
+    char bits;
     //CapContents *capContents;
     //End *end;
     //Cap *rCap;
@@ -55,6 +56,11 @@ Cap *cap_construct3(Name name, Event *event, End *end);
  */
 Cap *cap_construct4(Name name, End *end, int64_t startCoordinate,
         bool strand, Sequence *sequence);
+
+/*
+ * Sets if the cap holds a pointer to an event or a sequence
+ */
+void cap_setEventNotSequence(Cap *cap, bool eventNotSequence);
 
 /*
  * As constructor 3, but don't specify name.
