@@ -10,6 +10,9 @@ import timeit
 
 from operator import itemgetter
 
+from Bio import SeqIO
+from Bio.SeqRecord import SeqRecord
+
 from cactus.progressive.seqFile import SeqFile
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.common import setupBinaries, importSingularityImage
@@ -51,6 +54,7 @@ def main():
     parser.add_argument("--refContigsFile", type=str, help = "Subset to (newline-separated) reference contigs in this file")
     parser.add_argument("--otherContig", type=str, help = "Lump all reference contigs unselected by above options into single one with this name")
     parser.add_argument("--reference", type=str, help = "Name of reference (in seqFile).  Ambiguity filters will not be applied to it")
+    parser.add_argument("--maskFilter", type=int, help = "Ignore softmasked sequence intervals > Nbp")
     
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -167,10 +171,14 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
     if paf_path.endswith(".gz"):
         paf_id = root_job.addChildJobFn(unzip_gz, paf_path, paf_id, disk=paf_id.size * 10).rv()
         paf_size *= 10
+
+    mask_bed_id = None
+    if options.maskFilter:
+        mask_bed_id = root_job.addChildJobFn(get_mask_bed, seqIDMap, options.maskFilter).rv()
         
     # use rgfa-split to split the gfa and paf up by contig
     split_gfa_job = root_job.addFollowOnJobFn(split_gfa, config, gfa_id, paf_id, ref_contigs,
-                                              other_contig, options.reference,
+                                              other_contig, options.reference, mask_bed_id,
                                               disk=(gfa_size + paf_size) * 5)
 
     # use the output of the above splitting to do the fasta splitting
@@ -182,7 +190,45 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
     # return all the files
     return gather_fas_job.rv()
 
-def split_gfa(job, config, gfa_id, paf_id, ref_contigs, other_contig, reference_event):
+def get_mask_bed(job, seq_id_map, min_length):
+    """ make a bed file from the fastas """
+    beds = []
+    for event in seq_id_map.keys():
+        fa_path, fa_id = seq_id_map[event]
+        beds.append(job.addChildJobFn(get_mask_bed_from_fasta, event, fa_id, fa_path, min_length, disk=fa_id.size * 5).rv())
+    return job.addFollowOnJobFn(cat_beds, beds).rv()
+
+def get_mask_bed_from_fasta(job, event, fa_id, fa_path, min_length):
+    """ make a bed file from one fasta"""
+    work_dir = job.fileStore.getLocalTempDir()    
+    bed_path = os.path.join(work_dir, os.path.basename(fa_path) + '.mask.bed')
+    fa_path = os.path.join(work_dir, os.path.basename(fa_path))
+    is_gz = fa_path.endswith(".gz")
+    job.fileStore.readGlobalFile(fa_id, fa_path, mutable=is_gz)
+    if is_gz:
+        cactus_call(parameters=['gzip', '-fd', fa_path])
+        fa_path = fa_path[:-3]
+    with open(bed_path, 'w') as bed_file, open(fa_path, 'r') as fa_file:
+        for seq_record in SeqIO.parse(fa_file, 'fasta'):
+            first_mask = None
+            for i, c in enumerate(seq_record.seq):
+                is_mask = c.islower() or c in ['n', 'N']
+                if (is_mask is False or i == len(seq_record.seq) - 1) and first_mask is not None and i - first_mask >= min_length:
+                    # we're one past an interval: write it
+                    bed_file.write('{}\t{}\t{}\n'.format('id={}|{}'.format(event, seq_record.id), first_mask, i))
+                    first_mask = None
+                elif is_mask is True and first_mask is None:
+                    # we're starting a new interval: remember start position
+                    first_mask = i
+    return job.fileStore.writeGlobalFile(bed_path)
+
+def cat_beds(job, bed_ids):
+    in_beds = [job.fileStore.readGlobalFile(bed_id) for bed_id in bed_ids]
+    out_bed = job.fileStore.getLocalTempFile()
+    catFiles(in_beds, out_bed)
+    return job.fileStore.writeGlobalFile(out_bed)
+    
+def split_gfa(job, config, gfa_id, paf_id, ref_contigs, other_contig, reference_event, mask_bed_id):
     """ Use rgfa-split to divide a GFA and PAF into chromosomes.  The GFA must be in minigraph RGFA output using
     the desired reference. """
 
@@ -190,10 +236,13 @@ def split_gfa(job, config, gfa_id, paf_id, ref_contigs, other_contig, reference_
     gfa_path = os.path.join(work_dir, "mg.gfa")
     paf_path = os.path.join(work_dir, "mg.paf")
     out_prefix = os.path.join(work_dir, "split_")
+    bed_path = os.path.join(work_dir, "mask.bed")
+    if (mask_bed_id):
+        job.fileStore.readGlobalFile(mask_bed_id, bed_path)
 
     job.fileStore.readGlobalFile(gfa_id, gfa_path)
     job.fileStore.readGlobalFile(paf_id, paf_path)
-
+    
     # get the minigraph "virutal" assembly name
     graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
     # and look up its unique id prefix.  this will be needed to pick its contigs out of the list
@@ -219,6 +268,8 @@ def split_gfa(job, config, gfa_id, paf_id, ref_contigs, other_contig, reference_
         cmd += ['-o', other_contig]
     if reference_event:
         cmd += ['-r', 'id={}|'.format(reference_event)]
+    if mask_bed_id:
+        cmd += ['-B', bed_path]
         
     for contig in ref_contigs:
         cmd += ['-c', contig]

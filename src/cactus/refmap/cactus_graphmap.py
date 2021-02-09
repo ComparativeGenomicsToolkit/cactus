@@ -187,7 +187,7 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event):
         
     if options.outputFasta:
         # convert GFA to fasta
-        fa_job = job.addChildJobFn(make_minigraph_fasta, gfa_id, graph_event)
+        fa_job = job.addChildJobFn(make_minigraph_fasta, gfa_id, options.outputFasta, graph_event)
         fa_id = fa_job.rv()
 
     paf_job = job.addChildJobFn(minigraph_map_all, config, gfa_id, seq_id_map, graph_event, options.outputGAFDir is not None)
@@ -206,7 +206,7 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event):
 
     return out_paf_id, fa_id, paf_job.rv(1)
         
-def make_minigraph_fasta(job, gfa_file_id, name):
+def make_minigraph_fasta(job, gfa_file_id, gfa_file_path, name):
     """ Use gfatools to make the minigraph "assembly" """
 
     # note: using the toil-vg convention of naming working files manually so that logging is more readable
@@ -216,8 +216,11 @@ def make_minigraph_fasta(job, gfa_file_id, name):
     
     job.fileStore.readGlobalFile(gfa_file_id, gfa_path)
 
-    cactus_call(work_dir=work_dir, outfile=fa_path,
-                parameters=["gfatools", "gfa2fa", os.path.basename(gfa_path)])
+    cmd = ["gfatools", "gfa2fa", gfa_path]
+    if gfa_file_path.endswith('.gz'):
+        cmd = [cmd, ['gzip']]
+        fa_path += '.gz'
+    cactus_call(outfile=fa_path, parameters=cmd)
 
     return job.fileStore.writeGlobalFile(fa_path)
 

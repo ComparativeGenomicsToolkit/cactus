@@ -131,7 +131,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://github.com/ComparativeGenomicsToolkit/cactus-gfa-tools.git
 cd cactus-gfa-tools
-git checkout d8d9041006db5d3f6eb19308338c82751f3c85cc
+git checkout 68b08782911e599f884634aee66e13c46d68de89
 make -j 4
 if [[ $STATIC_CHECK -ne 1 || $(ldd paf2lastz | grep so | wc -l) -eq 0 ]]
 then
@@ -165,7 +165,7 @@ else
 fi
 
 # hal2vg
-wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.2/hal2vg
+wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.6/hal2vg
 chmod +x hal2vg
 if [[ $STATIC_CHECK -ne 1 || $(ldd hal2vg | grep so | wc -l) -eq 0 ]]
 then
@@ -173,6 +173,25 @@ then
 else
 	 exit 1
 fi
+# clip-vg
+wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.6/clip-vg
+chmod +x clip-vg
+if [[ $STATIC_CHECK -ne 1 || $(ldd clip-vg | grep so | wc -l) -eq 0 ]]
+then
+	 mv clip-vg ${binDir}
+else
+	 exit 1
+fi
+# halRemoveDupes
+wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.6/halRemoveDupes
+chmod +x halRemoveDupes
+if [[ $STATIC_CHECK -ne 1 || $(ldd halRemoveDupes | grep so | wc -l) -eq 0 ]]
+then
+	 mv halRemoveDupes ${binDir}
+else
+	 exit 1
+fi
+
 
 # vg
 wget -q https://github.com/vgteam/vg/releases/download/v1.30.0/vg
