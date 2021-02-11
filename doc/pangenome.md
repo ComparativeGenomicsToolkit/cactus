@@ -84,7 +84,7 @@ Note that instead of softmasking sequences and leaving them unaligned, they can 
 Use `cactus-graphmap` to do the mapping.  It will produce a PAF file of pairwise alignments for cactus to build on.  It will be much faster this time than above, as it will ignore the masked sequences.  A future version of Cactus will clean up the interface in order to make this second call unnecessary! 
 
 ```
-cactus-graphmap <jobstore> `seqfile.masked.txt` <minigraph GFA> s3://<bucket>/GRCh38-freeze1.paf --realTimeLogging --logFile graphmap2.log --batchSystem mesos --provisioner aws --defaultPreemptable --nodeTypes r3.8xlarge:0.7 --maxNodes 20 --outputFasta s3://<bucket>/GRCh38-freeze1.gfa.fa --maskFilter 100000
+cactus-graphmap <jobstore> `seqfile.masked.txt` <minigraph GFA> s3://<bucket>/GRCh38-freeze1.paf --maskFilter 100000 --realTimeLogging --logFile graphmap2.log --batchSystem mesos --provisioner aws --defaultPreemptable --nodeTypes r3.8xlarge:0.7 --maxNodes 20 --outputFasta s3://<bucket>/GRCh38-freeze1.gfa.fa
 ```
 
 ### Split the sequences by reference chromosome (about 2 hours)
@@ -92,7 +92,7 @@ cactus-graphmap <jobstore> `seqfile.masked.txt` <minigraph GFA> s3://<bucket>/GR
 Cactus hasn't yet been tested on the entire input set at once.  In the meantime, we split into chromosomes and make a graph for each.  All output will be written in bucket specified by `--outDir`.  A separate cactus project will be written for each chromosome (`--refContigs`).  The decomposition is determined from mapping: an input contig maps to the reference chromosome to which it has the most alignment in the PAF. Input contigs that cannot be assigned confidently to a reference chromosome will be flagged as `_AMBIGUOUS_`. It's currently important to use `--reference hg38` in order for it not to be filtered out with ambiguity filter.
 
 ```
-cactus-graphmap-split <jobstore> `seqfile.masked.txt` <minigraph GFA> s3://<bucket>/GRCh38-freeze1.paf --refContigs $(for i in $(seq 1 22; echo X; echo Y; echo M); do echo chr$i; done) --reference hg38 --outDir s3://<bucket>/chroms --realTimeLogging --logFile graphmap-split.log --batchSystem mesos --provisioner aws --defaultPreemptable --betaInertia 0 --targetTime 1 --nodeTypes r3.8xlarge:0.7 --maxNodes 20 
+cactus-graphmap-split <jobstore> `seqfile.masked.txt` <minigraph GFA> s3://<bucket>/GRCh38-freeze1.paf --refContigs $(for i in $(seq 1 22; echo X; echo Y; echo M); do echo chr$i; done) --reference hg38 --maskFilter 100000  --outDir s3://<bucket>/chroms --realTimeLogging --logFile graphmap-split.log --batchSystem mesos --provisioner aws --defaultPreemptable --betaInertia 0 --targetTime 1 --nodeTypes r3.8xlarge:0.7 --maxNodes 20 
 ```
 
 ### Make a pangenome graph for each chromosome (about 20 hours)
