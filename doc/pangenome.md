@@ -47,7 +47,7 @@ cactus-graphmap ./jobstore ./examples/evolverPrimates.txt primates.gfa primates.
 
 Create the cactus alignment from the seqfile and PAF, and export the output to vg.
 ```
-cactus-align ./jobstore ./examples/evolverPrimates.txt primates.paf primates.hal --pangenome --pafInput --realTimeLogging --outVG
+cactus-align ./jobstore ./examples/evolverPrimates.txt primates.paf primates.hal --pangenome --pafInput --realTimeLogging --outVG --acyclic simChimp
 ```
 
 ## HPRC Chromosome-by-Chromosome Graph Construction
@@ -65,40 +65,34 @@ Make a node on AWS with `toil launch-cluster --leaderNodeType t2.medium --leader
 
 ### Preprocessing (about 7 hours)
 
-minigraph is unable to map within centromeres.  While `cactus-bar` can fill in alignments within these regions to some extent, we currently recommend removing them instead.  This substantially reduces complexity in the resulting pangenome, as well as lowers the probability that assembly or alignment errors get passed off as real variation.  `cactus-preprocess` can be used to remove centromeres as follows. 
-
-Make a `config.xml` file where `cpu` attribute of the `dna-brnn` `preprocessorJob` is increased from `2` to `16` (it takes a little under 2 hours to mask a genome with 16 cores).  Also change the `active` attribute of the `checkUniqueHeaders` job from `1` to `0` (to save time). (leaving everything else default is fine)
-
-Make a seqfile for the output fastas in `./masked`
-```
-cactus-prepare ./seqfile.txt --outDir ./masked > /dev/null
-# edit masked/seqfile.txt to remove Anc0, the tree, and verify paths (and put them in S3!!)
-```
-
-Run the preprocessor, clipping out brnn-masked regions > 100kb (except on reference). (bed files of what was clipped also written). 
-```
-cactus-preprocess <jobstore> ./seqfile.txt ./masked/seqfile.txt --clipAlpha 100000 --configFile ./config.xml --ignore hg38 --realTimeLogging --logFile preprocess.log --batchSystem mesos --provisioner aws --defaultPreemptable --nodeTypes r3.8xlarge:0.7 --maxNodes 20
-```
-
-Note: To mask the centromeres and leave them as unaligned bubbles in the graph (instead of clipping them out), do the following:
-* Pass `--maskAlpha 100000` instead of `--clipAlpha 100000` to `cactus-preprocess` above
-* Pass `--maskFilter 100000` to `cactus-graphmap` below to tell `minigraph` to ignore these regions
-* Pass `--barMaskFilter 100000` to `cactus-align` below to tell `cactus-bar` to ignore these regions
-
-### Map contigs to minigraph (about 3 hours)
-
-Use `cactus-graphmap` to do the mapping.  It will produce a PAF file of pairwise alignments for cactus to build on.  It will also edit the input seqfile in order to add the minigraph fasta (specfied with `--outputFasta`).  Note that `--refFromGFA hg38` is used in order to not map hg38 and instead pull its alignments from the rGFA tags.  
+In order to limit spurious alignments and graph complexity in difficult regions, it is recommended to mask these regions out from the get-go.  In an abundance of caution, we use two methods to detect these regions.  First, align the sequences to create a PAF
 
 ```
-cactus-graphmap <jobstore> `masked/seqfile.txt` <minigraph GFA> s3://<bucket>/GRCh38-freeze1.paf --realTimeLogging --logFile graphmap.log --batchSystem mesos --provisioner aws --defaultPreemptable --nodeTypes r3.8xlarge:0.7 --maxNodes 20 --outputFasta s3://<bucket>/GRCh38-freeze1.gfa.fa --refFromGFA hg38
+cactus-graphmap <jobstore> seqfile.txt <minigraph GFA> s3://<bucket>/GRCh38-freeze1-orig.paf --realTimeLogging --outputFasta s3://<bucket>/GRCh38-freeze1.gfa.fa --logFile graphmap-1.log --batchSystem mesos --provisioner aws --nodeTypes r3.8xlarge:0.7 --maxNodes 20 --defaultPreemptable --betaInertia 0 --targetTime 1 
 ```
 
-### Split the sequences by reference chromosome (about 1 hour)
-
-Cactus hasn't yet been tested on the entire input set at once.  In the meantime, we split into chromosomes and make a graph for each.  The GFA results can be simply catted to make a single pangenome graph.  All output will be written in bucket specified by `--outDir`.  A separate cactus project will be written for each chromosome (`--refContigs`).  The decomposition is determined from mapping: an input contig maps to the reference chromosome to which it has the most alignment in the PAF. Input contigs that cannot be assigned confidently to a reference chromosome will be flagged as `_AMBIGUOUS_`. It's currently important to use `--reference hg38` in order for it not to be filtered out with ambiguity filter.
+Next, we combine the coverage gaps in the PAF with dna-brnn to produce the final masking, using a 100kb length threshold (default in cactus config).  Note that we need to create a `seqfile.masked.txt` seqfile specifying the locations of the masked fasta sequences.  
 
 ```
-cactus-graphmap-split <jobstore> `masked/seqfile.txt` <minigraph GFA> s3://<bucket>/GRCh38-freeze1.paf --refContigs $(for i in $(seq 1 22; echo X; echo Y; echo M); do echo chr$i; done) --reference hg38 --outDir s3://<bucket>/chroms --realTimeLogging --logFile graphmap-split.log --batchSystem mesos --provisioner aws --defaultPreemptable --nodeTypes r3.8xlarge:0.7 --maxNodes 20 
+cactus-preprocess <jobstore> seqfile.txt seqfile.masked.txt --realTimeLogging --logFile preprocess.log  --batchSystem mesos --provisioner aws --nodeTypes r3.8xlarge:0.7 --maxNodes 25 --defaultPreemptable --betaInertia 0 --targetTime 1  --maskPAF s3://<bucket>/GRCh38-freeze1-orig.paf  --maskAlpha --brnnCores 8
+```
+
+Note that instead of softmasking sequences and leaving them unaligned, they can be clipped out entirely using `--clipAlpha` instead of `--maskAlpha` above.
+
+### Map contigs to minigraph (about 2 hours)
+
+Use `cactus-graphmap` to do the mapping.  It will produce a PAF file of pairwise alignments for cactus to build on.  It will be much faster this time than above, as it will ignore the masked sequences.  A future version of Cactus will clean up the interface in order to make this second call unnecessary! 
+
+```
+cactus-graphmap <jobstore> `seqfile.masked.txt` <minigraph GFA> s3://<bucket>/GRCh38-freeze1.paf --maskFilter 100000 --realTimeLogging --logFile graphmap2.log --batchSystem mesos --provisioner aws --defaultPreemptable --nodeTypes r3.8xlarge:0.7 --maxNodes 20 --outputFasta s3://<bucket>/GRCh38-freeze1.gfa.fa
+```
+
+### Split the sequences by reference chromosome (about 2 hours)
+
+Cactus hasn't yet been tested on the entire input set at once.  In the meantime, we split into chromosomes and make a graph for each.  All output will be written in bucket specified by `--outDir`.  A separate cactus project will be written for each chromosome (`--refContigs`).  The decomposition is determined from mapping: an input contig maps to the reference chromosome to which it has the most alignment in the PAF. Input contigs that cannot be assigned confidently to a reference chromosome will be flagged as `_AMBIGUOUS_`. It's currently important to use `--reference hg38` in order for it not to be filtered out with ambiguity filter.
+
+```
+cactus-graphmap-split <jobstore> `seqfile.masked.txt` <minigraph GFA> s3://<bucket>/GRCh38-freeze1.paf --refContigs $(for i in $(seq 1 22; echo X; echo Y; echo M); do echo chr$i; done) --reference hg38 --maskFilter 100000  --outDir s3://<bucket>/chroms --realTimeLogging --logFile graphmap-split.log --batchSystem mesos --provisioner aws --defaultPreemptable --betaInertia 0 --targetTime 1 --nodeTypes r3.8xlarge:0.7 --maxNodes 20 
 ```
 
 ### Make a pangenome graph for each chromosome (about 20 hours)
@@ -113,17 +107,14 @@ aws s3 cp s3://<bucket>/chroms/chromfile.txt ./
 Use `cactus-align-batch` to align each chromosome on its own aws instance.  The `--alignCoresOverrides` option is used to ensure that the larger chromosomes get run on bigger instances.
 
 ```
-cactus-align-batch  ./chromfile.txt s3://<bucket>/align-batch --alignCores 32 --alignCoresOverrides chr1,64 chr2,64, chr3,64 chr4,64, chr5,64 --alignOptions "--pafInput --pangenome --outVG --realTimeLogging"  --batchSystem mesos --provisioner aws --defaultPreemptable  --nodeTypes r4.16xlarge:1.7,r4.8xlarge:0.7 --nodeStorage 1000 --maxNodes 5,20 --betaInertia 0 --targetTime 1 --logFile align-batch.log --realTimeLogging
+cactus-align-batch  ./chromfile.txt s3://<bucket>/align-batch --alignCores 32 --alignCoresOverrides chr1,64 chr2,64, chr3,64 chr4,64, chr5,64 --alignOptions "--pafInput --pangenome --outVG --barMaskFilter 100000 --realTimeLogging"  --batchSystem mesos --provisioner aws --defaultPreemptable  --nodeTypes r4.16xlarge:1.7,r4.8xlarge:0.7 --nodeStorage 1000 --maxNodes 5,20 --betaInertia 0 --targetTime 1 --logFile align-batch.log --realTimeLogging
 ```
 
 ### Combining the output into a single graph
 
-It is important to first make sure that the chromosome graphs have unique ids:
-```
-vg ids -j $(for i in $(seq 1 22; echo X; echo Y; echo M); do echo chr${i}.vg; done)
-```
-
-The can then be merged with:
+The chromosome graphs can then be merged with:
 ```
 vg combine $(for i in $(seq 1 22; echo X; echo Y; echo M); do echo chr${i}.vg; done) > GRCh38-freeze1.cactus.vg
 ```
+
+
