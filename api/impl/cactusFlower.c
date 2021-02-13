@@ -26,10 +26,6 @@ static int flower_constructEndsP(const void *o1, const void *o2) {
     return cactusMisc_nameCompare(end_getName((End *) o1), end_getName((End *) o2));
 }
 
-static int flower_constructSegmentsP(const void *o1, const void *o2) {
-    return cactusMisc_nameCompare(segment_getName((Segment *) o1), segment_getName((Segment *) o2));
-}
-
 static int flower_constructBlocksP(const void *o1, const void *o2) {
     return cactusMisc_nameCompare(block_getName((Block *) o1), block_getName((Block *) o2));
 }
@@ -198,10 +194,9 @@ Cap *flower_getCap(Flower *flower, Name name) {
     //Cap cap;
     CapContents capContents[2];
     Cap *cap = (Cap *)(&capContents); // Very ugly hack
-    cap_getContents(cap)->instance = name;
+    cap->bits = 2; // binary: 000010
+    cap_getCoreContents(cap)->instance = name;
     assert(cap_getName(cap) == name);
-    //cap.capContents = &capContents;
-    //cap.capContents->instance = name;
     return stList_binarySearch(flower->caps, cap, flower_constructCapsP); //stSortedSet_search(flower->caps, cap);
 }
 
@@ -302,14 +297,16 @@ Segment *flower_getFirstSegment(Flower *flower) {
 }
 
 Segment *flower_getSegment(Flower *flower, Name name) {
-    SegmentContents segmentContents[2];
-    Segment *segment = (Segment *)(&segmentContents); // Very ugly hack
-    segment_getContents(segment)->name = name;
-    assert(segment_getName(segment) == name);
+    assert(0);
+    return NULL; // todo: remove this function
+    //SegmentContents segmentContents[2];
+    //Segment *segment = (Segment *)(&segmentContents); // Very ugly hack
+    //segment_getContents(segment)->name = name;
+    //assert(segment_getName(segment) == name);
 
     //Segment segment;
     //segment_getContents(segment)->name = name;
-    return stSortedSet_search(flower->segments, &segment);
+    //return stSortedSet_search(flower->segments, &segment);
 }
 
 int64_t flower_getSegmentNumber(Flower *flower) {

@@ -94,8 +94,8 @@ static void promoteBlockEnd(End *end, Flower *flower, Flower *parentFlower) {
     while ((cap = end_getNext(it)) != NULL) {
         Event *event = eventTree_getEvent(eventTree, event_getName(cap_getEvent(cap)));
         assert(event != NULL);
-        cap_getContents(cap)->eventOrSequence = cap_getSequence(cap) == NULL ? event :
-                flower_getSequence(parentFlower, sequence_getName(cap_getSequence(cap)));
+        //cap_getCoreContents(cap)->eventOrSequence = cap_getSequence(cap) == NULL ? event :
+        //        flower_getSequence(parentFlower, sequence_getName(cap_getSequence(cap)));
         cap_setEventNotSequence(cap, cap_getSequence(cap) == NULL);
         cap_setEventNotSequence(cap_getReverse(cap), cap_getSequence(cap) == NULL);
         flower_removeCap(flower, cap);

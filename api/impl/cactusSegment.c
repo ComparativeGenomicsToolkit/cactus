@@ -14,85 +14,141 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-SegmentContents *segment_getContents(Segment *segment) {
-    return (SegmentContents *)(segment->order ? segment+2 : segment+1);
+SegmentCapContents *segment_getContents(Segment *segment) {
+    assert(cap_isSegment(segment));
+    return cap_getSegmentContents(segment);
 }
 
 Segment *segment_construct(Block *block, Event *event) {
-    return segment_construct3(cactusDisk_getUniqueID(flower_getCactusDisk(block_getFlower(
-            block))), block, cap_construct5(event, block_get5End(block)),
-            cap_construct5(event, block_get3End(block)));
+    Name instance = cactusDisk_getUniqueIDInterval(flower_getCactusDisk(block_getFlower(block)), 3);
+
+    assert(instance != NULL_NAME);
+    assert(event != NULL);
+    assert(block != NULL);
+
+    // Create the combined forward and reverse caps
+    Cap *cap = st_calloc(1, 6*sizeof(Cap) + sizeof(SegmentCapContents));
+
+    // see above comment to decode what is set
+    // Bits: strand / forward / part_of_segment / is_segment / left / event_not_sequence
+    (cap+0)->bits = 0x37; // binary: 110111
+    (cap+1)->bits = 0x34; // binary: 110100
+    (cap+2)->bits = 0x2F; // binary: 101111
+    (cap+3)->bits = 0x2C; // binary: 101100
+    (cap+4)->bits = 0x27; // binary: 100111
+    (cap+5)->bits = 0x24; // binary: 100100
+
+    // Set the attributes of the combined caps/segments
+    cap_getCoreContents(cap)->instance = instance;
+    cap_getCoreContents(cap)->coordinate = INT64_MAX;
+    cap_getCoreContents(cap)->eventOrSequence = event;
+    cap_getSegmentContents(cap)->block = block;
+
+    // Add the cap and segments to the appropriate indexes
+    block_addInstance(block, cap_getSegment(cap));
+    flower_addCap(end_getFlower(cap_getEnd(cap)), cap);
+    flower_addCap(end_getFlower(cap_getEnd(cap)), cap_getOtherSegmentCap(cap));
+
+    // Do (non exhaustive) checks
+
+    // Check left caps
+    assert(cap_getStrand(cap));
+    assert(!cap_getStrand(cap_getReverse(cap)));
+    assert(cap_getReverse(cap_getReverse(cap)) == cap); // check reversal works
+    assert(cap_getSegmentContents(cap) == cap_getSegmentContents(cap_getReverse(cap)));
+    assert(cap_getName(cap) == instance);
+    assert(cap_getName(cap_getReverse(cap)) == instance);
+    assert(cap_getCoordinate(cap) == INT64_MAX);
+    assert(cap_getCoordinate(cap_getReverse(cap)) == INT64_MAX);
+    assert(cap_getSequence(cap) == NULL);
+    assert(cap_getSequence(cap_getReverse(cap)) == NULL);
+    assert(cap_getAdjacency(cap) == NULL);
+    assert(cap_getAdjacency(cap_getReverse(cap)) == NULL);
+    assert(cap_getEvent(cap) == event);
+    assert(cap_getEvent(cap_getReverse(cap)) == event);
+
+    // Check segment
+    assert(cap_getSegment(cap) != NULL);
+    assert(cap_getName(cap_getSegment(cap)) == instance+1);
+    assert(cap_getName(segment_getReverse(cap_getSegment(cap))) == instance+1);
+    assert(cap_getStrand(cap_getSegment(cap)));
+    assert(!cap_getStrand(cap_getSegment(cap_getReverse(cap))));
+    assert(segment_get5Cap(cap_getSegment(cap)) == cap);
+    assert(segment_get3Cap(cap_getReverse(cap_getSegment(cap))) == cap_getReverse(cap));
+    assert(cap_getEvent(cap_getSegment(cap)) == event);
+    assert(cap_getEvent(cap_getReverse(cap_getSegment(cap))) == event);
+    assert(cap_getSequence(cap_getSegment(cap)) == NULL);
+    assert(cap_getSequence(cap_getReverse(cap_getSegment(cap))) == NULL);
+
+    // Check right caps
+    assert(cap_getOtherSegmentCap(cap) != NULL);
+    assert(cap_getStrand(cap_getOtherSegmentCap(cap)));
+    assert(!cap_getStrand(cap_getOtherSegmentCap(cap_getReverse(cap))));
+    assert(cap_getOtherSegmentCap(cap_getOtherSegmentCap(cap)) == cap);
+    assert(cap_getOtherSegmentCap(cap_getOtherSegmentCap(cap_getReverse(cap))) == cap_getReverse(cap));
+    assert(cap_getName(cap_getOtherSegmentCap(cap)) == instance+2);
+    assert(cap_getName(cap_getOtherSegmentCap(cap_getReverse(cap))) == instance+2);
+    assert(cap_getEvent(cap_getOtherSegmentCap(cap)) == event);
+    assert(cap_getEvent(cap_getReverse(cap_getOtherSegmentCap(cap))) == event);
+    assert(cap_getSequence(cap_getOtherSegmentCap(cap)) == NULL);
+    assert(cap_getSequence(cap_getReverse(cap_getOtherSegmentCap(cap))) == NULL);
+    assert(cap_getAdjacency(cap_getOtherSegmentCap(cap)) == NULL);
+    assert(cap_getAdjacency(cap_getReverse(cap_getOtherSegmentCap(cap))) == NULL);
+
+    // Check indexes
+    assert(flower_getCap(block_getFlower(block), instance) == cap_getPositiveOrientation(cap));
+    assert(block_getInstance(block, instance+1) == cap_getSegment(cap));
+    assert(block_getInstance(block_getReverse(block), instance+1) == segment_getReverse(cap_getSegment(cap)));
+    assert(end_getInstance(block_get5End(block), instance) == cap);
+    assert(end_getInstance(end_getReverse(block_get5End(block)), instance) == cap_getReverse(cap));
+    assert(end_getInstance(block_get3End(block), instance+2) == cap_getOtherSegmentCap(cap));
+    assert(end_getInstance(end_getReverse(block_get3End(block)), instance+2) == cap_getReverse(cap_getOtherSegmentCap(cap)));
+
+    return cap_getSegment(cap);
 }
 
 Segment *segment_construct2(Block *block, int64_t startCoordinate, bool strand,
         Sequence *sequence) {
     assert(startCoordinate >= sequence_getStart(sequence));
     assert(startCoordinate + block_getLength(block) <= sequence_getStart(sequence) + sequence_getLength(sequence));
-
-    int64_t i, j;
-    i = startCoordinate;
-    j = startCoordinate + block_getLength(block) - 1;
-    if (!strand) {
-        i = j;
-        j = startCoordinate;
-    }
-    return segment_construct3(cactusDisk_getUniqueID(flower_getCactusDisk(block_getFlower(
-            block))), block, cap_construct2(block_get5End(block), i, strand,
-            sequence), cap_construct2(block_get3End(block), j, strand,
-            sequence));
-}
-
-Segment *segment_construct3(Name name, Block *block, Cap *_5Cap, Cap *_3Cap) {
-    Segment *segment;
-    segment = st_malloc(sizeof(Segment)*2 + sizeof(SegmentContents));
-    segment->order = 1;
-    (segment+1)->order = 0;
-    //segment_getContents(segment)->rInstance = st_malloc(sizeof(Segment));
-    //segment_getContents(segment)->rInstance->rInstance = segment;
-    
-    segment_getContents(segment)->nSegment = NULL;
-    //segment_getContents(segment)->rInstance->nSegment = NULL;
-    segment_getContents(segment)->name = name;
-    //segment_getContents(segment)->rInstance->name = name;
-    segment_getContents(segment)->block = block;
-    //segment_getContents(segment)->rInstance->block = block_getReverse(block);
-    segment_getContents(segment)->_5Cap = _5Cap;
-    segment_getContents(segment)->_3Cap = _3Cap;
-    //segment_getContents(segment)->rInstance->_5Cap = cap_getReverse(_3Cap);
-    cap_setSegment(_5Cap, segment);
-    cap_setSegment(_3Cap, segment);
-    block_addInstance(block, segment);
-    flower_addSegment(block_getFlower(block), segment);
+    int64_t i = (startCoordinate == INT64_MAX || strand) ? startCoordinate : startCoordinate + block_getLength(block) - 1;
+    Segment *segment = segment_construct(block, sequence_getEvent(sequence));
+    assert(cap_left(segment_get5Cap(segment)));
+    cap_setCoordinates(segment_get5Cap(segment), i, strand, sequence);
     return segment;
 }
 
 void segment_destruct(Segment *segment) {
     block_removeInstance(segment_getBlock(segment), segment);
-    flower_removeSegment(block_getFlower(segment_getBlock(segment)), segment);
-    //free(segment_getContents(segment)->rInstance);
-    free(segment->order ? segment : segment_getReverse(segment)); //segment);
+    assert(cap_isSegment(segment));
+    free(cap_forward(segment) ? segment - 2 : segment - 3);
 }
 
 Block *segment_getBlock(Segment *segment) {
-    Block *block = segment_getContents(segment)->block;
-    return segment->order ? block : block_getReverse(block);
+    assert(cap_isSegment(segment));
+    Block *block = cap_getSegmentContents(segment)->block;
+    return cap_forward(segment) ? block : block_getReverse(block);
 }
 
 Name segment_getName(Segment *segment) {
-    return segment_getContents(segment)->name;
+    assert(cap_isSegment(segment));
+    return cap_getName(segment);
 }
 
 bool segment_getOrientation(Segment *segment) {
+    assert(cap_isSegment(segment));
     return block_getOrientation(segment_getBlock(segment));
 }
 
 Segment *segment_getPositiveOrientation(Segment *segment) {
+    assert(cap_isSegment(segment));
     return segment_getOrientation(segment) ? segment : segment_getReverse(
             segment);
 }
 
 Segment *segment_getReverse(Segment *segment) {
-    return segment->order ? segment+1 : segment-1; //segment_getContents(segment)->rInstance;
+    assert(cap_isSegment(segment));
+    return cap_forward(segment) ? segment+1 : segment-1; //segment_getContents(segment)->rInstance;
 }
 
 Event *segment_getEvent(Segment *segment) {
@@ -116,6 +172,7 @@ Sequence *segment_getSequence(Segment *segment) {
 }
 
 char *segment_getString(Segment *segment) {
+    assert(cap_isSegment(segment));
     Sequence *sequence = segment_getSequence(segment);
     return sequence == NULL ? NULL : sequence_getString(sequence,
             segment_getStart(segment_getStrand(segment) ? segment
@@ -124,50 +181,13 @@ char *segment_getString(Segment *segment) {
 }
 
 Cap *segment_get5Cap(Segment *segment) {
-    return segment->order ? segment_getContents(segment)->_5Cap : cap_getReverse(segment_getContents(segment)->_3Cap);
+    assert(cap_isSegment(segment));
+    return cap_forward(segment) ? segment-2 : segment+2;
 }
 
 Cap *segment_get3Cap(Segment *segment) {
-    return segment->order ? segment_getContents(segment)->_3Cap : cap_getReverse(segment_getContents(segment)->_5Cap);
-    //segment_getContents(segment)->_3Cap; //cap_getReverse(segment_getContents(segment)->rInstance->_5Cap);
-}
-
-Segment *segment_getParent(Segment *segment) {
-    Cap *cap;
-    Segment *segment2;
-    cap = segment_get5Cap(segment);
-    while ((cap = cap_getParent(cap)) != NULL) {
-        if ((segment2 = cap_getSegment(cap)) != NULL) {
-            return segment2;
-        }
-    }
-    return NULL;
-}
-
-int64_t segment_getChildNumber(Segment *segment) {
-    return cap_getChildNumber(segment_get5Cap(segment));
-}
-
-Segment *segment_getChild(Segment *segment, int64_t index) {
-    Cap *cap;
-    Segment *segment2;
-    cap = cap_getChild(segment_get5Cap(segment), index);
-    while (cap_getSegment(cap) == NULL) {
-        assert(cap_getChildNumber(cap) == 1);
-        cap = cap_getChild(cap, 0);
-    }
-    segment2 = cap_getSegment(cap);
-    assert(segment_getOrientation(segment) == segment_getOrientation(segment2));
-    return segment2;
-}
-
-void segment_makeParentAndChild(Segment *segmentParent, Segment *segmentChild) {
-    segmentParent = segment_getPositiveOrientation(segmentParent);
-    segmentChild = segment_getPositiveOrientation(segmentChild);
-    cap_makeParentAndChild(segment_get5Cap(segmentParent), segment_get5Cap(
-            segmentChild));
-    cap_makeParentAndChild(segment_get3Cap(segmentParent), segment_get3Cap(
-            segmentChild));
+    assert(cap_isSegment(segment));
+    return cap_forward(segment) ? segment+2 : segment-2;
 }
 
 void segment_check(Segment *segment) {
@@ -257,8 +277,17 @@ void segment_check(Segment *segment) {
 }
 
 /*
+ * Functions to remove
+ */
+
+/*
  * Serialisation functions.
  */
+
+Segment *segment_construct3(Name name, Block *block, Cap *_5Cap, Cap *_3Cap) {
+    assert(0);
+    return NULL;
+}
 
 void segment_writeBinaryRepresentation(Segment *segment, void(*writeFn)(
         const void * ptr, size_t size, size_t count)) {
@@ -281,9 +310,54 @@ Segment *segment_loadFromBinaryRepresentation(void **binaryString, Block *block)
         name = binaryRepresentation_getName(binaryString);
         _5InstanceName = binaryRepresentation_getName(binaryString);
         _3InstanceName = binaryRepresentation_getName(binaryString);
-        segment = segment_construct3(name, block, end_getInstance(
-                block_get5End(block), _5InstanceName), end_getInstance(
-                block_get3End(block), _3InstanceName));
+        segment = NULL; ///segment_construct3(name, block, end_getInstance(
+                //block_get5End(block), _5InstanceName), end_getInstance(
+                //block_get3End(block), _3InstanceName));
     }
     return segment;
+}
+
+Segment *segment_getParent(Segment *segment) {
+    //assert(0);
+    return NULL;
+    Cap *cap;
+    Segment *segment2;
+    cap = segment_get5Cap(segment);
+    while ((cap = cap_getParent(cap)) != NULL) {
+        if ((segment2 = cap_getSegment(cap)) != NULL) {
+            return segment2;
+        }
+    }
+    return NULL;
+}
+
+int64_t segment_getChildNumber(Segment *segment) {
+    //assert(0);
+    return 0;
+    return cap_getChildNumber(segment_get5Cap(segment));
+}
+
+Segment *segment_getChild(Segment *segment, int64_t index) {
+    return NULL;
+    //assert(0);
+    Cap *cap;
+    Segment *segment2;
+    cap = cap_getChild(segment_get5Cap(segment), index);
+    while (cap_getSegment(cap) == NULL) {
+        assert(cap_getChildNumber(cap) == 1);
+        cap = cap_getChild(cap, 0);
+    }
+    segment2 = cap_getSegment(cap);
+    assert(segment_getOrientation(segment) == segment_getOrientation(segment2));
+    return segment2;
+}
+
+void segment_makeParentAndChild(Segment *segmentParent, Segment *segmentChild) {
+    assert(0);
+    segmentParent = segment_getPositiveOrientation(segmentParent);
+    segmentChild = segment_getPositiveOrientation(segmentChild);
+    cap_makeParentAndChild(segment_get5Cap(segmentParent), segment_get5Cap(
+            segmentChild));
+    cap_makeParentAndChild(segment_get3Cap(segmentParent), segment_get3Cap(
+            segmentChild));
 }

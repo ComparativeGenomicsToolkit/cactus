@@ -9,28 +9,29 @@
 
 #include "cactusGlobals.h"
 
-typedef struct _capContents {
+typedef struct _capCoreContents {
     Name instance;
     int64_t coordinate;
-    //bool strand;
     void *eventOrSequence;
-    //Event *event;
-    //Sequence *sequence;
+} CapCoreContents;
+
+typedef struct _capContents {
+    CapCoreContents core;
     Cap *adjacency;
-    //Cap *adjacency2;
-    //Face *face;
-    Segment *segment;
     End *end;
-    //Cap *parent;
-    //struct List *children;
     Cap *nCap; // Links together different caps in the end
 } CapContents;
 
-struct _cap {
+typedef struct _segmentCapContents {
+    CapCoreContents core;
+    Cap *leftAdjacency;
+    Cap *rightAdjacency;
+    Block *block;
+    Segment *nSegment; // Links together different segments in the block
+} SegmentCapContents;
+
+struct _cap { // Note, a segment has the same structure
     char bits;
-    //CapContents *capContents;
-    //End *end;
-    //Cap *rCap;
 };
 
 ////////////////////////////////////////////////
@@ -42,9 +43,19 @@ struct _cap {
 ////////////////////////////////////////////////
 
 /*
- * Get the cap contents object
+ * These functions deal with the internal structures
+ * used to represent caps and caps+segments
  */
+bool cap_forward(Cap *cap);
+bool cap_partOfSegment(Cap *cap);
+bool cap_isSegment(Cap *cap);
+bool cap_left(Cap *cap);
+bool cap_getHasEventNotSequence(Cap *cap);
+SegmentCapContents *cap_getSegmentContents(Cap *cap);
+SegmentCapContents *segment_getContents(Segment *segment);
 CapContents *cap_getContents(Cap *cap);
+CapCoreContents *cap_getCoreContents(Cap *cap);
+
 
 /*
  * Constructs an cap, but not its connecting objects. Instance is the suffix m of the instance name n.m.

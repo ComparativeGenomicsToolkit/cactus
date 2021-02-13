@@ -36,13 +36,18 @@ static int64_t traceThreadLength(Cap *cap, Cap **terminatingCap) {
      */
     assert(end_isStubEnd(cap_getEnd(cap)));
     int64_t threadLength = 0;
+    cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
     while (1) {
-        assert(cap_getCoordinate(cap) != INT64_MAX);
-        int64_t adjacencyLength = cap_getCoordinate(cap);
-        threadLength += adjacencyLength;
         Cap *adjacentCap = cap_getAdjacency(cap);
+        assert(cap_getSide(cap) != cap_getSide(adjacentCap));
+        assert(cap_getStrand(cap));
+        assert(cap_getStrand(adjacentCap));
+        int64_t adjacencyLength = cap_getCoordinate(cap_getSide(cap) ? adjacentCap : cap);
+        assert(adjacencyLength != INT64_MAX);
+        threadLength += adjacencyLength;
+
         assert(adjacentCap != NULL);
-        assert(adjacencyLength == cap_getCoordinate(adjacentCap));
+        //assert(adjacencyLength == cap_getCoordinate(adjacentCap));
         //Traverse any block..
         if (cap_getSegment(adjacentCap) != NULL) {
             threadLength += segment_getLength(cap_getSegment(adjacentCap));
@@ -78,10 +83,22 @@ static Cap *copyCapToParent(Cap *cap, stList *recoveredCaps) {
 
 static void setAdjacencyLength(Cap *cap, Cap *adjacentCap, int64_t adjacencyLength) {
     //Set the coordinates of the caps to the adjacency size
-    cap_setCoordinates(cap, adjacencyLength, cap_getStrand(cap), NULL);
-    cap_setCoordinates(adjacentCap, adjacencyLength, cap_getStrand(adjacentCap),
-    NULL);
-    assert(cap_getCoordinate(cap) == cap_getCoordinate(adjacentCap));
+    if(!cap_getStrand(cap)) {
+        cap = cap_getReverse(cap);
+        adjacentCap = cap_getReverse(adjacentCap);
+    }
+    assert(cap_getStrand(cap));
+    assert(cap_getStrand(adjacentCap));
+    assert(cap_getSide(cap) != cap_getSide(adjacentCap));
+    if(cap_getSide(cap)) {
+        cap_setCoordinates(adjacentCap, adjacencyLength, cap_getStrand(adjacentCap), NULL);
+    }
+    else {
+        cap_setCoordinates(cap, adjacencyLength, cap_getStrand(cap), NULL);
+    }
+    //cap_setCoordinates(cap, adjacencyLength, cap_getStrand(cap), NULL);
+    //cap_setCoordinates(adjacentCap, adjacencyLength, cap_getStrand(adjacentCap), NULL);
+    //assert(cap_getCoordinate(cap) == cap_getCoordinate(adjacentCap));
 }
 
 static void setAdjacencyLengthsAndRecoverNewCapsAndBrokenAdjacencies(Cap *cap, stList *recoveredCaps) {
@@ -94,12 +111,14 @@ static void setAdjacencyLengthsAndRecoverNewCapsAndBrokenAdjacencies(Cap *cap, s
      * Therefore, for each flower f first identify attached stub ends present in the children of f that are
      * not present in f and copy them into f, reattaching the reference caps as needed.
      */
+    cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
     while (1) {
         Cap *adjacentCap = cap_getAdjacency(cap);
         assert(adjacentCap != NULL);
-        assert(cap_getCoordinate(cap) == INT64_MAX);
-        assert(cap_getCoordinate(adjacentCap) == INT64_MAX);
-        assert(cap_getStrand(cap) == cap_getStrand(adjacentCap));
+        //assert(cap_getCoordinate(cap) == INT64_MAX);
+        //assert(cap_getCoordinate(adjacentCap) == INT64_MAX);
+        assert(cap_getStrand(cap));
+        assert(cap_getStrand(adjacentCap));
         assert(cap_getSide(cap) != cap_getSide(adjacentCap));
         Group *group = end_getGroup(cap_getEnd(cap));
         assert(group != NULL);
@@ -235,24 +254,28 @@ static int64_t setCoordinates(Flower *flower, MetaSequence *metaSequence, Cap *c
     if (sequence == NULL) {
         sequence = sequence_construct(metaSequence, flower);
     }
+    assert(cap_getStrand(cap));
+    assert(!cap_getSide(cap));
+    int64_t adjacencyLength = cap_getCoordinate(cap);
     while (1) {
-        assert(cap_getStrand(cap));
-        assert(!cap_getSide(cap));
         Cap *adjacentCap = cap_getAdjacency(cap);
         assert(adjacentCap != NULL);
         assert(cap_getStrand(adjacentCap));
         assert(cap_getSide(adjacentCap));
-        int64_t adjacencyLength = cap_getCoordinate(cap);
-        assert(adjacencyLength == cap_getCoordinate(adjacentCap));
         assert(adjacencyLength != INT64_MAX);
         assert(adjacencyLength >= 0);
         cap_setCoordinates(cap, coordinate, 1, sequence);
         coordinate += adjacencyLength + 1;
-        cap_setCoordinates(adjacentCap, coordinate, 1, sequence);
         //Traverse any block..
         if ((cap = cap_getOtherSegmentCap(adjacentCap)) == NULL) {
+            cap_setCoordinates(adjacentCap, coordinate, 1, sequence);
             break;
         }
+        cap = cap_getOtherSegmentCap(adjacentCap);
+        assert(cap_getStrand(cap));
+        assert(!cap_getSide(cap));
+        adjacencyLength = cap_getCoordinate(cap);
+        cap_setCoordinates(adjacentCap, coordinate, 1, sequence);
         coordinate += segment_getLength(cap_getSegment(adjacentCap)) - 1;
     }
     return coordinate;

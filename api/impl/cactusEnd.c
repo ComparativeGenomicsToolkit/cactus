@@ -181,6 +181,10 @@ Group *end_getGroup(End *end) {
 }
 
 int64_t end_getInstanceNumber(End *end) {
+    if(end_isBlockEnd(end)) {
+        return block_getInstanceNumber(end_getBlock(end));
+    }
+
     Cap *cap = end_getContents(end)->firstCap;
     int64_t totalCaps = 0;
     while(cap != NULL) {
@@ -190,56 +194,24 @@ int64_t end_getInstanceNumber(End *end) {
     //return stSortedSet_size(end_getContents(end)->caps);
 }
 
-Cap *end_getInstanceP(End *end, Cap *connectedCap) {
-    return connectedCap == NULL ? connectedCap
-            : (end_getOrientation(end) ? connectedCap : cap_getReverse(
-                    connectedCap));
-}
-
 Cap *end_getInstance(End *end, Name name) {
-    Cap *cap = end_getContents(end)->firstCap;
-    while(cap != NULL) {
+    End_InstanceIterator *it = end_getInstanceIterator(end);
+    Cap *cap;
+    while((cap = end_getNext(it)) != NULL) {
         if(cap_getName(cap) == name) {
-            return end_getInstanceP(end, cap);
+            end_destructInstanceIterator(it);
+            return cap;
         }
-        cap = cap_getContents(cap)->nCap;
     }
+    end_destructInstanceIterator(it);
     return NULL;
-
-    //CapContents capContents[2];
-    //Cap *cap = (Cap *)&capContents; // Very ugly hack
-    //cap_getContents(cap)->instance = name;
-    //assert(cap_getName(cap) == name);
-    //Cap cap;
-    //CapContents capContents;
-    //cap.capContents = &capContents;
-    //capContents.instance = name;
-    //return end_getInstanceP(end,
-    //        stSortedSet_search(end_getContents(end)->caps, cap));
-}
-
-Cap *end_getFirst(End *end) {
-    return end_getInstanceP(end, end_getContents(end)->firstCap);
-    //return end_getInstanceP(end, stSortedSet_getFirst(end_getContents(end)->caps));
-}
-
-Cap *end_getRootInstance(End *end) {
-    return NULL;
-    //return end_getInstanceP(end, end_getContents(end)->rootInstance);
-}
-
-void end_setRootInstance(End *end, Cap *cap) {
-    assert(0);
-    //end_getContents(end)->rootInstance = cap_getOrientation(cap) ? cap
-    //        : cap_getReverse(cap);
 }
 
 End_InstanceIterator *end_getInstanceIterator(End *end) {
     End_InstanceIterator *iterator;
     iterator = st_malloc(sizeof(struct _end_instanceIterator));
     iterator->end = end;
-    iterator->cap = end_getContents(end)->firstCap;
-    //iterator->iterator = stSortedSet_getIterator(end_getContents(end)->caps);
+    iterator->cap = end_isBlockEnd(end) ? block_getFirst(end_getBlock(end)) : end_getContents(end)->firstCap;
     return iterator;
 }
 
@@ -248,31 +220,36 @@ Cap *end_getNext(End_InstanceIterator *iterator) {
     if(cap == NULL) {
         return NULL;
     }
+    // If the we're iterating through a cap segment
+    if(end_isBlockEnd(iterator->end)) {
+        iterator->cap = segment_getContents(cap)->nSegment;
+        // Get the segment in the correction orientation
+        Segment *segment = block_getOrientation(end_getBlock(iterator->end)) == segment_getOrientation(cap) ? cap : segment_getReverse(cap);
+        // Get the cap for the desired side of the segment
+        cap = end_getSide(iterator->end) ? segment_get5Cap(segment) : segment_get3Cap(segment);
+        assert(cap_getEnd(cap) == iterator->end);
+        return cap;
+    }
+
     iterator->cap = cap_getContents(cap)->nCap;
-    return end_getInstanceP(iterator->end, cap);
-    //return end_getInstanceP(iterator->end, stSortedSet_getNext(
-    //        iterator->iterator));
+    return end_getOrientation(iterator->end) ? cap : cap_getReverse(cap);
 }
 
-Cap *end_getPrevious(End_InstanceIterator *iterator) {
-    assert(0);
-    return NULL;
-    //return end_getInstanceP(iterator->end, stSortedSet_getPrevious(
-    //        iterator->iterator));
-}
+Cap *end_getFirst(End *end) {
+    // If is it attached to a block
+    if(end_isBlockEnd(end)) {
+        Block *b = end_getBlock(end);
+        Segment *s = block_getFirst(b);
+        Cap *c = end_getSide(end) ? segment_get5Cap(s) : segment_get3Cap(s);
+        assert(cap_getEnd(c) == end);
+        return c;
+    }
 
-End_InstanceIterator *end_copyInstanceIterator(End_InstanceIterator *iterator) {
-    assert(0);
-    End_InstanceIterator *iterator2;
-    iterator2 = st_malloc(sizeof(struct _end_instanceIterator));
-    iterator2->end = iterator->end;
-    iterator2->cap = iterator->cap;
-    //iterator2->iterator = stSortedSet_copyIterator(iterator->iterator);
-    return iterator2;
+    Cap *c = end_getContents(end)->firstCap;
+    return end_getOrientation(end) ? c : cap_getReverse(c);
 }
 
 void end_destructInstanceIterator(End_InstanceIterator *iterator) {
-    //stSortedSet_destructIterator(iterator->iterator);
     free(iterator);
 }
 
@@ -416,15 +393,16 @@ void end_addInstance(End *end, Cap *cap) {
 }
 
 void end_removeInstance(End *end, Cap *cap) {
-    Cap **capP = &(end_getContents(end)->firstCap);
-    while(*capP != NULL) {
-        if(cap_getName(cap) == cap_getName(*capP)) {
-            (*capP) = cap_getContents(*capP)->nCap; // Splice it out
-            return;
+    if(!cap_partOfSegment(cap)) {
+        Cap **capP = &(end_getContents(end)->firstCap);
+        while (*capP != NULL) {
+            if (cap_getName(cap) == cap_getName(*capP)) {
+                (*capP) = cap_getContents(*capP)->nCap; // Splice it out
+                return;
+            }
+            capP = &(cap_getContents(*capP)->nCap);
         }
-        capP = &(cap_getContents(*capP)->nCap);
     }
-    //stSortedSet_remove(end_getContents(end)->caps, cap);
 }
 
 void end_setFlower(End *end, Flower *flower) {
@@ -523,4 +501,36 @@ int end_hashEqualsKey(const void *o, const void *o2) {
     End *end2 = (End *) o2;
     return end_getName(end1) == end_getName(end2) && end_getOrientation(end1)
             == end_getOrientation(end2);
+}
+
+/*
+ * Functions to get rid of
+ */
+
+Cap *end_getPrevious(End_InstanceIterator *iterator) {
+    assert(0);
+    return NULL;
+    //return end_getInstanceP(iterator->end, stSortedSet_getPrevious(
+    //        iterator->iterator));
+}
+
+Cap *end_getRootInstance(End *end) {
+    return NULL;
+    //return end_getInstanceP(end, end_getContents(end)->rootInstance);
+}
+
+void end_setRootInstance(End *end, Cap *cap) {
+    assert(0);
+    //end_getContents(end)->rootInstance = cap_getOrientation(cap) ? cap
+    //        : cap_getReverse(cap);
+}
+
+End_InstanceIterator *end_copyInstanceIterator(End_InstanceIterator *iterator) {
+    assert(0);
+    End_InstanceIterator *iterator2;
+    iterator2 = st_malloc(sizeof(struct _end_instanceIterator));
+    iterator2->end = iterator->end;
+    iterator2->cap = iterator->cap;
+    //iterator2->iterator = stSortedSet_copyIterator(iterator->iterator);
+    return iterator2;
 }
