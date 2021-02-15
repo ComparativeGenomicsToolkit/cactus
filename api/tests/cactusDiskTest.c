@@ -61,9 +61,9 @@ void testCactusDisk_getFlower(CuTest* testCase) {
 void testCactusDisk_getMetaSequence(CuTest* testCase) {
     cactusDiskTestSetup(testCase);
     MetaSequence *metaSequence = metaSequence_construct(1, 10, "ACTGACTGAG",
-            "FOO", 10, cactusDisk);
+            "FOO", NULL, cactusDisk);
     MetaSequence *metaSequence2 = metaSequence_construct(2, 10, "CCCCCCCCCC",
-            "BAR", 10, cactusDisk);
+            "BAR", NULL, cactusDisk);
     CuAssertTrue(testCase, cactusDisk_getMetaSequence(cactusDisk, metaSequence_getName(metaSequence)) == metaSequence);
     CuAssertTrue(testCase, cactusDisk_getMetaSequence(cactusDisk, metaSequence_getName(metaSequence2)) == metaSequence2);
     //now try closing the disk, then reloading it, to see if we get the same result.

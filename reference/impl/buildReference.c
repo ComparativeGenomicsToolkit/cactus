@@ -288,6 +288,9 @@ static double calculateZScoreWeightedAdapterFn(Cap *_5Cap, int64_t length5Segmen
     double theta = *((double *)((void **) extraArgs)[0]);
     assert(theta >= 0.0);
     assert(cap_getEvent(_5Cap) != NULL);
+    //fprintf(stderr, " hello event: %" PRIi64 "\n", cap_getEvent(_5Cap));
+    //fprintf(stderr, " hello seq: %" PRIi64 "\n", cap_getSequence(_5Cap));
+    //fprintf(stderr, " hello event name: %" PRIi64 " \n", event_getName(cap_getEvent(_5Cap)));
     assert(stHash_search(((void **) extraArgs)[1], cap_getEvent(_5Cap)) != NULL);
     assert(stDoubleTuple_length(stHash_search(((void **) extraArgs)[1], cap_getEvent(_5Cap))) == 1);
     double weight = stDoubleTuple_getPosition(stHash_search(((void **) extraArgs)[1], cap_getEvent(_5Cap)), 0);

@@ -15,53 +15,58 @@
 ////////////////////////////////////////////////
 
 Sequence *sequence_construct(MetaSequence *metaSequence, Flower *flower) {
-	Sequence *sequence;
+    flower_addSequence(flower, metaSequence);
+    return metaSequence;
+	/*Sequence *sequence;
 	sequence = st_malloc(sizeof(Sequence));
 	sequence->metaSequence = metaSequence;
 	sequence->flower = flower;
 	flower_addSequence(flower, sequence);
-	return sequence;
+	return sequence;*/
 }
 
 void sequence_destruct(Sequence *sequence) {
-	flower_removeSequence(sequence_getFlower(sequence), sequence);
-	free(sequence);
+    assert(0);
+	//flower_removeSequence(sequence_getFlower(sequence), sequence);
+	//free(sequence);
 }
 
 MetaSequence *sequence_getMetaSequence(Sequence *sequence) {
-	return sequence->metaSequence;
+    return sequence;
+	//return sequence->metaSequence;
 }
 
 int64_t sequence_getStart(Sequence *sequence) {
-	return metaSequence_getStart(sequence->metaSequence);
+	return metaSequence_getStart(sequence);
 }
 
 int64_t sequence_getLength(Sequence *sequence) {
-	return metaSequence_getLength(sequence->metaSequence);
+	return metaSequence_getLength(sequence);
 }
 
 Name sequence_getName(Sequence *sequence) {
-	return metaSequence_getName(sequence->metaSequence);
+	return metaSequence_getName(sequence);
 }
 
 Event *sequence_getEvent(Sequence *sequence) {
-	return eventTree_getEvent(flower_getEventTree(sequence_getFlower(sequence)), metaSequence_getEventName(sequence->metaSequence));
+	return metaSequence_getEvent(sequence); //NULL; //eventTree_getEvent(flower_getEventTree(sequence_getFlower(sequence)), metaSequence_getEventName(sequence->metaSequence));
 }
 
-Flower *sequence_getFlower(Sequence *sequence) {
-	return sequence->flower;
-}
+/*Flower *sequence_getFlower(Sequence *sequence) {
+    assert(0);
+	return NULL; //sequence->flower;
+}*/
 
 char *sequence_getString(Sequence *sequence, int64_t start, int64_t length, bool strand) {
-	return metaSequence_getString(sequence->metaSequence, start, length, strand);
+	return metaSequence_getString(sequence, start, length, strand);
 }
 
 const char *sequence_getHeader(Sequence *sequence) {
-	return metaSequence_getHeader(sequence->metaSequence);
+	return metaSequence_getHeader(sequence);
 }
 
 void sequence_check(Sequence *sequence) {
-	Flower *flower = sequence_getFlower(sequence);
+	/*Flower *flower = sequence_getFlower(sequence);
 	cactusCheck(flower_getSequence(flower, sequence_getName(sequence)) == sequence); //properly connected to the flower..
 
 	Group *parentGroup = flower_getParentGroup(flower);
@@ -71,7 +76,7 @@ void sequence_check(Sequence *sequence) {
 		if(parentSequence != NULL) {
 			cactusCheck(event_getName(sequence_getEvent(sequence)) == event_getName(sequence_getEvent(parentSequence)));
 		}
-	}
+	}*/
 }
 
 /*

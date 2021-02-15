@@ -56,7 +56,7 @@ Name testCommon_addThreadToFlower(Flower *flower, char *header, int64_t length) 
     char *dna = stRandom_getRandomDNAString(length, true, true, true);
     EventTree *eventTree = flower_getEventTree(flower);
     assert(eventTree != NULL);
-    MetaSequence *metaSequence = metaSequence_construct(2, length, dna, header, event_getName(eventTree_getRootEvent(eventTree)), flower_getCactusDisk(flower));
+    MetaSequence *metaSequence = metaSequence_construct(2, length, dna, header, eventTree_getRootEvent(eventTree), flower_getCactusDisk(flower));
     Sequence *sequence = sequence_construct(metaSequence, flower);
 
     End *end1 = end_construct2(0, 0, flower);

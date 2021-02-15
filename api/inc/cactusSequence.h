@@ -68,11 +68,6 @@ char *sequence_getString(Sequence *sequence, int64_t start, int64_t length, bool
 const char *sequence_getHeader(Sequence *sequence);
 
 /*
- * Gets the flower the sequence is associated with.
- */
-Flower *sequence_getFlower(Sequence *sequence);
-
-/*
  * Checks (amongst other things) the following:
  * Checks the sequence if contained in the parent has the same event.
  */

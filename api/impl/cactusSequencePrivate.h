@@ -9,10 +9,10 @@
 
 #include "cactusGlobals.h"
 
-struct _sequence {
+/*struct _sequence {
 	MetaSequence *metaSequence;
 	Flower *flower;
-};
+};*/
 
 
 ////////////////////////////////////////////////

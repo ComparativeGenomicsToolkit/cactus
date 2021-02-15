@@ -79,19 +79,19 @@ static void setup(CuTest* testCase) {
 
     //Sequences
     metaSequence1 = metaSequence_construct(1, 10, "ACTGACTGAC", ">one",
-            event_getName(leafEvent), cactusDisk);
+            leafEvent, cactusDisk);
     sequence1 = sequence_construct(metaSequence1, flower);
 
     metaSequence2 = metaSequence_construct(1, 8, "AACCGGAA", ">two",
-            event_getName(leafEvent), cactusDisk);
+            leafEvent, cactusDisk);
     sequence2 = sequence_construct(metaSequence2, flower);
 
     metaSequence3 = metaSequence_construct(1, 4, "CGGG", ">three",
-                event_getName(leafEvent), cactusDisk);
+                leafEvent, cactusDisk);
     sequence3 = sequence_construct(metaSequence3, flower);
 
     metaSequence4 = metaSequence_construct(1, 1, "C", ">four",
-                    event_getName(leafEvent), cactusDisk);
+                    leafEvent, cactusDisk);
     sequence4 = sequence_construct(metaSequence4, flower);
 
     //Ends

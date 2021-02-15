@@ -37,7 +37,7 @@ static void cactusBlocksTestSharedSetup(const char *testName) {
     leafEvent = event_construct3("LEAF1", 0.2, rootEvent, eventTree);
 
     metaSequence = metaSequence_construct(1, 10, "ACTGACTGAC", ">one",
-            event_getName(leafEvent), cactusDisk);
+            leafEvent, cactusDisk);
     sequence = sequence_construct(metaSequence, flower);
 
     block = block_construct(3, flower);

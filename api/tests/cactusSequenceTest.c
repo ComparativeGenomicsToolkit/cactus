@@ -38,7 +38,7 @@ static void cactusSequenceTestSetup(CuTest* testCase) {
 		eventTree = eventTree_construct2(cactusDisk);
 		event = eventTree_getRootEvent(eventTree);
 		metaSequence = metaSequence_construct(1, 10, sequenceString,
-						   headerString, event_getName(event), cactusDisk);
+						   headerString, event, cactusDisk);
 		sequence = sequence_construct(metaSequence, flower);
 	}
 }
@@ -117,7 +117,7 @@ void testSequence_addAndGetBigStringsP(CuTest* testCase,
             char *string = getRandomDNASequence(minSequenceLength, maxSequenceLength);
             stList_append(strings, string);
             stList_append(sequenceNames, stIntTuple_construct1(sequence_getName(sequence_construct(metaSequence_construct(coordinateStart, strlen(string), string,
-                                               "Hello I am header", event_getName(event), cactusDisk), flower))));
+                                               "Hello I am header", event, cactusDisk), flower))));
 
         } while(st_random() > 0.5);
 
@@ -224,12 +224,6 @@ void testSequence_getHeader(CuTest* testCase) {
 	cactusSequenceTestTeardown(testCase);
 }
 
-void testSequence_getFlower(CuTest* testCase) {
-	cactusSequenceTestSetup(testCase);
-	CuAssertTrue(testCase, sequence_getFlower(sequence) == flower);
-	cactusSequenceTestTeardown(testCase);
-}
-
 void testSequence_serialisation(CuTest* testCase) {
 	cactusSequenceTestSetup(testCase);
 	int64_t i;
@@ -247,7 +241,6 @@ void testSequence_serialisation(CuTest* testCase) {
 	testSequence_getEvent(testCase);
 	testSequence_getString(testCase);
 	testSequence_getHeader(testCase);
-	testSequence_getFlower(testCase);
 	nestedTest = 0;
 	cactusSequenceTestTeardown(testCase);
 }
@@ -266,7 +259,6 @@ CuSuite* cactusSequenceTestSuite(void) {
 	SUITE_ADD_TEST(suite, testSequence_addAndGetBigStrings_preCacheSequences_reopenCactusDisk);
 	SUITE_ADD_TEST(suite, testSequence_addAndGetBigStrings_massive);
 	SUITE_ADD_TEST(suite, testSequence_getHeader);
-	SUITE_ADD_TEST(suite, testSequence_getFlower);
 	SUITE_ADD_TEST(suite, testSequence_serialisation);
 	SUITE_ADD_TEST(suite, testSequence_construct);
 	return suite;

@@ -56,10 +56,10 @@ static void cactusFlowerTestSetup(CuTest* testCase) {
 
 static void sequenceSetup() {
     metaSequence = metaSequence_construct(0, 10, "ACTGACTGAC", ">one",
-            event_getName(eventTree_getRootEvent(eventTree)), cactusDisk);
+            eventTree_getRootEvent(eventTree), cactusDisk);
     sequence = sequence_construct(metaSequence, flower);
     metaSequence2 = metaSequence_construct(0, 10, "ACTGACTGAC", ">two",
-            event_getName(eventTree_getRootEvent(eventTree)), cactusDisk);
+            eventTree_getRootEvent(eventTree), cactusDisk);
     sequence2 = sequence_construct(metaSequence2, flower);
 }
 

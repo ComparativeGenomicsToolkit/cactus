@@ -74,7 +74,7 @@ static void cactusChainsSharedTestSetup(const char *testName) {
     end_setGroup(block_get5End(block3), group4);
     link4 = link_construct(block_get3End(block2), block_get5End(block3), group4, chain2);
     Event *event = eventTree_getRootEvent(flower_getEventTree(flower));
-    MetaSequence *metaSequence = metaSequence_construct(1, 2, "AA", NULL, event_getName(event), cactusDisk);
+    MetaSequence *metaSequence = metaSequence_construct(1, 2, "AA", NULL, event, cactusDisk);
     Sequence *sequence = sequence_construct(metaSequence, flower);
     segment1 = segment_construct2(block2, 1, 1, sequence);
     segment2 = segment_construct2(block3, 2, 1, sequence);
@@ -90,7 +90,7 @@ static void cactusChainsSharedTestSetup(const char *testName) {
     end_setGroup(block_get3End(block4), group5);
     end_setGroup(block_get5End(block4), group5);
     link5 = link_construct(block_get3End(block4), block_get5End(block4), group5, chain3);
-    MetaSequence *metaSequence2 = metaSequence_construct(1, 2, "CT", NULL, event_getName(event), cactusDisk);
+    MetaSequence *metaSequence2 = metaSequence_construct(1, 2, "CT", NULL, event, cactusDisk);
     Sequence *sequence2 = sequence_construct(metaSequence2, flower);
     segment3 = segment_construct2(block4, 1, 1, sequence2);
 }

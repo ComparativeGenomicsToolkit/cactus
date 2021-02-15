@@ -39,7 +39,7 @@ static void cactusEndsTestSharedSetup(const char *testName) {
     leafEvent = event_construct3("LEAF2", 0.2, rootEvent, eventTree);
 
     metaSequence = metaSequence_construct(0, 10, "ACTGACTGAC", ">one",
-            event_getName(leafEvent), cactusDisk);
+            leafEvent, cactusDisk);
     sequence = sequence_construct(metaSequence, flower);
 
     end = end_construct(1, flower);

@@ -33,7 +33,7 @@ typedef struct _metaEvent MetaEvent;
 typedef struct _event Event;
 typedef struct _eventTree EventTree;
 typedef struct _metaSequence MetaSequence;
-typedef struct _sequence Sequence;
+typedef struct _metaSequence Sequence;
 typedef struct _end End;
 typedef struct _cap Cap;
 typedef struct _cap Segment;

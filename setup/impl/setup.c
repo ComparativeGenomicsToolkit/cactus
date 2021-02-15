@@ -72,7 +72,7 @@ void processSequence(void* destination, const char *fastaHeader, const char *str
      */
     //Now put the details in a flower.
     ProcessSequenceVars *p = destination;
-    MetaSequence *metaSequence = metaSequence_construct(2, length, string, fastaHeader, event_getName(p->event), p->cactusDisk);
+    MetaSequence *metaSequence = metaSequence_construct(2, length, string, fastaHeader, p->event, p->cactusDisk);
     Sequence *sequence = sequence_construct(metaSequence, p->flower);
 
     End *end1 = end_construct2(0, p->isComplete, p->flower);

@@ -108,7 +108,8 @@ void flower_destruct(Flower *flower, int64_t recursive) {
     stSortedSet_destruct(flower->faces);
 
     while ((sequence = flower_getFirstSequence(flower)) != NULL) {
-        sequence_destruct(sequence);
+        flower_removeSequence(flower, sequence);
+        //sequence_destruct(sequence, flower);
     }
     stSortedSet_destruct(flower->sequences);
 
@@ -155,11 +156,12 @@ Sequence *flower_getFirstSequence(Flower *flower) {
 }
 
 Sequence *flower_getSequence(Flower *flower, Name name) {
-    Sequence sequence;
+    //Sequence sequence;
     MetaSequence metaSequence;
-    sequence.metaSequence = &metaSequence;
+    //sequence.metaSequence = &metaSequence;
     metaSequence.name = name;
-    return stSortedSet_search(flower->sequences, &sequence);
+    //return cactusDisk_getMetaSequence(flower->cactusDisk, name);
+    return stSortedSet_search(flower->sequences, &metaSequence);
 }
 
 int64_t flower_getSequenceNumber(Flower *flower) {
@@ -175,11 +177,15 @@ Sequence *flower_getNextSequence(Flower_SequenceIterator *sequenceIterator) {
 }
 
 Sequence *flower_getPreviousSequence(Flower_SequenceIterator *sequenceIterator) {
-    return stSortedSet_getPrevious(sequenceIterator);
+    assert(0);
+    return NULL;
+    //return stSortedSet_getPrevious(sequenceIterator);
 }
 
 Flower_SequenceIterator *flower_copySequenceIterator(Flower_SequenceIterator *sequenceIterator) {
-    return stSortedSet_copyIterator(sequenceIterator);
+    assert(0);
+    return NULL;
+    //return stSortedSet_copyIterator(sequenceIterator);
 }
 
 void flower_destructSequenceIterator(Flower_SequenceIterator *sequenceIterator) {

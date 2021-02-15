@@ -7,7 +7,7 @@
 #include "cactusGlobalsPrivate.h"
 
 static CactusDisk *cactusDisk;
-Name eventName = 10;
+static Event *event = NULL;
 static MetaSequence *metaSequence;
 static const char *sequenceString = "ACTGGCACTG";
 static const char *headerString = ">one";
@@ -27,7 +27,7 @@ static void cactusMetaSequenceTestSetup(CuTest* testCase) {
         cactusMetaSequenceTestTeardown(testCase);
         cactusDisk = testCommon_getTemporaryCactusDisk(testCase->name);
         metaSequence = metaSequence_construct(1, 10, sequenceString,
-                       headerString, eventName, cactusDisk);
+                       headerString, event, cactusDisk);
     }
 }
 
@@ -50,9 +50,9 @@ void testMetaSequence_getLength(CuTest* testCase) {
     cactusMetaSequenceTestTeardown(testCase);
 }
 
-void testMetaSequence_getEventName(CuTest* testCase) {
+void testMetaSequence_getEvent(CuTest* testCase) {
     cactusMetaSequenceTestSetup(testCase);
-    CuAssertTrue(testCase, metaSequence_getEventName(metaSequence) == eventName);
+    CuAssertTrue(testCase, metaSequence_getEvent(metaSequence) == event);
     cactusMetaSequenceTestTeardown(testCase);
 }
 
@@ -80,7 +80,7 @@ void testMetaSequence_isTrivialSequence(CuTest* testCase) {
     cactusMetaSequenceTestSetup(testCase);
     CuAssertTrue(testCase, !metaSequence_isTrivialSequence(metaSequence));
     MetaSequence *metaSequence2 = metaSequence_construct3(1, 10, sequenceString,
-                           headerString, eventName, 1, cactusDisk);
+                           headerString, event, 1, cactusDisk);
     CuAssertTrue(testCase, metaSequence_isTrivialSequence(metaSequence2));
     metaSequence_destruct(metaSequence2);
     cactusMetaSequenceTestTeardown(testCase);
@@ -109,7 +109,7 @@ void testMetaSequence_serialisation(CuTest* testCase) {
     testMetaSequence_getName(testCase);
     testMetaSequence_getStart(testCase);
     testMetaSequence_getLength(testCase);
-    testMetaSequence_getEventName(testCase);
+    testMetaSequence_getEvent(testCase);
     testMetaSequence_getString(testCase);
     testMetaSequence_getHeader(testCase);
     testMetaSequence_isTrivialSequence(testCase);
@@ -122,7 +122,7 @@ CuSuite* cactusMetaSequenceTestSuite(void) {
     SUITE_ADD_TEST(suite, testMetaSequence_getName);
     SUITE_ADD_TEST(suite, testMetaSequence_getStart);
     SUITE_ADD_TEST(suite, testMetaSequence_getLength);
-    SUITE_ADD_TEST(suite, testMetaSequence_getEventName);
+    SUITE_ADD_TEST(suite, testMetaSequence_getEvent);
     SUITE_ADD_TEST(suite, testMetaSequence_getString);
     SUITE_ADD_TEST(suite, testMetaSequence_isTrivialSequence);
     SUITE_ADD_TEST(suite, testMetaSequence_serialisation);

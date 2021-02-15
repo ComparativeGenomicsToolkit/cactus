@@ -24,12 +24,12 @@
  * This function is NOT thread safe, do not try to have concurrent instances of this function!
  */
 MetaSequence *metaSequence_construct(int64_t start, int64_t length, const char *string, const char *header,
-		Name eventName, CactusDisk *cactusDisk);
+		Event *event, CactusDisk *cactusDisk);
 
 /*
  * Adds the isTrivialSequence field.
  */
-MetaSequence *metaSequence_construct3(int64_t start, int64_t length, const char *string, const char *header, Name eventName,
+MetaSequence *metaSequence_construct3(int64_t start, int64_t length, const char *string, const char *header, Event *event,
         bool isTrivialSequence, CactusDisk *cactusDisk);
 
 /*
@@ -50,7 +50,7 @@ int64_t metaSequence_getLength(MetaSequence *metaSequence);
 /*
  * Gets the associated event name.
  */
-Name metaSequence_getEventName(MetaSequence *metaSequence);
+Event *metaSequence_getEvent(MetaSequence *metaSequence);
 
 /*
  * Gets a string for representing a subsequence of the meta sequence.
