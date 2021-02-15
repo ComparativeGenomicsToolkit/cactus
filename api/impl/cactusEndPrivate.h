@@ -10,34 +10,38 @@
 #include "cactusGlobals.h"
 
 typedef struct _endContents {
-	//Cap *rootInstance;
-	bool isStub;
-	bool isAttached;
 	Name name;
-	Block *attachedBlock;
-	//stSortedSet *caps;
 	Cap *firstCap;
 	Group *group;
 	Flower *flower;
-    //bool orientation;
-    bool side;
     End *nEnd;
 } EndContents;
 
-struct _end_instanceIterator {
-	//stSortedSetIterator *iterator;
-	Cap *cap;
-	End *end;
-};
+typedef struct _blockEndContents {
+    Name name;
+    Segment *firstSegment;
+    int64_t length;
+    Flower *flower;
+    Group *leftGroup;
+    Group *rightGroup;
+    End *nEndLeft;
+    End *nEndRight;
+} BlockEndContents;
 
 struct _end {
-	//EndContents *endContents;
-	//bool orientation;
-	//bool side;
-	//End *rEnd;
-	bool order;
+	char bits;
 };
 
+struct _end_instanceIterator {
+    Cap *cap;
+    End *end;
+};
+
+
+bool end_isBlock(End *end);
+bool end_partOfBlock(End *end);
+bool end_left(End *end);
+BlockEndContents *end_getBlockEndContents(End *end);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -48,6 +52,11 @@ struct _end {
 ////////////////////////////////////////////////
 
 /*
+ * Get the block contents object
+ */
+BlockEndContents *block_getContents(Block *block);
+
+/*
  * Get the contents object shared between the ends.
  */
 EndContents *end_getContents(End *end);
@@ -55,7 +64,8 @@ EndContents *end_getContents(End *end);
 /*
  * Constructs the end, but not any attached block.
  */
-End *end_construct3(Name name, int64_t isStub, int64_t isAttached, int64_t side, Flower *flower);
+End *end_construct3(Name name, int64_t isAttached,
+                    int64_t side, Flower *flower);
 
 /*
  * Destructs the end and any contained caps.

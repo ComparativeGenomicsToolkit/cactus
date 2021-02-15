@@ -118,6 +118,7 @@ Cap *cap_construct3(Name instance, Event *event, End *end) {
     assert(instance != NULL_NAME);
     assert(event != NULL);
     assert(end != NULL);
+    assert(!end_partOfBlock(end));
 
     // Create the combined forward and reverse caps
     Cap *cap = st_calloc(1, 2*sizeof(Cap) + sizeof(CapContents));

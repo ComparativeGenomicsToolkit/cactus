@@ -229,17 +229,12 @@ End *flower_getFirstEnd(Flower *flower) {
 }
 
 End *flower_getEnd(Flower *flower, Name name) {
+    //fprintf(stderr, "Starting flower get end\n");
     EndContents endContents[2];
     End *end = (End *)(&endContents); // Very ugly hack
-    end->order = 1;
+    end->bits = 0x1;
     end_getContents(end)->name = name;
     assert(end_getName(end) == name);
-
-    //End end;
-    //EndContents endContents;
-    //end.endContents = &endContents;
-    //endContents.name = name;
-    //end.orientation = 1;
     return stSortedSet_search(flower->ends, end);
 }
 
@@ -338,14 +333,11 @@ Block *flower_getFirstBlock(Flower *flower) {
 }
 
 Block *flower_getBlock(Flower *flower, Name name) {
-    BlockContents blockContents[2];
+    BlockEndContents blockContents[2];
     Block *block = (Block *)(&blockContents); // Very ugly hack
-    block_getContents(block)->name = name;
+    block->bits = 0x6;
+    block_getContents(block)->name = name-1;
     assert(block_getName(block) == name);
-    //Block block;
-    //BlockContents blockContents;
-    //block.blockContents = &blockContents;
-    //blockContents.name = name;
     return stSortedSet_search(flower->blocks, block);
 }
 

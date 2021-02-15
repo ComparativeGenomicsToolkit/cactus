@@ -20,11 +20,11 @@ SegmentCapContents *segment_getContents(Segment *segment) {
 }
 
 Segment *segment_construct(Block *block, Event *event) {
-    Name instance = cactusDisk_getUniqueIDInterval(flower_getCactusDisk(block_getFlower(block)), 3);
-
-    assert(instance != NULL_NAME);
     assert(event != NULL);
     assert(block != NULL);
+
+    Name instance = cactusDisk_getUniqueIDInterval(flower_getCactusDisk(block_getFlower(block)), 3);
+    assert(instance != NULL_NAME);
 
     // Create the combined forward and reverse caps
     Cap *cap = st_calloc(1, 6*sizeof(Cap) + sizeof(SegmentCapContents));

@@ -110,9 +110,6 @@ void group_updateContainedEnds(Group *group) {
     }
     group->firstEnd = NULL;
 
-    //stSortedSet_destruct(group->ends);
-    //group->ends = stSortedSet_construct3(group_constructP, NULL);
-
     //now calculate the ends
     flower = group_getFlower(group);
     iterator = flower_getEndIterator(group_getNestedFlower(group));
@@ -124,11 +121,23 @@ void group_updateContainedEnds(Group *group) {
     flower_destructEndIterator(iterator);
 }
 
+static End **getNextEndPointer(End *end) {
+    if(end_partOfBlock(end)) {
+        if(end_left(end)) {
+            return &(end_getBlockEndContents(end)->nEndLeft);
+        }
+        else {
+            return &(end_getBlockEndContents(end)->nEndRight);
+        }
+    }
+    return &(end_getContents(end)->nEnd);
+}
+
 void group_addEnd(Group *group, End *end) {
-    assert(end_getContents(end)->nEnd == NULL);
-    end_getContents(end)->nEnd = group->firstEnd;
+    End **nEnd = getNextEndPointer(end);
+    assert(*nEnd == NULL);
+    *nEnd = group->firstEnd;
     group->firstEnd = end_getPositiveOrientation(end);
-    //stSortedSet_insert(group->ends, end);
 }
 
 void group_destruct(Group *group) {
@@ -137,7 +146,6 @@ void group_destruct(Group *group) {
     while (group_getEndNumber(group) != 0) {
         end_setGroup(group_getFirstEnd(group), NULL);
     }
-    //stSortedSet_destruct(group->ends);
     //Free the memory
     free(group);
 }
@@ -177,31 +185,18 @@ End *group_getEnd(Group *group, Name name) {
             assert(end == end_getPositiveOrientation(end));
             return end;
         }
-        end = end_getContents(end)->nEnd;
+        end = *getNextEndPointer(end);
     }
     return NULL;
-    /*
-
-    EndContents endContents[2];
-    End *end = (End *)(&endContents); // Very ugly hack
-    end->order = 1;
-    end_getContents(end)->name = name;
-    assert(end_getName(end) == name);
-    //static End end;
-    //static EndContents endContents;
-    //end.endContents = &endContents;
-    //endContents.name = name;
-    return stSortedSet_search(group->ends, end);*/
 }
 
 int64_t group_getEndNumber(Group *group) {
     End *end = group->firstEnd;
     int64_t totalEnds = 0;
     while(end != NULL) {
-        totalEnds++; end = end_getContents(end)->nEnd;
+        totalEnds++; end = *getNextEndPointer(end);
     }
     return totalEnds;
-    //return stSortedSet_size(group->ends);
 }
 
 Group_EndIterator *group_getEndIterator(Group *group) {
@@ -216,11 +211,9 @@ End *group_getNextEnd(Group_EndIterator *endIterator) {
     if(end == NULL) {
         return NULL;
     }
-    endIterator->end = end_getContents(end)->nEnd;
+    endIterator->end = *getNextEndPointer(end);
     assert(end_getPositiveOrientation(end) == end);
     return end;
-
-    //return stSortedSet_getNext(endIterator);
 }
 
 End *group_getPreviousEnd(Group_EndIterator *endIterator) {
@@ -443,15 +436,13 @@ void group_removeEnd(Group *group, End *end) {
     End **endP = &(group->firstEnd);
     while(*endP != NULL) {
         if(end_getName(end) == end_getName(*endP)) {
-            EndContents *e = end_getContents(*endP);
-            (*endP) = e->nEnd; // Splice it out
-            e->nEnd = NULL;
+            End **nEnd = getNextEndPointer(*endP);
+            (*endP) = *nEnd;  // Splice it out
+            *nEnd = NULL;
             return;
         }
-        endP = &(end_getContents(*endP)->nEnd);
+        endP = getNextEndPointer(*endP);
     }
-    //assert(group_getEnd(group, end_getName(end)) == end);
-    //stSortedSet_remove(group->ends, end);
 }
 
 void group_setFlower(Group *group, Flower *flower) {

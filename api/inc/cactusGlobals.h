@@ -37,7 +37,7 @@ typedef struct _sequence Sequence;
 typedef struct _end End;
 typedef struct _cap Cap;
 typedef struct _cap Segment;
-typedef struct _block Block;
+typedef struct _end Block;
 typedef struct _group Group;
 typedef struct _link Link;
 typedef struct _chain Chain;
