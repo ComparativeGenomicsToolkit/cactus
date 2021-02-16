@@ -251,6 +251,9 @@ def get_jobstore(options, task=None):
 def human2bytesN(s):
     return human2bytes(s) if s else s
 
+def bytes2humanN(s):
+    return bytes2human(s, fmt='%(value).1f%(symbol)s') if s else s
+
 def bytes2gigs(n):
     return int(int(n)/pow(2,30))
 
@@ -276,7 +279,7 @@ def get_toil_resource_opts(options, task):
     if mem and not options.wdl:
         if s:
             s += ' '
-        s += '--maxMemory {}'.format(bytes2human(mem))
+        s += '--maxMemory {}'.format(bytes2humanN(mem))
     return s
 
 def wdl_disk(options, task, max_local=300):
@@ -765,7 +768,7 @@ def toil_call_preprocess(job, options, in_seq_file, out_seq_file, name):
 
     cmd = ['cactus-preprocess', os.path.join(work_dir, 'js'), '--inPaths', in_path,
            '--outPaths', out_name, '--workDir', work_dir,
-           '--maxCores', str(int(job.cores)), '--maxDisk', bytes2human(job.disk), '--maxMemory', bytes2human(job.memory)] + options.cactusOptions.strip().split(' ')
+           '--maxCores', str(int(job.cores)), '--maxDisk', bytes2humanN(job.disk), '--maxMemory', bytes2humanN(job.memory)] + options.cactusOptions.strip().split(' ')
     
     cactus_call(parameters=cmd)
 
@@ -856,7 +859,7 @@ def toil_call_blast(job, options, seq_file, project, event, cigar_name, dep_name
             
     cactus_call(parameters=['cactus-blast', os.path.join(work_dir, 'js'), seq_file_path, os.path.join(work_dir, os.path.basename(cigar_name)),
                  '--root', event, '--pathOverrides'] + fa_paths+ ['--pathOverrideNames'] + dep_names +
-                ['--workDir', work_dir, '--maxCores', str(int(job.cores)), '--maxDisk', bytes2human(job.disk), '--maxMemory', bytes2human(job.memory)] + options.cactusOptions.strip().split(' '))
+                ['--workDir', work_dir, '--maxCores', str(int(job.cores)), '--maxDisk', bytes2humanN(job.disk), '--maxMemory', bytes2humanN(job.memory)] + options.cactusOptions.strip().split(' '))
 
     # scrape the output files out of the workdir
     out_nameids = []
@@ -959,7 +962,7 @@ def toil_call_align(job, options, seq_file, project, event, cigar_name, hal_path
     cactus_call(parameters=['cactus-align', os.path.join(work_dir, 'js'), seq_file_path] + blast_files +
                 [out_hal_path, '--root', event,
                  '--pathOverrides'] + fa_paths + ['--pathOverrideNames'] + dep_names +
-                ['--workDir', work_dir, '--maxCores', str(int(job.cores)), '--maxDisk', bytes2human(job.disk), '--maxMemory', bytes2human(job.memory)] + options.cactusOptions.strip().split(' '))
+                ['--workDir', work_dir, '--maxCores', str(int(job.cores)), '--maxDisk', bytes2humanN(job.disk), '--maxMemory', bytes2humanN(job.memory)] + options.cactusOptions.strip().split(' '))
 
     out_hal_id = job.fileStore.writeGlobalFile(out_hal_path)
 
