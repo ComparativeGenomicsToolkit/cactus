@@ -430,9 +430,9 @@ void end_check(End *end) {
     }
 
     //Check has tree if built_trees set
-    if (flower_builtTrees(end_getFlower(end)) && end_getInstanceNumber(end) > 0) {
+    /*if (flower_builtTrees(end_getFlower(end)) && end_getInstanceNumber(end) > 0) {
         assert(end_getRootInstance(end) != NULL);
-    }
+    }*/
 
     //For each segment calls segment_check.
     End_InstanceIterator *iterator = end_getInstanceIterator(end);

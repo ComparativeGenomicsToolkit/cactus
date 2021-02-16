@@ -15,17 +15,17 @@ struct _flower {
     stSortedSet *ends;
     stList *caps;
     stSortedSet *blocks;
-    stSortedSet *segments;
+    //stSortedSet *segments;
     stSortedSet *groups;
     stSortedSet *chains;
-    stSortedSet *faces;
+    //stSortedSet *faces;
     Name parentFlowerName;
     CactusDisk *cactusDisk;
-    int64_t faceIndex;
+    //int64_t faceIndex;
     int64_t chainIndex;
     bool builtBlocks;
-    bool builtTrees;
-    bool builtFaces;
+    //bool builtTrees;
+    //bool builtFaces;
 };
 
 ////////////////////////////////////////////////
