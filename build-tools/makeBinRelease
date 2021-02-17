@@ -34,9 +34,9 @@ else
 	 CACTUS_ARCH="nocona"
 fi
 
-CFLAGS="-march=${CACTUS_ARCH} -static"
-CXXFLAGS="-march=${CACTUS_ARCH} -static"
-LDFLAGS="-march=${CACTUS_ARCH} -static"
+export CFLAGS="-march=${CACTUS_ARCH} -static"
+export CXXFLAGS="-march=${CACTUS_ARCH} -static"
+export LDFLAGS="-march=${CACTUS_ARCH} -static"
 
 make -j $(nproc) check-static
 
