@@ -253,25 +253,28 @@ static stList *getSubstringsForFlowerSegments(stList *flowers) {
     stList *substrings = stList_construct3(0, (void (*)(void *)) substring_destruct);
     for (int64_t i = 0; i < stList_length(flowers); i++) {
         Flower *flower = stList_get(flowers, i);
-        Flower_EndIterator *blockIt = flower_getBlockIterator(flower);
-        Block *block;
-        while ((block = flower_getNextBlock(blockIt)) != NULL) {
-            Block_InstanceIterator *instanceIt = block_getInstanceIterator(block);
-            Segment *segment;
-            while ((segment = block_getNext(instanceIt)) != NULL) {
-                Sequence *sequence;
-                if ((sequence = segment_getSequence(segment)) != NULL) {
-                    segment = segment_getStrand(segment) ? segment : segment_getReverse(segment);
-                    assert(segment_getLength(segment) > 0);
-                    stList_append(substrings,
-                            substring_construct(sequence_getMetaSequence(sequence)->stringName,
-                                    segment_getStart(segment) - sequence_getStart(sequence),
-                                    segment_getLength(segment)));
+        Flower_EndIterator *endIt = flower_getEndIterator(flower);
+        End *end;
+        while ((end = flower_getNextEnd(endIt)) != NULL) {
+            if(end_partOfBlock(end) && end_left(end)) {
+                Block *block = end_getBlock(end);
+                Block_InstanceIterator *instanceIt = block_getInstanceIterator(block);
+                Segment *segment;
+                while ((segment = block_getNext(instanceIt)) != NULL) {
+                    Sequence *sequence;
+                    if ((sequence = segment_getSequence(segment)) != NULL) {
+                        segment = segment_getStrand(segment) ? segment : segment_getReverse(segment);
+                        assert(segment_getLength(segment) > 0);
+                        stList_append(substrings,
+                                      substring_construct(sequence_getMetaSequence(sequence)->stringName,
+                                                          segment_getStart(segment) - sequence_getStart(sequence),
+                                                          segment_getLength(segment)));
+                    }
                 }
+                block_destructInstanceIterator(instanceIt);
             }
-            block_destructInstanceIterator(instanceIt);
         }
-        flower_destructBlockIterator(blockIt);
+        flower_destructEndIterator(endIt);
     }
     return substrings;
 }

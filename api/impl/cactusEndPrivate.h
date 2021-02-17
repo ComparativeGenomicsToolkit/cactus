@@ -39,8 +39,6 @@ struct _end_instanceIterator {
 
 
 bool end_isBlock(End *end);
-bool end_partOfBlock(End *end);
-bool end_left(End *end);
 BlockEndContents *end_getBlockEndContents(End *end);
 
 ////////////////////////////////////////////////

@@ -26,10 +26,6 @@ static int flower_constructEndsP(const void *o1, const void *o2) {
     return cactusMisc_nameCompare(end_getName((End *) o1), end_getName((End *) o2));
 }
 
-static int flower_constructBlocksP(const void *o1, const void *o2) {
-    return cactusMisc_nameCompare(block_getName((Block *) o1), block_getName((Block *) o2));
-}
-
 static int flower_constructGroupsP(const void *o1, const void *o2) {
     return cactusMisc_nameCompare(group_getName((Group *) o1), group_getName((Group *) o2));
 }
@@ -54,7 +50,7 @@ static Flower *flower_construct3(Name name, CactusDisk *cactusDisk) {
     flower->caps = stList_construct3(0, NULL); //stSortedSet_construct3(flower_constructCapsP, NULL);
     flower->ends = stSortedSet_construct3(flower_constructEndsP, NULL);
     //flower->segments = NULL; //stSortedSet_construct3(flower_constructSegmentsP, NULL);
-    flower->blocks = stSortedSet_construct3(flower_constructBlocksP, NULL);
+    //flower->blocks = stSortedSet_construct3(flower_constructBlocksP, NULL);
     flower->groups = stSortedSet_construct3(flower_constructGroupsP, NULL);
     flower->chains = stSortedSet_construct3(flower_constructChainsP, NULL);
     //flower->faces = NULL; //stSortedSet_construct3(flower_constructFacesP, NULL);
@@ -86,7 +82,6 @@ void flower_destruct(Flower *flower, int64_t recursive) {
     Flower_GroupIterator *iterator;
     Sequence *sequence;
     End *end;
-    Block *block;
     Group *group;
     Chain *chain;
     Flower *nestedFlower;
@@ -119,17 +114,19 @@ void flower_destruct(Flower *flower, int64_t recursive) {
     stSortedSet_destruct(flower->chains);
 
     while ((end = flower_getFirstEnd(flower)) != NULL) {
-        end_destruct(end);
+        if(end_partOfBlock(end)) {
+            if(end_left(end)) {
+                block_destruct(end_getBlock(end));
+            }
+        }
+        else {
+            end_destruct(end);
+        }
     }
     //stSortedSet_destruct(flower->caps);
     stList_destruct(flower->caps);
     stSortedSet_destruct(flower->ends);
 
-    while ((block = flower_getFirstBlock(flower)) != NULL) {
-        block_destruct(block);
-    }
-    //stSortedSet_destruct(flower->segments);
-    stSortedSet_destruct(flower->blocks);
 
     while ((group = flower_getFirstGroup(flower)) != NULL) {
         group_destruct(group);
@@ -244,12 +241,36 @@ End *flower_getEnd(Flower *flower, Name name) {
     return stSortedSet_search(flower->ends, end);
 }
 
+Block *flower_getBlock(Flower *flower, Name name) {
+    End *end = flower_getEnd(flower, name-1);
+    if(end == NULL) {
+        return NULL;
+    }
+    assert(end_partOfBlock(end));
+    assert(end_left(end));
+    return end_getBlock(end);
+}
+
 int64_t flower_getEndNumber(Flower *flower) {
     return stSortedSet_size(flower->ends);
 }
 
 int64_t flower_getBlockEndNumber(Flower *flower) {
-    return flower_getBlockNumber(flower) * 2;
+    End *end;
+    Flower_EndIterator *iterator = flower_getEndIterator(flower);
+    int64_t i = 0;
+    while ((end = flower_getNextEnd(iterator)) != NULL) {
+        if (end_partOfBlock(end)) {
+            i++;
+        }
+    }
+    flower_destructEndIterator(iterator);
+    assert(i % 2 == 0);
+    return i;
+}
+
+int64_t flower_getBlockNumber(Flower *flower) {
+    return flower_getBlockEndNumber(flower)/2;
 }
 
 int64_t flower_getStubEndNumber(Flower *flower) {
@@ -291,92 +312,6 @@ Flower_EndIterator *flower_copyEndIterator(Flower_EndIterator *endIterator) {
 
 void flower_destructEndIterator(Flower_EndIterator *endIterator) {
     stSortedSet_destructIterator(endIterator);
-}
-
-Segment *flower_getFirstSegment(Flower *flower) {
-    assert(0);
-    return NULL;
-    //return stSortedSet_getFirst(flower->segments);
-}
-
-Segment *flower_getSegment(Flower *flower, Name name) {
-    assert(0);
-    return NULL; // todo: remove this function
-    //SegmentContents segmentContents[2];
-    //Segment *segment = (Segment *)(&segmentContents); // Very ugly hack
-    //segment_getContents(segment)->name = name;
-    //assert(segment_getName(segment) == name);
-
-    //Segment segment;
-    //segment_getContents(segment)->name = name;
-    //return stSortedSet_search(flower->segments, &segment);
-}
-
-int64_t flower_getSegmentNumber(Flower *flower) {
-    assert(0);
-    return 0; //stSortedSet_size(flower->segments);
-}
-
-Flower_SegmentIterator *flower_getSegmentIterator(Flower *flower) {
-    assert(0);
-    return NULL; //stSortedSet_getIterator(flower->segments);
-}
-
-Segment *flower_getNextSegment(Flower_SegmentIterator *segmentIterator) {
-    assert(0);
-    return NULL; //stSortedSet_getNext(segmentIterator);
-}
-
-Segment *flower_getPreviousSegment(Flower_SegmentIterator *segmentIterator) {
-    assert(0);
-    return NULL; //stSortedSet_getPrevious(segmentIterator);
-}
-
-Flower_SegmentIterator *flower_copySegmentIterator(Flower_SegmentIterator *segmentIterator) {
-    assert(0);
-    return NULL; //stSortedSet_copyIterator(segmentIterator);
-}
-
-void flower_destructSegmentIterator(Flower_SegmentIterator *segmentIterator) {
-    assert(0);
-    //stSortedSet_destructIterator(segmentIterator);
-}
-
-Block *flower_getFirstBlock(Flower *flower) {
-    return stSortedSet_getFirst(flower->blocks);
-}
-
-Block *flower_getBlock(Flower *flower, Name name) {
-    BlockEndContents blockContents[2];
-    Block *block = (Block *)(&blockContents); // Very ugly hack
-    block->bits = 0x6;
-    block_getContents(block)->name = name-1;
-    assert(block_getName(block) == name);
-    return stSortedSet_search(flower->blocks, block);
-}
-
-int64_t flower_getBlockNumber(Flower *flower) {
-    return stSortedSet_size(flower->blocks);
-}
-
-Flower_BlockIterator *flower_getBlockIterator(Flower *flower) {
-    return stSortedSet_getIterator(flower->blocks);
-}
-
-Block *flower_getNextBlock(Flower_BlockIterator *blockIterator) {
-    return stSortedSet_getNext(blockIterator);
-}
-
-Block *flower_getPreviousBlock(Flower_BlockIterator *blockIterator) {
-    return stSortedSet_getPrevious(blockIterator);
-}
-
-Flower_BlockIterator *flower_copyBlockIterator(Flower_BlockIterator *blockIterator) {
-    return stSortedSet_copyIterator(blockIterator);
-}
-
-void flower_destructBlockIterator(Flower_BlockIterator *blockIterator) {
-    stSortedSet_destructIterator(blockIterator);
 }
 
 Group *flower_getFirstGroup(Flower *flower) {
@@ -442,14 +377,16 @@ int64_t flower_getChainNumber(Flower *flower) {
 
 int64_t flower_getTrivialChainNumber(Flower *flower) {
     int64_t i = 0;
-    Flower_BlockIterator *blockIt = flower_getBlockIterator(flower);
-    Block *block;
-    while ((block = flower_getNextBlock(blockIt)) != NULL) {
-        if (block_isTrivialChain(block)) {
-            i++;
+    Flower_EndIterator *endIt = flower_getEndIterator(flower);
+    End *end;
+    while ((end = flower_getNextEnd(endIt)) != NULL) {
+        if(end_partOfBlock(end) && end_left(end)) {
+            if (block_isTrivialChain(end_getBlock(end))) {
+                i++;
+            }
         }
     }
-    flower_destructBlockIterator(blockIt);
+    flower_destructEndIterator(endIt);
     return i;
 }
 
@@ -594,6 +531,13 @@ void flower_check(Flower *flower) {
     while ((end = flower_getNextEnd(endIterator)) != NULL) {
         end_check(end);
         end_check(end_getReverse(end)); //We will test everything backwards also.
+
+        // Check any attached block
+        if(end_partOfBlock(end) && end_left(end)) {
+            assert(flower_builtBlocks(flower));
+            block_check(end_getBlock(end));
+            block_check(block_getReverse(end_getBlock(end))); //We will test everything backwards also.
+        }
     }
     flower_destructEndIterator(endIterator);
 
@@ -609,15 +553,7 @@ void flower_check(Flower *flower) {
         cactusCheck(flower_getFaceNumber(flower) == 0);
     }*/
 
-    if (flower_builtBlocks(flower)) { //Note that a flower for which the blocks are not yet built must be a leaf.
-        Flower_BlockIterator *blockIterator = flower_getBlockIterator(flower);
-        Block *block;
-        while ((block = flower_getNextBlock(blockIterator)) != NULL) {
-            block_check(block);
-            block_check(block_getReverse(block)); //We will test everything backwards also.
-        }
-        flower_destructBlockIterator(blockIterator);
-    } else {
+    if (!flower_builtBlocks(flower)) {
         cactusCheck(flower_isLeaf(flower)); //Defensive
         cactusCheck(flower_isTerminal(flower)); //Checks that a flower without built blocks is a leaf and does not
         //contain any blocks.
@@ -690,51 +626,7 @@ bool flower_isTerminal(Flower *flower) {
 }
 
 bool flower_removeIfRedundant(Flower *flower) {
-    if (!flower_isLeaf(flower) && flower_getParentGroup(flower) != NULL && flower_getBlockNumber(flower) == 0) { //We will remove this flower..
-        Group *parentGroup = flower_getParentGroup(flower); //This group will be destructed
-        //Deal with any parent chain..
-        if (group_isLink(parentGroup)) {
-            link_split(group_getLink(parentGroup));
-        }
-        Flower *parentFlower = group_getFlower(parentGroup); //We will add the groups in the flower to the parent
-
-        /*
-         * For each group in the flower we take its nested flower and attach it to the parent.
-         */
-        Group *group;
-        Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
-        while ((group = flower_getNextGroup(groupIt)) != NULL) {
-            if (!group_isLeaf(group)) {
-                //Copy the group into the parent..
-                Flower *nestedFlower = group_getNestedFlower(group);
-                assert(nestedFlower != NULL);
-                Group *newParentGroup = group_construct(parentFlower, nestedFlower);
-                flower_setParentGroup(nestedFlower, newParentGroup);
-                group_constructChainForLink(newParentGroup);
-            } else {
-                Group *newParentGroup = group_construct2(parentFlower);
-                End *end;
-                Group_EndIterator *endIt = group_getEndIterator(group);
-                while ((end = group_getNextEnd(endIt)) != NULL) {
-                    End *parentEnd = flower_getEnd(parentFlower, end_getName(end));
-                    assert(parentEnd != NULL);
-                    end_setGroup(parentEnd, newParentGroup);
-                }
-                group_destructEndIterator(endIt);
-                group_constructChainForLink(newParentGroup);
-            }
-        }
-        flower_destructGroupIterator(groupIt);
-
-        //The group attached to the flower should now be empty
-        assert(group_getEndNumber(parentGroup) == 0);
-        group_destruct(parentGroup);
-
-        //Now wipe the flower out..
-        cactusDisk_deleteFlowerFromDisk(flower_getCactusDisk(flower), flower);
-        flower_destruct(flower, 0);
-        return 1;
-    }
+    assert(0);
     return 0;
 }
 
@@ -765,7 +657,6 @@ void flower_delete(Flower *flower) {
 bool flower_deleteIfEmpty(Flower *flower) {
     if (flower_getEndNumber(flower) == 0 && flower_getParentGroup(flower) != NULL) { //contains nothing useful..
         assert(flower_getChainNumber(flower) == 0);
-        assert(flower_getBlockNumber(flower) == 0);
         while (flower_getGroupNumber(flower) > 0) {
             Group *group = flower_getFirstGroup(flower);
             if (!group_isLeaf(group)) {
@@ -874,32 +765,6 @@ void flower_removeEnd(Flower *flower, End *end) {
     stSortedSet_remove(flower->ends, end);
 }
 
-void flower_addSegment(Flower *flower, Segment *segment) {
-    return;
-    //segment = segment_getPositiveOrientation(segment);
-    //assert(stSortedSet_search(flower->segments, segment) == NULL);
-    //stSortedSet_insert(flower->segments, segment);
-}
-
-void flower_removeSegment(Flower *flower, Segment *segment) {
-    return;
-    //segment = segment_getPositiveOrientation(segment);
-    //assert(stSortedSet_search(flower->segments, segment) != NULL);
-    //stSortedSet_remove(flower->segments, segment);
-}
-
-void flower_addBlock(Flower *flower, Block *block) {
-    block = block_getPositiveOrientation(block);
-    assert(stSortedSet_search(flower->blocks, block) == NULL);
-    stSortedSet_insert(flower->blocks, block);
-}
-
-void flower_removeBlock(Flower *flower, Block *block) {
-    block = block_getPositiveOrientation(block);
-    assert(stSortedSet_search(flower->blocks, block) != NULL);
-    stSortedSet_remove(flower->blocks, block);
-}
-
 void flower_addChain(Flower *flower, Chain *chain) {
     assert(stSortedSet_search(flower->chains, chain) == NULL);
     stSortedSet_insert(flower->chains, chain);
@@ -942,7 +807,7 @@ void flower_removeFace(Flower *flower, Face *face) {
  */
 
 void flower_writeBinaryRepresentation(Flower *flower, void(*writeFn)(const void * ptr, size_t size, size_t count)) {
-    Flower_SequenceIterator *sequenceIterator;
+    /*Flower_SequenceIterator *sequenceIterator;
     Flower_EndIterator *endIterator;
     Flower_BlockIterator *blockIterator;
     Flower_GroupIterator *groupIterator;
@@ -990,13 +855,13 @@ void flower_writeBinaryRepresentation(Flower *flower, void(*writeFn)(const void 
     }
     flower_destructChainIterator(chainIterator);
 
-    binaryRepresentation_writeElementType(CODE_FLOWER, writeFn); //this avoids interpretting things wrong.
+    binaryRepresentation_writeElementType(CODE_FLOWER, writeFn); //this avoids interpretting things wrong.*/
 }
 
 Flower *flower_loadFromBinaryRepresentation(void **binaryString, CactusDisk *cactusDisk) {
     Flower *flower = NULL;
     //bool buildFaces;
-    if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_FLOWER) {
+    /*if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_FLOWER) {
         binaryRepresentation_popNextElementType(binaryString);
         flower = flower_construct3(binaryRepresentation_getName(binaryString), cactusDisk);
         flower_setBuiltBlocks(flower, binaryRepresentation_getBool(binaryString));
@@ -1015,6 +880,6 @@ Flower *flower_loadFromBinaryRepresentation(void **binaryString, CactusDisk *cac
             ;
         //flower_setBuildFaces(flower, buildFaces);
         assert(binaryRepresentation_popNextElementType(binaryString) == CODE_FLOWER);
-    }
+    }*/
     return flower;
 }

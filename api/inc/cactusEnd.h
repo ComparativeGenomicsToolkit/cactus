@@ -17,6 +17,9 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
+bool end_partOfBlock(End *end);
+bool end_left(End *end);
+
 /*
  * Constructs the stub end, not attached to any block.
  */

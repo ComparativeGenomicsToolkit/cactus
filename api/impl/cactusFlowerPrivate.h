@@ -14,7 +14,7 @@ struct _flower {
     stSortedSet *sequences;
     stSortedSet *ends;
     stList *caps;
-    stSortedSet *blocks;
+    //stSortedSet *blocks;
     //stSortedSet *segments;
     stSortedSet *groups;
     stSortedSet *chains;
@@ -68,22 +68,22 @@ void flower_removeSequence(Flower *flower, Sequence *sequence);
 /*
  * Adds the segment to the flower.
  */
-void flower_addSegment(Flower *flower, Segment *segment);
+//void flower_addSegment(Flower *flower, Segment *segment);
 
 /*
  * Remove the segment from the flower.
  */
-void flower_removeSegment(Flower *flower, Segment *segment);
+//void flower_removeSegment(Flower *flower, Segment *segment);
 
 /*
  * Adds the block to the flower.
  */
-void flower_addBlock(Flower *flower, Block *block);
+//void flower_addBlock(Flower *flower, Block *block);
 
 /*
  * Remove the block from the flower.
  */
-void flower_removeBlock(Flower *flower, Block *block);
+//void flower_removeBlock(Flower *flower, Block *block);
 
 /*
  * Adds the cap to the flower.

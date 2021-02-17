@@ -134,6 +134,11 @@ End *flower_getFirstEnd(Flower *flower);
 End *flower_getEnd(Flower *flower, Name name);
 
 /*
+ * Gets a block by name.
+ */
+Block *flower_getBlock(Flower *flower, Name name);
+
+/*
  * Returns the number of ends.
  */
 int64_t flower_getEndNumber(Flower *flower);
@@ -142,6 +147,11 @@ int64_t flower_getEndNumber(Flower *flower);
  * Sugar for flower_getBlockNumber(flower)*2
  */
 int64_t flower_getBlockEndNumber(Flower *flower);
+
+/*
+ * Return the number of blocks
+ */
+int64_t flower_getBlockNumber(Flower *flower);
 
 /*
  * Returns number of stub ends in the flower.
@@ -182,88 +192,6 @@ Flower_EndIterator *flower_copyEndIterator(Flower_EndIterator *endIterator);
  * Destructs the iterator.
  */
 void flower_destructEndIterator(Flower_EndIterator *endIterator);
-
-/*
- * Gets the 'first' block.
- */
-Block *flower_getFirstBlock(Flower *flower);
-
-/*
- * Gets an block by name.
- */
-Block *flower_getBlock(Flower *flower, Name name);
-
-/*
- *  Gets the 'first' segment.
- */
-Segment *flower_getFirstSegment(Flower *flower);
-
-/*
- * Gets an segment by its name.
- */
-Segment *flower_getSegment(Flower *flower, Name name);
-
-/*
- * Returns the number of segments.
- */
-int64_t flower_getSegmentNumber(Flower *flower);
-
-/*
- * Gets an iterator to iterate through the segments in the flower, at this level.
- */
-Flower_SegmentIterator *flower_getSegmentIterator(Flower *flower);
-
-/*
- * Gets the next segment from the iterator.
- */
-Segment *flower_getNextSegment(Flower_SegmentIterator *segmentIterator);
-
-/*
- * Gets the previous segment from the iterator.
- */
-Segment *flower_getPreviousSegment(Flower_SegmentIterator *segmentIterator);
-
-/*
- * Duplicates the iterator.
- */
-Flower_SegmentIterator *flower_copySegmentIterator(
-        Flower_SegmentIterator *segmentIterator);
-
-/*
- * Destructs the iterator.
- */
-void flower_destructSegmentIterator(Flower_SegmentIterator *segmentIterator);
-
-/*
- * Returns the number of blocks.
- */
-int64_t flower_getBlockNumber(Flower *flower);
-
-/*
- * Gets an iterator to iterate through the blocks in the flower, at this level.
- */
-Flower_BlockIterator *flower_getBlockIterator(Flower *flower);
-
-/*
- * Gets the next block from the iterator.
- */
-Block *flower_getNextBlock(Flower_BlockIterator *blockIterator);
-
-/*
- * Gets the previous block from the iterator.
- */
-Block *flower_getPreviousBlock(Flower_BlockIterator *blockIterator);
-
-/*
- * Duplicates the iterator
- */
-Flower_BlockIterator *flower_copyBlockIterator(
-        Flower_BlockIterator *blockIterator);
-
-/*
- * Destructs the iterator.
- */
-void flower_destructBlockIterator(Flower_BlockIterator *blockIterator);
 
 /*
  * Gets the 'first' group.

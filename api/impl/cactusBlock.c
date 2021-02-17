@@ -44,7 +44,6 @@ Block *block_construct(int64_t length, Flower *flower) {
 	block_getContents(block)->length = length;
 	block_getContents(block)->flower = flower;
 
-	flower_addBlock(flower, block);
 	flower_addEnd(flower, block_get5End(block));
     flower_addEnd(flower, block_get3End(block));
 
@@ -78,7 +77,8 @@ void block_destruct(Block *block) {
     assert(end_isBlock(block));
 
 	//remove from flower.
-	flower_removeBlock(block_getFlower(block), block);
+	//flower_removeEnd(block_getFlower(block), block_get5End(block));
+    //flower_removeEnd(block_getFlower(block), block_get3End(block));
 
 	//remove instances
     Segment *segment;
@@ -283,11 +283,6 @@ void block_removeInstance(Block *block, Segment *segment) {
     }
 }
 
-void block_setFlower(Block *block, Flower *flower) {
-	flower_removeBlock(block_getFlower(block), block);
-	block_getContents(block)->flower = flower;
-	flower_addBlock(flower, block);
-}
 
 /*
  * Functions to remove

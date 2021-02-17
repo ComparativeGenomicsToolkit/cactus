@@ -431,20 +431,23 @@ static void getTrivialChainNodes(Flower *flower, stHash *endsToNodes, int64_t *n
     /*
      * Get the trivial chain edges for the flower.
      */
-    Flower_BlockIterator *blockIt = flower_getBlockIterator(flower);
-    Block *block;
-    while ((block = flower_getNextBlock(blockIt)) != NULL) {
-        End *_5End = block_get5End(block);
-        End *_3End = block_get3End(block);
-        assert(end_getGroup(_5End) != NULL);
-        assert(end_getGroup(_3End) != NULL);
-        if (group_isTangle(end_getGroup(_5End)) && group_isTangle(end_getGroup(_3End))) {
-            addToNodes(_5End, *nodeCounter, endsToNodes);
-            addToNodes(_3End, -(*nodeCounter), endsToNodes);
-            (*nodeCounter)++;
+    Flower_EndIterator *endIt = flower_getEndIterator(flower);
+    End *end;
+    while ((end = flower_getNextEnd(endIt)) != NULL) {
+        if(end_partOfBlock(end) && end_left(end)) {
+            Block *block = end_getBlock(end);
+            End *_5End = block_get5End(block);
+            End *_3End = block_get3End(block);
+            assert(end_getGroup(_5End) != NULL);
+            assert(end_getGroup(_3End) != NULL);
+            if (group_isTangle(end_getGroup(_5End)) && group_isTangle(end_getGroup(_3End))) {
+                addToNodes(_5End, *nodeCounter, endsToNodes);
+                addToNodes(_3End, -(*nodeCounter), endsToNodes);
+                (*nodeCounter)++;
+            }
         }
     }
-    flower_destructBlockIterator(blockIt);
+    flower_destructEndIterator(endIt);
 }
 
 static stHash *getChainNodes(Flower *flower) {

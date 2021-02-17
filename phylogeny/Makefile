@@ -9,7 +9,9 @@ LDLIBS := treelib/libtree.a ${cactusLibs} ${LDLIBS}
 all: all_libs all_progs
 all_libs: treelib/libtree.a
 all_progs: all_libs
-	${MAKE} ${BINDIR}/cactus_phylogeny 
+
+
+#${MAKE} ${BINDIR}/cactus_phylogeny
 
 ${BINDIR}/cactus_phylogeny : cactus_phylogeny.c reconcilliation.c phylogeny.h ${LIBDIR}/cactusLib.a treelib/libtree.a ${treeIncPath}/treelib.h ${LIBDEPENDS}
 	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o ${BINDIR}/cactus_phylogeny cactus_phylogeny.c reconcilliation.c ${LDLIBS}
