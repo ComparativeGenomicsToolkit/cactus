@@ -191,14 +191,18 @@ End *end_copyConstruct(End *end, Flower *newFlower) {
 }
 
 void end_destruct(End *end) {
+    /*
+     * This method is the only way to clean up ends / end-blocks. It must be called
+     * on both ends of a block
+     */
+
     //remove from flower.
     flower_removeEnd(end_getFlower(end), end);
 
     //remove from group.
     end_setGroup(end, NULL);
 
-    // Free only if not part of a segment
-    if(!end_partOfBlock(end)) {
+    if(!end_partOfBlock(end)) { // If not part of a block
         //remove instances
         Cap *cap;
         while ((cap = end_getFirst(end)) != NULL) {
@@ -206,6 +210,17 @@ void end_destruct(End *end) {
         }
 
         free(end_getOrientation(end) ? end : end_getReverse(end));
+    }
+    else if(end_left(end)) { // is the left end of a block
+        Block *block = end_getBlock(end);
+
+        //remove instances
+        Segment *segment;
+        while((segment = block_getFirst(block)) != NULL) {
+            segment_destruct(segment);
+        }
+
+        free(block_getOrientation(block) ? block-2 : block-3);
     }
 }
 

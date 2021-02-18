@@ -99,12 +99,8 @@ void flower_destruct(Flower *flower, int64_t recursive) {
 
     cactusDisk_removeFlower(flower->cactusDisk, flower);
 
-    //flower_destructFaces(flower);
-    //stSortedSet_destruct(flower->faces);
-
     while ((sequence = flower_getFirstSequence(flower)) != NULL) {
         flower_removeSequence(flower, sequence);
-        //sequence_destruct(sequence, flower);
     }
     stList_destruct(flower->sequences);
 
@@ -113,20 +109,12 @@ void flower_destruct(Flower *flower, int64_t recursive) {
     }
     stList_destruct(flower->chains);
 
+    // This cleans up the ends, blocks, caps and segments contained in the flower
     while ((end = flower_getFirstEnd(flower)) != NULL) {
-        if(end_partOfBlock(end)) {
-            if(end_left(end)) {
-                block_destruct(end_getBlock(end));
-            }
-        }
-        else {
-            end_destruct(end);
-        }
+        end_destruct(end);
     }
-    //stSortedSet_destruct(flower->caps);
     stList_destruct(flower->caps);
     stList_destruct(flower->ends);
-
 
     while ((group = flower_getFirstGroup(flower)) != NULL) {
         group_destruct(group);

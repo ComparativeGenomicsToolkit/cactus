@@ -275,7 +275,7 @@ int main(int argc, char *argv[]) {
     Flower *flower = cactus_setup_first_flower(cactusDisk, params, speciesTree, outgroupEvents, sequenceFilesAndEvents);
     st_logInfo("Established the first Flower in the hierarchy, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
-    //flower_checkRecursive(flower);
+    flower_checkRecursive(flower);
 
     //////////////////////////////////////////////
     //Convert alignment coordinates
@@ -411,7 +411,7 @@ int main(int argc, char *argv[]) {
     if(constraintAlignmentsFile != NULL) {
         st_system("rm %s", constraintAlignmentsFile);
     }
-    //cactusDisk_destruct(cactusDisk);
+    cactusDisk_destruct(cactusDisk);
     stKVDatabaseConf_destruct(kvDatabaseConf);
 
     //while(1);

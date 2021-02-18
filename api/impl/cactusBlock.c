@@ -74,19 +74,7 @@ Block *block_construct(int64_t length, Flower *flower) {
 }
 
 void block_destruct(Block *block) {
-    assert(end_isBlock(block));
-
-	//remove from flower.
-	//flower_removeEnd(block_getFlower(block), block_get5End(block));
-    //flower_removeEnd(block_getFlower(block), block_get3End(block));
-
-	//remove instances
-    Segment *segment;
-	while((segment = block_getFirst(block)) != NULL) {
-		segment_destruct(segment);
-	}
-
-	free(block_getOrientation(block) ? block-2 : block-3);
+    assert(0);
 }
 
 bool block_getOrientation(Block *block) {
