@@ -55,13 +55,14 @@ typedef struct _group_endIterator Group_EndIterator;
 
 typedef stSortedSetIterator Flower_SequenceIterator;
 typedef stListIterator Flower_CapIterator;
-typedef stSortedSetIterator Flower_SegmentIterator;
-typedef stSortedSetIterator Flower_EndIterator;
-typedef stSortedSetIterator Flower_BlockIterator;
+typedef stListIterator Flower_EndIterator;
 typedef stSortedSetIterator Flower_GroupIterator;
 typedef stSortedSetIterator Flower_ChainIterator;
-typedef stSortedSetIterator Flower_FaceIterator;
 typedef stSortedSetIterator CactusDisk_FlowerIterator;
+
+typedef stSortedSetIterator Flower_FaceIterator;
+typedef stSortedSetIterator Flower_SegmentIterator;
+typedef stSortedSetIterator Flower_BlockIterator;
 
 typedef stSortedSetIterator Reference_PseudoChromosomeIterator;
 typedef stListIterator PseudoChromsome_PseudoAdjacencyIterator;

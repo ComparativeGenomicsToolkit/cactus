@@ -11,18 +11,19 @@
 
 struct _flower {
     Name name;
-    stSortedSet *sequences;
-    stSortedSet *ends;
+    stList *ends;
     stList *caps;
-    //stSortedSet *blocks;
-    //stSortedSet *segments;
+
     stSortedSet *groups;
     stSortedSet *chains;
+    //stSortedSet *blocks;
+    //stSortedSet *segments;
+    stSortedSet *sequences;
     //stSortedSet *faces;
     Name parentFlowerName;
     CactusDisk *cactusDisk;
     //int64_t faceIndex;
-    int64_t chainIndex;
+    //int64_t chainIndex;
     bool builtBlocks;
     //bool builtTrees;
     //bool builtFaces;

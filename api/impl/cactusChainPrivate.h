@@ -15,7 +15,7 @@ struct _chain {
 	Link *link;
 	Link *endLink;
 	int64_t linkNumber;
-	int64_t chainIndex;
+	//int64_t chainIndex;
 };
 
 ////////////////////////////////////////////////
