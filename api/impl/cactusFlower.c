@@ -46,7 +46,7 @@ static Flower *flower_construct3(Name name, CactusDisk *cactusDisk) {
 
     flower->name = name;
 
-    flower->sequences = stSortedSet_construct3(flower_constructSequencesP, NULL);
+    flower->sequences = stList_construct3(0, NULL); //stSortedSet_construct3(flower_constructSequencesP, NULL);
     flower->caps = stList_construct3(0, NULL); //stSortedSet_construct3(flower_constructCapsP, NULL);
     flower->ends = stList_construct3(0, NULL); //stSortedSet_construct3(flower_constructEndsP, NULL);
     //flower->segments = NULL; //stSortedSet_construct3(flower_constructSegmentsP, NULL);
@@ -106,7 +106,7 @@ void flower_destruct(Flower *flower, int64_t recursive) {
         flower_removeSequence(flower, sequence);
         //sequence_destruct(sequence, flower);
     }
-    stSortedSet_destruct(flower->sequences);
+    stList_destruct(flower->sequences);
 
     while ((chain = flower_getFirstChain(flower)) != NULL) {
         chain_destruct(chain);
@@ -149,7 +149,7 @@ EventTree *flower_getEventTree(Flower *flower) {
 }
 
 Sequence *flower_getFirstSequence(Flower *flower) {
-    return stSortedSet_getFirst(flower->sequences);
+    return stList_length(flower->sequences) > 0 ? stList_peek(flower->sequences) : NULL; //stSortedSet_getFirst(flower->sequences);
 }
 
 Sequence *flower_getSequence(Flower *flower, Name name) {
@@ -158,35 +158,31 @@ Sequence *flower_getSequence(Flower *flower, Name name) {
     //sequence.metaSequence = &metaSequence;
     metaSequence.name = name;
     //return cactusDisk_getMetaSequence(flower->cactusDisk, name);
-    return stSortedSet_search(flower->sequences, &metaSequence);
+    return stList_binarySearch(flower->sequences, &metaSequence, flower_constructSequencesP);
 }
 
 int64_t flower_getSequenceNumber(Flower *flower) {
-    return stSortedSet_size(flower->sequences);
+    return stList_length(flower->sequences);
 }
 
 Flower_SequenceIterator *flower_getSequenceIterator(Flower *flower) {
-    return stSortedSet_getIterator(flower->sequences);
+    return stList_getIterator(flower->sequences);
 }
 
 Sequence *flower_getNextSequence(Flower_SequenceIterator *sequenceIterator) {
-    return stSortedSet_getNext(sequenceIterator);
+    return stList_getNext(sequenceIterator);
 }
 
 Sequence *flower_getPreviousSequence(Flower_SequenceIterator *sequenceIterator) {
-    assert(0);
-    return NULL;
-    //return stSortedSet_getPrevious(sequenceIterator);
+    return stList_getPrevious(sequenceIterator);
 }
 
 Flower_SequenceIterator *flower_copySequenceIterator(Flower_SequenceIterator *sequenceIterator) {
-    assert(0);
-    return NULL;
-    //return stSortedSet_copyIterator(sequenceIterator);
+    return stList_copyIterator(sequenceIterator);
 }
 
 void flower_destructSequenceIterator(Flower_SequenceIterator *sequenceIterator) {
-    stSortedSet_destructIterator(sequenceIterator);
+    stList_destructIterator(sequenceIterator);
 }
 
 Cap *flower_getFirstCap(Flower *flower) {
@@ -722,20 +718,29 @@ void flower_unloadParent(Flower *flower) {
  * Private functions
  */
 
-void flower_addSequence(Flower *flower, Sequence *sequence) {
-    assert(stSortedSet_search(flower->sequences, sequence) == NULL);
-    stSortedSet_insert(flower->sequences, sequence);
-}
-
-void flower_removeSequence(Flower *flower, Sequence *sequence) {
-    assert(stSortedSet_search(flower->sequences, sequence) != NULL);
-    stSortedSet_remove(flower->sequences, sequence);
-}
-
 static void swap(stList *l, int64_t i) {
     void *o = stList_get(l, i+1);
     stList_set(l, i+1, stList_get(l, i));
     stList_set(l, i, o);
+}
+
+void flower_addSequence(Flower *flower, Sequence *sequence) {
+    stList_append(flower->sequences, sequence);
+    // Now ensure we have fixed the sort
+    int64_t i = stList_length(flower->sequences)-1;
+    while(--i >= 0 && sequence_getName(stList_get(flower->sequences, i)) > sequence_getName(sequence)) {
+        swap(flower->sequences, i);
+    }
+    //assert(stSortedSet_search(flower->sequences, sequence) == NULL);
+    //stSortedSet_insert(flower->sequences, sequence);
+}
+
+void flower_removeSequence(Flower *flower, Sequence *sequence) {
+    // todo: fix so that it just pops. i.e. doesn't take end as an argument
+    assert(stList_peek(flower->sequences) == sequence);
+    stList_pop(flower->sequences);
+    //assert(stSortedSet_search(flower->sequences, sequence) != NULL);
+    //stSortedSet_remove(flower->sequences, sequence);
 }
 
 void flower_addCap(Flower *flower, Cap *cap) {

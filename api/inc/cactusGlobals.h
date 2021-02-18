@@ -53,7 +53,7 @@ typedef struct _block_instanceIterator Block_InstanceIterator;
 //typedef stSortedSetIterator Group_EndIterator;
 typedef struct _group_endIterator Group_EndIterator;
 
-typedef stSortedSetIterator Flower_SequenceIterator;
+typedef stListIterator Flower_SequenceIterator;
 typedef stListIterator Flower_CapIterator;
 typedef stListIterator Flower_EndIterator;
 typedef stListIterator Flower_GroupIterator;
