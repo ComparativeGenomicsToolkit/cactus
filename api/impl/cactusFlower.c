@@ -51,8 +51,8 @@ static Flower *flower_construct3(Name name, CactusDisk *cactusDisk) {
     flower->ends = stList_construct3(0, NULL); //stSortedSet_construct3(flower_constructEndsP, NULL);
     //flower->segments = NULL; //stSortedSet_construct3(flower_constructSegmentsP, NULL);
     //flower->blocks = stSortedSet_construct3(flower_constructBlocksP, NULL);
-    flower->groups = stSortedSet_construct3(flower_constructGroupsP, NULL);
-    flower->chains = stSortedSet_construct3(flower_constructChainsP, NULL);
+    flower->groups = stList_construct3(0, NULL); // stSortedSet_construct3(flower_constructGroupsP, NULL);
+    flower->chains = stList_construct3(0, NULL); //stSortedSet_construct3(flower_constructChainsP, NULL);
     //flower->faces = NULL; //stSortedSet_construct3(flower_constructFacesP, NULL);
 
     flower->parentFlowerName = NULL_NAME;
@@ -111,7 +111,7 @@ void flower_destruct(Flower *flower, int64_t recursive) {
     while ((chain = flower_getFirstChain(flower)) != NULL) {
         chain_destruct(chain);
     }
-    stSortedSet_destruct(flower->chains);
+    stList_destruct(flower->chains);
 
     while ((end = flower_getFirstEnd(flower)) != NULL) {
         if(end_partOfBlock(end)) {
@@ -131,7 +131,7 @@ void flower_destruct(Flower *flower, int64_t recursive) {
     while ((group = flower_getFirstGroup(flower)) != NULL) {
         group_destruct(group);
     }
-    stSortedSet_destruct(flower->groups);
+    stList_destruct(flower->groups);
 
     free(flower);
 }
@@ -315,37 +315,37 @@ void flower_destructEndIterator(Flower_EndIterator *endIterator) {
 }
 
 Group *flower_getFirstGroup(Flower *flower) {
-    return stSortedSet_getFirst(flower->groups);
+    return stList_length(flower->groups) > 0 ? stList_peek(flower->groups): NULL; //stSortedSet_getFirst(flower->groups);
 }
 
 Group *flower_getGroup(Flower *flower, Name flowerName) {
     Group group;
     group.name = flowerName;
-    return stSortedSet_search(flower->groups, &group);
+    return stList_binarySearch(flower->groups, &group, flower_constructGroupsP); //stSortedSet_search(flower->groups, &group);
 }
 
 int64_t flower_getGroupNumber(Flower *flower) {
-    return stSortedSet_size(flower->groups);
+    return stList_length(flower->groups);
 }
 
 Flower_GroupIterator *flower_getGroupIterator(Flower *flower) {
-    return stSortedSet_getIterator(flower->groups);
+    return stList_getIterator(flower->groups);
 }
 
 Group *flower_getNextGroup(Flower_GroupIterator *groupIterator) {
-    return stSortedSet_getNext(groupIterator);
+    return stList_getNext(groupIterator);
 }
 
 Group *flower_getPreviousGroup(Flower_GroupIterator *groupIterator) {
-    return stSortedSet_getPrevious(groupIterator);
+    return stList_getPrevious(groupIterator);
 }
 
 Flower_GroupIterator *flower_copyGroupIterator(Flower_GroupIterator *groupIterator) {
-    return stSortedSet_copyIterator(groupIterator);
+    return stList_copyIterator(groupIterator);
 }
 
 void flower_destructGroupIterator(Flower_GroupIterator *groupIterator) {
-    stSortedSet_destructIterator(groupIterator);
+    stList_destructIterator(groupIterator);
 }
 
 bool flower_hasParentGroup(Flower *flower) {
@@ -362,17 +362,17 @@ Group *flower_getParentGroup(Flower *flower) {
 }
 
 Chain *flower_getFirstChain(Flower *flower) {
-    return stSortedSet_getFirst(flower->chains);
+    return stList_length(flower->chains) > 0 ? stList_peek(flower->chains) : NULL; //stSortedSet_getFirst(flower->chains);
 }
 
 Chain *flower_getChain(Flower *flower, Name name) {
     Chain chain;
     chain.name = name;
-    return stSortedSet_search(flower->chains, &chain);
+    return stList_binarySearch(flower->chains, &chain, flower_constructChainsP); //stSortedSet_search(flower->chains, &chain);
 }
 
 int64_t flower_getChainNumber(Flower *flower) {
-    return stSortedSet_size(flower->chains);
+    return stList_length(flower->chains);
 }
 
 int64_t flower_getTrivialChainNumber(Flower *flower) {
@@ -391,23 +391,23 @@ int64_t flower_getTrivialChainNumber(Flower *flower) {
 }
 
 Flower_ChainIterator *flower_getChainIterator(Flower *flower) {
-    return stSortedSet_getIterator(flower->chains);
+    return stList_getIterator(flower->chains);
 }
 
 Chain *flower_getNextChain(Flower_ChainIterator *chainIterator) {
-    return stSortedSet_getNext(chainIterator);
+    return stList_getNext(chainIterator);
 }
 
 Chain *flower_getPreviousChain(Flower_ChainIterator *chainIterator) {
-    return stSortedSet_getPrevious(chainIterator);
+    return stList_getPrevious(chainIterator);
 }
 
 Flower_ChainIterator *flower_copyChainIterator(Flower_ChainIterator *chainIterator) {
-    return stSortedSet_copyIterator(chainIterator);
+    return stList_copyIterator(chainIterator);
 }
 
 void flower_destructChainIterator(Flower_ChainIterator *chainIterator) {
-    stSortedSet_destructIterator(chainIterator);
+    stList_destructIterator(chainIterator);
 }
 
 Face *flower_getFirstFace(Flower *flower) {
@@ -776,23 +776,42 @@ void flower_removeEnd(Flower *flower, End *end) {
 }
 
 void flower_addChain(Flower *flower, Chain *chain) {
-    assert(stSortedSet_search(flower->chains, chain) == NULL);
-    stSortedSet_insert(flower->chains, chain);
+    stList_append(flower->chains, chain);
+    // Now ensure we have fixed the sort
+    int64_t i = stList_length(flower->chains)-1;
+    while(--i >= 0 && chain_getName(stList_get(flower->chains, i)) > chain_getName(chain)) {
+        swap(flower->chains, i);
+    }
+    //assert(stSortedSet_search(flower->chains, chain) == NULL);
+    //stSortedSet_insert(flower->chains, chain);
 }
 
 void flower_removeChain(Flower *flower, Chain *chain) {
-    assert(stSortedSet_search(flower->chains, chain) != NULL);
-    stSortedSet_remove(flower->chains, chain);
+    // todo: fix so that it just pops. i.e. doesn't take end as an argument
+    assert(stList_peek(flower->chains) == chain);
+    stList_pop(flower->chains);
+
+    //assert(stSortedSet_search(flower->chains, chain) != NULL);
+    //stSortedSet_remove(flower->chains, chain);
 }
 
 void flower_addGroup(Flower *flower, Group *group) {
-    assert(stSortedSet_search(flower->groups, group) == NULL);
-    stSortedSet_insert(flower->groups, group);
+    stList_append(flower->groups, group);
+    // Now ensure we have fixed the sort
+    int64_t i = stList_length(flower->groups)-1;
+    while(--i >= 0 && group_getName(stList_get(flower->groups, i)) > group_getName(group)) {
+        swap(flower->groups, i);
+    }
+    //assert(stSortedSet_search(flower->groups, group) == NULL);
+    //stSortedSet_insert(flower->groups, group);
 }
 
 void flower_removeGroup(Flower *flower, Group *group) {
-    assert(stSortedSet_search(flower->groups, group) != NULL);
-    stSortedSet_remove(flower->groups, group);
+    assert(stList_peek(flower->groups) == group);
+    stList_pop(flower->groups);
+
+    //assert(stSortedSet_search(flower->groups, group) != NULL);
+    //stSortedSet_remove(flower->groups, group);
 }
 
 void flower_setParentGroup(Flower *flower, Group *group) {
