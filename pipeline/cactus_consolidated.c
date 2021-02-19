@@ -24,7 +24,13 @@
 /*
  * TODOs:
  *
- * get bar non-poa to run in parallel
+ * remove the cactus disk so a DB is not needed
+ * fix the flower remove functions
+ * cleanup the API - remove binary functions, etc.
+ * remove all the unnecessary binaries
+ * make the tests pass!
+ *
+ *
  *
  */
 
@@ -276,6 +282,7 @@ int main(int argc, char *argv[]) {
     st_logInfo("Established the first Flower in the hierarchy, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     flower_checkRecursive(flower);
+    st_logInfo("Checked the first flower in the hierarchy, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     //////////////////////////////////////////////
     //Convert alignment coordinates
@@ -294,7 +301,7 @@ int main(int argc, char *argv[]) {
     //Strip the unique IDs
     //////////////////////////////////////////////
 
-    stripUniqueIdsFromMetaSequences(flower);
+    stripUniqueIdsFromSequences(flower);
     st_logInfo("Stripped the unique IDs, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     //////////////////////////////////////////////
@@ -307,6 +314,7 @@ int main(int argc, char *argv[]) {
     st_logInfo("Ran cactus caf, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     flower_checkRecursive(flower);
+    st_logInfo("Checked the flowers in the hierarchy created by CAF, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     //////////////////////////////////////////////
     //Call cactus bar
@@ -321,6 +329,7 @@ int main(int argc, char *argv[]) {
     stList_destruct(leafFlowers);
 
     flower_checkRecursive(flower);
+    st_logInfo("Checked the flowers in the hierarchy created by BAR, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     //////////////////////////////////////////////
     //Call cactus reference

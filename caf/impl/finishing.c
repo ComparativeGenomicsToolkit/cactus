@@ -99,8 +99,8 @@ static void makeBlock(stCactusEdgeEnd *cactusEdgeEnd, Flower *parentFlower, Flow
         assert(parentSequence != NULL);
         Sequence *sequence = flower_getSequence(flower, sequence_getName(parentSequence));
         if (sequence == NULL) {
-            sequence = sequence_construct(cactusDisk_getMetaSequence(flower_getCactusDisk(flower), sequence_getName(parentSequence)),
-                    flower);
+            sequence = cactusDisk_getSequence(flower_getCactusDisk(flower), sequence_getName(parentSequence));
+            flower_addSequence(flower, sequence);
         }
         assert(sequence != NULL);
         segment_construct2(

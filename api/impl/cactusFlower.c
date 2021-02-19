@@ -142,11 +142,11 @@ Sequence *flower_getFirstSequence(Flower *flower) {
 
 Sequence *flower_getSequence(Flower *flower, Name name) {
     //Sequence sequence;
-    MetaSequence metaSequence;
-    //sequence.metaSequence = &metaSequence;
-    metaSequence.name = name;
-    //return cactusDisk_getMetaSequence(flower->cactusDisk, name);
-    return stList_binarySearch(flower->sequences, &metaSequence, flower_constructSequencesP);
+    Sequence sequence;
+    //sequence.sequence = &sequence;
+    sequence.name = name;
+    //return cactusDisk_getSequence(flower->cactusDisk, name);
+    return stList_binarySearch(flower->sequences, &sequence, flower_constructSequencesP);
 }
 
 int64_t flower_getSequenceNumber(Flower *flower) {
@@ -543,12 +543,12 @@ void flower_check(Flower *flower) {
         //contain any blocks.
     }
 
-    Flower_SequenceIterator *sequenceIterator = flower_getSequenceIterator(flower);
+    /*Flower_SequenceIterator *sequenceIterator = flower_getSequenceIterator(flower);
     Sequence *sequence;
     while ((sequence = flower_getNextSequence(sequenceIterator)) != NULL) {
         sequence_check(sequence);
     }
-    flower_destructSequenceIterator(sequenceIterator);
+    flower_destructSequenceIterator(sequenceIterator);*/
 }
 
 void flower_checkRecursive(Flower *flower) {

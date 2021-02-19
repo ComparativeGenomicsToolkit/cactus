@@ -13,8 +13,8 @@
 static CactusDisk *cactusDisk = NULL;
 static Flower *flower;
 static EventTree *eventTree;
-static MetaSequence *metaSequence;
-static MetaSequence *metaSequence2;
+static Sequence *sequence;
+static Sequence *sequence2;
 static Sequence *sequence;
 static Sequence *sequence2;
 static End *end;
@@ -42,7 +42,7 @@ static void cactusFlowerTestTeardown(CuTest* testCase) {
         cactusDisk = NULL;
         flower = NULL;
         eventTree = NULL;
-        metaSequence = NULL;
+        sequence = NULL;
         sequence = NULL;
     }
 }
@@ -55,12 +55,12 @@ static void cactusFlowerTestSetup(CuTest* testCase) {
 }
 
 static void sequenceSetup() {
-    metaSequence = metaSequence_construct(0, 10, "ACTGACTGAC", ">one",
+    sequence = sequence_construct(0, 10, "ACTGACTGAC", ">one",
             eventTree_getRootEvent(eventTree), cactusDisk);
-    sequence = sequence_construct(metaSequence, flower);
-    metaSequence2 = metaSequence_construct(0, 10, "ACTGACTGAC", ">two",
+    flower_addSequence(flower, sequence);
+    sequence2 = sequence_construct(0, 10, "ACTGACTGAC", ">two",
             eventTree_getRootEvent(eventTree), cactusDisk);
-    sequence2 = sequence_construct(metaSequence2, flower);
+    flower_addSequence(flower, sequence2);
 }
 
 static void endsSetup() {

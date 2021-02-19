@@ -27,14 +27,14 @@
  * Functions on meta sequences.
  */
 
-void cactusDisk_addMetaSequence(CactusDisk *cactusDisk, MetaSequence *metaSequence) {
-    assert(stSortedSet_search(cactusDisk->metaSequences, metaSequence) == NULL);
-    stSortedSet_insert(cactusDisk->metaSequences, metaSequence);
+void cactusDisk_addSequence(CactusDisk *cactusDisk, Sequence *sequence) {
+    assert(stSortedSet_search(cactusDisk->sequences, sequence) == NULL);
+    stSortedSet_insert(cactusDisk->sequences, sequence);
 }
 
-void cactusDisk_removeMetaSequence(CactusDisk *cactusDisk, MetaSequence *metaSequence) {
-    assert(stSortedSet_search(cactusDisk->metaSequences, metaSequence) != NULL);
-    stSortedSet_remove(cactusDisk->metaSequences, metaSequence);
+void cactusDisk_removeSequence(CactusDisk *cactusDisk, Sequence *sequence) {
+    assert(stSortedSet_search(cactusDisk->sequences, sequence) != NULL);
+    stSortedSet_remove(cactusDisk->sequences, sequence);
 }
 
 /*
@@ -219,7 +219,7 @@ static stList *getSubstringsForFlowers(stList *flowers) {
                             assert(length >= 0);
                             if (length > 0) {
                                 stList_append(substrings,
-                                        substring_construct(sequence_getMetaSequence(sequence)->stringName,
+                                        substring_construct(sequence->stringName,
                                                 cap_getCoordinate(cap) + 1 - sequence_getStart(sequence), length));
                             }
                         }
@@ -266,7 +266,7 @@ static stList *getSubstringsForFlowerSegments(stList *flowers) {
                         segment = segment_getStrand(segment) ? segment : segment_getReverse(segment);
                         assert(segment_getLength(segment) > 0);
                         stList_append(substrings,
-                                      substring_construct(sequence_getMetaSequence(sequence)->stringName,
+                                      substring_construct(sequence->stringName,
                                                           segment_getStart(segment) - sequence_getStart(sequence),
                                                           segment_getLength(segment)));
                     }
@@ -406,8 +406,8 @@ static int cactusDisk_constructFlowersP(const void *o1, const void *o2) {
     return cactusMisc_nameCompare(flower_getName((Flower *) o1), flower_getName((Flower *) o2));
 }
 
-static int cactusDisk_constructMetaSequencesP(const void *o1, const void *o2) {
-    return cactusMisc_nameCompare(metaSequence_getName((MetaSequence *) o1), metaSequence_getName((MetaSequence *) o2));
+static int cactusDisk_constructSequencesP(const void *o1, const void *o2) {
+    return cactusMisc_nameCompare(sequence_getName((Sequence *) o1), sequence_getName((Sequence *) o2));
 }
 
 static void cactusDisk_writeBinaryRepresentation(CactusDisk *cactusDisk,
@@ -538,7 +538,7 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf, bool crea
     CactusDisk *cactusDisk = st_calloc(1, sizeof(CactusDisk));
 
     //construct lists of in memory objects
-    cactusDisk->metaSequences = stSortedSet_construct3(cactusDisk_constructMetaSequencesP, NULL);
+    cactusDisk->sequences = stSortedSet_construct3(cactusDisk_constructSequencesP, NULL);
     cactusDisk->flowers = stSortedSet_construct3(cactusDisk_constructFlowersP, NULL);
     cactusDisk->flowerNamesMarkedForDeletion = stSortedSet_construct3((int (*)(const void *, const void *)) strcmp,
             free);
@@ -594,7 +594,7 @@ CactusDisk *cactusDisk_constructInMemory(stKVDatabaseConf *conf, bool create, bo
 
 void cactusDisk_destruct(CactusDisk *cactusDisk) {
     Flower *flower;
-    MetaSequence *metaSequence;
+    Sequence *sequence;
 
     while ((flower = stSortedSet_getFirst(cactusDisk->flowers)) != NULL) {
         flower_destruct(flower, FALSE);
@@ -603,10 +603,10 @@ void cactusDisk_destruct(CactusDisk *cactusDisk) {
 
     stSortedSet_destruct(cactusDisk->flowerNamesMarkedForDeletion);
 
-    while ((metaSequence = stSortedSet_getFirst(cactusDisk->metaSequences)) != NULL) {
-        metaSequence_destruct(metaSequence);
+    while ((sequence = stSortedSet_getFirst(cactusDisk->sequences)) != NULL) {
+        sequence_destruct(sequence);
     }
-    stSortedSet_destruct(cactusDisk->metaSequences);
+    stSortedSet_destruct(cactusDisk->sequences);
 
     //close DB
     stKVDatabase_destruct(cactusDisk->database);
@@ -704,21 +704,21 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
     st_logDebug("Avoided updating nets marked for deletion\n");
 
     // Insert and/or update meta-sequences.
-    it = stSortedSet_getIterator(cactusDisk->metaSequences);
-    MetaSequence *metaSequence;
-    while ((metaSequence = stSortedSet_getNext(it)) != NULL) {
+    it = stSortedSet_getIterator(cactusDisk->sequences);
+    Sequence *sequence;
+    while ((sequence = stSortedSet_getNext(it)) != NULL) {
         void *vA =
-                binaryRepresentation_makeBinaryRepresentation(metaSequence,
-                        (void (*)(void *, void (*)(const void * ptr, size_t size, size_t count))) metaSequence_writeBinaryRepresentation,
+                binaryRepresentation_makeBinaryRepresentation(sequence,
+                        (void (*)(void *, void (*)(const void * ptr, size_t size, size_t count))) sequence_writeBinaryRepresentation,
                         &recordSize);
         //Compression
         vA = compress(vA, &recordSize);
-        if (!containsRecord(cactusDisk, metaSequence_getName(metaSequence))) {
+        if (!containsRecord(cactusDisk, sequence_getName(sequence))) {
             stList_append(cactusDisk->updateRequests,
-                    stKVDatabaseBulkRequest_constructInsertRequest(metaSequence_getName(metaSequence), vA, recordSize));
+                    stKVDatabaseBulkRequest_constructInsertRequest(sequence_getName(sequence), vA, recordSize));
         } else {
             stList_append(cactusDisk->updateRequests,
-                    stKVDatabaseBulkRequest_constructUpdateRequest(metaSequence_getName(metaSequence), vA, recordSize));
+                    stKVDatabaseBulkRequest_constructUpdateRequest(sequence_getName(sequence), vA, recordSize));
         }
         free(vA);
     }
@@ -812,21 +812,21 @@ Flower *cactusDisk_getFlower(CactusDisk *cactusDisk, Name flowerName) {
     return flower2;
 }
 
-MetaSequence *cactusDisk_getMetaSequence(CactusDisk *cactusDisk, Name metaSequenceName) {
-    MetaSequence metaSequence;
-    metaSequence.name = metaSequenceName;
-    MetaSequence *metaSequence2;
-    if ((metaSequence2 = stSortedSet_search(cactusDisk->metaSequences, &metaSequence)) != NULL) {
-        return metaSequence2;
+Sequence *cactusDisk_getSequence(CactusDisk *cactusDisk, Name sequenceName) {
+    Sequence sequence;
+    sequence.name = sequenceName;
+    Sequence *sequence2;
+    if ((sequence2 = stSortedSet_search(cactusDisk->sequences, &sequence)) != NULL) {
+        return sequence2;
     }
-    void *cA = getRecord(cactusDisk, metaSequenceName, "metaSequence", NULL);
+    void *cA = getRecord(cactusDisk, sequenceName, "sequence", NULL);
     if (cA == NULL) {
         return NULL;
     }
     void *cA2 = cA;
-    metaSequence2 = metaSequence_loadFromBinaryRepresentation(&cA2, cactusDisk);
+    sequence2 = sequence_loadFromBinaryRepresentation(&cA2, cactusDisk);
     free(cA);
-    return metaSequence2;
+    return sequence2;
 }
 
 /*

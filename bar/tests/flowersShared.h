@@ -24,16 +24,16 @@ static Event *rootEvent;
 static Event *leafEvent;
 
 //Sequences
-static MetaSequence *metaSequence1;
+static Sequence *sequence1;
 static Sequence *sequence1;
 
-static MetaSequence *metaSequence2;
+static Sequence *sequence2;
 static Sequence *sequence2;
 
-static MetaSequence *metaSequence3;
+static Sequence *sequence3;
 static Sequence *sequence3;
 
-static MetaSequence *metaSequence4;
+static Sequence *sequence4;
 static Sequence *sequence4;
 
 //Ends
@@ -78,21 +78,21 @@ static void setup(CuTest* testCase) {
     leafEvent = event_construct3("LEAF1", 0.2, rootEvent, eventTree);
 
     //Sequences
-    metaSequence1 = metaSequence_construct(1, 10, "ACTGACTGAC", ">one",
+    sequence1 = sequence_construct(1, 10, "ACTGACTGAC", ">one",
             leafEvent, cactusDisk);
-    sequence1 = sequence_construct(metaSequence1, flower);
+    flower_addSequence(flower, sequence1);
 
-    metaSequence2 = metaSequence_construct(1, 8, "AACCGGAA", ">two",
+    sequence2 = sequence_construct(1, 8, "AACCGGAA", ">two",
             leafEvent, cactusDisk);
-    sequence2 = sequence_construct(metaSequence2, flower);
+    flower_addSequence(flower, sequence2);
 
-    metaSequence3 = metaSequence_construct(1, 4, "CGGG", ">three",
+    sequence3 = sequence_construct(1, 4, "CGGG", ">three",
                 leafEvent, cactusDisk);
-    sequence3 = sequence_construct(metaSequence3, flower);
+    flower_addSequence(flower, sequence3);
 
-    metaSequence4 = metaSequence_construct(1, 1, "C", ">four",
+    sequence4 = sequence_construct(1, 1, "C", ">four",
                     leafEvent, cactusDisk);
-    sequence4 = sequence_construct(metaSequence4, flower);
+    flower_addSequence(flower, sequence4);
 
     //Ends
     end1 = end_construct2(0, 1, flower);

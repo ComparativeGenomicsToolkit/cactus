@@ -79,7 +79,7 @@ stList *cactusDisk_getFlowers(CactusDisk *cactusDisk, stList *flowerNames);
 /*
  * Gets the meta sequence for an object.
  */
-MetaSequence *cactusDisk_getMetaSequence(CactusDisk *cactusDisk, Name metaSequenceName);
+Sequence *cactusDisk_getSequence(CactusDisk *cactusDisk, Name sequenceName);
 
 /*
  * Precaches all the sequences in a given set of flowers into the cache.

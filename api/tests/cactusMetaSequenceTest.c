@@ -8,124 +8,124 @@
 
 static CactusDisk *cactusDisk;
 static Event *event = NULL;
-static MetaSequence *metaSequence;
+static Sequence *sequence;
 static const char *sequenceString = "ACTGGCACTG";
 static const char *headerString = ">one";
 
 static bool nestedTest = 0;
 
-static void cactusMetaSequenceTestTeardown(CuTest* testCase) {
+static void cactusSequenceTestTeardown(CuTest* testCase) {
     if(!nestedTest && cactusDisk != NULL) {
         testCommon_deleteTemporaryCactusDisk(testCase->name, cactusDisk);
         cactusDisk = NULL;
-        metaSequence = NULL;
+        sequence = NULL;
     }
 }
 
-static void cactusMetaSequenceTestSetup(CuTest* testCase) {
+static void cactusSequenceTestSetup(CuTest* testCase) {
     if(!nestedTest) {
-        cactusMetaSequenceTestTeardown(testCase);
+        cactusSequenceTestTeardown(testCase);
         cactusDisk = testCommon_getTemporaryCactusDisk(testCase->name);
-        metaSequence = metaSequence_construct(1, 10, sequenceString,
+        sequence = sequence_construct(1, 10, sequenceString,
                        headerString, event, cactusDisk);
     }
 }
 
-void testMetaSequence_getName(CuTest* testCase) {
-    cactusMetaSequenceTestSetup(testCase);
-    CuAssertTrue(testCase, metaSequence_getName(metaSequence) != NULL_NAME);
-    CuAssertTrue(testCase, cactusDisk_getMetaSequence(cactusDisk, metaSequence_getName(metaSequence)) == metaSequence);
-    cactusMetaSequenceTestTeardown(testCase);
+void testSequence_getName(CuTest* testCase) {
+    cactusSequenceTestSetup(testCase);
+    CuAssertTrue(testCase, sequence_getName(sequence) != NULL_NAME);
+    CuAssertTrue(testCase, cactusDisk_getSequence(cactusDisk, sequence_getName(sequence)) == sequence);
+    cactusSequenceTestTeardown(testCase);
 }
 
-void testMetaSequence_getStart(CuTest* testCase) {
-    cactusMetaSequenceTestSetup(testCase);
-    CuAssertIntEquals(testCase, 1, metaSequence_getStart(metaSequence));
-    cactusMetaSequenceTestTeardown(testCase);
+void testSequence_getStart(CuTest* testCase) {
+    cactusSequenceTestSetup(testCase);
+    CuAssertIntEquals(testCase, 1, sequence_getStart(sequence));
+    cactusSequenceTestTeardown(testCase);
 }
 
-void testMetaSequence_getLength(CuTest* testCase) {
-    cactusMetaSequenceTestSetup(testCase);
-    CuAssertIntEquals(testCase, 10, metaSequence_getLength(metaSequence));
-    cactusMetaSequenceTestTeardown(testCase);
+void testSequence_getLength(CuTest* testCase) {
+    cactusSequenceTestSetup(testCase);
+    CuAssertIntEquals(testCase, 10, sequence_getLength(sequence));
+    cactusSequenceTestTeardown(testCase);
 }
 
-void testMetaSequence_getEvent(CuTest* testCase) {
-    cactusMetaSequenceTestSetup(testCase);
-    CuAssertTrue(testCase, metaSequence_getEvent(metaSequence) == event);
-    cactusMetaSequenceTestTeardown(testCase);
+void testSequence_getEvent(CuTest* testCase) {
+    cactusSequenceTestSetup(testCase);
+    CuAssertTrue(testCase, sequence_getEvent(sequence) == event);
+    cactusSequenceTestTeardown(testCase);
 }
 
-void testMetaSequence_getString(CuTest* testCase) {
+void testSequence_getString(CuTest* testCase) {
     for(int64_t i=0; i<10; i++) {
-        cactusMetaSequenceTestSetup(testCase);
+        cactusSequenceTestSetup(testCase);
         //String is ACTGGCACTG
-        CuAssertStrEquals(testCase, sequenceString, metaSequence_getString(metaSequence, 1, 10, 1)); //complete sequence
-        CuAssertStrEquals(testCase, "TGGC", metaSequence_getString(metaSequence, 3, 4, 1)); //sub range
-        CuAssertStrEquals(testCase, "", metaSequence_getString(metaSequence, 3, 0, 1)); //zero length sub range
-        CuAssertStrEquals(testCase, "CAGTGCCAGT", metaSequence_getString(metaSequence, 1, 10, 0)); //reverse complement
-        CuAssertStrEquals(testCase, "GCCA", metaSequence_getString(metaSequence, 3, 4, 0)); //sub range, reverse complement
-        CuAssertStrEquals(testCase, "", metaSequence_getString(metaSequence, 3, 0, 0)); //zero length sub range on reverse strand
-        cactusMetaSequenceTestTeardown(testCase);
+        CuAssertStrEquals(testCase, sequenceString, sequence_getString(sequence, 1, 10, 1)); //complete sequence
+        CuAssertStrEquals(testCase, "TGGC", sequence_getString(sequence, 3, 4, 1)); //sub range
+        CuAssertStrEquals(testCase, "", sequence_getString(sequence, 3, 0, 1)); //zero length sub range
+        CuAssertStrEquals(testCase, "CAGTGCCAGT", sequence_getString(sequence, 1, 10, 0)); //reverse complement
+        CuAssertStrEquals(testCase, "GCCA", sequence_getString(sequence, 3, 4, 0)); //sub range, reverse complement
+        CuAssertStrEquals(testCase, "", sequence_getString(sequence, 3, 0, 0)); //zero length sub range on reverse strand
+        cactusSequenceTestTeardown(testCase);
     }
 }
 
-void testMetaSequence_getHeader(CuTest* testCase) {
-    cactusMetaSequenceTestSetup(testCase);
-    CuAssertStrEquals(testCase, headerString, metaSequence_getHeader(metaSequence));
-    cactusMetaSequenceTestTeardown(testCase);
+void testSequence_getHeader(CuTest* testCase) {
+    cactusSequenceTestSetup(testCase);
+    CuAssertStrEquals(testCase, headerString, sequence_getHeader(sequence));
+    cactusSequenceTestTeardown(testCase);
 }
 
-void testMetaSequence_isTrivialSequence(CuTest* testCase) {
-    cactusMetaSequenceTestSetup(testCase);
-    CuAssertTrue(testCase, !metaSequence_isTrivialSequence(metaSequence));
-    MetaSequence *metaSequence2 = metaSequence_construct3(1, 10, sequenceString,
+void testSequence_isTrivialSequence(CuTest* testCase) {
+    cactusSequenceTestSetup(testCase);
+    CuAssertTrue(testCase, !sequence_isTrivialSequence(sequence));
+    Sequence *sequence2 = sequence_construct3(1, 10, sequenceString,
                            headerString, event, 1, cactusDisk);
-    CuAssertTrue(testCase, metaSequence_isTrivialSequence(metaSequence2));
-    metaSequence_destruct(metaSequence2);
-    cactusMetaSequenceTestTeardown(testCase);
+    CuAssertTrue(testCase, sequence_isTrivialSequence(sequence2));
+    sequence_destruct(sequence2);
+    cactusSequenceTestTeardown(testCase);
 }
 
-void testMetaSequence_serialisation(CuTest* testCase) {
-    cactusMetaSequenceTestSetup(testCase);
+void testSequence_serialisation(CuTest* testCase) {
+    cactusSequenceTestSetup(testCase);
     int64_t i;
-    Name name = metaSequence_getName(metaSequence);
-    CuAssertTrue(testCase, cactusDisk_getMetaSequence(cactusDisk, name) == metaSequence);
-    void *vA = binaryRepresentation_makeBinaryRepresentation(metaSequence,
-            (void (*)(void *, void (*)(const void *, size_t, size_t)))metaSequence_writeBinaryRepresentation, &i);
+    Name name = sequence_getName(sequence);
+    CuAssertTrue(testCase, cactusDisk_getSequence(cactusDisk, name) == sequence);
+    void *vA = binaryRepresentation_makeBinaryRepresentation(sequence,
+            (void (*)(void *, void (*)(const void *, size_t, size_t)))sequence_writeBinaryRepresentation, &i);
     CuAssertTrue(testCase, i > 0);
-    metaSequence_destruct(metaSequence);
-    CuAssertTrue(testCase, cactusDisk_getMetaSequence(cactusDisk, name) == NULL);
+    sequence_destruct(sequence);
+    CuAssertTrue(testCase, cactusDisk_getSequence(cactusDisk, name) == NULL);
     void *vA2 = vA;
-    metaSequence = metaSequence_loadFromBinaryRepresentation(&vA2, cactusDisk);
-    CuAssertTrue(testCase, name == metaSequence_getName(metaSequence));
-    CuAssertStrEquals(testCase, headerString, metaSequence_getHeader(metaSequence));
-    CuAssertTrue(testCase, cactusDisk_getMetaSequence(cactusDisk, name) == metaSequence);
+    sequence = sequence_loadFromBinaryRepresentation(&vA2, cactusDisk);
+    CuAssertTrue(testCase, name == sequence_getName(sequence));
+    CuAssertStrEquals(testCase, headerString, sequence_getHeader(sequence));
+    CuAssertTrue(testCase, cactusDisk_getSequence(cactusDisk, name) == sequence);
     cactusDisk_write(cactusDisk);
-    metaSequence_destruct(metaSequence);
-    CuAssertTrue(testCase, cactusDisk_getMetaSequence(cactusDisk, name) != NULL);
-    metaSequence = cactusDisk_getMetaSequence(cactusDisk, name);
+    sequence_destruct(sequence);
+    CuAssertTrue(testCase, cactusDisk_getSequence(cactusDisk, name) != NULL);
+    sequence = cactusDisk_getSequence(cactusDisk, name);
     nestedTest = 1;
-    testMetaSequence_getName(testCase);
-    testMetaSequence_getStart(testCase);
-    testMetaSequence_getLength(testCase);
-    testMetaSequence_getEvent(testCase);
-    testMetaSequence_getString(testCase);
-    testMetaSequence_getHeader(testCase);
-    testMetaSequence_isTrivialSequence(testCase);
+    testSequence_getName(testCase);
+    testSequence_getStart(testCase);
+    testSequence_getLength(testCase);
+    testSequence_getEvent(testCase);
+    testSequence_getString(testCase);
+    testSequence_getHeader(testCase);
+    testSequence_isTrivialSequence(testCase);
     nestedTest = 0;
-    cactusMetaSequenceTestTeardown(testCase);
+    cactusSequenceTestTeardown(testCase);
 }
 
-CuSuite* cactusMetaSequenceTestSuite(void) {
+CuSuite* cactusSequenceTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
-    SUITE_ADD_TEST(suite, testMetaSequence_getName);
-    SUITE_ADD_TEST(suite, testMetaSequence_getStart);
-    SUITE_ADD_TEST(suite, testMetaSequence_getLength);
-    SUITE_ADD_TEST(suite, testMetaSequence_getEvent);
-    SUITE_ADD_TEST(suite, testMetaSequence_getString);
-    SUITE_ADD_TEST(suite, testMetaSequence_isTrivialSequence);
-    SUITE_ADD_TEST(suite, testMetaSequence_serialisation);
-    SUITE_ADD_TEST(suite, testMetaSequence_getHeader);
+    SUITE_ADD_TEST(suite, testSequence_getName);
+    SUITE_ADD_TEST(suite, testSequence_getStart);
+    SUITE_ADD_TEST(suite, testSequence_getLength);
+    SUITE_ADD_TEST(suite, testSequence_getEvent);
+    SUITE_ADD_TEST(suite, testSequence_getString);
+    SUITE_ADD_TEST(suite, testSequence_isTrivialSequence);
+    SUITE_ADD_TEST(suite, testSequence_serialisation);
+    SUITE_ADD_TEST(suite, testSequence_getHeader);
     return suite;
 }

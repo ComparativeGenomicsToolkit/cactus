@@ -52,10 +52,10 @@ static void testMLStringRandom(CuTest *testCase) {
         stList *strings = stList_construct3(0, free);
         while(st_random() > 0.2) {
             //Make a random sequence
-            MetaSequence *metaSeq = metaSequence_construct(0, block_getLength(block),
+            Sequence *seq = sequence_construct(0, block_getLength(block),
                     stRandom_getRandomDNAString(block_getLength(block), 1, 0, 1),
                     "boo", st_randomChoice(events), cactusDisk);
-            Sequence *seq = sequence_construct(metaSeq, flower);
+            flower_addSequence(flower, seq);
             //Add string to set
             stList_append(strings, sequence_getString(seq, 0, block_getLength(block), 1));
             //Now make the random segment

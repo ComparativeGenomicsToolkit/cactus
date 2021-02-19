@@ -238,8 +238,8 @@ Cap *cap_copyConstruct(End *end, Cap *cap) {
         Name sequenceName = sequence_getName(cap_getSequence(cap));
         Sequence *sequence = flower_getSequence(flower, sequenceName);
         if (sequence == NULL) { //add sequence to the flower.
-            sequence = sequence_construct(cactusDisk_getMetaSequence(flower_getCactusDisk(flower), sequenceName),
-                    flower);
+            sequence = cactusDisk_getSequence(flower_getCactusDisk(flower), sequenceName);
+            flower_addSequence(flower, sequence);
             assert(sequence != NULL);
         }
         return cap_construct4(cap_getName(cap), end, cap_getCoordinate(cap), cap_getStrand(cap), sequence);

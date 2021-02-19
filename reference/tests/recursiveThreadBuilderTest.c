@@ -45,8 +45,8 @@ static void recursiveFileBuilder_test(CuTest *testCase) {
     Event *referenceEvent = eventTree_getRootEvent(flower_getEventTree(flower));
 
     //Make sequence and thread
-    MetaSequence *metaSequence1 = metaSequence_construct(1, 5, "ACGTA", "ref sequence", referenceEvent, cactusDisk);
-    Sequence *sequence1 = sequence_construct(metaSequence1, flower);
+    Sequence *sequence1 = sequence_construct(1, 5, "ACGTA", "ref sequence", referenceEvent, cactusDisk);
+    flower_addSequence(flower, sequence1);
     //First reference thread
     Cap *cap1 = cap_construct2(end1, 0, 1, sequence1);
     Cap *cap2 = cap_construct2(end2, 6, 1, sequence1);

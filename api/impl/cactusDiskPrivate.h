@@ -11,7 +11,7 @@
 
 struct _cactusDisk {
     stKVDatabase *database;
-    stSortedSet *metaSequences;
+    stSortedSet *sequences;
     stSortedSet *flowers;
     stSortedSet *flowerNamesMarkedForDeletion;
     stList *updateRequests;
@@ -62,14 +62,14 @@ void cactusDisk_deleteFlowerFromDisk(CactusDisk *cactusDisk, Flower *flower);
 /*
  * Adds a newly constructed meta sequence to the memory of the cactusDisk.
  */
-void cactusDisk_addMetaSequence(CactusDisk *cactusDisk,
-        MetaSequence *metaSequence);
+void cactusDisk_addSequence(CactusDisk *cactusDisk,
+        Sequence *sequence);
 
 /*
  * Registers the meta sequence is being freed from memory.
  */
-void cactusDisk_removeMetaSequence(CactusDisk *cactusDisk,
-        MetaSequence *metaSequence);
+void cactusDisk_removeSequence(CactusDisk *cactusDisk,
+        Sequence *sequence);
 
 bool cactusDisk_storedInFile(CactusDisk *cactusDisk);
 

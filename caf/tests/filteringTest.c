@@ -19,8 +19,8 @@ static Event *outgroup2;
 // Adds a thread with random nucleotides to the flower, and return its corresponding name in the pinch graph.
 static Name addThreadToFlower(Flower *flower, Event *event, int64_t length) {
     char *dna = stRandom_getRandomDNAString(length, true, true, true);
-    MetaSequence *metaSequence = metaSequence_construct(2, length, dna, "", event, flower_getCactusDisk(flower));
-    Sequence *sequence = sequence_construct(metaSequence, flower);
+    Sequence *sequence = sequence_construct(2, length, dna, "", event, flower_getCactusDisk(flower));
+    flower_addSequence(flower, sequence);
 
     End *end1 = end_construct2(0, 0, flower);
     End *end2 = end_construct2(1, 0, flower);

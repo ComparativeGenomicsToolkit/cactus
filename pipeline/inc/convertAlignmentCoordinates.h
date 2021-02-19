@@ -17,7 +17,7 @@ void convertAlignmentCoordinates(char *inputAlignmentFile, char *outputAlignment
 /*
  * Strips unnecessary cruft from sequence IDs
  */
-void stripUniqueIdsFromMetaSequences(Flower *flower);
+void stripUniqueIdsFromSequences(Flower *flower);
 
 #endif /* CONVERT_ALIGNMENT_COORDINATES_H_ */
 

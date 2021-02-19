@@ -23,54 +23,54 @@
  *
  * This function is NOT thread safe, do not try to have concurrent instances of this function!
  */
-MetaSequence *metaSequence_construct(int64_t start, int64_t length, const char *string, const char *header,
+Sequence *sequence_construct(int64_t start, int64_t length, const char *string, const char *header,
 		Event *event, CactusDisk *cactusDisk);
 
 /*
  * Adds the isTrivialSequence field.
  */
-MetaSequence *metaSequence_construct3(int64_t start, int64_t length, const char *string, const char *header, Event *event,
+Sequence *sequence_construct3(int64_t start, int64_t length, const char *string, const char *header, Event *event,
         bool isTrivialSequence, CactusDisk *cactusDisk);
 
 /*
  * Gets the name of the sequence.
  */
-Name metaSequence_getName(MetaSequence *metaSequence);
+Name sequence_getName(Sequence *sequence);
 
 /*
  * Gets the start coordinate of the sequence.
  */
-int64_t metaSequence_getStart(MetaSequence *metaSequence);
+int64_t sequence_getStart(Sequence *sequence);
 
 /*
  * Gets the length of the sequence.
  */
-int64_t metaSequence_getLength(MetaSequence *metaSequence);
+int64_t sequence_getLength(Sequence *sequence);
 
 /*
  * Gets the associated event name.
  */
-Event *metaSequence_getEvent(MetaSequence *metaSequence);
+Event *sequence_getEvent(Sequence *sequence);
 
 /*
  * Gets a string for representing a subsequence of the meta sequence.
  */
-char *metaSequence_getString(MetaSequence *metaSequence, int64_t start, int64_t length, int64_t strand);
+char *sequence_getString(Sequence *sequence, int64_t start, int64_t length, int64_t strand);
 
 /*
  * Gets the header line associated with the meta sequence.
  */
-const char *metaSequence_getHeader(MetaSequence *metaSequence);
+const char *sequence_getHeader(Sequence *sequence);
 
 /*
  * Returns flag indicating if sequence is trivial.
  */
-bool metaSequence_isTrivialSequence(MetaSequence *metaSequence);
+bool sequence_isTrivialSequence(Sequence *sequence);
 
 /*
  * Sets the header line associated with the meta sequence.
  */
-void metaSequence_setHeader(MetaSequence *metaSequence, char *newHeader);
+void sequence_setHeader(Sequence *sequence, char *newHeader);
 
 
 #endif

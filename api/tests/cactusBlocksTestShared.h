@@ -9,7 +9,6 @@
 static CactusDisk *cactusDisk;
 static Flower *flower;
 static EventTree *eventTree;
-static MetaSequence *metaSequence;
 static Sequence *sequence;
 static Event *rootEvent;
 static Event *leafEvent;
@@ -36,9 +35,9 @@ static void cactusBlocksTestSharedSetup(const char *testName) {
     rootEvent = eventTree_getRootEvent(eventTree);
     leafEvent = event_construct3("LEAF1", 0.2, rootEvent, eventTree);
 
-    metaSequence = metaSequence_construct(1, 10, "ACTGACTGAC", ">one",
+    sequence = sequence_construct(1, 10, "ACTGACTGAC", ">one",
             leafEvent, cactusDisk);
-    sequence = sequence_construct(metaSequence, flower);
+    flower_addSequence(flower, sequence);
 
     block = block_construct(3, flower);
     rootSegment = segment_construct(block_getReverse(block), rootEvent);

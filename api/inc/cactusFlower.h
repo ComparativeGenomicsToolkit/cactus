@@ -43,6 +43,17 @@ CactusDisk *flower_getCactusDisk(Flower *flower);
 EventTree *flower_getEventTree(Flower *flower);
 
 /*
+ * Adds the sequence to the flower.
+ */
+void flower_addSequence(Flower *flower, Sequence *sequence);
+
+/*
+ * Removes the sequence from the flower.
+ */
+void flower_removeSequence(Flower *flower, Sequence *sequence);
+
+
+/*
  * Gets the 'first' sequence.
  */
 Sequence *flower_getFirstSequence(Flower *flower);

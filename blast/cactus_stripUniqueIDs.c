@@ -41,20 +41,19 @@ int main(int argc, char *argv[])
     flower = cactusDisk_getFlower(cactusDisk, 0);
     flowerIt = flower_getSequenceIterator(flower);
     while((sequence = flower_getNextSequence(flowerIt)) != NULL) {
-        MetaSequence *metaSequence = sequence_getMetaSequence(sequence);
         const char *header;
         char *firstToken, *newHeader;
         stList *tokens;
         // Strip the ID token from the header (should be the first
         // |-separated token) and complain if there isn't one.
-        header = metaSequence_getHeader(metaSequence);
+        header = sequence_getHeader(sequence);
         tokens = fastaDecodeHeader(header);
         assert(stList_length(tokens) > 1);
         firstToken = stList_removeFirst(tokens);
         assert(!strncmp(firstToken, "id=", 3)); // this first token will be id=
         free(firstToken);
         newHeader = fastaEncodeHeader(tokens);
-        metaSequence_setHeader(metaSequence, newHeader);
+        sequence_setHeader(sequence, newHeader);
         stList_destruct(tokens);
     }
     cactusDisk_write(cactusDisk);

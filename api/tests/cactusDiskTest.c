@@ -58,26 +58,26 @@ void testCactusDisk_getFlower(CuTest* testCase) {
     cactusDiskTestTeardown(testCase);
 }
 
-void testCactusDisk_getMetaSequence(CuTest* testCase) {
+void testCactusDisk_getSequence(CuTest* testCase) {
     cactusDiskTestSetup(testCase);
-    MetaSequence *metaSequence = metaSequence_construct(1, 10, "ACTGACTGAG",
+    Sequence *sequence = sequence_construct(1, 10, "ACTGACTGAG",
             "FOO", NULL, cactusDisk);
-    MetaSequence *metaSequence2 = metaSequence_construct(2, 10, "CCCCCCCCCC",
+    Sequence *sequence2 = sequence_construct(2, 10, "CCCCCCCCCC",
             "BAR", NULL, cactusDisk);
-    CuAssertTrue(testCase, cactusDisk_getMetaSequence(cactusDisk, metaSequence_getName(metaSequence)) == metaSequence);
-    CuAssertTrue(testCase, cactusDisk_getMetaSequence(cactusDisk, metaSequence_getName(metaSequence2)) == metaSequence2);
+    CuAssertTrue(testCase, cactusDisk_getSequence(cactusDisk, sequence_getName(sequence)) == sequence);
+    CuAssertTrue(testCase, cactusDisk_getSequence(cactusDisk, sequence_getName(sequence2)) == sequence2);
     //now try closing the disk, then reloading it, to see if we get the same result.
-    Name name1 = metaSequence_getName(metaSequence);
-    Name name2 = metaSequence_getName(metaSequence2);
+    Name name1 = sequence_getName(sequence);
+    Name name2 = sequence_getName(sequence2);
     cactusDisk_write(cactusDisk);
     cactusDisk_destruct(cactusDisk);
     cactusDisk = cactusDisk_construct(conf, false, true);
-    metaSequence = cactusDisk_getMetaSequence(cactusDisk, name1);
-    metaSequence2 = cactusDisk_getMetaSequence(cactusDisk, name2);
-    CuAssertTrue(testCase, metaSequence != NULL);
-    CuAssertTrue(testCase, metaSequence2 != NULL);
-    CuAssertTrue(testCase, metaSequence_getName(metaSequence) == name1);
-    CuAssertTrue(testCase, metaSequence_getName(metaSequence2) == name2);
+    sequence = cactusDisk_getSequence(cactusDisk, name1);
+    sequence2 = cactusDisk_getSequence(cactusDisk, name2);
+    CuAssertTrue(testCase, sequence != NULL);
+    CuAssertTrue(testCase, sequence2 != NULL);
+    CuAssertTrue(testCase, sequence_getName(sequence) == name1);
+    CuAssertTrue(testCase, sequence_getName(sequence2) == name2);
     cactusDiskTestTeardown(testCase);
 }
 
@@ -138,7 +138,7 @@ CuSuite* cactusDiskTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, testCactusDisk_write);
     SUITE_ADD_TEST(suite, testCactusDisk_getFlower);
-    SUITE_ADD_TEST(suite, testCactusDisk_getMetaSequence);
+    SUITE_ADD_TEST(suite, testCactusDisk_getSequence);
     SUITE_ADD_TEST(suite, testCactusDisk_getUniqueID);
     SUITE_ADD_TEST(suite, testCactusDisk_getUniqueID_Unique);
     SUITE_ADD_TEST(suite, testCactusDisk_getUniqueID_UniqueIntervals);

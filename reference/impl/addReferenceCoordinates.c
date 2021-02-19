@@ -230,7 +230,7 @@ static bool isTrivialString(char **threadString) {
     return trivialString;
 }
 
-static MetaSequence *addMetaSequence(Flower *flower, Cap *cap, int64_t index, char *string, bool trivialString) {
+static Sequence *addSequence(Flower *flower, Cap *cap, int64_t index, char *string, bool trivialString) {
     /*
      * Adds a meta sequence representing a top level thread to the cactus disk.
      * The sequence is all 'N's at this stage.
@@ -240,20 +240,19 @@ static MetaSequence *addMetaSequence(Flower *flower, Cap *cap, int64_t index, ch
     //fprintf(stderr, "ref event: %" PRIi64 " name: %" PRIi64 "\n", referenceEvent, event_getName(referenceEvent));
     char *sequenceName = stString_print("%srefChr%" PRIi64 "", event_getHeader(referenceEvent), index);
     //char *sequenceName = stString_print("refChr%" PRIi64 "", index);
-    MetaSequence *metaSequence = metaSequence_construct3(1, strlen(string), string, sequenceName,
+    Sequence *sequence = sequence_construct3(1, strlen(string), string, sequenceName,
             referenceEvent, trivialString, flower_getCactusDisk(flower));
     free(sequenceName);
-    return metaSequence;
+    return sequence;
 }
 
-static int64_t setCoordinates(Flower *flower, MetaSequence *metaSequence, Cap *cap, int64_t coordinate) {
+static int64_t setCoordinates(Flower *flower, Sequence *sequence, Cap *cap, int64_t coordinate) {
     /*
      * Sets the coordinates of the reference thread and sets the bases of the actual sequence
      * that of the consensus.
      */
-    Sequence *sequence = flower_getSequence(flower, metaSequence_getName(metaSequence));
-    if (sequence == NULL) {
-        sequence = sequence_construct(metaSequence, flower);
+    if (flower_getSequence(flower, sequence_getName(sequence)) == NULL) {
+        flower_addSequence(flower, sequence);
     }
     assert(cap_getStrand(cap));
     assert(!cap_getSide(cap));
@@ -322,12 +321,12 @@ static void bottomUp2(stList *threadStrings, stList *caps) {
         Flower *flower = end_getFlower(cap_getEnd(cap));
         char *threadString = stList_get(threadStrings, i);
         bool trivialString = isTrivialString(&threadString); //This alters the original string
-        MetaSequence *metaSequence = addMetaSequence(flower, cap, trivialString ? trivialSeqIndex++ : nonTrivialSeqIndex++,
+        Sequence *sequence = addSequence(flower, cap, trivialString ? trivialSeqIndex++ : nonTrivialSeqIndex++,
                                                      threadString, trivialString);
         free(threadString);
-        int64_t endCoordinate = setCoordinates(flower, metaSequence, cap, metaSequence_getStart(metaSequence) - 1);
+        int64_t endCoordinate = setCoordinates(flower, sequence, cap, sequence_getStart(sequence) - 1);
         (void) endCoordinate;
-        assert(endCoordinate == metaSequence_getLength(metaSequence) + metaSequence_getStart(metaSequence));
+        assert(endCoordinate == sequence_getLength(sequence) + sequence_getStart(sequence));
     }
     stList_setDestructor(threadStrings, NULL); //The strings are already cleaned up by the above loop
     stList_destruct(threadStrings);
@@ -402,7 +401,7 @@ void topDown(Flower *flower, Name referenceEventName) {
                     nestedCap = cap_getStrand(nestedCap) ? nestedCap : cap_getReverse(nestedCap);
                     assert(cap_getStrand(nestedCap));
                     assert(!cap_getSide(nestedCap));
-                    int64_t endCoordinate = setCoordinates(nestedFlower, sequence_getMetaSequence(sequence),
+                    int64_t endCoordinate = setCoordinates(nestedFlower, sequence,
                                                            nestedCap, cap_getCoordinate(cap));
                     (void) endCoordinate;
                     assert(endCoordinate == cap_getCoordinate(cap_getAdjacency(cap)));

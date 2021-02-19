@@ -55,8 +55,6 @@
 #include "cactusFacePrivate.h"
 #include "cactusFaceEnd.h"
 #include "cactusFaceEndPrivate.h"
-#include "cactusSequence.h"
-#include "cactusSequencePrivate.h"
 #include "cactusSerialisation.h"
 #include "cactusTestCommon.h"
 #include "cactusFlowerWriter.h"
