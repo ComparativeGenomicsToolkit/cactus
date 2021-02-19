@@ -706,6 +706,16 @@ void flower_unloadParent(Flower *flower) {
  * Private functions
  */
 
+static void removeFromFlower(stList *l, void *item) {
+    if(stList_peek(l) == l) {
+        stList_pop(l);
+    }
+    else {
+        assert(stList_contains(l, item));
+        stList_removeItem(l, item);
+    }
+}
+
 static void swap(stList *l, int64_t i) {
     void *o = stList_get(l, i+1);
     stList_set(l, i+1, stList_get(l, i));
@@ -724,11 +734,7 @@ void flower_addSequence(Flower *flower, Sequence *sequence) {
 }
 
 void flower_removeSequence(Flower *flower, Sequence *sequence) {
-    // todo: fix so that it just pops. i.e. doesn't take end as an argument
-    assert(stList_peek(flower->sequences) == sequence);
-    stList_pop(flower->sequences);
-    //assert(stSortedSet_search(flower->sequences, sequence) != NULL);
-    //stSortedSet_remove(flower->sequences, sequence);
+    removeFromFlower(flower->sequences, sequence);
 }
 
 void flower_addCap(Flower *flower, Cap *cap) {
@@ -739,13 +745,6 @@ void flower_addCap(Flower *flower, Cap *cap) {
     while(--i >= 0 && cap_getName(stList_get(flower->caps, i)) > cap_getName(cap)) {
         swap(flower->caps, i);
     }
-}
-
-void flower_removeCap(Flower *flower, Cap *cap) {
-    return;
-    //cap = cap_getPositiveOrientation(cap);
-    //assert(stSortedSet_search(flower->caps, cap) != NULL);
-    //stSortedSet_remove(flower->caps, cap);
 }
 
 void flower_addEnd(Flower *flower, End *end) {
@@ -759,13 +758,7 @@ void flower_addEnd(Flower *flower, End *end) {
 }
 
 void flower_removeEnd(Flower *flower, End *end) {
-    // todo: fix so that it just pops. i.e. doesn't take end as an argument
-    assert(stList_peek(flower->ends) == end);
-    stList_pop(flower->ends);
-    //return;
-    //end = end_getPositiveOrientation(end);
-    //assert(stSortedSet_search(flower->ends, end) != NULL);
-    //stSortedSet_remove(flower->ends, end);
+    removeFromFlower(flower->ends, end);
 }
 
 void flower_addChain(Flower *flower, Chain *chain) {
@@ -780,12 +773,7 @@ void flower_addChain(Flower *flower, Chain *chain) {
 }
 
 void flower_removeChain(Flower *flower, Chain *chain) {
-    // todo: fix so that it just pops. i.e. doesn't take end as an argument
-    assert(stList_peek(flower->chains) == chain);
-    stList_pop(flower->chains);
-
-    //assert(stSortedSet_search(flower->chains, chain) != NULL);
-    //stSortedSet_remove(flower->chains, chain);
+    removeFromFlower(flower->chains, chain);
 }
 
 void flower_addGroup(Flower *flower, Group *group) {
@@ -800,11 +788,7 @@ void flower_addGroup(Flower *flower, Group *group) {
 }
 
 void flower_removeGroup(Flower *flower, Group *group) {
-    assert(stList_peek(flower->groups) == group);
-    stList_pop(flower->groups);
-
-    //assert(stSortedSet_search(flower->groups, group) != NULL);
-    //stSortedSet_remove(flower->groups, group);
+    removeFromFlower(flower->groups, group);
 }
 
 void flower_setParentGroup(Flower *flower, Group *group) {

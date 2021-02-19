@@ -54,11 +54,6 @@ void flower_removeEventTree(Flower *flower, EventTree *eventTree);
 void flower_addCap(Flower *flower, Cap *cap);
 
 /*
- * Remove the cap from the flower.
- */
-void flower_removeCap(Flower *flower, Cap *cap);
-
-/*
  * Adds the end to the flower.
  */
 void flower_addEnd(Flower *flower, End *end);
