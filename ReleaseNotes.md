@@ -1,3 +1,7 @@
+# Release 1.3.1
+
+- Fix bug in how `cactus-prepare` transmits Toil size parameters
+
 # Release 1.3.0   2021-02-11
 
 This release introduces the [Cactus Pangenome Pipeline](https://github.com/ComparativeGenomicsToolkit/cactus/blob/master/doc/pangenome.md), which can be used to align together samples from the same species in order to create a pangenome graph:
