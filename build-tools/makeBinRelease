@@ -40,6 +40,14 @@ export LDFLAGS="-march=${CACTUS_ARCH} -static"
 
 make -j $(nproc) check-static
 
+# download all external tools used for pangenome pipeline
+# (only works for newer architectures as vg and some other binaries are built with -march=nehalem)
+# todo: should try to just use nocona for everything and make one release 
+if [ -z ${CACTUS_LEGACY_ARCH+x} ]	
+then
+	 build-tools/downloadPangenomeTools 1
+fi
+
 binPackageDir=cactus-bin-${REL_TAG}
 rm -rf ${binPackageDir}
 mkdir ${binPackageDir}
@@ -51,13 +59,6 @@ find submodules/sonLib -name '*.py' | cpio -pdum ${binPackageDir}
 # todo: probably a better way
 mkdir -p $(binPackageDir)/lib
 rsync -avm --include='*.py' -f 'hide,! */' ./submodules/hal ${binPackageDir}/lib
-# download all external tools used for pangenome pipeline
-# (only works for newer architectures as vg and some other binaries are built with -march=nehalem)
-# todo: should try to just use nocona for everything and make one release 
-if [ -z ${CACTUS_LEGACY_ARCH+x} ]	
-then
-	 build-tools/downloadPangenomeTools 1
-fi
 # need .git dir for pip install -U ., but don't need everything
 cp -r .git ${binPackageDir}
 rm -rf ${binPackageDir}/.git/modules
