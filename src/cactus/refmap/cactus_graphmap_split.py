@@ -39,7 +39,7 @@ from toil.realtimeLogger import RealtimeLogger
 from toil.lib.threading import cpu_count
 
 from sonLib.nxnewick import NXNewick
-from sonLib.bioio import getTempDirectory, getTempFile
+from sonLib.bioio import getTempDirectory, getTempFile, catFiles
 
 def main():
     parser = ArgumentParser()
@@ -148,12 +148,12 @@ def runCactusGraphMapSplit(options):
                     seqIDMap[genome] = (seq, toil.importFile(seq))
 
             # run the workflow
-            split_id_map = toil.start(Job.wrapJobFn(graphmap_split_workflow, options, config, seqIDMap,
-                                                    gfa_id, options.minigraphGFA,
-                                                    paf_id, options.graphmapPAF, ref_contigs, options.otherContig))
+            split_id_map, split_logs = toil.start(Job.wrapJobFn(graphmap_split_workflow, options, config, seqIDMap,
+                                                                gfa_id, options.minigraphGFA,
+                                                                paf_id, options.graphmapPAF, ref_contigs, options.otherContig))
 
         #export the split data
-        export_split_data(toil, seqIDMap, split_id_map, options.outDir, config)
+        export_split_data(toil, seqIDMap, split_id_map, split_logs, options.outDir, config)
 
 def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, paf_id, paf_path, ref_contigs, other_contig):
 
@@ -177,18 +177,36 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
         mask_bed_id = root_job.addChildJobFn(get_mask_bed, seqIDMap, options.maskFilter).rv()
         
     # use rgfa-split to split the gfa and paf up by contig
-    split_gfa_job = root_job.addFollowOnJobFn(split_gfa, config, gfa_id, paf_id, ref_contigs,
+    split_gfa_job = root_job.addFollowOnJobFn(split_gfa, config, gfa_id, [paf_id], ref_contigs,
                                               other_contig, options.reference, mask_bed_id,
                                               disk=(gfa_size + paf_size) * 5)
 
     # use the output of the above splitting to do the fasta splitting
-    split_fas_job = split_gfa_job.addFollowOnJobFn(split_fas, seqIDMap, split_gfa_job.rv())
+    split_fas_job = split_gfa_job.addFollowOnJobFn(split_fas, seqIDMap, split_gfa_job.rv(0))
 
     # gather everythign up into a table
-    gather_fas_job = split_fas_job.addFollowOnJobFn(gather_fas, seqIDMap, split_gfa_job.rv(), split_fas_job.rv())
+    gather_fas_job = split_fas_job.addFollowOnJobFn(gather_fas, seqIDMap, split_gfa_job.rv(0), split_fas_job.rv())
 
-    # return all the files
-    return gather_fas_job.rv()
+    # try splitting the ambiguous sequences using minimap2, which is more sensitive in some cases
+    remap_job = gather_fas_job.addFollowOnJobFn(split_minimap_fallback, options, config, seqIDMap, gather_fas_job.rv())
+
+    # partition these into fasta files
+    split_fallback_gfa_job = remap_job.addFollowOnJobFn(split_gfa, config, None, remap_job.rv(0), ref_contigs,
+                                                        other_contig, options.reference, mask_bed_id,
+                                                        disk=(gfa_size + paf_size) * 5)
+
+    # use the output of the above to split the ambiguous fastas
+    split_fallback_fas_job = split_fallback_gfa_job.addFollowOnJobFn(split_fas, remap_job.rv(1), split_fallback_gfa_job.rv(0))
+
+    # gather the fallback contigs into a table
+    gather_fallback_fas_job = split_fallback_fas_job.addFollowOnJobFn(gather_fas, remap_job.rv(1), split_gfa_job.rv(0),
+                                                                      split_fallback_fas_job.rv())
+
+    # combine the split sequences with the split ambigious sequences
+    combine_split_job = gather_fallback_fas_job.addFollowOnJobFn(combine_splits, config, gather_fas_job.rv(), gather_fallback_fas_job.rv())
+
+    # return all the files, as well as the 2 split logs
+    return combine_split_job.rv(), [split_gfa_job.rv(1), split_fallback_gfa_job.rv(1)]
 
 def get_mask_bed(job, seq_id_map, min_length):
     """ make a bed file from the fastas """
@@ -228,20 +246,32 @@ def cat_beds(job, bed_ids):
     catFiles(in_beds, out_bed)
     return job.fileStore.writeGlobalFile(out_bed)
     
-def split_gfa(job, config, gfa_id, paf_id, ref_contigs, other_contig, reference_event, mask_bed_id):
+def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference_event, mask_bed_id):
     """ Use rgfa-split to divide a GFA and PAF into chromosomes.  The GFA must be in minigraph RGFA output using
     the desired reference. """
 
+    if not paf_ids:
+        # we can bypass when, ex, doing second pass on ambiguous sequences but not are present
+        return [None, None]
+    
     work_dir = job.fileStore.getLocalTempDir()
     gfa_path = os.path.join(work_dir, "mg.gfa")
     paf_path = os.path.join(work_dir, "mg.paf")
     out_prefix = os.path.join(work_dir, "split_")
     bed_path = os.path.join(work_dir, "mask.bed")
+    log_path = os.path.join(work_dir, "split.log")
     if (mask_bed_id):
         job.fileStore.readGlobalFile(mask_bed_id, bed_path)
 
-    job.fileStore.readGlobalFile(gfa_id, gfa_path)
-    job.fileStore.readGlobalFile(paf_id, paf_path)
+    if gfa_id:
+        job.fileStore.readGlobalFile(gfa_id, gfa_path)
+        
+    paf_paths = []
+    for i, paf_id in enumerate(paf_ids):
+        paf_paths.append('{}.{}'.format(paf_path, i) if len(paf_ids) > 1 else paf_path)
+        job.fileStore.readGlobalFile(paf_id, paf_paths[-1])
+    if len(paf_paths) > 1:
+        catFiles(paf_paths, paf_path)
     
     # get the minigraph "virutal" assembly name
     graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
@@ -253,17 +283,21 @@ def split_gfa(job, config, gfa_id, paf_id, ref_contigs, other_contig, reference_
     small_query_coverage = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minQuerySmallCoverage", default="0")
     small_coverage_threshold = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minQuerySmallThreshold", default="0")
     query_uniqueness = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minQueryUniqueness", default="0")
-    amb_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "ambiguousName", default="_AMBIGUOUS_")
+    max_gap = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "maxGap", default="0")
+    amb_name = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "ambiguousName", default="_AMBIGUOUS_")
 
-    cmd = ['rgfa-split', '-i', 'id={}|'.format(mg_id), '-G',
-           '-g', gfa_path,
+    cmd = ['rgfa-split',
            '-p', paf_path,
            '-b', out_prefix,
            '-n', query_coverage,
            '-N', small_query_coverage,
            '-T', small_coverage_threshold,
            '-Q', query_uniqueness,
-           '-a', amb_event]
+           '-P', max_gap,
+           '-a', amb_name,
+           '-L', log_path]
+    if gfa_id:
+        cmd += ['-g', gfa_path, '-G']
     if other_contig:
         cmd += ['-o', other_contig]
     if reference_event:
@@ -285,7 +319,7 @@ def split_gfa(job, config, gfa_id, paf_id, ref_contigs, other_contig, reference_
                 output_id_map[name] = {}
             output_id_map[name][ext[1:]] = job.fileStore.writeGlobalFile(os.path.join(work_dir, out_name))
             
-    return output_id_map
+    return output_id_map, job.fileStore.writeGlobalFile(log_path)
 
 def split_fas(job, seq_id_map, split_id_map):
     """ Use samtools to split a bunch of fasta files into reference contigs, using the output of rgfa-split as a guide"""
@@ -298,8 +332,9 @@ def split_fas(job, seq_id_map, split_id_map):
     # we do each fasta in parallel
     for event in seq_id_map.keys():
         fa_path, fa_id = seq_id_map[event]
-        fa_contigs[event] = root_job.addChildJobFn(split_fa_into_contigs, event, fa_id, fa_path, split_id_map,
-                                                   disk=fa_id.size * 3).rv()
+        if fa_id.size:
+            fa_contigs[event] = root_job.addChildJobFn(split_fa_into_contigs, event, fa_id, fa_path, split_id_map,
+                                                       disk=fa_id.size * 3).rv()
 
     return fa_contigs
 
@@ -353,6 +388,9 @@ def gather_fas(job, seq_id_map, output_id_map, contig_fa_map):
     """ take the split_fas output which has everything sorted by event, and move into the ref-contig-based table
     from split_gfa.  return the updated table, which can then be exported into the chromosome projects """
 
+    if not output_id_map:
+        return None
+    
     for ref_contig in output_id_map.keys():
         output_id_map[ref_contig]['fa'] = {}
         for event, fa_id in contig_fa_map.items():
@@ -360,10 +398,126 @@ def gather_fas(job, seq_id_map, output_id_map, contig_fa_map):
 
     return output_id_map
 
-def export_split_data(toil, input_seq_id_map, output_id_map, output_dir, config):
+def split_minimap_fallback(job, options, config, seqIDMap, output_id_map):
+    """ take the output table from gather_fas, pull out the ambiguous sequences, remap them to the reference, and 
+    add them to the events where possible"""
+
+    # can't do anything without a reference
+    if not options.reference:
+        logger.info("Skipping minimap2 fallback as --reference was not specified")
+        return None
+    # todo: also skip if no ambgious sequences
+    
+    ref_path, ref_id = seqIDMap[options.reference]
+    mm_index_job = job.addChildJobFn(minimap_index, ref_path, ref_id, disk=ref_id.size * 5, memory=ref_id.size * 5)
+    mm_map_root_job = Job()
+    mm_index_job.addFollowOn(mm_map_root_job)
+    
+    amb_name = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "ambiguousName", default="_AMBIGUOUS_")
+
+    if amb_name not in output_id_map:
+        logger.info("Skipping minmap2 fallback as no ambigious sequences found")
+        return None
+
+    # map every ambgiuous sequence against the reference in parallel
+    paf_ids = []
+    ambiguous_seq_id_map = {}
+    for event, fa_id in output_id_map[amb_name]['fa'].items():
+        paf_job = mm_map_root_job.addChildJobFn(minimap_map, mm_index_job.rv(), event, fa_id, seqIDMap[event][0],
+                                                disk=ref_id.size * 3, memory=ref_id.size * 3)
+        paf_ids.append(paf_job.rv())
+        ambiguous_seq_id_map[event] = (seqIDMap[event][0], fa_id)
+
+    return paf_ids, ambiguous_seq_id_map
+
+def minimap_index(job, ref_name, ref_id):
+    """ make a minimap2 index of a reference genome """
+
+    work_dir = job.fileStore.getLocalTempDir()
+    fa_path = os.path.join(work_dir, os.path.basename(ref_name))
+    idx_path = fa_path + ".idx"
+    job.fileStore.readGlobalFile(ref_id, fa_path)
+
+    cactus_call(parameters=['minimap2', fa_path, '-d', idx_path])
+
+    return job.fileStore.writeGlobalFile(idx_path)
+
+def minimap_map(job, minimap_index_id, event, fa_id, fa_name):
+    """ run minimap2 """
+    work_dir = job.fileStore.getLocalTempDir()
+    idx_path = os.path.join(work_dir, "minmap2.idx")
+    fa_path = os.path.join(work_dir, "ambiguous_" + os.path.basename(fa_name))
+    job.fileStore.readGlobalFile(minimap_index_id, idx_path)
+    job.fileStore.readGlobalFile(fa_id, fa_path)
+    paf_path = fa_path + ".paf"
+
+    cactus_call(parameters=['minimap2', idx_path, fa_path, '-c'], outfile=paf_path)
+
+    return job.fileStore.writeGlobalFile(paf_path)    
+    
+def combine_splits(job, config, original_id_map, remap_id_map):
+    """ combine the output of two runs of gather_fas.  the first is the contigs determined by minigraph,
+    the second from remapping the ambigious contigs with minimap2 """
+
+    # no ambiguous remappings, nothing to do
+    if not remap_id_map or len(remap_id_map) == 0:
+        return original_id_map
+
+    amb_name = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "ambiguousName", default="_AMBIGUOUS_")    
+
+    # note: we're not handling case where 100% of a given reference contigs are ambiguous
+    for ref_contig in original_id_map:
+        if ref_contig == amb_name:
+            # for ambiguous sequence, we overwrite and don't combine
+            if ref_contig in remap_id_map:
+                original_id_map[ref_contig] = remap_id_map[ref_contig]
+            else:
+                original_id_map[ref_contig] = None
+        elif ref_contig in remap_id_map:            
+            total_size = 0
+            for event in original_id_map[ref_contig]['fa']:
+                total_size += original_id_map[ref_contig]['fa'][event].size
+                if event in remap_id_map[ref_contig]['fa']:
+                    total_size += remap_id_map[ref_contig]['fa'][event].size
+            original_id_map[ref_contig] = job.addChildJobFn(combine_ref_contig_splits,
+                                                            original_id_map[ref_contig],
+                                                            remap_id_map[ref_contig],
+                                                            disk=total_size * 4).rv()
+    return original_id_map
+
+def combine_ref_contig_splits(job, original_ref_entry, remap_ref_entry):
+    """ combine fa and paf files for splits for a ref contig """
+    work_dir = job.fileStore.getLocalTempDir()
+
+    # combine the event fas
+    for event in original_ref_entry['fa']:
+        if event in remap_ref_entry['fa']:
+            orig_fa_path = os.path.join(work_dir, event + '.fa')
+            remap_fa_path = os.path.join(work_dir, event + '.remap.fa')
+            new_fa_path = os.path.join(work_dir, event + '.combine.fa')
+            job.fileStore.readGlobalFile(original_ref_entry['fa'][event], orig_fa_path, mutable=True)
+            job.fileStore.readGlobalFile(remap_ref_entry['fa'][event], remap_fa_path, mutable=True)
+            catFiles([orig_fa_path, remap_fa_path], new_fa_path)
+            original_ref_entry['fa'][event] = job.fileStore.writeGlobalFile(new_fa_path)
+            os.remove(orig_fa_path)
+            os.remove(remap_fa_path)
+
+    # combine the paf
+    if 'paf' in remap_ref_entry:
+        orig_paf_path = os.path.join(work_dir, 'orig.paf')
+        remap_paf_path = os.path.join(work_dir, 'remap.paf')
+        new_paf_path = os.path.join(work_dir, 'combine.paf')
+        job.fileStore.readGlobalFile(original_ref_entry['paf'], orig_paf_path, mutable=True)
+        job.fileStore.readGlobalFile(remap_ref_entry['paf'], remap_paf_path, mutable=True)
+        catFiles([orig_paf_path, remap_paf_path], new_paf_path)
+        original_ref_entry['paf'] = job.fileStore.writeGlobalFile(new_paf_path)
+                
+    return original_ref_entry
+
+def export_split_data(toil, input_seq_id_map, output_id_map, split_log_ids, output_dir, config):
     """ download all the split data locally """
 
-    amb_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "ambiguousName", default="_AMBIGUOUS_")
+    amb_name = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "ambiguousName", default="_AMBIGUOUS_")
     
     chrom_file_map = {}
     
@@ -421,7 +575,7 @@ def export_split_data(toil, input_seq_id_map, output_id_map, output_dir, config)
         chrom_file_temp_path = chrom_file_path        
     with open(chrom_file_temp_path, 'w') as chromfile:
         for ref_contig, seqfile_paf in chrom_file_map.items():
-            if ref_contig != amb_event:
+            if ref_contig != amb_name:
                 seqfile, paf = seqfile_paf[0], seqfile_paf[1]
                 if seqfile.startswith('s3://'):
                     # no use to have absolute s3 reference as cactus-align requires seqfiles passed locally
@@ -429,6 +583,10 @@ def export_split_data(toil, input_seq_id_map, output_id_map, output_dir, config)
                 chromfile.write('{}\t{}\t{}\n'.format(ref_contig, seqfile, paf))
     if chrom_file_path.startswith('s3://'):
         write_s3(chrom_file_temp_path, chrom_file_path)
-    
+
+    toil.exportFile(split_log_ids[0], makeURL(os.path.join(output_dir, 'minigraph.split.log')))
+    if split_log_ids[1]:
+        toil.exportFile(split_log_ids[1], makeURL(os.path.join(output_dir, 'minimap2.ambiguous.split.log')))
+        
 if __name__ == "__main__":
     main()

@@ -131,7 +131,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://github.com/ComparativeGenomicsToolkit/cactus-gfa-tools.git
 cd cactus-gfa-tools
-git checkout af063cdcce3e6600bd0b4d94062b32740e47cd5a
+git checkout 65baa2ac592532a2dc9c5eca79bd9bd1c6c7f178
 make -j 4
 if [[ $STATIC_CHECK -ne 1 || $(ldd paf2lastz | grep so | wc -l) -eq 0 ]]
 then
@@ -194,7 +194,7 @@ fi
 
 
 # vg
-wget -q https://github.com/vgteam/vg/releases/download/v1.30.0/vg
+wget -q https://github.com/vgteam/vg/releases/download/v1.31.0/vg
 chmod +x vg
 if [[ $STATIC_CHECK -ne 1 || $(ldd vg | grep so | wc -l) -eq 0 ]]
 then
