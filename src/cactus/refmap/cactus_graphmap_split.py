@@ -37,6 +37,7 @@ from toil.lib.bioio import logger
 from toil.lib.bioio import setLoggingFromOptions
 from toil.realtimeLogger import RealtimeLogger
 from toil.lib.threading import cpu_count
+from pathlib import Path
 
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory, getTempFile, catFiles
@@ -203,7 +204,8 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
                                                                       split_fallback_fas_job.rv())
 
     # combine the split sequences with the split ambigious sequences
-    combine_split_job = gather_fallback_fas_job.addFollowOnJobFn(combine_splits, config, gather_fas_job.rv(), gather_fallback_fas_job.rv())
+    combine_split_job = gather_fallback_fas_job.addFollowOnJobFn(combine_splits, config, seqIDMap, gather_fas_job.rv(),
+                                                                 gather_fallback_fas_job.rv())
 
     # return all the files, as well as the 2 split logs
     return combine_split_job.rv(), [split_gfa_job.rv(1), split_fallback_gfa_job.rv(1)]
@@ -400,7 +402,8 @@ def gather_fas(job, seq_id_map, output_id_map, contig_fa_map):
     for ref_contig in output_id_map.keys():
         output_id_map[ref_contig]['fa'] = {}
         for event, fa_id in contig_fa_map.items():
-            output_id_map[ref_contig]['fa'][event] = fa_id[ref_contig]
+            if ref_contig in fa_id:
+                output_id_map[ref_contig]['fa'][event] = fa_id[ref_contig]
 
     return output_id_map
 
@@ -468,9 +471,12 @@ def minimap_map(job, minimap_index_id, event, fa_id, fa_name):
 
     return job.fileStore.writeGlobalFile(paf_path)    
     
-def combine_splits(job, config, original_id_map, remap_id_map):
+def combine_splits(job, config, seq_id_map, original_id_map, remap_id_map):
     """ combine the output of two runs of gather_fas.  the first is the contigs determined by minigraph,
     the second from remapping the ambigious contigs with minimap2 """
+
+    root_job = Job()
+    job.addChild(root_job)
 
     # no ambiguous remappings, nothing to do
     if not remap_id_map or len(remap_id_map) == 0:
@@ -492,11 +498,12 @@ def combine_splits(job, config, original_id_map, remap_id_map):
                 total_size += original_id_map[ref_contig]['fa'][event].size
                 if event in remap_id_map[ref_contig]['fa']:
                     total_size += remap_id_map[ref_contig]['fa'][event].size
-            original_id_map[ref_contig] = job.addChildJobFn(combine_ref_contig_splits,
-                                                            original_id_map[ref_contig],
-                                                            remap_id_map[ref_contig],
-                                                            disk=total_size * 4).rv()
-    return original_id_map
+            original_id_map[ref_contig] = root_job.addChildJobFn(combine_ref_contig_splits,
+                                                                 original_id_map[ref_contig],
+                                                                 remap_id_map[ref_contig],
+                                                                 disk=total_size * 4).rv()
+
+    return root_job.addFollowOnJobFn(combine_paf_splits, seq_id_map, original_id_map, remap_id_map, amb_name).rv()
 
 def combine_ref_contig_splits(job, original_ref_entry, remap_ref_entry):
     """ combine fa and paf files for splits for a ref contig """
@@ -514,18 +521,59 @@ def combine_ref_contig_splits(job, original_ref_entry, remap_ref_entry):
             original_ref_entry['fa'][event] = job.fileStore.writeGlobalFile(new_fa_path)
             os.remove(orig_fa_path)
             os.remove(remap_fa_path)
-
-    # combine the paf
-    if 'paf' in remap_ref_entry:
-        orig_paf_path = os.path.join(work_dir, 'orig.paf')
-        remap_paf_path = os.path.join(work_dir, 'remap.paf')
-        new_paf_path = os.path.join(work_dir, 'combine.paf')
-        job.fileStore.readGlobalFile(original_ref_entry['paf'], orig_paf_path, mutable=True)
-        job.fileStore.readGlobalFile(remap_ref_entry['paf'], remap_paf_path, mutable=True)
-        catFiles([orig_paf_path, remap_paf_path], new_paf_path)
-        original_ref_entry['paf'] = job.fileStore.writeGlobalFile(new_paf_path)
                 
     return original_ref_entry
+
+def combine_paf_splits(job, seq_id_map, original_id_map, remap_id_map, amb_name):
+    """ pull out PAF entries for contigs that were ambiguous in the first round but assigned by minimap2
+    then add them to the chromosome PAFs """
+
+    if amb_name not in original_id_map:
+        return original_id_map
+
+    work_dir = job.fileStore.getLocalTempDir()
+    amb_paf_path = os.path.join(work_dir, 'amb.paf')
+    job.fileStore.readGlobalFile(original_id_map[amb_name]['paf'], amb_paf_path, mutable=True)
+
+    for ref_contig in remap_id_map.keys():
+        if ref_contig != amb_name:
+            greps = []
+            for event in remap_id_map[ref_contig]['fa']:
+                if remap_id_map[ref_contig]['fa'][event].size > 0:
+                    # read the contigs assigned to this sample for this chromosome by scanning fasta headers
+                    tmp_fa_path = os.path.join(work_dir, 'tmp.fa')
+                    if seq_id_map[event][0].endswith('.gz'):
+                        tmp_fa_path += '.gz'
+                    job.fileStore.readGlobalFile(remap_id_map[ref_contig]['fa'][event], tmp_fa_path, mutable=True)
+                    contigs_path = os.path.join(work_dir, '{}.contigs')
+                    cactus_call(parameters=[['zcat' if tmp_fa_path.endswith('.gz') else 'cat', tmp_fa_path],
+                                            ['grep', '>'], ['cut', '-c', '2-']], outfile=contigs_path)
+                    # add them to the grep
+                    with open(contigs_path, 'r') as contigs_file:
+                        for line in contigs_file:
+                            greps += ['^id={}|{}'.format(event, line.strip())]
+            if greps:
+                # grep the re-assigned contigs out of the ambiguous paf and add them in to the original paf
+                new_contig_path = os.path.join(work_dir, '{}.remap.paf'.format(ref_contig))
+                if ref_contig in original_id_map:
+                    job.fileStore.readGlobalFile(original_id_map[ref_contig]['paf'], new_contig_path, mutable=True)
+                else:
+                    Path(new_contig_path).touch()                    
+                cactus_call(parameters=['grep', '\|'.join(greps), amb_paf_path], outfile=new_contig_path,
+                            outappend=True)
+                # update the map
+                original_id_map[ref_contig]['paf'] = job.fileStore.writeGlobalFile(new_contig_path)
+                # now remove them from the original paf
+                temp_contig_path = os.path.join(work_dir, 'temp.remove.paf')
+                with open(amb_paf_path, 'a') as amb_paf_file:
+                    amb_paf_file.write('\ne') # prevent below from returning error if result empty
+                cactus_call(parameters=[['grep', '-v', '\|'.join(greps), amb_paf_path], ['head', '-n', '-1']], outfile=temp_contig_path)
+                cactus_call(parameters=['mv', temp_contig_path, amb_paf_path])
+
+    # update the ambiguous paf
+    original_id_map[amb_name]['paf'] = job.fileStore.writeGlobalFile(amb_paf_path)
+    
+    return original_id_map
 
 def export_split_data(toil, input_seq_id_map, output_id_map, split_log_ids, output_dir, config):
     """ download all the split data locally """
