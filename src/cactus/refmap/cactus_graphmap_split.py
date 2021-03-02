@@ -304,6 +304,9 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
         cmd += ['-r', 'id={}|'.format(reference_event)]
     if mask_bed_id:
         cmd += ['-B', bed_path]
+    min_mapq = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minMAPQ")
+    if min_mapq:
+        cmd += ['-A', min_mapq]
         
     for contig in ref_contigs:
         cmd += ['-c', contig]
@@ -329,7 +332,7 @@ def split_fas(job, seq_id_map, split_id_map):
 
     root_job = Job()
     job.addChild(root_job)
-    
+
     # map event name to dict of contgs.  ex fa_contigs["CHM13"]["chr13"] = file_id
     fa_contigs = {}
     # we do each fasta in parallel
@@ -393,7 +396,7 @@ def gather_fas(job, seq_id_map, output_id_map, contig_fa_map):
 
     if not contig_fa_map:
         return None
-    
+
     for ref_contig in output_id_map.keys():
         output_id_map[ref_contig]['fa'] = {}
         for event, fa_id in contig_fa_map.items():
@@ -457,7 +460,11 @@ def minimap_map(job, minimap_index_id, event, fa_id, fa_name):
     job.fileStore.readGlobalFile(fa_id, fa_path)
     paf_path = fa_path + ".paf"
 
-    cactus_call(parameters=['minimap2', idx_path, fa_path, '-c', '-x', 'asm5'], outfile=paf_path)
+    # call minimap2 and stick our unique identifiers on the output right away to be consistent
+    # with cactus-graphmap's paf output
+    cactus_call(parameters=[['minimap2', idx_path, fa_path, '-c', '-x', 'asm5'],
+                            ['awk', 'BEGIN {{OFS="\t"}} $1="id={}|"$1'.format(event)]],
+                outfile=paf_path)
 
     return job.fileStore.writeGlobalFile(paf_path)    
     
