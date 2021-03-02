@@ -324,6 +324,9 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
 def split_fas(job, seq_id_map, split_id_map):
     """ Use samtools to split a bunch of fasta files into reference contigs, using the output of rgfa-split as a guide"""
 
+    if (seq_id_map, split_id_map) == (None, None):
+        return None
+
     root_job = Job()
     job.addChild(root_job)
     
@@ -388,7 +391,7 @@ def gather_fas(job, seq_id_map, output_id_map, contig_fa_map):
     """ take the split_fas output which has everything sorted by event, and move into the ref-contig-based table
     from split_gfa.  return the updated table, which can then be exported into the chromosome projects """
 
-    if not output_id_map:
+    if not contig_fa_map:
         return None
     
     for ref_contig in output_id_map.keys():
@@ -405,11 +408,14 @@ def split_minimap_fallback(job, options, config, seqIDMap, output_id_map):
     # can't do anything without a reference
     if not options.reference:
         logger.info("Skipping minimap2 fallback as --reference was not specified")
-        return None
+        return None, None
     # todo: also skip if no ambgious sequences
     
     ref_path, ref_id = seqIDMap[options.reference]
-    mm_index_job = job.addChildJobFn(minimap_index, ref_path, ref_id, disk=ref_id.size * 5, memory=ref_id.size * 5)
+    mm_mem = ref_id.size * 5
+    if seqIDMap[options.reference][0].endswith('.gz'):
+        mm_mem *= 4
+    mm_index_job = job.addChildJobFn(minimap_index, ref_path, ref_id, disk=ref_id.size * 5, memory=mm_mem)
     mm_map_root_job = Job()
     mm_index_job.addFollowOn(mm_map_root_job)
     
@@ -417,14 +423,14 @@ def split_minimap_fallback(job, options, config, seqIDMap, output_id_map):
 
     if amb_name not in output_id_map:
         logger.info("Skipping minmap2 fallback as no ambigious sequences found")
-        return None
+        return None, None
 
     # map every ambgiuous sequence against the reference in parallel
     paf_ids = []
     ambiguous_seq_id_map = {}
     for event, fa_id in output_id_map[amb_name]['fa'].items():
         paf_job = mm_map_root_job.addChildJobFn(minimap_map, mm_index_job.rv(), event, fa_id, seqIDMap[event][0],
-                                                disk=ref_id.size * 3, memory=ref_id.size * 3)
+                                                disk=ref_id.size * 3, memory=mm_mem)
         paf_ids.append(paf_job.rv())
         ambiguous_seq_id_map[event] = (seqIDMap[event][0], fa_id)
 
@@ -451,7 +457,7 @@ def minimap_map(job, minimap_index_id, event, fa_id, fa_name):
     job.fileStore.readGlobalFile(fa_id, fa_path)
     paf_path = fa_path + ".paf"
 
-    cactus_call(parameters=['minimap2', idx_path, fa_path, '-c'], outfile=paf_path)
+    cactus_call(parameters=['minimap2', idx_path, fa_path, '-c', '-x', 'asm10'], outfile=paf_path)
 
     return job.fileStore.writeGlobalFile(paf_path)    
     
