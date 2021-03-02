@@ -444,7 +444,7 @@ def minimap_index(job, ref_name, ref_id):
     idx_path = fa_path + ".idx"
     job.fileStore.readGlobalFile(ref_id, fa_path)
 
-    cactus_call(parameters=['minimap2', fa_path, '-d', idx_path])
+    cactus_call(parameters=['minimap2', fa_path, '-d', idx_path, '-x', 'asm5'])
 
     return job.fileStore.writeGlobalFile(idx_path)
 
@@ -457,7 +457,7 @@ def minimap_map(job, minimap_index_id, event, fa_id, fa_name):
     job.fileStore.readGlobalFile(fa_id, fa_path)
     paf_path = fa_path + ".paf"
 
-    cactus_call(parameters=['minimap2', idx_path, fa_path, '-c', '-x', 'asm10'], outfile=paf_path)
+    cactus_call(parameters=['minimap2', idx_path, fa_path, '-c', '-x', 'asm5'], outfile=paf_path)
 
     return job.fileStore.writeGlobalFile(paf_path)    
     
