@@ -541,9 +541,11 @@ def combine_paf_splits(job, seq_id_map, original_id_map, remap_id_map, amb_name)
             for event in remap_id_map[ref_contig]['fa']:
                 if remap_id_map[ref_contig]['fa'][event].size > 0:
                     # read the contigs assigned to this sample for this chromosome by scanning fasta headers
-                    tmp_fa_path = os.path.join(work_dir, '{}_tmp.fa'.format(event))
+                    tmp_fa_path = os.path.join(work_dir, 'tmp.fa')
                     if seq_id_map[event][0].endswith('.gz'):
                         tmp_fa_path += '.gz'
+                    if os.path.isfile(tmp_fa_path):
+                        os.remove(tmp_fa_path)
                     job.fileStore.readGlobalFile(remap_id_map[ref_contig]['fa'][event], tmp_fa_path, mutable=True)
                     contigs_path = os.path.join(work_dir, '{}.contigs')
                     cactus_call(parameters=[['zcat' if tmp_fa_path.endswith('.gz') else 'cat', tmp_fa_path],
