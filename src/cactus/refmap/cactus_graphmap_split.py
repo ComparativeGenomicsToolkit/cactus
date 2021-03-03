@@ -75,8 +75,7 @@ def main():
     setLoggingFromOptions(options)
     enableDumpStack()
 
-    # todo: would be very nice to support s3 here
-    if options.outDir:
+    if options.outDir and not options.startswith('s3://'):
         if not os.path.isdir(options.outDir):
             os.makedirs(options.outDir)
         
