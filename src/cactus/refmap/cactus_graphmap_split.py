@@ -75,7 +75,7 @@ def main():
     setLoggingFromOptions(options)
     enableDumpStack()
 
-    if options.outDir and not options.startswith('s3://'):
+    if options.outDir and not options.outDir.startswith('s3://'):
         if not os.path.isdir(options.outDir):
             os.makedirs(options.outDir)
         
@@ -480,7 +480,8 @@ def combine_splits(job, config, seq_id_map, original_id_map, remap_id_map):
     if not remap_id_map or len(remap_id_map) == 0:
         return original_id_map
 
-    amb_name = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "ambiguousName", default="_AMBIGUOUS_")    
+    amb_name = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "ambiguousName", default="_AMBIGUOUS_")
+    graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
 
     # note: we're not handling case where 100% of a given reference contigs are ambiguous
     for ref_contig in original_id_map:
@@ -501,7 +502,7 @@ def combine_splits(job, config, seq_id_map, original_id_map, remap_id_map):
                                                                  remap_id_map[ref_contig],
                                                                  disk=total_size * 4).rv()
 
-    return root_job.addFollowOnJobFn(combine_paf_splits, seq_id_map, original_id_map, remap_id_map, amb_name).rv()
+    return root_job.addFollowOnJobFn(combine_paf_splits, seq_id_map, original_id_map, remap_id_map, amb_name, graph_event).rv()
 
 def combine_ref_contig_splits(job, original_ref_entry, remap_ref_entry):
     """ combine fa and paf files for splits for a ref contig """
@@ -522,7 +523,7 @@ def combine_ref_contig_splits(job, original_ref_entry, remap_ref_entry):
                 
     return original_ref_entry
 
-def combine_paf_splits(job, seq_id_map, original_id_map, remap_id_map, amb_name):
+def combine_paf_splits(job, seq_id_map, original_id_map, remap_id_map, amb_name, graph_event):
     """ pull out PAF entries for contigs that were ambiguous in the first round but assigned by minimap2
     then add them to the chromosome PAFs """
 
@@ -535,9 +536,27 @@ def combine_paf_splits(job, seq_id_map, original_id_map, remap_id_map, amb_name)
 
     for ref_contig in remap_id_map.keys():
         if ref_contig != amb_name:
-            greps = []
+
+            # make a set of all minigraph nodes in this contig
+            mg_fa_path = os.path.join(work_dir, '{}.{}.fa'.format(graph_event, ref_contig))
+            if seq_id_map[graph_event][0].endswith('.gz'):
+                mg_fa_path += '.gz'
+            mg_contigs_path = os.path.join(work_dir, '{}.contigs'.format(graph_event))
+            job.fileStore.readGlobalFile(original_id_map[ref_contig]['fa'][graph_event], mg_fa_path, mutable=True)
+            cactus_call(parameters=[['zcat' if mg_fa_path.endswith('.gz') else 'cat', mg_fa_path],
+                                    ['grep', '>'], ['cut', '-c', '2-']], outfile=mg_contigs_path)
+            mg_contig_set = set()
+            with open(mg_contigs_path, 'r') as mg_contigs_file:
+                for line in mg_contigs_file:
+                    mg_contig_set.add('id={}|{}'.format(graph_event, line.strip()))
+            os.remove(mg_fa_path)
+            os.remove(mg_contigs_path)
+
+            #make a set of all the query contigs that we want to remove from ambiguous and add to this contig
+            query_contig_set = set()
+            
             for event in remap_id_map[ref_contig]['fa']:
-                if remap_id_map[ref_contig]['fa'][event].size > 0:
+                if event != graph_event and remap_id_map[ref_contig]['fa'][event].size > 0:
                     # read the contigs assigned to this sample for this chromosome by scanning fasta headers
                     tmp_fa_path = os.path.join(work_dir, 'tmp.fa')
                     if seq_id_map[event][0].endswith('.gz'):
@@ -545,30 +564,37 @@ def combine_paf_splits(job, seq_id_map, original_id_map, remap_id_map, amb_name)
                     if os.path.isfile(tmp_fa_path):
                         os.remove(tmp_fa_path)
                     job.fileStore.readGlobalFile(remap_id_map[ref_contig]['fa'][event], tmp_fa_path, mutable=True)
-                    contigs_path = os.path.join(work_dir, '{}.contigs')
+                    contigs_path = os.path.join(work_dir, '{}.contigs'.format(event))
                     cactus_call(parameters=[['zcat' if tmp_fa_path.endswith('.gz') else 'cat', tmp_fa_path],
                                             ['grep', '>'], ['cut', '-c', '2-']], outfile=contigs_path)
                     # add them to the grep
                     with open(contigs_path, 'r') as contigs_file:
                         for line in contigs_file:
-                            greps += ['^id={}|{}'.format(event, line.strip())]
-            if greps:
-                # grep the re-assigned contigs out of the ambiguous paf and add them in to the original paf
+                            query_contig_set.add('id={}|{}'.format(event, line.strip()))
+            if query_contig_set:
+                # pull out remapped contigs into this path
                 new_contig_path = os.path.join(work_dir, '{}.remap.paf'.format(ref_contig))
+                do_append = False
                 if ref_contig in original_id_map:
                     job.fileStore.readGlobalFile(original_id_map[ref_contig]['paf'], new_contig_path, mutable=True)
-                else:
-                    with open(new_contig_path, 'w') as new_contig_file:
-                        new_contig_file.write("")
-                cactus_call(parameters=['grep', '\|'.join(greps), amb_paf_path], outfile=new_contig_path,
-                            outappend=True)
+                    do_append = True
+                # make an updated ambiguous paf with the contigs removed in this path
+                temp_contig_path = os.path.join(work_dir, amb_paf_path + '.temp.remove')
+                with open(new_contig_path, 'a' if do_append else 'w') as new_contig_file, \
+                     open(amb_paf_path, 'r') as amb_paf_file, \
+                     open(temp_contig_path, 'w') as temp_contig_file:
+                    for line in amb_paf_file:
+                        toks = line.split('\t')
+                        if len(toks) > 5 and toks[0] in query_contig_set:
+                            if toks[5] in mg_contig_set:
+                                # move the contig if both the query and target belong to reference contig
+                                new_contig_file.write(line)
+                        else:
+                            # leave the contig in ambiguous
+                            temp_contig_file.write(line)
                 # update the map
                 original_id_map[ref_contig]['paf'] = job.fileStore.writeGlobalFile(new_contig_path)
-                # now remove them from the original paf
-                temp_contig_path = os.path.join(work_dir, 'temp.remove.paf')
-                with open(amb_paf_path, 'a') as amb_paf_file:
-                    amb_paf_file.write('\ne') # prevent below from returning error if result empty
-                cactus_call(parameters=[['grep', '-v', '\|'.join(greps), amb_paf_path], ['head', '-n', '-1']], outfile=temp_contig_path)
+                # update the ambigious paf
                 cactus_call(parameters=['mv', temp_contig_path, amb_paf_path])
 
     # update the ambiguous paf
@@ -585,7 +611,7 @@ def export_split_data(toil, input_seq_id_map, output_id_map, split_log_ids, outp
     
     for ref_contig in output_id_map.keys():
         ref_contig_path = os.path.join(output_dir, ref_contig)
-        if not os.path.isdir(ref_contig_path):
+        if not os.path.isdir(ref_contig_path) and not ref_contig_path.startswith('s3://'):
             os.makedirs(ref_contig_path)
 
         # GFA: <output_dir>/<contig>/<contig>.gfa
@@ -601,7 +627,7 @@ def export_split_data(toil, input_seq_id_map, output_id_map, split_log_ids, outp
         seq_file_map = {}
         for event, ref_contig_fa_id in output_id_map[ref_contig]['fa'].items():
             fa_base = os.path.join(ref_contig_path, 'fasta')
-            if not os.path.isdir(fa_base):
+            if not os.path.isdir(fa_base) and not fa_base.startswith('s3://'):
                 os.makedirs(fa_base)
             fa_path = makeURL(os.path.join(fa_base, '{}_{}.fa'.format(event, ref_contig)))
             if input_seq_id_map[event][0].endswith('.gz'):
