@@ -37,7 +37,6 @@ from toil.lib.bioio import logger
 from toil.lib.bioio import setLoggingFromOptions
 from toil.realtimeLogger import RealtimeLogger
 from toil.lib.threading import cpu_count
-from pathlib import Path
 
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory, getTempFile, catFiles
@@ -149,12 +148,12 @@ def runCactusGraphMapSplit(options):
                     seqIDMap[genome] = (seq, toil.importFile(seq))
 
             # run the workflow
-            split_id_map, split_logs = toil.start(Job.wrapJobFn(graphmap_split_workflow, options, config, seqIDMap,
-                                                                gfa_id, options.minigraphGFA,
-                                                                paf_id, options.graphmapPAF, ref_contigs, options.otherContig))
+            wf_output = toil.start(Job.wrapJobFn(graphmap_split_workflow, options, config, seqIDMap,
+                                                 gfa_id, options.minigraphGFA,
+                                                 paf_id, options.graphmapPAF, ref_contigs, options.otherContig))
 
         #export the split data
-        export_split_data(toil, seqIDMap, split_id_map, split_logs, options.outDir, config)
+        export_split_data(toil, seqIDMap, wf_output[0], wf_output[1:], options.outDir, config)
 
 def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, paf_id, paf_path, ref_contigs, other_contig):
 
@@ -208,7 +207,7 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
                                                                  gather_fallback_fas_job.rv())
 
     # return all the files, as well as the 2 split logs
-    return combine_split_job.rv(), [split_gfa_job.rv(1), split_fallback_gfa_job.rv(1)]
+    return (combine_split_job.rv(), split_gfa_job.rv(1), split_fallback_gfa_job.rv(1))
 
 def get_mask_bed(job, seq_id_map, min_length):
     """ make a bed file from the fastas """
@@ -560,7 +559,8 @@ def combine_paf_splits(job, seq_id_map, original_id_map, remap_id_map, amb_name)
                 if ref_contig in original_id_map:
                     job.fileStore.readGlobalFile(original_id_map[ref_contig]['paf'], new_contig_path, mutable=True)
                 else:
-                    Path(new_contig_path).touch()                    
+                    with open(new_contig_path, 'w') as new_contig_file:
+                        new_contig_file.write("")
                 cactus_call(parameters=['grep', '\|'.join(greps), amb_paf_path], outfile=new_contig_path,
                             outappend=True)
                 # update the map
