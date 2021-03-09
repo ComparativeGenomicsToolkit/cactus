@@ -39,12 +39,14 @@ from cactus.preprocessor.checkUniqueHeaders import checkUniqueHeaders
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import LastzRepeatMaskJob
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import RepeatMaskOptions
 from cactus.preprocessor.dnabrnnMasking import DnabrnnMaskJob, loadDnaBrnnModel, computePAFCoverage
+from cactus.preprocessor.cutHeaders import CutHeadersJob
 
 class PreprocessorOptions:
     def __init__(self, chunkSize, memory, cpu, check, proportionToSample, unmask,
                  preprocessJob, checkAssemblyHub=None, lastzOptions=None, minPeriod=None,
                  gpuLastz=False, dnabrnnOpts=None, dnabrnnLength=None, dnabrnnMerge=None,
-                 dnabrnnAction=None, dnabrnnInputBedID=None, dnabrnnEventName=None):
+                 dnabrnnAction=None, dnabrnnInputBedID=None, dnabrnnEventName=None,
+                 cutBefore=None, cutAfter=None):
         self.chunkSize = chunkSize
         self.memory = memory
         self.cpu = cpu
@@ -66,6 +68,8 @@ class PreprocessorOptions:
         assert dnabrnnAction in ('softmask', 'hardmask', 'clip')
         self.dnabrnnInputBedID = dnabrnnInputBedID
         self.dnabrnnEventName = dnabrnnEventName
+        self.cutBefore = cutBefore
+        self.cutAfter = cutAfter
 
 class CheckUniqueHeaders(RoundedJob):
     """
@@ -150,6 +154,10 @@ class PreprocessSequence(RoundedJob):
                                   inputBedID=self.prepOptions.dnabrnnInputBedID,
                                   eventName=self.prepOptions.dnabrnnEventName,
                                   cpu=self.prepOptions.cpu)
+        elif self.prepOptions.preprocessJob == "cutHeaders":
+            return CutHeadersJob(inChunkID,
+                                 cutBefore=self.prepOptions.cutBefore,
+                                 cutAfter=self.prepOptions.cutAfter)
         else:
             raise RuntimeError("Unknown preprocess job %s" % self.prepOptions.preprocessJob)
 
@@ -242,7 +250,9 @@ class BatchPreprocessor(RoundedJob):
                                               dnabrnnMerge = getOptionalAttrib(prepNode, "mergeLength", typeFn=int, default=0),
                                               dnabrnnAction = getOptionalAttrib(prepNode, "action", typeFn=str, default="softmask"),
                                               dnabrnnInputBedID = getOptionalAttrib(prepNode, "inputBedID", typeFn=str, default=None),
-                                              dnabrnnEventName = getOptionalAttrib(prepNode, "eventName", typeFn=str, default=None))
+                                              dnabrnnEventName = getOptionalAttrib(prepNode, "eventName", typeFn=str, default=None),
+                                              cutBefore = getOptionalAttrib(prepNode, "cutBefore", typeFn=str, default=None),
+                                              cutAfter = getOptionalAttrib(prepNode, "cutAfter", typeFn=str, default=None))
 
             if prepOptions.unmask:
                 inSequence = fileStore.readGlobalFile(self.inSequenceID)
