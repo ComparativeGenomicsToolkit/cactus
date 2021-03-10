@@ -9,6 +9,10 @@
   		<divergences useDefault="0" one="0.1" two="0.15" three="0.2" four="0.25" five="0.35"/>
 	</constants>
 	<!-- The preprocessor tags are used to modify/check the input sequences before alignment -->
+	<!-- The cutHeaders preprocess modifies fastsa sequence names to help them pass checkUniqueHeaders. -->
+	<!-- cutBefore: all characters up to and including the last occurrence of a character in this string are clipped out -->
+	<!-- cutAfter: all characters after and including the first occurrence of a character in this string are clipped out -->
+	<preprocessor memory="littleMemory" preprocessJob="cutHeaders" cutBefore="" cutAfter=" 	" active="1"/>
 	<!-- The first preprocessor tag checks that the first word of every fasta header is unique, as this is required for HAL. It throws errors if this is not the case -->
 	<!-- The checkAssemblyHub option (if enabled) ensures that the first word contains only alphanumeric or '_', '-', ':', or '.' characters, and is unique. If you don't intend to make an assembly hub, you can turn off this option here. -->
 	<preprocessor check="1" memory="littleMemory" preprocessJob="checkUniqueHeaders" checkAssemblyHub="1" active="1"/>
