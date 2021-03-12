@@ -24,8 +24,7 @@
 	<!-- unmask: unmask all softmasked bases before running (so only intervals masked by dna-brnn are present at end) -->
 	<!-- action: one of [softmask, hardmask, clip] -->
 	<!-- minLength: only mask intervals > than this length -->
-	<!-- mergeLength: merge up consecutive intervals if they are <= this far apart -->
-	<preprocessor unmask="1" memory="littleMemory" preprocessJob="dna-brnn" dna-brnnOpts='-A' active="0" action="softmask" cpu="2" minLength="100000" mergeLength="100000"/>
+	<preprocessor unmask="1" memory="littleMemory" preprocessJob="dna-brnn" dna-brnnOpts='-A' active="0" action="softmask" cpu="2" minLength="100000"/>
         <!-- Options for trimming ingroups & outgroups using the trim strategy -->
         <!-- Ingroup trim options: -->
         <!-- trimFlanking: The length of flanking sequence to attach

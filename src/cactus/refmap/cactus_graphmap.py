@@ -255,7 +255,7 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map, graph_event, keep_gaf):
 
     # convert to paf
     if paf_per_genome:
-        paf_job = top_job.addFollowOnJobFn(merge_pafs, paf_id_map)
+        paf_job = top_job.addFollowOnJobFn(merge_pafs, paf_id_map, disk=sum([pi for pi in paf_id_map.values()]))
     else:
         paf_job = top_job.addFollowOnJobFn(merge_gafs_into_paf, config, gaf_id_map)
 
