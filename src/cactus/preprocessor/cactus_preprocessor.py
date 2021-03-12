@@ -498,6 +498,13 @@ def main():
         inSeqPaths = options.inPaths
         outSeqPaths = options.outPaths
 
+    assert outSeqPaths
+
+    if options.ignore:
+        for ignore_event in options.ignore:
+            if ignore_event in inNames:
+                del inNames[inNames.index(ignore_event)]
+
     with Toil(options) as toil:
         stageWorkflow(outputSequenceDir=None,
                       configFile=options.configFile,
