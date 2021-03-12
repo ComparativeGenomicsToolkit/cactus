@@ -91,6 +91,7 @@ class FileMaskingJob(RoundedJob):
         merge_cmd = []
         merge_cmd.append(['awk', '{{if($3-$2 > {}) print}}'.format(self.minLength), bedFile])
         merge_cmd.append(['bedtools', 'sort', '-i', '-'])
+        merge_cmd.append(['awk', '{print $1\"\\t\"$2\"\\t\"$3}'])
         merge_cmd.append(['bedtools', 'merge', '-i', '-', '-d', str(self.minLength)])
         if self.eventName:
             merge_cmd.append(['sed', '-e', 's/id={}|//g'.format(self.eventName)])
@@ -155,6 +156,7 @@ def get_mask_bed_from_fasta(job, event, fa_id, fa_path, min_length, work_dir = N
     with open(bed_path, 'w') as bed_file, open(fa_path, 'r') as fa_file:
         for seq_record in SeqIO.parse(fa_file, 'fasta'):
             first_mask = None
+            # todo: this is way too slow.  should be done in C
             for i, c in enumerate(seq_record.seq):
                 is_mask = c.islower() or c in ['n', 'N']
                 if (is_mask is False or i == len(seq_record.seq) - 1) and first_mask is not None and i - first_mask >= min_length:
