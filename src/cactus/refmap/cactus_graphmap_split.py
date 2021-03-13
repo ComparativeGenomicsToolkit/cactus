@@ -91,7 +91,7 @@ def runCactusGraphMapSplit(options):
         importSingularityImage(options)
         #Run the workflow
         if options.restart:
-            split_id_map = toil.restart()
+            wf_output = toil.restart()
         else:
             options.cactusDir = getTempDirectory()
 
