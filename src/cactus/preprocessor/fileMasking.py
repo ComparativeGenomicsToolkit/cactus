@@ -47,9 +47,6 @@ class FileMaskingJob(RoundedJob):
         if self.minLength is None:
             self.minLength = 0
 
-        RealtimeLogger.info("RUN FILE MASK WITH fastaId={} minLength={} bed={} event={}".format(
-            self.fastaID, self.minLength, self.inputBedID, self.eventName))
-
         # extract the existing masked regions to merge in
         bedFile = get_mask_bed_from_fasta(self, self.eventName, None, fastaFile, self.minLength, work_dir)
 
@@ -89,9 +86,8 @@ class FileMaskingJob(RoundedJob):
         # merge up the intervals into a new bed file
         mergedBedFile = os.path.join(work_dir, 'filtered.bed')
         merge_cmd = []
-        merge_cmd.append(['awk', '{{if($3-$2 > {}) print}}'.format(self.minLength), bedFile])
+        merge_cmd.append(['awk', '{{if($3-$2 > {}) print $1\"\\t\"$2\"\\t\"$3}}'.format(self.minLength), bedFile])
         merge_cmd.append(['bedtools', 'sort', '-i', '-'])
-        merge_cmd.append(['awk', '{print $1\"\\t\"$2\"\\t\"$3}'])
         merge_cmd.append(['bedtools', 'merge', '-i', '-', '-d', str(self.minLength)])
         if self.eventName:
             merge_cmd.append(['sed', '-e', 's/id={}|//g'.format(self.eventName)])
