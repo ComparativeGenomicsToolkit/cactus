@@ -28,7 +28,7 @@ void usage() {
     fprintf(stderr, "-b --bed:         BED output of soft and hardmasked intervals\n");
 }
 
-static bed = false;
+static bool bed = false;
 
 static void hardmask(void* min_length_p, const char* name, const char* seq, int64_t length) {
     int64_t min_length = *(int64_t*)min_length_p;
