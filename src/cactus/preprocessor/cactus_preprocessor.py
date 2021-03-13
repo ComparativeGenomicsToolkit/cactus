@@ -500,7 +500,7 @@ def main():
 
     assert outSeqPaths
 
-    if options.ignore:
+    if options.ignore and inNames:
         for ignore_event in options.ignore:
             if ignore_event in inNames:
                 del inNames[inNames.index(ignore_event)]
