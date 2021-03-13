@@ -25,14 +25,17 @@
 void usage() {
     fprintf(stderr, "cactus_softmask2hardmask [fastaFile]\n");
     fprintf(stderr, "-m --minLength N: Only mask intervals > Nbp\n");
+    fprintf(stderr, "-b --bed:         BED output of soft and hardmasked intervals\n");
 }
+
+static bed = false;
 
 static void hardmask(void* min_length_p, const char* name, const char* seq, int64_t length) {
     int64_t min_length = *(int64_t*)min_length_p;
     char* uc_seq = (char*)seq;
     int64_t start = -1;
     for (int64_t i = 0; i < length; ++i) {
-        bool lower = islower(uc_seq[i]);
+        bool lower = islower(uc_seq[i]) || (bed && uc_seq[i] == 'N');
         if (lower) {
             if (start == -1) {
                 start = i;
@@ -46,17 +49,23 @@ static void hardmask(void* min_length_p, const char* name, const char* seq, int6
                 end = i;
             }
             if (end > start + min_length - 1) {
-                for (int64_t j = start; j <= end; ++j) {
-                    assert(islower(uc_seq[j]));
-                    uc_seq[j] = 'N';
-                }                
+                if (bed) {
+                    fprintf(stdout, "%s\t%" PRIi64 "\t%" PRIi64 "\tfrom-softmask\n", name, start, end + 1);
+                } else {
+                    for (int64_t j = start; j <= end; ++j) {
+                        assert(islower(uc_seq[j]));
+                        uc_seq[j] = 'N';
+                    }
+                }
             }
             if (end != -1) {
                 start = -1;
             }
         }
     }
-    fastaWrite(uc_seq, (char*)name, stdout);
+    if (!bed) {
+        fastaWrite(uc_seq, (char*)name, stdout);
+    }
 }
 
 int main(int argc, char *argv[]) {
@@ -65,11 +74,12 @@ int main(int argc, char *argv[]) {
     
     while (1) {
         static struct option long_options[] = { { "minLength", required_argument, 0, 'm' },
+                                                { "bed", no_argument, 0, 'b' },
                                                 { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "m:", long_options, &option_index);
+        int key = getopt_long(argc, argv, "m:b", long_options, &option_index);
         int i = 0;
 
         if (key == -1) {
@@ -80,6 +90,9 @@ int main(int argc, char *argv[]) {
         case 'm':
             i = sscanf(optarg, "%" PRIi64 "", &min_length);
             assert(i == 1);
+            break;
+        case 'b':
+            bed = true;
             break;
         default:
             usage();

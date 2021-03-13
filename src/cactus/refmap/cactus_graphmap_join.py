@@ -232,6 +232,10 @@ def vg_indexes(job, options, config, gfa_ids):
     trans_path = os.path.join(work_dir, 'merged.trans')
     cactus_call(parameters=['vg', 'gbwt', '-G', merge_gfa_path, '-o', gbwt_path, '-g', gg_path, '--translation', trans_path])
 
+    # zip the gfa
+    cactus_call(parameters=['bgzip', merge_gfa_path])
+    gfa_path = merge_gfa_path + '.gz'
+
     # make the xg
     xg_path = os.path.join(work_dir, 'merged.xg')
     cactus_call(parameters=['vg', 'convert', gg_path, '-b', gbwt_path, '-x'], outfile=xg_path)
@@ -245,10 +249,6 @@ def vg_indexes(job, options, config, gfa_ids):
     cactus_call(parameters=[['vg', 'deconstruct', xg_path, '-r', snarls_path, '-g', gbwt_path, '-T', trans_path], ['bgzip']],
                 outfile=vcf_path)
     cactus_call(parameters=['tabix', '-p', 'vcf', vcf_path])
-
-    # zip the gfa
-    cactus_call(parameters=['bgzip', merge_gfa_path])
-    gfa_path = merge_gfa_path + '.gz'
                             
     return { 'gfa.gz' : job.fileStore.writeGlobalFile(gfa_path),
              'gbwt' : job.fileStore.writeGlobalFile(gbwt_path),

@@ -149,20 +149,7 @@ def get_mask_bed_from_fasta(job, event, fa_id, fa_path, min_length, work_dir = N
     if is_gz:
         cactus_call(parameters=['gzip', '-fd', fa_path])
         fa_path = fa_path[:-3]
-    with open(bed_path, 'w') as bed_file, open(fa_path, 'r') as fa_file:
-        for seq_record in SeqIO.parse(fa_file, 'fasta'):
-            first_mask = None
-            # todo: this is way too slow.  should be done in C
-            for i, c in enumerate(seq_record.seq):
-                is_mask = c.islower() or c in ['n', 'N']
-                if (is_mask is False or i == len(seq_record.seq) - 1) and first_mask is not None and i - first_mask >= min_length:
-                    # we're one past an interval: write it
-                    bed_end = i + 1 if is_mask else i
-                    bed_file.write('{}\t{}\t{}\n'.format('id={}|{}'.format(event, seq_record.id), first_mask, bed_end))
-                    first_mask = None
-                elif is_mask is True and first_mask is None:
-                    # we're starting a new interval: remember start position
-                    first_mask = i
+    cactus_call(parameters=['cactus_softmask2hardmask', fa_path, '-b', '-m', str(min_length)], outfile=bed_path)
     if return_id:
         return job.fileStore.writeGlobalFile(bed_path)
     else:
