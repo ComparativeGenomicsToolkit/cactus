@@ -33,8 +33,6 @@ from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.common import setupBinaries, importSingularityImage
 from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.shared.experimentWrapper import ExperimentWrapper
-from cactus.progressive.schedule import Schedule
-from cactus.progressive.projectWrapper import ProjectWrapper
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
@@ -178,6 +176,9 @@ def clip_vg(job, options, config, vg_path, vg_id):
         
     cactus_call(parameters=cmd, outfile=out_path)
 
+    # worth it
+    cactus_call(parameters=['vg', 'validate', out_path])
+
     return job.fileStore.writeGlobalFile(out_path)
 
 def join_vg(job, options, config, clipped_vg_ids):
@@ -239,6 +240,9 @@ def vg_indexes(job, options, config, gfa_ids):
     # make the xg
     xg_path = os.path.join(work_dir, 'merged.xg')
     cactus_call(parameters=['vg', 'convert', gg_path, '-b', gbwt_path, '-x'], outfile=xg_path)
+
+    # worth it
+    cactus_call(parameters=['vg', 'validate', xg_path])
 
     # make the snarls
     snarls_path = os.path.join(work_dir, 'merged.snarls')
