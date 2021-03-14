@@ -159,7 +159,8 @@ class PreprocessSequence(RoundedJob):
         elif self.prepOptions.preprocessJob == 'maskFile':
             return FileMaskingJob(inChunkID,
                                   inputBedID=self.prepOptions.inputBedID,
-                                  eventName=self.prepOptions.eventName)
+                                  eventName=self.prepOptions.eventName,
+                                  minLength=self.prepOptions.minLength)
         else:
             raise RuntimeError("Unknown preprocess job %s" % self.prepOptions.preprocessJob)
 
