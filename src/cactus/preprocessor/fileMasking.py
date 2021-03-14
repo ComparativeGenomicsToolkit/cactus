@@ -26,7 +26,8 @@ from toil.realtimeLogger import RealtimeLogger
 class FileMaskingJob(RoundedJob):
     def __init__(self, fastaID, inputBedID=None, eventName=None, minLength=None):
         disk = 2*(fastaID.size)
-        RoundedJob.__init__(self, disk=disk, preemptable=True)
+        memory = fastaID.size
+        RoundedJob.__init__(self, disk=disk, memory=memory, preemptable=True)
         self.fastaID = fastaID
         self.minLength = minLength
         self.inputBedID = inputBedID
