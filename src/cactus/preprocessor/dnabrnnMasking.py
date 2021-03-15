@@ -32,23 +32,22 @@ def loadDnaBrnnModel(toil, configNode, maskAlpha = False):
                 os.environ["CACTUS_DNA_BRNN_MODEL_ID"] = toil.importFile(makeURL(model_path))
 
 class DnabrnnMaskJob(RoundedJob):
-    def __init__(self, fastaID, dnabrnnOpts, cpu, minLength=None, mergeLength=None, action=None, inputBedID=None, eventName=None):
+    def __init__(self, fastaID, dnabrnnOpts, cpu, minLength=None, action=None, inputBedID=None, eventName=None):
         memory = 4*1024*1024*1024
         disk = 2*(fastaID.size)
         cores = min(cpu_count(), cpu)
         RoundedJob.__init__(self, memory=memory, disk=disk, cores=cores, preemptable=True)
         self.fastaID = fastaID
         self.minLength = minLength
-        self.mergeLength = mergeLength
         self.action = action
-        self.dnabrnnOpts = dnabrnnOpts
-        self.inputBedID = inputBedID
+        self.dnabrnnOpts = dnabrnnOpts        
+        self.inputBedID = inputBedID #todo: moved to fileMasking --> remove from here
         self.eventName = eventName
 
     def run(self, fileStore):
         """
         mask alpha satellites with dna-brnn. returns (masked fasta, dna-brnn's raw output bed, filtered bed used for masking)
-        where the filter bed has the minLength and mergeLength filters applied.  When clip is the selected action, suffixes
+        where the filter bed has the minLength filters applied.  When clip is the selected action, suffixes
         get added to the contig names in the format of :<start>-<end> (one-based, inclusive)
         """
         work_dir = fileStore.getLocalTempDir()
@@ -84,8 +83,6 @@ class DnabrnnMaskJob(RoundedJob):
         # run dna-brnn to make a bed file
         cactus_call(outfile=bedFile, parameters=cmd)
 
-        if self.mergeLength is None:
-            self.mergeLength = 0
         if self.minLength is None:
             self.minLength = 0
 
@@ -128,7 +125,7 @@ class DnabrnnMaskJob(RoundedJob):
         merge_cmd = []
         merge_cmd.append(['awk', '{{if($3-$2 > {}) print}}'.format(self.minLength), bedFile])
         merge_cmd.append(['bedtools', 'sort', '-i', '-'])
-        merge_cmd.append(['bedtools', 'merge', '-i', '-', '-d', str(self.mergeLength)])            
+        merge_cmd.append(['bedtools', 'merge', '-i', '-', '-d', str(self.minLength)])            
         cactus_call(outfile=mergedBedFile, parameters=merge_cmd)
 
         maskedFile = os.path.join(work_dir, 'masked.fa')

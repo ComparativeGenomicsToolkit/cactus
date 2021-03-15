@@ -10,9 +10,6 @@ import timeit
 
 from operator import itemgetter
 
-from Bio import SeqIO
-from Bio.SeqRecord import SeqRecord
-
 from cactus.progressive.seqFile import SeqFile
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.common import setupBinaries, importSingularityImage
@@ -31,6 +28,7 @@ from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.common import unzip_gz, write_s3
+from cactus.preprocessor.fileMasking import get_mask_bed_from_fasta
 from toil.job import Job
 from toil.common import Toil
 from toil.lib.bioio import logger
@@ -93,7 +91,7 @@ def runCactusGraphMapSplit(options):
         importSingularityImage(options)
         #Run the workflow
         if options.restart:
-            split_id_map = toil.restart()
+            wf_output = toil.restart()
         else:
             options.cactusDir = getTempDirectory()
 
@@ -215,30 +213,6 @@ def get_mask_bed(job, seq_id_map, min_length):
         fa_path, fa_id = seq_id_map[event]
         beds.append(job.addChildJobFn(get_mask_bed_from_fasta, event, fa_id, fa_path, min_length, disk=fa_id.size * 5).rv())
     return job.addFollowOnJobFn(cat_beds, beds).rv()
-
-def get_mask_bed_from_fasta(job, event, fa_id, fa_path, min_length):
-    """ make a bed file from one fasta"""
-    work_dir = job.fileStore.getLocalTempDir()    
-    bed_path = os.path.join(work_dir, os.path.basename(fa_path) + '.mask.bed')
-    fa_path = os.path.join(work_dir, os.path.basename(fa_path))
-    is_gz = fa_path.endswith(".gz")
-    job.fileStore.readGlobalFile(fa_id, fa_path, mutable=is_gz)
-    if is_gz:
-        cactus_call(parameters=['gzip', '-fd', fa_path])
-        fa_path = fa_path[:-3]
-    with open(bed_path, 'w') as bed_file, open(fa_path, 'r') as fa_file:
-        for seq_record in SeqIO.parse(fa_file, 'fasta'):
-            first_mask = None
-            for i, c in enumerate(seq_record.seq):
-                is_mask = c.islower() or c in ['n', 'N']
-                if (is_mask is False or i == len(seq_record.seq) - 1) and first_mask is not None and i - first_mask >= min_length:
-                    # we're one past an interval: write it
-                    bed_file.write('{}\t{}\t{}\n'.format('id={}|{}'.format(event, seq_record.id), first_mask, i))
-                    first_mask = None
-                elif is_mask is True and first_mask is None:
-                    # we're starting a new interval: remember start position
-                    first_mask = i
-    return job.fileStore.writeGlobalFile(bed_path)
 
 def cat_beds(job, bed_ids):
     in_beds = [job.fileStore.readGlobalFile(bed_id) for bed_id in bed_ids]
