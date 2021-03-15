@@ -60,7 +60,7 @@ def main():
     Job.Runner.addToilOptions(parser)
     addCactusWorkflowOptions(parser)
 
-    parser.add_argument("--vg", nargs='+',  help = "Input vg files")
+    parser.add_argument("--vg", required=True, nargs='+',  help = "Input vg files")
     parser.add_argument("--outDir", required=True, type=str, help = "Output directory")
     parser.add_argument("--outName", required=True, type=str, help = "Basename of all output files")
     parser.add_argument("--reference", required=True, type=str, help = "Reference event name")
@@ -98,7 +98,7 @@ def main():
     runCactusGraphMapJoin(options)
     end_time = timeit.default_timer()
     run_time = end_time - start_time
-    logger.info("cactus-graphmap-split has finished after {} seconds".format(run_time))
+    logger.info("cactus-graphmap-join has finished after {} seconds".format(run_time))
 
 def runCactusGraphMapJoin(options):
     with Toil(options) as toil:
@@ -117,6 +117,7 @@ def runCactusGraphMapJoin(options):
             # load up the vgs
             vg_ids = []
             for vg_path in options.vg:
+                logger.info("Importing {}".format(vg_path))
                 vg_ids.append(toil.importFile(makeURL(vg_path)))
 
             # run the workflow
@@ -173,6 +174,9 @@ def clip_vg(job, options, config, vg_path, vg_id):
         cmd += ['-r', rs]
     if options.reference:
         cmd += ['-e', options.reference]
+
+    # sort while we're at it
+    cmd = [cmd, ['vg', 'ids', '-s', '-']]
         
     cactus_call(parameters=cmd, outfile=out_path)
 
