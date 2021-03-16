@@ -66,8 +66,8 @@ def main():
     parser.add_argument("--reference", required=True, type=str, help = "Reference event name")
     parser.add_argument("--rename", nargs='+', default = [], help = "Path renaming, each of form src>dest (see clip-vg -r)")
     parser.add_argument("--clipLength", type=int, default=0, help = "clip out unaligned sequences longer than this")
-    parser.add_argument("--wline-sep", type=str, help = "wline separator for vg convert")
-    parser.add_argument("--index-cores", type=int, default=1, help = "cores for indexing processes")
+    parser.add_argument("--wlineSep", type=str, help = "wline separator for vg convert")
+    parser.add_argument("--indexCores", type=int, default=1, help = "cores for indexing processes")
     
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -158,7 +158,7 @@ def graphmap_join_workflow(job, options, config, vg_ids):
 
     # merge up the gfas and make the various vg indexes
     gfa_merge_job = gfa_root_job.addFollowOnJobFn(vg_indexes, options, config, clipped_gfa_ids,
-                                                  cores=options.index_cores,
+                                                  cores=options.indexCores,
                                                   disk=sum(f.size for f in vg_ids) * 10)
     
     return clipped_vg_ids, gfa_merge_job.rv()
@@ -210,8 +210,8 @@ def vg_to_gfa(job, options, config, vg_path, vg_id):
     out_path = vg_path + '.gfa'
 
     cmd = ['vg', 'convert', '-f', '-Q', options.reference, vg_path, '-B']
-    if options.wline_sep:
-        cmd += ['-w', options.wline_sep]
+    if options.wlineSep:
+        cmd += ['-w', options.wlineSep]
 
     cactus_call(parameters=cmd, outfile=out_path)
 
