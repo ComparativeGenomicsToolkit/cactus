@@ -159,7 +159,7 @@ def graphmap_join_workflow(job, options, config, vg_ids):
     # merge up the gfas and make the various vg indexes
     gfa_merge_job = gfa_root_job.addFollowOnJobFn(vg_indexes, options, config, clipped_gfa_ids,
                                                   cores=options.indexCores,
-                                                  disk=sum(f.size for f in vg_ids) * 10)
+                                                  disk=sum(f.size for f in vg_ids) * 5)
     
     return clipped_vg_ids, gfa_merge_job.rv()
 
