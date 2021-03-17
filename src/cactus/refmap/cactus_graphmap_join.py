@@ -252,7 +252,7 @@ def vg_indexes(job, options, config, gfa_ids):
 
     # make the snarls
     snarls_path = os.path.join(work_dir, 'merged.snarls')
-    cactus_call(parameters=['vg', 'snarls', xg_path, '-t', str(job.cores)], outfile=snarls_path)
+    cactus_call(parameters=['vg', 'snarls', xg_path, '-T', '-t', str(job.cores)], outfile=snarls_path)
 
     # make the vcf
     vcf_path = os.path.join(work_dir, 'merged.vcf.gz')
