@@ -272,7 +272,7 @@ def vg_indexes(job, options, config, gfa_ids):
              'xg' : job.fileStore.writeGlobalFile(xg_path),
              'snarls' : job.fileStore.writeGlobalFile(snarls_path),
              'vcf.gz' : job.fileStore.writeGlobalFile(vcf_path),
-             'vcf.tbi' : job.fileStore.writeGlobalFile(vcf_path + '.tbi') }
+             'vcf.gz.tbi' : job.fileStore.writeGlobalFile(vcf_path + '.tbi') }
 
 def export_join_data(toil, options, clip_ids, idx_map):
     """ download all the output data
