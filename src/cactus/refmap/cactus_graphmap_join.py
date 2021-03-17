@@ -260,15 +260,19 @@ def vg_indexes(job, options, config, gfa_ids):
                             ['bgzip', '--threads', str(job.cores)]],
                 outfile=vcf_path)
     cactus_call(parameters=['tabix', '-p', 'vcf', vcf_path])
+
+    # compress the trans
+    cactus_call(parameters=['bgzip', trans_path, '--threads', str(job.cores)])
+    trans_path += '.gz'                            
                             
     return { 'gfa.gz' : job.fileStore.writeGlobalFile(gfa_path),
              'gbwt' : job.fileStore.writeGlobalFile(gbwt_path),
              'gg' : job.fileStore.writeGlobalFile(gg_path),
-             'trans' : job.fileStore.writeGlobalFile(trans_path),
+             'trans.gz' : job.fileStore.writeGlobalFile(trans_path),
              'xg' : job.fileStore.writeGlobalFile(xg_path),
              'snarls' : job.fileStore.writeGlobalFile(snarls_path),
              'vcf.gz' : job.fileStore.writeGlobalFile(vcf_path),
-             'tbi' : job.fileStore.writeGlobalFile(vcf_path + '.tbi') }
+             'vcf.tbi' : job.fileStore.writeGlobalFile(vcf_path + '.tbi') }
 
 def export_join_data(toil, options, clip_ids, idx_map):
     """ download all the output data
