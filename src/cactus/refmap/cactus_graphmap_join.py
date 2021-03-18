@@ -256,7 +256,8 @@ def vg_indexes(job, options, config, gfa_ids):
 
     # make the vcf
     vcf_path = os.path.join(work_dir, 'merged.vcf.gz')
-    cactus_call(parameters=[['vg', 'deconstruct', xg_path, '-a', '-r', snarls_path, '-g', gbwt_path, '-T', trans_path, '-t', str(job.cores)],
+    cactus_call(parameters=[['vg', 'deconstruct', xg_path, '-P', options.reference, '-a', '-r', snarls_path, '-g', gbwt_path,
+                             '-T', trans_path, '-t', str(job.cores)],
                             ['bgzip', '--threads', str(job.cores)]],
                 outfile=vcf_path)
     cactus_call(parameters=['tabix', '-p', 'vcf', vcf_path])
