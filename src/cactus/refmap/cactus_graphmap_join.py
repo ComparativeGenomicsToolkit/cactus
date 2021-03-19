@@ -60,14 +60,15 @@ def main():
     Job.Runner.addToilOptions(parser)
     addCactusWorkflowOptions(parser)
 
-    parser.add_argument("--vg", required=True, nargs='+',  help = "Input vg files")
+    parser.add_argument("--vg", required=True, nargs='+',  help = "Input vg files (PackedGraph or HashGraph format)")
     parser.add_argument("--outDir", required=True, type=str, help = "Output directory")
     parser.add_argument("--outName", required=True, type=str, help = "Basename of all output files")
     parser.add_argument("--reference", required=True, type=str, help = "Reference event name")
     parser.add_argument("--rename", nargs='+', default = [], help = "Path renaming, each of form src>dest (see clip-vg -r)")
-    parser.add_argument("--clipLength", type=int, default=0, help = "clip out unaligned sequences longer than this")
+    parser.add_argument("--clipLength", type=int, default=None, help = "clip out unaligned sequences longer than this")
     parser.add_argument("--wlineSep", type=str, help = "wline separator for vg convert")
     parser.add_argument("--indexCores", type=int, default=1, help = "cores for indexing processes")
+    parser.add_argument("--decoyGraph", help= "decoy sequences vg graph to add (PackedGraph or HashGraph format)")
     
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -121,6 +122,14 @@ def runCactusGraphMapJoin(options):
                 logger.info("Importing {}".format(vg_path))
                 vg_ids.append(toil.importFile(makeURL(vg_path)))
 
+            # tack on the decoys
+            if options.decoyGraph:
+                logger.info("Importing decoys {}".format(options.decoyGraph))
+                vg_ids.append(toil.importFile(makeURL(options.decoyGraph)))
+                # we'll treat it like any other graph downstream, except clipping
+                # where we'll check first using the path name
+                options.vg.append(options.decoyGraph)
+
             # run the workflow
             wf_output = toil.start(Job.wrapJobFn(graphmap_join_workflow, options, config, vg_ids))
                 
@@ -167,11 +176,14 @@ def clip_vg(job, options, config, vg_path, vg_id):
     """ run clip-vg 
     """
     work_dir = job.fileStore.getLocalTempDir()
+    is_decoy = vg_path == options.decoyGraph
     vg_path = os.path.join(work_dir, os.path.basename(vg_path))
     job.fileStore.readGlobalFile(vg_id, vg_path)
     out_path = vg_path + '.clip'
 
-    cmd = ['clip-vg', vg_path, '-u', str(options.clipLength), '-f']
+    cmd = ['clip-vg', vg_path, '-f']
+    if options.clipLength is not None and not is_decoy:
+        cmd += ['-u', str(options.clipLength)]
     for rs in options.rename:
         cmd += ['-r', rs]
     if options.reference:
