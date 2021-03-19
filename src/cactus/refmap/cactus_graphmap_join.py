@@ -60,13 +60,14 @@ def main():
     Job.Runner.addToilOptions(parser)
     addCactusWorkflowOptions(parser)
 
-    parser.add_argument("--vg", nargs='+',  help = "Input vg files")
+    parser.add_argument("--vg", required=True, nargs='+',  help = "Input vg files")
     parser.add_argument("--outDir", required=True, type=str, help = "Output directory")
     parser.add_argument("--outName", required=True, type=str, help = "Basename of all output files")
     parser.add_argument("--reference", required=True, type=str, help = "Reference event name")
     parser.add_argument("--rename", nargs='+', default = [], help = "Path renaming, each of form src>dest (see clip-vg -r)")
     parser.add_argument("--clipLength", type=int, default=0, help = "clip out unaligned sequences longer than this")
-    parser.add_argument("--wline-sep", type=str, help = "wline separator for vg convert")
+    parser.add_argument("--wlineSep", type=str, help = "wline separator for vg convert")
+    parser.add_argument("--indexCores", type=int, default=1, help = "cores for indexing processes")
     
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -98,7 +99,7 @@ def main():
     runCactusGraphMapJoin(options)
     end_time = timeit.default_timer()
     run_time = end_time - start_time
-    logger.info("cactus-graphmap-split has finished after {} seconds".format(run_time))
+    logger.info("cactus-graphmap-join has finished after {} seconds".format(run_time))
 
 def runCactusGraphMapJoin(options):
     with Toil(options) as toil:
@@ -117,6 +118,7 @@ def runCactusGraphMapJoin(options):
             # load up the vgs
             vg_ids = []
             for vg_path in options.vg:
+                logger.info("Importing {}".format(vg_path))
                 vg_ids.append(toil.importFile(makeURL(vg_path)))
 
             # run the workflow
@@ -156,7 +158,8 @@ def graphmap_join_workflow(job, options, config, vg_ids):
 
     # merge up the gfas and make the various vg indexes
     gfa_merge_job = gfa_root_job.addFollowOnJobFn(vg_indexes, options, config, clipped_gfa_ids,
-                                                  disk=sum(f.size for f in vg_ids) * 10)
+                                                  cores=options.indexCores,
+                                                  disk=sum(f.size for f in vg_ids) * 5)
     
     return clipped_vg_ids, gfa_merge_job.rv()
 
@@ -173,6 +176,9 @@ def clip_vg(job, options, config, vg_path, vg_id):
         cmd += ['-r', rs]
     if options.reference:
         cmd += ['-e', options.reference]
+
+    # sort while we're at it
+    cmd = [cmd, ['vg', 'ids', '-s', '-']]
         
     cactus_call(parameters=cmd, outfile=out_path)
 
@@ -204,8 +210,8 @@ def vg_to_gfa(job, options, config, vg_path, vg_id):
     out_path = vg_path + '.gfa'
 
     cmd = ['vg', 'convert', '-f', '-Q', options.reference, vg_path, '-B']
-    if options.wline_sep:
-        cmd += ['-w', options.wline_sep]
+    if options.wlineSep:
+        cmd += ['-w', options.wlineSep]
 
     cactus_call(parameters=cmd, outfile=out_path)
 
@@ -234,34 +240,40 @@ def vg_indexes(job, options, config, gfa_ids):
     cactus_call(parameters=['vg', 'gbwt', '-G', merge_gfa_path, '-o', gbwt_path, '-g', gg_path, '--translation', trans_path])
 
     # zip the gfa
-    cactus_call(parameters=['bgzip', merge_gfa_path])
+    cactus_call(parameters=['bgzip', merge_gfa_path, '--threads', str(job.cores)])
     gfa_path = merge_gfa_path + '.gz'
 
     # make the xg
     xg_path = os.path.join(work_dir, 'merged.xg')
-    cactus_call(parameters=['vg', 'convert', gg_path, '-b', gbwt_path, '-x'], outfile=xg_path)
+    cactus_call(parameters=['vg', 'convert', gg_path, '-b', gbwt_path, '-x', '-t', str(job.cores)], outfile=xg_path)
 
     # worth it
     cactus_call(parameters=['vg', 'validate', xg_path])
 
     # make the snarls
     snarls_path = os.path.join(work_dir, 'merged.snarls')
-    cactus_call(parameters=['vg', 'snarls', xg_path], outfile=snarls_path)
+    cactus_call(parameters=['vg', 'snarls', xg_path, '-T', '-t', str(job.cores)], outfile=snarls_path)
 
     # make the vcf
     vcf_path = os.path.join(work_dir, 'merged.vcf.gz')
-    cactus_call(parameters=[['vg', 'deconstruct', xg_path, '-r', snarls_path, '-g', gbwt_path, '-T', trans_path], ['bgzip']],
+    cactus_call(parameters=[['vg', 'deconstruct', xg_path, '-P', options.reference, '-a', '-r', snarls_path, '-g', gbwt_path,
+                             '-T', trans_path, '-t', str(job.cores)],
+                            ['bgzip', '--threads', str(job.cores)]],
                 outfile=vcf_path)
     cactus_call(parameters=['tabix', '-p', 'vcf', vcf_path])
+
+    # compress the trans
+    cactus_call(parameters=['bgzip', trans_path, '--threads', str(job.cores)])
+    trans_path += '.gz'                            
                             
     return { 'gfa.gz' : job.fileStore.writeGlobalFile(gfa_path),
              'gbwt' : job.fileStore.writeGlobalFile(gbwt_path),
              'gg' : job.fileStore.writeGlobalFile(gg_path),
-             'trans' : job.fileStore.writeGlobalFile(trans_path),
+             'trans.gz' : job.fileStore.writeGlobalFile(trans_path),
              'xg' : job.fileStore.writeGlobalFile(xg_path),
              'snarls' : job.fileStore.writeGlobalFile(snarls_path),
              'vcf.gz' : job.fileStore.writeGlobalFile(vcf_path),
-             'tbi' : job.fileStore.writeGlobalFile(vcf_path + '.tbi') }
+             'vcf.gz.tbi' : job.fileStore.writeGlobalFile(vcf_path + '.tbi') }
 
 def export_join_data(toil, options, clip_ids, idx_map):
     """ download all the output data
@@ -269,7 +281,7 @@ def export_join_data(toil, options, clip_ids, idx_map):
 
     # download the clip vgs
     clip_base = os.path.join(options.outDir, 'clip')
-    if not clip_base.startswith('s3://'):
+    if not clip_base.startswith('s3://') and not os.path.isdir(clip_base):
         os.makedirs(clip_base)
 
     for vg_path, vg_id in zip(options.vg, clip_ids):
