@@ -664,7 +664,6 @@ class CactusConsolidated2(CactusPhasesJob):
         tmpRef = fileStore.getLocalTempFile()
 
         messages = runCactusConsolidated(cactusParams=experiment.getConfigPath(),
-                                         cactusDiskDatabaseString=self.cactusWorkflowArguments.cactusDiskDatabaseString,
                                          seqMap=seqMap,
                                          newickTreeString=self.cactusWorkflowArguments.speciesTree,
                                          alignmentsFile=alignments,

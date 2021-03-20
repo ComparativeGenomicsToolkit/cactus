@@ -34,10 +34,8 @@ void stripUniqueIdsFromSequences(Flower *flower) {
  * Iterates through a cigar file and converts the coordinates into cactus okay coordinates.
  */
 
-static stHash *makeSequenceHeaderToCapHash(CactusDisk *cactusDisk) {
+static stHash *makeSequenceHeaderToCapHash(Flower *flower) {
     stHash *sequenceHeaderToCapsHash = stHash_construct3(stHash_stringKey, stHash_stringEqualKey, free, NULL);
-    Flower *flower = cactusDisk_getFlower(cactusDisk, 0);
-    assert(flower != NULL);
     Cap *cap;
     Flower_CapIterator *capIt = flower_getCapIterator(flower);
     while ((cap = flower_getNextCap(capIt)) != NULL) {
@@ -92,8 +90,8 @@ static void convertCoordinates(struct PairwiseAlignment *pairwiseAlignment, FILE
     }
 }
 
-void convertAlignmentCoordinates(char *inputAlignmentFile, char *outputAlignmentFile, CactusDisk *cactusDisk) {
-    stHash *sequenceHeaderToCapHash = makeSequenceHeaderToCapHash(cactusDisk);
+void convertAlignmentCoordinates(char *inputAlignmentFile, char *outputAlignmentFile, Flower *flower) {
+    stHash *sequenceHeaderToCapHash = makeSequenceHeaderToCapHash(flower);
     st_logDebug("Set up the flower disk and built hash\n");
 
     FILE *inputCigarFileHandle = fopen(inputAlignmentFile, "r");

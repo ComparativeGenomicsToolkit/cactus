@@ -241,18 +241,40 @@ def runCactusSplitFlowersBySecondaryGrouping(flowerNames):
 #############################################
 #############################################
 
-def runCactusConsolidated(cactusDiskDatabaseString, seqMap,
-                          newickTreeString, cactusParams,
+def runCactusConsolidated(seqMap, newickTreeString, cactusParams,
                           alignmentsFile, outputFile, outputHalFastaFile=None,
                           outputReferenceFile=None, secondaryAlignmentsFile=None, constraintAlignmentsFile=None,
                           logLevel=None, outgroupEvents=None, referenceEvent=None):
     logLevel = getLogLevelString2(logLevel)
+
+    ## Hacks to allow running locally
+    fileNo=0
+    import shutil
+    for genome, faPath in list(seqMap.items()):
+        newPath = "/Users/benedictpaten/CLionProjects/cactus/tempExperiment/{}".format(fileNo)
+        fileNo += 1
+        shutil.copy(faPath, newPath) # Copy to permanent local file
+        seqMap[genome] = newPath
+
+    newPath = "/Users/benedictpaten/CLionProjects/cactus/tempExperiment/alignments.fa"
+    shutil.copy(alignmentsFile, newPath) # Copy to permanent local file
+    alignmentsFile=newPath
+
+    if secondaryAlignmentsFile != None:
+        newPath = "/Users/benedictpaten/CLionProjects/cactus/tempExperiment/secondaryAlignments.fa"
+        shutil.copy(secondaryAlignmentsFile, newPath) # Copy to permanent local file
+        secondaryAlignmentsFile=newPath
+
+    outputFile="/Users/benedictpaten/CLionProjects/cactus/tempExperiment/output.file"
+    outputHalFastaFile="/Users/benedictpaten/CLionProjects/cactus/tempExperiment/output.hal"
+    outputReferenceFile="/Users/benedictpaten/CLionProjects/cactus/tempExperiment/output.ref"
+    ## End hacks to allow running locally
+
     # We pass in the genome->sequence map as a series of paired arguments: [genome, faPath]*N.
     pairs = [[genome, faPath] for genome, faPath in list(seqMap.items())]
     args = ["--sequences", " ".join([item for sublist in pairs for item in sublist])]
-    args += ["--speciesTree", newickTreeString, "--cactusDisk", cactusDiskDatabaseString,
-             "--logLevel", logLevel, "--alignments", alignmentsFile, "--params", cactusParams,
-             "--outputFile", outputFile]
+    args += ["--speciesTree", newickTreeString, "--logLevel", logLevel, "--alignments", alignmentsFile,
+             "--params", cactusParams, "--outputFile", outputFile]
 
     if outputHalFastaFile:
         args += ["--outputHalFastaFile", outputHalFastaFile]
@@ -266,10 +288,13 @@ def runCactusConsolidated(cactusDiskDatabaseString, seqMap,
         args += ["--secondaryAlignments", secondaryAlignmentsFile]
     if constraintAlignmentsFile:
         args += ["--constraintAlignments", constraintAlignmentsFile]
+
+    print("Command to run\n", " ".join(["cactus_consolidated"] + args))
+
     masterMessages = cactus_call(check_output=True,
                                  parameters=["cactus_consolidated"] + args)
 
-    logger.info("Ran cactus setup okay")
+    logger.info("Ran cactus consolidated okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]
 
 def runCactusSetup(cactusDiskDatabaseString, seqMap,

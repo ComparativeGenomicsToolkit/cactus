@@ -24,13 +24,10 @@
 /*
  * TODOs:
  *
- * remove the cactus disk so a DB is not needed
  * fix the flower remove functions
  * cleanup the API - remove binary functions, etc.
  * remove all the unnecessary binaries
  * make the tests pass!
- *
- *
  *
  */
 
@@ -38,7 +35,6 @@ void usage() {
     fprintf(stderr, "cactus_consolidated, version 0.2\n");
     fprintf(stderr, "-l --logLevel : Set the log level\n");
     fprintf(stderr, "-p --params : [Required] The cactus config file\n");
-    fprintf(stderr, "-d --cactusDisk : [Required] The database config string\n");
     fprintf(stderr, "-f --outputFile : [Required] The file to write the combined cactus to hal output\n");
     fprintf(stderr, "-F --outputHalFastaFile : The file to write the sequences in to build the hal file.\n");
     fprintf(stderr, "-G --outputReferenceFile : The file to write the sequences of the reference in (used in the progressive recursion).\n");
@@ -52,9 +48,9 @@ void usage() {
     fprintf(stderr, "-h --help : Print this help message\n");
 }
 
-static char *convertAlignments(char *alignmentsFile, CactusDisk *cactusDisk) {
+static char *convertAlignments(char *alignmentsFile, Flower *flower) {
     char *tempFile = getTempFile();
-    convertAlignmentCoordinates(alignmentsFile, tempFile, cactusDisk);
+    convertAlignmentCoordinates(alignmentsFile, tempFile, flower);
     return tempFile;
 }
 
@@ -116,7 +112,6 @@ int main(int argc, char *argv[]) {
      */
     char *logLevelString = NULL;
     char *paramsFile = NULL;
-    char *cactusDiskDatabaseString = NULL;
     char *outputFile = NULL;
     char *outputHalFastaFile = NULL;
     char *outputReferenceFile = NULL;
@@ -140,7 +135,6 @@ int main(int argc, char *argv[]) {
     while (1) {
         static struct option long_options[] = { { "logLevel", required_argument, 0, 'l' },
                 { "params", required_argument, 0, 'p' },
-                { "cactusDisk", required_argument, 0, 'd' },
                 { "outputFile", required_argument, 0, 'f' },
                 { "outputHalFastaFile", required_argument, 0, 'F' },
                 { "outputReferenceFile", required_argument, 0, 'G' },
@@ -156,7 +150,7 @@ int main(int argc, char *argv[]) {
 
         int option_index = 0;
 
-        int64_t key = getopt_long(argc, argv, "l:p:d:s:a:S:c:g:o:hr:F:G:", long_options, &option_index);
+        int64_t key = getopt_long(argc, argv, "l:p:s:a:S:c:g:o:hr:F:G:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -168,9 +162,6 @@ int main(int argc, char *argv[]) {
                 break;
             case 'p':
                 paramsFile = optarg;
-                break;
-            case 'd':
-                cactusDiskDatabaseString = optarg;
                 break;
             case 'f':
                 outputFile = optarg;
@@ -218,9 +209,6 @@ int main(int argc, char *argv[]) {
     if (paramsFile == NULL) {
         st_errAbort("must supply --params (-p)");
     }
-    if (cactusDiskDatabaseString == NULL) {
-        st_errAbort("must supply --cactusDisk (-d))");
-    }
     if (outputFile == NULL) {
         st_errAbort("must supply --outputFile (-f))");
     }
@@ -248,7 +236,6 @@ int main(int argc, char *argv[]) {
     //////////////////////////////////////////////
 
     st_logInfo("Params file: %s\n", paramsFile);
-    st_logInfo("Cactus disk database string : %s\n", cactusDiskDatabaseString);
     st_logInfo("Output file string : %s\n", outputFile);
     st_logInfo("Output hal fasta file string : %s\n", outputHalFastaFile);
     st_logInfo("Output reference fasta file string : %s\n", outputReferenceFile);
@@ -269,8 +256,7 @@ int main(int argc, char *argv[]) {
     st_logInfo("Loaded the parameters files, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     // Load the cactus disk
-    stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
-    CactusDisk *cactusDisk = cactusDisk_constructInMemory(kvDatabaseConf, true, 0);
+    CactusDisk *cactusDisk = cactusDisk_constructInMemory(NULL, true, 0);
 
     st_logInfo("Set up the cactus disk, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
@@ -288,12 +274,12 @@ int main(int argc, char *argv[]) {
     //Convert alignment coordinates
     //////////////////////////////////////////////
 
-    alignmentsFile = convertAlignments(alignmentsFile, cactusDisk);
+    alignmentsFile = convertAlignments(alignmentsFile, flower);
     if(secondaryAlignmentsFile != NULL) {
-        secondaryAlignmentsFile = convertAlignments(secondaryAlignmentsFile, cactusDisk);
+        secondaryAlignmentsFile = convertAlignments(secondaryAlignmentsFile, flower);
     }
     if(constraintAlignmentsFile != NULL) {
-        constraintAlignmentsFile = convertAlignments(constraintAlignmentsFile, cactusDisk);
+        constraintAlignmentsFile = convertAlignments(constraintAlignmentsFile, flower);
     }
     st_logInfo("Converted alignment coordinates, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
@@ -421,7 +407,8 @@ int main(int argc, char *argv[]) {
         st_system("rm %s", constraintAlignmentsFile);
     }
     cactusDisk_destruct(cactusDisk);
-    stKVDatabaseConf_destruct(kvDatabaseConf);
+
+    st_logInfo("Cactus consolidated is done!, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     //while(1);
     //assert(0);

@@ -12,7 +12,7 @@
 /*
  * Converts input alignments coordinates into coordinates used by cactus.
  */
-void convertAlignmentCoordinates(char *inputAlignmentFile, char *outputAlignmentFile, CactusDisk *cactusDisk);
+void convertAlignmentCoordinates(char *inputAlignmentFile, char *outputAlignmentFile, Flower *flower);
 
 /*
  * Strips unnecessary cruft from sequence IDs

@@ -553,7 +553,7 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf, bool crea
     }
 
     //Now open the database
-    cactusDisk->database = stKVDatabase_construct(conf, create);
+    //cactusDisk->database = stKVDatabase_construct(conf, create);
     if (cache) {
         // 10MB for general DB responses
         cactusDisk->cache = stCache_construct2(10000000);
@@ -569,7 +569,7 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf, bool crea
     cactusDisk->maxUniqueNumber = 0;
 
     //Now load any stuff..
-    if (containsRecord(cactusDisk, CACTUS_DISK_PARAMETER_KEY)) {
+    /*if (containsRecord(cactusDisk, CACTUS_DISK_PARAMETER_KEY)) {
         if (create) {
             stThrowNew(CACTUS_DISK_EXCEPTION_ID, "Tried to create a cactus disk, but the cactus disk already exists");
         }
@@ -579,7 +579,7 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf, bool crea
         free(record2);
     } else {
         assert(create);
-    }
+    }*/
 
     return cactusDisk;
 }
@@ -609,7 +609,7 @@ void cactusDisk_destruct(CactusDisk *cactusDisk) {
     stSortedSet_destruct(cactusDisk->sequences);
 
     //close DB
-    stKVDatabase_destruct(cactusDisk->database);
+    //stKVDatabase_destruct(cactusDisk->database);
 
     if (cactusDisk->cache != NULL) {
         stCache_destruct(cactusDisk->cache);
@@ -801,6 +801,8 @@ Flower *cactusDisk_getFlower(CactusDisk *cactusDisk, Name flowerName) {
     if ((flower2 = stSortedSet_search(cactusDisk->flowers, &flower)) != NULL) {
         return flower2;
     }
+    return NULL;
+
     void *cA = getRecord(cactusDisk, flowerName, "flower", NULL);
 
     if (cA == NULL) {
