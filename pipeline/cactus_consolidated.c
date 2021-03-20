@@ -127,6 +127,8 @@ int main(int argc, char *argv[]) {
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
     ///////////////////////////////////////////////////////////////////////////
 
+    //sleep(10);
+
     if(argc <= 1) {
         usage();
         return 0;

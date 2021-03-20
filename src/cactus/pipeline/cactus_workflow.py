@@ -623,18 +623,18 @@ def updateExpWrapperForOutgroups(job, expWrapper, outgroupGenomes, outgroupFragm
 ############################################################
 ############################################################
 
+#class CactusConsolidated1(CactusPhasesJob):
+#    """Start a new DB, run the CactusConsolidated."""
+#    def run(self, fileStore):
+#        job = CactusConsolidated2(cactusWorkflowArguments=self.cactusWorkflowArguments,
+#                             phaseName="consolidated2", topFlowerName=self.topFlowerName)
+#        startDBJob = StartPrimaryDB(job, #dbServerDump=self.dbServerDump,
+#                                    cactusWorkflowArguments=self.cactusWorkflowArguments,
+#                                    phaseName="consolidated2", topFlowerName=self.topFlowerName)
+#
+#        return self.addChild(startDBJob).rv()
+
 class CactusConsolidated1(CactusPhasesJob):
-    """Start a new DB, run the CactusConsolidated."""
-    def run(self, fileStore):
-        job = CactusConsolidated2(cactusWorkflowArguments=self.cactusWorkflowArguments,
-                             phaseName="consolidated2", topFlowerName=self.topFlowerName)
-        startDBJob = StartPrimaryDB(job, #dbServerDump=self.dbServerDump,
-                                    cactusWorkflowArguments=self.cactusWorkflowArguments,
-                                    phaseName="consolidated2", topFlowerName=self.topFlowerName)
-
-        return self.addChild(startDBJob).rv()
-
-class CactusConsolidated2(CactusPhasesJob):
     """Start the secondary DB."""
     def run(self, fileStore):
         # Get the experiment object
