@@ -44,9 +44,9 @@ Link *link_getNextLink(Link *link) {
     return link->nLink;
 }
 
-Link *link_getPreviousLink(Link *link) {
+/*Link *link_getPreviousLink(Link *link) {
     return link->pLink;
-}
+}*/
 
 Group *link_getGroup(Link *link) {
     return link->group;
@@ -79,16 +79,16 @@ void link_destruct(Link *link) {
         free(link3);
         i++;
     }
-    Chain *chain = link_getChain(link);
-    chain->linkNumber -= i;
-    assert(chain->linkNumber >= 0);
-    if (link->pLink == NULL) {
+    //Chain *chain = link_getChain(link);
+    //chain->linkNumber -= i;
+    //assert(chain->linkNumber >= 0);
+    /*if (link->pLink == NULL) {
         chain->link = NULL;
         chain->endLink = NULL;
     } else {
         link->pLink->nLink = NULL;
         chain->endLink = link->pLink;
-    }
+    }*/
     free(link);
 }
 
@@ -125,7 +125,7 @@ void link_split(Link *link) {
         listAppend(list2, link_get5End(link2));
         link2 = link_getNextLink(link2);
     }
-    assert(list1->length + list2->length + 2 == chain_getLength(chain) * 2);
+    //assert(list1->length + list2->length + 2 == chain_getLength(chain) * 2);
     Flower *flower = chain_getFlower(chain);
     chain_destruct(chain);
     link_splitP(list1, flower);
@@ -191,7 +191,7 @@ bool link_mergeIfTrivial(Link *link) {
         CactusDisk *cactusDisk = flower_getCactusDisk(flower);
 
         //First eliminate the link
-        if (link->pLink != NULL) {
+        /*(if (link->pLink != NULL) {
             link->pLink->nLink = link->nLink;
         }
         if (link->nLink != NULL) {
@@ -202,10 +202,10 @@ bool link_mergeIfTrivial(Link *link) {
         }
         if(chain->endLink == link) {
             chain->endLink = link->pLink;
-        }
-        chain->linkNumber--;
+        }*/
+        //chain->linkNumber--;
         free(link); //We do our own destruction of the object..
-        assert(chain_getLength(chain) >= 0);
+        assert(chain->link != NULL); //chain_getLength(chain) >= 0);
 
         //Get rid of the block ends by making a new block..
 

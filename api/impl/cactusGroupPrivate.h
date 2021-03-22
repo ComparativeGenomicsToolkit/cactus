@@ -11,11 +11,11 @@
 
 struct _group {
 	Flower *flower;
-	Link *link;
+	Link *link; // this becomes next link in the chain
 	Name name;
 	//stSortedSet *ends;
-	End *firstEnd;
-	bool leafGroup;
+	End *firstEnd; // If a link, this becomes the 5end and the second is the 3end in the chain
+	bool leafGroup; // this becomes an array of bools  including a flag indicating if it's a link
 };
 
 struct _group_endIterator {

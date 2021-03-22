@@ -25,7 +25,7 @@ Chain *chain_construct2(Name name, Flower *flower) {
     chain->flower = flower;
     chain->link = NULL;
     chain->endLink = NULL;
-    chain->linkNumber = 0;
+    //chain->linkNumber = 0;
     flower_addChain(flower, chain);
     return chain;
 }
@@ -46,44 +46,9 @@ Link *chain_getLast(Chain *chain) {
     return chain->endLink;
 }
 
-int64_t chain_getLength(Chain *chain) {
-    return chain->linkNumber;
-}
-
-Block **chain_getBlockChain(Chain *chain, int64_t *blockNumber) {
-    int64_t i;
-    End *end;
-    Block *block;
-    bool circular = 0;
-    struct List *blocks = constructEmptyList(0, NULL);
-    Link *link = chain_getFirst(chain);
-    while(link != NULL) {
-        end = link_get3End(link);
-        block = end_getBlock(end);
-        if (block != NULL) {
-            assert(block_getOrientation(block));
-            listAppend(blocks, block);
-            if(chain_getLength(chain) == 1 && link_get5End(link) == end_getOtherBlockEnd(end)) {
-                circular = 1;
-            }
-        }
-        link = link_getNextLink(link);
-    }
-    link = chain_getLast(chain);
-    if (link != NULL && !circular) {
-        end = link_get5End(link);
-        block = end_getBlock(end);
-        if (block != NULL) {
-            assert(block_getOrientation(block));
-            listAppend(blocks, block);
-        }
-    }
-    i = sizeof(void *) * blocks->length;
-    Block **blockChain = memcpy(st_malloc(i), blocks->list, i);
-    *blockNumber = blocks->length;
-    destructList(blocks);
-    return blockChain;
-}
+//int64_t chain_getLength(Chain *chain) {
+//    return chain->linkNumber;
+//}
 
 Name chain_getName(Chain *chain) {
     return chain->name;
@@ -93,36 +58,17 @@ Flower *chain_getFlower(Chain *chain) {
     return chain->flower;
 }
 
-double chain_getAverageInstanceBaseLength(Chain *chain) {
-    Block **blocks;
-    int64_t i, j;
-    double k = 0.0;
-    blocks = chain_getBlockChain(chain, &i);
-    for (j = 0; j < i; j++) {
-        k += block_getLength(blocks[j]);
-    }
-    free(blocks);
-    Link *link = chain_getFirst(chain);
-    while(link != NULL) {
-        Flower *nestedFlower = group_getNestedFlower(link_getGroup(link));
-        if (nestedFlower != NULL) {
-            k += (flower_getTotalBaseLength(nestedFlower) / flower_getSequenceNumber(
-                    nestedFlower));
-        }
-        link = link_getNextLink(link);
-    }
-    return k;
-}
+
 
 bool chain_isCircular(Chain *chain) {
-    assert(chain_getLength(chain) > 0);
+    assert(chain->link != NULL); //chain_getLength(chain) > 0);
     End *_3End = link_get3End(chain_getFirst(chain));
     End *_5End = link_get5End(chain_getLast(chain));
     return end_isBlockEnd(_3End) && end_getOtherBlockEnd(_3End) == _5End;
 }
 
 void chain_check(Chain *chain) {
-    cactusCheck(chain_getLength(chain) > 0);
+    cactusCheck(chain->link != NULL); // chain_getLength(chain) > 0);
     Link *link = chain_getFirst(chain), *pLink = NULL;
     while(link != NULL) {
         //That each link is properly contained in the chain.
@@ -181,24 +127,22 @@ void chain_check(Chain *chain) {
  */
 
 void chain_addLink(Chain *chain, Link *childLink) {
-    Link *pLink;
-    assert(chain->linkNumber >= 0);
-    if (chain->linkNumber != 0) {
-        pLink = chain_getLast(chain);
-        assert(pLink != NULL);
+    Link *pLink = chain_getLast(chain);
+    //assert(chain->linkNumber >= 0);
+    if (pLink != NULL) {
         pLink->nLink = childLink;
-        childLink->pLink = pLink;
+        //childLink->pLink = pLink;
         assert(link_get5End(pLink) != link_get3End(childLink));
         assert(end_getBlock(link_get5End(pLink)) != NULL);
         assert(end_getBlock(link_get3End(childLink)) != NULL);
         assert(end_getBlock(link_get5End(pLink)) == end_getBlock(link_get3End(childLink)));
     } else {
-        childLink->pLink = NULL;
+        //childLink->pLink = NULL;
         chain->link = childLink;
     }
     childLink->nLink = NULL;
     chain->endLink = childLink;
-    chain->linkNumber++;
+    //chain->linkNumber++;
 }
 
 void chain_setFlower(Chain *chain, Flower *flower) {
@@ -219,8 +163,8 @@ void chain_joinP(Chain *chain, stList *list) {
 
 void chain_join(Chain *_5Chain, Chain *_3Chain) {
 #ifndef NDEBUG
-    assert(chain_getLength(_5Chain) > 0);
-    assert(chain_getLength(_3Chain) > 0);
+    assert(_5Chain->link != NULL); //chain_getLength(_5Chain) > 0);
+    assert(_3Chain->link != NULL); //chain_getLength(_3Chain) > 0);
     Link *_5Link = chain_getLast(_5Chain);
     Link *_3Link = chain_getFirst(_3Chain);
     End *_5End = link_get5End(_5Link);
@@ -249,6 +193,10 @@ void chain_join(Chain *_5Chain, Chain *_3Chain) {
     }
     stList_destruct(list);
 }
+
+/*
+ * Stuff to delete
+ */
 
 /*
  * Serialisation functions.
@@ -281,4 +229,62 @@ Chain *chain_loadFromBinaryRepresentation(void **binaryString, Flower *flower) {
         binaryRepresentation_popNextElementType(binaryString);
     }
     return chain;
+}
+
+
+double chain_getAverageInstanceBaseLength(Chain *chain) {
+    assert(0);
+    Block **blocks;
+    int64_t i, j;
+    double k = 0.0;
+    blocks = chain_getBlockChain(chain, &i);
+    for (j = 0; j < i; j++) {
+        k += block_getLength(blocks[j]);
+    }
+    free(blocks);
+    Link *link = chain_getFirst(chain);
+    while(link != NULL) {
+        Flower *nestedFlower = group_getNestedFlower(link_getGroup(link));
+        if (nestedFlower != NULL) {
+            k += (flower_getTotalBaseLength(nestedFlower) / flower_getSequenceNumber(
+                    nestedFlower));
+        }
+        link = link_getNextLink(link);
+    }
+    return k;
+}
+
+Block **chain_getBlockChain(Chain *chain, int64_t *blockNumber) {
+    int64_t i;
+    End *end;
+    Block *block;
+    bool circular = 0;
+    struct List *blocks = constructEmptyList(0, NULL);
+    Link *link = chain_getFirst(chain);
+    while(link != NULL) {
+        end = link_get3End(link);
+        block = end_getBlock(end);
+        if (block != NULL) {
+            assert(block_getOrientation(block));
+            listAppend(blocks, block);
+            //if(chain_getLength(chain) == 1 && link_get5End(link) == end_getOtherBlockEnd(end)) {
+            //    circular = 1;
+            //}
+        }
+        link = link_getNextLink(link);
+    }
+    link = chain_getLast(chain);
+    if (link != NULL && !circular) {
+        end = link_get5End(link);
+        block = end_getBlock(end);
+        if (block != NULL) {
+            assert(block_getOrientation(block));
+            listAppend(blocks, block);
+        }
+    }
+    i = sizeof(void *) * blocks->length;
+    Block **blockChain = memcpy(st_malloc(i), blocks->list, i);
+    *blockNumber = blocks->length;
+    destructList(blocks);
+    return blockChain;
 }

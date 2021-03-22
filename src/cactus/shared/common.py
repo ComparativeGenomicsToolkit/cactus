@@ -247,7 +247,6 @@ def runCactusConsolidated(seqMap, newickTreeString, cactusParams,
                           logLevel=None, outgroupEvents=None, referenceEvent=None):
     logLevel = getLogLevelString2(logLevel)
 
-    """
     ## Hacks to allow running locally
     fileNo=0
     import shutil
@@ -270,7 +269,6 @@ def runCactusConsolidated(seqMap, newickTreeString, cactusParams,
     outputHalFastaFile="/Users/benedictpaten/CLionProjects/cactus/tempExperiment/output.hal"
     outputReferenceFile="/Users/benedictpaten/CLionProjects/cactus/tempExperiment/output.ref"
     ## End hacks to allow running locally
-    """
 
     # We pass in the genome->sequence map as a series of paired arguments: [genome, faPath]*N.
     pairs = [[genome, faPath] for genome, faPath in list(seqMap.items())]

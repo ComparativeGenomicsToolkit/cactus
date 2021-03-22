@@ -13,8 +13,8 @@ struct _chain {
 	Name name;
 	Flower *flower;
 	Link *link;
-	Link *endLink;
-	int64_t linkNumber;
+	Link *endLink; // Could be removed if we build back to front
+	//int64_t linkNumber; // can easily be removed
 	//int64_t chainIndex;
 };
 

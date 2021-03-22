@@ -70,7 +70,7 @@ static void checkChainsAreMaximal(Flower *flower) {
                 if (link != NULL) { //then the flower must be a terminal flower and the link is a copy of the one in the parent..
                     Chain *chain = link_getChain(link);
                     cactusCheck(flower_isLeaf(flower));
-                    cactusCheck(chain_getLength(chain) == 1);
+                    cactusCheck(chain->link != NULL && chain->link->nLink != NULL); //chain_getLength(chain) == 1);
                 }
             }
         }

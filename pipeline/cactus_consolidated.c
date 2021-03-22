@@ -28,7 +28,6 @@
  * cleanup the API - remove binary functions, etc.
  * remove all the unnecessary binaries
  * make the tests pass!
- *
  */
 
 void usage() {

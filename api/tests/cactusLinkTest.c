@@ -35,12 +35,12 @@ void testLink_getNextLink(CuTest* testCase) {
     cactusLinkTestTeardown(testCase);
 }
 
-void testLink_getPreviousLink(CuTest* testCase) {
+/*void testLink_getPreviousLink(CuTest* testCase) {
     cactusLinkTestSetup(testCase);
     CuAssertTrue(testCase, link_getPreviousLink(link2) == link1);
     CuAssertTrue(testCase, link_getPreviousLink(link1) == NULL);
     cactusLinkTestTeardown(testCase);
-}
+}*/
 
 void testLink_getGroup(CuTest* testCase) {
     cactusLinkTestSetup(testCase);
@@ -73,7 +73,7 @@ void testLink_getChain(CuTest* testCase) {
 void testLink_split(CuTest *testCase) {
     cactusLinkTestSetup(testCase);
     CuAssertTrue(testCase, flower_getChainNumber(flower) == 3);
-    CuAssertTrue(testCase, chain_getLength(chain) == 2);
+    //CuAssertTrue(testCase, chain_getLength(chain) == 2);
     CuAssertTrue(testCase, group_getLink(group1) == link1);
     link_split(link1);
     CuAssertTrue(testCase, group_getLink(group1) == NULL);
@@ -83,7 +83,7 @@ void testLink_split(CuTest *testCase) {
     while((chain = flower_getNextChain(chainIt)) != NULL && (chain == chain2 || chain == chain3));
     flower_destructChainIterator(chainIt);
     assert(chain != NULL);
-    CuAssertTrue(testCase, chain_getLength(chain) == 1);
+    //CuAssertTrue(testCase, chain_getLength(chain) == 1);
     Link *link3 = chain_getFirst(chain);
     CuAssertTrue(testCase, link_get3End(link3) == block_get3End(block));
     CuAssertTrue(testCase, link_get5End(link3) == end2);
@@ -110,7 +110,7 @@ void testLink_serialisation(CuTest* testCase) {
     link2 = link_loadFromBinaryRepresentation(&vA2, chain);
     nestedTest = 1;
     testLink_getNextLink(testCase);
-    testLink_getPreviousLink(testCase);
+    //testLink_getPreviousLink(testCase);
     testLink_getGroup(testCase);
     testLink_getLeft(testCase);
     testLink_getRight(testCase);
@@ -135,7 +135,7 @@ void testLink_mergeIfTrivial(CuTest *testCase) {
     CuAssertTrue(testCase, !link_mergeIfTrivial(link2));
     //CuAssertTrue(testCase, !link_mergeIfTrivial(link5));
 
-    CuAssertTrue(testCase, chain_getLength(chain2) == 1);
+    //CuAssertTrue(testCase, chain_getLength(chain2) == 1);
     CuAssertTrue(testCase, flower_getBlockNumber(flower) == 4);
     CuAssertTrue(testCase, flower_getBlockEndNumber(flower) == 8);
     CuAssertTrue(testCase, flower_getStubEndNumber(flower) == 2);
@@ -145,7 +145,7 @@ void testLink_mergeIfTrivial(CuTest *testCase) {
 
     CuAssertTrue(testCase, link_mergeIfTrivial(link4));
 
-    CuAssertTrue(testCase, chain_getLength(chain2) == 0);
+    //CuAssertTrue(testCase, chain_getLength(chain2) == 0);
     CuAssertTrue(testCase, flower_getBlockNumber(flower) == 3);
     CuAssertTrue(testCase, flower_getBlockEndNumber(flower) == 6);
     CuAssertTrue(testCase, flower_getStubEndNumber(flower) == 2);
@@ -169,7 +169,7 @@ void testLink_mergeIfTrivial(CuTest *testCase) {
 CuSuite* cactusLinkTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, testLink_getNextLink);
-    SUITE_ADD_TEST(suite, testLink_getPreviousLink);
+    //SUITE_ADD_TEST(suite, testLink_getPreviousLink);
     SUITE_ADD_TEST(suite, testLink_getGroup);
     SUITE_ADD_TEST(suite, testLink_getLeft);
     SUITE_ADD_TEST(suite, testLink_getRight);

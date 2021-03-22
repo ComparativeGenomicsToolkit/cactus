@@ -40,7 +40,7 @@ Link *chain_getLast(Chain *chain);
 /*
  * Returns the number of links in the chain.
  */
-int64_t chain_getLength(Chain *chain);
+//int64_t chain_getLength(Chain *chain);
 
 /*
  * Get a list of the blocks, in order, in the chain. Block number is initialised with the
