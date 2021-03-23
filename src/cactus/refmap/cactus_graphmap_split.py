@@ -150,7 +150,7 @@ def runCactusGraphMapSplit(options):
                                                  paf_id, options.graphmapPAF, ref_contigs, options.otherContig))
 
         #export the split data
-        export_split_data(toil, seqIDMap, wf_output[0], wf_output[1:], options.outDir, config)
+        export_split_data(toil, wf_output[0], wf_output[1], wf_output[2:], options.outDir, config)
 
 def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, paf_id, paf_path, ref_contigs, other_contig):
 
@@ -204,7 +204,7 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
                                                                  gather_fallback_fas_job.rv())
 
     # return all the files, as well as the 2 split logs
-    return (combine_split_job.rv(), split_gfa_job.rv(1), split_fallback_gfa_job.rv(1))
+    return (seqIDMap, combine_split_job.rv(), split_gfa_job.rv(1), split_fallback_gfa_job.rv(1))
 
 def get_mask_bed(job, seq_id_map, min_length):
     """ make a bed file from the fastas """
