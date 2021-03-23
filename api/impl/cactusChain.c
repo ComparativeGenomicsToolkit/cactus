@@ -32,9 +32,9 @@ Chain *chain_construct2(Name name, Flower *flower) {
 
 void chain_destruct(Chain *chain) {
     flower_removeChain(chain_getFlower(chain), chain);
-    if (chain->link != NULL) {
-        link_destruct(chain->link);
-    }
+    //if (chain->link != NULL) {
+    //    link_destruct(chain->link);
+    //}
     free(chain);
 }
 

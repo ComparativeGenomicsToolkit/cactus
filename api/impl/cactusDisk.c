@@ -419,7 +419,7 @@ static void cactusDisk_writeBinaryRepresentation(CactusDisk *cactusDisk,
     binaryRepresentation_writeElementType(CODE_CACTUS_DISK, writeFn);
 }
 
-static void cactusDisk_loadFromBinaryRepresentation(void **binaryString, CactusDisk *cactusDisk, stKVDatabaseConf *conf) {
+void cactusDisk_loadFromBinaryRepresentation(void **binaryString, CactusDisk *cactusDisk, stKVDatabaseConf *conf) {
     assert(binaryRepresentation_peekNextElementType(*binaryString) == CODE_CACTUS_DISK);
     binaryRepresentation_popNextElementType(binaryString);
     cactusDisk->eventTree = eventTree_loadFromBinaryRepresentation(binaryString, cactusDisk);

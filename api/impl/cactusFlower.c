@@ -104,10 +104,11 @@ void flower_destruct(Flower *flower, int64_t recursive) {
     }
     stList_destruct(flower->sequences);
 
-    while ((chain = flower_getFirstChain(flower)) != NULL) {
-        chain_destruct(chain);
+    while ((group = flower_getFirstGroup(flower)) != NULL) {
+        assert(group_getFlower(group) == flower);
+        group_destruct(group);
     }
-    stList_destruct(flower->chains);
+    stList_destruct(flower->groups);
 
     // This cleans up the ends, blocks, caps and segments contained in the flower
     while ((end = flower_getFirstEnd(flower)) != NULL) {
@@ -116,10 +117,10 @@ void flower_destruct(Flower *flower, int64_t recursive) {
     stList_destruct(flower->caps);
     stList_destruct(flower->ends);
 
-    while ((group = flower_getFirstGroup(flower)) != NULL) {
-        group_destruct(group);
+    while ((chain = flower_getFirstChain(flower)) != NULL) {
+        chain_destruct(chain);
     }
-    stList_destruct(flower->groups);
+    stList_destruct(flower->chains);
 
     free(flower);
 }
@@ -625,7 +626,7 @@ void flower_delete2(Flower *flower, bool isOnDisk) {
     flower_destructGroupIterator(groupIt);
     Group *parentGroup = flower_getParentGroup(flower);
     if(parentGroup != NULL) {
-        parentGroup->leafGroup = 1;
+        group_setLeaf(parentGroup, 1);
     }
     //This needs modification so that we don't do this directly..
     if(isOnDisk) {
@@ -707,6 +708,7 @@ void flower_unloadParent(Flower *flower) {
  */
 
 static void removeFromFlower(stList *l, void *item) {
+    assert(stList_length(l) > 0);
     if(stList_peek(l) == l) {
         stList_pop(l);
     }

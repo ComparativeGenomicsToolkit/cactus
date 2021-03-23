@@ -9,7 +9,7 @@
 
 #include "cactusGlobals.h"
 
-struct _link { // Link could become type of group, making link structs unnecessary
+/*struct _link { // Link could become type of group, making link structs unnecessary
     End *_3End;
     End *_5End;
     Chain *chain;
@@ -18,7 +18,7 @@ struct _link { // Link could become type of group, making link structs unnecessa
     //Link *pLink; // Could easily be removed (remove this first)
     //next link in the chain.
     Link *nLink;
-};
+};*/
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////

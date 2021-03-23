@@ -10,12 +10,15 @@
 #include "cactusGlobals.h"
 
 struct _group {
-	Flower *flower;
-	Link *link; // this becomes next link in the chain
+    void *flowerOrChain;
+	//Flower *flower;
+	//Link *link; // this becomes next link in the chain
+	Link *nLink;
 	Name name;
 	//stSortedSet *ends;
 	End *firstEnd; // If a link, this becomes the 5end and the second is the 3end in the chain
-	bool leafGroup; // this becomes an array of bools  including a flag indicating if it's a link
+	//bool leafGroup; // this becomes an array of bools  including a flag indicating if it's a link
+    char bits; // 0 bit: is leaf, 1 bit: is link
 };
 
 struct _group_endIterator {
@@ -47,7 +50,7 @@ void group_updateContainedEnds(Group *group);
 /*
  * Sets the link the group is part of.
  */
-void group_setLink(Group *group, Link *link);
+//void group_setLink(Group *group, Link *link);
 
 /*
  * Removes the end from the group.
@@ -73,5 +76,15 @@ void group_setFlower(Group *group, Flower *flower);
  * Adds an end to the group (the public function is end_setGroup).
  */
 void group_addEnd(Group *group, End *end);
+
+/*
+ * Set as a leaf group
+ */
+void group_setLeaf(Group *group, bool isLeaf);
+
+/*
+ * Set the group as a link
+ */
+void group_setLink(Group *group, bool isLink);
 
 #endif

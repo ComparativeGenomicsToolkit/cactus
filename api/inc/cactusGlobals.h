@@ -38,7 +38,7 @@ typedef struct _cap Cap;
 typedef struct _cap Segment;
 typedef struct _end Block;
 typedef struct _group Group;
-typedef struct _link Link;
+typedef struct _group Link;
 typedef struct _chain Chain;
 typedef struct _face Face;
 typedef struct _faceEnd FaceEnd;

@@ -15,122 +15,75 @@
 ////////////////////////////////////////////////
 
 Link *link_construct(End *_3End, End *_5End, Group *group, Chain *parentChain) {
-    Link *link;
-    link = st_malloc(sizeof(Link));
+    assert(!group_isLink(group));
+    assert(chain_getFlower(parentChain) == group_getFlower(group));
 
+    // Orient the ends in the link
     _3End = end_getPositiveOrientation(_3End);
     _5End = end_getPositiveOrientation(_5End);
     assert(_3End != _5End);
 
-    link->_3End = _3End;
-    link->_5End = _5End;
-    link->chain = parentChain;
-    link->group = group;
+    // Get a list of the ends in the group excluding the 5' and 3' ends of the link
+    stList *extraEnds = stList_construct();
+    Group_EndIterator *endIt = group_getEndIterator(group);
+    End *end;
+    while((end = group_getNextEnd(endIt)) != NULL) {
+        end = end_getPositiveOrientation(end);
+        if(end != _3End && end != _5End) {
+            stList_append(extraEnds, end);
+        }
+    }
+    group_destructEndIterator(endIt);
 
-    //Checks.
-    assert(group_getEnd(group, end_getName(_3End)) == _3End);
-    assert(group_getEnd(group, end_getName(_5End)) == _5End);
-    //The following ensure that our chain is oriented along an (arbitrary) but consistent direction.
-    assert(end_getSide(_3End) != end_getSide(_5End));
-    assert(!end_getSide(_3End));
-    assert(end_getSide(_5End));
+    // Order the ends in the group so that the 5' and 3' ends are the first
+    // and second, respectively, ends in the list
+    group->firstEnd = NULL;
+    while(stList_length(extraEnds) > 0) {
+        group_addEnd(group, stList_pop(extraEnds));
+    }
+    group_addEnd(group, _3End);
+    group_addEnd(group, _5End);
+    stList_destruct(extraEnds);
 
-    chain_addLink(parentChain, link); //will set the link indices.
-    group_setLink(group, link);
-    return link;
+    // Finally set as a link
+    group_setLink(group, 1);
+    assert(group_isLink(group));
+    group->flowerOrChain = parentChain; // Now set the pointer to the chain
+    chain_addLink(parentChain, group); //will set the link indices.
+
+    // Doe some checks
+    assert(link_get5End(group) == _5End);
+    assert(link_get3End(group) == _3End);
+    assert(link_getGroup(group) == group);
+    assert(link_getChain(group) == parentChain);
+    assert(group_getFlower(group) == chain_getFlower(parentChain));
+
+    return group;
 }
 
 Link *link_getNextLink(Link *link) {
     return link->nLink;
 }
 
-/*Link *link_getPreviousLink(Link *link) {
-    return link->pLink;
-}*/
-
 Group *link_getGroup(Link *link) {
-    return link->group;
+    return link; //link->group;
 }
 
 End *link_get3End(Link *link) {
-    return link->_3End;
+    return *getNextEndPointer(link->firstEnd); //link->_3End;
 }
 
 End *link_get5End(Link *link) {
-    return link->_5End;
+    return link->firstEnd; //_5End;
 }
 
 Chain *link_getChain(Link *link) {
-    return link->chain;
+    return link->flowerOrChain; //link->chain;
 }
 
 /*
  * Private functions.
  */
-
-void link_destruct(Link *link) {
-	group_setLink(link_getGroup(link), NULL);
-    int64_t i = 1;
-    Link *link2 = link->nLink;
-    while (link2 != NULL) {
-        group_setLink(link_getGroup(link2), NULL);
-        Link *link3 = link2;
-        link2 = link2->nLink;
-        free(link3);
-        i++;
-    }
-    //Chain *chain = link_getChain(link);
-    //chain->linkNumber -= i;
-    //assert(chain->linkNumber >= 0);
-    /*if (link->pLink == NULL) {
-        chain->link = NULL;
-        chain->endLink = NULL;
-    } else {
-        link->pLink->nLink = NULL;
-        chain->endLink = link->pLink;
-    }*/
-    free(link);
-}
-
-static void link_splitP(struct List *list, Flower *flower) {
-    if (list->length > 0) {
-        Chain *chain = chain_construct(flower);
-        int64_t i;
-        assert(list->length % 2 == 0);
-        for (i = 0; i < list->length; i += 2) {
-            link_construct(list->list[i], list->list[i + 1], end_getGroup(
-                    list->list[i]), chain);
-        }
-    }
-    destructList(list);
-}
-
-void link_split(Link *link) {
-    Chain *chain = link_getChain(link);
-    struct List *list1 = constructEmptyList(0, NULL), *list2 =
-            constructEmptyList(0, NULL);
-    Link *link2 = chain_getFirst(chain);
-    while (link2 != NULL) {
-        if (link2 == link) {
-            link2 = link_getNextLink(link2);
-            break;
-        }
-        listAppend(list1, link_get3End(link2));
-        listAppend(list1, link_get5End(link2));
-        link2 = link_getNextLink(link2);
-    }
-    while (link2 != NULL) {
-        assert(link2 != link);
-        listAppend(list2, link_get3End(link2));
-        listAppend(list2, link_get5End(link2));
-        link2 = link_getNextLink(link2);
-    }
-    //assert(list1->length + list2->length + 2 == chain_getLength(chain) * 2);
-    Flower *flower = chain_getFlower(chain);
-    chain_destruct(chain);
-    link_splitP(list1, flower);
-    link_splitP(list2, flower);
-}
 
 bool link_isTrivialP(End *_3End, End *_5End) {
     Cap *_3Cap;
@@ -165,11 +118,83 @@ bool link_isTrivial(Link *link) {
         if (end_isBlockEnd(_3End) && end_isBlockEnd(_5End)) { //Must both be block ends
             if (end_getInstanceNumber(_3End) == end_getInstanceNumber(_5End)) { //Must each be connected to other.
                 return link_isTrivialP(_3End, _5End) && link_isTrivialP(_5End,
-                        _3End);
+                                                                        _3End);
             }
         }
     }
     return 0;
+}
+
+/*
+ * Functions to remove
+ */
+
+void link_destruct(Link *link) {
+    assert(0);
+	//group_setLink(link_getGroup(link), NULL);
+    int64_t i = 1;
+    Link *link2 = link->nLink;
+    while (link2 != NULL) {
+        //group_setLink(link_getGroup(link2), NULL);
+        Link *link3 = link2;
+        link2 = link2->nLink;
+        free(link3);
+        i++;
+    }
+    //Chain *chain = link_getChain(link);
+    //chain->linkNumber -= i;
+    //assert(chain->linkNumber >= 0);
+    /*if (link->pLink == NULL) {
+        chain->link = NULL;
+        chain->endLink = NULL;
+    } else {
+        link->pLink->nLink = NULL;
+        chain->endLink = link->pLink;
+    }*/
+    free(link);
+}
+
+void link_splitP(struct List *list, Flower *flower) {
+    assert(0);
+    if (list->length > 0) {
+        Chain *chain = chain_construct(flower);
+        int64_t i;
+        assert(list->length % 2 == 0);
+        for (i = 0; i < list->length; i += 2) {
+            link_construct(list->list[i], list->list[i + 1], end_getGroup(
+                    list->list[i]), chain);
+        }
+    }
+    destructList(list);
+}
+
+void link_split(Link *link) {
+    assert(0);
+    /*
+    Chain *chain = link_getChain(link);
+    struct List *list1 = constructEmptyList(0, NULL), *list2 =
+            constructEmptyList(0, NULL);
+    Link *link2 = chain_getFirst(chain);
+    while (link2 != NULL) {
+        if (link2 == link) {
+            link2 = link_getNextLink(link2);
+            break;
+        }
+        listAppend(list1, link_get3End(link2));
+        listAppend(list1, link_get5End(link2));
+        link2 = link_getNextLink(link2);
+    }
+    while (link2 != NULL) {
+        assert(link2 != link);
+        listAppend(list2, link_get3End(link2));
+        listAppend(list2, link_get5End(link2));
+        link2 = link_getNextLink(link2);
+    }
+    //assert(list1->length + list2->length + 2 == chain_getLength(chain) * 2);
+    Flower *flower = chain_getFlower(chain);
+    chain_destruct(chain);
+    link_splitP(list1, flower);
+    link_splitP(list2, flower);*/
 }
 
 bool link_mergeIfTrivial(Link *link) {

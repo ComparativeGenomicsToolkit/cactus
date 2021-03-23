@@ -14,16 +14,48 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-int group_constructP(const void *o1, const void *o2) {
-    return cactusMisc_nameCompare(end_getName((End *) o1), end_getName((End *) o2));
+static void group_setBit(Group *group, int bit, bool value) {
+    group->bits &= ~(1UL << bit); // first clear the existing value
+    if(value) {
+        group->bits |= 1UL << bit;// now set the new value
+    }
+}
+
+static bool group_getBit(Group *group, int bit) {
+    return (group->bits >> bit) & 1;
+}
+
+bool group_isLeaf(Group *group) {
+    return group_getBit(group, 0);
+}
+
+void group_setLeaf(Group *group, bool isLeaf) {
+    group_setBit(group, 0, isLeaf);
+}
+
+bool group_isLink(Group *group) {
+    return group_getBit(group, 1);
+}
+
+void group_setLink(Group *group, bool isLink) {
+    group_setBit(group, 1, isLink);
 }
 
 Group *group_construct(Flower *flower, Flower *nestedFlower) {
-    Group *group;
+    Group *group = group_construct4(flower, flower_getName(nestedFlower), 0);
 
-    group = group_construct4(flower, flower_getName(nestedFlower), 0);
-    group_updateContainedEnds(group);
+    // Get the ends that are in the nested flower and add them to this group
+    Flower_EndIterator *iterator = flower_getEndIterator(group_getNestedFlower(group));
+    End *end, *end2;
+    while ((end = flower_getNextEnd(iterator)) != NULL) {
+        if ((end2 = flower_getEnd(flower, end_getName(end))) != NULL) {
+            end_setGroup(end2, group);
+        }
+    }
+    flower_destructEndIterator(iterator);
+
     flower_setParentGroup(nestedFlower, group);
+
     return group;
 }
 
@@ -35,11 +67,10 @@ Group *group_construct2(Flower *flower) {
     return group_construct3(flower, cactusDisk_getUniqueID(flower_getCactusDisk(flower)));
 }
 
-bool group_isLeaf(Group *group) {
-    return group->leafGroup;
-}
-
 static void copyAdjacencies(Group *group, Flower *nestedFlower) {
+    /*
+     * Copies of the adjacencies from the caps in the ends in the group to the nested flower.
+     */
     assert(flower_getParentGroup(nestedFlower) == group);
     Group_EndIterator *endIterator = group_getEndIterator(group);
     End *end;
@@ -73,7 +104,7 @@ static void copyAdjacencies(Group *group, Flower *nestedFlower) {
 
 Flower *group_makeEmptyNestedFlower(Group *group) {
     assert(group_isLeaf(group));
-    group->leafGroup = 0;
+    group_setLeaf(group, 0);
     Flower *nestedFlower = flower_construct2(group_getName(group), flower_getCactusDisk(group_getFlower(group)));
     flower_setParentGroup(nestedFlower, group);
     return nestedFlower;
@@ -98,30 +129,7 @@ Flower *group_makeNestedFlower(Group *group) {
     return nestedFlower;
 }
 
-void group_updateContainedEnds(Group *group) {
-    assert(!group_isLeaf(group));
-    Flower *flower;
-    Flower_EndIterator *iterator;
-    End *end;
-    End *end2;
-    //wipe the slate clean.
-    while (group_getEndNumber(group) != 0) {
-        end_setGroup(group_getFirstEnd(group), NULL);
-    }
-    group->firstEnd = NULL;
-
-    //now calculate the ends
-    flower = group_getFlower(group);
-    iterator = flower_getEndIterator(group_getNestedFlower(group));
-    while ((end = flower_getNextEnd(iterator)) != NULL) {
-        if ((end2 = flower_getEnd(flower, end_getName(end))) != NULL) {
-            end_setGroup(end2, group);
-        }
-    }
-    flower_destructEndIterator(iterator);
-}
-
-static End **getNextEndPointer(End *end) {
+End **getNextEndPointer(End *end) {
     if(end_partOfBlock(end)) {
         if(end_left(end)) {
             return &(end_getBlockEndContents(end)->nEndLeft);
@@ -134,10 +142,20 @@ static End **getNextEndPointer(End *end) {
 }
 
 void group_addEnd(Group *group, End *end) {
+    end = end_getPositiveOrientation(end);
+
+    // Get the pointer we need
+    End **end2;
+    if(group_isLink(group)) {
+        end2 = getNextEndPointer(*getNextEndPointer(group->firstEnd));
+    }
+    else {
+        end2 = &(group->firstEnd);
+    }
+
     End **nEnd = getNextEndPointer(end);
-    assert(*nEnd == NULL);
-    *nEnd = group->firstEnd;
-    group->firstEnd = end_getPositiveOrientation(end);
+    *nEnd = *end2;
+    *end2 = end;
 }
 
 void group_destruct(Group *group) {
@@ -151,7 +169,7 @@ void group_destruct(Group *group) {
 }
 
 Flower *group_getFlower(Group *group) {
-    return group->flower;
+    return group_isLink(group) ? chain_getFlower(group->flowerOrChain) : group->flowerOrChain;
 }
 
 Name group_getName(Group *group) {
@@ -163,21 +181,18 @@ Flower *group_getNestedFlower(Group *group) {
 }
 
 Link *group_getLink(Group *group) {
-    return group->link;
+    return group_isLink(group) ? group : NULL; //group->link;
 }
 
 bool group_isTangle(Group *group) {
-    return group_getLink(group) == NULL;
-}
-
-bool group_isLink(Group *group) {
-    return group_getLink(group) != NULL;
+    return !group_isLink(group); //group_getLink(group) == NULL;
 }
 
 End *group_getFirstEnd(Group *group) {
     return group->firstEnd; //stSortedSet_getFirst(group->ends);
 }
 
+//todo: this function may be pretty slow - minimize use
 End *group_getEnd(Group *group, Name name) {
     End *end = group->firstEnd;
     while(end != NULL) {
@@ -190,6 +205,7 @@ End *group_getEnd(Group *group, Name name) {
     return NULL;
 }
 
+//todo: this function may be pretty slow - minimize use
 int64_t group_getEndNumber(Group *group) {
     End *end = group->firstEnd;
     int64_t totalEnds = 0;
@@ -214,16 +230,6 @@ End *group_getNextEnd(Group_EndIterator *endIterator) {
     endIterator->end = *getNextEndPointer(end);
     assert(end_getPositiveOrientation(end) == end);
     return end;
-}
-
-End *group_getPreviousEnd(Group_EndIterator *endIterator) {
-    assert(0);
-    //return stSortedSet_getPrevious(endIterator);
-}
-
-Group_EndIterator *group_copyEndIterator(Group_EndIterator *endIterator) {
-    assert(0);
-    //return stSortedSet_copyIterator(endIterator);
 }
 
 void group_destructEndIterator(Group_EndIterator *endIterator) {
@@ -410,26 +416,17 @@ int64_t group_getBlockEndNumber(Group *group) {
 
 Group *group_construct4(Flower *flower, Name name, bool terminalGroup) {
     Group *group;
-    group = st_malloc(sizeof(Group));
-
-    group->flower = flower;
-    group->link = NULL;
+    group = st_calloc(1, sizeof(Group));
+    group_setLeaf(group, terminalGroup);
+    assert(group_isLeaf(group) == terminalGroup);
+    assert(!group_isLink(group));
+    group->flowerOrChain = flower;
     group->name = name;
-    //group->ends = stSortedSet_construct3(group_constructP, NULL);
-    group->leafGroup = terminalGroup;
-    group->firstEnd = NULL;
     flower_addGroup(flower, group);
 
-    return group;
-}
+    assert(group_getFlower(group) == flower);
 
-void group_setLink(Group *group, Link *link) {
-    //argument may be NULL
-    group->link = link;
-    if (link != NULL) {
-        assert(group_getEnd(group, end_getName(link_get3End(link))) == link_get3End(link));
-        assert(group_getEnd(group, end_getName(link_get5End(link))) == link_get5End(link));
-    }
+    return group;
 }
 
 void group_removeEnd(Group *group, End *end) {
@@ -445,15 +442,40 @@ void group_removeEnd(Group *group, End *end) {
     }
 }
 
+/*
+ * Stuff to remove
+ */
+
+End *group_getPreviousEnd(Group_EndIterator *endIterator) {
+    assert(0);
+    //return stSortedSet_getPrevious(endIterator);
+}
+
+Group_EndIterator *group_copyEndIterator(Group_EndIterator *endIterator) {
+    assert(0);
+    //return stSortedSet_copyIterator(endIterator);
+}
+
 void group_setFlower(Group *group, Flower *flower) {
-    flower_removeGroup(group_getFlower(group), group);
+    assert(0);
+    /*flower_removeGroup(group_getFlower(group), group);
     group->flower = flower;
     flower_addGroup(flower, group);
     Flower *nestedFlower = group_getNestedFlower(group);
     if (nestedFlower != NULL) { //we re-do this link, because the parent flower has changed.
         flower_setParentGroup(nestedFlower, group);
-    }
+    }*/
 }
+
+//void group_setLink(Group *group, Link *link) {
+//    assert(0);
+    //argument may be NULL
+    /*group->link = link;
+    if (link != NULL) {
+        assert(group_getEnd(group, end_getName(link_get3End(link))) == link_get3End(link));
+        assert(group_getEnd(group, end_getName(link_get5End(link))) == link_get5End(link));
+    }*/
+//}
 
 /*
  * Serialisation functions
@@ -493,4 +515,6 @@ Group *group_loadFromBinaryRepresentation(void **binaryString, Flower *flower) {
     }
     return group;
 }
+
+
 

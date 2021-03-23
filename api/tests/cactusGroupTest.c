@@ -45,7 +45,7 @@ void testGroup_construct(CuTest* testCase) {
     cactusGroupTestTeardown(testCase);
 }
 
-void testGroup_updateContainedEnds(CuTest* testCase) {
+/*void testGroup_updateContainedEnds(CuTest* testCase) {
     cactusGroupTestSetup(testCase);
     end_copyConstruct(end3, nestedFlower);
     CuAssertTrue(testCase, group_getEndNumber(group) == 2);
@@ -55,7 +55,7 @@ void testGroup_updateContainedEnds(CuTest* testCase) {
     CuAssertTrue(testCase, group_getEnd(group, end_getName(end2)) == end2);
     CuAssertTrue(testCase, group_getEnd(group, end_getName(end3)) == end3);
     cactusGroupTestTeardown(testCase);
-}
+}*/
 
 void testGroup_makeNonLeaf(CuTest *testCase) {
     cactusGroupTestSetup(testCase);
@@ -329,7 +329,7 @@ void testGroup_serialisation(CuTest* testCase) {
 
 CuSuite* cactusGroupTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
-    SUITE_ADD_TEST(suite, testGroup_updateContainedEnds);
+    //SUITE_ADD_TEST(suite, testGroup_updateContainedEnds);
     SUITE_ADD_TEST(suite, testGroup_addEnd);
     SUITE_ADD_TEST(suite, testGroup_isLeaf);
     SUITE_ADD_TEST(suite, testGroup_makeNonLeaf);

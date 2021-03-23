@@ -111,5 +111,10 @@ int end_hashEqualsKey(const void *o, const void *o2);
  */
 void end_setFlower(End *end, Flower *flower);
 
+/*
+ * Get pointer to next end in the group.
+ */
+End **getNextEndPointer(End *end);
+
 
 #endif

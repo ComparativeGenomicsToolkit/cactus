@@ -407,7 +407,7 @@ int main(int argc, char *argv[]) {
     if(constraintAlignmentsFile != NULL) {
         st_system("rm %s", constraintAlignmentsFile);
     }
-    cactusDisk_destruct(cactusDisk);
+    //cactusDisk_destruct(cactusDisk);
 
     st_logInfo("Cactus consolidated is done!, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
