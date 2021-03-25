@@ -278,6 +278,7 @@ def runCactusConsolidated(seqMap, newickTreeString, cactusParams,
     args += ["--speciesTree", newickTreeString, "--logLevel", logLevel, "--alignments", alignmentsFile,
              "--params", cactusParams, "--outputFile", outputFile]
 
+
     if outputHalFastaFile:
         args += ["--outputHalFastaFile", outputHalFastaFile]
     if outputReferenceFile:

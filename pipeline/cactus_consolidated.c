@@ -127,6 +127,7 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     //sleep(10);
+    //assert(0);
 
     if(argc <= 1) {
         usage();
@@ -398,8 +399,6 @@ int main(int argc, char *argv[]) {
     //Cleanup
     //////////////////////////////////////////////
 
-    stList_destruct(flowerLayers);
-    cactusParams_destruct(params);
     st_system("rm %s", alignmentsFile);
     if(secondaryAlignmentsFile != NULL) {
         st_system("rm %s", secondaryAlignmentsFile);
@@ -407,9 +406,16 @@ int main(int argc, char *argv[]) {
     if(constraintAlignmentsFile != NULL) {
         st_system("rm %s", constraintAlignmentsFile);
     }
-    //cactusDisk_destruct(cactusDisk);
-
     st_logInfo("Cactus consolidated is done!, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+
+    return 0; // Exit without cleaning
+
+    // Cleanup the memory
+    stList_destruct(flowerLayers);
+    cactusParams_destruct(params);
+    cactusDisk_destruct(cactusDisk);
+
+    st_logInfo("Cactus consolidated cleanup is done!, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     //while(1);
     //assert(0);
