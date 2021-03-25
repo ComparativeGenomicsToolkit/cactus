@@ -106,6 +106,11 @@ End *group_getEnd(Group *group, Name name);
 int64_t group_getEndNumber(Group *group);
 
 /*
+ * Returns non-zero if the group contains one or more ends.
+ */
+bool group_isEmpty(Group *group);
+
+/*
  * Returns the number of stub ends in the group.
  */
 int64_t group_getStubEndNumber(Group *group);

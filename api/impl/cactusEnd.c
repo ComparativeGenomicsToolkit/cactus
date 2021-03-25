@@ -278,6 +278,10 @@ Group *end_getGroup(End *end) {
     return end_getContents(end)->group;
 }
 
+bool end_isEmpty(End *end) {
+    return end_getFirst(end) == NULL;
+}
+
 int64_t end_getInstanceNumber(End *end) {
     //fprintf(stderr, "Starting end_getInstanceNumber %" PRIi64 "\n", end);
     assert(!end_isBlock(end));
@@ -295,16 +299,17 @@ int64_t end_getInstanceNumber(End *end) {
 }
 
 Cap *end_getInstance(End *end, Name name) {
-    //fprintf(stderr, "Starting end_getInstance\n");
-    End_InstanceIterator *it = end_getInstanceIterator(end);
-    Cap *cap;
-    while((cap = end_getNext(it)) != NULL) {
-        if(cap_getName(cap) == name) {
-            end_destructInstanceIterator(it);
+    Flower *flower = end_getFlower(end);
+    assert(flower != NULL);
+    Cap *cap = flower_getCap(flower, name);
+    if(cap != NULL) {
+        assert(cap_getName(cap) == name);
+        assert(cap == cap_getPositiveOrientation(cap));
+        cap = end_getOrientation(end) ? cap : cap_getReverse(cap);
+        if(cap_getEnd(cap) == end) {
             return cap;
         }
     }
-    end_destructInstanceIterator(it);
     return NULL;
 }
 
@@ -440,7 +445,7 @@ void end_check(End *end) {
     } else {
         assert(end_getRootInstance(end) == cap_getReverse(end_getRootInstance(rEnd)));
     }
-    if (end_getInstanceNumber(end) > 0) {
+    if (!end_isEmpty(end)) {
         assert(end_getFirst(end) == cap_getReverse(end_getFirst(rEnd)));
     }
 

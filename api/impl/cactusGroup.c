@@ -161,7 +161,7 @@ void group_addEnd(Group *group, End *end) {
 void group_destruct(Group *group) {
     //Detach from the parent flower.
     flower_removeGroup(group_getFlower(group), group);
-    while (group_getEndNumber(group) != 0) {
+    while (!group_isEmpty(group)) {
         end_setGroup(group_getFirstEnd(group), NULL);
     }
     //Free the memory
@@ -192,20 +192,24 @@ End *group_getFirstEnd(Group *group) {
     return group->firstEnd; //stSortedSet_getFirst(group->ends);
 }
 
-//todo: this function may be pretty slow - minimize use
 End *group_getEnd(Group *group, Name name) {
-    End *end = group->firstEnd;
-    while(end != NULL) {
-        if(end_getName(end) == name) {
-            assert(end == end_getPositiveOrientation(end));
+    Flower *flower = group_getFlower(group);
+    assert(flower != NULL);
+    End *end = flower_getEnd(flower, name);
+    if(end != NULL) {
+        assert(end_getName(end) == name);
+        assert(end == end_getPositiveOrientation(end));
+        if(end_getGroup(end) == group) {
             return end;
         }
-        end = *getNextEndPointer(end);
     }
     return NULL;
 }
 
-//todo: this function may be pretty slow - minimize use
+bool group_isEmpty(Group *group) {
+    return group->firstEnd == NULL;
+}
+
 int64_t group_getEndNumber(Group *group) {
     End *end = group->firstEnd;
     int64_t totalEnds = 0;

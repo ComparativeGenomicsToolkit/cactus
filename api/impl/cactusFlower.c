@@ -175,7 +175,7 @@ void flower_destructSequenceIterator(Flower_SequenceIterator *sequenceIterator) 
 }
 
 Cap *flower_getFirstCap(Flower *flower) {
-    return stList_length(flower->caps) > 0 ? stList_get(flower->caps, 0) : NULL; //stSortedSet_getFirst(flower->caps);
+    return stList_length(flower->caps) > 0 ? stList_peek(flower->caps) : NULL; //stSortedSet_getFirst(flower->caps);
 }
 
 Cap *flower_getCap(Flower *flower, Name name) {
@@ -484,7 +484,7 @@ void flower_checkNotEmpty(Flower *flower, bool recursive) {
     Group *group;
     Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
     while ((group = flower_getNextGroup(groupIt)) != NULL) {
-        assert(group_getEndNumber(group) > 0);
+        assert(!group_isEmpty(group));
         assert(group_getAttachedStubEndNumber(group) + group_getBlockEndNumber(group) > 0);
         if (recursive && !group_isLeaf(group)) {
             flower_checkNotEmpty(group_getNestedFlower(group), 1);
@@ -709,7 +709,7 @@ void flower_unloadParent(Flower *flower) {
 
 static void removeFromFlower(stList *l, void *item) {
     assert(stList_length(l) > 0);
-    if(stList_peek(l) == l) {
+    if(stList_peek(l) == item) {
         stList_pop(l);
     }
     else {

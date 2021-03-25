@@ -44,6 +44,7 @@ void usage() {
     fprintf(stderr, "-g --speciesTree : [Required] The species tree, which will form the skeleton of the event tree\n");
     fprintf(stderr, "-o --outgroupEvents : Leaf events in the species tree identified as outgroups\n");
     fprintf(stderr, "-r --referenceEvent : [Required] The name of the reference event\n");
+    fprintf(stderr, "-t --runChecks : Run cactus checks after each stage, used for debugging\n");
     fprintf(stderr, "-h --help : Print this help message\n");
 }
 
@@ -121,6 +122,7 @@ int main(int argc, char *argv[]) {
     char *speciesTree = NULL;
     char *outgroupEvents = NULL;
     char *referenceEventString = NULL;
+    bool runChecks = 0;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -148,11 +150,12 @@ int main(int argc, char *argv[]) {
                 { "outgroupEvents", required_argument, 0, 'o' },
                 { "help", no_argument, 0, 'h' },
                 { "referenceEvent", required_argument, 0, 'r' },
+                { "runChecks", no_argument, 0, 't' },
                 { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int64_t key = getopt_long(argc, argv, "l:p:s:a:S:c:g:o:hr:F:G:", long_options, &option_index);
+        int64_t key = getopt_long(argc, argv, "l:p:s:a:S:c:g:o:hr:F:G:t", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -194,6 +197,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 'r':
                 referenceEventString = optarg;
+                break;
+            case 't':
+                runChecks = 1;
                 break;
             case 'h':
                 usage();
@@ -269,8 +275,18 @@ int main(int argc, char *argv[]) {
     Flower *flower = cactus_setup_first_flower(cactusDisk, params, speciesTree, outgroupEvents, sequenceFilesAndEvents);
     st_logInfo("Established the first Flower in the hierarchy, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
-    flower_checkRecursive(flower);
-    st_logInfo("Checked the first flower in the hierarchy, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+    if(runChecks) {
+        flower_checkRecursive(flower);
+        st_logInfo("Checked the first flower in the hierarchy, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+    }
+
+    // Get the Name of the reference event - do this early so we don't fail late in the process
+    Event *referenceEvent = eventTree_getEventByHeader(flower_getEventTree(flower), referenceEventString);
+    if (referenceEvent == NULL) {
+        st_errAbort("Reference event %s not found in tree. Check your "
+                    "--referenceEventString option", referenceEventString);
+    }
+    Name referenceEventName = event_getName(referenceEvent);
 
     //////////////////////////////////////////////
     //Convert alignment coordinates
@@ -301,8 +317,10 @@ int main(int argc, char *argv[]) {
     assert(flower_builtBlocks(flower));
     st_logInfo("Ran cactus caf, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
-    flower_checkRecursive(flower);
-    st_logInfo("Checked the flowers in the hierarchy created by CAF, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+    if(runChecks) {
+        flower_checkRecursive(flower);
+        st_logInfo("Checked the flowers in the hierarchy created by CAF, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+    }
 
     //////////////////////////////////////////////
     //Call cactus bar
@@ -316,20 +334,14 @@ int main(int argc, char *argv[]) {
     st_logInfo("Ran cactus bar, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
     stList_destruct(leafFlowers);
 
-    flower_checkRecursive(flower);
-    st_logInfo("Checked the flowers in the hierarchy created by BAR, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+    if(runChecks) {
+        flower_checkRecursive(flower);
+        st_logInfo("Checked the flowers in the hierarchy created by BAR, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+    }
 
     //////////////////////////////////////////////
     //Call cactus reference
     //////////////////////////////////////////////
-
-    // Get the Name of the reference event
-    Event *referenceEvent = eventTree_getEventByHeader(flower_getEventTree(flower), referenceEventString);
-    if (referenceEvent == NULL) {
-        st_errAbort("Reference event %s not found in tree. Check your "
-                    "--referenceEventString option", referenceEventString);
-    }
-    Name referenceEventName = event_getName(referenceEvent);
 
     // Get the flowers in the tree so that level 0 contains just the root flower,
     // level 1 contains the flowers that are children of the root flower, etc.
@@ -362,8 +374,10 @@ int main(int argc, char *argv[]) {
     }
     st_logInfo("Ran cactus make reference top down coordinates, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
-    flower_checkRecursive(flower);
-    st_logInfo("Ran cactus check, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+    if(runChecks) {
+        flower_checkRecursive(flower);
+        st_logInfo("Ran cactus check, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+    }
 
     //////////////////////////////////////////////
     //Make c2h files, then build hal

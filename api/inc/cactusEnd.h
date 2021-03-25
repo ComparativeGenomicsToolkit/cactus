@@ -93,6 +93,11 @@ Group *end_getGroup(End *end);
 void end_setGroup(End *end, Group *group);
 
 /*
+ * Returns non-zero if the end contains no caps.
+ */
+bool end_isEmpty(End *end);
+
+/*
  * Returns the number of caps the end contains.
  */
 int64_t end_getInstanceNumber(End *end);
