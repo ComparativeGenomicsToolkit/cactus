@@ -49,7 +49,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://github.com/lh3/minigraph.git
 pushd minigraph
-git checkout 0004952995a8d50a9758c9e22a660c67bda09eec
+git checkout 7bdfc6aed2857807d901d910134b86b947b5b087
 # hack in flags support
 sed -i Makefile -e 's/CFLAGS=/CFLAGS+=/'
 make -j 4
@@ -64,7 +64,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://github.com/lh3/gfatools.git
 cd gfatools
-git checkout a1abaf3d6d4510bc73e5defab274cfb288a11255
+git checkout 195273ef67536c36fd24242e9bb0f17053f8ab8b
 # hack in flags support
 sed -i Makefile -e 's/CFLAGS=/CFLAGS+=/'
 make -j 4
