@@ -10,6 +10,7 @@
 #include "stPinchIterator.h"
 #include "stateMachine.h"
 #include "pairwiseAligner.h"
+#include "../../caf/inc/stCaf.h"
 
 // OpenMP
 #if defined(_OPENMP)
@@ -39,11 +40,9 @@ stPinch *getNextAlignedPairAlignment(stSortedSetIterator *it) {
     return &pinch;
 }
 
-static int64_t minimumIngroupDegree = 0, minimumOutgroupDegree = 0, minimumDegree = 0, minimumNumberOfSpecies = 0;
-static Flower *flower;
-
-bool blockFilterFn(stPinchBlock *pinchBlock) {
-    return !stCaf_containsRequiredSpecies(pinchBlock, flower, minimumIngroupDegree, minimumOutgroupDegree, minimumDegree, minimumNumberOfSpecies);
+bool blockFilterFn(stPinchBlock *pinchBlock, void *extraArg) {
+    FilterArgs *f = extraArg;
+    return !stCaf_containsRequiredSpecies(pinchBlock, f->flower, f->minimumIngroupDegree, f->minimumOutgroupDegree, f->minimumDegree, f->minimumNumberOfSpecies);
 }
 
 void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *listOfEndAlignmentFiles, bool cleanupMemory) {
@@ -51,10 +50,13 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
     //Parse the many, many necessary parameters from the params file
     //////////////////////////////////////////////
 
-    minimumIngroupDegree = cactusParams_get_int(params, 2, "bar", "minimumIngroupDegree");
-    minimumOutgroupDegree = cactusParams_get_int(params, 2, "bar", "minimumOutgroupDegree");
-    minimumDegree = cactusParams_get_int(params, 2, "bar", "minimumBlockDegree");
-    minimumNumberOfSpecies = cactusParams_get_int(params, 2, "bar", "minimumNumberOfSpecies");
+
+    // These are all variables used by the filter fns
+    FilterArgs *fa = st_calloc(1, sizeof(FilterArgs));
+    fa->minimumIngroupDegree = cactusParams_get_int(params, 2, "bar", "minimumIngroupDegree");
+    fa->minimumOutgroupDegree = cactusParams_get_int(params, 2, "bar", "minimumOutgroupDegree");
+    fa->minimumDegree = cactusParams_get_int(params, 2, "bar", "minimumBlockDegree");
+    fa->minimumNumberOfSpecies = cactusParams_get_int(params, 2, "bar", "minimumNumberOfSpecies");
 
     // Hardcoded parameters
     int64_t chainLengthForBigFlower = 1000000;
@@ -94,7 +96,7 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
     void **alignments = st_malloc(sizeof(void *) * stList_length(flowers));
 #pragma omp parallel for
     for (int64_t j = 0; j<stList_length(flowers); j++) {
-        flower = stList_get(flowers, j);
+        Flower *flower = stList_get(flowers, j);
         if (usePoa) {
             /*
              * This makes a consistent set of alignments using abPoa.
@@ -116,7 +118,8 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
     st_logDebug("Created the alignments\n");
 
     for (int64_t j = 0; j < stList_length(flowers); j++) {
-        flower = stList_get(flowers, j);
+        Flower *flower = stList_get(flowers, j);
+        fa->flower = flower;
         st_logDebug("Processing a flower\n");
 
         stPinchIterator *pinchIterator = NULL;
@@ -131,11 +134,11 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
          */
         stPinchThreadSet *threadSet = stCaf_setup(flower);
         stCaf_anneal(threadSet, pinchIterator, NULL);
-        if (minimumDegree < 2) {
+        if (fa->minimumDegree < 2) {
             stCaf_makeDegreeOneBlocks(threadSet);
         }
-        if (minimumIngroupDegree > 0 || minimumOutgroupDegree > 0 || minimumDegree > 1) {
-            stCaf_melt(flower, threadSet, blockFilterFn, 0, 0, 0, INT64_MAX);
+        if (fa->minimumIngroupDegree > 0 || fa->minimumOutgroupDegree > 0 || fa->minimumDegree > 1) {
+            stCaf_melt(flower, threadSet, blockFilterFn, fa, 0, 0, 0, INT64_MAX);
         }
 
         stCaf_finish(flower, threadSet, chainLengthForBigFlower, longChain, INT64_MAX, INT64_MAX, cleanupMemory); //Flower now destroyed.
@@ -163,7 +166,8 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
     //}
 #else
     for (int64_t j = 0; j < stList_length(flowers); j++) {
-        flower = stList_get(flowers, j);
+        Flower *flower = stList_get(flowers, j);
+        fa->flower = flower;
         st_logDebug("Processing a flower\n");
 
         stPinchIterator *pinchIterator = NULL;
@@ -195,11 +199,11 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
          */
         stPinchThreadSet *threadSet = stCaf_setup(flower);
         stCaf_anneal(threadSet, pinchIterator, NULL);
-        if (minimumDegree < 2) {
+        if (fa->minimumDegree < 2) {
             stCaf_makeDegreeOneBlocks(threadSet);
         }
-        if (minimumIngroupDegree > 0 || minimumOutgroupDegree > 0 || minimumDegree > 1) {
-            stCaf_melt(flower, threadSet, blockFilterFn, 0, 0, 0, INT64_MAX);
+        if (fa->minimumIngroupDegree > 0 || fa->minimumOutgroupDegree > 0 || fa->minimumDegree > 1) {
+            stCaf_melt(flower, threadSet, blockFilterFn, fa, 0, 0, 0, INT64_MAX);
         }
 
         stCaf_finish(flower, threadSet, chainLengthForBigFlower, longChain, INT64_MAX, INT64_MAX, cleanupMemory); //Flower now destroyed.
@@ -228,6 +232,7 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
 
     //stList_destruct(flowers);
     pairwiseAlignmentBandingParameters_destruct(pairwiseAlignmentParameters);
+    free(fa);
 
     /*if (bedRegions != NULL) {
         // Clean up our mapping.

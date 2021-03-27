@@ -23,36 +23,27 @@
     return iA;
 }*/
 
-/*
- * Horrible global variables shared
- */
-
-static Flower *flower;
-static int64_t minimumIngroupDegree;
-static int64_t minimumOutgroupDegree;
-static int64_t minimumDegree;
-static int64_t minimumNumberOfSpecies;
-static float minimumTreeCoverage;
-
-static bool blockFilterFn(stPinchBlock *pinchBlock) {
-    if (!stCaf_containsRequiredSpecies(pinchBlock, flower, minimumIngroupDegree,
-                                       minimumOutgroupDegree, minimumDegree,
-                                       minimumNumberOfSpecies)) {
+static bool blockFilterFn(stPinchBlock *pinchBlock, void *extraArg) {
+    FilterArgs *f = extraArg;
+    if (!stCaf_containsRequiredSpecies(pinchBlock, f->flower, f->minimumIngroupDegree,
+                                       f->minimumOutgroupDegree, f->minimumDegree,
+                                       f->minimumNumberOfSpecies)) {
         return 1;
     }
-    if (minimumTreeCoverage > 0.0 && stCaf_treeCoverage(pinchBlock, flower) < minimumTreeCoverage) { //Tree coverage
+    if (f->minimumTreeCoverage > 0.0 && stCaf_treeCoverage(pinchBlock, f->flower) < f->minimumTreeCoverage) { //Tree coverage
         return 1;
     }
     return 0;
 }
 
 // Used for interactive debugging.
-void stCaf_printBlock(stPinchBlock *block) {
+void stCaf_printBlock(stPinchBlock *block, void *extraArg) {
+    FilterArgs *f = extraArg;
     stPinchBlockIt blockIt = stPinchBlock_getSegmentIterator(block);
     stPinchSegment *segment;
     while ((segment = stPinchBlockIt_getNext(&blockIt)) != NULL) {
         stPinchThread *thread = stPinchSegment_getThread(segment);
-        Cap *cap = flower_getCap(flower, stPinchThread_getName(thread));
+        Cap *cap = flower_getCap(f->flower, stPinchThread_getName(thread));
         Event *event = cap_getEvent(cap);
         Sequence *sequence = cap_getSequence(cap);
         printf("%s.%s:%" PRIi64 "-%" PRIi64 ":%s\n", event_getHeader(event), sequence_getHeader(sequence), stPinchSegment_getStart(segment), stPinchSegment_getStart(segment) + stPinchSegment_getLength(segment), stPinchSegment_getBlockOrientation(segment) ? "+" : "-");
@@ -193,7 +184,7 @@ static void printThreadSetStatistics(stPinchThreadSet *threadSet, Flower *flower
     free(blockSupports);
 }
 
-void caf(Flower *flowerP, CactusParams *params, char *alignmentsFile, char *secondaryAlignmentsFile, char *constraintsFile) {
+void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secondaryAlignmentsFile, char *constraintsFile) {
     //////////////////////////////////////////////
     //Parse the many, many necessary parameters from the params file
     //////////////////////////////////////////////
@@ -203,13 +194,14 @@ void caf(Flower *flowerP, CactusParams *params, char *alignmentsFile, char *seco
     int64_t longChain = 2;
     bool breakChainsAtReverseTandems = 1;
 
-    // These are all global variables used by the filter fns
-    flower = flowerP;
-    minimumIngroupDegree = cactusParams_get_int(params, 2, "caf", "minimumIngroupDegree");
-    minimumOutgroupDegree = cactusParams_get_int(params, 2, "caf", "minimumOutgroupDegree");
-    minimumDegree = cactusParams_get_int(params, 2, "caf", "minimumBlockDegree");
-    minimumNumberOfSpecies = cactusParams_get_int(params, 2, "caf", "minimumNumberOfSpecies");
-    minimumTreeCoverage = cactusParams_get_float(params, 2, "caf", "minimumTreeCoverage");
+    // These are all variables used by the filter fns
+    FilterArgs *fa = st_malloc(sizeof(FilterArgs));
+    fa->flower = flower;
+    fa->minimumIngroupDegree = cactusParams_get_int(params, 2, "caf", "minimumIngroupDegree");
+    fa->minimumOutgroupDegree = cactusParams_get_int(params, 2, "caf", "minimumOutgroupDegree");
+    fa->minimumDegree = cactusParams_get_int(params, 2, "caf", "minimumBlockDegree");
+    fa->minimumNumberOfSpecies = cactusParams_get_int(params, 2, "caf", "minimumNumberOfSpecies");
+    fa->minimumTreeCoverage = cactusParams_get_float(params, 2, "caf", "minimumTreeCoverage");
 
     //Parameters for annealing/melting rounds
     int64_t annealingRoundsLength;
@@ -319,10 +311,8 @@ void caf(Flower *flowerP, CactusParams *params, char *alignmentsFile, char *seco
     ///////////////////////////////////////////////////////////////////////////
 
     //TODO: Add more here.
-
-
-    assert(minimumTreeCoverage >= 0.0);
-    assert(minimumTreeCoverage <= 1.0);
+    assert(fa->minimumTreeCoverage >= 0.0);
+    assert(fa->minimumTreeCoverage <= 1.0);
     assert(blockTrim >= 0);
     assert(annealingRoundsLength >= 0);
     for (int64_t i = 0; i < annealingRoundsLength; i++) {
@@ -337,8 +327,8 @@ void caf(Flower *flowerP, CactusParams *params, char *alignmentsFile, char *seco
     for (int64_t i = 0; i < alignmentTrimLength; i++) {
         assert(alignmentTrims[i] >= 0);
     }
-    assert(minimumOutgroupDegree >= 0);
-    assert(minimumIngroupDegree >= 0);
+    assert(fa->minimumOutgroupDegree >= 0);
+    assert(fa->minimumIngroupDegree >= 0);
 
     ///////////////////////////////////////////////////////////////////////////
     // Get the constraints
@@ -473,11 +463,11 @@ void caf(Flower *flowerP, CactusParams *params, char *alignmentsFile, char *seco
                 if (minimumChainLengthForMeltingRound >= minimumChainLength) {
                     break;
                 }
-                stCaf_melt(flower, threadSet, NULL, 0, minimumChainLengthForMeltingRound, 0, INT64_MAX);
+                stCaf_melt(flower, threadSet, NULL, NULL, 0, minimumChainLengthForMeltingRound, 0, INT64_MAX);
             } st_logDebug("Last melting round of cycle with a minimum chain length of %" PRIi64 " \n", minimumChainLength);
-            stCaf_melt(flower, threadSet, NULL, 0, minimumChainLength, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds);
+            stCaf_melt(flower, threadSet, NULL, NULL, 0, minimumChainLength, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds);
             //This does the filtering of blocks that do not have the required species/tree-coverage/degree.
-            stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0, 0, INT64_MAX);
+            stCaf_melt(flower, threadSet, blockFilterFn, fa, blockTrim, 0, 0, INT64_MAX);
         }
 
         if (removeRecoverableChains) {
@@ -630,10 +620,10 @@ void caf(Flower *flowerP, CactusParams *params, char *alignmentsFile, char *seco
             }*/
 
         //Sort out case when we allow blocks of degree 1
-        if (minimumDegree < 2) {
+        if (fa->minimumDegree < 2) {
             st_logDebug("Creating degree 1 blocks\n");
             stCaf_makeDegreeOneBlocks(threadSet);
-            stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0, 0, INT64_MAX);
+            stCaf_melt(flower, threadSet, blockFilterFn, fa, blockTrim, 0, 0, INT64_MAX);
         } else if (maximumAdjacencyComponentSizeRatio < INT64_MAX) { //Deal with giant components
             st_logDebug("Breaking up components greedily\n");
             stCaf_breakupComponentsGreedily(threadSet, maximumAdjacencyComponentSizeRatio);
@@ -665,6 +655,7 @@ void caf(Flower *flowerP, CactusParams *params, char *alignmentsFile, char *seco
     free(annealingRounds);
     free(meltingRounds);
     free(alignmentTrims);
+    free(fa);
 
     if (constraintsFile != NULL) {
         stPinchIterator_destruct(pinchIteratorForConstraints);

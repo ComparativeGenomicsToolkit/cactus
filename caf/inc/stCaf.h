@@ -57,11 +57,21 @@ void stCaf_joinTrivialBoundaries(stPinchThreadSet *threadSet);
 // Melting fuctions -- removing alignments from the pinch graph
 ///////////////////////////////////////////////////////////////////////////
 
+typedef struct _filterArgs {
+    Flower *flower;
+    int64_t minimumIngroupDegree;
+    int64_t minimumOutgroupDegree;
+    int64_t minimumDegree;
+    int64_t minimumNumberOfSpecies;
+    float minimumTreeCoverage;
+} FilterArgs;
+
 /*
  * Removes homologies from the graph.
  */
-void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(stPinchBlock *), int64_t blockEndTrim,
-        int64_t minimumChainLength, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds);
+void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(stPinchBlock *, void *extraArg), void *extraArg,
+                int64_t blockEndTrim, int64_t minimumChainLength,
+                bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds);
 
 /*
  * Removes any recoverable chains (those expected to be picked up by
