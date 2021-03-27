@@ -32,9 +32,9 @@ Chain *chain_construct2(Name name, Flower *flower) {
 
 void chain_destruct(Chain *chain) {
     flower_removeChain(chain_getFlower(chain), chain);
-    //if (chain->link != NULL) {
-    //    link_destruct(chain->link);
-    //}
+    if (chain->link != NULL) {
+        link_destruct(chain->link);
+    }
     free(chain);
 }
 
@@ -183,6 +183,8 @@ void chain_join(Chain *_5Chain, Chain *_3Chain) {
         End *end1 = stList_get(list, i);
         End *end2 = stList_get(list, i+1);
         Group *group = end_getGroup(end1);
+        group_setLink(group, 0);
+        group->nLink = NULL;
 #ifndef NDEBUG
         assert(end_getGroup(end2) == group);
         assert(!end_getSide(end1));

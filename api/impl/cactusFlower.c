@@ -104,6 +104,12 @@ void flower_destruct(Flower *flower, int64_t recursive) {
     }
     stList_destruct(flower->sequences);
 
+    while ((chain = flower_getFirstChain(flower)) != NULL) {
+        assert(chain_getFlower(chain) == flower);
+        chain_destruct(chain);
+    }
+    stList_destruct(flower->chains);
+
     while ((group = flower_getFirstGroup(flower)) != NULL) {
         assert(group_getFlower(group) == flower);
         group_destruct(group);
@@ -116,11 +122,6 @@ void flower_destruct(Flower *flower, int64_t recursive) {
     }
     stList_destruct(flower->caps);
     stList_destruct(flower->ends);
-
-    while ((chain = flower_getFirstChain(flower)) != NULL) {
-        chain_destruct(chain);
-    }
-    stList_destruct(flower->chains);
 
     free(flower);
 }

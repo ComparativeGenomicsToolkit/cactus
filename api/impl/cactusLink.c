@@ -47,6 +47,7 @@ Link *link_construct(End *_3End, End *_5End, Group *group, Chain *parentChain) {
 
     // Finally set as a link
     group_setLink(group, 1);
+    group->nLink = NULL;
     assert(group_isLink(group));
     group->flowerOrChain = parentChain; // Now set the pointer to the chain
     chain_addLink(parentChain, group); //will set the link indices.
@@ -130,17 +131,20 @@ bool link_isTrivial(Link *link) {
  */
 
 void link_destruct(Link *link) {
-    assert(0);
 	//group_setLink(link_getGroup(link), NULL);
-    int64_t i = 1;
+	Flower *flower = link_getChain(link);
     Link *link2 = link->nLink;
     while (link2 != NULL) {
-        //group_setLink(link_getGroup(link2), NULL);
         Link *link3 = link2;
         link2 = link2->nLink;
-        free(link3);
-        i++;
+        group_setLink(link3, 0);
+        link3->flowerOrChain = chain_getFlower(flower);
+        link3->nLink = NULL;
     }
+    link->nLink = NULL;
+    link->flowerOrChain = chain_getFlower(flower);
+    group_setLink(link, 0);
+
     //Chain *chain = link_getChain(link);
     //chain->linkNumber -= i;
     //assert(chain->linkNumber >= 0);
@@ -151,7 +155,7 @@ void link_destruct(Link *link) {
         link->pLink->nLink = NULL;
         chain->endLink = link->pLink;
     }*/
-    free(link);
+    //free(link);
 }
 
 void link_splitP(struct List *list, Flower *flower) {
