@@ -251,8 +251,8 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
     // Setting the alignment filters
     char *alignmentFilter = (char *)cactusParams_get_string(params, 2, "caf", "alignmentFilter");
     bool sortAlignments = false;
-    bool (*filterFn)(stPinchSegment *, stPinchSegment *) = NULL;
-    bool (*secondaryFilterFn)(stPinchSegment *, stPinchSegment *) = NULL;
+    bool (*filterFn)(stPinchSegment *, stPinchSegment *, Flower *) = NULL;
+    bool (*secondaryFilterFn)(stPinchSegment *, stPinchSegment *, Flower *) = NULL;
     char * singleCopyEventName = NULL;
     bool sortSecondaryAlignments = false;
     char *hgvmEventName = NULL;
@@ -350,8 +350,6 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
     if (!flower_builtBlocks(flower)) { // Do nothing if the flower already has defined blocks
         st_logDebug("Processing flower: %lli\n", flower_getName(flower));
 
-        stCaf_setFlowerForAlignmentFiltering(flower);
-
         //Set up the graph and add the initial alignments
         stPinchThreadSet *threadSet = stCaf_setup(flower);
 
@@ -403,22 +401,22 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
 
             //Add back in the constraints
             if (pinchIteratorForConstraints != NULL) {
-                stCaf_anneal(threadSet, pinchIteratorForConstraints, NULL);
+                stCaf_anneal(threadSet, pinchIteratorForConstraints, NULL, flower);
             }
 
             //Do the annealing
             if (annealingRound == 0) {
-                stCaf_anneal(threadSet, pinchIterator, filterFn);
+                stCaf_anneal(threadSet, pinchIterator, filterFn, flower);
             } else {
-                stCaf_annealBetweenAdjacencyComponents(threadSet, pinchIterator, filterFn);
+                stCaf_annealBetweenAdjacencyComponents(threadSet, pinchIterator, filterFn, flower);
             }
 
             // Do the secondary annealing
             if(secondaryPinchIterator != NULL) {
                 if (annealingRound == 0) {
-                    stCaf_anneal(threadSet, secondaryPinchIterator, secondaryFilterFn);
+                    stCaf_anneal(threadSet, secondaryPinchIterator, secondaryFilterFn, flower);
                 } else {
-                    stCaf_annealBetweenAdjacencyComponents(threadSet, secondaryPinchIterator, secondaryFilterFn);
+                    stCaf_annealBetweenAdjacencyComponents(threadSet, secondaryPinchIterator, secondaryFilterFn, flower);
                 }
             }
 

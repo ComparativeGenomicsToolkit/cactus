@@ -41,12 +41,14 @@ stPinchThreadSet *stCaf_setup(Flower *flower);
 /*
  * Add the set of alignments, represented as pinches, to the graph.
  */
-void stCaf_anneal(stPinchThreadSet *threadSet, stPinchIterator *pinchIterator, bool (*filterFn)(stPinchSegment *, stPinchSegment *));
+void stCaf_anneal(stPinchThreadSet *threadSet, stPinchIterator *pinchIterator,
+                  bool (*filterFn)(stPinchSegment *, stPinchSegment *, Flower *), Flower *flower);
 
 /*
  * Add the set of alignments, represented as pinches, to the graph, allowing alignments only between segments in the same component.
  */
-void stCaf_annealBetweenAdjacencyComponents(stPinchThreadSet *threadSet, stPinchIterator *pinchIterator, bool (*filterFn)(stPinchSegment *, stPinchSegment *));
+void stCaf_annealBetweenAdjacencyComponents(stPinchThreadSet *threadSet, stPinchIterator *pinchIterator,
+                                            bool (*filterFn)(stPinchSegment *, stPinchSegment *, Flower *), Flower *flower);
 
 /*
  * Joins all trivial boundaries, but not joining stub boundaries.
@@ -133,19 +135,12 @@ void stCaf_finish(Flower *flower, stPinchThreadSet *threadSet, int64_t chainLeng
 ///////////////////////////////////////////////////////////////////////////
 
 /*
- * Must be used before any of stCaf_filterByOutgroup,
- * stCaf_relaxedFilterByOutgroup, or stCaf_filterByRepeatSpecies are
- * used.
- */
-void stCaf_setFlowerForAlignmentFiltering(Flower *input);
-
-/*
  * Filters incoming alignments by presence of outgroup, to ensure at
  * most one outgroup segment is in any block.
  */
 
 bool stCaf_filterByOutgroup(stPinchSegment *segment1,
-                            stPinchSegment *segment2);
+                            stPinchSegment *segment2, Flower *flower);
 
 /*
  * A "relaxed" version of the above which allows the addition of more
@@ -153,46 +148,46 @@ bool stCaf_filterByOutgroup(stPinchSegment *segment1,
  * different blocks containing outgroups to be pinched.
  */
 bool stCaf_relaxedFilterByOutgroup(stPinchSegment *segment1,
-                                   stPinchSegment *segment2);
+                                   stPinchSegment *segment2, Flower *flower);
 
 /*
  * Filters incoming alignments by presence of repeat species in
  * block. This code is inefficient and does not scale.
  */
 bool stCaf_filterByRepeatSpecies(stPinchSegment *segment1,
-                                 stPinchSegment *segment2);
+                                 stPinchSegment *segment2, Flower *flower);
 
 /*
  * As above, but allows pinching a duplicated segment to a block, but
  * not pinching two duplicated blocks together.
  */
 bool stCaf_relaxedFilterByRepeatSpecies(stPinchSegment *segment1,
-                                        stPinchSegment *segment2);
+                                        stPinchSegment *segment2, Flower *flower);
 
 /**
  * As stCaf_filterByRepeatSpecies, but apply filter only to a particular event
  */
 void stCaf_setSingleCopyEvent(Flower* flower, char *singleCopyEventName);
 bool stCaf_filterBySingleCopyEvent(stPinchSegment *segment1,
-                                   stPinchSegment *segment2);
+                                   stPinchSegment *segment2, Flower *flower);
 
 bool stCaf_singleCopyIngroup(stPinchSegment *segment1,
-                             stPinchSegment *segment2);
+                             stPinchSegment *segment2, Flower *flower);
 
 bool stCaf_relaxedSingleCopyIngroup(stPinchSegment *segment1,
-                                    stPinchSegment *segment2);
+                                    stPinchSegment *segment2, Flower *flower);
 
 /*
  * Filters block alignments that would merge blocks that each already contain
  * sequences from multiple species. The rationale of this filter is to avoid
  * aligning together paralogous alignments that predate the speciation event.
  */
-bool stCaf_filterByMultipleSpecies(stPinchSegment *segment1, stPinchSegment *segment2);
+bool stCaf_filterByMultipleSpecies(stPinchSegment *segment1, stPinchSegment *segment2, Flower *flower);
 
 /*
  * Forbids pinching together two copies within the same sequence.
  */
-bool stCaf_singleCopyChr(stPinchSegment *segment1, stPinchSegment *segment2);
+bool stCaf_singleCopyChr(stPinchSegment *segment1, stPinchSegment *segment2, Flower *flower);
 
 /*
  * Run stCaf_filterToEnsureCycleFreeIsolatedComponents so that every
@@ -216,7 +211,7 @@ void stCaf_setThreadsToBeCycleFreeIsolatedComponents(stPinchThreadSet *threadSet
  * cycles.
  */
 bool stCaf_filterToEnsureCycleFreeIsolatedComponents(stPinchSegment *segment1,
-                                                     stPinchSegment *segment2);
+                                                     stPinchSegment *segment2, Flower *flower);
 
 /*
  * Returns true for chains that have an unequal number of ingroup

@@ -329,7 +329,7 @@ static void testHGVMFiltering(CuTest *testCase) {
                                       pinch.start2,
                                       pinch.length,
                                       pinch.strand,
-                                      stCaf_filterToEnsureCycleFreeIsolatedComponents);
+                                      (bool(*)(stPinchSegment *, stPinchSegment *, void *))stCaf_filterToEnsureCycleFreeIsolatedComponents, flower);
             stSortedSet *threadComponents = stPinchThreadSet_getThreadComponents(threadSet);
             CuAssertTrue(testCase, stSortedSet_size(threadComponents) >= 2);
         }
