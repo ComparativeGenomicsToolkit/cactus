@@ -69,6 +69,7 @@ def main():
     parser.add_argument("--wlineSep", type=str, help = "wline separator for vg convert")
     parser.add_argument("--indexCores", type=int, default=1, help = "cores for indexing processes")
     parser.add_argument("--decoyGraph", help= "decoy sequences vg graph to add (PackedGraph or HashGraph format)")
+    parser.add_argument("--hal", nargs='+', default = [], help = "Input hal files (for merging)")
     
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -92,6 +93,9 @@ def main():
     if options.outDir and not options.outDir.startswith('s3://'):
         if not os.path.isdir(options.outDir):
             os.makedirs(options.outDir)
+
+    if options.hal and len(options.hal) != len(options.vg):
+        raise RuntimeError("If --hal and --vg should specify the same number of files")
         
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
@@ -129,14 +133,20 @@ def runCactusGraphMapJoin(options):
                 # we'll treat it like any other graph downstream, except clipping
                 # where we'll check first using the path name
                 options.vg.append(options.decoyGraph)
+                
+            # load up the hals
+            hal_ids = []
+            for hal_path in options.hal:
+                logger.info("Importing {}".format(hal_path))
+                hal_ids.append(toil.importFile(makeURL(hal_path)))                
 
             # run the workflow
-            wf_output = toil.start(Job.wrapJobFn(graphmap_join_workflow, options, config, vg_ids))
+            wf_output = toil.start(Job.wrapJobFn(graphmap_join_workflow, options, config, vg_ids, hal_ids))
                 
         #export the split data
-        export_join_data(toil, options, wf_output[0], wf_output[1])
+        export_join_data(toil, options, wf_output[0], wf_output[1], wf_output[2])
 
-def graphmap_join_workflow(job, options, config, vg_ids):
+def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
 
     root_job = Job()
     job.addChild(root_job)
@@ -169,8 +179,14 @@ def graphmap_join_workflow(job, options, config, vg_ids):
     gfa_merge_job = gfa_root_job.addFollowOnJobFn(vg_indexes, options, config, clipped_gfa_ids,
                                                   cores=options.indexCores,
                                                   disk=sum(f.size for f in vg_ids) * 5)
+
+    if hal_ids:
+        merge_hal_id = root_job.addChildJobFn(merge_hal, options, hal_ids,
+                                              disk=sum(f.size for f in hal_ids) * 2).rv()
+    else:
+        merge_hal_id = None
     
-    return clipped_vg_ids, gfa_merge_job.rv()
+    return clipped_vg_ids, gfa_merge_job.rv(), merge_hal_id
 
 def clip_vg(job, options, config, vg_path, vg_id):
     """ run clip-vg 
@@ -287,7 +303,31 @@ def vg_indexes(job, options, config, gfa_ids):
              'vcf.gz' : job.fileStore.writeGlobalFile(vcf_path),
              'vcf.gz.tbi' : job.fileStore.writeGlobalFile(vcf_path + '.tbi') }
 
-def export_join_data(toil, options, clip_ids, idx_map):
+def merge_hal(job, options, hal_ids):
+    """ call halMergeChroms to make one big hal file out of the chromosome hal files """
+    work_dir = job.fileStore.getLocalTempDir()
+    hal_paths = []
+    for in_path, hal_id in zip(options.hal, hal_ids):
+        hal_path = os.path.join(work_dir, os.path.basename(in_path))
+        job.fileStore.readGlobalFile(hal_id, hal_path)
+        hal_paths.append(hal_path)
+
+    merged_path = os.path.join(work_dir, '__merged__.hal')
+    assert merged_path not in hal_paths
+
+    # note: cactus_call tries to sort out relative paths by itself for docker.  but the comma-separated list
+    # will likely throw it off, so we take care to specify it relative manually.
+    # also note: most hal commands need --inMemory to run at scale, but the access patterns for chrom
+    # merging are linear enough that it shouldn't be needed
+    cmd = ['halMergeChroms',
+           ','.join([os.path.basename(p) for p in hal_paths]),
+           os.path.basename(merged_path),
+           '--progress']
+    cactus_call(parameters=cmd, work_dir = work_dir)
+
+    return job.fileStore.writeGlobalFile(merged_path)
+
+def export_join_data(toil, options, clip_ids, idx_map, merge_hal_id):
     """ download all the output data
     """
 
@@ -302,7 +342,10 @@ def export_join_data(toil, options, clip_ids, idx_map):
     # download everything else
     for ext, idx_id in idx_map.items():
         toil.exportFile(idx_id, makeURL(os.path.join(options.outDir, '{}.{}'.format(options.outName, ext))))
-    
+
+    # download the merged hal
+    if merge_hal_id:
+        toil.exportFile(merge_hal_id, makeURL(os.path.join(options.outDir, '{}.hal'.format(options.outName))))    
         
 if __name__ == "__main__":
     main()
