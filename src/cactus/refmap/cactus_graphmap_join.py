@@ -181,8 +181,8 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
                                                   disk=sum(f.size for f in vg_ids) * 5)
 
     if hal_ids:
-        merge_hal_id = root_job.addChildJobFn(merge_hal, options, hal_ids,
-                                              disk=sum(f.size for f in hal_ids) * 2).rv()
+        merge_hal_id = job.addChildJobFn(merge_hal, options, hal_ids,
+                                         disk=sum(f.size for f in hal_ids) * 2).rv()
     else:
         merge_hal_id = None
     
