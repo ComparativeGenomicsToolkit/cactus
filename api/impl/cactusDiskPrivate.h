@@ -8,6 +8,9 @@
 #define CACTUS_DISK_PRIVATE_H_
 
 #include "cactusGlobals.h"
+#if defined(_OPENMP)
+#include <omp.h>
+#endif
 
 struct _cactusDisk {
     stKVDatabase *database;
@@ -20,6 +23,9 @@ struct _cactusDisk {
     EventTree *eventTree;
     Name uniqueNumber;
     Name maxUniqueNumber;
+#if defined(_OPENMP)
+    omp_lock_t writelock; // This lock used to gate access to concurrently accessed variables
+#endif
 
     // Structures used if cactus disk is to only be held in memory
     bool inMemory;

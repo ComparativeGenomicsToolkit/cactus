@@ -28,7 +28,7 @@ ${BINDIR}/cactus_barTests : ${libTests} tests/*.h ${LIBDIR}/cactusBarLib.a ${stB
 ${BINDIR}/cactus_runEndAlignment : ${libRunEndAlignment} ${LIBDIR}/cactusBarLib.a ${stBarDependencies}
 	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -Wno-error -o ${BINDIR}/cactus_runEndAlignment ${libRunEndAlignment} ${LIBDIR}/cactusBarLib.a ${LDLIBS}
 
-${LIBDIR}/cactusBarLib.a : ${libSources} ${libHeaders}
+${LIBDIR}/cactusBarLib.a : ${libSources} ${libHeaders} ${stBarDependencies}
 	${CC} ${CPPFLAGS} ${CFLAGS} -c ${libSources} 
 	${AR} rc cactusBarLib.a *.o
 	${RANLIB} cactusBarLib.a 

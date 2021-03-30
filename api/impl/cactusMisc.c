@@ -38,16 +38,8 @@ char *cactusMisc_nameToString(Name name) {
     return cA;
 }
 
-const char *cactusMisc_nameToStringStatic(Name name) {
-    static char cA[100];
-    sprintf(cA, NAME_STRING, name);
-    return cA;
-}
-
 const char *cactusMisc_getDefaultReferenceEventHeader() {
-    static char cA[10];
-    sprintf(cA, "reference");
-    return cA;
+    return stString_print("reference");
 }
 
 void preCacheNestedFlowers(CactusDisk *cactusDisk, stList *flowers) {

@@ -207,8 +207,8 @@ void test_alignment_block_iterator(CuTest *testCase) {
     //stPinchThreadSet *threadSet = stCaf_setup(flower);
     //stCaf_anneal(threadSet, it, NULL);
 
-    stPinch *pinch;
-    while((pinch = stPinchIterator_getNext(it)) != NULL) {
+    stPinch *pinch, pinchToFillOut;
+    while((pinch = stPinchIterator_getNext(it, &pinchToFillOut)) != NULL) {
         fprintf(stderr, "Pinch: name1: %" PRIi64 " s1:%i, name2: %" PRIi64 " s2:%i, length:%i, strand:%i\n",
                 pinch->name1, (int)pinch->start1, pinch->name2, (int)pinch->start2,
                 (int)pinch->length, (int)pinch->strand);

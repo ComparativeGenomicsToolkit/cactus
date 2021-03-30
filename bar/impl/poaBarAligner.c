@@ -920,7 +920,7 @@ AlignmentBlockIterator *alignmentBlockIterator_start(AlignmentBlockIterator *it)
     return it;
 }
 
-stPinch *alignmentBlockIterator_get_next(AlignmentBlockIterator *it) {
+stPinch *alignmentBlockIterator_get_next(AlignmentBlockIterator *it, stPinch *pinchToFillOut) {
     // If there is no current alignment block or the alignment block contains no further pinches
     if(it->current_block == NULL || it->current_block->next == NULL) {
         if(it->i >= stList_length(it->alignment_blocks)) { // We are done
@@ -931,22 +931,21 @@ stPinch *alignmentBlockIterator_get_next(AlignmentBlockIterator *it) {
     assert(it->current_block->next != NULL); // All alignment blocks should contain at least two sequences
 
     AlignmentBlock *b = it->current_block;
-    static stPinch pinch;
     assert(b->position >= 0);
     assert(b->next->position >= 0);
     assert(b->length > 0);
-    stPinch_fillOut(&pinch, b->subsequenceIdentifier, b->next->subsequenceIdentifier,
+    stPinch_fillOut(pinchToFillOut, b->subsequenceIdentifier, b->next->subsequenceIdentifier,
                     b->position, b->next->position, b->length, b->strand == b->next->strand);
 
     it->current_block = b->next; // Shift to the next sequence to ready the next pinch
 
-    return &pinch;
+    return pinchToFillOut;
 }
 
 stPinchIterator *stPinchIterator_constructFromAlignedBlocks(stList *alignment_blocks) {
     stPinchIterator *pinchIterator = st_calloc(1, sizeof(stPinchIterator));
     pinchIterator->alignmentArg = alignmentBlockIterator_construct(alignment_blocks);
-    pinchIterator->getNextAlignment = (stPinch *(*)(void *)) alignmentBlockIterator_get_next;
+    pinchIterator->getNextAlignment = (stPinch *(*)(void *, stPinch *)) alignmentBlockIterator_get_next;
     pinchIterator->destructAlignmentArg = (void(*)(void *)) alignmentBlockIterator_destruct;
     pinchIterator->startAlignmentStack = (void *(*)(void *)) alignmentBlockIterator_start;
 

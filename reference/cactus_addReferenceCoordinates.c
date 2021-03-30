@@ -68,6 +68,7 @@ int main(int argc, char *argv[]) {
                 secondaryDatabaseString = stString_copy(optarg);
                 break;
             case 'g':
+                free(referenceEventString);
                 referenceEventString = stString_copy(optarg);
                 break;
             case 'h':

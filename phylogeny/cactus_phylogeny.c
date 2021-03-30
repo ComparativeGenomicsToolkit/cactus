@@ -685,7 +685,7 @@ int main(int argc, char *argv[]) {
         ///////////////////////////////////////////////////////////////////////////
 
         if (flower_builtTrees(flower)) {
-            st_logInfo("We have already built trees for flower %s\n", cactusMisc_nameToStringStatic(flower_getName(flower)));
+            st_logInfo("We have already built trees for flower %" PRIi64 "\n", flower_getName(flower));
             continue;
         }
 

@@ -77,6 +77,7 @@ int main(int argc, char *argv[]) {
                 flowerName = cactusMisc_stringToName(optarg);
                 break;
             case 'g':
+                free(referenceEventString);
                 referenceEventString = stString_copy(optarg);
                 break;
             case 'h':

@@ -32,9 +32,9 @@ void stCaf_joinTrivialBoundaries(stPinchThreadSet *threadSet) {
 // Basic annealing function
 ///////////////////////////////////////////////////////////////////////////
 
-void stCaf_anneal2(stPinchThreadSet *threadSet, stPinch *(*pinchIterator)(void *), void *extraArg) {
-    stPinch *pinch;
-    while ((pinch = pinchIterator(extraArg)) != NULL) {
+void stCaf_anneal2(stPinchThreadSet *threadSet, stPinch *(*pinchIterator)(void *, stPinch *), void *extraArg) {
+    stPinch *pinch, pinchToFillOut;
+    while ((pinch = pinchIterator(extraArg, &pinchToFillOut)) != NULL) {
         stPinchThread *thread1 = stPinchThreadSet_getThread(threadSet, pinch->name1);
         stPinchThread *thread2 = stPinchThreadSet_getThread(threadSet, pinch->name2);
         assert(thread1 != NULL && thread2 != NULL);
@@ -42,10 +42,10 @@ void stCaf_anneal2(stPinchThreadSet *threadSet, stPinch *(*pinchIterator)(void *
     }
 }
 
-static void stCaf_annealWithFilter2(stPinchThreadSet *threadSet, stPinch *(*pinchIterator)(void *), void *extraArg,
+static void stCaf_annealWithFilter2(stPinchThreadSet *threadSet, stPinch *(*pinchIterator)(void *, stPinch *), void *extraArg,
                                     bool (*filterFn)(stPinchSegment *, stPinchSegment *, Flower *), Flower *flower) {
-    stPinch *pinch;
-    while ((pinch = pinchIterator(extraArg)) != NULL) {
+    stPinch *pinch, pinchToFillOut;
+    while ((pinch = pinchIterator(extraArg, &pinchToFillOut)) != NULL) {
         stPinchThread *thread1 = stPinchThreadSet_getThread(threadSet, pinch->name1);
         stPinchThread *thread2 = stPinchThreadSet_getThread(threadSet, pinch->name2);
         assert(thread1 != NULL && thread2 != NULL);
@@ -58,10 +58,10 @@ void stCaf_anneal(stPinchThreadSet *threadSet, stPinchIterator *pinchIterator,
                   bool (*filterFn)(stPinchSegment *, stPinchSegment *, Flower *), Flower *flower) {
     stPinchIterator_reset(pinchIterator);
     if(filterFn != NULL) {
-        stCaf_annealWithFilter2(threadSet, (stPinch *(*)(void *)) stPinchIterator_getNext, pinchIterator, filterFn, flower);
+        stCaf_annealWithFilter2(threadSet, (stPinch *(*)(void *, stPinch *)) stPinchIterator_getNext, pinchIterator, filterFn, flower);
     }
     else {
-        stCaf_anneal2(threadSet, (stPinch *(*)(void *)) stPinchIterator_getNext, pinchIterator);
+        stCaf_anneal2(threadSet, (stPinch *(*)(void *, stPinch *)) stPinchIterator_getNext, pinchIterator);
     }
     stCaf_joinTrivialBoundaries(threadSet);
 }
@@ -162,14 +162,14 @@ static stSortedSet *getAdjacencyComponentIntervals(stPinchThreadSet *threadSet, 
     return adjacencyComponentIntervals;
 }
 
-void stCaf_annealBetweenAdjacencyComponents2(stPinchThreadSet *threadSet, stPinch *(*pinchIterator)(void *),
+void stCaf_annealBetweenAdjacencyComponents2(stPinchThreadSet *threadSet, stPinch *(*pinchIterator)(void *, stPinch *),
         void *extraArg, bool (*filterFn)(stPinchSegment *, stPinchSegment *, Flower *), Flower *flower) {
     //Get the adjacency component intervals
     stList *adjacencyComponents;
     stSortedSet *adjacencyComponentIntervals = getAdjacencyComponentIntervals(threadSet, &adjacencyComponents);
     //Now do the actual alignments.
-    stPinch *pinch;
-    while ((pinch = pinchIterator(extraArg)) != NULL) {
+    stPinch *pinch, pinchToFillOut;
+    while ((pinch = pinchIterator(extraArg, &pinchToFillOut)) != NULL) {
         alignSameComponents(pinch, threadSet, adjacencyComponentIntervals, filterFn, flower);
     }
     stSortedSet_destruct(adjacencyComponentIntervals);
@@ -179,6 +179,6 @@ void stCaf_annealBetweenAdjacencyComponents2(stPinchThreadSet *threadSet, stPinc
 void stCaf_annealBetweenAdjacencyComponents(stPinchThreadSet *threadSet, stPinchIterator *pinchIterator,
                                             bool (*filterFn)(stPinchSegment *, stPinchSegment *, Flower *), Flower *flower) {
     stPinchIterator_reset(pinchIterator);
-    stCaf_annealBetweenAdjacencyComponents2(threadSet, (stPinch *(*)(void *)) stPinchIterator_getNext, pinchIterator, filterFn, flower);
+    stCaf_annealBetweenAdjacencyComponents2(threadSet, (stPinch *(*)(void *, stPinch *)) stPinchIterator_getNext, pinchIterator, filterFn, flower);
     stCaf_joinTrivialBoundaries(threadSet);
 }

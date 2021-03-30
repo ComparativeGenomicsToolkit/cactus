@@ -91,6 +91,7 @@ static stList *mergeSubstrings(stList *substrings, int64_t proximityToMerge) {
     /*
      * Merge set of substrings into fewer substrings, if they overlap by less than proximityToMerge
      */
+    assert(0);
     stList *mergedSubstrings = stList_construct3(0, (void (*)(void *)) substring_destruct);
     if (stList_length(substrings) == 0) {
         return mergedSubstrings;
@@ -118,6 +119,7 @@ static void cacheSubstringsFromDB(CactusDisk *cactusDisk, stList *substrings) {
         // No string cache.
         return;
     }
+    assert(0);
     /*
      * Caches the given set of substrings in the cactusDisk cache.
      */
@@ -188,6 +190,7 @@ void cactusDisk_preCacheStrings2(CactusDisk *cactusDisk, stList *substrings) {
         // No string cache.
         return;
     }
+    assert(0);
     //Now do some simple merging to reduce granularity
     stList *mergedSubstrings = mergeSubstrings(substrings, CACTUS_DISK_SEQUENCE_CHUNK_SIZE);
     //Now cache the sequences
@@ -199,6 +202,7 @@ static stList *getSubstringsForFlowers(stList *flowers) {
     /*
      * Get the set of substrings for sequence intervals in the given set of flowers.
      */
+    assert(0);
     stList *substrings = stList_construct3(0, (void (*)(void *)) substring_destruct);
     for (int64_t i = 0; i < stList_length(flowers); i++) {
         Flower *flower = stList_get(flowers, i);
@@ -241,6 +245,7 @@ void cactusDisk_preCacheStrings(CactusDisk *cactusDisk, stList *flowers) {
         // No string cache.
         return;
     }
+    assert(0);
     stList *substrings = getSubstringsForFlowers(flowers);
     cactusDisk_preCacheStrings2(cactusDisk, substrings);
     stList_destruct(substrings);
@@ -250,6 +255,7 @@ static stList *getSubstringsForFlowerSegments(stList *flowers) {
     /*
      * Get the set of substrings representing the strings in the segments of the given flowers.
      */
+    assert(0);
     stList *substrings = stList_construct3(0, (void (*)(void *)) substring_destruct);
     for (int64_t i = 0; i < stList_length(flowers); i++) {
         Flower *flower = stList_get(flowers, i);
@@ -287,6 +293,7 @@ void cactusDisk_preCacheSegmentStrings(CactusDisk *cactusDisk, stList *flowers) 
         // No cache.
         return;
     }
+    assert(0);
     stList *substrings = getSubstringsForFlowerSegments(flowers);
     cactusDisk_preCacheStrings2(cactusDisk, substrings);
     stList_destruct(substrings);
@@ -296,6 +303,7 @@ char *cactusDisk_getStringFromCache(CactusDisk *cactusDisk, Name name, int64_t s
     /*
      * Gets a sequence from the cache.
      */
+    assert(0);
     if (cactusDisk->stringCache == NULL) {
         // No cache.
         return NULL;
@@ -325,10 +333,13 @@ Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
     if(cactusDisk->inMemory) { // Case we are storing everything in memory
         //Name *name = st_malloc(sizeof(Name));
         Name name = cactusDisk_getUniqueID(cactusDisk);
+        omp_set_lock(&(cactusDisk->writelock));
         stHash_insert(cactusDisk->allStrings, (void *)name, stString_copy(string)); // Cheeky 64bit to pointer conversion
+        omp_unset_lock(&(cactusDisk->writelock));
         return name;
     }
 
+    assert(0);
     int64_t stringSize = strlen(string);
     int64_t intervalSize = ceil((double) stringSize / CACTUS_DISK_SEQUENCE_CHUNK_SIZE);
     Name name = cactusDisk_getUniqueIDInterval(cactusDisk, intervalSize);
@@ -368,7 +379,10 @@ char *cactusDisk_getString(CactusDisk *cactusDisk, Name name, int64_t start, int
 
     // If in memory
     if(cactusDisk->inMemory) {
+        omp_set_lock(&(cactusDisk->writelock));
         char *string = stHash_search(cactusDisk->allStrings, (void *)name); // Cheeky 64bit int to pointer conversion
+        omp_unset_lock(&(cactusDisk->writelock));
+
         assert(string != NULL);
         string = stString_getSubString(string, start, length);
         if(!strand) {
@@ -380,6 +394,7 @@ char *cactusDisk_getString(CactusDisk *cactusDisk, Name name, int64_t start, int
     }
 
     //First try getting it from the cache
+    assert(0);
     char *string = cactusDisk_getStringFromCache(cactusDisk, name, start, length, strand);
     if (string == NULL) { //If not in the cache, add it to the cache and then get it from the cache.
         stList *list = stList_construct3(0, (void (*)(void *)) substring_destruct);
@@ -412,6 +427,7 @@ static int cactusDisk_constructSequencesP(const void *o1, const void *o2) {
 
 static void cactusDisk_writeBinaryRepresentation(CactusDisk *cactusDisk,
         void (*writeFn)(const void * ptr, size_t size, size_t count)) {
+    assert(0);
     binaryRepresentation_writeElementType(CODE_CACTUS_DISK, writeFn);
     if (cactusDisk->eventTree != NULL) {
         eventTree_writeBinaryRepresentation(cactusDisk->eventTree, writeFn);
@@ -420,6 +436,7 @@ static void cactusDisk_writeBinaryRepresentation(CactusDisk *cactusDisk,
 }
 
 void cactusDisk_loadFromBinaryRepresentation(void **binaryString, CactusDisk *cactusDisk, stKVDatabaseConf *conf) {
+    assert(0);
     assert(binaryRepresentation_peekNextElementType(*binaryString) == CODE_CACTUS_DISK);
     binaryRepresentation_popNextElementType(binaryString);
     cactusDisk->eventTree = eventTree_loadFromBinaryRepresentation(binaryString, cactusDisk);
@@ -433,6 +450,7 @@ void cactusDisk_loadFromBinaryRepresentation(void **binaryString, CactusDisk *ca
 
 static void *compress(void *data, int64_t *dataSize) {
     //Compression
+    assert(0);
     int64_t compressedSize;
     void *data2 = stCompression_compress(data, *dataSize, &compressedSize, -1);
     free(data);
@@ -442,6 +460,7 @@ static void *compress(void *data, int64_t *dataSize) {
 
 static void *decompress(void *data, int64_t *dataSize) {
     //Decompression
+    assert(0);
     int64_t uncompressedSize;
     void *data2 = stCompression_decompress(data, *dataSize, &uncompressedSize);
     *dataSize = uncompressedSize;
@@ -449,6 +468,7 @@ static void *decompress(void *data, int64_t *dataSize) {
 }
 
 static stList *getRecords(CactusDisk *cactusDisk, stList *objectNames, char *type) {
+    assert(0);
     if (stList_length(objectNames) == 0) {
         return stList_construct3(0, NULL);
     }
@@ -493,6 +513,7 @@ static stList *getRecords(CactusDisk *cactusDisk, stList *objectNames, char *typ
 }
 
 static void *getRecord(CactusDisk *cactusDisk, Name objectName, char *type, int64_t *size) {
+    assert(0);
     void *cA = NULL;
     int64_t recordSize = 0;
     if (cactusDisk->cache != NULL
@@ -529,6 +550,7 @@ static void *getRecord(CactusDisk *cactusDisk, Name objectName, char *type, int6
 }
 
 static bool containsRecord(CactusDisk *cactusDisk, Name objectName) {
+    assert(0);
     return (cactusDisk->cache != NULL
             && stCache_containsRecord(cactusDisk->cache, objectName, 0, INT64_MAX))
         || stKVDatabase_containsRecord(cactusDisk->database, objectName);
@@ -550,11 +572,15 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf, bool crea
         cactusDisk->inMemory = 1;
         cactusDisk->allStrings = stHash_construct2(NULL, free);
         cactusDisk->currentName = 1; // Start the naming of objects from 1
+#if defined(_OPENMP)
+        omp_init_lock(&(cactusDisk->writelock));
+#endif
     }
 
     //Now open the database
     //cactusDisk->database = stKVDatabase_construct(conf, create);
     if (cache) {
+        assert(0);
         // 10MB for general DB responses
         cactusDisk->cache = stCache_construct2(10000000);
     }
@@ -594,15 +620,14 @@ CactusDisk *cactusDisk_constructInMemory(stKVDatabaseConf *conf, bool create, bo
 
 void cactusDisk_destruct(CactusDisk *cactusDisk) {
     Flower *flower;
-    Sequence *sequence;
-
     while ((flower = stSortedSet_getFirst(cactusDisk->flowers)) != NULL) {
         flower_destruct(flower, FALSE);
     }
     stSortedSet_destruct(cactusDisk->flowers);
 
-    stSortedSet_destruct(cactusDisk->flowerNamesMarkedForDeletion);
+    //stSortedSet_destruct(cactusDisk->flowerNamesMarkedForDeletion);
 
+    Sequence *sequence;
     while ((sequence = stSortedSet_getFirst(cactusDisk->sequences)) != NULL) {
         sequence_destruct(sequence);
     }
@@ -622,12 +647,13 @@ void cactusDisk_destruct(CactusDisk *cactusDisk) {
         stHash_destruct(cactusDisk->allStrings); // cleanup the library of strings we hold in memory
     }
 
-    stList_destruct(cactusDisk->updateRequests);
+    //stList_destruct(cactusDisk->updateRequests);
 
     free(cactusDisk);
 }
 
 void cactusDisk_addUpdateRequest(CactusDisk *cactusDisk, Flower *flower) {
+    assert(0);
     int64_t recordSize;
     void *vA = binaryRepresentation_makeBinaryRepresentation(flower,
             (void (*)(void *, void (*)(const void * ptr, size_t size, size_t count))) flower_writeBinaryRepresentation,
@@ -653,6 +679,7 @@ void cactusDisk_addUpdateRequest(CactusDisk *cactusDisk, Flower *flower) {
 }
 
 void cactusDisk_forceParameterUpdate(CactusDisk *cactusDisk, bool keyAlreadyExists) {
+    assert(0);
     int64_t recordSize;
     void *cactusDiskParameters =
         binaryRepresentation_makeBinaryRepresentation(cactusDisk,
@@ -673,6 +700,7 @@ void cactusDisk_forceParameterUpdate(CactusDisk *cactusDisk, bool keyAlreadyExis
 }
 
 void cactusDisk_write(CactusDisk *cactusDisk) {
+    assert(0);
     Flower *flower;
     int64_t recordSize;
 
@@ -773,6 +801,7 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
 }
 
 stList *cactusDisk_getFlowers(CactusDisk *cactusDisk, stList *flowerNames) {
+    assert(0);
     stList *records = getRecords(cactusDisk, flowerNames, "flowers");
     assert(stList_length(flowerNames) == stList_length(records));
     stList *flowers = stList_construct();
@@ -797,37 +826,37 @@ stList *cactusDisk_getFlowers(CactusDisk *cactusDisk, stList *flowerNames) {
 Flower *cactusDisk_getFlower(CactusDisk *cactusDisk, Name flowerName) {
     Flower flower;
     flower.name = flowerName;
-    Flower *flower2;
-    if ((flower2 = stSortedSet_search(cactusDisk->flowers, &flower)) != NULL) {
-        return flower2;
-    }
-    return NULL;
+#if defined(_OPENMP)
+        omp_set_lock(&(cactusDisk->writelock));
+        Flower *flower2 = stSortedSet_search(cactusDisk->flowers, &flower);
+        omp_unset_lock(&(cactusDisk->writelock));
+#else
+    Flower *flower2 = stSortedSet_search(cactusDisk->flowers, &flower);
+#endif
+    return flower2;
 
+    /*
     void *cA = getRecord(cactusDisk, flowerName, "flower", NULL);
 
     if (cA == NULL) {
         return NULL;
     }
     void *cA2 = cA;
-    flower2 = flower_loadFromBinaryRepresentation(&cA2, cactusDisk);
+    //flower2 = flower_loadFromBinaryRepresentation(&cA2, cactusDisk);
     free(cA);
-    return flower2;
+    //return flower2;*/
 }
 
 Sequence *cactusDisk_getSequence(CactusDisk *cactusDisk, Name sequenceName) {
     Sequence sequence;
     sequence.name = sequenceName;
-    Sequence *sequence2;
-    if ((sequence2 = stSortedSet_search(cactusDisk->sequences, &sequence)) != NULL) {
-        return sequence2;
-    }
-    void *cA = getRecord(cactusDisk, sequenceName, "sequence", NULL);
-    if (cA == NULL) {
-        return NULL;
-    }
-    void *cA2 = cA;
-    sequence2 = sequence_loadFromBinaryRepresentation(&cA2, cactusDisk);
-    free(cA);
+#if defined(_OPENMP)
+    omp_set_lock(&(cactusDisk->writelock));
+    Sequence *sequence2 = stSortedSet_search(cactusDisk->sequences, &sequence);
+    omp_unset_lock(&(cactusDisk->writelock));
+#else
+    Sequence *sequence2 = stSortedSet_search(cactusDisk->sequences, &sequence);
+#endif
     return sequence2;
 }
 
@@ -836,22 +865,38 @@ Sequence *cactusDisk_getSequence(CactusDisk *cactusDisk, Name sequenceName) {
  */
 
 bool cactusDisk_flowerIsLoaded(CactusDisk *cactusDisk, Name flowerName) {
+    assert(0);
     Flower flower;
     flower.name = flowerName;
     return stSortedSet_search(cactusDisk->flowers, &flower) != NULL;
 }
 
 void cactusDisk_addFlower(CactusDisk *cactusDisk, Flower *flower) {
+#if defined(_OPENMP)
+        omp_set_lock(&(cactusDisk->writelock));
+        assert(stSortedSet_search(cactusDisk->flowers, flower) == NULL);
+        stSortedSet_insert(cactusDisk->flowers, flower);
+        omp_unset_lock(&(cactusDisk->writelock));
+#else
     assert(stSortedSet_search(cactusDisk->flowers, flower) == NULL);
     stSortedSet_insert(cactusDisk->flowers, flower);
+#endif
 }
 
 void cactusDisk_removeFlower(CactusDisk *cactusDisk, Flower *flower) {
-    assert(cactusDisk_flowerIsLoaded(cactusDisk, flower_getName(flower)));
+#if defined(_OPENMP)
+        omp_set_lock(&(cactusDisk->writelock));
+        assert(stSortedSet_search(cactusDisk->flowers, flower) != NULL);
+        stSortedSet_remove(cactusDisk->flowers, flower);
+        omp_unset_lock(&(cactusDisk->writelock));
+#else
+    assert(stSortedSet_search(cactusDisk->flowers, flower) != NULL);
     stSortedSet_remove(cactusDisk->flowers, flower);
+#endif
 }
 
 void cactusDisk_deleteFlowerFromDisk(CactusDisk *cactusDisk, Flower *flower) {
+    assert(0);
     char *nameString = cactusMisc_nameToString(flower_getName(flower));
     if (stSortedSet_search(cactusDisk->flowerNamesMarkedForDeletion, nameString) == NULL) {
         stSortedSet_insert(cactusDisk->flowerNamesMarkedForDeletion, nameString);
@@ -869,6 +914,7 @@ void cactusDisk_setEventTree(CactusDisk *cactusDisk, EventTree *eventTree) {
  */
 
 void cactusDisk_getBlockOfUniqueIDs(CactusDisk *cactusDisk, int64_t intervalSize) {
+    assert(0);
     intervalSize = intervalSize < CACTUS_DISK_NAME_INCREMENT ? CACTUS_DISK_NAME_INCREMENT : intervalSize;
     bool done = 0;
     int64_t collisionCount = 0;
@@ -936,20 +982,24 @@ void cactusDisk_getBlockOfUniqueIDs(CactusDisk *cactusDisk, int64_t intervalSize
     }
 }
 
+
+
 int64_t cactusDisk_getUniqueIDInterval(CactusDisk *cactusDisk, int64_t intervalSize) {
     if(cactusDisk->inMemory) { // If in memory we can just use a counter
-/*#if defined(_OPENMP)
-#pragma omp critical {
+#if defined(_OPENMP)
+        omp_set_lock(&(cactusDisk->writelock));
         Name n = cactusDisk->currentName;
         cactusDisk->currentName += intervalSize;
-    }
-#else*/
-        Name n = cactusDisk->currentName;
-        cactusDisk->currentName += intervalSize;
-//#endif
+        omp_unset_lock(&(cactusDisk->writelock));
         return n;
+#else
+        Name n = cactusDisk->currentName;
+        cactusDisk->currentName += intervalSize;
+        return n;
+#endif
     }
 
+    assert(0);
     assert(cactusDisk->uniqueNumber <= cactusDisk->maxUniqueNumber);
     if (cactusDisk->uniqueNumber + intervalSize > cactusDisk->maxUniqueNumber) {
         cactusDisk_getBlockOfUniqueIDs(cactusDisk, intervalSize);
@@ -964,10 +1014,12 @@ int64_t cactusDisk_getUniqueID(CactusDisk *cactusDisk) {
 }
 
 void cactusDisk_clearStringCache(CactusDisk *cactusDisk) {
+    assert(0);
     stCache_clear(cactusDisk->stringCache);
 }
 
 void cactusDisk_clearCache(CactusDisk *cactusDisk) {
+    assert(0);
     stCache_clear(cactusDisk->cache);
 }
 

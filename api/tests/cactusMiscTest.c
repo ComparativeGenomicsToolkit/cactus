@@ -35,14 +35,12 @@ void testCactusMisc_stringNameFns(CuTest* testCase) {
     int64_t i;
     for (i = 0; i < 1000000; i++) {
         Name name = cactusDisk_getUniqueID(cactusDisk);
+        char *cA = cactusMisc_nameToString(name);
         CuAssertTrue(
                 testCase,
                 cactusMisc_nameCompare(
-                        cactusMisc_stringToName(
-                                cactusMisc_nameToStringStatic(name)), name)
+                        cactusMisc_stringToName(cA), name)
                         == 0);
-        char *cA = cactusMisc_nameToString(name);
-        CuAssertStrEquals(testCase, cA, cactusMisc_nameToStringStatic(name));
         free(cA);
     }
     cactusMiscTestTeardown(testCase);

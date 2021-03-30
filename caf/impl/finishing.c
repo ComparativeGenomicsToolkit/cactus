@@ -4,6 +4,11 @@
 #include "stCactusGraphs.h"
 #include "stCaf.h"
 
+// OpenMP
+#if defined(_OPENMP)
+#include <omp.h>
+#endif
+
 ///////////////////////////////////////////////////////////////////////////
 // Convert the complete cactus graph/pinch graph into filled out set of flowers
 ///////////////////////////////////////////////////////////////////////////
@@ -313,6 +318,7 @@ void stCaf_makeDegreeOneBlocks(stPinchThreadSet *threadSet) {
 // Functions for actually filling out cactus
 ///////////////////////////////////////////////////////////////////////////
 
+
 void stCaf_finish(Flower *flower, stPinchThreadSet *threadSet, int64_t chainLengthForBigFlower,
         int64_t longChain, int64_t minLengthForChromosome,
         double proportionOfUnalignedBasesForNewChromosome, bool cleanupMemory) {
@@ -326,8 +332,10 @@ void stCaf_finish(Flower *flower, stPinchThreadSet *threadSet, int64_t chainLeng
     if(stSet_size(bigFlowers) > 0) {
         printf("We are collapsing the chains of %" PRIi64 " flowers\n", stSet_size(bigFlowers));
     }
+
     //Convert cactus graph/pinch graph to API
     stCaf_convertCactusGraphToFlowers(threadSet, startCactusNode, flower, deadEndComponent, bigFlowers, cleanupMemory);
+
     //Cleanup
     stCactusGraph_destruct(cactusGraph);
     stSet_destruct(bigFlowers);

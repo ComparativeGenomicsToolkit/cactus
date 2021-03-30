@@ -431,7 +431,7 @@ char *block_makeNewickStringP(Segment *segment, bool includeInternalNames, bool 
             comma = 1;
         }
         char *final = includeInternalNames ?
-                      stString_print("%s)%s", left, cactusMisc_nameToStringStatic(segment_getName(segment))) :
+                      stString_print("%s)%" PRIi64 "", left, segment_getName(segment)) :
                       stString_print("%s)", left);
         free(left);
         return final;
