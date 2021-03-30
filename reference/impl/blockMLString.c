@@ -272,43 +272,40 @@ static double *computeBaseProbs(stTree *tree, stList *eventSortedSegments, int64
 // The following is used to soft-mask (make lower case) bases deemed to be repetitive in the source genomes.
 ////
 
-void maskAncestralRepeatBases(Block *block, char *mlString) {
+void maskAncestralRepeatBases(Block *block, stList *segments, char *mlString) {
     /*
      * Soft masks the positions in the mlString that are deemed to be repetitive. A position is repetitive
      * if greater than 50% of the bases from which it is derived are not upper case.
      */
 
-    int64_t *upperCounts = st_calloc(block_getLength(block), sizeof(int64_t)); //Counts of upper case bases at each position of the block.
-    int64_t *nCounts = st_calloc(block_getLength(block), sizeof(int64_t)); //Counts of Ns at each position of the block.
+    int64_t l = block_getLength(block), j = stList_length(segments);
+    int64_t *upperCounts = st_calloc(l, sizeof(int64_t)); //Counts of upper case bases at each position of the block.
+    int64_t *nCounts = st_calloc(l, sizeof(int64_t)); //Counts of Ns at each position of the block.
 
     //Iterate through the sequences of the segments of a block and collate the number of upper case bases.
-    Block_InstanceIterator *segmentIt = block_getInstanceIterator(block);
-    Segment *segment;
-    size_t numSegmentsWithSequence = 0;
-    while ((segment = block_getNext(segmentIt)) != NULL) {
-        if (segment_getSequence(segment) != NULL) {
-            numSegmentsWithSequence++;
-            char *string = segment_getString(segment);
-            for (int64_t i = 0; i < block_getLength(block); i++) {
-                char uC = toupper(string[i]);
-                upperCounts[i] += uC == string[i] ? 1 : 0;
-                nCounts[i] += (uC != 'A' && uC != 'C' && uC != 'G' && uC != 'T' ? 1 : 0);
-            }
-            free(string);
+    for(int64_t i=0; i<j; i++) {
+        Segment *segment = stList_get(segments, i);
+        assert(segment_getSequence(segment) != NULL);
+        char *string = segment_getString(segment);
+        for (int64_t i = 0; i < l; i++) {
+            char uC = toupper(string[i]);
+            upperCounts[i] += uC == string[i] ? 1 : 0;
+            nCounts[i] += (uC != 'A' && uC != 'C' && uC != 'G' && uC != 'T' ? 1 : 0);
         }
+        free(string);
     }
-    block_destructInstanceIterator(segmentIt);
 
     //Convert any upper case character to lower case if the majority of bases
     //from which it is derived are not upper case.
-    for (int64_t i = 0; i < block_getLength(block); i++) {
-        if (nCounts[i] == numSegmentsWithSequence) {
+    for (int64_t i = 0; i < l; i++) {
+        if (nCounts[i] == j) {
             mlString[i] = 'N';
         }
-        if (upperCounts[i] <= numSegmentsWithSequence / 2) {
+        if (upperCounts[i] <= j / 2) {
             mlString[i] = tolower(mlString[i]);
         }
     }
+
     //Cleanup
     free(upperCounts);
     free(nCounts);
@@ -363,11 +360,10 @@ char *getMaximumLikelihoodString(stTree *tree, Block *block) {
             baseProbs = getEmptyBaseProbsString(block_getLength(block));
         }
         mlString = getMaxLikelihoodString(baseProbs, block_getLength(block));
+        maskAncestralRepeatBases(block, eventSortedSegments, mlString);
         //Cleanup
         free(baseProbs);
         stList_destruct(eventSortedSegments);
     }
-    maskAncestralRepeatBases(block, mlString);
     return mlString;
 }
-
