@@ -7,6 +7,11 @@
 #include "stReferenceProblem2.h"
 #include <math.h>
 
+// OpenMP
+#if defined(_OPENMP)
+#include <omp.h>
+#endif
+
 const char *REFERENCE_BUILDING_EXCEPTION = "REFERENCE_BUILDING_EXCEPTION";
 
 ////////////////////////////////////
@@ -1223,6 +1228,7 @@ void cactus_make_reference(stList *flowers, char *referenceEventString,
 
     double (*temperatureFn)(double) = useSimulatedAnnealing ? exponentiallyDecreasingTemperatureFn : constantTemperatureFn;
 
+#pragma omp parallel for
     for(int64_t i=0; i<stList_length(flowers); i++) {
         Flower *flower = stList_get(flowers, i);
         st_logDebug("Processing flower %" PRIi64 "\n", flower_getName(flower));

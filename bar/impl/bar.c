@@ -197,7 +197,7 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
          * Run the cactus caf functions to build cactus.
          */
         stPinchThreadSet *threadSet = stCaf_setup(flower);
-        stCaf_anneal(threadSet, pinchIterator, NULL);
+        stCaf_anneal(threadSet, pinchIterator, NULL, flower);
         if (fa->minimumDegree < 2) {
             stCaf_makeDegreeOneBlocks(threadSet);
         }
