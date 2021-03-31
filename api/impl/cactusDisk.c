@@ -28,13 +28,27 @@
  */
 
 void cactusDisk_addSequence(CactusDisk *cactusDisk, Sequence *sequence) {
+#if defined(_OPENMP)
+    omp_set_lock(&(cactusDisk->writelock));
     assert(stSortedSet_search(cactusDisk->sequences, sequence) == NULL);
     stSortedSet_insert(cactusDisk->sequences, sequence);
+    omp_unset_lock(&(cactusDisk->writelock));
+#else
+    assert(stSortedSet_search(cactusDisk->sequences, sequence) == NULL);
+    stSortedSet_insert(cactusDisk->sequences, sequence);
+#endif
 }
 
 void cactusDisk_removeSequence(CactusDisk *cactusDisk, Sequence *sequence) {
+#if defined(_OPENMP)
+    omp_set_lock(&(cactusDisk->writelock));
     assert(stSortedSet_search(cactusDisk->sequences, sequence) != NULL);
     stSortedSet_remove(cactusDisk->sequences, sequence);
+    omp_unset_lock(&(cactusDisk->writelock));
+#else
+    assert(stSortedSet_search(cactusDisk->sequences, sequence) != NULL);
+    stSortedSet_remove(cactusDisk->sequences, sequence);
+#endif
 }
 
 /*
