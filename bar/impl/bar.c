@@ -74,6 +74,8 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
     PairwiseAlignmentParameters *pairwiseAlignmentParameters = pairwiseAlignmentParameters_constructFromCactusParams(params);
     bool pruneOutStubAlignments = cactusParams_get_int(params, 2, "bar", "pruneOutStubAlignments");
 
+    usePoa=0;
+
     //////////////////////////////////////////////
     //Run the bar algorithm
     //////////////////////////////////////////////
@@ -148,7 +150,7 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
          */
         //Clean up the sorted set after cleaning up the iterator
         stPinchIterator_destruct(pinchIterator);
-        if(poaWindow != 0) {
+        if(usePoa) {
             stList_destruct(alignments);
         }
         else {

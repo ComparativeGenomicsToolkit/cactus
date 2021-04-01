@@ -662,6 +662,9 @@ void cactusDisk_destruct(CactusDisk *cactusDisk) {
     }
 
     //stList_destruct(cactusDisk->updateRequests);
+#if defined(_OPENMP)
+    omp_destroy_lock(&(cactusDisk->writelock));
+#endif
 
     free(cactusDisk);
 }
