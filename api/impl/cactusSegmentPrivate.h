@@ -28,14 +28,4 @@ Segment *segment_construct3(Name name, Block *block,
  */
 void segment_destruct(Segment *segment);
 
-/*
- * Write a binary representation of the segment to the write function.
- */
-void segment_writeBinaryRepresentation(Segment *segment, void (*writeFn)(const void * ptr, size_t size, size_t count));
-
-/*
- * Loads a flower into memory from a binary representation of the flower.
- */
-Segment *segment_loadFromBinaryRepresentation(void **binaryString, Block *block);
-
 #endif

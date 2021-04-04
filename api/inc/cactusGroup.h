@@ -141,16 +141,6 @@ Group_EndIterator *group_getEndIterator(Group *group);
 End *group_getNextEnd(Group_EndIterator *endIterator);
 
 /*
- * Gets the previous end from the iterator.
- */
-End *group_getPreviousEnd(Group_EndIterator *endIterator);
-
-/*
- * Duplicates the iterator.
- */
-Group_EndIterator *group_copyEndIterator(Group_EndIterator *endIterator);
-
-/*
  * Destructs the iterator.
  */
 void group_destructEndIterator(Group_EndIterator *endIterator);
@@ -159,14 +149,6 @@ void group_destructEndIterator(Group_EndIterator *endIterator);
  * Gets the total number of bases in the group for threads that have defined sequences.
  */
 int64_t group_getTotalBaseLength(Group *group);
-
-/*
- * Merges together the two groups and there nested flowers, if they have them.
- *
- * Only works if both groups do not have links. Merging together groups that
- * are in links means breaking the chains, which it currently will not do.
- */
-//Group *group_mergeGroups(Group *group1, Group *group2);
 
 /*
  * Checks (amongst other things) the following:

@@ -37,7 +37,6 @@ struct _end_instanceIterator {
     End *end;
 };
 
-
 bool end_isBlock(End *end);
 BlockEndContents *end_getBlockEndContents(End *end);
 
@@ -71,11 +70,6 @@ End *end_construct3(Name name, int64_t isAttached,
 void end_destruct(End *end);
 
 /*
- * Sets the attached block.
- */
-void end_setBlock(End *end, Block *block);
-
-/*
  * Adds the cap to the end.
  */
 void end_addInstance(End *end, Cap *cap);
@@ -84,16 +78,6 @@ void end_addInstance(End *end, Cap *cap);
  * Removes the instance from the end.
  */
 void end_removeInstance(End *end, Cap *cap);
-
-/*
- * Write a binary representation of the end to the write function.
- */
-void end_writeBinaryRepresentation(End *end, void (*writeFn)(const void * ptr, size_t size, size_t count));
-
-/*
- * Loads a flower into memory from a binary representation of the flower.
- */
-End *end_loadFromBinaryRepresentation(void **binaryString, Flower *flower);
 
 /*
  * Hash key for an end, uses the name of the end to hash.. hence
@@ -115,6 +99,5 @@ void end_setFlower(End *end, Flower *flower);
  * Get pointer to next end in the group.
  */
 End **getNextEndPointer(End *end);
-
 
 #endif

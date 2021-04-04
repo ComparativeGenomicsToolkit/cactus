@@ -88,36 +88,4 @@ void flower_addChain(Flower *flower, Chain *chain);
  */
 void flower_removeChain(Flower *flower, Chain *chain);
 
-/*
- * Adds the face to the flower.
- */
-void flower_addFace(Flower *flower, Face *face);
-
-/*
- * Remove the face from the flower.
- */
-void flower_removeFace(Flower *flower, Face *face);
-
-/*
- * This function constructs faces for the flower. If faces are already created then
- * they will be first delete.
- */
-void flower_reconstructFaces(Flower * flower);
-
-/*
- * Destroys all faces in the flower.
- */
-void flower_destructFaces(Flower *flower);
-
-/*
- * Write a binary representation of the flower to the write function.
- */
-void flower_writeBinaryRepresentation(Flower *flower, void(*writeFn)(const void * ptr,
-        size_t size, size_t count));
-
-/*
- * Loads a flower into memory from a binary representation of the flower.
- */
-Flower *flower_loadFromBinaryRepresentation(void **binaryString, CactusDisk *cactusDisk);
-
 #endif

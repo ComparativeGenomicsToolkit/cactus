@@ -228,27 +228,6 @@ void segment_check(Segment *segment) {
         assert(cap_getCoordinate(_3Cap) == INT64_MAX);
     }
 
-    //Checks the the segment has a parent, unless the root.
-    if (block_getRootInstance(block) == NULL) {
-        assert(segment_getParent(segment) == NULL);
-    } else {
-        if (block_getRootInstance(block) == segment) {
-            assert(segment_getParent(segment) == NULL);
-        } else { //Check the parent-child links are correct.
-            Segment *ancestorSegment = segment_getParent(segment); //Check the parent / child is consistent.
-            assert(ancestorSegment != NULL);
-            assert(event_isAncestor(segment_getEvent(segment), segment_getEvent(ancestorSegment)));
-            assert(segment_getOrientation(segment) == segment_getOrientation(ancestorSegment));
-
-            int64_t i;
-            for (i = 0; i < segment_getChildNumber(segment); i++) {
-                Segment *childSegment = segment_getChild(segment, i);
-                assert(childSegment != NULL);
-                assert(segment_getParent(childSegment) == segment);
-            }
-        }
-    }
-
     //Check the reverse..
     Segment *rSegment = segment_getReverse(segment);
     assert(rSegment != NULL);
@@ -264,100 +243,6 @@ void segment_check(Segment *segment) {
     assert(segment_getLength(segment) == segment_getLength(rSegment));
     assert(segment_get5Cap(segment) == cap_getReverse(segment_get3Cap(rSegment)));
     assert(segment_get3Cap(segment) == cap_getReverse(segment_get5Cap(rSegment)));
-    if (segment_getParent(segment) == NULL) {
-        assert(segment_getParent(rSegment) == NULL);
-    } else {
-        assert(segment_getParent(segment) == segment_getReverse(segment_getParent(rSegment)));
-    }
-    assert(segment_getChildNumber(segment) == segment_getChildNumber(rSegment));
-    int64_t i;
-    for (i = 0; i < segment_getChildNumber(segment); i++) {
-        assert(segment_getChild(segment, i) == segment_getReverse(segment_getChild(rSegment, i)));
-    }
+
 }
 
-/*
- * Functions to remove
- */
-
-/*
- * Serialisation functions.
- */
-
-Segment *segment_construct3(Name name, Block *block, Cap *_5Cap, Cap *_3Cap) {
-    assert(0);
-    return NULL;
-}
-
-void segment_writeBinaryRepresentation(Segment *segment, void(*writeFn)(
-        const void * ptr, size_t size, size_t count)) {
-    assert(segment_getOrientation(segment));
-    binaryRepresentation_writeElementType(CODE_SEGMENT, writeFn);
-    binaryRepresentation_writeName(segment_getName(segment), writeFn);
-    binaryRepresentation_writeName(cap_getName(segment_get5Cap(segment)),
-            writeFn);
-    binaryRepresentation_writeName(cap_getName(segment_get3Cap(segment)),
-            writeFn);
-}
-
-Segment *segment_loadFromBinaryRepresentation(void **binaryString, Block *block) {
-    Name name, _5InstanceName, _3InstanceName;
-    Segment *segment;
-
-    segment = NULL;
-    if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_SEGMENT) {
-        binaryRepresentation_popNextElementType(binaryString);
-        name = binaryRepresentation_getName(binaryString);
-        _5InstanceName = binaryRepresentation_getName(binaryString);
-        _3InstanceName = binaryRepresentation_getName(binaryString);
-        segment = NULL; ///segment_construct3(name, block, end_getInstance(
-                //block_get5End(block), _5InstanceName), end_getInstance(
-                //block_get3End(block), _3InstanceName));
-    }
-    return segment;
-}
-
-Segment *segment_getParent(Segment *segment) {
-    //assert(0);
-    return NULL;
-    Cap *cap;
-    Segment *segment2;
-    cap = segment_get5Cap(segment);
-    while ((cap = cap_getParent(cap)) != NULL) {
-        if ((segment2 = cap_getSegment(cap)) != NULL) {
-            return segment2;
-        }
-    }
-    return NULL;
-}
-
-int64_t segment_getChildNumber(Segment *segment) {
-    //assert(0);
-    return 0;
-    return cap_getChildNumber(segment_get5Cap(segment));
-}
-
-Segment *segment_getChild(Segment *segment, int64_t index) {
-    return NULL;
-    //assert(0);
-    Cap *cap;
-    Segment *segment2;
-    cap = cap_getChild(segment_get5Cap(segment), index);
-    while (cap_getSegment(cap) == NULL) {
-        assert(cap_getChildNumber(cap) == 1);
-        cap = cap_getChild(cap, 0);
-    }
-    segment2 = cap_getSegment(cap);
-    assert(segment_getOrientation(segment) == segment_getOrientation(segment2));
-    return segment2;
-}
-
-void segment_makeParentAndChild(Segment *segmentParent, Segment *segmentChild) {
-    assert(0);
-    segmentParent = segment_getPositiveOrientation(segmentParent);
-    segmentChild = segment_getPositiveOrientation(segmentChild);
-    cap_makeParentAndChild(segment_get5Cap(segmentParent), segment_get5Cap(
-            segmentChild));
-    cap_makeParentAndChild(segment_get3Cap(segmentParent), segment_get3Cap(
-            segmentChild));
-}

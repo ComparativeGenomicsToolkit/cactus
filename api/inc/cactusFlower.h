@@ -237,8 +237,7 @@ Group *flower_getPreviousGroup(Flower_GroupIterator *groupIterator);
 /*
  * Duplicates the iterator.
  */
-Flower_GroupIterator *flower_copyGroupIterator(
-        Flower_GroupIterator *groupIterator);
+Flower_GroupIterator *flower_copyGroupIterator(Flower_GroupIterator *groupIterator);
 
 /*
  * Destructs the iterator.
@@ -294,8 +293,7 @@ Chain *flower_getPreviousChain(Flower_ChainIterator *chainIterator);
 /*
  * Duplicates the iterator.
  */
-Flower_ChainIterator *flower_copyChainIterator(
-        Flower_ChainIterator *chainIterator);
+Flower_ChainIterator *flower_copyChainIterator(Flower_ChainIterator *chainIterator);
 
 /*
  * Destructs the iterator.
@@ -303,52 +301,9 @@ Flower_ChainIterator *flower_copyChainIterator(
 void flower_destructChainIterator(Flower_ChainIterator *chainIterator);
 
 /*
- * Gets the 'first' face.
- */
-Face *flower_getFirstFace(Flower *flower);
-
-/*
- * Returns the number of faces.
- */
-int64_t flower_getFaceNumber(Flower *flower);
-
-/*
- * Gets an iterator to iterate through the faces in the flower, at this level.
- */
-Flower_FaceIterator *flower_getFaceIterator(Flower *flower);
-
-/*
- * Gets the next face from the iterator.
- */
-Face *flower_getNextFace(Flower_FaceIterator *faceIterator);
-
-/*
- * Gets the previous face from the iterator.
- */
-Face *flower_getPreviousFace(Flower_FaceIterator *faceIterator);
-
-/*
- * Duplicates the iterator.
- */
-Flower_FaceIterator *flower_copyFaceIterator(Flower_FaceIterator *faceIterator);
-
-/*
- * Destructs the iterator.
- */
-void flower_destructFaceIterator(Flower_FaceIterator *faceIterator);
-
-/*
  * Get flower size, in terms of total bases it contains. Looks only at threads have defined sequences.
  */
 int64_t flower_getTotalBaseLength(Flower *flower);
-
-/*
- * Merges together the two flowers and there parent groups.
- *
- * Only works if both parent groups do not have links. Merging together groups that
- * are in links means breaking the chains, which it currently will not do.
- */
-//Flower *flower_mergeFlowers(Flower *flower1, Flower *flower2);
 
 /*
  * Runs check function for each type of object contained in the flower.
@@ -380,29 +335,6 @@ bool flower_builtBlocks(Flower *flower);
 void flower_setBuiltBlocks(Flower *flower, bool b);
 
 /*
- * Returns non-zero iff every end tree and block tree is well defined.
- */
-bool flower_builtTrees(Flower *flower);
-
-/*
- * Switches the status of flower_buildTrees(). By default flower_builtTrees returns
- * 0.
- */
-void flower_setBuiltTrees(Flower *flower, bool b);
-
-/*
- * Returns non-zero iff faces are being built for the tree. If this is set
- * then faces are built for the AVG.
- */
-bool flower_builtFaces(Flower *flower);
-
-/*
- * Switches the status of flower_builtFaces(). By default flower_builtFaces returns
- * 0.
- */
-void flower_setBuildFaces(Flower *flower, bool b);
-
-/*
  * Returns non-zero iff the flower has no nested flowers.
  */
 bool flower_isLeaf(Flower *flower);
@@ -428,32 +360,5 @@ bool flower_deleteIfEmpty(Flower *flower);
  * Deletes the flower and its children.
  */
 void flower_delete(Flower *flower);
-
-/*
- * Deletes the flower and its children. Can optionally specify that flower is not on disk (i.e. if you know you just created it),
- * and therefore avoid adding to the database communication.
- */
-void flower_delete2(Flower *flower, bool isOnDisk);
-
-/*
- * Ensures that all terminal groups have an attached leaf flower.
- */
-void flower_makeTerminalNormal(Flower *flower);
-
-/*
- * Returns non zero if the parent is loaded.
- */
-bool flower_isParentLoaded(Flower *flower);
-
-/*
- * If the parent of the flower is memory it is unloaded. This should be used with care, as if the parent has not yet
- * be written to disk then it will not exist after the end of session.
- */
-void flower_unloadParent(Flower *flower);
-
-/*
- * Unload flowers.
- */
-void flower_unload(Flower *flower);
 
 #endif

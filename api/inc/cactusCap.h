@@ -120,58 +120,6 @@ void cap_breakAdjacency(Cap *cap);
 Cap *cap_getAdjacency(Cap *cap);
 
 /*
- * Returns the top node associated with the cap. Returns NULL if
- * the cap is not attached or if the cap is a root node. This function is
- * denoted A(c) for cap c in the AVG paper.
- */
-Cap *cap_getTopCap(Cap *cap);
-
-/*
- * Gets any face in which the cap is a top node.
- */
-Face *cap_getTopFace(Cap *cap);
-
-/*
- * Returns any face-end associated in which the cap is a top node, or NULL.
- */
-FaceEnd *cap_getTopFaceEnd(Cap *cap);
-
-/*
- * Returns any face-end associated in the cap is a bottom node, or NULL.
- */
-FaceEnd *cap_getBottomFaceEnd(Cap *cap);
-
-/*
- * Gets the parent cap (in the tree of the end).
- */
-Cap *cap_getParent(Cap *cap);
-
-/*
- * Returns the number of children the cap has.
- */
-int64_t cap_getChildNumber(Cap *cap);
-
-/*
- * Gets the child cap in the tree of the end.
- */
-Cap *cap_getChild(Cap *cap, int64_t index);
-
-/*
- * Links together a parent and child cap.
- */
-void cap_makeParentAndChild(Cap *capParent, Cap *capChild);
-
-/*
- * Changes the parent cap of a child cap
- */
-void cap_changeParentAndChild(Cap* newCapParent, Cap* capChild);
-
-/*
- * Returns non zero if the cap is internal (part of an internal tree).
- */
-bool cap_isInternal(Cap *cap);
-
-/*
  * Checks the following (amongst other things):
  * If end has tree:
  *  (1) checks the cap has a parent which has an ancestral event to the caps event, unless it is the root.

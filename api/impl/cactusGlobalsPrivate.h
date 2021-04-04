@@ -23,7 +23,7 @@
 #include "sonLib.h"
 #include "commonC.h"
 
-#define NAME_STRING "%" PRIi64 "" //%" PRIi64 "64d" //"%llX"
+#define NAME_STRING "%" PRIi64 ""
 
 #include "cactusGroup.h"
 #include "cactusGroupPrivate.h"
@@ -44,19 +44,13 @@
 #include "cactusGlobals.h"
 #include "cactusLink.h"
 #include "cactusLinkPrivate.h"
-#include "cactusMetaSequence.h"
-#include "cactusMetaSequencePrivate.h"
+#include "cactusSequence.h"
+#include "cactusSequencePrivate.h"
 #include "cactusFlower.h"
 #include "cactusDisk.h"
 #include "cactusDiskPrivate.h"
 #include "cactusMisc.h"
 #include "cactusFlowerPrivate.h"
-#include "cactusFace.h"
-#include "cactusFacePrivate.h"
-#include "cactusFaceEnd.h"
-#include "cactusFaceEndPrivate.h"
-#include "cactusSerialisation.h"
 #include "cactusTestCommon.h"
-#include "cactusFlowerWriter.h"
 
 #endif

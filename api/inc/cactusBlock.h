@@ -79,18 +79,6 @@ Segment *block_getInstance(Block *block, Name instanceName);
 Segment *block_getFirst(Block *block);
 
 /*
- * Gets the root cap of the block, if it is set, or returns NULL;
- */
-Segment *block_getRootInstance(Block *block);
-
-/*
- * Sets the root cap of the block. Will throw an error if the segment
- * is not part of the end, or already has a parent. Will set the root instances of left and
- * right ends.
- */
-void block_setRootInstance(Block *block, Segment *segment);
-
-/*
  * Gets an iterator to iterate over the segments.
  */
 Block_InstanceIterator *block_getInstanceIterator(Block *block);
@@ -99,16 +87,6 @@ Block_InstanceIterator *block_getInstanceIterator(Block *block);
  * Gets the next segment, or NULL if none remaining.
  */
 Segment *block_getNext(Block_InstanceIterator *iterator);
-
-/*
- * Gets the previous segment, or NULL if none remaining.
- */
-Segment *block_getPrevious(Block_InstanceIterator *iterator);
-
-/*
- * Duplicates the iterator.
- */
-Block_InstanceIterator *block_copyInstanceIterator(Block_InstanceIterator *iterator);
 
 /*
  * Destructs the iterator - should always be coupled with the iterator.
@@ -126,14 +104,6 @@ Chain *block_getChain(Block *block);
 Segment *block_getSegmentForEvent(Block *block, Name eventName);
 
 /*
- * Splits an block into two. The split point is equal to the length of the left block. This value must be less than the length
- * of the complete block and greater than zero, so that both sides of the block have greater than zero length.
- *
- * The original block and all its instances are destroyed by this operation. The new blocks are pointed to by the left and right block pointers.
- */
-void block_split(Block *block, int64_t splitPoint, Block **leftBlock, Block **rightBlock);
-
-/*
  * Checks (amongst other things) the following:
  * Checks the reverse is the mirror of the block.
  * Checks the two ends are block ends and there properties are consistent with the block.
@@ -141,23 +111,6 @@ void block_split(Block *block, int64_t splitPoint, Block **leftBlock, Block **ri
  * For each segment calls segment_check.
  */
 void block_check(Block *block);
-
-/*
- * Makes a newick string representation of the segments in the block.
- * Does not include any branch lengths currents.
- * Creates an assert error if the segments are not in a tree.
- * Returns null if the block contains no segments.
- * The names of the blocks are their names converted to strings.
- * Includes unary events in tree.
- */
-char *block_makeNewickString(Block *block, bool includeInternalNames, bool includeUnaryEvents);
-
-/*
- * Pushes the block into the higher level flower. Will not work if the block to be promoted is nested
- * within a chain of the higher level flower or is contained in a chain at the lower level (i.e. it must
- * be a trivial chain).
- */
-void block_promote(Block *block);
 
 /*
  * Returns non-zero if the ends of the block are not in a link.

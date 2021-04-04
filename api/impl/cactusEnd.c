@@ -41,7 +41,6 @@ static bool end_getBit(End *end, int bit) {
 }
 
 bool end_getOrientation(End *end) {
-    //fprintf(stderr, "Starting get orientation %" PRIi64 "\n", (int64_t)end);
     return end_getBit(end, 0);
 }
 
@@ -89,7 +88,6 @@ void end_makeAttached(End *end) {
 }
 
 BlockEndContents *end_getBlockEndContents(End *end) {
-    //fprintf(stderr, "Starting get block end\n");
     assert(end_partOfBlock(end));
     // Bits: (0) orientation / (1) part_of_block / (2) is_block / (3) left / (4) is_attached / (5) side
     switch(end->bits) {
@@ -112,7 +110,6 @@ BlockEndContents *end_getBlockEndContents(End *end) {
 }
 
 EndContents *end_getContents(End *end) {
-    //fprintf(stderr, "Starting get contents\n");
     assert(!end_partOfBlock(end));
     // Bits: (0) orientation / (1) part_of_block / (2) is_block / (3) left / (4) is_attached / (5) side
     switch(end->bits & 0x3) {
@@ -138,9 +135,6 @@ End *end_construct2(bool side, bool isAttached, Flower *flower) {
 
 End *end_construct3(Name name, int64_t isAttached,
         int64_t side, Flower *flower) {
-
-    //fprintf(stderr, "Starting end\n");
-
     End *end = st_calloc(1, 2*sizeof(End) + sizeof(EndContents));
     // see above comment to decode what is set
     // Bits: (0) orientation / (1) part_of_block / (2) is_block / (3) left / (4) is_attached / (5) side
@@ -167,8 +161,6 @@ End *end_construct3(Name name, int64_t isAttached,
     assert(end_isStubEnd(end));
     assert(end_isStubEnd(end_getReverse(end)));
     assert(flower_getEnd(flower, end_getName(end)) == end);
-
-    //fprintf(stderr, "Ending end\n");
 
     return end;
 }
@@ -225,7 +217,6 @@ void end_destruct(End *end) {
 }
 
 Name end_getName(End *end) {
-    //fprintf(stderr, "Starting end get name %" PRIi64 "\n", end);
     if(end_partOfBlock(end)) {
         return end_getBlockEndContents(end)->name + (end_left(end) ? 0 : 2);
     }
@@ -233,17 +224,14 @@ Name end_getName(End *end) {
 }
 
 End *end_getPositiveOrientation(End *end) {
-    //fprintf(stderr, "Starting getPositiveOrientation %" PRIi64 "\n", end);
     return end_getOrientation(end) ? end : end_getReverse(end);
 }
 
 End *end_getReverse(End *end) {
-    //fprintf(stderr, "Starting end_getReverse %" PRIi64 "\n", end);
     return end_getOrientation(end) ? end+1 : end-1; 
 }
 
 Flower *end_getFlower(End *end) {
-    //fprintf(stderr, "Starting end_getFlower %" PRIi64 "\n", end);
     if(end_partOfBlock(end)) {
         return end_getBlockEndContents(end)->flower;
     }
@@ -251,7 +239,6 @@ Flower *end_getFlower(End *end) {
 }
 
 Block *end_getBlock(End *end) {
-    //fprintf(stderr, "Starting end_getBlock %" PRIi64 "\n", end);
     if(end_partOfBlock(end)) {
         assert(!end_isBlock(end));
         return end_left(end) ? end+2 : end-2;
@@ -260,7 +247,6 @@ Block *end_getBlock(End *end) {
 }
 
 End *end_getOtherBlockEnd(End *end) {
-    //fprintf(stderr, "Starting end_getOtherBlockEnd %" PRIi64 "\n", end);
     if (!end_partOfBlock(end)) {
         return NULL; //the end must be block end to return the other end of a block!
     }
@@ -269,7 +255,6 @@ End *end_getOtherBlockEnd(End *end) {
 }
 
 Group *end_getGroup(End *end) {
-    //fprintf(stderr, "Starting end_getGroup %" PRIi64 "\n", end);
     if(end_partOfBlock(end)) {
         assert(!end_isBlock(end));
         BlockEndContents *i = end_getBlockEndContents(end);
@@ -283,7 +268,6 @@ bool end_isEmpty(End *end) {
 }
 
 int64_t end_getInstanceNumber(End *end) {
-    //fprintf(stderr, "Starting end_getInstanceNumber %" PRIi64 "\n", end);
     assert(!end_isBlock(end));
     if(end_partOfBlock(end)) {
         assert(!end_isBlock(end));
@@ -314,7 +298,6 @@ Cap *end_getInstance(End *end, Name name) {
 }
 
 End_InstanceIterator *end_getInstanceIterator(End *end) {
-    //fprintf(stderr, "Starting end_getInstanceIterator\n");
     End_InstanceIterator *iterator;
     iterator = st_malloc(sizeof(struct _end_instanceIterator));
     iterator->end = end;
@@ -323,7 +306,6 @@ End_InstanceIterator *end_getInstanceIterator(End *end) {
 }
 
 Cap *end_getNext(End_InstanceIterator *iterator) {
-    //fprintf(stderr, "Starting end_getNext\n");
     Cap *cap = iterator->cap;
     if(cap == NULL) {
         return NULL;
@@ -344,7 +326,6 @@ Cap *end_getNext(End_InstanceIterator *iterator) {
 }
 
 Cap *end_getFirst(End *end) {
-    //fprintf(stderr, "Starting end_getFirst\n");
     // If is it attached to a block
     if(end_partOfBlock(end)) {
         Block *b = end_getBlock(end);
@@ -359,12 +340,10 @@ Cap *end_getFirst(End *end) {
 }
 
 void end_destructInstanceIterator(End_InstanceIterator *iterator) {
-    //fprintf(stderr, "Starting end_destructInstanceIterator\n");
     free(iterator);
 }
 
 void end_setGroup(End *end, Group *group) {
-    //fprintf(stderr, "Starting end_setGroup\n");
     if (end_getGroup(end) != NULL) {
         group_removeEnd(end_getGroup(end), end);
     }
@@ -387,7 +366,6 @@ void end_setGroup(End *end, Group *group) {
 }
 
 void end_check(End *end) {
-    //fprintf(stderr, "Starting end_check\n");
     //Check is connected to flower properly
     assert(flower_getEnd(end_getFlower(end), end_getName(end)) == end_getPositiveOrientation(end));
 
@@ -449,11 +427,6 @@ void end_check(End *end) {
         assert(end_getFirst(end) == cap_getReverse(end_getFirst(rEnd)));
     }
 
-    //Check has tree if built_trees set
-    /*if (flower_builtTrees(end_getFlower(end)) && end_getInstanceNumber(end) > 0) {
-        assert(end_getRootInstance(end) != NULL);
-    }*/
-
     //For each segment calls segment_check.
     End_InstanceIterator *iterator = end_getInstanceIterator(end);
     Cap *cap;
@@ -464,7 +437,6 @@ void end_check(End *end) {
 }
 
 Cap *end_getCapForEvent(End *end, Name eventName) {
-    //fprintf(stderr, "Starting end_getCapForEvent\n");
     /*
      * Get the cap for a given event.
      */
@@ -485,7 +457,6 @@ Cap *end_getCapForEvent(End *end, Name eventName) {
  */
 
 void end_addInstance(End *end, Cap *cap) {
-    //fprintf(stderr, "Starting end_addInstance\n");
     if(!end_partOfBlock(end)) {
         assert(cap_getContents(cap)->nCap == NULL);
         assert(!cap_partOfSegment(cap));
@@ -498,7 +469,6 @@ void end_addInstance(End *end, Cap *cap) {
 }
 
 void end_removeInstance(End *end, Cap *cap) {
-    //fprintf(stderr, "Starting end_removeInstance\n");
     if(!end_partOfBlock(end)) {
         assert(!cap_partOfSegment(cap));
         Cap **capP = &(end_getContents(end)->firstCap);
@@ -516,7 +486,6 @@ void end_removeInstance(End *end, Cap *cap) {
 }
 
 void end_setFlower(End *end, Flower *flower) {
-    //fprintf(stderr, "Starting end_setFlower\n");
     flower_removeEnd(end_getFlower(end), end);
     if(end_partOfBlock(end)) {
         assert(0); // todo: This needs fixing if this happens
@@ -537,129 +506,4 @@ int end_hashEqualsKey(const void *o, const void *o2) {
     End *end2 = (End *) o2;
     return end_getName(end1) == end_getName(end2) && end_getOrientation(end1)
                                                      == end_getOrientation(end2);
-}
-
-/*
- * Stuff to delete
- */
-
-/*
- * Serialisation functions.
- */
-
-void end_writeBinaryRepresentationP(Cap *cap, void(*writeFn)(const void * ptr,
-        size_t size, size_t count)) {
-    int64_t i;
-    cap_writeBinaryRepresentation(cap, writeFn);
-    for (i = 0; i < cap_getChildNumber(cap); i++) {
-        end_writeBinaryRepresentationP(cap_getChild(cap, i), writeFn);
-    }
-}
-
-void end_writeBinaryRepresentation(End *end, void(*writeFn)(const void * ptr,
-        size_t size, size_t count)) {
-    End_InstanceIterator *iterator;
-    Cap *cap;
-
-    assert(end_getOrientation(end));
-    cap = end_getRootInstance(end);
-    int64_t endType = cap == NULL ? CODE_END_WITHOUT_PHYLOGENY : CODE_END_WITH_PHYLOGENY;
-    binaryRepresentation_writeElementType(endType, writeFn);
-    binaryRepresentation_writeName(end_getName(end), writeFn);
-    binaryRepresentation_writeBool(end_isStubEnd(end), writeFn);
-    binaryRepresentation_writeBool(end_isAttached(end), writeFn);
-    binaryRepresentation_writeBool(end_getSide(end), writeFn);
-
-    if (cap == NULL) {
-        iterator = end_getInstanceIterator(end);
-        while ((cap = end_getNext(iterator)) != NULL) {
-            assert(cap_getParent(cap) == NULL);
-            cap_writeBinaryRepresentation(cap, writeFn);
-        }
-        end_destructInstanceIterator(iterator);
-    } else {
-        end_writeBinaryRepresentationP(cap, writeFn);
-    }
-    binaryRepresentation_writeElementType(endType, writeFn);
-}
-
-End *end_loadFromBinaryRepresentation(void **binaryString, Flower *flower) {
-    End *end;
-    Name name;
-    int64_t isStub;
-    int64_t isAttached;
-    int64_t side;
-
-    end = NULL;
-    if (binaryRepresentation_peekNextElementType(*binaryString)
-            == CODE_END_WITHOUT_PHYLOGENY) {
-        binaryRepresentation_popNextElementType(binaryString);
-        name = binaryRepresentation_getName(binaryString);
-        isStub = binaryRepresentation_getBool(binaryString);
-        isAttached = binaryRepresentation_getBool(binaryString);
-        side = binaryRepresentation_getBool(binaryString);
-        end = end_construct3(name, isAttached, side, flower);
-        while (cap_loadFromBinaryRepresentation(binaryString, end) != NULL)
-            ;
-        assert(binaryRepresentation_peekNextElementType(*binaryString)  == CODE_END_WITHOUT_PHYLOGENY);
-        binaryRepresentation_popNextElementType(binaryString);
-    } else {
-        if (binaryRepresentation_peekNextElementType(*binaryString)
-                == CODE_END_WITH_PHYLOGENY) {
-            binaryRepresentation_popNextElementType(binaryString);
-            name = binaryRepresentation_getName(binaryString);
-            isStub = binaryRepresentation_getBool(binaryString);
-            isAttached = binaryRepresentation_getBool(binaryString);
-            side = binaryRepresentation_getBool(binaryString);
-            end = end_construct3(name, isAttached, side, flower);
-            end_setRootInstance(end, cap_loadFromBinaryRepresentation(
-                    binaryString, end));
-            while (cap_loadFromBinaryRepresentation(binaryString, end) != NULL)
-                ;
-            assert(binaryRepresentation_peekNextElementType(*binaryString)  == CODE_END_WITH_PHYLOGENY);
-            binaryRepresentation_popNextElementType(binaryString);
-        }
-    }
-
-    return end;
-}
-
-/*
- * Functions to get rid of
- */
-
-Cap *end_getPrevious(End_InstanceIterator *iterator) {
-    assert(0);
-    return NULL;
-    //return end_getInstanceP(iterator->end, stSortedSet_getPrevious(
-    //        iterator->iterator));
-}
-
-Cap *end_getRootInstance(End *end) {
-    return NULL;
-    //return end_getInstanceP(end, end_getContents(end)->rootInstance);
-}
-
-void end_setRootInstance(End *end, Cap *cap) {
-    assert(0);
-    //end_getContents(end)->rootInstance = cap_getOrientation(cap) ? cap
-    //        : cap_getReverse(cap);
-}
-
-End_InstanceIterator *end_copyInstanceIterator(End_InstanceIterator *iterator) {
-    assert(0);
-    End_InstanceIterator *iterator2;
-    iterator2 = st_malloc(sizeof(struct _end_instanceIterator));
-    iterator2->end = iterator->end;
-    iterator2->cap = iterator->cap;
-    //iterator2->iterator = stSortedSet_copyIterator(iterator->iterator);
-    return iterator2;
-}
-
-
-void end_setBlock(End *end, Block *block) {
-    assert(0);
-    assert(end_getOrientation(end));
-    assert(block_getOrientation(block));
-    //end_getContents(end)->attachedBlock = block;
 }

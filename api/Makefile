@@ -13,7 +13,7 @@ CPPFLAGS += -I{tests} -Iimpl
 all: all_libs all_progs
 all_libs: ${LIBDIR}/cactusLib.a
 all_progs: all_libs
-	${MAKE} ${BINDIR}/cactusAPITests 
+	${MAKE} ${BINDIR}/cactusAPITests
 
 clean : 
 	rm -f ${LIBDIR}/cactusLib.a ${LIBDIR}/cactus*.h ${BINDIR}/cactusAPITests *.o

@@ -17,9 +17,6 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-bool end_partOfBlock(End *end);
-bool end_left(End *end);
-
 /*
  * Constructs the stub end, not attached to any block.
  */
@@ -65,6 +62,16 @@ End *end_getReverse(End *end);
  * zero if on the 3' side. If is stub, will inherit its side from the parent stub.
  */
 bool end_getSide(End *end);
+
+/*
+ * Is connected to a block
+ */
+bool end_partOfBlock(End *end);
+
+/*
+ * Is the left end of a block
+ */
+bool end_left(End *end);
 
 /*
  * Gets the flower the end is part of.
@@ -113,17 +120,6 @@ Cap *end_getInstance(End *end, Name instanceName);
 Cap *end_getFirst(End *end);
 
 /*
- * Gets the root cap of the end, if it is set, or returns NULL;
- */
-Cap *end_getRootInstance(End *end);
-
-/*
- * Sets the root cap of the end. Will throw an error if the cap
- * is not part of the end, or already has a parent.
- */
-void end_setRootInstance(End *end, Cap *cap);
-
-/*
  * Gets an iterator over the caps.
  */
 End_InstanceIterator *end_getInstanceIterator(End *end);
@@ -132,16 +128,6 @@ End_InstanceIterator *end_getInstanceIterator(End *end);
  * Gets the next cap from the iterator.
  */
 Cap *end_getNext(End_InstanceIterator *iterator);
-
-/*
- * Gets the previous cap from the iterator.
- */
-Cap *end_getPrevious(End_InstanceIterator *iterator);
-
-/*
- * Duplicates the iterator.
- */
-End_InstanceIterator *end_copyInstanceIterator(End_InstanceIterator *iterator);
 
 /*
  * Destructs the iterator.

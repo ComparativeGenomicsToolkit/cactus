@@ -45,11 +45,6 @@ char *cactusMisc_nameToStringWithOrientation(Name name, int64_t orientation);
 const char *cactusMisc_getDefaultReferenceEventHeader();
 
 /*
- * Use a bulk get to efficiently precache the nested flowers of a set of parent flowers.
- */
-void preCacheNestedFlowers(CactusDisk *cactusDisk, stList *flowers);
-
-/*
  * Check a condition is true, if not throw an exception - a short hand to defining your own exception.
  */
 void cactusCheck(bool condition);

@@ -110,17 +110,6 @@ void testBlock_getFirst(CuTest* testCase) {
     cactusBlockTestTeardown(testCase->name);
 }
 
-void testBlock_getSetRootInstance(CuTest *testCase) {
-    cactusBlockTestSetup(testCase->name);
-    Block *block2 = block_construct(1, flower);
-    CuAssertTrue(testCase, block_getRootInstance(block2) == NULL);
-    block_destruct(block2);
-    //block_setRootInstance(block, segment_getReverse(rootSegment)); //set in the constructor code of the test.
-    CuAssertTrue(testCase, block_getRootInstance(block) == segment_getReverse(rootSegment));
-    CuAssertTrue(testCase, end_getRootInstance(block_get5End(block)) == segment_get5Cap(segment_getReverse(rootSegment)));
-    CuAssertTrue(testCase, end_getRootInstance(block_get3End(block)) == segment_get3Cap(segment_getReverse(rootSegment)));
-    cactusBlockTestTeardown(testCase->name);
-}
 
 void testBlock_instanceIterator(CuTest* testCase) {
     cactusBlockTestSetup(testCase->name);
@@ -215,25 +204,6 @@ void testBlock_splitBlock(CuTest* testCase) {
     cactusBlockTestTeardown(testCase->name);
 }
 
-void testBlock_makeNewickString(CuTest *testCase) {
-    assert(testCase != NULL);
-    cactusBlockTestSetup(testCase->name);
-    char *cA1 = block_makeNewickString(block, 1, 0);
-    char *cA2 = block_makeNewickString(block, 1, 1);
-    char *cA3 = block_makeNewickString(block, 0, 0);
-    char *cA4 = block_makeNewickString(block, 0, 1);
-    st_logDebug("I got the block tree string 1 0: %s\n", cA1);
-    st_logDebug("I got the block tree string 1 1: %s\n", cA2);
-    st_logDebug("I got the block tree string 0 0: %s\n", cA3);
-    st_logDebug("I got the block tree string 0 1: %s\n", cA4);
-    //CuAssertStrEquals(testCase, "(B,E)8;", cA);
-    free(cA1);
-    free(cA2);
-    free(cA3);
-    free(cA4);
-    cactusBlockTestTeardown(testCase->name);
-}
-
 void testBlock_isTrivialChain(CuTest *testCase) {
     cactusBlockTestSetup(testCase->name);
     Group *group = group_construct2(flower);
@@ -255,48 +225,6 @@ void testBlock_isTrivialChain(CuTest *testCase) {
     cactusBlockTestTeardown(testCase->name);
 }
 
-void testBlock_serialisation(CuTest* testCase) {
-    cactusBlockTestSetup(testCase->name);
-    Name rootInstanceName = segment_getName(rootSegment);
-    Name leaf1InstanceName = segment_getName(leaf1Segment);
-    Name leaf2InstanceName = segment_getName(leaf2Segment);
-    int64_t i;
-    void
-            *vA =
-                    binaryRepresentation_makeBinaryRepresentation(block,
-                            (void(*)(void *, void(*)(const void *, size_t,
-                                    size_t))) block_writeBinaryRepresentation,
-                            &i);
-    CuAssertTrue(testCase, i > 0);
-    block_destruct(block);
-    void *vA2 = vA;
-    block = block_loadFromBinaryRepresentation(&vA2, flower);
-    rootSegment
-            = segment_getReverse(block_getInstance(block, rootInstanceName));
-    leaf1Segment = block_getInstance(block, leaf1InstanceName);
-    leaf2Segment = segment_getReverse(block_getInstance(block,
-            leaf2InstanceName));
-    free(vA);
-    nestedTest = 1;
-    testBlock_getName(testCase);
-    testBlock_getOrientation(testCase);
-    testBlock_getReverse(testCase);
-    testBlock_getLength(testCase);
-    testBlock_getFlower(testCase);
-    testBlock_getLeftEnd(testCase);
-    testBlock_getRightEnd(testCase);
-    testBlock_getSetRootInstance(testCase);
-    testBlock_getInstanceNumber(testCase);
-    testBlock_getInstance(testCase);
-    testBlock_getFirst(testCase);
-    testBlock_instanceIterator(testCase);
-    testBlock_makeNewickString(testCase);
-    testBlock_getChain(testCase);
-    testBlock_getSegmentForEvent(testCase);
-    nestedTest = 0;
-    cactusBlockTestTeardown(testCase->name);
-}
-
 CuSuite* cactusBlockTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, testBlock_getName);
@@ -309,13 +237,10 @@ CuSuite* cactusBlockTestSuite(void) {
     SUITE_ADD_TEST(suite, testBlock_getInstanceNumber);
     SUITE_ADD_TEST(suite, testBlock_getInstance);
     SUITE_ADD_TEST(suite, testBlock_getFirst);
-    SUITE_ADD_TEST(suite, testBlock_getSetRootInstance);
     SUITE_ADD_TEST(suite, testBlock_instanceIterator);
     SUITE_ADD_TEST(suite, testBlock_getChain);
     SUITE_ADD_TEST(suite, testBlock_getSegmentForEvent);
     SUITE_ADD_TEST(suite, testBlock_splitBlock);
-    SUITE_ADD_TEST(suite, testBlock_serialisation);
-    SUITE_ADD_TEST(suite, testBlock_makeNewickString);
     SUITE_ADD_TEST(suite, testBlock_isTrivialChain);
     SUITE_ADD_TEST(suite, testBlock_construct);
     return suite;

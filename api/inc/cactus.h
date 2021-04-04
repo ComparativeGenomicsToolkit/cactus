@@ -17,15 +17,11 @@
 #include "cactusEventTree.h"
 #include "cactusGlobals.h"
 #include "cactusLink.h"
-#include "cactusMetaSequence.h"
+#include "cactusSequence.h"
 #include "cactusFlower.h"
 #include "cactusDisk.h"
 #include "cactusMisc.h"
-#include "cactusFace.h"
-#include "cactusFaceEnd.h"
-#include "cactusFacesBuilding.h"
 #include "cactusTestCommon.h"
-#include "cactusFlowerWriter.h"
 #include "cactus_params_parser.h"
 
 #endif

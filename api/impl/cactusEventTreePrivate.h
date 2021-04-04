@@ -15,7 +15,6 @@ struct _eventTree {
     CactusDisk *cactusDisk;
 };
 
-
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -38,15 +37,5 @@ void eventTree_addEvent(EventTree *eventTree, Event *event);
  * Removes the instance from the event tree.
  */
 void eventTree_removeEvent(EventTree *eventTree, Event *event);
-
-/*
- * Creates a binary representation of the eventTree, returned as a char string.
- */
-void eventTree_writeBinaryRepresentation(EventTree *eventTree, void (*writeFn)(const void * ptr, size_t size, size_t count));
-
-/*
- * Loads a eventTree into memory from a binary representation of the eventTree.
- */
-EventTree *eventTree_loadFromBinaryRepresentation(void **binaryString, CactusDisk *cactusDisk);
 
 #endif

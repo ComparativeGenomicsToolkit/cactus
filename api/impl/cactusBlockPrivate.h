@@ -42,19 +42,4 @@ void block_addInstance(Block *block, Segment *segment);
  */
 void block_removeInstance(Block *block, Segment *segment);
 
-/*
- * Write a binary representation of the block to the write function.
- */
-void block_writeBinaryRepresentation(Block *block, void (*writeFn)(const void * ptr, size_t size, size_t count));
-
-/*
- * Loads a flower into memory from a binary representation of the flower.
- */
-Block *block_loadFromBinaryRepresentation(void **binaryString, Flower *flower);
-
-/*
- * Sets the flower associated with the block.
- */
-void block_setFlower(Block *block, Flower *flower);
-
 #endif

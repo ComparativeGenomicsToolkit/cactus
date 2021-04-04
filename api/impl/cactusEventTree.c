@@ -48,7 +48,6 @@ void eventTree_copyConstructP(EventTree *eventTree, Event *event,
 	}
 }
 
-
 EventTree *eventTree_copyConstruct(EventTree *eventTree, int64_t (unaryEventFilterFn)(Event *event)) {
 	EventTree *eventTree2;
 	eventTree2 = eventTree_construct(eventTree_getCactusDisk(eventTree),
@@ -207,47 +206,6 @@ void eventTree_addEvent(EventTree *eventTree, Event *event) {
 
 void eventTree_removeEvent(EventTree *eventTree, Event *event) {
 	stSortedSet_remove(eventTree->events, event);
-}
-
-/*
- * Serialisation functions
- */
-
-void eventTree_writeBinaryRepresentationP(Event *event, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
-	int64_t i;
-	event_writeBinaryRepresentation(event, writeFn);
-	for(i=0; i<event_getChildNumber(event); i++) {
-		eventTree_writeBinaryRepresentationP(event_getChild(event, i), writeFn);
-	}
-}
-
-void eventTree_writeBinaryRepresentation(EventTree *eventTree, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
-	int64_t i;
-	Event *event;
-	event = eventTree_getRootEvent(eventTree);
-	binaryRepresentation_writeElementType(CODE_EVENT_TREE, writeFn);
-	binaryRepresentation_writeName(event_getName(event), writeFn);
-	for(i=0; i<event_getChildNumber(event); i++) {
-		eventTree_writeBinaryRepresentationP(event_getChild(event, i), writeFn);
-	}
-	binaryRepresentation_writeElementType(CODE_EVENT_TREE, writeFn);
-}
-
-EventTree *eventTree_loadFromBinaryRepresentation(void **binaryString, CactusDisk *cactusDisk) {
-	EventTree *eventTree;
-	Name name;
-	eventTree = NULL;
-	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_EVENT_TREE) {
-		binaryRepresentation_popNextElementType(binaryString);
-		name = binaryRepresentation_getName(binaryString);
-		eventTree = eventTree_construct(cactusDisk, name);
-		while(event_loadFromBinaryRepresentation(binaryString, eventTree) != NULL) {
-			;
-		}
-		assert(binaryRepresentation_peekNextElementType(*binaryString) == CODE_EVENT_TREE);
-		binaryRepresentation_popNextElementType(binaryString);
-	}
-	return eventTree;
 }
 
 static stTree *eventTree_getStTree_R(Event *event) {

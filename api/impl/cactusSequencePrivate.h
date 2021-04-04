@@ -39,14 +39,4 @@ Sequence *sequence_construct2(Name name, int64_t start, int64_t length, Name str
  */
 void sequence_destruct(Sequence *sequence);
 
-/*
- * Creates a binary representation of the eventTree, returned as a char string.
- */
-void sequence_writeBinaryRepresentation(Sequence *sequence, void (*writeFn)(const void * ptr, size_t size, size_t count));
-
-/*
- * Loads a eventTree into memory from a binary representation of the eventTree.
- */
-Sequence *sequence_loadFromBinaryRepresentation(void **binaryString, CactusDisk *cactusDisk);
-
 #endif

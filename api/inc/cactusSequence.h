@@ -4,8 +4,8 @@
  * Released under the MIT license, see LICENSE.txt
  */
 
-#ifndef CACTUS_META_SEQUENCE_H_
-#define CACTUS_META_SEQUENCE_H_
+#ifndef CACTUS_SEQUENCE_H_
+#define CACTUS_SEQUENCE_H_
 
 #include "cactusGlobals.h"
 
@@ -16,7 +16,6 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
-
 
 /*
  * Constructs a meta sequence, which contains all the essential info for a sequence.
@@ -71,6 +70,5 @@ bool sequence_isTrivialSequence(Sequence *sequence);
  * Sets the header line associated with the meta sequence.
  */
 void sequence_setHeader(Sequence *sequence, char *newHeader);
-
 
 #endif
