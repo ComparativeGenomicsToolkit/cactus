@@ -10,14 +10,14 @@ static CactusDisk *cactusDisk = NULL;
 
 static void cactusMiscTestTeardown(CuTest* testCase) {
     if (cactusDisk != NULL) {
-        testCommon_deleteTemporaryCactusDisk(testCase->name, cactusDisk);
+        cactusDisk_destruct(cactusDisk);
         cactusDisk = NULL;
     }
 }
 
 static void cactusMiscTestSetup(CuTest* testCase) {
     cactusMiscTestTeardown(testCase);
-    cactusDisk = testCommon_getTemporaryCactusDisk(testCase->name);
+    cactusDisk = cactusDisk_construct();
 }
 
 void testCactusMisc_nameCompare(CuTest* testCase) {
@@ -47,7 +47,7 @@ void testCactusMisc_stringNameFns(CuTest* testCase) {
 }
 
 static void testCactusCheck(CuTest* testCase) {
-    return; //While we have an assert that fails in that function to provide a stack trace.
+    //return; //While we have an assert that fails in that function to provide a stack trace.
     cactusCheck(1);
     stTry {
         cactusCheck(0);

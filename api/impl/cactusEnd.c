@@ -418,11 +418,6 @@ void end_check(End *end) {
     assert(end_getInstanceNumber(end) == end_getInstanceNumber(rEnd));
     assert(end_isAttached(end) == end_isAttached(rEnd));
     assert(end_isStubEnd(end) == end_isStubEnd(rEnd));
-    if (end_getRootInstance(end) == NULL) {
-        assert(end_getRootInstance(rEnd) == NULL);
-    } else {
-        assert(end_getRootInstance(end) == cap_getReverse(end_getRootInstance(rEnd)));
-    }
     if (!end_isEmpty(end)) {
         assert(end_getFirst(end) == cap_getReverse(end_getFirst(rEnd)));
     }

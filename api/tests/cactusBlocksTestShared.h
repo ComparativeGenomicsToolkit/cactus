@@ -20,14 +20,14 @@ static Segment *leaf2Segment;
 
 static void cactusBlocksTestSharedTeardown(const char *testName) {
     if (cactusDisk != NULL) {
-        testCommon_deleteTemporaryCactusDisk(testName, cactusDisk);
+        cactusDisk_destruct(cactusDisk);
         cactusDisk = NULL;
     }
 }
 
 static void cactusBlocksTestSharedSetup(const char *testName) {
     cactusBlocksTestSharedTeardown(testName);
-    cactusDisk = testCommon_getTemporaryCactusDisk(testName);
+    cactusDisk = cactusDisk_construct();
     flower = flower_construct(cactusDisk);
 
     eventTree = eventTree_construct2(cactusDisk);
@@ -43,7 +43,4 @@ static void cactusBlocksTestSharedSetup(const char *testName) {
     rootSegment = segment_construct(block_getReverse(block), rootEvent);
     leaf1Segment = segment_construct2(block, 2, 1, sequence);
     leaf2Segment = segment_construct2(block_getReverse(block), 4, 0, sequence);
-    segment_makeParentAndChild(rootSegment, leaf1Segment);
-    segment_makeParentAndChild(rootSegment, leaf2Segment);
-    block_setRootInstance(block, rootSegment);
 }

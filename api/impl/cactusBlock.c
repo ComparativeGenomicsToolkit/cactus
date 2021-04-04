@@ -213,12 +213,6 @@ void block_check(Block *block) {
 	assert(block_getInstanceNumber(block) == block_getInstanceNumber(rBlock));
 	if(block_getInstanceNumber(block) > 0) {
 		assert(block_getFirst(block) == segment_getReverse(block_getFirst(rBlock)));
-		if(block_getRootInstance(block) == NULL) {
-			assert(block_getRootInstance(rBlock) == NULL);
-		}
-		else {
-			assert(block_getRootInstance(block) == segment_getReverse(block_getRootInstance(rBlock)));
-		}
 	}
 
 	//For each segment calls segment_check.

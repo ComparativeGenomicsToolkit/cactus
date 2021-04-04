@@ -42,49 +42,8 @@ void cactusDisk_removeSequence(CactusDisk *cactusDisk, Sequence *sequence) {
 }
 
 /*
- * Functions used to precache the sequences in the database for a given set of flowers.
+ * Functions for strings
  */
-
-typedef struct _substring {
-    /*
-     * Struct used to represent a substring of a string to be retrieved from the database.
-     */
-    Name name;
-    int64_t start;
-    int64_t length;
-} Substring;
-
-/*
- * Basic methods on substrings.
- */
-
-static Substring *substring_construct(Name name, int64_t start, int64_t length) {
-    Substring *substring = st_malloc(sizeof(Substring));
-    substring->name = name;
-    substring->start = start;
-    substring->length = length;
-    return substring;
-}
-
-static Substring *substring_clone(Substring *substring) {
-    return substring_construct(substring->name, substring->start, substring->length);
-}
-
-static void substring_destruct(Substring *substring) {
-    free(substring);
-}
-
-static int substring_cmp(Substring *substring1, Substring *substring2) {
-    int i = cactusMisc_nameCompare(substring1->name, substring2->name);
-    if (i != 0) {
-        return i;
-    }
-    i = substring1->start < substring2->start ? -1 : (substring1->start > substring2->start ? 1 : 0);
-    if (i != 0) {
-        return i;
-    }
-    return substring1->length < substring2->length ? -1 : (substring1->length > substring2->length ? 1 : 0);
-}
 
 Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
     /*
@@ -150,7 +109,7 @@ static int cactusDisk_constructSequencesP(const void *o1, const void *o2) {
  * The following two functions compress and decompress the data in the cactus disk..
  */
 
-static CactusDisk *cactusDisk_construct() {
+CactusDisk *cactusDisk_construct() {
     CactusDisk *cactusDisk = st_calloc(1, sizeof(CactusDisk));
     cactusDisk->sequences = stSortedSet_construct3(cactusDisk_constructSequencesP, NULL);
     cactusDisk->flowers = stSortedSet_construct3(cactusDisk_constructFlowersP, NULL);

@@ -11,12 +11,11 @@ static Event *event = NULL;
 static Sequence *sequence;
 static const char *sequenceString = "ACTGGCACTG";
 static const char *headerString = ">one";
-
 static bool nestedTest = 0;
 
 static void cactusSequenceTestTeardown(CuTest* testCase) {
     if(!nestedTest && cactusDisk != NULL) {
-        testCommon_deleteTemporaryCactusDisk(testCase->name, cactusDisk);
+        cactusDisk_destruct(cactusDisk);
         cactusDisk = NULL;
         sequence = NULL;
     }
@@ -25,7 +24,7 @@ static void cactusSequenceTestTeardown(CuTest* testCase) {
 static void cactusSequenceTestSetup(CuTest* testCase) {
     if(!nestedTest) {
         cactusSequenceTestTeardown(testCase);
-        cactusDisk = testCommon_getTemporaryCactusDisk(testCase->name);
+        cactusDisk = cactusDisk_construct();
         sequence = sequence_construct(1, 10, sequenceString,
                        headerString, event, cactusDisk);
     }
@@ -86,37 +85,6 @@ void testSequence_isTrivialSequence(CuTest* testCase) {
     cactusSequenceTestTeardown(testCase);
 }
 
-void testSequence_serialisation(CuTest* testCase) {
-    cactusSequenceTestSetup(testCase);
-    int64_t i;
-    Name name = sequence_getName(sequence);
-    CuAssertTrue(testCase, cactusDisk_getSequence(cactusDisk, name) == sequence);
-    void *vA = binaryRepresentation_makeBinaryRepresentation(sequence,
-            (void (*)(void *, void (*)(const void *, size_t, size_t)))sequence_writeBinaryRepresentation, &i);
-    CuAssertTrue(testCase, i > 0);
-    sequence_destruct(sequence);
-    CuAssertTrue(testCase, cactusDisk_getSequence(cactusDisk, name) == NULL);
-    void *vA2 = vA;
-    sequence = sequence_loadFromBinaryRepresentation(&vA2, cactusDisk);
-    CuAssertTrue(testCase, name == sequence_getName(sequence));
-    CuAssertStrEquals(testCase, headerString, sequence_getHeader(sequence));
-    CuAssertTrue(testCase, cactusDisk_getSequence(cactusDisk, name) == sequence);
-    cactusDisk_write(cactusDisk);
-    sequence_destruct(sequence);
-    CuAssertTrue(testCase, cactusDisk_getSequence(cactusDisk, name) != NULL);
-    sequence = cactusDisk_getSequence(cactusDisk, name);
-    nestedTest = 1;
-    testSequence_getName(testCase);
-    testSequence_getStart(testCase);
-    testSequence_getLength(testCase);
-    testSequence_getEvent(testCase);
-    testSequence_getString(testCase);
-    testSequence_getHeader(testCase);
-    testSequence_isTrivialSequence(testCase);
-    nestedTest = 0;
-    cactusSequenceTestTeardown(testCase);
-}
-
 CuSuite* cactusSequenceTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, testSequence_getName);
@@ -125,7 +93,6 @@ CuSuite* cactusSequenceTestSuite(void) {
     SUITE_ADD_TEST(suite, testSequence_getEvent);
     SUITE_ADD_TEST(suite, testSequence_getString);
     SUITE_ADD_TEST(suite, testSequence_isTrivialSequence);
-    SUITE_ADD_TEST(suite, testSequence_serialisation);
     SUITE_ADD_TEST(suite, testSequence_getHeader);
     return suite;
 }
