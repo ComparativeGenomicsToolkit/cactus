@@ -23,8 +23,6 @@ static Block *block;
 static Block *block2;
 static Group *group;
 static Group *group2;
-static Face *face;
-static Face *face2;
 static Chain *chain;
 static Chain *chain2;
 static Segment *segment;
@@ -38,7 +36,7 @@ static Cap *cap2;
 
 static void cactusFlowerTestTeardown(CuTest* testCase) {
     if (cactusDisk != NULL) {
-        testCommon_deleteTemporaryCactusDisk(testCase->name, cactusDisk);
+        cactusDisk_destruct(cactusDisk);
         cactusDisk = NULL;
         flower = NULL;
         eventTree = NULL;
@@ -49,7 +47,7 @@ static void cactusFlowerTestTeardown(CuTest* testCase) {
 
 static void cactusFlowerTestSetup(CuTest* testCase) {
     cactusFlowerTestTeardown(testCase);
-    cactusDisk = testCommon_getTemporaryCactusDisk(testCase->name);
+    cactusDisk = cactusDisk_construct();
     flower = flower_construct(cactusDisk);
     eventTree = eventTree_construct2(cactusDisk);
 }
@@ -93,16 +91,6 @@ static void chainsSetup() {
 static void groupsSetup() {
     group = group_construct(flower, flower_construct(cactusDisk));
     group2 = group_construct(flower, flower_construct(cactusDisk));
-}
-
-static void facesSetup() {
-    face = face_construct(flower);
-    face2 = face_construct(flower);
-    if (flower_getFirstFace(flower) == face2) { //switch round, because we have no guarantted order for faces..
-        Face *face3 = face2;
-        face2 = face;
-        face = face3;
-    }
 }
 
 /*
@@ -234,40 +222,6 @@ void testFlower_end(CuTest* testCase) {
     cactusFlowerTestTeardown(testCase);
 }
 
-void testFlower_segment(CuTest* testCase) {
-    /*cactusFlowerTestSetup(testCase);
-    segmentsSetup();
-    testObjectRetrieval(testCase,
-            (int64_t(*)(Flower *flower)) flower_getSegmentNumber, (void *(*)(
-                    Flower *)) flower_getFirstSegment,
-            (Name(*)(void *)) segment_getName,
-            (void *(*)(Flower *, Name name)) flower_getSegment, (void *(*)(
-                    Flower *)) flower_getSegmentIterator,
-            (void(*)(void *)) flower_destructSegmentIterator,
-            (void *(*)(void *)) flower_getNextSegment,
-            (void *(*)(void *)) flower_getPreviousSegment,
-            (void *(*)(void *)) flower_copySegmentIterator,
-            segment, segment2);
-    cactusFlowerTestTeardown(testCase);*/
-}
-
-void testFlower_block(CuTest* testCase) {
-    /*cactusFlowerTestSetup(testCase);
-    blocksSetup();
-    testObjectRetrieval(testCase,
-            (int64_t(*)(Flower *flower)) flower_getBlockNumber, (void *(*)(
-                    Flower *)) flower_getFirstBlock,
-            (Name(*)(void *)) block_getName,
-            (void *(*)(Flower *, Name name)) flower_getBlock, (void *(*)(
-                    Flower *)) flower_getBlockIterator,
-            (void(*)(void *)) flower_destructBlockIterator,
-            (void *(*)(void *)) flower_getNextBlock,
-            (void *(*)(void *)) flower_getPreviousBlock,
-            (void *(*)(void *)) flower_copyBlockIterator, block,
-            block2);
-    cactusFlowerTestTeardown(testCase);*/
-}
-
 void testFlower_chain(CuTest* testCase) {
     cactusFlowerTestSetup(testCase);
     chainsSetup();
@@ -325,20 +279,6 @@ void testFlower_group(CuTest* testCase) {
     cactusFlowerTestTeardown(testCase);
 }
 
-void testFlower_face(CuTest* testCase) {
-    cactusFlowerTestSetup(testCase);
-    facesSetup();
-    testObjectRetrieval(testCase,
-            (int64_t(*)(Flower *flower)) flower_getFaceNumber, (void *(*)(
-                    Flower *)) flower_getFirstFace, NULL, NULL, (void *(*)(
-                    Flower *)) flower_getFaceIterator,
-            (void(*)(void *)) flower_destructFaceIterator,
-            (void *(*)(void *)) flower_getNextFace,
-            (void *(*)(void *)) flower_getPreviousFace,
-            (void *(*)(void *)) flower_copyFaceIterator, face, face2);
-    cactusFlowerTestTeardown(testCase);
-}
-
 void testFlower_getEndNumber(CuTest *testCase) {
     /*
      * Tests the different end number functions.
@@ -385,34 +325,6 @@ void testFlower_builtBlocks(CuTest *testCase) {
     cactusFlowerTestTeardown(testCase);
 }
 
-void testFlower_builtTrees(CuTest *testCase) {
-    cactusFlowerTestSetup(testCase);
-
-    CuAssertTrue(testCase, !flower_builtTrees(flower));
-    flower_setBuiltTrees(flower, 0);
-    CuAssertTrue(testCase, !flower_builtTrees(flower));
-    flower_setBuiltTrees(flower, 1);
-    CuAssertTrue(testCase, flower_builtTrees(flower));
-    flower_setBuiltTrees(flower, 0);
-    CuAssertTrue(testCase, !flower_builtTrees(flower));
-
-    cactusFlowerTestTeardown(testCase);
-}
-
-void testFlower_builtFaces(CuTest *testCase) {
-    cactusFlowerTestSetup(testCase);
-
-    CuAssertTrue(testCase, !flower_builtFaces(flower));
-    flower_setBuildFaces(flower, 0);
-    CuAssertTrue(testCase, !flower_builtFaces(flower));
-    flower_setBuildFaces(flower, 1);
-    CuAssertTrue(testCase, flower_builtFaces(flower));
-    flower_setBuildFaces(flower, 0);
-    CuAssertTrue(testCase, !flower_builtFaces(flower));
-
-    cactusFlowerTestTeardown(testCase);
-}
-
 void testFlower_isLeaf(CuTest *testCase) {
     cactusFlowerTestSetup(testCase);
     CuAssertTrue(testCase, flower_isLeaf(flower));
@@ -435,94 +347,6 @@ void testFlower_isTerminal(CuTest *testCase) {
     cactusFlowerTestTeardown(testCase);
 }
 
-void testFlower_removeIfRedundant(CuTest *testCase) {
-    /*
-     * Do a simple test to see if function can remove a redundant flower.
-     */
-    cactusFlowerTestSetup(testCase);
-    endsSetup();
-
-    //First construct a redundant flower from the root.
-    Flower *flower2 = flower_construct(cactusDisk);
-    Group *group = group_construct(flower, flower2);
-    end_setGroup(end, group);
-    end_setGroup(end2, group);
-
-    //Now hang another couple of flowers of that.
-    Flower *flower3 = flower_construct(cactusDisk);
-    group_construct(flower2, flower3);
-
-    //Now hang another flower of that.
-    Group *group3b = group_construct2(flower2);
-
-    //Finally hang one more flower on the end..
-    Flower *flower4 = flower_construct(cactusDisk);
-    group_construct(flower3, flower4);
-
-    //Copy the ends into the flowers.
-    end_copyConstruct(end, flower2);
-    end_copyConstruct(end2, flower2);
-    end_copyConstruct(end, flower3);
-    end_setGroup(flower_getEnd(flower2, end_getName(end2)), group3b);
-    end_copyConstruct(end, flower4);
-
-    //st_uglyf("I got %" PRIi64 " %" PRIi64 " %" PRIi64 " %" PRIi64 "\n", flower_getName(flower), flower_getName(flower2), flower_getName(flower3), flower_getName(flower4));
-
-    //Write the mess to disk.
-    cactusDisk_write(cactusDisk);
-
-    //Now test the removal function (check we get a negative on this leaf).
-    CuAssertTrue(testCase, !flower_removeIfRedundant(flower4));
-    //Check we can't remove the root..
-    CuAssertTrue(testCase, !flower_removeIfRedundant(flower));
-
-    //We will remove flower2
-
-    //Before
-    CuAssertTrue(testCase, flower_getGroupNumber(flower) == 1);
-    CuAssertTrue(testCase, group_getFlower(flower_getParentGroup(flower2)) == flower);
-
-    CuAssertTrue(testCase, flower_removeIfRedundant(flower2));
-
-    //After, check the flower/group connections
-    CuAssertTrue(testCase, flower_getGroupNumber(flower) == 2);
-    CuAssertTrue(testCase, !flower_isLeaf(flower));
-    CuAssertTrue(testCase, group_getFlower(flower_getParentGroup(flower3)) == flower);
-    group3b = end_getGroup(end2);
-    CuAssertTrue(testCase, group_getFlower(group3b) == flower);
-    CuAssertTrue(testCase, group_isLeaf(group3b));
-    CuAssertTrue(testCase, flower_getGroup(flower, flower_getName(flower3)) == flower_getParentGroup(flower3));
-    //Check the ends..
-    CuAssertTrue(testCase, flower_getEndNumber(flower) == 2);
-    CuAssertTrue(testCase, flower_getEndNumber(flower3) == 1);
-    CuAssertTrue(testCase, group_getEndNumber(group3b) == 1);
-    CuAssertTrue(testCase, end_getGroup(end) == flower_getParentGroup(flower3));
-    CuAssertTrue(testCase, end_getGroup(end2) == group3b);
-    CuAssertTrue(testCase, flower_getEnd(flower3, end_getName(end)) != NULL);
-    //Check the child of 3 is still okay..
-    CuAssertTrue(testCase, group_getFlower(flower_getParentGroup(flower4)) == flower3);
-
-    //Now do removal of flower3
-    CuAssertTrue(testCase, !flower_removeIfRedundant(flower));
-    CuAssertTrue(testCase, !flower_removeIfRedundant(flower4));
-    CuAssertTrue(testCase, flower_removeIfRedundant(flower3));
-    //Check groups again
-    CuAssertTrue(testCase, flower_getGroupNumber(flower) == 2);
-    CuAssertTrue(testCase, !flower_isLeaf(flower));
-    CuAssertTrue(testCase, group_getFlower(flower_getParentGroup(flower4)) == flower);
-    CuAssertTrue(testCase, group_getFlower(group3b) == flower);
-    CuAssertTrue(testCase, flower_getGroup(flower, flower_getName(flower4)) == flower_getParentGroup(flower4));
-    //Check the ends again..
-    CuAssertTrue(testCase, flower_getEndNumber(flower) == 2);
-    CuAssertTrue(testCase, flower_getEndNumber(flower4) == 1);
-    CuAssertTrue(testCase, group_getEndNumber(group3b) == 1);
-    CuAssertTrue(testCase, end_getGroup(end) == flower_getParentGroup(flower4));
-    CuAssertTrue(testCase, end_getGroup(end2) == group3b);
-    CuAssertTrue(testCase, flower_getEnd(flower4, end_getName(end)) != NULL);
-
-    cactusFlowerTestTeardown(testCase);
-}
-
 CuSuite* cactusFlowerTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, testFlower_getName);
@@ -532,19 +356,12 @@ CuSuite* cactusFlowerTestSuite(void) {
     SUITE_ADD_TEST(suite, testFlower_cap);
     SUITE_ADD_TEST(suite, testFlower_end);
     SUITE_ADD_TEST(suite, testFlower_getEndNumber);
-    SUITE_ADD_TEST(suite, testFlower_segment);
-    SUITE_ADD_TEST(suite, testFlower_block);
     SUITE_ADD_TEST(suite, testFlower_group);
     SUITE_ADD_TEST(suite, testFlower_chain);
     SUITE_ADD_TEST(suite, testFlower_getTrivialChainNumber);
-    SUITE_ADD_TEST(suite, testFlower_face);
-    //SUITE_ADD_TEST(suite, testFlower_mergeFlowers);
     SUITE_ADD_TEST(suite, testFlower_builtBlocks);
-    SUITE_ADD_TEST(suite, testFlower_builtTrees);
-    SUITE_ADD_TEST(suite, testFlower_builtFaces);
     SUITE_ADD_TEST(suite, testFlower_isLeaf);
     SUITE_ADD_TEST(suite, testFlower_isTerminal);
-    SUITE_ADD_TEST(suite, testFlower_removeIfRedundant);
     SUITE_ADD_TEST(suite, testFlower_constructAndDestruct);
     return suite;
 }

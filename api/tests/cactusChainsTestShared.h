@@ -38,14 +38,14 @@ static Segment *segment3;
 
 static void cactusChainsSharedTestTeardown(const char *testName) {
     if (cactusDisk != NULL) {
-        testCommon_deleteTemporaryCactusDisk(testName, cactusDisk);
+        cactusDisk_destruct(cactusDisk);
         cactusDisk = NULL;
     }
 }
 
 static void cactusChainsSharedTestSetup(const char *testName) {
     cactusChainsSharedTestTeardown(testName);
-    cactusDisk = testCommon_getTemporaryCactusDisk(testName);
+    cactusDisk = cactusDisk_construct();
     eventTree_construct2(cactusDisk);
     flower = flower_construct(cactusDisk);
     nestedFlower1 = flower_construct(cactusDisk);

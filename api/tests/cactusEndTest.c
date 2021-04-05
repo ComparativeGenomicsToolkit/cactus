@@ -193,17 +193,6 @@ void testEnd_getFirst(CuTest* testCase) {
     cactusEndTestTeardown(testCase);
 }
 
-void testEnd_getSetRootInstance(CuTest* testCase) {
-    cactusEndTestSetup(testCase);
-    CuAssertTrue(testCase, end_getRootInstance(end) == cap_getReverse(rootCap));
-    CuAssertTrue(testCase, end_getRootInstance(end_getReverse(end)) == rootCap);
-
-    End *end2 = end_construct(0, flower);
-    CuAssertTrue(testCase, end_getRootInstance(end2) == NULL);
-    CuAssertTrue(testCase, end_getRootInstance(end_getReverse(end2)) == NULL);
-    cactusEndTestTeardown(testCase);
-}
-
 void testEnd_instanceIterator(CuTest* testCase) {
     cactusEndTestSetup(testCase);
     End_InstanceIterator *iterator = end_getInstanceIterator(end);
@@ -211,28 +200,11 @@ void testEnd_instanceIterator(CuTest* testCase) {
     CuAssertTrue(testCase, end_getNext(iterator) == cap_getReverse(rootCap));
     CuAssertTrue(testCase, end_getNext(iterator) == cap_getReverse(leaf1Cap));
 
-    End_InstanceIterator *iterator2 = end_copyInstanceIterator(iterator);
-
     CuAssertTrue(testCase, end_getNext(iterator) == leaf2Cap);
     CuAssertTrue(testCase, end_getNext(iterator) == cap_getReverse(leaf3Cap));
     CuAssertTrue(testCase, end_getNext(iterator) == NULL);
-    CuAssertTrue(testCase, end_getPrevious(iterator) == cap_getReverse(leaf3Cap));
-    CuAssertTrue(testCase, end_getPrevious(iterator) == leaf2Cap);
-    CuAssertTrue(testCase, end_getPrevious(iterator) == cap_getReverse(leaf1Cap));
-    CuAssertTrue(testCase, end_getPrevious(iterator) == cap_getReverse(rootCap));
-    CuAssertTrue(testCase, end_getPrevious(iterator) == NULL);
-
-    CuAssertTrue(testCase, end_getNext(iterator2) == leaf2Cap);
-    CuAssertTrue(testCase, end_getNext(iterator2) == cap_getReverse(leaf3Cap));
-    CuAssertTrue(testCase, end_getNext(iterator2) == NULL);
-    CuAssertTrue(testCase, end_getPrevious(iterator2) == cap_getReverse(leaf3Cap));
-    CuAssertTrue(testCase, end_getPrevious(iterator2) == leaf2Cap);
-    CuAssertTrue(testCase, end_getPrevious(iterator2) == cap_getReverse(leaf1Cap));
-    CuAssertTrue(testCase, end_getPrevious(iterator2) == cap_getReverse(rootCap));
-    CuAssertTrue(testCase, end_getPrevious(iterator2) == NULL);
 
     end_destructInstanceIterator(iterator);
-    end_destructInstanceIterator(iterator2);
 
     iterator = end_getInstanceIterator(end_getReverse(end));
     CuAssertTrue(testCase, end_getNext(iterator) == rootCap);
@@ -240,11 +212,6 @@ void testEnd_instanceIterator(CuTest* testCase) {
     CuAssertTrue(testCase, end_getNext(iterator) == cap_getReverse(leaf2Cap));
     CuAssertTrue(testCase, end_getNext(iterator) == leaf3Cap);
     CuAssertTrue(testCase, end_getNext(iterator) == NULL);
-    CuAssertTrue(testCase, end_getPrevious(iterator) == leaf3Cap);
-    CuAssertTrue(testCase, end_getPrevious(iterator) == cap_getReverse(leaf2Cap));
-    CuAssertTrue(testCase, end_getPrevious(iterator) == leaf1Cap);
-    CuAssertTrue(testCase, end_getPrevious(iterator) == rootCap);
-    CuAssertTrue(testCase, end_getPrevious(iterator) == NULL);
 
     end_destructInstanceIterator(iterator);
 
@@ -295,48 +262,6 @@ void testEnd_getCapForEvent(CuTest* testCase) {
     cactusEndTestTeardown(testCase);
 }
 
-void testEnd_serialisation(CuTest* testCase) {
-    cactusEndTestSetup(testCase);
-    Name rootInstanceName = cap_getName(rootCap);
-    Name leaf1InstanceName = cap_getName(leaf1Cap);
-    Name leaf2InstanceName = cap_getName(leaf2Cap);
-    Name leaf3InstanceName = cap_getName(leaf3Cap);
-    int64_t i;
-    void *vA = binaryRepresentation_makeBinaryRepresentation(end,
-            (void(*)(void *, void(*)(const void *, size_t, size_t))) end_writeBinaryRepresentation, &i);
-    CuAssertTrue(testCase, i > 0);
-    end_destruct(end);
-    void *vA2 = vA;
-    end = end_loadFromBinaryRepresentation(&vA2, flower);
-    rootCap = cap_getReverse(end_getInstance(end, rootInstanceName));
-    leaf1Cap = cap_getReverse(end_getInstance(end, leaf1InstanceName));
-    leaf2Cap = end_getInstance(end, leaf2InstanceName);
-    leaf3Cap = cap_getReverse(end_getInstance(end, leaf3InstanceName));
-    CuAssertTrue(testCase, leaf3Cap != NULL);
-    free(vA);
-    nestedTest = 1;
-    testEnd_copyConstruct(testCase);
-    testEnd_getName(testCase);
-    testEnd_getOrientation(testCase);
-    testEnd_getReverse(testCase);
-    testEnd_getSide(testCase);
-    testEnd_getFlower(testCase);
-    testEnd_getBlock(testCase);
-    testEnd_getOtherBlockEnd(testCase);
-    testEnd_getGroup(testCase);
-    testEnd_setGroup(testCase);
-    testEnd_getInstanceNumber(testCase);
-    testEnd_getInstance(testCase);
-    testEnd_getFirst(testCase);
-    testEnd_getSetRootInstance(testCase);
-    testEnd_instanceIterator(testCase);
-    testEnd_isBlockOrStubEnd(testCase);
-    testEnd_isAttachedOrFree(testCase);
-    testEnd_getCapForEvent(testCase);
-    nestedTest = 0;
-    cactusEndTestTeardown(testCase);
-}
-
 CuSuite* cactusEndTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, testEnd_copyConstruct);
@@ -352,11 +277,9 @@ CuSuite* cactusEndTestSuite(void) {
     SUITE_ADD_TEST(suite, testEnd_getInstanceNumber);
     SUITE_ADD_TEST(suite, testEnd_getInstance);
     SUITE_ADD_TEST(suite, testEnd_getFirst);
-    SUITE_ADD_TEST(suite, testEnd_getSetRootInstance);
     SUITE_ADD_TEST(suite, testEnd_instanceIterator);
     SUITE_ADD_TEST(suite, testEnd_isBlockOrStubEnd);
     SUITE_ADD_TEST(suite, testEnd_isAttachedOrFree);
-    SUITE_ADD_TEST(suite, testEnd_serialisation);
     SUITE_ADD_TEST(suite, testEnd_getCapForEvent);
     SUITE_ADD_TEST(suite, testEnd_construct);
     return suite;

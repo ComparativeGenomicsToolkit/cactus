@@ -20,7 +20,7 @@ static bool nestedTest = 0;
 
 static void cactusEventTreeTestTeardown(CuTest* testCase) {
 	if(!nestedTest && cactusDisk != NULL) {
-        testCommon_deleteTemporaryCactusDisk(testCase->name, cactusDisk);
+        cactusDisk_destruct(cactusDisk);
 		cactusDisk = NULL;
 		eventTree = NULL;
 		rootEvent = NULL;
@@ -33,7 +33,7 @@ static void cactusEventTreeTestTeardown(CuTest* testCase) {
 static void cactusEventTreeTestSetup(CuTest* testCase) {
 	if(!nestedTest) {
 		cactusEventTreeTestTeardown(testCase);
-		cactusDisk = testCommon_getTemporaryCactusDisk(testCase->name);
+		cactusDisk = cactusDisk_construct();
 		flower = flower_construct(cactusDisk);
 
 		eventTree = eventTree_construct2(cactusDisk);
@@ -157,33 +157,6 @@ void testEventTree_makeNewickString(CuTest* testCase) {
 	cactusEventTreeTestTeardown(testCase);
 }
 
-void testEventTree_serialisation(CuTest* testCase) {
-	cactusEventTreeTestSetup(testCase);
-	int64_t i;
-	void *vA = binaryRepresentation_makeBinaryRepresentation(eventTree,
-			(void (*)(void *, void (*)(const void *, size_t, size_t)))eventTree_writeBinaryRepresentation, &i);
-	CuAssertTrue(testCase, i > 0);
-	eventTree_destruct(eventTree);
-	void *vA2 = vA;
-	eventTree = eventTree_loadFromBinaryRepresentation(&vA2, cactusDisk);
-	rootEvent = eventTree_getRootEvent(eventTree);
-	internalEvent = event_getChild(rootEvent, 0);
-	leafEvent1 = event_getChild(internalEvent, 0);
-	leafEvent2 = event_getChild(internalEvent, 1);
-	free(vA);
-	nestedTest = 1;
-	testEventTree_copyConstruct(testCase);
-	testEventTree_getRootEvent(testCase);
-	testEventTree_getEvent(testCase);
-	testEventTree_getCommonAncestor(testCase);
-	testEventTree_getEventNumber(testCase);
-	testEventTree_getFirst(testCase);
-	testEventTree_makeNewickString(testCase);
-	testEventTree_iterator(testCase);
-	nestedTest = 0;
-	cactusEventTreeTestTeardown(testCase);
-}
-
 CuSuite* cactusEventTreeTestSuite(void) {
 	CuSuite* suite = CuSuiteNew();
 	SUITE_ADD_TEST(suite, testEventTree_copyConstruct);
@@ -194,7 +167,6 @@ CuSuite* cactusEventTreeTestSuite(void) {
 	SUITE_ADD_TEST(suite, testEventTree_getFirst);
 	SUITE_ADD_TEST(suite, testEventTree_iterator);
 	SUITE_ADD_TEST(suite, testEventTree_makeNewickString);
-	SUITE_ADD_TEST(suite, testEventTree_serialisation);
 	SUITE_ADD_TEST(suite, testEventTree_construct);
 	return suite;
 }

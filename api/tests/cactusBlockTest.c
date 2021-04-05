@@ -110,7 +110,6 @@ void testBlock_getFirst(CuTest* testCase) {
     cactusBlockTestTeardown(testCase->name);
 }
 
-
 void testBlock_instanceIterator(CuTest* testCase) {
     cactusBlockTestSetup(testCase->name);
     Block_InstanceIterator *iterator;
@@ -119,35 +118,16 @@ void testBlock_instanceIterator(CuTest* testCase) {
     CuAssertTrue(testCase, iterator != NULL);
     CuAssertTrue(testCase, block_getNext(iterator) == segment_getReverse(rootSegment));
     CuAssertTrue(testCase, block_getNext(iterator) == leaf1Segment);
-
-    Block_InstanceIterator *iterator2 = block_copyInstanceIterator(iterator);
-
     CuAssertTrue(testCase, block_getNext(iterator) == segment_getReverse(leaf2Segment));
     CuAssertTrue(testCase, block_getNext(iterator) == NULL);
-    CuAssertTrue(testCase, block_getPrevious(iterator) == segment_getReverse(leaf2Segment));
-    CuAssertTrue(testCase, block_getPrevious(iterator) == leaf1Segment);
-    CuAssertTrue(testCase, block_getPrevious(iterator) == segment_getReverse(rootSegment));
-    CuAssertTrue(testCase, block_getPrevious(iterator) == NULL);
-
-    CuAssertTrue(testCase, block_getNext(iterator2) == segment_getReverse(leaf2Segment));
-    CuAssertTrue(testCase, block_getNext(iterator2) == NULL);
-    CuAssertTrue(testCase, block_getPrevious(iterator2) == segment_getReverse(leaf2Segment));
-    CuAssertTrue(testCase, block_getPrevious(iterator2) == leaf1Segment);
-    CuAssertTrue(testCase, block_getPrevious(iterator2) == segment_getReverse(rootSegment));
-    CuAssertTrue(testCase, block_getPrevious(iterator2) == NULL);
 
     block_destructInstanceIterator(iterator);
-    block_destructInstanceIterator(iterator2);
 
     iterator = block_getInstanceIterator(block_getReverse(block));
     CuAssertTrue(testCase, block_getNext(iterator) == rootSegment);
     CuAssertTrue(testCase, block_getNext(iterator) == segment_getReverse(leaf1Segment));
     CuAssertTrue(testCase, block_getNext(iterator) == leaf2Segment);
     CuAssertTrue(testCase, block_getNext(iterator) == NULL);
-    CuAssertTrue(testCase, block_getPrevious(iterator) == leaf2Segment);
-    CuAssertTrue(testCase, block_getPrevious(iterator) == segment_getReverse(leaf1Segment));
-    CuAssertTrue(testCase, block_getPrevious(iterator) == rootSegment);
-    CuAssertTrue(testCase, block_getPrevious(iterator) == NULL);
 
     block_destructInstanceIterator(iterator);
 
@@ -180,27 +160,6 @@ void testBlock_getSegmentForEvent(CuTest* testCase) {
     CuAssertTrue(testCase, segment == leaf1Segment || segment == segment_getReverse(leaf2Segment));
     CuAssertTrue(testCase, block_getSegmentForEvent(block, NULL_NAME) == NULL);
 
-    cactusBlockTestTeardown(testCase->name);
-}
-
-void testBlock_splitBlock(CuTest* testCase) {
-    cactusBlockTestSetup(testCase->name);
-
-    Block *leftBlock, *rightBlock;
-    block_split(block, 2, &leftBlock, &rightBlock);
-    CuAssertIntEquals(testCase, 2, block_getLength(leftBlock));
-    CuAssertIntEquals(testCase, 1, block_getLength(rightBlock));
-    CuAssertIntEquals(testCase, 3, block_getInstanceNumber(leftBlock));
-    CuAssertIntEquals(testCase, 3, block_getInstanceNumber(rightBlock));
-
-    Block *leftLeftBlock, *leftRightBlock;
-    block_split(leftBlock, 1, &leftLeftBlock, &leftRightBlock);
-    CuAssertIntEquals(testCase, 1, block_getLength(leftLeftBlock));
-    CuAssertIntEquals(testCase, 1, block_getLength(leftRightBlock));
-    CuAssertIntEquals(testCase, 3, block_getInstanceNumber(leftLeftBlock));
-    CuAssertIntEquals(testCase, 3, block_getInstanceNumber(leftRightBlock));
-
-    //doesn't currently check the instances.
     cactusBlockTestTeardown(testCase->name);
 }
 
@@ -240,7 +199,6 @@ CuSuite* cactusBlockTestSuite(void) {
     SUITE_ADD_TEST(suite, testBlock_instanceIterator);
     SUITE_ADD_TEST(suite, testBlock_getChain);
     SUITE_ADD_TEST(suite, testBlock_getSegmentForEvent);
-    SUITE_ADD_TEST(suite, testBlock_splitBlock);
     SUITE_ADD_TEST(suite, testBlock_isTrivialChain);
     SUITE_ADD_TEST(suite, testBlock_construct);
     return suite;

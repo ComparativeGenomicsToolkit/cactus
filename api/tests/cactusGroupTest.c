@@ -19,14 +19,14 @@ static Group *group, *group2;
 
 static void cactusGroupTestTeardown(CuTest* testCase) {
     if (cactusDisk != NULL) {
-        testCommon_deleteTemporaryCactusDisk(testCase->name, cactusDisk);
+        cactusDisk_destruct(cactusDisk);
         cactusDisk = NULL;
     }
 }
 
 static void cactusGroupTestSetup(CuTest* testCase) {
     cactusGroupTestTeardown(testCase);
-    cactusDisk = testCommon_getTemporaryCactusDisk(testCase->name);
+    cactusDisk = cactusDisk_construct();
     flower = flower_construct(cactusDisk);
     nestedFlower = flower_construct(cactusDisk);
     end1 = end_construct2(0, 0, flower);
@@ -45,18 +45,6 @@ void testGroup_construct(CuTest* testCase) {
     cactusGroupTestTeardown(testCase);
 }
 
-/*void testGroup_updateContainedEnds(CuTest* testCase) {
-    cactusGroupTestSetup(testCase);
-    end_copyConstruct(end3, nestedFlower);
-    CuAssertTrue(testCase, group_getEndNumber(group) == 2);
-    group_updateContainedEnds(group);
-    CuAssertTrue(testCase, group_getEndNumber(group) == 3);
-    CuAssertTrue(testCase, group_getEnd(group, end_getName(end1)) == end1);
-    CuAssertTrue(testCase, group_getEnd(group, end_getName(end2)) == end2);
-    CuAssertTrue(testCase, group_getEnd(group, end_getName(end3)) == end3);
-    cactusGroupTestTeardown(testCase);
-}*/
-
 void testGroup_makeNonLeaf(CuTest *testCase) {
     cactusGroupTestSetup(testCase);
     CuAssertTrue(testCase, group_isLeaf(group2));
@@ -66,8 +54,6 @@ void testGroup_makeNonLeaf(CuTest *testCase) {
     Flower *nestedFlower = group_getNestedFlower(group2);
     CuAssertTrue(testCase, nestedFlower != NULL);
     CuAssertTrue(testCase, !flower_builtBlocks(flower));
-    CuAssertTrue(testCase, !flower_builtTrees(flower));
-    CuAssertTrue(testCase, !flower_builtFaces(flower));
     CuAssertTrue(testCase, flower_getName(nestedFlower) == group_getName(group2));
     CuAssertTrue(testCase, flower_getParentGroup(nestedFlower) == group2);
     CuAssertTrue(testCase, flower_getEndNumber(nestedFlower) == 1);
@@ -205,19 +191,7 @@ void testGroup_endIterator(CuTest* testCase) {
     CuAssertTrue(testCase, group_getNextEnd(iterator) == end2);
     CuAssertTrue(testCase, group_getNextEnd(iterator) == NULL);
 
-    Group_EndIterator *iterator2 = group_copyEndIterator(iterator);
-
-    CuAssertTrue(testCase, group_getPreviousEnd(iterator) == end2);
-    CuAssertTrue(testCase, group_getPreviousEnd(iterator) == end1);
-    CuAssertTrue(testCase, group_getPreviousEnd(iterator) == NULL);
-
     group_destructEndIterator(iterator);
-
-    CuAssertTrue(testCase, group_getPreviousEnd(iterator2) == end2);
-    CuAssertTrue(testCase, group_getPreviousEnd(iterator2) == end1);
-    CuAssertTrue(testCase, group_getPreviousEnd(iterator2) == NULL);
-
-    group_destructEndIterator(iterator2);
 
     cactusGroupTestTeardown(testCase);
 }
@@ -251,82 +225,6 @@ void testGroup_constructChainForLink(CuTest *testCase) {
     cactusGroupTestTeardown(testCase);
 }
 
-#if 0
-void testGroup_mergeGroups(CuTest *testCase) {
- cactusGroupTestSetup(testCase);
-
- CuAssertTrue(testCase, group_getTotalBaseLength(group) == 0);
- //cap_construct
- Flower *parentFlower = flower_construct(cactusDisk);
- End *end1 = end_construct(0, parentFlower);
- End *end2 = end_construct(0, parentFlower);
- End *end3 = end_construct(0, parentFlower);
- End *end4 = end_construct(0, parentFlower);
-
- Group *parentGroup1 = group_construct2(parentFlower);
- Group *parentGroup2 = group_construct2(parentFlower);
- Group *parentGroup3 = group_construct2(parentFlower);
- Group *parentGroup4 = group_construct2(parentFlower);
-
- end_setGroup(end1, parentGroup1);
- end_setGroup(end2, parentGroup1);
- end_setGroup(end3, parentGroup2);
- end_setGroup(end4, parentGroup3);
-
- group_makeNonLeaf(parentGroup3);
- group_makeNonLeaf(parentGroup4);
-
- Group *mergedGroup1 = group_mergeGroups(parentGroup1, parentGroup2); //merge two leaf flowers
- Group *mergedGroup2 = group_mergeGroups(mergedGroup1, parentGroup3); //merge a leaf and non-leaf flower
- Group *finalGroup = group_mergeGroups(parentGroup4, mergedGroup2); //merge two non-leaf flowers
-
- CuAssertTrue(testCase, flower_getGroupNumber(parentFlower) == 1);
- CuAssertTrue(testCase, flower_getFirstGroup(parentFlower) == finalGroup);
- CuAssertTrue(testCase, flower_getEndNumber(parentFlower) == 4);
- CuAssertTrue(testCase, end_getGroup(end1) == finalGroup);
- CuAssertTrue(testCase, end_getGroup(end2) == finalGroup);
- CuAssertTrue(testCase, end_getGroup(end3) == finalGroup);
- CuAssertTrue(testCase, end_getGroup(end4) == finalGroup);
-
- CuAssertTrue(testCase, !group_isLeaf(finalGroup));
- Flower *nestedFlower = group_getNestedFlower(finalGroup);
- CuAssertTrue(testCase, flower_getEndNumber(nestedFlower) == 4);
- CuAssertTrue(testCase, flower_getEnd(nestedFlower, end_getName(end1)) != NULL);
- CuAssertTrue(testCase, flower_getEnd(nestedFlower, end_getName(end2)) != NULL);
- CuAssertTrue(testCase, flower_getEnd(nestedFlower, end_getName(end3)) != NULL);
- CuAssertTrue(testCase, flower_getEnd(nestedFlower, end_getName(end4)) != NULL);
-
- cactusGroupTestTeardown(testCase);
- }
-#endif
-
-void testGroup_serialisation(CuTest* testCase) {
-    cactusGroupTestSetup(testCase);
-    int64_t i;
-    Name name = group_getName(group);
-    void
-            *vA =
-                    binaryRepresentation_makeBinaryRepresentation(group,
-                            (void(*)(void *, void(*)(const void *, size_t,
-                                    size_t))) group_writeBinaryRepresentation,
-                            &i);
-    CuAssertTrue(testCase, i > 0);
-    group_destruct(group);
-    void *vA2 = vA;
-    group = group_loadFromBinaryRepresentation(&vA2, flower);
-    free(vA);
-    CuAssertTrue(testCase, group_getName(group) == name);
-    CuAssertTrue(testCase, group_getFlower(group) == flower);
-    CuAssertTrue(testCase, group_getNestedFlower(group) == nestedFlower);
-    Group_EndIterator *iterator = group_getEndIterator(group);
-    CuAssertTrue(testCase, group_getNextEnd(iterator) == end1);
-    CuAssertTrue(testCase, group_getNextEnd(iterator) == end2);
-    CuAssertTrue(testCase, group_getNextEnd(iterator) == NULL);
-    group_destructEndIterator(iterator);
-
-    cactusGroupTestTeardown(testCase);
-}
-
 CuSuite* cactusGroupTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     //SUITE_ADD_TEST(suite, testGroup_updateContainedEnds);
@@ -346,8 +244,6 @@ CuSuite* cactusGroupTestSuite(void) {
     SUITE_ADD_TEST(suite, testGroup_endIterator);
     SUITE_ADD_TEST(suite, testGroup_getTotalBaseLength);
     SUITE_ADD_TEST(suite, testGroup_constructChainForLink);
-    //SUITE_ADD_TEST(suite, testGroup_mergeGroups);
-    SUITE_ADD_TEST(suite, testGroup_serialisation);
     SUITE_ADD_TEST(suite, testGroup_construct);
     return suite;
 }

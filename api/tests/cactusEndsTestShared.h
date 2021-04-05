@@ -22,14 +22,14 @@ static Cap *leaf3Cap;
 
 static void cactusEndsTestSharedTeardown(const char *testName) {
     if (cactusDisk != NULL) {
-        testCommon_deleteTemporaryCactusDisk(testName, cactusDisk);
+        cactusDisk_destruct(cactusDisk);
         cactusDisk = NULL;
     }
 }
 
 static void cactusEndsTestSharedSetup(const char *testName) {
     cactusEndsTestSharedTeardown(testName);
-    cactusDisk = testCommon_getTemporaryCactusDisk(testName);
+    cactusDisk = cactusDisk_construct();
     flower = flower_construct(cactusDisk);
 
     eventTree = eventTree_construct2(cactusDisk);
@@ -46,8 +46,4 @@ static void cactusEndsTestSharedSetup(const char *testName) {
     leaf1Cap = cap_construct2(end_getReverse(end), 4, 1, sequence);
     leaf2Cap = cap_construct2(end, 6, 0, sequence);
     leaf3Cap = cap_construct2(end_getReverse(end), 7, 0, sequence);
-    cap_makeParentAndChild(rootCap, leaf1Cap);
-    cap_makeParentAndChild(rootCap, leaf2Cap);
-    cap_makeParentAndChild(rootCap, leaf3Cap);
-    end_setRootInstance(end, rootCap);
 }
