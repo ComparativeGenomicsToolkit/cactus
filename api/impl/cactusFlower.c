@@ -60,7 +60,7 @@ Flower *flower_construct(CactusDisk *cactusDisk) {
     return flower_construct2(cactusDisk_getUniqueID(cactusDisk), cactusDisk);
 }
 
-void flower_destruct(Flower *flower, int64_t recursive) {
+void flower_destruct(Flower *flower, int64_t recursive, bool removeFromParentGroup) {
     Flower_GroupIterator *iterator;
     Sequence *sequence;
     End *end;
@@ -68,12 +68,19 @@ void flower_destruct(Flower *flower, int64_t recursive) {
     Chain *chain;
     Flower *nestedFlower;
 
+    if(removeFromParentGroup) {
+        Group *parentGroup = flower_getParentGroup(flower);
+        if (parentGroup != NULL) {
+            group_setLeaf(parentGroup, 1);
+        }
+    }
+
     if (recursive) {
         iterator = flower_getGroupIterator(flower);
         while ((group = flower_getNextGroup(iterator)) != NULL) {
             nestedFlower = group_getNestedFlower(group);
             if (nestedFlower != NULL) {
-                flower_destruct(nestedFlower, recursive);
+                flower_destruct(nestedFlower, recursive, 0);
             }
         }
         flower_destructGroupIterator(iterator);

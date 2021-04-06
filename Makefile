@@ -2,7 +2,7 @@ rootPath = .
 
 include ${rootPath}/include.mk
 
-modules = api setup blastLib caf bar blast normalisation hal phylogeny reference faces check pipeline preprocessor dbTest
+modules = api setup blastLib caf bar blast hal reference check pipeline preprocessor
 
 # submodules are in multiple pass to handle dependencies cactus2hal being dependent on
 # both cactus and sonLib
@@ -79,11 +79,8 @@ testModules = \
     blast/trimSequencesTest.py \
     faces/cactus_fillAdjacenciesTest.py \
     hal/cactus_halTest.py \
-    normalisation/cactus_normalisationTest.py \
-    phylogeny/cactus_phylogenyTest.py \
     pipeline/cactus_evolverTest.py \
     pipeline/cactus_workflowTest.py \
-    pipeline/dbServerTest.py \
     preprocessor/cactus_preprocessorTest.py \
     preprocessor/lastzRepeatMasking/cactus_lastzRepeatMaskTest.py \
     progressive/cactus_progressiveTest.py \

@@ -264,7 +264,7 @@ int main(int argc, char *argv[]) {
     st_logInfo("Loaded the parameters files, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     // Load the cactus disk
-    CactusDisk *cactusDisk = cactusDisk_constructInMemory(NULL, true, 0);
+    CactusDisk *cactusDisk = cactusDisk_construct();
 
     st_logInfo("Set up the cactus disk, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
@@ -330,7 +330,7 @@ int main(int argc, char *argv[]) {
     extendFlowers(flower, leafFlowers, 1); // Get nested flowers to complete
     st_logInfo("Ran extended flowers ready for bar, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
-    bar(leafFlowers, params, cactusDisk, NULL, 0);
+    bar(leafFlowers, params, cactusDisk, NULL);
     st_logInfo("Ran cactus bar, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
     stList_destruct(leafFlowers);
 

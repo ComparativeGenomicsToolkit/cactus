@@ -125,7 +125,7 @@ CactusDisk *cactusDisk_construct() {
 void cactusDisk_destruct(CactusDisk *cactusDisk) {
     Flower *flower;
     while ((flower = stSortedSet_getFirst(cactusDisk->flowers)) != NULL) {
-        flower_destruct(flower, FALSE);
+        flower_destruct(flower, FALSE, FALSE);
     }
     stSortedSet_destruct(cactusDisk->flowers);
 
@@ -135,6 +135,8 @@ void cactusDisk_destruct(CactusDisk *cactusDisk) {
     }
     stSortedSet_destruct(cactusDisk->sequences);
     stHash_destruct(cactusDisk->allStrings); // cleanup the library of strings we hold in memory
+
+    eventTree_destruct(cactusDisk->eventTree);
 
 #if defined(_OPENMP)
     omp_destroy_lock(&(cactusDisk->writelock));

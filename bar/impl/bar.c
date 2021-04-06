@@ -44,7 +44,7 @@ bool blockFilterFn(stPinchBlock *pinchBlock, void *extraArg) {
     return !stCaf_containsRequiredSpecies(pinchBlock, f->flower, f->minimumIngroupDegree, f->minimumOutgroupDegree, f->minimumDegree, f->minimumNumberOfSpecies);
 }
 
-void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *listOfEndAlignmentFiles, bool cleanupMemory) {
+void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *listOfEndAlignmentFiles) {
     //////////////////////////////////////////////
     //Parse the many, many necessary parameters from the params file
     //////////////////////////////////////////////
@@ -82,7 +82,6 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
     if (listOfEndAlignmentFiles != NULL && stList_length(flowers) != 1) {
         st_errAbort("We have precomputed alignments but %" PRIi64 " flowers to align.\n", stList_length(flowers));
     }
-    cactusDisk_preCacheStrings(cactusDisk, flowers);
 
 #if defined(_OPENMP)
 #pragma omp parallel for
@@ -138,7 +137,7 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
             stCaf_melt(flower, threadSet, blockFilterFn, fa, 0, 0, 0, INT64_MAX);
         }
 
-        stCaf_finish(flower, threadSet, chainLengthForBigFlower, longChain, INT64_MAX, INT64_MAX, cleanupMemory); //Flower now destroyed.
+        stCaf_finish(flower, threadSet, chainLengthForBigFlower, longChain, INT64_MAX, INT64_MAX); //Flower now destroyed.
 
         stPinchThreadSet_destruct(threadSet);
         st_logDebug("Ran the cactus core script.\n");

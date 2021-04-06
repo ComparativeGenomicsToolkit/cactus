@@ -692,18 +692,7 @@ static Cap *makeStubCap(End *end, Event *referenceEvent) {
         assert(end_getSide(end) == cap_getSide(cap));
         assert(cap_getStrand(cap));
     }
-    if (end_getRootInstance(end) != NULL) {
-        cap_makeParentAndChild(end_getRootInstance(end), cap);
-    }
     return cap;
-}
-
-static Segment *makeSegment(Block *block, Event *referenceEvent) {
-    Segment *segment = segment_construct(block, referenceEvent);
-    if (block_getRootInstance(block) != NULL) {
-        segment_makeParentAndChild(block_getRootInstance(block), segment);
-    }
-    return segment;
 }
 
 static void makeAdjacent(Cap *cap, Cap *cap2) {
@@ -735,7 +724,7 @@ static void makeThread(End *end, stHash *endsToEnds, Flower *flower, Event *refe
             break;
         }
         Block *block = end_getBlock(end2);
-        Segment *segment = makeSegment(block, referenceEvent);
+        Segment *segment = segment_construct(block, referenceEvent);
         Cap *cap2 = segment_get5Cap(segment);
         assert(cap_getSide(cap2));
         Cap *cap3 = segment_get3Cap(segment);
@@ -825,11 +814,6 @@ static stHash *getEndsToEnds(Flower *flower, stList *chosenAdjacencyEdges, stHas
              * ends of scaffolding blocks, so we don't add additional scaffold gaps.
              */
             Block *block = block_construct(numberOfNsForScaffoldGap, flower);
-            if (flower_builtTrees(flower)) { //Add a root segment
-                Event *event = eventTree_getRootEvent(flower_getEventTree(flower));
-                assert(event != NULL);
-                block_setRootInstance(block, segment_construct(block, event));
-            }
             end_setGroup(block_get5End(block), end_getGroup(end1));
             assert(group_isTangle(end_getGroup(end1)));
             mapEnds(endsToEnds, end1, block_get5End(block));
@@ -918,12 +902,6 @@ static void addAdditionalStubEnds(stList *extraStubNodes, Flower *flower, stHash
         stIntTuple *node = stList_get(extraStubNodes, i);
         End *end = end_construct(0, flower); //Ensure we get the right orientation
         stHash_insert(nodesToEnds, stIntTuple_construct1(stIntTuple_get(node, 0)), end);
-        if(flower_builtTrees(flower)) {
-            Event *event = eventTree_getRootEvent(flower_getEventTree(flower));
-            assert(event != NULL);
-            end_setRootInstance(end, cap_construct(end, event));
-            //block_setRootInstance(block, segment_construct(block, event));
-        }
         stList_append(newEnds, end);
     }
 }
@@ -1238,39 +1216,3 @@ void cactus_make_reference(stList *flowers, char *referenceEventString,
     }
 }
 
-void cactus_make_reference_for_children(stList *flowers, char *referenceEventString,
-                                        CactusDisk *cactusDisk, CactusParams *params) {
-    for(int64_t i=0; i<stList_length(flowers); i++) {
-        Flower *flower = stList_get(flowers, i);
-        st_logDebug("Processing flower %" PRIi64 "\n", flower_getName(flower));
-        // Bulk-load all the nested flowers, since we will be reading them in anyway.
-        // Currently we can only cache the nested flowers of a list of flowers, so we
-        // create a singleton list.
-        stList *flowers2 = stList_construct();
-        stList_append(flowers2, flower);
-        preCacheNestedFlowers(cactusDisk, flowers2);
-
-        if (!flower_hasParentGroup(flower)) {
-            cactus_make_reference(flowers2, referenceEventString, cactusDisk, params);
-            cactusDisk_addUpdateRequest(cactusDisk, flower);
-        }
-        stList_pop(flowers2);
-
-        Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
-        Group *group;
-        while ((group = flower_getNextGroup(groupIt)) != NULL) {
-            Flower *subFlower = group_getNestedFlower(group);
-            if (subFlower != NULL) {
-                stList_append(flowers2, subFlower);
-                cactus_make_reference(flowers2, referenceEventString, cactusDisk, params);
-                stList_pop(flowers2);
-                cactusDisk_addUpdateRequest(cactusDisk, subFlower);
-                flower_unload(subFlower);
-            }
-        }
-        flower_destructGroupIterator(groupIt);
-        assert(!flower_isParentLoaded(flower));
-        cactusDisk_clearCache(cactusDisk);
-        stList_destruct(flowers2);
-    }
-}

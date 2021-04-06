@@ -30,12 +30,6 @@ struct _flower {
 ////////////////////////////////////////////////
 
 /*
- * Destructs the flower, and all the elements it contains. If recursive the function will destroy all
- * loaded nested flowers.
- */
-void flower_destruct(Flower *flower, int64_t recursive);
-
-/*
  * Adds the event tree for the flower to the flower.
  * If an previous event tree exists for the flower
  * it will call eventTree_destruct for the existing tree

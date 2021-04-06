@@ -42,7 +42,7 @@ CFLAGS += -UNDEBUG
 CFLAGS+= -I/usr/include/libxml2 -lxml2 ${LDFLAGS}
 
 # Hack to include openmp on os x after "brew install lomp
-# CFLAGS+= -Xpreprocessor -fopenmp -lomp
+CFLAGS+= -Xpreprocessor -fopenmp -lomp
 
 dataSetsPath=/Users/benedictpaten/Dropbox/Documents/work/myPapers/genomeCactusPaper/dataSets
 

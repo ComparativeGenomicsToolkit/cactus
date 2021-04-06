@@ -128,7 +128,7 @@ void stCaf_addAdjacencies(Flower *flower);
  */
 void stCaf_finish(Flower *flower, stPinchThreadSet *threadSet, int64_t chainLengthForBigFlower,
         int64_t longChain, int64_t minLengthForChromosome,
-        double proportionOfUnalignedBasesForNewChromosome, bool cleanupMemory);
+        double proportionOfUnalignedBasesForNewChromosome);
 
 ///////////////////////////////////////////////////////////////////////////
 // Filtering fuctions -- filtering incoming alignments or entire blocks
