@@ -136,7 +136,9 @@ void cactusDisk_destruct(CactusDisk *cactusDisk) {
     stSortedSet_destruct(cactusDisk->sequences);
     stHash_destruct(cactusDisk->allStrings); // cleanup the library of strings we hold in memory
 
-    eventTree_destruct(cactusDisk->eventTree);
+    if(cactusDisk->eventTree != NULL) {
+        eventTree_destruct(cactusDisk->eventTree);
+    }
 
 #if defined(_OPENMP)
     omp_destroy_lock(&(cactusDisk->writelock));

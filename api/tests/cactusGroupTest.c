@@ -29,8 +29,8 @@ static void cactusGroupTestSetup(CuTest* testCase) {
     cactusDisk = cactusDisk_construct();
     flower = flower_construct(cactusDisk);
     nestedFlower = flower_construct(cactusDisk);
-    end1 = end_construct2(0, 0, flower);
     end2 = end_construct(0, flower);
+    end1 = end_construct2(0, 0, flower);
     end3 = end_construct(0, flower);
     nestedEnd1 = end_copyConstruct(end1, nestedFlower);
     nestedEnd2 = end_copyConstruct(end2, nestedFlower);

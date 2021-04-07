@@ -112,7 +112,7 @@ static void testObjectRetrieval(CuTest* testCase,
     /*
      * Test get first function.
      */
-    CuAssertTrue(testCase, getFirstObjectFn(flower) == object);
+    CuAssertTrue(testCase, getFirstObjectFn(flower) == object2);
 
     /*
      * Test get function

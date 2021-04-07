@@ -42,8 +42,9 @@ static void cactusEndsTestSharedSetup(const char *testName) {
     flower_addSequence(flower, sequence);
 
     end = end_construct(1, flower);
-    rootCap = cap_construct(end_getReverse(end), rootEvent);
-    leaf1Cap = cap_construct2(end_getReverse(end), 4, 1, sequence);
-    leaf2Cap = cap_construct2(end, 6, 0, sequence);
+
     leaf3Cap = cap_construct2(end_getReverse(end), 7, 0, sequence);
+    leaf2Cap = cap_construct2(end, 6, 0, sequence);
+    leaf1Cap = cap_construct2(end_getReverse(end), 4, 1, sequence);
+    rootCap = cap_construct(end_getReverse(end), rootEvent);
 }

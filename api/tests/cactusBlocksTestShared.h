@@ -40,7 +40,7 @@ static void cactusBlocksTestSharedSetup(const char *testName) {
     flower_addSequence(flower, sequence);
 
     block = block_construct(3, flower);
-    rootSegment = segment_construct(block_getReverse(block), rootEvent);
-    leaf1Segment = segment_construct2(block, 2, 1, sequence);
     leaf2Segment = segment_construct2(block_getReverse(block), 4, 0, sequence);
+    leaf1Segment = segment_construct2(block, 2, 1, sequence);
+    rootSegment = segment_construct(block_getReverse(block), rootEvent);
 }

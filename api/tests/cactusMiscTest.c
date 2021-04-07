@@ -54,7 +54,7 @@ static void testCactusCheck(CuTest* testCase) {
         CuAssertTrue(testCase, 0);
     } stCatch(except) {
         st_logInfo("This is the message %s\n", stExcept_getMsg(except));
-        stExcept_free(except);
+        //stExcept_free(except);
     } stTryEnd
 
     cactusCheck2(1, "This shouldn't throw an exception: %s", "blah");
@@ -63,7 +63,7 @@ static void testCactusCheck(CuTest* testCase) {
         CuAssertTrue(testCase, 0);
     } stCatch(except) {
         st_logInfo("This is the message: %s\n", stExcept_getMsg(except));
-        stExcept_free(except);
+        //stExcept_free(except);
     } stTryEnd
 }
 

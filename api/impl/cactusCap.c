@@ -316,7 +316,7 @@ Cap *cap_getOtherSegmentCap(Cap *cap) {
     Cap *otherCap = cap_left(cap) ? cap+4 : cap-4;
     // Do some sanity checks
     assert(cap != otherCap);
-    assert(cap_getStrand(cap) == cap_getStrand(otherCap));
+    //assert(cap_getStrand(cap) == cap_getStrand(otherCap)); This is not necessarily true when setting the coordinates
     assert(cap_getSegment(cap) == cap_getSegment(otherCap));
     assert(cap_getSegmentContents(cap) == cap_getSegmentContents(otherCap));
 

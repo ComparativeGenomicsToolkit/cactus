@@ -107,8 +107,7 @@ Segment *segment_construct(Block *block, Event *event) {
     return cap_getSegment(cap);
 }
 
-Segment *segment_construct2(Block *block, int64_t startCoordinate, bool strand,
-        Sequence *sequence) {
+Segment *segment_construct2(Block *block, int64_t startCoordinate, bool strand, Sequence *sequence) {
     assert(startCoordinate >= sequence_getStart(sequence));
     assert(startCoordinate + block_getLength(block) <= sequence_getStart(sequence) + sequence_getLength(sequence));
     int64_t i = (startCoordinate == INT64_MAX || strand) ? startCoordinate : startCoordinate + block_getLength(block) - 1;
