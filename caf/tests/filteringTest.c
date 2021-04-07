@@ -54,7 +54,7 @@ static stCactusEdgeEnd *getChainEndFromBlock(stCactusGraph *cactusGraph,
 
 static void teardown(CuTest* testCase) {
     if (cactusDisk != NULL) {
-        testCommon_deleteTemporaryCactusDisk(testCase->name, cactusDisk);
+        cactusDisk_destruct(cactusDisk);
         cactusDisk = NULL;
     }
 }
@@ -65,7 +65,7 @@ static void teardown(CuTest* testCase) {
 // aren't added.
 static void setup(CuTest* testCase, bool includeOutgroups) {
     teardown(testCase);
-    cactusDisk = testCommon_getTemporaryCactusDisk(testCase->name);
+    cactusDisk = cactusDisk_construct();
     eventTree_construct2(cactusDisk);
     flower = flower_construct(cactusDisk);
     // A group must be constructed because stCaf_setup expects a leaf group.

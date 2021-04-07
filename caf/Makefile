@@ -12,8 +12,7 @@ stCafLibs = ${commonCafLibs} ${LDLIBS}
 all: all_libs all_progs
 all_libs: ${LIBDIR}/stCaf.a
 all_progs: all_libs
-
-#${MAKE} ${BINDIR}/stCafTests
+	${MAKE} ${BINDIR}/stCafTests
 
 ${LIBDIR}/stCaf.a : ${libSources} ${libHeaders}  ${stCafDependencies}
 	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -c ${libSources}
