@@ -14,8 +14,7 @@ stReferenceLibs = ${commonReferenceLibs} ${LDLIBS}
 all: all_libs all_progs
 all_libs: ${LIBDIR}/stReference.a
 all_progs: all_libs
-
-#${MAKE} ${BINDIR}/referenceTests
+	${MAKE} ${BINDIR}/referenceTests
 
 ${BINDIR}/referenceTests : ${libTests} ${libSources} ${libHeaders} ${stReferenceDependencies}
 	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -I${LIBDIR} -o ${BINDIR}/referenceTests ${libTests} ${libSources} ${stReferenceLibs}

@@ -13,8 +13,7 @@ LDLIBS += ${commonBarLibs} ${sonLibDir}/sonLib.a ${databaseLibs} -lm
 all: all_libs all_progs
 all_libs: ${LIBDIR}/cactusBarLib.a
 all_progs: all_libs
-
-#${MAKE} ${BINDIR}/cactus_barTests ${BINDIR}/cactus_runEndAlignment
+	${MAKE} ${BINDIR}/cactus_barTests ${BINDIR}/cactus_runEndAlignment
 
 clean : 
 	rm -f ${BINDIR}/cactus_barTests  ${LIBDIR}/cactusBarLib.a *.o

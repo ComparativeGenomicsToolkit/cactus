@@ -277,6 +277,7 @@ void maskAncestralRepeatBases(Block *block, stList *segments, char *mlString) {
      * Soft masks the positions in the mlString that are deemed to be repetitive. A position is repetitive
      * if greater than 50% of the bases from which it is derived are not upper case.
      */
+    //assert(block_getInstanceNumber(block) == stList_length(segments));
 
     int64_t l = block_getLength(block), j = stList_length(segments);
     int64_t *upperCounts = st_calloc(l, sizeof(int64_t)); //Counts of upper case bases at each position of the block.
@@ -287,10 +288,10 @@ void maskAncestralRepeatBases(Block *block, stList *segments, char *mlString) {
         Segment *segment = stList_get(segments, i);
         assert(segment_getSequence(segment) != NULL);
         char *string = segment_getString(segment);
-        for (int64_t i = 0; i < l; i++) {
-            char uC = toupper(string[i]);
-            upperCounts[i] += uC == string[i] ? 1 : 0;
-            nCounts[i] += (uC != 'A' && uC != 'C' && uC != 'G' && uC != 'T' ? 1 : 0);
+        for (int64_t k = 0; k < l; k++) {
+            char uC = toupper(string[k]);
+            upperCounts[k] += uC == string[k] ? 1 : 0;
+            nCounts[k] += (uC != 'A' && uC != 'C' && uC != 'G' && uC != 'T' ? 1 : 0);
         }
         free(string);
     }
