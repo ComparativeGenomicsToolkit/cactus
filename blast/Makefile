@@ -1,8 +1,6 @@
 rootPath = ..
 include ${rootPath}/include.mk
 
-CFLAGS += ${hiredisIncl}
-
 all: all_libs all_progs
 all_libs: 
 all_progs: all_libs
