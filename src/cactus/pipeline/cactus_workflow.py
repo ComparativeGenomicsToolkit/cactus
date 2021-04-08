@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-#Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
+#Copyright (C) 2009-2021 by Benedict Paten, Joel Armstrong and Glenn Hickey
 #
 #Released under the MIT license, see LICENSE.txt
 
@@ -13,7 +13,6 @@ import os
 import sys
 import xml.etree.ElementTree as ET
 import math
-import time
 import copy
 from argparse import ArgumentParser
 from operator import itemgetter
@@ -28,19 +27,10 @@ from sonLib.bioio import getLogLevelString
 
 from toil.job import Job
 from toil.common import Toil
-from toil.realtimeLogger import RealtimeLogger
 
 from cactus.shared.common import makeURL
-from cactus.shared.common import RunAsFollowOn
 from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import runCactusConsolidated
-from cactus.shared.common import runCactusGetFlowers
-from cactus.shared.common import runCactusExtendFlowers
-from cactus.shared.common import runCactusSplitFlowersBySecondaryGrouping
-from cactus.shared.common import encodeFlowerNames
-from cactus.shared.common import decodeFirstFlowerName
-from cactus.shared.common import runCactusFlowerStats
-from cactus.shared.common import runCactusSecondaryDatabase
 from cactus.shared.common import findRequiredNode
 from cactus.shared.common import RoundedJob
 
@@ -53,7 +43,6 @@ from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.experimentWrapper import DbElemWrapper
 from cactus.shared.configWrapper import ConfigWrapper
-from cactus.pipeline.dbServerToil import DbServerService, getDbServer
 
 ############################################################
 ############################################################
@@ -156,289 +145,12 @@ class CactusPhasesJob(CactusJob):
         CactusJob.__init__(self, phaseNode=phaseNode, constantsNode=constantsNode, overlarge=False,
                            checkpoint=checkpoint, preemptable=preemptable)
 
-    def makeRecursiveChildJob(self, job, launchSecondaryDbForRecursiveJob=False):
-        newChild = job(phaseNode=extractNode(self.phaseNode),
-                       constantsNode=extractNode(self.constantsNode),
-                       cactusDiskDatabaseString=self.cactusWorkflowArguments.cactusDiskDatabaseString,
-                       flowerNames=encodeFlowerNames((self.topFlowerName,)),
-                       flowerSizes=[self.cactusWorkflowArguments.totalSequenceSize],
-                       overlarge=True,
-                       cactusWorkflowArguments=self.cactusWorkflowArguments)
-
-        if launchSecondaryDbForRecursiveJob and ExperimentWrapper(self.cactusWorkflowArguments.experimentNode).getDbType() in ["kyoto_tycoon", "redis"]:
-            cw = ConfigWrapper(self.cactusWorkflowArguments.configNode)
-            memory = max(2500000000, self.evaluateResourcePoly([4.10201882, 2.01324291e+08]))
-            cpu = cw.getKtserverCpu(default=0.1)
-            dbElem = ExperimentWrapper(self.cactusWorkflowArguments.scratchDbElemNode)
-            dbString = self.addService(DbServerService(dbElem=dbElem, isSecondary=True, memory=memory, cores=cpu)).rv(0)
-            newChild.phaseNode.attrib["secondaryDatabaseString"] = dbString
-            return self.addChild(newChild).rv()
-        else:
-            return self.addChild(newChild).rv()
-
     def makeFollowOnPhaseJob(self, job, phaseName):
         return self.addFollowOn(job(cactusWorkflowArguments=self.cactusWorkflowArguments, phaseName=phaseName,
                                     topFlowerName=self.topFlowerName, halID=self.halID, fastaID=self.fastaID)).rv()
 
-    def runPhase(self, recursiveJob, nextPhaseJob, nextPhaseName, doRecursion=True, launchSecondaryDbForRecursiveJob=False):
-        """
-        Adds a recursive child job and then a follow-on phase job. Returns the result of the follow-on
-        phase job.
-        """
-        RealtimeLogger.info("Starting %s phase job at %s seconds (recursing = %i)" % (self.phaseNode.tag, time.time(), doRecursion))
-        if doRecursion:
-            self.makeRecursiveChildJob(recursiveJob, launchSecondaryDbForRecursiveJob)
-        return self.makeFollowOnPhaseJob(job=nextPhaseJob, phaseName=nextPhaseName)
-
-    def makeFollowOnCheckpointJob(self, checkpointConstructor, phaseName, dbServerDump=None):
-        """Add a follow-on checkpoint phase."""
-        return self.addFollowOn(checkpointConstructor(\
-                   phaseName=phaseName, dbServerDump=dbServerDump,
-                   cactusWorkflowArguments=self.cactusWorkflowArguments,
-                   topFlowerName=self.topFlowerName,
-                   halID=self.halID, fastaID=self.fastaID)).rv()
-
     def getPhaseNumber(self):
         return len(self.cactusWorkflowArguments.configNode.findall(self.phaseNode.tag))
-
-    def setupSecondaryDatabase(self):
-        """Setup the secondary database
-        """
-        confXML = ET.fromstring(self.cactusWorkflowArguments.secondaryDatabaseString)
-        dbElem = DbElemWrapper(confXML)
-        # TODO: It seems that it does nothing for the known databases. Maybe we can remove it.
-        if dbElem.getDbType() not in ["kyoto_tycoon", "redis"]:
-            runCactusSecondaryDatabase(self.cactusWorkflowArguments.secondaryDatabaseString, create=True)
-
-    def cleanupSecondaryDatabase(self):
-        """Cleanup the secondary database
-        """
-        confXML = ET.fromstring(self.cactusWorkflowArguments.secondaryDatabaseString)
-        dbElem = DbElemWrapper(confXML)
-        # TODO: It seems that it does nothing for the known databases. Maybe we can remove it.
-        if dbElem.getDbType() not in ["kyoto_tycoon", "redis"]:
-            runCactusSecondaryDatabase(self.cactusWorkflowArguments.secondaryDatabaseString, create=False)
-
-class CactusCheckpointJob(CactusPhasesJob):
-    """Special "checkpoint" phase job, launching and restoring the primary Cactus DB.
-
-    Inherit from this and run `runPhaseWithPrimaryDB` to start a new
-    primary DB before running the given phase.
-
-    Meant to provide a restore point in case of pipeline failure. Note
-    that the checkpointed job is technically this job's child, which
-    starts the database.
-    """
-    def __init__(self, dbServerDump=None, *args, **kwargs):
-        self.dbServerDump = dbServerDump
-        super(CactusCheckpointJob, self).__init__(*args, **kwargs)
-
-    def runPhaseWithPrimaryDB(self, jobConstructor):
-        """Start and load a new primary DB before running the given phase.
-        """
-        job = jobConstructor(cactusWorkflowArguments=self.cactusWorkflowArguments,
-                             phaseName=self.phaseName, topFlowerName=self.topFlowerName)
-        startDBJob = StartPrimaryDB(job, dbServerDump=self.dbServerDump,
-                                    cactusWorkflowArguments=self.cactusWorkflowArguments,
-                                    phaseName=self.phaseName, topFlowerName=self.topFlowerName)
-        promise = self.addChild(startDBJob)
-        return promise
-
-class StartPrimaryDB(CactusPhasesJob):
-    """Launches a primary Cactus DB."""
-    def __init__(self, nextJob, dbServerDump=None, *args, **kwargs):
-        self.nextJob = nextJob
-        self.dbServerDump = dbServerDump
-        kwargs['checkpoint'] = True
-        kwargs['preemptable'] = False
-        super(StartPrimaryDB, self).__init__(*args, **kwargs)
-
-    def run(self, fileStore):
-        cw = ConfigWrapper(self.cactusWorkflowArguments.configNode)
-
-        if self.cactusWorkflowArguments.experimentWrapper.getDbType() in ["kyoto_tycoon", "redis"]:
-            memory = max(2500000000, self.evaluateResourcePoly([4.10201882, 2.01324291e+08]))
-            cores = cw.getKtserverCpu(default=0.1)
-            dbElem = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
-            service = self.addService(DbServerService(dbElem=dbElem,
-                                                      existingSnapshotID=self.dbServerDump,
-                                                      isSecondary=False,
-                                                      memory=memory, cores=cores))
-            dbString = service.rv(0)
-            snapshotID = service.rv(1)
-            self.nextJob.cactusWorkflowArguments.cactusDiskDatabaseString = dbString
-            # TODO: This part needs to be cleaned up
-            self.nextJob.cactusWorkflowArguments.snapshotID = snapshotID
-            return self.addChild(self.nextJob).rv()
-        else:
-            return self.addFollowOn(self.nextJob).rv()
-
-class SavePrimaryDB(CactusPhasesJob):
-    """Saves the DB to a file and clears the DB."""
-    def __init__(self, *args, **kwargs):
-        super(SavePrimaryDB, self).__init__(*args, **kwargs)
-
-    def run(self, fileStore):
-        stats = runCactusFlowerStats(cactusDiskDatabaseString=self.cactusWorkflowArguments.cactusDiskDatabaseString,
-                                     flowerName=0)
-        fileStore.logToMaster("At end of %s phase, got stats %s" % (self.phaseName, stats))
-        dbElem = DbElemWrapper(ET.fromstring(self.cactusWorkflowArguments.cactusDiskDatabaseString))
-        # Send the terminate message
-        getDbServer(dbElem, fileStore).stopServer()
-        # Wait for the file to appear in the right place. This may take a while
-        while True:
-            with fileStore.readGlobalFileStream(self.cactusWorkflowArguments.snapshotID) as f:
-                if f.read(1) != b'':
-                    # The file is no longer empty
-                    break
-            time.sleep(10)
-        # We have the file now
-        intermediateResultsUrl = getattr(self.cactusWorkflowArguments, 'intermediateResultsUrl', None)
-        if intermediateResultsUrl is not None:
-            # The user requested to keep the DB dumps in a separate place. Export it there.
-            url = intermediateResultsUrl + "-dump-" + self.phaseName
-            fileStore.exportFile(self.cactusWorkflowArguments.snapshotID, url)
-        return self.cactusWorkflowArguments.snapshotID
-
-class CactusRecursionJob(CactusJob):
-    """Base recursive job for traversals up and down the cactus tree.
-    """
-    flowerFeatures = lambda self: {'flowerGroupSize': sum(self.flowerSizes),
-                                   'maxFlowerSize': max(self.flowerSizes),
-                                   'numFlowers': len(self.flowerSizes)}
-    featuresFn = flowerFeatures
-    feature = 'flowerGroupSize'
-    maxSequenceSizeOfFlowerGroupingDefault = 1000000
-    def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, flowerSizes, overlarge=False, precomputedAlignmentIDs=None, checkpoint = False, cactusWorkflowArguments=None, preemptable=True, memPoly=None):
-        self.cactusDiskDatabaseString = cactusDiskDatabaseString
-        self.flowerNames = flowerNames
-        self.flowerSizes = flowerSizes
-        self.cactusWorkflowArguments = cactusWorkflowArguments
-
-        #need to do this because the alignment IDs are jobstore promises, and can't
-        #be stored in the config XML until they are respolved into actual IDs, which doesn't
-        #happen until the follow-on job after CactusBarWrapperLarge
-        self.precomputedAlignmentIDs = precomputedAlignmentIDs
-
-        CactusJob.__init__(self, phaseNode=phaseNode, constantsNode=constantsNode, overlarge=overlarge,
-                           checkpoint=checkpoint, preemptable=preemptable)
-
-    def makeFollowOnRecursiveJob(self, job, phaseNode=None):
-        """Sets the followon to the given recursive job
-        """
-        if phaseNode == None:
-            phaseNode = self.phaseNode
-        return self.addFollowOn(job(phaseNode=phaseNode, constantsNode=self.constantsNode,
-                                    cactusDiskDatabaseString=self.cactusDiskDatabaseString,
-                                    flowerNames=self.flowerNames, flowerSizes=self.flowerSizes,
-                                    overlarge=self.overlarge,
-                                    precomputedAlignmentIDs=self.precomputedAlignmentIDs,
-                                    cactusWorkflowArguments=self.cactusWorkflowArguments)).rv()
-
-    def makeFollowOnRecursiveJobWithPromisedRequirements(self, job, phaseNode=None):
-        """
-        Toil's PromisedRequirements don't actually work with real job
-        classes, only functions. So this is a hacky way of working
-        around that by introducing our own level of indirection.
-        """
-        if phaseNode == None:
-            phaseNode = self.phaseNode
-        return self.addFollowOn(RunAsFollowOn(job, phaseNode=phaseNode, constantsNode=self.constantsNode,
-                                              cactusDiskDatabaseString=self.cactusDiskDatabaseString,
-                                              flowerNames=self.flowerNames, flowerSizes=self.flowerSizes,
-                                              overlarge=self.overlarge,
-                                              precomputedAlignmentIDs=self.precomputedAlignmentIDs,
-                                              cactusWorkflowArguments=self.cactusWorkflowArguments)).rv()
-
-    def makeChildJobs(self, flowersAndSizes, job, overlargeJob=None,
-                      phaseNode=None):
-        """Make a set of child jobs for a given set of flowers and chosen child job
-        """
-        if overlargeJob == None:
-            overlargeJob = job
-        if phaseNode == None:
-            phaseNode = self.phaseNode
-
-        logger.info("Make wrapper jobs: There are %i flowers" % len(flowersAndSizes))
-        for overlarge, flowerNames, flowerSizes in flowersAndSizes:
-            if overlarge: #Make sure large flowers are on their own, in their own job
-                flowerStatsString = runCactusFlowerStats(cactusDiskDatabaseString=self.cactusDiskDatabaseString,
-                                                         flowerName=decodeFirstFlowerName(flowerNames))
-                self._fileStore.logToMaster("Adding an oversize flower for job class %s and stats %s" \
-                                 % (overlargeJob, flowerStatsString))
-                self.addChild(overlargeJob(cactusDiskDatabaseString=
-                                           self.cactusDiskDatabaseString,
-                                           phaseNode=phaseNode,
-                                           constantsNode=self.constantsNode,
-                                           flowerNames=flowerNames,
-                                           flowerSizes=flowerSizes,
-                                           overlarge=True,
-                                           cactusWorkflowArguments=self.cactusWorkflowArguments)).rv()
-            else:
-                logger.info("Adding recursive flower job")
-                self.addChild(job(cactusDiskDatabaseString=self.cactusDiskDatabaseString,
-                                  phaseNode=phaseNode, constantsNode=self.constantsNode,
-                                  flowerNames=flowerNames,
-                                  flowerSizes=flowerSizes,
-                                  overlarge=False,
-                                  cactusWorkflowArguments=self.cactusWorkflowArguments)).rv()
-
-    def makeRecursiveJobs(self, fileStore=None, job=None, phaseNode=None):
-        """Make a set of child jobs for a given set of parent flowers.
-        """
-        if job == None:
-            job = self.__class__
-        jobNode = getJobNode(self.phaseNode, job)
-        flowersAndSizes=runCactusGetFlowers(cactusDiskDatabaseString=self.cactusDiskDatabaseString,
-                                            features=self.featuresFn(),
-                                            jobName=job.__name__,
-                                            fileStore=fileStore,
-                                            flowerNames=self.flowerNames,
-                                            minSequenceSizeOfFlower=getOptionalAttrib(jobNode, "minFlowerSize", int, 0),
-                                            maxSequenceSizeOfFlowerGrouping=getOptionalAttrib(jobNode, "maxFlowerGroupSize", int,
-                                            default=CactusRecursionJob.maxSequenceSizeOfFlowerGroupingDefault),
-                                            maxSequenceSizeOfSecondaryFlowerGrouping=getOptionalAttrib(jobNode, "maxFlowerWrapperGroupSize", int,
-                                            default=CactusRecursionJob.maxSequenceSizeOfFlowerGroupingDefault))
-        return self.makeChildJobs(flowersAndSizes=flowersAndSizes,
-                              job=job, phaseNode=phaseNode)
-
-    def makeExtendingJobs(self, job, fileStore=None, overlargeJob=None, phaseNode=None):
-        """Make set of child jobs that extend the current cactus tree.
-        """
-
-        jobNode = getJobNode(self.phaseNode, job)
-        flowersAndSizes=runCactusExtendFlowers(cactusDiskDatabaseString=self.cactusDiskDatabaseString,
-                                              features=self.featuresFn(),
-                                              jobName=job.__name__,
-                                              fileStore=fileStore,
-                                              flowerNames=self.flowerNames,
-                                              minSequenceSizeOfFlower=getOptionalAttrib(jobNode, "minFlowerSize", int, 0),
-                                              maxSequenceSizeOfFlowerGrouping=getOptionalAttrib(jobNode, "maxFlowerGroupSize", int,
-                                              default=CactusRecursionJob.maxSequenceSizeOfFlowerGroupingDefault))
-        return self.makeChildJobs(flowersAndSizes=flowersAndSizes,
-                                  job=job, overlargeJob=overlargeJob,
-                                  phaseNode=phaseNode)
-
-    def makeWrapperJobs(self, job, overlargeJob=None, phaseNode=None):
-        """Takes the list of flowers for a recursive job and splits them up to fit the given wrapper job(s).
-        """
-        splitFlowerNames = runCactusSplitFlowersBySecondaryGrouping(self.flowerNames)
-        # We've split the flower names up into groups, but now we need
-        # to put the flower sizes in so that they correspond with
-        # their flower.
-        flowersAndSizes = []
-        flowersSoFar = 0
-        for overlarge, flowerNames in splitFlowerNames:
-            # Number of flowers in this grouping.
-            numFlowers = int(flowerNames.split()[0])
-            flowersAndSizes += [(overlarge, flowerNames, self.flowerSizes[flowersSoFar:flowersSoFar + numFlowers])]
-            flowersSoFar += numFlowers
-        totalFlowers = int(self.flowerNames.split()[0])
-        assert flowersSoFar == totalFlowers, \
-               "Didn't process all flowers while going through a secondary grouping."
-        return self.makeChildJobs(flowersAndSizes=flowersAndSizes,
-                                  job=job, overlargeJob=overlargeJob,
-                                  phaseNode=phaseNode)
 
 ############################################################
 ############################################################
@@ -498,7 +210,6 @@ def setupFilteringByIdentity(cactusWorkflowArguments):
         float(cafNode.attrib["minimumDistance"]))
         identity = str(100 - math.ceil(100 * inverseJukesCantor(adjustedPath)))
         cafNode.attrib["lastzArguments"] = cafNode.attrib["lastzArguments"] + (" --identity=%s" % identity)
-
 
 class CactusTrimmingBlastPhase(CactusPhasesJob):
     """Blast ingroups vs outgroups using the trimming strategy before
@@ -597,9 +308,7 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
         if self.standAlone:
             return self.cactusWorkflowArguments
 
-        return self.makeFollowOnPhaseJob(CactusConsolidated1, phaseName="consolidated")
-
-        #return self.makeFollowOnCheckpointJob(CactusSetupCheckpoint, "setup")
+        return self.makeFollowOnPhaseJob(CactusConsolidated, phaseName="consolidated")
 
 def updateExpWrapperForOutgroups(job, expWrapper, outgroupGenomes, outgroupFragmentIDs):
     for genome, outgroupFragmentID in zip(outgroupGenomes, outgroupFragmentIDs):
@@ -609,14 +318,14 @@ def updateExpWrapperForOutgroups(job, expWrapper, outgroupGenomes, outgroupFragm
 ############################################################
 ############################################################
 ############################################################
-##The optional consolidate phase, which runs the setup, caf,
+##The consolidate phase, which runs the setup, caf,
 ## bar, reference and cactus to hal algorithms in one job
 ## on a multi-node machine
 ############################################################
 ############################################################
 ############################################################
 
-class CactusConsolidated1(CactusPhasesJob):
+class CactusConsolidated(CactusPhasesJob):
     """Start the secondary DB."""
     def run(self, fileStore):
         # Get the experiment object
