@@ -50,21 +50,11 @@ inclDirs = hal/inc api/inc setup/inc bar/inc caf/inc hal/inc reference/inc pipel
 	blastLib submodules/sonLib/externalTools/cutest submodules/pinchesAndCacti/inc \
 	submodules/matchingAndOrdering/inc submodules/cPecan/inc
 
-kyotoTycoonIncl=-I${rootPath}/include -DHAVE_KYOTO_TYCOON=1
-kyotoTycoonLib=-L${rootPath}/lib -Wl,-rpath,${rootPath}/lib -lkyototycoon -lkyotocabinet -lz -lbz2 -lpthread -lm -lstdc++
-HAVE_REDIS = $(shell pkg-config --exists hiredis; echo $$?)
-ifeq (${HAVE_REDIS},0)
-    hiredisIncl=$(shell pkg-config --cflags hiredis) -DHAVE_REDIS=1
-    hiredisLib=-lhiredis
-endif
-
-CPPFLAGS += ${inclDirs:%=-I${rootPath}/%} -I${LIBDIR} ${kyotoTycoonIncl}
+CPPFLAGS += ${inclDirs:%=-I${rootPath}/%} -I${LIBDIR} -I${rootPath}/include
 
 # libraries can't be added until they are build, so add as to LDLIBS until needed
 cactusLibs = ${LIBDIR}/stCaf.a ${LIBDIR}/stReference.a ${LIBDIR}/cactusBarLib.a ${LIBDIR}/cactusBlastAlignment.a ${LIBDIR}/cactusLib.a
 sonLibLibs = ${sonLibDir}/sonLib.a ${sonLibDir}/cuTest.a
 
-databaseLibs = ${kyotoTycoonLib} ${tokyoCabinetLib} ${hiredisLib}
-
-LDLIBS += ${cactusLibs} ${sonLibLibs} ${databaseLibs} ${LIBS} -lm -labpoa
+LDLIBS += ${cactusLibs} ${sonLibLibs} ${LIBS} -L${rootPath}/lib -Wl,-rpath,${rootPath}/lib -lz -lbz2 -lpthread -lm -lstdc++ -lm -labpoa
 LIBDEPENDS = ${sonLibDir}/sonLib.a ${sonLibDir}/cuTest.a

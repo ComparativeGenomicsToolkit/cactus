@@ -24,10 +24,7 @@
 /*
  * TODOs:
  *
- * fix the flower remove functions
- * cleanup the API - remove binary functions, etc.
- * remove all the unnecessary binaries
- * make the tests pass!
+ * cleanup the python
  */
 
 void usage() {

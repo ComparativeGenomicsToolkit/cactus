@@ -6,7 +6,7 @@ modules = api setup blastLib caf bar blast hal reference check pipeline preproce
 
 # submodules are in multiple pass to handle dependencies cactus2hal being dependent on
 # both cactus and sonLib
-submodules1 = kyoto sonLib cPecan hal matchingAndOrdering pinchesAndCacti abPOA
+submodules1 = sonLib cPecan hal matchingAndOrdering pinchesAndCacti abPOA
 submodules2 = cactus2hal
 submodules = ${submodules1} ${submodules2}
 
@@ -178,11 +178,8 @@ clean: selfClean ${submodules:%=subclean.%}
 ##
 suball1: ${submodules1:%=suball.%}
 suball2: ${submodules2:%=suball.%}
-suball.kyoto:
-	cd submodules/kyoto && ${MAKE} PREFIX=${CWD}
-	cd submodules/kyoto && ${MAKE} PREFIX=${CWD} install
 
-suball.sonLib: suball.kyoto
+suball.sonLib:
 	cd submodules/sonLib && PKG_CONFIG_PATH=${CWD}/lib/pkgconfig:${PKG_CONFIG_PATH} ${MAKE}
 	mkdir -p ${BINDIR} ${LIBDIR}
 	rm -rf submodules/sonLib/bin/*.dSYM

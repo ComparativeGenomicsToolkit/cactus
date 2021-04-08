@@ -4,7 +4,7 @@ include ${rootPath}/include.mk
 libSources = impl/*.c
 libHeaders = inc/*.h
 
-CFLAGS += ${tokyoCabinetIncl} ${hiredisIncl}
+CFLAGS += ${hiredisIncl}
 
 all: all_libs
 all_progs : all_libs

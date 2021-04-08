@@ -1,7 +1,7 @@
 rootPath = ../..
 include ${rootPath}/include.mk
 
-CFLAGS += ${tokyoCabinetIncl} ${hiredisIncl}
+CFLAGS += ${hiredisIncl}
 
 all :  ${BINDIR}/cactus_fasta_fragments.py ${BINDIR}/cactus_fasta_softmask_intervals.py ${BINDIR}/cactus_covered_intervals
 

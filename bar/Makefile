@@ -6,7 +6,7 @@ libHeaders = inc/*.h
 libTests = tests/adjacencySequencesTest.c tests/allTests.c tests/endAlignerTest.c tests/flowerAlignerTest.c tests/rescueTest.c tests/poaBarTest.c
 libRunEndAlignment = tests/runEndAlignment.c
 
-commonBarLibs =  ${LIBDIR}/stCaf.a ${sonLibDir}/stPinchesAndCacti.a ${LIBDIR}/cactusLib.a ${sonLibDir}/3EdgeConnected.a ${sonLibDir}/cPecanLib.a  
+commonBarLibs = ${LIBDIR}/stCaf.a ${sonLibDir}/stPinchesAndCacti.a ${LIBDIR}/cactusLib.a ${sonLibDir}/3EdgeConnected.a ${sonLibDir}/cPecanLib.a
 stBarDependencies =  ${commonBarLibs} ${LIBDEPENDS}
 LDLIBS += ${commonBarLibs} ${sonLibDir}/sonLib.a ${databaseLibs} -lm
 
