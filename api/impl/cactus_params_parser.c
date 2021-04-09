@@ -109,7 +109,7 @@ static char *cactusParams_get_string2(CactusParams *p, int num, va_list args) {
     return v;
 }
 
-char *cactusParams_get_string(CactusParams *p, int num, ...) {
+const char *cactusParams_get_string(CactusParams *p, int num, ...) {
     va_list args;
     va_start(args, num);
     char *c = cactusParams_get_string2(p, num, args);

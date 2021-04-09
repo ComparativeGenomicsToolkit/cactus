@@ -39,7 +39,7 @@ void cactusParams_set_root(CactusParams *p, int num, ...);
 /*
  * Get a string parameter.
  */
-char *cactusParams_get_string(CactusParams *p, int, ...);
+const char *cactusParams_get_string(CactusParams *p, int, ...);
 
 /*
  * Get an integer parameter.
