@@ -9,11 +9,11 @@ before_install:
   - |
     if [[ "$TRAVIS_OS_NAME" == "linux" && "$CACTUS_BINARIES_MODE" == "local" ]]; then
        sudo apt-get -qq update
-       sudo apt-get install -y git gcc g++ build-essential zlib1g-dev wget valgrind libbz2-dev pkg-config libhdf5-dev liblzo2-dev libtokyocabinet-dev libhiredis-dev redis-server
+       sudo apt-get install -y git gcc g++ build-essential zlib1g-dev wget valgrind libbz2-dev pkg-config libhdf5-dev liblzo2-dev libtokyocabinet-dev libhiredis-dev redis-server libxml2-dev
     fi
   - |
     if [[ "$TRAVIS_OS_NAME" == "linux" && "$CACTUS_BINARIES_MODE" == "local" ]]; then
-       sudo apt-get install -y git gcc g++ build-essential zlib1g-dev wget valgrind libbz2-dev pkg-config libhdf5-dev liblzo2-dev libtokyocabinet-dev libhiredis-dev redis-server
+       sudo apt-get install -y git gcc g++ build-essential zlib1g-dev wget valgrind libbz2-dev pkg-config libhdf5-dev liblzo2-dev libtokyocabinet-dev libhiredis-dev redis-server libxml2-dev
     fi
   - |
     if [[ ! -z "$SON_TRACE_DATASETS" ]]; then

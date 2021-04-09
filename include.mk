@@ -38,11 +38,21 @@ include ${sonLibRootDir}/include.mk
 #https://github.com/ComparativeGenomicsToolkit/cactus/issues/235
 CFLAGS += -UNDEBUG
 
-# Hack to include libxml2
-CFLAGS+= -I/usr/include/libxml2 -lxml2 ${LDFLAGS}
+# Hack to include xml2
+CFLAGS+= -I/usr/include/libxml2
+
+# Hack to include openmp
+CFLAGS+= -fopenmp
+
+ifndef TARGETOS
+  TARGETOS := $(shell uname -s)
+endif
 
 # Hack to include openmp on os x after "brew install lomp
-CFLAGS+= -Xpreprocessor -fopenmp -lomp
+ifeq ($(TARGETOS), Darwin)
+	CFLAGS+= -Xpreprocessor -lomp
+endif
+
 
 dataSetsPath=/Users/benedictpaten/Dropbox/Documents/work/myPapers/genomeCactusPaper/dataSets
 
@@ -56,5 +66,5 @@ CPPFLAGS += ${inclDirs:%=-I${rootPath}/%} -I${LIBDIR} -I${rootPath}/include
 cactusLibs = ${LIBDIR}/stCaf.a ${LIBDIR}/stReference.a ${LIBDIR}/cactusBarLib.a ${LIBDIR}/cactusBlastAlignment.a ${LIBDIR}/cactusLib.a
 sonLibLibs = ${sonLibDir}/sonLib.a ${sonLibDir}/cuTest.a
 
-LDLIBS += ${cactusLibs} ${sonLibLibs} ${LIBS} -L${rootPath}/lib -Wl,-rpath,${rootPath}/lib -lz -lbz2 -lpthread -lm -lstdc++ -lm -labpoa
+LDLIBS += ${cactusLibs} ${sonLibLibs} ${LIBS} -L${rootPath}/lib -Wl,-rpath,${rootPath}/lib -labpoa -lz -lbz2 -lpthread -lm -lstdc++ -lm -lxml2
 LIBDEPENDS = ${sonLibDir}/sonLib.a ${sonLibDir}/cuTest.a
