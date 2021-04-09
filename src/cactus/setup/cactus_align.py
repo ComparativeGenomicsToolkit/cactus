@@ -10,7 +10,6 @@ from argparse import ArgumentParser
 import xml.etree.ElementTree as ET
 import copy
 import timeit
-import multiprocessing
 from operator import itemgetter
 
 from cactus.progressive.seqFile import SeqFile
@@ -19,13 +18,11 @@ from cactus.shared.common import setupBinaries, importSingularityImage
 from cactus.progressive.cactus_progressive import exportHal
 from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.shared.experimentWrapper import ExperimentWrapper
-from cactus.progressive.schedule import Schedule
 from cactus.progressive.projectWrapper import ProjectWrapper
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
 from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
-from cactus.pipeline.cactus_workflow import CactusTrimmingBlastPhase
 from cactus.pipeline.cactus_workflow import CactusSetupCheckpoint
 from cactus.pipeline.cactus_workflow import prependUniqueIDs
 from cactus.blast.blast import calculateCoverage
@@ -37,14 +34,12 @@ from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import cactus_call
 from cactus.refmap import paf_to_lastz
 
-from toil.realtimeLogger import RealtimeLogger
 from toil.job import Job
 from toil.common import Toil
 from toil.lib.bioio import logger
 from toil.lib.bioio import setLoggingFromOptions
 from toil.lib.threading import cpu_count
 
-from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory
 
 def main():

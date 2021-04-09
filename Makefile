@@ -49,7 +49,7 @@ ifeq ($(shell ldd bin/* | grep "not a dynamic" | wc -l), $(shell ls bin/* | wc -
 	$(info ldd verified that all files in .bin/ are static)
 	echo "All static"
 else
-	$(error ldd found dnymaic linked binary in .bin/)
+	$(error ldd found dynamic linked binary in .bin/)
 endif
 
 all_libs:
@@ -77,7 +77,6 @@ testModules = \
     blast/cactus_realignTest.py \
     blast/mappingQualityRescoringAndFilteringTest.py \
     blast/trimSequencesTest.py \
-    faces/cactus_fillAdjacenciesTest.py \
     hal/cactus_halTest.py \
     pipeline/cactus_evolverTest.py \
     pipeline/cactus_workflowTest.py \
@@ -149,9 +148,6 @@ evolver_test: all bin/mafComparator
 
 evolver_test_local: all bin/mafComparator
 	PYTHONPATH="" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} test/evolverTest.py::TestCase::testEvolverLocal
-
-evolver_test_redis_local: all bin/mafComparator
-	PYTHONPATH="" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} test/evolverTest.py::TestCase::testEvolverRedisLocal
 
 evolver_test_poa_local: all bin/mafComparator
 	PYTHONPATH="" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPOALocal

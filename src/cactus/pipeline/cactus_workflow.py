@@ -170,17 +170,18 @@ def prependUniqueIDs(fas, outputDir, idMap=None, firstID=0):
     ret = []
     for fa in fas:
         outPath = os.path.join(outputDir, os.path.basename(fa))
-        out = open(outPath, 'w')
-        for line in open(fa):
-            if len(line) > 0 and line[0] == '>':
-                header = "id=%d|%s" % (uniqueID, line[1:-1])
-                out.write(">%s\n" % header)
-                if idMap is not None:
-                    idMap[line[1:-1].rstrip()] = header.rstrip()
-            else:
-                out.write(line)
-        ret.append(outPath)
-        uniqueID += 1
+        with open(outPath, 'w') as out:
+            with open(fa) as fh:
+                for line in fh:
+                    if len(line) > 0 and line[0] == '>':
+                        header = "id=%d|%s" % (uniqueID, line[1:-1])
+                        out.write(">%s\n" % header)
+                        if idMap is not None:
+                            idMap[line[1:-1].rstrip()] = header.rstrip()
+                    else:
+                        out.write(line)
+            ret.append(outPath)
+            uniqueID += 1
     return ret
 
 def getLongestPath(node, distance=0.0):
@@ -201,6 +202,16 @@ def setupDivergenceArgs(cactusWorkflowArguments):
         cactusWorkflowArguments.longestPath += distanceToAddToRootAlignment
     cw = ConfigWrapper(cactusWorkflowArguments.configNode)
     cw.substituteAllDivergenceContolledParametersWithLiterals(cactusWorkflowArguments.longestPath)
+
+def inverseJukesCantor(d):
+    """Takes a substitution distance and calculates the number of expected changes per site (inverse jukes cantor)
+    d = -3/4 * log(1 - 4/3 * p)
+    exp(-4/3 * d) = 1 - 4/3 * p
+    4/3 * p = 1 - exp(-4/3 * d)
+    p = 3/4 * (1 - exp(-4/3 * d))
+    """
+    assert d >= 0.0
+    return 0.75 * (1 - math.exp(-d * 4.0/3.0))
 
 def setupFilteringByIdentity(cactusWorkflowArguments):
     #Filter by identity
