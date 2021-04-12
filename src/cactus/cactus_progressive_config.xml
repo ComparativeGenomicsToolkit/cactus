@@ -11,6 +11,10 @@
   		<divergences useDefault="0" one="0.1" two="0.15" three="0.2" four="0.25" five="0.35"/>
 	</constants>
 	<!-- The preprocessor tags are used to modify/check the input sequences before alignment -->
+	<!-- The cutHeaders preprocess modifies fastsa sequence names to help them pass checkUniqueHeaders. -->
+	<!-- cutBefore: all characters up to and including the last occurrence of a character in this string are clipped out -->
+	<!-- cutAfter: all characters after and including the first occurrence of a character in this string are clipped out -->
+	<preprocessor memory="littleMemory" preprocessJob="cutHeaders" cutBefore="" cutAfter=" 	" active="1"/>
 	<!-- The first preprocessor tag checks that the first word of every fasta header is unique, as this is required for HAL. It throws errors if this is not the case -->
 	<!-- The checkAssemblyHub option (if enabled) ensures that the first word contains only alphanumeric or '_', '-', ':', or '.' characters, and is unique. If you don't intend to make an assembly hub, you can turn off this option here. -->
 	<preprocessor check="1" memory="littleMemory" preprocessJob="checkUniqueHeaders" checkAssemblyHub="1" active="1"/>
@@ -22,8 +26,7 @@
 	<!-- unmask: unmask all softmasked bases before running (so only intervals masked by dna-brnn are present at end) -->
 	<!-- action: one of [softmask, hardmask, clip] -->
 	<!-- minLength: only mask intervals > than this length -->
-	<!-- mergeLength: merge up consecutive intervals if they are <= this far apart -->
-	<preprocessor unmask="1" memory="littleMemory" preprocessJob="dna-brnn" dna-brnnOpts='-A' active="0" action="softmask" cpu="2" minLength="0" mergeLength="0"/>
+	<preprocessor unmask="1" memory="littleMemory" preprocessJob="dna-brnn" dna-brnnOpts='-A' active="0" action="softmask" cpu="2" minLength="100000"/>
         <!-- Options for trimming ingroups & outgroups using the trim strategy -->
         <!-- Ingroup trim options: -->
         <!-- trimFlanking: The length of flanking sequence to attach
@@ -274,19 +277,45 @@
 	<!-- maskFilter: any softmasked sequence intervals > than this many bp will be hardmasked before being read by the minigraph mapper [negative value = disable]-->
 	<!-- cpu: use up to this many cpus for each minigraph command. -->
 	<graphmap
-		 assemblyName="__MINIGRAPH_SEQUENCES__"
+		 assemblyName="_MINIGRAPH_"
 		 minigraphMapOptions="-S --write-mz -xasm"
 		 universalMZFilter="0"
 		 nodeBasedUniversal="0"
 		 strictUniversal="0"
 		 minMZBlockLength="0"
-		 minMAPQ="0"
+		 minMAPQ="5"
 		 minGAFBlockLength="0"
 		 minGAFNodeLength="0"
 		 minGAFQueryOverlapFilter="10000"
 		 maskFilter="-1"
-		 cpu="4"
-	/>
+		 cpu="6"
+		 />
+	<!-- cactus-graphmap-split options -->
+	<!-- minQueryCoverage: At least this fraction of input contig must align to reference contig for it to be assigned. -->
+	<!-- minQuerySmallCoverage: Like minQueryCoverage, but applied only to contigs with length < minQuerySmallThreshold. -->
+	<!-- minQuerySmallThreshold: Threshold used to toggle between minQueryCoverage and minuQuerySmallCoverage. -->
+	<!-- minQueryUniqueness: The ratio of the number of query bases aligned to the chosen ref contig vs the next best ref contig must exceed this threshold to not be considered ambigious. -->
+	<!-- maxGap: Include indel gaps <= maxGap when counting minigraph coverage -->	
+	<!-- ambiguousName: Contigs deemed ambiguous using the above filters get added to a "contig" with this name, and are preserved in output. -->		
+	<graphmap_split
+		 minQueryCoverage="0.65"
+		 minQuerySmallCoverage="0.75"
+		 minQuerySmallThreshold="10000000"
+		 minQueryUniqueness="3"
+		 maxGap="50000"
+		 ambiguousName="_AMBIGUOUS_"
+		 />
+	<!-- hal2vg options -->
+	<!-- includeMinigraph: include minigraph node sequences as paths in output -->
+	<!-- includeAncestor: include ancestral reference sequences as paths in output -->
+	<!-- prependGenomeNames: prepend each output path with the genome name -->	
+	<!-- hal2vgOptions: options to use in every hal2vg command -->
+	<hal2vg
+		 includeMinigraph="0"
+		 includeAncestor="0"
+		 prependGenomeNames="1"
+		 hal2vgOptions="--progress --inMemory"		 
+		 />
   	<multi_cactus>
 		<outgroup 
 			strategy="greedyPreference"

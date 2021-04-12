@@ -243,7 +243,7 @@ class TestCase(unittest.TestCase):
 
         # do the alignment
         subprocess.check_call(['cactus-align', self._job_store(binariesMode), out_seq_file_path, paf_path, self._out_hal(binariesMode),
-                               '--pafInput', '--pangenome'] + cactus_opts) 
+                               '--pafInput', '--pangenome', '--outVG', '--outGFA'] + cactus_opts) 
                 
     def _csvstr_to_table(self, csvstr, header_fields):
         """ Hacky csv parse """
@@ -393,22 +393,9 @@ class TestCase(unittest.TestCase):
         self._run_evolver(name)
 
         # check the output
-        self._check_stats(self._out_hal(name), delta_pct=0.25)
-        self._check_coverage(self._out_hal(name), delta_pct=0.20)
+        #self._check_stats(self._out_hal(name), delta_pct=0.25)
+        #self._check_coverage(self._out_hal(name), delta_pct=0.20)
         self._check_maf_accuracy(self._out_hal(name), delta=0.01)
-
-    def testEvolverRedisLocal(self):
-        """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode local and --database redis is
-        is reasonable
-        """
-        # run cactus directly, the old school way
-        name = "local"
-        self._run_evolver(name, database = 'redis')
-
-        # check the output
-        self._check_stats(self._out_hal(name), delta_pct=0.25)
-        self._check_coverage(self._out_hal(name), delta_pct=0.20)
-        self._check_maf_accuracy(self._out_hal(name), delta=0.01)        
 
     def testEvolverPrepareWDL(self):
 
@@ -416,8 +403,8 @@ class TestCase(unittest.TestCase):
         self._run_evolver_decomposed_wdl("wdl")
 
         # check the output
-        self._check_stats(self._out_hal("wdl"), delta_pct=0.25)
-        self._check_coverage(self._out_hal("wdl"), delta_pct=0.20)
+        #self._check_stats(self._out_hal("wdl"), delta_pct=0.25)
+        #self._check_coverage(self._out_hal("wdl"), delta_pct=0.20)
         self._check_maf_accuracy(self._out_hal("wdl"), delta=0.01)
 
     def testEvolverPrepareToil(self):
@@ -427,8 +414,8 @@ class TestCase(unittest.TestCase):
         self._run_evolver_decomposed_toil(name, "docker")
 
         # check the output
-        self._check_stats(self._out_hal(name), delta_pct=0.25)
-        self._check_coverage(self._out_hal(name), delta_pct=0.20)
+        #self._check_stats(self._out_hal(name), delta_pct=0.25)
+        #self._check_coverage(self._out_hal(name), delta_pct=0.20)
         self._check_maf_accuracy(self._out_hal(name), delta=0.01)
 
     def testEvolverDecomposedLocal(self):
@@ -440,8 +427,8 @@ class TestCase(unittest.TestCase):
         self._run_evolver_decomposed(name)
 
         # check the output
-        self._check_stats(self._out_hal(name), delta_pct=0.25)
-        self._check_coverage(self._out_hal(name), delta_pct=0.20)
+        #self._check_stats(self._out_hal(name), delta_pct=0.25)
+        #self._check_coverage(self._out_hal(name), delta_pct=0.20)
         self._check_maf_accuracy(self._out_hal(name), delta=0.01)
 
     def testEvolverDocker(self):
@@ -452,8 +439,8 @@ class TestCase(unittest.TestCase):
         self._run_evolver("docker")
 
         # check the output
-        self._check_stats(self._out_hal("docker"), delta_pct=0.25)
-        self._check_coverage(self._out_hal("docker"), delta_pct=0.20)
+        #self._check_stats(self._out_hal("docker"), delta_pct=0.25)
+        #self._check_coverage(self._out_hal("docker"), delta_pct=0.20)
         self._check_maf_accuracy(self._out_hal("docker"), delta=0.01)        
 
     def testEvolverPrepareNoOutgroupDocker(self):

@@ -54,6 +54,7 @@ def main():
     parser.add_argument("--outputFasta", type=str, help = "Output graph sequence file in FASTA format (required if not present in seqFile)")
     parser.add_argument("--maskFilter", type=int, help = "Ignore softmasked sequence intervals > Nbp (overrides config option of same name)")
     parser.add_argument("--outputGAFDir", type=str, help = "Output GAF alignments (raw minigraph output before PAF conversion) to this directory")
+    parser.add_argument("--refFromGFA", type=str, help = "Do not align given genome from seqfile, and instead extract its alignment from the rGFA tags (must have been used as reference for minigraph GFA construction)")
 
     #WDL hacks
     parser.add_argument("--pathOverrides", nargs="*", help="paths (multiple allowed) to override from seqFile")
@@ -132,11 +133,17 @@ def runCactusGraphMap(options):
                 findRequiredNode(configNode, "graphmap").attrib["maskFilter"] = str(options.maskFilter)
 
             # get the minigraph "virutal" assembly name
-            graph_event = getOptionalAttrib(findRequiredNode(configNode, "graphmap"), "assemblyName", default="__MINIGRAPH_SEQUENCES__")
+            graph_event = getOptionalAttrib(findRequiredNode(configNode, "graphmap"), "assemblyName", default="_MINIGRAPH_")
 
             # load the seqfile
             seqFile = SeqFile(options.seqFile)
 
+            if options.refFromGFA:
+                if options.refFromGFA not in seqFile.pathMap:
+                    raise RuntimeError("{}, specified with --refFromGFA, was not found in the seqfile".format(options.refFromGFA))
+                # we're not going to need the fasta for anything, so forget about it now
+                del seqFile.pathMap[options.refFromGFA]
+                
             if not options.outputFasta and graph_event not in seqFile.pathMap:
                 raise RuntimeError("{} assembly not found in seqfile so it must be specified with --outputFasta".format(graph_event))
 
@@ -147,14 +154,14 @@ def runCactusGraphMap(options):
             seqIDMap = {}
             leaves = set([seqFile.tree.getName(node) for node in seqFile.tree.getLeaves()])
             for genome, seq in seqFile.pathMap.items():
-                if genome != graph_event and genome in leaves:
+                if genome != graph_event and genome in leaves and genome != options.refFromGFA:
                     if os.path.isdir(seq):
                         tmpSeq = getTempFile()
                         catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
                         seq = tmpSeq
                     seq = makeURL(seq)
                     logger.info("Importing {}".format(seq))
-                    seqIDMap[genome] = toil.importFile(seq)
+                    seqIDMap[genome] = (seq, toil.importFile(seq))
 
             # run the workflow
             paf_id, gfa_fa_id, gaf_id_map = toil.start(Job.wrapJobFn(minigraph_workflow, options, config, seqIDMap, gfa_id, graph_event))
@@ -177,21 +184,29 @@ def runCactusGraphMap(options):
 def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event):
     """ Overall workflow takes command line options and returns (paf-id, (optional) fa-id) """
     fa_id = None
-    # cactus-ids use alphabetical ordering
-    cactus_id_map = {}
-    for i, event in enumerate(sorted(set(list(seq_id_map.keys()) + [graph_event]))):
-        cactus_id_map[event] = i
         
     if options.outputFasta:
         # convert GFA to fasta
-        fa_job = job.addChildJobFn(make_minigraph_fasta, gfa_id, graph_event)
+        fa_job = job.addChildJobFn(make_minigraph_fasta, gfa_id, options.outputFasta, graph_event)
         fa_id = fa_job.rv()
-    
-    paf_job = job.addChildJobFn(minigraph_map_all, config, gfa_id, seq_id_map, cactus_id_map, graph_event, options.outputGAFDir is not None)
 
-    return paf_job.rv(0), fa_id, paf_job.rv(1)
+    paf_job = job.addChildJobFn(minigraph_map_all, config, gfa_id, seq_id_map, graph_event, options.outputGAFDir is not None)
+    
+    if options.refFromGFA:
+        # extract a PAF directly from the rGFAs tag for the given reference
+        gfa2paf_job = job.addChildJobFn(extract_paf_from_gfa, gfa_id, options.minigraphGFA, options.refFromGFA, graph_event,
+                                        disk=gfa_id.size * 12)
+
+        merge_paf_job = Job.wrapJobFn(merge_pafs, {"1" : paf_job.rv(0), "2" : gfa2paf_job.rv()}, disk=gfa_id.size * 12)
+        paf_job.addFollowOn(merge_paf_job)
+        gfa2paf_job.addFollowOn(merge_paf_job)
+        out_paf_id = merge_paf_job.rv()
+    else:
+        out_paf_id = paf_job.rv(0)
+
+    return out_paf_id, fa_id, paf_job.rv(1)
         
-def make_minigraph_fasta(job, gfa_file_id, name):
+def make_minigraph_fasta(job, gfa_file_id, gfa_file_path, name):
     """ Use gfatools to make the minigraph "assembly" """
 
     # note: using the toil-vg convention of naming working files manually so that logging is more readable
@@ -201,12 +216,15 @@ def make_minigraph_fasta(job, gfa_file_id, name):
     
     job.fileStore.readGlobalFile(gfa_file_id, gfa_path)
 
-    cactus_call(work_dir=work_dir, outfile=fa_path,
-                parameters=["gfatools", "gfa2fa", os.path.basename(gfa_path)])
+    cmd = ["gfatools", "gfa2fa", gfa_path]
+    if gfa_file_path.endswith('.gz'):
+        cmd = [cmd, ['gzip']]
+        fa_path += '.gz'
+    cactus_call(outfile=fa_path, parameters=cmd)
 
     return job.fileStore.writeGlobalFile(fa_path)
 
-def minigraph_map_all(job, config, gfa_id, fa_id_map, cactus_id_map, graph_event, keep_gaf):
+def minigraph_map_all(job, config, gfa_id, fa_id_map, graph_event, keep_gaf):
     """ top-level job to run the minigraph mapping in parallel, returns paf """
     
     # hang everything on this job, to self-contain workflow
@@ -220,16 +238,16 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map, cactus_id_map, graph_event
     # with doing this if the universal filter (which needs to process everything at once) is disabled
     xml_node = findRequiredNode(config.xmlRoot, "graphmap")
     paf_per_genome = not getOptionalAttrib(xml_node, "universalMZFilter", float)
-    cactus_mg_graph_id = cactus_id_map[graph_event] if cactus_id_map else None
     
     # do the mapping
     gaf_id_map = {}
     paf_id_map = {}
                 
-    for event, fa_id in fa_id_map.items():
-        cactus_id = cactus_id_map[event] if cactus_id_map else None
-        minigraph_map_job = top_job.addChildJobFn(minigraph_map_one, config, event, fa_id, gfa_id, cactus_id,
-                                                  keep_gaf or not paf_per_genome, paf_per_genome, cactus_mg_graph_id,
+    for event, fa_path_fa_id in fa_id_map.items():
+        fa_path = fa_path_fa_id[0]
+        fa_id = fa_path_fa_id[1]
+        minigraph_map_job = top_job.addChildJobFn(minigraph_map_one, config, event, fa_path, fa_id, gfa_id,
+                                                  keep_gaf or not paf_per_genome, paf_per_genome,
                                                   # todo: estimate RAM
                                                   cores=mg_cores, disk=5*(fa_id.size + gfa_id.size))
         gaf_id_map[event] = minigraph_map_job.rv(0)
@@ -239,7 +257,7 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map, cactus_id_map, graph_event
     if paf_per_genome:
         paf_job = top_job.addFollowOnJobFn(merge_pafs, paf_id_map)
     else:
-        paf_job = top_job.addFollowOnJobFn(merge_gafs_into_paf, config, gaf_id_map, cactus_mg_graph_id)
+        paf_job = top_job.addFollowOnJobFn(merge_gafs_into_paf, config, gaf_id_map)
 
     if not keep_gaf:
         gaf_id_map = None
@@ -248,21 +266,24 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map, cactus_id_map, graph_event
         
     return paf_job.rv(), gaf_id_map
 
-def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id, cactus_id, gaf_output, paf_output, cactus_mg_graph_id):
+def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id, gaf_output, paf_output):
     """ Run minigraph to map a Fasta file to a GFA graph, producing a GAF output """
 
     work_dir = job.fileStore.getLocalTempDir()
     gfa_path = os.path.join(work_dir, "mg.gfa")
-    fa_dir = work_dir if cactus_id is None else job.fileStore.getLocalTempDir()
-    fa_path = os.path.join(fa_dir, "{}.fa".format(event_name))
+    fa_dir = job.fileStore.getLocalTempDir()
+    fa_path = os.path.join(fa_dir, os.path.basename(fa_path))
     gaf_path = os.path.join(work_dir, "{}.gaf".format(event_name))
     
     job.fileStore.readGlobalFile(gfa_file_id, gfa_path)
     job.fileStore.readGlobalFile(fa_file_id, fa_path)
 
-    if cactus_id is not None:
-        # prepend the unique id before mapping so the GAF has cactus-compatible event names
-        fa_path = prependUniqueIDs([fa_path], work_dir, firstID=cactus_id)[0]
+    if fa_path.endswith('.gz'):
+        fa_path = fa_path[:-3]
+        cactus_call(parameters = ['gzip', '-d', '-c', fa_path + '.gz'], outfile=fa_path)
+
+    # prepend the unique id before mapping so the GAF has cactus-compatible event names
+    fa_path = prependUniqueIDs({event_name : fa_path}, work_dir, eventNameAsID=True)[event_name]
 
     # parse options from the config
     xml_node = findRequiredNode(config.xmlRoot, "graphmap")
@@ -292,13 +313,13 @@ def minigraph_map_one(job, config, event_name, fa_file_id, gfa_file_id, cactus_i
     if paf_output:
         # optional gaf->paf step.  we are not piping directly out of minigraph because mzgaf2paf's overlap filter
         # (which is usually on) requires 2 passes so it won't read stdin when it's enabled
-        paf_id =  merge_gafs_into_paf(job, config, None, cactus_mg_graph_id, [gaf_path])
+        paf_id =  merge_gafs_into_paf(job, config, None, [gaf_path])
     if gaf_output:
         gaf_id = job.fileStore.writeGlobalFile(gaf_path)
 
     return gaf_id, paf_id
 
-def merge_gafs_into_paf(job, config, gaf_file_id_map, cactus_mg_graph_id, gaf_paths = []):
+def merge_gafs_into_paf(job, config, gaf_file_id_map, gaf_paths = []):
     """ Merge GAF alignments into a single PAF, applying some filters """
 
     work_dir = job.fileStore.getLocalTempDir()
@@ -310,9 +331,9 @@ def merge_gafs_into_paf(job, config, gaf_file_id_map, cactus_mg_graph_id, gaf_pa
 
     xml_node = findRequiredNode(config.xmlRoot, "graphmap")
     mzgaf2paf_opts = []
-    if cactus_mg_graph_id is not None:
-        # this must be consistent with prependUniqueIDs() in cactus_workflow.py
-        mzgaf2paf_opts += ['-p', 'id={}|'.format(cactus_mg_graph_id)]
+    graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
+    # this must be consistent with prependUniqueIDs() in cactus_workflow.py
+    mzgaf2paf_opts += ['-p', 'id={}|'.format(graph_event)]
     mz_filter = getOptionalAttrib(xml_node, "universalMZFilter", float)
     if mz_filter:
         mzgaf2paf_opts += ['-u', str(mz_filter)]
@@ -358,6 +379,23 @@ def compress_gaf(job, gaf_file_id):
     cactus_call(parameters=['gzip', gaf_path, '-c', ], outfile=zip_path)
     job.fileStore.deleteGlobalFile(gaf_file_id)
     return job.fileStore.writeGlobalFile(zip_path)
+
+def extract_paf_from_gfa(job, gfa_id, gfa_path, ref_event, graph_event):
+    """ make a paf directly from the rGFA tags.  rgfa2paf supports other ranks, but we're only
+    using rank=0 here to produce an alignment for the reference genome """
+    work_dir = job.fileStore.getLocalTempDir()
+
+    # download the gfa
+    gfa_path = os.path.join(work_dir, os.path.basename(gfa_path))
+    job.fileStore.readGlobalFile(gfa_id, gfa_path, mutable=True)
+    # unzip if needed
+    if gfa_path.endswith(".gz"):
+        cactus_call(parameters=['gzip', '-fd', gfa_path])
+        gfa_path = gfa_path[:-3]
+    # make the paf
+    paf_path = job.fileStore.getLocalTempFile()
+    cactus_call(parameters=['rgfa2paf', gfa_path, '-T', 'id={}|'.format(graph_event), '-P', 'id={}|'.format(ref_event)], outfile=paf_path)
+    return job.fileStore.writeGlobalFile(paf_path)
     
 def add_genome_to_seqfile(seqfile_path, fasta_path, name):
     """ hack the auto-generated minigraph assembly back into the seqfile for future use """

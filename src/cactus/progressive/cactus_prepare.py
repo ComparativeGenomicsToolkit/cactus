@@ -15,12 +15,6 @@ from datetime import datetime
 import subprocess
 import timeit
 import shutil
-try:
-    import boto3
-    import botocore
-    has_s3 = True
-except:
-    has_s3 = False
 
 from operator import itemgetter
 
@@ -37,6 +31,7 @@ from cactus.progressive.projectWrapper import ProjectWrapper
 from cactus.shared.version import cactus_commit
 from cactus.shared.common import findRequiredNode
 from cactus.shared.common import makeURL, cactus_call, RoundedJob
+from cactus.shared.common import write_s3, has_s3, get_aws_region
 
 from toil.job import Job
 from toil.common import Toil
@@ -253,28 +248,11 @@ def get_jobstore(options, task=None):
     options.jobStoreCount += 1
     return js
 
-def write_s3(options, local_path, s3_path):
-    """ cribbed from toil-vg.  more convenient just to throw hal output on s3
-    than pass it as a promise all the way back to the start job to export it locally """
-    assert s3_path.startswith('s3://')
-    assert options.jobStore.startswith('aws')
-    bucket_name, name_prefix = s3_path[5:].split("/", 1)
-    region = options.jobStore.split(':')[1]
-    botocore_session = botocore.session.get_session()
-    botocore_session.get_component('credential_provider').get_provider('assume-role').cache = botocore.credentials.JSONFileCache()
-    boto3_session = boto3.Session(botocore_session=botocore_session)
-
-    # Connect to the s3 bucket service where we keep everything
-    s3 = boto3_session.client('s3')
-    try:
-        s3.head_bucket(Bucket=bucket_name)
-    except:
-        s3.create_bucket(Bucket=bucket_name, CreateBucketConfiguration={'LocationConstraint':region})
-
-    s3.upload_file(local_path, bucket_name, name_prefix)
-
 def human2bytesN(s):
     return human2bytes(s) if s else s
+
+def bytes2humanN(s):
+    return bytes2human(s, fmt='%(value).1f%(symbol)s') if s else s
 
 def bytes2gigs(n):
     return int(int(n)/pow(2,30))
@@ -301,7 +279,7 @@ def get_toil_resource_opts(options, task):
     if mem and not options.wdl:
         if s:
             s += ' '
-        s += '--maxMemory {}'.format(bytes2human(mem))
+        s += '--maxMemory {}'.format(bytes2humanN(mem))
     return s
 
 def wdl_disk(options, task, max_local=300):
@@ -790,7 +768,7 @@ def toil_call_preprocess(job, options, in_seq_file, out_seq_file, name):
 
     cmd = ['cactus-preprocess', os.path.join(work_dir, 'js'), '--inPaths', in_path,
            '--outPaths', out_name, '--workDir', work_dir,
-           '--maxCores', str(int(job.cores)), '--maxDisk', bytes2human(job.disk), '--maxMemory', bytes2human(job.memory)] + options.cactusOptions.strip().split(' ')
+           '--maxCores', str(int(job.cores)), '--maxDisk', bytes2humanN(job.disk), '--maxMemory', bytes2humanN(job.memory)] + options.cactusOptions.strip().split(' ')
     
     cactus_call(parameters=cmd)
 
@@ -881,7 +859,7 @@ def toil_call_blast(job, options, seq_file, project, event, cigar_name, dep_name
             
     cactus_call(parameters=['cactus-blast', os.path.join(work_dir, 'js'), seq_file_path, os.path.join(work_dir, os.path.basename(cigar_name)),
                  '--root', event, '--pathOverrides'] + fa_paths+ ['--pathOverrideNames'] + dep_names +
-                ['--workDir', work_dir, '--maxCores', str(int(job.cores)), '--maxDisk', bytes2human(job.disk), '--maxMemory', bytes2human(job.memory)] + options.cactusOptions.strip().split(' '))
+                ['--workDir', work_dir, '--maxCores', str(int(job.cores)), '--maxDisk', bytes2humanN(job.disk), '--maxMemory', bytes2humanN(job.memory)] + options.cactusOptions.strip().split(' '))
 
     # scrape the output files out of the workdir
     out_nameids = []
@@ -984,7 +962,7 @@ def toil_call_align(job, options, seq_file, project, event, cigar_name, hal_path
     cactus_call(parameters=['cactus-align', os.path.join(work_dir, 'js'), seq_file_path] + blast_files +
                 [out_hal_path, '--root', event,
                  '--pathOverrides'] + fa_paths + ['--pathOverrideNames'] + dep_names +
-                ['--workDir', work_dir, '--maxCores', str(int(job.cores)), '--maxDisk', bytes2human(job.disk), '--maxMemory', bytes2human(job.memory)] + options.cactusOptions.strip().split(' '))
+                ['--workDir', work_dir, '--maxCores', str(int(job.cores)), '--maxDisk', bytes2humanN(job.disk), '--maxMemory', bytes2humanN(job.memory)] + options.cactusOptions.strip().split(' '))
 
     out_hal_id = job.fileStore.writeGlobalFile(out_hal_path)
 
@@ -1071,7 +1049,7 @@ def toil_call_hal_append_subtrees(job, options, project, root_name, root_hal_id,
     # todo: can we just use job.fileStore?
     if options.outHal.startswith('s3://'):
         # write it directly to s3
-        write_s3(options, root_file, options.outHal)
+        write_s3(root_file, options.outHal, region=get_aws_region(options.jobStore))
     else:
         # write the output to disk
         shutil.copy2(root_file,  options.outHal)

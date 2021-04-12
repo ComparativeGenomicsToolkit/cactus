@@ -1177,7 +1177,7 @@ void cactus_make_reference(stList *flowers, char *referenceEventString,
     bool makeScaffolds = cactusParams_get_int(params, 2, "reference", "makeScaffolds");
 
     stList *(*matchingAlgorithm)(stList *edges, int64_t nodeNumber) = chooseMatching_greedy;
-    const char *matchAlgorithmString = cactusParams_get_string(params, 2, "reference", "matchingAlgorithm");
+    char *matchAlgorithmString = cactusParams_get_string(params, 2, "reference", "matchingAlgorithm");
     if (strcmp("greedy", matchAlgorithmString) == 0) {
         matchingAlgorithm = chooseMatching_greedy;
     } else if (strcmp("maxCardinality", matchAlgorithmString) == 0) {
