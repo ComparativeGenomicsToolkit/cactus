@@ -86,7 +86,6 @@ testModules = \
     progressive/multiCactusTreeTest.py \
     progressive/outgroupTest.py \
     progressive/scheduleTest.py \
-    reference/cactus_referenceTest.py \
     shared/commonTest.py \
     shared/experimentWrapperTest.py
 
