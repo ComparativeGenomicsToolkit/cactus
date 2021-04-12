@@ -7,7 +7,7 @@ mydir=$(dirname $(which $0))
 source ${mydir}/releaseLib.sh
 
 keep=no
-if [ $1 = '--keep' ] ; then
+if [ $1 -eq '--keep' ] ; then
     keep=yes
 fi
 set -beEu -o pipefail
@@ -29,16 +29,23 @@ git submodule update --init --recursive
 
 if [ -z ${CACTUS_LEGACY_ARCH+x} ]
 then
-	 CACTUS_MARCH=sandybridge
+	 CACTUS_ARCH="nehalem"
 else
-	 CACTUS_MARCH=prescott
+	 CACTUS_ARCH="nocona"
 fi
-if [ $(man gcc | grep ${CACTUS_MARCH} | wc -l) -ge 1 ]
+
+export CFLAGS="-march=${CACTUS_ARCH} -static"
+export CXXFLAGS="-march=${CACTUS_ARCH} -static"
+export LDFLAGS="-march=${CACTUS_ARCH} -static"
+
+make -j $(nproc) check-static
+
+# download all external tools used for pangenome pipeline
+# (only works for newer architectures as vg and some other binaries are built with -march=nehalem)
+# todo: should try to just use nocona for everything and make one release 
+if [ -z ${CACTUS_LEGACY_ARCH+x} ]	
 then
-	 # attempt to increase portability by using older architecture
-	 CFLAGS="-march=${CACTUS_MARCH}" CXXFLAGS="-march=${CACTUS_MARCH}" make -j $(nproc) check-static
-else
-	 make -j $(nproc) check-static
+	 build-tools/downloadPangenomeTools 1
 fi
 
 binPackageDir=cactus-bin-${REL_TAG}
@@ -52,12 +59,6 @@ find submodules/sonLib -name '*.py' | cpio -pdum ${binPackageDir}
 # todo: probably a better way
 mkdir -p $(binPackageDir)/lib
 rsync -avm --include='*.py' -f 'hide,! */' ./submodules/hal ${binPackageDir}/lib
-# download all external tools used for pangenome pipeline
-# (only works for newer architectures due to abpoa dep)
-if [ -z ${CACTUS_LEGACY_ARCH+x} ]	
-then
-	 build-tools/downloadPangenomeTools
-fi
 # need .git dir for pip install -U ., but don't need everything
 cp -r .git ${binPackageDir}
 rm -rf ${binPackageDir}/.git/modules

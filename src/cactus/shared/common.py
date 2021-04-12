@@ -24,6 +24,13 @@ import traceback
 import errno
 import shlex
 
+try:
+    import boto3
+    import botocore
+    has_s3 = True
+except:
+    has_s3 = False
+
 from urllib.parse import urlparse
 from datetime import datetime
 
@@ -36,6 +43,7 @@ from toil.realtimeLogger import RealtimeLogger
 from toil.lib.humanize import bytes2human
 
 from sonLib.bioio import popenCatch
+from sonLib.bioio import getTempDirectory
 
 from cactus.shared.version import cactus_commit
 
@@ -372,7 +380,7 @@ def getDockerImage():
 
 def getDockerRelease(gpu=False):
     """Get the most recent docker release."""
-    r = "quay.io/comparative-genomics-toolkit/cactus:v1.2.3"
+    r = "quay.io/comparative-genomics-toolkit/cactus:v1.3.0"
     if gpu:
         r += "-gpu"
     return r
@@ -885,15 +893,16 @@ class RoundedJob(Job):
             return bytesRequirement
         return (bytesRequirement // self.roundingAmount + 1) * self.roundingAmount
 
-    def _runner(self, jobGraph, jobStore, fileStore, defer=None):
+    def _runner(self, *args, jobStore=None, fileStore=None, **kwargs):
+        # We aren't supposed to override this. Toil can change the signature at
+        # any time. But Toil has passed all the arguments by name=value for a
+        # while, so we are pretty safe fetching out just the jobStore and
+        # fileStore like this.
         if jobStore.config.workDir is not None:
             os.environ['TMPDIR'] = fileStore.getLocalTempDir()
-        if defer:
-            # Toil v 3.21 or later
-            super(RoundedJob, self)._runner(jobGraph=jobGraph, jobStore=jobStore, fileStore=fileStore, defer=defer)
-        else:
-            # Older versions of toil
-            super(RoundedJob, self)._runner(jobGraph=jobGraph, jobStore=jobStore, fileStore=fileStore)
+
+        super(RoundedJob, self)._runner(*args, jobStore=jobStore,
+                                        fileStore=fileStore, **kwargs)
 
 def readGlobalFileWithoutCache(fileStore, jobStoreID):
     """Reads a jobStoreID into a file and returns it, without touching
@@ -926,8 +935,17 @@ class ChildTreeJob(RoundedJob):
         self.queuedChildJobs.append(job)
         return job
 
-    def _run(self, jobGraph, fileStore):
-        ret = super(ChildTreeJob, self)._run(jobGraph, fileStore)
+    def _run(self, *args, **kwargs):
+        # We really shouldn't be overriding _run, but we need to to hook in
+        # some code after the derived class's run() but before it saves all its
+        # child relationships. So we handle our arguments with tweezers,
+        # because they could be anything.
+
+        # Pass them along to the real _run, which will call back to our derived
+        # class's run()
+        ret = super(ChildTreeJob, self)._run(*args, **kwargs)
+
+        # Now we can do our actual work.
         if len(self.queuedChildJobs) <= self.maxChildrenPerJob:
             # The number of children is small enough that we can just
             # add them directly.
@@ -1010,6 +1028,68 @@ def unzip_gz(job, input_path, input_id):
     assert input_path.endswith('.gz')
     fa_path = os.path.join(work_dir, os.path.basename(input_path))
     job.fileStore.readGlobalFile(input_id, fa_path, mutable=True)
-    cactus_call(parameters=['gzip', '-d', os.path.basename(fa_path)], work_dir=work_dir)
+    cactus_call(parameters=['gzip', '-fd', os.path.basename(fa_path)], work_dir=work_dir)
     return job.fileStore.writeGlobalFile(fa_path[:-3])
+
+def zip_gzs(job, input_paths, input_ids, list_elems = None):
+    """ zip up some files.  the input_ids can be a list of lists.  if it is, then list_elems
+    can be used to only zip a subset (leaving everything else) on each list."""
+    zipped_ids = []
+    for input_path, input_list in zip(input_paths, input_ids):
+        if input_path.endswith('.gz'):
+            try:
+                iter(input_list)
+                is_list = True
+            except:
+                is_list = False
+            if is_list:
+                output_list = []
+                for i, elem in enumerate(input_list):
+                    if not list_elems or i in list_elems:
+                        output_list.append(job.addChildJobFn(zip_gz, input_path, elem, disk=2*elem.size).rv())
+                    else:
+                        output_list.append(elem)
+                zipped_ids.append(output_list)
+            else:
+                zipped_ids.append(job.addChildJobFn(zip_gz, input_path, input_id, disk=2*input_id.size).rv())
+        else:
+            zipped_ids.append(input_list)
+    return zipped_ids
     
+def zip_gz(job, input_path, input_id):
+    """ zip a single file """
+    work_dir = job.fileStore.getLocalTempDir()
+    fa_path = os.path.join(work_dir, os.path.basename(input_path))
+    if fa_path.endswith('.gz'):
+        fa_path = fa_path[:-3]
+    job.fileStore.readGlobalFile(input_id, fa_path, mutable=True)
+    cactus_call(parameters=['gzip', '-f', os.path.basename(fa_path)], work_dir=work_dir)
+    return job.fileStore.writeGlobalFile(fa_path + '.gz')
+
+def get_aws_region(full_path):
+    """ parse aws:region:url  to just get region (toil surely has better way to do this but in rush)"""
+    if full_path.startswith('aws:'):
+        return full_path.split(':')[1]
+    else:
+        return None
+
+def write_s3(local_path, s3_path, region=None):
+    """ cribbed from toil-vg.  more convenient just to throw hal output on s3
+    than pass it as a promise all the way back to the start job to export it locally """
+    assert s3_path.startswith('s3://')
+    bucket_name, name_prefix = s3_path[5:].split("/", 1)
+    botocore_session = botocore.session.get_session()
+    botocore_session.get_component('credential_provider').get_provider('assume-role').cache = botocore.credentials.JSONFileCache()
+    boto3_session = boto3.Session(botocore_session=botocore_session)
+
+    # Connect to the s3 bucket service where we keep everything
+    s3 = boto3_session.client('s3')
+    try:
+        s3.head_bucket(Bucket=bucket_name)
+    except:
+        if region:
+            s3.create_bucket(Bucket=bucket_name, CreateBucketConfiguration={'LocationConstraint':region})
+        else:
+            s3.create_bucket(Bucket=bucket_name)
+
+    s3.upload_file(local_path, bucket_name, name_prefix)

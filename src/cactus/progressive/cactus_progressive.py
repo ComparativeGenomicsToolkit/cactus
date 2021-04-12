@@ -31,6 +31,7 @@ from cactus.shared.version import cactus_commit
 from cactus.shared.common import cactusRootPath
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
+from cactus.shared.common import write_s3
 
 from toil.job import Job
 from toil.common import Toil
@@ -277,7 +278,8 @@ class RunCactusPreprocessorThenProgressiveDown2(RoundedJob):
                                      disk=self.configWrapper.getExportHalDisk(),
                                      preemptable=False).rv()
 
-def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC=None, cacheW0=None, chunk=None, deflate=None, inMemory=True):
+def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC=None, cacheW0=None, chunk=None, deflate=None, inMemory=True,
+              checkpointInfo=None, acyclicEvent=None):
 
     HALPath = "tmp_alignment.hal"
 
@@ -329,6 +331,12 @@ def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC
     cactus_call(parameters=["halSetMetadata", HALPath, "CACTUS_COMMIT", cactus_commit])
     with job.fileStore.readGlobalFileStream(project.configID) as configFile:
         cactus_call(parameters=["halSetMetadata", HALPath, "CACTUS_CONFIG", b64encode(configFile.read()).decode()])
+
+    if acyclicEvent:
+        cactus_call(parameters=["halRemoveDupes", HALPath, acyclicEvent])
+
+    if checkpointInfo:
+        write_s3(HALPath, checkpointInfo[1], region=checkpointInfo[0])
 
     return job.fileStore.writeGlobalFile(HALPath)
         
