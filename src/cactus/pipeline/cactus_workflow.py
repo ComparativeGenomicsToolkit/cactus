@@ -14,6 +14,7 @@ import sys
 import xml.etree.ElementTree as ET
 import math
 import copy
+import shutil
 from argparse import ArgumentParser
 from operator import itemgetter
 
@@ -389,9 +390,13 @@ class CactusConsolidated(CactusPhasesJob):
         tmpFasta = fileStore.getLocalTempFile()
         tmpRef = fileStore.getLocalTempFile()
 
-        messages = runCactusConsolidated(cactusParams=experiment.getConfigPath(),
-                                         seqMap=seqMap,
+        # Keep inputs in same directory for the docker interface
+        tmpConfig = fileStore.getLocalTempFile()
+        shutil.copyfile(experiment.getConfigPath(), tmpConfig)
+
+        messages = runCactusConsolidated(seqMap=seqMap,
                                          newickTreeString=self.cactusWorkflowArguments.speciesTree,
+                                         cactusParams=tmpConfig,
                                          alignmentsFile=alignments,
                                          #secondaryDatabaseString=self.cactusWorkflowArguments.secondaryDatabaseString,
                                          outputFile=tmpHal,
