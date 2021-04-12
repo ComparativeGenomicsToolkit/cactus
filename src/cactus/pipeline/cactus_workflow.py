@@ -192,7 +192,7 @@ def prependUniqueIDs(eventToFa, outputDir, idMap=None, firstID=0, eventNameAsID=
         # can handle none-values which serve only to space ids -- dont show in output
         if fa:
             outPath = os.path.join(outputDir, os.path.basename(fa))
-            with open(outPath), 'w') as out, open(fa) as fh:
+            with open(outPath, 'w') as out, open(fa) as fh:
                 for line in open(fa):
                     if len(line) > 0 and line[0] == '>':
                         idTag = event if eventNameAsID else uniqueID

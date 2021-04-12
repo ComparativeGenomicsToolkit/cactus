@@ -25,8 +25,8 @@ from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
 from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
-from cactus.pipeline.cactus_workflow import CactusSetupCheckpoint
 from cactus.pipeline.cactus_workflow import prependUniqueIDs
+from cactus.pipeline.cactus_workflow import CactusConsolidated
 from cactus.blast.blast import calculateCoverage
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
@@ -551,7 +551,7 @@ def run_ingroup_coverage(job, cactusWorkflowArguments, project):
 
 def run_setup_phase(job, cactusWorkflowArguments):
     # needs to be its own job to resovolve the workflowargument promise
-    return job.addChild(CactusSetupCheckpoint(cactusWorkflowArguments=cactusWorkflowArguments, phaseName="setup")).rv()
+    return job.addChild(CactusConsolidated(cactusWorkflowArguments=cactusWorkflowArguments, phaseName="consolidated")).rv()
 
 def run_prepare_hal_export(job, project, experiment):
     """ hack up the given project into something that gets exportHal() to do what we want """
