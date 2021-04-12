@@ -52,8 +52,7 @@ void stCaf_printBlock(stPinchBlock *block, void *extraArg) {
 
 static uint64_t choose2(uint64_t n) {
 #define CHOOSE_TWO_CACHE_LEN 256
-    // This is filled with 0's at init time by the compiler.
-    int64_t chooseTwoCache[256]; // removing static variable, even if fast
+    int64_t chooseTwoCache[256] = {0}; // removing static variable, even if fast
     if (n <= 1) {
         return 0;
     } else if (n >= CHOOSE_TWO_CACHE_LEN) {
