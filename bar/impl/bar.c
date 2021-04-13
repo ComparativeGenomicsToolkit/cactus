@@ -52,8 +52,8 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
     // Hardcoded parameters
     int64_t chainLengthForBigFlower = 1000000;
     int64_t longChain = 2;
-    int64_t maximumLength = 1500;
 
+    int64_t maximumLength = cactusParams_get_int(params, 2, "bar", "bandingLimit");
     int64_t spanningTrees = cactusParams_get_int(params, 2, "bar", "spanningTrees");
     bool useProgressiveMerging = cactusParams_get_int(params, 2, "bar", "useProgressiveMerging");
     float matchGamma = cactusParams_get_float(params, 2, "bar", "matchGamma");
