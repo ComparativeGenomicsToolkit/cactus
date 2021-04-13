@@ -82,7 +82,9 @@ static RecordHolder *doBottomUpTraversal(stList *flowerLayers,
         // List to keep the RecordHolder for each flower
         stList *recordHoldersForFlowers = stList_construct3(stList_length(flowers), NULL);
 
-#pragma omp parallel for
+#if defined(_OPENMP)
+#pragma omp parallel for schedule(dynamic)
+#endif
         for (int64_t j = 0; j < stList_length(flowers); j++) {
             stList_set(recordHoldersForFlowers, j, getMergedRecordHolders(recordHolders, stList_get(flowers, j)));
             bottomUpFn(stList_get(flowers, j), stList_get(recordHoldersForFlowers, j), extraArgs);
@@ -99,6 +101,12 @@ static RecordHolder *doBottomUpTraversal(stList *flowerLayers,
     RecordHolder *rh = getMergedRecordHolders(recordHolders, stList_get(stList_get(flowerLayers, 0), 0));
     stHash_destruct(recordHolders);
     return rh;
+}
+
+int *flower_sizeCmpFn(const void *a, const void *b) {
+    // Sort by number of caps the flowers contains
+    int64_t i = flower_getCapNumber((Flower *)a), j = flower_getCapNumber((Flower *)b);
+    return i < j ? 1 : (i > j ? -1 : 0); // Sort in descending order
 }
 
 int main(int argc, char *argv[]) {
@@ -325,6 +333,8 @@ int main(int argc, char *argv[]) {
 
     stList *leafFlowers = stList_construct();
     extendFlowers(flower, leafFlowers, 1); // Get nested flowers to complete
+    stList_sort(leafFlowers, flower_sizeCmpFn); // Sort by descending order of size, so that we start processing the
+// largest flower as quickly as possible
     st_logInfo("Ran extended flowers ready for bar, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     bar(leafFlowers, params, cactusDisk, NULL);
@@ -343,6 +353,10 @@ int main(int argc, char *argv[]) {
     // Get the flowers in the tree so that level 0 contains just the root flower,
     // level 1 contains the flowers that are children of the root flower, etc.
     stList *flowerLayers = getFlowerHierarchyInLayers(flower);
+    for(int64_t i=0; i<stList_length(flowerLayers); i++) {
+        stList_sort(stList_get(flowerLayers, i), flower_sizeCmpFn); // Sort by descending order of size, so that we start processing the
+// largest flower as quickly as possible
+    }
     st_logInfo("There are %" PRIi64 " layers in the flowers hierarchy\n", stList_length(flowerLayers));
 
     // Top-down this constructs the reference sequence
@@ -364,7 +378,9 @@ int main(int argc, char *argv[]) {
     // Top-down reference coordinates phase
     for(int64_t i=0; i<stList_length(flowerLayers); i++) {
         stList *flowers = stList_get(flowerLayers, i);
-#pragma omp parallel for
+#if defined(_OPENMP)
+#pragma omp parallel for schedule(dynamic)
+#endif
         for(int64_t j=0; j<stList_length(flowers); j++) {
             topDown(stList_get(flowers, j), referenceEventName);
         }

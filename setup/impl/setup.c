@@ -115,8 +115,8 @@ static int64_t assignSequences(CactusDisk *cactusDisk, Flower *flower, EventTree
         if (stFile_isDir(fileName)) {
             st_logInfo("Processing directory: %s\n", fileName);
             stList *filesInDir = stFile_getFileNamesInDirectory(fileName);
-            for (int64_t i = 0; i < stList_length(filesInDir); i++) {
-                char *absChildFileName = stFile_pathJoin(fileName, stList_get(filesInDir, i));
+            for (int64_t j = 0; j < stList_length(filesInDir); j++) {
+                char *absChildFileName = stFile_pathJoin(fileName, stList_get(filesInDir, j));
                 assert(stFile_exists(absChildFileName));
                 p.isComplete = getCompleteStatus(absChildFileName); //decide if the sequences in the file should be free or attached.
                 FILE *fileHandle = fopen(absChildFileName, "r");
