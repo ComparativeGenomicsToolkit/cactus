@@ -211,7 +211,7 @@ int main(int argc, char *argv[]) {
             case 'T':
             {
                 int num_threads = 0;
-                int si = sscanf(optarg, "%" PRIi64 "", &num_threads);
+                int si = sscanf(optarg, "%d", &num_threads);
                 assert(si == 1 && num_threads > 0);
                 omp_set_num_threads(num_threads);
                 break;
