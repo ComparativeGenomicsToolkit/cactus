@@ -84,7 +84,7 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
     }
 
 #if defined(_OPENMP)
-#pragma omp parallel for schedule(dynamic)
+#pragma omp parallel for schedule(dynamic, 1)
 #endif
     for (int64_t j = 0; j<stList_length(flowers); j++) {
         Flower *flower = stList_get(flowers, j);
