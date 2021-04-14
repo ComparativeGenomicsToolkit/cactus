@@ -42,6 +42,7 @@ void usage() {
     fprintf(stderr, "-o --outgroupEvents : Leaf events in the species tree identified as outgroups\n");
     fprintf(stderr, "-r --referenceEvent : [Required] The name of the reference event\n");
     fprintf(stderr, "-t --runChecks : Run cactus checks after each stage, used for debugging\n");
+    fprintf(stderr, "-T --threads : (int > 0) Use up to this many threads [default: all available]\n");
     fprintf(stderr, "-h --help : Print this help message\n");
 }
 
@@ -156,11 +157,12 @@ int main(int argc, char *argv[]) {
                 { "help", no_argument, 0, 'h' },
                 { "referenceEvent", required_argument, 0, 'r' },
                 { "runChecks", no_argument, 0, 't' },
+                { "threads", required_argument, 0, 'T' }, 
                 { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int64_t key = getopt_long(argc, argv, "l:p:s:a:S:c:g:o:hr:F:G:t", long_options, &option_index);
+        int64_t key = getopt_long(argc, argv, "l:p:s:a:S:c:g:o:hr:F:G:tT:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -206,6 +208,14 @@ int main(int argc, char *argv[]) {
             case 't':
                 runChecks = 1;
                 break;
+            case 'T':
+            {
+                int num_threads = 0;
+                int si = sscanf(optarg, "%" PRIi64 "", &num_threads);
+                assert(si == 1 && num_threads > 0);
+                omp_set_num_threads(num_threads);
+                break;
+            }
             case 'h':
                 usage();
                 return 0;
