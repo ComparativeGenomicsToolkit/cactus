@@ -103,7 +103,7 @@ static RecordHolder *doBottomUpTraversal(stList *flowerLayers,
     return rh;
 }
 
-int *flower_sizeCmpFn(const void *a, const void *b) {
+int flower_sizeCmpFn(const void *a, const void *b) {
     // Sort by number of caps the flowers contains
     int64_t i = flower_getCapNumber((Flower *)a), j = flower_getCapNumber((Flower *)b);
     return i < j ? 1 : (i > j ? -1 : 0); // Sort in descending order
