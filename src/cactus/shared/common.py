@@ -142,8 +142,7 @@ def runCactusConsolidated(seqMap, newickTreeString, cactusParams,
                           alignmentsFile, outputFile, outputHalFastaFile=None,
                           outputReferenceFile=None, secondaryAlignmentsFile=None, constraintAlignmentsFile=None,
                           logLevel=None, outgroupEvents=None, referenceEvent=None):
-    logLevel = getLogLevelString2(logLevel)
-
+    logLevel = logLevel if logLevel != None else getLogLevelString2(logLevel)
     """
     ## Hacks to allow running locally
     fileNo=0
@@ -191,8 +190,8 @@ def runCactusConsolidated(seqMap, newickTreeString, cactusParams,
 
     print("Command to run\n", " ".join(["cactus_consolidated"] + args))
 
-    masterMessages = cactus_call(check_output=True,
-                                 parameters=["cactus_consolidated"] + args)
+    masterMessages = cactus_call(check_output=True, returnStdErr=True,
+                                 parameters=["cactus_consolidated"] + args)[1] # Get just the standard error output
 
     logger.info("Ran cactus consolidated okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]
@@ -707,7 +706,7 @@ def cactus_call(tool=None,
                 job_name=None,
                 features=None,
                 fileStore=None,
-                swallowStdErr=False):
+                returnStdErr=False):
     mode = os.environ.get("CACTUS_BINARIES_MODE", "docker")
     if dockstore is None:
         dockstore = getDockerOrg()
@@ -773,12 +772,11 @@ def cactus_call(tool=None,
         if not shell:
             shell = True
             call = ' '.join(shlex.quote(t) for t in call)
-        swallowStdErr = True
         call = '/usr/bin/time -v {}'.format(call)
         
     process = subprocess.Popen(call, shell=shell, encoding="ascii",
                                stdin=stdinFileHandle, stdout=stdoutFileHandle,
-                               stderr=subprocess.PIPE if swallowStdErr else sys.stderr,
+                               stderr=subprocess.PIPE,
                                bufsize=-1, cwd=work_dir)
 
     if server:
@@ -832,15 +830,14 @@ def cactus_call(tool=None,
 
     if process.returncode != 0:
         out = "stdout={}".format(output)
-        if swallowStdErr:
-            out += ", stderr={}".format(stderr)
+        out += ", stderr={}".format(stderr)
         if process.returncode > 0:
             raise RuntimeError("Command {} exited {}: {}".format(call, process.returncode, out))
         else:
             raise RuntimeError("Command {} signaled {}: {}".format(call, signal.Signals(-process.returncode).name, out))
 
     if check_output:
-        return output
+        return (output, stderr) if returnStdErr else output
 
 class RunAsFollowOn(Job):
     def __init__(self, job, *args, **kwargs):

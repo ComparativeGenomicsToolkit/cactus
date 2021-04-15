@@ -23,8 +23,8 @@ from sonLib.bioio import newickTreeParser
 from toil.lib.bioio import getTempFile
 from toil.lib.bioio import logger
 from toil.lib.bioio import setLoggingFromOptions
+from toil.lib.bioio import getLogLevelString
 from sonLib.bioio import catFiles
-from sonLib.bioio import getLogLevelString
 
 from toil.job import Job
 from toil.common import Toil
@@ -398,19 +398,18 @@ class CactusConsolidated(CactusPhasesJob):
                                          newickTreeString=self.cactusWorkflowArguments.speciesTree,
                                          cactusParams=tmpConfig,
                                          alignmentsFile=alignments,
-                                         #secondaryDatabaseString=self.cactusWorkflowArguments.secondaryDatabaseString,
                                          outputFile=tmpHal,
                                          outputHalFastaFile=tmpFasta,
                                          outputReferenceFile=tmpRef,
                                          secondaryAlignmentsFile=secondaryAlignments,
                                          constraintAlignmentsFile=constraints,
-                                         logLevel=None,
+                                         logLevel=getLogLevelString(),
                                          outgroupEvents=experiment.getOutgroupGenomes(),
                                          referenceEvent=experiment.getRootGenome())
 
         # Log back any messages
         for message in messages:
-            logger.info(message)
+            fileStore.logToMaster(message)
 
         # Write the temporary output files to the final output
         # At top level--have the final .c2h file
