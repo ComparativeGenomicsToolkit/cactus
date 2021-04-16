@@ -392,7 +392,7 @@ class CactusConsolidated(CactusPhasesJob):
 
         # Keep inputs in same directory for the docker interface
         tmpConfig = fileStore.getLocalTempFile()
-        shutil.copyfile(experiment.getConfigPath(), tmpConfig)
+        self.cactusWorkflowArguments.configWrapper.writeXML(tmpConfig)
 
         messages = runCactusConsolidated(seqMap=seqMap,
                                          newickTreeString=self.cactusWorkflowArguments.speciesTree,
