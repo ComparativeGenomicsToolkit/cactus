@@ -4,11 +4,6 @@
 #include "stCactusGraphs.h"
 #include "stCaf.h"
 
-// OpenMP
-#if defined(_OPENMP)
-#include <omp.h>
-#endif
-
 ///////////////////////////////////////////////////////////////////////////
 // Convert the complete cactus graph/pinch graph into filled out set of flowers
 ///////////////////////////////////////////////////////////////////////////
@@ -120,12 +115,10 @@ static void makeBlock(stCactusEdgeEnd *cactusEdgeEnd, Flower *parentFlower, Flow
 //Functions to generate the chains of a flower
 
 static void makeFlower(stCactusNode *cactusNode, Flower *flower, bool orientation,
-        stPinchThreadSet *threadSet,  Flower *parentFlower,
-        stList *deadEndComponent, stSet *bigFlowers, stHash *pinchEndsToEnds);
+        stPinchThreadSet *threadSet,  Flower *parentFlower, stList *deadEndComponent, stHash *pinchEndsToEnds);
 
-static void makeChain(stCactusEdgeEnd *cactusEdgeEnd, Flower *flower, bool orientation, bool makeSpacerFlowers,
-        stPinchThreadSet *threadSet,  Flower *parentFlower,
-                stList *deadEndComponent, stSet *bigFlowers, stHash *pinchEndsToEnds) {
+static void makeChain(stCactusEdgeEnd *cactusEdgeEnd, Flower *flower, bool orientation,
+        stPinchThreadSet *threadSet,  Flower *parentFlower, stList *deadEndComponent, stHash *pinchEndsToEnds) {
     cactusEdgeEnd = stCactusEdgeEnd_getOtherEdgeEnd(cactusEdgeEnd);
     if (!stCactusEdgeEnd_isChainEnd(cactusEdgeEnd)) { //We have a non-trivial chain
         Chain *chain = chain_construct(flower);
@@ -149,47 +142,34 @@ static void makeChain(stCactusEdgeEnd *cactusEdgeEnd, Flower *flower, bool orien
             end_setGroup(end1, group);
             end_setGroup(end2, group);
             link_construct(end1, end2, group, chain);
+
             //Make a nested group
             Flower *nestedFlower = group_makeEmptyNestedFlower(group);
             end_copyConstruct(end1, nestedFlower);
             end_copyConstruct(end2, nestedFlower);
+
+            // Add in the free stub ends to the nested group (do this so that we don't
+            // add them later after building all the chains, making their insertion slow given
+            // the current way the flower API works)
+            stList *adjacencyComponents = stCactusNode_getObject(stCactusEdgeEnd_getNode(cactusEdgeEnd));
+            for (int64_t i = 0; i < stList_length(adjacencyComponents); i++) {
+                stList *adjacencyComponent = stList_get(adjacencyComponents, i);
+                for (int64_t j = 0; j < stList_length(adjacencyComponent); j++) {
+                    convertPinchBlockEndToEnd(stList_get(adjacencyComponent, j), pinchEndsToEnds, flower);
+                }
+            }
             assert(flower_getGroupNumber(nestedFlower) == 0);
 
-            //If we need the extra spacer flower
-            Flower *spacerFlower;
-            if(makeSpacerFlowers) {
-                Group *nestedGroup = group_construct2(nestedFlower);
-                End *nestedEnd1 = flower_getEnd(nestedFlower, end_getName(end1));
-                End *nestedEnd2 = flower_getEnd(nestedFlower, end_getName(end2));
-                end_setGroup(nestedEnd1, nestedGroup);
-                end_setGroup(nestedEnd2, nestedGroup);
-                Chain *nestedChain = chain_construct(nestedFlower);
-                link_construct(nestedEnd1, nestedEnd2, nestedGroup, nestedChain);
-                spacerFlower = nestedFlower;
-                nestedFlower = group_makeEmptyNestedFlower(nestedGroup);
-                end_copyConstruct(nestedEnd1, nestedFlower);
-                end_copyConstruct(nestedEnd2, nestedFlower);
-            }
             //Fill out stack
-            makeFlower(stCactusEdgeEnd_getNode(cactusEdgeEnd), nestedFlower, orientation, threadSet, parentFlower, deadEndComponent, bigFlowers, pinchEndsToEnds);
+            makeFlower(stCactusEdgeEnd_getNode(cactusEdgeEnd), nestedFlower, orientation, threadSet, parentFlower, deadEndComponent, pinchEndsToEnds);
 
-            if(makeSpacerFlowers) { //Cleanup memory of spacer flowers
-                stCaf_addAdjacencies(spacerFlower);
-                flower_setBuiltBlocks(spacerFlower, 1);
-            }
-
-            //stList_append(stack, stCactusEdgeEnd_getNode(cactusEdgeEnd));
-            //stList_append(stack, nestedFlower);
-            //stList_append(stack, stIntTuple_construct1( orientation));
             cactusEdgeEnd = stCactusEdgeEnd_getOtherEdgeEnd(linkedCactusEdgeEnd);
         } while (!stCactusEdgeEnd_isChainEnd(cactusEdgeEnd));
     }
 }
 
 static void makeChains(stCactusNode *cactusNode, Flower *flower, bool orientation,
-        stPinchThreadSet *threadSet,  Flower *parentFlower,
-        stList *deadEndComponent, stSet *bigFlowers, stHash *pinchEndsToEnds) {
-    bool makeSpacerFlowers = stSet_search(bigFlowers, cactusNode) != NULL;
+        stPinchThreadSet *threadSet,  Flower *parentFlower, stList *deadEndComponent, stHash *pinchEndsToEnds) {
     stCactusNodeEdgeEndIt cactusEdgeEndIt = stCactusNode_getEdgeEndIt(cactusNode);
     stCactusEdgeEnd *cactusEdgeEnd;
     while ((cactusEdgeEnd = stCactusNodeEdgeEndIt_getNext(&cactusEdgeEndIt))) {
@@ -230,7 +210,7 @@ static void makeChains(stCactusNode *cactusNode, Flower *flower, bool orientatio
                 }
             }
             assert(startCactusEdgeEnd != NULL);
-            makeChain(startCactusEdgeEnd, flower, orientation2, makeSpacerFlowers, threadSet, parentFlower, deadEndComponent, bigFlowers, pinchEndsToEnds);
+            makeChain(startCactusEdgeEnd, flower, orientation2, threadSet, parentFlower, deadEndComponent, pinchEndsToEnds);
         }
     }
 }
@@ -270,10 +250,9 @@ static void makeTangles(stCactusNode *cactusNode, Flower *flower, stHash *pinchE
 //Main function
 
 static void makeFlower(stCactusNode *cactusNode, Flower *flower, bool orientation,
-        stPinchThreadSet *threadSet,  Flower *parentFlower,
-        stList *deadEndComponent, stSet *bigFlowers, stHash *pinchEndsToEnds) {
+        stPinchThreadSet *threadSet,  Flower *parentFlower, stList *deadEndComponent, stHash *pinchEndsToEnds) {
     assert(flower_getAttachedStubEndNumber(flower) > 0);
-    makeChains(cactusNode, flower, orientation, threadSet, parentFlower, deadEndComponent, bigFlowers, pinchEndsToEnds); //This call is recursive
+    makeChains(cactusNode, flower, orientation, threadSet, parentFlower, deadEndComponent, pinchEndsToEnds); //This call is recursive
     makeTangles(cactusNode, flower, pinchEndsToEnds, deadEndComponent);
     stCaf_addAdjacencies(flower);
     if(flower_isLeaf(flower) && flower_getBlockNumber(flower) == 0 && flower != parentFlower) { //We have a leaf with no blocks - it's effectively empty and can be removed.
@@ -285,9 +264,9 @@ static void makeFlower(stCactusNode *cactusNode, Flower *flower, bool orientatio
 }
 
 static void stCaf_convertCactusGraphToFlowers(stPinchThreadSet *threadSet, stCactusNode *startCactusNode, Flower *parentFlower,
-        stList *deadEndComponent, stSet *bigFlowers) {
+        stList *deadEndComponent) {
     stHash *pinchEndsToEnds = getPinchEndsToEndsHash(threadSet, parentFlower);
-    makeFlower(startCactusNode, parentFlower, 1, threadSet, parentFlower, deadEndComponent, bigFlowers, pinchEndsToEnds);
+    makeFlower(startCactusNode, parentFlower, 1, threadSet, parentFlower, deadEndComponent, pinchEndsToEnds);
     stHash_destruct(pinchEndsToEnds);
 }
 
@@ -317,17 +296,16 @@ void stCaf_finish(Flower *flower, stPinchThreadSet *threadSet, int64_t chainLeng
     stList *deadEndComponent;
     stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 1, minLengthForChromosome,
             proportionOfUnalignedBasesForNewChromosome, 0, INT64_MAX);
-    //chainLengthForBigFlower = 10;
-    //longChain = 10;
-    stSet *bigFlowers = stCactusGraph_collapseLongChainsOfBigFlowers(cactusGraph, startCactusNode, chainLengthForBigFlower, longChain, stCaf_mergeNodeObjects, 0);
-    if(stSet_size(bigFlowers) > 0) {
-        printf("We are collapsing the chains of %" PRIi64 " flowers\n", stSet_size(bigFlowers));
-    }
+
+    //stSet *bigFlowers = stCactusGraph_collapseLongChainsOfBigFlowers(cactusGraph, startCactusNode, chainLengthForBigFlower, longChain, stCaf_mergeNodeObjects, 0);
+    //if(stSet_size(bigFlowers) > 0) {
+    //    printf("We are collapsing the chains of %" PRIi64 " flowers\n", stSet_size(bigFlowers));
+    //}
 
     //Convert cactus graph/pinch graph to API
-    stCaf_convertCactusGraphToFlowers(threadSet, startCactusNode, flower, deadEndComponent, bigFlowers);
+    stCaf_convertCactusGraphToFlowers(threadSet, startCactusNode, flower, deadEndComponent);
 
     //Cleanup
     stCactusGraph_destruct(cactusGraph);
-    stSet_destruct(bigFlowers);
+    //stSet_destruct(bigFlowers);
 }

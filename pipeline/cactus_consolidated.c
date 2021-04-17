@@ -25,6 +25,7 @@
  * TODOs:
  *
  * cleanup the python
+ * cleanup input alignment format
  */
 
 void usage() {
