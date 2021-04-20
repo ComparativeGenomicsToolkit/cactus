@@ -403,6 +403,9 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
             msa_fix_trimmed(prev_msa);            
             // flip our msa back to its original strand
             flip_msa_seq(msa);
+
+            free(prev_column_scores);
+            free(column_scores);
         }
 
         // add the msa to our list
