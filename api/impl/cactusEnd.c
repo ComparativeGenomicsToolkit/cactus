@@ -185,7 +185,6 @@ End *end_copyConstruct(End *end, Flower *newFlower) {
     end_destructInstanceIterator(iterator);
     stList_sort(caps, sort_caps);
     for(int64_t i=0; i<stList_length(caps); i++) {
-        //fprintf(stderr, "hello cap: %" PRIi64 "\n", cap_getName(stList_get(caps, i)));
         cap_copyConstruct(end2, stList_get(caps, i));
     }
     stList_destruct(caps);
