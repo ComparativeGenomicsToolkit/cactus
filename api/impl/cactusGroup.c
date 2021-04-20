@@ -110,17 +110,29 @@ Flower *group_makeEmptyNestedFlower(Group *group) {
     return nestedFlower;
 }
 
+static int sort_ends(const void *a, const void *b) {
+    return cactusMisc_nameCompare(end_getName((End *)a), end_getName((End *)b));
+}
+
 Flower *group_makeNestedFlower(Group *group) {
     Flower *nestedFlower = group_makeEmptyNestedFlower(group);
     Group *nestedGroup = group_construct2(nestedFlower);
-    //Add the ends to the nested flower.
+
+    //Add the ends to the nested flower in order
     Group_EndIterator *endIterator = group_getEndIterator(group);
     End *end;
+    stList *ends = stList_construct();
     while ((end = group_getNextEnd(endIterator)) != NULL) {
+        stList_append(ends, end);
         assert(end_getOrientation(end));
-        end_setGroup(end_copyConstruct(end, nestedFlower), nestedGroup);
     }
     group_destructEndIterator(endIterator);
+    stList_sort(ends, sort_ends);
+    for(int64_t i=0; i<stList_length(ends); i++) {
+        end_setGroup(end_copyConstruct(stList_get(ends, i), nestedFlower), nestedGroup);
+    }
+    stList_destruct(ends);
+
     //Now add adjacencies between the caps, mirroring the parent adjacencies.
     copyAdjacencies(group, nestedFlower);
     //Create the trivial chain for the ends..

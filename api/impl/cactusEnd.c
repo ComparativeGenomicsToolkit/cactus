@@ -165,19 +165,30 @@ End *end_construct3(Name name, int64_t isAttached,
     return end;
 }
 
+static int sort_caps(const void *a, const void *b) {
+    return cactusMisc_nameCompare(cap_getName((Cap*)a), cap_getName((Cap*)b));
+}
+
 End *end_copyConstruct(End *end, Flower *newFlower) {
     end = end_getPositiveOrientation(end);
     assert(flower_getEnd(newFlower, end_getName(end)) == NULL);
 
     End *end2 = end_construct3(end_getName(end), end_isBlockEnd(end) ? 1
             : end_isAttached(end), end_getSide(end), newFlower);
-    //Copy the instances.
+    //Copy the instances, adding them in order
     End_InstanceIterator *iterator = end_getInstanceIterator(end);
     Cap *cap;
+    stList *caps = stList_construct();
     while ((cap = end_getNext(iterator)) != NULL) {
-        cap_copyConstruct(end2, cap);
+        stList_append(caps, cap);
     }
     end_destructInstanceIterator(iterator);
+    stList_sort(caps, sort_caps);
+    for(int64_t i=0; i<stList_length(caps); i++) {
+        //fprintf(stderr, "hello cap: %" PRIi64 "\n", cap_getName(stList_get(caps, i)));
+        cap_copyConstruct(end2, stList_get(caps, i));
+    }
+    stList_destruct(caps);
 
     return end2;
 }

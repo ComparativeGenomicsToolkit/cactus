@@ -33,7 +33,7 @@ static void getPinchBlockEndsToEndsHashP(stPinchSegment *pinchSegment, bool endO
 }
 
 static stHash *getPinchEndsToEndsHash(stPinchThreadSet *threadSet, Flower *parentFlower) {
-    stHash *pinchEndsToEnds = stHash_construct3(stPinchEnd_hashFn, stPinchEnd_equalsFn, stPinchEnd_destruct, NULL);
+    stHash *pinchEndsToEnds = stHash_construct3(stPinchEnd_hashFn, stPinchEnd_equalsFn, (void (*)(void *))stPinchEnd_destruct, NULL);
     stPinchThreadSetIt pinchThreadIt = stPinchThreadSet_getIt(threadSet);
     stPinchThread *pinchThread;
     while ((pinchThread = stPinchThreadSetIt_getNext(&pinchThreadIt))) {
@@ -90,8 +90,11 @@ static void makeEmptyFlowers2(stCactusEdgeEnd *cactusEdgeEnd, Flower *flower, st
     }
 }
 
-static int sort_ends(const void *a, const void *b) {
-    return cactusMisc_nameCompare(end_getName((End *)a), end_getName((End *)b));
+static int sort_pinch_ends(const void *a, const void *b, void *extraArg) {
+    End *end1 = stHash_search((stHash *)extraArg, (void *)a);
+    End *end2 = stHash_search((stHash *)extraArg, (void *)b);
+    assert(end1 != NULL && end2 != NULL);
+    return (int)cactusMisc_nameCompare(end_getName(end1), end_getName(end2));
 }
 
 static stList *makeEmptyFlowers(stCactusNode *cactusNode, Flower *flower, stPinchThreadSet *threadSet,
@@ -131,7 +134,7 @@ static stList *makeEmptyFlowers(stCactusNode *cactusNode, Flower *flower, stPinc
         }
 
         // Sort the stub ends so they are added in order
-        stList_sort(containedStubEnds, sort_ends);
+        stList_sort2(containedStubEnds, sort_pinch_ends, pinchEndsToEnds);
 
         // Add the stub ends into the flower
         for (int64_t i = 0; i < stList_length(containedStubEnds); i++) {
