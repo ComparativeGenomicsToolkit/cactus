@@ -70,7 +70,6 @@ static Cap *copyCapToParent(Cap *cap, stList *recoveredCaps) {
     assert(end != NULL);
     Group *parentGroup = flower_getParentGroup(end_getFlower(end));
     assert(parentGroup != NULL);
-    fprintf(stderr, "adding an end\n");
     End *copiedEnd = end_copyConstruct(end, group_getFlower(parentGroup));
     end_setGroup(copiedEnd, parentGroup); //Set group
     Cap *copiedCap = end_getInstance(copiedEnd, cap_getName(cap));
