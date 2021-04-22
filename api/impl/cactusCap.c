@@ -110,11 +110,13 @@ Cap *cap_construct(End *end, Event *event) {
 }
 
 Cap *cap_construct2(End *end, int64_t coordinate, bool strand, Sequence *sequence) {
-    return cap_construct4(cactusDisk_getUniqueID(flower_getCactusDisk(end_getFlower(end))), end, coordinate, strand,
-                          sequence);
+    Cap *cap = cap_construct3(cactusDisk_getUniqueID(flower_getCactusDisk(end_getFlower(end))),
+                              sequence_getEvent(sequence), end);
+    cap_setCoordinates(cap, coordinate, strand, sequence);
+    return cap;
 }
 
-Cap *cap_construct3(Name instance, Event *event, End *end) {
+static Cap *cap_construct5(Name instance, Event *event, End *end, bool setFlower) {
     assert(instance != NULL_NAME);
     assert(event != NULL);
     assert(end != NULL);
@@ -136,7 +138,9 @@ Cap *cap_construct3(Name instance, Event *event, End *end) {
 
     // Add the cap to the appropriate indexes
     end_addInstance(end, cap);
-    flower_addCap(end_getFlower(end), cap);
+    if(setFlower) {
+        flower_addCap(end_getFlower(end), cap);
+    }
 
     // Do the checks
     assert(cap_getStrand(cap));
@@ -157,11 +161,17 @@ Cap *cap_construct3(Name instance, Event *event, End *end) {
     assert(cap_getSegment(cap_getReverse(cap)) == NULL);
     assert(cap_getEvent(cap_getReverse(cap)) == event);
     assert(cap_getEnd(cap_getReverse(cap)) == end_getReverse(end));
-    assert(end_getInstance(end, instance) == cap);
-    assert(end_getInstance(end_getReverse(end), instance) == cap_getReverse(cap));
-    assert(flower_getCap(end_getFlower(end), instance) == cap_getPositiveOrientation(cap));
+    if(setFlower) {
+        assert(end_getInstance(end, instance) == cap);
+        assert(end_getInstance(end_getReverse(end), instance) == cap_getReverse(cap));
+        assert(flower_getCap(end_getFlower(end), instance) == cap_getPositiveOrientation(cap));
+    }
 
     return cap;
+}
+
+Cap *cap_construct3(Name instance, Event *event, End *end) {
+    return cap_construct5(instance, event, end, 1);
 }
 
 void cap_setCoordinates(Cap *cap, int64_t coordinate, bool strand, Sequence *sequence) {
@@ -219,17 +229,7 @@ int64_t cap_getCoordinate(Cap *cap) {
     return cap_getCoreContents(cap)->coordinate;
 }
 
-Cap *cap_construct4(Name instance, End *end, int64_t coordinate, bool strand, Sequence *sequence) {
-    Cap *cap = cap_construct3(instance, sequence_getEvent(sequence), end);
-    cap_setCoordinates(cap, coordinate, strand, sequence);
-    return cap;
-}
-
-Cap *cap_construct5(Event *event, End *end) {
-    return cap_construct3(cactusDisk_getUniqueID(flower_getCactusDisk(end_getFlower(end))), event, end);
-}
-
-Cap *cap_copyConstruct(End *end, Cap *cap) {
+Cap *cap_copyConstruct2(End *end, Cap *cap, bool setFlower) {
     assert(end_getName(cap_getEnd(cap)) == end_getName(end));
     assert(end_getSide(end) == cap_getSide(cap));
 
@@ -242,14 +242,20 @@ Cap *cap_copyConstruct(End *end, Cap *cap) {
             flower_addSequence(flower, sequence);
             assert(sequence != NULL);
         }
-        return cap_construct4(cap_getName(cap), end, cap_getCoordinate(cap), cap_getStrand(cap), sequence);
+        Cap *newCap = cap_construct5(cap_getName(cap), sequence_getEvent(sequence), end, setFlower);
+        cap_setCoordinates(newCap, cap_getCoordinate(cap), cap_getStrand(cap), sequence);
+        return newCap;
     } else {
         Event *event = eventTree_getEvent(flower_getEventTree(flower), event_getName(cap_getEvent(cap)));
         assert(event != NULL);
-        Cap *cap2 = cap_construct3(cap_getName(cap), event, end);
+        Cap *cap2 = cap_construct5(cap_getName(cap), event, end, setFlower);
         cap_setCoordinates(cap2, cap_getCoordinate(cap), cap_getStrand(cap), NULL);
         return cap2;
     }
+}
+
+Cap *cap_copyConstruct(End *end, Cap *cap) {
+    return cap_copyConstruct2(end, cap, 1);
 }
 
 void cap_destruct(Cap *cap) {

@@ -46,7 +46,7 @@ const char *CACTUS_CHECK_EXCEPTION_ID = "CACTUS_CHECK_EXCEPTION_ID";
 
 void cactusCheck(bool condition) {
     if (!condition) {
-        //assert(0);
+        assert(0);
         stThrowNew(CACTUS_CHECK_EXCEPTION_ID, "Cactus check condition failed");
     }
 }
@@ -58,7 +58,7 @@ void cactusCheck2(bool condition, char *string, ...) {
         va_start(ap, string);
         vsprintf(cA, string, ap);
         va_end(ap);
-        //assert(0);
+        assert(0);
         assert(strlen(cA) < 100000);
         stThrowNew(CACTUS_CHECK_EXCEPTION_ID, "Cactus check condition failed: %s", cA);
     }

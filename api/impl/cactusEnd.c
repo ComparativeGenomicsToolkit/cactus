@@ -133,8 +133,8 @@ End *end_construct2(bool side, bool isAttached, Flower *flower) {
             isAttached, side, flower);
 }
 
-End *end_construct3(Name name, int64_t isAttached,
-        int64_t side, Flower *flower) {
+static End *end_construct4(Name name, int64_t isAttached,
+        int64_t side, Flower *flower, bool addToFlower) {
     End *end = st_calloc(1, 2*sizeof(End) + sizeof(EndContents));
     // see above comment to decode what is set
     // Bits: (0) orientation / (1) part_of_block / (2) is_block / (3) left / (4) is_attached / (5) side
@@ -148,7 +148,9 @@ End *end_construct3(Name name, int64_t isAttached,
     end_getContents(end)->flower = flower;
 
     // Add to the flower
-    flower_addEnd(flower, end);
+    if(addToFlower) {
+        flower_addEnd(flower, end);
+    }
 
     // Checks
     assert(end_getSide(end) == side);
@@ -160,13 +162,48 @@ End *end_construct3(Name name, int64_t isAttached,
     assert(end_isAttached(end_getReverse(end)) == isAttached);
     assert(end_isStubEnd(end));
     assert(end_isStubEnd(end_getReverse(end)));
-    assert(flower_getEnd(flower, end_getName(end)) == end);
+    if(addToFlower) {
+        assert(flower_getEnd(flower, end_getName(end)) == end);
+    }
 
     return end;
 }
 
+End *end_construct3(Name name, int64_t isAttached,
+                    int64_t side, Flower *flower) {
+    return end_construct4(name, isAttached, side, flower, 1);
+}
+
 static int sort_caps(const void *a, const void *b) {
     return cactusMisc_nameCompare(cap_getName((Cap*)a), cap_getName((Cap*)b));
+}
+
+stList *end_bulkCopyConstruct(stList *ends, Flower *newFlower) {
+    stList *newEnds = stList_construct();
+    for(int64_t i=0; i<stList_length(ends); i++) {
+        End *end = stList_get(ends, i);
+        stList_append(newEnds, end_construct4(end_getName(end), end_isBlockEnd(end) ? 1
+        : end_isAttached(end), end_getSide(end), newFlower, 0)); // build the ends but don't set the flower
+    }
+    flower_bulkAddEnds(newFlower, newEnds); // Now set the flower for the ends
+
+    // Now build the caps but don't add to the flower
+    stList *newCaps = stList_construct();
+    for(int64_t i=0; i<stList_length(ends); i++) {
+        End *end = stList_get(ends, i), *newEnd = stList_get(newEnds, i);
+        End_InstanceIterator *iterator = end_getInstanceIterator(end);
+        Cap *cap;
+        while ((cap = end_getNext(iterator)) != NULL) {
+            stList_append(newCaps, cap_copyConstruct2(newEnd, cap, 0));
+        }
+        end_destructInstanceIterator(iterator);
+    }
+
+    // Now set the flower for the caps
+    flower_bulkAddCaps(newFlower, newCaps);
+    stList_destruct(newCaps); // Cleanup
+
+    return newEnds;
 }
 
 End *end_copyConstruct(End *end, Flower *newFlower) {

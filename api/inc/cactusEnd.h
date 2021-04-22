@@ -37,6 +37,11 @@ End *end_construct2(bool side, bool isAttached, Flower *flower);
 End *end_copyConstruct(End *end, Flower *newFlower);
 
 /*
+ * Like end_copyConstruct, but adds a set of ends in bulk. Allows the addition to be more efficient.
+ */
+stList *end_bulkCopyConstruct(stList *ends, Flower *newFlower);
+
+/*
  *	Name of the end.
  */
 Name end_getName(End *end);

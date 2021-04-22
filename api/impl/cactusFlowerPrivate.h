@@ -48,9 +48,19 @@ void flower_removeEventTree(Flower *flower, EventTree *eventTree);
 void flower_addCap(Flower *flower, Cap *cap);
 
 /*
+ * Bulk add a set of ends to the flower.
+ */
+void flower_bulkAddCaps(Flower *flower, stList *capsToAdd);
+
+/*
  * Adds the end to the flower.
  */
 void flower_addEnd(Flower *flower, End *end);
+
+/*
+ * Bulk add a set of ends to the flower.
+ */
+void flower_bulkAddEnds(Flower *flower, stList *endsToAdd);
 
 /*
  * Remove the end from the flower.

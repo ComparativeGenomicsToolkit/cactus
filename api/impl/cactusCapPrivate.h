@@ -69,11 +69,6 @@ Cap *cap_construct4(Name name, End *end, int64_t startCoordinate,
         bool strand, Sequence *sequence);
 
 /*
- * As constructor 3, but don't specify name.
- */
-Cap *cap_construct5(Event *event, End *end);
-
-/*
  * Destructs the cap, but not any connecting objects.
  */
 void cap_destruct(Cap *cap);

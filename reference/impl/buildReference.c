@@ -45,7 +45,7 @@ static stList *getExtraAttachedStubsFromParent(Flower *flower) {
      * Returns the list of new ends, which need to be assigned a group.
      */
     Group *parentGroup = flower_getParentGroup(flower);
-    stList *newEnds = stList_construct();
+    stList *endsToAdd = stList_construct();
     if (parentGroup != NULL) {
         Group_EndIterator *parentEndIt = group_getEndIterator(parentGroup);
         End *parentEnd;
@@ -53,12 +53,16 @@ static stList *getExtraAttachedStubsFromParent(Flower *flower) {
             if (end_isAttached(parentEnd) || end_isBlockEnd(parentEnd)) {
                 End *end = flower_getEnd(flower, end_getName(parentEnd));
                 if (end == NULL) { //We have found an end that needs to be pushed into the child.
-                    stList_append(newEnds, end_copyConstruct(parentEnd, flower)); //At this point it has no associated group;
+                    stList_append(endsToAdd, parentEnd); // end_copyConstruct(parentEnd, flower)); //At this point it has no associated group;
                 }
             }
         }
         group_destructEndIterator(parentEndIt);
     }
+
+    stList *newEnds = end_bulkCopyConstruct(endsToAdd, flower); // Now add ends in bulk
+    stList_destruct(endsToAdd); // Cleanup
+
     assert(flower_getAttachedStubEndNumber(flower) % 2 == 0);
     if (flower_getBlockEndNumber(flower) > 0) {
         assert(flower_getAttachedStubEndNumber(flower) > 0);

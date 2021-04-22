@@ -550,6 +550,15 @@ void flower_removeSequence(Flower *flower, Sequence *sequence) {
     removeFromFlower(flower->sequences, sequence);
 }
 
+static int sort_caps(const void *a, const void *b) {
+    return cactusMisc_nameCompare(cap_getName((Cap*)a), cap_getName((Cap*)b));
+}
+
+void flower_bulkAddCaps(Flower *flower, stList *capsToAdd) {
+    stList_appendAll(flower->caps, capsToAdd);
+    stList_sort(flower->caps, sort_caps);
+}
+
 void flower_addCap(Flower *flower, Cap *cap) {
     cap = cap_getPositiveOrientation(cap);
     stList_append(flower->caps, cap);
@@ -560,12 +569,22 @@ void flower_addCap(Flower *flower, Cap *cap) {
     }
 }
 
+static int sort_ends(const void *a, const void *b) {
+    return cactusMisc_nameCompare(end_getName((End*)a), end_getName((End*)b));
+}
+
+void flower_bulkAddEnds(Flower *flower, stList *endsToAdd) {
+    stList_appendAll(flower->ends, endsToAdd);
+    stList_sort(flower->ends, sort_ends);
+}
+
 void flower_addEnd(Flower *flower, End *end) {
     end = end_getPositiveOrientation(end);
     stList_append(flower->ends, end);
     // Now ensure we have fixed the sort
     int64_t i = stList_length(flower->ends)-1;
     while(--i >= 0 && end_getName(stList_get(flower->ends, i)) > end_getName(end)) {
+        //fprintf(stderr, "adding a end out of order: %" PRIi64 " flower name: %" PRIi64 "\n", end_getName(end), flower_getName(flower));
         swap(flower->ends, i);
     }
 }

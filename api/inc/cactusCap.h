@@ -39,6 +39,11 @@ void cap_setCoordinates(Cap *cap, int64_t coordinate, bool strand, Sequence *seq
 Cap *cap_copyConstruct(End *end, Cap *cap);
 
 /*
+ * Like cap_copyConstruct, but allows you to defer adding a cap to the flower (so that it can be added in a bulk add)
+ */
+Cap *cap_copyConstruct2(End *end, Cap *cap, bool setFlower);
+
+/*
  * Returns the instance's name.
  */
 Name cap_getName(Cap *cap);

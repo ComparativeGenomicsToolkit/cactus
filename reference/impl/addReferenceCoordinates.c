@@ -70,6 +70,7 @@ static Cap *copyCapToParent(Cap *cap, stList *recoveredCaps) {
     assert(end != NULL);
     Group *parentGroup = flower_getParentGroup(end_getFlower(end));
     assert(parentGroup != NULL);
+    fprintf(stderr, "adding an end\n");
     End *copiedEnd = end_copyConstruct(end, group_getFlower(parentGroup));
     end_setGroup(copiedEnd, parentGroup); //Set group
     Cap *copiedCap = end_getInstance(copiedEnd, cap_getName(cap));
@@ -96,9 +97,6 @@ static void setAdjacencyLength(Cap *cap, Cap *adjacentCap, int64_t adjacencyLeng
     else {
         cap_setCoordinates(cap, adjacencyLength, cap_getStrand(cap), NULL);
     }
-    //cap_setCoordinates(cap, adjacencyLength, cap_getStrand(cap), NULL);
-    //cap_setCoordinates(adjacentCap, adjacencyLength, cap_getStrand(adjacentCap), NULL);
-    //assert(cap_getCoordinate(cap) == cap_getCoordinate(adjacentCap));
 }
 
 static void setAdjacencyLengthsAndRecoverNewCapsAndBrokenAdjacencies(Cap *cap, stList *recoveredCaps) {
@@ -237,7 +235,6 @@ static Sequence *addSequence(Flower *flower, Cap *cap, int64_t index, char *stri
      */
     Event *referenceEvent = cap_getEvent(cap);
     assert(referenceEvent != NULL);
-    //fprintf(stderr, "ref event: %" PRIi64 " name: %" PRIi64 "\n", referenceEvent, event_getName(referenceEvent));
     char *sequenceName = stString_print("%srefChr%" PRIi64 "", event_getHeader(referenceEvent), index);
     //char *sequenceName = stString_print("refChr%" PRIi64 "", index);
     Sequence *sequence = sequence_construct3(1, strlen(string), string, sequenceName,
