@@ -555,8 +555,10 @@ static int sort_caps(const void *a, const void *b) {
 }
 
 void flower_bulkAddCaps(Flower *flower, stList *capsToAdd) {
-    stList_appendAll(flower->caps, capsToAdd);
-    stList_sort(flower->caps, sort_caps);
+    if(stList_length(capsToAdd) > 0) {
+        stList_appendAll(flower->caps, capsToAdd);
+        stList_sort(flower->caps, sort_caps);
+    }
 }
 
 void flower_addCap(Flower *flower, Cap *cap) {
@@ -574,8 +576,10 @@ static int sort_ends(const void *a, const void *b) {
 }
 
 void flower_bulkAddEnds(Flower *flower, stList *endsToAdd) {
-    stList_appendAll(flower->ends, endsToAdd);
-    stList_sort(flower->ends, sort_ends);
+    if(stList_length(endsToAdd) > 0) {
+        stList_appendAll(flower->ends, endsToAdd);
+        stList_sort(flower->ends, sort_ends);
+    }
 }
 
 void flower_addEnd(Flower *flower, End *end) {

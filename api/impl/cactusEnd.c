@@ -185,6 +185,11 @@ stList *end_bulkCopyConstruct(stList *ends, Flower *newFlower) {
         stList_append(newEnds, end_construct4(end_getName(end), end_isBlockEnd(end) ? 1
         : end_isAttached(end), end_getSide(end), newFlower, 0)); // build the ends but don't set the flower
     }
+
+    if(stList_length(newEnds) == 0) {
+        return newEnds;
+    }
+
     flower_bulkAddEnds(newFlower, newEnds); // Now set the flower for the ends
 
     // Now build the caps but don't add to the flower
