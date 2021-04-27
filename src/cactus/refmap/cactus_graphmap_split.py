@@ -522,7 +522,7 @@ def combine_paf_splits(job, options, seq_id_map, original_id_map, orig_amb_entry
     job.fileStore.readGlobalFile(orig_amb_entry['paf'], amb_paf_path, mutable=True)
 
     for ref_contig in remap_id_map.keys():
-        if ref_contig != amb_name:
+        if ref_contig != amb_name and ref_contig in original_id_map:
 
             # make a set of all minigraph nodes in this contig
             mg_fa_path = os.path.join(work_dir, '{}.{}.fa'.format(graph_event, ref_contig))
