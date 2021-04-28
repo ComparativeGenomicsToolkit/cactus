@@ -273,7 +273,6 @@
 	<!--                           if 1 query region in a block of at least this size overlaps query regions in blocks smaller than this, filter out the smaller ones -->
 	<!--                           Filter is disabled when set to 0.  Any non-zero value will prevent query overlaps -->
 	<!-- maskFilter: any softmasked sequence intervals > than this many bp will be hardmasked before being read by the minigraph mapper [negative value = disable]-->
-	<!-- minimapRealignLength: realign blocks greater than this leangth using minimap2 [negative value = disable]--> 
 	<!-- cpu: use up to this many cpus for each minigraph command. -->
 	<graphmap
 		 assemblyName="_MINIGRAPH_"
@@ -287,7 +286,6 @@
 		 minGAFNodeLength="0"
 		 minGAFQueryOverlapFilter="10000"
 		 maskFilter="-1"
-		 minimapRealignLength="-1"
 		 cpu="6"
 		 />
 	<!-- cactus-graphmap-split options -->

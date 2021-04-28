@@ -163,22 +163,12 @@ def runCactusGraphMap(options):
                     logger.info("Importing {}".format(seq))
                     seqIDMap[genome] = (seq, toil.importFile(seq))
 
-            # import the gfa fa as we need it for realignment
-            minimap_realign_len = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minimapRealignLength", typeFn=int, default=-1)
-            if not options.outputFasta and minimap_realign_len >= 0:
-                input_gfa_fa_path = seqFile.pathMap[graph_event]
-                input_gfa_fa_id = toil.importFile(makeURL(input_gfa_fa_path))
-            else:
-                input_gfa_fa_path = None
-                input_gfa_fa_id = None
-
             # run the workflow
-            paf_id, gfa_fa_id, gaf_id_map = toil.start(Job.wrapJobFn(minigraph_workflow, options, config, seqIDMap, gfa_id, graph_event,
-                                                                     input_gfa_fa_path, input_gfa_fa_id))
+            paf_id, gfa_fa_id, gaf_id_map = toil.start(Job.wrapJobFn(minigraph_workflow, options, config, seqIDMap, gfa_id, graph_event))
 
         #export the paf
         toil.exportFile(paf_id, makeURL(options.outputPAF))
-        if options.outputFasta:
+        if gfa_fa_id:
             toil.exportFile(gfa_fa_id, makeURL(options.outputFasta))
 
         #export the gafs
@@ -191,24 +181,21 @@ def runCactusGraphMap(options):
         if options.outputFasta:
             add_genome_to_seqfile(options.seqFile, makeURL(options.outputFasta), graph_event)
 
-def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, fa_path, fa_id):
+def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event):
     """ Overall workflow takes command line options and returns (paf-id, (optional) fa-id) """
-
-    top_job = Job()
-    job.addChild(top_job)
+    fa_id = None
         
     if options.outputFasta:
         # convert GFA to fasta
-        fa_job = top_job.addChildJobFn(make_minigraph_fasta, gfa_id, options.outputFasta, graph_event)
-        fa_path = options.outputFasta
+        fa_job = job.addChildJobFn(make_minigraph_fasta, gfa_id, options.outputFasta, graph_event)
         fa_id = fa_job.rv()
 
-    paf_job = top_job.addFollowOnJobFn(minigraph_map_all, config, gfa_id, seq_id_map, graph_event, options.outputGAFDir is not None, fa_path, fa_id)
+    paf_job = job.addChildJobFn(minigraph_map_all, config, gfa_id, seq_id_map, graph_event, options.outputGAFDir is not None)
     
     if options.refFromGFA:
         # extract a PAF directly from the rGFAs tag for the given reference
-        gfa2paf_job = top_job.addFollowOnJobFn(extract_paf_from_gfa, gfa_id, options.minigraphGFA, options.refFromGFA, graph_event,
-                                               disk=gfa_id.size * 12)
+        gfa2paf_job = job.addChildJobFn(extract_paf_from_gfa, gfa_id, options.minigraphGFA, options.refFromGFA, graph_event,
+                                        disk=gfa_id.size * 12)
 
         merge_paf_job = Job.wrapJobFn(merge_pafs, {"1" : paf_job.rv(0), "2" : gfa2paf_job.rv()}, disk=gfa_id.size * 12)
         paf_job.addFollowOn(merge_paf_job)
@@ -237,7 +224,7 @@ def make_minigraph_fasta(job, gfa_file_id, gfa_file_path, name):
 
     return job.fileStore.writeGlobalFile(fa_path)
 
-def minigraph_map_all(job, config, gfa_id, fa_id_map, graph_event, keep_gaf, gfa_fa_path, gfa_fa_id):
+def minigraph_map_all(job, config, gfa_id, fa_id_map, graph_event, keep_gaf):
     """ top-level job to run the minigraph mapping in parallel, returns paf """
     
     # hang everything on this job, to self-contain workflow
@@ -246,7 +233,7 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map, graph_event, keep_gaf, gfa
 
     mg_cores = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "cpu", typeFn=int, default=1)
     mg_cores = min(mg_cores, cpu_count())
-    
+
     # doing the paf conversion is more efficient when done separately for each genome.  we can get away
     # with doing this if the universal filter (which needs to process everything at once) is disabled
     xml_node = findRequiredNode(config.xmlRoot, "graphmap")
@@ -260,12 +247,12 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map, graph_event, keep_gaf, gfa
         fa_path = fa_path_fa_id[0]
         fa_id = fa_path_fa_id[1]
         minigraph_map_job = top_job.addChildJobFn(minigraph_map_one, config, event, fa_path, fa_id, gfa_id,
-                                                  keep_gaf or not paf_per_genome, paf_per_genome, gfa_fa_path, gfa_fa_id,
+                                                  keep_gaf or not paf_per_genome, paf_per_genome,
                                                   # todo: estimate RAM
                                                   cores=mg_cores, disk=5*(fa_id.size + gfa_id.size))
         gaf_id_map[event] = minigraph_map_job.rv(0)
         paf_id_map[event] = minigraph_map_job.rv(1)
-                                               
+
     # convert to paf
     if paf_per_genome:
         paf_job = top_job.addFollowOnJobFn(merge_pafs, paf_id_map)
@@ -279,7 +266,7 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map, graph_event, keep_gaf, gfa
         
     return paf_job.rv(), gaf_id_map
 
-def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id, gaf_output, paf_output, gfa_fa_path, gfa_fa_id):
+def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id, gaf_output, paf_output):
     """ Run minigraph to map a Fasta file to a GFA graph, producing a GAF output """
 
     work_dir = job.fileStore.getLocalTempDir()
@@ -287,7 +274,6 @@ def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id,
     fa_dir = job.fileStore.getLocalTempDir()
     fa_path = os.path.join(fa_dir, os.path.basename(fa_path))
     gaf_path = os.path.join(work_dir, "{}.gaf".format(event_name))
-    gfa_fa_path = os.path.join(work_dir, os.path.basename(gfa_fa_path))
     
     job.fileStore.readGlobalFile(gfa_file_id, gfa_path)
     job.fileStore.readGlobalFile(fa_file_id, fa_path)
@@ -327,17 +313,7 @@ def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id,
     if paf_output:
         # optional gaf->paf step.  we are not piping directly out of minigraph because mzgaf2paf's overlap filter
         # (which is usually on) requires 2 passes so it won't read stdin when it's enabled
-        paf_path =  merge_gafs_into_paf(job, config, None, [gaf_path])
-        # todo: make option!
-        job.fileStore.readGlobalFile(gfa_fa_id, gfa_fa_path, mutable=True)
-        if gfa_fa_path.endswith('.gz'):
-            cactus_call(parameters=['gzip', '-df', gfa_fa_path])
-            gfa_fa_path = gfa_fa_path[:-3]
-        min_realign_length = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minimapRealignLength", typeFn=int, default=-1)
-        if min_realign_length >= 0:
-            paf_id = minimap_realign(job, config, paf_path, fa_path, gfa_fa_path, min_realign_length)
-        else:
-            paf_id = job.fileStore.writeGlobalFile(paf_path)
+        paf_id =  merge_gafs_into_paf(job, config, None, [gaf_path])
     if gaf_output:
         gaf_id = job.fileStore.writeGlobalFile(gaf_path)
 
@@ -383,9 +359,7 @@ def merge_gafs_into_paf(job, config, gaf_file_id_map, gaf_paths = []):
 
     cactus_call(outfile=paf_path, parameters=["mzgaf2paf"] + gaf_paths + mzgaf2paf_opts)
 
-    if not gaf_paths:
-        return job.fileStore.writeGlobalFile(paf_path)
-    return paf_path
+    return job.fileStore.writeGlobalFile(paf_path)
                                                
 def merge_pafs(job, paf_file_id_map):
     """ merge up some pafs """
@@ -448,74 +422,5 @@ def add_genome_to_seqfile(seqfile_path, fasta_path, name):
     with open(seqfile_path, 'w') as seqfile_handle:
         seqfile_handle.write(str(seq_file))
 
-def minimap_realign(job, config, paf_path, query_fa_path, target_fa_path, min_length):
-    """ re-align each line of a PAF with minimap2 and return the resulting PAF file
-    NOTE: expects paths and not ids, so should not be called wiht addChildJobFn() etc.!!!
-    """
-
-    query_contig_path = job.fileStore.getLocalTempFile()
-    target_contig_path = job.fileStore.getLocalTempFile()
-    out_paf_path = job.fileStore.getLocalTempFile()
-
-    with open(paf_path, 'r') as paf_file, open(out_paf_path, 'w') as out_paf_file:
-        for line in paf_file:
-            paf_toks = line.split('\t')
-
-            #todo: remove
-            def split_tag(s):
-                if s.startswith('id='):
-                    c = s.find('|')
-                    if c > 0:
-                        return s[c+1:], s[0:c+1]
-                return s, ''
-
-            query_name = paf_toks[0]
-            query_length = paf_toks[1]
-            query_start = int(paf_toks[2])
-            query_end = int(paf_toks[3])
-
-            target_name, target_tag = split_tag(paf_toks[5])
-            target_length = paf_toks[6]
-            target_start = int(paf_toks[7])
-            target_end = int(paf_toks[8])
-
-            # todo: do we want to filter on any other fields?
-            if query_end - query_start >= min_length and target_end - target_start >= min_length:
-
-                # extract the subsequences (PAF is 0-based, end-exclusive, faidx is 1-based end-inclusive)
-                cactus_call(parameters=['samtools', 'faidx', query_fa_path, f'{query_name}:{query_start+1}-{query_end}',
-                                        '--output', query_contig_path])
-                cactus_call(parameters=['samtools', 'faidx', target_fa_path, f'{target_name}:{target_start+1}-{target_end}',
-                                        '--output', target_contig_path])
-
-                # run minimap
-                # todo: parameters from config
-                out_paf_lines = cactus_call(parameters=['minimap2', target_contig_path, query_contig_path, '-xasm5', '-c',
-                                                        '-t', str(job.cores)], 
-                                            check_output=True)
-                for out_paf_line in out_paf_lines.split('\n'):
-                    out_paf_toks = out_paf_line.split('\t')
-                    if len(out_paf_toks) >= 12:                
-                        # convert back to original coordinate system by removing any suffixes added by faidx and adding the
-                                # origina start offsets
-                        out_paf_toks[0] = query_name
-                        out_paf_toks[1] = query_length
-                        out_paf_toks[2] = str(query_start + int(out_paf_toks[2]))
-                        out_paf_toks[3] = str(query_start + int(out_paf_toks[3]))
-
-                        out_paf_toks[5] = target_tag + target_name
-                        out_paf_toks[6] = target_length
-                        out_paf_toks[7] = str(target_start + int(out_paf_toks[7]))
-                        out_paf_toks[8] = str(target_start + int(out_paf_toks[8]))
-
-                        # write to the output
-                        out_paf_file.write('\t'.join(out_paf_toks) + '\n')
-            else:
-                # too small : just leave the line as is
-                out_paf_file.write(line)
-                
-    return job.fileStore.writeGlobalFile(out_paf_path)
-
-                                               
 if __name__ == "__main__":
     main()
