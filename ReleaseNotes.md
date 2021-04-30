@@ -1,6 +1,13 @@
-# Release 1.3.1
+# Release ???
 
 - Fix bug in how `cactus-prepare` transmits Toil size parameters
+- `cactus-prepare-join` tool added to combine and index chromosome output from `cactus-align-batch`
+- `cactus-graphmap-split` fixes
+- Update to latest Segalign
+- Update to Toil 5.3
+- Update HAL
+
+GPU Lastz version used in GPU-enabled Docker image: [85f766744f116b51658135f9f4f489f757922bff](https://github.com/ComparativeGenomicsToolkit/SegAlign/commit/8b63a0fe1c06b3511dfc4660bd0f9fb7ad7176e7)
 
 # Release 1.3.0   2021-02-11
 
