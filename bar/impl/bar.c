@@ -26,6 +26,8 @@ PairwiseAlignmentParameters *pairwiseAlignmentParameters_constructFromCactusPara
     p->diagonalExpansion = cactusParams_get_int(params, 2, "bar", "diagonalExpansion");
     p->constraintDiagonalTrim = cactusParams_get_int(params, 2, "bar", "constraintDiagonalTrim");
     p->alignAmbiguityCharacters = cactusParams_get_int(params, 2, "bar", "alignAmbiguityCharacters");
+    p->useMumAnchors = cactusParams_get_int(params, 2, "bar", "useMumAnchors");
+    p->recursiveMums = cactusParams_get_int(params, 2, "bar", "recursiveMums");
     return p;
 }
 

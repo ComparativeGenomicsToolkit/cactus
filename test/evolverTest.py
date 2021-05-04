@@ -144,8 +144,8 @@ class TestCase(unittest.TestCase):
         in_seqfile = os.path.join(self.tempDir, 'evolverMammalsIn.txt')
         with open(in_seqfile, 'w') as inseq:
             inseq.write('(simMouse_chr6:0.084509,simRat_chr6:0.091589);\n')
-            inseq.write('simMouse_chr6 http://s3-us-west-2.amazonaws.com/jcarmstr-misc/testRegions/evolverMammals/simMouse.chr6\n')
-            inseq.write('simRat_chr6 http://s3-us-west-2.amazonaws.com/jcarmstr-misc/testRegions/evolverMammals/simRat.chr6\n')
+            inseq.write('simMouse_chr6  https://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/mammals/loci1/simMouse.chr6\n')
+            inseq.write('simRat_chr6 https://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/mammals/loci1/simRat.chr6\n')
 
         cmd = ['cactus-prepare', in_seqfile, '--outDir', out_dir, '--outSeqFile', out_seqfile, '--outHal', self._out_hal(binariesMode),
                '--jobStore', self._job_store(binariesMode)]
