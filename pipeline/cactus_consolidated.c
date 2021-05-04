@@ -350,7 +350,8 @@ int main(int argc, char *argv[]) {
     st_logInfo("Ran extended flowers ready for bar, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     bar(leafFlowers, params, cactusDisk, NULL);
-    st_logInfo("Ran cactus bar, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+    int64_t usePoa = cactusParams_get_int(params, 2, "bar", "partialOrderAlignment");
+    st_logInfo("Ran cactus bar (use poa:%i), %" PRIi64 " seconds have elapsed\n", (int)usePoa, time(NULL) - startTime);
     stList_destruct(leafFlowers);
 
     if(runChecks) {

@@ -196,12 +196,12 @@
 		rescue="0"
 		minimumSizeToRescue="100"
 		minimumCoverageToRescue="0.5"
-		partialOrderAlignment="1"
+		partialOrderAlignment="0"
 		partialOrderAlignmentWindow="10000"
 		partialOrderAlignmentMaskFilter="-1"
 		partialOrderAlignmentBandConstant="25"
 		partialOrderAlignmentBandFraction="0.025"
-		useMumAnchors="0"
+		useMumAnchors="1"
 		recursiveMums="1"
 	>
 		<CactusBarRecursion maxFlowerGroupSize="100000000"/>
