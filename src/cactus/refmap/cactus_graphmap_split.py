@@ -89,16 +89,17 @@ def main():
 def runCactusGraphMapSplit(options):
     with Toil(options) as toil:
         importSingularityImage(options)
+
+        #load cactus config
+        configNode = ET.parse(options.configFile).getroot()
+        config = ConfigWrapper(configNode)
+        config.substituteAllPredefinedConstantsWithLiterals()
+
         #Run the workflow
         if options.restart:
             wf_output = toil.restart()
         else:
             options.cactusDir = getTempDirectory()
-
-            #load cactus config
-            configNode = ET.parse(options.configFile).getroot()
-            config = ConfigWrapper(configNode)
-            config.substituteAllPredefinedConstantsWithLiterals()
 
             # load up the contigs if any
             ref_contigs = set(options.refContigs)
@@ -171,7 +172,7 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
 
     mask_bed_id = None
     if options.maskFilter:
-        mask_bed_id = root_job.addChildJobFn(get_mask_bed, seqIDMap, options.maskFilter).rv()
+        mask_bed_id = root_job.addChildJobFn(get_mask_bed, config, seqIDMap, options.maskFilter).rv()
         
     # use rgfa-split to split the gfa and paf up by contig
     split_gfa_job = root_job.addFollowOnJobFn(split_gfa, config, gfa_id, [paf_id], ref_contigs,
@@ -187,9 +188,13 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
     # try splitting the ambiguous sequences using minimap2, which is more sensitive in some cases
     remap_job = gather_fas_job.addFollowOnJobFn(split_minimap_fallback, options, config, seqIDMap, gather_fas_job.rv())
 
+    remask_bed_id = None
+    if mask_bed_id:
+        remask_bed_id = remap_job.addChildJobFn(get_mask_bed, config, seqIDMap, options.maskFilter, amb_id_map=gather_fas_job.rv()).rv()
+
     # partition these into fasta files
     split_fallback_gfa_job = remap_job.addFollowOnJobFn(split_gfa, config, None, remap_job.rv(0), ref_contigs,
-                                                        other_contig, options.reference, mask_bed_id,
+                                                        other_contig, options.reference, remask_bed_id,
                                                         disk=(gfa_size + paf_size) * 5)
 
     # use the output of the above to split the ambiguous fastas
@@ -206,18 +211,35 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
     # return all the files, as well as the 2 split logs
     return (seqIDMap, combine_split_job.rv(), split_gfa_job.rv(1), split_fallback_gfa_job.rv(1))
 
-def get_mask_bed(job, seq_id_map, min_length):
+def get_mask_bed(job, config, seq_id_map, min_length, amb_id_map=None):
     """ make a bed file from the fastas """
+    
+    if amb_id_map:
+        # hack to fish the ids out of a full map using the ambiguous contig (use only in remapping)
+        amb_name = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "ambiguousName", default="_AMBIGUOUS_")
+        assert amb_name in amb_id_map
+        fixed_id_map = {}
+        for event, fa_id in amb_id_map[amb_name]['fa'].items():
+            fixed_id_map[event] = seq_id_map[event][0], fa_id
+        seq_id_map = fixed_id_map
+    
     beds = []
+    events = []
     for event in seq_id_map.keys():
         fa_path, fa_id = seq_id_map[event]
         beds.append(job.addChildJobFn(get_mask_bed_from_fasta, event, fa_id, fa_path, min_length, disk=fa_id.size * 5).rv())
-    return job.addFollowOnJobFn(cat_beds, beds).rv()
+        events.append(event)
+    return job.addFollowOnJobFn(cat_beds, beds, events).rv()
 
-def cat_beds(job, bed_ids):
+def cat_beds(job, bed_ids, events):
     in_beds = [job.fileStore.readGlobalFile(bed_id) for bed_id in bed_ids]
     out_bed = job.fileStore.getLocalTempFile()
-    catFiles(in_beds, out_bed)
+    with open(out_bed, 'w') as out_file:
+        for event, bed_path in zip(events, in_beds):
+            with open(bed_path, 'r') as in_file:
+                for line in in_file:
+                    if len(line) > 3:
+                        out_file.write('id={}|{}'.format(event, line))
     return job.fileStore.writeGlobalFile(out_bed)
     
 def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference_event, mask_bed_id):
@@ -226,6 +248,10 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
 
     if not paf_ids:
         # we can bypass when, ex, doing second pass on ambiguous sequences but not are present
+        return [None, None]
+
+    if not gfa_id and not getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "remap", typeFn=bool, default=False):
+        # also bypass if remapping is off in the config (we know it's the second pass because gfa_id is None)
         return [None, None]
     
     work_dir = job.fileStore.getLocalTempDir()
@@ -281,6 +307,11 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
     min_mapq = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minMAPQ")
     if min_mapq:
         cmd += ['-A', min_mapq]
+    # optional stuff added to second pass:
+    if not gfa_id:
+        remap_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "remapSplitOptions", default=None)
+        if remap_opts:
+            cmd += remap_opts.split(' ')
         
     for contig in ref_contigs:
         cmd += ['-c', contig]
@@ -407,7 +438,7 @@ def split_minimap_fallback(job, options, config, seqIDMap, output_id_map):
     paf_ids = []
     ambiguous_seq_id_map = {}
     for event, fa_id in output_id_map[amb_name]['fa'].items():
-        paf_job = mm_map_root_job.addChildJobFn(minimap_map, mm_index_job.rv(), event, fa_id, seqIDMap[event][0],
+        paf_job = mm_map_root_job.addChildJobFn(minimap_map, options, config, mm_index_job.rv(), event, fa_id, seqIDMap[event][0],
                                                 disk=ref_id.size * 3, memory=mm_mem)
         paf_ids.append(paf_job.rv())
         ambiguous_seq_id_map[event] = (seqIDMap[event][0], fa_id)
@@ -426,7 +457,7 @@ def minimap_index(job, ref_name, ref_id):
 
     return job.fileStore.writeGlobalFile(idx_path)
 
-def minimap_map(job, minimap_index_id, event, fa_id, fa_name):
+def minimap_map(job, options, config, minimap_index_id, event, fa_id, fa_name):
     """ run minimap2 """
     work_dir = job.fileStore.getLocalTempDir()
     idx_path = os.path.join(work_dir, "minmap2.idx")
@@ -435,11 +466,23 @@ def minimap_map(job, minimap_index_id, event, fa_id, fa_name):
     job.fileStore.readGlobalFile(fa_id, fa_path)
     paf_path = fa_path + ".paf"
 
+    if fa_path.endswith('.gz') and os.path.getsize(fa_path):
+        fa_path = fa_path[:-3]
+        cactus_call(parameters = ['gzip', '-d', '-c', fa_path + '.gz'], outfile=fa_path)
+
     # call minimap2 and stick our unique identifiers on the output right away to be consistent
-    # with cactus-graphmap's paf output
-    cactus_call(parameters=[['minimap2', idx_path, fa_path, '-c', '-x', 'asm5'],
-                            ['awk', 'BEGIN {{OFS="\t"}} $1="id={}|"$1'.format(event)]],
-                outfile=paf_path)
+    # with cactus-graphmap's paf output        
+    cmd = [['minimap2', idx_path, fa_path, '-c', '-x', 'asm5'],
+           ['awk', 'BEGIN {{OFS="\t"}} $1="id={}|"$1'.format(event)]]
+
+    # ignore masked regions by hardmasking them first (like we do in minigraph_map_one())
+    xml_node = findRequiredNode(config.xmlRoot, "graphmap")
+    mask_filter = options.maskFilter if options.maskFilter else getOptionalAttrib(xml_node, "maskFilter", int, default=-1)
+    if mask_filter >= 0:
+        cmd[0][2] = '-'
+        cmd = [['cactus_softmask2hardmask', fa_path, '-m', str(mask_filter)], cmd[0], cmd[1]]
+
+    cactus_call(parameters=cmd, outfile=paf_path)
 
     return job.fileStore.writeGlobalFile(paf_path)    
     
@@ -588,7 +631,6 @@ def combine_paf_splits(job, options, seq_id_map, original_id_map, orig_amb_entry
                         minimap_paf_path = os.path.join(work_dir, '{}.minimap.paf'.format(ref_contig))
                         job.fileStore.readGlobalFile(remap_id_map[ref_contig]['paf'], minimap_paf_path)
                         with open(minimap_paf_path, 'r') as minimap_paf_file:
-                            RealtimeLogger.info("COPYING {} to {}".format(minimap_paf_path, new_contig_path))
                             for line in minimap_paf_file:
                                 toks = line.split('\t')
                                 if len(toks) > 5:

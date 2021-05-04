@@ -294,7 +294,9 @@
 	<!-- minQuerySmallThreshold: Threshold used to toggle between minQueryCoverage and minuQuerySmallCoverage. -->
 	<!-- minQueryUniqueness: The ratio of the number of query bases aligned to the chosen ref contig vs the next best ref contig must exceed this threshold to not be considered ambigious. -->
 	<!-- maxGap: Include indel gaps <= maxGap when counting minigraph coverage -->	
-	<!-- ambiguousName: Contigs deemed ambiguous using the above filters get added to a "contig" with this name, and are preserved in output. -->		
+	<!-- ambiguousName: Contigs deemed ambiguous using the above filters get added to a "contig" with this name, and are preserved in output. -->
+	<!-- remap: 1: remap ambiguous contigs with minimap2 0: don't -->
+	<!-- remapSplitOptions: extra rgfa-split options to apply when splitting after remapping -->
 	<graphmap_split
 		 minQueryCoverage="0.65"
 		 minQuerySmallCoverage="0.75"
@@ -302,6 +304,8 @@
 		 minQueryUniqueness="3"
 		 maxGap="50000"
 		 ambiguousName="_AMBIGUOUS_"
+		 remap="1"
+		 remapSplitOptions="-u 2000000 -s"
 		 />
 	<!-- hal2vg options -->
 	<!-- includeMinigraph: include minigraph node sequences as paths in output -->
