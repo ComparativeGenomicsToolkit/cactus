@@ -201,7 +201,7 @@
 		partialOrderAlignmentMaskFilter="-1"
 		partialOrderAlignmentBandConstant="25"
 		partialOrderAlignmentBandFraction="0.025"
-		useMumAnchors="1"
+		useMumAnchors="0"
 		recursiveMums="1"
 	>
 		<CactusBarRecursion maxFlowerGroupSize="100000000"/>
