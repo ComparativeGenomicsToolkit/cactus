@@ -470,17 +470,22 @@ def minimap_map(job, options, config, minimap_index_id, event, fa_id, fa_name):
         fa_path = fa_path[:-3]
         cactus_call(parameters = ['gzip', '-d', '-c', fa_path + '.gz'], outfile=fa_path)
 
-    # call minimap2 and stick our unique identifiers on the output right away to be consistent
-    # with cactus-graphmap's paf output        
-    cmd = [['minimap2', idx_path, fa_path, '-c', '-x', 'asm5'],
-           ['awk', 'BEGIN {{OFS="\t"}} $1="id={}|"$1'.format(event)]]
+    # call minimap2 
+    cmd = [['minimap2', idx_path, fa_path, '-c', '-x', 'asm5']]
 
-    # ignore masked regions by hardmasking them first (like we do in minigraph_map_one())
+    # ignore masked regions by clipping them out of the paf
     xml_node = findRequiredNode(config.xmlRoot, "graphmap")
     mask_filter = options.maskFilter if options.maskFilter else getOptionalAttrib(xml_node, "maskFilter", int, default=-1)
     if mask_filter >= 0:
-        cmd[0][2] = '-'
-        cmd = [['cactus_softmask2hardmask', fa_path, '-m', str(mask_filter)], cmd[0], cmd[1]]
+        bed_path = os.path.join(work_dir, 'masked-regions.bed')
+        cactus_call(parameters = ['cactus_softmask2hardmask', fa_path, '-m', str(mask_filter)], outfile=bed_path)
+        # todo: the -v here does base-by-base validation of the output.  it slows things down but using it
+        # out of an abundance of caution for now.  should remove it for release though!
+        cmd.append(['pafmask', '-', bed_path , '-v'])
+
+    # and stick our unique identifiers on the output right away to be consistent
+    # with cactus-graphmap's paf output                
+    cmd.append(['awk', 'BEGIN {{OFS="\t"}} $1="id={}|"$1'.format(event)])
 
     cactus_call(parameters=cmd, outfile=paf_path)
 

@@ -302,10 +302,15 @@ def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id,
            os.path.basename(fa_path),
            "-o", os.path.basename(gaf_path)] + opts_list
 
+
+    # ignore masked regions by clipping them out of the paf
     mask_filter = getOptionalAttrib(xml_node, "maskFilter", int, default=-1)
     if mask_filter >= 0:
-        cmd[2] = '-'
-        cmd = [['cactus_softmask2hardmask', os.path.basename(fa_path), '-m', str(mask_filter)], cmd]
+        bed_path = os.path.join(work_dir, 'masked-regions.bed')
+        cactus_call(parameters = ['cactus_softmask2hardmask', fa_path, '-m', str(mask_filter)], outfile=bed_path)
+        # todo: the -v here does base-by-base validation of the output.  it slows things down but using it
+        # out of an abundance of caution for now.  should remove it for release though!
+        cmd = [cmd, ['pafmask', '-', os.path.basename(bed_path), '-v']]
 
     cactus_call(work_dir=work_dir, parameters=cmd)
 
