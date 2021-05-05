@@ -21,8 +21,11 @@ PairwiseAlignmentParameters *pairwiseAlignmentParameters_constructFromCactusPara
     PairwiseAlignmentParameters *p = pairwiseAlignmentBandingParameters_construct();
     p->gapGamma = cactusParams_get_float(params, 2, "bar", "gapGamma");
     p->splitMatrixBiggerThanThis = cactusParams_get_int(params, 2, "bar", "splitMatrixBiggerThanThis");
+    p->splitMatrixBiggerThanThis *= p->splitMatrixBiggerThanThis;
     p->anchorMatrixBiggerThanThis = cactusParams_get_int(params, 2, "bar", "anchorMatrixBiggerThanThis");
+    p->anchorMatrixBiggerThanThis *= p->anchorMatrixBiggerThanThis;
     p->repeatMaskMatrixBiggerThanThis = cactusParams_get_int(params, 2, "bar", "repeatMaskMatrixBiggerThanThis");
+    p->repeatMaskMatrixBiggerThanThis *= p->repeatMaskMatrixBiggerThanThis;
     p->diagonalExpansion = cactusParams_get_int(params, 2, "bar", "diagonalExpansion");
     p->constraintDiagonalTrim = cactusParams_get_int(params, 2, "bar", "constraintDiagonalTrim");
     p->alignAmbiguityCharacters = cactusParams_get_int(params, 2, "bar", "alignAmbiguityCharacters");
