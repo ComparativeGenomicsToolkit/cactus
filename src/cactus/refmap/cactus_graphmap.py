@@ -324,7 +324,7 @@ def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id,
 
     return gaf_id, paf_id
 
-def merge_gafs_into_paf(job, config, gaf_file_id_map, gaf_paths = []):
+def merge_gafs_into_paf(job, config, gaf_file_id_map, gaf_paths = [], bed_path = None):
     """ Merge GAF alignments into a single PAF, applying some filters """
 
     work_dir = job.fileStore.getLocalTempDir()
