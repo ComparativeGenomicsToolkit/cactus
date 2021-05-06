@@ -190,7 +190,7 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
 
     # partition these into fasta files
     split_fallback_gfa_job = remap_job.addFollowOnJobFn(split_gfa, config, None, remap_job.rv(0), ref_contigs,
-                                                        other_contig, options.reference, mask_bed_id,
+                                                        other_contig, options.reference, None,
                                                         disk=(gfa_size + paf_size) * 5)
 
     # use the output of the above to split the ambiguous fastas
