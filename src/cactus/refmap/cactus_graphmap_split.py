@@ -361,7 +361,12 @@ def split_fa_into_contigs(job, event, fa_id, fa_path, split_id_map):
                     contig_count += 1
         contig_fasta_path = os.path.join(work_dir, '{}_{}.fa'.format(event, ref_contig))
         if contig_count > 0:
-            cmd = ['samtools', 'faidx', fa_path, '--region-file', faidx_input_path]
+            cmd = [['samtools', 'faidx', fa_path, '--region-file', faidx_input_path]]
+            # transform chr1:10-15 (1-based inclusive) into chr1_sub_9_15 (0-based end open)
+            # this is a format that contains no special characters in order to make assembly hubs
+            # happy.  But it does require conversion going into vg which wants chr[9-15] and
+            # hal2vg can get updated to do this autmatically
+            cmd.append(['sed', '-e', 's/\([^:]*\):\([0-9]*\)-\([0-9]*\)/echo "\\1_sub_$((\\2-1))_\\3"/e'])
             if is_gz:
                 cmd = [cmd, ['gzip']]
             cactus_call(parameters=cmd, outfile=contig_fasta_path)
