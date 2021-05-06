@@ -368,7 +368,7 @@ def split_fa_into_contigs(job, event, fa_id, fa_path, split_id_map):
             # hal2vg can get updated to do this autmatically
             cmd.append(['sed', '-e', 's/\([^:]*\):\([0-9]*\)-\([0-9]*\)/echo "\\1_sub_$((\\2-1))_\\3"/e'])
             if is_gz:
-                cmd = [cmd, ['gzip']]
+                cmd.append(['gzip'])
             cactus_call(parameters=cmd, outfile=contig_fasta_path)
         else:
             # TODO: review how cases like this are handled
