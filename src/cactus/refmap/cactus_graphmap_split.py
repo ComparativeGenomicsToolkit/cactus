@@ -89,16 +89,17 @@ def main():
 def runCactusGraphMapSplit(options):
     with Toil(options) as toil:
         importSingularityImage(options)
+
+        #load cactus config
+        configNode = ET.parse(options.configFile).getroot()
+        config = ConfigWrapper(configNode)
+        config.substituteAllPredefinedConstantsWithLiterals()
+
         #Run the workflow
         if options.restart:
             wf_output = toil.restart()
         else:
             options.cactusDir = getTempDirectory()
-
-            #load cactus config
-            configNode = ET.parse(options.configFile).getroot()
-            config = ConfigWrapper(configNode)
-            config.substituteAllPredefinedConstantsWithLiterals()
 
             # load up the contigs if any
             ref_contigs = set(options.refContigs)
@@ -201,7 +202,7 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
 
     # combine the split sequences with the split ambigious sequences
     combine_split_job = gather_fallback_fas_job.addFollowOnJobFn(combine_splits, options, config, seqIDMap, gather_fas_job.rv(),
-                                                                 gather_fallback_fas_job.rv(), True)
+                                                                 gather_fallback_fas_job.rv())
 
     # return all the files, as well as the 2 split logs
     return (seqIDMap, combine_split_job.rv(), split_gfa_job.rv(1), split_fallback_gfa_job.rv(1))
@@ -226,6 +227,10 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
 
     if not paf_ids:
         # we can bypass when, ex, doing second pass on ambiguous sequences but not are present
+        return [None, None]
+
+    if not gfa_id and not getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "remap", typeFn=bool, default=False):
+        # also bypass if remapping is off in the config (we know it's the second pass because gfa_id is None)
         return [None, None]
     
     work_dir = job.fileStore.getLocalTempDir()
@@ -281,7 +286,11 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
     min_mapq = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minMAPQ")
     if min_mapq:
         cmd += ['-A', min_mapq]
-        
+    # optional stuff added to second pass:
+    if not gfa_id:
+        remap_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "remapSplitOptions", default=None)
+        if remap_opts:
+            cmd += remap_opts.split(' ')        
     for contig in ref_contigs:
         cmd += ['-c', contig]
 
@@ -443,13 +452,9 @@ def minimap_map(job, minimap_index_id, event, fa_id, fa_name):
 
     return job.fileStore.writeGlobalFile(paf_path)    
     
-def combine_splits(job, options, config, seq_id_map, original_id_map, remap_id_map, use_minimap_paf):
+def combine_splits(job, options, config, seq_id_map, original_id_map, remap_id_map):
     """ combine the output of two runs of gather_fas.  the first is the contigs determined by minigraph,
-    the second from remapping the ambigious contigs with minimap2 
-    use_minimap_paf = True: return the minimap2 mappings for ambiguous contigs in final output
-    use_minimap_paf = False: ambiguous contigs are assigned to chromosomes base on minimap2, but their minigraph 
-                             alignments are returned in the final paf"""
-    
+    the second from remapping the ambigious contigs with minimap2 """    
     root_job = Job()
     job.addChild(root_job)
 
@@ -482,8 +487,8 @@ def combine_splits(job, options, config, seq_id_map, original_id_map, remap_id_m
                                                                  remap_id_map[ref_contig],
                                                                  disk=total_size * 4).rv()
 
-    return root_job.addFollowOnJobFn(combine_paf_splits, options, seq_id_map, original_id_map, orig_amb_entry,
-                                     remap_id_map, amb_name, graph_event, use_minimap_paf).rv()
+    return root_job.addFollowOnJobFn(combine_paf_splits, options, config, seq_id_map, original_id_map, orig_amb_entry,
+                                     remap_id_map, amb_name, graph_event).rv()
 
 def combine_ref_contig_splits(job, original_ref_entry, remap_ref_entry):
     """ combine fa and paf files for splits for a ref contig """
@@ -504,14 +509,10 @@ def combine_ref_contig_splits(job, original_ref_entry, remap_ref_entry):
                 
     return original_ref_entry
 
-def combine_paf_splits(job, options, seq_id_map, original_id_map, orig_amb_entry,
-                       remap_id_map, amb_name, graph_event, use_minimap_paf):
+def combine_paf_splits(job, options, config, seq_id_map, original_id_map, orig_amb_entry,
+                       remap_id_map, amb_name, graph_event):
     """ pull out PAF entries for contigs that were ambiguous in the first round but assigned by minimap2
-    then add them to the chromosome PAFs 
-    
-    use_minimap_paf toggles whether the mappings for ambiguous contigs are pulled out of the __AMBIGOUS__.paf
-    derived from minigraph (which would map the contigs to the minigraph nodes like everything else) 
-    or whether the minimap2 mappings (mapping the contigs to the reference are used directly)
+    then add them to the chromosome PAFs     
     """
 
     if amb_name not in original_id_map:
@@ -520,6 +521,12 @@ def combine_paf_splits(job, options, seq_id_map, original_id_map, orig_amb_entry
     work_dir = job.fileStore.getLocalTempDir()
     amb_paf_path = os.path.join(work_dir, 'amb.paf')
     job.fileStore.readGlobalFile(orig_amb_entry['paf'], amb_paf_path, mutable=True)
+
+    #use_minimap_paf = True: return the minimap2 mappings for ambiguous contigs in final output
+    #use_minimap_paf = False: ambiguous contigs are assigned to chromosomes base on minimap2, but their minigraph 
+    #                         alignments are returned in the final paf"""
+    use_minimap_paf = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "useMinimapPAF",
+                                        typeFn=bool, default=False) 
 
     for ref_contig in remap_id_map.keys():
         if ref_contig != amb_name and ref_contig in original_id_map:
@@ -588,7 +595,6 @@ def combine_paf_splits(job, options, seq_id_map, original_id_map, orig_amb_entry
                         minimap_paf_path = os.path.join(work_dir, '{}.minimap.paf'.format(ref_contig))
                         job.fileStore.readGlobalFile(remap_id_map[ref_contig]['paf'], minimap_paf_path)
                         with open(minimap_paf_path, 'r') as minimap_paf_file:
-                            RealtimeLogger.info("COPYING {} to {}".format(minimap_paf_path, new_contig_path))
                             for line in minimap_paf_file:
                                 toks = line.split('\t')
                                 if len(toks) > 5:
