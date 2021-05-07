@@ -67,6 +67,9 @@ def main():
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
 
+    if options.maskFilter:
+        # todo: delete codepath entirely
+        raise RuntimeError("--maskFilter is replaced with --pafMaskFilter in cactus-align")
     options = parser.parse_args()
 
     setupBinaries(options)
