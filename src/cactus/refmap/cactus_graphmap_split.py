@@ -303,6 +303,11 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
             name = file_name[len(os.path.basename(out_prefix)):]
             if name not in output_id_map:
                 output_id_map[name] = {}
+            if ext == '.paf':
+                # apply the hacky naming correction so that subpaths have no special characterse in the hal (to make hubs happy)
+                # this gets undone by hal2vg
+                cactus_call(parameters=['sed', '-i', '-e', 's/\([^:]*\):\([0-9]*\)-\([0-9]*\)/echo "\\1_sub_$((\\2-1))_\\3"/e', out_name],
+                            work_dir=work_dir) 
             output_id_map[name][ext[1:]] = job.fileStore.writeGlobalFile(os.path.join(work_dir, out_name))
             
     return output_id_map, job.fileStore.writeGlobalFile(log_path)
