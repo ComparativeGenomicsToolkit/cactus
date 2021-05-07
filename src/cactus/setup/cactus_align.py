@@ -608,7 +608,7 @@ def run_prepend_unique_ids(job, cactusWorkflowArguments, project, renameCigars, 
                             if toks[0] not in id_map:
                                 raise RuntimeError('bed id {} not found in id-map {}'.format(toks[0], str(idMap)[:1000]))
                             toks[0] = id_map[toks[0]]
-                            mask_bed_path.write('\t'.join(toks))
+                            mask_bed_file.write('\t'.join(toks))
         mask_bed_id = job.fileStore.writeGlobalFile(mask_bed_path)
     
     return cactusWorkflowArguments, mask_bed_id
