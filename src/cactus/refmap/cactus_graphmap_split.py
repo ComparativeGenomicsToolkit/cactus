@@ -312,7 +312,8 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
             if ext == '.paf':
                 # apply the hacky naming correction so that subpaths have no special characterse in the hal (to make hubs happy)
                 # this gets undone by hal2vg
-                cactus_call(parameters=['sed', '-i', '-e', 's/\([^:]*\):\([0-9]*\)-\([0-9]*\)/echo "\\1_sub_$((\\2-1))_\\3"/e', os.path.join(work_dir, out_name)]) 
+                cactus_call(parameters=['sed', '-i', '-e', 's/\([^:]*\):\([0-9]*\)-\([0-9]*\)/echo "\\1_sub_$((\\2-1))_\\3"/e',
+                                        '-e', 's/ /\t/g', os.path.join(work_dir, out_name)]) 
             output_id_map[name][ext[1:]] = job.fileStore.writeGlobalFile(os.path.join(work_dir, out_name))
             
     return output_id_map, job.fileStore.writeGlobalFile(log_path)
@@ -592,7 +593,7 @@ def combine_paf_splits(job, options, config, seq_id_map, original_id_map, orig_a
                 # pull out remapped contigs into this path
                 new_contig_path = os.path.join(work_dir, '{}.remap.paf'.format(ref_contig))
                 do_append = False
-                if ref_contig in original_id_map:
+                if ref_contig in original_id_map and 'paf' in original_id_map[ref_contig]:
                     job.fileStore.readGlobalFile(original_id_map[ref_contig]['paf'], new_contig_path, mutable=True)
                     do_append = True
                     
