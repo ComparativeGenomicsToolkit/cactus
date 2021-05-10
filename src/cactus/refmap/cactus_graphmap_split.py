@@ -304,7 +304,8 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
     output_id_map = {}
     for out_name in os.listdir(work_dir):
         file_name, ext = os.path.splitext(out_name)
-        if file_name.startswith(os.path.basename(out_prefix)) and ext in [".gfa", ".paf", ".fa_contigs"]:
+        if file_name.startswith(os.path.basename(out_prefix)) and ext in [".gfa", ".paf", ".fa_contigs"] and \
+           os.path.isfile(os.path.join(work_dir, file_name + ".fa_contigs")):
             name = file_name[len(os.path.basename(out_prefix)):]
             if name not in output_id_map:
                 output_id_map[name] = {}
@@ -536,11 +537,18 @@ def combine_paf_splits(job, options, config, seq_id_map, original_id_map, orig_a
     amb_paf_path = os.path.join(work_dir, 'amb.paf')
     job.fileStore.readGlobalFile(orig_amb_entry['paf'], amb_paf_path, mutable=True)
 
-    #use_minimap_paf = True: return the minimap2 mappings for ambiguous contigs in final output
-    #use_minimap_paf = False: ambiguous contigs are assigned to chromosomes base on minimap2, but their minigraph 
-    #                         alignments are returned in the final paf"""
+    # use_minimap_paf = True: return the minimap2 mappings for ambiguous contigs in final output
+    # use_minimap_paf = False: ambiguous contigs are assigned to chromosomes base on minimap2, but their minigraph 
+    #                          alignments are returned in the final paf"""
     use_minimap_paf = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "useMinimapPAF",
-                                        typeFn=bool, default=False) 
+                                        typeFn=bool, default=False)
+
+    # it's simpler not to support both codepaths right now.  the main issue is that -u can cause contigs to be split
+    # in which case they get renamed, so pulling them in from the existing PAF would require a pass to resolove all the
+    # offsets
+    if not use_minimap_paf and '-u' in getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "remapSplitOptions",
+                                                         default=""):
+        raise RuntimeError("useMinimapPAF must be set when -u present in remapSplitOptions")
 
     for ref_contig in remap_id_map.keys():
         if ref_contig != amb_name and ref_contig in original_id_map:
@@ -562,7 +570,7 @@ def combine_paf_splits(job, options, config, seq_id_map, original_id_map, orig_a
 
             #make a set of all the query contigs that we want to remove from ambiguous and add to this contig
             query_contig_set = set()
-            
+
             for event in remap_id_map[ref_contig]['fa']:
                 if event != graph_event and remap_id_map[ref_contig]['fa'][event].size > 0:
                     # read the contigs assigned to this sample for this chromosome by scanning fasta headers
@@ -579,7 +587,7 @@ def combine_paf_splits(job, options, config, seq_id_map, original_id_map, orig_a
                     with open(contigs_path, 'r') as contigs_file:
                         for line in contigs_file:
                             query_contig_set.add('id={}|{}'.format(event, line.strip()))
-                            
+
             if query_contig_set:
                 # pull out remapped contigs into this path
                 new_contig_path = os.path.join(work_dir, '{}.remap.paf'.format(ref_contig))
@@ -650,7 +658,9 @@ def export_split_data(toil, input_seq_id_map, output_id_map, split_log_ids, outp
 
         # PAF: <output_dir>/<contig>/<contig>.paf
         paf_path = os.path.join(ref_contig_path, '{}.paf'.format(ref_contig))
-        toil.exportFile(output_id_map[ref_contig]['paf'], makeURL(paf_path))
+        if 'paf' in output_id_map[ref_contig]:
+            # rgfa-split doesn't write empty pafs: todo: should it?
+            toil.exportFile(output_id_map[ref_contig]['paf'], makeURL(paf_path))
 
         # Fasta: <output_dir>/<contig>/fasta/<event>_<contig>.fa ..
         seq_file_map = {}

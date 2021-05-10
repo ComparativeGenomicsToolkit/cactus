@@ -307,7 +307,7 @@
 		 ambiguousName="_AMBIGUOUS_"
 		 remap="1"
 		 remapSplitOptions="-u 2000000 -s"
-		 useMinimapPAF="0"
+		 useMinimapPAF="1"
 		 />
 	<!-- hal2vg options -->
 	<!-- includeMinigraph: include minigraph node sequences as paths in output -->
