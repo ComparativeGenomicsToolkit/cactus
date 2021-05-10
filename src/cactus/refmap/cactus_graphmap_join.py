@@ -237,11 +237,13 @@ def vg_to_gfa(job, options, config, vg_path, vg_id):
     job.fileStore.readGlobalFile(vg_id, vg_path)
     out_path = vg_path + '.gfa'
 
-    cmd = ['vg', 'convert', '-f', '-Q', options.reference, vg_path, '-B']
+    cmd = ['vg', 'convert', '-f', '-Q', options.reference, os.path.basename(vg_path), '-B']
     if options.wlineSep:
         cmd += ['-w', options.wlineSep]
 
-    cactus_call(parameters=cmd, outfile=out_path)
+    # important, when options.wlineSep is ., it throws off prepareWorkDir in cactus_call
+    # so important to specify the work_dir below       
+    cactus_call(parameters=cmd, outfile=out_path, work_dir=work_dir)
 
     return job.fileStore.writeGlobalFile(out_path)
 
