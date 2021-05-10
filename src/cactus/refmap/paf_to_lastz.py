@@ -31,10 +31,7 @@ def paf_to_lastz(job, paf_file, sort_secondaries=True, mask_bed_id=None):
         cmd[1] = '-'
         cmd = [['pafmask', paf_path, mask_bed_path], cmd]
 
-    output=cactus_call(parameters=cmd, outfile=lastz_path, check_output=True, swallowStdErr=True)
-
-    if mask_bed_id:
-        RealtimeLogger.info("pafmask output: {}".format(output))
+    cactus_call(parameters=cmd, outfile=lastz_path)
 
     lastz_id = job.fileStore.writeGlobalFile(lastz_path)
 
