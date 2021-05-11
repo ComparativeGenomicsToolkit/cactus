@@ -36,7 +36,7 @@ from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import findRequiredNode
 from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import cactus_call
-from cactus.refmap import paf_to_lastz
+from cactus.refmap.paf_to_lastz import paf_to_lastz
 from cactus.shared.common import write_s3, has_s3, get_aws_region
 
 from toil.realtimeLogger import RealtimeLogger
@@ -433,7 +433,6 @@ def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, check
 
     # unzip the input sequences if necessary, and also extract paf masking beds
     preprocess_job = head_job.addChildJobFn(preprocess_input_sequences, configWrapper, project, cactusWorkflowArguments, pafMaskFilter, referenceEvent)
-    alignmentsID = cactusWorkflowArguments.alignmentsID
     no_ingroup_coverage = not cactusWorkflowArguments.ingroupCoverageIDs
     cactusWorkflowArguments = preprocess_job.rv(0)
     mask_beds = preprocess_job.rv(1)    
@@ -451,10 +450,8 @@ def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, check
     if pafInput:
         # convert the paf input to lastz format, splitting out into primary and secondary files
         # optionally apply the masking
-        paf_to_lastz_job = cur_job.addChildJobFn(paf_to_lastz.paf_to_lastz, alignmentsID, True, mask_bed_id)
-        cactusWorkflowArguments.alignmentsID = paf_to_lastz_job.rv(0)
-        cactusWorkflowArguments.secondaryAlignmentsID = paf_to_lastz_job.rv(1) if pafSecondaries else None
-        cur_job = paf_to_lastz_job
+        cur_job = cur_job.addFollowOnJobFn(mask_and_covert_paf, cactusWorkflowArguments, mask_bed_id)        
+        cactusWorkflowArguments = cur_job.rv()
     
     if no_ingroup_coverage:
         # if we're not taking cactus_blast input, then we need to recompute the ingroup coverage
@@ -483,6 +480,13 @@ def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, check
         vg_file_id, gfa_file_id = None, None
         
     return hal_export_job.rv(), vg_file_id, gfa_file_id
+
+def mask_and_convert_paf(job, cactusWorkflowArguments, mask_bed_id):
+    """ convert to lastz and run masking.  just wraps paf_to_lastz, but resolves the workflow promise on the way """
+    paf_to_lastz_job = job.addChildJobFn(paf_to_lastz, cactusWorkflowArguments.alignmentsID, True, mask_bed_id)
+    cactusWorkflowArguments.alignmentsID = paf_to_lastz_job.rv(0)
+    cactusWorkflowArguments.secondaryAlignmentsID = paf_to_lastz_job.rv(1) if pafSecondaries else None
+    return cactusWorkflowArguments
 
 def preprocess_input_sequences(job, configWrapper, project, cactusWorkflowArguments, pafMaskFilter=None, referenceEvent=None):
     """ update the workflow arguments in place with unzipped version of any input fastas whose paths 
