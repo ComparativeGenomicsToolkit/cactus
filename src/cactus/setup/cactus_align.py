@@ -447,7 +447,7 @@ def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, check
     if pafInput:
         # convert the paf input to lastz format, splitting out into primary and secondary files
         # optionally apply the masking
-        cur_job = cur_job.addFollowOnJobFn(mask_and_covert_paf, cactusWorkflowArguments, mask_bed_id)        
+        cur_job = cur_job.addFollowOnJobFn(mask_and_convert_paf, cactusWorkflowArguments, pafSecondaries, mask_bed_id)        
         cactusWorkflowArguments = cur_job.rv()
     
     if no_ingroup_coverage:
@@ -478,7 +478,7 @@ def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, check
         
     return hal_export_job.rv(), vg_file_id, gfa_file_id
 
-def mask_and_convert_paf(job, cactusWorkflowArguments, mask_bed_id):
+def mask_and_convert_paf(job, cactusWorkflowArguments, pafSecondaries, mask_bed_id):
     """ convert to lastz and run masking.  just wraps paf_to_lastz, but resolves the workflow promise on the way """
     paf_to_lastz_job = job.addChildJobFn(paf_to_lastz, cactusWorkflowArguments.alignmentsID, True, mask_bed_id)
     cactusWorkflowArguments.alignmentsID = paf_to_lastz_job.rv(0)
