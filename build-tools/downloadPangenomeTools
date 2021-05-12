@@ -147,7 +147,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://github.com/ComparativeGenomicsToolkit/cactus-gfa-tools.git
 cd cactus-gfa-tools
-git checkout 2b368f6d390e47852dd8425b09955d8d21bd9d51
+git checkout b87f73eb77dce7b3fd921b0cf7d4447f7f559500
 make -j 4
 if [[ $STATIC_CHECK -ne 1 || $(ldd paf2lastz | grep so | wc -l) -eq 0 ]]
 then
