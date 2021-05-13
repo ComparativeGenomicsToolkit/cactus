@@ -64,6 +64,7 @@ def main():
     parser.add_argument("--outDir", required=True, type=str, help = "Output directory")
     parser.add_argument("--outName", required=True, type=str, help = "Basename of all output files")
     parser.add_argument("--reference", required=True, type=str, help = "Reference event name")
+    parser.add_argument("--vcfReference", type=str, help = "Reference event for VCF (if different from --reference)")
     parser.add_argument("--rename", nargs='+', default = [], help = "Path renaming, each of form src>dest (see clip-vg -r)")
     parser.add_argument("--clipLength", type=int, default=None, help = "clip out unaligned sequences longer than this")
     parser.add_argument("--wlineSep", type=str, help = "wline separator for vg convert")
@@ -286,7 +287,8 @@ def vg_indexes(job, options, config, gfa_ids):
 
     # make the vcf
     vcf_path = os.path.join(work_dir, 'merged.vcf.gz')
-    cactus_call(parameters=[['vg', 'deconstruct', xg_path, '-P', options.reference, '-a', '-r', snarls_path, '-g', gbwt_path,
+    vcf_ref = options.vcfReference if options.vcfReference else options.reference
+    cactus_call(parameters=[['vg', 'deconstruct', xg_path, '-P', vcf_ref, '-a', '-r', snarls_path, '-g', gbwt_path,
                              '-T', trans_path, '-t', str(job.cores)],
                             ['bgzip', '--threads', str(job.cores)]],
                 outfile=vcf_path)
