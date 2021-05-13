@@ -234,7 +234,7 @@ cd ${pangenomeBuildDir}
 #
 # temp hack until next release
 #
-wget -g http://public.gi.ucsc.edu/~hickey/vg
+wget -q http://public.gi.ucsc.edu/~hickey/vg
 chmod +x vg
 if [[ $STATIC_CHECK -ne 1 || $(ldd vg | grep so | wc -l) -eq 0 ]]
 then
