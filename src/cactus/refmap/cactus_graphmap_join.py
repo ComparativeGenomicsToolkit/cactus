@@ -336,7 +336,7 @@ def export_join_data(toil, options, clip_ids, idx_map, merge_hal_id):
     """
 
     # download the clip vgs
-    clip_base = os.path.join(options.outDir, 'clip')
+    clip_base = os.path.join(options.outDir, 'clip-{}'.format(options.outName))
     if not clip_base.startswith('s3://') and not os.path.isdir(clip_base):
         os.makedirs(clip_base)
 
