@@ -69,11 +69,6 @@ def main():
 
     options = parser.parse_args()
 
-    if options.maskFilter:
-        # todo: delete codepath entirely
-        raise RuntimeError("--maskFilter is replaced with --pafMaskFilter in cactus-align")
-
-
     setupBinaries(options)
     setLoggingFromOptions(options)
     enableDumpStack()
