@@ -205,7 +205,13 @@ def clip_vg(job, options, config, vg_path, vg_id):
         cmd += ['-r', rs]
     if options.reference:
         cmd += ['-e', options.reference]
-
+    
+    if getOptionalAttrib(findRequiredNode(config.xmlRoot, "hal2vg"), "includeMinigraph", typeFn=bool, default=False):
+        # our vg file has minigraph sequences -- we'll filter them out, along with any nodes
+        # that don't appear in a non-minigraph path
+        graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
+        cmd += ['-d', graph_event]
+        
     # sort while we're at it
     cmd = [cmd, ['vg', 'ids', '-s', '-']]
         
