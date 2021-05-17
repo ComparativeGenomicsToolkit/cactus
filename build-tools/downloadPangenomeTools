@@ -147,7 +147,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://github.com/ComparativeGenomicsToolkit/cactus-gfa-tools.git
 cd cactus-gfa-tools
-git checkout 49b41773971a99a85f60c4e4eabbf174acac5e6f
+git checkout fb984a271cc11352d1561005e6f701ef07429ad1
 make -j 4
 if [[ $STATIC_CHECK -ne 1 || $(ldd paf2lastz | grep so | wc -l) -eq 0 ]]
 then
@@ -179,10 +179,16 @@ then
 else
 	 exit 1
 fi
+if [[ $STATIC_CHECK -ne 1 || $(ldd pafmask | grep so | wc -l) -eq 0 ]]
+then
+	 mv pafmask ${binDir}
+else
+	 exit 1
+fi
 
 # hal2vg
 cd ${pangenomeBuildDir}
-wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.9/hal2vg
+wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.10/hal2vg
 chmod +x hal2vg
 if [[ $STATIC_CHECK -ne 1 || $(ldd hal2vg | grep so | wc -l) -eq 0 ]]
 then
@@ -192,7 +198,7 @@ else
 fi
 # clip-vg
 cd ${pangenomeBuildDir}
-wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.9/clip-vg
+wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.10/clip-vg
 chmod +x clip-vg
 if [[ $STATIC_CHECK -ne 1 || $(ldd clip-vg | grep so | wc -l) -eq 0 ]]
 then
@@ -202,7 +208,7 @@ else
 fi
 # halRemoveDupes
 cd ${pangenomeBuildDir}
-wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.9/halRemoveDupes
+wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.10/halRemoveDupes
 chmod +x halRemoveDupes
 if [[ $STATIC_CHECK -ne 1 || $(ldd halRemoveDupes | grep so | wc -l) -eq 0 ]]
 then
@@ -212,7 +218,7 @@ else
 fi
 # halMergeChroms
 cd ${pangenomeBuildDir}
-wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.9/halMergeChroms
+wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.10/halMergeChroms
 chmod +x halMergeChroms
 if [[ $STATIC_CHECK -ne 1 || $(ldd halMergeChroms | grep so | wc -l) -eq 0 ]]
 then
@@ -223,7 +229,12 @@ fi
 
 # vg
 cd ${pangenomeBuildDir}
-wget -q https://github.com/vgteam/vg/releases/download/v1.31.0/vg
+#
+# wget -q https://github.com/vgteam/vg/releases/download/v1.33.0/vg
+#
+# temp hack until next release
+#
+wget -q http://public.gi.ucsc.edu/~hickey/vg
 chmod +x vg
 if [[ $STATIC_CHECK -ne 1 || $(ldd vg | grep so | wc -l) -eq 0 ]]
 then

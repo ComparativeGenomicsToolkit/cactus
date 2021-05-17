@@ -64,6 +64,7 @@ def main():
     parser.add_argument("--outDir", required=True, type=str, help = "Output directory")
     parser.add_argument("--outName", required=True, type=str, help = "Basename of all output files")
     parser.add_argument("--reference", required=True, type=str, help = "Reference event name")
+    parser.add_argument("--vcfReference", type=str, help = "Reference event for VCF (if different from --reference)")
     parser.add_argument("--rename", nargs='+', default = [], help = "Path renaming, each of form src>dest (see clip-vg -r)")
     parser.add_argument("--clipLength", type=int, default=None, help = "clip out unaligned sequences longer than this")
     parser.add_argument("--wlineSep", type=str, help = "wline separator for vg convert")
@@ -237,11 +238,13 @@ def vg_to_gfa(job, options, config, vg_path, vg_id):
     job.fileStore.readGlobalFile(vg_id, vg_path)
     out_path = vg_path + '.gfa'
 
-    cmd = ['vg', 'convert', '-f', '-Q', options.reference, vg_path, '-B']
+    cmd = ['vg', 'convert', '-f', '-Q', options.reference, os.path.basename(vg_path), '-B']
     if options.wlineSep:
         cmd += ['-w', options.wlineSep]
 
-    cactus_call(parameters=cmd, outfile=out_path)
+    # important, when options.wlineSep is ., it throws off prepareWorkDir in cactus_call
+    # so important to specify the work_dir below       
+    cactus_call(parameters=cmd, outfile=out_path, work_dir=work_dir)
 
     return job.fileStore.writeGlobalFile(out_path)
 
@@ -284,7 +287,8 @@ def vg_indexes(job, options, config, gfa_ids):
 
     # make the vcf
     vcf_path = os.path.join(work_dir, 'merged.vcf.gz')
-    cactus_call(parameters=[['vg', 'deconstruct', xg_path, '-P', options.reference, '-a', '-r', snarls_path, '-g', gbwt_path,
+    vcf_ref = options.vcfReference if options.vcfReference else options.reference
+    cactus_call(parameters=[['vg', 'deconstruct', xg_path, '-P', vcf_ref, '-a', '-r', snarls_path, '-g', gbwt_path,
                              '-T', trans_path, '-t', str(job.cores)],
                             ['bgzip', '--threads', str(job.cores)]],
                 outfile=vcf_path)
@@ -332,7 +336,7 @@ def export_join_data(toil, options, clip_ids, idx_map, merge_hal_id):
     """
 
     # download the clip vgs
-    clip_base = os.path.join(options.outDir, 'clip')
+    clip_base = os.path.join(options.outDir, 'clip-{}'.format(options.outName))
     if not clip_base.startswith('s3://') and not os.path.isdir(clip_base):
         os.makedirs(clip_base)
 
