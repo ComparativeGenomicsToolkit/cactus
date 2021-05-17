@@ -349,6 +349,7 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
         }
 
         // perform abpoa-msa
+        ab->abs->n_seq = 0; // To re-use ab, n_seq needs to be set as 0        
         abpoa_msa(ab, abpt, msa->seq_no, NULL, msa->seq_lens, bseqs, NULL, NULL, NULL, NULL, NULL,
                   &(msa->msa_seq), &(msa->column_no));
 
