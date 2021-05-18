@@ -33,6 +33,9 @@ void validate_msa(CuTest *testCase, Msa *msa, int64_t *lengths) {
  * Repeatedly generate random sets of closely related strings and test that returned msa is valid
  */
 void test_make_partial_order_alignment(CuTest *testCase) {
+    abpoa_para_t *abpt = abpoa_init_para();
+    abpt->wb = 10;
+    abpt->wf = 0.01;
     for(int64_t test=0; test<100; test++) {
         for (int64_t poa_window_size = 5; poa_window_size < 120; poa_window_size += 15) {
             fprintf(stderr, "Running test_make_partial_order_alignment, test %i\n", (int)test);
@@ -55,7 +58,7 @@ void test_make_partial_order_alignment(CuTest *testCase) {
             }
 
             // generate the alignment
-            Msa *msa = msa_make_partial_order_alignment(seqs, seq_lens, seq_no, poa_window_size, 10, 0.01);
+            Msa *msa = msa_make_partial_order_alignment(seqs, seq_lens, seq_no, poa_window_size, abpt);
 
             // print the msa
             msa_print(msa, stderr);
@@ -72,12 +75,17 @@ void test_make_partial_order_alignment(CuTest *testCase) {
             free(parent_string);
         }
     }
+    abpoa_free_para(abpt);
 }
 
 /**
  * Repeatedly generate random sets of two ends connected by set of strings, check that the resulting msa is valid
  */
 void test_make_consistent_partial_order_alignments_two_ends(CuTest *testCase) {
+    abpoa_para_t *abpt = abpoa_init_para();
+    abpt->wb = 10;
+    abpt->wf = 0.01;
+    
     for(int64_t test=0; test<100; test++) {
         fprintf(stderr, "Running test_make_consistent_partial_order_alignments_two_ends, test %i\n", (int)test);
 
@@ -125,7 +133,7 @@ void test_make_consistent_partial_order_alignments_two_ends(CuTest *testCase) {
 
         // generate the alignments
         Msa **msas = make_consistent_partial_order_alignments(end_no, end_lengths, end_strings, end_string_lengths,
-                                                              right_end_indexes, right_end_row_indexes, overlaps, 1000000, 10, 0.01);
+                                                              right_end_indexes, right_end_row_indexes, overlaps, 1000000, abpt);
 
         // print the msas
         for(int64_t i=0; i<end_no; i++) {
@@ -152,10 +160,15 @@ void test_make_consistent_partial_order_alignments_two_ends(CuTest *testCase) {
         free(msas);
         free(parent_string);
     }
+    abpoa_free_para(abpt);
 }
 
 void test_make_flower_alignment_poa(CuTest *testCase) {
     setup(testCase);
+
+    abpoa_para_t *abpt = abpoa_init_para();
+    abpt->wb = 10;
+    abpt->wf = 0.01;
 
     fprintf(stderr, "There are %i ends in the flower\n", (int)flower_getEndNumber(flower));
     End *end;
@@ -181,20 +194,27 @@ void test_make_flower_alignment_poa(CuTest *testCase) {
     }
     flower_destructEndIterator(endIterator);
 
-    stList *alignment_blocks = make_flower_alignment_poa(flower, 2, 1000000, 5, 10, 0.01);
+    stList *alignment_blocks = make_flower_alignment_poa(flower, 2, 1000000, 5, abpt);
 
     for(int64_t i=0; i<stList_length(alignment_blocks); i++) {
         AlignmentBlock *b = stList_get(alignment_blocks, i);
         alignmentBlock_print(b, stderr);
     }
 
+    abpoa_free_para(abpt);
     teardown(testCase);
 }
 
 void test_alignment_block_iterator(CuTest *testCase) {
     setup(testCase);
 
-    stList *alignment_blocks = make_flower_alignment_poa(flower, 10000, 1000000, 5, 10, 0.01);
+    abpoa_para_t *abpt = abpoa_init_para();
+    abpt->wb = 10;
+    abpt->wf = 0.01;
+
+    stList *alignment_blocks = make_flower_alignment_poa(flower, 10000, 1000000, 5, abpt);
+
+    abpoa_free_para(abpt);
 
     for(int64_t i=0; i<stList_length(alignment_blocks); i++) {
         AlignmentBlock *b = stList_get(alignment_blocks, i);

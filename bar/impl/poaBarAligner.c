@@ -16,6 +16,66 @@
 //#include <omp.h>
 //#endif
 
+abpoa_para_t *abpoaParamaters_constructFromCactusParams(CactusParams *params) {
+    abpoa_para_t *abpt = abpoa_init_para();
+
+    // output options
+    abpt->out_msa = 1; // generate Row-Column multiple sequence alignment(RC-MSA), set 0 to disable
+    abpt->out_cons = 0; // generate consensus sequence, set 0 to disable
+
+    // alignment mode. 0:global alignment, 1:local, 2:extension
+    abpt->align_mode = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentMode");
+    assert(ABPOA_GLOBAL_MODE == 0 && ABPOA_LOCAL_MODE == 1 && ABPOA_EXTEND_MODE == 2);    
+    assert(abpt->align_mode >= 0 && abpt->align_mode <= 2);
+
+    // banding parameters
+    abpt->wb = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentBandConstant");
+    abpt->wf = cactusParams_get_float(params, 2, "bar", "partialOrderAlignmentBandFraction");
+
+    // scoring model
+    abpt->match = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentMatchScore");
+    abpt->mismatch = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentMismatchPenalty");
+    // gap mode. 0:linear, 1:affine, 2:convex
+    abpt->gap_mode = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentGapMode");
+    assert(ABPOA_LINEAR_GAP == 0 && ABPOA_AFFINE_GAP == 1 && ABPOA_CONVEX_GAP == 2);
+    assert(abpt->gap_mode >= 0 && abpt->gap_mode <= 2);
+    abpt->gap_open1 = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentGapOpenPenalty1");
+    abpt->gap_ext1 = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentGapExtensionPenalty1");
+    abpt->gap_open2 = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentGapOpenPenalty2");
+    abpt->gap_ext2 = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentGapExtensionPenalty2");
+    
+    // seeding paramters
+    abpt->disable_seeding = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentDisableSeeding");
+    assert(abpt->disable_seeding == 0 || abpt->disable_seeding == 1);
+    abpt->k = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentMinimizerK");
+    abpt->w = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentMinimizerW");
+    abpt->min_w = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentMinimizerMinW");
+
+    return abpt;
+}
+
+// It turns out abpoa can write to these, so we make a quick copy before using
+static abpoa_para_t *copy_abpoa_params(abpoa_para_t *abpt) {
+    abpoa_para_t *abpt_cpy = abpoa_init_para();
+    abpt_cpy->out_msa = 1;
+    abpt_cpy->out_cons = 0;
+    abpt_cpy->align_mode = abpt->align_mode;
+    abpt_cpy->wb = abpt->wb;
+    abpt_cpy->wf = abpt->wf;
+    abpt_cpy->match = abpt->match;
+    abpt_cpy->mismatch = abpt->mismatch;
+    abpt_cpy->gap_mode = abpt->gap_mode;
+    abpt_cpy->gap_open1 = abpt->gap_open1;
+    abpt_cpy->gap_ext1 = abpt->gap_ext1;
+    abpt_cpy->gap_open2 = abpt->gap_open2;
+    abpt_cpy->gap_ext2 = abpt->gap_ext2;
+    abpt_cpy->disable_seeding = abpt->disable_seeding;
+    abpt_cpy->k = abpt->k;
+    abpt_cpy->w = abpt->w;
+    abpt_cpy->min_w = abpt->min_w;
+    return abpt_cpy;
+}
+
 // char <--> uint8_t conversion copied over from abPOA example
 // AaCcGgTtNn ==> 0,1,2,3,4
 static unsigned char nst_nt4_table[256] = {
@@ -241,9 +301,17 @@ static void msa_fix_trimmed(Msa* msa) {
 }
 
 Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no, int64_t window_size,
-                                      int64_t poa_band_constant, double poa_band_fraction) {
+                                      abpoa_para_t *poa_parameters) {
 
     assert(seq_no > 0);
+
+    // abpoa can write to these, so we make a copy to be safe
+    abpoa_para_t *abpt = copy_abpoa_params(poa_parameters);
+    
+    if (abpt->disable_seeding == 0) {
+        // windowing logic works well enough to keep around for now, but we disable it unless seeding is disabled in abpoa
+        window_size = INT64_MAX;
+    }
     
     // we overlap the sliding window, and use the trimming logic to find the best cut point between consecutive windows
     // todo: cli-facing parameter
@@ -271,26 +339,7 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
 
     // initialize variables
     abpoa_t *ab = abpoa_init();
-    abpoa_para_t *abpt = abpoa_init_para();
-
-    // todo: support including modifying abpoa params
-    // alignment parameters
-    // abpt->align_mode = 0; // 0:global alignment, 1:extension
-    // abpt->match = 2;      // match score
-    // abpt->mismatch = 4;   // mismatch penalty
-    // abpt->gap_mode = ABPOA_CONVEX_GAP; // gap penalty mode
-    // abpt->gap_open1 = 4;  // gap open penalty #1
-    // abpt->gap_ext1 = 2;   // gap extension penalty #1
-    // abpt->gap_open2 = 24; // gap open penalty #2
-    // abpt->gap_ext2 = 1;   // gap extension penalty #2
-                             // gap_penalty = min{gap_open1 + gap_len * gap_ext1, gap_open2 + gap_len * gap_ext2}
-    abpt->wb = poa_band_constant;        // extra band used in adaptive banded DP
-    abpt->wf = poa_band_fraction;        // adaptive band is wb + wf * length 
      
-    // output options
-    abpt->out_msa = 1; // generate Row-Column multiple sequence alignment(RC-MSA), set 0 to disable
-    abpt->out_cons = 0; // generate consensus sequence, set 0 to disable
-
     abpoa_post_set_para(abpt);
 
     // collect our windowed outputs here, to be stiched at the end. 
@@ -482,7 +531,7 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
 
 Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_lengths, char ***end_strings,
         int **end_string_lengths, int64_t **right_end_indexes, int64_t **right_end_row_indexes, int64_t **overlaps,
-        int64_t window_size, int64_t poa_band_constant, double poa_band_fraction) {
+        int64_t window_size, abpoa_para_t *poa_parameters) {
     // Calculate the initial, potentially inconsistent msas and column scores for each msa
     float *column_scores[end_no];
     Msa **msas = st_malloc(sizeof(Msa *) * end_no);
@@ -491,7 +540,7 @@ Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_leng
 //#endif
     for(int64_t i=0; i<end_no; i++) {
         msas[i] = msa_make_partial_order_alignment(end_strings[i], end_string_lengths[i], end_lengths[i], window_size,
-                                                   poa_band_constant, poa_band_fraction);
+                                                   poa_parameters);
         column_scores[i] = make_column_scores(msas[i]);
     }
 
@@ -769,7 +818,7 @@ void create_alignment_blocks(Msa *msa, Cap **row_indexes_to_caps, stList *alignm
 }
 
 stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_t window_size, int64_t mask_filter,
-                                  int64_t poa_band_constant, double poa_band_fraction) {
+                                  abpoa_para_t * poa_parameters) {
     // Arrays of ends and connecting the strings necessary to build the POA alignment
     int64_t end_no = flower_getEndNumber(flower); // The number of ends
     int64_t end_lengths[end_no]; // The number of strings incident with each end
@@ -856,7 +905,7 @@ stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_
     // Now make the consistent MSAs
     Msa **msas = make_consistent_partial_order_alignments(end_no, end_lengths, end_strings, end_string_lengths,
                                                           right_end_indexes, right_end_row_indexes, overlaps, window_size,
-                                                          poa_band_constant, poa_band_fraction);
+                                                          poa_parameters);
 
     // Temp debug output
     //for(int64_t i=0; i<end_no; i++) {
