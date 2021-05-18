@@ -344,6 +344,7 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
         }
 
         // perform abpoa-msa
+        ab->abs->n_seq = 0; // To re-use ab, n_seq needs to be set as 0        
         abpoa_msa(ab, abpt, msa->seq_no, NULL, msa->seq_lens, bseqs, NULL, NULL, NULL, NULL, NULL,
                   &(msa->msa_seq), &(msa->column_no));
 
@@ -461,7 +462,7 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
     free(row_overlaps);
     stList_destruct(msa_windows);
 
-    abpoa_free(ab, abpt);
+    abpoa_free(ab);
     abpoa_free_para(abpt);
 
     // in debug mode, cactus uses the dreaded -Wall -Werror combo.  This line is a hack to allow compilation with these flags
