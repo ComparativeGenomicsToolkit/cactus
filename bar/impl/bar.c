@@ -153,8 +153,6 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
         if(usePoa) {
             stList_destruct(alignments);
             abpoa_free_para(poaParameters);
-            // in debug mode, cactus uses the dreaded -Wall -Werror combo.  This line is a hack to allow compilation with these flags
-            if (false) SIMDMalloc(0, 0);
         }
         else {
             stSortedSet_destruct(alignments);
