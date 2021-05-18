@@ -52,7 +52,7 @@ def main():
     parser.add_argument("minigraphGFA", help = "Minigraph-compatible reference graph in GFA format (can be gzipped)")
     parser.add_argument("outputPAF", type=str, help = "Output pairwise alignment file in PAF format")
     parser.add_argument("--outputFasta", type=str, help = "Output graph sequence file in FASTA format (required if not present in seqFile)")
-    parser.add_argument("--maskFilter", type=int, help = "Ignore softmasked sequence intervals > Nbp (overrides config option of same name)")
+    parser.add_argument("--maskFilter", type=int, help = "Ignore softmasked sequence intervals > Nbp (overrides config option of same name)")    
     parser.add_argument("--outputGAFDir", type=str, help = "Output GAF alignments (raw minigraph output before PAF conversion) to this directory")
     parser.add_argument("--refFromGFA", type=str, help = "Do not align given genome from seqfile, and instead extract its alignment from the rGFA tags (must have been used as reference for minigraph GFA construction)")
 
@@ -306,7 +306,7 @@ def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id,
     if mask_filter >= 0:
         cmd[2] = '-'
         cmd = [['cactus_softmask2hardmask', os.path.basename(fa_path), '-m', str(mask_filter)], cmd]
-
+    
     cactus_call(work_dir=work_dir, parameters=cmd)
 
     paf_id, gaf_id = None, None
@@ -357,7 +357,8 @@ def merge_gafs_into_paf(job, config, gaf_file_id_map, gaf_paths = []):
     if overlap_filter_len:
         mzgaf2paf_opts += ['-o', str(overlap_filter_len)]
 
-    cactus_call(outfile=paf_path, parameters=["mzgaf2paf"] + gaf_paths + mzgaf2paf_opts)
+    cmd =["mzgaf2paf"] + gaf_paths + mzgaf2paf_opts
+    cactus_call(outfile=paf_path, parameters=cmd)
 
     return job.fileStore.writeGlobalFile(paf_path)
                                                

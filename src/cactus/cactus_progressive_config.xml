@@ -168,10 +168,22 @@
         else eventually -->
    <!-- bandingLimit is the maximum sequence size fed into the multiple aligner.  Sequences longer than this are trimmed accordingly -->
    <!-- partialOrderAlignment toggles between cPecan and abpoa for the core multiple alignment algorithm.  abpoa is much faster but not as reliable for divered sequences -->
-   <!-- partialOrderAlignmentWindow a sliding window approach (with hardcoded 50% overlap) is used to perform abpoa alignments.  memory is quadratic in this.  it is applied after bandingLimit -->
+   <!-- partialOrderAlignmentWindow a sliding window approach (with hardcoded 50% overlap) is used to perform abpoa alignments (only if partialOrderAlignmentDisableSeeding==1).  memory is quadratic in this.  it is applied after bandingLimit -->
    <!-- partialOrderAlignmentMaskFilter trim input sequences as soon as more than this many soft or hard masked bases are encountered (-1=disabled) -->
    <!-- partialOrderAlignmentBand abpoa adaptive band size is <partialOrderAlignmentBand> + <partialOrderAlignmentBandFraction>*<Length>.  Negative value here disables adaptive banding -->
    <!-- partialOrderAlignmentBandFraction abpoa adaptibe band second parameter (see above) -->
+   <!-- partialOrderAlignmentMode abpoa alignment mode. 0=Global, 1=Local, 2=Extend --> 
+   <!-- partialOrderAlignmentMatchScore abpoa match score -->
+   <!-- partialOrderAlignmentMismatchPenalty abpoa mismatch penalty -->
+   <!-- partialOrderAlignmentGapMode abpoa gap mode. 0=Linear, 1=Affine, 2=Convex --> 
+   <!-- partialOrderAlignmentGapOpenPenalty1 abpoa gap open penalty -->
+   <!-- partialOrderAlignmentGapExtensionPenalty1 abpoa gap extension penalty -->
+   <!-- partialOrderAlignmentGapOpenPenalty2 abpoa second gap open penalty (convex mode takes the minimum of both gap models) -->
+   <!-- partialOrderAlignmentGapExtensionPenalty abpoa second gap extension penalty (convex mode takes the minimum of both gap models) -->
+   <!-- partialOrderAlignmentDisableSeeding abpoa disable minimizer seeding.  if true, the partialOrderAlignmentWindow option will take effect -->
+   <!-- partialOrderAlignmentMinimizerK abpoa kmer size for minimizer seeding. -->
+   <!-- partialOrderAlignmentMinimizerW abpoa window size for minimizer seeding. -->
+   <!-- partialOrderAlignmentMinimizerMinW abpoa minimum window size. -->
 	<bar
 		runBar="1"
 		spanningTrees="5" 
@@ -201,6 +213,18 @@
 		partialOrderAlignmentMaskFilter="-1"
 		partialOrderAlignmentBandConstant="25"
 		partialOrderAlignmentBandFraction="0.025"
+		partialOrderAlignmentMode="0"
+		partialOrderAlignmentMatchScore="2"
+		partialOrderAlignmentMismatchPenalty="4"
+		partialOrderAlignmentGapMode="2"		
+		partialOrderAlignmentGapOpenPenalty1="4"
+		partialOrderAlignmentGapExtensionPenalty1="2"
+		partialOrderAlignmentGapOpenPenalty2="24"
+		partialOrderAlignmentGapExtensionPenalty2="1"
+		partialOrderAlignmentDisableSeeding="0"
+		partialOrderAlignmentMinimizerK="19"
+		partialOrderAlignmentMinimizerW="10"
+		partialOrderAlignmentMinimizerMinW="50"		
 		useMumAnchors="1"
 		recursiveMums="1"
 	>
@@ -298,7 +322,10 @@
 	<!-- minQuerySmallThreshold: Threshold used to toggle between minQueryCoverage and minuQuerySmallCoverage. -->
 	<!-- minQueryUniqueness: The ratio of the number of query bases aligned to the chosen ref contig vs the next best ref contig must exceed this threshold to not be considered ambigious. -->
 	<!-- maxGap: Include indel gaps <= maxGap when counting minigraph coverage -->	
-	<!-- ambiguousName: Contigs deemed ambiguous using the above filters get added to a "contig" with this name, and are preserved in output. -->		
+	<!-- ambiguousName: Contigs deemed ambiguous using the above filters get added to a "contig" with this name, and are preserved in output. -->
+	<!-- remap: 1: remap ambiguous contigs with minimap2 0: don't -->
+	<!-- remapSplitOptions: extra rgfa-split options to apply when splitting after remapping -->
+	<!-- useMinimapPAF: use minimap2 PAF for ambiguous contigs (rather than keeping their original mappings in the input PAF) -->
 	<graphmap_split
 		 minQueryCoverage="0.65"
 		 minQuerySmallCoverage="0.75"
@@ -306,6 +333,9 @@
 		 minQueryUniqueness="3"
 		 maxGap="50000"
 		 ambiguousName="_AMBIGUOUS_"
+		 remap="1"
+		 remapSplitOptions="-u 2000000 -s"
+		 useMinimapPAF="1"
 		 />
 	<!-- hal2vg options -->
 	<!-- includeMinigraph: include minigraph node sequences as paths in output -->

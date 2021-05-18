@@ -72,9 +72,7 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
     int64_t usePoa = cactusParams_get_int(params, 2, "bar", "partialOrderAlignment");
     int64_t poaWindow = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentWindow");
     int64_t maskFilter = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentMaskFilter");
-    int64_t poaBandConstant = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentBandConstant");
-    //defaults from abpoa
-    double poaBandFraction = cactusParams_get_float(params, 2, "bar", "partialOrderAlignmentBandFraction");
+    abpoa_para_t *poaParameters = usePoa ? abpoaParamaters_constructFromCactusParams(params) : NULL;
 
     PairwiseAlignmentParameters *pairwiseAlignmentParameters = pairwiseAlignmentParameters_constructFromCactusParams(params);
     StateMachine *sM = stateMachine5_construct(fiveState);
@@ -109,7 +107,7 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
              *
              * It does not use any precomputed alignments, if they are provided they will be ignored
              */
-            alignments = make_flower_alignment_poa(flower, maximumLength, poaWindow, maskFilter, poaBandConstant, poaBandFraction);
+            alignments = make_flower_alignment_poa(flower, maximumLength, poaWindow, maskFilter, poaParameters);
             st_logDebug("Created the poa alignments: %" PRIi64 " poa alignment blocks for flower\n", stList_length(alignments));
         } else {
             alignments = makeFlowerAlignment3(sM, flower, listOfEndAlignmentFiles, spanningTrees, maximumLength,
@@ -170,6 +168,10 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
     //stList_destruct(flowers);
     pairwiseAlignmentBandingParameters_destruct(pairwiseAlignmentParameters);
     stateMachine_destruct(sM);
+
+    if (poaParameters) {
+        abpoa_free_para(poaParameters);
+    }
 
     /*if (bedRegions != NULL) {
         // Clean up our mapping.
