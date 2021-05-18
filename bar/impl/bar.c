@@ -152,7 +152,6 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
         stPinchIterator_destruct(pinchIterator);
         if(usePoa) {
             stList_destruct(alignments);
-            abpoa_free_para(poaParameters);
         }
         else {
             stSortedSet_destruct(alignments);
@@ -169,6 +168,10 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
     //stList_destruct(flowers);
     pairwiseAlignmentBandingParameters_destruct(pairwiseAlignmentParameters);
     stateMachine_destruct(sM);
+
+    if (poaParameters) {
+        abpoa_free_para(poaParameters);
+    }
 
     /*if (bedRegions != NULL) {
         // Clean up our mapping.
