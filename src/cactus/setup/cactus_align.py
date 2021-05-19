@@ -814,7 +814,7 @@ def align_toil(job, chrom, seq_file_id, paf_file_id, config_id, options):
 
     log_file = os.path.join(work_dir, '{}.hal.log'.format(chrom))
 
-    cmd = ['cactus-align', js, seq_file, paf_file, out_file, '--logFile', log_file] + options.alignOptions.split()
+    cmd = ['cactus-align', js, seq_file, paf_file, out_file, '--logFile', log_file, '--configFile', config_file] + options.alignOptions.split()
 
     cactus_call(parameters=cmd)
 
