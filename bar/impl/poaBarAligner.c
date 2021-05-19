@@ -307,12 +307,7 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
 
     // abpoa can write to these, so we make a copy to be safe
     abpoa_para_t *abpt = copy_abpoa_params(poa_parameters);
-    
-    if (abpt->disable_seeding == 0) {
-        // windowing logic works well enough to keep around for now, but we disable it unless seeding is disabled in abpoa
-        window_size = INT64_MAX;
-    }
-    
+        
     // we overlap the sliding window, and use the trimming logic to find the best cut point between consecutive windows
     // todo: cli-facing parameter
     float window_overlap_frac = 0.5;
