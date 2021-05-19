@@ -168,7 +168,7 @@
         else eventually -->
    <!-- bandingLimit is the maximum sequence size fed into the multiple aligner.  Sequences longer than this are trimmed accordingly -->
    <!-- partialOrderAlignment toggles between cPecan and abpoa for the core multiple alignment algorithm.  abpoa is much faster but not as reliable for divered sequences -->
-   <!-- partialOrderAlignmentWindow a sliding window approach (with hardcoded 50% overlap) is used to perform abpoa alignments (only if partialOrderAlignmentDisableSeeding==1).  memory is quadratic in this.  it is applied after bandingLimit -->
+   <!-- partialOrderAlignmentWindow a sliding window approach (with hardcoded 50% overlap) is used to perform abpoa alignments.  memory is quadratic in this.  it is applied after bandingLimit -->
    <!-- partialOrderAlignmentMaskFilter trim input sequences as soon as more than this many soft or hard masked bases are encountered (-1=disabled) -->
    <!-- partialOrderAlignmentBand abpoa adaptive band size is <partialOrderAlignmentBand> + <partialOrderAlignmentBandFraction>*<Length>.  Negative value here disables adaptive banding -->
    <!-- partialOrderAlignmentBandFraction abpoa adaptibe band second parameter (see above) -->
@@ -180,7 +180,7 @@
    <!-- partialOrderAlignmentGapExtensionPenalty1 abpoa gap extension penalty -->
    <!-- partialOrderAlignmentGapOpenPenalty2 abpoa second gap open penalty (convex mode takes the minimum of both gap models) -->
    <!-- partialOrderAlignmentGapExtensionPenalty abpoa second gap extension penalty (convex mode takes the minimum of both gap models) -->
-   <!-- partialOrderAlignmentDisableSeeding abpoa disable minimizer seeding.  if true, the partialOrderAlignmentWindow option will take effect -->
+   <!-- partialOrderAlignmentDisableSeeding abpoa disable minimizer seeding. -->
    <!-- partialOrderAlignmentMinimizerK abpoa kmer size for minimizer seeding. -->
    <!-- partialOrderAlignmentMinimizerW abpoa window size for minimizer seeding. -->
    <!-- partialOrderAlignmentMinimizerMinW abpoa minimum window size. -->
