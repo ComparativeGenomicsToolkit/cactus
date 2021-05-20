@@ -220,7 +220,7 @@
 		partialOrderAlignmentGapOpenPenalty1="8"
 		partialOrderAlignmentGapExtensionPenalty1="1"
 		partialOrderAlignmentGapOpenPenalty2="24"
-		partialOrderAlignmentGapExtensionPenalty2="0.5"
+		partialOrderAlignmentGapExtensionPenalty2="0"
 		partialOrderAlignmentDisableSeeding="1"
 		partialOrderAlignmentMinimizerK="19"
 		partialOrderAlignmentMinimizerW="10"

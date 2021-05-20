@@ -24,7 +24,7 @@ void getReferenceSequences(FILE *fileHandle, Flower *flower, char *referenceEven
             sequence_getLength(sequence) > 0 &&
             !sequence_isTrivialSequence(sequence)) {
             char *sequenceHeader = formatSequenceHeader(sequence);
-            st_logInfo("Sequence %s\n", sequenceHeader);
+            st_logDebug("Sequence %s\n", sequenceHeader);
             char *string = sequence_getString(sequence, sequence_getStart(sequence), sequence_getLength(sequence), 1);
             fastaWrite(string, sequenceHeader, fileHandle);
             free(string);
