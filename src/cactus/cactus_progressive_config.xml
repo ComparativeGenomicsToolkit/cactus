@@ -221,7 +221,7 @@
 		partialOrderAlignmentGapExtensionPenalty1="2"
 		partialOrderAlignmentGapOpenPenalty2="24"
 		partialOrderAlignmentGapExtensionPenalty2="1"
-		partialOrderAlignmentDisableSeeding="0"
+		partialOrderAlignmentDisableSeeding="1"
 		partialOrderAlignmentMinimizerK="19"
 		partialOrderAlignmentMinimizerW="10"
 		partialOrderAlignmentMinimizerMinW="50"		
