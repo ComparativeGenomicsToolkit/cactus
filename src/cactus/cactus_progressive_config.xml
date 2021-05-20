@@ -221,7 +221,7 @@
 		partialOrderAlignmentGapExtensionPenalty1="1"
 		partialOrderAlignmentGapOpenPenalty2="24"
 		partialOrderAlignmentGapExtensionPenalty2="0.5"
-		partialOrderAlignmentDisableSeeding="0"
+		partialOrderAlignmentDisableSeeding="1"
 		partialOrderAlignmentMinimizerK="19"
 		partialOrderAlignmentMinimizerW="10"
 		partialOrderAlignmentMinimizerMinW="50"
@@ -338,12 +338,12 @@
 		 useMinimapPAF="1"
 		 />
 	<!-- hal2vg options -->
-	<!-- includeMinigraph: include minigraph node sequences as paths in output -->
+	<!-- includeMinigraph: include minigraph node sequences as paths in output (note that cactus-graphmap-join will still remove them by default) -->
 	<!-- includeAncestor: include ancestral reference sequences as paths in output -->
 	<!-- prependGenomeNames: prepend each output path with the genome name -->
 	<!-- hal2vgOptions: options to use in every hal2vg command -->
 	<hal2vg
-		 includeMinigraph="0"
+		 includeMinigraph="1"
 		 includeAncestor="0"
 		 prependGenomeNames="1"
 		 hal2vgOptions="--progress --inMemory"
