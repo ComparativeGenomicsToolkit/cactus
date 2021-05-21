@@ -324,8 +324,8 @@
 	<!-- maxGap: Include indel gaps <= maxGap when counting minigraph coverage -->
 	<!-- ambiguousName: Contigs deemed ambiguous using the above filters get added to a "contig" with this name, and are preserved in output. -->
 	<!-- remap: 1: remap ambiguous contigs with minimap2 0: don't -->
-	<!-- remapSplitOptions: extra rgfa-split options to apply when splitting after remapping -->
-	<!-- useMinimapPAF: use minimap2 PAF for ambiguous contigs (rather than keeping their original mappings in the input PAF) -->
+	<!-- remapSplitOptions: extra rgfa-split options to apply when splitting after remapping (use -u 3000000 to enable autoclipping between contigs, add -s to allow within contig)-->
+	<!-- useMinimapPAF: use minimap2 PAF for ambiguous contigs (rather than keeping their original mappings in the input PAF, requried if autoclipping enabled above) -->
 	<graphmap_split
 		 minQueryCoverage="0.65"
 		 minQuerySmallCoverage="0.75"
@@ -334,8 +334,8 @@
 		 maxGap="50000"
 		 ambiguousName="_AMBIGUOUS_"
 		 remap="1"
-		 remapSplitOptions="-u 2000000 -s"
-		 useMinimapPAF="1"
+		 remapSplitOptions=""
+		 useMinimapPAF="0"
 		 />
 	<!-- hal2vg options -->
 	<!-- includeMinigraph: include minigraph node sequences as paths in output (note that cactus-graphmap-join will still remove them by default) -->
