@@ -61,7 +61,6 @@
                    trimOutgroupFlanking="2000"
                    trimOutgroupDepth="1"
                    keepParalogs="0"/>
-	<ktserver memory="mediumMemory"/>
 	<setup makeEventHeadersAlphaNumeric="0"/>
 	<!-- The caf tag contains parameters for the caf algorithm. -->
 	<!-- Increase the chunkSize in the caf tag to reduce the number of blast jobs approximately quadratically -->
@@ -235,20 +234,6 @@
 		<CactusBarWrapperLarge maxFlowerGroupSize="2000000"/>
 		<CactusBarEndAlignerWrapper memory="littleMemory"/>
 	</bar>
-	<!-- The normal tag provides parameters to the cactus_normalisation script, which "normalises" a cactus to make all chains of maximal length. This is not used much now. -->
-	<normal
-		iterations="0"
-	>
-		<CactusNormalRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="10000000"/>
-		<CactusNormalWrapper/>
-	</normal>
-	<!-- The avg tag is for a prototype algorithm, currently just builds trees. Not currently compatible with cactus_progressive -->
-	<avg
-		buildAvgs="0"
-	>
-		<CactusAVGRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="10000000"/>
-		<CactusAVGWrapper/>
-	</avg>
 	<!-- The reference tag provides parameters to cactus_reference, a method used to construct a reference genome for a given cactus database. -->
 	<!-- numberOfNs is the number of Ns to insert into an ancestral sequence when an adjacency is uncertain, think of its as the Ns in a scaffold gap -->
 	<!-- minNumberOfSequencesToSupportAdjacency is the number of sequences needed to bridge an adjacency -->
@@ -274,12 +259,10 @@
 	 	<CactusSetReferenceCoordinatesDownRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="2000000"/>
 	 	<CactusSetReferenceCoordinatesDownWrapper/>
 	</reference>
-	<!-- The check tag provides parameters to cactus_check, a script which checks that a constructed cactus database is as expected. -->
+	<!-- The check tag for debugging -->
 	<check
 		runCheck="0"
 	>
-		<CactusCheckRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="2000000"/>
-		<CactusCheckWrapper/>
 	</check>
 	<!-- The hal tag controls the creation of hal and fasta files from the pipeline. -->
 	<hal
