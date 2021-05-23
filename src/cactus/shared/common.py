@@ -188,7 +188,7 @@ def runCactusConsolidated(seqMap, newickTreeString, cactusParams,
     if constraintAlignmentsFile:
         args += ["--constraintAlignments", constraintAlignmentsFile]
 
-    print("Command to run\n", " ".join(["cactus_consolidated"] + args))
+    #print("Command to run\n", " ".join(["cactus_consolidated"] + args))
 
     masterMessages = cactus_call(check_output=True, returnStdErr=True,
                                  parameters=["cactus_consolidated"] + args)[1] # Get just the standard error output
