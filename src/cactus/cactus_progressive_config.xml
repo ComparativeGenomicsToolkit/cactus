@@ -171,13 +171,11 @@
    <!-- partialOrderAlignmentMaskFilter trim input sequences as soon as more than this many soft or hard masked bases are encountered (-1=disabled) -->
    <!-- partialOrderAlignmentBand abpoa adaptive band size is <partialOrderAlignmentBand> + <partialOrderAlignmentBandFraction>*<Length>.  Negative value here disables adaptive banding -->
    <!-- partialOrderAlignmentBandFraction abpoa adaptibe band second parameter (see above) -->
-   <!-- partialOrderAlignmentMode abpoa alignment mode. 0=Global, 1=Local, 2=Extend -->
    <!-- partialOrderAlignmentMatchScore abpoa match score -->
    <!-- partialOrderAlignmentMismatchPenalty abpoa mismatch penalty -->
-   <!-- partialOrderAlignmentGapMode abpoa gap mode. 0=Linear, 1=Affine, 2=Convex -->
-   <!-- partialOrderAlignmentGapOpenPenalty1 abpoa gap open penalty -->
+   <!-- partialOrderAlignmentGapOpenPenalty1 abpoa gap open penalty (linear gap if 0) -->
    <!-- partialOrderAlignmentGapExtensionPenalty1 abpoa gap extension penalty -->
-   <!-- partialOrderAlignmentGapOpenPenalty2 abpoa second gap open penalty (convex mode takes the minimum of both gap models) -->
+   <!-- partialOrderAlignmentGapOpenPenalty2 abpoa second gap open penalty (convex mode takes the minimum of both gap models, 0 disables convex) -->
    <!-- partialOrderAlignmentGapExtensionPenalty abpoa second gap extension penalty (convex mode takes the minimum of both gap models) -->
    <!-- partialOrderAlignmentDisableSeeding abpoa disable minimizer seeding. -->
    <!-- partialOrderAlignmentMinimizerK abpoa kmer size for minimizer seeding. -->
@@ -212,10 +210,8 @@
 		partialOrderAlignmentMaskFilter="-1"
 		partialOrderAlignmentBandConstant="100"
 		partialOrderAlignmentBandFraction="0.025"
-		partialOrderAlignmentMode="0"
 		partialOrderAlignmentMatchScore="96"
 		partialOrderAlignmentMismatchPenalty="90"
-		partialOrderAlignmentGapMode="2"
 		partialOrderAlignmentGapOpenPenalty1="400"
 		partialOrderAlignmentGapExtensionPenalty1="30"
 		partialOrderAlignmentGapOpenPenalty2="1200"

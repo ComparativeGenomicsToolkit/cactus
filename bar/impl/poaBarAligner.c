@@ -24,9 +24,8 @@ abpoa_para_t *abpoaParamaters_constructFromCactusParams(CactusParams *params) {
     abpt->out_cons = 0; // generate consensus sequence, set 0 to disable
 
     // alignment mode. 0:global alignment, 1:local, 2:extension
-    abpt->align_mode = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentMode");
-    assert(ABPOA_GLOBAL_MODE == 0 && ABPOA_LOCAL_MODE == 1 && ABPOA_EXTEND_MODE == 2);    
-    assert(abpt->align_mode >= 0 && abpt->align_mode <= 2);
+    // only global works
+    abpt->align_mode = ABPOA_GLOBAL_MODE;
 
     // banding parameters
     abpt->wb = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentBandConstant");
@@ -35,10 +34,6 @@ abpoa_para_t *abpoaParamaters_constructFromCactusParams(CactusParams *params) {
     // scoring model
     abpt->match = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentMatchScore");
     abpt->mismatch = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentMismatchPenalty");
-    // gap mode. 0:linear, 1:affine, 2:convex
-    abpt->gap_mode = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentGapMode");
-    assert(ABPOA_LINEAR_GAP == 0 && ABPOA_AFFINE_GAP == 1 && ABPOA_CONVEX_GAP == 2);
-    assert(abpt->gap_mode >= 0 && abpt->gap_mode <= 2);
     abpt->gap_open1 = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentGapOpenPenalty1");
     abpt->gap_ext1 = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentGapExtensionPenalty1");
     abpt->gap_open2 = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentGapOpenPenalty2");
