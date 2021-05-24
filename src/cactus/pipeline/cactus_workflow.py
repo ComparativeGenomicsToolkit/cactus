@@ -490,14 +490,9 @@ class CactusWorkflowArguments:
         self.configWrapper.setBuildHal(options.buildHal)
         self.configWrapper.setBuildFasta(options.buildFasta)
 
-        #Now build the remaining options from the arguments
-        findRequiredNode(self.configNode, "avg").attrib["buildAvgs"] = "1" if options.buildAvgs else "0"
-
 def addCactusWorkflowOptions(parser):
     parser.add_argument("--experiment", dest="experimentFile",
                       help="The file containing a link to the experiment parameters")
-    parser.add_argument("--buildAvgs", dest="buildAvgs", action="store_true",
-                      help="Build trees", default=False)
     parser.add_argument("--buildHal", dest="buildHal", action="store_true",
                       help="Build a hal file", default=False)
     parser.add_argument("--buildFasta", dest="buildFasta", action="store_true",
