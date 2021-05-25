@@ -206,7 +206,7 @@
 		rescue="0"
 		minimumSizeToRescue="100"
 		minimumCoverageToRescue="0.5"
-		partialOrderAlignment="1"
+		partialOrderAlignment="0"
 		partialOrderAlignmentWindow="10000"
 		partialOrderAlignmentMaskFilter="-1"
 		partialOrderAlignmentBandConstant="100"
