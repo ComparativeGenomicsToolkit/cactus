@@ -36,6 +36,7 @@ void test_make_partial_order_alignment(CuTest *testCase) {
     abpoa_para_t *abpt = abpoa_init_para();
     abpt->wb = 10;
     abpt->wf = 0.01;
+    abpoa_post_set_para(abpt);
     for(int64_t test=0; test<100; test++) {
         for (int64_t poa_window_size = 5; poa_window_size < 120; poa_window_size += 15) {
             fprintf(stderr, "Running test_make_partial_order_alignment, test %i\n", (int)test);
@@ -85,6 +86,7 @@ void test_make_consistent_partial_order_alignments_two_ends(CuTest *testCase) {
     abpoa_para_t *abpt = abpoa_init_para();
     abpt->wb = 10;
     abpt->wf = 0.01;
+    abpoa_post_set_para(abpt);
     
     for(int64_t test=0; test<100; test++) {
         fprintf(stderr, "Running test_make_consistent_partial_order_alignments_two_ends, test %i\n", (int)test);
@@ -169,6 +171,7 @@ void test_make_flower_alignment_poa(CuTest *testCase) {
     abpoa_para_t *abpt = abpoa_init_para();
     abpt->wb = 10;
     abpt->wf = 0.01;
+    abpoa_post_set_para(abpt);
 
     fprintf(stderr, "There are %i ends in the flower\n", (int)flower_getEndNumber(flower));
     End *end;
@@ -211,6 +214,7 @@ void test_alignment_block_iterator(CuTest *testCase) {
     abpoa_para_t *abpt = abpoa_init_para();
     abpt->wb = 10;
     abpt->wf = 0.01;
+    abpoa_post_set_para(abpt);
 
     stList *alignment_blocks = make_flower_alignment_poa(flower, 10000, 1000000, 5, abpt);
 
