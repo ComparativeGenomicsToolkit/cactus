@@ -1,6 +1,7 @@
 # Release 1.3.1
 
 - Fix bug in how `cactus-prepare` transmits Toil size parameters
+- Add halPhyloP to binary release and docker images
 
 # Release 1.3.0   2021-02-11
 
