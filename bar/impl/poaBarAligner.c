@@ -46,6 +46,22 @@ abpoa_para_t *abpoaParamaters_constructFromCactusParams(CactusParams *params) {
     abpt->w = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentMinimizerW");
     abpt->min_w = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentMinimizerMinW");
 
+    // generate the substitution matrix
+    abpoa_post_set_para(abpt);
+
+    // optionally override the substitution matrix
+    char *submat_string = cactusParams_get_string(params, 2, "bar", "partialOrderAlignmentSubMatrix");
+    if (submat_string && strlen(submat_string) > 0) {
+        // Note, this will be used to explicitly override abpoa's subsitution matrix just before aligning
+        assert(abpt->m == 5);
+        int count = 0;
+        for (char* val = strtok(submat_string, " "); val != NULL; val = strtok(NULL, " ")) {
+            abpt->mat[count++] = atoi(val);
+        }
+        assert(count == 25);        
+    }
+    free(submat_string);    
+
     return abpt;
 }
 
@@ -68,6 +84,11 @@ static abpoa_para_t *copy_abpoa_params(abpoa_para_t *abpt) {
     abpt_cpy->k = abpt->k;
     abpt_cpy->w = abpt->w;
     abpt_cpy->min_w = abpt->min_w;
+    // set the substition matrix
+    abpoa_post_set_para(abpt_cpy);
+    // and override it!
+    memcpy(abpt_cpy->mat, abpt->mat, abpt->m * abpt->m * sizeof(int));
+
     return abpt_cpy;
 }
 
@@ -330,8 +351,6 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
     // initialize variables
     abpoa_t *ab = abpoa_init();
      
-    abpoa_post_set_para(abpt);
-
     // collect our windowed outputs here, to be stiched at the end. 
     stList* msa_windows = stList_construct3(0, (void(*)(void *)) msa_destruct);
     
