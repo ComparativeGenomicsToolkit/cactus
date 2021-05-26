@@ -24,9 +24,8 @@ abpoa_para_t *abpoaParamaters_constructFromCactusParams(CactusParams *params) {
     abpt->out_cons = 0; // generate consensus sequence, set 0 to disable
 
     // alignment mode. 0:global alignment, 1:local, 2:extension
-    abpt->align_mode = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentMode");
-    assert(ABPOA_GLOBAL_MODE == 0 && ABPOA_LOCAL_MODE == 1 && ABPOA_EXTEND_MODE == 2);    
-    assert(abpt->align_mode >= 0 && abpt->align_mode <= 2);
+    // only global works
+    abpt->align_mode = ABPOA_GLOBAL_MODE;
 
     // banding parameters
     abpt->wb = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentBandConstant");
@@ -35,10 +34,6 @@ abpoa_para_t *abpoaParamaters_constructFromCactusParams(CactusParams *params) {
     // scoring model
     abpt->match = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentMatchScore");
     abpt->mismatch = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentMismatchPenalty");
-    // gap mode. 0:linear, 1:affine, 2:convex
-    abpt->gap_mode = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentGapMode");
-    assert(ABPOA_LINEAR_GAP == 0 && ABPOA_AFFINE_GAP == 1 && ABPOA_CONVEX_GAP == 2);
-    assert(abpt->gap_mode >= 0 && abpt->gap_mode <= 2);
     abpt->gap_open1 = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentGapOpenPenalty1");
     abpt->gap_ext1 = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentGapExtensionPenalty1");
     abpt->gap_open2 = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentGapOpenPenalty2");
@@ -50,6 +45,22 @@ abpoa_para_t *abpoaParamaters_constructFromCactusParams(CactusParams *params) {
     abpt->k = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentMinimizerK");
     abpt->w = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentMinimizerW");
     abpt->min_w = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentMinimizerMinW");
+
+    // generate the substitution matrix
+    abpoa_post_set_para(abpt);
+
+    // optionally override the substitution matrix
+    char *submat_string = cactusParams_get_string(params, 2, "bar", "partialOrderAlignmentSubMatrix");
+    if (submat_string && strlen(submat_string) > 0) {
+        // Note, this will be used to explicitly override abpoa's subsitution matrix just before aligning
+        assert(abpt->m == 5);
+        int count = 0;
+        for (char* val = strtok(submat_string, " "); val != NULL; val = strtok(NULL, " ")) {
+            abpt->mat[count++] = atoi(val);
+        }
+        assert(count == 25);        
+    }
+    free(submat_string);    
 
     return abpt;
 }
@@ -73,6 +84,11 @@ static abpoa_para_t *copy_abpoa_params(abpoa_para_t *abpt) {
     abpt_cpy->k = abpt->k;
     abpt_cpy->w = abpt->w;
     abpt_cpy->min_w = abpt->min_w;
+    // set the substition matrix
+    abpoa_post_set_para(abpt_cpy);
+    // and override it!
+    memcpy(abpt_cpy->mat, abpt->mat, abpt->m * abpt->m * sizeof(int));
+
     return abpt_cpy;
 }
 
@@ -335,8 +351,6 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
     // initialize variables
     abpoa_t *ab = abpoa_init();
      
-    abpoa_post_set_para(abpt);
-
     // collect our windowed outputs here, to be stiched at the end. 
     stList* msa_windows = stList_construct3(0, (void(*)(void *)) msa_destruct);
     

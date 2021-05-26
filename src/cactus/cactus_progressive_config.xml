@@ -171,13 +171,12 @@
    <!-- partialOrderAlignmentMaskFilter trim input sequences as soon as more than this many soft or hard masked bases are encountered (-1=disabled) -->
    <!-- partialOrderAlignmentBand abpoa adaptive band size is <partialOrderAlignmentBand> + <partialOrderAlignmentBandFraction>*<Length>.  Negative value here disables adaptive banding -->
    <!-- partialOrderAlignmentBandFraction abpoa adaptibe band second parameter (see above) -->
-   <!-- partialOrderAlignmentMode abpoa alignment mode. 0=Global, 1=Local, 2=Extend -->
    <!-- partialOrderAlignmentMatchScore abpoa match score -->
    <!-- partialOrderAlignmentMismatchPenalty abpoa mismatch penalty -->
-   <!-- partialOrderAlignmentGapMode abpoa gap mode. 0=Linear, 1=Affine, 2=Convex -->
-   <!-- partialOrderAlignmentGapOpenPenalty1 abpoa gap open penalty -->
+	<!-- partialOrderAlignmentSubMatrix (space-separated) list of 25 scores corresponding to the 5x5 ACGTN substitution matrix. overrides 2 above scores if not empty." -->
+   <!-- partialOrderAlignmentGapOpenPenalty1 abpoa gap open penalty (linear gap if 0) -->
    <!-- partialOrderAlignmentGapExtensionPenalty1 abpoa gap extension penalty -->
-   <!-- partialOrderAlignmentGapOpenPenalty2 abpoa second gap open penalty (convex mode takes the minimum of both gap models) -->
+   <!-- partialOrderAlignmentGapOpenPenalty2 abpoa second gap open penalty (convex mode takes the minimum of both gap models, 0 disables convex) -->
    <!-- partialOrderAlignmentGapExtensionPenalty abpoa second gap extension penalty (convex mode takes the minimum of both gap models) -->
    <!-- partialOrderAlignmentDisableSeeding abpoa disable minimizer seeding. -->
    <!-- partialOrderAlignmentMinimizerK abpoa kmer size for minimizer seeding. -->
@@ -212,10 +211,9 @@
 		partialOrderAlignmentMaskFilter="-1"
 		partialOrderAlignmentBandConstant="100"
 		partialOrderAlignmentBandFraction="0.025"
-		partialOrderAlignmentMode="0"
 		partialOrderAlignmentMatchScore="96"
 		partialOrderAlignmentMismatchPenalty="90"
-		partialOrderAlignmentGapMode="2"
+		partialOrderAlignmentSubMatrix="91 -114 -31 -123 0 -114 100 -125 -31 0 -31 -125 100 -114 0 -123 -31 -114 91 0 0 0 0 0 0"
 		partialOrderAlignmentGapOpenPenalty1="400"
 		partialOrderAlignmentGapExtensionPenalty1="30"
 		partialOrderAlignmentGapOpenPenalty2="1200"
@@ -307,8 +305,8 @@
 	<!-- maxGap: Include indel gaps <= maxGap when counting minigraph coverage -->
 	<!-- ambiguousName: Contigs deemed ambiguous using the above filters get added to a "contig" with this name, and are preserved in output. -->
 	<!-- remap: 1: remap ambiguous contigs with minimap2 0: don't -->
-	<!-- remapSplitOptions: extra rgfa-split options to apply when splitting after remapping -->
-	<!-- useMinimapPAF: use minimap2 PAF for ambiguous contigs (rather than keeping their original mappings in the input PAF) -->
+	<!-- remapSplitOptions: extra rgfa-split options to apply when splitting after remapping (use -u 3000000 to enable autoclipping between contigs, add -s to allow within contig)-->
+	<!-- useMinimapPAF: use minimap2 PAF for ambiguous contigs (rather than keeping their original mappings in the input PAF, requried if autoclipping enabled above) -->
 	<graphmap_split
 		 minQueryCoverage="0.65"
 		 minQuerySmallCoverage="0.75"
@@ -317,8 +315,8 @@
 		 maxGap="50000"
 		 ambiguousName="_AMBIGUOUS_"
 		 remap="1"
-		 remapSplitOptions="-u 2000000 -s"
-		 useMinimapPAF="1"
+		 remapSplitOptions=""
+		 useMinimapPAF="0"
 		 />
 	<!-- hal2vg options -->
 	<!-- includeMinigraph: include minigraph node sequences as paths in output (note that cactus-graphmap-join will still remove them by default) -->

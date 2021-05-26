@@ -38,6 +38,10 @@ export CFLAGS="-march=${CACTUS_ARCH} -static"
 export CXXFLAGS="-march=${CACTUS_ARCH} -static"
 export LDFLAGS="-march=${CACTUS_ARCH} -static"
 
+# install Phast and enable halPhyloP compilation
+build-tools/downloadPhast
+export ENABLE_PHYLOP=1
+
 make -j $(nproc) check-static
 
 # download all external tools used for pangenome pipeline

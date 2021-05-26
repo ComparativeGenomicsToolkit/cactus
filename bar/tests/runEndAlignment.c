@@ -361,6 +361,7 @@ int main(int argc, char *argv[]) {
     abpoa_para_t *abpt = abpoa_init_para();
     abpt->wb = 10;
     abpt->wf = 0.01;
+    abpoa_post_set_para(abpt);
     Msa *msa = msa_make_partial_order_alignment(seqs, seq_lens, seq_no, poaWindow, abpt);
     abpoa_free_para(abpt);
     t = clock() - t;
