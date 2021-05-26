@@ -37,7 +37,10 @@ RUN ln -fs /usr/bin/python3 /usr/bin/python
 RUN mkdir -p /wheels && cd /wheels && python3 -m pip install -U pip && python3 -m pip wheel -r /home/cactus/toil-requirement.txt && python3 -m pip wheel /home/cactus
 
 # Create a thinner final Docker image in which only the binaries and necessary data exist.
-FROM ubuntu:bionic-20200112
+# Use Google's non-rate-limited mirror of Docker Hub to get our base image.
+# This helps automated Travis builds because Travis hasn't built a caching system
+# and exposes pull rate limits to users.
+FROM mirror.gcr.io/library/ubuntu:18.04
 
 # apt dependencies for runtime
 RUN apt-get update && apt-get install -y --no-install-recommends git python3 python3-pip python3-distutils zlib1g libbz2-1.0 net-tools libhdf5-100 liblzo2-2 libtokyocabinet9 rsync libkrb5-3 libk5crypto3 time redis-server libhiredis0.13 liblzma5 libcurl4
