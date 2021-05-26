@@ -392,6 +392,22 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
             }
         }
 
+        // dump the msa input
+        char dump_path[512];
+        sprintf(dump_path, "/home/hickey/dev/cactus/dump/ap_in_%ld.fa", (int64_t)abpt);
+        FILE* dump_file = fopen(dump_path, "w");
+        for (int64_t i = 0; i < msa->seq_no; ++i) {
+            int64_t seq_len = msa->seq_lens[i];            
+            char* buffer = (char*)malloc((seq_len + 1) * sizeof(char));
+            for (int64_t j = 0; j < seq_len; ++j) {
+                buffer[j] = msa_to_base(bseqs[i][j]);
+            }
+            buffer[msa->seq_lens[i]] = '\0';
+            fprintf(dump_file, ">%ld\n%s\n", i, buffer);
+            free(buffer);
+        }
+        fclose(dump_file);
+
         // perform abpoa-msa
         ab->abs->n_seq = 0; // To re-use ab, n_seq needs to be set as 0        
         abpoa_msa(ab, abpt, msa->seq_no, NULL, msa->seq_lens, bseqs, NULL, NULL, NULL, NULL, NULL,
