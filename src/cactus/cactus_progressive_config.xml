@@ -171,9 +171,7 @@
    <!-- partialOrderAlignmentMaskFilter trim input sequences as soon as more than this many soft or hard masked bases are encountered (-1=disabled) -->
    <!-- partialOrderAlignmentBand abpoa adaptive band size is <partialOrderAlignmentBand> + <partialOrderAlignmentBandFraction>*<Length>.  Negative value here disables adaptive banding -->
    <!-- partialOrderAlignmentBandFraction abpoa adaptibe band second parameter (see above) -->
-   <!-- partialOrderAlignmentMatchScore abpoa match score -->
-   <!-- partialOrderAlignmentMismatchPenalty abpoa mismatch penalty -->
-	<!-- partialOrderAlignmentSubMatrix (space-separated) list of 25 scores corresponding to the 5x5 ACGTN substitution matrix. overrides 2 above scores if not empty." -->
+   <!-- partialOrderAlignmentSubMatrix (space-separated) list of 25 scores corresponding to the 5x5 ACGTN substitution matrix." -->
    <!-- partialOrderAlignmentGapOpenPenalty1 abpoa gap open penalty (linear gap if 0) -->
    <!-- partialOrderAlignmentGapExtensionPenalty1 abpoa gap extension penalty -->
    <!-- partialOrderAlignmentGapOpenPenalty2 abpoa second gap open penalty (convex mode takes the minimum of both gap models, 0 disables convex) -->
@@ -211,8 +209,6 @@
 		partialOrderAlignmentMaskFilter="-1"
 		partialOrderAlignmentBandConstant="300"
 		partialOrderAlignmentBandFraction="0.025"
-		partialOrderAlignmentMatchScore="96"
-		partialOrderAlignmentMismatchPenalty="90"
 		partialOrderAlignmentSubMatrix="91 -114 -31 -123 0 -114 100 -125 -31 0 -31 -125 100 -114 0 -123 -31 -114 91 0 0 0 0 0 0"
 		partialOrderAlignmentGapOpenPenalty1="400"
 		partialOrderAlignmentGapExtensionPenalty1="30"
