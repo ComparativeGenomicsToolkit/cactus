@@ -29,9 +29,9 @@ git submodule update --init --recursive
 
 if [ -z ${CACTUS_LEGACY_ARCH+x} ]
 then
-	 CACTUS_ARCH="nehalem"
+	 export CACTUS_ARCH="haswell"
 else
-	 CACTUS_ARCH="nocona"
+	 export CACTUS_ARCH="nocona"
 fi
 
 export CFLAGS="-march=${CACTUS_ARCH} -static"
