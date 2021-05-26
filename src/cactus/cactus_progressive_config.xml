@@ -209,7 +209,7 @@
 		partialOrderAlignment="1"
 		partialOrderAlignmentWindow="10000"
 		partialOrderAlignmentMaskFilter="-1"
-		partialOrderAlignmentBandConstant="100"
+		partialOrderAlignmentBandConstant="300"
 		partialOrderAlignmentBandFraction="0.025"
 		partialOrderAlignmentMatchScore="96"
 		partialOrderAlignmentMismatchPenalty="90"
