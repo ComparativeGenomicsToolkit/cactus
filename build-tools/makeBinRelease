@@ -32,6 +32,8 @@ then
 	 export CACTUS_ARCH="haswell"
 else
 	 export CACTUS_ARCH="nocona"
+	 # abpoa will not work realiably on architectures older than haswell, so make sure it's off by default
+	 sed -i src/cactus/cactus_progressive_config.xml -e 's/partialOrderAlignment="1"/partialOrderAlignment="0"/g'
 fi
 
 export CFLAGS="-march=${CACTUS_ARCH} -static"
