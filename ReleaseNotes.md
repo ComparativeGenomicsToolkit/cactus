@@ -6,8 +6,7 @@
 - Update to latest Segalign
 - Update to Toil 5.3
 - Update HAL
-
-GPU Lastz version used in GPU-enabled Docker image: [85f766744f116b51658135f9f4f489f757922bff](https://github.com/ComparativeGenomicsToolkit/SegAlign/commit/8b63a0fe1c06b3511dfc4660bd0f9fb7ad7176e7)
+- Add `halPhyloP` to binary release and docker images
 
 # Release 1.3.0   2021-02-11
 

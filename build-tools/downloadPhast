@@ -1,0 +1,38 @@
+#!/bin/bash
+# Download and statically build Phast, which is required for halPhyloP
+# all binaries get copied into cactus/bin
+
+# set this to one to make sure everything gets built statically (necessary for binary release)
+STATIC_CHECK=$1
+
+set -beEu -o pipefail
+
+# hal expects phast as a sister directory, so we stick it there
+submodulesDir=$(pwd)/submodules
+CWD=$(pwd)
+
+set -x
+
+# build clapack
+cd ${submodulesDir}
+rm -rf clapack
+wget -q http://www.netlib.org/clapack/clapack.tgz
+tar -xvzf clapack.tgz
+mv CLAPACK-3.2.1 clapack
+cd clapack
+cp make.inc.example make.inc && make -j 4 f2clib && make -j 4 blaslib && make -j 4 lib
+export CLAPACKPATH=`pwd`
+cd ..
+
+# build phast
+cd ${submodulesDir}
+rm -rf phast
+git clone https://github.com/CshlSiepelLab/phast.git
+cd phast
+#todo: update to new release
+git checkout 52e8de92a91e09434e60a03b7835e7363cf97007
+cd src && make -j 4
+
+cd ${CWD}
+
+set +x
