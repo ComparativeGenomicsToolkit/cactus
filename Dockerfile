@@ -12,6 +12,10 @@ ENV CFLAGS -march=nehalem
 ENV CXXFLAGS -march=nehalem
 ENV LDFLAGS -march=nehalem
 
+# install Phast and enable halPhyloP compilation
+RUN cd /home/cactus && ./build-tools/downloadPhast
+ENV ENABLE_PHYLOP 1
+
 # clean out stuff before build.
 RUN find /home/cactus -name include.local.mk -exec rm -f {} \;
 RUN cd /home/cactus && make clean -j $(nproc)
