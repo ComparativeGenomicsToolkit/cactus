@@ -31,9 +31,7 @@ abpoa_para_t *abpoaParamaters_constructFromCactusParams(CactusParams *params) {
     abpt->wb = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentBandConstant");
     abpt->wf = cactusParams_get_float(params, 2, "bar", "partialOrderAlignmentBandFraction");
 
-    // scoring model
-    abpt->match = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentMatchScore");
-    abpt->mismatch = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentMismatchPenalty");
+    // gap scoring model
     abpt->gap_open1 = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentGapOpenPenalty1");
     abpt->gap_ext1 = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentGapExtensionPenalty1");
     abpt->gap_open2 = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentGapOpenPenalty2");
