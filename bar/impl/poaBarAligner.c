@@ -821,8 +821,57 @@ void create_alignment_blocks(Msa *msa, Cap **row_indexes_to_caps, stList *alignm
     assert(i == msa->column_no);
 }
 
+void get_end_sequences(End *end, char **end_strings, int *end_string_lengths, int64_t *overlaps,
+                       Cap **indices_to_caps, int64_t max_seq_length, int64_t mask_filter) {
+    // Make inputs
+    Cap *cap;
+    End_InstanceIterator *capIterator = end_getInstanceIterator(end);
+    int64_t j=0; // Index of the cap in the end's arrays
+    while ((cap = end_getNext(capIterator)) != NULL) {
+        // Ensure we have the cap in the correct orientation
+        if (cap_getSide(cap)) {
+            cap = cap_getReverse(cap);
+        }
+        // Get the prefix of the adjacency string and its length and overlap with its reverse complement
+        end_strings[j] = get_adjacency_string_and_overlap(cap, &(end_string_lengths[j]),
+                                                          &(overlaps[j]), max_seq_length, mask_filter);
+
+        // Populate the caps to end/row indices, and vice versa, data structures
+        indices_to_caps[j] = cap;
+
+        j++;
+    }
+    end_destructInstanceIterator(capIterator);
+}
+
 stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_t window_size, int64_t mask_filter,
                                   abpoa_para_t * poa_parameters) {
+    End *dominantEnd = getDominantEnd(flower);
+    if(dominantEnd != NULL) {
+        /*
+         * If there is a single end that is connected to all adjacencies, just use that alignment
+         */
+
+        // Make inputs
+        int64_t seq_no = end_getInstanceNumber(dominantEnd);
+        char **end_strings = st_malloc(sizeof(char *) * seq_no);
+        int *end_string_lengths = st_malloc(sizeof(int) * seq_no);
+        int64_t overlaps[seq_no];
+        Cap *indices_to_caps[seq_no];
+
+        get_end_sequences(dominantEnd, end_strings, end_string_lengths, overlaps, indices_to_caps, max_seq_length, mask_filter);
+        Msa *msa = msa_make_partial_order_alignment(end_strings, end_string_lengths, seq_no, window_size, poa_parameters);
+
+        //Now convert to set of alignment blocks
+        stList *alignment_blocks = stList_construct3(0, (void (*)(void *))alignmentBlock_destruct);
+        create_alignment_blocks(msa, indices_to_caps, alignment_blocks);
+
+        // Cleanup
+        msa_destruct(msa);
+
+        return alignment_blocks;
+    }
+
     // Arrays of ends and connecting the strings necessary to build the POA alignment
     int64_t end_no = flower_getEndNumber(flower); // The number of ends
     int64_t end_lengths[end_no]; // The number of strings incident with each end
@@ -849,29 +898,11 @@ stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_
         right_end_row_indexes[i] = st_malloc(sizeof(int64_t)*end_lengths[i]);
         indices_to_caps[i] = st_malloc(sizeof(Cap *)*end_lengths[i]);
         overlaps[i] = st_malloc(sizeof(int64_t)*end_lengths[i]);
-
-        // Now get each string incident with the end
-        Cap *cap;
-        End_InstanceIterator *capIterator = end_getInstanceIterator(end);
-        int64_t j=0; // Index of the cap in the end's arrays
-        while ((cap = end_getNext(capIterator)) != NULL) {
-            assert(j < end_lengths[i]);
-            // Ensure we have the cap in the correct orientation
-            if (cap_getSide(cap)) {
-                cap = cap_getReverse(cap);
-            }
-            // Get the prefix of the adjacency string and its length and overlap with its reverse complement
-            end_strings[i][j] = get_adjacency_string_and_overlap(cap, &(end_string_lengths[i][j]),
-                                                                 &(overlaps[i][j]), max_seq_length, mask_filter);
-
-            // Populate the caps to end/row indices, and vice versa, data structures
-            indices_to_caps[i][j] = cap;
-            stHash_insert(caps_to_indices, cap, stIntTuple_construct2(i, j));
-
-            j++;
+        get_end_sequences(end, end_strings[i], end_string_lengths[i], overlaps[i], indices_to_caps[i],
+                          max_seq_length, mask_filter);
+        for(int64_t j=0; j<end_lengths[i]; j++) {
+            stHash_insert(caps_to_indices, indices_to_caps[i][j], stIntTuple_construct2(i, j));
         }
-        end_destructInstanceIterator(capIterator);
-        assert(end_lengths[i] == j);
         i++;
     }
     flower_destructEndIterator(endIterator);
@@ -900,8 +931,6 @@ stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_
 
             j++;
         }
-        end_destructInstanceIterator(capIterator);
-        assert(end_lengths[i] == j);
         i++;
     }
     flower_destructEndIterator(endIterator);
