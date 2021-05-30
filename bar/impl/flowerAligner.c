@@ -465,6 +465,7 @@ End *getDominantEnd(Flower *flower) {
     Flower_EndIterator *endIt = flower_getEndIterator(flower);
     End *end;
     int64_t maxInstanceNumber = 0;
+    // Get the end with the largest number of caps
     End *dominantEnd = NULL;
     while ((end = flower_getNextEnd(endIt)) != NULL) {
         if (end_getInstanceNumber(end) > maxInstanceNumber) {
@@ -473,13 +474,15 @@ End *getDominantEnd(Flower *flower) {
         }
     }
     flower_destructEndIterator(endIt);
-    if (dominantEnd == NULL) {
+    if (dominantEnd == NULL) { // This will only be true if there are no ends or only ends with no caps
         return NULL;
     }
     assert(end_getOrientation(dominantEnd));
+    // If the end can not be incident with all the adjacencies, return NULL
     if (end_getInstanceNumber(dominantEnd) * 2 < flower_getCapNumber(flower)) {
         return NULL;
     }
+    // If the end is not incident with all the adjacencies, return NULL
     Cap *cap;
     Flower_CapIterator *capIt = flower_getCapIterator(flower);
     while ((cap = flower_getNextCap(capIt)) != NULL) {
