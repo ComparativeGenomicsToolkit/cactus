@@ -35,11 +35,6 @@ stSortedSet *makeFlowerAlignment3(StateMachine *sM, Flower *flower, stList *list
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, bool pruneOutStubAlignments);
 
 /*
- * Returns an end, if exists, that has cap involved in every adjacency, else returns null.
- */
-End *getDominantEnd(Flower *flower);
-
-/*
  * Ascertain which ends should be aligned separately.
  */
 stSortedSet *getEndsToAlignSeparately(Flower *flower, int64_t maxSequenceLength, int64_t largeEndSize);

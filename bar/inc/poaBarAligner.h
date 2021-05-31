@@ -12,8 +12,6 @@
 #include "stPinchIterator.h"
 #include "pairwiseAligner.h"
 #include "abpoa.h"
-#include "flowerAligner.h"
-
 /*
  * Overall coordination function to run the bar algorithm.
  */

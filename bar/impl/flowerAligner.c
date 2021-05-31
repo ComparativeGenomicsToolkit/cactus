@@ -460,6 +460,9 @@ int64_t getMaxAdjacencyLength(Flower *flower) {
 }
 
 End *getDominantEnd(Flower *flower) {
+    /*
+     * Returns an end, if exists, that has cap involved in every adjacency, else returns null.
+     */
     //return NULL;
     assert(flower_getGroupNumber(flower) <= 1);
     Flower_EndIterator *endIt = flower_getEndIterator(flower);
