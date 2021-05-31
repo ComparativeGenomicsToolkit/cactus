@@ -458,5 +458,19 @@ void group_removeEnd(Group *group, End *end) {
     }
 }
 
-
-
+void group_mergeTerminalGroups(Group *group1, Group *group2) {
+    // Conditions that must be true
+    assert(!group_isLink(group1));
+    assert(!group_isLink(group2));
+    assert(group_isLeaf(group1));
+    assert(group_isLeaf(group2));
+    // Now merge together the groups by removing the ends from group and adding to the other
+    End *end;
+    while (!group_isEmpty(group2)) {
+        //end_setGroup((end = group_getFirstEnd(group2)), NULL);
+        end_setGroup((end = group_getFirstEnd(group2)), group1);
+        assert(end_getGroup(end) == group1);
+    }
+    assert(group_getEndNumber(group2) == 0);
+    group_destruct(group2); // Cleanup the now empty group
+}

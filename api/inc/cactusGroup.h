@@ -168,4 +168,9 @@ void group_check(Group *group);
  */
 void group_constructChainForLink(Group *group);
 
+/*
+ * Merges together two groups that are both leaf groups and not part of links.
+ */
+void group_mergeTerminalGroups(Group *group1, Group *group2);
+
 #endif

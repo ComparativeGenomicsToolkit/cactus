@@ -781,23 +781,6 @@ static void mapEnds(stHash *endsToEnds, End *end1, End *end2) {
     stHash_insert(endsToEnds, end2, end1);
 }
 
-static bool endsAreConnected(End *end1, End *end2) {
-    /*
-     * Determines if there is any adjacency connecting the two ends.
-     */
-    End_InstanceIterator *capIt = end_getInstanceIterator(end1);
-    Cap *cap;
-    while ((cap = end_getNext(capIt)) != NULL) {
-        Cap *adjCap = cap_getAdjacency(cap);
-        if (adjCap != NULL && end_getName(cap_getEnd(adjCap)) == end_getName(end2)) {
-            end_destructInstanceIterator(capIt);
-            return 1;
-        }
-    }
-    end_destructInstanceIterator(capIt);
-    return 0;
-}
-
 static stHash *getEndsToEnds(Flower *flower, stList *chosenAdjacencyEdges, stHash *nodesToEnds, int64_t numberOfNsForScaffoldGap) {
     /*
      * Get a hash of matched ends.
@@ -810,20 +793,33 @@ static stHash *getEndsToEnds(Flower *flower, stList *chosenAdjacencyEdges, stHas
         assert(end1 != NULL);
         assert(end2 != NULL);
         assert(end1 != end2);
-        if (end_getGroup(end1) != NULL && end_getGroup(end2) != NULL && !endsAreConnected(end1, end2)) {
-            /*
-             * We build a 'scaffolding block' between ends
-             *
-             * We require the ends that are being scaffolded to already have groups, else they must themselves the
-             * ends of scaffolding blocks, so we don't add additional scaffold gaps.
-             */
-            Block *block = block_construct(numberOfNsForScaffoldGap, flower);
-            end_setGroup(block_get5End(block), end_getGroup(end1));
-            assert(group_isTangle(end_getGroup(end1)));
-            mapEnds(endsToEnds, end1, block_get5End(block));
-            end_setGroup(block_get3End(block), end_getGroup(end2));
-            assert(group_isTangle(end_getGroup(end2)));
-            mapEnds(endsToEnds, end2, block_get3End(block));
+
+        if (end_getGroup(end1) != NULL && end_getGroup(end2) != NULL && end_getGroup(end1) != end_getGroup(end2)) {
+            if(group_getNestedFlower(end_getGroup(end1)) == NULL && !group_isLink(end_getGroup(end1)) &&
+               group_getNestedFlower(end_getGroup(end2)) == NULL && !group_isLink(end_getGroup(end2))) {
+                /*
+                 * Merge the groups together so we can join them together, providing they are part of terminal groups
+                 * and not part of chains
+                 */
+                group_mergeTerminalGroups(end_getGroup(end1), end_getGroup(end2));
+                assert(end_getGroup(end1) == end_getGroup(end2));
+                mapEnds(endsToEnds, end1, end2);
+            }
+            else {
+                /*
+                 * We build a 'scaffolding block' between ends
+                 *
+                 * We require the ends that are being scaffolded to already have groups, else they must themselves the
+                 * ends of scaffolding blocks, so we don't add additional scaffold gaps.
+                 */
+                Block *block = block_construct(numberOfNsForScaffoldGap, flower);
+                end_setGroup(block_get5End(block), end_getGroup(end1));
+                assert(group_isTangle(end_getGroup(end1)));
+                mapEnds(endsToEnds, end1, block_get5End(block));
+                end_setGroup(block_get3End(block), end_getGroup(end2));
+                assert(group_isTangle(end_getGroup(end2)));
+                mapEnds(endsToEnds, end2, block_get3End(block));
+            }
         } else {
             mapEnds(endsToEnds, end1, end2);
         }
