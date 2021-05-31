@@ -343,20 +343,24 @@ int main(int argc, char *argv[]) {
     //Call cactus bar
     //////////////////////////////////////////////
 
-    stList *leafFlowers = stList_construct();
-    extendFlowers(flower, leafFlowers, 1); // Get nested flowers to complete
-    stList_sort(leafFlowers, flower_sizeCmpFn); // Sort by descending order of size, so that we start processing the
+    if (cactusParams_get_int(params, 2, "bar", "runBar")) {
+        stList *leafFlowers = stList_construct();
+        extendFlowers(flower, leafFlowers, 1); // Get nested flowers to complete
+        stList_sort(leafFlowers, flower_sizeCmpFn); // Sort by descending order of size, so that we start processing the
 // largest flower as quickly as possible
-    st_logInfo("Ran extended flowers ready for bar, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+        st_logInfo("Ran extended flowers ready for bar, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
-    bar(leafFlowers, params, cactusDisk, NULL);
-    int64_t usePoa = cactusParams_get_int(params, 2, "bar", "partialOrderAlignment");
-    st_logInfo("Ran cactus bar (use poa:%i), %" PRIi64 " seconds have elapsed\n", (int)usePoa, time(NULL) - startTime);
-    stList_destruct(leafFlowers);
 
-    if(runChecks) {
-        flower_checkRecursive(flower);
-        st_logInfo("Checked the flowers in the hierarchy created by BAR, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+        bar(leafFlowers, params, cactusDisk, NULL);
+        int64_t usePoa = cactusParams_get_int(params, 2, "bar", "partialOrderAlignment");
+        st_logInfo("Ran cactus bar (use poa:%i), %" PRIi64 " seconds have elapsed\n", (int)usePoa, time(NULL) - startTime);
+
+        stList_destruct(leafFlowers);
+
+        if(runChecks) {
+            flower_checkRecursive(flower);
+            st_logInfo("Checked the flowers in the hierarchy created by BAR, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+        }
     }
 
     //////////////////////////////////////////////
