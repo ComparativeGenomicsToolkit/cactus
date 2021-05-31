@@ -6,6 +6,10 @@
 STATIC_CHECK=$1
 
 set -beEu -o pipefail
+gitrel=v1.6
+
+# works on MacOS and Linux
+numcpu=$(getconf _NPROCESSORS_ONLN)
 
 # hal expects phast as a sister directory, so we stick it there
 submodulesDir=$(pwd)/submodules
@@ -20,8 +24,8 @@ wget -q http://www.netlib.org/clapack/clapack.tgz
 tar -xvzf clapack.tgz
 mv CLAPACK-3.2.1 clapack
 cd clapack
-cp make.inc.example make.inc && make -j 4 f2clib && make -j 4 blaslib && make -j 4 lib
-export CLAPACKPATH=`pwd`
+cp make.inc.example make.inc && make -j ${numcpu} f2clib && make -j ${numcpu} blaslib && make -j ${numcpu} lib
+export CLAPACKPATH=$(pwd)
 cd ..
 
 # build phast
@@ -29,9 +33,8 @@ cd ${submodulesDir}
 rm -rf phast
 git clone https://github.com/CshlSiepelLab/phast.git
 cd phast
-#todo: update to new release
-git checkout 52e8de92a91e09434e60a03b7835e7363cf97007
-cd src && make -j 4
+git checkout ${gitrel}
+cd src && make -j ${numcpu}
 
 cd ${CWD}
 
