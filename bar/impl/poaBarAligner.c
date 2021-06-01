@@ -44,6 +44,9 @@ abpoa_para_t *abpoaParamaters_constructFromCactusParams(CactusParams *params) {
     abpt->w = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentMinimizerW");
     abpt->min_w = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentMinimizerMinW");
 
+    // progressive toggle
+    abpt->progressive_poa = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentProgressiveMode");
+
     // generate the substitution matrix
     abpoa_post_set_para(abpt);
 
@@ -84,6 +87,7 @@ static abpoa_para_t *copy_abpoa_params(abpoa_para_t *abpt) {
     abpt_cpy->k = abpt->k;
     abpt_cpy->w = abpt->w;
     abpt_cpy->min_w = abpt->min_w;
+    abpt_cpy->progressive_poa = abpt->progressive_poa;
     if (abpt->use_score_matrix == 1) {
         memcpy(abpt_cpy->mat, abpt->mat, abpt->m * abpt->m * sizeof(int));
     }

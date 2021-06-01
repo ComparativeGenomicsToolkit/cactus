@@ -180,6 +180,7 @@
    <!-- partialOrderAlignmentMinimizerK abpoa kmer size for minimizer seeding. -->
    <!-- partialOrderAlignmentMinimizerW abpoa window size for minimizer seeding. -->
    <!-- partialOrderAlignmentMinimizerMinW abpoa minimum window size. -->
+   <!-- partialOrderAlignmentProgressiveMode= use guide tree from jaccard distance matrix to determine poa order -->
 	<bar
 		runBar="1"
 		spanningTrees="5"
@@ -218,6 +219,7 @@
 		partialOrderAlignmentMinimizerK="19"
 		partialOrderAlignmentMinimizerW="10"
 		partialOrderAlignmentMinimizerMinW="50"
+		partialOrderAlignmentProgressiveMode="0"
 		useMumAnchors="1"
 		recursiveMums="1"
 	>
