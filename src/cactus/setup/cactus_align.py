@@ -376,6 +376,8 @@ def make_align_job(options, toil):
         findRequiredNode(configWrapper.xmlRoot, "bar").attrib["minimumBlockDegree"] = "1"
         # turn on POA
         findRequiredNode(configWrapper.xmlRoot, "bar").attrib["partialOrderAlignment"] = "1"
+        # turn off POA seeding
+        findRequiredNode(configWrapper.xmlRoot, "bar").attrib["partialOrderAlignmentDisableSeeding"] = "1"
         # save it
         if not options.batch:
             pg_file = options.outHal + ".pg-conf.xml"
