@@ -176,7 +176,7 @@
    <!-- partialOrderAlignmentGapExtensionPenalty1 abpoa gap extension penalty -->
    <!-- partialOrderAlignmentGapOpenPenalty2 abpoa second gap open penalty (convex mode takes the minimum of both gap models, 0 disables convex) -->
    <!-- partialOrderAlignmentGapExtensionPenalty abpoa second gap extension penalty (convex mode takes the minimum of both gap models) -->
-   <!-- partialOrderAlignmentDisableSeeding abpoa disable minimizer seeding. -->
+   <!-- partialOrderAlignmentDisableSeeding abpoa disable minimizer seeding. toggling this on will slightly increase accuracy at the cost of speed -->
    <!-- partialOrderAlignmentMinimizerK abpoa kmer size for minimizer seeding. -->
    <!-- partialOrderAlignmentMinimizerW abpoa window size for minimizer seeding. -->
    <!-- partialOrderAlignmentMinimizerMinW abpoa minimum window size. -->
@@ -215,7 +215,7 @@
 		partialOrderAlignmentGapExtensionPenalty1="30"
 		partialOrderAlignmentGapOpenPenalty2="1200"
 		partialOrderAlignmentGapExtensionPenalty2="1"
-		partialOrderAlignmentDisableSeeding="1"
+		partialOrderAlignmentDisableSeeding="0"
 		partialOrderAlignmentMinimizerK="19"
 		partialOrderAlignmentMinimizerW="10"
 		partialOrderAlignmentMinimizerMinW="50"
