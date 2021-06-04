@@ -7,11 +7,11 @@ RUN apt-get update && apt-get install -y build-essential git python3 python3-dev
 RUN mkdir -p /home/cactus
 COPY . /home/cactus
 
-# compile with haswell architecture target to improve portablity (whilc still working with abpoa)
-ENV CACTUS_ARCH=haswell
-ENV CFLAGS -march=haswell
-ENV CXXFLAGS -march=haswell
-ENV LDFLAGS -march=haswell
+# compile with nehalem architecture target to improve portablity
+ENV CACTUS_ARCH=nehalem
+ENV CFLAGS -march=nehalem
+ENV CXXFLAGS -march=nehalem
+ENV LDFLAGS -march=nehalem
 
 # install Phast and enable halPhyloP compilation
 RUN cd /home/cactus && ./build-tools/downloadPhast

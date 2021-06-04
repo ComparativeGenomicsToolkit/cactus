@@ -29,7 +29,7 @@ git submodule update --init --recursive
 
 if [ -z ${CACTUS_LEGACY_ARCH+x} ]
 then
-	 export CACTUS_ARCH="haswell"
+	 export CACTUS_ARCH="nehalem"
 else
 	 export CACTUS_ARCH="nocona"
 	 # abpoa will not work realiably on architectures older than haswell, so make sure it's off by default
