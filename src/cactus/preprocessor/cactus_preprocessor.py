@@ -331,13 +331,17 @@ class CactusPreprocessor2(RoundedJob):
 
 def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=False,
                   outputSequences = [], maskAlpha=False, clipAlpha=None,
-                  maskFile=None, minLength=None, inputEventNames=None, brnnCores=None):
+                  maskFile=None, minLength=None, inputEventNames=None, brnnCores=None,
+                  gpu_override=False):
     #Replace any constants
     configNode = ET.parse(configFile).getroot()
     if not outputSequences:
         outputSequences = CactusPreprocessor.getOutputSequenceFiles(inputSequences, outputSequenceDir)
     else:
         assert len(outputSequences) == len(inputSequences)
+
+    # toggle on the gpu
+    ConfigWrapper(configNode).initGPU(gpu_override)
 
     # Make sure we have the dna-brnn model in the filestore if we need it
     loadDnaBrnnModel(toil, ET.parse(configFile).getroot(), maskAlpha = maskAlpha)
@@ -420,6 +424,8 @@ def main():
                         "rather than pulling one from quay.io")
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
+    parser.add_argument("--gpu", action="store_true",
+                        help="Enable GPU acceleration by using Segaling instead of lastz")
 
     options = parser.parse_args()
     setupBinaries(options)
@@ -518,7 +524,8 @@ def main():
                       maskFile=options.maskFile,
                       minLength=options.minLength,
                       inputEventNames=inNames,
-                      brnnCores=options.brnnCores)
+                      brnnCores=options.brnnCores,
+                      gpu_override=options.gpu)
 
 if __name__ == '__main__':
     main()

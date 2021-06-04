@@ -217,6 +217,9 @@ class RunCactusPreprocessorThenProgressiveDown(RoundedJob):
         self.configWrapper = ConfigWrapper(self.configNode)
         self.configWrapper.substituteAllPredefinedConstantsWithLiterals()
 
+        # apply gpu override
+        self.configWrapper.initGPU(self.options.gpu)
+
         fileStore.logToMaster("Using the following configuration:\n%s" % ET.tostring(self.configNode, encoding='unicode'))
 
         # Log the stats for the un-preprocessed assemblies
@@ -228,6 +231,7 @@ class RunCactusPreprocessorThenProgressiveDown(RoundedJob):
         configFile = fileStore.readGlobalFile(self.project.getConfigID())
         configNode = ET.parse(configFile).getroot()
         ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals() #This is necessary..
+        ConfigWrapper(configNode).initGPU(self.options.gpu)
         #Add the preprocessor child job. The output is a job promise value that will be
         #converted into a list of the IDs of the preprocessed sequences in the follow on job.
         preprocessorJob = self.addChild(CactusPreprocessor(list(self.project.inputSequenceIDMap.values()), configNode))
@@ -366,6 +370,8 @@ def main():
                         "rather than pulling one from quay.io")
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
+    parser.add_argument("--gpu", action="store_true",
+                        help="Enable GPU acceleration by using Segaling instead of lastz")    
     parser.add_argument("--database", choices=["kyoto_tycoon", "redis"],
                         help="The type of database", default="kyoto_tycoon")
 
