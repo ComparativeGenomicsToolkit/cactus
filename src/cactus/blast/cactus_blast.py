@@ -65,6 +65,8 @@ def main():
                         "rather than pulling one from quay.io")
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
+    parser.add_argument("--gpu", action="store_true",
+                        help="Enable GPU acceleration by using Segaling instead of lastz")
     options = parser.parse_args()
     options.database = "kyoto_tycoon"
 
@@ -148,9 +150,6 @@ def runCactusBlastOnly(options):
             genome_set = set(leaves + outgroups)
             logger.info("Genomes in blastonly, {}: {}".format(options.root, list(genome_set)))
 
-            print (str(project.inputSequenceMap))
-
-
             #import the sequences (that we need to align for the given event, ie leaves and outgroups)
             for genome, seq in list(project.inputSequenceMap.items()):
                 if genome in genome_set:
@@ -175,6 +174,9 @@ def runCactusBlastOnly(options):
             configNode = ET.parse(project.getConfigPath()).getroot()
             configWrapper = ConfigWrapper(configNode)
             configWrapper.substituteAllPredefinedConstantsWithLiterals()
+
+            # apply gpu override
+            configWrapper.initGPU(options.gpu)
 
             workFlowArgs = CactusWorkflowArguments(options, experimentFile=experimentFile, configNode=configNode, seqIDMap = project.inputSequenceIDMap)
 

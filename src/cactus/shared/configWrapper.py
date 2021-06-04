@@ -246,6 +246,24 @@ class ConfigWrapper:
             if getOptionalAttrib(node, "preprocessJob") == preprocessorJob:
                 return getOptionalAttrib(node, "active", default="1" if default_val else "0") == "1"
         return default_val
-                        
 
-        
+    def initGPU(self, force_activate):
+        """ Turn on GPU and / or check options make sense """
+        if force_activate:
+            # apply the gpu override
+            findRequiredNode(self.xmlRoot, "caf").attrib["gpuLastz"] = "true"
+            findRequiredNode(self.xmlRoot, "caf").attrib["realign"] = "0"
+            for node in self.xmlRoot.findall("preprocessor"):
+                if getOptionalAttrib(node, "preprocessJob") == "lastzRepeatMask":
+                    node.attrib["gpuLastz"] = "true"
+
+        # make absolutely sure realign is never turned on with the gpu.  they don't work together because
+        # realign requires small chunks, and segalign needs big chunks
+        # realign is cpu based, which is wasteful on a gpu node
+        # realign is too slow, and largely negates gpu speed boost
+        if getOptionalAttrib(findRequiredNode(self.xmlRoot, "caf"), "gpuLastz", typeFn=bool) and \
+           getOptionalAttrib(findRequiredNode(self.xmlRoot, "caf"), "realign", typeFn=bool):
+            logger.warning("Switching off blast realignment as it is incompatible with GPU mode")
+            findRequiredNode(self.xmlRoot, "caf").attrib["realign"] = "0"
+
+
