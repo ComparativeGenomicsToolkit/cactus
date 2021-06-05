@@ -63,10 +63,6 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
     bool useProgressiveMerging = cactusParams_get_int(params, 2, "bar", "useProgressiveMerging");
     float matchGamma = cactusParams_get_float(params, 2, "bar", "matchGamma");
 
-    //bool useBanding = cactusParams_get_int(params, 2, "bar", "useBanding");
-    //int64_t minimumSizeToRescue = cactusParams_get_int(params, 2, "bar", "minimumSizeToRescue");
-    //double minimumCoverageToRescue = cactusParams_get_float(params, 2, "bar", "minimumCoverageToRescue");
-
     // toggle from pecan to abpoa for multiple alignment, by setting to non-zero
     // Note that poa uses about N^2 memory, so maximum value is generally in 10s of kb
     int64_t usePoa = cactusParams_get_int(params, 2, "bar", "partialOrderAlignment");
@@ -165,16 +161,10 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
     //Clean up
     //////////////////////////////////////////////
 
-    //stList_destruct(flowers);
     pairwiseAlignmentBandingParameters_destruct(pairwiseAlignmentParameters);
     stateMachine_destruct(sM);
 
     if (poaParameters) {
         abpoa_free_para(poaParameters);
     }
-
-    /*if (bedRegions != NULL) {
-        // Clean up our mapping.
-        munmap(bedRegions, numBeds * sizeof(bedRegion));
-    }*/
 }

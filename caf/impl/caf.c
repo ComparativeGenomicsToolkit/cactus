@@ -7,22 +7,6 @@
 #include "stGiantComponent.h"
 #include "stCafPhylogeny.h"
 
-/*static int64_t *getInts(const char *string, int64_t *arrayLength) {
-    int64_t *iA = st_malloc(sizeof(int64_t) * strlen(string));
-    char *cA = stString_copy(string);
-    char *cA2 = cA;
-    char *cA3;
-    *arrayLength = 0;
-    while ((cA3 = stString_getNextWord(&cA)) != NULL) {
-        int64_t i = sscanf(cA3, "%" PRIi64 "", &iA[(*arrayLength)++]);
-        (void) i;
-        assert(i == 1);
-        free(cA3);
-    }
-    free(cA2);
-    return iA;
-}*/
-
 static bool blockFilterFn(stPinchBlock *pinchBlock, void *extraArg) {
     FilterArgs *f = extraArg;
     if (!stCaf_containsRequiredSpecies(pinchBlock, f->flower, f->minimumIngroupDegree,
@@ -34,20 +18,6 @@ static bool blockFilterFn(stPinchBlock *pinchBlock, void *extraArg) {
         return 1;
     }
     return 0;
-}
-
-// Used for interactive debugging.
-void stCaf_printBlock(stPinchBlock *block, void *extraArg) {
-    FilterArgs *f = extraArg;
-    stPinchBlockIt blockIt = stPinchBlock_getSegmentIterator(block);
-    stPinchSegment *segment;
-    while ((segment = stPinchBlockIt_getNext(&blockIt)) != NULL) {
-        stPinchThread *thread = stPinchSegment_getThread(segment);
-        Cap *cap = flower_getCap(f->flower, stPinchThread_getName(thread));
-        Event *event = cap_getEvent(cap);
-        Sequence *sequence = cap_getSequence(cap);
-        printf("%s.%s:%" PRIi64 "-%" PRIi64 ":%s\n", event_getHeader(event), sequence_getHeader(sequence), stPinchSegment_getStart(segment), stPinchSegment_getStart(segment) + stPinchSegment_getLength(segment), stPinchSegment_getBlockOrientation(segment) ? "+" : "-");
-    }
 }
 
 static uint64_t choose2(uint64_t n) {
@@ -90,22 +60,6 @@ static uint64_t numPossibleSupportingHomologies(stPinchBlock *block, Flower *flo
     // twice.
     return choose2(ingroupDegree) * 2 + ingroupDegree * outgroupDegree;
 }
-
-/*static void dumpBlockInfo(stPinchThreadSet *threadSet, const char *fileName) {
-    stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
-    FILE *file = fopen(fileName, "w");
-    if (file == NULL) {
-        st_errnoAbort("couldn't open debug file");
-    }
-    stPinchBlock *block;
-    while ((block = stPinchThreadSetBlockIt_getNext(&blockIt)) != NULL) {
-        uint64_t supportingHomologies = stPinchBlock_getNumSupportingHomologies(block);
-        uint64_t possibleSupportingHomologies = numPossibleSupportingHomologies(block, flower);
-        double support = ((double) supportingHomologies) / possibleSupportingHomologies;
-        fprintf(file, "%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%lf\n", stPinchBlock_getDegree(block), stPinchBlock_getLength(block), supportingHomologies, possibleSupportingHomologies, support);
-    }
-    fclose(file);
-}*/
 
 // for printThreadSetStatistics
 static int uint64_cmp(const uint64_t *x, const uint64_t *y) {
@@ -219,8 +173,6 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
     int64_t minLengthForChromosome = cactusParams_get_int(params, 2, "caf", "minLengthForChromosome");
     float proportionOfUnalignedBasesForNewChromosome = cactusParams_get_float(params, 2, "caf", "proportionOfUnalignedBasesForNewChromosome");
     int64_t maximumMedianSequenceLengthBetweenLinkedEnds = cactusParams_get_int(params, 2, "caf", "maximumMedianSequenceLengthBetweenLinkedEnds");
-    //bool realign = cactusParams_get_int(params, 2, "caf", "realign");
-    //char *realignArguments = (char *)cactusParams_get_string(params, 2, "caf", "realignArguments");
 
     char *removeRecoverableChainsStr = (char *)cactusParams_get_string(params, 2, "caf", "removeRecoverableChains");
     bool removeRecoverableChains = false;
@@ -419,12 +371,6 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
                 }
             }
 
-            //TODO: Decide if want to keep this
-            // Dump the block degree and length distribution to a file
-            //if (debugFileName != NULL) {
-            //    dumpBlockInfo(threadSet, stString_print("%s-blockStats-preMelting", debugFileName));
-            //}
-
             st_logDebug("Sequence graph statistics after annealing:\n");
             printThreadSetStatistics(threadSet, flower, stderr);
 
@@ -471,150 +417,10 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
             stCaf_meltRecoverableChains(flower, threadSet, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds, recoverableChainsFilter, maxRecoverableChainsIterations, maxRecoverableChainLength);
         }
 
-        //if (debugFileName != NULL) {  // TODO: Decide if we want to keep this
-        //    dumpBlockInfo(threadSet, stString_print("%s-blockStats-postMelting", debugFileName));
-        //}
-
         st_logDebug("Sequence graph statistics after melting:\n");
         if(st_getLogLevel() == debug) {
             printThreadSetStatistics(threadSet, flower, stderr);
         }
-
-        //TODO: Determine if to remove or rescue phylogeny building code
-        /*
-        // Build a tree for each block, then use each tree to
-        // partition the homologies between the ingroups sequences
-        // into those that occur before the speciation with the
-        // outgroup and those which occur late.
-
-        //Parameters for removing ancient homologies
-        bool doPhylogeny = cactusParams_get_int(params, 2, "caf", "doPhylogeny");
-        if(stSet_size(outgroupThreads) > 0 && doPhylogeny) {
-            int64_t phylogenyNumTrees = cactusParams_get_int(params, 2, "caf", "phylogenyNumTrees");
-
-            enum stCaf_RootingMethod phylogenyRootingMethod = BEST_RECON;
-            char *phylogenyRootingMethodStr = cactusParams_get_string(params, 2, "caf", "phylogenyRootingMethod");
-            if (!strcmp(phylogenyRootingMethodStr, "outgroupBranch")) {
-                phylogenyRootingMethod = OUTGROUP_BRANCH;
-            } else if (!strcmp(phylogenyRootingMethodStr, "longestBranch")) {
-                phylogenyRootingMethod = LONGEST_BRANCH;
-            } else if (!strcmp(phylogenyRootingMethodStr, "bestRecon")) {
-                phylogenyRootingMethod = BEST_RECON;
-            } else {
-                st_errAbort("Invalid tree rooting method: %s", optarg);
-            }
-
-            enum stCaf_ScoringMethod phylogenyScoringMethod = COMBINED_LIKELIHOOD;
-            char *phylogenyScoringMethodStr = cactusParams_get_string(params, 2, "caf", "phylogenyRootingMethod");
-            if (!strcmp(phylogenyScoringMethodStr, "reconCost")) {
-                phylogenyScoringMethod = RECON_COST;
-            } else if (!strcmp(phylogenyScoringMethodStr, "nucLikelihood")) {
-                phylogenyScoringMethod = NUCLEOTIDE_LIKELIHOOD;
-            } else if (!strcmp(phylogenyScoringMethodStr, "reconLikelihood")) {
-                phylogenyScoringMethod = RECON_LIKELIHOOD;
-            } else if (!strcmp(phylogenyScoringMethodStr, "combinedLikelihood")) {
-                phylogenyScoringMethod = COMBINED_LIKELIHOOD;
-            } else {
-                st_errAbort("Invalid tree scoring method: %s", optarg);
-            }
-
-            double breakpointScalingFactor = cactusParams_get_int(params, 2, "caf", "phylogenyBreakpointScalingFactor");
-            bool phylogenySkipSingleCopyBlocks = cactusParams_get_int(params, 2, "caf", "phylogenySkipSingleCopyBlocks");
-            int64_t phylogenyMaxBaseDistance = cactusParams_get_int(params, 2, "caf", "phylogenyMaxBaseDistance");
-            int64_t phylogenyMaxBlockDistance = cactusParams_get_int(params, 2, "caf", "phylogenyMaxBlockDistance");
-            bool phylogenyKeepSingleDegreeBlocks = cactusParams_get_int(params, 2, "caf", "phylogenyKeepSingleDegreeBlocks");
-
-            char *phylogenyTreeBuildingMethod = cactusParams_get_string(params, 2, "caf", "phylogenyTreeBuildingMethod");
-            stList *phylogenyTreeBuildingMethods = stList_construct();
-            enum stCaf_TreeBuildingMethod defaultMethod;
-            stList *methodStrings = stString_splitByString(optarg, ",");
-            for (int64_t i = 0; i < stList_length(methodStrings); i++) {
-                char *methodString = stList_get(methodStrings, i);
-                enum stCaf_TreeBuildingMethod *method = st_malloc(sizeof(enum stCaf_TreeBuildingMethod));
-                if (strcmp(phylogenyTreeBuildingMethod, "neighborJoining") == 0) {
-                    *method = NEIGHBOR_JOINING;
-                } else if (strcmp(phylogenyTreeBuildingMethod, "guidedNeighborJoining") == 0) {
-                    *method = GUIDED_NEIGHBOR_JOINING;
-                } else if (strcmp(phylogenyTreeBuildingMethod, "splitDecomposition") == 0) {
-                    *method = SPLIT_DECOMPOSITION;
-                } else if (strcmp(phylogenyTreeBuildingMethod, "strictSplitDecomposition") == 0) {
-                    *method = STRICT_SPLIT_DECOMPOSITION;
-                } else if (strcmp(phylogenyTreeBuildingMethod, "removeBadChains") == 0) {
-                    *method = REMOVE_BAD_CHAINS;
-                } else {
-                    st_errAbort("Unknown tree building method: %s", methodString);
-                }
-                stList_append(phylogenyTreeBuildingMethods, method);
-            }
-            stList_destruct(methodStrings);
-
-            double phylogenyCostPerDupPerBase = cactusParams_get_float(params, 2, "caf", "phylogenyCostPerDupPerBase");
-            double phylogenyCostPerLossPerBase = cactusParams_get_float(params, 2, "caf", "phylogenyCostPerLossPerBase");
-            double phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce = cactusParams_get_float(params, 2, "caf", "phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce");
-            int64_t numTreeBuildingThreads = cactusParams_get_int(params, 2, "caf", "numTreeBuildingThreads");
-            double nucleotideScalingFactor = 1.0;
-
-            char *phylogenyHomologyUnitTypeStr = cactusParams_get_string(params, 2, "caf", "phylogenyHomologyUnitType");
-            HomologyUnitType phylogenyHomologyUnitType;
-            if (strcmp(phylogenyHomologyUnitTypeStr, "chain") == 0) {
-                phylogenyHomologyUnitType = CHAIN;
-            } else if (strcmp(phylogenyHomologyUnitTypeStr, "block") == 0) {
-                phylogenyHomologyUnitType = BLOCK;
-            } else {
-                st_errAbort("Could not parse the phylogenyHomologyUnitType argument");
-            }
-
-            char *phylogenyDistanceCorrectionMethodStr = cactusParams_get_string(params, 2, "caf", "phylogenyDistanceCorrectionMethod");
-            enum stCaf_DistanceCorrectionMethod phylogenyDistanceCorrectionMethod;
-            if (strcmp(phylogenyDistanceCorrectionMethodStr, "jukesCantor") == 0) {
-                phylogenyDistanceCorrectionMethod = JUKES_CANTOR;
-            } else if (strcmp(phylogenyDistanceCorrectionMethodStr, "none") == 0 ) {
-                phylogenyDistanceCorrectionMethod = NONE;
-            } else {
-                st_errAbort("Could not parse the phylogenyDistanceCorrectionMethod argument");
-            }
-
-                st_logDebug("Starting to build trees and partition ingroup homologies\n");
-                stHash *threadStrings = stCaf_getThreadStrings(flower, threadSet);
-                st_logDebug("Got sets of thread strings and set of threads that are outgroups\n");
-                stCaf_PhylogenyParameters phyloParams;
-                phyloParams.distanceCorrectionMethod = phylogenyDistanceCorrectionMethod;
-                phyloParams.treeBuildingMethods = phylogenyTreeBuildingMethods;
-                phyloParams.rootingMethod = phylogenyRootingMethod;
-                phyloParams.scoringMethod = phylogenyScoringMethod;
-                phyloParams.breakpointScalingFactor = breakpointScalingFactor;
-                phyloParams.nucleotideScalingFactor = nucleotideScalingFactor;
-                phyloParams.skipSingleCopyBlocks = phylogenySkipSingleCopyBlocks;
-                phyloParams.keepSingleDegreeBlocks = phylogenyKeepSingleDegreeBlocks;
-                phyloParams.costPerDupPerBase = phylogenyCostPerDupPerBase;
-                phyloParams.costPerLossPerBase = phylogenyCostPerLossPerBase;
-                phyloParams.maxBaseDistance = phylogenyMaxBaseDistance;
-                phyloParams.maxBlockDistance = phylogenyMaxBlockDistance;
-                phyloParams.numTrees = phylogenyNumTrees;
-                phyloParams.ignoreUnalignedBases = 1;
-                phyloParams.onlyIncludeCompleteFeatureBlocks = 0;
-                phyloParams.doSplitsWithSupportHigherThanThisAllAtOnce = phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce;
-                phyloParams.numTreeBuildingThreads = numTreeBuildingThreads;
-
-                assert(phyloParams.numTreeBuildingThreads >= 1);
-
-                stCaf_buildTreesToRemoveAncientHomologies(
-                        threadSet, phylogenyHomologyUnitType, threadStrings, outgroupThreads, flower, &phyloParams,
-                        debugFileName == NULL ? NULL : stString_print("%s-phylogeny", debugFileName), referenceEventHeader);
-                stHash_destruct(threadStrings);
-                st_logDebug("Finished building trees\n");
-
-                if (removeRecoverableChains) {
-                    // We melt recoverable chains after splitting, as
-                    // well as before, to alleviate coverage loss
-                    // caused by bad splits.
-                    stCaf_meltRecoverableChains(flower, threadSet, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds, recoverableChainsFilter, maxRecoverableChainsIterations, maxRecoverableChainLength);
-                }
-
-                // Enforce the block constraints on minimum degree,
-                // etc. after splitting.
-                stCaf_melt(flower, threadSet, blockFilterFn, 0, 0, 0, INT64_MAX);
-            }*/
 
         //Sort out case when we allow blocks of degree 1
         if (fa->minimumDegree < 2) {
