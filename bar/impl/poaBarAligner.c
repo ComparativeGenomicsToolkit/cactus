@@ -28,30 +28,30 @@ abpoa_para_t *abpoaParamaters_constructFromCactusParams(CactusParams *params) {
     abpt->align_mode = ABPOA_GLOBAL_MODE;
 
     // banding parameters
-    abpt->wb = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentBandConstant");
-    abpt->wf = cactusParams_get_float(params, 2, "bar", "partialOrderAlignmentBandFraction");
+    abpt->wb = cactusParams_get_int(params, 3, "bar", "poa", "partialOrderAlignmentBandConstant");
+    abpt->wf = cactusParams_get_float(params, 3, "bar", "poa", "partialOrderAlignmentBandFraction");
 
     // gap scoring model
-    abpt->gap_open1 = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentGapOpenPenalty1");
-    abpt->gap_ext1 = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentGapExtensionPenalty1");
-    abpt->gap_open2 = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentGapOpenPenalty2");
-    abpt->gap_ext2 = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentGapExtensionPenalty2");
+    abpt->gap_open1 = cactusParams_get_int(params, 3, "bar", "poa", "partialOrderAlignmentGapOpenPenalty1");
+    abpt->gap_ext1 = cactusParams_get_int(params, 3, "bar", "poa", "partialOrderAlignmentGapExtensionPenalty1");
+    abpt->gap_open2 = cactusParams_get_int(params, 3, "bar", "poa", "partialOrderAlignmentGapOpenPenalty2");
+    abpt->gap_ext2 = cactusParams_get_int(params, 3, "bar", "poa", "partialOrderAlignmentGapExtensionPenalty2");
     
     // seeding paramters
-    abpt->disable_seeding = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentDisableSeeding");
+    abpt->disable_seeding = cactusParams_get_int(params, 3, "bar", "poa", "partialOrderAlignmentDisableSeeding");
     assert(abpt->disable_seeding == 0 || abpt->disable_seeding == 1);
-    abpt->k = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentMinimizerK");
-    abpt->w = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentMinimizerW");
-    abpt->min_w = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentMinimizerMinW");
+    abpt->k = cactusParams_get_int(params, 3, "bar", "poa", "partialOrderAlignmentMinimizerK");
+    abpt->w = cactusParams_get_int(params, 3, "bar", "poa", "partialOrderAlignmentMinimizerW");
+    abpt->min_w = cactusParams_get_int(params, 3, "bar", "poa", "partialOrderAlignmentMinimizerMinW");
 
     // progressive toggle
-    abpt->progressive_poa = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentProgressiveMode");
+    abpt->progressive_poa = cactusParams_get_int(params, 3, "bar", "poa", "partialOrderAlignmentProgressiveMode");
 
     // generate the substitution matrix
     abpoa_post_set_para(abpt);
 
     // optionally override the substitution matrix
-    char *submat_string = cactusParams_get_string(params, 2, "bar", "partialOrderAlignmentSubMatrix");
+    char *submat_string = cactusParams_get_string(params, 3, "bar", "poa", "partialOrderAlignmentSubMatrix");
     if (submat_string && strlen(submat_string) > 0) {
         // Note, this will be used to explicitly override abpoa's subsitution matrix just before aligning
         abpt->use_score_matrix = 1;

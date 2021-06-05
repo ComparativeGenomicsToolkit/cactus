@@ -19,18 +19,18 @@
 
 PairwiseAlignmentParameters *pairwiseAlignmentParameters_constructFromCactusParams(CactusParams *params) {
     PairwiseAlignmentParameters *p = pairwiseAlignmentBandingParameters_construct();
-    p->gapGamma = cactusParams_get_float(params, 2, "bar", "gapGamma");
-    p->splitMatrixBiggerThanThis = cactusParams_get_int(params, 2, "bar", "splitMatrixBiggerThanThis");
+    p->gapGamma = cactusParams_get_float(params, 3, "bar", "pecan", "gapGamma");
+    p->splitMatrixBiggerThanThis = cactusParams_get_int(params, 3, "bar", "pecan", "splitMatrixBiggerThanThis");
     p->splitMatrixBiggerThanThis *= p->splitMatrixBiggerThanThis;
-    p->anchorMatrixBiggerThanThis = cactusParams_get_int(params, 2, "bar", "anchorMatrixBiggerThanThis");
+    p->anchorMatrixBiggerThanThis = cactusParams_get_int(params, 3, "bar", "pecan", "anchorMatrixBiggerThanThis");
     p->anchorMatrixBiggerThanThis *= p->anchorMatrixBiggerThanThis;
-    p->repeatMaskMatrixBiggerThanThis = cactusParams_get_int(params, 2, "bar", "repeatMaskMatrixBiggerThanThis");
+    p->repeatMaskMatrixBiggerThanThis = cactusParams_get_int(params, 3, "bar", "pecan", "repeatMaskMatrixBiggerThanThis");
     p->repeatMaskMatrixBiggerThanThis *= p->repeatMaskMatrixBiggerThanThis;
-    p->diagonalExpansion = cactusParams_get_int(params, 2, "bar", "diagonalExpansion");
-    p->constraintDiagonalTrim = cactusParams_get_int(params, 2, "bar", "constraintDiagonalTrim");
-    p->alignAmbiguityCharacters = cactusParams_get_int(params, 2, "bar", "alignAmbiguityCharacters");
-    p->useMumAnchors = cactusParams_get_int(params, 2, "bar", "useMumAnchors");
-    p->recursiveMums = cactusParams_get_int(params, 2, "bar", "recursiveMums");
+    p->diagonalExpansion = cactusParams_get_int(params, 3, "bar", "pecan", "diagonalExpansion");
+    p->constraintDiagonalTrim = cactusParams_get_int(params, 3, "bar", "pecan", "constraintDiagonalTrim");
+    p->alignAmbiguityCharacters = cactusParams_get_int(params, 3, "bar", "pecan", "alignAmbiguityCharacters");
+    p->useMumAnchors = cactusParams_get_int(params, 3, "bar", "pecan", "useMumAnchors");
+    p->recursiveMums = cactusParams_get_int(params, 3, "bar", "pecan", "recursiveMums");
     return p;
 }
 
@@ -54,25 +54,23 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
     //Parse the many, many necessary parameters from the params file
     //////////////////////////////////////////////
 
-    // Hardcoded parameters
-    int64_t chainLengthForBigFlower = 1000000;
-    int64_t longChain = 2;
-
     int64_t maximumLength = cactusParams_get_int(params, 2, "bar", "bandingLimit");
-    int64_t spanningTrees = cactusParams_get_int(params, 2, "bar", "spanningTrees");
-    bool useProgressiveMerging = cactusParams_get_int(params, 2, "bar", "useProgressiveMerging");
-    float matchGamma = cactusParams_get_float(params, 2, "bar", "matchGamma");
-
-    // toggle from pecan to abpoa for multiple alignment, by setting to non-zero
-    // Note that poa uses about N^2 memory, so maximum value is generally in 10s of kb
     int64_t usePoa = cactusParams_get_int(params, 2, "bar", "partialOrderAlignment");
-    int64_t poaWindow = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentWindow");
-    int64_t maskFilter = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentMaskFilter");
-    abpoa_para_t *poaParameters = usePoa ? abpoaParamaters_constructFromCactusParams(params) : NULL;
 
+    // Pecan prams
+    int64_t spanningTrees = cactusParams_get_int(params, 3, "bar", "pecan", "spanningTrees");
+    bool useProgressiveMerging = cactusParams_get_int(params, 3, "bar", "pecan", "useProgressiveMerging");
+    float matchGamma = cactusParams_get_float(params, 3, "bar", "pecan", "matchGamma");
     PairwiseAlignmentParameters *pairwiseAlignmentParameters = pairwiseAlignmentParameters_constructFromCactusParams(params);
     StateMachine *sM = stateMachine5_construct(fiveState);
-    bool pruneOutStubAlignments = cactusParams_get_int(params, 2, "bar", "pruneOutStubAlignments");
+    bool pruneOutStubAlignments = cactusParams_get_int(params, 3, "bar", "pecan", "pruneOutStubAlignments");
+
+    // Poa params
+    // toggle from pecan to abpoa for multiple alignment, by setting to non-zero
+    // Note that poa uses about N^2 memory, so maximum value is generally in 10s of kb
+    int64_t poaWindow = cactusParams_get_int(params, 3, "bar", "poa", "partialOrderAlignmentWindow");
+    int64_t maskFilter = cactusParams_get_int(params, 3, "bar", "poa", "partialOrderAlignmentMaskFilter");
+    abpoa_para_t *poaParameters = usePoa ? abpoaParamaters_constructFromCactusParams(params) : NULL;
 
     //////////////////////////////////////////////
     //Run the bar algorithm
@@ -107,8 +105,7 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
             st_logDebug("Created the poa alignments: %" PRIi64 " poa alignment blocks for flower\n", stList_length(alignments));
         } else {
             alignments = makeFlowerAlignment3(sM, flower, listOfEndAlignmentFiles, spanningTrees, maximumLength,
-                                              useProgressiveMerging, matchGamma,
-                                              pairwiseAlignmentParameters,
+                                              useProgressiveMerging, matchGamma, pairwiseAlignmentParameters,
                                               pruneOutStubAlignments);
             st_logDebug("Created the alignment: %" PRIi64 " pairs for flower\n", stSortedSet_size(alignments));
         }
@@ -136,7 +133,7 @@ void bar(stList *flowers, CactusParams *params, CactusDisk *cactusDisk, stList *
             stCaf_melt(flower, threadSet, blockFilterFn, fa, 0, 0, 0, INT64_MAX);
         }
 
-        stCaf_finish(flower, threadSet, chainLengthForBigFlower, longChain, INT64_MAX, INT64_MAX); //Flower now destroyed.
+        stCaf_finish(flower, threadSet, INT64_MAX, INT64_MAX); //Flower now destroyed.
 
         stPinchThreadSet_destruct(threadSet);
         st_logDebug("Ran the cactus core script.\n");

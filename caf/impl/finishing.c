@@ -435,8 +435,7 @@ void stCaf_makeDegreeOneBlocks(stPinchThreadSet *threadSet) {
 ///////////////////////////////////////////////////////////////////////////
 
 
-void stCaf_finish(Flower *flower, stPinchThreadSet *threadSet, int64_t chainLengthForBigFlower,
-                  int64_t longChain, int64_t minLengthForChromosome,
+void stCaf_finish(Flower *flower, stPinchThreadSet *threadSet, int64_t minLengthForChromosome,
                   double proportionOfUnalignedBasesForNewChromosome) {
     stCactusNode *startCactusNode;
     stList *deadEndComponent;

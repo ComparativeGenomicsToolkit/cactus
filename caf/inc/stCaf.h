@@ -126,8 +126,7 @@ void stCaf_addAdjacencies(Flower *flower);
 /*
  * Takes a pinch graph for a flower and adds the alignments it contains back to the flower as a cactus.
  */
-void stCaf_finish(Flower *flower, stPinchThreadSet *threadSet, int64_t chainLengthForBigFlower,
-        int64_t longChain, int64_t minLengthForChromosome,
+void stCaf_finish(Flower *flower, stPinchThreadSet *threadSet, int64_t minLengthForChromosome,
         double proportionOfUnalignedBasesForNewChromosome);
 
 ///////////////////////////////////////////////////////////////////////////
