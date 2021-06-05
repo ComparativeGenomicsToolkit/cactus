@@ -6,7 +6,7 @@
 STATIC_CHECK=$1
 
 set -beEu -o pipefail
-gitrel=v1.6
+gitrel=85f7ed179dd097a86ba4added22d571785cc3e1d
 
 # works on MacOS and Linux
 numcpu=$(getconf _NPROCESSORS_ONLN)

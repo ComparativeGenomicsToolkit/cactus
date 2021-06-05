@@ -1,7 +1,7 @@
 FROM quay.io/glennhickey/cactus-ci-base:latest as builder
 
 # apt dependencies for build
-RUN apt-get update && apt-get install -y build-essential git python3 python3-dev python3-pip zlib1g-dev wget libbz2-dev pkg-config libhdf5-dev liblzo2-dev libtokyocabinet-dev wget libhiredis-dev liblzma-dev libxml2-dev
+RUN apt-get update && apt-get install -y build-essential git python3 python3-dev python3-pip zlib1g-dev wget libbz2-dev pkg-config libhdf5-dev liblzo2-dev libtokyocabinet-dev wget libhiredis-dev liblzma-dev libxml2-dev libssl-dev libpng-dev uuid-dev
 
 # build cactus binaries
 RUN mkdir -p /home/cactus
@@ -16,6 +16,12 @@ ENV LDFLAGS -march=nehalem
 # install Phast and enable halPhyloP compilation
 RUN cd /home/cactus && ./build-tools/downloadPhast
 ENV ENABLE_PHYLOP 1
+
+# Install UCSC browser libraries to compile UDC
+# remote access.  The browser common.mk file checks for
+RUN cd /home/cactus && ./build-tools/downloadUcscLib
+ENV ENABLE_UDC 1
+ENV KENTSRC /home/cactus/submodules/kent/src
 
 # clean out stuff before build.
 RUN find /home/cactus -name include.local.mk -exec rm -f {} \;
@@ -50,7 +56,8 @@ RUN mkdir -p /wheels && cd /wheels && python3 -m pip install -U pip && python3 -
 FROM mirror.gcr.io/library/ubuntu:18.04
 
 # apt dependencies for runtime
-RUN apt-get update && apt-get install -y --no-install-recommends git python3 python3-pip python3-distutils zlib1g libbz2-1.0 net-tools libhdf5-100 liblzo2-2 libtokyocabinet9 rsync libkrb5-3 libk5crypto3 time liblzma5 libcurl4 libxml2 libgomp1
+<<<<<<< HEAD
+RUN apt-get update && apt-get install -y --no-install-recommends git python3 python3-pip python3-distutils zlib1g libbz2-1.0 net-tools libhdf5-100 liblzo2-2 libtokyocabinet9 rsync libkrb5-3 libk5crypto3 time liblzma5 libcurl4 libcurl4-gnutls-dev libxml2 libgomp1
 
 # copy temporary files for installing cactus
 COPY --from=builder /home/cactus /tmp/cactus

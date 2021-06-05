@@ -1,0 +1,46 @@
+#!/bin/bash
+# Download and statically build UCSC browser source, which is required
+# to build remote access into the HAL using UDC.
+
+set -beEu -o pipefail
+gitrel=v415_branch
+
+# works on MacOS and Linux
+numcpu=$(getconf _NPROCESSORS_ONLN)
+
+# put is sister directory of hal, since that is also done with PHAST
+submodulesDir=$(pwd)/submodules
+CWD=$(pwd)
+set -x
+
+# build kent non-browser libraries
+cd ${submodulesDir}
+rm -rf kent
+git clone https://github.com/ucscGenomeBrowser/kent.git
+cd kent
+git checkout ${gitrel}
+
+##
+# env settings needed for compiling
+##
+export MACHTYPE=$(uname -m)
+
+# Only important if you know what hgwdev is to the UCSC browser group
+#
+# common.mk does special checks for uname -n being "hgwdev", the browser
+# development system, and makes various assumptions, including using
+# -Werror.  We don't want this to happen when doing docker build on hgwdev,
+# which oddly sets the HOSTNAME to hgwdev (but not in docker run), so we just
+# fake the hostname here if doesn't appear to be native hgwdev by
+# checking for the /hive file system... yuk
+
+if [ ! -e /hive ] ; then
+    HOSTNAME=cactusbuild
+fi
+
+cd src/htslib
+make -j ${numcpu} HOSTNAME=${HOSTNAME}
+cd ../../src/lib
+make -j ${numcpu} HOSTNAME=${HOSTNAME}
+
+set +x
