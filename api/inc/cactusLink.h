@@ -28,11 +28,6 @@ Link *link_construct(End *_3End, End *_5End, Group *group, Chain *parentChain);
 Link *link_getNextLink(Link *link);
 
 /*
- * Gets the prior link in the link.
- */
-Link *link_getPreviousLink(Link *link);
-
-/*
  * Gets the nested flower the link contains.
  */
 Group *link_getGroup(Link *link);
@@ -55,21 +50,9 @@ End *link_get5End(Link *link);
 Chain *link_getChain(Link *link);
 
 /*
- * Destroys the link and splits any containing chain into two chains, before and after,
- * unless they have zero length.
- */
-void link_split(Link *link);
-
-/*
  * Returns true if and only if the two ends of the link are block ends and they are always adjacent (no self loops), and
  * all the adjacencies are trivial (empty).
  */
 bool link_isTrivial(Link *link);
-
-/*
- * Removes the link from the chain and destroys the ends and any nested problem is the link is trivial.
- * Only works before trees have been built. Return non zero is the link is removed.
- */
-bool link_mergeIfTrivial(Link *link);
 
 #endif

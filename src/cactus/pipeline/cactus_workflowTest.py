@@ -16,19 +16,16 @@ from textwrap import dedent
 from sonLib.bioio import TestStatus, newickTreeParser, getTempFile
 
 from cactus.shared.test import getCactusInputs_random
-from cactus.shared.test import getCactusInputs_randomWithConstraints
 from cactus.shared.test import getCactusInputs_blanchette
 from cactus.shared.test import getCactusInputs_encode
 from cactus.shared.test import getCactusInputs_chromosomeX
 from cactus.shared.test import runWorkflow_multipleExamples
 from cactus.shared.test import getBatchSystem
-from cactus.shared.test import initialiseGlobalDatabaseConf
 
 from cactus.shared.common import cactusRootPath
 
 from cactus.pipeline.cactus_workflow import getOptionalAttrib, extractNode, findRequiredNode, \
-    getJobNode, CactusJob, getLongestPath, inverseJukesCantor, \
-    CactusSetReferenceCoordinatesDownRecursion, prependUniqueIDs
+    getJobNode, CactusJob, getLongestPath, inverseJukesCantor, CactusConsolidated, prependUniqueIDs
 
 class TestCase(unittest.TestCase):
     def setUp(self):
@@ -123,15 +120,15 @@ class TestCase(unittest.TestCase):
 
     @TestStatus.shortLength
     def testExtractNode(self):
-        subNode = ET.SubElement(self.barNode, "CactusSetReferenceCoordinatesDownRecursion", { "memory":"10" })
+        subNode = ET.SubElement(self.barNode, "CactusConsolidated", { "memory":"10" })
         barNodeCopy = extractNode(self.barNode)
         barNodeCopy.attrib["added"] = "1"
         self.assertFalse("added" in self.barNode.attrib)
         self.barNode.attrib["added2"] = "1"
         self.assertTrue("added2" in self.barNode.attrib)
         self.assertFalse("added2" in barNodeCopy.attrib)
-        self.assertEqual(subNode, self.barNode.find("CactusSetReferenceCoordinatesDownRecursion"))
-        subNodeCopy = barNodeCopy.find("CactusSetReferenceCoordinatesDownRecursion")
+        self.assertEqual(subNode, self.barNode.find("CactusConsolidated"))
+        subNodeCopy = barNodeCopy.find("CactusConsolidated")
         self.assertTrue(subNodeCopy != None)
         self.assertEqual("10", subNodeCopy.attrib["memory"])
 
@@ -144,8 +141,8 @@ class TestCase(unittest.TestCase):
         node = ET.SubElement(self.barNode, "CactusTestJob")
         self.assertEqual(node, getJobNode(self.barNode, CactusTestJob))
         self.assertEqual(None, getJobNode(self.barNode, CactusTestJob2))
-        node2 = ET.SubElement(self.barNode, "CactusSetReferenceCoordinatesDownRecursion")
-        self.assertEqual(node2, getJobNode(self.barNode, CactusSetReferenceCoordinatesDownRecursion))
+        node2 = ET.SubElement(self.barNode, "CactusConsolidated")
+        self.assertEqual(node2, getJobNode(self.barNode, CactusConsolidated))
 
     @TestStatus.shortLength
     def testCactusJob(self):

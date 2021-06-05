@@ -106,6 +106,11 @@ End *group_getEnd(Group *group, Name name);
 int64_t group_getEndNumber(Group *group);
 
 /*
+ * Returns non-zero if the group contains one or more ends.
+ */
+bool group_isEmpty(Group *group);
+
+/*
  * Returns the number of stub ends in the group.
  */
 int64_t group_getStubEndNumber(Group *group);
@@ -136,16 +141,6 @@ Group_EndIterator *group_getEndIterator(Group *group);
 End *group_getNextEnd(Group_EndIterator *endIterator);
 
 /*
- * Gets the previous end from the iterator.
- */
-End *group_getPreviousEnd(Group_EndIterator *endIterator);
-
-/*
- * Duplicates the iterator.
- */
-Group_EndIterator *group_copyEndIterator(Group_EndIterator *endIterator);
-
-/*
  * Destructs the iterator.
  */
 void group_destructEndIterator(Group_EndIterator *endIterator);
@@ -154,14 +149,6 @@ void group_destructEndIterator(Group_EndIterator *endIterator);
  * Gets the total number of bases in the group for threads that have defined sequences.
  */
 int64_t group_getTotalBaseLength(Group *group);
-
-/*
- * Merges together the two groups and there nested flowers, if they have them.
- *
- * Only works if both groups do not have links. Merging together groups that
- * are in links means breaking the chains, which it currently will not do.
- */
-//Group *group_mergeGroups(Group *group1, Group *group2);
 
 /*
  * Checks (amongst other things) the following:
@@ -180,5 +167,10 @@ void group_check(Group *group);
  * then the function constructs a chain and puts the two ends in the link.
  */
 void group_constructChainForLink(Group *group);
+
+/*
+ * Merges together two groups that are both leaf groups and not part of links.
+ */
+void group_mergeTerminalGroups(Group *group1, Group *group2);
 
 #endif

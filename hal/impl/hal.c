@@ -87,7 +87,7 @@ static void writeSequenceHeader(FILE *fileHandle, Sequence *sequence) {
             event_getName(event) == globalReferenceEventName);
 }
 
-static char *writeTerminalAdjacency(Cap *cap) {
+static char *writeTerminalAdjacency(Cap *cap, void *extraArg) {
     //a start length reference-segment block-orientation
     Cap *adjacentCap = cap_getAdjacency(cap);
     assert(adjacentCap != NULL);
@@ -107,7 +107,7 @@ static char *writeTerminalAdjacency(Cap *cap) {
     }
 }
 
-static char *writeSegment(Segment *segment) {
+static char *writeSegment(Segment *segment, void *extraArg) {
     Block *block = segment_getBlock(segment);
     Segment *referenceSegment = block_getSegmentForEvent(block, globalReferenceEventName);
     if (referenceSegment == NULL) {
@@ -172,18 +172,39 @@ void makeHalFormat(Flower *flower, stKVDatabase *database, Name referenceEventNa
     globalReferenceEventName = referenceEventName;
     stList *caps = getCaps(flower);
     if (fileHandle == NULL) {
-        buildRecursiveThreads(database, caps, writeSegment, writeTerminalAdjacency);
+        buildRecursiveThreads(database, caps, writeSegment, writeTerminalAdjacency, NULL);
     } else {
-        stList *threadStrings = buildRecursiveThreadsInList(database, caps, writeSegment, writeTerminalAdjacency);
+        stList *threadStrings = buildRecursiveThreadsInList(database, caps, writeSegment, writeTerminalAdjacency, NULL);
         assert(stList_length(threadStrings) == stList_length(caps));
         for (int64_t i = 0; i < stList_length(threadStrings); i++) {
             Cap *cap = stList_get(caps, i);
-            if(!metaSequence_isTrivialSequence(sequence_getMetaSequence(cap_getSequence(cap)))) {
+            if(!sequence_isTrivialSequence(cap_getSequence(cap))) {
                 char *threadString = stList_get(threadStrings, i);
                 writeSequenceHeader(fileHandle, cap_getSequence(cap));
                 fprintf(fileHandle, "%s\n", threadString);
             }
         }
+    }
+    stList_destruct(caps);
+}
+
+void makeHalFormatNoDb(Flower *flower, RecordHolder *rh, Name referenceEventName, FILE *fileHandle) {
+    globalReferenceEventName = referenceEventName;
+    stList *caps = getCaps(flower);
+    if (fileHandle == NULL) {
+        buildRecursiveThreadsNoDb(rh, caps, writeSegment, writeTerminalAdjacency, NULL);
+    } else {
+        stList *threadStrings = buildRecursiveThreadsInListNoDb(rh, caps, writeSegment, writeTerminalAdjacency, NULL);
+        assert(stList_length(threadStrings) == stList_length(caps));
+        for (int64_t i = 0; i < stList_length(threadStrings); i++) {
+            Cap *cap = stList_get(caps, i);
+            if(!sequence_isTrivialSequence(cap_getSequence(cap))) {
+                char *threadString = stList_get(threadStrings, i);
+                writeSequenceHeader(fileHandle, cap_getSequence(cap));
+                fprintf(fileHandle, "%s\n", threadString);
+            }
+        }
+        stList_destruct(threadStrings);
     }
     stList_destruct(caps);
 }

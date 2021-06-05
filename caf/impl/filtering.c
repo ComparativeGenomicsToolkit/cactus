@@ -3,15 +3,6 @@
 #include "commonC.h"
 #include "stCaf.h"
 
-// This global is a bit gross but needs to be used to work around the
-// fact that the pinch filter functions don't have an "extra data"
-// parameter.
-static Flower *flower;
-
-void stCaf_setFlowerForAlignmentFiltering(Flower *input) {
-    flower = input;
-}
-
 /*
  * Functions used for prefiltering the alignments.
  */
@@ -48,7 +39,7 @@ static bool isOutgroupSegment(stPinchSegment *segment, Flower *flower) {
 }
 
 bool stCaf_filterByOutgroup(stPinchSegment *segment1,
-                            stPinchSegment *segment2) {
+                            stPinchSegment *segment2, Flower *flower) {
     stPinchBlock *block1, *block2;
     if ((block1 = stPinchSegment_getBlock(segment1)) != NULL) {
         if ((block2 = stPinchSegment_getBlock(segment2)) != NULL) {
@@ -69,7 +60,7 @@ bool stCaf_filterByOutgroup(stPinchSegment *segment1,
 }
 
 bool stCaf_relaxedFilterByOutgroup(stPinchSegment *segment1,
-                                   stPinchSegment *segment2) {
+                                   stPinchSegment *segment2, Flower *flower) {
     stPinchBlock *block1, *block2;
     if ((block1 = stPinchSegment_getBlock(segment1)) != NULL) {
         if ((block2 = stPinchSegment_getBlock(segment2)) != NULL) {
@@ -136,7 +127,7 @@ static bool containsMoreThanOneEvent(stPinchSegment *segment, Flower *flower) {
 }
 
 bool stCaf_filterByMultipleSpecies(stPinchSegment *segment1,
-                                   stPinchSegment *segment2) {
+                                   stPinchSegment *segment2, Flower *flower) {
     stPinchBlock *block1, *block2;
     if ((block1 = stPinchSegment_getBlock(segment1)) != NULL) {
         if ((block2 = stPinchSegment_getBlock(segment2)) != NULL) {
@@ -155,12 +146,12 @@ bool stCaf_filterByMultipleSpecies(stPinchSegment *segment1,
 }
 
 bool stCaf_filterByRepeatSpecies(stPinchSegment *segment1,
-                                 stPinchSegment *segment2) {
+                                 stPinchSegment *segment2, Flower *flower) {
     return checkIntersection(getEvents(segment1, flower), getEvents(segment2, flower));
 }
 
 bool stCaf_relaxedFilterByRepeatSpecies(stPinchSegment *segment1,
-                                        stPinchSegment *segment2) {
+                                        stPinchSegment *segment2, Flower *flower) {
     return stPinchSegment_getBlock(segment1) != NULL
         && stPinchSegment_getBlock(segment2) != NULL
         && checkIntersection(getEvents(segment1, flower), getEvents(segment2, flower));
@@ -178,7 +169,7 @@ void stCaf_setSingleCopyEvent(Flower* flower, char *singleCopyEventName) {
 }
 
 bool stCaf_filterBySingleCopyEvent(stPinchSegment *segment1,
-                                   stPinchSegment *segment2) {
+                                   stPinchSegment *segment2, Flower *flower) {
     bool b = false;
     if (singleCopyEvent != NULL) {
         stSortedSet *names1 = getEvents(segment1, flower);
@@ -211,7 +202,7 @@ static stSortedSet *getChrNames(stPinchSegment *segment, Flower *flower) {
 }
 
 bool stCaf_singleCopyChr(stPinchSegment *segment1,
-                         stPinchSegment *segment2) {
+                         stPinchSegment *segment2, Flower *flower) {
     return checkIntersection(getChrNames(segment1, flower), getChrNames(segment2, flower));
 }
 
@@ -236,12 +227,12 @@ static stSortedSet *getIngroupEvents(stPinchSegment *segment, Flower *flower) {
 }
 
 bool stCaf_singleCopyIngroup(stPinchSegment *segment1,
-                             stPinchSegment *segment2) {
+                             stPinchSegment *segment2, Flower *flower) {
     return checkIntersection(getIngroupEvents(segment1, flower), getIngroupEvents(segment2, flower));
 }
 
 bool stCaf_relaxedSingleCopyIngroup(stPinchSegment *segment1,
-                                    stPinchSegment *segment2) {
+                                    stPinchSegment *segment2, Flower *flower) {
     return stPinchSegment_getBlock(segment1) != NULL
         && stPinchSegment_getBlock(segment2) != NULL
         && checkIntersection(getIngroupEvents(segment1, flower), getIngroupEvents(segment2, flower));
@@ -320,7 +311,7 @@ static bool containsSpecialThread(stPinchSegment *segment) {
 }
 
 bool stCaf_filterToEnsureCycleFreeIsolatedComponents(stPinchSegment *segment1,
-                                                     stPinchSegment *segment2) {
+                                                     stPinchSegment *segment2, Flower *flower) {
     void *component1 = stUnionFind_find(threadToComponent, stPinchSegment_getThread(segment1));
     void *component2 = stUnionFind_find(threadToComponent, stPinchSegment_getThread(segment2));
 

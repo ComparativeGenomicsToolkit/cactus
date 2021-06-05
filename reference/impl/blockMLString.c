@@ -3,6 +3,11 @@
 #include "cactus.h"
 #include "sonLib.h"
 
+// OpenMP
+#if defined(_OPENMP)
+#include <omp.h>
+#endif
+
 /*
  * Code to calculate a maximum likelihood (ML) string for a block using Felsenstein's pruning algorithm.
  */
@@ -148,11 +153,11 @@ static double *transformBaseProbsBySubstitutionMatrix(double *baseProbs, int64_t
      * probabilities at each position by the given substitution matrix.
      * Returns the input array.
      */
+    assert(stMatrix_n(substitutionMatrix) == 4);
+    double v[4];
     for (int64_t i = 0; i < length; i++) {
-        assert(stMatrix_n(substitutionMatrix) == 4);
-        double *v = stMatrix_multiplySquareMatrixAndColumnVector(substitutionMatrix, &(baseProbs[i * 4]));
+        stMatrix_multiplySquareMatrixAndColumnVector2(substitutionMatrix, &(baseProbs[i * 4]), v);
         memcpy(&(baseProbs[i * 4]), v, sizeof(double) * 4);
-        free(v);
     }
     return baseProbs;
 }
@@ -162,18 +167,20 @@ double *getEmptyBaseProbsString(int64_t length) {
      * Gets an array of base probs, as described in getMaxLikelihoodString,
      * for a block of 'length' positions, in which each position is initialised to 1.0.
      */
-    double *baseProbs = st_calloc(length * 4, sizeof(double));
+    double *baseProbs = st_malloc(length * 4 * sizeof(double));
     for (int64_t i = 0; i < length * 4; i++) {
         baseProbs[i] = 1.0;
     }
     return baseProbs;
 }
 
-double *getBaseProbsString(char *string, int64_t length) {
+double *getBaseProbsString(Segment *segment) {
     /*
      * Gets an array of base probs, as described in getMaxLikelihoodString, representing
      * the input string.
      */
+    char *string = segment_getString(segment);
+    int64_t length = segment_getLength(segment);
     double *baseProbs = st_calloc(length * 4, sizeof(double)); //Gets the initial array initialised to 0.0 values
     for (int64_t i = 0; i < length; i++) {
         switch (toupper(string[i])) {
@@ -198,6 +205,7 @@ double *getBaseProbsString(char *string, int64_t length) {
             break;
         }
     }
+    free(string);
     return baseProbs;
 }
 
@@ -214,27 +222,47 @@ static void multiply(double *baseProbs1, double *baseProbs2, int64_t blockLength
     free(baseProbs2);
 }
 
-static double *computeBaseProbs(stTree *tree, stHash *eventsToStrings, int64_t blockLength) {
+static int getFirstSegmentMatchingEvent(const void *a, const void *b) {
+    Event *e1 = (Event *)a, *e2 = segment_getEvent((Segment *)b);
+    assert(e1 != NULL && e2 != NULL);
+    return e1 < e2 ? -1 : (e1 > e2 ? 1 : 0);
+}
+
+static double *computeBaseProbs(stTree *tree, stList *eventSortedSegments, int64_t blockLength) {
     /*
      * This is the Felsenstein's function to compute the probabilities of each base at each position of the block for the given root node of tree
      * (which is a phylogenetic tree and attached substitution matrices created by getSubstitutionTreeRootedAtGivenEvent).
      */
     //The code is recursive.
     if (stTree_getChildNumber(tree) > 0) { //Case root is an internal node.
-        double *baseProbs = computeBaseProbs(stTree_getChild(tree, 0), eventsToStrings, blockLength);
-        for (int64_t i = 1; i < stTree_getChildNumber(tree); i++) {
-            multiply(baseProbs, computeBaseProbs(stTree_getChild(tree, i), eventsToStrings, blockLength), blockLength);
+        double *baseProbs = computeBaseProbs(stTree_getChild(tree, 0), eventSortedSegments, blockLength);
+        int64_t i=1;
+        // While there are no base probs, cos the subtree is empty replace base probs with those from another branch
+        while(baseProbs == NULL && i < stTree_getChildNumber(tree)) {
+            baseProbs = computeBaseProbs(stTree_getChild(tree, i++), eventSortedSegments, blockLength);
         }
-        return transformBaseProbsBySubstitutionMatrix(baseProbs, blockLength, getSubMatrix(tree));
-    } else { //Case root is a leaf
-        double *baseProbs = getEmptyBaseProbsString(blockLength);
-        stList *strings = stHash_search(eventsToStrings, getEvent(tree));
-        if (strings != NULL) { //If there are strings associated with this event.
-            for (int64_t i = 0; i < stList_length(strings); i++) {
-                multiply(baseProbs,
-                        transformBaseProbsBySubstitutionMatrix(getBaseProbsString(stList_get(strings, i), blockLength),
-                                blockLength, getSubMatrix(tree)), blockLength);
+        // Now that we have base probs combine the remaining branches
+        while(i < stTree_getChildNumber(tree)) {
+            double *baseProbs2 = computeBaseProbs(stTree_getChild(tree, i++), eventSortedSegments, blockLength);
+            if(baseProbs2 != NULL) {
+                multiply(baseProbs, baseProbs2, blockLength);
             }
+        }
+        return baseProbs == NULL ? NULL : transformBaseProbsBySubstitutionMatrix(baseProbs, blockLength, getSubMatrix(tree));
+    } else { //Case root is a leaf
+        Event *event = getEvent(tree);
+        int64_t i = stList_binarySearchFirstIndex(eventSortedSegments, event, getFirstSegmentMatchingEvent);
+        if(i == -1) {
+            return NULL;
+        }
+        double *baseProbs = transformBaseProbsBySubstitutionMatrix(getBaseProbsString(stList_get(eventSortedSegments, i)),
+                                                                   blockLength, getSubMatrix(tree));
+        while(++i < stList_length(eventSortedSegments)) {
+            Segment *segment = stList_get(eventSortedSegments, i);
+            if(segment_getEvent(segment) != event) {
+                break;
+            }
+            multiply(baseProbs, transformBaseProbsBySubstitutionMatrix(getBaseProbsString(segment), blockLength, getSubMatrix(tree)), blockLength);
         }
         return baseProbs;
     }
@@ -244,68 +272,72 @@ static double *computeBaseProbs(stTree *tree, stHash *eventsToStrings, int64_t b
 // The following is used to soft-mask (make lower case) bases deemed to be repetitive in the source genomes.
 ////
 
-void maskAncestralRepeatBases(Block *block, char *mlString) {
+void maskAncestralRepeatBases(Block *block, stList *segments, char *mlString) {
     /*
      * Soft masks the positions in the mlString that are deemed to be repetitive. A position is repetitive
      * if greater than 50% of the bases from which it is derived are not upper case.
      */
+    //assert(block_getInstanceNumber(block) == stList_length(segments));
 
-    int64_t *upperCounts = st_calloc(block_getLength(block), sizeof(int64_t)); //Counts of upper case bases at each position of the block.
-    int64_t *nCounts = st_calloc(block_getLength(block), sizeof(int64_t)); //Counts of Ns at each position of the block.
+    int64_t l = block_getLength(block), j = stList_length(segments);
+    int64_t *upperCounts = st_calloc(l, sizeof(int64_t)); //Counts of upper case bases at each position of the block.
+    int64_t *nCounts = st_calloc(l, sizeof(int64_t)); //Counts of Ns at each position of the block.
 
     //Iterate through the sequences of the segments of a block and collate the number of upper case bases.
-    Block_InstanceIterator *segmentIt = block_getInstanceIterator(block);
-    Segment *segment;
-    size_t numSegmentsWithSequence = 0;
-    while ((segment = block_getNext(segmentIt)) != NULL) {
-        if (segment_getSequence(segment) != NULL) {
-            numSegmentsWithSequence++;
-            char *string = segment_getString(segment);
-            for (int64_t i = 0; i < block_getLength(block); i++) {
-                char uC = toupper(string[i]);
-                upperCounts[i] += uC == string[i] ? 1 : 0;
-                nCounts[i] += (uC != 'A' && uC != 'C' && uC != 'G' && uC != 'T' ? 1 : 0);
-            }
-            free(string);
+    for(int64_t i=0; i<j; i++) {
+        Segment *segment = stList_get(segments, i);
+        assert(segment_getSequence(segment) != NULL);
+        char *string = segment_getString(segment);
+        for (int64_t k = 0; k < l; k++) {
+            char uC = toupper(string[k]);
+            upperCounts[k] += uC == string[k] ? 1 : 0;
+            nCounts[k] += (uC != 'A' && uC != 'C' && uC != 'G' && uC != 'T' ? 1 : 0);
         }
+        free(string);
     }
-    block_destructInstanceIterator(segmentIt);
 
     //Convert any upper case character to lower case if the majority of bases
     //from which it is derived are not upper case.
-    for (int64_t i = 0; i < block_getLength(block); i++) {
-        if (nCounts[i] == numSegmentsWithSequence) {
+    for (int64_t i = 0; i < l; i++) {
+        if (nCounts[i] == j) {
             mlString[i] = 'N';
         }
-        if (upperCounts[i] <= numSegmentsWithSequence / 2) {
+        if (upperCounts[i] <= j / 2) {
             mlString[i] = tolower(mlString[i]);
         }
     }
+
     //Cleanup
     free(upperCounts);
     free(nCounts);
 }
 
-static stHash *hashEventsToSegmentStrings(Block *block) {
+static int sortByEvent(const void *a, const void *b) {
+    Event *e1 = segment_getEvent((Segment *)a), *e2 = segment_getEvent((Segment *)b);
+    assert(e1 != NULL && e2 != NULL);
+    return e1 < e2 ? -1 : (e1 > e2 ? 1 : 0);
+}
+
+static stList *segmentsSortedByEvent(Block *block) {
     /*
-     * Returns a hash of events to the strings of segments with a given event.
-     * The strings are stored in a list.
+     * Returns a list of segments in the block sorted by event
      */
-    stHash *eventsToStrings = stHash_construct2(NULL, (void (*)(void *)) stList_destruct);
+
+    // Get the list of segments
+    stList *segments = stList_construct();
     Block_InstanceIterator *segmentIt = block_getInstanceIterator(block);
     Segment *segment;
     while ((segment = block_getNext(segmentIt)) != NULL) {
         if (segment_getSequence(segment) != NULL) {
-            stList *strings = stHash_search(eventsToStrings, segment_getEvent(segment));
-            if (strings == NULL) {
-                strings = stList_construct3(0, free);
-                stHash_insert(eventsToStrings, segment_getEvent(segment), strings);
-            }
-            stList_append(strings, segment_getString(segment));
+            stList_append(segments, segment);
         }
     }
     block_destructInstanceIterator(segmentIt);
-    return eventsToStrings;
+
+    // Sort the segments by event
+    stList_sort(segments, sortByEvent);
+
+    return segments;
 }
 
 char *getMaximumLikelihoodString(stTree *tree, Block *block) {
@@ -323,14 +355,16 @@ char *getMaximumLikelihoodString(stTree *tree, Block *block) {
         memset(mlString, 'N', block_getLength(block));
         mlString[block_getLength(block)] = '\0';
     } else {
-        stHash *eventsToStrings = hashEventsToSegmentStrings(block);
-        double *baseProbs = computeBaseProbs(tree, eventsToStrings, block_getLength(block));
+        stList *eventSortedSegments = segmentsSortedByEvent(block);
+        double *baseProbs = computeBaseProbs(tree, eventSortedSegments, block_getLength(block));
+        if(baseProbs == NULL) {
+            baseProbs = getEmptyBaseProbsString(block_getLength(block));
+        }
         mlString = getMaxLikelihoodString(baseProbs, block_getLength(block));
+        maskAncestralRepeatBases(block, eventSortedSegments, mlString);
         //Cleanup
         free(baseProbs);
-        stHash_destruct(eventsToStrings);
+        stList_destruct(eventSortedSegments);
     }
-    maskAncestralRepeatBases(block, mlString);
     return mlString;
 }
-

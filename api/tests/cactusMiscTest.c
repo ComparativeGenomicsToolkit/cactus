@@ -10,14 +10,14 @@ static CactusDisk *cactusDisk = NULL;
 
 static void cactusMiscTestTeardown(CuTest* testCase) {
     if (cactusDisk != NULL) {
-        testCommon_deleteTemporaryCactusDisk(testCase->name, cactusDisk);
+        cactusDisk_destruct(cactusDisk);
         cactusDisk = NULL;
     }
 }
 
 static void cactusMiscTestSetup(CuTest* testCase) {
     cactusMiscTestTeardown(testCase);
-    cactusDisk = testCommon_getTemporaryCactusDisk(testCase->name);
+    cactusDisk = cactusDisk_construct();
 }
 
 void testCactusMisc_nameCompare(CuTest* testCase) {
@@ -35,28 +35,26 @@ void testCactusMisc_stringNameFns(CuTest* testCase) {
     int64_t i;
     for (i = 0; i < 1000000; i++) {
         Name name = cactusDisk_getUniqueID(cactusDisk);
+        char *cA = cactusMisc_nameToString(name);
         CuAssertTrue(
                 testCase,
                 cactusMisc_nameCompare(
-                        cactusMisc_stringToName(
-                                cactusMisc_nameToStringStatic(name)), name)
+                        cactusMisc_stringToName(cA), name)
                         == 0);
-        char *cA = cactusMisc_nameToString(name);
-        CuAssertStrEquals(testCase, cA, cactusMisc_nameToStringStatic(name));
         free(cA);
     }
     cactusMiscTestTeardown(testCase);
 }
 
 static void testCactusCheck(CuTest* testCase) {
-    return; //While we have an assert that fails in that function to provide a stack trace.
+    //return; //While we have an assert that fails in that function to provide a stack trace.
     cactusCheck(1);
     stTry {
         cactusCheck(0);
         CuAssertTrue(testCase, 0);
     } stCatch(except) {
         st_logInfo("This is the message %s\n", stExcept_getMsg(except));
-        stExcept_free(except);
+        //stExcept_free(except);
     } stTryEnd
 
     cactusCheck2(1, "This shouldn't throw an exception: %s", "blah");
@@ -65,7 +63,7 @@ static void testCactusCheck(CuTest* testCase) {
         CuAssertTrue(testCase, 0);
     } stCatch(except) {
         st_logInfo("This is the message: %s\n", stExcept_getMsg(except));
-        stExcept_free(except);
+        //stExcept_free(except);
     } stTryEnd
 }
 

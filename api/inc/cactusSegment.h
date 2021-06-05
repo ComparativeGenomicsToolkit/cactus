@@ -101,26 +101,6 @@ Cap *segment_get5Cap(Segment *segment);
 Cap *segment_get3Cap(Segment *segment);
 
 /*
- * Returns the parent instance, or NULL, if none exists.
- */
-Segment *segment_getParent(Segment *segment);
-
-/*
- * Returns the number of children the instance has.
- */
-int64_t segment_getChildNumber(Segment *segment);
-
-/*
- * Gets a child instance.
- */
-Segment *segment_getChild(Segment *segment, int64_t index);
-
-/*
- * Links together a parent and child segment.
- */
-void segment_makeParentAndChild(Segment *segmentParent, Segment *segmentChild);
-
-/*
  * Checks (amongst other things) the following:
  * Checks the two ends have caps.
  * Checks the coordinates of the caps are consistent with the segment.

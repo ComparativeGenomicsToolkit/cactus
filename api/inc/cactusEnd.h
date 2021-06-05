@@ -37,6 +37,11 @@ End *end_construct2(bool side, bool isAttached, Flower *flower);
 End *end_copyConstruct(End *end, Flower *newFlower);
 
 /*
+ * Like end_copyConstruct, but adds a set of ends in bulk. Allows the addition to be more efficient.
+ */
+stList *end_bulkCopyConstruct(stList *ends, Flower *newFlower);
+
+/*
  *	Name of the end.
  */
 Name end_getName(End *end);
@@ -62,6 +67,16 @@ End *end_getReverse(End *end);
  * zero if on the 3' side. If is stub, will inherit its side from the parent stub.
  */
 bool end_getSide(End *end);
+
+/*
+ * Is connected to a block
+ */
+bool end_partOfBlock(End *end);
+
+/*
+ * Is the left end of a block
+ */
+bool end_left(End *end);
 
 /*
  * Gets the flower the end is part of.
@@ -90,6 +105,11 @@ Group *end_getGroup(End *end);
 void end_setGroup(End *end, Group *group);
 
 /*
+ * Returns non-zero if the end contains no caps.
+ */
+bool end_isEmpty(End *end);
+
+/*
  * Returns the number of caps the end contains.
  */
 int64_t end_getInstanceNumber(End *end);
@@ -105,17 +125,6 @@ Cap *end_getInstance(End *end, Name instanceName);
 Cap *end_getFirst(End *end);
 
 /*
- * Gets the root cap of the end, if it is set, or returns NULL;
- */
-Cap *end_getRootInstance(End *end);
-
-/*
- * Sets the root cap of the end. Will throw an error if the cap
- * is not part of the end, or already has a parent.
- */
-void end_setRootInstance(End *end, Cap *cap);
-
-/*
  * Gets an iterator over the caps.
  */
 End_InstanceIterator *end_getInstanceIterator(End *end);
@@ -124,16 +133,6 @@ End_InstanceIterator *end_getInstanceIterator(End *end);
  * Gets the next cap from the iterator.
  */
 Cap *end_getNext(End_InstanceIterator *iterator);
-
-/*
- * Gets the previous cap from the iterator.
- */
-Cap *end_getPrevious(End_InstanceIterator *iterator);
-
-/*
- * Duplicates the iterator.
- */
-End_InstanceIterator *end_copyInstanceIterator(End_InstanceIterator *iterator);
 
 /*
  * Destructs the iterator.

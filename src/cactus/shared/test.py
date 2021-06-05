@@ -8,7 +8,6 @@ cactus workflow and the various utilities.
 """
 
 import os
-import pytest
 import random
 import xml.etree.ElementTree as ET
 
@@ -23,12 +22,9 @@ from sonLib.bioio import printBinaryTree
 from sonLib.bioio import system
 from sonLib.bioio import getRandomAlphaNumericString
 from sonLib.bioio import cigarWrite, PairwiseAlignment, AlignmentOperation
-from sonLib.bioio import TestStatus
-from sonLib.tree import makeRandomBinaryTree
 from sonLib.nxnewick import NXNewick
 
 from cactus.shared.common import runCactusWorkflow
-from cactus.shared.common import runCactusCheck
 
 from sonLib.bioio import TestStatus
 
@@ -36,7 +32,6 @@ from sonLib.tree import makeRandomBinaryTree
 
 from cactus.shared.common import runToilStats
 
-from cactus.shared.experimentWrapper import DbElemWrapper
 from cactus.shared.experimentWrapper import ExperimentWrapper
 
 ###########

@@ -96,20 +96,22 @@ static void trimAlignments(stPinchThreadSet *threadSet, int64_t blockEndTrim) {
     }
 }
 
-static void filterAlignments(stPinchThreadSet *threadSet, bool(*blockFilterFn)(stPinchBlock *)) {
+static void filterAlignments(stPinchThreadSet *threadSet, bool(*blockFilterFn)(stPinchBlock *, void *extraArg),
+                             void *extraArg) {
     stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
     stPinchBlock *block = stPinchThreadSetBlockIt_getNext(&blockIt);
     while (block != NULL) {
         stPinchBlock *block2 = stPinchThreadSetBlockIt_getNext(&blockIt);
-        if (!isThreadEnd(block) && blockFilterFn(block)) {
+        if (!isThreadEnd(block) && blockFilterFn(block, extraArg)) {
             stPinchBlock_destruct(block);
         }
         block = block2;
     }
 }
 
-void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(stPinchBlock *), int64_t blockEndTrim,
-        int64_t minimumChainLength, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds) {
+void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(stPinchBlock *, void *extraArg),
+                void *extraArg, int64_t blockEndTrim, int64_t minimumChainLength,
+                bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds) {
     //First trim
     if (blockEndTrim > 0) {
         trimAlignments(threadSet, blockEndTrim);
@@ -117,7 +119,7 @@ void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(
 
     //Then filter blocks
     if (blockFilterfn != NULL) {
-        filterAlignments(threadSet, blockFilterfn);
+        filterAlignments(threadSet, blockFilterfn, extraArg);
     }
 
     //Now apply the minimum chain length filter

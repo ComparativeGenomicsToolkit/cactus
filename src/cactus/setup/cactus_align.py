@@ -20,15 +20,13 @@ from cactus.shared.common import setupBinaries, importSingularityImage
 from cactus.progressive.cactus_progressive import exportHal
 from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.shared.experimentWrapper import ExperimentWrapper
-from cactus.progressive.schedule import Schedule
 from cactus.progressive.projectWrapper import ProjectWrapper
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
 from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
-from cactus.pipeline.cactus_workflow import CactusTrimmingBlastPhase
-from cactus.pipeline.cactus_workflow import CactusSetupCheckpoint
 from cactus.pipeline.cactus_workflow import prependUniqueIDs
+from cactus.pipeline.cactus_workflow import CactusConsolidated
 from cactus.blast.blast import calculateCoverage
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
@@ -39,7 +37,6 @@ from cactus.shared.common import cactus_call
 from cactus.refmap.paf_to_lastz import paf_to_lastz
 from cactus.shared.common import write_s3, has_s3, get_aws_region
 
-from toil.realtimeLogger import RealtimeLogger
 from toil.job import Job
 from toil.common import Toil
 from toil.lib.bioio import logger
@@ -379,6 +376,8 @@ def make_align_job(options, toil):
         findRequiredNode(configWrapper.xmlRoot, "bar").attrib["minimumBlockDegree"] = "1"
         # turn on POA
         findRequiredNode(configWrapper.xmlRoot, "bar").attrib["partialOrderAlignment"] = "1"
+        # turn off POA seeding
+        findRequiredNode(configWrapper.xmlRoot, "bar").attrib["partialOrderAlignmentDisableSeeding"] = "1"
         # save it
         if not options.batch:
             pg_file = options.outHal + ".pg-conf.xml"
@@ -638,7 +637,7 @@ def run_ingroup_coverage(job, cactusWorkflowArguments, project):
 
 def run_setup_phase(job, cactusWorkflowArguments):
     # needs to be its own job to resovolve the workflowargument promise
-    return job.addChild(CactusSetupCheckpoint(cactusWorkflowArguments=cactusWorkflowArguments, phaseName="setup")).rv()
+    return job.addChild(CactusConsolidated(cactusWorkflowArguments=cactusWorkflowArguments, phaseName="consolidated")).rv()
 
 def run_prepare_hal_export(job, project, experiment):
     """ hack up the given project into something that gets exportHal() to do what we want """
@@ -817,7 +816,7 @@ def align_toil(job, chrom, seq_file_id, paf_file_id, config_id, options):
 
     log_file = os.path.join(work_dir, '{}.hal.log'.format(chrom))
 
-    cmd = ['cactus-align', js, seq_file, paf_file, out_file, '--logFile', log_file] + options.alignOptions.split()
+    cmd = ['cactus-align', js, seq_file, paf_file, out_file, '--logFile', log_file, '--configFile', config_file] + options.alignOptions.split()
 
     cactus_call(parameters=cmd)
 

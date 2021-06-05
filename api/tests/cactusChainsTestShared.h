@@ -38,14 +38,14 @@ static Segment *segment3;
 
 static void cactusChainsSharedTestTeardown(const char *testName) {
     if (cactusDisk != NULL) {
-        testCommon_deleteTemporaryCactusDisk(testName, cactusDisk);
+        cactusDisk_destruct(cactusDisk);
         cactusDisk = NULL;
     }
 }
 
 static void cactusChainsSharedTestSetup(const char *testName) {
     cactusChainsSharedTestTeardown(testName);
-    cactusDisk = testCommon_getTemporaryCactusDisk(testName);
+    cactusDisk = cactusDisk_construct();
     eventTree_construct2(cactusDisk);
     flower = flower_construct(cactusDisk);
     nestedFlower1 = flower_construct(cactusDisk);
@@ -74,8 +74,8 @@ static void cactusChainsSharedTestSetup(const char *testName) {
     end_setGroup(block_get5End(block3), group4);
     link4 = link_construct(block_get3End(block2), block_get5End(block3), group4, chain2);
     Event *event = eventTree_getRootEvent(flower_getEventTree(flower));
-    MetaSequence *metaSequence = metaSequence_construct(1, 2, "AA", NULL, event_getName(event), cactusDisk);
-    Sequence *sequence = sequence_construct(metaSequence, flower);
+    Sequence *sequence = sequence_construct(1, 2, "AA", NULL, event, cactusDisk);
+    flower_addSequence(flower, sequence);
     segment1 = segment_construct2(block2, 1, 1, sequence);
     segment2 = segment_construct2(block3, 2, 1, sequence);
     assert(cap_getEnd(segment_get3Cap(segment1)) == block_get3End(block2));
@@ -90,7 +90,7 @@ static void cactusChainsSharedTestSetup(const char *testName) {
     end_setGroup(block_get3End(block4), group5);
     end_setGroup(block_get5End(block4), group5);
     link5 = link_construct(block_get3End(block4), block_get5End(block4), group5, chain3);
-    MetaSequence *metaSequence2 = metaSequence_construct(1, 2, "CT", NULL, event_getName(event), cactusDisk);
-    Sequence *sequence2 = sequence_construct(metaSequence2, flower);
+    Sequence *sequence2 = sequence_construct(1, 2, "CT", NULL, event, cactusDisk);
+    flower_addSequence(flower, sequence2);
     segment3 = segment_construct2(block4, 1, 1, sequence2);
 }

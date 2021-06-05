@@ -14,6 +14,7 @@ static void testIterator(CuTest *testCase, stPinchIterator *pinchIterator, stLis
     for (int64_t trim = 0; trim < 10; trim++) {
         stPinchIterator_setTrim(pinchIterator, trim);
         //Test get next
+        stPinch pinchToFillOut;
         for (int64_t i = 0; i < stList_length(randomPairwiseAlignments); i++) {
             struct PairwiseAlignment *pairwiseAlignment = stList_get(randomPairwiseAlignments, i);
             int64_t contigX = -1, contigY = -1;
@@ -25,7 +26,7 @@ static void testIterator(CuTest *testCase, stPinchIterator *pinchIterator, stLis
                 struct AlignmentOperation *op = pairwiseAlignment->operationList->list[j];
                 if (op->opType == PAIRWISE_MATCH) {
                     if (op->length > 2 * trim) {
-                        stPinch *pinch = stPinchIterator_getNext(pinchIterator);
+                        stPinch *pinch = stPinchIterator_getNext(pinchIterator, &pinchToFillOut);
                         CuAssertTrue(testCase, pinch != NULL);
                         CuAssertIntEquals(testCase, contigX, pinch->name1);
                         CuAssertIntEquals(testCase, contigY, pinch->name2);
@@ -44,9 +45,9 @@ static void testIterator(CuTest *testCase, stPinchIterator *pinchIterator, stLis
                 }
             }
         }
-        CuAssertPtrEquals(testCase, NULL, stPinchIterator_getNext(pinchIterator));
-        CuAssertPtrEquals(testCase, NULL, stPinchIterator_getNext(pinchIterator));
-        CuAssertPtrEquals(testCase, NULL, stPinchIterator_getNext(pinchIterator));
+        CuAssertPtrEquals(testCase, NULL, stPinchIterator_getNext(pinchIterator, &pinchToFillOut));
+        CuAssertPtrEquals(testCase, NULL, stPinchIterator_getNext(pinchIterator, &pinchToFillOut));
+        CuAssertPtrEquals(testCase, NULL, stPinchIterator_getNext(pinchIterator, &pinchToFillOut));
         stPinchIterator_reset(pinchIterator);
     }
 }

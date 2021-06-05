@@ -38,35 +38,8 @@ char *cactusMisc_nameToString(Name name) {
     return cA;
 }
 
-const char *cactusMisc_nameToStringStatic(Name name) {
-    static char cA[100];
-    sprintf(cA, NAME_STRING, name);
-    return cA;
-}
-
 const char *cactusMisc_getDefaultReferenceEventHeader() {
-    static char cA[10];
-    sprintf(cA, "reference");
-    return cA;
-}
-
-void preCacheNestedFlowers(CactusDisk *cactusDisk, stList *flowers) {
-    stList *nestedFlowerNames = stList_construct3(0, free);
-    for (int64_t i = 0; i < stList_length(flowers); i++) {
-        Flower *flower = stList_get(flowers, i);
-        Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
-        Group *group;
-        while ((group = flower_getNextGroup(groupIt)) != NULL) {
-            if (!group_isLeaf(group)) {
-                int64_t *iA = st_malloc(sizeof(int64_t));
-                iA[0] = group_getName(group);
-                stList_append(nestedFlowerNames, iA);
-            }
-        }
-        flower_destructGroupIterator(groupIt);
-    }
-    stList_destruct(cactusDisk_getFlowers(cactusDisk, nestedFlowerNames));
-    stList_destruct(nestedFlowerNames);
+    return stString_print("reference");
 }
 
 const char *CACTUS_CHECK_EXCEPTION_ID = "CACTUS_CHECK_EXCEPTION_ID";

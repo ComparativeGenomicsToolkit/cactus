@@ -13,16 +13,12 @@ import logging
 import os
 import xml.etree.ElementTree as ET
 import timeit
-import multiprocessing
 from argparse import ArgumentParser
 from base64 import b64encode
-from subprocess import check_call
-from subprocess import CalledProcessError
 
 from toil.lib.bioio import getTempFile
 
 from toil.lib.bioio import setLoggingFromOptions
-from toil.realtimeLogger import RealtimeLogger
 from toil.lib.threading import cpu_count
 
 from cactus.shared.common import getOptionalAttrib
@@ -31,7 +27,6 @@ from cactus.shared.common import makeURL
 from cactus.shared.common import catFiles
 from cactus.shared.common import cactus_call
 from cactus.shared.common import RoundedJob
-from cactus.shared.common import getDockerImage
 from cactus.shared.version import cactus_commit
 from cactus.shared.common import cactusRootPath
 from cactus.shared.common import enableDumpStack

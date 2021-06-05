@@ -15,16 +15,11 @@ CuSuite *cactusEndTestSuite();
 CuSuite *cactusEventTestSuite();
 CuSuite *cactusEventTreeTestSuite();
 CuSuite *cactusLinkTestSuite();
-CuSuite *cactusMetaSequenceTestSuite();
+CuSuite *cactusSequenceTestSuite();
 CuSuite *cactusDiskTestSuite();
 CuSuite *cactusMiscTestSuite();
 CuSuite *cactusFlowerTestSuite();
-CuSuite *cactusFaceTestSuite();
-CuSuite *cactusFaceEndTestSuite();
-CuSuite *cactusSequenceTestSuite();
-CuSuite *cactusSerialisationTestSuite();
-CuSuite *cactusFlowerWriterTestSuite();
-
+CuSuite *cactusParamsTestSuite(void);
 
 int cactusAPIRunAllTests(void) {
 	CuString *output = CuStringNew();
@@ -38,15 +33,11 @@ int cactusAPIRunAllTests(void) {
 	CuSuiteAddSuite(suite, cactusEndTestSuite());
 	CuSuiteAddSuite(suite, cactusEventTreeTestSuite());
 	CuSuiteAddSuite(suite, cactusLinkTestSuite());
-	CuSuiteAddSuite(suite, cactusMetaSequenceTestSuite());
+	CuSuiteAddSuite(suite, cactusSequenceTestSuite());
 	CuSuiteAddSuite(suite, cactusDiskTestSuite());
 	CuSuiteAddSuite(suite, cactusMiscTestSuite());
 	CuSuiteAddSuite(suite, cactusFlowerTestSuite());
-	CuSuiteAddSuite(suite, cactusFaceTestSuite());
-	CuSuiteAddSuite(suite, cactusFaceEndTestSuite());
-	CuSuiteAddSuite(suite, cactusSequenceTestSuite());
-	CuSuiteAddSuite(suite, cactusSerialisationTestSuite());
-	CuSuiteAddSuite(suite, cactusFlowerWriterTestSuite());
+    CuSuiteAddSuite(suite, cactusParamsTestSuite());
 	CuSuiteRun(suite);
 	CuSuiteSummary(suite, output);
 	CuSuiteDetails(suite, output);

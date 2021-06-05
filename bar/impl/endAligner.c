@@ -189,7 +189,7 @@ stSortedSet *makeEndAlignment(StateMachine *sM, End *end, int64_t spanningTrees,
 }
 
 void writeEndAlignmentToDisk(End *end, stSortedSet *endAlignment, FILE *fileHandle) {
-    fprintf(fileHandle, "%s %" PRIi64 "\n", cactusMisc_nameToStringStatic(end_getName(end)), stSortedSet_size(endAlignment));
+    fprintf(fileHandle, "%" PRIi64 " %" PRIi64 "\n", end_getName(end), stSortedSet_size(endAlignment));
     stSortedSetIterator *it = stSortedSet_getIterator(endAlignment);
     AlignedPair *aP;
     while((aP = stSortedSet_getNext(it)) != NULL) {

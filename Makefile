@@ -2,11 +2,11 @@ rootPath = .
 
 include ${rootPath}/include.mk
 
-modules = api setup blastLib caf bar blast normalisation hal phylogeny reference faces check pipeline preprocessor dbTest
+modules = api setup blastLib caf bar blast hal reference pipeline preprocessor
 
 # submodules are in multiple pass to handle dependencies cactus2hal being dependent on
 # both cactus and sonLib
-submodules1 = kyoto sonLib cPecan hal matchingAndOrdering pinchesAndCacti abPOA
+submodules1 = sonLib cPecan hal matchingAndOrdering pinchesAndCacti abPOA
 submodules2 = cactus2hal
 submodules = ${submodules1} ${submodules2}
 
@@ -49,7 +49,7 @@ ifeq ($(shell ldd bin/* | grep "not a dynamic" | wc -l), $(shell ls bin/* | wc -
 	$(info ldd verified that all files in .bin/ are static)
 	echo "All static"
 else
-	$(error ldd found dnymaic linked binary in .bin/)
+	$(error ldd found dynamic linked binary in .bin/)
 endif
 
 all_libs:
@@ -77,20 +77,15 @@ testModules = \
     blast/cactus_realignTest.py \
     blast/mappingQualityRescoringAndFilteringTest.py \
     blast/trimSequencesTest.py \
-    faces/cactus_fillAdjacenciesTest.py \
     hal/cactus_halTest.py \
-    normalisation/cactus_normalisationTest.py \
-    phylogeny/cactus_phylogenyTest.py \
     pipeline/cactus_evolverTest.py \
     pipeline/cactus_workflowTest.py \
-    pipeline/dbServerTest.py \
     preprocessor/cactus_preprocessorTest.py \
     preprocessor/lastzRepeatMasking/cactus_lastzRepeatMaskTest.py \
     progressive/cactus_progressiveTest.py \
     progressive/multiCactusTreeTest.py \
     progressive/outgroupTest.py \
     progressive/scheduleTest.py \
-    reference/cactus_referenceTest.py \
     shared/commonTest.py \
     shared/experimentWrapperTest.py
 
@@ -151,10 +146,7 @@ evolver_test: all bin/mafComparator
 	docker rmi -f evolvertestdocker/cactus:latest
 
 evolver_test_local: all bin/mafComparator
-	PYTHONPATH="" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} test/evolverTest.py::TestCase::testEvolverLocal
-
-evolver_test_redis_local: all bin/mafComparator
-	PYTHONPATH="" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} test/evolverTest.py::TestCase::testEvolverRedisLocal
+	PYTHONPATH="" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverLocal
 
 evolver_test_poa_local: all bin/mafComparator
 	PYTHONPATH="" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverPOALocal
@@ -181,13 +173,10 @@ clean: selfClean ${submodules:%=subclean.%}
 ##
 suball1: ${submodules1:%=suball.%}
 suball2: ${submodules2:%=suball.%}
-suball.kyoto:
-	cd submodules/kyoto && ${MAKE} PREFIX=${CWD}
-	cd submodules/kyoto && ${MAKE} PREFIX=${CWD} install
 
-suball.sonLib: suball.kyoto
+suball.sonLib:
 	cd submodules/sonLib && PKG_CONFIG_PATH=${CWD}/lib/pkgconfig:${PKG_CONFIG_PATH} ${MAKE}
-	mkdir -p ${BINDIR} ${LIBDIR}
+	mkdir -p ${BINDIR} ${LIBDIR} ${INCLDIR}
 	rm -rf submodules/sonLib/bin/*.dSYM
 	ln -f submodules/sonLib/bin/[a-zA-Z]* ${BINDIR}
 	ln -f submodules/sonLib/lib/*.a ${LIBDIR}

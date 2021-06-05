@@ -15,16 +15,16 @@ LDLIBS := ${commonHalLibs} ${LDLIBS}
 all: all_libs all_progs
 all_libs: 
 all_progs: all_libs
-	${MAKE} ${BINDIR}/cactus_halGenerator ${BINDIR}/cactus_halGeneratorTests ${BINDIR}/cactus_fastaGenerator
+	${MAKE} ${LIBDIR}/stCactusToHal.a ${BINDIR}/cactus_halGeneratorTests
 
 clean : 
-	rm -f ${BINDIR}/cactus_halGenerator ${BINDIR}/cactus_halGeneratorTests 
+	rm -f ${BINDIR}/cactus_halGeneratorTests
 
-${BINDIR}/cactus_halGenerator : cactus_halGenerator.c ${libTests} ${libSources} ${libHeaders} ${stHalDependencies}
-	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o ${BINDIR}/cactus_halGenerator cactus_halGenerator.c ${libSources} ${LDLIBS}
+${BINDIR}/cactus_halGeneratorTests : ${libTests} ${LIBDIR}/stCactusToHal.a ${stHalDependencies}
+	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -Wno-error -o ${BINDIR}/cactus_halGeneratorTests ${libTests} ${LIBDIR}/stCactusToHal.a ${LDLIBS}
 
-${BINDIR}/cactus_fastaGenerator : cactus_fastaGenerator.c ${libTests} ${libSources} ${libHeaders} ${stHalDependencies}
-	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o ${BINDIR}/cactus_fastaGenerator cactus_fastaGenerator.c ${libSources} ${LDLIBS}
-
-${BINDIR}/cactus_halGeneratorTests : ${libTests} ${libSources} ${libHeaders} ${stHalDependencies}
-	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -Wno-error -o ${BINDIR}/cactus_halGeneratorTests ${libTests} ${libSources} ${LDLIBS}
+${LIBDIR}/stCactusToHal.a : ${libSources} ${libHeaders}
+	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -c ${libSources}
+	${AR} rc stCactusToHal.a *.o
+	${RANLIB} stCactusToHal.a
+	mv stCactusToHal.a ${LIBDIR}/

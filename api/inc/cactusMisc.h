@@ -35,29 +35,14 @@ Name cactusMisc_stringToName(const char *stringName);
 char *cactusMisc_nameToString(Name name);
 
 /*
- * Creates a static string (which needn't be freed) representing the name as a string.
- */
-const char *cactusMisc_nameToStringStatic(Name name);
-
-/*
  * Creates a new string with orientation sign (which must be freed) representing the name as a string.
  */
 char *cactusMisc_nameToStringWithOrientation(Name name, int64_t orientation);
 
 /*
- * Creates a static string with orientation sign (which needn't be freed) representing the name as a string.
- */
-const char *cactusMisc_nameToStringStaticWithOrientiation(Name name, int64_t orientation);
-
-/*
  * Gets the default name of the reference event string.
  */
 const char *cactusMisc_getDefaultReferenceEventHeader();
-
-/*
- * Use a bulk get to efficiently precache the nested flowers of a set of parent flowers.
- */
-void preCacheNestedFlowers(CactusDisk *cactusDisk, stList *flowers);
 
 /*
  * Check a condition is true, if not throw an exception - a short hand to defining your own exception.

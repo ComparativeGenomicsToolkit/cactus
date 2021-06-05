@@ -11,6 +11,98 @@
 #include <stdio.h>
 #include <ctype.h>
 
+// OpenMP
+//#if defined(_OPENMP)
+//#include <omp.h>
+//#endif
+
+abpoa_para_t *abpoaParamaters_constructFromCactusParams(CactusParams *params) {
+    abpoa_para_t *abpt = abpoa_init_para();
+
+    // output options
+    abpt->out_msa = 1; // generate Row-Column multiple sequence alignment(RC-MSA), set 0 to disable
+    abpt->out_cons = 0; // generate consensus sequence, set 0 to disable
+
+    // alignment mode. 0:global alignment, 1:local, 2:extension
+    // only global works
+    abpt->align_mode = ABPOA_GLOBAL_MODE;
+
+    // banding parameters
+    abpt->wb = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentBandConstant");
+    abpt->wf = cactusParams_get_float(params, 2, "bar", "partialOrderAlignmentBandFraction");
+
+    // gap scoring model
+    abpt->gap_open1 = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentGapOpenPenalty1");
+    abpt->gap_ext1 = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentGapExtensionPenalty1");
+    abpt->gap_open2 = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentGapOpenPenalty2");
+    abpt->gap_ext2 = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentGapExtensionPenalty2");
+    
+    // seeding paramters
+    abpt->disable_seeding = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentDisableSeeding");
+    assert(abpt->disable_seeding == 0 || abpt->disable_seeding == 1);
+    abpt->k = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentMinimizerK");
+    abpt->w = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentMinimizerW");
+    abpt->min_w = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentMinimizerMinW");
+
+    // progressive toggle
+    abpt->progressive_poa = cactusParams_get_int(params, 2, "bar", "partialOrderAlignmentProgressiveMode");
+
+    // generate the substitution matrix
+    abpoa_post_set_para(abpt);
+
+    // optionally override the substitution matrix
+    char *submat_string = cactusParams_get_string(params, 2, "bar", "partialOrderAlignmentSubMatrix");
+    if (submat_string && strlen(submat_string) > 0) {
+        // Note, this will be used to explicitly override abpoa's subsitution matrix just before aligning
+        abpt->use_score_matrix = 1;
+        assert(abpt->m == 5);
+        int count = 0;
+        for (char* val = strtok(submat_string, " "); val != NULL; val = strtok(NULL, " ")) {
+            abpt->mat[count++] = atoi(val);
+        }
+        assert(count == 25);
+        int i; abpt->min_mis = 0, abpt->max_mat = 0;
+        for (i = 0; i < abpt->m * abpt->m; ++i) {
+            if (abpt->mat[i] > abpt->max_mat)
+                abpt->max_mat = abpt->mat[i];
+            if (-abpt->mat[i] > abpt->min_mis) 
+                abpt->min_mis = -abpt->mat[i];
+        }
+    }
+    free(submat_string);    
+
+    return abpt;
+}
+
+// It turns out abpoa can write to these, so we make a quick copy before using
+static abpoa_para_t *copy_abpoa_params(abpoa_para_t *abpt) {
+    abpoa_para_t *abpt_cpy = abpoa_init_para();
+    abpt_cpy->out_msa = 1;
+    abpt_cpy->out_cons = 0;
+    abpt_cpy->align_mode = abpt->align_mode;
+    abpt_cpy->wb = abpt->wb;
+    abpt_cpy->wf = abpt->wf;
+    abpt_cpy->use_score_matrix = abpt->use_score_matrix;
+    abpt_cpy->match = abpt->match;
+    abpt_cpy->mismatch = abpt->mismatch;
+    abpt_cpy->gap_mode = abpt->gap_mode;
+    abpt_cpy->gap_open1 = abpt->gap_open1;
+    abpt_cpy->gap_ext1 = abpt->gap_ext1;
+    abpt_cpy->gap_open2 = abpt->gap_open2;
+    abpt_cpy->gap_ext2 = abpt->gap_ext2;
+    abpt_cpy->disable_seeding = abpt->disable_seeding;
+    abpt_cpy->k = abpt->k;
+    abpt_cpy->w = abpt->w;
+    abpt_cpy->min_w = abpt->min_w;
+    abpt_cpy->progressive_poa = abpt->progressive_poa;
+    if (abpt->use_score_matrix == 1) {
+        memcpy(abpt_cpy->mat, abpt->mat, abpt->m * abpt->m * sizeof(int));
+    }
+    abpt_cpy->max_mat = abpt->max_mat;
+    abpt_cpy->min_mis = abpt->min_mis;
+    return abpt_cpy;
+}
+
 // char <--> uint8_t conversion copied over from abPOA example
 // AaCcGgTtNn ==> 0,1,2,3,4
 static unsigned char nst_nt4_table[256] = {
@@ -236,10 +328,13 @@ static void msa_fix_trimmed(Msa* msa) {
 }
 
 Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no, int64_t window_size,
-                                      int64_t poa_band_constant, double poa_band_fraction) {
+                                      abpoa_para_t *poa_parameters) {
 
     assert(seq_no > 0);
-    
+
+    // abpoa can write to these, so we make a copy to be safe
+    abpoa_para_t *abpt = copy_abpoa_params(poa_parameters);
+        
     // we overlap the sliding window, and use the trimming logic to find the best cut point between consecutive windows
     // todo: cli-facing parameter
     float window_overlap_frac = 0.5;
@@ -266,28 +361,11 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
 
     // initialize variables
     abpoa_t *ab = abpoa_init();
-    abpoa_para_t *abpt = abpoa_init_para();
 
-    // todo: support including modifying abpoa params
-    // alignment parameters
-    // abpt->align_mode = 0; // 0:global alignment, 1:extension
-    // abpt->match = 2;      // match score
-    // abpt->mismatch = 4;   // mismatch penalty
-    // abpt->gap_mode = ABPOA_CONVEX_GAP; // gap penalty mode
-    // abpt->gap_open1 = 4;  // gap open penalty #1
-    // abpt->gap_ext1 = 2;   // gap extension penalty #1
-    // abpt->gap_open2 = 24; // gap open penalty #2
-    // abpt->gap_ext2 = 1;   // gap extension penalty #2
-                             // gap_penalty = min{gap_open1 + gap_len * gap_ext1, gap_open2 + gap_len * gap_ext2}
-    abpt->wb = poa_band_constant;        // extra band used in adaptive banded DP
-    abpt->wf = poa_band_fraction;        // adaptive band is wb + wf * length 
-     
-    // output options
-    abpt->out_msa = 1; // generate Row-Column multiple sequence alignment(RC-MSA), set 0 to disable
-    abpt->out_cons = 0; // generate consensus sequence, set 0 to disable
-
+    // finalize the parameters
     abpoa_post_set_para(abpt);
 
+     
     // collect our windowed outputs here, to be stiched at the end. 
     stList* msa_windows = stList_construct3(0, (void(*)(void *)) msa_destruct);
     
@@ -399,6 +477,9 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
             msa_fix_trimmed(prev_msa);            
             // flip our msa back to its original strand
             flip_msa_seq(msa);
+
+            free(prev_column_scores);
+            free(column_scores);
         }
 
         // add the msa to our list
@@ -424,6 +505,7 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
         // if we have only one window, return it
         output_msa = stList_removeFirst(msa_windows);
         output_msa->seqs = seqs;
+        free(output_msa->seq_lens); // cleanup old memory
         output_msa->seq_lens = seq_lens;
     } else {
         // otherwise, we stitch all the window msas into a new output msa
@@ -465,21 +547,21 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
     abpoa_free(ab);
     abpoa_free_para(abpt);
 
-    // in debug mode, cactus uses the dreaded -Wall -Werror combo.  This line is a hack to allow compilation with these flags
-    if (false) SIMDMalloc(0, 0);
-
     return output_msa;
 }
 
 Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_lengths, char ***end_strings,
         int **end_string_lengths, int64_t **right_end_indexes, int64_t **right_end_row_indexes, int64_t **overlaps,
-        int64_t window_size, int64_t poa_band_constant, double poa_band_fraction) {
+        int64_t window_size, abpoa_para_t *poa_parameters) {
     // Calculate the initial, potentially inconsistent msas and column scores for each msa
     float *column_scores[end_no];
     Msa **msas = st_malloc(sizeof(Msa *) * end_no);
+//#if defined(_OPENMP)
+//#pragma omp parallel for schedule(dynamic)
+//#endif
     for(int64_t i=0; i<end_no; i++) {
         msas[i] = msa_make_partial_order_alignment(end_strings[i], end_string_lengths[i], end_lengths[i], window_size,
-                                                   poa_band_constant, poa_band_fraction);
+                                                   poa_parameters);
         column_scores[i] = make_column_scores(msas[i]);
     }
 
@@ -756,8 +838,57 @@ void create_alignment_blocks(Msa *msa, Cap **row_indexes_to_caps, stList *alignm
     assert(i == msa->column_no);
 }
 
+void get_end_sequences(End *end, char **end_strings, int *end_string_lengths, int64_t *overlaps,
+                       Cap **indices_to_caps, int64_t max_seq_length, int64_t mask_filter) {
+    // Make inputs
+    Cap *cap;
+    End_InstanceIterator *capIterator = end_getInstanceIterator(end);
+    int64_t j=0; // Index of the cap in the end's arrays
+    while ((cap = end_getNext(capIterator)) != NULL) {
+        // Ensure we have the cap in the correct orientation
+        if (cap_getSide(cap)) {
+            cap = cap_getReverse(cap);
+        }
+        // Get the prefix of the adjacency string and its length and overlap with its reverse complement
+        end_strings[j] = get_adjacency_string_and_overlap(cap, &(end_string_lengths[j]),
+                                                          &(overlaps[j]), max_seq_length, mask_filter);
+
+        // Populate the caps to end/row indices, and vice versa, data structures
+        indices_to_caps[j] = cap;
+
+        j++;
+    }
+    end_destructInstanceIterator(capIterator);
+}
+
 stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_t window_size, int64_t mask_filter,
-                                  int64_t poa_band_constant, double poa_band_fraction) {
+                                  abpoa_para_t * poa_parameters) {
+    End *dominantEnd = getDominantEnd(flower);
+    if(dominantEnd != NULL) {
+        /*
+         * If there is a single end that is connected to all adjacencies, just use that alignment
+         */
+
+        // Make inputs
+        int64_t seq_no = end_getInstanceNumber(dominantEnd);
+        char **end_strings = st_malloc(sizeof(char *) * seq_no);
+        int *end_string_lengths = st_malloc(sizeof(int) * seq_no);
+        int64_t overlaps[seq_no];
+        Cap *indices_to_caps[seq_no];
+
+        get_end_sequences(dominantEnd, end_strings, end_string_lengths, overlaps, indices_to_caps, max_seq_length, mask_filter);
+        Msa *msa = msa_make_partial_order_alignment(end_strings, end_string_lengths, seq_no, window_size, poa_parameters);
+
+        //Now convert to set of alignment blocks
+        stList *alignment_blocks = stList_construct3(0, (void (*)(void *))alignmentBlock_destruct);
+        create_alignment_blocks(msa, indices_to_caps, alignment_blocks);
+
+        // Cleanup
+        msa_destruct(msa);
+
+        return alignment_blocks;
+    }
+
     // Arrays of ends and connecting the strings necessary to build the POA alignment
     int64_t end_no = flower_getEndNumber(flower); // The number of ends
     int64_t end_lengths[end_no]; // The number of strings incident with each end
@@ -784,29 +915,11 @@ stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_
         right_end_row_indexes[i] = st_malloc(sizeof(int64_t)*end_lengths[i]);
         indices_to_caps[i] = st_malloc(sizeof(Cap *)*end_lengths[i]);
         overlaps[i] = st_malloc(sizeof(int64_t)*end_lengths[i]);
-
-        // Now get each string incident with the end
-        Cap *cap;
-        End_InstanceIterator *capIterator = end_getInstanceIterator(end);
-        int64_t j=0; // Index of the cap in the end's arrays
-        while ((cap = end_getNext(capIterator)) != NULL) {
-            assert(j < end_lengths[i]);
-            // Ensure we have the cap in the correct orientation
-            if (cap_getSide(cap)) {
-                cap = cap_getReverse(cap);
-            }
-            // Get the prefix of the adjacency string and its length and overlap with its reverse complement
-            end_strings[i][j] = get_adjacency_string_and_overlap(cap, &(end_string_lengths[i][j]),
-                                                                 &(overlaps[i][j]), max_seq_length, mask_filter);
-
-            // Populate the caps to end/row indices, and vice versa, data structures
-            indices_to_caps[i][j] = cap;
-            stHash_insert(caps_to_indices, cap, stIntTuple_construct2(i, j));
-
-            j++;
+        get_end_sequences(end, end_strings[i], end_string_lengths[i], overlaps[i], indices_to_caps[i],
+                          max_seq_length, mask_filter);
+        for(int64_t j=0; j<end_lengths[i]; j++) {
+            stHash_insert(caps_to_indices, indices_to_caps[i][j], stIntTuple_construct2(i, j));
         }
-        end_destructInstanceIterator(capIterator);
-        assert(end_lengths[i] == j);
         i++;
     }
     flower_destructEndIterator(endIterator);
@@ -835,8 +948,6 @@ stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_
 
             j++;
         }
-        end_destructInstanceIterator(capIterator);
-        assert(end_lengths[i] == j);
         i++;
     }
     flower_destructEndIterator(endIterator);
@@ -844,7 +955,7 @@ stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_
     // Now make the consistent MSAs
     Msa **msas = make_consistent_partial_order_alignments(end_no, end_lengths, end_strings, end_string_lengths,
                                                           right_end_indexes, right_end_row_indexes, overlaps, window_size,
-                                                          poa_band_constant, poa_band_fraction);
+                                                          poa_parameters);
 
     // Temp debug output
     //for(int64_t i=0; i<end_no; i++) {
@@ -906,7 +1017,7 @@ AlignmentBlockIterator *alignmentBlockIterator_start(AlignmentBlockIterator *it)
     return it;
 }
 
-stPinch *alignmentBlockIterator_get_next(AlignmentBlockIterator *it) {
+stPinch *alignmentBlockIterator_get_next(AlignmentBlockIterator *it, stPinch *pinchToFillOut) {
     // If there is no current alignment block or the alignment block contains no further pinches
     if(it->current_block == NULL || it->current_block->next == NULL) {
         if(it->i >= stList_length(it->alignment_blocks)) { // We are done
@@ -917,22 +1028,21 @@ stPinch *alignmentBlockIterator_get_next(AlignmentBlockIterator *it) {
     assert(it->current_block->next != NULL); // All alignment blocks should contain at least two sequences
 
     AlignmentBlock *b = it->current_block;
-    static stPinch pinch;
     assert(b->position >= 0);
     assert(b->next->position >= 0);
     assert(b->length > 0);
-    stPinch_fillOut(&pinch, b->subsequenceIdentifier, b->next->subsequenceIdentifier,
+    stPinch_fillOut(pinchToFillOut, b->subsequenceIdentifier, b->next->subsequenceIdentifier,
                     b->position, b->next->position, b->length, b->strand == b->next->strand);
 
     it->current_block = b->next; // Shift to the next sequence to ready the next pinch
 
-    return &pinch;
+    return pinchToFillOut;
 }
 
 stPinchIterator *stPinchIterator_constructFromAlignedBlocks(stList *alignment_blocks) {
     stPinchIterator *pinchIterator = st_calloc(1, sizeof(stPinchIterator));
     pinchIterator->alignmentArg = alignmentBlockIterator_construct(alignment_blocks);
-    pinchIterator->getNextAlignment = (stPinch *(*)(void *)) alignmentBlockIterator_get_next;
+    pinchIterator->getNextAlignment = (stPinch *(*)(void *, stPinch *)) alignmentBlockIterator_get_next;
     pinchIterator->destructAlignmentArg = (void(*)(void *)) alignmentBlockIterator_destruct;
     pinchIterator->startAlignmentStack = (void *(*)(void *)) alignmentBlockIterator_start;
 

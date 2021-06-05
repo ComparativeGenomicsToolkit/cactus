@@ -166,7 +166,7 @@ int64_t writeFlowerSequences(Flower *flower, void(*processSequence)(void *destin
                     Sequence *sequence = cap_getSequence(cap);
                     assert(sequence != NULL);
                     char *string = sequence_getString(sequence, cap_getCoordinate(cap) + 1, length, 1);
-                    char *header = stString_print("%s|%" PRIi64 "", cactusMisc_nameToStringStatic(cap_getName(cap)), cap_getCoordinate(cap) + 1);
+                    char *header = stString_print("%" PRIi64 "|%" PRIi64 "", cap_getName(cap), cap_getCoordinate(cap) + 1);
                     processSequence(destination, header, string, strlen(string));
                     free(string);
                     free(header);

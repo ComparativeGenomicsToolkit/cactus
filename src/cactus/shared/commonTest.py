@@ -9,9 +9,7 @@ from sonLib.bioio import getTempDirectory
 from sonLib.bioio import system
 from toil.job import Job
 from toil.common import Toil
-from cactus.shared.common import encodeFlowerNames, decodeFirstFlowerName, \
-                                 runCactusSplitFlowersBySecondaryGrouping, \
-                                 cactus_call, ChildTreeJob
+from cactus.shared.common import cactus_call, ChildTreeJob
 
 class TestCase(unittest.TestCase):
     def setUp(self):
@@ -25,42 +23,14 @@ class TestCase(unittest.TestCase):
         system("rm -rf %s" % self.tempDir)
 
     @TestStatus.shortLength
-    def testEncodeFlowerNames(self):
-        self.assertEqual("3 100 -95 995", encodeFlowerNames([ 100, 5, 1000 ]))
-        self.assertEqual("0", encodeFlowerNames([  ]))
-        self.assertEqual("1 1", encodeFlowerNames([ 1 ]))
-
-    @TestStatus.shortLength
-    def testDecodeFirstFlowerName(self):
-        self.assertEqual(None, decodeFirstFlowerName("0 b"))
-        self.assertEqual(None, decodeFirstFlowerName("0"))
-        self.assertEqual(-1, decodeFirstFlowerName("1 b -1"))
-        self.assertEqual(1, decodeFirstFlowerName("2 1 a 1"))
-        self.assertEqual(3, decodeFirstFlowerName("2 3 a 1"))
-        self.assertEqual(5, decodeFirstFlowerName("2 5 1"))
-        self.assertEqual(7, decodeFirstFlowerName("2 b 7 a 1"))
-        self.assertEqual(9, decodeFirstFlowerName("4 9 1 1 b 1"))
-        self.assertEqual(13, decodeFirstFlowerName("1 b 13"))
-
-    @TestStatus.shortLength
-    def testRunCactusSplitFlowersBySecondaryGrouping(self):
-        self.assertEqual([(True, "1 -1") ], runCactusSplitFlowersBySecondaryGrouping("1 b -1"))
-        self.assertEqual([(False, "1 1"), (False, "1 2")], runCactusSplitFlowersBySecondaryGrouping("2 1 a 1"))
-        self.assertEqual([(False, "1 3"), (False, "1 4")], runCactusSplitFlowersBySecondaryGrouping("2 3 a 1"))
-        self.assertEqual([(False, "2 5 1")], runCactusSplitFlowersBySecondaryGrouping("2 5 1"))
-        self.assertEqual([(True, "1 7"), (False, "1 8")], runCactusSplitFlowersBySecondaryGrouping("2 b 7 a 1"))
-        self.assertEqual([(False, "3 9 1 1"), (True, "1 12")], runCactusSplitFlowersBySecondaryGrouping("4 9 1 1 b 1"))
-        self.assertEqual([(True, "1 13") ], runCactusSplitFlowersBySecondaryGrouping("1 b 13"))
-        self.assertEqual([(False, "3 9 1 1"), (False, "2 8 4"), (True, "3 13 7 8")], runCactusSplitFlowersBySecondaryGrouping("8 9 1 1 a -3 4 b 1 7 8"))
-
-    @TestStatus.shortLength
     def testCactusCall(self):
         inputFile = getTempFile(rootDir=self.tempDir)
 
         with open("/dev/urandom", "rb") as randText:
             with open(inputFile, 'w') as fh:
                 fh.write(b64encode(randText.read(1024)).decode())
-        input = "".join(open(inputFile).read().split("\n"))
+        with open(inputFile) as fh:
+            input = "".join(fh.read().split("\n"))
 
         #Send input to container's stdin through a file, get output
         #from stdout

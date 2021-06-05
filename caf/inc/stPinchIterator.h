@@ -14,16 +14,16 @@
 typedef struct _stPinchIterator {
     int64_t alignmentTrim;
     void *alignmentArg;
-    stPinch *(*getNextAlignment)(void *);
+    stPinch *(*getNextAlignment)(void *, stPinch *);
     void *(*startAlignmentStack)(void *);
     void (*destructAlignmentArg)(void *);
 } stPinchIterator;
 
 /*
- * Get next alignment from iterator.
+ * Get next alignment from iterator. pinchToFillOut is filled out and returned. A NULL return value indicates
+ * there are no further pinches
  */
-stPinch *stPinchIterator_getNext(
-        stPinchIterator *stPinchIterator);
+stPinch *stPinchIterator_getNext(stPinchIterator *stPinchIterator, stPinch *pinchToFillOut);
 
 /*
  * Reset the iterator, returning again to the beginning of the sequence.
@@ -40,21 +40,19 @@ void stPinchIterator_destruct(
 /*
  * Get a pairwise alignment iterator from a file.
  */
-stPinchIterator *stPinchIterator_constructFromFile(
-        const char *alignmentFile);
+stPinchIterator *stPinchIterator_constructFromFile(const char *alignmentFile);
 
 /*
  * Get a pairwise alignment iterator from a list of alignments.
  * Does not cleanup the list or modify the list.
  */
-stPinchIterator *stPinchIterator_constructFromList(
-        stList *alignmentsList);
+stPinchIterator *stPinchIterator_constructFromList(stList *alignmentsList);
 
 /*
  * Constructs iterator from aligned pairs.
  */
-stPinchIterator *stPinchIterator_constructFromAlignedPairs(
-        stSortedSet *alignedPairs, stPinch *(*getNextAlignedPairAlignment)(stSortedSetIterator *));
+stPinchIterator *stPinchIterator_constructFromAlignedPairs(stSortedSet *alignedPairs,
+                                                           stPinch *(*getNextAlignedPairAlignment)(stSortedSetIterator *, stPinch *));
 
 /*
  * Sets the amount to trim from the ends of each pinch in bases.

@@ -1,6 +1,8 @@
 <!-- This XML tree contains the parameters to cactus_progressive.py -->
 <!-- The distanceToAddToRootAlignment parameter is how much extra divergence distance to allow when aligning children of the root genome -->
 <cactusWorkflowConfig distanceToAddToRootAlignment="0.1">
+	<consolidated></consolidated>
+	<consolidated2></consolidated2>
 	<constants defaultMemory="mediumMemory" defaultOverlargeMemory="mediumMemory" defaultCpu="1" defaultOverlargeCpu="1">
 		<!-- These constants are used to control the amount of memory and cpu the different jobs in a batch are using. -->
   		<defines littleMemory="2000000000" mediumMemory="3500000000" bigMemory="5000000000"/>
@@ -59,48 +61,24 @@
                    trimOutgroupFlanking="2000"
                    trimOutgroupDepth="1"
                    keepParalogs="0"/>
-	<ktserver memory="mediumMemory"/>
 	<setup makeEventHeadersAlphaNumeric="0"/>
 	<!-- The caf tag contains parameters for the caf algorithm. -->
 	<!-- Increase the chunkSize in the caf tag to reduce the number of blast jobs approximately quadratically -->
-        <!-- Tree-building options:
-                phylogenyNumTrees: Number of trees to sample
-                phylogenyRootingMethod: one of "bestRecon", "longestBranch", or "outgroupBranch".
-                                        bestRecon: choose the root that gives the lowest MP reconciliation cost.
-                                        longestBranch: root on the longest branch
-                                        outgroupBranch: root on the longest outgroup branch
-                phylogenyScoringMethod: The best tree according to one of these scoring metirc is used. One of "reconCost", "nucLikelihood", "reconLikelihood", or "combinedLikelihood".
-                                        reconCost: MP reconciliation cost (in dups/losses)
-                                        nucLikelihood: Likelihood
-                                        reconLikelihood: likelihood when considering the number of duplications per species as Poisson distributed according to the branch length.
-                                        combinedLikelihood: Combination of nucLikelihood and reconLikelihood options.
-                phylogenyBreakpointScalingFactor: weight to apply to the breakpoint information obtained from the sequence graph when building trees.
-                phylogenySkipSingleCopyBlocks: whether or not to skip blocks that contain at most one segment per species (i.e. no duplication is implied from the block).
-                phylogenyMaxBaseDistance: Maximum distance (in bases) to traverse looking for columns.
-                phylogenyMaxBlockDistance: Maximum distance (in blocks) to traverse looking for columns.
-                phylogenyKeepSingleDegreeBlocks: whether or not to keep blocks that contain only one segment.
-                phylogenyTreeBuildingMethod: One of "guidedNeighborJoining" or "neighborJoining".
-                                             guidedNeighborJoining: Use the species tree to bias tree-building toward trees that have low amounts of dups/losses.
-                                             neighborJoining: Traditional neighbor-joining.
-                phylogenyCostPerDupPerBase: For the guided neighbor-joining method only. The number of differences that should be created per base when a join implies a dup.
-                phylogenyCostPerLossPerBase: For the guided neighbor-joining method only. The number of differences that should be created per base, per loss, when a join implies one or more losses.
-                numTreeBuildingThreads: Number of threads in the tree-building pool. Must be greater than 0.
-        -->
-	<caf 
+	<caf
 		chunkSize="25000000"
 		realign="1"
 		realignArguments="--gapGamma 0.0 --matchGamma 0.9 --diagonalExpansion 4 --splitMatrixBiggerThanThis 10 --constraintDiagonalTrim 0 --alignAmbiguityCharacters --splitIndelsLongerThanThis 99"
-		compressFiles="1" 
-		overlapSize="10000" 
-		filterByIdentity="0" 
-		identityRatio="3" 
-		minimumDistance="0.01" 
+		compressFiles="1"
+		overlapSize="10000"
+		filterByIdentity="0"
+		identityRatio="3"
+		minimumDistance="0.01"
 		minimumSequenceLengthForBlast="30"
-		annealingRounds="128" 
+		annealingRounds="128"
 		deannealingRounds="2 8"
-		blockTrim="5" 
-		minimumTreeCoverage="0.0" 
-		trim="0 0" 
+		blockTrim="5"
+		minimumTreeCoverage="0.0"
+		trim="0 0"
 		minimumBlockDegree="2"
 		minimumIngroupDegree="1"
 		minimumOutgroupDegree="0"
@@ -111,38 +89,24 @@
 		proportionOfUnalignedBasesForNewChromosome="0.8"
 		maximumMedianSequenceLengthBetweenLinkedEnds="1000"
 		runMapQFiltering="1"
-		minimumMapQValue="0.0" 
+		minimumMapQValue="0.0"
 		maxAlignmentsPerSite="5"
 		alpha="0.001"
 		lastzMemory="littleMemory"
 		lastzDisk="mediumDisk"
-                removeRecoverableChains="unequalNumberOfIngroupCopies"
-                maxRecoverableChainsIterations="5"
-                maxRecoverableChainLength="500000"
-                doPhylogeny="0"
-                phylogenyNumTrees="30"
-                phylogenyRootingMethod="bestRecon"
-                phylogenyScoringMethod="reconCost"
-                phylogenyBreakpointScalingFactor="1.0"
-                phylogenySkipSingleCopyBlocks="1"
-                phylogenyMaxBaseDistance="100"
-                phylogenyMaxBlockDistance="50"
-                phylogenyKeepSingleDegreeBlocks="0"
-                phylogenyTreeBuildingMethod="guidedNeighborJoining,splitDecomposition"
-                phylogenyCostPerDupPerBase="0.00"
-                phylogenyCostPerLossPerBase="0.02"
-                phylogenyDoSplitsWithSupportHigherThanThisAllAtOnce="0.44"
-                numTreeBuildingThreads="2"
-                minimumBlockDegreeToCheckSupport="10"
-                minimumBlockHomologySupport="0.05"
-                phylogenyHomologyUnitType="chain"
-                phylogenyDistanceCorrectionMethod="jukesCantor"
+		removeRecoverableChains="unequalNumberOfIngroupCopies"
+		maxRecoverableChainsIterations="5"
+		maxRecoverableChainLength="500000"
+		minimumBlockDegreeToCheckSupport="10"
+		minimumBlockHomologySupport="0.05"
+		phylogenyHomologyUnitType="chain"
+		phylogenyDistanceCorrectionMethod="jukesCantor"
 		gpuLastz="false"
 	        >
-		<!-- The following are parametrised to produce the same results as the default settings, 
+		<!-- The following are parametrised to produce the same results as the default settings,
 		within a margin of 0.2% sensitivity, should be very fast for close genomes, these were tuned using the blast/blastParametersScript.py
 		We could go even faster for less than 0.05 divergence using, but want to be robust to poor branch length estimates -->
-		<divergence 
+		<divergence
 			argName="lastzArguments"
 		 	one="--step=2 --ambiguous=iupac,100,100 --ydrop=3000 --notransition"
 		 	two="--step=5 --ambiguous=iupac,100,100 --ydrop=3000"
@@ -165,40 +129,62 @@
         into the ancestor, hopefully to get aligned to something
         else eventually -->
    <!-- bandingLimit is the maximum sequence size fed into the multiple aligner.  Sequences longer than this are trimmed accordingly -->
-   <!-- partialOrderAlignment toggles between cPecan and abpoa for the core multiple alignment algorithm.  abpoa is much faster but not as reliable for divered sequences -->
+   <!-- partialOrderAlignment toggles between cPecan and abpoa for the core multiple alignment algorithm.  abpoa is much faster but not as reliable for diverged sequences -->
    <!-- partialOrderAlignmentWindow a sliding window approach (with hardcoded 50% overlap) is used to perform abpoa alignments.  memory is quadratic in this.  it is applied after bandingLimit -->
    <!-- partialOrderAlignmentMaskFilter trim input sequences as soon as more than this many soft or hard masked bases are encountered (-1=disabled) -->
    <!-- partialOrderAlignmentBand abpoa adaptive band size is <partialOrderAlignmentBand> + <partialOrderAlignmentBandFraction>*<Length>.  Negative value here disables adaptive banding -->
    <!-- partialOrderAlignmentBandFraction abpoa adaptibe band second parameter (see above) -->
+   <!-- partialOrderAlignmentSubMatrix (space-separated) list of 25 scores corresponding to the 5x5 ACGTN substitution matrix." -->
+   <!-- partialOrderAlignmentGapOpenPenalty1 abpoa gap open penalty (linear gap if 0) -->
+   <!-- partialOrderAlignmentGapExtensionPenalty1 abpoa gap extension penalty -->
+   <!-- partialOrderAlignmentGapOpenPenalty2 abpoa second gap open penalty (convex mode takes the minimum of both gap models, 0 disables convex) -->
+   <!-- partialOrderAlignmentGapExtensionPenalty abpoa second gap extension penalty (convex mode takes the minimum of both gap models) -->
+   <!-- partialOrderAlignmentDisableSeeding abpoa disable minimizer seeding. toggling this on will slightly increase accuracy at the cost of speed -->
+   <!-- partialOrderAlignmentMinimizerK abpoa kmer size for minimizer seeding. -->
+   <!-- partialOrderAlignmentMinimizerW abpoa window size for minimizer seeding. -->
+   <!-- partialOrderAlignmentMinimizerMinW abpoa minimum window size. -->
+   <!-- partialOrderAlignmentProgressiveMode= use guide tree from jaccard distance matrix to determine poa order -->
 	<bar
 		runBar="1"
-		spanningTrees="5" 
+		spanningTrees="5"
 		gapGamma="0.0"
 		matchGamma="0.2"
 		useBanding="1"
-		bandingLimit="1000000" 
-		splitMatrixBiggerThanThis="3000" 
+		bandingLimit="1000000"
+		splitMatrixBiggerThanThis="3000"
         anchorMatrixBiggerThanThis="500"
         repeatMaskMatrixBiggerThanThis="500"
 		diagonalExpansion="20"
-		constraintDiagonalTrim="14" 
-		minimumBlockDegree="2" 
+		constraintDiagonalTrim="14"
+		minimumBlockDegree="2"
 		minimumIngroupDegree="1"
 		minimumOutgroupDegree="0"
-                minimumNumberOfSpecies="1"
+		minimumNumberOfSpecies="1"
 		alignAmbiguityCharacters="1"
 		largeEndSize="5000"
 		veryLargeEndSize="2000000"
 		useProgressiveMerging="1"
 		pruneOutStubAlignments="1"
-                rescue="0"
-                minimumSizeToRescue="100"
-                minimumCoverageToRescue="0.5"
-		partialOrderAlignment="0"
+		rescue="0"
+		minimumSizeToRescue="100"
+		minimumCoverageToRescue="0.5"
+		partialOrderAlignment="1"
 		partialOrderAlignmentWindow="10000"
 		partialOrderAlignmentMaskFilter="-1"
-		partialOrderAlignmentBandConstant="25"
+		partialOrderAlignmentBandConstant="300"
 		partialOrderAlignmentBandFraction="0.025"
+		partialOrderAlignmentSubMatrix="91 -114 -31 -123 0 -114 100 -125 -31 0 -31 -125 100 -114 0 -123 -31 -114 91 0 0 0 0 0 0"
+		partialOrderAlignmentGapOpenPenalty1="400"
+		partialOrderAlignmentGapExtensionPenalty1="30"
+		partialOrderAlignmentGapOpenPenalty2="1200"
+		partialOrderAlignmentGapExtensionPenalty2="1"
+		partialOrderAlignmentDisableSeeding="0"
+		partialOrderAlignmentMinimizerK="19"
+		partialOrderAlignmentMinimizerW="10"
+		partialOrderAlignmentMinimizerMinW="50"
+		partialOrderAlignmentProgressiveMode="0"
+		useMumAnchors="1"
+		recursiveMums="1"
 	>
 		<CactusBarRecursion maxFlowerGroupSize="100000000"/>
 		<!-- The maxFlowerGroupSize in cactusBarWrapper determines how many bases to allow in one "small" job which will be run using the "littleMemory" -->
@@ -207,32 +193,18 @@
 		<CactusBarWrapperLarge maxFlowerGroupSize="2000000"/>
 		<CactusBarEndAlignerWrapper memory="littleMemory"/>
 	</bar>
-	<!-- The normal tag provides parameters to the cactus_normalisation script, which "normalises" a cactus to make all chains of maximal length. This is not used much now. -->
-	<normal 
-		iterations="0"
-	>
-		<CactusNormalRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="10000000"/>
-		<CactusNormalWrapper/>
-	</normal>
-	<!-- The avg tag is for a prototype algorithm, currently just builds trees. Not currently compatible with cactus_progressive -->
-	<avg
-		buildAvgs="0"
-	>
-		<CactusAVGRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="10000000"/>
-		<CactusAVGWrapper/>
-	</avg>
 	<!-- The reference tag provides parameters to cactus_reference, a method used to construct a reference genome for a given cactus database. -->
 	<!-- numberOfNs is the number of Ns to insert into an ancestral sequence when an adjacency is uncertain, think of its as the Ns in a scaffold gap -->
 	<!-- minNumberOfSequencesToSupportAdjacency is the number of sequences needed to bridge an adjacency -->
 	<!-- makeScaffolds is a boolean that enables the bridging of uncertain adjacencies in an ancestral sequence providing the larger scale problem (parent flower in cactus), bridges the path. -->
 	<!-- phi is the coefficient used to control how much weight to place on an adjacency given its phylogenetic distance from the reference node -->
-	<reference 
-		matchingAlgorithm="blossom5" 
-		reference="reference" 
-		useSimulatedAnnealing="1" 
+	<reference
+		matchingAlgorithm="blossom5"
+		reference="reference"
+		useSimulatedAnnealing="1"
 		theta="0.0001"
 		phi="1.0"
-		maxWalkForCalculatingZ="100000" 
+		maxWalkForCalculatingZ="100000"
 		permutations="10"
 		ignoreUnalignedGaps="1"
 		wiggle="0.9999"
@@ -246,12 +218,10 @@
 	 	<CactusSetReferenceCoordinatesDownRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="2000000"/>
 	 	<CactusSetReferenceCoordinatesDownWrapper/>
 	</reference>
-	<!-- The check tag provides parameters to cactus_check, a script which checks that a constructed cactus database is as expected. -->
-	<check 
+	<!-- The check tag for debugging -->
+	<check
 		runCheck="0"
 	>
-		<CactusCheckRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="2000000"/>
-		<CactusCheckWrapper/>
 	</check>
 	<!-- The hal tag controls the creation of hal and fasta files from the pipeline. -->
 	<hal
@@ -293,11 +263,11 @@
 	<!-- minQuerySmallCoverage: Like minQueryCoverage, but applied only to contigs with length < minQuerySmallThreshold. -->
 	<!-- minQuerySmallThreshold: Threshold used to toggle between minQueryCoverage and minuQuerySmallCoverage. -->
 	<!-- minQueryUniqueness: The ratio of the number of query bases aligned to the chosen ref contig vs the next best ref contig must exceed this threshold to not be considered ambigious. -->
-	<!-- maxGap: Include indel gaps <= maxGap when counting minigraph coverage -->	
+	<!-- maxGap: Include indel gaps <= maxGap when counting minigraph coverage -->
 	<!-- ambiguousName: Contigs deemed ambiguous using the above filters get added to a "contig" with this name, and are preserved in output. -->
 	<!-- remap: 1: remap ambiguous contigs with minimap2 0: don't -->
-	<!-- remapSplitOptions: extra rgfa-split options to apply when splitting after remapping -->
-	<!-- useMinimapPAF: use minimap2 PAF for ambiguous contigs (rather than keeping their original mappings in the input PAF) -->
+	<!-- remapSplitOptions: extra rgfa-split options to apply when splitting after remapping (use -u 3000000 to enable autoclipping between contigs, add -s to allow within contig)-->
+	<!-- useMinimapPAF: use minimap2 PAF for ambiguous contigs (rather than keeping their original mappings in the input PAF, requried if autoclipping enabled above) -->
 	<graphmap_split
 		 minQueryCoverage="0.65"
 		 minQuerySmallCoverage="0.75"
@@ -306,29 +276,29 @@
 		 maxGap="50000"
 		 ambiguousName="_AMBIGUOUS_"
 		 remap="1"
-		 remapSplitOptions="-u 2000000 -s"
-		 useMinimapPAF="1"
+		 remapSplitOptions=""
+		 useMinimapPAF="0"
 		 />
 	<!-- hal2vg options -->
 	<!-- includeMinigraph: include minigraph node sequences as paths in output (note that cactus-graphmap-join will still remove them by default) -->
 	<!-- includeAncestor: include ancestral reference sequences as paths in output -->
-	<!-- prependGenomeNames: prepend each output path with the genome name -->	
+	<!-- prependGenomeNames: prepend each output path with the genome name -->
 	<!-- hal2vgOptions: options to use in every hal2vg command -->
 	<hal2vg
 		 includeMinigraph="1"
 		 includeAncestor="0"
 		 prependGenomeNames="1"
-		 hal2vgOptions="--progress --inMemory"		 
+		 hal2vgOptions="--progress --inMemory"
 		 />
   	<multi_cactus>
-		<outgroup 
+		<outgroup
 			strategy="greedyPreference"
 			threshold="0"
 			ancestor_quality_fraction="0.75"
                         max_num_outgroups="3"
 		/>
-	 	<decomposition 
-	 		self_alignment="false" 
+	 	<decomposition
+	 		self_alignment="false"
 	 		default_internal_node_prefix="Anc"
 			max_parallel_subtrees="50000"
 	 	/>

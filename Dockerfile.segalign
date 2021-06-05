@@ -10,7 +10,7 @@ RUN apt-get -qq -y update && \
 COPY build-tools/Segalign.commit /
 
 # clone Segalign
-RUN git clone https://github.com/ComparativeGenomicsToolkit/SegAlign.git --recursive /WGA_GPU && cd WGA_GPU && git checkout $(cat /Segalign.commit)
+RUN git clone https://github.com/ComparativeGenomicsToolkit/SegAlign.git /WGA_GPU && cd WGA_GPU && git checkout $(cat /Segalign.commit) && git submodule update --init --recursive
 
 # build and install everything but cuda using the install script
 RUN cd /WGA_GPU && rm -rf build && ./scripts/installUbuntu.sh -c && git rev-parse HEAD > /Segalign.commit

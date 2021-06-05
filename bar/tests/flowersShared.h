@@ -24,16 +24,16 @@ static Event *rootEvent;
 static Event *leafEvent;
 
 //Sequences
-static MetaSequence *metaSequence1;
+static Sequence *sequence1;
 static Sequence *sequence1;
 
-static MetaSequence *metaSequence2;
+static Sequence *sequence2;
 static Sequence *sequence2;
 
-static MetaSequence *metaSequence3;
+static Sequence *sequence3;
 static Sequence *sequence3;
 
-static MetaSequence *metaSequence4;
+static Sequence *sequence4;
 static Sequence *sequence4;
 
 //Ends
@@ -59,7 +59,7 @@ static PairwiseAlignmentParameters *pairwiseParameters;
 
 static void teardown(CuTest* testCase) {
     if (cactusDisk != NULL) {
-        testCommon_deleteTemporaryCactusDisk(testCase->name, cactusDisk);
+        cactusDisk_destruct(cactusDisk);
         cactusDisk = NULL;
         pairwiseAlignmentBandingParameters_destruct(pairwiseParameters);
         stateMachine_destruct(stateMachine);
@@ -68,7 +68,7 @@ static void teardown(CuTest* testCase) {
 
 static void setup(CuTest* testCase) {
     teardown(testCase);
-    cactusDisk = testCommon_getTemporaryCactusDisk(testCase->name);
+    cactusDisk = cactusDisk_construct();
     flower = flower_construct(cactusDisk);
     stateMachine = stateMachine5_construct(fiveState);
 
@@ -78,21 +78,21 @@ static void setup(CuTest* testCase) {
     leafEvent = event_construct3("LEAF1", 0.2, rootEvent, eventTree);
 
     //Sequences
-    metaSequence1 = metaSequence_construct(1, 10, "ACTGACTGAC", ">one",
-            event_getName(leafEvent), cactusDisk);
-    sequence1 = sequence_construct(metaSequence1, flower);
+    sequence1 = sequence_construct(1, 10, "ACTGACTGAC", ">one",
+            leafEvent, cactusDisk);
+    flower_addSequence(flower, sequence1);
 
-    metaSequence2 = metaSequence_construct(1, 8, "AACCGGAA", ">two",
-            event_getName(leafEvent), cactusDisk);
-    sequence2 = sequence_construct(metaSequence2, flower);
+    sequence2 = sequence_construct(1, 8, "AACCGGAA", ">two",
+            leafEvent, cactusDisk);
+    flower_addSequence(flower, sequence2);
 
-    metaSequence3 = metaSequence_construct(1, 4, "CGGG", ">three",
-                event_getName(leafEvent), cactusDisk);
-    sequence3 = sequence_construct(metaSequence3, flower);
+    sequence3 = sequence_construct(1, 4, "CGGG", ">three",
+                leafEvent, cactusDisk);
+    flower_addSequence(flower, sequence3);
 
-    metaSequence4 = metaSequence_construct(1, 1, "C", ">four",
-                    event_getName(leafEvent), cactusDisk);
-    sequence4 = sequence_construct(metaSequence4, flower);
+    sequence4 = sequence_construct(1, 1, "C", ">four",
+                    leafEvent, cactusDisk);
+    flower_addSequence(flower, sequence4);
 
     //Ends
     end1 = end_construct2(0, 1, flower);

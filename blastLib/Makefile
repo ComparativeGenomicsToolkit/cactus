@@ -1,7 +1,7 @@
 rootPath = ..
 include ${rootPath}/include.mk
 
-CFLAGS += ${tokyoCabinetIncl} ${hiredisIncl}
+CFLAGS += ${hiredisIncl}
 
 libSources = blastAlignmentLib.c
 libHeaders = blastAlignmentLib.h

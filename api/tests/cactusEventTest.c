@@ -20,7 +20,7 @@ static bool nestedTest = 0;
 
 static void cactusEventTestTeardown(CuTest* testCase) {
     if(!nestedTest && cactusDisk != NULL) {
-        testCommon_deleteTemporaryCactusDisk(testCase->name, cactusDisk);
+        cactusDisk_destruct(cactusDisk);
         cactusDisk = NULL;
         eventTree = NULL;
         rootEvent = NULL;
@@ -33,7 +33,7 @@ static void cactusEventTestTeardown(CuTest* testCase) {
 static void cactusEventTestSetup(CuTest* testCase) {
     if(!nestedTest) {
 		cactusEventTestTeardown(testCase);
-		cactusDisk = testCommon_getTemporaryCactusDisk(testCase->name);
+		cactusDisk = cactusDisk_construct();
         eventTree = eventTree_construct2(cactusDisk);
 		flower = flower_construct(cactusDisk);
 		rootEvent = eventTree_getRootEvent(eventTree);
@@ -224,38 +224,6 @@ void testEvent_isOutgroup(CuTest *testCase) {
     cactusEventTestTeardown(testCase);
 }
 
-void testEvent_serialisation(CuTest* testCase) {
-	cactusEventTestSetup(testCase);
-	int64_t i;
-	void *vA = binaryRepresentation_makeBinaryRepresentation(leafEvent1,
-			(void (*)(void *, void (*)(const void *, size_t, size_t)))event_writeBinaryRepresentation, &i);
-	CuAssertTrue(testCase, i > 0);
-	event_destruct(leafEvent1);
-	void *vA2 = vA;
-	leafEvent1 = event_loadFromBinaryRepresentation(&vA2, eventTree);
-	free(vA);
-	nestedTest = 1;
-	testEvent_getParent(testCase);
-	testEvent_getName(testCase);
-	testEvent_getHeader(testCase);
-	testEvent_getBranchLength(testCase);
-	testEvent_getSubTreeBranchLength(testCase);
-	testEvent_getSubTreeEventNumber(testCase);
-	testEvent_getChildNumber(testCase);
-	//testEvent_getChild(testCase); -- won't work as doesn't preserve order of leaves, which is okay -- here's a replacement.
-	CuAssertTrue(testCase, event_getChild(rootEvent, 0) == internalEvent);
-	CuAssertTrue(testCase, event_getChild(internalEvent, 0) == leafEvent2);
-	CuAssertTrue(testCase, event_getChild(internalEvent, 1) == leafEvent1);
-
-	testEvent_getEventTree(testCase);
-	testEvent_isAncestor(testCase);
-	testEvent_isDescendant(testCase);
-	testEvent_isSibling(testCase);
-	testEvent_isOutgroup(testCase);
-	nestedTest = 0;
-	cactusEventTestTeardown(testCase);
-}
-
 CuSuite* cactusEventTestSuite(void) {
 	CuSuite* suite = CuSuiteNew();
 	SUITE_ADD_TEST(suite, testEvent_getParent);
@@ -271,7 +239,6 @@ CuSuite* cactusEventTestSuite(void) {
 	SUITE_ADD_TEST(suite, testEvent_isDescendant);
 	SUITE_ADD_TEST(suite, testEvent_isSibling);
 	SUITE_ADD_TEST(suite, testEvent_isOutgroup);
-	SUITE_ADD_TEST(suite, testEvent_serialisation);
 	SUITE_ADD_TEST(suite, testEvent_construct); //put this last to ensure cleanup.
 	return suite;
 }

@@ -3,7 +3,7 @@ image: quay.io/glennhickey/cactus-ci-base:latest
 before_script:
   - whoami
   - sudo apt-get -q -y update
-  - sudo apt-get -q -y install redis-server libhiredis0.13 libhiredis-dev liblzma-dev
+  - sudo apt-get -q -y install liblzma-dev libxml2-dev
   # Configure Docker to use a mirror for Docker Hub and restart the daemon
   # Set the registry as insecure because it is probably cluster-internal over plain HTTP.
   - |

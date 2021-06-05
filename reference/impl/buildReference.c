@@ -7,6 +7,11 @@
 #include "stReferenceProblem2.h"
 #include <math.h>
 
+// OpenMP
+#if defined(_OPENMP)
+#include <omp.h>
+#endif
+
 const char *REFERENCE_BUILDING_EXCEPTION = "REFERENCE_BUILDING_EXCEPTION";
 
 ////////////////////////////////////
@@ -40,7 +45,7 @@ static stList *getExtraAttachedStubsFromParent(Flower *flower) {
      * Returns the list of new ends, which need to be assigned a group.
      */
     Group *parentGroup = flower_getParentGroup(flower);
-    stList *newEnds = stList_construct();
+    stList *endsToAdd = stList_construct();
     if (parentGroup != NULL) {
         Group_EndIterator *parentEndIt = group_getEndIterator(parentGroup);
         End *parentEnd;
@@ -48,12 +53,16 @@ static stList *getExtraAttachedStubsFromParent(Flower *flower) {
             if (end_isAttached(parentEnd) || end_isBlockEnd(parentEnd)) {
                 End *end = flower_getEnd(flower, end_getName(parentEnd));
                 if (end == NULL) { //We have found an end that needs to be pushed into the child.
-                    stList_append(newEnds, end_copyConstruct(parentEnd, flower)); //At this point it has no associated group;
+                    stList_append(endsToAdd, parentEnd); // end_copyConstruct(parentEnd, flower)); //At this point it has no associated group;
                 }
             }
         }
         group_destructEndIterator(parentEndIt);
     }
+
+    stList *newEnds = end_bulkCopyConstruct(endsToAdd, flower); // Now add ends in bulk
+    stList_destruct(endsToAdd); // Cleanup
+
     assert(flower_getAttachedStubEndNumber(flower) % 2 == 0);
     if (flower_getBlockEndNumber(flower) > 0) {
         assert(flower_getAttachedStubEndNumber(flower) > 0);
@@ -288,6 +297,9 @@ static double calculateZScoreWeightedAdapterFn(Cap *_5Cap, int64_t length5Segmen
     double theta = *((double *)((void **) extraArgs)[0]);
     assert(theta >= 0.0);
     assert(cap_getEvent(_5Cap) != NULL);
+    //fprintf(stderr, " hello event: %" PRIi64 "\n", cap_getEvent(_5Cap));
+    //fprintf(stderr, " hello seq: %" PRIi64 "\n", cap_getSequence(_5Cap));
+    //fprintf(stderr, " hello event name: %" PRIi64 " \n", event_getName(cap_getEvent(_5Cap)));
     assert(stHash_search(((void **) extraArgs)[1], cap_getEvent(_5Cap)) != NULL);
     assert(stDoubleTuple_length(stHash_search(((void **) extraArgs)[1], cap_getEvent(_5Cap))) == 1);
     double weight = stDoubleTuple_getPosition(stHash_search(((void **) extraArgs)[1], cap_getEvent(_5Cap)), 0);
@@ -428,20 +440,23 @@ static void getTrivialChainNodes(Flower *flower, stHash *endsToNodes, int64_t *n
     /*
      * Get the trivial chain edges for the flower.
      */
-    Flower_BlockIterator *blockIt = flower_getBlockIterator(flower);
-    Block *block;
-    while ((block = flower_getNextBlock(blockIt)) != NULL) {
-        End *_5End = block_get5End(block);
-        End *_3End = block_get3End(block);
-        assert(end_getGroup(_5End) != NULL);
-        assert(end_getGroup(_3End) != NULL);
-        if (group_isTangle(end_getGroup(_5End)) && group_isTangle(end_getGroup(_3End))) {
-            addToNodes(_5End, *nodeCounter, endsToNodes);
-            addToNodes(_3End, -(*nodeCounter), endsToNodes);
-            (*nodeCounter)++;
+    Flower_EndIterator *endIt = flower_getEndIterator(flower);
+    End *end;
+    while ((end = flower_getNextEnd(endIt)) != NULL) {
+        if(end_partOfBlock(end) && end_left(end)) {
+            Block *block = end_getBlock(end);
+            End *_5End = block_get5End(block);
+            End *_3End = block_get3End(block);
+            assert(end_getGroup(_5End) != NULL);
+            assert(end_getGroup(_3End) != NULL);
+            if (group_isTangle(end_getGroup(_5End)) && group_isTangle(end_getGroup(_3End))) {
+                addToNodes(_5End, *nodeCounter, endsToNodes);
+                addToNodes(_3End, -(*nodeCounter), endsToNodes);
+                (*nodeCounter)++;
+            }
         }
     }
-    flower_destructBlockIterator(blockIt);
+    flower_destructEndIterator(endIt);
 }
 
 static stHash *getChainNodes(Flower *flower) {
@@ -549,7 +564,7 @@ static End *getStubEdgesFromParent2(End *end) {
     }
 }
 
-static void getStubEdgesFromParent(reference *ref, Flower *flower, Event *referenceEvent, stHash *endsToNodes, stList *stubEnds) {
+static void getStubEdgesFromParent(refOrdering *ref, Flower *flower, Event *referenceEvent, stHash *endsToNodes, stList *stubEnds) {
     /*
      * For each attached stub in the flower, get the end in the parent group, and add its
      * adjacency to the group.
@@ -587,7 +602,7 @@ stHash *makeStubEdgesToNodesHash(stList *stubEnds, stHash *endsToNodes) {
     return stubEndsToNodes;
 }
 
-static void getStubEdgesInTopLevelFlower(reference *ref, Flower *flower, stHash *endsToNodes, int64_t nodeNumber, Event *referenceEvent,
+static void getStubEdgesInTopLevelFlower(refOrdering *ref, Flower *flower, stHash *endsToNodes, int64_t nodeNumber, Event *referenceEvent,
         stList *(*matchingAlgorithm)(stList *edges, int64_t nodeNumber), stList *stubEnds, double phi) {
     /*
      * Create a matching for the parent stub edges.
@@ -638,9 +653,9 @@ static void getStubEdgesInTopLevelFlower(reference *ref, Flower *flower, stHash 
     refAdjList_destruct(stubAL);
 }
 
-static reference *getEmptyReference(Flower *flower, stHash *endsToNodes, int64_t nodeNumber, Event *referenceEvent,
+static refOrdering *getEmptyReference(Flower *flower, stHash *endsToNodes, int64_t nodeNumber, Event *referenceEvent,
         stList *(*matchingAlgorithm)(stList *edges, int64_t nodeNumber), stList *stubEnds, double phi) {
-    reference *ref = reference_construct(nodeNumber);
+    refOrdering *ref = reference_construct(nodeNumber);
     if (flower_getParentGroup(flower) != NULL) {
         getStubEdgesFromParent(ref, flower, referenceEvent, endsToNodes, stubEnds);
     } else {
@@ -681,18 +696,7 @@ static Cap *makeStubCap(End *end, Event *referenceEvent) {
         assert(end_getSide(end) == cap_getSide(cap));
         assert(cap_getStrand(cap));
     }
-    if (end_getRootInstance(end) != NULL) {
-        cap_makeParentAndChild(end_getRootInstance(end), cap);
-    }
     return cap;
-}
-
-static Segment *makeSegment(Block *block, Event *referenceEvent) {
-    Segment *segment = segment_construct(block, referenceEvent);
-    if (block_getRootInstance(block) != NULL) {
-        segment_makeParentAndChild(block_getRootInstance(block), segment);
-    }
-    return segment;
 }
 
 static void makeAdjacent(Cap *cap, Cap *cap2) {
@@ -724,7 +728,7 @@ static void makeThread(End *end, stHash *endsToEnds, Flower *flower, Event *refe
             break;
         }
         Block *block = end_getBlock(end2);
-        Segment *segment = makeSegment(block, referenceEvent);
+        Segment *segment = segment_construct(block, referenceEvent);
         Cap *cap2 = segment_get5Cap(segment);
         assert(cap_getSide(cap2));
         Cap *cap3 = segment_get3Cap(segment);
@@ -777,23 +781,6 @@ static void mapEnds(stHash *endsToEnds, End *end1, End *end2) {
     stHash_insert(endsToEnds, end2, end1);
 }
 
-static bool endsAreConnected(End *end1, End *end2) {
-    /*
-     * Determines if there is any adjacency connecting the two ends.
-     */
-    End_InstanceIterator *capIt = end_getInstanceIterator(end1);
-    Cap *cap;
-    while ((cap = end_getNext(capIt)) != NULL) {
-        Cap *adjCap = cap_getAdjacency(cap);
-        if (adjCap != NULL && end_getName(cap_getEnd(adjCap)) == end_getName(end2)) {
-            end_destructInstanceIterator(capIt);
-            return 1;
-        }
-    }
-    end_destructInstanceIterator(capIt);
-    return 0;
-}
-
 static stHash *getEndsToEnds(Flower *flower, stList *chosenAdjacencyEdges, stHash *nodesToEnds, int64_t numberOfNsForScaffoldGap) {
     /*
      * Get a hash of matched ends.
@@ -806,25 +793,33 @@ static stHash *getEndsToEnds(Flower *flower, stList *chosenAdjacencyEdges, stHas
         assert(end1 != NULL);
         assert(end2 != NULL);
         assert(end1 != end2);
-        if (end_getGroup(end1) != NULL && end_getGroup(end2) != NULL && !endsAreConnected(end1, end2)) {
-            /*
-             * We build a 'scaffolding block' between ends
-             *
-             * We require the ends that are being scaffolded to already have groups, else they must themselves the
-             * ends of scaffolding blocks, so we don't add additional scaffold gaps.
-             */
-            Block *block = block_construct(numberOfNsForScaffoldGap, flower);
-            if (flower_builtTrees(flower)) { //Add a root segment
-                Event *event = eventTree_getRootEvent(flower_getEventTree(flower));
-                assert(event != NULL);
-                block_setRootInstance(block, segment_construct(block, event));
+
+        if (end_getGroup(end1) != NULL && end_getGroup(end2) != NULL && end_getGroup(end1) != end_getGroup(end2)) {
+            if(group_getNestedFlower(end_getGroup(end1)) == NULL && !group_isLink(end_getGroup(end1)) &&
+               group_getNestedFlower(end_getGroup(end2)) == NULL && !group_isLink(end_getGroup(end2))) {
+                /*
+                 * Merge the groups together so we can join them together, providing they are part of terminal groups
+                 * and not part of chains
+                 */
+                group_mergeTerminalGroups(end_getGroup(end1), end_getGroup(end2));
+                assert(end_getGroup(end1) == end_getGroup(end2));
+                mapEnds(endsToEnds, end1, end2);
             }
-            end_setGroup(block_get5End(block), end_getGroup(end1));
-            assert(group_isTangle(end_getGroup(end1)));
-            mapEnds(endsToEnds, end1, block_get5End(block));
-            end_setGroup(block_get3End(block), end_getGroup(end2));
-            assert(group_isTangle(end_getGroup(end2)));
-            mapEnds(endsToEnds, end2, block_get3End(block));
+            else {
+                /*
+                 * We build a 'scaffolding block' between ends
+                 *
+                 * We require the ends that are being scaffolded to already have groups, else they must themselves the
+                 * ends of scaffolding blocks, so we don't add additional scaffold gaps.
+                 */
+                Block *block = block_construct(numberOfNsForScaffoldGap, flower);
+                end_setGroup(block_get5End(block), end_getGroup(end1));
+                assert(group_isTangle(end_getGroup(end1)));
+                mapEnds(endsToEnds, end1, block_get5End(block));
+                end_setGroup(block_get3End(block), end_getGroup(end2));
+                assert(group_isTangle(end_getGroup(end2)));
+                mapEnds(endsToEnds, end2, block_get3End(block));
+            }
         } else {
             mapEnds(endsToEnds, end1, end2);
         }
@@ -887,7 +882,7 @@ static void assignGroups(stList *newEnds, Flower *flower, Event *referenceEvent)
     }
 }
 
-static stList *convertReferenceToAdjacencyEdges2(reference *ref) {
+static stList *convertReferenceToAdjacencyEdges2(refOrdering *ref) {
     stList *edges = stList_construct3(0, (void (*)(void *)) stIntTuple_destruct);
     for (int64_t i = 0; i < reference_getIntervalNumber(ref); i++) {
         int64_t n = -reference_getFirstOfInterval(ref, i);
@@ -907,12 +902,6 @@ static void addAdditionalStubEnds(stList *extraStubNodes, Flower *flower, stHash
         stIntTuple *node = stList_get(extraStubNodes, i);
         End *end = end_construct(0, flower); //Ensure we get the right orientation
         stHash_insert(nodesToEnds, stIntTuple_construct1(stIntTuple_get(node, 0)), end);
-        if(flower_builtTrees(flower)) {
-            Event *event = eventTree_getRootEvent(flower_getEventTree(flower));
-            assert(event != NULL);
-            end_setRootInstance(end, cap_construct(end, event));
-            //block_setRootInstance(block, segment_construct(block, event));
-        }
         stList_append(newEnds, end);
     }
 }
@@ -922,7 +911,7 @@ static void addAdditionalStubEnds(stList *extraStubNodes, Flower *flower, stHash
  * (1) Absence of a direct adjacency.
  * (2) Absence of substantial amounts of indirect adjacencies.
  */
-bool referenceSplitFn(int64_t pNode, reference *ref, void *extraArgs) {
+bool referenceSplitFn(int64_t pNode, refOrdering *ref, void *extraArgs) {
     assert(reference_getNext(ref, pNode) != INT64_MAX);
     /*
      * We do not split if not a leaf adjacency.
@@ -964,7 +953,7 @@ bool referenceSplitFn(int64_t pNode, reference *ref, void *extraArgs) {
     return refAdjList_getWeight(dAL, -pNode, reference_getNext(ref, pNode)) < minNumberOfSequencesToSupportAdjacency;
 }
 
-stList *getReferenceIntervalsToPreserve(reference *ref, refAdjList *dAL, int64_t minNumberOfSequencesToSupportAdjacency) {
+stList *getReferenceIntervalsToPreserve(refOrdering *ref, refAdjList *dAL, int64_t minNumberOfSequencesToSupportAdjacency) {
     stList *referenceIntervalsToPreserve = stList_construct3(0, (void (*)(void *)) stIntTuple_destruct);
     for (int64_t interval = 0; interval < reference_getIntervalNumber(ref); interval++) {
         int64_t firstNode = reference_getFirstOfInterval(ref, interval);
@@ -995,7 +984,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
      * Get the reference event
      */
     Event *referenceEvent = getReferenceEvent(flower, referenceEventHeader);
-    fprintf(stderr, "Chose reference event %" PRIi64 ": %s\n", event_getName(referenceEvent), event_getHeader(referenceEvent));
+    st_logDebug("Chose reference event %" PRIi64 ": %s\n", event_getName(referenceEvent), event_getHeader(referenceEvent));
 
     /*
      * Get any extra ends to balance the group from the parent problem.
@@ -1014,7 +1003,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
      */
     stList *stubTangleEnds = getTangleStubEnds(flower, endsToNodes);
     int64_t nodeNumber = chainNumber + stList_length(stubTangleEnds);
-    st_logInfo(
+    st_logDebug(
             "For flower: %" PRIi64 " we have %" PRIi64 " nodes for: %" PRIi64 " ends, %" PRIi64 " chains, %" PRIi64 " stubs and %" PRIi64 " blocks\n",
             flower_getName(flower), nodeNumber, flower_getEndNumber(flower), flower_getChainNumber(flower), stList_length(stubTangleEnds),
             flower_getBlockNumber(flower));
@@ -1023,7 +1012,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     /*
      * Get the reference with chosen stub matched intervals
      */
-    reference *ref = getEmptyReference(flower, endsToNodes, nodeNumber, referenceEvent, matchingAlgorithm, stubTangleEnds, phi);
+    refOrdering *ref = getEmptyReference(flower, endsToNodes, nodeNumber, referenceEvent, matchingAlgorithm, stubTangleEnds, phi);
     assert(reference_getIntervalNumber(ref) == stList_length(stubTangleEnds) / 2);
 
     /*
@@ -1137,11 +1126,11 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
      * Check the matching we have.
      */
     assert(stList_length(chosenEdges) * 2 == stHash_size(nodesToEnds));
-    stList *nodes = stHash_getValues(nodesToEnds);
+    /*stList *nodes = stHash_getValues(nodesToEnds);
     stSortedSet *nodesSet = stList_getSortedSet(nodes, (int (*)(const void *, const void *)) stIntTuple_cmpFn);
     assert(stHash_size(nodesToEnds) == stSortedSet_size(nodesSet));
     stSortedSet_destruct(nodesSet);
-    stList_destruct(nodes);
+    stList_destruct(nodes);*/
 
     /*
      * Add the reference genome into flower
@@ -1163,3 +1152,67 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     stList_destruct(stubTangleEnds);
     stList_destruct(extraStubNodes);
 }
+
+////////////////////////////////////
+////////////////////////////////////
+//Overall coordination function
+////////////////////////////////////
+////////////////////////////////////
+
+void cactus_make_reference(stList *flowers, char *referenceEventString,
+                           CactusDisk *cactusDisk, CactusParams *params) {
+    ///////////////////////////////////////////////////////////////////////////
+    // Build the reference
+    ///////////////////////////////////////////////////////////////////////////
+
+    int64_t permutations = cactusParams_get_int(params, 2, "reference", "permutations");
+    double theta = cactusParams_get_float(params, 2, "reference", "theta");
+    double phi = cactusParams_get_float(params, 2, "reference", "phi");
+    bool useSimulatedAnnealing = cactusParams_get_int(params, 2, "reference", "useSimulatedAnnealing");
+    int64_t maxWalkForCalculatingZ = cactusParams_get_int(params, 2, "reference", "maxWalkForCalculatingZ");
+    bool ignoreUnalignedGaps = cactusParams_get_int(params, 2, "reference", "ignoreUnalignedGaps");
+    double wiggle = cactusParams_get_float(params, 2, "reference", "wiggle");
+    int64_t numberOfNsForScaffoldGap = cactusParams_get_int(params, 2, "reference", "numberOfNs");
+    int64_t minNumberOfSequencesToSupportAdjacency = cactusParams_get_int(params, 2, "reference", "minNumberOfSequencesToSupportAdjacency");
+    bool makeScaffolds = cactusParams_get_int(params, 2, "reference", "makeScaffolds");
+
+    stList *(*matchingAlgorithm)(stList *edges, int64_t nodeNumber) = chooseMatching_greedy;
+    char *matchAlgorithmString = cactusParams_get_string(params, 2, "reference", "matchingAlgorithm");
+    if (strcmp("greedy", matchAlgorithmString) == 0) {
+        matchingAlgorithm = chooseMatching_greedy;
+    } else if (strcmp("maxCardinality", matchAlgorithmString) == 0) {
+        matchingAlgorithm = chooseMatching_maximumCardinalityMatching;
+    } else if (strcmp("maxWeight", matchAlgorithmString) == 0) {
+        matchingAlgorithm = chooseMatching_maximumWeightMatching;
+    } else if (strcmp("blossom5", matchAlgorithmString) == 0) {
+        matchingAlgorithm = chooseMatching_blossom5;
+    } else {
+        stThrowNew(REFERENCE_BUILDING_EXCEPTION, "Input error: unrecognized matching algorithm: %s", matchAlgorithmString);
+    }
+    free(matchAlgorithmString);
+
+    /*st_logDebug("The reference event string: %s\n", referenceEventString);
+    st_logDebug("The theta parameter has been set to %lf\n", theta);
+    st_logDebug("The ignore unaligned gaps parameter is %i\n", ignoreUnalignedGaps);
+    st_logDebug("The number of permutations is %" PRIi64 "\n", permutations);
+    st_logDebug("Simulated annealing is %" PRIi64 "\n", useSimulatedAnnealing);
+    st_logDebug("Max number of segments in thread to calculate z-score between is %" PRIi64 "\n",
+            maxWalkForCalculatingZ);
+    st_logDebug("Wiggle is %f\n", wiggle);
+    st_logDebug("Max number of Ns for a scaffold gap is: %" PRIi64 "\n", numberOfNsForScaffoldGap);
+    st_logDebug("Min number of sequences to required to support an adjacency is: %" PRIi64 "\n",
+            minNumberOfSequencesToSupportAdjacency);
+    st_logDebug("Make scaffolds is: %i\n", makeScaffolds);*/
+
+    double (*temperatureFn)(double) = useSimulatedAnnealing ? exponentiallyDecreasingTemperatureFn : constantTemperatureFn;
+
+#pragma omp parallel for
+    for(int64_t i=0; i<stList_length(flowers); i++) {
+        Flower *flower = stList_get(flowers, i);
+        st_logDebug("Processing flower %" PRIi64 "\n", flower_getName(flower));
+        buildReferenceTopDown(flower, referenceEventString, permutations, matchingAlgorithm, temperatureFn, theta,
+                              phi, maxWalkForCalculatingZ, ignoreUnalignedGaps, wiggle, numberOfNsForScaffoldGap,
+                              minNumberOfSequencesToSupportAdjacency, makeScaffolds);
+    }
+}
+

@@ -4,33 +4,39 @@
  * Released under the MIT license, see LICENSE.txt
  */
 
-#ifndef CACTUS_SEQUENCE_PRIVATE_H_
-#define CACTUS_SEQUENCE_PRIVATE_H_
+#ifndef CACTUS_META_SEQUENCE_PRIVATE_H_
+#define CACTUS_META_SEQUENCE_PRIVATE_H_
 
 #include "cactusGlobals.h"
 
 struct _sequence {
-	MetaSequence *metaSequence;
-	Flower *flower;
+	Name name;
+	Name stringName;
+	int64_t start;
+	int64_t length;
+	Event *event;
+	CactusDisk *cactusDisk;
+	char *header;
+	bool isTrivialSequence; //This flag is used to indicate if a sequence is trivial.
 };
 
-
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
-//Sequence functions.
+//Private meta sequence functions.
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
-
-/*
- * Write a binary representation of the sequence to the write function.
- */
-void sequence_writeBinaryRepresentation(Sequence *sequence, void (*writeFn)(const void * ptr, size_t size, size_t count));
 
 /*
- * Loads a sequence into memory from a binary representation of the sequence.
+ * Constructs a meta sequence using an existing reference to a sequence in the sequence file.
  */
-Sequence *sequence_loadFromBinaryRepresentation(void **binaryString, Flower *flower);
+Sequence *sequence_construct2(Name name, int64_t start, int64_t length, Name stringName, const char *header,
+		Event *event, bool isTrivialSequence, CactusDisk *cactusDisk);
+
+/*
+ * Destructs a meta sequence.
+ */
+void sequence_destruct(Sequence *sequence);
 
 #endif

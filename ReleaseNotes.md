@@ -1,7 +1,12 @@
-# Release 1.3.1
+# Release ???
 
 - Fix bug in how `cactus-prepare` transmits Toil size parameters
-- Add halPhyloP to binary release and docker images
+- `cactus-prepare-join` tool added to combine and index chromosome output from `cactus-align-batch`
+- `cactus-graphmap-split` fixes
+- Update to latest Segalign
+- Update to Toil 5.3
+- Update HAL
+- Add `halPhyloP` to binary release and docker images
 
 # Release 1.3.0   2021-02-11
 

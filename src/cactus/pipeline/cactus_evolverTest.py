@@ -8,7 +8,6 @@
 
 import unittest
 import os
-import sys
 from sonLib.bioio import TestStatus
 from cactus.shared.test import getInputs
 from cactus.shared.test import runWorkflow_multipleExamples

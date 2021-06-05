@@ -36,13 +36,18 @@ static int64_t traceThreadLength(Cap *cap, Cap **terminatingCap) {
      */
     assert(end_isStubEnd(cap_getEnd(cap)));
     int64_t threadLength = 0;
+    cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
     while (1) {
-        assert(cap_getCoordinate(cap) != INT64_MAX);
-        int64_t adjacencyLength = cap_getCoordinate(cap);
-        threadLength += adjacencyLength;
         Cap *adjacentCap = cap_getAdjacency(cap);
+        assert(cap_getSide(cap) != cap_getSide(adjacentCap));
+        assert(cap_getStrand(cap));
+        assert(cap_getStrand(adjacentCap));
+        int64_t adjacencyLength = cap_getCoordinate(cap_getSide(cap) ? adjacentCap : cap);
+        assert(adjacencyLength != INT64_MAX);
+        threadLength += adjacencyLength;
+
         assert(adjacentCap != NULL);
-        assert(adjacencyLength == cap_getCoordinate(adjacentCap));
+        //assert(adjacencyLength == cap_getCoordinate(adjacentCap));
         //Traverse any block..
         if (cap_getSegment(adjacentCap) != NULL) {
             threadLength += segment_getLength(cap_getSegment(adjacentCap));
@@ -78,10 +83,19 @@ static Cap *copyCapToParent(Cap *cap, stList *recoveredCaps) {
 
 static void setAdjacencyLength(Cap *cap, Cap *adjacentCap, int64_t adjacencyLength) {
     //Set the coordinates of the caps to the adjacency size
-    cap_setCoordinates(cap, adjacencyLength, cap_getStrand(cap), NULL);
-    cap_setCoordinates(adjacentCap, adjacencyLength, cap_getStrand(adjacentCap),
-    NULL);
-    assert(cap_getCoordinate(cap) == cap_getCoordinate(adjacentCap));
+    if(!cap_getStrand(cap)) {
+        cap = cap_getReverse(cap);
+        adjacentCap = cap_getReverse(adjacentCap);
+    }
+    assert(cap_getStrand(cap));
+    assert(cap_getStrand(adjacentCap));
+    assert(cap_getSide(cap) != cap_getSide(adjacentCap));
+    if(cap_getSide(cap)) {
+        cap_setCoordinates(adjacentCap, adjacencyLength, cap_getStrand(adjacentCap), NULL);
+    }
+    else {
+        cap_setCoordinates(cap, adjacencyLength, cap_getStrand(cap), NULL);
+    }
 }
 
 static void setAdjacencyLengthsAndRecoverNewCapsAndBrokenAdjacencies(Cap *cap, stList *recoveredCaps) {
@@ -94,12 +108,14 @@ static void setAdjacencyLengthsAndRecoverNewCapsAndBrokenAdjacencies(Cap *cap, s
      * Therefore, for each flower f first identify attached stub ends present in the children of f that are
      * not present in f and copy them into f, reattaching the reference caps as needed.
      */
+    cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
     while (1) {
         Cap *adjacentCap = cap_getAdjacency(cap);
         assert(adjacentCap != NULL);
-        assert(cap_getCoordinate(cap) == INT64_MAX);
-        assert(cap_getCoordinate(adjacentCap) == INT64_MAX);
-        assert(cap_getStrand(cap) == cap_getStrand(adjacentCap));
+        //assert(cap_getCoordinate(cap) == INT64_MAX);
+        //assert(cap_getCoordinate(adjacentCap) == INT64_MAX);
+        assert(cap_getStrand(cap));
+        assert(cap_getStrand(adjacentCap));
         assert(cap_getSide(cap) != cap_getSide(adjacentCap));
         Group *group = end_getGroup(cap_getEnd(cap));
         assert(group != NULL);
@@ -173,15 +189,12 @@ static void recoverBrokenAdjacencies(Flower *flower, stList *recoveredCaps, Name
     flower_destructGroupIterator(groupIt);
 }
 
-static char *terminalAdjacencyWriteFn(Cap *cap) {
+static char *terminalAdjacencyWriteFn(Cap *cap, void *extraArg) {
     return stString_copy("");
 }
 
-static stHash *segmentWriteFn_flowerToPhylogeneticTreeHash;
-
-static char *segmentWriteFn(Segment *segment) {
-    stTree *phylogeneticTree = stHash_search(segmentWriteFn_flowerToPhylogeneticTreeHash, block_getFlower(segment_getBlock(segment)));
-    assert(phylogeneticTree != NULL);
+static char *segmentWriteFn(Segment *segment, void *extraArg) {
+    stTree *phylogeneticTree = extraArg;
     char *segmentString = getMaximumLikelihoodString(phylogeneticTree, segment_getBlock(segment));
     //We append a zero to a segment string if it is part of block containing only a reference segment, else we append a 1.
     //We use these boolean values to determine if a sequence contains only these trivial strings, and is therefore trivial.
@@ -214,7 +227,7 @@ static bool isTrivialString(char **threadString) {
     return trivialString;
 }
 
-static MetaSequence *addMetaSequence(Flower *flower, Cap *cap, int64_t index, char *string, bool trivialString) {
+static Sequence *addSequence(Flower *flower, Cap *cap, int64_t index, char *string, bool trivialString) {
     /*
      * Adds a meta sequence representing a top level thread to the cactus disk.
      * The sequence is all 'N's at this stage.
@@ -223,68 +236,99 @@ static MetaSequence *addMetaSequence(Flower *flower, Cap *cap, int64_t index, ch
     assert(referenceEvent != NULL);
     char *sequenceName = stString_print("%srefChr%" PRIi64 "", event_getHeader(referenceEvent), index);
     //char *sequenceName = stString_print("refChr%" PRIi64 "", index);
-    MetaSequence *metaSequence = metaSequence_construct3(1, strlen(string), string, sequenceName,
-            event_getName(referenceEvent), trivialString, flower_getCactusDisk(flower));
+    Sequence *sequence = sequence_construct3(1, strlen(string), string, sequenceName,
+            referenceEvent, trivialString, flower_getCactusDisk(flower));
     free(sequenceName);
-    return metaSequence;
+    return sequence;
 }
 
-static int64_t setCoordinates(Flower *flower, MetaSequence *metaSequence, Cap *cap, int64_t coordinate) {
+static int64_t setCoordinates(Flower *flower, Sequence *sequence, Cap *cap, int64_t coordinate) {
     /*
      * Sets the coordinates of the reference thread and sets the bases of the actual sequence
      * that of the consensus.
      */
-    Sequence *sequence = flower_getSequence(flower, metaSequence_getName(metaSequence));
-    if (sequence == NULL) {
-        sequence = sequence_construct(metaSequence, flower);
+    if (flower_getSequence(flower, sequence_getName(sequence)) == NULL) {
+        flower_addSequence(flower, sequence);
     }
+    assert(cap_getStrand(cap));
+    assert(!cap_getSide(cap));
+    int64_t adjacencyLength = cap_getCoordinate(cap);
     while (1) {
-        assert(cap_getStrand(cap));
-        assert(!cap_getSide(cap));
         Cap *adjacentCap = cap_getAdjacency(cap);
         assert(adjacentCap != NULL);
         assert(cap_getStrand(adjacentCap));
         assert(cap_getSide(adjacentCap));
-        int64_t adjacencyLength = cap_getCoordinate(cap);
-        assert(adjacencyLength == cap_getCoordinate(adjacentCap));
         assert(adjacencyLength != INT64_MAX);
         assert(adjacencyLength >= 0);
         cap_setCoordinates(cap, coordinate, 1, sequence);
         coordinate += adjacencyLength + 1;
-        cap_setCoordinates(adjacentCap, coordinate, 1, sequence);
         //Traverse any block..
         if ((cap = cap_getOtherSegmentCap(adjacentCap)) == NULL) {
+            cap_setCoordinates(adjacentCap, coordinate, 1, sequence);
             break;
         }
+        cap = cap_getOtherSegmentCap(adjacentCap);
+        assert(cap_getStrand(cap));
+        assert(!cap_getSide(cap));
+        adjacencyLength = cap_getCoordinate(cap);
+        cap_setCoordinates(adjacentCap, coordinate, 1, sequence);
         coordinate += segment_getLength(cap_getSegment(adjacentCap)) - 1;
     }
     return coordinate;
 }
 
-static stList *getCaps(stList *flowers, Name referenceEventName) {
+static stList *getCaps(Flower *flower, Name referenceEventName) {
     stList *caps = stList_construct();
-    for (int64_t i = 0; i < stList_length(flowers); i++) {
-        Flower *flower = stList_get(flowers, i);
-        //Get list of caps
-        Flower_EndIterator *endIt = flower_getEndIterator(flower);
-        End *end;
-        while ((end = flower_getNextEnd(endIt)) != NULL) {
-            if (end_isStubEnd(end)) {
-                Cap *cap = getCapForReferenceEvent(end, referenceEventName); //The cap in the reference
-                if(cap != NULL) {
-                    cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
-                    if (!cap_getSide(cap)) {
-                        stList_append(caps, cap);
-                    }
+    //Get list of caps
+    Flower_EndIterator *endIt = flower_getEndIterator(flower);
+    End *end;
+    while ((end = flower_getNextEnd(endIt)) != NULL) {
+        if (end_isStubEnd(end)) {
+            Cap *cap = getCapForReferenceEvent(end, referenceEventName); //The cap in the reference
+            if(cap != NULL) {
+                cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
+                if (!cap_getSide(cap)) {
+                    stList_append(caps, cap);
                 }
             }
         }
-        flower_destructEndIterator(endIt);
     }
+    flower_destructEndIterator(endIt);
     return caps;
 }
 
-void bottomUp(stList *flowers, stKVDatabase *sequenceDatabase, Name referenceEventName,
+static stList *bottomUp1(Flower *flower, Name referenceEventName, stMatrix *(*generateSubstitutionMatrix)(double)) {
+    stList *caps = getCaps(flower, referenceEventName);
+    for (int64_t i = stList_length(caps) - 1; i >= 0; i--) { //Start from end, as we add to this list.
+        setAdjacencyLengthsAndRecoverNewCapsAndBrokenAdjacencies(stList_get(caps, i), caps);
+    }
+    recoverBrokenAdjacencies(flower, caps, referenceEventName);
+
+    return caps;
+}
+
+static void bottomUp2(stList *threadStrings, stList *caps) {
+    assert(stList_length(threadStrings) == stList_length(caps));
+    int64_t nonTrivialSeqIndex = 0, trivialSeqIndex = stList_length(threadStrings); //These are used as indices for the names of trivial and non-trivial sequences.
+    for (int64_t i = 0; i < stList_length(threadStrings); i++) {
+        Cap *cap = stList_get(caps, i);
+        assert(cap_getStrand(cap));
+        assert(!cap_getSide(cap));
+        Flower *flower = end_getFlower(cap_getEnd(cap));
+        char *threadString = stList_get(threadStrings, i);
+        bool trivialString = isTrivialString(&threadString); //This alters the original string
+        Sequence *sequence = addSequence(flower, cap, trivialString ? trivialSeqIndex++ : nonTrivialSeqIndex++,
+                                                     threadString, trivialString);
+        free(threadString);
+        int64_t endCoordinate = setCoordinates(flower, sequence, cap, sequence_getStart(sequence) - 1);
+        (void) endCoordinate;
+        assert(endCoordinate == sequence_getLength(sequence) + sequence_getStart(sequence));
+    }
+    stList_setDestructor(threadStrings, NULL); //The strings are already cleaned up by the above loop
+    stList_destruct(threadStrings);
+}
+
+void bottomUp(Flower *flower, stKVDatabase *sequenceDatabase, Name referenceEventName,
               bool isTop, stMatrix *(*generateSubstitutionMatrix)(double)) {
     /*
      * A reference thread between the two caps
@@ -292,49 +336,41 @@ void bottomUp(stList *flowers, stKVDatabase *sequenceDatabase, Name referenceEve
      * Therefore, for each flower f first identify attached stub ends present in the children of f that are
      * not present in f and copy them into f, reattaching the reference caps as needed.
      */
-    stList *caps = getCaps(flowers, referenceEventName);
-    for (int64_t i = stList_length(caps) - 1; i >= 0; i--) { //Start from end, as we add to this list.
-        setAdjacencyLengthsAndRecoverNewCapsAndBrokenAdjacencies(stList_get(caps, i), caps);
-    }
-    for(int64_t i=0; i<stList_length(flowers); i++) {
-        recoverBrokenAdjacencies(stList_get(flowers, i), caps, referenceEventName);
-    }
+    stList *caps = bottomUp1(flower, referenceEventName, generateSubstitutionMatrix);
 
-    //Build the phylogenetic event trees for base calling.
-    segmentWriteFn_flowerToPhylogeneticTreeHash = stHash_construct2(NULL, (void (*)(void *))cleanupPhylogeneticTree);
-    for(int64_t i=0; i<stList_length(flowers); i++) {
-        Flower *flower = stList_get(flowers, i);
-        Event *refEvent = eventTree_getEvent(flower_getEventTree(flower), referenceEventName);
-        assert(refEvent != NULL);
-        stHash_insert(segmentWriteFn_flowerToPhylogeneticTreeHash, flower, getPhylogeneticTreeRootedAtGivenEvent(refEvent, generateSubstitutionMatrix));
-    }
+    //Get the phylogenetic event trees for base calling.
+    stTree *phylogeneticTree =
+            getPhylogeneticTreeRootedAtGivenEvent(eventTree_getEvent(flower_getEventTree(flower), referenceEventName),
+                                                  generateSubstitutionMatrix);
 
     if (isTop) {
         stList *threadStrings = buildRecursiveThreadsInList(sequenceDatabase, caps, segmentWriteFn,
-                terminalAdjacencyWriteFn);
-        assert(stList_length(threadStrings) == stList_length(caps));
-
-        int64_t nonTrivialSeqIndex = 0, trivialSeqIndex = stList_length(threadStrings); //These are used as indices for the names of trivial and non-trivial sequences.
-        for (int64_t i = 0; i < stList_length(threadStrings); i++) {
-            Cap *cap = stList_get(caps, i);
-            assert(cap_getStrand(cap));
-            assert(!cap_getSide(cap));
-            Flower *flower = end_getFlower(cap_getEnd(cap));
-            char *threadString = stList_get(threadStrings, i);
-            bool trivialString = isTrivialString(&threadString); //This alters the original string
-            MetaSequence *metaSequence = addMetaSequence(flower, cap, trivialString ? trivialSeqIndex++ : nonTrivialSeqIndex++,
-                    threadString, trivialString);
-            free(threadString);
-            int64_t endCoordinate = setCoordinates(flower, metaSequence, cap, metaSequence_getStart(metaSequence) - 1);
-            (void) endCoordinate;
-            assert(endCoordinate == metaSequence_getLength(metaSequence) + metaSequence_getStart(metaSequence));
-        }
-        stList_setDestructor(threadStrings, NULL); //The strings are already cleaned up by the above loop
-        stList_destruct(threadStrings);
+                terminalAdjacencyWriteFn, phylogeneticTree);
+        bottomUp2(threadStrings, caps);
     } else {
-        buildRecursiveThreads(sequenceDatabase, caps, segmentWriteFn, terminalAdjacencyWriteFn);
+        buildRecursiveThreads(sequenceDatabase, caps, segmentWriteFn, terminalAdjacencyWriteFn, phylogeneticTree);
     }
-    stHash_destruct(segmentWriteFn_flowerToPhylogeneticTreeHash);
+    cleanupPhylogeneticTree(phylogeneticTree);
+    stList_destruct(caps);
+}
+
+void bottomUpNoDb(Flower *flower, RecordHolder *rh, Name referenceEventName,
+              bool isTop, stMatrix *(*generateSubstitutionMatrix)(double)) {
+    stList *caps = bottomUp1(flower, referenceEventName, generateSubstitutionMatrix);
+
+    //Get the phylogenetic event trees for base calling.
+    stTree *phylogeneticTree =
+            getPhylogeneticTreeRootedAtGivenEvent(eventTree_getEvent(flower_getEventTree(flower), referenceEventName),
+                                                  generateSubstitutionMatrix);
+
+    if (isTop) {
+        stList *threadStrings = buildRecursiveThreadsInListNoDb(rh, caps, segmentWriteFn,
+                                                            terminalAdjacencyWriteFn, phylogeneticTree);
+        bottomUp2(threadStrings, caps);
+    } else {
+        buildRecursiveThreadsNoDb(rh, caps, segmentWriteFn, terminalAdjacencyWriteFn, phylogeneticTree);
+    }
+    cleanupPhylogeneticTree(phylogeneticTree);
     stList_destruct(caps);
 }
 
@@ -361,7 +397,7 @@ void topDown(Flower *flower, Name referenceEventName) {
                     nestedCap = cap_getStrand(nestedCap) ? nestedCap : cap_getReverse(nestedCap);
                     assert(cap_getStrand(nestedCap));
                     assert(!cap_getSide(nestedCap));
-                    int64_t endCoordinate = setCoordinates(nestedFlower, sequence_getMetaSequence(sequence),
+                    int64_t endCoordinate = setCoordinates(nestedFlower, sequence,
                                                            nestedCap, cap_getCoordinate(cap));
                     (void) endCoordinate;
                     assert(endCoordinate == cap_getCoordinate(cap_getAdjacency(cap)));

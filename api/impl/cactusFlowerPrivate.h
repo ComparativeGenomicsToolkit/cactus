@@ -11,21 +11,14 @@
 
 struct _flower {
     Name name;
-    stSortedSet *sequences;
-    stSortedSet *ends;
-    stSortedSet *caps;
-    stSortedSet *blocks;
-    stSortedSet *segments;
-    stSortedSet *groups;
-    stSortedSet *chains;
-    stSortedSet *faces;
+    stList *ends;
+    stList *caps;
+    stList *groups;
+    stList *chains;
+    stList *sequences;
     Name parentFlowerName;
     CactusDisk *cactusDisk;
-    int64_t faceIndex;
-    int64_t chainIndex;
     bool builtBlocks;
-    bool builtTrees;
-    bool builtFaces;
 };
 
 ////////////////////////////////////////////////
@@ -35,12 +28,6 @@ struct _flower {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
-
-/*
- * Destructs the flower, and all the elements it contains. If recursive the function will destroy all
- * loaded nested flowers.
- */
-void flower_destruct(Flower *flower, int64_t recursive);
 
 /*
  * Adds the event tree for the flower to the flower.
@@ -56,49 +43,24 @@ void flower_setEventTree(Flower *flower, EventTree *eventTree);
 void flower_removeEventTree(Flower *flower, EventTree *eventTree);
 
 /*
- * Adds the sequence to the flower.
- */
-void flower_addSequence(Flower *flower, Sequence *sequence);
-
-/*
- * Removes the sequence from the flower.
- */
-void flower_removeSequence(Flower *flower, Sequence *sequence);
-
-/*
- * Adds the segment to the flower.
- */
-void flower_addSegment(Flower *flower, Segment *segment);
-
-/*
- * Remove the segment from the flower.
- */
-void flower_removeSegment(Flower *flower, Segment *segment);
-
-/*
- * Adds the block to the flower.
- */
-void flower_addBlock(Flower *flower, Block *block);
-
-/*
- * Remove the block from the flower.
- */
-void flower_removeBlock(Flower *flower, Block *block);
-
-/*
  * Adds the cap to the flower.
  */
 void flower_addCap(Flower *flower, Cap *cap);
 
 /*
- * Remove the cap from the flower.
+ * Bulk add a set of ends to the flower.
  */
-void flower_removeCap(Flower *flower, Cap *cap);
+void flower_bulkAddCaps(Flower *flower, stList *capsToAdd);
 
 /*
  * Adds the end to the flower.
  */
 void flower_addEnd(Flower *flower, End *end);
+
+/*
+ * Bulk add a set of ends to the flower.
+ */
+void flower_bulkAddEnds(Flower *flower, stList *endsToAdd);
 
 /*
  * Remove the end from the flower.
@@ -129,37 +91,5 @@ void flower_addChain(Flower *flower, Chain *chain);
  * Remove the chain from the flower.
  */
 void flower_removeChain(Flower *flower, Chain *chain);
-
-/*
- * Adds the face to the flower.
- */
-void flower_addFace(Flower *flower, Face *face);
-
-/*
- * Remove the face from the flower.
- */
-void flower_removeFace(Flower *flower, Face *face);
-
-/*
- * This function constructs faces for the flower. If faces are already created then
- * they will be first delete.
- */
-void flower_reconstructFaces(Flower * flower);
-
-/*
- * Destroys all faces in the flower.
- */
-void flower_destructFaces(Flower *flower);
-
-/*
- * Write a binary representation of the flower to the write function.
- */
-void flower_writeBinaryRepresentation(Flower *flower, void(*writeFn)(const void * ptr,
-        size_t size, size_t count));
-
-/*
- * Loads a flower into memory from a binary representation of the flower.
- */
-Flower *flower_loadFromBinaryRepresentation(void **binaryString, CactusDisk *cactusDisk);
 
 #endif

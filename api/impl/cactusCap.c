@@ -14,117 +14,279 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
+/*
+ * Bit twiddling using the "bits" char of the cap
+ * 0: strand
+ * 1: forward (is the forward as opposed to the reverse copy)
+ * 2: part_of_segment (is part of a segment)
+ * 3: is_segment (is the segment)
+ * 4: left (is the left side of a segment)
+ * 5: event_not_sequence (stores the event pointer, not the sequence itself)
+*/
+
+static void cap_setBit(Cap *cap, int bit, bool value) {
+    cap->bits &= ~(1UL << bit); // first clear the existing value
+    if(value) {
+        cap->bits |= 1UL << bit;// now set the new value
+    }
+}
+
+static void cap_setBitForwardAndReverse(Cap *cap, int bit, bool value, bool invertReverse) {
+    cap_setBit(cap, bit, value);
+    cap_setBit(cap_getReverse(cap), bit, value ^ invertReverse);
+}
+
+static bool cap_getBit(Cap *cap, int bit) {
+    return (cap->bits >> bit) & 1;
+}
+
+bool cap_getStrand(Cap *cap) {
+    return cap_getBit(cap, 0);
+}
+
+bool cap_forward(Cap *cap) {
+    return cap_getBit(cap, 1);
+}
+
+bool cap_partOfSegment(Cap *cap) {
+    return cap_getBit(cap, 2);
+}
+
+bool cap_isSegment(Cap *cap) {
+    return cap_getBit(cap, 3);
+}
+
+bool cap_left(Cap *cap) {
+    return cap_getBit(cap, 4);
+}
+
+bool cap_getHasEventNotSequence(Cap *cap) {
+    return cap_getBit(cap, 5);
+}
+
+SegmentCapContents *cap_getSegmentContents(Cap *cap) {
+    assert(cap_partOfSegment(cap));
+    switch(cap->bits & 0x1E) {
+        case 0x16: // binary: 010110
+            return (SegmentCapContents *)(cap+6);
+        case 0x14: // binary: 010100
+            return (SegmentCapContents *)(cap+5);
+        case 0xE: // binary: 001110
+            return (SegmentCapContents *)(cap+4);
+        case 0xC: // binary: 001100
+            return (SegmentCapContents *)(cap+3);
+        case 0x6: // binary: 000110
+            return (SegmentCapContents *)(cap+2);
+        case 0x4: // binary: 000100
+            return (SegmentCapContents *)(cap+1);
+        default:
+            assert(0);
+            return NULL;
+    }
+}
+
+CapContents *cap_getContents(Cap *cap) {
+    assert(!cap_partOfSegment(cap));
+    switch(cap->bits & 0x1E) {
+        case 0x2: // binary: 000010
+            return (CapContents *)(cap+2);
+        case 0x0: // binary: 000000
+            return (CapContents *)(cap+1);
+        default:
+            assert(0);
+            return NULL;
+    }
+}
+
+CapCoreContents *cap_getCoreContents(Cap *cap) {
+    if(cap_partOfSegment(cap)) {
+        return &(cap_getSegmentContents(cap)->core);
+    }
+    return &(cap_getContents(cap)->core);
+}
+
 Cap *cap_construct(End *end, Event *event) {
     return cap_construct3(cactusDisk_getUniqueID(flower_getCactusDisk(end_getFlower(end))), event, end);
 }
 
-Cap *cap_construct3(Name instance, Event *event, End *end) {
-    assert(end != NULL);
-    assert(event != NULL);
-    assert(instance != NULL_NAME);
-    Cap *cap;
-
-    cap = st_malloc(sizeof(Cap));
-    cap->capContents = st_malloc(sizeof(CapContents));
-    cap->rCap = st_malloc(sizeof(Cap));
-    cap->rCap->rCap = cap;
-    cap->rCap->capContents = cap->capContents;
-
-    cap->end = end;
-    cap->rCap->end = end_getReverse(end);
-
-    cap->capContents->instance = instance;
-    cap->capContents->coordinate = INT64_MAX;
-    cap->capContents->sequence = NULL;
-    cap->capContents->adjacency = NULL;
-    cap->capContents->adjacency2 = NULL;
-    cap->capContents->face = NULL;
-    cap->capContents->segment = NULL;
-    cap->capContents->parent = NULL;
-    cap->capContents->children = constructEmptyList(0, NULL);
-    cap->capContents->event = event;
-    cap->capContents->strand = end_getOrientation(end);
-
-    end_addInstance(end, cap);
-    flower_addCap(end_getFlower(end), cap);
-    return cap;
-}
-
 Cap *cap_construct2(End *end, int64_t coordinate, bool strand, Sequence *sequence) {
-    return cap_construct4(cactusDisk_getUniqueID(flower_getCactusDisk(end_getFlower(end))), end, coordinate, strand,
-            sequence);
-}
-
-Cap *cap_construct4(Name instance, End *end, int64_t coordinate, bool strand, Sequence *sequence) {
-    Cap *cap;
-    cap = cap_construct3(instance, sequence_getEvent(sequence), end);
-    cap->capContents->coordinate = coordinate;
-    cap->capContents->strand = cap_getOrientation(cap) ? strand : !strand;
-    cap->capContents->sequence = sequence;
+    Cap *cap = cap_construct3(cactusDisk_getUniqueID(flower_getCactusDisk(end_getFlower(end))),
+                              sequence_getEvent(sequence), end);
+    cap_setCoordinates(cap, coordinate, strand, sequence);
     return cap;
 }
 
-Cap *cap_construct5(Event *event, End *end) {
-    return cap_construct3(cactusDisk_getUniqueID(flower_getCactusDisk(end_getFlower(end))), event, end);
+static Cap *cap_construct5(Name instance, Event *event, End *end, bool setFlower) {
+    assert(instance != NULL_NAME);
+    assert(event != NULL);
+    assert(end != NULL);
+    assert(!end_partOfBlock(end));
+
+    // Create the combined forward and reverse caps
+    Cap *cap = st_calloc(1, 2*sizeof(Cap) + sizeof(CapContents));
+
+    // see above comment to decode what is set
+    // Bits: strand / forward / part_of_segment / is_segment / left / event_not_sequence
+    cap->bits = 0x23; // binary: 100011
+    (cap+1)->bits = 0x20; // binary: 100000
+
+    // Set the attributes of the combined caps/segments
+    cap_getCoreContents(cap)->instance = instance;
+    cap_getCoreContents(cap)->coordinate = INT64_MAX;
+    cap_getCoreContents(cap)->eventOrSequence = event;
+    cap_getContents(cap)->end = end;
+
+    // Add the cap to the appropriate indexes
+    end_addInstance(end, cap);
+    if(setFlower) {
+        flower_addCap(end_getFlower(end), cap);
+    }
+
+    // Do the checks
+    assert(cap_getStrand(cap));
+    assert(!cap_getStrand(cap_getReverse(cap)));
+    assert(cap_getReverse(cap_getReverse(cap)) == cap); // check reversal works
+    assert(cap_getContents(cap) == cap_getContents(cap_getReverse(cap)));
+    assert(cap_getName(cap) == instance);
+    assert(cap_getCoordinate(cap) == INT64_MAX);
+    assert(cap_getSequence(cap) == NULL);
+    assert(cap_getAdjacency(cap) == NULL);
+    assert(cap_getSegment(cap) == NULL);
+    assert(cap_getEvent(cap) == event);
+    assert(cap_getEnd(cap) == end);
+    assert(cap_getName(cap_getReverse(cap)) == instance);
+    assert(cap_getCoordinate(cap_getReverse(cap)) == INT64_MAX);
+    assert(cap_getSequence(cap_getReverse(cap)) == NULL);
+    assert(cap_getAdjacency(cap_getReverse(cap)) == NULL);
+    assert(cap_getSegment(cap_getReverse(cap)) == NULL);
+    assert(cap_getEvent(cap_getReverse(cap)) == event);
+    assert(cap_getEnd(cap_getReverse(cap)) == end_getReverse(end));
+    if(setFlower) {
+        assert(end_getInstance(end, instance) == cap);
+        assert(end_getInstance(end_getReverse(end), instance) == cap_getReverse(cap));
+        assert(flower_getCap(end_getFlower(end), instance) == cap_getPositiveOrientation(cap));
+    }
+
+    return cap;
+}
+
+Cap *cap_construct3(Name instance, Event *event, End *end) {
+    return cap_construct5(instance, event, end, 1);
 }
 
 void cap_setCoordinates(Cap *cap, int64_t coordinate, bool strand, Sequence *sequence) {
-    cap->capContents->coordinate = coordinate;
-    cap->capContents->strand = cap_getOrientation(cap) ? strand : !strand;
-    cap->capContents->sequence = sequence;
+    assert(!cap_isSegment(cap));
+
+    // Set the strand for all caps
+    cap_setBitForwardAndReverse(cap, 0, strand, 1); // 0 is the strand bit
+    if(cap_partOfSegment(cap)) {
+        cap_setBitForwardAndReverse(cap_getSegment(cap), 0, strand, 1);
+        cap_setBitForwardAndReverse(cap_getOtherSegmentCap(cap), 0, strand, 1);
+    }
+
+    // Set the sequence for all caps
+    if (sequence != NULL) {
+        // Switch to having a sequence instead of an event
+        cap_getCoreContents(cap)->eventOrSequence = sequence;
+        // Flip the flag for all the caps
+        cap_setBitForwardAndReverse(cap, 5, 0, 0); // 5 is the eventNotSequence bit
+        if(cap_partOfSegment(cap)) {
+            cap_setBitForwardAndReverse(cap_getSegment(cap), 5, 0, 0);
+            cap_setBitForwardAndReverse(cap_getOtherSegmentCap(cap), 5, 0, 0);
+        }
+    }
+
+    // Set the coordinate
+    if (cap_partOfSegment(cap)) {
+        int64_t i = coordinate;
+        if (!cap_left(cap) && coordinate != INT64_MAX) { // Only set if at the left end
+            int64_t j = segment_getLength(cap_getSegment(cap))-1;
+            i += cap_forward(cap) ^ cap_getStrand(cap) ? j : -j; // Set the coordinate ensuring we set it with respect to the
+            // forward copy and strand
+        }
+        cap_getCoreContents(cap)->coordinate = i;
+    } else {
+        cap_getCoreContents(cap)->coordinate = coordinate;
+    }
+
+    assert(cap_getStrand(cap) == strand);
+    assert(cap_getCoordinate(cap) == coordinate);
+    assert(cap_getSequence(cap) == sequence);
 }
 
-Cap *cap_copyConstruct(End *end, Cap *cap) {
+int64_t cap_getCoordinate(Cap *cap) {
+    assert(!cap_isSegment(cap));
+    if(cap_partOfSegment(cap)) {
+        int64_t c = cap_getCoreContents(cap)->coordinate;
+        if(!cap_left(cap) && c != INT64_MAX) {
+            assert(segment_getLength(cap_getSegment(cap)) > 0);
+            //  The plus or minus here is dependent on if the cap if forwards and the strand
+            int64_t j = segment_getLength(cap_getSegment(cap))-1;
+            c += cap_forward(cap) ^ cap_getStrand(cap) ? -j : j;
+        }
+        return c;
+    }
+    return cap_getCoreContents(cap)->coordinate;
+}
+
+Cap *cap_copyConstruct2(End *end, Cap *cap, bool setFlower) {
     assert(end_getName(cap_getEnd(cap)) == end_getName(end));
     assert(end_getSide(end) == cap_getSide(cap));
-    Event *event;
-    Name sequenceName;
-    Sequence *sequence;
 
     Flower *flower = end_getFlower(end);
     if (cap_getSequence(cap) != NULL) { //cap_getCoordinate(cap) != INT64_MAX) {
-        sequenceName = sequence_getName(cap_getSequence(cap));
-        sequence = flower_getSequence(flower, sequenceName);
+        Name sequenceName = sequence_getName(cap_getSequence(cap));
+        Sequence *sequence = flower_getSequence(flower, sequenceName);
         if (sequence == NULL) { //add sequence to the flower.
-            sequence = sequence_construct(cactusDisk_getMetaSequence(flower_getCactusDisk(flower), sequenceName),
-                    flower);
+            sequence = cactusDisk_getSequence(flower_getCactusDisk(flower), sequenceName);
+            flower_addSequence(flower, sequence);
             assert(sequence != NULL);
         }
-        return cap_construct4(cap_getName(cap), end, cap_getCoordinate(cap), cap_getStrand(cap), sequence);
+        Cap *newCap = cap_construct5(cap_getName(cap), sequence_getEvent(sequence), end, setFlower);
+        cap_setCoordinates(newCap, cap_getCoordinate(cap), cap_getStrand(cap), sequence);
+        return newCap;
     } else {
-        event = eventTree_getEvent(flower_getEventTree(flower), event_getName(cap_getEvent(cap)));
+        Event *event = eventTree_getEvent(flower_getEventTree(flower), event_getName(cap_getEvent(cap)));
         assert(event != NULL);
-        Cap *cap2 = cap_construct3(cap_getName(cap), event, end);
+        Cap *cap2 = cap_construct5(cap_getName(cap), event, end, setFlower);
         cap_setCoordinates(cap2, cap_getCoordinate(cap), cap_getStrand(cap), NULL);
         return cap2;
     }
 }
 
+Cap *cap_copyConstruct(End *end, Cap *cap) {
+    return cap_copyConstruct2(end, cap, 1);
+}
+
 void cap_destruct(Cap *cap) {
     //Remove from end.
     end_removeInstance(cap_getEnd(cap), cap);
-    flower_removeCap(end_getFlower(cap_getEnd(cap)), cap);
 
-    // Remove parent->child link from parent (if any).
-    Cap *capParent = cap->capContents->parent;
-    if (capParent != NULL) {
-        listRemove(capParent->capContents->children, cap);
+    // Free only if not part of a segment
+    if(!cap_partOfSegment(cap)) {
+        free(cap_forward(cap) ? cap : cap_getReverse(cap));
     }
-
-    // Remove child->parent link from children (if any).
-    for (int64_t i = 0; i < cap->capContents->children->length; i++) {
-        Cap *capChild = cap->capContents->children->list[i];
-        capChild->capContents->parent = NULL;
-    }
-
-    destructList(cap->capContents->children);
-    free(cap->rCap);
-    free(cap->capContents);
-    free(cap);
 }
 
 Name cap_getName(Cap *cap) {
-    return cap->capContents->instance;
+    Name name = cap_getCoreContents(cap)->instance;
+    if(cap_partOfSegment(cap) && !cap_left(cap)) {
+        name += cap_isSegment(cap) ? 1 : 2;
+    }
+    return name;
+}
+
+End *cap_getEnd(Cap *cap) {
+    assert(!cap_isSegment(cap));
+    End *e;
+    if(cap_partOfSegment(cap)) {
+        Block *b = cap_getSegmentContents(cap)->block;
+        e = cap_left(cap) ? block_get5End(b) : block_get3End(b);
+    }
+    else {
+        e = cap_getContents(cap)->end;
+    }
+    return cap_forward(cap) ? e : end_getReverse(e);
 }
 
 bool cap_getOrientation(Cap *cap) {
@@ -136,40 +298,35 @@ Cap *cap_getPositiveOrientation(Cap *cap) {
 }
 
 Cap *cap_getReverse(Cap *cap) {
-    return cap->rCap;
+    return cap_forward(cap) ? cap+1 : cap-1;
 }
 
 Event *cap_getEvent(Cap *cap) {
-    return cap->capContents->event;
-}
-
-End *cap_getEnd(Cap *cap) {
-    return cap->end;
+    void *e = cap_getCoreContents(cap)->eventOrSequence;
+    return cap_getHasEventNotSequence(cap) ? e : sequence_getEvent(e);
 }
 
 Segment *cap_getSegment(Cap *cap) {
-    return cap_getOrientation(cap) ? cap->capContents->segment
-            : (cap->capContents->segment != NULL ? segment_getReverse(cap->capContents->segment) : NULL);
+    assert(!cap_isSegment(cap));
+    if(!cap_partOfSegment(cap)) {
+        return NULL;
+    }
+    return (cap_left(cap) ? cap + 2 : cap - 2);
 }
 
 Cap *cap_getOtherSegmentCap(Cap *cap) {
-    if (!end_isBlockEnd(cap_getEnd(cap))) {
-        assert(cap_getSegment(cap) == NULL);
+    assert(!cap_isSegment(cap));
+    if(!cap_partOfSegment(cap)) {
         return NULL;
     }
-    Segment *segment = cap_getSegment(cap);
-    assert(segment != NULL);
-    Cap *otherCap = cap_getSide(cap) ? segment_get3Cap(segment) : segment_get5Cap(segment);
+    Cap *otherCap = cap_left(cap) ? cap+4 : cap-4;
+    // Do some sanity checks
     assert(cap != otherCap);
+    //assert(cap_getStrand(cap) == cap_getStrand(otherCap)); This is not necessarily true when setting the coordinates
+    assert(cap_getSegment(cap) == cap_getSegment(otherCap));
+    assert(cap_getSegmentContents(cap) == cap_getSegmentContents(otherCap));
+
     return otherCap;
-}
-
-int64_t cap_getCoordinate(Cap *cap) {
-    return cap->capContents->coordinate;
-}
-
-bool cap_getStrand(Cap *cap) {
-    return cap_getOrientation(cap) ? cap->capContents->strand : !cap->capContents->strand;
 }
 
 bool cap_getSide(Cap *cap) {
@@ -177,7 +334,17 @@ bool cap_getSide(Cap *cap) {
 }
 
 Sequence *cap_getSequence(Cap *cap) {
-    return cap->capContents->sequence;
+    return cap_getHasEventNotSequence(cap) ? NULL : cap_getCoreContents(cap)->eventOrSequence;
+}
+
+static Cap **cap_getAdjacencyP(Cap *cap) {
+    if(cap_partOfSegment(cap)) {
+        assert(!cap_isSegment(cap));
+        return cap_left(cap) ? &(cap_getSegmentContents(cap)->leftAdjacency) : &(cap_getSegmentContents(cap)->rightAdjacency);
+    }
+    else {
+        return &(cap_getContents(cap)->adjacency);
+    }
 }
 
 void cap_makeAdjacent(Cap *cap, Cap *cap2) {
@@ -188,101 +355,22 @@ void cap_makeAdjacent(Cap *cap, Cap *cap2) {
     assert(cap_getEvent(cap) == cap_getEvent(cap2));
     cap_breakAdjacency(cap);
     cap_breakAdjacency(cap2);
-    //we ensure we have them right with respect there orientation.
-    cap->capContents->adjacency = cap_getOrientation(cap) ? cap2 : cap_getReverse(cap2);
-    cap2->capContents->adjacency = cap_getOrientation(cap2) ? cap : cap_getReverse(cap);
+    *cap_getAdjacencyP(cap) = cap_forward(cap) ? cap2 : cap_getReverse(cap2);  // store cap orientation according to forward copy
+    *cap_getAdjacencyP(cap2) = cap_forward(cap2) ? cap : cap_getReverse(cap);
 }
 
-Cap *cap_getP(Cap *cap, Cap *connectedCap) {
-    return connectedCap == NULL ? NULL : cap_getOrientation(cap) ? connectedCap : cap_getReverse(connectedCap);
-}
 
 Cap *cap_getAdjacency(Cap *cap) {
-    return cap_getP(cap, cap->capContents->adjacency);
+    Cap *connectedCap = *cap_getAdjacencyP(cap);
+    return connectedCap == NULL ? NULL : cap_forward(cap) ? connectedCap : cap_getReverse(connectedCap);
 }
 
-Cap *cap_getTopCap(Cap *cap) {
-    if (cap_getAdjacency(cap) == NULL || end_getRootInstance(cap_getEnd(cap)) == cap) {
-        return NULL;
+void cap_breakAdjacency(Cap *cap) {
+    Cap **cap2 = cap_getAdjacencyP(cap);
+    if (*cap2 != NULL) {
+        *cap_getAdjacencyP(*cap2) = NULL;
+        *cap2 = NULL;
     }
-    Cap *cap2 = cap_getParent(cap);
-    assert(cap2 != NULL);
-    while (1) {
-        if (cap_getAdjacency(cap2) != NULL) {
-            return cap2;
-        }
-        if (cap_getParent(cap2) == NULL) {
-            assert(end_getRootInstance(cap_getEnd(cap2)) == cap2);
-            return cap2;
-        }
-        cap2 = cap_getParent(cap2);
-    }
-    return NULL;
-}
-
-Face *cap_getTopFace(Cap *cap) {
-    return cap->capContents->face;
-}
-
-FaceEnd *cap_getTopFaceEnd(Cap *cap) {
-    Face *face = cap_getTopFace(cap);
-    if (face != NULL) {
-        FaceEnd *faceEnd = face_getFaceEndForTopNode(face, cap);
-        assert(faceEnd != NULL);
-        return faceEnd;
-    }
-    return NULL;
-}
-
-FaceEnd *cap_getBottomFaceEnd(Cap *cap) {
-    Cap *topNode = cap_getTopCap(cap);
-    if (topNode != NULL) {
-        return cap_getTopFaceEnd(topNode);
-    }
-    return NULL;
-}
-
-Cap *cap_getParent(Cap *cap) {
-    Cap *e = cap->capContents->parent;
-    return e == NULL ? NULL : cap_getOrientation(cap) ? e : cap_getReverse(e);
-}
-
-int64_t cap_getChildNumber(Cap *cap) {
-    return cap->capContents->children->length;
-}
-
-Cap *cap_getChild(Cap *cap, int64_t index) {
-    assert(cap_getChildNumber(cap) > index);
-    assert(index >= 0);
-    return cap_getP(cap, cap->capContents->children->list[index]);
-}
-
-void cap_makeParentAndChild(Cap *capParent, Cap *capChild) {
-    capParent = cap_getPositiveOrientation(capParent);
-    capChild = cap_getPositiveOrientation(capChild);
-    assert(capChild->capContents->parent == NULL);
-
-    if (!listContains(capParent->capContents->children, capChild)) { //defensive, means second calls will have no effect.
-        assert(event_isDescendant(cap_getEvent(capParent), cap_getEvent(capChild)));
-        listAppend(capParent->capContents->children, capChild);
-    }
-    capChild->capContents->parent = capParent;
-}
-
-void cap_changeParentAndChild(Cap* newCapParent, Cap* capChild) {
-    Cap * oldCapParent = cap_getParent(capChild);
-    newCapParent = cap_getPositiveOrientation(newCapParent);
-    capChild = cap_getPositiveOrientation(capChild);
-    assert(oldCapParent);
-    if (!listContains(newCapParent->capContents->children, capChild)) { //defensive, means second calls will have no effect.
-        listAppend(newCapParent->capContents->children, capChild);
-    }
-    listRemove(oldCapParent->capContents->children, capChild);
-    capChild->capContents->parent = newCapParent;
-}
-
-bool cap_isInternal(Cap *cap) {
-    return cap_getChildNumber(cap) > 0;
 }
 
 void cap_check(Cap *cap) {
@@ -291,29 +379,6 @@ void cap_check(Cap *cap) {
     cactusCheck(cap_getOrientation(cap) == end_getOrientation(end));
     cactusCheck(end_getSide(end) == cap_getSide(cap)); //This is critical, it ensures
     //that we have a consistently oriented set of caps in an end.
-
-    //If we've built the trees
-    if (flower_builtTrees(end_getFlower(cap_getEnd(cap)))) {
-        // checks the cap has a parent which has an ancestral event to the caps event, unless it is the root.
-        cactusCheck(end_getRootInstance(end) != NULL);
-        if (end_getRootInstance(end) == cap) {
-            cactusCheck(cap_getParent(cap) == NULL);
-        } else {
-            Cap *ancestorCap = cap_getParent(cap);
-            cactusCheck(ancestorCap != NULL);
-            event_isAncestor(cap_getEvent(cap), cap_getEvent(ancestorCap));
-            cactusCheck(cap_getOrientation(cap) == cap_getOrientation(ancestorCap));
-        }
-        //Check caps ancestor/descendant links are proper.
-        int64_t i;
-        for (i = 0; i < cap_getChildNumber(cap); i++) {
-            Cap *childCap = cap_getChild(cap, i);
-            cactusCheck(childCap != NULL);
-            cactusCheck(cap_getParent(childCap) == cap);
-        }
-    } else {
-        cactusCheck(cap_getParent(cap) == NULL); //No root, so no tree.
-    }
 
     //If stub end checks, there is no attached segment.
     if (end_isStubEnd(end)) {
@@ -377,18 +442,6 @@ void cap_check(Cap *cap) {
     } else {
         cactusCheck(cap_getReverse(cap_getAdjacency(rCap)) == cap_getAdjacency(cap));
     }
-    cactusCheck(cap_getTopFace(cap) == cap_getTopFace(rCap));
-    if (cap_getParent(cap) == NULL) {
-        cactusCheck(cap_getParent(rCap) == NULL);
-    } else {
-        cactusCheck(cap_getParent(cap) == cap_getReverse(cap_getParent(rCap)));
-    }
-    cactusCheck(cap_isInternal(cap) == cap_isInternal(rCap));
-    cactusCheck(cap_getChildNumber(cap) == cap_getChildNumber(rCap));
-    int64_t i;
-    for (i = 0; i < cap_getChildNumber(cap); i++) {
-        cactusCheck(cap_getChild(cap, i) == cap_getReverse(cap_getChild(rCap, i)));
-    }
 
     //it is consistent with any copy of end in the nested flower, in terms of events, connections and coordinates.
     Flower *nestedFlower = group_getNestedFlower(end_getGroup(end));
@@ -399,130 +452,4 @@ void cap_check(Cap *cap) {
     }
 }
 
-/*
- * Private functions.
- */
 
-void cap_setSegment(Cap *cap, Segment *segment) {
-    cap->capContents->segment = cap_getOrientation(cap) ? segment : segment_getReverse(segment);
-}
-
-void cap_setTopFace(Cap *cap, Face *face) {
-    cap->capContents->face = face;
-}
-
-void cap_breakAdjacency(Cap *cap) {
-    Cap *cap2;
-    cap2 = cap_getAdjacency(cap);
-    if (cap2 != NULL) {
-        cap2->capContents->adjacency = NULL;
-        cap->capContents->adjacency = NULL;
-    }
-}
-
-/*
- * Serialisation functions.
- */
-
-void cap_writeBinaryRepresentationP(Cap *cap2, int64_t elementType,
-        void(*writeFn)(const void * ptr, size_t size, size_t count)) {
-    binaryRepresentation_writeElementType(elementType, writeFn);
-    binaryRepresentation_writeName(cap_getName(cap2), writeFn);
-}
-
-void cap_writeBinaryRepresentation(Cap *cap, void(*writeFn)(const void * ptr, size_t size, size_t count)) {
-    Cap *cap2;
-    if (cap_getCoordinate(cap) == INT64_MAX) {
-        binaryRepresentation_writeElementType(CODE_CAP, writeFn);
-        binaryRepresentation_writeName(cap_getName(cap), writeFn);
-        binaryRepresentation_writeBool(cap_getStrand(cap), writeFn);
-        binaryRepresentation_writeName(event_getName(cap_getEvent(cap)), writeFn);
-    } else if (cap_getSequence(cap) != NULL) {
-        binaryRepresentation_writeElementType(CODE_CAP_WITH_COORDINATES, writeFn);
-        binaryRepresentation_writeName(cap_getName(cap), writeFn);
-        binaryRepresentation_writeInteger(cap_getCoordinate(cap), writeFn);
-        binaryRepresentation_writeBool(cap_getStrand(cap), writeFn);
-        binaryRepresentation_writeName(sequence_getName(cap_getSequence(cap)), writeFn);
-    } else {
-        binaryRepresentation_writeElementType(CODE_CAP_WITH_COORDINATES_BUT_NO_SEQUENCE, writeFn);
-        binaryRepresentation_writeName(cap_getName(cap), writeFn);
-        binaryRepresentation_writeInteger(cap_getCoordinate(cap), writeFn);
-        binaryRepresentation_writeBool(cap_getStrand(cap), writeFn);
-        binaryRepresentation_writeName(event_getName(cap_getEvent(cap)), writeFn);
-    }
-    if ((cap2 = cap_getAdjacency(cap)) != NULL) {
-        cap_writeBinaryRepresentationP(cap2, CODE_ADJACENCY, writeFn);
-    }
-    if ((cap2 = cap_getParent(cap)) != NULL) {
-        cap_writeBinaryRepresentationP(cap2, CODE_PARENT, writeFn);
-    }
-}
-
-bool cap_loadFromBinaryRepresentationP(Cap *cap, void **binaryString, void(*linkFn)(Cap *, Cap *)) {
-    Cap *cap2;
-    binaryRepresentation_popNextElementType(binaryString);
-    cap2 = flower_getCap(end_getFlower(cap_getEnd(cap)), binaryRepresentation_getName(binaryString));
-    if (cap2 != NULL) { //if null we'll make the adjacency when the other end is parsed.
-        linkFn(cap2, cap);
-        return 0;
-    }
-    return 1;
-}
-
-void cap_loadFromBinaryRepresentationP2(void **binaryString, Cap *cap) {
-    if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_ADJACENCY) {
-        cap_loadFromBinaryRepresentationP(cap, binaryString, cap_makeAdjacent);
-    }
-    if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_PARENT) {
-        bool i = cap_loadFromBinaryRepresentationP(cap, binaryString, cap_makeParentAndChild);
-        (void) i;
-        assert(i == 0);
-    }
-}
-
-Cap *cap_loadFromBinaryRepresentation(void **binaryString, End *end) {
-    Cap *cap;
-    Name name;
-    Event *event;
-    int64_t coordinate;
-    int64_t strand;
-    Sequence *sequence;
-
-    cap = NULL;
-    if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_CAP) {
-        binaryRepresentation_popNextElementType(binaryString);
-        name = binaryRepresentation_getName(binaryString);
-        strand = binaryRepresentation_getBool(binaryString);
-        event = eventTree_getEvent(flower_getEventTree(end_getFlower(end)), binaryRepresentation_getName(binaryString));
-        cap = cap_construct3(name, event, end);
-        cap_setCoordinates(cap, INT64_MAX, strand, NULL); //Hacks
-        cap_loadFromBinaryRepresentationP2(binaryString, cap);
-    } else if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_CAP_WITH_COORDINATES) {
-        binaryRepresentation_popNextElementType(binaryString);
-        name = binaryRepresentation_getName(binaryString);
-        coordinate = binaryRepresentation_getInteger(binaryString);
-        strand = binaryRepresentation_getBool(binaryString);
-        sequence = flower_getSequence(end_getFlower(end), binaryRepresentation_getName(binaryString));
-        cap = cap_construct4(name, end, coordinate, strand, sequence);
-        cap_loadFromBinaryRepresentationP2(binaryString, cap);
-    } else if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_CAP_WITH_COORDINATES_BUT_NO_SEQUENCE) {
-        binaryRepresentation_popNextElementType(binaryString);
-        name = binaryRepresentation_getName(binaryString);
-        coordinate = binaryRepresentation_getInteger(binaryString);
-        strand = binaryRepresentation_getBool(binaryString);
-        event = eventTree_getEvent(flower_getEventTree(end_getFlower(end)), binaryRepresentation_getName(binaryString));
-        cap = cap_construct3(name, event, end);
-        cap_setCoordinates(cap, coordinate, strand, NULL);
-        cap_loadFromBinaryRepresentationP2(binaryString, cap);
-    }
-
-    return cap;
-}
-
-void cap_setEvent(Cap *cap, Event *event) {
-    cap->capContents->event = event;
-}
-
-void cap_setSequence(Cap *cap, Sequence *sequence) {
-    cap->capContents->sequence = sequence;
-}

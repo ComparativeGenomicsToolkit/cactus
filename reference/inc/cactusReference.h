@@ -22,6 +22,11 @@
 extern const char *REFERENCE_BUILDING_EXCEPTION;
 
 /*
+ * Overall coordination function
+ */
+void cactus_make_reference(stList *flowers, char *referenceEventString, CactusDisk *cactusDisk, CactusParams *params);
+
+/*
  * Construct a reference for the flower, top down.
  */
 void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
@@ -43,4 +48,10 @@ double *calculateZ(Flower *flower, stHash *endsToNodes, double theta);
  */
 stHash *getEventWeighting(Event *referenceEvent, double phi,
                           stSet *chosenEvents);
+
+/*
+ * Get the reference sequences, dumping them to the given file handle.
+ */
+void getReferenceSequences(FILE *fileHandle, Flower *flower, char *referenceEventString);
+
 #endif /* REFERENCE_H_ */
