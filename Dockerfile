@@ -1,7 +1,7 @@
 FROM quay.io/glennhickey/cactus-ci-base:latest as builder
 
 # apt dependencies for build
-RUN apt-get update && apt-get install -y build-essential git python3 python3-dev python3-pip zlib1g-dev wget libbz2-dev pkg-config libhdf5-dev liblzo2-dev libtokyocabinet-dev wget libhiredis-dev liblzma-dev libxml2-dev
+RUN apt-get update && apt-get install -y build-essential git python3 python3-dev python3-pip zlib1g-dev wget libbz2-dev pkg-config libhdf5-dev liblzo2-dev libtokyocabinet-dev wget libhiredis-dev liblzma-dev libxml2-dev libssl-dev libpng-dev uuid-dev
 
 # build cactus binaries
 RUN mkdir -p /home/cactus
@@ -17,16 +17,24 @@ ENV LDFLAGS -march=nehalem
 RUN cd /home/cactus && ./build-tools/downloadPhast
 ENV ENABLE_PHYLOP 1
 
+# Install UCSC browser libraries to compile UDC
+# remote access.  The browser common.mk file checks for
+RUN cd /home/cactus && ./build-tools/downloadUcscLib
+ENV ENABLE_UDC 1
+ENV KENTSRC /home/cactus/submodules/kent/src
+
 # clean out stuff before build.
 RUN find /home/cactus -name include.local.mk -exec rm -f {} \;
 RUN cd /home/cactus && make clean -j $(nproc)
 RUN cd /home/cactus && make -j $(nproc)
 
-# download kent binaries used by hal for assembly hubs
-# bedSort and hgGcPercent are part of a more restricted licence: https://hgdownload.cse.ucsc.edu/admin/exe/
-# if you agree to it, add them by replacing the following line with this one:
-# RUN cd /home/cactus/bin && for i in wigToBigWig faToTwoBit bedToBigBed bigBedToBed bedSort hgGcPercent; do wget -q http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/${i}; chmod ugo+x ${i}; done
+# download open-licenses kent binaries used by hal for assembly hubs
 RUN cd /home/cactus/bin && for i in wigToBigWig faToTwoBit bedToBigBed bigBedToBed; do wget -q http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/${i}; chmod ugo+x ${i}; done
+
+# bedSort and hgGcPercent are part of a more restricted licence: https://hgdownload.cse.ucsc.edu/admin/exe/
+# if you agree to it, uncomment this line:
+# RUN cd /home/cactus/bin && for i in bedSort hgGcPercent; do wget -q http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/${i}; chmod ugo+x ${i}; done
+
 
 # download tools used for pangenome pipeline
 RUN cd /home/cactus && ./build-tools/downloadPangenomeTools
@@ -48,7 +56,7 @@ RUN mkdir -p /wheels && cd /wheels && python3 -m pip install -U pip && python3 -
 FROM mirror.gcr.io/library/ubuntu:18.04
 
 # apt dependencies for runtime
-RUN apt-get update && apt-get install -y --no-install-recommends git python3 python3-pip python3-distutils zlib1g libbz2-1.0 net-tools libhdf5-100 liblzo2-2 libtokyocabinet9 rsync libkrb5-3 libk5crypto3 time liblzma5 libcurl4 libxml2 libgomp1
+RUN apt-get update && apt-get install -y --no-install-recommends git python3 python3-pip python3-distutils zlib1g libbz2-1.0 net-tools libhdf5-100 liblzo2-2 libtokyocabinet9 rsync libkrb5-3 libk5crypto3 time liblzma5 libcurl4 libcurl4-gnutls-dev libxml2 libgomp1
 
 # copy temporary files for installing cactus
 COPY --from=builder /home/cactus /tmp/cactus
