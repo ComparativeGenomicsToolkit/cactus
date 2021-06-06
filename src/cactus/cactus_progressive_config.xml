@@ -133,6 +133,25 @@
 		minimumOutgroupDegree="0"
 		minimumNumberOfSpecies="1"
 	>
+		<!-- Parameters for using cPecan to generate MSAs. -->
+		<!-- spanningTrees The number of spanning trees to construct in choosing which pairwise alignments to include
+		 in creating the MSA -->
+		<!-- gapGamma The weight to put upon indel probabilities in forming the MSA -->
+		<!-- matchGamma The weight to put upon match probabilities in forming the MSA -->
+		<!-- useBanding Use banded algnment in constructing the pairwise alignments -->
+		<!-- splitMatrixBiggerThanThis Split the dynamic programming (DP) matrix into two smaller matrices around matrices
+		with an area larger than splitMatrixBiggerThanThis squared, so reducing the total DP -->
+		<!-- anchorMatrixBiggerThanThis Search for anchors within DP matrices with an area of
+		anchorMatrixBiggerThanThis squared or larger -->
+		<!-- repeatMaskMatrixBiggerThanThis  -->
+		<!-- diagonalExpansion Expand the DP around anchors by this many diagonal coordinates. -->
+		<!-- constraintDiagonalTrim Trim anchors at their ends by this many bases. -->
+		<!-- alignAmbiguityCharacters Align together Ns or other wildcards. -->
+		<!-- useProgressiveMerging  Progressively merge together pairwise alignments to form MSA, otherwise use a greedy, poset
+		method which may be more accurate but which is generally slower for larger numbers of sequences -->
+		<!-- pruneOutStubAlignments  -->
+		<!-- useMumAnchors  Use maximal unique matches to create alignment anchors, otherwise call out to Lastz-->
+		<!-- recursiveMums  If using MUM anchors, recursively search for anchors in gaps. -->
 		<pecan
 			spanningTrees="5"
 			gapGamma="0.0"
@@ -150,6 +169,7 @@
 			recursiveMums="1"
 		/>
 
+		<!-- Parameters for using abPOA to generate MSAs. -->
 		<!-- partialOrderAlignmentWindow a sliding window approach (with hardcoded 50% overlap) is used to perform abpoa alignments.  memory is quadratic in this.  it is applied after bandingLimit -->
 		<!-- partialOrderAlignmentMaskFilter trim input sequences as soon as more than this many soft or hard masked bases are encountered (-1=disabled) -->
 		<!-- partialOrderAlignmentBand abpoa adaptive band size is <partialOrderAlignmentBand> + <partialOrderAlignmentBandFraction>*<Length>.  Negative value here disables adaptive banding -->
@@ -181,6 +201,7 @@
 			partialOrderAlignmentProgressiveMode="0"
 		/>
 	</bar>
+
 	<!-- The reference tag provides parameters to cactus_reference, a method used to construct a reference genome for a given cactus database. -->
 	<!-- numberOfNs is the number of Ns to insert into an ancestral sequence when an adjacency is uncertain, think of its as the Ns in a scaffold gap -->
 	<!-- minNumberOfSequencesToSupportAdjacency is the number of sequences needed to bridge an adjacency -->
