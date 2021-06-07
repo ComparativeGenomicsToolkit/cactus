@@ -366,6 +366,18 @@ class CactusConsolidated(CactusPhasesJob):
         super(CactusConsolidated, self).__init__(*args, **kwargs)
         if "cactusWorkflowArguments" in kwargs and kwargs["cactusWorkflowArguments"].consCores:
             self.cores = kwargs["cactusWorkflowArguments"].consCores
+
+        self.disk = int(2.5 * self.cactusWorkflowArguments.totalSequenceSize)
+
+        # this is the old caf job's memory function
+        memoryPoly = [1.80395944e+01, 7.96042247e+07]
+        memoryCap = 120e09
+        x = self.cactusWorkflowArguments.totalSequenceSize
+        resource = 0
+        for degree, coefficient in enumerate(reversed(memoryPoly)):
+            resource += coefficient * (x**degree)
+        resource = min(resource, memoryCap)
+        self.memory = int(resource)
     
     """Run cactus_consolidated (this spans everythring from bar to hal-genenerator)."""
     def run(self, fileStore):
@@ -457,7 +469,6 @@ class CactusWorkflowArguments:
         #Get a local copy of the experiment file
         self.experimentFile = experimentFile
         self.experimentNode = ET.parse(self.experimentFile).getroot()
-        self.scratchDbElemNode = ET.parse(self.experimentFile).getroot()
         self.experimentWrapper = ExperimentWrapper(self.experimentNode)
         self.alignmentsID = None
         for genome, seqID in list(seqIDMap.items()):
