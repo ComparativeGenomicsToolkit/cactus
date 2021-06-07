@@ -14,166 +14,22 @@ from cactus.progressive.multiCactusTree import MultiCactusTree
 from sonLib.nxnewick import NXNewick
 from cactus.shared.common import cactusRootPath
 
-class DbElemWrapper(object):
-    def __init__(self, confElem):
-        typeString = confElem.attrib["type"]
-        dbElem = confElem.find(typeString)
-        self.dbElem = dbElem
-        self.confElem = confElem
-        self.dbElem.attrib["database_dir"] = "fakepath"
-
-    def check(self):
-        """Function checks the database conf is as expected and creates useful exceptions
-        if not"""
-        dataString = ET.tostring(self.confElem, encoding='unicode')
-        if self.confElem.tag != "st_kv_database_conf":
-            raise RuntimeError("The database conf string is improperly formatted: %s" % dataString)
-        if "type" not in self.confElem.attrib:
-            raise RuntimeError("The database conf string does not have a type attrib: %s" % dataString)
-        typeString = self.confElem.attrib["type"]
-        if typeString == "tokyo_cabinet":
-            tokyoCabinet = self.confElem.find("tokyo_cabinet")
-            if tokyoCabinet == None:
-                raise RuntimeError("Database conf is of type tokyo cabinet but there is no nested tokyo cabinet tag: %s" % dataString)
-            if "database_dir" not in tokyoCabinet.attrib:
-                raise RuntimeError("The tokyo cabinet tag has no database_dir tag: %s" % dataString)
-        elif typeString == "kyoto_tycoon":
-            kyotoTycoon = self.confElem.find("kyoto_tycoon")
-            if kyotoTycoon == None:
-                raise RuntimeError("Database conf is of kyoto tycoon but there is no nested kyoto tycoon tag: %s" % dataString)
-            if not set(("host", "port", "database_dir")).issubset(set(kyotoTycoon.attrib.keys())):
-                raise RuntimeError("The kyoto tycoon tag has a missing attribute: %s" % dataString)
-        elif typeString == "redis":
-            redis = self.confElem.find("redis")
-            if redis == None:
-                raise RuntimeError("Database conf is of redis but there is no nested redis tag: %s" % dataString)
-            if not set(("host", "port", "database_dir")).issubset(set(redis.attrib.keys())):
-                raise RuntimeError("The redis tag has a missing attribute: %s" % dataString)
-
-        else:
-            raise RuntimeError("Unrecognised database type in conf string: %s" % typeString)
-
-    def getDbElem(self):
-        return self.dbElem
-
-    def getConfString(self):
-        return ET.tostring(self.confElem, encoding='unicode')
-
-    def getDbType(self):
-        return self.dbElem.tag
-
-    def setDbType(self, dbType):
-        self.dbElem.tag = dbType
-
-    def getDbPort(self):
-        assert self.getDbType() in ["kyoto_tycoon", "redis"]
-        return int(self.dbElem.attrib["port"])
-
-    def setDbPort(self, port):
-        assert self.getDbType() in ["kyoto_tycoon", "redis"]
-        self.dbElem.attrib["port"] = str(port)
-
-    def getDbHost(self):
-        assert self.getDbType() in ["kyoto_tycoon", "redis"]
-        if "host" in self.dbElem.attrib:
-            return self.dbElem.attrib["host"]
-        return None
-
-    def setDbHost(self, host):
-        assert self.getDbType() in ["kyoto_tycoon", "redis"]
-        self.dbElem.attrib["host"] = host
-
-    def getDbServerOptions(self):
-        assert self.getDbType() in ["kyoto_tycoon", "redis"]
-        if "server_options" in self.dbElem.attrib:
-            return self.dbElem.attrib["server_options"]
-        return None
-
-    def setDbServerOptions(self, options):
-        assert self.getDbType() in ["kyoto_tycoon", "redis"]
-        self.dbElem.attrib["server_options"] = str(options)
-
-    def getDbTuningOptions(self):
-        assert self.getDbType() in ["kyoto_tycoon", "redis"]
-        if "tuning_options" in self.dbElem.attrib:
-            return self.dbElem.attrib["tuning_options"]
-        return None
-
-    def setDbTuningOptions(self, options):
-        assert self.getDbType() in ["kyoto_tycoon", "redis"]
-        self.dbElem.attrib["tuning_options"] = str(options)
-
-    def getDbCreateTuningOptions(self):
-        assert self.getDbType() in ["kyoto_tycoon", "redis"]
-        if "create_tuning_options" in self.dbElem.attrib:
-            return self.dbElem.attrib["create_tuning_options"]
-        return None
-
-    def setDbCreateTuningOptions(self, options):
-        assert self.getDbType() in ["kyoto_tycoon", "redis"]
-        self.dbElem.attrib["create_tuning_options"] = str(options)
-
-    def getDbReadTuningOptions(self):
-        assert self.getDbType() in ["kyoto_tycoon", "redis"]
-        if "read_tuning_options" in self.dbElem.attrib:
-            return self.dbElem.attrib["read_tuning_options"]
-        return None
-
-    def setDbReadTuningOptions(self, options):
-        assert self.getDbType() in ["kyoto_tycoon", "redis"]
-        self.dbElem.attrib["read_tuning_options"] = str(options)
-
-    def getDbInMemory(self):
-        assert self.getDbType() in ["kyoto_tycoon", "redis"]
-        if "in_memory" in self.dbElem.attrib:
-            val = self.dbElem.attrib["in_memory"]
-            retVal = val.lower() == "true" or val == "1"
-            #assert (not retVal or "database_name" not in self.dbElem.attrib)
-            return retVal
-        return False
-
-    def setDbInMemory(self, inMemory):
-        assert self.getDbType() in ["kyoto_tycoon", "redis"]
-        self.dbElem.attrib["in_memory"] = str(int(inMemory))
-
-    def getDbSnapshot(self):
-        assert self.getDbType() in ["kyoto_tycoon", "redis"]
-        if "snapshot" in self.dbElem.attrib:
-            val = self.dbElem.attrib["snapshot"]
-            return val.lower() == "true" or val == "1"
-        return self.getDbInMemory()
-
-    def setDbSnapshot(self, snapshot):
-        assert self.getDbType() in ["kyoto_tycoon", "redis"]
-        self.dbElem.attrib["snapshot"] = str(int(snapshot))
-
-
-class ExperimentWrapper(DbElemWrapper):
+class ExperimentWrapper(object):
     def __init__(self, xmlRoot):
         self.diskElem = xmlRoot.find("cactus_disk")
-        confElem = self.diskElem.find("st_kv_database_conf")
-        super(ExperimentWrapper, self).__init__(confElem)
         self.xmlRoot = xmlRoot
 
     @staticmethod
     def createExperimentWrapper(newickTreeString,
                                 genomes,
                                 outgroupGenomes=None,
-                                databaseConf=None, configFile=None,
+                                configFile=None,
                                 halFile=None, fastaFile=None,
                                 constraints=None, progressive=False,
                                 outputSequenceDir=None):
         #Establish the basics
         rootElem =  ET.Element("cactus_workflow_experiment")
         rootElem.attrib['species_tree'] = newickTreeString
-        #Stuff for the database
-        database = ET.SubElement(rootElem, "cactus_disk")
-        if databaseConf != None:
-            database.append(databaseConf)
-        else:
-            databaseConf = ET.SubElement(database, "st_kv_database_conf")
-            databaseConf.attrib["type"] = "tokyo_cabinet"
-            ET.SubElement(databaseConf, "tokyo_cabinet")
         self = ExperimentWrapper(rootElem)
         #Setup the config
         self.setConfigPath("default")

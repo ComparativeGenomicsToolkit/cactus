@@ -42,7 +42,6 @@ from cactus.blast.mappingQualityRescoringAndFiltering import mappingQualityResco
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 
 from cactus.shared.experimentWrapper import ExperimentWrapper
-from cactus.shared.experimentWrapper import DbElemWrapper
 from cactus.shared.configWrapper import ConfigWrapper
 
 ############################################################
@@ -362,7 +361,13 @@ def updateExpWrapperForOutgroups(job, expWrapper, outgroupGenomes, outgroupFragm
 ############################################################
 
 class CactusConsolidated(CactusPhasesJob):
-    """Start the secondary DB."""
+
+    def __init__(self, *args, **kwargs):
+        super(CactusConsolidated, self).__init__(*args, **kwargs)
+        if "cactusWorkflowArguments" in kwargs and kwargs["cactusWorkflowArguments"].consCores:
+            self.cores = kwargs["cactusWorkflowArguments"].consCores
+    
+    """Run cactus_consolidated (this spans everythring from bar to hal-genenerator)."""
     def run(self, fileStore):
         # Get the experiment object
         experiment = self.cactusWorkflowArguments.experimentWrapper
@@ -405,7 +410,8 @@ class CactusConsolidated(CactusPhasesJob):
                                          constraintAlignmentsFile=constraints,
                                          logLevel=getLogLevelString(),
                                          outgroupEvents=experiment.getOutgroupGenomes(),
-                                         referenceEvent=experiment.getRootGenome())
+                                         referenceEvent=experiment.getRootGenome(),
+                                         cores=self.cores)
 
         # Log back any messages
         for message in messages:
@@ -447,7 +453,7 @@ class CactusConsolidated(CactusPhasesJob):
 class CactusWorkflowArguments:
     """Object for representing a cactus workflow's arguments
     """
-    def __init__(self, options, experimentFile, configNode, seqIDMap):
+    def __init__(self, options, experimentFile, configNode, seqIDMap, consCores=None):
         #Get a local copy of the experiment file
         self.experimentFile = experimentFile
         self.experimentNode = ET.parse(self.experimentFile).getroot()
@@ -457,8 +463,6 @@ class CactusWorkflowArguments:
         for genome, seqID in list(seqIDMap.items()):
             print(('setting this', genome, seqID))
             self.experimentWrapper.setSequenceID(genome, seqID)
-        #Get the database string
-        self.cactusDiskDatabaseString = ET.tostring(self.experimentNode.find("cactus_disk").find("st_kv_database_conf"), encoding='unicode').replace('\n', '')
         #Get the species tree
         self.speciesTree = self.experimentNode.attrib["species_tree"]
         #Get any list of 'required species' for the blocks of the cactus.
@@ -475,12 +479,8 @@ class CactusWorkflowArguments:
         # (i.e. file:///path/to/prefix). The dumps will be labeled
         # -caf, -avg, etc.
         self.intermediateResultsUrl = options.intermediateResultsUrl
-        self.dbServerDump = None
-
-        #Secondary, scratch DB
-        secondaryConf = copy.deepcopy(self.experimentNode.find("cactus_disk").find("st_kv_database_conf"))
-        secondaryElem = DbElemWrapper(secondaryConf)
-        self.secondaryDatabaseString = secondaryElem.getConfString()
+        # Number of cores for cactus_consolidated
+        self.consCores = consCores
 
         #The config node
         self.configNode = configNode

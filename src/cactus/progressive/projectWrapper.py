@@ -44,11 +44,6 @@ class ProjectWrapper:
         expXml = self.seqFile.toXMLElement(ignoreSeqPaths)
         #create the cactus disk
         cdElem = ET.SubElement(expXml, "cactus_disk")
-        database = self.options.database
-        assert database in ["kyoto_tycoon", "redis"]
-        confElem = ET.SubElement(cdElem, "st_kv_database_conf")
-        confElem.attrib["type"] = database
-        ET.SubElement(confElem, database)
         self.expWrapper = ExperimentWrapper(expXml)
         self.expWrapper.setConfigPath(self.configPath)
         if not os.path.exists(self.workingDir):

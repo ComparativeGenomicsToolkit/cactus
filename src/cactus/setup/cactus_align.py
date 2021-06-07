@@ -96,8 +96,8 @@ def main():
                         help="The way to run the Cactus binaries", default=None)
     parser.add_argument("--nonCactusInput", action="store_true",
                         help="Input lastz cigars do not come from cactus-blast or cactus-refmap: Prepend ids in cigars")
-    parser.add_argument("--database", choices=["kyoto_tycoon", "redis"],
-                        help="The type of database", default="kyoto_tycoon")
+    parser.add_argument("--consCores", type=int, 
+                        help="Number of cores for each cactus_consolidated job (defaults to all available / maxCores on single_machine)", default=None)
 
     options = parser.parse_args()
 
@@ -110,15 +110,23 @@ def main():
            len(options.pathOverrideNames) != len(options.pathOverrides):
             raise RuntimeError('same number of values must be passed to --pathOverrides and --pathOverrideNames')
 
-    # cactus doesn't run with 1 core
-    if options.batchSystem == 'singleMachine':
+    # Try to juggle --maxCores and --consCores to give some reasonable defaults where possible
+    if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
         if options.maxCores is not None:
-            if int(options.maxCores) < 2:
-                raise RuntimeError('Cactus requires --maxCores > 1')
-        else:
-            # is there a way to get this out of Toil?  That would be more consistent
-            if cpu_count() < 2:
-                raise RuntimeError('Only 1 CPU detected.  Cactus requires at least 2')
+            if int(options.maxCores) <= 0:
+                raise RuntimeError('Cactus requires --maxCores >= 1')
+        if options.consCores is None:
+            if options.maxCores is not None:
+                options.consCores = options.maxCores
+            else:
+                options.consCores = cpu_count()
+        elif options.maxCores is not None and options.consCores < options.maxCores:
+            raise RuntimeError('--consCores must be <= --maxCores')
+    else:
+        if not options.consCores:
+            raise RuntimeError('--consCores required for non single_machine batch systems')
+    if options.maxCores is not None and options.consCores > options.maxCores:
+        raise RuntimeError('--consCores must be <= --maxCores')
 
     options.buildHal = True
     options.buildFasta = True
@@ -386,7 +394,7 @@ def make_align_job(options, toil):
                 write_s3(pg_temp_file, pg_file, region=get_aws_region(options.jobStore))
             logger.info("pangenome configuration overrides saved in {}".format(pg_file))
 
-    workFlowArgs = CactusWorkflowArguments(options, experimentFile=experimentFile, configNode=configNode, seqIDMap = project.inputSequenceIDMap)
+    workFlowArgs = CactusWorkflowArguments(options, experimentFile=experimentFile, configNode=configNode, seqIDMap = project.inputSequenceIDMap, consCores = options.consCores)
 
     #import the files that cactus-blast made
     workFlowArgs.alignmentsID = toil.importFile(makeURL(get_input_path()))
@@ -720,7 +728,6 @@ def main_batch():
     options.binariesMode=None
     options.root=None
     options.latest=None
-    options.database="kyoto_tycoon"
 
     setupBinaries(options)
     setLoggingFromOptions(options)

@@ -66,7 +66,7 @@ def cactus_override_toil_options(options):
     # don't preemptively declare a deadlock.
     if options.deadlockWait is None or options.deadlockWait < 3600:
         options.deadlockWait = 3600
-    if options.retryCount is None and options.batchSystem != 'singleMachine' :
+    if options.retryCount is None and options.batchSystem.lower() not in ['single_machine', 'singleMachine']:
         # If the user didn't specify a retryCount value, make it 5
         # instead of Toil's default (1).
         options.retryCount = 5
@@ -141,7 +141,7 @@ def findRequiredNode(configNode, nodeName):
 def runCactusConsolidated(seqMap, newickTreeString, cactusParams,
                           alignmentsFile, outputFile, outputHalFastaFile=None,
                           outputReferenceFile=None, secondaryAlignmentsFile=None, constraintAlignmentsFile=None,
-                          logLevel=None, outgroupEvents=None, referenceEvent=None):
+                          logLevel=None, outgroupEvents=None, referenceEvent=None, cores=None):
     logLevel = logLevel if logLevel != None else getLogLevelString2(logLevel)
     """
     ## Hacks to allow running locally
@@ -187,6 +187,8 @@ def runCactusConsolidated(seqMap, newickTreeString, cactusParams,
         args += ["--secondaryAlignments", secondaryAlignmentsFile]
     if constraintAlignmentsFile:
         args += ["--constraintAlignments", constraintAlignmentsFile]
+    if cores:
+        args += ["--threads", str(cores)]
 
     #print("Command to run\n", " ".join(["cactus_consolidated"] + args))
 
