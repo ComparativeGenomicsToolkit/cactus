@@ -28,12 +28,11 @@ class TestCase(unittest.TestCase):
     def _out_hal(self, binariesMode):
         return os.path.join(self.tempDir, 'evovler-{}.hal'.format(binariesMode))
 
-    def _run_evolver(self, binariesMode, configFile = None, seqFile = './examples/evolverMammals.txt',database='kyoto_tycoon'):
+    def _run_evolver(self, binariesMode, configFile = None, seqFile = './examples/evolverMammals.txt'):
         """ Run the full evolver test, putting the jobstore and output in tempDir
         """
         cmd = ['cactus', self._job_store(binariesMode), seqFile, self._out_hal(binariesMode),
-                        '--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir,
-                        '--database', database]
+                        '--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir]
         if configFile:
             cmd += ['--configFile', configFile]
 
