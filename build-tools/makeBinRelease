@@ -44,6 +44,13 @@ export LDFLAGS="-march=${CACTUS_ARCH} -static"
 build-tools/downloadPhast
 export ENABLE_PHYLOP=1
 
+# install UCSC browser libraries to compile UDC
+# remote access
+# Disabled until we figure out static build
+# ./build-tools/downloadUcscLib
+# export ENABLE_UDC=1
+# export KENTSRC=$(pwd)/submodules/kent/src
+
 make -j $(nproc) check-static
 
 # download all external tools used for pangenome pipeline

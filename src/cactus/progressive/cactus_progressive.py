@@ -183,7 +183,7 @@ class ProgressiveUp(RoundedJob):
         # get parameters that cactus_workflow stuff wants
         configFile = fileStore.readGlobalFile(experiment.getConfigID())
         configNode = ET.parse(configFile).getroot()
-        workFlowArgs = CactusWorkflowArguments(self.options, experimentFile=experimentFile, configNode=configNode, seqIDMap = seqIDMap)
+        workFlowArgs = CactusWorkflowArguments(self.options, experimentFile=experimentFile, configNode=configNode, seqIDMap = seqIDMap, consCores = self.options.consCores)
 
         # copy over the options so we don't trail them around
         workFlowArgs.buildHal = self.options.buildHal
@@ -371,9 +371,9 @@ def main():
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
     parser.add_argument("--gpu", action="store_true",
-                        help="Enable GPU acceleration by using Segaling instead of lastz")    
-    parser.add_argument("--database", choices=["kyoto_tycoon", "redis"],
-                        help="The type of database", default="kyoto_tycoon")
+                        help="Enable GPU acceleration by using Segaling instead of lastz")
+    parser.add_argument("--consCores", type=int, 
+                        help="Number of cores for each cactus_consolidated job (defaults to all available / maxCores on single_machine)", default=None)
 
     options = parser.parse_args()
 
@@ -381,15 +381,23 @@ def main():
     setLoggingFromOptions(options)
     enableDumpStack()
 
-    # cactus doesn't run with 1 core
-    if options.batchSystem == 'singleMachine':
+    # Try to juggle --maxCores and --consCores to give some reasonable defaults where possible
+    if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
         if options.maxCores is not None:
-            if int(options.maxCores) < 2:
-                raise RuntimeError('Cactus requires --maxCores > 1')
-        else:
-            # is there a way to get this out of Toil?  That would be more consistent
-            if cpu_count() < 2:
-                raise RuntimeError('Only 1 CPU detected.  Cactus requires at least 2')
+            if int(options.maxCores) <= 0:
+                raise RuntimeError('Cactus requires --maxCores >= 1')
+        if options.consCores is None:
+            if options.maxCores is not None:
+                options.consCores = options.maxCores
+            else:
+                options.consCores = cpu_count()
+        elif options.maxCores is not None and options.consCores < options.maxCores:
+            raise RuntimeError('--consCores must be <= --maxCores')
+    else:
+        if not options.consCores:
+            raise RuntimeError('--consCores required for non single_machine batch systems')
+    if options.maxCores is not None and options.consCores > options.maxCores:
+        raise RuntimeError('--consCores must be <= --maxCores')
 
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
