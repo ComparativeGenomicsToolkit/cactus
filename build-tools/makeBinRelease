@@ -69,7 +69,7 @@ rsync -avm --include='*.py' -f 'hide,! */' ./submodules/hal ${binPackageDir}/lib
 cp -r .git ${binPackageDir}
 rm -rf ${binPackageDir}/.git/modules
 # remove test executables
-rm -f ${binPackageDir}/bin/*test ${binPackageDir}/bin/*tests ${binPackageDir}/bin/*Test ${binPackageDir}/bin/*Tests ${binPackageDir}/bin/cactus_runEndAlignment
+rm -f ${binPackageDir}/bin/*test ${binPackageDir}/bin/*tests ${binPackageDir}/bin/*Test ${binPackageDir}/bin/*Tests
 # make binaries smaller
 strip -d ${binPackageDir}/bin/* 2> /dev/null || true
 if [ -z ${CACTUS_LEGACY_ARCH+x} ]	

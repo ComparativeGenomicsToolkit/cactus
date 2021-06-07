@@ -13,16 +13,13 @@ LDLIBS += ${commonBarLibs} ${sonLibDir}/sonLib.a ${databaseLibs} -lm
 all: all_libs all_progs
 all_libs: ${LIBDIR}/cactusBarLib.a
 all_progs: all_libs
-	${MAKE} ${BINDIR}/cactus_barTests ${BINDIR}/cactus_runEndAlignment
+	${MAKE} ${BINDIR}/cactus_barTests
 
 clean : 
 	rm -f ${BINDIR}/cactus_barTests  ${LIBDIR}/cactusBarLib.a *.o
 
 ${BINDIR}/cactus_barTests : ${libTests} tests/*.h ${LIBDIR}/cactusBarLib.a ${stBarDependencies}
 	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -Wno-error -o ${BINDIR}/cactus_barTests ${libTests} ${LIBDIR}/cactusBarLib.a ${LDLIBS}
-
-${BINDIR}/cactus_runEndAlignment : ${libRunEndAlignment} ${LIBDIR}/cactusBarLib.a ${stBarDependencies}
-	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -Wno-error -o ${BINDIR}/cactus_runEndAlignment ${libRunEndAlignment} ${LIBDIR}/cactusBarLib.a ${LDLIBS}
 
 ${LIBDIR}/cactusBarLib.a : ${libSources} ${libHeaders} ${stBarDependencies}
 	${CC} ${CPPFLAGS} ${CFLAGS} -c ${libSources} 
