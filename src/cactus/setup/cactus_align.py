@@ -111,7 +111,7 @@ def main():
             raise RuntimeError('same number of values must be passed to --pathOverrides and --pathOverrideNames')
 
     # Try to juggle --maxCores and --consCores to give some reasonable defaults where possible
-    if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
+    if options.batchSystem.lower() in ['single_machine', 'singlemachine']:
         if options.maxCores is not None:
             if int(options.maxCores) <= 0:
                 raise RuntimeError('Cactus requires --maxCores >= 1')
