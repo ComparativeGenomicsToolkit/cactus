@@ -367,7 +367,7 @@ class CactusConsolidated(CactusPhasesJob):
         if "cactusWorkflowArguments" in kwargs and kwargs["cactusWorkflowArguments"].consCores:
             self.cores = kwargs["cactusWorkflowArguments"].consCores
 
-        self.disk = int(2.5 * self.cactusWorkflowArguments.totalSequenceSize)
+        self.disk = int(3 * self.cactusWorkflowArguments.totalSequenceSize)
 
         # this is the old caf job's memory function
         memoryPoly = [1.80395944e+01, 7.96042247e+07]
