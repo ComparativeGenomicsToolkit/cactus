@@ -25,7 +25,43 @@
 	<!-- action: one of [softmask, hardmask, clip] -->
 	<!-- minLength: only mask intervals > than this length -->
 	<preprocessor unmask="1" memory="littleMemory" preprocessJob="dna-brnn" dna-brnnOpts='-A' active="0" action="softmask" cpu="2" minLength="100000"/>
-        <!-- Options for trimming ingroups & outgroups using the trim strategy -->
+
+	<!-- Params for blast -->
+	<!-- chunkSize The size of sequences in a blast job. Increase the chunkSize in the caf tag to reduce the number of blast jobs approximately quadratically -->
+	<!-- overlapSize The amount of basepair overlap between chunks -->
+	<!-- realign Use the cactus realign script to tweak the local alignments before they are processed by CAF -->
+	<!-- realignArguments Parameters to the cactus realign script -->
+	<!-- alpha TODO -->
+	<!-- compressFiles Compress the local alignments. (I think this may be broken) -->
+	<!-- filterByIdentity Filter alignments by % identity -->
+	<!-- identityRatio Let L be the sum of the branch lengths in the guide tree on the path connecting the genomes to be aligned.
+     Let IJC(L) be the inverse of the Jukes Cantor distance, expressed as the fraction of bases substituted. We filter all alignments
+      with identity lower than 1 - IJC(L). -->
+	<!-- minimumDistance A minimum for L (see above), so we don't filter out alignments with high identity. -->
+	<!-- gpuLastz Use segAlign instead of lastz -->
+	<!-- lastzMemory The memory to allocate for each blast job -->
+	<!-- lastzDisk The disk to allocate for each blast job -->
+	<!-- runMapQFiltering Filter alignments by score/mapQ, ranking alignments from highest mapQ/score to lowest -->
+	<!-- minimumMapQValue Minimum score/mapQ -->
+	<!-- maxAlignmentsPerSite Maximum alignments per site in performing filtering -->
+	<blast chunkSize="25000000"
+		   overlapSize="10000"
+		   minimumSequenceLengthForBlast="30"
+		   realign="0"
+		   realignArguments="--gapGamma 0.0 --matchGamma 0.9 --diagonalExpansion 4 --splitMatrixBiggerThanThis 10 --constraintDiagonalTrim 0 --alignAmbiguityCharacters --splitIndelsLongerThanThis 99"
+		   alpha="0.001"
+		   compressFiles="0"
+		   filterByIdentity="0"
+		   identityRatio="3"
+		   minimumDistance="0.01"
+		   gpuLastz="false"
+		   lastzMemory="littleMemory"
+		   lastzDisk="mediumDisk"
+		   runMapQFiltering="1"
+		   minimumMapQValue="0.0"
+		   maxAlignmentsPerSite="5">
+
+		<!-- Options for trimming ingroups & outgroups using the trim strategy -->
         <!-- Ingroup trim options: -->
         <!-- trimFlanking: The length of flanking sequence to attach
              to the trimmed ingroup sequences -->
@@ -47,7 +83,6 @@
              this value must be larger than the
              'splitIndelsLongerThanThis' value in the realign
              arguments -->
-
         <!-- keepParalogs: Always align duplicated sequence against
              all outgroups, instead of stopping at the first
              one. Intended to be robust against missing data.-->
@@ -59,69 +94,74 @@
                    trimOutgroupFlanking="2000"
                    trimOutgroupDepth="1"
                    keepParalogs="0"/>
-	<setup makeEventHeadersAlphaNumeric="0"/>
-	<!-- The caf tag contains parameters for the caf algorithm. -->
-	<!-- Increase the chunkSize in the caf tag to reduce the number of blast jobs approximately quadratically -->
 
-	<caf
-		chunkSize="25000000"
-		realign="0"
-		realignArguments="--gapGamma 0.0 --matchGamma 0.9 --diagonalExpansion 4 --splitMatrixBiggerThanThis 10 --constraintDiagonalTrim 0 --alignAmbiguityCharacters --splitIndelsLongerThanThis 99"
-		compressFiles="1"
-		overlapSize="10000"
-		filterByIdentity="0"
-		identityRatio="3"
-		minimumDistance="0.01"
-		minimumSequenceLengthForBlast="30"
-		gpuLastz="false"
-		lastzMemory="littleMemory"
-		lastzDisk="mediumDisk"
-
-		runMapQFiltering="1"
-		minimumMapQValue="0.0"
-		maxAlignmentsPerSite="5"
-
-		trim="3"
-		blockTrim="2"
-		annealingRounds="64"
-		deannealingRounds="2 4 8"
-		minimumTreeCoverage="0.0"
-		minimumBlockDegree="2"
-		minimumIngroupDegree="1"
-		minimumOutgroupDegree="0"
-        minimumNumberOfSpecies="1"
-        alignmentFilter="filterSecondariesByMultipleSpecies"
-
-		maxAdjacencyComponentSizeRatio="50"
-		minLengthForChromosome="1000000"
-		proportionOfUnalignedBasesForNewChromosome="0.8"
-		maximumMedianSequenceLengthBetweenLinkedEnds="1000"
-
-		alpha="0.001"
-
-		removeRecoverableChains="unequalNumberOfIngroupCopies"
-		maxRecoverableChainsIterations="5"
-		maxRecoverableChainLength="500000"
-
-		minimumBlockDegreeToCheckSupport="10"
-		minimumBlockHomologySupport="0.05"
-		phylogenyHomologyUnitType="chain"
-		phylogenyDistanceCorrectionMethod="jukesCantor"
-
-	        >
 		<!-- The following are parametrised to produce the same results as the default settings,
 		within a margin of 0.2% sensitivity, should be very fast for close genomes, these were tuned using the blast/blastParametersScript.py
 		We could go even faster for less than 0.05 divergence using, but want to be robust to poor branch length estimates -->
 		<divergence
-			argName="lastzArguments"
-		 	one="--step=2 --ambiguous=iupac,100,100 --ydrop=3000 --notransition"
-		 	two="--step=5 --ambiguous=iupac,100,100 --ydrop=3000"
-		 	three="--step=4 --ambiguous=iupac,100,100 --ydrop=3000"
-		 	four="--step=3 --ambiguous=iupac,100,100 --ydrop=3000"
-		 	five="--step=2 --ambiguous=iupac,100,100 --ydrop=3000"
-		 	default="--step=1 --ambiguous=iupac,100,100 --ydrop=3000"
-		 />
-	</caf>
+				argName="lastzArguments"
+				one="--step=2 --ambiguous=iupac,100,100 --ydrop=3000 --notransition"
+				two="--step=5 --ambiguous=iupac,100,100 --ydrop=3000"
+				three="--step=4 --ambiguous=iupac,100,100 --ydrop=3000"
+				four="--step=3 --ambiguous=iupac,100,100 --ydrop=3000"
+				five="--step=2 --ambiguous=iupac,100,100 --ydrop=3000"
+				default="--step=1 --ambiguous=iupac,100,100 --ydrop=3000"
+		/>
+	</blast>
+
+	<setup makeEventHeadersAlphaNumeric="0"/>
+
+	<!-- The caf tag contains parameters for the caf algorithm. -->
+	<!-- annealingRounds A string of increasing positive integers defining minimum chain lengths.
+	The last value defines the length of the minimum chain in the graph.
+	The earlier values define the minimum chain length as we progressively add alignments to the graph during each round.
+	See DOI: 10.1101/gr.123356.111 for algorithm outline. -->
+	<!-- deannealingRounds (aka melting rounds) A string of increasing positive integers defining minimum chain lengths. Each value gives the minimum chain length
+	 in the graph to remove, so that we can progressively get to chains of at least a given length. See DOI: 10.1101/gr.123356.111 for algorithm outline. -->
+	<!-- trim A string of positive integers, one for each annealing round. Gives the size from each match diagonal to trim off when adding to the graph. This
+	is useful to remove edge-wander effects that come from transitively connecting locally inconsistent alignments-->
+	<!-- blockTrim A positive integer. The amount to trim off each final alignment block in the graph, once the alignment graph is constructed (i.e. after the basic
+	caf algorithm is finished).-->
+	<!-- minimumBlockDegree The minimum number of sequences in a block to kept as a block in the final alignment.
+	Blocks with fewer sequences are pulled apart.-->
+	<!-- minimumNumberOfSpecies The minimum number of species with sequences in a block for the block
+	to be kept as a block in the final alignment. -->
+	<!-- minimumIngroupDegree The minimum number of ingroup species with sequences in a block for the block
+	to be kept as a block in the final alignment. -->
+	<!-- minimumOutgroupDegree The minimum number of outgroup species with sequences in a block for the block
+	to be kept as a block in the final alignment. -->
+	<!-- minimumTreeCoverage The fraction of the tree spanned by species with sequences in a block for the block
+	to be included as a block in the alignment. -->
+	<!-- alignmentFilter TODO -->
+	<!-- maxAdjacencyComponentSizeRatio TODO -->
+	<!-- minLengthForChromosome TODO -->
+	<!-- proportionOfUnalignedBasesForNewChromosome TODO-->
+	<!-- maximumMedianSequenceLengthBetweenLinkedEnds TODO-->
+	<!-- removeRecoverableChains TODO-->
+	<!-- maxRecoverableChainsIterations TODO-->
+	<!-- maxRecoverableChainLength TODO-->
+	<!-- minimumBlockDegreeToCheckSupport TODO-->
+	<!-- minimumBlockHomologySupport TODO-->
+	<caf annealingRounds="64"
+		 deannealingRounds="2 4 8"
+		 trim="3"
+		 blockTrim="2"
+		 minimumBlockDegree="2"
+		 minimumNumberOfSpecies="1"
+		 minimumIngroupDegree="1"
+		 minimumOutgroupDegree="0"
+		 minimumTreeCoverage="0.0"
+		 alignmentFilter="filterSecondariesByMultipleSpecies"
+		 maxAdjacencyComponentSizeRatio="50"
+		 minLengthForChromosome="1000000"
+		 proportionOfUnalignedBasesForNewChromosome="0.8"
+		 maximumMedianSequenceLengthBetweenLinkedEnds="1000"
+		 removeRecoverableChains="unequalNumberOfIngroupCopies"
+		 maxRecoverableChainsIterations="5"
+		 maxRecoverableChainLength="500000"
+		 minimumBlockDegreeToCheckSupport="10"
+		 minimumBlockHomologySupport="0.05"
+	/>
 
 	<!-- The bar tag contains parameters for the bar algorithm. -->
 	<!-- runBar Toggle the bar stage on or off. Turned off you get a sparse alignment just using the CAF phase-->
@@ -197,7 +237,7 @@
 			partialOrderAlignmentMaskFilter="-1"
 			partialOrderAlignmentBandConstant="300"
 			partialOrderAlignmentBandFraction="0.025"
-			partialOrderAlignmentSubMatrix="91 -114 -61 -123 0 -114 100 -125 -61 0 -31 -125 100 -114 0 -123 -61 -114 91 0 0 0 0 0 0"
+			partialOrderAlignmentSubMatrix="100 -120 -60 -120 0 -120 100 -120 -60 0 -60 -120 100 -120 0 -120 -60 -120 100 0 0 0 0 0 0"
 			partialOrderAlignmentGapOpenPenalty1="400"
 			partialOrderAlignmentGapExtensionPenalty1="30"
 			partialOrderAlignmentGapOpenPenalty2="1200"

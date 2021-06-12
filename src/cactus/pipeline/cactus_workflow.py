@@ -237,12 +237,12 @@ def inverseJukesCantor(d):
 
 def setupFilteringByIdentity(cactusWorkflowArguments):
     #Filter by identity
-    cafNode = findRequiredNode(cactusWorkflowArguments.configNode, "caf")
-    if getOptionalAttrib(cafNode, "filterByIdentity", bool, False): #Do the identity filtering
-        adjustedPath = max(float(cafNode.attrib["identityRatio"]) * cactusWorkflowArguments.longestPath,
-        float(cafNode.attrib["minimumDistance"]))
+    blastNode = findRequiredNode(cactusWorkflowArguments.configNode, "blast")
+    if getOptionalAttrib(blastNode, "filterByIdentity", bool, False): #Do the identity filtering
+        adjustedPath = max(float(blastNode.attrib["identityRatio"]) * cactusWorkflowArguments.longestPath,
+        float(blastNode.attrib["minimumDistance"]))
         identity = str(100 - math.ceil(100 * inverseJukesCantor(adjustedPath)))
-        cafNode.attrib["lastzArguments"] = cafNode.attrib["lastzArguments"] + (" --identity=%s" % identity)
+        blastNode.attrib["lastzArguments"] = blastNode.attrib["lastzArguments"] + (" --identity=%s" % identity)
 
 class CactusTrimmingBlastPhase(CactusPhasesJob):
     """Blast ingroups vs outgroups using the trimming strategy before
@@ -280,20 +280,20 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
         setupDivergenceArgs(self.cactusWorkflowArguments)
         setupFilteringByIdentity(self.cactusWorkflowArguments)
 
-        cafNode = findRequiredNode(self.cactusWorkflowArguments.configNode, "caf")
+        blastNode = findRequiredNode(self.cactusWorkflowArguments.configNode, "blast")
 
         # FIXME: this is really ugly and steals the options from the caf tag
         blastJob = self.addChild(BlastIngroupsAndOutgroups(
-            BlastOptions(chunkSize=getOptionalAttrib(cafNode, "chunkSize", int),
-                         overlapSize=getOptionalAttrib(cafNode, "overlapSize", int),
-                         lastzArguments=getOptionalAttrib(cafNode, "lastzArguments"),
-                         compressFiles=getOptionalAttrib(cafNode, "compressFiles", bool),
-                         realign=getOptionalAttrib(cafNode, "realign", bool),
-                         realignArguments=getOptionalAttrib(cafNode, "realignArguments"),
-                         memory=getOptionalAttrib(cafNode, "lastzMemory", int, sys.maxsize),
-                         smallDisk=getOptionalAttrib(cafNode, "lastzSmallDisk", int, sys.maxsize),
-                         largeDisk=getOptionalAttrib(cafNode, "lastzLargeDisk", int, sys.maxsize),
-                         minimumSequenceLength=getOptionalAttrib(cafNode, "minimumSequenceLengthForBlast", int, 1),
+            BlastOptions(chunkSize=getOptionalAttrib(blastNode, "chunkSize", int),
+                         overlapSize=getOptionalAttrib(blastNode, "overlapSize", int),
+                         lastzArguments=getOptionalAttrib(blastNode, "lastzArguments"),
+                         compressFiles=getOptionalAttrib(blastNode, "compressFiles", bool),
+                         realign=getOptionalAttrib(blastNode, "realign", bool),
+                         realignArguments=getOptionalAttrib(blastNode, "realignArguments"),
+                         memory=getOptionalAttrib(blastNode, "lastzMemory", int, sys.maxsize),
+                         smallDisk=getOptionalAttrib(blastNode, "lastzSmallDisk", int, sys.maxsize),
+                         largeDisk=getOptionalAttrib(blastNode, "lastzLargeDisk", int, sys.maxsize),
+                         minimumSequenceLength=getOptionalAttrib(blastNode, "minimumSequenceLengthForBlast", int, 1),
                          trimFlanking=self.getOptionalPhaseAttrib("trimFlanking", int, 10),
                          trimMinSize=self.getOptionalPhaseAttrib("trimMinSize", int, 0),
                          trimThreshold=self.getOptionalPhaseAttrib("trimThreshold", float, 0.8),
@@ -301,15 +301,15 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
                          trimOutgroupFlanking=self.getOptionalPhaseAttrib("trimOutgroupFlanking", int, 100),
                          trimOutgroupDepth=self.getOptionalPhaseAttrib("trimOutgroupDepth", int, 1),
                          keepParalogs=self.getOptionalPhaseAttrib("keepParalogs", bool, False),
-                         gpuLastz=getOptionalAttrib(cafNode, "gpuLastz", bool, False)),
+                         gpuLastz=getOptionalAttrib(blastNode, "gpuLastz", bool, False)),
             list(map(itemgetter(0), ingroupsAndNewIDs)), list(map(itemgetter(1), ingroupsAndNewIDs)),
             list(map(itemgetter(0), outgroupsAndNewIDs)), list(map(itemgetter(1), outgroupsAndNewIDs))))
         
         # Alignment post processing to filter alignments
-        if getOptionalAttrib(cafNode, "runMapQFiltering", bool, False):
-            minimumMapQValue=getOptionalAttrib(cafNode, "minimumMapQValue", float, 0.0)
-            maxAlignmentsPerSite=getOptionalAttrib(cafNode, "maxAlignmentsPerSite", int, 1)
-            alpha=getOptionalAttrib(cafNode, "alpha", float, 1.0)
+        if getOptionalAttrib(blastNode, "runMapQFiltering", bool, False):
+            minimumMapQValue=getOptionalAttrib(blastNode, "minimumMapQValue", float, 0.0)
+            maxAlignmentsPerSite=getOptionalAttrib(blastNode, "maxAlignmentsPerSite", int, 1)
+            alpha=getOptionalAttrib(blastNode, "alpha", float, 1.0)
             fileStore.logToMaster("Running mapQ uniquifying with parameters, minimumMapQValue: %s, maxAlignmentsPerSite %s, alpha: %s" %
                                   (minimumMapQValue, maxAlignmentsPerSite, alpha))
             blastJob = blastJob.encapsulate() # Encapsulate to ensure that blast Job and all its successors

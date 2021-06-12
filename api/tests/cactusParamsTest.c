@@ -13,7 +13,7 @@ static void testCactusParams(CuTest *testCase) {
 
     CactusParams *p = cactusParams_load(params_file);
 
-    const char *c = cactusParams_get_string(p, 3, "caf", "divergence", "argName");
+    const char *c = cactusParams_get_string(p, 3, "blast", "divergence", "argName");
     CuAssertStrEquals(testCase, "lastzArguments", c);
 
     int64_t i = cactusParams_get_int(p, 2, "bar", "spanningTrees");
