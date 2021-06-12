@@ -143,8 +143,6 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
     //////////////////////////////////////////////
 
     // Fixed
-    int64_t chainLengthForBigFlower = 1000000;
-    int64_t longChain = 2;
     bool breakChainsAtReverseTandems = 1;
 
     // These are all variables used by the filter fns
@@ -432,10 +430,8 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
             stCaf_breakupComponentsGreedily(threadSet, maximumAdjacencyComponentSizeRatio);
         }
 
-
         //Finish up
-        stCaf_finish(flower, threadSet, chainLengthForBigFlower, longChain, minLengthForChromosome,
-                     proportionOfUnalignedBasesForNewChromosome);
+        stCaf_finish(flower, threadSet, minLengthForChromosome, proportionOfUnalignedBasesForNewChromosome);
         st_logDebug("Ran the cactus core script\n");
 
         //Cleanup

@@ -1,8 +1,6 @@
 <!-- This XML tree contains the parameters to cactus_progressive.py -->
 <!-- The distanceToAddToRootAlignment parameter is how much extra divergence distance to allow when aligning children of the root genome -->
 <cactusWorkflowConfig distanceToAddToRootAlignment="0.1">
-	<consolidated></consolidated>
-	<consolidated2></consolidated2>
 	<constants defaultMemory="mediumMemory" defaultOverlargeMemory="mediumMemory" defaultCpu="1" defaultOverlargeCpu="1">
 		<!-- These constants are used to control the amount of memory and cpu the different jobs in a batch are using. -->
   		<defines littleMemory="2000000000" mediumMemory="3500000000" bigMemory="5000000000"/>
@@ -64,9 +62,10 @@
 	<setup makeEventHeadersAlphaNumeric="0"/>
 	<!-- The caf tag contains parameters for the caf algorithm. -->
 	<!-- Increase the chunkSize in the caf tag to reduce the number of blast jobs approximately quadratically -->
+
 	<caf
 		chunkSize="25000000"
-		realign="1"
+		realign="0"
 		realignArguments="--gapGamma 0.0 --matchGamma 0.9 --diagonalExpansion 4 --splitMatrixBiggerThanThis 10 --constraintDiagonalTrim 0 --alignAmbiguityCharacters --splitIndelsLongerThanThis 99"
 		compressFiles="1"
 		overlapSize="10000"
@@ -74,34 +73,41 @@
 		identityRatio="3"
 		minimumDistance="0.01"
 		minimumSequenceLengthForBlast="30"
-		annealingRounds="128"
-		deannealingRounds="2 8"
-		blockTrim="5"
+		gpuLastz="false"
+		lastzMemory="littleMemory"
+		lastzDisk="mediumDisk"
+
+		runMapQFiltering="1"
+		minimumMapQValue="0.0"
+		maxAlignmentsPerSite="5"
+
+		trim="3"
+		blockTrim="2"
+		annealingRounds="64"
+		deannealingRounds="2 4 8"
 		minimumTreeCoverage="0.0"
-		trim="0 0"
 		minimumBlockDegree="2"
 		minimumIngroupDegree="1"
 		minimumOutgroupDegree="0"
         minimumNumberOfSpecies="1"
         alignmentFilter="filterSecondariesByMultipleSpecies"
+
 		maxAdjacencyComponentSizeRatio="50"
 		minLengthForChromosome="1000000"
 		proportionOfUnalignedBasesForNewChromosome="0.8"
 		maximumMedianSequenceLengthBetweenLinkedEnds="1000"
-		runMapQFiltering="1"
-		minimumMapQValue="0.0"
-		maxAlignmentsPerSite="5"
+
 		alpha="0.001"
-		lastzMemory="littleMemory"
-		lastzDisk="mediumDisk"
+
 		removeRecoverableChains="unequalNumberOfIngroupCopies"
 		maxRecoverableChainsIterations="5"
 		maxRecoverableChainLength="500000"
+
 		minimumBlockDegreeToCheckSupport="10"
 		minimumBlockHomologySupport="0.05"
 		phylogenyHomologyUnitType="chain"
 		phylogenyDistanceCorrectionMethod="jukesCantor"
-		gpuLastz="false"
+
 	        >
 		<!-- The following are parametrised to produce the same results as the default settings,
 		within a margin of 0.2% sensitivity, should be very fast for close genomes, these were tuned using the blast/blastParametersScript.py
@@ -115,84 +121,95 @@
 		 	five="--step=2 --ambiguous=iupac,100,100 --ydrop=3000"
 		 	default="--step=1 --ambiguous=iupac,100,100 --ydrop=3000"
 		 />
-		<CactusCafRecursion maxFlowerGroupSize="100000000"/>
-		<CactusCafWrapper minFlowerSize="1" maxFlowerGroupSize="25000000"/>
-		<CactusCafWrapperLarge2 overlargeMemory="bigMemory"/>
 	</caf>
-	<!-- The caf tag contains parameters for the bar algorithm. -->
-	<!-- The veryLargeEndSize parameter determines how big an end needs to be (in terms of bases in sequences incident with the end)
-	for the end to be aligned on its own. -->
-   <!-- The rescue parameter defines whether to run "bar rescue",
-        which makes single-degree blocks for anything that was
-        covered by an outgroup in the bar phase but is still
-        unaligned at the end of bar. This pushes those regions
-        into the ancestor, hopefully to get aligned to something
-        else eventually -->
-   <!-- bandingLimit is the maximum sequence size fed into the multiple aligner.  Sequences longer than this are trimmed accordingly -->
-   <!-- partialOrderAlignment toggles between cPecan and abpoa for the core multiple alignment algorithm.  abpoa is much faster but not as reliable for diverged sequences -->
-   <!-- partialOrderAlignmentWindow a sliding window approach (with hardcoded 50% overlap) is used to perform abpoa alignments.  memory is quadratic in this.  it is applied after bandingLimit -->
-   <!-- partialOrderAlignmentMaskFilter trim input sequences as soon as more than this many soft or hard masked bases are encountered (-1=disabled) -->
-   <!-- partialOrderAlignmentBand abpoa adaptive band size is <partialOrderAlignmentBand> + <partialOrderAlignmentBandFraction>*<Length>.  Negative value here disables adaptive banding -->
-   <!-- partialOrderAlignmentBandFraction abpoa adaptibe band second parameter (see above) -->
-   <!-- partialOrderAlignmentSubMatrix (space-separated) list of 25 scores corresponding to the 5x5 ACGTN substitution matrix." -->
-   <!-- partialOrderAlignmentGapOpenPenalty1 abpoa gap open penalty (linear gap if 0) -->
-   <!-- partialOrderAlignmentGapExtensionPenalty1 abpoa gap extension penalty -->
-   <!-- partialOrderAlignmentGapOpenPenalty2 abpoa second gap open penalty (convex mode takes the minimum of both gap models, 0 disables convex) -->
-   <!-- partialOrderAlignmentGapExtensionPenalty abpoa second gap extension penalty (convex mode takes the minimum of both gap models) -->
-   <!-- partialOrderAlignmentDisableSeeding abpoa disable minimizer seeding. toggling this on will slightly increase accuracy at the cost of speed -->
-   <!-- partialOrderAlignmentMinimizerK abpoa kmer size for minimizer seeding. -->
-   <!-- partialOrderAlignmentMinimizerW abpoa window size for minimizer seeding. -->
-   <!-- partialOrderAlignmentMinimizerMinW abpoa minimum window size. -->
-   <!-- partialOrderAlignmentProgressiveMode= use guide tree from jaccard distance matrix to determine poa order -->
+
+	<!-- The bar tag contains parameters for the bar algorithm. -->
+	<!-- runBar Toggle the bar stage on or off. Turned off you get a sparse alignment just using the CAF phase-->
+	<!-- bandingLimit is the maximum sequence size fed into the multiple aligner.  Sequences longer than this are trimmed accordingly -->
+    <!-- partialOrderAlignment toggles between cPecan and abpoa for the core multiple alignment algorithm.
+    abpoa is much faster but not as reliable for diverged sequences -->
+	<!-- minimumBlockDegree The minimum number of sequences to form a block in the ancestor -->
+	<!-- minimumIngroupDegree The minimum number ingroup sequences to form a block in the ancestor -->
+	<!-- minimumOutgroupDegree The minimum number of outgroup sequences to form a block in the ancestor -->
+	<!-- minimumNumberOfSpecies The minimum of number of different species for an alignment block to be kept -->
 	<bar
 		runBar="1"
-		spanningTrees="5"
-		gapGamma="0.0"
-		matchGamma="0.2"
-		useBanding="1"
 		bandingLimit="1000000"
-		splitMatrixBiggerThanThis="3000"
-        anchorMatrixBiggerThanThis="500"
-        repeatMaskMatrixBiggerThanThis="500"
-		diagonalExpansion="20"
-		constraintDiagonalTrim="14"
+		partialOrderAlignment="1"
 		minimumBlockDegree="2"
 		minimumIngroupDegree="1"
 		minimumOutgroupDegree="0"
 		minimumNumberOfSpecies="1"
-		alignAmbiguityCharacters="1"
-		largeEndSize="5000"
-		veryLargeEndSize="2000000"
-		useProgressiveMerging="1"
-		pruneOutStubAlignments="1"
-		rescue="0"
-		minimumSizeToRescue="100"
-		minimumCoverageToRescue="0.5"
-		partialOrderAlignment="1"
-		partialOrderAlignmentWindow="10000"
-		partialOrderAlignmentMaskFilter="-1"
-		partialOrderAlignmentBandConstant="300"
-		partialOrderAlignmentBandFraction="0.025"
-		partialOrderAlignmentSubMatrix="91 -114 -31 -123 0 -114 100 -125 -31 0 -31 -125 100 -114 0 -123 -31 -114 91 0 0 0 0 0 0"
-		partialOrderAlignmentGapOpenPenalty1="400"
-		partialOrderAlignmentGapExtensionPenalty1="30"
-		partialOrderAlignmentGapOpenPenalty2="1200"
-		partialOrderAlignmentGapExtensionPenalty2="1"
-		partialOrderAlignmentDisableSeeding="0"
-		partialOrderAlignmentMinimizerK="19"
-		partialOrderAlignmentMinimizerW="10"
-		partialOrderAlignmentMinimizerMinW="50"
-		partialOrderAlignmentProgressiveMode="0"
-		useMumAnchors="1"
-		recursiveMums="1"
 	>
-		<CactusBarRecursion maxFlowerGroupSize="100000000"/>
-		<!-- The maxFlowerGroupSize in cactusBarWrapper determines how many bases to allow in one "small" job which will be run using the "littleMemory" -->
-		<CactusBarWrapper maxFlowerGroupSize="2000000" memory="littleMemory"/>
-		<!-- The maxFlowerGroupSize in cactusBarWrapperLarge determines how many of each large broken up to allow in one "small" job which will be run using the "littleMemory" -->
-		<CactusBarWrapperLarge maxFlowerGroupSize="2000000"/>
-		<CactusBarEndAlignerWrapper memory="littleMemory"/>
+		<!-- Parameters for using cPecan to generate MSAs. -->
+		<!-- spanningTrees The number of spanning trees to construct in choosing which pairwise alignments to include
+		 in creating the MSA -->
+		<!-- gapGamma The weight to put upon indel probabilities in forming the MSA -->
+		<!-- matchGamma The weight to put upon match probabilities in forming the MSA -->
+		<!-- useBanding Use banded algnment in constructing the pairwise alignments -->
+		<!-- splitMatrixBiggerThanThis Split the dynamic programming (DP) matrix into two smaller matrices around matrices
+		with an area larger than splitMatrixBiggerThanThis squared, so reducing the total DP -->
+		<!-- anchorMatrixBiggerThanThis Search for anchors within DP matrices with an area of
+		anchorMatrixBiggerThanThis squared or larger -->
+		<!-- repeatMaskMatrixBiggerThanThis  -->
+		<!-- diagonalExpansion Expand the DP around anchors by this many diagonal coordinates. -->
+		<!-- constraintDiagonalTrim Trim anchors at their ends by this many bases. -->
+		<!-- alignAmbiguityCharacters Align together Ns or other wildcards. -->
+		<!-- useProgressiveMerging  Progressively merge together pairwise alignments to form MSA, otherwise use a greedy, poset
+		method which may be more accurate but which is generally slower for larger numbers of sequences -->
+		<!-- pruneOutStubAlignments  -->
+		<!-- useMumAnchors  Use maximal unique matches to create alignment anchors, otherwise call out to Lastz-->
+		<!-- recursiveMums  If using MUM anchors, recursively search for anchors in gaps. -->
+		<pecan
+			spanningTrees="5"
+			gapGamma="0.0"
+			matchGamma="0.2"
+			useBanding="1"
+			splitMatrixBiggerThanThis="3000"
+			anchorMatrixBiggerThanThis="500"
+			repeatMaskMatrixBiggerThanThis="500"
+			diagonalExpansion="20"
+			constraintDiagonalTrim="14"
+			alignAmbiguityCharacters="1"
+			useProgressiveMerging="1"
+			pruneOutStubAlignments="1"
+			useMumAnchors="1"
+			recursiveMums="1"
+		/>
+
+		<!-- Parameters for using abPOA to generate MSAs. -->
+		<!-- partialOrderAlignmentWindow a sliding window approach (with hardcoded 50% overlap) is used to perform abpoa alignments.  memory is quadratic in this.  it is applied after bandingLimit -->
+		<!-- partialOrderAlignmentMaskFilter trim input sequences as soon as more than this many soft or hard masked bases are encountered (-1=disabled) -->
+		<!-- partialOrderAlignmentBand abpoa adaptive band size is <partialOrderAlignmentBand> + <partialOrderAlignmentBandFraction>*<Length>.  Negative value here disables adaptive banding -->
+		<!-- partialOrderAlignmentBandFraction abpoa adaptibe band second parameter (see above) -->
+		<!-- partialOrderAlignmentSubMatrix (space-separated) list of 25 scores corresponding to the 5x5 ACGTN substitution matrix." -->
+		<!-- partialOrderAlignmentGapOpenPenalty1 abpoa gap open penalty (linear gap if 0) -->
+		<!-- partialOrderAlignmentGapExtensionPenalty1 abpoa gap extension penalty -->
+		<!-- partialOrderAlignmentGapOpenPenalty2 abpoa second gap open penalty (convex mode takes the minimum of both gap models, 0 disables convex) -->
+		<!-- partialOrderAlignmentGapExtensionPenalty abpoa second gap extension penalty (convex mode takes the minimum of both gap models) -->
+		<!-- partialOrderAlignmentDisableSeeding abpoa disable minimizer seeding. toggling this on will slightly increase accuracy at the cost of speed -->
+		<!-- partialOrderAlignmentMinimizerK abpoa kmer size for minimizer seeding. -->
+		<!-- partialOrderAlignmentMinimizerW abpoa window size for minimizer seeding. -->
+		<!-- partialOrderAlignmentMinimizerMinW abpoa minimum window size. -->
+		<!-- partialOrderAlignmentProgressiveMode= use guide tree from jaccard distance matrix to determine poa order -->
+		<poa
+			partialOrderAlignmentWindow="10000"
+			partialOrderAlignmentMaskFilter="-1"
+			partialOrderAlignmentBandConstant="300"
+			partialOrderAlignmentBandFraction="0.025"
+			partialOrderAlignmentSubMatrix="91 -114 -61 -123 0 -114 100 -125 -61 0 -31 -125 100 -114 0 -123 -61 -114 91 0 0 0 0 0 0"
+			partialOrderAlignmentGapOpenPenalty1="400"
+			partialOrderAlignmentGapExtensionPenalty1="30"
+			partialOrderAlignmentGapOpenPenalty2="1200"
+			partialOrderAlignmentGapExtensionPenalty2="1"
+			partialOrderAlignmentDisableSeeding="0"
+			partialOrderAlignmentMinimizerK="19"
+			partialOrderAlignmentMinimizerW="10"
+			partialOrderAlignmentMinimizerMinW="50"
+			partialOrderAlignmentProgressiveMode="0"
+		/>
 	</bar>
+
 	<!-- The reference tag provides parameters to cactus_reference, a method used to construct a reference genome for a given cactus database. -->
 	<!-- numberOfNs is the number of Ns to insert into an ancestral sequence when an adjacency is uncertain, think of its as the Ns in a scaffold gap -->
 	<!-- minNumberOfSequencesToSupportAdjacency is the number of sequences needed to bridge an adjacency -->
@@ -212,11 +229,6 @@
 		minNumberOfSequencesToSupportAdjacency="1"
 		makeScaffolds="1"
 	>
-		<CactusReferenceRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="2000000"/>
-	 	<CactusReferenceWrapper/>
-	 	<CactusSetReferenceCoordinatesUpWrapper/>
-	 	<CactusSetReferenceCoordinatesDownRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="2000000"/>
-	 	<CactusSetReferenceCoordinatesDownWrapper/>
 	</reference>
 	<!-- The check tag for debugging -->
 	<check
@@ -228,8 +240,6 @@
 		buildHal="1"
 		buildFasta="1"
 	>
-		<CactusHalGeneratorRecursion maxFlowerGroupSize="2000000"/>
-		<CactusHalGeneratorUpWrapper/>
 	</hal>
 	<!-- cactus-graphmap options -->
 	<!-- assemblyName: special name of "virtual" minigraph assembly, which is just the list of sequences from the graph. -->
@@ -303,11 +313,7 @@
 			max_parallel_subtrees="50000"
 	 	/>
   	</multi_cactus>
-    <ProgressiveNext/>
-    <ProgressiveUp/>
-    <ProgressiveDown/>
-    <ProgressiveOut/>
-    <RunCactusPreprocessorThenProgressiveDown/>
-    <RunCactusPreprocessorThenProgressiveDown2/>
     <exportHal disk="2000000000"/>
+	<consolidated></consolidated>
+	<consolidated2></consolidated2>
 </cactusWorkflowConfig>
