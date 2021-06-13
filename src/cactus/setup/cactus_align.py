@@ -361,27 +361,30 @@ def make_align_job(options, toil):
     configNode = ET.parse(project.getConfigPath()).getroot()
     configWrapper = ConfigWrapper(configNode)
     configWrapper.substituteAllPredefinedConstantsWithLiterals()
+    cafNode = findRequiredNode(configWrapper.xmlRoot, "caf")
+    barNode = findRequiredNode(configWrapper.xmlRoot, "bar")
+    poaNode = findRequiredNode(barNode, "poa")
 
     if options.singleCopySpecies:
-        findRequiredNode(configWrapper.xmlRoot, "caf").attrib["alignmentFilter"] = "singleCopyEvent:{}".format(options.singleCopySpecies)
+        cafNode.attrib["alignmentFilter"] = "singleCopyEvent:{}".format(options.singleCopySpecies)
 
     if options.barMaskFilter:
-        findRequiredNode(configWrapper.xmlRoot, "bar").attrib["partialOrderAlignmentMaskFilter"] = str(options.barMaskFilter)
+        poaNode.attrib["partialOrderAlignmentMaskFilter"] = str(options.barMaskFilter)
 
     if options.pangenome:
         # turn off the megablock filter as it ruins non-all-to-all alignments
-        findRequiredNode(configWrapper.xmlRoot, "caf").attrib["minimumBlockHomologySupport"] = "0"
-        findRequiredNode(configWrapper.xmlRoot, "caf").attrib["minimumBlockDegreeToCheckSupport"] = "9999999999"
+        cafNode.attrib["minimumBlockHomologySupport"] = "0"
+        cafNode.attrib["minimumBlockDegreeToCheckSupport"] = "9999999999"
         # turn off mapq filtering
-        findRequiredNode(configWrapper.xmlRoot, "caf").attrib["runMapQFiltering"] = "0"
+        cafNode.attrib["runMapQFiltering"] = "0"
         # more iterations here helps quite a bit to reduce underalignment
-        findRequiredNode(configWrapper.xmlRoot, "caf").attrib["maxRecoverableChainsIterations"] = "50"                
+        cafNode.attrib["maxRecoverableChainsIterations"] = "50"                
         # turn down minimum block degree to get a fat ancestor
-        findRequiredNode(configWrapper.xmlRoot, "bar").attrib["minimumBlockDegree"] = "1"
+        barNode.attrib["minimumBlockDegree"] = "1"
         # turn on POA
-        findRequiredNode(configWrapper.xmlRoot, "bar").attrib["partialOrderAlignment"] = "1"
+        barNode.attrib["partialOrderAlignment"] = "1"
         # turn off POA seeding
-        findRequiredNode(configWrapper.xmlRoot, "bar").attrib["partialOrderAlignmentDisableSeeding"] = "1"
+        poaNode.attrib["partialOrderAlignmentDisableSeeding"] = "1"
         # save it
         if not options.batch:
             pg_file = options.outHal + ".pg-conf.xml"
