@@ -79,7 +79,7 @@ def main(toil_mode=False):
     parser.add_argument("--gpuType", default="nvidia-tesla-v100", help="GPU type (to set in WDL runtime parameters)")
     parser.add_argument("--gpuCount", default=1, help="GPU count (to set in WDL runtime parameters)")
     parser.add_argument("--nvidiaDriver", default="440.64.00", help="Nvidia driver version")
-    parser.add_argument("--gpuZone", default="us-central1-c", help="zone used for gpu task")
+    parser.add_argument("--gpuZone", default="us-central1-a", help="zone used for gpu task")
     parser.add_argument("--zone", default="us-west2-a", help="zone used for all but gpu tasks")
 
     if not toil_mode:
