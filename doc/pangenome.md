@@ -13,6 +13,12 @@ The Cactus Pangenome Pipeline adapts [Cactus](../README.md) to no longer rely on
 
 *This is a work in progress and is not yet published.* 
 
+### Additional Dependencies
+* [cactus-gfa-tools](https://github.com/ComparativeGenomicsToolkit/cactus-gfa-tools)
+* For `--outVG` in the `cactus-align` step:
+  - [hal2vg](https://github.com/ComparativeGenomicsToolkit/hal2vg)
+  - [vg](https://github.com/vgteam/vg)
+
 ## Overview
 
 The interface is very similar to the [default utilization of Cactus](../README.md), and is dependent on a [seqfile mapping genome names to fasta locations](seqFile-the-input-file).  The main difference here is that a tree need not be provided at the top of the seqfile.  If a tree is present, it must be a star tree (all leaves connected to one root).
@@ -23,6 +29,7 @@ The following two Cactus commands are run to produce an alignment and pangenome 
 
 1. `cactus-graphmap`: Align each input fasta sequence to the minigraph
 2. `cactus-align --pangenome --pafInput --outVG`: Run cactus in pangenome mode to produce a HAL alignment and vg graph from the minigraph alignments.
+Note the [additional dependencies](#Additional-Dependencies) when using `--outVG`.
 
 The pipeline can be run without the minigraph GFA by using `cactus-refmap` (which will require identifying one of the inputs as the reference) instead of `cactus-graphmap`, but this will at some cost to sensitivity.
 
