@@ -18,7 +18,7 @@ from base64 import b64encode
 
 from toil.lib.bioio import getTempFile
 
-from toil.lib.bioio import setLoggingFromOptions
+from toil.statsAndLogging import set_logging_from_options
 from toil.lib.threading import cpu_count
 
 from cactus.shared.common import getOptionalAttrib
@@ -378,7 +378,7 @@ def main():
     options = parser.parse_args()
 
     setupBinaries(options)
-    setLoggingFromOptions(options)
+    set_logging_from_options(options)
     enableDumpStack()
 
     # Try to juggle --maxCores and --consCores to give some reasonable defaults where possible

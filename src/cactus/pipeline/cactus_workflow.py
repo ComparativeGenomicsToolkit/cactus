@@ -21,8 +21,8 @@ from operator import itemgetter
 from sonLib.bioio import newickTreeParser
 
 from toil.lib.bioio import getTempFile
-from toil.lib.bioio import logger
-from toil.lib.bioio import setLoggingFromOptions
+from toil.statsAndLogging import logger
+from toil.statsAndLogging import set_logging_from_options
 from toil.lib.bioio import getLogLevelString
 from sonLib.bioio import catFiles
 
@@ -553,7 +553,7 @@ def runCactusWorkflow(args):
 
     options = parser.parse_args(args)
     options.disableCaching = True
-    setLoggingFromOptions(options)
+    set_logging_from_options(options)
 
     experimentWrapper = ExperimentWrapper(ET.parse(options.experimentFile).getroot())
     with Toil(options) as toil:

@@ -13,7 +13,7 @@ import copy
 from argparse import ArgumentParser
 import xml.etree.ElementTree as ET
 
-from toil.lib.bioio import logger
+from toil.statsAndLogging import logger
 
 from sonLib.bioio import getTempDirectory
 from toil.common import Toil
@@ -31,7 +31,7 @@ from cactus.shared.common import setupBinaries, importSingularityImage
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import unzip_gzs
 from cactus.shared.common import zip_gzs
-from toil.lib.bioio import setLoggingFromOptions
+from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
 
 from cactus.shared.common import cactus_override_toil_options
@@ -429,7 +429,7 @@ def main():
 
     options = parser.parse_args()
     setupBinaries(options)
-    setLoggingFromOptions(options)
+    set_logging_from_options(options)
     enableDumpStack()
 
     # Mess with some toil options to create useful defaults.

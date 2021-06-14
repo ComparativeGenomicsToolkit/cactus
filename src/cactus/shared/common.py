@@ -34,7 +34,7 @@ except:
 from urllib.parse import urlparse
 from datetime import datetime
 
-from toil.lib.bioio import logger
+from toil.statsAndLogging import logger
 from toil.lib.bioio import system
 from toil.lib.bioio import getLogLevelString
 from toil.common import Toil
