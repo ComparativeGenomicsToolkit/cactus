@@ -30,6 +30,8 @@ While lastz preprocessing with `cactus-preprocess` is strongly recommended for t
 
 `cactus-align` does not yet scale to whole human genomes, but this can be worked around by decomposing into chromosomes as [described in the example below](hprc-graph-construction).
 
+**Important**: If you built from source, you must run `build-tools/downloadPangenomeTools` in order to install the extra binary dependencies required for the pangenome pipeline.
+
 ## Evolver Simulation Example
 
 This is a very small example along the same lines as Cactus's "evolverMammals" test.  Begin by constructing the minigraph:
@@ -65,7 +67,7 @@ Make a node on AWS with `toil launch-cluster --leaderNodeType t2.medium --leader
 
 ### Preprocessing (about 7 hours)
 
-In order to limit spurious alignments and graph complexity in difficult regions, it is recommended to mask these regions out from the get-go.  In an abundance of caution, we use two methods to detect these regions.  First, align the sequences to create a PAF
+In order to limit spurious alignments and graph complexity in difficult regions, it is recommended to mask these regions out from the get-go.  In an abundance of caution, we use two methods to detect these regions.  First, align the sequences to create a PAF.
 
 ```
 cactus-graphmap <jobstore> seqfile.txt <minigraph GFA> s3://<bucket>/GRCh38-freeze1-orig.paf --realTimeLogging --outputFasta s3://<bucket>/GRCh38-freeze1.gfa.fa --logFile graphmap-1.log --batchSystem mesos --provisioner aws --nodeTypes r3.8xlarge:0.7 --maxNodes 20 --defaultPreemptable --betaInertia 0 --targetTime 1 
