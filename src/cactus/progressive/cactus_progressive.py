@@ -196,7 +196,7 @@ class ProgressiveUp(RoundedJob):
             workFlowArgs.intermediateResultsUrl = self.options.intermediateResultsUrl + '-' + self.event
 
         # Use the trimming strategy to blast ingroups vs outgroups.
-        finalExpWrapper = self.addChild(CactusTrimmingBlastPhase(cactusWorkflowArguments=workFlowArgs, phaseName="trimBlast")).rv()
+        finalExpWrapper = self.addChild(CactusTrimmingBlastPhase(cactusWorkflowArguments=workFlowArgs, phaseName="blast")).rv()
         logger.info("Going to create alignments and define the cactus tree")
 
         return finalExpWrapper
