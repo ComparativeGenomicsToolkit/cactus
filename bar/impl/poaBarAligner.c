@@ -331,9 +331,6 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
                                       abpoa_para_t *poa_parameters) {
 
     assert(seq_no > 0);
-
-    // abpoa can write to these, so we make a copy to be safe
-    abpoa_para_t *abpt = copy_abpoa_params(poa_parameters);
         
     // we overlap the sliding window, and use the trimming logic to find the best cut point between consecutive windows
     // todo: cli-facing parameter
@@ -358,13 +355,6 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
         bseqs[i] = (uint8_t*)st_malloc(sizeof(uint8_t) * row_size);
         bases_remaining += seq_lens[i];
     }
-
-    // initialize variables
-    abpoa_t *ab = abpoa_init();
-
-    // finalize the parameters
-    abpoa_post_set_para(abpt);
-
      
     // collect our windowed outputs here, to be stiched at the end. 
     stList* msa_windows = stList_construct3(0, (void(*)(void *)) msa_destruct);
@@ -421,10 +411,18 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
             }
         }
 
+        // init abpoa
+        abpoa_t *ab = abpoa_init();
+        abpoa_para_t *abpt = copy_abpoa_params(poa_parameters);
+        abpoa_post_set_para(abpt);
+        
         // perform abpoa-msa
-        ab->abs->n_seq = 0; // To re-use ab, n_seq needs to be set as 0        
         abpoa_msa(ab, abpt, msa->seq_no, NULL, msa->seq_lens, bseqs, NULL, NULL, NULL, NULL, NULL,
                   &(msa->msa_seq), &(msa->column_no));
+
+        // free abpoa
+        abpoa_free(ab);
+        abpoa_free_para(abpt);
 
         // mask out empty sequences that were phonied in as Ns above
         for (int64_t i = 0; i < msa->seq_no && emptyCount > 0; ++i) {
@@ -488,11 +486,6 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
         // sanity check        
         assert(prev_bases_remaining > bases_remaining && bases_remaining >= 0);
 
-        if (bases_remaining > 0) {
-            // reset graph before re-use
-            abpoa_reset_graph(ab, abpt, msa->seq_lens[0]); 
-        }
-
         prev_msa = msa;
         
         //used only for sanity check
@@ -543,9 +536,6 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
     free(empty_seqs);
     free(row_overlaps);
     stList_destruct(msa_windows);
-
-    abpoa_free(ab);
-    abpoa_free_para(abpt);
 
     return output_msa;
 }
