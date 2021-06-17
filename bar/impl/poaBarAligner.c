@@ -486,11 +486,6 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
         // sanity check        
         assert(prev_bases_remaining > bases_remaining && bases_remaining >= 0);
 
-        if (bases_remaining > 0) {
-            // reset graph before re-use
-            abpoa_reset_graph(ab, abpt, msa->seq_lens[0]); 
-        }
-
         prev_msa = msa;
         
         //used only for sanity check
