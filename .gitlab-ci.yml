@@ -26,7 +26,18 @@ test-job:
     - virtualenv -p python3 venv
     - source venv/bin/activate
     - pip install -r toil-requirement.txt
-    - build-tools/downloadPangenomeTools
+    - pip install -U .
+    # these are the old travis tests, followed by its docker push
+    - git clone https://github.com/ComparativeGenomicsToolkit/cactusTestData
+    - export ASAN_OPTIONS="detect_leaks=0"
+    - CGL_DEBUG=ultra make -j 8
+    - CACTUS_BINARIES_MODE=local SON_TRACE_DATASETS=$(pwd)/cactusTestData CACTUS_TEST_CHOICE=normal make test
+    - make clean
+    - make docker
+    # todo: should we check some kind of gitlab state before doing this?  I think current logic pushes every run....
+    - docker login --username $QUAY_USERNAME --password $QUAY_PASSWORD quay.io
+    - make push_only
+    - numcpu=8 build-tools/downloadPangenomeTools
     - pip install -U .	 
     - make -j 8 evolver_test
   artifacts:
