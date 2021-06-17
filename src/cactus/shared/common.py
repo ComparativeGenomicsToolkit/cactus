@@ -192,7 +192,7 @@ def runCactusConsolidated(seqMap, newickTreeString, cactusParams,
 
     #print("Command to run\n", " ".join(["cactus_consolidated"] + args))
 
-    masterMessages = cactus_call(check_output=True, returnStdErr=True, realtimeStderr=True,
+    masterMessages = cactus_call(check_output=True, returnStdErr=True, realtimeStderrPrefix='cactus_consolidated({})'.format(referenceEvent),
                                  parameters=["cactus_consolidated"] + args)[1] # Get just the standard error output
 
     logger.info("Ran cactus consolidated okay")
@@ -709,7 +709,7 @@ def cactus_call(tool=None,
                 features=None,
                 fileStore=None,
                 returnStdErr=False,
-                realtimeStderr=False):
+                realtimeStderrPrefix=None):
     mode = os.environ.get("CACTUS_BINARIES_MODE", "docker")
     if dockstore is None:
         dockstore = getDockerOrg()
@@ -779,7 +779,7 @@ def cactus_call(tool=None,
 
     # optionally pipe stderr (but only if realtime logging enabled)
     # note the check below if realtime logging is enabled is rather hacky
-    if realtimeStderr and RealtimeLogger.getLogger().level < logging.CRITICAL:
+    if realtimeStderrPrefix and RealtimeLogger.getLogger().level < logging.CRITICAL:
         # Make our pipe
         rfd, wfd = os.pipe()
         rfile = os.fdopen(rfd, 'rb', 0)
@@ -792,7 +792,7 @@ def cactus_call(tool=None,
                 data = rfile.readline()
                 if not data:
                     break
-                RealtimeLogger.info('{}: {}'.format(parameters[0], data.strip().decode()))
+                RealtimeLogger.info('{}: {}'.format(realtimeStderrPrefix, data.strip().decode()))
             os._exit(0)
         else:
             assert pid > 0
