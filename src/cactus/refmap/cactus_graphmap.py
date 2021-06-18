@@ -35,8 +35,8 @@ from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from toil.job import Job
 from toil.common import Toil
-from toil.lib.bioio import logger
-from toil.lib.bioio import setLoggingFromOptions
+from toil.statsAndLogging import logger
+from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
 from toil.lib.threading import cpu_count
 
@@ -76,7 +76,7 @@ def main():
     options = parser.parse_args()
 
     setupBinaries(options)
-    setLoggingFromOptions(options)
+    set_logging_from_options(options)
     enableDumpStack()
 
     if options.outputGAFDir:

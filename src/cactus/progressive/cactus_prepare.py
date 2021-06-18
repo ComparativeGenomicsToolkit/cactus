@@ -36,8 +36,8 @@ from cactus.shared.common import write_s3, has_s3, get_aws_region
 
 from toil.job import Job
 from toil.common import Toil
-from toil.lib.bioio import logger
-from toil.lib.bioio import setLoggingFromOptions
+from toil.statsAndLogging import logger
+from toil.statsAndLogging import set_logging_from_options
 from toil.lib.threading import cpu_count
 from toil.realtimeLogger import RealtimeLogger
 from toil.lib.humanize import human2bytes, bytes2human
@@ -79,7 +79,7 @@ def main(toil_mode=False):
     parser.add_argument("--gpuType", default="nvidia-tesla-v100", help="GPU type (to set in WDL runtime parameters)")
     parser.add_argument("--gpuCount", default=1, help="GPU count (to set in WDL runtime parameters)")
     parser.add_argument("--nvidiaDriver", default="440.64.00", help="Nvidia driver version")
-    parser.add_argument("--gpuZone", default="us-central1-c", help="zone used for gpu task")
+    parser.add_argument("--gpuZone", default="us-central1-a", help="zone used for gpu task")
     parser.add_argument("--zone", default="us-west2-a", help="zone used for all but gpu tasks")
 
     if not toil_mode:

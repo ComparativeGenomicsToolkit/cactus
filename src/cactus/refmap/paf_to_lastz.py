@@ -2,7 +2,7 @@ import os
 from toil.common import Toil
 from toil.job import Job
 from cactus.shared.common import cactus_call
-from toil.lib.bioio import logger
+from toil.statsAndLogging import logger
 from toil.realtimeLogger import RealtimeLogger
 
 def paf_to_lastz(job, paf_file, sort_secondaries=True, mask_bed_id=None):

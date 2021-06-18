@@ -8,7 +8,7 @@ sequences. Uses the toil framework to parallelise the blasts.
 """
 import os
 import shutil
-from toil.lib.bioio import logger
+from toil.statsAndLogging import logger
 from toil.lib.bioio import system
 from toil.realtimeLogger import RealtimeLogger
 from toil.lib.threading import cpu_count

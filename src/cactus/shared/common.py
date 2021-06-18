@@ -34,7 +34,7 @@ except:
 from urllib.parse import urlparse
 from datetime import datetime
 
-from toil.lib.bioio import logger
+from toil.statsAndLogging import logger
 from toil.lib.bioio import system
 from toil.lib.bioio import getLogLevelString
 from toil.common import Toil
@@ -381,7 +381,7 @@ def getDockerImage():
 
 def getDockerRelease(gpu=False):
     """Get the most recent docker release."""
-    r = "quay.io/comparative-genomics-toolkit/cactus:v1.3.0"
+    r = "quay.io/comparative-genomics-toolkit/cactus:v2.0.0"
     if gpu:
         r += "-gpu"
     return r

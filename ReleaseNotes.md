@@ -1,5 +1,17 @@
-# Release ???
+# Release 2.0.0
 
+This release includes a major update to the Cactus workflow which should dramatically improve both speed and robustness. Previously, Cactus used a multiprocess architecture for all cactus graph operations (everything after the "blast" phase).  Each process was run in its own Toil job, and they would communicate via the CactusDisk database that ran as its own separate service process (ktserver by default). Writing to and from the database was often a bottleneck, and it would fail sporadically on larger inputs with frustrating "network errors". This has all now been changed to run as a single multithreaded executable, `cactus_consolidated`.  Apart from saving on database I/O, `cactus_consolidated` now uses the much-faster, SIMD-accelerated abPOA by default instead of cPecan for performing multiple sequence alignments within the BAR phase.
+
+Cactus was originally designed for a heterogeneous compute environment where a handful of large memory machines ran a small number of jobs, and much of the compute could be farmed off to a large number of smaller machines.  While lastz jobs from the "preprocess" and "blast" phases (or `cactus-preprocess` and `cactus-blast`) can still be farmed out to smaller machines, the rest of cactus (`cactus-align`) can now only be run on more powerful systems.  The exact requirements depend as usual on genome size and divergence, but roughly 64 cores / 512G RAM are required for distant mammals. 
+
+This release also contains several fixes and usability improvements for the pangenome pipeline, and finally includes `halPhyloP`.
+
+Changlelog:
+- Fold all post-blast processing into single binary executable,`cactus_consolidated`
+- New option, `--consCores`, to control the number of threads for each `cactus_consolidated` process.
+- Cactus database (ktserver) no longer used.
+- abPOA now default base aligner, replacing cPecan
+- cPecan updated to include multithreading support via MUM anchors (as opposed to spawning lastz processes), and can be toggled on in the config
 - Fix bug in how `cactus-prepare` transmits Toil size parameters
 - `cactus-prepare-join` tool added to combine and index chromosome output from `cactus-align-batch`
 - `cactus-graphmap-split` fixes

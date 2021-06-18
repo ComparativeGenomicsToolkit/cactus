@@ -81,8 +81,8 @@
 		minimumMapQValue="0.0"
 		maxAlignmentsPerSite="5"
 
-		trim="3"
-		blockTrim="2"
+		trim="0 0"
+		blockTrim="8"
 		annealingRounds="64"
 		deannealingRounds="2 4 8"
 		minimumTreeCoverage="0.0"
