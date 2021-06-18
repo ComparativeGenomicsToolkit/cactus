@@ -847,7 +847,7 @@ def cactus_call(tool=None,
         if features:
             rt_message += ' (features={})'.format(features)
         rt_message += " in {} seconds".format(round(run_time, 4))
-        if time_v:            
+        if time_v and stderr:
             for line in stderr.split('\n'):
                 if 'Maximum resident set size (kbytes):' in line:
                     rt_message += ' and {} memory'.format(bytes2human(int(line.split()[-1]) * 1024))
