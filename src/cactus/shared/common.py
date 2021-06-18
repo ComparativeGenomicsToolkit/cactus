@@ -192,11 +192,11 @@ def runCactusConsolidated(seqMap, newickTreeString, cactusParams,
 
     #print("Command to run\n", " ".join(["cactus_consolidated"] + args))
 
-    masterMessages = cactus_call(check_output=True, returnStdErr=True,
+    masterMessages = cactus_call(check_output=True, returnStdErr=True, realtimeStderrPrefix='cactus_consolidated({})'.format(referenceEvent),
                                  parameters=["cactus_consolidated"] + args)[1] # Get just the standard error output
 
     logger.info("Ran cactus consolidated okay")
-    return [ i for i in masterMessages.split("\n") if i != '' ]
+    return [ i for i in masterMessages.split("\n") if i != '' ] if masterMessages else []
 
 def _fn(toilDir,
       logLevel=None, retryCount=0,
@@ -708,7 +708,8 @@ def cactus_call(tool=None,
                 job_name=None,
                 features=None,
                 fileStore=None,
-                returnStdErr=False):
+                returnStdErr=False,
+                realtimeStderrPrefix=None):
     mode = os.environ.get("CACTUS_BINARIES_MODE", "docker")
     if dockstore is None:
         dockstore = getDockerOrg()
@@ -775,10 +776,36 @@ def cactus_call(tool=None,
             shell = True
             call = ' '.join(shlex.quote(t) for t in call)
         call = '/usr/bin/time -v {}'.format(call)
+
+    # optionally pipe stderr (but only if realtime logging enabled)
+    # note the check below if realtime logging is enabled is rather hacky
+    if realtimeStderrPrefix and RealtimeLogger.getLogger().level < logging.CRITICAL:
+        # Make our pipe
+        rfd, wfd = os.pipe()
+        rfile = os.fdopen(rfd, 'rb', 0)
+        wfile = os.fdopen(wfd, 'wb', 0)
+        # Fork our child process (pid == 0) to catch stderr and log it
+        pid = os.fork()
+        if pid == 0:
+            wfile.close()
+            while 1:
+                data = rfile.readline()
+                if not data:
+                    break
+                RealtimeLogger.info('{}: {}'.format(realtimeStderrPrefix, data.strip().decode()))
+            os._exit(0)
+        else:
+            assert pid > 0
+            # main process carries on, but sending stderr to the pipe
+            rfile.close()
+            # note that only call_directly below actually does anything with errfile at the moment
+            errfile = wfile
+    else:
+        errfile = subprocess.PIPE
         
     process = subprocess.Popen(call, shell=shell, encoding="ascii",
                                stdin=stdinFileHandle, stdout=stdoutFileHandle,
-                               stderr=subprocess.PIPE,
+                               stderr=errfile,
                                bufsize=-1, cwd=work_dir)
 
     if server:
@@ -820,7 +847,7 @@ def cactus_call(tool=None,
         if features:
             rt_message += ' (features={})'.format(features)
         rt_message += " in {} seconds".format(round(run_time, 4))
-        if time_v:            
+        if time_v and stderr:
             for line in stderr.split('\n'):
                 if 'Maximum resident set size (kbytes):' in line:
                     rt_message += ' and {} memory'.format(bytes2human(int(line.split()[-1]) * 1024))
