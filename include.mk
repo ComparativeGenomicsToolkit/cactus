@@ -39,7 +39,10 @@ include ${sonLibRootDir}/include.mk
 CFLAGS += -UNDEBUG
 
 # Hack to include xml2
-CFLAGS+= -I/usr/include/libxml2
+ifeq (${CACTUS_LIBXML2_INCLUDE_PATH},)
+CACTUS_LIBXML2_INCLUDE_PATH = /usr/include/libxml2
+endif
+CFLAGS+= -I${CACTUS_LIBXML2_INCLUDE_PATH}
 
 ifndef TARGETOS
   TARGETOS := $(shell uname -s)
@@ -65,5 +68,6 @@ CPPFLAGS += ${inclDirs:%=-I${rootPath}/%} -I${LIBDIR} -I${rootPath}/include
 cactusLibs = ${LIBDIR}/stCaf.a ${LIBDIR}/stReference.a ${LIBDIR}/cactusBarLib.a ${LIBDIR}/cactusBlastAlignment.a ${LIBDIR}/cactusLib.a
 sonLibLibs = ${sonLibDir}/sonLib.a ${sonLibDir}/cuTest.a
 
-LDLIBS += ${cactusLibs} ${sonLibLibs} ${LIBS} -L${rootPath}/lib -Wl,-rpath,${rootPath}/lib -labpoa -lz -lbz2 -lpthread -lm -lstdc++ -lm -lxml2
+# note: the CACTUS_STATIC_LINK_FLAGS below can generally be empty -- it's used by the static builder script only
+LDLIBS += ${cactusLibs} ${sonLibLibs} ${LIBS} -L${rootPath}/lib -Wl,-rpath,${rootPath}/lib -labpoa -lz -lbz2 -lpthread -lm -lstdc++ -lm -lxml2 ${CACTUS_STATIC_LINK_FLAGS}
 LIBDEPENDS = ${sonLibDir}/sonLib.a ${sonLibDir}/cuTest.a
