@@ -1,10 +1,11 @@
 # Release 2.0.1   2021-06-19
 
-This a patch release that fixes an issue where the new `--consCores` option could not be used with `--maxCores` (Thanks @RenzoTale88).
+This a patch release that fixes an issue where the new `--consCores` option could not be used with `--maxCores` (Thanks @RenzoTale88).  It also reverts some last minute CAF parameter changes to something more tested (though known to be slow in some cases with large numbers of secondary alignments)
 
 Changelog:
 - Fix bug where `cactus` doesn't work when both `--maxCores` and `--consCores` are specified.
-- Static binaries script more portable. 
+- Static binaries script more portable.
+- Revert CAF trimming parameters to their previous defaults. 
 
 # Release 2.0.0   2021-06-18
 
