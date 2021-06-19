@@ -388,15 +388,15 @@ def main():
                 raise RuntimeError('Cactus requires --maxCores >= 1')
         if options.consCores is None:
             if options.maxCores is not None:
-                options.consCores = options.maxCores
+                options.consCores = int(options.maxCores)
             else:
                 options.consCores = cpu_count()
-        elif options.maxCores is not None and options.consCores < options.maxCores:
+        elif options.maxCores is not None and options.consCores > int(options.maxCores):
             raise RuntimeError('--consCores must be <= --maxCores')
     else:
         if not options.consCores:
             raise RuntimeError('--consCores required for non single_machine batch systems')
-    if options.maxCores is not None and options.consCores > options.maxCores:
+    if options.maxCores is not None and options.consCores > int(options.maxCores):
         raise RuntimeError('--consCores must be <= --maxCores')
 
     # Mess with some toil options to create useful defaults.
