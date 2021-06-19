@@ -1,4 +1,12 @@
-# Release 2.0.0
+# Release 2.0.1   2021-06-19
+
+This a patch release that fixes an issue where the new `--consCores` option could not be used with `--maxCores` (Thanks @RenzoTale88).
+
+Changelog:
+- Fix bug where `cactus` doesn't work when both `--maxCores` and `--consCores` are specified.
+- Static binaries script more portable. 
+
+# Release 2.0.0   2021-06-18
 
 This release includes a major update to the Cactus workflow which should dramatically improve both speed and robustness. Previously, Cactus used a multiprocess architecture for all cactus graph operations (everything after the "blast" phase).  Each process was run in its own Toil job, and they would communicate via the CactusDisk database that ran as its own separate service process (ktserver by default). Writing to and from the database was often a bottleneck, and it would fail sporadically on larger inputs with frustrating "network errors". This has all now been changed to run as a single multithreaded executable, `cactus_consolidated`.  Apart from saving on database I/O, `cactus_consolidated` now uses the much-faster, SIMD-accelerated abPOA by default instead of cPecan for performing multiple sequence alignments within the BAR phase.
 
