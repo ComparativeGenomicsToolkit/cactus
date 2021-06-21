@@ -11,11 +11,6 @@
 #include <stdio.h>
 #include <ctype.h>
 
-// FOR DEBUGGING ONLY: Specify directory where abpoa inputs get dumped
-//#define CACTUS_ABPOA_MSA_DUMP_DIR "/home/hickey/dev/cactus/dump"
-// FOR DEBUGGING ONLY: Run abpoa from command line instead of via API (only works with CACTUS_ABPOA_MSA_DUMP_DIR defined)
-//#define CACTUS_ABPOA_FROM_COMMAND_LINE
-
 // OpenMP
 //#if defined(_OPENMP)
 //#include <omp.h>
@@ -142,109 +137,6 @@ static uint8_t rc_table[6] = { 3, 2, 1, 0, 4, 5 };
 static inline uint8_t msa_to_rc(uint8_t n) {
     return rc_table[n];
 }
-
-#ifdef CACTUS_ABPOA_MSA_DUMP_DIR
-// dump the abpoa input to files, and return a command line for running abpoa on them
-char* dump_abpoa_input(Msa* msa, abpoa_para_t* abpt, uint8_t **bseqs, char* abpoa_input_path, char* abpoa_matrix_path,
-                       char* abpoa_command_path, char* abpoa_output_path) {
-    // dump the abpoa input sequences to a FASTA file
-    FILE* dump_file = fopen(abpoa_input_path, "w");
-    for (int64_t i = 0; i < msa->seq_no; ++i) {
-        int64_t seq_len = msa->seq_lens[i];            
-        char* buffer = (char*)malloc((seq_len + 1) * sizeof(char));
-        for (int64_t j = 0; j < seq_len; ++j) {
-            buffer[j] = msa_to_base(bseqs[i][j]);
-        }
-        buffer[msa->seq_lens[i]] = '\0';
-        fprintf(dump_file, ">%ld\n%s\n", i, buffer);
-        free(buffer);
-    }
-    fclose(dump_file);
-
-    // dump the abpoa input matrix to file
-    FILE* mat_file = fopen(abpoa_matrix_path, "w");
-    fprintf(mat_file, "\tA\tC\tG\tT\tN\n");
-    for (size_t i = 0; i < 5; ++i) {
-        fprintf(mat_file, "%c", "ACGTN"[i]);
-        for (size_t j = 0; j < 5; ++j) {
-            fprintf(mat_file, "\t%d", abpt->mat[i * 5 + j]);
-        }
-        fprintf(mat_file, "\n");
-    }
-    fclose(mat_file);
-
-    // make a command line
-    char* abpoa_command = st_malloc(4096 * sizeof(char));
-    sprintf(abpoa_command, "abpoa %s -O %d,%d -E %d,%d -b %d -f %lf -t %s -r 1 -m 0",
-            abpoa_input_path,
-            abpt->gap_open1,
-            abpt->gap_open2,
-            abpt->gap_ext1,
-            abpt->gap_ext2,
-            abpt->wb,
-            abpt->wf,
-            abpoa_matrix_path);
-    if (abpt->disable_seeding) {
-        strcat(abpoa_command, " -N");
-    } else {
-        char kw_opts[128];
-        sprintf(kw_opts, " -k %d -w %d -n %d", abpt->k, abpt->w, abpt->min_w);
-        strcat(abpoa_command, kw_opts);
-    }
-    strcat(abpoa_command, " > ");
-    strcat(abpoa_command, abpoa_output_path);
-
-    // dump the command line
-    FILE* cmd_file = fopen(abpoa_command_path, "w");
-    fprintf(cmd_file, "%s\n", abpoa_command);
-    fclose(cmd_file);
-
-    return abpoa_command;
-}
-#endif
-
-#ifdef CACTUS_ABPOA_FROM_COMMAND_LINE
-void abpoa_msa_from_command_line(char* abpoa_command_line, char* abpoa_output_path, uint8_t*** msa_seq, int* col_no) {
-    // run abpoa
-    st_system(abpoa_command_line);
-
-    // read the result (ascii alignment) back into memory
-    size_t n_rows = 0;
-    size_t n_cols = 0;
-    FILE* msa_file = fopen(abpoa_output_path, "r");
-    int64_t buf_size = 500000;
-    char* buf = st_malloc(buf_size * sizeof(char));
-    
-    while (benLine(&buf, &buf_size, msa_file) != -1) {
-        if (strlen(buf) && buf[0] != '>') {
-            ++n_rows;
-        }
-    }
-
-    *msa_seq = st_malloc(n_rows * sizeof(uint8_t*));
-    fclose(msa_file);
-    msa_file = fopen(abpoa_output_path, "r");
-    n_rows = 0;
-    while (benLine(&buf, &buf_size, msa_file) != -1) {
-        if (strlen(buf) && buf[0] != '>') {
-            if (n_cols == 0) {
-                n_cols = strlen(buf);
-            } else {
-                assert(n_cols == strlen(buf));
-            }
-            (*msa_seq)[n_rows] = st_malloc(n_cols * sizeof(uint8_t));
-            for (size_t i = 0; i < n_cols; ++i) {
-                (*msa_seq)[n_rows][i] = msa_to_byte(buf[i]);
-            }
-            ++n_rows;
-        }
-    }
-    fclose(msa_file);
-    *col_no = (int)n_cols;
-    
-    free(buf);
-}
-#endif
 
 void msa_destruct(Msa *msa) {
     for(int64_t i=0; i<msa->seq_no; i++) {
@@ -524,49 +416,9 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
         abpoa_para_t *abpt = copy_abpoa_params(poa_parameters);
         abpoa_post_set_para(abpt);
         
-#ifdef CACTUS_ABPOA_MSA_DUMP_DIR
-        // dump the input to file
-        char abpoa_input_path[1024], abpoa_matrix_path[1024], abpoa_command_path[1024], abpoa_output_path[1024];
-        sprintf(abpoa_input_path, "%s/ap_in_%ld.fa", CACTUS_ABPOA_MSA_DUMP_DIR, (int64_t)msa);
-        sprintf(abpoa_matrix_path, "%s.mat", abpoa_input_path);
-        sprintf(abpoa_command_path, "%s.cmd", abpoa_input_path);
-        sprintf(abpoa_output_path, "%s.out", abpoa_input_path);
-        char* abpoa_command_line = dump_abpoa_input(msa, abpt, bseqs,
-                                                    abpoa_input_path, abpoa_matrix_path, abpoa_command_path, abpoa_output_path);
-#endif
-
-#ifdef CACTUS_ABPOA_FROM_COMMAND_LINE
-        // run abpoa from the command line
-        abpoa_msa_from_command_line(abpoa_command_line, abpoa_output_path, &(msa->msa_seq), &(msa->column_no));
-
-        int test_cols = 0;
-        uint8_t** test_msa = NULL;
-        abpoa_msa(ab, abpt, msa->seq_no, NULL, msa->seq_lens, bseqs, NULL, NULL, NULL, NULL, NULL,
-                  &(test_msa), &(test_cols));
-
-        // sanity check to make sure we get the same output
-        assert(msa->column_no == test_cols);        
-        for (int i = 0; i < msa->seq_no; ++i) {
-          for (int j = 0; j < test_cols; ++j) {
-            assert(test_msa[i][j] == msa->msa_seq[i][j]);
-          }
-          free(test_msa[i]);
-        }
-        free(test_msa);
-#else
         // perform abpoa-msa
         abpoa_msa(ab, abpt, msa->seq_no, NULL, msa->seq_lens, bseqs, NULL, NULL, NULL, NULL, NULL,
                   &(msa->msa_seq), &(msa->column_no));
-#endif
-        
-#ifdef CACTUS_ABPOA_MSA_DUMP_DIR
-        // we got this far without crashing, so delete the dumped file (they can really pile up otherwise)
-        remove(abpoa_input_path);
-        remove(abpoa_matrix_path);
-        remove(abpoa_command_path);
-        remove(abpoa_output_path);
-        free(abpoa_command_line);
-#endif
 
         // free abpoa
         abpoa_free(ab);
