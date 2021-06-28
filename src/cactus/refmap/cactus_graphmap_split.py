@@ -465,9 +465,7 @@ def minimap_map(job, config, minimap_index_id, event, fa_id, fa_name):
         # add mapq filter used in mzgaf2paf
         cmd.append(['awk', '$12<{}'.format(min_mapq)])
 
-    cactus_call(parameters=[['minimap2', idx_path, fa_path, '-c', '-x', 'asm5'],
-                            ['awk', 'BEGIN {{OFS="\t"}} $1="id={}|"$1'.format(event)]],
-                outfile=paf_path)
+    cactus_call(parameters=cmd, outfile=paf_path)
 
     return job.fileStore.writeGlobalFile(paf_path)    
     
