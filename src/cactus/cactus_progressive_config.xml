@@ -40,7 +40,6 @@
 	<!-- minimumDistance A minimum for L (see above), so we don't filter out alignments with high identity. -->
 	<!-- gpuLastz Use segAlign instead of lastz -->
 	<!-- lastzMemory The memory to allocate for each blast job -->
-	<!-- lastzDisk The disk to allocate for each blast job -->
 	<!-- runMapQFiltering Filter alignments by score/mapQ, ranking alignments from highest mapQ/score to lowest -->
 	<!-- minimumMapQValue Minimum score/mapQ -->
 	<!-- maxAlignmentsPerSite Maximum alignments per site in performing filtering -->
@@ -56,7 +55,6 @@
 		   minimumDistance="0.01"
 		   gpuLastz="false"
 		   lastzMemory="littleMemory"
-		   lastzDisk="mediumDisk"
 		   runMapQFiltering="1"
 		   minimumMapQValue="0.0"
 		   maxAlignmentsPerSite="5">

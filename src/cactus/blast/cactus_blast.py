@@ -24,7 +24,7 @@ from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
 from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
-from cactus.pipeline.cactus_workflow import CactusTrimmingBlastPhase
+from cactus.pipeline.cactus_workflow import CactusBlastPhase
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
@@ -180,7 +180,7 @@ def runCactusBlastOnly(options):
 
             workFlowArgs = CactusWorkflowArguments(options, experimentFile=experimentFile, configNode=configNode, seqIDMap = project.inputSequenceIDMap)
 
-            outWorkFlowArgs = toil.start(CactusTrimmingBlastPhase(standAlone=True, cactusWorkflowArguments=workFlowArgs, phaseName="trimBlast"))
+            outWorkFlowArgs = toil.start(CactusBlastPhase(standAlone=True, cactusWorkflowArguments=workFlowArgs, phaseName="trimBlast"))
 
         # export the alignments
         toil.exportFile(outWorkFlowArgs.alignmentsID, makeURL(options.outputFile))
