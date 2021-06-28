@@ -457,7 +457,7 @@ def minimap_map(job, config, minimap_index_id, event, fa_id, fa_name):
 
     # call minimap2 and stick our unique identifiers on the output right away to be consistent
     # with cactus-graphmap's paf output
-    cmd = [['minimap2', idx_path, fa_path, '-c', '-x', 'asm5'],
+    cmd = [['minimap2', idx_path, fa_path, '-c', '-x', 'asm5', '--secondary=no'],
            ['awk', 'BEGIN {{OFS="\t"}} $1="id={}|"$1'.format(event)]]
     
     min_mapq = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minMAPQ")
