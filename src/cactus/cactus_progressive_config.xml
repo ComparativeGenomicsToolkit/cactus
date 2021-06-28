@@ -11,6 +11,7 @@
 	<!-- The preprocessor tags are used to modify/check the input sequences before alignment -->
 	<!-- The cutHeaders preprocess modifies fastsa sequence names to help them pass checkUniqueHeaders. -->
 	<!-- cutBefore: all characters up to and including the last occurrence of a character in this string are clipped out -->
+	<!-- cutBeforeOcc: (if specified and > 0) only consider the first maxOcc occurences of a character in cutBefore filter -->
 	<!-- cutAfter: all characters after and including the first occurrence of a character in this string are clipped out -->
 	<preprocessor memory="littleMemory" preprocessJob="cutHeaders" cutBefore="" cutAfter=" 	" active="1"/>
 	<!-- The first preprocessor tag checks that the first word of every fasta header is unique, as this is required for HAL. It throws errors if this is not the case -->

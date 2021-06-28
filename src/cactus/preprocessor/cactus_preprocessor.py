@@ -47,7 +47,7 @@ class PreprocessorOptions:
                  preprocessJob, checkAssemblyHub=None, lastzOptions=None, minPeriod=None,
                  gpuLastz=False, dnabrnnOpts=None,
                  dnabrnnAction=None, eventName=None, minLength=None,
-                 cutBefore=None, cutAfter=None, inputBedID=None):
+                 cutBefore=None, cutBeforeOcc=None, cutAfter=None, inputBedID=None):
         self.chunkSize = chunkSize
         self.memory = memory
         self.cpu = cpu
@@ -68,6 +68,7 @@ class PreprocessorOptions:
         self.eventName = eventName
         self.minLength = minLength        
         self.cutBefore = cutBefore
+        self.cutBeforeOcc = cutBeforeOcc
         self.cutAfter = cutAfter
         self.inputBedID = inputBedID
 
@@ -155,6 +156,7 @@ class PreprocessSequence(RoundedJob):
         elif self.prepOptions.preprocessJob == "cutHeaders":
             return CutHeadersJob(inChunkID,
                                  cutBefore=self.prepOptions.cutBefore,
+                                 cutBeforeOcc=self.prepOptions.cutBeforeOcc,
                                  cutAfter=self.prepOptions.cutAfter)
         elif self.prepOptions.preprocessJob == 'maskFile':
             return FileMaskingJob(inChunkID,
@@ -253,6 +255,7 @@ class BatchPreprocessor(RoundedJob):
                                               eventName = getOptionalAttrib(prepNode, "eventName", typeFn=str, default=None),
                                               minLength = getOptionalAttrib(prepNode, "minLength", typeFn=int, default=1),
                                               cutBefore = getOptionalAttrib(prepNode, "cutBefore", typeFn=str, default=None),
+                                              cutBeforeOcc = getOptionalAttrib(prepNode, "cutBeforeOcc", typeFn=int, default=None),
                                               cutAfter = getOptionalAttrib(prepNode, "cutAfter", typeFn=str, default=None),
                                               inputBedID = getOptionalAttrib(prepNode, "inputBedID", typeFn=str, default=None))
 
