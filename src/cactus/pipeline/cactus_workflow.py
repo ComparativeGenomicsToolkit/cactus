@@ -539,7 +539,7 @@ class AfterPreprocessing(RoundedJob):
             self.eW.setSequenceID(genome, preprocessedSeqID)
         fileStore.logToMaster("doTrimStrategy() = %s, outgroupEventNames = %s" % (self.cactusWorkflowArguments.configWrapper.getDoTrimStrategy(), self.cactusWorkflowArguments.outgroupEventNames))
         # Use the trimming strategy to blast ingroups vs outgroups.
-        self.addFollowOn(CactusBlastPhase(cactusWorkflowArguments=self.cactusWorkflowArguments, phaseName="trimBlast"))
+        self.addFollowOn(CactusBlastPhase(cactusWorkflowArguments=self.cactusWorkflowArguments, phaseName="blast"))
 
 def runCactusWorkflow(args):
     ##########################################

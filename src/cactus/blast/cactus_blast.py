@@ -180,7 +180,7 @@ def runCactusBlastOnly(options):
 
             workFlowArgs = CactusWorkflowArguments(options, experimentFile=experimentFile, configNode=configNode, seqIDMap = project.inputSequenceIDMap)
 
-            outWorkFlowArgs = toil.start(CactusBlastPhase(standAlone=True, cactusWorkflowArguments=workFlowArgs, phaseName="trimBlast"))
+            outWorkFlowArgs = toil.start(CactusBlastPhase(standAlone=True, cactusWorkflowArguments=workFlowArgs, phaseName="blast"))
 
         # export the alignments
         toil.exportFile(outWorkFlowArgs.alignmentsID, makeURL(options.outputFile))
