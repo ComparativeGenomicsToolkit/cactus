@@ -187,7 +187,7 @@ void test_make_flower_alignment_poa(CuTest *testCase) {
                 cap = cap_getReverse(cap);
             }
             int length;
-            char *s = get_adjacency_string(cap, &length);
+            char *s = get_adjacency_string(cap, &length, 1);
             Cap *adjacentCap = cap_getAdjacency(cap);
             fprintf(stderr, "For end: %i, cap: %i (% " PRIi64 " to %" PRIi64 ") we have string: %s\n", (int)i, (int)j, cap_getName(cap), cap_getName(adjacentCap), s);
             j++;

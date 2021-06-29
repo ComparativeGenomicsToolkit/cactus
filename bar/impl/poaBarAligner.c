@@ -740,7 +740,7 @@ void alignmentBlock_destruct(AlignmentBlock *alignmentBlock) {
     }
 }
 
-char *get_adjacency_string(Cap *cap, int *length) {
+char *get_adjacency_string(Cap *cap, int *length, bool return_string) {
     assert(!cap_getSide(cap));
     Sequence *sequence = cap_getSequence(cap);
     assert(sequence != NULL);
@@ -751,12 +751,12 @@ char *get_adjacency_string(Cap *cap, int *length) {
         assert(cap_getCoordinate(cap2) > cap_getCoordinate(cap));
         *length = cap_getCoordinate(cap2) - cap_getCoordinate(cap) - 1;
         assert(*length >= 0);
-        return sequence_getString(sequence, cap_getCoordinate(cap) + 1, *length, 1);
+        return return_string ? sequence_getString(sequence, cap_getCoordinate(cap) + 1, *length, 1) : NULL;
     } else {
         assert(cap_getCoordinate(cap) > cap_getCoordinate(cap2));
         *length = cap_getCoordinate(cap) - cap_getCoordinate(cap2) - 1;
         assert(*length >= 0);
-        return sequence_getString(sequence, cap_getCoordinate(cap2) + 1, *length, 0);
+        return return_string ? sequence_getString(sequence, cap_getCoordinate(cap2) + 1, *length, 0) : NULL;
     }
 }
 
@@ -802,7 +802,7 @@ static int get_unmasked_length(char* seq, int64_t seq_length, int64_t length, bo
 char *get_adjacency_string_and_overlap(Cap *cap, int *length, int64_t *overlap, int64_t max_seq_length, int64_t mask_filter) {
     // Get the complete adjacency string
     int seq_length;
-    char *adjacency_string = get_adjacency_string(cap, &seq_length);
+    char *adjacency_string = get_adjacency_string(cap, &seq_length, 1);
     assert(seq_length >= 0);
 
     // Calculate the length of the prefix up to max_seq_length
@@ -999,12 +999,31 @@ void get_end_sequences(End *end, char **end_strings, int *end_string_lengths, in
     end_destructInstanceIterator(capIterator);
 }
 
+int64_t getMaxSequenceLength(End *end) {
+    Cap *cap;
+    End_InstanceIterator *capIterator = end_getInstanceIterator(end);
+    int64_t max_length=0;
+    while ((cap = end_getNext(capIterator)) != NULL) {
+        if (cap_getSide(cap)) {
+            cap = cap_getReverse(cap);
+        }
+        int length;
+        get_adjacency_string(cap, &length, 0);
+        if(length > max_length) {
+            max_length = length;
+        }
+    }
+    end_destructInstanceIterator(capIterator);
+    return max_length;
+}
+
 stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_t window_size, int64_t mask_filter,
                                   abpoa_para_t * poa_parameters) {
     End *dominantEnd = getDominantEnd(flower);
-    if(dominantEnd != NULL) {
+    if(dominantEnd != NULL && getMaxSequenceLength(dominantEnd) < max_seq_length) {
         /*
-         * If there is a single end that is connected to all adjacencies, just use that alignment
+         * If there is a single end that is connected to all adjacencies that are less than max_seq_length in length,
+         * just use that alignment
          */
 
         // Make inputs
@@ -1086,6 +1105,7 @@ stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_
 
             j++;
         }
+        end_destructInstanceIterator(capIterator);
         i++;
     }
     flower_destructEndIterator(endIterator);

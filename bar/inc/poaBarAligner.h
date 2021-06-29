@@ -123,9 +123,10 @@ void alignmentBlock_destruct(AlignmentBlock *alignmentBlock);
 void alignmentBlock_print(AlignmentBlock *ab, FILE *f);
 
 /**
- * Get the string connecting two ends for the given cap.
+ * Get the string connecting two ends for the given cap. If return_string is 0 then does not return the string,
+ * just calculates the length of the string.
  */
-char *get_adjacency_string(Cap *cap, int *length);
+char *get_adjacency_string(Cap *cap, int *length, bool return_string);
 
 /**
  * Makes alignments of the the unaligned sequence using the bar algorithm.
