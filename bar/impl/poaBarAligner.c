@@ -1002,11 +1002,12 @@ void get_end_sequences(End *end, char **end_strings, int *end_string_lengths, in
 int64_t getMaxSequenceLength(End *end) {
     Cap *cap;
     End_InstanceIterator *capIterator = end_getInstanceIterator(end);
-    int64_t length, max_length=0;
+    int64_t max_length=0;
     while ((cap = end_getNext(capIterator)) != NULL) {
         if (cap_getSide(cap)) {
             cap = cap_getReverse(cap);
         }
+        int length;
         get_adjacency_string(cap, &length, 0);
         if(length > max_length) {
             max_length = length;
