@@ -1004,6 +1004,9 @@ int64_t getMaxSequenceLength(End *end) {
     End_InstanceIterator *capIterator = end_getInstanceIterator(end);
     int64_t length, max_length=0;
     while ((cap = end_getNext(capIterator)) != NULL) {
+        if (cap_getSide(cap)) {
+            cap = cap_getReverse(cap);
+        }
         get_adjacency_string(cap, &length, 0);
         if(length > max_length) {
             max_length = length;
