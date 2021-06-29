@@ -14,7 +14,7 @@ from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from sonLib.nxnewick import NXNewick
 
-from toil.lib.bioio import logger
+from toil.statsAndLogging import logger
 
 class MultiCactusProject:
     def __init__(self):

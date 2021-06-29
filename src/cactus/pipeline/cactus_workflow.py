@@ -21,8 +21,8 @@ from operator import itemgetter
 from sonLib.bioio import newickTreeParser
 
 from toil.lib.bioio import getTempFile
-from toil.lib.bioio import logger
-from toil.lib.bioio import setLoggingFromOptions
+from toil.statsAndLogging import logger
+from toil.statsAndLogging import set_logging_from_options
 from toil.lib.bioio import getLogLevelString
 from sonLib.bioio import catFiles
 
@@ -366,7 +366,7 @@ class CactusConsolidated(CactusPhasesJob):
         if "cactusWorkflowArguments" in kwargs and kwargs["cactusWorkflowArguments"].consCores:
             self.cores = kwargs["cactusWorkflowArguments"].consCores
 
-        self.disk = int(2.5 * self.cactusWorkflowArguments.totalSequenceSize)
+        self.disk = int(3 * self.cactusWorkflowArguments.totalSequenceSize)
 
         # this is the old caf job's memory function
         memoryPoly = [1.80395944e+01, 7.96042247e+07]
@@ -552,7 +552,7 @@ def runCactusWorkflow(args):
 
     options = parser.parse_args(args)
     options.disableCaching = True
-    setLoggingFromOptions(options)
+    set_logging_from_options(options)
 
     experimentWrapper = ExperimentWrapper(ET.parse(options.experimentFile).getroot())
     with Toil(options) as toil:

@@ -19,7 +19,7 @@ set -x
 rm -rf ${binBuildDir}
 mkdir -p ${binBuildDir}
 cd ${binBuildDir}
-git clone --recursive https://github.com/ComparativeGenomicsToolkit/cactus.git
+git clone https://github.com/ComparativeGenomicsToolkit/cactus.git
 cd cactus
 git fetch --tags origin
 
@@ -39,6 +39,31 @@ fi
 export CFLAGS="-march=${CACTUS_ARCH} -static"
 export CXXFLAGS="-march=${CACTUS_ARCH} -static"
 export LDFLAGS="-march=${CACTUS_ARCH} -static"
+
+# build a couple dependencies from source because versions from awk don't support static linking
+pushd .
+cd ${binBuildDir}
+mkdir -p deps ; cd deps
+DEP_PREFIX=$(pwd)
+# hdf5
+wget -q https://github.com/HDFGroup/hdf5/archive/refs/tags/hdf5-1_10_2.tar.gz
+tar -zxf hdf5-1_10_2.tar.gz
+cd  hdf5-hdf5-1_10_2
+./configure --enable-cxx --enable-static --disable-parallel --disable-shared --prefix=${DEP_PREFIX}
+make -j $(nproc)
+make install
+export PATH=${DEP_PREFIX}/bin:$PATH
+# libxml2
+cd ${DEP_PREFIX}
+wget -q http://xmlsoft.org/sources/libxml2-2.7.2.tar.gz
+tar -zxf libxml2-2.7.2.tar.gz
+cd libxml2-2.7.2
+./configure --enable-static --disable-shared --prefix=${DEP_PREFIX}
+make -j $(nproc)
+make install
+export CACTUS_STATIC_LINK_FLAGS="-L${DEP_PREFIX}/lib -lz -lpthread -lm -llzma"
+export CACTUS_LIBXML2_INCLUDE_PATH=${DEP_PREFIX}/include/libxml2
+popd
 
 # install Phast and enable halPhyloP compilation
 build-tools/downloadPhast

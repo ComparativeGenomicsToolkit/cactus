@@ -111,7 +111,7 @@ testLogDir = ${testOutDir}/logs
 .NOTPARALLEL: test test_blast test_nonblast
 
 test: ${testModules:%=%_runtest}
-test_blast: ${testModules:%=%_runtest}
+test_blast: ${testModules:%=%_runtest_blast}
 test_nonblast: ${testModules:%=%_runtest_nonblast}
 
 # run one test and save output
@@ -139,11 +139,8 @@ bin/mafComparator:
 	cd ${CWD}/test && wget -q https://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/primates/loci1/all.maf -O primates-truth.maf
 
 evolver_test: all bin/mafComparator
-	-docker rmi -f evolvertestdocker/cactus:latest
-	sed -i -e 's/FROM.*AS builder/FROM quay.io\/glennhickey\/cactus-ci-base:latest as builder/' Dockerfile
-	docker build --network=host -t evolvertestdocker/cactus:latest . --build-arg CACTUS_COMMIT=${git_commit}
+# note: make docker needs to be run beforehand
 	PYTHONPATH="" CACTUS_DOCKER_ORG=evolvertestdocker CACTUS_USE_LATEST=1 ${PYTHON} -m pytest ${pytestOpts} test/evolverTest.py
-	docker rmi -f evolvertestdocker/cactus:latest
 
 evolver_test_local: all bin/mafComparator
 	PYTHONPATH="" CACTUS_BINARIES_MODE=local CACTUS_DOCKER_MODE=0 ${PYTHON} -m pytest ${pytestOpts} -s test/evolverTest.py::TestCase::testEvolverLocal
@@ -216,11 +213,14 @@ docker: Dockerfile
 	-docker rmi -f ${name}:latest
 	docker build --network=host -t ${name}:${tag} . --build-arg CACTUS_COMMIT=${git_commit}
 	docker tag ${name}:${tag} ${name}:latest
+	docker tag ${name}:${tag} evolvertestdocker/cactus:latest
 
 # Requires ~/.dockercfg
 push: docker
 	docker push ${name}
 
+push_only:
+	docker push ${name}
 
 binRelease:
 	./build-tools/makeBinRelease

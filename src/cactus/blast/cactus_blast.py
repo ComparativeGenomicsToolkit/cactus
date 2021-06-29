@@ -31,8 +31,8 @@ from cactus.shared.common import cactus_override_toil_options
 
 from toil.job import Job
 from toil.common import Toil
-from toil.lib.bioio import logger
-from toil.lib.bioio import setLoggingFromOptions
+from toil.statsAndLogging import logger
+from toil.statsAndLogging import set_logging_from_options
 
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory, getTempFile
@@ -71,7 +71,7 @@ def main():
     options.database = "kyoto_tycoon"
 
     setupBinaries(options)
-    setLoggingFromOptions(options)
+    set_logging_from_options(options)
     enableDumpStack()
 
     if (options.pathOverrides or options.pathOverrideNames):
