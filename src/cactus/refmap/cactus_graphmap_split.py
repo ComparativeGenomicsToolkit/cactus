@@ -427,7 +427,7 @@ def split_minimap_fallback(job, options, config, seqIDMap, output_id_map):
     paf_ids = []
     ambiguous_seq_id_map = {}
     for event, fa_id in output_id_map[amb_name]['fa'].items():
-        paf_job = mm_map_root_job.addChildJobFn(minimap_map, mm_index_job.rv(), event, fa_id, seqIDMap[event][0],
+        paf_job = mm_map_root_job.addChildJobFn(minimap_map, config, mm_index_job.rv(), event, fa_id, seqIDMap[event][0],
                                                 disk=ref_id.size * 3, memory=mm_mem)
         paf_ids.append(paf_job.rv())
         ambiguous_seq_id_map[event] = (seqIDMap[event][0], fa_id)
@@ -446,7 +446,7 @@ def minimap_index(job, ref_name, ref_id):
 
     return job.fileStore.writeGlobalFile(idx_path)
 
-def minimap_map(job, minimap_index_id, event, fa_id, fa_name):
+def minimap_map(job, config, minimap_index_id, event, fa_id, fa_name):
     """ run minimap2 """
     work_dir = job.fileStore.getLocalTempDir()
     idx_path = os.path.join(work_dir, "minmap2.idx")
@@ -457,9 +457,15 @@ def minimap_map(job, minimap_index_id, event, fa_id, fa_name):
 
     # call minimap2 and stick our unique identifiers on the output right away to be consistent
     # with cactus-graphmap's paf output
-    cactus_call(parameters=[['minimap2', idx_path, fa_path, '-c', '-x', 'asm5'],
-                            ['awk', 'BEGIN {{OFS="\t"}} $1="id={}|"$1'.format(event)]],
-                outfile=paf_path)
+    cmd = [['minimap2', idx_path, fa_path, '-c', '-x', 'asm5', '--secondary=no'],
+           ['awk', 'BEGIN {{OFS="\t"}} $1="id={}|"$1'.format(event)]]
+    
+    min_mapq = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minMAPQ")
+    if min_mapq:
+        # add mapq filter used in mzgaf2paf
+        cmd.append(['awk', '$12>={}'.format(min_mapq)])
+
+    cactus_call(parameters=cmd, outfile=paf_path)
 
     return job.fileStore.writeGlobalFile(paf_path)    
     
