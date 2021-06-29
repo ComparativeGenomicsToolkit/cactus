@@ -463,7 +463,7 @@ def minimap_map(job, config, minimap_index_id, event, fa_id, fa_name):
     min_mapq = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minMAPQ")
     if min_mapq:
         # add mapq filter used in mzgaf2paf
-        cmd.append(['awk', '$12<{}'.format(min_mapq)])
+        cmd.append(['awk', '$12>={}'.format(min_mapq)])
 
     cactus_call(parameters=cmd, outfile=paf_path)
 
