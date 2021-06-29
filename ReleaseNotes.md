@@ -1,3 +1,10 @@
+# Release 2.0.2
+
+Changelog:
+- Use latest abpoa, which fixes bug where aligning >1024 sequences would lead to a segfault
+- Update to Toil 5.4.0
+- More consistently apply filters to minimap2 output in the fallback stage of graphmap-split
+
 # Release 2.0.1   2021-06-19
 
 This a patch release that fixes an issue where the new `--consCores` option could not be used with `--maxCores` (Thanks @RenzoTale88).  It also reverts some last minute CAF parameter changes to something more tested (though known to be slow in some cases with large numbers of secondary alignments)

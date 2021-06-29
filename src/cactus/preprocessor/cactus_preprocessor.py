@@ -47,7 +47,7 @@ class PreprocessorOptions:
                  preprocessJob, checkAssemblyHub=None, lastzOptions=None, minPeriod=None,
                  gpuLastz=False, dnabrnnOpts=None,
                  dnabrnnAction=None, eventName=None, minLength=None,
-                 cutBefore=None, cutAfter=None, inputBedID=None):
+                 cutBefore=None, cutBeforeOcc=None, cutAfter=None, inputBedID=None):
         self.chunkSize = chunkSize
         self.memory = memory
         self.cpu = cpu
@@ -68,6 +68,7 @@ class PreprocessorOptions:
         self.eventName = eventName
         self.minLength = minLength        
         self.cutBefore = cutBefore
+        self.cutBeforeOcc = cutBeforeOcc
         self.cutAfter = cutAfter
         self.inputBedID = inputBedID
 
@@ -242,19 +243,19 @@ class BatchPreprocessor(RoundedJob):
                                               memory = int(prepNode.get("memory", default=0)),
                                               cpu = int(prepNode.get("cpu", default=1)),
                                               check = bool(int(prepNode.get("check", default="0"))),
-                                              proportionToSample = getOptionalAttrib(prepNode, "proportionToSample", typeFn=float, default=1.0, errorIfNotPresent=False),
-                                              unmask = getOptionalAttrib(prepNode, "unmask", typeFn=bool, default=False, errorIfNotPresent=False),
-                                              lastzOptions = getOptionalAttrib(prepNode, "lastzOpts", default="", errorIfNotPresent=False),
-                                              minPeriod = getOptionalAttrib(prepNode, "minPeriod", typeFn=int, default=0, errorIfNotPresent=False),
-                                              checkAssemblyHub = getOptionalAttrib(prepNode, "checkAssemblyHub", typeFn=bool, default=False, errorIfNotPresent=False),
-                                              gpuLastz = getOptionalAttrib(prepNode, "gpuLastz", typeFn=bool, default=False, errorIfNotPresent=False),
-                                              dnabrnnOpts = getOptionalAttrib(prepNode, "dna-brnnOpts", default="", errorIfNotPresent=False),
-                                              dnabrnnAction = getOptionalAttrib(prepNode, "action", typeFn=str, default="softmask", errorIfNotPresent=False),
-                                              eventName = getOptionalAttrib(prepNode, "eventName", typeFn=str, default=None, errorIfNotPresent=False),
-                                              minLength = getOptionalAttrib(prepNode, "minLength", typeFn=int, default=1, errorIfNotPresent=False),
-                                              cutBefore = getOptionalAttrib(prepNode, "cutBefore", typeFn=str, default=None, errorIfNotPresent=False),
-                                              cutAfter = getOptionalAttrib(prepNode, "cutAfter", typeFn=str, default=None, errorIfNotPresent=False),
-                                              inputBedID = getOptionalAttrib(prepNode, "inputBedID", typeFn=str, default=None, errorIfNotPresent=False))
+                                              proportionToSample = getOptionalAttrib(prepNode, "proportionToSample", typeFn=float, default=1.0),
+                                              unmask = getOptionalAttrib(prepNode, "unmask", typeFn=bool, default=False),
+                                              lastzOptions = getOptionalAttrib(prepNode, "lastzOpts", default=""),
+                                              minPeriod = getOptionalAttrib(prepNode, "minPeriod", typeFn=int, default=0),
+                                              checkAssemblyHub = getOptionalAttrib(prepNode, "checkAssemblyHub", typeFn=bool, default=False),
+                                              gpuLastz = getOptionalAttrib(prepNode, "gpuLastz", typeFn=bool, default=False),
+                                              dnabrnnOpts = getOptionalAttrib(prepNode, "dna-brnnOpts", default=""),
+                                              dnabrnnAction = getOptionalAttrib(prepNode, "action", typeFn=str, default="softmask"),
+                                              eventName = getOptionalAttrib(prepNode, "eventName", typeFn=str, default=None),
+                                              minLength = getOptionalAttrib(prepNode, "minLength", typeFn=int, default=1),
+                                              cutBefore = getOptionalAttrib(prepNode, "cutBefore", typeFn=str, default=None),
+                                              cutAfter = getOptionalAttrib(prepNode, "cutAfter", typeFn=str, default=None),
+                                              inputBedID = getOptionalAttrib(prepNode, "inputBedID", typeFn=str, default=None))
 
             if prepOptions.unmask:
                 inSequence = fileStore.readGlobalFile(self.inSequenceID)
