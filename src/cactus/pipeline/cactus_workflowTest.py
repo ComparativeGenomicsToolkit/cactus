@@ -150,7 +150,7 @@ class TestCase(unittest.TestCase):
             pass
         node = ET.SubElement(self.barNode, "CactusTestJob", attrib={ "memory":10, "cpu":2,  "overlargeMemory":20 })
         job = CactusTestJob(self.barNode, self.barNode)
-        self.assertEqual(job.getOptionalPhaseAttrib("doesntExist", typeFn=int, default=1), 1)
+        self.assertEqual(job.getOptionalPhaseAttrib("doesntExist", typeFn=int, default=1, errorIfNotPresent=False), 1)
         self.assertEqual(job.getOptionalJobAttrib("memory", typeFn=int), 10)
         self.assertEqual(job.getOptionalJobAttrib("cpu", typeFn=int, default=1), 2)
         self.assertEqual(job.getOptionalJobAttrib("overlargeCpu", typeFn=int, default=-1), -1)

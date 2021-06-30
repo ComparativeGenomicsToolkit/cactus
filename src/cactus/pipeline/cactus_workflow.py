@@ -114,15 +114,15 @@ class CactusJob(RoundedJob):
             resource += coefficient * (x**degree)
         return int(resource)
 
-    def getOptionalPhaseAttrib(self, attribName, typeFn=None, default=None):
+    def getOptionalPhaseAttrib(self, attribName, typeFn=None, default=None, errorIfNotPresent=True):
         """Gets an optional attribute of the phase node.
         """
-        return getOptionalAttrib(node=self.phaseNode, attribName=attribName, typeFn=typeFn, default=default)
+        return getOptionalAttrib(node=self.phaseNode, attribName=attribName, typeFn=typeFn, default=default, errorIfNotPresent=errorIfNotPresent)
 
-    def getOptionalJobAttrib(self, attribName, typeFn=None, default=None):
+    def getOptionalJobAttrib(self, attribName, typeFn=None, default=None, errorIfNotPresent=True):
         """Gets an optional attribute of the job node.
         """
-        return getOptionalAttrib(node=self.jobNode, attribName=attribName, typeFn=typeFn, default=default, errorIfNotPresent=False)
+        return getOptionalAttrib(node=self.jobNode, attribName=attribName, typeFn=typeFn, default=default, errorIfNotPresent=errorIfNotPresent)
 
     def addService(self, job):
         """Works around toil issue #1695, returning something we can index for multiple return values."""
