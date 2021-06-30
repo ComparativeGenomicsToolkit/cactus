@@ -84,6 +84,8 @@ def main():
                         "rather than pulling one from quay.io")
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
+    parser.add_argument("--normalizeIterations", type=int, default=None,
+                        help="Run this many iterations of normamlization (shared prefix zipping)")
 
     options = parser.parse_args()
 
@@ -211,9 +213,16 @@ def clip_vg(job, options, config, vg_path, vg_id):
         # that don't appear in a non-minigraph path
         graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
         cmd += ['-d', graph_event]
+
+    cmd = [cmd]
+
+    # optional normalization.  this will (in theory) correct a lot of small underalignments due to cactus bugs
+    # by zipping up redundant nodes 
+    if options.normalizeIterations:
+        cmd.append(['vg', 'mod', '-U', str(options.normalizeIterations), '-'])
         
     # sort while we're at it
-    cmd = [cmd, ['vg', 'ids', '-s', '-']]
+    cmd.append(['vg', 'ids', '-s', '-'])
         
     cactus_call(parameters=cmd, outfile=out_path)
 
