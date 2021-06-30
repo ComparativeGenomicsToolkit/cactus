@@ -106,7 +106,7 @@ def getLogLevelString2(logLevelString):
         return getLogLevelString()
     return logLevelString
 
-def getOptionalAttrib(node, attribName, typeFn=None, default=None):
+def getOptionalAttrib(node, attribName, typeFn=None, default=None, errorIfNotPresent=False):
     """Get an optional attrib, or default if not set or node is None
     """
     if node != None and attribName in node.attrib:
@@ -121,6 +121,8 @@ def getOptionalAttrib(node, attribName, typeFn=None, default=None):
                     return bool(int(node.attrib[attribName]))
             return typeFn(node.attrib[attribName])
         return node.attrib[attribName]
+    if errorIfNotPresent:
+        raise RuntimeError("Could not find attribute %s in %s node" % (attribName, node))
     return default
 
 def findRequiredNode(configNode, nodeName):

@@ -40,7 +40,7 @@ from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 from cactus.preprocessor.dnabrnnMasking import loadDnaBrnnModel
 from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
 from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
-from cactus.pipeline.cactus_workflow import CactusTrimmingBlastPhase
+from cactus.pipeline.cactus_workflow import CactusBlastPhase
 
 from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.shared.experimentWrapper import ExperimentWrapper
@@ -196,7 +196,7 @@ class ProgressiveUp(RoundedJob):
             workFlowArgs.intermediateResultsUrl = self.options.intermediateResultsUrl + '-' + self.event
 
         # Use the trimming strategy to blast ingroups vs outgroups.
-        finalExpWrapper = self.addChild(CactusTrimmingBlastPhase(cactusWorkflowArguments=workFlowArgs, phaseName="trimBlast")).rv()
+        finalExpWrapper = self.addChild(CactusBlastPhase(cactusWorkflowArguments=workFlowArgs, phaseName="blast")).rv()
         logger.info("Going to create alignments and define the cactus tree")
 
         return finalExpWrapper

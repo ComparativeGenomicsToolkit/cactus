@@ -338,7 +338,7 @@ static void trim_msa_suffix(Msa *msa, float *column_scores, int64_t row, int64_t
         if(msa_to_base(msa->msa_seq[row][i]) != '-') {
             if(seq_index++ >= suffix_start) {
                 msa->msa_seq[row][i] = msa_to_byte('-');
-                column_scores[i] = column_scores[i]-1 > 0 ? column_scores[i]-1 : 0;
+                column_scores[i] = column_scores[i] > 1 ? column_scores[i]-1 : 0;
                 assert(column_scores[i] >= 0.0);
             }
         }
@@ -376,7 +376,7 @@ static void trim(int64_t row1, Msa *msa1, float *column_scores1,
     }
     int64_t max_overlap_cut_point = 0; // the length of the prefix of the overlap of msa1 to keep
 
-    // Not walk through each possible cut point within the overlap
+    // Now walk through each possible cut point within the overlap
     for(int64_t i=0; i<overlap-1; i++) {
         assert(seq_len2-i-2 >= 0); // Sanity check
         float cut_score = cu_column_scores1[seq_len1-overlap+i] + cu_column_scores2[seq_len2-i-2]; // The score if we keep prefix up to

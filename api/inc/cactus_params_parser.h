@@ -31,7 +31,7 @@ CactusParams *cactusParams_load(char *file_name);
 
 /*
  * Set the root node of the params tree.
- * e.g. cactusParams_set_root(p, 2, "caf", "divergence") would set the root
+ * e.g. cactusParams_set_root(p, 2, "blast", "divergence") would set the root
  * to the cactusWorkflowConfig->caf->divergence node.
  */
 void cactusParams_set_root(CactusParams *p, int num, ...);

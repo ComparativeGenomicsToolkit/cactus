@@ -29,8 +29,6 @@ class BlastOptions(object):
     def __init__(self, chunkSize=10000000, overlapSize=10000,
                  lastzArguments="", compressFiles=True, realign=False, realignArguments="",
                  minimumSequenceLength=1, memory=None,
-                 smallDisk = None,
-                 largeDisk = None,
                  # Trim options for trimming ingroup seqs:
                  trimFlanking=10, trimMinSize=20,
                  trimWindowSize=10, trimThreshold=1,
@@ -56,8 +54,6 @@ class BlastOptions(object):
         self.compressFiles = compressFiles
         self.minimumSequenceLength = 10
         self.memory = memory
-        self.smallDisk = smallDisk
-        self.largeDisk = largeDisk
         self.trimFlanking = trimFlanking
         self.trimMinSize = trimMinSize
         self.trimThreshold = trimThreshold

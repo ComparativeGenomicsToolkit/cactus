@@ -114,15 +114,10 @@ class CactusJob(RoundedJob):
             resource += coefficient * (x**degree)
         return int(resource)
 
-    def getOptionalPhaseAttrib(self, attribName, typeFn=None, default=None):
-        """Gets an optional attribute of the phase node.
-        """
-        return getOptionalAttrib(node=self.phaseNode, attribName=attribName, typeFn=typeFn, default=default)
-
-    def getOptionalJobAttrib(self, attribName, typeFn=None, default=None):
+    def getOptionalJobAttrib(self, attribName, typeFn=None, default=None, errorIfNotPresent=False):
         """Gets an optional attribute of the job node.
         """
-        return getOptionalAttrib(node=self.jobNode, attribName=attribName, typeFn=typeFn, default=default)
+        return getOptionalAttrib(node=self.jobNode, attribName=attribName, typeFn=typeFn, default=default, errorIfNotPresent=errorIfNotPresent)
 
     def addService(self, job):
         """Works around toil issue #1695, returning something we can index for multiple return values."""
@@ -237,20 +232,20 @@ def inverseJukesCantor(d):
 
 def setupFilteringByIdentity(cactusWorkflowArguments):
     #Filter by identity
-    cafNode = findRequiredNode(cactusWorkflowArguments.configNode, "caf")
-    if getOptionalAttrib(cafNode, "filterByIdentity", bool, False): #Do the identity filtering
-        adjustedPath = max(float(cafNode.attrib["identityRatio"]) * cactusWorkflowArguments.longestPath,
-        float(cafNode.attrib["minimumDistance"]))
+    blastNode = findRequiredNode(cactusWorkflowArguments.configNode, "blast")
+    if getOptionalAttrib(blastNode, "filterByIdentity", bool, False): #Do the identity filtering
+        adjustedPath = max(float(blastNode.attrib["identityRatio"]) * cactusWorkflowArguments.longestPath,
+        float(blastNode.attrib["minimumDistance"]))
         identity = str(100 - math.ceil(100 * inverseJukesCantor(adjustedPath)))
-        cafNode.attrib["lastzArguments"] = cafNode.attrib["lastzArguments"] + (" --identity=%s" % identity)
+        blastNode.attrib["lastzArguments"] = blastNode.attrib["lastzArguments"] + (" --identity=%s" % identity)
 
-class CactusTrimmingBlastPhase(CactusPhasesJob):
+class CactusBlastPhase(CactusPhasesJob):
     """Blast ingroups vs outgroups using the trimming strategy before
     running cactus setup.
     """
     def __init__(self, standAlone = False, *args, **kwargs):
         self.standAlone = standAlone
-        super(CactusTrimmingBlastPhase, self).__init__(*args, **kwargs)
+        super(CactusBlastPhase, self).__init__(*args, **kwargs)
         
     def run(self, fileStore):
         fileStore.logToMaster("Running blast using the trimming strategy")
@@ -280,36 +275,35 @@ class CactusTrimmingBlastPhase(CactusPhasesJob):
         setupDivergenceArgs(self.cactusWorkflowArguments)
         setupFilteringByIdentity(self.cactusWorkflowArguments)
 
-        cafNode = findRequiredNode(self.cactusWorkflowArguments.configNode, "caf")
+        blastNode = findRequiredNode(self.cactusWorkflowArguments.configNode, "blast")
+        trimBlastNode = findRequiredNode(blastNode, "trimBlast")
 
-        # FIXME: this is really ugly and steals the options from the caf tag
+        # FIXME: this is really ugly
         blastJob = self.addChild(BlastIngroupsAndOutgroups(
-            BlastOptions(chunkSize=getOptionalAttrib(cafNode, "chunkSize", int),
-                         overlapSize=getOptionalAttrib(cafNode, "overlapSize", int),
-                         lastzArguments=getOptionalAttrib(cafNode, "lastzArguments"),
-                         compressFiles=getOptionalAttrib(cafNode, "compressFiles", bool),
-                         realign=getOptionalAttrib(cafNode, "realign", bool),
-                         realignArguments=getOptionalAttrib(cafNode, "realignArguments"),
-                         memory=getOptionalAttrib(cafNode, "lastzMemory", int, sys.maxsize),
-                         smallDisk=getOptionalAttrib(cafNode, "lastzSmallDisk", int, sys.maxsize),
-                         largeDisk=getOptionalAttrib(cafNode, "lastzLargeDisk", int, sys.maxsize),
-                         minimumSequenceLength=getOptionalAttrib(cafNode, "minimumSequenceLengthForBlast", int, 1),
-                         trimFlanking=self.getOptionalPhaseAttrib("trimFlanking", int, 10),
-                         trimMinSize=self.getOptionalPhaseAttrib("trimMinSize", int, 0),
-                         trimThreshold=self.getOptionalPhaseAttrib("trimThreshold", float, 0.8),
-                         trimWindowSize=self.getOptionalPhaseAttrib("trimWindowSize", int, 10),
-                         trimOutgroupFlanking=self.getOptionalPhaseAttrib("trimOutgroupFlanking", int, 100),
-                         trimOutgroupDepth=self.getOptionalPhaseAttrib("trimOutgroupDepth", int, 1),
-                         keepParalogs=self.getOptionalPhaseAttrib("keepParalogs", bool, False),
-                         gpuLastz=getOptionalAttrib(cafNode, "gpuLastz", bool, False)),
+            BlastOptions(chunkSize=getOptionalAttrib(blastNode, "chunkSize", int),
+                         overlapSize=getOptionalAttrib(blastNode, "overlapSize", int),
+                         lastzArguments=getOptionalAttrib(blastNode, "lastzArguments"),
+                         compressFiles=getOptionalAttrib(blastNode, "compressFiles", bool),
+                         realign=getOptionalAttrib(blastNode, "realign", bool),
+                         realignArguments=getOptionalAttrib(blastNode, "realignArguments"),
+                         memory=getOptionalAttrib(blastNode, "lastzMemory", int, sys.maxsize),
+                         minimumSequenceLength=getOptionalAttrib(blastNode, "minimumSequenceLengthForBlast", int, 1),
+                         trimFlanking=getOptionalAttrib(trimBlastNode, "trimFlanking", int, 10),
+                         trimMinSize=getOptionalAttrib(trimBlastNode, "trimMinSize", int, 0),
+                         trimThreshold=getOptionalAttrib(trimBlastNode, "trimThreshold", float, 0.8),
+                         trimWindowSize=getOptionalAttrib(trimBlastNode, "trimWindowSize", int, 10),
+                         trimOutgroupFlanking=getOptionalAttrib(trimBlastNode, "trimOutgroupFlanking", int, 100),
+                         trimOutgroupDepth=getOptionalAttrib(trimBlastNode, "trimOutgroupDepth", int, 1),
+                         keepParalogs=getOptionalAttrib(trimBlastNode, "keepParalogs", bool, False),
+                         gpuLastz=getOptionalAttrib(blastNode, "gpuLastz", bool, False)),
             list(map(itemgetter(0), ingroupsAndNewIDs)), list(map(itemgetter(1), ingroupsAndNewIDs)),
             list(map(itemgetter(0), outgroupsAndNewIDs)), list(map(itemgetter(1), outgroupsAndNewIDs))))
         
         # Alignment post processing to filter alignments
-        if getOptionalAttrib(cafNode, "runMapQFiltering", bool, False):
-            minimumMapQValue=getOptionalAttrib(cafNode, "minimumMapQValue", float, 0.0)
-            maxAlignmentsPerSite=getOptionalAttrib(cafNode, "maxAlignmentsPerSite", int, 1)
-            alpha=getOptionalAttrib(cafNode, "alpha", float, 1.0)
+        if getOptionalAttrib(blastNode, "runMapQFiltering", bool, False):
+            minimumMapQValue=getOptionalAttrib(blastNode, "minimumMapQValue", float, 0.0)
+            maxAlignmentsPerSite=getOptionalAttrib(blastNode, "maxAlignmentsPerSite", int, 1)
+            alpha=getOptionalAttrib(blastNode, "alpha", float, 1.0)
             fileStore.logToMaster("Running mapQ uniquifying with parameters, minimumMapQValue: %s, maxAlignmentsPerSite %s, alpha: %s" %
                                   (minimumMapQValue, maxAlignmentsPerSite, alpha))
             blastJob = blastJob.encapsulate() # Encapsulate to ensure that blast Job and all its successors
@@ -477,9 +471,9 @@ class CactusWorkflowArguments:
         #Get the species tree
         self.speciesTree = self.experimentNode.attrib["species_tree"]
         #Get any list of 'required species' for the blocks of the cactus.
-        self.outgroupEventNames = getOptionalAttrib(self.experimentNode, "outgroup_events")
+        self.outgroupEventNames = getOptionalAttrib(self.experimentNode, "outgroup_events", errorIfNotPresent=False)
         #Constraints
-        self.constraintsID = getOptionalAttrib(self.experimentNode, "constraintsID")
+        self.constraintsID = getOptionalAttrib(self.experimentNode, "constraintsID", errorIfNotPresent=False)
         #Space to put the path to the directory containing beds of
         #outgroup coverage on ingroups, so that any sequence aligning
         #to an outgroup can be rescued after bar phase
@@ -540,7 +534,7 @@ class AfterPreprocessing(RoundedJob):
             self.eW.setSequenceID(genome, preprocessedSeqID)
         fileStore.logToMaster("doTrimStrategy() = %s, outgroupEventNames = %s" % (self.cactusWorkflowArguments.configWrapper.getDoTrimStrategy(), self.cactusWorkflowArguments.outgroupEventNames))
         # Use the trimming strategy to blast ingroups vs outgroups.
-        self.addFollowOn(CactusTrimmingBlastPhase(cactusWorkflowArguments=self.cactusWorkflowArguments, phaseName="trimBlast"))
+        self.addFollowOn(CactusBlastPhase(cactusWorkflowArguments=self.cactusWorkflowArguments, phaseName="blast"))
 
 def runCactusWorkflow(args):
     ##########################################

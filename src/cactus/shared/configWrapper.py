@@ -90,7 +90,7 @@ class ConfigWrapper:
         return maxNumOutgroups
 
     def getDoTrimStrategy(self):
-        trimBlastNode = findRequiredNode(self.xmlRoot, "trimBlast")
+        trimBlastNode = findRequiredNode(findRequiredNode(self.xmlRoot, "blast"), "trimBlast")
         if "doTrimStrategy" in trimBlastNode.attrib:
             return trimBlastNode.attrib["doTrimStrategy"] == "1"
         return False
@@ -251,8 +251,8 @@ class ConfigWrapper:
         """ Turn on GPU and / or check options make sense """
         if force_activate:
             # apply the gpu override
-            findRequiredNode(self.xmlRoot, "caf").attrib["gpuLastz"] = "true"
-            findRequiredNode(self.xmlRoot, "caf").attrib["realign"] = "0"
+            findRequiredNode(self.xmlRoot, "blast").attrib["gpuLastz"] = "true"
+            findRequiredNode(self.xmlRoot, "blast").attrib["realign"] = "0"
             for node in self.xmlRoot.findall("preprocessor"):
                 if getOptionalAttrib(node, "preprocessJob") == "lastzRepeatMask":
                     node.attrib["gpuLastz"] = "true"
@@ -261,9 +261,9 @@ class ConfigWrapper:
         # realign requires small chunks, and segalign needs big chunks
         # realign is cpu based, which is wasteful on a gpu node
         # realign is too slow, and largely negates gpu speed boost
-        if getOptionalAttrib(findRequiredNode(self.xmlRoot, "caf"), "gpuLastz", typeFn=bool) and \
-           getOptionalAttrib(findRequiredNode(self.xmlRoot, "caf"), "realign", typeFn=bool):
+        if getOptionalAttrib(findRequiredNode(self.xmlRoot, "blast"), "gpuLastz", typeFn=bool) and \
+           getOptionalAttrib(findRequiredNode(self.xmlRoot, "blast"), "realign", typeFn=bool):
             logger.warning("Switching off blast realignment as it is incompatible with GPU mode")
-            findRequiredNode(self.xmlRoot, "caf").attrib["realign"] = "0"
+            findRequiredNode(self.xmlRoot, "blast").attrib["realign"] = "0"
 
 
