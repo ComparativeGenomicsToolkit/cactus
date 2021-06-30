@@ -255,6 +255,7 @@ class BatchPreprocessor(RoundedJob):
                                               eventName = getOptionalAttrib(prepNode, "eventName", typeFn=str, default=None),
                                               minLength = getOptionalAttrib(prepNode, "minLength", typeFn=int, default=1),
                                               cutBefore = getOptionalAttrib(prepNode, "cutBefore", typeFn=str, default=None),
+                                              cutBeforeOcc = getOptionalAttrib(prepNode, "cutBeforeOcc", typeFn=int, default=None),
                                               cutAfter = getOptionalAttrib(prepNode, "cutAfter", typeFn=str, default=None),
                                               inputBedID = getOptionalAttrib(prepNode, "inputBedID", typeFn=str, default=None))
 
