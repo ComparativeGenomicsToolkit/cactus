@@ -114,12 +114,7 @@ class CactusJob(RoundedJob):
             resource += coefficient * (x**degree)
         return int(resource)
 
-    def getOptionalPhaseAttrib(self, attribName, typeFn=None, default=None, errorIfNotPresent=True):
-        """Gets an optional attribute of the phase node.
-        """
-        return getOptionalAttrib(node=self.phaseNode, attribName=attribName, typeFn=typeFn, default=default, errorIfNotPresent=errorIfNotPresent)
-
-    def getOptionalJobAttrib(self, attribName, typeFn=None, default=None, errorIfNotPresent=True):
+    def getOptionalJobAttrib(self, attribName, typeFn=None, default=None, errorIfNotPresent=False):
         """Gets an optional attribute of the job node.
         """
         return getOptionalAttrib(node=self.jobNode, attribName=attribName, typeFn=typeFn, default=default, errorIfNotPresent=errorIfNotPresent)

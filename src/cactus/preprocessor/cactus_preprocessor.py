@@ -156,6 +156,7 @@ class PreprocessSequence(RoundedJob):
         elif self.prepOptions.preprocessJob == "cutHeaders":
             return CutHeadersJob(inChunkID,
                                  cutBefore=self.prepOptions.cutBefore,
+                                 cutBeforeOcc=self.prepOptions.cutBeforeOcc,
                                  cutAfter=self.prepOptions.cutAfter)
         elif self.prepOptions.preprocessJob == 'maskFile':
             return FileMaskingJob(inChunkID,
