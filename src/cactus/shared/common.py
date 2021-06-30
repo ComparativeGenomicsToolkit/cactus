@@ -106,7 +106,7 @@ def getLogLevelString2(logLevelString):
         return getLogLevelString()
     return logLevelString
 
-def getOptionalAttrib(node, attribName, typeFn=None, default=None, errorIfNotPresent=True):
+def getOptionalAttrib(node, attribName, typeFn=None, default=None, errorIfNotPresent=False):
     """Get an optional attrib, or default if not set or node is None
     """
     if node != None and attribName in node.attrib:
