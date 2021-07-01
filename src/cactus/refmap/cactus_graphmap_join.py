@@ -85,6 +85,8 @@ def main():
                         help="The way to run the Cactus binaries", default=None)
     parser.add_argument("--normalizeIterations", type=int, default=None,
                         help="Run this many iterations of normamlization (shared prefix zipping)")
+    parser.add_argument("--rgfa", action="store_true",
+                        help="Add rGFA tags to output GFA")
 
     options = parser.parse_args()
 
@@ -98,6 +100,9 @@ def main():
 
     if options.hal and len(options.hal) != len(options.vg):
         raise RuntimeError("If --hal and --vg should specify the same number of files")
+
+    if options.rgfa and options.normalizeIterations:
+        raise RuntimeError("--rgfa and --normalizeIterations cannot currently be used together (because normalization can reverse ref nodes)")
         
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
@@ -252,9 +257,11 @@ def vg_to_gfa(job, options, config, vg_path, vg_id):
     job.fileStore.readGlobalFile(vg_id, vg_path)
     out_path = vg_path + '.gfa'
 
-    cmd = ['vg', 'convert', '-f', '-Q', options.reference, os.path.basename(vg_path), '-B']
+    cmd = ['vg', 'convert', '-f', os.path.basename(vg_path), '-B']
     if options.wlineSep:
         cmd += ['-w', options.wlineSep]
+    if options.rgfa:
+        cmd += ['-Q', options.reference]
 
     # important, when options.wlineSep is ., it throws off prepareWorkDir in cactus_call
     # so important to specify the work_dir below       
