@@ -113,8 +113,10 @@ static bool containsMoreThanOneEvent(stPinchSegment *segment, Flower *flower) {
     if(!stPinchBlock_getModifiedFlag(block)) {
         return stPinchBlock_getFilterFlag(block);
     }
-    stPinchBlock_setModifiedFlag(block, false);
-    if(stPinchBlock_getFilterFlag(block)) {
+    stPinchBlock_setModifiedFlag(block, false); // this ensures that we won't evaluate this again unless
+    // we've added to the block
+    if(stPinchBlock_getFilterFlag(block)) { // note: having this line assumes that we won't remove segments
+        // from blocks during the annealing phase - it
         return true;
     }
     Event *event = stCaf_getEvent(segment, flower);
