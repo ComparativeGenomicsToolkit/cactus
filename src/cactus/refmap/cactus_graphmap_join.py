@@ -199,6 +199,16 @@ def clip_vg(job, options, config, vg_path, vg_id):
     job.fileStore.readGlobalFile(vg_id, vg_path)
     out_path = vg_path + '.clip'
 
+    # optional normalization.  this will (in theory) correct a lot of small underalignments due to cactus bugs
+    # by zipping up redundant nodes. done before clip-vg otherwise ref paths not guaranteed to be forwardized
+    # todo: would be nice if clip-vg worked on stdin
+    if options.normalizeIterations:
+        normalized_path = vg_path + '.normalized'
+        cactus_call(parameters=['vg', 'mod', '-U', str(options.normalizeIterations), vg_path], outfile=normalized_path)
+        # worth it
+        cactus_call(parameters=['vg', 'validate', normalized_path])
+        vg_path = normalized_path
+    
     cmd = ['clip-vg', vg_path, '-f']
     if options.clipLength is not None and not is_decoy:
         cmd += ['-u', str(options.clipLength)]
@@ -213,15 +223,8 @@ def clip_vg(job, options, config, vg_path, vg_id):
         graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
         cmd += ['-d', graph_event]
 
-    cmd = [cmd]
-
-    # optional normalization.  this will (in theory) correct a lot of small underalignments due to cactus bugs
-    # by zipping up redundant nodes 
-    if options.normalizeIterations:
-        cmd.append(['vg', 'mod', '-U', str(options.normalizeIterations), '-'])
-        
-    # sort while we're at it
-    cmd.append(['vg', 'ids', '-s', '-'])
+    # sort while we're at it        
+    cmd = [cmd, ['vg', 'ids', '-s', '-']]
         
     cactus_call(parameters=cmd, outfile=out_path)
 
