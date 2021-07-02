@@ -239,7 +239,10 @@ fi
 
 # vg
 cd ${pangenomeBuildDir}
-wget -q https://github.com/vgteam/vg/releases/download/v1.33.0/vg
+#tempoarary hack until 1.34.0 is actually released
+wget -q http://public.gi.ucsc.edu/~hickey/vg
+#wget -q https://github.com/vgteam/vg/releases/download/v1.34.0/vg
+
 chmod +x vg
 if [[ $STATIC_CHECK -ne 1 || $(ldd vg | grep so | wc -l) -eq 0 ]]
 then
