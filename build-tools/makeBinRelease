@@ -29,7 +29,10 @@ git submodule update --init --recursive
 
 if [ -z ${CACTUS_LEGACY_ARCH+x} ]
 then
-	 export sse41=1
+# Make sure abpoa doesn't build with -march=native, but something more portable
+# Todo: It would be more portable to use "sse41", but that leads to segfaults in rare cases
+# https://github.com/yangao07/abPOA/issues/26
+	 export avx2=1
 else
 	 export sse2=1
 	 # haven't tested abpoa on older architectures, turn it off by default

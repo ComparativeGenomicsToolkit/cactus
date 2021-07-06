@@ -7,8 +7,10 @@ RUN apt-get update && apt-get install -y build-essential git python3 python3-dev
 RUN mkdir -p /home/cactus
 COPY . /home/cactus
 
-# Make sure abpoa doesn't build with -march=native, but rather the hopefully more portable -msse4.1
-ENV sse41 1
+# Make sure abpoa doesn't build with -march=native, but something more portable
+# Todo: It would be more portable to use "sse41", but that leads to segfaults in rare cases
+# https://github.com/yangao07/abPOA/issues/26
+ENV avx2 1
 
 # install Phast and enable halPhyloP compilation
 RUN cd /home/cactus && ./build-tools/downloadPhast
