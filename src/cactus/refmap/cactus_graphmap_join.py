@@ -204,7 +204,10 @@ def clip_vg(job, options, config, vg_path, vg_id):
     # todo: would be nice if clip-vg worked on stdin
     if options.normalizeIterations:
         normalized_path = vg_path + '.normalized'
-        cactus_call(parameters=['vg', 'mod', '-U', str(options.normalizeIterations), vg_path], outfile=normalized_path)
+        mod_cmd = ['vg', 'mod', '-U', str(options.normalizeIterations), vg_path]
+        if options.reference:
+            mod_cmd += ['-z', options.reference]
+        cactus_call(parameters=mod_cmd, outfile=normalized_path)
         # worth it
         cactus_call(parameters=['vg', 'validate', normalized_path])
         vg_path = normalized_path
