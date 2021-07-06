@@ -320,7 +320,7 @@
 	<graphmap_split
 		 minQueryCoverage="0.65"
 		 minQuerySmallCoverage="0.75"
-		 minQuerySmallThreshold="10000000"
+		 minQuerySmallThreshold="3000000"
 		 minQueryUniqueness="3"
 		 maxGap="50000"
 		 ambiguousName="_AMBIGUOUS_"
