@@ -22,7 +22,8 @@ ${BINDIR}/cactus_barTests : ${libTests} tests/*.h ${LIBDIR}/cactusBarLib.a ${stB
 	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -Wno-error -o ${BINDIR}/cactus_barTests ${libTests} ${LIBDIR}/cactusBarLib.a ${LDLIBS}
 
 ${LIBDIR}/cactusBarLib.a : ${libSources} ${libHeaders} ${stBarDependencies}
-	${CC} ${CPPFLAGS} ${CFLAGS} -c ${libSources} 
+# the -Wno-unused-function is required to include abpoa.h with CGL_DEBUG defined
+	${CC} ${CPPFLAGS} ${CFLAGS} -c ${libSources} -Wno-unused-function 
 	${AR} rc cactusBarLib.a *.o
 	${RANLIB} cactusBarLib.a 
 	mv cactusBarLib.a ${LIBDIR}/

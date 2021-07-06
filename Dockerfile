@@ -7,11 +7,8 @@ RUN apt-get update && apt-get install -y build-essential git python3 python3-dev
 RUN mkdir -p /home/cactus
 COPY . /home/cactus
 
-# compile with nehalem architecture target to improve portablity
-ENV CACTUS_ARCH=nehalem
-ENV CFLAGS -march=nehalem
-ENV CXXFLAGS -march=nehalem
-ENV LDFLAGS -march=nehalem
+# Make sure abpoa doesn't build with -march=native, but rather the hopefully more portable -msse4.1
+ENV sse41 1
 
 # install Phast and enable halPhyloP compilation
 RUN cd /home/cactus && ./build-tools/downloadPhast
