@@ -1,9 +1,16 @@
 # Release 2.0.2
 
+This release primarily addresses stability issues during pangenome construction.
+
 Changelog:
 - Use latest abpoa, which fixes bug where aligning >1024 sequences would lead to a segfault
 - Update to Toil 5.4.0
 - More consistently apply filters to minimap2 output in the fallback stage of graphmap-split
+- Build abpoa with AVX2 SIMD extensions instead of SSE4.1 in order to work around instability when building pangenomes.  This ups the hardware requirements for releases, unfortunately, as AVX2 is slightly newer.
+- Clean up CAF config parameters
+- Fix CAF secondary filter worst-case runtime issue.  It was very rare but could add days to runtime.
+- Slightly tune minimap2 thresholds used for chromosome splitting
+- Normalization option added to cactus-graphmap-join (should be used to work around soon-to-be addressed underalignment bug)
 
 # Release 2.0.1   2021-06-19
 
