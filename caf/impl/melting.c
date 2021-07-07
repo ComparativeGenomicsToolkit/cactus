@@ -130,7 +130,7 @@ void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(
                 0.0, breakChainsAtReverseTandems, maximumMedianSpacingBetweenLinkedEnds);
         stList *blocksToDelete = stCaf_getBlocksInChainsLessThanGivenLength(cactusGraph, minimumChainLength);
 
-        printf("A melting round is destroying %" PRIi64 " blocks with an average degree "
+        st_logInfo("A melting round is destroying %" PRIi64 " blocks with an average degree "
                "of %lf from chains with length less than %" PRIi64 ". Total aligned bases"
                " lost: %" PRIu64 "\n",
                stList_length(blocksToDelete), stCaf_averageBlockDegree(blocksToDelete),
@@ -488,8 +488,8 @@ void stCaf_meltRecoverableChains(Flower *flower, stPinchThreadSet *threadSet, bo
             }
         }
         int64_t numRecoverableBlocks = stList_length(blocksToDelete);
-        printf("Destroying %" PRIi64 " recoverable blocks\n", numRecoverableBlocks);
-        printf("The blocks covered %" PRIi64 " columns for a total of %" PRIi64 " aligned bases\n", numColumns(blocksToDelete), totalAlignedBases(blocksToDelete));
+        st_logInfo("Destroying %" PRIi64 " recoverable blocks\n", numRecoverableBlocks);
+        st_logInfo("The blocks covered %" PRIi64 " columns for a total of %" PRIi64 " aligned bases\n", numColumns(blocksToDelete), totalAlignedBases(blocksToDelete));
         stList_destruct(recoverableChains);
         stList_destruct(blocksToDelete);
 
