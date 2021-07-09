@@ -38,7 +38,7 @@ mkdir -p ${binDir}
 cd ${pangenomeBuildDir}
 git clone https://github.com/lh3/minimap2.git
 cd minimap2
-git checkout c9874e2dc50e32bbff4ded01cf5ec0e9be0a53dd
+git checkout 581f2d7123f651d04c9e103b1c7ea8f7051e909a
 # hack in flags support
 sed -i Makefile -e 's/CFLAGS=/CFLAGS+=/'
 make -j ${numcpu}
