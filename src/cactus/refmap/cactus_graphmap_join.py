@@ -84,7 +84,9 @@ def main():
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
     parser.add_argument("--normalizeIterations", type=int, default=None,
-                        help="Run this many iterations of normamlization (shared prefix zipping)")
+                        help="Run this many iterations of vg normamlization (shared prefix zipping)")
+    parser.add_argument("--gfaffix", action="store_true",
+                        help="Run GFAFfix normalization")
 
     options = parser.parse_args()
 
@@ -211,6 +213,20 @@ def clip_vg(job, options, config, vg_path, vg_id):
         # worth it
         cactus_call(parameters=['vg', 'validate', normalized_path])
         vg_path = normalized_path
+
+    # GFAFfix is a tool written just to normalize graphs, and alters a (faster) alternative to vg
+    # (though requires GFA conversion)
+    if options.gfaffix:
+        normalized_path = vg_path + '.gfaffixed'
+        gfa_in_path = vg_path + '.gfa'
+        gfa_out_path = normalized_path + '.gfa'
+        cactus_call(parameters=['vg', 'convert', '-f', vg_path], outfile=gfa_in_path)
+        fix_cmd = ['gfaffix', gfa_in_path, '--output_refined', gfa_out_path]
+        if options.reference:
+            fix_cmd += ['--dont_collapse', options.reference + '*']
+        cactus_call(parameters=fix_cmd)
+        # GFAFfix doesn't seem to unchop that well, so we do that in vg after
+        cactus_call(parameters=[['vg', 'convert', '-g', '-p', gfa_out_path], ['vg', 'mod', '-u', '-']], outfile=normalized_path)
     
     cmd = ['clip-vg', vg_path, '-f']
     if options.clipLength is not None and not is_decoy:
