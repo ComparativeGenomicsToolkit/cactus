@@ -1,7 +1,12 @@
 # Release 2.1.0
 
+This release adds the `--fastaHeaderTable` option to `cactus-preprocess` and `cactus-graphmap`.  It allows the pangenome pipeline to *not* incorporate sequences from minigraph nodes as contigs in the cactus graph.  It's cleaner to not need the phony minigraph genome, but also avoids cutting up BAR alignments too much due to the small contig sizes, which should prevent a lot of the spurious gaps we have been seeing around minigraph node boundaries.
+
+This release should also finally properly fix an issue that's been coming up since version 2.0.0, where CAF could take days just running the secondary alignment filter.  
+
 Changelog:
-- Option to use stable minigraph coordinates.  This obviates need for phony mingraph genome, whose small contigs can lead to stitching woes in BAR.  
+- Option to use stable minigraph coordinates.  This obviates need for phony mingraph genome, whose small contigs can lead to stitching woes in BAR.
+- Fix new regression that caused CAF's secondary filter to sometimes take forever.  This code has been causing occaisional slowdowns for some time, but should finally be fixed once and for all.
 - Fix cactus-preprocess to work on zipped fasta inputs even when not running dna-brnn.
 - Do centromere clipping using softmasked regions in pangenome pipeline (which means using hash graph instead of packed graph before clipping)
 - Update to abPOA v1.2.5
