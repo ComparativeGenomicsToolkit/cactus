@@ -1065,12 +1065,7 @@ def zip_gzs(job, input_paths, input_ids, list_elems = None):
     zipped_ids = []
     for input_path, input_list in zip(input_paths, input_ids):
         if input_path.endswith('.gz'):
-            try:
-                iter(input_list)
-                is_list = True
-            except:
-                is_list = False
-            if is_list:
+            if isinstance(input_list, list) or isinstance(input_list, tuple):
                 output_list = []
                 for i, elem in enumerate(input_list):
                     if not list_elems or i in list_elems:
@@ -1079,7 +1074,7 @@ def zip_gzs(job, input_paths, input_ids, list_elems = None):
                         output_list.append(elem)
                 zipped_ids.append(output_list)
             else:
-                zipped_ids.append(job.addChildJobFn(zip_gz, input_path, input_id, disk=2*input_id.size).rv())
+                zipped_ids.append(job.addChildJobFn(zip_gz, input_path, input_list, disk=2*input_list.size).rv())
         else:
             zipped_ids.append(input_list)
     return zipped_ids
