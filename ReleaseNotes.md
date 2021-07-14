@@ -1,4 +1,11 @@
-# Release 2.0.2
+# Release 2.1.0
+
+Changelog:
+- Option to use stable minigraph coordinates.  This obviates need for phony mingraph genome, whose small contigs can lead to stitching woes in BAR.  
+- Fix cactus-preprocess to work on zipped fasta inputs even when not running dna-brnn.
+- Do centromere clipping using softmasked regions in pangenome pipeline (which means using hash graph instead of packed graph before clipping)
+
+# Release 2.0.2   2021-07-07
 
 This release primarily addresses stability issues during pangenome construction.
 
