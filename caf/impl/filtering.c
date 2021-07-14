@@ -116,7 +116,7 @@ static bool containsMoreThanOneEvent(stPinchSegment *segment, Flower *flower) {
     stPinchBlock_setModifiedFlag(block, false); // this ensures that we won't evaluate this again unless
     // we've added to the block
     if(stPinchBlock_getFilterFlag(block)) { // note: having this line assumes that we won't remove segments
-        // from blocks during the annealing phase - it
+        // from blocks during the annealing phase
         return true;
     }
     Event *event = stCaf_getEvent(segment, flower);
@@ -132,7 +132,21 @@ static bool containsMoreThanOneEvent(stPinchSegment *segment, Flower *flower) {
 
 bool stCaf_filterByMultipleSpecies(stPinchSegment *segment1,
                                    stPinchSegment *segment2, Flower *flower) {
-    return containsMoreThanOneEvent(segment1, flower) && containsMoreThanOneEvent(segment2, flower);
+    stPinchBlock *block1, *block2;
+    if ((block1 = stPinchSegment_getBlock(segment1)) != NULL) {
+        if ((block2 = stPinchSegment_getBlock(segment2)) != NULL) {
+            if (block1 == block2) {
+                return stPinchBlock_getLength(block1) == 1 ? 0 : containsMoreThanOneEvent(segment1, flower);
+            }
+            if (stPinchBlock_getDegree(block1) < stPinchBlock_getDegree(block2)) {
+                return containsMoreThanOneEvent(segment1, flower) && containsMoreThanOneEvent(segment2, flower);
+            }
+            return containsMoreThanOneEvent(segment2, flower) && containsMoreThanOneEvent(segment1, flower);
+        }
+    }
+    // If we get here, we are just adding a segment to a block, not
+    // pinching two blocks together.
+    return false;
 }
 
 bool stCaf_filterByRepeatSpecies(stPinchSegment *segment1,
