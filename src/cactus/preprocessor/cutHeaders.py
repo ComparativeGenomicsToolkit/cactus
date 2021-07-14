@@ -105,9 +105,9 @@ def make_cut_header_table(job, input_fa_ids, config_node, event_names):
     for prep_node in prep_nodes:
         prep_job_name = getOptionalAttrib(prep_node, 'preprocessJob')
         if prep_job_name == 'cutHeaders' and getOptionalAttrib(prep_node, 'active', typeFn=bool):
-            cut_before = getOptionalAttrib(prep_node, 'cutBefore')
-            cut_before_occ = getOptionalAttrib(prep_node, 'cutBeforeOcc')
-            cut_after = getOptionalAttrib(prep_node, 'cutAfter')
+            cut_before = getOptionalAttrib(prep_node, 'cutBefore', typeFn=str, default=None)
+            cut_before_occ = getOptionalAttrib(prep_node, 'cutBeforeOcc', typeFn=int, default=None)
+            cut_after = getOptionalAttrib(prep_node, 'cutAfter', typeFn=str, default=None)
 
     header_table_ids = []
     root_job = Job()
