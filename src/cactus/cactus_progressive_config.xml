@@ -332,12 +332,12 @@
 	<!-- includeMinigraph: include minigraph node sequences as paths in output (note that cactus-graphmap-join will still remove them by default) -->
 	<!-- includeAncestor: include ancestral reference sequences as paths in output -->
 	<!-- prependGenomeNames: prepend each output path with the genome name -->
-	<!-- hal2vgOptions: options to use in every hal2vg command -->
+	<!-- hal2vgOptions: options to use in every hal2vg command (note we default to HashGraph (hg) output to keep softmasking) -->
 	<hal2vg
-		 includeMinigraph="1"
+		 includeMinigraph="0"
 		 includeAncestor="0"
 		 prependGenomeNames="1"
-		 hal2vgOptions="--progress --inMemory"
+		 hal2vgOptions="--progress --inMemory --outputFormat hg"
 		 />
   	<multi_cactus>
 		<outgroup

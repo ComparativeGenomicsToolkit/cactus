@@ -226,11 +226,11 @@ def clip_vg(job, options, config, vg_path, vg_id):
             fix_cmd += ['--dont_collapse', options.reference + '*']
         cactus_call(parameters=fix_cmd)
         # GFAFfix doesn't seem to unchop that well, so we do that in vg after
-        cactus_call(parameters=[['vg', 'convert', '-g', '-p', gfa_out_path], ['vg', 'mod', '-u', '-']], outfile=normalized_path)
+        cactus_call(parameters=[['vg', 'convert', '-g', '-a', gfa_out_path], ['vg', 'mod', '-u', '-']], outfile=normalized_path)
     
     cmd = ['clip-vg', vg_path, '-f']
     if options.clipLength is not None and not is_decoy:
-        cmd += ['-u', str(options.clipLength)]
+        cmd += ['-s', '-u', str(options.clipLength)]
     for rs in options.rename:
         cmd += ['-r', rs]
     if options.reference:
@@ -242,8 +242,9 @@ def clip_vg(job, options, config, vg_path, vg_id):
         graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
         cmd += ['-d', graph_event]
 
-    # sort while we're at it        
-    cmd = [cmd, ['vg', 'ids', '-s', '-']]
+    # sort and convert to packed graph while we're at it
+    # (we kept in hashgraph till now in order to use softmasked bases while clipping)
+    cmd = [cmd, ['vg', 'convert', '-p' ,'-'], ['vg', 'ids', '-s', '-']]
         
     cactus_call(parameters=cmd, outfile=out_path)
 
