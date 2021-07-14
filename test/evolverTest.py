@@ -186,7 +186,7 @@ class TestCase(unittest.TestCase):
                                '--pangenome'] + cactus_opts)            
                 
 
-    def _run_evolver_primates_graphmap(self, binariesMode):
+    def _run_evolver_primates_graphmap(self, binariesMode, stable=False):
         """ primates star test but using graphmap pangenome pipeline
         """
         # borrow seqfile from other primates test
@@ -215,7 +215,10 @@ class TestCase(unittest.TestCase):
         cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir, '--configFile', poa_config_path]
         
         # preprocess with dna-brnn
-        subprocess.check_call(['cactus-preprocess', self._job_store(binariesMode), seq_file_path, out_seq_file_path, '--maskAlpha'] + cactus_opts)
+        ht_opts = []
+        if stable:
+            ht_opts = ['--fastaHeaderTable', os.path.join(self.tempDir, 'header_table.tsv')]
+        subprocess.check_call(['cactus-preprocess', self._job_store(binariesMode), seq_file_path, out_seq_file_path, '--maskAlpha'] + cactus_opts + ht_opts)
 
         # make the reference graph
         mg_cmd = ['minigraph', '-xggs', '-t', '4']
@@ -232,13 +235,15 @@ class TestCase(unittest.TestCase):
 
         # do the mapping
         paf_path = os.path.join(self.tempDir, 'aln.paf')
-        fa_path = os.path.join(self.tempDir, 'refgraph.gfa.fa')
+        if not stable:
+            fa_path = os.path.join(self.tempDir, 'refgraph.gfa.fa')
+            ht_opts += ['--outputFasta', fa_path]
+            
         # todo: it'd be nice to have an interface for setting tag to something not latest or commit
         if binariesMode == 'docker':
             cactus_opts += ['--latest']
         
-        subprocess.check_call(['cactus-graphmap', self._job_store(binariesMode), out_seq_file_path, mg_path, paf_path,
-                               '--outputFasta', fa_path] + cactus_opts)
+        subprocess.check_call(['cactus-graphmap', self._job_store(binariesMode), out_seq_file_path, mg_path, paf_path] + cactus_opts + ht_opts)
 
         # do the alignment
         subprocess.check_call(['cactus-align', self._job_store(binariesMode), out_seq_file_path, paf_path, self._out_hal(binariesMode),
@@ -503,6 +508,15 @@ class TestCase(unittest.TestCase):
         # todo: tune config so that delta can be reduced
         self._check_maf_accuracy(self._out_hal("local"), delta=0.025, dataset='primates')
         
+    def testEvolverMinigraphStableLocal(self):
+        """ Use the new minigraph pangenome pipeline to create an alignment of the primates, then compare with the baseline
+        """
+        name = "local"
+        self._run_evolver_primates_graphmap(name, stable=True)
+
+        # check the output
+        # todo: tune config so that delta can be reduced
+        self._check_maf_accuracy(self._out_hal("local"), delta=0.025, dataset='primates')
         
 
 if __name__ == '__main__':

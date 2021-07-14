@@ -14,7 +14,8 @@ from Bio.SeqRecord import SeqRecord
 from cactus.shared.common import RoundedJob
 from cactus.shared.common import cactus_call
 from toil.realtimeLogger import RealtimeLogger
-from cactus.shared.common import getOptionalAttrib
+from cactus.shared.common import getOptionalAttrib, catFiles
+from toil.job import Job
 
 class CutHeadersJob(RoundedJob):
     def __init__(self, fastaID, cutBefore, cutBeforeOcc, cutAfter):
@@ -100,34 +101,49 @@ def make_cut_header_table(job, input_fa_ids, config_node, event_names):
     work_dir = job.fileStore.getLocalTempDir()
 
     prep_nodes = config_node.findall('preprocessor')
-    found_cut_job = False
+    cut_before, cut_before_occ, cut_after = None, None, None
     for prep_node in prep_nodes:
         prep_job_name = getOptionalAttrib(prep_node, 'preprocessJob')
         if prep_job_name == 'cutHeaders' and getOptionalAttrib(prep_node, 'active', typeFn=bool):
-            if found_cut_job:
-                raise RuntimeError("Error: multiple cutHeaders jobs not supported for GFA inputs")
             cut_before = getOptionalAttrib(prep_node, 'cutBefore')
             cut_before_occ = getOptionalAttrib(prep_node, 'cutBeforeOcc')
             cut_after = getOptionalAttrib(prep_node, 'cutAfter')
-            found_cut_job = True
 
-    header_table = {}
+    header_table_ids = []
+    root_job = Job()
+    job.addChild(root_job)
     for fa_id, event in zip(input_fa_ids, event_names):
-        fa_path = job.fileStore.readGlobalFile(fa_id)
-        with open(fa_path, 'r') as fa_file:
-            for seq_record in SeqIO.parse(fa_file, 'fasta'):
-                header = seq_record.description
-                if found_cut_job:
-                    header = cut_header(seq_record.description, cut_before, cut_before_occ, cut_after)
-                if seq_record.description in header_table:
-                    raise RuntimeError("Error: fasta header {} found in more than one sample.  Headers must be unique to make table".format(
-                        seq_record.description))
-                header_table[seq_record.description] = (header, event, len(seq_record.seq))
+        header_job = root_job.addChildJobFn(make_one_header_table, fa_id, event, cut_before, cut_before_occ, cut_after,
+                                            disk=fa_id.size)
+        header_table_ids.append(header_job.rv())
+    join_job = job.addFollowOnJobFn(join_header_table, header_table_ids)
 
+    return join_job.rv()
+
+def make_one_header_table(job, fa_id, event, cut_before, cut_before_occ, cut_after):
+    fa_path = job.fileStore.readGlobalFile(fa_id)
     table_path = job.fileStore.getLocalTempFile()
-    with open(table_path, 'w') as table_file:
-        for k,v in header_table.items():
-            table_file.write('{}\t{}\t{}\t{}\n'.format(k, v[0], v[1], v[2]))
+    with open(fa_path, 'r') as fa_file, open(table_path, 'w') as table_file:
+        for seq_record in SeqIO.parse(fa_file, 'fasta'):
+            header = seq_record.description
+            if cut_before or cut_after:
+                header = cut_header(seq_record.description, cut_before, cut_before_occ, cut_after)
+            table_file.write('{}\t{}\t{}\t{}\n'.format(seq_record.description, header, event, len(seq_record.seq)))
+    return job.fileStore.writeGlobalFile(table_path)
+
+def join_header_table(job, header_table_ids):
+    header_table_paths = [job.fileStore.readGlobalFile(x) for x in header_table_ids]
+    table_path = job.fileStore.getLocalTempFile()
+    catFiles(header_table_paths, table_path)
+    contig_set = set()
+    # do a quick uniqueness check
+    with open(table_path, 'r') as table_file:
+        for line in table_file:
+            toks = line.rstrip().split('\t')
+            if toks:
+                if toks[0] in contig_set:
+                    raise RuntimeError("Error: fasta header {} found in more than one sample.  Headers must be unique to make table".format(toks[0]))
+                contig_set.add(toks[0])
 
     return job.fileStore.writeGlobalFile(table_path)
     
