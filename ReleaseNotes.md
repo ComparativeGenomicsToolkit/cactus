@@ -1,4 +1,4 @@
-# Release 2.0.2
+# Release 2.0.2   2021-07-07
 
 This release primarily addresses stability issues during pangenome construction.
 
