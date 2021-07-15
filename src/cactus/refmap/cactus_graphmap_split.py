@@ -47,6 +47,8 @@ def main():
     parser.add_argument("minigraphGFA", help = "Minigraph-compatible reference graph in GFA format (can be gzipped)")
     parser.add_argument("graphmapPAF", type=str, help = "Output pairwise alignment file in PAF format (can be gzipped)")
     parser.add_argument("--outDir", required=True, type=str, help = "Output directory")
+    parser.add_argument("--fastaHeaderTable", type=str,
+                        help="Fasta contig information (from cactus-preprocess) required to not use minigraph node sequences")    
     parser.add_argument("--refContigs", nargs="*", help = "Subset to these reference contigs (multiple allowed)", default=[])
     parser.add_argument("--refContigsFile", type=str, help = "Subset to (newline-separated) reference contigs in this file")
     parser.add_argument("--otherContig", type=str, help = "Lump all reference contigs unselected by above options into single one with this name")
@@ -115,9 +117,11 @@ def runCactusGraphMapSplit(options):
             # get the minigraph "virutal" assembly name
             graph_event = getOptionalAttrib(findRequiredNode(configNode, "graphmap"), "assemblyName", default="_MINIGRAPH_")
 
+            # import the fasta header table
+            header_table_id = toil.importFile(makeURL(options.fastaHeaderTable)) if options.fastaHeaderTable else None
+
             # load the seqfile
             seqFile = SeqFile(options.seqFile)
-
             
             #import the graph
             gfa_id = toil.importFile(makeURL(options.minigraphGFA))
@@ -130,7 +134,10 @@ def runCactusGraphMapSplit(options):
             leaves = set([seqFile.tree.getName(node) for node in seqFile.tree.getLeaves()])
             
             if graph_event not in leaves:
-                raise RuntimeError("Minigraph name {} not found in seqfile".format(graph_event))
+                if not options.fastaHeaderTable:
+                    raise RuntimeError("Minigraph name {} not found in seqfile".format(graph_event))
+            elif options.fastaHeaderTable:
+                raise RuntimeError("--fastaHeaderTable cannot be used with a seqfile with a graph event in it")
             if options.reference and options.reference not in leaves:
                 raise RuntimeError("Name given with --reference {} not found in seqfile".format(options.reference))
                 
@@ -147,12 +154,13 @@ def runCactusGraphMapSplit(options):
             # run the workflow
             wf_output = toil.start(Job.wrapJobFn(graphmap_split_workflow, options, config, seqIDMap,
                                                  gfa_id, options.minigraphGFA,
-                                                 paf_id, options.graphmapPAF, ref_contigs, options.otherContig))
+                                                 paf_id, options.graphmapPAF, ref_contigs, options.otherContig,
+                                                 header_table_id))
 
         #export the split data
         export_split_data(toil, wf_output[0], wf_output[1], wf_output[2:], options.outDir, config)
 
-def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, paf_id, paf_path, ref_contigs, other_contig):
+def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, paf_id, paf_path, ref_contigs, other_contig, header_table_id):
 
     root_job = Job()
     job.addChild(root_job)
@@ -176,6 +184,7 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
     # use rgfa-split to split the gfa and paf up by contig
     split_gfa_job = root_job.addFollowOnJobFn(split_gfa, config, gfa_id, [paf_id], ref_contigs,
                                               other_contig, options.reference, mask_bed_id,
+                                              header_table_id,
                                               disk=(gfa_size + paf_size) * 5)
 
     # use the output of the above splitting to do the fasta splitting
@@ -189,7 +198,7 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
 
     # partition these into fasta files
     split_fallback_gfa_job = remap_job.addFollowOnJobFn(split_gfa, config, None, remap_job.rv(0), ref_contigs,
-                                                        other_contig, options.reference, None,
+                                                        other_contig, options.reference, None, None,
                                                         disk=(gfa_size + paf_size) * 5)
 
     # use the output of the above to split the ambiguous fastas
@@ -220,7 +229,7 @@ def cat_beds(job, bed_ids):
     catFiles(in_beds, out_bed)
     return job.fileStore.writeGlobalFile(out_bed)
     
-def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference_event, mask_bed_id):
+def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference_event, mask_bed_id, fasta_header_id):
     """ Use rgfa-split to divide a GFA and PAF into chromosomes.  The GFA must be in minigraph RGFA output using
     the desired reference. """
 
@@ -238,6 +247,8 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
     out_prefix = os.path.join(work_dir, "split_")
     bed_path = os.path.join(work_dir, "mask.bed")
     log_path = os.path.join(work_dir, "split.log")
+    fasta_header_path = os.path.join(work_dir, "fasta-headers.tsv")
+    
     if (mask_bed_id):
         job.fileStore.readGlobalFile(mask_bed_id, bed_path)
 
@@ -250,6 +261,9 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
         job.fileStore.readGlobalFile(paf_id, paf_paths[-1])
     if len(paf_paths) > 1:
         catFiles(paf_paths, paf_path)
+
+    if fasta_header_id:
+        job.fileStore.readGlobalFile(fasta_header_id, fasta_header_path)
     
     # get the minigraph "virutal" assembly name
     graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
@@ -273,7 +287,7 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
            '-Q', query_uniqueness,
            '-P', max_gap,
            '-a', amb_name,
-           '-L', log_path]
+           '-l', log_path]
     if gfa_id:
         cmd += ['-g', gfa_path, '-G']
     if other_contig:
@@ -285,6 +299,8 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
     min_mapq = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minMAPQ")
     if min_mapq:
         cmd += ['-A', min_mapq]
+    if fasta_header_id:
+        cmd += ['-L', fasta_header_path]
     # optional stuff added to second pass:
     if not gfa_id:
         remap_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "remapSplitOptions", default=None)

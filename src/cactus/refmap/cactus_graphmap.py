@@ -335,13 +335,13 @@ def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id,
     if paf_output:
         # optional gaf->paf step.  we are not piping directly out of minigraph because mzgaf2paf's overlap filter
         # (which is usually on) requires 2 passes so it won't read stdin when it's enabled
-        paf_id =  merge_gafs_into_paf(job, config, None, [gaf_path], header_table_path = header_table_path)
+        paf_id =  merge_gafs_into_paf(job, config, None, [gaf_path], gfa_path = gfa_path, header_table_path = header_table_path)
     if gaf_output:
         gaf_id = job.fileStore.writeGlobalFile(gaf_path)
 
     return gaf_id, paf_id
 
-def merge_gafs_into_paf(job, config, gaf_file_id_map, gaf_paths = [], header_table_path = None, header_table_id = None):
+def merge_gafs_into_paf(job, config, gaf_file_id_map, gaf_paths = [], gfa_path = None, header_table_path = None, gfa_id = None, header_table_id = None):
     """ Merge GAF alignments into a single PAF, applying some filters """
 
     work_dir = job.fileStore.getLocalTempDir()
@@ -353,6 +353,9 @@ def merge_gafs_into_paf(job, config, gaf_file_id_map, gaf_paths = [], header_tab
     if header_table_id:
         header_table_path = os.path.join(work_dir, 'fa-lengths.tsv')
         job.fileStore.readGlobalFile(header_table_id, header_table_path)
+        assert gfa_id is not None
+        gfa_path = os.path.join(work_dir, 'mg.gfa')
+        job.fileStore.readGlobalFile(gfa_id, gfa_path)
 
     xml_node = findRequiredNode(config.xmlRoot, "graphmap")
     mzgaf2paf_opts = []
@@ -381,6 +384,7 @@ def merge_gafs_into_paf(job, config, gaf_file_id_map, gaf_paths = [], header_tab
         mzgaf2paf_opts += ['-o', str(overlap_filter_len)]
     if header_table_path:
         mzgaf2paf_opts += ['-L', header_table_path]
+        mzgaf2paf_opts += ['-G', gfa_path]
     else:
         # this must be consistent with prependUniqueIDs() in cactus_workflow.py
         mzgaf2paf_opts += ['-p', 'id={}|'.format(graph_event)]
