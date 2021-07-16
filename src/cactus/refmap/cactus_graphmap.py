@@ -139,6 +139,9 @@ def runCactusGraphMap(options):
             # load the seqfile
             seqFile = SeqFile(options.seqFile)
 
+            if options.fastaHeaderTable and not options.refFromGFA:
+                raise RuntimeError("--refFromGFA must be specified when using --fastaHeaderTable")
+                    
             if options.refFromGFA:
                 if options.refFromGFA not in seqFile.pathMap:
                     raise RuntimeError("{}, specified with --refFromGFA, was not found in the seqfile".format(options.refFromGFA))
@@ -219,6 +222,7 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, he
     if options.refFromGFA:
         # extract a PAF directly from the rGFAs tag for the given reference
         gfa2paf_job = root_job.addFollowOnJobFn(extract_paf_from_gfa, gfa_id, options.minigraphGFA, options.refFromGFA, graph_event,
+                                                options.fastaHeaderTable is not None,
                                                 disk=gfa_size)
 
         merge_paf_job = Job.wrapJobFn(merge_pafs, {"1" : paf_job.rv(0), "2" : gfa2paf_job.rv()}, disk=gfa_size)
@@ -422,7 +426,7 @@ def compress_gaf(job, gaf_file_id):
     job.fileStore.deleteGlobalFile(gaf_file_id)
     return job.fileStore.writeGlobalFile(zip_path)
 
-def extract_paf_from_gfa(job, gfa_id, gfa_path, ref_event, graph_event):
+def extract_paf_from_gfa(job, gfa_id, gfa_path, ref_event, graph_event, stable):
     """ make a paf directly from the rGFA tags.  rgfa2paf supports other ranks, but we're only
     using rank=0 here to produce an alignment for the reference genome """
     work_dir = job.fileStore.getLocalTempDir()
@@ -436,7 +440,10 @@ def extract_paf_from_gfa(job, gfa_id, gfa_path, ref_event, graph_event):
         gfa_path = gfa_path[:-3]
     # make the paf
     paf_path = job.fileStore.getLocalTempFile()
-    cactus_call(parameters=['rgfa2paf', gfa_path, '-T', 'id={}|'.format(graph_event), '-P', 'id={}|'.format(ref_event)], outfile=paf_path)
+    cmd = ['rgfa2paf', gfa_path, '-T', 'id={}|'.format(graph_event), '-P', 'id={}|'.format(ref_event)]
+    if stable:
+        cmd += ['-s']
+    cactus_call(parameters=cmd, outfile=paf_path)
     return job.fileStore.writeGlobalFile(paf_path)
     
 def add_genome_to_seqfile(seqfile_path, fasta_path, name):

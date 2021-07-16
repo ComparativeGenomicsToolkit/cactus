@@ -519,6 +519,11 @@ def combine_splits(job, options, config, seq_id_map, original_id_map, remap_id_m
                                                                  remap_id_map[ref_contig],
                                                                  disk=total_size * 4).rv()
 
+    # hack hack hack
+    # the remap/split logic without this doesn't work with stable coordintes
+    if options.fastaHeaderTable:
+        findRequiredNode(config.xmlRoot, "graphmap_split").attrib["useMinimapPAF"] = True
+        
     return root_job.addFollowOnJobFn(combine_paf_splits, options, config, seq_id_map, original_id_map, orig_amb_entry,
                                      remap_id_map, amb_name, graph_event).rv()
 
@@ -571,19 +576,20 @@ def combine_paf_splits(job, options, config, seq_id_map, original_id_map, orig_a
         if ref_contig != amb_name and ref_contig in original_id_map:
 
             # make a set of all minigraph nodes in this contig
-            mg_fa_path = os.path.join(work_dir, '{}.{}.fa'.format(graph_event, ref_contig))
-            if seq_id_map[graph_event][0].endswith('.gz'):
-                mg_fa_path += '.gz'
-            mg_contigs_path = os.path.join(work_dir, '{}.contigs'.format(graph_event))
-            job.fileStore.readGlobalFile(original_id_map[ref_contig]['fa'][graph_event], mg_fa_path, mutable=True)
-            cactus_call(parameters=[['zcat' if mg_fa_path.endswith('.gz') else 'cat', mg_fa_path],
-                                    ['grep', '>'], ['cut', '-c', '2-']], outfile=mg_contigs_path)
             mg_contig_set = set()
-            with open(mg_contigs_path, 'r') as mg_contigs_file:
-                for line in mg_contigs_file:
-                    mg_contig_set.add('id={}|{}'.format(graph_event, line.strip()))
-            os.remove(mg_fa_path)
-            os.remove(mg_contigs_path)
+            if not use_minimap_paf:
+                mg_fa_path = os.path.join(work_dir, '{}.{}.fa'.format(graph_event, ref_contig))
+                if seq_id_map[graph_event][0].endswith('.gz'):
+                    mg_fa_path += '.gz'
+                mg_contigs_path = os.path.join(work_dir, '{}.contigs'.format(graph_event))
+                job.fileStore.readGlobalFile(original_id_map[ref_contig]['fa'][graph_event], mg_fa_path, mutable=True)
+                cactus_call(parameters=[['zcat' if mg_fa_path.endswith('.gz') else 'cat', mg_fa_path],
+                                        ['grep', '>'], ['cut', '-c', '2-']], outfile=mg_contigs_path)
+                with open(mg_contigs_path, 'r') as mg_contigs_file:
+                    for line in mg_contigs_file:
+                        mg_contig_set.add('id={}|{}'.format(graph_event, line.strip()))
+                os.remove(mg_fa_path)
+                os.remove(mg_contigs_path)
 
             #make a set of all the query contigs that we want to remove from ambiguous and add to this contig
             query_contig_set = set()
