@@ -29,7 +29,7 @@ from cactus.pipeline.cactus_workflow import prependUniqueIDs
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
-from cactus.shared.common import cactus_call
+from cactus.shared.common import cactus_call, unzip_gz
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from toil.job import Job
 from toil.common import Toil
@@ -199,20 +199,29 @@ def runCactusGraphMap(options):
 def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event, header_table_id):
     """ Overall workflow takes command line options and returns (paf-id, (optional) fa-id) """
     fa_id = None
+    root_job = Job()
+    job.addChild(root_job)
         
     if options.outputFasta:
         # convert GFA to fasta
         fa_job = job.addChildJobFn(make_minigraph_fasta, gfa_id, options.outputFasta, graph_event)
         fa_id = fa_job.rv()
 
-    paf_job = job.addChildJobFn(minigraph_map_all, config, gfa_id, seq_id_map, header_table_id, options.outputGAFDir is not None)
+    # use file extension to sniff out compressed input -- need to unzip for stable coordinates
+    gfa_size = gfa_id.size
+    if options.minigraphGFA.endswith(".gz") and header_table_id:
+        gfa_id = root_job.addChildJobFn(unzip_gz, options.minigraphGFA, gfa_id, disk=gfa_id.size * 10).rv()
+        options.minigraphGFA = options.minigraphGFA[:-3]
+        gfa_size *= 10
+        
+    paf_job = root_job.addFollowOnJobFn(minigraph_map_all, config, gfa_id, seq_id_map, header_table_id, options.outputGAFDir is not None)
     
     if options.refFromGFA:
         # extract a PAF directly from the rGFAs tag for the given reference
-        gfa2paf_job = job.addChildJobFn(extract_paf_from_gfa, gfa_id, options.minigraphGFA, options.refFromGFA, graph_event,
-                                        disk=gfa_id.size * 12)
+        gfa2paf_job = root_job.addFollowOnJobFn(extract_paf_from_gfa, gfa_id, options.minigraphGFA, options.refFromGFA, graph_event,
+                                                disk=gfa_size)
 
-        merge_paf_job = Job.wrapJobFn(merge_pafs, {"1" : paf_job.rv(0), "2" : gfa2paf_job.rv()}, disk=gfa_id.size * 12)
+        merge_paf_job = Job.wrapJobFn(merge_pafs, {"1" : paf_job.rv(0), "2" : gfa2paf_job.rv()}, disk=gfa_size)
         paf_job.addFollowOn(merge_paf_job)
         gfa2paf_job.addFollowOn(merge_paf_job)
         out_paf_id = merge_paf_job.rv()
