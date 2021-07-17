@@ -522,7 +522,7 @@ def combine_splits(job, options, config, seq_id_map, original_id_map, remap_id_m
     # hack hack hack
     # the remap/split logic without this doesn't work with stable coordintes
     if options.fastaHeaderTable:
-        findRequiredNode(config.xmlRoot, "graphmap_split").attrib["useMinimapPAF"] = True
+        findRequiredNode(config.xmlRoot, "graphmap_split").attrib["useMinimapPAF"] = "1"
         
     return root_job.addFollowOnJobFn(combine_paf_splits, options, config, seq_id_map, original_id_map, orig_amb_entry,
                                      remap_id_map, amb_name, graph_event).rv()
