@@ -39,7 +39,7 @@ from cactus.preprocessor.checkUniqueHeaders import checkUniqueHeaders
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import LastzRepeatMaskJob
 from cactus.preprocessor.lastzRepeatMasking.cactus_lastzRepeatMask import RepeatMaskOptions
 from cactus.preprocessor.dnabrnnMasking import DnabrnnMaskJob, loadDnaBrnnModel
-from cactus.preprocessor.cutHeaders import CutHeadersJob
+from cactus.preprocessor.cutHeaders import CutHeadersJob, make_cut_header_table
 from cactus.preprocessor.fileMasking import maskJobOverride, FileMaskingJob
 
 class PreprocessorOptions:
@@ -335,7 +335,7 @@ class CactusPreprocessor2(RoundedJob):
 def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=False,
                   outputSequences = [], maskAlpha=False, clipAlpha=None,
                   maskFile=None, minLength=None, inputEventNames=None, brnnCores=None,
-                  gpu_override=False):
+                  gpu_override=False, outHeaderTablePath=None):
     #Replace any constants
     configNode = ET.parse(configFile).getroot()
     if not outputSequences:
@@ -372,10 +372,12 @@ def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=F
             inputSequenceIDs.append(toil.importFile(makeURL(seq)))
         maskFileID = toil.importFile(makeURL(maskFile)) if maskFile else None
         unzip_job = Job.wrapJobFn(unzip_then_pp, configNode, inputSequences, inputSequenceIDs, inputEventNames,
-                                  maskFile, maskFileID, minLength)
-        outputSequenceIDs = toil.start(unzip_job)
+                                  maskFile, maskFileID, minLength, outHeaderTablePath)
+        outputSequenceIDs, headerTableID = toil.start(unzip_job)
     else:
-        outputSequenceIDs = toil.restart()
+        outputSequenceIDs, headerTableID = toil.restart()
+    if outHeaderTablePath:
+        toil.exportFile(headerTableID, makeURL(outHeaderTablePath))
     for seqID, path in zip(outputSequenceIDs, outputSequences):
         try:
             iter(seqID)
@@ -386,7 +388,7 @@ def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=F
         except:
             toil.exportFile(seqID, makeURL(path))
 
-def unzip_then_pp(job, config_node, input_fa_paths, input_fa_ids, input_event_names, mask_file_path, mask_file_id, min_length):
+def unzip_then_pp(job, config_node, input_fa_paths, input_fa_ids, input_event_names, mask_file_path, mask_file_id, min_length, header_table_path):
     """ unzip then preprocess """
     unzip_job = job.addChildJobFn(unzip_gzs, input_fa_paths, input_fa_ids)
     if mask_file_id is not None:
@@ -394,8 +396,11 @@ def unzip_then_pp(job, config_node, input_fa_paths, input_fa_ids, input_event_na
         config_node = mask_unzip_job.addFollowOnJobFn(maskJobOverride, config_node, mask_file_path, mask_unzip_job.rv(0), min_length,
                                                       disk=mask_file_id.size*20).rv()
     pp_job = unzip_job.addFollowOn(CactusPreprocessor([unzip_job.rv(i) for i in range(len(input_fa_ids))], config_node, input_event_names))
+    if header_table_path:
+        ht_job = unzip_job.addFollowOnJobFn(make_cut_header_table, [unzip_job.rv(i) for i in range(len(input_fa_ids))], config_node, input_event_names)
     zip_job = pp_job.addFollowOnJobFn(zip_gzs, input_fa_paths,  pp_job.rv(), list_elems = [0])
-    return zip_job.rv()
+    header_table = ht_job.rv() if header_table_path else None
+    return zip_job.rv(), header_table
     
 def runCactusPreprocessor(outputSequenceDir, configFile, inputSequences, toilDir):
     toilOptions = Job.Runner.getDefaultOptions(toilDir)
@@ -429,6 +434,8 @@ def main():
                         help="The way to run the Cactus binaries", default=None)
     parser.add_argument("--gpu", action="store_true",
                         help="Enable GPU acceleration by using Segaling instead of lastz")
+    parser.add_argument("--fastaHeaderTable", type=str,
+                        help="Write a table of original fasta headers and their new cut names to given path.  Required for cactus-graphmap pangenome pipeline")
 
     options = parser.parse_args()
     setupBinaries(options)
@@ -510,6 +517,9 @@ def main():
 
     assert outSeqPaths
 
+    if options.fastaHeaderTable and not inNames:
+        raise RuntimeError("Input event names must be specified with --inputNames for --fastaHeaderTable")
+
     if options.ignore and inNames:
         for ignore_event in options.ignore:
             if ignore_event in inNames:
@@ -528,7 +538,8 @@ def main():
                       minLength=options.minLength,
                       inputEventNames=inNames,
                       brnnCores=options.brnnCores,
-                      gpu_override=options.gpu)
+                      gpu_override=options.gpu,
+                      outHeaderTablePath=options.fastaHeaderTable)
 
 if __name__ == '__main__':
     main()
