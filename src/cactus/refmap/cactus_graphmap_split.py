@@ -132,11 +132,11 @@ def runCactusGraphMapSplit(options):
             #import the sequences (that we need to align for the given event, ie leaves and outgroups)
             seqIDMap = {}
             leaves = set([seqFile.tree.getName(node) for node in seqFile.tree.getLeaves()])
-            
+
+            options.post_stable = False
             if graph_event not in leaves:
                 if not options.fastaHeaderTable:
                     raise RuntimeError("Minigraph name {} not found in seqfile".format(graph_event))
-                options.post_stable = False
             elif options.fastaHeaderTable:
                 options.post_stable = True
             if options.reference and options.reference not in leaves:
