@@ -240,7 +240,7 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
     if not gfa_id and not getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "remap", typeFn=bool, default=False):
         # also bypass if remapping is off in the config (we know it's the second pass because gfa_id is None)
         return [None, None]
-    
+
     work_dir = job.fileStore.getLocalTempDir()
     gfa_path = os.path.join(work_dir, "mg.gfa")
     paf_path = os.path.join(work_dir, "mg.paf")
@@ -656,8 +656,36 @@ def combine_paf_splits(job, options, config, seq_id_map, original_id_map, orig_a
         original_id_map[amb_name]['paf'] = job.fileStore.writeGlobalFile(amb_paf_path)
     else:
         assert os.path.getsize(amb_paf_path) == 0
+
+    if options.fastaHeaderTable:
+        for ref_contig in original_id_map:
+            if 'paf' in original_id_map[ref_contig]:
+                original_id_map[ref_contig]['paf'] = job.addChildJobFn(remove_unmapped_targets, original_id_map[ref_contig]['paf'],
+                                                                       disk = 2* original_id_map[ref_contig]['paf'].size).rv()     
     
     return original_id_map
+
+def remove_unmapped_targets(job, paf_id):
+    """
+    with stable coordinates, we can have cases where a minigraph node translates to a reference path that itself
+    is not assigned to the given contig.  this is a rare case where maybe minigraph maps the same contig to 2 chromosomes
+    or maybe it only maps a little piece of the contig.  whichever the case, it will cause errors downstream, so we must remove
+    """
+    paf_path = job.fileStore.readGlobalFile(paf_id)
+    fixed_path = paf_path + '.remove_unmapped_targets'
+    query_set = set()
+    with open(paf_path, 'r') as paf_file:
+        for line in paf_file:
+            toks = line.split('\t')
+            if len(toks) > 11:
+                query_set.add(toks[0])
+    with open(paf_path, 'r') as paf_file, open(fixed_path, 'w') as fixed_file:
+        for line in paf_file:
+            toks = line.split('\t')
+            if len(toks) <= 11 or toks[5] in query_set:
+                fixed_file.write(line)
+    return job.fileStore.writeGlobalFile(fixed_path)
+
 
 def export_split_data(toil, input_seq_id_map, output_id_map, split_log_ids, output_dir, config):
     """ download all the split data locally """
