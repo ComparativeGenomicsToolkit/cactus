@@ -136,8 +136,9 @@ def runCactusGraphMapSplit(options):
             if graph_event not in leaves:
                 if not options.fastaHeaderTable:
                     raise RuntimeError("Minigraph name {} not found in seqfile".format(graph_event))
+                options.post_stable = False
             elif options.fastaHeaderTable:
-                raise RuntimeError("--fastaHeaderTable cannot be used with a seqfile with a graph event in it")
+                options.post_stable = True
             if options.reference and options.reference not in leaves:
                 raise RuntimeError("Name given with --reference {} not found in seqfile".format(options.reference))
                 
@@ -184,7 +185,7 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
     # use rgfa-split to split the gfa and paf up by contig
     split_gfa_job = root_job.addFollowOnJobFn(split_gfa, config, gfa_id, [paf_id], ref_contigs,
                                               other_contig, options.reference, mask_bed_id,
-                                              header_table_id,
+                                              header_table_id if not options.post_stable else None,
                                               disk=(gfa_size + paf_size) * 5)
 
     # use the output of the above splitting to do the fasta splitting
@@ -211,9 +212,16 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
     # combine the split sequences with the split ambigious sequences
     combine_split_job = gather_fallback_fas_job.addFollowOnJobFn(combine_splits, options, config, seqIDMap, gather_fas_job.rv(),
                                                                  gather_fallback_fas_job.rv())
+    output_map = combine_split_job.rv()
 
+    # convert to stable coordinates.  if already stable coordinates (conversion done in graphmap), then run filter to make
+    # sure no missing targets
+    if options.fastaHeaderTable:
+        stablefy_job = combine_split_job.addFollowOnJobFn(stablefy, gfa_id, output_map, header_table_id, not options.post_stable)
+        output_map = stablefy_job.rv()
+        
     # return all the files, as well as the 2 split logs
-    return (seqIDMap, combine_split_job.rv(), split_gfa_job.rv(1), split_fallback_gfa_job.rv(1))
+    return (seqIDMap, output_map, split_gfa_job.rv(1), split_fallback_gfa_job.rv(1))
 
 def get_mask_bed(job, seq_id_map, min_length):
     """ make a bed file from the fastas """
@@ -519,10 +527,13 @@ def combine_splits(job, options, config, seq_id_map, original_id_map, remap_id_m
                                                                  remap_id_map[ref_contig],
                                                                  disk=total_size * 4).rv()
 
-    # hack hack hack
     # the remap/split logic without this doesn't work with stable coordintes
-    if options.fastaHeaderTable:
-        findRequiredNode(config.xmlRoot, "graphmap_split").attrib["useMinimapPAF"] = "1"
+    # and even then results are flaky:  much better to run with post_stable == True (pass in PAFs with minigraph targets)
+    # the convert at the very end 
+    if options.fastaHeaderTable and not options.post_stable:
+        raise RuntimeError("Splitting pafs with stable coordinates (generated with cactus-graphmap --fastaHeaderTable)"
+                           " requires useMinimapPaf to be set to \"1\" in the config.  But even then, this logic has not "
+                           "yet been fully tested")
         
     return root_job.addFollowOnJobFn(combine_paf_splits, options, config, seq_id_map, original_id_map, orig_amb_entry,
                                      remap_id_map, amb_name, graph_event).rv()
@@ -656,22 +667,45 @@ def combine_paf_splits(job, options, config, seq_id_map, original_id_map, orig_a
         original_id_map[amb_name]['paf'] = job.fileStore.writeGlobalFile(amb_paf_path)
     else:
         assert os.path.getsize(amb_paf_path) == 0
-
-    if options.fastaHeaderTable:
-        for ref_contig in original_id_map:
-            if 'paf' in original_id_map[ref_contig]:
-                original_id_map[ref_contig]['paf'] = job.addChildJobFn(remove_unmapped_targets, original_id_map[ref_contig]['paf'],
-                                                                       disk = 2* original_id_map[ref_contig]['paf'].size).rv()     
     
     return original_id_map
 
-def remove_unmapped_targets(job, paf_id):
+def stablefy(job, gfa_id, id_map, header_table_id, filter_only):
+    """ convert all minigraph node targets into stable query coordinates using the table, 
+    then run filter to make sure that all targets are present in queries"""
+    for ref_contig in id_map:
+        if 'paf' in id_map[ref_contig]:
+            id_map[ref_contig]['paf'] = job.addChildJobFn(stablefy_and_filter_paf, gfa_id, id_map[ref_contig]['paf'],
+                                                          header_table_id, filter_only,
+                                                          disk = gfa_id.size + 3 * id_map[ref_contig]['paf'].size).rv()
+
+    return id_map
+
+
+def stablefy_and_filter_paf(job, gfa_id, paf_id, header_table_id, filter_only):
     """
+    use the table to convert target contigs from minigraph node names to query contig (stable) space. 
+    then run filter:
     with stable coordinates, we can have cases where a minigraph node translates to a reference path that itself
     is not assigned to the given contig.  this is a rare case where maybe minigraph maps the same contig to 2 chromosomes
     or maybe it only maps a little piece of the contig.  whichever the case, it will cause errors downstream, so we must remove
+
+    todo: it's bit wasteful to reparse the gfa each time here, but won't affect bottom line much
+    
     """
-    paf_path = job.fileStore.readGlobalFile(paf_id)
+    work_dir = job.fileStore.getLocalTempDir()
+    paf_path = os.path.join(work_dir, "contig.paf")
+    job.fileStore.readGlobalFile(paf_id, paf_path)
+    
+    if not filter_only:
+        header_table_path = os.path.join(work_dir, "header-table.tsv")
+        gfa_path = os.path.join(work_dir, "graph.gfa")
+        job.fileStore.readGlobalFile(header_table_id, header_table_path)
+        job.fileStore.readGlobalFile(gfa_id, gfa_path)
+        stable_paf_path = paf_path + ".stable"                
+        cactus_call(parameters=['paf2stable', gfa_path, header_table_path, paf_path], outfile = stable_paf_path)
+        paf_path = stable_paf_path
+    
     fixed_path = paf_path + '.remove_unmapped_targets'
     query_set = set()
     with open(paf_path, 'r') as paf_file:

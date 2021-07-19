@@ -50,7 +50,8 @@ def main():
     parser.add_argument("minigraphGFA", help = "Minigraph-compatible reference graph in GFA format (can be gzipped)")
     parser.add_argument("outputPAF", type=str, help = "Output pairwise alignment file in PAF format")
     parser.add_argument("--fastaHeaderTable", type=str,
-                        help="Fasta contig information (from cactus-preprocess) required to not use minigraph node sequences")
+                        help="Fasta contig information (from cactus-preprocess) required to not use minigraph node sequences."
+                        " WARNING: Do not use this option if you plan to run cactus-graphmap-split after.  Rather, give the same option to cactus-graphmap-split instead")
     parser.add_argument("--outputFasta", type=str, help = "Output graph sequence file in FASTA format (required if not present in seqFile)")
     parser.add_argument("--maskFilter", type=int, help = "Ignore softmasked sequence intervals > Nbp (overrides config option of same name)")    
     parser.add_argument("--outputGAFDir", type=str, help = "Output GAF alignments (raw minigraph output before PAF conversion) to this directory")
