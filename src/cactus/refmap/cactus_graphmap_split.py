@@ -159,7 +159,7 @@ def runCactusGraphMapSplit(options):
                                                  header_table_id))
 
         #export the split data
-        export_split_data(toil, wf_output[0], wf_output[1], wf_output[2:], options.outDir, config)
+        export_split_data(toil, wf_output[0], wf_output[1], wf_output[2:], options.outDir, config, options.post_stable)
 
 def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, paf_id, paf_path, ref_contigs, other_contig, header_table_id):
 
@@ -721,10 +721,11 @@ def stablefy_and_filter_paf(job, gfa_id, paf_id, header_table_id, filter_only):
     return job.fileStore.writeGlobalFile(fixed_path)
 
 
-def export_split_data(toil, input_seq_id_map, output_id_map, split_log_ids, output_dir, config):
+def export_split_data(toil, input_seq_id_map, output_id_map, split_log_ids, output_dir, config, filter_graph_event):
     """ download all the split data locally """
 
     amb_name = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "ambiguousName", default="_AMBIGUOUS_")
+    graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
     
     chrom_file_map = {}
     
@@ -771,7 +772,7 @@ def export_split_data(toil, input_seq_id_map, output_id_map, split_log_ids, outp
             for event, fa_path in seq_file_map.items():
                 # cactus can't handle empty fastas.  if there are no sequences for a sample for this
                 # contig, just don't add it.
-                if output_id_map[ref_contig]['fa'][event].size > 0:
+                if output_id_map[ref_contig]['fa'][event].size > 0 and (not filter_graph_event or event != graph_event):
                     seq_file.write('{}\t{}\n'.format(event, fa_path))
         if seq_file_path.startswith('s3://'):
             write_s3(seq_file_temp_path, seq_file_path)
