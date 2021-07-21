@@ -704,8 +704,8 @@ def stablefy_and_filter_paf(job, gfa_id, paf_id, header_table_id, filter_only):
         job.fileStore.readGlobalFile(gfa_id, gfa_path)
         stable_paf_path = paf_path + ".stable"                
         cactus_call(parameters=['paf2stable', gfa_path, header_table_path, paf_path], outfile = stable_paf_path)
-        paf_path = stable_paf_path
-    
+        return job.fileStore.writeGlobalFile(stable_paf_path)
+            
     fixed_path = paf_path + '.remove_unmapped_targets'
     query_set = set()
     with open(paf_path, 'r') as paf_file:
@@ -772,7 +772,7 @@ def export_split_data(toil, input_seq_id_map, output_id_map, split_log_ids, outp
             for event, fa_path in seq_file_map.items():
                 # cactus can't handle empty fastas.  if there are no sequences for a sample for this
                 # contig, just don't add it.
-                if output_id_map[ref_contig]['fa'][event].size > 0 and (not filter_graph_event or event != graph_event):
+                if output_id_map[ref_contig]['fa'][event].size > 0:
                     seq_file.write('{}\t{}\n'.format(event, fa_path))
         if seq_file_path.startswith('s3://'):
             write_s3(seq_file_temp_path, seq_file_path)
