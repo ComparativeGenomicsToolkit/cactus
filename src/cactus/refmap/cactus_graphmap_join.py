@@ -66,6 +66,7 @@ def main():
     parser.add_argument("--vcfReference", type=str, help = "Reference event for VCF (if different from --reference)")
     parser.add_argument("--rename", nargs='+', default = [], help = "Path renaming, each of form src>dest (see clip-vg -r)")
     parser.add_argument("--clipLength", type=int, default=None, help = "clip out unaligned sequences longer than this")
+    parser.add_argument("--clipMaskFrac", type=float, default=0, help = "only apply --clipLength to sequences containing at least this fraction of masked bases")
     parser.add_argument("--wlineSep", type=str, help = "wline separator for vg convert")
     parser.add_argument("--indexCores", type=int, default=1, help = "cores for indexing processes")
     parser.add_argument("--decoyGraph", help= "decoy sequences vg graph to add (PackedGraph or HashGraph format)")
@@ -205,7 +206,9 @@ def clip_vg(job, options, config, vg_path, vg_id):
     # remove masked unaligned regions with clip-vg
     cmd = ['clip-vg', vg_path, '-f']
     if options.clipLength is not None and not is_decoy:
-        cmd += ['-s', '-u', str(options.clipLength)]
+        cmd += ['-u', str(options.clipLength)]
+        if options.clipMaskFrac is not None:
+            cmd += ['-s', str(options.clipMaskFrac)]
     for rs in options.rename:
         cmd += ['-r', rs]
     if options.reference:
