@@ -222,6 +222,7 @@ class TestCase(unittest.TestCase):
 
         # make the reference graph
         mg_cmd = ['minigraph', '-xggs', '-t', '4']
+        ref_event = None
         with open(seq_file_path, 'r') as seq_file:
             for line in seq_file:
                 toks = line.strip().split()
@@ -229,6 +230,8 @@ class TestCase(unittest.TestCase):
                     name = os.path.basename(toks[1])
                     subprocess.check_call(['wget', toks[1]], cwd=self.tempDir)
                     mg_cmd += [os.path.join(self.tempDir, name)]
+                    if not ref_event:
+                        ref_event = toks[0]
         mg_path = os.path.join(self.tempDir, 'refgraph.gfa')
         with open(mg_path, 'w') as mg_file:
             subprocess.check_call(mg_cmd, stdout=mg_file)
@@ -242,8 +245,9 @@ class TestCase(unittest.TestCase):
         # todo: it'd be nice to have an interface for setting tag to something not latest or commit
         if binariesMode == 'docker':
             cactus_opts += ['--latest']
-        
-        subprocess.check_call(['cactus-graphmap', self._job_store(binariesMode), out_seq_file_path, mg_path, paf_path] + cactus_opts + ht_opts)
+
+        gm_opts = ['--refFromGFA', ref_event] if stable else []
+        subprocess.check_call(['cactus-graphmap', self._job_store(binariesMode), out_seq_file_path, mg_path, paf_path] + cactus_opts + ht_opts + gm_opts)
 
         # do the alignment
         subprocess.check_call(['cactus-align', self._job_store(binariesMode), out_seq_file_path, paf_path, self._out_hal(binariesMode),
