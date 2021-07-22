@@ -210,14 +210,15 @@ def clip_vg(job, options, config, vg_path, vg_id):
         cmd += ['-r', rs]
     if options.reference:
         cmd += ['-e', options.reference]
-    cactus_call(parameters=cmd, outfile=clipped_path)        
-    
+
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "hal2vg"), "includeMinigraph", typeFn=bool, default=False):
         # our vg file has minigraph sequences -- we'll filter them out, along with any nodes
         # that don't appear in a non-minigraph path
         graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
         cmd += ['-d', graph_event]
-    
+        
+    cactus_call(parameters=cmd, outfile=clipped_path)
+        
     # optional normalization.  this will (in theory) correct a lot of small underalignments due to cactus bugs
     # by zipping up redundant nodes. done before clip-vg otherwise ref paths not guaranteed to be forwardized
     # todo: would be nice if clip-vg worked on stdin
