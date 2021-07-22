@@ -383,7 +383,7 @@ def getDockerImage():
 
 def getDockerRelease(gpu=False):
     """Get the most recent docker release."""
-    r = "quay.io/comparative-genomics-toolkit/cactus:v2.0.2"
+    r = "quay.io/comparative-genomics-toolkit/cactus:v2.0.3"
     if gpu:
         r += "-gpu"
     return r

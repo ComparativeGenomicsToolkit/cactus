@@ -1,5 +1,7 @@
 # Release 2.0.3
 
+This release fixes some issues in pangenome normalization and CAF running time.
+
 - Fix new regression that caused CAF's secondary filter to sometimes take forever.  This code has been causing occaisional slowdowns for some time, but should finally be fixed once and for all.
 - Fix cactus-preprocess to work on zipped fasta inputs even when not running dna-brnn.
 - Fix normalization in cactus-graphmap-join
