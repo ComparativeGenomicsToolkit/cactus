@@ -199,35 +199,10 @@ def clip_vg(job, options, config, vg_path, vg_id):
     is_decoy = vg_path == options.decoyGraph
     vg_path = os.path.join(work_dir, os.path.basename(vg_path))
     job.fileStore.readGlobalFile(vg_id, vg_path)
-    out_path = vg_path + '.clip'
+    clipped_path = vg_path + '.clip'
+    out_path = vg_path + '.out'
 
-    # optional normalization.  this will (in theory) correct a lot of small underalignments due to cactus bugs
-    # by zipping up redundant nodes. done before clip-vg otherwise ref paths not guaranteed to be forwardized
-    # todo: would be nice if clip-vg worked on stdin
-    if options.normalizeIterations:
-        normalized_path = vg_path + '.normalized'
-        mod_cmd = ['vg', 'mod', '-U', str(options.normalizeIterations), vg_path]
-        if options.reference:
-            mod_cmd += ['-z', options.reference]
-        cactus_call(parameters=mod_cmd, outfile=normalized_path)
-        # worth it
-        cactus_call(parameters=['vg', 'validate', normalized_path])
-        vg_path = normalized_path
-
-    # GFAFfix is a tool written just to normalize graphs, and alters a (faster) alternative to vg
-    # (though requires GFA conversion)
-    if options.gfaffix:
-        normalized_path = vg_path + '.gfaffixed'
-        gfa_in_path = vg_path + '.gfa'
-        gfa_out_path = normalized_path + '.gfa'
-        cactus_call(parameters=['vg', 'convert', '-f', vg_path], outfile=gfa_in_path)
-        fix_cmd = ['gfaffix', gfa_in_path, '--output_refined', gfa_out_path]
-        if options.reference:
-            fix_cmd += ['--dont_collapse', options.reference + '*']
-        cactus_call(parameters=fix_cmd)
-        # GFAFfix doesn't seem to unchop that well, so we do that in vg after
-        cactus_call(parameters=[['vg', 'convert', '-g', '-p', gfa_out_path], ['vg', 'mod', '-u', '-']], outfile=normalized_path)
-    
+    # remove masked unaligned regions with clip-vg
     cmd = ['clip-vg', vg_path, '-f']
     if options.clipLength is not None and not is_decoy:
         cmd += ['-u', str(options.clipLength)]
@@ -235,16 +210,52 @@ def clip_vg(job, options, config, vg_path, vg_id):
         cmd += ['-r', rs]
     if options.reference:
         cmd += ['-e', options.reference]
-    
+
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "hal2vg"), "includeMinigraph", typeFn=bool, default=False):
         # our vg file has minigraph sequences -- we'll filter them out, along with any nodes
         # that don't appear in a non-minigraph path
         graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
         cmd += ['-d', graph_event]
-
-    # sort while we're at it        
-    cmd = [cmd, ['vg', 'ids', '-s', '-']]
         
+    cactus_call(parameters=cmd, outfile=clipped_path)
+        
+    # optional normalization.  this will (in theory) correct a lot of small underalignments due to cactus bugs
+    # by zipping up redundant nodes. done before clip-vg otherwise ref paths not guaranteed to be forwardized
+    # todo: would be nice if clip-vg worked on stdin
+    if options.normalizeIterations:
+        normalized_path = clipped_path + '.normalized'
+        mod_cmd = ['vg', 'mod', '-U', str(options.normalizeIterations), clipped_path]
+        if options.reference:
+            mod_cmd += ['-z', options.reference]
+        cactus_call(parameters=mod_cmd, outfile=normalized_path)
+        # worth it
+        cactus_call(parameters=['vg', 'validate', normalized_path])
+        clipped_path = normalized_path
+
+    # GFAFfix is a tool written just to normalize graphs, and alters a (faster) alternative to vg
+    # (though requires GFA conversion)
+    if options.gfaffix:
+        normalized_path = clipped_path + '.gfaffixed'
+        gfa_in_path = vg_path + '.gfa'
+        gfa_out_path = normalized_path + '.gfa'
+        cactus_call(parameters=['vg', 'convert', '-f', clipped_path], outfile=gfa_in_path)
+        fix_cmd = ['gfaffix', gfa_in_path, '--output_refined', gfa_out_path]
+        if options.reference:
+            fix_cmd += ['--dont_collapse', options.reference + '*']
+        cactus_call(parameters=fix_cmd)
+        # GFAFfix doesn't seem to unchop that well, so we do that in vg after
+        cactus_call(parameters=[['vg', 'convert', '-g', '-p', gfa_out_path], ['vg', 'mod', '-u', '-']], outfile=normalized_path)
+        clipped_path = normalized_path
+
+    # also forwardize just in case
+    if options.reference and (options.normalizeIterations or options.gfaffix):
+        forward_path = clipped_path + '.forward'
+        cmd = ['clip-vg', clipped_path, '-e', options.reference]
+        cactus_call(parameters=cmd, outfile=forward_path)
+        clipped_path = forward_path
+
+    # sort by id
+    cmd = ['vg', 'ids', '-s', clipped_path]        
     cactus_call(parameters=cmd, outfile=out_path)
 
     # worth it

@@ -1,4 +1,12 @@
-# Release 2.0.2
+# Release 2.0.3
+
+- Fix new regression that caused CAF's secondary filter to sometimes take forever.  This code has been causing occaisional slowdowns for some time, but should finally be fixed once and for all.
+- Fix cactus-preprocess to work on zipped fasta inputs even when not running dna-brnn.
+- Fix normalization in cactus-graphmap-join
+- Update to abPOA v1.2.5
+
+
+# Release 2.0.2   2021-07-07
 
 This release primarily addresses stability issues during pangenome construction.
 
