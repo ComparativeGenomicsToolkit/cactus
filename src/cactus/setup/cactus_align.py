@@ -511,11 +511,10 @@ def mask_and_convert_paf(job, cactusWorkflowArguments, pafSecondaries, mask_bed_
     if mask_bed_id:
         paf_to_lastz_disk += mask_bed_id.size
     if paf_to_stable:
-        paf_to_lastz_disk += cactusWorkflowArguments.alignmentsID.size * 10
+        paf_to_lastz_disk += cactusWorkflowArguments.alignmentsID.size * 6
     paf_to_lastz_job = job.addChildJobFn(paf_to_lastz, cactusWorkflowArguments.alignmentsID, sort_secondaries=True,
                                          mask_bed_id=mask_bed_id, paf_to_stable=paf_to_stable,
-                                         disk=paf_to_lastz_disk,
-                                         memory=paf_to_lastz_disk)
+                                         disk=paf_to_lastz_disk)
     cactusWorkflowArguments.alignmentsID = paf_to_lastz_job.rv(0)
     cactusWorkflowArguments.secondaryAlignmentsID = paf_to_lastz_job.rv(1) if pafSecondaries else None
     return cactusWorkflowArguments
