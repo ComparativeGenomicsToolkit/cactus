@@ -402,6 +402,9 @@ def split_minimap_fallback(job, options, config, seqIDMap, output_id_map):
     """ take the output table from gather_fas, pull out the ambiguous sequences, remap them to the reference, and 
     add them to the events where possible"""
 
+    if not getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "remap", typeFn=bool, default=False):
+        return None, None
+    
     # can't do anything without a reference
     if not options.reference:
         logger.info("Skipping minimap2 fallback as --reference was not specified")
