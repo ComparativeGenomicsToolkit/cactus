@@ -67,6 +67,7 @@ void msa_print(Msa *msa, FILE *f);
  * @param seq_lens An array giving the string lengths
  * @param seq_no The number of strings
  * @param window_size Sliding window size which limits length of poa sub-alignments.  Memory usage is quardatic in this. 
+ * @param mask_filter mask input sequences if encountering this many consecutive soft of hard masked bases (0 = disabled)
  * @param poa_parameters abpoa parameters
  * @return An msa of the strings.
  */
@@ -74,6 +75,7 @@ Msa *msa_make_partial_order_alignment(char **seqs,
                                       int *seq_lens,
                                       int64_t seq_no,
                                       int64_t window_size,
+                                      int64_t mask_filter,
                                       abpoa_para_t *poa_parameters);
 
 /**
@@ -95,12 +97,13 @@ Msa *msa_make_partial_order_alignment(char **seqs,
  * @param right_end_row_indexes For each string, the index of the row of its reverse complement
  * @param overlaps For each prefix string, the length of the overlap with its reverse complement adjacency
  * @param window_size Sliding window size which limits length of poa sub-alignments.  Memory usage is quardatic in this. 
+ * @param mask_filter mask input sequences if encountering this many consecutive soft of hard masked bases (0 = disabled)
  * @param poa_parameters abpoa parameters
  * @return A consistent Msa for each end
  */
 Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_lengths, char ***end_strings,
         int **end_string_lengths, int64_t **right_end_indexes, int64_t **right_end_row_indexes, int64_t **overlaps,
-        int64_t window_size, abpoa_para_t *poa_parameters);
+        int64_t window_size, int64_t mask_filter, abpoa_para_t *poa_parameters);
 
 /**
  * Represents a gapless alignment of a set of sequences.

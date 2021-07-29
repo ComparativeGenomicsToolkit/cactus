@@ -80,7 +80,8 @@ abpoa_para_t *abpoaParamaters_constructFromCactusParams(CactusParams *params) {
 }
 
 // It turns out abpoa can write to these, so we make a quick copy before using
-static abpoa_para_t *copy_abpoa_params(abpoa_para_t *abpt) {
+// (update: not so sure that was an issue)
+static abpoa_para_t *copy_abpoa_params(abpoa_para_t *abpt, bool penalize_N) {
     abpoa_para_t *abpt_cpy = abpoa_init_para();
     abpt_cpy->out_msa = 1;
     abpt_cpy->out_cons = 0;
@@ -102,6 +103,15 @@ static abpoa_para_t *copy_abpoa_params(abpoa_para_t *abpt) {
     abpt_cpy->progressive_poa = abpt->progressive_poa;
     if (abpt->use_score_matrix == 1) {
         memcpy(abpt_cpy->mat, abpt->mat, abpt->m * abpt->m * sizeof(int));
+        if (penalize_N) {
+            // set all N transitions to biggest penalty
+            for (int i = 0; i < abpt->m; ++i) {
+                abpt_cpy->mat[i * abpt->m + abpt->m - 1] = abpt->min_mis;
+                abpt_cpy->mat[abpt->m * abpt->m - 1 - i] = abpt->min_mis;
+            }
+        }
+    } else {
+        assert(!penalize_N);
     }
     abpt_cpy->max_mat = abpt->max_mat;
     abpt_cpy->min_mis = abpt->min_mis;
@@ -435,8 +445,51 @@ static void msa_fix_trimmed(Msa* msa) {
     msa->column_no -= empty_columns;
 }
 
+// apply the mask filter to the input sequences, changing runs of > mask_filter to Ns
+// if no masked intervals are found, the input seqs are returned
+// otherwise, the input sequences are copied to masked_seqs, masked, and that is returned
+// (so masked_seqs should be checked, and freed if not null by caller
+static char** hardmask_seqs(char **seqs, int* seq_lens, int64_t seq_no, char ***masked_seqs, int64_t mask_filter) {
+    *masked_seqs = NULL;
+
+    if (mask_filter <= 0) {
+        return seqs;
+    }
+
+    for (int64_t i = 0; i < seq_no; ++i) {
+        int64_t start = -1;
+        for (int64_t j = 0; j < seq_lens[i]; ++j) {
+            bool masked = islower(seqs[i][j]) || seqs[i][j] == 'N';
+            if (masked && start == -1) {
+                // begin new interval
+                start = i;
+            }
+            if (!masked && start != -1) {
+                // end an interval
+                if (j - start > mask_filter) {
+                    // the interval is big enough: we mask it
+                    if (*masked_seqs == NULL) {
+                        // allocate a copy our first time (could be finer grained about this...)
+                        *masked_seqs = st_malloc(seq_no * sizeof(char*));
+                        for (int64_t k = 0; k < seq_no; ++k) {
+                            (*masked_seqs)[k] = st_malloc(seq_lens[k] * sizeof(char));
+                            strncpy((*masked_seqs)[k], seqs[k], seq_lens[k]);
+                        }
+                    }
+                    for (int64_t k = start; k < j; ++k) {
+                        (*masked_seqs)[i][k] = 'N';
+                    }
+                }
+                start = -1;
+            }
+        }
+    }
+    
+    return *masked_seqs == NULL ? seqs : *masked_seqs;
+}
+
 Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no, int64_t window_size,
-                                      abpoa_para_t *poa_parameters) {
+                                      int64_t mask_filter, abpoa_para_t *poa_parameters) {
 
     assert(seq_no > 0);
         
@@ -455,6 +508,11 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
     bool* empty_seqs = (bool*)st_calloc(seq_no, sizeof(bool));
     // keep track of overlaps
     int64_t* row_overlaps = (int64_t*)st_calloc(seq_no, sizeof(int64_t));
+
+    // apply the mask filter
+    char** masked_seqs;
+    seqs = hardmask_seqs(seqs, seq_lens, seq_no, &masked_seqs, mask_filter);
+    bool was_masked = masked_seqs != NULL;
 
     // allocate the poa input buffer
     uint8_t **bseqs = (uint8_t**)st_malloc(sizeof(uint8_t*) * seq_no);
@@ -521,7 +579,7 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
 
         // init abpoa
         abpoa_t *ab = abpoa_init();
-        abpoa_para_t *abpt = copy_abpoa_params(poa_parameters);
+        abpoa_para_t *abpt = copy_abpoa_params(poa_parameters, was_masked);
         abpoa_post_set_para(abpt);
         
 #ifdef CACTUS_ABPOA_MSA_DUMP_DIR
@@ -684,13 +742,19 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
     free(empty_seqs);
     free(row_overlaps);
     stList_destruct(msa_windows);
+    if (was_masked) {
+        for (int64_t i = 0; i < seq_no; ++i) {
+            free(masked_seqs[i]);
+        }
+        free(masked_seqs);
+    }
 
     return output_msa;
 }
 
 Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_lengths, char ***end_strings,
         int **end_string_lengths, int64_t **right_end_indexes, int64_t **right_end_row_indexes, int64_t **overlaps,
-        int64_t window_size, abpoa_para_t *poa_parameters) {
+        int64_t window_size, int64_t mask_filter, abpoa_para_t *poa_parameters) {
     // Calculate the initial, potentially inconsistent msas and column scores for each msa
     float *column_scores[end_no];
     Msa **msas = st_malloc(sizeof(Msa *) * end_no);
@@ -699,7 +763,7 @@ Msa **make_consistent_partial_order_alignments(int64_t end_no, int64_t *end_leng
 //#endif
     for(int64_t i=0; i<end_no; i++) {
         msas[i] = msa_make_partial_order_alignment(end_strings[i], end_string_lengths[i], end_lengths[i], window_size,
-                                                   poa_parameters);
+                                                   mask_filter, poa_parameters);
         column_scores[i] = make_column_scores(msas[i]);
     }
 
@@ -761,37 +825,6 @@ char *get_adjacency_string(Cap *cap, int *length, bool return_string) {
 }
 
 /**
- * Used to find where a run of masked (hard or soft) of at least mask_filter bases starts
- * @param seq : The string
- * @param seq_length : The length of the string
- * @param length : The maximum length we want to search in
- * @param reversed : If true, scan from the end of the string
- * @param mask_filter : Cut a string as soon as we hit more than this many hard or softmasked bases (cut is before first masked base)
- * @return length of the filtered string
- */
-static int get_unmasked_length(char* seq, int64_t seq_length, int64_t length, bool reversed, int64_t mask_filter) {
-    if (mask_filter >= 0) {
-        int64_t run_start = -1;
-        for (int64_t i = 0; i < length; ++i) {
-            char base = reversed ? seq[seq_length - 1 - i] : seq[i];
-            if (islower(base) || base == 'N') {
-                if (run_start == -1) {
-                    // start masked run
-                    run_start = i;
-                }
-                if (i + 1 - run_start > mask_filter) {
-                    // our run exceeds the mask_filter, cap before the first masked base
-                    return (int)run_start;
-                }
-            } else {
-                run_start = -1;
-            }
-        }
-    }
-    return (int)length;
-}
-
-/**
  * Used to get a prefix of a given adjacency sequence.
  * @param seq_length
  * @param length
@@ -799,7 +832,7 @@ static int get_unmasked_length(char* seq, int64_t seq_length, int64_t length, bo
  * @param max_seq_length
  * @return
  */
-char *get_adjacency_string_and_overlap(Cap *cap, int *length, int64_t *overlap, int64_t max_seq_length, int64_t mask_filter) {
+char *get_adjacency_string_and_overlap(Cap *cap, int *length, int64_t *overlap, int64_t max_seq_length) {
     // Get the complete adjacency string
     int seq_length;
     char *adjacency_string = get_adjacency_string(cap, &seq_length, 1);
@@ -809,12 +842,6 @@ char *get_adjacency_string_and_overlap(Cap *cap, int *length, int64_t *overlap, 
     *length = seq_length > max_seq_length ? max_seq_length : seq_length;
     assert(*length >= 0);
     int length_backward = *length;
-
-    if (mask_filter >= 0) {
-        // apply the mask filter on the forward strand
-        *length = get_unmasked_length(adjacency_string, seq_length, *length, false, mask_filter);
-        length_backward = get_unmasked_length(adjacency_string, seq_length, *length, true, mask_filter);
-    }
 
     // Cleanup the string
     adjacency_string[*length] = '\0'; // Terminate the string at the given length
@@ -977,7 +1004,7 @@ void create_alignment_blocks(Msa *msa, Cap **row_indexes_to_caps, stList *alignm
 }
 
 void get_end_sequences(End *end, char **end_strings, int *end_string_lengths, int64_t *overlaps,
-                       Cap **indices_to_caps, int64_t max_seq_length, int64_t mask_filter) {
+                       Cap **indices_to_caps, int64_t max_seq_length) {
     // Make inputs
     Cap *cap;
     End_InstanceIterator *capIterator = end_getInstanceIterator(end);
@@ -989,7 +1016,7 @@ void get_end_sequences(End *end, char **end_strings, int *end_string_lengths, in
         }
         // Get the prefix of the adjacency string and its length and overlap with its reverse complement
         end_strings[j] = get_adjacency_string_and_overlap(cap, &(end_string_lengths[j]),
-                                                          &(overlaps[j]), max_seq_length, mask_filter);
+                                                          &(overlaps[j]), max_seq_length);
 
         // Populate the caps to end/row indices, and vice versa, data structures
         indices_to_caps[j] = cap;
@@ -1033,8 +1060,8 @@ stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_
         int64_t overlaps[seq_no];
         Cap *indices_to_caps[seq_no];
 
-        get_end_sequences(dominantEnd, end_strings, end_string_lengths, overlaps, indices_to_caps, max_seq_length, mask_filter);
-        Msa *msa = msa_make_partial_order_alignment(end_strings, end_string_lengths, seq_no, window_size, poa_parameters);
+        get_end_sequences(dominantEnd, end_strings, end_string_lengths, overlaps, indices_to_caps, max_seq_length);
+        Msa *msa = msa_make_partial_order_alignment(end_strings, end_string_lengths, seq_no, window_size, mask_filter, poa_parameters);
 
         //Now convert to set of alignment blocks
         stList *alignment_blocks = stList_construct3(0, (void (*)(void *))alignmentBlock_destruct);
@@ -1073,7 +1100,7 @@ stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_
         indices_to_caps[i] = st_malloc(sizeof(Cap *)*end_lengths[i]);
         overlaps[i] = st_malloc(sizeof(int64_t)*end_lengths[i]);
         get_end_sequences(end, end_strings[i], end_string_lengths[i], overlaps[i], indices_to_caps[i],
-                          max_seq_length, mask_filter);
+                          max_seq_length);
         for(int64_t j=0; j<end_lengths[i]; j++) {
             stHash_insert(caps_to_indices, indices_to_caps[i][j], stIntTuple_construct2(i, j));
         }
@@ -1113,7 +1140,7 @@ stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_
     // Now make the consistent MSAs
     Msa **msas = make_consistent_partial_order_alignments(end_no, end_lengths, end_strings, end_string_lengths,
                                                           right_end_indexes, right_end_row_indexes, overlaps, window_size,
-                                                          poa_parameters);
+                                                          mask_filter, poa_parameters);
 
     // Temp debug output
     //for(int64_t i=0; i<end_no; i++) {

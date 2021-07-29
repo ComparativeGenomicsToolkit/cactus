@@ -59,7 +59,7 @@ void test_make_partial_order_alignment(CuTest *testCase) {
             }
 
             // generate the alignment
-            Msa *msa = msa_make_partial_order_alignment(seqs, seq_lens, seq_no, poa_window_size, abpt);
+            Msa *msa = msa_make_partial_order_alignment(seqs, seq_lens, seq_no, poa_window_size, 0, abpt);
 
             // print the msa
             msa_print(msa, stderr);
@@ -135,7 +135,7 @@ void test_make_consistent_partial_order_alignments_two_ends(CuTest *testCase) {
 
         // generate the alignments
         Msa **msas = make_consistent_partial_order_alignments(end_no, end_lengths, end_strings, end_string_lengths,
-                                                              right_end_indexes, right_end_row_indexes, overlaps, 1000000, abpt);
+                                                              right_end_indexes, right_end_row_indexes, overlaps, 1000000, 0, abpt);
 
         // print the msas
         for(int64_t i=0; i<end_no; i++) {
