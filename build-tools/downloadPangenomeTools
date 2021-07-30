@@ -204,7 +204,7 @@ fi
 
 # hal2vg
 cd ${pangenomeBuildDir}
-wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.11/hal2vg
+wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.14/hal2vg
 chmod +x hal2vg
 if [[ $STATIC_CHECK -ne 1 || $(ldd hal2vg | grep so | wc -l) -eq 0 ]]
 then
@@ -214,7 +214,7 @@ else
 fi
 # clip-vg
 cd ${pangenomeBuildDir}
-wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.11/clip-vg
+wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.14/clip-vg
 chmod +x clip-vg
 if [[ $STATIC_CHECK -ne 1 || $(ldd clip-vg | grep so | wc -l) -eq 0 ]]
 then
@@ -224,7 +224,7 @@ else
 fi
 # halRemoveDupes
 cd ${pangenomeBuildDir}
-wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.11/halRemoveDupes
+wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.14/halRemoveDupes
 chmod +x halRemoveDupes
 if [[ $STATIC_CHECK -ne 1 || $(ldd halRemoveDupes | grep so | wc -l) -eq 0 ]]
 then
@@ -234,7 +234,7 @@ else
 fi
 # halMergeChroms
 cd ${pangenomeBuildDir}
-wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.11/halMergeChroms
+wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.14/halMergeChroms
 chmod +x halMergeChroms
 if [[ $STATIC_CHECK -ne 1 || $(ldd halMergeChroms | grep so | wc -l) -eq 0 ]]
 then
