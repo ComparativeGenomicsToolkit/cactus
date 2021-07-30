@@ -160,9 +160,10 @@ class PreprocessSequence(RoundedJob):
                                  cutAfter=self.prepOptions.cutAfter)
         elif self.prepOptions.preprocessJob == 'maskFile':
             return FileMaskingJob(inChunkID,
+                                  minLength=self.prepOptions.minLength,
+                                  action=self.prepOptions.dnabrnnAction,
                                   inputBedID=self.prepOptions.inputBedID,
-                                  eventName=self.prepOptions.eventName,
-                                  minLength=self.prepOptions.minLength)
+                                  eventName=self.prepOptions.eventName)
         else:
             raise RuntimeError("Unknown preprocess job %s" % self.prepOptions.preprocessJob)
 
@@ -334,7 +335,7 @@ class CactusPreprocessor2(RoundedJob):
 
 def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=False,
                   outputSequences = [], maskAlpha=False, clipAlpha=None,
-                  maskFile=None, minLength=None, inputEventNames=None, brnnCores=None,
+                  maskFile=None, maskFileAction=None, minLength=None, inputEventNames=None, brnnCores=None,
                   gpu_override=False):
     #Replace any constants
     configNode = ET.parse(configFile).getroot()
@@ -372,7 +373,7 @@ def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=F
             inputSequenceIDs.append(toil.importFile(makeURL(seq)))
         maskFileID = toil.importFile(makeURL(maskFile)) if maskFile else None
         unzip_job = Job.wrapJobFn(unzip_then_pp, configNode, inputSequences, inputSequenceIDs, inputEventNames,
-                                  maskFile, maskFileID, minLength)
+                                  maskFile, maskFileID, maskFileAction, minLength)
         outputSequenceIDs = toil.start(unzip_job)
     else:
         outputSequenceIDs = toil.restart()
@@ -386,12 +387,12 @@ def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=F
         except:
             toil.exportFile(seqID, makeURL(path))
 
-def unzip_then_pp(job, config_node, input_fa_paths, input_fa_ids, input_event_names, mask_file_path, mask_file_id, min_length):
+def unzip_then_pp(job, config_node, input_fa_paths, input_fa_ids, input_event_names, mask_file_path, mask_file_id, mask_file_action, min_length):
     """ unzip then preprocess """
     unzip_job = job.addChildJobFn(unzip_gzs, input_fa_paths, input_fa_ids)
     if mask_file_id is not None:
         mask_unzip_job = unzip_job.addChildJobFn(unzip_gzs, [mask_file_path], [mask_file_id])
-        config_node = mask_unzip_job.addFollowOnJobFn(maskJobOverride, config_node, mask_file_path, mask_unzip_job.rv(0), min_length,
+        config_node = mask_unzip_job.addFollowOnJobFn(maskJobOverride, config_node, mask_file_path, mask_unzip_job.rv(0), mask_file_action, min_length,
                                                       disk=mask_file_id.size*20).rv()
     pp_job = unzip_job.addFollowOn(CactusPreprocessor([unzip_job.rv(i) for i in range(len(input_fa_ids))], config_node, input_event_names))
     zip_job = pp_job.addFollowOnJobFn(zip_gzs, input_fa_paths,  pp_job.rv(), list_elems = [0])
@@ -417,6 +418,7 @@ def main():
     parser.add_argument("--clipAlpha", action='store_true', help='use dna-brnn instead of lastz for repeatmasking.  Also, clip sequence using given minimum length instead of softmasking')
     parser.add_argument("--ignore", nargs='*', help='Space-separate list of genomes from inSeqFile to ignore', default=[])
     parser.add_argument("--maskFile", type=str, help='Add masking from BED or PAF file to sequences, ignoring all other preprocessors')
+    parser.add_argument("--maskAction", type=str, help='Action for --maskFile filter. One of {clip, softmask, hardmask}', default=None)
     parser.add_argument("--minLength", type=int, help='Minimum interval threshold for masking.  Overrides config')
     parser.add_argument("--brnnCores", type=int, help='Specify number of cores for each dna-brnn job (overriding default value from the config)')
     parser.add_argument("--latest", dest="latest", action="store_true",
@@ -457,6 +459,10 @@ def main():
         raise RuntimeError('--ignore can only be used with --clipAlpha')
     if options.maskFile and options.maskFile.endswith('.paf') and not options.inputNames and not options.inSeqFile:
         raise RuntimeError('paf masking requires event names specified wither with an input seqfile or with --inputNames')
+    if options.maskFile and options.maskAction not in ['clip', 'hardmask', 'softmask']:
+        raise RuntimeError('--maskAction must be used with --maskFile.  Only valid values are clip, hardmask and softmask')
+    if options.maskFile and options.minLength is None:
+        raise RuntimeError('--minLength must be used with --maskFile')
     
     inSeqPaths = []
     outSeqPaths = []
@@ -525,6 +531,7 @@ def main():
                       maskAlpha=options.maskAlpha,
                       clipAlpha=options.clipAlpha,
                       maskFile=options.maskFile,
+                      maskFileAction=options.maskAction,
                       minLength=options.minLength,
                       inputEventNames=inNames,
                       brnnCores=options.brnnCores,

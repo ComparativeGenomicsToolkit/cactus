@@ -272,6 +272,26 @@ def make_align_job(options, toil):
     if options.pafMaskFilter and not options.pafInput:
         raise RuntimeError("--pafMaskFilter can only be run with --pafInput")
 
+    paf_to_stable = False
+    if options.pafInput:
+        # remove minigraph event from input seqfile
+        # TODO: this could be an option if someone wanted to keep it around for some reason,
+        # otherwise, best to never add it in the first place
+        seqFile = SeqFile(options.seqFile)
+        configNode = ET.parse(options.configFile).getroot()
+        graph_event = getOptionalAttrib(findRequiredNode(configNode, "graphmap"), "assemblyName", default="_MINIGRAPH_")
+        if graph_event in seqFile.pathMap:
+            del seqFile.pathMap[graph_event]
+            tree = MultiCactusTree(seqFile.tree)
+            seqFile.tree.removeLeaf(tree.getNodeId(graph_event))
+            override_seq = os.path.join(options.cactusDir, 'seqFile.override')
+            with open(override_seq, 'w') as out_sf:
+                out_sf.write(str(seqFile))
+            options.seqFile = override_seq
+            # toggling this on will put the input paf through paf2stable which will replace all minigraph targets
+            # with query sequences using transitive mapping
+            paf_to_stable = True
+            
     #to be consistent with all-in-one cactus, we make sure the project
     #isn't limiting itself to the subtree (todo: parameterize so root can
     #be passed through from prepare to blast/align)
@@ -378,7 +398,9 @@ def make_align_job(options, toil):
         # turn off mapq filtering
         cafNode.attrib["runMapQFiltering"] = "0"
         # more iterations here helps quite a bit to reduce underalignment
-        cafNode.attrib["maxRecoverableChainsIterations"] = "50"                
+        cafNode.attrib["maxRecoverableChainsIterations"] = "50"
+        # pulling apart a recoverable chain bigger than the poa window is counterproductive
+        cafNode.attrib["maxRecoverableChainLength"] = "10000"
         # turn down minimum block degree to get a fat ancestor
         barNode.attrib["minimumBlockDegree"] = "1"
         # turn on POA
@@ -425,11 +447,12 @@ def make_align_job(options, toil):
                               doGFA=options.outGFA,
                               eventNameAsID=options.eventNameAsID,
                               referenceEvent=options.reference,
-                              pafMaskFilter=options.pafMaskFilter)
+                              pafMaskFilter=options.pafMaskFilter,
+                              paf2Stable=paf_to_stable)
     return align_job
 
 def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, checkpointInfo, doRenaming, pafInput, pafSecondaries, doVG, doGFA, delay=0,
-                     eventNameAsID=False, referenceEvent=None, pafMaskFilter=None):
+                     eventNameAsID=False, referenceEvent=None, pafMaskFilter=None, paf2Stable=False):
     
     head_job = Job()
     job.addChild(head_job)
@@ -453,7 +476,7 @@ def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, check
     if pafInput:
         # convert the paf input to lastz format, splitting out into primary and secondary files
         # optionally apply the masking
-        cur_job = cur_job.addFollowOnJobFn(mask_and_convert_paf, cactusWorkflowArguments, pafSecondaries, mask_bed_id)        
+        cur_job = cur_job.addFollowOnJobFn(mask_and_convert_paf, cactusWorkflowArguments, pafSecondaries, mask_bed_id, paf2Stable)
         cactusWorkflowArguments = cur_job.rv()
     
     if no_ingroup_coverage:
@@ -484,9 +507,16 @@ def run_cactus_align(job, configWrapper, cactusWorkflowArguments, project, check
         
     return hal_export_job.rv(), vg_file_id, gfa_file_id
 
-def mask_and_convert_paf(job, cactusWorkflowArguments, pafSecondaries, mask_bed_id):
+def mask_and_convert_paf(job, cactusWorkflowArguments, pafSecondaries, mask_bed_id, paf_to_stable):
     """ convert to lastz and run masking.  just wraps paf_to_lastz, but resolves the workflow promise on the way """
-    paf_to_lastz_job = job.addChildJobFn(paf_to_lastz, cactusWorkflowArguments.alignmentsID, True, mask_bed_id)
+    paf_to_lastz_disk = cactusWorkflowArguments.alignmentsID.size * 2
+    if mask_bed_id:
+        paf_to_lastz_disk += mask_bed_id.size
+    if paf_to_stable:
+        paf_to_lastz_disk += cactusWorkflowArguments.alignmentsID.size * 6
+    paf_to_lastz_job = job.addChildJobFn(paf_to_lastz, cactusWorkflowArguments.alignmentsID, sort_secondaries=True,
+                                         mask_bed_id=mask_bed_id, paf_to_stable=paf_to_stable,
+                                         disk=paf_to_lastz_disk)
     cactusWorkflowArguments.alignmentsID = paf_to_lastz_job.rv(0)
     cactusWorkflowArguments.secondaryAlignmentsID = paf_to_lastz_job.rv(1) if pafSecondaries else None
     return cactusWorkflowArguments

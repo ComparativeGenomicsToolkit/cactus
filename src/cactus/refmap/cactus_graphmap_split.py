@@ -27,6 +27,7 @@ from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.common import unzip_gz, write_s3
+from cactus.shared.common import get_faidx_subpath_rename_cmd
 from cactus.preprocessor.fileMasking import get_mask_bed_from_fasta
 from toil.job import Job
 from toil.common import Toil
@@ -306,8 +307,9 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
             if ext == '.paf':
                 # apply the hacky naming correction so that subpaths have no special characterse in the hal (to make hubs happy)
                 # this gets undone by hal2vg
-                cactus_call(parameters=['sed', '-i', '-e', 's/\([^:]*\):\([0-9]*\)-\([0-9]*\)/echo "\\1_sub_$((\\2-1))_\\3"/e',
-                                        '-e', 's/ /\t/g', os.path.join(work_dir, out_name)]) 
+                cmd = get_faidx_subpath_rename_cmd()
+                cmd += ['-e', 's/ /\t/g', '-i', os.path.join(work_dir, out_name)]
+                cactus_call(parameters=cmd)
             output_id_map[name][ext[1:]] = job.fileStore.writeGlobalFile(os.path.join(work_dir, out_name))
             
     return output_id_map, job.fileStore.writeGlobalFile(log_path)
@@ -370,8 +372,8 @@ def split_fa_into_contigs(job, event, fa_id, fa_path, split_id_map):
             # transform chr1:10-15 (1-based inclusive) into chr1_sub_9_15 (0-based end open)
             # this is a format that contains no special characters in order to make assembly hubs
             # happy.  But it does require conversion going into vg which wants chr[9-15] and
-            # hal2vg can get updated to do this autmatically
-            cmd.append(['sed', '-e', 's/\([^:]*\):\([0-9]*\)-\([0-9]*\)/echo "\\1_sub_$((\\2-1))_\\3"/e'])
+            # hal2vg is updated to do this autmatically
+            cmd.append(get_faidx_subpath_rename_cmd())
             if is_gz:
                 cmd.append(['gzip'])
             cactus_call(parameters=cmd, outfile=contig_fasta_path)

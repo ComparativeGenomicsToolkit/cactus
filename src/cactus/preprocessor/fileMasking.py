@@ -20,16 +20,18 @@ from cactus.shared.common import cactus_call
 from cactus.shared.common import RoundedJob
 from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import makeURL
+from cactus.shared.common import get_faidx_subpath_rename_cmd
 
 from toil.realtimeLogger import RealtimeLogger
 
 class FileMaskingJob(RoundedJob):
-    def __init__(self, fastaID, inputBedID=None, eventName=None, minLength=None):
+    def __init__(self, fastaID, minLength=None, action=None, inputBedID=None, eventName=None):
         disk = 2*(fastaID.size)
         memory = fastaID.size
         RoundedJob.__init__(self, disk=disk, memory=memory, preemptable=True)
         self.fastaID = fastaID
         self.minLength = minLength
+        self.action = action
         self.inputBedID = inputBedID
         self.eventName = eventName
 
@@ -96,16 +98,54 @@ class FileMaskingJob(RoundedJob):
 
         maskedFile = os.path.join(work_dir, 'masked.fa')
         
-        mask_cmd = ['cactus_fasta_softmask_intervals.py', '--origin=zero', mergedBedFile]
-        if self.minLength:
-            mask_cmd += ['--minLength={}'.format(self.minLength)]
-        # do the softmasking
-        cactus_call(infile=fastaFile, outfile=maskedFile, parameters=mask_cmd)
+        if self.action in ('softmask', 'hardmask'):
+            mask_cmd = ['cactus_fasta_softmask_intervals.py', '--origin=zero', mergedBedFile]
+            if self.minLength:
+                mask_cmd += ['--minLength={}'.format(self.minLength)]
+            if self.action == 'hardmask':
+                mask_cmd += ['--mask=N']
+            # do the softmasking
+            cactus_call(infile=fastaFile, outfile=maskedFile, parameters=mask_cmd)
+        else:
+            assert self.action == "clip"
+            # to clip, we need a bed of the regions we want to *keep*.  We'll start with the whole thing
+            allRegionsFile = os.path.join(work_dir, 'chroms.bed')
+            cactus_call(outfile=allRegionsFile, parameters=['awk', '{print $1 "\\t0\\t" $2}', fastaFile + '.fai'])
+            # now we cut out the regions
+            clippedRegionsFile = os.path.join(work_dir, 'clipped.bed')
+            cactus_call(outfile=clippedRegionsFile, parameters=['bedtools', 'subtract', '-a', allRegionsFile, '-b', mergedBedFile])
+            # now we make a fiadx input regions
+            faidxRegionsFile = os.path.join(work_dir, 'faidx_regions.txt')
+            with open(clippedRegionsFile, 'r') as clipFile, open(mergedBedFile, 'a') as mergeFile, open(faidxRegionsFile, 'w') as listFile:
+                for line in clipFile:
+                    toks = line.strip().split("\t")
+                    if len(toks) > 2:
+                        seq, start, end = toks[0], int(toks[1]), int(toks[2])
+                        if end - start > self.minLength or contig_lengths[seq] <= self.minLength:
+                            region = seq
+                            if end - start < contig_lengths[seq]:
+                                # go from 0-based end exlusive to 1-based end inclusive when
+                                # converting from BED to samtools region
+                                region += ':{}-{}'.format(start + 1, end)
+                            else:
+                                assert start == 0 and end == contig_lengths[seq]
+                            listFile.write('{}\n'.format(region))
+                        else:
+                            # the region was too small, we remember it in our filtered bed file
+                            mergeFile.write(line)
+            # and cut the fasta apart with samtools
+            cmd = [['samtools', 'faidx', fastaFile, '-r', faidxRegionsFile]]
+            # transform chr1:10-15 (1-based inclusive) into chr1_sub_9_15 (0-based end open)
+            # this is a format that contains no special characters in order to make assembly hubs
+            # happy.  But it does require conversion going into vg which wants chr[9-15] and
+            # hal2vg can is updated to do this autmatically
+            cmd.append(get_faidx_subpath_rename_cmd())
+            cactus_call(outfile=maskedFile, parameters=cmd)
         
         return fileStore.writeGlobalFile(maskedFile), fileStore.writeGlobalFile(bedFile), fileStore.writeGlobalFile(mergedBedFile)
 
 
-def maskJobOverride(job, config_node, mask_file_path, mask_file_id, min_length):
+def maskJobOverride(job, config_node, mask_file_path, mask_file_id, mask_file_action, min_length):
     """ return a hijacked config file that does just one preprocessing job: mask each fasta sequence with 
     the given bed file.  if paf_length is specified, the file is treated as a PAF file, and a BED is extracted
     from it using coverage gaps of at least the given length. 
@@ -133,6 +173,8 @@ def maskJobOverride(job, config_node, mask_file_path, mask_file_id, min_length):
     mask_node = ET.SubElement(config_node, 'preprocessor')
     mask_node.attrib['preprocessJob'] = 'maskFile'
     mask_node.attrib['inputBedID'] = mask_file_id
+    mask_node.attrib['action'] = mask_file_action
+    mask_node.attrib['minLength'] = min_length
 
     return config_node
 
