@@ -1116,3 +1116,13 @@ def write_s3(local_path, s3_path, region=None):
             s3.create_bucket(Bucket=bucket_name)
 
     s3.upload_file(local_path, bucket_name, name_prefix)
+
+def get_faidx_subpath_rename_cmd():
+    """
+    transform chr1:10-15 (1-based inclusive) into chr1_sub_9_15 (0-based end open)
+    this is a format that contains no special characters in order to make assembly hubs
+    happy.  But it does require conversion going into vg which wants chr[9-15] and
+    hal2vg is updated to do this autmatically
+    """
+    return ['sed', '-e', 's/\([^:]*\):\([0-9]*\)-\([0-9]*\)/echo "\\1_sub_$((\\2-1))_\\3"/e']
+

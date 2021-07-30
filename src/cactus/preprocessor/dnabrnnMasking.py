@@ -16,6 +16,7 @@ from cactus.shared.common import RoundedJob
 from cactus.shared.common import cactusRootPath
 from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import makeURL
+from cactus.shared.common import get_faidx_subpath_rename_cmd
 
 from toil.realtimeLogger import RealtimeLogger
 
@@ -166,7 +167,13 @@ class DnabrnnMaskJob(RoundedJob):
                             # the region was too small, we remember it in our filtered bed file
                             mergeFile.write(line)
             # and cut the fasta apart with samtools
-            cactus_call(outfile=maskedFile, parameters=['samtools', 'faidx', fastaFile, '-r', faidxRegionsFile])
+            cmd = [['samtools', 'faidx', fastaFile, '-r', faidxRegionsFile]]
+            # transform chr1:10-15 (1-based inclusive) into chr1_sub_9_15 (0-based end open)
+            # this is a format that contains no special characters in order to make assembly hubs
+            # happy.  But it does require conversion going into vg which wants chr[9-15] and
+            # hal2vg can is updated to do this autmatically
+            cmd.append(get_faidx_subpath_rename_cmd())
+            cactus_call(outfile=maskedFile, parameters=cmd)
         
         return fileStore.writeGlobalFile(maskedFile), fileStore.writeGlobalFile(bedFile), fileStore.writeGlobalFile(mergedBedFile)
 
