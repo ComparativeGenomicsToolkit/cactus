@@ -67,7 +67,8 @@ def main():
     parser.add_argument("--rename", nargs='+', default = [], help = "Path renaming, each of form src>dest (see clip-vg -r)")
     parser.add_argument("--clipLength", type=int, default=None, help = "clip out unaligned sequences longer than this")
     parser.add_argument("--wlineSep", type=str, help = "wline separator for vg convert")
-    parser.add_argument("--indexCores", type=int, default=1, help = "cores for indexing processes")
+    parser.add_argument("--indexCores", type=int, default=1, help = "cores for general indexing and VCF constructions")
+    parser.add_argument("--giraffeCores", type=int, default=None, help = "cores for giraffe-specific indexing (defaults to --indexCores)")
     parser.add_argument("--decoyGraph", help= "decoy sequences vg graph to add (PackedGraph or HashGraph format)")
     parser.add_argument("--hal", nargs='+', default = [], help = "Input hal files (for merging)")
     parser.add_argument("--vcf", action="store_true", help= "make VCF")
@@ -102,6 +103,8 @@ def main():
 
     if options.hal and len(options.hal) != len(options.vg):
         raise RuntimeError("If --hal and --vg should specify the same number of files")
+    if not options.giraffeCores:
+        options.giraffeCores = options.indexCores
         
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
@@ -186,25 +189,18 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
                                                   cores=options.indexCores,
                                                   disk=sum(f.size for f in vg_ids) * 5)
     out_dicts = [gfa_merge_job.rv()]
-                        
-    # try to divide cores between vcf (slow) and giraffe
-    vcf_cores = options.indexCores
-    giraffe_cores = options.indexCores
-    if options.giraffe and options.vcf and vcf_cores > 1:
-        giraffe_cores = 1
-        vcf_cores -= 1
-        
+                                
     # optional vcf
     if options.vcf:
         deconstruct_job = gfa_merge_job.addFollowOnJobFn(make_vcf, options, out_dicts[0],
-                                                         cores = vcf_cores,
+                                                         cores=options.indexCores,
                                                          disk = sum(f.size for f in vg_ids) * 2)
         out_dicts.append(deconstruct_job.rv())
 
     # optional giraffe
     if options.giraffe:
         giraffe_job = gfa_merge_job.addFollowOnJobFn(make_giraffe_indexes, options, out_dicts[0],
-                                                     cores = giraffe_cores,
+                                                     cores=options.giraffeCores,
                                                      disk = sum(f.size for f in vg_ids) * 4)
         out_dicts.append(giraffe_job.rv())
 
