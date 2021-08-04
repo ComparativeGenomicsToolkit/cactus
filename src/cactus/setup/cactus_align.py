@@ -399,8 +399,6 @@ def make_align_job(options, toil):
         cafNode.attrib["runMapQFiltering"] = "0"
         # more iterations here helps quite a bit to reduce underalignment
         cafNode.attrib["maxRecoverableChainsIterations"] = "50"
-        # pulling apart a recoverable chain bigger than the poa window is counterproductive
-        cafNode.attrib["maxRecoverableChainLength"] = "10000"
         # turn down minimum block degree to get a fat ancestor
         barNode.attrib["minimumBlockDegree"] = "1"
         # turn on POA

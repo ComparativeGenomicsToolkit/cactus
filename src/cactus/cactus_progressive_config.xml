@@ -157,7 +157,7 @@
 		 maximumMedianSequenceLengthBetweenLinkedEnds="1000"
 		 removeRecoverableChains="unequalNumberOfIngroupCopies"
 		 maxRecoverableChainsIterations="5"
-		 maxRecoverableChainLength="500000"
+		 maxRecoverableChainLength="10000"
 		 minimumBlockDegreeToCheckSupport="10"
 		 minimumBlockHomologySupport="0.05"
 	/>
