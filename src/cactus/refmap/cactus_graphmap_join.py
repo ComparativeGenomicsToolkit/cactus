@@ -245,7 +245,7 @@ def clip_vg(job, options, config, vg_path, vg_id):
     # todo: would be nice if clip-vg worked on stdin
     if options.normalizeIterations:
         normalized_path = clipped_path + '.normalized'
-        mod_cmd = ['vg', 'mod', '-U', str(options.normalizeIterations), clipped_path]
+        mod_cmd = ['vg', 'mod', '-O', '-U', str(options.normalizeIterations), clipped_path]
         if options.reference:
             mod_cmd += ['-z', options.reference]
         cactus_call(parameters=mod_cmd, outfile=normalized_path)
@@ -265,7 +265,7 @@ def clip_vg(job, options, config, vg_path, vg_id):
             fix_cmd += ['--dont_collapse', options.reference + '*']
         cactus_call(parameters=fix_cmd)
         # GFAFfix doesn't seem to unchop that well, so we do that in vg after
-        cactus_call(parameters=[['vg', 'convert', '-g', '-p', gfa_out_path], ['vg', 'mod', '-u', '-']], outfile=normalized_path)
+        cactus_call(parameters=[['vg', 'convert', '-g', '-p', gfa_out_path], ['vg', 'mod', '-u', '-O', '-']], outfile=normalized_path)
         clipped_path = normalized_path
 
     # also forwardize just in case
