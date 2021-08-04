@@ -70,6 +70,8 @@ def main():
     parser.add_argument("--indexCores", type=int, default=1, help = "cores for indexing processes")
     parser.add_argument("--decoyGraph", help= "decoy sequences vg graph to add (PackedGraph or HashGraph format)")
     parser.add_argument("--hal", nargs='+', default = [], help = "Input hal files (for merging)")
+    parser.add_argument("--vcf", action="store_true", help= "make VCF")
+    parser.add_argument("--giraffe", action="store_true", help= "make Giraffe-specific indexes (distance and minimizer)")
     
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -148,7 +150,7 @@ def runCactusGraphMapJoin(options):
             wf_output = toil.start(Job.wrapJobFn(graphmap_join_workflow, options, config, vg_ids, hal_ids))
                 
         #export the split data
-        export_join_data(toil, options, wf_output[0], wf_output[1], wf_output[2])
+        export_join_data(toil, options, wf_output[0], wf_output[1])
 
 def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
 
@@ -183,14 +185,37 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
     gfa_merge_job = gfa_root_job.addFollowOnJobFn(vg_indexes, options, config, clipped_gfa_ids,
                                                   cores=options.indexCores,
                                                   disk=sum(f.size for f in vg_ids) * 5)
+    out_dicts = [gfa_merge_job.rv()]
+                        
+    # try to divide cores between vcf (slow) and giraffe
+    vcf_cores = options.indexCores
+    giraffe_cores = options.indexCores
+    if options.giraffe and options.vcf and vcf_cores > 1:
+        giraffe_cores = 1
+        vcf_cores -= 1
+        
+    # optional vcf
+    if options.vcf:
+        deconstruct_job = gfa_merge_job.addFollowOnJobFn(make_vcf, options, out_dicts[0],
+                                                         cores = vcf_cores,
+                                                         disk = sum(f.size for f in vg_ids) * 2)
+        out_dicts.append(deconstruct_job.rv())
 
+    # optional giraffe
+    if options.giraffe:
+        giraffe_job = gfa_merge_job.addFollowOnJobFn(make_giraffe_indexes, options, out_dicts[0],
+                                                     cores = giraffe_cores,
+                                                     disk = sum(f.size for f in vg_ids) * 4)
+        out_dicts.append(giraffe_job.rv())
+
+    # optional hal merge
     if hal_ids:
-        merge_hal_id = job.addChildJobFn(merge_hal, options, hal_ids,
-                                         disk=sum(f.size for f in hal_ids) * 2).rv()
-    else:
-        merge_hal_id = None
+        hal_merge_job = root_job.addChildJobFn(merge_hal, options, hal_ids,
+                                               cores = 1,
+                                               disk=sum(f.size for f in hal_ids) * 2)
+        out_dicts.append(hal_merge_job.rv())
     
-    return clipped_vg_ids, gfa_merge_job.rv(), merge_hal_id
+    return clipped_vg_ids, out_dicts
 
 def clip_vg(job, options, config, vg_path, vg_id):
     """ run clip-vg 
@@ -296,7 +321,7 @@ def vg_to_gfa(job, options, config, vg_path, vg_id):
     return job.fileStore.writeGlobalFile(out_path)
 
 def vg_indexes(job, options, config, gfa_ids):
-    """ merge of the gfas, then make gbwt / xg / snarls / vcf 
+    """ merge of the gfas, then make gbwt / xg / snarls / trans
     """ 
     work_dir = job.fileStore.getLocalTempDir()
     vg_paths = []
@@ -317,6 +342,10 @@ def vg_indexes(job, options, config, gfa_ids):
     trans_path = os.path.join(work_dir, 'merged.trans')
     cactus_call(parameters=['vg', 'gbwt', '-G', merge_gfa_path, '-o', gbwt_path, '-g', gg_path, '--translation', trans_path])
 
+    # compress the trans
+    cactus_call(parameters=['bgzip', trans_path, '--threads', str(job.cores)])
+    trans_path += '.gz'                            
+    
     # zip the gfa
     cactus_call(parameters=['bgzip', merge_gfa_path, '--threads', str(job.cores)])
     gfa_path = merge_gfa_path + '.gz'
@@ -331,6 +360,30 @@ def vg_indexes(job, options, config, gfa_ids):
     # make the snarls
     snarls_path = os.path.join(work_dir, 'merged.snarls')
     cactus_call(parameters=['vg', 'snarls', xg_path, '-T', '-t', str(job.cores)], outfile=snarls_path)
+                            
+    return { 'gfa.gz' : job.fileStore.writeGlobalFile(gfa_path),
+             'gbwt' : job.fileStore.writeGlobalFile(gbwt_path),
+             'gg' : job.fileStore.writeGlobalFile(gg_path),
+             'trans.gz' : job.fileStore.writeGlobalFile(trans_path),
+             'xg' : job.fileStore.writeGlobalFile(xg_path),
+             'snarls' : job.fileStore.writeGlobalFile(snarls_path) }
+
+def make_vcf(job, options, index_dict):
+    """ make the vcf
+    """ 
+    work_dir = job.fileStore.getLocalTempDir()
+    xg_path = os.path.join(work_dir, os.path.basename(options.outName) + '.xg')
+    gbwt_path = os.path.join(work_dir, os.path.basename(options.outName) + '.gbwt')
+    snarls_path = os.path.join(work_dir, os.path.basename(options.outName) + '.snarls')
+    trans_path = os.path.join(work_dir, os.path.basename(options.outName) + '.trans.gz')
+    job.fileStore.readGlobalFile(index_dict['xg'], xg_path)
+    job.fileStore.readGlobalFile(index_dict['gbwt'], gbwt_path)
+    job.fileStore.readGlobalFile(index_dict['snarls'], snarls_path)
+    job.fileStore.readGlobalFile(index_dict['trans.gz'], trans_path)
+
+    # unzip the trans
+    cactus_call(parameters=['gzip', '-fd', trans_path])
+    trans_path = trans_path[:-3]
 
     # make the vcf
     vcf_path = os.path.join(work_dir, 'merged.vcf.gz')
@@ -341,18 +394,30 @@ def vg_indexes(job, options, config, gfa_ids):
                 outfile=vcf_path)
     cactus_call(parameters=['tabix', '-p', 'vcf', vcf_path])
 
-    # compress the trans
-    cactus_call(parameters=['bgzip', trans_path, '--threads', str(job.cores)])
-    trans_path += '.gz'                            
-                            
-    return { 'gfa.gz' : job.fileStore.writeGlobalFile(gfa_path),
-             'gbwt' : job.fileStore.writeGlobalFile(gbwt_path),
-             'gg' : job.fileStore.writeGlobalFile(gg_path),
-             'trans.gz' : job.fileStore.writeGlobalFile(trans_path),
-             'xg' : job.fileStore.writeGlobalFile(xg_path),
-             'snarls' : job.fileStore.writeGlobalFile(snarls_path),
-             'vcf.gz' : job.fileStore.writeGlobalFile(vcf_path),
+    return { 'vcf.gz' : job.fileStore.writeGlobalFile(vcf_path),
              'vcf.gz.tbi' : job.fileStore.writeGlobalFile(vcf_path + '.tbi') }
+    
+def make_giraffe_indexes(job, options, index_dict):
+    """ make giraffe-specific indexes: distance and minimaer """
+    work_dir = job.fileStore.getLocalTempDir()
+    xg_path = os.path.join(work_dir, os.path.basename(options.outName) + '.xg')
+    gbwt_path = os.path.join(work_dir, os.path.basename(options.outName) + '.gbwt')
+    snarls_path = os.path.join(work_dir, os.path.basename(options.outName) + '.snarls')
+    job.fileStore.readGlobalFile(index_dict['xg'], xg_path)
+    job.fileStore.readGlobalFile(index_dict['gbwt'], gbwt_path)
+    job.fileStore.readGlobalFile(index_dict['snarls'], snarls_path)
+
+    # make the distance index
+    dist_path = os.path.join(work_dir, os.path.basename(options.outName) + '.dist')
+    cactus_call(parameters=['vg', 'index', '-t', str(job.cores), '-j', dist_path, '-s', snarls_path, xg_path])
+
+    # make the minimizer index
+    min_path = os.path.join(work_dir, os.path.basename(options.outName) + '.min')
+    cactus_call(parameters=['vg', 'minimizer', '-k', '29', '-w', '11', '-t', str(job.cores), '-g', gbwt_path,
+                            '-d', dist_path, '-o', min_path, xg_path])                            
+                            
+    return { 'min' : job.fileStore.writeGlobalFile(min_path),
+             'dist' : job.fileStore.writeGlobalFile(dist_path) }
 
 def merge_hal(job, options, hal_ids):
     """ call halMergeChroms to make one big hal file out of the chromosome hal files """
@@ -376,9 +441,9 @@ def merge_hal(job, options, hal_ids):
            '--progress']
     cactus_call(parameters=cmd, work_dir = work_dir)
 
-    return job.fileStore.writeGlobalFile(merged_path)
+    return { 'hal', job.fileStore.writeGlobalFile(merged_path) }
 
-def export_join_data(toil, options, clip_ids, idx_map, merge_hal_id):
+def export_join_data(toil, options, clip_ids, idx_maps):
     """ download all the output data
     """
 
@@ -391,12 +456,9 @@ def export_join_data(toil, options, clip_ids, idx_map, merge_hal_id):
         toil.exportFile(vg_id, makeURL(os.path.join(clip_base, os.path.basename(vg_path))))
 
     # download everything else
-    for ext, idx_id in idx_map.items():
-        toil.exportFile(idx_id, makeURL(os.path.join(options.outDir, '{}.{}'.format(options.outName, ext))))
-
-    # download the merged hal
-    if merge_hal_id:
-        toil.exportFile(merge_hal_id, makeURL(os.path.join(options.outDir, '{}.hal'.format(options.outName))))    
+    for idx_map in idx_maps:
+        for ext, idx_id in idx_map.items():
+            toil.exportFile(idx_id, makeURL(os.path.join(options.outDir, '{}.{}'.format(options.outName, ext))))
         
 if __name__ == "__main__":
     main()
