@@ -437,7 +437,7 @@ def merge_hal(job, options, hal_ids):
            '--progress']
     cactus_call(parameters=cmd, work_dir = work_dir)
 
-    return { 'hal', job.fileStore.writeGlobalFile(merged_path) }
+    return { 'hal' : job.fileStore.writeGlobalFile(merged_path) }
 
 def export_join_data(toil, options, clip_ids, idx_maps):
     """ download all the output data
