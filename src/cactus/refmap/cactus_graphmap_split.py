@@ -258,9 +258,21 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
     mg_id = graph_event
 
     # get the specificity filters
-    query_coverage = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minQueryCoverage", default="0")
-    small_query_coverage = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minQuerySmallCoverage", default="0")
-    small_coverage_threshold = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minQuerySmallThreshold", default="0")
+    query_coverages = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minQueryCoverages", default=None)
+    query_coverage_thresholds = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minQueryCoverageThresholds", default=None)
+    coverage_opts = []
+    if query_coverages is not None:
+        try:
+            query_cov_vals = [float(x) for x in query_coverages.split()]
+            query_thresh_vals = [int(x) for x in query_coverage_thresholds.split()]
+            assert len(query_cov_vals) == len(query_thresh_vals) + 1
+            assert sorted(query_thresh_vals) == query_thresh_vals
+            for cv in query_cov_vals:
+                coverage_opts += ['-n', str(cv)]
+            for tv in query_thresh_vals:
+                coverage_opts += ['-T', str(tv)]
+        except:
+            raise RuntimeError("minQueryCoverages and / or minQueryCoverageThresholds malspecified in config")
     query_uniqueness = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minQueryUniqueness", default="0")
     max_gap = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "maxGap", default="0")
     amb_name = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "ambiguousName", default="_AMBIGUOUS_")
@@ -268,13 +280,11 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
     cmd = ['rgfa-split',
            '-p', paf_path,
            '-b', out_prefix,
-           '-n', query_coverage,
-           '-N', small_query_coverage,
-           '-T', small_coverage_threshold,
            '-Q', query_uniqueness,
            '-P', max_gap,
            '-a', amb_name,
            '-L', log_path]
+    cmd += coverage_opts    
     if gfa_id:
         cmd += ['-g', gfa_path, '-G']
     if other_contig:
