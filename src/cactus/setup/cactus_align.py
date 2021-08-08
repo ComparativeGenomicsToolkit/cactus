@@ -273,10 +273,9 @@ def make_align_job(options, toil):
         raise RuntimeError("--pafMaskFilter can only be run with --pafInput")
 
     paf_to_stable = False
-    if options.pafInput:
+    configNode = ET.parse(options.configFile).getroot()
+    if options.pafInput and getOptionalAttrib(findRequiredNode(configNode, "graphmap"), "removeMinigraphFromPAF", typeFn=bool, default=False):
         # remove minigraph event from input seqfile
-        # TODO: this could be an option if someone wanted to keep it around for some reason,
-        # otherwise, best to never add it in the first place
         seqFile = SeqFile(options.seqFile)
         configNode = ET.parse(options.configFile).getroot()
         graph_event = getOptionalAttrib(findRequiredNode(configNode, "graphmap"), "assemblyName", default="_MINIGRAPH_")
@@ -399,8 +398,9 @@ def make_align_job(options, toil):
         cafNode.attrib["runMapQFiltering"] = "0"
         # more iterations here helps quite a bit to reduce underalignment
         cafNode.attrib["maxRecoverableChainsIterations"] = "50"
-        # pulling apart a recoverable chain bigger than the poa window is counterproductive
-        cafNode.attrib["maxRecoverableChainLength"] = "10000"
+        if getOptionalAttrib(findRequiredNode(configNode, "graphmap"), "removeMinigraphFromPAF", typeFn=bool, default=False):
+            # pulling apart a recoverable chain bigger than the poa window is counterproductive
+            cafNode.attrib["maxRecoverableChainLength"] = "10000"
         # turn down minimum block degree to get a fat ancestor
         barNode.attrib["minimumBlockDegree"] = "1"
         # turn on POA
