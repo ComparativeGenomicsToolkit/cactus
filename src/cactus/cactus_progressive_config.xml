@@ -306,7 +306,7 @@
 		 minGAFNodeLength="0"
 		 minGAFQueryOverlapFilter="10000"
 		 maskFilter="-1"
-		 removeMinigraphFromPAF="1"
+		 removeMinigraphFromPAF="0"
 		 cpu="6"
 		 />
 	<!-- cactus-graphmap-split options -->
