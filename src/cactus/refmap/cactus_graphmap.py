@@ -52,7 +52,8 @@ def main():
     parser.add_argument("--outputFasta", type=str, help = "Output graph sequence file in FASTA format (required if not present in seqFile)")
     parser.add_argument("--maskFilter", type=int, help = "Ignore softmasked sequence intervals > Nbp (overrides config option of same name)")    
     parser.add_argument("--outputGAFDir", type=str, help = "Output GAF alignments (raw minigraph output before PAF conversion) to this directory")
-    parser.add_argument("--refFromGFA", type=str, help = "Do not align given genome from seqfile, and instead extract its alignment from the rGFA tags (must have been used as reference for minigraph GFA construction)")
+    parser.add_argument("--reference", type=str, help = "Reference genome name.  MAPQ filter will not be applied to it")
+    parser.add_argument("--refFromGFA", action="store_true", help = "Do not align reference (--reference) from seqfile, and instead extract its alignment from the rGFA tags (must have been used as reference for minigraph GFA construction)")
 
     #WDL hacks
     parser.add_argument("--pathOverrides", nargs="*", help="paths (multiple allowed) to override from seqFile")
@@ -136,9 +137,15 @@ def runCactusGraphMap(options):
             # load the seqfile
             seqFile = SeqFile(options.seqFile)
 
+            if options.reference and options.reference not in seqFile.pathMap:
+                raise RuntimeError("{}, specified with --reference, was not found in the seqfile".format(options.refFromGFA))
+
             if options.refFromGFA:
-                if options.refFromGFA not in seqFile.pathMap:
-                    raise RuntimeError("{}, specified with --refFromGFA, was not found in the seqfile".format(options.refFromGFA))
+                if not options.reference:
+                    raise RuntimeError("--reference must be used with --refFromGFA")
+                # ugly, but this option used to be a string
+                # todo: probably best to eventually get rid of this option entirely.
+                options.refFromGFA = options.reference
                 # we're not going to need the fasta for anything, so forget about it now
                 del seqFile.pathMap[options.refFromGFA]
                 
@@ -188,7 +195,7 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event):
         fa_job = job.addChildJobFn(make_minigraph_fasta, gfa_id, options.outputFasta, graph_event)
         fa_id = fa_job.rv()
 
-    paf_job = job.addChildJobFn(minigraph_map_all, config, gfa_id, seq_id_map, graph_event, options.outputGAFDir is not None)
+    paf_job = job.addChildJobFn(minigraph_map_all, config, gfa_id, seq_id_map, graph_event, options.outputGAFDir is not None, options.reference)
     
     if options.refFromGFA:
         # extract a PAF directly from the rGFAs tag for the given reference
@@ -222,7 +229,7 @@ def make_minigraph_fasta(job, gfa_file_id, gfa_file_path, name):
 
     return job.fileStore.writeGlobalFile(fa_path)
 
-def minigraph_map_all(job, config, gfa_id, fa_id_map, graph_event, keep_gaf):
+def minigraph_map_all(job, config, gfa_id, fa_id_map, graph_event, keep_gaf, ref_event):
     """ top-level job to run the minigraph mapping in parallel, returns paf """
     
     # hang everything on this job, to self-contain workflow
@@ -245,7 +252,7 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map, graph_event, keep_gaf):
         fa_path = fa_path_fa_id[0]
         fa_id = fa_path_fa_id[1]
         minigraph_map_job = top_job.addChildJobFn(minigraph_map_one, config, event, fa_path, fa_id, gfa_id,
-                                                  keep_gaf or not paf_per_genome, paf_per_genome,
+                                                  keep_gaf or not paf_per_genome, paf_per_genome, event == ref_event,
                                                   # todo: estimate RAM
                                                   cores=mg_cores, disk=5*(fa_id.size + gfa_id.size))
         gaf_id_map[event] = minigraph_map_job.rv(0)
@@ -264,7 +271,7 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map, graph_event, keep_gaf):
         
     return paf_job.rv(), gaf_id_map
 
-def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id, gaf_output, paf_output):
+def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id, gaf_output, paf_output, is_ref):
     """ Run minigraph to map a Fasta file to a GFA graph, producing a GAF output """
 
     work_dir = job.fileStore.getLocalTempDir()
@@ -311,13 +318,13 @@ def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id,
     if paf_output:
         # optional gaf->paf step.  we are not piping directly out of minigraph because mzgaf2paf's overlap filter
         # (which is usually on) requires 2 passes so it won't read stdin when it's enabled
-        paf_id =  merge_gafs_into_paf(job, config, None, [gaf_path])
+        paf_id =  merge_gafs_into_paf(job, config, None, gaf_paths = [gaf_path], is_ref = is_ref)
     if gaf_output:
         gaf_id = job.fileStore.writeGlobalFile(gaf_path)
 
     return gaf_id, paf_id
 
-def merge_gafs_into_paf(job, config, gaf_file_id_map, gaf_paths = []):
+def merge_gafs_into_paf(job, config, gaf_file_id_map, gaf_paths = [], is_ref = False):
     """ Merge GAF alignments into a single PAF, applying some filters """
 
     work_dir = job.fileStore.getLocalTempDir()
@@ -343,7 +350,7 @@ def merge_gafs_into_paf(job, config, gaf_file_id_map, gaf_paths = []):
     if min_mz:
         mzgaf2paf_opts += ['-m', str(min_mz)]
     mapq = getOptionalAttrib(xml_node, "minMAPQ", int)
-    if mapq:
+    if mapq and not is_ref:
         mzgaf2paf_opts += ['-q', str(mapq)]
     gaf_block = getOptionalAttrib(xml_node, "minGAFBlockLength", int)
     if gaf_block:
