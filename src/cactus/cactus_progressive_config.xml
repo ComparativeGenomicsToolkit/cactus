@@ -293,6 +293,7 @@
 	<!--                           Filter is disabled when set to 0.  Any non-zero value will prevent query overlaps -->
 	<!-- maskFilter: any softmasked sequence intervals > than this many bp will be hardmasked before being read by the minigraph mapper [negative value = disable]-->
 	<!-- removeMinigraphFromPAF: replace all minigraph contigs with transitive alignments in cactus-align-->
+	<!-- refOverrideThreshold: only override masking filters for reference contigs less than this length (used to override unplaced contigs but not chroms)-->
 	<!-- cpu: use up to this many cpus for each minigraph command. -->
 	<graphmap
 		 assemblyName="_MINIGRAPH_"
@@ -307,6 +308,7 @@
 		 minGAFQueryOverlapFilter="10000"
 		 maskFilter="-1"
 		 removeMinigraphFromPAF="0"
+		 refOverrideThreshold="5000000"
 		 cpu="6"
 		 />
 	<!-- cactus-graphmap-split options -->

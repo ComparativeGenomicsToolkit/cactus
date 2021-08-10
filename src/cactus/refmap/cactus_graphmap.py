@@ -308,9 +308,13 @@ def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id,
            "-o", os.path.basename(gaf_path)] + opts_list
 
     mask_filter = getOptionalAttrib(xml_node, "maskFilter", int, default=-1)
-    if mask_filter >= 0 and not is_ref:
+    if mask_filter >= 0:
         cmd[2] = '-'
         cmd = [['cactus_softmask2hardmask', os.path.basename(fa_path), '-m', str(mask_filter)], cmd]
+        if is_ref:
+            ref_override_thresh = getOptionalAttrib(xml_node, "refOverrideThreshold", int, default=None)
+            if ref_override_thresh:
+                cmd[0] += ['-c', str(ref_override_thresh)]
     
     cactus_call(work_dir=work_dir, parameters=cmd)
 
