@@ -308,7 +308,7 @@ def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id,
            "-o", os.path.basename(gaf_path)] + opts_list
 
     mask_filter = getOptionalAttrib(xml_node, "maskFilter", int, default=-1)
-    if mask_filter >= 0:
+    if mask_filter >= 0 and not is_ref:
         cmd[2] = '-'
         cmd = [['cactus_softmask2hardmask', os.path.basename(fa_path), '-m', str(mask_filter)], cmd]
     
