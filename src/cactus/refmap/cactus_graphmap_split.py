@@ -293,14 +293,16 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
         cmd += ['-r', 'id={}|'.format(reference_event)]
     if mask_bed_id:
         cmd += ['-B', bed_path]
-    min_mapq = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minMAPQ")
-    if min_mapq:
-        cmd += ['-A', min_mapq]
     # optional stuff added to second pass:
     if not gfa_id:
         remap_opts = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "remapSplitOptions", default=None)
         if remap_opts:
-            cmd += remap_opts.split(' ')        
+            cmd += remap_opts.split(' ')
+            # only do mapq filter on minimap2 input.  it will already have been run in mzgaf2paf otherwise
+            # (and we may have applied a reference exception)
+            min_mapq = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minMAPQ")
+            if min_mapq:
+                cmd += ['-A', min_mapq]
     for contig in ref_contigs:
         cmd += ['-c', contig]
 
