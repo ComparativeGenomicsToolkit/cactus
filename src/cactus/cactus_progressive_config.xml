@@ -323,10 +323,10 @@
 	<!-- remapSplitOptions: extra rgfa-split options to apply when splitting after remapping (use -u 3000000 to enable autoclipping between contigs, add -s to allow within contig)-->
 	<!-- useMinimapPAF: use minimap2 PAF for ambiguous contigs (rather than keeping their original mappings in the input PAF, requried if autoclipping enabled above) -->
 	<graphmap_split
-		 minQueryCoverages="0.99 0.95 0.90 0.85 0.80 0.75"
-		 minQueryCoverageThresholds="50000 100000 1000000 5000000 10000000"
+		 minQueryCoverages="0.90 0.80 0.75 0.70"
+       minQueryCoverageThresholds="10000 100000 1000000"
 		 minQueryUniqueness="3"
-		 maxGap="20"
+		 maxGap="5000"
 		 ambiguousName="_AMBIGUOUS_"
 		 remap="0"
 		 remapSplitOptions=""
