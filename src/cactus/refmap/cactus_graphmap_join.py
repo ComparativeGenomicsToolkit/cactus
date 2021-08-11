@@ -63,7 +63,7 @@ def main():
     parser.add_argument("--outDir", required=True, type=str, help = "Output directory")
     parser.add_argument("--outName", required=True, type=str, help = "Basename of all output files")
     parser.add_argument("--reference", required=True, type=str, help = "Reference event name")
-    parser.add_argument("--vcfReference", type=str, help = "Reference event for VCF (if different from --reference)")
+    parser.add_argument("--vcfReference", type=str, help = "Produce additional VCF for given reference event")
     parser.add_argument("--rename", nargs='+', default = [], help = "Path renaming, each of form src>dest (see clip-vg -r)")
     parser.add_argument("--clipLength", type=int, default=None, help = "clip out unaligned sequences longer than this")
     parser.add_argument("--wlineSep", type=str, help = "wline separator for vg convert")
@@ -192,10 +192,18 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
                                 
     # optional vcf
     if options.vcf:
-        deconstruct_job = gfa_merge_job.addFollowOnJobFn(make_vcf, options, out_dicts[0],
+        deconstruct_job = gfa_merge_job.addFollowOnJobFn(make_vcf, options.outName, options.reference, out_dicts[0],
                                                          cores=options.indexCores,
                                                          disk = sum(f.size for f in vg_ids) * 2)
         out_dicts.append(deconstruct_job.rv())
+
+    # optional vcf with different reference
+    if options.vcfReference:
+        ref_deconstruct_job = gfa_merge_job.addFollowOnJobFn(make_vcf, options.outName, options.vcfReference, out_dicts[0],
+                                                             tag=options.vcfReference + '.',
+                                                             cores=options.indexCores,
+                                                             disk = sum(f.size for f in vg_ids) * 2)
+        out_dicts.append(ref_deconstruct_job.rv())
 
     # optional giraffe
     if options.giraffe:
@@ -364,14 +372,14 @@ def vg_indexes(job, options, config, gfa_ids):
              'xg' : job.fileStore.writeGlobalFile(xg_path),
              'snarls' : job.fileStore.writeGlobalFile(snarls_path) }
 
-def make_vcf(job, options, index_dict):
+def make_vcf(job, out_name, vcf_ref, index_dict, tag=''):
     """ make the vcf
     """ 
     work_dir = job.fileStore.getLocalTempDir()
-    xg_path = os.path.join(work_dir, os.path.basename(options.outName) + '.xg')
-    gbwt_path = os.path.join(work_dir, os.path.basename(options.outName) + '.gbwt')
-    snarls_path = os.path.join(work_dir, os.path.basename(options.outName) + '.snarls')
-    trans_path = os.path.join(work_dir, os.path.basename(options.outName) + '.trans.gz')
+    xg_path = os.path.join(work_dir, os.path.basename(out_name) + '.xg')
+    gbwt_path = os.path.join(work_dir, os.path.basename(out_name) + '.gbwt')
+    snarls_path = os.path.join(work_dir, os.path.basename(out_name) + '.snarls')
+    trans_path = os.path.join(work_dir, os.path.basename(out_name) + '.trans.gz')
     job.fileStore.readGlobalFile(index_dict['xg'], xg_path)
     job.fileStore.readGlobalFile(index_dict['gbwt'], gbwt_path)
     job.fileStore.readGlobalFile(index_dict['snarls'], snarls_path)
@@ -383,15 +391,14 @@ def make_vcf(job, options, index_dict):
 
     # make the vcf
     vcf_path = os.path.join(work_dir, 'merged.vcf.gz')
-    vcf_ref = options.vcfReference if options.vcfReference else options.reference
     cactus_call(parameters=[['vg', 'deconstruct', xg_path, '-P', vcf_ref, '-a', '-r', snarls_path, '-g', gbwt_path,
                              '-T', trans_path, '-t', str(job.cores)],
                             ['bgzip', '--threads', str(job.cores)]],
                 outfile=vcf_path)
     cactus_call(parameters=['tabix', '-p', 'vcf', vcf_path])
 
-    return { 'vcf.gz' : job.fileStore.writeGlobalFile(vcf_path),
-             'vcf.gz.tbi' : job.fileStore.writeGlobalFile(vcf_path + '.tbi') }
+    return { '{}vcf.gz'.format(tag) : job.fileStore.writeGlobalFile(vcf_path),
+             '{}vcf.gz.tbi'.format(tag) : job.fileStore.writeGlobalFile(vcf_path + '.tbi') }
     
 def make_giraffe_indexes(job, options, index_dict):
     """ make giraffe-specific indexes: distance and minimaer """
