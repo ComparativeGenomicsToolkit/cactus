@@ -273,7 +273,8 @@ def clip_vg(job, options, config, vg_path, vg_id):
             fix_cmd += ['--dont_collapse', options.reference + '*']
         cactus_call(parameters=fix_cmd)
         # GFAFfix doesn't seem to unchop that well, so we do that in vg after
-        cactus_call(parameters=[['vg', 'convert', '-g', '-p', gfa_out_path], ['vg', 'mod', '-u', '-']], outfile=normalized_path)
+        # The double convert is to work around: https://github.com/vgteam/vg/issues/3373
+        cactus_call(parameters=[['vg', 'convert', '-g', '-a', gfa_out_path], ['vg', 'mod', '-u', '-'], ['vg', 'convert', '-p', '-']], outfile=normalized_path)
         clipped_path = normalized_path
 
     # also forwardize just in case
