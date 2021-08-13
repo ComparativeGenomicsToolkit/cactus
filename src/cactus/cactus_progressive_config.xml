@@ -292,6 +292,7 @@
 	<!--                           if 1 query region in a block of at least this size overlaps query regions in blocks smaller than this, filter out the smaller ones -->
 	<!--                           Filter is disabled when set to 0.  Any non-zero value will prevent query overlaps -->
 	<!-- maskFilter: any softmasked sequence intervals > than this many bp will be hardmasked before being read by the minigraph mapper [negative value = disable]-->
+	<!-- removeMinigraphFromPAF: replace all minigraph contigs with transitive alignments in cactus-align-->
 	<!-- cpu: use up to this many cpus for each minigraph command. -->
 	<graphmap
 		 assemblyName="_MINIGRAPH_"
@@ -305,12 +306,16 @@
 		 minGAFNodeLength="0"
 		 minGAFQueryOverlapFilter="10000"
 		 maskFilter="-1"
+		 removeMinigraphFromPAF="0"
 		 cpu="6"
 		 />
 	<!-- cactus-graphmap-split options -->
-	<!-- minQueryCoverage: At least this fraction of input contig must align to reference contig for it to be assigned. -->
-	<!-- minQuerySmallCoverage: Like minQueryCoverage, but applied only to contigs with length < minQuerySmallThreshold. -->
-	<!-- minQuerySmallThreshold: Threshold used to toggle between minQueryCoverage and minuQuerySmallCoverage. -->
+	<!-- minQueryCoverages: (space-separated) At least this fraction of input contig must align to reference contig for it to be assigned. -->
+	<!-- minQueryCoverageThresholds: (space-separated, exactly 1 fewer than minQueryCoverages). With above, form coverage bins.-->
+	<!--          Example:  coverages = "0.99 0.95 0.90" / thresholds = "10000 100000" would give the following bins: -->
+	<!--                    0-99999 : min_coverage = 0.99 -->
+	<!--                    10000-99999 : min_coverage = 0. 95 -->
+	<!--                    100000-infinity : min_coverage = 0.90 -->		  
 	<!-- minQueryUniqueness: The ratio of the number of query bases aligned to the chosen ref contig vs the next best ref contig must exceed this threshold to not be considered ambigious. -->
 	<!-- maxGap: Include indel gaps <= maxGap when counting minigraph coverage -->
 	<!-- ambiguousName: Contigs deemed ambiguous using the above filters get added to a "contig" with this name, and are preserved in output. -->
@@ -318,13 +323,12 @@
 	<!-- remapSplitOptions: extra rgfa-split options to apply when splitting after remapping (use -u 3000000 to enable autoclipping between contigs, add -s to allow within contig)-->
 	<!-- useMinimapPAF: use minimap2 PAF for ambiguous contigs (rather than keeping their original mappings in the input PAF, requried if autoclipping enabled above) -->
 	<graphmap_split
-		 minQueryCoverage="0.65"
-		 minQuerySmallCoverage="0.75"
-		 minQuerySmallThreshold="3000000"
+		 minQueryCoverages="0.90 0.80 0.75 0.70"
+       minQueryCoverageThresholds="10000 100000 1000000"
 		 minQueryUniqueness="3"
-		 maxGap="50000"
+		 maxGap="5000"
 		 ambiguousName="_AMBIGUOUS_"
-		 remap="1"
+		 remap="0"
 		 remapSplitOptions=""
 		 useMinimapPAF="0"
 		 />
