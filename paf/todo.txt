@@ -54,8 +54,8 @@ Minimap2 script (develop script to run minimap2 to align closely related genomic
 
 Convert Cactus to use PAF
 
-Write a PAF library
+Write a PAF library [DONE]
 
-Write tests
+Write tests [PARTIALLY DONE]
 
-Get a dotplot working
+Get a dotplot working [PARTIALLY DONE]

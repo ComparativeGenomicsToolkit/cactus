@@ -9,6 +9,45 @@
 
 #include "sonLib.h"
 
+/*
+ * The structure of a paf alignment is as follows:
+ *
+ * PAF (from: https://lh3.github.io/minimap2/minimap2.html) and
+ *  (https://github.com/lh3/miniasm/blob/master/PAF.md)
+ * 1    string	Query sequence name
+ * 2	int	Query sequence length
+ * 3	int	Query start coordinate (0-based, inclusive)
+ * 4	int	Query end coordinate (0-based, exclusive)
+ * 5	char	‘+’ if query/target on the same strand; ‘-’ if opposite
+ * 6	string	Target sequence name
+ * 7	int	Target sequence length
+ * 8	int	Target start coordinate on the original strand (0-based, inclusive)
+ * 9	int	Target end coordinate on the original strand (0-based, inclusive)
+ * 10	int	Number of matching bases in the mapping
+ * 11	int	Number bases, including gaps, in the mapping
+ * 12	int	Mapping quality (0-255 with 255 for missing)
+ *
+ * Tags: (only a subset are supported as indicated below)
+ *
+ * tp	A	Type of aln: P/primary, S/secondary and I,i/inversion
+ * cm	i	Number of minimizers on the chain [NOT SUPPORTED/IGNORED]
+ * s1	i	Chaining score [NOT SUPPORTED/IGNORED]
+ * s2	i	Chaining score of the best secondary chain [NOT SUPPORTED/IGNORED]
+ * NM	i	Total number of mismatches and gaps in the alignment [NOT SUPPORTED/IGNORED]
+ * MD	Z	To generate the ref sequence in the alignment [NOT SUPPORTED/IGNORED]
+ * AS	i	DP alignment score
+ * SA	Z	List of other supplementary alignments [NOT SUPPORTED/IGNORED]
+ * ms	i	DP score of the max scoring segment in the alignment [NOT SUPPORTED/IGNORED]
+ * nn	i	Number of ambiguous bases in the alignment [NOT SUPPORTED/IGNORED]
+ * ts	A	Transcript strand (splice mode only) [NOT SUPPORTED/IGNORED]
+ * cg	Z	CIGAR string (only in PAF)
+ * cs	Z	Difference string [NOT SUPPORTED/IGNORED]
+ * dv	f	Approximate per-base sequence divergence [NOT SUPPORTED/IGNORED]
+ * de	f	Gap-compressed per-base sequence divergence [NOT SUPPORTED/IGNORED]
+ * rl	i	Length of query regions harboring repetitive seeds [NOT SUPPORTED/IGNORED]
+ *
+ */
+
 typedef enum _cigarOp {
     match = 0,
     query_insert = 1,
@@ -33,11 +72,11 @@ typedef struct _paf {
     int64_t target_end; // Zero-based
     bool same_strand;
     Cigar *cigar;
-    double score;
-    double mapping_quality;
+    int64_t score; // the dp alignment score
+    int64_t mapping_quality;
     int64_t num_matches;
     int64_t num_bases;
-    bool is_primary;
+    char type; // is 'P' primary / 'S' secondary / 'I' inversion
 } Paf;
 
 /*
@@ -56,7 +95,7 @@ Paf *paf_parse(char *paf_string);
 Paf *paf_read(FILE *fh);
 
 /*
- * Write a paf record as a string.
+ * Prints a paf record
  */
 char *paf_print(Paf *paf);
 
@@ -64,6 +103,11 @@ char *paf_print(Paf *paf);
  * Writes a PAF alignment to the given file.
  */
 void paf_write(Paf *paf, FILE *fh);
+
+/*
+ * Checks a paf alignment coordinates and cigar are valid, error aborts if not.
+ */
+void paf_check(Paf *paf);
 
 #endif /* ST_PAF_H_ */
 
