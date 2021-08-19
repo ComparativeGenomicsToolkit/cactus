@@ -109,5 +109,21 @@ void paf_write(Paf *paf, FILE *fh);
  */
 void paf_check(Paf *paf);
 
+/*
+ * Inverts the query and target in the paf record, including inverting any cigar string.
+ */
+void paf_invert(Paf *paf);
+
+/*
+ * Read all the pafs from a file in order.
+ */
+stList *read_pafs(FILE *paf_file);
+
+/*
+ * Write a list of pafs to a file in order.
+ */
+void write_pafs(FILE *paf_file, stList *pafs);
+
+
 #endif /* ST_PAF_H_ */
 

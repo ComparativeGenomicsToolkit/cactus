@@ -197,7 +197,47 @@ void paf_check(Paf *paf) {
                         paf->target_end - paf->target_start, paf_print(paf));
         }
     }
-
 }
+
+static void swap(void **a, void **b) {
+    void *c = *a;
+    *a = *b;
+    *b = c;
+}
+
+void paf_invert(Paf *paf) {
+    swap((void **)&paf->query_start, (void **)&paf->target_start);
+    swap((void **)&paf->query_end, (void **)&paf->target_end);
+    swap((void **)&paf->query_length, (void **)&paf->target_length);
+    swap((void **)&paf->query_name, (void **)&paf->target_name);
+
+    Cigar *c = paf->cigar;
+    while(c != NULL) {
+        if(c->op == query_insert) {
+            c->op = query_delete;
+        }
+        else if(c->op == query_delete) {
+            c->op = query_insert;
+        }
+        c = c->next;
+    }
+}
+
+stList *read_pafs(FILE *fh) {
+    stList *pafs = stList_construct3(0, (void (*)(void *))paf_destruct);
+    Paf *paf;
+    while((paf = paf_read(fh)) != NULL) {
+        paf_check(paf);
+        stList_append(pafs, paf);
+    }
+    return pafs;
+}
+
+void write_pafs(FILE *fh, stList *pafs) {
+    for(int64_t i=0; i<stList_length(pafs); i++) {
+        paf_write(stList_get(pafs, i), fh);
+    }
+}
+
 
 
