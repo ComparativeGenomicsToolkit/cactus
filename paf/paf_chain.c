@@ -97,17 +97,20 @@ int main(int argc, char *argv[]) {
     FILE *output = outputFile == NULL ? stdout : fopen(outputFile, "w");
 
     stList *pafs = read_pafs(input); // Load local alignments files (PAF)
-
-    stList *chained_pafs = paf_chain(pafs, gap_cost, NULL, max_gap_length);
+    stList *chained_pafs = paf_chain(pafs, gap_cost, NULL, max_gap_length); // Convert to set of chains
 
     // Output chained alignments file
-    write_pafs(output, pafs);
+    write_pafs(output, chained_pafs);
 
     //////////////////////////////////////////////
     // Cleanup
     //////////////////////////////////////////////
 
+    // Cleans up the pafs list - but not the pafs themselves, which are destroyed by chaining
+    stList_setDestructor(pafs, NULL);
     stList_destruct(pafs);
+    stList_destruct(chained_pafs);
+
     if(inputFile != NULL) {
         fclose(input);
     }
