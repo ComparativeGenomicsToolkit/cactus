@@ -124,6 +124,10 @@ stList *read_pafs(FILE *paf_file);
  */
 void write_pafs(FILE *paf_file, stList *pafs);
 
+/*
+ * Chain a set of pafs into larger alignments
+ */
+stList *paf_chain(stList *pafs, int64_t (*gap_cost)(int64_t, void *), void *gap_cost_params, int64_t max_gap_length);
 
 #endif /* ST_PAF_H_ */
 
