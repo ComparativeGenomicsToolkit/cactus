@@ -45,8 +45,16 @@ static void test_paf(CuTest *testCase) {
     }
 }
 
+static void test_paf_chain(CuTest *testCase) {
+    // Read the pafs from the test file
+    char *test_paf_2 = "./tests/human_chimp_chains.paf";
+    st_system("paf_chain -i %s -o %s --logLevel=DEBUG", test_paf_file, test_paf_2);
+    st_system("rm -f %s", test_paf_2); // Remove the copied file
+}
+
 CuSuite* addPafTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, test_paf);
+    SUITE_ADD_TEST(suite, test_paf_chain);
     return suite;
 }

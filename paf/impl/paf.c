@@ -100,12 +100,10 @@ Paf *paf_parse(char *paf_string) {
 
 Paf *paf_read(FILE *fh) {
     char *c = stFile_getLineFromFile(fh);
-    //st_uglyf("Got the following line: %s\n", c);
     if(c == NULL) {
         return NULL;
     }
     Paf *paf = paf_parse(c);
-    //st_uglyf("Got the following record: %s\n", paf_print(paf));
     free(c);
     return paf;
 }
@@ -124,23 +122,23 @@ char *paf_print(Paf *paf) {
     // Generous estimate of size needed for each paf record.
     int64_t buf_size = 12 * cigar_number_of_records(paf) + 130 + strlen(paf->query_name) + strlen(paf->target_name);
     char *buffer = st_malloc(sizeof(char) * buf_size); // Giving a generous
-    int64_t i = sprintf(buffer, "%s %" PRIi64 " %" PRIi64" %" PRIi64" %c %s %" PRIi64" %" PRIi64" %" PRIi64
-                                " %" PRIi64 " %" PRIi64 " %" PRIi64,
+    int64_t i = sprintf(buffer, "%s\t%" PRIi64 "\t%" PRIi64"\t%" PRIi64"\t%c\t%s\t%" PRIi64"\t%" PRIi64"\t%" PRIi64
+                                "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64,
                         paf->query_name, paf->query_length, paf->query_start, paf->query_end,
                         paf->same_strand ? '+' : '-',
                         paf->target_name, paf->target_length, paf->target_start, paf->target_end,
                         paf->num_matches, paf->num_bases, paf->mapping_quality);
     if(paf->type != '\0') {
-        i += sprintf(buffer+i, " tp:A:%c", paf->type);
+        i += sprintf(buffer+i, "\ttp:A:%c", paf->type);
     }
     if(paf->score != INT_MAX) {
-        i += sprintf(buffer+i, " AS:i:%" PRIi64, paf->score);
+        i += sprintf(buffer+i, "\tAS:i:%" PRIi64, paf->score);
     }
     if(i > buf_size) {
         st_errAbort("Size of paf record exceeded buffer size\n");
     }
     if(paf->cigar != NULL) {
-        i += sprintf(buffer+i, " cg:Z:");
+        i += sprintf(buffer+i, "\tcg:Z:");
         Cigar *c = paf->cigar;
         while(c != NULL) {
             i += sprintf(buffer+i, "%" PRIi64 "%c", c->length, c->op == match ? 'M' : (c->op == query_insert ? 'I' : 'D'));
