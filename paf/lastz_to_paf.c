@@ -30,17 +30,20 @@ Paf *cigar_to_paf(struct PairwiseAlignment *pA) {
     paf->query_name = stString_copy(pA->contig1);
     paf->query_start = pA->strand1 ? pA->start1 : pA->end1+1;
     paf->query_end = pA->strand1 ? pA->end1 : pA->start1+1;
+    paf->query_length = 200000000;
 
     // Set target coordinates
     paf->target_name = stString_copy(pA->contig2);
     paf->target_start = pA->strand2 ? pA->start2 : pA->end2+1;
     paf->target_end = pA->strand2 ? pA->end2 : pA->start2+1;
+    paf->target_length = 200000000;
 
     // Set forward or reverse complement alignment
     paf->same_strand = pA->strand1 == pA->strand2;
 
     // Set score
     paf->score = pA->score;
+
 
     // Set cigar
     Cigar **pCigar = &(paf->cigar);

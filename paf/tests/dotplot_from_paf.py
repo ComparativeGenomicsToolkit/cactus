@@ -1,3 +1,4 @@
+from matplotlib import collections
 from matplotlib import pyplot
 from matplotlib import cm
 import argparse
@@ -75,7 +76,7 @@ def get_ref_alignment_length(cigar_operations):
 
 class PafElement:
     def __init__(self, paf_line, store_cigar=False):
-        tokens = paf_line.strip().split('\t')
+        tokens = paf_line.strip().split()
 
         self.query_name = tokens[0]
         self.ref_name = tokens[5]
@@ -109,7 +110,7 @@ class PafElement:
         return s
 
 
-def plot_abridged_alignment(paf_element, axes, use_random_color, use_endpoints):
+def plot_abridged_alignment(paf_element, lines, colors, dots_x, dots_y, use_random_color, use_endpoints):
     if paf_element.reversal:
         x1 = paf_element.ref_stop
         x2 = paf_element.ref_start
@@ -121,45 +122,53 @@ def plot_abridged_alignment(paf_element, axes, use_random_color, use_endpoints):
     y1 = paf_element.query_start
     y2 = paf_element.query_stop
 
-    print(paf_element)
-    print("x:", x1,x2, "y:", y1,y2)
+    # print(paf_element)
+    # print("x:", x1,x2, "y:", y1,y2)
+
+    lines.append([(x1,y1), (x2,y2)])
 
     if use_random_color:
         hsv = cm.get_cmap('hsv', 256)
         color = hsv(random.uniform(0,1))
-        axes.plot([x1,x2], [y1,y2], color=color, linewidth=1)
+        colors.append(color)
+        # axes.plot([x1,x2], [y1,y2], color=color, linewidth=1)
     else:
         viridis = cm.get_cmap('viridis', 256)
         color = viridis((60 - paf_element.map_quality)/60)
-        axes.plot([x1,x2], [y1,y2], color=color, linewidth=1)
+        colors.append(color)
+        # axes.plot([x1,x2], [y1,y2], color=color, linewidth=1)
 
     if use_endpoints:
-        axes.scatter([x1,x2], [y1,y2], color="black", s=0.3, zorder=sys.maxsize)
+        # axes.scatter([x1,x2], [y1,y2], color="black", s=0.3, zorder=sys.maxsize)
+        dots_x.append([x1,x2])
+        dots_y.append([y1,y2])
 
 
-def plot_full_alignment(paf_element, axes):
-    colors = {'M':"blue",
-              'I':"orange",
-              'D':"orange",
-              '=':"blue",
-              'X':"purple",
-              'S':"black",
-              'H':"black"}
+def plot_full_alignment(paf_element, lines, colors):
+    color_key = {'M':"blue",
+                 'I':"orange",
+                 'D':"orange",
+                 '=':"blue",
+                 'X':"purple",
+                 'S':"black",
+                 'H':"black"}
 
     print(paf_element.query_name, paf_element.ref_name, paf_element.reversal, paf_element.ref_start)
     print(paf_element.cigar_operations[:10])
 
-    if paf_element.reversal:
-        paf_element.cigar_operations = reversed(paf_element.cigar_operations)
-
     ref_index = paf_element.ref_start
     query_index = paf_element.query_start
+
+    if paf_element.reversal:
+        paf_element.cigar_operations = reversed(paf_element.cigar_operations)
+        ref_index = paf_element.ref_stop
+        query_index = paf_element.query_start
 
     for o,operation in enumerate(paf_element.cigar_operations):
         x1 = ref_index
         x2 = x1 + int(is_reference_move(operation[0]))*(1-2*int(paf_element.reversal))*operation[1]
         y1 = query_index
-        y2 = y1 + int(is_query_move(operation[0]))*(1-2*int(paf_element.reversal))*operation[1]
+        y2 = y1 + int(is_query_move(operation[0]))*operation[1]
 
         # print(operation, is_reference_move(operation[0]), is_query_move(operation[0]), "(%d,%d) -> (%d,%d)" % (x1,y1,x2,y2))
 
@@ -167,15 +176,22 @@ def plot_full_alignment(paf_element, axes):
         query_index = y2
 
         if operation[0] != "S" and operation[0] != "H":
-            axes.plot([x1,x2], [y1,y2], color=colors[operation[0]], linewidth=0.5)
+            lines.append([(x1,y1), (x2,y2)])
+            colors.append(color_key[operation[0]])
+            # axes.plot([x1,x2], [y1,y2], color=colors[operation[0]], linewidth=0.5)
 
 
-def dotplot_from_paf(paf_path, use_full_alignment, use_random_color, use_endpoints):
+def dotplot_from_paf(paf_path, min_mapq, use_full_alignment, use_random_color, use_endpoints):
     figure = pyplot.figure()
     axes = pyplot.axes()
 
     ref_names = set()
     ref_length = 0
+
+    lines = list()
+    dots_x = list()
+    dots_y = list()
+    colors = list()
 
     with open(paf_path, 'r') as file:
         for l,line in enumerate(file):
@@ -187,13 +203,28 @@ def dotplot_from_paf(paf_path, use_full_alignment, use_random_color, use_endpoin
             if len(ref_names) > 1:
                 exit("ERROR: more than one reference sequence in PAF file")
 
-            if paf_element.map_quality < 1:
+            if paf_element.map_quality < min_mapq:
                 continue
 
             if use_full_alignment:
-                plot_full_alignment(paf_element=paf_element, axes=axes)
+                plot_full_alignment(
+                    paf_element=paf_element,
+                    lines=lines,
+                    colors=colors)
             else:
-                plot_abridged_alignment(paf_element=paf_element, axes=axes, use_random_color=use_random_color, use_endpoints=use_endpoints)
+                plot_abridged_alignment(
+                    paf_element=paf_element,
+                    lines=lines,
+                    colors=colors,
+                    dots_x=dots_x,
+                    dots_y=dots_y,
+                    use_random_color=use_random_color,
+                    use_endpoints=use_endpoints)
+
+    line_collection = collections.LineCollection(lines, colors=colors, linewidths=1)
+    axes.add_collection(line_collection)
+
+    axes.scatter(dots_x, dots_y, color="black", s=0.3, zorder=sys.maxsize)
 
     axes.set_aspect('equal')
     axes.set_ylim([0,ref_length])
@@ -216,6 +247,13 @@ if __name__ == "__main__":
         type=str,
         required=True,
         help="Path of PAF file"
+    )
+    parser.add_argument(
+        "--min_mapq","-q",
+        type=int,
+        required=False,
+        default=0,
+        help="Minimum map quality to plot"
     )
     parser.add_argument(
         "--use_cigar","-c",
@@ -241,4 +279,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    dotplot_from_paf(args.i, use_full_alignment=args.use_cigar, use_random_color=args.random_color, use_endpoints=args.endpoints)
+    dotplot_from_paf(args.i, min_mapq=args.min_mapq, use_full_alignment=args.use_cigar, use_random_color=args.random_color, use_endpoints=args.endpoints)

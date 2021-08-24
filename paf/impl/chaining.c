@@ -14,7 +14,11 @@ static int intcmp(int64_t i, int64_t j) {
  */
 static int paf_cmp_by_query_location(const void *a, const void *b) {
     Paf *p1 = (Paf *)a, *p2 = (Paf *)b;
-    return intcmp(p1->query_start, p2->query_start);
+    int i = intcmp(p1->query_start, p2->query_start);
+    if(i == 0) { // if equal, compare by pointer to ensure any two different pafs are not considered equal
+        i = intcmp((int64_t)p1, (int64_t)p2);
+    }
+    return i;
 }
 
 /*
@@ -41,6 +45,9 @@ static int chain_cmp_by_location(const void *a, const void *b) {
             i = intcmp(p1->target_end, p2->target_end);
             if (i == 0) {
                 i = intcmp(p1->query_end, p2->query_end);
+                if(i == 0) { // if equal, compare by pointer to ensure any two different pafs are not considered equal
+                    i = intcmp((int64_t)p1, (int64_t)p2);
+                }
             }
         }
     }
@@ -52,7 +59,11 @@ static int chain_cmp_by_location(const void *a, const void *b) {
  */
 static int chain_cmp_by_score(const void *a, const void *b) {
     Chain *c1 = (Chain *)a, *c2 = (Chain *)b;
-    return intcmp(c1->score, c2->score);
+    int64_t i = intcmp(c1->score, c2->score);
+    if(i == 0) { // if equal, compare by pointer to ensure any two different pafs are not considered equal
+        i = intcmp((int64_t)c1, (int64_t)c2);
+    }
+    return i;
 }
 
 /*
@@ -78,12 +89,14 @@ static stSortedSetIterator *get_predecessor_chains(stSortedSet *active_chained_a
 /*
  * Joins together the pafs in a chain into a single paf
  */
-static Paf *chain_to_paf(Chain *chain) {
+static Paf *chain_to_paf(Chain *chain, int64_t (*gap_cost)(int64_t, void *),
+                         void *gap_cost_params) {
     Paf *p = chain->paf;
 
     while(chain->pChain != NULL) { // Join together links in the chain
         Paf *q = p;
         p = chain->pChain->paf; // p is now the previous paf in the chain to q
+        p->score += q->score - gap_cost(q->query_start - p->query_end, gap_cost_params) - gap_cost(q->target_start - p->target_end, gap_cost_params);
 
         // Checks that we can chain these together
         assert(strcmp(p->target_name, q->target_name) == 0);
@@ -119,7 +132,6 @@ static Paf *chain_to_paf(Chain *chain) {
         // Update the coordinates
         p->query_end = q->query_end;
         p->target_end = q->target_end;
-        p->score = q->score;
 
         // Shift back to the prior link in the chain and cleanup
         Chain *c = chain;
@@ -127,7 +139,6 @@ static Paf *chain_to_paf(Chain *chain) {
         free(q);
         free(c);
     }
-
     free(chain); // Now free the final wrapper in the chain
 
     return p;
@@ -192,9 +203,9 @@ stList *paf_chain_ignore_strand(stList *pafs, int64_t (*gap_cost)(int64_t, void 
                 // than we can chain to then there are no more alignments we can chain to
                 break;
             } else { // We can chain to this alignment
-                int64_t chain_score = paf->score + pChain->score -
-                        gap_cost(paf->query_start - pChain->paf->query_end, gap_cost_params) -
-                        gap_cost(paf->target_start - pChain->paf->target_end, gap_cost_params);
+                int64_t chain_score = paf->score + pChain->score
+                        - gap_cost(paf->query_start - pChain->paf->query_end, gap_cost_params)
+                        - gap_cost(paf->target_start - pChain->paf->target_end, gap_cost_params);
                 if (chain_score > chain->score) {
                     chain->score = chain_score;
                     chain->pChain = pChain;
@@ -236,7 +247,7 @@ stList *paf_chain_ignore_strand(stList *pafs, int64_t (*gap_cost)(int64_t, void 
 
     // Now finally convert chains back to single pafs
     for(int64_t i=0; i<stList_length(outputChains); i++) {
-        stList_set(outputChains, i, chain_to_paf(stList_get(outputChains, i)));
+        stList_set(outputChains, i, chain_to_paf(stList_get(outputChains, i), gap_cost, gap_cost_params));
     }
 
     // Cleanup
@@ -256,6 +267,11 @@ void invert_target_strand(Paf *p) {
     int64_t i = p->target_start;
     p->target_start = -p->target_end;
     p->target_end = -i;
+}
+
+static int paf_cmp_by_score(const void *a, const void *b) {
+    Paf *p1 = (Paf *)a, *p2 = (Paf *)b;
+    return intcmp(p2->score, p1->score);
 }
 
 stList *paf_chain(stList *pafs, int64_t (*gap_cost)(int64_t, void *), void *gap_cost_params, int64_t max_gap_length) {
@@ -291,6 +307,9 @@ stList *paf_chain(stList *pafs, int64_t (*gap_cost)(int64_t, void *), void *gap_
     for(int64_t i=0; i<stList_length(positive_chained_pafs); i++) {
         paf_check(stList_get(positive_chained_pafs, i));
     }
+
+    // Sort in descending order to make output easy to look at
+    stList_sort(positive_chained_pafs, paf_cmp_by_score);
 
     return positive_chained_pafs;
 }
