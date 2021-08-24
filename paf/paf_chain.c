@@ -15,7 +15,7 @@
 #include <getopt.h>
 #include <time.h>
 
-static int64_t max_gap_length = 10000;
+static int64_t max_gap_length = 100000;
 
 void usage() {
     fprintf(stderr, "paf_chain [options], version 0.1\n");

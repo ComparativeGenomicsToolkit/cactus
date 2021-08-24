@@ -58,4 +58,4 @@ Write a PAF library [DONE]
 
 Write tests [PARTIALLY DONE]
 
-Get a dotplot working [PARTIALLY DONE]
+Get a dotplot working [DONE]
