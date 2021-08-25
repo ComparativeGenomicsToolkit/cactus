@@ -28,7 +28,7 @@ void usage() {
 }
 
 int64_t gap_cost(int64_t length, void *params) {
-    return 0;
+    return length;
 }
 
 int main(int argc, char *argv[]) {

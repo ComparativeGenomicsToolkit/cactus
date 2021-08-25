@@ -144,7 +144,7 @@ def plot_abridged_alignment(paf_element, lines, colors, dots_x, dots_y, use_rand
         dots_y.append([y1,y2])
 
 
-def plot_full_alignment(paf_element, lines, colors):
+def plot_full_alignment(paf_element, lines, colors, dots_x, dots_y, use_random_color, use_endpoints):
     color_key = {'M':"blue",
                  'I':"orange",
                  'D':"orange",
@@ -158,6 +158,12 @@ def plot_full_alignment(paf_element, lines, colors):
 
     ref_index = paf_element.ref_start
     query_index = paf_element.query_start
+
+    random_color = None
+    gray = (0.5,0.5,0.5,0.1)
+    if use_random_color:
+        hsv = cm.get_cmap('hsv', 256)
+        random_color = hsv(random.uniform(0,1))
 
     if paf_element.reversal:
         paf_element.cigar_operations = reversed(paf_element.cigar_operations)
@@ -177,11 +183,32 @@ def plot_full_alignment(paf_element, lines, colors):
 
         if operation[0] != "S" and operation[0] != "H":
             lines.append([(x1,y1), (x2,y2)])
-            colors.append(color_key[operation[0]])
-            # axes.plot([x1,x2], [y1,y2], color=colors[operation[0]], linewidth=0.5)
+
+            if use_random_color:
+                if operation[0] == 'M' or operation[0] == '=' or operation[0] == 'X':
+                    colors.append(random_color)
+                else:
+                    colors.append(gray)
+            else:
+                colors.append(color_key[operation[0]])
+
+    if use_endpoints:
+        if paf_element.reversal:
+            x1 = paf_element.ref_stop
+            x2 = paf_element.ref_start
+
+        else:
+            x1 = paf_element.ref_start
+            x2 = paf_element.ref_stop
+
+        y1 = paf_element.query_start
+        y2 = paf_element.query_stop
+
+        dots_x.append([x1,x2])
+        dots_y.append([y1,y2])
 
 
-def dotplot_from_paf(paf_path, min_mapq, use_full_alignment, use_random_color, use_endpoints):
+def dotplot_from_paf(paf_path, min_mapq, min_length, use_full_alignment, use_random_color, use_endpoints):
     figure = pyplot.figure()
     axes = pyplot.axes()
 
@@ -206,11 +233,18 @@ def dotplot_from_paf(paf_path, min_mapq, use_full_alignment, use_random_color, u
             if paf_element.map_quality < min_mapq:
                 continue
 
+            if abs(paf_element.ref_stop - paf_element.ref_start) < min_length:
+                continue
+
             if use_full_alignment:
                 plot_full_alignment(
                     paf_element=paf_element,
                     lines=lines,
-                    colors=colors)
+                    colors=colors,
+                    dots_x=dots_x,
+                    dots_y=dots_y,
+                    use_random_color=use_random_color,
+                    use_endpoints=use_endpoints)
             else:
                 plot_abridged_alignment(
                     paf_element=paf_element,
@@ -221,7 +255,7 @@ def dotplot_from_paf(paf_path, min_mapq, use_full_alignment, use_random_color, u
                     use_random_color=use_random_color,
                     use_endpoints=use_endpoints)
 
-    line_collection = collections.LineCollection(lines, colors=colors, linewidths=1)
+    line_collection = collections.LineCollection(lines, colors=colors, linewidths=1.2)
     axes.add_collection(line_collection)
 
     axes.scatter(dots_x, dots_y, color="black", s=0.3, zorder=sys.maxsize)
@@ -256,6 +290,13 @@ if __name__ == "__main__":
         help="Minimum map quality to plot"
     )
     parser.add_argument(
+        "--min_length","-l",
+        type=int,
+        required=False,
+        default=0,
+        help="Minimum length alignment (in ref coord) to plot"
+    )
+    parser.add_argument(
         "--use_cigar","-c",
         dest="use_cigar",
         required=False,
@@ -279,4 +320,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    dotplot_from_paf(args.i, min_mapq=args.min_mapq, use_full_alignment=args.use_cigar, use_random_color=args.random_color, use_endpoints=args.endpoints)
+    dotplot_from_paf(args.i, min_mapq=args.min_mapq, min_length=args.min_length, use_full_alignment=args.use_cigar, use_random_color=args.random_color, use_endpoints=args.endpoints)
