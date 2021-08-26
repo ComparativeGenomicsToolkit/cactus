@@ -29,7 +29,7 @@ static Cigar *parse_cigar_record(char **c) {
     }
     cigar->op = t == 'M' ? match : (t == 'I' ? query_insert : query_delete);
     (*c)[i] = ' ';
-    cigar->length = atoi(*c);
+    cigar->length = atoll(*c);
     *c = &((*c)[i+1]);
     return cigar;
 }
@@ -55,9 +55,9 @@ Paf *paf_parse(char *paf_string) {
 
     // Get query coordinates
     paf->query_name = stString_copy(stList_get(tokens, 0));
-    paf->query_length = atoi(stList_get(tokens, 1));
-    paf->query_start = atoi(stList_get(tokens, 2));
-    paf->query_end = atoi(stList_get(tokens, 3));
+    paf->query_length = atoll(stList_get(tokens, 1));
+    paf->query_start = atoll(stList_get(tokens, 2));
+    paf->query_end = atoll(stList_get(tokens, 3));
 
     // Is the alignment forward or reverse
     char strand = ((char *)stList_get(tokens, 4))[0];
@@ -68,14 +68,14 @@ Paf *paf_parse(char *paf_string) {
 
     // Get target coordinates
     paf->target_name = stString_copy(stList_get(tokens, 5));
-    paf->target_length = atoi(stList_get(tokens, 6));
-    paf->target_start = atoi(stList_get(tokens, 7));
-    paf->target_end = atoi(stList_get(tokens, 8));
+    paf->target_length = atoll(stList_get(tokens, 6));
+    paf->target_start = atoll(stList_get(tokens, 7));
+    paf->target_end = atoll(stList_get(tokens, 8));
 
     // Get the core alignment metric attributes of the record
-    paf->num_matches = atoi(stList_get(tokens, 9));
-    paf->num_bases = atoi(stList_get(tokens, 10));
-    paf->mapping_quality = atoi(stList_get(tokens, 11));
+    paf->num_matches = atoll(stList_get(tokens, 9));
+    paf->num_bases = atoll(stList_get(tokens, 10));
+    paf->mapping_quality = atoll(stList_get(tokens, 11));
 
     // Parse the remaining optional tags
     for(int64_t i=12; i<stList_length(tokens); i++) {
@@ -85,9 +85,12 @@ Paf *paf_parse(char *paf_string) {
             paf->type = ((char *)stList_get(tag, 2))[0];
             assert(paf->type == 'P' || paf->type == 'S' || paf->type == 'I');
         } else if (strcmp(type, "AS") == 0) {
-            paf->score = atoi(stList_get(tag, 2));
+            paf->score = atoll(stList_get(tag, 2));
         } else if(strcmp(type, "cg") == 0) {
             paf->cigar = parse_cigar(stList_get(tag, 2));
+        }
+        else if(strcmp(type, "tl") == 0) {
+            paf->tile_level = atoll(stList_get(tag, 2));
         }
         stList_destruct(tag);
     }
@@ -133,6 +136,9 @@ char *paf_print(Paf *paf) {
     }
     if(paf->score != INT_MAX) {
         i += sprintf(buffer+i, "\tAS:i:%" PRIi64, paf->score);
+    }
+    if(paf->tile_level != -1) {
+        i += sprintf(buffer+i, "\ttl:i:%" PRIi64, paf->tile_level);
     }
     if(i > buf_size) {
         st_errAbort("Size of paf record exceeded buffer size\n");

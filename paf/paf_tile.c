@@ -40,16 +40,20 @@ u_int16_t *get_alignment_count_array(stHash *seq_names_to_alignment_count_arrays
     return counts;
 }
 
-int64_t get_alignment_level(u_int16_t *counts, Paf *paf) {
+int64_t get_median_alignment_level(u_int16_t *counts, Paf *paf) {
     Cigar *c = paf->cigar;
-    int64_t i = paf->query_start, level = 0;
+    int64_t i = paf->query_start, max_level=0, matches=0;
+    int64_t *level_counts = st_calloc(INT16_MAX, sizeof(int64_t)); // An array of counts of the number of bases with the given alignment level
+    // such that level_counts[i] is the number of bases in the query with level_counts[i] number of alignments to it (at this point in the tiling)
     while(c != NULL) {
         if(c->op != query_delete) {
             if(c->op == match) {
                 for(int64_t j=0; j<c->length; j++) {
                     assert(i + j < paf->query_end && i + j >= 0 && i + j < paf->query_length);
-                    if(counts[i + j] > level) {
-                        level = counts[i + j];
+                    level_counts[counts[i + j]]++;
+                    matches++;
+                    if(counts[i + j] > max_level) {
+                        max_level = counts[i + j];
                     }
                 }
             }
@@ -57,10 +61,40 @@ int64_t get_alignment_level(u_int16_t *counts, Paf *paf) {
         }
         c = c->next;
     }
-    return level >= INT16_MAX ? INT16_MAX : level+1;
+
+    if(matches == 0) { // avoid divide by zero
+        free(level_counts);
+        return INT16_MAX;
+    }
+
+    // Print the alignment levels
+    if(st_getLogLevel() >= debug) {
+        st_logDebug("Got alignment levels: ");
+        for (i = 0; i <= max_level; i++) {
+            st_logDebug("%"
+            PRIi64
+            ":%f ", i, ((float)level_counts[i])/matches);
+        }
+        char *paf_string = paf_print(paf);
+        st_logDebug(" for paf: %s\n", paf_string);
+        free(paf_string);
+    }
+
+    // Calc the median from the level_counts array
+    int64_t j=0;
+    for(i=0; i<=max_level; i++) {
+        j += level_counts[i];
+        if(j >= matches/2.0) {
+            free(level_counts);
+            return i;
+        }
+    }
+    assert(0); // This should be unreachable.
+    free(level_counts);
+    return INT16_MAX;
 }
 
-void increase_alignment_level_counts(u_int16_t *counts, Paf *paf, int64_t level) {
+void increase_alignment_level_counts(u_int16_t *counts, Paf *paf) {
     Cigar *c = paf->cigar;
     int64_t i = paf->query_start;
     while(c != NULL) {
@@ -68,7 +102,9 @@ void increase_alignment_level_counts(u_int16_t *counts, Paf *paf, int64_t level)
             if(c->op == match) {
                 for(int64_t j=0; j<c->length; j++) {
                     assert(i + j < paf->query_end && i + j >= 0 && i + j < paf->query_length);
-                    counts[i + j] = level;
+                    if(counts[i + j] < INT16_MAX) { // prevent overflow
+                        counts[i + j]++;
+                    }
                 }
             }
             i += c->length;
@@ -148,9 +184,9 @@ int main(int argc, char *argv[]) {
     for(int64_t i=0; i<stList_length(pafs); i++) {
         Paf *paf = stList_get(pafs, i);
         u_int16_t *counts = get_alignment_count_array(seq_names_to_alignment_count_arrays, paf);
-        int64_t level = get_alignment_level(counts, paf);
-        increase_alignment_level_counts(counts, paf, level);
-        paf->score = level;  // Store the level in the num_of_matches field
+        increase_alignment_level_counts(counts, paf);
+        int64_t level = get_median_alignment_level(counts, paf);
+        paf->tile_level = level;  // Store the level in the num_of_matches field
     }
 
     // Output local alignments file, sorted by score from best-to-worst

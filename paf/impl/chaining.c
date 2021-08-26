@@ -89,14 +89,13 @@ static stSortedSetIterator *get_predecessor_chains(stSortedSet *active_chained_a
 /*
  * Joins together the pafs in a chain into a single paf
  */
-static Paf *chain_to_paf(Chain *chain, int64_t (*gap_cost)(int64_t, void *),
+static Paf *chain_to_paf(Chain *chain, int64_t (*gap_cost)(int64_t, int64_t, void *),
                          void *gap_cost_params) {
     Paf *p = chain->paf;
 
     while(chain->pChain != NULL) { // Join together links in the chain
         Paf *q = p;
         p = chain->pChain->paf; // p is now the previous paf in the chain to q
-        p->score += q->score - gap_cost(q->query_start - p->query_end, gap_cost_params) - gap_cost(q->target_start - p->target_end, gap_cost_params);
 
         // Checks that we can chain these together
         assert(strcmp(p->target_name, q->target_name) == 0);
@@ -104,6 +103,9 @@ static Paf *chain_to_paf(Chain *chain, int64_t (*gap_cost)(int64_t, void *),
         assert(p->query_end <= q->query_start);
         assert(p->target_end <= q->target_start);
         assert(p->same_strand == q->same_strand);
+
+        // set the score
+        p->score += q->score - gap_cost(q->query_start - p->query_end, q->target_start - p->target_end, gap_cost_params);
 
         // If there is a cigar then join them
         if(p->cigar != NULL) {
@@ -147,7 +149,7 @@ static Paf *chain_to_paf(Chain *chain, int64_t (*gap_cost)(int64_t, void *),
 /*
  * Chains together the input pafs. Ignores strand.
  */
-stList *paf_chain_ignore_strand(stList *pafs, int64_t (*gap_cost)(int64_t, void *),
+stList *paf_chain_ignore_strand(stList *pafs, int64_t (*gap_cost)(int64_t, int64_t, void *),
                                 void *gap_cost_params, int64_t max_gap_length) {
     stList_sort(pafs, paf_cmp_by_query_location); // Sort alignments by query start coordinate
 
@@ -204,8 +206,8 @@ stList *paf_chain_ignore_strand(stList *pafs, int64_t (*gap_cost)(int64_t, void 
                 break;
             } else { // We can chain to this alignment
                 int64_t chain_score = paf->score + pChain->score
-                        - gap_cost(paf->query_start - pChain->paf->query_end, gap_cost_params)
-                        - gap_cost(paf->target_start - pChain->paf->target_end, gap_cost_params);
+                        - gap_cost(paf->query_start - pChain->paf->query_end,
+                                   paf->target_start - pChain->paf->target_end, gap_cost_params);
                 if (chain_score > chain->score) {
                     chain->score = chain_score;
                     chain->pChain = pChain;
@@ -274,7 +276,7 @@ static int paf_cmp_by_score(const void *a, const void *b) {
     return intcmp(p2->score, p1->score);
 }
 
-stList *paf_chain(stList *pafs, int64_t (*gap_cost)(int64_t, void *), void *gap_cost_params, int64_t max_gap_length) {
+stList *paf_chain(stList *pafs, int64_t (*gap_cost)(int64_t, int64_t, void *), void *gap_cost_params, int64_t max_gap_length) {
     // Split into forward and reverse strand alignments
     stList *positive_strand_pafs = stList_construct();
     stList *negative_strand_pafs = stList_construct();

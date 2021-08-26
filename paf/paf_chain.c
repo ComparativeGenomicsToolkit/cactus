@@ -15,7 +15,7 @@
 #include <getopt.h>
 #include <time.h>
 
-static int64_t max_gap_length = 100000;
+static int64_t max_gap_length = 1000000;
 
 void usage() {
     fprintf(stderr, "paf_chain [options], version 0.1\n");
@@ -27,8 +27,13 @@ void usage() {
     fprintf(stderr, "-h --help : Print this help message\n");
 }
 
-int64_t gap_cost(int64_t length, void *params) {
-    return length;
+int64_t gap_cost(int64_t query_gap_length, int64_t target_gap_length, void *params) {
+    assert(query_gap_length >= 0);
+    assert(target_gap_length >= 0);
+    int64_t min_indel = llabs(query_gap_length - target_gap_length);
+    int64_t diagonal_gap = query_gap_length < target_gap_length ? query_gap_length : target_gap_length;
+    //return 10*(query_gap_length + target_gap_length);
+    return min_indel * 30 + 10 * diagonal_gap;
 }
 
 int main(int argc, char *argv[]) {
