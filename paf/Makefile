@@ -10,7 +10,7 @@ stPafLibs = ${LDLIBS}
 
 all: all_libs all_progs
 all_libs: ${LIBDIR}/stPaf.a
-all_progs: all_libs ${BINDIR}/stPafTests ${BINDIR}/paf_chain ${BINDIR}/paf_invert ${BINDIR}/paf_tile ${BINDIR}/lastz_to_paf
+all_progs: all_libs ${BINDIR}/stPafTests ${BINDIR}/paf_chain ${BINDIR}/paf_invert ${BINDIR}/paf_tile ${BINDIR}/paf_trim ${BINDIR}/lastz_to_paf
 
 ${LIBDIR}/stPaf.a : ${libSources} ${libHeaders}  ${stPafDependencies}
 	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -c ${libSources}
@@ -27,6 +27,9 @@ ${BINDIR}/paf_invert : paf_invert.c ${LIBDEPENDS} ${commonPafLibs} ${libSources}
 ${BINDIR}/paf_tile : paf_tile.c ${LIBDEPENDS} ${commonPafLibs} ${libSources} ${libHeaders}
 	${CC} ${CPPFLAGS} ${CFLAGS} -o ${BINDIR}/paf_tile paf_tile.c ${libSources} ${commonPafLibs} ${LDLIBS}
 
+${BINDIR}/paf_trim : paf_trim.c ${LIBDEPENDS} ${commonPafLibs} ${libSources} ${libHeaders}
+	${CC} ${CPPFLAGS} ${CFLAGS} -o ${BINDIR}/paf_trim paf_trim.c ${libSources} ${commonPafLibs} ${LDLIBS}
+
 ${BINDIR}/lastz_to_paf : lastz_to_paf.c ${LIBDEPENDS} ${commonPafLibs} ${libSources} ${libHeaders}
 	${CC} ${CPPFLAGS} ${CFLAGS} -o ${BINDIR}/lastz_to_paf lastz_to_paf.c ${libSources} ${commonPafLibs} ${LDLIBS}
 
@@ -35,4 +38,4 @@ ${BINDIR}/stPafTests : ${libTests} ${LIBDIR}/stPaf.a ${stPafDependencies}
 
 clean : 
 	rm -f *.o
-	rm -f ${LIBDIR}/stPaf.a ${BINDIR}/stPafTests
+	rm -f ${LIBDIR}/stPaf.a ${BINDIR}/stPafTests ${BINDIR}/paf_chain ${BINDIR}/paf_invert ${BINDIR}/paf_tile ${BINDIR}/paf_trim ${BINDIR}/lastz_to_paf

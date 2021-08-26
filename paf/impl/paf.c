@@ -236,3 +236,79 @@ void write_pafs(FILE *fh, stList *pafs) {
         paf_write(stList_get(pafs, i), fh);
     }
 }
+
+int64_t paf_get_number_of_aligned_bases(Paf *paf) {
+    int64_t aligned_bases = 0;
+    Cigar *c = paf->cigar;
+    while(c != NULL) {
+        if(c->op == match) {
+            aligned_bases += c->length;
+        }
+        c = c->next;
+    }
+    return aligned_bases;
+}
+
+static Cigar *cigar_reverse(Cigar *c) {
+    if(c == NULL) {
+        return NULL;
+    }
+    Cigar *p = NULL;
+    // p -> c -> n -> q
+    while(c->next != NULL) {
+        Cigar *n = c->next;
+        c->next = p; // p <- c , n -> q
+        p = c;
+        c = n;
+    }
+    c->next = p; // p <- c <- n
+    return c;
+}
+
+static Cigar *cigar_trim(int64_t *query_c, int64_t *target_c, Cigar *c, int64_t end_bases_to_trim, int sign) {
+    int64_t bases_trimmed = 0;
+    while(c != NULL && (c->op != match || bases_trimmed < end_bases_to_trim)) {
+        if(c->op == match) { // can trim this alignment
+            if(bases_trimmed + c->length > end_bases_to_trim) {
+                int64_t i = end_bases_to_trim - bases_trimmed;
+                c->length -= i;
+                *query_c += sign*i;
+                *target_c += sign*i;
+                assert(c->length > 0);
+                break;
+            }
+            bases_trimmed += c->length;
+            *query_c += sign*c->length;
+            *target_c += sign*c->length;
+        }
+        else if(c->op == query_insert) {
+            *query_c += sign*c->length;
+        }
+        else {
+            assert(c->op == query_delete);
+            *target_c += sign*c->length;
+        }
+        Cigar *c2 = c;
+        c = c->next;
+        free(c2);
+    }
+    return c;
+}
+
+void paf_trim_ends(Paf *paf, int64_t end_bases_to_trim) {
+    // Trim front end
+    paf->cigar = cigar_trim(&(paf->query_start), &(paf->target_start), paf->cigar, end_bases_to_trim, 1);
+    // Trim back end
+    paf->cigar = cigar_reverse(cigar_trim(&(paf->query_end), &(paf->target_end), cigar_reverse(paf->cigar), end_bases_to_trim, -1));
+}
+
+void paf_trim_end_fraction(Paf *p, float percentage) {
+    // trim
+    assert(percentage >= 0 && percentage <= 1.0);
+    int64_t aligned_bases = paf_get_number_of_aligned_bases(p);
+    int64_t end_bases_to_trim = (aligned_bases * percentage)/2.0;
+    st_logDebug("For alignment of %" PRIi64 " query bases, %"
+    PRIi64 " target bases and %" PRIi64 " aligned bases trimming %" PRIi64 " bases from each paf end\n",
+            p->query_end - p->query_start, p->target_end - p->target_start, aligned_bases, end_bases_to_trim);
+    paf_trim_ends(p, end_bases_to_trim);
+}

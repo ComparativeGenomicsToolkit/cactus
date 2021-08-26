@@ -129,5 +129,21 @@ void write_pafs(FILE *paf_file, stList *pafs);
  */
 stList *paf_chain(stList *pafs, int64_t (*gap_cost)(int64_t, void *), void *gap_cost_params, int64_t max_gap_length);
 
+/*
+ * Gets the number of aligned bases in the alignment between the query
+ * and the target according to the cigar alignment.
+ */
+int64_t paf_get_number_of_aligned_bases(Paf *paf);
+
+/*
+ * Removes prefix and suffix aligned bases.
+ */
+void paf_trim_ends(Paf *paf, int64_t end_bases_to_trim);
+
+/*
+ * Removes a given percentage of prefix and suffix aligned bases.
+ */
+void paf_trim_end_fraction(Paf *paf, float percentage);
+
 #endif /* ST_PAF_H_ */
 
