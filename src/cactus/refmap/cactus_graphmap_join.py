@@ -73,6 +73,11 @@ def main():
     parser.add_argument("--hal", nargs='+', default = [], help = "Input hal files (for merging)")
     parser.add_argument("--vcf", action="store_true", help= "make VCF")
     parser.add_argument("--giraffe", action="store_true", help= "make Giraffe-specific indexes (distance and minimizer)")
+    parser.add_argument("--normalizeIterations", type=int, default=None,
+                        help="Run this many iterations of vg normamlization (shared prefix zipping)")
+    parser.add_argument("--gfaffix", action="store_true",
+                        help="Run GFAFfix normalization")
+    parser.add_argument("--vgClipOpts", nargs='+', help = "If specified, run vg clip with given options (surround in quotes; multiple allowed to chain multiple commands)")
     
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -86,10 +91,6 @@ def main():
                         "rather than pulling one from quay.io")
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
-    parser.add_argument("--normalizeIterations", type=int, default=None,
-                        help="Run this many iterations of vg normamlization (shared prefix zipping)")
-    parser.add_argument("--gfaffix", action="store_true",
-                        help="Run GFAFfix normalization")
 
     options = parser.parse_args()
 
@@ -172,13 +173,26 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
                                          disk=sum([f.size for f in vg_ids]))
     clipped_vg_ids = join_job.rv()
 
+    # optional clipping -- we do this down here after joining and normalization so
+    # our graph is id-compatible with a graph that wasn't clipped (but run with same parameters otherwise)
+    if options.vgClipOpts:
+        clip_root_job = Job()
+        join_job.addFollowOn(clip_root_job)
+        clipped_vg_ids = []
+        for i in range(len(vg_ids)):
+            vg_clip_job = clip_root_job.addChildJobFn(vg_clip_vg, options, config, options.vg[i], join_job.rv(i),
+                                                      disk=vg_ids[i].size * 2)
+            join_job.addFollowOn(vg_clip_job)
+            clipped_vg_ids.append(vg_clip_job.rv())
+        join_job = clip_root_job
+
     # make a gfa for each
     gfa_root_job = Job()
     join_job.addFollowOn(gfa_root_job)
     clipped_gfa_ids = []
     for i in range(len(options.vg)):
         vg_path = options.vg[i]
-        clipped_id = join_job.rv(i)
+        clipped_id = clipped_vg_ids[i] if options.vgClipOpts else join_job.rv(i)
         vg_id = vg_ids[i]
         gfa_job = gfa_root_job.addChildJobFn(vg_to_gfa, options, config, vg_path, clipped_id,
                                              disk=vg_id.size * 5)
@@ -293,6 +307,28 @@ def clip_vg(job, options, config, vg_path, vg_id):
 
     return job.fileStore.writeGlobalFile(out_path)
 
+def vg_clip_vg(job , options, config, vg_path, vg_id):
+    """ run vg clip, chaining multiple invocations if desired.
+    """
+    work_dir = job.fileStore.getLocalTempDir()
+    is_decoy = vg_path == options.decoyGraph
+    vg_path = os.path.join(work_dir, os.path.basename(vg_path))
+    job.fileStore.readGlobalFile(vg_id, vg_path)
+    clipped_path = vg_path + '.clip'
+
+    clip_cmd = ['vg', 'clip', vg_path, '-P', options.reference] +  options.vgClipOpts[0].split()
+    if len(options.vgClipOpts) > 1:
+        clip_cmd = [clip_cmd]
+        for clip_opts in options.vgClipOpts[1:]:
+            clip_cmd.append(['vg', 'clip', '-', '-P', options.reference] +  clip_opts.split())
+
+    cactus_call(parameters=clip_cmd, outfile=clipped_path)
+
+    # worth it
+    cactus_call(parameters=['vg', 'validate', clipped_path])
+
+    return job.fileStore.writeGlobalFile(clipped_path)
+    
 def join_vg(job, options, config, clipped_vg_ids):
     """ run vg ids -j
     """
