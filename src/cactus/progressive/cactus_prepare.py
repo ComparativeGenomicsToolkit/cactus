@@ -614,6 +614,8 @@ def input_fa_name(name):
 def preprocess_call_name(names):
     """ map an event name list to a preprocess call name """
     tag = '_'.join(names)
+    # replace all non alphanumeric chars with underscore
+    tag = "".join([ c if c.isalnum() else "_" for c in tag ])
     if len(tag) > 80:
         # avoid giant names
         cs = '_' + hashlib.md5(tag.encode()).hexdigest()
