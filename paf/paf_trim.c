@@ -1,5 +1,8 @@
 /*
- * paf_invert: Trim the ends of paf alignments
+ * paf_trim: Trim bases from the prefix and suffix matches of a paf alignment
+ *   (1) Load local alignments file (PAF)
+ *   (2) Trim percentage (5% by default) of prefix and suffix matches.
+ *   (3) Output local alignments file (PAF)
  *
  * Released under the MIT license, see LICENSE.txt
  */

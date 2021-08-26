@@ -18,6 +18,11 @@ paf_invert: Reverse query/target of paf alignments
    (2) Reverse query and target
    (3) Output local alignments file (PAF)
 
+paf_trim: Trim bases from the prefix and suffix matches of a paf alignment
+   (1) Load local alignments file (PAF)
+   (2) Trim percentage (5% by default) of prefix and suffix matches.
+   (3) Output local alignments file (PAF)
+
 paf_tile: Greedily assign a "level" to each alignment, so that alignments with the lowest level are tessellating, high-scoring alignments.
   (1) Load local alignments files (PAF)
   (2) Sort alignments by score, from best-to-worst
