@@ -6,7 +6,7 @@ modules = api setup blastLib caf bar blast hal reference pipeline preprocessor
 
 # submodules are in multiple pass to handle dependencies cactus2hal being dependent on
 # both cactus and sonLib
-submodules1 = sonLib cPecan hal matchingAndOrdering pinchesAndCacti abPOA
+submodules1 = sonLib cPecan hal matchingAndOrdering pinchesAndCacti abPOA lastz
 submodules2 = cactus2hal
 submodules = ${submodules1} ${submodules2}
 
