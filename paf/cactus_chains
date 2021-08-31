@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+
+# Script to make paf alignment file input to cactus from
+# paf format alignments between three sets of genomes, ingroups A and B and
+# outgroup C
+
+# print arguments if improper number of arguments passed
+if [[ $# -ne 4 ]]; then
+    echo "cactus_chains alignments_A_to_B.paf alignments_A_to_C.paf alignments_B_to_C.paf output.paf"
+    exit 2
+fi
+
+# exit when any command fails
+set -e
+
+# log the commands its running
+set -x
+
+# Inputs are alignments of ingroup genome sets: A and B and outgroup genomes C.
+align_AB=$1 # Paf alignment of ingroups A and B
+align_AC=$2 # Paf alignment of ingroup A and outgroup C
+align_BC=$3 # Paf alignment of ingroup B and outgroup C
+tiled_output=$4 # The output file
+
+# Log the inputs
+echo Got alignment file A-B: $align_AB  alignment file A-C: $align_AC and alignment file B-C: $align_BC 1>&2
+echo Got output file: $tiled_output 1>&2
+
+# Temporary chain files
+temp_dir=$(mktemp -d -t temp_chains-XXXXXXXXXX)
+# Make sure we cleanup the temp dir
+trap "rm -rf ${temp_dir}" EXIT
+echo Using temporary directory: $temp_dir
+chains_AB=${temp_dir}/chains_AB.paf
+chains_AC=${temp_dir}/chains_AC.paf
+chains_BC=${temp_dir}/chains_BC.paf
+chains_BA=${temp_dir}/chains_BA.paf
+chains_CA=${temp_dir}/chains_CA.paf
+chains_CB=${temp_dir}/chains_CB.paf
+
+# Make chains
+paf_trim --logLevel DEBUG -i $align_AB | paf_chain > $chains_AB
+paf_trim -i $align_AC | paf_chain > $chains_AC
+paf_trim -i $align_BC | paf_chain > $chains_BC
+paf_invert -i $chains_AB > $chains_BA
+paf_invert -i $chains_AC > $chains_CA
+paf_invert -i $chains_BC > $chains_CB
+
+# Temporary tile files
+tiled_A=${temp_dir}/tiled_A.paf
+tiled_B=${temp_dir}/tiled_B.paf
+tiled_C=${temp_dir}/tiled_C.paf
+
+# Make the tiled chains
+cat $chains_AB $chains_AC | paf_tile > $tiled_A
+cat $chains_BA $chains_BC | paf_tile > $tiled_B
+cat $chains_CA $chains_CB | paf_tile > $tiled_C
+
+# Combine the tiled files
+cat $tiled_A $tiled_B $tiled_C > $tiled_output

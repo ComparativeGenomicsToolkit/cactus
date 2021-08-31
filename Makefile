@@ -203,6 +203,12 @@ suball.abPOA:
 	ln -f submodules/abPOA/lib/*.a ${LIBDIR}
 	ln -f submodules/abPOA/include/*.h ${INCLDIR}
 
+suball.lastz:
+	cd submodules/lastz && ${MAKE}
+	mkdir -p bin
+	ln -f submodules/lastz/src/* bin
+
+
 subclean.%:
 	cd submodules/$* && ${MAKE} clean
 
