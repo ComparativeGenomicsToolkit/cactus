@@ -77,7 +77,8 @@ def main():
                         help="Run this many iterations of vg normamlization (shared prefix zipping)")
     parser.add_argument("--gfaffix", action="store_true",
                         help="Run GFAFfix normalization")
-    parser.add_argument("--vgClipOpts", nargs='+', help = "If specified, run vg clip with given options (surround in quotes; multiple allowed to chain multiple commands)")
+    parser.add_argument("--vgClipOpts", nargs='+', help = "If specified, run vg clip with given options (surround in quotes; multiple allowed to chain multiple clip commands)")
+    parser.add_argument("--unclipSeqFile",type=str, help = "seqfile of unclipped sequences. If given, halUnclip will be run on the HAL output to restore original sequences (removing _sub suffixes)")
     
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -106,6 +107,8 @@ def main():
         raise RuntimeError("If --hal and --vg should specify the same number of files")
     if not options.giraffeCores:
         options.giraffeCores = options.indexCores
+    if options.unclipSeqFile and not options.hal:
+        raise  RuntimeError("--unclipSeqFile can only be used with --hal")
         
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
@@ -148,15 +151,30 @@ def runCactusGraphMapJoin(options):
             hal_ids = []
             for hal_path in options.hal:
                 logger.info("Importing {}".format(hal_path))
-                hal_ids.append(toil.importFile(makeURL(hal_path)))                
+                hal_ids.append(toil.importFile(makeURL(hal_path)))
+
+            # load up the sequences
+            unclip_seq_id_map = {}
+            if options.unclipSeqFile:
+                seqFile = SeqFile(options.unclipSeqFile)
+                leaves = set([seqFile.tree.getName(node) for node in seqFile.tree.getLeaves()])
+                for genome, seq in seqFile.pathMap.items():
+                    if genome in leaves:
+                        if os.path.isdir(seq):
+                            tmpSeq = getTempFile()
+                            catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
+                            seq = tmpSeq
+                        seq = makeURL(seq)
+                        logger.info("Importing {}".format(seq))
+                        unclip_seq_id_map[genome] = (seq, toil.importFile(seq))
 
             # run the workflow
-            wf_output = toil.start(Job.wrapJobFn(graphmap_join_workflow, options, config, vg_ids, hal_ids))
+            wf_output = toil.start(Job.wrapJobFn(graphmap_join_workflow, options, config, vg_ids, hal_ids, unclip_seq_id_map))
                 
         #export the split data
         export_join_data(toil, options, wf_output[0], wf_output[1])
 
-def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
+def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, unclip_seq_id_map):
 
     root_job = Job()
     job.addChild(root_job)
@@ -231,7 +249,17 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
         hal_merge_job = root_job.addChildJobFn(merge_hal, options, hal_ids,
                                                cores = 1,
                                                disk=sum(f.size for f in hal_ids) * 2)
-        out_dicts.append(hal_merge_job.rv())
+        hal_id_dict = hal_merge_job.rv()
+        if unclip_seq_id_map:
+            # optional hal unclip
+            unzip_seq_ids_job = root_job.addChildJobFn(unzip_seqfile, unclip_seq_id_map,
+                                                       disk=sum(f.size for f in hal_ids) * 2)
+            hal_unclip_job = unzip_seq_ids_job.addFollowOnJobFn(unclip_hal, hal_merge_job.rv(), unzip_seq_ids_job.rv(),
+                                                                disk=sum(f.size for f in hal_ids) * 5)
+            hal_merge_job.addFollowOn(hal_unclip_job)
+            hal_id_dict = hal_unclip_job.rv()
+
+        out_dicts.append(hal_id_dict)
     
     return clipped_vg_ids, out_dicts
 
@@ -482,6 +510,31 @@ def merge_hal(job, options, hal_ids):
     cactus_call(parameters=cmd, work_dir = work_dir)
 
     return { 'hal' : job.fileStore.writeGlobalFile(merged_path) }
+
+def unzip_seqfile(job, seq_id_map):
+    """ halUnclip needs uncompressed everythin, so we do it here relying on extensions """
+    unzip_id_map = {}
+    for event, name_id in seq_id_map.items():
+        if name_id[0].endswith(".gz"):
+            unzip_id_map[event] = (name_id[0][:-3], job.addChildJobFn(unzip_gz, name_id[0], name_id[1], disk=name_id[1].size * 10).rv())
+        else:
+            unzip_id_map[event] = name_id
+    return unzip_id_map
+
+def unclip_hal(job, hal_id_dict, seq_id_map):
+    """ run halUnclip """
+    work_dir = job.fileStore.getLocalTempDir()
+    in_hal_path = os.path.join(work_dir, "in.hal")
+    job.fileStore.readGlobalFile(hal_id_dict['hal'], in_hal_path)
+    out_hal_path = os.path.join(work_dir, "out.hal")
+    seqfile_path = os.path.join(work_dir, "seqfile.txt")
+    with open(seqfile_path, "w") as seqfile:
+        for event, name_id in seq_id_map.items():
+            seqfile.write("{}\t{}\n".format(event, job.fileStore.readGlobalFile(name_id[1])))
+
+    cactus_call(parameters=["halUnclip", in_hal_path, seqfile_path, out_hal_path, "--progress", "--validate"])
+
+    return { 'hal' : job.fileStore.writeGlobalFile(out_hal_path) }
 
 def export_join_data(toil, options, clip_ids, idx_maps):
     """ download all the output data
