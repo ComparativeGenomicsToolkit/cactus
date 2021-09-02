@@ -9,7 +9,7 @@
 #include "sonLib.h"
 #include "stPinchGraphs.h"
 #include "stPinchIterator.h"
-#include "pairwiseAlignment.h"
+#include "paf.h"
 #include "cactus.h"
 
 stPinch *stPinchIterator_getNext(stPinchIterator *pinchIterator, stPinch *pinchToFillOut) {
@@ -40,14 +40,15 @@ void stPinchIterator_destruct(stPinchIterator *pinchIterator) {
 
 typedef struct _pairwiseAlignmentToPinch {
     void *alignmentArg;
-    struct PairwiseAlignment *(*getPairwiseAlignment)(void *);
-    struct PairwiseAlignment *pairwiseAlignment;
-    int64_t alignmentIndex, xCoordinate, yCoordinate, xName, yName;
+    Paf *(*getPairwiseAlignment)(void *);
+    Paf *paf;
+    int64_t xCoordinate, yCoordinate, xName, yName;
+    Cigar *op;
     bool freeAlignments;
 } PairwiseAlignmentToPinch;
 
 static PairwiseAlignmentToPinch *pairwiseAlignmentToPinch_construct(void *alignmentArg,
-        struct PairwiseAlignment *(*getPairwiseAlignment)(void *), bool freeAlignments) {
+        Paf *(*getPairwiseAlignment)(void *), bool freeAlignments) {
     PairwiseAlignmentToPinch *pairwiseAlignmentToPinch = st_calloc(1, sizeof(PairwiseAlignmentToPinch));
     pairwiseAlignmentToPinch->alignmentArg = alignmentArg;
     pairwiseAlignmentToPinch->getPairwiseAlignment = getPairwiseAlignment;
@@ -57,61 +58,59 @@ static PairwiseAlignmentToPinch *pairwiseAlignmentToPinch_construct(void *alignm
 
 static stPinch *pairwiseAlignmentToPinch_getNext(PairwiseAlignmentToPinch *pA, stPinch *pinchToFillOut) {
     while (1) {
-        if (pA->pairwiseAlignment == NULL) {
-            pA->pairwiseAlignment = pA->getPairwiseAlignment(pA->alignmentArg);
-            if (pA->pairwiseAlignment == NULL) {
+        if (pA->paf == NULL) {
+            pA->paf = pA->getPairwiseAlignment(pA->alignmentArg);
+            if (pA->paf == NULL) {
                 return NULL;
             }
-            pA->alignmentIndex = 0;
-            pA->xCoordinate = pA->pairwiseAlignment->start1;
-            pA->yCoordinate = pA->pairwiseAlignment->start2;
-            pA->xName = cactusMisc_stringToName(pA->pairwiseAlignment->contig1);
-            pA->yName = cactusMisc_stringToName(pA->pairwiseAlignment->contig2);
+            pA->op = pA->paf->cigar;
+            pA->xCoordinate = pA->paf->query_start;
+            pA->yCoordinate = pA->paf->same_strand ? pA->paf->target_start : pA->paf->target_end-1;
+            pA->xName = cactusMisc_stringToName(pA->paf->query_name);
+            pA->yName = cactusMisc_stringToName(pA->paf->target_name);
         }
-        while (pA->alignmentIndex < pA->pairwiseAlignment->operationList->length) {
-            struct AlignmentOperation *op = pA->pairwiseAlignment->operationList->list[pA->alignmentIndex++];
-            if (op->opType == PAIRWISE_MATCH && op->length >= 1) { //deal with the possibility of a zero length match (strange, but not illegal)
-                if (pA->pairwiseAlignment->strand1) {
-                    if (pA->pairwiseAlignment->strand2) {
-                        stPinch_fillOut(pinchToFillOut, pA->xName, pA->yName, pA->xCoordinate, pA->yCoordinate, op->length, 1);
-                        pA->yCoordinate += op->length;
-                    } else {
-                        pA->yCoordinate -= op->length;
-                        stPinch_fillOut(pinchToFillOut, pA->xName, pA->yName, pA->xCoordinate, pA->yCoordinate, op->length, 0);
-                    }
-                    pA->xCoordinate += op->length;
+        while (pA->op != NULL) {
+            assert(pA->op->length >= 1);
+            if (pA->op->op == match) { //deal with the possibility of a zero length match (strange, but not illegal)
+                if (pA->paf->same_strand) {
+                    stPinch_fillOut(pinchToFillOut, pA->xName, pA->yName, pA->xCoordinate, pA->yCoordinate, pA->op->length,
+                                    1);
+                    pA->yCoordinate += pA->op->length;
                 } else {
-                    pA->xCoordinate -= op->length;
-                    if (pA->pairwiseAlignment->strand2) {
-                        stPinch_fillOut(pinchToFillOut, pA->xName, pA->yName, pA->xCoordinate, pA->yCoordinate, op->length, 0);
-                        pA->yCoordinate += op->length;
-                    } else {
-                        pA->yCoordinate -= op->length;
-                        stPinch_fillOut(pinchToFillOut, pA->xName, pA->yName, pA->xCoordinate, pA->yCoordinate, op->length, 1);
-                    }
+                    pA->yCoordinate -= pA->op->length;
+                    stPinch_fillOut(pinchToFillOut, pA->xName, pA->yName, pA->xCoordinate, pA->yCoordinate, pA->op->length,
+                                    0);
                 }
+                pA->xCoordinate += pA->op->length;
+                pA->op = pA->op->next;
                 return pinchToFillOut;
             }
-            if (op->opType != PAIRWISE_INDEL_Y) {
-                pA->xCoordinate += pA->pairwiseAlignment->strand1 ? op->length : -op->length;
+            if (pA->op->op != query_delete) {
+                pA->xCoordinate += pA->op->length;
             }
-            if (op->opType != PAIRWISE_INDEL_X) {
-                pA->yCoordinate += pA->pairwiseAlignment->strand2 ? op->length : -op->length;
+            if (pA->op->op != query_insert) {
+                pA->yCoordinate += pA->paf->same_strand ? pA->op->length : -pA->op->length;
             }
+            pA->op = pA->op->next;
         }
-        assert(pA->xCoordinate == pA->pairwiseAlignment->end1);
-        assert(pA->yCoordinate == pA->pairwiseAlignment->end2);
+        assert(pA->xCoordinate == pA->paf->query_end);
+        if (pA->paf->same_strand) {
+            assert(pA->yCoordinate == pA->paf->target_end);
+        }
+        else {
+            assert(pA->yCoordinate == pA->paf->target_start-1);
+        }
         if (pA->freeAlignments) {
-            destructPairwiseAlignment(pA->pairwiseAlignment);
+            paf_destruct(pA->paf);
         }
-        pA->pairwiseAlignment = NULL;
+        pA->paf = NULL;
     }
     return NULL;
 }
 
 static PairwiseAlignmentToPinch *pairwiseAlignmentToPinch_resetForFile(PairwiseAlignmentToPinch *pA) {
     fseek(pA->alignmentArg, 0, SEEK_SET);
-    pA->pairwiseAlignment = NULL;
+    pA->paf = NULL;
     return pA;
 }
 
@@ -123,32 +122,10 @@ static void pairwiseAlignmentToPinch_destructForFile(PairwiseAlignmentToPinch *p
 stPinchIterator *stPinchIterator_constructFromFile(const char *alignmentFile) {
     stPinchIterator *pinchIterator = st_calloc(1, sizeof(stPinchIterator));
     pinchIterator->alignmentArg = pairwiseAlignmentToPinch_construct(fopen(alignmentFile, "r"),
-            (struct PairwiseAlignment *(*)(void *)) cigarRead, 1);
+            (Paf *(*)(void *)) paf_read, 1);
     pinchIterator->getNextAlignment = (stPinch *(*)(void *, stPinch *)) pairwiseAlignmentToPinch_getNext;
     pinchIterator->destructAlignmentArg = (void(*)(void *)) pairwiseAlignmentToPinch_destructForFile;
     pinchIterator->startAlignmentStack = (void *(*)(void *)) pairwiseAlignmentToPinch_resetForFile;
-    return pinchIterator;
-}
-
-static PairwiseAlignmentToPinch *pairwiseAlignmentToPinch_resetForList(PairwiseAlignmentToPinch *pA) {
-    while (stList_getPrevious(pA->alignmentArg) != NULL)
-        ;
-    pA->pairwiseAlignment = NULL;
-    return pA;
-}
-
-void pairwiseAlignmentToPinch_destructForList(PairwiseAlignmentToPinch *pA) {
-    stList_destructIterator(pA->alignmentArg);
-    free(pA);
-}
-
-stPinchIterator *stPinchIterator_constructFromList(stList *alignmentsList) {
-    stPinchIterator *pinchIterator = st_calloc(1, sizeof(stPinchIterator));
-    pinchIterator->alignmentArg = pairwiseAlignmentToPinch_construct(stList_getIterator(alignmentsList),
-            (struct PairwiseAlignment *(*)(void *)) stList_getNext, 0);
-    pinchIterator->getNextAlignment = (stPinch *(*)(void *, stPinch *)) pairwiseAlignmentToPinch_getNext;
-    pinchIterator->destructAlignmentArg = (void(*)(void *)) pairwiseAlignmentToPinch_destructForList;
-    pinchIterator->startAlignmentStack = (void *(*)(void *)) pairwiseAlignmentToPinch_resetForList;
     return pinchIterator;
 }
 

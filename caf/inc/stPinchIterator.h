@@ -43,12 +43,6 @@ void stPinchIterator_destruct(
 stPinchIterator *stPinchIterator_constructFromFile(const char *alignmentFile);
 
 /*
- * Get a pairwise alignment iterator from a list of alignments.
- * Does not cleanup the list or modify the list.
- */
-stPinchIterator *stPinchIterator_constructFromList(stList *alignmentsList);
-
-/*
  * Constructs iterator from aligned pairs.
  */
 stPinchIterator *stPinchIterator_constructFromAlignedPairs(stSortedSet *alignedPairs,

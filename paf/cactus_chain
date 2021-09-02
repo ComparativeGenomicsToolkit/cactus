@@ -39,7 +39,7 @@ chains_CA=${temp_dir}/chains_CA.paf
 chains_CB=${temp_dir}/chains_CB.paf
 
 # Make chains
-paf_trim --logLevel DEBUG -i $align_AB | paf_chain > $chains_AB
+paf_trim -i $align_AB | paf_chain > $chains_AB
 paf_trim -i $align_AC | paf_chain > $chains_AC
 paf_trim -i $align_BC | paf_chain > $chains_BC
 paf_invert -i $chains_AB > $chains_BA

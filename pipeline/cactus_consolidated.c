@@ -322,7 +322,7 @@ int main(int argc, char *argv[]) {
     //Strip the unique IDs
     //////////////////////////////////////////////
 
-    stripUniqueIdsFromSequences(flower);
+    //stripUniqueIdsFromSequences(flower);
     st_logInfo("Stripped the unique IDs, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     //////////////////////////////////////////////

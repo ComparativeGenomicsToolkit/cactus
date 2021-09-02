@@ -58,7 +58,7 @@ endif
 
 dataSetsPath=/Users/benedictpaten/Dropbox/Documents/work/myPapers/genomeCactusPaper/dataSets
 
-inclDirs = hal/inc api/inc setup/inc bar/inc caf/inc hal/inc reference/inc pipeline/inc submodules/sonLib/C/inc \
+inclDirs = hal/inc api/inc setup/inc bar/inc caf/inc paf/inc hal/inc reference/inc pipeline/inc submodules/sonLib/C/inc \
 	blastLib submodules/sonLib/externalTools/cutest submodules/pinchesAndCacti/inc \
 	submodules/matchingAndOrdering/inc submodules/cPecan/inc
 

@@ -1,4 +1,5 @@
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from collections import defaultdict
 from matplotlib import collections
 from matplotlib import pyplot
 from matplotlib import colors
@@ -205,7 +206,7 @@ class PafElement:
                 return token
 
 
-def plot_abridged_alignment(paf_element, lines, colors, dots_x, dots_y, use_random_color, use_endpoints, color_index=11, color_scale_max=60):
+def plot_abridged_alignment(paf_element, plot_data, use_random_color, use_endpoints, color_index=11, color_scale_max=60):
     if paf_element.get_reversal():
         x1 = paf_element.get_ref_stop()
         x2 = paf_element.get_ref_start()
@@ -217,27 +218,27 @@ def plot_abridged_alignment(paf_element, lines, colors, dots_x, dots_y, use_rand
     y1 = paf_element.get_query_start()
     y2 = paf_element.get_query_stop()
 
-    lines.append([(x1,y1), (x2,y2)])
+    plot_data.lines.append([(x1,y1), (x2,y2)])
 
     if use_random_color:
         color = HSV_COLORMAP(random.uniform(0,1))
-        colors.append(color)
+        plot_data.colors.append(color)
     else:
         data = paf_element.get_data_by_column(color_index)
 
         if color_scale_max is not None:
             color = GNUPLOT_COLORMAP((float(data) + 1e-9)/color_scale_max)
         else:
-            color = HSV_COLORMAP(str_to_float(data))
+            color = HSV_COLORMAP(str_to_float(str(data)))
 
-        colors.append(color)
+        plot_data.colors.append(color)
 
     if use_endpoints:
-        dots_x.append([x1,x2])
-        dots_y.append([y1,y2])
+        plot_data.dots_x.append([x1,x2])
+        plot_data.dots_y.append([y1,y2])
 
 
-def plot_full_alignment(paf_element, lines, colors, dots_x, dots_y, color_index, color_scale_max, use_random_color, use_endpoints):
+def plot_full_alignment(paf_element, plot_data, color_index, color_scale_max, use_random_color, use_endpoints):
     color_key = {'M':"blue",
                  'I':"orange",
                  'D':"orange",
@@ -267,8 +268,7 @@ def plot_full_alignment(paf_element, lines, colors, dots_x, dots_y, color_index,
             color = GNUPLOT_COLORMAP((float(data) + 1e-9)/color_scale_max)
         else:
             # Interpret as a deterministic function of string (by default)
-            color = HSV_COLORMAP(str_to_float(data))
-
+            color = HSV_COLORMAP(str_to_float(str(data)))
 
     cigar_operations = paf_element.get_cigar()
     if paf_element.get_reversal():
@@ -288,18 +288,18 @@ def plot_full_alignment(paf_element, lines, colors, dots_x, dots_y, color_index,
         query_index = y2
 
         if operation[0] != "S" and operation[0] != "H":
-            lines.append([(x1,y1), (x2,y2)])
+            plot_data.lines.append([(x1,y1), (x2,y2)])
 
             if use_random_color:
                 if operation[0] == 'M' or operation[0] == '=' or operation[0] == 'X':
-                    colors.append(color)
+                    plot_data.colors.append(color)
                 else:
-                    colors.append(gray)
+                    plot_data.colors.append(gray)
             elif color_index is not None:
-                colors.append(color)
+                plot_data.colors.append(color)
 
             else:
-                colors.append(color_key[operation[0]])
+                plot_data.colors.append(color_key[operation[0]])
 
     if use_endpoints:
         if paf_element.get_reversal():
@@ -312,8 +312,16 @@ def plot_full_alignment(paf_element, lines, colors, dots_x, dots_y, color_index,
         y1 = paf_element.get_query_start()
         y2 = paf_element.get_query_stop()
 
-        dots_x.append([x1,x2])
-        dots_y.append([y1,y2])
+        plot_data.dots_x.append([x1,x2])
+        plot_data.dots_y.append([y1,y2])
+
+
+class PlotData:
+    def __init__(self):
+        self.lines = list()
+        self.dots_x = list()
+        self.dots_y = list()
+        self.colors = list()
 
 
 def dotplot_from_paf(paf_path,
@@ -325,16 +333,15 @@ def dotplot_from_paf(paf_path,
                      use_random_color,
                      use_endpoints):
 
-    figure = pyplot.figure()
-    axes = pyplot.axes()
+    plot_data_per_alignment_pair = defaultdict(lambda: PlotData())
+    figures_per_alignment_pair = defaultdict(lambda: pyplot.figure())
+    lengths_per_alignment_pair = dict()
 
-    ref_names = set()
-    ref_length = 0
-
-    lines = list()
-    dots_x = list()
-    dots_y = list()
-    colors = list()
+    # ref_names = set()
+    # lines = list()
+    # dots_x = list()
+    # dots_y = list()
+    # colors = list()
 
     color_index = None
     store_tags = use_full_alignment or (color_by is not None)
@@ -342,6 +349,7 @@ def dotplot_from_paf(paf_path,
     with open(paf_path, 'r') as file:
         for l,line in enumerate(file):
             paf_element = PafElement(paf_line=line, store_tags=store_tags)
+            pair_identifier = paf_element.get_query_name() + "_VS_" + paf_element.get_ref_name()
 
             if color_by is not None:
                 if color_index is None:
@@ -357,11 +365,7 @@ def dotplot_from_paf(paf_path,
                         if type(data) == str and not data.isnumeric():
                             exit("ERROR: cannot interpret data as numeric: \n\t" + data)
 
-            ref_names.add(paf_element.get_ref_name())
-            ref_length = paf_element.get_ref_length()
-
-            if len(ref_names) > 1:
-                exit("ERROR: more than one reference sequence in PAF file")
+            lengths_per_alignment_pair[pair_identifier] = max(paf_element.get_ref_length(), paf_element.get_query_length())
 
             if paf_element.get_map_quality() < min_mapq:
                 continue
@@ -372,10 +376,7 @@ def dotplot_from_paf(paf_path,
             if use_full_alignment:
                 plot_full_alignment(
                     paf_element=paf_element,
-                    lines=lines,
-                    colors=colors,
-                    dots_x=dots_x,
-                    dots_y=dots_y,
+                    plot_data=plot_data_per_alignment_pair[pair_identifier],
                     color_index=color_index,
                     color_scale_max=color_scale_max,
                     use_random_color=use_random_color,
@@ -383,45 +384,46 @@ def dotplot_from_paf(paf_path,
             else:
                 plot_abridged_alignment(
                     paf_element=paf_element,
-                    lines=lines,
-                    colors=colors,
-                    dots_x=dots_x,
-                    dots_y=dots_y,
+                    plot_data=plot_data_per_alignment_pair[pair_identifier],
                     color_index=color_index,
                     color_scale_max=color_scale_max,
                     use_random_color=use_random_color,
                     use_endpoints=use_endpoints)
 
-    line_collection = collections.LineCollection(lines, colors=colors, linewidths=1.2)
-    axes.add_collection(line_collection)
+    for pair_identifier,data in plot_data_per_alignment_pair.items():
+        figure = figures_per_alignment_pair[pair_identifier]
+        axes = figure.add_subplot()
 
-    axes.scatter(dots_x, dots_y, color="black", s=0.3, zorder=sys.maxsize)
+        line_collection = collections.LineCollection(data.lines, colors=data.colors, linewidths=1.2)
+        axes.add_collection(line_collection)
 
-    axes.set_aspect('equal')
-    axes.set_ylim([0,ref_length])
-    axes.set_xlim([0,ref_length])
+        axes.scatter(data.dots_x, data.dots_y, color="black", s=0.3, zorder=sys.maxsize)
 
-    axes.set_xlabel("Reference")
-    axes.set_ylabel("Query")
+        axes.set_aspect('equal')
+        axes.set_ylim([0,lengths_per_alignment_pair[pair_identifier]])
+        axes.set_xlim([0,lengths_per_alignment_pair[pair_identifier]])
 
-    # pyplot.savefig(os.path.join(output_directory, title+"_self_alignment.png"), dpi=200)
+        axes.set_xlabel("Reference")
+        axes.set_ylabel("Query")
 
-    if not use_random_color and not color_scale_max is None:
-        # create an axes on the right side of ax. The width of cax will be 5%
-        # of ax and the padding between cax and ax will be fixed at 0.05 inch.
-        divider = make_axes_locatable(axes)
-        cax = divider.append_axes("right", size="5%", pad=0.05)
+        axes.set_title(pair_identifier)
 
-        colorbar_tick_labels = numpy.linspace(0, color_scale_max, 10)
-        colorbar_ticks = numpy.linspace(0, 1, 10)
-        print(colorbar_ticks)
+        if not use_random_color and not color_scale_max is None:
+            # create an axes on the right side of ax. The width of cax will be 5%
+            # of ax and the padding between cax and ax will be fixed at 0.05 inch.
+            divider = make_axes_locatable(axes)
+            cax = divider.append_axes("right", size="5%", pad=0.05)
 
-        colorbar = matplotlib.colorbar.ColorbarBase(cax, cmap=GNUPLOT_COLORMAP)
-        colorbar.set_label(color_by)
-        colorbar.set_ticks(colorbar_ticks)
-        colorbar.set_ticklabels(colorbar_tick_labels)
+            colorbar_tick_labels = [round(x,3) for x in numpy.linspace(0, color_scale_max, 10)]
+            colorbar_ticks = numpy.linspace(0, 1, 10)
+            print(colorbar_ticks)
 
-        figure.tight_layout()
+            colorbar = matplotlib.colorbar.ColorbarBase(cax, cmap=GNUPLOT_COLORMAP)
+            colorbar.set_label(color_by)
+            colorbar.set_ticks(colorbar_ticks)
+            colorbar.set_ticklabels(colorbar_tick_labels)
+
+            figure.tight_layout()
 
     pyplot.show()
     pyplot.close()
@@ -440,7 +442,7 @@ if __name__ == "__main__":
         "--color_by",
         type=str,
         required=False,
-        default="11",
+        default="0",
         help="Which data in the PAF to color the alignments with. If a string, it must indicate a tag (e.g. 'cm') "
              "and that tag must be found past column 11 (0-based) and be followed by a colon. If a number (integer), "
              "it must indicate the (0-based) column in which the data is expected to be found."

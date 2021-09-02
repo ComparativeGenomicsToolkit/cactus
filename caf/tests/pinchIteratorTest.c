@@ -107,23 +107,8 @@ static void testPinchIteratorFromFile(CuTest *testCase) {
     }
 }
 
-static void testPinchIteratorFromList(CuTest *testCase) {
-    for (int64_t test = 0; test < 100; test++) {
-        stList *pairwiseAlignments = getRandomPairwiseAlignments();
-        st_logInfo("Doing a random pinch iterator from list test %" PRIi64 " with %" PRIi64 " alignments\n", test, stList_length(pairwiseAlignments));
-        //Get an iterator
-        stPinchIterator *pinchIterator = stPinchIterator_constructFromList(pairwiseAlignments);
-        //Now test it
-        testIterator(testCase, pinchIterator, pairwiseAlignments);
-        //Cleanup
-        stPinchIterator_destruct(pinchIterator);
-        stList_destruct(pairwiseAlignments);
-    }
-}
-
 CuSuite* pinchIteratorTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, testPinchIteratorFromFile);
-    SUITE_ADD_TEST(suite, testPinchIteratorFromList);
     return suite;
 }

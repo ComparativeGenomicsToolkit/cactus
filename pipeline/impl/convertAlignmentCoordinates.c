@@ -6,7 +6,7 @@
 
 #include "cactus.h"
 #include "sonLib.h"
-#include "pairwiseAlignment.h"
+#include "paf.h"
 #include "bioioC.h"
 
 void stripUniqueIdsFromSequences(Flower *flower) {
@@ -60,33 +60,35 @@ static stHash *makeSequenceHeaderToCapHash(Flower *flower) {
     return sequenceHeaderToCapsHash;
 }
 
-static void convertCoordinates(struct PairwiseAlignment *pairwiseAlignment, FILE *outputCigarFileHandle,
+static void convertCoordinates(Paf *paf, FILE *outputCigarFileHandle,
                                stHash *sequenceHeaderToCapHash) {
-    Cap *cap1 = stHash_search(sequenceHeaderToCapHash, pairwiseAlignment->contig1);
-    Cap *cap2 = stHash_search(sequenceHeaderToCapHash, pairwiseAlignment->contig2);
+    Cap *cap1 = stHash_search(sequenceHeaderToCapHash, paf->query_name);
+    Cap *cap2 = stHash_search(sequenceHeaderToCapHash, paf->target_name);
     if (cap1 == NULL) {
-        st_errAbort("Could not match contig name in alignment to cactus cap: '%s'", pairwiseAlignment->contig1);
+        st_errAbort("Could not match contig name in alignment to cactus cap: '%s'", paf->query_name);
     }
     if (cap2 == NULL) {
-        st_errAbort("Could not match contig name in alignment to cactus cap: '%s'", pairwiseAlignment->contig2);
+        st_errAbort("Could not match contig name in alignment to cactus cap: '%s'", paf->target_name);
     }
     //Fix the names
-    free(pairwiseAlignment->contig1);
-    pairwiseAlignment->contig1 = cactusMisc_nameToString(cap_getName(cap1));
-    free(pairwiseAlignment->contig2);
-    pairwiseAlignment->contig2 = cactusMisc_nameToString(cap_getName(cap2));
+    free(paf->query_name);
+    paf->query_name = cactusMisc_nameToString(cap_getName(cap1));
+    free(paf->target_name);
+    paf->target_name = cactusMisc_nameToString(cap_getName(cap2));
     //Now fix the coordinates by adding one
-    pairwiseAlignment->start1 += 2;
-    pairwiseAlignment->start2 += 2;
-    pairwiseAlignment->end1 += 2;
-    pairwiseAlignment->end2 += 2;
-    if (pairwiseAlignment->start1 <= cap_getCoordinate(cap1) || pairwiseAlignment->end1 > cap_getCoordinate(cap_getAdjacency(cap1))) {
-        st_errAbort("Coordinates of pairwise alignment appear incorrect: %" PRIi64 " %" PRIi64 " %" PRIi64 " %" PRIi64 "", pairwiseAlignment->start1, pairwiseAlignment->end1,
-                cap_getCoordinate(cap1), cap_getCoordinate(cap_getAdjacency(cap1)));
+    paf->query_start += 2;
+    paf->target_start += 2;
+    paf->query_end += 2;
+    paf->target_end += 2;
+    if (paf->query_start <= cap_getCoordinate(cap1) || paf->query_end > cap_getCoordinate(cap_getAdjacency(cap1))) {
+        st_errAbort("Coordinates of pairwise alignment appear incorrect: %" PRIi64 " %" PRIi64 " %" PRIi64 " %" PRIi64 "",
+                    paf->query_start, paf->query_end,
+                    cap_getCoordinate(cap1), cap_getCoordinate(cap_getAdjacency(cap1)));
     }
-    if (pairwiseAlignment->start2 <= cap_getCoordinate(cap2) || pairwiseAlignment->end2 > cap_getCoordinate(cap_getAdjacency(cap2))) {
-        st_errAbort("Coordinates of pairwise alignment appear incorrect: %" PRIi64 " %" PRIi64 " %" PRIi64 " %" PRIi64 "", pairwiseAlignment->start2, pairwiseAlignment->end2,
-                cap_getCoordinate(cap2), cap_getCoordinate(cap_getAdjacency(cap2)));
+    if (paf->target_start <= cap_getCoordinate(cap2) || paf->target_end > cap_getCoordinate(cap_getAdjacency(cap2))) {
+        st_errAbort("Coordinates of pairwise alignment appear incorrect: %" PRIi64 " %" PRIi64 " %" PRIi64 " %" PRIi64 "",
+                    paf->target_start, paf->target_end,
+                    cap_getCoordinate(cap2), cap_getCoordinate(cap_getAdjacency(cap2)));
     }
 }
 
@@ -94,20 +96,21 @@ void convertAlignmentCoordinates(char *inputAlignmentFile, char *outputAlignment
     stHash *sequenceHeaderToCapHash = makeSequenceHeaderToCapHash(flower);
     st_logDebug("Set up the flower disk and built hash\n");
 
-    FILE *inputCigarFileHandle = fopen(inputAlignmentFile, "r");
-    FILE *outputCigarFileHandle = fopen(outputAlignmentFile, "w");
+    FILE *inputAlignmentFileHandle = fopen(inputAlignmentFile, "r");
+    FILE *outputAlignmentFileHandle = fopen(outputAlignmentFile, "w");
     st_logDebug("Opened files for writing\n");
 
-    struct PairwiseAlignment *pairwiseAlignment;
-    while ((pairwiseAlignment = cigarRead(inputCigarFileHandle)) != NULL) {
-        convertCoordinates(pairwiseAlignment, outputCigarFileHandle, sequenceHeaderToCapHash);
-        cigarWrite(outputCigarFileHandle, pairwiseAlignment, 0);
-        destructPairwiseAlignment(pairwiseAlignment);
+    Paf *paf;
+    while ((paf = paf_read(inputAlignmentFileHandle)) != NULL) {
+        convertCoordinates(paf, outputAlignmentFileHandle, sequenceHeaderToCapHash);
+        paf_check(paf);
+        paf_write(paf, outputAlignmentFileHandle);
+        paf_destruct(paf);
     }
     st_logDebug("Finished converting alignments\n");
 
     //Cleanup
-    fclose(inputCigarFileHandle);
-    fclose(outputCigarFileHandle);
+    fclose(inputAlignmentFileHandle);
+    fclose(outputAlignmentFileHandle);
     stHash_destruct(sequenceHeaderToCapHash);
 }
