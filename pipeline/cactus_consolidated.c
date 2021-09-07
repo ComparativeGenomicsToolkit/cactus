@@ -36,7 +36,7 @@ void usage() {
     fprintf(stderr, "-f --outputFile : [Required] The file to write the combined cactus to hal output\n");
     fprintf(stderr, "-F --outputHalFastaFile : The file to write the sequences in to build the hal file.\n");
     fprintf(stderr, "-G --outputReferenceFile : The file to write the sequences of the reference in (used in the progressive recursion).\n");
-    fprintf(stderr, "-s --sequences [Required] [eventName fastaFile/Directory]xN: [Required] The sequences\n");
+    fprintf(stderr, "-s --sequences [Required] [eventName fastaFile/Directory]xN: The sequences\n");
     fprintf(stderr, "-a --alignments : [Required] The alignments file\n");
     fprintf(stderr, "-S --secondaryAlignments : The secondary alignments file\n");
     fprintf(stderr, "-c --constraintAlignments : The constraint alignments file\n");

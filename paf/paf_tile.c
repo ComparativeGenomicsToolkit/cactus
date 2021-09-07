@@ -20,7 +20,7 @@
 void usage() {
     fprintf(stderr, "paf_tile [options], version 0.1\n");
     fprintf(stderr, "Tiles the records in the PAF file\n");
-    fprintf(stderr, "-i --inputFile : Input paf file to invert. If not specified reads from stdin\n");
+    fprintf(stderr, "-i --inputFile : Input paf file. If not specified reads from stdin\n");
     fprintf(stderr, "-o --outputFile : Output paf file. If not specified outputs to stdout\n");
     fprintf(stderr, "-l --logLevel : Set the log level\n");
     fprintf(stderr, "-h --help : Print this help message\n");
@@ -38,6 +38,26 @@ u_int16_t *get_alignment_count_array(stHash *seq_names_to_alignment_count_arrays
         stHash_insert(seq_names_to_alignment_count_arrays, paf->query_name, counts); // adds to the hash
     }
     return counts;
+}
+
+void increase_alignment_level_counts(u_int16_t *counts, Paf *paf) {
+    Cigar *c = paf->cigar;
+    int64_t i = paf->query_start;
+    while(c != NULL) {
+        if(c->op != query_delete) {
+            if(c->op == match) {
+                for(int64_t j=0; j<c->length; j++) {
+                    assert(i + j < paf->query_end && i + j >= 0 && i + j < paf->query_length);
+                    if(counts[i + j] < INT16_MAX) { // prevent overflow
+                        counts[i + j]++;
+                    }
+                }
+            }
+            i += c->length;
+        }
+        c = c->next;
+    }
+    assert(i == paf->query_end);
 }
 
 int64_t get_median_alignment_level(u_int16_t *counts, Paf *paf) {
@@ -61,6 +81,7 @@ int64_t get_median_alignment_level(u_int16_t *counts, Paf *paf) {
         }
         c = c->next;
     }
+    assert(i == paf->query_end);
 
     if(matches == 0) { // avoid divide by zero
         free(level_counts);
@@ -92,25 +113,6 @@ int64_t get_median_alignment_level(u_int16_t *counts, Paf *paf) {
     assert(0); // This should be unreachable.
     free(level_counts);
     return INT16_MAX;
-}
-
-void increase_alignment_level_counts(u_int16_t *counts, Paf *paf) {
-    Cigar *c = paf->cigar;
-    int64_t i = paf->query_start;
-    while(c != NULL) {
-        if(c->op != query_delete) {
-            if(c->op == match) {
-                for(int64_t j=0; j<c->length; j++) {
-                    assert(i + j < paf->query_end && i + j >= 0 && i + j < paf->query_length);
-                    if(counts[i + j] < INT16_MAX) { // prevent overflow
-                        counts[i + j]++;
-                    }
-                }
-            }
-            i += c->length;
-        }
-        c = c->next;
-    }
 }
 
 int main(int argc, char *argv[]) {
@@ -185,8 +187,7 @@ int main(int argc, char *argv[]) {
         Paf *paf = stList_get(pafs, i);
         u_int16_t *counts = get_alignment_count_array(seq_names_to_alignment_count_arrays, paf);
         increase_alignment_level_counts(counts, paf);
-        int64_t level = get_median_alignment_level(counts, paf);
-        paf->tile_level = level;  // Store the level in the num_of_matches field
+        paf->tile_level = get_median_alignment_level(counts, paf); // Store the level in the num_of_matches field
     }
 
     // Output local alignments file, sorted by score from best-to-worst
