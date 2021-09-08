@@ -25,6 +25,9 @@ test-job:
     - git submodule update --init --recursive
     - virtualenv -p python3 venv
     - source venv/bin/activate
+    # using --use-deprecated=legacy-resolver because https://stackoverflow.com/questions/65122957/resolving-new-pip-backtracking-runtime-issue
+    # using setuptools==57 because https://stackoverflow.com/questions/69100275/error-while-downloading-the-requirements-using-pip-install-setup-command-use-2
+    - pip install --use-deprecated=legacy-resolver setuptools==57
     - pip install --use-deprecated=legacy-resolver -r toil-requirement.txt
     - pip install --use-deprecated=legacy-resolver -U .
     # these are the old travis tests, followed by its docker push
