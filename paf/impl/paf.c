@@ -108,6 +108,9 @@ Paf *paf_read(FILE *fh) {
     }
     Paf *paf = paf_parse(c);
     free(c);
+
+    paf_check(paf);
+
     return paf;
 }
 
@@ -170,13 +173,13 @@ void paf_check(Paf *paf) {
     if(paf->query_start < 0 || paf->query_start >= paf->query_length) {
         st_errAbort("Paf query start coordinates are invalid, %s", paf_print(paf));
     }
-    if(paf->query_start > paf->query_end || paf->query_end >= paf->query_length) {
+    if(paf->query_start > paf->query_end || paf->query_end > paf->query_length) {
         st_errAbort("Paf query end coordinates are invalid, %s", paf_print(paf));
     }
     if(paf->target_start < 0 || paf->target_start >= paf->target_length) {
         st_errAbort("Paf target start coordinates are invalid, %s", paf_print(paf));
     }
-    if(paf->target_start > paf->target_end || paf->target_end >= paf->target_length) {
+    if(paf->target_start > paf->target_end || paf->target_end > paf->target_length) {
         st_errAbort("Paf target end coordinates are invalid, %s", paf_print(paf));
     }
     if(paf->cigar != NULL) {

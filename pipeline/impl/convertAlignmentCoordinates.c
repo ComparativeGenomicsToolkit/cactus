@@ -80,6 +80,9 @@ static void convertCoordinates(Paf *paf, FILE *outputCigarFileHandle,
     paf->target_start += 2;
     paf->query_end += 2;
     paf->target_end += 2;
+    paf->query_length += 2;
+    paf->target_length += 2;
+    paf_check(paf);
     if (paf->query_start <= cap_getCoordinate(cap1) || paf->query_end > cap_getCoordinate(cap_getAdjacency(cap1))) {
         st_errAbort("Coordinates of pairwise alignment appear incorrect: %" PRIi64 " %" PRIi64 " %" PRIi64 " %" PRIi64 "",
                     paf->query_start, paf->query_end,
