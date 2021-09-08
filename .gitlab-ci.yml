@@ -25,8 +25,11 @@ test-job:
     - git submodule update --init --recursive
     - virtualenv -p python3 venv
     - source venv/bin/activate
-    - pip install -r toil-requirement.txt
-    - pip install -U .
+    # using --use-deprecated=legacy-resolver because https://stackoverflow.com/questions/65122957/resolving-new-pip-backtracking-runtime-issue
+    # using setuptools==57 because https://stackoverflow.com/questions/69100275/error-while-downloading-the-requirements-using-pip-install-setup-command-use-2
+    - pip install --use-deprecated=legacy-resolver setuptools==57
+    - pip install --use-deprecated=legacy-resolver -r toil-requirement.txt
+    - pip install --use-deprecated=legacy-resolver -U .
     # these are the old travis tests, followed by its docker push
     - git clone https://github.com/ComparativeGenomicsToolkit/cactusTestData
     - export ASAN_OPTIONS="detect_leaks=0"
@@ -38,7 +41,7 @@ test-job:
     - docker login --username $QUAY_USERNAME --password $QUAY_PASSWORD quay.io
     - make push_only
     - numcpu=8 build-tools/downloadPangenomeTools
-    - pip install -U .	 
+    - pip install -U --use-deprecated=legacy-resolver .	 
     - make -j 8 evolver_test
   artifacts:
     # Let Gitlab see the junit report
