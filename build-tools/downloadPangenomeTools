@@ -256,7 +256,7 @@ fi
 
 # vg
 cd ${pangenomeBuildDir}
-#tempoarary hack until 1.35.0 is actually released
+# tempoarary hack until 1.35.0 is actually released
 wget -q http://public.gi.ucsc.edu/~hickey/vg
 #wget -q https://github.com/vgteam/vg/releases/download/v1.35.0/vg
 chmod +x vg
