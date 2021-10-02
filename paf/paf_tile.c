@@ -187,7 +187,7 @@ int main(int argc, char *argv[]) {
         Paf *paf = stList_get(pafs, i);
         u_int16_t *counts = get_alignment_count_array(seq_names_to_alignment_count_arrays, paf);
         increase_alignment_level_counts(counts, paf);
-        paf->tile_level = get_median_alignment_level(counts, paf); // Store the level in the num_of_matches field
+        paf->tile_level = get_median_alignment_level(counts, paf); // Store the tile_level
     }
 
     // Output local alignments file, sorted by score from best-to-worst

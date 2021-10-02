@@ -89,10 +89,8 @@ static stSortedSetIterator *get_predecessor_chains(stSortedSet *active_chained_a
 /*
  * Joins together the pafs in a chain into a single paf
  */
-static Paf *chain_to_paf(Chain *chain, int64_t (*gap_cost)(int64_t, int64_t, void *),
-                         void *gap_cost_params) {
+static Paf *chain_to_paf(Chain *chain) {
     Paf *p = chain->paf;
-
     while(chain->pChain != NULL) { // Join together links in the chain
         Paf *q = p;
         p = chain->pChain->paf; // p is now the previous paf in the chain to q
@@ -103,9 +101,6 @@ static Paf *chain_to_paf(Chain *chain, int64_t (*gap_cost)(int64_t, int64_t, voi
         assert(p->query_end <= q->query_start);
         assert(p->target_end <= q->target_start);
         assert(p->same_strand == q->same_strand);
-
-        // set the score
-        p->score += q->score - gap_cost(q->query_start - p->query_end, q->target_start - p->target_end, gap_cost_params);
 
         // If there is a cigar then join them
         if(p->cigar != NULL) {
@@ -146,11 +141,58 @@ static Paf *chain_to_paf(Chain *chain, int64_t (*gap_cost)(int64_t, int64_t, voi
     return p;
 }
 
+int64_t get_chain_score(Chain *chain, int64_t (*gap_cost)(int64_t, int64_t, void *),
+                        void *gap_cost_params) {
+    Paf *p = chain->paf;
+    int64_t total_score = p->score;
+
+    while(chain->pChain != NULL) { // Join together links in the chain
+        Paf *q = p;
+        p = chain->pChain->paf; // p is now the previous paf in the chain to q
+
+        // Checks that we can chain these together
+        assert(strcmp(p->target_name, q->target_name) == 0);
+        assert(strcmp(p->query_name, q->query_name) == 0);
+        assert(p->query_end <= q->query_start);
+        assert(p->target_end <= q->target_start);
+        assert(p->same_strand == q->same_strand);
+        assert(q->query_start - p->query_end >= 0);
+        assert(q->target_start - p->target_end >= 0);
+
+        // set the score
+        total_score += p->score - gap_cost(q->query_start - p->query_end, q->target_start - p->target_end, gap_cost_params);
+
+        // Shift back to the prior link in the chain and cleanup
+        chain = chain->pChain;
+    }
+    return total_score;
+}
+
+static void chain_to_pafs(Chain *chain, int64_t (*gap_cost)(int64_t, int64_t, void *),
+                         void *gap_cost_params, stList *output_pafs, bool merge_pafs) {
+    int64_t total_score = get_chain_score(chain, gap_cost, gap_cost_params);
+    if(merge_pafs) {
+        Paf *p = chain_to_paf(chain);
+        p->score = total_score;
+        stList_append(output_pafs, p);
+    }
+    else {
+        while (chain != NULL) {
+            chain->paf->score = total_score;
+            stList_append(output_pafs, chain->paf);
+            // Shift back to the previous link and cleanup
+            Chain *c = chain;
+            chain = chain->pChain;
+            free(c);
+        }
+    }
+}
+
 /*
  * Chains together the input pafs. Ignores strand.
  */
 stList *paf_chain_ignore_strand(stList *pafs, int64_t (*gap_cost)(int64_t, int64_t, void *),
-                                void *gap_cost_params, int64_t max_gap_length) {
+                                void *gap_cost_params, int64_t max_gap_length, bool merge_chained_pafs) {
     stList_sort(pafs, paf_cmp_by_query_location); // Sort alignments by query start coordinate
 
     stSortedSet *active_chained_alignments = stSortedSet_construct3(chain_cmp_by_location, NULL); // The set of
@@ -248,18 +290,20 @@ stList *paf_chain_ignore_strand(stList *pafs, int64_t (*gap_cost)(int64_t, int64
     }
 
     // Now finally convert chains back to single pafs
+    stList *output_pafs = stList_construct();
     for(int64_t i=0; i<stList_length(outputChains); i++) {
-        stList_set(outputChains, i, chain_to_paf(stList_get(outputChains, i), gap_cost, gap_cost_params));
+        chain_to_pafs(stList_get(outputChains, i), gap_cost, gap_cost_params, output_pafs, merge_chained_pafs);
     }
 
     // Cleanup
+    stList_destruct(outputChains);
     assert(stList_length(to_remove) == 0);
     stList_destruct(to_remove);
     stSortedSet_destruct(active_chained_alignments);
     assert(stSortedSet_size(chains) == 0);
     stSortedSet_destruct(chains);
 
-    return outputChains;
+    return output_pafs;
 }
 
 /*
@@ -276,7 +320,8 @@ static int paf_cmp_by_score(const void *a, const void *b) {
     return intcmp(p2->score, p1->score);
 }
 
-stList *paf_chain(stList *pafs, int64_t (*gap_cost)(int64_t, int64_t, void *), void *gap_cost_params, int64_t max_gap_length) {
+stList *paf_chain(stList *pafs, int64_t (*gap_cost)(int64_t, int64_t, void *), void *gap_cost_params,
+                  int64_t max_gap_length, bool merge_chained_pafs) {
     // Split into forward and reverse strand alignments
     stList *positive_strand_pafs = stList_construct();
     stList *negative_strand_pafs = stList_construct();
@@ -291,8 +336,8 @@ stList *paf_chain(stList *pafs, int64_t (*gap_cost)(int64_t, int64_t, void *), v
         }
     }
 
-    stList *positive_chained_pafs = paf_chain_ignore_strand(positive_strand_pafs, gap_cost, gap_cost_params, max_gap_length);
-    stList *negative_chained_pafs = paf_chain_ignore_strand(negative_strand_pafs, gap_cost, gap_cost_params, max_gap_length);
+    stList *positive_chained_pafs = paf_chain_ignore_strand(positive_strand_pafs, gap_cost, gap_cost_params, max_gap_length, merge_chained_pafs);
+    stList *negative_chained_pafs = paf_chain_ignore_strand(negative_strand_pafs, gap_cost, gap_cost_params, max_gap_length, merge_chained_pafs);
 
     // Correct negative strand coordinates
     for(int64_t i=0; i<stList_length(negative_chained_pafs); i++) {

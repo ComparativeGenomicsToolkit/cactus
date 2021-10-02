@@ -48,6 +48,22 @@ static Cigar *parse_cigar(char *cigar_string) {
     return cigar;
 }
 
+static Cigar *cigar_reverse(Cigar *c) {
+    if(c == NULL) {
+        return NULL;
+    }
+    Cigar *p = NULL;
+    // p -> c -> n -> q
+    while(c->next != NULL) {
+        Cigar *n = c->next;
+        c->next = p; // p <- c , n -> q
+        p = c;
+        c = n;
+    }
+    c->next = p; // p <- c <- n
+    return c;
+}
+
 Paf *paf_parse(char *paf_string) {
     Paf *paf = st_calloc(1, sizeof(Paf));
 
@@ -213,11 +229,13 @@ static void swap(void **a, void **b) {
 }
 
 void paf_invert(Paf *paf) {
+    // Swap the query and target coordinates
     swap((void **)&paf->query_start, (void **)&paf->target_start);
     swap((void **)&paf->query_end, (void **)&paf->target_end);
     swap((void **)&paf->query_length, (void **)&paf->target_length);
     swap((void **)&paf->query_name, (void **)&paf->target_name);
 
+    // Switch the query and target in the cigar
     Cigar *c = paf->cigar;
     while(c != NULL) {
         if(c->op == query_insert) {
@@ -227,6 +245,10 @@ void paf_invert(Paf *paf) {
             c->op = query_insert;
         }
         c = c->next;
+    }
+    // Now reverse the order if the ordering is swapped
+    if(!paf->same_strand) {
+        paf->cigar = cigar_reverse(paf->cigar);
     }
 }
 
@@ -258,21 +280,6 @@ int64_t paf_get_number_of_aligned_bases(Paf *paf) {
     return aligned_bases;
 }
 
-static Cigar *cigar_reverse(Cigar *c) {
-    if(c == NULL) {
-        return NULL;
-    }
-    Cigar *p = NULL;
-    // p -> c -> n -> q
-    while(c->next != NULL) {
-        Cigar *n = c->next;
-        c->next = p; // p <- c , n -> q
-        p = c;
-        c = n;
-    }
-    c->next = p; // p <- c <- n
-    return c;
-}
 
 static Cigar *cigar_trim(int64_t *query_c, int64_t *target_c, Cigar *c, int64_t end_bases_to_trim, int sign) {
     int64_t bases_trimmed = 0;
@@ -320,4 +327,71 @@ void paf_trim_end_fraction(Paf *p, float percentage) {
     PRIi64 " target bases and %" PRIi64 " aligned bases trimming %" PRIi64 " bases from each paf end\n",
             p->query_end - p->query_start, p->target_end - p->target_start, aligned_bases, end_bases_to_trim);
     paf_trim_ends(p, end_bases_to_trim);
+}
+
+Paf *paf_shatter2(Paf *paf, int64_t query_start, int64_t target_start, int64_t length) {
+    Paf *s_paf = st_calloc(1, sizeof(Paf));
+
+    s_paf->query_name = stString_copy(paf->query_name);
+    s_paf->query_length = paf->query_length;
+    s_paf->query_start = query_start;
+    s_paf->query_end = query_start + length;
+
+    s_paf->target_name = stString_copy(paf->target_name);
+    s_paf->target_length = paf->target_length;
+    s_paf->target_start = target_start;
+    s_paf->target_end = target_start + length;
+
+    s_paf->same_strand = paf->same_strand;
+    s_paf->cigar = st_calloc(1, sizeof(Cigar)); // Allocate a cigar record
+    s_paf->cigar->length = length;
+    s_paf->cigar->op = match;
+
+    s_paf->score = paf->score;
+    s_paf->mapping_quality = paf->mapping_quality;
+    s_paf->num_matches = length;
+    s_paf->num_bases = length;
+    s_paf->tile_level = paf->tile_level;
+    s_paf->type = paf->type;
+
+    paf_check(s_paf);
+
+    return s_paf;
+}
+
+stList *paf_shatter(Paf *paf) {
+    Cigar *p = paf->cigar;
+    int64_t query_coordinate = paf->query_start;
+    int64_t target_coordinate = paf->same_strand ? paf->target_start : paf->target_end;
+    stList *matches = stList_construct3(0, (void (*)(void *))paf_destruct);
+    while (p != NULL) {
+        assert(p->length >= 1);
+        if (p->op == match) {
+            if (paf->same_strand) {
+                stList_append(matches, paf_shatter2(paf, query_coordinate, target_coordinate, p->length));
+                target_coordinate += p->length;
+            } else {
+                target_coordinate -= p->length;
+                stList_append(matches, paf_shatter2(paf, query_coordinate, target_coordinate, p->length));
+            }
+            query_coordinate += p->length;
+        }
+        else if (p->op == query_insert) {
+            query_coordinate += p->length;
+        }
+        else {
+            assert(p->op == query_delete);
+            target_coordinate += paf->same_strand ? p->length : -p->length;
+        }
+        p = p->next;
+    }
+    assert(query_coordinate == paf->query_end);
+    if (paf->same_strand) {
+        assert(target_coordinate == paf->target_end);
+    }
+    else {
+        assert(target_coordinate == paf->target_start);
+    }
+
+    return matches;
 }

@@ -130,7 +130,8 @@ void write_pafs(FILE *paf_file, stList *pafs);
 /*
  * Chain a set of pafs into larger alignments
  */
-stList *paf_chain(stList *pafs, int64_t (*gap_cost)(int64_t, int64_t, void *), void *gap_cost_params, int64_t max_gap_length);
+stList *paf_chain(stList *pafs, int64_t (*gap_cost)(int64_t, int64_t, void *), void *gap_cost_params,
+                  int64_t max_gap_length, bool merge_chained_pafs);
 
 /*
  * Gets the number of aligned bases in the alignment between the query
@@ -147,6 +148,11 @@ void paf_trim_ends(Paf *paf, int64_t end_bases_to_trim);
  * Removes a given percentage of prefix and suffix aligned bases.
  */
 void paf_trim_end_fraction(Paf *paf, float percentage);
+
+/*
+ * Breaks up a paf into its set of constituent matches
+ */
+stList *paf_shatter(Paf *paf);
 
 #endif /* ST_PAF_H_ */
 

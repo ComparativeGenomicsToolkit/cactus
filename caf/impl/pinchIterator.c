@@ -65,7 +65,7 @@ static stPinch *pairwiseAlignmentToPinch_getNext(PairwiseAlignmentToPinch *pA, s
             }
             pA->op = pA->paf->cigar;
             pA->xCoordinate = pA->paf->query_start;
-            pA->yCoordinate = pA->paf->same_strand ? pA->paf->target_start : pA->paf->target_end-1;
+            pA->yCoordinate = pA->paf->same_strand ? pA->paf->target_start : pA->paf->target_end;
             pA->xName = cactusMisc_stringToName(pA->paf->query_name);
             pA->yName = cactusMisc_stringToName(pA->paf->target_name);
         }
@@ -83,6 +83,9 @@ static stPinch *pairwiseAlignmentToPinch_getNext(PairwiseAlignmentToPinch *pA, s
                 }
                 pA->xCoordinate += pA->op->length;
                 pA->op = pA->op->next;
+                if(!pA->paf->same_strand) {
+                    //continue;
+                }
                 return pinchToFillOut;
             }
             if (pA->op->op != query_delete) {
@@ -98,7 +101,7 @@ static stPinch *pairwiseAlignmentToPinch_getNext(PairwiseAlignmentToPinch *pA, s
             assert(pA->yCoordinate == pA->paf->target_end);
         }
         else {
-            assert(pA->yCoordinate == pA->paf->target_start-1);
+            assert(pA->yCoordinate == pA->paf->target_start);
         }
         if (pA->freeAlignments) {
             paf_destruct(pA->paf);

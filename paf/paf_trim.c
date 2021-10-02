@@ -11,7 +11,7 @@
 #include <getopt.h>
 #include <time.h>
 
-static float trim_end_fraction = 0.05;
+static float trim_end_fraction = 0.02;
 
  void usage() {
      fprintf(stderr, "paf_trim [options], version 0.1\n");

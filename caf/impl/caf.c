@@ -369,7 +369,7 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
                 }
             }
 
-            st_logDebug("Sequence graph statistics after annealing:\n");
+            st_logInfo("Sequence graph statistics after annealing:\n");
             printThreadSetStatistics(threadSet, flower, stderr);
 
             if (minimumBlockHomologySupport > 0) {
@@ -415,10 +415,8 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
             stCaf_meltRecoverableChains(flower, threadSet, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds, recoverableChainsFilter, maxRecoverableChainsIterations, maxRecoverableChainLength);
         }
 
-        st_logDebug("Sequence graph statistics after melting:\n");
-        if(st_getLogLevel() == debug) {
-            printThreadSetStatistics(threadSet, flower, stderr);
-        }
+        st_logInfo("Sequence graph statistics after melting:\n");
+        printThreadSetStatistics(threadSet, flower, stderr);
 
         //Sort out case when we allow blocks of degree 1
         if (fa->minimumDegree < 2) {
