@@ -23,8 +23,8 @@ sequenceNames="simCow.chr6 simDog.chr6 simHuman.chr6"
 outgroups="c"
 
 ## Uncomment these next two lines to instead compare simHuman-simMouse using simDog as the outgroup
-sequences="a ${temp_dir}/simMouse.chr6 b ${temp_dir}/simHuman.chr6 c ${temp_dir}/simDog.chr6"
-sequenceNames="simMouse.chr6 simHuman.chr6 simDog.chr6"
+#sequences="a ${temp_dir}/simMouse.chr6 b ${temp_dir}/simHuman.chr6 c ${temp_dir}/simDog.chr6"
+#sequenceNames="simMouse.chr6 simHuman.chr6 simDog.chr6"
 
 # Get the sequence files
 for i in ${sequenceNames}

@@ -361,36 +361,36 @@ Paf *paf_shatter2(Paf *paf, int64_t query_start, int64_t target_start, int64_t l
 
 stList *paf_shatter(Paf *paf) {
     Cigar *p = paf->cigar;
-    int64_t query_coordinate = paf->query_start;
-    int64_t target_coordinate = paf->same_strand ? paf->target_start : paf->target_end;
+    int64_t query_coordinate = paf->same_strand ? paf->query_start : paf->query_end;
+    int64_t target_coordinate = paf->target_start;
     stList *matches = stList_construct3(0, (void (*)(void *))paf_destruct);
     while (p != NULL) {
         assert(p->length >= 1);
         if (p->op == match) {
             if (paf->same_strand) {
                 stList_append(matches, paf_shatter2(paf, query_coordinate, target_coordinate, p->length));
-                target_coordinate += p->length;
+                query_coordinate += p->length;
             } else {
-                target_coordinate -= p->length;
+                query_coordinate -= p->length;
                 stList_append(matches, paf_shatter2(paf, query_coordinate, target_coordinate, p->length));
             }
-            query_coordinate += p->length;
+            target_coordinate += p->length;
         }
         else if (p->op == query_insert) {
-            query_coordinate += p->length;
+            query_coordinate += paf->same_strand ? p->length : -p->length;
         }
         else {
             assert(p->op == query_delete);
-            target_coordinate += paf->same_strand ? p->length : -p->length;
+            target_coordinate += p->length;
         }
         p = p->next;
     }
-    assert(query_coordinate == paf->query_end);
+    assert(target_coordinate == paf->target_end);
     if (paf->same_strand) {
-        assert(target_coordinate == paf->target_end);
+        assert(query_coordinate == paf->query_end);
     }
     else {
-        assert(target_coordinate == paf->target_start);
+        assert(query_coordinate == paf->query_start);
     }
 
     return matches;

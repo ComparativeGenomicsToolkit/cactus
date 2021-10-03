@@ -64,8 +64,8 @@ static stPinch *pairwiseAlignmentToPinch_getNext(PairwiseAlignmentToPinch *pA, s
                 return NULL;
             }
             pA->op = pA->paf->cigar;
-            pA->xCoordinate = pA->paf->query_start;
-            pA->yCoordinate = pA->paf->same_strand ? pA->paf->target_start : pA->paf->target_end;
+            pA->xCoordinate = pA->paf->same_strand ? pA->paf->query_start : pA->paf->query_end;
+            pA->yCoordinate = pA->paf->target_start;
             pA->xName = cactusMisc_stringToName(pA->paf->query_name);
             pA->yName = cactusMisc_stringToName(pA->paf->target_name);
         }
@@ -75,34 +75,31 @@ static stPinch *pairwiseAlignmentToPinch_getNext(PairwiseAlignmentToPinch *pA, s
                 if (pA->paf->same_strand) {
                     stPinch_fillOut(pinchToFillOut, pA->xName, pA->yName, pA->xCoordinate, pA->yCoordinate, pA->op->length,
                                     1);
-                    pA->yCoordinate += pA->op->length;
+                    pA->xCoordinate += pA->op->length;
                 } else {
-                    pA->yCoordinate -= pA->op->length;
+                    pA->xCoordinate -= pA->op->length;
                     stPinch_fillOut(pinchToFillOut, pA->xName, pA->yName, pA->xCoordinate, pA->yCoordinate, pA->op->length,
                                     0);
                 }
-                pA->xCoordinate += pA->op->length;
+                pA->yCoordinate += pA->op->length;
                 pA->op = pA->op->next;
-                if(!pA->paf->same_strand) {
-                    //continue;
-                }
                 return pinchToFillOut;
             }
             if (pA->op->op != query_delete) {
-                pA->xCoordinate += pA->op->length;
+                pA->xCoordinate += pA->paf->same_strand ? pA->op->length : -pA->op->length;
             }
             if (pA->op->op != query_insert) {
-                pA->yCoordinate += pA->paf->same_strand ? pA->op->length : -pA->op->length;
+                pA->yCoordinate += pA->op->length;
             }
             pA->op = pA->op->next;
         }
-        assert(pA->xCoordinate == pA->paf->query_end);
         if (pA->paf->same_strand) {
-            assert(pA->yCoordinate == pA->paf->target_end);
+            assert(pA->xCoordinate == pA->paf->query_end);
         }
         else {
-            assert(pA->yCoordinate == pA->paf->target_start);
+            assert(pA->xCoordinate == pA->paf->query_start);
         }
+        assert(pA->yCoordinate == pA->paf->target_end);
         if (pA->freeAlignments) {
             paf_destruct(pA->paf);
         }

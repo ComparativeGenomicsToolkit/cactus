@@ -36,9 +36,12 @@ ${BINDIR}/paf_trim : paf_trim.c ${LIBDEPENDS} ${commonPafLibs} ${libSources} ${l
 ${BINDIR}/paf_shatter : paf_shatter.c ${LIBDEPENDS} ${commonPafLibs} ${libSources} ${libHeaders}
 	${CC} ${CPPFLAGS} ${CFLAGS} -o ${BINDIR}/paf_shatter paf_shatter.c ${libSources} ${commonPafLibs} ${LDLIBS}
 
+${BINDIR}/paf_view : paf_view.c ${LIBDEPENDS} ${commonPafLibs} ${libSources} ${libHeaders}
+	${CC} ${CPPFLAGS} ${CFLAGS} -o ${BINDIR}/paf_view paf_view.c ${libSources} ${commonPafLibs} ${LDLIBS}
+
 ${BINDIR}/stPafTests : ${libTests} ${LIBDIR}/stPaf.a ${stPafDependencies}
 	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -o ${BINDIR}/stPafTests ${libTests} ${libSources} ${LIBDIR}/stPaf.a ${stCafLibs} ${LDLIBS}
 
 clean : 
 	rm -f *.o
-	rm -f ${LIBDIR}/stPaf.a ${BINDIR}/stPafTests ${BINDIR}/paf_chain ${BINDIR}/paf_invert ${BINDIR}/paf_tile ${BINDIR}/paf_trim ${BINDIR}/paf_shatter ${BINDIR}/cactus_chain
+	rm -f ${LIBDIR}/stPaf.a ${BINDIR}/stPafTests ${BINDIR}/paf_chain ${BINDIR}/paf_invert ${BINDIR}/paf_tile ${BINDIR}/paf_trim ${BINDIR}/paf_shatter ${BINDIR}/paf_view ${BINDIR}/cactus_chain

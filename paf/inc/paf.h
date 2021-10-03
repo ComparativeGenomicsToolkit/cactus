@@ -40,7 +40,7 @@
  * ms	i	DP score of the max scoring segment in the alignment [NOT SUPPORTED/IGNORED]
  * nn	i	Number of ambiguous bases in the alignment [NOT SUPPORTED/IGNORED]
  * ts	A	Transcript strand (splice mode only) [NOT SUPPORTED/IGNORED]
- * cg	Z	CIGAR string (only in PAF)
+ * cg	Z	CIGAR string (only in PAF - this is ordered by the target sequence)
  * cs	Z	Difference string [NOT SUPPORTED/IGNORED]
  * dv	f	Approximate per-base sequence divergence [NOT SUPPORTED/IGNORED]
  * de	f	Gap-compressed per-base sequence divergence [NOT SUPPORTED/IGNORED]
@@ -51,8 +51,8 @@
 
 typedef enum _cigarOp {
     match = 0,
-    query_insert = 1,
-    query_delete = 2
+    query_insert = 1, // substring in the query and not the target
+    query_delete = 2 // substring in the target and not the query
 } CigarOp;
 
 typedef struct _cigar Cigar;
@@ -71,8 +71,8 @@ typedef struct _paf {
     int64_t target_length;
     int64_t target_start; // Zero-based
     int64_t target_end; // Zero-based
-    bool same_strand;
-    Cigar *cigar;
+    bool same_strand; // If 0 then query substring is reverse complement with respect to the target
+    Cigar *cigar; // Ordered by the target sequence
     int64_t score; // the dp alignment score
     int64_t mapping_quality;
     int64_t num_matches;
