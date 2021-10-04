@@ -105,7 +105,7 @@ char *paf_print(Paf *paf);
 /*
  * Prints a human readable alignment view of the paf
  */
-void paf_pretty_print(Paf *paf, char *query_seq, char *target_seq, FILE *fh);
+void paf_pretty_print(Paf *paf, char *query_seq, char *target_seq, FILE *fh, bool include_alignment);
 
 /*
  * Writes a PAF alignment to the given file.

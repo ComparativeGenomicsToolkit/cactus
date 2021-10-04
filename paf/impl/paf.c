@@ -209,15 +209,55 @@ void paf_stats_calc(Paf *paf, char *query_seq, char *target_seq,
     }
 }
 
-void paf_pretty_print(Paf *paf, char *query_seq, char *target_seq, FILE *fh) {
+static void paf_pretty_print2(char *seq, int64_t i, int64_t j, FILE *fh) {
+    char c = seq[j];
+    seq[j] = '\0';
+    fprintf(fh, "%s\n", &(seq[i]));
+    seq[j] = c;
+}
+
+void paf_pretty_print(Paf *paf, char *query_seq, char *target_seq, FILE *fh, bool include_alignment) {
     int64_t matches, mismatches, query_inserts, query_deletes;
     paf_stats_calc(paf, query_seq, target_seq, &matches, &mismatches, &query_inserts, &query_deletes);
     fprintf(fh, "Query:%s\tQ-start:%" PRIi64 "\tQ-length:%" PRIi64 "\tTarget:%s\tT-start:%" PRIi64 "\tT-length:%" PRIi64 "\tSame-strand:%i\tScore:%" PRIi64 "\tIdentity:%f\tAligned-bases:%" PRIi64 "\tQuery-inserts:%" PRIi64 "\tQuery-deletes:%" PRIi64 "\n",
             paf->query_name, paf->query_start, paf->query_end-paf->query_start, paf->target_name, paf->target_start, paf->target_end-paf->target_start,
             (int)paf->same_strand, paf->score, (float)matches/(matches+mismatches), matches+mismatches, query_inserts, query_deletes);
 
-    //
-
+    // Now print a base level alignment
+    if(include_alignment) {
+        Cigar *c = paf->cigar;
+        int64_t max_align_length = paf->query_end - paf->query_start + paf->target_end - paf->target_start;
+        char *query_align = st_malloc(sizeof(char) * (max_align_length + 1));
+        char *target_align = st_malloc(sizeof(char) * (max_align_length + 1));
+        char *star_align = st_malloc(sizeof(char) * (max_align_length + 1));
+        int64_t i = 0, j = paf->target_start, k = 0;
+        while (c != NULL) {
+            for (int64_t l = 0; l < c->length; l++) {
+                char m = '-', n = '-';
+                if (c->op != query_insert) {
+                    m = target_seq[j++];
+                }
+                if (c->op != query_delete) {
+                    n = paf->same_strand ? query_seq[paf->query_start + i++] :
+                        stString_reverseComplementChar(query_seq[paf->query_end - (++i)]);
+                }
+                target_align[k] = m;
+                query_align[k] = n;
+                star_align[k++] = toupper(m) == toupper(n) ? '*' : ' ';
+            }
+            c = c->next;
+        }
+        assert(k <= max_align_length);
+        int64_t window = 150;
+        for (int64_t l = 0; l < k; l += window) {
+            paf_pretty_print2(target_align, l, l + window < k ? l + window : k, fh);
+            paf_pretty_print2(query_align, l, l + window < k ? l + window : k, fh);
+            paf_pretty_print2(star_align, l, l + window < k ? l + window : k, fh);
+        }
+        free(target_align);
+        free(query_align);
+        free(star_align);
+    }
 }
 
 void paf_write(Paf *paf, FILE *fh) {

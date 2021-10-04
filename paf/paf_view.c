@@ -19,6 +19,7 @@ void usage() {
     fprintf(stderr, "Pretty print PAF alignments\n");
     fprintf(stderr, "-i --inputFile : Input paf file to invert. If not specified reads from stdin\n");
     fprintf(stderr, "-o --outputFile : Output paf file. If not specified outputs to stdout\n");
+    fprintf(stderr, "-a --includeAlignment : Include base level alignment in output\n");
     fprintf(stderr, "-l --logLevel : Set the log level\n");
     fprintf(stderr, "-h --help : Print this help message\n");
 }
@@ -40,6 +41,7 @@ int main(int argc, char *argv[]) {
     char *logLevelString = NULL;
     char *inputFile = NULL;
     char *outputFile = NULL;
+    bool include_alignment=0;
 
     ///////////////////////////////////////////////////////////////////////////
     // Parse the inputs
@@ -53,7 +55,7 @@ int main(int argc, char *argv[]) {
                                                 { 0, 0, 0, 0 } };
 
         int option_index = 0;
-        int64_t key = getopt_long(argc, argv, "l:i:o:h", long_options, &option_index);
+        int64_t key = getopt_long(argc, argv, "l:i:o:ha", long_options, &option_index);
         if (key == -1) {
             break;
         }
@@ -67,6 +69,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 'o':
                 outputFile = optarg;
+                break;
+            case 'a':
+                include_alignment = 1;
                 break;
             case 'h':
                 usage();
@@ -126,7 +131,7 @@ int main(int argc, char *argv[]) {
         }
 
         // Now print the alignment
-        paf_pretty_print(paf, query_seq, target_seq, output);
+        paf_pretty_print(paf, query_seq, target_seq, output, include_alignment);
 
         // Cleanup
         paf_destruct(paf);
