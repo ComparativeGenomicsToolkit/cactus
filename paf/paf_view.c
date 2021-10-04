@@ -15,21 +15,13 @@
 #include "bioioC.h"
 
 void usage() {
-    fprintf(stderr, "paf_view query_sequence_fasta target_sequence_fasta [options], version 0.1\n");
+    fprintf(stderr, "paf_view [fasta_files]xN [options], version 0.1\n");
     fprintf(stderr, "Pretty print PAF alignments\n");
     fprintf(stderr, "-i --inputFile : Input paf file to invert. If not specified reads from stdin\n");
     fprintf(stderr, "-o --outputFile : Output paf file. If not specified outputs to stdout\n");
     fprintf(stderr, "-a --includeAlignment : Include base level alignment in output\n");
     fprintf(stderr, "-l --logLevel : Set the log level\n");
     fprintf(stderr, "-h --help : Print this help message\n");
-}
-
-stHash *read_sequence_file(char *sequence_file) {
-    FILE *seq_file_handle = fopen(sequence_file, "r");
-    stHash *sequences = fastaReadToMap(seq_file_handle);
-    fclose(seq_file_handle);
-    st_logInfo("Read %i sequences from sequence file: %s\n", (int)stHash_size(sequences), sequence_file);
-    return sequences;
 }
 
 int main(int argc, char *argv[]) {
@@ -82,13 +74,10 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    if (optind >= argc-1) {
-        fprintf(stderr, "Expected two arguments after options\n");
+    if (optind >= argc) {
+        fprintf(stderr, "Expected at least one sequence file\n");
         exit(1);
     }
-
-    char *query_sequence_file = argv[optind];
-    char *target_sequence_file = argv[optind+1];
 
     //////////////////////////////////////////////
     //Log the inputs
@@ -97,15 +86,20 @@ int main(int argc, char *argv[]) {
     st_setLogLevelFromString(logLevelString);
     st_logInfo("Input file string : %s\n", inputFile);
     st_logInfo("Output file string : %s\n", outputFile);
-    st_logInfo("Query sequence file string : %s\n", query_sequence_file);
-    st_logInfo("Target sequence file string : %s\n", target_sequence_file);
 
     //////////////////////////////////////////////
-    // Parse the query and target
+    // Parse the sequences
     //////////////////////////////////////////////
 
-    stHash *query_sequences = read_sequence_file(query_sequence_file);
-    stHash *target_sequences = read_sequence_file(target_sequence_file);
+    stHash *sequences = stHash_construct3(stHash_stringKey, stHash_stringEqualKey, free, free);
+    while(optind < argc) {
+        char *seq_file = argv[optind++];
+        st_logInfo("Parsing sequence file : %s\n", seq_file);
+        FILE *seq_file_handle = fopen(seq_file, "r");
+        fastaReadToFunction(seq_file_handle, sequences, fastaRead_readToMapFunction);
+        fclose(seq_file_handle);
+    }
+    st_logInfo("Read %i sequences from sequence files\n", (int)stHash_size(sequences));
 
     //////////////////////////////////////////////
     // Shatter the paf records
@@ -117,16 +111,16 @@ int main(int argc, char *argv[]) {
     Paf *paf;
     while((paf = paf_read(input)) != NULL) {
         // Get the query sequence
-        char *query_seq = stHash_search(query_sequences, paf->query_name);
+        char *query_seq = stHash_search(sequences, paf->query_name);
         if(query_seq == NULL) {
-            fprintf(stderr, "No query sequence named: %s found in the query file: %s\n", paf->query_name, query_sequence_file);
+            fprintf(stderr, "No query sequence named: %s found\n", paf->query_name);
             exit(1);
         }
 
         // Get the target sequence
-        char *target_seq = stHash_search(target_sequences, paf->target_name);
+        char *target_seq = stHash_search(sequences, paf->target_name);
         if(target_seq == NULL) {
-            fprintf(stderr, "No target sequence named: %s found in the query file: %s\n", paf->target_name, target_sequence_file);
+            fprintf(stderr, "No target sequence named: %s found\n", paf->target_name);
             exit(1);
         }
 
@@ -147,8 +141,7 @@ int main(int argc, char *argv[]) {
     if(outputFile != NULL) {
         fclose(output);
     }
-    stHash_destruct(query_sequences);
-    stHash_destruct(target_sequences);
+    stHash_destruct(sequences);
 
     st_logInfo("Paf view is done!, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
