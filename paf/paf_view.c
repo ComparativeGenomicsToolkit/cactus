@@ -12,6 +12,7 @@
 #include "inc/paf.h"
 #include <getopt.h>
 #include <time.h>
+#include "bioioC.h"
 
 void usage() {
     fprintf(stderr, "paf_view query_sequence_fasta target_sequence_fasta [options], version 0.1\n");
@@ -20,6 +21,14 @@ void usage() {
     fprintf(stderr, "-o --outputFile : Output paf file. If not specified outputs to stdout\n");
     fprintf(stderr, "-l --logLevel : Set the log level\n");
     fprintf(stderr, "-h --help : Print this help message\n");
+}
+
+stHash *read_sequence_file(char *sequence_file) {
+    FILE *seq_file_handle = fopen(sequence_file, "r");
+    stHash *sequences = fastaReadToMap(seq_file_handle);
+    fclose(seq_file_handle);
+    st_logInfo("Read %i sequences from sequence file: %s\n", (int)stHash_size(sequences), sequence_file);
+    return sequences;
 }
 
 int main(int argc, char *argv[]) {
@@ -31,8 +40,6 @@ int main(int argc, char *argv[]) {
     char *logLevelString = NULL;
     char *inputFile = NULL;
     char *outputFile = NULL;
-    char *query_sequence_file = NULL;
-    char *target_sequence_file = NULL;
 
     ///////////////////////////////////////////////////////////////////////////
     // Parse the inputs
@@ -70,6 +77,14 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    if (optind >= argc-1) {
+        fprintf(stderr, "Expected two arguments after options\n");
+        exit(1);
+    }
+
+    char *query_sequence_file = argv[optind];
+    char *target_sequence_file = argv[optind+1];
+
     //////////////////////////////////////////////
     //Log the inputs
     //////////////////////////////////////////////
@@ -84,7 +99,8 @@ int main(int argc, char *argv[]) {
     // Parse the query and target
     //////////////////////////////////////////////
 
-    fastaRead(query_sequence_file);
+    stHash *query_sequences = read_sequence_file(query_sequence_file);
+    stHash *target_sequences = read_sequence_file(target_sequence_file);
 
     //////////////////////////////////////////////
     // Shatter the paf records
@@ -95,11 +111,24 @@ int main(int argc, char *argv[]) {
 
     Paf *paf;
     while((paf = paf_read(input)) != NULL) {
-        stList *matches = paf_shatter(paf);
-        for(int64_t i=0; i<stList_length(matches); i++) {
-            paf_write(stList_get(matches, i), output);
+        // Get the query sequence
+        char *query_seq = stHash_search(query_sequences, paf->query_name);
+        if(query_seq == NULL) {
+            fprintf(stderr, "No query sequence named: %s found in the query file: %s\n", paf->query_name, query_sequence_file);
+            exit(1);
         }
-        stList_destruct(matches);
+
+        // Get the target sequence
+        char *target_seq = stHash_search(target_sequences, paf->target_name);
+        if(target_seq == NULL) {
+            fprintf(stderr, "No target sequence named: %s found in the query file: %s\n", paf->target_name, target_sequence_file);
+            exit(1);
+        }
+
+        // Now print the alignment
+        paf_pretty_print(paf, query_seq, target_seq, output);
+
+        // Cleanup
         paf_destruct(paf);
     }
 
@@ -113,8 +142,10 @@ int main(int argc, char *argv[]) {
     if(outputFile != NULL) {
         fclose(output);
     }
+    stHash_destruct(query_sequences);
+    stHash_destruct(target_sequences);
 
-    st_logInfo("Paf shatter is done!, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+    st_logInfo("Paf view is done!, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     //while(1);
     //assert(0);

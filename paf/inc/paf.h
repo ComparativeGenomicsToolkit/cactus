@@ -103,6 +103,11 @@ Paf *paf_read(FILE *fh);
 char *paf_print(Paf *paf);
 
 /*
+ * Prints a human readable alignment view of the paf
+ */
+void paf_pretty_print(Paf *paf, char *query_seq, char *target_seq, FILE *fh);
+
+/*
  * Writes a PAF alignment to the given file.
  */
 void paf_write(Paf *paf, FILE *fh);
@@ -153,6 +158,12 @@ void paf_trim_end_fraction(Paf *paf, float percentage);
  * Breaks up a paf into its set of constituent matches
  */
 stList *paf_shatter(Paf *paf);
+
+/*
+ * Calculate stats on the alignment
+ */
+void paf_stats_calc(Paf *paf, char *query_seq, char *target_seq,
+                       int64_t *matches, int64_t *mismatches, int64_t *query_inserts, int64_t *query_deletes);
 
 #endif /* ST_PAF_H_ */
 

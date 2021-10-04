@@ -10,7 +10,7 @@ stPafLibs = ${LDLIBS}
 
 all: all_libs all_progs
 all_libs: ${LIBDIR}/stPaf.a
-all_progs: all_libs ${BINDIR}/stPafTests ${BINDIR}/paf_chain ${BINDIR}/paf_invert ${BINDIR}/paf_tile ${BINDIR}/paf_trim ${BINDIR}/paf_shatter ${BINDIR}/cactus_chain
+all_progs: all_libs ${BINDIR}/stPafTests ${BINDIR}/paf_chain ${BINDIR}/paf_invert ${BINDIR}/paf_tile ${BINDIR}/paf_trim ${BINDIR}/paf_shatter ${BINDIR}/paf_view ${BINDIR}/cactus_chain
 
 ${LIBDIR}/stPaf.a : ${libSources} ${libHeaders}  ${stPafDependencies}
 	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -c ${libSources}

@@ -179,6 +179,47 @@ char *paf_print(Paf *paf) {
     return buffer;
 }
 
+void paf_stats_calc(Paf *paf, char *query_seq, char *target_seq,
+                    int64_t *matches, int64_t *mismatches, int64_t *query_inserts, int64_t *query_deletes) {
+    (*matches)=0; (*mismatches)=0; (*query_inserts)=0; (*query_deletes)=0;
+    Cigar *c = paf->cigar;
+    int64_t i=0, j=paf->target_start;
+    while(c != NULL) {
+        if(c->op == match) {
+            for(int64_t k=0; k<c->length; k++) {
+                if(toupper(target_seq[j++]) ==
+                   toupper(paf->same_strand ? query_seq[paf->query_start+i++] : stString_reverseComplementChar(query_seq[paf->query_end-(++i)]))) {
+                    (*matches)++;
+                }
+                else {
+                    (*mismatches)++;
+                }
+            }
+        }
+        else if(c->op == query_insert) {
+            (*query_inserts)++;
+            i += c->length;
+        }
+        else {
+            assert(c->op == query_delete);
+            (*query_deletes)++;
+            j += c->length;
+        }
+        c = c->next;
+    }
+}
+
+void paf_pretty_print(Paf *paf, char *query_seq, char *target_seq, FILE *fh) {
+    int64_t matches, mismatches, query_inserts, query_deletes;
+    paf_stats_calc(paf, query_seq, target_seq, &matches, &mismatches, &query_inserts, &query_deletes);
+    fprintf(fh, "Query:%s\tQ-start:%" PRIi64 "\tQ-length:%" PRIi64 "\tTarget:%s\tT-start:%" PRIi64 "\tT-length:%" PRIi64 "\tSame-strand:%i\tScore:%" PRIi64 "\tIdentity:%f\tAligned-bases:%" PRIi64 "\tQuery-inserts:%" PRIi64 "\tQuery-deletes:%" PRIi64 "\n",
+            paf->query_name, paf->query_start, paf->query_end-paf->query_start, paf->target_name, paf->target_start, paf->target_end-paf->target_start,
+            (int)paf->same_strand, paf->score, (float)matches/(matches+mismatches), matches+mismatches, query_inserts, query_deletes);
+
+    //
+
+}
+
 void paf_write(Paf *paf, FILE *fh) {
     char *c = paf_print(paf);
     fprintf(fh, "%s\n", c);
