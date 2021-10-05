@@ -5,54 +5,12 @@ This set of changes will bring about the following:
     - the ability to align a set of phased genomes to a reference, with an outgroup (proto-pangenome pipeline)
     - the addition of chaining to better determine synteny in complex regions
 
-::::::::: Scripts to write :::::::::
-
-paf_chain: Chain paf alignments
-   (1) Load local alignment file (PAF)
-   (2) Sort alignments by species and chromosome
-   (3) Chain alignments forward and reverse, assigning each alignment to a chain
-   (4) Output chained alignments file (PAF)
-
-paf_invert: Reverse query/target of paf alignments
-   (1) Load local alignments file (PAF)
-   (2) Reverse query and target
-   (3) Output local alignments file (PAF)
-
-paf_trim: Trim bases from the prefix and suffix matches of a paf alignment
-   (1) Load local alignments file (PAF)
-   (2) Trim percentage (5% by default) of prefix and suffix matches.
-   (3) Output local alignments file (PAF)
-
-paf_tile: Greedily assign a "level" to each alignment, so that alignments with the lowest level are tessellating, high-scoring alignments.
-  (1) Load local alignments files (PAF)
-  (2) Sort alignments by score, from best-to-worst
-  (3) Create integer array representing counts of alignments to bases in the genome, setting values initially to 0.
-  (4) Iterate through alignments, from best-to-worst, find medium count, q, of aligned bases to a base covered by the alignment,
-  set the "level" of the alignment to q+1, increase by one the aligned bases count of each base covered by the alignment.
-  (5) Output local alignments file, adding the alignment level tag to each alignment, sorted by score from best-to-worst
-
- cactus_chain: (overall coordination script as toil script)
-    Inputs are ingroup genome sets: A and B and outgroup genomes C.
-    align_AB = Align A vs. B
-    align_AC = Align A vs. C
-    align_BC = Align B vs. C
-    chains_AB = paf_chain(align_AB)
-    chains_AC = paf_chain(align_AC)
-    chains_BC = paf_chain(align_BC)
-    chains_BA = paf_invert(chains_AB)
-    chains_CA = paf_invert(chains_AC)
-    chains_CB = paf_invert(chains_BC)
-    tiled_chains_A = paf_tile(chains_AB, chains_AC)
-    tiled_chains_B = paf_tile(chains_BA, chains_BC)
-    tiled_chains_C = paf_tile(chains_CA, chains_CB)
-    --- do remaining filtering to split into primary and secondary and merge the resulting files ---
-    output primary and secondary alignment files
 
 :::::Other todos::::
 
 Minimap2 script (develop script to run minimap2 to align closely related genomic sequences)
 
-Convert Cactus to use PAF
+Convert Cactus to use PAF [partly done]
 
 Write a PAF library [DONE]
 

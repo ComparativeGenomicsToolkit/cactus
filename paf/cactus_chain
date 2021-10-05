@@ -24,10 +24,9 @@ chains=${temp_dir}/chains.paf
 # Make chains
 for align_file in "$@"
 do
-  paf_trim -t 0.0 -i $align_file | paf_chain  > $pair_chains
-  #cat $align_file > $pair_chains
+  paf_trim -i $align_file | paf_chain  > $pair_chains
   cat $pair_chains >> $chains
-  #paf_invert -i $pair_chains >> $chains
+  paf_invert -i $pair_chains >> $chains
 done
 
 # Make the tiled chains and pipe to stdout

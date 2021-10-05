@@ -362,28 +362,28 @@ int64_t paf_get_number_of_aligned_bases(Paf *paf) {
 }
 
 
-static Cigar *cigar_trim(int64_t *query_c, int64_t *target_c, Cigar *c, int64_t end_bases_to_trim, int sign) {
+static Cigar *cigar_trim(int64_t *query_c, int64_t *target_c, Cigar *c, int64_t end_bases_to_trim, int q_sign, int t_sign) {
     int64_t bases_trimmed = 0;
     while(c != NULL && (c->op != match || bases_trimmed < end_bases_to_trim)) {
         if(c->op == match) { // can trim this alignment
             if(bases_trimmed + c->length > end_bases_to_trim) {
                 int64_t i = end_bases_to_trim - bases_trimmed;
                 c->length -= i;
-                *query_c += sign*i;
-                *target_c += sign*i;
+                (*query_c) += q_sign*i;
+                (*target_c) += t_sign*i;
                 assert(c->length > 0);
                 break;
             }
             bases_trimmed += c->length;
-            *query_c += sign*c->length;
-            *target_c += sign*c->length;
+            (*query_c) += q_sign*c->length;
+            (*target_c) += t_sign*c->length;
         }
         else if(c->op == query_insert) {
-            *query_c += sign*c->length;
+            (*query_c) += q_sign*c->length;
         }
         else {
             assert(c->op == query_delete);
-            *target_c += sign*c->length;
+            (*target_c) += t_sign*c->length;
         }
         Cigar *c2 = c;
         c = c->next;
@@ -393,10 +393,18 @@ static Cigar *cigar_trim(int64_t *query_c, int64_t *target_c, Cigar *c, int64_t 
 }
 
 void paf_trim_ends(Paf *paf, int64_t end_bases_to_trim) {
-    // Trim front end
-    paf->cigar = cigar_trim(&(paf->query_start), &(paf->target_start), paf->cigar, end_bases_to_trim, 1);
-    // Trim back end
-    paf->cigar = cigar_reverse(cigar_trim(&(paf->query_end), &(paf->target_end), cigar_reverse(paf->cigar), end_bases_to_trim, -1));
+    if(paf->same_strand) {
+        // Trim front end
+        paf->cigar = cigar_trim(&(paf->query_start), &(paf->target_start), paf->cigar, end_bases_to_trim, 1, 1);
+        // Trim back end
+        paf->cigar = cigar_reverse(cigar_trim(&(paf->query_end), &(paf->target_end), cigar_reverse(paf->cigar), end_bases_to_trim, -1, -1));
+    }
+    else {
+        // Trim front end
+        paf->cigar = cigar_trim(&(paf->query_end), &(paf->target_start), paf->cigar, end_bases_to_trim, -1, 1);
+        // Trim back end
+        paf->cigar = cigar_reverse(cigar_trim(&(paf->query_start), &(paf->target_end), cigar_reverse(paf->cigar), end_bases_to_trim, 1, -1));
+    }
 }
 
 void paf_trim_end_fraction(Paf *p, float percentage) {

@@ -10,13 +10,16 @@ stPafLibs = ${LDLIBS}
 
 all: all_libs all_progs
 all_libs: ${LIBDIR}/stPaf.a
-all_progs: all_libs ${BINDIR}/stPafTests ${BINDIR}/paf_chain ${BINDIR}/paf_invert ${BINDIR}/paf_tile ${BINDIR}/paf_trim ${BINDIR}/paf_shatter ${BINDIR}/paf_view ${BINDIR}/cactus_chain
+all_progs: all_libs ${BINDIR}/stPafTests ${BINDIR}/paf_chain ${BINDIR}/paf_invert ${BINDIR}/paf_tile ${BINDIR}/paf_trim ${BINDIR}/paf_shatter ${BINDIR}/paf_view ${BINDIR}/cactus_chain ${BINDIR}/cactus_local_alignment.py
 
 ${LIBDIR}/stPaf.a : ${libSources} ${libHeaders}  ${stPafDependencies}
 	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -c ${libSources}
 	${AR} rc stPaf.a *.o
 	${RANLIB} stPaf.a
 	mv stPaf.a ${LIBDIR}/
+
+${BINDIR}/cactus_local_alignment.py : cactus_local_alignment.py
+	ln cactus_local_alignment.py ${BINDIR}/cactus_local_alignment.py
 
 ${BINDIR}/cactus_chain : cactus_chain
 	ln cactus_chain ${BINDIR}/cactus_chain
@@ -44,4 +47,4 @@ ${BINDIR}/stPafTests : ${libTests} ${LIBDIR}/stPaf.a ${stPafDependencies}
 
 clean : 
 	rm -f *.o
-	rm -f ${LIBDIR}/stPaf.a ${BINDIR}/stPafTests ${BINDIR}/paf_chain ${BINDIR}/paf_invert ${BINDIR}/paf_tile ${BINDIR}/paf_trim ${BINDIR}/paf_shatter ${BINDIR}/paf_view ${BINDIR}/cactus_chain
+	rm -f ${LIBDIR}/stPaf.a ${BINDIR}/stPafTests ${BINDIR}/paf_chain ${BINDIR}/paf_invert ${BINDIR}/paf_tile ${BINDIR}/paf_trim ${BINDIR}/paf_shatter ${BINDIR}/paf_view ${BINDIR}/cactus_chain ${BINDIR}/cactus_local_alignment.py
