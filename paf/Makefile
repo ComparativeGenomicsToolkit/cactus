@@ -22,7 +22,7 @@ ${BINDIR}/cactus_local_alignment.py : cactus_local_alignment.py
 	ln cactus_local_alignment.py ${BINDIR}/cactus_local_alignment.py
 
 ${BINDIR}/cactus_chain : cactus_chain
-	ln cactus_chain ${BINDIR}/cactus_chain
+	ln -f cactus_chain ${BINDIR}/cactus_chain
 
 ${BINDIR}/paf_chain : paf_chain.c ${LIBDEPENDS} ${commonPafLibs} ${libSources} ${libHeaders}
 	${CC} ${CPPFLAGS} ${CFLAGS} -o ${BINDIR}/paf_chain paf_chain.c ${libSources} ${commonPafLibs} ${LDLIBS}

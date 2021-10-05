@@ -28,11 +28,13 @@ if [ "$2" = "cow-dog" ]; then
   sequences="a ${working_dir}/simCow.chr6 b ${working_dir}/simDog.chr6 c ${working_dir}/simHuman.chr6"
   sequence_files="${working_dir}/simCow.chr6 ${working_dir}/simDog.chr6 ${working_dir}/simHuman.chr6"
   sequenceNames="simCow.chr6 simDog.chr6 simHuman.chr6"
+  ingroupSequenceNames="simCow.chr6 simDog.chr6"
 else
   # Human mouse
   sequences="a ${working_dir}/simMouse.chr6 b ${working_dir}/simHuman.chr6 c ${working_dir}/simDog.chr6"
   sequence_files="${working_dir}/simMouse.chr6 ${working_dir}/simHuman.chr6 ${working_dir}/simDog.chr6"
   sequenceNames="simMouse.chr6 simHuman.chr6 simDog.chr6"
+  ingroupSequenceNames="simMouse.chr6 simHuman.chr6"
 fi
 
 # Get the sequence files
@@ -63,5 +65,13 @@ wget -q https://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/ca
 # Run mafComparator
 mafComparator --maf1 ${working_dir}/mammals-truth.maf --maf2 ${working_dir}/output.maf --out ${working_dir}/maf_comparison.xml
 
-# Report the stats
-cat ${working_dir}/maf_comparison.xml
+# Report the stats for the relevant comparison
+for i in ${ingroupSequenceNames}
+do
+grep "${i}" -A 2 ${working_dir}/maf_comparison.xml > ${working_dir}/maf_comparison.xml.2
+mv ${working_dir}/maf_comparison.xml.2 ${working_dir}/maf_comparison.xml
+done
+grep "singleHomologyTest" -A 2 ${working_dir}/maf_comparison.xml | grep "all"
+
+# Report number of PAFs
+wc -l ${working_dir}/output.paf

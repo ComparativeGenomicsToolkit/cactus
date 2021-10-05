@@ -31,8 +31,8 @@ void usage() {
 int64_t gap_cost(int64_t query_gap_length, int64_t target_gap_length, void *params) {
     assert(query_gap_length >= 0);
     assert(target_gap_length >= 0);
-    // These parameters match the ones in lastz
-    return query_gap_length + target_gap_length == 0 ? 0 : 400 + 30 * (query_gap_length + target_gap_length);
+    // These parameters match the ones in lastz except the gap extend is 10 rather than 30
+    return query_gap_length + target_gap_length == 0 ? 0 : 400 + 10 * (query_gap_length + target_gap_length);
     //return 1000*(query_gap_length + target_gap_length);
     //int64_t min_indel = llabs(query_gap_length - target_gap_length);
     //int64_t diagonal_gap = query_gap_length < target_gap_length ? query_gap_length : target_gap_length;

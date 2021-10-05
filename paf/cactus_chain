@@ -4,7 +4,7 @@
 
 # print arguments if no input files given
 if [[ $# -eq 0 ]]; then
-    echo "cactus_chains [alignment_files.paf]xN"
+    echo "cactus_chain [alignment_files.paf]xN"
     exit 2
 fi
 
@@ -17,17 +17,17 @@ set -x
 # Temporary chain files
 temp_dir=$(mktemp -d -t temp_chains-XXXXXXXXXX)
 # Make sure we cleanup the temp dir
-trap "rm -rf ${temp_dir}" EXIT
+trap 'rm -rf ${temp_dir}' EXIT
 pair_chains=${temp_dir}/pair_chains.paf
 chains=${temp_dir}/chains.paf
 
 # Make chains
 for align_file in "$@"
 do
-  paf_trim -i $align_file | paf_chain -m  > $pair_chains
-  cat $pair_chains >> $chains
-  paf_invert -i $pair_chains >> $chains
+  paf_trim -i "$align_file" | paf_chain -m  > "$pair_chains"
+  cat "$pair_chains" >> "$chains"
+  paf_invert -i "$pair_chains" >> "$chains"
 done
 
 # Make the tiled chains and pipe to stdout
-paf_tile -i $chains
+paf_tile -i "$chains"
