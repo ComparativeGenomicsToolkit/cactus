@@ -19,7 +19,7 @@ from argparse import ArgumentParser
 from operator import itemgetter
 
 from sonLib.bioio import newickTreeParser
-
+from toil.lib.bioio import system
 from toil.lib.bioio import getTempFile
 from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
@@ -38,6 +38,8 @@ from cactus.shared.common import RoundedJob
 from cactus.blast.blast import BlastIngroupsAndOutgroups
 from cactus.blast.blast import BlastOptions
 from cactus.blast.mappingQualityRescoringAndFiltering import mappingQualityRescoring
+
+from cactus.paf.local_alignment import make_paf_alignments
 
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 
@@ -354,8 +356,18 @@ def updateExpWrapperForOutgroups(job, expWrapper, outgroupGenomes, outgroupFragm
 ############################################################
 ############################################################
 
-class CactusConsolidated(CactusPhasesJob):
+class CactusPafAlign(CactusPhasesJob):
+    def run(self, fileStore):
+        experiment = self.cactusWorkflowArguments.experimentWrapper
+        self.cactusWorkflowArguments.alignmentsID = self.addChildJobFn(make_paf_alignments,
+                                            self.cactusWorkflowArguments.speciesTree,
+                                            dict((genome, experiment.getSequenceID(genome)) for genome in experiment.getGenomesWithSequence()),
+                                            experiment.getRootGenome(),
+                                            self.cactusWorkflowArguments.configNode).rv()
+        return self.makeFollowOnPhaseJob(CactusConsolidated, phaseName="consolidated")
 
+class CactusConsolidated(CactusPhasesJob):
+    """ Commmenting this out for now
     def __init__(self, *args, **kwargs):
         super(CactusConsolidated, self).__init__(*args, **kwargs)
         if "cactusWorkflowArguments" in kwargs and kwargs["cactusWorkflowArguments"].consCores:
@@ -372,6 +384,7 @@ class CactusConsolidated(CactusPhasesJob):
             resource += coefficient * (x**degree)
         resource = min(resource, memoryCap)
         self.memory = int(resource)
+    """
     
     """Run cactus_consolidated (this spans everythring from bar to hal-genenerator)."""
     def run(self, fileStore):
@@ -384,17 +397,15 @@ class CactusConsolidated(CactusPhasesJob):
         seqIDMap = dict((genome, experiment.getSequenceID(genome)) for genome in experiment.getGenomesWithSequence())
         seqMap = dict((genome, fileStore.readGlobalFile(id)) for genome, id in list(seqIDMap.items()))
 
-        # Get the alignment files
+        # Get the alignments file
         alignments = fileStore.readGlobalFile(self.cactusWorkflowArguments.alignmentsID)
         logger.info("Alignments file: %s" % alignments)
 
-        secondaryAlignments = None
-        if self.cactusWorkflowArguments.secondaryAlignmentsID != None:
-            secondaryAlignments = fileStore.readGlobalFile(self.cactusWorkflowArguments.secondaryAlignmentsID)
-
-        constraints = None
-        if self.cactusWorkflowArguments.constraintsID is not None:
-            constraints = fileStore.readGlobalFile(self.cactusWorkflowArguments.constraintsID)
+        # Split the alignments file into primary and secondary
+        primary_alignment_file = fileStore.getLocalTempFile()
+        system("grep tl:i:1 {} > {}".format(alignments, primary_alignment_file))
+        secondary_alignment_file = fileStore.getLocalTempFile()
+        system("grep -v tl:i:1 {} > {}".format(alignments, secondary_alignment_file))
 
         # Temporary place to store the output c2h file
         tmpHal = fileStore.getLocalTempFile()
@@ -408,12 +419,12 @@ class CactusConsolidated(CactusPhasesJob):
         messages = runCactusConsolidated(seqMap=seqMap,
                                          newickTreeString=self.cactusWorkflowArguments.speciesTree,
                                          cactusParams=tmpConfig,
-                                         alignmentsFile=alignments,
+                                         alignmentsFile=primary_alignment_file,
                                          outputFile=tmpHal,
                                          outputHalFastaFile=tmpFasta,
                                          outputReferenceFile=tmpRef,
-                                         secondaryAlignmentsFile=secondaryAlignments,
-                                         constraintAlignmentsFile=constraints,
+                                         secondaryAlignmentsFile=secondary_alignment_file,
+                                         constraintAlignmentsFile=None,
                                          logLevel=getLogLevelString(),
                                          outgroupEvents=experiment.getOutgroupGenomes(),
                                          referenceEvent=experiment.getRootGenome(),
@@ -534,7 +545,10 @@ class AfterPreprocessing(RoundedJob):
             self.eW.setSequenceID(genome, preprocessedSeqID)
         fileStore.logToMaster("doTrimStrategy() = %s, outgroupEventNames = %s" % (self.cactusWorkflowArguments.configWrapper.getDoTrimStrategy(), self.cactusWorkflowArguments.outgroupEventNames))
         # Use the trimming strategy to blast ingroups vs outgroups.
-        self.addFollowOn(CactusBlastPhase(cactusWorkflowArguments=self.cactusWorkflowArguments, phaseName="blast"))
+        #self.addFollowOn(CactusBlastPhase(cactusWorkflowArguments=self.cactusWorkflowArguments, phaseName="blast"))
+
+        self.addFollowOn(CactusPafAlign(cactusWorkflowArguments=self.cactusWorkflowArguments, phaseName="blast"))
+
 
 def runCactusWorkflow(args):
     ##########################################
