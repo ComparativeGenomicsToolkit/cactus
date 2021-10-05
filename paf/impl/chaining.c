@@ -307,12 +307,12 @@ stList *paf_chain_ignore_strand(stList *pafs, int64_t (*gap_cost)(int64_t, int64
 }
 
 /*
- * Makes it so that a reverse strand alignment can be chained by "mirroring" the target sequence coordinates
+ * Makes it so that a reverse strand alignment can be chained by "mirroring" the query sequence coordinates
  */
-void invert_target_strand(Paf *p) {
-    int64_t i = p->target_start;
-    p->target_start = -p->target_end;
-    p->target_end = -i;
+void invert_query_strand(Paf *p) {
+    int64_t i = p->query_start;
+    p->query_start = -p->query_end;
+    p->query_end = -i;
 }
 
 static int paf_cmp_by_score(const void *a, const void *b) {
@@ -331,7 +331,7 @@ stList *paf_chain(stList *pafs, int64_t (*gap_cost)(int64_t, int64_t, void *), v
             stList_append(positive_strand_pafs, p);
         }
         else {
-            invert_target_strand(p);
+            invert_query_strand(p);
             stList_append(negative_strand_pafs, p);
         }
     }
@@ -341,7 +341,7 @@ stList *paf_chain(stList *pafs, int64_t (*gap_cost)(int64_t, int64_t, void *), v
 
     // Correct negative strand coordinates
     for(int64_t i=0; i<stList_length(negative_chained_pafs); i++) {
-        invert_target_strand(stList_get(negative_chained_pafs, i));
+        invert_query_strand(stList_get(negative_chained_pafs, i));
     }
 
     stList_appendAll(positive_chained_pafs, negative_chained_pafs);
