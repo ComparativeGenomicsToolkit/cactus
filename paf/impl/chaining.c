@@ -169,30 +169,18 @@ int64_t get_chain_score(Chain *chain, int64_t (*gap_cost)(int64_t, int64_t, void
 }
 
 static void chain_to_pafs(Chain *chain, int64_t (*gap_cost)(int64_t, int64_t, void *),
-                         void *gap_cost_params, stList *output_pafs, bool merge_pafs) {
+                         void *gap_cost_params, stList *output_pafs) {
     int64_t total_score = get_chain_score(chain, gap_cost, gap_cost_params);
-    if(merge_pafs) {
-        Paf *p = chain_to_paf(chain);
-        p->score = total_score;
-        stList_append(output_pafs, p);
-    }
-    else {
-        while (chain != NULL) {
-            chain->paf->score = total_score;
-            stList_append(output_pafs, chain->paf);
-            // Shift back to the previous link and cleanup
-            Chain *c = chain;
-            chain = chain->pChain;
-            free(c);
-        }
-    }
+    Paf *p = chain_to_paf(chain);
+    p->score = total_score;
+    stList_append(output_pafs, p);
 }
 
 /*
  * Chains together the input pafs. Ignores strand.
  */
 stList *paf_chain_ignore_strand(stList *pafs, int64_t (*gap_cost)(int64_t, int64_t, void *),
-                                void *gap_cost_params, int64_t max_gap_length, bool merge_chained_pafs) {
+                                void *gap_cost_params, int64_t max_gap_length) {
     stList_sort(pafs, paf_cmp_by_query_location); // Sort alignments by query start coordinate
 
     stSortedSet *active_chained_alignments = stSortedSet_construct3(chain_cmp_by_location, NULL); // The set of
@@ -292,7 +280,7 @@ stList *paf_chain_ignore_strand(stList *pafs, int64_t (*gap_cost)(int64_t, int64
     // Now finally convert chains back to single pafs
     stList *output_pafs = stList_construct();
     for(int64_t i=0; i<stList_length(outputChains); i++) {
-        chain_to_pafs(stList_get(outputChains, i), gap_cost, gap_cost_params, output_pafs, merge_chained_pafs);
+        chain_to_pafs(stList_get(outputChains, i), gap_cost, gap_cost_params, output_pafs);
     }
 
     // Cleanup
@@ -321,7 +309,7 @@ static int paf_cmp_by_score(const void *a, const void *b) {
 }
 
 stList *paf_chain(stList *pafs, int64_t (*gap_cost)(int64_t, int64_t, void *), void *gap_cost_params,
-                  int64_t max_gap_length, bool merge_chained_pafs) {
+                  int64_t max_gap_length) {
     // Split into forward and reverse strand alignments
     stList *positive_strand_pafs = stList_construct();
     stList *negative_strand_pafs = stList_construct();
@@ -336,8 +324,8 @@ stList *paf_chain(stList *pafs, int64_t (*gap_cost)(int64_t, int64_t, void *), v
         }
     }
 
-    stList *positive_chained_pafs = paf_chain_ignore_strand(positive_strand_pafs, gap_cost, gap_cost_params, max_gap_length, merge_chained_pafs);
-    stList *negative_chained_pafs = paf_chain_ignore_strand(negative_strand_pafs, gap_cost, gap_cost_params, max_gap_length, merge_chained_pafs);
+    stList *positive_chained_pafs = paf_chain_ignore_strand(positive_strand_pafs, gap_cost, gap_cost_params, max_gap_length);
+    stList *negative_chained_pafs = paf_chain_ignore_strand(negative_strand_pafs, gap_cost, gap_cost_params, max_gap_length);
 
     // Correct negative strand coordinates
     for(int64_t i=0; i<stList_length(negative_chained_pafs); i++) {

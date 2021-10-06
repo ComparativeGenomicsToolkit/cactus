@@ -23,7 +23,6 @@ void usage() {
     fprintf(stderr, "-i --inputFile : Input paf file to invert. If not specified reads from stdin\n");
     fprintf(stderr, "-o --outputFile : Output paf file. If not specified outputs to stdout\n");
     fprintf(stderr, "-g --maxGapLength [INT] : The maximum allowable length of a gap in either sequence to chain (default:%" PRIi64 "bp)\n", max_gap_length);
-    fprintf(stderr, "-m --mergeChainedPafs : Merge together paf records that are chained (by default records are not merged, but scores adjusted)\n");
     fprintf(stderr, "-l --logLevel : Set the log level\n");
     fprintf(stderr, "-h --help : Print this help message\n");
 }
@@ -48,7 +47,6 @@ int main(int argc, char *argv[]) {
     char *logLevelString = NULL;
     char *inputFile = NULL;
     char *outputFile = NULL;
-    bool merge_chained_pafs = 0;
 
     ///////////////////////////////////////////////////////////////////////////
     // Parse the inputs
@@ -59,12 +57,11 @@ int main(int argc, char *argv[]) {
                                                 { "inputFile", required_argument, 0, 'i' },
                                                 { "outputFile", required_argument, 0, 'o' },
                                                 { "maxGapLength", required_argument, 0, 'g' },
-                                                { "mergeChainedPafs", required_argument, 0, 'm' },
                                                 { "help", no_argument, 0, 'h' },
                                                 { 0, 0, 0, 0 } };
 
         int option_index = 0;
-        int64_t key = getopt_long(argc, argv, "l:i:o:hmg:", long_options, &option_index);
+        int64_t key = getopt_long(argc, argv, "l:i:o:hg:", long_options, &option_index);
         if (key == -1) {
             break;
         }
@@ -81,9 +78,6 @@ int main(int argc, char *argv[]) {
                 break;
             case 'g':
                 max_gap_length = atoi(optarg);
-                break;
-            case 'm':
-                merge_chained_pafs = 1;
                 break;
             case 'h':
                 usage();
@@ -110,7 +104,7 @@ int main(int argc, char *argv[]) {
     FILE *output = outputFile == NULL ? stdout : fopen(outputFile, "w");
 
     stList *pafs = read_pafs(input); // Load local alignments files (PAF)
-    stList *chained_pafs = paf_chain(pafs, gap_cost, NULL, max_gap_length, merge_chained_pafs); // Convert to set of chains
+    stList *chained_pafs = paf_chain(pafs, gap_cost, NULL, max_gap_length); // Convert to set of chains
 
     // Output chained alignments file
     write_pafs(output, chained_pafs);

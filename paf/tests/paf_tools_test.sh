@@ -34,7 +34,7 @@ paf_invert -i ${working_dir}/output.paf | paf_view ${working_dir}/*.fa | cut -f9
 
 # Run paf_view with chain
 echo "paf_chain minimum local alignment identity"
-paf_chain -i ${working_dir}/output.paf -m | paf_view ${working_dir}/*.fa | cut -f9 | sort | head -n1
+paf_chain -i ${working_dir}/output.paf | paf_view ${working_dir}/*.fa | cut -f9 | sort | head -n1
 
 # Run paf_view with shatter
 echo "paf_shatter minimum local alignment identity (will be low as equal to worst run of matches)"

@@ -135,8 +135,7 @@ void write_pafs(FILE *paf_file, stList *pafs);
 /*
  * Chain a set of pafs into larger alignments
  */
-stList *paf_chain(stList *pafs, int64_t (*gap_cost)(int64_t, int64_t, void *), void *gap_cost_params,
-                  int64_t max_gap_length, bool merge_chained_pafs);
+stList *paf_chain(stList *pafs, int64_t (*gap_cost)(int64_t, int64_t, void *), void *gap_cost_params, int64_t max_gap_length);
 
 /*
  * Gets the number of aligned bases in the alignment between the query
