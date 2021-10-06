@@ -344,7 +344,7 @@
 			strategy="greedyPreference"
 			threshold="0"
 			ancestor_quality_fraction="0.75"
-                        max_num_outgroups="3"
+			max_num_outgroups="1"
 		/>
 	 	<decomposition
 	 		self_alignment="false"
