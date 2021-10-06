@@ -63,13 +63,22 @@ def main():
     parser.add_argument("--outDir", required=True, type=str, help = "Output directory")
     parser.add_argument("--outName", required=True, type=str, help = "Basename of all output files")
     parser.add_argument("--reference", required=True, type=str, help = "Reference event name")
-    parser.add_argument("--vcfReference", type=str, help = "Reference event for VCF (if different from --reference)")
+    parser.add_argument("--vcfReference", type=str, help = "Produce additional VCF for given reference event")
     parser.add_argument("--rename", nargs='+', default = [], help = "Path renaming, each of form src>dest (see clip-vg -r)")
     parser.add_argument("--clipLength", type=int, default=None, help = "clip out unaligned sequences longer than this")
     parser.add_argument("--wlineSep", type=str, help = "wline separator for vg convert")
-    parser.add_argument("--indexCores", type=int, default=1, help = "cores for indexing processes")
+    parser.add_argument("--indexCores", type=int, default=1, help = "cores for general indexing and VCF constructions")
+    parser.add_argument("--giraffeCores", type=int, default=None, help = "cores for giraffe-specific indexing (defaults to --indexCores)")
     parser.add_argument("--decoyGraph", help= "decoy sequences vg graph to add (PackedGraph or HashGraph format)")
     parser.add_argument("--hal", nargs='+', default = [], help = "Input hal files (for merging)")
+    parser.add_argument("--vcf", action="store_true", help= "make VCF")
+    parser.add_argument("--giraffe", action="store_true", help= "make Giraffe-specific indexes (distance and minimizer)")
+    parser.add_argument("--normalizeIterations", type=int, default=None,
+                        help="Run this many iterations of vg normamlization (shared prefix zipping)")
+    parser.add_argument("--gfaffix", action="store_true",
+                        help="Run GFAFfix normalization")
+    parser.add_argument("--vgClipOpts", nargs='+', help = "If specified, run vg clip with given options (surround in quotes; multiple allowed to chain multiple clip commands)")
+    parser.add_argument("--unclipSeqFile",type=str, help = "seqfile of unclipped sequences. If given, halUnclip will be run on the HAL output to restore original sequences (removing _sub suffixes)")
     
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -96,6 +105,10 @@ def main():
 
     if options.hal and len(options.hal) != len(options.vg):
         raise RuntimeError("If --hal and --vg should specify the same number of files")
+    if not options.giraffeCores:
+        options.giraffeCores = options.indexCores
+    if options.unclipSeqFile and not options.hal:
+        raise  RuntimeError("--unclipSeqFile can only be used with --hal")
         
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
@@ -138,15 +151,30 @@ def runCactusGraphMapJoin(options):
             hal_ids = []
             for hal_path in options.hal:
                 logger.info("Importing {}".format(hal_path))
-                hal_ids.append(toil.importFile(makeURL(hal_path)))                
+                hal_ids.append(toil.importFile(makeURL(hal_path)))
+
+            # load up the sequences
+            unclip_seq_id_map = {}
+            if options.unclipSeqFile:
+                seqFile = SeqFile(options.unclipSeqFile)
+                leaves = set([seqFile.tree.getName(node) for node in seqFile.tree.getLeaves()])
+                for genome, seq in seqFile.pathMap.items():
+                    if genome in leaves:
+                        if os.path.isdir(seq):
+                            tmpSeq = getTempFile()
+                            catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
+                            seq = tmpSeq
+                        seq = makeURL(seq)
+                        logger.info("Importing {}".format(seq))
+                        unclip_seq_id_map[genome] = (seq, toil.importFile(seq))
 
             # run the workflow
-            wf_output = toil.start(Job.wrapJobFn(graphmap_join_workflow, options, config, vg_ids, hal_ids))
+            wf_output = toil.start(Job.wrapJobFn(graphmap_join_workflow, options, config, vg_ids, hal_ids, unclip_seq_id_map))
                 
         #export the split data
-        export_join_data(toil, options, wf_output[0], wf_output[1], wf_output[2])
+        export_join_data(toil, options, wf_output[0], wf_output[1])
 
-def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
+def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, unclip_seq_id_map):
 
     root_job = Job()
     job.addChild(root_job)
@@ -163,13 +191,26 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
                                          disk=sum([f.size for f in vg_ids]))
     clipped_vg_ids = join_job.rv()
 
+    # optional clipping -- we do this down here after joining and normalization so
+    # our graph is id-compatible with a graph that wasn't clipped (but run with same parameters otherwise)
+    if options.vgClipOpts:
+        clip_root_job = Job()
+        join_job.addFollowOn(clip_root_job)
+        clipped_vg_ids = []
+        for i in range(len(vg_ids)):
+            vg_clip_job = clip_root_job.addChildJobFn(vg_clip_vg, options, config, options.vg[i], join_job.rv(i),
+                                                      disk=vg_ids[i].size * 2)
+            join_job.addFollowOn(vg_clip_job)
+            clipped_vg_ids.append(vg_clip_job.rv())
+        join_job = clip_root_job
+
     # make a gfa for each
     gfa_root_job = Job()
     join_job.addFollowOn(gfa_root_job)
     clipped_gfa_ids = []
     for i in range(len(options.vg)):
         vg_path = options.vg[i]
-        clipped_id = join_job.rv(i)
+        clipped_id = clipped_vg_ids[i] if options.vgClipOpts else join_job.rv(i)
         vg_id = vg_ids[i]
         gfa_job = gfa_root_job.addChildJobFn(vg_to_gfa, options, config, vg_path, clipped_id,
                                              disk=vg_id.size * 5)
@@ -179,14 +220,48 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids):
     gfa_merge_job = gfa_root_job.addFollowOnJobFn(vg_indexes, options, config, clipped_gfa_ids,
                                                   cores=options.indexCores,
                                                   disk=sum(f.size for f in vg_ids) * 5)
+    out_dicts = [gfa_merge_job.rv()]
+                                
+    # optional vcf
+    if options.vcf:
+        deconstruct_job = gfa_merge_job.addFollowOnJobFn(make_vcf, options.outName, options.reference, out_dicts[0],
+                                                         cores=options.indexCores,
+                                                         disk = sum(f.size for f in vg_ids) * 2)
+        out_dicts.append(deconstruct_job.rv())
 
+    # optional vcf with different reference
+    if options.vcfReference:
+        ref_deconstruct_job = gfa_merge_job.addFollowOnJobFn(make_vcf, options.outName, options.vcfReference, out_dicts[0],
+                                                             tag=options.vcfReference + '.',
+                                                             cores=options.indexCores,
+                                                             disk = sum(f.size for f in vg_ids) * 2)
+        out_dicts.append(ref_deconstruct_job.rv())
+
+    # optional giraffe
+    if options.giraffe:
+        giraffe_job = gfa_merge_job.addFollowOnJobFn(make_giraffe_indexes, options, out_dicts[0],
+                                                     cores=options.giraffeCores,
+                                                     disk = sum(f.size for f in vg_ids) * 4)
+        out_dicts.append(giraffe_job.rv())
+
+    # optional hal merge
     if hal_ids:
-        merge_hal_id = job.addChildJobFn(merge_hal, options, hal_ids,
-                                         disk=sum(f.size for f in hal_ids) * 2).rv()
-    else:
-        merge_hal_id = None
+        hal_merge_job = root_job.addChildJobFn(merge_hal, options, hal_ids,
+                                               cores = 1,
+                                               disk=sum(f.size for f in hal_ids) * 2)
+        hal_id_dict = hal_merge_job.rv()
+        if unclip_seq_id_map:
+            # optional hal unclip
+            unzip_seq_ids_job = root_job.addChildJobFn(unzip_seqfile, unclip_seq_id_map,
+                                                       disk=sum(f.size for f in hal_ids) * 2)
+            hal_unclip_job = unzip_seq_ids_job.addFollowOnJobFn(unclip_hal, hal_merge_job.rv(), unzip_seq_ids_job.rv(),
+                                                                disk=sum(f.size for f in hal_ids) * 5)
+            hal_merge_job.addFollowOn(hal_unclip_job)
+            hal_id_dict = hal_unclip_job.rv()
+
+        out_dicts.append(hal_id_dict)
     
-    return clipped_vg_ids, gfa_merge_job.rv(), merge_hal_id
+    return clipped_vg_ids, out_dicts
 
 def clip_vg(job, options, config, vg_path, vg_id):
     """ run clip-vg 
@@ -195,8 +270,10 @@ def clip_vg(job, options, config, vg_path, vg_id):
     is_decoy = vg_path == options.decoyGraph
     vg_path = os.path.join(work_dir, os.path.basename(vg_path))
     job.fileStore.readGlobalFile(vg_id, vg_path)
-    out_path = vg_path + '.clip'
+    clipped_path = vg_path + '.clip'
+    out_path = vg_path + '.out'
 
+    # remove masked unaligned regions with clip-vg
     cmd = ['clip-vg', vg_path, '-f']
     if options.clipLength is not None and not is_decoy:
         cmd += ['-u', str(options.clipLength)]
@@ -204,16 +281,53 @@ def clip_vg(job, options, config, vg_path, vg_id):
         cmd += ['-r', rs]
     if options.reference:
         cmd += ['-e', options.reference]
-    
+
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "hal2vg"), "includeMinigraph", typeFn=bool, default=False):
         # our vg file has minigraph sequences -- we'll filter them out, along with any nodes
         # that don't appear in a non-minigraph path
         graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
         cmd += ['-d', graph_event]
         
-    # sort while we're at it
-    cmd = [cmd, ['vg', 'ids', '-s', '-']]
+    cactus_call(parameters=cmd, outfile=clipped_path)
         
+    # optional normalization.  this will (in theory) correct a lot of small underalignments due to cactus bugs
+    # by zipping up redundant nodes. done before clip-vg otherwise ref paths not guaranteed to be forwardized
+    # todo: would be nice if clip-vg worked on stdin
+    if options.normalizeIterations:
+        normalized_path = clipped_path + '.normalized'
+        mod_cmd = ['vg', 'mod', '-O', '-U', str(options.normalizeIterations), clipped_path]
+        if options.reference:
+            mod_cmd += ['-z', options.reference]
+        cactus_call(parameters=mod_cmd, outfile=normalized_path)
+        # worth it
+        cactus_call(parameters=['vg', 'validate', normalized_path])
+        clipped_path = normalized_path
+
+    # GFAFfix is a tool written just to normalize graphs, and alters a (faster) alternative to vg
+    # (though requires GFA conversion)
+    if options.gfaffix:
+        normalized_path = clipped_path + '.gfaffixed'
+        gfa_in_path = vg_path + '.gfa'
+        gfa_out_path = normalized_path + '.gfa'
+        cactus_call(parameters=['vg', 'convert', '-f', clipped_path], outfile=gfa_in_path)
+        fix_cmd = ['gfaffix', gfa_in_path, '--output_refined', gfa_out_path]
+        if options.reference:
+            fix_cmd += ['--dont_collapse', options.reference + '*']
+        cactus_call(parameters=fix_cmd)
+        # GFAFfix doesn't seem to unchop that well, so we do that in vg after
+        # The double convert is to work around: https://github.com/vgteam/vg/issues/3373
+        cactus_call(parameters=[['vg', 'convert', '-g', '-a', gfa_out_path], ['vg', 'mod', '-u', '-'], ['vg', 'convert', '-p', '-']], outfile=normalized_path)
+        clipped_path = normalized_path
+
+    # also forwardize just in case
+    if options.reference and (options.normalizeIterations or options.gfaffix):
+        forward_path = clipped_path + '.forward'
+        cmd = ['clip-vg', clipped_path, '-e', options.reference]
+        cactus_call(parameters=cmd, outfile=forward_path)
+        clipped_path = forward_path
+
+    # sort by id
+    cmd = ['vg', 'ids', '-s', clipped_path]        
     cactus_call(parameters=cmd, outfile=out_path)
 
     # worth it
@@ -221,6 +335,28 @@ def clip_vg(job, options, config, vg_path, vg_id):
 
     return job.fileStore.writeGlobalFile(out_path)
 
+def vg_clip_vg(job , options, config, vg_path, vg_id):
+    """ run vg clip, chaining multiple invocations if desired.
+    """
+    work_dir = job.fileStore.getLocalTempDir()
+    is_decoy = vg_path == options.decoyGraph
+    vg_path = os.path.join(work_dir, os.path.basename(vg_path))
+    job.fileStore.readGlobalFile(vg_id, vg_path)
+    clipped_path = vg_path + '.clip'
+
+    clip_cmd = ['vg', 'clip', vg_path, '-P', options.reference] +  options.vgClipOpts[0].split()
+    if len(options.vgClipOpts) > 1:
+        clip_cmd = [clip_cmd]
+        for clip_opts in options.vgClipOpts[1:]:
+            clip_cmd.append(['vg', 'clip', '-', '-P', options.reference] +  clip_opts.split())
+
+    cactus_call(parameters=clip_cmd, outfile=clipped_path)
+
+    # worth it
+    cactus_call(parameters=['vg', 'validate', clipped_path])
+
+    return job.fileStore.writeGlobalFile(clipped_path)
+    
 def join_vg(job, options, config, clipped_vg_ids):
     """ run vg ids -j
     """
@@ -254,7 +390,7 @@ def vg_to_gfa(job, options, config, vg_path, vg_id):
     return job.fileStore.writeGlobalFile(out_path)
 
 def vg_indexes(job, options, config, gfa_ids):
-    """ merge of the gfas, then make gbwt / xg / snarls / vcf 
+    """ merge of the gfas, then make gbwt / xg / snarls / trans
     """ 
     work_dir = job.fileStore.getLocalTempDir()
     vg_paths = []
@@ -275,6 +411,10 @@ def vg_indexes(job, options, config, gfa_ids):
     trans_path = os.path.join(work_dir, 'merged.trans')
     cactus_call(parameters=['vg', 'gbwt', '-G', merge_gfa_path, '-o', gbwt_path, '-g', gg_path, '--translation', trans_path])
 
+    # compress the trans
+    cactus_call(parameters=['bgzip', trans_path, '--threads', str(job.cores)])
+    trans_path += '.gz'                            
+    
     # zip the gfa
     cactus_call(parameters=['bgzip', merge_gfa_path, '--threads', str(job.cores)])
     gfa_path = merge_gfa_path + '.gz'
@@ -289,28 +429,63 @@ def vg_indexes(job, options, config, gfa_ids):
     # make the snarls
     snarls_path = os.path.join(work_dir, 'merged.snarls')
     cactus_call(parameters=['vg', 'snarls', xg_path, '-T', '-t', str(job.cores)], outfile=snarls_path)
-
-    # make the vcf
-    vcf_path = os.path.join(work_dir, 'merged.vcf.gz')
-    vcf_ref = options.vcfReference if options.vcfReference else options.reference
-    cactus_call(parameters=[['vg', 'deconstruct', xg_path, '-P', vcf_ref, '-a', '-r', snarls_path, '-g', gbwt_path,
-                             '-T', trans_path, '-t', str(job.cores)],
-                            ['bgzip', '--threads', str(job.cores)]],
-                outfile=vcf_path)
-    cactus_call(parameters=['tabix', '-p', 'vcf', vcf_path])
-
-    # compress the trans
-    cactus_call(parameters=['bgzip', trans_path, '--threads', str(job.cores)])
-    trans_path += '.gz'                            
                             
     return { 'gfa.gz' : job.fileStore.writeGlobalFile(gfa_path),
              'gbwt' : job.fileStore.writeGlobalFile(gbwt_path),
              'gg' : job.fileStore.writeGlobalFile(gg_path),
              'trans.gz' : job.fileStore.writeGlobalFile(trans_path),
              'xg' : job.fileStore.writeGlobalFile(xg_path),
-             'snarls' : job.fileStore.writeGlobalFile(snarls_path),
-             'vcf.gz' : job.fileStore.writeGlobalFile(vcf_path),
-             'vcf.gz.tbi' : job.fileStore.writeGlobalFile(vcf_path + '.tbi') }
+             'snarls' : job.fileStore.writeGlobalFile(snarls_path) }
+
+def make_vcf(job, out_name, vcf_ref, index_dict, tag=''):
+    """ make the vcf
+    """ 
+    work_dir = job.fileStore.getLocalTempDir()
+    xg_path = os.path.join(work_dir, os.path.basename(out_name) + '.xg')
+    gbwt_path = os.path.join(work_dir, os.path.basename(out_name) + '.gbwt')
+    snarls_path = os.path.join(work_dir, os.path.basename(out_name) + '.snarls')
+    trans_path = os.path.join(work_dir, os.path.basename(out_name) + '.trans.gz')
+    job.fileStore.readGlobalFile(index_dict['xg'], xg_path)
+    job.fileStore.readGlobalFile(index_dict['gbwt'], gbwt_path)
+    job.fileStore.readGlobalFile(index_dict['snarls'], snarls_path)
+    job.fileStore.readGlobalFile(index_dict['trans.gz'], trans_path)
+
+    # unzip the trans
+    cactus_call(parameters=['gzip', '-fd', trans_path])
+    trans_path = trans_path[:-3]
+
+    # make the vcf
+    vcf_path = os.path.join(work_dir, 'merged.vcf.gz')
+    cactus_call(parameters=[['vg', 'deconstruct', xg_path, '-P', vcf_ref, '-a', '-r', snarls_path, '-g', gbwt_path,
+                             '-T', trans_path, '-t', str(job.cores)],
+                            ['bgzip', '--threads', str(job.cores)]],
+                outfile=vcf_path)
+    cactus_call(parameters=['tabix', '-p', 'vcf', vcf_path])
+
+    return { '{}vcf.gz'.format(tag) : job.fileStore.writeGlobalFile(vcf_path),
+             '{}vcf.gz.tbi'.format(tag) : job.fileStore.writeGlobalFile(vcf_path + '.tbi') }
+    
+def make_giraffe_indexes(job, options, index_dict):
+    """ make giraffe-specific indexes: distance and minimaer """
+    work_dir = job.fileStore.getLocalTempDir()
+    xg_path = os.path.join(work_dir, os.path.basename(options.outName) + '.xg')
+    gbwt_path = os.path.join(work_dir, os.path.basename(options.outName) + '.gbwt')
+    snarls_path = os.path.join(work_dir, os.path.basename(options.outName) + '.snarls')
+    job.fileStore.readGlobalFile(index_dict['xg'], xg_path)
+    job.fileStore.readGlobalFile(index_dict['gbwt'], gbwt_path)
+    job.fileStore.readGlobalFile(index_dict['snarls'], snarls_path)
+
+    # make the distance index
+    dist_path = os.path.join(work_dir, os.path.basename(options.outName) + '.dist')
+    cactus_call(parameters=['vg', 'index', '-t', str(job.cores), '-j', dist_path, '-s', snarls_path, xg_path])
+
+    # make the minimizer index
+    min_path = os.path.join(work_dir, os.path.basename(options.outName) + '.min')
+    cactus_call(parameters=['vg', 'minimizer', '-k', '29', '-w', '11', '-t', str(job.cores), '-g', gbwt_path,
+                            '-d', dist_path, '-o', min_path, xg_path])                            
+                            
+    return { 'min' : job.fileStore.writeGlobalFile(min_path),
+             'dist' : job.fileStore.writeGlobalFile(dist_path) }
 
 def merge_hal(job, options, hal_ids):
     """ call halMergeChroms to make one big hal file out of the chromosome hal files """
@@ -334,9 +509,34 @@ def merge_hal(job, options, hal_ids):
            '--progress']
     cactus_call(parameters=cmd, work_dir = work_dir)
 
-    return job.fileStore.writeGlobalFile(merged_path)
+    return { 'hal' : job.fileStore.writeGlobalFile(merged_path) }
 
-def export_join_data(toil, options, clip_ids, idx_map, merge_hal_id):
+def unzip_seqfile(job, seq_id_map):
+    """ halUnclip needs uncompressed everythin, so we do it here relying on extensions """
+    unzip_id_map = {}
+    for event, name_id in seq_id_map.items():
+        if name_id[0].endswith(".gz"):
+            unzip_id_map[event] = (name_id[0][:-3], job.addChildJobFn(unzip_gz, name_id[0], name_id[1], disk=name_id[1].size * 10).rv())
+        else:
+            unzip_id_map[event] = name_id
+    return unzip_id_map
+
+def unclip_hal(job, hal_id_dict, seq_id_map):
+    """ run halUnclip """
+    work_dir = job.fileStore.getLocalTempDir()
+    in_hal_path = os.path.join(work_dir, "in.hal")
+    job.fileStore.readGlobalFile(hal_id_dict['hal'], in_hal_path)
+    out_hal_path = os.path.join(work_dir, "out.hal")
+    seqfile_path = os.path.join(work_dir, "seqfile.txt")
+    with open(seqfile_path, "w") as seqfile:
+        for event, name_id in seq_id_map.items():
+            seqfile.write("{}\t{}\n".format(event, job.fileStore.readGlobalFile(name_id[1])))
+
+    cactus_call(parameters=["halUnclip", in_hal_path, seqfile_path, out_hal_path, "--progress", "--validate"])
+
+    return { 'hal' : job.fileStore.writeGlobalFile(out_hal_path) }
+
+def export_join_data(toil, options, clip_ids, idx_maps):
     """ download all the output data
     """
 
@@ -349,12 +549,9 @@ def export_join_data(toil, options, clip_ids, idx_map, merge_hal_id):
         toil.exportFile(vg_id, makeURL(os.path.join(clip_base, os.path.basename(vg_path))))
 
     # download everything else
-    for ext, idx_id in idx_map.items():
-        toil.exportFile(idx_id, makeURL(os.path.join(options.outDir, '{}.{}'.format(options.outName, ext))))
-
-    # download the merged hal
-    if merge_hal_id:
-        toil.exportFile(merge_hal_id, makeURL(os.path.join(options.outDir, '{}.hal'.format(options.outName))))    
+    for idx_map in idx_maps:
+        for ext, idx_id in idx_map.items():
+            toil.exportFile(idx_id, makeURL(os.path.join(options.outDir, '{}.{}'.format(options.outName, ext))))
         
 if __name__ == "__main__":
     main()

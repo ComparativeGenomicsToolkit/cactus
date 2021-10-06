@@ -29,16 +29,19 @@ git submodule update --init --recursive
 
 if [ -z ${CACTUS_LEGACY_ARCH+x} ]
 then
-	 export CACTUS_ARCH="nehalem"
+# Make sure abpoa doesn't build with -march=native, but something more portable
+# Todo: It would be more portable to use "sse41", but that leads to segfaults in rare cases
+# https://github.com/yangao07/abPOA/issues/26
+	 export avx2=1
 else
-	 export CACTUS_ARCH="nocona"
-	 # abpoa will not work realiably on architectures older than haswell, so make sure it's off by default
+	 export sse2=1
+	 # haven't tested abpoa on older architectures, turn it off by default
 	 sed -i src/cactus/cactus_progressive_config.xml -e 's/partialOrderAlignment="1"/partialOrderAlignment="0"/g'
 fi
 
-export CFLAGS="-march=${CACTUS_ARCH} -static"
-export CXXFLAGS="-march=${CACTUS_ARCH} -static"
-export LDFLAGS="-march=${CACTUS_ARCH} -static"
+export CFLAGS="-static"
+export CXXFLAGS="-static"
+export LDFLAGS="-static"
 
 # build a couple dependencies from source because versions from awk don't support static linking
 pushd .

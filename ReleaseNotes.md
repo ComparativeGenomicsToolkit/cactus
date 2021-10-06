@@ -1,9 +1,34 @@
-# Release 2.0.2
+# Release 2.1.0
+
+This release features improvements to the pangenome pipeline.
+
+- Turn recoverable chains length down to 10kb to prevent CAF from pulling apart more than BAR can realign in a single POA window
+- Automatically strip minigraph contigs out of input to `cactus-align`.  This leads to bigger blocks and smoother graphs (but requires above change)
+- Fix up clipping option in the preprocessor to work with `--fileMask` option, as well as to produce fasta contig names that `hal2vg` accepts (and the browser allows).  Clipping is now to be preferred over the various `--maskFilter and --barMaskFilter` options used to ignore softmasked sequence.
+
+# Release 2.0.3
+
+This release fixes some issues in pangenome normalization and CAF running time.
+
+- Fix new regression that caused CAF's secondary filter to sometimes take forever.  This code has been causing occaisional slowdowns for some time, but should finally be fixed once and for all.
+- Fix cactus-preprocess to work on zipped fasta inputs even when not running dna-brnn.
+- Fix normalization in cactus-graphmap-join
+- Update to abPOA v1.2.5
+
+
+# Release 2.0.2   2021-07-07
+
+This release primarily addresses stability issues during pangenome construction.
 
 Changelog:
 - Use latest abpoa, which fixes bug where aligning >1024 sequences would lead to a segfault
 - Update to Toil 5.4.0
 - More consistently apply filters to minimap2 output in the fallback stage of graphmap-split
+- Build abpoa with AVX2 SIMD extensions instead of SSE4.1 in order to work around instability when building pangenomes.  This ups the hardware requirements for releases, unfortunately, as AVX2 is slightly newer.
+- Clean up CAF config parameters
+- Fix CAF secondary filter worst-case runtime issue.  It was very rare but could add days to runtime.
+- Slightly tune minimap2 thresholds used for chromosome splitting
+- Normalization option added to cactus-graphmap-join (should be used to work around soon-to-be addressed underalignment bug)
 
 # Release 2.0.1   2021-06-19
 

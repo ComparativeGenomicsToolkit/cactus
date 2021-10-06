@@ -52,7 +52,8 @@ def main():
     parser.add_argument("--outputFasta", type=str, help = "Output graph sequence file in FASTA format (required if not present in seqFile)")
     parser.add_argument("--maskFilter", type=int, help = "Ignore softmasked sequence intervals > Nbp (overrides config option of same name)")    
     parser.add_argument("--outputGAFDir", type=str, help = "Output GAF alignments (raw minigraph output before PAF conversion) to this directory")
-    parser.add_argument("--refFromGFA", type=str, help = "Do not align given genome from seqfile, and instead extract its alignment from the rGFA tags (must have been used as reference for minigraph GFA construction)")
+    parser.add_argument("--reference", type=str, help = "Reference genome name.  MAPQ filter will not be applied to it")
+    parser.add_argument("--refFromGFA", action="store_true", help = "Do not align reference (--reference) from seqfile, and instead extract its alignment from the rGFA tags (must have been used as reference for minigraph GFA construction)")
 
     #WDL hacks
     parser.add_argument("--pathOverrides", nargs="*", help="paths (multiple allowed) to override from seqFile")
@@ -136,9 +137,15 @@ def runCactusGraphMap(options):
             # load the seqfile
             seqFile = SeqFile(options.seqFile)
 
+            if options.reference and options.reference not in seqFile.pathMap:
+                raise RuntimeError("{}, specified with --reference, was not found in the seqfile".format(options.refFromGFA))
+
             if options.refFromGFA:
-                if options.refFromGFA not in seqFile.pathMap:
-                    raise RuntimeError("{}, specified with --refFromGFA, was not found in the seqfile".format(options.refFromGFA))
+                if not options.reference:
+                    raise RuntimeError("--reference must be used with --refFromGFA")
+                # ugly, but this option used to be a string
+                # todo: probably best to eventually get rid of this option entirely.
+                options.refFromGFA = options.reference
                 # we're not going to need the fasta for anything, so forget about it now
                 del seqFile.pathMap[options.refFromGFA]
                 
@@ -189,12 +196,17 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event):
         fa_id = fa_job.rv()
 
     paf_job = job.addChildJobFn(minigraph_map_all, config, gfa_id, seq_id_map, graph_event, options.outputGAFDir is not None)
-    
-    if options.refFromGFA:
-        # extract a PAF directly from the rGFAs tag for the given reference
-        gfa2paf_job = job.addChildJobFn(extract_paf_from_gfa, gfa_id, options.minigraphGFA, options.refFromGFA, graph_event,
-                                        disk=gfa_id.size * 12)
 
+    if options.reference:
+        # extract a PAF directly from the rGFAs tag for the given reference
+        # if --refFromGFA is specified, we get the entire alignment from that, otherwise we just take contigs
+        # that didn't get mapped by anything else
+        gfa2paf_job = Job.wrapJobFn(extract_paf_from_gfa, gfa_id, options.minigraphGFA, options.reference, graph_event, paf_job.rv(0) if not options.refFromGFA else None,
+                                    disk=gfa_id.size * 12)
+        if options.refFromGFA:
+            job.addChild(gfa2paf_job)
+        else:
+            paf_job.addFollowOn(gfa2paf_job)
         merge_paf_job = Job.wrapJobFn(merge_pafs, {"1" : paf_job.rv(0), "2" : gfa2paf_job.rv()}, disk=gfa_id.size * 12)
         paf_job.addFollowOn(merge_paf_job)
         gfa2paf_job.addFollowOn(merge_paf_job)
@@ -311,7 +323,7 @@ def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id,
     if paf_output:
         # optional gaf->paf step.  we are not piping directly out of minigraph because mzgaf2paf's overlap filter
         # (which is usually on) requires 2 passes so it won't read stdin when it's enabled
-        paf_id =  merge_gafs_into_paf(job, config, None, [gaf_path])
+        paf_id =  merge_gafs_into_paf(job, config, None, gaf_paths = [gaf_path])
     if gaf_output:
         gaf_id = job.fileStore.writeGlobalFile(gaf_path)
 
@@ -379,11 +391,10 @@ def compress_gaf(job, gaf_file_id):
     job.fileStore.deleteGlobalFile(gaf_file_id)
     return job.fileStore.writeGlobalFile(zip_path)
 
-def extract_paf_from_gfa(job, gfa_id, gfa_path, ref_event, graph_event):
+def extract_paf_from_gfa(job, gfa_id, gfa_path, ref_event, graph_event, ignore_paf_id):
     """ make a paf directly from the rGFA tags.  rgfa2paf supports other ranks, but we're only
     using rank=0 here to produce an alignment for the reference genome """
     work_dir = job.fileStore.getLocalTempDir()
-
     # download the gfa
     gfa_path = os.path.join(work_dir, os.path.basename(gfa_path))
     job.fileStore.readGlobalFile(gfa_id, gfa_path, mutable=True)
@@ -391,9 +402,16 @@ def extract_paf_from_gfa(job, gfa_id, gfa_path, ref_event, graph_event):
     if gfa_path.endswith(".gz"):
         cactus_call(parameters=['gzip', '-fd', gfa_path])
         gfa_path = gfa_path[:-3]
+    # optional paf whose queries we ignore
+    ignore_paf_path = os.path.join(work_dir, os.path.basename(gfa_path) + ".tofilter.paf")
+    if ignore_paf_id:
+        job.fileStore.readGlobalFile(ignore_paf_id, ignore_paf_path)
     # make the paf
     paf_path = job.fileStore.getLocalTempFile()
-    cactus_call(parameters=['rgfa2paf', gfa_path, '-T', 'id={}|'.format(graph_event), '-P', 'id={}|'.format(ref_event)], outfile=paf_path)
+    cmd = ['rgfa2paf', gfa_path, '-T', 'id={}|'.format(graph_event), '-P', 'id={}|'.format(ref_event)]
+    if ignore_paf_id:
+        cmd += ['-i', ignore_paf_path]
+    cactus_call(parameters=cmd, outfile=paf_path)
     return job.fileStore.writeGlobalFile(paf_path)
     
 def add_genome_to_seqfile(seqfile_path, fasta_path, name):

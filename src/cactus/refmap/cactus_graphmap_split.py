@@ -27,6 +27,7 @@ from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import cactus_call
 from cactus.shared.common import getOptionalAttrib, findRequiredNode
 from cactus.shared.common import unzip_gz, write_s3
+from cactus.shared.common import get_faidx_subpath_rename_cmd
 from cactus.preprocessor.fileMasking import get_mask_bed_from_fasta
 from toil.job import Job
 from toil.common import Toil
@@ -257,9 +258,21 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
     mg_id = graph_event
 
     # get the specificity filters
-    query_coverage = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minQueryCoverage", default="0")
-    small_query_coverage = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minQuerySmallCoverage", default="0")
-    small_coverage_threshold = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minQuerySmallThreshold", default="0")
+    query_coverages = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minQueryCoverages", default=None)
+    query_coverage_thresholds = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minQueryCoverageThresholds", default=None)
+    coverage_opts = []
+    if query_coverages is not None:
+        try:
+            query_cov_vals = [float(x) for x in query_coverages.split()]
+            query_thresh_vals = [int(x) for x in query_coverage_thresholds.split()]
+            assert len(query_cov_vals) == len(query_thresh_vals) + 1
+            assert sorted(query_thresh_vals) == query_thresh_vals
+            for cv in query_cov_vals:
+                coverage_opts += ['-n', str(cv)]
+            for tv in query_thresh_vals:
+                coverage_opts += ['-T', str(tv)]
+        except:
+            raise RuntimeError("minQueryCoverages and / or minQueryCoverageThresholds malspecified in config")
     query_uniqueness = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minQueryUniqueness", default="0")
     max_gap = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "maxGap", default="0")
     amb_name = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "ambiguousName", default="_AMBIGUOUS_")
@@ -267,13 +280,11 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
     cmd = ['rgfa-split',
            '-p', paf_path,
            '-b', out_prefix,
-           '-n', query_coverage,
-           '-N', small_query_coverage,
-           '-T', small_coverage_threshold,
            '-Q', query_uniqueness,
            '-P', max_gap,
            '-a', amb_name,
            '-L', log_path]
+    cmd += coverage_opts    
     if gfa_id:
         cmd += ['-g', gfa_path, '-G']
     if other_contig:
@@ -306,8 +317,9 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
             if ext == '.paf':
                 # apply the hacky naming correction so that subpaths have no special characterse in the hal (to make hubs happy)
                 # this gets undone by hal2vg
-                cactus_call(parameters=['sed', '-i', '-e', 's/\([^:]*\):\([0-9]*\)-\([0-9]*\)/echo "\\1_sub_$((\\2-1))_\\3"/e',
-                                        '-e', 's/ /\t/g', os.path.join(work_dir, out_name)]) 
+                cmd = get_faidx_subpath_rename_cmd()
+                cmd += ['-e', 's/ /\t/g', '-i', os.path.join(work_dir, out_name)]
+                cactus_call(parameters=cmd)
             output_id_map[name][ext[1:]] = job.fileStore.writeGlobalFile(os.path.join(work_dir, out_name))
             
     return output_id_map, job.fileStore.writeGlobalFile(log_path)
@@ -370,8 +382,8 @@ def split_fa_into_contigs(job, event, fa_id, fa_path, split_id_map):
             # transform chr1:10-15 (1-based inclusive) into chr1_sub_9_15 (0-based end open)
             # this is a format that contains no special characters in order to make assembly hubs
             # happy.  But it does require conversion going into vg which wants chr[9-15] and
-            # hal2vg can get updated to do this autmatically
-            cmd.append(['sed', '-e', 's/\([^:]*\):\([0-9]*\)-\([0-9]*\)/echo "\\1_sub_$((\\2-1))_\\3"/e'])
+            # hal2vg is updated to do this autmatically
+            cmd.append(get_faidx_subpath_rename_cmd())
             if is_gz:
                 cmd.append(['gzip'])
             cactus_call(parameters=cmd, outfile=contig_fasta_path)
@@ -402,6 +414,9 @@ def split_minimap_fallback(job, options, config, seqIDMap, output_id_map):
     """ take the output table from gather_fas, pull out the ambiguous sequences, remap them to the reference, and 
     add them to the events where possible"""
 
+    if not getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "remap", typeFn=bool, default=False):
+        return None, None
+    
     # can't do anything without a reference
     if not options.reference:
         logger.info("Skipping minimap2 fallback as --reference was not specified")

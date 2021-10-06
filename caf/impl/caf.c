@@ -341,7 +341,7 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
         for (int64_t annealingRound = 0; annealingRound < annealingRoundsLength; annealingRound++) {
             int64_t minimumChainLength = annealingRounds[annealingRound];
             int64_t alignmentTrim = annealingRound < alignmentTrimLength ? alignmentTrims[annealingRound] : 0;
-            st_logDebug("Starting annealing round with a minimum chain length of %" PRIi64 " and an alignment trim of %" PRIi64 "\n", minimumChainLength, alignmentTrim);
+            st_logInfo("Starting annealing round with a minimum chain length of %" PRIi64 " and an alignment trim of %" PRIi64 "\n", minimumChainLength, alignmentTrim);
 
             stPinchIterator_setTrim(pinchIterator, alignmentTrim);
             if(secondaryPinchIterator != NULL) {
@@ -400,7 +400,7 @@ void caf(Flower *flower, CactusParams *params, char *alignmentsFile, char *secon
             //Do the melting rounds
             for (int64_t meltingRound = 0; meltingRound < meltingRoundsLength; meltingRound++) {
                 int64_t minimumChainLengthForMeltingRound = meltingRounds[meltingRound];
-                st_logDebug("Starting melting round with a minimum chain length of %" PRIi64 " \n", minimumChainLengthForMeltingRound);
+                st_logInfo("Starting melting round with a minimum chain length of %" PRIi64 " \n", minimumChainLengthForMeltingRound);
                 if (minimumChainLengthForMeltingRound >= minimumChainLength) {
                     break;
                 }

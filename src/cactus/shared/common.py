@@ -383,7 +383,7 @@ def getDockerImage():
 
 def getDockerRelease(gpu=False):
     """Get the most recent docker release."""
-    r = "quay.io/comparative-genomics-toolkit/cactus:v2.0.1"
+    r = "quay.io/comparative-genomics-toolkit/cactus:v2.0.3"
     if gpu:
         r += "-gpu"
     return r
@@ -1065,12 +1065,7 @@ def zip_gzs(job, input_paths, input_ids, list_elems = None):
     zipped_ids = []
     for input_path, input_list in zip(input_paths, input_ids):
         if input_path.endswith('.gz'):
-            try:
-                iter(input_list)
-                is_list = True
-            except:
-                is_list = False
-            if is_list:
+            if isinstance(input_list, list) or isinstance(input_list, tuple):
                 output_list = []
                 for i, elem in enumerate(input_list):
                     if not list_elems or i in list_elems:
@@ -1079,7 +1074,7 @@ def zip_gzs(job, input_paths, input_ids, list_elems = None):
                         output_list.append(elem)
                 zipped_ids.append(output_list)
             else:
-                zipped_ids.append(job.addChildJobFn(zip_gz, input_path, input_id, disk=2*input_id.size).rv())
+                zipped_ids.append(job.addChildJobFn(zip_gz, input_path, input_list, disk=2*input_list.size).rv())
         else:
             zipped_ids.append(input_list)
     return zipped_ids
@@ -1121,3 +1116,13 @@ def write_s3(local_path, s3_path, region=None):
             s3.create_bucket(Bucket=bucket_name)
 
     s3.upload_file(local_path, bucket_name, name_prefix)
+
+def get_faidx_subpath_rename_cmd():
+    """
+    transform chr1:10-15 (1-based inclusive) into chr1_sub_9_15 (0-based end open)
+    this is a format that contains no special characters in order to make assembly hubs
+    happy.  But it does require conversion going into vg which wants chr[9-15] and
+    hal2vg is updated to do this autmatically
+    """
+    return ['sed', '-e', 's/\([^:]*\):\([0-9]*\)-\([0-9]*\)/echo "\\1_sub_$((\\2-1))_\\3"/e']
+
