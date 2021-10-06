@@ -19,7 +19,7 @@ ${LIBDIR}/stPaf.a : ${libSources} ${libHeaders}  ${stPafDependencies}
 	mv stPaf.a ${LIBDIR}/
 
 ${BINDIR}/cactus_local_alignment.py : cactus_local_alignment.py
-	ln cactus_local_alignment.py ${BINDIR}/cactus_local_alignment.py
+	ln -f cactus_local_alignment.py ${BINDIR}/cactus_local_alignment.py
 
 ${BINDIR}/cactus_chain : cactus_chain
 	ln -f cactus_chain ${BINDIR}/cactus_chain
