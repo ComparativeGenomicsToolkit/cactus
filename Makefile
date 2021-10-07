@@ -2,7 +2,7 @@ rootPath = .
 
 include ${rootPath}/include.mk
 
-modules = api setup blastLib caf bar paf blast hal reference pipeline preprocessor
+modules = api setup blastLib paf caf bar blast hal reference pipeline preprocessor
 
 # submodules are in multiple pass to handle dependencies cactus2hal being dependent on
 # both cactus and sonLib
