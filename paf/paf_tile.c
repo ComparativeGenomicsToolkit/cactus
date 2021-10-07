@@ -31,16 +31,16 @@ int paf_cmp_by_descending_score(const void *a, const void *b) {
     return p1->score > p2->score ? -1 : (p1->score < p2->score ? 1 : 0);
 }
 
-u_int16_t *get_alignment_count_array(stHash *seq_names_to_alignment_count_arrays, Paf *paf) {
-    u_int16_t *counts = stHash_search(seq_names_to_alignment_count_arrays, paf->query_name);
+uint16_t *get_alignment_count_array(stHash *seq_names_to_alignment_count_arrays, Paf *paf) {
+    uint16_t *counts = stHash_search(seq_names_to_alignment_count_arrays, paf->query_name);
     if(counts == NULL) { // If the counts have not been initialized yet
-        counts = st_calloc(paf->query_length, sizeof(u_int16_t)); // sets all the counts to zero
+        counts = st_calloc(paf->query_length, sizeof(uint16_t)); // sets all the counts to zero
         stHash_insert(seq_names_to_alignment_count_arrays, paf->query_name, counts); // adds to the hash
     }
     return counts;
 }
 
-void increase_alignment_level_counts(u_int16_t *counts, Paf *paf) {
+void increase_alignment_level_counts(uint16_t *counts, Paf *paf) {
     Cigar *c = paf->cigar;
     int64_t i = paf->query_start;
     while(c != NULL) {
@@ -60,7 +60,7 @@ void increase_alignment_level_counts(u_int16_t *counts, Paf *paf) {
     assert(i == paf->query_end);
 }
 
-int64_t get_median_alignment_level(u_int16_t *counts, Paf *paf) {
+int64_t get_median_alignment_level(uint16_t *counts, Paf *paf) {
     Cigar *c = paf->cigar;
     int64_t i = paf->query_start, max_level=0, matches=0;
     int64_t *level_counts = st_calloc(INT16_MAX, sizeof(int64_t)); // An array of counts of the number of bases with the given alignment level
@@ -185,7 +185,7 @@ int main(int argc, char *argv[]) {
     // For each alignment: set the "level" of the alignment to q+1, increase by one the aligned bases count of each base covered by the alignment.
     for(int64_t i=0; i<stList_length(pafs); i++) {
         Paf *paf = stList_get(pafs, i);
-        u_int16_t *counts = get_alignment_count_array(seq_names_to_alignment_count_arrays, paf);
+        uint16_t *counts = get_alignment_count_array(seq_names_to_alignment_count_arrays, paf);
         increase_alignment_level_counts(counts, paf);
         paf->tile_level = get_median_alignment_level(counts, paf); // Store the tile_level
     }
