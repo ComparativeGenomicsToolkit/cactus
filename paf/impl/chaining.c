@@ -1,5 +1,4 @@
 #include "paf.h"
-#include "../inc/paf.h"
 
 /*
  * Functions for chaining together pafs
@@ -86,61 +85,6 @@ static stSortedSetIterator *get_predecessor_chains(stSortedSet *active_chained_a
     return it;
 }
 
-/*
- * Joins together the pafs in a chain into a single paf
- */
-static Paf *chain_to_paf(Chain *chain) {
-    Paf *p = chain->paf;
-    while(chain->pChain != NULL) { // Join together links in the chain
-        Paf *q = p;
-        p = chain->pChain->paf; // p is now the previous paf in the chain to q
-
-        // Checks that we can chain these together
-        assert(strcmp(p->target_name, q->target_name) == 0);
-        assert(strcmp(p->query_name, q->query_name) == 0);
-        assert(p->query_end <= q->query_start);
-        assert(p->target_end <= q->target_start);
-        assert(p->same_strand == q->same_strand);
-
-        // If there is a cigar then join them
-        if(p->cigar != NULL) {
-            // Find the last op in p
-            Cigar *cigar = p->cigar;
-            while(cigar->next != NULL) {
-                cigar = cigar->next;
-            }
-            // Add in any needed indels to account for gaps between p and q
-            if(p->query_end < q->query_start) {
-                cigar->next = st_calloc(1, sizeof(Cigar)); // Allocate a cigar record
-                cigar->next->length = q->query_start - p->query_end;
-                cigar->next->op = query_insert;
-                cigar = cigar->next;
-            }
-            if(p->target_end < q->target_start) {
-                cigar->next = st_calloc(1, sizeof(Cigar)); // Allocate a cigar record
-                cigar->next->length = q->target_start - p->target_end;
-                cigar->next->op = query_delete;
-                cigar = cigar->next;
-            }
-            // Link them together
-            cigar->next = q->cigar;
-        }
-
-        // Update the coordinates
-        p->query_end = q->query_end;
-        p->target_end = q->target_end;
-
-        // Shift back to the prior link in the chain and cleanup
-        Chain *c = chain;
-        chain = chain->pChain;
-        free(q);
-        free(c);
-    }
-    free(chain); // Now free the final wrapper in the chain
-
-    return p;
-}
-
 int64_t get_chain_score(Chain *chain, int64_t (*gap_cost)(int64_t, int64_t, void *),
                         void *gap_cost_params) {
     Paf *p = chain->paf;
@@ -169,18 +113,28 @@ int64_t get_chain_score(Chain *chain, int64_t (*gap_cost)(int64_t, int64_t, void
 }
 
 static void chain_to_pafs(Chain *chain, int64_t (*gap_cost)(int64_t, int64_t, void *),
-                         void *gap_cost_params, stList *output_pafs) {
+                         void *gap_cost_params, stList *output_pafs, int64_t chain_id) {
     int64_t total_score = get_chain_score(chain, gap_cost, gap_cost_params);
-    Paf *p = chain_to_paf(chain);
-    p->score = total_score;
-    stList_append(output_pafs, p);
+    //Paf *p = chain_to_paf(chain);
+    //p->score = total_score;
+    //stList_append(output_pafs, p);
+
+    while (chain != NULL) {
+        chain->paf->chain_id = chain_id;
+        chain->paf->score = total_score;
+        stList_append(output_pafs, chain->paf);
+        // Shift back to the previous link and cleanup
+        Chain *c = chain;
+        chain = chain->pChain;
+        free(c);
+    }
 }
 
 /*
  * Chains together the input pafs. Ignores strand.
  */
-stList *paf_chain_ignore_strand(stList *pafs, int64_t (*gap_cost)(int64_t, int64_t, void *),
-                                void *gap_cost_params, int64_t max_gap_length) {
+static stList *paf_chain_ignore_strand(stList *pafs, int64_t (*gap_cost)(int64_t, int64_t, void *),
+                                void *gap_cost_params, int64_t max_gap_length, int64_t *chain_id) {
     stList_sort(pafs, paf_cmp_by_query_location); // Sort alignments by query start coordinate
 
     stSortedSet *active_chained_alignments = stSortedSet_construct3(chain_cmp_by_location, NULL); // The set of
@@ -280,7 +234,7 @@ stList *paf_chain_ignore_strand(stList *pafs, int64_t (*gap_cost)(int64_t, int64
     // Now finally convert chains back to single pafs
     stList *output_pafs = stList_construct();
     for(int64_t i=0; i<stList_length(outputChains); i++) {
-        chain_to_pafs(stList_get(outputChains, i), gap_cost, gap_cost_params, output_pafs);
+        chain_to_pafs(stList_get(outputChains, i), gap_cost, gap_cost_params, output_pafs, (*chain_id)++);
     }
 
     // Cleanup
@@ -309,12 +263,30 @@ static int paf_cmp_by_score(const void *a, const void *b) {
 }
 
 stList *paf_chain(stList *pafs, int64_t (*gap_cost)(int64_t, int64_t, void *), void *gap_cost_params,
-                  int64_t max_gap_length) {
+                  int64_t max_gap_length, float percentage_to_trim) {
     // Split into forward and reverse strand alignments
     stList *positive_strand_pafs = stList_construct();
     stList *negative_strand_pafs = stList_construct();
+    stHash *pafs_to_trims = stHash_construct2(NULL, (void (*)(void *))stIntTuple_destruct);
     for(int64_t i=0; i<stList_length(pafs); i++) {
         Paf *p = stList_get(pafs, i);
+        assert(percentage_to_trim >= 0 && percentage_to_trim <= 1.0);
+        int64_t aligned_bases = paf_get_number_of_aligned_bases(p);
+        int64_t trim = (aligned_bases * percentage_to_trim)/2.0;
+        assert(trim >= 0);
+        st_logDebug("For alignment of %" PRIi64 " query bases, %"
+        PRIi64 " target bases and %" PRIi64 " aligned bases trimming %" PRIi64 " bases from each paf end\n",
+                p->query_end - p->query_start, p->target_end - p->target_start, aligned_bases, trim);
+
+        // Trim the paf for chaining
+        p->query_start += trim;
+        p->query_end -= trim;
+        p->target_start += trim;
+        p->target_end -= trim;
+
+        // Track how much was trimmed
+        stHash_insert(pafs_to_trims, p, stIntTuple_construct1(trim));
+
         if(p->same_strand) {
             stList_append(positive_strand_pafs, p);
         }
@@ -324,8 +296,9 @@ stList *paf_chain(stList *pafs, int64_t (*gap_cost)(int64_t, int64_t, void *), v
         }
     }
 
-    stList *positive_chained_pafs = paf_chain_ignore_strand(positive_strand_pafs, gap_cost, gap_cost_params, max_gap_length);
-    stList *negative_chained_pafs = paf_chain_ignore_strand(negative_strand_pafs, gap_cost, gap_cost_params, max_gap_length);
+    int64_t chain_id = 0;
+    stList *positive_chained_pafs = paf_chain_ignore_strand(positive_strand_pafs, gap_cost, gap_cost_params, max_gap_length, &chain_id);
+    stList *negative_chained_pafs = paf_chain_ignore_strand(negative_strand_pafs, gap_cost, gap_cost_params, max_gap_length, &chain_id);
 
     // Correct negative strand coordinates
     for(int64_t i=0; i<stList_length(negative_chained_pafs); i++) {
@@ -338,13 +311,27 @@ stList *paf_chain(stList *pafs, int64_t (*gap_cost)(int64_t, int64_t, void *), v
     stList_setDestructor(negative_chained_pafs, NULL);
     stList_destruct(negative_chained_pafs);
 
-    // Check
+    // Remove the trim
     for(int64_t i=0; i<stList_length(positive_chained_pafs); i++) {
-        paf_check(stList_get(positive_chained_pafs, i));
+        Paf *p = stList_get(positive_chained_pafs, i);
+
+        assert(stHash_search(pafs_to_trims, p) != NULL);
+        int64_t trim = stIntTuple_get(stHash_search(pafs_to_trims, p), 0);
+
+        p->query_start -= trim;
+        p->query_end += trim;
+        p->target_start -= trim;
+        p->target_end += trim;
+
+        // Check the paf
+        paf_check(p);
     }
 
     // Sort in descending order to make output easy to look at
     stList_sort(positive_chained_pafs, paf_cmp_by_score);
+
+    // Cleanup the trims datastructure
+    stHash_destruct(pafs_to_trims);
 
     return positive_chained_pafs;
 }

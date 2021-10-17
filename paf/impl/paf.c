@@ -93,6 +93,9 @@ Paf *paf_parse(char *paf_string) {
     paf->num_bases = atoll(stList_get(tokens, 10));
     paf->mapping_quality = atoll(stList_get(tokens, 11));
 
+    paf->tile_level = -1;
+    paf->chain_id = -1;
+
     // Parse the remaining optional tags
     for(int64_t i=12; i<stList_length(tokens); i++) {
         stList *tag = stString_splitByString(stList_get(tokens, i), ":");
@@ -107,6 +110,9 @@ Paf *paf_parse(char *paf_string) {
         }
         else if(strcmp(type, "tl") == 0) {
             paf->tile_level = atoll(stList_get(tag, 2));
+        }
+        else if(strcmp(type, "cn") == 0) {
+            paf->chain_id = atoll(stList_get(tag, 2));
         }
         stList_destruct(tag);
     }
@@ -142,7 +148,7 @@ int64_t cigar_number_of_records(Paf *paf) {
 
 char *paf_print(Paf *paf) {
     // Generous estimate of size needed for each paf record.
-    int64_t buf_size = 12 * cigar_number_of_records(paf) + 130 + strlen(paf->query_name) + strlen(paf->target_name);
+    int64_t buf_size = 12 * cigar_number_of_records(paf) + 140 + strlen(paf->query_name) + strlen(paf->target_name);
     char *buffer = st_malloc(sizeof(char) * buf_size); // Giving a generous
     int64_t i = sprintf(buffer, "%s\t%" PRIi64 "\t%" PRIi64"\t%" PRIi64"\t%c\t%s\t%" PRIi64"\t%" PRIi64"\t%" PRIi64
                                 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64,
@@ -158,6 +164,9 @@ char *paf_print(Paf *paf) {
     }
     if(paf->tile_level != -1) {
         i += sprintf(buffer+i, "\ttl:i:%" PRIi64, paf->tile_level);
+    }
+    if(paf->chain_id != -1) {
+        i += sprintf(buffer+i, "\tcn:i:%" PRIi64, paf->chain_id);
     }
     if(i > buf_size) {
         st_errAbort("Size of paf record exceeded buffer size\n");
@@ -361,7 +370,6 @@ int64_t paf_get_number_of_aligned_bases(Paf *paf) {
     return aligned_bases;
 }
 
-
 static Cigar *cigar_trim(int64_t *query_c, int64_t *target_c, Cigar *c, int64_t end_bases_to_trim, int q_sign, int t_sign) {
     int64_t bases_trimmed = 0;
     while(c != NULL && (c->op != match || bases_trimmed < end_bases_to_trim)) {
@@ -442,6 +450,7 @@ Paf *paf_shatter2(Paf *paf, int64_t query_start, int64_t target_start, int64_t l
     s_paf->num_bases = length;
     s_paf->tile_level = paf->tile_level;
     s_paf->type = paf->type;
+    s_paf->chain_id = paf->chain_id;
 
     paf_check(s_paf);
 

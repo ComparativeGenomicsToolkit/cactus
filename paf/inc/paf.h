@@ -46,7 +46,7 @@
  * de	f	Gap-compressed per-base sequence divergence [NOT SUPPORTED/IGNORED]
  * rl	i	Length of query regions harboring repetitive seeds [NOT SUPPORTED/IGNORED]
  * tl	i	Tile level of paf in the cactus chainining procedure, as output by paf_tile [SUPPORTED BY CACTUS ONLY]
- *
+ * cn   i   Chain id, indicating which chain a paf belongs to, as output by paf_chain [SUPPORTED BY CACTUS ONLY]
  */
 
 typedef enum _cigarOp {
@@ -79,6 +79,7 @@ typedef struct _paf {
     int64_t num_bases;
     int64_t tile_level; // this is a special tag created by paf_tile that indicates the "level" of the alignment in the
     // chaining (somewhat like the nesting of chains within nets in ucsc chains and nets.
+    int64_t chain_id; // a tag to indicate which chain a paf belongs to
     char type; // is 'P' primary / 'S' secondary / 'I' inversion
 } Paf;
 
@@ -135,7 +136,8 @@ void write_pafs(FILE *paf_file, stList *pafs);
 /*
  * Chain a set of pafs into larger alignments
  */
-stList *paf_chain(stList *pafs, int64_t (*gap_cost)(int64_t, int64_t, void *), void *gap_cost_params, int64_t max_gap_length);
+stList *paf_chain(stList *pafs, int64_t (*gap_cost)(int64_t, int64_t, void *), void *gap_cost_params,
+                  int64_t max_gap_length, float percentage_to_trim);
 
 /*
  * Gets the number of aligned bases in the alignment between the query
