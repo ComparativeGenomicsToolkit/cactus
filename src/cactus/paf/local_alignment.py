@@ -11,8 +11,10 @@ Released under the MIT license, see LICENSE.txt
 from toil.lib.bioio import system
 from toil.statsAndLogging import logger
 from sonLib.bioio import newickTreeParser
+import os
 from cactus.paf.paf import get_leaf_event_pairs, get_subtree_nodes, get_leaves, get_node
 
+#todo: add minimap2 mapping option
 def run_lastz(job, genome_A, genome_B, distance, params):
     # Create a local temporary file to put the alignments in.
     alignment_file = job.fileStore.getLocalTempFile()
@@ -37,17 +39,52 @@ def run_lastz(job, genome_A, genome_B, distance, params):
     # Return the alignment file
     return job.fileStore.writeGlobalFile(alignment_file)
 
+
+def combine_chunks(job, chunked_alignment_files):
+    # Make combined alignments file
+    alignment_file = job.fileStore.getLocalTempFile()
+    for chunk in chunked_alignment_files: # Append each of the chunked alignment files into one file
+        system("paf_dechunk -i {} >> {}".format(job.fileStore.readGlobalFile(chunk), alignment_file))
+        job.fileStore.deleteGlobalFile(chunk) # Cleanup the old files
+    return job.fileStore.writeGlobalFile(alignment_file)  # Return the final alignments file copied to the jobstore
+
+
+def make_chunked_alignments(job, genome_a, genome_b, distance, params):
+    def make_chunks(genome):
+        output_chunks_dir = job.fileStore.getLocalTempDir()
+        system("fasta_chunk -c {} -o {} --dir {} {}".format(int(params.find("blast").attrib["chunkSize"]),
+                                                            int(params.find("blast").attrib["overlapSize"]),
+                                                            output_chunks_dir, job.fileStore.readGlobalFile(genome)))
+        return [job.fileStore.writeGlobalFile(os.path.join(output_chunks_dir, chunk), cleanup=True) for chunk in os.listdir(output_chunks_dir)]
+    # Chunk each input genome
+    chunks_a = make_chunks(genome_a)
+    chunks_b = make_chunks(genome_b)
+
+    # Align all chunks from genome_A against all chunks from genome_B
+    chunked_alignment_files = []
+    for chunk_a in chunks_a:
+        for chunk_b in chunks_b:
+            chunked_alignment_files.append(job.addChildJobFn(run_lastz, chunk_a, chunk_b, distance, params).rv())
+
+    return job.addFollowOnJobFn(combine_chunks, chunked_alignment_files).rv()  # Combine the chunked alignment files
+
+
 def chain_alignments(job, alignment_files):
     # Create a local temporary file to put the alignments in.
     output_alignments_file = job.fileStore.getLocalTempFile()
 
     # Copy the alignment files locally
-    local_alignment_files = [ job.fileStore.readGlobalFile(i) for i in alignment_files ]
+    local_alignment_files = [job.fileStore.readGlobalFile(i) for i in alignment_files]
 
     # Run the chaining
     system("cactus_chain {} > {}".format(" ".join(local_alignment_files), output_alignments_file))
 
+    # Cleanup the old alignment files
+    for i in alignment_files:
+        job.fileStore.deleteGlobalFile(i)
+
     return job.fileStore.writeGlobalFile(output_alignments_file)  # Copy back
+
 
 def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancestor_event_string, params):
     logger.info("Parsing species tree: {}".format(event_tree_string))
@@ -72,7 +109,7 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
             logger.info("Building alignment between event: "
                         "{} (ingroup:{}) and event: {} (ingroup:{})".format(event_a.iD, event_a in ingroup_events,
                                                                             event_b.iD, event_b in ingroup_events))
-            alignment = job.addChildJobFn(run_lastz, event_names_to_sequences[event_a.iD],
+            alignment = job.addChildJobFn(make_chunked_alignments, event_names_to_sequences[event_a.iD],
                                           event_names_to_sequences[event_b.iD], distance_a_b, params).rv()
             alignments.append(alignment)
 
