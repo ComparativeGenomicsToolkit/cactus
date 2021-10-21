@@ -106,6 +106,22 @@ static RecordHolder *doBottomUpTraversal(stList *flowerLayers,
     return rh;
 }
 
+// check if a reference fasta was provided with the --sequences option
+// if it was, then we don't need to run the reference phase
+static bool refSequenceProvided(char *sequenceFilesAndEvents, char *referenceEventString) {
+    stList *sequenceFilesAndEventsList = stString_split(sequenceFilesAndEvents);
+
+    bool found_ref = false;
+    for (int64_t i = 0; i < stList_length(sequenceFilesAndEventsList) && !found_ref; i += 2) {
+        char *eventName = stList_get(sequenceFilesAndEventsList, i);
+        if (strcmp(eventName, referenceEventString) == 0) {
+            found_ref = true;
+        }
+    }
+    stList_destruct(sequenceFilesAndEventsList);    
+    return found_ref;
+}
+
 int flower_sizeCmpFn(const void *a, const void *b) {
     // Sort by number of caps the flowers contains
     int64_t i = flower_getCapNumber((Flower *)a), j = flower_getCapNumber((Flower *)b);
@@ -305,6 +321,9 @@ int main(int argc, char *argv[]) {
     }
     Name referenceEventName = event_getName(referenceEvent);
 
+    // Check if we got the reference sequence as input
+    bool skipReferencePhase = refSequenceProvided(sequenceFilesAndEvents, referenceEventString);
+
     //////////////////////////////////////////////
     //Convert alignment coordinates
     //////////////////////////////////////////////
@@ -376,34 +395,39 @@ int main(int argc, char *argv[]) {
     }
     st_logInfo("There are %" PRIi64 " layers in the flowers hierarchy\n", stList_length(flowerLayers));
 
-    // Top-down this constructs the reference sequence
-    for(int64_t i=0; i<stList_length(flowerLayers); i++) {
-        stList *flowerLayer = stList_get(flowerLayers, i);
-        st_logInfo("In the %" PRIi64 " layer there are %" PRIi64 " flowers in the flowers hierarchy\n", i,
-                   stList_length(flowerLayer));
-        cactus_make_reference(flowerLayer, referenceEventString, cactusDisk, params);
-    }
-    st_logInfo("Ran cactus make reference, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+    RecordHolder *rh = NULL;
+    if (!skipReferencePhase) {
+        // Top-down this constructs the reference sequence
+        for(int64_t i=0; i<stList_length(flowerLayers); i++) {
+            stList *flowerLayer = stList_get(flowerLayers, i);
+            st_logInfo("In the %" PRIi64 " layer there are %" PRIi64 " flowers in the flowers hierarchy\n", i,
+                       stList_length(flowerLayer));
+            cactus_make_reference(flowerLayer, referenceEventString, cactusDisk, params);
+        }
+        st_logInfo("Ran cactus make reference, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
-    // Bottom-up reference coordinates phase
-    RecordHolder *rh = doBottomUpTraversal(flowerLayers, callBottomUp, (void *)referenceEventName);
-    bottomUpNoDb(flower, rh, referenceEventName, 1, generateJukesCantorMatrix);
-    assert(recordHolder_size(rh) == 0);
-    recordHolder_destruct(rh);
-    st_logInfo("Ran cactus make reference bottom up coordinates, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+        // Bottom-up reference coordinates phase
+        RecordHolder *rh = doBottomUpTraversal(flowerLayers, callBottomUp, (void *)referenceEventName);
+        bottomUpNoDb(flower, rh, referenceEventName, 1, generateJukesCantorMatrix);
+        assert(recordHolder_size(rh) == 0);
+        recordHolder_destruct(rh);
+        st_logInfo("Ran cactus make reference bottom up coordinates, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
-    // Top-down reference coordinates phase
-    for(int64_t i=0; i<stList_length(flowerLayers); i++) {
-        stList *flowers = stList_get(flowerLayers, i);
+        // Top-down reference coordinates phase
+        for(int64_t i=0; i<stList_length(flowerLayers); i++) {
+            stList *flowers = stList_get(flowerLayers, i);
 #if defined(_OPENMP)
 #pragma omp parallel for schedule(dynamic)
 #endif
-        for(int64_t j=0; j<stList_length(flowers); j++) {
-            topDown(stList_get(flowers, j), referenceEventName);
+            for(int64_t j=0; j<stList_length(flowers); j++) {
+                topDown(stList_get(flowers, j), referenceEventName);
+            }
         }
+        st_logInfo("Ran cactus make reference top down coordinates, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+    } else {
+        st_logInfo("Skipped reference phase because input sequence was provided for %s\n", referenceEventString);
     }
-    st_logInfo("Ran cactus make reference top down coordinates, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
-
+    
     if(runChecks) {
         flower_checkRecursive(flower);
         st_logInfo("Ran cactus check, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
