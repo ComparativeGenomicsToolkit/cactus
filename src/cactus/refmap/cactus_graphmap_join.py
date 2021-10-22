@@ -79,6 +79,8 @@ def main():
                         help="Run GFAFfix normalization")
     parser.add_argument("--vgClipOpts", nargs='+', help = "If specified, run vg clip with given options (surround in quotes; multiple allowed to chain multiple clip commands)")
     parser.add_argument("--unclipSeqFile",type=str, help = "seqfile of unclipped sequences. If given, halUnclip will be run on the HAL output to restore original sequences (removing _sub suffixes)")
+    parser.add_argument("--preserveIDs", action="store_true",
+                        help = "Do not alter node ids, either through vg ids -j or vg ids -s.  Only use when sure IDs have already been joined!")
     
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -109,6 +111,8 @@ def main():
         options.giraffeCores = options.indexCores
     if options.unclipSeqFile and not options.hal:
         raise  RuntimeError("--unclipSeqFile can only be used with --hal")
+    if options.preserveIDs and (options.normalizeIterations or options.gfaffix):
+        raise RuntimeError("--preserveIDs cannot be used with any kind of normalization (--gfaffix or --normalizeIterations)")
         
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
@@ -185,23 +189,25 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, unclip_seq_id_
         clip_job = root_job.addChildJobFn(clip_vg, options, config, vg_path, vg_id,
                                           disk=vg_id.size * 2, memory=vg_id.size * 4)
         clipped_vg_ids.append(clip_job.rv())
-
+    
     # join the ids
-    join_job = root_job.addFollowOnJobFn(join_vg, options, config, clipped_vg_ids,
-                                         disk=sum([f.size for f in vg_ids]))
-    clipped_vg_ids = join_job.rv()
+    if not options.preserveIDs:
+        join_job = root_job.addFollowOnJobFn(join_vg, options, config, clipped_vg_ids,
+                                             disk=sum([f.size for f in vg_ids]))
+        clipped_vg_ids = [join_job.rv(i) for i in range(len(vg_ids))]
+    else:
+        join_job = root_job
 
     # optional clipping -- we do this down here after joining and normalization so
     # our graph is id-compatible with a graph that wasn't clipped (but run with same parameters otherwise)
     if options.vgClipOpts:
         clip_root_job = Job()
         join_job.addFollowOn(clip_root_job)
-        clipped_vg_ids = []
         for i in range(len(vg_ids)):
-            vg_clip_job = clip_root_job.addChildJobFn(vg_clip_vg, options, config, options.vg[i], join_job.rv(i),
+            vg_clip_job = clip_root_job.addChildJobFn(vg_clip_vg, options, config, options.vg[i], clipped_vg_ids[i],
                                                       disk=vg_ids[i].size * 2)
             join_job.addFollowOn(vg_clip_job)
-            clipped_vg_ids.append(vg_clip_job.rv())
+            clipped_vg_ids[i] = vg_clip_job.rv()
         join_job = clip_root_job
 
     # make a gfa for each
@@ -210,7 +216,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, unclip_seq_id_
     clipped_gfa_ids = []
     for i in range(len(options.vg)):
         vg_path = options.vg[i]
-        clipped_id = clipped_vg_ids[i] if options.vgClipOpts else join_job.rv(i)
+        clipped_id = clipped_vg_ids[i]
         vg_id = vg_ids[i]
         gfa_job = gfa_root_job.addChildJobFn(vg_to_gfa, options, config, vg_path, clipped_id,
                                              disk=vg_id.size * 5)
@@ -327,8 +333,11 @@ def clip_vg(job, options, config, vg_path, vg_id):
         clipped_path = forward_path
 
     # sort by id
-    cmd = ['vg', 'ids', '-s', clipped_path]        
-    cactus_call(parameters=cmd, outfile=out_path)
+    if not options.preserveIDs:
+        cmd = ['vg', 'ids', '-s', clipped_path]
+        cactus_call(parameters=cmd, outfile=out_path)
+    else:
+        out_path = clipped_path
 
     # worth it
     cactus_call(parameters=['vg', 'validate', out_path])
