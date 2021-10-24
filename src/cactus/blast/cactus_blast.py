@@ -24,7 +24,7 @@ from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
 from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
-from cactus.pipeline.cactus_workflow import CactusBlastPhase
+from cactus.pipeline.cactus_workflow import CactusPafAlign #CactusBlastPhase
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
@@ -180,7 +180,8 @@ def runCactusBlastOnly(options):
 
             workFlowArgs = CactusWorkflowArguments(options, experimentFile=experimentFile, configNode=configNode, seqIDMap = project.inputSequenceIDMap)
 
-            outWorkFlowArgs = toil.start(CactusBlastPhase(standAlone=True, cactusWorkflowArguments=workFlowArgs, phaseName="blast"))
+            #outWorkFlowArgs = toil.start(CactusBlastPhase(standAlone=True, cactusWorkflowArguments=workFlowArgs, phaseName="blast"))
+            outWorkFlowArgs = toil.start(CactusPafAlign(standAlone=True, cactusWorkflowArguments=workFlowArgs, phaseName="blast"))
 
         # export the alignments
         toil.exportFile(outWorkFlowArgs.alignmentsID, makeURL(options.outputFile))
