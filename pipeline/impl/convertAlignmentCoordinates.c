@@ -9,7 +9,7 @@
 #include "paf.h"
 #include "bioioC.h"
 
-void stripUniqueIdsFromSequences(Flower *flower) {
+void stripUniqueIdsFromLeafSequences(Flower *flower) {
     Flower_SequenceIterator *flowerIt = flower_getSequenceIterator(flower);
     Sequence *sequence;
     while ((sequence = flower_getNextSequence(flowerIt)) != NULL) {
@@ -19,12 +19,11 @@ void stripUniqueIdsFromSequences(Flower *flower) {
         // |-separated token) and complain if there isn't one.
         header = sequence_getHeader(sequence);
         stList *tokens = fastaDecodeHeader(header);
-        assert(stList_length(tokens) > 1);
-        firstToken = stList_removeFirst(tokens);
-        assert(!strncmp(firstToken, "id=", 3));
-        free(firstToken);
-        newHeader = fastaEncodeHeader(tokens);
-        sequence_setHeader(sequence, newHeader);
+        if(stList_length(tokens) > 1 && !strncmp(stList_get(tokens, 0), "id=", 3)) {
+            free(stList_removeFirst(tokens));
+            newHeader = fastaEncodeHeader(tokens);
+            sequence_setHeader(sequence, newHeader);
+        }
         stList_destruct(tokens);
     }
     flower_destructSequenceIterator(flowerIt);

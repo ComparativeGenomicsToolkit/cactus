@@ -362,28 +362,17 @@ class CactusPafAlign(CactusPhasesJob):
         super(CactusPafAlign, self).__init__(*args, **kwargs)
 
     def run(self, fileStore):
-        #TODO: Do the renaming nonsense as a preprocessing step instead of doing it for every internal node
         exp = self.cactusWorkflowArguments.experimentWrapper
-
-        # download the sequences
-        eventToSequence = {event: fileStore.readGlobalFile(exp.getSequenceID(event)) for event in exp.getGenomesWithSequence()}
-
-        # prepend the ids
-        eventToUniquelyNameSequence = prependUniqueIDs(eventToSequence, fileStore.getLocalTempDir())
-
-        # upload the uniquely named sequences
-        self.cactusWorkflowArguments.eventToUniquelyNamedSequenceID = \
-        {event: fileStore.writeGlobalFile(eventToUniquelyNameSequence[event], cleanup=True) for event, uniqueFa in eventToUniquelyNameSequence.items()}
-
-        # calc the total sequence size (used to set resource requirements)
-        self.cactusWorkflowArguments.totalSequenceSize = sum(os.stat(x).st_size for x in eventToSequence.values())
 
         # run the alignment process
         self.cactusWorkflowArguments.alignmentsID = self.addChildJobFn(make_paf_alignments,
                                             self.cactusWorkflowArguments.speciesTree,
-                                            self.cactusWorkflowArguments.eventToUniquelyNamedSequenceID,
+                                            {event: exp.getSequenceID(event) for event in exp.getGenomesWithSequence()},
                                             exp.getRootGenome(),
                                             self.cactusWorkflowArguments.configNode).rv()
+
+        # calculate the total size of the sequences in the alignment problem
+        self.cactusWorkflowArguments.totalSequenceSize = sum(os.stat(fileStore.readGlobalFile(exp.getSequenceID(i))).st_size for i in exp.getGenomesWithSequence())
 
         # hack to get cactus-blast standalone tool working
         if self.standAlone:
@@ -398,12 +387,15 @@ class CactusConsolidated(CactusPhasesJob):
         if "cactusWorkflowArguments" in kwargs and kwargs["cactusWorkflowArguments"].consCores:
             self.cores = kwargs["cactusWorkflowArguments"].consCores
 
-        self.disk = int(3 * self.cactusWorkflowArguments.totalSequenceSize)
+        exp = self.cactusWorkflowArguments.experimentWrapper
+        x = self.cactusWorkflowArguments.totalSequenceSize #  total size of sequences in problem
+
+        # Disk requirements
+        self.disk = int(3 * x)
 
         # this is the old caf job's memory function
         memoryPoly = [1.80395944e+01, 7.96042247e+07]
         memoryCap = 120e09
-        x = self.cactusWorkflowArguments.totalSequenceSize
         resource = 0
         for degree, coefficient in enumerate(reversed(memoryPoly)):
             resource += coefficient * (x**degree)
@@ -413,12 +405,13 @@ class CactusConsolidated(CactusPhasesJob):
     """Run cactus_consolidated (this spans everythring from bar to hal-genenerator)."""
     def run(self, fileStore):
         # Get the experiment object
-        experiment = self.cactusWorkflowArguments.experimentWrapper
-        if (not self.cactusWorkflowArguments.configWrapper.getDoTrimStrategy()) or (self.cactusWorkflowArguments.outgroupEventNames == None):
-            setupDivergenceArgs(self.cactusWorkflowArguments)
+        exp = self.cactusWorkflowArguments.experimentWrapper
+        #if (not self.cactusWorkflowArguments.configWrapper.getDoTrimStrategy()) or (self.cactusWorkflowArguments.outgroupEventNames == None):
+        #    setupDivergenceArgs(self.cactusWorkflowArguments)
 
         # Build up a genome -> fasta map.
-        seqMap = dict((genome, fileStore.readGlobalFile(id)) for genome, id in list(self.cactusWorkflowArguments.eventToUniquelyNamedSequenceID.items()))
+        seqMap = {event: fileStore.readGlobalFile(exp.getSequenceID(event)) for event in exp.getGenomesWithSequence()}
+        #seqMap = dict((genome, fileStore.readGlobalFile(id)) for genome, id in list(self.cactusWorkflowArguments.eventToUniquelyNamedSequenceID.items()))
 
         # Get the alignments file
         alignments = fileStore.readGlobalFile(self.cactusWorkflowArguments.alignmentsID)
@@ -449,8 +442,8 @@ class CactusConsolidated(CactusPhasesJob):
                                          secondaryAlignmentsFile=secondary_alignment_file,
                                          constraintAlignmentsFile=None,
                                          logLevel=getLogLevelString(),
-                                         outgroupEvents=experiment.getOutgroupGenomes(),
-                                         referenceEvent=experiment.getRootGenome(),
+                                         outgroupEvents=exp.getOutgroupGenomes(),
+                                         referenceEvent=exp.getRootGenome(),
                                          cores=self.cores)
 
         # Log back any messages
@@ -477,11 +470,11 @@ class CactusConsolidated(CactusPhasesJob):
             url = intermediateResultsUrl + ".reference.fa"
             fileStore.exportFile(referenceID, url)
 
-        self.cactusWorkflowArguments.experimentWrapper.setHalID(halID)
-        self.cactusWorkflowArguments.experimentWrapper.setHalFastaID(fastaID)
-        self.cactusWorkflowArguments.experimentWrapper.setReferenceID(referenceID)
+        exp.setHalID(halID)
+        exp.setHalFastaID(fastaID)
+        exp.setReferenceID(referenceID)
 
-        return self.cactusWorkflowArguments.experimentWrapper
+        return exp
 
 ############################################################
 ############################################################
@@ -548,11 +541,11 @@ class RunCactusPreprocessorThenCactusSetup(RoundedJob):
         self.cactusWorkflowArguments = cactusWorkflowArguments
 
     def run(self, fileStore):
-        eW = self.cactusWorkflowArguments.experimentWrapper
-        genomes = eW.getGenomesWithSequence()
-        originalSequenceIDs = [eW.getSequenceID(genome) for genome in genomes]
+        exp = self.cactusWorkflowArguments.experimentWrapper
+        genomes = exp.getGenomesWithSequence()
+        originalSequenceIDs = [exp.getSequenceID(genome) for genome in genomes]
         preprocessedSeqIDs = self.addChild(CactusPreprocessor(originalSequenceIDs, self.cactusWorkflowArguments.configNode)).rv()
-        self.addFollowOn(AfterPreprocessing(self.cactusWorkflowArguments, eW, genomes, preprocessedSeqIDs))
+        self.addFollowOn(AfterPreprocessing(self.cactusWorkflowArguments, exp, genomes, preprocessedSeqIDs))
 
 class AfterPreprocessing(RoundedJob):
     def __init__(self, cactusWorkflowArguments, eW, genomes, preprocessedSeqIDs):

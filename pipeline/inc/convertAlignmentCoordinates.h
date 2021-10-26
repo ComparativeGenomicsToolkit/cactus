@@ -15,9 +15,9 @@
 void convertAlignmentCoordinates(char *inputAlignmentFile, char *outputAlignmentFile, Flower *flower);
 
 /*
- * Strips unnecessary cruft from sequence IDs
+ * Strips unique identifiers from sequence IDs (which are added for leaf genomes)
  */
-void stripUniqueIdsFromSequences(Flower *flower);
+void stripUniqueIdsFromLeafSequences(Flower *flower);
 
 #endif /* CONVERT_ALIGNMENT_COORDINATES_H_ */
 

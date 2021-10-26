@@ -308,7 +308,7 @@ class CactusPreprocessor(RoundedJob):
         for i, inputSequenceID in enumerate(self.inputSequenceIDs):
             confNode = configs[i] if self.eventNames else self.configNode
             outputSequenceIDs.append(self.addChild(CactusPreprocessor2(inputSequenceID, confNode)).rv())
-        return outputSequenceIDs
+        return self.addFollowOn(CactusPreprocessor_PrependUniqueSequenceNames(outputSequenceIDs)).rv()
 
     @staticmethod
     def getOutputSequenceFiles(inputSequences, outputSequenceDir):
@@ -332,6 +332,30 @@ class CactusPreprocessor2(RoundedJob):
         else:
             logger.info("Adding child batch_preprocessor target")
             return self.addChild(BatchPreprocessor(prepXmlElems, self.inputSequenceID, 0)).rv()
+
+class CactusPreprocessor_PrependUniqueSequenceNames(RoundedJob):
+    """Preprends the sequences with unique sequence names
+    """
+    def __init__(self, inputSequenceIDs):
+        RoundedJob.__init__(self, disk=sum([id.size for id in inputSequenceIDs if hasattr(id, 'size')]), preemptable=True)
+        self.inputSequenceIDs = inputSequenceIDs
+
+    def run(self, fileStore):
+        # Prepend unique ids to each sequence
+        #cleanup=True
+        sequenceFiles = [fileStore.readGlobalFile(i) for i in self.inputSequenceIDs]
+        outputDir = fileStore.getLocalTempDir()
+        modified_sequences = []
+        for i, sequenceFile in enumerate(sequenceFiles):
+            modified_sequences.append(os.path.join(outputDir, os.path.basename(sequenceFile)))
+            with open(modified_sequences[-1], 'w') as out, open(sequenceFile) as fh:
+                for line in fh:
+                    if len(line) > 0 and line[0] == '>':
+                        header = "id={}|{}".format(i, line[1:-1])
+                        out.write(">%s\n" % header)
+                    else:
+                        out.write(line)
+        return [fileStore.writeGlobalFile(j) for j in modified_sequences]
 
 def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=False,
                   outputSequences = [], maskAlpha=False, clipAlpha=None,

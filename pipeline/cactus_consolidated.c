@@ -322,8 +322,8 @@ int main(int argc, char *argv[]) {
     //Strip the unique IDs
     //////////////////////////////////////////////
 
-    stripUniqueIdsFromSequences(flower);
-    st_logInfo("Stripped the unique IDs, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
+    stripUniqueIdsFromLeafSequences(flower);
+    st_logInfo("Stripped any unique IDs, %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     //////////////////////////////////////////////
     //Call cactus caf
