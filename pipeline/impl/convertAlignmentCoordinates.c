@@ -13,15 +13,13 @@ void stripUniqueIdsFromLeafSequences(Flower *flower) {
     Flower_SequenceIterator *flowerIt = flower_getSequenceIterator(flower);
     Sequence *sequence;
     while ((sequence = flower_getNextSequence(flowerIt)) != NULL) {
-        const char *header;
-        char *firstToken, *newHeader;
         // Strip the ID token from the header (should be the first
         // |-separated token) and complain if there isn't one.
-        header = sequence_getHeader(sequence);
+        const char *header = sequence_getHeader(sequence);
         stList *tokens = fastaDecodeHeader(header);
         if(stList_length(tokens) > 1 && !strncmp(stList_get(tokens, 0), "id=", 3)) {
             free(stList_removeFirst(tokens));
-            newHeader = fastaEncodeHeader(tokens);
+            char *newHeader = fastaEncodeHeader(tokens);
             sequence_setHeader(sequence, newHeader);
         }
         stList_destruct(tokens);

@@ -406,12 +406,9 @@ class CactusConsolidated(CactusPhasesJob):
     def run(self, fileStore):
         # Get the experiment object
         exp = self.cactusWorkflowArguments.experimentWrapper
-        #if (not self.cactusWorkflowArguments.configWrapper.getDoTrimStrategy()) or (self.cactusWorkflowArguments.outgroupEventNames == None):
-        #    setupDivergenceArgs(self.cactusWorkflowArguments)
 
         # Build up a genome -> fasta map.
         seqMap = {event: fileStore.readGlobalFile(exp.getSequenceID(event)) for event in exp.getGenomesWithSequence()}
-        #seqMap = dict((genome, fileStore.readGlobalFile(id)) for genome, id in list(self.cactusWorkflowArguments.eventToUniquelyNamedSequenceID.items()))
 
         # Get the alignments file
         alignments = fileStore.readGlobalFile(self.cactusWorkflowArguments.alignmentsID)
@@ -561,8 +558,6 @@ class AfterPreprocessing(RoundedJob):
             self.eW.setSequenceID(genome, preprocessedSeqID)
         fileStore.logToMaster("doTrimStrategy() = %s, outgroupEventNames = %s" % (self.cactusWorkflowArguments.configWrapper.getDoTrimStrategy(), self.cactusWorkflowArguments.outgroupEventNames))
         # Use the trimming strategy to blast ingroups vs outgroups.
-        #self.addFollowOn(CactusBlastPhase(cactusWorkflowArguments=self.cactusWorkflowArguments, phaseName="blast"))
-
         self.addFollowOn(CactusPafAlign(cactusWorkflowArguments=self.cactusWorkflowArguments, phaseName="blast"))
 
 
