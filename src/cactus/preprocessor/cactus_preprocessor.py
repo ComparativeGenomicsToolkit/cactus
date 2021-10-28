@@ -172,7 +172,7 @@ class PreprocessSequence(RoundedJob):
 
         inSequence = fileStore.readGlobalFile(self.inSequenceID)
 
-        if self.prepOptions.chunkSize <= 0:
+        if self.prepOptions.chunkSize <= 0 or True:
             # In this first case we don't need to break up the sequence
             chunked = False
             inChunkList = [inSequence]

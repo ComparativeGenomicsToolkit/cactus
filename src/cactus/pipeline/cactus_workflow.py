@@ -35,10 +35,6 @@ from cactus.shared.common import runCactusConsolidated
 from cactus.shared.common import findRequiredNode
 from cactus.shared.common import RoundedJob
 
-from cactus.blast.blast import BlastIngroupsAndOutgroups
-from cactus.blast.blast import BlastOptions
-from cactus.blast.mappingQualityRescoringAndFiltering import mappingQualityRescoring
-
 from cactus.paf.local_alignment import make_paf_alignments
 
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
@@ -166,62 +162,6 @@ class CactusPhasesJob(CactusJob):
 ############################################################
 ############################################################
 
-def prependUniqueIDs(eventToFa, outputDir, idMap=None, firstID=0, eventNameAsID=None):
-    """Prepend unique ints to fasta headers.
-
-    (prepend rather than append since trimmed outgroups have a start
-    token appended, which complicates removal slightly)
-    
-    The input is a map from event name to fasta path
-
-    Numeric IDs (on by default) make sense for normal cactus which churns out heaps of giant cigar files. They 
-    are based on a sorted order of the input event names. 
-    Event Name IDs are better for paf-based pipeline as they are stable across commands even when working on subsets of events
-    """
-    if eventNameAsID is None:
-        eventNameAsID = os.environ.get('CACTUS_EVENT_NAME_AS_UNIQUE_ID', False)
-        eventNameAsID = False if not bool(eventNameAsID) or eventNameAsID == '0' else True
-
-    uniqueID = firstID
-    ret = {}
-    for event in sorted(eventToFa.keys()):
-        fa = eventToFa[event]
-        # can handle none-values which serve only to space ids -- dont show in output
-        if fa:
-            outPath = os.path.join(outputDir, os.path.basename(fa))
-            with open(outPath, 'w') as out, open(fa) as fh:
-                for line in open(fa):
-                    if len(line) > 0 and line[0] == '>':
-                        idTag = event if eventNameAsID else uniqueID
-                        header = "id={}|{}".format(idTag, line[1:-1])
-                        out.write(">%s\n" % header)
-                        if idMap is not None:
-                            idMap[line[1:-1].rstrip()] = header.rstrip()
-                    else:
-                        out.write(line)
-            ret[event] = outPath
-        uniqueID += 1
-    return ret
-
-def getLongestPath(node, distance=0.0):
-    """Identify the longest path from the mrca of the leaves of the species tree.
-    """
-    i, j = distance, distance
-    if node.left != None:
-        i = getLongestPath(node.left, abs(node.left.distance)) + distance
-    if node.right != None:
-        j = getLongestPath(node.right, abs(node.right.distance)) + distance
-    return max(i, j)
-
-def setupDivergenceArgs(cactusWorkflowArguments):
-    #Adapt the config file to use arguments for the appropriate divergence distance
-    cactusWorkflowArguments.longestPath = getLongestPath(newickTreeParser(cactusWorkflowArguments.speciesTree))
-    if cactusWorkflowArguments.outgroupEventNames == None:
-        distanceToAddToRootAlignment = getOptionalAttrib(cactusWorkflowArguments.configNode, "distanceToAddToRootAlignment", float, 0.0)
-        cactusWorkflowArguments.longestPath += distanceToAddToRootAlignment
-    cw = ConfigWrapper(cactusWorkflowArguments.configNode)
-    cw.substituteAllDivergenceContolledParametersWithLiterals(cactusWorkflowArguments.longestPath)
-
 def inverseJukesCantor(d):
     """Takes a substitution distance and calculates the number of expected changes per site (inverse jukes cantor)
     d = -3/4 * log(1 - 4/3 * p)
@@ -240,106 +180,6 @@ def setupFilteringByIdentity(cactusWorkflowArguments):
         float(blastNode.attrib["minimumDistance"]))
         identity = str(100 - math.ceil(100 * inverseJukesCantor(adjustedPath)))
         blastNode.attrib["lastzArguments"] = blastNode.attrib["lastzArguments"] + (" --identity=%s" % identity)
-
-class CactusBlastPhase(CactusPhasesJob):
-    """Blast ingroups vs outgroups using the trimming strategy before
-    running cactus setup.
-    """
-    def __init__(self, standAlone = False, *args, **kwargs):
-        self.standAlone = standAlone
-        super(CactusBlastPhase, self).__init__(*args, **kwargs)
-        
-    def run(self, fileStore):
-        fileStore.logToMaster("Running blast using the trimming strategy")
-
-        # download the sequences
-        exp = self.cactusWorkflowArguments.experimentWrapper
-        igEvents = [g for g in exp.getGenomesWithSequence() if g not in exp.getOutgroupGenomes()]
-        ogEvents = [g for g in exp.getOutgroupGenomes()]
-        eventToSequence = {}
-        for event in igEvents + ogEvents:
-            eventToSequence[event] = fileStore.readGlobalFile(exp.getSequenceID(event))
-
-        # prepend the ids
-        renamedInputSeqDir = fileStore.getLocalTempDir()
-        eventToUnique = prependUniqueIDs(eventToSequence, renamedInputSeqDir)
-
-        # upload them and remember the size
-        eventToUniqueID = {}
-        for event, uniqueFa in eventToUnique.items():
-            eventToUniqueID[event] = fileStore.writeGlobalFile(eventToUnique[event], cleanup=True)
-        self.cactusWorkflowArguments.totalSequenceSize = sum(os.stat(x).st_size for x in eventToSequence.values())
-            
-        ingroupsAndNewIDs = [(event, eventToUniqueID[event]) for event in igEvents]
-        outgroupsAndNewIDs = [(event, eventToUniqueID[event]) for event in ogEvents]
-            
-        # Change the blast arguments depending on the divergence
-        setupDivergenceArgs(self.cactusWorkflowArguments)
-        setupFilteringByIdentity(self.cactusWorkflowArguments)
-
-        blastNode = findRequiredNode(self.cactusWorkflowArguments.configNode, "blast")
-        trimBlastNode = findRequiredNode(blastNode, "trimBlast")
-
-        # FIXME: this is really ugly
-        blastJob = self.addChild(BlastIngroupsAndOutgroups(
-            BlastOptions(chunkSize=getOptionalAttrib(blastNode, "chunkSize", int),
-                         overlapSize=getOptionalAttrib(blastNode, "overlapSize", int),
-                         lastzArguments=getOptionalAttrib(blastNode, "lastzArguments"),
-                         compressFiles=getOptionalAttrib(blastNode, "compressFiles", bool),
-                         realign=getOptionalAttrib(blastNode, "realign", bool),
-                         realignArguments=getOptionalAttrib(blastNode, "realignArguments"),
-                         memory=getOptionalAttrib(blastNode, "lastzMemory", int, sys.maxsize),
-                         minimumSequenceLength=getOptionalAttrib(blastNode, "minimumSequenceLengthForBlast", int, 1),
-                         trimFlanking=getOptionalAttrib(trimBlastNode, "trimFlanking", int, 10),
-                         trimMinSize=getOptionalAttrib(trimBlastNode, "trimMinSize", int, 0),
-                         trimThreshold=getOptionalAttrib(trimBlastNode, "trimThreshold", float, 0.8),
-                         trimWindowSize=getOptionalAttrib(trimBlastNode, "trimWindowSize", int, 10),
-                         trimOutgroupFlanking=getOptionalAttrib(trimBlastNode, "trimOutgroupFlanking", int, 100),
-                         trimOutgroupDepth=getOptionalAttrib(trimBlastNode, "trimOutgroupDepth", int, 1),
-                         keepParalogs=getOptionalAttrib(trimBlastNode, "keepParalogs", bool, False),
-                         gpuLastz=getOptionalAttrib(blastNode, "gpuLastz", bool, False)),
-            list(map(itemgetter(0), ingroupsAndNewIDs)), list(map(itemgetter(1), ingroupsAndNewIDs)),
-            list(map(itemgetter(0), outgroupsAndNewIDs)), list(map(itemgetter(1), outgroupsAndNewIDs))))
-        
-        # Alignment post processing to filter alignments
-        if getOptionalAttrib(blastNode, "runMapQFiltering", bool, False):
-            minimumMapQValue=getOptionalAttrib(blastNode, "minimumMapQValue", float, 0.0)
-            maxAlignmentsPerSite=getOptionalAttrib(blastNode, "maxAlignmentsPerSite", int, 1)
-            alpha=getOptionalAttrib(blastNode, "alpha", float, 1.0)
-            fileStore.logToMaster("Running mapQ uniquifying with parameters, minimumMapQValue: %s, maxAlignmentsPerSite %s, alpha: %s" %
-                                  (minimumMapQValue, maxAlignmentsPerSite, alpha))
-            blastJob = blastJob.encapsulate() # Encapsulate to ensure that blast Job and all its successors
-            # run before mapQ
-            mapQJob = blastJob.addFollowOnJobFn(mappingQualityRescoring, blastJob.rv(0),
-                                                minimumMapQValue=minimumMapQValue,
-                                                maxAlignmentsPerSite=maxAlignmentsPerSite,
-                                                alpha=alpha,
-                                                logLevel=getLogLevelString(),
-                                                preemptable=True)
-            self.cactusWorkflowArguments.alignmentsID = mapQJob.rv(0)
-            self.cactusWorkflowArguments.secondaryAlignmentsID = mapQJob.rv(1)
-        else:
-            fileStore.logToMaster("Not running mapQ filtering")
-            self.cactusWorkflowArguments.alignmentsID = blastJob.rv(0)
-            self.cactusWorkflowArguments.secondaryAlignmentsID = None
-
-        self.cactusWorkflowArguments.outgroupFragmentIDs = blastJob.rv(1)
-        self.cactusWorkflowArguments.ingroupCoverageIDs = blastJob.rv(2)
-
-        # Update the experiment wrapper to point to the uniquified IDs
-        # for the ingroups, and the trimmed results for the outgroups.
-        for genome, seqID in ingroupsAndNewIDs:
-            self.cactusWorkflowArguments.experimentWrapper.setSequenceID(genome, seqID)
-
-        updateJob = blastJob.addFollowOnJobFn(updateExpWrapperForOutgroups, self.cactusWorkflowArguments.experimentWrapper,
-                                              list(map(itemgetter(0), outgroupsAndNewIDs)), self.cactusWorkflowArguments.outgroupFragmentIDs)
-        self.cactusWorkflowArguments.experimentWrapper = updateJob.rv()
-
-        # hack to get cactus-blast standalone tool working
-        if self.standAlone:
-            return self.cactusWorkflowArguments
-
-        return self.makeFollowOnPhaseJob(CactusConsolidated, phaseName="consolidated")
 
 def updateExpWrapperForOutgroups(job, expWrapper, outgroupGenomes, outgroupFragmentIDs):
     for genome, outgroupFragmentID in zip(outgroupGenomes, outgroupFragmentIDs):

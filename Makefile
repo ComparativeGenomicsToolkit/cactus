@@ -2,7 +2,7 @@ rootPath = .
 
 include ${rootPath}/include.mk
 
-modules = api setup blastLib paf caf bar blast hal reference pipeline preprocessor
+modules = api setup paf caf bar hal reference pipeline preprocessor
 
 # submodules are in multiple pass to handle dependencies cactus2hal being dependent on
 # both cactus and sonLib
@@ -72,11 +72,6 @@ all_libs.blastLib: all_libs.api
 # under test modules under src/cactus/, split up to allowing run them in parallel.
 testModules = \
     bar/cactus_barTest.py \
-    blast/blastTest.py \
-    blast/cactus_coverageTest.py \
-    blast/cactus_realignTest.py \
-    blast/mappingQualityRescoringAndFilteringTest.py \
-    blast/trimSequencesTest.py \
     hal/cactus_halTest.py \
     pipeline/cactus_evolverTest.py \
     pipeline/cactus_workflowTest.py \
