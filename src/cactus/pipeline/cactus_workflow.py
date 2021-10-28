@@ -5,20 +5,13 @@
 #Released under the MIT license, see LICENSE.txt
 
 """Script strings together all the components to make the basic pipeline for reconstruction.
-
-The script uses the the jobTree.scriptTree target framework to structure all the related wrappers.
 """
 
 import os
 import sys
 import xml.etree.ElementTree as ET
 import math
-import copy
-import shutil
 from argparse import ArgumentParser
-from operator import itemgetter
-
-from sonLib.bioio import newickTreeParser
 from toil.lib.bioio import system
 from toil.lib.bioio import getTempFile
 from toil.statsAndLogging import logger
@@ -180,11 +173,6 @@ def setupFilteringByIdentity(cactusWorkflowArguments):
         float(blastNode.attrib["minimumDistance"]))
         identity = str(100 - math.ceil(100 * inverseJukesCantor(adjustedPath)))
         blastNode.attrib["lastzArguments"] = blastNode.attrib["lastzArguments"] + (" --identity=%s" % identity)
-
-def updateExpWrapperForOutgroups(job, expWrapper, outgroupGenomes, outgroupFragmentIDs):
-    for genome, outgroupFragmentID in zip(outgroupGenomes, outgroupFragmentIDs):
-        expWrapper.setSequenceID(genome, outgroupFragmentID)
-    return expWrapper
 
 ############################################################
 ############################################################

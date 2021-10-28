@@ -301,51 +301,18 @@ def runCactusProgressive(seqFile,
     from cactus.progressive.cactus_progressive import runCactusProgressive as runRealCactusProgressive
     runRealCactusProgressive(opts)
 
-def runCactusAnalyseAssembly(sequenceFile):
-    return cactus_call(check_output=True,
-                parameters=["cactus_analyseAssembly",
-                            sequenceFile])[:-1]
-
 def runToilStats(toil, outputFile):
     system("toil stats %s --outputFile %s" % (toil, outputFile))
     logger.info("Ran the job-tree stats command apparently okay")
 
-def runLastz(seq1, seq2, alignmentsFile, lastzArguments, work_dir=None, gpuLastz=False):
-    if work_dir is None:
-        assert os.path.dirname(seq1) == os.path.dirname(seq2)
-        work_dir = os.path.dirname(seq1)
-    if gpuLastz == True:
-        lastzCommand = "run_segalign"
-    else:
-        lastzCommand = "cPecanLastz"
-        seq1 += "[multiple][nameparse=darkspace]"
-        seq2 += "[nameparse=darkspace]"
-    cactus_call(work_dir=work_dir, outfile=alignmentsFile,
-                parameters=[lastzCommand, seq1, seq2, "--format=cigar", "--notrivial"] + lastzArguments.split())
-
-def runSelfLastz(seq, alignmentsFile, lastzArguments, work_dir=None, gpuLastz=False):
-    return runLastz(seq, seq, alignmentsFile, lastzArguments, work_dir, gpuLastz)
-
-def runCactusRealign(seq1, seq2, inputAlignmentsFile, outputAlignmentsFile, realignArguments, work_dir=None):
-    cactus_call(infile=inputAlignmentsFile, outfile=outputAlignmentsFile, work_dir=work_dir,
-                parameters=["cPecanRealign"] + realignArguments.split() + [seq1, seq2])
-
-def runCactusSelfRealign(seq, inputAlignmentsFile, outputAlignmentsFile, realignArguments, work_dir=None):
-    cactus_call(infile=inputAlignmentsFile, outfile=outputAlignmentsFile, work_dir=work_dir,
-                parameters=["cPecanRealign"] + realignArguments.split() + [seq])
-
-def runCactusCoverage(sequenceFile, alignmentsFile, work_dir=None):
-    return cactus_call(check_output=True, work_dir=work_dir,
-                parameters=["cactus_coverage", sequenceFile, alignmentsFile])
-
 def runGetChunks(sequenceFiles, chunksDir, chunkSize, overlapSize, work_dir=None):
     chunks = cactus_call(work_dir=work_dir,
                          check_output=True,
-                         parameters=["cactus_blast_chunkSequences",
-                                     getLogLevelString(),
-                                     str(chunkSize),
-                                     str(overlapSize),
-                                     chunksDir] + sequenceFiles)
+                         parameters=["fasta_chunk",
+                                     "--logLevel", getLogLevelString(),
+                                     "--chunkSize", str(chunkSize),
+                                     "--overlap", str(overlapSize),
+                                     "--dir", chunksDir] + sequenceFiles)
     return [chunk for chunk in chunks.split("\n") if chunk != ""]
 
 def pullCactusImage():

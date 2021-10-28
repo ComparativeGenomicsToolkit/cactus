@@ -31,6 +31,7 @@ static void readFastaCallback(void* destination, const char *fastaHeader, const 
     assert(offset >= 0);
     if (offset == 0) {
         free(stList_pop(attributes));
+        free(stList_pop(attributes));
         char *cA = fastaEncodeHeader(attributes);
         fprintf(stdout, ">%s\n", cA);
         free(cA);

@@ -28,7 +28,7 @@ void usage() {
     fprintf(stderr, "Breaks up a set of fasta sequences into a series of overlapping chunks, "
                     "printing the names of each chunk file to standard out.\n"
                     "To encode the chunking information each faster header is appended |x,"
-                    "where x is the start coordinate (0-based) of the chunked sequence in the original sequence");
+                    "where x is the start coordinate (0-based) of the chunked sequence in the original sequence\n");
     fprintf(stderr, "-c --chunkSize : The chunk size, by default: %" PRIi64 "\n", chunkSize);
     fprintf(stderr, "-o --overlap : The chunk overlap size, by default: %" PRIi64 "\n", chunkOverlapSize);
     fprintf(stderr, "-d --dir : An empty directory to place the chunk files in, by default: %s\n", chunksDir);
