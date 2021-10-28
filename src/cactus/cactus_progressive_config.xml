@@ -30,9 +30,8 @@
 	<!-- Params for blast -->
 	<!-- chunkSize The size of sequences in a blast job. Increase the chunkSize in the caf tag to reduce the number of blast jobs approximately quadratically -->
 	<!-- overlapSize The amount of basepair overlap between chunks -->
-	<!-- realign Use the cactus realign script to tweak the local alignments before they are processed by CAF -->
-	<!-- realignArguments Parameters to the cactus realign script -->
-	<!-- alpha TODO -->
+	<!-- mapper The local alignment program to use, currently either lastz or minimap2 -->
+	<!-- minimap2_params Parameters to use with minimap2 -->
 	<!-- compressFiles Compress the local alignments. (I think this may be broken) -->
 	<!-- filterByIdentity Filter alignments by % identity -->
 	<!-- identityRatio Let L be the sum of the branch lengths in the guide tree on the path connecting the genomes to be aligned.
@@ -46,19 +45,16 @@
 	<!-- maxAlignmentsPerSite Maximum alignments per site in performing filtering -->
 	<blast chunkSize="25000000"
 		   overlapSize="10000"
+		   mapper="lastz"
+		   minimap2_params="-x asm20"
 		   minimumSequenceLengthForBlast="30"
-		   realign="0"
-		   realignArguments="--gapGamma 0.0 --matchGamma 0.9 --diagonalExpansion 4 --splitMatrixBiggerThanThis 10 --constraintDiagonalTrim 0 --alignAmbiguityCharacters --splitIndelsLongerThanThis 99"
-		   alpha="0.001"
 		   compressFiles="1"
 		   filterByIdentity="0"
 		   identityRatio="3"
 		   minimumDistance="0.01"
 		   gpuLastz="false"
 		   lastzMemory="littleMemory"
-		   runMapQFiltering="1"
-		   minimumMapQValue="0.0"
-		   maxAlignmentsPerSite="5">
+		   >
 
 		<!-- Options for trimming ingroups & outgroups using the trim strategy -->
         <!-- Ingroup trim options: -->
@@ -348,7 +344,7 @@
 			strategy="greedyPreference"
 			threshold="0"
 			ancestor_quality_fraction="0.75"
-			max_num_outgroups="2"
+			max_num_outgroups="3"
 		/>
 	 	<decomposition
 	 		self_alignment="false"

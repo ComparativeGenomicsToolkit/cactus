@@ -47,8 +47,8 @@ done
 python3 cactus_local_alignment.py ./jobStore  --logLevel DEBUG --outputFile ${working_dir}/output.paf "${sequences}" --params $params_file --speciesTree "${tree}" --referenceEvent anc1
 
 # Split the alignment into primary and secondary
-grep "tl:i:1" ${working_dir}/output.paf > ${working_dir}/primary.paf
-grep -v "tl:i:1" ${working_dir}/output.paf > ${working_dir}/secondary.paf
+grep "tl:i:1" ${working_dir}/output.paf > ${working_dir}/primary.paf || true
+grep -v "tl:i:1" ${working_dir}/output.paf > ${working_dir}/secondary.paf || true
 
 # Run consolidate
 cactus_consolidated --logLevel INFO --outputFile ${working_dir}/output.c2h --params $params_file --alignments ${working_dir}/primary.paf --secondaryAlignments ${working_dir}/secondary.paf  --sequences "${sequences}" --speciesTree "${tree}" --outgroupEvents "${outgroups}" --referenceEvent anc1 --outputHalFastaFile ${working_dir}/output.fasta

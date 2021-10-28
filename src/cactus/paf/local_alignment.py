@@ -14,7 +14,6 @@ from sonLib.bioio import newickTreeParser
 import os
 from cactus.paf.paf import get_leaf_event_pairs, get_subtree_nodes, get_leaves, get_node
 
-#todo: add minimap2 mapping option
 def run_lastz(job, genome_A, genome_B, distance, params):
     # Create a local temporary file to put the alignments in.
     alignment_file = job.fileStore.getLocalTempFile()
@@ -35,6 +34,19 @@ def run_lastz(job, genome_A, genome_B, distance, params):
     system("lastz {}[multiple][nameparse=darkspace] {}[nameparse=darkspace] {} --format=paf:minimap2 > {}".format(job.fileStore.readGlobalFile(genome_A),
                                                            job.fileStore.readGlobalFile(genome_B),
                                                            lastz_params, alignment_file))
+
+    # Return the alignment file
+    return job.fileStore.writeGlobalFile(alignment_file)
+
+def run_minimap2(job, genome_A, genome_B, distance, params):
+    # Create a local temporary file to put the alignments in.
+    alignment_file = job.fileStore.getLocalTempFile()
+
+    # Generate the alignment
+    system("minimap2 -c {} {} {} > {}".format(job.fileStore.readGlobalFile(genome_A),
+                                                                           job.fileStore.readGlobalFile(genome_B),
+                                                                           params.find("blast").attrib["minimap2_params"],
+                                                                           alignment_file))  # Minimap2 must be installed
 
     # Return the alignment file
     return job.fileStore.writeGlobalFile(alignment_file)
@@ -64,7 +76,9 @@ def make_chunked_alignments(job, genome_a, genome_b, distance, params):
     chunked_alignment_files = []
     for chunk_a in chunks_a:
         for chunk_b in chunks_b:
-            chunked_alignment_files.append(job.addChildJobFn(run_lastz, chunk_a, chunk_b, distance, params).rv())
+            mappers = { "lastz":run_lastz, "minimap2":run_minimap2}
+            mappingFn = mappers[params.find("blast").attrib["mapper"]]
+            chunked_alignment_files.append(job.addChildJobFn(mappingFn, chunk_a, chunk_b, distance, params).rv())
 
     return job.addFollowOnJobFn(combine_chunks, chunked_alignment_files).rv()  # Combine the chunked alignment files
 
