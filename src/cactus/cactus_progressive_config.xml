@@ -56,6 +56,7 @@
 		   lastzMemory="littleMemory"
 		   >
 
+		<!-- TODO: Remove this trim stuff -->
 		<!-- Options for trimming ingroups & outgroups using the trim strategy -->
         <!-- Ingroup trim options: -->
         <!-- trimFlanking: The length of flanking sequence to attach
