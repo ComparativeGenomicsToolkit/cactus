@@ -67,7 +67,7 @@
         <!-- trimThreshold: The minimum fraction of bases in a window
              that must have coverage >= 1 for it to be considered
              "covered" and be trimmed away and not be aligned against
-             the next outgroup  -->
+             the next outgroup   -->
         <!-- trimWindowSize: The size of the window to integrate
              coverage over -->
         <!-- trimOutgroupDepth: The minimum number of outgroup species
