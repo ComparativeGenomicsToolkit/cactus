@@ -15,6 +15,7 @@ Cactus uses many different algorithms and individual code contributions, princip
 - Yan Gao et al. for [abPOA](https://github.com/yangao07/abPOA)
 - Heng Li for [minigraph](https://github.com/lh3/minigraph), [minimap2](https://github.com/lh3/minimap2), [gfatools](https://github.com/lh3/gfatools) and [dna-brnn](https://github.com/lh3/dna-rnn)
 - Dany Doerr for [GFAffix](https://github.com/marschall-lab/GFAffix), used to optionally clean pangenome graphs.
+- The vg team for [vg](https://github.com/vgteam/vg), used to process pangenome graphs.
 
 ## Setup
 
