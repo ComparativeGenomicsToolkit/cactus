@@ -33,6 +33,7 @@ set -x
 rm -rf ${pangenomeBuildDir}
 mkdir -p ${pangenomeBuildDir}
 mkdir -p ${binDir}
+mkdir -p ${dataDir}
 
 # minimap2
 cd ${pangenomeBuildDir}
@@ -280,7 +281,7 @@ else
 fi
 
 cd ${CWD}
-rm -rf ${pangenomeBuildDir}
+#rm -rf ${pangenomeBuildDir}
 
 set +x
 echo ""
