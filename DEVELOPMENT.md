@@ -1,11 +1,13 @@
 # Notes on developing and debugging cactus
 
 ## Overriding make settings
+
 A file include.local.mk can be created in the root directory
 to override make variables, including setting environment variables.
 This should not be committed.
 
 ## Environment variables controlling how cactus is run
+
 - CACTUS_BINARIES_MODE - how are cactus programs found?
   - docker <default>
   - singularity
@@ -18,6 +20,7 @@ This should not be committed.
   - 1
 
 ## Environment variables controlling tests
+
 - SON_TRACE_DATASETS location of test data set, currently available with
     git clone https://github.com/ComparativeGenomicsToolkit/cactusTestData
 
@@ -28,18 +31,15 @@ This should not be committed.
   - VERG_LONG - test taking even longer
 
 - CACTUS_TEST_LOG_LEVEL - Set log-level used for the test, may not set it for all test, but very useful for Toil.
-  
-
 
 ## Running tests with docker in single machine mode
+
     make docker
     export CACTUS_USE_LOCAL_IMAGE=1
     make test
 
 ## Debugging hints
+
    - The main Cactus Python process will print out a stack trace of all of the Python
      threads if sent a SIGUSR1 signal.  They will then continue execution.  This
      maybe useful in determining the state of cactus.
-   
-   
-
