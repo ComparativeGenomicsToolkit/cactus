@@ -1,4 +1,4 @@
-FROM ubuntu:bionic-20210615.1 AS builder
+FROM quay.io/comparative-genomics-toolkit/ubuntu:18.04 AS builder
 
 # apt dependencies for build
 RUN apt-get update && apt-get install -y build-essential git python3 python3-dev python3-pip zlib1g-dev wget libbz2-dev pkg-config libhdf5-dev liblzo2-dev libtokyocabinet-dev wget liblzma-dev libxml2-dev libssl-dev libpng-dev uuid-dev libcurl4-gnutls-dev python
@@ -49,7 +49,7 @@ RUN ln -fs /usr/bin/python3 /usr/bin/python
 RUN mkdir -p /wheels && cd /wheels && python3 -m pip install -U pip && python3 -m pip wheel -r /home/cactus/toil-requirement.txt && python3 -m pip wheel /home/cactus
 
 # Create a thinner final Docker image in which only the binaries and necessary data exist.
-FROM ubuntu:bionic-20210615.1
+FROM quay.io/comparative-genomics-toolkit/ubuntu:18.04
 
 # apt dependencies for runtime
 RUN apt-get update && apt-get install -y --no-install-recommends git python3 python3-pip python3-distutils zlib1g libbz2-1.0 net-tools libhdf5-100 liblzo2-2 libtokyocabinet9 rsync libkrb5-3 libk5crypto3 time liblzma5 libcurl4 libcurl4-gnutls-dev libxml2 libgomp1
