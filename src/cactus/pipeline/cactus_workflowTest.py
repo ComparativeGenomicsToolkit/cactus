@@ -25,7 +25,7 @@ from cactus.shared.test import getBatchSystem
 from cactus.shared.common import cactusRootPath
 
 from cactus.pipeline.cactus_workflow import getOptionalAttrib, extractNode, findRequiredNode, \
-    getJobNode, CactusJob, getLongestPath, inverseJukesCantor, CactusConsolidated, prependUniqueIDs
+    getJobNode, CactusJob, inverseJukesCantor, CactusConsolidated
 
 class TestCase(unittest.TestCase):
     def setUp(self):
@@ -155,64 +155,11 @@ class TestCase(unittest.TestCase):
         self.assertEqual(job.getOptionalJobAttrib("overlargeCpu", typeFn=int, default=-1), -1)
 
     @TestStatus.shortLength
-    def testGetLongestPath(self):
-        self.assertAlmostEqual(getLongestPath(newickTreeParser("(b(a:0.5):0.5,b(a:1.5):0.5)")), 2.0)
-        self.assertAlmostEqual(getLongestPath(newickTreeParser("(b(a:0.5):0.5,b(a:1.5,c:10):0.5)")), 10.5)
-        self.assertAlmostEqual(getLongestPath(newickTreeParser("(b(a:0.5):0.5,b(a:1.5,c:10,e,f:20):0.5)")), 20.5)
-
-    @TestStatus.shortLength
     def testInverseJukesCantor(self):
         self.assertAlmostEqual(inverseJukesCantor(0.5), 0.36493716072555599)
         self.assertAlmostEqual(inverseJukesCantor(1.0), 0.55230214641320496)
         self.assertAlmostEqual(inverseJukesCantor(10.0), 0.74999878530240571)
         self.assertAlmostEqual(inverseJukesCantor(100000.0), 0.75)
-
-    @TestStatus.shortLength
-    def testPrependUniqueIDs(self):
-        # Create fake FASTA files with some interesting headers.
-        with NamedTemporaryFile(mode='w+') as fasta1, NamedTemporaryFile(mode='w+') as fasta2:
-            fasta1.write(dedent("""
-            >C10856240  2.0
-            ACTAGAGG
-            G
-
-            GG
-            >foo bar  baz
-            ACTGACGATgacgat
-            >emptyseq
-            """))
-            fasta2.write(dedent("""
-            > space
-            GTGC
-            >id=1||header
-            ATCC
-            """))
-            fasta1.flush()
-            fasta2.flush()
-            outDir = mkdtemp()
-            eventToFa = {0 : fasta1.name, 1 : fasta2.name}
-            outputPaths = prependUniqueIDs(eventToFa, outDir)
-
-        assert len(outputPaths) == 2
-        with open(outputPaths[0]) as f:
-            self.assertEqual(f.read(), dedent("""
-            >id=0|C10856240  2.0
-            ACTAGAGG
-            G
-
-            GG
-            >id=0|foo bar  baz
-            ACTGACGATgacgat
-            >id=0|emptyseq
-            """))
-        with open(outputPaths[1]) as f:
-            self.assertEqual(f.read(), dedent("""
-            >id=1| space
-            GTGC
-            >id=1|id=1||header
-            ATCC
-            """))
-        shutil.rmtree(outDir)
 
 if __name__ == '__main__':
     unittest.main()
