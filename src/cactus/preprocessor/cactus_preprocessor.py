@@ -308,7 +308,7 @@ class CactusPreprocessor(RoundedJob):
         for i, inputSequenceID in enumerate(self.inputSequenceIDs):
             confNode = configs[i] if self.eventNames else self.configNode
             outputSequenceIDs.append(self.addChild(CactusPreprocessor2(inputSequenceID, confNode)).rv())
-        return self.addFollowOn(CactusPreprocessor_PrependUniqueSequenceNames(outputSequenceIDs)).rv()
+        return self.addFollowOn(CactusPreprocessor_PrependUniqueSequenceNames(outputSequenceIDs, self.disk)).rv()
 
     @staticmethod
     def getOutputSequenceFiles(inputSequences, outputSequenceDir):
@@ -336,8 +336,8 @@ class CactusPreprocessor2(RoundedJob):
 class CactusPreprocessor_PrependUniqueSequenceNames(RoundedJob):
     """Preprends the sequences with unique sequence names
     """
-    def __init__(self, inputSequenceIDs):
-        #RoundedJob.__init__(self, disk=sum([id.size for id in inputSequenceIDs if hasattr(id, 'size')]), preemptable=True)
+    def __init__(self, inputSequenceIDs, disk):
+        RoundedJob.__init__(self, disk=disk, preemptable=True)
         self.inputSequenceIDs = inputSequenceIDs
 
     def run(self, fileStore):
