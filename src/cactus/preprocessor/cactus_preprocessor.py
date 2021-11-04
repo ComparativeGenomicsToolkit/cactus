@@ -337,7 +337,7 @@ class CactusPreprocessor_PrependUniqueSequenceNames(RoundedJob):
     """Preprends the sequences with unique sequence names
     """
     def __init__(self, inputSequenceIDs):
-        RoundedJob.__init__(self, disk=sum([id.size for id in inputSequenceIDs if hasattr(id, 'size')]), preemptable=True)
+        #RoundedJob.__init__(self, disk=sum([id.size for id in inputSequenceIDs if hasattr(id, 'size')]), preemptable=True)
         self.inputSequenceIDs = inputSequenceIDs
 
     def run(self, fileStore):
