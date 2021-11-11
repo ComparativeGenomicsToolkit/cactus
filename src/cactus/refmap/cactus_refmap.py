@@ -197,25 +197,18 @@ def map_all_to_ref(job, assembly_files, reference, debug_export=False, dipcall_b
 
                 dipcall_bed_filter_job = secondaries_filter_job.addFollowOnJobFn(apply_dipcall_bed_filter.apply_dipcall_bed_filter, primary_paf)
                 bed_filtered_primary_mappings = dipcall_bed_filter_job.rv()
-
-                conversion_job = dipcall_bed_filter_job.addFollowOnJobFn(paf_to_lastz.paf_to_lastz, bed_filtered_primary_mappings)
-                lastz_mappings = conversion_job.rv()
+                paf_mappings = bed_filtered_primary_mappings
             else:
                 # convert mapping to lastz (and filter into primary and secondary mappings)
-                conversion_job = map_job.addFollowOnJobFn(paf_to_lastz.paf_to_lastz, ref_mappings[assembly])
-                lastz_mappings = conversion_job.rv()
+                paf_mappings = ref_mappings[assembly]
 
             # extract the primary and secondary mappings.
-            primary_mappings[assembly] = conversion_job.addFollowOnJobFn(unpack_promise, lastz_mappings, 0).rv()
-            secondary_mappings[assembly] = conversion_job.addFollowOnJobFn(unpack_promise, lastz_mappings, 1).rv()
+            primary_mappings[assembly] = paf_mappings
+            secondary_mappings[assembly] = None
 
     # consolidate the primary mappings into a single file; same for secondary mappings.
     all_primary = lead_job.addFollowOnJobFn(consolidate_mappings, primary_mappings).rv()
-    all_secondary = lead_job.addFollowOnJobFn(consolidate_mappings, secondary_mappings).rv()
-    if debug_export:
-        return (all_primary, all_secondary, ref_mappings, primary_mappings, secondary_mappings)
-    else:
-        return (all_primary, all_secondary)
+    return all_primary
 
 def map_a_to_b(job, a, b, dipcall_filter):
     """Maps fasta a to fasta b.
@@ -267,7 +260,6 @@ def get_options():
     parser.add_argument("outputFile", type=str, help = "Output pairwise alignment file")
     parser.add_argument("--pathOverrides", nargs="*", help="paths (multiple allowd) to override from seqFile")
     parser.add_argument("--pathOverrideNames", nargs="*", help="names (must be same number as --paths) of path overrides")
-    parser.add_argument("--writeSecondaries", action="store_true", help="write secondary alignments file (secondaries not written by default)")
 
     # dipcall-like filters
     parser.add_argument('--dipcall_bed_filter', action='store_true', 
@@ -350,30 +342,12 @@ def main():
         else:
             alignments = workflow.restart()
 
-        if options.debug_export:
-            # first, ensure the debug dir exists.
-            if not os.path.isdir(options.debug_export_dir):
-                os.mkdir(options.debug_export_dir)
-            
-            print(alignments)
-            # Then return value is: (all_primary, all_secondary, ref_mappings, primary_mappings, secondary_mappings)
-            for asm, mapping_file in alignments[2].items():
-                workflow.exportFile(mapping_file, 'file://' + os.path.abspath("mappings_for_" + asm + ".paf"))
-            for asm, mapping_file in alignments[3].items():
-                workflow.exportFile(mapping_file, 'file://' + os.path.abspath("mappings_for_" + asm + ".cigar"))
-            for asm, mapping_file in alignments[4].items():
-                workflow.exportFile(mapping_file, 'file://' + os.path.abspath("mappings_for_" + asm + ".cigar.secondry"))
-
         ## Save alignments:
         if options.dipcall_vcf_filter: # this is substantially less restrictive than the dipcall_bed_filter. 
-            dipcall_filtered = workflow.start(Job.wrapJobFn(apply_dipcall_vcf_filter, alignments[0]))
+            dipcall_filtered = workflow.start(Job.wrapJobFn(apply_dipcall_vcf_filter, alignments))
             workflow.exportFile(dipcall_filtered, makeURL(options.outputFile))
-            if options.writeSecondaries:
-                workflow.exportFile(alignments[1], makeURL(options.outputFile + ".unfiltered.secondary"))
         else:
-            workflow.exportFile(alignments[0], makeURL(options.outputFile))
-            if options.writeSecondaries:
-                workflow.exportFile(alignments[1], makeURL(options.outputFile + ".secondary"))
+            workflow.exportFile(alignments, makeURL(options.outputFile))
 
 if __name__ == "__main__":
     main()
