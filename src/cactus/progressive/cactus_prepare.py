@@ -769,7 +769,7 @@ def toil_call_preprocess(job, options, in_seq_file, out_seq_file, name):
     out_name = os.path.basename(out_seq_file.pathMap[name])
 
     cmd = ['cactus-preprocess', os.path.join(work_dir, 'js'), '--inPaths', in_path,
-           '--outPaths', out_name, '--workDir', work_dir,
+           '--outPaths', out_name, '--inputNames', name, '--workDir', work_dir,
            '--maxCores', str(int(job.cores)), '--maxDisk', bytes2humanN(job.disk), '--maxMemory', bytes2humanN(job.memory)] + options.cactusOptions.strip().split(' ')
     
     cactus_call(parameters=cmd)
