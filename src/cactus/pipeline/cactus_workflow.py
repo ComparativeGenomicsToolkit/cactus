@@ -244,9 +244,9 @@ class CactusConsolidated(CactusPhasesJob):
 
         # Split the alignments file into primary and secondary
         primary_alignment_file = fileStore.getLocalTempFile()
-        system("grep 'tl:i:1' {} > {} || true".format(alignments, primary_alignment_file))
+        system("grep -v 'tp:A:S' {} > {} || true".format(alignments, primary_alignment_file))
         secondary_alignment_file = fileStore.getLocalTempFile()
-        system("grep -v 'tl:i:1' {} > {} || true".format(alignments, secondary_alignment_file))
+        system("grep 'tp:A:S' {} > {} || true".format(alignments, secondary_alignment_file))
 
         # Temporary place to store the output c2h file
         tmpHal = fileStore.getLocalTempFile()
