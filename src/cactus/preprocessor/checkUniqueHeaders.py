@@ -4,7 +4,7 @@
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 
-def checkUniqueHeaders(inputFile, checkAlphaNumeric=False, checkUCSC=False, checkAssemblyHub=True):
+def checkUniqueHeaders(inputFile, outputFile, eventName, checkAlphaNumeric=False, checkUCSC=False, checkAssemblyHub=True):
     """Check that headers are unique and meet certain requirements."""
     seen = set()
     for seq_record in SeqIO.parse(inputFile, 'fasta'):
@@ -25,3 +25,12 @@ def checkUniqueHeaders(inputFile, checkAlphaNumeric=False, checkUCSC=False, chec
         if mungedHeader in seen:
             raise RuntimeError("We found a duplicated fasta header, the first word of each fasta header should be unique within each genome, as this is a requirement for the output HAL file or any MAF file subsequently created. Please modify the input fasta file. Offending duplicate header: %s" % header)
         seen.add(mungedHeader)
+
+        # preprocess the unique id
+        assert eventName
+        header = 'id={}|{}'.format(header, seq_record.description)
+        seq_record.description = header
+        seq_record.id = header
+        SeqIO.write(seq_record, outputFile, 'fasta')
+
+    
