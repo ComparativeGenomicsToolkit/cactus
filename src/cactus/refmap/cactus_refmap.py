@@ -39,7 +39,6 @@ from cactus.shared.common import setupBinaries, importSingularityImage
 from cactus.shared.common import makeURL
 from cactus.shared.common import cactus_call
 from cactus.progressive.seqFile import SeqFile
-from cactus.pipeline.cactus_workflow import prependUniqueIDs
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.common import cactusRootPath
@@ -151,36 +150,13 @@ def filter_out_secondaries_from_paf(job, paf):
                         break
     return job.fileStore.writeGlobalFile(primary_paf)
 
-def run_prepend_unique_ids(job, assembly_files):
-    """
-    Ensures all input sequences from assembly_files have unique names.
-    This is adapted from run_prepend_unique_ids in cactus_align, in order to maintain order-dependent renamings.
-    Because cactus-reference-align assumes that all input sequences are ingroups, it does not attempt to avoid renaming outgroup genomes.  
-    """
-    # download all the sequence files
-    event_to_path = {}
-    for event, assembly_id in assembly_files.items():
-        event_to_path[event] = job.fileStore.readGlobalFile(assembly_id)
-
-    # prepend unique id to each one (using event name instead of numeric id, as it's more stable across tools)
-    event_to_unique_path = prependUniqueIDs(event_to_path, job.fileStore.getLocalTempDir(), eventNameAsID=True)
-
-    # write the prepended files back to the job store and return the dict
-    for event, prepended_sequence_path in event_to_unique_path.items():
-        assembly_files[event] = job.fileStore.writeGlobalFile(prepended_sequence_path, cleanup=True)
-    return assembly_files
-
 ## mapping fxns:
 
 def run_cactus_reference_align(job, assembly_files, reference, debug_export=False, dipcall_bed_filter=False, dipcall_vcf_filter=False):
     """
     Preprocesses assemblies, then runs mappings.
     """
-    ## Note: this is adapted from run_prepend_unique_ids in cactus_align, in order to maintain order-dependent renamings.
-    ## Because cactus-reference-align assumes that all input sequences are ingroups, it does not attempt to avoid renaming outgroup genomes.  
-    preprocess_job = job.addChildJobFn(run_prepend_unique_ids, assembly_files)
-    assembly_files = preprocess_job.rv()
-    mappings = preprocess_job.addFollowOnJobFn(map_all_to_ref, assembly_files, reference, debug_export, dipcall_bed_filter, dipcall_vcf_filter).rv()
+    mappings = job.addFollowOnJobFn(map_all_to_ref, assembly_files, reference, debug_export, dipcall_bed_filter, dipcall_vcf_filter).rv()
     return mappings
 
 def map_all_to_ref(job, assembly_files, reference, debug_export=False, dipcall_bed_filter=False, dipcall_vcf_filter=False):

@@ -25,7 +25,6 @@ from cactus.progressive.projectWrapper import ProjectWrapper
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
-from cactus.pipeline.cactus_workflow import prependUniqueIDs
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
@@ -217,7 +216,7 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event):
     return out_paf_id, fa_id, paf_job.rv(1)
         
 def make_minigraph_fasta(job, gfa_file_id, gfa_file_path, name):
-    """ Use gfatools to make the minigraph "assembly" """
+    """ Use gfatools to make the minigraph "assembly. if name specified, use it as unique prefix """
 
     # note: using the toil-vg convention of naming working files manually so that logging is more readable
     work_dir = job.fileStore.getLocalTempDir()
@@ -225,11 +224,14 @@ def make_minigraph_fasta(job, gfa_file_id, gfa_file_path, name):
     fa_path = os.path.join(work_dir, "minigraph_sequences.fa")
     
     job.fileStore.readGlobalFile(gfa_file_id, gfa_path)
-
-    cmd = ["gfatools", "gfa2fa", gfa_path]
+    cmd = [["gfatools", "gfa2fa", gfa_path]]
+    if name:
+        cmd.append(["sed", "-e", "s/^>\(.\)/>id={}|\\1/g".format(name)])
     if gfa_file_path.endswith('.gz'):
-        cmd = [cmd, ['gzip']]
+        cmd.append(['gzip'])
         fa_path += '.gz'
+    if len(cmd) == 1:
+        cmd = cmd[0]
     cactus_call(outfile=fa_path, parameters=cmd)
 
     return job.fileStore.writeGlobalFile(fa_path)
@@ -292,9 +294,6 @@ def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id,
         fa_path = fa_path[:-3]
         cactus_call(parameters = ['gzip', '-d', '-c', fa_path + '.gz'], outfile=fa_path)
 
-    # prepend the unique id before mapping so the GAF has cactus-compatible event names
-    fa_path = prependUniqueIDs({event_name : fa_path}, work_dir, eventNameAsID=True)[event_name]
-
     # parse options from the config
     xml_node = findRequiredNode(config.xmlRoot, "graphmap")
     minigraph_opts = getOptionalAttrib(xml_node, "minigraphMapOptions", str, default="")     
@@ -307,17 +306,14 @@ def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id,
     if "-t" not in opts_list:
         opts_list += ["-t", str(int(job.cores))]
 
-    cmd = ["minigraph",
-           os.path.basename(gfa_path),
-           os.path.basename(fa_path),
-           "-o", os.path.basename(gaf_path)] + opts_list
+    cmd = ["minigraph", gfa_path, fa_path, "-o", gaf_path] + opts_list
 
     mask_filter = getOptionalAttrib(xml_node, "maskFilter", int, default=-1)
     if mask_filter >= 0:
         cmd[2] = '-'
         cmd = [['cactus_softmask2hardmask', os.path.basename(fa_path), '-m', str(mask_filter)], cmd]
     
-    cactus_call(work_dir=work_dir, parameters=cmd)
+    cactus_call(parameters=cmd)
 
     paf_id, gaf_id = None, None
     if paf_output:
@@ -342,7 +338,7 @@ def merge_gafs_into_paf(job, config, gaf_file_id_map, gaf_paths = []):
     xml_node = findRequiredNode(config.xmlRoot, "graphmap")
     mzgaf2paf_opts = []
     graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
-    # this must be consistent with prependUniqueIDs() in cactus_workflow.py
+    # this must be consistent with checkUniqueHeaders.py
     mzgaf2paf_opts += ['-p', 'id={}|'.format(graph_event)]
     mz_filter = getOptionalAttrib(xml_node, "universalMZFilter", float)
     if mz_filter:

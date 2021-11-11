@@ -242,7 +242,7 @@ class TestCase(unittest.TestCase):
 
         # do the alignment
         subprocess.check_call(['cactus-align', self._job_store(binariesMode), out_seq_file_path, paf_path, self._out_hal(binariesMode),
-                               '--pafInput', '--pangenome', '--outVG', '--outGFA', '--pafMaskFilter', '10000', '--barMaskFilter', '10000'] + cactus_opts) 
+                               '--pangenome', '--outVG', '--outGFA', '--barMaskFilter', '10000'] + cactus_opts) 
                 
     def _csvstr_to_table(self, csvstr, header_fields):
         """ Hacky csv parse """
