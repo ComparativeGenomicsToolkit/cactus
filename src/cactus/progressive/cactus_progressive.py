@@ -236,7 +236,8 @@ class RunCactusPreprocessorThenProgressiveDown(RoundedJob):
         ConfigWrapper(configNode).initGPU(self.options.gpu)
         #Add the preprocessor child job. The output is a job promise value that will be
         #converted into a list of the IDs of the preprocessed sequences in the follow on job.
-        preprocessorJob = self.addChild(CactusPreprocessor(list(self.project.inputSequenceIDMap.values()), configNode))
+        preprocessorJob = self.addChild(CactusPreprocessor(list(self.project.inputSequenceIDMap.values()), configNode,
+                                                           eventNames=list(self.project.inputSequenceIDMap.keys())))
         rvs = [preprocessorJob.rv(i) for i in range(len(self.project.inputSequenceIDMap))]
         fileStore.logToMaster('input sequence IDs: %s' % self.project.inputSequenceIDMap)
         for genome, rv in zip(list(self.project.inputSequenceIDMap.keys()), rvs):
