@@ -58,7 +58,7 @@ class TestCase(unittest.TestCase):
         self._write_primates_seqfile(seq_file_path)
         self._run_evolver(binariesMode, configFile=configFile, seqFile=seq_file_path)
 
-    def _run_evolver_decomposed(self, name):
+    def _run_evolver_decomposed(self, binariesMode, name):
         """ Run the full evolver test, putting the jobstore and output in tempDir
         but instead of doing in in one shot like above, use cactus-prepare, cactus-blast
         and cactus-align to break it into different steps """
@@ -68,15 +68,16 @@ class TestCase(unittest.TestCase):
         in_seqfile = './examples/evolverMammals.txt'
         cmd = ['cactus-prepare', in_seqfile, '--outDir', out_dir, '--outSeqFile', out_seqfile, '--outHal', self._out_hal(name),
                '--jobStore', self._job_store(name)]
+        bm_flag = '--binariesMode {}'.format(binariesMode)
+        if binariesMode == "docker":
+            bm_flag += ' --latest'
+        cmd += ['--cactusOptions', '\"{}\"'.format(bm_flag)]
 
         job_plan = popenCatch(' '.join(cmd))
 
         for line in job_plan.split('\n'):
             line = line.strip()
             if len(line) > 0 and not line.startswith('#'):
-                # do Anc2 in binariesMode docker to broaden test coverage
-                if 'Anc2' in line and line.startswith('cactus-'):
-                    line += ' --binariesMode docker --latest'
                 sys.stderr.write('Running {}'.format(line))
                 subprocess.check_call(line, shell=True)
 
@@ -423,13 +424,26 @@ class TestCase(unittest.TestCase):
         """
         # run cactus step by step via the plan made by cactus-prepare
         name = "decomposed"
-        self._run_evolver_decomposed(name)
+        self._run_evolver_decomposed("local", name)
 
         # check the output
         #self._check_stats(self._out_hal(name), delta_pct=0.25)
         #self._check_coverage(self._out_hal(name), delta_pct=0.20)
         self._check_maf_accuracy(self._out_hal(name), delta=0.04)
 
+    def testEvolverDecomposedDocker(self):
+        """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode docker is
+        is reasonable
+        """
+        # run cactus step by step via the plan made by cactus-prepare
+        name = "decomposed"
+        self._run_evolver_decomposed("docker", name)
+
+        # check the output
+        #self._check_stats(self._out_hal(name), delta_pct=0.25)
+        #self._check_coverage(self._out_hal(name), delta_pct=0.20)
+        self._check_maf_accuracy(self._out_hal(name), delta=0.04)
+        
     def testEvolverDocker(self):
         """ Check that the output of halStats on a hal file produced by running cactus with --binariesMode docker is
         is reasonable.  Note: the local image being tested should be set up via CACTUS_DOCKER_ORG (with tag==latest)
