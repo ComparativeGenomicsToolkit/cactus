@@ -24,10 +24,12 @@ from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
 from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
-from cactus.pipeline.cactus_workflow import CactusBlastPhase
+from cactus.pipeline.cactus_workflow import CactusPafAlign
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
+
+from cactus.paf.local_alignment import make_paf_alignments
 
 from toil.job import Job
 from toil.common import Toil
@@ -180,19 +182,10 @@ def runCactusBlastOnly(options):
 
             workFlowArgs = CactusWorkflowArguments(options, experimentFile=experimentFile, configNode=configNode, seqIDMap = project.inputSequenceIDMap)
 
-            outWorkFlowArgs = toil.start(CactusBlastPhase(standAlone=True, cactusWorkflowArguments=workFlowArgs, phaseName="blast"))
+            outWorkFlowArgs = toil.start(CactusPafAlign(standAlone=True, cactusWorkflowArguments=workFlowArgs, phaseName="blast"))
 
         # export the alignments
         toil.exportFile(outWorkFlowArgs.alignmentsID, makeURL(options.outputFile))
-        # optional secondary alignments
-        if outWorkFlowArgs.secondaryAlignmentsID:
-            toil.exportFile(outWorkFlowArgs.secondaryAlignmentsID, makeURL(options.outputFile) + '.secondary')
-        # outgroup fragments and coverage are necessary for cactus-align, as the sequence names got changed in the above alignemnts
-        for i, outgroupFragmentID in enumerate(outWorkFlowArgs.outgroupFragmentIDs):
-            toil.exportFile(outgroupFragmentID, makeURL(options.outputFile) + '.og_fragment_{}'.format(i))
-        # cactus-align can recompute coverage on the fly, but we save them because we have them
-        for i, ingroupCoverageID in enumerate(outWorkFlowArgs.ingroupCoverageIDs):
-            toil.exportFile(ingroupCoverageID, makeURL(options.outputFile) + '.ig_coverage_{}'.format(i))
 
 
 if __name__ == '__main__':
