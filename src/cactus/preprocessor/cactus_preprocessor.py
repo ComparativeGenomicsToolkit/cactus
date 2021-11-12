@@ -85,12 +85,13 @@ class CheckUniqueHeaders(RoundedJob):
 
     def run(self, fileStore):
         inChunk = fileStore.readGlobalFile(self.inChunkID)
-        with open(inChunk) as inFile:
-            checkUniqueHeaders(inFile, checkAssemblyHub=self.prepOptions.checkAssemblyHub)
+        outChunk = fileStore.getLocalTempFile()
+        with open(inChunk) as inFile, open(outChunk, 'w') as outFile:
+            checkUniqueHeaders(inFile, outFile, self.prepOptions.eventName, checkAssemblyHub=self.prepOptions.checkAssemblyHub)
         # We re-write the file here so that the output's lifecycle
         # matches the other chunked jobs, which usually write a new
-        # chunk.
-        return fileStore.writeGlobalFile(inChunk)
+        # chunk. 
+        return fileStore.writeGlobalFile(outChunk)
 
 class MergeChunks(RoundedJob):
     def __init__(self, prepOptions, chunkIDList):
@@ -308,7 +309,7 @@ class CactusPreprocessor(RoundedJob):
         for i, inputSequenceID in enumerate(self.inputSequenceIDs):
             confNode = configs[i] if self.eventNames else self.configNode
             outputSequenceIDs.append(self.addChild(CactusPreprocessor2(inputSequenceID, confNode)).rv())
-        return self.addFollowOn(CactusPreprocessor_PrependUniqueSequenceNames(outputSequenceIDs, self.disk)).rv()
+        return outputSequenceIDs
 
     @staticmethod
     def getOutputSequenceFiles(inputSequences, outputSequenceDir):
@@ -332,30 +333,6 @@ class CactusPreprocessor2(RoundedJob):
         else:
             logger.info("Adding child batch_preprocessor target")
             return self.addChild(BatchPreprocessor(prepXmlElems, self.inputSequenceID, 0)).rv()
-
-class CactusPreprocessor_PrependUniqueSequenceNames(RoundedJob):
-    """Preprends the sequences with unique sequence names
-    """
-    def __init__(self, inputSequenceIDs, disk):
-        RoundedJob.__init__(self, disk=disk, preemptable=True)
-        self.inputSequenceIDs = inputSequenceIDs
-
-    def run(self, fileStore):
-        # Prepend unique ids to each sequence
-        #cleanup=True
-        sequenceFiles = [fileStore.readGlobalFile(i) for i in self.inputSequenceIDs]
-        outputDir = fileStore.getLocalTempDir()
-        modified_sequences = []
-        for i, sequenceFile in enumerate(sequenceFiles):
-            modified_sequences.append(os.path.join(outputDir, os.path.basename(sequenceFile)))
-            with open(modified_sequences[-1], 'w') as out, open(sequenceFile) as fh:
-                for line in fh:
-                    if len(line) > 0 and line[0] == '>':
-                        header = "id={}|{}".format(i, line[1:-1])
-                        out.write(">%s\n" % header)
-                    else:
-                        out.write(line)
-        return [fileStore.writeGlobalFile(j) for j in modified_sequences]
 
 def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=False,
                   outputSequences = [], maskAlpha=False, clipAlpha=None,

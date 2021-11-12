@@ -25,9 +25,7 @@ from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
 from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
-from cactus.pipeline.cactus_workflow import prependUniqueIDs
 from cactus.pipeline.cactus_workflow import CactusConsolidated
-from cactus.blast.blast import calculateCoverage
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
@@ -418,14 +416,7 @@ def cactus_align(job, configWrapper, cactusWorkflowArguments, project, checkpoin
     preprocess_job = head_job.addChildJobFn(preprocess_input_sequences, configWrapper, project, cactusWorkflowArguments, referenceEvent)
     cactusWorkflowArguments = preprocess_job.rv()
 
-    # do the name mangling cactus expects, where every fasta sequence starts with id=0|, id=1| etc
-    # and the cigar files match up.  If reading cactus-blast output, the cigars are fine, just need
-    # the fastas (todo: make this less hacky somehow)
-    cur_job = head_job.addFollowOnJobFn(prepend_unique_ids, cactusWorkflowArguments, project, doRenaming, eventNameAsID
-                                        #todo disk=
-    )
-    cactusWorkflowArguments = cur_job.rv()
-    
+    cur_job = preprocess_job
     # run cactus setup all the way through cactus2hal generation
     setup_job = cur_job.addFollowOnJobFn(setup_phase, cactusWorkflowArguments)
 
@@ -460,22 +451,23 @@ def preprocess_input_sequences(job, configWrapper, project, cactusWorkflowArgume
     ingroupsAndOriginalIDs = [(g, exp.getSequenceID(g)) for g in exp.getGenomesWithSequence()]
     events = []
     updated_seq_ids = []
+    sequence_sizes = []
     for g, seqID in ingroupsAndOriginalIDs:
-        zipped = project.inputSequenceMap[g].endswith('.gz')
-        if zipped:
-            prepend_id_job = head_job.addChildJobFn(preprocess_input_sequence, g, seqID, project.inputSequenceMap[g])
-            updated_seq_id = prepend_id_job.rv()
-            if zipped:
-                events.append(g)
-                updated_seq_ids.append(updated_seq_id)
+        # unzip if necessary, also pull in the total sequence size
+        preprocess_input_id_job = head_job.addChildJobFn(preprocess_input_sequence, g, seqID, project.inputSequenceMap[g])
+        events.append(g)
+        updated_seq_ids.append(preprocess_input_id_job.rv(0))
+        sequence_sizes.append(preprocess_input_id_job.rv(1))
 
-    return head_job.addFollowOnJobFn(resolve_id_promises, events, updated_seq_ids, cactusWorkflowArguments).rv()
+    return head_job.addFollowOnJobFn(resolve_id_promises, events, updated_seq_ids, sequence_sizes, cactusWorkflowArguments).rv()
 
-def resolve_id_promises(job, events, updated_seq_ids, cactusWorkflowArguments):
-    if events:
-        exp = cactusWorkflowArguments.experimentWrapper
-        for g, seqID in zip(events, updated_seq_ids):
-            cactusWorkflowArguments.experimentWrapper.setSequenceID(g, seqID)
+def resolve_id_promises(job, events, updated_seq_ids, seq_sizes, cactusWorkflowArguments):
+    cactusWorkflowArguments.totalSequenceSize = 0
+    assert events
+    exp = cactusWorkflowArguments.experimentWrapper
+    for g, seqID, seqSize in zip(events, updated_seq_ids, seq_sizes):
+        cactusWorkflowArguments.experimentWrapper.setSequenceID(g, seqID)
+        cactusWorkflowArguments.totalSequenceSize += seqSize
     return cactusWorkflowArguments
 
 def preprocess_input_sequence(job, event, seq_id, seq_path):
@@ -487,66 +479,12 @@ def preprocess_input_sequence(job, event, seq_id, seq_path):
         cactus_call(parameters=['gzip', '-fd', seq_path])
         seq_path = seq_path[:-3]
         seq_id = job.fileStore.writeGlobalFile(seq_path)
-    if paf_mask_filter:
-        bed_path = seq_path + '.mask.bed'
-        cactus_call(parameters=['cactus_softmask2hardmask', seq_path, '-b', '-m', str(paf_mask_filter)], outfile=bed_path)
-        bed_id = job.fileStore.writeGlobalFile(bed_path)
     else:
         bed_id = None
-    return seq_id, bed_id
+    sequence_size = os.stat(seq_path).st_size
         
-def prepend_cigar_ids(cigars, outputDir, idMap):
-    """ like cactus_workflow.prependUniqueIDs, but runs on cigar files.  requires name map
-    updated by prependUniqueIDs """
-    ret = []
-    for cigar in cigars:
-        outPath = os.path.join(outputDir, os.path.basename(cigar))
-        with open(outPath, 'w') as outfile, open(cigar, 'r') as infile:
-            for line in infile:
-                toks = line.split()
-                if toks[1] not in idMap:
-                    raise RuntimeError('cigar id {} not found in id-map {}'.format(toks[1], str(idMap)[:1000]))
-                if toks[5] not in idMap:
-                    raise RuntimeError('cigar id {} not found in id-map {}'.format(toks[5], str(idMap)[:1000]))
-                toks[1] = idMap[toks[1]]
-                toks[5] = idMap[toks[5]]
-                outfile.write('{}\n'.format(' '.join(toks)))
-        ret.append(outPath)
-    return ret
-
-def prepend_unique_ids(job, cactusWorkflowArguments, project, renameCigars, eventNameAsID):
-    """ prepend the unique ids on the input fasta.  this is required for cactus to work (would be great to relax it though"""
-
-    # note, there is an order dependence to everything where we have to match what was done in cactus_workflow
-    # (so the code is pasted exactly as it is there)
-    # this is horrible and needs to be fixed via drastic interface refactor
-    # update: this has been somewhat fixed with a minor refactor: prependUniqueIDs is no longer order dependent (but takes dict instead of list)
-    exp = cactusWorkflowArguments.experimentWrapper
-    ingroupsAndOriginalIDs = [(g, exp.getSequenceID(g)) for g in exp.getGenomesWithSequence()]
-    eventToSequence = {}
-    for g, seqID in ingroupsAndOriginalIDs:
-        seqPath = job.fileStore.getLocalTempFile() + '.fa'
-        job.fileStore.readGlobalFile(seqID, seqPath)
-        eventToSequence[g] = seqPath
-    cactusWorkflowArguments.totalSequenceSize = sum(os.stat(x).st_size for x in eventToSequence.values())
-    renamedInputSeqDir = job.fileStore.getLocalTempDir()
-    id_map = {}
-    eventToUnique = prependUniqueIDs(eventToSequence, renamedInputSeqDir, idMap=id_map, eventNameAsID=eventNameAsID)
-    cactusWorkflowArguments.eventToUniquelyNamedSequenceID = {}
-    # Set the uniquified IDs for the ingroups and outgroups
-    for event, uniqueFa in eventToUnique.items():
-        uniqueFaID = job.fileStore.writeGlobalFile(uniqueFa, cleanup=True)
-        cactusWorkflowArguments.experimentWrapper.setSequenceID(event, uniqueFaID)
-        cactusWorkflowArguments.eventToUniquelyNamedSequenceID[event] = uniqueFaID
-
-    # if we're not taking cactus-[blast|refmap] input, then we have to apply to the cigar files too
-    if renameCigars:
-        alignments = job.fileStore.readGlobalFile(cactusWorkflowArguments.alignmentsID)
-        renamed_alignments = prepend_cigar_ids([alignments], renamedInputSeqDir, id_map)
-        cactusWorkflowArguments.alignmentsID = job.fileStore.writeGlobalFile(renamed_alignments[0], cleanup=True)
-    
-    return cactusWorkflowArguments
-
+    return seq_id, sequence_size
+        
 def setup_phase(job, cactusWorkflowArguments):
     # needs to be its own job to resovolve the workflowargument promise
     return job.addChild(CactusConsolidated(cactusWorkflowArguments=cactusWorkflowArguments, phaseName="consolidated")).rv()

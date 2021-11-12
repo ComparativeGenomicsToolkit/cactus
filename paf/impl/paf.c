@@ -156,8 +156,15 @@ char *paf_print(Paf *paf) {
                         paf->same_strand ? '+' : '-',
                         paf->target_name, paf->target_length, paf->target_start, paf->target_end,
                         paf->num_matches, paf->num_bases, paf->mapping_quality);
-    if(paf->type != '\0') {
-        i += sprintf(buffer+i, "\ttp:A:%c", paf->type);
+    if(paf->type != '\0' || paf->tile_level != -1) {
+        // if paf type not specified, use tile_level
+        char t = paf->type;
+        if (t == '\0') {
+            t = paf->tile_level > 1 ? 'S' : 'P';
+        }
+        // sanity check (assumption: secondary alignment iff tile != 1)
+        assert(paf->type != 'S' || paf->tile_level == -1 || paf->tile_level != 1);
+        i += sprintf(buffer+i, "\ttp:A:%c", t);
     }
     if(paf->score != INT_MAX) {
         i += sprintf(buffer+i, "\tAS:i:%" PRIi64, paf->score);
