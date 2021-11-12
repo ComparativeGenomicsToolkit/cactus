@@ -1,12 +1,11 @@
-# Release 2.1.0
+# Release 2.0.4   2021-11-12
 
-This release features improvements to the pangenome pipeline.
+This release fixes a bug introduced in 2.0.0 where ancestral sequences could not be specified in the input, which prevented the recommended producedure for updating existing alignments from working. 
 
-- Turn recoverable chains length down to 10kb to prevent CAF from pulling apart more than BAR can realign in a single POA window
-- Automatically strip minigraph contigs out of input to `cactus-align`.  This leads to bigger blocks and smoother graphs (but requires above change)
-- Fix up clipping option in the preprocessor to work with `--fileMask` option, as well as to produce fasta contig names that `hal2vg` accepts (and the browser allows).  Clipping is now to be preferred over the various `--maskFilter and --barMaskFilter` options used to ignore softmasked sequence.
+- Fix `Assertion `cap_getSequence(cap) == sequence' failed` error when ancestral fasta provided in input seqfile.
+- Several minor pangenome updates, mostly in `cactus-graphmap-join`
 
-# Release 2.0.3
+# Release 2.0.3   2021-07-22
 
 This release fixes some issues in pangenome normalization and CAF running time.
 
