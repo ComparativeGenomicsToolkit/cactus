@@ -13,6 +13,7 @@ from toil.statsAndLogging import logger
 from sonLib.bioio import newickTreeParser
 import os
 from cactus.paf.paf import get_leaf_event_pairs, get_subtree_nodes, get_leaves, get_node
+from cactus.shared.common import cactus_call
 
 def run_lastz(job, genome_A, genome_B, distance, params):
     # Create a local temporary file to put the alignments in.
@@ -31,9 +32,11 @@ def run_lastz(job, genome_A, genome_B, distance, params):
                                                                                       genome_B, lastz_params))
 
     # Generate the alignment
-    system("lastz {}[multiple][nameparse=darkspace] {}[nameparse=darkspace] {} --format=paf:minimap2 > {}".format(job.fileStore.readGlobalFile(genome_A),
-                                                           job.fileStore.readGlobalFile(genome_B),
-                                                           lastz_params, alignment_file))
+    lastz_cmd = ['lastz',
+                 '{}[multiple][nameparse=darkspace]'.format(job.fileStore.readGlobalFile(genome_A)),
+                 '{}[nameparse=darkspace]'.format(job.fileStore.readGlobalFile(genome_B)),
+                 '--format=paf:minimap2'] + lastz_params.split(' ')
+    cactus_call(parameters=lastz_cmd, outfile=alignment_file)
 
     # Return the alignment file
     return job.fileStore.writeGlobalFile(alignment_file)
@@ -42,11 +45,14 @@ def run_minimap2(job, genome_A, genome_B, distance, params):
     # Create a local temporary file to put the alignments in.
     alignment_file = job.fileStore.getLocalTempFile()
 
+    minimap2_params = params.find("blast").attrib["minimap2_params"]
+    
     # Generate the alignment
-    system("minimap2 -c {} {} {} > {}".format(job.fileStore.readGlobalFile(genome_A),
-                                                                           job.fileStore.readGlobalFile(genome_B),
-                                                                           params.find("blast").attrib["minimap2_params"],
-                                                                           alignment_file))  # Minimap2 must be installed
+    minimap2_cmd = ['minimap2',
+                    '-c',
+                    job.fileStore.readGlobalFile(genome_A),
+                    job.fileStore.readGlobalFile(genome_B)] + minimap2_params.split(' ')
+    cactus_call(parameters=minimap2_cmd, outfile=alignment_file)
 
     # Return the alignment file
     return job.fileStore.writeGlobalFile(alignment_file)
@@ -56,7 +62,8 @@ def combine_chunks(job, chunked_alignment_files):
     # Make combined alignments file
     alignment_file = job.fileStore.getLocalTempFile()
     for chunk in chunked_alignment_files: # Append each of the chunked alignment files into one file
-        system("paf_dechunk -i {} >> {}".format(job.fileStore.readGlobalFile(chunk), alignment_file))
+        cactus_call(parameters=['paf_dechunk', '-i', job.fileStore.readGlobalFile(chunk)],
+                    outfile=alignment_file, outappend=True)
         job.fileStore.deleteGlobalFile(chunk) # Cleanup the old files
     return job.fileStore.writeGlobalFile(alignment_file)  # Return the final alignments file copied to the jobstore
 
@@ -64,9 +71,12 @@ def combine_chunks(job, chunked_alignment_files):
 def make_chunked_alignments(job, genome_a, genome_b, distance, params):
     def make_chunks(genome):
         output_chunks_dir = job.fileStore.getLocalTempDir()
-        system("fasta_chunk -c {} -o {} --dir {} {}".format(int(params.find("blast").attrib["chunkSize"]),
-                                                            int(params.find("blast").attrib["overlapSize"]),
-                                                            output_chunks_dir, job.fileStore.readGlobalFile(genome)))
+        fasta_chunk_cmd = ['fasta_chunk',
+                           '-c', params.find("blast").attrib["chunkSize"],
+                           '-o', params.find("blast").attrib["overlapSize"],
+                           '--dir', output_chunks_dir,
+                           job.fileStore.readGlobalFile(genome)]
+        cactus_call(parameters=fasta_chunk_cmd)
         return [job.fileStore.writeGlobalFile(os.path.join(output_chunks_dir, chunk), cleanup=True) for chunk in os.listdir(output_chunks_dir)]
     # Chunk each input genome
     chunks_a = make_chunks(genome_a)
@@ -91,7 +101,7 @@ def chain_alignments(job, alignment_files):
     local_alignment_files = [job.fileStore.readGlobalFile(i) for i in alignment_files]
 
     # Run the chaining
-    system("cactus_chain {} > {}".format(" ".join(local_alignment_files), output_alignments_file))
+    cactus_call(parameters=['cactus_chain'] + local_alignment_files, outfile=output_alignments_file)
 
     # Cleanup the old alignment files
     for i in alignment_files:
