@@ -706,12 +706,14 @@ def wdl_task_preprocess(options):
     s = 'task cactus_preprocess {\n'
     s += '    input {\n'
     s += '        Array[File]? in_files\n'
+    s += '        Array[String]? in_names\n'
     s += '        Array[String]? in_urls\n'
     s += '        File? in_config_file\n'
     s += '        Array[String] out_names\n'
     s += '    }\n'
     s += '    command {\n        '
     s += 'cactus-preprocess {} --inPaths ${{sep=\" \" default=\"\" in_files}} ${{sep=\" \" default=\"\" in_urls}}'.format(get_jobstore(options, 'preprocess'))
+    s += ' --inputNames ${sep=\" \" default=\"\" in_names}'
     s += ' --outPaths ${{sep=\" \" out_names}} {} {} --workDir {}'.format(options.cactusOptions, get_toil_resource_opts(options, 'preprocess'),
                                                                           wdl_disk(options, 'preprocess')[1])
     s += ' ${\"--configFile \" + in_config_file}'
@@ -755,6 +757,7 @@ def wdl_call_preprocess(options, in_seq_file, out_seq_file, names):
         s += '        input: in_urls=[{}],'.format(', '.join(['\"{}\"'.format(in_path) for in_path in in_paths]))
     else:
         s += '        input: in_file=[{}],'.format(', '.join([input_fa_name(name) for name in names]))
+    s += ' in_names=[{}],'.format(', '.join(['\"{}\"'.format(name) for name in names]))
     s += ' in_config_file=config_file,'
     s += ' out_names=[{}]'.format(', '.join(['\"{}\"'.format(out_name) for out_name in out_names]))
     s += '\n    }\n'
