@@ -40,7 +40,7 @@ from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
 from toil.lib.threading import cpu_count
 from toil.realtimeLogger import RealtimeLogger
-from toil.lib.humanize import human2bytes, bytes2human
+from toil.lib.conversions import human2bytes, bytes2human
 
 def main_toil():
     return main(toil_mode=True)
@@ -252,7 +252,7 @@ def human2bytesN(s):
     return human2bytes(s) if s else s
 
 def bytes2humanN(s):
-    return bytes2human(s, fmt='%(value).1f%(symbol)s') if s else s
+    return bytes2human(s).replace(' ', '') if s else s
 
 def bytes2gigs(n):
     return int(int(n)/pow(2,30))
