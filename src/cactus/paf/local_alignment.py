@@ -15,9 +15,16 @@ import os
 from cactus.paf.paf import get_leaf_event_pairs, get_subtree_nodes, get_leaves, get_node
 from cactus.shared.common import cactus_call
 
-def run_lastz(job, genome_A, genome_B, distance, params):
+def run_lastz(job, genome_A, genome_B, distance, params):    
     # Create a local temporary file to put the alignments in.
-    alignment_file = job.fileStore.getLocalTempFile()
+    work_dir = job.fileStore.getLocalTempDir()
+    alignment_file = os.path.join(work_dir, 'aln.paf')
+
+    # Get the input files
+    genome_a_file = os.path.join(work_dir, 'a.fa')
+    genome_b_file = os.path.join(work_dir, 'b.fa')
+    job.fileStore.readGlobalFile(genome_A, genome_a_file)
+    job.fileStore.readGlobalFile(genome_B, genome_b_file)
 
     # Get the params to do the alignment
     lastz_params_node = params.find("blast").find("divergence")
@@ -33,10 +40,12 @@ def run_lastz(job, genome_A, genome_B, distance, params):
 
     # Generate the alignment
     lastz_cmd = ['lastz',
-                 '{}[multiple][nameparse=darkspace]'.format(job.fileStore.readGlobalFile(genome_A)),
-                 '{}[nameparse=darkspace]'.format(job.fileStore.readGlobalFile(genome_B)),
+                 '{}[multiple][nameparse=darkspace]'.format(os.path.basename(genome_a_file)),
+                 '{}[nameparse=darkspace]'.format(os.path.basename(genome_b_file)),
                  '--format=paf:minimap2'] + lastz_params.split(' ')
-    cactus_call(parameters=lastz_cmd, outfile=alignment_file)
+    # note: it's very important to set the work_dir here, because cactus_call is not able to
+    # sort out the mount directory by itself, presumably due to square brackets...
+    cactus_call(parameters=lastz_cmd, outfile=alignment_file, work_dir=work_dir)
 
     # Return the alignment file
     return job.fileStore.writeGlobalFile(alignment_file)
