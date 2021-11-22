@@ -270,7 +270,7 @@ def make_minigraph_vg(job, gfa_file_id, gfa_file_path):
                 outfile=vg_path)
 
     return job.fileStore.writeGlobalFile(vg_path), job.fileStore.writeGlobalFile(trans_path)
-    
+
     
 def minigraph_map_all(job, config, gfa_id, fa_id_map, graph_event, keep_gaf, mg_vg_id, mg_trans_id):
     """ top-level job to run the minigraph mapping in parallel, returns paf """
