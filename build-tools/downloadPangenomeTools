@@ -269,7 +269,9 @@ fi
 
 # vg
 cd ${pangenomeBuildDir}
-wget -q https://github.com/vgteam/vg/releases/download/v1.36.0/vg
+#wget -q https://github.com/vgteam/vg/releases/download/v1.37.0/vg
+#temp workaround until vg 1.37 is released (contains vg clip -D patch)
+wget http://public.gi.ucsc.edu/~hickey/vg
 chmod +x vg
 if [[ $STATIC_CHECK -ne 1 || $(ldd vg | grep so | wc -l) -eq 0 ]]
 then
