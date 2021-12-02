@@ -254,9 +254,24 @@ else
 	 exit 1
 fi
 
+# filter-paf-deletions
+cd ${pangenomeBuildDir}
+#todo: make release
+#wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.16/filter-paf-deletions
+wget http://public.gi.ucsc.edu/~hickey/filter-paf-deletions
+chmod +x filter-paf-deletions
+if [[ $STATIC_CHECK -ne 1 || $(ldd filter-paf-deletions | grep so | wc -l) -eq 0 ]]
+then
+	 mv filter-paf-deletions ${binDir}
+else
+	 exit 1
+fi
+
 # vg
 cd ${pangenomeBuildDir}
-wget -q https://github.com/vgteam/vg/releases/download/v1.36.0/vg
+#wget -q https://github.com/vgteam/vg/releases/download/v1.37.0/vg
+#temp workaround until vg 1.37 is released (contains vg clip -D patch)
+wget http://public.gi.ucsc.edu/~hickey/vg
 chmod +x vg
 if [[ $STATIC_CHECK -ne 1 || $(ldd vg | grep so | wc -l) -eq 0 ]]
 then
