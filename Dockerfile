@@ -41,8 +41,8 @@ RUN cd /home/cactus && ./build-tools/downloadPangenomeTools
 # remove test executables
 RUN cd /home/cactus && rm -f ${binPackageDir}/bin/*test ${binPackageDir}/bin/*tests ${binPackageDir}/bin/*Test ${binPackageDir}/bin/*Tests
 
-# make the binaries smaller by removing debug symbols 
-RUN cd /home/cactus && strip -d bin/* 2> /dev/null || true
+# make the binaries smaller by removing debug symbols (but leave them in cactus_consolidated)
+RUN cd /home/cactus && strip -d bin/!(cactus_consolidated) 2> /dev/null || true
 
 # build cactus python3
 RUN ln -fs /usr/bin/python3 /usr/bin/python

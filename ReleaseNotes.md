@@ -1,3 +1,7 @@
+# Release 2.0.5
+
+- Debug symbols no longer stripped from `cactus_consolidated` binary in Release.
+
 # Release 2.0.4   2021-11-12
 
 This release fixes a bug introduced in 2.0.0 where ancestral sequences could not be specified in the input, which prevented the recommended producedure for updating existing alignments from working. 
