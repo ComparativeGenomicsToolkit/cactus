@@ -105,8 +105,8 @@ cp -r .git ${binPackageDir}
 rm -rf ${binPackageDir}/.git/modules
 # remove test executables
 rm -f ${binPackageDir}/bin/*test ${binPackageDir}/bin/*tests ${binPackageDir}/bin/*Test ${binPackageDir}/bin/*Tests
-# make binaries smaller
-strip -d ${binPackageDir}/bin/* 2> /dev/null || true
+# make binaries smaller, but leave debug info in cactus_consolidated
+strip -d ${binPackageDir}/bin/!(cactus_consolidated) 2> /dev/null || true
 if [ -z ${CACTUS_LEGACY_ARCH+x} ]	
 then
 	 outArchive=${buildDir}/cactus-bin-${REL_TAG}.tar.gz
