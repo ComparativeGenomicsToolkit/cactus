@@ -24,7 +24,7 @@ from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.configWrapper import ConfigWrapper
-
+from sonLib.nxnewick import NXNewick
 
 class Schedule:
     def __init__(self):
@@ -38,51 +38,26 @@ class Schedule:
         # the same time
         self.maxParallelSubtrees = None
 
-    # read the experiments, compute the dependency dag
-    def loadProject(self, mcProject, fileStore = None):
+    # read the tree and outgroup map, compute the dependency dag
+    def loadProject(self, mc_tree, og_map, max_parallel_subtrees):
         self.inGraph = NX.DiGraph()
-        globTree = mcProject.mcTree
-        self.maxParallelSubtrees = None
+        globTree = mc_tree
+        self.maxParallelSubtrees = max_parallel_subtrees
         leafEvents = [globTree.getName(i) for i in globTree.getLeaves()]
 
-        expMap = None
-        if fileStore:
-            expMap = dict()
-            for name in mcProject.expIDMap:
-                expMap[name] = fileStore.readGlobalFile(mcProject.expIDMap[name])
-        else:
-            expMap = mcProject.expMap
+        # add dependency edge from root to children (including outgroups)
+        for node in globTree.getSubtreeRoots():
+            name = globTree.getName(node)
+            ogs = []
+            if name in og_map:
+                for og in og_map[name]:
+                    ogs.append(og)
+            igs = [globTree.getName(child) for child in globTree.getChildren(node)]
 
-        for name, expPath in list(expMap.items()):
-            exp = ExperimentWrapper(ET.parse(expPath).getroot())
-            tree = exp.getTree()
-            self.inGraph.add_node(name)
-            # Go through the species tree and add the correct
-            # dependencies (i.e. to the outgroups and the ingroups,
-            # but not to the other nodes that are just there because
-            # they are needed to form the correct paths).
-            for node in tree.postOrderTraversal():
-                nodeName = tree.getName(node)
+            for dep in igs + ogs:
+                if not mc_tree.isLeaf(mc_tree.getNodeId(dep)):
+                    self.inGraph.add_edge(name, dep)
 
-                # we don't add edges for leaves (in the global tree)
-                # as they are input sequences and do not form dependencies
-                # (it would be clever to maybe do the same with existing
-                # references when --overwrite is not specified but for now
-                # we just do the leaves)
-                if nodeName not in leafEvents and tree.isLeaf(node):
-                    self.inGraph.add_edge(name, nodeName)
-            if fileStore:
-                configFile = fileStore.readGlobalFile(exp.getConfigID())
-            else:
-                # hack from running from cactus-prepare
-                configFile = exp.getConfigPath()
-            configElem = ET.parse(configFile).getroot()
-            conf = ConfigWrapper(configElem)
-            # load max parellel subtrees from the node's config
-            if self.maxParallelSubtrees is None:
-                self.maxParallelSubtrees = conf.getMaxParallelSubtrees()
-            else:
-                assert self.maxParallelSubtrees == conf.getMaxParallelSubtrees()
         assert NX.is_directed_acyclic_graph(self.inGraph)
 
     # break all the cycles in reverse topological order

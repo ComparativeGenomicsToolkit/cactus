@@ -21,14 +21,11 @@ from operator import itemgetter
 
 from cactus.progressive.seqFile import SeqFile
 from cactus.progressive.multiCactusTree import MultiCactusTree
+from cactus.progressive.progressive_decomposition import compute_outgroups, compute_schedule
 from cactus.shared.common import cactusRootPath
 from cactus.shared.common import enableDumpStack, setupBinaries
 from cactus.shared.common import getDockerImage, getDockerRelease
-from cactus.progressive.multiCactusProject import MultiCactusProject
-from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.configWrapper import ConfigWrapper
-from cactus.progressive.schedule import Schedule
-from cactus.progressive.projectWrapper import ProjectWrapper
 from cactus.shared.version import cactus_commit
 from cactus.shared.common import findRequiredNode
 from cactus.shared.common import makeURL, cactus_call, RoundedJob
@@ -206,28 +203,11 @@ def main(toil_mode=False):
         raise RuntimeError('--gpuType {} not supported by Terra.  Acceptable types are {}'.format(
             options.gpuType, acceptable_gpus))
 
-    # need to go through this garbage (copied from the main() in progressive_cactus) to
-    # come up with the project
-    options.cactusDir = getTempDirectory()
-    #Create the progressive cactus project
-    projWrapper = ProjectWrapper(options, options.configFile)
-    projWrapper.writeXml()
     # used to unique jobstore
     options.jobStoreCount = 0
 
-    pjPath = os.path.join(options.cactusDir, ProjectWrapper.alignmentDirName,
-                          '%s_project.xml' % ProjectWrapper.alignmentDirName)
-    assert os.path.exists(pjPath)
-
-    project = MultiCactusProject()
-
-    if not os.path.isdir(options.cactusDir):
-        os.makedirs(options.cactusDir)
-
-    project.readXML(pjPath)
-
     enableDumpStack()
-    cactusPrepare(options, project)
+    cactusPrepare(options)
 
 def get_jobstore(options, task=None):
     if (options.wdl or options.toil) and '://' not in options.jobStore:
@@ -302,16 +282,12 @@ def wdl_disk(options, task, max_local=300):
         cactus_opts = "."
     return wdl_disk_options, cactus_opts
 
-def get_leaves_and_outgroups(options, project, root):
+def get_leaves_and_outgroups(options, mc_tree, og_map, root):
     """ fish the leaves and outgroups out of the experiment xml """
-    # open up the experiment (as we do in ProgressiveUp.run)
-    experimentFile = project.expMap[root]
-    expXml = ET.parse(experimentFile).getroot()
-    experiment = ExperimentWrapper(expXml)
-    tree = MultiCactusTree(experiment.getTree()).extractSubTree(root)
-    leaves = tree.getChildNames(tree.getRootName())
-    outgroups = experiment.getOutgroupGenomes()
-    return leaves, outgroups
+    node = mc_tree.getNodeId(root)
+    igs = mc_tree.getChildNames(node)
+    ogs = og_map[root] if root in og_map else []
+    return igs, outgroups
 
 def get_generation_info():
     """ print a comment describing version and command line """
@@ -320,7 +296,7 @@ def get_generation_info():
     header += '## cactus commit : {}\n'.format(cactus_commit)
     return header
 
-def cactusPrepare(options, project):
+def cactusPrepare(options):
     """ annotate a SeqFile with ancestral names as well as paths for output sequences."""
 
     # read the input
@@ -392,11 +368,11 @@ def cactusPrepare(options, project):
             if options.restart:
                 toil.restart()
             else:
-                get_plan(options, project, seqFile, outSeqFile, toil=toil)
+                get_plan(options, seqFile, outSeqFile, config, toil=toil)
     else:
-        print(get_plan(options, project, seqFile, outSeqFile, toil=None))            
+        print(get_plan(options, seqFile, outSeqFile, config, toil=None))            
 
-def get_plan(options, project, inSeqFile, outSeqFile, toil):
+def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
 
     plan = get_generation_info() + '\n'
 
@@ -436,9 +412,12 @@ def get_plan(options, project, inSeqFile, outSeqFile, toil):
         return plan
 
     # shedule up the alignments
-    schedule = Schedule()
-    schedule.loadProject(project)
-    schedule.compute()
+    tree = inSeqFile.tree
+    mc_tree = MultiCactusTree(tree)
+    mc_tree.nameUnlabeledInternalNodes(configWrapper.getDefaultInternalNodePrefix())
+    mc_tree.computeSubtreeRoots()
+    og_map = compute_outgroups(inSeqFile.tree, configWrapper, inSeqFile.outgroups)
+    schedule = compute_schedule(tree, configWrapper, og_map)
 
     # set of all jobs, as genome names from the (fully resolved, output) seqfile
     events = set(outSeqFile.pathMap.keys()) - set(leaves)
@@ -503,7 +482,7 @@ def get_plan(options, project, inSeqFile, outSeqFile, toil):
         groups.append(group)
 
     def halPath(event):
-        if event == project.mcTree.getRootName():
+        if event == mc_tree.getRootName():
             return options.outHal
         else:
             return os.path.join(options.outDir, event + '.hal')
@@ -521,16 +500,17 @@ def get_plan(options, project, inSeqFile, outSeqFile, toil):
         for event in sorted(group):
             plan += '\n'
             if options.wdl:
-                plan += wdl_call_blast(options, project, event, cigarPath(event))
-                plan += wdl_call_align(options, project, event, cigarPath(event), halPath(event), outSeqFile.pathMap[event])
+                plan += wdl_call_blast(options, mc_tree, og_map, event, cigarPath(event))
+                plan += wdl_call_align(options, mc_tree, og_map, event, cigarPath(event), halPath(event), outSeqFile.pathMap[event])
             elif options.toil:
                 # promises only get fulfilleed if they are passed directly as arguments to the toil job, so we pull out the ones we need here
-                leaf_deps, anc_deps = get_dep_names(options, project, event)
+                leaf_deps, anc_deps = get_dep_names(options, mc_tree, og_map, event)
                 fa_promises = [job_idx[("preprocess", dep)].rv() for dep in leaf_deps] + [job_idx[("align", dep)].rv(0) for dep in anc_deps]
                 job_idx[("blast", event)] = parent_job.addChildJobFn(toil_call_blast,
                                                                      options,
                                                                      outSeqFile,
-                                                                     project,
+                                                                     mc_tree,
+                                                                     og_map,
                                                                      event,
                                                                      cigarPath(event),
                                                                      leaf_deps + anc_deps,
@@ -540,7 +520,8 @@ def get_plan(options, project, inSeqFile, outSeqFile, toil):
                                                                      disk=options.preprocessDisk)
                 job_idx[("align", event)] = job_idx[("blast", event)].addFollowOnJobFn(toil_call_align,
                                                                                        options, outSeqFile,
-                                                                                       project,
+                                                                                       mc_tree,
+                                                                                       og_map,
                                                                                        event,
                                                                                        cigarPath(event),
                                                                                        halPath(event),
@@ -567,7 +548,7 @@ def get_plan(options, project, inSeqFile, outSeqFile, toil):
                 
     # stitch together the final tree
     plan += '\n## HAL merging\n'
-    root = project.mcTree.getRootName()
+    root = mc_tree.getRootName()
     prev_event = None
     append_count = 0
     event_list = []
@@ -575,7 +556,7 @@ def get_plan(options, project, inSeqFile, outSeqFile, toil):
         for event in group:
             if event != root:
                 if options.wdl:
-                    plan += wdl_call_hal_append(options, project, event, prev_event)
+                    plan += wdl_call_hal_append(options, mc_tree, og_map, event, prev_event)
                 elif not options.toil:
                     plan += 'halAppendSubtree {} {} {} {} --merge {}\n'.format(
                         halPath(root), halPath(event), event, event, options.halOptions)
@@ -586,7 +567,8 @@ def get_plan(options, project, inSeqFile, outSeqFile, toil):
     if options.toil:
         job_idx['hal_append'] = parent_job.addChildJobFn(toil_call_hal_append_subtrees,
                                                          options,
-                                                         project,
+                                                         mc_tree,
+                                                         og_map,
                                                          root,
                                                          job_idx[('align', root)].rv(1),
                                                          event_list,
@@ -638,12 +620,12 @@ def hal_append_call_name(name):
     """ map an event name to a hal append call name """
     return 'hal_append_{}'.format(name)
 
-def get_dep_names(options, project, event):
+def get_dep_names(options, mc_tree, og_map, event):
     """ return all the ingroup and outgroup event names for which
     the given event needs sequence.  returned in two lists
     (leaves, internals) """    
-    leaves, outgroups = get_leaves_and_outgroups(options, project, event)
-    project_leaves = set([project.mcTree.getName(leaf_node) for leaf_node in project.mcTree.getLeaves()])
+    leaves, outgroups = get_leaves_and_outgroups(options, mc_tree, og_map, event)
+    project_leaves = set([mc_tree.getName(leaf_node) for leaf_node in mc_tree.getLeaves()])
     input_names = list(set(leaves + outgroups))
     leaf_names = []
     anc_names = []
@@ -821,9 +803,9 @@ def wdl_task_blast(options):
     
     return s
 
-def wdl_call_blast(options, project, event, cigar_name):
+def wdl_call_blast(options, mc_tree, og_map, event, cigar_name):
 
-    leaf_deps, anc_deps = get_dep_names(options, project, event)
+    leaf_deps, anc_deps = get_dep_names(options, mc_tree, og_map, event)
     input_fas = []
     input_names = []
     for input_name in leaf_deps:
@@ -847,7 +829,7 @@ def wdl_call_blast(options, project, event, cigar_name):
 
     return s
 
-def toil_call_blast(job, options, seq_file, project, event, cigar_name, dep_names, *dep_fa_ids):
+def toil_call_blast(job, options, seq_file, mc_tree, og_map, event, cigar_name, dep_names, *dep_fa_ids):
 
     work_dir = job.fileStore.getLocalTempDir()
 
@@ -913,9 +895,9 @@ def wdl_task_align(options):
     
     return s
 
-def wdl_call_align(options, project, event, cigar_name, hal_path, fa_path):
+def wdl_call_align(options, mc_tree, og_map, event, cigar_name, hal_path, fa_path):
 
-    leaf_deps, anc_deps = get_dep_names(options, project, event)
+    leaf_deps, anc_deps = get_dep_names(options, mc_tree, og_map, event)
     input_fas = []
     input_names = []
     for input_name in leaf_deps:
@@ -941,7 +923,7 @@ def wdl_call_align(options, project, event, cigar_name, hal_path, fa_path):
 
     return s
 
-def toil_call_align(job, options, seq_file, project, event, cigar_name, hal_path, fa_path, blast_output, dep_names, *dep_fa_ids):
+def toil_call_align(job, options, seq_file, mc_tree, og_map, event, cigar_name, hal_path, fa_path, blast_output, dep_names, *dep_fa_ids):
 
     work_dir = job.fileStore.getLocalTempDir()
 
@@ -1013,9 +995,9 @@ def wdl_task_hal_append(options):
 
     return s
 
-def wdl_call_hal_append(options, project, event, prev_event):
+def wdl_call_hal_append(options, mc_tree, og_map, event, prev_event):
 
-    if prev_event == project.mcTree.getRootName():
+    if prev_event == mc_tree.getRootName():
         # first time: the parent comes out of align
         parent_hal = '{}.out_hal_file'.format(align_call_name(prev_event))
     else:
@@ -1030,7 +1012,7 @@ def wdl_call_hal_append(options, project, event, prev_event):
     s += '\n    }\n'
     return s
 
-def toil_call_hal_append_subtrees(job, options, project, root_name, root_hal_id, event_names, *event_ids):
+def toil_call_hal_append_subtrees(job, options, mc_tree, og_map, root_name, root_hal_id, event_names, *event_ids):
 
     work_dir = job.fileStore.getLocalTempDir()
 
