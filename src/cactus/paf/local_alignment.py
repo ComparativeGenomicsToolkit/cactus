@@ -9,6 +9,7 @@ Released under the MIT license, see LICENSE.txt
 """
 
 from toil.lib.bioio import system
+from toil.job import Job
 from toil.statsAndLogging import logger
 from sonLib.bioio import newickTreeParser
 import os
@@ -120,6 +121,9 @@ def chain_alignments(job, alignment_files):
 
 
 def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancestor_event_string, params):
+    # a job should never set its own follow-on, so we hang everything off root_job here to encapsulate
+    root_job = Job()
+    job.addChild(root_job)
     logger.info("Parsing species tree: {}".format(event_tree_string))
     event_tree = newickTreeParser(event_tree_string)
 
@@ -142,9 +146,9 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
             logger.info("Building alignment between event: "
                         "{} (ingroup:{}) and event: {} (ingroup:{})".format(event_a.iD, event_a in ingroup_events,
                                                                             event_b.iD, event_b in ingroup_events))
-            alignment = job.addChildJobFn(make_chunked_alignments, event_names_to_sequences[event_a.iD],
-                                          event_names_to_sequences[event_b.iD], distance_a_b, params).rv()
+            alignment = root_job.addChildJobFn(make_chunked_alignments, event_names_to_sequences[event_a.iD],
+                                               event_names_to_sequences[event_b.iD], distance_a_b, params).rv()
             alignments.append(alignment)
 
     # Now do the chaining
-    return job.addFollowOnJobFn(chain_alignments, alignments).rv()
+    return root_job.addFollowOnJobFn(chain_alignments, alignments).rv()

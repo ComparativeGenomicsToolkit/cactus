@@ -23,6 +23,7 @@ The main goal of this refactor is to get rid of XML files like the cactus Experi
 import logging
 import os
 import xml.etree.ElementTree as ET
+import copy
 
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.multiCactusTree import MultiCactusTree
@@ -37,7 +38,7 @@ def parse_seqfile(seqfile_path):
     returns (tree, event->path map, og list (from *'s in seqfile)
     """
     seq_file = SeqFile(seqfile_path)
-    return (seq_file.tree, seq_file.path, seq_file.outgroups)
+    return (seq_file.tree, seq_file.pathMap, seq_file.outgroups)
 
 def compute_outgroups(tree, config_wrapper, outgroup_candidates = set(), root_name = None, include_dists = False):
     """
@@ -89,7 +90,7 @@ def compute_outgroups(tree, config_wrapper, outgroup_candidates = set(), root_na
             
     return outgroup.ogMap
 
-def get_subtree(tree, root_name, config_wrapper, outgroup_map):
+def get_subtree(tree, root_name, config_wrapper, outgroup_map, include_outgroups=True):
     """
     get the subtree for a given internal node -- this will contain the events and outgroups for a single cactus job
     returns the (multicactus) tree
@@ -108,7 +109,7 @@ def get_subtree(tree, root_name, config_wrapper, outgroup_map):
 
     # nothing to do
     if root_id == mc_tree.getRootId():
-        return
+        return mc_tree
 
     # dig out every outgroup
     outgroup_names = set()
@@ -120,12 +121,13 @@ def get_subtree(tree, root_name, config_wrapper, outgroup_map):
     kept_nodes = set(mc_tree.postOrderTraversal(root_id))
     dead_nodes = set()
     external_outgroup_names = set()
-    for node in mc_tree.postOrderTraversal():
-        if node not in kept_nodes:
-            dead_nodes.add(node)
-            name = mc_tree.getName(node)
-            if name in outgroup_names:
-                external_outgroup_names.add(name)
+    if include_outgroups:
+        for node in mc_tree.postOrderTraversal():
+            if node not in kept_nodes:
+                dead_nodes.add(node)
+                name = mc_tree.getName(node)
+                if name in outgroup_names:
+                    external_outgroup_names.add(name)
 
     # reroot the tree!
     sub_tree = copy.deepcopy(mc_tree)
@@ -145,7 +147,7 @@ def get_subtree(tree, root_name, config_wrapper, outgroup_map):
             else:
                 dist += d
             x = sub_tree.getParent(x)
-        sub_tree.addOutgroup(og_ame, dist)
+        sub_tree.addOutgroup(og_name, dist)
 
     # strip out everything but the immediate children of root
     for node in sub_tree.postOrderTraversal():

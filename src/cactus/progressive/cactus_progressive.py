@@ -26,7 +26,6 @@ from cactus.shared.common import findRequiredNode
 from cactus.shared.common import makeURL
 from cactus.shared.common import catFiles
 from cactus.shared.common import cactus_call
-from cactus.shared.common import RoundedJob
 from cactus.shared.version import cactus_commit
 from cactus.shared.common import cactusRootPath
 from cactus.shared.common import enableDumpStack
@@ -36,18 +35,15 @@ from cactus.shared.common import write_s3
 from toil.job import Job
 from toil.common import Toil
 
+from cactus.pipeline.cactus_workflow import cactus_consolidated
+from cactus.progressive.progressive_decomposition import compute_outgroups, compute_schedule, parse_seqfile, get_subtree
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 from cactus.preprocessor.dnabrnnMasking import loadDnaBrnnModel
-from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
-from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
-#from cactus.pipeline.cactus_workflow import CactusBlastPhase
-from cactus.pipeline.cactus_workflow import CactusPafAlign
+from cactus.paf.local_alignment import make_paf_alignments
 
-from cactus.progressive.multiCactusProject import MultiCactusProject
-from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.schedule import Schedule
-from cactus.progressive.projectWrapper import ProjectWrapper
+from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.common import setupBinaries, importSingularityImage
 
 from sonLib.nxnewick import NXNewick
@@ -55,267 +51,139 @@ from sonLib.bioio import getTempDirectory
 
 logger = logging.getLogger(__name__)
 
-class ProgressiveDown(RoundedJob):
-    def __init__(self, options, project, event, schedule, memory=None, cores=None):
-        RoundedJob.__init__(self, memory=memory, cores=cores, preemptable=True)
-        self.options = options
-        self.project = project
-        self.event = event
-        self.schedule = schedule
-
-    def run(self, fileStore):
-        self.configNode = ET.parse(fileStore.readGlobalFile(self.project.getConfigID())).getroot()
-        self.configWrapper = ConfigWrapper(self.configNode)
-        self.configWrapper.substituteAllPredefinedConstantsWithLiterals()
-        logger.info("Progressive Down: " + self.event)
-
-        depProjects = dict()
-        deps = self.schedule.deps(self.event)
-        fileStore.logToMaster("There are %i dependent projects" % len(deps))
-        for child in deps:
-            fileStore.logToMaster("Adding dependent project %s" % child)
-            depProjects[child] = self.addChild(ProgressiveDown(self.options,
-                                                               self.project, child,
-                                                               self.schedule)).rv()
-
-        return self.addFollowOn(ProgressiveNext(self.options, self.project, self.event,
-                                                              self.schedule, depProjects, memory=self.configWrapper.getDefaultMemory())).rv()
-
-class ProgressiveNext(RoundedJob):
-    def __init__(self, options, project, event, schedule, depProjects, memory=None, cores=None):
-        RoundedJob.__init__(self, memory=memory, cores=cores, preemptable=True)
-        self.options = options
-        self.project = project
-        self.event = event
-        self.schedule = schedule
-        self.depProjects = depProjects
-
-    def run(self, fileStore):
-        self.configNode = ET.parse(fileStore.readGlobalFile(self.project.getConfigID())).getroot()
-        self.configWrapper = ConfigWrapper(self.configNode)
-        self.configWrapper.substituteAllPredefinedConstantsWithLiterals()
-
-        fileStore.logToMaster("Project has %i dependencies" % len(self.depProjects))
-        for projName in self.depProjects:
-            depProject = self.depProjects[projName]
-            for expName in depProject.expIDMap:
-                expID = depProject.expIDMap[expName]
-                experiment = ExperimentWrapper(ET.parse(fileStore.readGlobalFile(expID)).getroot())
-                fileStore.logToMaster("Reference ID for experiment %s: %s" % (expName, experiment.getReferenceID()))
-                if experiment.getReferenceID():
-                    self.project.expIDMap[expName] = expID
-                    self.project.outputSequenceIDMap[expName] = experiment.getReferenceID()
-
-        eventExpWrapper = None
-        logger.info("Progressive Next: " + self.event)
-        if not self.schedule.isVirtual(self.event):
-            eventExpWrapper = self.addChild(ProgressiveUp(self.options, self.project, self.event, memory=self.configWrapper.getDefaultMemory())).rv()
-        return self.addFollowOn(ProgressiveOut(self.options, self.project, self.event, eventExpWrapper, self.schedule, memory=self.configWrapper.getDefaultMemory())).rv()
-
-class ProgressiveOut(RoundedJob):
-    def __init__(self, options, project, event, eventExpWrapper, schedule, memory=None, cores=None):
-        RoundedJob.__init__(self, memory=memory, cores=cores, preemptable=True)
-        self.options = options
-        self.project = project
-        self.event = event
-        self.eventExpWrapper = eventExpWrapper
-        self.schedule = schedule
-
-    def run(self, fileStore):
-        self.configNode = ET.parse(fileStore.readGlobalFile(self.project.getConfigID())).getroot()
-        self.configWrapper = ConfigWrapper(self.configNode)
-        self.configWrapper.substituteAllPredefinedConstantsWithLiterals()
-
-        if not self.schedule.isVirtual(self.event):
-            tmpExp = fileStore.getLocalTempFile()
-            self.eventExpWrapper.writeXML(tmpExp)
-            self.project.expIDMap[self.event] = fileStore.writeGlobalFile(tmpExp)
-        followOnEvent = self.schedule.followOn(self.event)
-        if followOnEvent is not None:
-            logger.info("Adding follow-on event %s" % followOnEvent)
-            return self.addFollowOn(ProgressiveDown(self.options, self.project, followOnEvent,
-                                                    self.schedule, memory=self.configWrapper.getDefaultMemory())).rv()
-
-        return self.project
-
-class ProgressiveUp(RoundedJob):
-    def __init__(self, options, project, event, memory=None, cores=None):
-        RoundedJob.__init__(self, memory=memory, cores=cores, preemptable=True)
-        self.options = options
-        self.project = project
-        self.event = event
-
-    def run(self, fileStore):
-        self.configNode = ET.parse(fileStore.readGlobalFile(self.project.getConfigID())).getroot()
-        self.configWrapper = ConfigWrapper(self.configNode)
-        self.configWrapper.substituteAllPredefinedConstantsWithLiterals()
-
-        logger.info("Progressive Up: " + self.event)
-
-        # open up the experiment
-        # note that we copy the path into the options here
-        experimentFile = fileStore.readGlobalFile(self.project.expIDMap[self.event])
-        expXml = ET.parse(experimentFile).getroot()
-        experiment = ExperimentWrapper(expXml)
-        configPath = fileStore.readGlobalFile(experiment.getConfigID())
-        configXml = ET.parse(configPath).getroot()
-
-        seqIDMap = dict()
-        tree = experiment.getTree()
-        seqNames = []
-        for node in tree.postOrderTraversal():
-            name = tree.getName(node)
-            if tree.isLeaf(node) or (name == experiment.getRootGenome() and experiment.isRootReconstructed() == False):
-                seqIDMap[name] = self.project.outputSequenceIDMap[name]
-                seqNames.append(name)
-        logger.info("Sequences in progressive, %s: %s" % (self.event, seqNames))
-
-        experimentFile = fileStore.getLocalTempFile()
-        experiment.writeXML(experimentFile)
-        self.options.experimentFileID = fileStore.writeGlobalFile(experimentFile)
-
-        # take union of command line options and config options for hal and reference
-        halNode = findRequiredNode(configXml, "hal")
-        if self.options.buildHal == False:
-            self.options.buildHal = getOptionalAttrib(halNode, "buildHal", bool, False)
-        if self.options.buildFasta == False:
-            self.options.buildFasta = getOptionalAttrib(halNode, "buildFasta", bool, False)
-
-        # get parameters that cactus_workflow stuff wants
-        configFile = fileStore.readGlobalFile(experiment.getConfigID())
-        configNode = ET.parse(configFile).getroot()
-        workFlowArgs = CactusWorkflowArguments(self.options, experimentFile=experimentFile, configNode=configNode, seqIDMap = seqIDMap, consCores = self.options.consCores)
-
-        # copy over the options so we don't trail them around
-        workFlowArgs.buildHal = self.options.buildHal
-        workFlowArgs.buildFasta = self.options.buildFasta
-        workFlowArgs.globalLeafEventSet = self.options.globalLeafEventSet
-        if self.options.intermediateResultsUrl is not None:
-            # Give the URL prefix a special name for this particular
-            # subproblem (by suffixing it with the name of the
-            # internal node in the guide tree)
-            workFlowArgs.intermediateResultsUrl = self.options.intermediateResultsUrl + '-' + self.event
-
-        # Use the trimming strategy to blast ingroups vs outgroups.
-        #finalExpWrapper = self.addChild(CactusBlastPhase(cactusWorkflowArguments=workFlowArgs, phaseName="blast")).rv()
-        finalExpWrapper = self.addChild(CactusPafAlign(cactusWorkflowArguments=workFlowArgs, phaseName="blast")).rv()
-        logger.info("Going to create alignments and define the cactus tree")
-
-        return finalExpWrapper
-
 def logAssemblyStats(job, message, name, sequenceID, preemptable=True):
     sequenceFile = job.fileStore.readGlobalFile(sequenceID)
     analysisString = cactus_call(parameters=["cactus_analyseAssembly", sequenceFile], check_output=True)
     job.fileStore.logToMaster("%s, got assembly stats for genome %s: %s" % (message, name, analysisString))
 
-class RunCactusPreprocessorThenProgressiveDown(RoundedJob):
-    def __init__(self, options, project, memory=None, cores=None):
-        RoundedJob.__init__(self, memory=memory, cores=cores, preemptable=True)
-        self.options = options
-        self.project = project
+def preprocess_all(job, options, config_node, input_seq_id_map):
+    ''' run prepreprocessor on every input sequence '''
+    root_job = Job()
+    job.addChild(root_job)
+    events = list(input_seq_id_map.keys())
+    seq_ids = list(input_seq_id_map.values())
+    preprocessor_job = root_job.addChild(CactusPreprocessor(seq_ids, config_node, eventNames=events))
+    pp_seq_ids = {}
+    for i, event in enumerate(events):
+        pp_seq_ids[event] = preprocessor_job.rv(i)
 
-    def run(self, fileStore):
-        self.configNode = ET.parse(fileStore.readGlobalFile(self.project.getConfigID())).getroot()
-        self.configWrapper = ConfigWrapper(self.configNode)
-        self.configWrapper.substituteAllPredefinedConstantsWithLiterals()
+    # do the logging and checkpointing
+    root_job.addFollowOnJobFn(save_preprocessed_files, options, config_node, input_seq_id_map)
+    
+    return pp_seq_ids
 
-        # apply gpu override
-        self.configWrapper.initGPU(self.options.gpu)
+def save_preprocessed_files(job, options, config_node, seq_id_map):
+    ''' checkpoint the the intermediate url; also log the stats '''
+    # Save preprocessed sequences
+    if options.intermediateResultsUrl is not None:
+        for genome, seqID in list(seq_id_map.items()):
+            job.fileStore.exportFile(seqID, options.intermediateResultsUrl + '-preprocessed-' + genome)
 
-        fileStore.logToMaster("Using the following configuration:\n%s" % ET.tostring(self.configNode, encoding='unicode'))
+    # Log the stats for the preprocessed assemblies
+    for name, sequence in list(seq_id_map.items()):
+        job.addChildJobFn(logAssemblyStats, "After preprocessing", name, sequence)
 
-        # Log the stats for the un-preprocessed assemblies
-        for name, sequence in list(self.project.inputSequenceIDMap.items()):
-            self.addChildJobFn(logAssemblyStats, "Before preprocessing", name, sequence)
+def progressive_step(job, options, config_node, seq_id_map, tree, schedule, og_map, event):
+    ''' use the schedule to run the events in order '''
 
-        # Create jobs to create the output sequences
-        logger.info("Reading config file from: %s" % self.project.getConfigID())
-        configFile = fileStore.readGlobalFile(self.project.getConfigID())
-        configNode = ET.parse(configFile).getroot()
-        ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals() #This is necessary..
-        ConfigWrapper(configNode).initGPU(self.options.gpu)
-        #Add the preprocessor child job. The output is a job promise value that will be
-        #converted into a list of the IDs of the preprocessed sequences in the follow on job.
-        preprocessorJob = self.addChild(CactusPreprocessor(list(self.project.inputSequenceIDMap.values()), configNode,
-                                                           eventNames=list(self.project.inputSequenceIDMap.keys())))
-        rvs = [preprocessorJob.rv(i) for i in range(len(self.project.inputSequenceIDMap))]
-        fileStore.logToMaster('input sequence IDs: %s' % self.project.inputSequenceIDMap)
-        for genome, rv in zip(list(self.project.inputSequenceIDMap.keys()), rvs):
-            self.project.outputSequenceIDMap[genome] = rv
+    root_job = Job()
+    job.addChild(root_job)
 
-        #Now build the progressive-down job
-        schedule = Schedule()
-        schedule.loadProject(self.project, fileStore=fileStore)
-        schedule.compute()
-        self.options.event = self.project.mcTree.getRootName()
-        leafNames = [ self.project.mcTree.getName(i) for i in self.project.mcTree.getLeaves() ]
-        fileStore.logToMaster("Leaf names = %s" % leafNames)
-        self.options.globalLeafEventSet = set(leafNames)
+    # each results are dicst that map event name -> consolidated results
+    results_list = {}
+    if event in schedule.depTree:
+        for dep in schedule.deps(event):
+            child_job = root_job.addChildJobFn(progressive_step, options, config_node, seq_id_map, tree, schedule, og_map, dep)
+            results_list.append(child_job.rv())
 
-        return self.addFollowOn(RunCactusPreprocessorThenProgressiveDown2(options=self.options, project=self.project, event=self.options.event, schedule=schedule, memory=self.configWrapper.getDefaultMemory())).rv()
+    next_job = root_job.addFollowOnJobFn(progressive_next, options, config_node, seq_id_map, tree, schedule, og_map, event, results_list)
 
+    return next_job.rv()
 
-class RunCactusPreprocessorThenProgressiveDown2(RoundedJob):
-    def __init__(self, options, project, event, schedule, memory=None, cores=None):
-        RoundedJob.__init__(self, memory=memory, cores=cores, preemptable=True)
-        self.options = options
-        self.project = project
-        self.event = event
-        self.schedule = schedule
+def progressive_next(job, options, config_node, seq_id_map, tree, schedule, og_map, event, results_lists):
+    ''' compute the alignment and make the hal '''
 
-    def run(self, fileStore):
-        self.configNode = ET.parse(fileStore.readGlobalFile(self.project.getConfigID())).getroot()
-        self.configWrapper = ConfigWrapper(self.configNode)
-        self.configWrapper.substituteAllPredefinedConstantsWithLiterals()
+    flattened_list = []
+    for results_list in results_lists:
+        for results in results_list:
+            flattened_list.append(results)
 
-        # Save preprocessed sequences
-        if self.options.intermediateResultsUrl is not None:
-            preprocessedSequences = self.project.outputSequenceIDMap
-            for genome, seqID in list(preprocessedSequences.items()):
-                fileStore.exportFile(seqID, self.options.intermediateResultsUrl + '-preprocessed-' + genome)
+    for results in flattened_list:
+        seq_id_map[results[0]] = results[3]
 
-        # Log the stats for the preprocessed assemblies
-        for name, sequence in list(self.project.outputSequenceIDMap.items()):
-            self.addChildJobFn(logAssemblyStats, "After preprocessing", name, sequence)
+    # get our subtree
+    subtree = get_subtree(tree, event, ConfigWrapper(config_node), og_map)
 
-        project = self.addChild(ProgressiveDown(options=self.options, project=self.project, event=self.event, schedule=self.schedule, memory=self.configWrapper.getDefaultMemory())).rv()
+    # get our events
+    subtree_eventmap = {}
+    for leaf in subtree.getLeaves():
+        subtree_eventmap[subtree.getName(leaf)] = seq_id_map[subtree.getName(leaf)]
+    
+    # do the blast
+    paf_job = job.addChildJobFn(make_paf_alignments, NXNewick().writeString(subtree), subtree_eventmap, event, config_node)
 
-        #Combine the smaller HAL files from each experiment
-        return self.addFollowOnJobFn(exportHal, project=project, memory=self.configWrapper.getDefaultMemory(),
-                                     disk=self.configWrapper.getExportHalDisk(),
-                                     preemptable=False).rv()
+    # do the consolidated
+    consolidated_job = paf_job.addFollowOnJobFn(cactus_consolidated, tree, event, config_node, subtree_eventmap, og_map, paf_job.rv(),
+                                                cons_cores = options.consCores, intermediate_results_url = options.intermediateResultsUrl)
+    
+    return flattened_list + [consolidated_job.rv()]
 
-def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC=None, cacheW0=None, chunk=None, deflate=None, inMemory=True,
-              checkpointInfo=None, acyclicEvent=None):
+def progressive_merge_results(job, results_list):
+    for rl in results_list[1:]:
+        for k,v in rl.items():
+            assert k not in results_list[0]
+            results_list[0][k] = v
+    return results_list[0]
 
-    HALPath = "tmp_alignment.hal"
+def export_hal(job, tree, config_node, seq_id_map, og_map, results, event=None, cacheBytes=None,
+               cacheMDC=None, cacheRDC=None, cacheW0=None, chunk=None, deflate=None, inMemory=True,
+               checkpointInfo=None, acyclicEvent=None):
 
-    # traverse tree to make sure we are going breadth-first
-    tree = project.mcTree
+    # todo: going through list nonsense because (i think) it helps with promises, should at least clean up
+    print(results)
+    flattened_list = []
+    for results_list in results:
+        if isinstance(results_list, list):
+            for res in results_list:
+                flattened_list.append(res)
+        else:
+            flattened_list.append(results_list)                
+    results = {}
+    print(flattened_list)
+    for results_list in [flattened_list]:
+        results[results_list[0]] = { 'hal' : results_list[1], 'fasta' : results_list[2], 'ref' : results_list[3] }
+    print(results)
 
+    work_dir = job.fileStore.getLocalTempDir()
+
+    hal_path = os.path.join(work_dir, '{}.hal'.format(event if event else tree.getRootName()))
+    
     # find subtree if event specified
-    rootNode = None
+    root_node = None
     if event is not None:
-        assert event in tree.nameToId and not tree.isLeaf(tree.nameToId[event])
-        rootNode = tree.nameToId[event]
+        # make the multicactus tree
+        mc_tree = MultiCactusTree(tree)
+        mc_tree.nameUnlabeledInternalNodes(ConfigWrapper(config_node).getDefaultInternalNodePrefix())
+        mc_tree.computeSubtreeRoots()
+        assert event in mc_tree.nameToId and not mc_tree.isLeaf(mc_tree.nameToId[event])
+        root_node = mc_tree.nameToId[event]
 
-    for node in tree.breadthFirstTraversal(rootNode):
-        genomeName = tree.getName(node)
-        if genomeName in project.expMap:
-            experimentFilePath = job.fileStore.readGlobalFile(project.expIDMap[genomeName])
-            experiment = ExperimentWrapper(ET.parse(experimentFilePath).getroot())
+    hal_path = os.path.join(work_dir, '{}.hal'.format(event if event else tree.getRootName()))
 
-            outgroups = experiment.getOutgroupGenomes()
-            experiment.setConfigPath(job.fileStore.readGlobalFile(experiment.getConfigID()))
-            expTreeString = NXNewick().writeString(experiment.getTree(onlyThisSubtree=True))
-            assert len(expTreeString) > 1
-            assert experiment.getHalID() is not None
-            assert experiment.getHalFastaID() is not None
-            subHALPath = job.fileStore.readGlobalFile(experiment.getHalID())
-            halFastaPath = job.fileStore.readGlobalFile(experiment.getHalFastaID())
+    for node in tree.breadthFirstTraversal(root_node):
+        genome_name = tree.getName(node)
+        if genome_name in results:
+            outgroups = og_map[genome_name] if genome_name in og_map else []
+            subtree = get_subtree(tree, genome_name, ConfigWrapper(config_node), og_map, include_outgroups=False)
+            tree_string = NXNewick().writeString(subtree)
+            sub_hal_path = os.path.join(work_dir, '{}.hal.c2h'.format(genome_name))
+            hal_fasta_path = os.path.join(work_dir, '{}.hal.fa'.format(genome_name))
+            assert genome_name in results
+            job.fileStore.readGlobalFile(results[genome_name]['hal'], sub_hal_path)
+            job.fileStore.readGlobalFile(results[genome_name]['fasta'], hal_fasta_path)
 
-            args = [os.path.basename(subHALPath), os.path.basename(halFastaPath), expTreeString, os.path.basename(HALPath)]
-
+            args = ['halAppendCactusSubtree', sub_hal_path, hal_fasta_path, tree_string, hal_path]
+            
             if len(outgroups) > 0:
                 args += ["--outgroups", ",".join(outgroups)]
             if cacheBytes is not None:
@@ -333,24 +201,47 @@ def exportHal(job, project, event=None, cacheBytes=None, cacheMDC=None, cacheRDC
             if inMemory is True:
                 args += ["--inMemory"]
 
-            cactus_call(parameters=["halAppendCactusSubtree"] + args)
+            cactus_call(parameters=args)
 
-    cactus_call(parameters=["halSetMetadata", HALPath, "CACTUS_COMMIT", cactus_commit])
-    with job.fileStore.readGlobalFileStream(project.configID) as configFile:
-        cactus_call(parameters=["halSetMetadata", HALPath, "CACTUS_CONFIG", b64encode(configFile.read()).decode()])
+    cactus_call(parameters=["halSetMetadata", hal_path, "CACTUS_COMMIT", cactus_commit])
+    config_path = os.path.join(work_dir, 'config.xml')
+    ConfigWrapper(config_node).writeXML(config_path)
+    with open(config_path, 'rb') as configFile:
+        cactus_call(parameters=["halSetMetadata", hal_path, "CACTUS_CONFIG", b64encode(configFile.read()).decode()])
 
     if acyclicEvent:
-        cactus_call(parameters=["halRemoveDupes", HALPath, acyclicEvent])
+        cactus_call(parameters=["halRemoveDupes", hal_path, acyclicEvent])
 
     if checkpointInfo:
-        write_s3(HALPath, checkpointInfo[1], region=checkpointInfo[0])
+        write_s3(hal_path, checkpointInfo[1], region=checkpointInfo[0])
 
-    return job.fileStore.writeGlobalFile(HALPath)
-        
+    return job.fileStore.writeGlobalFile(hal_path)
+    
+def progressive_workflow(job, options, config_node, tree, schedule, og_map, input_seq_id_map):
+    ''' run the entire progressive workflow '''
+
+    # start with the preprocessor
+    if not options.skipPreprocessor:
+        pp_job = job.addChildJobFn(preprocess_all, options, config_node, input_seq_id_map)
+        seq_id_map = pp_job.rv()
+    else:
+        pp_job = Job()
+        job.addChild(pp_job)
+        seq_id_map = input_seq_id_map
+
+    # then do the progressive workflow
+    root_event = options.root if options.root else tree.getRootName()
+    progressive_job = pp_job.addFollowOnJobFn(progressive_step, options, config_node, seq_id_map, tree, schedule, og_map, root_event)
+
+    # then do the hal export
+    hal_export_job = progressive_job.addFollowOnJobFn(export_hal, tree, config_node, seq_id_map, og_map, progressive_job.rv(), event=root_event,
+                                                      disk=ConfigWrapper(config_node).getExportHalDisk(), preemptable=False)
+
+    return hal_export_job.rv()
+
 def main():
     parser = ArgumentParser()
     Job.Runner.addToilOptions(parser)
-    addCactusWorkflowOptions(parser)
 
     parser.add_argument("seqFile", help = "Seq file")
     parser.add_argument("outputHal", type=str, help = "Output HAL file")
@@ -377,6 +268,12 @@ def main():
                         help="Enable GPU acceleration by using Segaling instead of lastz")
     parser.add_argument("--consCores", type=int, 
                         help="Number of cores for each cactus_consolidated job (defaults to all available / maxCores on single_machine)", default=None)
+    parser.add_argument("--intermediateResultsUrl",
+                        help="URL prefix to save intermediate results like DB dumps to (e.g. "
+                        "prefix-dump-caf, prefix-dump-avg, etc.)", default=None)
+    parser.add_argument("--skipPreprocessor",
+                        help="Do not run any preprocessor jobs",
+                        action="store_true")
 
     options = parser.parse_args()
 
@@ -406,12 +303,7 @@ def main():
     cactus_override_toil_options(options)
 
     start_time = timeit.default_timer()
-    runCactusProgressive(options)
-    end_time = timeit.default_timer()
-    run_time = end_time - start_time
-    logger.info("Cactus has finished after {} seconds".format(run_time))
 
-def runCactusProgressive(options):
     with Toil(options) as toil:
         importSingularityImage(options)
         #Run the workflow
@@ -419,46 +311,36 @@ def runCactusProgressive(options):
             halID = toil.restart()
         else:
 
-            options.cactusDir = getTempDirectory()
-            #Create the progressive cactus project
-            projWrapper = ProjectWrapper(options, options.configFile)
-            projWrapper.writeXml()
+            # load up the seqfile and figure out the outgroups and schedule
+            config_node = ET.parse(options.configFile).getroot()
+            ConfigWrapper(config_node).substituteAllPredefinedConstantsWithLiterals()
+            tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile)
+            og_map = compute_outgroups(tree, ConfigWrapper(config_node), set(og_candidates), options.root)
+            schedule = compute_schedule(tree, ConfigWrapper(config_node), og_map)
+            event_set = set([tree.getName(node) for node in tree.postOrderTraversal(options.root)]).union(set(og_map.keys()))
 
-            pjPath = os.path.join(options.cactusDir, ProjectWrapper.alignmentDirName,
-                                  '%s_project.xml' % ProjectWrapper.alignmentDirName)
-            assert os.path.exists(pjPath)
-
-            project = MultiCactusProject()
-
-            if not os.path.isdir(options.cactusDir):
-                os.makedirs(options.cactusDir)
-
-            project.readXML(pjPath)
             #import the sequences
-            for genome, seq in list(project.inputSequenceMap.items()):
-                if os.path.isdir(seq):
-                    tmpSeq = getTempFile()
-                    catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
-                    seq = tmpSeq
-                seq = makeURL(seq)
-                project.inputSequenceIDMap[genome] = toil.importFile(seq)
+            input_seq_id_map = {}
+            for (genome, seq) in input_seq_map.items():
+                if genome in event_set:
+                    if os.path.isdir(seq):
+                        tmpSeq = getTempFile()
+                        catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
+                        seq = tmpSeq
+                    seq = makeURL(seq)
+                    input_seq_id_map[genome] = toil.importFile(seq)
                 
-            #import cactus config
-            cactusConfigID = toil.importFile(makeURL(options.configFile))
-            project.setConfigID(cactusConfigID)
-
-            project.syncToFileStore(toil)
-            configNode = ET.parse(project.getConfigPath()).getroot()
-            configWrapper = ConfigWrapper(configNode)
-            configWrapper.substituteAllPredefinedConstantsWithLiterals()
-
             # Make sure we have the dna-brnn model in the filestore if we need it
-            loadDnaBrnnModel(toil, configNode)
+            loadDnaBrnnModel(toil, config_node)
 
-            project.writeXML(pjPath)
-            halID = toil.start(RunCactusPreprocessorThenProgressiveDown(options, project, memory=configWrapper.getDefaultMemory()))
+            # run the whole workflow
+            hal_id = toil.start(Job.wrapJobFn(progressive_workflow, options, config_node, tree, schedule, og_map, input_seq_id_map))
 
-        toil.exportFile(halID, makeURL(options.outputHal))
+        toil.exportFile(hal_id, makeURL(options.outputHal))
+    
+    end_time = timeit.default_timer()
+    run_time = end_time - start_time
+    logger.info("Cactus has finished after {} seconds".format(run_time))
 
 if __name__ == '__main__':
     main()
