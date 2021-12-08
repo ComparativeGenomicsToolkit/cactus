@@ -32,23 +32,25 @@ from cactus.progressive.seqFile import SeqFile
 from cactus.progressive.schedule import Schedule
 from sonLib.nxnewick import NXNewick
 
-def parse_seqfile(seqfile_path):
+def parse_seqfile(seqfile_path, config_wrapper, root_name = None):
     """
     parse the seqfile
     returns (tree, event->path map, og list (from *'s in seqfile)
     """
     seq_file = SeqFile(seqfile_path)
-    return (seq_file.tree, seq_file.pathMap, seq_file.outgroups)
 
-def compute_outgroups(tree, config_wrapper, outgroup_candidates = set(), root_name = None, include_dists = False):
+    mc_tree = MultiCactusTree(seq_file.tree)
+    mc_tree.nameUnlabeledInternalNodes(config_wrapper.getDefaultInternalNodePrefix())
+    mc_tree.computeSubtreeRoots()
+
+    return (mc_tree, seq_file.pathMap, seq_file.outgroups)
+
+def compute_outgroups(mc_tree, config_wrapper, outgroup_candidates = set(), root_name = None, include_dists = False):
     """
     computes the outgroups
     returns event->outgroups map
     """
-    # make the multicactus tree
-    mc_tree = MultiCactusTree(tree)
-    mc_tree.nameUnlabeledInternalNodes(config_wrapper.getDefaultInternalNodePrefix())
-    mc_tree.computeSubtreeRoots()
+    assert isinstance(mc_tree, MultiCactusTree)
     outgroup_candidates = set(outgroup_candidates)
 
     if not root_name:
@@ -90,15 +92,15 @@ def compute_outgroups(tree, config_wrapper, outgroup_candidates = set(), root_na
             
     return outgroup.ogMap
 
-def get_subtree(tree, root_name, config_wrapper, outgroup_map, include_outgroups=True):
+def get_subtree(mc_tree, root_name, config_wrapper, outgroup_map, include_outgroups=True):
     """
     get the subtree for a given internal node -- this will contain the events and outgroups for a single cactus job
     returns the (multicactus) tree
-    """    
-    # make the multicactus tree
-    mc_tree = MultiCactusTree(tree)
-    mc_tree.nameUnlabeledInternalNodes(config_wrapper.getDefaultInternalNodePrefix())
-    mc_tree.computeSubtreeRoots()
+    
+    note: this is used for handling the --root option on the cli to clip the input seqfile at the outset
+     (or for getting ingroup and outgroup names of a given sub problem)
+    """
+    assert isinstance(mc_tree, MultiCactusTree)
 
     # get the root id
     root_id = mc_tree.getNodeId(root_name)
@@ -164,15 +166,37 @@ def get_subtree(tree, root_name, config_wrapper, outgroup_map, include_outgroups
 
     return sub_tree
 
+def get_spanning_subtree(mc_tree, root_name, config_wrapper, outgroup_map):
+    """
+    get the tree that contains all leaf jobs
+    """
+    # make the multicactus tree
+    assert isinstance(mc_tree, MultiCactusTree)
 
-def compute_schedule(tree, config_wrapper, outgroup_map):
+    # get the root id
+    root_id = mc_tree.getNodeId(root_name)
+
+    # get the outgroups
+    node_id_set = set()
+    if root_name in outgroup_map:
+        for outgroup_name in outgroup_map[root_name]:
+            node_id_set.add(mc_tree.getNodeId(outgroup_name))
+
+    # get the ingroups
+    for node_id in mc_tree.getChildren(root_id):
+        node_id_set.add(node_id)
+
+    # get the spanning tree
+    spanning_tree = mc_tree.extractSpanningTree([mc_tree.getName(node) for node in node_id_set])
+
+    return spanning_tree
+
+def compute_schedule(mc_tree, config_wrapper, outgroup_map):
     """
     compute the progressive schedule
     returns the schedule object 
     """
-    mc_tree = MultiCactusTree(tree)
-    mc_tree.nameUnlabeledInternalNodes(config_wrapper.getDefaultInternalNodePrefix())
-    mc_tree.computeSubtreeRoots()
+    assert isinstance(mc_tree, MultiCactusTree)
 
     schedule = Schedule()
     schedule.loadProject(mc_tree, outgroup_map, config_wrapper.getMaxParallelSubtrees())

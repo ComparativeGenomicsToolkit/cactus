@@ -36,7 +36,7 @@ from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import write_s3
 
 from cactus.pipeline.cactus_workflow import cactus_cons_with_resources
-from cactus.progressive.progressive_decomposition import compute_outgroups, compute_schedule, parse_seqfile, get_subtree
+from cactus.progressive.progressive_decomposition import compute_outgroups, compute_schedule, parse_seqfile, get_subtree, get_spanning_subtree
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 from cactus.preprocessor.dnabrnnMasking import loadDnaBrnnModel
 from cactus.paf.local_alignment import make_paf_alignments
@@ -83,8 +83,6 @@ def save_preprocessed_files(job, options, config_node, seq_id_map):
 def progressive_step(job, options, config_node, seq_id_map, tree, schedule, og_map, event):
     ''' use the schedule to run the events in order '''
 
-    RealtimeLogger.info("STEP {}".format(event))
-    
     root_job = Job()
     job.addChild(root_job)
 
@@ -102,13 +100,12 @@ def progressive_step(job, options, config_node, seq_id_map, tree, schedule, og_m
 def progressive_next(job, options, config_node, seq_id_map, tree, schedule, og_map, event, results_lists):
     ''' compute the alignment and make the hal '''
 
-    RealtimeLogger.info("NEXT {}".format(event))
     results_lists = flatten_lists(results_lists)
     results_dict = results_list_to_dict(results_lists)
     for ev, res in results_dict.items():
         seq_id_map[ev] = res['fa']
 
-    # get our subtree
+    # get our subtree (just ingroups and outgroups)
     subtree = get_subtree(tree, event, ConfigWrapper(config_node), og_map)
 
     # get our events
@@ -119,8 +116,11 @@ def progressive_next(job, options, config_node, seq_id_map, tree, schedule, og_m
     # do the blast
     paf_job = job.addChildJobFn(make_paf_alignments, NXNewick().writeString(subtree), subtree_eventmap, event, config_node)
 
+    # get the spanning tree (which is what consolidated wants)
+    spanning_tree = get_spanning_subtree(tree, event, ConfigWrapper(config_node), og_map)
+    
     # do the consolidated
-    consolidated_job = paf_job.addFollowOnJobFn(cactus_cons_with_resources, subtree, event, config_node, subtree_eventmap, og_map, paf_job.rv(),
+    consolidated_job = paf_job.addFollowOnJobFn(cactus_cons_with_resources, spanning_tree, event, config_node, subtree_eventmap, og_map, paf_job.rv(),
                                                 cons_cores = options.consCores, intermediate_results_url = options.intermediateResultsUrl)
 
     return results_lists + [consolidated_job.rv()]
@@ -323,16 +323,16 @@ def main():
 
             # load up the seqfile and figure out the outgroups and schedule
             config_node = ET.parse(options.configFile).getroot()
-            ConfigWrapper(config_node).substituteAllPredefinedConstantsWithLiterals()
-            tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile)
-            og_map = compute_outgroups(tree, ConfigWrapper(config_node), set(og_candidates), options.root)
-            schedule = compute_schedule(tree, ConfigWrapper(config_node), og_map)
-            event_set = set([tree.getName(node) for node in tree.postOrderTraversal(options.root)]).union(set(og_map.keys()))
-
-            #hack
-            for i in ["Anc0", "Anc1", "Anc2", "mr"]:
-                sb = get_subtree(tree, i, ConfigWrapper(config_node), og_map, False)
-                print("SUB", i, NXNewick().writeString(sb))
+            config_wrapper = ConfigWrapper(config_node)
+            config_wrapper.substituteAllPredefinedConstantsWithLiterals()
+            mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper)
+            og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates), options.root)
+            schedule = compute_schedule(mc_tree, config_wrapper, og_map)
+            event_set = set([mc_tree.getName(node) for node in mc_tree.postOrderTraversal(options.root)]).union(set(og_map.keys()))
+            if options.root:
+                mc_tree = get_subtree(mc_tree, options.root, config_wrapper, og_map)
+                tree_events = set([mc_tree.getName(node) for node in mc_tree.postOrderTraversal()])
+                event_set = event_set.intersection(tree_events)
                         
             #import the sequences
             input_seq_id_map = {}
@@ -350,7 +350,7 @@ def main():
             loadDnaBrnnModel(toil, config_node)
 
             # run the whole workflow
-            hal_id = toil.start(Job.wrapJobFn(progressive_workflow, options, config_node, tree, schedule, og_map, input_seq_id_map))
+            hal_id = toil.start(Job.wrapJobFn(progressive_workflow, options, config_node, mc_tree, schedule, og_map, input_seq_id_map))
 
         toil.exportFile(hal_id, makeURL(options.outputHal))
     

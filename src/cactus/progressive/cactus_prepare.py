@@ -416,8 +416,8 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
     mc_tree = MultiCactusTree(tree)
     mc_tree.nameUnlabeledInternalNodes(configWrapper.getDefaultInternalNodePrefix())
     mc_tree.computeSubtreeRoots()
-    og_map = compute_outgroups(inSeqFile.tree, configWrapper, inSeqFile.outgroups)
-    schedule = compute_schedule(tree, configWrapper, og_map)
+    og_map = compute_outgroups(mc_tree, configWrapper, inSeqFile.outgroups)
+    schedule = compute_schedule(mc_tree, configWrapper, og_map)
 
     # set of all jobs, as genome names from the (fully resolved, output) seqfile
     events = set(outSeqFile.pathMap.keys()) - set(leaves)
