@@ -107,10 +107,6 @@ def get_subtree(tree, root_name, config_wrapper, outgroup_map, include_outgroups
     # ugly hack to keep track of external outgroups for root experiment (yuck)
     externalOutgroupNames = set()
 
-    # nothing to do
-    if root_id == mc_tree.getRootId():
-        return mc_tree
-
     # dig out every outgroup
     outgroup_names = set()
     if root_name in outgroup_map:
@@ -131,6 +127,7 @@ def get_subtree(tree, root_name, config_wrapper, outgroup_map, include_outgroups
 
     # reroot the tree!
     sub_tree = copy.deepcopy(mc_tree)
+    orig_parent = sub_tree.getName(sub_tree.getParent(root_id)) if sub_tree.getParent(root_id) is not None else None
     sub_tree.reroot(root_id)
     
     # add the outgroups to the tree
@@ -152,9 +149,13 @@ def get_subtree(tree, root_name, config_wrapper, outgroup_map, include_outgroups
     # strip out everything but the immediate children of root
     for node in sub_tree.postOrderTraversal():
         parent = sub_tree.getParent(node)
-        if parent and parent != root_id:
+        if node != root_id and parent != root_id:
             dead_nodes.add(node)
-            
+
+    if orig_parent:
+        # after rerooting, the original parent is a child so won't be caught above
+        dead_nodes.add(sub_tree.getNodeId(orig_parent))
+
     # flush out all unused nodes, set the new root, and update the
     # experiment template tree to match the new project tree
     for node in dead_nodes:

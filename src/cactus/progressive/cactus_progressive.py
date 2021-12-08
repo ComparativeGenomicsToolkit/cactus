@@ -17,9 +17,12 @@ from argparse import ArgumentParser
 from base64 import b64encode
 
 from toil.lib.bioio import getTempFile
-
-from toil.statsAndLogging import set_logging_from_options
 from toil.lib.threading import cpu_count
+from toil.statsAndLogging import logger
+from toil.statsAndLogging import set_logging_from_options
+from toil.realtimeLogger import RealtimeLogger
+from toil.job import Job
+from toil.common import Toil
 
 from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import findRequiredNode
@@ -32,15 +35,11 @@ from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import write_s3
 
-from toil.job import Job
-from toil.common import Toil
-
-from cactus.pipeline.cactus_workflow import cactus_consolidated
+from cactus.pipeline.cactus_workflow import cactus_cons_with_resources
 from cactus.progressive.progressive_decomposition import compute_outgroups, compute_schedule, parse_seqfile, get_subtree
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 from cactus.preprocessor.dnabrnnMasking import loadDnaBrnnModel
 from cactus.paf.local_alignment import make_paf_alignments
-
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.schedule import Schedule
 from cactus.progressive.multiCactusTree import MultiCactusTree
@@ -48,8 +47,6 @@ from cactus.shared.common import setupBinaries, importSingularityImage
 
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory
-
-logger = logging.getLogger(__name__)
 
 def logAssemblyStats(job, message, name, sequenceID, preemptable=True):
     sequenceFile = job.fileStore.readGlobalFile(sequenceID)
@@ -86,11 +83,13 @@ def save_preprocessed_files(job, options, config_node, seq_id_map):
 def progressive_step(job, options, config_node, seq_id_map, tree, schedule, og_map, event):
     ''' use the schedule to run the events in order '''
 
+    RealtimeLogger.info("STEP {}".format(event))
+    
     root_job = Job()
     job.addChild(root_job)
 
     # each results are dicst that map event name -> consolidated results
-    results_list = {}
+    results_list = []
     if event in schedule.depTree:
         for dep in schedule.deps(event):
             child_job = root_job.addChildJobFn(progressive_step, options, config_node, seq_id_map, tree, schedule, og_map, dep)
@@ -103,13 +102,11 @@ def progressive_step(job, options, config_node, seq_id_map, tree, schedule, og_m
 def progressive_next(job, options, config_node, seq_id_map, tree, schedule, og_map, event, results_lists):
     ''' compute the alignment and make the hal '''
 
-    flattened_list = []
-    for results_list in results_lists:
-        for results in results_list:
-            flattened_list.append(results)
-
-    for results in flattened_list:
-        seq_id_map[results[0]] = results[3]
+    RealtimeLogger.info("NEXT {}".format(event))
+    results_lists = flatten_lists(results_lists)
+    results_dict = results_list_to_dict(results_lists)
+    for ev, res in results_dict.items():
+        seq_id_map[ev] = res['fa']
 
     # get our subtree
     subtree = get_subtree(tree, event, ConfigWrapper(config_node), og_map)
@@ -123,64 +120,77 @@ def progressive_next(job, options, config_node, seq_id_map, tree, schedule, og_m
     paf_job = job.addChildJobFn(make_paf_alignments, NXNewick().writeString(subtree), subtree_eventmap, event, config_node)
 
     # do the consolidated
-    consolidated_job = paf_job.addFollowOnJobFn(cactus_consolidated, tree, event, config_node, subtree_eventmap, og_map, paf_job.rv(),
+    consolidated_job = paf_job.addFollowOnJobFn(cactus_cons_with_resources, tree, event, config_node, subtree_eventmap, og_map, paf_job.rv(),
                                                 cons_cores = options.consCores, intermediate_results_url = options.intermediateResultsUrl)
-    
-    return flattened_list + [consolidated_job.rv()]
 
-def progressive_merge_results(job, results_list):
-    for rl in results_list[1:]:
-        for k,v in rl.items():
-            assert k not in results_list[0]
-            results_list[0][k] = v
-    return results_list[0]
+    return results_lists + [consolidated_job.rv()]
+
+def flatten_lists(results_list):
+    ''' make sure our list is just 1d '''
+    def flatten(l):
+        flat_list = []
+        did_something = False
+        for x in l:
+            if isinstance(x, list):
+                did_something = True
+                for y in x:
+                    flat_list.append(y)
+            else:
+                flat_list.append(x)
+        return (flat_list, did_something)
+
+    while True:
+        (results_list, did_something) = flatten(results_list)
+        if not did_something:
+            break
+    return results_list
+
+def results_list_to_dict(results_list):
+    ''' convert results list of tuples into a dcit'''
+    results_dict = {}
+    for res in results_list:
+        assert isinstance(res, tuple)
+        # note, this has to be consistent with interface in cactus_cons() in cactus_workflow.py
+        results_dict[res[0]] = { 'c2h' : res[1], 'c2h.fa' : res[2], 'fa' : res[3] }
+        
+    return results_dict
 
 def export_hal(job, tree, config_node, seq_id_map, og_map, results, event=None, cacheBytes=None,
                cacheMDC=None, cacheRDC=None, cacheW0=None, chunk=None, deflate=None, inMemory=True,
                checkpointInfo=None, acyclicEvent=None):
 
     # todo: going through list nonsense because (i think) it helps with promises, should at least clean up
+    results = results_list_to_dict(flatten_lists(results))
     print(results)
-    flattened_list = []
-    for results_list in results:
-        if isinstance(results_list, list):
-            for res in results_list:
-                flattened_list.append(res)
-        else:
-            flattened_list.append(results_list)                
-    results = {}
-    print(flattened_list)
-    for results_list in [flattened_list]:
-        results[results_list[0]] = { 'hal' : results_list[1], 'fasta' : results_list[2], 'ref' : results_list[3] }
-    print(results)
-
     work_dir = job.fileStore.getLocalTempDir()
-
     hal_path = os.path.join(work_dir, '{}.hal'.format(event if event else tree.getRootName()))
-    
+
+    # make the multicactus tree
+    # todo: use throughout?
+    tree = MultiCactusTree(tree)
+    tree.nameUnlabeledInternalNodes(ConfigWrapper(config_node).getDefaultInternalNodePrefix())
+    tree.computeSubtreeRoots()
+    subtree_roots = set(tree.getSubtreeRootNames())
+
     # find subtree if event specified
     root_node = None
     if event is not None:
-        # make the multicactus tree
-        mc_tree = MultiCactusTree(tree)
-        mc_tree.nameUnlabeledInternalNodes(ConfigWrapper(config_node).getDefaultInternalNodePrefix())
-        mc_tree.computeSubtreeRoots()
-        assert event in mc_tree.nameToId and not mc_tree.isLeaf(mc_tree.nameToId[event])
-        root_node = mc_tree.nameToId[event]
+        assert event in tree.nameToId and not tree.isLeaf(tree.nameToId[event])
+        root_node = tree.nameToId[event]
 
     hal_path = os.path.join(work_dir, '{}.hal'.format(event if event else tree.getRootName()))
 
     for node in tree.breadthFirstTraversal(root_node):
         genome_name = tree.getName(node)
-        if genome_name in results:
+        if genome_name in subtree_roots:
             outgroups = og_map[genome_name] if genome_name in og_map else []
             subtree = get_subtree(tree, genome_name, ConfigWrapper(config_node), og_map, include_outgroups=False)
             tree_string = NXNewick().writeString(subtree)
             sub_hal_path = os.path.join(work_dir, '{}.hal.c2h'.format(genome_name))
             hal_fasta_path = os.path.join(work_dir, '{}.hal.fa'.format(genome_name))
             assert genome_name in results
-            job.fileStore.readGlobalFile(results[genome_name]['hal'], sub_hal_path)
-            job.fileStore.readGlobalFile(results[genome_name]['fasta'], hal_fasta_path)
+            job.fileStore.readGlobalFile(results[genome_name]['c2h'], sub_hal_path)
+            job.fileStore.readGlobalFile(results[genome_name]['c2h.fa'], hal_fasta_path)
 
             args = ['halAppendCactusSubtree', sub_hal_path, hal_fasta_path, tree_string, hal_path]
             
@@ -319,6 +329,11 @@ def main():
             schedule = compute_schedule(tree, ConfigWrapper(config_node), og_map)
             event_set = set([tree.getName(node) for node in tree.postOrderTraversal(options.root)]).union(set(og_map.keys()))
 
+            #hack
+            for i in ["Anc0", "Anc1", "Anc2", "mr"]:
+                sb = get_subtree(tree, i, ConfigWrapper(config_node), og_map, False)
+                print("SUB", i, NXNewick().writeString(sb))
+                        
             #import the sequences
             input_seq_id_map = {}
             for (genome, seq) in input_seq_map.items():
@@ -328,6 +343,7 @@ def main():
                         catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
                         seq = tmpSeq
                     seq = makeURL(seq)
+                    logger.info("Importing {}".format(seq))
                     input_seq_id_map[genome] = toil.importFile(seq)
                 
             # Make sure we have the dna-brnn model in the filestore if we need it

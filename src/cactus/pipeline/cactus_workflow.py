@@ -41,7 +41,7 @@ from cactus.shared.configWrapper import ConfigWrapper
 ############################################################
 ############################################################
 
-def cactus_consolidated(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id, cons_cores = None, intermediate_results_url = None):
+def cactus_cons_with_resources(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id, cons_cores = None, intermediate_results_url = None):
     ''' run cactus_consolidated as a child job, requesting resources based on input sizes '''
 
     # compute resource requirements
@@ -61,12 +61,12 @@ def cactus_consolidated(job, tree, ancestor_event, config_node, seq_id_map, og_m
         mem += coefficient * (total_sequence_size**degree)
     mem = int(min(mem, memoryCap))
 
-    cons_job = job.addChildJobFn(cactus_consolidated_2, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
+    cons_job = job.addChildJobFn(cactus_cons, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id,
                                  intermediate_results_url=intermediate_results_url, cores = cons_cores,
                                  memory=mem, disk=disk)
     return cons_job.rv()
    
-def cactus_consolidated_2(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id, intermediate_results_url = None):
+def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_id, intermediate_results_url = None):
     ''' run cactus_consolidated '''
 
     # Build up a genome -> fasta map.
@@ -134,7 +134,7 @@ def cactus_consolidated_2(job, tree, ancestor_event, config_node, seq_id_map, og
         url = intermediate_results_url + ".reference.fa"
         job.fileStore.exportFile(referenceID, makeURL(url))
 
-    return [ancestor_event, halID, fastaID, referenceID]
+    return (ancestor_event, halID, fastaID, referenceID)
 
 
 if __name__ == '__main__':
