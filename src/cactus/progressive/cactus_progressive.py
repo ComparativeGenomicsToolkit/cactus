@@ -112,12 +112,12 @@ def progressive_next(job, options, config_node, seq_id_map, tree, schedule, og_m
     subtree_eventmap = {}
     for leaf in subtree.getLeaves():
         subtree_eventmap[subtree.getName(leaf)] = seq_id_map[subtree.getName(leaf)]
-    
-    # do the blast
-    paf_job = job.addChildJobFn(make_paf_alignments, NXNewick().writeString(subtree), subtree_eventmap, event, config_node)
 
     # get the spanning tree (which is what consolidated wants)
     spanning_tree = get_spanning_subtree(tree, event, ConfigWrapper(config_node), og_map)
+        
+    # do the blast
+    paf_job = job.addChildJobFn(make_paf_alignments, NXNewick().writeString(spanning_tree), subtree_eventmap, event, config_node)
     
     # do the consolidated
     consolidated_job = paf_job.addFollowOnJobFn(cactus_cons_with_resources, spanning_tree, event, config_node, subtree_eventmap, og_map, paf_job.rv(),
