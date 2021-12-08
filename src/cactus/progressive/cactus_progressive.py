@@ -155,36 +155,31 @@ def results_list_to_dict(results_list):
         
     return results_dict
 
-def export_hal(job, tree, config_node, seq_id_map, og_map, results, event=None, cacheBytes=None,
+def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=None, cacheBytes=None,
                cacheMDC=None, cacheRDC=None, cacheW0=None, chunk=None, deflate=None, inMemory=True,
                checkpointInfo=None, acyclicEvent=None):
 
     # todo: going through list nonsense because (i think) it helps with promises, should at least clean up
     results = results_list_to_dict(flatten_lists(results))
-    print(results)
     work_dir = job.fileStore.getLocalTempDir()
-    hal_path = os.path.join(work_dir, '{}.hal'.format(event if event else tree.getRootName()))
+    hal_path = os.path.join(work_dir, '{}.hal'.format(event if event else mc_tree.getRootName()))
 
-    # make the multicactus tree
-    # todo: use throughout?
-    tree = MultiCactusTree(tree)
-    tree.nameUnlabeledInternalNodes(ConfigWrapper(config_node).getDefaultInternalNodePrefix())
-    tree.computeSubtreeRoots()
-    subtree_roots = set(tree.getSubtreeRootNames())
+    assert isinstance(mc_tree, MultiCactusTree)
+    subtree_roots = set(mc_tree.getSubtreeRootNames())
 
     # find subtree if event specified
     root_node = None
     if event is not None:
-        assert event in tree.nameToId and not tree.isLeaf(tree.nameToId[event])
-        root_node = tree.nameToId[event]
+        assert event in mc_tree.nameToId and not mc_tree.isLeaf(mc_tree.nameToId[event])
+        root_node = mc_tree.nameToId[event]
 
-    hal_path = os.path.join(work_dir, '{}.hal'.format(event if event else tree.getRootName()))
+    hal_path = os.path.join(work_dir, '{}.hal'.format(event if event else mc_tree.getRootName()))
 
-    for node in tree.breadthFirstTraversal(root_node):
-        genome_name = tree.getName(node)
+    for node in mc_tree.breadthFirstTraversal(root_node):
+        genome_name = mc_tree.getName(node)
         if genome_name in subtree_roots:
             outgroups = og_map[genome_name] if genome_name in og_map else []
-            subtree = get_subtree(tree, genome_name, ConfigWrapper(config_node), og_map, include_outgroups=False)
+            subtree = get_subtree(mc_tree, genome_name, ConfigWrapper(config_node), og_map, include_outgroups=False)
             tree_string = NXNewick().writeString(subtree)
             sub_hal_path = os.path.join(work_dir, '{}.hal.c2h'.format(genome_name))
             hal_fasta_path = os.path.join(work_dir, '{}.hal.fa'.format(genome_name))
@@ -227,7 +222,7 @@ def export_hal(job, tree, config_node, seq_id_map, og_map, results, event=None, 
 
     return job.fileStore.writeGlobalFile(hal_path)
     
-def progressive_workflow(job, options, config_node, tree, schedule, og_map, input_seq_id_map):
+def progressive_workflow(job, options, config_node, mc_tree, schedule, og_map, input_seq_id_map):
     ''' run the entire progressive workflow '''
 
     # start with the preprocessor
@@ -240,11 +235,11 @@ def progressive_workflow(job, options, config_node, tree, schedule, og_map, inpu
         seq_id_map = input_seq_id_map
 
     # then do the progressive workflow
-    root_event = options.root if options.root else tree.getRootName()
-    progressive_job = pp_job.addFollowOnJobFn(progressive_step, options, config_node, seq_id_map, tree, schedule, og_map, root_event)
+    root_event = options.root if options.root else mc_tree.getRootName()
+    progressive_job = pp_job.addFollowOnJobFn(progressive_step, options, config_node, seq_id_map, mc_tree, schedule, og_map, root_event)
 
     # then do the hal export
-    hal_export_job = progressive_job.addFollowOnJobFn(export_hal, tree, config_node, seq_id_map, og_map, progressive_job.rv(), event=root_event,
+    hal_export_job = progressive_job.addFollowOnJobFn(export_hal, mc_tree, config_node, seq_id_map, og_map, progressive_job.rv(), event=root_event,
                                                       disk=ConfigWrapper(config_node).getExportHalDisk(), preemptable=False)
 
     return hal_export_job.rv()
@@ -328,10 +323,11 @@ def main():
             mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper)
             og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates), options.root)
             schedule = compute_schedule(mc_tree, config_wrapper, og_map)
-            event_set = set([mc_tree.getName(node) for node in mc_tree.postOrderTraversal(options.root)]).union(set(og_map.keys()))
+            event_set = set([mc_tree.getName(node) for node in mc_tree.postOrderTraversal()]).union(set(og_map.keys()))
             if options.root:
-                mc_tree = get_subtree(mc_tree, options.root, config_wrapper, og_map)
-                tree_events = set([mc_tree.getName(node) for node in mc_tree.postOrderTraversal()])
+                # make sure we don't download anything we don't need
+                sub_tree = get_subtree(mc_tree, options.root, config_wrapper, og_map)
+                tree_events = set([sub_tree.getName(node) for node in sub_tree.postOrderTraversal()])
                 event_set = event_set.intersection(tree_events)
                         
             #import the sequences
