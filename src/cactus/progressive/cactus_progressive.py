@@ -120,7 +120,7 @@ def progressive_next(job, options, config_node, seq_id_map, tree, schedule, og_m
     paf_job = job.addChildJobFn(make_paf_alignments, NXNewick().writeString(subtree), subtree_eventmap, event, config_node)
 
     # do the consolidated
-    consolidated_job = paf_job.addFollowOnJobFn(cactus_cons_with_resources, tree, event, config_node, subtree_eventmap, og_map, paf_job.rv(),
+    consolidated_job = paf_job.addFollowOnJobFn(cactus_cons_with_resources, subtree, event, config_node, subtree_eventmap, og_map, paf_job.rv(),
                                                 cons_cores = options.consCores, intermediate_results_url = options.intermediateResultsUrl)
 
     return results_lists + [consolidated_job.rv()]
