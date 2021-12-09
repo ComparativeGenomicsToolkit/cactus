@@ -285,9 +285,9 @@ def wdl_disk(options, task, max_local=300):
 def get_leaves_and_outgroups(options, mc_tree, og_map, root):
     """ fish the leaves and outgroups out of the experiment xml """
     node = mc_tree.getNodeId(root)
-    igs = mc_tree.getChildNames(node)
+    igs = mc_tree.getChildNames(root)
     ogs = og_map[root] if root in og_map else []
-    return igs, outgroups
+    return igs, ogs
 
 def get_generation_info():
     """ print a comment describing version and command line """

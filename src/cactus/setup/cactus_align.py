@@ -217,7 +217,7 @@ def make_align_job(options, toil):
     # apply gpu override
     config_wrapper.initGPU(options.gpu)
     mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper)
-    og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates), options.root)
+    og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates))
     event_set = get_event_set(mc_tree, config_wrapper, og_map, options.root)
     
     # apply path overrides.  this was necessary for wdl which doesn't take kindly to
