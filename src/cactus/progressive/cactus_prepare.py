@@ -426,12 +426,13 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
     # convert follow-ons to dependencies
     follow_on_deps = {}
     for event in events:
-        fo = schedule.followOn(event)
-        if fo:
-            follow_on_deps[fo] = event
+        if event in schedule.depTree:
+            fo = schedule.followOn(event)
+            if fo:
+                follow_on_deps[fo] = event
 
     def get_deps(event):
-        deps = set(schedule.deps(event))
+        deps = set(schedule.deps(event)) if event in schedule.depTree else set()
         if event in follow_on_deps:
             deps = deps.union(set(follow_on_deps[event]))
         # I don't know why the schedule doesn't always give the children
@@ -467,7 +468,7 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
         added = 0
         for event in events_and_virtuals:
             if all([dep in resolved for dep in get_deps(event)]):
-                if not schedule.isVirtual(event):
+                if not (event in schedule.depTree and schedule.isVirtual(event)):
                     group.append(event)
                 to_remove.append(event)
                 added += 1

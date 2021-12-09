@@ -16,15 +16,9 @@ import timeit
 from operator import itemgetter
 
 from cactus.progressive.seqFile import SeqFile
-from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.common import setupBinaries, importSingularityImage
-from cactus.progressive.multiCactusProject import MultiCactusProject
-from cactus.shared.experimentWrapper import ExperimentWrapper
-from cactus.progressive.schedule import Schedule
-from cactus.progressive.projectWrapper import ProjectWrapper
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
-from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
@@ -36,14 +30,13 @@ from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
 from toil.realtimeLogger import RealtimeLogger
 from toil.lib.threading import cpu_count
-
+from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set
 from sonLib.nxnewick import NXNewick
 from sonLib.bioio import getTempDirectory
 
 def main():
     parser = ArgumentParser()
     Job.Runner.addToilOptions(parser)
-    addCactusWorkflowOptions(parser)
 
     parser.add_argument("seqFile", help = "Seq file (will be modified if necessary to include graph Fasta sequence)")
     parser.add_argument("minigraphGFA", help = "Minigraph-compatible reference graph in GFA format (can be gzipped)")
@@ -90,55 +83,51 @@ def main():
     cactus_override_toil_options(options)
 
     start_time = timeit.default_timer()
-    runCactusGraphMap(options)
+    graph_map(options)
     end_time = timeit.default_timer()
     run_time = end_time - start_time
     logger.info("cactus-graphmap has finished after {} seconds".format(run_time))
 
-def runCactusGraphMap(options):
+def graph_map(options):
     with Toil(options) as toil:
         importSingularityImage(options)
         #Run the workflow
         if options.restart:
             paf_id, gfa_fa_id, gaf_id_map = toil.restart()
         else:
-            options.cactusDir = getTempDirectory()
+
+            # load up the seqfile and figure out the outgroups and schedule
+            config_node = ET.parse(options.configFile).getroot()
+            config_wrapper = ConfigWrapper(config_node)
+            config_wrapper.substituteAllPredefinedConstantsWithLiterals()
+            mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper)
+            og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates))
+            event_set = get_event_set(mc_tree, config_wrapper, og_map, mc_tree.getRootName())
 
             # apply path overrides.  this was necessary for wdl which doesn't take kindly to
             # text files of local paths (ie seqfile).  one way to fix would be to add support
             # for s3 paths and force wdl to use it.  a better way would be a more fundamental
             # interface shift away from files of paths throughout all of cactus
             if options.pathOverrides:
-                seqFile = SeqFile(options.seqFile)
-                configNode = ET.parse(options.configFile).getroot()
-                config = ConfigWrapper(configNode)
-                tree = MultiCactusTree(seqFile.tree)
-                tree.nameUnlabeledInternalNodes(prefix = config.getDefaultInternalNodePrefix())
                 for name, override in zip(options.pathOverrideNames, options.pathOverrides):
-                    seqFile.pathMap[name] = override
-                override_seq = os.path.join(options.cactusDir, 'seqFile.override')
-                with open(override_seq, 'w') as out_sf:
-                    out_sf.write(str(seqFile))
-                options.seqFile = override_seq
-
-            #load cactus config
-            configNode = ET.parse(options.configFile).getroot()
-            config = ConfigWrapper(configNode)
-            config.substituteAllPredefinedConstantsWithLiterals()
+                    input_seq_map[name] = override
 
             #apply the maskfilter override
             if options.maskFilter is not None:
-                findRequiredNode(configNode, "graphmap").attrib["maskFilter"] = str(options.maskFilter)
+                findRequiredNode(config_node, "graphmap").attrib["maskFilter"] = str(options.maskFilter)
 
             # get the minigraph "virutal" assembly name
-            graph_event = getOptionalAttrib(findRequiredNode(configNode, "graphmap"), "assemblyName", default="_MINIGRAPH_")
+            graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
+            if graph_event in event_set:
+                # dont need to import this
+                event_set.remove(graph_event)
 
-            # load the seqfile
-            seqFile = SeqFile(options.seqFile)
-
-            if options.reference and options.reference not in seqFile.pathMap:
-                raise RuntimeError("{}, specified with --reference, was not found in the seqfile".format(options.refFromGFA))
-
+            # check --reference input
+            if options.reference:
+                leaves = [mc_tree.getName(leaf) for leaf in mc_tree.getLeaves()]
+                if options.reference not in leaves:
+                    raise RuntimeError("Genome specified with --reference, {}, not found in tree leaves".format(options.reference))
+            
             if options.refFromGFA:
                 if not options.reference:
                     raise RuntimeError("--reference must be used with --refFromGFA")
@@ -146,29 +135,28 @@ def runCactusGraphMap(options):
                 # todo: probably best to eventually get rid of this option entirely.
                 options.refFromGFA = options.reference
                 # we're not going to need the fasta for anything, so forget about it now
-                del seqFile.pathMap[options.refFromGFA]
+                del input_seq_map[options.refFromGFA]
                 
-            if not options.outputFasta and graph_event not in seqFile.pathMap:
+            if not options.outputFasta and graph_event not in input_seq_map:
                 raise RuntimeError("{} assembly not found in seqfile so it must be specified with --outputFasta".format(graph_event))
 
             #import the graph
             gfa_id = toil.importFile(makeURL(options.minigraphGFA))
 
-            #import the sequences (that we need to align for the given event, ie leaves and outgroups)
-            seqIDMap = {}
-            leaves = set([seqFile.tree.getName(node) for node in seqFile.tree.getLeaves()])
-            for genome, seq in seqFile.pathMap.items():
-                if genome != graph_event and genome in leaves and genome != options.refFromGFA:
+            #import the sequences
+            input_seq_id_map = {}
+            for (genome, seq) in input_seq_map.items():
+                if genome in event_set:
                     if os.path.isdir(seq):
                         tmpSeq = getTempFile()
                         catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
                         seq = tmpSeq
                     seq = makeURL(seq)
                     logger.info("Importing {}".format(seq))
-                    seqIDMap[genome] = (seq, toil.importFile(seq))
-
+                    input_seq_id_map[genome] = toil.importFile(seq)
+            
             # run the workflow
-            paf_id, gfa_fa_id, gaf_id_map = toil.start(Job.wrapJobFn(minigraph_workflow, options, config, seqIDMap, gfa_id, graph_event))
+            paf_id, gfa_fa_id, gaf_id_map = toil.start(Job.wrapJobFn(minigraph_workflow, options, config_wrapper, input_seq_map, input_seq_id_map, gfa_id, graph_event))
 
         #export the paf
         toil.exportFile(paf_id, makeURL(options.outputPAF))
@@ -185,7 +173,7 @@ def runCactusGraphMap(options):
         if options.outputFasta:
             add_genome_to_seqfile(options.seqFile, makeURL(options.outputFasta), graph_event)
 
-def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event):
+def minigraph_workflow(job, options, config, seq_path_map, seq_id_map, gfa_id, graph_event):
     """ Overall workflow takes command line options and returns (paf-id, (optional) fa-id) """
     fa_id = None
         
@@ -194,7 +182,7 @@ def minigraph_workflow(job, options, config, seq_id_map, gfa_id, graph_event):
         fa_job = job.addChildJobFn(make_minigraph_fasta, gfa_id, options.outputFasta, graph_event)
         fa_id = fa_job.rv()
 
-    paf_job = job.addChildJobFn(minigraph_map_all, config, gfa_id, seq_id_map, graph_event, options.outputGAFDir is not None)
+    paf_job = job.addChildJobFn(minigraph_map_all, config, gfa_id, seq_path_map, seq_id_map, graph_event, options.outputGAFDir is not None)
 
     if options.reference:
         # extract a PAF directly from the rGFAs tag for the given reference
@@ -236,7 +224,7 @@ def make_minigraph_fasta(job, gfa_file_id, gfa_file_path, name):
 
     return job.fileStore.writeGlobalFile(fa_path)
 
-def minigraph_map_all(job, config, gfa_id, fa_id_map, graph_event, keep_gaf):
+def minigraph_map_all(job, config, gfa_id, fa_path_map, fa_id_map, graph_event, keep_gaf):
     """ top-level job to run the minigraph mapping in parallel, returns paf """
     
     # hang everything on this job, to self-contain workflow
@@ -255,9 +243,8 @@ def minigraph_map_all(job, config, gfa_id, fa_id_map, graph_event, keep_gaf):
     gaf_id_map = {}
     paf_id_map = {}
                 
-    for event, fa_path_fa_id in fa_id_map.items():
-        fa_path = fa_path_fa_id[0]
-        fa_id = fa_path_fa_id[1]
+    for event, fa_id in fa_id_map.items():
+        fa_path = fa_path_map[event]
         minigraph_map_job = top_job.addChildJobFn(minigraph_map_one, config, event, fa_path, fa_id, gfa_id,
                                                   keep_gaf or not paf_per_genome, paf_per_genome,
                                                   # todo: estimate RAM

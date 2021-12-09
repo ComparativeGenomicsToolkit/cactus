@@ -218,7 +218,7 @@ def make_align_job(options, toil):
     config_wrapper.initGPU(options.gpu)
     mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper)
     og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates))
-    event_set = get_event_set(mc_tree, config_wrapper, og_map, options.root)
+    event_set = get_event_set(mc_tree, config_wrapper, og_map, options.root if options.root else mc_tree.getRootName())
     
     # apply path overrides.  this was necessary for wdl which doesn't take kindly to
     # text files of local paths (ie seqfile).  one way to fix would be to add support
@@ -234,7 +234,7 @@ def make_align_job(options, toil):
 
     # check --reference input
     if options.reference:
-        leaves = [tree.getName(leaf) for leaf in mc_tree.getLeaves()]
+        leaves = [mc_tree.getName(leaf) for leaf in mc_tree.getLeaves()]
         if options.reference not in leaves:
             raise RuntimeError("Genome specified with --reference, {}, not found in tree leaves".format(options.reference))
 
@@ -334,8 +334,8 @@ def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, 
 
     # optionally create the VG
     if doVG or doGFA:
-        vg_export_job = hal_export_job.addFollowOnJobFn(export_vg, hal_job.rv(), config_wrapper, doVG, doGFA,
-                                                        checkpointInfo=checkpointInfo)
+        vg_export_job = hal_job.addFollowOnJobFn(export_vg, hal_job.rv(), config_wrapper, doVG, doGFA,
+                                                 checkpointInfo=checkpointInfo)
         vg_file_id, gfa_file_id = vg_export_job.rv(0), vg_export_job.rv(1)
     else:
         vg_file_id, gfa_file_id = None, None
