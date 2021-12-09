@@ -14,26 +14,19 @@ import time
 import multiprocessing
 from operator import itemgetter
 
-from cactus.progressive.seqFile import SeqFile
-from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.common import setupBinaries, importSingularityImage
-from cactus.progressive.cactus_progressive import exportHal
-from cactus.progressive.multiCactusProject import MultiCactusProject
-from cactus.shared.experimentWrapper import ExperimentWrapper
-from cactus.progressive.projectWrapper import ProjectWrapper
-from cactus.shared.common import cactusRootPath
-from cactus.shared.configWrapper import ConfigWrapper
-from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
-from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
-from cactus.pipeline.cactus_workflow import CactusConsolidated
+from cactus.pipeline.cactus_workflow import cactus_cons_with_resources
+from cactus.progressive.progressive_decomposition import compute_outgroups, compute_schedule, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set
+from cactus.progressive.cactus_progressive import export_hal
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import findRequiredNode
 from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import cactus_call
-from cactus.refmap.paf_to_lastz import paf_to_lastz
-from cactus.shared.common import write_s3, has_s3, get_aws_region
+from cactus.shared.common import write_s3, has_s3, get_aws_region, unzip_gzs
+from cactus.shared.common import cactusRootPath
+from cactus.shared.configWrapper import ConfigWrapper
 
 from toil.job import Job
 from toil.common import Toil
@@ -47,10 +40,9 @@ from sonLib.bioio import getTempDirectory, getTempFile
 def main():
     parser = ArgumentParser()
     Job.Runner.addToilOptions(parser)
-    addCactusWorkflowOptions(parser)
 
     parser.add_argument("seqFile", help = "Seq file")
-    parser.add_argument("cigarsFile", nargs="*", help = "Pairiwse aliginments (from cactus-blast, cactus-refmap or cactus-graphmap)")
+    parser.add_argument("pafFile", type=str, help = "Pairiwse aliginments (from cactus-blast, cactus-refmap or cactus-graphmap)")
     parser.add_argument("outHal", type=str, help = "Output HAL file (or directory in --batch mode)")
     parser.add_argument("--pathOverrides", nargs="*", help="paths (multiple allowd) to override from seqFile")
     parser.add_argument("--pathOverrideNames", nargs="*", help="names (must be same number as --paths) of path overrides")
@@ -86,8 +78,8 @@ def main():
                         "rather than pulling one from quay.io")
     parser.add_argument("--binariesMode", choices=["docker", "local", "singularity"],
                         help="The way to run the Cactus binaries", default=None)
-    parser.add_argument("--nonCactusInput", action="store_true",
-                        help="Input lastz cigars do not come from cactus-blast or cactus-refmap: Prepend ids in cigars")
+    parser.add_argument("--gpu", action="store_true",
+                        help="Enable GPU acceleration by using Segaling instead of lastz")
     parser.add_argument("--consCores", type=int, 
                         help="Number of cores for each cactus_consolidated job (defaults to all available / maxCores on single_machine)", default=None)
 
@@ -140,22 +132,12 @@ def main():
         # the output hal is a directory, make sure it's there
         if not os.path.isdir(options.outHal):
             os.makedirs(options.outHal)
-        assert len(options.cigarsFile) == 0
+        assert len(options.pafFile) == 0
     else:
-        assert len(options.cigarsFile) > 0
+        assert len(options.pafFile) > 0
 
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
-
-    # We set which type of unique ids to expect.  Numeric (from cactus-blast) or Eventname (cactus-refmap or cactus-grpahmap)
-    # This is a bit ugly, since we don't have a good way to differentiate refmap from blast, and use --pangenome as a proxy
-    # But I don't think there's a real use case yet of making a separate parameter
-    options.eventNameAsID = os.environ.get('CACTUS_EVENT_NAME_AS_UNIQUE_ID')
-    if options.eventNameAsID is not None:
-        options.eventNameAsID = False if not bool(eventName) or eventName == '0' else True
-    else:
-        options.eventNameAsID = options.pangenome
-    os.environ['CACTUS_EVENT_NAME_AS_UNIQUE_ID'] = str(int(options.eventNameAsID))
 
     start_time = timeit.default_timer()
     with Toil(options) as toil:
@@ -214,7 +196,7 @@ def make_batch_align_jobs(options, toil):
                     chrom_options = copy.deepcopy(options)
                     chrom_options.batch = False
                     chrom_options.seqFile = seqfile
-                    chrom_options.cigarsFile = [alnFile]
+                    chrom_options.pafFile = [alnFile]
                     if chrom_options.checkpointInfo:
                         chrom_options.checkpointInfo = (chrom_options.checkpointInfo[0],
                                                         os.path.join(chrom_options.checkpointInfo[1], chrom + '.hal'))
@@ -227,139 +209,54 @@ def make_batch_align_jobs(options, toil):
     
     
 def make_align_job(options, toil):
-    options.cactusDir = getTempDirectory()
 
+    # load up the seqfile and figure out the outgroups and schedule
+    config_node = ET.parse(options.configFile).getroot()
+    config_wrapper = ConfigWrapper(config_node)
+    config_wrapper.substituteAllPredefinedConstantsWithLiterals()
+    # apply gpu override
+    config_wrapper.initGPU(options.gpu)
+    mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper)
+    og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates), options.root)
+    event_set = get_event_set(mc_tree, config_wrapper, og_map, options.root)
+    
     # apply path overrides.  this was necessary for wdl which doesn't take kindly to
     # text files of local paths (ie seqfile).  one way to fix would be to add support
     # for s3 paths and force wdl to use it.  a better way would be a more fundamental
     # interface shift away from files of paths throughout all of cactus
     if options.pathOverrides:
-        seqFile = SeqFile(options.seqFile)
-        configNode = ET.parse(options.configFile).getroot()
-        config = ConfigWrapper(configNode)
-        tree = MultiCactusTree(seqFile.tree)
-        tree.nameUnlabeledInternalNodes(prefix = config.getDefaultInternalNodePrefix())                
         for name, override in zip(options.pathOverrideNames, options.pathOverrides):
-            seqFile.pathMap[name] = override
-        override_seq = os.path.join(options.cactusDir, 'seqFile.override')
-        with open(override_seq, 'w') as out_sf:
-            out_sf.write(str(seqFile))
-        options.seqFile = override_seq
+            input_seq_map[name] = override
 
+    # infer default root
     if not options.root:
-        seqFile = SeqFile(options.seqFile)
-        configNode = ET.parse(options.configFile).getroot()
-        config = ConfigWrapper(configNode)
-        mcTree = MultiCactusTree(seqFile.tree)
-        mcTree.nameUnlabeledInternalNodes(prefix=config.getDefaultInternalNodePrefix())
-        options.root = mcTree.getRootName()
+        options.root = mc_tree.getRootName()
 
+    # check --reference input
     if options.reference:
-        seqFile = SeqFile(options.seqFile)
-        tree = MultiCactusTree(seqFile.tree)
-        leaves = [tree.getName(leaf) for leaf in tree.getLeaves()]
+        leaves = [tree.getName(leaf) for leaf in mc_tree.getLeaves()]
         if options.reference not in leaves:
             raise RuntimeError("Genome specified with --reference, {}, not found in tree leaves".format(options.reference))
 
+    # toggle stable
     paf_to_stable = False
-    configNode = ET.parse(options.configFile).getroot()
-    if getOptionalAttrib(findRequiredNode(configNode, "graphmap"), "removeMinigraphFromPAF", typeFn=bool, default=False):
-        # remove minigraph event from input seqfile
-        seqFile = SeqFile(options.seqFile)
-        configNode = ET.parse(options.configFile).getroot()
-        graph_event = getOptionalAttrib(findRequiredNode(configNode, "graphmap"), "assemblyName", default="_MINIGRAPH_")
-        if graph_event in seqFile.pathMap:
-            del seqFile.pathMap[graph_event]
-            tree = MultiCactusTree(seqFile.tree)
-            seqFile.tree.removeLeaf(tree.getNodeId(graph_event))
-            override_seq = os.path.join(options.cactusDir, 'seqFile.override')
-            with open(override_seq, 'w') as out_sf:
-                out_sf.write(str(seqFile))
-            options.seqFile = override_seq
-            # toggling this on will put the input paf through paf2stable which will replace all minigraph targets
-            # with query sequences using transitive mapping
+    config_node = ET.parse(options.configFile).getroot()
+    if getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "removeMinigraphFromPAF", typeFn=bool, default=False):
+        # remove minigraph event from input
+        graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
+        if graph_event in event_set:
+            event_set.remove(graph_event)
+            mc_tree.removeLeaf(tree.getNodeId(graph_event))
             paf_to_stable = True
-            
-    #to be consistent with all-in-one cactus, we make sure the project
-    #isn't limiting itself to the subtree (todo: parameterize so root can
-    #be passed through from prepare to blast/align)
-    proj_options = copy.deepcopy(options)
-    proj_options.root = None
-    #Create the progressive cactus project (as we do in runCactusProgressive)
-    projWrapper = ProjectWrapper(proj_options, proj_options.configFile, ignoreSeqPaths=options.root)
-    projWrapper.writeXml()
 
-    pjPath = os.path.join(options.cactusDir, ProjectWrapper.alignmentDirName,
-                          '%s_project.xml' % ProjectWrapper.alignmentDirName)
-    assert os.path.exists(pjPath)
-
-    project = MultiCactusProject()
-
-    if not os.path.isdir(options.cactusDir):
-        os.makedirs(options.cactusDir)
-
-    project.readXML(pjPath)
-
-    # open up the experiment (as we do in ProgressiveUp.run)
-    # note that we copy the path into the options here
-    experimentFile = project.expMap[options.root]
-    expXml = ET.parse(experimentFile).getroot()
-    experiment = ExperimentWrapper(expXml)
-    configPath = experiment.getConfigPath()
-    configXml = ET.parse(configPath).getroot()
-
-    seqIDMap = dict()
-    tree = MultiCactusTree(experiment.getTree()).extractSubTree(options.root)
-    leaves = [tree.getName(leaf) for leaf in tree.getLeaves()]
-    outgroups = experiment.getOutgroupGenomes()
-    genome_set = set(leaves + outgroups)
-
-    # this is a hack to allow specifying all the input on the command line, rather than using suffix lookups
-    def get_input_path(suffix=''):
-        base_path = options.cigarsFile[0]
-        for input_path in options.cigarsFile:
-            if suffix and input_path.endswith(suffix):
-                return input_path
-            if os.path.basename(base_path).startswith(os.path.basename(input_path)):
-                base_path = input_path
-        return base_path + suffix
-
-    #import the sequences (that we need to align for the given event, ie leaves and outgroups)
-    for genome, seq in list(project.inputSequenceMap.items()):
-        if genome in leaves or genome in outgroups:
-            if os.path.isdir(seq):
-                tmpSeq = getTempFile()
-                catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
-                seq = tmpSeq
-            seq = makeURL(seq)
-
-            logger.info("Importing {}".format(seq))
-            experiment.setSequenceID(genome, toil.importFile(seq))
-
-    # write back the experiment, as CactusWorkflowArguments wants a path
-    experiment.writeXML(experimentFile)
-
-    #import cactus config
-    if options.configFile:
-        cactusConfigID = toil.importFile(makeURL(options.configFile))
-    else:
-        cactusConfigID = toil.importFile(makeURL(project.getConfigPath()))
-    project.setConfigID(cactusConfigID)
-
-    project.syncToFileStore(toil)
-    configNode = ET.parse(project.getConfigPath()).getroot()
-    configWrapper = ConfigWrapper(configNode)
-    configWrapper.substituteAllPredefinedConstantsWithLiterals()
-    cafNode = findRequiredNode(configWrapper.xmlRoot, "caf")
-    barNode = findRequiredNode(configWrapper.xmlRoot, "bar")
+    # apply command line overrides to config
+    cafNode = findRequiredNode(config_node, "caf")
+    barNode = findRequiredNode(config_node, "bar")
     poaNode = findRequiredNode(barNode, "poa")
-
     if options.singleCopySpecies:
         cafNode.attrib["alignmentFilter"] = "singleCopyEvent:{}".format(options.singleCopySpecies)
-
     if options.barMaskFilter:
         poaNode.attrib["partialOrderAlignmentMaskFilter"] = str(options.barMaskFilter)
-
     if options.pangenome:
         # turn off the megablock filter as it ruins non-all-to-all alignments
         cafNode.attrib["minimumBlockHomologySupport"] = "0"
@@ -374,137 +271,85 @@ def make_align_job(options, toil):
         barNode.attrib["partialOrderAlignment"] = "1"
         # turn off POA seeding
         poaNode.attrib["partialOrderAlignmentDisableSeeding"] = "1"
-        # save it
-        if not options.batch:
-            pg_file = options.outHal + ".pg-conf.xml"
-            if pg_file.startswith('s3://'):
-                pg_temp_file = getTempFile()
-            else:
-                pg_temp_file = pg_file            
-            configWrapper.writeXML(pg_temp_file)
-            if pg_file.startswith('s3://'):
-                write_s3(pg_temp_file, pg_file, region=get_aws_region(options.jobStore))
-            logger.info("pangenome configuration overrides saved in {}".format(pg_file))
 
-    workFlowArgs = CactusWorkflowArguments(options, experimentFile=experimentFile, configNode=configNode, seqIDMap = project.inputSequenceIDMap, consCores = options.consCores)
+    # import the PAF alignments
+    paf_id = toil.importFile(makeURL(options.pafFile))
+    
+    #import the sequences
+    input_seq_id_map = {}
+    for (genome, seq) in input_seq_map.items():
+        if genome in event_set:
+            if os.path.isdir(seq):
+                tmpSeq = getTempFile()
+                catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
+                seq = tmpSeq
+            seq = makeURL(seq)
+            logger.info("Importing {}".format(seq))
+            input_seq_id_map[genome] = toil.importFile(seq)
 
-    #import the files that cactus-blast made
-    workFlowArgs.alignmentsID = toil.importFile(makeURL(get_input_path()))
-    workFlowArgs.secondaryAlignmentsID = None
-    workFlowArgs.ingroupCoverageIDs = []
-
+    # make the align job that will (optional unzip) -> consolidated -> hal export -> (optional vg/gfa)
     align_job = Job.wrapJobFn(cactus_align,
-                              configWrapper,
-                              workFlowArgs,
-                              project,
+                              config_wrapper,
+                              mc_tree,
+                              input_seq_map,
+                              input_seq_id_map,
+                              paf_id,
+                              options.root,
+                              og_map,
                               checkpointInfo=options.checkpointInfo,
-                              doRenaming=options.nonCactusInput,
                               doVG=options.outVG,
                               doGFA=options.outGFA,
-                              eventNameAsID=options.eventNameAsID,
                               referenceEvent=options.reference,
-                              paf2Stable=paf_to_stable)
+                              paf2Stable=paf_to_stable,
+                              cons_cores = options.consCores)
     return align_job
 
-def cactus_align(job, configWrapper, cactusWorkflowArguments, project, checkpointInfo, doRenaming, doVG, doGFA, delay=0,
-                     eventNameAsID=False, referenceEvent=None, paf2Stable=False):
+def cactus_align(job, config_wrapper, mc_tree, input_seq_map, input_seq_id_map, paf_id, root_name, og_map, checkpointInfo, doVG, doGFA,
+                 referenceEvent=None, paf2Stable=False, cons_cores = None):
     
     head_job = Job()
     job.addChild(head_job)
 
-    # unzip the input sequences if necessary, and also extract paf masking beds
-    preprocess_job = head_job.addChildJobFn(preprocess_input_sequences, configWrapper, project, cactusWorkflowArguments, referenceEvent)
-    cactusWorkflowArguments = preprocess_job.rv()
+    event_list = input_seq_id_map.keys()
+    
+    # unzip the input sequences
+    unzip_job = head_job.addChildJobFn(unzip_gzs, [input_seq_map[e] for e in event_list], [input_seq_id_map[e] for e in event_list])
 
-    cur_job = preprocess_job
-    # run cactus setup all the way through cactus2hal generation
-    setup_job = cur_job.addFollowOnJobFn(setup_phase, cactusWorkflowArguments)
+    new_seq_id_map = {}
+    for i, event in enumerate(input_seq_id_map.keys()):
+        new_seq_id_map[event] = unzip_job.rv(i)
 
-    # set up the project
-    prepare_hal_export_job = setup_job.addFollowOnJobFn(prepare_hal_export, project, setup_job.rv())
+    # get the spanning tree (which is what consolidated wants)
+    spanning_tree = get_spanning_subtree(mc_tree, root_name, config_wrapper, og_map)
 
-    # create the hal
-    hal_export_job = prepare_hal_export_job.addFollowOnJobFn(exportHal, prepare_hal_export_job.rv(0), event=prepare_hal_export_job.rv(1),
-                                                             checkpointInfo=checkpointInfo, acyclicEvent=referenceEvent,
-                                                             memory=configWrapper.getDefaultMemory(),
-                                                             disk=configWrapper.getExportHalDisk(),
-                                                             preemptable=False)
+    # run consolidated
+    cons_job = head_job.addFollowOnJobFn(cactus_cons_with_resources, spanning_tree, root_name, config_wrapper.xmlRoot, new_seq_id_map, og_map, paf_id, cons_cores = cons_cores)
+
+    # get the immediate subtree (which is all export_hal can use)
+    sub_tree = get_subtree(mc_tree, root_name, config_wrapper, og_map, include_outgroups=False)
+    
+    # run the hal export
+    hal_job = cons_job.addFollowOnJobFn(export_hal, sub_tree, config_wrapper.xmlRoot, new_seq_id_map, og_map, [cons_job.rv()], event=root_name, inMemory=True,
+                                        checkpointInfo=checkpointInfo, acyclicEvent=referenceEvent)
 
     # optionally create the VG
     if doVG or doGFA:
-        vg_export_job = hal_export_job.addFollowOnJobFn(export_vg, hal_export_job.rv(), configWrapper, doVG, doGFA,
+        vg_export_job = hal_export_job.addFollowOnJobFn(export_vg, hal_job.rv(), config_wrapper, doVG, doGFA,
                                                         checkpointInfo=checkpointInfo)
         vg_file_id, gfa_file_id = vg_export_job.rv(0), vg_export_job.rv(1)
     else:
         vg_file_id, gfa_file_id = None, None
         
-    return hal_export_job.rv(), vg_file_id, gfa_file_id
+    return hal_job.rv(), vg_file_id, gfa_file_id
 
-def preprocess_input_sequences(job, configWrapper, project, cactusWorkflowArguments, referenceEvent=None):
-    """ update the workflow arguments in place with unzipped version of any input fastas whose paths 
-    end in .gz, 
-    """
-    head_job = Job()
-    job.addChild(head_job)
-    graph_event = getOptionalAttrib(findRequiredNode(configWrapper.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
-    exp = cactusWorkflowArguments.experimentWrapper
-    ingroupsAndOriginalIDs = [(g, exp.getSequenceID(g)) for g in exp.getGenomesWithSequence()]
-    events = []
-    updated_seq_ids = []
-    sequence_sizes = []
-    for g, seqID in ingroupsAndOriginalIDs:
-        # unzip if necessary, also pull in the total sequence size
-        preprocess_input_id_job = head_job.addChildJobFn(preprocess_input_sequence, g, seqID, project.inputSequenceMap[g])
-        events.append(g)
-        updated_seq_ids.append(preprocess_input_id_job.rv(0))
-        sequence_sizes.append(preprocess_input_id_job.rv(1))
 
-    return head_job.addFollowOnJobFn(resolve_id_promises, events, updated_seq_ids, sequence_sizes, cactusWorkflowArguments).rv()
-
-def resolve_id_promises(job, events, updated_seq_ids, seq_sizes, cactusWorkflowArguments):
-    cactusWorkflowArguments.totalSequenceSize = 0
-    assert events
-    exp = cactusWorkflowArguments.experimentWrapper
-    for g, seqID, seqSize in zip(events, updated_seq_ids, seq_sizes):
-        cactusWorkflowArguments.experimentWrapper.setSequenceID(g, seqID)
-        cactusWorkflowArguments.totalSequenceSize += seqSize
-    return cactusWorkflowArguments
-
-def preprocess_input_sequence(job, event, seq_id, seq_path):
-    work_dir = job.fileStore.getLocalTempDir()
-    seq_path = os.path.join(work_dir, os.path.basename(seq_path))
-    job.fileStore.readGlobalFile(seq_id, seq_path, mutable=seq_path.endswith('.gz'))
-    # decompress if gzipped
-    if seq_path.endswith('.gz'):
-        cactus_call(parameters=['gzip', '-fd', seq_path])
-        seq_path = seq_path[:-3]
-        seq_id = job.fileStore.writeGlobalFile(seq_path)
-    else:
-        bed_id = None
-    sequence_size = os.stat(seq_path).st_size
-        
-    return seq_id, sequence_size
-        
-def setup_phase(job, cactusWorkflowArguments):
-    # needs to be its own job to resovolve the workflowargument promise
-    return job.addChild(CactusConsolidated(cactusWorkflowArguments=cactusWorkflowArguments, phaseName="consolidated")).rv()
-
-def prepare_hal_export(job, project, experiment):
-    """ hack up the given project into something that gets exportHal() to do what we want """
-    event = experiment.getRootGenome()
-    exp_path = os.path.join(job.fileStore.getLocalTempDir(), event + '_experiment.xml')
-    experiment.writeXML(exp_path)
-    project.expMap = {event : experiment}
-    project.expIDMap = {event : job.fileStore.writeGlobalFile(exp_path)}
-    return project, event
-
-def export_vg(job, hal_id, configWrapper, doVG, doGFA, checkpointInfo=None, resource_spec = False):
+def export_vg(job, hal_id, config_wrapper, doVG, doGFA, checkpointInfo=None, resource_spec = False):
     """ use hal2vg to convert the HAL to vg format """
 
     if not resource_spec:
         # caller couldn't figure out the resrouces from hal_id promise.  do that
         # now and try again
-        return job.addChildJobFn(export_vg, hal_id, configWrapper, doVG, doGFA, checkpointInfo,
+        return job.addChildJobFn(export_vg, hal_id, config_wrapper, doVG, doGFA, checkpointInfo,
                                  resource_spec = True,
                                  disk=hal_id.size * 3,
                                  memory=hal_id.size * 10).rv()
@@ -513,20 +358,20 @@ def export_vg(job, hal_id, configWrapper, doVG, doGFA, checkpointInfo=None, reso
     hal_path = os.path.join(work_dir, "out.hal")
     job.fileStore.readGlobalFile(hal_id, hal_path)
     
-    graph_event = getOptionalAttrib(findRequiredNode(configWrapper.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
-    hal2vg_opts = getOptionalAttrib(findRequiredNode(configWrapper.xmlRoot, "hal2vg"), "hal2vgOptions", default="")
+    graph_event = getOptionalAttrib(findRequiredNode(config_wrapper.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
+    hal2vg_opts = getOptionalAttrib(findRequiredNode(config_wrapper.xmlRoot, "hal2vg"), "hal2vgOptions", default="")
     if hal2vg_opts:
         hal2vg_opts = hal2vg_opts.split(' ')
     else:
         hal2vg_opts = []
     ignore_events = []
-    if not getOptionalAttrib(findRequiredNode(configWrapper.xmlRoot, "hal2vg"), "includeMinigraph", typeFn=bool, default=False):
+    if not getOptionalAttrib(findRequiredNode(config_wrapper.xmlRoot, "hal2vg"), "includeMinigraph", typeFn=bool, default=False):
         ignore_events.append(graph_event)
-    if not getOptionalAttrib(findRequiredNode(configWrapper.xmlRoot, "hal2vg"), "includeAncestor", typeFn=bool, default=False):
-        ignore_events.append(configWrapper.getDefaultInternalNodePrefix() + '0')
+    if not getOptionalAttrib(findRequiredNode(config_wrapper.xmlRoot, "hal2vg"), "includeAncestor", typeFn=bool, default=False):
+        ignore_events.append(config_wrapper.getDefaultInternalNodePrefix() + '0')
     if ignore_events:
         hal2vg_opts += ['--ignoreGenomes', ','.join(ignore_events)]
-    if not getOptionalAttrib(findRequiredNode(configWrapper.xmlRoot, "hal2vg"), "prependGenomeNames", typeFn=bool, default=True):
+    if not getOptionalAttrib(findRequiredNode(config_wrapper.xmlRoot, "hal2vg"), "prependGenomeNames", typeFn=bool, default=True):
         hal2vg_opts += ['--onlySequenceNames']
 
     vg_path = os.path.join(work_dir, "out.vg")

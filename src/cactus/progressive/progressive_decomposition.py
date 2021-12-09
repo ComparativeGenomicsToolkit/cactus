@@ -164,6 +164,7 @@ def get_subtree(mc_tree, root_name, config_wrapper, outgroup_map, include_outgro
         assert sub_tree.hasParent(node)
         sub_tree.removeEdge(sub_tree.getParent(node), node)
 
+    sub_tree.computeSubtreeRoots()    
     return sub_tree
 
 def get_spanning_subtree(mc_tree, root_name, config_wrapper, outgroup_map):
@@ -189,6 +190,7 @@ def get_spanning_subtree(mc_tree, root_name, config_wrapper, outgroup_map):
     # get the spanning tree
     spanning_tree = mc_tree.extractSpanningTree([mc_tree.getName(node) for node in node_id_set])
 
+    spanning_tree.computeSubtreeRoots()
     return spanning_tree
 
 def compute_schedule(mc_tree, config_wrapper, outgroup_map):
@@ -203,3 +205,17 @@ def compute_schedule(mc_tree, config_wrapper, outgroup_map):
     schedule.compute()
 
     return schedule
+
+def get_event_set(mc_tree, config_wrapper, outgroup_map, root_name):
+    """
+    compute all events we need on hand (ingroups and outgroups) for a given problem or subproblem
+    (used to narrow down import to releavnt nodes)
+    """
+    event_set = set([mc_tree.getName(node) for node in mc_tree.postOrderTraversal()]).union(set(outgroup_map.keys()))
+    if root_name:
+        # make sure we don't download anything we don't need
+        sub_tree = get_subtree(mc_tree, root_name, config_wrapper, outgroup_map)
+        tree_events = set([sub_tree.getName(node) for node in sub_tree.postOrderTraversal()])
+        event_set = event_set.intersection(tree_events)
+        event_set.remove(root_name)
+    return event_set

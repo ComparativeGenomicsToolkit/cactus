@@ -36,7 +36,7 @@ from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import write_s3
 
 from cactus.pipeline.cactus_workflow import cactus_cons_with_resources
-from cactus.progressive.progressive_decomposition import compute_outgroups, compute_schedule, parse_seqfile, get_subtree, get_spanning_subtree
+from cactus.progressive.progressive_decomposition import compute_outgroups, compute_schedule, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 from cactus.preprocessor.dnabrnnMasking import loadDnaBrnnModel
 from cactus.paf.local_alignment import make_paf_alignments
@@ -90,8 +90,9 @@ def progressive_step(job, options, config_node, seq_id_map, tree, schedule, og_m
     results_list = []
     if event in schedule.depTree:
         for dep in schedule.deps(event):
-            child_job = root_job.addChildJobFn(progressive_step, options, config_node, seq_id_map, tree, schedule, og_map, dep)
-            results_list.append(child_job.rv())
+            if dep not in seq_id_map:
+                child_job = root_job.addChildJobFn(progressive_step, options, config_node, seq_id_map, tree, schedule, og_map, dep)
+                results_list.append(child_job.rv())
 
     next_job = root_job.addFollowOnJobFn(progressive_next, options, config_node, seq_id_map, tree, schedule, og_map, event, results_list)
 
@@ -156,7 +157,7 @@ def results_list_to_dict(results_list):
     return results_dict
 
 def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=None, cacheBytes=None,
-               cacheMDC=None, cacheRDC=None, cacheW0=None, chunk=None, deflate=None, inMemory=True,
+               cacheMDC=None, cacheRDC=None, cacheW0=None, chunk=None, deflate=None, inMemory=False,
                checkpointInfo=None, acyclicEvent=None):
 
     # todo: going through list nonsense because (i think) it helps with promises, should at least clean up
@@ -174,9 +175,9 @@ def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=Non
         root_node = mc_tree.nameToId[event]
 
     hal_path = os.path.join(work_dir, '{}.hal'.format(event if event else mc_tree.getRootName()))
-
+    
     for node in mc_tree.breadthFirstTraversal(root_node):
-        genome_name = mc_tree.getName(node)
+        genome_name = mc_tree.getName(node)              
         if genome_name in subtree_roots:
             outgroups = og_map[genome_name] if genome_name in og_map else []
             subtree = get_subtree(mc_tree, genome_name, ConfigWrapper(config_node), og_map, include_outgroups=False)
@@ -240,7 +241,7 @@ def progressive_workflow(job, options, config_node, mc_tree, schedule, og_map, i
 
     # then do the hal export
     hal_export_job = progressive_job.addFollowOnJobFn(export_hal, mc_tree, config_node, seq_id_map, og_map, progressive_job.rv(), event=root_event,
-                                                      disk=ConfigWrapper(config_node).getExportHalDisk(), preemptable=False)
+                                                      disk=ConfigWrapper(config_node).getExportHalDisk())
 
     return hal_export_job.rv()
 
@@ -320,15 +321,12 @@ def main():
             config_node = ET.parse(options.configFile).getroot()
             config_wrapper = ConfigWrapper(config_node)
             config_wrapper.substituteAllPredefinedConstantsWithLiterals()
+            # apply gpu override
+            config_wrapper.initGPU(options.gpu)            
             mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper)
             og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates), options.root)
             schedule = compute_schedule(mc_tree, config_wrapper, og_map)
-            event_set = set([mc_tree.getName(node) for node in mc_tree.postOrderTraversal()]).union(set(og_map.keys()))
-            if options.root:
-                # make sure we don't download anything we don't need
-                sub_tree = get_subtree(mc_tree, options.root, config_wrapper, og_map)
-                tree_events = set([sub_tree.getName(node) for node in sub_tree.postOrderTraversal()])
-                event_set = event_set.intersection(tree_events)
+            event_set = get_event_set(mc_tree, config_wrapper, og_map, options.root)
                         
             #import the sequences
             input_seq_id_map = {}

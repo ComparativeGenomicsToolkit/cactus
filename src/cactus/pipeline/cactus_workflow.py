@@ -17,6 +17,7 @@ from toil.lib.bioio import getTempFile
 from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
 from toil.lib.bioio import getLogLevelString
+from toil.realtimeLogger import RealtimeLogger
 from sonLib.bioio import catFiles
 from sonLib.nxnewick import NXNewick
 
@@ -76,7 +77,7 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
         seq_path = os.path.join(work_dir, '{}.fa'.format(event))
         job.fileStore.readGlobalFile(seq_id, seq_path)
         seq_path_map[event] = seq_path
-
+        
     outgroups = og_map[ancestor_event] if ancestor_event in og_map else []
 
     # Get the alignments file
@@ -113,7 +114,7 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
 
     # Log back any messages
     for message in messages:
-        fileStore.logToMaster(message)
+        job.fileStore.logToMaster(message)
 
     # Write the temporary output files to the final output
     # At top level--have the final .c2h file
