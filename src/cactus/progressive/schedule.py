@@ -20,10 +20,11 @@ import networkx as NX
 from optparse import OptionParser
 
 
-from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.progressive.multiCactusTree import MultiCactusTree
-from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.configWrapper import ConfigWrapper
+from cactus.shared.common import cactusRootPath
+from cactus.progressive.seqFile import SeqFile
+
 from sonLib.nxnewick import NXNewick
 
 class Schedule:
@@ -248,9 +249,12 @@ class Schedule:
 
 
 def main():
-    usage = "usage: %prog <project> <output graphviz .dot file>"
+    usage = "usage: %prog <seqfile> <output graphviz .dot file>"
     description = "TEST: create schedule from project file"
     parser = OptionParser(usage=usage, description=description)
+    parser.add_argument("--configFile", dest="configFile",
+                        help="Specify cactus configuration file",
+                        default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))    
 
     options, args = parser.parse_args()
 
@@ -258,12 +262,19 @@ def main():
         parser.print_help()
         raise RuntimeError("Wrong number of arguments")
 
-    proj = MultiCactusProject()
-    proj.readXML(args[0])
-    schedule = Schedule()
-    schedule.loadProject(proj)
-    schedule.compute()
-    schedule.writeToFile(args[1])
+    # load up the seqfile and figure out the outgroups and schedule
+    # can't use progressive_decomposition.py for circular deps...
+    config_node = ET.parse(options.configFile).getroot()
+    config_wrapper = ConfigWrapper(config_node)
+    config_wrapper.substituteAllPredefinedConstantsWithLiterals()
+    seq_file = SeqFile(args[0])
+    mc_tree = MultiCactusTree(seq_file.tree)
+    mc_tree.nameUnlabeledInternalNodes(config_wrapper.getDefaultInternalNodePrefix())
+    mc_tree.computeSubtreeRoots()
+    
+    # todo:
+    # move to own module so can use progressive_decomposition.py
+    assert(False)
 
 if __name__ == '__main__':
     main()
