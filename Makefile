@@ -71,7 +71,12 @@ all_libs.blastLib: all_libs.api
 
 # under test modules under src/cactus/, split up to allowing run them in parallel.
 testModules = \
-    bar/cactus_barTest.py
+    bar/cactus_barTest.py \
+    progressive/outgroupTest.py \
+    progressive/scheduleTest.py \
+    preprocessor/cactus_preprocessorTest.py \
+    preprocessor/lastzRepeatMasking/cactus_lastzRepeatMaskTest.py \
+    progressive/multiCactusTreeTest.py 
 #
 #    Todo: these tests rely heavily on Experiment/Workflow code that no longer exists
 #    but most of them are commented out anyway.  So need to figure out what tests
@@ -80,12 +85,7 @@ testModules = \
 #    hal/cactus_halTest.py \
 #    pipeline/cactus_evolverTest.py \
 #    pipeline/cactus_workflowTest.py \
-#    preprocessor/cactus_preprocessorTest.py \
-#    preprocessor/lastzRepeatMasking/cactus_lastzRepeatMaskTest.py \
 #    progressive/cactus_progressiveTest.py \
-#    progressive/multiCactusTreeTest.py \
-#    progressive/outgroupTest.py \
-#    progressive/scheduleTest.py \
 #    shared/commonTest.py \
 #    shared/experimentWrapperTest.py
 
