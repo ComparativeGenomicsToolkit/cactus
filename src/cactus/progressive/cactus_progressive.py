@@ -86,16 +86,25 @@ def progressive_step(job, options, config_node, seq_id_map, tree, schedule, og_m
     root_job = Job()
     job.addChild(root_job)
 
-    # each results are dicst that map event name -> consolidated results
+    # each results are dicts that map event name -> consolidated results
     results_list = []
+    # do the child dependencies first
     if event in schedule.depTree:
         for dep in schedule.deps(event):
             if dep not in seq_id_map:
                 child_job = root_job.addChildJobFn(progressive_step, options, config_node, seq_id_map, tree, schedule, og_map, dep)
                 results_list.append(child_job.rv())
 
+    # do the current event, passing in child results
     next_job = root_job.addFollowOnJobFn(progressive_next, options, config_node, seq_id_map, tree, schedule, og_map, event, results_list)
 
+    # do the follow on event, passing in child and current results
+    follow_on = schedule.followOn(event) if event in schedule.depTree else None
+    if follow_on is not None:
+        fo_job = next_job.addFollowOnJobFn(progressive_step, options, config_node, seq_id_map, tree, schedule, og_map, follow_on, next_job.rv())
+        next_job = fo_job
+
+    # return all results so far
     return next_job.rv()
 
 def progressive_next(job, options, config_node, seq_id_map, tree, schedule, og_map, event, results_lists):
