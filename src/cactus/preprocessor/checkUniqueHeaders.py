@@ -28,7 +28,7 @@ def checkUniqueHeaders(inputFile, outputFile, eventName, checkAlphaNumeric=False
 
         # preprocess the unique id
         assert eventName
-        header = 'id={}|{}'.format(header, seq_record.description)
+        header = 'id={}|{}'.format(eventName, header)
         seq_record.description = header
         seq_record.id = header
         SeqIO.write(seq_record, outputFile, 'fasta')
