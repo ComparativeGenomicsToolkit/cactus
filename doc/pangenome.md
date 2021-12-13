@@ -62,7 +62,7 @@ This [script](https://github.com/glennhickey/pg-stuff/blob/main/cactus-pangenome
 
 The steps are described in a bit more detail below:
 
-###Input
+### Input
 
 *Todo: replace with public-facing links once available*
 
