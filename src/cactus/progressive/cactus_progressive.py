@@ -36,12 +36,11 @@ from cactus.shared.common import cactus_override_toil_options
 from cactus.shared.common import write_s3
 
 from cactus.pipeline.cactus_workflow import cactus_cons_with_resources
-from cactus.progressive.progressive_decomposition import compute_outgroups, compute_schedule, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set
+from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 from cactus.preprocessor.dnabrnnMasking import loadDnaBrnnModel
 from cactus.paf.local_alignment import make_paf_alignments
 from cactus.shared.configWrapper import ConfigWrapper
-from cactus.progressive.schedule import Schedule
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.common import setupBinaries, importSingularityImage
 
@@ -80,40 +79,75 @@ def save_preprocessed_files(job, options, config_node, seq_id_map):
     for name, sequence in list(seq_id_map.items()):
         job.addChildJobFn(logAssemblyStats, "After preprocessing", name, sequence)
 
-def progressive_step(job, options, config_node, seq_id_map, tree, schedule, og_map, event):
-    ''' use the schedule to run the events in order '''
+def progressive_schedule(job, options, config_node, seq_id_map, tree, og_map, root_event):
+    ''' create job for every internal node, use child dependencies to make tree (+ outgroups)'''
 
     root_job = Job()
     job.addChild(root_job)
 
-    # each results are dicts that map event name -> consolidated results
-    results_list = []
-    # do the child dependencies first
-    if event in schedule.depTree:
-        for dep in schedule.deps(event):
-            if dep not in seq_id_map:
-                child_job = root_job.addChildJobFn(progressive_step, options, config_node, seq_id_map, tree, schedule, og_map, dep)
-                results_list.append(child_job.rv())
+    config_wrapper = ConfigWrapper(config_node)
 
-    # do the current event, passing in child results
-    next_job = root_job.addFollowOnJobFn(progressive_next, options, config_node, seq_id_map, tree, schedule, og_map, event, results_list)
+    # event -> dependencies
+    # dependencies are its children + outgroups (which is what get_subtree() returns)
+    dep_table = {}
+    subtree_event_set = set(tree.getSubtreeRootNames())
+    iteration_0_events = []
+    for node in tree.postOrderTraversal(tree.getNodeId(root_event)):
+        event = tree.getName(node)
+        if event in subtree_event_set:
+            dep_table[event] = []
+            subtree = get_subtree(tree, event, config_wrapper, og_map)
+            dep_set = set()
+            input_count = 0
+            for leaf_id in subtree.getLeaves():
+                leaf_name = subtree.getName(leaf_id)
+                dep_table[event].append(leaf_name)
+                if leaf_name in seq_id_map:
+                    input_count += 1
+            if input_count == len(dep_table[event]):
+                iteration_0_events.append(event)
+    assert len(dep_table) > 0
 
-    # do the follow on event, passing in child and current results
-    follow_on = schedule.followOn(event) if event in schedule.depTree else None
-    if follow_on is not None:
-        fo_job = next_job.addFollowOnJobFn(progressive_step, options, config_node, seq_id_map, tree, schedule, og_map, follow_on, next_job.rv())
-        next_job = fo_job
+    # make the jobs.  jobs must be made after their dependencies.  we just brute force it
+    # todo: can speed up with better indexing/updating
+    job_table = {}
+    fasta_results = seq_id_map
+    hal_results = {}
+    while len(job_table) != len(dep_table):
+        num_jobs_at_iteration_start = len(job_table)
+        events = [k for k in dep_table.keys()]
+        for event in events:
+            if event in job_table:
+                continue
+            unscheduled_deps = False
+            for dep in dep_table[event]:
+                if dep not in fasta_results:
+                    unscheduled_deps = True
+                    break
+            if not unscheduled_deps:
+                # found an event that a) hasn't been made into a job yet an b) has an existing job for every dep
+                event_id_map = {}
+                for dep in dep_table[event]:
+                    event_id_map[dep] = fasta_results[dep]
+                event_job = Job.wrapJobFn(progressive_step, options, config_node, event_id_map, tree, og_map, event)
+                job_table[event] = event_job
+                for dep in dep_table[event]:
+                    if dep in job_table:
+                        # add follow-on edge between this job and all jobs that read its results
+                        job_table[dep].addFollowOn(event_job)
+                hal_results[event] = (event_job.rv(1), event_job.rv(2))
+                fasta_results[event] = event_job.rv(3)
+        if len(job_table) == num_jobs_at_iteration_start and len(job_table) != len(dep_table):
+            raise RuntimeError("Unable to schedule job dependencies.  Please file a bug report on github")
 
-    # return all results so far
-    return next_job.rv()
-
-def progressive_next(job, options, config_node, seq_id_map, tree, schedule, og_map, event, results_lists):
-    ''' compute the alignment and make the hal '''
-
-    results_lists = flatten_lists(results_lists)
-    results_dict = results_list_to_dict(results_lists)
-    for ev, res in results_dict.items():
-        seq_id_map[ev] = res['fa']
+    # hook up or starting jobs (dependent only on input)
+    for event in iteration_0_events:
+        root_job.addChild(job_table[event])
+            
+    return hal_results
+                
+def progressive_step(job, options, config_node, seq_id_map, tree, og_map, event):
+    ''' run the blast -> consolidated workflow on an event'''
 
     # get our subtree (just ingroups and outgroups)
     subtree = get_subtree(tree, event, ConfigWrapper(config_node), og_map)
@@ -133,44 +167,14 @@ def progressive_next(job, options, config_node, seq_id_map, tree, schedule, og_m
     consolidated_job = paf_job.addFollowOnJobFn(cactus_cons_with_resources, spanning_tree, event, config_node, subtree_eventmap, og_map, paf_job.rv(),
                                                 cons_cores = options.consCores, intermediate_results_url = options.intermediateResultsUrl)
 
-    return results_lists + [consolidated_job.rv()]
+    return consolidated_job.rv()
 
-def flatten_lists(results_list):
-    ''' make sure our list is just 1d '''
-    def flatten(l):
-        flat_list = []
-        did_something = False
-        for x in l:
-            if isinstance(x, list):
-                did_something = True
-                for y in x:
-                    flat_list.append(y)
-            else:
-                flat_list.append(x)
-        return (flat_list, did_something)
-
-    while True:
-        (results_list, did_something) = flatten(results_list)
-        if not did_something:
-            break
-    return results_list
-
-def results_list_to_dict(results_list):
-    ''' convert results list of tuples into a dcit'''
-    results_dict = {}
-    for res in results_list:
-        assert isinstance(res, tuple)
-        # note, this has to be consistent with interface in cactus_cons() in cactus_workflow.py
-        results_dict[res[0]] = { 'c2h' : res[1], 'c2h.fa' : res[2], 'fa' : res[3] }
-        
-    return results_dict
 
 def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=None, cacheBytes=None,
                cacheMDC=None, cacheRDC=None, cacheW0=None, chunk=None, deflate=None, inMemory=False,
                checkpointInfo=None, acyclicEvent=None):
 
     # todo: going through list nonsense because (i think) it helps with promises, should at least clean up
-    results = results_list_to_dict(flatten_lists(results))
     work_dir = job.fileStore.getLocalTempDir()
     hal_path = os.path.join(work_dir, '{}.hal'.format(event if event else mc_tree.getRootName()))
 
@@ -194,8 +198,8 @@ def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=Non
             sub_hal_path = os.path.join(work_dir, '{}.hal.c2h'.format(genome_name))
             hal_fasta_path = os.path.join(work_dir, '{}.hal.fa'.format(genome_name))
             assert genome_name in results
-            job.fileStore.readGlobalFile(results[genome_name]['c2h'], sub_hal_path)
-            job.fileStore.readGlobalFile(results[genome_name]['c2h.fa'], hal_fasta_path)
+            job.fileStore.readGlobalFile(results[genome_name][0], sub_hal_path)
+            job.fileStore.readGlobalFile(results[genome_name][1], hal_fasta_path)
 
             args = ['halAppendCactusSubtree', sub_hal_path, hal_fasta_path, tree_string, hal_path]
             
@@ -232,7 +236,7 @@ def export_hal(job, mc_tree, config_node, seq_id_map, og_map, results, event=Non
 
     return job.fileStore.writeGlobalFile(hal_path)
     
-def progressive_workflow(job, options, config_node, mc_tree, schedule, og_map, input_seq_id_map):
+def progressive_workflow(job, options, config_node, mc_tree, og_map, input_seq_id_map):
     ''' run the entire progressive workflow '''
 
     # start with the preprocessor
@@ -246,7 +250,7 @@ def progressive_workflow(job, options, config_node, mc_tree, schedule, og_map, i
 
     # then do the progressive workflow
     root_event = options.root if options.root else mc_tree.getRootName()
-    progressive_job = pp_job.addFollowOnJobFn(progressive_step, options, config_node, seq_id_map, mc_tree, schedule, og_map, root_event)
+    progressive_job = pp_job.addFollowOnJobFn(progressive_schedule, options, config_node, seq_id_map, mc_tree, og_map, root_event)
 
     # then do the hal export
     hal_export_job = progressive_job.addFollowOnJobFn(export_hal, mc_tree, config_node, seq_id_map, og_map, progressive_job.rv(), event=root_event,
@@ -334,7 +338,6 @@ def main():
             config_wrapper.initGPU(options.gpu)            
             mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper)
             og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates), options.root)
-            schedule = compute_schedule(mc_tree, config_wrapper, og_map)
             event_set = get_event_set(mc_tree, config_wrapper, og_map, options.root)
                         
             #import the sequences
@@ -353,7 +356,7 @@ def main():
             loadDnaBrnnModel(toil, config_node)
 
             # run the whole workflow
-            hal_id = toil.start(Job.wrapJobFn(progressive_workflow, options, config_node, mc_tree, schedule, og_map, input_seq_id_map))
+            hal_id = toil.start(Job.wrapJobFn(progressive_workflow, options, config_node, mc_tree, og_map, input_seq_id_map))
 
         toil.exportFile(hal_id, makeURL(options.outputHal))
     

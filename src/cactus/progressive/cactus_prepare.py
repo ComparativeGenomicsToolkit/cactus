@@ -21,7 +21,7 @@ from operator import itemgetter
 
 from cactus.progressive.seqFile import SeqFile
 from cactus.progressive.multiCactusTree import MultiCactusTree
-from cactus.progressive.progressive_decomposition import compute_outgroups, compute_schedule
+from cactus.progressive.progressive_decomposition import compute_outgroups, get_subtree
 from cactus.shared.common import cactusRootPath
 from cactus.shared.common import enableDumpStack, setupBinaries
 from cactus.shared.common import getDockerImage, getDockerRelease
@@ -417,69 +417,34 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
     mc_tree.nameUnlabeledInternalNodes(configWrapper.getDefaultInternalNodePrefix())
     mc_tree.computeSubtreeRoots()
     og_map = compute_outgroups(mc_tree, configWrapper, inSeqFile.outgroups)
-    schedule = compute_schedule(mc_tree, configWrapper, og_map)
 
     # set of all jobs, as genome names from the (fully resolved, output) seqfile
     events = set(outSeqFile.pathMap.keys()) - set(leaves)
     resolved = set(leaves)
 
-    # convert follow-ons to dependencies
-    follow_on_deps = {}
-    for event in events:
-        if event in schedule.depTree:
-            fo = schedule.followOn(event)
-            if fo:
-                follow_on_deps[fo] = event
-
     def get_deps(event):
-        deps = set(schedule.deps(event)) if event in schedule.depTree else set()
-        if event in follow_on_deps:
-            deps = deps.union(set(follow_on_deps[event]))
-        # I don't know why the schedule doesn't always give the children
-        # todo: understand!
-        try:
-            has_name = outSeqFile.tree.getNodeId(event) is not None
-        except:
-            has_name = False
-        if has_name:
-            for node in outSeqFile.tree.getChildren(outSeqFile.tree.getNodeId(event)):
-                if not outSeqFile.tree.isLeaf(node):
-                    deps.add(outSeqFile.tree.getName(node))
-        return deps
-
-    events_and_virtuals = set(events)
-    # add all events, potentially looping through virtual dependency chains
-    # (hence the double loop)
-    batch = set(events_and_virtuals)
-    while len(batch) > 0:
-        next_batch = set()
-        for event in batch:
-            for dep in get_deps(event):
-                if dep not in events_and_virtuals:
-                    next_batch.add(dep)
-                    events_and_virtuals.add(dep)
-        batch = next_batch
+        subtree = get_subtree(outSeqFile.tree, event, configWrapper, og_map)
+        return set([subtree.getName(leaf) for leaf in subtree.getLeaves()])
 
     # group jobs into rounds.  where all jobs of round i can be run in parallel
     groups = []
-    while len(events_and_virtuals) > 0:
+    while len(events) > 0:
         group = []
         to_remove = []
         added = 0
-        for event in events_and_virtuals:
+        for event in events:
             if all([dep in resolved for dep in get_deps(event)]):
-                if not (event in schedule.depTree and schedule.isVirtual(event)):
-                    group.append(event)
+                group.append(event)
                 to_remove.append(event)
                 added += 1
         if added == 0:
             sys.stderr.write("schedule deadlock:\n")
-            for event in events_and_virtuals:
+            for event in events:
                 sys.stderr.write("{} has deps {}\n".format(event, get_deps(event)))
             sys.exit(1)
         for tr in to_remove:
             resolved.add(tr)
-            events_and_virtuals.remove(tr)
+            events.remove(tr)
         groups.append(group)
 
     def halPath(event):

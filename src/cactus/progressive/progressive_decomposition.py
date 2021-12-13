@@ -29,7 +29,6 @@ from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.progressive.outgroup import GreedyOutgroup, DynamicOutgroup
 from cactus.progressive.seqFile import SeqFile
-from cactus.progressive.schedule import Schedule
 from sonLib.nxnewick import NXNewick
 
 def parse_seqfile(seqfile_path, config_wrapper, root_name = None):
@@ -192,19 +191,6 @@ def get_spanning_subtree(mc_tree, root_name, config_wrapper, outgroup_map):
 
     spanning_tree.computeSubtreeRoots()
     return spanning_tree
-
-def compute_schedule(mc_tree, config_wrapper, outgroup_map):
-    """
-    compute the progressive schedule
-    returns the schedule object 
-    """
-    assert isinstance(mc_tree, MultiCactusTree)
-
-    schedule = Schedule()
-    schedule.loadProject(mc_tree, outgroup_map, config_wrapper.getMaxParallelSubtrees())
-    schedule.compute()
-
-    return schedule
 
 def get_event_set(mc_tree, config_wrapper, outgroup_map, root_name):
     """
