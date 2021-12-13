@@ -20,6 +20,9 @@ void stripUniqueIdsFromLeafSequences(Flower *flower) {
         if(stList_length(tokens) > 1 && !strncmp(stList_get(tokens, 0), "id=", 3)) {
             free(stList_removeFirst(tokens));
             char *newHeader = fastaEncodeHeader(tokens);
+            if (strlen(newHeader) == 0) {
+                st_errAbort("Input fasta sequence has no header after unique ID prefix: >%s", header);
+            }
             sequence_setHeader(sequence, newHeader);
         }
         stList_destruct(tokens);
