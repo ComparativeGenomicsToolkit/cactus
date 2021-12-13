@@ -16,7 +16,7 @@ from operator import itemgetter
 
 from cactus.shared.common import setupBinaries, importSingularityImage
 from cactus.pipeline.cactus_workflow import cactus_cons_with_resources
-from cactus.progressive.progressive_decomposition import compute_outgroups, compute_schedule, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set
+from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set
 from cactus.progressive.cactus_progressive import export_hal
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
@@ -210,7 +210,7 @@ def make_batch_align_jobs(options, toil):
     
 def make_align_job(options, toil):
 
-    # load up the seqfile and figure out the outgroups and schedule
+    # load up the seqfile and figure out the outgroups
     config_node = ET.parse(options.configFile).getroot()
     config_wrapper = ConfigWrapper(config_node)
     config_wrapper.substituteAllPredefinedConstantsWithLiterals()
