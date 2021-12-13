@@ -72,17 +72,21 @@ all_libs.blastLib: all_libs.api
 # under test modules under src/cactus/, split up to allowing run them in parallel.
 testModules = \
     bar/cactus_barTest.py \
-    hal/cactus_halTest.py \
-    pipeline/cactus_evolverTest.py \
-    pipeline/cactus_workflowTest.py \
+    progressive/outgroupTest.py \
     preprocessor/cactus_preprocessorTest.py \
     preprocessor/lastzRepeatMasking/cactus_lastzRepeatMaskTest.py \
-    progressive/cactus_progressiveTest.py \
-    progressive/multiCactusTreeTest.py \
-    progressive/outgroupTest.py \
-    progressive/scheduleTest.py \
-    shared/commonTest.py \
-    shared/experimentWrapperTest.py
+    progressive/multiCactusTreeTest.py 
+#
+#    Todo: these tests rely heavily on Experiment/Workflow code that no longer exists
+#    but most of them are commented out anyway.  So need to figure out what tests
+#    are useful and try to adapt to simpliefied experiment/workflow free setup
+#
+#    hal/cactus_halTest.py \
+#    pipeline/cactus_evolverTest.py \
+#    pipeline/cactus_workflowTest.py \
+#    progressive/cactus_progressiveTest.py \
+#    shared/commonTest.py \
+#    shared/experimentWrapperTest.py
 
 # if running travis or gitlab, we want output to go to stdout/stderr so it can
 # be seen in the log file, as opposed to individual files, which are much

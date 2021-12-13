@@ -17,9 +17,10 @@ import itertools
 import networkx as NX
 from collections import defaultdict, namedtuple
 from optparse import OptionParser
-
-from cactus.progressive.multiCactusProject import MultiCactusProject
-
+from cactus.shared.common import cactusRootPath
+from cactus.shared.configWrapper import ConfigWrapper
+from cactus.progressive.multiCactusTree import MultiCactusTree
+from cactus.progressive.seqFile import SeqFile
 from cactus.shared.common import cactus_call
 
 class GreedyOutgroup(object):
@@ -54,10 +55,8 @@ class GreedyOutgroup(object):
             return invalid
         good = set([x for x in self.mcTree.postOrderTraversal(rootId)])
         for node in self.mcTree.postOrderTraversal():
-            print((self.mcTree.getName(node), self.mcTree.isLeaf(node), node in good))
             if not self.mcTree.isLeaf(node) and node not in good:
                 invalid.append(node)
-        print([self.mcTree.getName(i) for i in invalid])
         return set(invalid)
 
     # get rid of any node that's not an event
@@ -511,7 +510,7 @@ class DynamicOutgroup(GreedyOutgroup):
 
 
 def main():
-    usage = "usage: %prog <project> <output graphviz .dot file>"
+    usage = "usage: %prog <seqfile> <output graphviz .dot file>"
     description = "TEST: draw the outgroup DAG"
     parser = OptionParser(usage=usage, description=description)
     parser.add_option("--justLeaves", dest="justLeaves", action="store_true",
@@ -522,20 +521,31 @@ def main():
                       help="Maximum number of outgroups to provide", type=int)
     parser.add_option("--dynamic", help="Use new dynamic programming"
                       " algorithm", action="store_true", default=False)
+    parser.add_argument("--configFile", dest="configFile",
+                        help="Specify cactus configuration file",
+                        default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))    
     options, args = parser.parse_args()
 
     if len(args) != 2:
         parser.print_help()
         raise RuntimeError("Wrong number of arguments")
 
-    proj = MultiCactusProject()
-    proj.readXML(args[0])
+    # load up the seqfile and figure out the outgroups and schedule
+    # can't use progressive_decomposition.py for circular deps...
+    config_node = ET.parse(options.configFile).getroot()
+    config_wrapper = ConfigWrapper(config_node)
+    config_wrapper.substituteAllPredefinedConstantsWithLiterals()
+    seq_file = SeqFile(args[0])
+    mc_tree = MultiCactusTree(seq_file.tree)
+    mc_tree.nameUnlabeledInternalNodes(config_wrapper.getDefaultInternalNodePrefix())
+    mc_tree.computeSubtreeRoots()
+
     if not options.dynamic:
         outgroup = GreedyOutgroup()
-        outgroup.importTree(proj.mcTree)
+        outgroup.importTree(mc_tree)
         if options.justLeaves:
-            candidates = set([proj.mcTree.getName(x)
-                            for x in proj.mcTree.getLeaves()])
+            candidates = set([mc_tree.getName(x)
+                            for x in mc_tree.getLeaves()])
         else:
             candidates = None
         outgroup.greedy(threshold=options.threshold, candidateSet=candidates,
@@ -543,7 +553,7 @@ def main():
                         maxNumOutgroups=options.maxNumOutgroups)
     else:
         outgroup = DynamicOutgroup()
-        outgroup.importTree(proj.mcTree, proj.getInputSequenceMap())
+        outgroup.importTree(mc_tree, proj.getInputSequenceMap())
         outgroup.compute(options.maxNumOutgroups)
 
     try:

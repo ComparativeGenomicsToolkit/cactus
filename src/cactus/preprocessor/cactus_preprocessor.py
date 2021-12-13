@@ -395,7 +395,7 @@ def unzip_then_pp(job, config_node, input_fa_paths, input_fa_ids, input_event_na
         mask_unzip_job = unzip_job.addChildJobFn(unzip_gzs, [mask_file_path], [mask_file_id])
         config_node = mask_unzip_job.addFollowOnJobFn(maskJobOverride, config_node, mask_file_path, mask_unzip_job.rv(0), mask_file_action, min_length,
                                                       disk=mask_file_id.size*20).rv()
-    pp_job = unzip_job.addFollowOn(CactusPreprocessor([unzip_job.rv(i) for i in range(len(input_fa_ids))], config_node, input_event_names))
+    pp_job = unzip_job.addFollowOn(CactusPreprocessor([unzip_job.rv(i) for i in range(len(input_fa_ids))], config_node, eventNames=input_event_names))
     zip_job = pp_job.addFollowOnJobFn(zip_gzs, input_fa_paths,  pp_job.rv(), list_elems = [0])
     return zip_job.rv()
     

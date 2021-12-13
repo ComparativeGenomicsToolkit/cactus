@@ -13,18 +13,10 @@ import timeit
 
 from operator import itemgetter
 
-from cactus.progressive.seqFile import SeqFile
-from cactus.progressive.multiCactusTree import MultiCactusTree
+from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set
 from cactus.shared.common import setupBinaries, importSingularityImage
-from cactus.progressive.multiCactusProject import MultiCactusProject
-from cactus.shared.experimentWrapper import ExperimentWrapper
-from cactus.progressive.schedule import Schedule
-from cactus.progressive.projectWrapper import ProjectWrapper
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
-from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
-from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
-from cactus.pipeline.cactus_workflow import CactusPafAlign
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
@@ -42,7 +34,6 @@ from sonLib.bioio import getTempDirectory, getTempFile
 def main():
     parser = ArgumentParser()
     Job.Runner.addToilOptions(parser)
-    addCactusWorkflowOptions(parser)
 
     parser.add_argument("seqFile", help = "Seq file")
     parser.add_argument("outputFile", type=str, help = "Output pairwise alignment file")
@@ -97,95 +88,44 @@ def runCactusBlastOnly(options):
         if options.restart:
             outWorkFlowArgs = toil.restart()
         else:
-            options.cactusDir = getTempDirectory()
 
+            # load up the seqfile and figure out the outgroups and schedule
+            config_node = ET.parse(options.configFile).getroot()
+            config_wrapper = ConfigWrapper(config_node)
+            config_wrapper.substituteAllPredefinedConstantsWithLiterals()
+            # apply gpu override
+            config_wrapper.initGPU(options.gpu)
+            mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper)
+            og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates))
+            event_set = get_event_set(mc_tree, config_wrapper, og_map, options.root)
+            
             # apply path overrides.  this was necessary for wdl which doesn't take kindly to
             # text files of local paths (ie seqfile).  one way to fix would be to add support
             # for s3 paths and force wdl to use it.  a better way would be a more fundamental
             # interface shift away from files of paths throughout all of cactus
             if options.pathOverrides:
-                seqFile = SeqFile(options.seqFile)
-                configNode = ET.parse(options.configFile).getroot()
-                config = ConfigWrapper(configNode)
-                tree = MultiCactusTree(seqFile.tree)
-                tree.nameUnlabeledInternalNodes(prefix = config.getDefaultInternalNodePrefix())
                 for name, override in zip(options.pathOverrideNames, options.pathOverrides):
-                    seqFile.pathMap[name] = override
-                override_seq = os.path.join(options.cactusDir, 'seqFile.override')
-                with open(override_seq, 'w') as out_sf:
-                    out_sf.write(str(seqFile))
-                options.seqFile = override_seq
+                    input_seq_map[name] = override
 
-            #to be consistent with all-in-one cactus, we make sure the project
-            #isn't limiting itself to the subtree (todo: parameterize so root can
-            #be passed through from prepare to blast/align)
-            proj_options = copy.deepcopy(options)
-            proj_options.root = None
-            #Create the progressive cactus project (as we do in runCactusProgressive)
-            projWrapper = ProjectWrapper(proj_options, proj_options.configFile, ignoreSeqPaths=options.root)
-            projWrapper.writeXml()
-
-            pjPath = os.path.join(options.cactusDir, ProjectWrapper.alignmentDirName,
-                                  '%s_project.xml' % ProjectWrapper.alignmentDirName)
-            assert os.path.exists(pjPath)
-
-            project = MultiCactusProject()
-
-            if not os.path.isdir(options.cactusDir):
-                os.makedirs(options.cactusDir)
-
-            project.readXML(pjPath)
-
-            # open up the experiment (as we do in ProgressiveUp.run)
-            # note that we copy the path into the options here
-            experimentFile = project.expMap[options.root]
-            expXml = ET.parse(experimentFile).getroot()
-            logger.info("Experiment {}".format(ET.tostring(expXml)))
-            experiment = ExperimentWrapper(expXml)
-            configPath = experiment.getConfigPath()
-            configXml = ET.parse(configPath).getroot()
-
-            seqIDMap = dict()
-            tree = MultiCactusTree(experiment.getTree()).extractSubTree(options.root)
-            leaves = tree.getChildNames(tree.getRootName())
-            outgroups = experiment.getOutgroupGenomes()
-            genome_set = set(leaves + outgroups)
-            logger.info("Genomes in blastonly, {}: {}".format(options.root, list(genome_set)))
-
-            #import the sequences (that we need to align for the given event, ie leaves and outgroups)
-            for genome, seq in list(project.inputSequenceMap.items()):
-                if genome in genome_set:
+            # get the spanning tree (which is what it paf aligner wants)
+            spanning_tree = get_spanning_subtree(mc_tree, options.root, config_wrapper, og_map)
+                    
+            #import the sequences
+            input_seq_id_map = {}
+            for (genome, seq) in input_seq_map.items():
+                if genome in event_set:
                     if os.path.isdir(seq):
                         tmpSeq = getTempFile()
                         catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
                         seq = tmpSeq
                     seq = makeURL(seq)
-                    project.inputSequenceIDMap[genome] = toil.importFile(seq)
-                else:
-                    # out-of-scope sequences will only cause trouble later on
-                    del project.inputSequenceMap[genome]
+                    logger.info("Importing {}".format(seq))
+                    input_seq_id_map[genome] = toil.importFile(seq)
 
-            #import cactus config
-            if options.configFile:
-                cactusConfigID = toil.importFile(makeURL(options.configFile))
-            else:
-                cactusConfigID = toil.importFile(makeURL(project.getConfigPath()))
-            project.setConfigID(cactusConfigID)
-
-            project.syncToFileStore(toil)
-            configNode = ET.parse(project.getConfigPath()).getroot()
-            configWrapper = ConfigWrapper(configNode)
-            configWrapper.substituteAllPredefinedConstantsWithLiterals()
-
-            # apply gpu override
-            configWrapper.initGPU(options.gpu)
-
-            workFlowArgs = CactusWorkflowArguments(options, experimentFile=experimentFile, configNode=configNode, seqIDMap = project.inputSequenceIDMap)
-
-            outWorkFlowArgs = toil.start(CactusPafAlign(standAlone=True, cactusWorkflowArguments=workFlowArgs, phaseName="blast"))
+            paf_id = toil.start(Job.wrapJobFn(make_paf_alignments, NXNewick().writeString(spanning_tree), input_seq_id_map, options.root, config_node))
 
         # export the alignments
-        toil.exportFile(outWorkFlowArgs.alignmentsID, makeURL(options.outputFile))
+        toil.exportFile(paf_id, makeURL(options.outputFile))
 
 
 if __name__ == '__main__':
