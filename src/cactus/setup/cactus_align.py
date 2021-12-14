@@ -799,15 +799,14 @@ def main_batch():
         # todo: make a more unified interface throughout cactus for this
         # (see toil-vg's outstore logic which, while not perfect, would be an improvement
         if not options.outHal.startswith('s3://'):
-            if options.batch:
-                for chrom, results in results_dict.items():
-                    toil.exportFile(results[0], makeURL(os.path.join(options.outHal, '{}.hal'.format(chrom))))
-                    if options.outVG:
-                        toil.exportFile(results[1], makeURL(os.path.join(options.outHal, '{}.vg'.format(chrom))))
-                    if options.outGFA:
-                        toil.exportFile(results[2], makeURL(os.path.join(options.outHal, '{}.gfa.gz'.format(chrom))))
-                    toil.exportFile(results[3], makeURL(os.path.join(options.outHal, '{}.hal.log'.format(chrom))))
-                                
+            for chrom, results in results_dict.items():
+                toil.exportFile(results[0], makeURL(os.path.join(options.outHal, '{}.hal'.format(chrom))))
+                if results[1]:
+                    toil.exportFile(results[1], makeURL(os.path.join(options.outHal, '{}.vg'.format(chrom))))
+                if results[2]:
+                    toil.exportFile(results[2], makeURL(os.path.join(options.outHal, '{}.gfa.gz'.format(chrom))))
+                toil.exportFile(results[3], makeURL(os.path.join(options.outHal, '{}.hal.log'.format(chrom))))
+            
     end_time = timeit.default_timer()
     run_time = end_time - start_time
     logger.info("cactus-align-batch has finished after {} seconds".format(run_time))

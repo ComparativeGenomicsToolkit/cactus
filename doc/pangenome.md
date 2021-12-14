@@ -54,7 +54,15 @@ cactus-align ./jobstore ./examples/evolverPrimates.txt primates.paf primates.hal
 
 ## HPRC Chromosome-by-Chromosome Graph Construction
 
-###Input
+This [script](https://github.com/glennhickey/pg-stuff/blob/main/cactus-pangenome.sh) was used to make the "year 1" minigraph-cactus pangenome graphs on AWS. 
+```
+./cactus-pangenome.sh -j aws:us-west-2:glennhickey-jobstore -s ./hprc-year1-f1g.fix.HG02080.1.brnn.leaveout.seqfile -m ftp://ftp.dfci.harvard.edu/pub/hli/minigraph/HPRC-f1g/GRCh38-f1g-90.gfa.gz  -o s
+3://vg-k8s/vgamb/wg/cactus/GRCh38-f1g-90/aug11 -n GRCh38-f1g-90-mc-aug11 -r GRCh38 -d s3://vg-k8s/vgamb/wg/fasta/hs38d1.decoys.only.vg  -g  -F  -C -M 100000 -K 10000  2>> stderr.aug11.log > /dev/null
+```
+
+The steps are described in a bit more detail below:
+
+### Input
 
 *Todo: replace with public-facing links once available*
 
@@ -76,7 +84,7 @@ cactus-graphmap <jobstore> seqfile.txt <minigraph GFA> s3://<bucket>/GRCh38-free
 Next, we combine the coverage gaps in the PAF with dna-brnn to produce the final masking, using a 100kb length threshold (default in cactus config).  Note that we need to create a `seqfile.masked.txt` seqfile specifying the locations of the masked fasta sequences.  
 
 ```
-cactus-preprocess <jobstore> seqfile.txt seqfile.masked.txt --realTimeLogging --logFile preprocess.log  --batchSystem mesos --provisioner aws --nodeTypes r3.8xlarge:0.7 --maxNodes 25 --defaultPreemptable --betaInertia 0 --targetTime 1  --maskPAF s3://<bucket>/GRCh38-freeze1-orig.paf  --maskAlpha --brnnCores 8
+cactus-preprocess <jobstore> seqfile.txt seqfile.masked.txt --realTimeLogging --logFile preprocess.log  --batchSystem mesos --provisioner aws --nodeTypes r3.8xlarge:0.7 --maxNodes 25 --defaultPreemptable --betaInertia 0 --targetTime 1  --maskFile s3://<bucket>/GRCh38-freeze1-orig.paf  --maskAlpha --brnnCores 8
 ```
 
 Note that instead of softmasking sequences and leaving them unaligned, they can be clipped out entirely using `--clipAlpha` instead of `--maskAlpha` above.
