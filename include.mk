@@ -55,6 +55,21 @@ else
 	CFLAGS+= -fopenmp
 endif
 
+# Hack in ARM support
+ifdef arm
+# flags to build abpoa
+export armv8 = 1
+export aarch64 = 1
+# flags to include simde abpoa in cactus on ARM
+CFLAGS+= -march=armv8-a+simd
+else
+# flags to build abpoa
+export avx2 = 1
+# flags to include simde abpoa in cactus on X86
+CFLAGS+= -mavx2
+endif
+# flags needed to include simde abpoa in cactus on any architecture
+CFLAGS+= -D__AVX2__ -DUSE_SIMDE -DSIMDE_ENABLE_NATIVE_ALIASES
 
 dataSetsPath=/Users/benedictpaten/Dropbox/Documents/work/myPapers/genomeCactusPaper/dataSets
 

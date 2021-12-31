@@ -226,6 +226,7 @@ suball.abPOA:
 	cd submodules/abPOA && ${MAKE}
 	ln -f submodules/abPOA/lib/*.a ${LIBDIR}
 	ln -f submodules/abPOA/include/*.h ${INCLDIR}
+	rm -fr ${INCLDIR}/simde && cp -r submodules/abPOA/include/simde ${INCLDIR}
 
 suball.lastz:
 	cd submodules/lastz && ${MAKE}

@@ -7,6 +7,7 @@
 #ifndef POA_END_ALIGNER_H_
 #define POA_END_ALIGNER_H_
 
+#include <stdlib.h>
 #include "sonLib.h"
 #include "cactus.h"
 #include "stPinchIterator.h"
