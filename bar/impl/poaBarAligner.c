@@ -53,6 +53,7 @@ abpoa_para_t *abpoaParamaters_constructFromCactusParams(CactusParams *params) {
     abpt->progressive_poa = cactusParams_get_int(params, 3, "bar", "poa", "partialOrderAlignmentProgressiveMode");
 
     // generate the substitution matrix
+    abpt->use_score_matrix = 0;
     abpoa_post_set_para(abpt);
 
     // optionally override the substitution matrix
@@ -87,7 +88,6 @@ static abpoa_para_t *copy_abpoa_params(abpoa_para_t *abpt) {
     abpt_cpy->align_mode = abpt->align_mode;
     abpt_cpy->wb = abpt->wb;
     abpt_cpy->wf = abpt->wf;
-    abpt_cpy->use_score_matrix = abpt->use_score_matrix;
     abpt_cpy->match = abpt->match;
     abpt_cpy->mismatch = abpt->mismatch;
     abpt_cpy->gap_mode = abpt->gap_mode;
@@ -100,6 +100,9 @@ static abpoa_para_t *copy_abpoa_params(abpoa_para_t *abpt) {
     abpt_cpy->w = abpt->w;
     abpt_cpy->min_w = abpt->min_w;
     abpt_cpy->progressive_poa = abpt->progressive_poa;
+    abpt_cpy->use_score_matrix = 0;
+    abpoa_post_set_para(abpt_cpy);
+    abpt_cpy->use_score_matrix = abpt->use_score_matrix;
     if (abpt->use_score_matrix == 1) {
         memcpy(abpt_cpy->mat, abpt->mat, abpt->m * abpt->m * sizeof(int));
     }
@@ -522,7 +525,6 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
         // init abpoa
         abpoa_t *ab = abpoa_init();
         abpoa_para_t *abpt = copy_abpoa_params(poa_parameters);
-        abpoa_post_set_para(abpt);
         
 #ifdef CACTUS_ABPOA_MSA_DUMP_DIR
         // dump the input to file
