@@ -207,8 +207,8 @@ char* dump_abpoa_input(Msa* msa, abpoa_para_t* abpt, uint8_t **bseqs, char* abpo
             abpt->wb,
             abpt->wf,
             abpoa_matrix_path);
-    if (abpt->disable_seeding) {
-        strcat(abpoa_command, " -N");
+    if (!abpt->disable_seeding) {
+        strcat(abpoa_command, " -S");
     } else {
         char kw_opts[128];
         sprintf(kw_opts, " -k %d -w %d -n %d", abpt->k, abpt->w, abpt->min_w);
