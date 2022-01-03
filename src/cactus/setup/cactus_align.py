@@ -216,7 +216,8 @@ def make_align_job(options, toil):
     config_wrapper.substituteAllPredefinedConstantsWithLiterals()
     # apply gpu override
     config_wrapper.initGPU(options.gpu)
-    mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper)
+    mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper,
+                                                          default_branch_length = 0.025 if options.pangenome else None)
     og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates))
     event_set = get_event_set(mc_tree, config_wrapper, og_map, options.root if options.root else mc_tree.getRootName())
     
