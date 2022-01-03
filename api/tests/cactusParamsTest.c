@@ -16,7 +16,7 @@ static void testCactusParams(CuTest *testCase) {
     const char *c = cactusParams_get_string(p, 3, "blast", "divergence", "argName");
     CuAssertStrEquals(testCase, "lastzArguments", c);
 
-    int64_t i = cactusParams_get_int(p, 2, "bar", "spanningTrees");
+    int64_t i = cactusParams_get_int(p, 3, "bar", "pecan", "spanningTrees");
     CuAssertIntEquals(testCase, 5, i);
 
     double d = cactusParams_get_float(p, 3, "reference", "CactusReferenceRecursion", "maxFlowerWrapperGroupSize");
@@ -36,7 +36,7 @@ static void testCactusParams(CuTest *testCase) {
 
     // Check we can set it back
     cactusParams_set_root(p, 0);
-    i = cactusParams_get_int(p, 2, "bar", "spanningTrees");
+    i = cactusParams_get_int(p, 3, "bar", "pecan", "spanningTrees");
     CuAssertIntEquals(testCase, 5, i);
 
     cactusParams_destruct(p); // Cleanup

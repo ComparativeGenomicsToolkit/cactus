@@ -72,39 +72,48 @@ static xmlNodePtr get_child_node(xmlNodePtr cur, const char *child_node_name) {
  * would get the great grandchild of cur with parent labelled "one" and
  * node label "two".
  */
-static xmlNodePtr get_descendant_node(xmlNodePtr cur, int num, va_list args) {
+static xmlNodePtr get_descendant_node(xmlNodePtr cur, int num, va_list *args) {
     /* access all the arguments assigned to valist */
+    va_list args2;
+    va_copy(args2, *args); // to use the variable args we must copy it - see https://wiki.sei.cmu.edu/confluence/display/c/MSC39-C.+Do+not+call+va_arg%28%29+on+a+va_list+that+has+an+indeterminate+value
     for (int64_t i = 0; i < num; i++) {
-        const char *node_name = va_arg(args, char *);
+        const char *node_name = va_arg(args2, char *);
         cur = get_child_node(cur, node_name);
         if(cur == NULL) {
             fprintf(stderr,"ERROR: Cactus XML param node name %s not found\n", node_name);
             return NULL;
         }
     }
-
+    va_end(args2);
     return cur;
 }
 
 void cactusParams_set_root(CactusParams *p, int num, ...) {
     va_list args;
     va_start(args, num);
-    p->cur = get_descendant_node(p->root, num, args);
+    p->cur = get_descendant_node(p->root, num, &args);
     va_end(args);
 }
 
-static char *cactusParams_get_string2(CactusParams *p, int num, va_list args) {
-    xmlNodePtr c = get_descendant_node(p->cur, num-1, args);
+static char *cactusParams_get_string2(CactusParams *p, int num, va_list *args) {
+    va_list args2;
+    va_copy(args2, *args); // to use the variable args we must copy it - see https://wiki.sei.cmu.edu/confluence/display/c/MSC39-C.+Do+not+call+va_arg%28%29+on+a+va_list+that+has+an+indeterminate+value
+    xmlNodePtr c = get_descendant_node(p->cur, num-1, &args2);
 
     if(c == NULL) {
         st_errAbort("ERROR: Failed to get string from cactus XML");
     }
-    const char *attribute_name = va_arg(args, char *);
+    const char *attribute_name;
+    for (int64_t i = 0; i < num; i++) { // Loop to discard the earlier strings in the input
+        attribute_name = va_arg(args2, char *);
+    }
     char *v =  (char *)xmlGetProp(c, (const xmlChar *)attribute_name);
 
     if(v == NULL) {
         st_errAbort("ERROR: Failed to get attribute: %s from cactus XML", attribute_name);
     }
+
+    va_end(args2);
 
     return v;
 }
@@ -112,7 +121,7 @@ static char *cactusParams_get_string2(CactusParams *p, int num, va_list args) {
 char *cactusParams_get_string(CactusParams *p, int num, ...) {
     va_list args;
     va_start(args, num);
-    char *c = cactusParams_get_string2(p, num, args);
+    char *c = cactusParams_get_string2(p, num, &args);
     va_end(args);
     char *d = stString_copy(c);
     xmlFree(c);
@@ -123,7 +132,7 @@ int64_t cactusParams_get_int(CactusParams *p, int num, ...) {
     va_list args;
     va_start(args, num);
 
-    char *c = cactusParams_get_string2(p, num, args);
+    char *c = cactusParams_get_string2(p, num, &args);
     int64_t j;
     int i = sscanf(c, "%" PRIi64 "", &j);
     xmlFree(c);
@@ -137,7 +146,7 @@ int64_t *cactusParams_get_ints(CactusParams *p, int64_t *length, int num, ...) {
     va_list args;
     va_start(args, num);
 
-    char *c = cactusParams_get_string2(p, num, args);
+    char *c = cactusParams_get_string2(p, num, &args);
     stList *l = stString_split(c);
     xmlFree(c);
     *length = stList_length(l);
@@ -156,7 +165,7 @@ double cactusParams_get_float(CactusParams *p, int num, ...) {
     va_list args;
     va_start(args, num);
 
-    char *c = cactusParams_get_string2(p, num, args);
+    char *c = cactusParams_get_string2(p, num, &args);
     float j;
     int i = sscanf(c, "%f", &j);
     xmlFree(c);
