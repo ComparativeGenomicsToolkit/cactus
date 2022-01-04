@@ -30,17 +30,23 @@ from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.progressive.outgroup import GreedyOutgroup, DynamicOutgroup
 from cactus.progressive.seqFile import SeqFile
 from sonLib.nxnewick import NXNewick
+from toil.statsAndLogging import logger
 
-def parse_seqfile(seqfile_path, config_wrapper, root_name = None):
+
+def parse_seqfile(seqfile_path, config_wrapper, root_name = None, default_branch_length = None):
     """
     parse the seqfile
     returns (tree, event->path map, og list (from *'s in seqfile)
     """
     seq_file = SeqFile(seqfile_path)
+    if default_branch_length is not None:
+        seq_file.branchLen = default_branch_length
 
     mc_tree = MultiCactusTree(seq_file.tree)
     mc_tree.nameUnlabeledInternalNodes(config_wrapper.getDefaultInternalNodePrefix())
     mc_tree.computeSubtreeRoots()
+
+    check_branch_lengths(mc_tree)
 
     return (mc_tree, seq_file.pathMap, seq_file.outgroups)
 
@@ -205,3 +211,33 @@ def get_event_set(mc_tree, config_wrapper, outgroup_map, root_name):
         event_set = event_set.intersection(tree_events)
         event_set.remove(root_name)
     return event_set
+
+def check_branch_lengths(mc_tree, warning_cap=2.0, error_cap=25.0):
+    """
+    In the reference phase, Cactus uses a Jukes Cantor matrix derived from the branch lengths to run Felsenstein's
+    algorithm for most likely ancestral bases.  This process seems to be computationall robust for very large branch lengths --
+    the matrix just ends up with 0.25 for every value.  But... here is an example where large branch lengths seem 
+    to be directly responsible for the reference phase running forever:
+
+    https://github.com/ComparativeGenomicsToolkit/cactus/issues/610
+
+    I was able to reproduce the issue (steps to do so in link) and resolve it just be correcting the branch lengths
+    to something reasonable.  So I don't know how, but these large lengths in this case are, in addtion to making
+    the flat matrix, causing reference to run forever.
+
+    Without weeks to debug, here's a check to run on each input tree to make sure the lengths are reasonable. Emperically,
+    the JC computation an stMatrix_jukesCantor() seems to get flat at around 28.377.  In practice I can't see any reason
+    go much higher than 1...
+    """
+    for node in mc_tree.postOrderTraversal():
+        child_nodes = mc_tree.getChildren(node)
+        if len(child_nodes) > 1:
+            for child_node in child_nodes:
+                branch_len = mc_tree.getWeight(node, child_node, defaultValue=0)
+                if branch_len > error_cap:
+                    raise RuntimeError("Branch length of {} between {} and {} is too long. Branch lengths of input tree must reflect expected substitutions per (neutral) site and not exceed {}".format(
+                        branch_len, mc_tree.getName(node), mc_tree.getName(child_node), error_cap))
+                if branch_len > warning_cap:
+                    logger.warning("WARNING: Long branch length of {} detected between {} and {}: Are you sure input branches reflect substitutions per site?".format(
+                        branch_len, mc_tree.getName(node), mc_tree.getName(child_node)))
+                

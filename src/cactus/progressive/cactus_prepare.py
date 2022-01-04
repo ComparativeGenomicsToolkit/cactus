@@ -21,7 +21,7 @@ from operator import itemgetter
 
 from cactus.progressive.seqFile import SeqFile
 from cactus.progressive.multiCactusTree import MultiCactusTree
-from cactus.progressive.progressive_decomposition import compute_outgroups, get_subtree
+from cactus.progressive.progressive_decomposition import compute_outgroups, get_subtree, check_branch_lengths
 from cactus.shared.common import cactusRootPath
 from cactus.shared.common import enableDumpStack, setupBinaries
 from cactus.shared.common import getDockerImage, getDockerRelease
@@ -417,6 +417,7 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
     mc_tree.nameUnlabeledInternalNodes(configWrapper.getDefaultInternalNodePrefix())
     mc_tree.computeSubtreeRoots()
     og_map = compute_outgroups(mc_tree, configWrapper, inSeqFile.outgroups)
+    check_branch_lengths(mc_tree)
 
     # set of all jobs, as genome names from the (fully resolved, output) seqfile
     events = set(outSeqFile.pathMap.keys()) - set(leaves)
