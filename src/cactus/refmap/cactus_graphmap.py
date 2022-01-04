@@ -413,7 +413,7 @@ def add_genome_to_seqfile(seqfile_path, fasta_path, name):
         label = max_id + 1
         seq_file.tree.nxDg.add_edge(0, label)
         seq_file.tree.setName(label, name)
-        seq_file.tree.setWeight(0, label, SeqFile.branchLen)
+        seq_file.tree.setWeight(0, label, seq_file.branchLen)
 
     # add the sequence to the map
     seq_file.pathMap[name] = fasta_path
