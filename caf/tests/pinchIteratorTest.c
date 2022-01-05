@@ -8,6 +8,7 @@
 #include "sonLib.h"
 #include "stPinchIterator.h"
 #include "pairwiseAlignment.h"
+#include "paf.h"
 #include <math.h>
 
 static void testIterator(CuTest *testCase, stPinchIterator *pinchIterator, stList *randomPairwiseAlignments) {
@@ -16,33 +17,34 @@ static void testIterator(CuTest *testCase, stPinchIterator *pinchIterator, stLis
         //Test get next
         stPinch pinchToFillOut;
         for (int64_t i = 0; i < stList_length(randomPairwiseAlignments); i++) {
-            struct PairwiseAlignment *pairwiseAlignment = stList_get(randomPairwiseAlignments, i);
+            Paf *paf = stList_get(randomPairwiseAlignments, i);
             int64_t contigX = -1, contigY = -1;
-            sscanf(pairwiseAlignment->contig1, "%" PRIi64 "", &contigX);
-            sscanf(pairwiseAlignment->contig2, "%" PRIi64 "", &contigY);
-            int64_t x = pairwiseAlignment->start1;
-            int64_t y = pairwiseAlignment->start2;
-            for (int64_t j = 0; j < pairwiseAlignment->operationList->length; j++) {
-                struct AlignmentOperation *op = pairwiseAlignment->operationList->list[j];
-                if (op->opType == PAIRWISE_MATCH) {
-                    if (op->length > 2 * trim) {
+            sscanf(paf->query_name, "%" PRIi64 "", &contigX);
+            sscanf(paf->target_name, "%" PRIi64 "", &contigY);
+            int64_t x = paf->same_strand ? paf->query_start : paf->query_end;
+            int64_t y = paf->target_start;
+            Cigar *c = paf->cigar;
+            while(c != NULL) {
+                if (c->op == match) {
+                    if (c->length > 2 * trim) {
                         stPinch *pinch = stPinchIterator_getNext(pinchIterator, &pinchToFillOut);
                         CuAssertTrue(testCase, pinch != NULL);
                         CuAssertIntEquals(testCase, contigX, pinch->name1);
                         CuAssertIntEquals(testCase, contigY, pinch->name2);
-                        CuAssertIntEquals(testCase, (pairwiseAlignment->strand1 ? x : x - op->length) + trim, pinch->start1);
-                        CuAssertIntEquals(testCase, (pairwiseAlignment->strand2 ? y : y - op->length) + trim, pinch->start2);
-                        CuAssertIntEquals(testCase, op->length - 2 * trim, pinch->length);
+                        CuAssertIntEquals(testCase, (paf->same_strand ? x : x - c->length) + trim, pinch->start1);
+                        CuAssertIntEquals(testCase, y + trim, pinch->start2);
+                        CuAssertIntEquals(testCase, c->length - 2 * trim, pinch->length);
                         CuAssertTrue(testCase, pinch->length > 0);
-                        CuAssertIntEquals(testCase, pairwiseAlignment->strand1 == pairwiseAlignment->strand2, pinch->strand);
+                        CuAssertIntEquals(testCase, paf->same_strand, pinch->strand);
                     }
                 }
-                if (op->opType != PAIRWISE_INDEL_Y) {
-                    x += pairwiseAlignment->strand1 ? op->length : -op->length;
+                if (c->op != query_delete) {
+                    x += paf->same_strand ? c->length : -c->length;
                 }
-                if (op->opType != PAIRWISE_INDEL_X) {
-                    y += pairwiseAlignment->strand2 ? op->length : -op->length;
+                if (c->op != query_insert) {
+                    y += c->length;
                 }
+                c = c->next;
             }
         }
         CuAssertPtrEquals(testCase, NULL, stPinchIterator_getNext(pinchIterator, &pinchToFillOut));
@@ -53,36 +55,38 @@ static void testIterator(CuTest *testCase, stPinchIterator *pinchIterator, stLis
 }
 
 static stList *getRandomPairwiseAlignments() {
-    stList *pairwiseAlignments = stList_construct3(0, (void(*)(void *)) destructPairwiseAlignment);
+    stList *pafs = stList_construct3(0, (void(*)(void *)) paf_destruct);
     int64_t randomAlignmentNumber = st_randomInt(0, 10);
     for (int64_t i = 0; i < randomAlignmentNumber; i++) {
-        char *contig1 = stString_print("%" PRIi64 "", i);
-        char *contig2 = stString_print("%" PRIi64 "", i * 10);
-        int64_t start1 = st_randomInt(100000, 1000000);
-        int64_t start2 = st_randomInt(100000, 1000000);
-        int64_t strand1 = st_random() > 0.5;
-        int64_t strand2 = st_random() > 0.5;
-        int64_t end1 = start1;
-        int64_t end2 = start2;
-        struct List *operationList = constructEmptyList(0, NULL);
-        while (st_random() > 0.1) {
-            int64_t length = st_randomInt(0, 10);
-            int64_t type = st_randomInt(0, 3);
-            assert(type < 3);
-            listAppend(operationList, constructAlignmentOperation(type, length, 0));
-            if (type != PAIRWISE_INDEL_Y) {
-                end1 += strand1 ? length : -length;
+        Paf *paf = st_calloc(1, sizeof(Paf));
+        paf->query_name = stString_print("%" PRIi64 "", i);
+        paf->target_name = stString_print("%" PRIi64 "", i * 10);
+        paf->query_start = st_randomInt(100000, 1000000);
+        paf->target_start = st_randomInt(100000, 1000000);
+        paf->same_strand = st_random() > 0.5;
+        int64_t i = paf->query_start, j = paf->target_start;
+        Cigar **pc = &(paf->cigar);
+        do {
+            Cigar *c = st_calloc(1, sizeof(Cigar));
+            c->length = st_randomInt(1, 10);
+            c->op = st_random() > 0.3 ? (st_random() > 0.5 ? match : query_insert): query_delete;
+            if (c->op != query_delete) {
+                i += c->length;
             }
-            if (type != PAIRWISE_INDEL_X) {
-                end2 += strand2 ? length : -length;
+            if (c->op != query_insert) {
+                j += c->length;
             }
-        }
-        stList_append(pairwiseAlignments,
-                constructPairwiseAlignment(contig1, start1, end1, strand1, contig2, start2, end2, strand2, 0.0, operationList));
-        free(contig1);
-        free(contig2);
+            *pc = c;
+            pc = &(c->next);
+        } while(st_random() > 0.1 || paf->query_start == i || paf->target_start == j);
+        paf->query_end = i;
+        paf->target_end = j;
+        paf->query_length = i;
+        paf->target_length = j;
+        paf_check(paf);
+        stList_append(pafs, paf);
     }
-    return pairwiseAlignments;
+    return pafs;
 }
 
 static void testPinchIteratorFromFile(CuTest *testCase) {
@@ -92,9 +96,8 @@ static void testPinchIteratorFromFile(CuTest *testCase) {
         //Put alignments in a file
         char *tempFile = "tempFileForPinchIteratorTest.cig";
         FILE *fileHandle = fopen(tempFile, "w");
-        for (int64_t i = 0; i < stList_length(pairwiseAlignments); i++) {
-            cigarWrite(fileHandle, stList_get(pairwiseAlignments, i), 0);
-        }
+        assert(fileHandle != NULL);
+        write_pafs(fileHandle, pairwiseAlignments);
         fclose(fileHandle);
         //Get an iterator
         stPinchIterator *pinchIterator = stPinchIterator_constructFromFile(tempFile);

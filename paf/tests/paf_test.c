@@ -12,6 +12,7 @@ static char *params_file = "../src/cactus/cactus_progressive_config.xml";
 static void test_paf(CuTest *testCase) {
     // Read the pafs from the test file
     FILE *fh = fopen(test_paf_file, "r");
+    assert(fh != NULL);
     stList *pafs = read_pafs(fh);
     fclose(fh);
 
