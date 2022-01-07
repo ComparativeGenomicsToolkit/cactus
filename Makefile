@@ -81,17 +81,14 @@ unitTests = \
 	cactus_barTests \
 	cactusAPITests \
 	cactus_halGeneratorTests \
-	cPecanLibTests \
-	matchingAndOrderingTests \
-	referenceTests \
-	sonLib_cigarTest \
-	sonLib_fastaCTest \
-	sonLib_kvDatabaseTest \
-	sonLibTests \
 	stCafTests \
 	stPafTests \
 	stPinchesAndCactiTests \
-	stPipelineTests
+	stPipelineTests \
+	matchingAndOrderingTests \
+	referenceTests \
+	cPecanLibTests \
+	sonLibTests \
 
 # these are slow, but added to CI here since hal no longer has its own
 halTests = \
