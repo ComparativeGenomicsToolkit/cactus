@@ -27,7 +27,7 @@ import copy
 
 from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.multiCactusTree import MultiCactusTree
-from cactus.progressive.outgroup import GreedyOutgroup, DynamicOutgroup
+from cactus.progressive.outgroup import GreedyOutgroup
 from cactus.progressive.seqFile import SeqFile
 from sonLib.nxnewick import NXNewick
 from toil.statsAndLogging import logger

@@ -45,12 +45,12 @@ static:
 	${MAKE} all
 
 check-static: static
-ifeq ($(shell ldd bin/* | grep "not a dynamic" | wc -l), $(shell ls bin/* | wc -l))
-	$(info ldd verified that all files in .bin/ are static)
-	echo "All static"
-else
-	$(error ldd found dynamic linked binary in .bin/)
-endif
+	ifeq ($(shell ldd bin/* | grep "not a dynamic" | wc -l), $(shell ls bin/* | wc -l))
+		$(info ldd verified that all files in .bin/ are static)
+		echo "All static"
+	else
+		$(error ldd found dynamic linked binary in .bin/)
+	endif
 
 all_libs:
 	${MAKE} ${modules:%=all_libs.%}
@@ -125,14 +125,26 @@ pytestOpts = --tb=native --durations=0 -rsx
 testOutDir = test-output
 testLogDir = ${testOutDir}/logs
 
+# parallel tests don't currenty work, not all cases of collission have
+# been fixed
+.NOTPARALLEL: test test_blast test_nonblast
 test: ${testModules:%=%_runtest} ${unitTests:%=%_run_unit_test}
-
+test_blast: ${testModules:%=%_runtest_blast}
+test_nonblast: ${testModules:%=%_runtest_nonblast}
 hal_test: ${halTests:%=%_run_unit_test}
 
 # run one test and save output
 %_runtest: ${versionPy}
 	@mkdir -p ${testLogDir}
 	${PYTHON} -m pytest ${pytestOpts} src/cactus/$* ${testErrOut}
+
+%_runtest_blast: ${versionPy}
+	@mkdir -p ${testLogDir}
+	${PYTHON} -m pytest ${pytestOpts} src/cactus/$* --suite=blast ${testErrOut} 
+
+%_runtest_nonblast: ${versionPy}
+	@mkdir -p ${testLogDir}
+	${PYTHON} -m pytest ${pytestOpts} src/cactus/$* --suite=nonblast ${testErrOut}
 
 %_run_unit_test:
 	$*
