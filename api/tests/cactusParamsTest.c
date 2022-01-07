@@ -9,7 +9,9 @@
 #include "cactus_params_parser.h"
 
 static void testCactusParams(CuTest *testCase) {
-    char *params_file = "/Users/benedictpaten/CLionProjects/cactus/src/cactus/cactus_progressive_config.xml";
+    char params_file[4096];
+    getcwd(params_file, 4096);
+    strcat(params_file, "/src/cactus/cactus_progressive_config.xml");
 
     CactusParams *p = cactusParams_load(params_file);
 
