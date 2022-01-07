@@ -71,7 +71,6 @@ all_libs.blastLib: all_libs.api
 
 # Python tests
 testModules = \
-    bar/cactus_barTest.py \
     progressive/outgroupTest.py \
     preprocessor/cactus_preprocessorTest.py \
     preprocessor/lastzRepeatMasking/cactus_lastzRepeatMaskTest.py \
@@ -79,6 +78,7 @@ testModules = \
 
 # Unit tests (just collecting everything in bin/ with "test" in the name)
 unitTests = \
+	cactus_barTests \
 	cactusAPITests \
 	cactus_halGeneratorTests \
 	cPecanLibTests \
