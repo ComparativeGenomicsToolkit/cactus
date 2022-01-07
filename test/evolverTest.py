@@ -94,6 +94,7 @@ class TestCase(unittest.TestCase):
         out_wdl = os.path.join(self.tempDir, 'prepared.wdl')
         cmd = ['cactus-prepare', in_seqfile, '--outHal', self._out_hal(name),
                '--jobStore', self._job_store(name), '--wdl',
+               '--halAppendBatchSize', '2',
                '--dockerImage', 'evolvertestdocker/cactus:latest',
                '--preprocessCores', '2',
                '--blastCores', '4',
