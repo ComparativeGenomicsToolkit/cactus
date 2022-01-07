@@ -6,8 +6,8 @@
  * Test paf library functions
  */
 
-static char *test_paf_file = "./tests/human_chimp.paf";
-static char *params_file = "../src/cactus/cactus_progressive_config.xml";
+static char *test_paf_file = "./paf/tests/human_chimp.paf";
+static char *params_file = "./src/cactus/cactus_progressive_config.xml";
 
 static void test_paf(CuTest *testCase) {
     // Read the pafs from the test file
@@ -20,7 +20,7 @@ static void test_paf(CuTest *testCase) {
     CuAssertIntEquals(testCase, stList_length(pafs), 207);
 
     // Write the pafs to a different file
-    char *test_paf_2 = "./tests/human_chimp_copy.paf";
+    char *test_paf_2 = "./paf/tests/human_chimp_copy.paf";
     fh = fopen(test_paf_2, "w");
     write_pafs(fh, pafs);
     fclose(fh);
@@ -49,19 +49,19 @@ static void test_paf(CuTest *testCase) {
 
 static void test_paf_align_cow_dog(CuTest *testCase) {
     // Run a complete alignment and compare to the true alignment
-    st_system("./tests/pair_align_test.sh %s cow-dog\n", params_file);
+    st_system("./paf/tests/pair_align_test.sh %s cow-dog\n", params_file);
     // todo capture output and test it
 }
 
 static void test_paf_align_human_mouse(CuTest *testCase) {
     // Run a complete alignment and compare to the true alignment
-    st_system("./tests/pair_align_test.sh %s human-mouse\n", params_file);
+    st_system("./paf/tests/pair_align_test.sh %s human-mouse\n", params_file);
     // todo capture output and test it
 }
 
 static void test_paf_tools(CuTest *testCase) {
     // Run the different paf tools and check they don't screw anything up
-    st_system("./tests/paf_tools_test.sh %s\n", params_file);
+    st_system("./paf/tests/paf_tools_test.sh %s\n", params_file);
     // todo capture output and test it
 }
 
