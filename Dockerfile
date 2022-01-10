@@ -1,7 +1,7 @@
 FROM quay.io/comparative-genomics-toolkit/ubuntu:18.04 AS builder
 
 # apt dependencies for build
-RUN apt-get update && apt-get install -y build-essential git python3 python3-dev python3-pip zlib1g-dev wget libbz2-dev pkg-config libhdf5-dev liblzo2-dev libtokyocabinet-dev wget liblzma-dev libxml2-dev libssl-dev libpng-dev uuid-dev libcurl4-gnutls-dev python
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential git python3.8 python3.8-dev python3-pip zlib1g-dev wget libbz2-dev pkg-config libhdf5-dev liblzo2-dev libtokyocabinet-dev wget liblzma-dev libxml2-dev libssl-dev libpng-dev uuid-dev libcurl4-gnutls-dev libffi-dev python
 
 # build cactus binaries
 RUN mkdir -p /home/cactus
@@ -34,7 +34,6 @@ RUN cd /home/cactus/bin && for i in wigToBigWig faToTwoBit bedToBigBed bigBedToB
 # if you agree to it, uncomment this line:
 # RUN cd /home/cactus/bin && for i in bedSort hgGcPercent; do wget -q http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/${i}; chmod ugo+x ${i}; done
 
-
 # download tools used for pangenome pipeline
 RUN cd /home/cactus && ./build-tools/downloadPangenomeTools
 
@@ -45,14 +44,13 @@ RUN cd /home/cactus && rm -f ${binPackageDir}/bin/*test ${binPackageDir}/bin/*te
 RUN /bin/bash -O extglob -c "cd /home/cactus && strip -d bin/!(cactus_consolidated) 2> /dev/null || true"
 
 # build cactus python3
-RUN ln -fs /usr/bin/python3 /usr/bin/python
-RUN mkdir -p /wheels && cd /wheels && python3 -m pip install -U pip && python3 -m pip wheel -r /home/cactus/toil-requirement.txt && python3 -m pip wheel /home/cactus
+RUN mkdir -p /wheels && cd /wheels && python3.8 -m pip install cython && python3.8 -m pip wheel -r /home/cactus/toil-requirement.txt && python3.8 -m pip wheel /home/cactus
 
 # Create a thinner final Docker image in which only the binaries and necessary data exist.
 FROM quay.io/comparative-genomics-toolkit/ubuntu:18.04
 
 # apt dependencies for runtime
-RUN apt-get update && apt-get install -y --no-install-recommends git python3 python3-pip python3-distutils zlib1g libbz2-1.0 net-tools libhdf5-100 liblzo2-2 libtokyocabinet9 rsync libkrb5-3 libk5crypto3 time liblzma5 libcurl4 libcurl4-gnutls-dev libxml2 libgomp1
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git python3.8 python3-pip python3.8-distutils zlib1g libbz2-1.0 net-tools libhdf5-100 liblzo2-2 libtokyocabinet9 rsync libkrb5-3 libk5crypto3 time liblzma5 libcurl4 libcurl4-gnutls-dev libxml2 libgomp1 libffi6
 
 # copy temporary files for installing cactus
 COPY --from=builder /home/cactus /tmp/cactus
@@ -66,9 +64,9 @@ RUN rsync -avm --include='*.py' -f 'hide,! */' /tmp/cactus/submodules/hal /usr/l
 ENV PYTHONPATH /usr/local/lib:${PYTHONPATH}
 
 # install the python3 binaries then clean up
-RUN python3 -m pip install -U pip wheel setuptools && \
-    python3 -m pip install -f /wheels -r /tmp/cactus/toil-requirement.txt && \
-    python3 -m pip install -f /wheels /tmp/cactus && \
+RUN python3.8 -m pip install -U wheel setuptools && \
+    python3.8 -m pip install -f /wheels -r /tmp/cactus/toil-requirement.txt && \
+    python3.8 -m pip install -f /wheels /tmp/cactus && \
     rm -rf /wheels /root/.cache/pip/* /tmp/cactus && \
     apt-get remove -y git python3-pip rsync && \
     apt-get auto-remove -y
