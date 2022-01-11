@@ -86,6 +86,8 @@ def main():
                         "in the tree may be used as outgroups but will never appear"
                         " in the output.  If no root is specifed then the root"
                         " of the tree is used. ", default=None)
+    parser.add_argument("--includeRoot", action="store_true", help="Include the root's sequence in the alignment"
+                        " (used only when running alignment update recipes)")    
     parser.add_argument("--latest", dest="latest", action="store_true",
                         help="Use the latest version of the docker container "
                         "rather than pulling one matching this version of cactus")
@@ -297,7 +299,7 @@ def make_align_job(options, toil):
     proj_options = copy.deepcopy(options)
     proj_options.root = None
     #Create the progressive cactus project (as we do in runCactusProgressive)
-    projWrapper = ProjectWrapper(proj_options, proj_options.configFile, ignoreSeqPaths=options.root)
+    projWrapper = ProjectWrapper(proj_options, proj_options.configFile, ignoreSeqPaths=options.root if not options.includeRoot else [])
     projWrapper.writeXml()
 
     pjPath = os.path.join(options.cactusDir, ProjectWrapper.alignmentDirName,
@@ -325,6 +327,9 @@ def make_align_job(options, toil):
     outgroups = experiment.getOutgroupGenomes()
     genome_set = set(leaves + outgroups)
 
+    if options.includeRoot and options.root not in project.inputSequenceMap:
+        raise RuntimeError("--includeRoot specified but root, {},  not found in input Seqfile".format(options.root))
+    
     # this is a hack to allow specifying all the input on the command line, rather than using suffix lookups
     def get_input_path(suffix=''):
         base_path = options.cigarsFile[0]
@@ -353,7 +358,7 @@ def make_align_job(options, toil):
 
     #import the sequences (that we need to align for the given event, ie leaves and outgroups)
     for genome, seq in list(project.inputSequenceMap.items()):
-        if genome in leaves or (not outgroup_fragment_found and genome in outgroups):
+        if genome in leaves or (not outgroup_fragment_found and genome in outgroups) or (options.includeRoot and genome == options.root):
             if os.path.isdir(seq):
                 tmpSeq = getTempFile()
                 catFiles([os.path.join(seq, subSeq) for subSeq in os.listdir(seq)], tmpSeq)
