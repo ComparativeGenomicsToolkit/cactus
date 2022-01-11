@@ -1,6 +1,9 @@
 # Release 2.0.5
 
 - Debug symbols no longer stripped from `cactus_consolidated` binary in Release.
+- Update to Toil 3.5.6
+- Update examples to use Python 3.8 specifically (was previously just python3, but this is often python3.6, support for which was dropped in Toil 3.5.6)
+- cactus-prepare WDL output can now batch up `hal_append_subtree` jobs
 
 # Release 2.0.4   2021-11-12
 

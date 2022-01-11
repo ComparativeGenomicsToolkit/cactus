@@ -22,7 +22,7 @@ Cactus uses many different algorithms and individual code contributions, princip
 ### System requirements
 We regularly test on Ubuntu 18.04 (Bionic) and to a more limited degree on Mac OS X (using Docker).
 
-Cactus requires Python 3.
+Cactus requires Python >= 3.7.
 
 Cactus uses substantial resources. For primate-sized genomes (3 gigabases each), you should expect Cactus to use approximately 120 CPU-days of compute per genome, with about 120 GB of RAM used at peak. The requirements scale roughly quadratically, so aligning two 1-megabase bacterial genomes takes only 1.5 CPU-hours and 14 GB RAM.
 
@@ -64,7 +64,7 @@ python3 -m pip install virtualenv
 
 To set up a virtual environment in the directory `cactus_env`, run:
 ```
-python3 -m virtualenv -p python3.6 cactus_env
+python3 -m virtualenv -p python3.8 cactus_env
 ```
 
 Then, to enter the virtualenv, run:
@@ -79,9 +79,9 @@ To install Cactus in Python, clone it and **its submodules with --recursive** fr
 ```
 git clone https://github.com/ComparativeGenomicsToolkit/cactus.git --recursive
 cd cactus
-pip install --upgrade setuptools pip
-pip install --upgrade -r toil-requirement.txt
-pip install --upgrade .
+python3.8 -m pip install --upgrade setuptools
+python3.8 -m pip install --upgrade -r toil-requirement.txt
+python3.8 -m pip install --upgrade .
 ```
 
 ##### Build the Cactus Binaries
