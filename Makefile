@@ -217,10 +217,12 @@ docker: Dockerfile
 
 # Requires ~/.dockercfg
 push: docker
-	docker push ${name}
+	docker push ${name}:${tag}
+	docker push ${name}:latest
 
 push_only:
-	docker push ${name}
+	docker push ${name}:${tag}
+	docker push ${name}:latest
 
 binRelease:
 	./build-tools/makeBinRelease
