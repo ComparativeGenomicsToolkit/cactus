@@ -8,9 +8,9 @@
 #include "sonLib.h"
 #include "cactus_params_parser.h"
 
-static void testCactusParams(CuTest *testCase) {
-    char *params_file = "/Users/benedictpaten/CLionProjects/cactus/src/cactus/cactus_progressive_config.xml";
+static char *params_file = "./src/cactus/cactus_progressive_config.xml";
 
+static void testCactusParams(CuTest *testCase) {
     CactusParams *p = cactusParams_load(params_file);
 
     const char *c = cactusParams_get_string(p, 3, "blast", "divergence", "argName");

@@ -45,12 +45,12 @@ static:
 	${MAKE} all
 
 check-static: static
-ifeq ($(shell ldd bin/* | grep "not a dynamic" | wc -l), $(shell ls bin/* | wc -l))
-	$(info ldd verified that all files in .bin/ are static)
-	echo "All static"
-else
-	$(error ldd found dynamic linked binary in .bin/)
-endif
+	ifeq ($(shell ldd bin/* | grep "not a dynamic" | wc -l), $(shell ls bin/* | wc -l))
+		$(info ldd verified that all files in .bin/ are static)
+		echo "All static"
+	else
+		$(error ldd found dynamic linked binary in .bin/)
+	endif
 
 all_libs:
 	${MAKE} ${modules:%=all_libs.%}
@@ -69,24 +69,44 @@ all_libs.blastLib: all_libs.api
 # tests, see DEVELOPMENT.md for environment variables controling tests.
 ##
 
-# under test modules under src/cactus/, split up to allowing run them in parallel.
+# Python tests
 testModules = \
-    bar/cactus_barTest.py \
     progressive/outgroupTest.py \
     preprocessor/cactus_preprocessorTest.py \
     preprocessor/lastzRepeatMasking/cactus_lastzRepeatMaskTest.py \
-    progressive/multiCactusTreeTest.py 
-#
-#    Todo: these tests rely heavily on Experiment/Workflow code that no longer exists
-#    but most of them are commented out anyway.  So need to figure out what tests
-#    are useful and try to adapt to simpliefied experiment/workflow free setup
-#
-#    hal/cactus_halTest.py \
-#    pipeline/cactus_evolverTest.py \
-#    pipeline/cactus_workflowTest.py \
-#    progressive/cactus_progressiveTest.py \
-#    shared/commonTest.py \
-#    shared/experimentWrapperTest.py
+    progressive/multiCactusTreeTest.py
+
+# Unit tests (just collecting everything in bin/ with "test" in the name)
+unitTests = \
+	cactus_barTests \
+	cactusAPITests \
+	cactus_halGeneratorTests \
+	stCafTests \
+	stPafTests \
+	stPinchesAndCactiTests \
+	stPipelineTests \
+	matchingAndOrderingTests \
+	referenceTests \
+	cPecanLibTests \
+	sonLibTests \
+
+# these are slow, but added to CI here since hal no longer has its own
+halTests = \
+	hal4dExtractTest \
+	halAlignmentTreesTest \
+	halBottomSegmentTest \
+	halColumnIteratorTest \
+	halGappedSegmentIteratorTest \
+	halGenomeTest \
+	halHdf5Tests \
+	halLiftoverTests \
+	halMafTests \
+	halMappedSegmentTest \
+	halMetaDataTest \
+	halRearrangementTest \
+	halSequenceTest \
+	halTopSegmentTest \
+	halValidateTest
 
 # if running travis or gitlab, we want output to go to stdout/stderr so it can
 # be seen in the log file, as opposed to individual files, which are much
@@ -108,10 +128,10 @@ testLogDir = ${testOutDir}/logs
 # parallel tests don't currenty work, not all cases of collission have
 # been fixed
 .NOTPARALLEL: test test_blast test_nonblast
-
-test: ${testModules:%=%_runtest}
+test: ${testModules:%=%_runtest} ${unitTests:%=%_run_unit_test}
 test_blast: ${testModules:%=%_runtest_blast}
 test_nonblast: ${testModules:%=%_runtest_nonblast}
+hal_test: ${halTests:%=%_run_unit_test}
 
 # run one test and save output
 %_runtest: ${versionPy}
@@ -125,6 +145,9 @@ test_nonblast: ${testModules:%=%_runtest_nonblast}
 %_runtest_nonblast: ${versionPy}
 	@mkdir -p ${testLogDir}
 	${PYTHON} -m pytest ${pytestOpts} src/cactus/$* --suite=nonblast ${testErrOut}
+
+%_run_unit_test:
+	$*
 
 ${versionPy}:
 	echo "cactus_commit = '${git_commit}'" >$@
