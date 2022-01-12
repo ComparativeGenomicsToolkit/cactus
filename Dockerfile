@@ -68,7 +68,7 @@ RUN python3.8 -m pip install -U wheel setuptools && \
     python3.8 -m pip install -f /wheels -r /tmp/cactus/toil-requirement.txt && \
     python3.8 -m pip install -f /wheels /tmp/cactus && \
     rm -rf /wheels /root/.cache/pip/* /tmp/cactus && \
-    apt-get remove -y git python3-pip rsync && \
+    apt-get remove -y git rsync && \
     apt-get auto-remove -y
 
 # check the linking on all our binaries (those kent tools above aren't static)
