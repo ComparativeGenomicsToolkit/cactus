@@ -44,7 +44,7 @@ RUN cd /home/cactus && rm -f ${binPackageDir}/bin/*test ${binPackageDir}/bin/*te
 RUN /bin/bash -O extglob -c "cd /home/cactus && strip -d bin/!(cactus_consolidated) 2> /dev/null || true"
 
 # build cactus python3
-RUN mkdir -p /wheels && cd /wheels && python3.8 -m pip install cython && python3.8 -m pip wheel -r /home/cactus/toil-requirement.txt && python3.8 -m pip wheel /home/cactus
+RUN mkdir -p /wheels && cd /wheels && python3.8 -m pip install -U cython pip wheel && python3.8 -m pip wheel -r /home/cactus/toil-requirement.txt && python3.8 -m pip wheel /home/cactus
 
 # Create a thinner final Docker image in which only the binaries and necessary data exist.
 FROM quay.io/comparative-genomics-toolkit/ubuntu:18.04
@@ -64,12 +64,15 @@ RUN rsync -avm --include='*.py' -f 'hide,! */' /tmp/cactus/submodules/hal /usr/l
 ENV PYTHONPATH /usr/local/lib:${PYTHONPATH}
 
 # install the python3 binaries then clean up
-RUN python3.8 -m pip install -U wheel setuptools && \
+RUN python3.8 -m pip install -U pip wheel setuptools && \
     python3.8 -m pip install -f /wheels -r /tmp/cactus/toil-requirement.txt && \
     python3.8 -m pip install -f /wheels /tmp/cactus && \
     rm -rf /wheels /root/.cache/pip/* /tmp/cactus && \
     apt-get remove -y git python3-pip rsync && \
     apt-get auto-remove -y
+
+# sanity check to make sure cactus at least runs
+RUN cactus --help
 
 # check the linking on all our binaries (those kent tools above aren't static)
 RUN for i in /usr/local/bin/* ; do if [ -f ${i} ] && [ $(ldd ${i} | grep "not found" | wc -l) -ge 1 ]; then exit 1; fi; done
