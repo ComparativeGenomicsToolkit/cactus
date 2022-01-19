@@ -166,33 +166,15 @@ Cap *flower_getFirstCap(Flower *flower) {
     return stList_length(flower->caps) > 0 ? stList_peek(flower->caps) : NULL;
 }
 
-static int sort_caps(const void *a, const void *b) {
-    return cactusMisc_nameCompare(cap_getName((Cap*)a), cap_getName((Cap*)b));
-}
-
 Cap *flower_getCap(Flower *flower, Name name) {
     CapContents capContents[2];
     Cap *cap = (Cap *)(&capContents); // Very ugly cast
     cap->bits = 2; // binary: 000010
     cap_getCoreContents(cap)->instance = name;
     assert(cap_getName(cap) == name);
-    Cap *result = stList_binarySearch(flower->caps, cap, flower_constructCapsP);    
+    Cap *result = stList_binarySearch(flower->caps, cap, flower_constructCapsP);
     if (result == NULL && flower->caps2 != NULL) {
-        // fall back on unsorted caps2 list
-        int64_t caps2_size = stList_length(flower->caps2);
-        for (int64_t i = 0; i < caps2_size && result == NULL; ++i) {
-            Cap *cur_cap = stList_get(flower->caps2, i);
-            if (sort_caps(cap, cur_cap) == 0) {
-                result = cur_cap;
-            }
-        }
-        // some defragmentation
-        if (caps2_size > MAX_FLOWER_LAZY_CAPS_SIZE) {
-            stList_appendAll(flower->caps, flower->caps2);
-            stList_sort(flower->caps, sort_caps);
-            stList_destruct(flower->caps2);
-            flower->caps2 = stList_construct3(0, NULL);            
-        }
+        result = stList_binarySearch(flower->caps2, cap, flower_constructCapsP);
     }
     return result;
 }
@@ -573,16 +555,22 @@ void flower_removeSequence(Flower *flower, Sequence *sequence) {
     removeFromFlower(flower->sequences, sequence);
 }
 
+static int sort_caps(const void *a, const void *b) {
+    return cactusMisc_nameCompare(cap_getName((Cap*)a), cap_getName((Cap*)b));
+}
+
 void flower_setLazyCaps(Flower *flower, bool b) {
     if (b == true) {
         // activate the second list, and keep a copy of the first list in caps2
         assert(flower->caps2 == NULL);
-        flower->caps2 = stList_construct3(0, NULL);
+        flower->caps2 = flower->caps;
+        flower->caps = stList_construct3(0, NULL);
     } else {
         assert(flower->caps2 != NULL);
         // merge up the lists
-        stList_appendAll(flower->caps, flower->caps2);
-        stList_destruct(flower->caps2);
+        stList_appendAll(flower->caps2, flower->caps);
+        stList_destruct(flower->caps);
+        flower->caps = flower->caps2;
         flower->caps2 = NULL;
         stList_sort(flower->caps, sort_caps);
     }
@@ -598,16 +586,11 @@ void flower_bulkAddCaps(Flower *flower, stList *capsToAdd) {
 
 void flower_addCap(Flower *flower, Cap *cap) {
     cap = cap_getPositiveOrientation(cap);
-    if (flower->caps2 != NULL) {
-        // if we're in lazy mode, add to unsorted list
-        stList_append(flower->caps2, cap);
-    } else {        
-        stList_append(flower->caps, cap);
-        // Now ensure we have fixed the sort
-        int64_t i = stList_length(flower->caps)-1;
-        while(--i >= 0 && cap_getName(stList_get(flower->caps, i)) > cap_getName(cap)) {
-            swap(flower->caps, i);
-        }
+    stList_append(flower->caps, cap);
+    // Now ensure we have fixed the sort
+    int64_t i = stList_length(flower->caps)-1;
+    while(--i >= 0 && cap_getName(stList_get(flower->caps, i)) > cap_getName(cap)) {
+        swap(flower->caps, i);
     }
 }
 
