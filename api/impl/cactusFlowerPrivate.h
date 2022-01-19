@@ -19,6 +19,7 @@ struct _flower {
     Name parentFlowerName;
     CactusDisk *cactusDisk;
     bool builtBlocks;
+    bool lazyCaps;
 };
 
 ////////////////////////////////////////////////

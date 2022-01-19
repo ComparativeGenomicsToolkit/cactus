@@ -46,6 +46,7 @@ static Flower *flower_construct3(Name name, CactusDisk *cactusDisk) {
     flower->parentFlowerName = NULL_NAME;
     flower->cactusDisk = cactusDisk;
     flower->builtBlocks = 0;
+    flower->lazyCaps = 0;
     cactusDisk_addFlower(flower->cactusDisk, flower);
 
     return flower;
@@ -166,6 +167,7 @@ Cap *flower_getFirstCap(Flower *flower) {
 }
 
 Cap *flower_getCap(Flower *flower, Name name) {
+    assert(flower->lazyCaps == false);
     CapContents capContents[2];
     Cap *cap = (Cap *)(&capContents); // Very ugly cast
     cap->bits = 2; // binary: 000010
@@ -554,20 +556,32 @@ static int sort_caps(const void *a, const void *b) {
     return cactusMisc_nameCompare(cap_getName((Cap*)a), cap_getName((Cap*)b));
 }
 
+void flower_setLazyCaps(Flower *flower, bool b) {
+    flower->lazyCaps = b;
+    if (b == false) {
+        stList_sort(flower->caps, sort_caps);
+    }
+}
+
+
 void flower_bulkAddCaps(Flower *flower, stList *capsToAdd) {
     if(stList_length(capsToAdd) > 0) {
         stList_appendAll(flower->caps, capsToAdd);
-        stList_sort(flower->caps, sort_caps);
+        if (!flower->lazyCaps) {
+            stList_sort(flower->caps, sort_caps);
+        }
     }
 }
 
 void flower_addCap(Flower *flower, Cap *cap) {
     cap = cap_getPositiveOrientation(cap);
     stList_append(flower->caps, cap);
-    // Now ensure we have fixed the sort
-    int64_t i = stList_length(flower->caps)-1;
-    while(--i >= 0 && cap_getName(stList_get(flower->caps, i)) > cap_getName(cap)) {
-        swap(flower->caps, i);
+    if (!flower->lazyCaps) {
+        // Now ensure we have fixed the sort
+        int64_t i = stList_length(flower->caps)-1;
+        while(--i >= 0 && cap_getName(stList_get(flower->caps, i)) > cap_getName(cap)) {
+            swap(flower->caps, i);
+        }
     }
 }
 
