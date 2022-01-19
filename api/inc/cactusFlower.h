@@ -342,6 +342,12 @@ bool flower_builtBlocks(Flower *flower);
 void flower_setBuiltBlocks(Flower *flower, bool b);
 
 /*
+ * Switches to lazy caps mode where updating caps doesn't preserve sorting
+ * (setting to false will trigger a sort);
+ */
+void flower_setLazyCaps(Flower *flower, bool b);
+
+/*
  * Returns non-zero iff the flower has no nested flowers.
  */
 bool flower_isLeaf(Flower *flower);
