@@ -40,13 +40,13 @@ static Flower *flower_construct3(Name name, CactusDisk *cactusDisk) {
     flower->name = name;
     flower->sequences = stList_construct3(0, NULL);
     flower->caps = stList_construct3(0, NULL);
+    flower->caps2 = NULL;
     flower->ends = stList_construct3(0, NULL);
     flower->groups = stList_construct3(0, NULL);
     flower->chains = stList_construct3(0, NULL);
     flower->parentFlowerName = NULL_NAME;
     flower->cactusDisk = cactusDisk;
     flower->builtBlocks = 0;
-    flower->lazyCaps = 0;
     cactusDisk_addFlower(flower->cactusDisk, flower);
 
     return flower;
@@ -167,13 +167,16 @@ Cap *flower_getFirstCap(Flower *flower) {
 }
 
 Cap *flower_getCap(Flower *flower, Name name) {
-    assert(flower->lazyCaps == false);
     CapContents capContents[2];
     Cap *cap = (Cap *)(&capContents); // Very ugly cast
     cap->bits = 2; // binary: 000010
     cap_getCoreContents(cap)->instance = name;
     assert(cap_getName(cap) == name);
-    return stList_binarySearch(flower->caps, cap, flower_constructCapsP);
+    Cap *result = stList_binarySearch(flower->caps, cap, flower_constructCapsP);
+    if (result == NULL && flower->caps2 != NULL) {
+        result = stList_binarySearch(flower->caps2, cap, flower_constructCapsP);
+    }
+    return result;
 }
 
 int64_t flower_getCapNumber(Flower *flower) {
@@ -557,8 +560,18 @@ static int sort_caps(const void *a, const void *b) {
 }
 
 void flower_setLazyCaps(Flower *flower, bool b) {
-    flower->lazyCaps = b;
-    if (b == false) {
+    if (b == true) {
+        // activate the second list, and keep a copy of the first list in caps2
+        assert(flower->caps2 == NULL);
+        flower->caps2 = flower->caps;
+        flower->caps = stList_construct3(0, NULL);
+    } else {
+        assert(flower->caps2 != NULL);
+        // merge up the lists
+        stList_appendAll(flower->caps2, flower->caps);
+        stList_destruct(flower->caps);
+        flower->caps = flower->caps2;
+        flower->caps2 = NULL;
         stList_sort(flower->caps, sort_caps);
     }
 }
@@ -567,21 +580,17 @@ void flower_setLazyCaps(Flower *flower, bool b) {
 void flower_bulkAddCaps(Flower *flower, stList *capsToAdd) {
     if(stList_length(capsToAdd) > 0) {
         stList_appendAll(flower->caps, capsToAdd);
-        if (!flower->lazyCaps) {
-            stList_sort(flower->caps, sort_caps);
-        }
+        stList_sort(flower->caps, sort_caps);
     }
 }
 
 void flower_addCap(Flower *flower, Cap *cap) {
     cap = cap_getPositiveOrientation(cap);
     stList_append(flower->caps, cap);
-    if (!flower->lazyCaps) {
-        // Now ensure we have fixed the sort
-        int64_t i = stList_length(flower->caps)-1;
-        while(--i >= 0 && cap_getName(stList_get(flower->caps, i)) > cap_getName(cap)) {
-            swap(flower->caps, i);
-        }
+    // Now ensure we have fixed the sort
+    int64_t i = stList_length(flower->caps)-1;
+    while(--i >= 0 && cap_getName(stList_get(flower->caps, i)) > cap_getName(cap)) {
+        swap(flower->caps, i);
     }
 }
 
