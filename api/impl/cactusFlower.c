@@ -42,6 +42,7 @@ static Flower *flower_construct3(Name name, CactusDisk *cactusDisk) {
     flower->caps = stList_construct3(0, NULL);
     flower->caps2 = NULL;
     flower->ends = stList_construct3(0, NULL);
+    flower->ends2 = NULL;
     flower->groups = stList_construct3(0, NULL);
     flower->chains = stList_construct3(0, NULL);
     flower->parentFlowerName = NULL_NAME;
@@ -113,6 +114,9 @@ void flower_destruct(Flower *flower, int64_t recursive, bool removeFromParentGro
     stList_destruct(flower->caps);
     if (flower->caps2) {
         stSortedSet_destruct(flower->caps2);
+    }
+    if (flower->ends2) {
+        stSortedSet_destruct(flower->ends2);
     }
     stList_destruct(flower->ends);
 
@@ -220,7 +224,15 @@ End *flower_getEnd(Flower *flower, Name name) {
     end->bits = 0x1;
     end_getContents(end)->name = name;
     assert(end_getName(end) == name);
-    return stList_binarySearch(flower->ends, end, flower_constructEndsP);
+    End *result = NULL;
+    if (flower->ends2 != NULL) {
+        result = stSortedSet_search(flower->ends2, end);
+    }
+    if (result == NULL) {
+        result = stList_binarySearch(flower->ends, end, flower_constructEndsP);
+    }
+    return result;
+
 }
 
 Block *flower_getBlock(Flower *flower, Name name) {
@@ -277,6 +289,7 @@ int64_t flower_getAttachedStubEndNumber(Flower *flower) {
 }
 
 Flower_EndIterator *flower_getEndIterator(Flower *flower) {
+    assert(flower->ends2 == NULL);
     return stList_getIterator(flower->ends);
 }
 
@@ -566,11 +579,16 @@ static int sort_caps(const void *a, const void *b) {
     return cactusMisc_nameCompare(cap_getName((Cap*)a), cap_getName((Cap*)b));
 }
 
-void flower_setSortedCaps(Flower *flower, bool b) {
+static int sort_ends(const void *a, const void *b) {
+    return cactusMisc_nameCompare(end_getName((End*)a), end_getName((End*)b));
+}
+
+void flower_setFastCapsAndEnds(Flower *flower, bool b) {
     if (b == true) {
-        // activate the second list, and keep a copy of the first list in caps2
         assert(flower->caps2 == NULL);
         flower->caps2 = stSortedSet_construct3(flower_constructCapsP, NULL);
+        assert(flower->ends2 == NULL);
+        flower->ends2 = stSortedSet_construct3(flower_constructEndsP, NULL);
     } else {
         assert(flower->caps2 != NULL);
         // merge caps and caps2 into caps
@@ -582,9 +600,22 @@ void flower_setSortedCaps(Flower *flower, bool b) {
         stSortedSet_destructIterator(it);
         stSortedSet_destruct(flower->caps2);
         flower->caps2 = NULL;
-
         // todo: faster possible in theory since both lists sorted
         stList_sort(flower->caps, sort_caps);
+
+        assert(flower->ends2 != NULL);
+        // merge ends and ends2 into ends
+        it = stSortedSet_getIterator(flower->ends2);
+        End *end;
+        while ((end = stSortedSet_getNext(it)) != NULL) {
+            stList_append(flower->ends, end);
+        }
+        stSortedSet_destructIterator(it);
+        stSortedSet_destruct(flower->ends2);
+        flower->ends2 = NULL;
+
+        // todo: faster possible in theory since both lists sorted
+        stList_sort(flower->ends, sort_ends);
     }
 }
 
@@ -598,7 +629,6 @@ void flower_bulkAddCaps(Flower *flower, stList *capsToAdd) {
 void flower_addCap(Flower *flower, Cap *cap) {
     cap = cap_getPositiveOrientation(cap);
     if (flower->caps2 != NULL) {
-        assert(stSortedSet_search(flower->caps2, cap) == NULL);
         stSortedSet_insert(flower->caps2, cap);
     } else {
         stList_append(flower->caps, cap);
@@ -610,10 +640,6 @@ void flower_addCap(Flower *flower, Cap *cap) {
     }
 }
 
-static int sort_ends(const void *a, const void *b) {
-    return cactusMisc_nameCompare(end_getName((End*)a), end_getName((End*)b));
-}
-
 void flower_bulkAddEnds(Flower *flower, stList *endsToAdd) {
     if(stList_length(endsToAdd) > 0) {
         stList_appendAll(flower->ends, endsToAdd);
@@ -623,12 +649,16 @@ void flower_bulkAddEnds(Flower *flower, stList *endsToAdd) {
 
 void flower_addEnd(Flower *flower, End *end) {
     end = end_getPositiveOrientation(end);
-    stList_append(flower->ends, end);
-    // Now ensure we have fixed the sort
-    int64_t i = stList_length(flower->ends)-1;
-    while(--i >= 0 && end_getName(stList_get(flower->ends, i)) > end_getName(end)) {
-        //fprintf(stderr, "adding a end out of order: %" PRIi64 " flower name: %" PRIi64 "\n", end_getName(end), flower_getName(flower));
-        swap(flower->ends, i);
+    if (flower->ends2 != NULL) {
+        stSortedSet_insert(flower->ends2, end);
+    } else {
+        stList_append(flower->ends, end);
+        // Now ensure we have fixed the sort
+        int64_t i = stList_length(flower->ends)-1;
+        while(--i >= 0 && end_getName(stList_get(flower->ends, i)) > end_getName(end)) {
+            //fprintf(stderr, "adding a end out of order: %" PRIi64 " flower name: %" PRIi64 "\n", end_getName(end), flower_getName(flower));
+            swap(flower->ends, i);
+        }
     }
 }
 

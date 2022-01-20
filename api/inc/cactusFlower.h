@@ -342,11 +342,11 @@ bool flower_builtBlocks(Flower *flower);
 void flower_setBuiltBlocks(Flower *flower, bool b);
 
 /*
- * Switches to stSortedSet instead of sorted stList for caps (held in flower->caps2)
+ * Switches to stSortedSet instead of sorted stList for further addition of caps and ends.
  * This is used only in recoverBrokenAdjacencies() in addReference.c where the tradeoff
  * of using arrays is not worth it (too many out of order updates).
  */
-void flower_setSortedCaps(Flower *flower, bool b);
+void flower_setFastCapsAndEnds(Flower *flower, bool b);
 
 /*
  * Returns non-zero iff the flower has no nested flowers.

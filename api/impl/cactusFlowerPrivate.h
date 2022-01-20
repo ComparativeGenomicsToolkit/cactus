@@ -12,6 +12,7 @@
 struct _flower {
     Name name;
     stList *ends;
+    stSortedSet *ends2;
     stList *caps;
     stSortedSet *caps2;
     stList *groups;
