@@ -4,6 +4,8 @@
 - Update to Toil 3.5.6
 - Update examples to use Python 3.8 specifically (was previously just python3, but this is often python3.6, support for which was dropped in Toil 3.5.6)
 - cactus-prepare WDL output can now batch up `hal_append_subtree` jobs
+- Fix bug where "reference" phase within cactus_consolidated could take ages on some input
+- Fix bug where --realTimeLogging flag would cause infinite loop after cactus_consolidated within some Docker invocations.
 
 # Release 2.0.4   2021-11-12
 

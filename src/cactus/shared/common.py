@@ -781,6 +781,7 @@ def cactus_call(tool=None,
 
     # optionally pipe stderr (but only if realtime logging enabled)
     # note the check below if realtime logging is enabled is rather hacky
+    pid = None
     if realtimeStderrPrefix and RealtimeLogger.getLogger().level < logging.CRITICAL:
         # Make our pipe
         rfd, wfd = os.pipe()
@@ -795,6 +796,7 @@ def cactus_call(tool=None,
                 if not data:
                     break
                 RealtimeLogger.info('{}: {}'.format(realtimeStderrPrefix, data.strip().decode()))
+            rfile.close()
             os._exit(0)
         else:
             assert pid > 0
@@ -841,6 +843,15 @@ def cactus_call(tool=None,
                               "on JSON features %s: %s" % (job_name, parameters[0],
                                                            json.dumps(features), memUsage))
 
+    if pid and pid > 0:
+        # It's not enough that the forked process is exited, it must be waited for or it's
+        # deemed a zombine process:
+        # https://medium.com/@BeNitinAgarwal/an-init-system-inside-the-docker-container-3821ee233f4b
+        # and Toil will complain forever about it:
+        # https://github.com/ComparativeGenomicsToolkit/cactus/issues/610#issuecomment-1015759593
+        wfile.close()
+        os.wait()
+        
     if process.returncode == 0:
         run_time = time.time() - start_time
         if time_v:
