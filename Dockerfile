@@ -44,7 +44,7 @@ RUN cd /home/cactus && rm -f ${binPackageDir}/bin/*test ${binPackageDir}/bin/*te
 RUN /bin/bash -O extglob -c "cd /home/cactus && strip -d bin/!(cactus_consolidated) 2> /dev/null || true"
 
 # build cactus python3
-RUN mkdir -p /wheels && cd /wheels && python3.8 -m pip install -U cython pip wheel && python3.8 -m pip wheel -r /home/cactus/toil-requirement.txt && python3.8 -m pip wheel /home/cactus
+RUN mkdir -p /wheels && cd /wheels && python3.8 -m pip install -U pip wheel && python3.8 -m pip wheel -r /home/cactus/toil-requirement.txt && python3.8 -m pip wheel /home/cactus
 
 # Create a thinner final Docker image in which only the binaries and necessary data exist.
 FROM quay.io/comparative-genomics-toolkit/ubuntu:18.04
