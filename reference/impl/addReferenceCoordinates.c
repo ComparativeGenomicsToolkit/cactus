@@ -159,6 +159,7 @@ static void recoverBrokenAdjacencies(Flower *flower, stList *recoveredCaps, Name
      */
     Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
     Group *group;
+    flower_setFastCapsAndEnds(flower, true);
     while((group = flower_getNextGroup(groupIt)) != NULL) {
         Flower *nestedFlower;
         if((nestedFlower = group_getNestedFlower(group)) != NULL) {
@@ -186,6 +187,7 @@ static void recoverBrokenAdjacencies(Flower *flower, stList *recoveredCaps, Name
             flower_destructEndIterator(endIt);
         }
     }
+    flower_setFastCapsAndEnds(flower, false);
     flower_destructGroupIterator(groupIt);
 }
 
