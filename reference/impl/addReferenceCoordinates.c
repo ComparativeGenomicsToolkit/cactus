@@ -159,7 +159,6 @@ static void recoverBrokenAdjacencies(Flower *flower, stList *recoveredCaps, Name
      */
     Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
     Group *group;
-    flower_setFastCapsAndEnds(flower, true);
     while((group = flower_getNextGroup(groupIt)) != NULL) {
         Flower *nestedFlower;
         if((nestedFlower = group_getNestedFlower(group)) != NULL) {
@@ -187,7 +186,6 @@ static void recoverBrokenAdjacencies(Flower *flower, stList *recoveredCaps, Name
             flower_destructEndIterator(endIt);
         }
     }
-    flower_setFastCapsAndEnds(flower, false);
     flower_destructGroupIterator(groupIt);
 }
 
@@ -301,10 +299,12 @@ static stList *getCaps(Flower *flower, Name referenceEventName) {
 
 static stList *bottomUp1(Flower *flower, Name referenceEventName, stMatrix *(*generateSubstitutionMatrix)(double)) {
     stList *caps = getCaps(flower, referenceEventName);
+    flower_setFastCapsAndEnds(flower, true);
     for (int64_t i = stList_length(caps) - 1; i >= 0; i--) { //Start from end, as we add to this list.
         setAdjacencyLengthsAndRecoverNewCapsAndBrokenAdjacencies(stList_get(caps, i), caps);
     }
     recoverBrokenAdjacencies(flower, caps, referenceEventName);
+    flower_setFastCapsAndEnds(flower, false);
 
     return caps;
 }
