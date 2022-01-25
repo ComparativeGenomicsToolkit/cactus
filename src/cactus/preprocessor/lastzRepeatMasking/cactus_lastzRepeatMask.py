@@ -84,7 +84,7 @@ class LastzRepeatMaskJob(RoundedJob):
         # period parameter is a fudge to ensure sufficient alignments
         # are found
         cactus_call(outfile=alignment,
-                    parameters=["cPecanLastz"] + lastZSequenceHandling +
+                    parameters=["lastz"] + lastZSequenceHandling +
                                 self.repeatMaskOptions.lastzOpts.split() +
                                 # Note that --querydepth has no effect when --ungapped is passed (which is by default)
                                 ["--querydepth=keep,nowarn:%i" % (self.repeatMaskOptions.period+3),

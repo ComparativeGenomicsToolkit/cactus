@@ -317,7 +317,7 @@ def runLastz(seq1, seq2, alignmentsFile, lastzArguments, work_dir=None, gpuLastz
     if gpuLastz == True:
         lastzCommand = "run_segalign"
     else:
-        lastzCommand = "cPecanLastz"
+        lastzCommand = "lastz"
         seq1 += "[multiple][nameparse=darkspace]"
         seq2 += "[nameparse=darkspace]"
     cactus_call(work_dir=work_dir, outfile=alignmentsFile,
@@ -383,7 +383,7 @@ def getDockerImage():
 
 def getDockerRelease(gpu=False):
     """Get the most recent docker release."""
-    r = "quay.io/comparative-genomics-toolkit/cactus:v2.0.4"
+    r = "quay.io/comparative-genomics-toolkit/cactus:v2.0.5"
     if gpu:
         r += "-gpu"
     return r
