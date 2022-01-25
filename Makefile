@@ -186,6 +186,7 @@ suball.matchingAndOrdering: suball.sonLib
 
 suball.cPecan: suball.sonLib
 	cd submodules/cPecan && ${MAKE}
+	rm -f ${BINDIR}/cPecanLastz*
 
 suball.cactus2hal: suball.sonLib suball.hal all_libs.api
 	cd submodules/cactus2hal && ${MAKE}
@@ -202,6 +203,11 @@ suball.abPOA:
 	cd submodules/abPOA && ${MAKE}
 	ln -f submodules/abPOA/lib/*.a ${LIBDIR}
 	ln -f submodules/abPOA/include/*.h ${INCLDIR}
+
+suball.lastz:
+	cd submodules/lastz && ${MAKE}
+	mkdir -p bin
+	ln -f submodules/lastz/src/* bin
 
 subclean.%:
 	cd submodules/$* && ${MAKE} clean
