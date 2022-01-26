@@ -26,25 +26,6 @@ def hal2fasta_call_get_fasta(hal_file, fasta_file, genome, options="--hdf5InMemo
                 genome] + options.split() + ["> ", fasta_file])
 
 
-@DeprecationWarning
-def get_clade(hal_file, target_genome):
-    """Get the clade of a target genome given its name"""
-
-    # get the existing tree from the HAL-format file
-    tree = Phylo.read(
-        StringIO(halStats_call_get_tree(hal_file)), format="newick")
-
-    # get the target clade
-    filter = tree.find_elements(target_genome)
-    try:
-        target_clade = next(filter)
-    except StopIteration:
-        raise RuntimeError(
-            "Genome \'{}\' not found in the tree given by the HAL-format file {}".format(target_genome, hal_file))
-
-    # return
-    return target_clade
-
 def extract_newick_tree(hal_file):
     """Extract the newick tree from a HAL-format file
 
@@ -71,35 +52,26 @@ def extract_newick_tree(hal_file):
 
     return tree
 
-def get_tailored_context(tree, node_name):
-    """Get tailored information from from a given node name in order to apply the update procedure
+
+def get_node_id(tree, node_name):
+    """Get the internal node ID in the tree
 
     Args:
-        tree (sonLib.nxtree.NXTree): A NXTree-format tree
+        tree (NXTree): A NXTree-format tree
         node_name (str): The name of a node in the tree
 
     Returns:
-        Dict[str, int]: [description]
+        [int]: The internal node ID in tree if the node_name is found
+        [None]: Otherwise
     """
-    context = {
-        'parent':{},
-        'children': {}
-    }
-
     for node_id in tree.breadthFirstTraversal():
         if tree.getName(node_id) == node_name:
-            
-            #store the current node info
-            context['parent'][tree.getName(node_id)] = node_id
-            
-            # also stores the children info
-            for child_id in tree.getChildren(node_id):
-                context['children'][tree.getName(child_id)] = child_id
-
-    return context
+            return node_id
+    
+    return None
 
 
-def adding2node_prepare(hal_file, target_genome, new_genomes):
+def adding2node_prepare(hal_file, target_genome_name, new_children):
     """Adding new genomes to a target genome using an existing alingment given by a HAL-format file"""
 
     # get the tree
@@ -107,16 +79,43 @@ def adding2node_prepare(hal_file, target_genome, new_genomes):
 
     # creating the seqFile as the "tree-patch" for the new alignment due to this update to a node
     # Exemple:
-    #   - target_genome = genome_3
-    #   - new_genomes = [genome_4]
+    #   - target_genome_name = genome_3
+    #   - new_children = [genome_4]
     #   - string-format patch tree: (genome_1, genome_2, genome_4):genome_3;
-    
-    current_context = get_tailored_context(tree, target_genome)
-    patch_tree = '('
 
 
+    # get node_id of the target_genome_name
+    target_genome_id = get_node_id(tree, target_genome_name)
+    if target_genome_id is None:
+        raise RuntimeError(
+            "Genome \'{}\'  not found in the tree extract from the HAL-format file {}}".format(target_genome_name, hal_file))    
 
-    patch_tree += '{});'.format(target_genome)
+
+    # open the tree patch to add the new genomes
+    patch = '('
+
+    # re-adding current target_genome children to the patch
+    for child_id in tree.getChildren(target_genome_id):
+        child_name = tree.getName(child_id)
+        patch += '{}:{},'.format(child_name, tree.getWeight(target_genome_id, child_id))
+
+    # adding the new target_getnome child(ren) to the patch
+    for name, weight in new_children.items():
+        patch += '{}:{},'.format(name, weight)
+
+    # remove the last ','
+    patch = patch.rstrip(patch[-1])
+
+    # close the path and add the target_genome_name
+    patch += '){}'.format(target_genome_name)
+    if tree.hasParent(target_genome_id):
+        # target_genome is not the root of the tree
+        patch += ':{};'.format(tree.getWeight(tree.getParent(target_genome_id), target_genome_id))
+    else:
+        # target_genome is the root of the tree
+        patch += ';'
+
+    return patch
 
 # def adding2branch():
 
