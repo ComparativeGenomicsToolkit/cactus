@@ -299,10 +299,12 @@ static stList *getCaps(Flower *flower, Name referenceEventName) {
 
 static stList *bottomUp1(Flower *flower, Name referenceEventName, stMatrix *(*generateSubstitutionMatrix)(double)) {
     stList *caps = getCaps(flower, referenceEventName);
+    flower_setFastCapsAndEnds(flower, true);
     for (int64_t i = stList_length(caps) - 1; i >= 0; i--) { //Start from end, as we add to this list.
         setAdjacencyLengthsAndRecoverNewCapsAndBrokenAdjacencies(stList_get(caps, i), caps);
     }
     recoverBrokenAdjacencies(flower, caps, referenceEventName);
+    flower_setFastCapsAndEnds(flower, false);
 
     return caps;
 }

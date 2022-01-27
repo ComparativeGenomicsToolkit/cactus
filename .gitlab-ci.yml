@@ -1,15 +1,7 @@
-image: quay.io/glennhickey/cactus-ci-base:latest
+image: quay.io/comparative-genomics-toolkit/cactus-ci-base:latest
 
 before_script:
   - whoami
-  - sudo apt-get -q -y update
-  - sudo apt-get -q -y install liblzma-dev libxml2-dev
-  # Configure Docker to use a mirror for Docker Hub and restart the daemon
-  # Set the registry as insecure because it is probably cluster-internal over plain HTTP.
-  - |
-    if [[ ! -z "${DOCKER_HUB_MIRROR}" ]] ; then
-        echo "{\"registry-mirrors\": [\"${DOCKER_HUB_MIRROR}\"], \"insecure-registries\": [\"${DOCKER_HUB_MIRROR##*://}\"]}" | sudo tee /etc/docker/daemon.json
-    fi
   - startdocker || true
   - docker info
 
@@ -23,13 +15,10 @@ test-job:
   stage: test
   script:
     - git submodule update --init --recursive
-    - virtualenv -p python3 venv
+    - virtualenv -p python3.8 venv
     - source venv/bin/activate
-    # using --use-deprecated=legacy-resolver because https://stackoverflow.com/questions/65122957/resolving-new-pip-backtracking-runtime-issue
-    # using setuptools==57 because https://stackoverflow.com/questions/69100275/error-while-downloading-the-requirements-using-pip-install-setup-command-use-2
-    - pip install --use-deprecated=legacy-resolver setuptools==57
-    - pip install --use-deprecated=legacy-resolver -r toil-requirement.txt
-    - pip install --use-deprecated=legacy-resolver -U .
+    - python3.8 -m pip install -r toil-requirement.txt
+    - python3.8 -m pip install -U .
     # these are the old travis tests, followed by its docker push
     - git clone https://github.com/ComparativeGenomicsToolkit/cactusTestData
     - export ASAN_OPTIONS="detect_leaks=0"
@@ -42,7 +31,7 @@ test-job:
     - docker login --username $QUAY_USERNAME --password $QUAY_PASSWORD quay.io
     - make push_only
     - numcpu=8 build-tools/downloadPangenomeTools
-    - pip install -U --use-deprecated=legacy-resolver .	 
+    - python3.8 -m pip install -U .	 
     - make -j 8 evolver_test
   artifacts:
     # Let Gitlab see the junit report

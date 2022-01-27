@@ -37,7 +37,7 @@ from toil.statsAndLogging import logger
 from toil.statsAndLogging import set_logging_from_options
 from toil.lib.threading import cpu_count
 from toil.realtimeLogger import RealtimeLogger
-from toil.lib.humanize import human2bytes, bytes2human
+from toil.lib.conversions import human2bytes, bytes2human
 
 def main_toil():
     return main(toil_mode=True)
@@ -66,7 +66,8 @@ def main(toil_mode=False):
                             " to be respecified when running on Terra")
         parser.add_argument("--jobStore", type=str, default="./jobstore", help="base directory of jobStores to use in suggested commands")
     parser.add_argument("--configFile", default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
-    parser.add_argument("--preprocessBatchSize", type=int, default=3, help="size (number of genomes) of suggested preprocessing jobs")
+    parser.add_argument("--preprocessBatchSize", type=int, default=3, help="size (number of genomes) of preprocessing jobs")
+    parser.add_argument("--halAppendBatchSize", type=int, default=12, help="size (number of genomes) of halAppendSubtree jobs (WDL-only)")
     parser.add_argument("--halOptions", type=str, default="--hdf5InMemory", help="options for every hal command")
     parser.add_argument("--cactusOptions", type=str, default="--realTimeLogging --logInfo --retryCount 0", help="options for every cactus command")
     parser.add_argument("--preprocessOnly", action="store_true", help="only decompose into preprocessor and cactus jobs")
@@ -107,7 +108,7 @@ def main(toil_mode=False):
     parser.add_argument("--halAppendDisk", type=human2bytesN, help="Disk for each halAppendSubtree job. "
                         "Standard suffixes like K, Ki, M, Mi, G or Gi are supported (default=bytes)")
 
-    parser.add_argument("--preprocessPreemptible", type=int, help="Preemptible attempt count for each cactus-preprocess job [default=2]", default=2)
+    parser.add_argument("--preprocessPreemptible", type=int, help="Preemptible attempt count for each cactus-preprocess job [default=1]", default=1)
     parser.add_argument("--blastPreemptible", type=int, help="Preemptible attempt count for each cactus-blast job [default=1]", default=1)
     parser.add_argument("--alignPreemptible", type=int, help="Preemptible attempt count for each cactus-align job [default=1]", default=1)
     parser.add_argument("--halAppendPreemptible", type=int, help="Preemptible attempt count for each halAppendSubtree job [default=1]", default=1)
@@ -232,7 +233,7 @@ def human2bytesN(s):
     return human2bytes(s) if s else s
 
 def bytes2humanN(s):
-    return bytes2human(s, fmt='%(value).1f%(symbol)s') if s else s
+    return bytes2human(s).replace(' ', '') if s else s
 
 def bytes2gigs(n):
     return int(int(n)/pow(2,30))
@@ -446,7 +447,8 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
         for tr in to_remove:
             resolved.add(tr)
             events.remove(tr)
-        groups.append(group)
+        # sort the group so wdl consistent between runs            
+        groups.append(sorted(group))
 
     def halPath(event):
         if event == mc_tree.getRootName():
@@ -522,9 +524,7 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
     for group in reversed(groups):
         for event in group:
             if event != root:
-                if options.wdl:
-                    plan += wdl_call_hal_append(options, mc_tree, og_map, event, prev_event)
-                elif not options.toil:
+                if not options.toil and not options.wdl:
                     plan += 'halAppendSubtree {} {} {} {} --merge {}\n'.format(
                         halPath(root), halPath(event), event, event, options.halOptions)
                 append_count += 1
@@ -545,6 +545,13 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
                                                          disk=options.halAppendDisk)
 
     if options.wdl:
+        prev_event = project.mcTree.getRootName()
+        idx = 0
+        while idx < len(event_list):
+            event_subset = event_list[idx:idx+options.halAppendBatchSize]
+            plan += wdl_call_hal_append(options, project, event_subset, prev_event)
+            prev_event = event_subset[-1]
+            idx += options.halAppendBatchSize
         plan += wdl_workflow_end(options, prev_event, append_count > 1)
 
     if options.toil:
@@ -932,19 +939,23 @@ def wdl_task_hal_append(options):
     s = 'task hal_append_subtree {\n'
     s += '    input {\n'
     s += '        File in_hal_parent\n'
-    s += '        File in_hal_child\n'
-    s += '        String in_name\n'
+    s += '        Array[File] in_hal_childs\n'
+    s += '        Array[String] in_names\n'
     s += '    }\n'
     s += '    String parent_name = basename("${in_hal_parent}")\n'
-    s += '    command {\n'
+    s += '    command <<<\n'
     
     # note: I've been unable to modify an input file then return it as an output
     #       so we explicitly copy it into a local string here first (using workdir)
-    s += '        cp ${{in_hal_parent}} {}/${{parent_name}}\n'.format(wdl_disk(options, 'halAppend')[1])
-    
-    s += '        halAppendSubtree {}/${{parent_name}} ${{in_hal_child}} ${{in_name}} ${{in_name}} --merge {}'.format(
+    s += '        cp ~{{in_hal_parent}} {}/~{{parent_name}}\n'.format(wdl_disk(options, 'halAppend')[1])
+    # convert WDL arrays to bash arrays (don't think spaces in names will be supported, but that's true almost everywhere else too)
+    s += '        HA_CHILDS=(~{sep=" " in_hal_childs})\n'
+    s += '        HA_NAMES=(~{sep=" " in_names})\n'    
+    s += '        for i in "${!HA_NAMES[@]}"; do\n'
+    s += '             halAppendSubtree {}/~{{parent_name}} ${{HA_CHILDS[$i]}} ${{HA_NAMES[$i]}} ${{HA_NAMES[$i]}} --merge {}\n'.format(
         wdl_disk(options, 'halAppend')[1], options.halOptions)
-    s += '\n    }\n'
+    s += '        done\n'
+    s += '    >>>\n'
     s += '    runtime {\n'
     s += '        docker: \"{}\"\n'.format(options.dockerImage)
     s += '        preemptible: {}\n'.format(options.halAppendPreemptible)
@@ -970,12 +981,12 @@ def wdl_call_hal_append(options, mc_tree, og_map, event, prev_event):
     else:
         # otherwise, it comes from the previous append
         parent_hal = '{}.out_file'.format(hal_append_call_name(prev_event))
-    child_hal = '{}.out_hal_file'.format(align_call_name(event))
-    s = '    call hal_append_subtree as {} {{\n'.format(hal_append_call_name(event))
+    child_hals = ['{}.out_hal_file'.format(align_call_name(event)) for event in events]
+    s = '    call hal_append_subtree as {} {{\n'.format(hal_append_call_name(events[-1]))
     s += '        input:'
     s += ' in_hal_parent={},'.format(parent_hal)
-    s += ' in_hal_child={},'.format(child_hal)
-    s += ' in_name=\"{}\"'.format(event)
+    s += ' in_hal_childs=[{}],'.format(",".join(child_hals))
+    s += ' in_names=[{}]'.format(",".join(['\"{}\"'.format(event) for event in events]))
     s += '\n    }\n'
     return s
 
