@@ -192,6 +192,10 @@ def get_spanning_subtree(mc_tree, root_name, config_wrapper, outgroup_map):
     for node_id in mc_tree.getChildren(root_id):
         node_id_set.add(node_id)
 
+    # bypass below function for trivial, 2-node tree (which graphmap makes for base alignment)x
+    if max([len(mc_tree.getChildren(node)) for node in mc_tree.postOrderTraversal()]) == 1:
+        return mc_tree
+
     # get the spanning tree
     spanning_tree = mc_tree.extractSpanningTree([mc_tree.getName(node) for node in node_id_set])
 
