@@ -50,6 +50,7 @@ def main():
     parser.add_argument("--reference", type=str, help = "Reference genome name.  MAPQ filter will not be applied to it")
     parser.add_argument("--refFromGFA", action="store_true", help = "Do not align reference (--reference) from seqfile, and instead extract its alignment from the rGFA tags (must have been used as reference for minigraph GFA construction)")
     parser.add_argument("--base", action="store_true", help = "Use cactus to fill in (pairwise) base alignments between minigraph minimizers")
+    parser.add_argument("--mapCores", type=int, help = "Number of cores for each minigraph (and base-alignment job).  Overrides graphmap cpu in configuration")
 
     #WDL hacks
     parser.add_argument("--pathOverrides", nargs="*", help="paths (multiple allowed) to override from seqFile")
@@ -121,6 +122,10 @@ def graph_map(options):
                 findRequiredNode(config_node, "graphmap").attrib["maskFilter"] = str(options.maskFilter)
             if options.delFilter is not None:
                 findRequiredNode(config_node, "graphmap").attrib["delFilter"] = str(options.delFilter)
+
+            # apply cpu override
+            if options.mapCores is not None:
+                findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(options.mapCores)
 
             # get the minigraph "virutal" assembly name
             graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
@@ -488,8 +493,12 @@ def minigraph_base_align(job, config, event, fa_path, fa_id, gfa_id, gfa_fa_id, 
     input_seq_id_map = {event : fa_id, graph_event : gfa_fa_id}
     og_map = {}
 
+    # use same cores as minigraph
+    mg_cores = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "cpu", typeFn=int, default=1)
+    mg_cores = min(mg_cores, cpu_count())
+
     # run cactus
-    align_job = job.addChildJobFn(cactus_align, config, mc_tree, input_seq_map, input_seq_id_map, paf_id, graph_event, og_map, None, False, False)
+    align_job = job.addChildJobFn(cactus_align, config, mc_tree, input_seq_map, input_seq_id_map, paf_id, graph_event, og_map, None, False, False, cons_cores=mg_cores)
 
     # run hal2paf
     hal2paf_job = align_job.addFollowOnJobFn(hal2paf, align_job.rv(0), graph_event, disk=10*gfa_fa_id.size)
