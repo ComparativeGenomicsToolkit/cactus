@@ -549,7 +549,7 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
         idx = 0
         while idx < len(event_list):
             event_subset = event_list[idx:idx+options.halAppendBatchSize]
-            plan += wdl_call_hal_append(options, project, event_subset, prev_event)
+            plan += wdl_call_hal_append(options, mc_tree, og_map, event_subset, prev_event)
             prev_event = event_subset[-1]
             idx += options.halAppendBatchSize
         plan += wdl_workflow_end(options, prev_event, append_count > 1)
@@ -973,7 +973,7 @@ def wdl_task_hal_append(options):
 
     return s
 
-def wdl_call_hal_append(options, mc_tree, og_map, event, prev_event):
+def wdl_call_hal_append(options, mc_tree, og_map, events, prev_event):
 
     if prev_event == mc_tree.getRootName():
         # first time: the parent comes out of align
