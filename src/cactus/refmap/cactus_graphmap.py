@@ -207,7 +207,7 @@ def minigraph_workflow(job, options, config, seq_path_map, seq_id_map, gfa_id, g
         mg_trans_id = gfa_to_vg_job.rv(1)
 
     paf_job = Job.wrapJobFn(minigraph_map_all, config, gfa_id, seq_path_map, seq_id_map, graph_event, options.outputGAFDir is not None,
-                            mg_vg_id, mg_trans_id, options.base, fa_id)
+                            mg_vg_id, mg_trans_id, options.base, fa_id if options.base else None)
     if mg_vg_id or options.base:
         root_job.addFollowOn(paf_job)
     else:
