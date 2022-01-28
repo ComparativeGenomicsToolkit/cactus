@@ -513,7 +513,7 @@ def hal2paf(job, hal_id, graph_event):
 
     paf_path = os.path.join(work_dir, 'h2p.paf')
 
-    cactus_call(parameters=['hal2paf', hal_path, '--rootGenome', graph_event], outfile=paf_path)
+    cactus_call(parameters=['hal2paf', hal_path, '--rootGenome', graph_event, '--onlySequenceNames'], outfile=paf_path)
 
     return job.fileStore.writeGlobalFile(paf_path)
 
