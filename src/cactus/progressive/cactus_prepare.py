@@ -545,7 +545,7 @@ def get_plan(options, inSeqFile, outSeqFile, configWrapper, toil):
                                                          disk=options.halAppendDisk)
 
     if options.wdl:
-        prev_event = project.mcTree.getRootName()
+        prev_event = mc_tree.getRootName()
         idx = 0
         while idx < len(event_list):
             event_subset = event_list[idx:idx+options.halAppendBatchSize]
