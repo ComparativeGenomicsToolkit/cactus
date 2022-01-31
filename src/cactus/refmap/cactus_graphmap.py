@@ -201,8 +201,8 @@ def minigraph_workflow(job, options, config, seq_path_map, seq_id_map, gfa_id, g
     del_filter = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "delFilter", int, default=-1)
     if del_filter > 0:
         # convert the input GFA into a vg graph, which is needed for the deletion filter
-        gfa_to_vg_job = root_job.wrapJobFn(make_minigraph_vg, gfa_id, options.minigraphGFA,
-                                          disk=gfa_id.size*10)
+        gfa_to_vg_job = root_job.addChildJobFn(make_minigraph_vg, gfa_id, options.minigraphGFA,
+                                               disk=gfa_id.size*10)
         mg_vg_id = gfa_to_vg_job.rv(0)
         mg_trans_id = gfa_to_vg_job.rv(1)
 
