@@ -410,7 +410,6 @@ def main_batch():
     """
     parser = ArgumentParser()
     Job.Runner.addToilOptions(parser)
-    addCactusWorkflowOptions(parser)
 
     parser.add_argument("chromFile", help = "chroms file")
     parser.add_argument("outHal", type=str, help = "Output directory (can be s3://)")

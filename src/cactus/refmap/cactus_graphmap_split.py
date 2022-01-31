@@ -13,14 +13,8 @@ from operator import itemgetter
 from cactus.progressive.seqFile import SeqFile
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.common import setupBinaries, importSingularityImage
-from cactus.progressive.multiCactusProject import MultiCactusProject
-from cactus.shared.experimentWrapper import ExperimentWrapper
-from cactus.progressive.schedule import Schedule
-from cactus.progressive.projectWrapper import ProjectWrapper
 from cactus.shared.common import cactusRootPath
 from cactus.shared.configWrapper import ConfigWrapper
-from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
-from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
 from cactus.shared.common import makeURL, catFiles
 from cactus.shared.common import enableDumpStack
 from cactus.shared.common import cactus_override_toil_options
@@ -42,7 +36,6 @@ from sonLib.bioio import getTempDirectory, getTempFile, catFiles
 def main():
     parser = ArgumentParser()
     Job.Runner.addToilOptions(parser)
-    addCactusWorkflowOptions(parser)
 
     parser.add_argument("seqFile", help = "Seq file (gzipped fastas supported)")
     parser.add_argument("minigraphGFA", help = "Minigraph-compatible reference graph in GFA format (can be gzipped)")
@@ -251,6 +244,13 @@ def split_gfa(job, config, gfa_id, paf_ids, ref_contigs, other_contig, reference
         job.fileStore.readGlobalFile(paf_id, paf_paths[-1])
     if len(paf_paths) > 1:
         catFiles(paf_paths, paf_path)
+
+    # do an identity filter
+    min_paf_ident = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "minIdentity", typeFn=float, default=None)
+    if min_paf_ident:
+        filter_paf_path = paf_path + ".filter"
+        cactus_call(parameters=['awk', '$10 / ($11 + 0.0000001) > {}'.format(min_paf_ident), paf_path], outfile=filter_paf_path)
+        paf_path = filter_paf_path
     
     # get the minigraph "virutal" assembly name
     graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
