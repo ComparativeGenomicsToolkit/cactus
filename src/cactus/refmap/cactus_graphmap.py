@@ -327,7 +327,7 @@ def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id,
     work_dir = job.fileStore.getLocalTempDir()
     gfa_path = os.path.join(work_dir, "mg.gfa")
     fa_path = os.path.join(work_dir, os.path.basename(fa_path))
-    if fa_path == gfa_path or fa_path == gfa_path = ".gz":
+    if fa_path == gfa_path or fa_path == gfa_path + ".gz":
         gfa_path += ".1"
     gaf_path = os.path.join(work_dir, "{}.gaf".format(event_name))
     
