@@ -96,13 +96,14 @@ def main():
 def graph_map(options):
     with Toil(options) as toil:
         importSingularityImage(options)
+        config_node = ET.parse(options.configFile).getroot()
+        # get the minigraph "virutal" assembly name
+        graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
         #Run the workflow
         if options.restart:
             paf_id, gfa_fa_id, gaf_id_map = toil.restart()
         else:
-
             # load up the seqfile and figure out the outgroups and schedule
-            config_node = ET.parse(options.configFile).getroot()
             config_wrapper = ConfigWrapper(config_node)
             config_wrapper.substituteAllPredefinedConstantsWithLiterals()
             mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper)
@@ -127,8 +128,6 @@ def graph_map(options):
             if options.mapCores is not None:
                 findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(options.mapCores)
 
-            # get the minigraph "virutal" assembly name
-            graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
             if graph_event in event_set:
                 # dont need to import this
                 event_set.remove(graph_event)
@@ -502,11 +501,11 @@ def minigraph_base_align(job, config, event, fa_path, fa_id, gfa_id, gfa_fa_id, 
     align_job = job.addChildJobFn(cactus_align, config, mc_tree, input_seq_map, input_seq_id_map, paf_id, graph_event, og_map, None, False, False, cons_cores=mg_cores)
 
     # run hal2paf
-    hal2paf_job = align_job.addFollowOnJobFn(hal2paf, align_job.rv(0), graph_event, disk=10*gfa_fa_id.size)
+    hal2paf_job = align_job.addFollowOnJobFn(hal2paf, align_job.rv(0), graph_event, event, disk=10*gfa_fa_id.size)
 
     return hal2paf_job.rv()
 
-def hal2paf(job, hal_id, graph_event):
+def hal2paf(job, hal_id, graph_event, event, add_unique_prefix = True):
     """ run hal2paf """
     work_dir = job.fileStore.getLocalTempDir()
     hal_path = os.path.join(work_dir, 'h2p.hal')
@@ -514,7 +513,12 @@ def hal2paf(job, hal_id, graph_event):
 
     paf_path = os.path.join(work_dir, 'h2p.paf')
 
-    cactus_call(parameters=['hal2paf', hal_path, '--rootGenome', graph_event, '--onlySequenceNames'], outfile=paf_path)
+    cmd = ['hal2paf', hal_path, '--rootGenome', graph_event, '--onlySequenceNames']
+    if add_unique_prefix:
+        # unique prefixes will have gotten stripped by the cactus workflow.  best to add them back
+        cmd = [cmd, ['awk', '{{$1="id={}|"$1; $6="id={}|"$6}}1'.format(event, graph_event),  'OFS=\t']]
+
+    cactus_call(parameters=cmd, outfile=paf_path)
 
     return job.fileStore.writeGlobalFile(paf_path)
 
