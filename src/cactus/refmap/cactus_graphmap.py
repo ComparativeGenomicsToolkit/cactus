@@ -326,8 +326,9 @@ def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id,
 
     work_dir = job.fileStore.getLocalTempDir()
     gfa_path = os.path.join(work_dir, "mg.gfa")
-    fa_dir = job.fileStore.getLocalTempDir()
-    fa_path = os.path.join(fa_dir, os.path.basename(fa_path))
+    fa_path = os.path.join(work_dir, os.path.basename(fa_path))
+    if fa_path == gfa_path or fa_path == gfa_path = ".gz":
+        gfa_path += ".1"
     gaf_path = os.path.join(work_dir, "{}.gaf".format(event_name))
     
     job.fileStore.readGlobalFile(gfa_file_id, gfa_path)
@@ -354,7 +355,7 @@ def minigraph_map_one(job, config, event_name, fa_path, fa_file_id, gfa_file_id,
     mask_filter = getOptionalAttrib(xml_node, "maskFilter", int, default=-1)
     if mask_filter >= 0:
         cmd[2] = '-'
-        cmd = [['cactus_softmask2hardmask', os.path.basename(fa_path), '-m', str(mask_filter)], cmd]
+        cmd = [['cactus_softmask2hardmask', fa_path, '-m', str(mask_filter)], cmd]
     
     cactus_call(parameters=cmd)
 
