@@ -194,7 +194,11 @@ def runCactusConsolidated(seqMap, newickTreeString, cactusParams,
 
     #print("Command to run\n", " ".join(["cactus_consolidated"] + args))
 
-    masterMessages = cactus_call(check_output=True, returnStdErr=True, realtimeStderrPrefix='cactus_consolidated({})'.format(referenceEvent),
+    # in most cases, just the reference is okay, but when running multiple graphmap jobs with --base, it's handy to have more
+    rt_prefix_events = list(seqMap.keys()) if len(seqMap) == 2 else [referenceEvent]
+    masterMessages = cactus_call(check_output=True,
+                                 returnStdErr=True,
+                                 realtimeStderrPrefix='cactus_consolidated({})'.format(','.join(rt_prefix_events)),
                                  parameters=["cactus_consolidated"] + args)[1] # Get just the standard error output
 
     logger.info("Ran cactus consolidated okay")
