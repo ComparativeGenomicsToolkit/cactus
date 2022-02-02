@@ -245,7 +245,6 @@ def make_align_job(options, toil):
 
     # toggle stable
     paf_to_stable = False
-    config_node = ET.parse(options.configFile).getroot()
     if getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "removeMinigraphFromPAF", typeFn=bool, default=False):
         # remove minigraph event from input
         graph_event = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "assemblyName", default="_MINIGRAPH_")
