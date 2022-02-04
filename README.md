@@ -79,9 +79,9 @@ To install Cactus in Python, clone it and **its submodules with --recursive** fr
 ```
 git clone https://github.com/ComparativeGenomicsToolkit/cactus.git --recursive
 cd cactus
-python3.8 -m pip install --upgrade setuptools
-python3.8 -m pip install --upgrade -r toil-requirement.txt
-python3.8 -m pip install --upgrade .
+python3 -m pip install -U setuptools pip==21.3.1
+python3 -m pip install -U -r ./toil-requirement.txt
+python3 -m pip install -U .
 ```
 
 ##### Build the Cactus Binaries
@@ -115,6 +115,12 @@ build-tools/downloadPangenomeTools
 To use HAL python scripts such as `hal2mafMP.py`, add the submodules directory to the PYTHONPATH with
 ```
 export PYTHONPATH=$(pwd)/submodules:$PYTHONPATH
+```
+
+It's useful to add the paths to the virtualenv so as not to set them each time you need to run cactus from a new shell.  This can be done with
+```
+echo 'export PATH=$(pwd)/bin:$PATH' >> cactus_env/bin/activate
+echo 'export PYTHONPATH=$(pwd)/lib:$PYTHONPATH' >> cactus_env/bin/activate
 ```
 
 #### Python Install With Docker Binaries
