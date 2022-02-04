@@ -7,6 +7,10 @@ import subprocess
 versionFile = "src/cactus/shared/version.py"
 if os.path.exists(versionFile):
     os.remove(versionFile)
+# following the abovr
+readmeFile = "src/cactus/updating-alignment/src/cactus/update/readme.md"
+if os.path.exists(readmeFile):
+    os.remove(readmeFile)
 git_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], encoding="ascii").strip()
 with open(versionFile, 'w') as versionFH:
     versionFH.write("cactus_commit = '%s'\n" % git_commit)
