@@ -3,6 +3,7 @@
 import sys
 import os
 import re
+import shutil
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, SUPPRESS
 from tempfile import mkdtemp
 
@@ -16,7 +17,7 @@ from sonLib.nxtree import NXTree
 
 def call_cactus_prepare(seq_file, out_dir, cactus_prepare_options):
 
-    # if --cactusOptions embedded, it has to been removed and pass as a single string
+    # if --cactusOptions embedded, it has to been removed to be deliveried as a single string
     pattern = "\s?--cactusOptions [\"'].*?[\"']"
     regex = re.compile(pattern, re.IGNORECASE)
     cactus_options = re.search(pattern, cactus_prepare_options, re.IGNORECASE)
@@ -32,6 +33,7 @@ def call_cactus_prepare(seq_file, out_dir, cactus_prepare_options):
         # nothing found, nothing to pass thought
         cactus_options = []
 
+    # cactus_prepare_options is append at the tail of cmd to overide cactus options we pre-defined below
     cmd = 'cactus-prepare {} --outDir {}/steps --outSeqFile {}/steps/steps.txt --jobStore {}/jobstore {}'.format(
         seq_file, out_dir, out_dir, out_dir,  cactus_prepare_options)
 
@@ -119,15 +121,7 @@ def get_node_id(tree, node_name):
 
 
 def get_tree_patch(node_name, parent_weight, children):
-    """[summary]
-
-    Args:
-        node_name ([type]): [description]
-        parent_weight ([type]): [description]
-        children ([type]): [description]
-
-    Returns:
-        [type]: [description]
+    """Get the patch for a tree in a NEWICK format 
     """
 
    # the tree patch for adding the new genomes as children of the target_genome
@@ -154,16 +148,8 @@ def get_tree_patch(node_name, parent_weight, children):
     return patch
 
 
-def adding2node_prepare(options):
-    """A funciton to prepare the addition of new genomes to a node (genome).
-
-    Args:
-        hal_filename ([type]): [description]
-        target_genome_name ([type]): [description]
-        new_genomes ([type]): [description]
-
-    Raises:
-        RuntimeError: [description]
+def get_plan_adding2node(options):
+    """A funciton to get the plan to add new genomes to a node.
     """
 
     # get the tree
@@ -226,14 +212,24 @@ def adding2node_prepare(options):
     plan = call_cactus_prepare(
         options.seq_file, options.work_dir['root_dir'], options.cactus_prepare_options)
     
-    print(plan)
+    # get the final HAL filename
+    regex = re.findall("\s?hal2fasta .*?\.hal", plan, re.IGNORECASE|re.MULTILINE)
+    if not regex:
+        raise RuntimeError('')
+    final_hal_filename = regex[-1].split()[-1]
+
+    plan += '\n## Alignment update\n'
+    plan += 'halReplaceGenome --bottomAlignmentFile {} --topAlignmentFile {} {} {}\n' .format(final_hal_filename, options.inHal, options.inHal, options.genome )
+
+    return plan
 
 
 def cactus_aligment_update(options):
-    print(options)
+    plan = ''
     if 'node' == options.action:
-        adding2node_prepare(options)
+        plan = get_plan_adding2node(options)
 
+    print(plan)
 
 def add_subcommand_options(subparser, parent_parser, subcommand):
 
@@ -261,8 +257,14 @@ def add_subcommand_options(subparser, parent_parser, subcommand):
                                    dest='child_genome', required=True, metavar='GENOME_NAME')
 
 
-def inHal_sanity_check(filename):
-    filename = os.path.abspath(filename)
+def inHal_sanity_check(filename, skip_backup):
+    #TODO validate the given HAL file
+
+    if not os.path.isfile(filename):
+        raise RuntimeError("Given file is not a file: \'{}\': {}".format(filename))
+
+    if not skip_backup:
+        shutil.copy2(filename, filename + '.bkp', follow_symlinks=True)
 
     return filename
 
@@ -344,10 +346,11 @@ def main():
         "--halOptions", type=str, default="--hdf5InMemory", help="options for every hal command")
     parent_parser.add_argument(
         "--outDir",  default='.', help='Directory where assemblies and cactus-call dependencies will be placed.', dest='work_dir')
+    parent_parser.add_argument('--skip-backup', action='store_true', help='Skip the backup of the given HAL file', dest='skip_backup')
     parent_parser.add_argument(
         "--skip-halValidate", help="Skip the validation of the given HAL file", action="store_false", dest='skip_halValidate')
     parent_parser.add_argument("--cactus-prepare-options", dest='cactus_prepare_options',
-                               type=str, default="--preprocessBatchSize 1", help="Options to override the default behaviour of cactus-prepare")
+                               type=str, default="--preprocessBatchSize 1 --cactusOptions '--realTimeLogging --logInfo --retryCount 0'", help="Options to bypass local configuration for cactus-prepare")
 
     # add subcommands options
     add_subcommand_options(subparser, parent_parser, 'node')
@@ -362,8 +365,8 @@ def main():
     # validate the given inFasta text file
     options.inFasta = inFasta_sanity_check(options.inFasta)
 
-    # validate the given inHal file
-    options.inHal = inHal_sanity_check(options.inHal)
+    # validate the given inHal file and create a bkp if not requested via --skip_backup
+    options.inHal = inHal_sanity_check(options.inHal, options.skip_backup)
 
     # validate --outDir
     options.work_dir = work_dir_sanity_check(options.work_dir)
