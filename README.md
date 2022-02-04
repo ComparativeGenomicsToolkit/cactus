@@ -79,9 +79,9 @@ To install Cactus in Python, clone it and **its submodules with --recursive** fr
 ```
 git clone https://github.com/ComparativeGenomicsToolkit/cactus.git --recursive
 cd cactus
-python3.8 -m pip install --upgrade setuptools
-python3.8 -m pip install --upgrade -r toil-requirement.txt
-python3.8 -m pip install --upgrade .
+python3 -m pip install -U setuptools pip==21.3.1
+python3 -m pip install -U -r ./toil-requirement.txt
+python3 -m pip install -U .
 ```
 
 ##### Build the Cactus Binaries
@@ -117,11 +117,19 @@ To use HAL python scripts such as `hal2mafMP.py`, add the submodules directory t
 export PYTHONPATH=$(pwd)/submodules:$PYTHONPATH
 ```
 
+It's useful to add the paths to the virtualenv so as not to set them each time you need to run cactus from a new shell.  This can be done with
+```
+echo 'export PATH=$(pwd)/bin:$PATH' >> cactus_env/bin/activate
+echo 'export PYTHONPATH=$(pwd)/lib:$PYTHONPATH' >> cactus_env/bin/activate
+```
+
 #### Python Install With Docker Binaries
 
 Cactus can be setup and used in a virtual environment as in the [previous section](#build-from-source), without compiling the binaries.  When used like this (which will happen automatically when running `cactus` without the appropriate binaries in the `PATH` environment variable), a Docker image will be automatically pulled to run commands as needed.  The main use case for this is running with Toils AWS provisioner as [described here](doc/running-in-aws.md).
 
 Singularity binaries can be used in place of docker binaries with the `--binariesMode singularity` flag.  Note, you must use Singularity 2.3 - 2.6 or Singularity 3.1.0+. Singularity 3 versions below 3.1.0 are incompatible with cactus (see [issue #55](https://github.com/ComparativeGenomicsToolkit/cactus/issues/55) and [issue #60](https://github.com/ComparativeGenomicsToolkit/cactus/issues/60)).
+
+By default, cactus will use the image, `quay.io/comparative-genomics-toolkit/cactus:<CACTUS_COMMIT>` when running binaries. This is usually okay, but can be overridden with the `CACTUS_DOCKER_ORG` and `CACTUS_DOCKER_TAG` environment variables.  For example, to use GPU release 2.0.5, run `export CACTUS_DOCKER_TAG=v2.0.5-gpu` before running cactus.  
 
 The `--binariesMode local` flag can be used to force `cactus` to run local binaries -- this is the default behavior if they are found.
 

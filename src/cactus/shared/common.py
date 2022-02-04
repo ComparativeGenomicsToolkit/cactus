@@ -339,8 +339,10 @@ def getDockerOrg():
 def getDockerTag():
     """Get what docker tag we should use for the cactus image
     (either forced to be latest or the current cactus commit)."""
-    if 'CACTUS_USE_LATEST' in os.environ:
-        return "latest"
+    if 'CACTUS_DOCKER_TAG' in os.environ:
+        return os.environ['CACTUS_DOCKER_TAG']
+    elif 'CACTUS_USE_LATEST' in os.environ:
+        return "latest"    
     else:
         return cactus_commit
 
