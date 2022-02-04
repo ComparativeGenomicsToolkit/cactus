@@ -22,3 +22,6 @@
 [submodule "submodules/abPOA"]
 	path = submodules/abPOA
 	url = https://github.com/ComparativeGenomicsToolkit/abPOA.git
+[submodule "submodules/lastz"]
+	path = submodules/lastz
+	url = https://github.com/ComparativeGenomicsToolkit/lastz.git

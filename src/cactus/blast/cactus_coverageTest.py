@@ -132,7 +132,7 @@ class TestCase(unittest.TestCase):
         seqs = [i for i in seqs if 'chimp' not in i]
         seqs = random.sample(seqs, 2)
         cigarPath = getTempFile()
-        cactus_call(parameters=["cPecanLastz", "--format=cigar", "%s[multiple]" % seqs[0],
+        cactus_call(parameters=["lastz", "--format=cigar", "%s[multiple]" % seqs[0],
                     "%s[multiple]" % seqs[1]], outfile=cigarPath)
         bed = cactus_call(parameters=["cactus_coverage", seqs[1], cigarPath], check_output=True)
         prevChrom = None

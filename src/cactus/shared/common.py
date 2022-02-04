@@ -317,7 +317,7 @@ def runLastz(seq1, seq2, alignmentsFile, lastzArguments, work_dir=None, gpuLastz
     if gpuLastz == True:
         lastzCommand = "run_segalign"
     else:
-        lastzCommand = "cPecanLastz"
+        lastzCommand = "lastz"
         seq1 += "[multiple][nameparse=darkspace]"
         seq2 += "[nameparse=darkspace]"
     cactus_call(work_dir=work_dir, outfile=alignmentsFile,
@@ -372,8 +372,10 @@ def getDockerOrg():
 def getDockerTag():
     """Get what docker tag we should use for the cactus image
     (either forced to be latest or the current cactus commit)."""
-    if 'CACTUS_USE_LATEST' in os.environ:
-        return "latest"
+    if 'CACTUS_DOCKER_TAG' in os.environ:
+        return os.environ['CACTUS_DOCKER_TAG']
+    elif 'CACTUS_USE_LATEST' in os.environ:
+        return "latest"    
     else:
         return cactus_commit
 
@@ -383,7 +385,7 @@ def getDockerImage():
 
 def getDockerRelease(gpu=False):
     """Get the most recent docker release."""
-    r = "quay.io/comparative-genomics-toolkit/cactus:v2.0.4"
+    r = "quay.io/comparative-genomics-toolkit/cactus:v2.0.5"
     if gpu:
         r += "-gpu"
     return r
@@ -781,6 +783,7 @@ def cactus_call(tool=None,
 
     # optionally pipe stderr (but only if realtime logging enabled)
     # note the check below if realtime logging is enabled is rather hacky
+    pid = None
     if realtimeStderrPrefix and RealtimeLogger.getLogger().level < logging.CRITICAL:
         # Make our pipe
         rfd, wfd = os.pipe()
@@ -795,6 +798,7 @@ def cactus_call(tool=None,
                 if not data:
                     break
                 RealtimeLogger.info('{}: {}'.format(realtimeStderrPrefix, data.strip().decode()))
+            rfile.close()
             os._exit(0)
         else:
             assert pid > 0
@@ -841,6 +845,15 @@ def cactus_call(tool=None,
                               "on JSON features %s: %s" % (job_name, parameters[0],
                                                            json.dumps(features), memUsage))
 
+    if pid and pid > 0:
+        # It's not enough that the forked process is exited, it must be waited for or it's
+        # deemed a zombine process:
+        # https://medium.com/@BeNitinAgarwal/an-init-system-inside-the-docker-container-3821ee233f4b
+        # and Toil will complain forever about it:
+        # https://github.com/ComparativeGenomicsToolkit/cactus/issues/610#issuecomment-1015759593
+        wfile.close()
+        os.wait()
+        
     if process.returncode == 0:
         run_time = time.time() - start_time
         if time_v:

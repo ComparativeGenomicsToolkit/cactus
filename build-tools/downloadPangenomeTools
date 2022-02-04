@@ -258,7 +258,7 @@ fi
 cd ${pangenomeBuildDir}
 #todo: make release
 #wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.16/filter-paf-deletions
-wget http://public.gi.ucsc.edu/~hickey/filter-paf-deletions
+wget -q http://public.gi.ucsc.edu/~hickey/filter-paf-deletions
 chmod +x filter-paf-deletions
 if [[ $STATIC_CHECK -ne 1 || $(ldd filter-paf-deletions | grep so | wc -l) -eq 0 ]]
 then

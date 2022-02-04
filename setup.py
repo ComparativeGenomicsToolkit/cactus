@@ -35,12 +35,10 @@ setup(
 
     install_requires = [
         'decorator',
-        'psutil',
         'networkx>=2,<3',
-        'cython',
         'pytest',
         'cigar',
-        'biopython'], # cactus doesn't really need it, but some hal tools do
+        'biopython'], 
 
     cmdclass = {
         'install': PostInstallCommand,
