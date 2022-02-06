@@ -64,6 +64,7 @@ def main():
     parser.add_argument("--outName", required=True, type=str, help = "Basename of all output files")
     parser.add_argument("--reference", required=True, type=str, help = "Reference event name")
     parser.add_argument("--vcfReference", type=str, help = "Produce additional VCF for given reference event")
+    parser.add_argument("--xgReference", type=str, help = "Produce additonal XG that also includes given reference event (as copied from the GBWT)")
     parser.add_argument("--rename", nargs='+', default = [], help = "Path renaming, each of form src>dest (see clip-vg -r)")
     parser.add_argument("--clipLength", type=int, default=None, help = "clip out unaligned sequences longer than this")
     parser.add_argument("--wlineSep", type=str, help = "wline separator for vg convert")
@@ -79,6 +80,8 @@ def main():
                         help="Run GFAFfix normalization")
     parser.add_argument("--vgClipOpts", nargs='+', help = "If specified, run vg clip with given options (surround in quotes; multiple allowed to chain multiple clip commands)")
     parser.add_argument("--unclipSeqFile",type=str, help = "seqfile of unclipped sequences. If given, halUnclip will be run on the HAL output to restore original sequences (removing _sub suffixes)")
+    parser.add_argument("--preserveIDs", action="store_true",
+                        help = "Do not alter node ids, either through vg ids -j or vg ids -s.  Only use when sure IDs have already been joined!")
     
     #Progressive Cactus Options
     parser.add_argument("--configFile", dest="configFile",
@@ -109,6 +112,8 @@ def main():
         options.giraffeCores = options.indexCores
     if options.unclipSeqFile and not options.hal:
         raise  RuntimeError("--unclipSeqFile can only be used with --hal")
+    if options.preserveIDs and (options.normalizeIterations or options.gfaffix):
+        raise RuntimeError("--preserveIDs cannot be used with any kind of normalization (--gfaffix or --normalizeIterations)")
         
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
@@ -185,23 +190,25 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, unclip_seq_id_
         clip_job = root_job.addChildJobFn(clip_vg, options, config, vg_path, vg_id,
                                           disk=vg_id.size * 2, memory=vg_id.size * 4)
         clipped_vg_ids.append(clip_job.rv())
-
+    
     # join the ids
-    join_job = root_job.addFollowOnJobFn(join_vg, options, config, clipped_vg_ids,
-                                         disk=sum([f.size for f in vg_ids]))
-    clipped_vg_ids = join_job.rv()
+    if not options.preserveIDs:
+        join_job = root_job.addFollowOnJobFn(join_vg, options, config, clipped_vg_ids,
+                                             disk=sum([f.size for f in vg_ids]))
+        clipped_vg_ids = [join_job.rv(i) for i in range(len(vg_ids))]
+    else:
+        join_job = root_job
 
     # optional clipping -- we do this down here after joining and normalization so
     # our graph is id-compatible with a graph that wasn't clipped (but run with same parameters otherwise)
     if options.vgClipOpts:
         clip_root_job = Job()
         join_job.addFollowOn(clip_root_job)
-        clipped_vg_ids = []
         for i in range(len(vg_ids)):
-            vg_clip_job = clip_root_job.addChildJobFn(vg_clip_vg, options, config, options.vg[i], join_job.rv(i),
+            vg_clip_job = clip_root_job.addChildJobFn(vg_clip_vg, options, config, options.vg[i], clipped_vg_ids[i],
                                                       disk=vg_ids[i].size * 2)
             join_job.addFollowOn(vg_clip_job)
-            clipped_vg_ids.append(vg_clip_job.rv())
+            clipped_vg_ids[i] = vg_clip_job.rv()
         join_job = clip_root_job
 
     # make a gfa for each
@@ -210,7 +217,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, unclip_seq_id_
     clipped_gfa_ids = []
     for i in range(len(options.vg)):
         vg_path = options.vg[i]
-        clipped_id = clipped_vg_ids[i] if options.vgClipOpts else join_job.rv(i)
+        clipped_id = clipped_vg_ids[i]
         vg_id = vg_ids[i]
         gfa_job = gfa_root_job.addChildJobFn(vg_to_gfa, options, config, vg_path, clipped_id,
                                              disk=vg_id.size * 5)
@@ -236,6 +243,13 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, unclip_seq_id_
                                                              cores=options.indexCores,
                                                              disk = sum(f.size for f in vg_ids) * 2)
         out_dicts.append(ref_deconstruct_job.rv())
+
+    # make an xg but including a different reference (as extracted from GBWT)
+    if options.xgReference:
+        xg_reference_job = gfa_merge_job.addFollowOnJobFn(make_xg_reference, options.outName, options.xgReference,
+                                                          out_dicts[0],
+                                                          disk = sum(f.size for f in vg_ids) * 5)
+        out_dicts.append(xg_reference_job.rv())
 
     # optional giraffe
     if options.giraffe:
@@ -327,8 +341,11 @@ def clip_vg(job, options, config, vg_path, vg_id):
         clipped_path = forward_path
 
     # sort by id
-    cmd = ['vg', 'ids', '-s', clipped_path]        
-    cactus_call(parameters=cmd, outfile=out_path)
+    if not options.preserveIDs:
+        cmd = ['vg', 'ids', '-s', clipped_path]
+        cactus_call(parameters=cmd, outfile=out_path)
+    else:
+        out_path = clipped_path
 
     # worth it
     cactus_call(parameters=['vg', 'validate', out_path])
@@ -464,6 +481,36 @@ def make_vcf(job, out_name, vcf_ref, index_dict, tag=''):
 
     return { '{}vcf.gz'.format(tag) : job.fileStore.writeGlobalFile(vcf_path),
              '{}vcf.gz.tbi'.format(tag) : job.fileStore.writeGlobalFile(vcf_path + '.tbi') }
+
+def make_xg_reference(job, out_name, xg_reference, index_dict):
+    work_dir = job.fileStore.getLocalTempDir()
+    xg_path = os.path.join(work_dir, os.path.basename(out_name) + '.xg')
+    gbwt_path = os.path.join(work_dir, os.path.basename(out_name) + '.gbwt')
+    job.fileStore.readGlobalFile(index_dict['xg'], xg_path)
+    job.fileStore.readGlobalFile(index_dict['gbwt'], gbwt_path)
+
+    # make a gaf of paths extracted from gbwt
+    gaf_path = os.path.join(work_dir, 'ref_paths.gaf')
+    # extract reference paths from GBWT using _thread_NAME_ prefix
+    paths_cmd = ['vg', 'paths', '-x', xg_path, '-g', gbwt_path, '-Q', '_thread_{}_'.format(xg_reference), '-A']
+    # translate the gbwt _thread_ names into vg subpaths (really should be a vg option to do this)
+    sed_cmd = ['sed', '-e', 's/_thread_//g', '-e', 's/\([a-z,A-Z,0-9]*\)_\([a-z,A-Z,0-9,\.]*\)_\([0-1]*\)_\([0-9]*\)/\\1.\\2[\\4]/g']
+    cactus_call(parameters=[paths_cmd, sed_cmd], outfile=gaf_path)
+
+    # make a mutable graph from the xg
+    vg_path = os.path.join(work_dir, os.path.basename(out_name) + '.vg')
+    cactus_call(parameters=['vg', 'convert', xg_path], outfile=vg_path)
+
+    # augment the paths into it
+    augmented_vg_path = os.path.join(work_dir, os.path.basename(out_name) + '.aug.vg')
+    cactus_call(parameters=['vg', 'augment', '-B', '-F', vg_path, gaf_path], outfile=augmented_vg_path)
+
+    # finally, make the xg
+    xg_ref_path = os.path.join(work_dir, os.path.basename(out_name) + '.{}.xg'.format(xg_reference))
+    cactus_call(parameters=['vg', 'convert', '-x', augmented_vg_path], outfile=xg_ref_path)
+
+    # return the dict
+    return { '{}.xg'.format(xg_reference) : job.fileStore.writeGlobalFile(xg_ref_path) }
     
 def make_giraffe_indexes(job, options, index_dict):
     """ make giraffe-specific indexes: distance and minimaer """

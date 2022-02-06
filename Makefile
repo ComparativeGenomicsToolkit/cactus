@@ -233,6 +233,7 @@ suball.matchingAndOrdering: suball.sonLib
 
 suball.cPecan: suball.sonLib
 	cd submodules/cPecan && ${MAKE}
+	rm -f ${BINDIR}/cPecanLastz*
 
 suball.cactus2hal: suball.sonLib suball.hal all_libs.api
 	cd submodules/cactus2hal && ${MAKE}
@@ -257,6 +258,11 @@ suball.lastz:
 	ln -f submodules/lastz/src/* bin
 
 
+suball.lastz:
+	cd submodules/lastz && ${MAKE}
+	mkdir -p bin
+	ln -f submodules/lastz/src/* bin
+
 subclean.%:
 	cd submodules/$* && ${MAKE} clean
 
@@ -271,10 +277,12 @@ docker: Dockerfile
 
 # Requires ~/.dockercfg
 push: docker
-	docker push ${name}
+	docker push ${name}:${tag}
+	docker push ${name}:latest
 
 push_only:
-	docker push ${name}
+	docker push ${name}:${tag}
+	docker push ${name}:latest
 
 binRelease:
 	./build-tools/makeBinRelease

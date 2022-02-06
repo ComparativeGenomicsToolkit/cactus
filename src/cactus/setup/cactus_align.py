@@ -70,6 +70,8 @@ def main():
                         "in the tree may be used as outgroups but will never appear"
                         " in the output.  If no root is specifed then the root"
                         " of the tree is used. ", default=None)
+    parser.add_argument("--includeRoot", action="store_true", help="Include the root's sequence in the alignment"
+                        " (used only when running alignment update recipes)")    
     parser.add_argument("--latest", dest="latest", action="store_true",
                         help="Use the latest version of the docker container "
                         "rather than pulling one matching this version of cactus")
@@ -220,6 +222,8 @@ def make_align_job(options, toil):
                                                           default_branch_length = 0.025 if options.pangenome else None)
     og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates))
     event_set = get_event_set(mc_tree, config_wrapper, og_map, options.root if options.root else mc_tree.getRootName())
+    if options.includeRoot:
+        event_set.add(options.root)
     
     # apply path overrides.  this was necessary for wdl which doesn't take kindly to
     # text files of local paths (ie seqfile).  one way to fix would be to add support
@@ -465,15 +469,14 @@ def main_batch():
         # todo: make a more unified interface throughout cactus for this
         # (see toil-vg's outstore logic which, while not perfect, would be an improvement
         if not options.outHal.startswith('s3://'):
-            if options.batch:
-                for chrom, results in results_dict.items():
-                    toil.exportFile(results[0], makeURL(os.path.join(options.outHal, '{}.hal'.format(chrom))))
-                    if options.outVG:
-                        toil.exportFile(results[1], makeURL(os.path.join(options.outHal, '{}.vg'.format(chrom))))
-                    if options.outGFA:
-                        toil.exportFile(results[2], makeURL(os.path.join(options.outHal, '{}.gfa.gz'.format(chrom))))
-                    toil.exportFile(results[3], makeURL(os.path.join(options.outHal, '{}.hal.log'.format(chrom))))
-                                
+            for chrom, results in results_dict.items():
+                toil.exportFile(results[0], makeURL(os.path.join(options.outHal, '{}.hal'.format(chrom))))
+                if results[1]:
+                    toil.exportFile(results[1], makeURL(os.path.join(options.outHal, '{}.vg'.format(chrom))))
+                if results[2]:
+                    toil.exportFile(results[2], makeURL(os.path.join(options.outHal, '{}.gfa.gz'.format(chrom))))
+                toil.exportFile(results[3], makeURL(os.path.join(options.outHal, '{}.hal.log'.format(chrom))))
+            
     end_time = timeit.default_timer()
     run_time = end_time - start_time
     logger.info("cactus-align-batch has finished after {} seconds".format(run_time))

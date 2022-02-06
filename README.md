@@ -15,13 +15,14 @@ Cactus uses many different algorithms and individual code contributions, princip
 - Yan Gao et al. for [abPOA](https://github.com/yangao07/abPOA)
 - Heng Li for [minigraph](https://github.com/lh3/minigraph), [minimap2](https://github.com/lh3/minimap2), [gfatools](https://github.com/lh3/gfatools) and [dna-brnn](https://github.com/lh3/dna-rnn)
 - Dany Doerr for [GFAffix](https://github.com/marschall-lab/GFAffix), used to optionally clean pangenome graphs.
+- The vg team for [vg](https://github.com/vgteam/vg), used to process pangenome graphs.
 
 ## Setup
 
 ### System requirements
 We regularly test on Ubuntu 18.04 (Bionic) and to a more limited degree on Mac OS X (using Docker).
 
-Cactus requires Python 3.
+Cactus requires Python >= 3.7.
 
 Cactus uses substantial resources. For primate-sized genomes (3 gigabases each), you should expect Cactus to use approximately 120 CPU-days of compute per genome, with about 120 GB of RAM used at peak. The requirements scale roughly quadratically, so aligning two 1-megabase bacterial genomes takes only 1.5 CPU-hours and 14 GB RAM.
 
@@ -41,10 +42,10 @@ There are many different ways to install and run Cactus:
 
 #### Docker Image
 
-Cactus docker images are hosted on [quay](https://quay.io/repository/comparative-genomics-toolkit/cactus).  The image for the latest release is listed on the [Releases Page](https://github.com/ComparativeGenomicsToolkit/cactus/releases).  Here is an command line to run the included evolver mammals example with release 2.0.3
+Cactus docker images are hosted on [quay](https://quay.io/repository/comparative-genomics-toolkit/cactus).  The image for the latest release is listed on the [Releases Page](https://github.com/ComparativeGenomicsToolkit/cactus/releases).  Here is an command line to run the included evolver mammals example with release 2.0.5
 ```
 wget https://raw.githubusercontent.com/ComparativeGenomicsToolkit/cactus/master/examples/evolverMammals.txt
-docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.0.3 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal --root mr --binariesMode local
+docker run -v $(pwd):/data --rm -it quay.io/comparative-genomics-toolkit/cactus:v2.0.5 cactus /data/jobStore /data/evolverMammals.txt /data/evolverMammals.hal --root mr --binariesMode local
 
 ```
 
@@ -63,7 +64,7 @@ python3 -m pip install virtualenv
 
 To set up a virtual environment in the directory `cactus_env`, run:
 ```
-python3 -m virtualenv -p python3.6 cactus_env
+python3 -m virtualenv -p python3.8 cactus_env
 ```
 
 Then, to enter the virtualenv, run:
@@ -78,9 +79,9 @@ To install Cactus in Python, clone it and **its submodules with --recursive** fr
 ```
 git clone https://github.com/ComparativeGenomicsToolkit/cactus.git --recursive
 cd cactus
-pip install --upgrade setuptools pip
-pip install --upgrade -r toil-requirement.txt
-pip install --upgrade .
+python3 -m pip install -U setuptools pip==21.3.1
+python3 -m pip install -U -r ./toil-requirement.txt
+python3 -m pip install -U .
 ```
 
 ##### Build the Cactus Binaries
@@ -116,11 +117,19 @@ To use HAL python scripts such as `hal2mafMP.py`, add the submodules directory t
 export PYTHONPATH=$(pwd)/submodules:$PYTHONPATH
 ```
 
+It's useful to add the paths to the virtualenv so as not to set them each time you need to run cactus from a new shell.  This can be done with
+```
+echo 'export PATH=$(pwd)/bin:$PATH' >> cactus_env/bin/activate
+echo 'export PYTHONPATH=$(pwd)/lib:$PYTHONPATH' >> cactus_env/bin/activate
+```
+
 #### Python Install With Docker Binaries
 
 Cactus can be setup and used in a virtual environment as in the [previous section](#build-from-source), without compiling the binaries.  When used like this (which will happen automatically when running `cactus` without the appropriate binaries in the `PATH` environment variable), a Docker image will be automatically pulled to run commands as needed.  The main use case for this is running with Toils AWS provisioner as [described here](doc/running-in-aws.md).
 
 Singularity binaries can be used in place of docker binaries with the `--binariesMode singularity` flag.  Note, you must use Singularity 2.3 - 2.6 or Singularity 3.1.0+. Singularity 3 versions below 3.1.0 are incompatible with cactus (see [issue #55](https://github.com/ComparativeGenomicsToolkit/cactus/issues/55) and [issue #60](https://github.com/ComparativeGenomicsToolkit/cactus/issues/60)).
+
+By default, cactus will use the image, `quay.io/comparative-genomics-toolkit/cactus:<CACTUS_COMMIT>` when running binaries. This is usually okay, but can be overridden with the `CACTUS_DOCKER_ORG` and `CACTUS_DOCKER_TAG` environment variables.  For example, to use GPU release 2.0.5, run `export CACTUS_DOCKER_TAG=v2.0.5-gpu` before running cactus.  
 
 The `--binariesMode local` flag can be used to force `cactus` to run local binaries -- this is the default behavior if they are found.
 

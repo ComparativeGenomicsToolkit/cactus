@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 from setuptools.command.install import install
-import os
+import os, sys
 import subprocess
 
 # FIXME this is duplicated in makefile, we need to sort this out
@@ -15,7 +15,7 @@ class PostInstallCommand(install):
     """Post-installation customization.  Ensure sonLib submodule in the tree is installed virtual env."""
 
     def run(self):
-        subprocess.run(["pip", "install", "submodules/sonLib"], check=True)
+        subprocess.run([sys.executable, "-m", "pip", "install", "submodules/sonLib"], check=True)
         install.run(self)
 
 setup(
@@ -35,12 +35,10 @@ setup(
 
     install_requires = [
         'decorator',
-        'psutil',
         'networkx>=2,<3',
-        'cython',
         'pytest',
         'cigar',
-        'biopython'], # cactus doesn't really need it, but some hal tools do
+        'biopython'], 
 
     cmdclass = {
         'install': PostInstallCommand,

@@ -50,6 +50,8 @@ def main():
                       "in the tree may be used as outgroups but will never appear"
                       " in the output.  If no root is specifed then the root"
                         " of the tree is used. ", default=None, required=True)
+    parser.add_argument("--includeRoot", action="store_true", help="Include the root's sequence in the alignment"
+                        " (used only when running alignment update recipes)")
     parser.add_argument("--latest", dest="latest", action="store_true",
                         help="Use the latest version of the docker container "
                         "rather than pulling one matching this version of cactus")
@@ -98,6 +100,8 @@ def runCactusBlastOnly(options):
             mc_tree, input_seq_map, og_candidates = parse_seqfile(options.seqFile, config_wrapper)
             og_map = compute_outgroups(mc_tree, config_wrapper, set(og_candidates))
             event_set = get_event_set(mc_tree, config_wrapper, og_map, options.root)
+            if options.includeRoot:
+                event_set.add(options.root)
             
             # apply path overrides.  this was necessary for wdl which doesn't take kindly to
             # text files of local paths (ie seqfile).  one way to fix would be to add support

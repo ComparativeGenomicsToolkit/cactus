@@ -43,6 +43,15 @@ class TestCase(unittest.TestCase):
         sys.stderr.write('Running {}'.format(' '.format(cmd)))
         subprocess.check_call(' '.join(cmd), shell=True)
 
+    def _run_evolver_in_docker(self, seqFile = './examples/evolverMammals.txt'):
+
+        out_hal = self._out_hal('in_docker')
+        cmd = ['docker', 'run', '--rm', '-v', '{}:{}'.format(os.path.dirname(out_hal), '/data'),
+               '-v', '{}:{}'.format(os.getcwd(), '/workdir'), 'evolvertestdocker/cactus:latest',
+               'cactus /data/js /workdir/{} /data/{}'.format(seqFile, os.path.basename(out_hal))]
+        sys.stderr.write('Running {}'.format(' '.format(cmd)))
+        subprocess.check_call(' '.join(cmd), shell=True)
+               
     def _write_primates_seqfile(self, seq_file_path):
         """ create the primates seqfile at given path"""
         with open(seq_file_path, 'w') as seq_file:
@@ -95,6 +104,7 @@ class TestCase(unittest.TestCase):
         out_wdl = os.path.join(self.tempDir, 'prepared.wdl')
         cmd = ['cactus-prepare', in_seqfile, '--outHal', self._out_hal(name),
                '--jobStore', self._job_store(name), '--wdl',
+               '--halAppendBatchSize', '2',
                '--dockerImage', 'evolvertestdocker/cactus:latest',
                '--preprocessCores', '2',
                '--blastCores', '4',
@@ -455,6 +465,18 @@ class TestCase(unittest.TestCase):
         #self._check_coverage(self._out_hal("docker"), delta_pct=0.20)
         self._check_maf_accuracy(self._out_hal("docker"), delta=0.04)
 
+    def testEvolverInDocker(self):
+        """ Check that the output of halStats on a hal file produced by running cactus in docker
+        is reasonable.  Note: the local image being tested should be set up via CACTUS_DOCKER_ORG (with tag==latest)
+        """
+        # run cactus
+        self._run_evolver_in_docker()
+
+        # check the output
+        #self._check_stats(self._out_hal("docker"), delta_pct=0.25)
+        #self._check_coverage(self._out_hal("docker"), delta_pct=0.20)
+        self._check_maf_accuracy(self._out_hal("in_docker"), delta=0.04)
+        
     def testEvolverPrepareNoOutgroupDocker(self):
 
         # run cactus step by step via the plan made by cactus-prepare
