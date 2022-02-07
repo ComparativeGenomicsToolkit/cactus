@@ -1021,18 +1021,12 @@ stList *make_flower_alignment_poa(Flower *flower, int64_t max_seq_length, int64_
                                   abpoa_para_t * poa_parameters) {
     End *dominantEnd = getDominantEnd(flower);
     int64_t seq_no = dominantEnd != NULL ? end_getInstanceNumber(dominantEnd) : -1;
-    /*
-     * Todo: the "seq_no == 1" is a very heavy handed way of dealing with this bug:
-     * https://github.com/ComparativeGenomicsToolkit/cactus/issues/654
-     * I think what's needed is a way to check that there's no duplicate sequence that can 
-     * align inconsistently....
-     */
-    if(dominantEnd != NULL && seq_no == 1 && getMaxSequenceLength(dominantEnd) < max_seq_length) {
+    if(dominantEnd != NULL && getMaxSequenceLength(dominantEnd) < max_seq_length) {
         /*
          * If there is a single end that is connected to all adjacencies that are less than max_seq_length in length,
+         * and the adjacencies include no self-aligned (self-loop) sequences
          * just use that alignment
          */
-
         // Make inputs
         char **end_strings = st_malloc(sizeof(char *) * seq_no);
         int *end_string_lengths = st_malloc(sizeof(int) * seq_no);
