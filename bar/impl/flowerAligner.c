@@ -482,13 +482,15 @@ End *getDominantEnd(Flower *flower) {
     if (end_getInstanceNumber(dominantEnd) * 2 < flower_getCapNumber(flower)) {
         return NULL;
     }
-    // If the end is not incident with all the adjacencies, return NULL
+    // If the end is not incident with all the adjacencies,
+    // or if both ends of an adjacency are incident with the end, creating a self loop return NULL
     Cap *cap;
     Flower_CapIterator *capIt = flower_getCapIterator(flower);
     while ((cap = flower_getNextCap(capIt)) != NULL) {
         assert(cap_getAdjacency(cap) != NULL);
-        if (end_getPositiveOrientation(cap_getEnd(cap)) != dominantEnd && end_getPositiveOrientation(
-                cap_getEnd(cap_getAdjacency(cap))) != dominantEnd) {
+        End *end1 = end_getPositiveOrientation(cap_getEnd(cap));
+        End *end2 = end_getPositiveOrientation(cap_getEnd(cap_getAdjacency(cap)));
+        if ((end1 != dominantEnd && end2 != dominantEnd) || (end1 == end2)) {
             flower_destructCapIterator(capIt);
             return NULL;
         }
