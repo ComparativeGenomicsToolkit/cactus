@@ -344,7 +344,7 @@ def split_fas(job, seq_id_map, split_id_map):
 
     return fa_contigs
 
-def split_fa_into_contigs(job, event, fa_id, fa_path, split_id_map):
+def split_fa_into_contigs(job, event, fa_id, fa_path, split_id_map, strip_prefix=False):
     """ Use samtools turn on fasta into one for each contig. this relies on the informatino in .fa_contigs
     files made by rgfa-split """
 
@@ -372,8 +372,8 @@ def split_fa_into_contigs(job, event, fa_id, fa_path, split_id_map):
             for line in list_file:
                 query_contig = line.strip()
                 if query_contig.startswith(unique_id):
-                    assert query_contig.startswith(unique_id)
-                    query_contig = query_contig[len(unique_id):]
+                    if strip_prefix:
+                        query_contig = query_contig[len(unique_id):]                        
                     clean_file.write('{}\n'.format(query_contig))
                     contig_count += 1
         contig_fasta_path = os.path.join(work_dir, '{}_{}.fa'.format(event, ref_contig))
