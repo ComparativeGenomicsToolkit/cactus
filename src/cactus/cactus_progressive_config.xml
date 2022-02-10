@@ -284,9 +284,7 @@
 	<!-- minQueryUniqueness: The ratio of the number of query bases aligned to the chosen ref contig vs the next best ref contig must exceed this threshold to not be considered ambigious. -->
 	<!-- maxGap: Include indel gaps <= maxGap when counting minigraph coverage -->
 	<!-- ambiguousName: Contigs deemed ambiguous using the above filters get added to a "contig" with this name, and are preserved in output. -->
-	<!-- remap: 1: remap ambiguous contigs with minimap2 0: don't -->
 	<!-- remapSplitOptions: extra rgfa-split options to apply when splitting after remapping (use -u 3000000 to enable autoclipping between contigs, add -s to allow within contig)-->
-	<!-- useMinimapPAF: use minimap2 PAF for ambiguous contigs (rather than keeping their original mappings in the input PAF, requried if autoclipping enabled above) -->
 	<!-- minIdentity: ignore PAF lines with identity (col 10 / col 11) is less than this -->
  	<graphmap_split
 		 minQueryCoverages="0.90 0.80 0.75 0.70"
@@ -294,9 +292,7 @@
 		 minQueryUniqueness="3"
 		 maxGap="5000"
 		 ambiguousName="_AMBIGUOUS_"
-		 remap="0"
 		 remapSplitOptions=""
-		 useMinimapPAF="0"
 		 minIdentity="0.85"
 		 />
 	<!-- hal2vg options -->

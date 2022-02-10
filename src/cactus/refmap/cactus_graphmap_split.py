@@ -74,12 +74,12 @@ def main():
     cactus_override_toil_options(options)
 
     start_time = timeit.default_timer()
-    runCactusGraphMapSplit(options)
+    cactus_graphmap_split(options)
     end_time = timeit.default_timer()
     run_time = end_time - start_time
     logger.info("cactus-graphmap-split has finished after {} seconds".format(run_time))
 
-def runCactusGraphMapSplit(options):
+def cactus_graphmap_split(options):
     with Toil(options) as toil:
         importSingularityImage(options)
 
@@ -144,7 +144,7 @@ def runCactusGraphMapSplit(options):
                                                  paf_id, options.graphmapPAF, ref_contigs, options.otherContig))
 
         #export the split data
-        export_split_data(toil, wf_output[0], wf_output[1], wf_output[2:], options.outDir, config)
+        export_split_data(toil, wf_output[0], wf_output[1], wf_output[2], options.outDir, config)
 
 def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, paf_id, paf_path, ref_contigs, other_contig):
 
@@ -178,27 +178,8 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
     # gather everythign up into a table
     gather_fas_job = split_fas_job.addFollowOnJobFn(gather_fas, seqIDMap, split_gfa_job.rv(0), split_fas_job.rv())
 
-    # try splitting the ambiguous sequences using minimap2, which is more sensitive in some cases
-    remap_job = gather_fas_job.addFollowOnJobFn(split_minimap_fallback, options, config, seqIDMap, gather_fas_job.rv())
-
-    # partition these into fasta files
-    split_fallback_gfa_job = remap_job.addFollowOnJobFn(split_gfa, config, None, remap_job.rv(0), ref_contigs,
-                                                        other_contig, options.reference, None,
-                                                        disk=(gfa_size + paf_size) * 5)
-
-    # use the output of the above to split the ambiguous fastas
-    split_fallback_fas_job = split_fallback_gfa_job.addFollowOnJobFn(split_fas, remap_job.rv(1), split_fallback_gfa_job.rv(0))
-
-    # gather the fallback contigs into a table
-    gather_fallback_fas_job = split_fallback_fas_job.addFollowOnJobFn(gather_fas, remap_job.rv(1), split_fallback_gfa_job.rv(0),
-                                                                      split_fallback_fas_job.rv())
-
-    # combine the split sequences with the split ambigious sequences
-    combine_split_job = gather_fallback_fas_job.addFollowOnJobFn(combine_splits, options, config, seqIDMap, gather_fas_job.rv(),
-                                                                 gather_fallback_fas_job.rv())
-
     # return all the files, as well as the 2 split logs
-    return (seqIDMap, combine_split_job.rv(), split_gfa_job.rv(1), split_fallback_gfa_job.rv(1))
+    return (seqIDMap, gather_fas_job.rv(), split_gfa_job.rv(1))
 
 def get_mask_bed(job, seq_id_map, min_length):
     """ make a bed file from the fastas """
@@ -409,250 +390,8 @@ def gather_fas(job, seq_id_map, output_id_map, contig_fa_map):
                 output_id_map[ref_contig]['fa'][event] = fa_id[ref_contig]
 
     return output_id_map
-
-def split_minimap_fallback(job, options, config, seqIDMap, output_id_map):
-    """ take the output table from gather_fas, pull out the ambiguous sequences, remap them to the reference, and 
-    add them to the events where possible"""
-
-    if not getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "remap", typeFn=bool, default=False):
-        return None, None
     
-    # can't do anything without a reference
-    if not options.reference:
-        logger.info("Skipping minimap2 fallback as --reference was not specified")
-        return None, None
-    # todo: also skip if no ambgious sequences
-    
-    ref_path, ref_id = seqIDMap[options.reference]
-    mm_mem = ref_id.size * 5
-    if seqIDMap[options.reference][0].endswith('.gz'):
-        mm_mem *= 4
-    mm_index_job = job.addChildJobFn(minimap_index, ref_path, ref_id, disk=ref_id.size * 5, memory=mm_mem)
-    mm_map_root_job = Job()
-    mm_index_job.addFollowOn(mm_map_root_job)
-    
-    amb_name = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "ambiguousName", default="_AMBIGUOUS_")
-
-    if amb_name not in output_id_map:
-        logger.info("Skipping minmap2 fallback as no ambigious sequences found")
-        return None, None
-
-    # map every ambgiuous sequence against the reference in parallel
-    paf_ids = []
-    ambiguous_seq_id_map = {}
-    for event, fa_id in output_id_map[amb_name]['fa'].items():
-        paf_job = mm_map_root_job.addChildJobFn(minimap_map, config, mm_index_job.rv(), event, fa_id, seqIDMap[event][0],
-                                                disk=ref_id.size * 3, memory=mm_mem)
-        paf_ids.append(paf_job.rv())
-        ambiguous_seq_id_map[event] = (seqIDMap[event][0], fa_id)
-
-    return paf_ids, ambiguous_seq_id_map
-
-def minimap_index(job, ref_name, ref_id):
-    """ make a minimap2 index of a reference genome """
-
-    work_dir = job.fileStore.getLocalTempDir()
-    fa_path = os.path.join(work_dir, os.path.basename(ref_name))
-    idx_path = fa_path + ".idx"
-    job.fileStore.readGlobalFile(ref_id, fa_path)
-
-    cactus_call(parameters=['minimap2', fa_path, '-d', idx_path, '-x', 'asm5'])
-
-    return job.fileStore.writeGlobalFile(idx_path)
-
-def minimap_map(job, config, minimap_index_id, event, fa_id, fa_name):
-    """ run minimap2 """
-    work_dir = job.fileStore.getLocalTempDir()
-    idx_path = os.path.join(work_dir, "minmap2.idx")
-    fa_path = os.path.join(work_dir, "ambiguous_" + os.path.basename(fa_name))
-    job.fileStore.readGlobalFile(minimap_index_id, idx_path)
-    job.fileStore.readGlobalFile(fa_id, fa_path)
-    paf_path = fa_path + ".paf"
-
-    # call minimap2 and stick our unique identifiers on the output right away to be consistent
-    # with cactus-graphmap's paf output
-    cmd = [['minimap2', idx_path, fa_path, '-c', '-x', 'asm5', '--secondary=no'],
-           ['awk', 'BEGIN {{OFS="\t"}} $1="id={}|"$1'.format(event)]]
-    
-    min_mapq = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "minMAPQ")
-    if min_mapq:
-        # add mapq filter used in mzgaf2paf
-        cmd.append(['awk', '$12>={}'.format(min_mapq)])
-
-    cactus_call(parameters=cmd, outfile=paf_path)
-
-    return job.fileStore.writeGlobalFile(paf_path)    
-    
-def combine_splits(job, options, config, seq_id_map, original_id_map, remap_id_map):
-    """ combine the output of two runs of gather_fas.  the first is the contigs determined by minigraph,
-    the second from remapping the ambigious contigs with minimap2 """    
-    root_job = Job()
-    job.addChild(root_job)
-
-    # no ambiguous remappings, nothing to do
-    if not remap_id_map or len(remap_id_map) == 0:
-        return original_id_map
-
-    amb_name = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "ambiguousName", default="_AMBIGUOUS_")
-    graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
-
-    # we're overwriting this, but need it below
-    orig_amb_entry = original_id_map[amb_name]
-    
-    # note: we're not handling case where 100% of a given reference contigs are ambiguous
-    for ref_contig in original_id_map:
-        if ref_contig == amb_name:
-            # for ambiguous sequence, we overwrite and don't combine
-            if ref_contig in remap_id_map:
-                original_id_map[ref_contig] = remap_id_map[ref_contig]
-            else:
-                original_id_map[ref_contig] = None
-        elif ref_contig in remap_id_map:            
-            total_size = 0
-            for event in original_id_map[ref_contig]['fa']:
-                total_size += original_id_map[ref_contig]['fa'][event].size
-                if event in remap_id_map[ref_contig]['fa']:
-                    total_size += remap_id_map[ref_contig]['fa'][event].size
-            original_id_map[ref_contig] = root_job.addChildJobFn(combine_ref_contig_splits,
-                                                                 original_id_map[ref_contig],
-                                                                 remap_id_map[ref_contig],
-                                                                 disk=total_size * 4).rv()
-
-    return root_job.addFollowOnJobFn(combine_paf_splits, options, config, seq_id_map, original_id_map, orig_amb_entry,
-                                     remap_id_map, amb_name, graph_event).rv()
-
-def combine_ref_contig_splits(job, original_ref_entry, remap_ref_entry):
-    """ combine fa and paf files for splits for a ref contig """
-    work_dir = job.fileStore.getLocalTempDir()
-
-    # combine the event fas
-    for event in original_ref_entry['fa']:
-        if event in remap_ref_entry['fa']:
-            orig_fa_path = os.path.join(work_dir, event + '.fa')
-            remap_fa_path = os.path.join(work_dir, event + '.remap.fa')
-            new_fa_path = os.path.join(work_dir, event + '.combine.fa')
-            job.fileStore.readGlobalFile(original_ref_entry['fa'][event], orig_fa_path, mutable=True)
-            job.fileStore.readGlobalFile(remap_ref_entry['fa'][event], remap_fa_path, mutable=True)
-            catFiles([orig_fa_path, remap_fa_path], new_fa_path)
-            original_ref_entry['fa'][event] = job.fileStore.writeGlobalFile(new_fa_path)
-            os.remove(orig_fa_path)
-            os.remove(remap_fa_path)
-                
-    return original_ref_entry
-
-def combine_paf_splits(job, options, config, seq_id_map, original_id_map, orig_amb_entry,
-                       remap_id_map, amb_name, graph_event):
-    """ pull out PAF entries for contigs that were ambiguous in the first round but assigned by minimap2
-    then add them to the chromosome PAFs     
-    """
-
-    if amb_name not in original_id_map:
-        return original_id_map
-
-    work_dir = job.fileStore.getLocalTempDir()
-    amb_paf_path = os.path.join(work_dir, 'amb.paf')
-    job.fileStore.readGlobalFile(orig_amb_entry['paf'], amb_paf_path, mutable=True)
-
-    # use_minimap_paf = True: return the minimap2 mappings for ambiguous contigs in final output
-    # use_minimap_paf = False: ambiguous contigs are assigned to chromosomes base on minimap2, but their minigraph 
-    #                          alignments are returned in the final paf"""
-    use_minimap_paf = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "useMinimapPAF",
-                                        typeFn=bool, default=False)
-
-    # it's simpler not to support both codepaths right now.  the main issue is that -u can cause contigs to be split
-    # in which case they get renamed, so pulling them in from the existing PAF would require a pass to resolove all the
-    # offsets
-    if not use_minimap_paf and '-u' in getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "remapSplitOptions",
-                                                         default=""):
-        raise RuntimeError("useMinimapPAF must be set when -u present in remapSplitOptions")
-
-    for ref_contig in remap_id_map.keys():
-        if ref_contig != amb_name and ref_contig in original_id_map:
-
-            # make a set of all minigraph nodes in this contig
-            mg_fa_path = os.path.join(work_dir, '{}.{}.fa'.format(graph_event, ref_contig))
-            if seq_id_map[graph_event][0].endswith('.gz'):
-                mg_fa_path += '.gz'
-            mg_contigs_path = os.path.join(work_dir, '{}.contigs'.format(graph_event))
-            job.fileStore.readGlobalFile(original_id_map[ref_contig]['fa'][graph_event], mg_fa_path, mutable=True)
-            cactus_call(parameters=[['zcat' if mg_fa_path.endswith('.gz') else 'cat', mg_fa_path],
-                                    ['grep', '>'], ['cut', '-c', '2-']], outfile=mg_contigs_path)
-            mg_contig_set = set()
-            with open(mg_contigs_path, 'r') as mg_contigs_file:
-                for line in mg_contigs_file:
-                    mg_contig_set.add('id={}|{}'.format(graph_event, line.strip()))
-            os.remove(mg_fa_path)
-            os.remove(mg_contigs_path)
-
-            #make a set of all the query contigs that we want to remove from ambiguous and add to this contig
-            query_contig_set = set()
-
-            for event in remap_id_map[ref_contig]['fa']:
-                if event != graph_event and remap_id_map[ref_contig]['fa'][event].size > 0:
-                    # read the contigs assigned to this sample for this chromosome by scanning fasta headers
-                    tmp_fa_path = os.path.join(work_dir, 'tmp.fa')
-                    if seq_id_map[event][0].endswith('.gz'):
-                        tmp_fa_path += '.gz'
-                    if os.path.isfile(tmp_fa_path):
-                        os.remove(tmp_fa_path)
-                    job.fileStore.readGlobalFile(remap_id_map[ref_contig]['fa'][event], tmp_fa_path, mutable=True)
-                    contigs_path = os.path.join(work_dir, '{}.contigs'.format(event))
-                    cactus_call(parameters=[['zcat' if tmp_fa_path.endswith('.gz') else 'cat', tmp_fa_path],
-                                            ['grep', '>'], ['cut', '-c', '2-']], outfile=contigs_path)
-                    # add them to the grep
-                    with open(contigs_path, 'r') as contigs_file:
-                        for line in contigs_file:
-                            query_contig_set.add('id={}|{}'.format(event, line.strip()))
-
-            if query_contig_set:
-                # pull out remapped contigs into this path
-                new_contig_path = os.path.join(work_dir, '{}.remap.paf'.format(ref_contig))
-                do_append = False
-                if ref_contig in original_id_map and 'paf' in original_id_map[ref_contig]:
-                    job.fileStore.readGlobalFile(original_id_map[ref_contig]['paf'], new_contig_path, mutable=True)
-                    do_append = True
-                    
-                # make an updated ambiguous paf with the contigs removed in this path                
-                temp_contig_path = os.path.join(work_dir, amb_paf_path + '.temp.remove')                    
-                with open(new_contig_path, 'a' if do_append else 'w') as new_contig_file, \
-                     open(amb_paf_path, 'r') as amb_paf_file, \
-                     open(temp_contig_path, 'w') as temp_contig_file:
-                    # scan the ambgiuous paf from minigraph
-                    for line in amb_paf_file:
-                        toks = line.split('\t')
-                        if len(toks) > 5 and toks[0] in query_contig_set:
-                            if toks[5] in mg_contig_set and not use_minimap_paf:
-                                # move the contig if both the query and target belong to reference contig
-                                new_contig_file.write(line)
-                        else:
-                            # leave the contig in ambiguous
-                            temp_contig_file.write(line)
-                    if use_minimap_paf:
-                        # if we're taking the contigs from minigraph, append them here (as they weren't added in
-                        # the loop above)
-                        minimap_paf_path = os.path.join(work_dir, '{}.minimap.paf'.format(ref_contig))
-                        job.fileStore.readGlobalFile(remap_id_map[ref_contig]['paf'], minimap_paf_path)
-                        with open(minimap_paf_path, 'r') as minimap_paf_file:
-                            for line in minimap_paf_file:
-                                toks = line.split('\t')
-                                if len(toks) > 5:
-                                    toks[5] = 'id={}|{}'.format(options.reference, toks[5])
-                                new_contig_file.write('\t'.join(toks))
-                        
-                # update the map
-                original_id_map[ref_contig]['paf'] = job.fileStore.writeGlobalFile(new_contig_path)
-                # update the ambigious paf
-                cactus_call(parameters=['mv', temp_contig_path, amb_paf_path])
-
-    # update the ambiguous paf
-    if amb_name in original_id_map and original_id_map[amb_name]:
-        original_id_map[amb_name]['paf'] = job.fileStore.writeGlobalFile(amb_paf_path)
-    else:
-        assert os.path.getsize(amb_paf_path) == 0
-    
-    return original_id_map
-
-def export_split_data(toil, input_seq_id_map, output_id_map, split_log_ids, output_dir, config):
+def export_split_data(toil, input_seq_id_map, output_id_map, split_log_id, output_dir, config):
     """ download all the split data locally """
 
     amb_name = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "ambiguousName", default="_AMBIGUOUS_")
@@ -727,9 +466,7 @@ def export_split_data(toil, input_seq_id_map, output_id_map, split_log_ids, outp
     if chrom_file_path.startswith('s3://'):
         write_s3(chrom_file_temp_path, chrom_file_path)
 
-    toil.exportFile(split_log_ids[0], makeURL(os.path.join(output_dir, 'minigraph.split.log')))
-    if split_log_ids[1]:
-        toil.exportFile(split_log_ids[1], makeURL(os.path.join(output_dir, 'minimap2.ambiguous.split.log')))
+    toil.exportFile(split_log_id, makeURL(os.path.join(output_dir, 'minigraph.split.log')))
         
 if __name__ == "__main__":
     main()
