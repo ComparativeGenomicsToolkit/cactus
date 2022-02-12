@@ -20,7 +20,7 @@ static void testCactusParams(CuTest *testCase) {
     CuAssertIntEquals(testCase, 5, i);
 
     double d = cactusParams_get_float(p, 3, "bar", "poa", "partialOrderAlignmentBandFraction");
-    CuAssertDblEquals(testCase, 0.025, d, 0.000001);
+    CuAssertDblEquals(testCase, 0.05, d, 0.000001);
 
     int64_t length;
     int64_t *l = cactusParams_get_ints(p, &length, 2, "caf", "deannealingRounds");
