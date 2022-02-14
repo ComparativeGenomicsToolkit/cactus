@@ -57,41 +57,6 @@
 		   lastzMemory="littleMemory"
 		   >
 
-		<!-- TODO: Remove this trim stuff -->
-		<!-- Options for trimming ingroups & outgroups using the trim strategy -->
-        <!-- Ingroup trim options: -->
-        <!-- trimFlanking: The length of flanking sequence to attach
-             to the trimmed ingroup sequences -->
-        <!-- trimMinSize: The minimum size of uncovered regions
-             (*before* adding flanking sequence) to output from the
-             trimming process -->
-        <!-- trimThreshold: The minimum fraction of bases in a window
-             that must have coverage >= 1 for it to be considered
-             "covered" and be trimmed away and not be aligned against
-             the next outgroup   -->
-        <!-- trimWindowSize: The size of the window to integrate
-             coverage over -->
-        <!-- trimOutgroupDepth: The minimum number of outgroup species
-             that should be aligned to a region before it is trimmed
-             away -->
-        <!-- Outgroup trim options: -->
-        <!-- trimOutgroupFlanking: The amount of flanking sequence to
-             leave on the ends of the trimmed outgroup fragments. NB:
-             this value must be larger than the
-             'splitIndelsLongerThanThis' value in the realign
-             arguments -->
-        <!-- keepParalogs: Always align duplicated sequence against
-             all outgroups, instead of stopping at the first
-             one. Intended to be robust against missing data.-->
-        <trimBlast doTrimStrategy="1"
-                   trimFlanking="10"
-                   trimMinSize="100"
-                   trimThreshold="1.0"
-                   trimWindowSize="1"
-                   trimOutgroupFlanking="2000"
-                   trimOutgroupDepth="1"
-                   keepParalogs="0"/>
-
 		<!-- The following are parametrised to produce the same results as the default settings,
 		within a margin of 0.2% sensitivity, should be very fast for close genomes, these were tuned using the blast/blastParametersScript.py
 		We could go even faster for less than 0.05 divergence using, but want to be robust to poor branch length estimates -->

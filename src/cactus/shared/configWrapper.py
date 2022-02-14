@@ -89,12 +89,6 @@ class ConfigWrapper:
             maxNumOutgroups = int(ogElem.attrib["max_num_outgroups"])
         return maxNumOutgroups
 
-    def getDoTrimStrategy(self):
-        trimBlastNode = findRequiredNode(findRequiredNode(self.xmlRoot, "blast"), "trimBlast")
-        if "doTrimStrategy" in trimBlastNode.attrib:
-            return trimBlastNode.attrib["doTrimStrategy"] == "1"
-        return False
-
     def getDoSelfAlignment(self):
         decompElem = self.getDecompositionElem()
         doSelf = self.defaultDoSelf
