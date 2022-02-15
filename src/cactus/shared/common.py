@@ -672,6 +672,7 @@ def cactus_call(tool=None,
                 check_output=False,
                 infile=None,
                 outfile=None,
+                errfile=None,
                 outappend=False,
                 stdin_string=None,
                 server=False,
@@ -724,17 +725,25 @@ def cactus_call(tool=None,
         assert mode == "local"
         call = parameters
 
+    to_close = []
     if stdin_string:
         stdinFileHandle = subprocess.PIPE
     elif infile:
         stdinFileHandle = open(infile, 'r')
+        to_close.append(stdinFileHandle)
     else:
         stdinFileHandle = subprocess.DEVNULL
     stdoutFileHandle = None
     if outfile:
         stdoutFileHandle = open(outfile, 'a' if outappend else 'w')
+        to_close.append(stdoutFileHandle)
     if check_output:
         stdoutFileHandle = subprocess.PIPE
+    stderrFileHandle = None
+    if errfile:
+        stderrFileHandle = open(errfile, 'w')
+        to_close.append(stderrFileHandle)
+        assert not returnStdErr and not realtimeStderrPrefix
 
     _log.info("Running the command %s" % call)
     rt_message = 'Running the command: \"{}\"'.format(' '.join(call))
@@ -778,7 +787,7 @@ def cactus_call(tool=None,
             # note that only call_directly below actually does anything with errfile at the moment
             errfile = wfile
     else:
-        errfile = subprocess.PIPE
+        errfile = stderrFileHandle if stderrFileHandle else subprocess.PIPE
         
     process = subprocess.Popen(call, shell=shell, encoding="ascii",
                                stdin=stdinFileHandle, stdout=stdoutFileHandle,
@@ -839,6 +848,10 @@ def cactus_call(tool=None,
                     rt_message += ' and {} memory'.format(bytes2human(int(line.split()[-1]) * 1024))
                     break
         cactus_realtime_log(rt_message, log_debug = 'ktremotemgr' in call)
+
+    # clean up what we opened
+    for open_file in to_close:
+        open_file.close()
 
     if check_result:
         return process.returncode
