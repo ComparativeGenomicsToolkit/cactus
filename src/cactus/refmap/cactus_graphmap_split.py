@@ -144,7 +144,7 @@ def cactus_graphmap_split(options):
                                                  paf_id, options.graphmapPAF, ref_contigs, options.otherContig))
 
         #export the split data
-        export_split_data(toil, wf_output[0], wf_output[1], wf_output[2], options.outDir, config)
+        export_split_data(toil, wf_output[0], wf_output[1], wf_output[2], wf_output[3], options.outDir, config)
 
 def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, paf_id, paf_path, ref_contigs, other_contig):
 
@@ -176,10 +176,10 @@ def graphmap_split_workflow(job, options, config, seqIDMap, gfa_id, gfa_path, pa
     split_fas_job = split_gfa_job.addFollowOnJobFn(split_fas, seqIDMap, split_gfa_job.rv(0))
 
     # gather everythign up into a table
-    gather_fas_job = split_fas_job.addFollowOnJobFn(gather_fas, seqIDMap, split_gfa_job.rv(0), split_fas_job.rv())
+    gather_fas_job = split_fas_job.addFollowOnJobFn(gather_fas, seqIDMap, split_gfa_job.rv(0), split_fas_job.rv(0), split_fas_job.rv(1))
 
     # return all the files, as well as the 2 split logs
-    return (seqIDMap, gather_fas_job.rv(), split_gfa_job.rv(1))
+    return (seqIDMap, gather_fas_job.rv(0), split_gfa_job.rv(1), gather_fas_job.rv(1))
 
 def get_mask_bed(job, seq_id_map, min_length):
     """ make a bed file from the fastas """
@@ -316,14 +316,20 @@ def split_fas(job, seq_id_map, split_id_map):
 
     # map event name to dict of contgs.  ex fa_contigs["CHM13"]["chr13"] = file_id
     fa_contigs = {}
+    # map event name to dict of contig sizes ex fa_contigs["CHM13"]["chr13"] = N
+    # where N is total number of fasta bases
+    fa_contig_sizes = {}
+    
     # we do each fasta in parallel
     for event in seq_id_map.keys():
         fa_path, fa_id = seq_id_map[event]
         if fa_id.size:
-            fa_contigs[event] = root_job.addChildJobFn(split_fa_into_contigs, event, fa_id, fa_path, split_id_map,
-                                                       disk=fa_id.size * 3).rv()
+            split_job = root_job.addChildJobFn(split_fa_into_contigs, event, fa_id, fa_path, split_id_map,
+                                               disk=fa_id.size * 3)
+            fa_contigs[event] = split_job.rv(0)
+            fa_contig_sizes[event] = split_job.rv(1)
 
-    return fa_contigs
+    return fa_contigs, fa_contig_sizes
 
 def split_fa_into_contigs(job, event, fa_id, fa_path, split_id_map, strip_prefix=False):
     """ Use samtools turn on fasta into one for each contig. this relies on the informatino in .fa_contigs
@@ -342,6 +348,7 @@ def split_fa_into_contigs(job, event, fa_id, fa_path, split_id_map, strip_prefix
     unique_id = 'id={}|'.format(event)
                         
     contig_fa_dict = {}
+    contig_size_dict = {}
 
     for ref_contig in split_id_map.keys():
         query_contig_list_id = split_id_map[ref_contig]['fa_contigs']
@@ -368,36 +375,66 @@ def split_fa_into_contigs(job, event, fa_id, fa_path, split_id_map, strip_prefix
             if is_gz:
                 cmd.append(['gzip'])
             cactus_call(parameters=cmd, outfile=contig_fasta_path)
+
+            # now get the total sequence size
+            size_cmd = [['cat', contig_fasta_path], ['grep', '-v', '>'], ['wc'], ['awk', '{print $3-$1}']]
+            if is_gz:
+                size_cmd[0] = ['gzip', '-dc', contig_fasta_path]
+            num_bases = int(cactus_call(parameters=size_cmd, check_output=True).strip())
         else:
             # TODO: review how cases like this are handled
             with open(contig_fasta_path, 'w') as empty_file:
                 empty_file.write("")
+            num_bases = 0
         contig_fa_dict[ref_contig] = job.fileStore.writeGlobalFile(contig_fasta_path)
+        contig_size_dict[ref_contig] = num_bases
+        
+    return contig_fa_dict, contig_size_dict
 
-    return contig_fa_dict
-
-def gather_fas(job, seq_id_map, output_id_map, contig_fa_map):
+def gather_fas(job, seq_id_map, output_id_map, contig_fa_map, contig_size_map):
     """ take the split_fas output which has everything sorted by event, and move into the ref-contig-based table
     from split_gfa.  return the updated table, which can then be exported into the chromosome projects """
 
     if not contig_fa_map:
         return None
 
+    events = set()
     for ref_contig in output_id_map.keys():
         output_id_map[ref_contig]['fa'] = {}
         for event, fa_id in contig_fa_map.items():
             if ref_contig in fa_id:
                 output_id_map[ref_contig]['fa'][event] = fa_id[ref_contig]
+            events.add(event)
 
-    return output_id_map
+    # go ahead and make the size table file here
+    # download the fasta
+    work_dir = job.fileStore.getLocalTempDir()
+    size_table_path = os.path.join(work_dir, 'contig_sizes.tsv')
+    events = sorted(events)
+    with open(size_table_path, 'w') as size_table_file:
+        #write the header
+        size_table_file.write("Contig\t" + '\t'.join(events) + '\tmin\tmax\tavg\n')
+        for ref_contig in output_id_map.keys():
+            sizes = [contig_size_map[event][ref_contig] for event in events]
+            #total size for each event
+            size_table_file.write(ref_contig + '\t' + '\t'.join([str(s) for s in sizes]))
+            #tack on 3 basic stats
+            size_table_file.write('\t{}\t{}\t{}\n'.format(min(sizes), max(sizes), int(sum(sizes) / len(sizes)) if sizes else 0))
+    contig_size_table_id = job.fileStore.writeGlobalFile(size_table_path)
+
+    return output_id_map, contig_size_table_id
     
-def export_split_data(toil, input_seq_id_map, output_id_map, split_log_id, output_dir, config):
+def export_split_data(toil, input_seq_id_map, output_id_map, split_log_id, contig_size_table_id, output_dir, config):
     """ download all the split data locally """
 
     amb_name = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap_split"), "ambiguousName", default="_AMBIGUOUS_")
     
     chrom_file_map = {}
-    
+
+    # export the sizes
+    contig_size_table_path = os.path.join(output_dir, 'contig_sizes.tsv')
+    toil.exportFile(contig_size_table_id, contig_size_table_path)
+
     for ref_contig in output_id_map.keys():
         if output_id_map[ref_contig] is None:
             # todo: check ambigous?
