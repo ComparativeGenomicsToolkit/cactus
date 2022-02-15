@@ -1,0 +1,6 @@
+S288C	https://github.com/ComparativeGenomicsToolkit/cactusTestData/raw/master/yeast/S288C.fa.gz
+SK1	https://github.com/ComparativeGenomicsToolkit/cactusTestData/raw/master/yeast/SK1.fa.gz
+DBVPG6044	https://github.com/ComparativeGenomicsToolkit/cactusTestData/raw/master/yeast/DBVPG6044.fa.gz            
+UWOPS034614	https://github.com/ComparativeGenomicsToolkit/cactusTestData/raw/master/yeast/UWOPS034614.fa.gz
+Y12	https://github.com/ComparativeGenomicsToolkit/cactusTestData/raw/master/yeast/Y12.fa.gz
+YPS128	https://github.com/ComparativeGenomicsToolkit/cactusTestData/raw/master/yeast/YPS128.fa.gz
