@@ -521,7 +521,7 @@ def filter_paf_deletions(job, paf_id, gfa_id, gfa_path, max_deletion):
     # call filter-paf-deletionts
     filter_paf_path = paf_path + ".filter"
     filter_log_path = paf_path + ".filter.log"
-    cactus_call(parameters=['filter-paf-deletions', vg_path, trans_path, paf_path, str(max_deletion), '-v', '-t', str(job.cores)],
+    cactus_call(parameters=['filter-paf-deletions', vg_path, trans_path, paf_path, str(max_deletion), '-v', '-p', '-t', str(job.cores)],
                 outfile=filter_paf_path, errfile=filter_log_path)
 
     # return the results
