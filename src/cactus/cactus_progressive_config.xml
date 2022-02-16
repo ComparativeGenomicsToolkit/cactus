@@ -256,6 +256,7 @@
 	<!--                           Filter is disabled when set to 0.  Any non-zero value will prevent query overlaps -->
 	<!-- maskFilter: any softmasked sequence intervals > than this many bp will be hardmasked before being read by the minigraph mapper [negative value = disable]-->
 	<!-- delFilter: any deletions implied by split-read mappings greater than this are removed from the paf (by removing all lines of the smallest block bordering deletion)-->
+	<!-- delFilterThreshold: only remove deletion if it costs < delFilterThreshold * deletion-size matches. must be in range (0, 1] -->
 	<!-- removeMinigraphFromPAF: replace all minigraph contigs with transitive alignments in cactus-align-->
 	<!-- cpu: use up to this many cpus for each minigraph command. -->
 	<graphmap
@@ -271,6 +272,7 @@
 		 minGAFQueryOverlapFilter="10000"
 		 maskFilter="-1"
 		 delFilter="-1"
+		 delFilterThreshold="0.01"
 		 removeMinigraphFromPAF="0"
 		 cpu="6"
 		 />

@@ -231,9 +231,10 @@ def minigraph_workflow(job, options, config, seq_path_map, seq_id_map, gfa_id, g
     filtered_paf_log = None
     del_filter = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "delFilter", int, default=-1)
     if del_filter > 0:
+        del_filter_threshold = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "delFilterThreshold", float, default=None)
         mg_cores = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "cpu", typeFn=int, default=1)
         mg_cores = min(mg_cores, cpu_count())
-        del_filter_job = prev_job.addFollowOnJobFn(filter_paf_deletions, out_paf_id, gfa_id, options.minigraphGFA, del_filter,
+        del_filter_job = prev_job.addFollowOnJobFn(filter_paf_deletions, out_paf_id, gfa_id, options.minigraphGFA, del_filter, del_filter_threshold,
                                                    disk=gfa_id.size * 12, cores=mg_cores)
         unfiltered_paf_id = out_paf_id
         out_paf_id = del_filter_job.rv(0)
@@ -496,7 +497,7 @@ def hal2paf(job, hal_id, graph_event, event, add_unique_prefix = True):
 
     return job.fileStore.writeGlobalFile(paf_path)
 
-def filter_paf_deletions(job, paf_id, gfa_id, gfa_path, max_deletion):
+def filter_paf_deletions(job, paf_id, gfa_id, gfa_path, max_deletion, filter_threshold):
     """ run filter-paf-deletions on a paf to break out giant-snarl-making edges """
     work_dir = job.fileStore.getLocalTempDir()
     paf_path = os.path.join(work_dir, 'mg.paf')
@@ -521,8 +522,10 @@ def filter_paf_deletions(job, paf_id, gfa_id, gfa_path, max_deletion):
     # call filter-paf-deletionts
     filter_paf_path = paf_path + ".filter"
     filter_log_path = paf_path + ".filter.log"
-    cactus_call(parameters=['filter-paf-deletions', vg_path, trans_path, paf_path, str(max_deletion), '-v', '-p', '-t', str(job.cores)],
-                outfile=filter_paf_path, errfile=filter_log_path)
+    filter_paf_cmd = ['filter-paf-deletions', vg_path, trans_path, paf_path, '-d', str(max_deletion), '-v', '-p', '-t', str(job.cores)]
+    if filter_threshold:
+        filter_paf_cmd += ['-m', str(filter_threshold)]
+    cactus_call(parameters=filter_paf_cmd, outfile=filter_paf_path, errfile=filter_log_path)
 
     # return the results
     return (job.fileStore.writeGlobalFile(filter_paf_path), job.fileStore.writeGlobalFile(filter_log_path))
