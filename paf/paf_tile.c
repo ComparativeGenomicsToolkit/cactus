@@ -188,6 +188,7 @@ int main(int argc, char *argv[]) {
         uint16_t *counts = get_alignment_count_array(seq_names_to_alignment_count_arrays, paf);
         increase_alignment_level_counts(counts, paf);
         paf->tile_level = get_median_alignment_level(counts, paf); // Store the tile_level
+        assert(paf->tile_level > 0); // Tile levels should start at 1
     }
 
     // Output local alignments file, sorted by score from best-to-worst

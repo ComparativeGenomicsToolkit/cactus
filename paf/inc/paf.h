@@ -78,7 +78,7 @@ typedef struct _paf {
     int64_t num_matches;
     int64_t num_bases;
     int64_t tile_level; // this is a special tag created by paf_tile that indicates the "level" of the alignment in the
-    // chaining (somewhat like the nesting of chains within nets in ucsc chains and nets.
+    // chaining (somewhat like the nesting of chains within nets in ucsc chains and nets).
     int64_t chain_id; // a tag to indicate which chain a paf belongs to
     char type; // is 'P' primary / 'S' secondary / 'I' inversion
 } Paf;

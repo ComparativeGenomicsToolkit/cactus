@@ -44,9 +44,10 @@ wget https://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactu
 done
 
 # Generate the paf alignments
-python3 cactus_local_alignment.py ./jobStore  --logLevel DEBUG --outputFile ${working_dir}/output.paf "${sequences}" --params $params_file --speciesTree "${tree}" --referenceEvent anc1
+cactus_local_alignment.py ./jobStore --logLevel INFO --outputFile ${working_dir}/output.paf "${sequences}" --params $params_file --speciesTree "${tree}" --referenceEvent anc1
 
 # Split the alignment into primary and secondary
+cp ${working_dir}/output.paf ./output_ugly.paf
 grep "tl:i:1" ${working_dir}/output.paf > ${working_dir}/primary.paf || true
 grep -v "tl:i:1" ${working_dir}/output.paf > ${working_dir}/secondary.paf || true
 

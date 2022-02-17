@@ -55,6 +55,10 @@
 		   minimumDistance="0.01"
 		   gpuLastz="false"
 		   lastzMemory="littleMemory"
+	       chainMaxGapLength="1000000"
+		   chainGapOpen="5000"
+		   chainGapExtend="1"
+		   chainTrimFraction="0.02"
 		   >
 
 		<!-- The following are parametrised to produce the same results as the default settings,

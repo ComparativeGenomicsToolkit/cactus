@@ -140,65 +140,6 @@ def findRequiredNode(configNode, nodeName):
 #############################################
 #############################################
 
-def runCactusConsolidated(seqMap, newickTreeString, cactusParams,
-                          alignmentsFile, outputFile, outputHalFastaFile=None,
-                          outputReferenceFile=None, secondaryAlignmentsFile=None, constraintAlignmentsFile=None,
-                          logLevel=None, outgroupEvents=None, referenceEvent=None, cores=None):
-    logLevel = logLevel if logLevel != None else getLogLevelString2(logLevel)
-    """
-    ## Hacks to allow running locally
-    fileNo=0
-    import shutil
-    for genome, faPath in list(seqMap.items()):
-        newPath = "/Users/benedictpaten/CLionProjects/cactus/tempExperiment/{}".format(fileNo)
-        fileNo += 1
-        shutil.copy(faPath, newPath) # Copy to permanent local file
-        seqMap[genome] = newPath
-
-    newPath = "/Users/benedictpaten/CLionProjects/cactus/tempExperiment/alignments.fa"
-    shutil.copy(alignmentsFile, newPath) # Copy to permanent local file
-    alignmentsFile=newPath
-
-    if secondaryAlignmentsFile != None:
-        newPath = "/Users/benedictpaten/CLionProjects/cactus/tempExperiment/secondaryAlignments.fa"
-        shutil.copy(secondaryAlignmentsFile, newPath) # Copy to permanent local file
-        secondaryAlignmentsFile=newPath
-
-    outputFile="/Users/benedictpaten/CLionProjects/cactus/tempExperiment/output.file"
-    outputHalFastaFile="/Users/benedictpaten/CLionProjects/cactus/tempExperiment/output.hal"
-    outputReferenceFile="/Users/benedictpaten/CLionProjects/cactus/tempExperiment/output.ref"
-    ## End hacks to allow running locally
-    """
-
-    # We pass in the genome->sequence map as a series of paired arguments: [genome, faPath]*N.
-    pairs = [[genome, faPath] for genome, faPath in list(seqMap.items())]
-    args = ["--sequences", " ".join([item for sublist in pairs for item in sublist])]
-    args += ["--speciesTree", newickTreeString, "--logLevel", logLevel, "--alignments", alignmentsFile,
-             "--params", cactusParams, "--outputFile", outputFile]
-
-
-    if outputHalFastaFile:
-        args += ["--outputHalFastaFile", outputHalFastaFile]
-    if outputReferenceFile:
-        args += ["--outputReferenceFile", outputReferenceFile]
-    if outgroupEvents:
-        args += ["--outgroupEvents", " ".join(outgroupEvents)]
-    if referenceEvent:
-        args += ["--referenceEvent", referenceEvent]
-    if secondaryAlignmentsFile:
-        args += ["--secondaryAlignments", secondaryAlignmentsFile]
-    if constraintAlignmentsFile:
-        args += ["--constraintAlignments", constraintAlignmentsFile]
-    if cores:
-        args += ["--threads", str(cores)]
-
-    #print("Command to run\n", " ".join(["cactus_consolidated"] + args))
-
-    masterMessages = cactus_call(check_output=True, returnStdErr=True, realtimeStderrPrefix='cactus_consolidated({})'.format(referenceEvent),
-                                 parameters=["cactus_consolidated"] + args)[1] # Get just the standard error output
-
-    logger.info("Ran cactus consolidated okay")
-    return [ i for i in masterMessages.split("\n") if i != '' ] if masterMessages else []
 
 def _fn(toilDir,
       logLevel=None, retryCount=0,
@@ -849,6 +790,9 @@ def cactus_call(tool=None,
 
     if check_output:
         return (output, stderr) if returnStdErr else output
+
+    if returnStdErr:
+        return stderr
 
 class RunAsFollowOn(Job):
     def __init__(self, job, *args, **kwargs):

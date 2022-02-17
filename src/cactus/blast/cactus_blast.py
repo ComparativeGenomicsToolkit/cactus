@@ -8,10 +8,7 @@
 import os
 from argparse import ArgumentParser
 import xml.etree.ElementTree as ET
-import copy
 import timeit
-
-from operator import itemgetter
 
 from cactus.progressive.progressive_decomposition import compute_outgroups, parse_seqfile, get_subtree, get_spanning_subtree, get_event_set
 from cactus.shared.common import setupBinaries, importSingularityImage
@@ -35,8 +32,8 @@ def main():
     parser = ArgumentParser()
     Job.Runner.addToilOptions(parser)
 
-    parser.add_argument("seqFile", help = "Seq file")
-    parser.add_argument("outputFile", type=str, help = "Output pairwise alignment file")
+    parser.add_argument("seqFile", help="Seq file")
+    parser.add_argument("outputFile", type=str, help="Output pairwise alignment file")
     parser.add_argument("--pathOverrides", nargs="*", help="paths (multiple allowed) to override from seqFile")
     parser.add_argument("--pathOverrideNames", nargs="*", help="names (must be same number as --pathOverrides) of path overrides")
 
@@ -45,10 +42,10 @@ def main():
                         help="Specify cactus configuration file",
                         default=os.path.join(cactusRootPath(), "cactus_progressive_config.xml"))
     parser.add_argument("--root", dest="root", help="Name of ancestral node (which"
-                      " must appear in NEWICK tree in <seqfile>) to use as a "
-                      "root for the alignment.  Any genomes not below this node "
-                      "in the tree may be used as outgroups but will never appear"
-                      " in the output.  If no root is specifed then the root"
+                        " must appear in NEWICK tree in <seqfile>) to use as a "
+                        "root for the alignment.  Any genomes not below this node "
+                        "in the tree may be used as outgroups but will never appear"
+                        " in the output.  If no root is specifed then the root"
                         " of the tree is used. ", default=None, required=True)
     parser.add_argument("--includeRoot", action="store_true", help="Include the root's sequence in the alignment"
                         " (used only when running alignment update recipes)")
@@ -63,7 +60,6 @@ def main():
     parser.add_argument("--gpu", action="store_true",
                         help="Enable GPU acceleration by using Segaling instead of lastz")
     options = parser.parse_args()
-    options.database = "kyoto_tycoon"
 
     setupBinaries(options)
     set_logging_from_options(options)

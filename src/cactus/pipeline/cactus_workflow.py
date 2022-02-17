@@ -9,28 +9,12 @@
 
 import os
 import sys
-import xml.etree.ElementTree as ET
-import math
-from argparse import ArgumentParser
 from toil.lib.bioio import system
-from toil.lib.bioio import getTempFile
-from toil.statsAndLogging import logger
-from toil.statsAndLogging import set_logging_from_options
 from toil.lib.bioio import getLogLevelString
-from toil.realtimeLogger import RealtimeLogger
-from sonLib.bioio import catFiles
 from sonLib.nxnewick import NXNewick
-
-from toil.job import Job
-from toil.common import Toil
-
 from cactus.shared.common import makeURL
-from cactus.shared.common import getOptionalAttrib
-from cactus.shared.common import runCactusConsolidated
-from cactus.shared.common import findRequiredNode
-
+from cactus.shared.common import cactus_call
 from cactus.shared.configWrapper import ConfigWrapper
-
 
 ############################################################
 ############################################################
@@ -86,9 +70,9 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
     
     # Split the alignments file into primary and secondary
     primary_alignment_file = os.path.join(work_dir, '{}_primary.paf'.format(ancestor_event))
-    system("grep -v 'tp:A:S' {} > {} || true".format(paf_path, primary_alignment_file))
+    system("grep -v 'tp:A:S' {} > {} || true".format(paf_path, primary_alignment_file))  # Alignments that are not-secondaries
     secondary_alignment_file = os.path.join(work_dir, '{}_secondary.paf'.format(ancestor_event))
-    system("grep 'tp:A:S' {} > {} || true".format(paf_path, secondary_alignment_file))
+    system("grep 'tp:A:S' {} > {} || true".format(paf_path, secondary_alignment_file))  # Alignments that are secondaries
 
     # Temporary place to store the output c2h file
     tmpHal = os.path.join(work_dir, '{}.c2h'.format(ancestor_event))
@@ -98,23 +82,18 @@ def cactus_cons(job, tree, ancestor_event, config_node, seq_id_map, og_map, paf_
     tmpConfig = os.path.join(work_dir, '{}.config.xml'.format(ancestor_event))
     ConfigWrapper(config_node).writeXML(tmpConfig)
 
-    messages = runCactusConsolidated(seqMap=seq_path_map,
-                                     newickTreeString=NXNewick().writeString(tree),
-                                     cactusParams=tmpConfig,
-                                     alignmentsFile=primary_alignment_file,
-                                     outputFile=tmpHal,
-                                     outputHalFastaFile=tmpFasta,
-                                     outputReferenceFile=tmpRef,
-                                     secondaryAlignmentsFile=secondary_alignment_file,
-                                     constraintAlignmentsFile=None,
-                                     logLevel=getLogLevelString(),
-                                     outgroupEvents=outgroups,
-                                     referenceEvent=ancestor_event,
-                                     cores=job.cores)
+    # We pass in the genome->sequence map as a series of paired arguments: [genome, faPath]*N.
+    pairs = [[genome, faPath] for genome, faPath in list(seq_path_map.items())]
+    args = ["--sequences", " ".join([item for sublist in pairs for item in sublist]),
+            "--speciesTree", NXNewick().writeString(tree), "--logLevel", getLogLevelString(),
+            "--alignments", primary_alignment_file, "--params", tmpConfig, "--outputFile", tmpHal,
+            "--outputHalFastaFile", tmpFasta, "--outputReferenceFile", tmpRef, "--outgroupEvents", " ".join(outgroups),
+            "--referenceEvent", ancestor_event, "--secondaryAlignments", secondary_alignment_file, "--threads", str(job.cores)]
 
-    # Log back any messages
-    for message in messages:
-        job.fileStore.logToMaster(message)
+    messages = cactus_call(check_output=True, returnStdErr=True,
+                           parameters=["cactus_consolidated"] + args)[1]  # Get just the standard error output
+
+    job.fileStore.logToMaster("cactus_consolidated event:{}\n{}".format(ancestor_event, messages))  # Log the messages
 
     # Write the temporary output files to the final output
     # At top level--have the final .c2h file

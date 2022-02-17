@@ -8,9 +8,9 @@ Copyright (C) 2009-2021 by Benedict Paten, Joel Armstrong and Glenn Hickey
 Released under the MIT license, see LICENSE.txt
 """
 
-from toil.lib.bioio import system
 from toil.job import Job
 from toil.statsAndLogging import logger
+from toil.lib.bioio import getLogLevelString
 from sonLib.bioio import newickTreeParser
 import os
 from cactus.paf.paf import get_leaf_event_pairs, get_subtree_nodes, get_leaves, get_node
@@ -103,15 +103,34 @@ def make_chunked_alignments(job, genome_a, genome_b, distance, params):
     return job.addFollowOnJobFn(combine_chunks, chunked_alignment_files).rv()  # Combine the chunked alignment files
 
 
-def chain_alignments(job, alignment_files):
+def chain_alignments(job, alignment_files, reference_event_name, params):
     # Create a local temporary file to put the alignments in.
     output_alignments_file = job.fileStore.getLocalTempFile()
 
     # Copy the alignment files locally
     local_alignment_files = [job.fileStore.readGlobalFile(i) for i in alignment_files]
 
+    # Get temporary file to store concatenated, chained alignments
+    chained_alignment_file = job.fileStore.getLocalTempFile()
+
     # Run the chaining
-    cactus_call(parameters=['cactus_chain'] + local_alignment_files, outfile=output_alignments_file)
+    for i in alignment_files:
+        i = job.fileStore.readGlobalFile(i)  # Copy the global alignment file locally
+        j = job.fileStore.getLocalTempFile()  # Get a temporary file to store the chained output in
+        messages = cactus_call(parameters=['paf_chain', "-i", i,
+                                "--maxGapLength", params.find("blast").attrib["chainMaxGapLength"],
+                                "--chainGapOpen", params.find("blast").attrib["chainGapOpen"],
+                                "--chainGapExtend", params.find("blast").attrib["chainGapExtend"],
+                                "--trimFraction", params.find("blast").attrib["chainTrimFraction"],
+                                "--logLevel", getLogLevelString()], outfile=j, returnStdErr=True)
+        job.fileStore.logToMaster("paf_chain {}\n{}".format(reference_event_name, messages[:-1]))  # Log paf_chain messages
+        cactus_call(parameters=['cat', j], outfile=chained_alignment_file, outappend=True)
+        cactus_call(parameters=['paf_invert', "-i", j], outfile=chained_alignment_file, outappend=True)  # Not bothering to log this one
+
+    # Now tile
+    messages = cactus_call(parameters=['paf_tile', "-i", chained_alignment_file, "--logLevel", getLogLevelString()],
+                           outfile=output_alignments_file, returnStdErr=True)
+    job.fileStore.logToMaster("paf_tile event:{}\n{}".format(reference_event_name, messages[:-1]))  # Log paf_tile messages
 
     # Cleanup the old alignment files
     for i in alignment_files:
@@ -151,4 +170,4 @@ def make_paf_alignments(job, event_tree_string, event_names_to_sequences, ancest
             alignments.append(alignment)
 
     # Now do the chaining
-    return root_job.addFollowOnJobFn(chain_alignments, alignments).rv()
+    return root_job.addFollowOnJobFn(chain_alignments, alignments, ancestor_event_string, params).rv()

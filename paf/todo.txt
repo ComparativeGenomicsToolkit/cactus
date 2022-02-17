@@ -10,7 +10,7 @@ This set of changes will bring about the following:
 
 Minimap2 script (develop script to run minimap2 to align closely related genomic sequences)
 
-Convert Cactus to use PAF [partly done]
+Convert Cactus to use PAF [DONE]
 
 Write a PAF library [DONE]
 

@@ -10,7 +10,7 @@ stPafLibs = ${LDLIBS}
 
 all: all_libs all_progs
 all_libs: ${LIBDIR}/stPaf.a
-all_progs: all_libs ${BINDIR}/stPafTests ${BINDIR}/paf_chain ${BINDIR}/paf_invert ${BINDIR}/paf_tile ${BINDIR}/paf_trim ${BINDIR}/paf_shatter ${BINDIR}/paf_view ${BINDIR}/fasta_chunk ${BINDIR}/paf_dechunk ${BINDIR}/cactus_chain ${BINDIR}/cactus_local_alignment.py
+all_progs: all_libs ${BINDIR}/stPafTests ${BINDIR}/paf_chain ${BINDIR}/paf_invert ${BINDIR}/paf_tile ${BINDIR}/paf_trim ${BINDIR}/paf_shatter ${BINDIR}/paf_view ${BINDIR}/fasta_chunk ${BINDIR}/paf_dechunk ${BINDIR}/cactus_local_alignment.py
 
 ${LIBDIR}/stPaf.a : ${libSources} ${libHeaders}  ${stPafDependencies}
 	${CC} ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} -c ${libSources}
@@ -20,9 +20,6 @@ ${LIBDIR}/stPaf.a : ${libSources} ${libHeaders}  ${stPafDependencies}
 
 ${BINDIR}/cactus_local_alignment.py : cactus_local_alignment.py
 	ln -f cactus_local_alignment.py ${BINDIR}/cactus_local_alignment.py
-
-${BINDIR}/cactus_chain : cactus_chain
-	ln -f cactus_chain ${BINDIR}/cactus_chain
 
 ${BINDIR}/fasta_chunk : fasta_chunk.c ${LIBDEPENDS} ${commonPafLibs} ${libSources} ${libHeaders}
 	${CC} ${CPPFLAGS} ${CFLAGS} -o ${BINDIR}/fasta_chunk fasta_chunk.c ${libSources} ${commonPafLibs} ${LDLIBS}
@@ -53,4 +50,4 @@ ${BINDIR}/stPafTests : ${libTests} ${LIBDIR}/stPaf.a ${stPafDependencies}
 
 clean : 
 	rm -f *.o
-	rm -f ${LIBDIR}/stPaf.a ${BINDIR}/stPafTests ${BINDIR}/paf_chain ${BINDIR}/paf_invert ${BINDIR}/paf_tile ${BINDIR}/paf_trim ${BINDIR}/paf_shatter ${BINDIR}/paf_view ${BINDIR}/fasta_chunk ${BINDIR}/paf_dechunk ${BINDIR}/cactus_chain ${BINDIR}/cactus_local_alignment.py
+	rm -f ${LIBDIR}/stPaf.a ${BINDIR}/stPafTests ${BINDIR}/paf_chain ${BINDIR}/paf_invert ${BINDIR}/paf_tile ${BINDIR}/paf_trim ${BINDIR}/paf_shatter ${BINDIR}/paf_view ${BINDIR}/fasta_chunk ${BINDIR}/paf_dechunk ${BINDIR}/cactus_local_alignment.py

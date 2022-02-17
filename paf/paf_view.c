@@ -1,5 +1,5 @@
 /*
- * paf_shatter: Break up paf alignments into individual matches
+ * paf_view: Pretty print pafs
  *
  *  Released under the MIT license, see LICENSE.txt
  *

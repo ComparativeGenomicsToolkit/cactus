@@ -17,8 +17,8 @@
 
 static int64_t max_gap_length = 1000000;
 static float percentage_to_trim = 0.02;
-static int64_t chain_gap_open = 400;
-static int64_t chain_gap_extend = 10;
+static int64_t chain_gap_open = 5000;
+static int64_t chain_gap_extend = 1;
 
 void usage() {
     fprintf(stderr, "paf_chain [options], version 0.1\n");
@@ -155,4 +155,3 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
-
