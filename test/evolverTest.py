@@ -228,17 +228,9 @@ class TestCase(unittest.TestCase):
         subprocess.check_call(['cactus-preprocess', self._job_store(binariesMode), seq_file_path, out_seq_file_path, '--maskAlpha'] + cactus_opts)
 
         # make the reference graph
-        mg_cmd = ['minigraph', '-xggs', '-t', '4']
-        with open(seq_file_path, 'r') as seq_file:
-            for line in seq_file:
-                toks = line.strip().split()
-                if len(toks) == 2:
-                    name = os.path.basename(toks[1])
-                    subprocess.check_call(['wget', toks[1]], cwd=self.tempDir)
-                    mg_cmd += [os.path.join(self.tempDir, name)]
         mg_path = os.path.join(self.tempDir, 'refgraph.gfa')
-        with open(mg_path, 'w') as mg_file:
-            subprocess.check_call(mg_cmd, stdout=mg_file)
+        mg_cmd = ['cactus-minigraph', self._job_store(binariesMode), seq_file_path, mg_path, '--reference', 'simChimp'] + cactus_opts
+        subprocess.check_call(mg_cmd)
 
         # do the mapping
         paf_path = os.path.join(self.tempDir, 'aln.paf')
@@ -274,20 +266,20 @@ class TestCase(unittest.TestCase):
         cactus_opts = ['--binariesMode', binariesMode, '--logInfo', '--realTimeLogging', '--workDir', self.tempDir, '--configFile', config_path, '--maxCores', '8']
         subprocess.check_call(['cactus-preprocess', self._job_store(binariesMode),
                                orig_seq_file_path, seq_file_path, '--maskAlpha', '--minLen', '20000'] + cactus_opts, shell=False)
-                               
-        # build the minigraph
-        mg_cmd = ['minigraph', '-xggs', '-t', '4']
+
+        # fish out the event names
         events = []
         with open(seq_file_path, 'r') as seq_file:
             for line in seq_file:
                 toks = line.strip().split()
                 if len(toks) == 2:
-                    mg_cmd += [toks[1]]
                     events.append(toks[0])
-        mg_path = os.path.join(self.tempDir, 'yeast.gfa')
-        with open(mg_path, 'w') as mg_file:
-            subprocess.check_call(mg_cmd, stdout=mg_file)
         
+        # build the minigraph
+        mg_path = os.path.join(self.tempDir, 'yeast.gfa.gz')
+        mg_cmd = ['cactus-minigraph', self._job_store(binariesMode), seq_file_path, mg_path, '--reference', 'S288C'] + cactus_opts
+        subprocess.check_call(mg_cmd)
+                
         # run graphmap in base mode
         paf_path = os.path.join(self.tempDir, 'yeast.paf')
         fa_path = os.path.join(self.tempDir, 'yeast.gfa.fa')        
