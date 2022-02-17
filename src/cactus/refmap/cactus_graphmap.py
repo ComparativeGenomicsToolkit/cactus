@@ -127,6 +127,10 @@ def graph_map(options):
             # apply cpu override
             if options.mapCores is not None:
                 findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(options.mapCores)
+            mg_cores = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "cpu", typeFn=int, default=1)
+            if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
+                mg_cores = min(mg_cores, cpu_count())
+                findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(mg_cores)
 
             if graph_event in event_set:
                 # dont need to import this
@@ -233,7 +237,6 @@ def minigraph_workflow(job, options, config, seq_path_map, seq_id_map, gfa_id, g
     if del_filter > 0:
         del_filter_threshold = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "delFilterThreshold", float, default=None)
         mg_cores = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "cpu", typeFn=int, default=1)
-        mg_cores = min(mg_cores, cpu_count())
         del_filter_job = prev_job.addFollowOnJobFn(filter_paf_deletions, out_paf_id, gfa_id, options.minigraphGFA, del_filter, del_filter_threshold,
                                                    disk=gfa_id.size * 12, cores=mg_cores)
         unfiltered_paf_id = out_paf_id
@@ -271,7 +274,6 @@ def minigraph_map_all(job, config, gfa_id, fa_path_map, fa_id_map, graph_event, 
     job.addChild(top_job)
 
     mg_cores = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "cpu", typeFn=int, default=1)
-    mg_cores = min(mg_cores, cpu_count())
 
     # doing the paf conversion is more efficient when done separately for each genome.  we can get away
     # with doing this if the universal filter (which needs to process everything at once) is disabled
@@ -470,7 +472,6 @@ def minigraph_base_align(job, config, event, fa_path, fa_id, gfa_id, gfa_fa_id, 
 
     # use same cores as minigraph
     mg_cores = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "cpu", typeFn=int, default=1)
-    mg_cores = min(mg_cores, cpu_count())
 
     # run cactus
     align_job = job.addChildJobFn(cactus_align, config, mc_tree, input_seq_map, input_seq_id_map, paf_id, graph_event, og_map, None, False, False, cons_cores=mg_cores)

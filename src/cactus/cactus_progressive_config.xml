@@ -245,6 +245,8 @@
 	</hal>
 	<!-- cactus-graphmap options -->
 	<!-- assemblyName: special name of "virtual" minigraph assembly, which is just the list of sequences from the graph. -->
+	<!-- minigraphMapOptions: flags to pass to minigraph for mapping -->
+	<!-- minigraphConstructOptions: flags to pass to minigraph for construction -->
 	<!-- universalMZFilter: only use minimizers who appear in this proportion (1.0 == 100%) of sequences that map over them. -->
 	<!-- nodeBasedUniversal: universal filter calculated in terms of nodes istead of mapped regions. -->
 	<!-- minMZBlockLength: only use minimizers that form contiguous blocks at least this long -->
@@ -262,6 +264,7 @@
 	<graphmap
 		 assemblyName="_MINIGRAPH_"
 		 minigraphMapOptions="-S --write-mz -xasm"
+		 minigraphConstructOptions="-xggs"
 		 universalMZFilter="0"
 		 nodeBasedUniversal="0"
 		 strictUniversal="0"
