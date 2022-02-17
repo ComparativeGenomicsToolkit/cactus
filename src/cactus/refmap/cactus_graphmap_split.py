@@ -435,6 +435,9 @@ def export_split_data(toil, input_seq_id_map, output_id_map, split_log_id, conti
     contig_size_table_path = os.path.join(output_dir, 'contig_sizes.tsv')
     toil.exportFile(contig_size_table_id, contig_size_table_path)
 
+    # export the log
+    toil.exportFile(split_log_id, makeURL(os.path.join(output_dir, 'minigraph.split.log')))
+
     for ref_contig in output_id_map.keys():
         if output_id_map[ref_contig] is None:
             # todo: check ambigous?
@@ -502,8 +505,6 @@ def export_split_data(toil, input_seq_id_map, output_id_map, split_log_id, conti
                 chromfile.write('{}\t{}\t{}\n'.format(ref_contig, seqfile, paf))
     if chrom_file_path.startswith('s3://'):
         write_s3(chrom_file_temp_path, chrom_file_path)
-
-    toil.exportFile(split_log_id, makeURL(os.path.join(output_dir, 'minigraph.split.log')))
         
 if __name__ == "__main__":
     main()
