@@ -12,53 +12,37 @@ set -x
 working_dir=$(mktemp -d -t temp_chains-XXXXXXXXXX)
 # Make sure we cleanup the temp dir
 trap "rm -rf ${working_dir}" EXIT
+# and the jobStore
+trap "rm -rf ./jobStore" EXIT
 
 # Parameters for the the alignment is passed in as an argument
 params_file=$1
 echo "Parameters file" $params_file
 
-# The tree
-tree='((a:0.5,b:0.5)anc1:0.3,c:0.5)anc0:0.1;'
-ingroup_tree='(a:0.5,b:0.5)anc1;'
-# Outgroup
-outgroups="c"
+# Example file to use with cactus_prepare
+example_file=$2
+echo "Example file" $example_file
 
-if [ "$2" = "cow-dog" ]; then
-  # Cow dow
-  sequences="a ${working_dir}/simCow.chr6 b ${working_dir}/simDog.chr6 c ${working_dir}/simHuman.chr6"
-  sequence_files="${working_dir}/simCow.chr6 ${working_dir}/simDog.chr6 ${working_dir}/simHuman.chr6"
-  sequenceNames="simCow.chr6 simDog.chr6 simHuman.chr6"
-  ingroupSequenceNames="simCow.chr6 simDog.chr6"
-else
-  # Human mouse
-  sequences="a ${working_dir}/simMouse.chr6 b ${working_dir}/simHuman.chr6 c ${working_dir}/simDog.chr6"
-  sequence_files="${working_dir}/simMouse.chr6 ${working_dir}/simHuman.chr6 ${working_dir}/simDog.chr6"
-  sequenceNames="simMouse.chr6 simHuman.chr6 simDog.chr6"
-  ingroupSequenceNames="simMouse.chr6 simHuman.chr6"
-fi
+# Ingroup sequence names (hard coded)
+ingroupSequenceNames="simMouse.chr6 simHuman.chr6"
 
-# Get the sequence files
-for i in ${sequenceNames}
-do
-wget https://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/mammals/loci1/${i} -O ${working_dir}/${i}
-done
+# Run cactus prepare
+cactus-prepare ${example_file}  --outDir ${working_dir}
 
-# Generate the paf alignments
-cactus_local_alignment.py ./jobStore --logLevel INFO --outputFile ${working_dir}/output.paf "${sequences}" --params $params_file --speciesTree "${tree}" --referenceEvent anc1
+# Switch example file to relative path
+base_example_file=`basename ${example_file}`
 
-# Split the alignment into primary and secondary
-cp ${working_dir}/output.paf ./output_ugly.paf
-grep "tl:i:1" ${working_dir}/output.paf > ${working_dir}/primary.paf || true
-grep -v "tl:i:1" ${working_dir}/output.paf > ${working_dir}/secondary.paf || true
+## Preprocessor
+cactus-preprocess ./jobstore/0 ./${example_file} ${working_dir}/${base_example_file} --inputNames c a b --realTimeLogging --logInfo --retryCount 0
 
-# Run consolidate
-cactus_consolidated --logLevel INFO --outputFile ${working_dir}/output.c2h --params $params_file --alignments ${working_dir}/primary.paf --secondaryAlignments ${working_dir}/secondary.paf  --sequences "${sequences}" --speciesTree "${tree}" --outgroupEvents "${outgroups}" --referenceEvent anc1 --outputHalFastaFile ${working_dir}/output.fasta
+## Generate the paf file
+cactus-blast ./jobstore/1 ${working_dir}/${base_example_file} ${working_dir}/anc1.paf --root anc1 --realTimeLogging --logInfo --retryCount 0
 
-# Generate the hal file
-halAppendCactusSubtree ${working_dir}/output.c2h ${working_dir}/output.fasta "${ingroup_tree}" ${working_dir}/output.hal --outgroups "${outgroups}"
+# Run the cactus step
+cactus-align ./jobstore/2 ${working_dir}/${base_example_file} ${working_dir}/anc1.paf ${working_dir}/anc1.hal --root anc1 --realTimeLogging --logInfo --retryCount 0 --maxCores 2
 
 # Now generate the maf
-hal2maf ${working_dir}/output.hal ${working_dir}/output.maf --onlySequenceNames
+hal2maf ${working_dir}/anc1.hal ${working_dir}/output.maf --onlySequenceNames
 
 # Get the true alignment
 wget -q https://raw.githubusercontent.com/UCSantaCruzComputationalGenomicsLab/cactusTestData/master/evolver/mammals/loci1/all.maf -O ${working_dir}/mammals-truth.maf
@@ -75,4 +59,4 @@ done
 grep "singleHomologyTest" -A 2 ${working_dir}/maf_comparison.xml | grep "all"
 
 # Report number of PAFs
-wc -l ${working_dir}/output.paf
+wc -l ${working_dir}/anc1.paf

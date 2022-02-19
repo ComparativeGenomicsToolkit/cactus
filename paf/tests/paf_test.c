@@ -8,6 +8,7 @@
 
 static char *test_paf_file = "./paf/tests/human_chimp.paf";
 static char *params_file = "./src/cactus/cactus_progressive_config.xml";
+static char *example_file = "./paf/tests/paf_align_test.txt";
 
 static void test_paf(CuTest *testCase) {
     // Read the pafs from the test file
@@ -47,28 +48,21 @@ static void test_paf(CuTest *testCase) {
     }
 }
 
-static void test_paf_align_cow_dog(CuTest *testCase) {
-    // Run a complete alignment and compare to the true alignment
-    st_system("./paf/tests/pair_align_test.sh %s cow-dog\n", params_file);
-    // todo capture output and test it
-}
-
 static void test_paf_align_human_mouse(CuTest *testCase) {
     // Run a complete alignment and compare to the true alignment
-    st_system("./paf/tests/pair_align_test.sh %s human-mouse\n", params_file);
+    st_system("./paf/tests/pair_align_test.sh %s %s\n", params_file, example_file);
     // todo capture output and test it
 }
 
 static void test_paf_tools(CuTest *testCase) {
     // Run the different paf tools and check they don't screw anything up
-    st_system("./paf/tests/paf_tools_test.sh %s\n", params_file);
+    st_system("./paf/tests/paf_tools_test.sh %s %s\n", params_file);
     // todo capture output and test it
 }
 
 CuSuite* addPafTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, test_paf);
-    SUITE_ADD_TEST(suite, test_paf_align_cow_dog);
     SUITE_ADD_TEST(suite, test_paf_align_human_mouse);
     SUITE_ADD_TEST(suite, test_paf_tools);
     return suite;
