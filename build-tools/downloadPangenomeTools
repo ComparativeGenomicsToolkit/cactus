@@ -59,7 +59,7 @@ fi
 cd ${pangenomeBuildDir}
 git clone https://github.com/lh3/minigraph.git
 pushd minigraph
-git checkout 7bdfc6aed2857807d901d910134b86b947b5b087
+git checkout 47829dff05e7a98fde575f644d71d7c4c430ebbe
 # hack in flags support
 sed -i Makefile -e 's/CFLAGS=/CFLAGS+=/'
 make -j ${numcpu}
