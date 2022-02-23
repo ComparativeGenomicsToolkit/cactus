@@ -464,7 +464,24 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
                                       abpoa_para_t *poa_parameters) {
 
     assert(seq_no > 0);
-        
+
+    // only one input sequence: no point sending into abpoa; just return it instead
+    // (note: current version of abpoa will crash in progressive mode on one sequence)
+    // todo: can we filter this out at higher level?
+    if (seq_no == 1) {
+        Msa *msa = st_malloc(sizeof(Msa));
+        msa->seq_no = seq_no;
+        msa->seqs = seqs;
+        msa->seq_lens = seq_lens;
+        msa->column_no = seq_lens[0];
+        msa->msa_seq = st_malloc(sizeof(uint8_t*));
+        msa->msa_seq[0] = st_malloc(msa->column_no * sizeof(uint8_t));
+        for (int64_t i = 0; i < msa->column_no; ++i) {
+            msa->msa_seq[0][i] = msa_to_byte(msa->seqs[0][i]);
+        }
+        return msa;
+    }
+    
     // we overlap the sliding window, and use the trimming logic to find the best cut point between consecutive windows
     // todo: cli-facing parameter
     float window_overlap_frac = 0.5;
@@ -624,7 +641,7 @@ Msa *msa_make_partial_order_alignment(char **seqs, int *seq_lens, int64_t seq_no
         for (int64_t i = 0; i < msa->seq_no; ++i) {
             //////////////////////////////////////////////////////////////////////////////////////
             // todo: why is this hack necessary?  using it in order for trim to work properly   //
-            // after abpoa switched to weirdo 256-byte values  (nst_nt256_table)                //
+            // after abpoa switched to weirdo 256-bit values  (nst_nt256_table)                //
             for (int64_t j = 0; j < msa->column_no; ++j) {
                 msa->msa_seq[i][j] = msa_to_byte(msa_to_base(msa->msa_seq[i][j]));
             }
