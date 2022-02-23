@@ -62,7 +62,7 @@ def main():
     parser.add_argument("--xgReference", type=str, help = "Produce additonal XG that also includes given reference event (as copied from the GBWT)")
     parser.add_argument("--rename", nargs='+', default = [], help = "Path renaming, each of form src>dest (see clip-vg -r)")
     parser.add_argument("--clipLength", type=int, default=None, help = "clip out unaligned sequences longer than this")
-    parser.add_argument("--clipBed", nargs='+', help = "BED file(s) (ie from cactus-preprocess) of regions to clip")
+    parser.add_argument("--clipBed", nargs='+', default = [], help = "BED file(s) (ie from cactus-preprocess) of regions to clip")
     parser.add_argument("--wlineSep", type=str, help = "wline separator for vg convert")
     parser.add_argument("--indexCores", type=int, default=1, help = "cores for general indexing and VCF constructions")
     parser.add_argument("--giraffeCores", type=int, default=None, help = "cores for giraffe-specific indexing (defaults to --indexCores)")
@@ -180,7 +180,7 @@ def graphmap_join(options):
             wf_output = toil.start(Job.wrapJobFn(graphmap_join_workflow, options, config, vg_ids, hal_ids, unclip_seq_id_map, bed_ids))
                 
         #export the split data
-        export_join_data(toil, options, wf_output[0], wf_output[1])
+        export_join_data(toil, options, wf_output[0], wf_output[1], wf_output[2])
 
 def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, unclip_seq_id_map, bed_ids):
 
@@ -194,6 +194,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, unclip_seq_id_
         
     # run clip-vg on each input
     clipped_vg_ids = []
+    clipped_bed_ids = []
     for vg_path, vg_id in zip(options.vg, vg_ids):
         clip_job = Job.wrapJobFn(clip_vg, options, config, vg_path, vg_id, bed_id,
                                  disk=vg_id.size * 2, memory=vg_id.size * 4)
@@ -201,7 +202,8 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, unclip_seq_id_
             bed_cat_job.addFollowOn(clip_job)
         else:
             root_job.addChild(clip_job)
-        clipped_vg_ids.append(clip_job.rv())
+        clipped_vg_ids.append(clip_job.rv(0))
+        clipped_bed_ids.append(clip_job.rv(1))
     
     # join the ids
     if not options.preserveIDs:
@@ -287,7 +289,7 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, unclip_seq_id_
 
         out_dicts.append(hal_id_dict)
     
-    return clipped_vg_ids, out_dicts
+    return clipped_vg_ids, clipped_bed_ids, out_dicts
 
 def clip_vg(job, options, config, vg_path, vg_id, bed_id):
     """ run clip-vg 
@@ -302,6 +304,7 @@ def clip_vg(job, options, config, vg_path, vg_id, bed_id):
 
     clipped_path = vg_path + '.clip'
     out_path = vg_path + '.out'
+    clipped_bed_path = vg_path + '.clip.bed'
 
     # remove masked unaligned regions with clip-vg
     cmd = ['clip-vg', vg_path, '-f']
@@ -313,6 +316,7 @@ def clip_vg(job, options, config, vg_path, vg_id, bed_id):
         cmd += ['-e', options.reference]
     if bed_id and not is_decoy:
         cmd += ['-b', bed_path]
+    cmd += ['-o', clipped_bed_path]
 
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "hal2vg"), "includeMinigraph", typeFn=bool, default=False):
         # our vg file has minigraph sequences -- we'll filter them out, along with any nodes
@@ -368,7 +372,7 @@ def clip_vg(job, options, config, vg_path, vg_id, bed_id):
     # worth it
     cactus_call(parameters=['vg', 'validate', out_path])
 
-    return job.fileStore.writeGlobalFile(out_path)
+    return job.fileStore.writeGlobalFile(out_path), job.fileStore.writeGlobalFile(clipped_bed_path)
 
 def vg_clip_vg(job , options, config, vg_path, vg_id):
     """ run vg clip, chaining multiple invocations if desired.
@@ -621,7 +625,7 @@ def cat_bed_files(job, bed_ids):
             ofile.write(line)    
     return job.fileStore.writeGlobalFile(renamed_bed_path)
     
-def export_join_data(toil, options, clip_ids, idx_maps):
+def export_join_data(toil, options, clip_ids, clip_bed_ids, idx_maps):
     """ download all the output data
     """
 
@@ -630,8 +634,10 @@ def export_join_data(toil, options, clip_ids, idx_maps):
     if not clip_base.startswith('s3://') and not os.path.isdir(clip_base):
         os.makedirs(clip_base)
 
-    for vg_path, vg_id in zip(options.vg, clip_ids):
+    assert len(clip_bed_ids) == len(clip_ids)
+    for vg_path, vg_id, bed_id in zip(options.vg, clip_ids, clip_bed_ids):
         toil.exportFile(vg_id, makeURL(os.path.join(clip_base, os.path.basename(vg_path))))
+        toil.exportFile(bed_id, makeURL(os.path.join(clip_base, os.path.basename(vg_path) + '.clip.bed')))
 
     # download everything else
     for idx_map in idx_maps:
