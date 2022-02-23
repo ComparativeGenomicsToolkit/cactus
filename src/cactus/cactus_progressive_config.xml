@@ -274,7 +274,7 @@
 		 minGAFNodeLength="0"
 		 minGAFQueryOverlapFilter="10000"
 		 maskFilter="-1"
-		 delFilter="-1"
+		 delFilter="10000000"
 		 delFilterThreshold="0.01"
 		 removeMinigraphFromPAF="0"
 		 cpu="6"
