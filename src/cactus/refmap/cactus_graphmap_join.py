@@ -62,6 +62,7 @@ def main():
     parser.add_argument("--xgReference", type=str, help = "Produce additonal XG that also includes given reference event (as copied from the GBWT)")
     parser.add_argument("--rename", nargs='+', default = [], help = "Path renaming, each of form src>dest (see clip-vg -r)")
     parser.add_argument("--clipLength", type=int, default=None, help = "clip out unaligned sequences longer than this")
+    parser.add_argument("--clipBed", nargs='+', help = "BED file(s) (ie from cactus-preprocess) of regions to clip")
     parser.add_argument("--wlineSep", type=str, help = "wline separator for vg convert")
     parser.add_argument("--indexCores", type=int, default=1, help = "cores for general indexing and VCF constructions")
     parser.add_argument("--giraffeCores", type=int, default=None, help = "cores for giraffe-specific indexing (defaults to --indexCores)")
@@ -114,12 +115,12 @@ def main():
     cactus_override_toil_options(options)
 
     start_time = timeit.default_timer()
-    runCactusGraphMapJoin(options)
+    graphmap_join(options)
     end_time = timeit.default_timer()
     run_time = end_time - start_time
     logger.info("cactus-graphmap-join has finished after {} seconds".format(run_time))
 
-def runCactusGraphMapJoin(options):
+def graphmap_join(options):
     with Toil(options) as toil:
         importSingularityImage(options)
         #Run the workflow
@@ -133,6 +134,13 @@ def runCactusGraphMapJoin(options):
             config = ConfigWrapper(configNode)
             config.substituteAllPredefinedConstantsWithLiterals()
 
+            # load up the beds
+            bed_ids = []
+            if options.clipBed:
+                logger.info("Importing BED files")
+            for bed_path in options.clipBed:
+                bed_ids.append(toil.importFile(makeURL(bed_path)))
+                
             # load up the vgs
             vg_ids = []
             for vg_path in options.vg:
@@ -169,21 +177,30 @@ def runCactusGraphMapJoin(options):
                         unclip_seq_id_map[genome] = (seq, toil.importFile(seq))
 
             # run the workflow
-            wf_output = toil.start(Job.wrapJobFn(graphmap_join_workflow, options, config, vg_ids, hal_ids, unclip_seq_id_map))
+            wf_output = toil.start(Job.wrapJobFn(graphmap_join_workflow, options, config, vg_ids, hal_ids, unclip_seq_id_map, bed_ids))
                 
         #export the split data
         export_join_data(toil, options, wf_output[0], wf_output[1])
 
-def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, unclip_seq_id_map):
+def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, unclip_seq_id_map, bed_ids):
 
     root_job = Job()
     job.addChild(root_job)
 
+    # concat the bed_files
+    if bed_ids:
+        bed_cat_job = root_job.addChildJobFn(cat_bed_files, bed_ids)
+    bed_id = bed_cat_job.rv() if bed_ids else None
+        
     # run clip-vg on each input
     clipped_vg_ids = []
     for vg_path, vg_id in zip(options.vg, vg_ids):
-        clip_job = root_job.addChildJobFn(clip_vg, options, config, vg_path, vg_id,
-                                          disk=vg_id.size * 2, memory=vg_id.size * 4)
+        clip_job = Job.wrapJobFn(clip_vg, options, config, vg_path, vg_id, bed_id,
+                                 disk=vg_id.size * 2, memory=vg_id.size * 4)
+        if bed_id:
+            bed_cat_job.addFollowOn(clip_job)
+        else:
+            root_job.addChild(clip_job)
         clipped_vg_ids.append(clip_job.rv())
     
     # join the ids
@@ -272,13 +289,17 @@ def graphmap_join_workflow(job, options, config, vg_ids, hal_ids, unclip_seq_id_
     
     return clipped_vg_ids, out_dicts
 
-def clip_vg(job, options, config, vg_path, vg_id):
+def clip_vg(job, options, config, vg_path, vg_id, bed_id):
     """ run clip-vg 
     """
     work_dir = job.fileStore.getLocalTempDir()
     is_decoy = vg_path == options.decoyGraph
     vg_path = os.path.join(work_dir, os.path.basename(vg_path))
     job.fileStore.readGlobalFile(vg_id, vg_path)
+    bed_path = os.path.join(work_dir, 'clip-bed.bed')
+    if bed_id:
+        job.fileStore.readGlobalFile(bed_id, bed_path)
+
     clipped_path = vg_path + '.clip'
     out_path = vg_path + '.out'
 
@@ -290,6 +311,8 @@ def clip_vg(job, options, config, vg_path, vg_id):
         cmd += ['-r', rs]
     if options.reference:
         cmd += ['-e', options.reference]
+    if bed_id and not is_decoy:
+        cmd += ['-b', bed_path]
 
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "hal2vg"), "includeMinigraph", typeFn=bool, default=False):
         # our vg file has minigraph sequences -- we'll filter them out, along with any nodes
@@ -578,6 +601,26 @@ def unclip_hal(job, hal_id_dict, seq_id_map):
 
     return { 'hal' : job.fileStore.writeGlobalFile(out_hal_path) }
 
+def cat_bed_files(job, bed_ids):
+    bed_paths = [job.fileStore.readGlobalFile(bed_id) for bed_id in bed_ids]
+    cat_bed_path = job.fileStore.getLocalTempFile()
+    catFiles(bed_paths, cat_bed_path)
+    renamed_bed_path = cat_bed_path + '.renamed'
+    # cactus-preprocess will make a bed like "ID=SAMPLE.1|CONTIG"
+    # but by the name its been through cactus/hal it'll be SAMPLE.1.CONTIG
+    # so we need to make the same transformation in the bed
+    # if the id=| prefix is not present, it's up to the user to make sure it's consistent on input
+    with open(cat_bed_path, 'r') as ifile, open(renamed_bed_path, 'w') as ofile:
+        for line in ifile:
+            if line.startswith('ID='):
+                p = line.find('|')
+                if p > 3:
+                    sample = line[3:p]
+                    rest = line[p+1:]
+                    line = '{}.{}'.format(sample, rest)
+            ofile.write(line)    
+    return job.fileStore.writeGlobalFile(renamed_bed_path)
+    
 def export_join_data(toil, options, clip_ids, idx_maps):
     """ download all the output data
     """
