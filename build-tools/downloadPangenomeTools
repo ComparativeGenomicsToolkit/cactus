@@ -220,7 +220,9 @@ else
 fi
 # clip-vg
 cd ${pangenomeBuildDir}
-wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.16/clip-vg
+#todo: make release
+#wget -q https://github.com/ComparativeGenomicsToolkit/hal2vg/releases/download/v1.0.16/clip-vg
+wget -q http://public.gi.ucsc.edu/~hickey/clip-vg
 chmod +x clip-vg
 if [[ $STATIC_CHECK -ne 1 || $(ldd clip-vg | grep so | wc -l) -eq 0 ]]
 then
