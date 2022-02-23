@@ -337,7 +337,7 @@ class CactusPreprocessor2(RoundedJob):
 def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=False,
                   outputSequences = [], maskAlpha=False, clipAlpha=None,
                   maskFile=None, maskFileAction=None, minLength=None, inputEventNames=None, brnnCores=None,
-                  gpu_override=False):
+                  gpu_override=False, skipMasking=False):
     #Replace any constants
     configNode = ET.parse(configFile).getroot()
     if not outputSequences:
@@ -367,6 +367,9 @@ def stageWorkflow(outputSequenceDir, configFile, inputSequences, toil, restart=F
     if minLength is not None:
         for node in configNode.findall("preprocessor"):
             node.attrib["minLength"] = minLength
+    if skipMasking:
+        ConfigWrapper(configNode).setPreprocessorActive("lastzRepeatMask", False)
+        ConfigWrapper(configNode).setPreprocessorActive("dna-brnn", False)        
     if not restart:
         inputSequenceIDs = []
         for seq in inputSequences:
@@ -417,6 +420,7 @@ def main():
     parser.add_argument("--outPaths", nargs='*', help='Space-separated list of output fasta paths (one for each inPath, used in place of --outSeqFile)')
     parser.add_argument("--maskAlpha", action='store_true', help='Use dna-brnn instead of lastz for repeatmasking')
     parser.add_argument("--clipAlpha", action='store_true', help='use dna-brnn instead of lastz for repeatmasking.  Also, clip sequence using given minimum length instead of softmasking')
+    parser.add_argument("--skipMasking", action='store_true', help='Do not do any masking with lastz nor dna-brnn (overriding confuration)')
     parser.add_argument("--ignore", nargs='*', help='Space-separate list of genomes from inSeqFile to ignore', default=[])
     parser.add_argument("--maskFile", type=str, help='Add masking from BED or PAF file to sequences, ignoring all other preprocessors')
     parser.add_argument("--maskAction", type=str, help='Action for --maskFile filter. One of {clip, softmask, hardmask}', default=None)
@@ -464,6 +468,8 @@ def main():
         raise RuntimeError('--maskAction must be used with --maskFile.  Only valid values are clip, hardmask and softmask')
     if options.maskFile and options.minLength is None:
         raise RuntimeError('--minLength must be used with --maskFile')
+    if options.skipMasking and (options.maskAlpha or options.clipAlpha or options.maskFile):
+        raise RuntimeError('None of [--maskAlpha, --clipAlpha, --maskFile] can be used with --skipMasking]')
     
     inSeqPaths = []
     outSeqPaths = []
@@ -536,7 +542,8 @@ def main():
                       minLength=options.minLength,
                       inputEventNames=inNames,
                       brnnCores=options.brnnCores,
-                      gpu_override=options.gpu)
+                      gpu_override=options.gpu,
+                      skipMasking=options.skipMasking)
 
 if __name__ == '__main__':
     main()
