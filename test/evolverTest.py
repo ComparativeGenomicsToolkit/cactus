@@ -254,11 +254,7 @@ class TestCase(unittest.TestCase):
         # also run dna brnn with softmasking
         orig_seq_file_path = './examples/yeastPangenome.txt'
         seq_file_path = os.path.join(self.tempDir, 'pp', os.path.basename(orig_seq_file_path))        
-        subprocess.check_call(['cactus-prepare',  orig_seq_file_path, '--outDir', os.path.join(self.tempDir, 'pp')])
-        seq_file_fix_path = seq_file_path + '.fix'
-        with open(seq_file_fix_path, 'w') as seq_file_fix_file:
-            subprocess.check_call(['grep', '-v', 'Anc', seq_file_path], stdout=seq_file_fix_file)
-        seq_file_path = seq_file_fix_path
+        subprocess.check_call(['cactus-prepare',  orig_seq_file_path, '--outDir', os.path.join(self.tempDir, 'pp'), '--seqFileOnly'])
         orig_config_path = 'src/cactus/cactus_progressive_config.xml'
         config_path = os.path.join(self.tempDir, 'config.xml')
         subprocess.check_call('cat {} | sed -e \'s/cutBefore=""/cutBefore="."/g\' | grep -v lastzRepeatMask > {}'.format(
