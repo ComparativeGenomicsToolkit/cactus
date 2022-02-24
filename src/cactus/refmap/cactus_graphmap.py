@@ -204,8 +204,10 @@ def minigraph_workflow(job, options, config, seq_path_map, seq_id_map, gfa_id, g
         fa_job = root_job.addChildJobFn(make_minigraph_fasta, gfa_id, options.outputFasta, graph_event)
         fa_id = fa_job.rv()
 
+    fa_path = options.outputFasta if options.outputFasta else seq_path_map[graph_event]
+    
     paf_job = Job.wrapJobFn(minigraph_map_all, config, gfa_id, seq_path_map, seq_id_map, graph_event, options.outputGAFDir is not None,
-                            options.base, fa_id if options.base else None)
+                            options.base, fa_path, fa_id if options.base else None)
     if options.base:
         root_job.addFollowOn(paf_job)
     else:
@@ -266,7 +268,7 @@ def make_minigraph_fasta(job, gfa_file_id, gfa_fa_file_path, name):
 
     return job.fileStore.writeGlobalFile(fa_path)
     
-def minigraph_map_all(job, config, gfa_id, fa_path_map, fa_id_map, graph_event, keep_gaf, base_alignment, gfa_fa_id):
+def minigraph_map_all(job, config, gfa_id, fa_path_map, fa_id_map, graph_event, keep_gaf, base_alignment, gfa_fa_path, gfa_fa_id):
     """ top-level job to run the minigraph mapping in parallel, returns paf """
     
     # hang everything on this job, to self-contain workflow
@@ -292,7 +294,6 @@ def minigraph_map_all(job, config, gfa_id, fa_path_map, fa_id_map, graph_event, 
                                                   cores=mg_cores, disk=5*(fa_id.size + gfa_id.size))
         gaf_id_map[event] = minigraph_map_job.rv(0)
         if base_alignment:
-            gfa_fa_path = fa_path_map[graph_event]
             base_alignment_job = minigraph_map_job.addFollowOnJobFn(minigraph_base_align, config, event,
                                                                     fa_path, fa_id, gfa_fa_path, gfa_id, gfa_fa_id, graph_event, minigraph_map_job.rv(1))
             paf_id_map[event] = base_alignment_job.rv()

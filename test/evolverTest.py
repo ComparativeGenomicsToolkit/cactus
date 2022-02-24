@@ -330,6 +330,7 @@ class TestCase(unittest.TestCase):
         vcf_allele_threshold = 40000
         for event in events:
             allele = 0 if event == "S288C" else 1
+            event = event.split(".")[0]
             proc = subprocess.Popen('bcftools view {} -s {} -a -H | awk \'{{print $10}}\' | grep {} | wc -l'.format(vcf_path, event, allele),
                                     shell=True, stdout=subprocess.PIPE)
             output, errors = proc.communicate()
