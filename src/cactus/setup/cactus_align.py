@@ -434,6 +434,10 @@ def main_batch():
     # Mess with some toil options to create useful defaults.
     cactus_override_toil_options(options)
 
+    if options.outHal and not options.outHal.startswith('s3://'):
+        if not os.path.isdir(options.outHal):
+            os.makedirs(options.outHal)
+
     # Turn the overrides into a dict
     cores_overrides = {}
     if options.alignCoresOverrides:
@@ -467,6 +471,7 @@ def main_batch():
         # todo: make a more unified interface throughout cactus for this
         # (see toil-vg's outstore logic which, while not perfect, would be an improvement
         if not options.outHal.startswith('s3://'):
+            
             for chrom, results in results_dict.items():
                 toil.exportFile(results[0], makeURL(os.path.join(options.outHal, '{}.hal'.format(chrom))))
                 if results[1]:

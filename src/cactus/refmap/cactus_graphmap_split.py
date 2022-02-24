@@ -499,9 +499,6 @@ def export_split_data(toil, input_seq_id_map, output_id_map, split_log_id, conti
         for ref_contig, seqfile_paf in chrom_file_map.items():
             if ref_contig != amb_name:
                 seqfile, paf = seqfile_paf[0], seqfile_paf[1]
-                if seqfile.startswith('s3://'):
-                    # no use to have absolute s3 reference as cactus-align requires seqfiles passed locally
-                    seqfile = 'seqfiles/{}'.format(os.path.basename(seqfile))
                 chromfile.write('{}\t{}\t{}\n'.format(ref_contig, seqfile, paf))
     if chrom_file_path.startswith('s3://'):
         write_s3(chrom_file_temp_path, chrom_file_path)

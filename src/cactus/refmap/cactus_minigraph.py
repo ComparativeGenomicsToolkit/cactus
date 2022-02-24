@@ -4,7 +4,7 @@
 build a minigraph in Toil, using a cactus seqfile as input
 """
 
-import os
+import os, sys
 from argparse import ArgumentParser
 import xml.etree.ElementTree as ET
 import copy
@@ -90,7 +90,7 @@ def main():
                 findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(options.mapCores)
             mg_cores = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "cpu", typeFn=int, default=1)
             if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
-                mg_cores = min(mg_cores, cpu_count())
+                mg_cores = min(mg_cores, cpu_count(), int(options.maxCores) if options.maxCores else sys.maxsize)
                 findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(mg_cores)
             
             #import the sequences

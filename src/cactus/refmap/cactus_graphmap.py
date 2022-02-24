@@ -7,7 +7,7 @@
             by the rest of cactus)
 
 """
-import os
+import os, sys
 from argparse import ArgumentParser
 import xml.etree.ElementTree as ET
 import copy
@@ -129,7 +129,7 @@ def graph_map(options):
                 findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(options.mapCores)
             mg_cores = getOptionalAttrib(findRequiredNode(config_node, "graphmap"), "cpu", typeFn=int, default=1)
             if options.batchSystem.lower() in ['single_machine', 'singleMachine']:
-                mg_cores = min(mg_cores, cpu_count())
+                mg_cores = min(mg_cores, cpu_count(), int(options.maxCores) if options.maxCores else sys.maxsize)                
                 findRequiredNode(config_node, "graphmap").attrib["cpu"] = str(mg_cores)
 
             if graph_event in event_set:
@@ -215,7 +215,7 @@ def minigraph_workflow(job, options, config, seq_path_map, seq_id_map, gfa_id, g
         # extract a PAF directly from the rGFAs tag for the given reference
         # if --refFromGFA is specified, we get the entire alignment from that, otherwise we just take contigs
         # that didn't get mapped by anything else
-        gfa2paf_job = Job.wrapJobFn(extract_paf_from_gfa, gfa_id, options.minigraphGFA, options.reference, graph_event, paf_job.rv(0) if not options.refFromGFA else None,
+        gfa2paf_job = Job.wrapJobFn(extract_paf_from_gfa, gfa_id, options.minigraphGFA, None, graph_event, paf_job.rv(0) if not options.refFromGFA else None,
                                     disk=gfa_id.size * 12)
         if options.refFromGFA:
             root_job.addChild(gfa2paf_job)
@@ -292,8 +292,9 @@ def minigraph_map_all(job, config, gfa_id, fa_path_map, fa_id_map, graph_event, 
                                                   cores=mg_cores, disk=5*(fa_id.size + gfa_id.size))
         gaf_id_map[event] = minigraph_map_job.rv(0)
         if base_alignment:
+            gfa_fa_path = fa_path_map[graph_event]
             base_alignment_job = minigraph_map_job.addFollowOnJobFn(minigraph_base_align, config, event,
-                                                                    fa_path, fa_id, gfa_id, gfa_fa_id, graph_event, minigraph_map_job.rv(1))
+                                                                    fa_path, fa_id, gfa_fa_path, gfa_id, gfa_fa_id, graph_event, minigraph_map_job.rv(1))
             paf_id_map[event] = base_alignment_job.rv()
         else:
             paf_id_map[event] = minigraph_map_job.rv(1)
@@ -438,13 +439,15 @@ def extract_paf_from_gfa(job, gfa_id, gfa_path, ref_event, graph_event, ignore_p
         job.fileStore.readGlobalFile(ignore_paf_id, ignore_paf_path)
     # make the paf
     paf_path = job.fileStore.getLocalTempFile()
-    cmd = ['rgfa2paf', gfa_path, '-T', 'id={}|'.format(graph_event), '-P', 'id={}|'.format(ref_event)]
+    cmd = ['rgfa2paf', gfa_path, '-T', 'id={}|'.format(graph_event)]
+    if ref_event:
+        cmd += ['-P', 'id={}|'.format(ref_event)]
     if ignore_paf_id:
-        cmd += ['-i', ignore_paf_path]
+        cmd += ['-i', ignore_paf_path]        
     cactus_call(parameters=cmd, outfile=paf_path)
     return job.fileStore.writeGlobalFile(paf_path)
 
-def minigraph_base_align(job, config, event, fa_path, fa_id, gfa_id, gfa_fa_id, graph_event, paf_id):
+def minigraph_base_align(job, config, event, fa_path, fa_id, gfa_fa_path, gfa_id, gfa_fa_id, graph_event, paf_id):
     """ send the paf from map_one through cactus-align then hal2paf to get a paf with full base alignment
     """
     work_dir = job.fileStore.getLocalTempDir()
@@ -457,7 +460,7 @@ def minigraph_base_align(job, config, event, fa_path, fa_id, gfa_id, gfa_fa_id, 
     job.fileStore.readGlobalFile(fa_id, fa_path)
 
     # download the minigraph gfa fa (_MINIGRAPH_ sequences)
-    gfa_fa_path = os.path.join(work_dir, 'mg.gfa.fa')
+    gfa_fa_path = os.path.join(work_dir, os.path.basename(gfa_fa_path))
     job.fileStore.readGlobalFile(gfa_fa_id, gfa_fa_path)
 
     # put together input for cactus (pairwise)
@@ -466,7 +469,7 @@ def minigraph_base_align(job, config, event, fa_path, fa_id, gfa_id, gfa_fa_id, 
     mc_tree.nameUnlabeledInternalNodes(config.getDefaultInternalNodePrefix())
     mc_tree.computeSubtreeRoots()
 
-    input_seq_map = {event : fa_path, graph_event : 'mg.gfa.fa'}
+    input_seq_map = {event : fa_path, graph_event : gfa_fa_path}
     input_seq_id_map = {event : fa_id, graph_event : gfa_fa_id}
     og_map = {}
 
