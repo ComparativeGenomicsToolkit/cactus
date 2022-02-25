@@ -208,7 +208,7 @@
 			partialOrderAlignmentMinimizerK="19"
 			partialOrderAlignmentMinimizerW="10"
 			partialOrderAlignmentMinimizerMinW="50"
-			partialOrderAlignmentProgressiveMode="0"
+			partialOrderAlignmentProgressiveMode="1"
 		/>
 	</bar>
 
