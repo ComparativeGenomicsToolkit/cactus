@@ -447,7 +447,7 @@ The chromosome graphs can now be merged and indexed.  There will be a lot of una
 All sequences clipped out by `cactus-graphmap-join` will be saved in BED files in its output directory.
 
 ```
-cactus-graphmap-join aws:us-west-2:MYJOBSTORE --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/align-batch-grch38/${j}.vg; done) --hal $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/align-batch-grch38/${j}.hal; done) --outDir s3://MYBUCKET/join-grch38 --outName grch38-hprc --reference GRCh38 --vcf --giraffe --gfaffix  --wlineSep "." --clipLength 100000 --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.16xlarge --nodeStorage 1000 --maxNodes 1
+cactus-graphmap-join aws:us-west-2:MYJOBSTORE --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/align-batch-grch38/${j}.vg; done) --hal $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/align-batch-grch38/${j}.hal; done) --outDir s3://MYBUCKET/join-grch38 --outName grch38-hprc --reference GRCh38 --vcf --giraffe --gfaffix  --wlineSep "." --clipLength 100000 --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.16xlarge --nodeStorage 1000 --maxNodes 1 --indexCores 64
 ```
 
 To improve variant calling accuracy, it can help to filter out rare alleles.  A graph with the same ID space as created above but using a (very crude path-depth based) allele-frequency filter can be created as follows, by running `cactus-graphmap-join` on the output chromosome graphs of the above command (they will be in the `clip-grch38-hprc/` subdirectory) and specifying the `--preserveIDs` option. Note that we do not pass in the HALs as they are not modified by `cactus-graphmap-join` (only merged), so the output would be the same as above.  We do not make a VCF either, as it would be better to run an allele frequency filter directly on the VCF created above instead.  The resulting graph here is only useful for indexing for `vg giraffe`.
@@ -455,7 +455,7 @@ To improve variant calling accuracy, it can help to filter out rare alleles.  A 
 The allele frequency cutoff is specified using `--vgClipOpts "-d 9"` where `9` is the minimum coverage to keep a node (this is amounts to about 10% of alleles). This is a large cutoff but provides the best results (currently) for small variant calling with DeepVariant. 
 
 ```
-cactus-graphmap-join aws:us-west-2:MYJOBSTORE --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/join-grch38/clip-grch38-hprc/${j}.vg; done) --outDir s3://MYBUCKET/join-grch38 --outName grch38-hprc --reference GRCh38  --wlineSep "." --preserveIDs `--vgClipOpts "-d 9"` --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.16xlarge --nodeStorage 1000 --maxNodes 1
+cactus-graphmap-join aws:us-west-2:MYJOBSTORE --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/join-grch38/clip-grch38-hprc/${j}.vg; done) --outDir s3://MYBUCKET/join-grch38 --outName grch38-hprc --reference GRCh38  --wlineSep "." --preserveIDs `--vgClipOpts "-d 9"` --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.16xlarge --nodeStorage 1000 --maxNodes 1 --indexCores 64
 ```
 
 ### Changing the Reference
