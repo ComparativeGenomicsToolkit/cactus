@@ -62,6 +62,7 @@ def main():
     parser.add_argument("--xgReference", type=str, help = "Produce additonal XG that also includes given reference event (as copied from the GBWT)")
     parser.add_argument("--rename", nargs='+', default = [], help = "Path renaming, each of form src>dest (see clip-vg -r)")
     parser.add_argument("--clipLength", type=int, default=None, help = "clip out unaligned sequences longer than this")
+    parser.add_argument("--clipNonMinigraph", action="store_true", help = "apply --clipLength filter to stretches not aligned to minigraph")
     parser.add_argument("--clipBed", nargs='+', default = [], help = "BED file(s) (ie from cactus-preprocess) of regions to clip")
     parser.add_argument("--wlineSep", type=str, help = "wline separator for vg convert")
     parser.add_argument("--indexCores", type=int, default=1, help = "cores for general indexing and VCF constructions")
@@ -306,10 +307,14 @@ def clip_vg(job, options, config, vg_path, vg_id, bed_id):
     out_path = vg_path + '.out'
     clipped_bed_path = vg_path + '.clip.bed'
 
+    graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
+
     # remove masked unaligned regions with clip-vg
     cmd = ['clip-vg', vg_path, '-f']
     if options.clipLength is not None and not is_decoy:
         cmd += ['-u', str(options.clipLength)]
+    if options.clipNonMinigraph:
+        cmd += ['-a', graph_event]
     for rs in options.rename:
         cmd += ['-r', rs]
     if options.reference:
@@ -321,7 +326,6 @@ def clip_vg(job, options, config, vg_path, vg_id, bed_id):
     if getOptionalAttrib(findRequiredNode(config.xmlRoot, "hal2vg"), "includeMinigraph", typeFn=bool, default=False):
         # our vg file has minigraph sequences -- we'll filter them out, along with any nodes
         # that don't appear in a non-minigraph path
-        graph_event = getOptionalAttrib(findRequiredNode(config.xmlRoot, "graphmap"), "assemblyName", default="_MINIGRAPH_")
         cmd += ['-d', graph_event]
         
     cactus_call(parameters=cmd, outfile=clipped_path)

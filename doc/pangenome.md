@@ -88,7 +88,7 @@ cactus-align ./jobstore primates-pg/evolverPrimates.pg.txt primates-pg/primates.
 Finally, indexes for `vg giraffe` as well as a VCF file can be created.  **Important:** For the paths to be properly represented, the genomes need to be named in `SAMPLE.HAPLOTYPE` format as described above, and `--wlineSep .` must be passed.
 
 ```
-cactus-graphmap-join ./jobstore --vg primates-pg/primates.vg --outDir ./primates-pg --outName primates-pg --reference simChimp --vcf --giraffe --gfaffix  --wlineSep "."
+cactus-graphmap-join ./jobstore --vg primates-pg/primates.vg --outDir ./primates-pg --outName primates-pg --reference simChimp --vcf --giraffe --gfaffix  --wlineSep "." --realTimeLogging
 ```
 
 If it worked properly, the reference contigs, prefixed by the genome name and a "." will be in the xg, as well as P-lines in the GFA:
@@ -447,8 +447,10 @@ The chromosome graphs can now be merged and indexed.  There will be a lot of una
 All sequences clipped out by `cactus-graphmap-join` will be saved in BED files in its output directory.
 
 ```
-cactus-graphmap-join aws:us-west-2:MYJOBSTORE --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/align-batch-grch38/${j}.vg; done) --hal $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/align-batch-grch38/${j}.hal; done) --outDir s3://MYBUCKET/join-grch38 --outName grch38-hprc --reference GRCh38 --vcf --giraffe --gfaffix  --wlineSep "." --clipLength 100000 --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.16xlarge --nodeStorage 1000 --maxNodes 1 --indexCores 64 --realTimeLogging
+cactus-graphmap-join aws:us-west-2:MYJOBSTORE --vg $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/align-batch-grch38/${j}.vg; done) --hal $(for j in $(for i in `seq 22`; do echo chr$i; done ; echo "chrX chrY chrM chrOther"); do echo s3://MYBUCKET/align-batch-grch38/${j}.hal; done) --outDir s3://MYBUCKET/join-grch38 --outName grch38-hprc --reference GRCh38 --vcf --giraffe --gfaffix  --wlineSep "." --clipLength 100000 --batchSystem mesos --provisioner aws --defaultPreemptable --nodeType r5.16xlarge --nodeStorage 1000 --maxNodes 1 --indexCores 63 --realTimeLogging
 ```
+
+Note: `--indexCores` is set to 63 instead of 64 to allow bigger jobs to run concurrently with hal chromosome merging, which leads to better resource usage overall.
 
 To improve variant calling accuracy, it can help to filter out rare alleles.  A graph with the same ID space as created above but using a (very crude path-depth based) allele-frequency filter can be created as follows, by running `cactus-graphmap-join` on the output chromosome graphs of the above command (they will be in the `clip-grch38-hprc/` subdirectory) and specifying the `--preserveIDs` option. Note that we do not pass in the HALs as they are not modified by `cactus-graphmap-join` (only merged), so the output would be the same as above.  We do not make a VCF either, as it would be better to run an allele frequency filter directly on the VCF created above instead.  The resulting graph here is only useful for indexing for `vg giraffe`.
 
